@@ -2732,6 +2732,8 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   pAgg->mergeDataBlock =
       (forceNoMergeDataBlock(pCxt) || GROUP_ACTION_KEEP == pAggLogicNode->node.groupAction ? false : true);
   pAgg->groupKeyOptimized = pAggLogicNode->hasGroupKeyOptimized;
+  pAgg->hasMixedDistinct = pAggLogicNode->hasMixedDistinct;
+  pAgg->numDistinctFuncs = pAggLogicNode->numDistinctFuncs;
   pAgg->node.forceCreateNonBlockingOptr = pAggLogicNode->node.forceCreateNonBlockingOptr;
 
   SNodeList* pPrecalcExprs = NULL;
@@ -2754,6 +2756,13 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
     if (TSDB_CODE_SUCCESS == code) {
       code = pushdownDataBlockSlots(pCxt, pAgg->pExprs, pChildTupe);
     }
+    // For mixed distinct: also push precalc exprs to child[1]'s descriptor
+    if (TSDB_CODE_SUCCESS == code && pAggLogicNode->hasMixedDistinct && pChildren->length >= 2) {
+      SPhysiNode* pChild1 = (SPhysiNode*)nodesListGetNode(pChildren, 1);
+      if (pChild1 != NULL) {
+        code = pushdownDataBlockSlots(pCxt, pAgg->pExprs, pChild1->pOutputDataBlockDesc);
+      }
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pGroupKeys) {
@@ -2769,6 +2778,7 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
       code = addDataBlockSlots(pCxt, pAgg->pAggFuncs, pAgg->node.pOutputDataBlockDesc);
     }
   }
+
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pAggLogicNode, (SPhysiNode*)pAgg);
@@ -3678,6 +3688,127 @@ static int32_t createWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildr
   return TSDB_CODE_FAILED;
 }
 
+static int32_t createDistinctFilterPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
+                                             SDistinctFilterLogicNode* pLogicNode, SPhysiNode** pPhyNode) {
+  SDistinctFilterPhysiNode* pFilter =
+      (SDistinctFilterPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pLogicNode, QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER);
+  if (NULL == pFilter) {
+    return terrno;
+  }
+
+  SDataBlockDescNode* pChildTupe = NULL;
+  int32_t code = getChildTuple(&pChildTupe, pChildren);
+
+  // For expression-based distinct, use precalc to push expression evaluation to this operator
+  SNodeList* pPrecalcExprs = NULL;
+  SNodeList* pRewrittenList = NULL;
+  if (TSDB_CODE_SUCCESS == code && nodeType(pLogicNode->pDistinctCol) != QUERY_NODE_COLUMN) {
+    // Create a list with just the distinct expression for rewritePrecalcExprs
+    SNodeList* pDistColList = NULL;
+    SNode* pDistColClone = NULL;
+    code = nodesCloneNode(pLogicNode->pDistinctCol, &pDistColClone);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeAppend(&pDistColList, pDistColClone);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = rewritePrecalcExprs(pCxt, pDistColList, &pPrecalcExprs, &pRewrittenList);
+    }
+    nodesClearList(pDistColList);
+    // Push precalc expressions to child's output descriptor
+    if (TSDB_CODE_SUCCESS == code && pPrecalcExprs != NULL) {
+      code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs, &pFilter->pExprs);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = pushdownDataBlockSlots(pCxt, pFilter->pExprs, pChildTupe);
+      }
+    }
+    nodesDestroyList(pPrecalcExprs);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pLogicNode->node.pTargets, &pFilter->pTargets);
+  }
+
+  // Resolve distinctColSlotId
+  if (TSDB_CODE_SUCCESS == code) {
+    pFilter->distinctColSlotId = -1;
+    pFilter->colType = pLogicNode->colType;
+    pFilter->colBytes = pLogicNode->colBytes;
+
+    if (nodeType(pLogicNode->pDistinctCol) == QUERY_NODE_COLUMN) {
+      // Column case: match by colId+tableId or colName in resolved targets
+      SColumnNode* pDistCol = (SColumnNode*)pLogicNode->pDistinctCol;
+      SNode* pTarget = NULL;
+      FOREACH(pTarget, pFilter->pTargets) {
+        SNode* pExpr = pTarget;
+        if (QUERY_NODE_TARGET == nodeType(pTarget)) {
+          pExpr = ((STargetNode*)pTarget)->pExpr;
+        }
+        if (pExpr && QUERY_NODE_COLUMN == nodeType(pExpr)) {
+          SColumnNode* pCol = (SColumnNode*)pExpr;
+          if ((pCol->colId == pDistCol->colId && pCol->tableId == pDistCol->tableId) ||
+              (0 == strcmp(pCol->colName, pDistCol->colName))) {
+            pFilter->distinctColSlotId = pCol->slotId;
+            break;
+          }
+        }
+      }
+    } else {
+      // Expression case: find the computed expression's slot in child output descriptor
+      // After pushdownDataBlockSlots, the expression has a slot in pChildTupe
+      // The rewritten column (from rewritePrecalcExprs) references that slot
+      if (pFilter->pExprs != NULL && pFilter->pExprs->length > 0) {
+        SNode* pExprTarget = nodesListGetNode(pFilter->pExprs, 0);
+        if (QUERY_NODE_TARGET == nodeType(pExprTarget)) {
+          pFilter->distinctColSlotId = ((STargetNode*)pExprTarget)->slotId;
+        }
+      }
+    }
+
+    if (pFilter->distinctColSlotId < 0) {
+      planError("DistinctFilter: failed to resolve distinctColSlotId, distCol type=%d",
+                nodeType(pLogicNode->pDistinctCol));
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+  }
+
+  // Set numGroupCols flag (executor uses it to decide groupId-based key prefix)
+  if (TSDB_CODE_SUCCESS == code && pLogicNode->pGroupKeys != NULL && pLogicNode->pGroupKeys->length > 0) {
+    pFilter->numGroupCols = 1;  // signals hasGroup to executor
+  } else {
+    pFilter->numGroupCols = 0;
+  }
+
+  // Propagate interval parameters for per-window dedup
+  if (TSDB_CODE_SUCCESS == code && pLogicNode->hasInterval) {
+    pFilter->hasInterval = true;
+    pFilter->interval = pLogicNode->interval;
+    pFilter->offset = pLogicNode->offset;
+    pFilter->sliding = pLogicNode->sliding;
+    pFilter->intervalUnit = pLogicNode->intervalUnit;
+    pFilter->slidingUnit = pLogicNode->slidingUnit;
+    pFilter->precision = pLogicNode->precision;
+    pFilter->firstDayOfWeek = pLogicNode->firstDayOfWeek;
+    pFilter->timezone = pLogicNode->timezone;
+    tstrncpy(pFilter->timezoneName, pLogicNode->timezoneName, sizeof(pFilter->timezoneName));
+    // Resolve tsSlotId: find the primary timestamp column (slot 0 by convention, or first TIMESTAMP col)
+    pFilter->tsSlotId = 0;  // primary key ts is always slot 0 in table scan output
+  }
+
+  // Add slots to output descriptor
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addDataBlockSlots(pCxt, pFilter->pTargets, pFilter->node.pOutputDataBlockDesc);
+  }
+
+  nodesDestroyList(pRewrittenList);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPhyNode = (SPhysiNode*)pFilter;
+  } else {
+    nodesDestroyNode((SNode*)pFilter);
+  }
+
+  return code;
+}
+
 static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SSortLogicNode* pSortLogicNode,
                                    SPhysiNode** pPhyNode) {
   SSortPhysiNode* pSort = (SSortPhysiNode*)makePhysiNode(
@@ -4051,6 +4182,8 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
       return createWindowPhysiNode(pCxt, pChildren, (SWindowLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_SORT:
       return createSortPhysiNode(pCxt, pChildren, (SSortLogicNode*)pLogicNode, pPhyNode);
+    case QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER:
+      return createDistinctFilterPhysiNode(pCxt, pChildren, (SDistinctFilterLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       return createPartitionPhysiNode(pCxt, pChildren, (SPartitionLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_FILL:

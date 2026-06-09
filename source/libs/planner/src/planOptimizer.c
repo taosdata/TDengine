@@ -10844,6 +10844,9 @@ static bool vstableIntervalWindowFuncsCanSplit(const SWindowLogicNode* pWindow) 
     if (!fmIsWindowPseudoColumnFunc(pFunction->funcId) && !fmIsDistExecFunc(pFunction->funcId)) {
       return false;
     }
+    if (pFunction->isDistinct) {
+      return false;
+    }
   }
 
   return true;
@@ -11322,7 +11325,7 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
         fmIsGroupKeyFunc(pFunc->funcId) ||
         functionHasTagRefParam(pFunc) ||
         (fmIsAggFunc(pFunc->funcId) && !fmIsSelectFunc(pFunc->funcId) && functionHasTagOrPkParam(pFunc)) ||
-        !fmIsDistExecFunc(pFunc->funcId)) {
+        !fmIsDistExecFunc(pFunc->funcId) || pFunc->isDistinct) {
       return false;
     }
   }
@@ -11816,6 +11819,372 @@ _return:
   return code;
 }
 
+// ==================== DistinctAggFilter Optimization ====================
+// Insert DistinctFilter node before Aggregate when DISTINCT aggregate functions are present.
+// The DistinctFilter uses a hash set to deduplicate rows in O(1) per row.
+
+static bool distinctAggFilterShouldOptimize(SLogicNode* pNode, void* pCtx) {
+  SNodeList* pFuncs = NULL;
+
+  if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
+    SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+    // Already optimized — DistinctFilter child already inserted
+    if (pAgg->node.pChildren && pAgg->node.pChildren->length > 0) {
+      SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+      if (pChild && nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER) return false;
+    }
+    pFuncs = pAgg->pAggFuncs;
+  } else if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode)) {
+    SWindowLogicNode* pWin = (SWindowLogicNode*)pNode;
+    // Only INTERVAL windows support distinct (SESSION/STATE/EVENT rejected at translate time)
+    if (pWin->winType != WINDOW_TYPE_INTERVAL) return false;
+    // Already optimized
+    if (pWin->node.pChildren && pWin->node.pChildren->length > 0) {
+      SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pWin->node.pChildren, 0);
+      if (pChild && nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER) return false;
+    }
+    pFuncs = pWin->pFuncs;
+  } else {
+    return false;
+  }
+
+  // Check if any function has isDistinct — all must use same column
+  SNode* pFunc = NULL;
+  SNode* pDistinctCol = NULL;
+  bool   hasMixed = false;
+  FOREACH(pFunc, pFuncs) {
+    SFunctionNode* pFunction = (SFunctionNode*)pFunc;
+    if (!pFunction->isDistinct) {
+      // Skip pseudo-functions — they're not real agg functions
+      if (fmIsGroupKeyFunc(pFunction->funcId) || fmIsSelectValueFunc(pFunction->funcId) ||
+          fmisSelectGroupConstValueFunc(pFunction->funcId) || fmIsWindowPseudoColumnFunc(pFunction->funcId)) {
+        continue;
+      }
+      hasMixed = true;
+      continue;
+    }
+    SNode* pParam = nodesListGetNode(pFunction->pParameterList, 0);
+    if (pParam == NULL) return false;
+    if (pDistinctCol == NULL) {
+      pDistinctCol = pParam;
+    } else {
+      if (!nodesEqualNode(pDistinctCol, pParam)) return false;
+    }
+  }
+  if (pDistinctCol == NULL) return false;
+  // For window nodes with mixed, we don't support dual-child yet — skip
+  if (hasMixed && QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode)) return false;
+  *(SNode**)pCtx = (SNode*)pNode;
+  return true;
+}
+
+static int32_t distinctAggFilterOptimizeImpl(SOptimizeContext* pCxt, SAggLogicNode* pAgg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  // Determine if mixed (has both distinct and non-distinct real agg functions)
+  SNode* pDistinctCol = NULL;
+  SNode* pFunc = NULL;
+  bool   hasMixed = false;
+  int32_t numDistinctFuncs = 0;
+  FOREACH(pFunc, pAgg->pAggFuncs) {
+    SFunctionNode* pFunction = (SFunctionNode*)pFunc;
+    if (pFunction->isDistinct) {
+      if (pDistinctCol == NULL) {
+        pDistinctCol = nodesListGetNode(pFunction->pParameterList, 0);
+      }
+      numDistinctFuncs++;
+    } else if (!fmIsGroupKeyFunc(pFunction->funcId) && !fmIsSelectValueFunc(pFunction->funcId) &&
+               !fmisSelectGroupConstValueFunc(pFunction->funcId)) {
+      hasMixed = true;
+    }
+  }
+  if (pDistinctCol == NULL) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+
+  // Get the child of the AGG node
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  if (pChild == NULL) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+
+  // Create DistinctFilter logic node
+  SDistinctFilterLogicNode* pFilter = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER, (SNode**)&pFilter);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  // Clone child's targets as filter's targets
+  code = nodesCloneList(pChild->pTargets, &pFilter->node.pTargets);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pFilter);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  // Clone the distinct column expression
+  code = nodesCloneNode(pDistinctCol, &pFilter->pDistinctCol);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pFilter);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  // Get type info from the distinct column
+  if (nodeType(pDistinctCol) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)pDistinctCol;
+    pFilter->colType = pCol->node.resType.type;
+    pFilter->colBytes = pCol->node.resType.bytes;
+  } else {
+    SExprNode* pExpr = (SExprNode*)pDistinctCol;
+    pFilter->colType = pExpr->resType.type;
+    pFilter->colBytes = pExpr->resType.bytes;
+  }
+
+  // Clone group keys if GROUP BY is present (for per-group dedup)
+  if (pAgg->pGroupKeys != NULL && pAgg->pGroupKeys->length > 0) {
+    code = nodesCloneList(pAgg->pGroupKeys, &pFilter->pGroupKeys);
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pFilter);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+  } else {
+    // partTagsOptimize may have removed pGroupKeys and converted GROUP BY tag to
+    // partition-by. In that case, _group_key functions in pAggFuncs still reference the
+    // group columns. Extract them for the filter's composite key.
+    SNode* pAggFunc = NULL;
+    int groupKeyFuncCount = 0;
+    FOREACH(pAggFunc, pAgg->pAggFuncs) {
+      SFunctionNode* pFunction = (SFunctionNode*)pAggFunc;
+      if (fmIsGroupKeyFunc(pFunction->funcId)) {
+        groupKeyFuncCount++;
+        if (pFunction->pParameterList && pFunction->pParameterList->length > 0) {
+          SNode* pParam = nodesListGetNode(pFunction->pParameterList, 0);
+          if (pParam && nodeType(pParam) == QUERY_NODE_COLUMN) {
+            SNode* pClone = NULL;
+            code = nodesCloneNode(pParam, &pClone);
+            if (code != TSDB_CODE_SUCCESS) {
+              nodesDestroyNode((SNode*)pFilter);
+              QUERY_CHECK_CODE(code, lino, _return);
+            }
+            code = nodesListMakeStrictAppend(&pFilter->pGroupKeys, pClone);
+            if (code != TSDB_CODE_SUCCESS) {
+              nodesDestroyNode((SNode*)pFilter);
+              QUERY_CHECK_CODE(code, lino, _return);
+            }
+          }
+        }
+      }
+    }
+    // Fallback: if child is a Scan with pGroupTags, extract from there
+    if ((pFilter->pGroupKeys == NULL || pFilter->pGroupKeys->length == 0) &&
+        nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+      SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+      if (pScan->pGroupTags != NULL) {
+        SNode* pGrpTag = NULL;
+        FOREACH(pGrpTag, pScan->pGroupTags) {
+          SNode* pTagExpr = pGrpTag;
+          if (nodeType(pGrpTag) == QUERY_NODE_FUNCTION) {
+            SFunctionNode* pTagFunc = (SFunctionNode*)pGrpTag;
+            if (pTagFunc->pParameterList && pTagFunc->pParameterList->length > 0) {
+              pTagExpr = nodesListGetNode(pTagFunc->pParameterList, 0);
+            }
+          }
+          if (pTagExpr && nodeType(pTagExpr) == QUERY_NODE_COLUMN) {
+            SNode* pClone = NULL;
+            code = nodesCloneNode(pTagExpr, &pClone);
+            if (code != TSDB_CODE_SUCCESS) {
+              nodesDestroyNode((SNode*)pFilter);
+              QUERY_CHECK_CODE(code, lino, _return);
+            }
+            code = nodesListMakeStrictAppend(&pFilter->pGroupKeys, pClone);
+            if (code != TSDB_CODE_SUCCESS) {
+              nodesDestroyNode((SNode*)pFilter);
+              QUERY_CHECK_CODE(code, lino, _return);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // If hasGroup but we couldn't determine group columns, abort optimization
+  if (pAgg->hasGroup && (pFilter->pGroupKeys == NULL || pFilter->pGroupKeys->length == 0)) {
+    planWarn("DistinctFilter: hasGroup=true but no group cols found");
+    nodesDestroyNode((SNode*)pFilter);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (hasMixed) {
+    // Mixed case: AGG gets 2 children
+    // child[0] = original Scan (for non-distinct functions)
+    // child[1] = DistinctFilter → cloned Scan (for distinct functions)
+
+    // Clone the original child for the distinct path
+    SNode* pChildClone = NULL;
+    code = nodesCloneNode((SNode*)pChild, &pChildClone);
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pFilter);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+
+    // Attach cloned child under DistinctFilter
+    ((SLogicNode*)pChildClone)->pParent = (SLogicNode*)pFilter;
+    code = nodesListMakeAppend(&pFilter->node.pChildren, pChildClone);
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pFilter);
+      nodesDestroyNode(pChildClone);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+
+    // Add DistinctFilter as second child of AGG
+    pFilter->node.pParent = (SLogicNode*)pAgg;
+    code = nodesListStrictAppend(pAgg->node.pChildren, (SNode*)pFilter);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    // Mark the AGG as mixed-distinct (executor checks isDistinct per function)
+    pAgg->hasMixedDistinct = true;
+    pAgg->numDistinctFuncs = numDistinctFuncs;
+
+    planInfo("DistinctFilter mixed: %d distinct funcs, total %d funcs, 2 children",
+             numDistinctFuncs, (int)pAgg->pAggFuncs->length);
+  } else {
+    // Pure distinct case: insert filter between agg and its child
+    // Before: Agg -> Child
+    // After:  Agg -> DistinctFilter -> Child
+    pChild->pParent = (SLogicNode*)pFilter;
+    code = nodesListMakeAppend(&pFilter->node.pChildren, (SNode*)pChild);
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pFilter);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+
+    // Replace child in AGG's children list
+    pAgg->node.pChildren->pHead->pNode = (SNode*)pFilter;
+    pFilter->node.pParent = (SLogicNode*)pAgg;
+  }
+
+  // NOTE: Do NOT strip isDistinct here — the splitter needs it to block distributed split.
+
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    planError("%s failed at %d, msg:%s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t distinctWindowFilterOptimizeImpl(SOptimizeContext* pCxt, SWindowLogicNode* pWin) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  // Find distinct column from window functions
+  SNode* pDistinctCol = NULL;
+  SNode* pFunc = NULL;
+  FOREACH(pFunc, pWin->pFuncs) {
+    SFunctionNode* pFunction = (SFunctionNode*)pFunc;
+    if (pFunction->isDistinct) {
+      if (pDistinctCol == NULL) {
+        pDistinctCol = nodesListGetNode(pFunction->pParameterList, 0);
+      }
+    }
+  }
+  if (pDistinctCol == NULL) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+
+  // Get the child of the Window node
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pWin->node.pChildren, 0);
+  if (pChild == NULL) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+
+  // Create DistinctFilter logic node
+  SDistinctFilterLogicNode* pFilter = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER, (SNode**)&pFilter);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  // Clone child's targets as filter's targets
+  code = nodesCloneList(pChild->pTargets, &pFilter->node.pTargets);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pFilter);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  // Clone the distinct column expression
+  code = nodesCloneNode(pDistinctCol, &pFilter->pDistinctCol);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pFilter);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  // Get type info from the distinct column
+  if (nodeType(pDistinctCol) == QUERY_NODE_COLUMN) {
+    SColumnNode* pCol = (SColumnNode*)pDistinctCol;
+    pFilter->colType = pCol->node.resType.type;
+    pFilter->colBytes = pCol->node.resType.bytes;
+  } else {
+    SExprNode* pExpr = (SExprNode*)pDistinctCol;
+    pFilter->colType = pExpr->resType.type;
+    pFilter->colBytes = pExpr->resType.bytes;
+  }
+
+  // Set interval parameters for per-window dedup
+  pFilter->hasInterval = true;
+  pFilter->interval = pWin->interval;
+  pFilter->offset = pWin->offset;
+  pFilter->sliding = pWin->sliding;
+  pFilter->intervalUnit = pWin->intervalUnit;
+  pFilter->slidingUnit = pWin->slidingUnit;
+  pFilter->firstDayOfWeek = pWin->firstDayOfWeek;
+  pFilter->timezone = pWin->timezone;
+  tstrncpy(pFilter->timezoneName, pWin->timezoneName, sizeof(pFilter->timezoneName));
+
+  // Get precision from the scan child or parent window node
+  if (nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+    pFilter->precision = pScan->node.precision;
+  } else {
+    pFilter->precision = pWin->node.precision;
+  }
+
+  // Insert filter between window and its child:
+  // Before: Window -> Child
+  // After:  Window -> DistinctFilter -> Child
+  pChild->pParent = (SLogicNode*)pFilter;
+  code = nodesListMakeAppend(&pFilter->node.pChildren, (SNode*)pChild);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pFilter);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+
+  pWin->node.pChildren->pHead->pNode = (SNode*)pFilter;
+  pFilter->node.pParent = (SLogicNode*)pWin;
+
+_return:
+  if (code != TSDB_CODE_SUCCESS) {
+    planError("%s failed at %d, msg:%s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t distinctAggFilterOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SNode* pNode = NULL;
+  if (!optFindEligibleNode(pLogicSubplan->pNode, distinctAggFilterShouldOptimize, &pNode)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode)) {
+    code = distinctWindowFilterOptimizeImpl(pCxt, (SWindowLogicNode*)pNode);
+    if (TSDB_CODE_SUCCESS == code) {
+      SLogicNode* pChild = (SLogicNode*)nodesListGetNode(((SWindowLogicNode*)pNode)->node.pChildren, 0);
+      if (pChild && nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER) {
+        pCxt->optimized = true;
+      }
+    }
+  } else {
+    code = distinctAggFilterOptimizeImpl(pCxt, (SAggLogicNode*)pNode);
+    if (TSDB_CODE_SUCCESS == code) {
+      SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+      SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+      if (pChild && nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER) {
+        pCxt->optimized = true;
+      }
+    }
+  }
+  return code;
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
@@ -11850,6 +12219,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "VStableWindowSort",          .optimizeFunc = vstableWindowSortOptimize},
   {.pName = "VtableTagScan",              .optimizeFunc = vtableTagScanOptimize},
   {.pName = "VStableAgg",                 .optimizeFunc = vstableAggOptimize},
+  {.pName = "DistinctAggFilter",          .optimizeFunc = distinctAggFilterOptimize},
 };
 // clang-format on
 

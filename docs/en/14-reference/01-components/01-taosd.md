@@ -246,7 +246,7 @@ Additional Notes:
 | singleQueryMaxMemorySize |                   | Not supported                      | The memory limit that a single query can use on a single node (dnode), exceeding this limit will return an error, unit: MB, default value: 0 (no limit), value range 0-1000000000 |
 | filterScalarMode         |                   | Supported, effective after restart | Force scalar filter mode, 0: off; 1: on, default value 0     |
 | queryRsmaTolerance       |                   | Not supported                      | Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds |
-| pqSortMemThreshold       |                   | Not supported                      | Internal parameter, memory threshold for sorting             |
+| pqSortMemThreshold       |                   | Not supported                      | Internal parameter, memory threshold (MB) for sorting and DISTINCT aggregation spill-to-disk |
 | updateCacheBatch         | After 3.3.4.11    | Not supported                      | Whether to batch update cache; default value true |
 | sessionControl           | After 3.4.0.0     | Supported, effective after restart | Whether to enable session control function; default value true |
 | sessionPerUser           | After 3.4.0.0     | Supported, effective immediately   | Maximum number of sessions allowed per user, -1 means no limit, range -1-INT32_MAX, default value -1 |

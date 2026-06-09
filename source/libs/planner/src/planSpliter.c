@@ -272,6 +272,10 @@ static bool stbSplHasGatherExecFunc(const SNodeList* pFuncs) {
         !fmIsDistExecFunc(((SFunctionNode*)pFunc)->funcId)) {
       return true;
     }
+    // DISTINCT aggregations cannot be split — distinct set must be global
+    if (((SFunctionNode*)pFunc)->isDistinct) {
+      return true;
+    }
   }
   return false;
 }

@@ -2599,6 +2599,51 @@ UNIQUE(expr)
 
 聚合函数为查询结果集的每一个分组返回单个结果行。可以由 GROUP BY 或窗口切分子句指定分组，如果没有，则整个查询结果集视为一个分组。
 
+### DISTINCT 聚合
+
+聚合函数支持 `DISTINCT` 关键字，对指定列去重后再进行聚合计算。语法如下：
+
+```sql
+AGG_FUNC(DISTINCT expr)
+```
+
+**支持的聚合函数**：`COUNT`、`SUM`、`AVG`、`MIN`、`MAX`。
+
+**适用数据类型**：`expr` 可以是普通列或表达式，数据类型需满足对应聚合函数的要求。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- `COUNT(DISTINCT expr)` 返回去重后的非 NULL 值数量。
+- `SUM(DISTINCT expr)` 对去重后的值求和。
+- 支持与 `GROUP BY`、`PARTITION BY`、窗口子句组合使用。
+- 支持与 `INTERVAL` 窗口结合，在每个时间窗口内独立去重。
+- 同一查询中可混合使用带 DISTINCT 和不带 DISTINCT 的聚合函数，例如：
+
+  ```sql
+  SELECT COUNT(DISTINCT voltage), AVG(current) FROM meters;
+  ```
+
+- 当去重数据量超过内存阈值（`pqSortMemThreshold`，默认 16MB）时，自动切换为排序去重模式，利用磁盘缓冲完成计算，无需用户干预。
+
+**限制**：
+
+- 仅 `COUNT`、`SUM`、`AVG`、`MIN`、`MAX` 支持 DISTINCT，对其他函数使用将返回错误码 `0x26B4`（"Function does not support DISTINCT"）。
+
+**举例**：
+
+```sql
+-- 统计不同电压值的数量
+SELECT COUNT(DISTINCT voltage) FROM meters;
+
+-- 每 10 分钟窗口内的不同电压值数量
+SELECT _wstart, COUNT(DISTINCT voltage) FROM meters INTERVAL(10m);
+
+-- 按分组统计去重后的电压之和
+SELECT location, SUM(DISTINCT voltage) FROM meters GROUP BY location;
+```
+
 ### 基础聚合
 
 #### AVG

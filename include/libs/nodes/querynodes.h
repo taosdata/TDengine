@@ -266,6 +266,7 @@ typedef struct SFunctionNode {
   int32_t    originalFuncId;
   ETrimType  trimType;
   bool       dual; // whether select stmt without from stmt, true for without.
+  bool       isDistinct; // DISTINCT modifier in function arg, e.g. COUNT(DISTINCT col)
   timezone_t tz;
   void      *charsetCxt;
   int8_t     firstDayOfWeek;  /* 0-6, from connection/global config */

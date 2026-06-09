@@ -1044,6 +1044,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       code = makeNode(type, sizeof(SPartitionLogicNode), &pNode);
       break;
+    case QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER:
+      code = makeNode(type, sizeof(SDistinctFilterLogicNode), &pNode);
+      break;
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
       code = makeNode(type, sizeof(SIndefRowsFuncLogicNode), &pNode);
       break;
@@ -1160,6 +1163,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       code = makeNode(type, sizeof(SPartitionPhysiNode), &pNode);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER:
+      code = makeNode(type, sizeof(SDistinctFilterPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       code = makeNode(type, sizeof(SIndefRowsFuncPhysiNode), &pNode);
@@ -2436,6 +2442,13 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pAggFuncs);
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER: {
+      SDistinctFilterLogicNode* pLogicNode = (SDistinctFilterLogicNode*)pNode;
+      destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyNode(pLogicNode->pDistinctCol);
+      nodesDestroyList(pLogicNode->pGroupKeys);
+      break;
+    }
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC: {
       SIndefRowsFuncLogicNode* pLogicNode = (SIndefRowsFuncLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
@@ -2697,6 +2710,16 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
       destroyPartitionPhysiNode((SPartitionPhysiNode*)pNode);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER: {
+      SDistinctFilterPhysiNode* pPhyNode = (SDistinctFilterPhysiNode*)pNode;
+      if (pPhyNode->ownsTimezone) {
+        tzfree(pPhyNode->timezone);
+      }
+      destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyList(pPhyNode->pExprs);
+      nodesDestroyList(pPhyNode->pTargets);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC: {

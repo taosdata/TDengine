@@ -1456,6 +1456,7 @@ enum {
   FUNCTION_CODE_MERGE_FUNC_OF,
   FUNCTION_CODE_TRIM_TYPE,
   FUNCTION_SRC_FUNC_INPUT_TYPE,
+  FUNCTION_CODE_IS_DISTINCT,
 };
 
 static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1494,6 +1495,9 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, FUNCTION_SRC_FUNC_INPUT_TYPE, dataTypeInlineToMsg, &pNode->srcFuncInputType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, FUNCTION_CODE_IS_DISTINCT, pNode->isDistinct);
   }
 
   return code;
@@ -1541,6 +1545,10 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case FUNCTION_SRC_FUNC_INPUT_TYPE:
         code = tlvDecodeObjFromTlv(pTlv, msgToDataTypeInline, &pNode->srcFuncInputType);
+        break;
+      case FUNCTION_CODE_IS_DISTINCT:
+        code = tlvDecodeBool(pTlv, &pNode->isDistinct);
+        break;
       default:
         break;
     }
@@ -3620,6 +3628,8 @@ enum {
   PHY_AGG_CODE_MERGE_DATA_BLOCK,
   PHY_AGG_CODE_GROUP_KEY_OPTIMIZE,
   PHY_AGG_CODE_HAS_COUNT_LIKE_FUNCS,
+  PHY_AGG_CODE_HAS_MIXED_DISTINCT,
+  PHY_AGG_CODE_NUM_DISTINCT_FUNCS,
 };
 
 static int32_t physiAggNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3643,6 +3653,12 @@ static int32_t physiAggNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_AGG_CODE_HAS_COUNT_LIKE_FUNCS, pNode->hasCountLikeFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_AGG_CODE_HAS_MIXED_DISTINCT, pNode->hasMixedDistinct);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_AGG_CODE_NUM_DISTINCT_FUNCS, pNode->numDistinctFuncs);
   }
 
   return code;
@@ -3675,6 +3691,12 @@ static int32_t msgToPhysiAggNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_AGG_CODE_HAS_COUNT_LIKE_FUNCS:
         code = tlvDecodeBool(pTlv, &pNode->hasCountLikeFunc);
+        break;
+      case PHY_AGG_CODE_HAS_MIXED_DISTINCT:
+        code = tlvDecodeBool(pTlv, &pNode->hasMixedDistinct);
+        break;
+      case PHY_AGG_CODE_NUM_DISTINCT_FUNCS:
+        code = tlvDecodeI32(pTlv, &pNode->numDistinctFuncs);
         break;
       default:
         break;
@@ -3912,6 +3934,141 @@ static int32_t msgToPhysiSortNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SORT_CODE_EXCLUDE_PK_COL:
         code = tlvDecodeBool(pTlv, &pNode->excludePkCol);
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+enum {
+  PHY_DISTINCT_FILTER_CODE_BASE_NODE = 1,
+  PHY_DISTINCT_FILTER_CODE_EXPRS,
+  PHY_DISTINCT_FILTER_CODE_TARGETS,
+  PHY_DISTINCT_FILTER_CODE_SLOT_ID,
+  PHY_DISTINCT_FILTER_CODE_COL_TYPE,
+  PHY_DISTINCT_FILTER_CODE_COL_BYTES,
+  PHY_DISTINCT_FILTER_CODE_NUM_GROUP_COLS,
+  PHY_DISTINCT_FILTER_CODE_HAS_INTERVAL,
+  PHY_DISTINCT_FILTER_CODE_TS_SLOT_ID,
+  PHY_DISTINCT_FILTER_CODE_INTERVAL,
+  PHY_DISTINCT_FILTER_CODE_OFFSET,
+  PHY_DISTINCT_FILTER_CODE_SLIDING,
+  PHY_DISTINCT_FILTER_CODE_INTERVAL_UNIT,
+  PHY_DISTINCT_FILTER_CODE_SLIDING_UNIT,
+  PHY_DISTINCT_FILTER_CODE_PRECISION,
+  PHY_DISTINCT_FILTER_CODE_FIRST_DAY_OF_WEEK,
+  PHY_DISTINCT_FILTER_CODE_TIMEZONE_NAME,
+};
+
+static int32_t physiDistinctFilterNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SDistinctFilterPhysiNode* pNode = (const SDistinctFilterPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_DISTINCT_FILTER_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_DISTINCT_FILTER_CODE_EXPRS, nodeListToMsg, pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_DISTINCT_FILTER_CODE_TARGETS, nodeListToMsg, pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI16(pEncoder, PHY_DISTINCT_FILTER_CODE_SLOT_ID, pNode->distinctColSlotId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_DISTINCT_FILTER_CODE_COL_TYPE, pNode->colType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_DISTINCT_FILTER_CODE_COL_BYTES, pNode->colBytes);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI16(pEncoder, PHY_DISTINCT_FILTER_CODE_NUM_GROUP_COLS, pNode->numGroupCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_DISTINCT_FILTER_CODE_HAS_INTERVAL, pNode->hasInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->hasInterval) {
+    code = tlvEncodeI16(pEncoder, PHY_DISTINCT_FILTER_CODE_TS_SLOT_ID, pNode->tsSlotId);
+    if (TSDB_CODE_SUCCESS == code) code = tlvEncodeI64(pEncoder, PHY_DISTINCT_FILTER_CODE_INTERVAL, pNode->interval);
+    if (TSDB_CODE_SUCCESS == code) code = tlvEncodeI64(pEncoder, PHY_DISTINCT_FILTER_CODE_OFFSET, pNode->offset);
+    if (TSDB_CODE_SUCCESS == code) code = tlvEncodeI64(pEncoder, PHY_DISTINCT_FILTER_CODE_SLIDING, pNode->sliding);
+    if (TSDB_CODE_SUCCESS == code) code = tlvEncodeI8(pEncoder, PHY_DISTINCT_FILTER_CODE_INTERVAL_UNIT, pNode->intervalUnit);
+    if (TSDB_CODE_SUCCESS == code) code = tlvEncodeI8(pEncoder, PHY_DISTINCT_FILTER_CODE_SLIDING_UNIT, pNode->slidingUnit);
+    if (TSDB_CODE_SUCCESS == code) code = tlvEncodeI8(pEncoder, PHY_DISTINCT_FILTER_CODE_PRECISION, pNode->precision);
+    if (TSDB_CODE_SUCCESS == code) code = tlvEncodeI8(pEncoder, PHY_DISTINCT_FILTER_CODE_FIRST_DAY_OF_WEEK, pNode->firstDayOfWeek);
+    if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+      code = tlvEncodeCStr(pEncoder, PHY_DISTINCT_FILTER_CODE_TIMEZONE_NAME, pNode->timezoneName);
+    }
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiDistinctFilterNode(STlvDecoder* pDecoder, void* pObj) {
+  SDistinctFilterPhysiNode* pNode = (SDistinctFilterPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_DISTINCT_FILTER_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_EXPRS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pExprs);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_TARGETS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTargets);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_SLOT_ID:
+        code = tlvDecodeI16(pTlv, &pNode->distinctColSlotId);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_COL_TYPE:
+        code = tlvDecodeI8(pTlv, &pNode->colType);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_COL_BYTES:
+        code = tlvDecodeI32(pTlv, &pNode->colBytes);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_NUM_GROUP_COLS:
+        code = tlvDecodeI16(pTlv, &pNode->numGroupCols);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_HAS_INTERVAL:
+        code = tlvDecodeBool(pTlv, &pNode->hasInterval);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_TS_SLOT_ID:
+        code = tlvDecodeI16(pTlv, &pNode->tsSlotId);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_INTERVAL:
+        code = tlvDecodeI64(pTlv, &pNode->interval);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_OFFSET:
+        code = tlvDecodeI64(pTlv, &pNode->offset);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_SLIDING:
+        code = tlvDecodeI64(pTlv, &pNode->sliding);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_INTERVAL_UNIT:
+        code = tlvDecodeI8(pTlv, &pNode->intervalUnit);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_SLIDING_UNIT:
+        code = tlvDecodeI8(pTlv, &pNode->slidingUnit);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_PRECISION:
+        code = tlvDecodeI8(pTlv, &pNode->precision);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_FIRST_DAY_OF_WEEK:
+        code = tlvDecodeI8(pTlv, &pNode->firstDayOfWeek);
+        break;
+      case PHY_DISTINCT_FILTER_CODE_TIMEZONE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->timezoneName, sizeof(pNode->timezoneName));
+        if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+          char tzBuf[TD_TIMEZONE_LEN] = {0};
+          tstrncpy(tzBuf, pNode->timezoneName, sizeof(tzBuf));
+          pNode->timezoneName[0] = '\0';
+          code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
+                                         &pNode->ownsTimezone);
+        }
+        break;
       default:
         break;
     }
@@ -5926,6 +6083,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
       code = physiSortNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER:
+      code = physiDistinctFilterNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       code = physiIntervalNodeToMsg(pObj, pEncoder);
@@ -6116,6 +6276,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
       code = msgToPhysiSortNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER:
+      code = msgToPhysiDistinctFilterNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:

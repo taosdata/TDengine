@@ -150,6 +150,7 @@ static bool logicConditionNodeEqual(const SLogicConditionNode* a, const SLogicCo
 static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_SCALAR_FIELD(funcId);
   COMPARE_STRING_FIELD(functionName);
+  COMPARE_SCALAR_FIELD(isDistinct);
   COMPARE_NODE_LIST_FIELD(pParameterList);
   if (a->funcType == FUNCTION_TYPE_SELECT_VALUE) {
     if ((a->node.relatedTo != b->node.relatedTo)) return false;

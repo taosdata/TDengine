@@ -1514,6 +1514,14 @@ _err:
   return NULL;
 }
 
+SNode* createDistinctFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList) {
+  SNode* pNode = createFunctionNode(pCxt, pFuncName, pParameterList);
+  if (pNode) {
+    ((SFunctionNode*)pNode)->isDistinct = true;
+  }
+  return pNode;
+}
+
 SNode* createPHTbnameFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList) {
   CHECK_PARSER_STATUS(pCxt);
   SFunctionNode* func = NULL;

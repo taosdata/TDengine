@@ -2291,6 +2291,51 @@ Aggregate functions return a single result row for each group of the result set 
 
 TDengine supports aggregate queries on data. The following aggregate functions are provided.
 
+### DISTINCT Aggregation
+
+Aggregate functions support the `DISTINCT` keyword to deduplicate values before performing the aggregation. Syntax:
+
+```sql
+AGG_FUNC(DISTINCT expr)
+```
+
+**Supported aggregate functions**: `COUNT`, `SUM`, `AVG`, `MIN`, `MAX`.
+
+**Applicable data types**: `expr` can be a column or expression; data type must satisfy the requirements of the corresponding aggregate function.
+
+**Applicable to**: Tables and supertables.
+
+**Usage notes**:
+
+- `COUNT(DISTINCT expr)` returns the number of distinct non-NULL values.
+- `SUM(DISTINCT expr)` computes the sum of distinct values.
+- Can be combined with `GROUP BY`, `PARTITION BY`, and window clauses.
+- Supports `INTERVAL` windows — deduplication is performed independently within each time window.
+- A single query may mix DISTINCT and non-DISTINCT aggregates, for example:
+
+  ```sql
+  SELECT COUNT(DISTINCT voltage), AVG(current) FROM meters;
+  ```
+
+- When the deduplicated data exceeds the memory threshold (`pqSortMemThreshold`, default 16 MB), the engine automatically switches to a sort-based deduplication mode using disk-backed buffers. No user intervention is required.
+
+**Limitations**:
+
+- Only `COUNT`, `SUM`, `AVG`, `MIN`, `MAX` support DISTINCT; using it with other functions returns error code `0x26B4` ("Function does not support DISTINCT").
+
+**Examples**:
+
+```sql
+-- Count distinct voltage values
+SELECT COUNT(DISTINCT voltage) FROM meters;
+
+-- Distinct count per 10-minute window
+SELECT _wstart, COUNT(DISTINCT voltage) FROM meters INTERVAL(10m);
+
+-- Sum of distinct voltages grouped by location
+SELECT location, SUM(DISTINCT voltage) FROM meters GROUP BY location;
+```
+
 ### APERCENTILE
 
 ```sql

@@ -236,6 +236,8 @@ typedef struct SAggLogicNode {
   bool       isGroupTb;
   bool       isPartTb;  // true if partition keys has tbname
   bool       hasGroup;
+  bool       hasMixedDistinct;    // optimizer set: child[0]=non-distinct, child[1]=distinct
+  int32_t    numDistinctFuncs;    // number of distinct functions (trailing in pAggFuncs)
   SNodeList* pTsmaSubplans;
 } SAggLogicNode;
 
@@ -491,6 +493,25 @@ typedef struct SSortLogicNode {
   bool       calcGroupId;
   bool       excludePkCol;  // exclude PK ts col when calc group id
 } SSortLogicNode;
+
+typedef struct SDistinctFilterLogicNode {
+  SLogicNode node;
+  SNode*     pDistinctCol;   // the column expression to deduplicate on
+  SNodeList* pGroupKeys;     // group-by columns for per-group dedup (NULL if no GROUP BY)
+  int8_t     colType;        // TSDB data type of distinct column
+  int32_t    colBytes;       // byte width of distinct column
+  // interval-aware dedup (per-window distinct)
+  bool       hasInterval;    // if true, dedup per interval window
+  int64_t    interval;
+  int64_t    offset;
+  int64_t    sliding;
+  int8_t     intervalUnit;
+  int8_t     slidingUnit;
+  int8_t     precision;      // time precision of the database
+  int8_t     firstDayOfWeek; // 0-6
+  void*      timezone;       // timezone_t handle
+  char       timezoneName[TD_TIMEZONE_LEN];
+} SDistinctFilterLogicNode;
 
 typedef struct SPartitionLogicNode {
   SLogicNode node;
@@ -862,6 +883,8 @@ typedef struct SAggPhysiNode {
   bool       mergeDataBlock;
   bool       groupKeyOptimized;
   bool       hasCountLikeFunc;
+  bool       hasMixedDistinct;    // true when AGG has 2 children: child[0]=non-distinct, child[1]=distinct
+  int32_t    numDistinctFuncs;    // number of distinct functions (trailing in pAggFuncs when hasMixedDistinct)
 } SAggPhysiNode;
 
 
@@ -1012,6 +1035,29 @@ typedef struct SSortPhysiNode {
 } SSortPhysiNode;
 
 typedef SSortPhysiNode SGroupSortPhysiNode;
+
+typedef struct SDistinctFilterPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;            // scalar expressions to evaluate before dedup (precalc)
+  SNodeList* pTargets;
+  int16_t    distinctColSlotId;  // slot of the distinct column in input block
+  int8_t     colType;            // TSDB data type
+  int32_t    colBytes;           // byte width
+  int16_t    numGroupCols;       // number of group-by columns (0 if no GROUP BY); executor uses it as a boolean hasGroup flag
+  // interval-aware dedup (per-window distinct)
+  bool       hasInterval;
+  int16_t    tsSlotId;           // slot of the primary timestamp column
+  int64_t    interval;
+  int64_t    offset;
+  int64_t    sliding;
+  int8_t     intervalUnit;
+  int8_t     slidingUnit;
+  int8_t     precision;
+  int8_t     firstDayOfWeek;
+  void*      timezone;           // timezone_t handle
+  char       timezoneName[TD_TIMEZONE_LEN];
+  bool       ownsTimezone;
+} SDistinctFilterPhysiNode;
 
 typedef struct SPartitionPhysiNode {
   SPhysiNode node;

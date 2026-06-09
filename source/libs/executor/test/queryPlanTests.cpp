@@ -3039,7 +3039,8 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       if (pAggNode->pGroupKeys != NULL) {
         qptCtx.result.code = createGroupOperatorInfo(NULL, pAggNode, pTaskInfo, ppOperaotr);
       } else {
-        qptCtx.result.code = createAggregateOperatorInfo(NULL, pAggNode, pTaskInfo, ppOperaotr);
+        SOperatorInfo* nullOps[] = {NULL};
+        qptCtx.result.code = createAggregateOperatorInfo(nullOps, 1, pAggNode, pTaskInfo, ppOperaotr);
       }
       break;
     }

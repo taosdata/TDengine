@@ -271,6 +271,7 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_SCALAR_FIELD(trimType);
   COPY_OBJECT_FIELD(srcFuncInputType, sizeof(SDataType));
   COPY_SCALAR_FIELD(tz);
+  COPY_SCALAR_FIELD(isDistinct);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -979,6 +980,25 @@ static int32_t logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLog
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t logicDistinctFilterCopy(const SDistinctFilterLogicNode* pSrc, SDistinctFilterLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_FIELD(pDistinctCol);
+  CLONE_NODE_LIST_FIELD(pGroupKeys);
+  COPY_SCALAR_FIELD(colType);
+  COPY_SCALAR_FIELD(colBytes);
+  COPY_SCALAR_FIELD(hasInterval);
+  COPY_SCALAR_FIELD(interval);
+  COPY_SCALAR_FIELD(offset);
+  COPY_SCALAR_FIELD(sliding);
+  COPY_SCALAR_FIELD(intervalUnit);
+  COPY_SCALAR_FIELD(slidingUnit);
+  COPY_SCALAR_FIELD(precision);
+  COPY_SCALAR_FIELD(firstDayOfWeek);
+  COPY_SCALAR_FIELD(timezone);
+  COPY_CHAR_ARRAY_FIELD(timezoneName);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t logicIndefRowsFuncCopy(const SIndefRowsFuncLogicNode* pSrc, SIndefRowsFuncLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pFuncs);
@@ -1630,6 +1650,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       code = logicPartitionCopy((const SPartitionLogicNode*)pNode, (SPartitionLogicNode*)pDst);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER:
+      code = logicDistinctFilterCopy((const SDistinctFilterLogicNode*)pNode, (SDistinctFilterLogicNode*)pDst);
       break;
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
       code = logicIndefRowsFuncCopy((const SIndefRowsFuncLogicNode*)pNode, (SIndefRowsFuncLogicNode*)pDst);

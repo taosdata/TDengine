@@ -562,7 +562,6 @@ static int32_t  createSimpleSelectStmtFromProjList(const char* pDb, const char* 
                                                    SSelectStmt** pStmt);
 static int32_t  setQuery(STranslateContext* pCxt, SQuery* pQuery);
 static int32_t  setRefreshMeta(STranslateContext* pCxt, SQuery* pQuery);
-
 static int32_t compareTsmaColWithColId(SNode* pNode1, SNode* pNode2);
 static int32_t createTsOperatorNode(EOperatorType opType, const SNode* pRight, SNode** pOp);
 static int32_t createOperatorNode(EOperatorType opType, const char* pColName, const SNode* pRight, SNode** pOp);
@@ -5056,6 +5055,37 @@ static int32_t validateDualQueryFunc(STranslateContext* pCxt, SFunctionNode* pFu
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t validateDistinctFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  int32_t ftype = pFunc->funcType;
+  if (ftype != FUNCTION_TYPE_COUNT && ftype != FUNCTION_TYPE_SUM && ftype != FUNCTION_TYPE_AVG &&
+      ftype != FUNCTION_TYPE_MIN && ftype != FUNCTION_TYPE_MAX) {
+    return TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT;
+  }
+  if (pFunc->pParameterList == NULL || LIST_LENGTH(pFunc->pParameterList) != 1) {
+    return TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT;
+  }
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  if (nodeType(pParam) == QUERY_NODE_COLUMN && ((SColumnNode*)pParam)->colName[0] == '*') {
+    return TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT;
+  }
+  // Reject DISTINCT with SESSION/STATE/EVENT windows (not supported yet)
+  if (isSelectStmt(pCxt->pCurrStmt)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+    if (pSelect->pWindow != NULL) {
+      ENodeType winType = nodeType(pSelect->pWindow);
+      if (winType == QUERY_NODE_SESSION_WINDOW || winType == QUERY_NODE_STATE_WINDOW ||
+          winType == QUERY_NODE_EVENT_WINDOW) {
+        return TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT;
+      }
+    }
+  }
+  // MIN/MAX DISTINCT is a no-op (MySQL compat) — clear the flag so optimizer ignores it
+  if (ftype == FUNCTION_TYPE_MIN || ftype == FUNCTION_TYPE_MAX) {
+    pFunc->isDistinct = false;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
   SNode* pParam = NULL;
   if (strcmp((*pFunc)->functionName, "tbname") == 0 && (*pFunc)->pParameterList != NULL) {
@@ -5080,6 +5110,9 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
   }
 
   pCxt->errCode = getFuncInfo(pCxt, *pFunc);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && (*pFunc)->isDistinct) {
+    pCxt->errCode = validateDistinctFunc(pCxt, *pFunc);
+  }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     if ((SQL_CLAUSE_GROUP_BY == pCxt->currClause || SQL_CLAUSE_PARTITION_BY == pCxt->currClause) &&
         fmIsVectorFunc((*pFunc)->funcId)) {

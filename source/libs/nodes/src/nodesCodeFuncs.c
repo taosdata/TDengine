@@ -559,6 +559,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiSort";
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
       return "PhysiGroupSort";
+    case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER:
+      return "PhysiDistinctFilter";
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
       return "PhysiHashInterval";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
@@ -3772,6 +3774,127 @@ static int32_t jsonToPhysiSortNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkDistinctFilterPhysiPlanExprs = "Exprs";
+static const char* jkDistinctFilterPhysiPlanTargets = "Targets";
+static const char* jkDistinctFilterPhysiPlanSlotId = "DistinctColSlotId";
+static const char* jkDistinctFilterPhysiPlanColType = "ColType";
+static const char* jkDistinctFilterPhysiPlanColBytes = "ColBytes";
+static const char* jkDistinctFilterPhysiPlanNumGroupCols = "NumGroupCols";
+static const char* jkDistinctFilterPhysiPlanHasInterval = "HasInterval";
+static const char* jkDistinctFilterPhysiPlanTsSlotId = "TsSlotId";
+static const char* jkDistinctFilterPhysiPlanInterval = "Interval";
+static const char* jkDistinctFilterPhysiPlanOffset = "Offset";
+static const char* jkDistinctFilterPhysiPlanSliding = "Sliding";
+static const char* jkDistinctFilterPhysiPlanIntervalUnit = "IntervalUnit";
+static const char* jkDistinctFilterPhysiPlanSlidingUnit = "SlidingUnit";
+static const char* jkDistinctFilterPhysiPlanPrecision = "Precision";
+static const char* jkDistinctFilterPhysiPlanFirstDayOfWeek = "FirstDayOfWeek";
+static const char* jkDistinctFilterPhysiPlanTimezoneName = "TimezoneName";
+
+static int32_t physiDistinctFilterNodeToJson(const void* pObj, SJson* pJson) {
+  const SDistinctFilterPhysiNode* pNode = (const SDistinctFilterPhysiNode*)pObj;
+
+  int32_t code = physicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkDistinctFilterPhysiPlanExprs, pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkDistinctFilterPhysiPlanTargets, pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDistinctFilterPhysiPlanSlotId, pNode->distinctColSlotId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDistinctFilterPhysiPlanColType, pNode->colType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDistinctFilterPhysiPlanColBytes, pNode->colBytes);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDistinctFilterPhysiPlanNumGroupCols, pNode->numGroupCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkDistinctFilterPhysiPlanHasInterval, pNode->hasInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->hasInterval) {
+    code = tjsonAddIntegerToObject(pJson, jkDistinctFilterPhysiPlanTsSlotId, pNode->tsSlotId);
+    if (TSDB_CODE_SUCCESS == code)
+      code = tjsonAddIntegerToObject(pJson, jkDistinctFilterPhysiPlanInterval, pNode->interval);
+    if (TSDB_CODE_SUCCESS == code)
+      code = tjsonAddIntegerToObject(pJson, jkDistinctFilterPhysiPlanOffset, pNode->offset);
+    if (TSDB_CODE_SUCCESS == code)
+      code = tjsonAddIntegerToObject(pJson, jkDistinctFilterPhysiPlanSliding, pNode->sliding);
+    if (TSDB_CODE_SUCCESS == code)
+      code = tjsonAddIntegerToObject(pJson, jkDistinctFilterPhysiPlanIntervalUnit, pNode->intervalUnit);
+    if (TSDB_CODE_SUCCESS == code)
+      code = tjsonAddIntegerToObject(pJson, jkDistinctFilterPhysiPlanSlidingUnit, pNode->slidingUnit);
+    if (TSDB_CODE_SUCCESS == code)
+      code = tjsonAddIntegerToObject(pJson, jkDistinctFilterPhysiPlanPrecision, pNode->precision);
+    if (TSDB_CODE_SUCCESS == code)
+      code = tjsonAddIntegerToObject(pJson, jkDistinctFilterPhysiPlanFirstDayOfWeek, pNode->firstDayOfWeek);
+    if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0')
+      code = tjsonAddStringToObject(pJson, jkDistinctFilterPhysiPlanTimezoneName, pNode->timezoneName);
+  }
+
+  return code;
+}
+
+static int32_t jsonToPhysiDistinctFilterNode(const SJson* pJson, void* pObj) {
+  SDistinctFilterPhysiNode* pNode = (SDistinctFilterPhysiNode*)pObj;
+
+  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkDistinctFilterPhysiPlanExprs, &pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkDistinctFilterPhysiPlanTargets, &pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkDistinctFilterPhysiPlanSlotId, pNode->distinctColSlotId, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkDistinctFilterPhysiPlanColType, pNode->colType, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkDistinctFilterPhysiPlanColBytes, pNode->colBytes, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    tjsonGetNumberValue(pJson, jkDistinctFilterPhysiPlanNumGroupCols, pNode->numGroupCols, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkDistinctFilterPhysiPlanHasInterval, &pNode->hasInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->hasInterval) {
+    tjsonGetNumberValue(pJson, jkDistinctFilterPhysiPlanTsSlotId, pNode->tsSlotId, code);
+    if (TSDB_CODE_SUCCESS == code)
+      tjsonGetNumberValue(pJson, jkDistinctFilterPhysiPlanInterval, pNode->interval, code);
+    if (TSDB_CODE_SUCCESS == code)
+      tjsonGetNumberValue(pJson, jkDistinctFilterPhysiPlanOffset, pNode->offset, code);
+    if (TSDB_CODE_SUCCESS == code)
+      tjsonGetNumberValue(pJson, jkDistinctFilterPhysiPlanSliding, pNode->sliding, code);
+    if (TSDB_CODE_SUCCESS == code)
+      tjsonGetNumberValue(pJson, jkDistinctFilterPhysiPlanIntervalUnit, pNode->intervalUnit, code);
+    if (TSDB_CODE_SUCCESS == code)
+      tjsonGetNumberValue(pJson, jkDistinctFilterPhysiPlanSlidingUnit, pNode->slidingUnit, code);
+    if (TSDB_CODE_SUCCESS == code)
+      tjsonGetNumberValue(pJson, jkDistinctFilterPhysiPlanPrecision, pNode->precision, code);
+    if (TSDB_CODE_SUCCESS == code)
+      tjsonGetNumberValue(pJson, jkDistinctFilterPhysiPlanFirstDayOfWeek, pNode->firstDayOfWeek, code);
+    if (TSDB_CODE_SUCCESS == code) {
+      char tzBuf[TD_TIMEZONE_LEN] = {0};
+      if (tjsonGetObjectItem(pJson, jkDistinctFilterPhysiPlanTimezoneName) != NULL) {
+        code = tjsonGetStringValue(pJson, jkDistinctFilterPhysiPlanTimezoneName, tzBuf);
+      }
+      if (TSDB_CODE_SUCCESS == code && tzBuf[0] != '\0') {
+        code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
+                                       &pNode->ownsTimezone);
+      }
+    }
+  }
+
+  return code;
+}
+
 static const char* jkWindowPhysiPlanExprs = "Exprs";
 static const char* jkWindowPhysiPlanFuncs = "Funcs";
 static const char* jkWindowPhysiPlanProjs = "Projs";
@@ -6655,6 +6778,7 @@ static const char* jkFunctionIsMergeFunc = "IsMergeFunc";
 static const char* jkFunctionMergeFuncOf = "MergeFuncOf";
 static const char* jkFunctionTrimType = "TrimType";
 static const char* jkFunctionSrcFuncInputDT = "SrcFuncInputDataType";
+static const char* jkFunctionIsDistinct = "IsDistinct";
 
 static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   const SFunctionNode* pNode = (const SFunctionNode*)pObj;
@@ -6692,6 +6816,9 @@ static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkFunctionSrcFuncInputDT, dataTypeToJson, &pNode->srcFuncInputType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkFunctionIsDistinct, pNode->isDistinct);
   }
   return code;
 }
@@ -6732,6 +6859,9 @@ static int32_t jsonToFunctionNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToObject(pJson, jkFunctionSrcFuncInputDT, jsonToDataType, &pNode->srcFuncInputType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkFunctionIsDistinct, &pNode->isDistinct);
   }
 
   return code;
@@ -11708,6 +11838,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
       return physiSortNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER:
+      return physiDistinctFilterNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       return physiIntervalNodeToJson(pObj, pJson);
@@ -12211,6 +12343,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
       return jsonToPhysiSortNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER:
+      return jsonToPhysiDistinctFilterNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       return jsonToPhysiIntervalNode(pJson, pObj);
