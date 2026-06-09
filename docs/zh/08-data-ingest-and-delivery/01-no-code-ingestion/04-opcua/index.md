@@ -65,6 +65,8 @@ TDengine TSDB 可以高效地从 OPC UA 服务器读取数据并将其写入 TDe
 
 其他厂商的 OPC UA Server，按本节通用步骤填写即可。
 
+如需了解 OPC UA 点位 Property（如 `limit`）如何自动映射为 TDengine TAG，请参考：[OPC UA Property 到 TAG 示例（以 limit 为例）](./05-property-tags-example.md)。
+
 ### 4. 选择认证方式
 
 如下图所示，切换 tab 可选择不同的认证方式，可选的认证方式有：
