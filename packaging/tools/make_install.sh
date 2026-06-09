@@ -449,14 +449,27 @@ function install_lib() {
 }
 
 function install_header() {
+  local ws_header_file="${binary_dir}/build/taos-connector-rust/output/taosws.h"
+  if [ ! -f "${ws_header_file}" ]; then
+    for candidate in \
+      "${binary_dir}/build/include/taosws.h" \
+      "${binary_dir}/build/taos-connector-rust/target/release/taosws.h" \
+      "${binary_dir}/build/taos-connector-rust/target/debug/taosws.h"; do
+      if [ -f "${candidate}" ]; then
+        ws_header_file="${candidate}"
+        break
+      fi
+    done
+  fi
+
   ${csudo}mkdir -p ${inc_link_dir}
   ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/tdef.h ${inc_link_dir}/taosudf.h || :
   [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h ||:
   ${csudo}cp -f ${source_dir}/include/client/taos.h ${source_dir}/include/common/taosdef.h ${source_dir}/include/util/taoserror.h ${source_dir}/include/util/tdef.h ${source_dir}/include/libs/function/taosudf.h \
     ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
 
-  if [ -f ${binary_dir}/build/include/taosws.h ]; then
-    ${csudo}cp -f ${binary_dir}/build/include/taosws.h ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/taosws.h ||:
+  if [ -f "${ws_header_file}" ]; then
+    ${csudo}cp -f "${ws_header_file}" ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/taosws.h ||:
     ${csudo}ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h > /dev/null 2>&1 ||:
   fi
 
