@@ -457,6 +457,11 @@ int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
       } else if (src[k + 1] == 'b') {
         dst[j] = '\b';
       } else if (src[k + 1] == '%' || src[k + 1] == '_' || src[k + 1] == 'x') {
+        // Security fix: Check bounds before writing 2 bytes for escape sequences
+        if (j + 1 >= dlen) {
+          dst[j] = '\0';
+          return j;
+        }
         dst[j++] = src[k];
         dst[j] = src[k + 1];
       } else {
