@@ -60,6 +60,8 @@ Different OPC UA Server products use different endpoint formats, security policy
 
 For OPC UA Servers from other vendors, follow the generic steps in this section.
 
+For details on how OPC UA point Properties (for example, `limit`) are mapped to TDengine TAG columns, see [OPC UA Property to TAG Example (limit as example)](./05-property-tags-example.md).
+
 ### Choose Authentication Method
 
 As shown below, switch tabs to choose different authentication methods:
