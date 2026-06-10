@@ -2410,7 +2410,7 @@ class TestExternal:
 
         param_values: flat list of scalar values matching the '?' placeholders,
         e.g. [103] for one int param or [t0 + 300000, 103] for two params.
-        STMT2 SELECT without '?' placeholders is not supported ([0x022a]).
+        STMT2 SELECT also supports literal SQL without '?' placeholders.
         """
         stmt2 = conn.statement2(sql)
         try:
@@ -2488,30 +2488,22 @@ class TestExternal:
             (t0 + 600000, 2),
         ], "stmt2 case 3")
 
-        # ---- case 4: no '?' params — should fail with API error ----
-        # Queries without '?' are not supported in STMT2 mode.
-        # The error may be raised at prepare or execute time.
-        stmt2 = None
-        try:
-            stmt2 = conn.statement2(
-                "select cast(_wstart as bigint) as ws, count(*) as c "
-                "from ext_cx_src "
-                "external_window((select ts, endtime from ext_cx_win) w) "
-                "order by ws",
-            )
-            stmt2.execute()  # no bind_param, no '?' — should fail
-            tdLog.exit("stmt2 case 4: expected error for no-param STMT2 SELECT but succeeded")
-        except Exception as err:
-            err_msg = str(err)
-            if "[0x2600]" not in err_msg:
-                tdLog.exit(f"stmt2 case 4: expected [0x2600] STMT2 syntax error, got: {err_msg}")
-            tdLog.info(f"stmt2 case 4: got expected error: {err_msg}")
-        finally:
-            if stmt2 is not None:
-                try:
-                    stmt2.close()
-                except Exception:
-                    pass
+        # ---- case 4: no '?' params, literal STMT2 SELECT ----
+        # STMT2 supports literal SQL, so a SELECT without bind parameters should
+        # execute successfully and return the same external_window result.
+        rows = self._run_stmt2_query(
+            conn,
+            "select cast(_wstart as bigint) as ws, count(*) as c "
+            "from ext_cx_src "
+            "external_window((select ts, endtime from ext_cx_win) w) "
+            "order by ws",
+        )
+        self._check_stmt_rows(rows, [
+            (t0,          3),
+            (t0 + 300000, 4),
+            (t0 + 600000, 2),
+            (t0 + 900000, 2),
+        ], "stmt2 case 4")
 
         # ---- case 5: PARTITION BY aggregate (mirrors stmt case 4) ----
         # mark >= 101 → all 4 windows; partition by t1 → 8 output rows ordered by t1, ws.
