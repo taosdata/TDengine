@@ -252,6 +252,77 @@ class TestStreamRollupExpand:
         tdSql.query("select cnt from rs_e6 where loc='A.B.D'")
         assert tdSql.getData(0, 0) == 2
 
+    def test_rollup_prefilter_limits_prefixes(self):
+        """Rollup pre_filter limits generated path prefixes.
+
+        Catalog:
+            - Streams:Rollup
+
+        Since: v3.4.2.0
+        Labels: common,ci
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7010651959
+        History:
+            - 2026-06-08 Created
+        """
+
+        self.prepare_expand_data()
+        tdSql.execute("create table t1 using meters tags ('A.B.C.D.E')")
+        tdSql.execute("insert into t1 values (1700000000000, 1.0)")
+        tdSql.execute(
+            "create stream s_e7 interval(1h) sliding(1h) from meters "
+            "rollup by location "
+            "stream_options(fill_history(0)|pre_filter(location like 'A.B.C.D%')) "
+            "into rs_e7 "
+            "tags (loc nchar(256) as %%1) "
+            "as select _twstart, count(*) as cnt from %%trows"
+        )
+        self.wait_stream_running("s_e7", "db_rollup_expand")
+        self.wait_subtables("rs_e7", 2)
+        got = self.query_column("select distinct loc from rs_e7 order by loc")
+        assert sorted(got) == ["A.B.C.D", "A.B.C.D.E"]
+
+    def test_rollup_prefilter_uses_tbname_and_source_tag(self):
+        """Rollup pre_filter can use tbname and non-rollup source tags.
+
+        Catalog:
+            - Streams:Rollup
+
+        Since: v3.4.2.0
+        Labels: common,ci
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7010651959
+        History:
+            - 2026-06-09 Created
+        """
+
+        tdSql.executes(
+            [
+                "drop database if exists db_rollup_prefilter force",
+                "create database db_rollup_prefilter vgroups 1",
+                "use db_rollup_prefilter",
+                "create stable meters (ts timestamp, current float) "
+                "tags (location nchar(64), site nchar(16))",
+                "create table keep_1 using meters tags ('A.B.C', 'east')",
+                "create table skip_name using meters tags ('A.B.D', 'east')",
+                "create table keep_2 using meters tags ('A.B.E', 'west')",
+                "insert into keep_1 values (1700000000000, 1.0)",
+                "insert into skip_name values (1700000000000, 2.0)",
+                "insert into keep_2 values (1700000000000, 3.0)",
+            ]
+        )
+        tdSql.execute(
+            "create stream s_e8 interval(1h) sliding(1h) from meters "
+            "rollup by location "
+            "stream_options(fill_history(0)|pre_filter(site='east' and tbname like 'keep_%')) "
+            "into rs_e8 "
+            "tags (loc nchar(256) as %%1) "
+            "as select _twstart, count(*) as cnt from %%trows"
+        )
+        self.wait_stream_running("s_e8", "db_rollup_prefilter")
+        self.wait_subtables("rs_e8", 3)
+        got = self.query_column("select distinct loc from rs_e8 order by loc")
+        assert sorted(got) == ["A", "A.B", "A.B.C"]
+        tdSql.query("select cnt from rs_e8 where loc='A'")
+        assert tdSql.getData(0, 0) == 1
 
     def prepare_illegal_path_data(self):
         tdSql.executes(
