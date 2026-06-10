@@ -3083,33 +3083,77 @@ static int32_t rewriteProjectCondForPushDown(SOptimizeContext* pCxt, SProjectLog
   return cxt.errCode;
 }
 
-static EDealRes pdcSetOpCondHasNonPrimKeyImpl(SNode* pNode, void* pCtx) {
+static EDealRes pdcSetOpExprHasColumnImpl(SNode* pNode, void* pCtx) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    if (!isPrimaryKeyImpl(pNode)) {
-      *(bool*)pCtx = true;
-      return DEAL_RES_END;
-    }
+    *(bool*)pCtx = true;
+    return DEAL_RES_END;
   }
   return DEAL_RES_CONTINUE;
 }
 
-/* Returns true only when every column reference in pCond is the primary
- * timestamp column.  Conditions that reference other columns (e.g. tbname,
- * tag columns) cannot be safely rewritten through a branch project's column
- * mapping because of tableAlias mismatches, so they must stay on the setop
- * project node and must not be pushed to children. */
-static bool pdcSetOpCondOnlyRefsPrimaryKey(SNode* pCond) {
-  bool hasNonPrimKey = false;
-  nodesWalkExpr(pCond, pdcSetOpCondHasNonPrimKeyImpl, &hasNonPrimKey);
-  return !hasNonPrimKey;
+static bool pdcSetOpExprHasColumn(SNode* pExpr) {
+  bool hasColumn = false;
+  nodesWalkExpr(pExpr, pdcSetOpExprHasColumnImpl, &hasColumn);
+  return hasColumn;
 }
 
-/* Extract the primary-timestamp-only sub-conditions from pCond and return
- * them as a new node (owned by caller) suitable for pushing to branch scans.
- * Sets *pIsPureTsCond = true when the entire condition is primary-ts-only.
+static bool pdcSetOpIsRangeOp(EOperatorType opType) {
+  return OP_TYPE_GREATER_THAN == opType || OP_TYPE_GREATER_EQUAL == opType || OP_TYPE_LOWER_THAN == opType ||
+         OP_TYPE_LOWER_EQUAL == opType || OP_TYPE_EQUAL == opType;
+}
+
+static bool pdcSetOpCondIsPushablePrimKeyRange(SNode* pCond) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond)) {
+    SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pCond;
+    /* Conservative: only AND trees of simple pk range predicates can be pushed down.
+     * OR/NOT ranges are not represented as a single contiguous scan time range here,
+     * so they stay on the setop project for final filtering. */
+    if (LOGIC_COND_TYPE_AND != pLogicCond->condType || NULL == pLogicCond->pParameterList) {
+      return false;
+    }
+
+    SNode* pItem = NULL;
+    FOREACH(pItem, pLogicCond->pParameterList) {
+      if (!pdcSetOpCondIsPushablePrimKeyRange(pItem)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
+    return false;
+  }
+
+  SOperatorNode* pOp = (SOperatorNode*)pCond;
+  if (!pdcSetOpIsRangeOp(pOp->opType)) {
+    return false;
+  }
+
+  if (NULL == pOp->pLeft || NULL == pOp->pRight) {
+    return false;
+  }
+
+  bool leftIsPk = QUERY_NODE_COLUMN == nodeType(pOp->pLeft) && isPrimaryKeyImpl(pOp->pLeft);
+  bool rightIsPk = QUERY_NODE_COLUMN == nodeType(pOp->pRight) && isPrimaryKeyImpl(pOp->pRight);
+  if (!leftIsPk && !rightIsPk) {
+    return false;
+  }
+  if (leftIsPk && rightIsPk) {
+    return false;
+  }
+
+  SNode* pOther = leftIsPk ? pOp->pRight : pOp->pLeft;
+  return !pdcSetOpExprHasColumn(pOther);
+}
+
+/* Extract the simple primary-timestamp range sub-conditions from pCond and
+ * return them as a new node (owned by caller) suitable for pushing to branch
+ * scans.  Sets *pIsPureTsCond = true when the entire condition is composed of
+ * pushable primary-timestamp range predicates.
  *
- * - Pure-ts condition:  returns a clone of the entire condition.
- * - Top-level AND with some pure-ts sub-terms: returns AND of those clones.
+ * - Simple pk-range condition: returns a clone of the condition.
+ * - Top-level AND with some simple pk-range sub-terms: returns AND of those clones.
  * - Non-AND mixed condition (OR, single non-ts term): returns NULL.
  *
  * The returned node is used only as an I/O hint pushed to branch scans;
@@ -3119,31 +3163,36 @@ static int32_t pdcExtractPrimKeyPushCond(SNode* pCond, SNode** ppOut, bool* pIsP
   *ppOut         = NULL;
   *pIsPureTsCond = false;
 
-  /* A top-level AND or simple comparison that references only the primary key
-   * can be cloned and pushed as an I/O hint to branch scans.
+  /* Only simple comparisons with a bare primary key on one side and a
+   * column-free expression on the other side can be cloned and pushed as scan
+   * ranges.  Expressions such as `ts + 1000 <= const` still reference only the
+   * primary key, but pushing them to a branch changes the slot context and can
+   * fail physical slot resolution.  Keep those expressions on the setop
+   * project for final filtering.
    * OR conditions (e.g. ts < X OR ts > Y) cannot be expressed as a single
    * contiguous scan time range and must stay as a Filter on the setop project;
    * pushing them would cause a slot-key resolution failure in the physical
    * planner because the column reference context changes at the branch boundary. */
-  bool isOrCond = (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) &&
-                   LOGIC_COND_TYPE_OR == ((SLogicConditionNode*)pCond)->condType);
-  if (!isOrCond && pdcSetOpCondOnlyRefsPrimaryKey(pCond)) {
+  if (pdcSetOpCondIsPushablePrimKeyRange(pCond)) {
     *pIsPureTsCond = true;
     return nodesCloneNode(pCond, ppOut);
   }
 
-  /* Non-AND top-level condition with non-ts refs or OR: nothing pushable. */
+  /* Non-AND top-level condition with non-pushable shape: nothing pushable. */
   if (QUERY_NODE_LOGIC_CONDITION != nodeType(pCond) ||
       LOGIC_COND_TYPE_AND != ((SLogicConditionNode*)pCond)->condType) {
     return TSDB_CODE_SUCCESS;
   }
 
-  /* AND: collect clones of pure-ts sub-terms. */
+  /* AND: collect clones of simple pk-range sub-terms. */
   SNodeList* pTsList = NULL;
   int32_t    code    = TSDB_CODE_SUCCESS;
   SNode*     pItem   = NULL;
+  int32_t    itemNum  = 0;
+  int32_t    pushNum  = 0;
   FOREACH(pItem, ((SLogicConditionNode*)pCond)->pParameterList) {
-    if (!pdcSetOpCondOnlyRefsPrimaryKey(pItem)) continue;
+    itemNum++;
+    if (!pdcSetOpCondIsPushablePrimKeyRange(pItem)) continue;
     SNode* pClone = NULL;
     code = nodesCloneNode(pItem, &pClone);
     if (TSDB_CODE_SUCCESS != code) {
@@ -3156,9 +3205,11 @@ static int32_t pdcExtractPrimKeyPushCond(SNode* pCond, SNode** ppOut, bool* pIsP
       nodesDestroyList(pTsList);
       return code;
     }
+    pushNum++;
   }
 
   if (NULL == pTsList) return TSDB_CODE_SUCCESS;
+  *pIsPureTsCond = (pushNum == itemNum);
 
   /* nodesMergeConds: single item → unwrap; multiple → AND wrapper.
    * On failure it does not free *pSrc, so destroy pTsList explicitly. */
@@ -3217,6 +3268,71 @@ static bool pdcSetOpBranchProjAtIdxIsArithExpr(SLogicNode* pBranch, int32_t pkId
   return QUERY_NODE_OPERATOR == nodeType(pPkExpr);
 }
 
+static bool pdcSetOpBranchHasVirtualScan(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pNode)) {
+    return true;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (pdcSetOpBranchHasVirtualScan((SLogicNode*)pChild)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+typedef struct SSetOpRewritePkCondCxt {
+  SNode*  pChildPkTarget;
+  int32_t errCode;
+  bool    rewritten;
+} SSetOpRewritePkCondCxt;
+
+static EDealRes pdcSetOpRewritePkCondForChildImpl(SNode** ppNode, void* pCtx) {
+  if (QUERY_NODE_COLUMN != nodeType(*ppNode) || !isPrimaryKeyImpl(*ppNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SSetOpRewritePkCondCxt* pCxt = pCtx;
+  SNode*                  pNew = NULL;
+  pCxt->errCode = nodesCloneNode(pCxt->pChildPkTarget, &pNew);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode || NULL == pNew) {
+    return DEAL_RES_ERROR;
+  }
+
+  nodesDestroyNode(*ppNode);
+  *ppNode = pNew;
+  pCxt->rewritten = true;
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static int32_t pdcSetOpRewritePkCondForChild(SNode** ppCond, SLogicNode* pChild, int32_t pkIdx, bool* pRewritten) {
+  *pRewritten = false;
+  if (NULL == ppCond || NULL == *ppCond || QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pChild) || pkIdx < 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SProjectLogicNode* pChildProj = (SProjectLogicNode*)pChild;
+  if (NULL == pChildProj->node.pTargets || LIST_LENGTH(pChildProj->node.pTargets) <= pkIdx) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pChildPkTarget = nodesListGetNode(pChildProj->node.pTargets, pkIdx);
+  if (NULL == pChildPkTarget) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSetOpRewritePkCondCxt cxt = {.pChildPkTarget = pChildPkTarget, .errCode = TSDB_CODE_SUCCESS, .rewritten = false};
+  nodesRewriteExpr(ppCond, pdcSetOpRewritePkCondForChildImpl, &cxt);
+  *pRewritten = cxt.rewritten;
+  return cxt.errCode;
+}
+
 static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pSetOpProj) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -3259,11 +3375,26 @@ static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pS
       anyChildSkipped = true;
       continue;
     }
+    bool childHasVirtualScan = pdcSetOpBranchHasVirtualScan(pChild);
     SNode* pPushCond = NULL;
     code = nodesCloneNode(pTsPushCond, &pPushCond);
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyNode(pTsPushCond);
       return code;
+    }
+    if (childHasVirtualScan) {
+      bool rewritten = false;
+      code = pdcSetOpRewritePkCondForChild(&pPushCond, pChild, pkIdx, &rewritten);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pPushCond);
+        nodesDestroyNode(pTsPushCond);
+        return code;
+      }
+      if (!rewritten) {
+        nodesDestroyNode(pPushCond);
+        anyChildSkipped = true;
+        continue;
+      }
     }
     code = nodesMergeNode(&pChild->pConditions, &pPushCond);
     if (TSDB_CODE_SUCCESS != code) {
