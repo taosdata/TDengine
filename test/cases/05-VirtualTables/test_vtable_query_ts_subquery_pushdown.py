@@ -49,3 +49,27 @@ class TestVTableQueryTsSubqueryPushdown:
         """
 
         self.run_normal_query("test_vtable_ts_subquery_query")
+
+    def test_union_join_ts_filter_with_vtable(self):
+        """Query: UNION/JOIN timestamp filters with virtual table branches
+
+        1. validate UNION ALL outer ts filter/order keeps projected ts values
+        2. validate JOIN-side ts filter/order keeps projected ts values
+        3. validate virtual-table branches can still apply timestamp pushdown
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-6-5 Added regression for UNION ALL set-op ts pushdown with vtable branch
+            - 2026-6-6 Added JOIN timestamp pushdown scenarios
+
+        """
+
+        self.run_normal_query("test_vtable_union_join_ts_pushdown")
