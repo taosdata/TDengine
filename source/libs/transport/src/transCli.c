@@ -677,6 +677,7 @@ void cliHandleResp(SCliConn* conn) {
   if ((code = transDecompressMsg((char**)&pHead, &msgLen)) < 0) {
     tDebug("%s conn:%p, recv invalid packet, failed to decompress", CONN_GET_INST_LABEL(conn), conn);
     // TODO: notify cb
+    taosMemoryFree(pHead);
     return;
   }
   int64_t qId = taosNtoh64(pHead->qid);
