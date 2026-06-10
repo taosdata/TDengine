@@ -25,6 +25,8 @@ The following configuration parameters only take effect for Native connections.
 |shareConnLimit        |Added in 3.3.4.0|Not supported                     |Internal parameter, the number of queries a link can share, range 1-512, default value 10 (Linux/macOS) or 1 (Windows)|
 |readTimeout           |Added in 3.3.4.0|Not supported                     |Internal parameter, minimum timeout, range 64-604800, in seconds, default value 900|
 | maxRetryWaitTime     | v3.3.4.0                        | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
+| retryOnOverloadBaseInterval | Added in v3.4.2.0 | Not supported, restart client required | Base interval for client retry on server overload (e.g. sync negotiation window full). Uses exponential backoff (doubles each attempt). Range 100-60000, in milliseconds, default value 1000 |
+| retryOnOverloadTimeout | Added in v3.4.2.0 | Not supported, restart client required | Maximum total duration for server overload retry. After this time, no more retries and error is returned to application. Range 1000-3600000, in milliseconds, default value 60000 |
 
 ### Query Related
 

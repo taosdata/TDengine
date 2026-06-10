@@ -355,6 +355,11 @@ static bool clientRpcTfp(int32_t code, tmsg_t msgType) {
   return false;
 }
 
+static bool clientRpcRetryOnOverload(int32_t code, tmsg_t msgType) {
+  if (code == TSDB_CODE_SYN_NEGOTIATION_WIN_FULL) return true;
+  return false;
+}
+
 // TODO refactor
 int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread, void **pDnodeConn) {
   SRpcInit rpcInit;
@@ -375,6 +380,10 @@ int32_t openTransporter(const char *user, const char *auth, int32_t numOfThread,
   rpcInit.retryStepFactor = tsRedirectFactor;
   rpcInit.retryMaxInterval = tsRedirectMaxPeriod;
   rpcInit.retryMaxTimeout = tsMaxRetryWaitTime;
+
+  rpcInit.retryOnOverloadBaseInterval = tsRetryOnOverloadBaseInterval;
+  rpcInit.retryOnOverloadTimeout = tsRetryOnOverloadTimeout;
+  rpcInit.retryOnOverloadFp = clientRpcRetryOnOverload;
 
   int32_t connLimitNum = tsNumOfRpcSessions / (tsNumOfRpcThreads * 3);
   connLimitNum = TMAX(connLimitNum, 10);
