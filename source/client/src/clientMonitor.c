@@ -454,11 +454,13 @@ static char* readFile(SlowLogClient* pClient) {
     taosMemoryFree(pCont);
     return NULL;
   }
+  tscDebug("monitor readFile from file, data:%s", buf);
 
   totalSize = 0;
   while (1) {
     size_t len = strlen(buf);
-    if (len == SLOW_LOG_SEND_SIZE_MAX) {  // one item is too long
+    if (len == SLOW_LOG_SEND_SIZE_MAX || len == readSize) {  // one item is too long or not ended with \0
+      tscInfo("monitor readFile slow log end with too long item, data:%s, len:%" PRId64, buf, len);
       pClient->sendOffset = pClient->size;
       *buf = ']';
       *(buf + 1) = '\0';
