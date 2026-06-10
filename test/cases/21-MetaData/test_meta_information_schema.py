@@ -17,8 +17,94 @@ from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, tdDnodes
 import os
 import time
 
-NUM_INFO_DB_TABLES = 61  # number of system tables in information_schema
-NUM_PERF_DB_TABLES = 6  # number of system tables in performance_schema
+EXPECTED_INFO_TABLES = {
+    "ins_anodes",
+    "ins_anodes_full",
+    "ins_arbgroups",
+    "ins_bnodes",
+    "ins_cluster",
+    "ins_columns",
+    "ins_compact_details",
+    "ins_compacts",
+    "ins_configs",
+    "ins_cpu_allocation",
+    "ins_databases",
+    "ins_disk_usage",
+    "ins_dnode_variables",
+    "ins_dnodes",
+    "ins_encrypt_algorithms",
+    "ins_encrypt_status",
+    "ins_encryptions",
+    "ins_filesets",
+    "ins_functions",
+    "ins_grants",
+    "ins_grants_full",
+    "ins_grants_logs",
+    "ins_indexes",
+    "ins_machines",
+    "ins_mnodes",
+    "ins_mounts",
+    "ins_qnodes",
+    "ins_retention_details",
+    "ins_retentions",
+    "ins_role_column_privileges",
+    "ins_role_privileges",
+    "ins_roles",
+    "ins_rsmas",
+    "ins_scan_details",
+    "ins_scans",
+    "ins_security_policies",
+    "ins_snap_send_filesets",
+    "ins_snap_send_vnodes",
+    "ins_snodes",
+    "ins_ssmigrates",
+    "ins_stables",
+    "ins_stream_recalculates",
+    "ins_stream_tasks",
+    "ins_streams",
+    "ins_subscriptions",
+    "ins_table_fixed_distributed",
+    "ins_tables",
+    "ins_tags",
+    "ins_tokens",
+    "ins_topics",
+    "ins_transaction_details",
+    "ins_tsmas",
+    "ins_user_privileges",
+    "ins_users",
+    "ins_vgroups",
+    "ins_views",
+    "ins_virtual_child_columns",
+    "ins_virtual_tables_referencing",
+    "ins_vnodes",
+    "ins_xnode_agents",
+    "ins_xnode_jobs",
+    "ins_xnode_tasks",
+    "ins_xnodes",
+}
+EXPECTED_PERF_TABLES = {
+    "perf_apps",
+    "perf_connections",
+    "perf_consumers",
+    "perf_instances",
+    "perf_queries",
+    "perf_trans",
+}
+
+
+def get_sys_table_names(db_name):
+    tdSql.query(
+        f"select table_name from information_schema.ins_tables where db_name = '{db_name}' order by table_name"
+    )
+    return {row[0] for row in tdSql.queryResult}
+
+
+def get_checked_sys_table_counts():
+    actual_info_tables = get_sys_table_names("information_schema")
+    tdSql.checkEqual(actual_info_tables, EXPECTED_INFO_TABLES)
+    actual_perf_tables = get_sys_table_names("performance_schema")
+    tdSql.checkEqual(actual_perf_tables, EXPECTED_PERF_TABLES)
+    return len(actual_info_tables), len(actual_perf_tables)
 
 sysdb_tables = { 
     "information_schema": ["ins_dnodes", "ins_mnodes", "ins_modules", "ins_qnodes", "ins_snodes", "ins_cluster", "ins_databases",
@@ -169,15 +255,11 @@ class TestDdlInSysdb:
         tdSql.query(f"select * from information_schema.ins_tables where table_name='';")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select table_name from information_schema.ins_tables where db_name = 'information_schema' order by table_name")
+        actual_info_tables = get_sys_table_names("information_schema")
+        tdSql.checkEqual(actual_info_tables, EXPECTED_INFO_TABLES)
 
-        tdSql.checkRows(NUM_INFO_DB_TABLES)
-
-        tdSql.checkData(0, 0, "ins_anodes")
-
-        tdSql.query(f"select table_name from information_schema.ins_tables where db_name = 'performance_schema' order by table_name")
-        tdSql.checkRows(NUM_PERF_DB_TABLES)
-        tdSql.checkData(0, 0, "perf_apps")
+        actual_perf_tables = get_sys_table_names("performance_schema")
+        tdSql.checkEqual(actual_perf_tables, EXPECTED_PERF_TABLES)
         
 
         tdSql.query(f"select distinct tbname from information_schema.ins_tables;")
@@ -700,6 +782,7 @@ class TestDdlInSysdb:
         tdStream.dropAllStreamsAndDbs()
 
     def TableCount(self):
+        info_tables, perf_tables = get_checked_sys_table_counts()
         tdSql.execute(f"drop database if exists db1;")
         tdSql.execute(f"create database db1 vgroups 3;")
         tdSql.error(f"create database db1;")
@@ -762,7 +845,7 @@ class TestDdlInSysdb:
         )
         tdSql.checkRows(3)
 
-        tdSql.checkData(0, 1, NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES + 1)
+        tdSql.checkData(0, 1, info_tables + perf_tables + 1)
 
         tdSql.checkData(1, 1, 10)
 
@@ -777,9 +860,9 @@ class TestDdlInSysdb:
 
         tdSql.checkData(1, 1, 5)
 
-        tdSql.checkData(2, 1, NUM_INFO_DB_TABLES)
+        tdSql.checkData(2, 1, info_tables)
 
-        tdSql.checkData(3, 1, NUM_PERF_DB_TABLES)
+        tdSql.checkData(3, 1, perf_tables)
 
         tdSql.query(
             f"select db_name,stable_name,count(table_name) from information_schema.ins_tables group by db_name, stable_name order by db_name, stable_name;"
@@ -796,9 +879,9 @@ class TestDdlInSysdb:
 
         tdSql.checkData(4, 2, 3)
 
-        tdSql.checkData(5, 2, NUM_INFO_DB_TABLES)
+        tdSql.checkData(5, 2, info_tables)
 
-        tdSql.checkData(6, 2, NUM_PERF_DB_TABLES)
+        tdSql.checkData(6, 2, perf_tables)
 
         tdSql.query(
             f"select count(table_name) from information_schema.ins_tables where db_name='db1' and stable_name='sta' group by stable_name"
@@ -928,14 +1011,6 @@ class TestDdlInSysdb:
             ]
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
-        self.ins_list = ['ins_dnodes','ins_mnodes','ins_qnodes','ins_snodes','ins_bnodes','ins_cluster','ins_databases','ins_functions',\
-            'ins_indexes','ins_stables','ins_tables','ins_tags','ins_columns','ins_virtual_child_columns', 'ins_users','ins_grants','ins_vgroups','ins_configs','ins_dnode_variables',\
-                'ins_topics','ins_subscriptions','ins_streams','ins_stream_tasks','ins_vnodes','ins_user_privileges','ins_views',
-                'ins_compacts', 'ins_compact_details', 'ins_grants_full','ins_grants_logs', 'ins_machines', 'ins_arbgroups', 'ins_tsmas', "ins_encryptions", "ins_anodes",
-                        "ins_anodes_full", "ins_disk_usagea", "ins_filesets", "ins_transaction_details", "ins_mounts", "ins_stream_recalculates", "ins_ssmigrates", 'ins_scans', 'ins_scan_details', 'ins_rsmas', 'ins_retentions', 'ins_retention_details', 'ins_encrypt_algorithms', "ins_tokens" , 'ins_encrypt_status',
-                        "ins_roles", "ins_role_privileges", "ins_role_column_privileges", "ins_xnodes", "ins_xnode_tasks", "ins_xnode_jobs","ins_xnode_agents", "ins_virtual_tables_referencing", "ins_security_policies","ins_snap_send_vnodes","ins_snap_send_filesets", "ins_table_fixed_distributed", "ins_cpu_allocation"]
-        self.perf_list = ['perf_connections', 'perf_queries',
-                         'perf_consumers',  'perf_trans', 'perf_apps','perf_instances']
 
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
@@ -950,8 +1025,10 @@ class TestDdlInSysdb:
             tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]}, {self.tag_values[1]})")
             self.insert_data(self.column_dict,f'{self.stbname}_{i}',self.rowNum)
     def count_check(self):
+        info_tables, perf_tables = get_checked_sys_table_counts()
+
         tdSql.query('select count(*) from information_schema.ins_tables')
-        tdSql.checkEqual(tdSql.queryResult[0][0],self.tbnum+len(self.ins_list)+len(self.perf_list))
+        tdSql.checkEqual(tdSql.queryResult[0][0], self.tbnum + info_tables + perf_tables)
         tdSql.query(f'select count(*) from information_schema.ins_tables where db_name = "{self.dbname}"')
         tdSql.checkEqual(tdSql.queryResult[0][0],self.tbnum)
         tdSql.query(f'select count(*) from information_schema.ins_tables where db_name = "{self.dbname}" and stable_name = "{self.stbname}"')
@@ -962,20 +1039,20 @@ class TestDdlInSysdb:
         tdSql.query(f'select db_name, stable_name, count(*) from information_schema.ins_tables group by db_name, stable_name')
         for i in tdSql.queryResult:
             if i[0].lower() == 'information_schema':
-                tdSql.checkEqual(i[2],len(self.ins_list))
+                tdSql.checkEqual(i[2], info_tables)
             elif i[0].lower() == self.dbname and i[1] == self.stbname:
                 tdSql.checkEqual(i[2],self.tbnum)
             elif i[0].lower() == self.dbname and i[1] == 'stb1':
                 tdSql.checkEqual(i[2],1)
             elif i[0].lower() == 'performance_schema':
-                tdSql.checkEqual(i[2],len(self.perf_list))
+                tdSql.checkEqual(i[2], perf_tables)
         tdSql.execute('create table db1.ntb (ts timestamp,c0 int)')
         tdSql.query(f'select db_name, count(*) from information_schema.ins_tables group by db_name')
         for i in tdSql.queryResult:
             if i[0].lower() == 'information_schema':
-                tdSql.checkEqual(i[1],len(self.ins_list))
+                tdSql.checkEqual(i[1], info_tables)
             elif i[0].lower() == 'performance_schema':
-                tdSql.checkEqual(i[1],len(self.perf_list))
+                tdSql.checkEqual(i[1], perf_tables)
             elif i[0].lower() == self.dbname:
                 tdSql.checkEqual(i[1],self.tbnum+1)
 
