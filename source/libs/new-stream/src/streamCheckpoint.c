@@ -64,7 +64,7 @@ static int32_t writeFile(char* filepath, void* data, int64_t dataLen) {
     // Encrypt using CBC with metaKey
     SCryptOpts opts = {0};
     opts.len = writeLen;
-    opts.source = (char*)data;
+    opts.source = encryptedData;
     opts.result = encryptedData;
     opts.unitLen = 16;
     opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
