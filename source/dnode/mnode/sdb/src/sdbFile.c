@@ -648,7 +648,7 @@ int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           }
 
           SCryptOpts opts = {0};
-          opts.len = newDataLen;
+          opts.len = pRaw->dataLen;
           opts.source = pRaw->pData;
           opts.result = newData;
           opts.unitLen = 16;
