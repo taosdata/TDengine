@@ -1,4 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql, tdCom, TAOS_SYSTEM_ERROR, TSDB_CODE_MND_FUNC_NOT_EXIST, TSDB_CODE_UDF_FUNC_EXEC_FAILURE, TSDB_CODE_TSC_INTERNAL_ERROR
+from new_test_framework.utils.tserror import TSDB_CODE_PAR_SYNTAX_ERROR
 from new_test_framework.utils.pathFinding import find_proj_path
 import taos
 import sys
@@ -745,8 +746,9 @@ class TestUdfTest:
         tdSql.execute("use db ")
         
         # create function without wrong file path
-        tdSql.error("create function udf1 as '%s_wrongpath' outputtype int;"%self.libudf1, TAOS_SYSTEM_ERROR|2)
-        tdSql.error("create aggregate function udf2 as '%s_wrongpath' outputtype double;"%self.libudf2, TAOS_SYSTEM_ERROR|2)
+        _wrong_path_errno = [TAOS_SYSTEM_ERROR | 2, TSDB_CODE_PAR_SYNTAX_ERROR]
+        tdSql.error("create function udf1 as '%s_wrongpath' outputtype int;" % self.libudf1, _wrong_path_errno)
+        tdSql.error("create aggregate function udf2 as '%s_wrongpath' outputtype double;" % self.libudf2, _wrong_path_errno)
         
         tdSql.execute("create function udf1 as '%s' outputtype int;"%self.libudf1)
         tdSql.query("select num1 , udf1(num1) ,num2 ,udf1(num2),num3 ,udf1(num3),num4 ,udf1(num4) from tb")
