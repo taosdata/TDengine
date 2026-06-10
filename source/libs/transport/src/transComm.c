@@ -180,9 +180,47 @@ int32_t transCompressMsg(char* msg, int32_t len) {
   }
   return ret;
 }
+
+static int32_t transValidateCompMsg(STransMsgHead* pHead, int32_t msgLen, int32_t* compressedLen) {
+  if (pHead->comp != 1) {
+    tError("unsupported compressed rpc msg, comp:%d", pHead->comp);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t minLen = (int32_t)(sizeof(STransMsgHead) + sizeof(STransCompMsg));
+  if (msgLen < minLen) {
+    tError("invalid compressed rpc msg, msgLen:%d, minLen:%d", msgLen, minLen);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  *compressedLen = msgLen - (int32_t)sizeof(STransMsgHead) - (int32_t)sizeof(STransCompMsg);
+  if (*compressedLen <= 0) {
+    tError("invalid compressed rpc msg, compressedLen:%d", *compressedLen);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t transValidateOriLen(int32_t oriLen) {
+  if (oriLen <= 0 || oriLen >= TRANS_MSG_LIMIT) {
+    tError("invalid compressed rpc msg, originLen:%d, limit:%d", oriLen, (int32_t)TRANS_MSG_LIMIT);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t transDecompressMsg(char** msg, int32_t* len) {
   STransMsgHead* pHead = (STransMsgHead*)(*msg);
   if (pHead->comp == 0) return 0;
+
+  int32_t tlen = *len;
+  int32_t compressedLen = 0;
+  int32_t code = transValidateCompMsg(pHead, tlen, &compressedLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   int64_t start = taosGetTimestampMs();
 
@@ -190,8 +228,11 @@ int32_t transDecompressMsg(char** msg, int32_t* len) {
 
   STransCompMsg* pComp = (STransCompMsg*)pCont;
   int32_t        oriLen = ntohl(pComp->contLen);
+  code = transValidateOriLen(oriLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
-  int32_t tlen = *len;
   char*   buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   if (buf == NULL) {
     return terrno;
@@ -199,7 +240,7 @@ int32_t transDecompressMsg(char** msg, int32_t* len) {
 
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
   int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
-                                                 tlen - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+                                                 compressedLen, oriLen);
 
   if (decompLen != oriLen) {
     taosMemoryFree(buf);
@@ -221,12 +262,22 @@ int32_t transDecompressMsg(char** msg, int32_t* len) {
 }
 int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t* outLen) {
   STransMsgHead* pHead = (STransMsgHead*)msg;
+
+  int32_t compressedLen = 0;
+  int32_t code = transValidateCompMsg(pHead, len, &compressedLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   char*          pCont = transContFromHead(pHead);
 
   STransCompMsg* pComp = (STransCompMsg*)pCont;
   int32_t        oriLen = ntohl(pComp->contLen);
+  code = transValidateOriLen(oriLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
-  int32_t tlen = len;
   char*   buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
   if (buf == NULL) {
     return terrno;
@@ -235,7 +286,7 @@ int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t*
 
   STransMsgHead* pNewHead = (STransMsgHead*)buf;
   int32_t        decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), (char*)pNewHead->content,
-                                                 tlen - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+                                                 compressedLen, oriLen);
   if (decompLen != oriLen) {
     tError("msgLen:%d, originLen:%d, decompLen:%d", len, oriLen, decompLen);
     taosMemoryFree(buf);
