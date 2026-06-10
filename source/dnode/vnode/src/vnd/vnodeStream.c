@@ -781,10 +781,9 @@ static int32_t  qTransformStreamTableList(SStreamTriggerReaderInfo* sStreamReade
   return 0;
 }
 
-static int32_t readRollupTagPath(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t uid, char** ppPath,
+static int32_t readRollupTagPath(SStreamTriggerReaderInfo* sStreamReaderInfo, SMetaReader* pReader, char** ppPath,
                                  int32_t* pPathLen, bool* pSkipped) {
   int32_t      code = TSDB_CODE_SUCCESS;
-  SMetaReader  mr = {0};
   char*        pData = NULL;
   char*        path = NULL;
   SColumnNode* pRollupCol = getRollupTagCol(sStreamReaderInfo);
@@ -804,16 +803,8 @@ static int32_t readRollupTagPath(SStreamTriggerReaderInfo* sStreamReaderInfo, ui
     return TSDB_CODE_STREAM_INVALID_ROLLUP;
   }
 
-  SStorageAPI* api = &sStreamReaderInfo->storageApi;
-  api->metaReaderFn.initReader(&mr, sStreamReaderInfo->pVnode, META_READER_LOCK, &api->metaFn);
-  code = api->metaReaderFn.getEntryGetUidCache(&mr, uid);
-  api->metaReaderFn.readerReleaseLock(&mr);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto end;
-  }
-
   STagVal     tagVal = {.cid = pRollupCol->colId};
-  const char* pTagVal = api->metaFn.extractTagVal(mr.me.ctbEntry.pTags, type, &tagVal);
+  const char* pTagVal = sStreamReaderInfo->storageApi.metaFn.extractTagVal(pReader->me.ctbEntry.pTags, type, &tagVal);
   if (pTagVal == NULL) {
     code = streamRollupSkipped(pSkipped);
     goto end;
@@ -865,7 +856,6 @@ static int32_t readRollupTagPath(SStreamTriggerReaderInfo* sStreamReaderInfo, ui
 end:
   taosMemoryFree(path);
   taosMemoryFree(pData);
-  api->metaReaderFn.clearReader(&mr);
   return code;
 }
 
@@ -994,17 +984,224 @@ end:
   return code;
 }
 
-static int32_t appendRollupGroupsForUid(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t uid, SArray* pTableList,
-                                        StreamTableListInfo* tableInfo) {
+static int32_t setRollupPrefixColData(SColumnInfoData* pColData, const char* prefix, int32_t prefixLen) {
   int32_t code = TSDB_CODE_SUCCESS;
-  char*   path = NULL;
-  int32_t pathLen = 0;
-  bool    skipped = false;
-  void*   pTask = sStreamReaderInfo->pTask;
-  SRollupPath rollupPath = {0};
-  SArray*     prefixes = NULL;
+  int32_t lino = 0;
+  char*   ucs4 = NULL;
 
-  code = readRollupTagPath(sStreamReaderInfo, uid, &path, &pathLen, &skipped);
+  if (pColData->info.type == TSDB_DATA_TYPE_NCHAR) {
+    int32_t ucs4Cap = (prefixLen + 1) * TSDB_NCHAR_SIZE;
+    int32_t ucs4Len = 0;
+
+    ucs4 = taosMemoryCalloc(1, ucs4Cap);
+    STREAM_CHECK_NULL_GOTO(ucs4, terrno);
+    if (!taosMbsToUcs4(prefix, prefixLen, (TdUcs4*)ucs4, ucs4Cap, &ucs4Len, NULL)) {
+      code = streamRollupErrno();
+      goto end;
+    }
+
+    STREAM_CHECK_RET_GOTO(varColSetVarData(pColData, 0, ucs4, ucs4Len, false));
+  } else if (pColData->info.type == TSDB_DATA_TYPE_VARCHAR || pColData->info.type == TSDB_DATA_TYPE_BINARY) {
+    STREAM_CHECK_RET_GOTO(varColSetVarData(pColData, 0, prefix, prefixLen, false));
+  } else {
+    code = TSDB_CODE_STREAM_INVALID_ROLLUP;
+    lino = __LINE__;
+    goto end;
+  }
+
+end:
+  taosMemoryFree(ucs4);
+  STREAM_PRINT_LOG_END(code, lino);
+  return code;
+}
+
+static int32_t createRollupFilterResult(SScalarParam* pParam) {
+  SColumnInfoData* pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
+  if (pColumnData == NULL) {
+    return terrno;
+  }
+
+  pColumnData->info.type = TSDB_DATA_TYPE_BOOL;
+  pColumnData->info.bytes = sizeof(bool);
+
+  int32_t code = colInfoDataEnsureCapacity(pColumnData, 1, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    colDataDestroy(pColumnData);
+    taosMemoryFree(pColumnData);
+    return code;
+  }
+
+  pParam->columnData = pColumnData;
+  pParam->colAlloced = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t appendRollupFilterColInfo(SSDataBlock* pBlock, SArray* pColList) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  int32_t numOfCols = taosArrayGetSize(pColList);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfo* pInfo = taosArrayGet(pColList, i);
+    STREAM_CHECK_NULL_GOTO(pInfo, terrno);
+
+    SColumnInfoData colInfo = {0};
+    colInfo.info = *pInfo;
+    STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &colInfo));
+  }
+
+end:
+  STREAM_PRINT_LOG_END(code, lino);
+  return code;
+}
+
+static bool isRollupFilterTagCol(const SColumnNode* pRollupCol, const SColumnInfoData* pDst) {
+  return pRollupCol != NULL && pDst->info.colId == pRollupCol->colId &&
+         pDst->info.type == pRollupCol->node.resType.type;
+}
+
+static int32_t setRollupFilterTagVal(SStreamTriggerReaderInfo* sStreamReaderInfo, SMetaReader* pReader,
+                                     SColumnInfoData* pDst) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  char*        data = NULL;
+  const char*  pTagVal = NULL;
+  SColumnNode* pRollupCol = getRollupTagCol(sStreamReaderInfo);
+
+  STREAM_CHECK_NULL_GOTO(pRollupCol, TSDB_CODE_STREAM_INVALID_ROLLUP);
+
+  if (pDst->info.colId == -1) {
+    char tbname[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STREAM_CHECK_RET_GOTO(
+        sStreamReaderInfo->storageApi.metaFn.getTableNameByUid(sStreamReaderInfo->pVnode, pReader->me.uid, tbname));
+    STREAM_CHECK_RET_GOTO(colDataSetVal(pDst, 0, tbname, false));
+    goto end;
+  }
+
+  if (isRollupFilterTagCol(pRollupCol, pDst)) {
+    goto end;
+  }
+
+  STagVal tagVal = {.cid = pDst->info.colId};
+  pTagVal = sStreamReaderInfo->storageApi.metaFn.extractTagVal(pReader->me.ctbEntry.pTags, pDst->info.type, &tagVal);
+  if (pTagVal != NULL && pDst->info.type != TSDB_DATA_TYPE_JSON) {
+    data = tTagValToData((const STagVal*)pTagVal, false);
+    STREAM_CHECK_CONDITION_GOTO(data == NULL && IS_VAR_DATA_TYPE(((const STagVal*)pTagVal)->type), terrno);
+  } else {
+    data = (char*)pTagVal;
+  }
+
+  bool isNull = data == NULL || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data));
+  STREAM_CHECK_RET_GOTO(colDataSetVal(pDst, 0, data, isNull));
+
+end:
+  if (pTagVal != NULL && pDst->info.type != TSDB_DATA_TYPE_JSON && IS_VAR_DATA_TYPE(((const STagVal*)pTagVal)->type)) {
+    taosMemoryFree(data);
+  }
+  STREAM_PRINT_LOG_END(code, lino);
+  return code;
+}
+
+static int32_t createRollupPrefixFilterBlock(SStreamTriggerReaderInfo* sStreamReaderInfo, SMetaReader* pReader,
+                                             SArray* pColList, SSDataBlock** ppBlock) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SSDataBlock* pBlock = NULL;
+
+  *ppBlock = NULL;
+
+  STREAM_CHECK_RET_GOTO(createDataBlock(&pBlock));
+  STREAM_CHECK_RET_GOTO(appendRollupFilterColInfo(pBlock, pColList));
+  STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, 1));
+  pBlock->info.rows = 1;
+
+  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+    STREAM_CHECK_NULL_GOTO(pDst, terrno);
+    STREAM_CHECK_RET_GOTO(setRollupFilterTagVal(sStreamReaderInfo, pReader, pDst));
+  }
+
+  *ppBlock = pBlock;
+  pBlock = NULL;
+
+end:
+  blockDataDestroy(pBlock);
+  STREAM_PRINT_LOG_END(code, lino);
+  return code;
+}
+
+static int32_t setRollupPrefixFilterTagVals(SStreamTriggerReaderInfo* sStreamReaderInfo, SSDataBlock* pBlock,
+                                            const char* prefix, int32_t prefixLen) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SColumnNode* pRollupCol = getRollupTagCol(sStreamReaderInfo);
+
+  STREAM_CHECK_NULL_GOTO(pRollupCol, TSDB_CODE_STREAM_INVALID_ROLLUP);
+
+  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+    STREAM_CHECK_NULL_GOTO(pDst, terrno);
+    if (isRollupFilterTagCol(pRollupCol, pDst)) {
+      STREAM_CHECK_RET_GOTO(setRollupPrefixColData(pDst, prefix, prefixLen));
+    }
+  }
+
+end:
+  STREAM_PRINT_LOG_END(code, lino);
+  return code;
+}
+
+static int32_t rollupPrefixPassesTagFilter(SStreamTriggerReaderInfo* sStreamReaderInfo, SSDataBlock* pBlock,
+                                           SArray* pBlockList, const char* prefix, int32_t prefixLen, bool* pPassed) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  SScalarParam output = {0};
+
+  *pPassed = true;
+  if (sStreamReaderInfo->pTagCond == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STREAM_CHECK_RET_GOTO(setRollupPrefixFilterTagVals(sStreamReaderInfo, pBlock, prefix, prefixLen));
+  STREAM_CHECK_RET_GOTO(createRollupFilterResult(&output));
+
+  gTaskScalarExtra.pStreamInfo = NULL;
+  gTaskScalarExtra.pStreamRange = NULL;
+  STREAM_CHECK_RET_GOTO(scalarCalculate(sStreamReaderInfo->pTagCond, pBlockList, &output, &gTaskScalarExtra));
+
+  *pPassed = output.columnData != NULL && !colDataIsNull_s(output.columnData, 0) && *(bool*)output.columnData->pData;
+
+end:
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+  STREAM_PRINT_LOG_END(code, lino);
+  return code;
+}
+
+static int32_t appendRollupGroupsForUid(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t uid, SArray* pTableList,
+                                        StreamTableListInfo* tableInfo, SArray* pTagFilterCols) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  char*        path = NULL;
+  int32_t      pathLen = 0;
+  bool         skipped = false;
+  void*        pTask = sStreamReaderInfo->pTask;
+  SRollupPath  rollupPath = {0};
+  SArray*      prefixes = NULL;
+  SSDataBlock* pFilterBlock = NULL;
+  SArray*      pFilterBlockList = NULL;
+  SMetaReader  mr = {0};
+  SStorageAPI* api = &sStreamReaderInfo->storageApi;
+
+  api->metaReaderFn.initReader(&mr, sStreamReaderInfo->pVnode, META_READER_LOCK, &api->metaFn);
+  code = api->metaReaderFn.getEntryGetUidCache(&mr, uid);
+  api->metaReaderFn.readerReleaseLock(&mr);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto end;
+  }
+
+  code = readRollupTagPath(sStreamReaderInfo, &mr, &path, &pathLen, &skipped);
   if (skipped) {
     goto end;
   }
@@ -1043,10 +1240,30 @@ static int32_t appendRollupGroupsForUid(SStreamTriggerReaderInfo* sStreamReaderI
   }
 
   code = buildRollupPrefixes(&rollupPath, &prefixes);
+  if (code == TSDB_CODE_SUCCESS && sStreamReaderInfo->pTagCond != NULL) {
+    code = createRollupPrefixFilterBlock(sStreamReaderInfo, &mr, pTagFilterCols, &pFilterBlock);
+  }
+  if (code == TSDB_CODE_SUCCESS && sStreamReaderInfo->pTagCond != NULL) {
+    pFilterBlockList = taosArrayInit(1, POINTER_BYTES);
+    if (pFilterBlockList == NULL) {
+      code = terrno;
+    } else if (taosArrayPush(pFilterBlockList, &pFilterBlock) == NULL) {
+      code = terrno;
+    }
+  }
   if (code == TSDB_CODE_SUCCESS) {
     int32_t numOfPrefixes = taosArrayGetSize(prefixes);
     for (int32_t j = 0; j < numOfPrefixes; ++j) {
-      char*    prefix = *(char**)taosArrayGet(prefixes, j);
+      char* prefix = *(char**)taosArrayGet(prefixes, j);
+      bool  passFilter = true;
+      code = rollupPrefixPassesTagFilter(sStreamReaderInfo, pFilterBlock, pFilterBlockList, prefix,
+                                         (int32_t)strlen(prefix), &passFilter);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+      if (!passFilter) {
+        continue;
+      }
       uint64_t gid = computeRollupGid(sStreamReaderInfo->suid, prefix);
       if (gid == 0) {
         code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1073,9 +1290,12 @@ static int32_t appendRollupGroupsForUid(SStreamTriggerReaderInfo* sStreamReaderI
   }
 
 end:
+  blockDataDestroy(pFilterBlock);
+  taosArrayDestroy(pFilterBlockList);
   taosArrayDestroyP(prefixes, NULL);
   destroyRollupPath(&rollupPath);
   taosMemoryFree(path);
+  api->metaReaderFn.clearReader(&mr);
   return code;
 }
 
@@ -1083,32 +1303,50 @@ static int32_t qTransformRollupStreamTableList(SStreamTriggerReaderInfo* sStream
                                                StreamTableListInfo* tableInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pList = qStreamGetTableListArray(pTableListInfo);
-  int32_t totalSize = taosArrayGetSize(pList);
+  SArray* pTagFilterCols = NULL;
 
+  if (sStreamReaderInfo->pTagCond != NULL) {
+    code = qGetColumnsFromNodeList(sStreamReaderInfo->pTagCond, false, &pTagFilterCols);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto end;
+    }
+  }
+
+  int32_t totalSize = taosArrayGetSize(pList);
   for (int32_t i = 0; i < totalSize; ++i) {
     STableKeyInfo* info = taosArrayGet(pList, i);
     if (info == NULL) {
       continue;
     }
 
-    code = appendRollupGroupsForUid(sStreamReaderInfo, info->uid, NULL, tableInfo);
+    code = appendRollupGroupsForUid(sStreamReaderInfo, info->uid, NULL, tableInfo, pTagFilterCols);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      goto end;
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+end:
+  taosArrayDestroy(pTagFilterCols);
+  return code;
 }
 
 static int32_t buildRollupTableListFromSource(SStreamTriggerReaderInfo* sStreamReaderInfo, SArray* pSourceTableList,
                                               SArray** ppTableList) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pTableList = NULL;
+  SArray* pTagFilterCols = NULL;
 
   *ppTableList = NULL;
   pTableList = taosArrayInit(TMAX(taosArrayGetSize(pSourceTableList), 1), sizeof(STableKeyInfo));
   if (pTableList == NULL) {
     return terrno;
+  }
+
+  if (sStreamReaderInfo->pTagCond != NULL) {
+    code = qGetColumnsFromNodeList(sStreamReaderInfo->pTagCond, false, &pTagFilterCols);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto end;
+    }
   }
 
   int32_t totalSize = taosArrayGetSize(pSourceTableList);
@@ -1118,7 +1356,7 @@ static int32_t buildRollupTableListFromSource(SStreamTriggerReaderInfo* sStreamR
       continue;
     }
 
-    code = appendRollupGroupsForUid(sStreamReaderInfo, info->uid, pTableList, NULL);
+    code = appendRollupGroupsForUid(sStreamReaderInfo, info->uid, pTableList, NULL, pTagFilterCols);
     if (code != TSDB_CODE_SUCCESS) {
       goto end;
     }
@@ -1128,6 +1366,7 @@ static int32_t buildRollupTableListFromSource(SStreamTriggerReaderInfo* sStreamR
   pTableList = NULL;
 
 end:
+  taosArrayDestroy(pTagFilterCols);
   taosArrayDestroy(pTableList);
   return code;
 }
