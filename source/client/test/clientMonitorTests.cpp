@@ -90,7 +90,7 @@ static char* readFile(TdFilePtr pFile, int64_t *offset, int64_t size){
   }
   char*  buf = pCont;
   (void)strcat(buf++, "[");
-  int64_t readSize = taosReadFile(pFile, buf, SLOW_LOG_SEND_SIZE_MAX);
+  int64_t readSize = taosReadFile(pFile, buf, totalSize - 4);
   if (readSize <= 0) {
     if (readSize < 0){
       uError("failed to read len from file:%p since %s", pFile, terrstr());
@@ -102,7 +102,7 @@ static char* readFile(TdFilePtr pFile, int64_t *offset, int64_t size){
   totalSize = 0;
   while(1){
     size_t len = strlen(buf);
-    if (len == SLOW_LOG_SEND_SIZE_MAX) {  // one item is too long
+    if (len == SLOW_LOG_SEND_SIZE_MAX || len == readSize) {  // one item is too long or not ended with \0
       *offset = size;
       *buf = ']';
       *(buf+1) = '\0';
@@ -206,6 +206,97 @@ TEST(clientMonitorTest, ReadOneFile) {
   taosCloseFile(&pFile);
 }
 
+// max len = 15  data is "xxxxxxxxx"
+TEST(clientMonitorTest, ReadOneFile_1) {
+  // Create a TdFilePtr object and set it up for testing
+
+  TdFilePtr pFile = taosOpenFile("./tdengine-1-wewe", TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_READ | TD_FILE_TRUNC);
+  if (pFile == NULL) {
+    uError("failed to open file:./test.txt since %s", terrstr());
+    return;
+  }
+
+  const int batch = 1;
+  const int size = 10;
+  for(int i = 0; i < batch; i++){
+    char value[size] = {0};
+    (void)memset(value, '0' + i, size);
+    if (taosWriteFile(pFile, value, size) < 0){
+      uError("failed to write len to file:%p since %s", pFile, terrstr());
+    }
+  }
+
+  // Create a void pointer and set it up for testing
+  void* pTransporter = NULL;
+
+  // Create an SEpSet object and set it up for testing
+  SEpSet* epSet = NULL;
+
+  int64_t  fileSize = getFileSize("./tdengine-1-wewe");
+  // Call the function to be tested
+  int64_t offset = 0;
+  while(1){
+    if (offset >= fileSize) {
+      break;
+    }
+    char* val = readFile(pFile, &offset, fileSize);
+    // printf("offset:%"PRId64",fileSize:%"PRId64",val:%s\n", offset, fileSize, val);
+    
+    ASSERT(strcmp(val, "[]") == 0);
+  }
+  taosCloseFile(&pFile);
+}
+
+// max len = 15  data is "xxxxxxxxx\0xxxxxxxxx"
+TEST(clientMonitorTest, ReadOneFile1_1) {
+  // Create a TdFilePtr object and set it up for testing
+
+  TdFilePtr pFile = taosOpenFile("./tdengine-1-wewe", TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_READ | TD_FILE_TRUNC);
+  if (pFile == NULL) {
+    uError("failed to open file:./test.txt since %s", terrstr());
+    return;
+  }
+
+  const int batch = 2;
+  const int size = 10;
+  for(int i = 0; i < batch; i++){
+    char value[size] = {0};
+    (void)memset(value, '0' + i, i == 1 ? size : size - 1);
+    if (taosWriteFile(pFile, value, size) < 0){
+      uError("failed to write len to file:%p since %s", pFile, terrstr());
+    }
+  }
+
+  // Create a void pointer and set it up for testing
+  void* pTransporter = NULL;
+
+  // Create an SEpSet object and set it up for testing
+  SEpSet* epSet = NULL;
+
+  int64_t  fileSize = getFileSize("./tdengine-1-wewe");
+  // Call the function to be tested
+  int64_t offset = 0;
+  int32_t cnt = 0;
+  while(1){
+    if (offset >= fileSize) {
+      break;
+    }
+    char* val = readFile(pFile, &offset, fileSize);
+    // printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
+    
+    ASSERT(cnt < 2);
+    if (cnt == 0) {
+      ASSERT(strcmp(val, "[000000000]") == 0);
+    } else {
+      ASSERT(strcmp(val, "[]") == 0);
+      ASSERT(offset == fileSize);
+    }
+    cnt++;
+  }
+  printf("\n");
+  taosCloseFile(&pFile);
+}
+
 // max len = 15  data is "xxxxxxxxx\0xxxxxxxxx\0"
 TEST(clientMonitorTest, ReadOneFile1) {
   // Create a TdFilePtr object and set it up for testing
@@ -292,6 +383,49 @@ TEST(clientMonitorTest, ReadOneFile2) {
     // printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
     
     ASSERT(strcmp(val, "[]") == 0);
+  }
+  printf("\n");
+  taosCloseFile(&pFile);
+}
+
+// max len = 15  data is "xxxxxxxxxxxxxxxxxxx"
+TEST(clientMonitorTest, ReadOneFile2_1) {
+  // Create a TdFilePtr object and set it up for testing
+
+  TdFilePtr pFile = taosOpenFile("./tdengine-1-wewe", TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND | TD_FILE_READ | TD_FILE_TRUNC);
+  if (pFile == NULL) {
+    uError("failed to open file:./test.txt since %s", terrstr());
+    return;
+  }
+
+  const int batch = 1;
+  const int size = 20;
+  for(int i = 0; i < batch; i++){
+    char value[size] = {0};
+    (void)memset(value, '0' + i, size);
+    if (taosWriteFile(pFile, value, size) < 0){
+      uError("failed to write len to file:%p since %s", pFile, terrstr());
+    }
+  }
+
+  // Create a void pointer and set it up for testing
+  void* pTransporter = NULL;
+
+  // Create an SEpSet object and set it up for testing
+  SEpSet* epSet = NULL;
+
+  int64_t  fileSize = getFileSize("./tdengine-1-wewe");
+  // Call the function to be tested
+  int64_t offset = 0;
+  while(1){
+    if (offset >= fileSize) {
+      break;
+    }
+    char* val = readFile(pFile, &offset, fileSize);
+    // printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
+    
+    ASSERT(strcmp(val, "[]") == 0);
+    ASSERT(offset == fileSize);
   }
   printf("\n");
   taosCloseFile(&pFile);
