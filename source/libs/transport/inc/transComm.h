@@ -226,6 +226,9 @@ typedef struct {
   int32_t retryCode;
   int8_t  retryInit;
   int8_t  epsetRetryCnt;
+
+  int64_t overloadRetryStartTs;   // timestamp when overload retry first started
+  int32_t overloadRetryLastInterval;  // last retry interval for exponential backoff
 } SReqCtx;
 typedef enum { Normal, Quit, Release, Register, Update, FreeById, ReloadTLS } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;

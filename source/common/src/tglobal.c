@@ -362,6 +362,8 @@ int32_t tsRedirectPeriod = 10;
 int32_t tsRedirectFactor = 2;
 int32_t tsRedirectMaxPeriod = 1000;
 int32_t tsMaxRetryWaitTime = 20000;
+int32_t tsRetryOnOverloadBaseInterval = 1000;
+int32_t tsRetryOnOverloadTimeout = 60000;
 bool    tsUseAdapter = false;
 int32_t tsMetaCacheMaxSize = -1;                   // MB
 int32_t tsSlowLogThreshold = 10;                   // seconds
@@ -778,6 +780,10 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                 CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM) != 0);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "maxRetryWaitTime", tsMaxRetryWaitTime, 3000, 86400000, CFG_SCOPE_SERVER,
                                 CFG_DYN_BOTH_LAZY, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "retryOnOverloadBaseInterval", tsRetryOnOverloadBaseInterval, 100, 60000,
+                                CFG_SCOPE_CLIENT, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "retryOnOverloadTimeout", tsRetryOnOverloadTimeout, 1000, 3600000,
+                                CFG_SCOPE_CLIENT, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "useAdapter", tsUseAdapter, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT, CFG_CATEGORY_LOCAL,
                                CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "crashReporting", tsEnableCrashReport, CFG_SCOPE_BOTH, CFG_DYN_BOTH,
@@ -1699,6 +1705,12 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "maxRetryWaitTime");
   tsMaxRetryWaitTime = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "retryOnOverloadBaseInterval");
+  tsRetryOnOverloadBaseInterval = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "retryOnOverloadTimeout");
+  tsRetryOnOverloadTimeout = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfRpcThreads");
   tsNumOfRpcThreads = pItem->i32;
