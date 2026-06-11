@@ -864,7 +864,9 @@ SNode* createRawValueNodeExt(SAstCreateContext* pCxt, int32_t dataType, const ST
   }
 _exit:
   nodesDestroyNode(pLeft);
+  pLeft = NULL;
   nodesDestroyNode(pRight);
+  pRight = NULL;
   CHECK_PARSER_STATUS(pCxt);
   return (SNode*)val;
 _err:
