@@ -202,6 +202,7 @@ TEST(clientMonitorTest, ReadOneFile) {
     // printf("offset:%"PRId64",fileSize:%"PRId64",val:%s\n", offset, fileSize, val);
     
     ASSERT(strcmp(val, "[000000000]") == 0);
+    taosMemoryFree(val);
   }
   taosCloseFile(&pFile);
 }
@@ -243,6 +244,7 @@ TEST(clientMonitorTest, ReadOneFile_1) {
     // printf("offset:%"PRId64",fileSize:%"PRId64",val:%s\n", offset, fileSize, val);
     
     ASSERT(strcmp(val, "[]") == 0);
+    taosMemoryFree(val);
   }
   taosCloseFile(&pFile);
 }
@@ -291,6 +293,7 @@ TEST(clientMonitorTest, ReadOneFile1_1) {
       ASSERT(strcmp(val, "[]") == 0);
       ASSERT(offset == fileSize);
     }
+    taosMemoryFree(val);
     cnt++;
   }
   printf("\n");
@@ -340,6 +343,7 @@ TEST(clientMonitorTest, ReadOneFile1) {
     } else {
       ASSERT(strcmp(val, "[111111111]") == 0);
     }
+    taosMemoryFree(val);
     cnt++;
   }
   printf("\n");
@@ -383,6 +387,7 @@ TEST(clientMonitorTest, ReadOneFile2) {
     // printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
     
     ASSERT(strcmp(val, "[]") == 0);
+    taosMemoryFree(val);
   }
   printf("\n");
   taosCloseFile(&pFile);
@@ -426,6 +431,7 @@ TEST(clientMonitorTest, ReadOneFile2_1) {
     
     ASSERT(strcmp(val, "[]") == 0);
     ASSERT(offset == fileSize);
+    taosMemoryFree(val);
   }
   printf("\n");
   taosCloseFile(&pFile);
@@ -468,6 +474,7 @@ TEST(clientMonitorTest, ReadOneFile3) {
     // printf("offset:%lld,fileSize:%lld,val:%s\n", offset, fileSize, val);
     
     ASSERT(strcmp(val, "[]") == 0);
+    taosMemoryFree(val);
   }
   printf("\n");
   taosCloseFile(&pFile);
@@ -517,6 +524,7 @@ TEST(clientMonitorTest, ReadOneFile4) {
     } else {
       ASSERT(strcmp(val, "[]") == 0);
     }
+    taosMemoryFree(val);
     cnt++;
   }
   printf("\n");
