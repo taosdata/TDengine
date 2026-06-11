@@ -19,6 +19,7 @@
 #include "mndUser.h"
 #include "mndDef.h"
 #include "mndToken.h"
+#include "tpriv.h"
 
 #ifndef _PRIVILEGE
 int32_t mndInitPrivilege(SMnode *pMnode) { return 0; }
@@ -41,6 +42,13 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* toke
 
   if ((!pUser->superUser) && (!pUser->enable)) {
     TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, NULL, _OVER);
+  }
+
+  if (operType == MND_OPER_CREATE_FUNC || operType == MND_OPER_DROP_FUNC) {
+    bool hasSysdba = taosHashGet(pUser->roles, TSDB_ROLE_SYSDBA, sizeof(TSDB_ROLE_SYSDBA)) != NULL;
+    if (!hasSysdba) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    }
   }
 
 _OVER:
