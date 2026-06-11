@@ -177,6 +177,7 @@ int32_t tsSnapReplMaxWaitN = 128;
 int32_t tsSnapshotRateLimit = 0;
 int64_t tsLogBufferMemoryAllowed = 0;  // bytes
 int64_t tsSyncApplyQueueSize = 512;
+int32_t tsSyncNegotiationWin = 512;  // negotiation window size for sync module
 int32_t tsRoutineReportInterval = 300;
 bool    tsSyncLogHeartbeat = false;
 int32_t tsSyncTimeout = 0;
@@ -1081,6 +1082,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "snapshotRateLimit", tsSnapshotRateLimit, 0, 10240, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncLogBufferMemoryAllowed", tsLogBufferMemoryAllowed, TSDB_MAX_MSG_SIZE * 10L, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncApplyQueueSize", tsSyncApplyQueueSize, 32, 2048, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncNegotiationWin", tsSyncNegotiationWin, 128, 10240, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncRoutineReportInterval", tsRoutineReportInterval, 5, 600, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "syncLogHeartbeat", tsSyncLogHeartbeat, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "walDeleteOnCorruption", tsWalDeleteOnCorruption, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
@@ -1344,6 +1346,12 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   pItem = cfgGetItem(tsCfg, "syncApplyQueueSize");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     pItem->i64 = tsSyncApplyQueueSize;
+    pItem->stype = stype;
+  }
+
+  pItem = cfgGetItem(tsCfg, "syncNegotiationWin");
+  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+    pItem->i32 = tsSyncNegotiationWin;
     pItem->stype = stype;
   }
 
@@ -2203,6 +2211,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncApplyQueueSize");
   tsSyncApplyQueueSize = pItem->i64;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncNegotiationWin");
+  tsSyncNegotiationWin = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "syncRoutineReportInterval");
   tsRoutineReportInterval = pItem->i32;
@@ -3219,6 +3230,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"randErrorScope", &tsRandErrScope},
                                          {"syncLogBufferMemoryAllowed", &tsLogBufferMemoryAllowed},
                                          {"syncApplyQueueSize", &tsSyncApplyQueueSize},
+                                         {"syncNegotiationWin", &tsSyncNegotiationWin},
                                          {"syncHeartbeatInterval", &tsHeartbeatInterval},
                                          {"syncElectInterval", &tsElectInterval},
                                          {"syncVnodeHeartbeatIntervalMs", &tsVnodeHeartbeatIntervalMs},

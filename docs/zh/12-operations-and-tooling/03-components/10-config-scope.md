@@ -117,6 +117,7 @@ toc_max_heading_level: 4
 | enableWhiteList | taosd | 白名单功能开关 |
 | syncLogBufferMemoryAllowed | taosd | 一个 dnode 允许的 sync 日志缓存消息占用的内存最大值 |
 | syncApplyQueueSize | taosd | sync 日志 apply 队列的大小 |
+| syncNegotiationWin | taosd | sync 协商窗口的大小，用于控制日志同步时的协商缓冲区 |
 | syncElectInterval | taosd | 用于同步模块调试 |
 | syncHeartbeatInterval | taosd | 用于同步模块调试 |
 | syncHeartbeatTimeout | taosd | 用于同步模块调试 |

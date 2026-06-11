@@ -117,6 +117,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | enableWhiteList | taosd | Switch for whitelist feature |
 | syncLogBufferMemoryAllowed | taosd | Maximum memory allowed for sync log cache messages for a dnode |
 | syncApplyQueueSize | taosd | Size of apply queue for sync log |
+| syncNegotiationWin | taosd | Size of the negotiation window for sync, used to control the negotiation buffer during log synchronization |
 | syncElectInterval | taosd | Internal parameter, for debugging synchronization module |
 | syncHeartbeatInterval | taosd | Internal parameter, for debugging synchronization module |
 | syncHeartbeatTimeout | taosd | Internal parameter, for debugging synchronization module |
