@@ -113,13 +113,11 @@ ulimit -c unlimited
 
 # 使用 marker 文件 + requirements.txt mtime 比较，智能安装依赖
 # 仅在首次运行或 requirements.txt 变更时安装，避免每次重复安装
+# tdengine-ci:0.3 image bakes Nexus as default pip index; no -i needed
 _DEPS_MARKER="${CONTAINER_TESTDIR}/.deps_installed"
 _REQ_FILE="${CONTAINER_TESTDIR}/test/requirements.txt"
 if [[ ! -f "${_DEPS_MARKER}" ]] || [[ "${_REQ_FILE}" -nt "${_DEPS_MARKER}" ]]; then
-    pip3 install -r "${_REQ_FILE}" -q \
-        -i https://pypi.tuna.tsinghua.edu.cn/simple \
-        --trusted-host pypi.tuna.tsinghua.edu.cn \
-        2>&1 | tail -5
+    pip3 install -r "${_REQ_FILE}" -q 2>&1 | tail -5
     touch "${_DEPS_MARKER}"
 fi
 
