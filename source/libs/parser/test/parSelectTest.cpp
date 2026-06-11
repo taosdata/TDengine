@@ -510,4 +510,29 @@ TEST_F(ParserSelectTest, joinSemanticCheck) {
   run("SELECT count(*) FROM t1 a join t1 b on a.ts=b.ts where a.ts=b.ts");
 }
 
+/*
+ * Regression test for GHSA-v8cj-fw82-9jjf: createSimpleSubQStmt used pCxt->errCode instead
+ * of the local `code` variable when checking initTranslateContext / setCurrLevelNsFromParent,
+ * causing UAF/double-free when pCxt->errCode was stale and the local call succeeded (or failed).
+ * Fix: replace pCxt->errCode with code in those two checks.
+ *
+ * Exercise the fixed code path via quantified-subquery expressions (ANY / ALL),
+ * which are the only callers of createSimpleSubQStmt.
+ */
+TEST_F(ParserSelectTest, createSimpleSubQStmtNoUafOnInitError) {
+  useDb("root", "test");
+
+  // > ANY  => rewriteExprSubQResToMinMax(isMin=true) => createSimpleSubQStmt
+  run("SELECT c1 FROM t1 WHERE c1 > ANY (SELECT MAX(c1) FROM st1)");
+
+  // < ANY  => rewriteExprSubQResToMinMax(isMin=false) => createSimpleSubQStmt
+  run("SELECT c1 FROM t1 WHERE c1 < ANY (SELECT MAX(c1) FROM st1)");
+
+  // > ALL  => rewriteExprSubQResToMinMax(isMin=false) => createSimpleSubQStmt
+  run("SELECT c1 FROM t1 WHERE c1 > ALL (SELECT MAX(c1) FROM st1)");
+
+  // < ALL  => rewriteExprSubQResToMinMax(isMin=true) => createSimpleSubQStmt
+  run("SELECT c1 FROM t1 WHERE c1 < ALL (SELECT MAX(c1) FROM st1)");
+}
+
 }  // namespace ParserTest
