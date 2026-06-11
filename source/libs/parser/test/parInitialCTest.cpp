@@ -19,6 +19,7 @@
 #include "stub.h"
 
 #include "parTestUtil.h"
+#include "parAst.h"
 
 #include "nodes.h"
 
@@ -1206,4 +1207,120 @@ TEST_F(ParserInitialCTest, createUser) {
   clearCreateUserReq();
 }
 
+}  // namespace ParserTest
+
+// ---------------------------------------------------------------------------
+// Direct unit tests for createRawValueNodeExt (GHSA-vxcq-cqrc-f8j3)
+//
+// The bug: when the function jumps to _exit (e.g. pLiteral==NULL or
+// nodesMakeNode fails), it destroys pLeft/pRight then CHECK_PARSER_STATUS
+// jumps to _err which destroys pLeft/pRight a second time.
+//
+// The fix: null pLeft and pRight immediately after destroying them at _exit,
+// so the second nodesDestroyNode call at _err is a safe no-op.
+//
+// Running under AddressSanitizer will catch a double-free regression.
+// ---------------------------------------------------------------------------
+namespace {
+
+// Build a minimal SAstCreateContext without a live SParseContext.
+static void initMinimalAstCxt(SAstCreateContext* pCxt, int32_t errCode, char* msgBuf, int32_t msgLen) {
+  memset(pCxt, 0, sizeof(*pCxt));
+  pCxt->msgBuf.buf = msgBuf;
+  pCxt->msgBuf.len = msgLen;
+  pCxt->errCode    = errCode;
+}
+
+// Build a trivial non-null SNode* (a raw SValueNode) to use as pLeft/pRight.
+static SNode* makeSimpleNode() {
+  SNode* pNode = nullptr;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, &pNode);
+  return (code == TSDB_CODE_SUCCESS) ? pNode : nullptr;
+}
+
+}  // namespace
+
+// Test 1: success path — valid pLiteral, non-null pRight.
+// pRight must be freed exactly once (inside _exit normal flow).
+TEST(createRawValueNodeExtTest, successPathFreesRightOnce) {
+  char            msgBuf[256] = {0};
+  SAstCreateContext cxt;
+  initMinimalAstCxt(&cxt, TSDB_CODE_SUCCESS, msgBuf, sizeof(msgBuf));
+
+  SNode* pRight = makeSimpleNode();
+  ASSERT_NE(pRight, nullptr);
+
+  char    lit[]   = "100";
+  SToken  token   = {.n = (uint32_t)strlen(lit), .type = 0, .z = lit};
+
+  SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, &token, nullptr, pRight);
+  // pRight is consumed (freed) by the function regardless of success/failure.
+  EXPECT_EQ(cxt.errCode, TSDB_CODE_SUCCESS);
+  EXPECT_NE(result, nullptr);
+  nodesDestroyNode(result);
+}
+
+// Test 2: error path via pLiteral==NULL with non-null pRight.
+// Before the fix, this triggered a double-free of pRight:
+//   _exit frees pRight → CHECK_PARSER_STATUS → _err frees pRight again.
+// After the fix, _exit nulls pRight so _err's nodesDestroyNode(NULL) is safe.
+TEST(createRawValueNodeExtTest, nullLiteralErrorPathNoDoubleFree) {
+  char            msgBuf[256] = {0};
+  SAstCreateContext cxt;
+  initMinimalAstCxt(&cxt, TSDB_CODE_SUCCESS, msgBuf, sizeof(msgBuf));
+
+  SNode* pRight = makeSimpleNode();
+  ASSERT_NE(pRight, nullptr);
+
+  // pLiteral = nullptr triggers the "Invalid parameters" goto _exit path.
+  SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, nullptr, nullptr, pRight);
+  // pRight is consumed (freed) by the function; result must be NULL on error.
+  EXPECT_NE(cxt.errCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result, nullptr);
+}
+
+// Test 3: error path via pLiteral==NULL with both pLeft and pRight non-null.
+// Both nodes must be freed exactly once.
+TEST(createRawValueNodeExtTest, nullLiteralBothNodesNoDoubleFree) {
+  char            msgBuf[256] = {0};
+  SAstCreateContext cxt;
+  initMinimalAstCxt(&cxt, TSDB_CODE_SUCCESS, msgBuf, sizeof(msgBuf));
+
+  SNode* pLeft  = makeSimpleNode();
+  SNode* pRight = makeSimpleNode();
+  ASSERT_NE(pLeft, nullptr);
+  ASSERT_NE(pRight, nullptr);
+
+  SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, nullptr, pLeft, pRight);
+  EXPECT_NE(cxt.errCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result, nullptr);
+}
+
+// Test 4: pre-existing error (pCxt->errCode != 0) — CHECK_PARSER_STATUS at
+// the top jumps directly to _err, which frees pLeft/pRight exactly once.
+TEST(createRawValueNodeExtTest, preExistingErrorFreesNodesOnce) {
+  char            msgBuf[256] = {0};
+  SAstCreateContext cxt;
+  initMinimalAstCxt(&cxt, TSDB_CODE_FAILED, msgBuf, sizeof(msgBuf));
+
+  SNode* pLeft  = makeSimpleNode();
+  SNode* pRight = makeSimpleNode();
+  ASSERT_NE(pLeft, nullptr);
+  ASSERT_NE(pRight, nullptr);
+
+  SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, nullptr, pLeft, pRight);
+  EXPECT_EQ(result, nullptr);
+}
+
+// Test 5: SQL-level regression — CREATE TABLE USING TAGS with an
+// INTEGER + duration tag value exercises the createRawValueNodeExt
+// success path end-to-end through the parser.
+namespace ParserTest {
+TEST_F(ParserInitialCTest, createRawValueNodeExtViaTagsLiteralExpr) {
+  useDb("root", "test");
+  // tag3 is TIMESTAMP; "1000 + 1s" exercises tags_literal ::= NK_INTEGER NK_PLUS duration_literal
+  // which calls createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C).
+  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', 1000 + 1s)");
+  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', 1000 - 1s)");
+}
 }  // namespace ParserTest
