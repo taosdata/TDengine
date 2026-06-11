@@ -3051,14 +3051,14 @@ static int32_t createSimpleSubQStmt(STranslateContext* pCxt, char* stmtName, SNo
   cxt.isExprSubQ = true;
 
   code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, true, &cxt);
-  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+  if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pSelect);
     destroyTranslateContext(&cxt);
     return code;
   }
 
   code = setCurrLevelNsFromParent(pCxt, &cxt);
-  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+  if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pSelect);
     destroyTranslateContext(&cxt);
     return code;
