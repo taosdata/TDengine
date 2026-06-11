@@ -1739,8 +1739,8 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
     MND_TMQ_NULL_CHECK(pColInfo);
     MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, *numOfRows, fqdnStr, fqdn == NULL));
 
-    mInfo("mnd show subscriptions: topic %s, consumer:0x%" PRIx64 " cgroup %s vgid %d", varDataVal(topic), consumerId,
-          varDataVal(cgroup), *pVgId);
+    mDebug("mnd show subscriptions: topic %s, consumer:0x%" PRIx64 " cgroup %s vgid %d", varDataVal(topic), consumerId,
+          varDataVal(cgroup), pVgEp->vgId);
 
     // offset
     OffsetRows *data = NULL;
@@ -1773,7 +1773,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       MND_TMQ_NULL_CHECK(pColInfo);
       colDataSetNULL(pColInfo, *numOfRows);
-      mInfo("mnd show subscriptions: do not find vgId:%d in offsetRows", *pVgId);
+      mDebug("mnd show subscriptions: do not find vgId:%d in offsetRows", pVgEp->vgId);
     }
     (*numOfRows)++;
   }
@@ -1873,7 +1873,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
   bool             showAll = false;
   char             objFName[TSDB_OBJ_FNAME_LEN + 1] = {0};
 
-  mInfo("mnd show subscriptions begin");
+  mDebug("mnd show subscriptions begin");
   MND_TMQ_RETURN_CHECK(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));
   (void)snprintf(objFName, sizeof(objFName), "%d.*", pOperUser->acctId);
   showAll = (0 == mndCheckSysObjPrivilege(pMnode, pOperUser, RPC_MSG_TOKEN(pReq), PRIV_SUBSCRIPTION_SHOW,
@@ -1890,7 +1890,7 @@ int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock
     sdbRelease(pSdb, pSub);
     pSub = NULL;
   }
-  mInfo("mnd end show subscriptions");
+  mDebug("mnd end show subscriptions");
   pShow->numOfRows += numOfRows;
 
 END:

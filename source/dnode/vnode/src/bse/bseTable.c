@@ -1928,7 +1928,6 @@ int32_t tableMetaWriterFlushBlock(SBtableMetaWriter *pMeta) {
 _error:
   if (code != 0) {
     bseError("failed to flush table meta %s at line %d since %s", pMeta->name, 0, tstrerror(code));
-    tableMetaWriterClose(pMeta);
   }
   return code;
 }
@@ -2017,7 +2016,6 @@ int32_t tableMetaWriterCommit(SBtableMetaWriter *pMeta) {
 _error:
   if (code != 0) {
     bseError("failed to commit table meta %s at line %d since %s", pMeta->name, lino, tstrerror(code));
-    tableMetaWriterClose(pMeta);
   }
   return code;
 }
@@ -2037,7 +2035,6 @@ int32_t tableMetaWriteAppendRawBlock(SBtableMetaWriter *pMeta, SBlockWrapper *pB
 _error:
   if (code != 0) {
     bseError("failed to append block to table meta %s at line %d since %s", pMeta->name, lino, tstrerror(code));
-    tableMetaWriterClose(pMeta);
   }
   return code;
 }
