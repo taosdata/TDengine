@@ -143,6 +143,10 @@ static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pChild, SE
   pExchange->srcEndGroupId = pCxt->groupId;
   pExchange->node.precision = pChild->precision;
   pExchange->node.dynamicOp = pChild->dynamicOp;
+  pExchange->node.inputTsOrder = pChild->inputTsOrder;
+  pExchange->node.outputTsOrder = pChild->outputTsOrder;
+  pExchange->node.requireDataOrder = pChild->requireDataOrder;
+  pExchange->node.resultDataOrder = pChild->resultDataOrder;
   pExchange->node.pTargets = NULL;
   PLAN_ERR_JRET(nodesCloneList(pChild->pTargets, &pExchange->node.pTargets));
 
@@ -720,6 +724,8 @@ static int32_t stbSplRewriteFromMergeNode(SMergeLogicNode* pMerge, SLogicNode* p
   int32_t code = TSDB_CODE_SUCCESS;
   pMerge->node.inputTsOrder = pNode->outputTsOrder;
   pMerge->node.outputTsOrder = pNode->outputTsOrder;
+  pMerge->node.requireDataOrder = pNode->resultDataOrder;
+  pMerge->node.resultDataOrder = pNode->resultDataOrder;
 
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_PROJECT: {
@@ -856,6 +862,12 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
   if (TSDB_CODE_SUCCESS == code) {
     ((SWindowLogicNode*)pPartWindow)->windowAlgo = ((SWindowLogicNode*)pInfo->pSplitNode)->winType == WINDOW_TYPE_INTERVAL ? INTERVAL_ALGO_HASH : EXTERNAL_ALGO_HASH;
     ((SWindowLogicNode*)pInfo->pSplitNode)->windowAlgo = ((SWindowLogicNode*)pInfo->pSplitNode)->winType == WINDOW_TYPE_INTERVAL ? INTERVAL_ALGO_MERGE : EXTERNAL_ALGO_MERGE;
+    // MergeAligned operator receives globally-sorted input from Merge(sort) and outputs unified
+    // windows in monotonically increasing timestamp order. Without partition, all vnodes' data
+    // merges into one group so output is globally ordered. With partition, output is per-group.
+    if (!(((SWindowLogicNode*)pInfo->pSplitNode)->partType & WINDOW_PART_HAS)) {
+      pInfo->pSplitNode->resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+    }
     code = stbSplCreateMergeNode(pCxt, NULL, pInfo->pSplitNode, pMergeKeys, pPartWindow, true, true);
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyList(pMergeKeys);
@@ -900,8 +912,7 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
 static void stbSplSetTableMergeScan(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-    pScan->scanType = SCAN_TYPE_TABLE_MERGE;
-    pScan->filesetDelimited = true;
+    planPromoteScanToTableMerge(pScan, pScan->node.requireDataOrder, pScan->node.resultDataOrder);
     if (NULL != pScan->pGroupTags) {
       pScan->groupSort = true;
     }
@@ -1551,8 +1562,7 @@ static int32_t stbSplCreateMergeScanNode(SScanLogicNode* pScan, SLogicNode** pOu
 
   SNodeList* pMergeKeys = NULL;
   if (TSDB_CODE_SUCCESS == code) {
-    pMergeScan->scanType = SCAN_TYPE_TABLE_MERGE;
-    pMergeScan->filesetDelimited = true;
+    planPromoteScanToTableMerge(pMergeScan, pMergeScan->node.requireDataOrder, pMergeScan->node.resultDataOrder);
     pMergeScan->node.pChildren = pChildren;
     splSetParent((SLogicNode*)pMergeScan);
 

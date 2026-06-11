@@ -1644,8 +1644,9 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
 
   pExtW->primaryTsIndex = ((SColumnNode*)pPhynode->window.pTspk)->slotId;
   pExtW->mode = pPhynode->window.pFuncs ? EEXT_MODE_AGG : EEXT_MODE_SCALAR;
-  pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
-  pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
+  pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
+  pPhynode->window.node.outputTsOrder = pPhynode->window.node.inputTsOrder;
+  setOptrBasicInfoOrder(&pExtW->binfo, &pPhynode->window.node);
   pExtW->needGroupSort = pPhynode->needGroupSort;
   pExtW->calcWithPartition = pPhynode->calcWithPartition;
   pExtW->extWinSplit = pPhynode->extWinSplit;
@@ -2308,6 +2309,22 @@ static int32_t extWinGetMultiTbOvlpWin(SOperatorInfo* pOperator, int64_t* tsCol,
   return TSDB_CODE_SUCCESS;
 }
 
+static const char* extWinGetWinFpName(SExternalWindowOperator* pExtW) {
+  if (pExtW->getWinFp == extWinGetOvlpWin) {
+    return "single_overlap";
+  }
+  if (pExtW->getWinFp == extWinGetNoOvlpWin) {
+    return "single_no_overlap";
+  }
+  if (pExtW->getWinFp == extWinGetMultiTbOvlpWin) {
+    return "multi_overlap";
+  }
+  if (pExtW->getWinFp == extWinGetMultiTbNoOvlpWin) {
+    return "multi_no_overlap";
+  }
+  return "unknown";
+}
+
 
 static int32_t extWinGetResultRow(SExecTaskInfo* pTaskInfo, SExternalWindowOperator* pExtW, int32_t winIdx, int32_t resultRowSize, SResultRow** ppRes) {
   int32_t code = 0, lino = 0;
@@ -2799,7 +2816,13 @@ static int32_t extWinAggDo(SOperatorInfo* pOperator, int32_t startPos, int32_t f
 }
 
 static bool extWinLastWinClosed(SExternalWindowOperator* pExtW) {
-  if (pExtW->resWinIdx <= 0 || (pExtW->multiTableMode && !pExtW->inputHasOrder)) {
+  if (pExtW->resWinIdx <= 0) {
+    return false;
+  }
+
+  if (pExtW->multiTableMode && !pExtW->inputHasOrder) {
+    qDebug("%s disabled, multiTableMode:%d, inputHasOrder:%d, resWinIdx:%d", __func__, pExtW->multiTableMode,
+           pExtW->inputHasOrder, pExtW->resWinIdx);
     return false;
   }
 
@@ -3777,10 +3800,22 @@ static int32_t extWinAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppRes)
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SStreamRuntimeFuncInfo*  pStream = pTaskInfo->pStreamRuntimeInfo ? &pTaskInfo->pStreamRuntimeInfo->funcInfo : NULL;
+  const char*     outputPath =
+      pExtW->needGroupSort
+          ? ((pStream && pStream->isMultiGroupCalc)
+                 ? (pExtW->calcWithPartition ? "mul_order_tcalc" : "mul_order_tgroup")
+                 : "mul_order_cgroup")
+          : ((pStream && pStream->isMultiGroupCalc)
+                 ? "mul_noorder_tgroup"
+                 : (pExtW->calcWithPartition ? "mul_noorder_cgroup" : "single_cgroup"));
 
   pBlock->info.version = pTaskInfo->version;
   blockDataCleanup(pBlock);
   taosArrayClear(pExtW->pWinRowIdx);
+
+  qDebug("%s %s output-path:%s, needGroupSort:%d, calcWithPartition:%d, multiGroupCalc:%d, inputHasOrder:%d",
+         GET_TASKID(pTaskInfo), __func__, outputPath, pExtW->needGroupSort, pExtW->calcWithPartition,
+         (pStream && pStream->isMultiGroupCalc) ? 1 : 0, pExtW->inputHasOrder);
 
   if (pExtW->needGroupSort) {
     if (pStream && pStream->isMultiGroupCalc) {
@@ -3862,14 +3897,18 @@ static void extWinFreeResultRow(SExternalWindowOperator* pExtW) {
 
 static bool extWinNonAggGotResBlock(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW) {
   if (pExtW->calcWithPartition) {
+    qDebug("%s %s fast-path disabled by calcWithPartition", GET_TASKID(pOperator->pTaskInfo), __func__);
     return false;
   }
 
   if ((pExtW->multiTableMode && !pExtW->inputHasOrder) || pExtW->needGroupSort) {
+    qDebug("%s %s fast-path disabled, multiTableNoOrder:%d, needGroupSort:%d", GET_TASKID(pOperator->pTaskInfo),
+           __func__, (pExtW->multiTableMode && !pExtW->inputHasOrder) ? 1 : 0, pExtW->needGroupSort);
     return false;
   }
   int32_t remainWin = pExtW->resWinIdx - pExtW->outWinIdx;
   if (remainWin > 1 && (NULL == pExtW->timeRangeExpr || !pExtW->timeRangeExpr->needCalc)) {
+    qDebug("%s %s fast-path enabled by remainWin:%d", GET_TASKID(pOperator->pTaskInfo), __func__, remainWin);
     return true;
   }
   
@@ -3878,6 +3917,8 @@ static bool extWinNonAggGotResBlock(SOperatorInfo* pOperator, SExternalWindowOpe
     return false;
   }
   if (listNEles(pList) > 1) {
+    qDebug("%s %s fast-path enabled by blockListSize:%d", GET_TASKID(pOperator->pTaskInfo), __func__,
+           listNEles(pList));
     return true;
   }
 
@@ -3885,6 +3926,8 @@ static bool extWinNonAggGotResBlock(SOperatorInfo* pOperator, SExternalWindowOpe
   SArray* pIdx = *(SArray**)((SArray**)pNode->data + 1);
   int32_t* winIdx = taosArrayGetLast(pIdx);
   if (winIdx && *winIdx < pExtW->pTGrpCtx->pCCtx->blkWinStartIdx) {
+    qDebug("%s %s fast-path enabled by winIdx:%d blkWinStartIdx:%d", GET_TASKID(pOperator->pTaskInfo), __func__,
+           *winIdx, pExtW->pTGrpCtx->pCCtx->blkWinStartIdx);
     return true;
   }
 
@@ -4359,8 +4402,9 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   pExtW->fillMode = pPhynode->extFill.mode;
   pExtW->pFillExprs = pPhynode->extFill.pFillExprs;
   pExtW->pFillValues = pPhynode->extFill.pFillValues;
-  pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
-  pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
+  pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
+  pPhynode->window.node.outputTsOrder = pPhynode->window.node.inputTsOrder;
+  setOptrBasicInfoOrder(&pExtW->binfo, &pPhynode->window.node);
   pExtW->isDynWindow = false;
 
   qDebug("%s create extWin operator, execModel:%d, phySubquery:%p", GET_TASKID(pTaskInfo), pTaskInfo->execModel,
@@ -4489,8 +4533,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
                               pTaskInfo->pStreamRuntimeInfo);
     TSDB_CHECK_CODE(code, lino, _error);
     
-    pExtW->binfo.inputTsOrder = pNode->inputTsOrder;
-    pExtW->binfo.outputTsOrder = pNode->outputTsOrder;
+    setOptrBasicInfoOrder(&pExtW->binfo, pNode);
     code = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfExpr, &pExtW->pPseudoColInfo);
     TSDB_CHECK_CODE(code, lino, _error);
 
@@ -4554,9 +4597,10 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
 
   *pOptrOut = pOperator;
 
-  qDebug("%s extWin operator created, mode:%s, multiTableMnode:%d, inputHasOrder:%d, hasTimeRangeExpr:%d, timeRangeNeedCalc:%d "
-    "needGroupSort:%d, extWinSplit:%d, calcWithPartition:%d",
-    GET_TASKID(pTaskInfo), extWinModeStr(pExtW->mode), pExtW->multiTableMode, pExtW->inputHasOrder, pExtW->timeRangeExpr ? 1 : 0,
+  qDebug("%s extWin operator created, mode:%s, multiTableMnode:%d, inputHasOrder:%d, inputTsOrder:%d, inputDataOrder:%d, "
+    "getWinFp:%s, hasTimeRangeExpr:%d, timeRangeNeedCalc:%d needGroupSort:%d, extWinSplit:%d, calcWithPartition:%d",
+    GET_TASKID(pTaskInfo), extWinModeStr(pExtW->mode), pExtW->multiTableMode, pExtW->inputHasOrder, pExtW->binfo.inputTsOrder,
+    pExtW->binfo.inputDataOrder, extWinGetWinFpName(pExtW), pExtW->timeRangeExpr ? 1 : 0,
     pExtW->timeRangeExpr ? pExtW->timeRangeExpr->needCalc : -1, pExtW->needGroupSort, pExtW->extWinSplit, pExtW->calcWithPartition);
   
   return code;

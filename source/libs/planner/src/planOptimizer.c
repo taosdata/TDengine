@@ -4022,10 +4022,7 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
       }
       pScan->node.outputTsOrder = order;
       if (TSDB_SUPER_TABLE == pScan->tableType && !pScan->phTbnameScan) {
-        pScan->scanType = SCAN_TYPE_TABLE_MERGE;
-        pScan->filesetDelimited = true;
-        pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
-        pScan->node.requireDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+        planPromoteScanToTableMerge(pScan, DATA_ORDER_LEVEL_GLOBAL, DATA_ORDER_LEVEL_GLOBAL);
       }
       pScan->sortPrimaryKey = true;
     } else if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pSequencingNode)) {
@@ -5082,6 +5079,14 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       code = adjustLogicNodeDataRequirement((SLogicNode*)pScan, pNode->resultDataOrder);
     }
     if (TSDB_CODE_SUCCESS == code) {
+      // After partition elimination, propagate ts order from scan to its new parent.
+      // scanPathOpt previously set scan's outputTsOrder but optSetParentOrder stopped
+      // at the partition node. Now that partition is removed, the parent (e.g. interval)
+      // should inherit the scan's output ts order as its input ts order.
+      if (pScan->node.pParent && pScan->node.outputTsOrder != 0) {
+        pScan->node.pParent->inputTsOrder = pScan->node.outputTsOrder;
+      }
+
       if (QUERY_NODE_LOGIC_PLAN_AGG == pNode->pParent->type) {
         SAggLogicNode* pParent = (SAggLogicNode*)(pNode->pParent);
         scanPathOptSetGroupOrderScan(pScan);
@@ -10652,8 +10657,7 @@ static int32_t createMergeScanNodeByScanNode(SScanLogicNode* pScan, SLogicNode**
   SScanLogicNode* pMergeScan = NULL;
 
   PLAN_ERR_JRET(nodesCloneNode((SNode*)pScan, (SNode**)&pMergeScan));
-  pMergeScan->scanType = SCAN_TYPE_TABLE_MERGE;
-  pMergeScan->filesetDelimited = true;
+  planPromoteScanToTableMerge(pMergeScan, pMergeScan->node.requireDataOrder, pMergeScan->node.resultDataOrder);
   optResetParent((SLogicNode*)pMergeScan);
 
   *pOutputMergeScan = (SLogicNode*)pMergeScan;
@@ -12405,4 +12409,73 @@ int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
     return TSDB_CODE_SUCCESS;
   }
   return applyOptimizeRule(pCxt, pLogicSubplan);
+}
+
+// Post-split optimization: eliminate redundant Sort when its child (through
+// passthrough Projection) is a Merge that already provides globally ordered output.
+static int32_t postSplitEliminateSortImpl(SLogicSubplan* pSubplan, SLogicNode* pNode) {
+  if (NULL == pNode) return TSDB_CODE_SUCCESS;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    code = postSplitEliminateSortImpl(pSubplan, (SLogicNode*)pChild);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SORT != nodeType(pNode)) return TSDB_CODE_SUCCESS;
+
+  SSortLogicNode* pSort = (SSortLogicNode*)pNode;
+  // calcGroupId Sort recalculates partition group ids for sort_for_group().
+  if (pSort->calcGroupId) return TSDB_CODE_SUCCESS;
+  if (1 != LIST_LENGTH(pSort->pSortKeys)) return TSDB_CODE_SUCCESS;
+  SNode* pSortExpr = ((SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0))->pExpr;
+  if (QUERY_NODE_COLUMN != nodeType(pSortExpr)) return TSDB_CODE_SUCCESS;
+  if (NULL != pSort->node.pLimit || NULL != pSort->node.pSlimit || NULL != pSort->node.pConditions) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Walk past passthrough Projections to find the actual data-producing child.
+  SLogicNode* pDataChild = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
+  while (NULL != pDataChild && QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pDataChild) &&
+         1 == LIST_LENGTH(pDataChild->pChildren)) {
+    pDataChild = (SLogicNode*)nodesListGetNode(pDataChild->pChildren, 0);
+  }
+
+  if (NULL == pDataChild ||
+      (QUERY_NODE_LOGIC_PLAN_MERGE != nodeType(pDataChild) && QUERY_NODE_LOGIC_PLAN_EXCHANGE != nodeType(pDataChild))) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Check: the child already provides GLOBAL order in the direction Sort requires.
+  EOrder sortOrder = ((SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0))->order;
+  if (!isPrimaryKeyImpl(pSortExpr) && pSort->node.outputTsOrder != sortOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pDataChild->resultDataOrder < DATA_ORDER_LEVEL_GLOBAL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pDataChild->outputTsOrder != sortOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  planInfo("QID:0x%" PRIx64 " post-split: eliminating redundant Sort (child provides GLOBAL order=%d)",
+           pSubplan->id.queryId, sortOrder);
+
+  // Eliminate the Sort: replace it with its direct child.
+  SLogicNode* pDirectChild = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
+  if (NULL == pSort->node.pParent) {
+    TSWAP(pSort->node.pTargets, pDirectChild->pTargets);
+  }
+  code = replaceLogicNode(pSubplan, (SLogicNode*)pSort, pDirectChild);
+  if (TSDB_CODE_SUCCESS == code) {
+    NODES_CLEAR_LIST(pSort->node.pChildren);
+    nodesDestroyNode((SNode*)pSort);
+  }
+  return code;
+}
+
+int32_t postSplitOptimize(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (NULL == pLogicSubplan || NULL == pLogicSubplan->pNode) return TSDB_CODE_SUCCESS;
+  return postSplitEliminateSortImpl(pLogicSubplan, pLogicSubplan->pNode);
 }

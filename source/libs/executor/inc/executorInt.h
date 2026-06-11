@@ -523,7 +523,28 @@ typedef struct SOptrBasicInfo {
   bool           mergeResultBlock;
   int32_t        inputTsOrder;
   int32_t        outputTsOrder;
+  EDataOrderLevel inputDataOrder;
+  EDataOrderLevel outputDataOrder;
 } SOptrBasicInfo;
+
+static FORCE_INLINE void setOptrBasicInfoOrder(SOptrBasicInfo* pInfo, const SPhysiNode* pNode) {
+  pInfo->inputTsOrder = pNode->inputTsOrder;
+  pInfo->outputTsOrder = pNode->outputTsOrder;
+  // Maps planner's require/result data order to executor's input/output data order.
+  // inputDataOrder is used by optrHasOrderedInput() to decide if sorted execution path is viable.
+  pInfo->inputDataOrder = pNode->requireDataOrder;
+  pInfo->outputDataOrder = pNode->resultDataOrder;
+}
+
+static FORCE_INLINE bool optrHasOrderedInput(const SOptrBasicInfo* pInfo, EDataOrderLevel minLevel) {
+  return (pInfo->inputTsOrder == TSDB_ORDER_ASC || pInfo->inputTsOrder == TSDB_ORDER_DESC) &&
+         pInfo->inputDataOrder >= minLevel;
+}
+
+static FORCE_INLINE bool optrHasOrderedOutput(const SOptrBasicInfo* pInfo, EDataOrderLevel minLevel) {
+  return (pInfo->outputTsOrder == TSDB_ORDER_ASC || pInfo->outputTsOrder == TSDB_ORDER_DESC) &&
+         pInfo->outputDataOrder >= minLevel;
+}
 
 typedef struct SIndefRowsWindowState {
   STimeWindow  win;      // logical window range for this state
