@@ -159,6 +159,7 @@ static int32_t mndProcessDropTotpSecretReq(SRpcMsg *pReq);
 
 static int32_t createIpWhiteListFromOldVer(void *buf, int32_t len, SIpWhiteList **ppList);
 static int32_t tDerializeIpWhileListFromOldVer(void *buf, int32_t len, SIpWhiteList *pList);
+static int32_t mndBuildDnodeIpRanges(SMnode *pMnode, SIpRange **ppRanges, int32_t *pNum);
 
 typedef struct {
   SIpWhiteListDual   *wlIp;
@@ -171,6 +172,8 @@ typedef struct {
   int64_t        verIp;
   int64_t        verTime;
   char           auditLogUser[TSDB_USER_LEN];
+  SIpRange      *pDnodeRanges;      // cached resolved cluster dnode ip ranges, protected by rw
+  int32_t        numOfDnodeRanges;  // valid entry count in pDnodeRanges
   TdThreadRwlock rw;
 } SUserCache;
 
@@ -189,6 +192,8 @@ static int32_t userCacheInit() {
   userCache.verIp = 0;
   userCache.verTime = 0;
   userCache.auditLogUser[0] = '\0';
+  userCache.pDnodeRanges = NULL;
+  userCache.numOfDnodeRanges = 0;
 
   (void)taosThreadRwlockInit(&userCache.rw, NULL);
   TAOS_RETURN(0);
@@ -210,6 +215,10 @@ static void userCacheCleanup() {
     pIter = taosHashIterate(userCache.users, pIter);
   }
   taosHashCleanup(userCache.users);
+
+  taosMemoryFree(userCache.pDnodeRanges);
+  userCache.pDnodeRanges = NULL;
+  userCache.numOfDnodeRanges = 0;
 
   (void)taosThreadRwlockDestroy(&userCache.rw);
 }
@@ -370,7 +379,13 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t userCacheRebuildIpWhiteList(SMnode *pMnode) {
+// Rebuild the in-cache per-user IP white lists and install pre-resolved dnode IP ranges.
+// Must be called with userCache.rw write-lock held.
+// pDnodeRanges ownership is transferred to userCache on success; caller must not free it afterwards.
+// On failure the previous cache is left intact (fail-closed: verIp is not bumped).
+// NOTE: on failure the install block is never reached, so pDnodeRanges is NOT freed here;
+// the caller retains ownership and must free it on the error path.
+static int32_t userCacheRebuildIpWhiteList(SMnode *pMnode, SIpRange *pDnodeRanges, int32_t numOfDnodeRanges) {
   int32_t code = 0, lino = 0;
 
   SSdb *pSdb = pMnode->pSdb;
@@ -404,7 +419,13 @@ static int32_t userCacheRebuildIpWhiteList(SMnode *pMnode) {
     sdbRelease(pSdb, pUser);
   }
 
-  userCache.verIp++;
+  // Install the pre-resolved dnode ranges (resolved outside the lock to avoid holding the write lock
+  // during potentially slow DNS I/O). Ownership transfers to userCache here.
+  taosMemoryFree(userCache.pDnodeRanges);
+  userCache.pDnodeRanges = pDnodeRanges;
+  userCache.numOfDnodeRanges = numOfDnodeRanges;
+
+  // verIp is set by the caller (taosGetTimestampMs) after this function returns.
 
 _OVER:
   if (code < 0) {
@@ -413,24 +434,56 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+// Resolve dnode IPs outside the lock, acquire write lock, rebuild the cache, update verIp,
+// and release the lock. Shared by mndRefreshUserIpWhiteList and the cold-cache path in
+// mndGetIpWhiteListVersion to avoid duplicating the DNS-outside-lock + wrlock + rebuild pattern.
+static int32_t doRebuildIpWhiteListLocked(SMnode *pMnode) {
+  SIpRange *pDnodeRanges     = NULL;
+  int32_t   numOfDnodeRanges = 0;
+  int32_t   code = mndBuildDnodeIpRanges(pMnode, &pDnodeRanges, &numOfDnodeRanges);
+  if (code != 0) TAOS_RETURN(code);
+
+  (void)taosThreadRwlockWrlock(&userCache.rw);
+  code = userCacheRebuildIpWhiteList(pMnode, pDnodeRanges, numOfDnodeRanges);
+  if (code != 0) {
+    (void)taosThreadRwlockUnlock(&userCache.rw);
+    taosMemoryFree(pDnodeRanges);  // callee did NOT free on error; we still own it
+    TAOS_RETURN(code);
+  }
+  // pDnodeRanges ownership transferred to userCache on success.
+  userCache.verIp = taosGetTimestampMs();
+  (void)taosThreadRwlockUnlock(&userCache.rw);
+  TAOS_RETURN(0);
+}
+
+// Returns the current IP whitelist version (a timestamp-based int64).
+// Returns 0 in three distinct cases — callers cannot distinguish between them:
+//   1. IP whitelist is disabled (mndEnableIpWhiteList == 0 or tsEnableWhiteList is false)
+//   2. Cold-cache initialisation failed (DNS error, OOM, etc.) — mError is logged
+//   3. Cache is being rebuilt concurrently and verIp is transiently zero
+// On the hot path (cache already warm), this is a read-lock + return with no I/O.
 int64_t mndGetIpWhiteListVersion(SMnode *pMnode) {
   int64_t ver = 0;
   int32_t code = 0;
 
   if (mndEnableIpWhiteList(pMnode) != 0 && tsEnableWhiteList) {
-    (void)taosThreadRwlockWrlock(&userCache.rw);
-
-    if (userCache.verIp == 0) {
-      // get user and dnode ip white list
-      if ((code = userCacheRebuildIpWhiteList(pMnode)) != 0) {
-        (void)taosThreadRwlockUnlock(&userCache.rw);
-        mError("%s failed to update ip white list since %s", __func__, tstrerror(code));
-        return ver;
-      }
-      userCache.verIp = taosGetTimestampMs();
-    }
+    // Fast path: cache already warm — return without any DNS I/O.
+    (void)taosThreadRwlockRdlock(&userCache.rw);
     ver = userCache.verIp;
+    (void)taosThreadRwlockUnlock(&userCache.rw);
+    if (ver != 0) {
+      mDebug("ip-white-list on mnode ver: %" PRId64 " (cached)", ver);
+      return ver;
+    }
 
+    // Cold-cache path: delegate to shared helper (DNS outside lock + wrlock + rebuild).
+    if ((code = doRebuildIpWhiteListLocked(pMnode)) != 0) {
+      mError("%s failed to build ip white list since %s", __func__, tstrerror(code));
+      return ver;
+    }
+
+    (void)taosThreadRwlockRdlock(&userCache.rw);
+    ver = userCache.verIp;
     (void)taosThreadRwlockUnlock(&userCache.rw);
   }
 
@@ -439,17 +492,13 @@ int64_t mndGetIpWhiteListVersion(SMnode *pMnode) {
 }
 
 int32_t mndRefreshUserIpWhiteList(SMnode *pMnode) {
-  int32_t code = 0;
-  (void)taosThreadRwlockWrlock(&userCache.rw);
-
-  if ((code = userCacheRebuildIpWhiteList(pMnode)) != 0) {
-    (void)taosThreadRwlockUnlock(&userCache.rw);
-    TAOS_RETURN(code);
-  }
-  userCache.verIp = taosGetTimestampMs();
-  (void)taosThreadRwlockUnlock(&userCache.rw);
-
-  TAOS_RETURN(code);
+  // TODO(perf): this function is also called from the Raft apply/snapshot-restore path
+  // (mndSync.c:319). In large clusters (50+ dnodes), sequential DNS resolution here can
+  // block the Raft apply thread long enough to trigger spurious leader elections if DNS
+  // is slow or the network is partitioned. A future improvement is to move DNS resolution
+  // to an async worker thread with a short timeout and fall back to the cached ranges on
+  // timeout. For now the fix is deferred since internal DNS is typically sub-millisecond.
+  return doRebuildIpWhiteListLocked(pMnode);
 }
 
 static int32_t userCacheRebuildTimeWhiteList(SMnode *pMnode) {
@@ -3579,8 +3628,105 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+// Resolve every cluster dnode endpoint to an ip range. These ranges are merged into every user's
+// effective ip white list so that intra-cluster RPC (which is issued with the root identity and
+// originates from a dnode host) is never rejected by the white list. If any dnode endpoint cannot be
+// resolved the whole build fails (fail closed) so an incomplete list is never pushed.
+static int32_t mndBuildDnodeIpRanges(SMnode *pMnode, SIpRange **ppRanges, int32_t *pNum) {
+  *ppRanges = NULL;
+  *pNum = 0;
+
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t numOfDnodes = sdbGetSize(pSdb, SDB_DNODE);
+  if (numOfDnodes <= 0) {
+    return 0;
+  }
+
+  SIpRange *pRanges = taosMemoryCalloc(numOfDnodes, sizeof(SIpRange));
+  if (pRanges == NULL) {
+    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  int32_t    num = 0;
+  int32_t    code = 0;
+  void      *pIter = NULL;
+  SDnodeObj *pDnode = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
+    if (pIter == NULL) {
+      break;
+    }
+
+    if (num >= numOfDnodes) {
+      // Dnode set grew concurrently after the sdbGetSize() snapshot. Fail closed: an incomplete
+      // whitelist must not be pushed — return error so the caller keeps the previous consistent cache.
+      mWarn("dnode set grew during ip range build, aborting to avoid incomplete list");
+      code = TSDB_CODE_APP_ERROR;  // DNODE_ALREADY_EXIST is semantically wrong here — dnode set grew
+      goto _OVER;
+    }
+
+    SIpAddr addr = {0};
+    code = taosGetIpFromFqdn(tsEnableIpv6, pDnode->fqdn, &addr);
+    if (code != 0) {
+      // Fail closed: do not push a whitelist that is missing a cluster node's ip.
+      mError("failed to resolve dnode:%d fqdn:%s for ip white list since %s", pDnode->id, pDnode->fqdn,
+             tstrerror(code));
+      goto _OVER;
+    }
+
+    // Validate address type and set appropriate mask to prevent garbage values
+    if (addr.type == 0) {
+      addr.mask = 32;  // IPv4
+    } else if (addr.type == 1) {
+      addr.mask = 128;  // IPv6
+    } else {
+      mError("invalid addr type:%d from dnode:%d fqdn:%s for ip white list", addr.type, pDnode->id,
+             pDnode->fqdn);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _OVER;
+    }
+
+    SIpRange range = {0};
+    if ((code = tIpStrToUint(&addr, &range)) != 0) {
+      mError("failed to convert dnode:%d fqdn:%s ip for ip white list since %s", pDnode->id, pDnode->fqdn,
+             tstrerror(code));
+      goto _OVER;
+    }
+
+    // Linear scan is acceptable: dnode count is small (typically < 100)
+    bool dup = false;
+    for (int32_t i = 0; i < num; ++i) {
+      if (memcmp(&pRanges[i], &range, sizeof(SIpRange)) == 0) {
+        dup = true;
+        break;
+      }
+    }
+    if (!dup) {
+      pRanges[num++] = range;
+    }
+    sdbRelease(pSdb, pDnode);
+    pDnode = NULL;
+  }
+
+  *ppRanges = pRanges;
+  *pNum = num;
+  return 0;
+
+_OVER:
+  if (pDnode) sdbRelease(pSdb, pDnode);
+  if (pIter) sdbCancelFetch(pSdb, pIter);
+  taosMemoryFree(pRanges);
+  TAOS_RETURN(code);
+}
+
 static int32_t buildRetrieveIpWhiteListRsp(SUpdateIpWhite *pUpdate) {
   (void)taosThreadRwlockRdlock(&userCache.rw);
+
+  // Dnode ip ranges were resolved and cached during the last white-list rebuild (CREATE/DROP DNODE,
+  // restore, config change). Read them straight from the cache here so the retrieve hot path never
+  // does DNS. The cache is owned by userCache and stays valid for the duration of this read lock.
+  const SIpRange *pDnodeRanges = userCache.pDnodeRanges;
+  int32_t         numOfDnodeRanges = userCache.numOfDnodeRanges;
 
   int32_t count = taosHashGetSize(userCache.users);
   pUpdate->pUserIpWhite = taosMemoryCalloc(count, sizeof(SUpdateUserIpWhite));
@@ -3593,7 +3739,11 @@ static int32_t buildRetrieveIpWhiteListRsp(SUpdateIpWhite *pUpdate) {
   void *pIter = taosHashIterate(userCache.users, NULL);
   while (pIter) {
     SIpWhiteListDual *wl = (*(SCachedUserInfo **)pIter)->wlIp;
-    if (wl == NULL || wl->num <= 0) {
+    // Skip only when there is nothing to inject: no per-user ranges AND no dnode ranges.
+    // Previously this skipped users with empty whitelists entirely, which meant those users
+    // never received dnode IP ranges — breaking intra-cluster RPC for those accounts.
+    int32_t wlNum = (wl != NULL) ? wl->num : 0;
+    if (wlNum <= 0 && numOfDnodeRanges <= 0) {
       pIter = taosHashIterate(userCache.users, pIter);
       continue;
     }
@@ -3605,14 +3755,21 @@ static int32_t buildRetrieveIpWhiteListRsp(SUpdateIpWhite *pUpdate) {
     char  *key = taosHashGetKey(pIter, &klen);
     (void)memcpy(pUser->user, key, klen);
 
-    pUser->numOfRange = wl->num;
-    pUser->pIpRanges = taosMemoryCalloc(wl->num, sizeof(SIpRange));
+    pUser->numOfRange = wlNum + numOfDnodeRanges;
+    pUser->pIpRanges = taosMemoryCalloc(pUser->numOfRange, sizeof(SIpRange));
     if (pUser->pIpRanges == NULL) {
+      pUpdate->numOfUser = count;  // let the caller's free helper release ranges already populated
+      taosHashCancelIterate(userCache.users, pIter);
       (void)taosThreadRwlockUnlock(&userCache.rw);
       TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
     }
 
-    (void)memcpy(pUser->pIpRanges, wl->pIpRanges, wl->num * sizeof(SIpRange));
+    if (wlNum > 0) {
+      (void)memcpy(pUser->pIpRanges, wl->pIpRanges, wlNum * sizeof(SIpRange));
+    }
+    if (numOfDnodeRanges > 0) {
+      (void)memcpy(pUser->pIpRanges + wlNum, pDnodeRanges, numOfDnodeRanges * sizeof(SIpRange));
+    }
     count++;
     pIter = taosHashIterate(userCache.users, pIter);
   }
