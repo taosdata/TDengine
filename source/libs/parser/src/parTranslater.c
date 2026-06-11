@@ -20784,15 +20784,17 @@ static int32_t buildTriggerPartitionForCreateStream(SNodeList** ppTriggerPartiti
   // append partition by tags
   for (int32_t idx = 0; idx < numOfTags; ++idx) {
     PAR_ERR_JRET(createColumnNodeWithName(pTags[idx].name, &pTagCol));
-    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, pTagCol));
+    SNode* pAppend = pTagCol;
     pTagCol = NULL;
+    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, pAppend));
   }
 
   if (!pStmt->pOptions->recursiveTsma) {
     PAR_ERR_JRET(createTbnameFunction((SFunctionNode**)&tbnameFunc));
     snprintf(((SFunctionNode*)tbnameFunc)->node.userAlias, TSDB_COL_NAME_LEN, "tbname");
-    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, (SNode*)tbnameFunc));
+    SNode* pAppend = tbnameFunc;
     tbnameFunc = NULL;
+    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, pAppend));
   }
 
   *ppTriggerPartition = pTriggerPartition;
