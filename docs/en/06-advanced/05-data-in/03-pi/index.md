@@ -105,6 +105,10 @@ Using PI AF SDK, connects to both PI Data Archive and AF Server. In addition to 
 
 After configuration, click the **Connectivity Check** button to verify the data source is accessible.
 
+:::tip
+For a detailed explanation of the Windows authentication mechanism, why Username/Password/Domain can be left blank by default, and how to configure permissions on the PI side, see [Connection Configuration and Authentication](./06-connection-config.md).
+:::
+
 ### 5. Configure Data Model
 
 The data model configuration area has two tabs, corresponding to **single-column model** and **multi-column model** configurations.

@@ -24,13 +24,13 @@ The connector can run in two modes:
 graph LR
     subgraph OT["OT Network"]
         PI["PI Data Archive<br/>PI AF Server"]
-        TX["taosX<br/>(Windows)"]
+        TX["taosX host (Windows)<br/>includes PI Connector subprocess"]
     end
     subgraph IT["IT Network / Data Center"]
         TD["TDengine TSDB"]
     end
-    PI -- "PI AF SDK<br/>Port 5450/5457" --> TX
-    TX -- "Write Data" --> TD
+    TX -- "PI SDK protocol (Port 5450/5457)<br/>initiated by PI Connector subprocess" --> PI
+    TX -- "Native connection write" --> TD
 ```
 
 **Advantages**:
@@ -51,15 +51,15 @@ graph LR
 graph LR
     subgraph OT["OT Network"]
         PI["PI Data Archive<br/>PI AF Server"]
-        AG["taosx-agent<br/>(Windows)"]
+        AG["taosx-agent host (Windows)<br/>includes PI Connector subprocess"]
     end
     subgraph IT["IT Network / Cloud"]
         TX["taosX<br/>(Linux / Windows)"]
         TD["TDengine TSDB"]
     end
-    PI -- "PI AF SDK<br/>Port 5450/5457" --> AG
-    AG -- "Cross-network<br/>gRPC/HTTPS" --> TX
-    TX -- "Write Data" --> TD
+    AG -- "PI SDK protocol (Port 5450/5457)<br/>initiated by PI Connector subprocess" --> PI
+    AG -- "Cross-network gRPC" --> TX
+    TX -- "Native connection write" --> TD
 ```
 
 **Advantages**:
@@ -99,9 +99,9 @@ graph LR
         TX["taosX"]
         TD["TDengine TSDB"]
     end
-    PI1 -- "PI AF SDK" --> AG1
-    PI2 -- "PI AF SDK" --> AG2
-    PI3 -- "PI AF SDK" --> AG3
+    AG1 -- "PI SDK protocol" --> PI1
+    AG2 -- "PI SDK protocol" --> PI2
+    AG3 -- "PI SDK protocol" --> PI3
     AG1 --> TX
     AG2 --> TX
     AG3 --> TX
@@ -126,10 +126,10 @@ If you chose Option B or Option C, here are the key points for taosx-agent deplo
 | Key Point | Description |
 | --------- | ----------- |
 | Operating System | Must be Windows (PI AF SDK only supports Windows) |
-| PI AF SDK | PI AF SDK (PI AF Client 2018+) must be installed on the agent host |
-| Service Account | The Windows service account running the agent must have PI system access permissions |
-| Network - PI Side | agent → PI Data Archive (port 5450), agent → PI AF Server (port 5457) |
-| Network - taosX Side | agent ↔ taosX network connectivity (gRPC/HTTPS) |
+| PI AF SDK | PI AF SDK (PI AF Client 2018+) must be installed on the agent host; taosX/agent launches the PI Connector as a subprocess, and the connector calls PI AF SDK to communicate with PI |
+| Service Account | The Windows identity of the taosx-agent service (default: Local System → machine account in domain) is what the connector presents to PI; this identity must be granted permissions on the PI side |
+| Network - PI Side | agent host → PI Data Archive (port 5450), agent host → PI AF Server (port 5457) |
+| Network - taosX Side | agent ↔ taosX network connectivity (gRPC) |
 | Installation | Click **+Create New Agent** in Explorer to get the agent installation guide |
 
 ## 6. Architecture Selection Decision Table
