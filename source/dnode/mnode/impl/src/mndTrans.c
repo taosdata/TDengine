@@ -1616,10 +1616,12 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen)) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
-      } else if (pTrans->originRpcType == TDMT_MND_DROP_DNODE) {
+      } else if (pTrans->originRpcType == TDMT_MND_DROP_DNODE || pTrans->originRpcType == TDMT_MND_CREATE_DNODE) {
         int32_t code = mndRefreshUserIpWhiteList(pMnode);
         if (code != 0) {
-          mWarn("failed to refresh user ip white list since %s", tstrerror(code));
+          // Log as error: if the whitelist refresh fails, the new dnode's intra-cluster RPC will be rejected
+          // even though CREATE DNODE returned success to the client — operators need visibility on this.
+          mError("failed to refresh user ip white list since %s", tstrerror(code));
         }
       } else if (pTrans->originRpcType == TDMT_MND_CREATE_TOKEN) {
         void   *pCont = NULL;
