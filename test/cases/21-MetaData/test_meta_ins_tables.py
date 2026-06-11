@@ -42,7 +42,7 @@ class TestMetaSysDb2:
         3. Check ins_columns result correctly with table_name filter
         4. Check table count scan with group by db_name and stable_name
         5. Check table count scan after taosd restart
-        6. Check count(distinct ...) function NOT optimized on ins_tables
+        6. Check count(distinct ...) function succeeds on ins_tables
 
         Since: v3.3.6
 
@@ -75,6 +75,8 @@ class TestMetaSysDb2:
         tdLog.info(f"Checking optimized plan for 'information_schema.ins_tables'")
 
         # create test database and table
+        tdSql.execute("drop database if exists test_meta_sysdb", show=1)
+        tdSql.execute("drop database if exists empty_db_for_count_test", show=1)
         tdSql.execute("create database if not exists test_meta_sysdb", show=1)
         tdSql.execute("use test_meta_sysdb")
         tdSql.execute("create table stb (ts timestamp, v1 int) tags (t1 int)", show=1)
@@ -197,12 +199,10 @@ class TestMetaSysDb2:
 
         tdLog.info("Table count scan optimization check passed for all eligible tables.")
 
-    # if distinct keyword is enabled in count function,
-    # the optimization should check it and NOT apply optimization!!!!!
     def check_count_distinct(self):
-        tdSql.error("select count(distinct table_name) from information_schema.ins_tables",
-                     expectErrInfo='syntax error near "distinct table_name) from information_schema.ins_tables"',
-                    show=1)
+        tdSql.query("select count(distinct table_name) from information_schema.ins_tables", show=1)
+        tdSql.checkRows(1)
+        assert tdSql.getData(0, 0) > 0, "count(distinct table_name) should return a positive count"
 
     #
     # ------------------ test_odbc.py ------------------
