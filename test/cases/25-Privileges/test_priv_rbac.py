@@ -1,4 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, etool, TDSetSql
+from new_test_framework.utils.pathFinding import find_proj_root
 from taos.tmq import Consumer
 from taos import SmlProtocol, SmlPrecision
 from itertools import product
@@ -10,6 +11,30 @@ import shutil
 class TestCase:
 
     test_pass = "Password_123!"
+
+    # Shared-storage (S3 local-fs) config — enables ssmigrate tests without a
+    # real S3 backend.  Mirrors the setup used in test_rsma.py.
+    TDinternal  = find_proj_root()
+    dnode1Path  = os.path.join(TDinternal, "sim", "dnode1")
+    hostPath    = os.path.join(dnode1Path, "multi")
+    localSSPath = os.path.join(TDinternal, "sim", "localSS")
+    _clientCfgDict = {'debugFlag': 135}
+    updatecfgDict = {
+        "debugFlag"        : 135,
+        "forceReadConfig"  : 1,
+        "dataDir"          : [
+            f"%s%staos00 0 0" % (hostPath, os.sep),
+            f"%s%staos01 0 1" % (hostPath, os.sep),
+            f"%s%staos02 0 0" % (hostPath, os.sep),
+            f"%s%staos10 1 0" % (hostPath, os.sep),
+            f"%s%staos11 1 0" % (hostPath, os.sep),
+            f"%s%staos12 1 0" % (hostPath, os.sep),
+        ],
+        'clientCfg'        : _clientCfgDict,
+        'ssAccessString'   : f"fs:baseDir={localSSPath}",
+        'ssEnabled'        : 1,
+        'ssUploadDelaySec' : 2,
+    }
 
     @classmethod
     def setup_cls(cls):
@@ -1736,6 +1761,177 @@ class TestCase:
     #
     # ------------------- main ----------------
     #
+    def do_check_db_oper_privileges(self):
+        """TD-7008208371: Test COMPACT/TRIM/ROLLUP/SCAN/SSMIGRATE DB privilege enforcement.
+
+        These operations (COMPACT/TRIM/ROLLUP/SCAN DATABASE, and their corresponding
+        KILL <id> commands) require either SYSDBA role or DB ownership.
+        A plain user with only USE privilege must be denied.
+        """
+        tdSql.connect("root", "taosdata")
+
+        # --- Setup ---
+        for db in ["d_oper_compact", "d_oper_trim", "d_oper_scan",
+                   "d_oper_kcompact", "d_oper_kscan", "d_oper_ktrim",
+                   "d_oper_ssmigrate", "d_oper_kssmigrate"]:
+            tdSql.execute(f"drop database if exists {db}")
+        for u in ["u_oper_sysdba", "u_oper_owner", "u_oper_noperm"]:
+            try:
+                tdSql.execute(f"drop user {u}", queryTimes=1)
+            except Exception:
+                pass
+
+        # Each operation gets its own database to avoid "already exist" conflicts.
+        # ssmigrate databases use stt_trigger 1 + keep 73000d (same as test_rsma).
+        for db in ["d_oper_compact", "d_oper_trim", "d_oper_scan",
+                   "d_oper_kcompact", "d_oper_kscan", "d_oper_ktrim"]:
+            tdSql.execute(f"create database {db} keep 36500 replica 1")
+        for db in ["d_oper_ssmigrate", "d_oper_kssmigrate"]:
+            tdSql.execute(f"create database {db} keep 73000d replica 1 stt_trigger 1")
+
+        tdSql.execute(f"create user u_oper_sysdba pass '{self.test_pass}'")
+        tdSql.execute(f"create user u_oper_owner  pass '{self.test_pass}'")
+        tdSql.execute(f"create user u_oper_noperm pass '{self.test_pass}'")
+
+        # u_oper_sysdba: grant SYSDBA role
+        tdSql.execute("grant role `SYSDBA` to u_oper_sysdba")
+
+        # u_oper_owner: creates the database (becomes owner)
+        tdSql.execute("grant create database to u_oper_owner")
+        tdSql.connect("u_oper_owner", self.test_pass)
+        tdSql.execute("create database d_oper_owner keep 36500 replica 1")
+
+        # u_oper_noperm: USE only on the oper databases, no maintenance privileges
+        tdSql.connect("root", "taosdata")
+        for db in ["d_oper_compact", "d_oper_trim", "d_oper_scan",
+                   "d_oper_kcompact", "d_oper_kscan", "d_oper_ktrim",
+                   "d_oper_ssmigrate", "d_oper_kssmigrate"]:
+            tdSql.execute(f"grant use on database {db} to u_oper_noperm")
+
+        # --- COMPACT DATABASE: noperm must fail, sysdba must succeed ---
+        # Each connect uses a separate db so no "already exist" collision
+        tdSql.connect("u_oper_noperm", self.test_pass)
+        tdSql.error("compact database d_oper_compact", expectErrInfo="Permission denied", fullMatched=False)
+
+        tdSql.connect("u_oper_sysdba", self.test_pass)
+        tdSql.execute("compact database d_oper_compact")
+
+        # DB owner can compact their own database
+        tdSql.connect("u_oper_owner", self.test_pass)
+        tdSql.execute("compact database d_oper_owner")
+
+        # --- TRIM DATABASE: noperm must fail, sysdba must succeed ---
+        tdSql.connect("u_oper_noperm", self.test_pass)
+        tdSql.error("trim database d_oper_trim", expectErrInfo="Permission denied", fullMatched=False)
+
+        tdSql.connect("u_oper_sysdba", self.test_pass)
+        tdSql.execute("trim database d_oper_trim")
+
+        # DB owner can trim their own database
+        tdSql.connect("u_oper_owner", self.test_pass)
+        tdSql.execute("trim database d_oper_owner")
+
+        # --- SCAN DATABASE: noperm must fail, sysdba must succeed ---
+        tdSql.connect("u_oper_noperm", self.test_pass)
+        tdSql.error("scan database d_oper_scan", expectErrInfo="Permission denied", fullMatched=False)
+
+        tdSql.connect("u_oper_sysdba", self.test_pass)
+        tdSql.execute("scan database d_oper_scan")
+
+        # DB owner can scan their own database
+        tdSql.connect("u_oper_owner", self.test_pass)
+        tdSql.execute("scan database d_oper_owner")
+
+        # --- SSMIGRATE DATABASE: noperm must fail, sysdba/owner must succeed ---
+        # Prepare localSS directory (mirrors test_rsma.s10_ssmigrate_without_rsma)
+        if os.path.exists(self.localSSPath):
+            shutil.rmtree(self.localSSPath)
+        os.makedirs(self.localSSPath, exist_ok=True)
+
+        tdSql.connect("u_oper_noperm", self.test_pass)
+        tdSql.error("ssmigrate database d_oper_ssmigrate",
+                    expectErrInfo="Permission denied", fullMatched=False)
+
+        tdSql.connect("u_oper_sysdba", self.test_pass)
+        tdSql.execute("ssmigrate database d_oper_ssmigrate")
+
+        # DB owner can ssmigrate their own database
+        tdSql.connect("u_oper_owner", self.test_pass)
+        tdSql.execute("ssmigrate database d_oper_owner")
+
+        # --- KILL COMPACT: verify noperm denied on a live compact ID ---
+        # Use a dedicated db (d_oper_kcompact) so compact is fresh
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("compact database d_oper_kcompact")
+        tdSql.execute("use d_oper_kcompact")
+        tdSql.query("show compacts")
+        compact_rows = tdSql.queryResult
+        if compact_rows:
+            compact_id = compact_rows[0][0]
+            tdSql.connect("u_oper_noperm", self.test_pass)
+            time.sleep(2)
+            tdSql.error(f"kill compact {compact_id}", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+            # sysdba can kill it
+            tdSql.connect("u_oper_sysdba", self.test_pass)
+            tdSql.execute(f"kill compact {compact_id}")
+
+        # --- KILL SCAN: verify noperm denied on a live scan ID ---
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("scan database d_oper_kscan")
+        tdSql.execute("use d_oper_kscan")
+        tdSql.query("show scans")
+        scan_rows = tdSql.queryResult
+        if scan_rows:
+            scan_id = scan_rows[0][0]
+            tdSql.connect("u_oper_noperm", self.test_pass)
+            time.sleep(2)
+            tdSql.error(f"kill scan {scan_id}", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+            # sysdba can kill it
+            tdSql.connect("u_oper_sysdba", self.test_pass)
+            tdSql.execute(f"kill scan {scan_id}")
+
+        # --- KILL SSMIGRATE: verify noperm denied on a live ssmigrate ID ---
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("ssmigrate database d_oper_kssmigrate")
+        tdSql.execute("use d_oper_kssmigrate")
+        tdSql.query("show ssmigrates")
+        ssmigrate_rows = tdSql.queryResult
+        if ssmigrate_rows:
+            ssmigrate_id = ssmigrate_rows[0][0]
+            tdSql.connect("u_oper_noperm", self.test_pass)
+            time.sleep(2)
+            tdSql.error(f"kill ssmigrate {ssmigrate_id}",
+                        expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+            # sysdba can kill it
+            tdSql.connect("u_oper_sysdba", self.test_pass)
+            tdSql.execute(f"kill ssmigrate {ssmigrate_id}")
+
+        # --- KILL TRIM: verify noperm denied on a live trim/retention ID ---
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("trim database d_oper_ktrim")
+        tdSql.execute("use d_oper_ktrim")
+        tdSql.query("show retentions")
+        trim_rows = tdSql.queryResult
+        if trim_rows:
+            trim_id = trim_rows[0][0]
+            tdSql.connect("u_oper_noperm", self.test_pass)
+            time.sleep(2)
+            tdSql.error(f"kill retention {trim_id}", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
+            # sysdba can kill it
+            tdSql.connect("u_oper_sysdba", self.test_pass)
+            tdSql.execute(f"kill retention {trim_id}")
+
+        # --- Cleanup ---
+        tdSql.connect("root", "taosdata")
+        for db in ["d_oper_compact", "d_oper_trim", "d_oper_scan",
+                   "d_oper_kcompact", "d_oper_kscan", "d_oper_ktrim",
+                   "d_oper_ssmigrate", "d_oper_kssmigrate",
+                   "d_oper_owner"]:
+            tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute("drop user u_oper_sysdba")
+        tdSql.execute("drop user u_oper_owner")
+        tdSql.execute("drop user u_oper_noperm")
+
     def test_priv_basic(self):
         """Privileges basic
         
@@ -1784,5 +1980,6 @@ class TestCase:
         self.do_check_legacy_grammar()
         self.do_check_reserved_principal_names()
         self.do_check_alter_pass_privilege()
+        self.do_check_db_oper_privileges()
         
         tdLog.debug("finish executing %s" % __file__)

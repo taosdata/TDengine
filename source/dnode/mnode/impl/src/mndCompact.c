@@ -664,7 +664,9 @@ int32_t mndProcessKillCompactReq(SRpcMsg *pReq) {
     TAOS_RETURN(code);
   }
 
-  TAOS_CHECK_GOTO(mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_COMPACT_DB), &lino, _OVER);
+  TAOS_CHECK_GOTO(mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_COMPACT_DB,
+                                            pCompact->dbname, false),
+                  &lino, _OVER);
 
   if (killCompactReq.force) {
     TAOS_CHECK_GOTO(mndKillCompactForce(pMnode, pReq, pCompact), &lino, _OVER);
