@@ -544,21 +544,30 @@ TEST_F(ParserInitialCTest, createFunction) {
     tFreeSCreateFuncReq(&req);
   });
 
+  // validateUdfLibraryPath (added for CVE-2023-38502) requires:
+  //   - binary UDFs: .so extension + ELF magic header
+  //   - python UDFs: no strict enforcement, any file works
   struct udfFile {
-    udfFile(const std::string& filename) : path_(filename) {
+    udfFile(const std::string& filename, bool elf) : path_(filename) {
       std::ofstream file(filename, std::ios::binary);
-      file << 123 << "abc" << '\n';
+      if (elf) {
+        // Write minimal ELF magic: 0x7f 'E' 'L' 'F' + 12 padding bytes
+        const unsigned char elfMagic[16] = {0x7f, 'E', 'L', 'F', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        file.write(reinterpret_cast<const char*>(elfMagic), sizeof(elfMagic));
+      } else {
+        file << "# python udf\n";
+      }
       file.close();
     }
     ~udfFile() { TD_ALWAYS_ASSERT(0 == remove(path_.c_str())); }
     std::string path_;
-  } udffile("udf");
+  } udfSo("udf.so", true), udfPy("udf.py", false);
 
   setCreateFuncReq("udf1", TSDB_DATA_TYPE_INT);
-  run("CREATE FUNCTION udf1 AS 'udf' OUTPUTTYPE INT");
+  run("CREATE FUNCTION udf1 AS 'udf.so' OUTPUTTYPE INT");
 
   setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8, TSDB_FUNC_SCRIPT_PYTHON, 1);
-  run("CREATE OR REPLACE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS 'udf' OUTPUTTYPE DOUBLE BUFSIZE 8 LANGUAGE 'python'");
+  run("CREATE OR REPLACE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS 'udf.py' OUTPUTTYPE DOUBLE BUFSIZE 8 LANGUAGE 'python'");
 }
 
 /*
