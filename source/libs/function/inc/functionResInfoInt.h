@@ -443,9 +443,10 @@ typedef struct SSampleInfo {
 } SSampleInfo;
 
 typedef struct STailItem {
-  int64_t timestamp;
-  bool    isNull;
-  char    data[];
+  int64_t   timestamp;
+  bool      isNull;
+  STuplePos tuplePos;
+  char      data[];
 } STailItem;
 
 typedef struct STailInfo {
@@ -454,6 +455,8 @@ typedef struct STailInfo {
   int32_t     offset;
   uint8_t     colType;
   uint16_t    colBytes;
+  STuplePos   nullTuplePos;
+  bool        nullTupleSaved;
   STailItem** pItems;
 } STailInfo;
 

@@ -6950,19 +6950,20 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 }
 
 bool getTailFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-#if 0
   SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   SValueNode*  pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
   int32_t      numOfPoints = pVal->datum.i;
+  // STailItem now includes STuplePos, so sizeof(STailItem) accounts for it
   pEnv->calcMemSize = sizeof(STailInfo) + numOfPoints * (POINTER_BYTES + sizeof(STailItem) + pCol->node.resType.bytes);
-#endif
   return true;
 }
 
 int32_t tailFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
-#if 0
-  if (!functionSetup(pCtx, pResultInfo)) {
-    return false;
+  if (pResultInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResultInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
   }
 
   STailInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
@@ -6975,25 +6976,26 @@ int32_t tailFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
   }
   pInfo->colType = pCtx->resDataInfo.type;
   pInfo->colBytes = pCtx->resDataInfo.bytes;
+  pInfo->nullTuplePos.pageId = -1;
+  pInfo->nullTupleSaved = false;
+
   if ((pInfo->numOfPoints < 1 || pInfo->numOfPoints > TAIL_MAX_POINTS_NUM) ||
-      (pInfo->numOfPoints < 0 || pInfo->numOfPoints > TAIL_MAX_OFFSET)) {
-    return false;
+      (pInfo->offset < 0 || pInfo->offset > TAIL_MAX_OFFSET)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
   }
 
   pInfo->pItems = (STailItem**)((char*)pInfo + sizeof(STailInfo));
-  char* pItem = (char*)pInfo->pItems + pInfo->numOfPoints * POINTER_BYTES;
-
+  char*  pItem    = (char*)pInfo->pItems + pInfo->numOfPoints * POINTER_BYTES;
   size_t unitSize = sizeof(STailItem) + pInfo->colBytes;
   for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
-    pInfo->pItems[i] = (STailItem*)(pItem + i * unitSize);
-    pInfo->pItems[i]->isNull = false;
+    pInfo->pItems[i]              = (STailItem*)(pItem + i * unitSize);
+    pInfo->pItems[i]->isNull      = false;
+    pInfo->pItems[i]->tuplePos.pageId = -1;
   }
-#endif
   return TSDB_CODE_SUCCESS;
 }
 
 static void tailAssignResult(STailItem* pItem, char* data, int32_t colBytes, TSKEY ts, bool isNull) {
-#if 0
   pItem->timestamp = ts;
   if (isNull) {
     pItem->isNull = true;
@@ -7001,90 +7003,98 @@ static void tailAssignResult(STailItem* pItem, char* data, int32_t colBytes, TSK
     pItem->isNull = false;
     memcpy(pItem->data, data, colBytes);
   }
-#endif
 }
 
-#if 0
 static int32_t tailCompFn(const void* p1, const void* p2, const void* param) {
   STailItem* d1 = *(STailItem**)p1;
   STailItem* d2 = *(STailItem**)p2;
   return compareInt64Val(&d1->timestamp, &d2->timestamp);
 }
 
-static void doTailAdd(STailInfo* pInfo, char* data, TSKEY ts, bool isNull) {
+static int32_t doTailAdd(SqlFunctionCtx* pCtx, STailInfo* pInfo, char* data, TSKEY ts, bool isNull, int32_t rowIndex,
+                         const SSDataBlock* pSrcBlock) {
   STailItem** pList = pInfo->pItems;
   if (pInfo->numAdded < pInfo->numOfPoints) {
     tailAssignResult(pList[pInfo->numAdded], data, pInfo->colBytes, ts, isNull);
+    if (pCtx->subsidiaries.num > 0) {
+      int32_t code = saveTupleData(pCtx, rowIndex, pSrcBlock, &pList[pInfo->numAdded]->tuplePos);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
     taosheapsort((void*)pList, sizeof(STailItem**), pInfo->numAdded + 1, NULL, tailCompFn, 0);
     pInfo->numAdded++;
   } else if (pList[0]->timestamp < ts) {
     tailAssignResult(pList[0], data, pInfo->colBytes, ts, isNull);
+    if (pCtx->subsidiaries.num > 0) {
+      int32_t code = updateTupleData(pCtx, rowIndex, pSrcBlock, &pList[0]->tuplePos);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
     taosheapadjust((void*)pList, sizeof(STailItem**), 0, pInfo->numOfPoints - 1, NULL, tailCompFn, NULL, 0);
   }
+  return TSDB_CODE_SUCCESS;
 }
-#endif
 
 int32_t tailFunction(SqlFunctionCtx* pCtx) {
-#if 0
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  STailInfo*           pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  STailInfo*           pInfo    = GET_ROWCELL_INTERBUF(pResInfo);
 
-  SInputColumnInfoData* pInput = &pCtx->input;
-  TSKEY*                tsList = (int64_t*)pInput->pPTS->pData;
+  SInputColumnInfoData* pInput    = &pCtx->input;
+  TSKEY*                tsList    = (int64_t*)pInput->pPTS->pData;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
 
-  SColumnInfoData* pInputCol = pInput->pData[0];
-  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
-
-  int32_t startOffset = pCtx->offset;
-  if (pInfo->offset >= pInput->numOfRows) {
-    return 0;
-  } else {
-    pInfo->numOfPoints = TMIN(pInfo->numOfPoints, pInput->numOfRows - pInfo->offset);
-  }
-  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex - pInfo->offset; i += 1) {
-    char* data = colDataGetData(pInputCol, i);
-    doTailAdd(pInfo, data, tsList[i], colDataIsNull_s(pInputCol, i));
+  int32_t endIdx = pInput->numOfRows + pInput->startRowIndex;
+  if (pInfo->offset > 0) {
+    endIdx = TMAX(pInput->startRowIndex, endIdx - pInfo->offset);
   }
 
-  taosqsort(pInfo->pItems, pInfo->numOfPoints, POINTER_BYTES, NULL, tailCompFn);
-
-  for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
-    int32_t    pos = startOffset + i;
-    STailItem* pItem = pInfo->pItems[i];
-    if (pItem->isNull) {
-      colDataSetNULL(pOutput, pos);
-    } else {
-      colDataSetVal(pOutput, pos, pItem->data, false);
-    }
+  for (int32_t i = pInput->startRowIndex; i < endIdx; i++) {
+    char*   data   = colDataGetData(pInputCol, i);
+    bool    isNull = colDataIsNull_s(pInputCol, i);
+    int32_t code   = doTailAdd(pCtx, pInfo, data, tsList[i], isNull, i, pCtx->pSrcBlock);
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
 
-  return pInfo->numOfPoints;
-#endif
-  return 0;
+  if (pInfo->numAdded == 0 && pCtx->subsidiaries.num > 0 && !pInfo->nullTupleSaved) {
+    int32_t code = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, &pInfo->nullTuplePos);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    pInfo->nullTupleSaved = true;
+  }
+
+  SET_VAL(pResInfo, pInfo->numAdded, pInfo->numAdded);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-#if 0
+  int32_t              code      = TSDB_CODE_SUCCESS;
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
-  STailInfo*           pInfo = GET_ROWCELL_INTERBUF(pEntryInfo);
+  STailInfo*           pInfo     = GET_ROWCELL_INTERBUF(pEntryInfo);
   pEntryInfo->complete = true;
 
-  int32_t type = pCtx->input.pData[0]->info.type;
-  int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
-
-  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-
-  // todo assign the tag value and the corresponding row data
-  int32_t currentRow = pBlock->info.rows;
-  for (int32_t i = 0; i < pEntryInfo->numOfRes; ++i) {
-    STailItem* pItem = pInfo->pItems[i];
-    colDataSetVal(pCol, currentRow, pItem->data, false);
-    currentRow += 1;
+  int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol   = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_RANGE;
   }
 
-  return pEntryInfo->numOfRes;
-#endif
-  return 0;
+  int32_t currentRow = pBlock->info.rows;
+  if (pEntryInfo->numOfRes <= 0) {
+    colDataSetNULL(pCol, currentRow);
+    code = setSelectivityValue(pCtx, pBlock, &pInfo->nullTuplePos, currentRow);
+    return code;
+  }
+
+  // sort retained items by timestamp ascending for final output
+  taosqsort(pInfo->pItems, pInfo->numAdded, POINTER_BYTES, NULL, tailCompFn);
+
+  for (int32_t i = 0; i < pEntryInfo->numOfRes; ++i) {
+    STailItem* pItem = pInfo->pItems[i];
+    code = colDataSetVal(pCol, currentRow, pItem->data, pItem->isNull);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    code = setSelectivityValue(pCtx, pBlock, &pItem->tuplePos, currentRow);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    currentRow++;
+  }
+
+  return code;
 }
 
 bool getUniqueFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {

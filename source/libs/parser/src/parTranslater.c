@@ -15,6 +15,7 @@
 
 #include "parTranslater.h"
 #include <stdint.h>
+#include "cJSON.h"
 #include "nodes.h"
 #include "parInt.h"
 #include "parUtil.h"
@@ -3840,10 +3841,15 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING);
   }
   // The auto-generated COUNT function in the DELETE statement is legal
-  if (isSelectStmt(pCxt->pCurrStmt) &&
-      (((SSelectStmt*)pCxt->pCurrStmt)->hasIndefiniteRowsFunc || ((SSelectStmt*)pCxt->pCurrStmt)->hasMultiRowsFunc)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                                   "Aggregate func '%s' mixed with other multi-row functions", pFunc->functionName);
+  if (isSelectStmt(pCxt->pCurrStmt)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+    bool mixedWithIndefOrMulti = pSelect->hasIndefiniteRowsFunc || pSelect->hasMultiRowsFunc;
+    // K-row multi-rows funcs (top/bottom/sample/histogram) defer coexistence to translateMultiRowsFunc
+    bool isCurrentMultiRowsAgg = fmIsMultiRowsFunc(pFunc->funcId);
+    if (mixedWithIndefOrMulti && !isCurrentMultiRowsAgg) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "Aggregate func '%s' mixed with other multi-row functions", pFunc->functionName);
+    }
   }
 
   if (isCountStar(pFunc)) {
@@ -3856,6 +3862,56 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
     return rewriteCountTbname(pCxt, pFunc);
   }
   return TSDB_CODE_SUCCESS;
+}
+
+// Returns the bin count (number of output rows) for a HISTOGRAM function, or -1 on error.
+static int32_t getHistogramBinCount(SFunctionNode* pFunc) {
+  if (LIST_LENGTH(pFunc->pParameterList) < 3) return -1;
+  SValueNode* pBinTypeNode = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+  SValueNode* pBinDescNode = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+  if (!pBinTypeNode || !pBinDescNode) return -1;
+  char*   binDescStr = varDataVal(pBinDescNode->datum.p);
+  cJSON*  binDesc = cJSON_Parse(binDescStr);
+  if (!binDesc) return -1;
+  int32_t binCount = -1;
+  if (cJSON_IsArray(binDesc)) {
+    // user_input: boundaries count - 1 = interval count
+    int32_t nBoundaries = cJSON_GetArraySize(binDesc);
+    binCount = nBoundaries > 1 ? nBoundaries - 1 : -1;
+  } else if (cJSON_IsObject(binDesc)) {
+    // linear_bin / log_bin: count field gives number of intervals
+    cJSON* count = cJSON_GetObjectItem(binDesc, "count");
+    cJSON* infinity = cJSON_GetObjectItem(binDesc, "infinity");
+    if (cJSON_IsNumber(count) && count->valueint > 0) {
+      binCount = (int32_t)count->valueint;
+      if (cJSON_IsBool(infinity) && infinity->valueint) {
+        binCount += 2;  // two extra infinity bins
+      }
+    }
+  }
+  cJSON_Delete(binDesc);
+  return binCount;
+}
+
+// Returns the K parameter (number of output rows) for a K-row function:
+//   TOP/BOTTOM/SAMPLE/TAIL: parameter at index 1
+//   HISTOGRAM: bin count derived from bins_desc
+// Returns -1 if K cannot be determined.
+static int32_t getKParamForKRowFunc(SFunctionNode* pFunc) {
+  EFunctionType type = pFunc->funcType;
+  if (type == FUNCTION_TYPE_TOP || type == FUNCTION_TYPE_BOTTOM ||
+      type == FUNCTION_TYPE_SAMPLE || type == FUNCTION_TYPE_TAIL ||
+      type == FUNCTION_TYPE_MAVG) {
+    if (LIST_LENGTH(pFunc->pParameterList) >= 2) {
+      SValueNode* kNode = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+      if (kNode) return (int32_t)kNode->datum.i;
+    }
+    return -1;
+  }
+  if (type == FUNCTION_TYPE_HISTOGRAM) {
+    return getHistogramBinCount(pFunc);
+  }
+  return -1;
 }
 
 static bool hasFillClause(SNode* pCurrStmt) {
@@ -3876,20 +3932,90 @@ static int32_t translateIndefiniteRowsFunc(STranslateContext* pCxt, SFunctionNod
                                    "Indefinite rows function '%s' only allowed in select clause", pFunc->functionName);
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-  if (pSelect->hasAggFuncs || pSelect->hasMultiRowsFunc) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                                   "Indefinite rows function '%s' mixed with other multi-row functions",
-                                   pFunc->functionName);
+
+  if (pFunc->funcType == FUNCTION_TYPE_TAIL) {
+    // TAIL is a K-row indefinite function; it may coexist with TOP/BOTTOM (multi-rows) when K matches.
+    // Reject any 1-row aggregate (SUM/AVG/MAX/FIRST etc.) unless a multi-rows func is already present.
+    // TOP/BOTTOM set both hasAggFuncs and hasMultiRowsFunc, so the guard passes for them.
+    if (pSelect->hasAggFuncs && !pSelect->hasMultiRowsFunc) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "Indefinite rows function '%s' mixed with other multi-row functions",
+                                     pFunc->functionName);
+    }
+    int32_t tailK = getKParamForKRowFunc(pFunc);
+    if (pSelect->hasMultiRowsFunc) {
+      // TOP/BOTTOM already present: K must match
+      if (tailK <= 0 || pSelect->multiRowsFuncKParam <= 0 || tailK != pSelect->multiRowsFuncKParam) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                       "Indefinite rows function '%s' mixed with other multi-row functions",
+                                       pFunc->functionName);
+      }
+      // K matches — allowed; multiRowsFuncKParam already recorded
+    } else if (pSelect->hasIndefiniteRowsFunc) {
+      // Another TAIL function already present: check K match
+      if (tailK <= 0 || pSelect->multiRowsFuncKParam <= 0 || tailK != pSelect->multiRowsFuncKParam) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                       "Indefinite rows function '%s' mixed with other multi-row functions",
+                                       pFunc->functionName);
+      }
+    } else {
+      // First K-row function: record K
+      pSelect->multiRowsFuncKParam = tailK;
+    }
+  } else if (pFunc->funcType == FUNCTION_TYPE_MAVG) {
+    // MAVG(col, K) outputs N-K+1 rows: only MAVG+MAVG with same K is allowed
+    if (pSelect->hasAggFuncs || pSelect->hasMultiRowsFunc || pSelect->hasTailFunc) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "Indefinite rows function '%s' mixed with other multi-row functions",
+                                     pFunc->functionName);
+    }
+    int32_t mavgK = getKParamForKRowFunc(pFunc);
+    if (pSelect->hasIndefiniteRowsFunc) {
+      // Prior indef func must be MAVG with the same K value
+      if (pSelect->mavgFuncKParam <= 0 || mavgK <= 0 || mavgK != pSelect->mavgFuncKParam) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                       "Multiple indefinite rows functions with different return rows");
+      }
+    } else {
+      pSelect->mavgFuncKParam = mavgK;
+    }
+  } else {
+    // Non-TAIL, non-MAVG indefinite rows functions: standard coexistence checks
+    if (pSelect->hasAggFuncs || pSelect->hasMultiRowsFunc || pSelect->hasTailFunc) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "Indefinite rows function '%s' mixed with other multi-row functions",
+                                     pFunc->functionName);
+    }
+    if (pSelect->mavgFuncKParam > 0) {
+      // MAVG was seen before; cannot coexist with non-MAVG indef func
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "Multiple indefinite rows functions with different return rows");
+    }
+    if (pSelect->hasIndefiniteRowsFunc) {
+      EFuncReturnRows currentReturnRows = fmGetFuncReturnRows(pFunc);
+      bool            prevIndeterminate = (pSelect->returnRows == FUNC_RETURN_ROWS_INDEFINITE);
+      bool            currIndeterminate = (currentReturnRows == FUNC_RETURN_ROWS_INDEFINITE);
+      bool            bothProcessByRow  = (pSelect->lastProcessByRowFuncId != -1 && fmIsProcessByRowFunc(pFunc->funcId));
+
+      // PROCESS_BY_ROW pairs (DIFF/DERIVATIVE): processed row-by-row together.
+      // In combined execution, all functions process the same input rows simultaneously.
+      // Even diff(opt=2/3) which would skip rows in isolation outputs NULL (not skip) when
+      // another function is present, so row count is always N-1 for any option combination.
+      // Only check type compatibility (diff+diff OK, diff+csum NOT OK).
+      if (bothProcessByRow) {
+        if (!canCoexistIndefiniteRowsFunc(pSelect->lastProcessByRowFuncId, pFunc->funcId)) {
+          return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_DIFFERENT_BY_ROW_FUNC);
+        }
+      } else {
+        // Non-PROCESS_BY_ROW pairs: return rows must be identical and not indeterminate
+        if (prevIndeterminate || currIndeterminate || pSelect->returnRows != currentReturnRows) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                         "Multiple indefinite rows functions with different return rows");
+        }
+      }
+    }
   }
-  if (pSelect->hasIndefiniteRowsFunc &&
-      (FUNC_RETURN_ROWS_INDEFINITE == pSelect->returnRows || pSelect->returnRows != fmGetFuncReturnRows(pFunc)) &&
-      (pSelect->lastProcessByRowFuncId == -1 || !fmIsProcessByRowFunc(pFunc->funcId))) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                                   "Multiple indefinite rows functions with different return rows");
-  }
-  if (pSelect->lastProcessByRowFuncId != -1 && !canCoexistIndefiniteRowsFunc(pSelect->lastProcessByRowFuncId, pFunc->funcId)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_DIFFERENT_BY_ROW_FUNC);
-  }
+
   if (NULL != pSelect->pGroupByList) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "Function '%s' is not supported in group query",
@@ -3924,12 +4050,51 @@ static int32_t translateMultiRowsFunc(STranslateContext* pCxt, SFunctionNode* pF
   if (!fmIsMultiRowsFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
-  if (!isSelectStmt(pCxt->pCurrStmt) || SQL_CLAUSE_SELECT != pCxt->currClause ||
-      ((SSelectStmt*)pCxt->pCurrStmt)->hasIndefiniteRowsFunc || ((SSelectStmt*)pCxt->pCurrStmt)->hasAggFuncs ||
-      ((SSelectStmt*)pCxt->pCurrStmt)->hasMultiRowsFunc) {
+  if (!isSelectStmt(pCxt->pCurrStmt) || SQL_CLAUSE_SELECT != pCxt->currClause) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "Multi-rows function '%s' only allowed in select clause", pFunc->functionName);
   }
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
+
+  int32_t k = getKParamForKRowFunc(pFunc);
+
+  // Reject if any 1-row aggregate is present without a co-present multi-rows func.
+  // Pure agg (SUM/AVG) and selectivity agg (MAX/FIRST) both set hasAggFuncs.
+  // Another multi-rows func (TOP/BOTTOM) sets both hasAggFuncs AND hasMultiRowsFunc — allowed.
+  if (pSelect->hasAggFuncs && !pSelect->hasMultiRowsFunc) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "Multi-rows function '%s' cannot coexist with aggregate functions",
+                                   pFunc->functionName);
+  }
+
+  // Reject if non-TAIL indefinite rows function is present
+  if (pSelect->hasIndefiniteRowsFunc && !pSelect->hasTailFunc) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "Multi-rows function '%s' cannot coexist with indefinite-rows functions",
+                                   pFunc->functionName);
+  }
+
+  // When TAIL is already present, K must match
+  if (pSelect->hasTailFunc) {
+    if (pSelect->multiRowsFuncKParam > 0 && (k <= 0 || k != pSelect->multiRowsFuncKParam)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "Multi-rows function '%s' only allowed in select clause", pFunc->functionName);
+    }
+  }
+
+  // Check K match when another K-row set function is already present
+  if (pSelect->hasMultiRowsFunc) {
+    if (k <= 0 || pSelect->multiRowsFuncKParam <= 0 || k != pSelect->multiRowsFuncKParam) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "Multi-rows function '%s' only allowed in select clause", pFunc->functionName);
+    }
+  }
+
+  // Record K for the first K-row function
+  if (pSelect->multiRowsFuncKParam == 0) {
+    pSelect->multiRowsFuncKParam = k;
+  }
+
   if (hasInvalidFuncNesting(pFunc)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AGG_FUNC_NESTING);
   }
@@ -4563,6 +4728,9 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
   if (NULL != pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCurrStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
     pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : fmIsAggFunc(pFunc->funcId);
+    if (fmIsAggFunc(pFunc->funcId) && !fmIsSelectFunc(pFunc->funcId)) {
+      pSelect->hasNonSelectAggFuncs = true;
+    }
     pSelect->hasCountFunc = pSelect->hasCountFunc ? true : (FUNCTION_TYPE_COUNT == pFunc->funcType);
     pSelect->hasRepeatScanFuncs = pSelect->hasRepeatScanFuncs ? true : fmIsRepeatScanFunc(pFunc->funcId);
 

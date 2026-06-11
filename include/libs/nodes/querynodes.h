@@ -748,11 +748,14 @@ typedef struct SSelectStmt {
   ETimeLineMode   timeLineResMode;
   EWindowMode     windowMode;
   int32_t         lastProcessByRowFuncId;
+  int32_t         multiRowsFuncKParam;
+  int32_t         mavgFuncKParam;          // K param for MAVG coexistence check (0 = no MAVG seen)
   bool            hasNonLocalSubQ;
   int32_t         timeLineFromOrderBy;
   bool            isEmptyResult;
   bool            isSubquery;
   bool            hasAggFuncs;
+  bool            hasNonSelectAggFuncs;
   bool            hasRepeatScanFuncs;
   bool            hasIndefiniteRowsFunc;
   bool            hasMultiRowsFunc;

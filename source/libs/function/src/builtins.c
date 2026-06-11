@@ -1851,7 +1851,7 @@ static int32_t translateLag(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
-static EFuncReturnRows lagEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_NORMAL; }
+static EFuncReturnRows lagEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
 static int32_t translateLead(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
@@ -1860,7 +1860,15 @@ static int32_t translateLead(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
-static EFuncReturnRows leadEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_NORMAL; }
+static EFuncReturnRows leadEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
+
+static EFuncReturnRows stateCountEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
+
+static EFuncReturnRows stateDurationEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
+
+static EFuncReturnRows mavgEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_INDEFINITE; }
+
+static EFuncReturnRows tailEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
 static EFuncReturnRows fillforwardEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
@@ -4062,6 +4070,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = stateCountFunction,
     .sprocessFunc = stateCountScalarFunction,
     .finalizeFunc = NULL,
+    .estimateReturnRowsFunc = stateCountEstReturnRows,
   },
   {
     .name = "stateduration",
@@ -4108,6 +4117,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = stateDurationFunction,
     .sprocessFunc = stateDurationScalarFunction,
     .finalizeFunc = NULL,
+    .estimateReturnRowsFunc = stateDurationEstReturnRows,
   },
   {
     .name = "csum",
@@ -4163,6 +4173,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = mavgFunction,
     .sprocessFunc = mavgScalarFunction,
     .finalizeFunc = NULL,
+    .estimateReturnRowsFunc = mavgEstReturnRows,
   },
   {
     .name = "sample",
@@ -4232,7 +4243,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = tailFunctionSetup,
     .processFunc  = tailFunction,
     .sprocessFunc = tailScalarFunction,
-    .finalizeFunc = NULL,
+    .finalizeFunc = tailFinalize,
+    .estimateReturnRowsFunc = tailEstReturnRows,
   },
   {
     .name = "unique",

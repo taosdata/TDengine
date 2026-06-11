@@ -112,10 +112,29 @@ bool canCoexistIndefiniteRowsFunc(int32_t funcId1, int32_t funcId2) {
   if (funcId1 == funcId2) {
     return true;
   }
-  if ((funcMgtBuiltins[funcId1].type == FUNCTION_TYPE_LAG || funcMgtBuiltins[funcId1].type == FUNCTION_TYPE_LEAD) &&
-      (funcMgtBuiltins[funcId2].type == FUNCTION_TYPE_LAG || funcMgtBuiltins[funcId2].type == FUNCTION_TYPE_LEAD)) {
+  EFunctionType type1 = funcMgtBuiltins[funcId1].type;
+  EFunctionType type2 = funcMgtBuiltins[funcId2].type;
+
+  // DIFF/DERIVATIVE can coexist with each other (both are N-1 row PROCESS_BY_ROW funcs)
+  bool isDiffDeriv1 = (type1 == FUNCTION_TYPE_DIFF || type1 == FUNCTION_TYPE_DERIVATIVE);
+  bool isDiffDeriv2 = (type2 == FUNCTION_TYPE_DIFF || type2 == FUNCTION_TYPE_DERIVATIVE);
+  if (isDiffDeriv1 && isDiffDeriv2) {
     return true;
   }
+
+  // N-row INDEFINITE_ROWS functions can coexist with each other.
+  // MAVG outputs N-K+1 rows and is handled by the translator's MAVG-specific K check,
+  // so it must not be added to this N-row coexistence whitelist.
+  bool isNRow1 = (type1 == FUNCTION_TYPE_CSUM || type1 == FUNCTION_TYPE_FILL_FORWARD ||
+                  type1 == FUNCTION_TYPE_STATE_COUNT || type1 == FUNCTION_TYPE_STATE_DURATION ||
+                  type1 == FUNCTION_TYPE_LAG || type1 == FUNCTION_TYPE_LEAD);
+  bool isNRow2 = (type2 == FUNCTION_TYPE_CSUM || type2 == FUNCTION_TYPE_FILL_FORWARD ||
+                  type2 == FUNCTION_TYPE_STATE_COUNT || type2 == FUNCTION_TYPE_STATE_DURATION ||
+                  type2 == FUNCTION_TYPE_LAG || type2 == FUNCTION_TYPE_LEAD);
+  if (isNRow1 && isNRow2) {
+    return true;
+  }
+
   return false;
 }
 

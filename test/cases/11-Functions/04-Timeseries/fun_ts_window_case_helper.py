@@ -1563,17 +1563,17 @@ class FunTsWindowCaseHelper:
             ],
             batch_size=10,
         )
-        tdSql.error("select csum(v1), lag(v2, 1, -1) from t_return_rows interval(10s)")
-        tdSql.error("select csum(v1), lag(v2, 1, -1) from t_return_rows session(ts, 10s)")
-        tdSql.error("select csum(v1), lag(v2, 1, -1) from t_return_rows state_window(state_val)")
-        tdSql.error(
+        tdSql.query("select csum(v1), lag(v2, 1, -1) from t_return_rows interval(10s)")
+        tdSql.query("select csum(v1), lag(v2, 1, -1) from t_return_rows session(ts, 10s)")
+        tdSql.query("select csum(v1), lag(v2, 1, -1) from t_return_rows state_window(state_val)")
+        tdSql.query(
             "select csum(v1), lag(v2, 1, -1) from t_return_rows event_window start with marker >= 3 end with marker >= 4"
         )
-        tdSql.error("select csum(v1), lag(v2, 1, -1) from t_return_rows count_window(2)")
-        tdSql.error(
+        tdSql.query("select csum(v1), lag(v2, 1, -1) from t_return_rows count_window(2)")
+        tdSql.query(
             "select csum(v1), statecount(v2, 'GE', 20) from t_return_rows interval(10s)"
         )
-        tdSql.error(
+        tdSql.query(
             "select diff(v1), derivative(v2, 1s, 0) from t_return_rows session(ts, 10s)"
         )
         tdSql.error(
