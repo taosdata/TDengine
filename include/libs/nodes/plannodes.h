@@ -27,10 +27,10 @@ extern "C" {
 #define SLOT_NAME_LEN TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN
 
 typedef enum EDataOrderLevel {
-  DATA_ORDER_LEVEL_NONE = 1,
-  DATA_ORDER_LEVEL_IN_BLOCK,
-  DATA_ORDER_LEVEL_IN_GROUP,
-  DATA_ORDER_LEVEL_GLOBAL
+  DATA_ORDER_LEVEL_NONE = 1,  // no timestamp order guarantee
+  DATA_ORDER_LEVEL_IN_BLOCK,  // ordered only inside each data block
+  DATA_ORDER_LEVEL_IN_GROUP,  // ordered inside each partition/group
+  DATA_ORDER_LEVEL_GLOBAL     // ordered across all output rows
 } EDataOrderLevel;
 
 typedef enum EGroupAction {
@@ -60,8 +60,8 @@ typedef struct SLogicNode {
   uint8_t            precision;
   SNode*             pLimit;
   SNode*             pSlimit;
-  EDataOrderLevel    requireDataOrder;  // requirements for input data
-  EDataOrderLevel    resultDataOrder;   // properties of the output data
+  EDataOrderLevel    requireDataOrder;  // minimum data-order level required from this node's input
+  EDataOrderLevel    resultDataOrder;   // data-order level guaranteed by this node's output
   EGroupAction       groupAction;
   EOrder             inputTsOrder;
   EOrder             outputTsOrder;
@@ -582,8 +582,10 @@ typedef struct SDataBlockDescNode {
 typedef struct SPhysiNode {
   ENodeType           type;
   bool                dynamicOp;
-  EOrder              inputTsOrder;
-  EOrder              outputTsOrder;
+  EOrder              inputTsOrder;      // timestamp ordering of input data (ASC/DESC/UNKNOWN)
+  EOrder              outputTsOrder;     // timestamp ordering of output data (ASC/DESC/UNKNOWN)
+  EDataOrderLevel     requireDataOrder;  // minimum data order level this node requires from its input
+  EDataOrderLevel     resultDataOrder;   // data order level this node guarantees for its output
   SDataBlockDescNode* pOutputDataBlockDesc;
   SNode*              pConditions;
   SNodeList*          pChildren;

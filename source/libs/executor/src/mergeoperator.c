@@ -649,8 +649,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
   pOperator->pPhyNode = pPhyNode;
   pInfo->groupMerge = pMergePhyNode->groupSort;
   pInfo->ignoreGroupId = pMergePhyNode->ignoreGroupId;
-  pInfo->binfo.inputTsOrder = pMergePhyNode->node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pMergePhyNode->node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pMergePhyNode->node);
   pInfo->inputWithGroupId = pMergePhyNode->inputWithGroupId;
 
   pInfo->type = pMergePhyNode->type;

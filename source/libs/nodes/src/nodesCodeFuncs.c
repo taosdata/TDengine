@@ -2382,6 +2382,8 @@ static const char* jkPhysiPlanLimit = "Limit";
 static const char* jkPhysiPlanSlimit = "SLimit";
 static const char* jkPhysiPlanInputTsOrder = "InputOrder";
 static const char* jkPhysiPlanOutputTsOrder = "OutputOrder";
+static const char* jkPhysiPlanRequireDataOrder = "RequireDataOrder";
+static const char* jkPhysiPlanResultDataOrder = "ResultDataOrder";
 static const char* jkPhysiPlanDynamicOp = "DynamicOp";
 static const char* jkPhysiPlanForceCreateNonBlockingOptr = "ForceCreateNonBlockingOptr";
 
@@ -2408,6 +2410,12 @@ static int32_t physicPlanNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkPhysiPlanOutputTsOrder, pNode->outputTsOrder);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkPhysiPlanRequireDataOrder, pNode->requireDataOrder);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkPhysiPlanResultDataOrder, pNode->resultDataOrder);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkPhysiPlanDynamicOp, pNode->dynamicOp);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -2419,6 +2427,8 @@ static int32_t physicPlanNodeToJson(const void* pObj, SJson* pJson) {
 
 static int32_t jsonToPhysicPlanNode(const SJson* pJson, void* pObj) {
   SPhysiNode* pNode = (SPhysiNode*)pObj;
+  pNode->requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pNode->resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
   int32_t code = jsonToNodeObject(pJson, jkPhysiPlanOutputDataBlockDesc, (SNode**)&pNode->pOutputDataBlockDesc);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2438,6 +2448,12 @@ static int32_t jsonToPhysicPlanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkPhysiPlanOutputTsOrder, pNode->outputTsOrder, code);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkPhysiPlanRequireDataOrder)) {
+    tjsonGetNumberValue(pJson, jkPhysiPlanRequireDataOrder, pNode->requireDataOrder, code);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkPhysiPlanResultDataOrder)) {
+    tjsonGetNumberValue(pJson, jkPhysiPlanResultDataOrder, pNode->resultDataOrder, code);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkPhysiPlanDynamicOp, &pNode->dynamicOp);

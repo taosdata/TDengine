@@ -191,8 +191,7 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
   QUERY_CHECK_CODE(code, lino, _error);
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo);
-  pInfo->binfo.inputTsOrder = pAnomalyNode->window.node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pAnomalyNode->window.node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pAnomalyNode->window.node);
 
   pInfo->anomalyCols = taosArrayInit(LIST_LENGTH(pColNodes), sizeof(SColumn));
   pInfo->anomalyData = taosArrayInit(LIST_LENGTH(pColNodes), sizeof(SStateKeys));
@@ -885,4 +884,3 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
 void destroyForecastInfo(void* param) {}
 
 #endif
-

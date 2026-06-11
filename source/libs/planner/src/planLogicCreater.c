@@ -3550,6 +3550,28 @@ static EDataOrderLevel getRequireDataOrder(bool needTimeline, SSelectStmt* pSele
                       : DATA_ORDER_LEVEL_NONE;
 }
 
+static EDataOrderLevel getWindowMinInputDataOrder(EWindowType winType, SSelectStmt* pSelect) {
+  switch (winType) {
+    case WINDOW_TYPE_INTERVAL:
+      // Time-series functions (csum, diff, derivative, mavg, statecount, stateduration) need rows
+      // in timestamp order within each group. When partition crosses multiple tables (e.g.,
+      // partition by groupid), IN_BLOCK is insufficient as rows from different tables interleave.
+      // Use getRequireDataOrder which returns IN_GROUP with partition, GLOBAL without.
+      return getRequireDataOrder(true, pSelect);
+    default:
+      return getRequireDataOrder(true, pSelect);
+  }
+}
+
+static EDataOrderLevel getWindowInitialResultDataOrder(EWindowType winType, SSelectStmt* pSelect) {
+  switch (winType) {
+    case WINDOW_TYPE_INTERVAL:
+      return DATA_ORDER_LEVEL_IN_GROUP;
+    default:
+      return getRequireDataOrder(true, pSelect);
+  }
+}
+
 static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pList) {
   SNodeList* pTargets = *pList;
   int32_t    code = 0;
@@ -4306,7 +4328,10 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
     PLAN_ERR_RET(rewriteExprsForSelect(pWindow->extFill.pFillExprs, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
   }
 
-  pWindow->inputHasOrder = (pWindow->isSingleTable || pWindow->node.requireDataOrder == DATA_ORDER_LEVEL_GLOBAL);
+  pWindow->inputHasOrder =
+      (pWindow->isSingleTable ||
+       (pCxt->pCurrRoot != NULL && pCxt->pCurrRoot->resultDataOrder >= DATA_ORDER_LEVEL_GLOBAL &&
+        (pCxt->pCurrRoot->outputTsOrder == ORDER_ASC || pCxt->pCurrRoot->outputTsOrder == ORDER_DESC)));
 
   if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pHaving) {
     pWindow->node.pConditions = NULL;
@@ -4425,8 +4450,9 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   tstrncpy(pWindow->timezoneName, pCxt->pPlanCxt->timezoneName, sizeof(pWindow->timezoneName));
   pWindow->windowAlgo = INTERVAL_ALGO_HASH;
   pWindow->node.groupAction = (NULL != pInterval->pFill ? GROUP_ACTION_KEEP : getGroupAction(pCxt, pSelect));
-  pWindow->node.requireDataOrder = (pSelect->hasTimeLineFunc ? getRequireDataOrder(true, pSelect) : DATA_ORDER_LEVEL_NONE);
-  pWindow->node.resultDataOrder = getRequireDataOrder(true, pSelect);
+  pWindow->node.requireDataOrder =
+      (pSelect->hasTimeLineFunc ? getWindowMinInputDataOrder(WINDOW_TYPE_INTERVAL, pSelect) : DATA_ORDER_LEVEL_NONE);
+  pWindow->node.resultDataOrder = getWindowInitialResultDataOrder(WINDOW_TYPE_INTERVAL, pSelect);
   pWindow->pTspk = NULL;
   code = nodesCloneNode(pInterval->pCol, &pWindow->pTspk);
   if (NULL == pWindow->pTspk) {
@@ -5405,9 +5431,9 @@ static int32_t createSortLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   pSort->node.groupAction = pSort->groupSort ? GROUP_ACTION_KEEP : GROUP_ACTION_CLEAR;
   pSort->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
 
-  pSort->node.resultDataOrder = isPrimaryKeySort(pSelect->pOrderByList)
-                                    ? (pSort->groupSort ? DATA_ORDER_LEVEL_IN_GROUP : DATA_ORDER_LEVEL_GLOBAL)
-                                    : DATA_ORDER_LEVEL_NONE;
+  // A primary-key sort produces a globally monotonic output even when group ids are kept.
+  pSort->node.resultDataOrder =
+      isPrimaryKeySort(pSelect->pOrderByList) ? DATA_ORDER_LEVEL_GLOBAL : DATA_ORDER_LEVEL_NONE;
   if (inStreamCalcClause(pCxt->pPlanCxt) && nodeType(pSelect->pFromTable) == QUERY_NODE_REAL_TABLE &&
       ((SRealTableNode*)pSelect->pFromTable)->placeholderType == SP_PARTITION_ROWS) {
     pSort->skipPKSortOpt = true;

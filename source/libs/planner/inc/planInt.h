@@ -76,6 +76,7 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan);
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
+int32_t postSplitOptimize(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan);
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList);
 int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan);
@@ -91,6 +92,8 @@ int32_t     collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
 bool        isPartTableAgg(SAggLogicNode* pAgg);
 bool        isPartTagAgg(SAggLogicNode* pAgg);
 bool        isPartTableWinodw(SWindowLogicNode* pWindow);
+void        planPromoteScanToTableMerge(SScanLogicNode* pScan, EDataOrderLevel requireLevel,
+                                        EDataOrderLevel resultLevel);
 bool        keysHasCol(SNodeList* pKeys);
 bool        keysHasTbname(SNodeList* pKeys);
 bool        projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject);

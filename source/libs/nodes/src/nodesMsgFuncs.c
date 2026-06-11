@@ -2420,7 +2420,9 @@ enum {
   PHY_NODE_CODE_INPUT_TS_ORDER,
   PHY_NODE_CODE_OUTPUT_TS_ORDER,
   PHY_NODE_CODE_DYNAMIC_OP,
-  PHY_NODE_CODE_FORCE_NONBLOCKING_OPTR
+  PHY_NODE_CODE_FORCE_NONBLOCKING_OPTR,
+  PHY_NODE_CODE_REQUIRE_DATA_ORDER,
+  PHY_NODE_CODE_RESULT_DATA_ORDER
 };
 
 static int32_t physiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2446,6 +2448,12 @@ static int32_t physiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeEnum(pEncoder, PHY_NODE_CODE_OUTPUT_TS_ORDER, pNode->outputTsOrder);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeEnum(pEncoder, PHY_NODE_CODE_REQUIRE_DATA_ORDER, pNode->requireDataOrder);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeEnum(pEncoder, PHY_NODE_CODE_RESULT_DATA_ORDER, pNode->resultDataOrder);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_NODE_CODE_DYNAMIC_OP, pNode->dynamicOp);
   }
   if (TSDB_CODE_SUCCESS == code) { 
@@ -2457,6 +2465,8 @@ static int32_t physiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
 
 static int32_t msgToPhysiNode(STlvDecoder* pDecoder, void* pObj) {
   SPhysiNode* pNode = (SPhysiNode*)pObj;
+  pNode->requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pNode->resultDataOrder = DATA_ORDER_LEVEL_NONE;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -2482,6 +2492,12 @@ static int32_t msgToPhysiNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_NODE_CODE_OUTPUT_TS_ORDER:
         code = tlvDecodeEnum(pTlv, &pNode->outputTsOrder, sizeof(pNode->outputTsOrder));
+        break;
+      case PHY_NODE_CODE_REQUIRE_DATA_ORDER:
+        code = tlvDecodeEnum(pTlv, &pNode->requireDataOrder, sizeof(pNode->requireDataOrder));
+        break;
+      case PHY_NODE_CODE_RESULT_DATA_ORDER:
+        code = tlvDecodeEnum(pTlv, &pNode->resultDataOrder, sizeof(pNode->resultDataOrder));
         break;
       case PHY_NODE_CODE_DYNAMIC_OP:
         code = tlvDecodeBool(pTlv, &pNode->dynamicOp);
