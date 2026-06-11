@@ -1,8 +1,12 @@
 #include "gtest/gtest.h"
 
 #include "executil.h"
+#include "executorInt.h"
+#include "functionMgt.h"
 #include "libs/new-stream/dataSink.h"
 #include "osMemory.h"
+#include "querynodes.h"
+#include "tdatablock.h"
 
 extern "C" SHashObj *gStreamGrpTableHash;
 extern "C" char      tsStableTagFilterCache;
@@ -303,4 +307,129 @@ TEST(execUtilTest, stableTagFilterCacheSkipsWarmupWhenEntryAlreadyPrewarmed) {
   nodesDestroyNode(pTagCond);
   taosArrayDestroy(tableListInfo.pTableList);
   tsStableTagFilterCache = oldStableTagFilterCache;
+}
+
+// Test for fix of double-free bug in projectApplyFunction (GHSA-f8pf-77fh-53wv).
+//
+// When scalarCalculate succeeds but the subsequent colDataMergeCol/colDataAssign
+// fails, pBlockList was freed manually and then freed again at _exit because the
+// pointer was not nullified after the first taosArrayDestroy call.
+//
+// The fix: set pBlockList = NULL immediately after taosArrayDestroy so the
+// second call at _exit is a safe no-op.
+//
+// This test exercises the scalar function path of projectApplyFunctions using
+// the abs() built-in and verifies:
+//   1. Success path (createNewColModel=true): result column is populated correctly.
+//   2. Merge path (createNewColModel=false, pResult->info.rows > 0): subsequent
+//      rows are appended without memory errors.
+//
+// Running under AddressSanitizer (-fsanitize=address) will catch any double-free
+// regression on either path.
+TEST(projectApplyFunctionsTest, scalarFuncNoDoubleFreeOnErrorAndSuccessPath) {
+  ASSERT_EQ(fmFuncMgtInit(), TSDB_CODE_SUCCESS);
+
+  // --- resolve abs() funcId ---
+  int32_t absFuncId = fmGetFuncId("abs");
+  ASSERT_GE(absFuncId, 0);
+  ASSERT_TRUE(fmIsScalarFunc(absFuncId));
+
+  // --- build SFunctionNode for abs(col) ---
+  SFunctionNode* pFuncNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION, reinterpret_cast<SNode**>(&pFuncNode)), TSDB_CODE_SUCCESS);
+  pFuncNode->funcId = absFuncId;
+  pFuncNode->node.resType.type  = TSDB_DATA_TYPE_BIGINT;
+  pFuncNode->node.resType.bytes = sizeof(int64_t);
+
+  // Build the column parameter node for abs(col0)
+  SColumnNode* pColNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode**>(&pColNode)), TSDB_CODE_SUCCESS);
+  pColNode->node.resType.type  = TSDB_DATA_TYPE_BIGINT;
+  pColNode->node.resType.bytes = sizeof(int64_t);
+  pColNode->slotId             = 0;
+  ASSERT_EQ(nodesListMakeAppend(&pFuncNode->pParameterList, reinterpret_cast<SNode*>(pColNode)),
+            TSDB_CODE_SUCCESS);
+
+  // --- build tExprNode wrapper ---
+  tExprNode exprNode;
+  memset(&exprNode, 0, sizeof(exprNode));
+  exprNode.nodeType                    = QUERY_NODE_FUNCTION;
+  exprNode._function.functionId        = absFuncId;
+  exprNode._function.pFunctNode        = pFuncNode;
+
+  // --- build SExprInfo ---
+  SExprInfo exprInfo;
+  memset(&exprInfo, 0, sizeof(exprInfo));
+  exprInfo.pExpr                       = &exprNode;
+  exprInfo.base.resSchema.type         = TSDB_DATA_TYPE_BIGINT;
+  exprInfo.base.resSchema.bytes        = sizeof(int64_t);
+  exprInfo.base.resSchema.slotId       = 0;
+
+  // --- build SqlFunctionCtx (only the fields accessed on the scalar path) ---
+  SExprInfo ctxExprInfo;
+  memset(&ctxExprInfo, 0, sizeof(ctxExprInfo));
+  ctxExprInfo.base.pParamList = nullptr;  // ensures fmIsPlaceHolderFunc branch is skipped
+
+  SqlFunctionCtx funcCtx;
+  memset(&funcCtx, 0, sizeof(funcCtx));
+  funcCtx.functionId = static_cast<int16_t>(absFuncId);
+  funcCtx.pExpr      = &ctxExprInfo;
+
+  // --- build source block with one BIGINT column, 3 rows ---
+  SSDataBlock* pSrc = nullptr;
+  ASSERT_EQ(createDataBlock(&pSrc), TSDB_CODE_SUCCESS);
+  SColumnInfoData srcCol = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(pSrc, &srcCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(pSrc, 3), TSDB_CODE_SUCCESS);
+  pSrc->info.rows = 3;
+  int64_t vals[3] = {-1LL, 2LL, -3LL};
+  for (int i = 0; i < 3; i++) {
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData*>(taosArrayGet(pSrc->pDataBlock, 0)), i,
+                            reinterpret_cast<const char*>(&vals[i]), false),
+              TSDB_CODE_SUCCESS);
+  }
+
+  // --- build result block with matching BIGINT output column ---
+  SSDataBlock* pResult = nullptr;
+  ASSERT_EQ(createDataBlock(&pResult), TSDB_CODE_SUCCESS);
+  SColumnInfoData resCol = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(pResult, &resCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(pResult, 8), TSDB_CODE_SUCCESS);
+
+  SArray* pPseudoList = taosArrayInit(1, sizeof(int32_t));
+  ASSERT_NE(pPseudoList, nullptr);
+
+  // --- Test 1: createNewColModel path (pResult->info.rows == 0) ---
+  // Exercises colDataAssign; pBlockList must be freed exactly once.
+  pResult->info.rows = 0;
+  int32_t code = projectApplyFunctions(&exprInfo, pResult, pSrc, &funcCtx, 1, pPseudoList, nullptr, nullptr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_EQ(pResult->info.rows, 3);
+
+  // Verify abs values: |-1|=1, |2|=2, |-3|=3
+  SColumnInfoData* pOut = static_cast<SColumnInfoData*>(taosArrayGet(pResult->pDataBlock, 0));
+  ASSERT_NE(pOut, nullptr);
+  EXPECT_EQ(*reinterpret_cast<int64_t*>(colDataGetData(pOut, 0)), 1LL);
+  EXPECT_EQ(*reinterpret_cast<int64_t*>(colDataGetData(pOut, 1)), 2LL);
+  EXPECT_EQ(*reinterpret_cast<int64_t*>(colDataGetData(pOut, 2)), 3LL);
+
+  // --- Test 2: merge path (pResult->info.rows > 0, createNewColModel=false) ---
+  // Exercises colDataMergeCol; pBlockList must also be freed exactly once.
+  // pResult already has 3 rows; append 3 more.
+  ASSERT_EQ(blockDataEnsureCapacity(pResult, 6), TSDB_CODE_SUCCESS);
+  code = projectApplyFunctions(&exprInfo, pResult, pSrc, &funcCtx, 1, pPseudoList, nullptr, nullptr);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_EQ(pResult->info.rows, 6);
+
+  // Verify the newly appended rows
+  EXPECT_EQ(*reinterpret_cast<int64_t*>(colDataGetData(pOut, 3)), 1LL);
+  EXPECT_EQ(*reinterpret_cast<int64_t*>(colDataGetData(pOut, 4)), 2LL);
+  EXPECT_EQ(*reinterpret_cast<int64_t*>(colDataGetData(pOut, 5)), 3LL);
+
+  // --- cleanup ---
+  taosArrayDestroy(pPseudoList);
+  blockDataDestroy(pSrc);
+  blockDataDestroy(pResult);
+  nodesDestroyNode(reinterpret_cast<SNode*>(pFuncNode));
+  fmFuncMgtDestroy();
 }

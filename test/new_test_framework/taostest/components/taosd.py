@@ -83,6 +83,32 @@ class TaosD:
         win.run_cmd('sc create taosd binpath= C:/TDengine/taosd.exe type= own start= auto displayname= taosd')
         win.run_cmd('net start taosd')
         
+    def _taosd_process_running(self, config_dir):
+        needle = config_dir.rstrip("/")
+        for proc in psutil.process_iter(["cmdline"]):
+            try:
+                cmdline = proc.info.get("cmdline") or []
+                joined = " ".join(cmdline)
+                if "taosd" in joined and needle in joined:
+                    return True
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+        return False
+
+    def _dump_startup_diagnostics(self, log_file, asan_file):
+        for label, path in (("taosdlog", log_file), ("asan", asan_file)):
+            if not path or not os.path.exists(path):
+                continue
+            try:
+                with open(path, "r", errors="replace") as f:
+                    lines = f.readlines()
+                tail = "".join(lines[-40:])
+                self.logger.error(
+                    "[startup-diag] last lines of %s (%s):\n%s" % (label, path, tail)
+                )
+            except OSError as exc:
+                self.logger.error("[startup-diag] cannot read %s: %s" % (path, exc))
+
     def _configure_and_start(self, tmp_dir, dnode, common_cfg, index):
         cfg = common_cfg.copy()
         cfg["fqdn"], cfg["serverPort"] = dnode["endpoint"].split(":")
@@ -147,6 +173,7 @@ class TaosD:
         if self.taosd_valgrind == 0:
             time.sleep(0.1)
             if index == 0:
+                _asan_build = os.environ.get("CI_ASAN_BUILD", "0") == "1"
                 key = 'from offline to online'
                 bkey = bytes(key, encoding="utf8")
                 logFile = os.path.join(self._run_log_dir, "taosdlog.0")
@@ -156,27 +183,44 @@ class TaosD:
                     i += 1
                     if i > 50:
                         break
-                with open(logFile) as f:
-                    timeout = time.time() + 10 * 2
-                    while True:
-                        line = f.readline().encode('utf-8')
-                        if bkey in line:
-                            break
-                        if time.time() > timeout:
-                            self.logger.error('wait too long for taosd start')
-                            break
+                _log_wait_secs = 120 if _asan_build else 20
+                _saw_online = False
+                if os.path.exists(logFile):
+                    with open(logFile) as f:
+                        timeout = time.time() + _log_wait_secs
+                        while True:
+                            line = f.readline().encode('utf-8')
+                            if bkey in line:
+                                _saw_online = True
+                                break
+                            if time.time() > timeout:
+                                self.logger.error('wait too long for taosd start')
+                                break
+                else:
+                    self.logger.error("taosd log file not found: %s" % logFile)
+                if not _saw_online and not self._taosd_process_running(dnode["config_dir"]):
+                    self.logger.error(
+                        "taosd process exited before ready dnode:%d cfg:%s"
+                        % (index, dnode["config_dir"])
+                    )
+                    self._dump_startup_diagnostics(logFile, error_output)
                 self.logger.debug("the dnode:%d has been started." % (index))
                 # Probe the connection until taosd is truly ready to serve queries.
                 # "from offline to online" only means the dnode joined the cluster;
                 # the mnode Raft leader may still be restoring (0x0914) for several
                 # more seconds, especially under CI pressure load or with multi-node
-                # clusters.  Keep retrying until the connection succeeds or 60 s elapse.
+                # clusters.  Keep retrying until the connection succeeds or timeout.
                 _probe_host = cfg.get("fqdn", "localhost")
                 _probe_port = int(cfg.get("serverPort", 6030))
-                _asan_build = os.environ.get("CI_ASAN_BUILD", "0") == "1"
-                _probe_timeout = 180 if _asan_build else 60
+                _probe_timeout = 300 if _asan_build else 60
                 _probe_deadline = time.time() + _probe_timeout
                 while time.time() < _probe_deadline:
+                    if not self._taosd_process_running(dnode["config_dir"]):
+                        self.logger.error(
+                            "taosd process died during probe dnode:%d" % index
+                        )
+                        self._dump_startup_diagnostics(logFile, error_output)
+                        break
                     try:
                         _conn = taos.connect(host=_probe_host, port=_probe_port)
                         _conn.close()
@@ -191,6 +235,7 @@ class TaosD:
                     self.logger.error(
                         "taosd connection probe timed out after %ds for dnode:%d" % (_probe_timeout, index)
                     )
+                    self._dump_startup_diagnostics(logFile, error_output)
         else:
             self.logger.debug(
                 "wait 10 seconds for the dnode:%d to start." %(index))

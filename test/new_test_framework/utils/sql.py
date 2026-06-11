@@ -786,12 +786,21 @@ class TDSql:
             self.queryResult = None
             if fullMatched:
                 if expectedErrno != None:
-                    expectedErrno_rest = expectedErrno & 0x0000FFFF
-                    if expectedErrno == self.errno or expectedErrno_rest == (self.errno & 0x0000FFFF):
-                        tdLog.info(
-                            "sql:%s, expected errno %s occured" % (sql, expectedErrno)
-                        )
-                    else:
+                    _candidates = (
+                        list(expectedErrno)
+                        if isinstance(expectedErrno, (list, tuple))
+                        else [expectedErrno]
+                    )
+                    _matched = False
+                    for _exp in _candidates:
+                        _exp_rest = _exp & 0x0000FFFF
+                        if _exp == self.errno or _exp_rest == (self.errno & 0x0000FFFF):
+                            _matched = True
+                            tdLog.info(
+                                "sql:%s, expected errno %s occured" % (sql, _exp)
+                            )
+                            break
+                    if not _matched:
                         tdLog.exit(
                             "%s(%d) failed: sql:%s, errno '%s' occured, but not expected errno '%s'"
                             % (

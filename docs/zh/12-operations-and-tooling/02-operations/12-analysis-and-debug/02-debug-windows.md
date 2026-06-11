@@ -6,19 +6,21 @@ toc_max_heading_level: 4
 
 ## 目的
 
-Windows 下调试定位 TDengine TSDB 崩溃问题指引手册。
+本文提供 Windows 下调试定位 TDengine TSDB 崩溃问题指引手册，以下内容提供了两种分析方法。
 
-## 查找 dmp 文件
+## dmp 文件
+
+### 查找 dmp 文件
 
 `taosd.exe` 进程在崩溃发生时，会捕获崩溃，并在其所在目录下生成 `.dmp` 文件，文件名以 `taosd` 开头，中间为崩溃时间，如`taosd_20260509_124419.dmp`，大小一般在 `10M~200M` 之间。
 
 > **注意：** 若有 `dmp` 文件大小为 0K，可能存在严重堆栈被破坏情况。
 
-## 未生成 dmp 文件
+### 无法生成 dmp 文件
 
 若上一步中未生成 `dmp`，可能崩溃无法从进程内捕获，需启动进程外捕获 `dmp`。
 
-把以下内容保存为 `.reg` 文件，双击 `.reg` 文件导入至注册表中，开启进程外捕获 `dmp`：
+把以下内容保存为 `.reg` 文件，双击 `.reg` 导入至注册表中，开启进程外捕获 `dmp`：
 
 ```Bash
 Windows Registry Editor Version 5.00
@@ -47,22 +49,45 @@ Windows Registry Editor Version 5.00
 
 配置项说明：
 
-- DumpCount：10 生成 dmp 文件数上限，超过后会删除最旧的 dmp 文件。
-- DumpFolder：C:\\TDengine\\core\\ 存放 dmp 文件的目录。
+- DumpCount：生成 dmp 文件数上限，超过后会删除最旧的 dmp 文件。
+- DumpFolder：存放 dmp 文件的目录。
 
-## PDB 文件获取
+### 手动生成 dmp 文件
+
+若是 taosd 进程卡死，可手动生成 dmp 文件用于分析，方法是打开 `WINDOW 任务管理器`，在 `进程` 选项卡中找到 `taosd.exe` 进程，点击右键选择 `创建转存文件` 菜单，随后弹出窗口中选择存储文件保存位置即可。
+
+### PDB 文件获取
 
 崩溃栈需结合 PDB 文件方可定位函数名及行号，提供以下方式获取 PDB 文件：
 
-- 社区版用户：官方下载链接：[https://www.taosdata.com/symbols/](https://www.taosdata.com/symbols/)，选择对应版本号下载 PDB 文件。
 - 企业版用户：暂未提示供下载，需联系 TDengine 技术支持获取。
-- 自己编译版本：PDB 文件与编译输出的可执行文件在同一目录下。
+- 本地编译版本：PDB 文件与编译输出可执行文件在同一目录下。
+
+### dmp + PDB 分析
+
+分析 dmp 需加载与之匹配的 PDB 文件，即可看到崩溃完整堆栈信息，下面介绍分析 dmp 步骤：
+
+1. 获取 WinDbg
+   WinDbg 是微软官方提供的用于 dmp 文件分析工具，可到微软网站[下载](https://apps.microsoft.com/detail/9pgjgd53tn86)或安装 Visual Studio 时勾选 `Windows 调试工具` 选项即可获得。
+2. 加载 PDB
+   启动 WinDbg，打开菜单 File -> Symbol File Path，弹出窗口中点击 `browse...` 按钮选择 pdb 文件所在文件夹，点击 `OK` 按钮保存并关闭。
+
+   ![dmp-step-1.webp](./assets/dmp-step-1.webp)
+
+3. 分析 dmp
+   选择菜单 File -> Open Crash Dump，弹出窗口中选择 dmp 文件，打开所要分析的 dmp 文件进行分析。
+
+   dmp 文件打开后，在底部命令行输入 `k` 命令显示崩溃栈，成功加载 PDB 时可以看到函数名及源码文件名和行号信息，如下：
+
+   ![dmp-step-2.webp](./assets/dmp-step-2.webp)
+
+   此时调用 WinDbg 工具提供的命令行，详细分析崩溃原因。
 
 ## 使用 ASAN 版本
 
-若 dmp 无法定位问题，需进一步升级，启用 ASan 版本调试。
+若通过 dmp 仍然无法找到问题，可进一步升级分析方法，使用带内存越界访问监控的 ASan 版本继续定位问题。
 
-目前 TDengine 仓库 Debug/Release 都支持编译 ASAN 版本，编译选项与 LINUX 相同。
+目前 TDengine 仓库 Debug/Release 均支持编译 ASAN 版本，编译选项与 LINUX 相同。
 
 > **说明：** Windows 下的 ASAN 不支持内存泄露检查功能，但越界访问及 Use-after-free 都支持。
 
@@ -150,6 +175,10 @@ HINT: this may be a false positive if your program uses some custom stack unwind
       (longjmp and C++ exceptions *are* supported)
 SUMMARY: AddressSanitizer: stack-buffer-overflow in test() (taosd.exe+0x000000000000)
 ```
+
+## 服务崩溃跟踪
+
+TDengine TSDB 服务进程 `taosd.exe` 遇到崩溃后会退出，Windows 系统检测到服务退出，会尝试重新启动服务，为避免反复启动崩溃，只启动三次，启动日志可在 `控制面板`->`Windows 事件查看器` 中找到，另外服务被停止日志也记录在此。
 
 ## 总结
 

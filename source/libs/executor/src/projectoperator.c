@@ -1249,6 +1249,7 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
 
     colDataDestroy(&idata);
     taosArrayDestroy(pBlockList);
+    pBlockList = NULL;
     TAOS_CHECK_EXIT(code);
 
     *numOfRows = dest.numOfRows;

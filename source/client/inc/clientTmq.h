@@ -40,7 +40,7 @@ extern "C" {
 // ============================================================
 // constants
 // ============================================================
-#define EMPTY_BLOCK_POLL_IDLE_DURATION 10
+#define EMPTY_BLOCK_POLL_IDLE_DURATION 100
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000
 #define DEFAULT_HEARTBEAT_INTERVAL     3000
 #define DEFAULT_ASKEP_INTERVAL         1000

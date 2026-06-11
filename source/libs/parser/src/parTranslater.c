@@ -3299,14 +3299,14 @@ static int32_t createSimpleSubQStmt(STranslateContext* pCxt, char* stmtName, SNo
   cxt.isExprSubQ = true;
 
   code = initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, true, &cxt);
-  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+  if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pSelect);
     destroyTranslateContext(&cxt);
     return code;
   }
 
   code = setCurrLevelNsFromParent(pCxt, &cxt);
-  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+  if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pSelect);
     destroyTranslateContext(&cxt);
     return code;
@@ -17158,16 +17158,18 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
   }
 
   if (ops->hasPassword) {
-    const char* targetUser = isAlter ? ((SAlterUserStmt*)pStmt)->userName : ((SCreateUserStmt*)pStmt)->userName;
-    if (strncmp(authRsp.user, targetUser, TSDB_USER_LEN) != 0) {
-      if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_PASS_ALTER)) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
-                                       "Permission denied to change others' password");
-      }
-    } else {
-      if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_PASS_ALTER_SELF)) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
-                                       "Permission denied to change own password");
+    if (isAlter) {
+      const char* targetUser = ((SAlterUserStmt*)pStmt)->userName;
+      if (strncmp(authRsp.user, targetUser, TSDB_USER_LEN) != 0) {
+        if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_PASS_ALTER)) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+                                         "Permission denied to change others' password");
+        }
+      } else {
+        if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_PASS_ALTER_SELF)) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
+                                         "Permission denied to change own password");
+        }
       }
     }
   }
@@ -23345,15 +23347,17 @@ static int32_t buildTriggerPartitionForCreateStream(SNodeList** ppTriggerPartiti
   // append partition by tags
   for (int32_t idx = 0; idx < numOfTags; ++idx) {
     PAR_ERR_JRET(createColumnNodeWithName(pTags[idx].name, &pTagCol));
-    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, pTagCol));
+    SNode* pAppend = pTagCol;
     pTagCol = NULL;
+    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, pAppend));
   }
 
   if (!pStmt->pOptions->recursiveTsma) {
     PAR_ERR_JRET(createTbnameFunction((SFunctionNode**)&tbnameFunc));
     snprintf(((SFunctionNode*)tbnameFunc)->node.userAlias, TSDB_COL_NAME_LEN, "tbname");
-    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, (SNode*)tbnameFunc));
+    SNode* pAppend = tbnameFunc;
     tbnameFunc = NULL;
+    PAR_ERR_JRET(nodesListMakeStrictAppend(&pTriggerPartition, pAppend));
   }
 
   *ppTriggerPartition = pTriggerPartition;

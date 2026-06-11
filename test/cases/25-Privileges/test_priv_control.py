@@ -2474,15 +2474,80 @@ class TestPrivControl:
         self.exec_sql("DROP MNODE ON DNODE 2")
         self.exec_sql("DROP SNODE ON DNODE 2")
         self.exec_sql("DROP QNODE ON DNODE 2")
-        
+
         # Cleanup
         self.login()
         self.drop_user(test_user)
-        
+
         print("Node Management Privileges ........... [ passed ] ")
     
 
     
+    def do_user_crud_privileges(self):
+        """Test CREATE USER / DROP USER / SHOW USERS / ALTER USER / LOCK USER / UNLOCK USER
+        as individually-granted system privileges (PRIV_USER_CREATE/DROP/SHOW/ALTER/LOCK/UNLOCK).
+        """
+        tdLog.info("=== Testing User CRUD System Privileges ===")
+        self.login()  # Login as root
+
+        mgr    = "priv_usr_mgr"     # user that will receive each privilege
+        victim = "priv_usr_victim"  # target user for DROP/ALTER/LOCK/UNLOCK
+        self.create_user(mgr, pwd)
+        self.create_user(victim, pwd)
+        self.revoke_role("`SYSINFO_1`", mgr)  # revoke default role
+
+        # ── Phase 1: verify all operations are DENIED before any privilege is granted ──
+        # No sleep needed here: mgr was just created with no extra privileges.
+        self.login(mgr, pwd)
+        self.exec_sql_failed("SHOW USERS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"CREATE USER priv_usr_new PASS '{pwd}'", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"DROP USER {victim}",                     TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"ALTER USER {victim} ENABLE 0",           TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"ALTER USER {victim} ENABLE 1",           TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        # ── Phase 2: grant all privileges, wait once, verify all operations SUCCEED ──
+        self.login()
+        self.grant_privilege("SHOW USERS",  None, mgr)
+        self.grant_privilege("CREATE USER", None, mgr)
+        self.grant_privilege("DROP USER",   None, mgr)
+        self.grant_privilege("ALTER USER",  None, mgr)
+        self.grant_privilege("LOCK USER",   None, mgr)
+        self.grant_privilege("UNLOCK USER", None, mgr)
+
+        self.login(mgr, pwd)
+        time.sleep(5)  # wait for privilege propagation
+
+        self.exec_sql("SHOW USERS")
+        self.exec_sql(f"CREATE USER priv_usr_new PASS '{pwd}'")  # CREATE USER
+        self.exec_sql(f"DROP USER priv_usr_new")                 # DROP USER (drop the one we just created)
+        # LOCK USER / UNLOCK USER → ALTER USER ENABLE 0/1
+        self.exec_sql(f"ALTER USER {victim} ENABLE 0")  # lock
+        self.exec_sql(f"ALTER USER {victim} ENABLE 1")  # unlock
+
+        # ── Phase 3: revoke all privileges, wait once, verify all operations are DENIED again ──
+        self.login()
+        self.revoke_privilege("SHOW USERS",  None, mgr)
+        self.revoke_privilege("CREATE USER", None, mgr)
+        self.revoke_privilege("DROP USER",   None, mgr)
+        self.revoke_privilege("LOCK USER",   None, mgr)
+        self.revoke_privilege("UNLOCK USER", None, mgr)
+
+        self.login(mgr, pwd)
+        time.sleep(5)  # wait for privilege revocation to propagate
+
+        self.exec_sql_failed("SHOW USERS", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"CREATE USER priv_usr_new2 PASS '{pwd}'", TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"DROP USER {victim}",                      TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"ALTER USER {victim} ENABLE 0",            TSDB_CODE_PAR_PERMISSION_DENIED)
+        self.exec_sql_failed(f"ALTER USER {victim} ENABLE 1",            TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        # Cleanup
+        self.login()
+        self.drop_user(mgr)
+        self.drop_user(victim)
+
+        print("User CRUD Privileges ................. [ passed ] ")
+
     def do_mount_management_privileges(self):
         # Test mount management privileges
         tdLog.info("=== Testing Mount Management Privileges ===")
@@ -2849,31 +2914,78 @@ class TestPrivControl:
     # --------------------------- Function and Index Privileges Tests ----------------------------
     #
     def do_create_function_privilege(self):
-        # Test CREATE FUNCTION privilege
-        tdLog.info("=== Testing CREATE FUNCTION Privilege ===")
+        # Test CREATE FUNCTION / DROP FUNCTION / SHOW FUNCTIONS privileges
+        tdLog.info("=== Testing CREATE/DROP/SHOW FUNCTION Privileges ===")
         self.login()  # Login as root
-        
+
         user = "test_user"
         self.create_user(user, pwd)
-        
-        # Test: user cannot create function without privilege
+        self.revoke_role("`SYSINFO_1`", user)  # revoke default role
+
+        # --- SHOW FUNCTIONS ---
+        # Without privilege: denied
         self.login(user, pwd)
-        # Note: actual UDF creation syntax may vary
-        # self.exec_sql_failed("CREATE FUNCTION test_func AS ...")
-        
-        # Grant CREATE FUNCTION privilege (system privilege, no target)
+        self.exec_sql_failed("SHOW FUNCTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        self.login()
+        self.grant_privilege("SHOW FUNCTIONS", None, user)
+        self.login(user, pwd)
+        self.exec_sql("SHOW FUNCTIONS")  # rows may be 0, that is fine
+
+        self.login()
+        self.revoke_privilege("SHOW FUNCTIONS", None, user)
+        self.login(user, pwd)
+        self.exec_sql_failed("SHOW FUNCTIONS", TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        # --- CREATE FUNCTION ---
+        # Without privilege: denied at parser layer.
+        # We use a nonexistent .so path so the command fails with a file-not-found
+        # error AFTER passing the privilege gate, not a permission error.
+        self.login(user, pwd)
+        self.exec_sql_failed(
+            "CREATE FUNCTION priv_test_udf AS '/nonexistent/priv_test_udf.so' OUTPUTTYPE INT",
+            TSDB_CODE_PAR_PERMISSION_DENIED)
+
         self.login()
         self.grant_privilege("CREATE FUNCTION", None, user)
-        
-        # Test: user can create function with privilege
-        # self.login(user, pwd)
-        # self.exec_sql("CREATE FUNCTION test_func AS ...")
-        
+        self.login(user, pwd)
+        # Privilege gate cleared; the command reaches mnode and fails on the
+        # missing .so path — any error code other than PAR_PERMISSION_DENIED is
+        # acceptable here, so we pass no errno to exec_sql_failed.
+        self.exec_sql_failed(
+            "CREATE FUNCTION priv_test_udf AS '/nonexistent/priv_test_udf.so' OUTPUTTYPE INT",
+            queryTimes=1)
+
+        self.login()
+        self.revoke_privilege("CREATE FUNCTION", None, user)
+        self.login(user, pwd)
+        self.exec_sql_failed(
+            "CREATE FUNCTION priv_test_udf AS '/nonexistent/priv_test_udf.so' OUTPUTTYPE INT",
+            TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        # --- DROP FUNCTION ---
+        # Without privilege: denied
+        self.login(user, pwd)
+        self.exec_sql_failed("DROP FUNCTION IF EXISTS priv_test_udf",
+                             TSDB_CODE_PAR_PERMISSION_DENIED)
+
+        self.login()
+        self.grant_privilege("DROP FUNCTION", None, user)
+        self.login(user, pwd)
+        # Privilege gate cleared; IF EXISTS means success even when udf absent
+        self.exec_sql("DROP FUNCTION IF EXISTS priv_test_udf")
+
+        self.login()
+        self.revoke_privilege("DROP FUNCTION", None, user)
+        self.login(user, pwd)
+        self.exec_sql_failed("DROP FUNCTION IF EXISTS priv_test_udf",
+                             TSDB_CODE_PAR_PERMISSION_DENIED)
+
         # Cleanup
         self.login()
         self.drop_user(user)
-        
-        print("CREATE FUNCTION ...................... [ passed ] ")
+
+        print("CREATE/DROP/SHOW FUNCTION ............ [ passed ] ")
     
     def do_create_index_privilege(self):
         # Test CREATE INDEX privilege
@@ -4297,6 +4409,7 @@ class TestPrivControl:
         print("")
         print("[System Privileges]")
         self.do_user_management_privileges()
+        self.do_user_crud_privileges()
         self.do_token_management_privileges()
         self.do_totp_management_privileges()
         self.do_password_management_privileges()
@@ -4311,7 +4424,7 @@ class TestPrivControl:
         # Function/index/tsrma/rsma privilege tests
         print("")
         print("[Function and Index Privileges]")
-        self.do_create_function_privilege()
+        self.do_create_function_privilege()  # covers CREATE/DROP/SHOW FUNCTION
         self.do_create_index_privilege()
         if platform.system().lower() != 'windows':
             # windows does not support tsma
