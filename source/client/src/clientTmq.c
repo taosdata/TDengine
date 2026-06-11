@@ -33,7 +33,7 @@
 #define tqTraceC(...) do { if (cDebugFlag & DEBUG_TRACE || tqClientDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  TRACE ", DEBUG_TRACE, tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 #define tqWarnC(...)  do { if (cDebugFlag & DEBUG_WARN  || tqClientDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN  ", DEBUG_WARN,  tqClientDebugFlag|cDebugFlag, __VA_ARGS__); }} while(0)
 
-#define EMPTY_BLOCK_POLL_IDLE_DURATION 10
+#define EMPTY_BLOCK_POLL_IDLE_DURATION 100
 #define DEFAULT_AUTO_COMMIT_INTERVAL   5000
 #define DEFAULT_HEARTBEAT_INTERVAL     3000
 #define DEFAULT_ASKEP_INTERVAL         1000
