@@ -897,12 +897,27 @@ class TestFunCols:
         tdSql.error(f'select cols(first(ts+1), c0+2 cc0, c1 cc1) cc from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts)+1, c0+2 as cc0) as cc from {self.dbname}.meters')
         tdSql.error(f'select cols(ABS(c0), c1) from {self.dbname}.meters group by tbname')
+
+        # K-row selection functions are not valid as COLS first arg
+        # (COLS requires a single-row selector as anchor)
         tdSql.error(f'select cols(top(c0, 5), c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(tail(c0, 5),c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(BOTTOM(c0, 5),c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(tail(ts, 5),c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(UNIQUE(ts),c1) from {self.dbname}.meters')
         tdSql.error(f'select cols(sample(ts, 5),c1) from {self.dbname}.meters')
+
+        # Non-selection pipeline functions (N-row / N-1-row output) are not valid as COLS first arg
+        # These functions transform rows but do not select a specific row anchor
+        tdSql.error(f'select cols(diff(c0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(derivative(c0, 1s, 0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(csum(c0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(mavg(c0, 2), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(lag(c0, 1, 0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(lead(c0, 1, 0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(fill_forward(c0), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(statecount(c0, "GE", 1), c1) from {self.dbname}.meters')
+        tdSql.error(f'select cols(stateduration(c0, "GE", 1, 1s), c1) from {self.dbname}.meters')
         
         tdSql.error(f'select cols(last(ts)+1, ts) from {self.dbname}.meters')
         tdSql.error(f'select cols(last(ts)+10, c1+10) from {self.dbname}.meters group by tbname')

@@ -265,9 +265,14 @@ class TestArithmetic:
         # not available
 
         # multi row result aggregation [d.4]
-        tdSql.error(f"select top(c1, 1) - bottom(c1, 1) from {tb}")
-        tdSql.error(f"select top(c1, 99) - bottom(c1, 99) from {tb}")
-        tdSql.query(f"      select top(c1,1) - 88 from {tb}")
+        tdSql.query(f"select top(c1, 1) - bottom(c1, 1) from {tb}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 9)
+        tdSql.query(f"select top(c1, 99) - bottom(c1, 99) from {tb}")
+        tdSql.checkRows(99)
+        tdSql.checkData(0, 0, 9)
+        tdSql.checkData(98, 0, 9)
+        tdSql.query(f"select top(c1,1) - 88 from {tb}")
 
         # all data types [d.6] ================================================================
         tdSql.query(
@@ -476,12 +481,15 @@ class TestArithmetic:
 
         # error cases
         tdSql.error(f"select first(c1, c2) - last(c1, c2) from {stb}")
-        tdSql.error(f"select top(c1, 5) - bottom(c1, 5) from {stb}")
+        tdSql.query(f"select top(c1, 5) - bottom(c1, 5) from {stb}")
+        tdSql.checkRows(5)
         tdSql.error(f"select first(*) - 99 from {stb}")
 
         # multi row result aggregation [d.4]
-        tdSql.error(f"select top(c1, 1) - bottom(c1, 1) from {stb}")
-        tdSql.error(f"select top(c1, 99) - bottom(c1, 99) from {stb}")
+        tdSql.query(f"select top(c1, 1) - bottom(c1, 1) from {stb}")
+        tdSql.checkRows(1)
+        tdSql.query(f"select top(c1, 99) - bottom(c1, 99) from {stb}")
+        tdSql.checkRows(99)
 
         # query on super table [d.5]=============================================================
         # all cases in this part are query on super table
