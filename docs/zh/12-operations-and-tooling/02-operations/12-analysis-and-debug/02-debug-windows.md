@@ -54,31 +54,32 @@ Windows Registry Editor Version 5.00
 
 ### 手动生成 dmp 文件
 
-若是 taosd 进程卡死，可手动生成 dmp 文件用于分析，方法是打开 `WINDOW 任务管理器`，在 `进程` 选项卡中找到 `taosd.exe` 进程, 点击右键选择 `创建转存文件` 菜单，随后弹出窗口中选择存储文件保存位置即可。
+若是 taosd 进程卡死，可手动生成 dmp 文件用于分析，方法是打开 `WINDOW 任务管理器`，在 `进程` 选项卡中找到 `taosd.exe` 进程，点击右键选择 `创建转存文件` 菜单，随后弹出窗口中选择存储文件保存位置即可。
 
 ### PDB 文件获取
 
 崩溃栈需结合 PDB 文件方可定位函数名及行号，提供以下方式获取 PDB 文件：
 
-- 企业版用户：暂未提示供下载，需联系 TDengine 技术支持获取。 
+- 企业版用户：暂未提示供下载，需联系 TDengine 技术支持获取。
 - 本地编译版本：PDB 文件与编译输出可执行文件在同一目录下。
 
 ### dmp + PDB 分析
 
 分析 dmp 需加载与之匹配的 PDB 文件，即可看到崩溃完整堆栈信息，下面介绍分析 dmp 步骤：
+
 1. 获取 WinDbg
    WinDbg 是微软官方提供的用于 dmp 文件分析工具，可到微软网站[下载](https://apps.microsoft.com/detail/9pgjgd53tn86)或安装 Visual Studio 时勾选 `Windows 调试工具` 选项即可获得。
-2. 加载 PDB 
+2. 加载 PDB
    启动 WinDbg，打开菜单 File -> Symbol File Path，弹出窗口中点击 `browse...` 按钮选择 pdb 文件所在文件夹，点击 `OK` 按钮保存并关闭。
-   
-   ![dmp-step-1.webp](../pic/dmp-step-1.webp)
 
-3. 分析 dmp 
+   ![dmp-step-1.webp](./assets/dmp-step-1.webp)
+
+3. 分析 dmp
    选择菜单 File -> Open Crash Dump，弹出窗口中选择 dmp 文件，打开所要分析的 dmp 文件进行分析。
-   
+
    dmp 文件打开后，在底部命令行输入 `k` 命令显示崩溃栈，成功加载 PDB 时可以看到函数名及源码文件名和行号信息，如下：
-   
-   ![dmp-step-2.webp](../pic/dmp-step-2.webp)
+
+   ![dmp-step-2.webp](./assets/dmp-step-2.webp)
 
    此时调用 WinDbg 工具提供的命令行，详细分析崩溃原因。
 
