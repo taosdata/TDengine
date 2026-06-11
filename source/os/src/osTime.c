@@ -26,6 +26,7 @@
 
 #include "os.h"
 #include "osInt.h"
+#include "taoserror.h"
 
 #ifdef WINDOWS
 // Declare timezone variable for Windows (not available in Windows CRT)
@@ -433,6 +434,13 @@ int64_t user_mktime64(const uint32_t year, const uint32_t mon, const uint32_t da
 
 time_t taosMktime(struct tm *timep, timezone_t tz) {
 #ifdef WINDOWS
+  /*
+   * Clear errno first so the caller-side TAOS_MKTIME_FAILED() macro
+   * (r == (time_t)-1 && ERRNO != TSDB_CODE_SUCCESS) is not tripped by a stale
+   * errno: -1 is also the valid epoch 1969-12-31 23:59:59 UTC, and user_mktime64
+   * reports failure via its return value, not errno.  Do not remove this reset.
+   */
+  errno = TSDB_CODE_SUCCESS;
   // Get timezone offset (correctly use the passed tz parameter)
   int64_t tzw = 0;
   if (tz != NULL) {
@@ -454,8 +462,16 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
 
   return result;
 #elif defined(TD_ASTRA)
+  /*
+   * Clear errno first so the caller-side TAOS_MKTIME_FAILED() macro can reliably
+   * distinguish a genuine mktime failure from a (time_t)-1 return for a valid
+   * time: -1 is also the valid epoch 1969-12-31 23:59:59 UTC, so failure is
+   * detected by errno != TSDB_CODE_SUCCESS, not by the return value alone.
+   * Do not remove this reset.
+   */
+  errno = TSDB_CODE_SUCCESS;
   time_t r =  mktime(timep);
-  if (r == (time_t)-1) {
+  if (r == (time_t)-1 && errno != TSDB_CODE_SUCCESS) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
   return r;
@@ -463,8 +479,16 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
   if (tz == NULL) {
     tz = getGlobalDefaultTZ();
   }
+  /*
+   * Clear errno first so the caller-side TAOS_MKTIME_FAILED() macro can reliably
+   * distinguish a genuine mktime failure from a (time_t)-1 return for a valid
+   * time: -1 is also the valid epoch 1969-12-31 23:59:59 UTC, so failure is
+   * detected by errno != TSDB_CODE_SUCCESS, not by the return value alone.
+   * Do not remove this reset.
+   */
+  errno = TSDB_CODE_SUCCESS;
   time_t r = (tz != NULL ? mktime_z(tz, timep) : mktime(timep));
-  if (r == (time_t)-1) {
+  if (r == (time_t)-1 && errno != TSDB_CODE_SUCCESS) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
   timezone = -timep->tm_gmtoff;

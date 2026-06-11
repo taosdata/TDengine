@@ -208,12 +208,54 @@ static bool extractUtcOffsetFromTzDisplay(const char* display, char* out, int32_
 }
 
 /*
- * Inject the timezone IANA name string as a parameter, preserving
- * DST semantics.  Falls back to the system timezone string if tz is NULL
- * or the name lookup fails.
+ * Heuristic: treat a timezone name as an IANA region-based name iff it
+ * contains '/'.  Examples: "Asia/Shanghai", "America/New_York", "Europe/London".
+ * Everything else — "+0800", "UTC-2", "GMT+5", "CST", etc. — is treated as
+ * non-IANA and uses POSIX sign convention which must be converted for ISO 8601.
+ *
+ * Known limitations of the '/' test (acceptable because inputs come from the
+ * tz database name map, not arbitrary user strings):
+ *  - Bare UTC-equivalent abbreviations ("UTC", "GMT", "Z") have no '/', so they
+ *    are classified non-IANA.  That is fine: they carry no sign, so the POSIX
+ *    sign-flip below is a no-op for them, and isUtcZeroOffsetName() guards the
+ *    flip explicitly so a zero offset is never inverted.
+ *  - A malformed name that happens to contain '/' (e.g. "UTC+8/DST") would be
+ *    misclassified as IANA and passed through unconverted.  Such strings do not
+ *    occur in the tz name map, so this is left as a documented edge case.
  */
-static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz) {
+static bool isIANATimezoneName(const char *name) {
+  if (name == NULL || name[0] == '\0') return false;
+  return (strchr(name, '/') != NULL);
+}
+
+/*
+ * Well-known UTC-equivalent zone names that carry a zero offset and therefore
+ * need no POSIX->ISO sign conversion.  Matched case-insensitively as the whole
+ * token, so offset-bearing forms like "UTC+8" / "GMT-5" are intentionally NOT
+ * matched and still get converted.
+ */
+static bool isUtcZeroOffsetName(const char *name) {
+  return strcasecmp(name, "UTC") == 0 || strcasecmp(name, "GMT") == 0 ||
+         strcasecmp(name, "UT") == 0 || strcasecmp(name, "Z") == 0 ||
+         strcasecmp(name, "Zulu") == 0;
+}
+
+/*
+ * Inject the timezone string as a parameter.
+ *
+ * useISOOffset controls the format for non-IANA timezones:
+ *  - true:  extract ISO 8601 offset ("+0800") from display string.
+ *          Used by TO_ISO8601 which parses offset with ISO sign convention.
+ *  - false: keep the POSIX leading token ("UTC-8") or prepend "UTC" to
+ *          bare offsets.  Used by TIMETRUNCATE / TO_CHAR / joins which
+ *          create timezone handles via taosValidateTimezone() (POSIX).
+ *
+ * Falls back to the system timezone string if tz is NULL or the name
+ * lookup fails.
+ */
+static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISOOffset) {
   char    buf[TD_TIMEZONE_LEN] = {0};
+  char    origTzName[TD_TIMEZONE_LEN] = {0};
   int32_t code = TSDB_CODE_SUCCESS;
 
   /*
@@ -229,6 +271,54 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz) {
       int32_t cpLen = TMIN(nameLen, TD_TIMEZONE_LEN - 1);
       (void)memcpy(buf, tzName, cpLen);
       buf[cpLen] = '\0';
+
+      if (!isIANATimezoneName(buf)) {
+        if (useISOOffset) {
+          /*
+           * TO_ISO8601 path: save original tz name for format matching,
+           * then extract ISO 8601 offset from display string so the sign
+           * is consistent with what the scalar function expects
+           * (local = UTC + offset).  E.g. session "UTC-8" → inject "+0800".
+           */
+          tstrncpy(origTzName, buf, sizeof(origTzName));
+          char isoBuf[8] = {0};
+          if (extractUtcOffsetFromTzDisplay(tzName, isoBuf, sizeof(isoBuf))) {
+            (void)memcpy(buf, isoBuf, strlen(isoBuf) + 1);
+          } else {
+            /*
+             * Display extraction failed: convert the POSIX offset string to ISO
+             * in place by flipping its sign (POSIX +H = west = ISO -H).  Without
+             * this the scalar function would parse a POSIX offset with the ISO
+             * convention and invert the rendered local time.  UTC-equivalent
+             * names ("UTC"/"GMT"/"Z") are skipped: they have no sign to flip and
+             * must stay zero-offset (the loop would already be a no-op, but the
+             * guard makes the intent explicit).
+             */
+            if (!isUtcZeroOffsetName(buf)) {
+              for (char *s = buf; *s != '\0'; ++s) {
+                if (*s == '+') {
+                  *s = '-';
+                  break;
+                } else if (*s == '-') {
+                  *s = '+';
+                  break;
+                }
+              }
+            }
+          }
+        } else if (buf[0] == '+' || buf[0] == '-') {
+          /*
+           * TIMETRUNCATE / TO_CHAR path: bare offsets ("+0800") are ambiguous.
+           * Prepend "UTC" to make POSIX convention explicit for
+           * taosValidateTimezone().
+           */
+          int slen = (int)strlen(buf);
+          if (slen + 3 < TD_TIMEZONE_LEN) {
+            memmove(buf + 3, buf, slen + 1);
+            memcpy(buf, "UTC", 3);
+          }
+        }
+      }
     }
   }
 
@@ -268,6 +358,28 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz) {
       buf[3] = '0';
       buf[4] = '0';
       buf[5] = '\0';
+    }
+  }
+
+  /* For TO_ISO8601: match output offset format to the original SET TIMEZONE
+   * input format.  The scalar function's fixed-offset path echoes tzStr
+   * verbatim, so Z and colon must already be present in the injected param.
+   * - Z/z input  → output Z/z
+   * - colon input (e.g. +08:00) → insert colon into ±HHMM → ±HH:MM
+   * - otherwise  → keep ±HHMM as-is */
+  if (useISOOffset && origTzName[0] != '\0') {
+    if (origTzName[0] == 'Z' || origTzName[0] == 'z') {
+      buf[0] = origTzName[0];
+      buf[1] = '\0';
+    } else if (strchr(origTzName, ':') != NULL) {
+      size_t blen = strlen(buf);
+      if (blen == 5 && (buf[0] == '+' || buf[0] == '-')) {
+        char m0 = buf[3], m1 = buf[4];
+        buf[3] = ':';
+        buf[4] = m0;
+        buf[5] = m1;
+        buf[6] = '\0';
+      }
     }
   }
 
@@ -2185,8 +2297,8 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
       return code;
     }
   } else {
-    /* inject connection timezone name (IANA-preserving) as default param */
-    int32_t code = addTimezoneNameParam(pFunc->pParameterList, pFunc->tz);
+    /* inject connection timezone as ISO offset for TO_ISO8601 */
+    int32_t code = addTimezoneNameParam(pFunc->pParameterList, pFunc->tz, true);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -2319,7 +2431,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
     }
     pSavedTzNode = NULL;  /* ownership transferred to list */
   } else {
-    code = addTimezoneNameParam(pFunc->pParameterList, pFunc->tz);
+    code = addTimezoneNameParam(pFunc->pParameterList, pFunc->tz, false);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -2447,9 +2559,9 @@ static int32_t translateToChar(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
       return code;
     }
   } else {
-    /* inject connection timezone name so scalar layer gets DST-aware tz;
-     * pInput->tz alone does not reliably reflect SET TIMEZONE updates */
-    int32_t code = addTimezoneNameParam(pFunc->pParameterList, pFunc->tz);
+    /* inject connection timezone as POSIX form for taosValidateTimezone() */
+    int32_t code = addTimezoneNameParam(pFunc->pParameterList,
+                                        pFunc->tz, false);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

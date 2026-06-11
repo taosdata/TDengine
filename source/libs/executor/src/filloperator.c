@@ -647,8 +647,10 @@ static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order) {
     ekey = taosTimeTruncate(pInfo->win.ekey, &pInfo->pFillInfo->interval);
     next = ekey;
     while (next < pInfo->win.ekey) {
-      next = taosTimeAdd(ekey, pInfo->pFillInfo->interval.sliding, pInfo->pFillInfo->interval.slidingUnit,
-                         pInfo->pFillInfo->interval.precision, NULL);
+      next = taosTimeAdd(ekey, pInfo->pFillInfo->interval.sliding,
+                         pInfo->pFillInfo->interval.slidingUnit,
+                         pInfo->pFillInfo->interval.precision,
+                         pInfo->pFillInfo->interval.timezone);
       if (next == ekey) break;
       ekey = next > pInfo->win.ekey ? ekey : next;
     }
@@ -657,8 +659,10 @@ static void reviseFillStartAndEndKey(SFillOperatorInfo* pInfo, int32_t order) {
     skey = taosTimeTruncate(pInfo->win.skey, &pInfo->pFillInfo->interval);
     next = skey;
     while (next < pInfo->win.skey) {
-      next = taosTimeAdd(skey, pInfo->pFillInfo->interval.sliding, pInfo->pFillInfo->interval.slidingUnit,
-                         pInfo->pFillInfo->interval.precision, NULL);
+      next = taosTimeAdd(skey, pInfo->pFillInfo->interval.sliding,
+                         pInfo->pFillInfo->interval.slidingUnit,
+                         pInfo->pFillInfo->interval.precision,
+                         pInfo->pFillInfo->interval.timezone);
       if (next == skey) break;
       skey = next > pInfo->win.skey ? skey : next;
     }

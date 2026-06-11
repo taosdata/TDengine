@@ -1346,10 +1346,14 @@ void stTriggerTaskPrevTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow
   SInterval *pInterval = &pTask->interval;
 
   if (pInterval->interval > 0) {
-    TSKEY prevStart =
-        taosTimeAdd(pWindow->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
-    prevStart = taosTimeAdd(prevStart, -1 * pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
-    prevStart = taosTimeAdd(prevStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+    TSKEY prevStart = taosTimeAdd(pWindow->skey, -1 * pInterval->offset,
+                                  pInterval->offsetUnit, pInterval->precision,
+                                  pInterval->timezone);
+    prevStart = taosTimeAdd(prevStart, -1 * pInterval->sliding,
+                            pInterval->slidingUnit, pInterval->precision,
+                            pInterval->timezone);
+    prevStart = taosTimeAdd(prevStart, pInterval->offset, pInterval->offsetUnit,
+                            pInterval->precision, pInterval->timezone);
     pWindow->skey = prevStart;
     pWindow->ekey = taosTimeGetIntervalEnd(prevStart, pInterval);
   } else {
@@ -1430,9 +1434,9 @@ void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow
 
   if (pInterval->interval > 0) {
     TSKEY nextStart =
-        taosTimeAdd(pWindow->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
-    nextStart = taosTimeAdd(nextStart, pInterval->sliding, pInterval->slidingUnit, pInterval->precision, NULL);
-    nextStart = taosTimeAdd(nextStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, NULL);
+        taosTimeAdd(pWindow->skey, -1 * pInterval->offset, pInterval->offsetUnit, pInterval->precision, pInterval->timezone);
+    nextStart = taosTimeAdd(nextStart, pInterval->sliding, pInterval->slidingUnit, pInterval->precision, pInterval->timezone);
+    nextStart = taosTimeAdd(nextStart, pInterval->offset, pInterval->offsetUnit, pInterval->precision, pInterval->timezone);
     pWindow->skey = nextStart;
     pWindow->ekey = taosTimeGetIntervalEnd(nextStart, pInterval);
   } else {

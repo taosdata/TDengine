@@ -403,6 +403,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .timezone = pTscObj->optionInfo.timezone,
       .charsetCxt = pTscObj->optionInfo.charsetCxt,
   };
+  tstrncpy(cxt.timezoneName, pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);

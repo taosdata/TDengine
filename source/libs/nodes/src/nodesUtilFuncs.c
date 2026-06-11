@@ -66,6 +66,23 @@ int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, i
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t nodesDecodeTimezoneNameInPlace(const char* pTimezoneName,
+                                       void** pTimezone, bool* pOwnsTimezone) {
+  if (pTimezoneName == NULL || pTimezoneName[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  timezone_t tz = NULL;
+  int32_t    code = taosValidateTimezone(pTimezoneName, &tz);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  *pTimezone = tz;
+  *pOwnsTimezone = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 char* getJoinTypeString(EJoinType type) {
   static char* joinType[] = {"", "INNER", "LEFT", "RIGHT", "FULL"};
   return joinType[type];
@@ -1171,7 +1188,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SIndefRowsFuncPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
-      code = makeNode(type, sizeof(SInterpFuncLogicNode), &pNode);
+      code = makeNode(type, sizeof(SInterpFuncPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_FORECAST_FUNC:
       code = makeNode(type, sizeof(SForecastFuncLogicNode), &pNode);
@@ -1447,6 +1464,9 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOp = (SOperatorNode*)pNode;
+      if (pOp->ownsTimezone) {
+        tzfree(pOp->tz);
+      }
       destroyExprNode((SExprNode*)pNode);
       nodesDestroyNode(pOp->pLeft);
       nodesDestroyNode(pOp->pRight);
@@ -2731,6 +2751,9 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC: {
       SInterpFuncPhysiNode* pPhyNode = (SInterpFuncPhysiNode*)pNode;
+      if (pPhyNode->ownsTimezone) {
+        tzfree(pPhyNode->timezone);
+      }
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
       nodesDestroyList(pPhyNode->pFuncs);

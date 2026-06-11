@@ -23,9 +23,37 @@
 extern "C" {
 #endif
 
+/*
+ * Calendar-duration classification. The two macros below partition the
+ * calendar-aware (DST/month-length-sensitive) units into TWO DISJOINT sets.
+ * The split reflects how the companion int64 duration field (e.g. SInterval's
+ * interval/sliding/offset) is encoded for that unit -- same field, different
+ * encoding selected by the unit char (see getDuration/parseNatualDuration):
+ *
+ *   IS_CALENDAR_TIME_DURATION  -> month/quarter/year (n/q/y): the int64 keeps
+ *                                 the raw period COUNT (e.g. 2y -> 2, unit 'y';
+ *                                 q is normalized to n, so 2q -> 6, unit 'n').
+ *   IS_CALENDAR_DAY_DURATION   -> day/week (d/w): the int64 is pre-multiplied
+ *                                 into TICKS of the target precision (e.g. 2d at
+ *                                 ms precision -> 172800000).
+ *
+ * They are intentionally non-overlapping: a unit matches at most one. Code that
+ * needs "any calendar-aware unit" must OR them together, e.g.
+ *   IS_CALENDAR_TIME_DURATION(u) || IS_CALENDAR_DAY_DURATION(u)
+ * (see timewindowoperator.c). Do NOT fold d/w into IS_CALENDAR_TIME_DURATION:
+ * many sites use !IS_CALENDAR_TIME_DURATION as the fixed-tick fast path (e.g.
+ * ttime.c taosTimeAdd) and rely on d/w being excluded; merging them would both
+ * break those paths and double-count where the two macros are ORed.
+ */
 #define IS_CALENDAR_TIME_DURATION(_t) \
     ((_t) == 'n' || (_t) == 'y' || (_t) == 'N' || (_t) == 'Y' || \
      (_t) == 'q' || (_t) == 'Q')
+
+/* Day/week durations are calendar-aware (DST-sensitive): one local day is 23h/25h
+ * across a DST transition, so they must be advanced/counted via local-time math,
+ * not fixed-tick arithmetic.  Disjoint from IS_CALENDAR_TIME_DURATION (month
+ * /year/quarter): d/w hold a tick count, n/y hold a raw period count (see above). */
+#define IS_CALENDAR_DAY_DURATION(_t) ((_t) == 'd' || (_t) == 'w')
 
 #define TIME_UNIT_NANOSECOND  'b'
 #define TIME_UNIT_MICROSECOND 'u'
@@ -70,7 +98,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
 TSKEY   getNextTimeWindowStart(const SInterval* pInterval, TSKEY start, int32_t order);
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval);
 int64_t taosTimeGetIntervalEnd(int64_t ts, const SInterval* pInterval);
-int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision, int32_t order);
+int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision, int32_t order, timezone_t tz);
 void    calcIntervalAutoOffset(SInterval* interval);
 
 int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* ts, char* unit, int32_t timePrecision);

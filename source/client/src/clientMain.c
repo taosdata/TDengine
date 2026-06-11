@@ -2112,6 +2112,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .timezone = pTscObj->optionInfo.timezone,
                            .charsetCxt = pTscObj->optionInfo.charsetCxt,
                            .firstDayOfWeek = pTscObj->optionInfo.firstDayOfWeek};
+  tstrncpy((*pCxt)->timezoneName, pTscObj->optionInfo.timezoneName, sizeof((*pCxt)->timezoneName));
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   (*pCxt)->minSecLevel = pTscObj->minSecLevel;

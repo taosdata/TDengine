@@ -1428,6 +1428,8 @@ SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pL
   op->pLeft = pLeft;
   op->pRight = pRight;
   op->tz = pCxt->pQueryCxt->timezone;
+  tstrncpy(op->timezoneName, pCxt->pQueryCxt->timezoneName,
+           sizeof(op->timezoneName));
   op->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   return (SNode*)op;
 _err:

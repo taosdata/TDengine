@@ -59,6 +59,14 @@ extern "C" {
 int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, int32_t bufSize,
                                void** pTimezone, bool* pOwnsTimezone);
 
+/*
+ * Validate an already-decoded timezone name in place (no buffer copy) and take
+ * ownership of the resulting handle. Use when the name has already been written
+ * into the node's timezoneName field.
+ */
+int32_t nodesDecodeTimezoneNameInPlace(const char* pTimezoneName,
+                                       void** pTimezone, bool* pOwnsTimezone);
+
 #ifdef __cplusplus
 }
 #endif

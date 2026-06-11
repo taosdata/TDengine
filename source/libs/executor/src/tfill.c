@@ -215,8 +215,10 @@ bool fillWindowPseudoColumn(const SFillInfo* pFillInfo,
       return true;
     } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_END) {
       const SInterval* pInterval = &pFillInfo->interval;
-      int64_t    windowEnd =
-          taosTimeAdd(pFillInfo->currentKey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL);
+      int64_t windowEnd =
+        taosTimeAdd(pFillInfo->currentKey, pInterval->interval,
+                    pInterval->intervalUnit, pInterval->precision,
+                    pInterval->timezone);
       code = colDataSetVal(pDstColInfo, (uint32_t)rowIndex, (const char*)&windowEnd, false);
       QUERY_CHECK_CODE(code, lino, _end);
       return true;
@@ -500,8 +502,12 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
     int64_t*         tsList = (int64_t*)pCol->pData;
     TSKEY            lastKey = tsList[pFillInfo->numOfRows - 1];
     numOfRes =
-        taosTimeCountIntervalForFill(lastKey, pFillInfo->currentKey, pFillInfo->interval.sliding,
-                                     pFillInfo->interval.slidingUnit, pFillInfo->interval.precision, pFillInfo->order);
+      taosTimeCountIntervalForFill(lastKey, pFillInfo->currentKey,
+                                   pFillInfo->interval.sliding,
+                                   pFillInfo->interval.slidingUnit,
+                                   pFillInfo->interval.precision,
+                                   pFillInfo->order,
+                                   pFillInfo->interval.timezone);
   } else {  // reach the end of data
     if ((ekey1 < pFillInfo->currentKey && FILL_IS_ASC_FILL(pFillInfo)) ||
         (ekey1 > pFillInfo->currentKey && !FILL_IS_ASC_FILL(pFillInfo))) {
@@ -509,8 +515,12 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
     }
 
     numOfRes =
-        taosTimeCountIntervalForFill(ekey1, pFillInfo->currentKey, pFillInfo->interval.sliding,
-                                     pFillInfo->interval.slidingUnit, pFillInfo->interval.precision, pFillInfo->order);
+      taosTimeCountIntervalForFill(ekey1, pFillInfo->currentKey,
+                                   pFillInfo->interval.sliding,
+                                   pFillInfo->interval.slidingUnit,
+                                   pFillInfo->interval.precision,
+                                   pFillInfo->order,
+                                   pFillInfo->interval.timezone);
   }
 
   return (numOfRes > maxNumOfRows) ? maxNumOfRows : numOfRes;
@@ -898,7 +908,8 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pFillBlock,
   pFillInfo->currentKey = taosTimeAdd(pFillInfo->currentKey,
                                       pInterval->sliding * step,
                                       pInterval->slidingUnit,
-                                      pInterval->precision, NULL);
+                                      pInterval->precision,
+                                      pInterval->timezone);
   pFillInfo->numOfCurrent++;
   pFillBlock->info.rows += 1;
   /*
@@ -1039,7 +1050,8 @@ int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBl
         taosTimeAdd(pFillInfo->currentKey,
                     pInterval->sliding *
                       GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
-                    pInterval->slidingUnit, pInterval->precision, NULL);
+                    pInterval->slidingUnit, pInterval->precision,
+                    pInterval->timezone);
       pFillInfo->indefWindowActive = false;
     }
     if (!pFillBlock) {
@@ -1089,7 +1101,8 @@ int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBl
           taosTimeAdd(pFillInfo->currentKey,
                       pInterval->sliding *
                         GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
-                      pInterval->slidingUnit, pInterval->precision, NULL);
+                      pInterval->slidingUnit, pInterval->precision,
+                      pInterval->timezone);
         pFillInfo->indefWindowActive = false;
         continue;
       }
@@ -1148,7 +1161,8 @@ int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBl
             taosTimeAdd(pFillInfo->currentKey,
                         pInterval->sliding *
                           GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
-                        pInterval->slidingUnit, pInterval->precision, NULL);
+                        pInterval->slidingUnit, pInterval->precision,
+                        pInterval->timezone);
           pFillInfo->indefWindowActive = false;
         }
       } else {
@@ -1157,7 +1171,8 @@ int32_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBl
           taosTimeAdd(pFillInfo->currentKey,
                       pInterval->sliding *
                         GET_FORWARD_DIRECTION_FACTOR(pFillInfo->order),
-                      pInterval->slidingUnit, pInterval->precision, NULL);
+                      pInterval->slidingUnit, pInterval->precision,
+                      pInterval->timezone);
       }
     }
     tryExtractReadyBlocks(pFillInfo, pDstBlock, capacity);

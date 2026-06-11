@@ -458,7 +458,8 @@ int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBl
   if (primaryKeys != NULL) {
     if (ascQuery && primaryKeys[startPos] > pNext->ekey) {
       TSKEY next = primaryKeys[startPos];
-      if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
+      if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit) ||
+          IS_CALENDAR_DAY_DURATION(pInterval->intervalUnit)) {
         pNext->skey = taosTimeTruncate(next, pInterval);
         pNext->ekey = taosTimeGetIntervalEnd(pNext->skey, pInterval);
       } else {
@@ -467,7 +468,8 @@ int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBl
       }
     } else if ((!ascQuery) && primaryKeys[startPos] < pNext->skey) {
       TSKEY next = primaryKeys[startPos];
-      if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
+      if (IS_CALENDAR_TIME_DURATION(pInterval->intervalUnit) ||
+          IS_CALENDAR_DAY_DURATION(pInterval->intervalUnit)) {
         pNext->skey = taosTimeTruncate(next, pInterval);
         pNext->ekey = taosTimeGetIntervalEnd(pNext->skey, pInterval);
       } else {
@@ -3068,7 +3070,8 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
 
   STimeWindow win = {0};
   win.skey = miaInfo->curTs;
-  win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
+  win.ekey = taosTimeAdd(win.skey, pInterval->interval, pInterval->intervalUnit,
+                         pInterval->precision, pInterval->timezone) - 1;
 
   int32_t ret = setSingleOutputTupleBuf(pResultRowInfo, &win, &miaInfo->pResultRow, pSup, &iaInfo->aggSup);
   if (ret != TSDB_CODE_SUCCESS || miaInfo->pResultRow == NULL) {
@@ -3096,7 +3099,8 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
 
     currWin.skey = miaInfo->curTs;
     currWin.ekey =
-        taosTimeAdd(currWin.skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL) - 1;
+        taosTimeAdd(currWin.skey, pInterval->interval, pInterval->intervalUnit,
+                    pInterval->precision, pInterval->timezone) - 1;
 
     startPos = currPos;
     ret = setSingleOutputTupleBuf(pResultRowInfo, &win, &miaInfo->pResultRow, pSup, &iaInfo->aggSup);
