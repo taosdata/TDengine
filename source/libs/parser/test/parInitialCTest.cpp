@@ -13,13 +13,81 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <cstring>
 #include <fstream>
 
+#include "stub.h"
+
 #include "parTestUtil.h"
+
+#include "nodes.h"
 
 using namespace std;
 
 namespace ParserTest {
+
+namespace {
+
+enum class StrictAppendFailure {
+  None,
+  TagColumn,
+  TbnameFunction,
+};
+
+StrictAppendFailure g_strictAppendFailure = StrictAppendFailure::None;
+
+bool shouldFailStrictAppend(SNode* pNode) {
+  if (nullptr == pNode) {
+    return false;
+  }
+
+  if (StrictAppendFailure::TagColumn == g_strictAppendFailure && QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    return 0 == strcmp(pCol->colName, "tag1");
+  }
+
+  if (StrictAppendFailure::TbnameFunction == g_strictAppendFailure && QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    return 0 == strcmp(pFunc->functionName, "tbname");
+  }
+
+  return false;
+}
+
+int32_t strictAppendForTsmaTest(SNodeList** pList, SNode* pNode) {
+  if (shouldFailStrictAppend(pNode)) {
+    nodesDestroyNode(pNode);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (NULL == *pList) {
+    int32_t code = nodesMakeList(pList);
+    if (NULL == *pList) {
+      nodesDestroyNode(pNode);
+      return code;
+    }
+  }
+
+  return nodesListStrictAppend(*pList, pNode);
+}
+
+class StrictAppendStubGuard {
+ public:
+  explicit StrictAppendStubGuard(StrictAppendFailure failure) {
+    g_strictAppendFailure = failure;
+    stub_.set(nodesListMakeStrictAppend, strictAppendForTsmaTest);
+  }
+
+  ~StrictAppendStubGuard() {
+    stub_.reset(nodesListMakeStrictAppend);
+    g_strictAppendFailure = StrictAppendFailure::None;
+  }
+
+ private:
+  Stub stub_;
+};
+
+}  // namespace
 
 class ParserInitialCTest : public ParserDdlTest {};
 
@@ -637,6 +705,20 @@ TEST_F(ParserInitialCTest, createQnode) {
 //  run("CREATE SMA INDEX index2 ON st1 FUNCTION(MAX(c1), MIN(tag1)) INTERVAL(5s) WATERMARK 20s MAX_DELAY 10s "
 //      "DELETE_MARK 1000s");
 //}
+
+TEST_F(ParserInitialCTest, createTsmaClearsTagColumnAfterStrictAppendFailure) {
+  useDb("root", "test");
+  StrictAppendStubGuard stub(StrictAppendFailure::TagColumn);
+
+  run("CREATE TSMA tsma1 ON st1 FUNCTION(AVG(c1)) INTERVAL(1m)", TSDB_CODE_OUT_OF_MEMORY, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserInitialCTest, createTsmaClearsTbnameFunctionAfterStrictAppendFailure) {
+  useDb("root", "test");
+  StrictAppendStubGuard stub(StrictAppendFailure::TbnameFunction);
+
+  run("CREATE TSMA tsma1 ON st1 FUNCTION(AVG(c1)) INTERVAL(1m)", TSDB_CODE_OUT_OF_MEMORY, PARSER_STAGE_TRANSLATE);
+}
 
 /*
  * CREATE SNODE ON DNODE dnode_id
