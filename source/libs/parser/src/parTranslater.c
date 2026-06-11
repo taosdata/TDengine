@@ -18158,7 +18158,9 @@ static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealT
   }
   // TODO(smj) : maybe we can remove tbname function from trigger select list, but some case will fail.
   PAR_ERR_JRET(createTbnameFunction(&pFunc));
-  PAR_ERR_JRET(nodesListMakeStrictAppend(&((SSelectStmt*)*pTriggerSelect)->pProjectionList, (SNode*)pFunc));
+  code = nodesListMakeStrictAppend(&((SSelectStmt*)*pTriggerSelect)->pProjectionList, (SNode*)pFunc);
+  pFunc = NULL;
+  PAR_ERR_JRET(code);
 
   return code;
 _return:

@@ -13,18 +13,55 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <cstring>
 #include <fstream>
 #include <memory>
 
 #include "cJSON.h"
 #include "mockCatalogService.h"
+#include "nodes.h"
 #include "parTestUtil.h"
 #include "plannodes.h"
+#include "stub.h"
 
 using namespace std;
 
 namespace ParserTest {
 class ParserStreamTest : public ParserDdlTest {};
+
+namespace {
+
+int32_t strictAppendFailForTbnameFunction(SNodeList** pList, SNode* pNode) {
+  if (nullptr != pNode && QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (0 == strcmp(pFunc->functionName, "tbname")) {
+      nodesDestroyNode(pNode);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (nullptr == *pList) {
+    int32_t code = nodesMakeList(pList);
+    if (nullptr == *pList) {
+      nodesDestroyNode(pNode);
+      return code;
+    }
+  }
+
+  return nodesListStrictAppend(*pList, pNode);
+}
+
+class StrictAppendTbnameFailureGuard {
+ public:
+  StrictAppendTbnameFailureGuard() { stub_.set(nodesListMakeStrictAppend, strictAppendFailForTbnameFunction); }
+
+  ~StrictAppendTbnameFailureGuard() { stub_.reset(nodesListMakeStrictAppend); }
+
+ private:
+  Stub stub_;
+};
+
+}  // namespace
 
 static const SExternalWindowPhysiNode* pstFindExternalWindowNode(const SPhysiNode* pNode) {
   if (nullptr == pNode) {
@@ -2239,6 +2276,16 @@ TEST_F(ParserStreamTest, TestErrorTriggerstream_options) {
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(pre_filter(c1 > 1) | pre_filter(c2 < 2)) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 stream_options(ignore_disorder|ignore_disorder) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
 
+}
+
+TEST_F(ParserStreamTest, createStreamClearsTbnameFunctionAfterStrictAppendFailure) {
+  useDb("root", "stream_streamdb");
+  setAsyncFlag("-1");
+  StrictAppendTbnameFailureGuard stub;
+
+  run("create stream stream_streamdb.s1 period(1s) from stream_triggerdb.stream_t1 "
+      "stream_options(calc_notify_only) as select avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_OUT_OF_MEMORY, PARSER_STAGE_TRANSLATE);
 }
 
 TEST_F(ParserStreamTest, TestErrorNotify) {
