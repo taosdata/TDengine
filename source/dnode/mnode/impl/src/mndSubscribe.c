@@ -1740,7 +1740,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
     MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, *numOfRows, fqdnStr, fqdn == NULL));
 
     mDebug("mnd show subscriptions: topic %s, consumer:0x%" PRIx64 " cgroup %s vgid %d", varDataVal(topic), consumerId,
-          varDataVal(cgroup), pVgEp->vgId);
+          varDataVal(cgroup), *pVgId);
 
     // offset
     OffsetRows *data = NULL;
@@ -1773,7 +1773,7 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       MND_TMQ_NULL_CHECK(pColInfo);
       colDataSetNULL(pColInfo, *numOfRows);
-      mDebug("mnd show subscriptions: do not find vgId:%d in offsetRows", pVgEp->vgId);
+      mDebug("mnd show subscriptions: do not find vgId:%d in offsetRows", *pVgId);
     }
     (*numOfRows)++;
   }

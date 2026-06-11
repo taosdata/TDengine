@@ -402,7 +402,7 @@ TEST(projectApplyFunctionsTest, scalarFuncNoDoubleFreeOnErrorAndSuccessPath) {
   // --- Test 1: createNewColModel path (pResult->info.rows == 0) ---
   // Exercises colDataAssign; pBlockList must be freed exactly once.
   pResult->info.rows = 0;
-  int32_t code = projectApplyFunctions(&exprInfo, pResult, pSrc, &funcCtx, 1, pPseudoList, nullptr);
+  int32_t code = projectApplyFunctions(&exprInfo, pResult, pSrc, &funcCtx, 1, pPseudoList, nullptr, nullptr);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   ASSERT_EQ(pResult->info.rows, 3);
 
@@ -417,7 +417,7 @@ TEST(projectApplyFunctionsTest, scalarFuncNoDoubleFreeOnErrorAndSuccessPath) {
   // Exercises colDataMergeCol; pBlockList must also be freed exactly once.
   // pResult already has 3 rows; append 3 more.
   ASSERT_EQ(blockDataEnsureCapacity(pResult, 6), TSDB_CODE_SUCCESS);
-  code = projectApplyFunctions(&exprInfo, pResult, pSrc, &funcCtx, 1, pPseudoList, nullptr);
+  code = projectApplyFunctions(&exprInfo, pResult, pSrc, &funcCtx, 1, pPseudoList, nullptr, nullptr);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   ASSERT_EQ(pResult->info.rows, 6);
 
