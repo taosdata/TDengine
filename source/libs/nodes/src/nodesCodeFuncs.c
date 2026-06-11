@@ -2918,13 +2918,14 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    char tzBuf[TD_TIMEZONE_LEN] = {0};
     if (tjsonGetObjectItem(pJson, jkTableScanPhysiPlanTimezoneName) != NULL) {
-      code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanTimezoneName, tzBuf);
+      code = tjsonGetStringValue(pJson, jkTableScanPhysiPlanTimezoneName,
+                                 pNode->timezoneName);
     }
-    if (TSDB_CODE_SUCCESS == code && tzBuf[0] != '\0') {
-      code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
-                                    &pNode->ownsTimezone);
+    if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+      code = nodesDecodeTimezoneNameInPlace(pNode->timezoneName,
+                                            &pNode->timezone,
+                                            &pNode->ownsTimezone);
     }
   }
   return code;
@@ -4086,13 +4087,14 @@ static int32_t jsonToPhysiIntervalNode(const SJson* pJson, void* pObj) {
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    char tzBuf[TD_TIMEZONE_LEN] = {0};
     if (tjsonGetObjectItem(pJson, jkIntervalPhysiPlanTimezoneName) != NULL) {
-      code = tjsonGetStringValue(pJson, jkIntervalPhysiPlanTimezoneName, tzBuf);
+      code = tjsonGetStringValue(pJson, jkIntervalPhysiPlanTimezoneName,
+                                 pNode->timezoneName);
     }
-    if (TSDB_CODE_SUCCESS == code && tzBuf[0] != '\0') {
-      code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
-                                    &pNode->ownsTimezone);
+    if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+      code = nodesDecodeTimezoneNameInPlace(pNode->timezoneName,
+                                            &pNode->timezone,
+                                            &pNode->ownsTimezone);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -6711,6 +6713,7 @@ static const char* jkOperatorType = "OpType";
 static const char* jkOperatorFlag = "OpFlag";
 static const char* jkOperatorLeft = "Left";
 static const char* jkOperatorRight = "Right";
+static const char* jkOperatorTimezoneName = "TimezoneName";
 
 static int32_t operatorNodeToJson(const void* pObj, SJson* pJson) {
   const SOperatorNode* pNode = (const SOperatorNode*)pObj;
@@ -6727,6 +6730,10 @@ static int32_t operatorNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkOperatorRight, nodeToJson, pNode->pRight);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+    code = tjsonAddStringToObject(pJson, jkOperatorTimezoneName,
+                                  pNode->timezoneName);
   }
 
   return code;
@@ -6747,6 +6754,17 @@ static int32_t jsonToOperatorNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkOperatorRight, &pNode->pRight);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (tjsonGetObjectItem(pJson, jkOperatorTimezoneName) != NULL) {
+      code = tjsonGetStringValue(pJson, jkOperatorTimezoneName,
+                                 pNode->timezoneName);
+    }
+    if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+      code = nodesDecodeTimezoneNameInPlace(pNode->timezoneName,
+                                            (void**)&pNode->tz,
+                                            &pNode->ownsTimezone);
+    }
   }
 
   return code;

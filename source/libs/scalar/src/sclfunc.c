@@ -4108,7 +4108,9 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     /* strip 'UTC' prefix if present, keeping the sign character */
     if ((strncasecmp(tzStr, "UTC+", 4) == 0 || strncasecmp(tzStr, "UTC-", 4) == 0)) {
       offStr = tzStr + 3;
-      /* normalize single-digit hour: '+8' → '+08' */
+      /* single-digit hour (UTC+8): strip 'UTC' prefix and pad hour to two
+       * digits: '+8' → '+08'.  No minutes suffix is added — UTC-prefixed
+       * forms without an explicit minute part output ±HH only. */
       if (offStr[1] >= '0' && offStr[1] <= '9' && offStr[2] == '\0') {
         char padded[TD_TIMEZONE_LEN];
         snprintf(padded, sizeof(padded), "%c0%c", offStr[0], offStr[1]);

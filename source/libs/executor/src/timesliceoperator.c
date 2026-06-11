@@ -1014,7 +1014,8 @@ _end:
 
 static int64_t getNextTimestamp(int64_t current, SInterval* pInterval) {
   return taosTimeAdd(current, pInterval->interval,
-                     pInterval->intervalUnit, pInterval->precision, NULL);
+                     pInterval->intervalUnit, pInterval->precision,
+                     pInterval->timezone);
 }
 
 static void doTimesliceImpl(SOperatorInfo* pOperator,
@@ -1142,8 +1143,10 @@ static void genInterpAfterDataBlock(STimeSliceOperatorInfo* pSliceInfo, SOperato
 
   while (pSliceInfo->current <= pSliceInfo->win.ekey) {
     (void)genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock, NULL, index, false, pOperator->pTaskInfo);
-    pSliceInfo->current =
-        taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision, NULL);
+    pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval,
+                                      pInterval->intervalUnit,
+                                      pInterval->precision,
+                                      pInterval->timezone);
   }
 }
 
@@ -1505,6 +1508,29 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream,
   code = nodesCloneNode(pInterpPhyNode->pTimeRange, &pInfo->pWin);
   QUERY_CHECK_CODE(code, lino, _error);
   pInfo->interval.interval = pInterpPhyNode->interval;
+  pInfo->interval.precision = pInterpPhyNode->precision;
+  pInfo->interval.timezone = pInterpPhyNode->timezone;
+  /*
+   * Default to fixed-duration stepping: a 0 unit makes IS_CALENDAR_DAY_DURATION
+   * /IS_CALENDAR_TIME_DURATION false, so calendar mode stays off. pInfo is
+   * calloc'd so these are already 0, but set them explicitly so correctness does
+   * not silently depend on the allocator zeroing the struct.
+   */
+  pInfo->interval.intervalUnit = 0;
+  pInfo->interval.slidingUnit = 0;
+  /*
+   * Enable calendar/DST-aware EVERY stepping (d/w/n/q/y) only when the session
+   * timezone was propagated by the client plan. Plans serialized by pre-upgrade
+   * clients carry no timezone (and no precision), so we keep the historical
+   * fixed-duration stepping by leaving intervalUnit unset -- this keeps a new
+   * server bit-for-bit compatible with old-client plans during a rolling
+   * upgrade, and avoids using a defaulted precision in the calendar-day math.
+   * EVERY(24h) stays fixed regardless.
+   */
+  if (pInterpPhyNode->timezone != NULL) {
+    pInfo->interval.intervalUnit = pInterpPhyNode->intervalUnit;
+    pInfo->interval.slidingUnit = pInterpPhyNode->intervalUnit;
+  }
   pInfo->current = pInfo->win.skey;
   pInfo->prevTsSet = false;
   pInfo->prevKey.ts = INT64_MIN;

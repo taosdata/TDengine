@@ -3806,6 +3806,15 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
     pInterpFunc->precision = pSelect->precision;
   }
 
+  /*
+   * Propagate the session timezone so EVERY calendar units (d/w/n/q/y) advance
+   * by calendar days/months (DST-aware), matching INTERVAL; EVERY(24h) keeps
+   * fixed-duration semantics.
+   */
+  pInterpFunc->timezone = pCxt->pPlanCxt->timezone;
+  tstrncpy(pInterpFunc->timezoneName, pCxt->pPlanCxt->timezoneName,
+           sizeof(pInterpFunc->timezoneName));
+
   if (pSelect->pRangeAround) {
     SNode* pRangeInterval = ((SRangeAroundNode*)pSelect->pRangeAround)->pInterval;
     if (!pRangeInterval || nodeType(pRangeInterval) != QUERY_NODE_VALUE) {

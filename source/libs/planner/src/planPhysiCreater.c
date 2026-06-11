@@ -2892,6 +2892,9 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
     pInterpFunc->fillMode = pFuncLogicNode->fillMode;
     pInterpFunc->intervalUnit = pFuncLogicNode->intervalUnit;
     pInterpFunc->precision = pFuncLogicNode->node.precision;
+    pInterpFunc->timezone = pFuncLogicNode->timezone;
+    tstrncpy(pInterpFunc->timezoneName, pFuncLogicNode->timezoneName,
+             sizeof(pInterpFunc->timezoneName));
     pInterpFunc->pFillValues = NULL;
     pInterpFunc->surroundingTime = pFuncLogicNode->surroundingTime;
     code = nodesCloneNode(pFuncLogicNode->pTimeRange, &pInterpFunc->pTimeRange);

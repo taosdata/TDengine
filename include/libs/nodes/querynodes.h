@@ -233,6 +233,8 @@ typedef struct SOperatorNode {
   SNode*        pLeft;
   SNode*        pRight;
   timezone_t    tz;
+  char          timezoneName[TD_TIMEZONE_LEN]; /* IANA name; serialized when non-empty */
+  bool          ownsTimezone;                  /* true when tz was allocated here (needs tzfree) */
   void*         charsetCxt;
 } SOperatorNode;
 

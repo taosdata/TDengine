@@ -69,15 +69,24 @@ class _SetTimezoneMixin:
                 f"SET TIMEZONE '{tz}': expected one of {expected_any} in {result}"
 
     def check_set_timezone_valid_fixed_offsets(self):
-        """Valid fixed offset formats: +HH:MM, +HHMM, +HH, Z, half-hour, ±14:00."""
+        """Valid fixed offset formats: +HH:MM, +HHMM, +HH, Z, half-hour, ±14:00.
+
+        Note on the flipped expected values: a *bare* fixed offset is parsed with
+        the POSIX sign convention (+ = west, - = east, see normalizeOffsetTzCommon),
+        so SET TIMEZONE '+08:00' means UTC-8 and TO_ISO8601 correctly renders the
+        opposite-sign ISO offset '-08:00'. Z / zero offset is UTC and not flipped.
+        This flip applies ONLY to bare offsets -- IANA names (checked separately in
+        check_set_timezone_valid_iana) carry their true geographic offset and are
+        expected unflipped (e.g. Asia/Shanghai -> +08:00).
+        """
         self._prepare_set_timezone_data()
         valid_offsets = [
-            ('+08:00', ['+08:00']),
-            ('+0800',  ['+0800']),
-            ('+08',    ['+0800']),
-            ('-05:00', ['-05:00']),
-            ('Z',      ['Z']),
-            ('+05:30', ['+05:30']),
+            ('+08:00', ['-08:00']),   # POSIX +08 = west -> ISO -08:00
+            ('+0800',  ['-0800']),
+            ('+08',    ['-0800']),
+            ('-05:00', ['+05:00']),   # POSIX -05 = east -> ISO +05:00
+            ('Z',      ['Z']),        # zero offset (UTC), no flip
+            ('+05:30', ['-05:30']),
         ]
         for tz, expected_any in valid_offsets:
             tdSql.execute(f"SET TIMEZONE '{tz}'")

@@ -246,7 +246,21 @@ static int32_t operatorNodeCopy(const SOperatorNode* pSrc, SOperatorNode* pDst) 
   COPY_SCALAR_FIELD(flag);
   CLONE_NODE_FIELD(pLeft);
   CLONE_NODE_FIELD(pRight);
-  COPY_SCALAR_FIELD(tz);
+  pDst->tz = NULL;
+  pDst->ownsTimezone = false;
+  pDst->timezoneName[0] = '\0';
+  if (pSrc->timezoneName[0] != '\0') {
+    int32_t code = nodesDecodeTimezoneName(pSrc->timezoneName,
+                                           pDst->timezoneName,
+                                           sizeof(pDst->timezoneName),
+                                           (void**)&pDst->tz,
+                                           &pDst->ownsTimezone);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  } else {
+    pDst->tz = pSrc->tz;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1017,6 +1031,8 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   CLONE_NODE_FIELD(pFillValues);
   CLONE_NODE_FIELD(pTimeSeries);
   COPY_SCALAR_FIELD(surroundingTime);
+  COPY_SCALAR_FIELD(timezone);  // borrowed from the plan context; logic nodes never own it
+  COPY_CHAR_ARRAY_FIELD(timezoneName);
   return TSDB_CODE_SUCCESS;
 }
 

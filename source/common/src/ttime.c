@@ -25,6 +25,11 @@
 #include "tcommon.h"
 #include "tlog.h"
 
+/* taosMktime clears errno before calling mktime and returns (time_t)-1 on failure.
+ * But (time_t)-1 is also the valid epoch 1969-12-31 23:59:59 UTC, so a genuine
+ * failure is distinguished only by errno being set. */
+#define TAOS_MKTIME_FAILED(_r) ((_r) == (time_t)-1 && ERRNO != TSDB_CODE_SUCCESS)
+
 static int32_t parseFraction(char* str, char** end, int32_t timePrec, int64_t* pFraction);
 static int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, char delim);
 static int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim, timezone_t tz);
@@ -220,11 +225,18 @@ static bool normalizeOffsetTzCommon(const char *val, char *buf, int32_t bufLen) 
   if (*p != '\0') return false;
   if (hours > 14 || minutes > 59 || (hours == 14 && minutes > 0)) return false;
 
-  /* All offset formats use POSIX sign convention: + = west, - = east */
+  /* Zero offset is always UTC regardless of input format (+0000, -00:00, etc.) */
+  if (hours == 0 && minutes == 0) {
+    tstrncpy(buf, "UTC", bufLen);
+    return true;
+  }
+
+  /* Use "UTC" as the abbreviation for all fixed-offset timezones.
+   * POSIX sign convention: + = west, - = east. */
   if (minutes == 0) {
-    snprintf(buf, bufLen, "<%s>%c%d", val, sign, hours);
+    snprintf(buf, bufLen, "<UTC>%c%d", sign, hours);
   } else {
-    snprintf(buf, bufLen, "<%s>%c%d:%02d", val, sign, hours, minutes);
+    snprintf(buf, bufLen, "<UTC>%c%d:%02d", sign, hours, minutes);
   }
   return true;
 }
@@ -1138,9 +1150,66 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
 
 static bool taosIsLeapYear(int32_t year) { return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)); }
 
+/*
+ * Days since 1970-01-01 for a proleptic Gregorian civil date (Howard Hinnant's
+ * algorithm).  Counts whole local calendar days between two instants in a
+ * DST-independent way, mirroring taosTimeAdd's calendar-day stepping.
+ */
+static int64_t taosDaysFromCivil(int32_t y, int32_t m, int32_t d) {
+  y -= (m <= 2);
+  int64_t era = (y >= 0 ? y : y - 399) / 400;
+  int32_t yoe = (int32_t)(y - era * 400);                          // [0, 399]
+  int32_t doy = (153 * (m > 2 ? m - 3 : m + 9) + 2) / 5 + d - 1;   // [0, 365]
+  int32_t doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;             // [0, 146096]
+  return era * 146097 + doe - 719468;
+}
+
+static bool taosIsCalendarDayDuration(int64_t duration, char unit,
+                                      int32_t precision, int64_t* pDays) {
+  int64_t factor = TSDB_TICK_PER_SECOND(precision);
+  int64_t dayTicks = 86400LL * factor;
+  int64_t unitTicks = 0;
+
+  if (!IS_CALENDAR_DAY_DURATION(unit)) {
+    return false;
+  }
+  unitTicks = (unit == 'w') ? 7LL * dayTicks : dayTicks;
+
+  if (duration % unitTicks != 0) {
+    return false;
+  }
+
+  if (pDays != NULL) {
+    *pDays = (duration / dayTicks);
+  }
+  return true;
+}
+
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, timezone_t tz) {
   if (duration == 0) {
     return t;
+  }
+
+  int64_t numOfDays = 0;
+  if (taosIsCalendarDayDuration(duration, unit, precision, &numOfDays)) {
+    int64_t fraction = t % TSDB_TICK_PER_SECOND(precision);
+
+    struct tm  tm;
+    time_t     tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
+    if(taosLocalTime(&tt, &tm, NULL, 0, tz) == NULL) {
+      uError("failed to convert time to local time, code:%d", ERRNO);
+      return t;
+    }
+
+    tm.tm_mday += (int32_t)numOfDays;
+    tm.tm_isdst = -1;
+
+    tt = taosMktime(&tm, tz);
+    if (TAOS_MKTIME_FAILED(tt)) {
+      uError("failed to convert local time to time, code:%d", ERRNO);
+      return t;
+    }
+    return (int64_t)(tt * TSDB_TICK_PER_SECOND(precision) + fraction);
   }
 
   if (!IS_CALENDAR_TIME_DURATION(unit)) {
@@ -1182,7 +1251,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
   tm.tm_isdst = -1;
 
   tt = taosMktime(&tm, tz);
-  if (tt == -1){
+  if (TAOS_MKTIME_FAILED(tt)) {
     uError("failed to convert gm time to time, code:%d", ERRNO);
     return t;
   }
@@ -1218,8 +1287,10 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
  * For keys need filling, skey >= ekey - ret * interval.
  * Total num of windows is ret + 1(the first window)
  */
-int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision,
-                                     int32_t order) {
+int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey,
+                                     int64_t interval, char unit,
+                                     int32_t precision, int32_t order,
+                                     timezone_t tz) {
   if (ekey < skey) {
     int64_t tmp = ekey;
     ekey = skey;
@@ -1227,7 +1298,30 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
   }
   int32_t ret = 0;
 
-  if (unit != 'n' && unit != 'y') {
+  if (IS_CALENDAR_DAY_DURATION(unit)) {
+    /*
+     * d/w are stored as ticks; count whole local calendar days (DST-aware) so the
+     * estimate matches taosTimeAdd's 23h/25h calendar-day stepping, instead of a
+     * fixed (ekey-skey)/interval that drifts by ±1h across each DST transition.
+     */
+    int64_t factor = (int64_t)(TSDB_TICK_PER_SECOND(precision));
+    int64_t stepDays = interval / (86400LL * factor);
+    if (stepDays <= 0) {
+      stepDays = 1;
+    }
+
+    struct tm stm, etm;
+    time_t    st = (time_t)(skey / factor);
+    time_t    et = (time_t)(ekey / factor);
+    if (taosLocalTime(&st, &stm, NULL, 0, tz) == NULL || taosLocalTime(&et, &etm, NULL, 0, tz) == NULL) {
+      uError("%s failed to convert time to local time, code:%d", __FUNCTION__, ERRNO);
+      return ret;
+    }
+    int64_t dayDiff = taosDaysFromCivil(etm.tm_year + 1900, etm.tm_mon + 1, etm.tm_mday) -
+                      taosDaysFromCivil(stm.tm_year + 1900, stm.tm_mon + 1, stm.tm_mday);
+    ret = (int32_t)(dayDiff / stepDays);
+    if (order == TSDB_ORDER_DESC && (int64_t)ret * stepDays < dayDiff) ret += 1;
+  } else if (unit != 'n' && unit != 'y') {
     ret = (int32_t)((ekey - skey) / interval);
     if (order == TSDB_ORDER_DESC && ret * interval < (ekey - skey)) ret += 1;
   } else {
@@ -1236,14 +1330,14 @@ int32_t taosTimeCountIntervalForFill(int64_t skey, int64_t ekey, int64_t interva
 
     struct tm  tm;
     time_t     t = (time_t)skey;
-    if (taosLocalTime(&t, &tm, NULL, 0, NULL) == NULL) {
+    if (taosLocalTime(&t, &tm, NULL, 0, tz) == NULL) {
       uError("%s failed to convert time to local time, code:%d", __FUNCTION__, ERRNO);
       return ret;
     }
     int32_t    smon = tm.tm_year * 12 + tm.tm_mon;
 
     t = (time_t)ekey;
-    if (taosLocalTime(&t, &tm, NULL, 0, NULL) == NULL) {
+    if (taosLocalTime(&t, &tm, NULL, 0, tz) == NULL) {
       uError("%s failed to convert time to local time, code:%d", __FUNCTION__, ERRNO);
       return ret;
     }
@@ -1319,7 +1413,11 @@ int64_t taosTimeTruncateIANA(int64_t ts, int64_t truncateUnit, int8_t fdow,
   tmInfo.tm_sec  = 0;
   tmInfo.tm_isdst = -1;
   time_t truncated = taosMktime(&tmInfo, tz);
-  return (truncated != (time_t)-1) ? truncated * factor : ts;
+  /*
+   * -1 is also the valid epoch 1969-12-31 23:59:59 UTC;
+   * ERRNO disambiguates a real failure.
+   */
+  return (!TAOS_MKTIME_FAILED(truncated)) ? truncated * factor : ts;
 }
 
 /*
@@ -1386,7 +1484,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
     tm.tm_isdst = -1;
     tt = taosMktime(&tm, pInterval->timezone);
-    if (tt == -1){
+    if (TAOS_MKTIME_FAILED(tt)) {
       uError("%s failed to convert local time to time, code:%d", __FUNCTION__, ERRNO);
       return ts;
     }
@@ -1405,7 +1503,9 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
         if (newe < ts) {  // move towards the greater endpoint
           while (newe < ts && news < ts) {
-            news += pInterval->sliding;
+            int64_t prevNews = news;
+            news = taosTimeAdd(news, pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
+            if (news == prevNews) break;  // taosTimeAdd made no progress (tz/mktime error); avoid infinite loop
             newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
           }
 
@@ -1413,7 +1513,8 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         } else {
           while (newe >= ts) {
             prev = news;
-            news -= pInterval->sliding;
+            news = taosTimeAdd(news, -pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
+            if (news == prev) break;  // taosTimeAdd made no progress (tz/mktime error); avoid infinite loop
             newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
           }
         }
@@ -1435,7 +1536,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
           tm.tm_sec = 0;
           tm.tm_isdst = -1;
           time_t truncated = taosMktime(&tm, pInterval->timezone);
-          if (truncated != (time_t)-1) {
+          if (!TAOS_MKTIME_FAILED(truncated)) {
             start = (int64_t)truncated * (int64_t)TSDB_TICK_PER_SECOND(precision);
           }
         }
@@ -1453,10 +1554,12 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
         if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
           end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
           while (end < ts) {  // move forward to the correct time window
-            start += pInterval->sliding;
+            int64_t prevStart = start;
+            start = taosTimeAdd(start, pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
+            if (start == prevStart) break;  // taosTimeAdd made no progress (tz/mktime error); avoid infinite loop
 
             if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-              end = start + pInterval->interval - 1;
+              end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
             } else {
               end = INT64_MAX;
               break;
@@ -1478,6 +1581,14 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
     while (end >= ts) {
       start = nextStart;
       nextStart = getNextTimeWindowStart(pInterval, start, TSDB_ORDER_DESC);
+      if (nextStart == start) {
+        // taosTimeAdd made no progress (tz/mktime error); avoid infinite loop
+        uError("%s offset window made no progress, ts[%" PRId64 "], start[%" PRId64
+               "], offset[%" PRId64 "(%c)], slid[%" PRId64 "(%c)], precision[%d]",
+               __func__, ts, start, pInterval->offset, pInterval->offsetUnit, pInterval->sliding,
+               pInterval->slidingUnit, precision);
+        break;
+      }
       end = taosTimeGetIntervalEnd(nextStart, pInterval);
     }
   }
@@ -1502,8 +1613,15 @@ void calcIntervalAutoOffset(SInterval* interval) {
   while (news <= skey) {
     start = news;
     news = taosTimeAdd(start, interval->sliding, interval->slidingUnit, interval->precision, interval->timezone);
-    if (news < start) {
-      // overflow happens
+    if (news <= start) {
+      /*
+       * sliding is strictly positive, so a successful taosTimeAdd always advances:
+       * even a DST spring-forward/fall-back only shifts a calendar day by +-1h, so a
+       * +1d step is still 23~25h (> 0) and never maps back to the same instant. Hence
+       * news <= start can only happen when taosTimeAdd returns its input unchanged on
+       * its own overflow/tz/mktime error guards (each already logged). It cannot misfire
+       * on a valid DST boundary; break here to avoid an infinite loop.
+       */
       uError("%s failed and skip, skey [%" PRId64 "], inter[%" PRId64 "(%c)], slid[%" PRId64 "(%c)], precision[%d]",
              __func__, skey, interval->interval, interval->intervalUnit, interval->sliding, interval->slidingUnit,
              interval->precision);

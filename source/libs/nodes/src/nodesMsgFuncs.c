@@ -1351,7 +1351,8 @@ static int32_t msgToRemoteTableNode(STlvDecoder* pDecoder, void* pObj) {
 
 
 
-enum { OPERATOR_CODE_EXPR_BASE = 1, OPERATOR_CODE_OP_TYPE, OPERATOR_CODE_LEFT, OPERATOR_CODE_RIGHT, OPERATOR_CODE_FLAG };
+enum { OPERATOR_CODE_EXPR_BASE = 1, OPERATOR_CODE_OP_TYPE, OPERATOR_CODE_LEFT,
+  OPERATOR_CODE_RIGHT, OPERATOR_CODE_FLAG, OPERATOR_CODE_TIMEZONE_NAME };
 
 static int32_t operatorNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SOperatorNode* pNode = (const SOperatorNode*)pObj;
@@ -1368,6 +1369,10 @@ static int32_t operatorNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, OPERATOR_CODE_RIGHT, nodeToMsg, pNode->pRight);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+    code = tlvEncodeCStr(pEncoder, OPERATOR_CODE_TIMEZONE_NAME,
+                         pNode->timezoneName);
   }
 
   return code;
@@ -1394,6 +1399,15 @@ static int32_t msgToOperatorNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case OPERATOR_CODE_RIGHT:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pRight);
+        break;
+      case OPERATOR_CODE_TIMEZONE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->timezoneName,
+                             sizeof(pNode->timezoneName));
+        if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+          code = nodesDecodeTimezoneNameInPlace(pNode->timezoneName,
+                                                (void**)&pNode->tz,
+                                                &pNode->ownsTimezone);
+        }
         break;
       default:
         break;
@@ -3163,11 +3177,9 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_TABLE_SCAN_CODE_TIMEZONE_NAME:
         code = tlvDecodeCStr(pTlv, pNode->timezoneName, sizeof(pNode->timezoneName));
         if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
-          char tzBuf[TD_TIMEZONE_LEN] = {0};
-          tstrncpy(tzBuf, pNode->timezoneName, sizeof(tzBuf));
-          pNode->timezoneName[0] = '\0';
-          code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
-                                         &pNode->ownsTimezone);
+          code = nodesDecodeTimezoneNameInPlace(pNode->timezoneName,
+                                                &pNode->timezone,
+                                                &pNode->ownsTimezone);
         }
         break;
       default:
@@ -4289,11 +4301,9 @@ static int32_t msgToPhysiIntervalNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_INTERVAL_CODE_TIMEZONE_NAME:
         code = tlvDecodeCStr(pTlv, pNode->timezoneName, sizeof(pNode->timezoneName));
         if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
-          char tzBuf[TD_TIMEZONE_LEN] = {0};
-          tstrncpy(tzBuf, pNode->timezoneName, sizeof(tzBuf));
-          pNode->timezoneName[0] = '\0';
-          code = nodesDecodeTimezoneName(tzBuf, pNode->timezoneName, sizeof(pNode->timezoneName), &pNode->timezone,
-                                         &pNode->ownsTimezone);
+          code = nodesDecodeTimezoneNameInPlace(pNode->timezoneName,
+                                                &pNode->timezone,
+                                                &pNode->ownsTimezone);
         }
         break;
       default:
@@ -4996,6 +5006,8 @@ enum {
   PHY_INERP_FUNC_CODE_TIME_SERIES,
   PHY_INTERP_FUNC_CODE_SURROUNDING_TIME,
   PHY_INERP_FUNC_CODE_TIME_RANGE_EXPR,
+  PHY_INTERP_FUNC_CODE_PRECISION,
+  PHY_INTERP_FUNC_CODE_TIMEZONE_NAME,
 };
 
 static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5031,6 +5043,14 @@ static int32_t physiInterpFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder)
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI64(pEncoder, PHY_INTERP_FUNC_CODE_SURROUNDING_TIME, pNode->surroundingTime);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_INTERP_FUNC_CODE_PRECISION, 
+                       pNode->precision);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+    code = tlvEncodeCStr(pEncoder, PHY_INTERP_FUNC_CODE_TIMEZONE_NAME,
+                         pNode->timezoneName);
   }
 
   return code;
@@ -5075,6 +5095,18 @@ static int32_t msgToPhysiInterpFuncNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_INTERP_FUNC_CODE_SURROUNDING_TIME:
         code = tlvDecodeI64(pTlv, &pNode->surroundingTime);
+        break;
+      case PHY_INTERP_FUNC_CODE_PRECISION:
+        code = tlvDecodeI8(pTlv, &pNode->precision);
+        break;
+      case PHY_INTERP_FUNC_CODE_TIMEZONE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->timezoneName,
+                             sizeof(pNode->timezoneName));
+        if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+          code = nodesDecodeTimezoneNameInPlace(pNode->timezoneName,
+                                                &pNode->timezone,
+                                                &pNode->ownsTimezone);
+        }
         break;
       default:
         break;

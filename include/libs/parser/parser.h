@@ -162,6 +162,7 @@ typedef struct SParseContext {
   SArray*     pSubMetaList;
   setQueryFn  setQueryFp;
   timezone_t  timezone;
+  char        timezoneName[TD_TIMEZONE_LEN]; /* IANA name matching timezone; needed for expr serialization */
   void*       charsetCxt;
   int8_t      firstDayOfWeek;  /* 0-6; -1 = not set (use global tsFirstDayOfWeek) */
 } SParseContext;
