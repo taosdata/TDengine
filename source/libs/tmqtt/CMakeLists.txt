@@ -1,10 +1,12 @@
 add_subdirectory(mgmt)
 
-if(TD_LINUX)
+if(TD_LINUX OR TD_WINDOWS)
 
-find_path(HAVE_SYS_EPOLL_H sys/epoll.h)
-if (HAVE_SYS_EPOLL_H)
-	add_definitions("-DWITH_EPOLL")
+if(TD_LINUX)
+    find_path(HAVE_SYS_EPOLL_H sys/epoll.h)
+    if (HAVE_SYS_EPOLL_H)
+        add_definitions("-DWITH_EPOLL")
+    endif()
 endif()
 
 aux_source_directory(mqtt/src MQTT_SRC)
@@ -43,9 +45,14 @@ target_link_libraries(
     taosmqtt
     PRIVATE util common ${TAOS_NATIVE_LIB_STATIC} mqtt
 )
+if(TD_WINDOWS)
+    target_link_libraries(taosmqtt PRIVATE ws2_32)
+endif()
 
-# topic tool
-add_subdirectory(tools)
+# topic tool (unix-only: links pthread)
+if(TD_LINUX)
+    add_subdirectory(tools)
+endif()
 
 endif()
 
