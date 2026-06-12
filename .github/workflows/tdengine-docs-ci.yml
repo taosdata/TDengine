@@ -171,15 +171,15 @@ jobs:
           cd ${{ env.DOC_WKC }}/${{ env.ZH_DOC_REPO }}
           rm -rf build/* && rm -rf docs/* && git restore docs/ 
           git checkout -f master && git pull origin master 
-          yarn install 
-          yarn ass local
-          yarn build
+          pnpm install 
+          pnpm ass local
+          pnpm build
       - name: Build the english document
         if: ${{ steps.check-doc-lang.outputs.en_doc_changed == 'true'}}
         run: |
           cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
           rm -rf build/* && rm -rf docs/* && git restore docs/
           git checkout -f main && git pull origin main 
-          yarn install 
-          yarn ass local
-          yarn build
+          pnpm install 
+          pnpm ass local
+          pnpm build
