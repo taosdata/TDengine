@@ -262,13 +262,13 @@ _OVER:
 }
 
 static int32_t mndProcessCreateBnodeReq(SRpcMsg *pReq) {
-  SMnode          *pMnode = pReq->info.node;
-  int32_t          code = -1;
+  SMnode  *pMnode = pReq->info.node;
+  int32_t  code = -1;
+
+#if defined(LINUX) || defined(WINDOWS)
   SBnodeObj       *pObj = NULL;
   SDnodeObj       *pDnode = NULL;
   SMCreateBnodeReq createReq = {0};
-
-  #ifdef LINUX
 
   TAOS_CHECK_GOTO(tDeserializeSMCreateBnodeReq(pReq->pCont, pReq->contLen, &createReq), NULL, _OVER);
 
