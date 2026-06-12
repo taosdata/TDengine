@@ -159,6 +159,69 @@ class TestTaosBackupCommandline:
         self.verifyResult(db, newdb, jsonFile)
         tdSql.execute(f"drop database if exists {newdb}")
 
+    def checkPassword(self, db, tmpdir):
+        """Test taosBackup password argument parsing."""
+        pwdFile = os.path.join(os.path.dirname(os.path.abspath(tmpdir)), "taosbackup_pwd.txt")
+        with open(pwdFile, "w") as file:
+            file.write("taosdata\n")
+
+        validItems = [
+            f"-uroot -ptaosdata -D {db} -o {tmpdir}",
+            f"-uroot --password=taosdata -D {db} -o {tmpdir}",
+            f"-uroot -p < {pwdFile} -D {db} -o {tmpdir}",
+            f"-uroot --password < {pwdFile} -D {db} -o {tmpdir}",
+        ]
+
+        for command in validItems:
+            self.clearPath(tmpdir)
+            rlist = etool.taosdump(command)
+            self.checkManyString(rlist, [RESULT_SUCCESS])
+
+        rlist = etool.taosdump("--help")
+        self.checkManyString(rlist, [
+            "-pPASSWORD",
+            "--password=PASSWORD",
+        ])
+
+        errorItems = [
+            [
+                f"-uroot -p taosdata -D {db} -o {tmpdir}",
+                [
+                    "option -p does not accept a separated password argument: taosdata",
+                    "or use \"-pPASSWORD\"/\"--password=PASSWORD\".",
+                ],
+            ],
+            [
+                f"-uroot --password taosdata -D {db} -o {tmpdir}",
+                [
+                    "option --password does not accept a separated password argument: taosdata",
+                    "or use \"-pPASSWORD\"/\"--password=PASSWORD\".",
+                ],
+            ],
+            [
+                f"-uroot --passwordxxx -D {db} -o {tmpdir}",
+                ["unknown option: --passwordxxx"],
+            ],
+        ]
+
+        for command, results in errorItems:
+            self.clearPath(tmpdir)
+            rlist = etool.taosdump(command, checkRun=False, retFail=True)
+            self.checkManyString(rlist, results)
+
+    def checkUser(self, db, tmpdir):
+        """Test user argument parsing, including old taosdump -uUSER form."""
+        validItems = [
+            f"-u root -D {db} -o {tmpdir}",
+            f"-uroot -D {db} -o {tmpdir}",
+            f"--user=root -D {db} -o {tmpdir}",
+        ]
+
+        for command in validItems:
+            self.clearPath(tmpdir)
+            rlist = etool.taosdump(command)
+            self.checkManyString(rlist, [RESULT_SUCCESS])
+
     def checkExcept(self, command):
         """Check that a command fails with non-zero exit code."""
         try:
@@ -372,7 +435,13 @@ class TestTaosBackupCommandline:
 
         1. Insert data with taosBenchmark (full type)
         2. Test backup/restore with Native, WebSocket, DSN modes
-        3. Test basic commandline arguments:
+        3. Test password argument parsing:
+           - -pPASSWORD and --password=PASSWORD
+           - interactive -p/--password via stdin redirection
+           - reject separated password arguments and invalid --password prefix
+        4. Test user argument parsing:
+           - -u root, -uroot, and --user=root
+        5. Test basic commandline arguments:
            - -V version
            - --help
            - -s schemaonly
@@ -381,7 +450,7 @@ class TestTaosBackupCommandline:
            - -Z native/websocket driver
            - -F binary/parquet format
            - -g debug mode (backup succeeds with richer output)
-        4. Test invalid commandline arguments (all errors occur at parse time):
+        6. Test invalid commandline arguments (all errors occur at parse time):
            - Invalid driver (-Z invalid)
            - Invalid format (-F unknown)
            - Invalid stmt-version value (-v 99)
@@ -392,11 +461,11 @@ class TestTaosBackupCommandline:
            - -B exceeds STMT2 max (16385 with -v 2 or default)
            - -T 0, -m 0 (thread count must be >= 1)
            - -P out of range (0, 65536, 99999) — parse-time check
-        5. Test connection mode priority: cmd > env variable (TDENGINE_CLOUD_DSN)
-        6. Test -B/-v boundary values for restore:
+        7. Test connection mode priority: cmd > env variable (TDENGINE_CLOUD_DSN)
+        8. Test -B/-v boundary values for restore:
            - STMT2: B=1 (min), B=10000 (default), B=16384 (max)
            - STMT1: B=1 (min), B=60000 (default), B=100000 (max)
-        7. Test -c / --config-dir parameter:
+        9. Test -c / --config-dir parameter:
            - short form (-c /etc/taos) accepted, shown in Config Dir summary line
            - long form (--config-dir=/etc/taos) works identically
            - custom path reflected in summary output
@@ -430,25 +499,33 @@ class TestTaosBackupCommandline:
             self.dumpInOutMode(mode, db, jsonFile, tmpdir)
         tdLog.info("2. native/websocket/dsn dump in/out ................ [Passed]")
 
-        # 3. basic commandline
+        # 3. password argument parsing
+        self.checkPassword(db, tmpdir)
+        tdLog.info("3. password argument parsing ....................... [Passed]")
+
+        # 4. user argument parsing
+        self.checkUser(db, tmpdir)
+        tdLog.info("4. user argument parsing ........................... [Passed]")
+
+        # 5. basic commandline
         self.basicCommandLine(taosbackup, db, tmpdir)
-        tdLog.info("3. basic commandline arguments ...................... [Passed]")
+        tdLog.info("5. basic commandline arguments ...................... [Passed]")
 
-        # 4. except commandline (expected failures)
+        # 6. except commandline (expected failures)
         self.exceptCommandLine(taosbackup, db, tmpdir)
-        tdLog.info("4. except commandline arguments ..................... [Passed]")
+        tdLog.info("6. except commandline arguments ..................... [Passed]")
 
-        # 5. check conn mode priority
+        # 7. check conn mode priority
         self.checkConnMode(db, tmpdir)
-        tdLog.info("5. check conn mode priority ......................... [Passed]")
+        tdLog.info("7. check conn mode priority ......................... [Passed]")
 
-        # 6. -B/-v boundary values for restore (STMT2 and STMT1)
+        # 8. -B/-v boundary values for restore (STMT2 and STMT1)
         self.checkDataBatch(db, jsonFile, tmpdir)
-        tdLog.info("6. data-batch -B/-v boundary restore tests ......... [Passed]")
+        tdLog.info("8. data-batch -B/-v boundary restore tests ......... [Passed]")
 
-        # 7. -c / --config-dir parameter
+        # 9. -c / --config-dir parameter
         self.checkConfigDir(db, tmpdir)
-        tdLog.info("7. config-dir -c/--config-dir tests ................. [Passed]")
+        tdLog.info("9. config-dir -c/--config-dir tests ................. [Passed]")
 
     def test_taosbackup_all_databases(self):
         """taosBackup backup without -D to exercise getAllDatabases() in backup.c

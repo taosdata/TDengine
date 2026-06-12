@@ -160,17 +160,21 @@ static void printEndSummary(enum ActionType action, int code, double elapsed) {
     } else {
         printf("  File Size    : %.2f MB\n", sizeMB);
     }
-    if (elapsed >= 3600.0) {
-        int hours = (int)(elapsed / 3600);
-        int mins  = (int)((elapsed - hours * 3600) / 60);
-        double secs = elapsed - hours * 3600 - mins * 60;
-        printf("  Elapsed Time : %d hours %d mins %.2f seconds\n", hours, mins, secs);
-    } else if (elapsed >= 60.0) {
-        int mins  = (int)(elapsed / 60);
-        double secs = elapsed - mins * 60;
-        printf("  Elapsed Time : %d mins %.2f seconds\n", mins, secs);
+    int elapsedSecs = (int)elapsed;
+    if (elapsedSecs < 1) {
+        elapsedSecs = 1;
+    }
+    if (elapsedSecs >= 3600) {
+        int hours = elapsedSecs / 3600;
+        int mins  = (elapsedSecs % 3600) / 60;
+        int secs  = elapsedSecs % 60;
+        printf("  Elapsed Time : %d hours %d mins %d seconds\n", hours, mins, secs);
+    } else if (elapsedSecs >= 60) {
+        int mins = elapsedSecs / 60;
+        int secs = elapsedSecs % 60;
+        printf("  Elapsed Time : %d mins %d seconds\n", mins, secs);
     } else {
-        printf("  Elapsed Time : %.2f seconds\n", elapsed);
+        printf("  Elapsed Time : %d seconds\n", elapsedSecs);
     }
     printf("===========================================================================\n");
     printf("\n");

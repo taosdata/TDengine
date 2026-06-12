@@ -86,7 +86,9 @@ static void printUsage(const char *prog) {
     printf("  or:  %s [OPTION...] --databases db1,db2,...\n", prog);
     printf("\nOptions:\n");
     printf("  -h, --host=HOST            Server host. Default is localhost.\n");
-    printf("  -p, --password=PASSWORD    User password. Default is taosdata.\n");
+    printf("  -p, --password             Prompt for password.\n");
+    printf("      -pPASSWORD             Use PASSWORD directly, no space.\n");
+    printf("      --password=PASSWORD    Use PASSWORD directly.\n");
     printf("  -P, --port=PORT            Server port. Default is 6030.\n");
     printf("  -u, --user=USER            User name. Default is root.\n");
     printf("  -c, --config-dir=CONFIG_DIR Configure directory.\n");
@@ -174,6 +176,33 @@ static const char* matchLong(int argc, char *argv[], int *pi, const char *name, 
     }
 
     return NULL;  // no match
+}
+
+static bool isSeparatedPasswordArg(int argc, char *argv[], int index) {
+    return (index + 1 < argc)
+        && (strlen(argv[index + 1]) > 0)
+        && (argv[index + 1][0] != '-');
+}
+
+static void printSeparatedPasswordArgError(const char *option, const char *password) {
+    fprintf(stderr, "option %s does not accept a separated password argument: %s\n"
+            "Use \"-p\"/\"--password\" to enter password interactively, "
+            "or use \"-pPASSWORD\"/\"--password=PASSWORD\".\n",
+            option, password);
+}
+
+static int readPasswordFromTerminal(void) {
+    memset(g_password, 0, sizeof(g_password));
+    (void)printf("Enter password: ");
+    (void)taosSetConsoleEcho(false);
+    if (scanf("%127s", g_password) != 1) {
+        (void)taosSetConsoleEcho(true);
+        (void)fprintf(stderr, "password reading error\n");
+        return -1;
+    }
+    (void)taosSetConsoleEcho(true);
+    (void)printf("\n");
+    return 0;
 }
 
 //
@@ -386,10 +415,25 @@ int argsInit(int argc, char *argv[]) {
                  (val = matchLong(argc, argv, &i, "--user", 1))) {
             snprintf(g_user, sizeof(g_user), "%s", val);
         }
+        else if (strlen(argv[i]) > strlen("-u")
+                 && strncmp(argv[i], "-u", strlen("-u")) == 0) {
+            snprintf(g_user, sizeof(g_user), "%s", argv[i] + strlen("-u"));
+        }
         // ---- password ----
-        else if ((strcmp(argv[i], "-p") == 0 && i + 1 < argc && (val = argv[++i])) ||
-                 (val = matchLong(argc, argv, &i, "--password", 1))) {
-            snprintf(g_password, sizeof(g_password), "%s", val);
+        else if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--password") == 0) {
+            if (isSeparatedPasswordArg(argc, argv, i)) {
+                printSeparatedPasswordArgError(argv[i], argv[i + 1]);
+                return -1;
+            }
+            if (readPasswordFromTerminal() != 0) {
+                return -1;
+            }
+        }
+        else if (strncmp(argv[i], "-p", strlen("-p")) == 0) {
+            snprintf(g_password, sizeof(g_password), "%s", argv[i] + strlen("-p"));
+        }
+        else if (strncmp(argv[i], "--password=", strlen("--password=")) == 0) {
+            snprintf(g_password, sizeof(g_password), "%s", argv[i] + strlen("--password="));
         }
         // ---- start-time ----
         else if ((strcmp(argv[i], "-S") == 0 && i + 1 < argc && (val = argv[++i])) ||

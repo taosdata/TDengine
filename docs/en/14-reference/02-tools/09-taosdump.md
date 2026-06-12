@@ -66,7 +66,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...] -o outpath
 | `-P, --port=PORT` | TDengine server port. Default: `6030` |
 | `-c, --config-dir=CONFIG_DIR` | Directory containing the `taos.cfg` configuration file. If not specified, the default path is used |
 | `-u, --user=USER` | Username for the connection. Default: `root` |
-| `-p, --password=PASSWORD` | Password for the connection. Default: `taosdata` |
+| `-p, --password` | Prompt for the connection password. You can also specify the password on the command line with `-pPASSWORD` or `--password=PASSWORD`. Default: `taosdata` |
 | `-o, --outpath=OUTPATH` | Output directory for backup files. Default: `./output` |
 | `-i, --inpath=INPATH` | Input path containing backup files for restore operations |
 | `-D, --databases=DATABASES` | Databases to back up or restore. Separate multiple databases with commas. If omitted, all user databases are processed |
@@ -155,7 +155,7 @@ After backup or restore completes, taosdump prints the final statistics summary:
   Child Tables : 5000 (data exported)
   Normal Tables: 2
   Total Rows   : 50000000
-  Elapsed      : 45.23 s
+  Elapsed      : 45 s
 ===========================================================================
 ```
 
@@ -292,6 +292,45 @@ taosdump -i /root/backup/ -X "https://cloud-host?token=<TOKEN>"
 ```
 
 Restore data through a DSN connection to TDengine Cloud. The driver automatically switches to `WebSocket`.
+
+### Enter the Connection Password
+
+If no password option is specified, taosdump uses the default password `taosdata`. To enter a password, the recommended method is interactive input, which avoids exposing the password in shell history or process lists:
+
+```bash
+taosdump -u root -p -D test -o /root/backup/
+```
+
+You can also use the long option to enter the password interactively:
+
+```bash
+taosdump -u root --password -D test -o /root/backup/
+```
+
+To specify the password directly on the command line, the short option must be followed by the password without a space:
+
+```bash
+taosdump -u root -ptaosdata -D test -o /root/backup/
+```
+
+For the long option, use the equals-sign form:
+
+```bash
+taosdump -u root --password=taosdata -D test -o /root/backup/
+```
+
+The following forms are not supported. taosdump treats them as password option usage errors:
+
+```bash
+taosdump -u root -p taosdata -D test -o /root/backup/
+taosdump -u root --password taosdata -D test -o /root/backup/
+```
+
+If you need to enter the password interactively and specify the database name as a positional argument, use `--` to explicitly end option parsing, or use `-D` to specify the database. Using `-D` is recommended:
+
+```bash
+taosdump -u root -p -D test -o /root/backup/
+```
 
 ## New Version Behavior Changes
 

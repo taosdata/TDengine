@@ -66,7 +66,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...] -o outpath
 | `-P, --port=PORT` | 要连接的 TDengine 服务端端口号，默认值为 6030 |
 | `-c, --config-dir=CONFIG_DIR` | 指定 taos.cfg 配置文件所在目录，不指定使用默认路径 |
 | `-u, --user=USER` | 连接用户名，默认值为 root |
-| `-p, --password=PASSWORD` | 连接密码，默认值为 taosdata |
+| `-p, --password` | 交互式输入连接密码。也可使用 `-pPASSWORD` 或 `--password=PASSWORD` 在命令行中指定密码。默认值为 taosdata |
 | `-o, --outpath=OUTPATH` | 备份输出目录路径，默认值为 ./output |
 | `-i, --inpath=INPATH` | 恢复操作时指定备份文件所在的输入路径 |
 | `-D, --databases=DATABASES` | 指定要备份/恢复的数据库，多个库以逗号分隔；不指定则默认操作所有用户数据库 |
@@ -292,6 +292,45 @@ taosdump -i /root/backup/ -X "https://cloud-host?token=<TOKEN>"
 ```
 
 通过 DSN 连接 TDengine Cloud 服务进行数据恢复，驱动类型自动切换为 WebSocket。
+
+### 输入连接密码
+
+如果不指定密码参数，taosdump 使用默认密码 `taosdata`。需要输入密码时，推荐使用交互式输入，避免密码出现在命令历史或进程列表中：
+
+```bash
+taosdump -u root -p -D test -o /root/backup/
+```
+
+也可以使用长选项交互式输入密码：
+
+```bash
+taosdump -u root --password -D test -o /root/backup/
+```
+
+如需在命令行中直接指定密码，短选项必须与密码紧贴，中间不能有空格：
+
+```bash
+taosdump -u root -ptaosdata -D test -o /root/backup/
+```
+
+长选项直接指定密码时，请使用等号形式：
+
+```bash
+taosdump -u root --password=taosdata -D test -o /root/backup/
+```
+
+以下写法不支持，taosdump 会将其判定为密码参数使用错误：
+
+```bash
+taosdump -u root -p taosdata -D test -o /root/backup/
+taosdump -u root --password taosdata -D test -o /root/backup/
+```
+
+如果要在交互式输入密码的同时通过位置参数指定数据库名，请使用 `--` 明确结束选项解析，或改用 `-D` 指定数据库。推荐使用 `-D`：
+
+```bash
+taosdump -u root -p -D test -o /root/backup/
+```
 
 ## 新版本行为变更
 
