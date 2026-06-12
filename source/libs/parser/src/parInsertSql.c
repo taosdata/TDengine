@@ -2078,6 +2078,38 @@ static void setUserAuthInfo(SParseContext* pCxt, SName* pTbName, SUserAuthInfo* 
   pInfo->objType = PRIV_OBJ_TBL;
 }
 
+// Check CREATE TABLE privilege on the database of pTbName.
+// Uses the same sync/async/cache-miss logic as checkAuth().
+static int32_t checkCreateTableAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache) {
+  SUserAuthInfo authInfo = {.userId = pCxt->userId,
+                            .tbName = {.acctId = pTbName->acctId, .type = TSDB_DB_NAME_T},
+                            .privType = PRIV_TBL_CREATE,
+                            .objType = PRIV_OBJ_DB};
+  (void)snprintf(authInfo.user, sizeof(authInfo.user), "%s", pCxt->pUser);
+  (void)snprintf(authInfo.tbName.dbname, sizeof(authInfo.tbName.dbname), "%s", pTbName->dbname);
+
+  SUserAuthRes authRes = {0};
+  SUserAuthRsp authRsp = {.exists = 1};
+  int32_t      code = 0;
+  if (pCxt->async) {
+    code = catalogChkAuthFromCache(pCxt->pCatalog, &authInfo, &authRes, &authRsp);
+    if (TSDB_CODE_SUCCESS == code && 0 == authRsp.exists) {
+      if(pMissCache) *pMissCache = true;
+      return TSDB_CODE_SUCCESS;
+    }
+  } else {
+    SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
+                             .requestId = pCxt->requestId,
+                             .requestObjRefId = pCxt->requestRid,
+                             .mgmtEps = pCxt->mgmtEpSet};
+    code = catalogChkAuth(pCxt->pCatalog, &conn, &authInfo, &authRes);
+  }
+  if (TSDB_CODE_SUCCESS == code && !authRes.pass[AUTH_RES_BASIC]) {
+    code = TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  return code;
+}
+
 static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool isAudit, bool* pMissCache, bool* pWithInsertCond, SNode** pTagCond,
                          SArray** pPrivCols) {
   int32_t       code = TSDB_CODE_SUCCESS;
@@ -2359,6 +2391,38 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
     *ctbCacheHit = true;
   }
 _no_ctb_cache:
+  // Check INSERT privilege on the super table.
+  // For the non-USING path this is done in getTargetTableSchema() → checkAuth(). We mirror it here.
+  // async second-round coverage: checkAuthFromMetaData() only runs when *pQuery != NULL (second round);
+  // the first-round sync path (createInsertQuery) performs no auth, so this call is always needed.
+  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
+    bool    missCache = false;
+    SNode*  pTagCond = NULL;
+    SArray* pPrivCols = NULL;
+    bool    withInsertCond = false;
+    code = checkAuth(pCxt->pComCxt, &pStmt->usingTableName, false, &missCache, &withInsertCond, &pTagCond, &pPrivCols);
+    if (TSDB_CODE_SUCCESS == code) {
+      if (!missCache) {
+        // Propagate row-condition and column-privilege to pStmt, exactly as getTargetTableSchema() does,
+        // so that tag-value privilege checks (checkSubtablePrivilege) and column-level INSERT
+        // restrictions are enforced for the super table on the USING write path.
+        if (pPrivCols) pStmt->pPrivCols = pPrivCols;
+        pStmt->pTagCond = pTagCond;
+        if (withInsertCond && !pCxt->pComCxt->isSuperUser && pTagCond == NULL) {
+          pCxt->needTableTagVal = true;
+        }
+      } else {
+        pCxt->missCache = true;
+        nodesDestroyNode(pTagCond);
+        taosArrayDestroy(pPrivCols);
+      }
+    }
+  }
+  // ctb does not exist: will be auto-created. Check CREATE TABLE privilege on the db.
+  // !missCache guard: async cache-miss defers to the second round (processTableSchemaFromMetaData).
+  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache && !(*ctbCacheHit)) {
+    code = checkCreateTableAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     if (*ctbCacheHit) {
       code = cloneTableMeta(pCtableMeta, &pStmt->pTableMeta);
@@ -4497,6 +4561,14 @@ static int32_t processTableSchemaFromMetaData(SInsertParseContext* pCxt, const S
   int32_t code = TSDB_CODE_SUCCESS;
   if (!isStb && TSDB_SUPER_TABLE == pStmt->pTableMeta->tableType) {
     code = buildInvalidOperationMsg(&pCxt->msg, "insert data into super table is not supported");
+  }
+
+  // Async second-round: pTableMeta[1] is ctb meta; absent/error means ctb does not exist yet.
+  if (TSDB_CODE_SUCCESS == code && isStb && taosArrayGetSize(pMetaData->pTableMeta) >= 2) {
+    SMetaRes* pCtbRes = TARRAY_GET_ELEM(pMetaData->pTableMeta, 1);
+    if (pCtbRes->code != TSDB_CODE_SUCCESS || pCtbRes->pRes == NULL) {
+      code = checkCreateTableAuth(pCxt->pComCxt, &pStmt->targetTableName, NULL);
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code && isStb) {

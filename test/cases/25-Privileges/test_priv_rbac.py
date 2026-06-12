@@ -1758,6 +1758,324 @@ class TestCase:
         tdSql.execute("drop user u_pass_a")
         tdSql.execute("drop user u_pass_b")
 
+    def do_check_insert_using_auto_create_privileges(self):
+        """7008354205: Test INSERT INTO ... USING ... TAGS(...) permission checks.
+
+        Covers the fix for the bypass bug where INSERT...USING routed through
+        parseInsertSql (not authInsert), skipping all privilege checks.
+
+        Scenarios:
+          Single-stb, 1 row:
+            A. ctb exists,     no INSERT priv  → Permission denied
+            B. ctb exists,     has INSERT priv → OK
+            C. ctb not exist,  has INSERT, no CREATE TABLE priv → Permission denied
+            D. ctb not exist,  has INSERT, has CREATE TABLE priv → OK (auto-create)
+
+          Single-stb, 2 rows (mixed: one ctb exists, one doesn't):
+            E. no INSERT priv                            → Permission denied
+            F. has INSERT, no CREATE TABLE               → Permission denied
+            G. has INSERT, has CREATE TABLE              → OK
+
+          Single-stb, 3 rows:
+            H. all ctb exist,     no INSERT priv         → Permission denied
+            I. all ctb not exist, no INSERT priv         → Permission denied
+            J. all ctb not exist, has INSERT+CREATE      → OK
+
+          Two-stb, 2 rows:
+            K. stb0 has INSERT, stb1 no INSERT           → Permission denied
+            L. stb0 no INSERT,  stb1 no INSERT           → Permission denied
+            M. stb0 has INSERT+CREATE, stb1 has INSERT+CREATE → OK
+            N. cross: stb0 ctb exists+INSERT, stb1 ctb not exist+no CREATE → Permission denied
+        """
+        tdSql.connect("root", "taosdata")
+
+        # ── Setup ──────────────────────────────────────────────────────────────
+        for stmt in [
+            "drop database if exists d_using",
+            "drop user u_using_none",
+            "drop user u_using_ins",
+            "drop user u_using_full",
+        ]:
+            try:
+                tdSql.execute(stmt, queryTimes=1)
+            except Exception:
+                pass
+
+        tdSql.execute("create database d_using keep 36500")
+        tdSql.execute("create table d_using.stb0 (ts timestamp, c0 int) tags(t0 int)")
+        tdSql.execute("create table d_using.stb1 (ts timestamp, c0 int) tags(t0 int)")
+        # Pre-create ctb0 and ctb1 (under stb0), ctb10 (under stb1)
+        tdSql.execute("create table d_using.ctb0 using d_using.stb0 tags(0)")
+        tdSql.execute("create table d_using.ctb1 using d_using.stb0 tags(1)")
+        tdSql.execute("create table d_using.ctb10 using d_using.stb1 tags(0)")
+
+        # u_using_none: use-db only, no INSERT, no CREATE TABLE
+        tdSql.execute(f"create user u_using_none pass '{self.test_pass}'")
+        tdSql.execute("grant use on database d_using to u_using_none")
+        tdSql.execute("revoke role `SYSINFO_1` from u_using_none")
+
+        # u_using_ins: use-db + INSERT on both stbs, but no CREATE TABLE
+        tdSql.execute(f"create user u_using_ins pass '{self.test_pass}'")
+        tdSql.execute("grant use on database d_using to u_using_ins")
+        tdSql.execute("grant insert on table d_using.stb0 to u_using_ins")
+        tdSql.execute("grant insert on table d_using.stb1 to u_using_ins")
+        tdSql.execute("revoke role `SYSINFO_1` from u_using_ins")
+
+        # u_using_full: use-db + INSERT on both stbs + CREATE TABLE on db
+        tdSql.execute(f"create user u_using_full pass '{self.test_pass}'")
+        tdSql.execute("grant use on database d_using to u_using_full")
+        tdSql.execute("grant insert on table d_using.stb0 to u_using_full")
+        tdSql.execute("grant insert on table d_using.stb1 to u_using_full")
+        tdSql.execute("grant create table on database d_using to u_using_full")
+        tdSql.execute("revoke role `SYSINFO_1` from u_using_full")
+
+        # ── u_using_none: use-db only, no INSERT, no CREATE TABLE ────────────
+        # Covers: A, E, H, I, L
+
+        tdSql.connect("u_using_none", self.test_pass)
+        time.sleep(5)  # wait for privilege propagation
+
+        # A: single row, ctb0 exists → Permission denied
+        tdSql.error(
+            "insert into d_using.ctb0 using d_using.stb0 tags(0) values(now, 1)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+        # E: 2 rows same stb, mixed ctb-exist (ctb0 exists, ctb6 not exist) → Permission denied
+        tdSql.error(
+            "insert into d_using.ctb0 using d_using.stb0 tags(0) values(now, 2) "
+            "d_using.ctb6 using d_using.stb0 tags(6) values(now, 2)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+        # H: 3 rows same stb, all ctb exist (ctb0, ctb1, ctb5 all pre-created) → Permission denied
+        tdSql.error(
+            "insert into d_using.ctb0 using d_using.stb0 tags(0) values(now, 5) "
+            "d_using.ctb1 using d_using.stb0 tags(1) values(now, 5) "
+            "d_using.ctb5 using d_using.stb0 tags(5) values(now, 5)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+        # I: 3 rows same stb, all ctb not exist (ctb7, ctb8, ctb9) → Permission denied
+        tdSql.error(
+            "insert into d_using.ctb7 using d_using.stb0 tags(7) values(now, 6) "
+            "d_using.ctb8 using d_using.stb0 tags(8) values(now, 6) "
+            "d_using.ctb9 using d_using.stb0 tags(9) values(now, 6)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+        # L: 2 rows two-stb, both ctb exist, both stb no INSERT → Permission denied
+        tdSql.error(
+            "insert into d_using.ctb0 using d_using.stb0 tags(0) values(now, 9) "
+            "d_using.ctb10 using d_using.stb1 tags(0) values(now, 9)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+
+        # ── u_using_ins: INSERT on both stbs, no CREATE TABLE ─────────────────
+        # Covers: B, C, F
+
+        tdSql.connect("u_using_ins", self.test_pass)
+        time.sleep(5)
+
+        # B: single row, ctb0 exists, has INSERT → OK; verify row written
+        tdSql.execute("insert into d_using.ctb0 using d_using.stb0 tags(0) values(now, 1)")
+
+        # C: single row, ctb5 not exist, has INSERT but no CREATE TABLE → Permission denied
+        tdSql.error(
+            "insert into d_using.ctb5 using d_using.stb0 tags(5) values(now, 1)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+        # F: 2 rows same stb, ctb0 exists + ctb6 not exist, no CREATE TABLE → Permission denied
+        tdSql.error(
+            "insert into d_using.ctb0 using d_using.stb0 tags(0) values(now, 3) "
+            "d_using.ctb6 using d_using.stb0 tags(6) values(now, 3)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+
+        # ── Revoke stb1 INSERT from u_using_ins for two-stb scenarios ─────────
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("revoke insert on table d_using.stb1 from u_using_ins")
+
+        # K: 2 rows two-stb, stb0 has INSERT, stb1 no INSERT → Permission denied
+        tdSql.connect("u_using_ins", self.test_pass)
+        time.sleep(5)
+        tdSql.error(
+            "insert into d_using.ctb0 using d_using.stb0 tags(0) values(now, 8) "
+            "d_using.ctb10 using d_using.stb1 tags(0) values(now, 8)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+        # N: cross — stb0 ctb exists + has INSERT, stb1 ctb not exist + no INSERT/no CREATE TABLE
+        tdSql.error(
+            "insert into d_using.ctb0 using d_using.stb0 tags(0) values(now, 11) "
+            "d_using.ctb21 using d_using.stb1 tags(21) values(now, 11)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+
+        # ── u_using_full: INSERT on both stbs + CREATE TABLE ──────────────────
+        # Covers: D, G, J, M
+        # u_using_full has INSERT but not SELECT; grant SELECT so verifications stay in the same session.
+
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("grant select on table d_using.stb0 to u_using_full")
+        tdSql.execute("grant select on table d_using.stb1 to u_using_full")
+        # Also grant SELECT on d_using.* so newly auto-created ctbs are readable right away
+        tdSql.execute("grant select on table d_using.* to u_using_full")
+
+        tdSql.connect("u_using_full", self.test_pass)
+        time.sleep(5)
+
+        # D: single row, ctb5 not exist, INSERT + CREATE TABLE → OK (auto-create); verify table + row
+        tdSql.execute("insert into d_using.ctb5 using d_using.stb0 tags(5) values(now, 1)")
+        tdSql.query("show d_using.tables like 'ctb5'")
+        tdSql.checkRows(1)
+        tdSql.query("select count(*) from d_using.ctb5")
+        tdSql.checkData(0, 0, 1)
+
+        # G: 2 rows same stb, ctb0 exists + ctb6 not exist, INSERT + CREATE TABLE → OK; verify both
+        tdSql.execute(
+            "insert into d_using.ctb0 using d_using.stb0 tags(0) values(now, 4) "
+            "d_using.ctb6 using d_using.stb0 tags(6) values(now, 4)"
+        )
+        tdSql.query("show d_using.tables like 'ctb6'")
+        tdSql.checkRows(1)
+        tdSql.query("select count(*) from d_using.ctb6")
+        tdSql.checkData(0, 0, 1)
+
+        # J: 3 rows same stb, all ctb not exist (ctb7, ctb8, ctb9), INSERT + CREATE TABLE → OK
+        tdSql.execute(
+            "insert into d_using.ctb7 using d_using.stb0 tags(7) values(now, 7) "
+            "d_using.ctb8 using d_using.stb0 tags(8) values(now, 7) "
+            "d_using.ctb9 using d_using.stb0 tags(9) values(now, 7)"
+        )
+        for ctb in ["ctb7", "ctb8", "ctb9"]:
+            tdSql.query(f"show d_using.tables like '{ctb}'")
+            tdSql.checkRows(1)
+            tdSql.query(f"select count(*) from d_using.{ctb}")
+            tdSql.checkData(0, 0, 1)
+
+        # M: 2 rows two-stb, ctb0 exists (stb0) + ctb20 not exist (stb1), INSERT + CREATE TABLE → OK
+        tdSql.execute(
+            "insert into d_using.ctb0 using d_using.stb0 tags(0) values(now, 10) "
+            "d_using.ctb20 using d_using.stb1 tags(20) values(now, 10)"
+        )
+        tdSql.query("show d_using.tables like 'ctb20'")
+        tdSql.checkRows(1)
+        tdSql.query("select count(*) from d_using.ctb20")
+        tdSql.checkData(0, 0, 1)
+
+        # Verify B's row (written by u_using_ins earlier) while still in u_using_full session
+        tdSql.query("select count(*) from d_using.ctb0")
+        tdSql.checkData(0, 0, 3)  # B wrote 1, G wrote 1, M wrote 1
+
+        # ── Row-condition and column-privilege checks via INSERT...USING ──────
+        # stb2 has two data columns (c0, c1) so we can test column-level restrictions.
+        # Tags: t0 int.  Row-condition grant: with t0=10 → only ctb with tag t0=10 may be written.
+        # Column-condition grant: insert(ts,c0) → writing c1 must be rejected.
+
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("create table d_using.stb2 (ts timestamp, c0 int, c1 int) tags(t0 int)")
+        tdSql.execute("create table d_using.ctb_r0 using d_using.stb2 tags(10)")  # allowed tag
+        tdSql.execute("create table d_using.ctb_r1 using d_using.stb2 tags(20)")  # denied tag
+
+        tdSql.execute(f"create user u_using_row  pass '{self.test_pass}'")
+        tdSql.execute(f"create user u_using_col  pass '{self.test_pass}'")
+        tdSql.execute("grant use on database d_using to u_using_row")
+        tdSql.execute("grant use on database d_using to u_using_col")
+        tdSql.execute("revoke role `SYSINFO_1` from u_using_row")
+        tdSql.execute("revoke role `SYSINFO_1` from u_using_col")
+
+        # u_using_row: INSERT on stb2 with row-condition t0=10
+        tdSql.execute("grant insert on table d_using.stb2 with t0=10 to u_using_row")
+        # CREATE TABLE needed for auto-create ctb tests; SELECT needed to warm catalog cache
+        tdSql.execute("grant create table on database d_using to u_using_row")
+        tdSql.execute("grant select on table d_using.stb2 to u_using_row")
+        # u_using_col: INSERT on stb2 but only columns (ts, c0) — c1 is forbidden
+        tdSql.execute("grant insert(ts,c0) on table d_using.stb2 to u_using_col")
+        # also grant select so u_using_col can warm catalog cache via a query
+        tdSql.execute("grant select on table d_using.stb2 to u_using_col")
+
+        # ── Row-condition: u_using_row ────────────────────────────────────────
+
+        tdSql.connect("u_using_row", self.test_pass)
+        time.sleep(5)
+
+        # ── no-cache path (catalog cold) ──
+        # ctb_r1 exists, tag t0=20, row condition t0=10 → denied (no cache)
+        tdSql.error(
+            "insert into d_using.ctb_r1 using d_using.stb2 tags(20) values(now, 1, 1)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+        # ctb_r0 exists, tag t0=10, row condition matches → allowed (no cache)
+        tdSql.execute("insert into d_using.ctb_r0 using d_using.stb2 tags(10) values(now, 2, 2)")
+        # auto-create ctb_r2 with tag t0=10 → allowed (no cache)
+        tdSql.execute("insert into d_using.ctb_r2 using d_using.stb2 tags(10) values(now, 3, 3)")
+        # auto-create ctb_r3 with tag t0=20 → denied (no cache)
+        tdSql.error(
+            "insert into d_using.ctb_r3 using d_using.stb2 tags(20) values(now, 4, 4)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+
+        # ── cache-hit path: warm catalog via SELECT then re-test ──
+        tdSql.query("select * from d_using.ctb_r0")
+        tdSql.query("select * from d_using.ctb_r1")
+
+        # ctb_r1 cached, tag t0=20 still denied
+        tdSql.error(
+            "insert into d_using.ctb_r1 using d_using.stb2 tags(20) values(now, 5, 5)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+        # ctb_r0 cached, tag t0=10 still allowed
+        tdSql.execute("insert into d_using.ctb_r0 using d_using.stb2 tags(10) values(now, 6, 6)")
+        # auto-create ctb_r4 with tag t0=10 → allowed (stb2 meta cached)
+        tdSql.execute("insert into d_using.ctb_r4 using d_using.stb2 tags(10) values(now, 7, 7)")
+        # auto-create ctb_r5 with tag t0=20 → denied (stb2 meta cached, condition still enforced)
+        tdSql.error(
+            "insert into d_using.ctb_r5 using d_using.stb2 tags(20) values(now, 8, 8)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+
+        # ── Column-condition: u_using_col ─────────────────────────────────────
+
+        tdSql.connect("u_using_col", self.test_pass)
+        time.sleep(5)
+
+        # ── no-cache path (catalog cold) ──
+        # write only ts and c0 → allowed (no cache)
+        tdSql.execute("insert into d_using.ctb_r0 (ts,c0) using d_using.stb2 tags(10) values(now, 9)")
+        # write c1 which is not in the column grant → denied (no cache)
+        tdSql.error(
+            "insert into d_using.ctb_r0 (ts,c0,c1) using d_using.stb2 tags(10) values(now, 10, 10)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+
+        # ── cache-hit path: warm catalog via SELECT then re-test ──
+        tdSql.query("select * from d_using.ctb_r0")
+
+        # write only ts and c0 → still allowed (cache-hit)
+        tdSql.execute("insert into d_using.ctb_r0 (ts,c0) using d_using.stb2 tags(10) values(now, 11)")
+        # write c1 → still denied (cache-hit)
+        tdSql.error(
+            "insert into d_using.ctb_r0 (ts,c1) using d_using.stb2 tags(10) values(now, 12)",
+            expectErrInfo="Permission denied",
+            fullMatched=False,
+        )
+
+        # ── Cleanup ───────────────────────────────────────────────────────────
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("drop database if exists d_using")
+        for u in ["u_using_none", "u_using_ins", "u_using_full", "u_using_row", "u_using_col"]:
+            tdSql.execute(f"drop user {u}")
+
     #
     # ------------------- main ----------------
     #
@@ -1980,6 +2298,7 @@ class TestCase:
         self.do_check_legacy_grammar()
         self.do_check_reserved_principal_names()
         self.do_check_alter_pass_privilege()
+        self.do_check_insert_using_auto_create_privileges() # 7008354205
         self.do_check_db_oper_privileges()
         
         tdLog.debug("finish executing %s" % __file__)
