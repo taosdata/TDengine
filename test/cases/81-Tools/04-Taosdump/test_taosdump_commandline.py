@@ -303,15 +303,71 @@ class TestTaosdumpCommandline:
         sql = f"grant use on database test to {user}"
         tdSql.execute(sql)
 
-        cmds = [
-            f"-u{user} -p\"{pwd}\"      -D test -o {tmpdir}",  # command pass
-            f"-u{user} -p < {pwdFile} -D test -o {tmpdir}"   # input   pass
+        validItems = [
+            [
+                f"-u{user} -p\"{pwd}\" -D test -o {tmpdir}",
+                ["OK: Database test dumped"],
+            ],
+            [
+                f"-u{user} --password=\"{pwd}\" -D test -o {tmpdir}",
+                ["OK: Database test dumped"],
+            ],
+            [
+                f"-u{user} -p < {pwdFile} -D test -o {tmpdir}",
+                ["OK: Database test dumped"],
+            ],
+            [
+                f"-u{user} --password < {pwdFile} -D test -o {tmpdir}",
+                ["OK: Database test dumped"],
+            ],
+            [
+                f"-uroot -ptaosdata -D test -o {tmpdir}",
+                ["OK: Database test dumped"],
+            ],
+            [
+                f"-uroot --password=taosdata -D test -o {tmpdir}",
+                ["OK: Database test dumped"],
+            ],
+            [
+                "--help",
+                ["-pPASSWORD or --password=PASSWORD"],
+            ],
         ]
 
-        for cmd in cmds:
+        for item in validItems:
             self.clearPath(tmpdir)
-            rlist = self.taosdump(cmd)
-            self.checkListString(rlist, "OK: Database test dumped")
+            command = item[0]
+            results = item[1]
+            rlist = self.taosdump(command)
+            self.checkManyString(rlist, results)
+
+        errorItems = [
+            [
+                f"-uroot -p taosdata -D test -o {tmpdir}",
+                [
+                    "option -p does not accept a separated password argument: taosdata",
+                    "or use \"-pPASSWORD\"/\"--password=PASSWORD\".",
+                ],
+            ],
+            [
+                f"-uroot --password taosdata -D test -o {tmpdir}",
+                [
+                    "option --password does not accept a separated password argument: taosdata",
+                    "or use \"-pPASSWORD\"/\"--password=PASSWORD\".",
+                ],
+            ],
+            [
+                f"-uroot --passwordxxx -D test -o {tmpdir}",
+                ["unrecognized option '--passwordxxx'"],
+            ],
+        ]
+
+        for item in errorItems:
+            self.clearPath(tmpdir)
+            command = item[0]
+            results = item[1]
+            rlist = self.taosdump(command, checkRun=False, retFail=True)
+            self.checkManyString(rlist, results)
 
     # run
     def test_taosdump_commandline(self):
@@ -324,7 +380,7 @@ class TestTaosdumpCommandline:
             - except commandline arguments
             - check connMode priority cmd > env
         3. Verify dump and import data is correctly.
-        4. Check long password support.
+        4. Check long password support and password argument parsing.
         5. Inspect avro files generated with -I argument
         6. Dump/restore database with escaped argument -e
         
@@ -352,7 +408,7 @@ class TestTaosdumpCommandline:
         # long password
         #
         self.checkPassword(tmpdir)
-        tdLog.info("1. check long password ................................. [Passed]")
+        tdLog.info("1. check password arguments ............................ [Passed]")
 
         # dumpInOut
         modes = ["-Z native", "-Z websocket", "--dsn=http://localhost:6041"]
@@ -375,8 +431,5 @@ class TestTaosdumpCommandline:
 
         self.checkConnMode(db, stb, childCount, insertRows, tmpdir)
         tdLog.info("5. check conn mode  ..................................... [Passed]")
-
-
-
 
 

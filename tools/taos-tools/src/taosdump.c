@@ -110,7 +110,7 @@ static struct argp_option options[] = {
     {"user", 'u', "USER",    0,
         "User name used to connect to server. Default is root.", 0},
     {"password", 'p', 0, 0,
-        "User password to connect to server. Default is taosdata.", 0},
+        "Prompt for password. To pass password in command line, use -pPASSWORD or --password=PASSWORD.", 0},
     {"port", 'P', "PORT",        0,  "Port to connect.", 0},
     // input/output file
     {"outpath", 'o', "OUTPATH",     0,  "Output file path.", 1},
@@ -925,25 +925,66 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 static error_t parse_opt(int key, char *arg, struct argp_state *state);
 static struct argp argp = {options, parse_opt, args_doc, doc};
 
+typedef enum {
+    PASSWORD_ARG_NONE = 0,
+    PASSWORD_ARG_PROMPT,
+    PASSWORD_ARG_SHORT_INLINE,
+    PASSWORD_ARG_LONG_INLINE,
+} EPasswordArgType;
+
+static EPasswordArgType getPasswordArgType(const char *arg) {
+    if (0 == strcmp(arg, "-p")) {
+        return PASSWORD_ARG_PROMPT;
+    }
+    if (0 == strcmp(arg, "--password")) {
+        return PASSWORD_ARG_PROMPT;
+    }
+    if (0 == strncmp(arg, "--password=", strlen("--password="))) {
+        return PASSWORD_ARG_LONG_INLINE;
+    }
+    if (0 == strncmp(arg, "-p", strlen("-p"))) {
+        return PASSWORD_ARG_SHORT_INLINE;
+    }
+
+    return PASSWORD_ARG_NONE;
+}
+
+static bool isSeparatedPasswordArg(int argc, char *argv[], int index) {
+    return (index + 1 < argc)
+        && (strlen(argv[index + 1]) > 0)
+        && (argv[index + 1][0] != '-');
+}
+
+static void errorSeparatedPasswordArg(char *option, char *password) {
+    errorPrint("option %s does not accept a separated password argument: %s\n"
+            "Use \"-p\" to enter password interactively, "
+            "or use \"-pPASSWORD\"/\"--password=PASSWORD\".\n",
+            option, password);
+}
 
 static void parse_args(
         int argc, char *argv[], SArguments *arguments) {
     for (int i = 1; i < argc; i++) {
-        if ((strncmp(argv[i], "-p", 2) == 0)
-              || (strncmp(argv[i], "--password", 10) == 0)) {
-            if ((strlen(argv[i]) == 2)
-                  || (strncmp(argv[i], "--password", 10) == 0)) {
-                printf("Enter password: ");
-                (void)setConsoleEcho(false);
-                if (scanf("%255s", arguments->password) != 1) {
-                    errorPrint("%s() LN%d, password read error!\n",
-                            __func__, __LINE__);
-                }
-                (void)setConsoleEcho(true);
-            } else {
-                strcpy(arguments->password, (char *)(argv[i] + 2));
-                strcpy(argv[i], "-p");
+        EPasswordArgType passwordArgType = getPasswordArgType(argv[i]);
+        if (PASSWORD_ARG_PROMPT == passwordArgType) {
+            if (isSeparatedPasswordArg(argc, argv, i)) {
+                errorSeparatedPasswordArg(argv[i], argv[i + 1]);
+                exit(EXIT_FAILURE);
             }
+            printf("Enter password: ");
+            (void)setConsoleEcho(false);
+            if (scanf("%255s", arguments->password) != 1) {
+                errorPrint("%s() LN%d, password read error!\n",
+                        __func__, __LINE__);
+            }
+            (void)setConsoleEcho(true);
+        } else if (PASSWORD_ARG_SHORT_INLINE == passwordArgType) {
+            strcpy(arguments->password, (char *)(argv[i] + 2));
+            strcpy(argv[i], "-p");
+        } else if (PASSWORD_ARG_LONG_INLINE == passwordArgType) {
+            strcpy(arguments->password,
+                    (char *)(argv[i] + strlen("--password=")));
+            strcpy(argv[i], "--password");
         } else if (strcmp(argv[i], "-n") == 0) {
             g_args.escape_char = false;
             strcpy(argv[i], "");
