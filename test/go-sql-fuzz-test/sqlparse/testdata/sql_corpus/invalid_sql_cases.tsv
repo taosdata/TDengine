@@ -1,0 +1,301 @@
+case_id	sql	err_type
+i001	create database dbi001 buffer	incomplete
+i002	create table dbi002.ti002(ts timestamp, v int	incomplete
+i003	show dnode 4	incomplete
+i004	show dbi004 streams;	syntax
+i005	create stable dbi005.ti005(ts timestamp, v int);	incomplete
+i006	select	incomplete
+i007	create database dbi007 buffer	incomplete
+i008	create table dbi008.ti008(ts timestamp, v int	incomplete
+i009	show dnode 10	incomplete
+i010	show dbi010 streams;	syntax
+i011	create stable dbi011.ti011(ts timestamp, v int);	incomplete
+i012	select	incomplete
+i013	create database dbi013 buffer	incomplete
+i014	create table dbi014.ti014(ts timestamp, v int	incomplete
+i015	show dnode 16	incomplete
+i016	show dbi016 streams;	syntax
+i017	create stable dbi017.ti017(ts timestamp, v int);	incomplete
+i018	select	incomplete
+i019	create database dbi019 buffer	incomplete
+i020	create table dbi020.ti020(ts timestamp, v int	incomplete
+i021	show dnode 22	incomplete
+i022	show dbi022 streams;	syntax
+i023	create stable dbi023.ti023(ts timestamp, v int);	incomplete
+i024	select	incomplete
+i025	create database dbi025 buffer	incomplete
+i026	create table dbi026.ti026(ts timestamp, v int	incomplete
+i027	show dnode 28	incomplete
+i028	show dbi028 streams;	syntax
+i029	create stable dbi029.ti029(ts timestamp, v int);	incomplete
+i030	select	incomplete
+i031	create database dbi031 buffer	incomplete
+i032	create table dbi032.ti032(ts timestamp, v int	incomplete
+i033	show dnode 34	incomplete
+i034	show dbi034 streams;	syntax
+i035	create stable dbi035.ti035(ts timestamp, v int);	incomplete
+i036	select	incomplete
+i037	create database dbi037 buffer	incomplete
+i038	create table dbi038.ti038(ts timestamp, v int	incomplete
+i039	show dnode 40	incomplete
+i040	show dbi040 streams;	syntax
+i041	create stable dbi041.ti041(ts timestamp, v int);	incomplete
+i042	select	incomplete
+i043	create database dbi043 buffer	incomplete
+i044	create table dbi044.ti044(ts timestamp, v int	incomplete
+i045	show dnode 46	incomplete
+i046	show dbi046 streams;	syntax
+i047	create stable dbi047.ti047(ts timestamp, v int);	incomplete
+i048	select	incomplete
+i049	create database dbi049 buffer	incomplete
+i050	create table dbi050.ti050(ts timestamp, v int	incomplete
+i051	show dnode 52	incomplete
+i052	show dbi052 streams;	syntax
+i053	create stable dbi053.ti053(ts timestamp, v int);	incomplete
+i054	select	incomplete
+i055	create database dbi055 buffer	incomplete
+i056	create table dbi056.ti056(ts timestamp, v int	incomplete
+i057	show dnode 58	incomplete
+i058	show dbi058 streams;	syntax
+i059	create stable dbi059.ti059(ts timestamp, v int);	incomplete
+i060	select	incomplete
+i061	create database dbi061 buffer	incomplete
+i062	create table dbi062.ti062(ts timestamp, v int	incomplete
+i063	show dnode 64	incomplete
+i064	show dbi064 streams;	syntax
+i065	create stable dbi065.ti065(ts timestamp, v int);	incomplete
+i066	select	incomplete
+i067	create database dbi067 buffer	incomplete
+i068	create table dbi068.ti068(ts timestamp, v int	incomplete
+i069	show dnode 70	incomplete
+i070	show dbi070 streams;	syntax
+i071	create stable dbi071.ti071(ts timestamp, v int);	incomplete
+i072	select	incomplete
+i073	create database dbi073 buffer	incomplete
+i074	create table dbi074.ti074(ts timestamp, v int	incomplete
+i075	show dnode 76	incomplete
+i076	show dbi076 streams;	syntax
+i077	create stable dbi077.ti077(ts timestamp, v int);	incomplete
+i078	select	incomplete
+i079	create database dbi079 buffer	incomplete
+i080	create table dbi080.ti080(ts timestamp, v int	incomplete
+i081	show dnode 82	incomplete
+i082	show dbi082 streams;	syntax
+i083	create stable dbi083.ti083(ts timestamp, v int);	incomplete
+i084	select	incomplete
+i085	create database dbi085 buffer	incomplete
+i086	create table dbi086.ti086(ts timestamp, v int	incomplete
+i087	show dnode 88	incomplete
+i088	show dbi088 streams;	syntax
+i089	create stable dbi089.ti089(ts timestamp, v int);	incomplete
+i090	select	incomplete
+i091	create database dbi091 buffer	incomplete
+i092	create table dbi092.ti092(ts timestamp, v int	incomplete
+i093	show dnode 94	incomplete
+i094	show dbi094 streams;	syntax
+i095	create stable dbi095.ti095(ts timestamp, v int);	incomplete
+i096	select	incomplete
+i097	create database dbi097 buffer	incomplete
+i098	create table dbi098.ti098(ts timestamp, v int	incomplete
+i099	show dnode 3	incomplete
+i100	show dbi100 streams;	syntax
+i101	create stable dbi101.ti101(ts timestamp, v int);	incomplete
+i102	select	incomplete
+i103	create database dbi103 buffer	incomplete
+i104	create table dbi104.ti104(ts timestamp, v int	incomplete
+i105	show dnode 9	incomplete
+i106	show dbi106 streams;	syntax
+i107	create stable dbi107.ti107(ts timestamp, v int);	incomplete
+i108	select	incomplete
+i109	create database dbi109 buffer	incomplete
+i110	create table dbi110.ti110(ts timestamp, v int	incomplete
+i111	show dnode 15	incomplete
+i112	show dbi112 streams;	syntax
+i113	create stable dbi113.ti113(ts timestamp, v int);	incomplete
+i114	select	incomplete
+i115	create database dbi115 buffer	incomplete
+i116	create table dbi116.ti116(ts timestamp, v int	incomplete
+i117	show dnode 21	incomplete
+i118	show dbi118 streams;	syntax
+i119	create stable dbi119.ti119(ts timestamp, v int);	incomplete
+i120	select	incomplete
+i121	create database dbi121 buffer	incomplete
+i122	create table dbi122.ti122(ts timestamp, v int	incomplete
+i123	show dnode 27	incomplete
+i124	show dbi124 streams;	syntax
+i125	create stable dbi125.ti125(ts timestamp, v int);	incomplete
+i126	select	incomplete
+i127	create database dbi127 buffer	incomplete
+i128	create table dbi128.ti128(ts timestamp, v int	incomplete
+i129	show dnode 33	incomplete
+i130	show dbi130 streams;	syntax
+i131	create stable dbi131.ti131(ts timestamp, v int);	incomplete
+i132	select	incomplete
+i133	create database dbi133 buffer	incomplete
+i134	create table dbi134.ti134(ts timestamp, v int	incomplete
+i135	show dnode 39	incomplete
+i136	show dbi136 streams;	syntax
+i137	create stable dbi137.ti137(ts timestamp, v int);	incomplete
+i138	select	incomplete
+i139	create database dbi139 buffer	incomplete
+i140	create table dbi140.ti140(ts timestamp, v int	incomplete
+i141	show dnode 45	incomplete
+i142	show dbi142 streams;	syntax
+i143	create stable dbi143.ti143(ts timestamp, v int);	incomplete
+i144	select	incomplete
+i145	create database dbi145 buffer	incomplete
+i146	create table dbi146.ti146(ts timestamp, v int	incomplete
+i147	show dnode 51	incomplete
+i148	show dbi148 streams;	syntax
+i149	create stable dbi149.ti149(ts timestamp, v int);	incomplete
+i150	select	incomplete
+i151	create database dbi151 buffer	incomplete
+i152	create table dbi152.ti152(ts timestamp, v int	incomplete
+i153	show dnode 57	incomplete
+i154	show dbi154 streams;	syntax
+i155	create stable dbi155.ti155(ts timestamp, v int);	incomplete
+i156	select	incomplete
+i157	create database dbi157 buffer	incomplete
+i158	create table dbi158.ti158(ts timestamp, v int	incomplete
+i159	show dnode 63	incomplete
+i160	show dbi160 streams;	syntax
+i161	create stable dbi161.ti161(ts timestamp, v int);	incomplete
+i162	select	incomplete
+i163	create database dbi163 buffer	incomplete
+i164	create table dbi164.ti164(ts timestamp, v int	incomplete
+i165	show dnode 69	incomplete
+i166	show dbi166 streams;	syntax
+i167	create stable dbi167.ti167(ts timestamp, v int);	incomplete
+i168	select	incomplete
+i169	create database dbi169 buffer	incomplete
+i170	create table dbi170.ti170(ts timestamp, v int	incomplete
+i171	show dnode 75	incomplete
+i172	show dbi172 streams;	syntax
+i173	create stable dbi173.ti173(ts timestamp, v int);	incomplete
+i174	select	incomplete
+i175	create database dbi175 buffer	incomplete
+i176	create table dbi176.ti176(ts timestamp, v int	incomplete
+i177	show dnode 81	incomplete
+i178	show dbi178 streams;	syntax
+i179	create stable dbi179.ti179(ts timestamp, v int);	incomplete
+i180	select	incomplete
+i181	create database dbi181 buffer	incomplete
+i182	create table dbi182.ti182(ts timestamp, v int	incomplete
+i183	show dnode 87	incomplete
+i184	show dbi184 streams;	syntax
+i185	create stable dbi185.ti185(ts timestamp, v int);	incomplete
+i186	select	incomplete
+i187	create database dbi187 buffer	incomplete
+i188	create table dbi188.ti188(ts timestamp, v int	incomplete
+i189	show dnode 93	incomplete
+i190	show dbi190 streams;	syntax
+i191	create stable dbi191.ti191(ts timestamp, v int);	incomplete
+i192	select	incomplete
+i193	create database dbi193 buffer	incomplete
+i194	create table dbi194.ti194(ts timestamp, v int	incomplete
+i195	show dnode 2	incomplete
+i196	show dbi196 streams;	syntax
+i197	create stable dbi197.ti197(ts timestamp, v int);	incomplete
+i198	select	incomplete
+i199	create database dbi199 buffer	incomplete
+i200	create table dbi200.ti200(ts timestamp, v int	incomplete
+i201	show dnode 8	incomplete
+i202	show dbi202 streams;	syntax
+i203	create stable dbi203.ti203(ts timestamp, v int);	incomplete
+i204	select	incomplete
+i205	create database dbi205 buffer	incomplete
+i206	create table dbi206.ti206(ts timestamp, v int	incomplete
+i207	show dnode 14	incomplete
+i208	show dbi208 streams;	syntax
+i209	create stable dbi209.ti209(ts timestamp, v int);	incomplete
+i210	select	incomplete
+i211	create database dbi211 buffer	incomplete
+i212	create table dbi212.ti212(ts timestamp, v int	incomplete
+i213	show dnode 20	incomplete
+i214	show dbi214 streams;	syntax
+i215	create stable dbi215.ti215(ts timestamp, v int);	incomplete
+i216	select	incomplete
+i217	create database dbi217 buffer	incomplete
+i218	create table dbi218.ti218(ts timestamp, v int	incomplete
+i219	show dnode 26	incomplete
+i220	show dbi220 streams;	syntax
+i221	create stable dbi221.ti221(ts timestamp, v int);	incomplete
+i222	select	incomplete
+i223	create database dbi223 buffer	incomplete
+i224	create table dbi224.ti224(ts timestamp, v int	incomplete
+i225	show dnode 32	incomplete
+i226	show dbi226 streams;	syntax
+i227	create stable dbi227.ti227(ts timestamp, v int);	incomplete
+i228	select	incomplete
+i229	create database dbi229 buffer	incomplete
+i230	create table dbi230.ti230(ts timestamp, v int	incomplete
+i231	show dnode 38	incomplete
+i232	show dbi232 streams;	syntax
+i233	create stable dbi233.ti233(ts timestamp, v int);	incomplete
+i234	select	incomplete
+i235	create database dbi235 buffer	incomplete
+i236	create table dbi236.ti236(ts timestamp, v int	incomplete
+i237	show dnode 44	incomplete
+i238	show dbi238 streams;	syntax
+i239	create stable dbi239.ti239(ts timestamp, v int);	incomplete
+i240	select	incomplete
+i241	create database dbi241 buffer	incomplete
+i242	create table dbi242.ti242(ts timestamp, v int	incomplete
+i243	show dnode 50	incomplete
+i244	show dbi244 streams;	syntax
+i245	create stable dbi245.ti245(ts timestamp, v int);	incomplete
+i246	select	incomplete
+i247	create database dbi247 buffer	incomplete
+i248	create table dbi248.ti248(ts timestamp, v int	incomplete
+i249	show dnode 56	incomplete
+i250	show dbi250 streams;	syntax
+i251	create stable dbi251.ti251(ts timestamp, v int);	incomplete
+i252	select	incomplete
+i253	create database dbi253 buffer	incomplete
+i254	create table dbi254.ti254(ts timestamp, v int	incomplete
+i255	show dnode 62	incomplete
+i256	show dbi256 streams;	syntax
+i257	create stable dbi257.ti257(ts timestamp, v int);	incomplete
+i258	select	incomplete
+i259	create database dbi259 buffer	incomplete
+i260	create table dbi260.ti260(ts timestamp, v int	incomplete
+i261	show dnode 68	incomplete
+i262	show dbi262 streams;	syntax
+i263	create stable dbi263.ti263(ts timestamp, v int);	incomplete
+i264	select	incomplete
+i265	create database dbi265 buffer	incomplete
+i266	create table dbi266.ti266(ts timestamp, v int	incomplete
+i267	show dnode 74	incomplete
+i268	show dbi268 streams;	syntax
+i269	create stable dbi269.ti269(ts timestamp, v int);	incomplete
+i270	select	incomplete
+i271	create database dbi271 buffer	incomplete
+i272	create table dbi272.ti272(ts timestamp, v int	incomplete
+i273	show dnode 80	incomplete
+i274	show dbi274 streams;	syntax
+i275	create stable dbi275.ti275(ts timestamp, v int);	incomplete
+i276	select	incomplete
+i277	create database dbi277 buffer	incomplete
+i278	create table dbi278.ti278(ts timestamp, v int	incomplete
+i279	show dnode 86	incomplete
+i280	show dbi280 streams;	syntax
+i281	create stable dbi281.ti281(ts timestamp, v int);	incomplete
+i282	select	incomplete
+i283	create database dbi283 buffer	incomplete
+i284	create table dbi284.ti284(ts timestamp, v int	incomplete
+i285	show dnode 92	incomplete
+i286	show dbi286 streams;	syntax
+i287	create stable dbi287.ti287(ts timestamp, v int);	incomplete
+i288	select	incomplete
+i289	create database dbi289 buffer	incomplete
+i290	create table dbi290.ti290(ts timestamp, v int	incomplete
+i291	show dnode 1	incomplete
+i292	show dbi292 streams;	syntax
+i293	create stable dbi293.ti293(ts timestamp, v int);	incomplete
+i294	select	incomplete
+i295	create database dbi295 buffer	incomplete
+i296	create table dbi296.ti296(ts timestamp, v int	incomplete
+i297	show dnode 7	incomplete
+i298	show dbi298 streams;	syntax
+i299	create stable dbi299.ti299(ts timestamp, v int);	incomplete
+i300	select	incomplete
