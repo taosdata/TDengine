@@ -479,6 +479,141 @@ class TestVtableTagRefShowDesc:
         tdSql.checkRows(4)  # ts + val + 2 tags
 
     # ============================================================
+    # DESCRIBE — ref column content
+    # Bug: setDescResultIntoDataBlock only looked up colRef by position,
+    # never tagRef. Tag rows always showed an empty ref column even when
+    # the tag had a FROM reference set at creation time.
+    # Fix: tag rows are detected by i >= numOfColumns and tagRef is
+    # looked up by colId instead of array position.
+    # ============================================================
+
+    @staticmethod
+    def _describe_ref_map(table):
+        """Return {tag_name: ref_string} for tag rows with a non-empty ref column.
+
+        Only TAG rows are included; data-column rows (ts, val, …) are skipped
+        because they may legitimately carry column-ref values but the test
+        assertions here only care about tag-level references.
+        """
+        tdSql.query(f"DESCRIBE {DB}.{table}")
+        result = {}
+        for i in range(tdSql.queryRows):
+            note = str(tdSql.getData(i, 3)).strip().upper()
+            if "TAG" not in note:
+                continue  # skip ts / data columns
+            name = str(tdSql.getData(i, 0)).strip()
+            ref  = str(tdSql.getData(i, 4)).strip() if tdSql.queryCols > 4 else ""
+            if ref:
+                result[name] = ref
+        return result
+
+    def test_describe_ref_col_all_tag_refs_show_source(self):
+        """DESCRIBE shows non-empty ref col for every tag ref in v_all_ref.
+
+        Regression for bug where tag rows always showed empty ref column.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, metadata, tag_ref, describe
+
+        """
+        refs = self._describe_ref_map("v_all_ref")
+        # v_all_ref: all 14 tags are FROM c0.<same_tag_name>
+        expected_tags = [
+            "t_tiny", "t_small", "t_int", "t_big",
+            "t_tiny_u", "t_small_u", "t_int_u", "t_big_u",
+            "t_float", "t_double", "t_bool",
+            "t_nchar", "t_binary", "t_varchar",
+        ]
+        for tag in expected_tags:
+            assert tag in refs, (
+                f"Tag '{tag}' has empty ref col; full ref map: {refs}"
+            )
+            assert "c0" in refs[tag] and tag in refs[tag], (
+                f"Tag '{tag}' ref col expected 'c0.{tag}', got '{refs[tag]}'"
+            )
+
+    def test_describe_ref_col_mixed_shows_ref_and_empty(self):
+        """DESCRIBE ref col is non-empty for ref tags and empty for literals in v_mixed.
+
+        Six tags have FROM refs; eight are literals.  The fix must not
+        leak refs onto literal rows or leave ref rows empty.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, metadata, tag_ref, describe
+
+        """
+        refs = self._describe_ref_map("v_mixed")
+        # ref tags and their expected source tables
+        ref_tags = {
+            "t_small":   "c1",
+            "t_big":     "c2",
+            "t_small_u": "c0",
+            "t_big_u":   "c1",
+            "t_double":  "c2",
+            "t_binary":  "c1",
+        }
+        literal_tags = [
+            "t_tiny", "t_int", "t_tiny_u", "t_int_u",
+            "t_float", "t_bool", "t_nchar", "t_varchar",
+        ]
+        for tag, src in ref_tags.items():
+            assert tag in refs, (
+                f"Ref tag '{tag}' has empty ref col in v_mixed; refs: {refs}"
+            )
+            assert src in refs[tag], (
+                f"Tag '{tag}' ref col expected source '{src}', got '{refs[tag]}'"
+            )
+        for tag in literal_tags:
+            assert tag not in refs, (
+                f"Literal tag '{tag}' should have empty ref col, got '{refs.get(tag)}'"
+            )
+
+    def test_describe_ref_col_all_literal_empty(self):
+        """DESCRIBE ref col is empty for all tags in v_all_literal.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, metadata, tag_ref, describe
+
+        """
+        refs = self._describe_ref_map("v_all_literal")
+        assert not refs, (
+            f"v_all_literal has no refs but ref col is non-empty for: {refs}"
+        )
+
+    def test_describe_ref_col_cross_db_includes_db_name(self):
+        """DESCRIBE ref col for cross-DB tag refs includes the source database name.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: virtual, metadata, tag_ref, describe, cross_db
+
+        """
+        refs = self._describe_ref_map("v_cross_db")
+        assert "ct" in refs, f"Tag 'ct' has empty ref col; refs: {refs}"
+        assert "cn" in refs, f"Tag 'cn' has empty ref col; refs: {refs}"
+        assert "td_src_other" in refs["ct"], (
+            f"Tag 'ct' ref col expected 'td_src_other', got '{refs['ct']}'"
+        )
+        assert "td_src_other" in refs["cn"], (
+            f"Tag 'cn' ref col expected 'td_src_other', got '{refs['cn']}'"
+        )
+
+    # ============================================================
     # SHOW TAGS
     # ============================================================
 
