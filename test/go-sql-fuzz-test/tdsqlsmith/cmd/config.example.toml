@@ -1,0 +1,15 @@
+# go-sqlsmith style statement weights
+
+txn-begin = 0
+txn-commit = 0
+txn-rollback = 0
+
+ddl-create-table = 1
+ddl-alter-table = 10
+ddl-create-index = 10
+
+dml-select = 240
+dml-select-for-update = 0
+dml-delete = 10
+dml-update = 30
+dml-insert = 30
