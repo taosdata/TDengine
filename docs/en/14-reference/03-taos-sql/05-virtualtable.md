@@ -315,7 +315,42 @@ alter_table_clause: {
 ALTER VTABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
-`SET TAG` can assign either a literal value or a tag-ref. For example, `ALTER VTABLE v0 SET TAG local_tag = src0.city` converts `local_tag` to a tag-ref. The source must be a tag column, and its type must match the target tag. Setting a literal value clears any previous tag-ref.
+`SET TAG` can assign either a literal value or a tag-ref to a tag.
+
+#### Set a Tag to a Literal
+
+```sql
+ALTER VTABLE v0 SET TAG local_tag='local0_updated';
+```
+
+When a tag is set to a literal value, any existing tag-ref on that tag is cleared. The tag then becomes a static value that no longer tracks the source.
+
+#### Set a Tag to a tag-ref (create or repoint a reference)
+
+```sql
+-- Same database: reference the city tag of table src0
+ALTER VTABLE v0 SET TAG ref_city=src0.city;
+
+-- Cross database: use the db_name.table.tag three-part form
+ALTER VTABLE v0 SET TAG ref_city=db1.src1.city;
+```
+
+After a tag is set to a tag-ref, queries resolve it to the referenced tag's current value at query time. This operation can both add a reference to a tag that was previously a literal and repoint an existing tag-ref to a different source tag. The constraints match those for tag-refs at `CREATE VTABLE` time:
+
+- The referenced object must be a tag column (of a child table or virtual child table), not a data column.
+- The source tag and target tag must have the same data type.
+- Reference cycles are not allowed (for example, pointing a tag of `v_a` at a virtual table that ultimately references `v_a` again); this is validated and rejected.
+- The total reference chain depth must not exceed 32 hops; exceeding it returns error code `0x8000620C`.
+
+#### Repointing within a multi-hop reference chain
+
+When a virtual subtable's tag is one link of a multi-hop chain (for example, `v2_0.l2_ref_city -> v0.ref_city -> src0.city`), you can adjust the reference at any level with `SET TAG`, and the change propagates at query time following dynamic-binding rules:
+
+- Repointing an intermediate link (e.g. `ALTER VTABLE v0 SET TAG ref_city=src1.city`) changes the result of upper-layer virtual tables that reference it.
+- Repointing the top link (e.g. `ALTER VTABLE v2_0 SET TAG l2_ref_city=db.v1.ref_city`) can redirect it to a different chain, or even point it directly at a physical tag to "flatten" the chain.
+- Setting an intermediate tag to a literal clears that link's reference, severing the upper layer's propagation from the original physical source; the upper layer then resolves to that literal value.
+
+> **Note**: The batch form `ALTER VTABLE USING stb_name SET TAG ... WHERE ...` (modifying tags through the virtual super table) accepts literal values only and does not support setting a tag to a tag-ref. To set or repoint a tag-ref, use the single-subtable `ALTER VTABLE vtb_name SET TAG ...` syntax shown above.
 
 ### Change Column Source
 

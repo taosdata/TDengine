@@ -362,7 +362,42 @@ alter_table_clause: {
 ALTER VTABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
 ```
 
-`SET TAG` 既可以把标签改成静态值，也可以把标签改成 tag-ref，例如 `ALTER VTABLE v0 SET TAG local_tag = src0.city`。被引用对象必须是标签列，且类型必须与目标标签一致；当设置为字面量时，原有的 tag-ref 会被清除。
+`SET TAG` 既可以把标签改成静态字面量值，也可以把标签改成 tag-ref（标签引用）。
+
+#### 把标签设置为字面量
+
+```sql
+ALTER VTABLE v0 SET TAG local_tag='local0_updated';
+```
+
+将标签设置为字面量值时，如果该标签原本是 tag-ref，则其引用关系会被清除，之后该标签变为一个静态值，不再随源表变化。
+
+#### 把标签设置为 tag-ref（设置或重设引用）
+
+```sql
+-- 同库引用：引用同库中 src0 表的 city 标签
+ALTER VTABLE v0 SET TAG ref_city=src0.city;
+
+-- 跨库引用：使用 db_name.table.tag 三段式
+ALTER VTABLE v0 SET TAG ref_city=db1.src1.city;
+```
+
+将标签设置为 tag-ref 后，查询时会实时解析为被引用标签的当前值。该操作既可以为一个原本是字面量的标签新增引用，也可以把一个已有的 tag-ref 重新指向另一个源标签（重设引用）。约束与 `CREATE VTABLE` 时的 tag-ref 一致：
+
+- 被引用对象必须是标签列（普通子表或虚拟子表的标签），不能是数据列。
+- 源标签与目标标签的数据类型必须一致。
+- 不允许形成引用环（例如把 `v_a` 的标签指向最终又引用回 `v_a` 的虚拟表），创建/修改时会校验并报错。
+- 引用链总深度不能超过 32 跳，超过会返回错误码 `0x8000620C`。
+
+#### 多跳引用链下的重设行为
+
+当虚拟子表的标签是多跳引用链的一环时（例如 `v2_0.l2_ref_city -> v0.ref_city -> src0.city`），可以在任意一层用 `SET TAG` 调整引用，变更会按照动态绑定的规则在查询时向上传导：
+
+- 重设链路中间层的引用（如 `ALTER VTABLE v0 SET TAG ref_city=src1.city`），上层引用它的虚拟表查询结果会随之改变。
+- 重设最上层的引用（如 `ALTER VTABLE v2_0 SET TAG l2_ref_city=db.v1.ref_city`），可以让其指向另一条引用链，甚至直接指向物理表标签从而"压平"引用链。
+- 把链路中间层的标签设置为字面量，会清除该层的引用，从而切断上层对原始物理源的传导，上层将解析为该字面量值。
+
+> **说明**：通过虚拟超级表批量修改标签的形式 `ALTER VTABLE USING stb_name SET TAG ... WHERE ...` 只接受字面量值，不支持把标签设置为 tag-ref。如需设置或重设 tag-ref，请使用上面针对单个虚拟子表的 `ALTER VTABLE vtb_name SET TAG ...` 语法。
 
 ### 修改列的数据源
 

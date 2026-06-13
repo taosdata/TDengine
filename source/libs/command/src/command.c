@@ -160,6 +160,14 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
   return code;
 }
 
+// Find the first SColRef entry whose id matches colId.  Returns NULL if not found.
+static const SColRef* findTagRefByColId(const SColRef* refs, int32_t count, col_id_t colId) {
+  for (int32_t r = 0; r < count; r++) {
+    if (refs[r].id == colId) return &refs[r];
+  }
+  return NULL;
+}
+
 static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta,
                                           int8_t biMode) {
   int32_t blockCap = (biMode != 0) ? numOfRows + 1 : numOfRows;
@@ -242,28 +250,39 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
         STR_TO_VARSTR(buf, fillTagCol == 0 ? "" : "disabled");
         COL_DATA_SET_VAL_AND_CHECK(pCol7, pBlock->info.rows, buf, false);
       }
-    } else if (hasColRef(pMeta->tableType) && pMeta->colRef) {
-      if (i < pMeta->numOfColRefs) {
-        if (pMeta->colRef[i].hasRef) {
+    } else if (hasColRef(pMeta->tableType) && (pMeta->colRef || pMeta->tagRef)) {
+      bool isTagRow = (i >= pMeta->tableInfo.numOfColumns);
+      STR_TO_VARSTR(buf, "");  // default: empty ref
+      if (!isTagRow && pMeta->colRef) {
+        // column: match by position (colRef is always aligned with schema columns)
+        if (i < pMeta->numOfColRefs && pMeta->colRef[i].hasRef) {
           char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
-
           TSlice strBuf = {0};
           sliceInit(&strBuf, refColName, sizeof(refColName));
-
           QRY_ERR_RET(sliceAppend(&strBuf, pMeta->colRef[i].refDbName, strlen(pMeta->colRef[i].refDbName)));
           QRY_ERR_RET(sliceAppend(&strBuf, ".", 1));
           QRY_ERR_RET(sliceAppend(&strBuf, pMeta->colRef[i].refTableName, strlen(pMeta->colRef[i].refTableName)));
           QRY_ERR_RET(sliceAppend(&strBuf, ".", 1));
           QRY_ERR_RET(sliceAppend(&strBuf, pMeta->colRef[i].refColName, strlen(pMeta->colRef[i].refColName)));
           STR_TO_VARSTR(buf, refColName);
-        } else {
-          STR_TO_VARSTR(buf, "");
         }
-        COL_DATA_SET_VAL_AND_CHECK(pCol8, pBlock->info.rows, buf, false);
-      } else {
-        STR_TO_VARSTR(buf, "");
-        COL_DATA_SET_VAL_AND_CHECK(pCol8, pBlock->info.rows, buf, false);
+      } else if (isTagRow && pMeta->tagRef) {
+        // tag: match by colId — tagRef is appended in SET TAG order, not schema position order
+        const SColRef* pRef = findTagRefByColId(pMeta->tagRef, pMeta->numOfTagRefs, pMeta->schema[i].colId);
+        if (pRef && pRef->hasRef) {
+          char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
+          TSlice strBuf = {0};
+          sliceInit(&strBuf, refColName, sizeof(refColName));
+          QRY_ERR_RET(sliceAppend(&strBuf, pRef->refDbName, strlen(pRef->refDbName)));
+          QRY_ERR_RET(sliceAppend(&strBuf, ".", 1));
+          QRY_ERR_RET(sliceAppend(&strBuf, pRef->refTableName, strlen(pRef->refTableName)));
+          QRY_ERR_RET(sliceAppend(&strBuf, ".", 1));
+          QRY_ERR_RET(sliceAppend(&strBuf, pRef->refColName, strlen(pRef->refColName)));
+          STR_TO_VARSTR(buf, refColName);
+        }
       }
+
+      COL_DATA_SET_VAL_AND_CHECK(pCol8, pBlock->info.rows, buf, false);
     }
 
     fillTagCol = 0;
@@ -772,17 +791,20 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
                        ", ");
     }
 
-    if (pCfg->pTagRefs && i < pCfg->numOfTagRefs) {
-      SColRef* pTagRef = pCfg->pTagRefs + i;
-      if (pTagRef->hasRef) {
-        char expandRefTable[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
-        char expandRefCol[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
-        *len +=
-            snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                     "FROM `%s`.`%s`.`%s`", pTagRef->refDbName, expandIdentifier(pTagRef->refTableName, expandRefTable),
-                     expandIdentifier(pTagRef->refColName, expandRefCol));
-        continue;
-      }
+    // Match tag ref by colId rather than array position: SET TAG appends refs in
+    // assignment order, which may differ from the tag schema position order when
+    // tags are added via ALTER TABLE after the vtable was created.
+    const SColRef* pTagRef = pCfg->pTagRefs
+                                 ? findTagRefByColId(pCfg->pTagRefs, pCfg->numOfTagRefs, pSchema->colId)
+                                 : NULL;
+    if (pTagRef && pTagRef->hasRef) {
+      char expandRefTable[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+      char expandRefCol[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+      *len +=
+          snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                   "FROM `%s`.`%s`.`%s`", pTagRef->refDbName, expandIdentifier(pTagRef->refTableName, expandRefTable),
+                   expandIdentifier(pTagRef->refColName, expandRefCol));
+      continue;
     }
 
     if (j >= valueNum) {
