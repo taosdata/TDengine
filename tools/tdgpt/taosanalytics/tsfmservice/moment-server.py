@@ -1,11 +1,13 @@
 import argparse
 import os
 import re
+import sys
 from datetime import timedelta
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from huggingface_hub import snapshot_download
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'misc'))
 
 from sklearn.preprocessing import StandardScaler
 
@@ -18,6 +20,7 @@ from momentfm import MOMENTPipeline
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from hf_download import snapshot_download_with_fallback
 pretrained_model = None
 control_randomness(seed=13) # Set random seeds for PyTorch, Numpy etc.
 
@@ -302,7 +305,6 @@ def convert_ts(ts_list, precision):
 
 def download_model(model_name, root_dir, enable_ep = False):
     # model_list = ['Salesforce/moirai-moe-1.0-R-small']
-    ep = 'https://hf-mirror.com' if enable_ep else None
     model_list = [model_name]
 
     # root_dir = '/var/lib/taos/taosanode/model/moment/'
@@ -314,12 +316,12 @@ def download_model(model_name, root_dir, enable_ep = False):
         os.mkdir(dst_folder)
 
     for item in tqdm(model_list):
-        snapshot_download(
+        snapshot_download_with_fallback(
             repo_id=item,
             local_dir=dst_folder,  # storage directory
+            enable_ep=enable_ep,
             local_dir_use_symlinks=False,   # disable the link
             resume_download=True,
-            endpoint=ep
         )
 
 def main():
