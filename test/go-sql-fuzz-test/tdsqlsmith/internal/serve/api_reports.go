@@ -1,5 +1,9 @@
 package serve
 
+// api_reports.go implements the endpoints that list run report summaries and serve individual reports.
+//
+// api_reports.go 实现列出运行报告摘要以及返回单个报告的端点。
+
 import (
 	"fmt"
 	"net/http"
@@ -11,6 +15,9 @@ import (
 	"tdsqlsmith/internal/report"
 )
 
+// handleReports responds to GET requests with the list of available run report summaries.
+//
+// handleReports 对 GET 请求返回可用运行报告摘要的列表。
 func (s *server) handleReports(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAuth(w, r) {
 		return
@@ -27,6 +34,9 @@ func (s *server) handleReports(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": items, "total": len(items)})
 }
 
+// handleReportByID responds to GET requests with the full run report identified by the trailing path segment.
+//
+// handleReportByID 对 GET 请求返回由路径末段标识的完整运行报告。
 func (s *server) handleReportByID(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAuth(w, r) {
 		return
@@ -49,6 +59,9 @@ func (s *server) handleReportByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, runReport)
 }
 
+// listReportSummaries scans the output directory and returns one summary per run report, newest first.
+//
+// listReportSummaries 扫描输出目录，为每个运行报告返回一条摘要，最新的排在前面。
 func (s *server) listReportSummaries() ([]reportSummary, error) {
 	entries, err := os.ReadDir(s.cfg.OutDir)
 	if err != nil {
@@ -86,6 +99,9 @@ func (s *server) listReportSummaries() ([]reportSummary, error) {
 	return out, nil
 }
 
+// readRunReport loads the full run report for runID, rejecting empty or path-traversal identifiers.
+//
+// readRunReport 加载 runID 对应的完整运行报告，拒绝空标识或带路径穿越的标识。
 func (s *server) readRunReport(runID string) (*report.MinimalRunReport, error) {
 	if strings.TrimSpace(runID) == "" {
 		return nil, fmt.Errorf("empty run id")

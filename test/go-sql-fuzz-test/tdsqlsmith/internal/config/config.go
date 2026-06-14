@@ -1,3 +1,8 @@
+// Package config parses command-line arguments into typed configuration for the
+// run, replay, and serve subcommands, including the sqlsmith-compatible flags.
+//
+// config 包将命令行参数解析为 run、replay 和 serve 子命令的类型化配置，
+// 包含与 sqlsmith 兼容的参数。
 package config
 
 import (
@@ -12,64 +17,94 @@ import (
 	"time"
 )
 
+// Command names the selected subcommand.
+//
+// Command 标识所选中的子命令。
 type Command string
 
 const (
-	CommandRun    Command = "run"
-	CommandReplay Command = "replay"
-	CommandServe  Command = "serve"
+	CommandRun    Command = "run"    // generate and execute fuzz queries / 生成并执行模糊测试查询
+	CommandReplay Command = "replay" // replay statements from a run report / 从运行报告中重放语句
+	CommandServe  Command = "serve"  // run the HTTP control/report server / 运行 HTTP 控制/报告服务器
 )
 
+// DefaultTargetDSN is the TDengine DSN used when none is provided.
+//
+// DefaultTargetDSN 是未提供 DSN 时使用的默认 TDengine DSN。
 const DefaultTargetDSN = "root:taosdata@tcp(127.0.0.1:6030)/"
+
+// DefaultOutDir is the default output directory for run artifacts.
+//
+// DefaultOutDir 是运行产物的默认输出目录。
 const DefaultOutDir = "out"
 
+// Parsed is the fully parsed command line: the selected command, its config, and global flags.
+//
+// Parsed 是完全解析后的命令行：所选命令、其配置以及全局参数。
 type Parsed struct {
-	Command     Command
-	Run         RunConfig
-	Replay      ReplayConfig
-	Serve       ServeConfig
-	ShowHelp    bool
-	ShowVersion bool
+	Command     Command      // the selected subcommand / 所选的子命令
+	Run         RunConfig    // configuration for the run command / run 命令的配置
+	Replay      ReplayConfig // configuration for the replay command / replay 命令的配置
+	Serve       ServeConfig  // configuration for the serve command / serve 命令的配置
+	ShowHelp    bool         // print usage and exit / 打印用法并退出
+	ShowVersion bool         // print version and exit / 打印版本并退出
 }
 
+// RunConfig holds the options for the run subcommand.
+//
+// RunConfig 保存 run 子命令的选项。
 type RunConfig struct {
-	DSN                  string
-	Seed                 int64
-	RNGState             string
-	Cases                int
-	Duration             time.Duration
-	StmtTimeout          time.Duration
-	OutDir               string
-	CleanupSuccessRunDir bool
-	MutationLevel        int
-	StopWhenCovered      bool
-	DryRun               bool
-	Verbose              bool
-	DumpAllQueries       bool
-	DumpAllGraphs        bool
-	ExcludeCatalog       bool
-	LegacyMode           bool
-	WorkloadConfig       string
-	ExecProfile          string
+	DSN                  string        // TDengine DSN / TDengine DSN
+	Seed                 int64         // RNG seed / 随机数生成器种子
+	RNGState             string        // serialized RNG state to deserialize / 待反序列化的 RNG 状态序列化串
+	Cases                int           // number of queries to generate (0 means duration-bound) / 要生成的查询数量（0 表示按时长限制）
+	Duration             time.Duration // wall-clock run duration / 运行的挂钟时长
+	StmtTimeout          time.Duration // per-statement timeout / 单条语句超时
+	OutDir               string        // output directory (absolute after parsing) / 输出目录（解析后为绝对路径）
+	CleanupSuccessRunDir bool          // remove temp child logs on clean exit / 干净退出时移除临时子进程日志
+	MutationLevel        int           // mutation intensity in [0,3] / 变异强度，取值范围 [0,3]
+	StopWhenCovered      bool          // stop once all positive branches are covered / 一旦覆盖所有正向分支即停止
+	DryRun               bool          // parse-gate only, skip execution / 仅做解析校验，跳过执行
+	Verbose              bool          // verbose progress output / 输出详细进度
+	DumpAllQueries       bool          // print every generated query / 打印每条生成的查询
+	DumpAllGraphs        bool          // dump generated AST graphs / 导出生成的 AST 图
+	ExcludeCatalog       bool          // reserved compatibility option / 保留的兼容性选项
+	LegacyMode           bool          // parsed via sqlsmith-compatible mode / 通过 sqlsmith 兼容模式解析
+	WorkloadConfig       string        // path to a workload TOML config / 负载 TOML 配置文件路径
+	ExecProfile          string        // execution profile: strict|balanced|aggressive / 执行档位：strict|balanced|aggressive
 }
 
+// ReplayConfig holds the options for the replay subcommand.
+//
+// ReplayConfig 保存 replay 子命令的选项。
 type ReplayConfig struct {
-	DSN         string
-	File        string
-	Count       int
-	StmtTimeout time.Duration
+	DSN         string        // TDengine DSN / TDengine DSN
+	File        string        // path to the run report to replay (absolute after parsing) / 待重放的运行报告路径（解析后为绝对路径）
+	Count       int           // number of replay iterations / 重放迭代次数
+	StmtTimeout time.Duration // per-statement timeout / 单条语句超时
 }
 
+// ServeConfig holds the options for the serve subcommand.
+//
+// ServeConfig 保存 serve 子命令的选项。
 type ServeConfig struct {
-	Listen      string
-	APIToken    string
-	DataDir     string
-	OutDir      string
-	AllowOrigin string
+	Listen      string // listen address / 监听地址
+	APIToken    string // bearer token required for API auth / API 鉴权所需的 bearer token
+	DataDir     string // state data directory (absolute after parsing) / 状态数据目录（解析后为绝对路径）
+	OutDir      string // run output directory (absolute after parsing) / 运行输出目录（解析后为绝对路径）
+	AllowOrigin string // CORS Access-Control-Allow-Origin value / CORS Access-Control-Allow-Origin 取值
 }
 
+// legacyOptRE matches the sqlsmith-compatible "--option" / "--option=value" forms.
+//
+// legacyOptRE 匹配 sqlsmith 兼容的 "--option" / "--option=value" 形式。
 var legacyOptRE = regexp.MustCompile(`^--(help|verbose|target|sqlite|monetdb|version|dump-all-graphs|dump-all-queries|seed|dry-run|max-queries|rng-state|exclude-catalog|config|exec-profile)(?:=((?:.|\n)*))?$`)
 
+// Parse interprets args, dispatching to the run/replay/serve subcommands or to
+// the sqlsmith-compatible legacy mode when the first argument starts with "--".
+//
+// Parse 解释 args，将其分派到 run/replay/serve 子命令；当第一个参数以 "--"
+// 开头时，则分派到 sqlsmith 兼容的旧版模式。
 func Parse(args []string) (*Parsed, error) {
 	if len(args) == 0 {
 		return nil, usageErr("missing subcommand or classic options")
@@ -105,6 +140,11 @@ func Parse(args []string) (*Parsed, error) {
 	}
 }
 
+// parseLegacy parses the sqlsmith-compatible flat option list into a RunConfig,
+// rejecting unsupported targets (sqlite/monetdb) and applying TDengine defaults.
+//
+// parseLegacy 将 sqlsmith 兼容的扁平选项列表解析为 RunConfig，
+// 拒绝不支持的目标（sqlite/monetdb）并应用 TDengine 默认值。
 func parseLegacy(args []string) (*Parsed, error) {
 	opts := map[string]string{}
 	for _, raw := range args {
@@ -172,11 +212,19 @@ func parseLegacy(args []string) (*Parsed, error) {
 	return &Parsed{Command: CommandRun, Run: cfg}, nil
 }
 
+// hasOpt reports whether key is present in the parsed legacy option map.
+//
+// hasOpt 报告 key 是否存在于已解析的旧版选项映射中。
 func hasOpt(m map[string]string, key string) bool {
 	_, ok := m[key]
 	return ok
 }
 
+// parseRun parses the run subcommand flags, applies defaults, and validates the
+// resulting RunConfig (cases, timeout, mutation level, exec profile, out dir).
+//
+// parseRun 解析 run 子命令参数、应用默认值，并校验得到的 RunConfig
+// （cases、超时、变异级别、执行档位、输出目录）。
 func parseRun(args []string) (*RunConfig, error) {
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(new(strings.Builder))
@@ -244,6 +292,11 @@ func parseRun(args []string) (*RunConfig, error) {
 	return cfg, nil
 }
 
+// parseReplay parses the replay subcommand flags and validates that a report
+// file is given with a positive count and timeout.
+//
+// parseReplay 解析 replay 子命令参数，并校验是否提供了报告文件，
+// 且 count 和超时为正值。
 func parseReplay(args []string) (*ReplayConfig, error) {
 	fs := flag.NewFlagSet("replay", flag.ContinueOnError)
 	fs.SetOutput(new(strings.Builder))
@@ -275,6 +328,11 @@ func parseReplay(args []string) (*ReplayConfig, error) {
 	return cfg, nil
 }
 
+// parseServe parses the serve subcommand flags, requiring a listen address and
+// API token and resolving the data and output directories to absolute paths.
+//
+// parseServe 解析 serve 子命令参数，要求提供监听地址和 API token，
+// 并将数据目录和输出目录解析为绝对路径。
 func parseServe(args []string) (*ServeConfig, error) {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	fs.SetOutput(new(strings.Builder))
@@ -308,6 +366,9 @@ func parseServe(args []string) (*ServeConfig, error) {
 	return cfg, nil
 }
 
+// Usage returns the multi-line CLI usage text.
+//
+// Usage 返回多行的命令行用法文本。
 func Usage() string {
 	return strings.TrimSpace(`
 Usage:
@@ -354,14 +415,16 @@ Serve flags:
 `)
 }
 
+// usageErr builds a trimmed usage error from msg.
+//
+// usageErr 根据 msg 构建一个去除首尾空白的用法错误。
 func usageErr(msg string) error {
 	return errors.New(strings.TrimSpace(msg))
 }
 
-func PrintUsage() {
-	_, _ = fmt.Fprintln(os.Stderr, Usage())
-}
-
+// envOr returns the trimmed value of environment variable key, or fallback if unset/empty.
+//
+// envOr 返回环境变量 key 去除首尾空白后的值，若未设置或为空则返回 fallback。
 func envOr(key, fallback string) string {
 	v := strings.TrimSpace(os.Getenv(key))
 	if v == "" {
