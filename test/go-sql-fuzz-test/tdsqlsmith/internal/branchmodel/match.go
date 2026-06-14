@@ -1,5 +1,11 @@
 package branchmodel
 
+// match.go checks whether a parsed SELECT statement satisfies the structural
+// key=value assertions that define a positive corpus case.
+//
+// match.go 检查已解析的 SELECT 语句是否满足定义正例语料用例的
+// 结构化 key=value 断言。
+
 import (
 	"fmt"
 	"strconv"
@@ -8,6 +14,13 @@ import (
 	"sqlparser"
 )
 
+// MatchPositive reports whether stmt (which must be a *SelectStmt) satisfies all
+// the semicolon-separated key=value assertions in keySpec. An empty keySpec
+// always matches; a non-SelectStmt or any failing assertion returns an error.
+//
+// MatchPositive 报告 stmt(必须是 *SelectStmt)是否满足 keySpec 中所有
+// 以分号分隔的 key=value 断言。空的 keySpec 始终匹配;非 SelectStmt
+// 或任一断言失败都会返回错误。
 func MatchPositive(stmt sqlparser.Statement, keySpec string) error {
 	sel, ok := stmt.(*sqlparser.SelectStmt)
 	if !ok {
@@ -32,6 +45,12 @@ func MatchPositive(stmt sqlparser.Statement, keySpec string) error {
 	return nil
 }
 
+// assertSelectKey checks a single key=val assertion against the select statement
+// s, returning an error if the structural property does not match or the key is
+// unsupported.
+//
+// assertSelectKey 针对 select 语句 s 检查单个 key=val 断言,
+// 如果结构属性不匹配或该 key 不被支持则返回错误。
 func assertSelectKey(s *sqlparser.SelectStmt, key string, val string) error {
 	switch key {
 	case "hint":
@@ -244,10 +263,19 @@ func assertSelectKey(s *sqlparser.SelectStmt, key string, val string) error {
 	return nil
 }
 
+// mismatch builds a descriptive error for an assertion whose observed value got
+// differs from the expected value want.
+//
+// mismatch 为观察值 got 与期望值 want 不一致的断言构建一条描述性错误。
 func mismatch(key string, got any, want any) error {
 	return fmt.Errorf("%s mismatch: got=%v want=%v", key, got, want)
 }
 
+// hintNameFromType returns the canonical string name for the optimizer hint h,
+// or "" if h is nil or unrecognized.
+//
+// hintNameFromType 返回优化器 hint h 的规范字符串名称,
+// 如果 h 为 nil 或无法识别则返回 ""。
 func hintNameFromType(h *sqlparser.HintOption) string {
 	if h == nil {
 		return ""
@@ -278,6 +306,10 @@ func hintNameFromType(h *sqlparser.HintOption) string {
 	}
 }
 
+// joinTypeName returns the canonical string name for the join type j, or "" if
+// it is unrecognized.
+//
+// joinTypeName 返回 join 类型 j 的规范字符串名称,如果无法识别则返回 ""。
 func joinTypeName(j sqlparser.JoinType) string {
 	switch j {
 	case sqlparser.JoinTypeInner:
@@ -309,6 +341,11 @@ func joinTypeName(j sqlparser.JoinType) string {
 	}
 }
 
+// firstJoin returns the first join table expression reachable from from,
+// descending into a subquery's FROM clause if necessary, or nil if none.
+//
+// firstJoin 返回从 from 可达的第一个 join 表表达式,必要时深入子查询的
+// FROM 子句,如果不存在则返回 nil。
 func firstJoin(from sqlparser.TableExpr) *sqlparser.JoinTableExpr {
 	switch x := from.(type) {
 	case *sqlparser.JoinTableExpr:
@@ -323,6 +360,11 @@ func firstJoin(from sqlparser.TableExpr) *sqlparser.JoinTableExpr {
 	}
 }
 
+// firstRaw returns the underlying raw expression of expr, unwrapping an aliased
+// expression, or nil if expr is not (or does not wrap) a raw expression.
+//
+// firstRaw 返回 expr 底层的 raw 表达式,会展开带别名的表达式,
+// 如果 expr 不是(或未包装)raw 表达式则返回 nil。
 func firstRaw(expr sqlparser.Expr) *sqlparser.RawExpr {
 	switch x := expr.(type) {
 	case *sqlparser.RawExpr:
@@ -334,6 +376,10 @@ func firstRaw(expr sqlparser.Expr) *sqlparser.RawExpr {
 	}
 }
 
+// tableExprKind classifies a FROM table expression as "table", "subquery",
+// "join", "nil", or "other".
+//
+// tableExprKind 将 FROM 表表达式归类为 "table"、"subquery"、"join"、"nil" 或 "other"。
 func tableExprKind(t sqlparser.TableExpr) string {
 	switch t.(type) {
 	case *sqlparser.TableNameExpr:
@@ -349,6 +395,10 @@ func tableExprKind(t sqlparser.TableExpr) string {
 	}
 }
 
+// countSelectNodes returns the number of distinct *SelectStmt nodes in the tree
+// rooted at root.
+//
+// countSelectNodes 返回以 root 为根的树中不同 *SelectStmt 节点的数量。
 func countSelectNodes(root sqlparser.SQLNode) int {
 	if root == nil {
 		return 0
@@ -364,6 +414,11 @@ func countSelectNodes(root sqlparser.SQLNode) int {
 	return len(seen)
 }
 
+// fromSubqueryDepth returns the maximum nesting depth of subqueries in the FROM
+// table expression t, taking the deeper side of any join.
+//
+// fromSubqueryDepth 返回 FROM 表表达式 t 中子查询的最大嵌套深度,
+// 对于 join 取较深的一侧。
 func fromSubqueryDepth(t sqlparser.TableExpr) int {
 	switch x := t.(type) {
 	case *sqlparser.SubqueryTableExpr:
@@ -383,6 +438,9 @@ func fromSubqueryDepth(t sqlparser.TableExpr) int {
 	}
 }
 
+// exprHasSubquery reports whether the expression e contains a nested SELECT.
+//
+// exprHasSubquery 报告表达式 e 是否包含嵌套的 SELECT。
 func exprHasSubquery(e sqlparser.Expr) bool {
 	if e == nil {
 		return false
@@ -397,6 +455,11 @@ func exprHasSubquery(e sqlparser.Expr) bool {
 	return has
 }
 
+// firstFromSubquerySelect returns the SELECT statement of the first subquery in
+// s's FROM clause (direct subquery, or either side of a join), or nil if none.
+//
+// firstFromSubquerySelect 返回 s 的 FROM 子句中第一个子查询的 SELECT 语句
+// (直接子查询,或 join 的任一侧),如果不存在则返回 nil。
 func firstFromSubquerySelect(s *sqlparser.SelectStmt) *sqlparser.SelectStmt {
 	if s == nil {
 		return nil

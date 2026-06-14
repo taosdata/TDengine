@@ -1,24 +1,37 @@
 package branchmodel
 
+// tracker.go tracks which positive and negative corpus cases have been covered
+// during fuzzing and summarizes the resulting coverage. It is safe for
+// concurrent use.
+//
+// tracker.go 跟踪在 fuzzing 过程中哪些正例和负例语料用例已被覆盖,
+// 并汇总最终的覆盖情况。它可安全用于并发场景。
+
 import (
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
 	"sqlparser"
 )
 
+// Tracker records, in a concurrency-safe way, which positive and negative corpus
+// cases have been hit during fuzzing.
+//
+// Tracker 以并发安全的方式记录在 fuzzing 过程中哪些正例和负例语料用例已被命中。
 type Tracker struct {
-	mu sync.Mutex
+	mu sync.Mutex // guards the maps below / 保护下面的各个 map
 
-	positive map[string]PositiveCase
-	negative map[string]NegativeCase
+	positive map[string]PositiveCase // required positive cases by id / 按 id 索引的必需正例
+	negative map[string]NegativeCase // required negative cases by id / 按 id 索引的必需负例
 
-	hitPositive map[string]HitInfo
-	hitNegative map[string]HitInfo
+	hitPositive map[string]HitInfo // covered positive cases by id / 按 id 索引的已覆盖正例
+	hitNegative map[string]HitInfo // covered negative cases by id / 按 id 索引的已覆盖负例
 }
 
+// NewTracker builds a Tracker indexing the given positive and negative cases by id.
+//
+// NewTracker 构建一个 Tracker,按 id 索引给定的正例和负例。
 func NewTracker(pos []PositiveCase, neg []NegativeCase) *Tracker {
 	t := &Tracker{
 		positive:    make(map[string]PositiveCase, len(pos)),
@@ -35,6 +48,12 @@ func NewTracker(pos []PositiveCase, neg []NegativeCase) *Tracker {
 	return t
 }
 
+// TryMarkPositive checks stmt against every not-yet-hit positive case and marks
+// each one it structurally matches as covered, recording sqlText and now. It
+// returns the sorted ids of cases newly covered by this statement.
+//
+// TryMarkPositive 将 stmt 与每个尚未命中的正例进行比对,把结构上匹配的每个用例
+// 标记为已覆盖,并记录 sqlText 和 now。它返回此语句新覆盖用例的已排序 id。
 func (t *Tracker) TryMarkPositive(stmt sqlparser.Statement, sqlText string, now time.Time) []string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -61,35 +80,27 @@ func (t *Tracker) TryMarkPositive(stmt sqlparser.Statement, sqlText string, now 
 	return hits
 }
 
-func (t *Tracker) MarkNegativeReject(c NegativeCase, sqlText string, now time.Time) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if _, ok := t.hitNegative[c.ID]; ok {
-		return
-	}
-	t.hitNegative[c.ID] = HitInfo{
-		CaseID: c.ID,
-		SQL:    sqlText,
-		At:     now,
-		Rule:   c.Rule,
-		Source: "select_branch_negative",
-		// BranchSig stores expected error type for negative corpus.
-		BranchSig: c.ErrType,
-	}
-}
-
+// IsPositiveCovered reports whether every positive case has been hit.
+//
+// IsPositiveCovered 报告是否每个正例都已被命中。
 func (t *Tracker) IsPositiveCovered() bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return len(t.hitPositive) == len(t.positive)
 }
 
+// IsNegativeCovered reports whether every negative case has been hit.
+//
+// IsNegativeCovered 报告是否每个负例都已被命中。
 func (t *Tracker) IsNegativeCovered() bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	return len(t.hitNegative) == len(t.negative)
 }
 
+// Summary returns the current positive and negative coverage as a CoverageSummary.
+//
+// Summary 以 CoverageSummary 形式返回当前的正例和负例覆盖情况。
 func (t *Tracker) Summary() CoverageSummary {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -129,51 +140,4 @@ func (t *Tracker) Summary() CoverageSummary {
 		CoverageRatio:  cov,
 		NegRejectRatio: negCov,
 	}
-}
-
-func (t *Tracker) PositiveHits() []HitInfo {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	out := make([]HitInfo, 0, len(t.hitPositive))
-	for _, h := range t.hitPositive {
-		out = append(out, h)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		return strings.Compare(out[i].CaseID, out[j].CaseID) < 0
-	})
-	return out
-}
-
-func (t *Tracker) MissingPositiveIDs() []string {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	out := make([]string, 0, len(t.positive)-len(t.hitPositive))
-	for id := range t.positive {
-		if _, ok := t.hitPositive[id]; ok {
-			continue
-		}
-		out = append(out, id)
-	}
-	sort.Strings(out)
-	return out
-}
-
-func (t *Tracker) PositiveCase(id string) (PositiveCase, bool) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	c, ok := t.positive[id]
-	return c, ok
-}
-
-func (t *Tracker) NegativeHits() []HitInfo {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	out := make([]HitInfo, 0, len(t.hitNegative))
-	for _, h := range t.hitNegative {
-		out = append(out, h)
-	}
-	sort.Slice(out, func(i, j int) bool {
-		return strings.Compare(out[i].CaseID, out[j].CaseID) < 0
-	})
-	return out
 }

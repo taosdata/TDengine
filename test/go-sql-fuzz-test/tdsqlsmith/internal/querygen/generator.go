@@ -1,3 +1,6 @@
+// Package querygen builds random TDengine SQL statements as sqlparser ASTs and renders them to SQL text.
+//
+// Package querygen 构建随机的 TDengine SQL 语句为 sqlparser AST，并将其渲染为 SQL 文本。
 package querygen
 
 import (
@@ -10,64 +13,93 @@ import (
 	"tdsqlsmith/internal/random"
 )
 
+// Config controls the recursion and breadth limits applied while generating a statement.
+//
+// Config 控制生成语句时应用的递归深度与广度限制。
 type Config struct {
-	MaxDepth       int
-	MaxSelectItems int
-	MaxExprDepth   int
+	MaxDepth       int // maximum nesting depth for query expressions and table references / 查询表达式和表引用的最大嵌套深度
+	MaxSelectItems int // maximum number of items produced in a select list / select 列表中生成项的最大数量
+	MaxExprDepth   int // maximum nesting depth for scalar expressions / 标量表达式的最大嵌套深度
 }
 
+// Column describes a single column of a table, with its name and SQL type text.
+//
+// Column 描述表中的单个列，包含其名称和 SQL 类型文本。
 type Column struct {
-	Name string
-	Type string
+	Name string // column name / 列名
+	Type string // SQL type text, e.g. "int", "varchar(64)" / SQL 类型文本，例如 "int"、"varchar(64)"
 }
 
+// Table describes a table and the columns it exposes to the generator.
+//
+// Table 描述一张表以及它向生成器暴露的列。
 type Table struct {
-	Name    string
-	Columns []Column
+	Name    string   // table name / 表名
+	Columns []Column // columns belonging to the table / 属于该表的列
 }
 
+// Schema is the set of tables the generator may reference.
+//
+// Schema 是生成器可以引用的表集合。
 type Schema struct {
-	Tables []Table
+	Tables []Table // tables available for generation / 可用于生成的表
 }
 
+// valueKind is the coarse value category inferred for a column or expected by an expression.
+//
+// valueKind 是为列推断或由表达式期望的粗粒度值类别。
 type valueKind int
 
 const (
-	kindAny valueKind = iota
-	kindNumber
-	kindString
-	kindBool
-	kindTime
-	kindJSON
+	kindAny    valueKind = iota // any/unspecified value kind / 任意/未指定的值类别
+	kindNumber                  // numeric types (int, float, decimal, ...) / 数值类型（int、float、decimal 等）
+	kindString                  // string/binary types (varchar, nchar, binary, ...) / 字符串/二进制类型（varchar、nchar、binary 等）
+	kindBool                    // boolean type / 布尔类型
+	kindTime                    // timestamp/date types / 时间戳/日期类型
+	kindJSON                    // JSON type / JSON 类型
 )
 
+// columnRef is a resolved reference to a column, including its owning table and inferred kind.
+//
+// columnRef 是对列的已解析引用，包含其所属表和推断出的类别。
 type columnRef struct {
-	Table string
-	Name  string
-	Kind  valueKind
+	Table string    // owning table name / 所属表名
+	Name  string    // column name / 列名
+	Kind  valueKind // inferred value kind / 推断出的值类别
 }
 
+// Generated is the result of one generation attempt: the SQL text and the grammar tags it exercised.
+//
+// Generated 是一次生成尝试的结果：SQL 文本及其覆盖到的语法标签。
 type Generated struct {
-	SQL  string
-	Tags []string
+	SQL  string   // generated SQL statement text, terminated with ";" / 生成的 SQL 语句文本，以 ";" 结尾
+	Tags []string // sorted grammar/feature tags touched during generation / 生成过程中覆盖到的、已排序的语法/特性标签
 }
 
+// Generator produces random SQL statements over a bound schema, drawing from pools of names and literals.
+//
+// Generator 在绑定的 schema 上生成随机 SQL 语句，从名称池和字面量池中取值。
 type Generator struct {
-	cfg         Config
-	tables      []string
-	columns     []string
-	typedCols   map[valueKind][]columnRef
-	tableCols   map[string][]columnRef
-	aliases     []string
-	funcNames   []string
-	pseudoCols  []string
-	durationLit []string
+	cfg         Config                    // generation limits / 生成限制
+	tables      []string                  // available table names / 可用的表名
+	columns     []string                  // union of all column names across tables / 所有表的列名并集
+	typedCols   map[valueKind][]columnRef // columns grouped by inferred value kind / 按推断值类别分组的列
+	tableCols   map[string][]columnRef    // columns grouped by owning table name / 按所属表名分组的列
+	aliases     []string                  // candidate alias identifiers / 候选别名标识符
+	funcNames   []string                  // candidate standard function names / 候选标准函数名
+	pseudoCols  []string                  // candidate pseudo-column names (tbname, wstart, ...) / 候选伪列名（tbname、wstart 等）
+	durationLit []string                  // candidate duration literals (1s, 5m, ...) / 候选时长字面量（1s、5m 等）
 }
 
+// genCtx accumulates the set of grammar tags exercised during a single generation pass.
+//
+// genCtx 累积单次生成过程中覆盖到的语法标签集合。
 type genCtx struct {
-	tags map[string]struct{}
+	tags map[string]struct{} // set of tags touched, deduplicated / 覆盖到的标签集合，已去重
 }
 
+// add records a tag in the context, ignoring blank tags.
+// add 在上下文中记录一个标签，忽略空白标签。
 func (c *genCtx) add(tag string) {
 	if strings.TrimSpace(tag) == "" {
 		return
@@ -75,6 +107,8 @@ func (c *genCtx) add(tag string) {
 	c.tags[tag] = struct{}{}
 }
 
+// list returns the recorded tags sorted alphabetically.
+// list 返回按字母顺序排序的已记录标签。
 func (c *genCtx) list() []string {
 	out := make([]string, 0, len(c.tags))
 	for k := range c.tags {
@@ -84,10 +118,17 @@ func (c *genCtx) list() []string {
 	return out
 }
 
+// DefaultConfig returns the default generation limits.
+// DefaultConfig 返回默认的生成限制。
 func DefaultConfig() Config {
 	return Config{MaxDepth: 3, MaxSelectItems: 4, MaxExprDepth: 3}
 }
 
+// New creates a Generator, normalizing non-positive Config limits to defaults,
+// seeding the default name/literal pools, and binding the default schema.
+//
+// New 创建一个 Generator，将非正的 Config 限制规整为默认值，
+// 初始化默认的名称/字面量池，并绑定默认 schema。
 func New(cfg Config) *Generator {
 	if cfg.MaxDepth <= 0 {
 		cfg.MaxDepth = 3
@@ -114,6 +155,11 @@ func New(cfg Config) *Generator {
 	return g
 }
 
+// BindSchema replaces the generator's table/column pools from the given schema,
+// inferring each column's value kind. It is a no-op when the schema yields no usable tables or columns.
+//
+// BindSchema 用给定的 schema 替换生成器的表/列池，并推断每个列的值类别。
+// 当 schema 没有产生可用的表或列时，该方法为空操作。
 func (g *Generator) BindSchema(schema Schema) {
 	if len(schema.Tables) == 0 {
 		return
@@ -168,6 +214,11 @@ func (g *Generator) BindSchema(schema Schema) {
 	g.typedCols = typed
 }
 
+// defaultSchema returns the built-in schema of three identical tables (t1, t2, t3)
+// covering the common TDengine column types.
+//
+// defaultSchema 返回内置 schema，包含三张相同的表（t1、t2、t3），
+// 覆盖常见的 TDengine 列类型。
 func defaultSchema() Schema {
 	cols := []Column{
 		{Name: "ts", Type: "timestamp"},
@@ -206,6 +257,8 @@ func defaultSchema() Schema {
 	}
 }
 
+// inferKind maps a SQL type text to a valueKind by case-insensitive substring matching.
+// inferKind 通过大小写不敏感的子串匹配，将 SQL 类型文本映射为 valueKind。
 func inferKind(typ string) valueKind {
 	t := strings.ToLower(strings.TrimSpace(typ))
 	switch {
@@ -226,6 +279,13 @@ func inferKind(typ string) valueKind {
 	}
 }
 
+// Next generates one random statement, retrying up to 16 times until the result parses cleanly.
+// It returns the first statement that passes parsergate, or the last attempt if none parse.
+// It errors when r is nil or no non-empty SQL could be produced.
+//
+// Next 生成一条随机语句，最多重试 16 次直到结果能够干净地解析。
+// 它返回第一条通过 parsergate 的语句；若都无法解析，则返回最后一次尝试。
+// 当 r 为 nil 或无法生成非空 SQL 时返回错误。
 func (g *Generator) Next(r *random.RNG) (Generated, error) {
 	if r == nil {
 		return Generated{}, fmt.Errorf("nil rng")
@@ -260,14 +320,11 @@ func (g *Generator) Next(r *random.RNG) (Generated, error) {
 	return last, nil
 }
 
-func (g *Generator) queryExpression(r *random.RNG, depth int, ctx *genCtx) string {
-	stmt := g.queryExpressionAST(r, depth, ctx)
-	if stmt == nil {
-		return ""
-	}
-	return strings.TrimSpace(sqlparser.SQLNodeToString(stmt))
-}
-
+// queryExpressionAST builds a top-level query expression, optionally attaching ORDER BY,
+// SLIMIT and LIMIT clauses.
+//
+// queryExpressionAST 构建顶层查询表达式，并可选地附加 ORDER BY、
+// SLIMIT 和 LIMIT 子句。
 func (g *Generator) queryExpressionAST(r *random.RNG, depth int, ctx *genCtx) *sqlparser.SelectStmt {
 	ctx.add("query_expression")
 	q := g.querySimpleAST(r, depth, ctx)
@@ -286,6 +343,9 @@ func (g *Generator) queryExpressionAST(r *random.RNG, depth int, ctx *genCtx) *s
 	return q
 }
 
+// querySimpleAST builds a simple query, sometimes producing a UNION of two sub-queries when depth allows.
+//
+// querySimpleAST 构建一个简单查询，在深度允许时有时会生成两个子查询的 UNION。
 func (g *Generator) querySimpleAST(r *random.RNG, depth int, ctx *genCtx) *sqlparser.SelectStmt {
 	ctx.add("query_simple")
 	if depth > 0 && chance(r, 30) {
@@ -308,6 +368,11 @@ func (g *Generator) querySimpleAST(r *random.RNG, depth int, ctx *genCtx) *sqlpa
 	return g.querySpecificationAST(r, depth, ctx)
 }
 
+// querySimpleOrSubqueryAST builds either a parenthesized subquery, a nested simple query,
+// or a plain query specification depending on depth and chance.
+//
+// querySimpleOrSubqueryAST 根据深度和概率，构建带括号的子查询、嵌套的简单查询，
+// 或普通的查询规约（query specification）。
 func (g *Generator) querySimpleOrSubqueryAST(r *random.RNG, depth int, ctx *genCtx) *sqlparser.SelectStmt {
 	ctx.add("query_simple_or_subquery")
 	if depth > 0 && chance(r, 28) {
@@ -324,6 +389,9 @@ func (g *Generator) querySimpleOrSubqueryAST(r *random.RNG, depth int, ctx *genC
 	return g.querySpecificationAST(r, depth, ctx)
 }
 
+// querySpecificationAST wraps querySpecificationASTPure, substituting a fallback SELECT when it yields nil.
+//
+// querySpecificationAST 封装 querySpecificationASTPure，当其返回 nil 时替换为兜底的 SELECT。
 func (g *Generator) querySpecificationAST(r *random.RNG, depth int, ctx *genCtx) *sqlparser.SelectStmt {
 	stmt := g.querySpecificationASTPure(r, depth, ctx)
 	if stmt == nil {
@@ -332,144 +400,8 @@ func (g *Generator) querySpecificationAST(r *random.RNG, depth int, ctx *genCtx)
 	return stmt
 }
 
-func (g *Generator) querySpecificationSQL(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("query_specification")
-	if chance(r, 35) {
-		ctx.add("safe_simple")
-		return g.safeSimpleQuerySpecSQL(r, ctx)
-	}
-	enableFrom := true
-	enableWhere := chance(r, 56)
-	enablePartition := chance(r, 22)
-	enableRange := false
-	enableEvery := false
-	enableInterpFill := false
-	enableWindow := chance(r, 30)
-	enableGroup := chance(r, 35)
-	windowClause := ""
-	windowKind := ""
-	if enableWindow {
-		windowClause, windowKind = g.twindowClause(r, depth, ctx)
-	}
-	parts := []string{"select"}
-	if chance(r, 25) {
-		ctx.add("hint")
-		parts = append(parts, g.hintClause(r, enableFrom, enableWindow))
-	}
-	if chance(r, 22) {
-		if chance(r, 55) {
-			parts = append(parts, "distinct")
-		} else {
-			parts = append(parts, "all")
-		}
-	}
-	if chance(r, 12) {
-		ctx.add("tag_mode")
-		parts = append(parts, "tags")
-	}
-	var groupedExprs []string
-	if enableGroup {
-		groupedExprs = g.groupByExprList(r, ctx)
-		parts = append(parts, g.groupedSelectList(r, depth, ctx, groupedExprs))
-	} else {
-		parts = append(parts, g.selectList(r, depth, ctx))
-	}
-
-	if enableFrom {
-		parts = append(parts, g.fromClause(r, depth, ctx))
-	}
-	if enableWhere {
-		parts = append(parts, g.whereClause(r, depth, ctx))
-	}
-	if enablePartition {
-		parts = append(parts, g.partitionClause(r, depth, ctx))
-	}
-	if enableRange && windowKind == "interval" {
-		parts = append(parts, g.rangeClause(r, depth, ctx))
-	}
-	if enableEvery && windowKind == "interval" {
-		parts = append(parts, g.everyClause(r, ctx))
-	}
-	if enableInterpFill && windowKind == "interval" {
-		parts = append(parts, g.interpFillClause(r, depth, ctx))
-	}
-	if windowClause != "" {
-		enableGroup = false
-		parts = append(parts, windowClause)
-	}
-	if enableGroup {
-		parts = append(parts, "group by "+strings.Join(groupedExprs, ", "))
-		if chance(r, 50) {
-			parts = append(parts, g.groupedHavingClause(r, ctx))
-		}
-	} else if chance(r, 10) {
-		parts = append(parts, g.havingClause(r, depth, ctx))
-	}
-	return strings.Join(parts, " ")
-}
-
-func (g *Generator) safeSimpleQuerySpecSQL(r *random.RNG, ctx *genCtx) string {
-	table := g.tableRefName(r)
-	if strings.TrimSpace(table) == "" {
-		table = "t1"
-	}
-	items := make([]string, 0, 3)
-	n := 1 + r.Intn(3)
-	for i := 0; i < n; i++ {
-		items = append(items, g.columnName(r))
-	}
-	sqlText := "select " + strings.Join(items, ", ") + " from " + table
-	if chance(r, 55) {
-		sqlText += " where " + g.columnRefKind(r, kindNumber) + " > " + g.unsignedInt(r)
-	}
-	if chance(r, 45) {
-		sqlText += " order by " + g.columnName(r)
-		if chance(r, 50) {
-			sqlText += " desc"
-		} else {
-			sqlText += " asc"
-		}
-	}
-	if chance(r, 60) {
-		sqlText += " " + g.limitClause(r, ctx)
-	}
-	return sqlText
-}
-
-func reparseSelectWithClause(base *sqlparser.SelectStmt, clause string) *sqlparser.SelectStmt {
-	if base == nil {
-		return nil
-	}
-	clause = strings.TrimSpace(clause)
-	if clause == "" {
-		return base
-	}
-	baseSQL := strings.TrimSpace(sqlparser.SQLNodeToString(base))
-	if baseSQL == "" {
-		return base
-	}
-	if parsed := parseSelectStmt(baseSQL + " " + clause); parsed != nil {
-		return parsed
-	}
-	return base
-}
-
-func parseSelectStmt(sqlText string) *sqlparser.SelectStmt {
-	sqlText = strings.TrimSpace(sqlText)
-	if sqlText == "" {
-		return nil
-	}
-	stmt, err := sqlparser.Parse(sqlText)
-	if err != nil {
-		return nil
-	}
-	sel, ok := stmt.(*sqlparser.SelectStmt)
-	if !ok {
-		return nil
-	}
-	return sel
-}
-
+// fallbackSelectStmt returns a minimal valid "SELECT * FROM t1" statement.
+// fallbackSelectStmt 返回一个最小的、合法的 "SELECT * FROM t1" 语句。
 func fallbackSelectStmt() *sqlparser.SelectStmt {
 	return &sqlparser.SelectStmt{
 		Select: []sqlparser.Expr{&sqlparser.StarExpr{}},
@@ -477,633 +409,11 @@ func fallbackSelectStmt() *sqlparser.SelectStmt {
 	}
 }
 
-func (g *Generator) hintClause(r *random.RNG, hasFrom bool, hasWindow bool) string {
-	hints := make([]string, 0, 6)
-	hints = append(hints, "batch_scan()", "no_batch_scan()", "sort_for_group()", "partition_first()", "skip_tsma()")
-	if hasFrom {
-		hints = append(hints, "hash_join()")
-	}
-	if hasWindow {
-		if chance(r, 50) {
-			hints = append(hints, "win_optimize_batch()")
-		} else {
-			hints = append(hints, "win_optimize_single()")
-		}
-	}
-	return "/*+ " + pick(r, hints) + " */"
-}
-
-func (g *Generator) selectList(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("select_list")
-	n := 1 + r.Intn(g.cfg.MaxSelectItems)
-	items := make([]string, 0, n)
-	for i := 0; i < n; i++ {
-		items = append(items, g.selectItem(r, depth, ctx))
-	}
-	return strings.Join(items, ", ")
-}
-
-func (g *Generator) selectItem(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("select_item")
-	switch r.Intn(8) {
-	case 0:
-		return "*"
-	case 1:
-		return "*"
-	default:
-		expr := g.commonExpression(r, depth, ctx)
-		if chance(r, 38) {
-			alias := g.alias(r)
-			if chance(r, 50) {
-				return expr + " as " + alias
-			}
-			return expr + " " + alias
-		}
-		return expr
-	}
-}
-
-func (g *Generator) fromClause(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("from_clause")
-	count := 1
-	refs := make([]string, 0, count)
-	for i := 0; i < count; i++ {
-		refs = append(refs, g.tableReference(r, depth, ctx))
-	}
-	return "from " + strings.Join(refs, ", ")
-}
-
-func (g *Generator) tableReference(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("table_reference")
-	if depth > 0 && chance(r, 10) {
-		ctx.add("join")
-		return g.joinedTable(r, depth-1, ctx)
-	}
-	return g.tablePrimary(r, depth, ctx)
-}
-
-func (g *Generator) tablePrimary(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("table_primary")
-	switch {
-	case depth > 0 && chance(r, 24):
-		ctx.add("subquery")
-		return "(" + g.queryExpression(r, depth-1, ctx) + ") " + g.alias(r)
-	case depth > 0 && chance(r, 10):
-		ctx.add("parenthesized_joined_table")
-		return "(" + g.joinedTable(r, depth-1, ctx) + ")"
-	default:
-		t := g.tableRefName(r)
-		if chance(r, 60) {
-			if chance(r, 45) {
-				return t + " as " + g.alias(r)
-			}
-			return t + " " + g.alias(r)
-		}
-		return t
-	}
-}
-
-func (g *Generator) joinedTable(r *random.RNG, depth int, ctx *genCtx) string {
-	lt, rt := g.pickTwoTableNames(r)
-	left := lt
-	right := rt
-	on := " on " + g.timeJoinCondition(lt, rt)
-	switch r.Intn(12) {
-	case 0:
-		return left + " join " + right + on
-	case 1:
-		return left + " inner join " + right + on
-	case 2:
-		return left + " left join " + right + on
-	case 3:
-		return left + " right join " + right + on
-	case 4:
-		return left + " full join " + right + on
-	case 5:
-		return left + " left outer join " + right + on
-	case 6:
-		return left + " right outer join " + right + on
-	case 7:
-		return left + " left semi join " + right + on
-	case 8:
-		return left + " right anti join " + right + on
-	case 9:
-		out := left + " left asof join " + right + on
-		if chance(r, 35) {
-			out += " jlimit " + g.unsignedInt(r)
-		}
-		return out
-	case 10:
-		out := left + " right asof join " + right + on
-		if chance(r, 35) {
-			out += " jlimit " + g.unsignedInt(r)
-		}
-		return out
-	default:
-		out := left
-		if chance(r, 50) {
-			out += " left window join "
-		} else {
-			out += " right window join "
-		}
-		out += right
-		out += on
-		out += " window_offset(" + pick(r, g.durationLit) + ", -" + pick(r, g.durationLit) + ")"
-		if chance(r, 35) {
-			out += " jlimit " + g.unsignedInt(r)
-		}
-		return out
-	}
-}
-
-func (g *Generator) whereClause(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("where")
-	return "where " + g.searchCondition(r, depth, ctx)
-}
-
-func (g *Generator) groupByClause(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("group_by")
-	exprs := g.groupByExprList(r, ctx)
-	return "group by " + strings.Join(exprs, ", ")
-}
-
-func (g *Generator) groupByExprList(r *random.RNG, ctx *genCtx) []string {
-	ctx.add("group_by")
-	n := 1 + r.Intn(2)
-	exprs := make([]string, 0, n)
-	seen := map[string]struct{}{}
-	for len(exprs) < n {
-		e := g.columnRefKind(r, kindAny)
-		if strings.TrimSpace(e) == "" {
-			e = "id"
-		}
-		if _, ok := seen[e]; ok {
-			continue
-		}
-		seen[e] = struct{}{}
-		exprs = append(exprs, e)
-	}
-	return exprs
-}
-
-func (g *Generator) groupedSelectList(r *random.RNG, depth int, ctx *genCtx, groupedExprs []string) string {
-	ctx.add("select_list")
-	ctx.add("select_item")
-
-	items := make([]string, 0, len(groupedExprs)+2)
-	for _, e := range groupedExprs {
-		if chance(r, 35) {
-			items = append(items, e+" as "+g.alias(r))
-		} else {
-			items = append(items, e)
-		}
-	}
-
-	aggCount := 1 + r.Intn(2)
-	for i := 0; i < aggCount; i++ {
-		switch r.Intn(4) {
-		case 0:
-			items = append(items, "count(*)")
-		case 1:
-			items = append(items, "sum("+g.columnRefKind(r, kindNumber)+")")
-		case 2:
-			items = append(items, "max("+g.columnRefKind(r, kindNumber)+")")
-		default:
-			items = append(items, "avg("+g.columnRefKind(r, kindNumber)+")")
-		}
-	}
-	return strings.Join(items, ", ")
-}
-
-func (g *Generator) groupedHavingClause(r *random.RNG, ctx *genCtx) string {
-	ctx.add("having")
-	switch r.Intn(3) {
-	case 0:
-		return "having count(*) > " + g.unsignedInt(r)
-	case 1:
-		return "having sum(" + g.columnRefKind(r, kindNumber) + ") > " + g.unsignedInt(r)
-	default:
-		return "having max(" + g.columnRefKind(r, kindNumber) + ") is not null"
-	}
-}
-
-func (g *Generator) havingClause(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("having")
-	return "having " + g.searchCondition(r, depth, ctx)
-}
-
-func (g *Generator) partitionClause(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("partition")
-	n := 1 + r.Intn(2)
-	items := make([]string, 0, n)
-	for i := 0; i < n; i++ {
-		x := g.exprOrSubquery(r, depth, ctx)
-		if chance(r, 25) {
-			if chance(r, 50) {
-				x += " " + g.alias(r)
-			} else {
-				x += " as " + g.alias(r)
-			}
-		}
-		items = append(items, x)
-	}
-	return "partition by " + strings.Join(items, ", ")
-}
-
-func (g *Generator) rangeClause(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("range")
-	n := 1 + r.Intn(2)
-	exprs := make([]string, 0, n)
-	for i := 0; i < n; i++ {
-		exprs = append(exprs, g.exprOrSubqueryKind(r, depth, ctx, kindTime))
-	}
-	return "range(" + strings.Join(exprs, ", ") + ")"
-}
-
-func (g *Generator) everyClause(r *random.RNG, ctx *genCtx) string {
-	ctx.add("every")
-	return "every(" + pick(r, g.durationLit) + ")"
-}
-
-func (g *Generator) interpFillClause(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("fill")
-	exprs := g.expressionList(r, min(depth, 1), ctx)
-	switch r.Intn(5) {
-	case 0:
-		return "fill(value, " + exprs + ")"
-	case 1:
-		return "fill(value_f, " + exprs + ")"
-	case 2:
-		return "fill(prev, " + exprs + ")"
-	case 3:
-		return "fill(near, " + exprs + ")"
-	default:
-		return "fill(" + pick(r, []string{"none", "null", "null_f", "linear", "prev", "next", "near"}) + ")"
-	}
-}
-
-func (g *Generator) twindowClause(r *random.RNG, depth int, ctx *genCtx) (string, string) {
-	ctx.add("window")
-	switch r.Intn(4) {
-	case 0:
-		out := "interval(" + pick(r, g.durationLit) + ")"
-		if chance(r, 45) {
-			out += " " + g.fillOpt(r, depth, ctx)
-		}
-		return out, "interval"
-	case 1:
-		out := "interval(" + pick(r, g.durationLit) + ", " + pick(r, g.durationLit) + ")"
-		if chance(r, 45) {
-			out += " " + g.fillOpt(r, depth, ctx)
-		}
-		return out, "interval"
-	case 2:
-		return "session(" + g.columnRefKind(r, kindTime) + ", " + pick(r, g.durationLit) + ")", "session"
-	default:
-		return "state_window(" + g.columnRefKind(r, kindNumber) + ")", "state"
-	}
-}
-
-func (g *Generator) fillOpt(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("fill")
-	switch r.Intn(3) {
-	case 0:
-		return "fill(value, " + g.expressionList(r, min(depth, 1), ctx) + ")"
-	case 1:
-		return "fill(value_f, " + g.expressionList(r, min(depth, 1), ctx) + ")"
-	default:
-		return "fill(" + pick(r, []string{"none", "null", "null_f", "linear", "prev", "next"}) + ")"
-	}
-}
-
-func (g *Generator) orderByClause(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("order_by")
-	n := 1 + r.Intn(2)
-	items := make([]string, 0, n)
-	for i := 0; i < n; i++ {
-		expr := g.exprOrSubquery(r, depth, ctx)
-		if chance(r, 60) {
-			if chance(r, 50) {
-				expr += " asc"
-			} else {
-				expr += " desc"
-			}
-		}
-		if chance(r, 30) {
-			if chance(r, 50) {
-				expr += " nulls first"
-			} else {
-				expr += " nulls last"
-			}
-		}
-		items = append(items, expr)
-	}
-	return "order by " + strings.Join(items, ", ")
-}
-
-func (g *Generator) limitClause(r *random.RNG, ctx *genCtx) string {
-	ctx.add("limit")
-	l := g.unsignedInt(r)
-	o := g.unsignedInt(r)
-	switch r.Intn(3) {
-	case 0:
-		return "limit " + l
-	case 1:
-		return "limit " + l + " offset " + o
-	default:
-		return "limit " + o + ", " + l
-	}
-}
-
-func (g *Generator) slimitClause(r *random.RNG, ctx *genCtx) string {
-	ctx.add("slimit")
-	l := g.unsignedInt(r)
-	o := g.unsignedInt(r)
-	switch r.Intn(3) {
-	case 0:
-		return "slimit " + l
-	case 1:
-		return "slimit " + l + " soffset " + o
-	default:
-		return "slimit " + o + ", " + l
-	}
-}
-
-func (g *Generator) searchCondition(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("search_condition")
-	if depth <= 0 {
-		if chance(r, 40) {
-			return g.commonExpression(r, 0, ctx)
-		}
-		return g.booleanPrimary(r, 0, ctx)
-	}
-	switch r.Intn(5) {
-	case 0:
-		return "not " + g.booleanPrimary(r, depth-1, ctx)
-	case 1:
-		return g.searchCondition(r, depth-1, ctx) + " and " + g.searchCondition(r, depth-1, ctx)
-	case 2:
-		return g.searchCondition(r, depth-1, ctx) + " or " + g.searchCondition(r, depth-1, ctx)
-	default:
-		if chance(r, 35) {
-			return g.commonExpression(r, depth-1, ctx)
-		}
-		return g.booleanPrimary(r, depth-1, ctx)
-	}
-}
-
-func (g *Generator) booleanPrimary(r *random.RNG, depth int, ctx *genCtx) string {
-	if depth > 0 && chance(r, 20) {
-		return "(" + g.searchCondition(r, depth-1, ctx) + ")"
-	}
-	return g.predicate(r, depth, ctx)
-}
-
-func (g *Generator) predicate(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("predicate")
-	kind := g.pickPredicateKind(r)
-	left := g.exprOrSubqueryKind(r, depth, ctx, kind)
-	right := g.exprOrSubqueryKind(r, depth, ctx, kind)
-	switch r.Intn(8) {
-	case 0:
-		return left + " " + pick(r, []string{"<", ">", "<=", ">=", "!=", "=", "like", "not like", "match", "nmatch", "regexp", "not regexp", "contains"}) + " " + right
-	case 1:
-		return left + " between " + right + " and " + g.exprOrSubqueryKind(r, depth, ctx, kind)
-	case 2:
-		return left + " not between " + right + " and " + g.exprOrSubqueryKind(r, depth, ctx, kind)
-	case 3:
-		return left + " is null"
-	case 4:
-		return left + " is not null"
-	case 5:
-		return "isnull(" + left + ")"
-	case 6:
-		return "isnotnull(" + left + ")"
-	default:
-		vals := []string{g.literalOfKind(r, kind), g.literalOfKind(r, kind), g.literalOfKind(r, kind)}
-		op := "in"
-		if chance(r, 45) {
-			op = "not in"
-		}
-		return left + " " + op + " (" + strings.Join(vals, ", ") + ")"
-	}
-}
-
-func (g *Generator) commonExpression(r *random.RNG, depth int, ctx *genCtx) string {
-	if depth > 0 && chance(r, 25) {
-		return g.searchCondition(r, depth-1, ctx)
-	}
-	return g.exprOrSubqueryKind(r, depth, ctx, kindAny)
-}
-
-func (g *Generator) exprOrSubquery(r *random.RNG, depth int, ctx *genCtx) string {
-	return g.exprOrSubqueryKind(r, depth, ctx, kindAny)
-}
-
-func (g *Generator) exprOrSubqueryKind(r *random.RNG, depth int, ctx *genCtx, expect valueKind) string {
-	return g.expressionKind(r, depth, ctx, expect)
-}
-
-func (g *Generator) expression(r *random.RNG, depth int, ctx *genCtx) string {
-	return g.expressionKind(r, depth, ctx, kindAny)
-}
-
-func (g *Generator) expressionKind(r *random.RNG, depth int, ctx *genCtx, expect valueKind) string {
-	if depth <= 0 {
-		return g.terminalExpressionKind(r, ctx, expect)
-	}
-	switch r.Intn(12) {
-	case 0:
-		return g.terminalExpressionKind(r, ctx, expect)
-	case 1:
-		return "(" + g.expressionKind(r, depth-1, ctx, expect) + ")"
-	case 2:
-		return "+(" + g.exprOrSubqueryKind(r, depth-1, ctx, kindNumber) + ")"
-	case 3:
-		return "-(" + g.exprOrSubqueryKind(r, depth-1, ctx, kindNumber) + ")"
-	case 4:
-		return g.exprOrSubqueryKind(r, depth-1, ctx, kindNumber) + " " + pick(r, []string{"+", "-", "*", "/", "%", "&", "|"}) + " " + g.exprOrSubqueryKind(r, depth-1, ctx, kindNumber)
-	case 5:
-		return g.functionExpressionKind(r, depth-1, ctx, expect)
-	case 6:
-		return g.ifExpression(r, depth-1, ctx)
-	case 7:
-		return g.caseWhenExpression(r, depth-1, ctx)
-	case 8:
-		return g.terminalExpressionKind(r, ctx, expect)
-	default:
-		return g.terminalExpressionKind(r, ctx, expect)
-	}
-}
-
-func (g *Generator) terminalExpression(r *random.RNG, ctx *genCtx) string {
-	return g.terminalExpressionKind(r, ctx, kindAny)
-}
-
-func (g *Generator) terminalExpressionKind(r *random.RNG, ctx *genCtx, expect valueKind) string {
-	switch r.Intn(7) {
-	case 0:
-		return g.columnRefKind(r, expect)
-	case 1:
-		ctx.add("literal")
-		return g.literalOfKind(r, expect)
-	case 2:
-		return g.columnRefKind(r, expect)
-	case 3:
-		return g.functionExpressionKind(r, 0, ctx, expect)
-	default:
-		return g.columnRefKind(r, expect)
-	}
-}
-
-func (g *Generator) functionExpression(r *random.RNG, depth int, ctx *genCtx) string {
-	return g.functionExpressionKind(r, depth, ctx, kindAny)
-}
-
-func (g *Generator) functionExpressionKind(r *random.RNG, depth int, ctx *genCtx, expect valueKind) string {
-	ctx.add("function")
-	if expect == kindNumber {
-		switch r.Intn(5) {
-		case 0:
-			return "abs(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ")"
-		case 1:
-			return "ceil(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ")"
-		case 2:
-			return "floor(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ")"
-		case 3:
-			return "round(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ")"
-		default:
-			return "pow(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ", " + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ")"
-		}
-	}
-	if expect == kindString {
-		switch r.Intn(4) {
-		case 0:
-			return "lower(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ")"
-		case 1:
-			return "upper(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ")"
-		case 2:
-			return "concat(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ", " + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ")"
-		default:
-			return "substr(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ", " + g.unsignedInt(r) + ", " + g.unsignedInt(r) + ")"
-		}
-	}
-	if expect == kindBool && chance(r, 50) {
-		return "isnull(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindAny) + ")"
-	}
-	if expect == kindTime && chance(r, 60) {
-		return pick(r, []string{"now()", "today()"})
-	}
-
-	switch r.Intn(12) {
-	case 0:
-		return g.standardFunctionCall(r, depth, ctx)
-	case 1:
-		ctx.add("star_func")
-		return "count(*)"
-	case 2:
-		ctx.add("cols_func")
-		return "cols(count(" + g.columnRefKind(r, kindNumber) + "), " + g.columnRefKind(r, kindAny) + ")"
-	case 3:
-		if chance(r, 50) {
-			return "cast(" + g.commonExpression(r, min(depth, 1), ctx) + " as " + pick(r, []string{"int", "integer", "bigint", "float", "double", "bool", "timestamp", "varchar(16)", "binary(16)", "decimal(10,2)", "json"}) + ")"
-		}
-		return "cast(" + g.commonExpression(r, min(depth, 1), ctx) + " as " + pick(r, []string{"varchar", "binary", "nchar", "varbinary"}) + ")"
-	case 4:
-		return "trim(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ")"
-	case 5:
-		return "trim(" + pick(r, []string{"both", "leading", "trailing"}) + " from " + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ")"
-	case 6:
-		return "trim(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + " from " + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ")"
-	case 7:
-		return "position(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + " in " + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ")"
-	case 8:
-		if chance(r, 50) {
-			return pick(r, []string{"substr", "substring"}) + "(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ", " + g.unsignedInt(r) + ", " + g.unsignedInt(r) + ")"
-		}
-		return pick(r, []string{"substr", "substring"}) + "(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + " from " + g.unsignedInt(r) + ")"
-	case 9:
-		return "replace(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ", " + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ", " + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ")"
-	case 10:
-		return pick(r, []string{"now()", "today()", "timezone()", "database()", "client_version()", "server_version()", "server_status()", "current_user()", "user()", "pi()"})
-	default:
-		if chance(r, 50) {
-			return "rand()"
-		}
-		return "rand(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ")"
-	}
-}
-
-func (g *Generator) standardFunctionCall(r *random.RNG, depth int, ctx *genCtx) string {
-	fn := pick(r, g.funcNames)
-	switch fn {
-	case "abs", "ceil", "floor":
-		return fn + "(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ")"
-	case "round":
-		if chance(r, 70) {
-			return "round(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ")"
-		}
-		return "round(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ", " + g.unsignedInt(r) + ")"
-	case "pow":
-		return "pow(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ", " + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ")"
-	case "length", "lower", "upper":
-		return fn + "(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ")"
-	case "concat":
-		return "concat(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ", " + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindString) + ")"
-	case "sum", "avg", "min", "max":
-		return fn + "(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ")"
-	default:
-		return "abs(" + g.exprOrSubqueryKind(r, min(depth, 1), ctx, kindNumber) + ")"
-	}
-}
-
-func (g *Generator) ifExpression(r *random.RNG, depth int, ctx *genCtx) string {
-	switch r.Intn(6) {
-	case 0:
-		return "if(" + g.commonExpression(r, depth, ctx) + ", " + g.commonExpression(r, depth, ctx) + ", " + g.commonExpression(r, depth, ctx) + ")"
-	case 1:
-		return "ifnull(" + g.commonExpression(r, depth, ctx) + ", " + g.commonExpression(r, depth, ctx) + ")"
-	case 2:
-		return "nvl(" + g.commonExpression(r, depth, ctx) + ", " + g.commonExpression(r, depth, ctx) + ")"
-	case 3:
-		return "nvl2(" + g.commonExpression(r, depth, ctx) + ", " + g.commonExpression(r, depth, ctx) + ", " + g.commonExpression(r, depth, ctx) + ")"
-	case 4:
-		return "nullif(" + g.commonExpression(r, depth, ctx) + ", " + g.commonExpression(r, depth, ctx) + ")"
-	default:
-		return "coalesce(" + g.expressionList(r, depth, ctx) + ")"
-	}
-}
-
-func (g *Generator) caseWhenExpression(r *random.RNG, depth int, ctx *genCtx) string {
-	if chance(r, 50) {
-		return "case when " + g.commonExpression(r, depth, ctx) + " then " + g.commonExpression(r, depth, ctx) + " else " + g.commonExpression(r, depth, ctx) + " end"
-	}
-	return "case " + g.commonExpression(r, depth, ctx) + " when " + g.commonExpression(r, depth, ctx) + " then " + g.commonExpression(r, depth, ctx) + " else " + g.commonExpression(r, depth, ctx) + " end"
-}
-
-func (g *Generator) expressionList(r *random.RNG, depth int, ctx *genCtx) string {
-	n := 1 + r.Intn(3)
-	items := make([]string, 0, n)
-	for i := 0; i < n; i++ {
-		items = append(items, g.exprOrSubquery(r, depth, ctx))
-	}
-	return strings.Join(items, ", ")
-}
-
-func (g *Generator) insertQuery(r *random.RNG, depth int, ctx *genCtx) string {
-	ctx.add("insert_query")
-	dst, src := g.pickTwoTableNames(r)
-	return "insert into " + dst + " select * from " + src + " limit 1"
-}
-
-func (g *Generator) fullTableName(r *random.RNG) string {
-	return g.tableRefName(r)
-}
-
-func (g *Generator) columnRef(r *random.RNG) string {
-	return g.columnRefKind(r, kindAny)
-}
-
+// columnRefKind returns a column name of the requested kind, falling back to kindAny
+// and then to a generic column name when no typed pool is available.
+//
+// columnRefKind 返回所请求类别的列名；当没有类型化的列池可用时，
+// 先回退到 kindAny，再回退到通用列名。
 func (g *Generator) columnRefKind(r *random.RNG, kind valueKind) string {
 	if g.typedCols != nil {
 		pool := g.typedCols[kind]
@@ -1118,10 +428,15 @@ func (g *Generator) columnRefKind(r *random.RNG, kind valueKind) string {
 	return g.columnName(r)
 }
 
+// tableRefName returns a random table name from the pool.
+// tableRefName 从表名池中返回一个随机表名。
 func (g *Generator) tableRefName(r *random.RNG) string {
 	return pick(r, g.tables)
 }
 
+// pickTwoTableNames returns two table names, preferring distinct names when more than one table exists.
+//
+// pickTwoTableNames 返回两个表名；当存在多于一张表时，优先返回不同的表名。
 func (g *Generator) pickTwoTableNames(r *random.RNG) (string, string) {
 	left := g.tableRefName(r)
 	right := g.tableRefName(r)
@@ -1147,6 +462,11 @@ func (g *Generator) pickTwoTableNames(r *random.RNG) (string, string) {
 	return left, right
 }
 
+// timeColumnForTable returns a time-kind column for the table, falling back to its first column,
+// then the first global column, then the literal "ts".
+//
+// timeColumnForTable 返回该表的时间类别列；依次回退到该表的第一个列、
+// 全局第一个列，最后回退到字面量 "ts"。
 func (g *Generator) timeColumnForTable(table string) string {
 	if g.tableCols != nil {
 		if cols, ok := g.tableCols[table]; ok {
@@ -1166,82 +486,21 @@ func (g *Generator) timeColumnForTable(table string) string {
 	return "ts"
 }
 
-func (g *Generator) timeJoinCondition(leftTable, rightTable string) string {
-	return leftTable + "." + g.timeColumnForTable(leftTable) + " = " + rightTable + "." + g.timeColumnForTable(rightTable)
-}
-
+// columnName returns a random column name from the pool.
+// columnName 从列名池中返回一个随机列名。
 func (g *Generator) columnName(r *random.RNG) string {
 	return pick(r, g.columns)
 }
 
+// alias returns a random alias identifier from the pool.
+// alias 从别名池中返回一个随机别名标识符。
 func (g *Generator) alias(r *random.RNG) string {
 	return pick(r, g.aliases)
 }
 
-func (g *Generator) literal(r *random.RNG) string {
-	return g.literalOfKind(r, kindAny)
-}
-
-func (g *Generator) literalOfKind(r *random.RNG, kind valueKind) string {
-	switch kind {
-	case kindBool:
-		if chance(r, 50) {
-			return "true"
-		}
-		return "false"
-	case kindTime:
-		return pick(r, []string{"now()", "today()", "timestamp '2024-01-01 00:00:00'"})
-	case kindString:
-		return "'s_" + fmt.Sprintf("%d", r.Intn(999)) + "'"
-	case kindJSON:
-		return "'{\"k\":1}'"
-	case kindNumber:
-		return fmt.Sprintf("%d", 1+r.Intn(100))
-	}
-	switch r.Intn(8) {
-	case 0:
-		return g.unsignedInt(r)
-	case 1:
-		return fmt.Sprintf("%d.%d", 1+r.Intn(9), r.Intn(99))
-	case 2:
-		return "'s_" + fmt.Sprintf("%d", r.Intn(999)) + "'"
-	case 3:
-		if chance(r, 50) {
-			return "true"
-		}
-		return "false"
-	case 4:
-		return "timestamp '2024-01-01 00:00:00'"
-	case 5:
-		return g.unsignedInt(r)
-	case 6:
-		return "null"
-	default:
-		return g.unsignedInt(r)
-	}
-}
-
-func (g *Generator) signedLiteral(r *random.RNG) string {
-	switch r.Intn(8) {
-	case 0:
-		return fmt.Sprintf("%d", 1+r.Intn(100))
-	case 1:
-		return fmt.Sprintf("+%d", 1+r.Intn(100))
-	case 2:
-		return fmt.Sprintf("-%d", 1+r.Intn(100))
-	case 3:
-		return fmt.Sprintf("%d.%d", 1+r.Intn(10), r.Intn(99))
-	case 4:
-		return fmt.Sprintf("+%d.%d", 1+r.Intn(10), r.Intn(99))
-	case 5:
-		return fmt.Sprintf("-%d.%d", 1+r.Intn(10), r.Intn(99))
-	case 6:
-		return "'x'"
-	default:
-		return pick(r, []string{"true", "false", "null", "now()", "today()"})
-	}
-}
-
+// pickPredicateKind returns a randomly chosen value kind to type both sides of a predicate.
+//
+// pickPredicateKind 随机选择一个值类别，用于约束谓词两侧的类型。
 func (g *Generator) pickPredicateKind(r *random.RNG) valueKind {
 	switch r.Intn(6) {
 	case 0:
@@ -1259,17 +518,8 @@ func (g *Generator) pickPredicateKind(r *random.RNG) valueKind {
 	}
 }
 
-func (g *Generator) unsignedInt(r *random.RNG) string {
-	return fmt.Sprintf("%d", 1+r.Intn(50))
-}
-
-func optional(r *random.RNG, piece string, prob int) string {
-	if chance(r, prob) {
-		return piece
-	}
-	return ""
-}
-
+// chance reports true with probability p percent (clamped to [0,100]).
+// chance 以 p 百分比的概率返回 true（p 被限制在 [0,100]）。
 func chance(r *random.RNG, p int) bool {
 	if p <= 0 {
 		return false
@@ -1280,6 +530,8 @@ func chance(r *random.RNG, p int) bool {
 	return r.Intn(100) < p
 }
 
+// pick returns a random element of arr, or "" when arr is empty.
+// pick 返回 arr 中的一个随机元素；当 arr 为空时返回 ""。
 func pick(r *random.RNG, arr []string) string {
 	if len(arr) == 0 {
 		return ""
@@ -1287,15 +539,10 @@ func pick(r *random.RNG, arr []string) string {
 	return arr[r.Intn(len(arr))]
 }
 
+// min returns the smaller of a and b.
+// min 返回 a 和 b 中较小的那个。
 func min(a, b int) int {
 	if a < b {
-		return a
-	}
-	return b
-}
-
-func max(a, b int) int {
-	if a > b {
 		return a
 	}
 	return b

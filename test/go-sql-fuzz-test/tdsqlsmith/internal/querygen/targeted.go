@@ -1,5 +1,11 @@
 package querygen
 
+// targeted.go generates focused queries aimed at exercising specific grammar rules that
+// coverage reports flag as missing, scoring templates by relevance to those rules.
+//
+// targeted.go 生成有针对性的查询，旨在覆盖那些被覆盖率报告标记为缺失的特定语法规则，
+// 并按模板与这些规则的相关性进行打分。
+
 import (
 	"fmt"
 	"sort"
@@ -10,24 +16,34 @@ import (
 	"tdsqlsmith/internal/random"
 )
 
+// targetedTemplate identifies a hand-written query shape aimed at a particular grammar feature.
+//
+// targetedTemplate 标识一种针对特定语法特性、手写的查询形态。
 type targetedTemplate string
 
 const (
-	targetedJoin          targetedTemplate = "join"
-	targetedParenJoin     targetedTemplate = "parenthesized_join"
-	targetedWindowFill    targetedTemplate = "window_fill"
-	targetedStateWindow   targetedTemplate = "state_window"
-	targetedCountWindow   targetedTemplate = "count_window"
-	targetedInterpFill    targetedTemplate = "interp_fill"
-	targetedEveryDuration targetedTemplate = "every_duration"
-	targetedDBPseudo      targetedTemplate = "db_pseudo"
-	targetedSubquery      targetedTemplate = "subquery"
-	targetedUnion         targetedTemplate = "union"
-	targetedFunction      targetedTemplate = "function"
-	targetedInsert        targetedTemplate = "insert_query"
-	targetedPartition     targetedTemplate = "partition"
+	targetedJoin          targetedTemplate = "join"               // inner join with WHERE and LIMIT / 带 WHERE 和 LIMIT 的内联接
+	targetedParenJoin     targetedTemplate = "parenthesized_join" // join wrapped in parentheses in FROM / FROM 中用括号包裹的联接
+	targetedWindowFill    targetedTemplate = "window_fill"        // INTERVAL window with FILL / 带 FILL 的 INTERVAL 窗口
+	targetedStateWindow   targetedTemplate = "state_window"       // STATE_WINDOW with extend/zeroth options / 带 extend/zeroth 选项的 STATE_WINDOW
+	targetedCountWindow   targetedTemplate = "count_window"       // COUNT_WINDOW with trigger columns / 带触发列的 COUNT_WINDOW
+	targetedInterpFill    targetedTemplate = "interp_fill"        // interpolation FILL clause / 插值 FILL 子句
+	targetedEveryDuration targetedTemplate = "every_duration"     // EVERY duration clause / EVERY 时长子句
+	targetedDBPseudo      targetedTemplate = "db_pseudo"          // db-qualified table plus pseudo-column / 数据库限定表加伪列
+	targetedSubquery      targetedTemplate = "subquery"           // FROM-subquery with WHERE/ORDER BY/LIMIT / 带 WHERE/ORDER BY/LIMIT 的 FROM 子查询
+	targetedUnion         targetedTemplate = "union"              // UNION ALL of two selects / 两个 select 的 UNION ALL
+	targetedFunction      targetedTemplate = "function"           // assorted scalar/cast functions / 各类标量/cast 函数
+	targetedInsert        targetedTemplate = "insert_query"       // INSERT ... SELECT / INSERT ... SELECT
+	targetedPartition     targetedTemplate = "partition"          // PARTITION BY clause / PARTITION BY 子句
 )
 
+// NextForRules tries to generate a statement that exercises the given missing grammar rules,
+// ordering templates by relevance and returning the first one whose SQL parses cleanly.
+// The bool result reports whether a usable statement was produced.
+//
+// NextForRules 尝试生成一条覆盖给定缺失语法规则的语句，
+// 按相关性对模板排序，并返回第一条 SQL 能够干净解析的语句。
+// 布尔返回值表示是否生成了可用的语句。
 func (g *Generator) NextForRules(r *random.RNG, missingRules []string) (Generated, bool, error) {
 	if r == nil {
 		return Generated{}, false, fmt.Errorf("nil rng")
@@ -52,6 +68,11 @@ func (g *Generator) NextForRules(r *random.RNG, missingRules []string) (Generate
 	return Generated{}, false, nil
 }
 
+// targetedTemplateOrder scores templates by how well they match the missing rule names
+// and returns all templates sorted by descending score (ties broken alphabetically).
+//
+// targetedTemplateOrder 按模板与缺失规则名称的匹配程度打分，
+// 并返回按分数降序排列的所有模板（同分时按字母顺序排列）。
 func targetedTemplateOrder(missingRules []string) []targetedTemplate {
 	all := []targetedTemplate{
 		targetedJoin,
@@ -112,6 +133,9 @@ func targetedTemplateOrder(missingRules []string) []targetedTemplate {
 	return all
 }
 
+// targetedTemplateTags returns the grammar/feature tags associated with a template.
+//
+// targetedTemplateTags 返回与某个模板关联的语法/特性标签。
 func targetedTemplateTags(t targetedTemplate) []string {
 	switch t {
 	case targetedJoin:
@@ -145,6 +169,9 @@ func targetedTemplateTags(t targetedTemplate) []string {
 	}
 }
 
+// targetedSQL builds the AST for a template and renders it to SQL text, returning "" when it yields nil.
+//
+// targetedSQL 为某个模板构建 AST 并渲染为 SQL 文本；当其返回 nil 时返回 ""。
 func (g *Generator) targetedSQL(t targetedTemplate, r *random.RNG) string {
 	stmt := g.targetedStatementAST(t, r)
 	if stmt == nil {
@@ -153,6 +180,9 @@ func (g *Generator) targetedSQL(t targetedTemplate, r *random.RNG) string {
 	return sqlparser.SQLNodeToString(stmt)
 }
 
+// targetedStatementAST dispatches to the AST builder for the given template.
+//
+// targetedStatementAST 根据给定模板分派到相应的 AST 构建函数。
 func (g *Generator) targetedStatementAST(t targetedTemplate, r *random.RNG) sqlparser.Statement {
 	switch t {
 	case targetedJoin:
@@ -186,6 +216,9 @@ func (g *Generator) targetedStatementAST(t targetedTemplate, r *random.RNG) sqlp
 	}
 }
 
+// targetedJoinAST builds an inner join of two tables on their time columns, with a WHERE and LIMIT.
+//
+// targetedJoinAST 按两张表的时间列构建一个内联接，并带有 WHERE 和 LIMIT。
 func (g *Generator) targetedJoinAST(r *random.RNG) *sqlparser.SelectStmt {
 	left, right := g.pickTwoTableNames(r)
 	la := "a"
@@ -221,6 +254,9 @@ func (g *Generator) targetedJoinAST(r *random.RNG) *sqlparser.SelectStmt {
 	}
 }
 
+// targetedParenJoinAST builds a query whose FROM clause is a parenthesized join.
+//
+// targetedParenJoinAST 构建一个 FROM 子句为带括号联接的查询。
 func (g *Generator) targetedParenJoinAST(r *random.RNG) *sqlparser.SelectStmt {
 	left, right := g.pickTwoTableNames(r)
 	la := "a"
@@ -248,6 +284,9 @@ func (g *Generator) targetedParenJoinAST(r *random.RNG) *sqlparser.SelectStmt {
 	}
 }
 
+// targetedWindowFillAST builds an INTERVAL window query with a PREV fill over an aggregate.
+//
+// targetedWindowFillAST 构建一个 INTERVAL 窗口查询，对聚合结果使用 PREV 填充。
 func (g *Generator) targetedWindowFillAST(r *random.RNG) *sqlparser.SelectStmt {
 	table := g.tableRefName(r)
 	num := g.columnForTableKind(r, table, kindNumber)
@@ -263,6 +302,9 @@ func (g *Generator) targetedWindowFillAST(r *random.RNG) *sqlparser.SelectStmt {
 	}
 }
 
+// targetedStateWindowAST builds a STATE_WINDOW query with extend and zeroth options and a TRUE_FOR duration.
+//
+// targetedStateWindowAST 构建一个 STATE_WINDOW 查询，带 extend 和 zeroth 选项以及 TRUE_FOR 时长。
 func (g *Generator) targetedStateWindowAST(r *random.RNG) *sqlparser.SelectStmt {
 	table := g.tableRefName(r)
 	num := g.columnForTableKind(r, table, kindNumber)
@@ -284,6 +326,9 @@ func (g *Generator) targetedStateWindowAST(r *random.RNG) *sqlparser.SelectStmt 
 	}
 }
 
+// targetedCountWindowAST builds a COUNT_WINDOW query with a slide and two distinct trigger columns.
+//
+// targetedCountWindowAST 构建一个 COUNT_WINDOW 查询，带滑动步长和两个不同的触发列。
 func (g *Generator) targetedCountWindowAST(r *random.RNG) *sqlparser.SelectStmt {
 	table := g.tableRefName(r)
 	num := g.columnForTableKind(r, table, kindNumber)
@@ -311,6 +356,9 @@ func (g *Generator) targetedCountWindowAST(r *random.RNG) *sqlparser.SelectStmt 
 	}
 }
 
+// targetedInterpFillAST builds a query with an interpolation FILL clause (NEAR mode).
+//
+// targetedInterpFillAST 构建一个带插值 FILL 子句（NEAR 模式）的查询。
 func (g *Generator) targetedInterpFillAST(r *random.RNG) *sqlparser.SelectStmt {
 	table := g.tableRefName(r)
 	num := g.columnForTableKind(r, table, kindNumber)
@@ -326,6 +374,9 @@ func (g *Generator) targetedInterpFillAST(r *random.RNG) *sqlparser.SelectStmt {
 	}
 }
 
+// targetedEveryDurationAST builds a query with an EVERY duration clause.
+//
+// targetedEveryDurationAST 构建一个带 EVERY 时长子句的查询。
 func (g *Generator) targetedEveryDurationAST(r *random.RNG) *sqlparser.SelectStmt {
 	table := g.tableRefName(r)
 	num := g.columnForTableKind(r, table, kindNumber)
@@ -338,6 +389,9 @@ func (g *Generator) targetedEveryDurationAST(r *random.RNG) *sqlparser.SelectStm
 	}
 }
 
+// targetedDBPseudoAST builds a query against a db-qualified table that also selects the tbname pseudo-column.
+//
+// targetedDBPseudoAST 构建一个针对数据库限定表的查询，同时选取 tbname 伪列。
 func (g *Generator) targetedDBPseudoAST(r *random.RNG) *sqlparser.SelectStmt {
 	table := g.tableRefName(r)
 	num := g.columnForTableKind(r, table, kindNumber)
@@ -350,6 +404,11 @@ func (g *Generator) targetedDBPseudoAST(r *random.RNG) *sqlparser.SelectStmt {
 	}
 }
 
+// targetedSubqueryAST builds a query that selects from a derived table (FROM-subquery)
+// with WHERE on both levels plus ORDER BY and LIMIT.
+//
+// targetedSubqueryAST 构建一个从派生表（FROM 子查询）中查询的语句，
+// 在两个层级上都带 WHERE，外加 ORDER BY 和 LIMIT。
 func (g *Generator) targetedSubqueryAST(r *random.RNG) *sqlparser.SelectStmt {
 	table := g.tableRefName(r)
 	num := g.columnForTableKind(r, table, kindNumber)
@@ -388,6 +447,9 @@ func (g *Generator) targetedSubqueryAST(r *random.RNG) *sqlparser.SelectStmt {
 	}
 }
 
+// targetedUnionAST builds a UNION ALL of two filtered single-column selects over different tables.
+//
+// targetedUnionAST 构建两个对不同表、各带过滤条件的单列 select 的 UNION ALL。
 func (g *Generator) targetedUnionAST(r *random.RNG) *sqlparser.SelectStmt {
 	left, right := g.pickTwoTableNames(r)
 	numLeft := g.columnForTableKind(r, left, kindNumber)
@@ -418,6 +480,9 @@ func (g *Generator) targetedUnionAST(r *random.RNG) *sqlparser.SelectStmt {
 	}
 }
 
+// targetedFunctionAST builds a query selecting several scalar functions (abs/round/lower/cast) with a WHERE.
+//
+// targetedFunctionAST 构建一个选取若干标量函数（abs/round/lower/cast）并带 WHERE 的查询。
 func (g *Generator) targetedFunctionAST(r *random.RNG) *sqlparser.SelectStmt {
 	table := g.tableRefName(r)
 	num := g.columnForTableKind(r, table, kindNumber)
@@ -442,6 +507,11 @@ func (g *Generator) targetedFunctionAST(r *random.RNG) *sqlparser.SelectStmt {
 	}
 }
 
+// targetedInsertAST builds an "INSERT INTO ... SELECT" statement, optionally db-qualified,
+// copying two columns (possibly including tbname) from a source table.
+//
+// targetedInsertAST 构建一条 "INSERT INTO ... SELECT" 语句（可选带数据库限定），
+// 从源表复制两列（可能包含 tbname）。
 func (g *Generator) targetedInsertAST(r *random.RNG) *sqlparser.InsertQueryStmt {
 	dst, src := g.pickTwoTableNames(r)
 	insertTable := dst
@@ -483,6 +553,9 @@ func (g *Generator) targetedInsertAST(r *random.RNG) *sqlparser.InsertQueryStmt 
 	}
 }
 
+// targetedPartitionAST builds a query with a PARTITION BY clause and a LIMIT.
+//
+// targetedPartitionAST 构建一个带 PARTITION BY 子句和 LIMIT 的查询。
 func (g *Generator) targetedPartitionAST(r *random.RNG) *sqlparser.SelectStmt {
 	table := g.tableRefName(r)
 	num := g.columnForTableKind(r, table, kindNumber)
@@ -498,6 +571,11 @@ func (g *Generator) targetedPartitionAST(r *random.RNG) *sqlparser.SelectStmt {
 	}
 }
 
+// columnForTableKind returns a column of the requested kind for the given table, preferring
+// the table's own columns, then falling back to the generator pools or fixed defaults.
+//
+// columnForTableKind 返回给定表中所请求类别的列，优先使用该表自身的列，
+// 然后回退到生成器的列池或固定的默认值。
 func (g *Generator) columnForTableKind(r *random.RNG, table string, kind valueKind) string {
 	if r != nil && g.tableCols != nil {
 		if cols, ok := g.tableCols[table]; ok && len(cols) > 0 {

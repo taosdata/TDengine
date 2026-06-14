@@ -1,3 +1,8 @@
+// Package catalog bootstraps the TDengine schema for a fuzz run, creating the
+// shared database and seed tables and introspecting the resulting schema.
+//
+// catalog 包为模糊测试运行初始化 TDengine 模式，创建共享数据库和种子表，
+// 并对最终的模式进行自省。
 package catalog
 
 import (
@@ -10,24 +15,45 @@ import (
 	"tdsqlsmith/internal/executor"
 )
 
+// Column is a table column name and its TDengine type.
+//
+// Column 表示表列的列名及其 TDengine 类型。
 type Column struct {
-	Name string
-	Type string
+	Name string // column name / 列名
+	Type string // column type (e.g. "int", "timestamp") / 列类型（如 "int"、"timestamp"）
 }
 
+// Table is a table name and its ordered columns.
+//
+// Table 表示表名及其有序的列。
 type Table struct {
-	Name    string
-	Columns []Column
+	Name    string   // table name / 表名
+	Columns []Column // columns in definition order / 按定义顺序排列的列
 }
 
+// Prepared is the result of bootstrapping: the active database, its tables, and
+// the setup SQL that established it.
+//
+// Prepared 是初始化的结果：当前数据库、其表，以及建立它的 setup SQL。
 type Prepared struct {
-	Database string
-	Tables   []Table
-	SetupSQL []string
+	Database string   // selected database name / 所选数据库名
+	Tables   []Table  // introspected table schemas / 自省得到的表模式
+	SetupSQL []string // SQL statements used to build the schema / 用于构建模式的 SQL 语句
 }
 
+// CleanupFunc releases resources created during bootstrap.
+//
+// CleanupFunc 释放初始化期间创建的资源。
 type CleanupFunc func(context.Context)
 
+// Bootstrap drops and recreates the shared database, creates the seed tables,
+// inserts seed rows, and introspects the schema. It returns the prepared catalog
+// and a cleanup function. The seed argument is currently unused. On a failed
+// create it falls back to an existing database with the same prefix.
+//
+// Bootstrap 删除并重建共享数据库、创建种子表、插入种子行，并自省模式。
+// 它返回准备好的目录和一个清理函数。seed 参数目前未使用。
+// 创建失败时会回退到具有相同前缀的现有数据库。
 func Bootstrap(ctx context.Context, exec *executor.Executor, seed int64, prefix string) (*Prepared, CleanupFunc, error) {
 	_ = seed
 	if prefix == "" {
@@ -73,6 +99,7 @@ func Bootstrap(ctx context.Context, exec *executor.Executor, seed int64, prefix 
 	cleanup := func(cleanCtx context.Context) {
 		_ = cleanCtx
 		// Keep shared bootstrap database for reuse to avoid create/drop churn.
+		// 保留共享初始化数据库以便复用，避免频繁创建/删除。
 	}
 	return &Prepared{
 		Database: db,
@@ -82,6 +109,12 @@ func Bootstrap(ctx context.Context, exec *executor.Executor, seed int64, prefix 
 }
 
 // PrepareShared loads existing shared bootstrap database/schema without executing init DDL/DML.
+// PrepareShared loads the existing shared bootstrap database and its schema
+// without running init DDL/DML, falling back to a prefix-matched database if the
+// shared one is unavailable.
+//
+// PrepareShared 加载现有的共享初始化数据库及其模式，不执行初始化 DDL/DML；
+// 若共享数据库不可用，则回退到与前缀匹配的数据库。
 func PrepareShared(ctx context.Context, exec *executor.Executor, prefix string) (*Prepared, CleanupFunc, error) {
 	if prefix == "" {
 		prefix = "tdsqlsmith"
@@ -111,6 +144,12 @@ func PrepareShared(ctx context.Context, exec *executor.Executor, prefix string) 
 	}, cleanup, nil
 }
 
+// BootstrapSetupSQL returns the ordered SQL statements that build the seed
+// schema for db: drop, create, use, three create-table statements, and three
+// inserts. An empty db defaults to "tdsqlsmith_shared".
+//
+// BootstrapSetupSQL 返回为 db 构建种子模式的有序 SQL 语句：drop、create、use、
+// 三条 create-table 语句和三条 insert。db 为空时默认为 "tdsqlsmith_shared"。
 func BootstrapSetupSQL(db string) []string {
 	db = strings.TrimSpace(db)
 	if db == "" {
@@ -129,6 +168,11 @@ func BootstrapSetupSQL(db string) []string {
 	}
 }
 
+// bootstrapCreateTableSQL builds a CREATE TABLE statement for the given table
+// using the standard bootstrap column set.
+//
+// bootstrapCreateTableSQL 使用标准的初始化列集为给定表构建一条
+// CREATE TABLE 语句。
 func bootstrapCreateTableSQL(table string) string {
 	defs := make([]string, 0, 20)
 	for _, c := range bootstrapColumns() {
@@ -137,6 +181,11 @@ func bootstrapCreateTableSQL(table string) string {
 	return fmt.Sprintf("create table if not exists %s(%s)", table, strings.Join(defs, ", "))
 }
 
+// bootstrapColumns returns the fixed column set used for every seed table,
+// covering each supported TDengine column type.
+//
+// bootstrapColumns 返回每个种子表使用的固定列集，
+// 覆盖每种受支持的 TDengine 列类型。
 func bootstrapColumns() []Column {
 	return []Column{
 		{Name: "ts", Type: "timestamp"},
@@ -163,6 +212,11 @@ func bootstrapColumns() []Column {
 	}
 }
 
+// findFallbackDatabase queries SHOW DATABASES for a database matching prefix,
+// preferring "<prefix>_shared" and otherwise the lexically greatest match.
+//
+// findFallbackDatabase 通过 SHOW DATABASES 查询与 prefix 匹配的数据库，
+// 优先选择 "<prefix>_shared"，否则选择字典序最大的匹配项。
 func findFallbackDatabase(ctx context.Context, exec *executor.Executor, prefix string) (string, error) {
 	rows, err := exec.QueryRows(ctx, "show databases", 4096)
 	if err != nil {
@@ -192,8 +246,17 @@ func findFallbackDatabase(ctx context.Context, exec *executor.Executor, prefix s
 	return candidates[len(candidates)-1], nil
 }
 
+// identRE matches valid unquoted SQL identifiers.
+//
+// identRE 匹配有效的未加引号的 SQL 标识符。
 var identRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// introspectSchema reads the current database's tables and their column
+// definitions via SHOW TABLES and DESCRIBE, skipping invalid identifiers and
+// returning the tables sorted by name.
+//
+// introspectSchema 通过 SHOW TABLES 和 DESCRIBE 读取当前数据库的表及其列定义，
+// 跳过无效标识符，并返回按名称排序的表。
 func introspectSchema(ctx context.Context, exec *executor.Executor) ([]Table, error) {
 	show, err := exec.QueryRows(ctx, "show tables", 256)
 	if err != nil {
@@ -236,6 +299,11 @@ func introspectSchema(ctx context.Context, exec *executor.Executor) ([]Table, er
 	return out, nil
 }
 
+// defaultSchema returns the fallback schema (tables t1, t2, t3 with the standard
+// bootstrap columns) used when introspection yields nothing.
+//
+// defaultSchema 返回回退模式（包含标准初始化列的表 t1、t2、t3），
+// 在自省未得到任何结果时使用。
 func defaultSchema() []Table {
 	cols := bootstrapColumns()
 	copyCols := func() []Column {
