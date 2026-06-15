@@ -24,6 +24,7 @@ To install TDengine TSDB on your local machine instead of in a container, see [G
    ```
 
    :::note
+
    You can also pull a specific version of the image. For example:
 
    ```bash tsdb-ee
