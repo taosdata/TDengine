@@ -279,6 +279,7 @@ int metaGetTableTypeSuidByName(void *pVnode, char *tbName, ETableType *tbType, u
   } else {
     *suid = 0;
   }
+  metaDebug("metaGetTableTypeSuidByName table %s code:%d", tbName, code);
 
   metaReaderClear(&mr);
   return code;

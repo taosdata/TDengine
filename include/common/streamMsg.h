@@ -863,6 +863,59 @@ typedef struct SSTriggerOrigTableInfoRsp {
   SArray*              cols;  // SArray<OTableInfoRsp>
 } SSTriggerOrigTableInfoRsp;
 
+typedef enum {
+  STREAM_VREF_KIND_COL = 1,
+  STREAM_VREF_KIND_TAG = 2,
+} EStreamVRefKind;
+
+typedef struct SVTableRefResolveItem {
+  int8_t  kind;                                  // EStreamVRefKind
+  bool    hasRef;                                // false => triple is NULL/empty (no ref); true => triple is a real ref
+  char    refDbName   [TSDB_DB_NAME_LEN];
+  char    refTableName[TSDB_TABLE_NAME_LEN];
+  char    refColName  [TSDB_COL_NAME_LEN];
+} SVTableRefResolveItem;
+
+// Per-column spec within a table-grouped request item.
+typedef struct SVTableRefResolveColSpec {
+  char    colName[TSDB_COL_NAME_LEN];
+  int8_t  kind;                                  // EStreamVRefKind
+} SVTableRefResolveColSpec;
+
+// Table-grouped request item: one (db, table) with multiple columns to resolve.
+typedef struct SVTableRefResolveGroupItem {
+  char    dbName   [TSDB_DB_NAME_LEN];
+  char    tableName[TSDB_TABLE_NAME_LEN];
+  SArray *cols;                                  // SArray<SVTableRefResolveColSpec>
+} SVTableRefResolveGroupItem;
+
+typedef struct SVTableRefResolveReq {
+  int64_t  ver;
+  SArray  *groups;                               // SArray<SVTableRefResolveGroupItem> (table-grouped)
+} SVTableRefResolveReq;
+
+typedef struct SVTableRefResolveRspItem {
+  int32_t  code;
+  bool     terminated;
+  SVTableRefResolveItem nextRef;                 // doubly-purpose: next-hop ref OR terminal physical (kind=COL)
+  // tag value carried separately to keep encoding straightforward:
+  int8_t   tagType;
+  int32_t  tagLen;
+  char    *tagData;                              // owned by recv side
+} SVTableRefResolveRspItem;
+
+typedef struct SVTableRefResolveRsp {
+  SArray *items;                                 // SArray<SVTableRefResolveRspItem>, same order as req
+} SVTableRefResolveRsp;
+
+int32_t tSerializeSVTableRefResolveReq  (void *buf, int32_t bufLen, const SVTableRefResolveReq *pReq);
+int32_t tDeserializeSVTableRefResolveReq(void *buf, int32_t bufLen,       SVTableRefResolveReq *pReq);
+void    tFreeSVTableRefResolveReq       (SVTableRefResolveReq *pReq);
+
+int32_t tSerializeSVTableRefResolveRsp  (void *buf, int32_t bufLen, const SVTableRefResolveRsp *pRsp);
+int32_t tDeserializeSVTableRefResolveRsp(void *buf, int32_t bufLen,       SVTableRefResolveRsp *pRsp);
+void    tFreeSVTableRefResolveRsp       (SVTableRefResolveRsp *pRsp);
+
 int32_t tSerializeSTriggerOrigTableInfoRsp(void* buf, int32_t bufLen, const SSTriggerOrigTableInfoRsp* pReq);
 int32_t tDserializeSTriggerOrigTableInfoRsp(void* buf, int32_t bufLen, SSTriggerOrigTableInfoRsp* pReq);
 void    tDestroySTriggerOrigTableInfoRsp(SSTriggerOrigTableInfoRsp* pReq);

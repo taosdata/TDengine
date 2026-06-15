@@ -11,6 +11,7 @@
 #include "thash.h"
 #include "tsimplehash.h"
 #include "tcommon.h"
+#include "tmsg.h"
 
 static void freeUidMapElementList(void* pData) {
   if (pData == NULL) return;
@@ -626,6 +627,69 @@ static void destroyBlock(void* data) {
   blockDataDestroy(*(SSDataBlock**)data);
 }
 
+static void tblRefCacheItemFree(void *param) {
+  SVTableRefResolveRspItem *p = (SVTableRefResolveRspItem *)param;
+  if (p) taosMemoryFreeClear(p->tagData);
+}
+
+int32_t streamVTableInfoCacheInit(SStreamVTableInfoCache *pCache) {
+  if (pCache == NULL) return TSDB_CODE_INVALID_PARA;
+  taosInitRWLatch(&pCache->lock);
+  // reqColCids / reqTagCids are NULL until the first commit. NULL means
+  // "resolve all columns" downstream; an empty array would mean "resolve
+  // zero columns" and produce a false diff on recheck.
+  pCache->reqColCids  = NULL;
+  pCache->reqTagCids  = NULL;
+  pCache->uid2Result  = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  pCache->dbVgInfo    = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  pCache->tblRefCache = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  pCache->uidSlice    = taosArrayInit(64, sizeof(int64_t));
+  pCache->sliceCursor = 0;
+  pCache->lastCheckMs = 0;
+  pCache->valid       = false;
+  if (!pCache->uid2Result || !pCache->dbVgInfo || !pCache->uidSlice || !pCache->tblRefCache) {
+    streamVTableInfoCacheDestroy(pCache);
+    return terrno;
+  }
+  tSimpleHashSetFreeFp(pCache->uid2Result, streamVTableResolveResultDestroy);
+  taosHashSetFreeFp(pCache->tblRefCache, tblRefCacheItemFree);
+  return 0;
+}
+
+void streamVTableResolveResultDestroy(void *ptr) {
+  if (!ptr) return;
+  SVTableResolveResult *pRes = *(SVTableResolveResult **)ptr;
+  if (pRes == NULL) return;
+  tSimpleHashCleanup(pRes->colMap);
+  tSimpleHashCleanup(pRes->tagMap);
+  taosMemoryFree(pRes);
+}
+
+void streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache) {
+  if (!pCache) return;
+  tSimpleHashCleanup(pCache->uid2Result);
+  taosArrayDestroy(pCache->reqColCids);
+  taosArrayDestroy(pCache->reqTagCids);
+  taosArrayDestroy(pCache->uidSlice);
+  if (pCache->dbVgInfo) {
+    void *iter = taosHashIterate(pCache->dbVgInfo, NULL);
+    while (iter != NULL) {
+      tFreeSUsedbRsp((SUseDbRsp *)iter);
+      iter = taosHashIterate(pCache->dbVgInfo, iter);
+    }
+    taosHashCleanup(pCache->dbVgInfo);
+  }
+  taosHashCleanup(pCache->tblRefCache);
+  pCache->uid2Result  = NULL;
+  pCache->reqColCids  = NULL;
+  pCache->reqTagCids  = NULL;
+  pCache->dbVgInfo    = NULL;
+  pCache->tblRefCache = NULL;
+  pCache->uidSlice    = NULL;
+  pCache->sliceCursor = 0;
+  pCache->valid       = false;
+}
+
 static void releaseStreamReaderInfo(void* p) {
   if (p == NULL) return;
   SStreamTriggerReaderInfo* pInfo = (SStreamTriggerReaderInfo*)p;
@@ -662,6 +726,10 @@ static void releaseStreamReaderInfo(void* p) {
   taosMemoryFreeClear(pInfo->triggerTableSchema);
   taosHashCleanup(pInfo->pTableMetaCacheTrigger);
   taosHashCleanup(pInfo->pTableMetaCacheCalc);
+  if (pInfo->vtbCache) {
+    streamVTableInfoCacheDestroy(pInfo->vtbCache);
+    taosMemoryFreeClear(pInfo->vtbCache);
+  }
   taosMemoryFreeClear(pInfo->extraErrMsg);
   taosMemoryFree(pInfo);
 }
@@ -879,6 +947,10 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   STREAM_CHECK_RET_GOTO(createOneDataBlock(sStreamReaderInfo->triggerResBlock, false, &sStreamReaderInfo->triggerBlock));
   SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, INT16_MIN); // ver
   STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(sStreamReaderInfo->triggerBlock, &idata));
+
+  sStreamReaderInfo->vtbCache = taosMemoryCalloc(1, sizeof(SStreamVTableInfoCache));
+  STREAM_CHECK_NULL_GOTO(sStreamReaderInfo->vtbCache, terrno);
+  STREAM_CHECK_RET_GOTO(streamVTableInfoCacheInit(sStreamReaderInfo->vtbCache));
 
 end:
   STREAM_PRINT_LOG_END(code, lino);

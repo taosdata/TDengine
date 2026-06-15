@@ -288,6 +288,11 @@ typedef struct SStoreMeta {
 
   int32_t (*getTableTags)(void* pVnode, uint64_t suid, SArray* uidList);
   int32_t (*getTableTagsByUidVersion)(void* pVnode, int64_t suid, SArray* uidList, int64_t version);
+  // For triggers whose source is a virtual super table, child tags may be col-refs that
+  // chain across one or more vtables. This API walks that chain (single or multi-hop,
+  // possibly cross-vnode) and rebuilds STUidTagInfo.pTagVal as a fresh STag carrying
+  // the resolved literal tag values. No-op when suid is not a virtual stable.
+  int32_t (*resolveVTableTagChain)(void* pVnode, int64_t suid, SArray* pUidTagList);
   const void* (*extractTagVal)(const void* tag, int16_t type, STagVal* tagVal);  // todo remove it
 
   int32_t (*getTableUidByName)(void* pVnode, char* tbName, uint64_t* uid);
