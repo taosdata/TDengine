@@ -1824,6 +1824,8 @@ cmd ::= ALTER VGROUP NK_INTEGER(A) SET KEEP NK_INTEGER(B).                { pCxt
 cmd ::= MERGE VGROUP NK_INTEGER(A) NK_INTEGER(B).                                 { pCxt->pRootNode = createMergeVgroupStmt(pCxt, &A, &B); }
 cmd ::= REDISTRIBUTE VGROUP NK_INTEGER(A) dnode_list(B).                          { pCxt->pRootNode = createRedistributeVgroupStmt(pCxt, &A, B); }
 cmd ::= SPLIT VGROUP NK_INTEGER(A) force_opt(B).                                  { pCxt->pRootNode = createSplitVgroupStmt(pCxt, &A, B); }
+cmd ::= CLOSE VNODE NK_INTEGER(A) ON DNODE NK_INTEGER(B).                         { pCxt->pRootNode = createCloseVnodeStmt(pCxt, &A, &B); }
+cmd ::= OPEN VNODE NK_INTEGER(A) ON DNODE NK_INTEGER(B).                          { pCxt->pRootNode = createOpenVnodeStmt(pCxt, &A, &B); }
 
 %type on_vgroup_id                                                                { SToken }
 %destructor on_vgroup_id                                                          { }

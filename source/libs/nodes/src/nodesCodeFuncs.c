@@ -308,6 +308,10 @@ const char* nodesNodeName(ENodeType type) {
       return "RedistributeVgroupStmt";
     case QUERY_NODE_SPLIT_VGROUP_STMT:
       return "SplitVgroupStmt";
+    case QUERY_NODE_CLOSE_VNODE_STMT:
+      return "CloseVnodeStmt";
+    case QUERY_NODE_OPEN_VNODE_STMT:
+      return "OpenVnodeStmt";
     case QUERY_NODE_GRANT_STMT:
       return "GrantStmt";
     case QUERY_NODE_REVOKE_STMT:

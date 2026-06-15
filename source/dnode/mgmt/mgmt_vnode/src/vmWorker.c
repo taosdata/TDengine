@@ -111,6 +111,12 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_QUERY_COMPACT_PROGRESS:
       code = vmProcessDnodeQueryCompactProgressReq(pMgmt, pMsg);
       break;
+    case TDMT_DND_CLOSE_VNODE:
+      code = vmProcessCloseVnodeReq(pMgmt, pMsg);
+      break;
+    case TDMT_DND_OPEN_VNODE:
+      code = vmProcessOpenVnodeReq(pMgmt, pMsg);
+      break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       dGError("msg:%p, not processed in vnode-mgmt queue", pMsg);

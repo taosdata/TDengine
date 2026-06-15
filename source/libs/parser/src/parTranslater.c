@@ -23069,6 +23069,20 @@ static int32_t translateSplitVgroup(STranslateContext* pCxt, SSplitVgroupStmt* p
   return buildCmdMsg(pCxt, TDMT_MND_SPLIT_VGROUP, (FSerializeFunc)tSerializeSSplitVgroupReq, &req);
 }
 
+static int32_t translateCloseVnode(STranslateContext* pCxt, SCloseVnodeStmt* pStmt) {
+  SCloseVnodeReq req = {.vgId = pStmt->vgId, .dnodeId = pStmt->dnodeId};
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_CLOSE_VNODE, (FSerializeFunc)tSerializeSCloseVnodeReq, &req);
+  tFreeSCloseVnodeReq(&req);
+  return code;
+}
+
+static int32_t translateOpenVnode(STranslateContext* pCxt, SOpenVnodeStmt* pStmt) {
+  SOpenVnodeReq req = {.vgId = pStmt->vgId, .dnodeId = pStmt->dnodeId};
+  int32_t code = buildCmdMsg(pCxt, TDMT_MND_OPEN_VNODE, (FSerializeFunc)tSerializeSOpenVnodeReq, &req);
+  tFreeSOpenVnodeReq(&req);
+  return code;
+}
+
 static int32_t translateShowVariables(STranslateContext* pCxt, SShowStmt* pStmt) {
   SShowVariablesReq req = {0};
   req.opType = pStmt->tableCondType;
@@ -24700,6 +24714,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_SPLIT_VGROUP_STMT:
       code = translateSplitVgroup(pCxt, (SSplitVgroupStmt*)pNode);
+      break;
+    case QUERY_NODE_CLOSE_VNODE_STMT:
+      code = translateCloseVnode(pCxt, (SCloseVnodeStmt*)pNode);
+      break;
+    case QUERY_NODE_OPEN_VNODE_STMT:
+      code = translateOpenVnode(pCxt, (SOpenVnodeStmt*)pNode);
       break;
     case QUERY_NODE_SHOW_VARIABLES_STMT:
       code = translateShowVariables(pCxt, (SShowStmt*)pNode);

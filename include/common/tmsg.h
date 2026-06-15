@@ -458,6 +458,8 @@ typedef enum ENodeType {
   QUERY_NODE_ALTER_KEY_EXPIRATION_STMT,
   QUERY_NODE_SET_TIMEZONE_STMT,
   QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT,
+  QUERY_NODE_CLOSE_VNODE_STMT,
+  QUERY_NODE_OPEN_VNODE_STMT,
 
   // placeholder for [155, 180]
   QUERY_NODE_SHOW_CREATE_VIEW_STMT = 181,
@@ -4394,6 +4396,28 @@ typedef struct {
 
 int32_t tSerializeSSplitVgroupReq(void* buf, int32_t bufLen, SSplitVgroupReq* pReq);
 int32_t tDeserializeSSplitVgroupReq(void* buf, int32_t bufLen, SSplitVgroupReq* pReq);
+
+typedef struct {
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t sqlLen;
+  char*   sql;
+} SCloseVnodeReq;
+
+int32_t tSerializeSCloseVnodeReq(void* buf, int32_t bufLen, SCloseVnodeReq* pReq);
+int32_t tDeserializeSCloseVnodeReq(void* buf, int32_t bufLen, SCloseVnodeReq* pReq);
+void    tFreeSCloseVnodeReq(SCloseVnodeReq* pReq);
+
+typedef struct {
+  int32_t vgId;
+  int32_t dnodeId;
+  int32_t sqlLen;
+  char*   sql;
+} SOpenVnodeReq;
+
+int32_t tSerializeSOpenVnodeReq(void* buf, int32_t bufLen, SOpenVnodeReq* pReq);
+int32_t tDeserializeSOpenVnodeReq(void* buf, int32_t bufLen, SOpenVnodeReq* pReq);
+void    tFreeSOpenVnodeReq(SOpenVnodeReq* pReq);
 
 typedef struct {
   char user[TSDB_USER_LEN];

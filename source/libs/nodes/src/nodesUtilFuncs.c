@@ -864,6 +864,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SPLIT_VGROUP_STMT:
       code = makeNode(type, sizeof(SSplitVgroupStmt), &pNode);
       break;
+    case QUERY_NODE_CLOSE_VNODE_STMT:
+      code = makeNode(type, sizeof(SCloseVnodeStmt), &pNode);
+      break;
+    case QUERY_NODE_OPEN_VNODE_STMT:
+      code = makeNode(type, sizeof(SOpenVnodeStmt), &pNode);
+      break;
     case QUERY_NODE_SYNCDB_STMT:
       break;
     case QUERY_NODE_GRANT_STMT:
@@ -2128,6 +2134,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(((SRedistributeVgroupStmt*)pNode)->pDnodes);
       break;
     case QUERY_NODE_SPLIT_VGROUP_STMT:  // no pointer field
+    case QUERY_NODE_CLOSE_VNODE_STMT:   // no pointer field
+    case QUERY_NODE_OPEN_VNODE_STMT:    // no pointer field
     case QUERY_NODE_SYNCDB_STMT:        // no pointer field
       break;
     case QUERY_NODE_GRANT_STMT:

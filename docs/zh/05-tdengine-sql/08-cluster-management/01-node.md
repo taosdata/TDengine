@@ -141,6 +141,68 @@ DROP BNODE ON DNODE dnode_id;
 
 删除 ID 为 dnode_id 的 dnode 上的 bnode，此 dnode 上的 taosmqtt 子进程会退出，停止订阅服务。
 
+## 关闭虚拟节点
+
+```sql
+CLOSE VNODE vgroup_id ON DNODE dnode_id;
+```
+
+关闭指定 dnode 上指定 vgroup 的 vnode。关闭操作会优雅地刷写数据并停止该 vnode 运行，但不删除任何数据文件。被关闭的 vnode 在 `SHOW VNODES` 中将显示为 `offline` 状态。
+
+此命令需要超级用户权限。
+
+**使用说明**：
+
+- 被关闭的 vnode 不再参与数据读写和 Raft 复制，有效副本数减少
+- 如果关闭的是 leader 副本，将触发 Raft 重新选举（写入短暂不可用，通常 < 1s）
+- 关闭状态不跨 taosd 重启保留——重启后 vnode 自动恢复打开
+- 建议在操作后通过 `SHOW VNODES` 确认状态变更
+
+**示例**：
+
+```sql
+-- 关闭 dnode 1 上 vgroup 2 的 vnode
+CLOSE VNODE 2 ON DNODE 1;
+
+-- 确认状态
+SHOW VNODES;
+```
+
+## 打开虚拟节点
+
+```sql
+OPEN VNODE vgroup_id ON DNODE dnode_id;
+```
+
+重新打开指定 dnode 上之前通过 `CLOSE VNODE` 关闭的 vnode，恢复其正常运行。打开后 vnode 将重新加入 Raft 复制组并参与数据读写。
+
+此命令需要超级用户权限。
+
+**使用说明**：
+
+- 仅可对之前通过 `CLOSE VNODE` 关闭的 vnode 执行
+- 打开操作涉及 vnode 初始化和 WAL 回放，耗时取决于 WAL 大小
+- 打开后 vnode 需要追赶复制进度，期间可能暂时无法提供读服务
+
+**示例**：
+
+```sql
+-- 重新打开 dnode 1 上 vgroup 2 的 vnode
+OPEN VNODE 2 ON DNODE 1;
+
+-- 确认恢复
+SHOW VNODES;
+```
+
+**常见错误**：
+
+| 错误信息 | 原因 | 解决方法 |
+| --- | --- | --- |
+| Vgroup does not exist | vgroupId 不存在 | 执行 `SHOW VGROUPS` 确认 |
+| Vgroup not found on specified dnode | 该 vgroup 在指定 dnode 上没有副本 | 执行 `SHOW VGROUPS` 确认副本分布 |
+| Vnode is already closed | vnode 已处于关闭状态 | 无需重复关闭 |
+| Vnode is not in closed state | vnode 未关闭，无法执行 OPEN | 确认 vnode 是否已被 CLOSE，或是否已因重启自动恢复 |
+
 ## 查询集群状态
 
 ```sql
