@@ -518,7 +518,13 @@ int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN* pTxn) {
   }
 
   SPgno pgno = TDB_PAGE_PGNO(pPage), prev = 0;
-  int szCell = sizeof(pgno);
+  // NOTE: the cell here is a bare SPgno, but tdbPageDropCell()/tdbBtreeCellSize() round the
+  // cell size up to at least szFreeCell (the minimum size of a free cell). If we insert with
+  // sizeof(SPgno) but later drop reports a larger size, the free accounting gets corrupted and
+  // tdbPageFree() may even report the cell crossing the page footer. This bites on large pages
+  // (pageSize >= 64KB) where szFreeCell (6) > sizeof(SPgno) (4). Keep insert and drop symmetric
+  // by using the same rounded size here.
+  int szCell = pRoot->pPageMethods->szFreeCell;
 
   // if there's not enough space for the new cell, then we need to push the new pgno to the
   // linked list based stack, so save the content of the stack head (the 1st cell of the root page)
@@ -534,7 +540,11 @@ int tdbBtreePushFreePage(SBTree *pBt, SPage *pPage, TXN* pTxn) {
   }
 
   // insert the new cell, it becomes the new stack head.
-  ret = tdbPageInsertCell(pRoot, 0, (SCell*)&pgno, szCell, 0);
+  // use a zero-filled buffer so the bytes beyond sizeof(SPgno) (when szCell is rounded up to
+  // szFreeCell on large pages) are well-defined instead of reading past [pgno] on the stack.
+  u8 cellBuf[8] = {0};
+  memcpy(cellBuf, &pgno, sizeof(pgno));
+  ret = tdbPageInsertCell(pRoot, 0, (SCell*)cellBuf, szCell, 0);
   if (ret < 0) {
     tdbError("tdb/btree-push-free-page: insert cell failed with ret: %d.", ret);
     tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
@@ -584,7 +594,10 @@ int tdbBtreePopFreePage(SBTree *pBt, SPgno *pgno, TXN* pTxn) {
   *pgno = *((SPgno*)tdbPageGetCell(pRoot, 0));
 
   SPgno next = 0;
-  int szCell = sizeof(next);
+  // use the same rounded cell size as tdbBtreePushFreePage()/tdbPageDropCell() so that the
+  // "is the root page full" threshold below and the insert size stay symmetric with push.
+  int szCell = pRoot->pPageMethods->szFreeCell;
+
   // if there's not enough space for a new cell, then the free pages is a linked list based stack,
   // we need to fetch the first free page to get the page number of the next free page.
   if (TDB_PAGE_FREE_SIZE(pRoot) < (szCell + TDB_PAGE_OFFSET_SIZE(pRoot))) {
@@ -609,7 +622,11 @@ int tdbBtreePopFreePage(SBTree *pBt, SPgno *pgno, TXN* pTxn) {
 
   // if we have a next page, insert a new cell at index 0 to make it the stack head.
   if (next != 0) {
-    ret = tdbPageInsertCell(pRoot, 0, (SCell*)&next, szCell, 0);
+    // use a zero-filled buffer so the bytes beyond sizeof(SPgno) (when szCell is rounded up to
+    // szFreeCell on large pages) are well-defined instead of reading past [next] on the stack.
+    u8 cellBuf[8] = {0};
+    memcpy(cellBuf, &next, sizeof(next));
+    ret = tdbPageInsertCell(pRoot, 0, (SCell*)cellBuf, szCell, 0);
     if (ret < 0) {
       tdbError("tdb/btree-pop-free-page: insert cell failed with ret: %d.", ret);
       tdbPagerReturnPage(pBt->pPager, pRoot, pTxn);
@@ -1403,11 +1420,19 @@ int tdbFreeOvflPage(SPgno pgno, int nSize, TXN *pTxn, SBTree *pBt) {
 //   3. use as less as possible overflow pages while put as much as possible data in the
 //      overflow pages to reduce the data in the current page.
 static int calcLocalSize(int minLocal, int maxLocal, int dataSize) {
-  // NOTE: using `maxLocal - sizeof(SPgno)` here is wrong as the current page may be an
+  // NOTE 1: using `maxLocal - sizeof(SPgno)` here is wrong as the current page may be an
   // interior page, which has a smaller `maxLocal` than overflow pages, this result in
   // violation of the rule 3 above.
   //
-  // However, fix the issue will corrupt existing data.
+  // NOTE 2: the modulus dividend should be `dataSize - minLocal + sizeof(SPgno)` rather than
+  // `dataSize - minLocal`, because nLocal includes a sizeof(SPgno) slot for the overflow page
+  // pointer, so the pure data carried locally is `nLocal - sizeof(SPgno)`, and minimizing
+  // overflow pages requires `(dataSize - (nLocal - sizeof(SPgno)))` to be a multiple of the
+  // per-overflow-page capacity `(maxLocal_ovfl - sizeof(SPgno))`. The missing `+ sizeof(SPgno)`
+  // means nLocal is off by up to one overflow-page-pointer worth of bytes, resulting in one
+  // extra overflow page in the worst case.
+  //
+  // Both issues are intentionally left unfixed to avoid corrupting existing data.
   int nLocal = minLocal + (dataSize - minLocal) % (maxLocal - sizeof(SPgno));
   if (nLocal > maxLocal) {
     nLocal = minLocal;
@@ -1419,11 +1444,9 @@ static int calcLocalSize(int minLocal, int maxLocal, int dataSize) {
 // TDB_BTREE_CELL =====================
 static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const void *pKey, int kLen, const void *pVal,
                                  int vLen, int *szPayload, TXN *pTxn, SBTree *pBt) {
-  int ret = 0;
   int nPayload = kLen + vLen;
-  int maxLocal = pPage->maxLocal;
 
-  if (nPayload + nHeader <= maxLocal) {
+  if (nPayload + nHeader <= pPage->maxLocal) {
     // no overflow page is needed
     memcpy(pCell + nHeader, pKey, kLen);
     if (pVal) {
@@ -1435,13 +1458,13 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
   }
 
   // handle overflow case
-  int nLocal = calcLocalSize(pPage->minLocal, maxLocal, nPayload + nHeader);
+  int nLocal = calcLocalSize(pPage->minLocal, pPage->maxLocal, nPayload + nHeader);
 
   // fetch a new ofp and make it dirty
   SPgno  pgno = 0;
   SPage *ofp = NULL;
 
-  ret = tdbFetchOvflPage(&pgno, &ofp, pTxn, pBt);
+  int ret = tdbFetchOvflPage(&pgno, &ofp, pTxn, pBt);
   if (ret < 0) {
     return ret;
   }
@@ -1452,7 +1475,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
   SCell *pBuf = tdbRealloc(NULL, pBt->pageSize);
   if (pBuf == NULL) {
     tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
-    return ret;
+    return terrno;
   }
 
   int nLeft = nPayload;
@@ -1854,11 +1877,9 @@ static int tdbBtreeDecodeCell(SPage *pPage, const SCell *pCell, SCellDecoder *pD
 // if [pFullSize] is not NULL, it return the full size of the cell, which also includes
 // the number of bytes of [pCell] in the overflow pages.
 static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int *pFullSize) {
-  u8  leaf;
   int kLen = 0, vLen = 0, nHeader = 0;
 
-  leaf = TDB_BTREE_PAGE_IS_LEAF(pPage);
-
+  u8 leaf = TDB_BTREE_PAGE_IS_LEAF(pPage);
   if (!leaf) {
     nHeader += sizeof(SPgno);
   }
@@ -1880,23 +1901,20 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int *pFullSize) {
   }
 
   int nSize = kLen + vLen + nHeader;
-  if (nSize <= pPage->maxLocal) {
-    // cell size should be at least the size of a free cell, otherwise it
-    // cannot be added to the free list when dropped.
-    if (nSize < pPage->pPageMethods->szFreeCell) {
-      nSize = pPage->pPageMethods->szFreeCell;
-    }
-    if (pFullSize) {
-      *pFullSize = nSize;
-    }
-    return nSize;
+  // cell size should be at least the size of a free cell, otherwise it
+  // cannot be added to the free list when dropped.
+  if (nSize < pPage->pPageMethods->szFreeCell) {
+    nSize = pPage->pPageMethods->szFreeCell;
   }
-
-  // handle overflow pages
   if (pFullSize) {
     *pFullSize = nSize;
   }
 
+  if (nSize <= pPage->maxLocal) {
+    return nSize;
+  }
+
+  // handle overflow pages
   return calcLocalSize(pPage->minLocal, pPage->maxLocal, nSize);
 }
 // TDB_BTREE_CELL
