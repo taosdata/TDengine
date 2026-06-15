@@ -354,6 +354,8 @@ Below are the business error codes for each module.
 | 0x80000531 | Vnode query is busy                                | Query is busy                                   | Report issue        |
 | 0x80000540 | Vnode already exist but Dbid not match             | Internal error                                  | Report issue        |
 | 0x80000542 | Exceed max column id                               | ColumnId exceed max num of int16_t              | Check and correct the SQL statement                    |
+| 0x80000544 | Vnode is already closed                            | Vnode is already in closed state, cannot be closed again | Report issue   |
+| 0x80000545 | Vnode is not in closed state                       | Vnode is not in closed state, cannot perform the operation | Report issue |
 
 #### tsdb
 

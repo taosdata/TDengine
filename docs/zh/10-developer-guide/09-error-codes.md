@@ -353,6 +353,8 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80000531 | Vnode query is busy                                | 查询忙碌                             | 上报问题           |
 | 0x80000540 | Vnode already exist but Dbid not match             | 内部错误                             | 上报问题           |
 | 0x80000542 | Exceed max column id                               | ColumnId 超过 int16_t 类型上限 (32767) | 检查并修正 SQL 语句 |
+| 0x80000544 | Vnode is already closed                            | Vnode 已经处于关闭状态，无法重复关闭     | 上报问题           |
+| 0x80000545 | Vnode is not in closed state                       | Vnode 不处于关闭状态，无法执行该操作     | 上报问题           |
 
 #### tsdb
 
