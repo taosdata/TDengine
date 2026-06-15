@@ -4543,7 +4543,19 @@ int32_t buildVirtualNormalChildTableScanChildTableMap(SOperatorInfo* pOperator) 
   code = dynResolveColRefArrayBySysScan(pOperator, pSystableScanOp, pInfo->vtbScan.colRefInfo);
   QUERY_CHECK_CODE(code, line, _return);
 
-  if (rversion != pVtbScan->rversion || pVtbScan->existOrgTbVg == NULL) {
+  // Rebuild curOrgTbVg from runtime chain resolution so that processOrgTbVg
+  // can diff it against the plan-time baseline existOrgTbVg and trigger
+  // redeploy when the chain terminal vg differs from what the planner
+  // recorded (e.g. a multi-hop cross-vgroup vtable chain whose terminal
+  // physical table lives on a different vgroup than the planner assumed).
+  //
+  // Use curOrgTbVg == NULL as the "not yet runtime-verified" sentinel:
+  // existOrgTbVg is always pre-populated from plan-time pOrgVgIds at
+  // operator init, so it can never serve as a first-run indicator.
+  // curOrgTbVg starts NULL and becomes non-NULL after the first call to
+  // dynCollectResolvedOrgTbVgFromArray, making it a reliable once-per-open
+  // trigger that avoids repeated full chain resolution on steady-state calls.
+  if (rversion != pVtbScan->rversion || pVtbScan->curOrgTbVg == NULL) {
     code = dynCollectResolvedOrgTbVgFromArray(pOperator, pInfo->vtbScan.colRefInfo);
     QUERY_CHECK_CODE(code, line, _return);
   }

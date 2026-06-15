@@ -62,6 +62,23 @@ IF(NOT TD_WINDOWS)
     )
 ENDIF()
 
+# ---------------------------------------------------------------------------
+# vnodeStreamVTable helpers unit test
+# ---------------------------------------------------------------------------
+IF(NOT TD_WINDOWS)
+    add_executable(vnodeStreamVTableTest vnodeStreamVTableTest.cpp)
+    DEP_ext_gtest(vnodeStreamVTableTest)
+    target_include_directories(vnodeStreamVTableTest
+        PUBLIC
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/libs/new-stream"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    TARGET_LINK_LIBRARIES(vnodeStreamVTableTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode)
+    add_test(NAME vnodeStreamVTableTest COMMAND vnodeStreamVTableTest)
+ENDIF()
+
 IF(NOT TD_WINDOWS)
     ADD_EXECUTABLE(tsdbFSEditTest tsdbFSEditTest.cpp)
     DEP_ext_gtest(tsdbFSEditTest)

@@ -7,12 +7,61 @@
 #include "plannodes.h"
 #include "stream.h"
 #include "streamMsg.h"
+#include "tarray.h"
 #include "tdatablock.h"
 #include "thash.h"
+#include "tlockfree.h"
+#include "tsimplehash.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Resolved column reference terminal item.
+// kind=COL: chain ends at a physical table column.
+// kind=TAG: chain ends at a child table tag value (carried by STagValue elsewhere).
+typedef struct SColResolveItem {
+  bool    hasRef;
+  char    refDbName   [TSDB_DB_NAME_LEN];
+  char    refTableName[TSDB_TABLE_NAME_LEN];
+  char    refColName  [TSDB_COL_NAME_LEN];
+} SColResolveItem;
+
+typedef struct STagValue {
+  int8_t   type;
+  int32_t  nLen;
+  char    *pData;       // owned, freed by destroy helper
+} STagValue;
+
+typedef struct SVTableResolveResult {
+  SSHashObj *colMap;    // key: virtual col cid (col_id_t), value: SColResolveItem*
+  SSHashObj *tagMap;    // key: virtual tag cid (col_id_t), value: STagValue*
+} SVTableResolveResult;
+
+// Per-table per-column resolved ref cache. Flat single-level hash keyed by
+// "dbName\0tableName\0colName"; value is the resolved SVTableRefResolveRspItem
+// (tagData deep-copied). Tags and columns cannot share a name within the same
+// physical table, so a single (db,table,col) key is unambiguous.
+typedef struct SStreamVTableInfoCache {
+  SRWLatch    lock;
+  SArray     *reqColCids;     // SArray<col_id_t>
+  SArray     *reqTagCids;     // SArray<col_id_t>
+  SSHashObj  *uid2Result;     // key: int64_t uid, value: SVTableResolveResult*
+  SHashObj   *dbVgInfo;       // key: dbFName, value: SUseDbRsp
+  SHashObj   *tblRefCache;    // key: "dbName\0tableName\0colName", value: SVTableRefResolveRspItem
+  int64_t     lastCheckMs;
+  // Sliced recheck cursor: every throttle tick scans at most
+  // STREAM_VTB_RECHECK_SLICE_SIZE uids from uidSlice[sliceCursor..]; when the
+  // cursor wraps to 0, uidSlice is rebuilt from the current uid2Result keys
+  // so newly-added uids are picked up on the next round.
+  SArray     *uidSlice;       // SArray<int64_t>: snapshot of uids to scan
+  int32_t     sliceCursor;
+  bool        valid;
+} SStreamVTableInfoCache;
+
+int32_t streamVTableInfoCacheInit   (SStreamVTableInfoCache *pCache);
+void    streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache);
+void    streamVTableResolveResultDestroy(void *pRes);
 
 typedef struct SStreamTableKeyInfo {
   int64_t uid;
@@ -94,6 +143,8 @@ typedef struct SStreamTriggerReaderInfo {
 
   StreamTableListInfo        tableList;
   StreamTableListInfo        vSetTableList;
+
+  SStreamVTableInfoCache *vtbCache;
 
 } SStreamTriggerReaderInfo;
 

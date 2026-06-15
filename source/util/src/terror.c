@@ -1167,6 +1167,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY,    "Stream vtable calcu
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INVALID_JSON,        "Stream mnd invalid json message")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_REF_TOO_DEEP,       "Stream vtable ref chain too deep")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_CIRCULAR_REF,       "Stream vtable circular reference detected")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST, "Stream vtable ref table not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST,   "Stream vtable ref column/tag not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_TAG_CHANGED,         "Stream vtable partition tag changed")
 
 // Xnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,            "Xnode already exists")

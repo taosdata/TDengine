@@ -1063,6 +1063,19 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
       tbNameIndex = i;
     }
   }
+
+  // For triggers sourced from a virtual super table, vchild tags may be col-refs
+  // (possibly multi-hop and cross-vnode). Always invoke resolveVTableTagChain;
+  // the vnode-side implementation no-ops when suid is not a virtual stable, and
+  // for virtual stables it merges chain-resolved tags onto literal tags so the
+  // groupId hashing later sees the correct values.
+  if (pAPI->metaFn.resolveVTableTagChain != NULL) {
+    int32_t rc = pAPI->metaFn.resolveVTableTagChain(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
+    if (rc != TSDB_CODE_SUCCESS) {
+      qWarn("%s resolveVTableTagChain rc=0x%x suid=%" PRIu64, __func__, rc,
+            (uint64_t)pTableListInfo->idInfo.suid);
+    }
+  }
   
   int32_t numOfTables = taosArrayGetSize(pUidTagList);
   pResBlock = createTagValBlockForFilter(pColList, numOfTables, pUidTagList, pVnode, pAPI);
@@ -1234,8 +1247,21 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
     goto end;
   }
 
+  // For triggers sourced from a virtual super table, vchild tags may be col-refs
+  // (possibly multi-hop / cross-vnode). Always invoke resolveVTableTagChain;
+  // the vnode-side implementation no-ops when suid is not a virtual stable, and
+  // for virtual stables it merges chain-resolved tags onto literal tags so the
+  // partition-by-tag groupId computed below sees the correct values.
+  if (pAPI->metaFn.resolveVTableTagChain != NULL) {
+    int32_t rc = pAPI->metaFn.resolveVTableTagChain(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
+    if (rc != TSDB_CODE_SUCCESS) {
+      qWarn("%s resolveVTableTagChain rc=0x%x suid=%" PRIu64, __func__, rc,
+            (uint64_t)pTableListInfo->idInfo.suid);
+    }
+  }
+
   SArray* pColList = NULL;
-  code = qGetColumnsFromNodeList(group, true, &pColList); 
+  code = qGetColumnsFromNodeList(group, true, &pColList);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }

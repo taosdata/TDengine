@@ -21,7 +21,8 @@
 #include "nodes.h"
 #include "osMemPool.h"
 #include "osMemory.h"
-#include "osString.h"
+#include "osSemaphore.h"
+#include "query.h"
 #include "scalar.h"
 #include "stream.h"
 #include "streamReader.h"
@@ -43,6 +44,8 @@
 #include "vnd.h"
 #include "vnode.h"
 #include "vnodeInt.h"
+#include "vnodeStreamVTable.h"
+#include "executor.h"
 
 int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr, SStorageAPI* api, uint64_t uid, col_id_t colId, SRWLatch* lock);
 
@@ -1615,7 +1618,7 @@ end:
   return code;
 }
 
-static int32_t addUidListToBlock(SArray* uidListAdd, void** block, int64_t ver, int32_t* totalRows, ETableBlockType type) {
+int32_t addUidListToBlock(SArray* uidListAdd, void** block, int64_t ver, int32_t* totalRows, ETableBlockType type) {
   for (int32_t i = 0; i < taosArrayGetSize(uidListAdd); ++i) {
     uint64_t* uid = taosArrayGet(uidListAdd, i);
     if (uid == NULL) {
@@ -2006,9 +2009,9 @@ static SArray* getTableListForAlterSuperTable(SStreamTriggerReaderInfo* sStreamR
     SUpdateTableTagVal *pTable = taosArrayGet(pReq->tables, i);
     uint64_t uid = 0;
     code = checkAlter(sStreamReaderInfo, pTable->tbName, pReq->action, &uid);
-    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || uid == 0) {
       code = 0;
-      ST_TASK_WLOG("stream reader scan alter table %s not exist, metaGetTableUidByName", pTable->tbName);
+      ST_TASK_WLOG("stream reader scan alter ctable table %s not exist, %s %"PRIu64, pTable->tbName, __func__, uid);
       continue;
     }
     STREAM_CHECK_RET_GOTO(code);
@@ -2090,8 +2093,8 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
   if (req.action == TSDB_ALTER_TABLE_ALTER_COLUMN_REF || req.action == TSDB_ALTER_TABLE_REMOVE_COLUMN_REF) {
     STREAM_CHECK_CONDITION_GOTO(!sStreamReaderInfo->isVtableStream, TDB_CODE_SUCCESS);
     code = checkAlter(sStreamReaderInfo, req.tbName, req.action, &uid);
-    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-      ST_TASK_WLOG("stream reader scan alter table %s not exist, metaGetTableUidByName", req.tbName);
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || uid == 0) {
+      ST_TASK_WLOG("stream reader scan alter ref table %s not exist, %s uid:%" PRIu64, req.tbName, __func__, uid);
       code = 0;
       goto end;
     }
@@ -2102,8 +2105,8 @@ static int32_t scanAlterTableNew(SStreamTriggerReaderInfo* sStreamReaderInfo, SS
     STREAM_CHECK_RET_GOTO(scanAlterTableTagVal(sStreamReaderInfo, rsp, uidList, ver));
   } else if (req.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
     code = checkAlter(sStreamReaderInfo, req.tbName, req.action, &uid);
-    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
-      ST_TASK_WLOG("stream reader scan alter table %s not exist, metaGetTableUidByName", req.tbName);
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || uid == 0) {
+      ST_TASK_WLOG("stream reader scan alter suid table %s not exist, %s uid:%" PRIu64, req.tbName, __func__, uid);
       code = 0;
       goto end;
     }
@@ -4787,6 +4790,14 @@ static int32_t vnodeProcessStreamWalMetaNewReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   blockDataEmpty(sStreamReaderInfo->metaBlock);
   resultRsp.metaBlock = sStreamReaderInfo->metaBlock;
   resultRsp.ver = req->walMetaNewReq.lastVer;
+  {
+    int32_t hookRc = streamMaybeRecheckVTableCache(pVnode, sStreamReaderInfo, resultRsp.ver, &resultRsp);
+    ST_TASK_DLOG("vgId:%d %s hook rc=0x%x ver=%" PRId64, TD_VID(pVnode), __func__, hookRc, resultRsp.ver);
+    // H2 v0.5: any non-zero hook rc (TAG_CHANGED, REF_TABLE_NOT_EXIST,
+    // REF_COL_NOT_EXIST, REF_TOO_DEEP, RPC failure, etc.) is propagated to
+    // the trigger via rsp.code so it can fail-fast and request a redeploy.
+    if (hookRc != 0) { code = hookRc; goto end; }
+  }
   STREAM_CHECK_RET_GOTO(processWalVerMetaNew(pVnode, &resultRsp, sStreamReaderInfo, req->walMetaNewReq.ctime));
 
   ST_TASK_DLOG("vgId:%d %s get result last ver:%"PRId64" rows:%d", TD_VID(pVnode), __func__, resultRsp.ver, resultRsp.totalRows);
@@ -4839,6 +4850,12 @@ static int32_t vnodeProcessStreamWalMetaDataNewReq(SVnode* pVnode, SRpcMsg* pMsg
   resultRsp.checkAlter = true;
   resultRsp.indexHash = tSimpleHashInit(8, taosGetDefaultHashFunction(getWalDataSliceHashType(sStreamReaderInfo)));
   STREAM_CHECK_NULL_GOTO(resultRsp.indexHash, terrno);
+  {
+    int32_t hookRc = streamMaybeRecheckVTableCache(pVnode, sStreamReaderInfo, resultRsp.ver, &resultRsp);
+    ST_TASK_DLOG("vgId:%d %s hook rc=0x%x ver=%" PRId64, TD_VID(pVnode), __func__, hookRc, resultRsp.ver);
+    // H2 v0.5: propagate any hook error so trigger fail-fasts.
+    if (hookRc != 0) { code = hookRc; goto end; }
+  }
 
   STREAM_CHECK_RET_GOTO(processWalVerMetaDataNew(pVnode, sStreamReaderInfo, &resultRsp));
 
@@ -5065,85 +5082,120 @@ end:
   return code;
 }
 
-static int32_t getAllVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SArray* cids, int64_t ver, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo){
-  int32_t              code = 0;
-  int32_t              lino = 0;
+// Collect all rollup gids for a given uid from uIdMap (under read-lock) into rollupGids.
+// Returns TSDB_CODE_SUCCESS on success; caller owns rollupGids and must destroy it.
+static int32_t collectRollupGids(SVnode* pVnode, SStreamTriggerReaderInfo* sStreamReaderInfo,
+                                 int64_t uid, const char* caller, SArray** ppRollupGids) {
   void* pTask = sStreamReaderInfo->pTask;
-  SArray*              pTableListArray = NULL;
+  SArray* rollupGids = taosArrayInit(4, sizeof(uint64_t));
+  if (rollupGids == NULL) return terrno;
 
-
-  pTableListArray = qStreamGetTableArrayList(sStreamReaderInfo);
-  STREAM_CHECK_NULL_GOTO(pTableListArray, terrno);
-
-  vTableInfo->infos = taosArrayInit(taosArrayGetSize(pTableListArray), sizeof(VTableInfo));
-  STREAM_CHECK_NULL_GOTO(vTableInfo->infos, terrno);
-
-  for (size_t i = 0; i < taosArrayGetSize(pTableListArray); i++) {
-    SStreamTableKeyInfo* pKeyInfo = taosArrayGetP(pTableListArray, i);
-    if (pKeyInfo == NULL || pKeyInfo->markedDeleted) {
-      continue;
+  taosRLockLatch(&sStreamReaderInfo->lock);
+  SArray** pElements = taosHashGet(sStreamReaderInfo->tableList.uIdMap, &uid, LONG_BYTES);
+  if (pElements != NULL) {
+    int32_t numOfElements = taosArrayGetSize(*pElements);
+    ST_TASK_DLOG("vgId:%d %s uid:%" PRId64 " rollup gid count:%d", TD_VID(pVnode), caller, uid, numOfElements);
+    for (int32_t j = 0; j < numOfElements; ++j) {
+      SStreamTableMapElement* element = taosArrayGet(*pElements, j);
+      if (element == NULL || element->table == NULL || element->table->markedDeleted) continue;
+      if (taosArrayPush(rollupGids, &element->table->groupId) == NULL) {
+        taosRUnLockLatch(&sStreamReaderInfo->lock);
+        taosArrayDestroy(rollupGids);
+        return terrno;
+      }
     }
-    code = setVtableInfo(pVnode, vTableInfo->infos, cids, pKeyInfo->uid, pKeyInfo->groupId, ver, metaReader, sStreamReaderInfo);
-    if (code != 0) {
-      ST_TASK_WLOG("vgId:%d %s set vtable info uid:%"PRId64" failed, msg:%s", TD_VID(pVnode), __func__, pKeyInfo->uid, tstrerror(code));
-      code = 0;
-      continue;
-    }
+  } else {
+    ST_TASK_WLOG("vgId:%d %s uid:%" PRId64 " not found in uIdMap", TD_VID(pVnode), caller, uid);
   }
+  taosRUnLockLatch(&sStreamReaderInfo->lock);
 
-end:
-  taosArrayDestroyP(pTableListArray, taosMemFree);
-  return code;
+  *ppRollupGids = rollupGids;
+  return TSDB_CODE_SUCCESS;
 }
 
-static int32_t getSpicificVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SArray* uids, SArray* cids, int64_t ver, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo){
-  int32_t              code = 0;
-  int32_t              lino = 0;
-  void* pTask = sStreamReaderInfo->pTask;
+// Fill VTableInfo entries for all uids in uid2Result (fullScan path).
+// For rollup vstb streams every uid maps to multiple rollup gids; for regular vtable
+// streams each uid maps to a single groupId looked up via qStreamGetGroupIdFromOrigin.
+static int32_t getAllVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SSHashObj* uid2Result,
+                           SArray* cids, int64_t ver, SMetaReader* metaReader,
+                           SStreamTriggerReaderInfo* sStreamReaderInfo) {
+  int32_t code = 0;
+  void*   pTask = sStreamReaderInfo->pTask;
 
-  vTableInfo->infos = taosArrayInit(taosArrayGetSize(uids), sizeof(VTableInfo));
-  STREAM_CHECK_NULL_GOTO(vTableInfo->infos, terrno);
+  void*   iter = NULL;
+  int32_t it   = 0;
+  while ((iter = tSimpleHashIterate(uid2Result, iter, &it)) != NULL) {
+    int64_t              uid = *(int64_t*)tSimpleHashGetKey(iter, NULL);
+    SVTableResolveResult* r  = *(SVTableResolveResult**)iter;
 
-  for (size_t i = 0; i < taosArrayGetSize(uids); i++) {
-    int64_t* uid = taosArrayGet(uids, i);
-    STREAM_CHECK_NULL_GOTO(uid, terrno);
+    if (sStreamReaderInfo->isRollupReader) {
+      // vstb rollup: one uid → multiple rollup gids
+      SArray* rollupGids = NULL;
+      code = collectRollupGids(pVnode, sStreamReaderInfo, uid, __func__, &rollupGids);
+      if (code != 0) return code;
 
-    if (isRollupMultiReader(sStreamReaderInfo)) {
-      SArray** pElements = taosHashGet(sStreamReaderInfo->tableList.uIdMap, uid, LONG_BYTES);
-      if (pElements != NULL) {
-        int32_t numOfElements = taosArrayGetSize(*pElements);
-        for (int32_t j = 0; j < numOfElements; ++j) {
-          SStreamTableMapElement* element = taosArrayGet(*pElements, j);
-          if (element == NULL || element->table == NULL || element->table->markedDeleted) {
-            continue;
-          }
-          code = setVtableInfo(pVnode, vTableInfo->infos, cids, *uid, element->table->groupId, ver, metaReader, sStreamReaderInfo);
-          if (code != 0) {
-            ST_TASK_WLOG("vgId:%d %s set vtable info uid:%"PRId64" failed, msg:%s", TD_VID(pVnode), __func__, *uid, tstrerror(code));
-            code = 0;
-            continue;
-          }
-        }
+      for (int32_t j = 0; j < taosArrayGetSize(rollupGids); ++j) {
+        uint64_t rollupGid = *(uint64_t*)taosArrayGet(rollupGids, j);
+        int32_t  rc = streamFillVTableInfoFromResolved(pVnode, sStreamReaderInfo, uid, rollupGid,
+                                                       ver, cids, r, metaReader, vTableInfo->infos);
+        if (rc != 0) { taosArrayDestroy(rollupGids); return rc; }
       }
+      taosArrayDestroy(rollupGids);
     } else {
+      // regular vtable stream: one uid → one groupId
       taosRLockLatch(&sStreamReaderInfo->lock);
-      uint64_t groupId = qStreamGetGroupIdFromOrigin(sStreamReaderInfo, *uid);
+      uint64_t groupId = qStreamGetGroupIdFromOrigin(sStreamReaderInfo, uid);
       taosRUnLockLatch(&sStreamReaderInfo->lock);
-      if (groupId == -1) {
-        ST_TASK_WLOG("vgId:%d %s uid:%"PRId64" not found in stream group", TD_VID(pVnode), __func__, *uid);
-        continue;
-      }
-      code = setVtableInfo(pVnode, vTableInfo->infos, cids, *uid, groupId, ver, metaReader, sStreamReaderInfo);
-      if (code != 0) {
-        ST_TASK_WLOG("vgId:%d %s set vtable info uid:%"PRId64" failed, msg:%s", TD_VID(pVnode), __func__, *uid, tstrerror(code));
-        code = 0;
-        continue;
-      }
+      if (groupId == (uint64_t)-1) continue;
+
+      int32_t rc = streamFillVTableInfoFromResolved(pVnode, sStreamReaderInfo, uid, groupId,
+                                                    ver, cids, r, metaReader, vTableInfo->infos);
+      if (rc != 0) return rc;
     }
   }
-  
-end:
-  return code;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Fill VTableInfo entries for the specific uids listed in req->virTableInfoReq.uids
+// (non-fullScan path).  uid2Result provides the resolved vtable metadata for each uid.
+static int32_t getSpicificVinfo(SVnode* pVnode, SStreamMsgVTableInfo* vTableInfo, SSHashObj* uid2Result,
+                                SArray* uids, SArray* cids, int64_t ver, SMetaReader* metaReader,
+                                SStreamTriggerReaderInfo* sStreamReaderInfo) {
+  int32_t code  = 0;
+  void*   pTask = sStreamReaderInfo->pTask;
+  int32_t nReq  = (int32_t)taosArrayGetSize(uids);
+
+  for (int32_t i = 0; i < nReq; ++i) {
+    int64_t              uid = *(int64_t*)taosArrayGet(uids, i);
+    SVTableResolveResult** pp = (SVTableResolveResult**)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
+    if (pp == NULL || *pp == NULL) continue;
+
+    if (sStreamReaderInfo->isRollupReader) {
+      // vstb rollup: one uid → multiple rollup gids
+      SArray* rollupGids = NULL;
+      code = collectRollupGids(pVnode, sStreamReaderInfo, uid, __func__, &rollupGids);
+      if (code != 0) return code;
+
+      for (int32_t j = 0; j < taosArrayGetSize(rollupGids); ++j) {
+        uint64_t rollupGid = *(uint64_t*)taosArrayGet(rollupGids, j);
+        int32_t  rc = streamFillVTableInfoFromResolved(pVnode, sStreamReaderInfo, uid, rollupGid,
+                                                       ver, cids, *pp, metaReader, vTableInfo->infos);
+        if (rc != 0) { taosArrayDestroy(rollupGids); return rc; }
+      }
+      taosArrayDestroy(rollupGids);
+    } else {
+      // regular vtable stream: one uid → one groupId
+      taosRLockLatch(&sStreamReaderInfo->lock);
+      uint64_t groupId = qStreamGetGroupIdFromOrigin(sStreamReaderInfo, uid);
+      taosRUnLockLatch(&sStreamReaderInfo->lock);
+      if (groupId == (uint64_t)-1) continue;
+
+      int32_t rc = streamFillVTableInfoFromResolved(pVnode, sStreamReaderInfo, uid, groupId,
+                                                    ver, cids, *pp, metaReader, vTableInfo->infos);
+      if (rc != 0) return rc;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req, SStreamTriggerReaderInfo* sStreamReaderInfo) {
@@ -5153,6 +5205,8 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   size_t               size = 0;
   SStreamMsgVTableInfo vTableInfo = {0};
   SMetaReader          metaReader = {0};
+  SArray              *tagCids   = NULL;
+  SSHashObj           *uid2Result = NULL;
 
   void* pTask = sStreamReaderInfo->pTask;
   ST_TASK_DLOG("vgId:%d %s start, version:%"PRId64, TD_VID(pVnode), __func__, req->virTableInfoReq.ver);
@@ -5163,23 +5217,60 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   if (taosArrayGetSize(cids) == 1 && *(col_id_t*)taosArrayGet(cids, 0) == PRIMARYKEY_TIMESTAMP_COL_ID){
     (void)atomic_val_compare_exchange_8(&sStreamReaderInfo->isVtableOnlyTs, 0, 1);
   }
+
+  bool fullScan = req->virTableInfoReq.fetchAllTable
+                  || req->virTableInfoReq.uids == NULL
+                  || taosArrayGetSize(req->virTableInfoReq.uids) == 0;
+
+  // When the trigger only references the TS column, req->cids carries just the
+  // primary-key timestamp, but the response must still describe every column
+  // ref of each vtable. Pass cids=NULL into the chain-resolver / formatter to
+  // request "all columns of the vtable, per-uid".
+  if (atomic_load_8(&sStreamReaderInfo->isVtableOnlyTs) == 1) {
+    cids = NULL;
+  }
+
+  // Chain-resolver path.
+  // NOTE: streamResolveVTableRefChain fires cross-vnode RPCs (TDMT_VND_VTABLE_REF_RESOLVE).
+  // Holding META_READER_LOCK across those RPCs risks deadlock if the remote vnode
+  // needs to acquire the same lock on this vnode during its own meta read. Delay
+  // initReader until after the resolve round-trip completes.
+  STREAM_CHECK_RET_GOTO(streamCollectTagCidsFromPartitionCols(sStreamReaderInfo->partitionCols, &tagCids));
+
+  SArray *uidList = fullScan ? NULL : req->virTableInfoReq.uids;
+  STREAM_CHECK_RET_GOTO(streamResolveVTableRefChain(pVnode, sStreamReaderInfo->vtbCache, sStreamReaderInfo,
+                                                    req->virTableInfoReq.ver, uidList, cids, tagCids, &uid2Result));
+
+  // Acquire meta reader lock only after the cross-vnode RPC round-trip is done.
   sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn);
 
-  if (req->virTableInfoReq.fetchAllTable || req->virTableInfoReq.uids == NULL || taosArrayGetSize(req->virTableInfoReq.uids) == 0) {
-    STREAM_CHECK_RET_GOTO(getAllVinfo(pVnode, &vTableInfo, cids, req->virTableInfoReq.ver, &metaReader, sStreamReaderInfo));
+  // Encode response: iterate the resolved set.
+  int32_t expected = (int32_t)tSimpleHashGetSize(uid2Result);
+  vTableInfo.infos = taosArrayInit(expected, sizeof(VTableInfo));
+  STREAM_CHECK_NULL_GOTO(vTableInfo.infos, terrno);
+
+  if (fullScan) {
+    STREAM_CHECK_RET_GOTO(getAllVinfo(pVnode, &vTableInfo, uid2Result, cids, req->virTableInfoReq.ver, &metaReader, sStreamReaderInfo));
   } else {
-    STREAM_CHECK_RET_GOTO(getSpicificVinfo(pVnode, &vTableInfo, req->virTableInfoReq.uids, cids, req->virTableInfoReq.ver, &metaReader, sStreamReaderInfo));
+    STREAM_CHECK_RET_GOTO(getSpicificVinfo(pVnode, &vTableInfo, uid2Result, req->virTableInfoReq.uids, cids, req->virTableInfoReq.ver, &metaReader, sStreamReaderInfo));
   }
+
   ST_TASK_DLOG("vgId:%d %s end, size:%"PRIzu, TD_VID(pVnode), __func__, taosArrayGetSize(vTableInfo.infos));
   STREAM_CHECK_RET_GOTO(buildVTableInfoRsp(&vTableInfo, &buf, &size));
 
+  int32_t rc = streamCacheCommitResolved(sStreamReaderInfo->vtbCache, fullScan, cids, tagCids, &uid2Result);
+  if (rc != 0) { code = rc; goto end; }
+
 end:
+  if (tagCids != NULL) taosArrayDestroy(tagCids);
+  tSimpleHashCleanup(uid2Result);
   tDestroySStreamMsgVTableInfo(&vTableInfo);
   sStreamReaderInfo->storageApi.metaReaderFn.clearReader(&metaReader);
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   sendTriggerPullRsp(pMsg, sStreamReaderInfo, buf, size, code);
   return code;
 }
+
 
 static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req, SStreamTriggerReaderInfo* sStreamReaderInfo) {
   int32_t                   code = 0;
@@ -5257,23 +5348,30 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
   int32_t                   lino = 0;
   void*                     buf = NULL;
   size_t                    size = 0;
-  SSDataBlock* pBlock = NULL;
-
-  SMetaReader               metaReader = {0};
-  SMetaReader               metaReaderStable = {0};
+  SSDataBlock              *pBlock      = NULL;
+  SArray                   *singleUid   = NULL;
+  SArray                   *emptyCols   = NULL;
+  SArray                   *tagOnly     = NULL;
+  SSHashObj                *uid2Result  = NULL;
+  SVTableResolveResult     *pRes        = NULL;
+  SMetaReader               metaReader  = {0};
   int64_t streamId = req->base.streamId;
-  stsDebug("vgId:%d %s start, ver:%"PRId64, TD_VID(pVnode), __func__, req->virTablePseudoColReq.ver);
+  stsDebug("vgId:%d %s start, ver:%"PRId64" uid:%"PRId64" cols_size:%d", TD_VID(pVnode), __func__,
+           req->virTablePseudoColReq.ver, req->virTablePseudoColReq.uid,
+           req->virTablePseudoColReq.cids ? (int)taosArrayGetSize(req->virTablePseudoColReq.cids) : -1);
 
   SArray* cols = req->virTablePseudoColReq.cids;
   STREAM_CHECK_NULL_GOTO(cols, terrno);
 
+  // We still need metaReader for vtable name (cid == -1) and to assert table type.
   sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn);
   STREAM_CHECK_RET_GOTO(sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(&metaReader, req->virTablePseudoColReq.ver, req->virTablePseudoColReq.uid));
-
   STREAM_CHECK_CONDITION_GOTO(metaReader.me.type != TD_VIRTUAL_CHILD_TABLE && metaReader.me.type != TD_VIRTUAL_NORMAL_TABLE, TSDB_CODE_INVALID_PARA);
 
   STREAM_CHECK_RET_GOTO(createDataBlock(&pBlock));
+
   if (metaReader.me.type == TD_VIRTUAL_NORMAL_TABLE) {
+    // Normal vtable: caller only requests the table-name pseudo column.
     STREAM_CHECK_CONDITION_GOTO (taosArrayGetSize(cols) < 1 || *(col_id_t*)taosArrayGet(cols, 0) != -1, TSDB_CODE_INVALID_PARA);
     SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN, -1);
     STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
@@ -5282,38 +5380,67 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
     SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, 0);
     STREAM_CHECK_NULL_GOTO(pDst, terrno);
     STREAM_CHECK_RET_GOTO(varColSetVarData(pDst, 0, metaReader.me.name, strlen(metaReader.me.name), false));
-  } else if (metaReader.me.type == TD_VIRTUAL_CHILD_TABLE){
-    int64_t suid = metaReader.me.ctbEntry.suid;
-    sStreamReaderInfo->storageApi.metaReaderFn.readerReleaseLock(&metaReader);
-    sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReaderStable, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn);
+  } else {
+    // Virtual child table: resolve tags via chain resolver (single uid, cache-bypass).
+    singleUid = taosArrayInit(1, sizeof(int64_t));
+    STREAM_CHECK_NULL_GOTO(singleUid, terrno);
+    int64_t uidVal = req->virTablePseudoColReq.uid;
+    STREAM_CHECK_NULL_GOTO(taosArrayPush(singleUid, &uidVal), terrno);
 
-    STREAM_CHECK_RET_GOTO(sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(&metaReaderStable, req->virTablePseudoColReq.ver, suid));
-    SSchemaWrapper*  sSchemaWrapper = &metaReaderStable.me.stbEntry.schemaTag;
+    emptyCols = taosArrayInit(0, sizeof(col_id_t));
+    STREAM_CHECK_NULL_GOTO(emptyCols, terrno);
+
+    // The pseudo-column request can carry cid==-1 for the vtable name; the
+    // chain resolver only handles real tag cids, so pass a filtered copy.
+    tagOnly = taosArrayInit(taosArrayGetSize(cols), sizeof(col_id_t));
+    STREAM_CHECK_NULL_GOTO(tagOnly, terrno);
+    for (size_t i = 0; i < taosArrayGetSize(cols); i++) {
+      col_id_t cid = *(col_id_t *)taosArrayGet(cols, i);
+      if (cid == -1) continue;
+      STREAM_CHECK_NULL_GOTO(taosArrayPush(tagOnly, &cid), terrno);
+    }
+
+    // PSEUDO_COL bypasses cache — pass NULL so resolver does not read/write it.
+    code = streamResolveVTableRefChain(pVnode, NULL, sStreamReaderInfo,
+                                       req->virTablePseudoColReq.ver,
+                                       singleUid, emptyCols, tagOnly, &uid2Result);
+    taosArrayDestroy(tagOnly); tagOnly = NULL;
+    STREAM_CHECK_RET_GOTO(code);
+
+    SVTableResolveResult **pp = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uidVal, sizeof(uidVal));
+    if (pp == NULL || *pp == NULL) {
+      // H2 v0.5: A returned 0 but the uid has no entry in uid2Result. This
+      // happens only when the top-level uid was missing from local meta
+      // (vtable dropped concurrently). PSEUDO_COL is single-uid and has no
+      // partial-success semantic, so propagate as REF_TABLE_NOT_EXIST.
+      code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
+      goto end;
+    }
+    pRes = *pp;
+
+    // Append column metadata according to caller-requested cids.
     for (size_t i = 0; i < taosArrayGetSize(cols); i++){
-      col_id_t* id = taosArrayGet(cols, i);
-      STREAM_CHECK_NULL_GOTO(id, terrno);
-      if (*id == -1) {
+      col_id_t cid = *(col_id_t*)taosArrayGet(cols, i);
+      if (cid == -1) {
         SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN, -1);
         STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
         continue;
       }
-      size_t j = 0;
-      for (; j < sSchemaWrapper->nCols; j++) {
-        SSchema* s = sSchemaWrapper->pSchema + j;
-        if (s->colId == *id) {
-          SColumnInfoData idata = createColumnInfoData(s->type, s->bytes, s->colId);
-          STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
-          break;
-        }
-      }
-      if (j == sSchemaWrapper->nCols) {
-        SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_NULL, CHAR_BYTES, *id);
+      STagValue **ppv = (pRes->tagMap == NULL) ? NULL : (STagValue **)tSimpleHashGet(pRes->tagMap, &cid, sizeof(cid));
+      if (ppv == NULL || *ppv == NULL) {
+        SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_NULL, CHAR_BYTES, cid);
         STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
+        continue;
       }
+      STagValue       *v     = *ppv;
+      int32_t          bytes = (v->nLen > 0 ? v->nLen : 1);
+      SColumnInfoData  idata = createColumnInfoData(v->type, bytes, cid);
+      STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
     }
+
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, 1));
     pBlock->info.rows = 1;
-    
+
     for (size_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++){
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
       STREAM_CHECK_NULL_GOTO(pDst, terrno);
@@ -5327,31 +5454,19 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
         continue;
       }
 
-      STagVal val = {0};
-      val.cid = pDst->info.colId;
-      const char* p = sStreamReaderInfo->storageApi.metaFn.extractTagVal(metaReader.me.ctbEntry.pTags, pDst->info.type, &val);
-
-      char* data = NULL;
-      if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {
-        data = tTagValToData((const STagVal*)p, false);
-      } else {
-        data = (char*)p;
+      STagValue **ppv = (STagValue **)tSimpleHashGet(pRes->tagMap, &pDst->info.colId, sizeof(pDst->info.colId));
+      if (ppv == NULL || *ppv == NULL || (*ppv)->pData == NULL) {
+        STREAM_CHECK_RET_GOTO(colDataSetVal(pDst, 0, NULL, true));
+        continue;
       }
-
-      STREAM_CHECK_RET_GOTO(colDataSetVal(pDst, 0, data,
-                            (data == NULL) || (pDst->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data))));
-
-      if ((pDst->info.type != TSDB_DATA_TYPE_JSON) && (p != NULL) && IS_VAR_DATA_TYPE(((const STagVal*)p)->type) &&
-          (data != NULL)) {
-        taosMemoryFree(data);
+      if (IS_VAR_DATA_TYPE(pDst->info.type)) {
+        STREAM_CHECK_RET_GOTO(varColSetVarData(pDst, 0, (*ppv)->pData, (*ppv)->nLen, false));
+      } else {
+        STREAM_CHECK_RET_GOTO(colDataSetVal(pDst, 0, (*ppv)->pData, false));
       }
     }
-  } else {
-    stError("vgId:%d %s, invalid table type:%d", TD_VID(pVnode), __func__, metaReader.me.type);
-    code = TSDB_CODE_INVALID_PARA;
-    goto end;
   }
-  
+
   stsDebug("vgId:%d %s get result rows:%" PRId64, TD_VID(pVnode), __func__, pBlock->info.rows);
   printDataBlock(pBlock, __func__, "", streamId);
   STREAM_CHECK_RET_GOTO(buildRsp(pBlock, &buf, &size));
@@ -5360,7 +5475,10 @@ end:
   if(size == 0){
     code = TSDB_CODE_STREAM_NO_DATA;
   }
-  sStreamReaderInfo->storageApi.metaReaderFn.clearReader(&metaReaderStable);
+  if (singleUid != NULL) taosArrayDestroy(singleUid);
+  if (emptyCols != NULL) taosArrayDestroy(emptyCols);
+  if (tagOnly   != NULL) taosArrayDestroy(tagOnly);
+  tSimpleHashCleanup(uid2Result);
   sStreamReaderInfo->storageApi.metaReaderFn.clearReader(&metaReader);
   STREAM_PRINT_LOG_END(code, lino);
   sendTriggerPullRsp(pMsg, sStreamReaderInfo, buf, size, code);
@@ -5650,3 +5768,4 @@ end:
   streamReleaseTask(taskAddr);
   return code;
 }
+

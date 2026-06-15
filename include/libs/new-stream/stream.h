@@ -262,6 +262,7 @@ void    streamSetSnodeDisabled(bool cleanup);
 int32_t streamHbProcessRspMsg(SMStreamHbRspMsg *pRsp);
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
 int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset);
+void    streamGetMnodeEpset(SEpSet *pEpSet);
 void    streamCleanup(void);
 int32_t streamAcquireTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask, void** ppAddr);
 void    streamReleaseTask(void* taskAddr);
