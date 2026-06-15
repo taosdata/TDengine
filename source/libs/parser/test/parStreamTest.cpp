@@ -14,12 +14,14 @@
  */
 
 #include <array>
+#include <cstring>
 #include <fstream>
 #include <memory>
 
 #include "cJSON.h"
 #include "mockCatalogService.h"
 #include "parInt.h"
+#include "nodes.h"
 #include "parTestUtil.h"
 #include "plannodes.h"
 #include "stub.h"
