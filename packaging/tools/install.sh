@@ -540,6 +540,7 @@ function install_bin() {
 
 
   chmod 0555 ${install_main_dir}/bin/*
+  rm -f ${install_main_dir}/uninstall.sh || :
   [ -x ${install_main_dir}/bin/${remove_name} ] && mv -f ${install_main_dir}/bin/${remove_name} ${install_main_dir}/uninstall.sh || :
 
   #Make link

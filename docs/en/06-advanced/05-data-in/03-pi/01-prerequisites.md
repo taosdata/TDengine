@@ -23,8 +23,8 @@ When using AF mode (PI Data Archive + AF Server), the following is also required
 | ---- | ----------- |
 | AF Server Address | Hostname of the PI AF Server |
 | AF Database Name | Name of the AF Database to connect to |
-| Default Port | **5457** (PI AF Server, via SQL Server) |
-| Protocol | PI AF SDK, using SQL Server connection under the hood |
+| Default Port | **5457** (PI AF Server standard port) |
+| Protocol | PI AF SDK proprietary protocol |
 
 :::note
 The ports listed above are PI system defaults. The PI connector (taosx-pi.exe) communicates with the PI system through PI AF SDK, and the ports are managed internally by the SDK — no manual port configuration is needed in the connector. However, the firewall must allow these ports; otherwise, the SDK connection will fail. If your PI system uses non-standard ports, please confirm the actual port numbers with your PI administrator.
@@ -36,9 +36,9 @@ The host running taosX (or taosx-agent) must be able to access the following por
 
 | Source | Destination | Port | Protocol | Description |
 | ------ | ----------- | ---- | -------- | ----------- |
-| taosX / taosx-agent | PI Data Archive Server | 5450/TCP | PI SDK | Required, reads PI Point data |
-| taosX / taosx-agent | PI AF Server | 5457/TCP | SQL Server (TDS) | Required when using AF mode |
-| taosx-agent | taosX | taosX configured port | HTTPS/gRPC | Required when using Agent proxy mode |
+| PI Connector (taosX/taosx-agent host) | PI Data Archive Server | 5450/TCP | PI AF SDK proprietary protocol | Required, reads PI Point data |
+| PI Connector (taosX/taosx-agent host) | PI AF Server | 5457/TCP | PI AF SDK proprietary protocol | Required when using AF mode |
+| taosx-agent | taosX | taosX configured port | gRPC | Required when using Agent proxy mode |
 
 If your network environment has firewalls or network isolation, ensure the above ports are allowed.
 
@@ -61,31 +61,48 @@ nc -zv <HOST> <PORT>
 
 ## 3. Authentication and Service Account Requirements
 
-The PI connector uses PI AF SDK to connect to the PI system, with authentication based on the **Windows service account** running the taosX (or taosx-agent) process.
+The PI Connector (taosx-pi.exe) runs as a subprocess of taosX or taosx-agent and connects to the PI system through PI AF SDK. **Authentication is handled by the Windows operating system** (Kerberos or NTLM integrated authentication) — it does not rely on PI's internal account/password system.
 
-### 3.1 PI Data Archive Permissions
+### 3.1 Authentication Mode
+
+The Username/Password/Domain fields in the connection configuration (all optional) control the authentication mode:
+
+| Field values | Authentication mode | Description |
+| ------------ | ------------------- | ----------- |
+| All blank (recommended) | **Windows Integrated Authentication** | The connector accesses PI using the Windows identity of the taosx-agent service account (Kerberos or NTLM) |
+| Username + Password (± Domain) filled in | **Explicit credentials** | Accesses PI using the specified Windows account, overriding the service account identity |
+
+:::tip
+**By default, you do not need to fill in Username, Password, or Domain.** Leaving them blank uses Windows integrated authentication, where the connector accesses PI using the taosx-agent service account's Windows identity. This is the recommended approach for production environments. For a detailed explanation, see [Connection Configuration and Authentication](./06-connection-config.md).
+:::
+
+taosx-agent runs as the Windows **Local System** account by default, which in a domain environment corresponds to the machine account (e.g., `DOMAIN\machinename$`). In production environments, we recommend configuring taosx-agent to run under a dedicated domain service account for easier permission management on the PI side.
+
+### 3.2 PI Data Archive Permissions
 
 The service account running the connector needs the following permissions on the PI Data Archive:
 
-- Permission to read PI Point data (PI Identity or PI Mapping)
+- Permission to read PI Point data (via PI Identity or PI Mapping)
 - Permission to read PI Point attributes
 
-We recommend that the PI administrator creates a dedicated PI Mapping for the service account in the PI Data Archive.
+The PI administrator should use PI System Management Tools (SMT) to create a Mapping that maps the Windows account's SID to a **PI Identity** with read permissions (**SMT → Security → Mappings**).
 
-### 3.2 PI AF Server Permissions
+### 3.3 PI AF Server Permissions
 
 When using AF mode, the service account also needs:
 
 - **Read permission** on the target AF database
 - Read permission on AF Elements and their Attributes
 
-### 3.3 Service Account Recommendations
+In PI System Explorer (PSE), add the Windows account to the AF database access control and grant Read and Read Data permissions.
+
+### 3.4 Service Account Recommendations
 
 | Recommendation | Description |
 | -------------- | ----------- |
-| Create a dedicated service account | Avoid using personal accounts or high-privilege administrator accounts |
+| Create a dedicated domain service account | Avoid using Local System (machine account), personal accounts, or high-privilege administrator accounts |
 | Principle of least privilege | Grant only read access to PI data; no write permission is needed |
-| Domain account | If the PI system uses Windows domain authentication, the service account should be a domain account |
+| Domain account | When the PI system uses domain authentication, use a domain account to support Kerberos |
 | Password policy | Recommend setting password to never expire, or coordinate with password rotation policies |
 
 ## 4. Software Dependencies
@@ -108,18 +125,20 @@ Before creating a PI data ingestion task, please confirm each of the following i
 
 ### Network and Connectivity
 
-- [ ] PI Data Archive Server hostname/IP confirmed: `_______________`
+- [ ] PI Data Archive Server **hostname** confirmed (hostname recommended over IP; using IP may affect Kerberos authentication): `_______________`
 - [ ] PI AF Server hostname confirmed (if using AF mode): `_______________`
 - [ ] AF database name confirmed (if using AF mode): `_______________`
 - [ ] PI Data Archive is accessible from taosX/agent host (port 5450)
 - [ ] PI AF Server is accessible from taosX/agent host (port 5457, if using AF mode)
-- [ ] If using Agent proxy mode, taosX ↔ agent network connectivity is established
+- [ ] On the taosx-agent host, manually verified PI connectivity using PI System Management Tools (SMT) or PI System Explorer (PSE) — isolate environment issues before testing taosX
+- [ ] If using Agent proxy mode, taosx-agent service is running, taosX ↔ agent network is connected, and agent status shows online in Explorer
 
 ### Authentication and Permissions
 
-- [ ] Dedicated Windows service account has been created
-- [ ] Service account has PI Mapping configured in PI Data Archive (read permission)
-- [ ] Service account has read permission on AF database (if using AF mode)
+- [ ] taosx-agent's Windows running identity confirmed (default: Local System → domain machine account `DOMAIN\machinename$`; or a custom domain service account)
+- [ ] That Windows identity has a **Mapping** configured in PI Data Archive pointing to the appropriate **PI Identity** (read permission)
+- [ ] AF mode: that identity has Read / Read Data permissions in AF Server Security
+- [ ] Connection configuration Username/Password/Domain are **left blank** (use Windows integrated authentication)
 
 ### Software Environment
 
@@ -132,3 +151,8 @@ Before creating a PI data ingestion task, please confirm each of the following i
 - [ ] TDengine cluster is deployed and running normally
 - [ ] Target database has been created (or ready to create in Explorer)
 - [ ] taosX is installed and accessible through Explorer
+
+### Task Configuration
+
+- [ ] PI Data Archive Server name uses hostname format
+- [ ] Clicked **Connectivity Check** button and connection test passed

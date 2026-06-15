@@ -24,13 +24,13 @@ PI 连接器是 taosX 的一个插件，负责从 PI 系统读取数据并写入
 graph LR
     subgraph OT["OT 网络"]
         PI["PI Data Archive<br/>PI AF Server"]
-        TX["taosX<br/>(Windows)"]
+        TX["taosX 主机 (Windows)<br/>含 PI 连接器子进程"]
     end
     subgraph IT["IT 网络 / 数据中心"]
         TD["TDengine TSDB"]
     end
-    PI -- "PI AF SDK<br/>端口 5450/5457" --> TX
-    TX -- "写入数据" --> TD
+    TX -- "PI SDK 协议（端口 5450/5457）<br/>由 PI 连接器子进程发起" --> PI
+    TX -- "原生连接写入" --> TD
 ```
 
 **优点**：
@@ -51,15 +51,15 @@ graph LR
 graph LR
     subgraph OT["OT 网络"]
         PI["PI Data Archive<br/>PI AF Server"]
-        AG["taosx-agent<br/>(Windows)"]
+        AG["taosx-agent 主机 (Windows)<br/>含 PI 连接器子进程"]
     end
     subgraph IT["IT 网络 / 云端"]
         TX["taosX<br/>(Linux / Windows)"]
         TD["TDengine TSDB"]
     end
-    PI -- "PI AF SDK<br/>端口 5450/5457" --> AG
-    AG -- "跨网段<br/>gRPC/HTTPS" --> TX
-    TX -- "写入数据" --> TD
+    AG -- "PI SDK 协议（端口 5450/5457）<br/>由 PI 连接器子进程发起" --> PI
+    AG -- "跨网段 gRPC" --> TX
+    TX -- "原生连接写入" --> TD
 ```
 
 **优点**：
@@ -99,9 +99,9 @@ graph LR
         TX["taosX"]
         TD["TDengine TSDB"]
     end
-    PI1 -- "PI AF SDK" --> AG1
-    PI2 -- "PI AF SDK" --> AG2
-    PI3 -- "PI AF SDK" --> AG3
+    AG1 -- "PI SDK 协议" --> PI1
+    AG2 -- "PI SDK 协议" --> PI2
+    AG3 -- "PI SDK 协议" --> PI3
     AG1 --> TX
     AG2 --> TX
     AG3 --> TX
@@ -126,9 +126,9 @@ graph LR
 | 要点 | 说明 |
 | --- | --- |
 | 操作系统 | 必须为 Windows（PI AF SDK 仅支持 Windows） |
-| PI AF SDK | 必须在 agent 主机上安装 PI AF SDK（PI AF Client 2018+） |
-| 服务账户 | agent 运行的 Windows 服务账户必须有 PI 系统的访问权限 |
-| 网络 - PI 侧 | agent → PI Data Archive（端口 5450）、agent → PI AF Server（端口 5457） |
+| PI AF SDK | 必须在 agent 主机上安装 PI AF SDK（PI AF Client 2018+）；taosX/agent 以子进程方式启动 PI 连接器，由连接器调用 PI AF SDK 与 PI 系统通信 |
+| 服务账户 | agent 服务的 Windows 运行身份（默认 Local System）即为连接器访问 PI 时呈现的身份，需在 PI 侧配置对应权限 |
+| 网络 - PI 侧 | agent 主机 → PI Data Archive（端口 5450）、agent 主机 → PI AF Server（端口 5457） |
 | 网络 - taosX 侧 | agent ↔ taosX 之间的网络连通（gRPC/HTTPS） |
 | 安装方式 | 在 Explorer 中点击 **+创建新的代理** 可获取 agent 的安装指引 |
 
