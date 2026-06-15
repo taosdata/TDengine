@@ -52,6 +52,8 @@ static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessVgroupBalanceLeaderMsg(SRpcMsg *pReq);
 static int32_t mndProcessSetVgroupKeepVersionReq(SRpcMsg *pReq);
+static int32_t mndProcessCloseVnodeMsg(SRpcMsg *pReq);
+static int32_t mndProcessOpenVnodeMsg(SRpcMsg *pReq);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
   SSdbTable table = {
@@ -88,6 +90,8 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP, mndProcessBalanceVgroupMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP_LEADER, mndProcessVgroupBalanceLeaderMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_SET_VGROUP_KEEP_VERSION, mndProcessSetVgroupKeepVersionReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CLOSE_VNODE, mndProcessCloseVnodeMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_OPEN_VNODE, mndProcessOpenVnodeMsg);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndRetrieveVgroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndCancelGetNextVgroup);
@@ -4269,4 +4273,122 @@ _OVER:
   if (pTrans != NULL) mndTransDrop(pTrans);
 
   return code;
+}
+
+static int32_t mndProcessCloseVnodeMsg(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = 0;
+
+  SCloseVnodeReq req = {0};
+  if (tDeserializeSCloseVnodeReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mInfo("vgId:%d, start to close vnode on dnode:%d", req.vgId, req.dnodeId);
+
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_REDISTRIBUTE_VGROUP)) !=
+      0) {
+    goto _OVER;
+  }
+
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, req.vgId);
+  if (pVgroup == NULL) {
+    code = TSDB_CODE_MND_VGROUP_NOT_EXIST;
+    goto _OVER;
+  }
+
+  bool found = false;
+  for (int8_t i = 0; i < pVgroup->replica; ++i) {
+    if (pVgroup->vnodeGid[i].dnodeId == req.dnodeId) {
+      found = true;
+      break;
+    }
+  }
+  mndReleaseVgroup(pMnode, pVgroup);
+
+  if (!found) {
+    code = TSDB_CODE_MND_VGROUP_NOT_IN_DNODE;
+    goto _OVER;
+  }
+
+  SEpSet epSet = mndGetDnodeEpsetById(pMnode, req.dnodeId);
+  if (epSet.numOfEps == 0) {
+    code = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    goto _OVER;
+  }
+
+  int32_t contLen = tSerializeSCloseVnodeReq(NULL, 0, &req);
+  void   *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  tSerializeSCloseVnodeReq(pHead, contLen, &req);
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_DND_CLOSE_VNODE, .pCont = pHead, .contLen = contLen};
+  code = tmsgSendReq(&epSet, &rpcMsg);
+
+_OVER:
+  tFreeSCloseVnodeReq(&req);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessOpenVnodeMsg(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = 0;
+
+  SOpenVnodeReq req = {0};
+  if (tDeserializeSOpenVnodeReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mInfo("vgId:%d, start to open vnode on dnode:%d", req.vgId, req.dnodeId);
+
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_REDISTRIBUTE_VGROUP)) !=
+      0) {
+    goto _OVER;
+  }
+
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, req.vgId);
+  if (pVgroup == NULL) {
+    code = TSDB_CODE_MND_VGROUP_NOT_EXIST;
+    goto _OVER;
+  }
+
+  bool found = false;
+  for (int8_t i = 0; i < pVgroup->replica; ++i) {
+    if (pVgroup->vnodeGid[i].dnodeId == req.dnodeId) {
+      found = true;
+      break;
+    }
+  }
+  mndReleaseVgroup(pMnode, pVgroup);
+
+  if (!found) {
+    code = TSDB_CODE_MND_VGROUP_NOT_IN_DNODE;
+    goto _OVER;
+  }
+
+  SEpSet epSet = mndGetDnodeEpsetById(pMnode, req.dnodeId);
+  if (epSet.numOfEps == 0) {
+    code = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    goto _OVER;
+  }
+
+  int32_t contLen = tSerializeSOpenVnodeReq(NULL, 0, &req);
+  void   *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  tSerializeSOpenVnodeReq(pHead, contLen, &req);
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_DND_OPEN_VNODE, .pCont = pHead, .contLen = contLen};
+  code = tmsgSendReq(&epSet, &rpcMsg);
+
+_OVER:
+  tFreeSOpenVnodeReq(&req);
+  TAOS_RETURN(code);
 }

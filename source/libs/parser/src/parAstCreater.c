@@ -8112,6 +8112,30 @@ _err:
   return NULL;
 }
 
+SNode* createCloseVnodeStmt(SAstCreateContext* pCxt, const SToken* pVgId, const SToken* pDnodeId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCloseVnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CLOSE_VNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+SNode* createOpenVnodeStmt(SAstCreateContext* pCxt, const SToken* pVgId, const SToken* pDnodeId) {
+  CHECK_PARSER_STATUS(pCxt);
+  SOpenVnodeStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_OPEN_VNODE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
+  return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
 SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
   CHECK_PARSER_STATUS(pCxt);
   SNode* pStmt = NULL;

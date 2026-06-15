@@ -1250,6 +1250,18 @@ typedef struct SSplitVgroupStmt {
   bool      force;
 } SSplitVgroupStmt;
 
+typedef struct SCloseVnodeStmt {
+  ENodeType type;
+  int32_t   vgId;
+  int32_t   dnodeId;
+} SCloseVnodeStmt;
+
+typedef struct SOpenVnodeStmt {
+  ENodeType type;
+  int32_t   vgId;
+  int32_t   dnodeId;
+} SOpenVnodeStmt;
+
 typedef struct STSMAOptions {
   ENodeType  type;
   SNodeList* pFuncs;

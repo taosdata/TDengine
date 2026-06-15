@@ -59,6 +59,21 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
     pIter = taosHashIterate(pMgmt->runngingHash, pIter);
   }
 
+  /*
+  pIter = taosHashIterate(pMgmt->closedHash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode == NULL || *ppVnode == NULL) continue;
+
+    SVnodeObj *pVnode = *ppVnode;
+    SVnodeLoad vload = {.vgId = pVnode->vgId, .syncState = TAOS_SYNC_STATE_OFFLINE};
+
+    if (taosArrayPush(pInfo->pVloads, &vload) == NULL) {
+      dError("failed to push vnode load");
+    }
+    pIter = taosHashIterate(pMgmt->closedHash, pIter);
+  }
+*/
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 }
 
@@ -2101,6 +2116,8 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_VNODE_TYPE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_SNAP_SEND_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_CLOSE_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_OPEN_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CONFIG_CHANGE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_ELECTBASELINE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
@@ -2180,4 +2197,105 @@ void vmUpdateMetricsInfo(SVnodeMgmt *pMgmt, int64_t clusterId) {
   }
 
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+}
+
+int32_t vmProcessCloseVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SCloseVnodeReq req = {0};
+  if (tDeserializeSCloseVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return terrno;
+  }
+
+  int32_t vgId = req.vgId;
+  dInfo("vgId:%d, start to close vnode", vgId);
+
+  SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, vgId, false);
+  if (pVnode == NULL) {
+    dError("vgId:%d, failed to close since vnode not found", vgId);
+    tFreeSCloseVnodeReq(&req);
+    terrno = TSDB_CODE_VND_NOT_EXIST;
+    return terrno;
+  }
+
+  vmCloseVnode(pMgmt, pVnode, false, true);
+
+  dInfo("vgId:%d, vnode is closed", vgId);
+  tFreeSCloseVnodeReq(&req);
+  return 0;
+}
+
+int32_t vmProcessOpenVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SOpenVnodeReq req = {0};
+  if (tDeserializeSOpenVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return terrno;
+  }
+
+  int32_t vgId = req.vgId;
+  dInfo("vgId:%d, start to open vnode", vgId);
+
+  // Check if vnode is already running
+  SVnodeObj *pExist = vmAcquireVnodeImpl(pMgmt, vgId, false);
+  if (pExist != NULL) {
+    vmReleaseVnode(pMgmt, pExist);
+    dError("vgId:%d, vnode is already open", vgId);
+    tFreeSOpenVnodeReq(&req);
+    terrno = TSDB_CODE_VND_ALREADY_EXIST;
+    return terrno;
+  }
+
+  // Check if vnode is in closedHash
+  SVnodeObj *pClosed = NULL;
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+  int32_t r = taosHashGetDup(pMgmt->closedHash, &vgId, sizeof(int32_t), (void *)&pClosed);
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+
+  if (r != 0 || pClosed == NULL) {
+    dError("vgId:%d, failed to open since vnode is not in closed state", vgId);
+    tFreeSOpenVnodeReq(&req);
+    terrno = TSDB_CODE_VND_NOT_CLOSED;
+    return terrno;
+  }
+
+  int32_t diskPrimary = pClosed->diskPrimary;
+  int32_t vgVersion = pClosed->vgVersion;
+
+  char path[TSDB_FILENAME_LEN] = {0};
+  snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vgId);
+
+  dInfo("vgId:%d, begin to open vnode at %s", vgId, path);
+  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, NULL, pMgmt->msgCb, false);
+  if (pImpl == NULL) {
+    dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
+    tFreeSOpenVnodeReq(&req);
+    return terrno;
+  }
+
+  SWrapperCfg wrapperCfg = {
+      .vgId = vgId,
+      .vgVersion = vgVersion,
+      .dropped = 0,
+      .diskPrimary = diskPrimary,
+  };
+  snprintf(wrapperCfg.path, sizeof(wrapperCfg.path), "%s", path);
+
+  if (vmOpenVnode(pMgmt, &wrapperCfg, pImpl) != 0) {
+    dError("vgId:%d, failed to open vnode mgmt since %s", vgId, terrstr());
+    vnodeClose(pImpl);
+    tFreeSOpenVnodeReq(&req);
+    return terrno;
+  }
+
+  if (vnodeStart(pImpl) != 0) {
+    dError("vgId:%d, failed to start vnode since %s", vgId, terrstr());
+    tFreeSOpenVnodeReq(&req);
+    return terrno;
+  }
+
+  // Note: vmOpenVnode already called vmUnRegisterClosedState which frees pClosed
+  // and removes it from closedHash. Do NOT access pClosed after vmOpenVnode.
+
+  dInfo("vgId:%d, vnode is opened successfully", vgId);
+  tFreeSOpenVnodeReq(&req);
+  return 0;
 }

@@ -533,6 +533,8 @@ SNode* createSetVgroupKeepVersionStmt(SAstCreateContext* pCxt, const SToken* pVg
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2);
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
 SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, bool force);
+SNode* createCloseVnodeStmt(SAstCreateContext* pCxt, const SToken* pVgId, const SToken* pDnodeId);
+SNode* createOpenVnodeStmt(SAstCreateContext* pCxt, const SToken* pVgId, const SToken* pDnodeId);
 SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName);
 SNode* createGrantStmt(SAstCreateContext* pCxt, void* resources, SPrivLevelArgs* pPrivLevel, SToken* pPrincipal,
                        SNode* pCond, int8_t optrType);

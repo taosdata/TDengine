@@ -137,6 +137,68 @@ DROP BNODE ON DNODE dnode_id;
 
 Delete the BNODE on the DNODE with ID dnode_id,  and the `taosmqtt` subprocess on this dnode will exit to stop the subscription service.
 
+## Close Virtual Node
+
+```sql
+CLOSE VNODE vgroup_id ON DNODE dnode_id;
+```
+
+Close the vnode of the specified vgroup on the specified dnode. The close operation gracefully flushes data and stops the vnode from running, but does not delete any data files. The closed vnode will appear as `offline` in `SHOW VNODES`.
+
+This command requires superuser privileges.
+
+**Usage notes**:
+
+- A closed vnode no longer participates in data read/write or Raft replication, reducing the effective replica count
+- If the closed vnode is the leader replica, a Raft re-election will be triggered (writes temporarily unavailable, typically < 1s)
+- The closed state does not persist across taosd restarts — the vnode automatically reopens after restart
+- It is recommended to verify the state change via `SHOW VNODES` after the operation
+
+**Example**:
+
+```sql
+-- Close the vnode of vgroup 2 on dnode 1
+CLOSE VNODE 2 ON DNODE 1;
+
+-- Verify the status
+SHOW VNODES;
+```
+
+## Open Virtual Node
+
+```sql
+OPEN VNODE vgroup_id ON DNODE dnode_id;
+```
+
+Reopen a vnode that was previously closed via `CLOSE VNODE` on the specified dnode, restoring it to normal operation. After opening, the vnode will rejoin the Raft replication group and participate in data read/write.
+
+This command requires superuser privileges.
+
+**Usage notes**:
+
+- Can only be executed on vnodes previously closed via `CLOSE VNODE`
+- The open operation involves vnode initialization and WAL replay; duration depends on WAL size
+- After opening, the vnode needs to catch up on replication progress and may temporarily be unable to serve reads
+
+**Example**:
+
+```sql
+-- Reopen the vnode of vgroup 2 on dnode 1
+OPEN VNODE 2 ON DNODE 1;
+
+-- Verify the recovery
+SHOW VNODES;
+```
+
+**Common errors**:
+
+| Error Message | Cause | Solution |
+| --- | --- | --- |
+| Vgroup does not exist | The specified vgroupId does not exist | Run `SHOW VGROUPS` to verify |
+| Vgroup not found on specified dnode | The vgroup has no replica on the specified dnode | Run `SHOW VGROUPS` to check replica distribution |
+| Vnode is already closed | The vnode is already in closed state | No need to close again |
+| Vnode is not in closed state | The vnode is not closed; cannot execute OPEN | Check if the vnode was closed, or if it was automatically restored after restart |
+
 ## Query Cluster Status
 
 ```sql
