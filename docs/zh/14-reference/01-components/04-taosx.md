@@ -793,7 +793,7 @@ taosX Parser 插件是一个要求用 C/Rust 语言开发的 C ABI 兼容动态�
 
 **函数签名**：const char* parser_name()
 
-**返回值**：字符串。
+**返回值**：以 `\0` 结尾的静态字符串指针。该字符串的生命周期必须覆盖整个插件生命周期，插件不得为该返回值动态分配堆内存后再要求 taosX 释放。
 
 #### 2. 获取插件版本
 
@@ -801,7 +801,7 @@ taosX Parser 插件是一个要求用 C/Rust 语言开发的 C ABI 兼容动态�
 
 **函数签名**：const char* parser_version()
 
-**返回值**：字符串。
+**返回值**：以 `\0` 结尾的静态字符串指针。该字符串的生命周期必须覆盖整个插件生命周期，插件不得为该返回值动态分配堆内存后再要求 taosX 释放。
 
 #### 3. 配置解析器
 
@@ -830,27 +830,59 @@ struct parser_resp_t {
 
 **函数签名**：
 
-对输入 payload 进行解析，返回结果为 JSON 格式 [u8] 。返回的 JSON 将使用默认的 JSON 解析器进行完全解码（展开根数组和所有的对象）。
+对输入 payload 进行解析，输出结果为 UTF-8 JSON 字节串。返回的 JSON 将使用默认的 JSON 解析器进行完全解码（展开根数组和所有的对象）。
 
 ``` c
-const char* parser_mutate(
+typedef enum ParserMutateStatus {
+  PARSER_MUTATE_OK = 0,
+  PARSER_MUTATE_BUFFER_TOO_SMALL = 1,
+  PARSER_MUTATE_ERROR = 2,
+} ParserMutateStatus;
+
+uint32_t parser_abi_version(void);
+
+ParserMutateStatus parser_mutate(
   void* parser,
   const uint8_t* in_ptr, uint32_t in_len,
-  const void* uint8_t* out_ptr, uint32_t* out_len
+  uint8_t* out_ptr, uint32_t out_cap,
+  uint32_t* out_len, uint32_t* required_cap
 );
 ```
 
-`void* parser`：parser_new 生成的对象指针;
+`uint32_t parser_abi_version(void)`：返回插件实现的 ABI 版本。当前 taosX 只支持返回 `2` 的 parser 插件。
 
-`const uint8_t* in_ptr`：输入 Payload 的指针;
+`ParserMutateStatus`：`parser_mutate` 的返回状态。
 
-`uint32_t in_len`：输入 Payload 的 bytes 长度（不含 `\0`）;
+- `PARSER_MUTATE_OK`：解析成功，输出已经写入 `out_ptr`。
+- `PARSER_MUTATE_BUFFER_TOO_SMALL`：输出缓冲区空间不足，调用方需要按 `required_cap` 扩容后重试。
+- `PARSER_MUTATE_ERROR`：解析失败或参数非法。
 
-`const void* uint8_t* out_ptr`:输出 JSON 字符串的指针（不含 \0）。当 out_ptr 指向为空时，表示输出为空。
+`void* parser`：`parser_new` 生成的对象指针。
 
-`uint32_t * out_len`：输出 JSON 字符串长度。
+`const uint8_t* in_ptr`：输入 payload 的指针。
 
-**返回值**：当调用成功时，返回值为 NULL。
+`uint32_t in_len`：输入 payload 的字节长度（不含 `\0`）。
+
+`uint8_t* out_ptr`：由 taosX 分配并持有的输出缓冲区指针。插件只能向这块内存写入结果，不能返回插件自己分配的输出指针，也不能缓存或释放这块内存。
+
+`uint32_t out_cap`：`out_ptr` 可写入的最大字节数。
+
+`uint32_t* out_len`：实际写入的 JSON 字节长度。
+
+`uint32_t* required_cap`：当返回 `PARSER_MUTATE_BUFFER_TOO_SMALL` 时，必须写入完成本次输出所需的最小容量。taosX 将据此扩容并重试。
+
+**内存所有权说明**：
+
+- 输出内存始终由 taosX 持有和释放。
+- 插件只负责把完整 JSON 写入 `out_ptr` 指向的缓冲区。
+- 插件不能返回插件侧分配的输出内存，也不能要求 taosX 调用额外的释放函数。
+- 旧版 `parser_free_output` 接口已经移除，ABI v2 不再支持该模式。
+
+**返回值约束**：
+
+- 成功时返回 `PARSER_MUTATE_OK`，并保证 `out_len <= out_cap`。
+- 缓冲区不足时返回 `PARSER_MUTATE_BUFFER_TOO_SMALL`，并填写 `required_cap`。
+- 出现其他错误时返回 `PARSER_MUTATE_ERROR`。
 
 #### 5. 释放解析器
 
