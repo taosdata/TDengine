@@ -17,8 +17,8 @@
 | `cmd/tdsqlsmith/` | 命令行入口，解析参数并分发到 `run/replay/serve`。 |
 | `internal/run/` | 核心运行流程（任务执行、覆盖统计、报告写入、崩溃处理）。 |
 | `internal/serve/` | Web 服务层，提供 API 与前端静态资源服务。 |
-| `internal/queryrules/` | 查询规则目录、规则命中与种子语句相关逻辑。 |
-| `internal/branchmodel/` | 分支语料加载与覆盖模型。 |
+| `internal/queryrules/` | 查询规则目录解析与规则命中跟踪。 |
+| `internal/branchmodel/` | 分支用例类型定义与覆盖模型。 |
 | `internal/corpusdata/` | 内置语料与语法文件（通过 `go:embed` 编译进程序）。 |
 | `internal/report/` | 运行报告数据结构与读写。 |
 | `internal/crashguard/` | 崩溃保护、快照与故障上下文记录。 |

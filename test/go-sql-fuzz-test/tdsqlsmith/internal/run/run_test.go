@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-func TestDryRunCoversAllQueryBranches(t *testing.T) {
+func TestDryRunCoversAllQueryRules(t *testing.T) {
 	outDir := t.TempDir()
 	res, err := Execute(context.Background(), Config{
 		Version:         "test",
@@ -22,16 +22,10 @@ func TestDryRunCoversAllQueryBranches(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run execute failed: %v", err)
 	}
-	if res.Coverage.Hit != res.Coverage.Required {
-		t.Fatalf("positive branch not fully covered: %d/%d missing=%v", res.Coverage.Hit, res.Coverage.Required, res.Coverage.Missing)
-	}
-	if res.Coverage.HitNeg != res.Coverage.RequiredNeg {
-		t.Fatalf("negative branch not fully covered: %d/%d missing=%v", res.Coverage.HitNeg, res.Coverage.RequiredNeg, res.Coverage.MissingNeg)
-	}
 	if res.QueryRules.Required != 113 {
 		t.Fatalf("unexpected query rule set size: %d", res.QueryRules.Required)
 	}
-	if res.QueryRules.Hit == 0 {
-		t.Fatalf("unexpected empty query rule hits: missing=%v", res.QueryRules.Missing)
+	if res.QueryRules.Hit != res.QueryRules.Required {
+		t.Fatalf("query rules not fully covered: %d/%d missing=%v", res.QueryRules.Hit, res.QueryRules.Required, res.QueryRules.Missing)
 	}
 }
