@@ -606,6 +606,15 @@ static int32_t mndProcessDropEncryptAlgrReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MNODE_ENCRYPT_ALGR_NOT_EXIST, &lino, _OVER);
   }
 
+  // 禁止删除内置(build-in)加密算法。
+  // 内置算法是系统初始化时注册的(如 SM4-CBC/AES-128-CBC/SM3 等)，
+  // 若被误删，已使用该算法加密的数据库在重启/恢复时将无法找到算法定义，存在数据不可用风险。
+  // 只允许删除用户自定义(customized)算法。
+  if (pObj->source == ENCRYPT_ALGR_SOURCE_BUILTIN) {
+    mError("algr:%s, can not drop built-in encryption algorithm", dropReq.algorithmId);
+    TAOS_CHECK_GOTO(TSDB_CODE_MNODE_ENCRYPT_ALGR_BUILTIN, &lino, _OVER);
+  }
+
   bool    exist = false;
   void   *pIter = NULL;
   SDbObj *pDb = NULL;
