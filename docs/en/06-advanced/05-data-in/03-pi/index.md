@@ -119,6 +119,10 @@ If this is your first time configuring, regardless of whether you choose single-
 
 If you want to sync all points or all template elements, the default configuration is sufficient. If you need to filter specific naming patterns for points or element templates, fill in the filter criteria before clicking **Download Default Configuration**.
 
+:::tip
+For the syntax, available units, and notes of Dataset Filter, see [Dataset Filter Configuration](./07-dataset-filter.md).
+:::
+
 ![Data Model Configuration](../../../assets/pi-system-05-data-model.png)
 
 For complete format specification of model configuration files, see [Model Configuration File Reference](./03-csv-reference.md).
