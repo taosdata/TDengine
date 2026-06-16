@@ -2671,6 +2671,387 @@ class TestVtableTagRef:
 
         tdLog.info("split_tri STB passed")
 
+    # ==================================================================
+    # PARTITION BY tag-ref col + INTERVAL regression and accuracy tests
+    # (bug: 0x8000620A TSDB_CODE_VTABLE_INVALID_ORIGIN_SCAN)
+    # ==================================================================
+
+    def test_partition_by_tag_ref_interval_regression(self):
+        """Regression: PARTITION BY cross-DB tag-ref col + INTERVAL must not raise 0x8000620A.
+
+        Before the fix, pdcDealVirtualTable crashed when it encountered
+        TAG_REF_SOURCE children in SVirtualScanLogicNode and treated them as
+        an error instead of skipping timestamp-pushdown for them.
+
+        Uses vst_split_basic whose t_region and t_score tags both come from
+        ts_tag (different DB) — the exact pattern that triggered the bug.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.9.0
+
+        Labels: virtual, query, tag_ref, interval, regression
+
+        Jira: None
+
+        History:
+            - 2026-06-13 yihaoDeng Created
+
+        """
+        tdSql.execute("USE td_split;")
+        # Must complete without error; 6 regions × 1 window = 6 rows
+        tdSql.query(
+            "SELECT _wstart, t_region, COUNT(val) FROM vst_split_basic "
+            "WHERE ts >= 1700000000000 AND ts < 1700000100000 "
+            "PARTITION BY t_region INTERVAL(1h) ORDER BY t_region;"
+        )
+        tdSql.checkRows(6)
+        tdLog.info("regression test PARTITION BY tag-ref INTERVAL passed")
+
+    def test_partition_by_tag_ref_interval_data_accuracy(self):
+        """Data accuracy: SUM and COUNT per region per 1h window on vst_split_basic.
+
+        Each region maps to one source child in ts_data; all rows fall in the
+        same 1h bucket, so expected result is 6 rows (one per region) with
+        exact SUM/COUNT derived from SRC_DATA.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.9.0
+
+        Labels: virtual, query, tag_ref, interval, accuracy
+
+        Jira: None
+
+        History:
+            - 2026-06-13 yihaoDeng Created
+
+        """
+        tdSql.execute("USE td_split;")
+        tdSql.query(
+            "SELECT t_region, SUM(val), COUNT(val) FROM vst_split_basic "
+            "WHERE ts >= 1700000000000 AND ts < 1700000100000 "
+            "PARTITION BY t_region INTERVAL(1h) ORDER BY t_region;"
+        )
+        tdSql.checkRows(6)
+        # build expected: SPLIT_BASIC maps (dtbl, rsrc); region comes from rsrc
+        expected = sorted([
+            (SRC_TAG[rsrc]['region'],
+             sum(SRC_DATA[dtbl]['data']),
+             len(SRC_DATA[dtbl]['data']))
+            for _, dtbl, rsrc, _ in SPLIT_BASIC
+        ])
+        for i, (region, s, c) in enumerate(expected):
+            tdSql.checkData(i, 0, region)
+            tdSql.checkData(i, 1, s)
+            tdSql.checkData(i, 2, c)
+        tdLog.info("data accuracy PARTITION BY tag-ref INTERVAL passed")
+
+    def test_partition_by_tag_ref_interval_time_range_pushdown(self):
+        """Time-range pushdown: narrow WHERE reduces rows seen per region.
+
+        Timestamps are 1700000000000 + j*1000 ms.  Filtering ts >= 1700000001000
+        excludes j=0 (the first row of every source table).
+        For 'd_wind' (data=[40], single row at j=0) the region 'south' is
+        fully excluded, so only 5 of 6 regions appear in the result.
+
+        This verifies pushdown correctly reaches the origin scan nodes even
+        when TAG_REF_SOURCE siblings are present.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.9.0
+
+        Labels: virtual, query, tag_ref, interval, pushdown
+
+        Jira: None
+
+        History:
+            - 2026-06-13 yihaoDeng Created
+
+        """
+        tdSql.execute("USE td_split;")
+        tdSql.query(
+            "SELECT t_region, SUM(val), COUNT(val) FROM vst_split_basic "
+            "WHERE ts >= 1700000001000 AND ts < 1700000100000 "
+            "PARTITION BY t_region INTERVAL(1h) ORDER BY t_region;"
+        )
+        # south (d_wind, 1 row at j=0) is fully excluded → 5 rows
+        tdSql.checkRows(5)
+        expected = sorted([
+            (SRC_TAG[rsrc]['region'],
+             sum(SRC_DATA[dtbl]['data'][1:]),   # skip j=0
+             len(SRC_DATA[dtbl]['data']) - 1)
+            for _, dtbl, rsrc, _ in SPLIT_BASIC
+            if len(SRC_DATA[dtbl]['data']) > 1  # skip tables with only 1 row
+        ])
+        for i, (region, s, c) in enumerate(expected):
+            tdSql.checkData(i, 0, region)
+            tdSql.checkData(i, 1, s)
+            tdSql.checkData(i, 2, c)
+        tdLog.info("time-range pushdown PARTITION BY tag-ref INTERVAL passed")
+
+    def test_partition_by_int_tag_ref_interval(self):
+        """PARTITION BY an integer tag-ref column (t_score).
+
+        t_score comes from ts_tag (cross-DB tag ref) and is an INT.
+        Verifies the fix works for non-string tag-ref columns.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.9.0
+
+        Labels: virtual, query, tag_ref, interval, int_tag
+
+        Jira: None
+
+        History:
+            - 2026-06-13 yihaoDeng Created
+
+        """
+        tdSql.execute("USE td_split;")
+        tdSql.query(
+            "SELECT t_score, SUM(val), COUNT(val) FROM vst_split_basic "
+            "WHERE ts >= 1700000000000 AND ts < 1700000100000 "
+            "PARTITION BY t_score INTERVAL(1h) ORDER BY t_score;"
+        )
+        tdSql.checkRows(6)
+        expected = sorted([
+            (SRC_TAG[ssrc]['score'],
+             sum(SRC_DATA[dtbl]['data']),
+             len(SRC_DATA[dtbl]['data']))
+            for _, dtbl, _, ssrc in SPLIT_BASIC
+        ])
+        for i, (score, s, c) in enumerate(expected):
+            tdSql.checkData(i, 0, score)
+            tdSql.checkData(i, 1, s)
+            tdSql.checkData(i, 2, c)
+        tdLog.info("int tag-ref PARTITION BY INTERVAL passed")
+
+    def test_partition_by_literal_tag_interval_not_broken(self):
+        """Regression guard: literal tag PARTITION BY INTERVAL still works.
+
+        vst_split_mixed has lit_id (literal INT) and t_region/t_score (tag refs).
+        Partitioning by the literal tag must not be affected by the fix.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.9.0
+
+        Labels: virtual, query, tag_ref, interval, literal
+
+        Jira: None
+
+        History:
+            - 2026-06-13 yihaoDeng Created
+
+        """
+        tdSql.execute("USE td_split;")
+        tdSql.query(
+            "SELECT lit_id, SUM(val), COUNT(val) FROM vst_split_mixed "
+            "WHERE ts >= 1700000000000 AND ts < 1700000100000 "
+            "PARTITION BY lit_id INTERVAL(1h) ORDER BY lit_id;"
+        )
+        # SPLIT_MIXED: 3 distinct lit_id values (1000, 2000, 3000), 2 children each
+        from collections import defaultdict
+        by_lit = defaultdict(lambda: [0, 0])
+        for _, dtbl, lit, _, _ in SPLIT_MIXED:
+            by_lit[lit][0] += sum(SRC_DATA[dtbl]['data'])
+            by_lit[lit][1] += len(SRC_DATA[dtbl]['data'])
+        expected = sorted([(k, v[0], v[1]) for k, v in by_lit.items()])
+        tdSql.checkRows(len(expected))
+        for i, (lit, s, c) in enumerate(expected):
+            tdSql.checkData(i, 0, lit)
+            tdSql.checkData(i, 1, s)
+            tdSql.checkData(i, 2, c)
+        tdLog.info("literal tag PARTITION BY INTERVAL not broken")
+
+    def test_partition_by_cross_tag_ref_interval_mixed_vstb(self):
+        """PARTITION BY tag-ref on vst_split_mixed (literal + tag-ref tags).
+
+        t_region is a cross-DB tag ref; the vstb also has a literal tag.
+        Verifies the fix handles the mixed-tag-type pattern correctly.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.9.0
+
+        Labels: virtual, query, tag_ref, interval, mixed_tags
+
+        Jira: None
+
+        History:
+            - 2026-06-13 yihaoDeng Created
+
+        """
+        tdSql.execute("USE td_split;")
+        tdSql.query(
+            "SELECT t_region, SUM(val), COUNT(val) FROM vst_split_mixed "
+            "WHERE ts >= 1700000000000 AND ts < 1700000100000 "
+            "PARTITION BY t_region INTERVAL(1h) ORDER BY t_region;"
+        )
+        tdSql.checkRows(6)
+        expected = sorted([
+            (SRC_TAG[rsrc]['region'],
+             sum(SRC_DATA[dtbl]['data']),
+             len(SRC_DATA[dtbl]['data']))
+            for _, dtbl, _, rsrc, _ in SPLIT_MIXED
+        ])
+        for i, (region, s, c) in enumerate(expected):
+            tdSql.checkData(i, 0, region)
+            tdSql.checkData(i, 1, s)
+            tdSql.checkData(i, 2, c)
+        tdLog.info("mixed-tags vstb PARTITION BY tag-ref INTERVAL passed")
+
+    def test_partition_by_tag_ref_interval_cross_source_tags(self):
+        """PARTITION BY tag-ref on vst_split_cross (two tags from different source children).
+
+        Exercises the case where the two tag columns in the vstb come from
+        different children of ts_tag, maximising the number of TAG_REF_SOURCE
+        nodes under the virtual scan.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.9.0
+
+        Labels: virtual, query, tag_ref, interval, cross_source
+
+        Jira: None
+
+        History:
+            - 2026-06-13 yihaoDeng Created
+
+        """
+        tdSql.execute("USE td_split;")
+        tdSql.query(
+            "SELECT t_region, SUM(val), COUNT(val) FROM vst_split_cross "
+            "WHERE ts >= 1700000000000 AND ts < 1700000100000 "
+            "PARTITION BY t_region INTERVAL(1h) ORDER BY t_region;"
+        )
+        tdSql.checkRows(6)
+        expected = sorted([
+            (SRC_TAG[rsrc]['region'],
+             sum(SRC_DATA[dtbl]['data']),
+             len(SRC_DATA[dtbl]['data']))
+            for _, dtbl, rsrc, _ in SPLIT_CROSS
+        ])
+        for i, (region, s, c) in enumerate(expected):
+            tdSql.checkData(i, 0, region)
+            tdSql.checkData(i, 1, s)
+            tdSql.checkData(i, 2, c)
+        tdLog.info("cross-source tags PARTITION BY tag-ref INTERVAL passed")
+
+    def test_partition_by_tag_ref_interval_empty_range(self):
+        """Empty time range returns 0 rows — must not crash.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.9.0
+
+        Labels: virtual, query, tag_ref, interval, edge_case
+
+        Jira: None
+
+        History:
+            - 2026-06-13 yihaoDeng Created
+
+        """
+        tdSql.execute("USE td_split;")
+        # Far-future range has no data
+        tdSql.query(
+            "SELECT t_region, SUM(val) FROM vst_split_basic "
+            "WHERE ts >= 1800000000000 AND ts < 1800001000000 "
+            "PARTITION BY t_region INTERVAL(1h);"
+        )
+        tdSql.checkRows(0)
+        tdLog.info("empty range PARTITION BY tag-ref INTERVAL passed")
+
+    def test_partition_by_tag_ref_interval_cross_db_data_and_tags(self):
+        """Cross-DB: data col from ts_data, two tag-ref cols from ts_tag, one from ts_a.
+
+        vst_split_tri has val FROM ts_data.*, t_region/t_score FROM ts_tag.*,
+        t_city FROM ts_a.*  — three distinct source databases.
+        This is the most general cross-db tag-ref + INTERVAL scenario.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.9.0
+
+        Labels: virtual, query, tag_ref, interval, cross_db, multi_db
+
+        Jira: None
+
+        History:
+            - 2026-06-13 yihaoDeng Created
+
+        """
+        tdSql.execute("USE td_split;")
+
+        # PARTITION BY t_region (from ts_tag) — 6 distinct regions, 1 window each
+        tdSql.query(
+            "SELECT t_region, SUM(val), COUNT(val) FROM vst_split_tri "
+            "WHERE ts >= 1700000000000 AND ts < 1700000100000 "
+            "PARTITION BY t_region INTERVAL(1h) ORDER BY t_region;"
+        )
+        tdSql.checkRows(6)
+        expected_region = sorted([
+            (SRC_TAG[rsrc]['region'],
+             sum(SRC_DATA[dtbl]['data']),
+             len(SRC_DATA[dtbl]['data']))
+            for _, dtbl, rsrc, _, _ in SPLIT_TRI
+        ])
+        for i, (region, s, c) in enumerate(expected_region):
+            tdSql.checkData(i, 0, region)
+            tdSql.checkData(i, 1, s)
+            tdSql.checkData(i, 2, c)
+
+        # PARTITION BY t_city (from ts_a) — 6 distinct cities, 1 window each
+        tdSql.query(
+            "SELECT t_city, SUM(val), COUNT(val) FROM vst_split_tri "
+            "WHERE ts >= 1700000000000 AND ts < 1700000100000 "
+            "PARTITION BY t_city INTERVAL(1h) ORDER BY t_city;"
+        )
+        tdSql.checkRows(6)
+        expected_city = sorted([
+            (SRC_A[csrc]['city'],
+             sum(SRC_DATA[dtbl]['data']),
+             len(SRC_DATA[dtbl]['data']))
+            for _, dtbl, _, _, csrc in SPLIT_TRI
+        ])
+        for i, (city, s, c) in enumerate(expected_city):
+            tdSql.checkData(i, 0, city)
+            tdSql.checkData(i, 1, s)
+            tdSql.checkData(i, 2, c)
+
+        # PARTITION BY t_score (INT from ts_tag) — 6 distinct scores, 1 window each
+        tdSql.query(
+            "SELECT t_score, SUM(val), COUNT(val) FROM vst_split_tri "
+            "WHERE ts >= 1700000000000 AND ts < 1700000100000 "
+            "PARTITION BY t_score INTERVAL(1h) ORDER BY t_score;"
+        )
+        tdSql.checkRows(6)
+        expected_score = sorted([
+            (SRC_TAG[ssrc]['score'],
+             sum(SRC_DATA[dtbl]['data']),
+             len(SRC_DATA[dtbl]['data']))
+            for _, dtbl, _, ssrc, _ in SPLIT_TRI
+        ])
+        for i, (score, s, c) in enumerate(expected_score):
+            tdSql.checkData(i, 0, score)
+            tdSql.checkData(i, 1, s)
+            tdSql.checkData(i, 2, c)
+
+        tdLog.info("cross-db data+tags PARTITION BY tag-ref INTERVAL passed")
+
     @classmethod
     def teardown_class(cls):
         tdLog.info("=== teardown: dropping databases ===")

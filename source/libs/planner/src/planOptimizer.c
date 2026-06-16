@@ -3529,12 +3529,17 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
   }
 
   for (int32_t i = 0; i < LIST_LENGTH(pVScan->node.pChildren); ++i) {
-    SScanLogicNode* pOrgScan = (SScanLogicNode*)nodesListGetNode(pVScan->node.pChildren, i);
-    if (NULL == pOrgScan || QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pOrgScan)) {
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pVScan->node.pChildren, i);
+    if (NULL == pChild) {
       PLAN_ERR_JRET(
           generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_VTABLE_INVALID_ORIGIN_SCAN,
                               "pdcDealVirtualTable get invalid origin scan logic node from vtable scan node"));
     }
+    // TAG_REF_SOURCE children are valid vtable children but carry no timestamp column — skip pushdown for them.
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+      continue;
+    }
+    SScanLogicNode* pOrgScan = (SScanLogicNode*)pChild;
 
     if (pOrgScan->scanType != SCAN_TYPE_TABLE) {
       continue;
