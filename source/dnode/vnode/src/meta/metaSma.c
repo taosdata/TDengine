@@ -37,7 +37,7 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
 
   // validate req
   // save smaIndex
-  metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, pMeta, META_READER_LOCK, 0);
   if (metaReaderGetTableEntryByUidCache(&mr, pCfg->indexUid) == 0) {
 #if 1
     metaReaderClear(&mr);

@@ -680,6 +680,15 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_DROP_ENCRYPT_ALGR_STMT:
       code = makeNode(type, sizeof(SDropEncryptAlgrStmt), &pNode);
       break;
+    case QUERY_NODE_BEGIN_TRANS_STMT:
+      code = makeNode(type, sizeof(SBeginTransStmt), &pNode);
+      break;
+    case QUERY_NODE_COMMIT_TRANS_STMT:
+      code = makeNode(type, sizeof(SCommitTransStmt), &pNode);
+      break;
+    case QUERY_NODE_ROLLBACK_TRANS_STMT:
+      code = makeNode(type, sizeof(SRollbackTransStmt), &pNode);
+      break;
     case QUERY_NODE_ALTER_USER_STMT:
       code = makeNode(type, sizeof(SAlterUserStmt), &pNode);
       break;
@@ -918,6 +927,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:
@@ -997,6 +1008,8 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       code = makeNode(type, sizeof(SKillQueryStmt), &pNode);
       break;
     case QUERY_NODE_KILL_TRANSACTION_STMT:
+      code = makeNode(type, sizeof(SKillTransStmt), &pNode);
+      break;
     case QUERY_NODE_KILL_CONNECTION_STMT:
     case QUERY_NODE_KILL_COMPACT_STMT:
     case QUERY_NODE_KILL_RETENTION_STMT:
@@ -2183,6 +2196,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_VARIABLES_STMT:
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
     case QUERY_NODE_SHOW_USER_PRIVILEGES_STMT:

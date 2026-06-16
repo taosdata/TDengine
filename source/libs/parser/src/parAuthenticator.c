@@ -1269,6 +1269,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_DROP_ANODE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODE_DROP);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT:
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_TRANS_SHOW);
     case QUERY_NODE_KILL_TRANSACTION_STMT:

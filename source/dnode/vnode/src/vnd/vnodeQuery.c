@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "meta.h"
 #include "tsdb.h"
 #include "tutil.h"
 #include "vnd.h"
@@ -159,7 +160,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   // query meta
-  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK, infoReq.txnId);
   if (reqTbUid) {
     SET_ERRNO(0);
     uint64_t tbUid = taosStr2UInt64(infoReq.tbName, NULL, 10);
@@ -168,7 +169,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
       goto _exit3;
     }
     SMetaReader mr3 = {0};
-    metaReaderDoInit(&mr3, ((SVnode *)pVnode)->pMeta, META_READER_NOLOCK);
+    metaReaderDoInit(&mr3, ((SVnode *)pVnode)->pMeta, META_READER_NOLOCK, infoReq.txnId);
     if ((code = metaReaderGetTableEntryByUid(&mr3, tbUid)) < 0) {
       metaReaderClear(&mr3);
       TAOS_CHECK_GOTO(code, NULL, _exit3);
@@ -199,7 +200,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     }
     case TSDB_CHILD_TABLE:
     case TSDB_VIRTUAL_CHILD_TABLE:{
-      metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
+      metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK, infoReq.txnId);
       if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
 
       tstrncpy(metaRsp.stbName, mer2.me.name, sizeof(metaRsp.stbName));
@@ -381,7 +382,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
   }
 
   // query meta
-  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mer1, pVnode->pMeta, META_READER_LOCK, cfgReq.txnId);
 
   if (metaGetTableEntryByName(&mer1, cfgReq.tbName) < 0) {
     code = terrno;
@@ -396,7 +397,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     code = TSDB_CODE_VND_HASH_MISMATCH;
     goto _exit;
   } else if (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
-    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
+    metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK, cfgReq.txnId);
     if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
 
     tstrncpy(cfgRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
@@ -733,7 +734,7 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
   for (int32_t i = 0; i < num; ++i) {
     uint64_t* id = taosArrayGet(pList, i);
     QUERY_CHECK_NULL(id, code, line, _return, terrno);
-    pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
+    pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn, pHandle->txnId);
     QUERY_CHECK_CODE(pHandle->api.metaReaderFn.getTableEntryByUid(&mr, *id), line, _return);
     readerInit = true;
 
@@ -865,7 +866,7 @@ int32_t vnodeReadVStbRefDbs(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
       uint64_t* id = taosArrayGet(pList, i);
       QUERY_CHECK_NULL(id, code, line, _return, terrno);
 
-      pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
+      pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn, pHandle->txnId);
       readerInit = true;
 
       code = pHandle->api.metaReaderFn.getTableEntryByUid(&mr, *id);
@@ -1157,6 +1158,11 @@ int8_t vnodeGetSecurityLevel(void *pVnode) {
   return pVnodeObj->config.securityLevel;
 }
 
+bool vnodeHasPendingTxnEntries(void *pVnode) {
+  SVnode *pVnodeObj = pVnode;
+  return metaHasPendingTxnEntries(pVnodeObj->pMeta);
+}
+
 int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {
   if (type == TSDB_SUPER_TABLE) {
     return vnodeGetStbIdList(pVnode, 0, pList);
@@ -1167,7 +1173,7 @@ int32_t vnodeGetTableList(void *pVnode, int8_t type, SArray *pList) {
 
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
   int32_t      code = TSDB_CODE_SUCCESS;
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, uid, 1);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, uid, 1, 0);
   if (NULL == pCur) {
     qError("vnode get all table list failed");
     return terrno;
@@ -1198,7 +1204,7 @@ int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
 int32_t vnodeGetCtbIdList(void *pVnode, int64_t suid, SArray *list) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SVnode      *pVnodeObj = pVnode;
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj, suid, 1);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnodeObj, suid, 1, 0);
   if (NULL == pCur) {
     qError("vnode get ctb id list failed, suid:%" PRId64, suid);
     return terrno;
@@ -1278,7 +1284,7 @@ _exit:
 }
 
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 0);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 0, 0);
   if (!pCur) {
     return terrno;
   }
@@ -1311,7 +1317,7 @@ int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
 
 int32_t vnodeGetStbInfo(SVnode *pVnode, tb_uid_t suid, int64_t *keep, int8_t *flags) {
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK);
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_NOLOCK, 0);
 
   int32_t code = metaReaderGetTableEntryByUid(&mr, suid);
   if (code == TSDB_CODE_SUCCESS) {

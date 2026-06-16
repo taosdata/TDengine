@@ -770,6 +770,29 @@ _return:
   CTG_RET(code);
 }
 
+int32_t ctgReadTbTypeAndSuidFromCache(SCatalog *pCtg, const SName *pTableName, int8_t *pTableType, uint64_t *pSuid) {
+  *pTableType = 0;
+  *pSuid = 0;
+
+  SCtgDBCache *dbCache = NULL;
+  SCtgTbCache *tbCache = NULL;
+  char         dbFName[TSDB_DB_FNAME_LEN] = {0};
+  (void)tNameGetFullDbName(pTableName, dbFName);
+
+  CTG_ERR_RET(ctgAcquireTbMetaFromCache(pCtg, dbFName, pTableName->tname, &dbCache, &tbCache));
+  if (NULL == tbCache) {
+    ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STableMeta *tbMeta = tbCache->pMeta;
+  *pTableType = tbMeta->tableType;
+  *pSuid = tbMeta->suid;
+
+  ctgReleaseTbMetaToCache(pCtg, dbCache, tbCache);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgReadTbVerFromCache(SCatalog *pCtg, SName *pTableName, int32_t *sver, int32_t *tver, int32_t *rver, int32_t *tbType,
                               uint64_t *suid, char *stbName) {
   *sver = -1;

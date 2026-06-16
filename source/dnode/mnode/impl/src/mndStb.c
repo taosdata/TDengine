@@ -31,6 +31,7 @@
 #include "mndStream.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
+#include "mndTxn.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "tname.h"
@@ -38,7 +39,8 @@
 #define STB_VER_SUPPORT_COMP    2
 #define STB_VER_SUPPORT_VIRTUAL 3
 #define STB_VER_SUPPORT_OWNER   4
-#define STB_VER_NUMBER          STB_VER_SUPPORT_OWNER
+#define STB_VER_SUPPORT_TXN     5
+#define STB_VER_NUMBER          STB_VER_SUPPORT_TXN
 #define STB_RESERVE_SIZE        51
 
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
@@ -49,6 +51,11 @@ static int32_t  mndProcessTtlTimer(SRpcMsg *pReq);
 static int32_t  mndProcessCreateStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessAlterStbReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropStbReq(SRpcMsg *pReq);
+static int32_t  mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, txn_id_t txnId);
+static int32_t  mndMarkStbTxnAlter(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, txn_id_t txnId,
+                                   void *pReqData, int32_t reqDataLen);
+static int32_t  mndApplyTxnAlterOpsToSchema(SMnode *pMnode, SArray *pAlterOps, SDbObj *pDb, SStbObj *pBaseStb,
+                                            const char *tbName, STableMetaRsp *pRsp, bool refByStm);
 static int32_t  mndProcessDropTtltbRsp(SRpcMsg *pReq);
 static int32_t  mndProcessTrimDbRsp(SRpcMsg *pReq);
 static int32_t  mndProcessTrimDbWalRsp(SRpcMsg *pReq);
@@ -128,7 +135,8 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
 
   int32_t size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + pStb->commentLen +
                  pStb->ast1Len + pStb->ast2Len + pStb->numOfColumns * sizeof(SColCmpr) + STB_RESERVE_SIZE +
-                 taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN + sizeof(int32_t) * pStb->numOfColumns;
+                 taosArrayGetSize(pStb->pFuncs) * TSDB_FUNC_NAME_LEN + sizeof(int32_t) * pStb->numOfColumns +
+                 pStb->txnAlterReqsLen;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STB, STB_VER_NUMBER, size);
   if (pRaw == NULL) goto _OVER;
 
@@ -212,6 +220,20 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT64(pRaw, dataPos, pStb->ownerId, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pStb->secureDelete, _OVER)
   SDB_SET_UINT32(pRaw, dataPos, pStb->flags, _OVER)
+  // batch-meta-txn - STB_VER_SUPPORT_TXN
+  SDB_SET_INT64(pRaw, dataPos, (int64_t)pStb->txnId, _OVER)
+  if (pStb->txnId != 0) {
+    SDB_SET_INT8(pRaw, dataPos, pStb->txnStatus, _OVER)
+    SDB_SET_INT32(pRaw, dataPos, pStb->txnAlterReqsLen, _OVER)
+    if (pStb->txnAlterReqsLen > 0) {
+      if (pStb->pTxnAlterReqs == NULL) {
+        terrno = TSDB_CODE_INVALID_PARA;
+        goto _OVER;
+      }
+      SDB_SET_BINARY(pRaw, dataPos, pStb->pTxnAlterReqs, pStb->txnAlterReqsLen, _OVER)
+    }
+  }
+
   SDB_SET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -377,6 +399,26 @@ SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     pStb->flags = 0;
   }
 
+  if (sver >= STB_VER_SUPPORT_TXN) {
+    SDB_GET_INT64(pRaw, dataPos, &pStb->txnId, _OVER)
+    if (pStb->txnId != 0) {
+      SDB_GET_INT8(pRaw, dataPos, &pStb->txnStatus, _OVER)
+      SDB_GET_INT32(pRaw, dataPos, &pStb->txnAlterReqsLen, _OVER)
+      if (pStb->txnAlterReqsLen > 0) {
+        pStb->pTxnAlterReqs = taosMemoryMalloc(pStb->txnAlterReqsLen);
+        if (pStb->pTxnAlterReqs == NULL) goto _OVER;
+        SDB_GET_BINARY(pRaw, dataPos, pStb->pTxnAlterReqs, pStb->txnAlterReqsLen, _OVER)
+      } else {
+        pStb->pTxnAlterReqs = NULL;
+      }
+    }
+  } else {
+    pStb->txnId = 0;
+    pStb->txnStatus = 0;
+    pStb->txnAlterReqsLen = 0;
+    pStb->pTxnAlterReqs = NULL;
+  }
+
   SDB_GET_RESERVE(pRaw, dataPos, STB_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -390,6 +432,7 @@ _OVER:
       taosMemoryFreeClear(pStb->comment);
       taosMemoryFree(pStb->pCmpr);
       taosMemoryFreeClear(pStb->pExtSchemas);
+      taosMemoryFreeClear(pStb->pTxnAlterReqs);
     }
     taosMemoryFreeClear(pRow);
     return NULL;
@@ -408,6 +451,7 @@ void mndFreeStb(SStbObj *pStb) {
   taosMemoryFreeClear(pStb->pAst2);
   taosMemoryFreeClear(pStb->pCmpr);
   taosMemoryFreeClear(pStb->pExtSchemas);
+  taosMemoryFreeClear(pStb->pTxnAlterReqs);
 }
 
 static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
@@ -483,6 +527,23 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->ownerId = pNew->ownerId;
   pOld->secureDelete = pNew->secureDelete;
   pOld->flags = pNew->flags;
+  pOld->txnId = pNew->txnId;
+  pOld->txnStatus = pNew->txnStatus;
+
+  // Update txn ALTER request chain
+  if (pNew->txnAlterReqsLen > 0 && pNew->pTxnAlterReqs != NULL) {
+    taosMemoryFreeClear(pOld->pTxnAlterReqs);
+    pOld->pTxnAlterReqs = taosMemoryMalloc(pNew->txnAlterReqsLen);
+    if (pOld->pTxnAlterReqs == NULL) {
+      pOld->txnAlterReqsLen = 0;
+      goto END;
+    }
+    memcpy(pOld->pTxnAlterReqs, pNew->pTxnAlterReqs, pNew->txnAlterReqsLen);
+    pOld->txnAlterReqsLen = pNew->txnAlterReqsLen;
+  } else {
+    taosMemoryFreeClear(pOld->pTxnAlterReqs);
+    pOld->txnAlterReqsLen = 0;
+  }
 
   if (pNew->numOfColumns > 0) {
     pOld->numOfColumns = pNew->numOfColumns;
@@ -586,6 +647,8 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   req.virtualStb = pStb->virtualStb;
   req.secureDelete = pStb->secureDelete;
   req.securityLevel = pStb->securityLevel;
+  req.txnId = pStb->txnId;  // batch-meta-txn: VNode marks STB as PRE_CREATE
+
   // todo
   req.schemaRow.nCols = pStb->numOfColumns;
   req.schemaRow.version = pStb->colVer;
@@ -663,6 +726,7 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
 
   req.name = (char *)tNameGetTableName(&name);
   req.suid = pStb->uid;
+  req.txnId = pStb->txnId;  // batch-meta-txn: pass txnId for VNode PRE_DROP marking
 
   tEncodeSize(tEncodeSVDropStbReq, &req, contLen, ret);
   if (ret < 0) return NULL;
@@ -923,7 +987,8 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   memcpy(pDst->db, pDb->name, TSDB_DB_FNAME_LEN);
   pDst->createdTime = taosGetTimestampMs();
   pDst->updateTime = pDst->createdTime;
-  pDst->uid = (pCreate->source == TD_REQ_FROM_TAOX_OLD || pCreate->source == TD_REQ_FROM_TAOX || pCreate->source == TD_REQ_FROM_SML)
+  pDst->uid = (pCreate->source == TD_REQ_FROM_TAOX_OLD || pCreate->source == TD_REQ_FROM_TAOX ||
+               pCreate->source == TD_REQ_FROM_SML || pCreate->suid != 0)
                   ? pCreate->suid
                   : mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   pDst->dbUid = pDb->uid;
@@ -945,6 +1010,8 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->keep = pCreate->keep;
   pDst->virtualStb = pCreate->virtualStb;
   pDst->secureDelete = pCreate->secureDelete;
+  pDst->txnId = pCreate->txnId;  // batch-meta-txn: mark STB as txn-owned (invisible to other sessions)
+  pDst->txnStatus = (pCreate->txnId != 0) ? META_TXN_PRE_CREATE : META_TXN_NORMAL;
   pCreate->pFuncs = NULL;
 
   if (pDst->commentLen > 0) {
@@ -1149,6 +1216,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
   TAOS_CHECK_GOTO(mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+
   code = 0;
 
 _OVER:
@@ -1822,6 +1890,21 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     taosMemoryFreeClear(pDst.pCmpr);
     taosMemoryFreeClear(pDst.pExtSchemas);
   } else {
+    // Batch meta txn: create STB immediately (undo-log model) so VNodes have schema
+    // for same-txn child table creation. Shadow op tracks the STB for ROLLBACK undo.
+    if (createReq.txnId != 0) {
+      // Generate suid (parser does not set it; normal path uses mndBuildStbFromReq → mndGenerateUid)
+      if (createReq.suid == 0) {
+        createReq.suid = mndGenerateUid(createReq.name, TSDB_TABLE_FNAME_LEN);
+      }
+      // Track STB for undo at ROLLBACK (pReqData=NULL: not needed, name+uid suffice for DROP)
+      code = mndTxnAddShadowOp(pMnode, createReq.txnId, MND_SHADOW_OP_CREATE_STB, createReq.name, createReq.suid,
+                               pDb->name, NULL, 0);
+      if (code != 0) {
+        goto _OVER;
+      }
+      // Fall through to mndCreateStb (creates STB in SDB + distributes schema to VNodes)
+    }
     code = mndCreateStb(pMnode, pReq, &createReq, pDb, pOperUser);
   }
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -2069,6 +2152,10 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
 
 static int32_t mndDropSuperTableTag(SMnode *pMnode, const SStbObj *pOld, SStbObj *pNew, const char *tagName) {
   int32_t code = 0;
+  if (pOld->numOfTags <= 1) {
+    TAOS_CHECK_RETURN(TSDB_CODE_PAR_TOO_LESS_TAG_COLUMN);
+  }
+
   int32_t tag = mndFindSuperTableTagIndex(pOld, tagName);
   if (tag < 0) {
     code = TSDB_CODE_MND_TAG_NOT_EXIST;
@@ -2479,6 +2566,8 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_VND_ALTER_STB;
+    // See mndSetDropStbRedoActions: same per-VGroup serialization vs TXN_COMMIT.
+    action.groupId = pVgroup->vgId;
     if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
@@ -3168,8 +3257,193 @@ static int32_t mndProcessAlterStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  // Batch meta txn: conflict detection — block if another txn owns this STB
+  if (pStb->txnId != 0 && pStb->txnId != (txn_id_t)alterReq.txnId) {
+    code = TSDB_CODE_TXN_RESOURCE_BUSY;
+    goto _OVER;
+  }
+  if ((code = mndTxnCheckStbConflict(pMnode, alterReq.name, (txn_id_t)alterReq.txnId)) != 0) {
+    goto _OVER;
+  }
+
+  // Batch meta txn: persist ALTER marker on SStbObj via Raft + memory shadow op.
+  if (alterReq.txnId != 0) {
+    // Validate the ALTER against the virtual current schema (base + prior in-txn ALTERs)
+    {
+      SStbObj  virtualStb = {0};
+      SStbObj *pBase = pStb;
+      SArray  *pPriorOps = NULL;
+      int32_t  valCode = 0;
+
+      // Get prior ALTER shadow ops for this STB in this txn
+      valCode = mndTxnGetAlterOpsForStb(pMnode, (txn_id_t)alterReq.txnId, alterReq.name, &pPriorOps);
+      if (valCode == 0 && pPriorOps != NULL && taosArrayGetSize(pPriorOps) > 0) {
+        // Replay prior ops to build the virtual current schema
+        taosRLockLatch(&pStb->lock);
+        memcpy(&virtualStb, pStb, sizeof(SStbObj));
+        virtualStb.pColumns = NULL;
+        virtualStb.pTags = NULL;
+        virtualStb.pFuncs = NULL;
+        virtualStb.pCmpr = NULL;
+        virtualStb.pExtSchemas = NULL;
+        virtualStb.lock = 0;
+        taosRUnLockLatch(&pStb->lock);
+        valCode = mndAllocStbSchemas(pStb, &virtualStb);
+        if (valCode != 0) {
+          taosArrayDestroy(pPriorOps);
+          code = valCode;
+          goto _OVER;
+        }
+
+        int32_t numPrior = taosArrayGetSize(pPriorOps);
+        for (int32_t i = 0; i < numPrior; i++) {
+          SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pPriorOps, i);
+          SMAlterStbReq priorReq = {0};
+          if (tDeserializeSMAlterStbReq(pOp->pReqData, pOp->reqDataLen, &priorReq) != 0) {
+            tFreeSMAltertbReq(&priorReq);
+            continue;
+          }
+          SStbObj nextStb = {0};
+          memcpy(&nextStb, &virtualStb, sizeof(SStbObj));
+          nextStb.pColumns = NULL;
+          nextStb.pTags = NULL;
+          nextStb.pFuncs = NULL;
+          nextStb.pCmpr = NULL;
+          nextStb.pExtSchemas = NULL;
+          nextStb.lock = 0;
+
+          SField *pF = NULL;
+          int32_t rc = 0;
+          switch (priorReq.alterType) {
+            case TSDB_ALTER_TABLE_ADD_TAG:
+              rc = mndAddSuperTableTag(&virtualStb, &nextStb, priorReq.pFields, priorReq.numOfFields);
+              break;
+            case TSDB_ALTER_TABLE_DROP_TAG:
+              pF = taosArrayGet(priorReq.pFields, 0);
+              rc = mndDropSuperTableTag(pMnode, &virtualStb, &nextStb, pF->name);
+              break;
+            case TSDB_ALTER_TABLE_ADD_COLUMN:
+              rc = mndAddSuperTableColumn(&virtualStb, &nextStb, &priorReq, priorReq.numOfFields, 0);
+              break;
+            case TSDB_ALTER_TABLE_DROP_COLUMN:
+              pF = taosArrayGet(priorReq.pFields, 0);
+              rc = mndDropSuperTableColumn(pMnode, &virtualStb, &nextStb, pF->name);
+              break;
+            case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+              pF = taosArrayGet(priorReq.pFields, 0);
+              rc = mndAlterStbColumnBytes(pMnode, &virtualStb, &nextStb, pF);
+              break;
+            case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
+              pF = taosArrayGet(priorReq.pFields, 0);
+              rc = mndAlterStbTagBytes(pMnode, &virtualStb, &nextStb, pF);
+              break;
+            case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+              rc = mndAlterStbTagName(pMnode, &virtualStb, &nextStb, priorReq.pFields);
+              break;
+            case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+              rc = mndAddSuperTableColumn(&virtualStb, &nextStb, &priorReq, priorReq.numOfFields, 1);
+              break;
+            default:
+              break;
+          }
+          tFreeSMAltertbReq(&priorReq);
+          if (rc == 0) {
+            taosMemoryFreeClear(virtualStb.pColumns);
+            taosMemoryFreeClear(virtualStb.pTags);
+            taosMemoryFreeClear(virtualStb.pCmpr);
+            taosMemoryFreeClear(virtualStb.pExtSchemas);
+            virtualStb = nextStb;
+          } else {
+            taosMemoryFreeClear(nextStb.pColumns);
+            taosMemoryFreeClear(nextStb.pTags);
+            taosMemoryFreeClear(nextStb.pCmpr);
+            taosMemoryFreeClear(nextStb.pExtSchemas);
+          }
+        }
+        pBase = &virtualStb;
+      }
+      taosArrayDestroy(pPriorOps);
+
+      // Now validate the new ALTER against the virtual current schema
+      SStbObj tmpStb = {0};
+      memcpy(&tmpStb, pBase, sizeof(SStbObj));
+      tmpStb.pColumns = NULL;
+      tmpStb.pTags = NULL;
+      tmpStb.pFuncs = NULL;
+      tmpStb.pCmpr = NULL;
+      tmpStb.pExtSchemas = NULL;
+      tmpStb.lock = 0;
+
+      SField *pField0 = NULL;
+      switch (alterReq.alterType) {
+        case TSDB_ALTER_TABLE_ADD_TAG:
+          valCode = mndAddSuperTableTag(pBase, &tmpStb, alterReq.pFields, alterReq.numOfFields);
+          break;
+        case TSDB_ALTER_TABLE_DROP_TAG:
+          pField0 = taosArrayGet(alterReq.pFields, 0);
+          valCode = mndDropSuperTableTag(pMnode, pBase, &tmpStb, pField0->name);
+          break;
+        case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+          valCode = mndAlterStbTagName(pMnode, pBase, &tmpStb, alterReq.pFields);
+          break;
+        case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
+          pField0 = taosArrayGet(alterReq.pFields, 0);
+          valCode = mndAlterStbTagBytes(pMnode, pBase, &tmpStb, pField0);
+          break;
+        case TSDB_ALTER_TABLE_ADD_COLUMN:
+          valCode = mndAddSuperTableColumn(pBase, &tmpStb, &alterReq, alterReq.numOfFields, 0);
+          break;
+        case TSDB_ALTER_TABLE_DROP_COLUMN:
+          pField0 = taosArrayGet(alterReq.pFields, 0);
+          valCode = mndDropSuperTableColumn(pMnode, pBase, &tmpStb, pField0->name);
+          break;
+        case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+          pField0 = taosArrayGet(alterReq.pFields, 0);
+          valCode = mndAlterStbColumnBytes(pMnode, pBase, &tmpStb, pField0);
+          break;
+        case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
+          valCode = mndUpdateSuperTableColumnCompress(pMnode, pBase, &tmpStb, alterReq.pFields, alterReq.numOfFields);
+          break;
+        case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+          valCode = mndAddSuperTableColumn(pBase, &tmpStb, &alterReq, alterReq.numOfFields, 1);
+          break;
+        case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+          valCode = mndUpdateTableOptions(pBase, &tmpStb, alterReq.comment, alterReq.commentLen, alterReq.ttl,
+                                          alterReq.keep, alterReq.secureDelete, alterReq.securityLevel);
+          break;
+        default:
+          break;
+      }
+      taosMemoryFreeClear(tmpStb.pColumns);
+      taosMemoryFreeClear(tmpStb.pTags);
+      taosMemoryFreeClear(tmpStb.pCmpr);
+      taosMemoryFreeClear(tmpStb.pExtSchemas);
+      if (alterReq.commentLen > 0) {
+        taosMemoryFreeClear(tmpStb.comment);
+      }
+
+      // Clean up virtualStb if it was built
+      if (pBase == &virtualStb) {
+        taosMemoryFreeClear(virtualStb.pColumns);
+        taosMemoryFreeClear(virtualStb.pTags);
+        taosMemoryFreeClear(virtualStb.pCmpr);
+        taosMemoryFreeClear(virtualStb.pExtSchemas);
+      }
+
+      if (valCode != 0) {
+        code = valCode;
+        goto _OVER;
+      }
+    }
+
+    code = mndMarkStbTxnAlter(pMnode, pReq, pStb, pDb, (txn_id_t)alterReq.txnId, pReq->pCont, pReq->contLen);
+    if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  } else {
+    code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
+    if (code == 0) {
+      code = TSDB_CODE_ACTION_IN_PROGRESS;
+    }
+  }
 
   if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
     int64_t tse = taosGetTimestampMs();
@@ -3254,6 +3528,13 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.contLen = contLen;
     action.msgType = TDMT_VND_DROP_STB;
     action.acceptableCode = TSDB_CODE_TDB_STB_NOT_EXIST;
+    // groupId=vgId so when this action is appended to the batch-txn commit STrans
+    // alongside TDMT_VND_TXN_COMMIT (also groupId=vgId), STrans queues both in the
+    // same per-VGroup group and dispatches them sequentially. Without this, the
+    // TXN_COMMIT msg can race ahead of the DROP_STB on the destination VNode and
+    // be observed as a no-op ("txn entry not found on commit"), leaving the STB
+    // and cascade child markers stuck in PRE_DROP forever.
+    action.groupId = pVgroup->vgId;
     if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
@@ -3317,6 +3598,463 @@ static int32_t mndProcessDropTtltbRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessTrimDbRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessTrimDbWalRsp(SRpcMsg *pRsp) { return 0; }
 static int32_t mndProcessS3MigrateDbRsp(SRpcMsg *pRsp) { return 0; }
+
+/**
+ * Mark STB as PRE_DROP for txn crash recovery, and add memory shadow op.
+ * Creates a mini-STrans with prepare-log to persist the marker in SDB via Raft.
+ */
+static int32_t mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, txn_id_t txnId) {
+  int32_t code = 0, lino = 0;
+  STrans *pTrans = NULL;
+
+  TSDB_CHECK_NULL(
+      (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stb-predrop")),
+      code, lino, _exit, terrno);
+  mndTransSetChangeless(pTrans);
+
+  // Build marker SStbObj (shallow copy + override txn fields)
+  SStbObj markerStb;
+  taosRLockLatch(&pStb->lock);
+  memcpy(&markerStb, pStb, sizeof(SStbObj));
+  taosRUnLockLatch(&pStb->lock);
+  markerStb.lock = 0;
+  markerStb.txnId = txnId;
+  // If STB was created in this same txn, use combined state; otherwise plain PRE_DROP
+  markerStb.txnStatus = (markerStb.txnStatus == META_TXN_PRE_CREATE) ? META_TXN_PRE_CREATE_DROP : META_TXN_PRE_DROP;
+
+  SSdbRaw *pRaw = mndStbActionEncode(&markerStb);
+  if (pRaw == NULL) {
+    TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
+  }
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
+  TAOS_CHECK_EXIT(mndTransAppendPrepareLog(pTrans, pRaw));
+
+  // Broadcast PRE_DROP to all vnodes in the DB so that SHOW TABLES / SHOW VTABLES
+  // hides child tables of the dropping STB while the transaction is still open.
+  // This populates pTxnIdx on each vnode, making the metaTbCursorNext parent-STB
+  // PRE_DROP check effective.
+  // Skip for PRE_CREATE_DROP: the STB only exists in PRE_CREATE on vnodes and is
+  // already invisible; no broadcast needed.
+  if (markerStb.txnStatus == META_TXN_PRE_DROP) {
+    TAOS_CHECK_EXIT(mndSetDropStbRedoActions(pMnode, pTrans, pDb, &markerStb));
+  }
+
+  // Add memory shadow op (for live COMMIT path — DROP only needs name, no reqData)
+  code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_DROP_STB, pStb->name, pStb->uid, pDb->name, NULL, 0);
+  if (code != 0) goto _exit;
+
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+
+_exit:
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
+/**
+ * Append ALTER request data to SStbObj's txnAlterReqs chain for crash recovery.
+ * Chain format: [count:int32] [len_0:int32][data_0] ... [len_N-1:int32][data_N-1]
+ */
+static int32_t mndStbBuildAlterChain(const SStbObj *pStb, const void *pReqData, int32_t reqDataLen,
+                                     void **ppChain, int32_t *pChainLen) {
+  int32_t oldLen = pStb->txnAlterReqsLen;
+  int32_t oldCount = 0;
+  if (pReqData == NULL || reqDataLen <= 0 || ppChain == NULL || pChainLen == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (oldLen < 0 || (oldLen > 0 && oldLen < (int32_t)sizeof(int32_t)) || (oldLen > 0 && pStb->pTxnAlterReqs == NULL)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (oldLen >= (int32_t)sizeof(int32_t) && pStb->pTxnAlterReqs != NULL) {
+    memcpy(&oldCount, pStb->pTxnAlterReqs, sizeof(int32_t));
+  }
+
+  if (oldCount >= TSDB_TXN_MAX_ALTER_PER_STB) {
+    mError("stb:%s, ALTER chain count %d reached per-STB limit %d, please COMMIT and start a new transaction",
+           pStb->name, oldCount, TSDB_TXN_MAX_ALTER_PER_STB);
+    return TSDB_CODE_TXN_TOO_MANY_DDL_OPS;
+  }
+
+  if (oldLen > 0) {
+    int32_t offset = (int32_t)sizeof(int32_t);
+    for (int32_t i = 0; i < oldCount; ++i) {
+      int32_t itemLen = 0;
+      if (offset > oldLen - (int32_t)sizeof(int32_t)) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+      memcpy(&itemLen, (const char *)pStb->pTxnAlterReqs + offset, sizeof(int32_t));
+      if (itemLen <= 0 || itemLen > oldLen - offset - (int32_t)sizeof(int32_t)) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+      offset += (int32_t)sizeof(int32_t) + itemLen;
+    }
+    if (offset != oldLen) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+
+  int32_t newCount = oldCount + 1;
+  int32_t headerLen = (oldLen > 0 ? oldLen : (int32_t)sizeof(int32_t));
+  if (reqDataLen > INT32_MAX - headerLen - (int32_t)sizeof(int32_t)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  int32_t newLen = headerLen + (int32_t)sizeof(int32_t) + reqDataLen;
+  if (newLen < headerLen || newLen < reqDataLen) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  void *pNew = taosMemoryMalloc(newLen);
+  if (pNew == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  // Write count
+  memcpy(pNew, &newCount, sizeof(int32_t));
+
+  // Copy old entries (skip old count header)
+  if (oldLen > (int32_t)sizeof(int32_t) && pStb->pTxnAlterReqs != NULL) {
+    memcpy((char *)pNew + sizeof(int32_t),
+           (char *)pStb->pTxnAlterReqs + sizeof(int32_t),
+           oldLen - sizeof(int32_t));
+  }
+
+  // Append new entry: [len][data]
+  int32_t offset = headerLen;
+  memcpy((char *)pNew + offset, &reqDataLen, sizeof(int32_t));
+  memcpy((char *)pNew + offset + sizeof(int32_t), pReqData, reqDataLen);
+
+  *ppChain = pNew;
+  *pChainLen = newLen;
+  return 0;
+}
+
+/**
+ * Mark STB with ALTER request data for txn crash recovery, and add memory shadow op.
+ * Creates a mini-STrans with prepare-log to persist the marker in SDB via Raft.
+ */
+static int32_t mndMarkStbTxnAlter(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, SDbObj *pDb, txn_id_t txnId,
+                                  void *pReqData, int32_t reqDataLen) {
+  int32_t code = 0, lino = 0;
+  STrans *pTrans = NULL;
+  void   *pNewChain = NULL;
+  int32_t newChainLen = 0;
+
+  // Build new ALTER chain: old chain + new entry
+  TAOS_CHECK_EXIT(mndStbBuildAlterChain(pStb, pReqData, reqDataLen, &pNewChain, &newChainLen));
+
+  TSDB_CHECK_NULL(
+      (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stb-alter")),
+      code, lino, _exit, terrno);
+  mndTransSetChangeless(pTrans);
+
+  // Build marker SStbObj (shallow copy + override txn fields)
+  SStbObj markerStb;
+  taosRLockLatch(&pStb->lock);
+  memcpy(&markerStb, pStb, sizeof(SStbObj));
+  taosRUnLockLatch(&pStb->lock);
+  markerStb.lock = 0;
+  markerStb.txnId = txnId;
+  markerStb.pTxnAlterReqs = pNewChain;
+  markerStb.txnAlterReqsLen = newChainLen;
+
+  SSdbRaw *pRaw = mndStbActionEncode(&markerStb);
+  // Null out so we don't accidentally use stale pointer
+  markerStb.pTxnAlterReqs = NULL;
+  if (pRaw == NULL) {
+    TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_RETURN_VALUE_NULL);
+  }
+  TAOS_CHECK_EXIT(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
+  TAOS_CHECK_EXIT(mndTransAppendPrepareLog(pTrans, pRaw));
+
+  // Add memory shadow op with ALTER request data
+  {
+    void *pShadowData = taosMemoryMalloc(reqDataLen);
+    if (pShadowData == NULL) {
+      TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    memcpy(pShadowData, pReqData, reqDataLen);
+    code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_ALTER_STB, pStb->name, pStb->uid, pDb->name, pShadowData,
+                             reqDataLen);
+    if (code != 0) {
+      taosMemoryFreeClear(pShadowData);
+      goto _exit;
+    }
+  }
+
+  // Build overlaid schema response so client can update pTxnTableMeta cache.
+  // This ensures subsequent parser lookups within the same txn see the new schema.
+  {
+    SArray *pAlterOps = NULL;
+    int32_t rspCode = mndTxnGetAlterOpsForStb(pMnode, txnId, pStb->name, &pAlterOps);
+    if (rspCode == 0 && pAlterOps != NULL && taosArrayGetSize(pAlterOps) > 0) {
+      SName tbName = {0};
+      tNameFromString(&tbName, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+      STableMetaRsp metaRsp = {0};
+      rspCode = mndApplyTxnAlterOpsToSchema(pMnode, pAlterOps, pDb, pStb, tbName.tname, &metaRsp, false);
+      if (rspCode == 0) {
+        SMAlterStbRsp alterRsp = {.pMeta = &metaRsp};
+        SEncoder      ec = {0};
+        uint32_t      contLen = 0;
+        tEncodeSize(tEncodeSMAlterStbRsp, &alterRsp, contLen, rspCode);
+        if (rspCode == 0) {
+          void *pCont = taosMemoryMalloc(contLen);
+          if (pCont != NULL) {
+            tEncoderInit(&ec, pCont, contLen);
+            if (tEncodeSMAlterStbRsp(&ec, &alterRsp) == 0) {
+              mndTransSetRpcRsp(pTrans, pCont, contLen);
+            } else {
+              taosMemoryFree(pCont);
+            }
+            tEncoderClear(&ec);
+          }
+        }
+      }
+      tFreeSTableMetaRsp(&metaRsp);
+    }
+    taosArrayDestroy(pAlterOps);
+  }
+
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+
+_exit:
+  taosMemoryFree(pNewChain);
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
+/**
+ * Append DROP STB actions to an existing Trans (used for txn commit/rollback).
+ * Adds SDB prepare+commit logs + VNode DROP STB redo actions to pTrans, without creating a new Trans.
+ */
+int32_t mndAppendDropStbToTrans(SMnode *pMnode, STrans *pTrans, const char *stbName) {
+  int32_t  code = 0;
+  SStbObj *pStb = mndAcquireStb(pMnode, (char *)stbName);
+  if (pStb == NULL) {
+    mWarn("stb:%s, not found in SDB, skip drop", stbName);
+    return TSDB_CODE_SUCCESS;  // idempotent
+  }
+
+  SDbObj *pDb = mndAcquireDbByStb(pMnode, stbName);
+  if (pDb == NULL) {
+    mndReleaseStb(pMnode, pStb);
+    mWarn("stb:%s, db not found, skip drop", stbName);
+    return TSDB_CODE_SUCCESS;  // idempotent
+  }
+
+  mInfo("stb:%s, appending drop actions to trans:%d", stbName, pTrans->id);
+
+  code = mndSetDropStbPrepareLogs(pMnode, pTrans, pStb);
+  if (code == 0) {
+    code = mndSetDropStbCommitLogs(pMnode, pTrans, pStb);
+  }
+  if (code == 0) {
+    // At COMMIT/ROLLBACK time, the VNode must perform an immediate physical drop
+    // (not deferred PRE_DROP). Use a shallow copy with txnId=0 so VNode takes the
+    // non-transactional path in vnodeProcessDropStbReq, which cascade-deletes
+    // child tables synchronously before returning success.
+    SStbObj stbForRedo;
+    memcpy(&stbForRedo, pStb, sizeof(SStbObj));
+    stbForRedo.txnId = 0;
+    code = mndSetDropStbRedoActions(pMnode, pTrans, pDb, &stbForRedo);
+  }
+  if (code == 0) {
+    code = mndDropIdxsByStb(pMnode, pTrans, pDb, pStb);
+  }
+
+  mndReleaseDb(pMnode, pDb);
+  mndReleaseStb(pMnode, pStb);
+  return code;
+}
+
+/**
+ * Append ALTER STB actions to an existing Trans (used for txn commit).
+ * Deserializes the SMAlterStbReq, builds modified SStbObj, adds SDB logs + VNode actions.
+ */
+/**
+ * Append one ALTER STB operation to a commit trans.
+ *
+ * @param pAccumBase  Optional: previously-accumulated SStbObj from an earlier ALTER on the
+ *                    same STB within this COMMIT.  When non-NULL, it is used as the schema
+ *                    base instead of reading from SDB, so each subsequent ALTER in the same
+ *                    txn builds on top of the previous one.  Caller retains ownership.
+ * @param ppAccumResult Optional out-param: on success, receives a heap-allocated SStbObj
+ *                    holding the schema after this ALTER (to be passed as pAccumBase to the
+ *                    next ALTER on the same STB).  Caller must free via mndFreeStb() + taosMemoryFree().
+ *                    Set to NULL on success when the ALTER was skipped (e.g. STB being dropped).
+ *
+ * pAst1/pAst2 are intentionally zeroed below: ALTER operations never touch AST fields, and
+ * they must not be inherited into the accumulated schema (which is heap-allocated and freed
+ * independently of SDB).  This allows callers to free the result with the standard mndFreeStb.
+ */
+int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData, int32_t reqDataLen,
+                                 SStbObj *pAccumBase, SStbObj **ppAccumResult) {
+  int32_t       code = 0;
+  SMAlterStbReq alterReq = {0};
+  SStbObj      *pOld = NULL;
+  bool          pOldFromSdb = false;  // whether pOld was acquired via mndAcquireStb
+  SDbObj       *pDb = NULL;
+  SStbObj       stbObj = {0};
+  void         *pAlterCont = NULL;
+  bool          stbBuilt = false;
+
+  if (ppAccumResult != NULL) *ppAccumResult = NULL;
+
+  if (tDeserializeSMAlterStbReq(pReqData, reqDataLen, &alterReq) != 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  alterReq.txnId = 0;
+
+  if (pAccumBase != NULL) {
+    // Use accumulated schema from previous ALTER on this STB in the same COMMIT.
+    pOld = pAccumBase;
+    pOldFromSdb = false;
+  } else {
+    pOld = mndAcquireStb(pMnode, alterReq.name);
+    if (pOld == NULL) {
+      code = TSDB_CODE_MND_STB_NOT_EXIST;
+      goto _OVER;
+    }
+    pOldFromSdb = true;
+  }
+  pDb = mndAcquireDbByStb(pMnode, alterReq.name);
+  if (pDb == NULL) {
+    code = TSDB_CODE_MND_DB_NOT_EXIST;
+    goto _OVER;
+  }
+
+  mInfo("stb:%s, appending alter actions to trans:%d", alterReq.name, pTrans->id);
+
+  // Build modified SStbObj (same logic as mndAlterStb)
+  taosRLockLatch(&pOld->lock);
+  memcpy(&stbObj, pOld, sizeof(SStbObj));
+  taosRUnLockLatch(&pOld->lock);
+  // Save txnStatus before clearing: used to detect whether a DROP will follow
+  // in the same COMMIT trans (PRE_CREATE_DROP or PRE_DROP → skip entire ALTER).
+  EMetaTxnStatus oldTxnStatus = stbObj.txnStatus;
+
+  // For PRE_CREATE_DROP or PRE_DROP: the STB will be dropped in the same COMMIT trans.
+  // The ALTER was already applied to SDB during the txn, so pOld already has the new
+  // schema. Attempting to re-apply the schema modification (e.g. mndAddSuperTableColumn)
+  // would fail with "column already exists". Since the DROP will clean up the STB from
+  // both SDB and VNodes, skip the ENTIRE ALTER operation here.
+  if (oldTxnStatus == META_TXN_PRE_CREATE_DROP || oldTxnStatus == META_TXN_PRE_DROP) {
+    mInfo("stb:%s, skipping ALTER (txnStatus=%d, STB being dropped in same COMMIT trans:%d)", alterReq.name,
+          (int)oldTxnStatus, pTrans->id);
+    goto _OVER;  // code=0, clean success — DROP shadow op handles the cleanup
+  }
+
+  stbObj.pColumns = NULL;
+  stbObj.pTags = NULL;
+  stbObj.pFuncs = NULL;
+  stbObj.pAst1 = NULL;  // not owned by accumulated schema; see mndAppendAlterStbToTrans doc
+  stbObj.pAst2 = NULL;
+  stbObj.pCmpr = NULL;
+  stbObj.pExtSchemas = NULL;
+  stbObj.pTxnAlterReqs = NULL;
+  stbObj.txnAlterReqsLen = 0;
+  stbObj.updateTime = taosGetTimestampMs();
+  stbObj.lock = 0;
+  stbObj.txnId = 0;  // COMMIT promotes STB: clear txnId so it becomes visible
+  stbObj.txnStatus = META_TXN_NORMAL;  // Clear txn markers
+  stbBuilt = true;
+
+  SField *pField0 = NULL;
+  switch (alterReq.alterType) {
+    case TSDB_ALTER_TABLE_ADD_TAG:
+      code = mndAddSuperTableTag(pOld, &stbObj, alterReq.pFields, alterReq.numOfFields);
+      break;
+    case TSDB_ALTER_TABLE_DROP_TAG:
+      pField0 = taosArrayGet(alterReq.pFields, 0);
+      code = mndDropSuperTableTag(pMnode, pOld, &stbObj, pField0->name);
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+      code = mndAlterStbTagName(pMnode, pOld, &stbObj, alterReq.pFields);
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
+      pField0 = taosArrayGet(alterReq.pFields, 0);
+      code = mndAlterStbTagBytes(pMnode, pOld, &stbObj, pField0);
+      break;
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
+      code = mndAddSuperTableColumn(pOld, &stbObj, &alterReq, alterReq.numOfFields, 0);
+      break;
+    case TSDB_ALTER_TABLE_DROP_COLUMN:
+      pField0 = taosArrayGet(alterReq.pFields, 0);
+      code = mndDropSuperTableColumn(pMnode, pOld, &stbObj, pField0->name);
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+      pField0 = taosArrayGet(alterReq.pFields, 0);
+      code = mndAlterStbColumnBytes(pMnode, pOld, &stbObj, pField0);
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+      code = mndUpdateTableOptions(pOld, &stbObj, alterReq.comment, alterReq.commentLen, alterReq.ttl, alterReq.keep,
+                                   alterReq.secureDelete, alterReq.securityLevel);
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
+      code = mndUpdateSuperTableColumnCompress(pMnode, pOld, &stbObj, alterReq.pFields, alterReq.numOfFields);
+      break;
+    case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+      code = mndAddSuperTableColumn(pOld, &stbObj, &alterReq, alterReq.numOfFields, 1);
+      break;
+    default:
+      code = TSDB_CODE_OPS_NOT_SUPPORT;
+      break;
+  }
+  if (code != 0) goto _OVER;
+
+  // Re-serialize altered request for VNode redo actions
+  int32_t newLen = tSerializeSMAlterStbReq(NULL, 0, &alterReq);
+  pAlterCont = taosMemoryMalloc(newLen);
+  if (pAlterCont == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  if (tSerializeSMAlterStbReq(pAlterCont, newLen, &alterReq) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  // Add SDB logs and VNode actions to pTrans.
+  // When the STB is about to be dropped in the same COMMIT trans (PRE_CREATE_DROP or
+  // PRE_DROP), skip vnode-alter-stb redo actions. Sending vnode-alter-stb concurrently
+  // with vnode-drop-stb causes a race: VNode uses separate queues for different message
+  // types, so DROP can be processed before ALTER, leaving ALTER with "Stable not exists"
+  // (TSDB_CODE_TDB_STB_NOT_EXIST). Since the DROP redo action will clean up the VNode
+  // state anyway, the ALTER redo action is both unnecessary and harmful.
+  bool skipVnodeAlter = (oldTxnStatus == META_TXN_PRE_CREATE_DROP || oldTxnStatus == META_TXN_PRE_DROP);
+  code = mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, &stbObj);
+  if (code == 0) code = mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, &stbObj);
+  if (code == 0 && !skipVnodeAlter) code = mndSetAlterStbRedoActions(pMnode, pTrans, pDb, &stbObj, pAlterCont, newLen);
+
+  // On success, hand the accumulated schema to the caller so subsequent ALTERs on the
+  // same STB within the same COMMIT can build on top of it (avoiding lost-update).
+  if (code == 0 && ppAccumResult != NULL && stbBuilt) {
+    SStbObj *pResult = taosMemoryCalloc(1, sizeof(SStbObj));
+    if (pResult == NULL) {
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      // Shallow copy: transfer ownership of heap fields to pResult.
+      memcpy(pResult, &stbObj, sizeof(SStbObj));
+      stbObj.pColumns = NULL;  // prevent double-free at _OVER
+      stbObj.pTags = NULL;
+      stbObj.pCmpr = NULL;
+      stbObj.comment = NULL;
+      stbObj.pExtSchemas = NULL;
+      *ppAccumResult = pResult;
+    }
+  }
+
+_OVER:
+  taosMemoryFree(pAlterCont);
+  if (stbBuilt) {
+    taosMemoryFreeClear(stbObj.pTags);
+    taosMemoryFreeClear(stbObj.pColumns);
+    taosMemoryFreeClear(stbObj.pCmpr);
+    if (alterReq.commentLen > 0) taosMemoryFreeClear(stbObj.comment);
+    taosMemoryFreeClear(stbObj.pExtSchemas);
+  }
+  if (pDb) mndReleaseDb(pMnode, pDb);
+  if (pOldFromSdb && pOld) mndReleaseStb(pMnode, pOld);
+  tFreeSMAltertbReq(&alterReq);
+  return code;
+}
 
 static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
@@ -3382,8 +4120,35 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  code = mndDropStb(pMnode, pReq, pDb, pStb);
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  // Batch meta txn: conflict detection — block if another txn owns this STB
+  if (pStb->txnId != 0 && pStb->txnId != (txn_id_t)dropReq.txnId) {
+    code = TSDB_CODE_TXN_RESOURCE_BUSY;
+    goto _OVER;
+  }
+  // RYOW: same txn already marked this STB as dropped — return not-exist
+  if (dropReq.txnId != 0 && pStb->txnId == (txn_id_t)dropReq.txnId &&
+      (pStb->txnStatus == META_TXN_PRE_DROP || pStb->txnStatus == META_TXN_PRE_CREATE_DROP)) {
+    if (dropReq.igNotExists) {
+      code = 0;
+    } else {
+      code = TSDB_CODE_MND_STB_NOT_EXIST;
+    }
+    goto _OVER;
+  }
+  if ((code = mndTxnCheckStbConflict(pMnode, dropReq.name, (txn_id_t)dropReq.txnId)) != 0) {
+    goto _OVER;
+  }
+
+  // Batch meta txn: persist PRE_DROP marker on SStbObj via Raft + memory shadow op.
+  if (dropReq.txnId != 0) {
+    code = mndMarkStbTxnDrop(pMnode, pReq, pStb, pDb, (txn_id_t)dropReq.txnId);
+    if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+  } else {
+    code = mndDropStb(pMnode, pReq, pDb, pStb);
+    if (code == 0) {
+      code = TSDB_CODE_ACTION_IN_PROGRESS;
+    }
+  }
 
   if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
     int64_t tse = taosGetTimestampMs();
@@ -3401,6 +4166,134 @@ _OVER:
   mndReleaseUser(pMnode, pOperUser);
   tFreeSMDropStbReq(&dropReq);
   TAOS_RETURN(code);
+}
+
+/**
+ * Apply ALTER STB shadow ops to rebuild a table meta response.
+ * Clones the SStbObj from SDB, applies each ALTER op in sequence,
+ * then rebuilds the metaRsp from the modified clone.
+ *
+ * @param pMnode    MNode
+ * @param pAlterOps SArray of SMndShadowOp (ALTER ops only, in order)
+ * @param pDb       Database object
+ * @param pBaseStb  Base SStbObj from SDB
+ * @param tbName    Table name (short name for response)
+ * @param pRsp      Output metaRsp (existing content will be freed and rebuilt)
+ * @param refByStm  Whether referenced by statement
+ */
+static int32_t mndApplyTxnAlterOpsToSchema(SMnode *pMnode, SArray *pAlterOps, SDbObj *pDb, SStbObj *pBaseStb,
+                                           const char *tbName, STableMetaRsp *pRsp, bool refByStm) {
+  int32_t code = 0;
+  int32_t numOps = taosArrayGetSize(pAlterOps);
+
+  // Deep clone the base SStbObj
+  SStbObj current = {0};
+  taosRLockLatch(&pBaseStb->lock);
+  memcpy(&current, pBaseStb, sizeof(SStbObj));
+  current.pColumns = NULL;
+  current.pTags = NULL;
+  current.pFuncs = NULL;
+  current.pCmpr = NULL;
+  current.pExtSchemas = NULL;
+  current.lock = 0;
+  taosRUnLockLatch(&pBaseStb->lock);
+
+  // Allocate initial column/tag/cmpr arrays via mndAllocStbSchemas
+  // (copies pBaseStb's columns/tags/cmpr to current)
+  code = mndAllocStbSchemas(pBaseStb, &current);
+  if (code != 0) goto _DONE;
+
+  for (int32_t i = 0; i < numOps; i++) {
+    SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pAlterOps, i);
+
+    SMAlterStbReq alterReq = {0};
+    if (tDeserializeSMAlterStbReq(pOp->pReqData, pOp->reqDataLen, &alterReq) != 0) {
+      code = TSDB_CODE_INVALID_MSG;
+      tFreeSMAltertbReq(&alterReq);
+      goto _DONE;
+    }
+
+    SStbObj next = {0};
+    memcpy(&next, &current, sizeof(SStbObj));
+    next.pColumns = NULL;
+    next.pTags = NULL;
+    next.pFuncs = NULL;
+    next.pCmpr = NULL;
+    next.pExtSchemas = NULL;
+    next.lock = 0;
+    next.updateTime = taosGetTimestampMs();
+
+    SField *pField0 = NULL;
+    switch (alterReq.alterType) {
+      case TSDB_ALTER_TABLE_ADD_TAG:
+        code = mndAddSuperTableTag(&current, &next, alterReq.pFields, alterReq.numOfFields);
+        break;
+      case TSDB_ALTER_TABLE_DROP_TAG:
+        pField0 = taosArrayGet(alterReq.pFields, 0);
+        code = mndDropSuperTableTag(pMnode, &current, &next, pField0->name);
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+        code = mndAlterStbTagName(pMnode, &current, &next, alterReq.pFields);
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
+        pField0 = taosArrayGet(alterReq.pFields, 0);
+        code = mndAlterStbTagBytes(pMnode, &current, &next, pField0);
+        break;
+      case TSDB_ALTER_TABLE_ADD_COLUMN:
+        code = mndAddSuperTableColumn(&current, &next, &alterReq, alterReq.numOfFields, 0);
+        break;
+      case TSDB_ALTER_TABLE_DROP_COLUMN:
+        pField0 = taosArrayGet(alterReq.pFields, 0);
+        code = mndDropSuperTableColumn(pMnode, &current, &next, pField0->name);
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+        pField0 = taosArrayGet(alterReq.pFields, 0);
+        code = mndAlterStbColumnBytes(pMnode, &current, &next, pField0);
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+        code = mndUpdateTableOptions(&current, &next, alterReq.comment, alterReq.commentLen, alterReq.ttl,
+                                     alterReq.keep, alterReq.secureDelete, alterReq.securityLevel);
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
+        code = mndUpdateSuperTableColumnCompress(pMnode, &current, &next, alterReq.pFields, alterReq.numOfFields);
+        break;
+      case TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION:
+        code = mndAddSuperTableColumn(&current, &next, &alterReq, alterReq.numOfFields, 1);
+        break;
+      default:
+        code = TSDB_CODE_OPS_NOT_SUPPORT;
+        break;
+    }
+
+    tFreeSMAltertbReq(&alterReq);
+
+    if (code != 0) {
+      taosMemoryFreeClear(next.pColumns);
+      taosMemoryFreeClear(next.pTags);
+      taosMemoryFreeClear(next.pCmpr);
+      taosMemoryFreeClear(next.pExtSchemas);
+      goto _DONE;
+    }
+
+    // Move to next iteration: free current arrays, adopt next's
+    taosMemoryFreeClear(current.pColumns);
+    taosMemoryFreeClear(current.pTags);
+    taosMemoryFreeClear(current.pCmpr);
+    taosMemoryFreeClear(current.pExtSchemas);
+    current = next;
+  }
+
+  // Rebuild metaRsp from the modified clone
+  tFreeSTableMetaRsp(pRsp);
+  memset(pRsp, 0, sizeof(STableMetaRsp));
+  code = mndBuildStbSchemaImp(pMnode, pDb, &current, tbName, pRsp, refByStm);
+
+_DONE:
+  taosMemoryFreeClear(current.pColumns);
+  taosMemoryFreeClear(current.pTags);
+  taosMemoryFreeClear(current.pCmpr);
+  taosMemoryFreeClear(current.pExtSchemas);
+  return code;
 }
 
 static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
@@ -3424,7 +4317,54 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(mndBuildPerfsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp), NULL, _OVER);
   } else {
     mInfo("stb:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
+    // batch-meta-txn: hide PRE_CREATE/PRE_CREATE_DROP STBs from other sessions.
+    // PRE_ALTER and PRE_DROP remain visible (redo-log model — schema unchanged until COMMIT).
+    {
+      char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+      snprintf(tbFName, sizeof(tbFName), "%s.%s", infoReq.dbFName, infoReq.tbName);
+      SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
+      if (pStb != NULL && pStb->txnId != 0) {
+        bool otherSession = (pStb->txnId != (txn_id_t)infoReq.txnId);
+        bool isPreCreate = (pStb->txnStatus == META_TXN_PRE_CREATE || pStb->txnStatus == META_TXN_PRE_CREATE_DROP);
+        bool isPreDrop = (pStb->txnStatus == META_TXN_PRE_DROP || pStb->txnStatus == META_TXN_PRE_CREATE_DROP);
+        // Other sessions: PRE_CREATE tables are invisible (not yet committed).
+        // Same session:   RYOW — table was already dropped in this txn, return not found.
+        if ((otherSession && isPreCreate) || (!otherSession && isPreDrop)) {
+          mInfo("stb:%s, txn %" PRIu64 " status=%d, requester txnId=%" PRId64 ", deny access (%s)", tbFName,
+                pStb->txnId, pStb->txnStatus, infoReq.txnId, otherSession ? "hidden PRE_CREATE" : "RYOW PRE_DROP");
+          mndReleaseStb(pMnode, pStb);
+          code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+          goto _OVER;
+        }
+      }
+      if (pStb) mndReleaseStb(pMnode, pStb);
+    }
     TAOS_CHECK_GOTO(mndBuildStbSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp, true), NULL, _OVER);
+
+    // Same-txn ALTER visibility: overlay ALTER shadow ops from the active txn
+    if (infoReq.txnId != 0) {
+      SArray *pAlterOps = NULL;
+      char    stbFName[TSDB_TABLE_FNAME_LEN] = {0};
+      snprintf(stbFName, sizeof(stbFName), "%s.%s", infoReq.dbFName, infoReq.tbName);
+      int32_t txnCode = mndTxnGetAlterOpsForStb(pMnode, (txn_id_t)infoReq.txnId, stbFName, &pAlterOps);
+      if (txnCode == 0 && pAlterOps != NULL && taosArrayGetSize(pAlterOps) > 0) {
+        SDbObj  *pDb = mndAcquireDb(pMnode, infoReq.dbFName);
+        SStbObj *pStb = mndAcquireStb(pMnode, stbFName);
+        if (pDb != NULL && pStb != NULL) {
+          int32_t rc = mndApplyTxnAlterOpsToSchema(pMnode, pAlterOps, pDb, pStb, infoReq.tbName, &metaRsp, true);
+          if (rc != 0) {
+            mWarn("stb:%s, failed to overlay ALTER shadow ops for txn %" PRId64 ": %s", stbFName, infoReq.txnId,
+                  tstrerror(rc));
+          } else {
+            mInfo("stb:%s, overlaid %d ALTER shadow ops for same-txn visibility (txn %" PRId64 ")", stbFName,
+                  (int32_t)taosArrayGetSize(pAlterOps), infoReq.txnId);
+          }
+        }
+        if (pStb) mndReleaseStb(pMnode, pStb);
+        if (pDb) mndReleaseDb(pMnode, pDb);
+      }
+      taosArrayDestroy(pAlterOps);
+    }
   }
 
   int32_t rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
@@ -3722,6 +4662,23 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     if (pDb != NULL && pStb->dbUid != pDb->uid) {
       sdbRelease(pSdb, pStb);
       continue;
+    }
+
+    if (pStb->txnId != 0) {
+      if (pStb->txnStatus == META_TXN_PRE_CREATE) {
+        if (pStb->txnId != (txn_id_t)pShow->txnId) {
+          sdbRelease(pSdb, pStb);
+          continue;
+        }
+      } else if (pStb->txnStatus == META_TXN_PRE_CREATE_DROP) {
+        sdbRelease(pSdb, pStb);
+        continue;
+      } else if (pStb->txnStatus == META_TXN_PRE_DROP) {
+        if (pStb->txnId == (txn_id_t)pShow->txnId) {
+          sdbRelease(pSdb, pStb);
+          continue;
+        }
+      }
     }
 
     if (isTsmaResSTb(pStb->name)) {

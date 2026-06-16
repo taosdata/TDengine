@@ -2374,6 +2374,7 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
 _end:
   if (code != 0) {
+    sdbRelease(pSdb, pObj);
     mError("failed to retrieve xnode tasks, code:%s", tstrerror(code));
   }
   mndReleaseUser(pMnode, pOperUser);

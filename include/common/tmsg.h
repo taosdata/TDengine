@@ -28,6 +28,7 @@
 #include "tname.h"
 #include "tpriv.h"
 #include "trow.h"
+#include "tsimplehash.h"
 #include "tuuid.h"
 
 #ifdef __cplusplus
@@ -144,6 +145,8 @@ enum {
   HEARTBEAT_KEY_DYN_VIEW,
   HEARTBEAT_KEY_VIEWINFO,
   HEARTBEAT_KEY_TSMA,
+  HEARTBEAT_KEY_TXN_KEEPALIVE,
+  HEARTBEAT_KEY_TXN_KILLED,  // MNode → client: txn was forcibly rolled back due to inactivity timeout
 };
 
 typedef enum _mgmt_table {
@@ -219,6 +222,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_XNODE_FULL,
   TSDB_MGMT_TABLE_VIRTUAL_TABLES_REFERENCING,
   TSDB_MGMT_TABLE_SECURITY_POLICIES,
+  TSDB_MGMT_TABLE_TXN_LOG,
+  TSDB_MGMT_TABLE_TXN_ORPHANS,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -512,6 +517,9 @@ typedef enum ENodeType {
   QUERY_NODE_CREATE_ENCRYPT_ALGORITHMS_STMT,
   QUERY_NODE_DROP_ENCRYPT_ALGR_STMT,
   QUERY_NODE_SHOW_CREATE_STREAM_STMT,
+  QUERY_NODE_BEGIN_TRANS_STMT,
+  QUERY_NODE_COMMIT_TRANS_STMT,
+  QUERY_NODE_ROLLBACK_TRANS_STMT,
 
   // show statement nodes
   // see 'sysTableShowAdapter', 'SYSTABLE_SHOW_TYPE_OFFSET'
@@ -582,6 +590,9 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT,
   QUERY_NODE_SHOW_SECURITY_POLICIES_STMT,
   QUERY_NODE_SHOW_CPU_ALLOCATION_STMT,
+  QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT,
+  QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT,
+
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
@@ -1334,6 +1345,7 @@ typedef struct {
   int32_t  sqlLen;
   char*    sql;
   int64_t  keep;
+  int64_t  txnId;  // batch meta txn ID (0 = not in txn)
   int8_t   virtualStb;
   int8_t   secureDelete;
   int8_t   securityLevel;
@@ -1359,6 +1371,7 @@ typedef struct {
   tb_uid_t suid;
   int32_t  sqlLen;
   char*    sql;
+  int64_t  txnId;  // batch meta txn ID (0 = not in txn)
 } SMDropStbReq;
 
 int32_t tSerializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
@@ -1376,6 +1389,7 @@ typedef struct {
   int32_t sqlLen;
   char*   sql;
   int64_t keep;
+  int64_t txnId;  // batch meta txn ID (0 = not in txn)
   SArray* pTypeMods;
   int8_t  secureDelete;
   int8_t  securityLevel;
@@ -2109,6 +2123,7 @@ typedef struct {
   SMsgHead header;
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     tbName[TSDB_TABLE_NAME_LEN];
+  int64_t  txnId;  // batch meta txn: same-txn visibility for PRE_CREATE entries
 } STableCfgReq;
 
 typedef struct {
@@ -2916,6 +2931,7 @@ typedef struct {
   char        auditToken[TSDB_TOKEN_LEN];
   SEpSet      auditEpSet;
   int32_t     auditVgId;
+  SArray*     pTxnActiveQueries;  // array of STxnActiveQuery, optional (NULL if no idle txns)
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -3406,6 +3422,7 @@ typedef struct {
   char     tbName[TSDB_TABLE_NAME_LEN];
   uint8_t  option;
   uint8_t  autoCreateCtb;
+  int64_t  txnId;  // batch meta txn: same-txn visibility for PRE_CREATE entries
 } STableInfoReq;
 
 int32_t tSerializeSTableInfoReq(void* buf, int32_t bufLen, STableInfoReq* pReq);
@@ -3542,6 +3559,7 @@ typedef struct {
   char    filterTb[TSDB_TABLE_NAME_LEN];  // for ins_columns
   int64_t showId;
   int64_t compactId;  // for compact
+  int64_t txnId;      // batch meta txn: same-txn visibility
   bool    withFull;   // for show users full
 } SRetrieveTableReq;
 
@@ -4324,11 +4342,42 @@ int32_t tSerializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
 int32_t tDeserializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
 
 typedef struct {
-  int32_t transId;
+  int64_t transId;
 } SKillTransReq;
 
 int32_t tSerializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
 int32_t tDeserializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
+
+// Distributed transaction: BEGIN / COMMIT / ROLLBACK
+typedef struct {
+  int32_t useless;  // placeholder
+  int32_t sqlLen;
+  char*   sql;
+} SBeginTransReq;
+
+int32_t tSerializeSBeginTransReq(void* buf, int32_t bufLen, SBeginTransReq* pReq);
+int32_t tDeserializeSBeginTransReq(void* buf, int32_t bufLen, SBeginTransReq* pReq);
+void    tFreeSBeginTransReq(SBeginTransReq* pReq);
+
+typedef struct {
+  int32_t useless;  // placeholder
+  int32_t sqlLen;
+  char*   sql;
+} SCommitTransReq;
+
+int32_t tSerializeSCommitTransReq(void* buf, int32_t bufLen, SCommitTransReq* pReq);
+int32_t tDeserializeSCommitTransReq(void* buf, int32_t bufLen, SCommitTransReq* pReq);
+void    tFreeSCommitTransReq(SCommitTransReq* pReq);
+
+typedef struct {
+  int32_t useless;  // placeholder
+  int32_t sqlLen;
+  char*   sql;
+} SRollbackTransReq;
+
+int32_t tSerializeSRollbackTransReq(void* buf, int32_t bufLen, SRollbackTransReq* pReq);
+int32_t tDeserializeSRollbackTransReq(void* buf, int32_t bufLen, SRollbackTransReq* pReq);
+void    tFreeSRollbackTransReq(SRollbackTransReq* pReq);
 
 typedef struct {
   int32_t useless;  // useless
@@ -4465,6 +4514,7 @@ typedef struct SSubQueryMsg {
   uint32_t msgLen;
   char*    msg;
   SArray*  subEndPoints;  // subJobs's endpoints, element is SDownstreamSourceNode*
+  int64_t  txnId;         // batch meta txn ID (0 = not in txn)
 } SSubQueryMsg;
 
 int32_t tSerializeSSubQueryMsg(void* buf, int32_t bufLen, SSubQueryMsg* pReq);
@@ -5014,6 +5064,7 @@ typedef struct SVCreateStbReq {
   SColCmprWrapper colCmpr;
   int64_t         keep;
   int64_t         ownerId;
+  txn_id_t        txnId;  // batch-meta-txn: STB belongs to this txn (VNode marks as PRE_CREATE)
   SExtSchema*     pExtSchemas;
   int8_t          virtualStb;
   int8_t          secureDelete;
@@ -5027,6 +5078,7 @@ int tDecodeSVCreateStbReq(SDecoder* pCoder, SVCreateStbReq* pReq);
 typedef struct SVDropStbReq {
   char*    name;
   tb_uid_t suid;
+  txn_id_t txnId;  // batch-meta-txn: DROP STB belongs to this txn (VNode marks as PRE_DROP)
 } SVDropStbReq;
 
 int32_t tEncodeSVDropStbReq(SEncoder* pCoder, const SVDropStbReq* pReq);
@@ -5063,6 +5115,8 @@ typedef struct SVCreateTbReq {
   SColCmprWrapper colCmpr;
   SExtSchema*     pExtSchemas;
   SColRefWrapper  colRef;  // col reference for virtual table
+  int64_t         txnId;   // batch meta txn ID (0 = not in txn)
+  int8_t          txnStatus; // EMetaTxnStatus for snapshot replication (0 = normal/PRE_CREATE)
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
@@ -5139,6 +5193,7 @@ typedef struct {
   int64_t  uid;
   int8_t   igNotExists;
   int8_t   isVirtual;
+  int64_t  txnId;  // batch meta txn ID (0 = not in txn)
 } SVDropTbReq;
 
 typedef struct {
@@ -5230,6 +5285,7 @@ typedef struct SVAlterTbReq {
   char* refTbName;
   char* refColName;
   // TSDB_ALTER_TABLE_REMOVE_COLUMN_REF
+  int64_t txnId;  // batch meta txn ID (0 = not in txn)
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
@@ -5872,6 +5928,58 @@ typedef struct {
 int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 void    tFreeSMDropSmaReq(SMDropSmaReq* pReq);
+
+typedef struct {
+  int32_t    msgType;  // begin, commit, rollback
+  int8_t     clientStage;
+  txn_id_t   txnId;
+  int64_t    connId;
+  SSHashObj* pVgSet;                      // Hash set of int32_t vgId → dummy, client-tracked participant VGroups
+  char       dbFName[TSDB_DB_FNAME_LEN];  // participating DB fullName (replicated txn COMMIT/ROLLBACK)
+} SMTransReq;
+
+int32_t tSerializeSMTransReq(void* buf, int32_t bufLen, SMTransReq* pReq);
+int32_t tDeserializeSMTransReq(void* buf, int32_t bufLen, SMTransReq* pReq);
+void    tFreeSMTransReq(SMTransReq* pReq);
+
+// VNode registers with MNode to participate in a transaction (sent on first DDL carrying txnId)
+typedef struct {
+  txn_id_t  txnId;   // global transaction ID
+  int32_t   vgId;    // sender VGroup ID
+} SMndTxnRegReq;
+
+typedef struct {
+  int32_t code;      // 0=success, non-zero=failure (e.g. txn expired or already rolled back)
+  txn_id_t txnId;
+} SMndTxnRegRsp;
+
+// MNode → VNode: COMMIT instruction for a single transaction
+typedef struct {
+  txn_id_t  txnId;
+  int64_t   term;    // current MNode Raft term (SyncTerm); used for VNode-side fencing
+} SVTxnCommitReq;
+
+// MNode → VNode: ROLLBACK instruction for a single transaction
+typedef struct {
+  txn_id_t  txnId;
+  int64_t   term;    // current MNode Raft term (SyncTerm); used for VNode-side fencing
+  int32_t   reason;  // rollback reason code (timeout / client disconnect / explicit user rollback, etc.)
+} SVTxnRollbackReq;
+
+int32_t tSerializeSMndTxnRegReq(void* buf, int32_t bufLen, SMndTxnRegReq* pReq);
+int32_t tDeserializeSMndTxnRegReq(void* buf, int32_t bufLen, SMndTxnRegReq* pReq);
+int32_t tSerializeSMndTxnRegRsp(void* buf, int32_t bufLen, SMndTxnRegRsp* pRsp);
+int32_t tDeserializeSMndTxnRegRsp(void* buf, int32_t bufLen, SMndTxnRegRsp* pRsp);
+int32_t tSerializeSVTxnCommitReq(void* buf, int32_t bufLen, SVTxnCommitReq* pReq);
+int32_t tDeserializeSVTxnCommitReq(void* buf, int32_t bufLen, SVTxnCommitReq* pReq);
+int32_t tSerializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq* pReq);
+int32_t tDeserializeSVTxnRollbackReq(void* buf, int32_t bufLen, SVTxnRollbackReq* pReq);
+
+// VNode → DNode → MNode keepalive query (piggy-backed onto SStatusReq)
+typedef struct {
+  txn_id_t  txnId;
+  int32_t   vgId;  // VNode issuing the query
+} STxnActiveQuery;
 
 typedef struct {
   char name[TSDB_TABLE_NAME_LEN];

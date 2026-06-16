@@ -59,6 +59,7 @@ typedef struct SSchedulerReq {
   int64_t            allocatorRefId;
   const char*        sql;
   int64_t            startTs;
+  int64_t            txnId;  // batch meta txn ID for same-txn visibility
   schedulerExecFp    execFp;
   schedulerFetchFp   fetchFp;
   void*              cbParam;
@@ -69,7 +70,7 @@ typedef struct SSchedulerReq {
   int8_t             source;
   int8_t             secureDelete;
   void*              pWorkerCb;
-  int8_t             firstDayOfWeek;  /* 0-6, resolved by client before dispatch */
+  int8_t             firstDayOfWeek; /* 0-6, resolved by client before dispatch */
 } SSchedulerReq;
 
 int32_t schedulerInit(void);

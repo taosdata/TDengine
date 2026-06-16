@@ -550,6 +550,20 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_TRANSACTION_LOGS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
+  {
+    .showType = QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_TRANSACTION_ORPHANS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -789,10 +803,126 @@ _return:
   return code;
 }
 
+// txnAssembleCtbMeta: on-demand assembly of a full STableMeta for a compact CTB stub.
+// Compact stubs (tableInfo.numOfColumns == 0) are stored by the txn CTB handler instead of
+// copying the full schema per CTB — mirroring the catalog's SCTableMeta + stbCache design.
+// The caller owns the returned *pOut and must free it.
+static int32_t txnAssembleCtbMeta(const STableMeta* pCompact, SHashObj* pTxnTableMeta, SHashObj* pTxnSuidMap,
+                                  SCatalog* pCatalog, STableMeta** pOut) {
+  if (pTxnSuidMap == NULL) return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+
+  // 1. Resolve suid → stbFullName
+  char* stbFullName = (char*)taosHashGet(pTxnSuidMap, &pCompact->suid, sizeof(uint64_t));
+  if (stbFullName == NULL) return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+
+  // 2. Look up STB full meta: txn cache first, then catalog
+  STableMeta*  pStbMeta = NULL;
+  bool         stbFromCatalog = false;
+  STableMeta** ppStb = (STableMeta**)taosHashGet(pTxnTableMeta, stbFullName, strlen(stbFullName));
+  if (ppStb && *ppStb) {
+    pStbMeta = *ppStb;
+  } else if (pCatalog != NULL) {
+    SName stbName = {0};
+    if (tNameFromString(&stbName, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) == 0) {
+      (void)catalogGetCachedSTableMeta(pCatalog, &stbName, &pStbMeta);
+    }
+    stbFromCatalog = (pStbMeta != NULL);
+  }
+  if (pStbMeta == NULL) return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+
+  // 3. Assemble: CTB header from compact stub + schema/schemaExt from STB
+  int32_t numOfCols = pStbMeta->tableInfo.numOfColumns;
+  int32_t numOfTags = pStbMeta->tableInfo.numOfTags;
+  int32_t totalCols = numOfCols + numOfTags;
+  int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * totalCols;
+  int32_t extSize = (pStbMeta->schemaExt != NULL) ? (int32_t)(sizeof(SSchemaExt) * numOfCols) : 0;
+
+  STableMeta* assembled = (STableMeta*)taosMemoryCalloc(1, metaSize + extSize);
+  if (assembled == NULL) {
+    if (stbFromCatalog) taosMemoryFree(pStbMeta);
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  assembled->uid = pCompact->uid;
+  assembled->suid = pCompact->suid;
+  assembled->vgId = pCompact->vgId;
+  assembled->tableType = TSDB_CHILD_TABLE;
+  assembled->sversion = pStbMeta->sversion;
+  assembled->tversion = pStbMeta->tversion;
+  assembled->tableInfo = pStbMeta->tableInfo;
+  assembled->ownerId = pStbMeta->ownerId;
+  assembled->flag = pStbMeta->flag;
+  assembled->secLvl = pStbMeta->secLvl;
+  assembled->secureDelete = pStbMeta->secureDelete;
+  memcpy(assembled->schema, pStbMeta->schema, sizeof(SSchema) * totalCols);
+  if (pStbMeta->schemaExt != NULL) {
+    assembled->schemaExt = (SSchemaExt*)((char*)assembled + metaSize);
+    memcpy(assembled->schemaExt, pStbMeta->schemaExt, extSize);
+  }
+
+  if (stbFromCatalog) taosMemoryFree(pStbMeta);
+  *pOut = assembled;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Check if a child table's parent STB was dropped in the current transaction.
+// Returns true if the suid maps to a STB with a NULL sentinel in pTxnTableMeta.
+static bool isParentStbDroppedInTxn(const SParseContext* pParCxt, uint64_t suid) {
+  char* stbFullName = (char*)taosHashGet(pParCxt->pTxnSuidMap, &suid, sizeof(uint64_t));
+  if (stbFullName) {
+    STableMeta** ppStb = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, stbFullName, strlen(stbFullName));
+    if (ppStb && *ppStb == NULL) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Pre-flight: use stale cached type+suid to detect child tables whose parent STB
+// was dropped in this txn, before hitting the server.
+static bool isChildOfDroppedStbCached(const SParseContext* pParCxt, const SName* pName) {
+  if (pParCxt->txnId == 0 || !pParCxt->pTxnSuidMap || !pParCxt->pTxnTableMeta) {
+    return false;
+  }
+  int8_t   cachedType = 0;
+  uint64_t cachedSuid = 0;
+  if (catalogGetCachedTableTypeAndSuid(pParCxt->pCatalog, pName, &cachedType, &cachedSuid) == TSDB_CODE_SUCCESS &&
+      (cachedType == TSDB_CHILD_TABLE || cachedType == TSDB_VIRTUAL_CHILD_TABLE) && cachedSuid != 0) {
+    return isParentStbDroppedInTxn(pParCxt, cachedSuid);
+  }
+  return false;
+}
+
 int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta,
                           bool couldBeView) {
   int32_t code = TSDB_CODE_SUCCESS;
 
+  // Batch meta txn: check same-txn cache first (has latest schema after CREATE/ALTER)
+  if (pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
+    char fullName[TSDB_TABLE_FNAME_LEN];
+    if (tNameExtractFullName(pName, fullName) == 0) {
+      STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
+      if (ppCached && *ppCached) {
+        STableMeta* cached = *ppCached;
+        // Compact CTB stub (numOfColumns == 0): assemble full meta on demand from parent STB schema.
+        if (cached->tableType == TSDB_CHILD_TABLE && cached->tableInfo.numOfColumns == 0) {
+          return txnAssembleCtbMeta(cached, pParCxt->pTxnTableMeta, pParCxt->pTxnSuidMap, pParCxt->pCatalog, pMeta);
+        }
+        *pMeta = tableMetaDup(cached);
+        if (*pMeta) {
+          return TSDB_CODE_SUCCESS;
+        }
+        // tableMetaDup OOM — do NOT fall through to catalog (would return stale pre-txn schema).
+        return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      } else if (ppCached) {
+        // NULL sentinel: table was dropped in this txn
+        return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      }
+    }
+  }
+  if (isChildOfDroppedStbCached(pParCxt, pName)) {
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
   if (pParCxt->async) {
     code = getTableMetaFromCache(pMetaCache, pName, pMeta);
 #ifdef TD_ENTERPRISE
@@ -808,8 +938,17 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
     SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
                              .requestId = pParCxt->requestId,
                              .requestObjRefId = pParCxt->requestRid,
-                             .mgmtEps = pParCxt->mgmtEpSet};
+                             .mgmtEps = pParCxt->mgmtEpSet,
+                             .txnId = pParCxt->txnId};
     code = catalogGetTableMeta(pParCxt->pCatalog, &conn, pName, pMeta);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && *pMeta != NULL && pParCxt->txnId > 0 && pParCxt->pTxnSuidMap &&
+      ((*pMeta)->tableType == TSDB_CHILD_TABLE || (*pMeta)->tableType == TSDB_VIRTUAL_CHILD_TABLE) &&
+      isParentStbDroppedInTxn(pParCxt, (*pMeta)->suid)) {
+    taosMemoryFree(*pMeta);
+    *pMeta = NULL;
+    code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
 
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
@@ -899,16 +1038,127 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
     code = collectUseTable(pName, pCxt->pTables);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if (pParCxt->async) {
-      code = getTableCfgFromCache(pCxt->pMetaCache, pName, pCfg);
-    } else {
-      SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                               .requestId = pParCxt->requestId,
-                               .requestObjRefId = pParCxt->requestRid,
-                               .mgmtEps = pParCxt->mgmtEpSet};
-      code = catalogRefreshGetTableCfg(pParCxt->pCatalog, &conn, pName, pCfg);
+    // Batch meta txn: check pTxnTableMeta FIRST for normal tables when inside a transaction.
+    // Child tables need full STableCfg (stbName, tag values) that STableMeta doesn't carry,
+    // so they must go through the VNode/catalog path.
+    bool foundInTxnCache = false;
+    if (pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
+      char fullName[TSDB_TABLE_FNAME_LEN];
+      if (tNameExtractFullName(pName, fullName) == 0) {
+        STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
+        if (ppCached && *ppCached == NULL) {
+          // NULL sentinel: table was dropped in this txn
+          code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+          goto end;
+        }
+        if (ppCached && *ppCached && (*ppCached)->tableType == TSDB_NORMAL_TABLE) {
+          STableMeta* pMeta = *ppCached;
+          STableCfg*  pTmpCfg = taosMemoryCalloc(1, sizeof(STableCfg));
+          if (pTmpCfg) {
+            tstrncpy(pTmpCfg->tbName, pName->tname, TSDB_TABLE_NAME_LEN);
+            (void)tNameGetFullDbName(pName, pTmpCfg->dbFName);
+            pTmpCfg->tableType = pMeta->tableType;
+            pTmpCfg->numOfColumns = pMeta->tableInfo.numOfColumns;
+            pTmpCfg->numOfTags = pMeta->tableInfo.numOfTags;
+            int32_t total = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
+            if (total > 0) {
+              pTmpCfg->pSchemas = taosMemoryMalloc(sizeof(SSchema) * total);
+              if (pTmpCfg->pSchemas == NULL) {
+                taosMemoryFree(pTmpCfg);
+                code = terrno;
+                goto end;
+              }
+              memcpy(pTmpCfg->pSchemas, pMeta->schema, sizeof(SSchema) * total);
+            }
+            if (pMeta->tableInfo.numOfColumns > 0) {
+              pTmpCfg->pSchemaExt = taosMemoryCalloc(pMeta->tableInfo.numOfColumns, sizeof(SSchemaExt));
+              if (pTmpCfg->pSchemaExt == NULL) {
+                taosMemoryFree(pTmpCfg->pSchemas);
+                taosMemoryFree(pTmpCfg);
+                code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+                goto end;
+              }
+            }
+            *pCfg = pTmpCfg;
+            foundInTxnCache = true;
+          }
+        }
+      }
+    }
+
+    if (!foundInTxnCache) {
+      if (isChildOfDroppedStbCached(pParCxt, pName)) {
+        code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+        goto end;
+      }
+      if (pParCxt->async) {
+        code = getTableCfgFromCache(pCxt->pMetaCache, pName, pCfg);
+      } else {
+        SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                                 .requestId = pParCxt->requestId,
+                                 .requestObjRefId = pParCxt->requestRid,
+                                 .mgmtEps = pParCxt->mgmtEpSet,
+                                 .txnId = pParCxt->txnId};
+        code = catalogRefreshGetTableCfg(pParCxt->pCatalog, &conn, pName, pCfg);
+      }
+      // Cascading child check: if catalog returned a child table cfg, verify parent STB wasn't dropped
+      if (TSDB_CODE_SUCCESS == code && *pCfg != NULL && pParCxt->txnId > 0 && pParCxt->pTxnTableMeta &&
+          ((*pCfg)->tableType == TSDB_CHILD_TABLE || (*pCfg)->tableType == TSDB_VIRTUAL_CHILD_TABLE) &&
+          (*pCfg)->stbName[0] != '\0') {
+        char stbFullName[TSDB_TABLE_FNAME_LEN];
+        snprintf(stbFullName, sizeof(stbFullName), "%s.%s", (*pCfg)->dbFName, (*pCfg)->stbName);
+        STableMeta** ppStb = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, stbFullName, strlen(stbFullName));
+        if (ppStb && *ppStb == NULL) {
+          tFreeSTableCfgRsp(*pCfg);
+          *pCfg = NULL;
+          code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+          goto end;
+        }
+      }
+    }
+
+    // Batch meta txn: fallback for normal tables only
+    if (TSDB_CODE_SUCCESS != code && !foundInTxnCache && pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
+      char fullName[TSDB_TABLE_FNAME_LEN];
+      if (tNameExtractFullName(pName, fullName) == 0) {
+        STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
+        if (ppCached && *ppCached && (*ppCached)->tableType == TSDB_NORMAL_TABLE) {
+          STableMeta* pMeta = *ppCached;
+          STableCfg*  pTmpCfg = taosMemoryCalloc(1, sizeof(STableCfg));
+          if (pTmpCfg) {
+            tstrncpy(pTmpCfg->tbName, pName->tname, TSDB_TABLE_NAME_LEN);
+            (void)tNameGetFullDbName(pName, pTmpCfg->dbFName);
+            pTmpCfg->tableType = pMeta->tableType;
+            pTmpCfg->numOfColumns = pMeta->tableInfo.numOfColumns;
+            pTmpCfg->numOfTags = pMeta->tableInfo.numOfTags;
+            int32_t total = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
+            if (total > 0) {
+              pTmpCfg->pSchemas = taosMemoryMalloc(sizeof(SSchema) * total);
+              if (pTmpCfg->pSchemas == NULL) {
+                taosMemoryFree(pTmpCfg);
+                code = terrno;
+                goto end;
+              }
+              memcpy(pTmpCfg->pSchemas, pMeta->schema, sizeof(SSchema) * total);
+            }
+            if (pMeta->tableInfo.numOfColumns > 0) {
+              pTmpCfg->pSchemaExt = taosMemoryCalloc(pMeta->tableInfo.numOfColumns, sizeof(SSchemaExt));
+              if (pTmpCfg->pSchemaExt == NULL) {
+                taosMemoryFree(pTmpCfg->pSchemas);
+                taosMemoryFree(pTmpCfg);
+                code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+                goto end;
+              }
+            }
+            *pCfg = pTmpCfg;
+            code = TSDB_CODE_SUCCESS;
+          }
+        }
+      }
     }
   }
+
+end:
   if (TSDB_CODE_SUCCESS != code) {
     parserError("QID:0x%" PRIx64 ", catalogRefreshGetTableCfg error, code:%s, dbName:%s, tbName:%s",
                 pCxt->pParseCxt->requestId, tstrerror(code), pName->dbname, pName->tname);
@@ -922,16 +1172,54 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
   SName          name = {0};
   toName(pCxt->pParseCxt->acctId, pDbName, pTableName, &name);
   int32_t code = TSDB_CODE_SUCCESS;
+
+  // Batch meta txn: check same-txn cache first (has latest schema after ALTER)
+  if (pParCxt->txnId > 0 && pParCxt->pTxnTableMeta) {
+    char fullName[TSDB_TABLE_FNAME_LEN];
+    if (tNameExtractFullName(&name, fullName) == 0) {
+      STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
+      if (ppCached && *ppCached) {
+        STableMeta* cached = *ppCached;
+        // Compact CTB stub (numOfColumns == 0): assemble full meta on demand from parent STB schema.
+        if (cached->tableType == TSDB_CHILD_TABLE && cached->tableInfo.numOfColumns == 0) {
+          return txnAssembleCtbMeta(cached, pParCxt->pTxnTableMeta, pParCxt->pTxnSuidMap, pParCxt->pCatalog, pMeta);
+        }
+        *pMeta = tableMetaDup(cached);
+        if (*pMeta) {
+          return TSDB_CODE_SUCCESS;
+        }
+        // tableMetaDup OOM — do NOT fall through to catalog (would return stale pre-txn schema).
+        return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      } else if (ppCached) {
+        // NULL sentinel: table was dropped in this txn
+        return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      }
+    }
+  }
+
+  if (isChildOfDroppedStbCached(pParCxt, &name)) {
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
   if (pParCxt->async) {
     code = getTableMetaFromCache(pCxt->pMetaCache, &name, pMeta);
   } else {
     SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
                              .requestId = pParCxt->requestId,
                              .requestObjRefId = pParCxt->requestRid,
-                             .mgmtEps = pParCxt->mgmtEpSet};
+                             .mgmtEps = pParCxt->mgmtEpSet,
+                             .txnId = pParCxt->txnId};
 
     code = catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
   }
+  
+  if (TSDB_CODE_SUCCESS == code && pParCxt->txnId > 0 && *pMeta != NULL && pParCxt->pTxnSuidMap &&
+      ((*pMeta)->tableType == TSDB_CHILD_TABLE || (*pMeta)->tableType == TSDB_VIRTUAL_CHILD_TABLE) &&
+      isParentStbDroppedInTxn(pParCxt, (*pMeta)->suid)) {
+    taosMemoryFreeClear(*pMeta);
+    code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
   if (TSDB_CODE_SUCCESS == code && NULL != pMeta && NULL != *pMeta && (*pMeta)->virtualStb &&
       ((*pMeta)->tableType == TSDB_VIRTUAL_CHILD_TABLE || (*pMeta)->tableType == TSDB_VIRTUAL_NORMAL_TABLE) &&
       (((*pMeta)->numOfColRefs > 0 && (*pMeta)->colRef) || ((*pMeta)->numOfTagRefs > 0 && (*pMeta)->tagRef))) {
@@ -16831,6 +17119,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   if (TSDB_CODE_SUCCESS == code) {
     pReq->virtualStb = pStmt->pOptions->virtualStb;
     pReq->secureDelete = pStmt->pOptions->secureDelete;
+    pReq->txnId = pCxt->pParseCxt->txnId;
   }
   return code;
 }
@@ -16855,6 +17144,7 @@ static int32_t doTranslateDropSuperTable(STranslateContext* pCxt, const SName* p
     code = tNameExtractFullName(pTableName, dropReq.name);
     if (TSDB_CODE_SUCCESS == code) {
       dropReq.igNotExists = ignoreNotExists;
+      dropReq.txnId = pCxt->pParseCxt->txnId;
       code = buildCmdMsg(pCxt, TDMT_MND_DROP_STB, (FSerializeFunc)tSerializeSMDropStbReq, &dropReq);
     }
     tFreeSMDropStbReq(&dropReq);
@@ -17174,7 +17464,7 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
   }
 
   if (getNumOfTags(pTableMeta) == 1 && pStmt->alterType == TSDB_ALTER_TABLE_DROP_TAG) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "the only tag cannot be dropped");
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_LESS_TAG_COLUMN, "The only tag cannot be dropped");
   }
 
   if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType && pStmt->pOptions && pStmt->pOptions->securityLevel >= 0 &&
@@ -17268,6 +17558,7 @@ static int32_t translateAlterSuperTable(STranslateContext* pCxt, SAlterTableStmt
     code = buildAlterSuperTableReq(pCxt, pStmt, &alterReq);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    alterReq.txnId = pCxt->pParseCxt->txnId;
     code = buildCmdMsg(pCxt, TDMT_MND_ALTER_STB, (FSerializeFunc)tSerializeSMAlterStbReq, &alterReq);
   }
   tFreeSMAltertbReq(&alterReq);
@@ -19243,7 +19534,7 @@ static int32_t translateKillQuery(STranslateContext* pCxt, SKillQueryStmt* pStmt
   return buildCmdMsg(pCxt, TDMT_MND_KILL_QUERY, (FSerializeFunc)tSerializeSKillQueryReq, &killReq);
 }
 
-static int32_t translateKillTransaction(STranslateContext* pCxt, SKillStmt* pStmt) {
+static int32_t translateKillTransaction(STranslateContext* pCxt, SKillTransStmt* pStmt) {
   SKillTransReq killReq = {0};
   killReq.transId = pStmt->targetId;
   return buildCmdMsg(pCxt, TDMT_MND_KILL_TRANS, (FSerializeFunc)tSerializeSKillTransReq, &killReq);
@@ -24456,6 +24747,48 @@ _return:
 #endif
 }
 
+static int32_t translateTransStmt(STranslateContext* pCxt, int32_t msgType) {
+#ifdef TD_ENTERPRISE
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SMTransReq req = {0};
+
+  req.msgType = msgType;
+  req.txnId = pCxt->pParseCxt->txnId;
+
+  // Client-side transaction state validation (avoids unnecessary MNode RPC)
+  if (msgType == TDMT_MND_BEGIN_TXN && req.txnId != 0) {
+    PAR_ERR_JRET(TSDB_CODE_TXN_ALREADY_IN_PROGRESS);
+  }
+  if ((msgType == TDMT_MND_COMMIT_TXN || msgType == TDMT_MND_ROLLBACK_TXN) && req.txnId == 0) {
+    PAR_ERR_JRET(TSDB_CODE_TXN_NOT_IN_PROGRESS);
+  }
+
+  // For COMMIT/ROLLBACK, include the client-tracked VGroup list
+  if (msgType == TDMT_MND_COMMIT_TXN || msgType == TDMT_MND_ROLLBACK_TXN) {
+    req.pVgSet = pCxt->pParseCxt->pTxnVgSet;  // borrowed ref, no ownership transfer
+  }
+
+  PAR_ERR_JRET(buildCmdMsg(pCxt, msgType, (FSerializeFunc)tSerializeSMTransReq, &req));
+_return:
+  req.pVgSet = NULL;  // ensure no double-free (pVgSet belongs to STscObj)
+  return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;  // supported later
+#endif
+}
+
+static int32_t translateBeginTrans(STranslateContext* pCxt, SBeginTransStmt* pStmt) {
+  return translateTransStmt(pCxt, TDMT_MND_BEGIN_TXN);
+}
+
+static int32_t translateCommitTrans(STranslateContext* pCxt, SCommitTransStmt* pStmt) {
+  return translateTransStmt(pCxt, TDMT_MND_COMMIT_TXN);
+}
+
+static int32_t translateRollbackTrans(STranslateContext* pCxt, SRollbackTransStmt* pStmt) {
+  return translateTransStmt(pCxt, TDMT_MND_ROLLBACK_TXN);
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -24661,7 +24994,7 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       code = translateKillQuery(pCxt, (SKillQueryStmt*)pNode);
       break;
     case QUERY_NODE_KILL_TRANSACTION_STMT:
-      code = translateKillTransaction(pCxt, (SKillStmt*)pNode);
+      code = translateKillTransaction(pCxt, (SKillTransStmt*)pNode);
       break;
     case QUERY_NODE_KILL_SSMIGRATE_STMT:
       code = translateKillSsMigrate(pCxt, (SKillStmt*)pNode);
@@ -24774,6 +25107,15 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_ALTER_RSMA_STMT:
       code = translateAlterRsma(pCxt, (SAlterRsmaStmt*)pNode);
+      break;
+    case QUERY_NODE_BEGIN_TRANS_STMT:
+      code = translateBeginTrans(pCxt, (SBeginTransStmt*)pNode);
+      break;
+    case QUERY_NODE_COMMIT_TRANS_STMT:
+      code = translateCommitTrans(pCxt, (SCommitTransStmt*)pNode);
+      break;
+    case QUERY_NODE_ROLLBACK_TRANS_STMT:
+      code = translateRollbackTrans(pCxt, (SRollbackTransStmt*)pNode);
       break;
     /** XNode part */
     case QUERY_NODE_CREATE_XNODE_STMT:
@@ -26394,6 +26736,7 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
   col_id_t      index = 0;
 
   req.type = TD_VIRTUAL_NORMAL_TABLE;
+  req.txnId = pCxt->pParseCxt->txnId;
   req.name = taosStrdup(pStmt->tableName);
   req.ntb.schemaRow.nCols = LIST_LENGTH(pStmt->pCols);
   req.ntb.schemaRow.version = 1;
@@ -26455,12 +26798,13 @@ static col_id_t getTagSchemaIndex(const STableMeta* pTableMeta, const char* pTag
 
 static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, STableMeta* pStbMeta, SArray* tagName,
                                             uint8_t tagNum, const STag* pTag, const SVgroupInfo* pVgroupInfo,
-                                            SVgroupCreateTableBatch* pBatch, SNodeList* pTagRefNodes) {
+                                            SVgroupCreateTableBatch* pBatch, SNodeList* pTagRefNodes, int64_t txnId) {
   int32_t       code = TSDB_CODE_SUCCESS;
   SVCreateTbReq req = {0};
   SNode*        pCol;
 
   req.type = TD_VIRTUAL_CHILD_TABLE;
+  req.txnId = txnId;
   req.name = taosStrdup(pStmt->tableName);
   req.ttl = 0;
   req.commentLen = -1;
@@ -26540,6 +26884,7 @@ static int32_t buildNormalTableBatchReq(STranslateContext* pCxt, const SCreateTa
                                         const SVgroupInfo* pVgroupInfo, SVgroupCreateTableBatch* pBatch) {
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
+  req.txnId = pCxt->pParseCxt->txnId;
   req.name = taosStrdup(pStmt->tableName);
   if (!req.name) {
     tdDestroySVCreateTbReq(&req);
@@ -26748,9 +27093,10 @@ static int32_t rewriteCreateTable(STranslateContext* pCxt, SQuery* pQuery) {
 static int32_t addCreateTbReqIntoVgroup(SHashObj* pVgroupHashmap, const char* dbName, uint64_t suid,
                                         const char* sTableName, const char* tableName, SArray* tagName, uint8_t tagNum,
                                         const STag* pTag, int32_t ttl, const char* comment, bool ignoreExists,
-                                        SVgroupInfo* pVgInfo) {
+                                        SVgroupInfo* pVgInfo, int64_t txnId) {
   struct SVCreateTbReq req = {0};
   req.type = TD_CHILD_TABLE;
+  req.txnId = txnId;
   req.name = taosStrdup(tableName);
   req.ttl = ttl;
   if (comment != NULL) {
@@ -27004,7 +27350,7 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
     const char* comment = pStmt->pOptions->commentNull ? NULL : pStmt->pOptions->comment;
     code = addCreateTbReqIntoVgroup(pVgroupHashmap, pStmt->dbName, pSuperTableMeta->uid, pStmt->useTableName,
                                     pStmt->tableName, tagName, pSuperTableMeta->tableInfo.numOfTags, pTag,
-                                    pStmt->pOptions->ttl, comment, pStmt->ignoreExists, &info);
+                                    pStmt->pOptions->ttl, comment, pStmt->ignoreExists, &info, pCxt->pParseCxt->txnId);
   } else {
     taosMemoryFree(pTag);
   }
@@ -27424,7 +27770,7 @@ static int32_t createSubTableFromFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt
       code = addCreateTbReqIntoVgroup(pModifyStmt->pVgroupsHashObj, pCreateInfo->useDbName, pSuperTableMeta->uid,
                                       pCreateInfo->useTableName, pData->ctbName.tname, pData->aTagNames,
                                       pSuperTableMeta->tableInfo.numOfTags, pData->pTag, TSDB_DEFAULT_TABLE_TTL, NULL,
-                                      pCreateInfo->ignoreExists, &pData->vg);
+                                      pCreateInfo->ignoreExists, &pData->vg, pParseCxt->txnId);
     }
 
     if (TSDB_CODE_SUCCESS == code) {
@@ -27642,8 +27988,23 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
   if (TSDB_CODE_SUCCESS == code) {
     SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pClause->ignoreNotExists};
     req.isVirtual = isVirtualTable(pTableMeta);
+    req.txnId = pCxt->pParseCxt->txnId;
     req.name = pClause->tableName;
     code = addDropTbReqIntoVgroup(pVgroupHashmap, &info, &req);
+  }
+
+  // Batch meta txn: remove dropped table from txn cache so it's no longer visible
+  if (TSDB_CODE_SUCCESS == code && pCxt->pParseCxt->txnId > 0 && pCxt->pParseCxt->pTxnTableMeta) {
+    char fullName[TSDB_TABLE_FNAME_LEN];
+    if (tNameExtractFullName(name, fullName) == 0) {
+      STableMeta** ppCached = (STableMeta**)taosHashGet(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName));
+      if (ppCached && *ppCached) {
+        taosMemoryFreeClear(*ppCached);
+        if (taosHashRemove(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName)) != 0) {
+          parserWarn("%s txn: failed to remove dropped table from txn cache: %s", __func__, fullName);
+        }
+      }
+    }
   }
 
 over:
@@ -27674,8 +28035,25 @@ static int32_t buildDropVirtualTableVgroupHashmap(STranslateContext* pCxt, SDrop
   PAR_ERR_JRET(getTableHashVgroup(pCxt, pStmt->dbName, pStmt->tableName, &info));
 
   SVDropTbReq req = {.suid = pTableMeta->suid, .igNotExists = pStmt->ignoreNotExists, .isVirtual = true};
+  req.txnId = pCxt->pParseCxt->txnId;
   req.name = pStmt->tableName;
   PAR_ERR_JRET(addDropTbReqIntoVgroup(pVgroupHashmap, &info, &req));
+
+  // Batch meta txn: remove dropped table from txn cache so it's no longer visible
+  if (TSDB_CODE_SUCCESS == code && pCxt->pParseCxt->txnId != 0 && pCxt->pParseCxt->pTxnTableMeta) {
+    SName dropName = {0};
+    toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &dropName);
+    char fullName[TSDB_TABLE_FNAME_LEN];
+    if (tNameExtractFullName(&dropName, fullName) == 0) {
+      STableMeta** ppCached = (STableMeta**)taosHashGet(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName));
+      if (ppCached && *ppCached) {
+        taosMemoryFreeClear(*ppCached);
+        if (taosHashRemove(pCxt->pParseCxt->pTxnTableMeta, fullName, strlen(fullName)) != 0) {
+          parserWarn("%s txn: failed to remove dropped vtable from txn cache: %s", __func__, fullName);
+        }
+      }
+    }
+  }
 
 _return:
   taosMemoryFreeClear(pTableMeta);
@@ -29009,6 +29387,7 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
         goto _error;
       }
       req.pReq->action = TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL;
+      req.pReq->txnId = pCxt->pParseCxt->txnId;
       req.pReq->tables = taosArrayInit(10, sizeof(SUpdateTableTagVal));
       if (req.pReq->tables == NULL) {
         tfreeUpdateTableTagVal(&table);
@@ -29194,6 +29573,7 @@ static int32_t createAlterChildTableTagValVgroupReqs(STranslateContext* pCxt, SA
     }
 
     req.pReq->action = TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL;
+    req.pReq->txnId = pCxt->pParseCxt->txnId;
 
     code = taosHashPut(reqs, &req.vg.vgId, sizeof(req.vg.vgId), &req, sizeof(req));
     if (code != TSDB_CODE_SUCCESS) {
@@ -29403,6 +29783,7 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   }
 
   SVAlterTbReq req = {0};
+  req.txnId = pCxt->pParseCxt->txnId;
   int32_t      code = buildAlterTbReq(pCxt, pStmt, pTableMeta, &req);
 
   SArray* pArray = NULL;
@@ -29464,10 +29845,11 @@ _return:
 
 static int32_t buildCreateVSubTableDataBlock(const SCreateVSubTableStmt* pStmt, const SVgroupInfo* pInfo,
                                              SArray* pBufArray, STableMeta* pStbMeta, SArray* tagName, uint8_t tagNum,
-                                             const STag* pTag, SNodeList* pTagRefNodes) {
+                                             const STag* pTag, SNodeList* pTagRefNodes, int64_t txnId) {
   SVgroupCreateTableBatch tbatch = {0};
   int32_t                 code = TSDB_CODE_SUCCESS;
-  PAR_ERR_JRET(buildVirtualSubTableBatchReq(pStmt, pStbMeta, tagName, tagNum, pTag, pInfo, &tbatch, pTagRefNodes));
+  PAR_ERR_JRET(
+      buildVirtualSubTableBatchReq(pStmt, pStbMeta, tagName, tagNum, pTag, pInfo, &tbatch, pTagRefNodes, txnId));
   PAR_ERR_JRET(serializeVgroupCreateTableBatch(&tbatch, pBufArray));
 
 _return:
@@ -29738,7 +30120,7 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
   }
 
   PAR_ERR_JRET(buildCreateVSubTableDataBlock(pStmt, &info, pBufArray, pSuperTableMeta, tagName,
-                                             taosArrayGetSize(tagName), pTag, pTagRefNodes));
+                                             taosArrayGetSize(tagName), pTag, pTagRefNodes, pCxt->pParseCxt->txnId));
   PAR_ERR_JRET(rewriteToVnodeModifyOpStmt(pQuery, pBufArray));
 
   nodesDestroyList(pTagRefNodes);
@@ -30499,6 +30881,8 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_SECURITY_POLICIES_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT:
     case QUERY_NODE_SHOW_APPS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:

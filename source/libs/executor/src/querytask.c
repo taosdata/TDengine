@@ -183,6 +183,7 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   (*pTaskInfo)->pMsgCb = pHandle->pMsgCb;
   (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
   (*pTaskInfo)->enableExplain = enableExplain;
+  (*pTaskInfo)->txnId = pHandle->txnId;
 
   if (subEndPoints && taosArrayGetSize(*subEndPoints) > 0) {
     code = initTaskSubJobCtx(*pTaskInfo, subEndPoints, pHandle);
@@ -232,7 +233,7 @@ int32_t initQueriedTableSchemaInfo(SReadHandle* pHandle, SScanPhysiNode* pScanNo
 
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
-  pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn, pHandle->txnId);
   int32_t code = pAPI->metaReaderFn.getEntryGetUidCache(&mr, pScanNode->uid);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to get the table meta, uid:0x%" PRIx64 ", suid:0x%" PRIx64 ", %s", pScanNode->uid, pScanNode->suid,

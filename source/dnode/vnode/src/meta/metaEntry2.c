@@ -58,6 +58,9 @@ typedef struct {
   const SMetaEntry *pOldEntry;
 } SMetaHandleParam;
 
+// Forward declaration for metaRollbackChildTableTags
+static int32_t metaTagIdxUpdate(SMeta *pMeta, const SMetaHandleParam *pParam);
+
 typedef struct {
   EMetaTable   table;
   EMetaTableOp op;
@@ -139,6 +142,285 @@ int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntr
 }
 
 void metaFetchEntryFree(SMetaEntry **ppEntry) { metaCloneEntryFree(ppEntry); }
+
+// ============================================================================
+// txn.idx — small B+ tree tracking pending txn entries for O(k) startup rebuild
+// Key: uid (tb_uid_t).  Value: STxnIdxVal {txnId, txnStatus, txnPrevVer}.
+// ============================================================================
+
+int32_t metaTxnIdxUpsert(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer) {
+  STxnIdxVal val = {.txnId = txnId, .txnStatus = txnStatus, .txnPrevVer = txnPrevVer};
+  // Serialize with concurrent vacuum-thread upsert/delete on pTxnIdx; without
+  // this lock, btree corruption (e.g. invalid idx N, nCells N-1) can occur
+  // when foreground CREATE and async vacuum-commit promote the same B+tree
+  // pages concurrently via the shared pMeta->txn handle.
+  metaWLock(pMeta);
+  int32_t code = tdbTbUpsert(pMeta->pTxnIdx, &uid, sizeof(uid), &val, sizeof(val), pMeta->txn);
+  metaULock(pMeta);
+  if (code != 0) {
+    metaError("vgId:%d, metaTxnIdxUpsert failed, uid:%" PRId64 " txnId:%" PRId64 " since %s", TD_VID(pMeta->pVnode),
+              uid, txnId, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t metaTxnIdxDelete(SMeta *pMeta, tb_uid_t uid) {
+  metaWLock(pMeta);
+  int32_t code = tdbTbDelete(pMeta->pTxnIdx, &uid, sizeof(uid), pMeta->txn);
+  metaULock(pMeta);
+  if (code == TSDB_CODE_NOT_FOUND) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return code;
+}
+
+/**
+ * Rollback tag index (pTagIdx) and child index (pCtbIdx) changes for a child table ALTER.
+ * Called from metaRollbackAlterTable when the altered entry is a CHILD_TABLE.
+ *
+ * Strategy: swap old/new entries and call metaTagIdxUpdate (which deletes old, inserts new).
+ * With swapped params, it deletes the NEW (uncommitted) tag keys and restores the OLD ones.
+ * Then upsert pCtbIdx with the old tag blob.
+ */
+int32_t metaRollbackChildTableTags(SMeta *pMeta, int64_t uid, int64_t prevVersion, int64_t newVersion) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SMetaReader mrOld = {0};
+  SMetaReader mrNew = {0};
+  SMetaEntry *pSuperEntry = NULL;
+
+  // All readers use NOLOCK — we manage lock scope manually to avoid:
+  // 1. META_READER_LOCK + metaWLock later = deadlock (RLock cannot upgrade to WLock)
+  // 2. metaReaderReleaseLock/metaReaderClear double-release confusion
+  metaReaderDoInit(&mrOld, pMeta, META_READER_NOLOCK, 0);
+  metaReaderDoInit(&mrNew, pMeta, META_READER_NOLOCK, 0);
+
+  // Phase 1: Read all entries under a single RLock
+  metaRLock(pMeta);
+  code = metaGetTableEntryByVersion(&mrOld, prevVersion, uid);
+  if (code != 0) {
+    metaULock(pMeta);
+    metaWarn("vgId:%d, rollback child tags: old entry not found for uid %" PRId64 " ver %" PRId64,
+             TD_VID(pMeta->pVnode), uid, prevVersion);
+    goto _exit;
+  }
+
+  code = metaGetTableEntryByVersion(&mrNew, newVersion, uid);
+  if (code != 0) {
+    metaULock(pMeta);
+    metaWarn("vgId:%d, rollback child tags: new entry not found for uid %" PRId64 " ver %" PRId64,
+             TD_VID(pMeta->pVnode), uid, newVersion);
+    goto _exit;
+  }
+
+  if (mrOld.me.type != TSDB_CHILD_TABLE && mrOld.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
+    metaULock(pMeta);
+    goto _exit;
+  }
+
+  code = metaFetchEntryByUid(pMeta, mrOld.me.ctbEntry.suid, &pSuperEntry);
+  metaULock(pMeta);
+  if (code != 0 || pSuperEntry == NULL) {
+    metaWarn("vgId:%d, rollback child tags: super table uid %" PRId64 " not found, skip tag/ctb rollback",
+             TD_VID(pMeta->pVnode), mrOld.me.ctbEntry.suid);
+    code = TSDB_CODE_SUCCESS;
+    goto _exit;
+  }
+
+  // Phase 2: Write tag/ctb index under WLock (no RLock held — no deadlock risk)
+  SMetaHandleParam param = {
+      .pEntry = &mrOld.me,     // "new" from metaTagIdxUpdate's perspective → old (restore target)
+      .pOldEntry = &mrNew.me,  // "old" from metaTagIdxUpdate's perspective → new (to be undone)
+      .pSuperEntry = pSuperEntry,
+  };
+  metaWLock(pMeta);
+  code = metaTagIdxUpdate(pMeta, &param);
+  if (code != 0) {
+    metaWarn("vgId:%d, rollback child tags: metaTagIdxUpdate failed for uid %" PRId64 ", code:0x%x",
+             TD_VID(pMeta->pVnode), uid, code);
+  }
+
+  SCtbIdxKey  ctbKey = {.suid = mrOld.me.ctbEntry.suid, .uid = uid};
+  const STag *pOldTags = (const STag *)mrOld.me.ctbEntry.pTags;
+  int32_t     ctbCode = tdbTbUpsert(pMeta->pCtbIdx, &ctbKey, sizeof(ctbKey), pOldTags, pOldTags->len, pMeta->txn);
+  metaULock(pMeta);
+  if (ctbCode != 0) {
+    metaWarn("vgId:%d, rollback child tags: pCtbIdx upsert failed for uid %" PRId64 ", code:0x%x",
+             TD_VID(pMeta->pVnode), uid, ctbCode);
+    if (code == 0) code = ctbCode;
+  } else {
+    metaInfo("vgId:%d, rollback child tags: restored pTagIdx + pCtbIdx for uid %" PRId64, TD_VID(pMeta->pVnode), uid);
+  }
+
+_exit:
+  metaFetchEntryFree(&pSuperEntry);
+  metaReaderClear(&mrOld);
+  metaReaderClear(&mrNew);
+  return code;
+}
+
+/**
+ * Scan txn.idx (O(k) where k = pending txn entries, typically 0~dozens).
+ * Used by vnodeTxnRebuildFromMeta at VNode startup to reconstruct in-memory txn state.
+ * Returns an SArray of SMetaTxnScanEntry (caller must destroy).
+ */
+int32_t metaScanTxnEntries(SMeta *pMeta, SArray **ppResult) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  TBC    *pCursor = NULL;
+
+  SArray *pResult = taosArrayInit(16, sizeof(SMetaTxnScanEntry));
+  if (pResult == NULL) return terrno;
+
+  code = tdbTbcOpen(pMeta->pTxnIdx, &pCursor, NULL);
+  if (code != 0) {
+    taosArrayDestroy(pResult);
+    return code;
+  }
+
+  code = tdbTbcMoveToFirst(pCursor);
+  if (code != 0) {
+    tdbTbcClose(pCursor);
+    taosArrayDestroy(pResult);
+    return code;
+  }
+
+  for (;;) {
+    const void *pKey = NULL;
+    int         kLen = 0;
+    const void *pVal = NULL;
+    int         vLen = 0;
+
+    if (tdbTbcGet(pCursor, &pKey, &kLen, &pVal, &vLen) < 0) break;
+
+    tb_uid_t          uid = *(tb_uid_t *)pKey;
+    const STxnIdxVal *pTxnV = (const STxnIdxVal *)pVal;
+    STxnIdxVal        txnVal = *pTxnV;
+
+    SMetaTxnScanEntry scanEntry = {
+        .uid = uid,
+        .txnId = txnVal.txnId,
+        .txnStatus = txnVal.txnStatus,
+        .txnPrevVer = txnVal.txnPrevVer,
+    };
+    if (taosArrayPush(pResult, &scanEntry) == NULL) {
+      tdbTbcClose(pCursor);
+      taosArrayDestroy(pResult);
+      return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if (tdbTbcMoveToNext(pCursor) < 0) break;
+  }
+
+  tdbTbcClose(pCursor);
+  *ppResult = pResult;
+  return TSDB_CODE_SUCCESS;
+}
+
+// ============================================================================
+// txn_final.idx — lazy COMMIT/ROLLBACK finalization records
+// Key: txnId (int64_t).  Value: STxnFinalVal {finalStatus, timestamp}.
+// Written once per COMMIT/ROLLBACK (O(1)), background vacuum clears after cleanup.
+// ============================================================================
+
+int32_t metaTxnFinalIdxUpsert(SMeta *pMeta, int64_t txnId, const STxnFinalVal *pVal) {
+  int32_t code = tdbTbUpsert(pMeta->pTxnFinalIdx, &txnId, sizeof(txnId), pVal, sizeof(STxnFinalVal), pMeta->txn);
+  if (code != 0) {
+    metaError("vgId:%d, metaTxnFinalIdxUpsert failed, txnId:%" PRId64 " finalStatus:%d code:0x%x",
+              TD_VID(pMeta->pVnode), txnId, pVal->finalStatus, code);
+  }
+  return code;
+}
+
+int32_t metaTxnFinalIdxDelete(SMeta *pMeta, int64_t txnId) {
+  int32_t code = tdbTbDelete(pMeta->pTxnFinalIdx, &txnId, sizeof(txnId), pMeta->txn);
+  if (code == TSDB_CODE_NOT_FOUND) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (code != 0) {
+    metaError("vgId:%d, metaTxnFinalIdxDelete failed, txnId:%" PRId64 " code:0x%x", TD_VID(pMeta->pVnode), txnId, code);
+  }
+  return code;
+}
+
+int32_t metaTxnFinalIdxGet(SMeta *pMeta, int64_t txnId, STxnFinalVal *pVal) {
+  void   *pData = NULL;
+  int32_t nData = 0;
+  int32_t code = tdbTbGet(pMeta->pTxnFinalIdx, &txnId, sizeof(txnId), &pData, &nData);
+  if (code != 0) {
+    return code;
+  }
+  if (nData == sizeof(STxnFinalVal)) {
+    *pVal = *(STxnFinalVal *)pData;
+  } else {
+    code = TSDB_CODE_INTERNAL_ERROR;
+  }
+  tdbFree(pData);
+  return code;
+}
+
+int32_t metaScanTxnFinalEntries(SMeta *pMeta, SArray **ppResult) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  TBC    *pCursor = NULL;
+
+  SArray *pResult = taosArrayInit(4, sizeof(STxnFinalVal) + sizeof(int64_t));
+  if (pResult == NULL) return terrno;
+
+  code = tdbTbcOpen(pMeta->pTxnFinalIdx, &pCursor, NULL);
+  if (code != 0) {
+    taosArrayDestroy(pResult);
+    return code;
+  }
+
+  code = tdbTbcMoveToFirst(pCursor);
+  if (code != 0) {
+    tdbTbcClose(pCursor);
+    taosArrayDestroy(pResult);
+    return code;
+  }
+
+  for (;;) {
+    const void *pKey = NULL;
+    int         kLen = 0;
+    const void *pVal = NULL;
+    int         vLen = 0;
+
+    if (tdbTbcGet(pCursor, &pKey, &kLen, &pVal, &vLen) < 0) break;
+
+    int64_t             txnId = *(int64_t *)pKey;
+    const STxnFinalVal *pFinalVal = (const STxnFinalVal *)pVal;
+
+    // Pack txnId + STxnFinalVal together: first 8 bytes = txnId, next 9 bytes = STxnFinalVal
+    struct {
+      int64_t      txnId;
+      STxnFinalVal val;
+    } entry = {.txnId = txnId, .val = *pFinalVal};
+
+    if (taosArrayPush(pResult, &entry) == NULL) {
+      tdbTbcClose(pCursor);
+      taosArrayDestroy(pResult);
+      return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    if (tdbTbcMoveToNext(pCursor) < 0) break;
+  }
+
+  tdbTbcClose(pCursor);
+  *ppResult = pResult;
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
+ * Check if a txn is finalized (O(1) hash lookup in pVnode->pFinalizedTxns).
+ * Returns TXN_FINAL_NONE (0) if not finalized (txn in progress).
+ * Returns TXN_FINAL_COMMITTED (1) or TXN_FINAL_ROLLEDBACK (2) if finalized.
+ * Thread-safe: pFinalizedTxns uses HASH_ENTRY_LOCK.
+ */
+int8_t metaGetTxnFinalStatus(SMeta *pMeta, int64_t txnId) {
+  if (txnId == 0 || pMeta->pVnode == NULL) return TXN_FINAL_NONE;
+  SVnode *pVnode = pMeta->pVnode;
+  if (pVnode->pFinalizedTxns == NULL) return TXN_FINAL_NONE;
+  int8_t *pStatus = (int8_t *)taosHashGet(pVnode->pFinalizedTxns, &txnId, sizeof(txnId));
+  return pStatus ? *pStatus : TXN_FINAL_NONE;
+}
 
 // Entry Table
 static int32_t metaEntryTableUpsert(SMeta *pMeta, const SMetaHandleParam *pParam, EMetaTableOp op) {
@@ -1392,7 +1674,9 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
   SMetaEntry *pSuperEntry = NULL;
 
   // get the super table entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuperEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -1537,7 +1821,9 @@ static int32_t metaHandleVirtualChildTableCreate(SMeta *pMeta, const SMetaEntry 
   SMetaEntry *pSuperEntry = NULL;
 
   // get the super table entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuperEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -1589,7 +1875,9 @@ static int32_t metaHandleNormalTableDrop(SMeta *pMeta, const SMetaEntry *pEntry)
   SMetaEntry *pOldEntry = NULL;
 
   // fetch the entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -1658,6 +1946,12 @@ static int32_t metaHandleChildTableDropImpl(SMeta *pMeta, const SMetaHandleParam
       continue;
     }
 
+    // TAG_IDX delete requires parent schema — skip when parent is absent
+    // (orphan tag index entries under a non-existent suid are unreachable and benign)
+    if (op->table == META_TAG_IDX && pSuper == NULL) {
+      continue;
+    }
+
     code = metaTableOpFn[op->table][op->op](pMeta, pParam);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
@@ -1666,21 +1960,25 @@ static int32_t metaHandleChildTableDropImpl(SMeta *pMeta, const SMetaHandleParam
   }
 
   --pMeta->pVnode->config.vndStats.numOfCTables;
-  metaUpdateStbStats(pMeta, pParam->pSuperEntry->uid, -1, 0, -1);
-  int32_t ret = metaUidCacheClear(pMeta, pSuper->uid);
-  if (ret < 0) {
-    metaErr(TD_VID(pMeta->pVnode), ret);
-  }
 
-  ret = metaStableTagFilterCacheUpdateUid(
-    pMeta, pChild, pSuper, STABLE_TAG_FILTER_CACHE_DROP_TABLE);
-  if (ret < 0) {
-    metaErr(TD_VID(pMeta->pVnode), ret);
-  }
+  // Parent-dependent cache/stats updates — skip when parent is absent
+  if (pSuper != NULL) {
+    metaUpdateStbStats(pMeta, pSuper->uid, -1, 0, -1);
+    int32_t ret = metaUidCacheClear(pMeta, pSuper->uid);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
 
-  ret = metaTbGroupCacheClear(pMeta, pSuper->uid);
-  if (ret < 0) {
-    metaErr(TD_VID(pMeta->pVnode), ret);
+    ret = metaStableTagFilterCacheUpdateUid(
+      pMeta, pChild, pSuper, STABLE_TAG_FILTER_CACHE_DROP_TABLE);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
+
+    ret = metaTbGroupCacheClear(pMeta, pSuper->uid);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
   }
   return code;
 }
@@ -1691,18 +1989,25 @@ static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry, 
   SMetaEntry *pSuper = NULL;
 
   // fetch old entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pChild);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
   }
 
-  // fetch super entry
+  // fetch super entry — may be absent if parent STB was already dropped
+  // (e.g. during txn rollback: STB cascade-delete didn't reach this child
+  // because metaGetChildUidsOfSuperTable skips PRE_CREATE entries)
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pChild->ctbEntry.suid, &pSuper);
+  metaULock(pMeta);
   if (code) {
-    metaErr(TD_VID(pMeta->pVnode), code);
-    metaFetchEntryFree(&pChild);
-    return code;
+    metaWarn("vgId:%d, %s parent suid:%" PRId64 " not found for child uid:%" PRId64 ", orphan cleanup",
+             TD_VID(pMeta->pVnode), __func__, pChild->ctbEntry.suid, pEntry->uid);
+    code = TSDB_CODE_SUCCESS;
+    pSuper = NULL;  // proceed without parent
   }
 
   SMetaHandleParam param = {
@@ -1723,15 +2028,14 @@ static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry, 
   }
 
   // do other stuff
-  if (!metaTbInFilterCache(pMeta, pSuper->name, 1)) {
-    int32_t      nCols = 0;
-    SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
-    if (metaGetStbStats(pMeta->pVnode, pSuper->uid, NULL, &nCols, 0) == 0) {
-      pStats->numOfTimeSeries -= nCols - 1;
-    }
+  // Use pSuper's already-fetched schema directly — avoids a redundant
+  // metaGetStbStats round-trip through the stats cache.
+  if (pSuper != NULL && !metaTbInFilterCache(pMeta, pSuper->name, 1)) {
+    int32_t nCols = pSuper->stbEntry.schemaRow.nCols;
+    pMeta->pVnode->config.vndStats.numOfTimeSeries -= nCols - 1;
   }
 
-  if (!TSDB_CACHE_NO(pMeta->pVnode->config) && pMeta->pVnode->pTsdb) {
+  if (pSuper != NULL && !TSDB_CACHE_NO(pMeta->pVnode->config) && pMeta->pVnode->pTsdb) {
     int32_t ret = tsdbCacheDropTable(pMeta->pVnode->pTsdb, pChild->uid, pSuper->uid, NULL);
     if (ret < 0) {
       metaErr(TD_VID(pMeta->pVnode), ret);
@@ -1784,7 +2088,9 @@ static int32_t metaHandleVirtualNormalTableDrop(SMeta *pMeta, const SMetaEntry *
   SMetaEntry *pOldEntry = NULL;
 
   // fetch the entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -1851,6 +2157,11 @@ static int32_t metaHandleVirtualChildTableDropImpl(SMeta *pMeta, const SMetaHand
       continue;
     }
 
+    // TAG_IDX delete requires parent schema — skip when parent is absent
+    if (op->table == META_TAG_IDX && pSuper == NULL) {
+      continue;
+    }
+
     code = metaTableOpFn[op->table][op->op](pMeta, pParam);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
@@ -1859,26 +2170,30 @@ static int32_t metaHandleVirtualChildTableDropImpl(SMeta *pMeta, const SMetaHand
   }
 
   --pMeta->pVnode->config.vndStats.numOfVCTables;
-  metaUpdateStbStats(pMeta, pParam->pSuperEntry->uid, -1, 0, -1);
-  int32_t ret = metaUidCacheClear(pMeta, pSuper->uid);
-  if (ret < 0) {
-    metaErr(TD_VID(pMeta->pVnode), ret);
-  }
 
-  ret = metaStableTagFilterCacheUpdateUid(
-    pMeta, pChild, pSuper, STABLE_TAG_FILTER_CACHE_DROP_TABLE);
-  if (ret < 0) {
-    metaErr(TD_VID(pMeta->pVnode), ret);
-  }
+  // Parent-dependent cache/stats updates — skip when parent is absent
+  if (pSuper != NULL) {
+    metaUpdateStbStats(pMeta, pSuper->uid, -1, 0, -1);
+    int32_t ret = metaUidCacheClear(pMeta, pSuper->uid);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
 
-  ret = metaTbGroupCacheClear(pMeta, pSuper->uid);
-  if (ret < 0) {
-    metaErr(TD_VID(pMeta->pVnode), ret);
-  }
+    ret = metaStableTagFilterCacheUpdateUid(
+      pMeta, pChild, pSuper, STABLE_TAG_FILTER_CACHE_DROP_TABLE);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
 
-  ret = metaRefDbsCacheClear(pMeta, pSuper->uid);
-  if (ret < 0) {
-    metaErr(TD_VID(pMeta->pVnode), ret);
+    ret = metaTbGroupCacheClear(pMeta, pSuper->uid);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
+
+    ret = metaRefDbsCacheClear(pMeta, pSuper->uid);
+    if (ret < 0) {
+      metaErr(TD_VID(pMeta->pVnode), ret);
+    }
   }
 
   return code;
@@ -1890,18 +2205,23 @@ static int32_t metaHandleVirtualChildTableDrop(SMeta *pMeta, const SMetaEntry *p
   SMetaEntry *pSuper = NULL;
 
   // fetch old entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pChild);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
   }
 
-  // fetch super entry
+  // fetch super entry — may be absent if parent STB was already dropped
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pChild->ctbEntry.suid, &pSuper);
+  metaULock(pMeta);
   if (code) {
-    metaErr(TD_VID(pMeta->pVnode), code);
-    metaFetchEntryFree(&pChild);
-    return code;
+    metaWarn("vgId:%d, %s parent suid:%" PRId64 " not found for child uid:%" PRId64 ", orphan cleanup",
+             TD_VID(pMeta->pVnode), __func__, pChild->ctbEntry.suid, pEntry->uid);
+    code = TSDB_CODE_SUCCESS;
+    pSuper = NULL;  // proceed without parent
   }
 
   SMetaHandleParam param = {
@@ -1922,6 +2242,178 @@ static int32_t metaHandleVirtualChildTableDrop(SMeta *pMeta, const SMetaEntry *p
   }
 
   metaFetchEntryFree(&pChild);
+  metaFetchEntryFree(&pSuper);
+  return code;
+}
+
+/**
+ * Drop an orphaned entry by uid, skipping the name index (since the name was
+ * reclaimed by another table). Used by vacuum to clean up residual B+ tree
+ * entries for rolled-back CREATEs whose names have been reused.
+ *
+ * Caller must hold NO meta lock (this function acquires rlock/wlock internally).
+ * @param pMeta     The meta handle
+ * @param uid       The orphaned uid
+ * @param pOldEntry The already-fetched SMetaEntry for this uid (from metaFetchEntryByUid)
+ */
+int32_t metaDropOrphanedEntry(SMeta *pMeta, tb_uid_t uid, const SMetaEntry *pOldEntry) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t vgId = TD_VID(pMeta->pVnode);
+
+  // Construct the "drop" entry (tombstone marker with negative type)
+  SMetaEntry dropEntry = {
+      .version = -1,
+      .uid = uid,
+  };
+
+  SMetaEntry *pSuper = NULL;
+  bool                needSuper = false;
+  const SMetaTableOp *ops = NULL;
+  int32_t             nOps = 0;
+
+  static const SMetaTableOp childOps[] = {
+      {META_ENTRY_TABLE, META_TABLE_OP_DELETE}, {META_UID_IDX, META_TABLE_OP_DELETE},
+      {META_CHILD_IDX, META_TABLE_OP_DELETE},   {META_TAG_IDX, META_TABLE_OP_DELETE},
+      {META_BTIME_IDX, META_TABLE_OP_DELETE},   {META_TTL_IDX, META_TABLE_OP_DELETE},
+  };
+  static const SMetaTableOp virtualChildOps[] = {
+      {META_ENTRY_TABLE, META_TABLE_OP_DELETE}, {META_UID_IDX, META_TABLE_OP_DELETE},
+      {META_CHILD_IDX, META_TABLE_OP_DELETE},   {META_TAG_IDX, META_TABLE_OP_DELETE},
+      {META_BTIME_IDX, META_TABLE_OP_DELETE},
+  };
+  static const SMetaTableOp normalOps[] = {
+      {META_ENTRY_TABLE, META_TABLE_OP_DELETE},
+      {META_UID_IDX, META_TABLE_OP_DELETE},
+      {META_BTIME_IDX, META_TABLE_OP_DELETE},
+      {META_TTL_IDX, META_TABLE_OP_DELETE},
+  };
+  static const SMetaTableOp virtualNormalOps[] = {
+      {META_ENTRY_TABLE, META_TABLE_OP_DELETE},
+      {META_UID_IDX, META_TABLE_OP_DELETE},
+      {META_BTIME_IDX, META_TABLE_OP_DELETE},
+  };
+  static const SMetaTableOp superOps[] = {
+      {META_ENTRY_TABLE, META_TABLE_OP_DELETE},
+      {META_UID_IDX, META_TABLE_OP_DELETE},
+      {META_SUID_IDX, META_TABLE_OP_DELETE},
+  };
+
+  switch (pOldEntry->type) {
+    case TSDB_CHILD_TABLE:
+      dropEntry.type = -TSDB_CHILD_TABLE;
+      needSuper = true;
+      ops = childOps;
+      nOps = sizeof(childOps) / sizeof(childOps[0]);
+      break;
+    case TSDB_NORMAL_TABLE:
+      dropEntry.type = -TSDB_NORMAL_TABLE;
+      ops = normalOps;
+      nOps = sizeof(normalOps) / sizeof(normalOps[0]);
+      break;
+    case TSDB_VIRTUAL_CHILD_TABLE:
+      dropEntry.type = -TSDB_VIRTUAL_CHILD_TABLE;
+      needSuper = true;
+      ops = virtualChildOps;
+      nOps = sizeof(virtualChildOps) / sizeof(virtualChildOps[0]);
+      break;
+    case TSDB_VIRTUAL_NORMAL_TABLE:
+      dropEntry.type = -TSDB_VIRTUAL_NORMAL_TABLE;
+      ops = virtualNormalOps;
+      nOps = sizeof(virtualNormalOps) / sizeof(virtualNormalOps[0]);
+      break;
+    case TSDB_SUPER_TABLE:
+      dropEntry.type = -TSDB_SUPER_TABLE;
+      ops = superOps;
+      nOps = sizeof(superOps) / sizeof(superOps[0]);
+      break;
+    default:
+      metaError("vgId:%d, metaDropOrphanedEntry: unsupported type %d for uid %" PRId64, vgId, pOldEntry->type, uid);
+      return TSDB_CODE_INVALID_PARA;
+  }
+
+  // For child tables, fetch the parent STB (may be absent if STB was already dropped)
+  if (needSuper) {
+    metaRLock(pMeta);
+    code = metaFetchEntryByUid(pMeta, pOldEntry->ctbEntry.suid, &pSuper);
+    metaULock(pMeta);
+    if (code != 0) {
+      metaDebug("vgId:%d, metaDropOrphanedEntry: parent suid %" PRId64 " not found for orphan uid %" PRId64 " since %s",
+                vgId, pOldEntry->ctbEntry.suid, uid, tstrerror(code));
+      code = TSDB_CODE_SUCCESS;
+      pSuper = NULL;
+    }
+  }
+
+  SMetaHandleParam param = {
+      .pEntry = &dropEntry,
+      .pOldEntry = pOldEntry,
+      .pSuperEntry = pSuper,
+  };
+
+  // Execute index deletions under write lock — all ops EXCEPT META_NAME_IDX
+  metaWLock(pMeta);
+  for (int32_t i = 0; i < nOps; i++) {
+    if (ops[i].table == META_TAG_IDX && pSuper == NULL) continue;
+    code = metaTableOpFn[ops[i].table][ops[i].op](pMeta, &param);
+    if (code != 0) {
+      metaError("vgId:%d, metaDropOrphanedEntry: op[%d] failed for uid %" PRId64 " since %s", vgId, ops[i].table, uid,
+                tstrerror(code));
+      break;
+    }
+  }
+  metaULock(pMeta);
+
+  if (code == 0) {
+    // Update stats
+    switch (pOldEntry->type) {
+      case TSDB_CHILD_TABLE:
+        --pMeta->pVnode->config.vndStats.numOfCTables;
+        if (pSuper != NULL) {
+          metaUpdateStbStats(pMeta, pSuper->uid, -1, 0, -1);
+          (void)metaUidCacheClear(pMeta, pSuper->uid);
+          (void)metaTbGroupCacheClear(pMeta, pSuper->uid);
+        }
+        break;
+      case TSDB_VIRTUAL_CHILD_TABLE:
+        --pMeta->pVnode->config.vndStats.numOfVCTables;
+        if (pSuper != NULL) {
+          metaUpdateStbStats(pMeta, pSuper->uid, -1, 0, -1);
+          (void)metaUidCacheClear(pMeta, pSuper->uid);
+          (void)metaTbGroupCacheClear(pMeta, pSuper->uid);
+        }
+        break;
+      case TSDB_VIRTUAL_NORMAL_TABLE:
+        --pMeta->pVnode->config.vndStats.numOfVTables;
+        break;
+      case TSDB_NORMAL_TABLE:
+        pMeta->pVnode->config.vndStats.numOfNTables--;
+        pMeta->pVnode->config.vndStats.numOfNTimeSeries -= (pOldEntry->ntbEntry.schemaRow.nCols - 1);
+        break;
+      case TSDB_SUPER_TABLE: {
+        pMeta->pVnode->config.vndStats.numOfSTables--;
+        int32_t ret = metaStatsCacheDrop(pMeta, uid);
+        if (ret < 0) {
+          metaError("vgId:%d, metaDropOrphanedEntry: metaStatsCacheDrop failed for uid %" PRId64 " since %s", vgId, uid,
+                    tstrerror(ret));
+        }
+        break;
+      }
+      default:
+        break;
+    }
+
+    // Drop tsdb cache for this uid
+    if (!TSDB_CACHE_NO(pMeta->pVnode->config) && pMeta->pVnode->pTsdb) {
+      int32_t ret = tsdbCacheDropTable(pMeta->pVnode->pTsdb, uid, 0, NULL);
+      if (ret < 0) {
+        metaWarn("vgId:%d, metaDropOrphanedEntry: tsdbCacheDropTable failed for uid %" PRId64 " since %s", vgId, uid,
+                 tstrerror(ret));
+      }
+    }
+
+    metaInfo("vgId:%d, metaDropOrphanedEntry: cleaned orphan uid %" PRId64 " type %d", vgId, uid, pOldEntry->type);
+  }
+
   metaFetchEntryFree(&pSuper);
   return code;
 }
@@ -1965,6 +2457,21 @@ int32_t metaGetChildUidsOfSuperTable(SMeta *pMeta, tb_uid_t suid, SArray **child
       continue;
     } else if (((SCtbIdxKey *)key)->suid > suid) {
       break;
+    }
+
+    // batch meta txn: skip PRE_CREATE entries via txn.idx lookup
+    if (metaHasPendingTxnEntries(pMeta)) {
+      tb_uid_t childUid = ((SCtbIdxKey *)key)->uid;
+      void    *pTxnVal = NULL;
+      int32_t  txnValLen = 0;
+      if (tdbTbGet(pMeta->pTxnIdx, &childUid, sizeof(childUid), &pTxnVal, &txnValLen) == 0) {
+        STxnIdxVal txnVal = *(const STxnIdxVal *)pTxnVal;
+        int8_t     st = txnVal.txnStatus;
+        tdbFree(pTxnVal);
+        if (st == META_TXN_PRE_CREATE) {
+          continue;
+        }
+      }
     }
 
     if (taosArrayPush(*childList, &(((SCtbIdxKey *)key)->uid)) == NULL) {
@@ -2198,7 +2705,9 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
 
   SMetaEntry *pOldEntry = NULL;
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -2294,13 +2803,17 @@ static int32_t metaHandleChildTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
   SMetaEntry *pOldEntry = NULL;
   SMetaEntry *pSuperEntry = NULL;
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
   }
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuperEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     metaFetchEntryFree(&pOldEntry);
@@ -2333,7 +2846,9 @@ static int32_t metaHandleNormalTableUpdate(SMeta *pMeta, const SMetaEntry *pEntr
   SMetaEntry *pOldEntry = NULL;
 
   // fetch old entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -2396,7 +2911,9 @@ static int32_t metaHandleVirtualNormalTableUpdate(SMeta *pMeta, const SMetaEntry
   SMetaEntry *pOldEntry = NULL;
 
   // fetch old entry
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -2427,13 +2944,17 @@ static int32_t metaHandleVirtualChildTableUpdate(SMeta *pMeta, const SMetaEntry 
   SMetaEntry *pOldEntry = NULL;
   SMetaEntry *pSuperEntry = NULL;
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
   }
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->ctbEntry.suid, &pSuperEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     metaFetchEntryFree(&pOldEntry);
@@ -2466,7 +2987,9 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
   SArray     *childList = NULL;
   SMetaEntry *pOldEntry = NULL;
 
+  metaRLock(pMeta);
   code = metaFetchEntryByUid(pMeta, pEntry->uid, &pOldEntry);
+  metaULock(pMeta);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -2485,14 +3008,18 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
   }
 
   // loop to drop all child tables
-  for (int32_t i = 0; i < taosArrayGetSize(childList); i++) {
-    SMetaEntry childEntry = {
-        .version = pEntry->version,
-        .uid = *(tb_uid_t *)taosArrayGet(childList, i),
-        .type = -TSDB_CHILD_TABLE,
-    };
-
-    code = metaHandleChildTableDrop(pMeta, &childEntry, true);
+  // Virtual STBs own VCTBs — route to the virtual-child handler so that
+  // the correct counter (numOfVCTables), B+tree ops, and cache cleanup are used.
+  // Hoist both the child type and the handler out of the loop: stbIsVirtual is
+  // loop-invariant, so the two conditional expressions need only be evaluated once.
+  int32_t childCount = taosArrayGetSize(childList);
+  int32_t (*dropChild)(SMeta *, const SMetaEntry *, bool) =
+      TABLE_IS_VIRTUAL(pOldEntry->flags) ? metaHandleVirtualChildTableDrop : metaHandleChildTableDrop;
+  SMetaEntry childEntry = {.version = pEntry->version,
+                           .type = TABLE_IS_VIRTUAL(pOldEntry->flags) ? -TSDB_VIRTUAL_CHILD_TABLE : -TSDB_CHILD_TABLE};
+  for (int32_t i = 0; i < childCount; ++i) {
+    childEntry.uid = *(tb_uid_t *)TARRAY_GET_ELEM(childList, i);
+    code = dropChild(pMeta, &childEntry, true);
     if (code) {
       metaErr(TD_VID(pMeta->pVnode), code);
     }
@@ -2514,7 +3041,7 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
   }
 
   // do other stuff
-  // metaUpdTimeSeriesNum(pMeta);
+  pMeta->pVnode->config.vndStats.numOfSTables--;
 
   // free resource and return
   taosArrayDestroy(childList);

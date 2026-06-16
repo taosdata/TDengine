@@ -58,6 +58,8 @@
 #include "mndToken.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
+#include "mndTxn.h"
+#include "mndTxnSeq.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "mndView.h"
@@ -120,6 +122,17 @@ static void mndPullupTrans(SMnode *pMnode) {
     // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
+  }
+}
+
+static void mndPullupTxnTimeout(SMnode *pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TXN_TIMER, .pCont = pReq, .contLen = contLen};
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put txn-timeout timer into write-queue since %s", terrstr());
     }
   }
 }
@@ -511,6 +524,14 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsScanPullupInterval == 0) {
     mndPullupScans(pMnode);
   }
+
+  // User batch transaction HB timeout scan (every MND_TXN_PULLUP_INTERVAL_SEC s via write-queue pullup).
+  // HB timeout is TSDB_TXN_HB_TIMEOUT s; worst-case detection latency is their sum.
+  // The pullup pattern ensures the scan runs on the MNode write worker thread.
+  if (sec % MND_TXN_PULLUP_INTERVAL_SEC == 0) {
+    mndPullupTxnTimeout(pMnode);
+  }
+
   if (tsInstancePullupInterval > 0 && sec % tsInstancePullupInterval == 0) {  // check instance expired
     mndPullupInstances(pMnode);
   }
@@ -861,12 +882,15 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan-detail", mndInitScanDetail, mndCleanupScanDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention-detail", mndInitRetentionDetail, mndCleanupRetentionDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-ssmigrate", mndInitSsMigrate, mndCleanupSsMigrate));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-txnSeq", mndInitTxnSeq, mndCleanupTxnSeq));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-txn", mndInitTxn, mndCleanupTxn));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndOpenSdb, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem));
+
   return 0;
 }
 

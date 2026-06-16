@@ -509,6 +509,30 @@ void destroyTscObj(void *pObj) {
   // In any cases, we should not free app inst here. Or an race condition rises.
   /*int64_t connNum = */ (void)atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
+  // Best-effort rollback: if connection is destroyed with an active txn, notify MNode
+  // so it can clean up immediately rather than waiting for the timeout scan.
+#ifdef TD_ENTERPRISE
+  if (pTscObj->txnId != 0) {
+    tscBestEffortRollbackOrphanTxn(pTscObj, pTscObj->txnId, "destroyTscObj");
+  }
+#endif
+
+  tSimpleHashCleanup(pTscObj->pTxnVgSet);
+  pTscObj->pTxnVgSet = NULL;
+  // §34.2 #2: clean up pTxnTableMeta if connection closes with active txn
+  if (pTscObj->pTxnTableMeta) {
+    void *pIter = taosHashIterate(pTscObj->pTxnTableMeta, NULL);
+    while (pIter) {
+      STableMeta **ppMeta = (STableMeta **)pIter;
+      taosMemoryFreeClear(*ppMeta);
+      pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter);
+    }
+    taosHashCleanup(pTscObj->pTxnTableMeta);
+    pTscObj->pTxnTableMeta = NULL;
+  }
+  // pTxnSuidMap values are char[] copied inline by the hash — no per-entry free needed.
+  taosHashCleanup(pTscObj->pTxnSuidMap);
+  pTscObj->pTxnSuidMap = NULL;
   (void)taosThreadMutexDestroy(&pTscObj->mutex);
   taosMemoryFree(pTscObj);
 

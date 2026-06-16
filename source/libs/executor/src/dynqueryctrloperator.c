@@ -2221,6 +2221,7 @@ static int32_t fetchRemoteTableCfg(SOperatorInfo* pOperator, SDBVgInfo* dbVgInfo
   req.header.vgId = vgId;
   tstrncpy(req.dbFName, dbFName, sizeof(req.dbFName));
   tstrncpy(req.tbName, tbName, sizeof(req.tbName));
+  req.txnId = pTaskInfo->txnId;
 
   int32_t contLen = tSerializeSTableCfgReq(NULL, 0, &req);
   char* buf = rpcMallocCont(contLen);

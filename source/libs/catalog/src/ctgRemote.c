@@ -1466,10 +1466,35 @@ int32_t ctgGetTbMetaFromMnodeImpl(SCatalog* pCtg, SRequestConnInfo* pConn, const
 
   ctgDebug("tb:%s, try to get table meta from mnode", tbFName);
 
-  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)](&bInput, &msg, 0, &msgLen, mallocFp, freeFp);
-  if (code) {
-    ctgError("tb:%s, build mnode stablemeta msg failed, code:%s", tbFName, tstrerror(code));
-    CTG_ERR_RET(code);
+  int32_t code = 0;
+  if (pConn->txnId != 0) {
+    // Batch meta txn: build STableInfoReq directly to include txnId for RYOW visibility
+    STableInfoReq infoReq = {0};
+    infoReq.header.vgId = 0;
+    infoReq.txnId = pConn->txnId;
+    if (dbFName) {
+      tstrncpy(infoReq.dbFName, dbFName, TSDB_DB_FNAME_LEN);
+    }
+    tstrncpy(infoReq.tbName, tbName, TSDB_TABLE_NAME_LEN);
+
+    int32_t bufLen = tSerializeSTableInfoReq(NULL, 0, &infoReq);
+    void*   pBuf = (*mallocFp)(bufLen);
+    if (NULL == pBuf) {
+      CTG_ERR_RET(terrno);
+    }
+    int32_t ret = tSerializeSTableInfoReq(pBuf, bufLen, &infoReq);
+    if (ret < 0) {
+      if (freeFp) (*freeFp)(pBuf);
+      CTG_ERR_RET(ret);
+    }
+    msg = pBuf;
+    msgLen = bufLen;
+  } else {
+    code = queryBuildMsg[TMSG_INDEX(reqType)](&bInput, &msg, 0, &msgLen, mallocFp, freeFp);
+    if (code) {
+      ctgError("tb:%s, build mnode stablemeta msg failed, code:%s", tbFName, tstrerror(code));
+      CTG_ERR_RET(code);
+    }
   }
 
   if (pTask) {
@@ -1536,18 +1561,44 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
   ctgDebug("tb:%s, try to get table meta from vnode, vgId:%d, ep num:%d, ep:%s:%u", tbFName, vgroupInfo->vgId,
            vgroupInfo->epSet.numOfEps, pEp->fqdn, pEp->port);
 
-  SBuildTableInput bInput = {.vgId = vgroupInfo->vgId,
-                             .option = reqType == TDMT_VND_TABLE_NAME ? REQ_OPT_TBUID : REQ_OPT_TBNAME,
-                             .autoCreateCtb = autoCreateCtb,
-                             .dbFName = dbFName,
-                             .tbName = (char*)tNameGetTableName(pTableName)};
-  char*            msg = NULL;
-  int32_t          msgLen = 0;
+  char*   msg = NULL;
+  int32_t msgLen = 0;
+  int32_t code = 0;
 
-  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)](&bInput, &msg, 0, &msgLen, mallocFp, freeFp);
-  if (code) {
-    ctgError("tb:%s, build vnode tablemeta msg failed, code:%s", tbFName, tstrerror(code));
-    CTG_ERR_RET(code);
+  if (pConn->txnId != 0) {
+    // Batch meta txn: build STableInfoReq directly to include txnId for PRE_CREATE visibility
+    STableInfoReq infoReq = {0};
+    infoReq.header.vgId = vgroupInfo->vgId;
+    infoReq.option = reqType == TDMT_VND_TABLE_NAME ? REQ_OPT_TBUID : REQ_OPT_TBNAME;
+    infoReq.autoCreateCtb = autoCreateCtb;
+    infoReq.txnId = pConn->txnId;
+    tstrncpy(infoReq.dbFName, dbFName, TSDB_DB_FNAME_LEN);
+    tstrncpy(infoReq.tbName, tNameGetTableName(pTableName), TSDB_TABLE_NAME_LEN);
+
+    int32_t bufLen = tSerializeSTableInfoReq(NULL, 0, &infoReq);
+    void*   pBuf = (*mallocFp)(bufLen);
+    if (NULL == pBuf) {
+      CTG_ERR_RET(terrno);
+    }
+    int32_t ret = tSerializeSTableInfoReq(pBuf, bufLen, &infoReq);
+    if (ret < 0) {
+      if (freeFp) (*freeFp)(pBuf);
+      CTG_ERR_RET(ret);
+    }
+    msg = pBuf;
+    msgLen = bufLen;
+  } else {
+    SBuildTableInput bInput = {.vgId = vgroupInfo->vgId,
+                               .option = reqType == TDMT_VND_TABLE_NAME ? REQ_OPT_TBUID : REQ_OPT_TBNAME,
+                               .autoCreateCtb = autoCreateCtb,
+                               .dbFName = dbFName,
+                               .tbName = (char*)tNameGetTableName(pTableName)};
+
+    code = queryBuildMsg[TMSG_INDEX(reqType)](&bInput, &msg, 0, &msgLen, mallocFp, freeFp);
+    if (code) {
+      ctgError("tb:%s, build vnode tablemeta msg failed, code:%s", tbFName, tstrerror(code));
+      CTG_ERR_RET(code);
+    }
   }
 
   if (pTask) {
@@ -1559,7 +1610,8 @@ int32_t ctgGetTbMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const SNa
     SRequestConnInfo vConn = {.pTrans = pConn->pTrans,
                               .requestId = pConn->requestId,
                               .requestObjRefId = pConn->requestObjRefId,
-                              .mgmtEps = vgroupInfo->epSet};
+                              .mgmtEps = vgroupInfo->epSet,
+                              .txnId = pConn->txnId};
 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx), reqType, pOut, tbFName));
 
@@ -1608,7 +1660,13 @@ int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const S
   void (*freeFp)(void*) = pTask ? taosMemFree : rpcFreeCont;
   char dbFName[TSDB_DB_FNAME_LEN];
   (void)tNameGetFullDbName(pTableName, dbFName);
-  SBuildTableInput bInput = {.vgId = vgroupInfo->vgId, .dbFName = dbFName, .tbName = (char*)pTableName->tname};
+
+  // Build STableCfgReq directly to include txnId from connection info
+  STableCfgReq cfgReq = {0};
+  cfgReq.header.vgId = vgroupInfo->vgId;
+  tstrncpy(cfgReq.dbFName, dbFName, TSDB_DB_FNAME_LEN);
+  tstrncpy(cfgReq.tbName, pTableName->tname, TSDB_TABLE_NAME_LEN);
+  cfgReq.txnId = pConn->txnId;
 
   int32_t code = tNameExtractFullName(pTableName, tbFName);
   if (code) {
@@ -1621,11 +1679,18 @@ int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const S
   ctgDebug("tb:%s, try to get table cfg from vnode, vgId:%d, ep num:%d, ep %s:%d", tbFName, vgroupInfo->vgId,
            vgroupInfo->epSet.numOfEps, pEp->fqdn, pEp->port);
 
-  code = queryBuildMsg[TMSG_INDEX(reqType)](&bInput, &msg, 0, &msgLen, mallocFp, freeFp);
-  if (code) {
-    ctgError("tb:%s, build get tb cfg msg failed, code:%s", tbFName, tstrerror(code));
-    CTG_ERR_RET(code);
+  int32_t bufLen = tSerializeSTableCfgReq(NULL, 0, &cfgReq);
+  void*   pBuf = (*mallocFp)(bufLen);
+  if (NULL == pBuf) {
+    CTG_ERR_RET(terrno);
   }
+  int32_t ret = tSerializeSTableCfgReq(pBuf, bufLen, &cfgReq);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    CTG_ERR_RET(ret);
+  }
+  msg = pBuf;
+  msgLen = bufLen;
 
   if (pTask) {
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, NULL, (char*)tbFName));
@@ -1633,7 +1698,8 @@ int32_t ctgGetTableCfgFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, const S
     SRequestConnInfo vConn = {.pTrans = pConn->pTrans,
                               .requestId = pConn->requestId,
                               .requestObjRefId = pConn->requestObjRefId,
-                              .mgmtEps = vgroupInfo->epSet};
+                              .mgmtEps = vgroupInfo->epSet,
+                              .txnId = pConn->txnId};
 #if CTG_BATCH_FETCH
     SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
@@ -2004,7 +2070,8 @@ int32_t ctgGetVSubtablesMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, i
   SRequestConnInfo vConn = {.pTrans = pConn->pTrans,
                             .requestId = pConn->requestId,
                             .requestObjRefId = pConn->requestObjRefId,
-                            .mgmtEps = vgroupInfo->epSet};
+                            .mgmtEps = vgroupInfo->epSet,
+                            .txnId = pConn->txnId};
 
   return ctgAddBatch(pCtg, vgroupInfo->vgId, &vConn, tReq, reqType, msg, msgLen);
 }

@@ -103,6 +103,12 @@ struct SMeta {
 
   TTB* pSmaIdx;
 
+  // batch meta txn: track pending txn entries for O(k) startup rebuild
+  TTB* pTxnIdx;
+
+  // batch meta txn: lazy COMMIT/ROLLBACK — txn finalization record for O(1) finalize
+  TTB* pTxnFinalIdx;
+
   // stream
   TTB* pStreamDb;
 
@@ -150,6 +156,13 @@ typedef struct {
   int64_t  smaUid;
 } SSmaIdxKey;
 
+#pragma pack(push, 1)
+typedef struct {
+  int64_t txnId;
+  int8_t  txnStatus;
+  int64_t txnPrevVer;
+} STxnIdxVal;
+#pragma pack(pop)
 typedef struct {
   int64_t  btime;
   tb_uid_t uid;
@@ -159,6 +172,15 @@ typedef struct {
   int64_t  ncol;
   tb_uid_t uid;
 } SNcolIdxKey;
+
+
+// metaTxn ==================
+// Fast-path check: returns true if there are any pending (active or finalized-but-un-vacuumed)
+// txn entries in this VNode. When false, callers can skip per-row tdbTbGet(pTxnIdx) lookups.
+// Uses a pre-maintained atomic counter — single cache-line read, no hash traversal.
+static FORCE_INLINE bool metaHasPendingTxnEntries(SMeta* pMeta) {
+  return atomic_load_32(&pMeta->pVnode->txnPendingCount) > 0;
+}
 
 // metaTable ==================
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void* pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,

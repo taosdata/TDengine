@@ -36,6 +36,8 @@ add_executable(blob_test blob_test.c)
 add_executable(replay_test replay_test.c)
 add_executable(timezone_test timezone_test.c)
 add_executable(tmq_blob tmq_blob.c)
+# Phase 1: tmq_taosx_txn disabled — TMQ batch txn delivery not yet implemented (re-enable in Phase 2)
+# add_executable(tmq_taosx_txn tmq_taosx_txn.c)
 
 if(TD_LINUX)
     add_executable(tsz_test tsz_test.c)
@@ -337,7 +339,7 @@ target_link_libraries(
     PUBLIC os
 )
 
-if(TD_LINUX)
+if(${TD_LINUX})
     target_link_libraries(
         tsz_test
         PUBLIC ${TAOS_NATIVE_LIB}
@@ -346,3 +348,4 @@ if(TD_LINUX)
         PUBLIC os
     )
 endif()
+

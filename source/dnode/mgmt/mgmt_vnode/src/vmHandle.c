@@ -96,6 +96,32 @@ void vmSetVnodeSyncTimeout(SVnodeMgmt *pMgmt) {
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 }
 
+void vmCollectTxnIdleQueries(SVnodeMgmt *pMgmt, SArray **ppQueries) {
+  // Defense-in-depth: scan for orphan non-replicated txns whose MNode STrans
+  // ROLLBACK was never delivered (extremely rare given TRN_POLICY_RETRY).
+  // Primary path (Client HB → MNode timeout → STrans) is robust enough that
+  // once-per-hour is more than sufficient for this fallback.
+  static int64_t lastRunMs = 0;
+  int64_t        now = taosGetTimestampMs();
+  if (now - lastRunMs < TSDB_ORPHAN_TXN_SCAN_MS) return;
+  lastRunMs = now;
+
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate(pMgmt->runngingHash, pIter))) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode != NULL && *ppVnode != NULL && !(*ppVnode)->failed) {
+      int32_t scanCode = vnodeCollectIdleTxns((*ppVnode)->pImpl, ppQueries);
+      if (scanCode != 0) {
+        dWarn("vgId:%d, vnodeCollectIdleTxns failed: %s", (*ppVnode)->vgId, tstrerror(scanCode));
+      }
+    }
+  }
+
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+}
+
 void vmGetVnodeLoadsLite(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoadLite));
   if (!pInfo->pVloads) return;
@@ -889,7 +915,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
         tb_uid_t    suid = 0;
         SMeta      *pMeta = vnode.pMeta;
 
-        metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
+        metaReaderDoInit(&mr, pMeta, META_READER_LOCK, 0);
         if (!suidList && !(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
           TSDB_CHECK_CODE(terrno, lino, _exit0);
         }
@@ -2148,6 +2174,10 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_AUDIT_RECORD, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+
+  // Transaction messages
+  if (dmSetMgmtHandle(pArray, TDMT_VND_TXN_COMMIT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_TXN_ROLLBACK, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
   code = 0;
 

@@ -993,11 +993,11 @@ static int32_t rebuildTagDigestUidMap(void* pVnode, uint64_t suid, const SArray*
   TSDB_CHECK_NULL(pDigestUidMap, code, lino, _end, terrno);
   taosHashSetFreeFp(pDigestUidMap, freeSArrayPtr);
 
-  _metaReaderInit(&mr, pVnode, META_READER_LOCK, NULL);
+  _metaReaderInit(&mr, pVnode, META_READER_LOCK, NULL, 0);
   code = metaReaderGetTableEntryByUid(&mr, suid);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  pCur = metaOpenCtbCursor(pVnode, suid, 0);
+  pCur = metaOpenCtbCursor(pVnode, suid, 0, 0);
   TSDB_CHECK_NULL(pCur, code, lino, _end, terrno);
 
   while (1) {
@@ -1811,7 +1811,10 @@ int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid) {
   }
 
   SMetaEntry* pEntry = NULL;
-  if (metaFetchEntryByUid(pMeta, uid, &pEntry) == TSDB_CODE_SUCCESS) {
+  metaRLock(pMeta);
+  int32_t fetchCode = metaFetchEntryByUid(pMeta, uid, &pEntry);
+  metaULock(pMeta);
+  if (fetchCode == TSDB_CODE_SUCCESS) {
     int64_t keep = -1;
     if (pEntry->type == TSDB_SUPER_TABLE) {
       keep = pEntry->stbEntry.keep;
@@ -1819,7 +1822,7 @@ int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid) {
     metaFetchEntryFree(&pEntry);
     return keep;
   }
-  
+
   return -1;
 }
 

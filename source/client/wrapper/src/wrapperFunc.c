@@ -237,6 +237,21 @@ void taos_close(TAOS *taos) {
   (*fp_taos_close)(taos);
 }
 
+int taos_txn_begin(TAOS *taos) {
+  CHECK_INT(fp_taos_txn_begin);
+  return (*fp_taos_txn_begin)(taos);
+}
+
+int taos_txn_commit(TAOS *taos) {
+  CHECK_INT(fp_taos_txn_commit);
+  return (*fp_taos_txn_commit)(taos);
+}
+
+int taos_txn_rollback(TAOS *taos) {
+  CHECK_INT(fp_taos_txn_rollback);
+  return (*fp_taos_txn_rollback)(taos);
+}
+
 const char *taos_data_type(int type) {
   (void)taos_init();
   CHECK_PTR(fp_taos_data_type);

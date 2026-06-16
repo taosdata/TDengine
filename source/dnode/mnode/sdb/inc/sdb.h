@@ -192,7 +192,10 @@ typedef enum {
   SDB_XNODE_USER_PASS = 46,
   SDB_SECURITY_POLICY = 47,
   SDB_GRANT_CLS = 48,
-  SDB_MAX = 49
+  SDB_TXN = 49,
+  SDB_TXN_LOG = 50,  // compact persistent log of terminal (COMMITTED/ROLLEDBACK/ZOMBIE) non-replicated txns
+  SDB_TXN_SEQ = 51,
+  SDB_MAX = 52
 } ESdbType;
 
 typedef struct SSdbRaw {

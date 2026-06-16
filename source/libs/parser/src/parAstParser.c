@@ -1623,6 +1623,26 @@ static int32_t collectMetaKeyFromShowTransactions(SCollectMetaKeyCxt* pCxt, SSho
   return code;
 }
 
+static int32_t collectMetaKeyFromShowTransactionLogs(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TRANSACTION_LOGS,
+                                         pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_TRANS_SHOW, 0,
+                                  pCxt->pMetaCache);
+  }
+  return code;
+}
+
+static int32_t collectMetaKeyFromShowTransactionOrphans(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
+                                         TSDB_INS_TABLE_TRANSACTION_ORPHANS, pCxt->pMetaCache);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, NULL, NULL, PRIV_TRANS_SHOW, 0,
+                                  pCxt->pMetaCache);
+  }
+  return code;
+}
+
 static int32_t collectMetaKeyFromDelete(SCollectMetaKeyCxt* pCxt, SDeleteStmt* pStmt) {
   STableNode* pTable = (STableNode*)pStmt->pFromTable;
   return collectMetaKeyFromRealTableImpl(pCxt, pTable->dbName, pTable->tableName, PRIV_TBL_DELETE, PRIV_OBJ_TBL);
@@ -2336,6 +2356,12 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       code = collectMetaKeyFromShowTransactions(pCxt, (SShowStmt*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT:
+      code = collectMetaKeyFromShowTransactionLogs(pCxt, (SShowStmt*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT:
+      code = collectMetaKeyFromShowTransactionOrphans(pCxt, (SShowStmt*)pStmt);
       break;
     case QUERY_NODE_SHOW_USAGE_STMT:
       code = collectMetaKeyFromShowUsage(pCxt, (SShowStmt*)pStmt);
