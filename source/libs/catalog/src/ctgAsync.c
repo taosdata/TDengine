@@ -4666,6 +4666,7 @@ _return:
 
 int32_t ctgSetSubTaskCb(SCtgTask* pSub, SCtgTask* pTask) {
   int32_t code = 0;
+  bool    needCb = false;
 
   CTG_LOCK(CTG_WRITE, &pSub->lock);
   if (CTG_TASK_DONE == pSub->status) {
@@ -4685,7 +4686,13 @@ int32_t ctgSetSubTaskCb(SCtgTask* pSub, SCtgTask* pTask) {
 
     pMsgCtx->pBatchs = pSubMsgCtx->pBatchs;
 
-    CTG_ERR_JRET(pTask->subRes.fp(pTask));
+    // The sub task is already done, invoke the parent callback below, but never
+    // while holding pSub->lock: the callback may re-enter ctgLaunchSubTask and
+    // resolve back to pSub (e.g. a GET_USER auth task re-deriving its own
+    // GET_TB_META sub task with the same table name), which would acquire
+    // pSub->lock a second time on this thread and self-deadlock on the
+    // non-recursive latch.
+    needCb = true;
   } else {
     if (NULL == pSub->pParents) {
       pSub->pParents = taosArrayInit(4, POINTER_BYTES);
@@ -4702,6 +4709,10 @@ int32_t ctgSetSubTaskCb(SCtgTask* pSub, SCtgTask* pTask) {
 _return:
 
   CTG_UNLOCK(CTG_WRITE, &pSub->lock);
+
+  if (TSDB_CODE_SUCCESS == code && needCb) {
+    CTG_RET(pTask->subRes.fp(pTask));
+  }
 
   CTG_RET(code);
 }
@@ -4730,6 +4741,14 @@ int32_t ctgLaunchSubTask(SCtgTask** ppTask, CTG_TASK_TYPE type, ctgSubTaskCbFp f
   (*ppTask)->subRes.fp = fp;
 
   CTG_ERR_RET(ctgSearchExistingTask(pJob, type, param, &subTaskId));
+  // Never reuse the launcher task itself as its own sub task. A self-referential
+  // sub task would make ctgSetSubTaskCb acquire the same task lock recursively on
+  // this thread (non-recursive latch) and self-deadlock. This can happen when an
+  // auth (GET_USER) task re-derives a GET_TB_META sub task for the same table and
+  // the search matches the in-flight launcher. Force a fresh independent task.
+  if (subTaskId == taskId) {
+    subTaskId = -1;
+  }
   if (subTaskId < 0) {
     CTG_ERR_RET(ctgInitTask(pJob, type, param, &subTaskId));
     newTask = true;
