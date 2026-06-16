@@ -311,6 +311,11 @@ SArray *mmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_QUERY_TRIM_PROGRESS_RSP, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_CREATE_ENCRYPT_KEY, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_CREATE_STREAM_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  // ALTER ENCRYPT KEY / ALTER KEY EXPIRATION 必须先路由到 MNODE 模块（由 mnode leader 处理并广播），
+  // 而不是被 DNODE 模块直接消费。否则 client 的 ALTER SYSTEM SET SVR_KEY 只会在 leader 本地生效，
+  // mnode 中的广播逻辑成为死代码，导致其他节点密钥不更新。
+  if (dmSetMgmtHandle(pArray, TDMT_MND_ALTER_ENCRYPT_KEY, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_MND_ALTER_KEY_EXPIRATION, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_DROP_STREAM_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_DROP_STB_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_KEY_SYNC_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;

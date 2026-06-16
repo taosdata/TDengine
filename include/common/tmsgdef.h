@@ -167,6 +167,14 @@
   TD_DEF_MSG_TYPE(TDMT_DND_QUERY_SNAP_SEND_PROGRESS, "dnode-query-snap-send-progress", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_CLOSE_VNODE, "close-vnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_OPEN_VNODE, "open-vnode", NULL, NULL)
+  // DND 版本的 alter encrypt key 消息：mnode 收到 client 的 TDMT_MND_ALTER_ENCRYPT_KEY 后，
+  // 通过该 DND 消息广播到所有 dnode 执行本地密钥更新（与 TDMT_DND_CREATE_ENCRYPT_KEY 同理）。
+  // 必须使用独立的消息类型，因为传输层路由表中每个 msgType 只能绑定一个 defaultNtype，
+  // 不能用同一个 TDMT_MND_ALTER_ENCRYPT_KEY 同时承担 client->mnode 和 mnode->dnode 两跳。
+  TD_DEF_MSG_TYPE(TDMT_DND_ALTER_ENCRYPT_KEY, "dnode-alter-encrypt-key", NULL, NULL)
+  // DND 版本的 alter key expiration 消息：与 alter encrypt key 同理，mnode 收到 client 的
+  // TDMT_MND_ALTER_KEY_EXPIRATION 后，通过该 DND 消息广播到所有 dnode 执行本地更新。
+  TD_DEF_MSG_TYPE(TDMT_DND_ALTER_KEY_EXPIRATION, "dnode-alter-key-expiration", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8
