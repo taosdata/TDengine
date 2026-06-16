@@ -1084,7 +1084,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
   }
 
   int64_t nRsmaTables = 0;
-  metaReaderDoInit(&mr, SMA_META(pSma), META_READER_LOCK);
+  metaReaderDoInit(&mr, SMA_META(pSma), META_READER_LOCK, 0);
   if (!(uidStore.tbUids = taosArrayInit(1024, sizeof(tb_uid_t)))) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);

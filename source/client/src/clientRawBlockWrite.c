@@ -111,8 +111,11 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   pReq.virtualStb = req.virtualStb;
   pReq.securityLevel = req.securityLevel;  // Preserve source cluster's security classification
 
-  uDebug(LOG_ID_TAG " create stable name:%s suid:%" PRId64 " processSuid:%" PRId64, LOG_ID_VALUE, req.name, req.suid,
-         pReq.suid);
+  pReq.txnId = req.txnId;
+
+  uDebug(LOG_ID_TAG " create stable name:%s suid:%" PRId64 " processSuid:%" PRId64 " txnId:%" PRIu64, LOG_ID_VALUE,
+         req.name, req.suid, pReq.suid, pReq.txnId);
+
   STscObj* pTscObj = pRequest->pTscObj;
   SName    tableName = {0};
   toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName);
@@ -180,10 +183,14 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
   RAW_RETURN_CHECK(tDecodeSVDropStbReq(&coder, &req));
   SCatalog* pCatalog = NULL;
   RAW_RETURN_CHECK(catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog));
+
+  pReq.txnId = req.txnId;
+
   SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self,
-                           .mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp)};
+                           .mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
+                           .txnId = pReq.txnId};
   SName            pName = {0};
   toName(pRequest->pTscObj->acctId, pRequest->pDb, req.name, &pName);
   STableMeta* pTableMeta = NULL;
@@ -203,8 +210,8 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
   pReq.source = TD_REQ_FROM_TAOX;
   //  pReq.suid = processSuid(req.suid, pRequest->pDb);
 
-  uDebug(LOG_ID_TAG " drop stable name:%s suid:%" PRId64 " new suid:%" PRId64, LOG_ID_VALUE, req.name, req.suid,
-         pReq.suid);
+  uDebug(LOG_ID_TAG " drop stable name:%s suid:%" PRId64 " new suid:%" PRId64 " txnId:%" PRIu64, LOG_ID_VALUE, req.name,
+         req.suid, pReq.suid, pReq.txnId);
   STscObj* pTscObj = pRequest->pTscObj;
   SName    tableName = {0};
   toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName);
@@ -503,6 +510,10 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
 
+    if (pCreateReq->txnId != 0) {
+      conn.txnId = pCreateReq->txnId;
+    }
+
     SVgroupInfo pInfo = {0};
     SName       pName = {0};
     toName(pTscObj->acctId, pRequest->pDb, pCreateReq->name, &pName);
@@ -664,6 +675,10 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pDropReq = req.pReqs + iReq;
     pDropReq->igNotExists = true;
+
+    if (pDropReq->txnId != 0) {
+      conn.txnId = pDropReq->txnId;
+    }
     //    pDropReq->suid = processSuid(pDropReq->suid, pRequest->pDb);
 
     SVgroupInfo pInfo = {0};
@@ -797,6 +812,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
   uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&dcoder, data, len);
   RAW_RETURN_CHECK(tDecodeSVAlterTbReq(&dcoder, &req));
+
   // do not deal TSDB_ALTER_TABLE_UPDATE_OPTIONS
   if (req.action == TSDB_ALTER_TABLE_UPDATE_OPTIONS) {
     uInfo(LOG_ID_TAG " alter table action is UPDATE_OPTIONS, ignore", LOG_ID_VALUE);
@@ -810,6 +826,11 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
+  // §35: thread replicated txnId into catalog lookups so VNode returns
+  // PRE_CREATE entries for same-txn ALTER
+  if (req.txnId != 0) {
+    conn.txnId = req.txnId;
+  }
 
   // Handle Type 1 batch modification with vnode grouping
   if (req.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {
@@ -1920,4 +1941,18 @@ end:
   tDeleteMqBatchMetaRsp(&rsp);
   RAW_LOG_END
   return code;
+}
+
+void writeRawCleanup(void) {
+  // Set initedFlag to FAIL first so that any concurrent writeRawInit() / writeRawImpl()
+  // callers will see FAIL and bail out immediately, preventing use-after-free on the
+  // hash tables being cleaned up below.
+  atomic_store_8(&initedFlag, WRITE_RAW_INIT_FAIL);
+
+  SHashObj* h3 = writeRawCache;
+  writeRawCache = NULL;
+
+  taosHashCleanup(h3);
+  atomic_store_8(&initFlag, 0);
+  atomic_store_8(&initedFlag, WRITE_RAW_INIT_START);
 }

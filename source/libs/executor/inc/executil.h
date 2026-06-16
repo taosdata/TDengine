@@ -182,7 +182,7 @@ void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psu
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
   SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap, bool gIdFromBaseId);
 int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, int64_t version, SNode* pTagCond, void* pVnode,
-                                 SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo);
+                                 SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo, int64_t txnId);
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   closeResultRow(SResultRow* pResultRow);
@@ -255,7 +255,7 @@ TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols);
 void  updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, int64_t delta);
 
 SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
-                                        SStorageAPI* pStorageAPI);
+                                        SStorageAPI* pStorageAPI, int64_t txnId);
 
 /**
  * @brief build a tuple into keyBuf

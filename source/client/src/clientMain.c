@@ -372,6 +372,7 @@ void taos_cleanup(void) {
   tzCleanup();
 #endif
   tmqMgmtClose();
+  writeRawCleanup();
 
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
@@ -1075,6 +1076,124 @@ void taos_close(TAOS *taos) {
   taos_close_internal(pObj);
   releaseTscObj(*(int64_t *)taos);
   taosMemoryFree(taos);
+}
+
+/**
+ * @brief Begin a client-side transaction.
+ *
+ * Pre-flight check: acquire the connection mutex, verify no transaction is
+ * already in progress (txnState == IDLE), then mark txnState as
+ * UTXN_STAGE_BEGIN_PENDING before releasing the mutex.  This sentinel blocks
+ * any concurrent taos_txn_begin() call on the same connection before the RPC
+ * round-trip completes.
+ *
+ * The actual BEGIN message is sent via taos_query("BEGIN"), which goes through
+ * the normal SQL parser → execDdlQuery → processBeginTxnRsp path — the same
+ * path used when the user issues `taos_query(conn, "BEGIN")` directly.  On
+ * success processBeginTxnRsp promotes txnState to UTXN_STAGE_ACTIVE; on
+ * failure it resets txnState back to UTXN_STAGE_IDLE.
+ */
+int taos_txn_begin(TAOS *taos) {
+#ifdef TD_ENTERPRISE
+  if (taos == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t  connId = *(int64_t *)taos;
+  STscObj *pTscObj = acquireTscObj(connId);
+  if (NULL == pTscObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  // Check-and-reserve under mutex: prevents concurrent BEGIN attempts.
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  if (pTscObj->txnState != UTXN_STAGE_IDLE) {
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    releaseTscObj(connId);
+    return TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
+  }
+  atomic_store_8(&pTscObj->txnState, UTXN_STAGE_BEGIN_PENDING);
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(connId);
+
+  // Delegate to the SQL path; processBeginTxnRsp handles the full state
+  // transition (IDLE on failure, ACTIVE on success).
+  TAOS_RES *res = taos_query(taos, "BEGIN");
+  int32_t   code = taos_errno(res);
+  taos_free_result(res);
+  return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+#ifdef TD_ENTERPRISE
+// Common implementation for COMMIT and ROLLBACK: validates txn state then
+// issues the SQL via taos_query (which handles the async MNode STrans response).
+static int tscTxnEndImpl(TAOS *taos, const char *sql) {
+  if (taos == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t  connId = *(int64_t *)taos;
+  STscObj *pTscObj = acquireTscObj(connId);
+  if (NULL == pTscObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s, sql:%s", __func__, sql);
+    return terrno;
+  }
+
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+
+  // If the MNode forcibly rolled back this txn due to inactivity timeout, handle locally.
+  if (pTscObj->txnState == UTXN_STAGE_TIMEOUT_KILLED) {
+    bool isRollback = (strcmp(sql, "ROLLBACK") == 0);
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    if (isRollback) {
+      // Local cleanup only — do not send ROLLBACK RPC to MNode since it already
+      // completed the rollback.  Just clear client-side txn state.
+      tscResetTxnState(pTscObj);
+      releaseTscObj(connId);
+      return 0;
+    }
+    // COMMIT (or any other end-of-txn call) is rejected: the txn is already gone.
+    releaseTscObj(connId);
+    return TSDB_CODE_TXN_TIMEOUT_KILLED;
+  }
+
+  if (pTscObj->txnState != UTXN_STAGE_ACTIVE) {
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " not in progress, current state:%d, sql:%s", pTscObj->id,
+            pTscObj->txnId, pTscObj->txnState, sql);
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    releaseTscObj(connId);
+    return TSDB_CODE_TXN_NOT_IN_PROGRESS;
+  }
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(connId);
+
+  TAOS_RES *res = taos_query(taos, sql);
+  int32_t   code = taos_errno(res);
+  taos_free_result(res);
+  return code;
+}
+#endif
+
+int taos_txn_commit(TAOS *taos) {
+#ifdef TD_ENTERPRISE
+  return tscTxnEndImpl(taos, "COMMIT");
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+int taos_txn_rollback(TAOS *taos) {
+#ifdef TD_ENTERPRISE
+  return tscTxnEndImpl(taos, "ROLLBACK");
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
 }
 
 int taos_errno(TAOS_RES *res) {
@@ -1985,7 +2104,8 @@ static int32_t getAllMetaAsync(SSqlCallbackWrapper *pWrapper, catalogCallback fp
   SRequestConnInfo conn = {.pTrans = pWrapper->pParseCtx->pTransporter,
                            .requestId = pWrapper->pParseCtx->requestId,
                            .requestObjRefId = pWrapper->pParseCtx->requestRid,
-                           .mgmtEps = pWrapper->pParseCtx->mgmtEpSet};
+                           .mgmtEps = pWrapper->pParseCtx->mgmtEpSet,
+                           .txnId = pWrapper->pParseCtx->txnId};
 
   pWrapper->pRequest->metric.ctgStart = taosGetTimestampUs();
 
@@ -2105,12 +2225,17 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .sodInitial = pTscObj->pAppInfo->serverCfg.sodInitial,
                            .async = true,
                            .svrVer = pTscObj->sVer,
-                           .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes), .allocatorId = pRequest->allocatorRefId,
+                           .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
+                           .allocatorId = pRequest->allocatorRefId,
                            .parseSqlFp = clientParseSql,
                            .parseSqlParam = pWrapper,
                            .setQueryFp = setQueryRequest,
                            .timezone = pTscObj->optionInfo.timezone,
                            .charsetCxt = pTscObj->optionInfo.charsetCxt,
+                           .txnId = pTscObj->txnId,
+                           .pTxnVgSet = pTscObj->pTxnVgSet,
+                           .pTxnTableMeta = pTscObj->pTxnTableMeta,
+                           .pTxnSuidMap = pTscObj->pTxnSuidMap,
                            .firstDayOfWeek = pTscObj->optionInfo.firstDayOfWeek};
   tstrncpy((*pCxt)->timezoneName, pTscObj->optionInfo.timezoneName, sizeof((*pCxt)->timezoneName));
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
@@ -2165,8 +2290,17 @@ static void doAsyncExec(SRequestObj *pRequest, int32_t code) {
 
   if (TSDB_CODE_SUCCESS == code) {
     pRequest->stmtType = pRequest->pQuery->pRoot->type;
-    markPassAlterSelf(pRequest, pRequest->pQuery);
-    code = phaseAsyncQuery(pWrapper);
+#ifdef TD_ENTERPRISE
+    bool handled = false;
+    code = tscCheckTxnState(pRequest, pWrapper, &handled);
+    if (handled) return;  // ROLLBACK early-exit: callback already dispatched
+    if (TSDB_CODE_SUCCESS == code) {
+#endif
+      markPassAlterSelf(pRequest, pRequest->pQuery);
+      code = phaseAsyncQuery(pWrapper);
+#ifdef TD_ENTERPRISE
+    }
+#endif
   }
 
   if (TSDB_CODE_SUCCESS != code) {

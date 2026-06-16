@@ -125,6 +125,8 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->metaGetCachedRefDbs = metaGetCachedRefDbs;
   pMeta->metaPutRefDbsToCache = metaPutRefDbsToCache;
+
+  pMeta->hasPendingTxnEntries = vnodeHasPendingTxnEntries;
 }
 
 void initTqAPI(SStoreTqReader* pTq) {

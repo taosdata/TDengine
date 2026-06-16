@@ -1310,6 +1310,11 @@ col_name_with_mask(A) ::= MASK NK_LP column_name(B) NK_RP.                      
 cmd ::= CREATE MOUNT not_exists_opt(A) mount_name(B) ON DNODE NK_INTEGER(C) FROM NK_STRING(D). { pCxt->pRootNode = createCreateMountStmt(pCxt, A, &B, &C, &D); }
 cmd ::= DROP MOUNT exists_opt(A) mount_name(B).                                   { pCxt->pRootNode = createDropMountStmt(pCxt, A, &B); }
 
+/*********************************** Transaction - begin/commit/rollback ***************************************/
+cmd ::= BEGIN.                                                                    { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANS_STMT); }
+cmd ::= START TRANSACTION.                                                        { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANS_STMT); }
+cmd ::= COMMIT.                                                                   { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_COMMIT_TRANS_STMT); }
+cmd ::= ROLLBACK.                                                                 { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_ROLLBACK_TRANS_STMT); }
 /************************************************ show ****************************************************************/
 cmd ::= SHOW DNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DNODES_STMT); }
 cmd ::= SHOW USERS.                                                               { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_USERS_STMT); }
@@ -1375,6 +1380,8 @@ cmd ::= SHOW CLUSTER.                                                           
 cmd ::= SHOW SECURITY_POLICIES.                                                   { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SECURITY_POLICIES_STMT); }
 cmd ::= SHOW TRANSACTIONS.                                                        { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TRANSACTIONS_STMT); }
 cmd ::= SHOW TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createShowTransactionDetailsStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A)); }
+cmd ::= SHOW TRANSACTION LOGS.                                                    { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT); }
+cmd ::= SHOW TRANSACTION ORPHANS.                                                 { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT); }
 cmd ::= SHOW TABLE DISTRIBUTED full_table_name(A).                                { pCxt->pRootNode = createShowTableDistributedStmt(pCxt, A); }
 cmd ::= SHOW CONSUMERS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONSUMERS_STMT); }
 cmd ::= SHOW SUBSCRIPTIONS.                                                       { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT); }
@@ -1806,7 +1813,7 @@ ignore_opt(A) ::= IGNORE UNTREATED.                                             
 /************************************************ kill connection/query ***********************************************/
 cmd ::= KILL CONNECTION NK_INTEGER(A).                                            { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_CONNECTION_STMT, &A); }
 cmd ::= KILL QUERY NK_STRING(A).                                                  { pCxt->pRootNode = createKillQueryStmt(pCxt, &A); }
-cmd ::= KILL TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_TRANSACTION_STMT, &A); }
+cmd ::= KILL TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createKillTransStmt(pCxt, QUERY_NODE_KILL_TRANSACTION_STMT, &A); }
 cmd ::= KILL COMPACT NK_INTEGER(A).                                               { pCxt->pRootNode = createKillCompactStmt(pCxt, &A, false); }
 cmd ::= KILL COMPACT NK_INTEGER(A) FORCE.                                         { pCxt->pRootNode = createKillCompactStmt(pCxt, &A, true); }
 cmd ::= KILL RETENTION NK_INTEGER(A).                                             { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_RETENTION_STMT, &A); }

@@ -457,7 +457,7 @@ static int32_t filterUnqualifiedTables(const STmqQueryScanInfo* pScanInfo, const
 
   // let's discard the tables those are not created according to the queried super table.
   SMetaReader mr = {0};
-  pAPI->metaReaderFn.initReader(&mr, pScanInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, pScanInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pScanInfo->readHandle.txnId);
 
   locked = 1;
   for (int32_t i = 0; i < numOfUids; ++i) {
@@ -1947,7 +1947,7 @@ end:
 }
 
 static int32_t doFilterTableByTagCond(void* pVnode, STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, SStorageAPI* pStorageAPI){
-  int32_t code = doFilterByTagCond(pListInfo->idInfo.suid, pUidList, -1, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, NULL);
+  int32_t code = doFilterByTagCond(pListInfo->idInfo.suid, pUidList, -1, pTagCond, pVnode, SFLT_NOT_INDEX, pStorageAPI, NULL, 0);
   if (code != 0) {
     return code;
   }
@@ -2391,7 +2391,7 @@ int32_t qFilterTableList(void* pVnode, SArray* uidList, int64_t version, SNode* 
   int32_t         code = TSDB_CODE_SUCCESS;
 
   SNode* pTagCond = node == NULL ? NULL : ((SSubplan*)node)->pTagCond;
-  code = doFilterByTagCond(suid, uidList, version, pTagCond, pVnode, SFLT_NOT_INDEX, &((SExecTaskInfo*)pTaskInfo)->storageAPI, NULL);
+  code = doFilterByTagCond(suid, uidList, version, pTagCond, pVnode, SFLT_NOT_INDEX, &((SExecTaskInfo*)pTaskInfo)->storageAPI, NULL, 0);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }

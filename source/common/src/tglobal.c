@@ -187,6 +187,7 @@ int64_t tsSyncAssignedCheckAppliedGap = 20;
 int64_t tsMndSdbWriteDelta = 200;
 int64_t tsMndLogRetention = 2000;
 bool    tsMndSkipGrant = false;
+int32_t tsTxnTimeout = TSDB_TXN_TIMEOUT_DEFAULT;
 bool    tsEnableWhiteList = false;  // ip white list cfg
 bool    tsForceKillTrans = false;
 int8_t  tsSodEnforceMode = 0;
@@ -1040,7 +1041,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusIntervalMs", tsStatusIntervalMs, 50, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusSRTimeoutMs", tsStatusSRTimeoutMs, 50, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "statusTimeoutMs", tsStatusTimeoutMs, 50, 30000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfCompactThreads", tsNumOfCompactThreads, 1, 16, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
@@ -1101,6 +1101,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "mndSdbWriteDelta", tsMndSdbWriteDelta, 20, 10000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL,CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "mndLogRetention", tsMndLogRetention, 500, 10000, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL,CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "skipGrant", tsMndSkipGrant, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_GLOBAL,CFG_PRIV_SECURITY));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "txnTimeout", tsTxnTimeout, TSDB_TXN_TIMEOUT_MIN, TSDB_TXN_TIMEOUT_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL,CFG_PRIV_SYSTEM));
 
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "monitor", tsEnableMonitor, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 86400, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -2254,6 +2255,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "skipGrant");
   tsMndSkipGrant = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "txnTimeout");
+  tsTxnTimeout = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableWhiteList");
   tsEnableWhiteList = pItem->bval;
 
@@ -3224,6 +3228,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"slowLogExceptDb", &tsSlowLogExceptDb},
 
                                          {"mndSdbWriteDelta", &tsMndSdbWriteDelta},
+                                         {"txnTimeout", &tsTxnTimeout},
                                          {"minDiskFreeSize", &tsMinDiskFreeSize},
                                          {"randErrorChance", &tsRandErrChance},
                                          {"randErrorDivisor", &tsRandErrDivisor},

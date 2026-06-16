@@ -107,7 +107,7 @@ static int32_t buildTagRefSourceScanNode(SReadHandle* pHandle, STagRefSourcePhys
   SMetaReader mr = {0};
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
 
-  pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn, pHandle->txnId);
   int32_t code = pAPI->metaReaderFn.getTableEntryByName(&mr, pTagRefSourceNode->sourceTableName.tname);
   if (code != TSDB_CODE_SUCCESS) {
     pAPI->metaReaderFn.clearReader(&mr);

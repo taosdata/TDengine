@@ -199,6 +199,12 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_SECURITY_POLICIES;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, len) == 0) {
     type = TSDB_MGMT_TABLE_VIRTUAL_TABLES_REFERENCING;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_LOGS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TXN_LOG;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTION_ORPHANS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TXN_ORPHANS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTIONS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TRANS;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }
@@ -221,6 +227,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
   (void)memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
   tstrncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
+  showObj.txnId = pReq->txnId;
 
   int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);

@@ -116,6 +116,13 @@ int32_t taosDriverInit(EDriverType driverType) {
   LOAD_FUNC(fp_taos_connect_with, "taos_connect_with");
   LOAD_FUNC(fp_taos_connect_with_dsn, "taos_connect_with_dsn");
   LOAD_FUNC(fp_taos_close, "taos_close");
+  // txn functions are currently only implemented in the native driver, not in the WebSocket driver.
+  // Use LOAD_FUNC_OPTIONAL (optional) instead of LOAD_FUNC (mandatory) so that loading the WebSocket
+  // driver does not fail due to missing symbols. Switch to LOAD_FUNC once the WebSocket driver
+  // implements txn support.
+  LOAD_FUNC_OPTIONAL(fp_taos_txn_begin, "taos_txn_begin");
+  LOAD_FUNC_OPTIONAL(fp_taos_txn_commit, "taos_txn_commit");
+  LOAD_FUNC_OPTIONAL(fp_taos_txn_rollback, "taos_txn_rollback");
 
   LOAD_FUNC(fp_taos_data_type, "taos_data_type");
 

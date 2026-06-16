@@ -221,6 +221,12 @@ typedef struct STscObj {
   int8_t         connType;
   int8_t         dropped;
   int8_t         biMode;
+  int8_t         txnState;
+  txn_id_t       txnId;
+  int32_t        txnDdlCount;    // DDL op count in current txn; checked against TSDB_TXN_MAX_DDL_OPS_PER_TXN
+  SSHashObj*     pTxnVgSet;      // Hash set of int32_t vgId → dummy, accumulated during DDL in txn
+  SHashObj*      pTxnTableMeta;  // Hash cache: "db.table" → STableMeta* for tables created in this txn
+  SHashObj*      pTxnSuidMap;    // Hash: suid (uint64_t) → stbFullName (char[TSDB_TABLE_FNAME_LEN])
   union {
     uint32_t flags;
     struct {
@@ -357,6 +363,7 @@ typedef struct SRequestObj {
   bool                 inRetry;
   bool                 isSubReq;
   bool                 inCallback;
+  bool                 txnChecked;  // true after doAsyncQuery has validated txn state; skips re-check in launchQueryImpl
   uint8_t              stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
   bool                 isQuery;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
@@ -452,8 +459,11 @@ int64_t      removeFromMostPrevReq(SRequestObj* pRequest);
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
 void  resetConnectDB(STscObj* pTscObj);
-
-int taos_options_imp(TSDB_OPTION option, const char* str);
+void  tscBestEffortRollbackOrphanTxn(STscObj* pTscObj, txn_id_t txnId, const char* source);// Reset all client-side txn state (txnId, txnState, txnDdlCount, pTxnVgSet, pTxnTableMeta, pTxnSuidMap).
+// Used for explicit COMMIT/ROLLBACK completion and for local-only cleanup after a timeout-killed txn.
+void    tscResetTxnState(STscObj* pTscObj);
+int32_t isTxnAllowedStmtType(SNode* pRoot);
+int     taos_options_imp(TSDB_OPTION option, const char* str);
 
 int32_t openTransporter(const char* user, const char* auth, int32_t numOfThreads, void** pDnodeConn);
 void    tscStopCrashReport();
@@ -512,6 +522,7 @@ typedef struct SSqlCallbackWrapper {
 } SSqlCallbackWrapper;
 
 void    setQueryRequest(int64_t rId);
+int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, bool* pHandled);
 void    launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
 void    launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta, SSqlCallbackWrapper* pWrapper);
@@ -521,6 +532,10 @@ void    doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
 int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView);
 int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
+int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, STableMetaRsp* pMetaRsp, const char* opName);
+int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, STableMetaRsp* pMetaRsp);
+int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, const char* fullName, STableMeta* pTableMeta, const char* opName);
+int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, const SName* pStbName);
 int32_t qnodeRequired(SRequestObj* pRequest, bool* required);
 void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
@@ -575,6 +590,7 @@ enum { MONITORSQLTYPESELECT = 0, MONITORSQLTYPEINSERT = 1, MONITORSQLTYPEDELETE 
 void sqlReqLog(int64_t rid, bool killed, int32_t code, int8_t type);
 
 void tmqMgmtClose(void);
+void writeRawCleanup(void);
 
 #ifdef __cplusplus
 }

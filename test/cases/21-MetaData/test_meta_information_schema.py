@@ -69,6 +69,9 @@ EXPECTED_INFO_TABLES = {
     "ins_tokens",
     "ins_topics",
     "ins_transaction_details",
+    "ins_transaction_logs",
+    "ins_transaction_orphans",
+    "ins_transactions",
     "ins_tsmas",
     "ins_user_privileges",
     "ins_users",
@@ -101,8 +104,12 @@ def get_sys_table_names(db_name):
 
 def get_checked_sys_table_counts():
     actual_info_tables = get_sys_table_names("information_schema")
+    tdLog.info(f"Actual information_schema tables: {actual_info_tables}")
+    tdLog.info(f"Expected information_schema tables: {EXPECTED_INFO_TABLES}")
     tdSql.checkEqual(actual_info_tables, EXPECTED_INFO_TABLES)
     actual_perf_tables = get_sys_table_names("performance_schema")
+    tdLog.info(f"Actual performance_schema tables: {actual_perf_tables}")
+    tdLog.info(f"Expected performance_schema tables: {EXPECTED_PERF_TABLES}")
     tdSql.checkEqual(actual_perf_tables, EXPECTED_PERF_TABLES)
     return len(actual_info_tables), len(actual_perf_tables)
 
@@ -1172,7 +1179,7 @@ class TestDdlInSysdb:
         tdSql.query("select * from information_schema.ins_columns where db_name ='information_schema'")
         
         tdSql.query("select * from information_schema.ins_columns where db_name ='performance_schema'")
-        tdSql.checkRows(74)
+        tdSql.checkRows(75)
 
     def ins_dnodes_check(self):
         tdSql.execute('drop database if exists db2')
@@ -1454,7 +1461,9 @@ class TestDdlInSysdb:
         40. Check information_schema.ins_rsmas
         41. Check information_schema.ins_retentions
         42. Check information_schema.ins_retention_details
-        43. Check table counting and distinct value operations again after all above tests
+        43. Check information_schema.ins_transaction_logs
+        44. Check information_schema.ins_transactions
+        45. Check table counting and distinct value operations again after all above tests
         44. Check functions on information_schema tables
             - count/sum/min/max/stddev/avg/apercentile/
             - top/bottom/spread/histogram/hyperloglog/sample/mode

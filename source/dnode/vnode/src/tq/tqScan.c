@@ -107,7 +107,7 @@ end:
 static int32_t tqGetUidSuid(SMeta* pMeta, const char* tbName, int64_t* uid, int64_t* suid){
   SMetaReader mr = {0};
 
-  metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, pMeta, META_READER_LOCK, 0);
   int32_t code = metaGetTableEntryByName(&mr, tbName);
   if (code == 0) {
     *uid = mr.me.uid;
@@ -248,7 +248,7 @@ static void tqProcessAlterTbMsg(SDecoder* dcoder, SWalCont* pHead, STQ* pTq, STq
   } else if (req.action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
     ETableType tbType = 0;
     uint64_t suid = 0;
-    STREAM_CHECK_RET_GOTO(metaGetTableTypeSuidByName(pTq->pVnode, req.tbName, &tbType, &suid));
+    STREAM_CHECK_RET_GOTO(metaGetTableTypeSuidByName(pTq->pVnode, req.tbName, &tbType, &suid, 0));
     if (tbType != TSDB_SUPER_TABLE) {
       tqError("%s failed at line:%d since table %s is not super table, code:%d", __func__, lino, req.tbName, code);
       goto end;
@@ -1610,7 +1610,7 @@ static int32_t tqAddTbNameToRsp(const STQ* pTq, int64_t uid, SMqDataRsp* pRsp, i
   TSDB_CHECK_NULL(pTq, code, lino, END, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pRsp, code, lino, END, TSDB_CODE_INVALID_PARA);
 
-  metaReaderDoInit(&mr, pTq->pVnode->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, pTq->pVnode->pMeta, META_READER_LOCK, 0);
 
   code = metaReaderGetTableEntryByUidCache(&mr, uid);
   if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST){

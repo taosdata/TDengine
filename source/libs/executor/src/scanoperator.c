@@ -621,7 +621,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
   // 1. check if it is existed in meta cache
   if (pCache == NULL || pCache->pTableMetaEntryCache == NULL) {
-    pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
+    pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn, pHandle->txnId);
     code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
     if (code != TSDB_CODE_SUCCESS) {
       // when encounter the TSDB_CODE_PAR_TABLE_NOT_EXIST error, we proceed.
@@ -647,7 +647,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
     h = taosLRUCacheLookup(pCache->pTableMetaEntryCache, &pBlock->info.id.uid, sizeof(pBlock->info.id.uid));
     if (h == NULL) {
-      pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn);
+      pHandle->api.metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pHandle->api.metaFn, pHandle->txnId);
       freeReader = true;
       code = pHandle->api.metaReaderFn.getEntryGetUidCache(&mr, pBlock->info.id.uid);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1393,7 +1393,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
   }
 
   if (isNewTable) {
-    pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+    pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->base.readHandle.txnId);
     code = pAPI->metaReaderFn.getTableEntryByName(&orgTable, strstr(pOrgTbInfo->tbName, ".") + 1);
     pAPI->metaReaderFn.readerReleaseLock(&orgTable);
     qDebug("dynamic vtable scan for origin table:%s, %s", pOrgTbInfo->tbName, GET_TASKID(pTaskInfo));
@@ -1401,7 +1401,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     SExtSchema *extSchema = NULL;
     switch (orgTable.me.type) {
       case TSDB_CHILD_TABLE:
-        pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+        pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->base.readHandle.txnId);
         code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
         pAPI->metaReaderFn.readerReleaseLock(&superTable);
         QUERY_CHECK_CODE(code, lino, _return);
@@ -1670,7 +1670,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 
   QUERY_CHECK_NULL(pOrgTbInfo, code, lino, _return, terrno);
 
-  pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->base.readHandle.txnId);
   code = pAPI->metaReaderFn.getTableEntryByName(&orgTable, strstr(pOrgTbInfo->tbName, ".") + 1);
   pAPI->metaReaderFn.readerReleaseLock(&orgTable);
   qDebug("dynamic vtable scan for origin table:%s, %s", pOrgTbInfo->tbName, GET_TASKID(pTaskInfo));
@@ -1678,7 +1678,7 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   switch (orgTable.me.type) {
     case TSDB_CHILD_TABLE:
     case TSDB_VIRTUAL_CHILD_TABLE:
-      pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+      pAPI->metaReaderFn.initReader(&superTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->base.readHandle.txnId);
       code = pAPI->metaReaderFn.getTableEntryByUid(&superTable, orgTable.me.ctbEntry.suid);
       pAPI->metaReaderFn.readerReleaseLock(&superTable);
       QUERY_CHECK_CODE(code, lino, _return);
@@ -3676,7 +3676,8 @@ static int32_t tagScanFilterByTagCond(SArray* aUidTags, SNode* pTagCond, SArray*
   int32_t numOfTables = taosArrayGetSize(aUidTags);
   SArray* pBlockList = NULL;
 
-  SSDataBlock* pResBlock = createTagValBlockForFilter(pInfo->filterCtx.cInfoList, numOfTables, aUidTags, pVnode, pAPI);
+  SSDataBlock* pResBlock = createTagValBlockForFilter(pInfo->filterCtx.cInfoList, numOfTables, aUidTags, pVnode, pAPI,
+                                                      pInfo->readHandle.txnId);
   QUERY_CHECK_NULL(pResBlock, code, lino, _end, terrno);
 
   pBlockList = taosArrayInit(1, POINTER_BYTES);
@@ -3831,7 +3832,7 @@ static int32_t doTagScanFromCtbIdxNext(SOperatorInfo* pOperator, SSDataBlock** p
   blockDataCleanup(pRes);
 
   if (pInfo->pCtbCursor == NULL) {
-    pInfo->pCtbCursor = pAPI->metaFn.openCtbCursor(pInfo->readHandle.vnode, pInfo->suid, 1);
+    pInfo->pCtbCursor = pAPI->metaFn.openCtbCursor(pInfo->readHandle.vnode, pInfo->suid, 1, pInfo->readHandle.txnId);
     QUERY_CHECK_NULL(pInfo->pCtbCursor, code, lino, _end, terrno);
   } else {
     code = pAPI->metaFn.resumeCtbCursor(pInfo->pCtbCursor, 0);
@@ -3989,7 +3990,7 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
   }
 
   SMetaReader mr = {0};
-  pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
   pRes->info.rows = 0;
 
   while (pInfo->curPos < size && pRes->info.rows < pOperator->resultInfo.capacity) {
@@ -4433,7 +4434,7 @@ static int32_t setSubTableCondSuidByUid(STableMergeScanInfo* pInfo, SStorageAPI*
   QUERY_CHECK_NULL(pAPI, code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_NULL(pCond, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  pAPI->metaReaderFn.initReader(&tableReader, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&tableReader, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->base.readHandle.txnId);
   code = pAPI->metaReaderFn.getTableEntryByUid(&tableReader, uid);
   pAPI->metaReaderFn.readerReleaseLock(&tableReader);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -4802,7 +4803,7 @@ static int32_t createVTableMergeScanInfoFromBatchParam(SOperatorInfo* pOperator)
 
       const char* pTableName = strstr(pOrgTbInfo->tbName, ".");
       pTableName = pTableName ? (pTableName + 1) : pOrgTbInfo->tbName;
-      pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+      pAPI->metaReaderFn.initReader(&orgTable, pInfo->base.readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->base.readHandle.txnId);
       code = pAPI->metaReaderFn.getTableEntryByName(&orgTable, pTableName);
       pAPI->metaReaderFn.readerReleaseLock(&orgTable);
       QUERY_CHECK_CODE(code, lino, _return);
@@ -6144,7 +6145,7 @@ static int32_t buildVnodeFilteredTbCount(SOperatorInfo* pOperator, STableCountSc
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (strlen(pSupp->stbNameFilter) != 0) {
     uint64_t uid = 0;
-    code = pAPI->metaFn.getTableUidByName(pInfo->readHandle.vnode, pSupp->stbNameFilter, &uid);
+    code = pAPI->metaFn.getTableUidByName(pInfo->readHandle.vnode, pSupp->stbNameFilter, &uid, pInfo->readHandle.txnId);
     if (code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
       // table not exist, return count 0
       code = fillTableCountScanDataBlock(pSupp, dbName, pSupp->stbNameFilter, 0, pRes);
@@ -6207,7 +6208,7 @@ static int32_t buildVnodeGroupedStbTableCount(STableCountScanOperatorInfo* pInfo
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   char    stbName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  code = pAPI->metaFn.getTableNameByUid(pInfo->readHandle.vnode, stbUid, stbName);
+  code = pAPI->metaFn.getTableNameByUid(pInfo->readHandle.vnode, stbUid, stbName, pInfo->readHandle.txnId);
   QUERY_CHECK_CODE(code, lino, _end);
 
   char fullStbName[TSDB_TABLE_FNAME_LEN] = {0};

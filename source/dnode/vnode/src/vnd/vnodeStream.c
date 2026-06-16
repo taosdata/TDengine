@@ -1076,7 +1076,7 @@ static int32_t setRollupFilterTagVal(SStreamTriggerReaderInfo* sStreamReaderInfo
   if (pDst->info.colId == -1) {
     char tbname[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STREAM_CHECK_RET_GOTO(
-        sStreamReaderInfo->storageApi.metaFn.getTableNameByUid(sStreamReaderInfo->pVnode, pReader->me.uid, tbname));
+        sStreamReaderInfo->storageApi.metaFn.getTableNameByUid(sStreamReaderInfo->pVnode, pReader->me.uid, tbname, 0));
     STREAM_CHECK_RET_GOTO(colDataSetVal(pDst, 0, tbname, false));
     goto end;
   }
@@ -1197,7 +1197,7 @@ static int32_t appendRollupGroupsForUid(SStreamTriggerReaderInfo* sStreamReaderI
   SMetaReader  mr = {0};
   SStorageAPI* api = &sStreamReaderInfo->storageApi;
 
-  api->metaReaderFn.initReader(&mr, sStreamReaderInfo->pVnode, META_READER_LOCK, &api->metaFn);
+  api->metaReaderFn.initReader(&mr, sStreamReaderInfo->pVnode, META_READER_LOCK, &api->metaFn, 0);
   code = api->metaReaderFn.getEntryGetUidCache(&mr, uid);
   api->metaReaderFn.readerReleaseLock(&mr);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1986,14 +1986,14 @@ static int32_t checkAlter(SStreamTriggerReaderInfo* sStreamReaderInfo, char* tbN
   ETableType tbType = 0;
   uint64_t suid = 0;
 
-  STREAM_CHECK_RET_GOTO(metaGetTableTypeSuidByName(sStreamReaderInfo->pVnode, tbName, &tbType, &suid));
+  STREAM_CHECK_RET_GOTO(metaGetTableTypeSuidByName(sStreamReaderInfo->pVnode, tbName, &tbType, &suid, 0));
   STREAM_CHECK_CONDITION_GOTO(!isAlteredTable(action, tbType), TDB_CODE_SUCCESS);
   STREAM_CHECK_CONDITION_GOTO(suid != sStreamReaderInfo->suid, TDB_CODE_SUCCESS);
   if (action == TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL) {
     *uid = suid;
     goto end;
   }
-  STREAM_CHECK_RET_GOTO(metaGetTableUidByName(sStreamReaderInfo->pVnode, tbName, uid));
+  STREAM_CHECK_RET_GOTO(metaGetTableUidByName(sStreamReaderInfo->pVnode, tbName, uid, 0));
 
 end:
   return code;
@@ -2510,7 +2510,7 @@ int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int3
     STREAM_CHECK_CONDITION_GOTO(taosArrayGetSize(tagCache) != numOfExpr, TSDB_CODE_INVALID_PARA);
   }
   
-  api->metaReaderFn.initReader(&mr, pVnode, META_READER_LOCK, &api->metaFn);
+  api->metaReaderFn.initReader(&mr, pVnode, META_READER_LOCK, &api->metaFn, 0);
   code = api->metaReaderFn.getEntryGetUidCache(&mr, uid);
   api->metaReaderFn.readerReleaseLock(&mr);
   STREAM_CHECK_RET_GOTO(code);
@@ -3586,7 +3586,7 @@ static int32_t buildScheamFromMeta(SVnode* pVnode, int64_t uid, SArray** schemas
   *schemas = taosArrayInit(8, sizeof(SSchema));
   STREAM_CHECK_NULL_GOTO(*schemas, terrno);
   
-  api->metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &api->metaFn);
+  api->metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &api->metaFn, 0);
   STREAM_CHECK_RET_GOTO(api->metaReaderFn.getTableEntryByUid(&metaReader, uid));
 
   SSchemaWrapper* sSchemaWrapper = NULL;
@@ -5242,7 +5242,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
                                                     req->virTableInfoReq.ver, uidList, cids, tagCids, &uid2Result));
 
   // Acquire meta reader lock only after the cross-vnode RPC round-trip is done.
-  sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn);
+  sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn, 0);
 
   // Encode response: iterate the resolved set.
   int32_t expected = (int32_t)tSimpleHashGetSize(uid2Result);
@@ -5290,7 +5290,7 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 
   STREAM_CHECK_NULL_GOTO(oTableInfo.cols, terrno);
 
-  sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn);
+  sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn, 0);
   for (size_t i = 0; i < taosArrayGetSize(cols); i++) {
     OTableInfo*    oInfo = taosArrayGet(cols, i);
     OTableInfoRsp* vTableInfo = taosArrayReserve(oTableInfo.cols, 1);
@@ -5364,7 +5364,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
   STREAM_CHECK_NULL_GOTO(cols, terrno);
 
   // We still need metaReader for vtable name (cid == -1) and to assert table type.
-  sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn);
+  sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn, 0);
   STREAM_CHECK_RET_GOTO(sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(&metaReader, req->virTablePseudoColReq.ver, req->virTablePseudoColReq.uid));
   STREAM_CHECK_CONDITION_GOTO(metaReader.me.type != TD_VIRTUAL_CHILD_TABLE && metaReader.me.type != TD_VIRTUAL_NORMAL_TABLE, TSDB_CODE_INVALID_PARA);
 

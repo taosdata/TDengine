@@ -317,7 +317,7 @@ static int32_t tagRefSourceOpen(SOperatorInfo* pOperator) {
   pInfo->pAllRows->info.rows = 0;
 
   // Batch scan all child tables at once into pAllRows
-  pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn);
+  pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
 
   // Temporarily swap pRes to pAllRows so tagRefSourceScanOneTable writes there
   SSDataBlock* origRes = pInfo->pRes;

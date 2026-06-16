@@ -303,12 +303,18 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.mload = tsMLoad;
 
   if (taosThreadMutexUnlock(&pMgmt->pData->statusInfolock) != 0) {
+    tFreeSStatusReq(&req);
     dError("failed to unlock status info lock");
     return;
   }
 
   dTrace("send status req to mnode, begin to get qnode loads, statusSeq:%d", pMgmt->statusSeq);
   (*pMgmt->getQnodeLoadsFp)(&req.qload);
+
+  // Collect idle txn keepalive queries from all VNodes
+  if (pMgmt->collectVnodeTxnIdleFp != NULL) {
+    (*pMgmt->collectVnodeTxnIdleFp)(&req.pTxnActiveQueries);
+  }
 
   req.statusSeq = pMgmt->statusSeq;
   req.ipWhiteVer = pMgmt->pData->ipWhiteVer;
@@ -325,6 +331,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   if (contLen < 0) {
+    tFreeSStatusReq(&req);
     dError("failed to serialize status req since %s", tstrerror(contLen));
     return;
   }
@@ -333,6 +340,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   contLen = tSerializeSStatusReq(pHead, contLen, &req);
   if (contLen < 0) {
     rpcFreeCont(pHead);
+    tFreeSStatusReq(&req);
     dError("failed to serialize status req since %s", tstrerror(contLen));
     return;
   }

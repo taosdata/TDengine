@@ -619,6 +619,9 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
         }
         break;
       }
+      case HEARTBEAT_KEY_TXN_KILLED:
+        // Handled in hbQueryHbRspHandle before hbProcessQueryRspKvs is called.
+        break;
       default:
         tscError("invalid hb key type:%d", kv->key);
         break;
@@ -695,6 +698,31 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   tscDebug("hb got %d rsp kv", kvNum);
 
   if (kvNum > 0) {
+    // Pre-scan: handle HEARTBEAT_KEY_TXN_KILLED which needs pTscObj (not the catalog).
+    // When the MNode forcibly rolled back this connection's txn due to inactivity timeout,
+    // it includes this KV in the HB response.  We transition txnState to UTXN_STAGE_TIMEOUT_KILLED
+    // so the client stops sending keepalive and rejects further operations until ROLLBACK.
+    for (int32_t i = 0; i < kvNum; i++) {
+      SKv *kv = taosArrayGet(pRsp->info, i);
+      if (kv == NULL) continue;
+      if (kv->key == HEARTBEAT_KEY_TXN_KILLED && kv->value != NULL && kv->valueLen >= (int32_t)sizeof(txn_id_t)) {
+        txn_id_t killedTxnId = *(txn_id_t *)kv->value;
+        STscObj *pTscObj = (STscObj *)acquireTscObj(pRsp->connKey.tscRid);
+        if (pTscObj != NULL) {
+          (void)taosThreadMutexLock(&pTscObj->mutex);
+          if (pTscObj->txnId == killedTxnId && pTscObj->txnState == UTXN_STAGE_ACTIVE) {
+            atomic_store_8(&pTscObj->txnState, UTXN_STAGE_TIMEOUT_KILLED);
+            tscWarn("conn:0x%" PRIx64 ", txn:%" PRIi64
+                    " timeout-killed by MNode; state → TIMEOUT_KILLED; "
+                    "all operations will fail until ROLLBACK is issued",
+                    pTscObj->id, killedTxnId);
+          }
+          (void)taosThreadMutexUnlock(&pTscObj->mutex);
+          releaseTscObj(pRsp->connKey.tscRid);
+        }
+      }
+    }
+
     struct SCatalog *pCatalog = NULL;
     int32_t          code = catalogGetHandle(pReq->clusterId, &pCatalog);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1283,6 +1311,46 @@ int32_t hbGetAppInfo(int64_t clusterId, SClientHbReq *req) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t hbGetTxnKeepaliveInfo(SClientHbKey *connKey, SClientHbReq *req) {
+  STscObj *pTscObj = (STscObj *)acquireTscObj(connKey->tscRid);
+  if (!pTscObj) {
+    return TSDB_CODE_SUCCESS;  // connection already gone, no-op
+  }
+  txn_id_t txnId = pTscObj->txnId;
+  int8_t   txnState = atomic_load_8(&pTscObj->txnState);
+  releaseTscObj(connKey->tscRid);
+
+  // Skip keepalive when there is no active txn, or when the txn was already timeout-killed
+  // (client stops refreshing so the MNode can GC the SDB_TXN_LOG entry naturally).
+  if (txnId <= 0 || txnState == UTXN_STAGE_TIMEOUT_KILLED) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == req->info) {
+    req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+    if (NULL == req->info) {
+      tscWarn("hbGetTxnKeepaliveInfo failed to init info hash, txnId:%" PRIi64
+              " keepalive skipped, MNode txn may timeout",
+              txnId);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  txn_id_t *pTxnVal = taosMemoryMalloc(sizeof(txn_id_t));
+  if (pTxnVal == NULL) {
+    tscWarn("hbGetTxnKeepaliveInfo failed to alloc (txnId:%" PRIi64 "), MNode txn may timeout", txnId);
+    return TSDB_CODE_SUCCESS;
+  }
+  *pTxnVal = txnId;
+  SKv     kv = {.key = HEARTBEAT_KEY_TXN_KEEPALIVE, .valueLen = sizeof(txn_id_t), .value = pTxnVal};
+  int32_t code = taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
+  if (code != 0) {
+    tscWarn("hbGetTxnKeepaliveInfo failed to put txnId:%" PRIi64 " code:0x%x, MNode txn may timeout", txnId, code);
+    taosMemoryFree(pTxnVal);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) {
   int32_t   code = 0;
   SHbParam *hbParam = (SHbParam *)param;
@@ -1291,6 +1359,12 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   code = hbGetQueryBasicInfo(connKey, req);
   if (code != TSDB_CODE_SUCCESS) {
     tscWarn("hbGetQueryBasicInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
+    return code;
+  }
+
+  code = hbGetTxnKeepaliveInfo(connKey, req);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscWarn("hbGetTxnKeepaliveInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
     return code;
   }
 

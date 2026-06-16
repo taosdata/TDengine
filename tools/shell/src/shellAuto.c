@@ -238,6 +238,8 @@ SWords shellCommands[] = {
     {"show table tags from <all_table>;", 0, 0, NULL},
     {"show topics;", 0, 0, NULL},
     {"show transactions;", 0, 0, NULL},
+    {"show transaction logs;", 0, 0, NULL},
+    {"show transaction orphans;", 0, 0, NULL},
     {"show indexes from <stb_name>;", 0, 0, NULL},
     {"show tsmas;", 0, 0, NULL},
     {"show rsmas;", 0, 0, NULL},
@@ -780,6 +782,8 @@ void showHelp() {
     show table tags from <all_table>\n\
     show topics;\n\
     show transactions;\n\
+    show transaction logs;\n\
+    show transaction orphans;\n\
     show tsmas;\n\
     show rsmas;\n\
     show roles;\n\

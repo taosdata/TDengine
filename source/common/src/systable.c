@@ -408,10 +408,10 @@ static const SSysDbTableSchema smaSchema[] = {
 };
 
 static const SSysDbTableSchema transSchema[] = {
-    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "stage", .bytes = TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "oper", .bytes = TSDB_TRANS_OPER_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "oper", .bytes = TSDB_USER_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "db", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "stable", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "killable", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
@@ -419,10 +419,29 @@ static const SSysDbTableSchema transSchema[] = {
     {.name = "failed_times", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "last_exec_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "last_action_info", .bytes = (TSDB_TRANS_ERROR_LEN - 1) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "type", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+};
+
+static const SSysDbTableSchema transactionLogsSchema[] = {
+    {.name = "id",              .bytes = 8,                                            .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "create_user",     .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE,           .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "create_time",     .bytes = 8,                                            .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "complete_time",   .bytes = 8,                                            .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "status",          .bytes = TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "comment",         .bytes = 128 + VARSTR_HEADER_SIZE,                     .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "type",            .bytes = 10 + VARSTR_HEADER_SIZE,                      .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+};
+
+static const SSysDbTableSchema transactionOrphansSchema[] = {
+    {.name = "id",          .bytes = 8,  .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "vgroup_id",   .bytes = 4,  .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "first_seen",  .bytes = 8,  .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "last_seen",   .bytes = 8,  .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "report_count",.bytes = 4,  .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
 };
 
 static const SSysDbTableSchema instanceSchema[] = {
-    {.name = "id", .bytes = PERF_INSTANCE_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "id",            .bytes = PERF_INSTANCE_ID_LEN + VARSTR_HEADER_SIZE,   .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
     {.name = "type", .bytes = PERF_INSTANCE_TYPE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "desc", .bytes = PERF_INSTANCE_DESC_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "first_reg_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
@@ -900,6 +919,9 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_XNODE_JOBS, xnodeTaskJobSchema, tListLen(xnodeTaskJobSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, virtualTablesReferencing, tListLen(virtualTablesReferencing), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_SECURITY_POLICIES, securityPoliciesSchema, tListLen(securityPoliciesSchema), true, PRIV_CAT_SECURITY},
+    {TSDB_INS_TABLE_TRANSACTION_LOGS,    transactionLogsSchema,   tListLen(transactionLogsSchema),   false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_TRANSACTION_ORPHANS, transactionOrphansSchema, tListLen(transactionOrphansSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_TRANSACTIONS, transSchema, tListLen(transSchema), false, PRIV_CAT_BASIC},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

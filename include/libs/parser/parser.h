@@ -157,6 +157,10 @@ typedef struct SParseContext {
   SArray*     pTableMetaPos;    // sql table pos => catalog data pos
   SArray*     pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t     allocatorId;
+  txn_id_t    txnId;
+  SSHashObj*  pTxnVgSet;   // borrowed ref to STscObj->pTxnVgSet (read-only during parse)
+  SHashObj*   pTxnTableMeta;  // borrowed ref to STscObj->pTxnTableMeta (same-txn table cache)
+  SHashObj*   pTxnSuidMap;    // borrowed ref to STscObj->pTxnSuidMap (suid → stbFullName for compact CTB assembly)
   parseSqlFn  parseSqlFp;
   void*       parseSqlParam;
   SArray*     pSubMetaList;

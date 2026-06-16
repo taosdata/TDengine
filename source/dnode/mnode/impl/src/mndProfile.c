@@ -28,6 +28,7 @@
 #include "mndSma.h"
 #include "mndStb.h"
 #include "mndToken.h"
+#include "mndTxn.h"
 #include "mndUser.h"
 #include "mndView.h"
 #include "tglobal.h"
@@ -838,6 +839,31 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
           SKv kv = {.key = HEARTBEAT_KEY_TSMA, .valueLen = rspLen, .value = rspMsg};
           if (taosArrayPush(hbRsp.info, &kv) == NULL) {
             mError("failed to put kv into array, but continue at this heartbeat");
+          }
+        }
+        break;
+      }
+      case HEARTBEAT_KEY_TXN_KEEPALIVE: {
+        if (kv->value != NULL && kv->valueLen >= (int32_t)sizeof(txn_id_t)) {
+          txn_id_t txnId = *(txn_id_t *)kv->value;
+          if (txnId > 0) {
+            mndTxnRefreshKeepalive(pMnode, txnId);
+            // Notify the client if this txn was forcibly rolled back due to timeout.
+            // The client will transition to UTXN_STAGE_TIMEOUT_KILLED and stop keepalive.
+            if (mndTxnIsTimeoutKilled(pMnode, txnId)) {
+              txn_id_t *pKilledId = (txn_id_t *)taosMemoryMalloc(sizeof(txn_id_t));
+              if (pKilledId != NULL) {
+                *pKilledId = txnId;
+                SKv killedKv = {
+                    .key = HEARTBEAT_KEY_TXN_KILLED, .valueLen = (int32_t)sizeof(txn_id_t), .value = pKilledId};
+                if (taosArrayPush(hbRsp.info, &killedKv) == NULL) {
+                  taosMemoryFree(pKilledId);
+                  mWarn("txn:%" PRIi64 ", failed to push TXN_KILLED kv into hbRsp", txnId);
+                } else {
+                  mInfo("txn:%" PRIi64 ", notifying client of timeout rollback via HEARTBEAT_KEY_TXN_KILLED", txnId);
+                }
+              }
+            }
           }
         }
         break;

@@ -197,6 +197,12 @@ const char* nodesNodeName(ENodeType type) {
       return "AlterUserStmt";
     case QUERY_NODE_DROP_USER_STMT:
       return "DropUserStmt";
+    case QUERY_NODE_BEGIN_TRANS_STMT:
+      return "BeginTransStmt";
+    case QUERY_NODE_COMMIT_TRANS_STMT:
+      return "CommitTransStmt";
+    case QUERY_NODE_ROLLBACK_TRANS_STMT:
+      return "RollbackTransStmt";
     case QUERY_NODE_CREATE_ROLE_STMT:
       return "CreateRoleStmt";
     case QUERY_NODE_DROP_ROLE_STMT:
@@ -383,6 +389,10 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowDnodeVariablesStmt";
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return "ShowTransactionsStmt";
+    case QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT:
+      return "ShowTransactionLogsStmt";
+    case QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT:
+      return "ShowTransactionOrphansStmt";
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
       return "ShowSubscriptionsStmt";
     case QUERY_NODE_SHOW_VNODES_STMT:
@@ -11015,6 +11025,14 @@ static int32_t showTransactionsStmtToJson(const void* pObj, SJson* pJson) { retu
 
 static int32_t jsonToShowTransactionsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
 
+static int32_t showTransactionLogsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowTransactionLogsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
+static int32_t showTransactionOrphansStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
+
+static int32_t jsonToShowTransactionOrphansStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
+
 static int32_t showSubscriptionsStmtToJson(const void* pObj, SJson* pJson) { return showStmtToJson(pObj, pJson); }
 
 static int32_t jsonToShowSubscriptionsStmt(const SJson* pJson, void* pObj) { return jsonToShowStmt(pJson, pObj); }
@@ -11758,6 +11776,10 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showDnodeVariablesStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return showTransactionsStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT:
+      return showTransactionLogsStmtToJson(pObj, pJson);
+    case QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT:
+      return showTransactionOrphansStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
       return showSubscriptionsStmtToJson(pObj, pJson);
     case QUERY_NODE_SHOW_VNODES_STMT:
@@ -12259,6 +12281,10 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToShowDnodeVariablesStmt(pJson, pObj);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return jsonToShowTransactionsStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT:
+      return jsonToShowTransactionLogsStmt(pJson, pObj);
+    case QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT:
+      return jsonToShowTransactionOrphansStmt(pJson, pObj);
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
       return jsonToShowSubscriptionsStmt(pJson, pObj);
     case QUERY_NODE_SHOW_VNODES_STMT:

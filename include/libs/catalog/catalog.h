@@ -299,6 +299,10 @@ int32_t catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STabl
 
 int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta);
 
+// Returns tableType and suid from catalog cache without resolving parent STB schema.
+// Returns TSDB_CODE_SUCCESS with *pTableType=0 and *pSuid=0 if not in cache.
+int32_t catalogGetCachedTableTypeAndSuid(SCatalog* pCtg, const SName* pTableName, int8_t* pTableType, uint64_t* pSuid);
+
 int32_t catalogGetTablesHashVgId(SCatalog* pCtg, SRequestConnInfo* pConn, int32_t acctId, const char* pDb, const char* pTableName[],
                                   int32_t tableNum, int32_t *vgId);
 

@@ -12,7 +12,7 @@ extern "C" SHashObj *gStreamGrpTableHash;
 extern "C" char      tsStableTagFilterCache;
 extern "C" int32_t getTableList(void *pVnode, SScanPhysiNode *pScanNode, SNode *pTagCond, SNode *pTagIndexCond,
                                 STableListInfo *pListInfo, uint8_t *digest, const char *idstr, SStorageAPI *pStorageAPI,
-                                void *pStreamInfo);
+                                void *pStreamInfo, int64_t txnId);
 
 namespace {
 
@@ -81,9 +81,10 @@ int32_t mockWarmupStableCachedTableList(void *pVnode, uint64_t suid, const void 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mockGetTableTags(void *pVnode, uint64_t suid, SArray *uidList) {
+int32_t mockGetTableTags(void *pVnode, uint64_t suid, SArray *uidList, int64_t txnId) {
   (void)suid;
   (void)uidList;
+  (void)txnId;
   StableTagFilterWarmupMock *pMock = static_cast<StableTagFilterWarmupMock *>(pVnode);
   pMock->getTableTagsCalls += 1;
   return TSDB_CODE_SUCCESS;
@@ -213,7 +214,7 @@ TEST(execUtilTest, stableTagFilterCacheWarmsAllEqualTagGroupsOnMiss) {
   SNode *pTagCond = makeEqualCond(makeTagColumn(3, TSDB_DATA_TYPE_INT, sizeof(int32_t)), makeIntValue(7));
 
   ASSERT_EQ(
-      getTableList(&mock, &scan, pTagCond, nullptr, &tableListInfo, nullptr, "stable-cache-warmup", &api, &streamInfo),
+      getTableList(&mock, &scan, pTagCond, nullptr, &tableListInfo, nullptr, "stable-cache-warmup", &api, &streamInfo, 0),
       TSDB_CODE_SUCCESS);
   ASSERT_EQ(taosArrayGetSize(tableListInfo.pTableList), 1);
 
@@ -257,7 +258,7 @@ TEST(execUtilTest, stableTagFilterCacheFallsBackWhenWarmupMissesDigest) {
 
   ASSERT_EQ(
       getTableList(&mock, &scan, pTagCond, nullptr, &tableListInfo, nullptr, "stable-cache-warmup-miss", &api,
-                   &streamInfo),
+                   &streamInfo, 0),
       TSDB_CODE_SUCCESS);
   EXPECT_EQ(taosArrayGetSize(tableListInfo.pTableList), 0);
   EXPECT_EQ(mock.getCacheCalls, 1);
@@ -297,7 +298,7 @@ TEST(execUtilTest, stableTagFilterCacheSkipsWarmupWhenEntryAlreadyPrewarmed) {
   SNode *pTagCond = makeEqualCond(makeTagColumn(3, TSDB_DATA_TYPE_INT, sizeof(int32_t)), makeIntValue(7));
 
   ASSERT_EQ(getTableList(&mock, &scan, pTagCond, nullptr, &tableListInfo, nullptr, "stable-cache-prewarmed-miss", &api,
-                         &streamInfo),
+                         &streamInfo, 0),
             TSDB_CODE_SUCCESS);
   EXPECT_EQ(taosArrayGetSize(tableListInfo.pTableList), 0);
   EXPECT_EQ(mock.getCacheCalls, 1);

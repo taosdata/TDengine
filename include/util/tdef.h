@@ -879,6 +879,87 @@ typedef enum {
   TSDB_VERSION_END,
 } EVersionType;
 
+// EMetaTxnStatus: transaction status tag on SMetaEntry in the VNode B+ tree;
+// used for visibility filtering and transaction management.
+// Visibility rules:
+//   NORMAL          - visible normally; no active transaction
+//   PRE_CREATE      - shadow create: invisible to regular queries (not yet committed);
+//                     visible to operations from the same txnId
+//   PRE_CREATE_DROP - CREATE followed by DROP within the same transaction
+//                     (used mainly for STB path recovery)
+//   PRE_ALTER       - shadow alter: queries see old schema (snapshot isolation);
+//                     writes use old schema
+//   PRE_DROP        - shadow drop: queries still see old data (snapshot isolation);
+//                     INSERT returns TSDB_CODE_PREPARED_DROP
+typedef enum {
+  META_TXN_NORMAL = 0,      // normal state; no associated transaction
+  META_TXN_PRE_CREATE,      // shadow create: written to B+ tree but invisible externally; awaiting COMMIT
+  META_TXN_PRE_CREATE_DROP, // shadow create immediately marked for drop: CREATE then DROP in the same txn
+  META_TXN_PRE_ALTER,       // shadow alter: new schema written; old schema still visible externally (snapshot isolation)
+  META_TXN_PRE_DROP,        // shadow drop: table marked for deletion; queries still visible; INSERT fails fast
+} EMetaTxnStatus;
+
+// EUtxnStage: lifecycle stages of a user batch transaction (shared by the client and MNode).
+// The client uses UTXN_STAGE_IDLE/BEGIN_PENDING/ACTIVE/ABORTED in STscObj.txnState.
+// The MNode uses all stages except UTXN_STAGE_BEGIN_PENDING in STxnObj.stage, persisted via Raft WAL.
+// UTXN_STAGE_BEGIN_PENDING (1) is client-side only and never persisted.
+// State transitions:
+//   IDLE           → BEGIN_PENDING  (taos_txn_begin() sends BEGIN; waiting for MNode response)
+//   BEGIN_PENDING  → ACTIVE         (BEGIN succeeded; txnId allocated by MNode)
+//   BEGIN_PENDING  → IDLE           (BEGIN failed; reset by processBeginTxnRsp)
+//   ACTIVE         → ABORTED        (any DDL failed; client-side flag; user must ROLLBACK)
+//   ACTIVE         → PREPARING      (COMMIT received; broadcasting PREPARE to VNodes)
+//   ACTIVE/ABORTED → ROLLINGBACK    (ROLLBACK received)
+//   PREPARING      → COMMITTING     (all VNode PREPARE ACKs received; COMMITTING written to WAL)
+//   PREPARING      → ROLLINGBACK    (any VNode PREPARE failed)
+//   COMMITTING     → COMMITTED      (all VNode COMMIT ACKs received)
+//   ROLLINGBACK    → ROLLEDBACK     (all VNode ROLLBACK ACKs received; normal clean rollback)
+typedef enum {
+  UTXN_STAGE_IDLE = 0,           // initial / destroyed state (object does not exist in memory)
+  UTXN_STAGE_BEGIN_PENDING = 1,  // client-side only: BEGIN sent to MNode; awaiting response
+  UTXN_STAGE_ACTIVE = 2,         // BEGIN accepted; receiving / processing DDL
+  UTXN_STAGE_ABORTED = 3,        // DDL failed; transaction aborted; awaiting explicit ROLLBACK from client
+  UTXN_STAGE_PREPARING = 4,      // COMMIT received; broadcasting PREPARE to VNodes; awaiting all ACKs
+  UTXN_STAGE_COMMITTING = 5,     // COMMITTING written to WAL (no rollback possible); broadcasting COMMIT to VNodes
+  UTXN_STAGE_ROLLINGBACK = 6,    // written to WAL; broadcasting ROLLBACK to VNodes; awaiting all ACKs
+  UTXN_STAGE_COMMITTED = 7,      // all VNodes confirmed COMMIT; transient terminal; deleted from SDB shortly after
+  UTXN_STAGE_ROLLEDBACK = 8,     // all VNodes confirmed ROLLBACK; transient terminal; deleted from SDB shortly after
+  // 9 was UTXN_STAGE_ZOMBIE (designed but never assigned; reserved to avoid persisted-value conflicts)
+  UTXN_STAGE_TIMEOUT_KILLED = 9,  // client-side only: MNode killed txn due to HB timeout; local ROLLBACK only
+} EUtxnStage;
+
+// EVtxnStage: local state of a single transaction participant on the VNode side.
+// Stored in VNode memory only (not persisted to the B+ tree; EMetaTxnStatus
+// marks shadow data in the B+ tree).
+typedef enum {
+  VTXN_STAGE_NONE      = 0,  // no active transaction; normal state
+  VTXN_STAGE_ACTIVE    = 1,  // DDL carrying txnId received; shadow data written to B+ tree; awaiting PREPARE
+  VTXN_STAGE_PREPARED  = 2,  // PREPARE received and written to WAL; awaiting COMMIT/ROLLBACK from MNode
+  VTXN_STAGE_FINISHING = 3,  // COMMIT/ROLLBACK received; making shadow data permanent or rolling it back (atomic)
+} EVtxnStage;
+
+typedef int64_t txn_id_t;
+
+#define TSDB_TXN_TIMEOUT_DEFAULT 300   // Default txn timeout in seconds (5 minutes)
+#define TSDB_TXN_TIMEOUT_MIN     30    // Minimum txn timeout in seconds
+#define TSDB_TXN_TIMEOUT_MAX     3600  // Absolute max txn lifetime in seconds
+#define TSDB_TXN_HB_TIMEOUT      60    // client HB inactivity timeout
+#define TSDB_ORPHAN_TXN_SCAN_MS  (TSDB_TXN_TIMEOUT_DEFAULT * 1000LL)
+
+#define TSDB_TXN_MAX_DDL_OPS_PER_TXN 50000  // Max DDL ops tracked per txn
+#define TSDB_TXN_MAX_ALTER_PER_STB   32     // Max ALTER ops on a single STB within one txn
+#define TSDB_TXN_VACUUM_BATCH_SIZE   1024   // Max UIDs processed per async vacuum batch
+#define TSDB_TXN_INLINE_THRESHOLD    64     // Txns with <= this many UIDs use sync inline path
+
+// ETxnFinalStatus: terminal state of a VNode-side transaction (persisted to txn_final.idx).
+// COMMIT/ROLLBACK writes a single O(1) terminal record; background vacuum lazily cleans
+// up shadow data in the B+ tree.
+typedef enum {
+  TXN_FINAL_NONE = 0,        // not yet finalised (transaction in progress)
+  TXN_FINAL_COMMITTED = 1,   // committed; pending vacuum (shadow data needs to be made permanent)
+  TXN_FINAL_ROLLEDBACK = 2,  // rolled back; pending vacuum (shadow data needs to be discarded)
+} ETxnFinalStatus;
+
 #define MIN_RESERVE_MEM_SIZE 1024  // MB
 
 // Decimal

@@ -65,7 +65,7 @@ extern int32_t       tsLocalKeyVersion;
 extern int32_t       tsStatusInterval;
 extern int32_t       tsStatusIntervalMs;
 extern int32_t       tsStatusSRTimeoutMs;
-extern int32_t       tsStatusTimeoutMs;
+extern int32_t        tsStatusTimeoutMs;
 extern int32_t       tsNumOfSupportVnodes;
 extern uint16_t      tsMqttPort;
 extern char          tsEncryptAlgorithm[];
@@ -192,6 +192,7 @@ extern char tsSnodeAddress[];  // 127.0.0.1:873
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
+extern int32_t tsTxnTimeout;
 extern bool    tsEnableWhiteList;
 extern bool    tsForceKillTrans;
 extern int8_t  tsSodEnforceMode;  // 0: not enforce, 1: enforce mandatory SoD

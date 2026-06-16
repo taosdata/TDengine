@@ -102,6 +102,7 @@ struct SExecTaskInfo {
   bool                     ownStreamRtInfo;
   STaskSubJobCtx*          pSubJobCtx;
   bool                     enableExplain;     // enable explain flag
+  int64_t                  txnId;             // batch meta txn: carries txn context for in-txn meta visibility
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);

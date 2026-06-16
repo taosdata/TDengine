@@ -54,6 +54,9 @@ extern TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const cha
 extern TAOS *(*fp_taos_connect_with)(const OPTIONS *options);
 extern TAOS *(*fp_taos_connect_with_dsn)(const char *dsn);
 extern void (*fp_taos_close)(TAOS *taos);
+extern int (*fp_taos_txn_begin)(TAOS *taos);
+extern int (*fp_taos_txn_commit)(TAOS *taos);
+extern int (*fp_taos_txn_rollback)(TAOS *taos);
 
 extern const char *(*fp_taos_data_type)(int type);
 

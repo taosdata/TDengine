@@ -7060,7 +7060,7 @@ _end:
 
 int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid, SSchemaWrapper** pTagSchema) {
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, pMeta, META_READER_LOCK, 0);
   int32_t code = metaReaderGetTableEntryByUidCache(&mr, uid);
   if (code != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TDB_INVALID_TABLE_ID;

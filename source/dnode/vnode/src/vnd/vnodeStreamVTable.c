@@ -584,7 +584,7 @@ static int32_t streamReadChildTagConstValueImpl(SVnode *pVnode, const SMetaEntry
   *outLen  = 0;
   *outData = NULL;
 
-  metaReaderDoInit(&stb, pVnode->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&stb, pVnode->pMeta, META_READER_LOCK, 0);
   if (metaReaderGetTableEntryByUid(&stb, pChildEntry->ctbEntry.suid) != 0) {
     code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
     goto _end;
@@ -710,7 +710,7 @@ static int32_t vnodeFindVTableColRef(SVnode *pVnode, const SMetaEntry *pVtbEntry
                                          : &pStbEntry->stbEntry.schemaRow;
   } else {
     // Open parent stable on the fly.
-    metaReaderDoInit(&tmpStb, pVnode->pMeta, META_READER_LOCK);
+    metaReaderDoInit(&tmpStb, pVnode->pMeta, META_READER_LOCK, 0);
     if (metaReaderGetTableEntryByUid(&tmpStb, pVtbEntry->ctbEntry.suid) != 0) {
       vDebug("vgId:%d %s parent stable not found: suid=%" PRId64, TD_VID(pVnode), __func__,
              pVtbEntry->ctbEntry.suid);
@@ -844,7 +844,7 @@ static int32_t vnodeResolveTableGroup(SVnode *pVnode, const char *dbName, const 
 
   vDebug("vgId:%d %s enter: db=%s table=%s nCols=%d", TD_VID(pVnode), __func__, dbName, tableName, nCols);
 
-  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK, 0);
   if (metaGetTableEntryByName(&mr, tableName) != 0) {
     vDebug("vgId:%d %s ref table not exist: %s", TD_VID(pVnode), __func__, tableName);
     // Fill all columns with table-not-exist error
@@ -863,7 +863,7 @@ static int32_t vnodeResolveTableGroup(SVnode *pVnode, const char *dbName, const 
   SMetaReader stbReader      = {0};
   bool        stbReaderInited = false;
   if (isVtable && mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
-    metaReaderDoInit(&stbReader, pVnode->pMeta, META_READER_LOCK);
+    metaReaderDoInit(&stbReader, pVnode->pMeta, META_READER_LOCK, 0);
     if (metaReaderGetTableEntryByUid(&stbReader, mr.me.ctbEntry.suid) != 0) {
       // Parent stable not found: all columns fail
       for (int32_t i = 0; i < nCols; ++i) {
@@ -910,7 +910,7 @@ static int32_t vnodeResolveOneHop(SVnode *pVnode, const SVTableRefResolveItem *q
   vDebug("vgId:%d %s enter: kind=%d ref=%s.%s.%s", TD_VID(pVnode), __func__, q->kind, q->refDbName,
          q->refTableName, q->refColName);
 
-  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK, 0);
   if (metaGetTableEntryByName(&mr, q->refTableName) != 0) {
     vDebug("vgId:%d %s ref table not exist: %s", TD_VID(pVnode), __func__, q->refTableName);
     r->code = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
@@ -1089,7 +1089,7 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
                                                 SArray *workList, SSHashObj *uid2Result) {
   int32_t     code = 0;
   SMetaReader mr   = {0};
-  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK, 0);
 
   // H2 v0.5: top-level vtable uid not present in local meta (concurrently
   // dropped) or entry type is not a vtable. Treat as a soft skip: log a
@@ -2795,7 +2795,7 @@ int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagLi
   if (nUids == 0) return 0;
 
   // 1) confirm suid refers to a virtual super table; otherwise no-op.
-  metaReaderDoInit(&mr, pVn->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, pVn->pMeta, META_READER_LOCK, 0);
   readerInited = true;
   if (metaReaderGetTableEntryByUid(&mr, suid) != 0) {
     stDebug("vgId:%d %s metaReader miss suid=%" PRId64, TD_VID(pVn), __func__, suid);
