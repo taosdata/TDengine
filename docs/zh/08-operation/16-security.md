@@ -448,7 +448,7 @@ id      |          algorithm_id          |              name              |     
 2. algorithm_id：算法的全局唯一标识
 3. name：算法名称
 4. desc：算法的描述
-5. type：算法类型，包括：Symmetric Ciphers CBC mode - 对称加密算法 CBC 模式，用于数据库加密; Asymmetric Cipher - 非对称加密算法;  Digests：散列算法
+5. type：算法类型，包括：Symmetric Ciphers CBC mode - 对称加密算法 CBC 模式，用于数据库加密; Asymmetric Ciphers - 非对称加密算法;  Digests：散列算法
 6. source：算法来源，包括：built-in - 内置算法; customized - 用户自定义算法
 7. ossl_algr_name：算法在 OpenSSL 中的名称，如果是内置算法则是在 default provider 中的名称，可以参考 [OSSL_PROVIDER-default](https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/ "OSSL_PROVIDER-default") , 如果自定义算法，则是用户在程序中自定义
 
@@ -457,7 +457,7 @@ id      |          algorithm_id          |              name              |     
 用户可以添加自己的自定义算法。
 
 ```sql
-create encrypt_algr 'vigenere' name 'vigenere' desc 'my custom algr' type 'Symmetric Ciphers CBC mode' ossl_algr_name 'vigenere';
+create encrypt_algr 'vigenere' algr_name 'vigenere' desc 'my custom algr' algr_type 'Symmetric_Ciphers_CBC_mode' ossl_algr_name 'vigenere';
 
 ```
 
@@ -473,6 +473,8 @@ drop encrypt_algr 'vigenere';
 ```
 
 删除一个自定义算法前，必须保证这个算法没有被使用，比如必须提前删除使用该算法的 database。
+
+内置算法（source 为 build-in，如 SM4-CBC、AES-128-CBC 等）不允许删除，执行删除会返回错误。
 
 ### 创建加密数据库
 
