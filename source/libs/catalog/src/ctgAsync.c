@@ -1533,15 +1533,45 @@ int32_t ctgDumpVStbRefDbsRes(SCtgTask* pTask) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgCallSubCb(SCtgTask* pTask) {
-  int32_t code = 0;
+static int32_t ctgCloneTaskParentIds(SCtgTask* pTask, SArray** ppParents) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    locked = false;
+
+  if (NULL == pTask || NULL == ppParents) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  *ppParents = NULL;
 
   CTG_LOCK(CTG_WRITE, &pTask->lock);
+  locked = true;
+  if (NULL != pTask->pParents) {
+    *ppParents = taosArrayDup(pTask->pParents, NULL);
+    if (NULL == *ppParents) {
+      code = terrno;
+      goto _return;
+    }
+  }
 
-  int32_t parentNum = taosArrayGetSize(pTask->pParents);
+_return:
+
+  if (locked) {
+    CTG_UNLOCK(CTG_WRITE, &pTask->lock);
+  }
+
+  CTG_RET(code);
+}
+
+int32_t ctgCallSubCb(SCtgTask* pTask) {
+  int32_t  code = 0;
+  SArray*  pParents = NULL;
+
+  CTG_ERR_JRET(ctgCloneTaskParentIds(pTask, &pParents));
+
+  int32_t parentNum = pParents ? taosArrayGetSize(pParents) : 0;
   for (int32_t i = 0; i < parentNum; ++i) {
     SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
-    SCtgTask*   pParent = taosArrayGetP(pTask->pParents, i);
+    SCtgTask*   pParent = taosArrayGetP(pParents, i);
     if (NULL == pParent) {
       qError("taosArrayGetP the %dth parent failed", i);
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
@@ -1570,8 +1600,7 @@ int32_t ctgCallSubCb(SCtgTask* pTask) {
   }
 
 _return:
-
-  CTG_UNLOCK(CTG_WRITE, &pTask->lock);
+  taosArrayDestroy(pParents);
 
   CTG_RET(code);
 }
