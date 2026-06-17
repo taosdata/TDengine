@@ -1032,6 +1032,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is inval
 
 //scalar
 TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Operation not supported between data types")
+TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR,     "Failed to convert NCHAR value, possibly due to invalid character encoding or charset mismatch")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
