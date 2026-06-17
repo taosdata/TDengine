@@ -123,7 +123,7 @@ taos> explain verbose true select _wstart, _wend, first(*), last(*), count(*) fr
           Output: columns=16 width=299                                                                                                                                                                                                                                                                        |
           Time Range: [-9223372036854775808, 9223372036854775807]                                                                                                                                                                                                                                             |
 
-taos> explain verbose true select cols(last(u_tinyint_col), u_tinyint_col as `u_tinyint_col`,  _c0 as `ts`), cols(last(u_smallint_col), u_smallint_col as `u_smallint_col`, _c0 as `ts`), cols(last(u_int_col), u_int_col as `u_int_col`, _c0 as `ts`) from test_vtable_select.vtb_virtual_ntb_full
+taos> explain verbose true select cols(last(u_tinyint_col), u_tinyint_col as `u_tinyint_col`,  _c0 as `ts`), cols(last(u_smallint_col), u_smallint_col as `u_smallint_col`, _c0 as `ts`), cols(last(u_int_col), u_int_col as `u_int_col`, _c0 as `ts`) from test_vtable_select.vtb_virtual_ntb_full;
                                                                                                                                                   QUERY_PLAN                                                                                                                                                  |
 ===============================================================================================================================================================================================================================================================================================================
  -> Aggregate (functions=9 width=38 input_order=desc)                                                                                                                                                                                                                                                         |
@@ -132,4 +132,37 @@ taos> explain verbose true select cols(last(u_tinyint_col), u_tinyint_col as `u_
     -> Table Scan on vtb_org_normal_0 (columns=4 width=15 order=[asc|0 desc|1] mode=ts_order data_load=data)                                                                                                                                                                                                  |
           Output: columns=4 width=15                                                                                                                                                                                                                                                                          |
           Time Range: [-9223372036854775808, 9223372036854775807]                                                                                                                                                                                                                                             |
+
+taos> explain verbose true select ts, u_tinyint_col from test_vtable_select.vtb_virtual_ntb_full limit 3;
+                                                                                                                                                  QUERY_PLAN                                                                                                                                                  |
+===============================================================================================================================================================================================================================================================================================================
+ -> Projection (columns=2 width=9 input_order=asc)                                                                                                                                                                                                                                                            |
+       Output: columns=2 width=9                                                                                                                                                                                                                                                                              |
+       Output: Ignore Group Id: true                                                                                                                                                                                                                                                                          |
+       Merge ResBlocks: True                                                                                                                                                                                                                                                                                  |
+    -> Table Scan on vtb_org_normal_0 (columns=2 width=9 order=[asc|1 desc|0] mode=ts_order data_load=data)                                                                                                                                                                                                   |
+          Output: columns=2 width=9 limit=3                                                                                                                                                                                                                                                                   |
+          Time Range: [-9223372036854775808, 9223372036854775807]                                                                                                                                                                                                                                             |
+
+taos> select ts, u_tinyint_col from test_vtable_select.vtb_virtual_ntb_full limit 3;
+           ts            | u_tinyint_col |
+==========================================
+ 2020-10-01 00:00:00.000 |           124 |
+ 2020-10-01 00:00:00.002 |           158 |
+ 2020-10-01 00:00:00.003 |           184 |
+
+taos> explain verbose true select ts, last(`current`) from test_vtable_select_ts_name.vtb_d0;
+                                                                                                                                                  QUERY_PLAN                                                                                                                                                  |
+===============================================================================================================================================================================================================================================================================================================
+ -> Aggregate (functions=2 width=12 input_order=desc)                                                                                                                                                                                                                                                         |
+       Output: columns=2 width=12 blocking=1                                                                                                                                                                                                                                                                  |
+       Merge ResBlocks: True                                                                                                                                                                                                                                                                                  |
+    -> Table Scan on d0 (columns=2 width=12 order=[asc|0 desc|1] mode=ts_order data_load=data)                                                                                                                                                                                                                |
+          Output: columns=2 width=12                                                                                                                                                                                                                                                                          |
+          Time Range: [-9223372036854775808, 9223372036854775807]                                                                                                                                                                                                                                             |
+
+taos> select ts, last(`current`) from test_vtable_select_ts_name.vtb_d0;
+           ts            |   last(`current`)    |
+=================================================
+ 2020-01-01 00:00:01.000 |                    2 |
 

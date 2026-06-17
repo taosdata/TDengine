@@ -1739,6 +1739,109 @@ _return:
   taosHashCleanup(sourceMap);
   return code;
 }
+static void setVtbTsRefInfo(SColumnNode* pCol, const SColumnNode* pRefTsCol) {
+  pCol->hasRef = true;
+  pCol->hasDep = false;
+  tstrncpy(pCol->refDbName, pRefTsCol->dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pCol->refTableName, '\0' != pRefTsCol->tableAlias[0] ? pRefTsCol->tableAlias : pRefTsCol->tableName,
+           TSDB_TABLE_NAME_LEN);
+  tstrncpy(pCol->refColName, pRefTsCol->colName, TSDB_COL_NAME_LEN);
+}
+
+typedef struct SVtbSingleRefTsCxt {
+  SVirtualTableNode* pVirtualTable;
+  SColumnNode*       pRefTsCol;
+} SVtbSingleRefTsCxt;
+
+static bool isVtbPrimaryTsCol(SColumnNode* pCol, SVirtualTableNode* pVirtualTable) {
+  if (NULL == pCol || NULL == pVirtualTable || (!pCol->isPrimTs && pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID)) {
+    return false;
+  }
+
+  if (pCol->tableId == pVirtualTable->pMeta->uid) {
+    return true;
+  }
+
+  return 0 == strncmp(pCol->tableAlias, pVirtualTable->table.tableAlias, TSDB_TABLE_NAME_LEN) &&
+         0 == strncmp(pCol->tableName, pVirtualTable->table.tableName, TSDB_TABLE_NAME_LEN) &&
+         0 == strncmp(pCol->colName, pVirtualTable->pMeta->schema[0].name, TSDB_COL_NAME_LEN);
+}
+
+static EDealRes setSelectVtbTsRefInfo(SNode* pNode, void* pContext) {
+  if (NULL == pNode || QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SVtbSingleRefTsCxt* pCxt = (SVtbSingleRefTsCxt*)pContext;
+  SColumnNode*        pCol = (SColumnNode*)pNode;
+  if (isVtbPrimaryTsCol(pCol, pCxt->pVirtualTable)) {
+    setVtbTsRefInfo(pCol, pCxt->pRefTsCol);
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t replaceVtbTsWithSingleRefTs(SSelectStmt* pSelect, SVirtualTableNode* pVirtualTable,
+                                           SVirtualScanLogicNode* pVtableScan, SHashObj* pRefTablesMap) {
+  if (NULL == pSelect || NULL == pVirtualTable || NULL == pVtableScan || NULL == pRefTablesMap) {
+    planError("%s failed, invalid parameter, select:%p, virtualTable:%p, virtualScan:%p, refTablesMap:%p", __func__,
+              pSelect, pVirtualTable, pVtableScan, pRefTablesMap);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (NULL == pVtableScan->pScanCols || taosHashGetSize(pRefTablesMap) != 1) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  void* pIter = taosHashIterate(pRefTablesMap, NULL);
+  if (NULL == pIter) {
+    planError("%s failed, single ref table map is empty, vtable:%s.%s", __func__, pVirtualTable->table.dbName,
+              pVirtualTable->table.tableName);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SScanLogicNode* pRefScanNode = *(SScanLogicNode**)pIter;
+  taosHashCancelIterate(pRefTablesMap, pIter);
+  if (NULL == pRefScanNode || NULL == pRefScanNode->pScanCols) {
+    planError("%s failed, invalid ref scan node, vtable:%s.%s, refScan:%p", __func__, pVirtualTable->table.dbName,
+              pVirtualTable->table.tableName, pRefScanNode);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SNode* pRefTsNode = nodesListGetNode(pRefScanNode->pScanCols, 0);
+  if (NULL == pRefTsNode || QUERY_NODE_COLUMN != nodeType(pRefTsNode)) {
+    int32_t refTsNodeType = NULL == pRefTsNode ? -1 : nodeType(pRefTsNode);
+    planError("%s failed, invalid ref primary ts node, vtable:%s.%s, refTsNode:%p, nodeType:%d", __func__,
+              pVirtualTable->table.dbName, pVirtualTable->table.tableName, pRefTsNode, refTsNodeType);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SColumnNode* pRefTsCol = (SColumnNode*)pRefTsNode;
+  if (PRIMARYKEY_TIMESTAMP_COL_ID != pRefTsCol->colId) {
+    planError("%s failed, ref first scan col is not primary ts, vtable:%s.%s, ref:%s.%s.%s, colId:%d", __func__,
+              pVirtualTable->table.dbName, pVirtualTable->table.tableName, pRefTsCol->dbName,
+              pRefTsCol->tableAlias, pRefTsCol->colName, pRefTsCol->colId);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pVtableScan->pScanCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+      continue;
+    }
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (!isVtbPrimaryTsCol(pCol, pVirtualTable)) {
+      continue;
+    }
+
+    setVtbTsRefInfo(pCol, pRefTsCol);
+  }
+
+  SVtbSingleRefTsCxt cxt = {.pVirtualTable = pVirtualTable, .pRefTsCol = pRefTsCol};
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, setSelectVtbTsRefInfo, &cxt);
+
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t cloneVgroups(SVgroupsInfo **pDst, SVgroupsInfo* pSrc) {
   if (pSrc == NULL) {
@@ -3260,6 +3363,8 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
       }
     }
   }
+
+  PLAN_ERR_JRET(replaceVtbTsWithSingleRefTs(pSelect, pVirtualTable, pVtableScan, pRefTablesMap));
 
   // Iterate the table map, build scan logic node for each origin table and add these node to vtable scan's child list.
   void* pIter = NULL;

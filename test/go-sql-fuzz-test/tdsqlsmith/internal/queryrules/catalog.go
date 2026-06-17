@@ -1,8 +1,8 @@
 // Package queryrules parses the TDengine grammar and query-rule catalog,
-// builds seed SQL pools, and tracks which query grammar rules were exercised.
+// and tracks which query grammar rules were exercised.
 //
 // queryrules 包解析 TDengine 语法和查询规则目录,
-// 构建种子 SQL 池,并跟踪哪些查询语法规则被覆盖。
+// 并跟踪哪些查询语法规则被覆盖。
 package queryrules
 
 import (
@@ -131,17 +131,6 @@ func (c *Catalog) QueryRulesFromReductions(ids []int) []string {
 	}
 	sortStrings(out)
 	return out
-}
-
-// IsQueryRule reports whether rule is one of the required query rules.
-//
-// IsQueryRule 报告 rule 是否为必需查询规则之一。
-func (c *Catalog) IsQueryRule(rule string) bool {
-	if c == nil {
-		return false
-	}
-	_, ok := c.requiredSet[rule]
-	return ok
 }
 
 // loadQueryRuleList reads the migration script at scriptPath and extracts the

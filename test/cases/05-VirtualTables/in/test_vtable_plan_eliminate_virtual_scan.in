@@ -13,3 +13,7 @@ explain verbose true select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_c
 explain verbose true select _wstart, _wend, first(*), last(*), count(*) from test_vtable_select.vtb_virtual_ntb_full event_window start with u_tinyint_col > 50 end with u_tinyint_col > 200;
 explain verbose true select _wstart, _wend, first(*), last(*), count(*) from test_vtable_select.vtb_virtual_ntb_full session(ts, 1a);
 explain verbose true select cols(last(u_tinyint_col), u_tinyint_col as `u_tinyint_col`,  _c0 as `ts`), cols(last(u_smallint_col), u_smallint_col as `u_smallint_col`, _c0 as `ts`), cols(last(u_int_col), u_int_col as `u_int_col`, _c0 as `ts`) from test_vtable_select.vtb_virtual_ntb_full;
+explain verbose true select ts, u_tinyint_col from test_vtable_select.vtb_virtual_ntb_full limit 3;
+select ts, u_tinyint_col from test_vtable_select.vtb_virtual_ntb_full limit 3;
+explain verbose true select ts, last(`current`) from test_vtable_select_ts_name.vtb_d0;
+select ts, last(`current`) from test_vtable_select_ts_name.vtb_d0;

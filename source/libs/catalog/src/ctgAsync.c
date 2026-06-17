@@ -5871,6 +5871,10 @@ _return:
     CTG_ERR_RET(code);
   }
 
+  if (TSDB_CODE_SUCCESS == code && needCb) {
+    CTG_RET(pTask->subRes.fp(pTask));
+  }
+
   CTG_RET(code);
 }
 
@@ -5903,6 +5907,14 @@ int32_t ctgLaunchSubTask(SCtgTaskReq* pReq, CTG_TASK_TYPE type, ctgSubTaskCbFp f
   pTask->subRes.fp = fp;
 
   CTG_ERR_RET(ctgSearchExistingTask(pJob, type, param, &subTaskId));
+  // Never reuse the launcher task itself as its own sub task. A self-referential
+  // sub task would make ctgSetSubTaskCb acquire the same task lock recursively on
+  // this thread (non-recursive latch) and self-deadlock. This can happen when an
+  // auth (GET_USER) task re-derives a GET_TB_META sub task for the same table and
+  // the search matches the in-flight launcher. Force a fresh independent task.
+  if (subTaskId == taskId) {
+    subTaskId = -1;
+  }
   if (subTaskId < 0) {
     CTG_ERR_RET(ctgInitTask(pJob, type, param, &subTaskId));
     newTask = true;

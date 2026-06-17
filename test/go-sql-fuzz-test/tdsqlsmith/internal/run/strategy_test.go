@@ -6,34 +6,31 @@ import (
 	"tdsqlsmith/internal/random"
 )
 
-func TestPickGenerationStrategyNoGapsSkipsCoverageStrategies(t *testing.T) {
+func TestPickGenerationStrategyNoGapsReturnsQueryRandom(t *testing.T) {
 	rng := random.New(1)
 	for i := 0; i < 256; i++ {
-		got := pickGenerationStrategy(rng, 0, nil)
-		if got == strategyBranchCase || got == strategyRuleSeed {
-			t.Fatalf("unexpected strategy without gaps: %s", got)
+		got := pickGenerationStrategy(rng, nil)
+		if got != strategyQueryRandom {
+			t.Fatalf("expected query_random without missing rules, got: %s", got)
 		}
 	}
 }
 
-func TestPickGenerationStrategyBranchOnlySkipsRuleSeed(t *testing.T) {
-	rng := random.New(2)
-	for i := 0; i < 256; i++ {
-		got := pickGenerationStrategy(rng, 12, nil)
-		if got == strategyRuleSeed {
-			t.Fatalf("unexpected rule-seed strategy with no missing rules")
-		}
-	}
-}
-
-func TestPickGenerationStrategyRuleOnlySkipsBranchCase(t *testing.T) {
+func TestPickGenerationStrategyWithMissingRulesMayPickRuleSeed(t *testing.T) {
 	rng := random.New(3)
 	missingRules := []string{"query_specification", "joined_table", "window_offset_clause"}
+	sawRuleSeed := false
 	for i := 0; i < 256; i++ {
-		got := pickGenerationStrategy(rng, 0, missingRules)
-		if got == strategyBranchCase {
-			t.Fatalf("unexpected branch strategy with no missing branch cases")
+		got := pickGenerationStrategy(rng, missingRules)
+		if got != strategyRuleSeed && got != strategyQueryRandom {
+			t.Fatalf("unexpected strategy: %s", got)
 		}
+		if got == strategyRuleSeed {
+			sawRuleSeed = true
+		}
+	}
+	if !sawRuleSeed {
+		t.Fatalf("expected rule_seed to be picked at least once with missing rules")
 	}
 }
 
@@ -51,17 +48,14 @@ func TestQueryRuleComplexGapScore(t *testing.T) {
 
 func TestAppendUniqueStrategies(t *testing.T) {
 	got := appendUniqueStrategies(
-		[]generationStrategy{strategyQueryRandom, strategyQueryRandom, strategyBranchCase},
-		strategyBranchCase,
+		[]generationStrategy{strategyQueryRandom, strategyQueryRandom},
 		strategyRuleSeed,
-		strategyWorkload,
+		strategyQueryRandom,
 		strategyRuleSeed,
 	)
 	want := []generationStrategy{
 		strategyQueryRandom,
-		strategyBranchCase,
 		strategyRuleSeed,
-		strategyWorkload,
 	}
 	if len(got) != len(want) {
 		t.Fatalf("unexpected len: got=%d want=%d (%v)", len(got), len(want), got)

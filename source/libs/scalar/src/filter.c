@@ -2337,8 +2337,8 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       char    newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
       int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData), NULL);
       if (len < 0) {
-        qError("filterInitValFieldData taosUcs4ToMbs error 1");
-        return TSDB_CODE_SCALAR_CONVERT_ERROR;
+        qError("%s failed to convert NCHAR value to string, len:%d", __func__, (int32_t)varDataLen(fi->data));
+        return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
       }
       varDataSetLen(newValData, len);
       varDataCopy(fi->data, newValData);
@@ -3680,9 +3680,10 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
       }
       int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), varDataLen(colData), varDataVal(newColData), NULL);
       if (len < 0) {
-        qError("castConvert1 taosUcs4ToMbs error");
+        qError("%s failed to convert NCHAR column value to string for match/nmatch, len:%d", __func__,
+               (int32_t)varDataLen(colData));
         taosMemoryFreeClear(newColData);
-        FLT_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+        FLT_ERR_RET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
       } else {
         varDataSetLen(newColData, len);
         p[i] = filterDoCompare(gDataCompare[info->cunits[uidx].func], info->cunits[uidx].optr, newColData,
@@ -3763,9 +3764,10 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
               int32_t len =
                   taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), varDataLen(colData), varDataVal(newColData), NULL);
               if (len < 0) {
-                qError("castConvert1 taosUcs4ToMbs error");
+                qError("%s failed to convert NCHAR column value to string for match/nmatch, len:%d", __func__,
+                       (int32_t)varDataLen(colData));
                 taosMemoryFreeClear(newColData);
-                FLT_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+                FLT_ERR_RET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
               } else {
                 varDataSetLen(newColData, len);
                 p[i] = filterDoCompare(gDataCompare[cunit->func], cunit->optr, newColData, cunit->valData);
@@ -4868,8 +4870,8 @@ int32_t filterConverNcharColumns(SFilterInfo *info, int32_t rows, bool *gotNchar
         }
         bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), (TdUcs4 *)varDataVal(dst), bufSize, &len, NULL);
         if (!ret) {
-          qError("filterConverNcharColumns taosMbsToUcs4 error");
-          return TSDB_CODE_SCALAR_CONVERT_ERROR;
+          qError("%s failed to convert NCHAR column value, srcLen:%d", __func__, (int32_t)varDataLen(src));
+          return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
         }
         varDataLen(dst) = len;
       }
