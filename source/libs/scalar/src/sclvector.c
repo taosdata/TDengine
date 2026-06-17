@@ -119,8 +119,9 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
   }
   int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp, NULL);
   if (len < 0) {
-    sclError("castConvert taosUcs4ToMbs error 1");
-    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+    sclError("%s taosUcs4ToMbs failed to convert NCHAR value,"
+             " len:%d", __func__, (int32_t)varDataLen(inData));
+    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
   }
 
   tmp[len] = 0;
@@ -455,8 +456,9 @@ static FORCE_INLINE int32_t varToNchar(char *buf, SScalarParam *pOut, int32_t ro
   int32_t ret = taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t), outputMaxLen - VARSTR_HEADER_SIZE,
                               &len, pOut->charsetCxt);
   if (!ret) {
-    sclError("failed to convert to NCHAR");
-    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+    sclError("%s failed to convert string to NCHAR value, inputLen:%d",
+             __func__, inputLen);
+    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
   }
   varDataSetLen(t, len);
 
@@ -477,7 +479,9 @@ static FORCE_INLINE int32_t ncharToVar(char *buf, SScalarParam *pOut, int32_t ro
   }
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t), pOut->charsetCxt);
   if (len < 0) {
-    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+    sclError("%s failed to convert NCHAR value to string, inputLen:%d",
+             __func__, inputLen);
+    SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
   }
   varDataSetLen(t, len);
 
@@ -626,8 +630,8 @@ int32_t vectorConvertFromVarData(SSclVectorConvCtx *pCtx, int8_t *overflow) {
 
         int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(data), varDataLen(data), tmp, pCtx->pIn->charsetCxt);
         if (len < 0) {
-          sclError("castConvert taosUcs4ToMbs error 1");
-          SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+          sclError("%s failed to convert NCHAR value to string, len:%d", __func__, (int32_t)varDataLen(data));
+          SCL_ERR_JRET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
         }
 
         tmp[len] = 0;
@@ -674,7 +678,7 @@ int32_t ncharTobinary(void *buf, void **out, void *charsetCxt) {  // todo need t
     sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC,
              charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset, (char *)varDataVal(buf));
     taosMemoryFree(*out);
-    SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_ERROR);
+    SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
   }
   varDataSetLen(*out, len);
   SCL_RET(TSDB_CODE_SUCCESS);

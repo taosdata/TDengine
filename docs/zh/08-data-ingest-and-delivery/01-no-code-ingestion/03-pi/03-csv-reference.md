@@ -234,7 +234,7 @@ element_paths,TAG,VARCHAR(512),`$element_paths.replace("\\", ".")`
 
 ### 5.2 过滤特定点位或模板
 
-在 Explorer 中填写过滤条件后再点击 **下载默认配置**，可以只生成匹配过滤条件的点位/模板的配置。
+在 Explorer 中填写过滤条件后再点击 **下载默认配置**，可以只生成匹配过滤条件的点位/模板的配置。过滤条件的语法请参阅 [Dataset Filter 配置](./07-dataset-filter.md)。
 
 也可以在下载后手动编辑 CSV：
 

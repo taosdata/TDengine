@@ -1,14 +1,14 @@
 package run
 
 // run.go drives the fuzz loop: it bootstraps the shared catalog, repeatedly
-// generates SQL statements (via branch-case/rule-seed/random strategies),
+// generates SQL statements (via rule-seed/query-random strategies),
 // parses and executes them against TDengine, tracks query-rule coverage,
 // detects and records taosd crashes/incidents, and periodically flushes a
 // minimal run report. The crash-guard recorder persists pending/executed
 // statement state so the supervisor can attribute crashes to specific SQL.
 //
 // run.go 驱动 fuzz 循环:它引导共享 catalog,反复生成 SQL 语句(通过
-// branch-case/rule-seed/random 策略),对其进行解析并在 TDengine 上执行,跟踪
+// rule-seed/query-random 策略),对其进行解析并在 TDengine 上执行,跟踪
 // query-rule 覆盖率,检测并记录 taosd 崩溃/事件,并周期性地刷写一份最小运行报告。
 // crash-guard 记录器持久化待执行/已执行语句状态,使 supervisor 能够将崩溃归因到
 // 具体的 SQL。
@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"sqlparser"
-	"tdsqlsmith/internal/branchmodel"
 	"tdsqlsmith/internal/catalog"
 	"tdsqlsmith/internal/crashguard"
 	"tdsqlsmith/internal/executor"
@@ -74,7 +73,6 @@ type Result struct {
 	RunID      string                      // unique identifier of the run / 运行的唯一标识
 	RunDir     string                      // directory holding the run's artifacts / 存放运行产物的目录
 	ReportPath string                      // path to the run's JSON report / 运行 JSON 报告的路径
-	Coverage   branchmodel.CoverageSummary // branch-model coverage summary / branch-model 覆盖率摘要
 	QueryRules queryrules.Summary          // query-rule coverage summary / query-rule 覆盖率摘要
 	Stats      report.Stats                // execution statistics counters / 执行统计计数器
 }
@@ -117,10 +115,8 @@ type executedStmtRecord struct {
 type generationStrategy string
 
 const (
-	strategyBranchCase  generationStrategy = "branch_case"  // target uncovered branch-model cases / 针对未覆盖的 branch-model 用例
 	strategyRuleSeed    generationStrategy = "rule_seed"    // target missing query rules / 针对缺失的 query rule
 	strategyQueryRandom generationStrategy = "query_random" // random query generation / 随机查询生成
-	strategyWorkload    generationStrategy = "workload"     // workload-driven generation / workload 驱动生成
 )
 
 // generatedStatement is a single statement produced by the generator.
@@ -213,7 +209,6 @@ func Execute(ctx context.Context, cfg Config) (*Result, error) {
 	}
 	queryRuleTracker := queryrules.NewTracker(trackedQueryRules)
 	queryGen := querygen.New(querygen.DefaultConfig())
-	tracker := branchmodel.NewTracker(nil, nil)
 
 	impedance.Reset()
 	rng := random.New(uint64(cfg.Seed))
@@ -414,7 +409,7 @@ func Execute(ctx context.Context, cfg Config) (*Result, error) {
 		if cfg.Cases > 0 && int(stats.Generated) >= cfg.Cases {
 			break
 		}
-		if cfg.StopWhenCovered && tracker.IsPositiveCovered() && tracker.IsNegativeCovered() && queryRuleTracker.IsCovered() {
+		if cfg.StopWhenCovered && queryRuleTracker.IsCovered() {
 			break
 		}
 		if !cfg.DryRun && exec != nil {
@@ -444,7 +439,7 @@ func Execute(ctx context.Context, cfg Config) (*Result, error) {
 			family    string
 		)
 		seeded := false
-		strategies := appendUniqueStrategies(nil, pickGenerationStrategy(rng, 0, missingRules), strategyRuleSeed, strategyQueryRandom)
+		strategies := appendUniqueStrategies(nil, pickGenerationStrategy(rng, missingRules), strategyRuleSeed, strategyQueryRandom)
 		for _, strategy := range strategies {
 			switch strategy {
 			case strategyRuleSeed:
@@ -553,14 +548,6 @@ func Execute(ctx context.Context, cfg Config) (*Result, error) {
 		}
 		queryRuleTracker.MarkMany(hitQueryRules)
 		appendRuleProgress(false)
-
-		var hits []string
-		if generated.Kind == "query" {
-			hits = tracker.TryMarkPositive(pg.Stmt, sqlText, time.Now())
-			if len(hits) == 0 && generated.CaseID != "" && !strings.HasPrefix(generated.CaseID, "QRYRULE_") && !strings.HasPrefix(generated.CaseID, "QGEN") {
-				recordErr("coverage", fmt.Sprintf("query did not match any uncovered case (expected=%s)", generated.CaseID))
-			}
-		}
 
 		if cfg.DryRun {
 			impedance.RecordOK(generated.Rule)
@@ -741,7 +728,6 @@ func Execute(ctx context.Context, cfg Config) (*Result, error) {
 	if err := writeMinimalSnapshot(true, exitErr == nil); err != nil {
 		return nil, err
 	}
-	covSummary := tracker.Summary()
 	queryRuleSummary := queryRuleTracker.Summary()
 	if err := crashRec.MarkCleanExit(); err != nil {
 		return nil, fmt.Errorf("mark crash guard clean exit: %w", err)
@@ -758,7 +744,6 @@ func Execute(ctx context.Context, cfg Config) (*Result, error) {
 		RunID:      runID,
 		RunDir:     runDir,
 		ReportPath: reportPath,
-		Coverage:   covSummary,
 		QueryRules: queryRuleSummary,
 		Stats:      stats,
 	}, nil
@@ -1253,14 +1238,14 @@ func defaultTrackedQueryRules() []string {
 }
 
 // pickGenerationStrategy chooses a generation strategy via weighted random
-// selection, boosting branch-case and rule-seed strategies when there are
-// uncovered branch cases or missing rules and biasing toward complex queries
-// when the missing rules involve joins, windows, subqueries, or functions.
+// selection, boosting rule-seed strategy when there are missing rules and
+// biasing toward complex queries when the missing rules involve joins, windows,
+// subqueries, or functions.
 //
-// pickGenerationStrategy 通过加权随机选择来挑选生成策略:当存在未覆盖的 branch
-// 用例或缺失规则时提升 branch-case 和 rule-seed 策略的权重,并在缺失规则涉及
-// join、窗口、子查询或函数时偏向生成复杂查询。
-func pickGenerationStrategy(rng *random.RNG, missingBranchCases int, missingRules []string) generationStrategy {
+// pickGenerationStrategy 通过加权随机选择来挑选生成策略:当存在缺失规则时提升
+// rule-seed 策略的权重,并在缺失规则涉及 join、窗口、子查询或函数时偏向生成复杂
+// 查询。
+func pickGenerationStrategy(rng *random.RNG, missingRules []string) generationStrategy {
 	// weightedStrategy pairs a strategy with its selection weight.
 	// weightedStrategy 将一个策略与其选择权重配对。
 	type weightedStrategy struct {
@@ -1269,49 +1254,26 @@ func pickGenerationStrategy(rng *random.RNG, missingBranchCases int, missingRule
 	}
 	missingRuleCount := len(missingRules)
 	options := []weightedStrategy{
-		{name: strategyBranchCase, weight: 28},
 		{name: strategyRuleSeed, weight: 24},
 		{name: strategyQueryRandom, weight: 30},
-		{name: strategyWorkload, weight: 18},
-	}
-	if missingBranchCases > 0 {
-		boost := 35
-		if missingBranchCases < 20 {
-			boost = 22
-		}
-		options[0].weight += boost
-		options[2].weight -= 10
-		options[3].weight -= 12
 	}
 	if missingRuleCount > 0 {
 		boost := 30
 		if missingRuleCount < 20 {
 			boost = 20
 		}
-		options[1].weight += boost
-		options[2].weight += 10
-		options[3].weight -= 12
-	}
-	complexGap := queryRuleComplexGapScore(missingRules)
-	if complexGap > 0 {
-		add := 12
-		if complexGap > 16 {
-			add = 20
+		options[0].weight += boost
+		options[1].weight += 10
+		if complexGap := queryRuleComplexGapScore(missingRules); complexGap > 0 {
+			add := 12
+			if complexGap > 16 {
+				add = 20
+			}
+			options[0].weight += add / 2
+			options[1].weight += add
 		}
-		options[1].weight += add / 2
-		options[2].weight += add
-		options[0].weight -= 10
-		options[3].weight -= 8
-	}
-	if missingBranchCases == 0 {
+	} else {
 		options[0].weight = 0
-	}
-	if missingRuleCount == 0 {
-		options[1].weight = 0
-	}
-	if missingBranchCases == 0 && missingRuleCount == 0 {
-		options[2].weight = 42
-		options[3].weight = 58
 	}
 	total := 0
 	for i := range options {

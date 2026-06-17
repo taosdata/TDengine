@@ -304,6 +304,7 @@ Below are the business error codes for each module.
 | 0x800004E3 | Encryption algorithm type not match                          | Does not exist                                               | Confirm if the operation is correct                          |
 | 0x800004E4 | Invalid encryption algorithm format                          | Input algorithm id is empty                                               | Confirm if the operation is correct                          |
 | 0x800004E5 | Encryption algorithm in use                                  | Still in use                                                  | Remove all object which use this algorithm                          |
+| 0x800004E6 | Built-in encryption algorithm can not be dropped             | Dropping a built-in (system preset) encryption algorithm     | Built-in encryption algorithms can not be dropped; only user-defined encryption algorithms can be dropped |
 | 0x800004FB | No enabled non-root user with SYSSEC role found                       | SoD policy requires an enabled user with SYSSEC role         | Create or enable a user with SYSSEC role before activating SoD |
 | 0x800004FC | No enabled non-root user with SYSAUDIT role found                     | SoD policy requires an enabled user with SYSAUDIT role       | Create or enable a user with SYSAUDIT role before activating SoD |
 | 0x800004FD | Operation not allowed in current SoD status                  | The operation is restricted under the current Separation-of-Duty mode | Check if SoD is mandatory and use the appropriate role user for this operation |
@@ -488,7 +489,7 @@ Below are the business error codes for each module.
 | 0x80002608 | There mustn't be aggregation                                                                           | Aggregation function used in illegal clause                                | Check and correct the SQL statement                          |
 | 0x80002609 | ORDER BY item must be the number of a SELECT-list expression                                           | Illegal position specified in Order by                                     | Check and correct the SQL statement                          |
 | 0x8000260A | Not a GROUP BY expression                                                                              | Illegal group by statement                                                 | Check and correct the SQL statement                          |
-| 0x8000260B | Not a SELECT expression | Illegal expression | Check and correct the SQL statement                          |
+| 0x8000260B | Not a valid SELECT expression | Illegal | Check and correct the SQL statement |
 | 0x8000260C | Not a single-group group function                                                                      | Illegal use of column and function                                         | Check and correct the SQL statement                          |
 | 0x8000260D | Tags number not matched                                                                                | Mismatched number of tag columns                                           | Check and correct the SQL statement                          |
 | 0x8000260E | Invalid tag name                                                                                       | Invalid or non-existent tag name                                           | Check and correct the SQL statement                          |
@@ -558,7 +559,7 @@ Below are the business error codes for each module.
 | 0x8000265E | Not valid function ion window                                                                          | Illegal window statement                                                   | Check and correct the SQL statement                          |
 | 0x8000265F | Only support single table                                                                              | Function only supported in single table queries                            | Check and correct the SQL statement                          |
 | 0x80002660 | Invalid sma index                                                                                      | Illegal creation of SMA statement                                          | Check and correct the SQL statement                          |
-| 0x80002661 | Invalid SELECT expression                                                                            | Invalid query statement                                                    | Check and correct the SQL statement                          |
+| 0x80002661 | Invalid SELECT expression | Invalid query | Check and correct the SQL |
 | 0x80002662 | Fail to get table info                                                                                 | Failed to retrieve table metadata information                              | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002663 | Not unique table/alias                                                                                 | Table name (alias) conflict                                                | Check and correct the SQL statement                          |
 | 0x80002664 | Join requires valid time-series input                                                                  | Unsupported JOIN query without primary timestamp column output in subquery | Check and correct the SQL statement                          |
@@ -672,6 +673,13 @@ Below are the business error codes for each module.
 | ---------- | ------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
 | 0x80003200 | INDEX being rebuilt | 1. Writing too fast, causing the index merge thread to lag 2. Index file is damaged, being rebuilt | Check error logs, contact development for handling |
 | 0x80003201 | Index file damaged  | File damaged                                                 | Check error logs, contact development for handling |
+
+#### scalar
+
+| Error Code | Description                                                  | Possible Error Scenarios or Reasons                          | Recommended Actions for Users                      |
+| ---------- | ----------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
+| 0x80003250 | Operation not supported between data types                  | The operation or comparison is not supported between the given data types | Check and correct the SQL statement |
+| 0x80003251 | Failed to convert NCHAR value, possibly due to invalid character encoding or charset mismatch | When an NCHAR column/tag is compared with a string, the NCHAR value fails to be converted to/from a string, usually because the stored value does not match the configured charset or contains an invalid character encoding | Check that the server/client charset is correct and that the NCHAR value is valid |
 
 #### tmq
 

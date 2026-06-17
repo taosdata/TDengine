@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"tdsqlsmith/internal/branchmodel"
 	"tdsqlsmith/internal/impedance"
 	"tdsqlsmith/internal/queryrules"
 )
@@ -177,10 +176,7 @@ type RunReport struct {
 	CorpusDir             string                      `json:"corpus_dir"`                        // corpus directory / 语料库目录
 	RNGStateInitial       string                      `json:"rng_state_initial,omitempty"`       // serialized RNG state at start / 开始时序列化的 RNG 状态
 	RNGStateFinal         string                      `json:"rng_state_final,omitempty"`         // serialized RNG state at end / 结束时序列化的 RNG 状态
-	Coverage              branchmodel.CoverageSummary `json:"query_branch_coverage"`             // query branch coverage summary / 查询分支覆盖率摘要
 	QueryRuleCoverage     queryrules.Summary          `json:"query_rule_coverage"`               // query rule coverage summary / 查询规则覆盖率摘要
-	PositiveHits          []branchmodel.HitInfo       `json:"positive_hits"`                     // covered positive branches / 已覆盖的正向分支
-	NegativeHits          []branchmodel.HitInfo       `json:"negative_hits"`                     // covered negative branches / 已覆盖的负向分支
 	Stats                 Stats                       `json:"stats"`                             // aggregate counters / 汇总计数器
 	TopErrors             []ErrorCount                `json:"top_errors"`                        // most frequent errors / 最高频的错误
 	FamilyCounts          map[string]int64            `json:"family_counts,omitempty"`           // counts by statement family / 按语句族分类的计数

@@ -354,6 +354,10 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn,
   // 4. Try a create new page
   if (!pPage && pTxn->xMalloc != NULL) {
     if (force) {
+      // BUGBUG: page allocated here will leak because we haven't mark it is
+      // allocated by tdbDefaultMalloc and it will be freed by pTxn->xFree,
+      // but pTxn->xFree is a no-op. However, if it is not a no-op, the issue
+      // becomes more critical.
       ret = tdbPageCreate(pCache->szPage, &pPage, &tdbDefaultMalloc, pTxn->xArg);
     } else {
       ret = tdbPageCreate(pCache->szPage, &pPage, pTxn->xMalloc, pTxn->xArg);

@@ -431,6 +431,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ALGR_EXIST,                   "Encryption algo
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ENCRYPT_TYPE_NOT_MATCH,       "Encryption algorithm type not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ENCRYPT_ALGR_FORMAT,    "Invalid encryption algorithm format")
 TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ENCRYPT_ALGR_IN_USE,          "Encryption algorithm in use")
+TAOS_DEFINE_ERROR(TSDB_CODE_MNODE_ENCRYPT_ALGR_BUILTIN,         "Built-in encryption algorithm can not be dropped")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_RSP_IS_NULL,         "Analysis service response is NULL")
 TAOS_DEFINE_ERROR(TSDB_CODE_ANA_URL_CANT_ACCESS,         "Analysis service can't access")
@@ -1039,6 +1040,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is inval
 
 //scalar
 TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_ERROR,           "Operation not supported between data types")
+TAOS_DEFINE_ERROR(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR,     "Failed to convert NCHAR value, possibly due to invalid character encoding or charset mismatch")
 
 //utxn
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_ALREADY_IN_PROGRESS,        "Transaction already in progress, please COMMIT or ROLLBACK first")

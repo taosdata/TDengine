@@ -4,9 +4,9 @@ title: Data Ingestion
 description: "Xnode distributed node and task management instructions"
 ---
 
-# Data Synchronization SQL Manual
+# Data Ingestion
 
-This document introduces SQL commands for managing the data synchronization functionality of TDengine, including Xnode nodes, synchronization tasks, Job shards, and Agent nodes.
+Xnode is a distributed execution node in the TDengine data ingestion service. It runs data synchronization tasks and writes data from external data sources into TDengine in real time or in batches. This document describes the SQL commands used to manage data ingestion, including Xnode nodes, data ingestion tasks, Job shards, and Agents.
 
 ## Xnode Management
 

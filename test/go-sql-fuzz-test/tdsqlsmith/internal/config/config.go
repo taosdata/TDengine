@@ -63,7 +63,7 @@ type RunConfig struct {
 	OutDir               string        // output directory (absolute after parsing) / 输出目录（解析后为绝对路径）
 	CleanupSuccessRunDir bool          // remove temp child logs on clean exit / 干净退出时移除临时子进程日志
 	MutationLevel        int           // mutation intensity in [0,3] / 变异强度，取值范围 [0,3]
-	StopWhenCovered      bool          // stop once all positive branches are covered / 一旦覆盖所有正向分支即停止
+	StopWhenCovered      bool          // stop once all required query rules are covered / 一旦覆盖所有必需查询规则即停止
 	DryRun               bool          // parse-gate only, skip execution / 仅做解析校验，跳过执行
 	Verbose              bool          // verbose progress output / 输出详细进度
 	DumpAllQueries       bool          // print every generated query / 打印每条生成的查询
@@ -241,7 +241,7 @@ func parseRun(args []string) (*RunConfig, error) {
 	fs.StringVar(&cfg.OutDir, "out-dir", DefaultOutDir, "output directory")
 	fs.BoolVar(&cfg.CleanupSuccessRunDir, "cleanup-success-run-dir", true, "cleanup temporary child logs only when run exits cleanly and no core dump is observed")
 	fs.IntVar(&cfg.MutationLevel, "mutation-level", 1, "0..3")
-	fs.BoolVar(&cfg.StopWhenCovered, "stop-when-covered", true, "stop when all positive branches are covered")
+	fs.BoolVar(&cfg.StopWhenCovered, "stop-when-covered", true, "stop when all required query rules are covered")
 	fs.BoolVar(&cfg.DryRun, "dry-run", false, "parse-gate only, skip TDengine execution")
 	fs.BoolVar(&cfg.Verbose, "verbose", false, "verbose progress")
 	fs.StringVar(&cfg.RNGState, "rng-state", "", "deserialize RNG state")
