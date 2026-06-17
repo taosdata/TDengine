@@ -2,7 +2,6 @@ package log
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -22,7 +21,6 @@ func TestConfigLog(t *testing.T) {
 	assert.Equal(t, logger.Level, debug)
 	assert.Equal(t, true, IsDebug())
 	fmt.Print(GetLogNow(true), GetLogDuration(true, time.Now()))
-	Close(context.Background())
 }
 
 func TestGetLogDuration_NotDebug_ReturnsZeroDuration(t *testing.T) {
