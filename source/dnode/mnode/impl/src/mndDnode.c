@@ -2350,7 +2350,10 @@ static int32_t mndProcessAlterEncryptKeyReqImpl(SRpcMsg *pReq, SMAlterEncryptKey
         sdbRelease(pSdb, pDnode);
         goto _exit;
       }
-      SRpcMsg rpcMsg = {.msgType = TDMT_MND_ALTER_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
+      // 第二跳广播：使用 DND 版本消息，确保被各 dnode 的 DNODE 模块消费执行本地密钥更新。
+      // 不能用 TDMT_MND_ALTER_ENCRYPT_KEY（那是 client->mnode 第一跳消息），否则会被远端 mnode 模块
+      // 再次当作第一跳处理，造成路由错乱 / 广播风暴，且非 leader 节点不会真正更新密钥。
+      SRpcMsg rpcMsg = {.msgType = TDMT_DND_ALTER_ENCRYPT_KEY, .pCont = pBuf, .contLen = bufLen};
       int32_t ret = tmsgSendReq(&epSet, &rpcMsg);
       if (ret != 0) {
         mGError("msg:%p, failed to send alter encrypt_key req to dnode:%d, error:%s", pReq, pDnode->id, tstrerror(ret));
@@ -2465,7 +2468,8 @@ static int32_t mndProcessAlterKeyExpirationReqImpl(SRpcMsg *pReq, SMAlterKeyExpi
         sdbRelease(pSdb, pDnode);
         goto _exit;
       }
-      SRpcMsg rpcMsg = {.msgType = TDMT_MND_ALTER_KEY_EXPIRATION, .pCont = pBuf, .contLen = bufLen};
+      // 第二跳广播：使用 DND 版本消息，确保被各 dnode 的 DNODE 模块消费执行本地过期时间更新。
+      SRpcMsg rpcMsg = {.msgType = TDMT_DND_ALTER_KEY_EXPIRATION, .pCont = pBuf, .contLen = bufLen};
       int32_t ret = tmsgSendReq(&epSet, &rpcMsg);
       if (ret != 0) {
         mGError("msg:%p, failed to send alter key_expiration req to dnode:%d, error:%s", pReq, pDnode->id,
