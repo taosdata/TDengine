@@ -211,6 +211,25 @@ class TestVtablePlanEliminateVirtualScan:
                       f"nchar_32_col from test_vtable_select_0.vtb_org_child_0.nchar_32_col)"
                       f"USING `vtb_virtual_stb` TAGS (3, false, 3, 3, 'child3', 'child3')")
 
+        tdLog.info(f"prepare multi-ref virtual table with renamed primary timestamp tables.")
+        tdSql.execute("drop database if exists test_vtable_select_ts_name;")
+        tdSql.execute("create database test_vtable_select_ts_name;")
+        tdSql.execute("use test_vtable_select_ts_name;")
+        tdSql.execute("create table d0 (origin_ts timestamp, `current` float)")
+        tdSql.execute("create table d1 (origin_ts timestamp, voltage int)")
+        tdSql.execute("create table d2 (origin_ts timestamp, phase float)")
+        tdSql.execute("insert into d0 values ('2020-01-01 00:00:00.000', 1.0)")
+        tdSql.execute("insert into d0 values ('2020-01-01 00:00:01.000', 2.0)")
+        tdSql.execute("insert into d1 values ('2020-01-01 00:00:00.000', 220)")
+        tdSql.execute("insert into d2 values ('2020-01-01 00:00:00.000', 0.5)")
+        tdSql.execute(
+            "create vtable vtb_d0 ("
+            "ts timestamp, "
+            "`current` float from d0.`current`, "
+            "voltage int from d1.voltage, "
+            "phase float from d2.phase)"
+        )
+
     def run_normal_query(self, testCase):
         # read sql from .sql file and execute
         tdLog.info(f"test case : {testCase}.")
@@ -223,6 +242,8 @@ class TestVtablePlanEliminateVirtualScan:
         """Query: v-table query plan
 
         1. test vtable query plan when eliminate virtual table scan operator
+        2. test ts projection from a single ref can eliminate virtual table scan
+        3. test multi-ref virtual table query with one ref maps virtual ts to ref primary timestamp name
 
         Since: v3.3.8.0
 
@@ -235,5 +256,3 @@ class TestVtablePlanEliminateVirtualScan:
 
         """
         self.run_normal_query("test_vtable_plan_eliminate_virtual_scan")
-
-
