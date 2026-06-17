@@ -273,7 +273,7 @@ class TestTaosBackupEdge:
 
         self.makeDir(tmpdir)
         rlist2 = etool.taosdump(
-            f"-u baktest -p Bak@2026 -D authdb -o {tmpdir}",
+            f"-u baktest -pBak@2026 -D authdb -o {tmpdir}",
             checkRun=True,
         )
         output2 = "\n".join(rlist2) if rlist2 else ""

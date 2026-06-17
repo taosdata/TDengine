@@ -11,6 +11,7 @@
     
 #include "bckArgs.h"
 #include "bck.h"
+#include "cus_name.h"
 
 //
 // ---------------- global args state ----------------
@@ -71,6 +72,9 @@ static bool g_stmtVersionSet = false;
 //
 
 void printVersion(bool verbose) {
+    if (verbose) {
+        printf("%s\n", TD_PRODUCT_NAME);
+    }
     printf("taosDump version: %s\n", TD_VER_NUMBER);
     if (verbose) {
         printf("git: %s\n", TAOSDUMP_COMMIT_ID);

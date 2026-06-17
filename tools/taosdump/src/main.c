@@ -181,7 +181,6 @@ static void printEndSummary(enum ActionType action, int code, double elapsed) {
 }
 
 int main(int argc, char *argv[]) {
-    printVersion(false);
     // register signal handlers for graceful shutdown
 #ifdef WINDOWS
     // On Windows, use SetConsoleCtrlHandler for Ctrl-C / Ctrl-Break / close
@@ -197,11 +196,12 @@ int main(int argc, char *argv[]) {
     // init 
     //
     
-    // arguments
+    // arguments (-V/--version exits here before startup banner)
     if (argsInit(argc, argv) != 0) {
         logError("init args failed");
         return -1;
     }
+    printVersion(false);
     // Determine and apply connection driver before any connection is opened.
     // Priority: explicit -Z > auto-from-DSN > default (native).
     {
