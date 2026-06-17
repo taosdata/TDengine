@@ -2718,6 +2718,38 @@ TEST(ScalarFunctionTest, castToJsonShouldReturnConvertError) {
   taosMemoryFree(output.columnData);
 }
 
+// ncharTobinary is the conversion used when an NCHAR column/tag is compared with a string
+// (e.g. "tag1 = 'aaaa'"). It is not declared in any public header, so forward declare it here.
+extern "C" int32_t ncharTobinary(void *buf, void **out, void *charsetCxt);
+
+TEST(ScalarFunctionTest, ncharToBinaryInvalidDataShouldReturnNcharConvertError) {
+  scltInitLogFile();
+
+  /* Build an NCHAR (UCS-4LE) vardata buffer holding an invalid code point (0xFFFFFFFF) that
+   * cannot be converted to the target charset. This simulates a corrupted / illegal NCHAR
+   * value being converted to string during comparison, which used to be misreported as
+   * "Operation not supported between data types" (TSDB_CODE_SCALAR_CONVERT_ERROR). */
+  char     buf[VARSTR_HEADER_SIZE + sizeof(uint32_t)] = {0};
+  uint32_t invalidUcs4 = 0xFFFFFFFF;
+  (void)memcpy(varDataVal(buf), &invalidUcs4, sizeof(invalidUcs4));
+  varDataSetLen(buf, sizeof(invalidUcs4));
+
+  void   *out = NULL;
+  int32_t code = ncharTobinary(buf, &out, NULL);
+  ASSERT_EQ(code, TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
+  // on failure ncharTobinary frees the output buffer internally, so do not free it here.
+
+  /* Sanity check: a valid NCHAR value still converts successfully. */
+  void *validNchar = prepareNchar((char *)"abc");
+  ASSERT_NE(validNchar, nullptr);
+  out = NULL;
+  code = ncharTobinary(validNchar, &out, NULL);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(out, nullptr);
+  taosMemoryFree(out);
+  taosMemoryFree(validNchar);
+}
+
 TEST(ScalarFunctionTest, absFunction_constant) {
   SScalarParam *pInput, *pOutput;
   int32_t       code = TSDB_CODE_SUCCESS;
