@@ -8832,6 +8832,10 @@ static int32_t eliminateVirtualScanOptimizeImpl(SOptimizeContext* pCxt, SLogicSu
 
 // eliminate virtual scan node when it has only one child
 static int32_t eliminateVirtualScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
+    // Stream calc plans still depend on the virtual scan's column mapping.
+    return TSDB_CODE_SUCCESS;
+  }
   SLogicNode* pVirtualScanNode = optFindPossibleNode(pLogicSubplan->pNode, eliminateVirtualScanMayBeOptimized, NULL);
   if (NULL == pVirtualScanNode) {
     return TSDB_CODE_SUCCESS;
