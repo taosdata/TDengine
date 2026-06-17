@@ -485,7 +485,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002608 | There mustn't be aggregation                                                                           | 聚合函数出现在非法子句中                                | 检查并修正 SQL 语句                    |
 | 0x80002609 | ORDER BY item must be the number of a SELECT-list expression                                           | Order by 指定的位置不合法                               | 检查并修正 SQL 语句                    |
 | 0x8000260A | Not a GROUP BY expression                                                                              | 非法 group by 语句                                      | 检查并修正 SQL 语句                    |
-| 0x8000260B | Not SELECTed expression                                                                                | 非法表达式                                              | 检查并修正 SQL 语句                    |
+| 0x8000260B | Not a valid SELECT expression | 非法表达式 | 检查并修正 SQL 语句 |
 | 0x8000260C | Not a single-group group function                                                                      | 非法使用列与函数                                        | 检查并修正 SQL 语句                    |
 | 0x8000260D | Tags number not matched                                                                                | tag 列个数不匹配                                        | 检查并修正 SQL 语句                    |
 | 0x8000260E | Invalid tag name                                                                                       | 无效或不存在的 tag 名                                   | 检查并修正 SQL 语句                    |
@@ -555,7 +555,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000265E | Not valid function ion window                                                                          | 非法窗口语句                                            | 检查并修正 SQL 语句                    |
 | 0x8000265F | Only support single table                                                                              | 函数只支持在单表查询中使用                              | 检查并修正 SQL 语句                    |
 | 0x80002660 | Invalid sma index                                                                                      | 非法创建 SMA 语句                                       | 检查并修正 SQL 语句                    |
-| 0x80002661 | Invalid SELECTed expression                                                                            | 无效查询语句                                            | 检查并修正 SQL 语句                    |
+| 0x80002661 | Invalid SELECT expression | 无效查询语句 | 检查并修正 SQL 语句 |
 | 0x80002662 | Fail to get table info                                                                                 | 获取表元数据信息失败                                    | 保留现场和日志，github 上报 issue      |
 | 0x80002663 | Not unique table/alias                                                                                 | 表名（别名）冲突                                        | 检查并修正 SQL 语句                    |
 | 0x80002664 | Join requires valid time series input                                                                  | 不支持子查询不含主键时间戳列输出的 JOIN 查询            | 检查并修正 SQL 语句                    |
@@ -666,6 +666,13 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | ---------- | ---------------- | -------------------------------------------------------------------- | -------------------------- |
 | 0x80003200 | INDEX 正在重建中 | 1.写入过快，导致 index 的合并线程处理不过来 2.索引文件损坏，正在重建 | 检查错误日志，联系开发处理 |
 | 0x80003201 | 索引文件损坏     | 文件损坏                                                             | 检查错误日志，联系开发处理 |
+
+#### scalar
+
+| 错误码     | 错误描述                                                     | 可能的出错场景或者可能的原因                                 | 建议用户采取的措施                         |
+| ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------ |
+| 0x80003250 | Operation not supported between data types                   | 给定的数据类型之间不支持该运算或比较                         | 检查并修正 SQL 语句                        |
+| 0x80003251 | Failed to convert NCHAR value, possibly due to invalid character encoding or charset mismatch | NCHAR 值与字符串相互转换失败，通常是由于存储的值与配置的字符集不匹配或包含非法的字符编码 | 检查服务端/客户端字符集是否正确，确认 NCHAR 值是否合法 |
 
 #### tmq
 
