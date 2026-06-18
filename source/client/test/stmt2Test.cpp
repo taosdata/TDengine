@@ -4750,6 +4750,9 @@ TEST(stmt2Case, no_tag_with_drop_table) {
 
   do_query(taos, "create table stmt2_testdb_35.tb2 using stmt2_testdb_35.stb tags(1, 'after')");
 
+  code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
   code = taos_stmt2_bind_param(stmt, &bindv, -1);
   checkError(stmt, code, __FILE__, __LINE__);
 
@@ -4838,6 +4841,10 @@ TEST(stmt2Case, no_tag_with_drop_table) {
   ASSERT_EQ(args.async_affected_rows, TSDB_CODE_TDB_TABLE_NOT_EXIST);
 
   do_query(taos, "create table stmt2_testdb_35.tb2 using stmt2_testdb_35.stb tags(1, 'after')");
+
+  code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
   code = taos_stmt2_bind_param(stmt, &bindv, -1);
   checkError(stmt, code, __FILE__, __LINE__);
   code = taos_stmt2_exec(stmt, NULL);
