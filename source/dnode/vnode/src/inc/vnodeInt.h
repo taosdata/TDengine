@@ -641,6 +641,7 @@ enum {
   // these AFTER SNAP_DATA_META so that the meta entries referenced by each
   // finalized txn already exist on the receiving side.
   SNAP_DATA_TXN_FINAL = 16,
+  SNAP_DATA_MEDIUM = 17,
 };
 
 struct SSnapDataHdr {

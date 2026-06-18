@@ -57,6 +57,9 @@ struct SVSnapReader {
   // tsdb raw
   int8_t              tsdbRAWDone;
   STsdbSnapRAWReader *pTsdbRAWReader;
+  // tsdb medium
+  int8_t                   tsdbMEDIUMDone;
+  STsdbSnapMediumReader   *pTsdbMEDIUMReader;
 
   // tq
   int8_t         tqHandleDone;
@@ -136,6 +139,19 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
             goto _out;
           }
         } break;
+        case SNAP_DATA_MEDIUM: {
+          SMediumSnapFileList fileList = {0};
+          code = tDeserializeSMediumSnapFileList(buf, bufLen, &fileList);
+          if (code) {
+            vError("vgId:%d, failed to deserialize medium file list since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+          code = tsdbSnapMediumReaderOpen(pReader->pVnode->pTsdb, pReader->ever,
+                                          SNAP_DATA_MEDIUM, &fileList,
+                                          pReader->sver, &pReader->pTsdbMEDIUMReader);
+          taosMemoryFreeClear(fileList.aFiles);
+          if (code) goto _out;
+        } break;
         default:
           vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
           code = TSDB_CODE_INVALID_DATA_FMT;
@@ -145,14 +161,20 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
 
     // toggle snap replication mode
     vInfo("vgId:%d, vnode snap reader supported tsdb rep of format:%d", TD_VID(pVnode), tsdbOpts.format);
-    if (pReader->sver == 0 && tsdbOpts.format == TSDB_SNAP_REP_FMT_RAW) {
+    if (tsdbOpts.format == TSDB_SNAP_REP_FMT_MEDIUM) {
       pReader->tsdbDone = true;
+      pReader->tsdbRAWDone = true;
+      // MEDIUM reader opened above via SNAP_DATA_MEDIUM TLV
+    } else if (pReader->sver == 0 && tsdbOpts.format == TSDB_SNAP_REP_FMT_RAW) {
+      pReader->tsdbDone = true;
+      pReader->tsdbMEDIUMDone = true;
     } else {
       pReader->tsdbRAWDone = true;
+      pReader->tsdbMEDIUMDone = true;
     }
 
     vInfo("vgId:%d, vnode snap writer enabled replication mode: %s", TD_VID(pVnode),
-          (pReader->tsdbDone ? "raw" : "normal"));
+          (pReader->tsdbDone && pReader->tsdbRAWDone ? "medium" : (pReader->tsdbDone ? "raw" : "normal")));
   }
 
 _out:
@@ -230,6 +252,10 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
 
   if (pReader->pTsdbRAWReader) {
     tsdbSnapRAWReaderClose(&pReader->pTsdbRAWReader);
+  }
+
+  if (pReader->pTsdbMEDIUMReader) {
+    tsdbSnapMediumReaderClose(&pReader->pTsdbMEDIUMReader);
   }
 
   if (pReader->pMetaReader) {
@@ -380,6 +406,28 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     }
   }
 
+  // MEDIUM TSDB
+  if (!pReader->tsdbMEDIUMDone) {
+    if (pReader->pTsdbMEDIUMReader == NULL) {
+      vError(
+          "vgId:%d, tsdb snap medium reader is expected to be opened via SNAP_DATA_MEDIUM TLV, but it's not. abort "
+          "reading medium snap data",
+          vgId);
+      code = -1;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    uint8_t *pData = NULL;
+    code = tsdbSnapMediumRead(pReader->pTsdbMEDIUMReader, &pData);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    if (pData) {
+      *ppData = pData;
+      goto _exit;
+    } else {
+      pReader->tsdbMEDIUMDone = 1;
+      tsdbSnapMediumReaderClose(&pReader->pTsdbMEDIUMReader);
+    }
+  }
+
   // TQ ================
 #ifdef USE_TQ
   vInfo("vgId:%d tq transform start", vgId);
@@ -490,6 +538,8 @@ struct SVSnapWriter {
   STsdbSnapWriter    *pTsdbSnapWriter;
   // tsdb raw
   STsdbSnapRAWWriter *pTsdbSnapRAWWriter;
+  // tsdb medium
+  STsdbSnapMediumWriter *pTsdbSnapMEDIUMWriter;
   // tq
   STqSnapWriter *pTqSnapHandleWriter;
   STqSnapWriter *pTqSnapOffsetWriter;
@@ -551,6 +601,9 @@ static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotP
         case SNAP_DATA_RAW: {
           code = tDeserializeTsdbRepOpts(buf, bufLen, &tsdbOpts);
           TSDB_CHECK_CODE(code, lino, _exit);
+        } break;
+        case SNAP_DATA_MEDIUM: {
+          // file list for MEDIUM mode — writer does not need it
         } break;
         default:
           vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
@@ -652,6 +705,11 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     code = tsdbSnapRAWWriterPrepareClose(pWriter->pTsdbSnapRAWWriter);
     if (code) goto _exit;
   }
+
+  if (pWriter->pTsdbSnapMEDIUMWriter) {
+    code = tsdbSnapMediumWriterPrepareClose(pWriter->pTsdbSnapMEDIUMWriter);
+    if (code) goto _exit;
+  }
 #ifdef USE_RSMA_ORIGIN
   if (pWriter->pRsmaSnapWriter) {
     code = rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter, rollback);
@@ -691,6 +749,11 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 
   if (pWriter->pTsdbSnapRAWWriter) {
     code = tsdbSnapRAWWriterClose(&pWriter->pTsdbSnapRAWWriter, rollback);
+    if (code) goto _exit;
+  }
+
+  if (pWriter->pTsdbSnapMEDIUMWriter) {
+    code = tsdbSnapMediumWriterClose(&pWriter->pTsdbSnapMEDIUMWriter, rollback);
     if (code) goto _exit;
   }
 #ifdef USE_TQ
@@ -839,6 +902,15 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       }
 
       code = tsdbSnapRAWWrite(pWriter->pTsdbSnapRAWWriter, pHdr);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } break;
+    case SNAP_DATA_MEDIUM: {
+      if (pWriter->pTsdbSnapMEDIUMWriter == NULL) {
+        code = tsdbSnapMediumWriterOpen(pVnode->pTsdb, pWriter->ever, &pWriter->pTsdbSnapMEDIUMWriter);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+
+      code = tsdbSnapMediumWrite(pWriter->pTsdbSnapMEDIUMWriter, pHdr);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
 #ifdef USE_TQ

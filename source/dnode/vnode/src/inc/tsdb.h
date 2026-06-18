@@ -750,6 +750,7 @@ typedef enum ETsdbRepFmt {
   TSDB_SNAP_REP_FMT_DEFAULT = 0,
   TSDB_SNAP_REP_FMT_RAW,
   TSDB_SNAP_REP_FMT_HYBRID,
+  TSDB_SNAP_REP_FMT_MEDIUM,
 } ETsdbRepFmt;
 
 typedef struct STsdbRepOpts {
@@ -758,6 +759,58 @@ typedef struct STsdbRepOpts {
 
 int32_t tSerializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
 int32_t tDeserializeTsdbRepOpts(void *buf, int32_t bufLen, STsdbRepOpts *pInfo);
+
+// MEDIUM snapshot file info (follower → leader)
+typedef struct SMediumSnapFileInfo {
+  int32_t fid;
+  int32_t ftype;
+  int32_t level;
+  int64_t minVer;
+  int64_t maxVer;
+  int32_t lcn;
+  int32_t mid;
+  int64_t cid;
+  int32_t diskLevel;
+  int32_t diskId;
+  int64_t size;
+  int8_t  missing;
+} SMediumSnapFileInfo;
+
+// MEDIUM snapshot file list (follower → leader)
+typedef struct SMediumSnapFileList {
+  int32_t              nFiles;
+  SMediumSnapFileInfo *aFiles;
+} SMediumSnapFileList;
+
+// MEDIUM snapshot file header (leader → follower, per SNAP_DATA message)
+typedef struct SMediumSnapFileHdr {
+  SMediumSnapFileInfo fileInfo;
+  int32_t            opType;  // tsdb_fop_t: TSDB_FOP_CREATE / TSDB_FOP_REMOVE / TSDB_FOP_MODIFY
+} SMediumSnapFileHdr;
+
+// serialization
+int32_t tSerializeSMediumSnapFileList(void *buf, int32_t bufLen, SMediumSnapFileList *pList);
+int32_t tDeserializeSMediumSnapFileList(void *buf, int32_t bufLen, SMediumSnapFileList *pList);
+int32_t tSerializeSMediumSnapFileHdr(void *buf, int32_t bufLen, SMediumSnapFileHdr *pHdr);
+int32_t tDeserializeSMediumSnapFileHdr(void *buf, int32_t bufLen, SMediumSnapFileHdr *pHdr);
+
+// MEDIUM snapshot reader (leader side)
+typedef struct STsdbSnapMediumReader STsdbSnapMediumReader;
+int32_t tsdbSnapMediumReaderOpen(STsdb *tsdb, int64_t ever, int8_t type,
+                                 SMediumSnapFileList *pFollowerFileList, int64_t beginIndex,
+                                 STsdbSnapMediumReader **reader);
+int32_t tsdbSnapMediumReaderClose(STsdbSnapMediumReader **reader);
+int32_t tsdbSnapMediumRead(STsdbSnapMediumReader *reader, uint8_t **data);
+
+// MEDIUM snapshot writer (follower side)
+typedef struct STsdbSnapMediumWriter STsdbSnapMediumWriter;
+int32_t tsdbSnapMediumWriterOpen(STsdb *tsdb, int64_t ever, STsdbSnapMediumWriter **writer);
+int32_t tsdbSnapMediumWriterClose(STsdbSnapMediumWriter **writer, int8_t rollback);
+int32_t tsdbSnapMediumWriterPrepareClose(STsdbSnapMediumWriter *writer);
+int32_t tsdbSnapMediumWrite(STsdbSnapMediumWriter *writer, SSnapDataHdr *hdr);
+
+// MEDIUM snapshot helper
+int32_t tsdbBuildMediumSnapFileList(STsdb *tsdb, SMediumSnapFileList *pList);
 
 // snap read
 struct STsdbReadSnap {
