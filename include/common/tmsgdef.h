@@ -175,6 +175,7 @@
   // DND 版本的 alter key expiration 消息：与 alter encrypt key 同理，mnode 收到 client 的
   // TDMT_MND_ALTER_KEY_EXPIRATION 后，通过该 DND 消息广播到所有 dnode 执行本地更新。
   TD_DEF_MSG_TYPE(TDMT_DND_ALTER_KEY_EXPIRATION, "dnode-alter-key-expiration", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_QUERY_COMPACT_PROGRESS, "dnode-query-compact-progress", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8

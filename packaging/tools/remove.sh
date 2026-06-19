@@ -200,13 +200,13 @@ fi
 
 kill_service_of() {
   local svc=$1
-  # grep -v -x "$$" : exclude the current script's own PID
-  # ps -o pid=,comm= -p ... : get pid and command name
-  # awk '$2 != "${uninstallScript}" && $2 != "uninstall.sh" {print $1}' : exclude ${uninstallScript} and uninstall.sh processes
-  pids=$(ps -eo pid=,comm= | awk -v svc="$svc" '$2 == svc {print $1}' || true)
+  local self_pid="${BASHPID:-$$}"
+  # Exclude the current uninstall script by PID first. Process names for shell
+  # scripts vary between direct execution, symlink execution and sudo wrappers.
+  pids=$(ps -eo pid=,comm= | awk -v svc="$svc" -v self="$self_pid" '$2 == svc && $1 != self {print $1}' || true)
   if [ -n "$pids" ]; then
     echo "$pids" | xargs -r ps -o pid=,comm= -p 2>/dev/null \
-      | awk -v us="${uninstallScript}" '$2 != us && $2 != "uninstall.sh" {print $1}' \
+      | awk -v us="${uninstallScript}" -v self="$self_pid" '$1 != self && $2 != us && $2 != "uninstall.sh" {print $1}' \
       | xargs -r kill -9 2>/dev/null || true
   fi
 }

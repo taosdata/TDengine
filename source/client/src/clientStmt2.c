@@ -715,6 +715,7 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
       return TSDB_CODE_SUCCESS;
     }
 
+    pStmt->exec.pCurrBlock = NULL;
     taosHashCleanup(pStmt->exec.pBlockHash);
     pStmt->exec.pBlockHash = NULL;
 
@@ -3505,6 +3506,11 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   ++pStmt->sql.runTimes;
   if (pStmt->exec.pRequest != NULL) {
     pStmt->exec.pRequest->inCallback = false;
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    STMT2_ELOG("async exec failed, code:%d", code);
+    pStmt->errCode = code;
   }
 
   if (tsem_post(&pStmt->asyncExecSem) != 0) {

@@ -29,6 +29,7 @@
 #define MND_COMPACT_ID_LEN     11
 
 static int32_t mndProcessCompactTimer(SRpcMsg *pReq);
+static int32_t mndProcessDnodeCompactProgressRsp(SRpcMsg *pReq);
 
 int32_t mndInitCompact(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_COMPACT, mndRetrieveCompact);
