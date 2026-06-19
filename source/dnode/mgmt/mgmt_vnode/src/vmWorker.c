@@ -18,7 +18,6 @@
 #include "vnodeInt.h"
 
 extern int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
-extern int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 static void vmFreeRpcQitem(void *pItem) {
   SRpcMsg *pMsg = (SRpcMsg *)pItem;
@@ -102,9 +101,6 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_DND_QUERY_SNAP_SEND_PROGRESS:
       code = vmProcessDnodeQuerySnapSendProgressReq(pMgmt, pMsg);
-      break;
-    case TDMT_DND_QUERY_COMPACT_PROGRESS:
-      code = vmProcessDnodeQueryCompactProgressReq(pMgmt, pMsg);
       break;
     case TDMT_VND_ARB_HEARTBEAT:
       code = vmProcessArbHeartBeatReq(pMgmt, pMsg);
