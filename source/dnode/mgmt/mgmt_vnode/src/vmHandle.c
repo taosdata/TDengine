@@ -1868,6 +1868,94 @@ _OVER:
 
 extern int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnodeInfo *pInfo);
 
+#ifdef TD_ENTERPRISE
+extern int32_t vnodeGetCompactProgress(SVnode *pVnode, int32_t compactId, SQueryCompactProgressRsp *pRsp);
+#endif
+
+
+int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t                        code = 0;
+  SDnodeQueryCompactProgressReq  req = {0};
+  SDnodeQueryCompactProgressRsp  rsp = {0};
+  int8_t                        *pRsp = NULL;
+  int32_t                        rspLen = 0;
+
+  code = tDeserializeSDnodeQueryCompactProgressReq(pMsg->pCont, pMsg->contLen, &req);
+  if (code != 0) {
+    dError("dnode:%d, failed to deserialize dnode-query-compact-progress req, code:%s",
+           pMgmt->pData->dnodeId, tstrerror(code));
+    goto _OVER;
+  }
+
+  dDebug("dnode:%d, receive dnode-query-compact-progress req, compactId:%d", pMgmt->pData->dnodeId, req.compactId);
+
+  rsp.dnodeId = pMgmt->pData->dnodeId;
+
+  SArray *pProgressArray = taosArrayInit(16, sizeof(SQueryCompactProgressRsp));
+  if (pProgressArray == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+  SArray *pVnodes = taosArrayInit(taosHashGetSize(pMgmt->runngingHash), sizeof(SVnodeObj *));
+  if (pVnodes) {
+    void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
+    while (pIter) {
+      SVnodeObj **ppVnode = pIter;
+      if (*ppVnode && (*ppVnode)->pImpl) {
+        taosArrayPush(pVnodes, ppVnode);
+      }
+      pIter = taosHashIterate(pMgmt->runngingHash, pIter);
+    }
+  }
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+
+  if (pVnodes) {
+    int32_t numOfVnodes = (int32_t)taosArrayGetSize(pVnodes);
+    for (int32_t i = 0; i < numOfVnodes; i++) {
+      SVnodeObj **ppVnode = taosArrayGet(pVnodes, i);
+      SVnodeObj  *pVnode = *ppVnode;
+      if (pVnode == NULL || pVnode->failed || pVnode->pImpl == NULL) continue;
+#ifdef TD_ENTERPRISE
+      SQueryCompactProgressRsp vnodeRsp = {0};
+      vnodeRsp.dnodeId = pMgmt->pData->dnodeId;
+      if (vnodeGetCompactProgress(pVnode->pImpl, req.compactId, &vnodeRsp) == 0 && vnodeRsp.compactId != 0) {
+        if (taosArrayPush(pProgressArray, &vnodeRsp) == NULL) {
+          dError("dnode:%d, vgId:%d, failed to push compact progress", pMgmt->pData->dnodeId, pVnode->vgId);
+        }
+      }
+#endif
+    }
+    taosArrayDestroy(pVnodes);
+  }
+
+  rsp.numOfVnodes   = (int32_t)taosArrayGetSize(pProgressArray);
+  rsp.vnodeProgress = (rsp.numOfVnodes > 0) ? (SQueryCompactProgressRsp *)taosArrayGet(pProgressArray, 0) : NULL;
+
+  dInfo("dnode:%d, send dnode-query-compact-progress rsp, numOfVnodes:%d", rsp.dnodeId, rsp.numOfVnodes);
+
+  rspLen = tSerializeSDnodeQueryCompactProgressRsp(NULL, 0, &rsp);
+  if (rspLen < 0) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayDestroy(pProgressArray);
+    goto _OVER;
+  }
+  pRsp = rpcMallocCont(rspLen);
+  if (!pRsp) {
+    code = terrno;
+    taosArrayDestroy(pProgressArray);
+    goto _OVER;
+  }
+  tSerializeSDnodeQueryCompactProgressRsp(pRsp, rspLen, &rsp);
+  pMsg->info.rsp    = pRsp;
+  pMsg->info.rspLen = rspLen;
+  taosArrayDestroy(pProgressArray);
+
+_OVER:
+  return code;
+}
+
 int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t                         code = 0;
   SDnodeQuerySnapSendProgressRsp  rsp = {0};
@@ -2007,6 +2095,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_VNODE_TYPE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_SNAP_SEND_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_COMPACT_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CONFIG_CHANGE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_ELECTBASELINE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
