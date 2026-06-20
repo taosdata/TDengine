@@ -280,6 +280,7 @@ static void destroyVtbScanDynCtrlInfo(SVtbScanDynCtrlInfo* pVtbScan) {
     taosHashCleanup(pVtbScan->vtbUidTagListMap);
   }
   if (pVtbScan->vtbGroupIdTagListMap) {
+    taosHashSetFreeFp(pVtbScan->vtbGroupIdTagListMap, destroyVtbUidTagListMap);
     taosHashCleanup(pVtbScan->vtbGroupIdTagListMap);
   }
   if (pVtbScan->vtbUidToGroupIdMap) {
@@ -897,7 +898,8 @@ _return:
 static int32_t buildBatchExchangeOperatorParamForVirtual(SOperatorParam** ppRes, int32_t downstreamIdx,
                                                          SArray* pTagList, uint64_t groupid, SHashObj* pBatchMaps,
                                                          STimeWindow window, EExchangeSourceType type,
-                                                         ENodeType srcOpType) {
+                                                         ENodeType srcOpType, SHashObj* newAddedVgInfo,
+                                                         uint64_t clientId) {
   int32_t                       code = TSDB_CODE_SUCCESS;
   int32_t                       lino = 0;
   SOperatorParam*               pParam = NULL;
@@ -923,14 +925,40 @@ static int32_t buildBatchExchangeOperatorParamForVirtual(SOperatorParam** ppRes,
     SArray*          pOrgTbInfoArray = *(SArray**)pIter;
     int32_t*         vgId = (int32_t*)taosHashGetKey(pIter, &keyLen);
 
+    // When an original-table vgroup was deployed at runtime (stream redeploy), the merge
+    // exchange has no static source endpoint for it. Thread the freshly-deployed reader's
+    // SDownstreamSourceNode so addSingleExchangeSource can dynamically register it (isNewDeployed).
+    SDownstreamSourceNode  newSource = {0};
+    SDownstreamSourceNode* pNewSource = NULL;
+    if (newAddedVgInfo != NULL) {
+      SStreamTaskAddr* addr = (SStreamTaskAddr*)taosHashGet(newAddedVgInfo, vgId, sizeof(*vgId));
+      if (addr != NULL) {
+        newSource.type = QUERY_NODE_DOWNSTREAM_SOURCE;
+        newSource.clientId = clientId;
+        newSource.taskId = addr->taskId;
+        newSource.fetchMsgType = TDMT_STREAM_FETCH;
+        newSource.localExec = false;
+        newSource.addr.nodeId = addr->nodeId;
+        memcpy(&newSource.addr.epSet, &addr->epset, sizeof(SEpSet));
+        pNewSource = &newSource;
+      }
+    }
+
     code = buildExchangeOperatorBasicParam(&basic, srcOpType,
                                            type, *vgId, groupid,
                                            NULL, NULL, pTagList, NULL, pOrgTbInfoArray,
-                                           window, NULL, false, true, false);
+                                           window, pNewSource, false, true, pNewSource != NULL);
     QUERY_CHECK_CODE(code, lino, _return);
 
     code = tSimpleHashPut(pExc->pBatchs, vgId, sizeof(*vgId), &basic, sizeof(basic));
     QUERY_CHECK_CODE(code, lino, _return);
+
+    // The new source is registered into the exchange only once; subsequent fires find it
+    // in the exchange's source set, so drop it from the pending runtime-added map.
+    if (pNewSource != NULL) {
+      code = taosHashRemove(newAddedVgInfo, vgId, sizeof(*vgId));
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
 
     basic = (SExchangeOperatorBasicParam){0};
     pIter = taosHashIterate(pBatchMaps, pIter);
@@ -1484,7 +1512,7 @@ static int32_t buildMergeOperatorParamForTsScan(SDynQueryCtrlOperatorInfo* pInfo
     code = buildBatchExchangeOperatorParamForVirtual(&pExchangeParam, i, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap,
                                                      (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN},
                                                      EX_SRC_TYPE_VSTB_TS_SCAN,
-                                                     QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
+                                                     QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, NULL, 0);
     QUERY_CHECK_CODE(code, lino, _return);
     QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pExchangeParam), code, lino, _return, terrno)
     pExchangeParam = NULL;
@@ -1524,7 +1552,7 @@ static int32_t buildAggOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, SOperator
   code = buildBatchExchangeOperatorParamForVirtual(
       &pExchangeParam, 0, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap,
       (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN,
-      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, pVtbScan->newAddedVgInfo, pVtbScan->clientId);
   QUERY_CHECK_CODE(code, lino, _return);
 
   freeExchange = true;
@@ -1578,7 +1606,7 @@ static int32_t buildAggOperatorParamWithGroupId(SDynQueryCtrlOperatorInfo* pInfo
   code = buildBatchExchangeOperatorParamForVirtual(
       &pExchangeParam, 0, NULL, groupid, otbVgIdToOtbInfoArrayMap,
       (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN,
-      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, pVtbScan->newAddedVgInfo, pVtbScan->clientId);
   QUERY_CHECK_CODE(code, lino, _return);
 
   freeExchange = true;
@@ -1621,7 +1649,7 @@ static int32_t buildAggOperatorParamForSingleChild(SDynQueryCtrlOperatorInfo* pI
     code = buildBatchExchangeOperatorParamForVirtual(
         &pParam, 0, pTagList, groupid, pOtbVgIdToOtbInfoArrayMap,
         (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_AGG_SCAN,
-        QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+        QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, pVtbScan->newAddedVgInfo, pVtbScan->clientId);
     QUERY_CHECK_CODE(code, lino, _return);
 
     *ppRes = pParam;
@@ -4402,12 +4430,19 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
     QUERY_CHECK_NULL(pDbNameCol, code, line, _return, terrno)
 
     for (int32_t i = 0; i < pChildInfo->info.rows; i++) {
-      if (!colDataIsNull_s(pStbNameCol, i)) {
-        char* stbrawname = colDataGetData(pStbNameCol, i);
+      // A virtual super table groups its child rows by stable name (column 1), so the
+      // scan is filtered against that. A single (non-super) virtual table has no such
+      // grouping: the scan returns the vtable's own column-ref rows whose stable_name
+      // differs from the queried table name, so match on the table name (column 0)
+      // instead. Without this, the non-super VTB_AGG/VTB_INTERVAL path collects no
+      // child tables and the downstream agg exchange ends up with zero sources.
+      SColumnInfoData* pMatchNameCol = pVtbScan->isSuperTable ? pStbNameCol : pTableNameCol;
+      if (!colDataIsNull_s(pMatchNameCol, i)) {
+        char* matchrawname = colDataGetData(pMatchNameCol, i);
         char* dbrawname = colDataGetData(pDbNameCol, i);
         char *ctbName = colDataGetData(pTableNameCol, i);
 
-        if (tableInfoNeedCollect(dbrawname, stbrawname, pInfo->vtbScan.dbName, pInfo->vtbScan.tbName)) {
+        if (tableInfoNeedCollect(dbrawname, matchrawname, pInfo->vtbScan.dbName, pInfo->vtbScan.tbName)) {
           SColRefInfo info = {0};
           code = getColRefInfo(&info, pChildInfo->pDataBlock, i);
           QUERY_CHECK_CODE(code, line, _return);
@@ -4450,7 +4485,8 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
   code = dynResolveChildTableRefsBySysScan(pOperator, pSystableScanOp);
   QUERY_CHECK_CODE(code, line, _return);
 
-  if (pInfo->qType == DYN_QTYPE_VTB_SCAN && pTaskInfo->pStreamRuntimeInfo != NULL) {
+  if ((pInfo->qType == DYN_QTYPE_VTB_SCAN || pInfo->qType == DYN_QTYPE_VTB_AGG) &&
+      pTaskInfo->pStreamRuntimeInfo != NULL) {
     code = dynCollectResolvedOrgTbVgFromChildTables(pOperator);
     QUERY_CHECK_CODE(code, line, _return);
   }
@@ -4463,6 +4499,13 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
       break;
     }
     case DYN_QTYPE_VTB_AGG: {
+      // In a stream, the resolved original-table vgroups may change over time. Mirror the
+      // VTB_SCAN path and check for redeploy *before* building org-table info, so an aborted
+      // open does not leave the org-table maps half-populated for the subsequent re-open.
+      if (pTaskInfo->pStreamRuntimeInfo != NULL) {
+        code = processOrgTbVg(pVtbScan, pTaskInfo, 1);
+        QUERY_CHECK_CODE(code, line, _return);
+      }
       if (pVtbScan->batchProcessChild) {
         code = buildOrgTbInfoBatch(pOperator, pVtbScan->hasPartition);
       } else {
@@ -5674,7 +5717,7 @@ static int32_t buildExternalWindowOperatorParamEx(SDynQueryCtrlOperatorInfo* pIn
   code = buildBatchExchangeOperatorParamForVirtual(
       &pExchangeParam, 0, NULL, 0, pInfo->vtbScan.otbVgIdToOtbInfoArrayMap,
       (STimeWindow){.skey = firstWin->tw.skey, .ekey = lastWin->tw.ekey}, EX_SRC_TYPE_VSTB_WIN_SCAN,
-      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, NULL, 0);
   QUERY_CHECK_CODE(code, lino, _return);
 
   QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExchangeParam), code, lino, _return, terrno)
@@ -5943,6 +5986,40 @@ static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
       if (pVtbScan->resolvedColRefMap) {
         taosHashClear(pVtbScan->resolvedColRefMap);
       }
+      // Agg/interval org-table maps are rebuilt from scratch on every (re)open by
+      // buildOrgTbInfoBatch/Single. In a stream the operator is reset and reopened per
+      // trigger, so release the previous instances here to avoid leaking / reusing stale
+      // mappings. existOrgTbVg is intentionally preserved across resets because it tracks
+      // which original-table vgroups are already deployed for this stream task.
+      if (pVtbScan->otbVgIdToOtbInfoArrayMap) {
+        taosHashSetFreeFp(pVtbScan->otbVgIdToOtbInfoArrayMap, destroyOtbInfoArray);
+        taosHashCleanup(pVtbScan->otbVgIdToOtbInfoArrayMap);
+        pVtbScan->otbVgIdToOtbInfoArrayMap = NULL;
+      }
+      if (pVtbScan->vtbUidToVgIdMapMap) {
+        taosHashSetFreeFp(pVtbScan->vtbUidToVgIdMapMap, destroyOtbVgIdToOtbInfoArrayMap);
+        taosHashCleanup(pVtbScan->vtbUidToVgIdMapMap);
+        pVtbScan->vtbUidToVgIdMapMap = NULL;
+      }
+      if (pVtbScan->vtbGroupIdToVgIdMapMap) {
+        taosHashSetFreeFp(pVtbScan->vtbGroupIdToVgIdMapMap, destroyOtbVgIdToOtbInfoArrayMap);
+        taosHashCleanup(pVtbScan->vtbGroupIdToVgIdMapMap);
+        pVtbScan->vtbGroupIdToVgIdMapMap = NULL;
+      }
+      if (pVtbScan->vtbUidTagListMap) {
+        taosHashSetFreeFp(pVtbScan->vtbUidTagListMap, destroyTagList);
+        taosHashCleanup(pVtbScan->vtbUidTagListMap);
+        pVtbScan->vtbUidTagListMap = NULL;
+      }
+      if (pVtbScan->vtbGroupIdTagListMap) {
+        taosHashSetFreeFp(pVtbScan->vtbGroupIdTagListMap, destroyVtbUidTagListMap);
+        taosHashCleanup(pVtbScan->vtbGroupIdTagListMap);
+        pVtbScan->vtbGroupIdTagListMap = NULL;
+      }
+      if (pVtbScan->vtbUidToGroupIdMap) {
+        taosHashCleanup(pVtbScan->vtbUidToGroupIdMap);
+        pVtbScan->vtbUidToGroupIdMap = NULL;
+      }
       if (pPhyciNode->dynTbname && pTaskInfo) {
         updateDynTbUidIfNeeded(pVtbScan, pTaskInfo->pStreamRuntimeInfo);
       }
@@ -6113,6 +6190,13 @@ int32_t vtbAggNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
     return code;
   }
 
+  pVtbScan->clientId = pOperator->pTaskInfo->id.taskId;
+
+  if (pVtbScan->needRedeploy) {
+    code = virtualTableScanCheckNeedRedeploy(pOperator);
+    QUERY_CHECK_CODE(code, line, _return);
+  }
+
   code = pOperator->fpSet._openFn(pOperator);
   QUERY_CHECK_CODE(code, line, _return);
 
@@ -6165,7 +6249,7 @@ static int32_t buildHashIntervalOperatorParam(SDynQueryCtrlOperatorInfo* pInfo, 
   code = buildBatchExchangeOperatorParamForVirtual(
       &pExchangeParam, 0, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap,
       (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_INTERVAL_SCAN,
-      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+      QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, NULL, 0);
   QUERY_CHECK_CODE(code, lino, _return);
 
   QUERY_CHECK_NULL(taosArrayPush(pParam->pChildren, &pExchangeParam), code, lino, _return, terrno)
@@ -6216,7 +6300,7 @@ static int32_t buildSplitIntervalMergeOperatorParam(SDynQueryCtrlOperatorInfo* p
     code = buildBatchExchangeOperatorParamForVirtual(
         &pExchangeParam, i, NULL, 0, pVtbScan->otbVgIdToOtbInfoArrayMap,
         (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN}, EX_SRC_TYPE_VSTB_PART_INTERVAL_SCAN,
-        QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+        QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, NULL, 0);
     QUERY_CHECK_CODE(code, lino, _return);
     QUERY_CHECK_NULL(taosArrayPush((*ppRes)->pChildren, &pExchangeParam), code, lino, _return, terrno)
     pExchangeParam = NULL;

@@ -105,6 +105,7 @@ typedef struct SVtbScanDynCtrlInfo {
   int32_t          acctId;
   int32_t          curTableIdx;
   int32_t          lastTableIdx;
+  uint64_t         clientId; // current DynQueryCtrl task id, used as clientId when wiring a runtime-added org-vg agg reader into the merge exchange
   STimeWindow      window;
   SArray*          readColList;
   SHashObj*        readColSet; // key: col_id_t, value: NULL
