@@ -1418,11 +1418,20 @@ int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid) {
   
   TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
 
-  if (pSubplan->pNode && nodeType(pSubplan->pNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
-    SScanPhysiNode* pScanNode = (SScanPhysiNode*)pSubplan->pNode;
-    *uid = pScanNode->uid;
+  // The calc-scan reader root is usually a TABLE_SCAN. For the virtual-stable-agg pushdown the
+  // reader is rooted at a partial aggregate (HASH_AGG -> TableScan); only in that case descend
+  // through the aggregate to the nested table scan. For every other plan shape, preserve the
+  // original behavior of inspecting the root node only, so we never bind to an unrelated nested
+  // TABLE_SCAN (which would route the reader to the wrong table). A plan with no resolvable
+  // TABLE_SCAN is a legitimate case (the caller treats an unset/zero uid as "no match").
+  SPhysiNode* pNode = (SPhysiNode*)pSubplan->pNode;
+  while (pNode && nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_HASH_AGG) {
+    pNode = (SPhysiNode*)nodesListGetNode(pNode->pChildren, 0);
   }
-  
+  if (pNode && nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    *uid = ((SScanPhysiNode*)pNode)->uid;
+  }
+
 _exit:
 
   if (code) {

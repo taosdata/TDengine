@@ -22,6 +22,12 @@
 
 #define SPLIT_FLAG_STABLE_SPLIT SPLIT_FLAG_MASK(0)
 #define SPLIT_FLAG_INSERT_SPLIT SPLIT_FLAG_MASK(1)
+// Marks a virtual-stable-agg partial-aggregate subplan (partAgg over org-table scan) so that the
+// stream-only streamScanSplit pass does NOT peel the scan out into a separate reader. Keeping the
+// partial agg fused with its scan makes the stream topology match batch: the partial agg is deployed
+// on each original-table vgroup (nodeId == org vgId), and the top-level merge exchange reads those
+// readers directly, so the org-vgId-keyed agg exchange param matches the source nodeId.
+#define SPLIT_FLAG_VTB_AGG_PUSHDOWN SPLIT_FLAG_MASK(2)
 
 #define SPLIT_FLAG_SET_MASK(val, mask)  (val) |= (mask)
 #define SPLIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
@@ -2468,7 +2474,13 @@ static int32_t vstbAggSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   if (info.needPartAgg) {
     PLAN_ERR_JRET(stbSplCreatePartAggNode((SAggLogicNode*)info.pAgg, &pPartAgg));
     PLAN_ERR_JRET(stbSplCreateExchangeNode(pCxt, info.pAgg, pPartAgg));
-    PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, pPartAgg, 0)));
+    // In a stream calc plan, keep the partial agg fused with its org-table scan in a single reader
+    // subplan (flagged so streamScanSplit will not peel the scan out). This co-locates the partial
+    // aggregate with the per-vgroup scan, mirroring the batch topology so the merge exchange reads
+    // the org-table vgroups directly.
+    int32_t scanSubplanFlag = inStreamCalcClause(pCxt->pPlanCxt) ? SPLIT_FLAG_VTB_AGG_PUSHDOWN : 0;
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren,
+                                            (SNode*)splCreateScanSubplan(pCxt, pPartAgg, scanSubplanFlag)));
   } else {
     PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pAgg, info.pSubplan->subplanType, false));
     PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)info.pAgg, 0)));
@@ -2567,7 +2579,7 @@ static int32_t streamScanSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   if (!inStreamCalcClause(pCxt->pPlanCxt) && !inStreamTriggerClause(pCxt->pPlanCxt)) {
     return TSDB_CODE_SUCCESS;
   }
-  while (splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)streamScanFindSplitNode, &info)) {
+  while (splMatch(pCxt, pSubplan, SPLIT_FLAG_VTB_AGG_PUSHDOWN, (FSplFindSplitNode)streamScanFindSplitNode, &info)) {
     PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, false));
     SLogicSubplan* pScanSubplan = splCreateScanSubplan(pCxt, info.pSplitNode, 0);
     if (NULL != pScanSubplan) {

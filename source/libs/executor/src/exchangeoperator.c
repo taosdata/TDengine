@@ -2202,6 +2202,13 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
       void* tmp = taosArrayPush(pExchangeInfo->pSources, pNode);
       QUERY_CHECK_NULL(tmp, code, lino, _return, terrno);
 
+      // keep pFetchRpcHandles parallel with pSources so the new source's index is in range
+      // when doSendFetchDataRequest stores its transporter handle.
+      if (pExchangeInfo->pFetchRpcHandles) {
+        int64_t initRpcHandle = 0;
+        QUERY_CHECK_NULL(taosArrayPush(pExchangeInfo->pFetchRpcHandles, &initRpcHandle), code, lino, _return, terrno);
+      }
+
       SExchangeSrcIndex idx = {.srcIdx = taosArrayGetSize(pExchangeInfo->pSources) - 1, .inUseIdx = -1};
       code = tSimpleHashPut(pExchangeInfo->pHashSources, &pNode->addr.nodeId, sizeof(pNode->addr.nodeId), &idx, sizeof(idx));
       if (pExchangeInfo->pHashSources) {

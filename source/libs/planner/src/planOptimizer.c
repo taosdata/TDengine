@@ -11436,7 +11436,60 @@ static bool aggNodeHasTag(SAggLogicNode* pAgg) {
   return false;
 }
 
+// In stream calc, the VTB_AGG pushdown reader scatters per-source-table results back to
+// virtual-table columns. When a virtual table's columns interleave references across more
+// than one physical source table (e.g. cols [a.x, b.x, a.y] — table `a` reused
+// non-contiguously), the pushdown reader's scatter does not handle the regrouped order and
+// silently drops/swaps results, so the stream emits nothing. The non-stream (batch) path and
+// the plain VTB_SCAN reader handle this correctly. Detect the shape on the VirtualScan's
+// scan columns: bail if any source (refDbName.refTableName) appears non-contiguously.
+static bool vscanRefsInterleaveSourceTables(SVirtualScanLogicNode* pVscan) {
+  if (NULL == pVscan) {
+    return false;
+  }
+  char    prevDb[TSDB_DB_NAME_LEN] = {0};
+  char    prevTb[TSDB_TABLE_NAME_LEN] = {0};
+  bool    havePrev = false;
+  SSHashObj* pSeen = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (NULL == pSeen) {
+    return false;  // on OOM, don't change behavior
+  }
+  bool    interleaved = false;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pVscan->pScanCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+      continue;
+    }
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (!pCol->hasRef) {
+      continue;
+    }
+    char key[TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 2] = {0};
+    int32_t klen = snprintf(key, sizeof(key), "%s.%s", pCol->refDbName, pCol->refTableName);
+    bool sameAsPrev = havePrev && 0 == strcmp(prevDb, pCol->refDbName) &&
+                      0 == strcmp(prevTb, pCol->refTableName);
+    if (!sameAsPrev) {
+      // a new source-table run begins; if we have seen this source before, it is non-contiguous
+      if (NULL != tSimpleHashGet(pSeen, key, (size_t)klen)) {
+        interleaved = true;
+        break;
+      }
+      int32_t putCode = tSimpleHashPut(pSeen, key, (size_t)klen, &interleaved, sizeof(interleaved));
+      if (TSDB_CODE_SUCCESS != putCode) {
+        planError("vscanRefsInterleaveSourceTables failed to record source %s, code:%s",
+                  key, tstrerror(putCode));
+      }
+    }
+    tstrncpy(prevDb, pCol->refDbName, TSDB_DB_NAME_LEN);
+    tstrncpy(prevTb, pCol->refTableName, TSDB_TABLE_NAME_LEN);
+    havePrev = true;
+  }
+  tSimpleHashCleanup(pSeen);
+  return interleaved;
+}
+
 static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
+  SOptimizeContext* pCxt = (SOptimizeContext*)pCtx;
   if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode)) {
     return false;
   }
@@ -11446,6 +11499,31 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+
+  // In a stream calc subplan, pdcDealVirtualSuperTableScan keeps all WHERE conditions on
+  // the VirtualScan instead of splitting them down to the system/original scans. Since this
+  // optimization destroys the VirtualScan while pushing the aggregation down, any residual
+  // filter (WHERE on the virtual table, or HAVING on the aggregate) would be silently lost.
+  // Only optimize the stream case when no such condition remains, which is the common
+  // `select agg(col) from vstb` shape; otherwise fall back to the unoptimized correct path.
+  bool isStreamCalc = (NULL != pCxt && inStreamCalcClause(pCxt->pPlanCxt));
+  if (isStreamCalc && NULL != pAgg->node.pConditions) {
+    return false;
+  }
+
+  // Stream calc does not support pushing the virtual super table aggregation down when the
+  // query groups/partitions by virtual-child identity (e.g. `group by tbname/tag` or
+  // `partition by tbname/tag`). In stream the partial aggregate is fused into the per-vgroup
+  // original-table reader (see SPLIT_FLAG_VTB_AGG_PUSHDOWN), where the virtual-child identity
+  // injected by DynQueryCtrl is not available, so the per-group key would collapse and the
+  // result would be wrong. Fall back to the unoptimized path for these shapes.
+  if (isStreamCalc) {
+    SLogicNode* pAggChild = (SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+    if (NULL != pAgg->pGroupKeys ||
+        (NULL != pAggChild && QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pAggChild))) {
+      return false;
+    }
+  }
 
   if (NULL != pAgg->pGroupKeys) {
     if (keysHasCol(pAgg->pGroupKeys)) {
@@ -11495,10 +11573,21 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
     // When hasTagRef is false, all tag conditions have been pushed to SystemScan
     // by pdcSplitTagCondForVstb, so VStableAgg is safe.
     if (pDynCtrl && LIST_LENGTH(pDynCtrl->node.pChildren) >= 1) {
+      // In stream calc, residual filters are not split out of the DynQueryCtrl/VirtualScan
+      // (see comment above), so bail out whenever any condition is still attached to them.
+      if (isStreamCalc && NULL != pDynCtrl->node.pConditions) {
+        return false;
+      }
       SLogicNode* pFirst = (SLogicNode*)nodesListGetNode(pDynCtrl->node.pChildren, 0);
       if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pFirst)) {
         SVirtualScanLogicNode* pVscan = (SVirtualScanLogicNode*)pFirst;
-        if (pVscan->hasTagRef && pFirst->pConditions) {
+        if ((pVscan->hasTagRef || isStreamCalc) && pFirst->pConditions) {
+          return false;
+        }
+        // In stream calc, the VTB_AGG pushdown reader cannot scatter results correctly when
+        // the virtual table interleaves column refs across multiple physical source tables
+        // (see vscanRefsInterleaveSourceTables). Fall back to the unoptimized VTB_SCAN path.
+        if (isStreamCalc && vscanRefsInterleaveSourceTables(pVscan)) {
           return false;
         }
       }
@@ -11961,11 +12050,7 @@ _return:
 }
 
 static int32_t vstableAggOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (inStreamCalcClause(pCxt->pPlanCxt)) {
-    // stream calc query does not support scan path optimization
-    return TSDB_CODE_SUCCESS;
-  }
-  SAggLogicNode* pAgg = (SAggLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, vstableAggShouldBeOptimized, NULL);
+  SAggLogicNode* pAgg = (SAggLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, vstableAggShouldBeOptimized, pCxt);
   if (NULL == pAgg) {
     return TSDB_CODE_SUCCESS;
   }
