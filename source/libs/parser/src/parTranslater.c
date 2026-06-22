@@ -18144,7 +18144,19 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.ignoreExists = pStmt->ignoreExists;
 
   tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
-  tstrncpy(createReq.pass, pStmt->password, sizeof(createReq.pass));
+  taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), createReq.pass); 
+  createReq.pass[sizeof(createReq.pass) - 1] = 0;
+  createReq.isSimplePass = 1;
+  for (char* p = pStmt->password; *p != 0; p++) {
+    if (*p == ' ' || *p == '\'' || *p == '\"' || *p == '`' || *p == '\\') {
+      createReq.isSimplePass = 0;
+      break;
+    }
+  }
+  createReq.isComplexPass = taosIsComplexString(pStmt->password) ? 1 : 0;
+  createReq.isDefaultPass = (strcmp(pStmt->password, "taosdata") == 0) ? 1 : 0;
+  createReq.passLen = (int16_t)strlen(pStmt->password);
+
   tstrncpy(createReq.totpseed, pStmt->totpseed, sizeof(createReq.totpseed));
 
   createReq.sysInfo = pStmt->sysinfo;
@@ -18240,7 +18252,18 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.changepass = opts->changepass;
 
   if (opts->hasPassword) {
-    tstrncpy(alterReq.pass, opts->password, sizeof(alterReq.pass));
+    taosEncryptPass_c((uint8_t*)opts->password, strlen(opts->password), alterReq.pass); 
+    alterReq.pass[sizeof(alterReq.pass) - 1] = 0;
+    alterReq.isSimplePass = 1;
+    for (char* p = opts->password; *p != 0; p++) {
+      if (*p == ' ' || *p == '\'' || *p == '\"' || *p == '`' || *p == '\\') {
+        alterReq.isSimplePass = 0;
+        break;
+      }
+    }
+    alterReq.isComplexPass = taosIsComplexString(opts->password) ? 1 : 0;
+    alterReq.isDefaultPass = (strcmp(opts->password, "taosdata") == 0) ? 1 : 0;
+    alterReq.passLen = (int16_t)strlen(opts->password);
   }
   if (opts->hasTotpseed) {
     tstrncpy(alterReq.totpseed, opts->totpseed, sizeof(alterReq.totpseed));
