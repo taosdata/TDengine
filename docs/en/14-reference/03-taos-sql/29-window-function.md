@@ -3,7 +3,7 @@ title: Window Functions
 description: The OVER clause and SQL standard window functions
 ---
 
-Starting from v3.4.1.0, TDengine supports the SQL standard `OVER` clause and window functions. A window function computes a value for **each row** in the result set, and during the computation it can see both the current row and other rows in the same window, but it does **not** collapse multiple rows into one. This differs from the time windows (`INTERVAL`, `STATE_WINDOW`, `SESSION`, etc.) described in [Time-Series Extensions](./24-distinguished.md): a time window aggregates multiple rows in the window into a single output row, while a window function keeps every original row and only appends a computed column.
+Starting from v3.4.2.0, TDengine supports the SQL standard `OVER` clause and window functions. A window function computes a value for **each row** in the result set, and during the computation it can see both the current row and other rows in the same window, but it does **not** collapse multiple rows into one. This differs from the time windows (`INTERVAL`, `STATE_WINDOW`, `SESSION`, etc.) described in [Time-Series Extensions](./24-distinguished.md): a time window aggregates multiple rows in the window into a single output row, while a window function keeps every original row and only appends a computed column.
 
 Window functions are well suited for analytical scenarios such as moving averages, running totals, partitioned rankings, and comparisons with neighboring rows. They are commonly seen in SQL generated automatically by reporting and BI tools.
 

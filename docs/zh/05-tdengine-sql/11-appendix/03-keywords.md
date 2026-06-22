@@ -121,7 +121,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | COUNT_WINDOW         | |
 | CREATE               | |
 | CREATEDB             | |
-| CURRENT              | 3.4.1.0+ |
+| CURRENT              | 3.4.2.0+ |
 | CURRENT_USER         | |
 | SCAN                 | |
 | SCANS                | |
@@ -197,7 +197,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | FLOAT                | |
 | FLOW                 | 3.3.4.3+ |
 | FLUSH                | |
-| FOLLOWING            | 3.4.1.0+ |
+| FOLLOWING            | 3.4.2.0+ |
 | FOR                  | |
 | FORCE                | |
 | FORCE_OUTPUT         | 3.3.7.0+ |
@@ -366,7 +366,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | OPTIONS              | 3.3.7.0+ |
 | OR                   | |
 | ORDER                | |
-| OVER                 | 3.4.1.0+ |
+| OVER                 | 3.4.2.0+ |
 | OUTER                | |
 | OUTPUT_SUBTABLE      | 3.3.7.0+ |
 | OUTPUTTYPE           | |
@@ -393,7 +393,7 @@ description: TDengine TSDB 保留关键字的详细列表
 | POSITION             | |
 | PPS                  | |
 | PRE_FILTER           | 3.3.7.0+ |
-| PRECEDING            | 3.4.1.0+ |
+| PRECEDING            | 3.4.2.0+ |
 | PRECISION            | |
 | PREV                 | |
 | PRIMARY              | |
@@ -447,19 +447,12 @@ description: TDengine TSDB 保留关键字的详细列表
 | ROLES                | |
 | ROLLUP               | |
 | ROW                  | |
-| ROWS                 | 3.4.1.0+ |
+| ROWS                 | 3.4.2.0+ |
 | ROWTS                | |
 | RP                   | |
 | RSHIFT               | |
 | RSMA                 | |
 | RSMAS                | |
-| RIGHT                | |
-| ROLLUP               | |
-| ROW                  | |
-| ROWS                 | 3.4.1.0+ |
-| ROWTS                | |
-| RP                   | |
-| RSHIFT               | |
 
 ### S
 
@@ -564,7 +557,7 @@ description: TDengine TSDB 保留关键字的详细列表
 
 |关键字 | 说明|
 |----------------------|-|
-| UNBOUNDED            | 3.4.1.0+ |
+| UNBOUNDED            | 3.4.2.0+ |
 | UNION                | |
 | UNSAFE               | |
 | UNLOCK               | |
