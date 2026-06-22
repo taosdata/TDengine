@@ -5643,7 +5643,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
 
   pInfo->mergeLimit = -1;
-  bool hasLimit = pInfo->limitInfo.limit.limit != -1 || pInfo->limitInfo.limit.offset != -1;
+  bool hasLimit = pInfo->limitInfo.limit.limit != -1;
   if (hasLimit) {
     pInfo->mergeLimit = pInfo->limitInfo.limit.offset != -1
                             ? pInfo->limitInfo.limit.limit + pInfo->limitInfo.limit.offset

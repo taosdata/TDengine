@@ -915,6 +915,9 @@ void MockCatalogService::destoryTablesReq(void* p) {
 }
 
 void MockCatalogService::destoryCatalogReq(SCatalogReq* pReq) {
+  if (nullptr == pReq) {
+    return;
+  }
   taosArrayDestroy(pReq->pDbVgroup);
   taosArrayDestroy(pReq->pDbCfg);
   taosArrayDestroy(pReq->pDbInfo);
@@ -927,6 +930,10 @@ void MockCatalogService::destoryCatalogReq(SCatalogReq* pReq) {
   taosArrayDestroy(pReq->pTableCfg);
   taosArrayDestroyEx(pReq->pView, destoryTablesReq);
   taosArrayDestroyEx(pReq->pTableTSMAs, destoryTablesReq);
+  taosArrayDestroyEx(pReq->pTSMAs, destoryTablesReq);
+  taosArrayDestroyEx(pReq->pTableName, destoryTablesReq);
+  taosArrayDestroy(pReq->pTableTag);
+  taosArrayDestroy(pReq->pVStbRefDbs);
   delete pReq;
 }
 
@@ -940,7 +947,21 @@ void MockCatalogService::destoryMetaArrayRes(void* p) {
   taosArrayDestroy((SArray*)pRes->pRes);
 }
 
+void MockCatalogService::destoryMetaTableTSMAInfo(void* p) {
+  SMetaRes* pRes = (SMetaRes*)p;
+  tFreeTableTSMAInfoRsp((STableTSMAInfoRsp*)pRes->pRes);
+  taosMemoryFree(pRes->pRes);
+}
+
+void MockCatalogService::destoryMetaVStbRefDbs(void* p) {
+  SMetaRes* pRes = (SMetaRes*)p;
+  taosArrayDestroyEx((SArray*)pRes->pRes, tDestroySVStbRefDbsRsp);
+}
+
 void MockCatalogService::destoryMetaData(SMetaData* pData) {
+  if (nullptr == pData) {
+    return;
+  }
   taosArrayDestroyEx(pData->pDbVgroup, destoryMetaRes);
   taosArrayDestroyEx(pData->pDbCfg, destoryMetaRes);
   taosArrayDestroyEx(pData->pDbInfo, destoryMetaRes);
@@ -952,8 +973,12 @@ void MockCatalogService::destoryMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pUser, destoryMetaRes);
   taosArrayDestroyEx(pData->pQnodeList, destoryMetaRes);
   taosArrayDestroyEx(pData->pTableCfg, destoryMetaRes);
+  taosArrayDestroyEx(pData->pTableTag, destoryMetaArrayRes);
   taosArrayDestroyEx(pData->pDnodeList, destoryMetaArrayRes);
   taosArrayDestroyEx(pData->pView, destoryMetaRes);
+  taosArrayDestroyEx(pData->pTableTsmas, destoryMetaTableTSMAInfo);
+  taosArrayDestroyEx(pData->pTsmas, destoryMetaTableTSMAInfo);
+  taosArrayDestroyEx(pData->pVStbRefDbs, destoryMetaVStbRefDbs);
   taosMemoryFree(pData->pSvrVer);
   delete pData;
 }

@@ -368,6 +368,9 @@ static int32_t createSelectRootLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   return createRootLogicNode(pCxt, pSelect, pSelect->precision, (FCreateLogicNode)func, pRoot);
 }
 
+static int32_t createColumnByProjections(SLogicPlanContext* pCxt, const char* pStmtName, SNodeList* pExprs,
+                                         SNodeList** pCols);
+
 static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols, SNodeList* pScanCols,
                              int8_t tableType, bool tagScan) {
   if (pCxt->pPlanCxt->topicQuery) {
@@ -3737,18 +3740,66 @@ static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pLi
   return code;
 }
 
-static bool isTailFuncById(int32_t funcId) {
-  return fmGetFuncTypeFromId(funcId) == FUNCTION_TYPE_TAIL;
+static bool isTailFuncById(int32_t funcId) { return fmGetFuncTypeFromId(funcId) == FUNCTION_TYPE_TAIL; }
+
+static bool isNonWindowAggFunc(int32_t funcId) { return fmIsAggFunc(funcId); }
+
+static int32_t pruneOverFuncs(SNodeList* pFuncs) {
+  SNode* pNode = NULL;
+  WHERE_EACH(pNode, pFuncs) {
+    if (QUERY_NODE_FUNCTION == nodeType(pNode) && NULL != ((SFunctionNode*)pNode)->pOver) {
+      ERASE_NODE(pFuncs);
+      continue;
+    }
+    WHERE_NEXT;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t prunePassthroughFuncs(SNodeList* pFuncs) {
+  SNode* pNode = NULL;
+  WHERE_EACH(pNode, pFuncs) {
+    if (QUERY_NODE_FUNCTION == nodeType(pNode) &&
+        (fmIsSelectValueFunc(((SFunctionNode*)pNode)->funcId) || fmIsGroupKeyFunc(((SFunctionNode*)pNode)->funcId) ||
+         fmisSelectGroupConstValueFunc(((SFunctionNode*)pNode)->funcId))) {
+      ERASE_NODE(pFuncs);
+      continue;
+    }
+    WHERE_NEXT;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t collectNonWindowAggFuncs(SSelectStmt* pSelect, ESqlClause clause, SNodeList** pFuncs) {
+  PLAN_ERR_RET(nodesCollectFuncs(pSelect, clause, NULL, isNonWindowAggFunc, pFuncs));
+  if (NULL != *pFuncs) {
+    PLAN_ERR_RET(pruneOverFuncs(*pFuncs));
+    if (pSelect->hasIndefiniteRowsFunc || pSelect->hasInterpFunc || pSelect->hasForecastFunc ||
+        pSelect->hasGenericAnalysisFunc) {
+      PLAN_ERR_RET(prunePassthroughFuncs(*pFuncs));
+    }
+    if (0 == LIST_LENGTH(*pFuncs)) {
+      nodesDestroyList(*pFuncs);
+      *pFuncs = NULL;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (!pSelect->hasAggFuncs && NULL == pSelect->pGroupByList) {
+  SNodeList* pAggFuncs = NULL;
+  int32_t    code = collectNonWindowAggFuncs(pSelect, SQL_CLAUSE_GROUP_BY, &pAggFuncs);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (NULL == pAggFuncs && NULL == pSelect->pGroupByList) {
     return TSDB_CODE_SUCCESS;
   }
 
   SAggLogicNode* pAgg = NULL;
-  int32_t        code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG, (SNode**)&pAgg);
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG, (SNode**)&pAgg);
   if (NULL == pAgg) {
+    nodesDestroyList(pAggFuncs);
     return code;
   }
 
@@ -3765,7 +3816,7 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 
   // set grouyp keys, agg funcs and having conditions
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, NULL, fmIsAggFunc, &pAgg->pAggFuncs);
+    TSWAP(pAgg->pAggFuncs, pAggFuncs);
   }
 
   // When TAIL coexists with TOP/BOTTOM in the same SELECT, include TAIL in the Agg node.
@@ -3823,6 +3874,311 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
     nodesDestroyNode((SNode*)pAgg);
   }
 
+  nodesDestroyList(pAggFuncs);
+  return code;
+}
+
+typedef struct SCollectSqlWindowFuncsCxt {
+  int32_t    errCode;
+  SNodeList* pFuncs;
+} SCollectSqlWindowFuncsCxt;
+
+static bool isSqlWindowFunctionNode(SFunctionNode* pFunc) {
+  return NULL != pFunc->pOver &&
+         (fmIsSqlWindowFunc(pFunc->functionName) || fmCanUseAsSqlWindowAgg(pFunc->functionName));
+}
+
+static EDealRes collectSqlWindowFunc(SNode* pNode, void* pContext) {
+  SCollectSqlWindowFuncsCxt* pCxt = (SCollectSqlWindowFuncsCxt*)pContext;
+  if (QUERY_NODE_FUNCTION != nodeType(pNode) || !isSqlWindowFunctionNode((SFunctionNode*)pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SNode* pFunc = NULL;
+  FOREACH(pFunc, pCxt->pFuncs) {
+    if (nodesEqualNode(pFunc, pNode)) {
+      return DEAL_RES_IGNORE_CHILD;
+    }
+  }
+
+  SNode* pNew = NULL;
+  pCxt->errCode = nodesCloneNode(pNode, &pNew);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, pNew);
+  }
+  return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
+}
+
+static int32_t collectSqlWindowFuncsFromExprs(SNodeList* pExprs, SNodeList* pFuncs) {
+  SCollectSqlWindowFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pFuncs = pFuncs};
+  nodesWalkExprs(pExprs, collectSqlWindowFunc, &cxt);
+  return cxt.errCode;
+}
+
+static int32_t collectSqlWindowFuncs(SSelectStmt* pSelect, SNodeList** pFuncs) {
+  SNodeList* pList = NULL;
+  PLAN_ERR_RET(nodesMakeList(&pList));
+
+  int32_t code = collectSqlWindowFuncsFromExprs(pSelect->pProjectionList, pList);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectSqlWindowFuncsFromExprs(pSelect->pOrderByList, pList);
+  }
+  if (TSDB_CODE_SUCCESS == code && LIST_LENGTH(pList) > 0) {
+    *pFuncs = pList;
+  } else {
+    nodesDestroyList(pList);
+  }
+  return code;
+}
+
+static int32_t appendWindowSortKeyExprs(SNodeList** pSortKeys, SNodeList* pExprs) {
+  SNode* pExpr = NULL;
+  FOREACH(pExpr, pExprs) {
+    SOrderByExprNode* pKey = NULL;
+    PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pKey));
+    pKey->order = ORDER_ASC;
+    pKey->nullOrder = NULL_ORDER_DEFAULT;
+    int32_t code = nodesCloneNode(pExpr, &pKey->pExpr);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(pSortKeys, (SNode*)pKey);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pKey);
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cloneWindowOrderKeys(SNodeList* pSrc, SNodeList** pDst) {
+  SNode* pKey = NULL;
+  FOREACH(pKey, pSrc) {
+    SNode* pNew = NULL;
+    PLAN_ERR_RET(nodesCloneNode(pKey, &pNew));
+    PLAN_ERR_RET(nodesListMakeStrictAppend(pDst, pNew));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createSqlWindowSortLogicNode(SWindowFuncLogicNode* pWindow, SLogicNode* pInput,
+                                            SLogicNode** pLogicNode) {
+  SSortLogicNode* pSort = NULL;
+  PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&pSort));
+
+  int32_t code = appendWindowSortKeyExprs(&pSort->pSortKeys, pWindow->pPartitionKeys);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = cloneWindowOrderKeys(pWindow->pOrderKeys, &pSort->pSortKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneList(pInput->pTargets, &pSort->node.pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createColumnByRewriteExprs(pSort->pSortKeys, &pSort->node.pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pSort->node.groupAction = GROUP_ACTION_CLEAR;
+    pSort->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+    pSort->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+    *pLogicNode = (SLogicNode*)pSort;
+  } else {
+    nodesDestroyNode((SNode*)pSort);
+  }
+  return code;
+}
+
+static bool windowNodeListEqual(SNodeList* pLeft, SNodeList* pRight) {
+  if (pLeft == pRight) {
+    return true;
+  }
+  if (LIST_LENGTH(pLeft) != LIST_LENGTH(pRight)) {
+    return false;
+  }
+  SNode *pLeftNode = NULL, *pRightNode = NULL;
+  FORBOTH(pLeftNode, pLeft, pRightNode, pRight) {
+    if (!nodesEqualNode(pLeftNode, pRightNode)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool windowColumnEqual(const SColumnNode* pLeft, const SColumnNode* pRight) {
+  return 0 == strcmp(pLeft->dbName, pRight->dbName) && 0 == strcmp(pLeft->tableName, pRight->tableName) &&
+         0 == strcmp(pLeft->tableAlias, pRight->tableAlias) && 0 == strcmp(pLeft->colName, pRight->colName);
+}
+
+static bool windowOrderExprEqual(SNode* pLeft, SNode* pRight) {
+  if (nodeType(pLeft) != nodeType(pRight)) {
+    return false;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pLeft)) {
+    return windowColumnEqual((SColumnNode*)pLeft, (SColumnNode*)pRight);
+  }
+  return nodesEqualNode(pLeft, pRight);
+}
+
+static bool windowOrderKeyEqual(const SOrderByExprNode* pLeft, const SOrderByExprNode* pRight) {
+  return pLeft->order == pRight->order && pLeft->nullOrder == pRight->nullOrder &&
+         windowOrderExprEqual(pLeft->pExpr, pRight->pExpr);
+}
+
+static bool windowOrderKeyListEqual(SNodeList* pLeft, SNodeList* pRight) {
+  if (pLeft == pRight) {
+    return true;
+  }
+  if (LIST_LENGTH(pLeft) != LIST_LENGTH(pRight)) {
+    return false;
+  }
+  SNode *pLeftNode = NULL, *pRightNode = NULL;
+  FORBOTH(pLeftNode, pLeft, pRightNode, pRight) {
+    if (QUERY_NODE_ORDER_BY_EXPR != nodeType(pLeftNode) || QUERY_NODE_ORDER_BY_EXPR != nodeType(pRightNode) ||
+        !windowOrderKeyEqual((SOrderByExprNode*)pLeftNode, (SOrderByExprNode*)pRightNode)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool windowSpecEqualToFunc(const SWindowFuncLogicNode* pWindow, const SFunctionNode* pFunc) {
+  if (NULL == pFunc->pOver || QUERY_NODE_SQL_WINDOW_SPEC != nodeType(pFunc->pOver)) {
+    return false;
+  }
+  const SWindowSpecNode* pSpec = (const SWindowSpecNode*)pFunc->pOver;
+  return nodesEqualNode((SNode*)pWindow->pFrame, pSpec->pFrame) &&
+         windowNodeListEqual(pWindow->pPartitionKeys, pSpec->pPartitionByList) &&
+         windowOrderKeyListEqual(pWindow->pOrderKeys, pSpec->pOrderByList);
+}
+
+static int32_t appendFuncToWindow(SWindowFuncLogicNode* pWindow, SNode* pFunc) {
+  SNode* pNew = NULL;
+  PLAN_ERR_RET(nodesCloneNode(pFunc, &pNew));
+  return nodesListMakeStrictAppend(&pWindow->pFuncs, pNew);
+}
+
+static void clearWindowFuncOverSpecs(SWindowFuncLogicNode* pWindow) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pWindow->pFuncs) {
+    if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      nodesDestroyNode(pFunc->pOver);
+      pFunc->pOver = NULL;
+    }
+  }
+}
+
+typedef struct SRewriteSqlWindowFuncCxt {
+  const char* pStmtName;
+  int32_t     errCode;
+} SRewriteSqlWindowFuncCxt;
+
+static EDealRes rewriteSqlWindowFunc(SNode** pNode, void* pContext) {
+  SRewriteSqlWindowFuncCxt* pCxt = (SRewriteSqlWindowFuncCxt*)pContext;
+  if (QUERY_NODE_FUNCTION != nodeType(*pNode) || !isSqlWindowFunctionNode((SFunctionNode*)*pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SColumnNode* pCol = createColumnByExpr(pCxt->pStmtName, (SExprNode*)*pNode);
+  if (NULL == pCol) {
+    pCxt->errCode = terrno;
+    return DEAL_RES_ERROR;
+  }
+  tstrncpy(pCol->node.aliasName, ((SExprNode*)*pNode)->aliasName, TSDB_COL_NAME_LEN);
+  nodesDestroyNode(*pNode);
+  *pNode = (SNode*)pCol;
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static int32_t rewriteSqlWindowFuncsForSelect(SSelectStmt* pSelect) {
+  SRewriteSqlWindowFuncCxt cxt = {.pStmtName = pSelect->stmtName, .errCode = TSDB_CODE_SUCCESS};
+  nodesRewriteExprs(pSelect->pProjectionList, rewriteSqlWindowFunc, &cxt);
+  if (TSDB_CODE_SUCCESS == cxt.errCode) {
+    nodesRewriteExprs(pSelect->pOrderByList, rewriteSqlWindowFunc, &cxt);
+  }
+  return cxt.errCode;
+}
+
+static int32_t makeSqlWindowFuncLogicNode(SFunctionNode* pFunc, SWindowFuncLogicNode** pWindow) {
+  SWindowSpecNode*      pSpec = (SWindowSpecNode*)pFunc->pOver;
+  SWindowFuncLogicNode* pNode = NULL;
+  PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC, (SNode**)&pNode));
+
+  int32_t code = nodesCloneList(pSpec->pPartitionByList, &pNode->pPartitionKeys);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneList(pSpec->pOrderByList, &pNode->pOrderKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneNode(pSpec->pFrame, &pNode->pFrame);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = appendFuncToWindow(pNode, (SNode*)pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pNode->node.groupAction = GROUP_ACTION_CLEAR;
+    pNode->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+    pNode->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+    *pWindow = pNode;
+  } else {
+    nodesDestroyNode((SNode*)pNode);
+  }
+  return code;
+}
+
+static int32_t groupSqlWindowFuncs(SNodeList* pFuncs, SNodeList** pWindows) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    bool           found = false;
+    SNode*         pWinNode = NULL;
+    FOREACH(pWinNode, *pWindows) {
+      SWindowFuncLogicNode* pWindow = (SWindowFuncLogicNode*)pWinNode;
+      if (windowSpecEqualToFunc(pWindow, pFunc)) {
+        PLAN_ERR_RET(appendFuncToWindow(pWindow, pNode));
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      SWindowFuncLogicNode* pWindow = NULL;
+      PLAN_ERR_RET(makeSqlWindowFuncLogicNode(pFunc, &pWindow));
+      PLAN_ERR_RET(nodesListMakeStrictAppend(pWindows, (SNode*)pWindow));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createSqlWindowFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pRoot) {
+  SNodeList* pFuncs = NULL;
+  SNodeList* pWindows = NULL;
+  int32_t    code = collectSqlWindowFuncs(pSelect, &pFuncs);
+  if (TSDB_CODE_SUCCESS == code && NULL != pFuncs) {
+    code = groupSqlWindowFuncs(pFuncs, &pWindows);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SNode* pWinNode = NULL;
+    WHERE_EACH(pWinNode, pWindows) {
+      SWindowFuncLogicNode* pWindow = (SWindowFuncLogicNode*)pWinNode;
+      SLogicNode*           pSort = NULL;
+      PLAN_ERR_JRET(createSqlWindowSortLogicNode(pWindow, *pRoot, &pSort));
+      pSort->precision = pSelect->precision;
+      PLAN_ERR_JRET(pushLogicNode(pCxt, pRoot, pSort));
+
+      pWindow->node.precision = pSelect->precision;
+      PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL));
+      PLAN_ERR_JRET(rewriteSqlWindowFuncsForSelect(pSelect));
+      clearWindowFuncOverSpecs(pWindow);
+      PLAN_ERR_JRET(nodesCloneList((*pRoot)->pTargets, &pWindow->node.pTargets));
+      PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
+      PLAN_ERR_JRET(pushLogicNode(pCxt, pRoot, (SLogicNode*)pWindow));
+      pCxt->pCurrRoot = (SLogicNode*)pWindow;
+      WHERE_NEXT;
+    }
+    nodesClearList(pWindows);
+    pWindows = NULL;
+  }
+
+_return:
+  nodesDestroyList(pFuncs);
+  nodesDestroyList(pWindows);
   return code;
 }
 
@@ -5794,6 +6150,8 @@ static int32_t createSelectFromLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   PLAN_ERR_JRET(createSelectRootLogicNode(pCxt, pSelect, createForecastFuncLogicNode, &pRoot));
 
   PLAN_ERR_JRET(createSelectRootLogicNode(pCxt, pSelect, createGenericAnalysisLogicNode, &pRoot));
+
+  PLAN_ERR_JRET(createSqlWindowFuncLogicNode(pCxt, pSelect, &pRoot));
 
   PLAN_ERR_JRET(createSelectRootLogicNode(pCxt, pSelect, createDistinctLogicNode, &pRoot));
 

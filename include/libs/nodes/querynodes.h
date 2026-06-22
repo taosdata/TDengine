@@ -249,6 +249,46 @@ typedef struct SNodeListNode {
   SNodeList* pNodeList;
 } SNodeListNode;
 
+typedef enum ESqlWindowFrameUnit {
+  WINDOW_FRAME_UNIT_ROWS = 1,
+  WINDOW_FRAME_UNIT_RANGE,
+} ESqlWindowFrameUnit;
+
+typedef enum ESqlWindowBoundType {
+  WINDOW_BOUND_UNBOUNDED_PRECEDING = 1,
+  WINDOW_BOUND_N_PRECEDING,
+  WINDOW_BOUND_CURRENT_ROW,
+  WINDOW_BOUND_N_FOLLOWING,
+  WINDOW_BOUND_UNBOUNDED_FOLLOWING,
+} ESqlWindowBoundType;
+
+typedef struct SSqlWindowBound {
+  ESqlWindowBoundType boundType;
+  SNode*              pOffset;
+} SSqlWindowBound;
+
+typedef struct SWindowFrameNode {
+  ENodeType           type;
+  ESqlWindowFrameUnit frameUnit;
+  SSqlWindowBound     start;
+  SSqlWindowBound     end;
+  bool                explicitFrame;
+} SWindowFrameNode;
+
+typedef struct SWindowSpecNode {
+  ENodeType  type;
+  char       refWindowName[TSDB_TABLE_NAME_LEN];
+  SNodeList* pPartitionByList;
+  SNodeList* pOrderByList;
+  SNode*     pFrame;
+} SWindowSpecNode;
+
+typedef struct SNamedWindowNode {
+  ENodeType type;
+  char      windowName[TSDB_TABLE_NAME_LEN];
+  SNode*    pSpec;
+} SNamedWindowNode;
+
 typedef enum ETrimType {
   TRIM_TYPE_LEADING = 1,
   TRIM_TYPE_TRAILING,
@@ -261,6 +301,7 @@ typedef struct SFunctionNode {
   int32_t    funcId;
   int32_t    funcType;
   SNodeList* pParameterList;
+  SNode*                      pOver;
   int32_t    udfBufSize;
   bool       hasPk;
   int32_t    pkBytes;
@@ -731,6 +772,7 @@ typedef struct SSelectStmt {
   SNode*          pWhere;
   SNodeList*      pPartitionByList;
   SNode*          pWindow;
+  SNodeList*      pWindowList;   // SNamedWindowNode
   SNodeList*      pGroupByList;  // SGroupingSetNode
   SNode*          pHaving;
   SNode*          pRange;

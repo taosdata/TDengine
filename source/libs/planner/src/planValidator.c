@@ -84,6 +84,7 @@ int32_t doValidatePhysiNode(SValidatePlanContext* pCxt, SNode* pNode) {
       return validateMergePhysiNode(pCxt, (SMergePhysiNode*)pNode);
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:

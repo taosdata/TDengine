@@ -87,6 +87,8 @@ TEST_F(ParserSelectTest, pseudoColumnSemanticCheck) {
   useDb("root", "test");
 
   run("SELECT TBNAME FROM (SELECT * FROM st1s1)", TSDB_CODE_PAR_INVALID_TBNAME, PARSER_STAGE_TRANSLATE);
+  run("SELECT x.tbname FROM st1", TSDB_CODE_PAR_INVALID_TBNAME, PARSER_STAGE_TRANSLATE);
+  run("SELECT * FROM (SELECT tbname, avg(c1) FROM st1 PARTITION BY tbname) a PARTITION BY a.tbname ORDER BY a.tbname");
 }
 
 TEST_F(ParserSelectTest, aggFunc) {
@@ -343,6 +345,106 @@ TEST_F(ParserSelectTest, limit) {
   run("SELECT c1, c2 FROM t1 LIMIT 10");
 
   run("(SELECT c1, c2 FROM t1 LIMIT 10)");
+}
+
+TEST_F(ParserSelectTest, sqlWindowInlineRowsParse) {
+  useDb("root", "test");
+  run("SELECT avg(c1) OVER (PARTITION BY c2 ORDER BY ts ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_PARSE);
+}
+
+TEST_F(ParserSelectTest, sqlWindowNamedParse) {
+  useDb("root", "test");
+  run("SELECT max(c1) OVER win FROM t1 WINDOW win AS (ORDER BY ts ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_PARSE);
+}
+
+TEST_F(ParserSelectTest, sqlWindowRangeDurationParse) {
+  useDb("root", "test");
+  run("SELECT avg(c1) OVER (ORDER BY ts RANGE BETWEEN 10m PRECEDING AND CURRENT ROW) FROM t1", TSDB_CODE_SUCCESS,
+      PARSER_STAGE_PARSE);
+  run("SELECT count(c1) OVER (ORDER BY c1 RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) FROM t1");
+  run("SELECT count(c1) OVER (ORDER BY c4 RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) FROM t1");
+  run("SELECT count(c1) OVER (ORDER BY ts RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) FROM t1",
+      TSDB_CODE_PAR_WINDOW_INVALID_BOUND, PARSER_STAGE_TRANSLATE);
+  run("SELECT count(c1) OVER (ORDER BY c1 RANGE BETWEEN 10s PRECEDING AND CURRENT ROW) FROM t1",
+      TSDB_CODE_PAR_WINDOW_INVALID_BOUND, PARSER_STAGE_TRANSLATE);
+  run("SELECT count(c1) OVER (ORDER BY c2 RANGE BETWEEN 10 PRECEDING AND CURRENT ROW) FROM t1",
+      TSDB_CODE_PAR_WINDOW_INVALID_BOUND, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, offsetWithoutLimitParse) {
+  useDb("root", "test");
+  run("SELECT ts, c1 FROM t1 OFFSET 10");
+}
+
+TEST_F(ParserSelectTest, sqlWindowKeywordsFallbackToIdentifiers) {
+  useDb("root", "test");
+  run("SELECT c1 current, c1 over, c1 rows, c1 preceding, c1 following, c1 unbounded FROM t1");
+}
+
+TEST_F(ParserSelectTest, sqlWindowFunctionAliasCompatibility) {
+  useDb("root", "test");
+  run("SELECT avg(c1) AS over FROM t1");
+  run("SELECT avg(c1) over FROM t1", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+}
+
+TEST_F(ParserSelectTest, sqlWindowDedicatedFunctionsRequireOver) {
+  useDb("root", "test");
+  run("SELECT first_value(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+  run("SELECT nth_value(c1, 1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, sqlWindowLagLeadKeepsLegacyParamRules) {
+  useDb("root", "test");
+  run("SELECT lag(c1) FROM t1");
+  run("SELECT lead(c1) FROM t1");
+  run("SELECT lag(c1, 0) FROM t1");
+  run("SELECT lead(c1, 0) FROM t1");
+  run("SELECT lag(c1, -1) FROM t1", TSDB_CODE_FUNC_FUNTION_PARA_VALUE, PARSER_STAGE_TRANSLATE);
+  run("SELECT lead(c1, -1) FROM t1", TSDB_CODE_FUNC_FUNTION_PARA_VALUE, PARSER_STAGE_TRANSLATE);
+  run("SELECT lag(c1) OVER (ORDER BY ts) FROM t1");
+  run("SELECT lead(c1, 0) OVER (ORDER BY ts) FROM t1");
+}
+
+TEST_F(ParserSelectTest, sqlWindowRejectsIllegalLocations) {
+  useDb("root", "test");
+  run("SELECT c1 FROM t1 WHERE row_number() OVER (ORDER BY ts) > 1", TSDB_CODE_PAR_INVALID_WINDOW_FUNC,
+      PARSER_STAGE_TRANSLATE);
+  run("SELECT c1 FROM t1 GROUP BY row_number() OVER (ORDER BY ts)", TSDB_CODE_PAR_INVALID_WINDOW_FUNC,
+      PARSER_STAGE_TRANSLATE);
+  run("SELECT c1 FROM t1 HAVING rank() OVER (ORDER BY ts) > 1", TSDB_CODE_PAR_INVALID_WINDOW_FUNC,
+      PARSER_STAGE_TRANSLATE);
+  run("SELECT row_number() OVER (PARTITION BY row_number() OVER (ORDER BY ts) ORDER BY ts) FROM t1",
+      TSDB_CODE_PAR_INVALID_WINDOW_FUNC, PARSER_STAGE_TRANSLATE);
+  run("SELECT row_number() OVER (PARTITION BY sum(c1) ORDER BY ts) FROM t1", TSDB_CODE_PAR_INVALID_WINDOW_FUNC,
+      PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, sqlWindowAllowsPercentileAggregate) {
+  useDb("root", "test");
+  run("SELECT percentile(c1, 50) OVER (ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1");
+}
+
+TEST_F(ParserSelectTest, sqlWindowNamedValidation) {
+  useDb("root", "test");
+  run("SELECT avg(c1) OVER missing FROM t1", TSDB_CODE_PAR_WINDOW_NOT_DEFINED, PARSER_STAGE_TRANSLATE);
+  run("SELECT avg(c1) OVER win FROM t1 WINDOW win AS (ORDER BY ts), win AS (ORDER BY c1)",
+      TSDB_CODE_PAR_WINDOW_DUP_NAME, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, sqlWindowOrderAndFrameValidation) {
+  useDb("root", "test");
+  run("SELECT row_number() OVER (PARTITION BY c1) FROM t1", TSDB_CODE_PAR_WINDOW_ORDER_REQUIRED,
+      PARSER_STAGE_TRANSLATE);
+  run("SELECT avg(c1) OVER (ORDER BY ts, c2 RANGE BETWEEN 10m PRECEDING AND CURRENT ROW) FROM t1",
+      TSDB_CODE_PAR_WINDOW_RANGE_MULTI_ORDER, PARSER_STAGE_TRANSLATE);
+  run("SELECT avg(c1) OVER (ORDER BY ts, c2 RANGE BETWEEN CURRENT ROW AND CURRENT ROW) FROM t1");
+  run("SELECT count(c1) OVER (ORDER BY c2 RANGE BETWEEN CURRENT ROW AND CURRENT ROW) FROM t1");
+  run("SELECT avg(c1) OVER (ORDER BY ts DESC RANGE BETWEEN 10m PRECEDING AND CURRENT ROW) FROM t1");
+  run("SELECT sum(c1) OVER (ORDER BY ts DESC) FROM t1");
+  run("SELECT nth_value(c1, 0) OVER (ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1",
+      TSDB_CODE_PAR_WINDOW_INVALID_ARGUMENT, PARSER_STAGE_TRANSLATE);
 }
 
 // INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]

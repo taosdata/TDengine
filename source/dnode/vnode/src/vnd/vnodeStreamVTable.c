@@ -2787,8 +2787,7 @@ int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagLi
   SArray      *uids         = NULL;
   SArray      *tagCids      = NULL;
   SArray      *tagVals      = NULL;
-  SSHashObj   *uid2Result   = NULL;
-  SSchema     *pTagSchema   = NULL;
+  SSHashObj   *uid2Result = NULL;
   int32_t      nTagCols     = 0;
 
   int32_t nUids = (int32_t)taosArrayGetSize(pUidTagList);
@@ -2806,8 +2805,8 @@ int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagLi
             suid, (int32_t)mr.me.type, (uint32_t)mr.me.flags);
     goto _end;
   }
-  pTagSchema = mr.me.stbEntry.schemaTag.pSchema;
-  nTagCols   = mr.me.stbEntry.schemaTag.nCols;
+  SSchema *pTagSchema = mr.me.stbEntry.schemaTag.pSchema;
+  nTagCols = mr.me.stbEntry.schemaTag.nCols;
   if (pTagSchema == NULL || nTagCols <= 0) {
     goto _end;
   }
@@ -2815,7 +2814,23 @@ int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagLi
   stTrace("vgId:%d %s suid=%" PRId64 " nUids=%d nTagCols=%d", TD_VID(pVn), __func__,
           suid, nUids, nTagCols);
 
-  // 2) build uid + tagCid arrays for the chain resolver.
+  tagCids = taosArrayInit(nTagCols, sizeof(col_id_t));
+  if (tagCids == NULL) {
+    code = terrno;
+    goto _end;
+  }
+  for (int32_t i = 0; i < nTagCols; ++i) {
+    col_id_t cid = pTagSchema[i].colId;
+    if (taosArrayPush(tagCids, &cid) == NULL) {
+      code = terrno;
+      goto _end;
+    }
+  }
+
+  metaReaderClear(&mr);
+  readerInited = false;
+
+  // 2) build uid array for the chain resolver.
   uids = taosArrayInit(nUids, sizeof(int64_t));
   if (uids == NULL) { code = terrno; goto _end; }
   for (int32_t i = 0; i < nUids; ++i) {
@@ -2823,13 +2838,6 @@ int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagLi
     if (p == NULL) continue;
     int64_t uid = (int64_t)p->uid;
     if (taosArrayPush(uids, &uid) == NULL) { code = terrno; goto _end; }
-  }
-
-  tagCids = taosArrayInit(nTagCols, sizeof(col_id_t));
-  if (tagCids == NULL) { code = terrno; goto _end; }
-  for (int32_t i = 0; i < nTagCols; ++i) {
-    col_id_t cid = pTagSchema[i].colId;
-    if (taosArrayPush(tagCids, &cid) == NULL) { code = terrno; goto _end; }
   }
 
   // 3) chain-resolve.
@@ -2869,7 +2877,7 @@ int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagLi
 
     bool anyChange = false;
     for (int32_t j = 0; j < nTagCols; ++j) {
-      col_id_t cid = pTagSchema[j].colId;
+      col_id_t cid = *(col_id_t *)taosArrayGet(tagCids, j);
 
       // Prefer chain-resolved value when present (overrides any stale literal).
       if (hasResolvedTags) {

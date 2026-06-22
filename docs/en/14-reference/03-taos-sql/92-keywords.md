@@ -119,6 +119,7 @@ The list of keywords is as follows:
 | COUNT_WINDOW         | |
 | CREATE               | |
 | CREATEDB             | |
+| CURRENT              | 3.4.1.0+ |
 | CURRENT_USER         | |
 | SCAN                 | |
 | SCANS                | |
@@ -194,6 +195,7 @@ The list of keywords is as follows:
 | FLOAT                | |
 | FLOW                 | 3.3.4.3+ |
 | FLUSH                | |
+| FOLLOWING            | 3.4.1.0+ |
 | FOR                  | |
 | FORCE                | |
 | FORCE_OUTPUT         | 3.3.7.0+ |
@@ -362,6 +364,7 @@ The list of keywords is as follows:
 | OPTIONS              | 3.3.7.0+ |
 | OR                   | |
 | ORDER                | |
+| OVER                 | 3.4.1.0+ |
 | OUTER                | |
 | OUTPUT_SUBTABLE      | 3.3.7.0+ |
 | OUTPUTTYPE           | |
@@ -388,6 +391,7 @@ The list of keywords is as follows:
 | POSITION             | |
 | PPS                  | |
 | PRE_FILTER           | 3.3.7.0+ |
+| PRECEDING            | 3.4.1.0+ |
 | PRECISION            | |
 | PREV                 | |
 | PRIMARY              | |
@@ -441,6 +445,7 @@ The list of keywords is as follows:
 | ROLES                | |
 | ROLLUP               | |
 | ROW                  | |
+| ROWS                 | 3.4.1.0+ |
 | ROWTS                | |
 | RP                   | |
 | RSHIFT               | |
@@ -449,6 +454,7 @@ The list of keywords is as follows:
 | RIGHT                | |
 | ROLLUP               | |
 | ROW                  | |
+| ROWS                 | 3.4.1.0+ |
 | ROWTS                | |
 | RP                   | |
 | RSHIFT               | |
@@ -556,6 +562,7 @@ The list of keywords is as follows:
 
 |Keyword|Description|
 |----------------------|-|
+| UNBOUNDED            | 3.4.1.0+ |
 | UNION                | |
 | UNSAFE               | |
 | UNLOCK               | |

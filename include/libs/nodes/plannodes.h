@@ -487,6 +487,14 @@ typedef struct SFillLogicNode {
   bool        indefRowsMode;
 } SFillLogicNode;
 
+typedef struct SWindowFuncLogicNode {
+  SLogicNode node;
+  SNodeList* pPartitionKeys;
+  SNodeList* pOrderKeys;
+  SNodeList* pFuncs;
+  SNode*     pFrame;
+} SWindowFuncLogicNode;
+
 typedef struct SSortLogicNode {
   SLogicNode node;
   SNodeList* pSortKeys;
@@ -1031,6 +1039,15 @@ typedef struct SExternalWindowPhysiNode {
   tb_uid_t         orgTableUid;  // for vtable window query
   SNode*           pSubquery;
 } SExternalWindowPhysiNode;
+
+typedef struct SWindowFuncPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;
+  SNodeList* pPartitionKeys;
+  SNodeList* pOrderKeys;
+  SNodeList* pFuncs;
+  SNode*     pFrame;
+} SWindowFuncPhysiNode;
 
 typedef struct SSortPhysiNode {
   SPhysiNode node;

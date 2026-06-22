@@ -850,3 +850,32 @@ select a.* from meters a left asof join meters b on timetruncate(a.ts, 1s) < tim
 
 - 普通表、子表、subquery 且无分组条件无排序的场景下，查询结果会按照驱动表的主键列顺序输出。
 - 由于超级表查询、Full Join 或有分组条件无排序的场景下，查询结果没有固定的输出顺序，因此，在有排序需求且输出无固定顺序的场景下，需要进行排序操作。部分依赖时间线的函数可能会因为没有有效的时间线输出而无法执行。
+
+## 窗口函数
+
+从 v3.4.1.0 开始，TDengine TSDB 支持 SQL 标准的 `OVER` 子句和窗口函数。窗口函数为结果集中的每一行计算一个值，计算时可以参考同一窗口内的其他行，但保留原始的每一行而不做合并。这与上文[窗口切分查询](#窗口切分查询)中的时间窗口不同：时间窗口把窗口内多行聚合成一行，而窗口函数逐行输出。
+
+窗口函数调用的基本形式如下：
+
+```sql
+function_name ( [ arguments ] ) OVER (
+    [ PARTITION BY expr [, ...] ]
+    [ ORDER BY expr [ ASC | DESC ] [, ...] ]
+    [ { ROWS | RANGE } frame_extent ]
+)
+```
+
+- `PARTITION BY` 把结果集切分成互不影响的分区，每个分区独立计算。
+- `ORDER BY` 在分区内排序，决定序号、前后值、累计区间等与顺序相关的语义。
+- `ROWS`/`RANGE` 窗口帧进一步界定当前行参与计算的行范围。
+
+窗口函数既支持既有聚合/选择函数（如 `avg`、`sum`、`first`）加 `OVER` 子句使用，也提供 `row_number`、`rank`、`dense_rank`、`percent_rank`、`cume_dist`、`lag`、`lead`、`first_value`、`last_value`、`nth_value` 等专用窗口函数。例如，计算每个电表最近 10 次采样的平均电压：
+
+```sql
+SELECT tbname, ts, voltage,
+       avg(voltage) OVER (PARTITION BY tbname ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma
+FROM meters
+ORDER BY tbname, ts;
+```
+
+窗口函数只能出现在 `SELECT` 列表和 `ORDER BY` 中，如需基于窗口结果再做过滤或聚合，请把窗口查询写成子查询。完整的语法、窗口帧规则、命名窗口和函数列表见[窗口函数](./09-window-function.md)。

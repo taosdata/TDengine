@@ -78,6 +78,14 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_FILL_FORWARD,
   FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN,
   FUNCTION_TYPE_LEAD,
+  FUNCTION_TYPE_ROW_NUMBER,
+  FUNCTION_TYPE_RANK,
+  FUNCTION_TYPE_DENSE_RANK,
+  FUNCTION_TYPE_PERCENT_RANK,
+  FUNCTION_TYPE_CUME_DIST,
+  FUNCTION_TYPE_FIRST_VALUE,
+  FUNCTION_TYPE_LAST_VALUE,
+  FUNCTION_TYPE_NTH_VALUE,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -371,6 +379,9 @@ bool fmIsGroupIdFunc(int32_t funcId);
 bool fmIsPlaceHolderFunc(int32_t funcId);
 bool fmIsHasNullFunc(int32_t funcId);
 bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId);
+bool fmIsSqlWindowFunc(const char* pFuncName);
+bool fmIsSqlWindowOrderRequiredFunc(const char* pFuncName);
+bool fmCanUseAsSqlWindowAgg(const char* pFuncName);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);

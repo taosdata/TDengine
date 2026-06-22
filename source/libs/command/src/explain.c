@@ -2393,6 +2393,39 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       }
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC: {
+      SWindowFuncPhysiNode* pWindow = (SWindowFuncPhysiNode*)pNode;
+      EXPLAIN_ROW_NEW(level, EXPLAIN_STRING_TYPE_FORMAT, "WindowFunc");
+      EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+      if (pResNode->pExecInfo) {
+        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      }
+      EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, LIST_LENGTH(pWindow->pFuncs));
+      EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+      EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pWindow->node.pOutputDataBlockDesc->totalRowSize);
+      EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+      EXPLAIN_ROW_END();
+      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+      if (verbose) {
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
+                           nodesGetOutputNumFromSlotList(pWindow->node.pOutputDataBlockDesc->pSlots));
+        EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+        EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pWindow->node.pOutputDataBlockDesc->outputRowSize);
+        EXPLAIN_ROW_APPEND_LIMIT(pWindow->node.pLimit);
+        EXPLAIN_ROW_APPEND_SLIMIT(pWindow->node.pSlimit);
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+
+        QRY_ERR_RET(qExplainAppendFilterRow(ctx, level, pWindow->node.pConditions,
+                                            &tlen, hasEfficiency ? &filterEfficiency : NULL));
+
+        QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level));
+      }
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT: {
       SCountWindowPhysiNode *pCountNode = (SCountWindowPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_COUNT_FORMAT);

@@ -277,6 +277,7 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_SCALAR_FIELD(funcId);
   COPY_SCALAR_FIELD(funcType);
   CLONE_NODE_LIST_FIELD(pParameterList);
+  CLONE_NODE_FIELD(pOver);
   COPY_SCALAR_FIELD(udfBufSize);
   COPY_SCALAR_FIELD(hasPk);
   COPY_SCALAR_FIELD(pkBytes);
@@ -595,6 +596,36 @@ static int32_t windowOffsetCopy(const SWindowOffsetNode* pSrc, SWindowOffsetNode
   COPY_SCALAR_FIELD(type);
   CLONE_NODE_FIELD(pStartOffset);
   CLONE_NODE_FIELD(pEndOffset);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sqlWindowBoundCopy(const SSqlWindowBound* pSrc, SSqlWindowBound* pDst) {
+  COPY_SCALAR_FIELD(boundType);
+  CLONE_NODE_FIELD(pOffset);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sqlWindowFrameCopy(const SWindowFrameNode* pSrc, SWindowFrameNode* pDst) {
+  COPY_SCALAR_FIELD(frameUnit);
+  COPY_SCALAR_FIELD(explicitFrame);
+  int32_t code = sqlWindowBoundCopy(&pSrc->start, &pDst->start);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = sqlWindowBoundCopy(&pSrc->end, &pDst->end);
+  }
+  return code;
+}
+
+static int32_t sqlWindowSpecCopy(const SWindowSpecNode* pSrc, SWindowSpecNode* pDst) {
+  COPY_CHAR_ARRAY_FIELD(refWindowName);
+  CLONE_NODE_LIST_FIELD(pPartitionByList);
+  CLONE_NODE_LIST_FIELD(pOrderByList);
+  CLONE_NODE_FIELD(pFrame);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sqlNamedWindowCopy(const SNamedWindowNode* pSrc, SNamedWindowNode* pDst) {
+  COPY_CHAR_ARRAY_FIELD(windowName);
+  CLONE_NODE_FIELD(pSpec);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -958,6 +989,15 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t logicWindowFuncCopy(const SWindowFuncLogicNode* pSrc, SWindowFuncLogicNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_LIST_FIELD(pPartitionKeys);
+  CLONE_NODE_LIST_FIELD(pOrderKeys);
+  CLONE_NODE_LIST_FIELD(pFuncs);
+  CLONE_NODE_FIELD(pFrame);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(mode);
@@ -1249,6 +1289,16 @@ static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* p
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t physiWindowFuncCopy(const SWindowFuncPhysiNode* pSrc, SWindowFuncPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
+  CLONE_NODE_LIST_FIELD(pExprs);
+  CLONE_NODE_LIST_FIELD(pPartitionKeys);
+  CLONE_NODE_LIST_FIELD(pOrderKeys);
+  CLONE_NODE_LIST_FIELD(pFuncs);
+  CLONE_NODE_FIELD(pFrame);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t physiIntervalCopy(const SIntervalPhysiNode* pSrc, SIntervalPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(window, physiWindowCopy);
   COPY_SCALAR_FIELD(interval);
@@ -1413,6 +1463,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   CLONE_NODE_FIELD(pWhere);
   CLONE_NODE_LIST_FIELD(pPartitionByList);
   CLONE_NODE_FIELD(pWindow);
+  CLONE_NODE_LIST_FIELD(pWindowList);
   CLONE_NODE_LIST_FIELD(pGroupByList);
   CLONE_NODE_FIELD(pHaving);
   CLONE_NODE_LIST_FIELD(pOrderByList);
@@ -1602,6 +1653,15 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_WINDOW_OFFSET:
       code = windowOffsetCopy((const SWindowOffsetNode*)pNode, (SWindowOffsetNode*)pDst);
       break;
+    case QUERY_NODE_SQL_WINDOW_SPEC:
+      code = sqlWindowSpecCopy((const SWindowSpecNode*)pNode, (SWindowSpecNode*)pDst);
+      break;
+    case QUERY_NODE_SQL_WINDOW_FRAME:
+      code = sqlWindowFrameCopy((const SWindowFrameNode*)pNode, (SWindowFrameNode*)pDst);
+      break;
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      code = sqlNamedWindowCopy((const SNamedWindowNode*)pNode, (SNamedWindowNode*)pDst);
+      break;
     case QUERY_NODE_VIRTUAL_TABLE:
       code = virtualTableNodeCopy((const SVirtualTableNode*)pNode, (SVirtualTableNode*)pDst);
       break;
@@ -1661,6 +1721,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       code = logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC:
+      code = logicWindowFuncCopy((const SWindowFuncLogicNode*)pNode, (SWindowFuncLogicNode*)pDst);
       break;
     case QUERY_NODE_LOGIC_PLAN_FILL:
       code = logicFillCopy((const SFillLogicNode*)pNode, (SFillLogicNode*)pDst);
@@ -1739,6 +1802,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       code = physiProjectCopy((const SProjectPhysiNode*)pNode, (SProjectPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC:
+      code = physiWindowFuncCopy((const SWindowFuncPhysiNode*)pNode, (SWindowFuncPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:  
       code = physiDispatchCopy((const SDataDispatcherNode*)pNode, (SDataDispatcherNode*)pDst);

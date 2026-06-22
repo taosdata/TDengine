@@ -86,6 +86,25 @@ class TestFunSelectLagLead:
         tdSql.checkData(1, 1, -1)
         tdSql.checkData(2, 1, -1)
 
+    def _case_default_offset_and_zero_offset(self):
+        tdSql.query("select _rowts, lag(v), lead(v) from ct1 order by ts")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, 12)
+        tdSql.checkData(1, 1, 11)
+        tdSql.checkData(1, 2, 13)
+        tdSql.checkData(2, 1, 12)
+        tdSql.checkData(2, 2, None)
+
+        tdSql.query("select _rowts, lag(v, 0), lead(v, 0) from ct1 order by ts")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 11)
+        tdSql.checkData(0, 2, 11)
+        tdSql.checkData(1, 1, 12)
+        tdSql.checkData(1, 2, 12)
+        tdSql.checkData(2, 1, 13)
+        tdSql.checkData(2, 2, 13)
+
     def _case_partition_lag_lead(self):
         tdSql.query(
             "select tbname, _rowts, lag(v, 1, -1) "
@@ -588,6 +607,7 @@ class TestFunSelectLagLead:
         self._prepare_data()
         self._case_lag_basic()
         self._case_lead_basic()
+        self._case_default_offset_and_zero_offset()
         self._case_partition_lag_lead()
         self._case_multi_lag_lead_same_select()
         self._case_lag_lead_combo_same_and_diff_cols()

@@ -635,11 +635,29 @@ ASC indicates ascending order, and DESC indicates descending order.
 
 The NULLS syntax is used to specify the position of NULL values in the output of the sorting. NULLS LAST is the default for ascending order, and NULLS FIRST is the default for descending order.
 
+## Window Functions
+
+Starting from v3.4.1.0, TDengine supports the SQL standard `OVER` clause and window functions. A window function computes a value for each row in the result set while referencing other rows in the same window, but keeps every original row instead of collapsing them. This differs from the time windows in [TDengine Distinctive Queries](24-distinguished.md), which aggregate multiple rows in a window into a single row.
+
+A window function call has the following basic form:
+
+```sql
+function_name ( [ arguments ] ) OVER (
+    [ PARTITION BY expr [, ...] ]
+    [ ORDER BY expr [ ASC | DESC ] [, ...] ]
+    [ { ROWS | RANGE } frame_extent ]
+)
+```
+
+Window functions support both existing aggregate/selection functions (such as `avg`, `sum`, `first`) used with an `OVER` clause, and dedicated window functions such as `row_number`, `rank`, `dense_rank`, `percent_rank`, `cume_dist`, `lag`, `lead`, `first_value`, `last_value`, and `nth_value`. Window functions may only appear in the `SELECT` list and `ORDER BY`. For the complete syntax, frame rules, named windows, and function list, see [Window Functions](29-window-function.md).
+
 ## LIMIT
 
 LIMIT controls the number of output rows, and OFFSET specifies starting from which row to begin output. The execution order of LIMIT/OFFSET is after ORDER BY. LIMIT 5 OFFSET 2 can be abbreviated as LIMIT 2, 5, both outputting data from row 3 to row 7.
 
 When there is a PARTITION BY/GROUP BY clause, LIMIT controls the output within each partition slice, not the total result set output.
+
+Starting from v3.4.1.0, `OFFSET N` can be used independently without `LIMIT`, which is useful for skipping the warm-up rows after a [window function](29-window-function.md) computation.
 
 ## SLIMIT
 

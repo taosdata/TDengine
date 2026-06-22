@@ -128,6 +128,101 @@ class PlannerTestBaseImpl {
     }
   }
 
+  bool findPlanNode(const string& nodeName) const { return countPlanNode(nodeName) > 0; }
+
+  bool planContains(const string& text) const {
+    if (res_.physiPlan_.find(text) != string::npos) {
+      return true;
+    }
+    for (const auto& subplan : res_.physiSubplans_) {
+      if (subplan.find(text) != string::npos) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool planNodeAppearsAbove(const string& upperNodeName, const string& lowerNodeName) const {
+    if (planNodeAppearsAboveIn(res_.physiPlan_, upperNodeName, lowerNodeName)) {
+      return true;
+    }
+    for (const auto& subplan : res_.physiSubplans_) {
+      if (planNodeAppearsAboveIn(subplan, upperNodeName, lowerNodeName)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool exchangeSubplansContain(const string& nodeName) const {
+    for (const auto& subplan : res_.physiSubplans_) {
+      if (!subplanContainsExchange(res_.physiPlan_, subplan) && !anySubplanReferencesSubplan(subplan)) {
+        continue;
+      }
+      if (countPlanNodeIn(subplan, nodeName) > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool aggOutputsMatchFuncs() const {
+    auto checkPlan = [](const string& plan) {
+      size_t pos = 0;
+      while ((pos = plan.find("\"Name\":\"PhysiAgg\"", pos)) != string::npos) {
+        size_t objectStart = plan.rfind("{", pos);
+        if (objectStart == string::npos) {
+          return false;
+        }
+        size_t objectEnd = findObjectEnd(plan, objectStart);
+        string agg = plan.substr(objectStart, objectEnd - objectStart + 1);
+
+        size_t  childrenPos = agg.find("\"Children\"");
+        string  outputSection = childrenPos == string::npos ? agg : agg.substr(0, childrenPos);
+        int32_t slotCount = countPlanNodeIn(outputSection, "SlotDesc");
+
+        size_t funcsPos = agg.find("\"AggFuncs\"");
+        if (funcsPos == string::npos) {
+          if (slotCount != 0) {
+            return false;
+          }
+        } else {
+          int32_t funcCount = countPlanNodeIn(agg.substr(funcsPos), "Target");
+          if (slotCount != funcCount) {
+            return false;
+          }
+        }
+        pos = objectEnd + 1;
+      }
+      return true;
+    };
+
+    if (!checkPlan(res_.physiPlan_)) {
+      return false;
+    }
+    for (const auto& subplan : res_.physiSubplans_) {
+      if (!checkPlan(subplan)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  int32_t countPlanNode(const string& nodeName) const {
+    if (!res_.physiSubplans_.empty()) {
+      int32_t count = 0;
+      for (const auto& subplan : res_.physiSubplans_) {
+        count += countPlanNodeIn(subplan, nodeName);
+      }
+      return count;
+    }
+    int32_t count = countPlanNodeIn(res_.physiPlan_, nodeName);
+    for (const auto& subplan : res_.physiSubplans_) {
+      count += countPlanNodeIn(subplan, nodeName);
+    }
+    return count;
+  }
+
   void runImpl(const string& sql, int32_t queryPolicy) {
     int64_t allocatorId = 0;
     if (g_useNodeAllocator) {
@@ -465,6 +560,159 @@ class PlannerTestBaseImpl {
     return str;
   }
 
+  static int32_t countPlanNodeIn(const string& plan, const string& nodeName) {
+    const string nameKey = "\"Name\":\"";
+    int32_t      count = 0;
+    size_t       pos = plan.find(nameKey);
+    while (pos != string::npos) {
+      const size_t nameBegin = pos + nameKey.length();
+      const size_t nameEnd = plan.find("\"", nameBegin);
+      if (nameEnd == string::npos) {
+        break;
+      }
+      const string actual = plan.substr(nameBegin, nameEnd - nameBegin);
+      if (actual == nodeName || actual == "Logic" + nodeName || actual == "Physi" + nodeName) {
+        ++count;
+      }
+      pos = plan.find(nameKey, nameEnd);
+    }
+    return count;
+  }
+
+  bool anySubplanReferencesSubplan(const string& subplan) const {
+    for (const auto& parent : res_.physiSubplans_) {
+      if (subplanContainsExchange(parent, subplan)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool subplanContainsExchange(const string& plan, const string& subplan) {
+    int64_t groupId = getSubplanGroupId(subplan);
+    if (groupId < 0) {
+      return false;
+    }
+
+    const string nameKey = "\"Name\":\"";
+    size_t       pos = plan.find(nameKey);
+    while (pos != string::npos) {
+      if (nodeNameMatches(plan, pos, "Exchange")) {
+        const size_t objectStart = plan.rfind("{", pos);
+        if (objectStart == string::npos) {
+          return false;
+        }
+        const size_t objectEnd = findObjectEnd(plan, objectStart);
+        if (objectEnd == string::npos) {
+          return false;
+        }
+        string exchange = plan.substr(objectStart, objectEnd - objectStart + 1);
+        if (exchangeReferencesGroup(exchange, groupId)) {
+          return true;
+        }
+      }
+      pos = plan.find(nameKey, pos + nameKey.length());
+    }
+    return false;
+  }
+
+  static int64_t getSubplanGroupId(const string& plan) {
+    const string key = "\"GroupId\":\"";
+    size_t       pos = plan.find(key);
+    if (pos == string::npos) {
+      return -1;
+    }
+    pos += key.length();
+    const size_t end = plan.find("\"", pos);
+    if (end == string::npos) {
+      return -1;
+    }
+    return stoll(plan.substr(pos, end - pos));
+  }
+
+  static bool exchangeReferencesGroup(const string& exchange, int64_t groupId) {
+    const int64_t startGroupId = getJsonInt64(exchange, "\"SrcStartGroupId\":\"");
+    const int64_t endGroupId = getJsonInt64(exchange, "\"SrcEndGroupId\":\"");
+    return startGroupId <= groupId && groupId <= endGroupId;
+  }
+
+  static int64_t getJsonInt64(const string& object, const string& key) {
+    size_t pos = object.find(key);
+    if (pos == string::npos) {
+      return -1;
+    }
+    pos += key.length();
+    const size_t end = object.find("\"", pos);
+    if (end == string::npos) {
+      return -1;
+    }
+    return stoll(object.substr(pos, end - pos));
+  }
+
+  static size_t findObjectEnd(const string& plan, size_t objectStart) {
+    int32_t depth = 0;
+    bool    inString = false;
+    bool    escaped = false;
+    for (size_t pos = objectStart; pos < plan.length(); ++pos) {
+      char ch = plan[pos];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (ch == '\\') {
+          escaped = true;
+        } else if (ch == '"') {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch == '"') {
+        inString = true;
+      } else if (ch == '{') {
+        ++depth;
+      } else if (ch == '}') {
+        --depth;
+        if (depth == 0) {
+          return pos;
+        }
+      }
+    }
+    return string::npos;
+  }
+
+  static bool nodeNameMatches(const string& plan, size_t namePos, const string& nodeName) {
+    const string nameKey = "\"Name\":\"";
+    const size_t nameBegin = namePos + nameKey.length();
+    const size_t nameEnd = plan.find("\"", nameBegin);
+    if (nameEnd == string::npos) {
+      return false;
+    }
+    const string actual = plan.substr(nameBegin, nameEnd - nameBegin);
+    return actual == nodeName || actual == "Logic" + nodeName || actual == "Physi" + nodeName;
+  }
+
+  static bool planNodeAppearsAboveIn(const string& plan, const string& upperNodeName, const string& lowerNodeName) {
+    const string nameKey = "\"Name\":\"";
+    size_t       pos = plan.find(nameKey);
+    while (pos != string::npos) {
+      if (nodeNameMatches(plan, pos, upperNodeName)) {
+        const size_t objectStart = plan.rfind("{", pos);
+        if (objectStart == string::npos) {
+          return false;
+        }
+        const size_t objectEnd = findObjectEnd(plan, objectStart);
+        if (objectEnd == string::npos) {
+          return false;
+        }
+        string upperObject = plan.substr(objectStart, objectEnd - objectStart + 1);
+        if (countPlanNodeIn(upperObject, lowerNodeName) > 0) {
+          return true;
+        }
+      }
+      pos = plan.find(nameKey, pos + nameKey.length());
+    }
+    return false;
+  }
+
   void checkPlanMsg(const SNode* pRoot) {
     char*   pStr = NULL;
     int32_t len = 0;
@@ -505,6 +753,22 @@ PlannerTestBase::~PlannerTestBase() {}
 void PlannerTestBase::useDb(const std::string& user, const std::string& db) { impl_->useDb(user, db); }
 
 void PlannerTestBase::run(const std::string& sql) { return impl_->run(sql); }
+
+bool PlannerTestBase::findPlanNode(const std::string& nodeName) const { return impl_->findPlanNode(nodeName); }
+
+int32_t PlannerTestBase::countPlanNode(const std::string& nodeName) const { return impl_->countPlanNode(nodeName); }
+
+bool PlannerTestBase::planContains(const std::string& text) const { return impl_->planContains(text); }
+
+bool PlannerTestBase::planNodeAppearsAbove(const std::string& upperNodeName, const std::string& lowerNodeName) const {
+  return impl_->planNodeAppearsAbove(upperNodeName, lowerNodeName);
+}
+
+bool PlannerTestBase::exchangeSubplansContain(const std::string& nodeName) const {
+  return impl_->exchangeSubplansContain(nodeName);
+}
+
+bool PlannerTestBase::aggOutputsMatchFuncs() const { return impl_->aggOutputsMatchFuncs(); }
 
 void PlannerTestBase::prepare(const std::string& sql) { return impl_->prepare(sql); }
 

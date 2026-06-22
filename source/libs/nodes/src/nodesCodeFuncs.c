@@ -121,6 +121,12 @@ const char* nodesNodeName(ENodeType type) {
       return "EventWindow";
     case QUERY_NODE_WINDOW_OFFSET:
       return "WindowOffset";
+    case QUERY_NODE_SQL_WINDOW_SPEC:
+      return "SqlWindowSpec";
+    case QUERY_NODE_SQL_WINDOW_FRAME:
+      return "SqlWindowFrame";
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      return "SqlNamedWindow";
     case QUERY_NODE_COUNT_WINDOW:
       return "CountWindow";
     case QUERY_NODE_ANOMALY_WINDOW:
@@ -505,6 +511,8 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicMerge";
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return "LogicWindow";
+    case QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC:
+      return "WindowFunc";
     case QUERY_NODE_LOGIC_PLAN_FILL:
       return "LogicFill";
     case QUERY_NODE_LOGIC_PLAN_SORT:
@@ -620,6 +628,8 @@ const char* nodesNodeName(ENodeType type) {
     case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
       return "PhysiExternalWindow";
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC:
+      return "WindowFunc";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL:
       return "PhysiMergeAlignedExternalWindow";
 
@@ -1539,6 +1549,52 @@ static int32_t jsonToLogicSortNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkSortLogicPlanSortKeys, &pNode->pSortKeys);
+  }
+
+  return code;
+}
+
+static const char* jkWindowFuncPlanPartitionKeys = "PartitionKeys";
+static const char* jkWindowFuncPlanOrderKeys = "OrderKeys";
+static const char* jkWindowFuncPlanFuncs = "Funcs";
+static const char* jkWindowFuncPlanFrame = "Frame";
+static const char* jkWindowFuncPlanExprs = "Exprs";
+
+static int32_t logicWindowFuncNodeToJson(const void* pObj, SJson* pJson) {
+  const SWindowFuncLogicNode* pNode = (const SWindowFuncLogicNode*)pObj;
+
+  int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkWindowFuncPlanPartitionKeys, pNode->pPartitionKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkWindowFuncPlanOrderKeys, pNode->pOrderKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkWindowFuncPlanFuncs, pNode->pFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkWindowFuncPlanFrame, nodeToJson, pNode->pFrame);
+  }
+
+  return code;
+}
+
+static int32_t jsonToLogicWindowFuncNode(const SJson* pJson, void* pObj) {
+  SWindowFuncLogicNode* pNode = (SWindowFuncLogicNode*)pObj;
+
+  int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkWindowFuncPlanPartitionKeys, &pNode->pPartitionKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkWindowFuncPlanOrderKeys, &pNode->pOrderKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkWindowFuncPlanFuncs, &pNode->pFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkWindowFuncPlanFrame, &pNode->pFrame);
   }
 
   return code;
@@ -3800,6 +3856,52 @@ static int32_t jsonToPhysiSortNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkSortPhysiPlanExcludePKCol, &pNode->excludePkCol);
+  }
+
+  return code;
+}
+
+static int32_t physiWindowFuncNodeToJson(const void* pObj, SJson* pJson) {
+  const SWindowFuncPhysiNode* pNode = (const SWindowFuncPhysiNode*)pObj;
+
+  int32_t code = physicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkWindowFuncPlanExprs, pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkWindowFuncPlanPartitionKeys, pNode->pPartitionKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkWindowFuncPlanOrderKeys, pNode->pOrderKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkWindowFuncPlanFuncs, pNode->pFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkWindowFuncPlanFrame, nodeToJson, pNode->pFrame);
+  }
+
+  return code;
+}
+
+static int32_t jsonToPhysiWindowFuncNode(const SJson* pJson, void* pObj) {
+  SWindowFuncPhysiNode* pNode = (SWindowFuncPhysiNode*)pObj;
+
+  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkWindowFuncPlanExprs, &pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkWindowFuncPlanPartitionKeys, &pNode->pPartitionKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkWindowFuncPlanOrderKeys, &pNode->pOrderKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkWindowFuncPlanFuncs, &pNode->pFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkWindowFuncPlanFrame, &pNode->pFrame);
   }
 
   return code;
@@ -6819,6 +6921,7 @@ static const char* jkFunctionName = "Name";
 static const char* jkFunctionId = "Id";
 static const char* jkFunctionType = "Type";
 static const char* jkFunctionParameter = "Parameters";
+static const char* jkFunctionOver = "Over";
 static const char* jkFunctionUdfBufSize = "UdfBufSize";
 static const char* jkFunctionHasPk = "HasPk";
 static const char* jkFunctionPkBytes = "PkBytes";
@@ -6843,6 +6946,9 @@ static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkFunctionParameter, pNode->pParameterList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkFunctionOver, nodeToJson, pNode->pOver);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkFunctionUdfBufSize, pNode->udfBufSize);
@@ -6886,6 +6992,9 @@ static int32_t jsonToFunctionNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkFunctionParameter, &pNode->pParameterList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkFunctionOver, &pNode->pOver);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkFunctionUdfBufSize, &pNode->udfBufSize);
@@ -8100,6 +8209,129 @@ static int32_t jsonToWindowOffsetNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkSqlWindowBoundType = "BoundType";
+static const char* jkSqlWindowBoundOffset = "Offset";
+
+static int32_t sqlWindowBoundToJson(const void* pObj, SJson* pJson) {
+  const SSqlWindowBound* pNode = (const SSqlWindowBound*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkSqlWindowBoundType, pNode->boundType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSqlWindowBoundOffset, nodeToJson, pNode->pOffset);
+  }
+  return code;
+}
+
+static int32_t jsonToSqlWindowBound(const SJson* pJson, void* pObj) {
+  SSqlWindowBound* pNode = (SSqlWindowBound*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  tjsonGetNumberValue(pJson, jkSqlWindowBoundType, pNode->boundType, code);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkSqlWindowBoundOffset, &pNode->pOffset);
+  }
+  return code;
+}
+
+static const char* jkSqlWindowFrameUnit = "FrameUnit";
+static const char* jkSqlWindowFrameStart = "Start";
+static const char* jkSqlWindowFrameEnd = "End";
+static const char* jkSqlWindowFrameExplicit = "ExplicitFrame";
+
+static int32_t sqlWindowFrameNodeToJson(const void* pObj, SJson* pJson) {
+  const SWindowFrameNode* pNode = (const SWindowFrameNode*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkSqlWindowFrameUnit, pNode->frameUnit);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSqlWindowFrameStart, sqlWindowBoundToJson, &pNode->start);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSqlWindowFrameEnd, sqlWindowBoundToJson, &pNode->end);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkSqlWindowFrameExplicit, pNode->explicitFrame);
+  }
+  return code;
+}
+
+static int32_t jsonToSqlWindowFrameNode(const SJson* pJson, void* pObj) {
+  SWindowFrameNode* pNode = (SWindowFrameNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  tjsonGetNumberValue(pJson, jkSqlWindowFrameUnit, pNode->frameUnit, code);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToObject(pJson, jkSqlWindowFrameStart, jsonToSqlWindowBound, &pNode->start);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToObject(pJson, jkSqlWindowFrameEnd, jsonToSqlWindowBound, &pNode->end);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkSqlWindowFrameExplicit, &pNode->explicitFrame);
+  }
+  return code;
+}
+
+static const char* jkSqlWindowSpecRefName = "RefWindowName";
+static const char* jkSqlWindowSpecPartitionBy = "PartitionBy";
+static const char* jkSqlWindowSpecOrderBy = "OrderBy";
+static const char* jkSqlWindowSpecFrame = "Frame";
+
+static int32_t sqlWindowSpecNodeToJson(const void* pObj, SJson* pJson) {
+  const SWindowSpecNode* pNode = (const SWindowSpecNode*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkSqlWindowSpecRefName, pNode->refWindowName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkSqlWindowSpecPartitionBy, pNode->pPartitionByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkSqlWindowSpecOrderBy, pNode->pOrderByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSqlWindowSpecFrame, nodeToJson, pNode->pFrame);
+  }
+  return code;
+}
+
+static int32_t jsonToSqlWindowSpecNode(const SJson* pJson, void* pObj) {
+  SWindowSpecNode* pNode = (SWindowSpecNode*)pObj;
+
+  int32_t code =
+      tjsonGetStringValue1(pJson, jkSqlWindowSpecRefName, pNode->refWindowName, sizeof(pNode->refWindowName));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkSqlWindowSpecPartitionBy, &pNode->pPartitionByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkSqlWindowSpecOrderBy, &pNode->pOrderByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkSqlWindowSpecFrame, (SNode**)&pNode->pFrame);
+  }
+  return code;
+}
+
+static const char* jkSqlNamedWindowName = "WindowName";
+static const char* jkSqlNamedWindowSpec = "Spec";
+
+static int32_t sqlNamedWindowNodeToJson(const void* pObj, SJson* pJson) {
+  const SNamedWindowNode* pNode = (const SNamedWindowNode*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkSqlNamedWindowName, pNode->windowName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSqlNamedWindowSpec, nodeToJson, pNode->pSpec);
+  }
+  return code;
+}
+
+static int32_t jsonToSqlNamedWindowNode(const SJson* pJson, void* pObj) {
+  SNamedWindowNode* pNode = (SNamedWindowNode*)pObj;
+
+  int32_t code = tjsonGetStringValue1(pJson, jkSqlNamedWindowName, pNode->windowName, sizeof(pNode->windowName));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkSqlNamedWindowSpec, &pNode->pSpec);
+  }
+  return code;
+}
+
 static const char* jkDatabaseOptionsBuffer = "Buffer";
 static const char* jkDatabaseOptionsCacheModel = "CacheModel";
 static const char* jkDatabaseOptionsCompressionLevel = "CompressionLevel";
@@ -8802,6 +9034,7 @@ static const char* jkSelectStmtPartitionBy = "PartitionBy";
 static const char* jkSelectStmtTags = "Tags";
 static const char* jkSelectStmtSubtable = "Subtable";
 static const char* jkSelectStmtWindow = "Window";
+static const char* jkSelectStmtWindowList = "WindowList";
 static const char* jkSelectStmtGroupBy = "GroupBy";
 static const char* jkSelectStmtHaving = "Having";
 static const char* jkSelectStmtOrderBy = "OrderBy";
@@ -8836,6 +9069,9 @@ static int32_t selectStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSelectStmtWindow, nodeToJson, pNode->pWindow);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkSelectStmtWindowList, pNode->pWindowList);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkSelectStmtGroupBy, pNode->pGroupByList);
@@ -8897,6 +9133,9 @@ static int32_t jsonToSelectStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkSelectStmtWindow, &pNode->pWindow);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkSelectStmtWindowList, &pNode->pWindowList);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkSelectStmtGroupBy, &pNode->pGroupByList);
@@ -11539,6 +11778,12 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return eventWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_WINDOW_OFFSET:
       return windowOffsetNodeToJson(pObj, pJson);
+    case QUERY_NODE_SQL_WINDOW_SPEC:
+      return sqlWindowSpecNodeToJson(pObj, pJson);
+    case QUERY_NODE_SQL_WINDOW_FRAME:
+      return sqlWindowFrameNodeToJson(pObj, pJson);
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      return sqlNamedWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_COUNT_WINDOW:
       return countWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_ANOMALY_WINDOW:
@@ -11849,6 +12094,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicMergeNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return logicWindowNodeToJson(pObj, pJson);
+    case QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC:
+      return logicWindowFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_FILL:
       return logicFillNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_SORT:
@@ -11905,6 +12152,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
       return physiSortNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC:
+      return physiWindowFuncNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER:
       return physiDistinctFilterNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
@@ -12062,6 +12311,12 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToEventWindowNode(pJson, pObj);
     case QUERY_NODE_WINDOW_OFFSET:
       return jsonToWindowOffsetNode(pJson, pObj);
+    case QUERY_NODE_SQL_WINDOW_SPEC:
+      return jsonToSqlWindowSpecNode(pJson, pObj);
+    case QUERY_NODE_SQL_WINDOW_FRAME:
+      return jsonToSqlWindowFrameNode(pJson, pObj);
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      return jsonToSqlNamedWindowNode(pJson, pObj);
     case QUERY_NODE_COUNT_WINDOW:
       return jsonToCountWindowNode(pJson, pObj);
     case QUERY_NODE_ANOMALY_WINDOW:
@@ -12358,6 +12613,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicMergeNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return jsonToLogicWindowNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC:
+      return jsonToLogicWindowFuncNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_FILL:
       return jsonToLogicFillNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_SORT:
@@ -12414,6 +12671,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
       return jsonToPhysiSortNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC:
+      return jsonToPhysiWindowFuncNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER:
       return jsonToPhysiDistinctFilterNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:

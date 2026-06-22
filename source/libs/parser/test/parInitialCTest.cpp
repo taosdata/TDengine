@@ -878,6 +878,18 @@ TEST_F(ParserInitialCTest, createStable) {
   run("CREATE STABLE t1(ts TIMESTAMP, c1 INT) TAGS(id INT)");
   clearCreateStbReq();
 
+  setCreateStbReq("test", "ohlcv_1m");
+  addFieldToCreateStbReq(true, "ts", TSDB_DATA_TYPE_TIMESTAMP);
+  addFieldToCreateStbReq(true, "open", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(true, "high", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(true, "low", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(true, "close", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(true, "volume", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(false, "symbol", TSDB_DATA_TYPE_VARCHAR, 10 + VARSTR_HEADER_SIZE);
+  run("CREATE STABLE ohlcv_1m(ts TIMESTAMP, open BIGINT UNSIGNED, high BIGINT UNSIGNED, low BIGINT UNSIGNED, "
+      "close BIGINT UNSIGNED, volume BIGINT UNSIGNED) TAGS(symbol VARCHAR(10))");
+  clearCreateStbReq();
+
   setCreateStbReq("rollup_db", "t1", 1, 100 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_MINUTE, 10,
                   1 * MILLISECOND_PER_MINUTE, 1000 * MILLISECOND_PER_SECOND, 200 * MILLISECOND_PER_MINUTE, 100,
                   "test create table");

@@ -573,6 +573,9 @@ static int32_t  translateQuery(STranslateContext* pCxt, SNode* pNode);
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal);
 static int32_t  translateQuery(STranslateContext* pCxt, SNode* pNode);
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc);
+static int32_t  validateSqlWindowFunction(STranslateContext* pCxt, SFunctionNode* pFunc);
+static int32_t  validateNoSqlWindowFunc(STranslateContext* pCxt, SNode* pNode);
+static int32_t  validateSqlWindowSpecExpr(STranslateContext* pCxt, SNode* pNode);
 static int32_t  createSimpleSelectStmtFromProjList(const char* pDb, const char* pTable, SNodeList* pProjectionList,
                                                    SSelectStmt** pStmt);
 static int32_t  setQuery(STranslateContext* pCxt, SQuery* pQuery);
@@ -2692,6 +2695,14 @@ static void biMakeAliasNameInMD5(char* pExprStr, int32_t len, char* pAlias) {
   }
 }
 
+static int32_t getTbnameFuncInfo(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  SNodeList* pParams = pFunc->pParameterList;
+  pFunc->pParameterList = NULL;
+  int32_t code = fmGetFuncInfo(pFunc, pErrBuf, len);
+  pFunc->pParameterList = pParams;
+  return code;
+}
+
 static int32_t biMakeTbnameProjectAstNode(char* funcName, char* tableAlias, SNode** pOutNode) {
   int32_t     code = 0;
   SValueNode* valNode = NULL;
@@ -2724,7 +2735,7 @@ static int32_t biMakeTbnameProjectAstNode(char* funcName, char* tableAlias, SNod
       valNode = NULL;
     }
     if (TSDB_CODE_SUCCESS == code) {
-      code = fmGetFuncInfo(tbNameFunc, NULL, 0);
+      code = getTbnameFuncInfo(tbNameFunc, NULL, 0);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -4898,7 +4909,7 @@ static bool fromSingleTable(SNode* table) {
 }
 
 static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
-  if (!fmIsRepeatScanFunc(pFunc->funcId)) {
+  if (NULL != pFunc->pOver || !fmIsRepeatScanFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
   }
   if (!isSelectStmt(pCxt->pCurrStmt)) {
@@ -5011,18 +5022,22 @@ static int32_t calcSelectFuncNum(SFunctionNode* pFunc, int32_t currSelectFuncNum
                                   : 1);
 }
 
+static bool isSqlWindowFunctionNode(const SFunctionNode* pFunc);
+
 static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc) {
   SNode* pCurrStmt = pCxt->pCurrStmt;
   if (NULL != pCurrStmt && QUERY_NODE_SELECT_STMT == nodeType(pCurrStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
-    pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : fmIsAggFunc(pFunc->funcId);
-    if (fmIsAggFunc(pFunc->funcId) && !fmIsSelectFunc(pFunc->funcId)) {
+    bool         isSqlWindowFunc = isSqlWindowFunctionNode(pFunc);
+    pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : (!isSqlWindowFunc && fmIsAggFunc(pFunc->funcId));
+    if (!isSqlWindowFunc && fmIsAggFunc(pFunc->funcId) && !fmIsSelectFunc(pFunc->funcId)) {
       pSelect->hasNonSelectAggFuncs = true;
     }
     pSelect->hasCountFunc = pSelect->hasCountFunc ? true : (FUNCTION_TYPE_COUNT == pFunc->funcType);
-    pSelect->hasRepeatScanFuncs = pSelect->hasRepeatScanFuncs ? true : fmIsRepeatScanFunc(pFunc->funcId);
+    pSelect->hasRepeatScanFuncs =
+        pSelect->hasRepeatScanFuncs ? true : (!isSqlWindowFunc && fmIsRepeatScanFunc(pFunc->funcId));
 
-    if (fmIsIndefiniteRowsFunc(pFunc->funcId)) {
+    if (!isSqlWindowFunc && fmIsIndefiniteRowsFunc(pFunc->funcId)) {
       pSelect->hasIndefiniteRowsFunc = true;
       pSelect->returnRows = fmGetFuncReturnRows(pFunc);
     } else if (fmIsInterpFunc(pFunc->funcId)) {
@@ -5030,12 +5045,13 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
     } else if (fmIsForecastFunc(pFunc->funcId)) {
       pSelect->returnRows = fmGetFuncReturnRows(pFunc);
     }
-    if (fmIsProcessByRowFunc(pFunc->funcId)) {
+    if (!isSqlWindowFunc && fmIsProcessByRowFunc(pFunc->funcId)) {
       pSelect->lastProcessByRowFuncId = pFunc->funcId;
     }
 
-    pSelect->hasMultiRowsFunc = pSelect->hasMultiRowsFunc ? true : fmIsMultiRowsFunc(pFunc->funcId);
-    if (fmIsSelectFunc(pFunc->funcId)) {
+    pSelect->hasMultiRowsFunc =
+        pSelect->hasMultiRowsFunc ? true : (!isSqlWindowFunc && fmIsMultiRowsFunc(pFunc->funcId));
+    if (!isSqlWindowFunc && fmIsSelectFunc(pFunc->funcId)) {
       pSelect->hasSelectFunc = true;
       pSelect->selectFuncNum = calcSelectFuncNum(pFunc, pSelect->selectFuncNum);
     } else if (fmIsVectorFunc(pFunc->funcId)) {
@@ -5059,7 +5075,8 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
     pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
     pSelect->hasLastFunc = pSelect->hasLastFunc ? true : (FUNCTION_TYPE_LAST == pFunc->funcType);
     pSelect->hasTimeLineFunc = pSelect->hasTimeLineFunc ? true : fmIsTimelineFunc(pFunc->funcId);
-    pSelect->hasUdaf = pSelect->hasUdaf ? true : fmIsUserDefinedFunc(pFunc->funcId) && fmIsAggFunc(pFunc->funcId);
+    pSelect->hasUdaf =
+        pSelect->hasUdaf ? true : !isSqlWindowFunc && fmIsUserDefinedFunc(pFunc->funcId) && fmIsAggFunc(pFunc->funcId);
     if (SQL_CLAUSE_SELECT == pCxt->currClause) {
       pSelect->onlyHasKeepOrderFunc = pSelect->onlyHasKeepOrderFunc ? fmIsKeepOrderFunc(pFunc) : false;
     }
@@ -5542,6 +5559,31 @@ static int32_t validateDistinctFunc(STranslateContext* pCxt, SFunctionNode* pFun
   return TSDB_CODE_SUCCESS;
 }
 
+static bool isDedicatedSqlWindowFunc(const SFunctionNode* pFunc) {
+  switch (pFunc->funcType) {
+    case FUNCTION_TYPE_ROW_NUMBER:
+    case FUNCTION_TYPE_RANK:
+    case FUNCTION_TYPE_DENSE_RANK:
+    case FUNCTION_TYPE_PERCENT_RANK:
+    case FUNCTION_TYPE_CUME_DIST:
+    case FUNCTION_TYPE_FIRST_VALUE:
+    case FUNCTION_TYPE_LAST_VALUE:
+    case FUNCTION_TYPE_NTH_VALUE:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static bool isSqlWindowArgError(int32_t code) {
+  return TSDB_CODE_FUNC_FUNTION_PARA_VALUE == code || TSDB_CODE_FUNC_FUNTION_PARA_RANGE == code;
+}
+
+static bool isSqlWindowFunctionNode(const SFunctionNode* pFunc) {
+  return NULL != pFunc->pOver &&
+         (fmIsSqlWindowFunc(pFunc->functionName) || fmCanUseAsSqlWindowAgg(pFunc->functionName));
+}
+
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
   SNode* pParam = NULL;
   if (strcmp((*pFunc)->functionName, "tbname") == 0 && (*pFunc)->pParameterList != NULL) {
@@ -5565,7 +5607,23 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc
     }
   }
 
-  pCxt->errCode = getFuncInfo(pCxt, *pFunc);
+  if (0 == strcmp((*pFunc)->functionName, "tbname") && NULL != (*pFunc)->pParameterList) {
+    pCxt->errCode = getTbnameFuncInfo(*pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  } else {
+    pCxt->errCode = getFuncInfo(pCxt, *pFunc);
+  }
+  if (isSqlWindowArgError(pCxt->errCode) && NULL != (*pFunc)->pOver) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_ARGUMENT);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && isDedicatedSqlWindowFunc(*pFunc) && NULL == (*pFunc)->pOver) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC, (*pFunc)->functionName);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = validateSqlWindowFunction(pCxt, *pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && NULL == (*pFunc)->pOver) {
+    pCxt->errCode = validateNoSqlWindowFunc(pCxt, (SNode*)*pFunc);
+  }
   if (TSDB_CODE_SUCCESS == pCxt->errCode && (*pFunc)->isDistinct) {
     pCxt->errCode = validateDistinctFunc(pCxt, *pFunc);
   }
@@ -5866,6 +5924,298 @@ static int32_t translateExpr(STranslateContext* pCxt, SNode** pNode) {
 static int32_t translateExprList(STranslateContext* pCxt, SNodeList* pList) {
   nodesRewriteExprsPostOrder(pList, doTranslateExpr, pCxt);
   return pCxt->errCode;
+}
+
+static int32_t makeSqlWindowFrame(ESqlWindowFrameUnit unit, ESqlWindowBoundType startType, ESqlWindowBoundType endType,
+                                  SNode** ppFrame) {
+  SWindowFrameNode* pFrame = NULL;
+  int32_t           code = nodesMakeNode(QUERY_NODE_SQL_WINDOW_FRAME, (SNode**)&pFrame);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  pFrame->frameUnit = unit;
+  pFrame->start.boundType = startType;
+  pFrame->end.boundType = endType;
+  pFrame->explicitFrame = false;
+  *ppFrame = (SNode*)pFrame;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateSqlWindowFrameBound(STranslateContext* pCxt, ESqlWindowFrameUnit unit, SSqlWindowBound* pBound) {
+  if (NULL == pBound->pOffset) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (QUERY_NODE_VALUE != nodeType(pBound->pOffset)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_BOUND);
+  }
+  SValueNode* pVal = (SValueNode*)pBound->pOffset;
+  PAR_ERR_RET(doTranslateValue(pCxt, pVal));
+  if (WINDOW_FRAME_UNIT_ROWS == unit) {
+    if (IS_DURATION_VAL(pVal->flag) ||
+        (TSDB_DATA_TYPE_BIGINT != pVal->node.resType.type && TSDB_DATA_TYPE_INT != pVal->node.resType.type) ||
+        pVal->datum.i < 0) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_BOUND);
+    }
+  } else {
+    if (!IS_DURATION_VAL(pVal->flag) && !IS_INTEGER_TYPE(pVal->node.resType.type)) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_BOUND);
+    }
+    if (pVal->datum.i < 0) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_BOUND);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t sqlWindowBoundRank(ESqlWindowBoundType type) {
+  switch (type) {
+    case WINDOW_BOUND_UNBOUNDED_PRECEDING:
+      return 0;
+    case WINDOW_BOUND_N_PRECEDING:
+      return 1;
+    case WINDOW_BOUND_CURRENT_ROW:
+      return 2;
+    case WINDOW_BOUND_N_FOLLOWING:
+      return 3;
+    case WINDOW_BOUND_UNBOUNDED_FOLLOWING:
+      return 4;
+    default:
+      return -1;
+  }
+}
+
+static bool sqlWindowRangeOrderKeySupported(int8_t type) {
+  return TSDB_DATA_TYPE_TIMESTAMP == type || IS_FLOAT_TYPE(type) ||
+         (IS_INTEGER_TYPE(type) && TSDB_DATA_TYPE_UBIGINT != type);
+}
+
+static bool sqlWindowRangeBoundHasOffset(const SSqlWindowBound* pBound) {
+  return WINDOW_BOUND_N_PRECEDING == pBound->boundType || WINDOW_BOUND_N_FOLLOWING == pBound->boundType;
+}
+
+static bool sqlWindowRangeBoundMatchesOrderType(int8_t orderType, const SSqlWindowBound* pBound) {
+  if (NULL == pBound->pOffset) {
+    return true;
+  }
+  if (QUERY_NODE_VALUE != nodeType(pBound->pOffset)) {
+    return false;
+  }
+
+  const SValueNode* pVal = (const SValueNode*)pBound->pOffset;
+  if (TSDB_DATA_TYPE_TIMESTAMP == orderType) {
+    return IS_DURATION_VAL(pVal->flag);
+  }
+  return (IS_INTEGER_TYPE(pVal->node.resType.type) || IS_FLOAT_TYPE(pVal->node.resType.type)) &&
+         !IS_DURATION_VAL(pVal->flag);
+}
+
+static int32_t validateSqlWindowRangeOrder(STranslateContext* pCxt, const SNodeList* pOrderByList,
+                                           const SWindowFrameNode* pFrame) {
+  if (LIST_LENGTH(pOrderByList) == 0) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_ORDER_REQUIRED);
+  }
+
+  bool hasOffset = sqlWindowRangeBoundHasOffset(&pFrame->start) || sqlWindowRangeBoundHasOffset(&pFrame->end);
+  if (!hasOffset) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (LIST_LENGTH(pOrderByList) != 1) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_RANGE_MULTI_ORDER);
+  }
+
+  const SNode* pNode = nodesListGetNode((SNodeList*)pOrderByList, 0);
+  if (NULL == pNode || QUERY_NODE_ORDER_BY_EXPR != nodeType(pNode)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_BOUND);
+  }
+
+  const SOrderByExprNode* pOrder = (const SOrderByExprNode*)pNode;
+  if (NULL == pOrder->pExpr || !sqlWindowRangeOrderKeySupported(((const SExprNode*)pOrder->pExpr)->resType.type)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_BOUND);
+  }
+
+  int8_t orderType = ((const SExprNode*)pOrder->pExpr)->resType.type;
+  if (!sqlWindowRangeBoundMatchesOrderType(orderType, &pFrame->start) ||
+      !sqlWindowRangeBoundMatchesOrderType(orderType, &pFrame->end)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_BOUND);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateSqlWindowFrame(STranslateContext* pCxt, SWindowSpecNode* pSpec) {
+  if (NULL == pSpec->pFrame) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SWindowFrameNode* pFrame = (SWindowFrameNode*)pSpec->pFrame;
+  PAR_ERR_RET(validateSqlWindowFrameBound(pCxt, pFrame->frameUnit, &pFrame->start));
+  PAR_ERR_RET(validateSqlWindowFrameBound(pCxt, pFrame->frameUnit, &pFrame->end));
+  if (WINDOW_FRAME_UNIT_RANGE == pFrame->frameUnit) {
+    PAR_ERR_RET(validateSqlWindowRangeOrder(pCxt, pSpec->pOrderByList, pFrame));
+  }
+  if (sqlWindowBoundRank(pFrame->start.boundType) > sqlWindowBoundRank(pFrame->end.boundType)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_BOUND);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t applyDefaultSqlWindowFrame(const SFunctionNode* pFunc, SWindowSpecNode* pSpec) {
+  if (NULL != pSpec->pFrame) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL == pSpec->pOrderByList) {
+    return makeSqlWindowFrame(WINDOW_FRAME_UNIT_ROWS, WINDOW_BOUND_UNBOUNDED_PRECEDING,
+                              WINDOW_BOUND_UNBOUNDED_FOLLOWING, &pSpec->pFrame);
+  }
+  if (fmCanUseAsSqlWindowAgg(pFunc->functionName)) {
+    return makeSqlWindowFrame(WINDOW_FRAME_UNIT_RANGE, WINDOW_BOUND_UNBOUNDED_PRECEDING, WINDOW_BOUND_CURRENT_ROW,
+                              &pSpec->pFrame);
+  }
+  return makeSqlWindowFrame(WINDOW_FRAME_UNIT_ROWS, WINDOW_BOUND_UNBOUNDED_PRECEDING, WINDOW_BOUND_CURRENT_ROW,
+                            &pSpec->pFrame);
+}
+
+static int32_t validateSqlWindowFuncArgs(STranslateContext* pCxt, const SFunctionNode* pFunc) {
+  if (FUNCTION_TYPE_NTH_VALUE == pFunc->funcType) {
+    if (LIST_LENGTH(pFunc->pParameterList) < 2) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_ARGUMENT);
+    }
+    SNode* pArg = nodesListGetNode(pFunc->pParameterList, 1);
+    if (NULL == pArg || QUERY_NODE_VALUE != nodeType(pArg)) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_ARGUMENT);
+    }
+    SValueNode* pVal = (SValueNode*)pArg;
+    PAR_ERR_RET(doTranslateValue(pCxt, pVal));
+    if (pVal->datum.i < 1) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_ARGUMENT);
+    }
+  } else if (FUNCTION_TYPE_LAG == pFunc->funcType || FUNCTION_TYPE_LEAD == pFunc->funcType) {
+    if (LIST_LENGTH(pFunc->pParameterList) >= 2) {
+      SNode* pArg = nodesListGetNode(pFunc->pParameterList, 1);
+      if (NULL == pArg || QUERY_NODE_VALUE != nodeType(pArg)) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_ARGUMENT);
+      }
+      SValueNode* pVal = (SValueNode*)pArg;
+      PAR_ERR_RET(doTranslateValue(pCxt, pVal));
+      if (pVal->datum.i < 0) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_INVALID_ARGUMENT);
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static SWindowSpecNode* findNamedSqlWindow(SNodeList* pWindowList, const char* pName) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pWindowList) {
+    SNamedWindowNode* pNamed = (SNamedWindowNode*)pNode;
+    if (0 == strcasecmp(pNamed->windowName, pName)) {
+      return (SWindowSpecNode*)pNamed->pSpec;
+    }
+  }
+  return NULL;
+}
+
+static int32_t validateSqlWindowList(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SNode*  pNode = NULL;
+  int32_t index = 0;
+  FOREACH(pNode, pSelect->pWindowList) {
+    SNamedWindowNode* pNamed = (SNamedWindowNode*)pNode;
+    for (int32_t i = 0; i < index; ++i) {
+      SNamedWindowNode* pPrev = (SNamedWindowNode*)nodesListGetNode(pSelect->pWindowList, i);
+      if (0 == strcasecmp(pPrev->windowName, pNamed->windowName)) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_DUP_NAME);
+      }
+    }
+    SWindowSpecNode* pSpec = (SWindowSpecNode*)pNamed->pSpec;
+    if ('\0' != pSpec->refWindowName[0]) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
+    }
+    pCxt->currClause = SQL_CLAUSE_WINDOW;
+    PAR_ERR_RET(translateExpr(pCxt, &pNamed->pSpec));
+    PAR_ERR_RET(validateSqlWindowSpecExpr(pCxt, pNamed->pSpec));
+    PAR_ERR_RET(validateSqlWindowFrame(pCxt, pSpec));
+    ++index;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t resolveSqlWindowSpec(STranslateContext* pCxt, SFunctionNode* pFunc, SWindowSpecNode* pSpec) {
+  if ('\0' == pSpec->refWindowName[0]) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SWindowSpecNode* pNamed = findNamedSqlWindow(((SSelectStmt*)pCxt->pCurrStmt)->pWindowList, pSpec->refWindowName);
+  if (NULL == pNamed) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_NOT_DEFINED);
+  }
+  if ('\0' != pNamed->refWindowName[0]) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
+  }
+  SNode*  pCloned = NULL;
+  int32_t code = nodesCloneNode((SNode*)pNamed, &pCloned);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  nodesDestroyNode(pFunc->pOver);
+  pFunc->pOver = pCloned;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateSqlWindowFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  if (NULL == pFunc->pOver) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (SQL_CLAUSE_SELECT != pCxt->currClause && SQL_CLAUSE_ORDER_BY != pCxt->currClause) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
+  }
+  if (!fmIsSqlWindowFunc(pFunc->functionName) && !fmCanUseAsSqlWindowAgg(pFunc->functionName)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
+  }
+  PAR_ERR_RET(validateSqlWindowSpecExpr(pCxt, pFunc->pOver));
+  SWindowSpecNode* pSpec = (SWindowSpecNode*)pFunc->pOver;
+  PAR_ERR_RET(resolveSqlWindowSpec(pCxt, pFunc, pSpec));
+  pSpec = (SWindowSpecNode*)pFunc->pOver;
+  if (fmIsSqlWindowOrderRequiredFunc(pFunc->functionName) && NULL == pSpec->pOrderByList) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_ORDER_REQUIRED);
+  }
+  PAR_ERR_RET(applyDefaultSqlWindowFrame(pFunc, pSpec));
+  PAR_ERR_RET(validateSqlWindowFrame(pCxt, pSpec));
+  return validateSqlWindowFuncArgs(pCxt, pFunc);
+}
+
+static EDealRes checkIllegalSqlWindowSpecFunc(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) &&
+      (NULL != ((SFunctionNode*)pNode)->pOver || !fmIsScalarFunc(((SFunctionNode*)pNode)->funcId))) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes checkIllegalSqlWindowFunc(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && NULL != ((SFunctionNode*)pNode)->pOver) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t validateNoSqlWindowFunc(STranslateContext* pCxt, SNode* pNode) {
+  bool hasWindowFunc = false;
+  nodesWalkExpr(pNode, checkIllegalSqlWindowFunc, &hasWindowFunc);
+  if (hasWindowFunc) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateSqlWindowSpecExpr(STranslateContext* pCxt, SNode* pNode) {
+  bool hasIllegalFunc = false;
+  nodesWalkExpr(pNode, checkIllegalSqlWindowSpecFunc, &hasIllegalFunc);
+  if (hasIllegalFunc) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static SNodeList* getGroupByList(STranslateContext* pCxt) {
@@ -10706,6 +11056,7 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
 
 static int32_t translateHaving(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
+  PAR_ERR_RET(validateNoSqlWindowFunc(pCxt, pSelect->pHaving));
   if (NULL == pSelect->pGroupByList && NULL == pSelect->pPartitionByList && NULL == pSelect->pWindow &&
       !isWindowJoinStmt(pSelect) && NULL != pSelect->pHaving) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
@@ -14174,6 +14525,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateWindow(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = validateSqlWindowList(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code && pSelect->windowMode != WINDOW_MODE_NONE && NULL == pSelect->pWindow) {
     code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTR_USAGE, "SCALAR/AGG");
@@ -18935,6 +19289,11 @@ static int32_t checkTopicQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (pSelect->hasAggFuncs || pSelect->hasForecastFunc || pSelect->hasInterpFunc || pSelect->hasIndefiniteRowsFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TOPIC_QUERY);
   }
+  bool hasWindowFunc = false;
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, checkIllegalSqlWindowFunc, &hasWindowFunc);
+  if (hasWindowFunc) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -21573,11 +21932,12 @@ static void transferSubQueries(STranslateContext* pCxt, SNode* pNode) {
 }
 
 static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNode* pTriggerTbl, SNode* pStreamCalcQuery,
-                                        SNode* pNotifyCond, SNode* pTriggerWindow) {
+                                        SNode** ppNotifyCond, SNode* pTriggerWindow) {
   int32_t    code = TSDB_CODE_SUCCESS;
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
   int32_t    currLevel = pCxt->currLevel;
+  SNode*     pNotifyCond = ppNotifyCond ? *ppNotifyCond : NULL;
 
   parserDebug("translate create stream req start translate calculate query");
 
@@ -21594,6 +21954,9 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNode* pTrigger
   if (pNotifyCond) {
     SCheckNotifyCondContext checkNotifyCondCxt = {.pTransCxt = pCxt, .valid = true};
     nodesRewriteExpr(&pNotifyCond, doCheckNotifyCond, &checkNotifyCondCxt);
+    if (ppNotifyCond) {
+      *ppNotifyCond = pNotifyCond;
+    }
     if (!checkNotifyCondCxt.valid) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_NOTIFY_COND,
                                            "notify condition can only contain expr from query clause"));
@@ -21602,10 +21965,18 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNode* pTrigger
     switch (nodeType(pStreamCalcQuery)) {
       case QUERY_NODE_SET_OPERATOR: {
         PAR_ERR_JRET(nodesListMakeAppend(&((SSetOperator*)pStreamCalcQuery)->pProjectionList, pNotifyCond));
+        pNotifyCond = NULL;
+        if (ppNotifyCond) {
+          *ppNotifyCond = NULL;
+        }
         break;
       }
       case QUERY_NODE_SELECT_STMT: {
         PAR_ERR_JRET(nodesListMakeAppend(&((SSelectStmt*)pStreamCalcQuery)->pProjectionList, pNotifyCond));
+        pNotifyCond = NULL;
+        if (ppNotifyCond) {
+          *ppNotifyCond = NULL;
+        }
         break;
       }
       default: {
@@ -21979,7 +22350,7 @@ _return:
 
 // Build calculate part in create stream request
 static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SNodeList* pTriggerPartition,
-                                        SSelectStmt* pTriggerSelect, SNode* pTriggerWindow, SNode* pNotifyCond,
+                                        SSelectStmt* pTriggerSelect, SNode* pTriggerWindow, SNode** ppNotifyCond,
                                         SCMCreateStreamReq* pReq) {
   int32_t     code = TSDB_CODE_SUCCESS;
   SQueryPlan* calcPlan = NULL;
@@ -22014,7 +22385,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
 #endif
 
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, pStmt->pQuery,
-                                        pNotifyCond, pTriggerWindow));
+                                        ppNotifyCond, pTriggerWindow));
 
   pReq->placeHolderBitmap = pCxt->streamInfo.placeHolderBitmap;
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
@@ -22194,7 +22565,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   PAR_ERR_JRET(createStreamReqBuildTriggerAst(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, &pTriggerFilter, pReq));
   PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pStmt, pTriggerOptions, pReq));
   PAR_ERR_JRET(createStreamReqBuildCalc(pCxt, pStmt, pTrigger->pPartitionList, pTriggerSelect, pTriggerWindow,
-                                        pNotifyCond, pReq));
+                                        &pNotifyCond, pReq));
   PAR_ERR_JRET(createStreamReqBuildTriggerPlan(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, pReq));
   PAR_ERR_JRET(createStreamReqBuildOutTable(pCxt, pStmt, pTriggerSlotHash, pReq));
 

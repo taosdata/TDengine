@@ -2286,6 +2286,87 @@ _err:
   return NULL;
 }
 
+SNode* createSqlWindowSpecNode(SAstCreateContext* pCxt, SNodeList* pPartitionByList, SNodeList* pOrderByList,
+                               SNode* pFrame) {
+  CHECK_PARSER_STATUS(pCxt);
+  SWindowSpecNode* pSpec = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SQL_WINDOW_SPEC, (SNode**)&pSpec);
+  CHECK_MAKE_NODE(pSpec);
+  pSpec->pPartitionByList = pPartitionByList;
+  pSpec->pOrderByList = pOrderByList;
+  pSpec->pFrame = pFrame;
+  return (SNode*)pSpec;
+_err:
+  nodesDestroyList(pPartitionByList);
+  nodesDestroyList(pOrderByList);
+  nodesDestroyNode(pFrame);
+  return NULL;
+}
+
+SNode* createSqlWindowSpecRefNode(SAstCreateContext* pCxt, const SToken* pWindowName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SWindowSpecNode* pSpec = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SQL_WINDOW_SPEC, (SNode**)&pSpec);
+  CHECK_MAKE_NODE(pSpec);
+  COPY_STRING_FORM_ID_TOKEN(pSpec->refWindowName, pWindowName);
+  return (SNode*)pSpec;
+_err:
+  return NULL;
+}
+
+SNode* createSqlWindowFrameNode(SAstCreateContext* pCxt, ESqlWindowFrameUnit unit, SSqlWindowBound start,
+                                SSqlWindowBound end, bool explicitFrame) {
+  CHECK_PARSER_STATUS(pCxt);
+  SWindowFrameNode* pFrame = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SQL_WINDOW_FRAME, (SNode**)&pFrame);
+  CHECK_MAKE_NODE(pFrame);
+  pFrame->frameUnit = unit;
+  pFrame->start = start;
+  pFrame->end = end;
+  pFrame->explicitFrame = explicitFrame;
+  return (SNode*)pFrame;
+_err:
+  nodesDestroyNode(start.pOffset);
+  nodesDestroyNode(end.pOffset);
+  return NULL;
+}
+
+SSqlWindowBound createSqlWindowBound(ESqlWindowBoundType type, SNode* pOffset) {
+  SSqlWindowBound bound = {.boundType = type, .pOffset = pOffset};
+  return bound;
+}
+
+SNode* createSqlNamedWindowNode(SAstCreateContext* pCxt, const SToken* pWindowName, SNode* pSpec) {
+  CHECK_PARSER_STATUS(pCxt);
+  SNamedWindowNode* pNamed = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SQL_NAMED_WINDOW, (SNode**)&pNamed);
+  CHECK_MAKE_NODE(pNamed);
+  COPY_STRING_FORM_ID_TOKEN(pNamed->windowName, pWindowName);
+  pNamed->pSpec = pSpec;
+  return (SNode*)pNamed;
+_err:
+  nodesDestroyNode(pSpec);
+  return NULL;
+}
+
+SNode* setFunctionOverClause(SAstCreateContext* pCxt, SNode* pFunc, SNode* pOver) {
+  CHECK_PARSER_STATUS(pCxt);
+  SNode* pExpr = pFunc;
+  if (NULL != pFunc && QUERY_NODE_RAW_EXPR == nodeType(pFunc)) {
+    pExpr = ((SRawExprNode*)pFunc)->pNode;
+  }
+  if (NULL == pExpr || QUERY_NODE_FUNCTION != nodeType(pExpr)) {
+    nodesDestroyNode(pOver);
+    return pFunc;
+  }
+  ((SFunctionNode*)pExpr)->pOver = pOver;
+  return pFunc;
+_err:
+  nodesDestroyNode(pFunc);
+  nodesDestroyNode(pOver);
+  return NULL;
+}
+
 SNode* createSurroundNode(SAstCreateContext* pCxt, SNode* pSurroundingTime,
                           SNode* pValues) {
   SSurroundNode* pSurround = NULL;
@@ -2658,6 +2739,23 @@ SNode* addWindowClauseClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWind
 _err:
   nodesDestroyNode(pStmt);
   nodesDestroyNode(pWindow);
+  return NULL;
+}
+
+SNode* addSqlWindowClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pWindowList) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pWindowList) {
+    return pStmt;
+  }
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    ((SSelectStmt*)pStmt)->pWindowList = pWindowList;
+  } else {
+    nodesDestroyList(pWindowList);
+  }
+  return pStmt;
+_err:
+  nodesDestroyNode(pStmt);
+  nodesDestroyList(pWindowList);
   return NULL;
 }
 

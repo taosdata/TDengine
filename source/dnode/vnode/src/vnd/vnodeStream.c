@@ -5355,6 +5355,9 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
   SSHashObj                *uid2Result  = NULL;
   SVTableResolveResult     *pRes        = NULL;
   SMetaReader               metaReader  = {0};
+  bool                      metaReaderInited = false;
+  int8_t                    vtableType = 0;
+  char                      vtableName[TSDB_TABLE_NAME_LEN] = {0};
   int64_t streamId = req->base.streamId;
   stsDebug("vgId:%d %s start, ver:%"PRId64" uid:%"PRId64" cols_size:%d", TD_VID(pVnode), __func__,
            req->virTablePseudoColReq.ver, req->virTablePseudoColReq.uid,
@@ -5365,12 +5368,17 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
 
   // We still need metaReader for vtable name (cid == -1) and to assert table type.
   sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn, 0);
+  metaReaderInited = true;
   STREAM_CHECK_RET_GOTO(sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(&metaReader, req->virTablePseudoColReq.ver, req->virTablePseudoColReq.uid));
   STREAM_CHECK_CONDITION_GOTO(metaReader.me.type != TD_VIRTUAL_CHILD_TABLE && metaReader.me.type != TD_VIRTUAL_NORMAL_TABLE, TSDB_CODE_INVALID_PARA);
+  vtableType = metaReader.me.type;
+  tstrncpy(vtableName, metaReader.me.name, sizeof(vtableName));
+  sStreamReaderInfo->storageApi.metaReaderFn.clearReader(&metaReader);
+  metaReaderInited = false;
 
   STREAM_CHECK_RET_GOTO(createDataBlock(&pBlock));
 
-  if (metaReader.me.type == TD_VIRTUAL_NORMAL_TABLE) {
+  if (vtableType == TD_VIRTUAL_NORMAL_TABLE) {
     // Normal vtable: caller only requests the table-name pseudo column.
     STREAM_CHECK_CONDITION_GOTO (taosArrayGetSize(cols) < 1 || *(col_id_t*)taosArrayGet(cols, 0) != -1, TSDB_CODE_INVALID_PARA);
     SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN, -1);
@@ -5379,7 +5387,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
     pBlock->info.rows = 1;
     SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, 0);
     STREAM_CHECK_NULL_GOTO(pDst, terrno);
-    STREAM_CHECK_RET_GOTO(varColSetVarData(pDst, 0, metaReader.me.name, strlen(metaReader.me.name), false));
+    STREAM_CHECK_RET_GOTO(varColSetVarData(pDst, 0, vtableName, strlen(vtableName), false));
   } else {
     // Virtual child table: resolve tags via chain resolver (single uid, cache-bypass).
     singleUid = taosArrayInit(1, sizeof(int64_t));
@@ -5446,7 +5454,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
       STREAM_CHECK_NULL_GOTO(pDst, terrno);
 
       if (pDst->info.colId == -1) {
-        STREAM_CHECK_RET_GOTO(varColSetVarData(pDst, 0, metaReader.me.name, strlen(metaReader.me.name), false));
+        STREAM_CHECK_RET_GOTO(varColSetVarData(pDst, 0, vtableName, strlen(vtableName), false));
         continue;
       }
       if (pDst->info.type == TSDB_DATA_TYPE_NULL) {
@@ -5479,7 +5487,9 @@ end:
   if (emptyCols != NULL) taosArrayDestroy(emptyCols);
   if (tagOnly   != NULL) taosArrayDestroy(tagOnly);
   tSimpleHashCleanup(uid2Result);
-  sStreamReaderInfo->storageApi.metaReaderFn.clearReader(&metaReader);
+  if (metaReaderInited) {
+    sStreamReaderInfo->storageApi.metaReaderFn.clearReader(&metaReader);
+  }
   STREAM_PRINT_LOG_END(code, lino);
   sendTriggerPullRsp(pMsg, sStreamReaderInfo, buf, size, code);
   blockDataDestroy(pBlock);
@@ -5768,4 +5778,3 @@ end:
   streamReleaseTask(taskAddr);
   return code;
 }
-

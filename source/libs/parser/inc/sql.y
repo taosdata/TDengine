@@ -2198,6 +2198,7 @@ expression(A) ::= literal(B).                                                   
 expression(A) ::= pseudo_column(B).                                               { A = B; (void)setRawExprNodeIsPseudoColumn(pCxt, A, true); }
 expression(A) ::= column_reference(B).                                            { A = B; }
 expression(A) ::= function_expression(B).                                         { A = B; }
+expression(A) ::= function_expression(B) over_clause(C).                          { A = setFunctionOverClause(pCxt, B, C); }
 expression(A) ::= if_expression(B).                                               { A = B; }
 expression(A) ::= case_when_expression(B).                                        { A = B; }
 expression(A) ::= NK_LP(B) expression(C) NK_RP(D).                                { A = createRawExprNodeExt(pCxt, &B, &D, releaseRawExprNode(pCxt, C)); }
@@ -2297,6 +2298,7 @@ pseudo_column(A) ::= TIDLESTART(B).                                             
 pseudo_column(A) ::= TIDLEEND(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 
 function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
+function_expression(A) ::= function_name(B) NK_LP NK_RP(C).                                           { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
 function_expression(A) ::= function_name(B) NK_LP DISTINCT expression_list(C) NK_RP(D).              { A = createRawExprNodeExt(pCxt, &B, &D, createDistinctFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= star_func(B) NK_LP DISTINCT star_func_para_list(C) NK_RP(D).               { A = createRawExprNodeExt(pCxt, &B, &D, createDistinctFunctionNode(pCxt, &B, C)); }
@@ -2324,6 +2326,61 @@ function_expression(A) ::=
 function_expression(A) ::= REPLACE(B) NK_LP expression_list(C) NK_RP(D).                              { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= literal_func(B).                                                           { A = B; }
 function_expression(A) ::= rand_func(B).                                                              { A = B; }
+
+over_clause(A) ::= OVER NK_LP sql_window_spec(B) NK_RP.                           { A = B; }
+over_clause(A) ::= OVER general_name(B).                                          { A = createSqlWindowSpecRefNode(pCxt, &B); }
+
+%type sql_window_spec                                                             { SNode* }
+%destructor sql_window_spec                                                       { nodesDestroyNode($$); }
+sql_window_spec(A) ::= sql_window_partition_by_clause_opt(B) order_by_clause_opt(C)
+  sql_window_frame_clause_opt(D).                                                 { A = createSqlWindowSpecNode(pCxt, B, C, D); }
+
+%type sql_window_partition_by_clause_opt                                          { SNodeList* }
+%destructor sql_window_partition_by_clause_opt                                    { nodesDestroyList($$); }
+sql_window_partition_by_clause_opt(A) ::= .                                       { A = NULL; }
+sql_window_partition_by_clause_opt(A) ::= PARTITION BY sql_window_partition_list(B). { A = B; }
+
+%type sql_window_partition_list                                                   { SNodeList* }
+%destructor sql_window_partition_list                                             { nodesDestroyList($$); }
+sql_window_partition_list(A) ::= sql_window_partition_item(B).                    { A = createNodeList(pCxt, B); }
+sql_window_partition_list(A) ::= sql_window_partition_list(B) NK_COMMA
+  sql_window_partition_item(C).                                                   { A = addNodeToList(pCxt, B, C); }
+
+%type sql_window_partition_item                                                   { SNode* }
+%destructor sql_window_partition_item                                             { nodesDestroyNode($$); }
+sql_window_partition_item(A) ::= expr_or_subquery(B).                             { A = releaseRawExprNode(pCxt, B); }
+
+%type sql_window_frame_clause_opt                                                 { SNode* }
+%destructor sql_window_frame_clause_opt                                           { nodesDestroyNode($$); }
+sql_window_frame_clause_opt(A) ::= .                                              { A = NULL; }
+sql_window_frame_clause_opt(A) ::= sql_window_frame_clause(B).                    { A = B; }
+
+%type sql_window_frame_clause                                                     { SNode* }
+%destructor sql_window_frame_clause                                               { nodesDestroyNode($$); }
+sql_window_frame_clause(A) ::= ROWS sql_window_frame_extent(B).                   { A = createSqlWindowFrameNode(pCxt, WINDOW_FRAME_UNIT_ROWS, B.start, B.end, true); }
+sql_window_frame_clause(A) ::= RANGE sql_window_frame_extent(B).                  { A = createSqlWindowFrameNode(pCxt, WINDOW_FRAME_UNIT_RANGE, B.start, B.end, true); }
+
+%type sql_window_frame_extent                                                     { SSqlWindowFrameExtent }
+%destructor sql_window_frame_extent                                               { nodesDestroyNode($$.start.pOffset); nodesDestroyNode($$.end.pOffset); }
+sql_window_frame_extent(A) ::= sql_window_frame_bound(B).                         {
+                                                                                    A.start = B;
+                                                                                    A.end = createSqlWindowBound(WINDOW_BOUND_CURRENT_ROW, NULL);
+                                                                                  }
+sql_window_frame_extent(A) ::= BETWEEN sql_window_frame_bound(B) AND
+  sql_window_frame_bound(C).                                                       {
+                                                                                    A.start = B;
+                                                                                    A.end = C;
+                                                                                  }
+
+%type sql_window_frame_bound                                                      { SSqlWindowBound }
+%destructor sql_window_frame_bound                                                { nodesDestroyNode($$.pOffset); }
+sql_window_frame_bound(A) ::= UNBOUNDED PRECEDING.                                { A = createSqlWindowBound(WINDOW_BOUND_UNBOUNDED_PRECEDING, NULL); }
+sql_window_frame_bound(A) ::= unsigned_integer(B) PRECEDING.                      { A = createSqlWindowBound(WINDOW_BOUND_N_PRECEDING, B); }
+sql_window_frame_bound(A) ::= NK_VARIABLE(B) PRECEDING.                           { A = createSqlWindowBound(WINDOW_BOUND_N_PRECEDING, releaseRawExprNode(pCxt, createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)))); }
+sql_window_frame_bound(A) ::= CURRENT ROW.                                        { A = createSqlWindowBound(WINDOW_BOUND_CURRENT_ROW, NULL); }
+sql_window_frame_bound(A) ::= unsigned_integer(B) FOLLOWING.                      { A = createSqlWindowBound(WINDOW_BOUND_N_FOLLOWING, B); }
+sql_window_frame_bound(A) ::= NK_VARIABLE(B) FOLLOWING.                           { A = createSqlWindowBound(WINDOW_BOUND_N_FOLLOWING, releaseRawExprNode(pCxt, createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)))); }
+sql_window_frame_bound(A) ::= UNBOUNDED FOLLOWING.                                { A = createSqlWindowBound(WINDOW_BOUND_UNBOUNDED_FOLLOWING, NULL); }
 
 literal_func(A) ::= noarg_func(B) NK_LP NK_RP(C).                                 { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
 literal_func(A) ::= NOW(B).                                                       { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
@@ -2689,7 +2746,8 @@ jlimit_clause_opt(A) ::= JLIMIT unsigned_integer(B).                            
 query_specification(A) ::= 
   SELECT hint_list(M) set_quantifier_opt(B) tag_mode_opt(N) window_mode_opt(O) select_list(C) from_clause_opt(D)
   where_clause_opt(E) partition_by_clause_opt(F) range_opt(J) every_opt(K)
-  fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I).  {
+  fill_opt(L) twindow_clause_opt(G) group_by_clause_opt(H) having_clause_opt(I)
+  sql_window_clause_opt(P).                                                       {
                                                                                     A = createSelectStmt(pCxt, B, C, D, M);
                                                                                     A = setSelectStmtTagMode(pCxt, A, N);
                                                                                     A = setSelectStmtWindowMode(pCxt, A, O);
@@ -2701,6 +2759,7 @@ query_specification(A) ::=
                                                                                     A = addRangeClause(pCxt, A, J);
                                                                                     A = addEveryClause(pCxt, A, K);
                                                                                     A = addFillClause(pCxt, A, L);
+                                                                                    A = addSqlWindowClause(pCxt, A, P);
                                                                                   }
 
 %type hint_list                                                                   { SNodeList* }
@@ -2884,6 +2943,20 @@ group_by_list(A) ::= group_by_list(B) NK_COMMA expr_or_subquery(C).             
 having_clause_opt(A) ::= .                                                        { A = NULL; }
 having_clause_opt(A) ::= HAVING search_condition(B).                              { A = B; }
 
+%type sql_window_clause_opt                                                       { SNodeList* }
+%destructor sql_window_clause_opt                                                 { nodesDestroyList($$); }
+sql_window_clause_opt(A) ::= .                                                    { A = NULL; }
+sql_window_clause_opt(A) ::= WINDOW sql_named_window_list(B).                     { A = B; }
+
+%type sql_named_window_list                                                       { SNodeList* }
+%destructor sql_named_window_list                                                 { nodesDestroyList($$); }
+sql_named_window_list(A) ::= sql_named_window(B).                                 { A = createNodeList(pCxt, B); }
+sql_named_window_list(A) ::= sql_named_window_list(B) NK_COMMA sql_named_window(C). { A = addNodeToList(pCxt, B, C); }
+
+%type sql_named_window                                                            { SNode* }
+%destructor sql_named_window                                                      { nodesDestroyNode($$); }
+sql_named_window(A) ::= general_name(B) AS NK_LP sql_window_spec(C) NK_RP.        { A = createSqlNamedWindowNode(pCxt, &B, C); }
+
 range_opt(A) ::= .                                                                { A = NULL; }
 range_opt(A) ::=
   RANGE NK_LP expr_or_subquery(B) NK_COMMA expr_or_subquery(C) NK_COMMA expr_or_subquery(D) NK_RP.              {
@@ -2988,6 +3061,7 @@ limit_clause_opt(A) ::= .                                                       
 limit_clause_opt(A) ::= LIMIT unsigned_integer(B).                                { A = createLimitNode(pCxt, B, NULL); }
 limit_clause_opt(A) ::= LIMIT unsigned_integer(B) OFFSET unsigned_integer(C).     { A = createLimitNode(pCxt, B, C); }
 limit_clause_opt(A) ::= LIMIT unsigned_integer(C) NK_COMMA unsigned_integer(B).   { A = createLimitNode(pCxt, B, C); }
+limit_clause_opt(A) ::= OFFSET unsigned_integer(B).                               { A = createLimitNode(pCxt, NULL, B); }
 
 /************************************************ subquery ************************************************************/
 subquery(A) ::= NK_LP(B) query_expression(C) NK_RP(D).                            { A = createRawExprNodeExt(pCxt, &B, &D, C); }
@@ -3018,7 +3092,8 @@ null_ordering_opt(A) ::= .                                                      
 null_ordering_opt(A) ::= NULLS FIRST.                                             { A = NULL_ORDER_FIRST; }
 null_ordering_opt(A) ::= NULLS LAST.                                              { A = NULL_ORDER_LAST; }
 
-%fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT.
+%fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT CLOSE CURRENT
+  FOLLOWING OPEN OVER PRECEDING ROWS UNBOUNDED.
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL
   FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
   STRICT STRING TIMES VALUES VARIABLE VIEW WAL.

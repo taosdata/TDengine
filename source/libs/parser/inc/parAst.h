@@ -149,6 +149,11 @@ typedef struct STokenTriplet {
   SToken    name[3];
 } STokenTriplet;
 
+typedef struct SSqlWindowFrameExtent {
+  SSqlWindowBound start;
+  SSqlWindowBound end;
+} SSqlWindowFrameExtent;
+
 typedef struct {
   SToken     first;
   SToken     second;
@@ -257,6 +262,14 @@ SNode*     createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, S
 SNode*     createSlidingWindowNode(SAstCreateContext* pCxt, SNode* pSlidingVal, SNode* pOffset);
 SNode*     createPeriodWindowNode(SAstCreateContext* pCxt, SNode* pPeriodTime, SNode* pOffset);
 SNode*     createWindowOffsetNode(SAstCreateContext* pCxt, SNode* pStartOffset, SNode* pEndOffset);
+SNode*          createSqlWindowSpecNode(SAstCreateContext* pCxt, SNodeList* pPartitionByList, SNodeList* pOrderByList,
+                                        SNode* pFrame);
+SNode*          createSqlWindowSpecRefNode(SAstCreateContext* pCxt, const SToken* pWindowName);
+SNode*          createSqlWindowFrameNode(SAstCreateContext* pCxt, ESqlWindowFrameUnit unit, SSqlWindowBound start,
+                                         SSqlWindowBound end, bool explicitFrame);
+SSqlWindowBound createSqlWindowBound(ESqlWindowBoundType type, SNode* pOffset);
+SNode*          createSqlNamedWindowNode(SAstCreateContext* pCxt, const SToken* pWindowName, SNode* pSpec);
+SNode*          setFunctionOverClause(SAstCreateContext* pCxt, SNode* pFunc, SNode* pOver);
 SNode*     createSurroundNode(SAstCreateContext* pCxt, SNode* pSurroundingTime, SNode* pValues);
 SNode*     createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
 SNode*     createFillNodeWithSurroundNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pSurroundNode);
@@ -279,6 +292,7 @@ SNode*     createCountWindowArgs(SAstCreateContext* pCtx, const SToken* countTok
 SNode* addWhereClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWhere);
 SNode* addPartitionByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pPartitionByList);
 SNode* addWindowClauseClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWindow);
+SNode* addSqlWindowClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pWindowList);
 SNode* addGroupByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pGroupByList);
 SNode* addHavingClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pHaving);
 SNode* addOrderByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pOrderByList);

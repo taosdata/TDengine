@@ -1471,6 +1471,7 @@ enum {
   FUNCTION_CODE_TRIM_TYPE,
   FUNCTION_SRC_FUNC_INPUT_TYPE,
   FUNCTION_CODE_IS_DISTINCT,
+  FUNCTION_CODE_OVER,
 };
 
 static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1488,6 +1489,9 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, FUNCTION_CODE_PARAMETERS, nodeListToMsg, pNode->pParameterList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, FUNCTION_CODE_OVER, nodeToMsg, pNode->pOver);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, FUNCTION_CODE_UDF_BUF_SIZE, pNode->udfBufSize);
@@ -1538,6 +1542,9 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case FUNCTION_CODE_PARAMETERS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pParameterList);
+        break;
+      case FUNCTION_CODE_OVER:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pOver);
         break;
       case FUNCTION_CODE_UDF_BUF_SIZE:
         code = tlvDecodeI32(pTlv, &pNode->udfBufSize);
@@ -2424,6 +2431,167 @@ static int32_t msgToWindowOffsetNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum { SQL_WINDOW_BOUND_CODE_TYPE = 1, SQL_WINDOW_BOUND_CODE_OFFSET };
+
+static int32_t sqlWindowBoundToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SSqlWindowBound* pNode = (const SSqlWindowBound*)pObj;
+
+  int32_t code = tlvEncodeEnum(pEncoder, SQL_WINDOW_BOUND_CODE_TYPE, pNode->boundType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, SQL_WINDOW_BOUND_CODE_OFFSET, nodeToMsg, pNode->pOffset);
+  }
+  return code;
+}
+
+static int32_t msgToSqlWindowBound(STlvDecoder* pDecoder, void* pObj) {
+  SSqlWindowBound* pNode = (SSqlWindowBound*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case SQL_WINDOW_BOUND_CODE_TYPE:
+        code = tlvDecodeEnum(pTlv, &pNode->boundType, sizeof(pNode->boundType));
+        break;
+      case SQL_WINDOW_BOUND_CODE_OFFSET:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pOffset);
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
+enum {
+  SQL_WINDOW_FRAME_CODE_UNIT = 1,
+  SQL_WINDOW_FRAME_CODE_START,
+  SQL_WINDOW_FRAME_CODE_END,
+  SQL_WINDOW_FRAME_CODE_EXPLICIT,
+};
+
+static int32_t sqlWindowFrameNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SWindowFrameNode* pNode = (const SWindowFrameNode*)pObj;
+
+  int32_t code = tlvEncodeEnum(pEncoder, SQL_WINDOW_FRAME_CODE_UNIT, pNode->frameUnit);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, SQL_WINDOW_FRAME_CODE_START, sqlWindowBoundToMsg, &pNode->start);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, SQL_WINDOW_FRAME_CODE_END, sqlWindowBoundToMsg, &pNode->end);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, SQL_WINDOW_FRAME_CODE_EXPLICIT, pNode->explicitFrame);
+  }
+  return code;
+}
+
+static int32_t msgToSqlWindowFrameNode(STlvDecoder* pDecoder, void* pObj) {
+  SWindowFrameNode* pNode = (SWindowFrameNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case SQL_WINDOW_FRAME_CODE_UNIT:
+        code = tlvDecodeEnum(pTlv, &pNode->frameUnit, sizeof(pNode->frameUnit));
+        break;
+      case SQL_WINDOW_FRAME_CODE_START:
+        code = tlvDecodeObjFromTlv(pTlv, msgToSqlWindowBound, &pNode->start);
+        break;
+      case SQL_WINDOW_FRAME_CODE_END:
+        code = tlvDecodeObjFromTlv(pTlv, msgToSqlWindowBound, &pNode->end);
+        break;
+      case SQL_WINDOW_FRAME_CODE_EXPLICIT:
+        code = tlvDecodeBool(pTlv, &pNode->explicitFrame);
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
+enum {
+  SQL_WINDOW_SPEC_CODE_REF_NAME = 1,
+  SQL_WINDOW_SPEC_CODE_PARTITION_BY,
+  SQL_WINDOW_SPEC_CODE_ORDER_BY,
+  SQL_WINDOW_SPEC_CODE_FRAME,
+};
+
+static int32_t sqlWindowSpecNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SWindowSpecNode* pNode = (const SWindowSpecNode*)pObj;
+
+  int32_t code = tlvEncodeCStr(pEncoder, SQL_WINDOW_SPEC_CODE_REF_NAME, pNode->refWindowName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, SQL_WINDOW_SPEC_CODE_PARTITION_BY, nodeListToMsg, pNode->pPartitionByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, SQL_WINDOW_SPEC_CODE_ORDER_BY, nodeListToMsg, pNode->pOrderByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, SQL_WINDOW_SPEC_CODE_FRAME, nodeToMsg, pNode->pFrame);
+  }
+  return code;
+}
+
+static int32_t msgToSqlWindowSpecNode(STlvDecoder* pDecoder, void* pObj) {
+  SWindowSpecNode* pNode = (SWindowSpecNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case SQL_WINDOW_SPEC_CODE_REF_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->refWindowName, sizeof(pNode->refWindowName));
+        break;
+      case SQL_WINDOW_SPEC_CODE_PARTITION_BY:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pPartitionByList);
+        break;
+      case SQL_WINDOW_SPEC_CODE_ORDER_BY:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pOrderByList);
+        break;
+      case SQL_WINDOW_SPEC_CODE_FRAME:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pFrame);
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
+enum { SQL_NAMED_WINDOW_CODE_NAME = 1, SQL_NAMED_WINDOW_CODE_SPEC };
+
+static int32_t sqlNamedWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SNamedWindowNode* pNode = (const SNamedWindowNode*)pObj;
+
+  int32_t code = tlvEncodeCStr(pEncoder, SQL_NAMED_WINDOW_CODE_NAME, pNode->windowName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, SQL_NAMED_WINDOW_CODE_SPEC, nodeToMsg, pNode->pSpec);
+  }
+  return code;
+}
+
+static int32_t msgToSqlNamedWindowNode(STlvDecoder* pDecoder, void* pObj) {
+  SNamedWindowNode* pNode = (SNamedWindowNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case SQL_NAMED_WINDOW_CODE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->windowName, sizeof(pNode->windowName));
+        break;
+      case SQL_NAMED_WINDOW_CODE_SPEC:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSpec);
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
 
 enum {
   PHY_NODE_CODE_OUTPUT_DESC = 1,
@@ -3962,6 +4130,71 @@ static int32_t msgToPhysiSortNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SORT_CODE_EXCLUDE_PK_COL:
         code = tlvDecodeBool(pTlv, &pNode->excludePkCol);
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+enum {
+  PHY_WINDOW_FUNC_CODE_BASE_NODE = 1,
+  PHY_WINDOW_FUNC_CODE_PARTITION_KEYS,
+  PHY_WINDOW_FUNC_CODE_ORDER_KEYS,
+  PHY_WINDOW_FUNC_CODE_FUNCS,
+  PHY_WINDOW_FUNC_CODE_FRAME,
+  PHY_WINDOW_FUNC_CODE_EXPRS,
+};
+
+static int32_t physiWindowFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SWindowFuncPhysiNode* pNode = (const SWindowFuncPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_WINDOW_FUNC_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_WINDOW_FUNC_CODE_EXPRS, nodeListToMsg, pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_WINDOW_FUNC_CODE_PARTITION_KEYS, nodeListToMsg, pNode->pPartitionKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_WINDOW_FUNC_CODE_ORDER_KEYS, nodeListToMsg, pNode->pOrderKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_WINDOW_FUNC_CODE_FUNCS, nodeListToMsg, pNode->pFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_WINDOW_FUNC_CODE_FRAME, nodeToMsg, pNode->pFrame);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiWindowFuncNode(STlvDecoder* pDecoder, void* pObj) {
+  SWindowFuncPhysiNode* pNode = (SWindowFuncPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_WINDOW_FUNC_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
+        break;
+      case PHY_WINDOW_FUNC_CODE_EXPRS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pExprs);
+        break;
+      case PHY_WINDOW_FUNC_CODE_PARTITION_KEYS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pPartitionKeys);
+        break;
+      case PHY_WINDOW_FUNC_CODE_ORDER_KEYS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pOrderKeys);
+        break;
+      case PHY_WINDOW_FUNC_CODE_FUNCS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pFuncs);
+        break;
+      case PHY_WINDOW_FUNC_CODE_FRAME:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pFrame);
+        break;
       default:
         break;
     }
@@ -6076,6 +6309,15 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_WINDOW_OFFSET:
       code = windowOffsetNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_SQL_WINDOW_SPEC:
+      code = sqlWindowSpecNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_SQL_WINDOW_FRAME:
+      code = sqlWindowFrameNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      code = sqlNamedWindowNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_REMOTE_VALUE:
       code = remoteValueNodeToMsg(pObj, pEncoder);
       break;
@@ -6130,6 +6372,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
       code = physiSortNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC:
+      code = physiWindowFuncNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER:
       code = physiDistinctFilterNodeToMsg(pObj, pEncoder);
@@ -6270,6 +6515,15 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
     case QUERY_NODE_WINDOW_OFFSET:
       code = msgToWindowOffsetNode(pDecoder, pObj);
       break;
+    case QUERY_NODE_SQL_WINDOW_SPEC:
+      code = msgToSqlWindowSpecNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_SQL_WINDOW_FRAME:
+      code = msgToSqlWindowFrameNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      code = msgToSqlNamedWindowNode(pDecoder, pObj);
+      break;
     case QUERY_NODE_REMOTE_VALUE:
       code = msgToRemoteValueNode(pDecoder, pObj);
       break;
@@ -6324,6 +6578,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT:
       code = msgToPhysiSortNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC:
+      code = msgToPhysiWindowFuncNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISTINCT_FILTER:
       code = msgToPhysiDistinctFilterNode(pDecoder, pObj);

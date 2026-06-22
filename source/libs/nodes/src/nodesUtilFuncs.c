@@ -564,6 +564,15 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_WINDOW_OFFSET:
       code = makeNode(type, sizeof(SWindowOffsetNode), &pNode);
       break;
+    case QUERY_NODE_SQL_WINDOW_SPEC:
+      code = makeNode(type, sizeof(SWindowSpecNode), &pNode);
+      break;
+    case QUERY_NODE_SQL_WINDOW_FRAME:
+      code = makeNode(type, sizeof(SWindowFrameNode), &pNode);
+      break;
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      code = makeNode(type, sizeof(SNamedWindowNode), &pNode);
+      break;
     case QUERY_NODE_RANGE_AROUND:
       code = makeNode(type, sizeof(SRangeAroundNode), &pNode);
       break;
@@ -1071,6 +1080,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       code = makeNode(type, sizeof(SWindowLogicNode), &pNode);
       break;
+    case QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC:
+      code = makeNode(type, sizeof(SWindowFuncLogicNode), &pNode);
+      break;
     case QUERY_NODE_LOGIC_PLAN_FILL:
       code = makeNode(type, sizeof(SFillLogicNode), &pNode);
       break;
@@ -1178,6 +1190,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       code = makeNode(type, sizeof(SFillPhysiNode), &pNode);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC:
+      code = makeNode(type, sizeof(SWindowFuncPhysiNode), &pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
       code = makeNode(type, sizeof(SSessionWinodwPhysiNode), &pNode);
@@ -1431,6 +1446,26 @@ void destroySSDataBlock(void* param) {
   blockDataDestroy(pBlock);
 }
 
+static void destroySqlWindowBound(SSqlWindowBound* pBound) {
+  if (pBound != NULL) {
+    nodesDestroyNode(pBound->pOffset);
+    pBound->pOffset = NULL;
+  }
+}
+
+static void destroySqlWindowFrame(SWindowFrameNode* pNode) {
+  destroySqlWindowBound(&pNode->start);
+  destroySqlWindowBound(&pNode->end);
+}
+
+static void destroySqlWindowSpec(SWindowSpecNode* pNode) {
+  nodesDestroyList(pNode->pPartitionByList);
+  nodesDestroyList(pNode->pOrderByList);
+  nodesDestroyNode(pNode->pFrame);
+}
+
+static void destroySqlNamedWindow(SNamedWindowNode* pNode) { nodesDestroyNode(pNode->pSpec); }
+
 void nodesDestroyNode(SNode* pNode) {
   if (NULL == pNode) {
     return;
@@ -1498,6 +1533,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_FUNCTION:
       destroyExprNode((SExprNode*)pNode);
       nodesDestroyList(((SFunctionNode*)pNode)->pParameterList);
+      nodesDestroyNode(((SFunctionNode*)pNode)->pOver);
       break;
     case QUERY_NODE_REAL_TABLE: {
       SRealTableNode* pReal = (SRealTableNode*)pNode;
@@ -1801,6 +1837,15 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pWin->pEndOffset);
       break;
     }
+    case QUERY_NODE_SQL_WINDOW_SPEC:
+      destroySqlWindowSpec((SWindowSpecNode*)pNode);
+      break;
+    case QUERY_NODE_SQL_WINDOW_FRAME:
+      destroySqlWindowFrame((SWindowFrameNode*)pNode);
+      break;
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      destroySqlNamedWindow((SNamedWindowNode*)pNode);
+      break;
     case QUERY_NODE_RANGE_AROUND: {
       SRangeAroundNode* pAround = (SRangeAroundNode*)pNode;
       nodesDestroyNode(pAround->pInterval);
@@ -1840,6 +1885,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyList(pStmt->pPartitionByList);
       nodesDestroyNode(pStmt->pWindow);
+      nodesDestroyList(pStmt->pWindowList);
       nodesDestroyList(pStmt->pGroupByList);
       nodesDestroyNode(pStmt->pHaving);
       nodesDestroyNode(pStmt->pRange);
@@ -2458,6 +2504,15 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pSubquery);
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC: {
+      SWindowFuncLogicNode* pLogicNode = (SWindowFuncLogicNode*)pNode;
+      destroyLogicNode((SLogicNode*)pLogicNode);
+      nodesDestroyList(pLogicNode->pPartitionKeys);
+      nodesDestroyList(pLogicNode->pOrderKeys);
+      nodesDestroyList(pLogicNode->pFuncs);
+      nodesDestroyNode(pLogicNode->pFrame);
+      break;
+    }
     case QUERY_NODE_LOGIC_PLAN_FILL: {
       SFillLogicNode* pLogicNode = (SFillLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
@@ -2590,6 +2645,16 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pTimeRange);
       destroyExtWindowFillInfo(&pPhyNode->extFill);
       destroyWinodwPhysiNode((SWindowPhysiNode*)pPhyNode);
+      break;
+    }
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC: {
+      SWindowFuncPhysiNode* pPhyNode = (SWindowFuncPhysiNode*)pNode;
+      destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyList(pPhyNode->pExprs);
+      nodesDestroyList(pPhyNode->pPartitionKeys);
+      nodesDestroyList(pPhyNode->pOrderKeys);
+      nodesDestroyList(pPhyNode->pFuncs);
+      nodesDestroyNode(pPhyNode->pFrame);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN:

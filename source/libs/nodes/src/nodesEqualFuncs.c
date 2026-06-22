@@ -14,9 +14,11 @@
  */
 
 #include "functionMgt.h"
+#include "plannodes.h"
 #include "querynodes.h"
 
 static bool nodeListNodeEqual(const SNodeListNode* a, const SNodeListNode* b);
+bool        nodesEqualNode(const SNode* a, const SNode* b);
 
 #define COMPARE_SCALAR_FIELD(fldname)           \
   do {                                          \
@@ -152,6 +154,7 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_STRING_FIELD(functionName);
   COMPARE_SCALAR_FIELD(isDistinct);
   COMPARE_NODE_LIST_FIELD(pParameterList);
+  COMPARE_NODE_FIELD(pOver);
   if (a->funcType == FUNCTION_TYPE_SELECT_VALUE) {
     if ((a->node.relatedTo != b->node.relatedTo)) return false;
   } else {
@@ -161,6 +164,51 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
     }
   }
 
+  return true;
+}
+
+static bool sqlWindowBoundEqual(const SSqlWindowBound* a, const SSqlWindowBound* b) {
+  COMPARE_SCALAR_FIELD(boundType);
+  COMPARE_NODE_FIELD(pOffset);
+  return true;
+}
+
+static bool sqlWindowFrameEqual(const SWindowFrameNode* a, const SWindowFrameNode* b) {
+  COMPARE_SCALAR_FIELD(frameUnit);
+  COMPARE_SCALAR_FIELD(explicitFrame);
+  if (!sqlWindowBoundEqual(&a->start, &b->start)) return false;
+  if (!sqlWindowBoundEqual(&a->end, &b->end)) return false;
+  return true;
+}
+
+static bool sqlWindowSpecEqual(const SWindowSpecNode* a, const SWindowSpecNode* b) {
+  COMPARE_STRING_FIELD(refWindowName);
+  COMPARE_NODE_LIST_FIELD(pPartitionByList);
+  COMPARE_NODE_LIST_FIELD(pOrderByList);
+  if (!nodesEqualNode(a->pFrame, b->pFrame)) return false;
+  return true;
+}
+
+static bool sqlNamedWindowEqual(const SNamedWindowNode* a, const SNamedWindowNode* b) {
+  COMPARE_STRING_FIELD(windowName);
+  COMPARE_NODE_FIELD(pSpec);
+  return true;
+}
+
+static bool logicWindowFuncNodeEqual(const SWindowFuncLogicNode* a, const SWindowFuncLogicNode* b) {
+  COMPARE_NODE_LIST_FIELD(pPartitionKeys);
+  COMPARE_NODE_LIST_FIELD(pOrderKeys);
+  COMPARE_NODE_LIST_FIELD(pFuncs);
+  COMPARE_NODE_FIELD(pFrame);
+  return true;
+}
+
+static bool physiWindowFuncNodeEqual(const SWindowFuncPhysiNode* a, const SWindowFuncPhysiNode* b) {
+  COMPARE_NODE_LIST_FIELD(pExprs);
+  COMPARE_NODE_LIST_FIELD(pPartitionKeys);
+  COMPARE_NODE_LIST_FIELD(pOrderKeys);
+  COMPARE_NODE_LIST_FIELD(pFuncs);
+  COMPARE_NODE_FIELD(pFrame);
   return true;
 }
 
@@ -246,6 +294,16 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
       return logicConditionNodeEqual((const SLogicConditionNode*)a, (const SLogicConditionNode*)b);
     case QUERY_NODE_FUNCTION:
       return functionNodeEqual((const SFunctionNode*)a, (const SFunctionNode*)b);
+    case QUERY_NODE_SQL_WINDOW_SPEC:
+      return sqlWindowSpecEqual((const SWindowSpecNode*)a, (const SWindowSpecNode*)b);
+    case QUERY_NODE_SQL_WINDOW_FRAME:
+      return sqlWindowFrameEqual((const SWindowFrameNode*)a, (const SWindowFrameNode*)b);
+    case QUERY_NODE_SQL_NAMED_WINDOW:
+      return sqlNamedWindowEqual((const SNamedWindowNode*)a, (const SNamedWindowNode*)b);
+    case QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC:
+      return logicWindowFuncNodeEqual((const SWindowFuncLogicNode*)a, (const SWindowFuncLogicNode*)b);
+    case QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC:
+      return physiWindowFuncNodeEqual((const SWindowFuncPhysiNode*)a, (const SWindowFuncPhysiNode*)b);
     case QUERY_NODE_WHEN_THEN:
       return whenThenNodeEqual((const SWhenThenNode*)a, (const SWhenThenNode*)b);
     case QUERY_NODE_CASE_WHEN:

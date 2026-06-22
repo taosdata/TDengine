@@ -7091,7 +7091,7 @@ static int32_t pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimi
       if (pWindow->winType != WINDOW_TYPE_INTERVAL) break;
       code = cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT_SLIMIT, &cloned);
       if (TSDB_CODE_SUCCESS == code) {
-        *pPushed = true;
+        *pPushed = cloned;
       }
       return code;
     }
@@ -7104,13 +7104,16 @@ static int32_t pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimi
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
+      bool pushed = cloned;
       FOREACH(pChild, pNodeLimitPushTo->pChildren) {
-        code = pushDownLimitHow(pNodeLimitPushTo, (SLogicNode*)pChild, &cloned);
+        bool childPushed = false;
+        code = pushDownLimitHow(pNodeLimitPushTo, (SLogicNode*)pChild, &childPushed);
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
+        pushed = pushed || childPushed;
       }
-      *pPushed = true;
+      *pPushed = pushed;
       return code;
     }
     case QUERY_NODE_LOGIC_PLAN_AGG: {
@@ -7151,7 +7154,7 @@ static int32_t pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimi
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SCAN:
-      if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT && pNodeWithLimit->pLimit) {
+      if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT && limitHasFiniteRows(pNodeWithLimit->pLimit)) {
         if (((SProjectLogicNode*)pNodeWithLimit)->inputIgnoreGroup) {
           code = cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT, &cloned);
         } else {
@@ -12555,6 +12558,19 @@ int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
 
 // Post-split optimization: eliminate redundant Sort when its child (through
 // passthrough Projection) is a Merge that already provides globally ordered output.
+static bool postSplitTargetsEqual(SNodeList* pLeft, SNodeList* pRight) {
+  if (LIST_LENGTH(pLeft) != LIST_LENGTH(pRight)) return false;
+
+  SNode* pLeftNode = NULL;
+  SNode* pRightNode = NULL;
+  FORBOTH(pLeftNode, pLeft, pRightNode, pRight) {
+    if (!nodesEqualNode(pLeftNode, pRightNode)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static int32_t postSplitEliminateSortImpl(SLogicSubplan* pSubplan, SLogicNode* pNode) {
   if (NULL == pNode) return TSDB_CODE_SUCCESS;
 
@@ -12606,6 +12622,10 @@ static int32_t postSplitEliminateSortImpl(SLogicSubplan* pSubplan, SLogicNode* p
 
   // Eliminate the Sort: replace it with its direct child.
   SLogicNode* pDirectChild = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_EXCHANGE == nodeType(pDirectChild) &&
+      !postSplitTargetsEqual(pSort->node.pTargets, pDirectChild->pTargets)) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (NULL == pSort->node.pParent) {
     TSWAP(pSort->node.pTargets, pDirectChild->pTargets);
   }

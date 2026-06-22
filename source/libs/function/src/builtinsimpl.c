@@ -3887,23 +3887,11 @@ static int32_t copyLagLeadRowValue(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, SL
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setLagLeadDefaultValue(SqlFunctionCtx* pCtx, int32_t pos) {
-  if (pCtx->numOfParams < 3) {
-    colDataSetNULL((SColumnInfoData*)pCtx->pOutput, pos);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SVariant* pDefault = &pCtx->param[2].param;
-
-  if (IS_NULL_TYPE(pDefault->nType)) {
-    colDataSetNULL((SColumnInfoData*)pCtx->pOutput, pos);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
-  uint8_t          type = pOutput->info.type;
-  STypeMod         inputTypeMod = pCtx->param[2].pCol == NULL ? 0 : typeGetTypeModFromCol(pCtx->param[2].pCol);
-  int32_t          retCode = TSDB_CODE_SUCCESS;
+int32_t setLagLeadDefaultValueToCol(SColumnInfoData* pOutput, int32_t pos, SFunctParam* pDefaultParam) {
+  SVariant* pDefault = &pDefaultParam->param;
+  uint8_t   type = pOutput->info.type;
+  STypeMod  inputTypeMod = pDefaultParam->pCol == NULL ? 0 : typeGetTypeModFromCol(pDefaultParam->pCol);
+  int32_t   retCode = TSDB_CODE_SUCCESS;
 
   switch (type) {
     case TSDB_DATA_TYPE_BOOL: {
@@ -3952,8 +3940,8 @@ static int32_t setLagLeadDefaultValue(SqlFunctionCtx* pCtx, int32_t pos) {
     case TSDB_DATA_TYPE_TIMESTAMP: {
       if (type == TSDB_DATA_TYPE_TIMESTAMP && IS_STR_DATA_TYPE(pDefault->nType)) {
         int64_t tsVal = 0;
-        int32_t cvtCode = convertStringToTimestamp(pDefault->nType, pDefault->pz, pOutput->info.precision, &tsVal,
-                     NULL, NULL);
+        int32_t cvtCode =
+            convertStringToTimestamp(pDefault->nType, pDefault->pz, pOutput->info.precision, &tsVal, NULL, NULL);
         if (cvtCode != TSDB_CODE_SUCCESS) {
           retCode = cvtCode;
           break;
@@ -3989,7 +3977,8 @@ static int32_t setLagLeadDefaultValue(SqlFunctionCtx* pCtx, int32_t pos) {
       Decimal64 v = {0};
       switch (pDefault->nType) {
         case TSDB_DATA_TYPE_BOOL:
-          retCode = TEST_decimal64From_uint64_t(&v, pOutput->info.precision, pOutput->info.scale, (uint64_t)pDefault->i);
+          retCode =
+              TEST_decimal64From_uint64_t(&v, pOutput->info.precision, pOutput->info.scale, (uint64_t)pDefault->i);
           break;
         case TSDB_DATA_TYPE_TINYINT:
         case TSDB_DATA_TYPE_SMALLINT:
@@ -4181,6 +4170,22 @@ static int32_t setLagLeadDefaultValue(SqlFunctionCtx* pCtx, int32_t pos) {
   return retCode;
 }
 
+static int32_t setLagLeadDefaultValue(SqlFunctionCtx* pCtx, int32_t pos) {
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+  if (pCtx->numOfParams < 3 || pCtx->param[2].type != FUNC_PARAM_TYPE_VALUE) {
+    colDataSetNULL(pOutput, pos);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SFunctParam* pDefaultParam = &pCtx->param[2];
+  if (IS_NULL_TYPE(pDefaultParam->param.nType)) {
+    colDataSetNULL(pOutput, pos);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return setLagLeadDefaultValueToCol(pOutput, pos, pDefaultParam);
+}
+
 static int32_t cloneLagLeadRowValue(const SLagLeadRowValue* pSrc, SLagLeadRowValue* pDst) {
   pDst->isDataNull = pSrc->isDataNull;
   pDst->pData = NULL;
@@ -4269,7 +4274,7 @@ cleanup:
 
 static int32_t refreshLagTailValues(SLagLeadState* pState, SArray* pCurrValues, int64_t offset) {
   int32_t currSize = taosArrayGetSize(pCurrValues);
-  if (offset <= 0 || currSize <= 0) {
+  if (offset == 0 || currSize <= 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -4296,7 +4301,7 @@ static int32_t refreshLagTailValues(SLagLeadState* pState, SArray* pCurrValues, 
     }
 
     SLagLeadRowValue newVal = {0};
-    int32_t code = cloneLagLeadRowValue(pSrc, &newVal);
+    int32_t          code = cloneLagLeadRowValue(pSrc, &newVal);
     if (code != TSDB_CODE_SUCCESS) {
       cleanupLagLeadRowValueArray(pNewTail);
       return code;
@@ -4316,6 +4321,14 @@ static int32_t refreshLagTailValues(SLagLeadState* pState, SArray* pCurrValues, 
   }
   pState->pLagTail = pNewTail;
   return TSDB_CODE_SUCCESS;
+}
+
+static int64_t getLagLeadOffset(SqlFunctionCtx* pCtx) {
+  if (pCtx->numOfParams < 2 || pCtx->param[1].type != FUNC_PARAM_TYPE_VALUE) {
+    return 1;
+  }
+
+  return pCtx->param[1].param.i;
 }
 
 static int32_t lagLeadFunctionByRowImpl(SArray* pCtxArray, bool isLead) {
@@ -4446,8 +4459,8 @@ static int32_t lagLeadFunctionByRowImpl(SArray* pCtxArray, bool isLead) {
       goto _exit;
     }
 
-    int64_t offset = pCtx->param[1].param.i;
-    if (offset <= 0) {
+    int64_t offset = getLagLeadOffset(pCtx);
+    if (offset < 0) {
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       goto _exit;
     }

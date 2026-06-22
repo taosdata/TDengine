@@ -281,3 +281,69 @@ TEST_F(NodesCloneTest, physiPartition) {
     return srcNode.get();
   }());
 }
+
+TEST_F(NodesCloneTest, sqlWindowSpec) {
+  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
+    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
+    const SWindowSpecNode* src = (const SWindowSpecNode*)pSrc;
+    const SWindowSpecNode* dst = (const SWindowSpecNode*)pDst;
+    ASSERT_EQ(LIST_LENGTH(src->pPartitionByList), LIST_LENGTH(dst->pPartitionByList));
+    ASSERT_EQ(LIST_LENGTH(src->pOrderByList), LIST_LENGTH(dst->pOrderByList));
+    ASSERT_NE(dst->pFrame, nullptr);
+    const SWindowFrameNode* srcFrame = (const SWindowFrameNode*)src->pFrame;
+    const SWindowFrameNode* dstFrame = (const SWindowFrameNode*)dst->pFrame;
+    ASSERT_EQ(srcFrame->frameUnit, dstFrame->frameUnit);
+    ASSERT_EQ(srcFrame->start.boundType, dstFrame->start.boundType);
+    ASSERT_EQ(srcFrame->end.boundType, dstFrame->end.boundType);
+  });
+
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+  {
+    SNode*  pNew = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_SQL_WINDOW_SPEC, &pNew);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+    srcNode.reset(pNew);
+
+    SWindowSpecNode* spec = (SWindowSpecNode*)srcNode.get();
+    SNode*           partCol = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &partCol));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&spec->pPartitionByList, partCol));
+
+    SOrderByExprNode* order = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&order));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &order->pExpr));
+    order->order = ORDER_ASC;
+    order->nullOrder = NULL_ORDER_FIRST;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&spec->pOrderByList, (SNode*)order));
+
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SQL_WINDOW_FRAME, &spec->pFrame));
+    SWindowFrameNode* frame = (SWindowFrameNode*)spec->pFrame;
+    frame->frameUnit = WINDOW_FRAME_UNIT_ROWS;
+    frame->start.boundType = WINDOW_BOUND_N_PRECEDING;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &frame->start.pOffset));
+    frame->end.boundType = WINDOW_BOUND_CURRENT_ROW;
+  }
+  run(srcNode.get());
+}
+
+TEST_F(NodesCloneTest, functionWithOverSpec) {
+  registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
+    ASSERT_EQ(nodeType(pSrc), nodeType(pDst));
+    const SFunctionNode* src = (const SFunctionNode*)pSrc;
+    const SFunctionNode* dst = (const SFunctionNode*)pDst;
+    ASSERT_NE(src->pOver, nullptr);
+    ASSERT_NE(dst->pOver, nullptr);
+    ASSERT_EQ(nodeType(src->pOver), nodeType(dst->pOver));
+  });
+
+  std::unique_ptr<SNode, void (*)(SNode*)> srcNode(nullptr, nodesDestroyNode);
+  {
+    SNode* pNew = NULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_FUNCTION, &pNew));
+    srcNode.reset(pNew);
+    SFunctionNode* func = (SFunctionNode*)srcNode.get();
+    tstrncpy(func->functionName, "avg", TSDB_FUNC_NAME_LEN);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SQL_WINDOW_SPEC, &func->pOver));
+  }
+  run(srcNode.get());
+}

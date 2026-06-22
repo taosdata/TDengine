@@ -418,6 +418,23 @@ bool fmIsNoPushdownFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, 
 
 bool fmIsIgnoreNullFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_IGNORE_NULL_FUNC); }
 
+static bool fmIsSpecificClassifyFuncByName(const char* pFuncName, uint64_t classification) {
+  int32_t funcId = fmGetFuncId(pFuncName);
+  return isSpecificClassifyFunc(funcId, classification);
+}
+
+bool fmIsSqlWindowFunc(const char* pFuncName) {
+  return fmIsSpecificClassifyFuncByName(pFuncName, FUNC_MGT_SQL_WINDOW_FUNC);
+}
+
+bool fmIsSqlWindowOrderRequiredFunc(const char* pFuncName) {
+  return fmIsSpecificClassifyFuncByName(pFuncName, FUNC_MGT_SQL_WINDOW_ORDER_FUNC);
+}
+
+bool fmCanUseAsSqlWindowAgg(const char* pFuncName) {
+  return fmIsSpecificClassifyFuncByName(pFuncName, FUNC_MGT_SQL_WINDOW_AGG_FUNC);
+}
+
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
   if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {

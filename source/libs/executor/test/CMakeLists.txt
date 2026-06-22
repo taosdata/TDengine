@@ -61,3 +61,16 @@ TARGET_INCLUDE_DIRECTORIES(
         PUBLIC "${TD_SOURCE_DIR}/include/common"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+
+ADD_EXECUTABLE(windowFuncFrameTests windowFuncFrameTests.cpp)
+DEP_ext_gtest(windowFuncFrameTests)
+TARGET_LINK_LIBRARIES(
+        windowFuncFrameTests
+        PRIVATE PRIVATE os util common executor qcom function planner scalar nodes vnode
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        windowFuncFrameTests
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)

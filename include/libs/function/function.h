@@ -52,6 +52,7 @@ typedef struct SExprInfo {
   struct tExprNode*     pExpr;
 } SExprInfo;
 
+int32_t setLagLeadDefaultValueToCol(SColumnInfoData *pOutput, int32_t pos, SFunctParam *pDefaultParam);
 
 typedef bool (*FExecGetEnv)(struct SFunctionNode *pFunc, SFuncExecEnv *pEnv);
 typedef void (*FExecCleanUp)(struct SqlFunctionCtx *pCtx);

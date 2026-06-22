@@ -2972,6 +2972,66 @@ static int32_t createForecastFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* p
   return code;
 }
 
+static int32_t createWindowFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
+                                         SWindowFuncLogicNode* pWindowLogicNode, SPhysiNode** pPhyNode) {
+  SWindowFuncPhysiNode* pWindow =
+      (SWindowFuncPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pWindowLogicNode, QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC);
+  if (NULL == pWindow) {
+    return terrno;
+  }
+
+  SNodeList* pPrecalcExprs = NULL;
+  SNodeList* pFuncs = NULL;
+  SNodeList* pOrderKeys = NULL;
+  int32_t    code = rewritePrecalcExprs(pCxt, pWindowLogicNode->pFuncs, &pPrecalcExprs, &pFuncs);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewritePrecalcExprs(pCxt, pWindowLogicNode->pOrderKeys, &pPrecalcExprs, &pOrderKeys);
+  }
+
+  SDataBlockDescNode* pChildTuple = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = getChildTuple(&pChildTuple, pChildren);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pPrecalcExprs) {
+    code = setListSlotId(pCxt, pChildTuple->dataBlockId, -1, pPrecalcExprs, &pWindow->pExprs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = pushdownDataBlockSlots(pCxt, pWindow->pExprs, pChildTuple);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code =
+        setListSlotId(pCxt, pChildTuple->dataBlockId, -1, pWindowLogicNode->pPartitionKeys, &pWindow->pPartitionKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pChildTuple->dataBlockId, -1, pOrderKeys, &pWindow->pOrderKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setListSlotId(pCxt, pChildTuple->dataBlockId, -1, pFuncs, &pWindow->pFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesCloneNode(pWindowLogicNode->pFrame, &pWindow->pFrame);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addDataBlockSlots(pCxt, pWindow->pFuncs, pWindow->node.pOutputDataBlockDesc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setConditionsSlotId(pCxt, (const SLogicNode*)pWindowLogicNode, (SPhysiNode*)pWindow);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pPhyNode = (SPhysiNode*)pWindow;
+  } else {
+    nodesDestroyNode((SNode*)pWindow);
+  }
+
+  nodesDestroyList(pPrecalcExprs);
+  nodesDestroyList(pFuncs);
+  nodesDestroyList(pOrderKeys);
+
+  return code;
+}
+
 static int32_t createGenericAnalysisPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                               SGenericAnalysisLogicNode* pFuncLogicNode, SPhysiNode** pPhyNode) {
   SGenericAnalysisPhysiNode* pFunc = (SGenericAnalysisPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pFuncLogicNode,
@@ -4189,6 +4249,8 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
       return createWindowPhysiNode(pCxt, pChildren, (SWindowLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_SORT:
       return createSortPhysiNode(pCxt, pChildren, (SSortLogicNode*)pLogicNode, pPhyNode);
+    case QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC:
+      return createWindowFuncPhysiNode(pCxt, pChildren, (SWindowFuncLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_DISTINCT_FILTER:
       return createDistinctFilterPhysiNode(pCxt, pChildren, (SDistinctFilterLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:

@@ -431,6 +431,10 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
     case QUERY_NODE_LOGIC_PLAN_SORT:
       code = adjustSortDataRequirement((SSortLogicNode*)pNode, requirement);
       break;
+    case QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC:
+      pNode->resultDataOrder = requirement;
+      pNode->requireDataOrder = requirement;
+      break;
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
       code = adjustPartitionDataRequirement((SPartitionLogicNode*)pNode, requirement);
       break;
@@ -658,32 +662,34 @@ bool isPartTableWinodw(SWindowLogicNode* pWindow) {
   return false;
 }
 
+bool limitHasFiniteRows(const SNode* pLimit) { return NULL != pLimit && NULL != ((SLimitNode*)pLimit)->limit; }
+
+static void adjustLimitWithOffset(SLimitNode* pLimit) {
+  if (NULL == pLimit || NULL == pLimit->limit) {
+    return;
+  }
+  if (pLimit->offset) {
+    pLimit->limit->datum.i += pLimit->offset->datum.i;
+    pLimit->offset->datum.i = 0;
+  }
+}
+
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {
-  SLimitNode* pLimit = NULL, *pSlimit = NULL;
+  SLimitNode *pLimit = NULL, *pSlimit = NULL;
   int32_t     code = 0;
   bool        cloned = false;
-  if (pParent->pLimit && (cloneWhat & CLONE_LIMIT)) {
+  if (limitHasFiniteRows(pParent->pLimit) && (cloneWhat & CLONE_LIMIT)) {
     code = nodesCloneNode(pParent->pLimit, (SNode**)&pLimit);
     if (TSDB_CODE_SUCCESS == code) {
-      if (pLimit->limit && pLimit->offset) {
-        pLimit->limit->datum.i += pLimit->offset->datum.i;
-      }
-      if (pLimit->offset) {
-        pLimit->offset->datum.i = 0;
-      }
+      adjustLimitWithOffset(pLimit);
       cloned = true;
     }
   }
 
-  if (pParent->pSlimit && (cloneWhat & CLONE_SLIMIT)) {
+  if (limitHasFiniteRows(pParent->pSlimit) && (cloneWhat & CLONE_SLIMIT)) {
     code = nodesCloneNode(pParent->pSlimit, (SNode**)&pSlimit);
     if (TSDB_CODE_SUCCESS == code) {
-      if (pSlimit->limit && pSlimit->offset) {
-        pSlimit->limit->datum.i += pSlimit->offset->datum.i;
-      }
-      if (pSlimit->offset) {
-        pSlimit->offset->datum.i = 0;
-      }
+      adjustLimitWithOffset(pSlimit);
       cloned = true;
     }
   }
@@ -693,6 +699,7 @@ int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, b
     *pCloned = cloned;
   } else {
     nodesDestroyNode((SNode*)pLimit);
+    nodesDestroyNode((SNode*)pSlimit);
   }
   return code;
 }

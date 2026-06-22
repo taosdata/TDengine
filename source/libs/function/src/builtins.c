@@ -1055,16 +1055,16 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   SNodeList* paramList = pFunc->pParameterList;
   char       errMsg[128] = {0};
 
-  // no need to check
-  if (funcMgtBuiltins[pFunc->funcId].parameters.paramInfoPattern == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   // check param num
   if ((funcMgtBuiltins[pFunc->funcId].parameters.maxParamNum != -1 &&
        LIST_LENGTH(paramList) > funcMgtBuiltins[pFunc->funcId].parameters.maxParamNum) ||
       LIST_LENGTH(paramList) < funcMgtBuiltins[pFunc->funcId].parameters.minParamNum) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  // no need to check
+  if (funcMgtBuiltins[pFunc->funcId].parameters.paramInfoPattern == 0) {
+    return TSDB_CODE_SUCCESS;
   }
 
   // check each param
@@ -1314,6 +1314,12 @@ static int32_t translateRtrim(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 static int32_t translateOutBigInt(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSqlWindowValue(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1956,9 +1962,38 @@ static int32_t validateLagLeadDefaultType(SFunctionNode* pFunc, char* pErrBuf, i
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateLag(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+static int32_t validateSqlWindowLagLeadParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams < 1 || numOfParams > 3) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (numOfParams >= 2) {
+    SNode* pOffset = nodesListGetNode(pFunc->pParameterList, 1);
+    if (pOffset == NULL || QUERY_NODE_VALUE != nodeType(pOffset) ||
+        !IS_INTEGER_TYPE(getSDataTypeFromNode(pOffset)->type)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    ((SValueNode*)pOffset)->notReserved = true;
+    if (((SValueNode*)pOffset)->datum.i < 0) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  if (numOfParams >= 3) {
+    SNode* pDefault = nodesListGetNode(pFunc->pParameterList, 2);
+    if (pDefault == NULL || QUERY_NODE_VALUE != nodeType(pDefault)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    ((SValueNode*)pDefault)->notReserved = true;
+  }
+
   FUNC_ERR_RET(validateLagLeadDefaultType(pFunc, pErrBuf, len));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateLag(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateSqlWindowLagLeadParam(pFunc, pErrBuf, len));
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
@@ -1966,8 +2001,7 @@ static int32_t translateLag(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 static EFuncReturnRows lagEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
 static int32_t translateLead(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
-  FUNC_ERR_RET(validateLagLeadDefaultType(pFunc, pErrBuf, len));
+  FUNC_ERR_RET(validateSqlWindowLagLeadParam(pFunc, pErrBuf, len));
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
@@ -2827,7 +2861,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "count",
     .type = FUNCTION_TYPE_COUNT,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_COUNT_LIKE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_COUNT_LIKE_FUNC |
+                      FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -2854,7 +2889,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "sum",
     .type = FUNCTION_TYPE_SUM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC |
+                      FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -2881,7 +2917,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "min",
     .type = FUNCTION_TYPE_MIN,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC |
+                      FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -2908,7 +2945,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "max",
     .type = FUNCTION_TYPE_MAX,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC |
+                      FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3037,7 +3075,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "avg",
     .type = FUNCTION_TYPE_AVG,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC |
+                      FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3112,7 +3151,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "percentile",
     .type = FUNCTION_TYPE_PERCENTILE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_REPEAT_SCAN_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED ,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_REPEAT_SCAN_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED |
+                      FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 11,
                    .paramInfoPattern = 1,
@@ -3632,7 +3672,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "last_row",
     .type = FUNCTION_TYPE_LAST_ROW,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
+                      FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = -1,
                    .paramInfoPattern = 1,
@@ -3747,7 +3788,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "first",
     .type = FUNCTION_TYPE_FIRST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC |
+                      FUNC_MGT_PRIMARY_KEY_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC | FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = -1,
                    .paramInfoPattern = 1,
@@ -3824,7 +3866,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "last",
     .type = FUNCTION_TYPE_LAST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC |
+                      FUNC_MGT_PRIMARY_KEY_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC | FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = -1,
                    .paramInfoPattern = 1,
@@ -5219,9 +5262,14 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_block_dist",
     .type = FUNCTION_TYPE_BLOCK_DIST,
     .classification = FUNC_MGT_AGG_FUNC,
-    .parameters = {.minParamNum = 0,
-                   .maxParamNum = 0,
-                   .paramInfoPattern = 0,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc   = getBlockDistFuncEnv,
@@ -6688,9 +6736,14 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_db_usage",
     .type = FUNCTION_TYPE_DB_USAGE,
     .classification = FUNC_MGT_AGG_FUNC,
-    .parameters = {.minParamNum = 0,
-                   .maxParamNum = 0,
-                   .paramInfoPattern = 0,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc   = getBlockDBUsageFuncEnv,
@@ -7877,8 +7930,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "lag",
     .type = FUNCTION_TYPE_LAG,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
-    .parameters = {.minParamNum = 2,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
+                      FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 1,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
                    .inputParaInfo[0][0] = {.isLastParam = false,
@@ -7895,7 +7949,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
-                                           .range = {.iMinVal = 1, .iMaxVal = INT64_MAX}},
+                                           .range = {.iMinVal = 0, .iMaxVal = INT64_MAX}},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
@@ -7917,8 +7971,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "lead",
     .type = FUNCTION_TYPE_LEAD,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
-    .parameters = {.minParamNum = 2,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
+                      FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 1,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
                    .inputParaInfo[0][0] = {.isLastParam = false,
@@ -7935,7 +7990,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
-                                           .range = {.iMinVal = 1, .iMaxVal = INT64_MAX}},
+                                           .range = {.iMinVal = 0, .iMaxVal = INT64_MAX}},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
@@ -7952,6 +8007,115 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .cleanupFunc  = lagLeadFunctionCleanupExt,
     .estimateReturnRowsFunc = leadEstReturnRows,
     .processFuncByRow  = leadFunctionByRow,
+  },
+  {
+    .name = "row_number",
+    .type = FUNCTION_TYPE_ROW_NUMBER,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
+    .translateFunc = translateOutBigInt,
+  },
+  {
+    .name = "rank",
+    .type = FUNCTION_TYPE_RANK,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
+    .translateFunc = translateOutBigInt,
+  },
+  {
+    .name = "dense_rank",
+    .type = FUNCTION_TYPE_DENSE_RANK,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
+    .translateFunc = translateOutBigInt,
+  },
+  {
+    .name = "percent_rank",
+    .type = FUNCTION_TYPE_PERCENT_RANK,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
+    .translateFunc = translateOutDouble,
+  },
+  {
+    .name = "cume_dist",
+    .type = FUNCTION_TYPE_CUME_DIST,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
+    .translateFunc = translateOutDouble,
+  },
+  {
+    .name = "first_value",
+    .type = FUNCTION_TYPE_FIRST_VALUE,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
+    .translateFunc = translateSqlWindowValue,
+  },
+  {
+    .name = "last_value",
+    .type = FUNCTION_TYPE_LAST_VALUE,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
+    .translateFunc = translateSqlWindowValue,
+  },
+  {
+    .name = "nth_value",
+    .type = FUNCTION_TYPE_NTH_VALUE,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = true,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 1, .iMaxVal = INT64_MAX}},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
+    .translateFunc = translateSqlWindowValue,
   },
   {
     .name = "fill_forward",

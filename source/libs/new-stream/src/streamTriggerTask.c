@@ -226,6 +226,17 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext);
 static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SRpcMsg *pRsp);
 static int32_t stHistoryContextProcCalcRsp(SSTriggerHistoryContext *pContext, SRpcMsg *pRsp);
 
+static FORCE_INLINE bool stRealtimeGroupNeedCheck(SSTriggerRealtimeGroup *pGroup) {
+  if (pGroup->oldThreshold < pGroup->newThreshold) {
+    return true;
+  }
+  if (!pGroup->recalcNextWindow) {
+    return false;
+  }
+  SStreamTriggerTask *pTask = pGroup->pContext->pTask;
+  return pGroup->windows.neles > 0 || (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows > 0);
+}
+
 typedef struct SRewriteSlotidCxt {
   int32_t errCode;
   SArray *newSlotIds;
@@ -6903,7 +6914,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
             SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
             code = stRealtimeGroupAddMeta(pGroup, vgId, &meta);
             QUERY_CHECK_CODE(code, lino, _end);
-            if (pGroup->oldThreshold < pGroup->newThreshold && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+            if (stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
               TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
             }
           }
@@ -6935,7 +6946,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
         SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
         code = stRealtimeGroupAddMeta(pGroup, vgId, &meta);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (pGroup->oldThreshold < pGroup->newThreshold && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+        if (stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
           TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
         }
       }
@@ -6991,6 +7002,9 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
                          range.skey, range.ekey);
             code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, false, false, false);
             QUERY_CHECK_CODE(code, lino, _end);
+            if (stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+              TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+            }
           }
         }
       }
@@ -7017,6 +7031,9 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
                      range.skey, range.ekey);
         code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, false, false, false);
         QUERY_CHECK_CODE(code, lino, _end);
+        if (stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+          TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+        }
       }
     }
   }
@@ -11853,7 +11870,7 @@ static int32_t stRealtimeGroupCheck(SSTriggerRealtimeGroup *pGroup) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
 
-  if (pGroup->oldThreshold == pGroup->newThreshold) {
+  if (!stRealtimeGroupNeedCheck(pGroup)) {
     goto _end;
   }
 

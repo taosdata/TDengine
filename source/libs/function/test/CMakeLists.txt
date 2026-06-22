@@ -11,6 +11,20 @@ target_link_libraries(
     runUdf
     PRIVATE os util common nodes function
 )
+
+if(NOT TD_DARWIN)
+    set(CMAKE_CXX_STANDARD 11)
+    add_executable(functionMgtTest functionMgtTest.cpp)
+    DEP_ext_gtest(functionMgtTest)
+    target_link_libraries(
+        functionMgtTest
+        PRIVATE os util common nodes function
+    )
+    add_test(
+        NAME functionMgtTest
+        COMMAND functionMgtTest
+    )
+endif()
 endif(${BUILD_TEST})
 
 add_library(udf1 STATIC MODULE udf1.c)

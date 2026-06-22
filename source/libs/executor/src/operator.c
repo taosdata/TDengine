@@ -767,6 +767,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createDynQueryCtrlOperatorInfo(ops, size, (SDynQueryCtrlPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT == type) {
     code = createCountwindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC == type) {
+    code = createWindowFuncOperatorInfo(ops[0], (SWindowFuncPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY == type) {
     code = createAnomalywindowOperatorInfo(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN == type) {
