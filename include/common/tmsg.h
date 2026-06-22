@@ -1685,7 +1685,11 @@ typedef struct {
   int8_t ignoreExists;
 
   char   user[TSDB_USER_LEN];
-  char   pass[TSDB_USER_PASSWORD_LONGLEN];
+  char   pass[TSDB_PASSWORD_LEN];
+  int8_t isComplexPass;
+  int8_t isSimplePass;
+  int8_t isDefaultPass;
+  int16_t passLen;
   char   totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
 
   int8_t sysInfo;
@@ -1790,7 +1794,11 @@ typedef struct {
   int8_t maxSecLevel;
 
   char   user[TSDB_USER_LEN];
-  char   pass[TSDB_USER_PASSWORD_LONGLEN];
+  char   pass[TSDB_PASSWORD_LEN];
+  int8_t isComplexPass;
+  int8_t isSimplePass;
+  int8_t isDefaultPass;
+  int16_t passLen;
   char   totpseed[TSDB_USER_TOTPSEED_MAX_LEN + 1];
   int32_t sessionPerUser;
   int32_t connectTime;

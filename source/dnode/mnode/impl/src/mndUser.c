@@ -3017,11 +3017,10 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     memcpy(userObj.passwords[0].pass, pCreate->pass, TSDB_PASSWORD_LEN);
   } else {
     generateSalt(userObj.salt, sizeof(userObj.salt));
-    taosEncryptPass_c((uint8_t *)pCreate->pass, strlen(pCreate->pass), userObj.passwords[0].pass);
+    memcpy(userObj.passwords[0].pass, pCreate->pass, sizeof(userObj.passwords[0].pass));
     userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
     if (strlen(tsDataKey) > 0) {
-      TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino,
-                      _OVER);
+      TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _OVER);
     }
   }
   userObj.passwords[0].setTime = taosGetTimestampSec();
@@ -3257,30 +3256,54 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t mndCheckPasswordFmt(const char *pwd) {
-  if (tsEnableAdvancedSecurity == 0 && strcmp(pwd, "taosdata") == 0) {
+static int32_t mndCheckCreateUserReqPasswordFmt(const SCreateUserReq* pReq) {
+  if (tsEnableAdvancedSecurity == 0 && pReq->isDefaultPass) {
     return 0;
   }
 
   if (tsEnableStrongPassword == 0) {
-    for (char c = *pwd; c != 0; c = *(++pwd)) {
-      if (c == ' ' || c == '\'' || c == '\"' || c == '`' || c == '\\') {
-        return TSDB_CODE_MND_INVALID_PASS_FORMAT;
-      }
+    if (pReq->isSimplePass) {
+      return 0;
     }
-    return 0;
+    return TSDB_CODE_MND_INVALID_PASS_FORMAT;
   }
 
-  int32_t len = strlen(pwd);
-  if (len < TSDB_PASSWORD_MIN_LEN) {
+  if (pReq->passLen < TSDB_PASSWORD_MIN_LEN) {
     return TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY;
   }
 
-  if (len > TSDB_PASSWORD_MAX_LEN) {
+  if (pReq->passLen > TSDB_PASSWORD_MAX_LEN) {
     return TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
   }
 
-  if (taosIsComplexString(pwd)) {
+  if (pReq->isComplexPass) {
+    return 0;
+  }
+
+  return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+}
+
+static int32_t mndCheckAlterUserReqPasswordFmt(const SAlterUserReq* pReq) {
+  if (tsEnableAdvancedSecurity == 0 && pReq->isDefaultPass) {
+    return 0;
+  }
+
+  if (tsEnableStrongPassword == 0) {
+    if (pReq->isSimplePass) {
+      return 0;
+    }
+    return TSDB_CODE_MND_INVALID_PASS_FORMAT;
+  }
+
+  if (pReq->passLen < TSDB_PASSWORD_MIN_LEN) {
+    return TSDB_CODE_PAR_PASSWD_TOO_SHORT_OR_EMPTY;
+  }
+
+  if (pReq->passLen > TSDB_PASSWORD_MAX_LEN) {
+    return TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+  }
+
+  if (pReq->isComplexPass) {
     return 0;
   }
 
@@ -3478,7 +3501,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
   }
 
   if (createReq.isImport != 1) {
-    code = mndCheckPasswordFmt(createReq.pass);
+    code = mndCheckCreateUserReqPasswordFmt(&createReq);
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
@@ -4385,12 +4408,12 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   if (pAlterReq->hasPassword) {
     auditLen += snprintf(auditLog, sizeof(auditLog), "password,");
 
-    TAOS_CHECK_GOTO(mndCheckPasswordFmt(pAlterReq->pass), &lino, _OVER);
+    TAOS_CHECK_GOTO(mndCheckAlterUserReqPasswordFmt(pAlterReq), &lino, _OVER);
     if (newUser.salt[0] == 0) {
       generateSalt(newUser.salt, sizeof(newUser.salt));
     }
     char pass[TSDB_PASSWORD_LEN] = {0};
-    taosEncryptPass_c((uint8_t *)pAlterReq->pass, strlen(pAlterReq->pass), pass);
+    memcpy(pass, pAlterReq->pass, sizeof(pass));
     pass[sizeof(pass) - 1] = 0;
     if (strlen(tsDataKey) > 0) {
       TAOS_CHECK_GOTO(mndEncryptPass(pass, newUser.salt, &newUser.passEncryptAlgorithm), &lino, _OVER);

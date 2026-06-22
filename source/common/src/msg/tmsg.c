@@ -3547,7 +3547,11 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->sysInfo));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->enable));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->user));
-  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->pass));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->pass, sizeof(pReq->pass)));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isSimplePass));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isComplexPass));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isDefaultPass));
+  TAOS_CHECK_EXIT(tEncodeI16(&encoder, pReq->passLen));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->numIpRanges));
   for (int32_t i = 0; i < pReq->numIpRanges; ++i) {
     TAOS_CHECK_EXIT(tEncodeU32(&encoder, 0));  // for backward compatibility
@@ -3632,7 +3636,11 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->sysInfo));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->enable));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->pass));
+  TAOS_CHECK_EXIT(tDecodeBinaryTo(&decoder, pReq->pass, sizeof(pReq->pass)));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isSimplePass));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isComplexPass));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isDefaultPass));
+  TAOS_CHECK_EXIT(tDecodeI16(&decoder, &pReq->passLen));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numIpRanges));
   for (int32_t i = 0; i < pReq->numIpRanges; ++i) {
     uint32_t dummy;
@@ -4263,7 +4271,11 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
 
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->user));
   if (pReq->hasPassword) {
-    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->pass));
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->pass, sizeof(pReq->pass)));
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isSimplePass));
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isComplexPass));
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isDefaultPass));
+    TAOS_CHECK_EXIT(tEncodeI16(&encoder, pReq->passLen));
   }
   if (pReq->hasTotpseed) {
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->totpseed));
@@ -4417,7 +4429,11 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
 
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
   if (pReq->hasPassword) {
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->pass));
+    TAOS_CHECK_EXIT(tDecodeBinaryTo(&decoder, pReq->pass, sizeof(pReq->pass)));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isSimplePass));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isComplexPass));
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isDefaultPass));
+    TAOS_CHECK_EXIT(tDecodeI16(&decoder, &pReq->passLen));
   }
   if (pReq->hasTotpseed) {
     TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->totpseed));
