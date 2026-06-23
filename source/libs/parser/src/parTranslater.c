@@ -23721,6 +23721,11 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
 
   PAR_ERR_RET(tInitDefaultSColRefWrapperByCols(&req.colRef, pStbMeta->tableInfo.numOfColumns));
 
+  const SSchema* pColSchemas = getTableColumnSchema(pStbMeta);
+  for (int32_t i = 0; i < pStbMeta->tableInfo.numOfColumns; ++i) {
+    req.colRef.pColRef[i].id = pColSchemas[i].colId;
+  }
+
   if (pStmt->pSpecificColRefs) {
     FOREACH(pCol, pStmt->pSpecificColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
@@ -23728,7 +23733,7 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
       if (schemaIdx == -1) {
         PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
       }
-      const SSchema* pSchema = getTableColumnSchema(pStbMeta) + schemaIdx;
+      const SSchema* pSchema = pColSchemas + schemaIdx;
       PAR_ERR_JRET(setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pSchema->name, pColRef->refColName,
                              pColRef->refTableName, pColRef->refDbName));
     }
@@ -23736,8 +23741,8 @@ static int32_t buildVirtualSubTableBatchReq(const SCreateVSubTableStmt* pStmt, S
     col_id_t index = 1;  // start from second column, don't set column ref for ts column
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
-      const SSchema*  pSchema = getTableColumnSchema(pStbMeta) + index;
-      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], index + 1, pSchema->name, pColRef->refColName,
+      const SSchema*  pSchema = pColSchemas + index;
+      PAR_ERR_JRET(setColRef(&req.colRef.pColRef[index], pSchema->colId, pSchema->name, pColRef->refColName,
                              pColRef->refTableName, pColRef->refDbName));
       index++;
     }
