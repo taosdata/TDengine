@@ -22,7 +22,7 @@
 #include <WinBase.h>
 #include <io.h>
 #include <ktmw32.h>
-#include <windows.h>
+#include <winioctl.h>
 #define F_OK 0
 #define X_OK 1
 #define W_OK 2

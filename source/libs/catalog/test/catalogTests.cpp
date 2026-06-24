@@ -13,6 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#endif
+
 #include <gtest/gtest.h>
 #include <iostream>
 
@@ -24,9 +31,6 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #include <addr_any.h>
 
-#ifdef WINDOWS
-#define TD_USE_WINSOCK
-#endif
 #include "catalog.h"
 #include "catalogInt.h"
 #include "os.h"

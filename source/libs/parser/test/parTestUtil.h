@@ -16,6 +16,10 @@
 #ifndef PARSER_TEST_UTIL_H
 #define PARSER_TEST_UTIL_H
 
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
+
 #include <gtest/gtest.h>
 
 #define ALLOW_FORBID_FUNC
