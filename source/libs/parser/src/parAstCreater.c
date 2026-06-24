@@ -1896,6 +1896,16 @@ _err:
   return NULL;
 }
 
+static bool parseTrueForCount(SAstCreateContext* pCxt, const SToken* pCount, int32_t* pValue) {
+  int64_t count = taosStr2Int64(pCount->z, NULL, 10);
+  if (count < 0 || count > INT32_MAX) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TRUE_FOR_COUNT);
+    return false;
+  }
+  *pValue = (int32_t)count;
+  return true;
+}
+
 SNode* createTrueForCountNode(SAstCreateContext* pCxt, const SToken* pCount) {
   STrueForNode* pTrueFor = NULL;
   CHECK_PARSER_STATUS(pCxt);
@@ -1903,9 +1913,7 @@ SNode* createTrueForCountNode(SAstCreateContext* pCxt, const SToken* pCount) {
   CHECK_MAKE_NODE(pTrueFor);
   pTrueFor->trueForType = TRUE_FOR_COUNT_ONLY;
   pTrueFor->pDuration = NULL;
-  pTrueFor->count = taosStr2Int32(pCount->z, NULL, 10);
-  if (pTrueFor->count < 0) {
-    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TRUE_FOR_COUNT);
+  if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
     goto _err;
   }
   return (SNode*)pTrueFor;
@@ -1922,7 +1930,9 @@ SNode* createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const STo
   pTrueFor->trueForType = TRUE_FOR_AND;
   pTrueFor->pDuration = pDuration;
   pDuration = NULL;
-  pTrueFor->count = taosStr2Int32(pCount->z, NULL, 10);
+  if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
+    goto _err;
+  }
   return (SNode*)pTrueFor;
 _err:
   nodesDestroyNode((SNode*)pTrueFor);
@@ -1938,7 +1948,9 @@ SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const STok
   pTrueFor->trueForType = TRUE_FOR_OR;
   pTrueFor->pDuration = pDuration;
   pDuration = NULL;
-  pTrueFor->count = taosStr2Int32(pCount->z, NULL, 10);
+  if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
+    goto _err;
+  }
   return (SNode*)pTrueFor;
 _err:
   nodesDestroyNode((SNode*)pTrueFor);

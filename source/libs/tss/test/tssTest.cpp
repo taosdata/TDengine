@@ -20,14 +20,16 @@
 #include <iostream>
 #include <queue>
 
+#include "tglobal.h"
 #include "tssInt.h"
 
 static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
     const char* path = "shared-storage-instance-test-file";
-    char* smallData = "small data of the shared storage instance test file.";
+    const char* smallData = "small data of the shared storage instance test file.";
 
-    char* data = smallData;
-    int64_t dataSize = (int64_t)strlen(data);
+    const void* uploadData = smallData;
+    char* data = NULL;
+    int64_t dataSize = (int64_t)strlen(smallData);
     char* fileData = NULL;
     int64_t fileSize = 0;
 
@@ -35,7 +37,7 @@ static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
     tssPrintConfig(ss);
 
     // upload a small file
-    int32_t code = tssUpload(ss, path, data, dataSize);
+    int32_t code = tssUpload(ss, path, uploadData, dataSize);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     // get the file size
@@ -156,7 +158,7 @@ TEST(TssTest, BasicTest) {
 
 #ifdef USE_S3
     printf("test libs3 based shared storage\n");
-    as = "s3:endpoint=192.168.1.52:9000;bucket=test-bucket;uriStyle=path;protocol=http;accessKeyId=fGPPyYjzytw05nw44ViA;secretAccessKey=vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ;chunkSize=64;maxChunks=10000;maxRetry=5";
+    as = "s3:endpoint=192.168.2.52:9000;bucket=test-bucket;uriStyle=path;protocol=http;accessKeyId=fGPPyYjzytw05nw44ViA;secretAccessKey=vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ;chunkSize=64;maxChunks=10000;maxRetry=5";
     code = tssCreateInstance(as, &ss);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
     tssInstTest(ss, 256);
@@ -192,7 +194,6 @@ TEST(TssTest, DefaultInstanceTest) {
     GTEST_ASSERT_EQ(written, 9);
     taosCloseFile(&f);
 
-    extern char tsSsAccessString[1024];
     strcpy(tsSsAccessString, "fs:baseDir=/tmp/ss");
 
     int32_t code = tssInit();
@@ -204,15 +205,16 @@ TEST(TssTest, DefaultInstanceTest) {
     tssPrintDefaultConfig();
 
     const char* path = "shared-storage-instance-test-file";
-    char* smallData = "small data of the shared storage instance test file.";
+    const char* smallData = "small data of the shared storage instance test file.";
 
-    char* data = smallData;
-    int64_t dataSize = (int64_t)strlen(data);
+    const void* uploadData = smallData;
+    char* data = NULL;
+    int64_t dataSize = (int64_t)strlen(smallData);
     char* fileData = NULL;
     int64_t fileSize = 0, largeFileSizeInMB = 256;
 
     // upload a small file
-    code = tssUploadToDefault(path, data, dataSize);
+    code = tssUploadToDefault(path, uploadData, dataSize);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     // get the file size
