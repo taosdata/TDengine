@@ -357,11 +357,8 @@ func Execute(ctx context.Context, cfg Config) (*Result, error) {
 	}
 
 	if !cfg.DryRun {
-		// Start taosd as child process (parent-child mode)
-		// 以子进程方式启动 taosd(父子进程模式)
-		if _, _, ensureErr := taosdEnsureRunning(ctx); ensureErr != nil {
-			return nil, fmt.Errorf("ensure taosd running: %w", ensureErr)
-		}
+		// Connect to taosd (started and supervised by the parent supervisor process).
+		// 连接 taosd(由父监督进程启动并守护)。
 		exec, err = executorNewFn(ctx, cfg.DSN)
 		if err != nil {
 			exec, err = handleInitConnectionFailure(ctx, cfg.DSN, err, &stats, recordErr, &taosdIncidents, &taosdCrashIncidents, &incidentSeq)
