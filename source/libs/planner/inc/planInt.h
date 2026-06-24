@@ -93,6 +93,7 @@ int32_t     collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
 bool        isPartTableAgg(SAggLogicNode* pAgg);
 bool        isPartTagAgg(SAggLogicNode* pAgg);
 bool        isPartTableWinodw(SWindowLogicNode* pWindow);
+bool        isPartTableInterp(SInterpFuncLogicNode* pInterp);
 void        planPromoteScanToTableMerge(SScanLogicNode* pScan, EDataOrderLevel requireLevel,
                                         EDataOrderLevel resultLevel);
 int32_t     planReplaceMergeWithSort(SScanLogicNode* pScan, bool* pReplaced);

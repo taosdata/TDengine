@@ -92,6 +92,8 @@ typedef struct SScanLogicNode {
   uint8_t            scanSeq[2];  // first is scan count, and second is reverse scan count
   STimeWindow        scanRange;
   STimeWindow*       pExtScanRange;
+  int8_t             interpFillMode;    // EFillMode of the interp above this scan; the ext-window scan
+                                        // for the side a fill mode does not consume is skipped (0 = both)
   SNode*             pTimeRange;  // for create stream
   SNode*             pExtTimeRange;  // for create stream
   SNode*             pPrimaryCond;   // for remote node, splited from filter conditions
@@ -272,7 +274,7 @@ typedef struct SInterpFuncLogicNode {
   SNode*        pTimeSeries;  // SColumnNode
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   int64_t       surroundingTime;
-  void*         timezone;        /* timezone_t handle for calendar/DST-aware EVERY stepping (d/w/n/q/y) */
+  void*         timezone;        // timezone_t handle for calendar/DST-aware EVERY stepping (d/w)
   char          timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
 } SInterpFuncLogicNode;
 
@@ -698,7 +700,8 @@ typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t        scanSeq[2];  // first is scan count, and second is reverse scan count
   STimeWindow    scanRange;
-  STimeWindow*   pExtScanRange; 
+  STimeWindow*   pExtScanRange;
+  int8_t         interpFillMode;    // see SScanLogicNode
   SNode*         pTimeRange;  // for create stream
   SNode*         pExtTimeRange;  // for create stream
   SNode*         pPrimaryCond;   // for remote node, splited from filter conditions
@@ -761,7 +764,7 @@ typedef struct SInterpFuncPhysiNode {
   SNode*            pTimeSeries;  // SColumnNode
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   int64_t           surroundingTime;
-  void*             timezone;        /* timezone_t handle; EVERY calendar units (d/w/n/q/y) are calendar/DST aware */
+  void*             timezone;        // timezone_t handle; EVERY calendar units (d/w) are calendar/DST aware
   char              timezoneName[TD_TIMEZONE_LEN]; /* IANA name for TLV serialization */
   bool              ownsTimezone;    /* true when timezone was tzalloc'd during deser */
 } SInterpFuncPhysiNode;

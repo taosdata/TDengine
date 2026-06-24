@@ -1021,6 +1021,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   memcpy(pTableScan->scanSeq, pScanLogicNode->scanSeq, sizeof(pScanLogicNode->scanSeq));
   pTableScan->scanRange = pScanLogicNode->scanRange;
   TSWAP(pTableScan->pExtScanRange, pScanLogicNode->pExtScanRange);
+  pTableScan->interpFillMode = pScanLogicNode->interpFillMode;
   pTableScan->ratio = pScanLogicNode->ratio;
   if (pScanLogicNode->pVgroupList) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);

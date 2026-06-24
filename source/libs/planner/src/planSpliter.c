@@ -418,6 +418,8 @@ static bool stbSplNeedSplit(SFindSplitNodeCtx* pCtx, SLogicNode* pNode) {
              (stbSplHasMultiTbScan(pNode) && !stbSplIsTableCountQuery(pNode));
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return stbSplNeedSplitWindow(pNode);
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      return isPartTableInterp((SInterpFuncLogicNode*)pNode) && stbSplHasMultiTbScan(pNode);
     case QUERY_NODE_LOGIC_PLAN_SORT:
       if (stbSplIsSqlWindowSort(pNode)) {
         return false;
@@ -1296,6 +1298,20 @@ static int32_t stbSplSplitAggNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) 
   return stbSplSplitAggNodeForCrossTable(pCxt, pInfo);
 }
 
+static int32_t stbSplSplitInterpFuncNode(SSplitContext* pCxt, SStableSplitInfo* pInfo) {
+  // Push interp + its scan whole into a per-vnode scan subplan under a gathering
+  // exchange, so the per-vnode interp sits directly on its table scan and the
+  // prev/main step-done early-stop notify reaches the scan. Eligibility and
+  // rationale: isPartTableInterp().
+  int32_t code = splCreateExchangeNodeForSubplan(pCxt, pInfo->pSubplan, pInfo->pSplitNode, SUBPLAN_TYPE_MERGE, false);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pInfo->pSubplan->pChildren,
+                                     (SNode*)splCreateScanSubplan(pCxt, pInfo->pSplitNode, SPLIT_FLAG_STABLE_SPLIT));
+  }
+  ++(pCxt->groupId);
+  return code;
+}
+
 static int32_t stbSplCreateColumnNode(SExprNode* pExpr, SNode** ppNode) {
   SColumnNode* pCol = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
@@ -1800,6 +1816,9 @@ static int32_t stableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
       break;
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       code = stbSplSplitWindowNode(pCxt, &info);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
+      code = stbSplSplitInterpFuncNode(pCxt, &info);
       break;
     case QUERY_NODE_LOGIC_PLAN_SORT:
       code = stbSplSplitSortNode(pCxt, &info);

@@ -758,6 +758,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
   CLONE_OBJECT_FIELD(pExtScanRange, timeWindowClone);
+  COPY_SCALAR_FIELD(interpFillMode);
   CLONE_NODE_FIELD(pTimeRange);
   CLONE_NODE_FIELD(pExtTimeRange);
   CLONE_NODE_FIELD(pPrimaryCond);
@@ -1237,6 +1238,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
   CLONE_OBJECT_FIELD(pExtScanRange, timeWindowClone);
+  COPY_SCALAR_FIELD(interpFillMode);
   CLONE_NODE_FIELD(pTimeRange);
   CLONE_NODE_FIELD(pExtTimeRange);
   COPY_SCALAR_FIELD(ratio);

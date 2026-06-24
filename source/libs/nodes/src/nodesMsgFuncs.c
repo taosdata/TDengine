@@ -3186,6 +3186,9 @@ static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEnc
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueI8(pEncoder, pNode->firstDayOfWeek);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->interpFillMode);
+  }
   return code;
 }
 
@@ -3295,6 +3298,13 @@ static int32_t msgToPhysiTableScanNodeInline(STlvDecoder* pDecoder, void* pObj) 
     code = tlvDecodeValueI8(pDecoder, &pNode->firstDayOfWeek);
   } else {
     pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
+  }
+  if (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
+    code = tlvDecodeValueI8(pDecoder, &pNode->interpFillMode);
+  } else {
+    // plan from an older version without this field; 0 makes the executor
+    // keep both ext-window sides, i.e. no fill-mode pruning
+    pNode->interpFillMode = 0;
   }
   return code;
 }

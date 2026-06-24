@@ -1973,11 +1973,26 @@ static int32_t startNextGroupScan(SOperatorInfo* pOperator, SSDataBlock** pResul
   code = initNextGroupScan(pInfo, &pList, &num);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
-  QUERY_CHECK_CODE(code, lino, _end);
+  if (TIMEWINDOW_RANGE_EXTERNAL == pInfo->base.cond.type) {
+    // An interp RANGE query opens an external (3-segment prev/main/next)
+    // reader. tsdbReaderReset2 cannot reset it across groups: it would drop
+    // to a contained reader and orphan the prev/next inner readers, silently
+    // losing the fill-reference rows for every group after the first. Open a
+    // fresh reader for the new group instead, matching table merge scan's
+    // close-and-reopen reader lifecycle when switching groups.
+    pAPI->tsdReader.tsdReaderClose(pInfo->base.dataReader);
+    pInfo->base.dataReader = NULL;
+    taosHashClear(pInfo->pIgnoreTables);  // discard any stale UIDs from the previous group
+    code = pAPI->tsdReader.tsdReaderOpen(pInfo->base.readHandle.vnode, &pInfo->base.cond, pList, num, pInfo->pResBlock,
+                                         (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else {
+    code = pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
+    QUERY_CHECK_CODE(code, lino, _end);
 
-  code = pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
-  QUERY_CHECK_CODE(code, lino, _end);
+    code = pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
   pInfo->scanTimes = 0;
 
   code = doGroupedTableScan(pOperator, pResult);

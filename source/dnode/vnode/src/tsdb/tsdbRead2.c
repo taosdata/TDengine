@@ -6545,7 +6545,14 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
     }
   }
 
-  if (!isEmptyQueryTimeWindow(&pReader->info.window)) {
+  // For external readers the main window must only be scanned while the MAIN
+  // step is active and not finished early via tsdbReaderStepDone. Without the
+  // step check, calls arriving after the MAIN -> NEXT transition would resume
+  // draining the main reader, which may still hold data when the executor has
+  // notified that all interpolation points are already produced.
+  bool mainStepActive = (pReader->type == TIMEWINDOW_RANGE_CONTAINED) ||
+                        (pReader->step == EXTERNAL_ROWS_MAIN && !pReader->currentStepDone);
+  if (!isEmptyQueryTimeWindow(&pReader->info.window) && mainStepActive) {
     code = doTsdbNextDataBlock2(pReader, hasNext);
     TSDB_CHECK_CODE(code, lino, _end);
   } else {
@@ -6883,6 +6890,18 @@ int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   code = tsdbAcquireReader(pReader);
   TSDB_CHECK_CODE(code, lino, _end);
   acquired = true;
+
+  if (pReader->innerReader[0] != NULL || pReader->innerReader[1] != NULL) {
+    // Defect guard: reset unconditionally drops the reader to
+    // TIMEWINDOW_RANGE_CONTAINED below, which would orphan the prev/next
+    // inner readers and silently break the 3-segment external scan. The
+    // interp reuse paths re-open the reader (close + open) instead of
+    // resetting it, so this is currently unreachable; fail loudly rather
+    // than corrupt results if a future caller hits it.
+    tsdbError("%s tsdbReaderReset2 is not supported for external (3-segment) readers", pReader->idStr);
+    code = TSDB_CODE_INVALID_PARA;
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
 
   pReader->step = EXTERNAL_ROWS_INIT;
   pReader->currentStepDone = false;
@@ -7626,9 +7645,22 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
     */
     if (notifyTs <= pReader->innerReader[0]->info.window.ekey) {
       pReader->currentStepDone = true;
-      tsdbDebug("%s, %s, step: PREV, notifyTs: %" PRIu64
-                ", window.ekey: %" PRIu64, pReader->idStr, __func__, notifyTs,
+      tsdbDebug("%s, %s, step: PREV, notifyTs: %" PRId64
+                ", window.ekey: %" PRId64, pReader->idStr, __func__, notifyTs,
                 (int64_t)pReader->innerReader[0]->info.window.ekey);
+    }
+  }
+
+  if (pReader->step == EXTERNAL_ROWS_MAIN) {
+    // If current step is MAIN and the notify timestamp is beyond the main
+    // window, the executor has produced all interpolation points and needs
+    // no more rows from the main window; mark the step as done so the next
+    // tsdbNextDataBlock2 call moves directly to the NEXT step.
+    if (notifyTs > pReader->info.window.ekey) {
+      pReader->currentStepDone = true;
+      tsdbDebug("%s, %s, step: MAIN, notifyTs: %" PRId64
+                ", window.ekey: %" PRId64, pReader->idStr, __func__, notifyTs,
+                pReader->info.window.ekey);
     }
   }
 
@@ -7640,8 +7672,12 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
     */
     if (notifyTs >= pReader->innerReader[1]->info.window.skey) {
       pReader->currentStepDone = true;
-      tsdbDebug("%s, %s, step: NEXT, notifyTs: %" PRIu64
-                ", window.skey: %" PRIu64, pReader->idStr, __func__, notifyTs,
+      // The NEXT step is cancelled before its scan branch runs, so finalize
+      // the state machine here instead of leaving it stuck at NEXT + done:
+      // the next tsdbNextDataBlock2 then returns immediately via EXTERNAL_ROWS_DONE.
+      pReader->step = EXTERNAL_ROWS_DONE;
+      tsdbDebug("%s, %s, step: NEXT done, notifyTs: %" PRId64
+                ", window.skey: %" PRId64, pReader->idStr, __func__, notifyTs,
                 (int64_t)pReader->innerReader[1]->info.window.skey);
     }
   }

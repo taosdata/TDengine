@@ -3610,6 +3610,11 @@ static int32_t pdcDealInterp(SOptimizeContext* pCxt, SInterpFuncLogicNode* pInte
   }
 
   SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+
+  // let the scan skip the one ext-window FILL(PREV)/FILL(NEXT) never reads
+  // (see interpPruneExtWindows; other modes keep both sides)
+  pScan->interpFillMode = pInterp->fillMode;
+
   if (NULL == pInterp->pTimeRange) {
     pScan->pExtScanRange = taosMemoryMalloc(sizeof(*pScan->pExtScanRange));
     TSDB_CHECK_NULL(pScan->pExtScanRange, code, lino, _exit, terrno);

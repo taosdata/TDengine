@@ -3247,6 +3247,25 @@ static int32_t getQueryExtWindow(const STimeWindow* cond, const STimeWindow* ran
   return code;
 }
 
+// @brief Empty the prev (extTwindows[0]) or next (extTwindows[1]) ext window
+// that the interp fill mode never reads, so the storage layer skips scanning
+// for a fill-reference row on that side. interpFillMode carries the EFillMode
+// pushed down from the interp operator; 0 (unset) keeps both sides.
+//
+// Only FILL(PREV) and FILL(NEXT) are pruned, dropping the side opposite to the
+// one they read. NULL/VALUE are intentionally NOT pruned even though they read
+// no reference row: when the main window is empty (RANGE outside the WHERE data
+// range) the ext rows are the only input that makes the interp operator
+// materialize the group and emit its NULL/constant fill points, so dropping
+// them would wrongly yield zero rows. LINEAR/NEAR/NONE need both sides.
+void interpPruneExtWindows(int8_t interpFillMode, STimeWindow* extTwindows) {
+  if (FILL_MODE_PREV == interpFillMode) {
+    extTwindows[1] = TSWINDOW_DESC_INITIALIZER;  // never reads the next side
+  } else if (FILL_MODE_NEXT == interpFillMode) {
+    extTwindows[0] = TSWINDOW_DESC_INITIALIZER;  // never reads the prev side
+  }
+}
+
 static EDealRes condHasRemoteValueWalker(SNode* pNode, void* pContext) {
   if (nodeType(pNode) == QUERY_NODE_REMOTE_VALUE ||
       nodeType(pNode) == QUERY_NODE_REMOTE_VALUE_LIST ||
@@ -3408,6 +3427,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* 
     if (NULL != pTableScanNode->pExtScanRange) {
       pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
       code = getQueryExtWindow(&pCond->twindows, pTableScanNode->pExtScanRange, &pCond->twindows, pCond->extTwindows);
+      interpPruneExtWindows(pTableScanNode->interpFillMode, pCond->extTwindows);
     } else if (readHandle->extWinRangeValid) {
       pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
       code = getQueryExtWindow(&pCond->twindows, &readHandle->extWinRange, &pCond->twindows, pCond->extTwindows);

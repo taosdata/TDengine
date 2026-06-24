@@ -56,49 +56,39 @@ typedef struct STimeSliceOperatorInfo {
 
 static void destroyTimeSliceOperatorInfo(void* param);
 
-static void doKeepPrevRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock* pBlock, int32_t rowIndex) {
+// Copy one column value. Var-length types carry their length in the data
+// itself; fixed-length types use the column-defined byte width.
+static FORCE_INLINE void copyColDataVal(void* dst, char* val, int8_t type,
+                                        int32_t fixedBytes) {
+  int32_t bytes = IS_VAR_DATA_TYPE(type) ?
+                  calcStrBytesByType(type, val) : fixedBytes;
+  memcpy(dst, val, bytes);
+}
+
+static void doKeepRows(SArray* pRowKeeper, const SSDataBlock* pBlock,
+                       int32_t rowIndex) {
   int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
-    SGroupKeys* pkey = taosArrayGet(pSliceInfo->pPrevRow, i);
+    SGroupKeys* pkey = taosArrayGet(pRowKeeper, i);
     if (!colDataIsNull_s(pColInfoData, rowIndex)) {
       pkey->isNull = false;
-      char* val = colDataGetData(pColInfoData, rowIndex);
-      if (IS_VAR_DATA_TYPE(pkey->type)) {
-        int32_t bytes = calcStrBytesByType(pkey->type, val);
-        memcpy(pkey->pData, val, bytes);
-      } else {
-        memcpy(pkey->pData, val, pkey->bytes);
-      }
+      copyColDataVal(pkey->pData, colDataGetData(pColInfoData, rowIndex),
+                     pkey->type, pkey->bytes);
     } else {
       pkey->isNull = true;
     }
   }
+}
 
+static void doKeepPrevRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock* pBlock, int32_t rowIndex) {
+  doKeepRows(pSliceInfo->pPrevRow, pBlock, rowIndex);
   pSliceInfo->isPrevRowSet = true;
 }
 
 static void doKeepNextRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock* pBlock, int32_t rowIndex) {
-  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
-
-    SGroupKeys* pkey = taosArrayGet(pSliceInfo->pNextRow, i);
-    if (!colDataIsNull_s(pColInfoData, rowIndex)) {
-      pkey->isNull = false;
-      char* val = colDataGetData(pColInfoData, rowIndex);
-      if (!IS_VAR_DATA_TYPE(pkey->type)) {
-        memcpy(pkey->pData, val, pkey->bytes);
-      } else {
-        int32_t bytes = calcStrBytesByType(pkey->type, val);
-        memcpy(pkey->pData, val, bytes);
-      }
-    } else {
-      pkey->isNull = true;
-    }
-  }
-
+  doKeepRows(pSliceInfo->pNextRow, pBlock, rowIndex);
   pSliceInfo->isNextRowSet = true;
 }
 
@@ -118,32 +108,15 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
     if (!pLinearInfo->isStartSet) {
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
         pLinearInfo->start.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
-        char* p = colDataGetData(pColInfoData, rowIndex);
-        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
-            memcpy(pLinearInfo->start.val, p, blobDataTLen(p));
-          } else {
-            memcpy(pLinearInfo->start.val, p, varDataTLen(p));
-          }
-        } else {
-          memcpy(pLinearInfo->start.val, p, pLinearInfo->bytes);
-        }
+        copyColDataVal(pLinearInfo->start.val, colDataGetData(pColInfoData, rowIndex),
+                       pColInfoData->info.type, pLinearInfo->bytes);
       }
       pLinearInfo->isStartSet = true;
     } else if (!pLinearInfo->isEndSet) {
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
         pLinearInfo->end.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
-
-        char* p = colDataGetData(pColInfoData, rowIndex);
-        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
-            memcpy(pLinearInfo->end.val, p, blobDataTLen(p));
-          } else {
-            memcpy(pLinearInfo->end.val, p, varDataTLen(p));
-          }
-        } else {
-          memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
-        }
+        copyColDataVal(pLinearInfo->end.val, colDataGetData(pColInfoData, rowIndex),
+                       pColInfoData->info.type, pLinearInfo->bytes);
       }
       pLinearInfo->isEndSet = true;
     } else {
@@ -152,18 +125,8 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
 
       if (!colDataIsNull_s(pColInfoData, rowIndex)) {
         pLinearInfo->end.key = *(int64_t*)colDataGetData(pTsCol, rowIndex);
-
-        char* p = colDataGetData(pColInfoData, rowIndex);
-        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
-            memcpy(pLinearInfo->end.val, p, blobDataTLen(p));
-          } else {
-            memcpy(pLinearInfo->end.val, p, varDataTLen(p));
-          }
-        } else {
-          memcpy(pLinearInfo->end.val, p, pLinearInfo->bytes);
-        }
-
+        copyColDataVal(pLinearInfo->end.val, colDataGetData(pColInfoData, rowIndex),
+                       pColInfoData->info.type, pLinearInfo->bytes);
       } else {
         pLinearInfo->end.key = INT64_MIN;
       }
@@ -176,7 +139,12 @@ static FORCE_INLINE int32_t timeSliceEnsureBlockCapacity(STimeSliceOperatorInfo*
     return TSDB_CODE_SUCCESS;
   }
 
-  uint32_t winNum = (pSliceInfo->win.ekey - pSliceInfo->win.skey) / pSliceInfo->interval.interval;
+  // Interval is non-zero here: checkEvery() rejects month/year-style calendar
+  // units (n/q/y) and a zero interval at translate time. Day/week EVERY values
+  // can be DST-sensitive; this tick-based count is only a capacity-growth
+  // estimate and does not drive timestamp stepping.
+  uint32_t winNum = (pSliceInfo->win.ekey - pSliceInfo->win.skey) /
+                    pSliceInfo->interval.interval;
   uint32_t newRowsNum = pBlock->info.rows + TMIN(winNum / 4 + 1, 1048576);
   int32_t  code = blockDataEnsureCapacity(pBlock, newRowsNum);
   if (code != TSDB_CODE_SUCCESS) {
@@ -187,35 +155,19 @@ static FORCE_INLINE int32_t timeSliceEnsureBlockCapacity(STimeSliceOperatorInfo*
   return TSDB_CODE_SUCCESS;
 }
 
-bool isIrowtsPseudoColumn(SExprInfo* pExprInfo) {
+static bool isIrowtsPseudoColumn(SExprInfo* pExprInfo) {
   char* name = pExprInfo->pExpr->_function.functionName;
   return (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_irowts") == 0);
 }
 
-bool isIsfilledPseudoColumn(SExprInfo* pExprInfo) {
+static bool isIsfilledPseudoColumn(SExprInfo* pExprInfo) {
   char* name = pExprInfo->pExpr->_function.functionName;
   return (IS_BOOLEAN_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_isfilled") == 0);
 }
 
-bool isIrowtsOriginPseudoColumn(SExprInfo* pExprInfo) {
+static bool isIrowtsOriginPseudoColumn(SExprInfo* pExprInfo) {
   const char* name = pExprInfo->pExpr->_function.functionName;
   return (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type) && strcasecmp(name, "_irowts_origin") == 0);
-}
-
-static void tRowGetKeyFromColData(int64_t ts, SColumnInfoData* pPkCol, int32_t rowIndex, SRowKey* pKey) {
-  pKey->ts = ts;
-  pKey->numOfPKs = 1;
-
-  int8_t t = pPkCol->info.type;
-
-  pKey->pks[0].type = t;
-  if (IS_NUMERIC_TYPE(t)) {
-    valueSetDatum(pKey->pks, t, colDataGetData(pPkCol, rowIndex), tDataTypes[t].bytes);
-  } else {
-    char* p = colDataGetVarData(pPkCol, rowIndex);
-    pKey->pks[0].pData = (uint8_t*)varDataVal(p);
-    pKey->pks[0].nData = varDataLen(p);
-  }
 }
 
 typedef enum {
@@ -227,6 +179,11 @@ typedef enum {
 /**
   @brief Timestamp is invalid if current timestamp <= previous timestamp.
   Only timestamp is considered even if composite primary key exists.
+  @note On a valid timestamp this also advances prevKey/prevTsSet, so it must
+  be called exactly once per accepted row. The PREV_TS_SMALLER result is what
+  terminates processing of the prev-extension block, which is scanned in DESC
+  order: its first row is the closest one before the range and is kept, the
+  remaining (older) rows are dropped via this check.
 */
 static EInvalidTimestampReason isInvalidTimestamp(
   STimeSliceOperatorInfo* pSliceInfo, int64_t currentTs,
@@ -262,7 +219,7 @@ static EInvalidTimestampReason isInvalidTimestamp(
   return INVALID_TIMESTAMP_REASON_NONE;
 }
 
-bool isInterpFunc(SExprInfo* pExprInfo) {
+static bool isInterpFunc(SExprInfo* pExprInfo) {
   int32_t functionType = pExprInfo->pExpr->_function.functionType;
   return (functionType == FUNCTION_TYPE_INTERP);
 }
@@ -277,7 +234,7 @@ static bool isSelectGroupConstValueFunc(SExprInfo* pExprInfo) {
   return (functionType == FUNCTION_TYPE_GROUP_CONST_VALUE);
 }
 
-bool getIgoreNullRes(SExprSupp* pExprSup) {
+static bool getIgnoreNullRes(SExprSupp* pExprSup) {
   for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[i];
 
@@ -294,7 +251,7 @@ bool getIgoreNullRes(SExprSupp* pExprSup) {
   return false;
 }
 
-bool checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull) {
+static bool checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull) {
   if (!ignoreNull) {
     return false;
   }
@@ -358,10 +315,8 @@ static bool interpDetermineNearFillRow(STimeSliceOperatorInfo* pSliceInfo, SArra
     pNextTs = (int64_t*)pNextTsKey->pData;
   }
   if (!pPrevTsKey) {
-    *ppNearRow = pSliceInfo->pNextRow;
     checkSurroundingTime(pSliceInfo, ppNearRow, pSliceInfo->pNextRow, *pNextTs);
   } else if (!pNextTsKey) {
-    *ppNearRow = pSliceInfo->pPrevRow;
     checkSurroundingTime(pSliceInfo, ppNearRow, pSliceInfo->pPrevRow, *pPrevTs);
   } else {
     if (llabs(pSliceInfo->current - *pPrevTs) <= 
@@ -610,7 +565,8 @@ _end:
   return hasInterp;
 }
 
-static int32_t addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock,
+static int32_t addCurrentRowToResult(STimeSliceOperatorInfo* pSliceInfo,
+                                     SExprSupp* pExprSup, SSDataBlock* pResBlock,
                                      SSDataBlock* pSrcBlock, int32_t index) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -653,15 +609,19 @@ _end:
   return code;
 }
 
-static int32_t initPrevRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pBlock) {
+// @brief Create the row keeper array if absent and clear the row-set flag.
+// When the keeper already exists (subsequent blocks), both the array and the
+// flag are left untouched.
+static int32_t initRowsKeeper(SArray** ppRows, bool* pIsRowSet,
+                              const SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  if (pInfo->pPrevRow != NULL) {
+  if (*ppRows != NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pInfo->pPrevRow = taosArrayInit(4, sizeof(SGroupKeys));
-  if (pInfo->pPrevRow == NULL) {
+  *ppRows = taosArrayInit(4, sizeof(SGroupKeys));
+  if (*ppRows == NULL) {
     return terrno;
   }
 
@@ -675,11 +635,11 @@ static int32_t initPrevRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pB
     key.isNull = false;
     key.pData = taosMemoryCalloc(1, pColInfo->info.bytes);
     QUERY_CHECK_NULL(key.pData, code, lino, _end, terrno);
-    void* tmp = taosArrayPush(pInfo->pPrevRow, &key);
+    void* tmp = taosArrayPush(*ppRows, &key);
     QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
   }
 
-  pInfo->isPrevRowSet = false;
+  *pIsRowSet = false;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -688,43 +648,8 @@ _end:
   return code;
 }
 
-static int32_t initNextRowsKeeper(STimeSliceOperatorInfo* pInfo, SSDataBlock* pBlock) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  if (pInfo->pNextRow != NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  pInfo->pNextRow = taosArrayInit(4, sizeof(SGroupKeys));
-  if (pInfo->pNextRow == NULL) {
-    return terrno;
-  }
-
-  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
-
-    SGroupKeys key = {0};
-    key.bytes = pColInfo->info.bytes;
-    key.type = pColInfo->info.type;
-    key.isNull = false;
-    key.pData = taosMemoryCalloc(1, pColInfo->info.bytes);
-    QUERY_CHECK_NULL(key.pData, code, lino, _end, terrno);
-
-    void* tmp = taosArrayPush(pInfo->pNextRow, &key);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-  }
-
-  pInfo->isNextRowSet = false;
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-static int32_t initFillLinearInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pBlock) {
+static int32_t initFillLinearInfo(STimeSliceOperatorInfo* pInfo,
+                                  SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   if (pInfo->pLinearInfo != NULL) {
@@ -807,12 +732,12 @@ static int32_t initGroupKeyKeeper(STimeSliceOperatorInfo* pInfo, SExprSupp* pExp
 
 static int32_t initKeeperInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pBlock, SExprSupp* pExprSup) {
   int32_t code;
-  code = initPrevRowsKeeper(pInfo, pBlock);
+  code = initRowsKeeper(&pInfo->pPrevRow, &pInfo->isPrevRowSet, pBlock);
   if (code != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_FAILED;
   }
 
-  code = initNextRowsKeeper(pInfo, pBlock);
+  code = initRowsKeeper(&pInfo->pNextRow, &pInfo->isNextRowSet, pBlock);
   if (code != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_FAILED;
   }
@@ -830,34 +755,36 @@ static int32_t initKeeperInfo(STimeSliceOperatorInfo* pInfo, SSDataBlock* pBlock
   return TSDB_CODE_SUCCESS;
 }
 
-static void resetPrevRowsKeeper(STimeSliceOperatorInfo* pInfo) {
-  if (pInfo->pPrevRow == NULL) {
+static void resetRowsKeeper(SArray* pRows, bool* pIsRowSet) {
+  if (pRows == NULL) {
     return;
   }
 
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pLinearInfo); ++i) {
-    SGroupKeys* pKey = taosArrayGet(pInfo->pPrevRow, i);
+  for (int32_t i = 0; i < taosArrayGetSize(pRows); ++i) {
+    SGroupKeys* pKey = taosArrayGet(pRows, i);
     pKey->isNull = false;
   }
 
-  pInfo->isPrevRowSet = false;
-
-  return;
+  *pIsRowSet = false;
 }
 
-static void resetNextRowsKeeper(STimeSliceOperatorInfo* pInfo) {
-  if (pInfo->pNextRow == NULL) {
-    return;
+static void destroyRowsKeeper(SArray** ppRows) {
+  for (int32_t i = 0; i < taosArrayGetSize(*ppRows); ++i) {
+    SGroupKeys* pKey = taosArrayGet(*ppRows, i);
+    taosMemoryFree(pKey->pData);
   }
+  taosArrayDestroy(*ppRows);
+  *ppRows = NULL;
+}
 
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pLinearInfo); ++i) {
-    SGroupKeys* pKey = taosArrayGet(pInfo->pPrevRow, i);
-    pKey->isNull = false;
+static void destroyFillLinearInfo(SArray** ppLinearInfo) {
+  for (int32_t i = 0; i < taosArrayGetSize(*ppLinearInfo); ++i) {
+    SFillLinearInfo* pLinearInfo = taosArrayGet(*ppLinearInfo, i);
+    taosMemoryFree(pLinearInfo->start.val);
+    taosMemoryFree(pLinearInfo->end.val);
   }
-
-  pInfo->isNextRowSet = false;
-
-  return;
+  taosArrayDestroy(*ppLinearInfo);
+  *ppLinearInfo = NULL;
 }
 
 static void resetFillLinearInfo(STimeSliceOperatorInfo* pInfo) {
@@ -872,13 +799,11 @@ static void resetFillLinearInfo(STimeSliceOperatorInfo* pInfo) {
     pLinearInfo->isStartSet = false;
     pLinearInfo->isEndSet = false;
   }
-
-  return;
 }
 
 static void resetKeeperInfo(STimeSliceOperatorInfo* pInfo) {
-  resetPrevRowsKeeper(pInfo);
-  resetNextRowsKeeper(pInfo);
+  resetRowsKeeper(pInfo->pPrevRow, &pInfo->isPrevRowSet);
+  resetRowsKeeper(pInfo->pNextRow, &pInfo->isNextRowSet);
   resetFillLinearInfo(pInfo);
 }
 
@@ -1164,22 +1089,15 @@ static int32_t copyPrevGroupKey(SExprSupp* pExprSup, SArray* pGroupKeys, SSDataB
       groupKeyIdx++;
       SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, srcSlot);
 
+      // All rows in one upstream block belong to a single group, so row 0 is
+      // representative for the group key columns.
       if (colDataIsNull_s(pSrc, 0)) {
         pGroupKey->isNull = true;
         break;
       }
 
-      char* v = colDataGetData(pSrc, 0);
-      if (IS_VAR_DATA_TYPE(pGroupKey->type)) {
-        if (IS_STR_DATA_BLOB(pGroupKey->type)) {
-          memcpy(pGroupKey->pData, v, blobDataTLen(v));
-        } else {
-          memcpy(pGroupKey->pData, v, varDataTLen(v));
-        }
-      } else {
-        memcpy(pGroupKey->pData, v, pGroupKey->bytes);
-      }
-
+      copyColDataVal(pGroupKey->pData, colDataGetData(pSrc, 0), pGroupKey->type,
+                     pGroupKey->bytes);
       pGroupKey->isNull = false;
     }
   }
@@ -1201,7 +1119,7 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
   STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
   SExprSupp*              pSup = &pOperator->exprSupp;
-  bool                    ignoreNull = getIgoreNullRes(pSup);
+  bool                    ignoreNull = getIgnoreNullRes(pSup);
   int32_t                 order = TSDB_ORDER_ASC;
 
   if (pSup->pFilterInfo != NULL) {
@@ -1231,6 +1149,14 @@ static void doHandleTimeslice(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   doTimesliceImpl(pOperator, pSliceInfo, pBlock, pTaskInfo, ignoreNull);
   code = copyPrevGroupKey(&pOperator->exprSupp, pSliceInfo->pPrevGroupKeys, pBlock);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  if (checkWindowBoundReached(pSliceInfo)) {
+    // All interpolation points are produced. Arm the step-done notification
+    // right away so the very next fetch lets the reader skip the remaining
+    // main-window data instead of wasting one more block read.
+    code = setDownstreamOpGetParam(pOperator, pSliceInfo->win.ekey + 1);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -1410,27 +1336,11 @@ static int32_t resetTimeSliceOperState(SOperatorInfo* pOper) {
   }
   blockDataCleanup(pInfo->pRes);
 
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pPrevRow); ++i) {
-    SGroupKeys* pKey = taosArrayGet(pInfo->pPrevRow, i);
-    taosMemoryFree(pKey->pData);
-  }
-  taosArrayDestroy(pInfo->pPrevRow);
-  pInfo->pPrevRow = NULL;
-
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pNextRow); ++i) {
-    SGroupKeys* pKey = taosArrayGet(pInfo->pNextRow, i);
-    taosMemoryFree(pKey->pData);
-  }
-  taosArrayDestroy(pInfo->pNextRow);
-  pInfo->pNextRow = NULL;
-
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pLinearInfo); ++i) {
-    SFillLinearInfo* pKey = taosArrayGet(pInfo->pLinearInfo, i);
-    taosMemoryFree(pKey->start.val);
-    taosMemoryFree(pKey->end.val);
-  }
-  taosArrayDestroy(pInfo->pLinearInfo);
-  pInfo->pLinearInfo = NULL;
+  // These keepers/cache are built lazily from the input block layout. Drop
+  // them on reset so the next execution rebuilds them from fresh input state.
+  destroyRowsKeeper(&pInfo->pPrevRow);
+  destroyRowsKeeper(&pInfo->pNextRow);
+  destroyFillLinearInfo(&pInfo->pLinearInfo);
 
   if (pInfo->pPrevGroupKeys) {
     taosArrayDestroyEx(pInfo->pPrevGroupKeys, destroyGroupKey);
@@ -1519,7 +1429,7 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream,
   pInfo->interval.intervalUnit = 0;
   pInfo->interval.slidingUnit = 0;
   /*
-   * Enable calendar/DST-aware EVERY stepping (d/w/n/q/y) only when the session
+   * Enable calendar/DST-aware EVERY stepping (d/w) only when the session
    * timezone was propagated by the client plan. Plans serialized by pre-upgrade
    * clients carry no timezone (and no precision), so we keep the historical
    * fixed-duration stepping by leaving intervalUnit unset -- this keeps a new
@@ -1588,24 +1498,9 @@ void destroyTimeSliceOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pRes);
   pInfo->pRes = NULL;
 
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pPrevRow); ++i) {
-    SGroupKeys* pKey = taosArrayGet(pInfo->pPrevRow, i);
-    taosMemoryFree(pKey->pData);
-  }
-  taosArrayDestroy(pInfo->pPrevRow);
-
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pNextRow); ++i) {
-    SGroupKeys* pKey = taosArrayGet(pInfo->pNextRow, i);
-    taosMemoryFree(pKey->pData);
-  }
-  taosArrayDestroy(pInfo->pNextRow);
-
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pLinearInfo); ++i) {
-    SFillLinearInfo* pKey = taosArrayGet(pInfo->pLinearInfo, i);
-    taosMemoryFree(pKey->start.val);
-    taosMemoryFree(pKey->end.val);
-  }
-  taosArrayDestroy(pInfo->pLinearInfo);
+  destroyRowsKeeper(&pInfo->pPrevRow);
+  destroyRowsKeeper(&pInfo->pNextRow);
+  destroyFillLinearInfo(&pInfo->pLinearInfo);
 
   if (pInfo->pPrevGroupKeys) {
     taosArrayDestroyEx(pInfo->pPrevGroupKeys, destroyGroupKey);
