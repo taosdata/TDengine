@@ -174,8 +174,8 @@ int32_t taosResetTerminalMode();
   }
 #else
 
+#include "osWindows.h"
 #include <dbghelp.h>
-#include <windows.h>
 
 #define taosLogTraceToBuf(buf, bufSize, ignoreNum)                                                                   \
   {                                                                                                                  \

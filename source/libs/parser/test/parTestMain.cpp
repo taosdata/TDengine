@@ -13,16 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
+
 #include <getopt.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 
 #include <gtest/gtest.h>
-
-#ifdef WINDOWS
-#define TD_USE_WINSOCK
-#endif
 
 #include "functionMgt.h"
 #include "mockCatalog.h"

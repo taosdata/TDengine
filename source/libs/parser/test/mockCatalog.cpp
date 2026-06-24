@@ -12,6 +12,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
+
 #include <iostream>
 #include "stub.h"
 
@@ -21,10 +25,6 @@
 #include <addr_any.h>
 
 #pragma GCC diagnostic pop
-
-#ifdef WINDOWS
-#define TD_USE_WINSOCK
-#endif
 
 #include "mockCatalog.h"
 

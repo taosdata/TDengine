@@ -41,7 +41,7 @@ int32_t tsem_destroy(tsem_t *sem);
 #define tsem2_destroy  tsem_destroy
 
 #elif defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-#include <windows.h>
+#include "osWindows.h"
 
 #define tsem_t HANDLE
 

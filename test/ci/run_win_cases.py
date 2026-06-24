@@ -20,6 +20,13 @@ exit_flag = False  # 全局退出标志
 current_process = None  # 当前运行的子进程
 
 
+def normalize_pytest_command(pytest_cmd: str) -> str:
+    """Force pytest to run under the current Python interpreter on Windows CI."""
+    if not pytest_cmd.startswith("pytest"):
+        return pytest_cmd
+    return f'"{sys.executable}" -m {pytest_cmd}'
+
+
 def signal_handler(signum, frame):
     """处理 Ctrl+C 信号"""
     global exit_flag, current_process
@@ -423,7 +430,7 @@ def process_pytest_file(
                     break
 
                 global current_process
-                pytest_cmd_clean = f"{pytest_cmd} --clean"
+                pytest_cmd_clean = f"{normalize_pytest_command(pytest_cmd)} --clean"
 
                 with open(log_file, "w", buffering=1) as log:
                     current_process = subprocess.Popen(
