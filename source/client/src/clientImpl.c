@@ -1998,6 +1998,7 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
 
   if (auth == NULL) {
     tscError("No auth info is given, failed to connect to server");
+    terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
 
@@ -2007,9 +2008,12 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
     int64_t* rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos connect to %s:%u, user:%s db:%s", ip, port, user, db);
+      return NULL;
     }
     *rid = pObj->id;
     return (TAOS*)rid;
+  } else {
+    terrno = code;
   }
 
   return NULL;
