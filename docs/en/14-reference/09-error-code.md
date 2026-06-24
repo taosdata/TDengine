@@ -149,6 +149,7 @@ Below are the business error codes for each module.
 | 0x8000022E | No available execution node       | No available query execution node               | Check the current query policy configuration, ensure available Qnode if needed    |
 | 0x8000022F | Table is not a supertable         | Table name in the statement is not a supertable | Check if the table name used in the statement is a supertable                     |
 | 0x80000230 | Stmt cache error                  | STMT/STMT2 internal cache error                 | Preserve the scene and logs, report issue on GitHub                               |
+| 0x80000237 | Operation not supported in windows | The operation is not supported on Windows       | Run the operation on a supported operating system or avoid this operation on Windows |
 | 0x80000238 | Invalid TOTP code                 | Invalid TOTP code                               | Check and enter the correct TOTP code                                             |
 | 0x80000239 |  reached the maximum sessions per user limit |   reached the maximum sessions per user limit      | Check user parameter |
 | 0x8000023A |  reached the maximum connection timeout limit|    reached the maximum connection timeout limit    | Check user parameter |
@@ -608,6 +609,7 @@ Below are the business error codes for each module.
 | 0x800026B9 | RANGE offset frame requires exactly one ORDER BY expression                                            | RANGE frame with offset has multiple ORDER BY expressions                  | Reduce ORDER BY to one expression for this RANGE frame        |
 | 0x800026BA | Invalid window frame bound                                                                             | The frame start or end bound is invalid                                    | Fix the frame boundary to a valid PRECEDING/FOLLOWING form    |
 | 0x800026BB | Invalid window function argument                                                                       | Window function argument is invalid or out of range                        | Correct the function argument count, type, or value           |
+| 0x800026BC | Invalid window function argument                                                                       | Window function argument is invalid or out of range                        | Correct the function argument count, type, or value           |
 | 0x800026FF | Parser internal error                                                                                  | Internal error in parser                                                   | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002700 | Planner internal error                                                                                 | Internal error in planner                                                  | Preserve the scene and logs, report issue on GitHub          |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN condition validation failed                                           | Preserve the scene and logs, report issue on GitHub          |
