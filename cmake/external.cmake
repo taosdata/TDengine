@@ -1923,6 +1923,227 @@ if(${BUILD_LIBSASL})      # {
 endif(${BUILD_LIBSASL})   # }
 endif()
 
+if(TD_TAOS_TOOLS)
+# arrow + parquet (Apache Arrow C++ with bundled third-party dependencies)
+# Linux/macOS produces: libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
+# Windows/MSVC produces: parquet_static.lib  arrow_static.lib  arrow_bundled_dependencies.lib
+if(${TD_WINDOWS})
+    INIT_EXT(ext_arrow
+        INC_DIR  include
+        LIB      lib/parquet_static.lib lib/arrow_static.lib lib/arrow_bundled_dependencies.lib
+    )
+else()
+    INIT_EXT(ext_arrow
+        INC_DIR  include
+        LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
+    )
+endif()
+# Source: https://github.com/apache/arrow tag apache-arrow-19.0.1
+get_from_local_if_exists(
+    "https://github.com/apache/arrow/archive/refs/tags/apache-arrow-19.0.1.tar.gz"
+    "arrow-apache-arrow-19.0.1.tar.gz"
+)
+# Platform-specific cmake args for the Arrow sub-build
+set(ARROW_EXTRA_CMAKE_ARGS "")
+if(NOT ${TD_WINDOWS})
+    set(_arrow_c_flags "-ffunction-sections -fdata-sections")
+    if(${TD_DARWIN})
+        set(_arrow_cxx_flags "-ffunction-sections -fdata-sections -include array")
+    else()
+        set(_arrow_cxx_flags "-ffunction-sections -fdata-sections")
+    endif()
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DCMAKE_C_FLAGS:STRING=${_arrow_c_flags}"
+        "-DCMAKE_CXX_FLAGS:STRING=${_arrow_cxx_flags}"
+    )
+    # GCC 14 changed inlining behaviour for functions carrying both
+    # __attribute__((always_inline)) and __attribute__((target("sse2"))).
+    # Under -Og the compiler emits a hard compilation error (not a warning)
+    # when it cannot inline such a function, which breaks the vendored xxhash
+    # SSE2 helpers (XXH3_scrambleAcc_sse2 / XXH3_accumulate_sse2).
+    # Switching to -O1 avoids the restriction while still producing debuggable
+    # binaries. -O1 is strictly better than -Og here because -Og explicitly
+    # disables optimizations that would allow inlining across target boundaries.
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DCMAKE_C_FLAGS_DEBUG:STRING=-O1 -g"
+        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=-O1 -g"
+    )
+    # Arrow's SetupCxxFlags.cmake appends -Werror to DEBUG builds when the
+    # warning level is CHECKIN (the default). Use PRODUCTION to keep the
+    # build clean without -Werror.
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DBUILD_WARNING_LEVEL:STRING=PRODUCTION"
+    )
+    # -Os replaces the default -O3 in Release builds, shrinking Arrow's
+    # code sections by ~15-20 %. Specified via the build-type-specific variable
+    # so it unambiguously overrides the compiler's Release default.
+    # CMAKE_INTERPROCEDURAL_OPTIMIZATION enables LTO across Arrow and its
+    # bundled deps (snappy, thrift ...), letting the linker dead-strip at a finer
+    # granularity than --gc-sections alone.
+    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DCMAKE_C_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
+            "-DCMAKE_CXX_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
+            "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
+            "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
+        )
+    endif()
+else()
+    # Match the MSVC DLL CRT (/MD) used by the rest of the project
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        -DARROW_USE_STATIC_CRT:BOOL=OFF
+    )
+    # Disable ccache/sccache detection in Arrow sub-build.
+    # Strawberry Perl ships ccache.exe but it mishandles MSVC response-file
+    # /Fo output, causing .obj files to disappear silently (LNK1181).
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        -DARROW_USE_CCACHE:BOOL=OFF
+        -DARROW_USE_SCCACHE:BOOL=OFF
+    )
+    # Explicitly forward compiler/linker/make so ExternalProject_Add
+    # CMake configure step does not depend on having cl.exe in PATH.
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}"
+        "-DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}"
+        "-DCMAKE_LINKER:FILEPATH=${CMAKE_LINKER}"
+        "-DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}"
+        "-DCMAKE_AR:FILEPATH=${CMAKE_AR}"
+    )
+    # Arrow 19.0.1 bug on MSVC: parquet/size_statistics.cc uses std::array
+    # without #include <array>. GCC/Clang pick it up transitively via other
+    # standard headers; MSVC does not.
+    # IMPORTANT: ARROW_CXX_FLAGS_* is inside if(NOT MSVC) in Arrow's
+    # SetupCxxFlags.cmake and has NO effect on MSVC builds. We must set
+    # CMAKE_CXX_FLAGS_* directly, repeating the MSVC platform defaults so
+    # cmake does not lose them:
+    #   Debug defaults:          /Zi /Ob0 /Od /RTC1
+    #   Release defaults:        /O2 /Ob2 /DNDEBUG  (we replace /O2 with /O1)
+    #   RelWithDebInfo defaults: /Zi /O2 /Ob1 /DNDEBUG  (replace /O2 with /O1)
+    # Additional MSVC size-reduction flags:
+    #   /FI array  = force-include <array> (fixes size_statistics.cc)
+    #   /O1        = minimize size (replaces default /O2 in Release builds)
+    #   /Gy        = function-level COMDAT (equivalent of -ffunction-sections)
+    #   /Gw        = data-level COMDAT     (equivalent of -fdata-sections)
+    #   /wd4146    = allow unary minus on unsigned in Arrow SIMD code
+    #   /wd4996    = silence unsafe CRT warnings
+    #   /wd4244    = allow narrowing conversions in Arrow code
+    #   /wd4456    = nested-local shadow in generated benchmarks/examples
+    #   /wd4459    = parameter shadowing in vendored code
+    #   /wd4828    = source file encoding warnings from vendored headers
+    #   /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING
+    #              = suppress deprecated shared_ptr atomic free functions used
+    #                by Arrow 19.0.1 with newer MSVC toolsets.
+    #
+    # Also switch MSVC's __cplusplus macro to the real language level so
+    # Arrow's C++17 feature checks (e.g. std::void_t in type_traits.h) work.
+    # Without /Zc:__cplusplus MSVC reports 199711L even in C++17 mode, causing
+    # build failures like:
+    #   error C2039: 'void_t': is not a member of 'std'
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DCMAKE_CXX_STANDARD:STRING=17"
+        "-DCMAKE_CXX_STANDARD_REQUIRED:BOOL=ON"
+        "-DCMAKE_CXX_EXTENSIONS:BOOL=OFF"
+        "-DCMAKE_CXX_FLAGS:STRING=/Zc:__cplusplus"
+        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zc:__cplusplus /FIarray /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Zi /Ob0 /Od /RTC1"
+        "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/Zc:__cplusplus /FIarray /O1 /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Ob2 /DNDEBUG"
+        "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zc:__cplusplus /FIarray /O1 /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Zi /Ob1 /DNDEBUG"
+    )
+    # Keep the corresponding C flags in sync with the size/debug goals.
+    list(APPEND ARROW_EXTRA_CMAKE_ARGS
+        "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Od /RTC1"
+        "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /DNDEBUG"
+        "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /DNDEBUG"
+    )
+endif()
+
+set(_arrow_ts_args "")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+    list(APPEND _arrow_ts_args DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+endif()
+
+# Collect all Arrow cmake arguments into one list so we can wrap the configure
+# command with an environment prefix when necessary.
+set(_arrow_cmake_args
+    -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+    -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    -DCMAKE_INSTALL_LIBDIR:PATH=lib
+    -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+    -DCMAKE_CXX_STANDARD:STRING=17
+    -DARROW_BUILD_STATIC:BOOL=ON
+    -DARROW_BUILD_SHARED:BOOL=OFF
+    -DARROW_PARQUET:BOOL=ON
+    -DARROW_IPC:BOOL=ON
+    -DARROW_COMPUTE:BOOL=OFF
+    -DARROW_DATASET:BOOL=OFF
+    -DARROW_FLIGHT:BOOL=OFF
+    -DARROW_FILESYSTEM:BOOL=OFF
+    -DARROW_S3:BOOL=OFF
+    -DARROW_WITH_SNAPPY:BOOL=ON
+    -DARROW_WITH_ZLIB:BOOL=OFF
+    -DARROW_WITH_ZSTD:BOOL=OFF
+    -DARROW_WITH_LZ4:BOOL=OFF
+    -DARROW_WITH_BZ2:BOOL=OFF
+    -DARROW_BUILD_TESTS:BOOL=OFF
+    -DARROW_BUILD_BENCHMARKS:BOOL=OFF
+    -DARROW_DEPENDENCY_SOURCE:STRING=BUNDLED
+    -DARROW_VERBOSE_THIRDPARTY_BUILD:BOOL=OFF
+    -DARROW_JEMALLOC:BOOL=OFF
+    -DARROW_BUILD_UTILITIES:BOOL=OFF
+    -DARROW_USE_GLOG:BOOL=OFF
+    -DPARQUET_REQUIRE_ENCRYPTION:BOOL=OFF
+    -DARROW_SIMD_LEVEL:STRING=NONE
+    -DARROW_RUNTIME_SIMD_LEVEL:STRING=NONE
+    -DBUILD_WARNING_LEVEL:STRING=PRODUCTION
+    ${ARROW_EXTRA_CMAKE_ARGS}
+)
+
+# CMake 4.0+ removed compatibility with cmake_minimum_required(VERSION < 3.5).
+# Arrow 19.0.1 bundles mimalloc 2.0 which declares VERSION 3.0, causing the
+# mimalloc_ep configure step to fail on newer CMake. Raise the policy floor by
+# injecting CMAKE_POLICY_VERSION_MINIMUM into the Arrow sub-build environment.
+set(_arrow_configure_env "")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+    set(_arrow_configure_env "${CMAKE_COMMAND}" -E env CMAKE_POLICY_VERSION_MINIMUM=3.5)
+endif()
+
+set(_arrow_patch_command "")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+    # CMake 4.0+ removed compatibility with cmake_minimum_required(VERSION < 3.5).
+    # Arrow 19.0.1's bundled mimalloc declares VERSION 3.0, so patch Arrow's
+    # ThirdpartyToolchain.cmake to pass CMAKE_POLICY_VERSION_MINIMUM to every
+    # vendored dependency it builds.
+    set(_arrow_patch_command
+        "${CMAKE_COMMAND}"
+        -DARROW_SOURCE_DIR=<SOURCE_DIR>
+        -P "${CMAKE_CURRENT_LIST_DIR}/arrow-cmake4-mimalloc-fix.cmake"
+    )
+endif()
+
+if(_arrow_patch_command)
+    set(_arrow_patch_arg PATCH_COMMAND ${_arrow_patch_command})
+else()
+    set(_arrow_patch_arg "")
+endif()
+
+ExternalProject_Add(ext_arrow
+    URL ${_url}
+    URL_HASH SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
+    ${_arrow_ts_args}
+    PREFIX         "${_base}"
+    SOURCE_SUBDIR  cpp
+    CMAKE_ARGS     ${_arrow_cmake_args}
+    CONFIGURE_COMMAND ${_arrow_configure_env} "${CMAKE_COMMAND}" <SOURCE_DIR>/cpp ${CMAKE_ARGS}
+    ${_arrow_patch_arg}
+    BUILD_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+    INSTALL_COMMAND
+        COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    EXCLUDE_FROM_ALL TRUE
+    VERBATIM
+)
+add_dependencies(build_externals ext_arrow)     # this is for github workflow in cache-miss step.
+endif()
+
 if(BUILD_PYUDF)
 
 # ── CPython SDK (headers + import libs, auto-downloaded) ─────────────────
