@@ -241,6 +241,7 @@ SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* pTableScanNode,
                                const SReadHandle* readHandle, bool applyExtWin);
+void    interpPruneExtWindows(int8_t interpFillMode, STimeWindow* extTwindows);
 int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTableDataCond* pOrgCond,
                                      const SReadHandle* readHandle, SArray* colArray);
 

@@ -352,8 +352,27 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
   if (requirement < DATA_ORDER_LEVEL_IN_BLOCK) {
     requirement = DATA_ORDER_LEVEL_IN_BLOCK;
   }
-  if (DATA_ORDER_LEVEL_IN_BLOCK == requirement || pScan->placeholderType == SP_PARTITION_TBNAME || pScan->placeholderType == SP_PARTITION_ROWS) {
+  // An interp RANGE scan grouped by tbname makes every group a single child
+  // table, which the storage layer already returns in timestamp order, so the
+  // in-group order requirement needs no multi-table merge: a plain table scan
+  // suffices and lets interp reuse the mature per-table RANGE-pruning
+  // optimizations instead of the merge-scan probe. Scoped to interp
+  // (pExtScanRange set) to leave other tbname-grouped queries on their existing
+  // merge-scan path.
+  bool interpRangeByTbname = (NULL != pScan->pExtScanRange) && keysHasTbname(pScan->pGroupTags);
+  if (DATA_ORDER_LEVEL_IN_BLOCK == requirement ||
+      pScan->placeholderType == SP_PARTITION_TBNAME ||
+      pScan->placeholderType == SP_PARTITION_ROWS ||
+      interpRangeByTbname) {
     pScan->scanType = SCAN_TYPE_TABLE;
+    if (interpRangeByTbname) {
+      // Emit one group per child table so each gets its own scan pass. An
+      // interp RANGE scan opens a per-reader external (3-segment) reader,
+      // which is not per-table; without per-table groups all child tables
+      // would share one external reader and only the first would get its
+      // fill-reference rows.
+      pScan->groupSort = true;
+    }
   } else if (TSDB_SUPER_TABLE == pScan->tableType) {
     if (pScan->smallDataScanSort) {
       if (planScanHasSortAncestor(pScan)) {
@@ -855,6 +874,23 @@ static void adjustLimitWithOffset(SLimitNode* pLimit) {
     pLimit->limit->datum.i += pLimit->offset->datum.i;
     pLimit->offset->datum.i = 0;
   }
+}
+
+bool isPartTableInterp(SInterpFuncLogicNode* pInterp) {
+  if (1 != LIST_LENGTH(pInterp->node.pChildren)) {
+    return false;
+  }
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pInterp->node.pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    return false;
+  }
+  SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  // Each partition-by-tbname group lives entirely on a single vnode, and the
+  // scan already emits group-ordered rows (groupSort, set by the interp RANGE
+  // by-tbname rewrite), so interp can be computed per vnode and pushed below the
+  // exchange instead of going through the cross-table Merge. partition by tag may
+  // span vnodes, so it is excluded and keeps the merge path.
+  return keysHasTbname(pScan->pGroupTags) && pScan->groupSort;
 }
 
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned) {

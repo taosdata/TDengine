@@ -15,6 +15,7 @@ from new_test_framework.utils.streamUtil import StreamItem, tdStream
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 from new_test_framework.utils.common import TDCom, tdCom
 import os
+import re
 from random import randrange
 import subprocess
 from tzlocal import get_localzone
@@ -1342,6 +1343,263 @@ class TestInterpFill:
         tdSql.checkData(0, 0, "2026-01-07 00:00:00.000")
         tdSql.checkData(0, 2, "2026-01-06 18:53:19.000")
         tdSql.checkData(0, 3, True)
+
+    def get_table_scan_check_rows(self, sql: str) -> int:
+        """Run `explain analyze` on the given sql and extract the check_rows
+        counter of the (single) table scan operator from the output."""
+        tdSql.query(f"explain analyze verbose true {sql}")
+        for row in tdSql.queryResult:
+            m = re.search(r"check_rows=(\d+)", row[0])
+            if m:
+                return int(m.group(1))
+        raise AssertionError("check_rows not found in explain analyze output")
+
+    def test_main_scan_early_stop(self):
+        """Interp stops the main-window scan early once output is complete
+
+        1. An interp query on a single child table uses a plain table scan
+        with the three-step external reader (prev/main/next windows pushed
+        down from the RANGE clause). Once all interpolation points are
+        produced (current passes the range end), the timeslice operator
+        notifies the reader via tsdReaderStepDone so the remaining
+        main-window data is skipped instead of being scanned and discarded.
+        2. Verify the query result stays correct, and use explain analyze to
+        assert the scanned row count stays far below a full-table scan:
+        ctb0 holds 500,000 rows while EVERY(7d) yields a single
+        interpolation point at the range start, so the expected cost is
+        roughly one batch of the main window plus one block of the
+        next-window scan.
+
+        Catalog:
+            - Query:Interp
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-06-11 Tony Zhang created
+
+        """
+        tdSql.execute("use fill_interp_test")
+
+        # ctb0: 500,000 rows, one per second,
+        # 2026-01-01 00:00:00.000 .. 2026-01-06 18:53:19.000
+        sql = """select _irowts, interp(v) from ctb0
+                 range('2026-01-01 00:00:00', '2026-01-06 18:00:00')
+                 every(7d) fill(prev)"""
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2026-01-01 00:00:00.000")
+
+        check_rows = self.get_table_scan_check_rows(sql)
+        assert check_rows < 100000, \
+            f"main-window scan was not stopped early, check_rows={check_rows}"
+
+        # same shape with fill(next): the single point is filled from the
+        # first row at/after the range start, the rest of the main window is
+        # still skippable
+        sql = """select _irowts, interp(v) from ctb0
+                 range('2026-01-01 00:00:00.500', '2026-01-06 18:00:00')
+                 every(7d) fill(next)"""
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2026-01-01 00:00:00.500")
+
+        check_rows = self.get_table_scan_check_rows(sql)
+        assert check_rows < 100000, \
+            f"main-window scan was not stopped early, check_rows={check_rows}"
+
+    def test_ext_window_early_stop(self):
+        """Interp early-stop on the prev/next external-reader segments
+
+        Counterpart to test_main_scan_early_stop, exercising the prev/next
+        extension windows of the three-step external reader on a single
+        child table (plain table scan):
+
+        1. fill(next) on a single-instant range with no exact row: the fill
+           reference is the first row after the instant, which lives in the
+           NEXT extension. The reader reaches it in the EXTERNAL_ROWS_NEXT
+           step; tsdbReaderStepDone must finalize the reader to
+           EXTERNAL_ROWS_DONE (asserted via the "step: NEXT done" tsdb debug
+           marker) instead of leaving it stuck at NEXT + currentStepDone.
+        2. fill(prev) on the same instant: the reference is the closest row
+           in the PREV extension; the prev segment must stop at that row
+           rather than draining the whole pre-range region.
+
+        Both assert the result value against the bounding row and bound the
+        scan cost with explain analyze check_rows.
+
+        Catalog:
+            - Query:Interp
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-06-17 Tony Zhang created
+
+        """
+        tdSql.execute("use fill_interp_test")
+        # the prev/next finalize markers are emitted by the tsdb reader
+        tdSql.execute("alter dnode 1 'tsdbDebugFlag 135'")
+
+        # work relative to the first row so the test is timezone independent
+        tdSql.query("select cast(first(ts) as bigint) from ctb0")
+        t0 = tdSql.queryResult[0][0]
+        # a sub-second instant 100,000s into the data: no exact row (rows are
+        # one per second), so the main window [inst, inst] holds nothing and
+        # the fill reference must come from a prev/next extension row
+        inst = t0 + 100000 * 1000 + 500
+
+        tdSql.query(f"select v from ctb0 where ts = {inst - 500}")
+        prev_ref = tdSql.queryResult[0][0]
+        tdSql.query(f"select v from ctb0 where ts = {inst + 500}")
+        next_ref = tdSql.queryResult[0][0]
+
+        # --- 1. fill(next): reference in the NEXT extension, NEXT -> DONE ---
+        next_done_base = findTaosdLog("step: NEXT done", retry=1)
+        sql = f"""select cast(_irowts as bigint), _isfilled, interp(v)
+                  from ctb0 range({inst}) fill(next)"""
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, inst)
+        tdSql.checkData(0, 1, True)
+        assert tdSql.queryResult[0][2] == next_ref, \
+            "fill(next) did not take the next-extension reference row"
+
+        check_rows = self.get_table_scan_check_rows(sql)
+        assert check_rows < 50000, \
+            f"next-extension scan was not stopped early, check_rows={check_rows}"
+        assert findTaosdLog("step: NEXT done") > next_done_base, \
+            "NEXT step did not finalize to EXTERNAL_ROWS_DONE (Issue 2 fix)"
+
+        # --- 2. fill(prev): reference in the PREV extension, stop at it ---
+        sql = f"""select cast(_irowts as bigint), _isfilled, interp(v)
+                  from ctb0 range({inst}) fill(prev)"""
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, inst)
+        tdSql.checkData(0, 1, True)
+        assert tdSql.queryResult[0][2] == prev_ref, \
+            "fill(prev) did not take the prev-extension reference row"
+
+        check_rows = self.get_table_scan_check_rows(sql)
+        assert check_rows < 50000, \
+            f"prev-extension scan was not stopped early, check_rows={check_rows}"
+
+        tdSql.execute("alter dnode 1 'tsdbDebugFlag 131'")
+
+    def get_scan_operator_type(self, sql: str) -> str:
+        """Run `explain` and return 'merge' if the scan is a Table Merge Scan,
+        'table' if it is a plain Table Scan."""
+        tdSql.query(f"explain {sql}")
+        for row in tdSql.queryResult:
+            # "Table Merge Scan" must be tested first: "Table Scan" would also
+            # match the plain-scan branch, so check the more specific name.
+            if "Table Merge Scan" in row[0]:
+                return "merge"
+            if "Table Scan" in row[0]:
+                return "table"
+        raise AssertionError(f"no scan operator found in explain of: {sql}")
+
+    def test_interp_partition_by_tbname_plain_scan(self):
+        """Interp RANGE PARTITION BY tbname degenerates to a plain Table Scan
+
+        1. PARTITION BY tbname makes every group a single child table, whose
+        data lives entirely on one vnode, so no Table Merge Scan is needed: the
+        planner uses a plain Table Scan and reuses the per-table RANGE-pruning
+        path. Each group opens its own external (prev/main/next) reader, so all
+        child tables sharing a vnode must come back, not just the first.
+        2. Use a single-vgroup database with several child tables in the one
+        vnode (the case that exercises the per-group external-reader reuse) and
+        check every fill mode returns all tables with the right reference rows.
+        3. Assert the plan: PARTITION BY tbname uses Table Scan, while
+        PARTITION BY tag and the unpartitioned super-table interp still use
+        Table Merge Scan.
+
+        Catalog:
+            - Query:Interp
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-06-16 Tony Zhang created
+
+        """
+        tdSql.execute("drop database if exists interp_tbname_scan")
+        tdSql.execute("create database interp_tbname_scan vgroups 1")
+        tdSql.execute("use interp_tbname_scan")
+        tdSql.execute("create table stb (ts timestamp, v int) tags (gid int)")
+        # Distinct prev/next values per table so a dropped group is caught.
+        # Every child table has one row before and one row after the RANGE,
+        # so the external reader must read both the prev and next windows.
+        rows = {"c0": (10, 100), "c1": (20, 200), "c2": (30, 300), "c3": (40, 400)}
+        for tb, (lo, hi) in rows.items():
+            gid = int(tb[1:])
+            tdSql.execute(f"create table {tb} using stb tags ({gid})")
+            tdSql.execute(
+                f"insert into {tb} values ('2024-01-01 01:00:00', {lo}) "
+                f"('2024-01-01 03:00:00', {hi})")
+        names = sorted(rows)  # c0, c1, c2, c3
+
+        rng = "range('2024-01-01 02:00:00', '2024-01-01 02:01:00') every(1m)"
+
+        # fill(prev): both points of each table take the table's prev row
+        tdSql.query(
+            f"select tbname, interp(v) from stb partition by tbname {rng} "
+            f"fill(prev) order by tbname")
+        tdSql.checkRows(2 * len(rows))
+        for i, tb in enumerate(names):
+            lo = rows[tb][0]
+            tdSql.checkData(2 * i, 0, tb)
+            tdSql.checkData(2 * i, 1, lo)
+            tdSql.checkData(2 * i + 1, 1, lo)
+
+        # fill(next): both points take the table's next row
+        tdSql.query(
+            f"select tbname, interp(v) from stb partition by tbname {rng} "
+            f"fill(next) order by tbname")
+        tdSql.checkRows(2 * len(rows))
+        for i, tb in enumerate(names):
+            hi = rows[tb][1]
+            tdSql.checkData(2 * i, 0, tb)
+            tdSql.checkData(2 * i, 1, hi)
+            tdSql.checkData(2 * i + 1, 1, hi)
+
+        # fill(linear): every table still produces both points, interpolated
+        # strictly between its prev (lo) and next (hi) rows
+        tdSql.query(
+            f"select tbname, interp(v) from stb partition by tbname {rng} "
+            f"fill(linear) order by tbname")
+        tdSql.checkRows(2 * len(rows))
+        for i, tb in enumerate(names):
+            lo, hi = rows[tb]
+            for r in (2 * i, 2 * i + 1):
+                tdSql.checkData(r, 0, tb)
+                val = tdSql.queryResult[r][1]
+                assert lo < val < hi, \
+                    f"{tb} linear value {val} not between {lo} and {hi}"
+
+        # Plan assertions: tbname partition -> plain Table Scan; tag/column partition
+        # and no partition -> Table Merge Scan (unchanged).
+        assert self.get_scan_operator_type(
+            f"select interp(v) from stb partition by tbname {rng} fill(prev)"
+        ) == "table", "PARTITION BY tbname interp should use a plain Table Scan"
+        assert self.get_scan_operator_type(
+            f"select interp(v) from stb partition by gid {rng} fill(prev)"
+        ) == "merge", "PARTITION BY tag interp should keep the Table Merge Scan"
+        assert self.get_scan_operator_type(
+            f"select interp(v) from stb partition by v {rng} fill(prev)"
+        ) == "merge", "PARTITION BY column interp should keep the Table Merge Scan"
+        assert self.get_scan_operator_type(
+            f"select interp(v) from stb {rng} fill(prev)"
+        ) == "merge", "Unpartitioned super-table interp should keep the Table Merge Scan"
+
+        tdSql.execute("drop database interp_tbname_scan")
 
     #
     # ------------------- extend ----------------

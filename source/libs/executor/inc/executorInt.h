@@ -890,10 +890,6 @@ int64_t getDeleteMark(SWindowPhysiNode* pWinPhyNode, int64_t interval);
 void    resetUnCloseSessionWinInfo(SSHashObj* winMap);
 void    setStreamOperatorCompleted(struct SOperatorInfo* pOperator);
 void    destroyFlusedPos(void* pRes);
-bool    isIrowtsPseudoColumn(SExprInfo* pExprInfo);
-bool    isIsfilledPseudoColumn(SExprInfo* pExprInfo);
-bool    isInterpFunc(SExprInfo* pExprInfo);
-bool    isIrowtsOriginPseudoColumn(SExprInfo* pExprInfo);
 
 int32_t encodeSSessionKey(void** buf, SSessionKey* key);
 void*   decodeSSessionKey(void* buf, SSessionKey* key);
@@ -927,8 +923,6 @@ bool inWinRange(STimeWindow* range, STimeWindow* cur);
 int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
                                TSKEY* primaryKeys, int32_t prevPosition, int32_t order);
 int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, int32_t status);
-bool    getIgoreNullRes(SExprSupp* pExprSup);
-bool    checkNullRow(SExprSupp* pExprSup, SSDataBlock* pSrcBlock, int32_t index, bool ignoreNull);
 STrueForInfo* getTrueForInfo(struct SOperatorInfo* pOperator);
 
 void    destroyTmqScanOperatorInfo(void* param);

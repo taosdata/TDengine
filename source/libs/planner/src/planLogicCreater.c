@@ -4269,8 +4269,8 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   }
 
   /*
-   * Propagate the session timezone so EVERY calendar units (d/w/n/q/y) advance
-   * by calendar days/months (DST-aware), matching INTERVAL; EVERY(24h) keeps
+   * Propagate the session timezone so EVERY calendar units (d/w) advance
+   * by calendar days/weeks (DST-aware), matching INTERVAL; EVERY(24h) keeps
    * fixed-duration semantics.
    */
   pInterpFunc->timezone = pCxt->pPlanCxt->timezone;
