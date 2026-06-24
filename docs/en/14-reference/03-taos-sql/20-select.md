@@ -22,7 +22,7 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
 
 select_list:
     select_expr [, select_expr] ...
@@ -160,6 +160,7 @@ The currently supported Hints list is as follows:
 |   PARTITION_FIRST   | None          | Use PARTITION to calculate groups before aggregation, conflicts with SORT_FOR_GROUP                                                                                                   | When partition by list includes regular columns |
 |  PARA_TABLES_SORT   | None          | When sorting supertable data by timestamp, use memory instead of temporary disk space. When there are many subtables and rows are large, it will use a lot of memory and may cause OOM | When sorting supertable data by timestamp       |
 |  SMALLDATA_TS_SORT  | None          | When sorting supertable data by timestamp, if the query column length is greater than or equal to 256 but the number of rows is not large, using this hint can improve performance    | When sorting supertable data by timestamp       |
+| SMALLDATA_SCAN_SORT | None          | When a supertable query needs timestamp-ordered scan output, use a plain table scan plus a sort instead of a table merge scan; for small per-vnode data this can be faster. It applies wherever the engine would otherwise use a table merge scan to produce timestamp order: ORDER BY ts, and also SESSION / STATE_WINDOW (no explicit ORDER BY required). It has no effect on INTERVAL windows (which do not use a table merge scan), nor on ORDER BY of non-timestamp columns | Small per-vnode supertable data needing timestamp order |
 |      SKIP_TSMA      | None          | Explicitly disable TSMA query optimization                                                                                                                                            | Queries with Agg functions                      |
 
 Examples:
@@ -170,6 +171,7 @@ SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
+SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
 ```
 
 ## List

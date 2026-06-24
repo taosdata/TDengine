@@ -982,6 +982,8 @@ typedef struct SMergeTreeConf {
   void         *pReader;
   void         *idstr;
   bool          rspRows;  // response the rows in stt-file, if possible
+  /* optional accumulator for the load cost of dropped STT iterators */
+  SSttBlockLoadCostInfo *pSttLoadCost;
 } SMergeTreeConf;
 
 typedef struct SSttDataInfoForTable {
@@ -1000,6 +1002,7 @@ void    tMergeTreeClose(SMergeTree *pMTree);
 int32_t tCreateSttBlockLoadInfo(STSchema *pSchema, int16_t *colList, int32_t numOfCols, SSttBlockLoadInfo **pInfo);
 void    destroySttBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void    destroySttBlockReader(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pLoadCost);
+void    tSttBlockLoadCostAdd(SSttBlockLoadCostInfo *pDst, const SSttBlockLoadCostInfo *pSrc);
 
 // tsdbCache ==============================================================================================
 typedef enum {

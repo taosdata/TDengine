@@ -508,6 +508,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_double.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_subquery.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_smalldata_scan_sort.py
 ## 05-Aliase
 ## 06-Limit
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_query_limit_basic.py
@@ -584,6 +585,7 @@
 ## 16-PartitionBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_tsbs.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_table_merge_scan_stt_reuse.py -N 3
 ## 17-BiMode
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/17-BiMode/test_bimode.py
 ## 18-Stability

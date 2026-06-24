@@ -68,7 +68,6 @@ static int32_t cloneVgroups(SVgroupsInfo **pDst, SVgroupsInfo* pSrc) {
 }
 
 static int32_t stbSplCreateMergeKeys(SNodeList* pSortKeys, SNodeList* pTargets, SNodeList** pOutput);
-static int32_t stbSplCreateMergeKeysByExpr(SNode* pExpr, EOrder order, SNodeList** pMergeKeys);
 
 static void splSetSubplanVgroups(SLogicSubplan* pSubplan, SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
@@ -842,7 +841,7 @@ static int32_t stbSplCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pParent
   return code;
 }
 
-static int32_t stbSplCreateMergeKeysByExpr(SNode* pExpr, EOrder order, SNodeList** pMergeKeys) {
+int32_t stbSplCreateMergeKeysByExpr(SNode* pExpr, EOrder order, SNodeList** pMergeKeys) {
   SOrderByExprNode* pOrderByExpr = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrderByExpr);
   if (NULL == pOrderByExpr) {
@@ -928,6 +927,13 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
 static void stbSplSetTableMergeScan(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
     SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    // Hint SMALLDATA_SCAN_SORT: a flagged super-table scan already has a Sort
+    // inserted above it (during data-requirement adjustment), so the per-vnode
+    // order is provided by that Sort.  Leave it as a plain Table Scan instead of
+    // promoting it back to a Table Merge Scan.
+    if (scanIsSmallDataScanSortHinted(pScan)) {
+      return;
+    }
     planPromoteScanToTableMerge(pScan, pScan->node.requireDataOrder, pScan->node.resultDataOrder);
     if (NULL != pScan->pGroupTags) {
       pScan->groupSort = true;
@@ -1506,7 +1512,7 @@ static int32_t stbSplSplitScanNodeWithPartTags(SSplitContext* pCxt, SStableSplit
   return code;
 }
 
-static int32_t stbSplFindPrimaryKeyFromScan(SScanLogicNode* pScan, SNode** ppNode) {
+int32_t stbSplFindPrimaryKeyFromScan(SScanLogicNode* pScan, SNode** ppNode) {
   bool   find = false;
   SNode* pCol = NULL;
   FOREACH(pCol, pScan->pScanCols) {
@@ -1537,7 +1543,7 @@ static int32_t stbSplFindPrimaryKeyFromScan(SScanLogicNode* pScan, SNode** ppNod
   return code;
 }
 
-static int32_t stbSplFindPkFromScan(SScanLogicNode* pScan, SNode** ppNode) {
+int32_t stbSplFindPkFromScan(SScanLogicNode* pScan, SNode** ppNode) {
   int32_t code = 0;
   bool   find = false;
   SNode* pCol = NULL;

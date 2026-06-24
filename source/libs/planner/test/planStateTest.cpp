@@ -65,3 +65,12 @@ TEST_F(PlanStateTest, stable) {
   // select function along with the columns of select row, and with STATE_WINDOW clause
   run("SELECT MAX(c1), c2 FROM st1 STATE_WINDOW(c2)");
 }
+
+TEST_F(PlanStateTest, smallDataScanSortHint) {
+  useDb("root", "test");
+
+  // A super-table STATE_WINDOW query has no ORDER BY / Sort node; the batch split
+  // uses a per-vnode Table Merge Scan as the order source.  With the hint, that
+  // merge scan must be replaced by a plain Table Scan plus an inserted Sort.
+  run("SELECT /*+ smalldata_scan_sort() */ MAX(c1), MIN(c1) FROM st1 STATE_WINDOW(c2)");
+}

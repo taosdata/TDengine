@@ -716,6 +716,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     *pLogicNode = (SLogicNode*)pScan;
     pScan->paraTablesSort = getParaTablesSortOptHint(pSelect->pHint);
     pScan->smallDataTsSort = getSmallDataTsSortOptHint(pSelect->pHint);
+    pScan->smallDataScanSort = getSmallDataScanSortOptHint(pSelect->pHint);
     // pCxt->hasScan = true;
   } else {
     nodesDestroyNode((SNode*)pScan);

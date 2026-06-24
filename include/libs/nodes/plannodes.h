@@ -132,6 +132,7 @@ typedef struct SScanLogicNode {
   SArray*            pFuncTypes;        // for last, last_row
   bool               paraTablesSort;    // for table merge scan
   bool               smallDataTsSort;   // disable row id sort for table merge scan
+  bool               smallDataScanSort; // hint: emit Table Scan + Sort instead of Table Merge Scan
   bool               needSplit;
   bool               noPseudoRefAfterGrp;  // no pseudo columns referenced ater group/partition clause
   bool               virtualStableScan;

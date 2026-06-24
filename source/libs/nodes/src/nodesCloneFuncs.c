@@ -789,6 +789,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_OBJECT_FIELD(pFuncTypes, functParamClone);
   COPY_SCALAR_FIELD(paraTablesSort);
   COPY_SCALAR_FIELD(smallDataTsSort);
+  COPY_SCALAR_FIELD(smallDataScanSort);
   COPY_SCALAR_FIELD(needSplit);
   COPY_SCALAR_FIELD(noPseudoRefAfterGrp);
   COPY_SCALAR_FIELD(virtualStableScan);

@@ -3949,7 +3949,14 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-      if ((!groupSort && NULL != pScan->pGroupTags) || TSDB_SYSTEM_TABLE == pScan->tableType) {
+      // Hint SMALLDATA_SCAN_SORT: this scan must stay a plain Table Scan, so do not
+      // let the optimization eliminate the Sort by promoting it to a table merge
+      // scan.  Checking here -- at the sequencing scan that would actually be
+      // promoted -- keeps the guard scoped to the hinted scan, instead of vetoing
+      // the optimization for the whole Sort subtree (e.g. an unrelated join branch).
+      if ((!groupSort && NULL != pScan->pGroupTags) ||
+          TSDB_SYSTEM_TABLE == pScan->tableType ||
+          scanIsSmallDataScanSortHinted(pScan)) {
         *pNotOptimize = true;
         return TSDB_CODE_SUCCESS;
       }

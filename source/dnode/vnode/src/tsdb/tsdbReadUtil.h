@@ -304,6 +304,10 @@ struct STsdbReader {
   bool                currentStepDone;
   STsdbReader*        innerReader[2];
   bool                bFilesetDelimited;  // duration by duration output
+  /* per-fileset STT iterator cache (fid -> SArray*) */
+  SHashObj*           pFilesetSttCache;
+  /* #fileset retains skipped because the query memory pool was exhausted */
+  int64_t             sttCacheSkipCnt;
   TsdReaderNotifyCbFn notifyFn;
   void*               notifyParam;
 };
@@ -360,7 +364,7 @@ int32_t getNumOfRowsInSttBlock(SSttFileReader* pSttFileReader, SSttBlockLoadInfo
 int32_t recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record);
 
 void    destroyLDataIter(SLDataIter* pIter);
-int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet);
+int32_t adjustSttDataIters(SArray* pSttFileBlockIterArray, STFileSet* pFileSet, SSttBlockLoadCostInfo* pLoadCost);
 int32_t tsdbGetRowsInSttFiles(STFileSet* pFileSet, SArray* pSttFileBlockIterArray, STsdb* pTsdb, SMergeTreeConf* pConf,
                               const char* pstr);
 bool isCleanSttBlock(SArray* pTimewindowList, STimeWindow* pQueryWindow, STableBlockScanInfo* pScanInfo, int32_t order);

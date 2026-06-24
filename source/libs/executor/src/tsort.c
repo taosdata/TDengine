@@ -86,6 +86,8 @@ struct SSortHandle {
   SSDataBlock*      pDataBlock;
   SMsortComparParam cmpParam;
   int32_t           numOfCompletedSources;
+  /* Cumulative time spent in fetchfp (raw-data pull from sources). */
+  int64_t           fetchTotalUs;
   bool              opened;
   int8_t            closed;
   const char*       idStr;
@@ -631,6 +633,7 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
     }
 
     int64_t et = taosGetTimestampUs();
+    pHandle->fetchTotalUs += (et - st);
     qDebug("init for merge sort completed, elapsed time:%.2f ms, %s", (et - st) / 1000.0, pHandle->idStr);
   }
 
@@ -715,8 +718,10 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
     } else {
       int64_t st = taosGetTimestampUs();
       TAOS_CHECK_RETURN(pHandle->fetchfp(((SSortSource*)pSource)->param, &pSource->src.pBlock));
-      pSource->fetchUs += taosGetTimestampUs() - st;
+      int64_t elapsed = taosGetTimestampUs() - st;
+      pSource->fetchUs += elapsed;
       pSource->fetchNum++;
+      pHandle->fetchTotalUs += elapsed;
       if (pSource->src.pBlock == NULL) {
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
@@ -3024,6 +3029,10 @@ SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle) {
   }
 
   return info;
+}
+
+int64_t tsortGetFetchRawDataTime(SSortHandle* pHandle) {
+  return (pHandle == NULL) ? 0 : pHandle->fetchTotalUs;
 }
 
 int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* keyLen, const STupleHandle* pTuple) {

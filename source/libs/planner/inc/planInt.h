@@ -85,6 +85,7 @@ bool        getBatchScanOptionFromHint(SNodeList* pList);
 bool        getSortForGroupOptHint(SNodeList* pList);
 bool        getParaTablesSortOptHint(SNodeList* pList);
 bool        getSmallDataTsSortOptHint(SNodeList* pList);
+bool        getSmallDataScanSortOptHint(SNodeList* pList);
 bool        getHashJoinOptHint(SNodeList* pList);
 bool        getOptHint(SNodeList* pList, EHintOption hint);
 SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr);
@@ -94,6 +95,13 @@ bool        isPartTagAgg(SAggLogicNode* pAgg);
 bool        isPartTableWinodw(SWindowLogicNode* pWindow);
 void        planPromoteScanToTableMerge(SScanLogicNode* pScan, EDataOrderLevel requireLevel,
                                         EDataOrderLevel resultLevel);
+int32_t     planReplaceMergeWithSort(SScanLogicNode* pScan, bool* pReplaced);
+bool        scanIsSmallDataScanSortHinted(const SScanLogicNode* pScan);
+// Defined in planSpliter.c; shared so planReplaceMergeWithSort builds the same
+// scan sort keys as the table-merge-scan split path instead of duplicating them.
+int32_t     stbSplFindPrimaryKeyFromScan(SScanLogicNode* pScan, SNode** ppNode);
+int32_t     stbSplFindPkFromScan(SScanLogicNode* pScan, SNode** ppNode);
+int32_t     stbSplCreateMergeKeysByExpr(SNode* pExpr, EOrder order, SNodeList** pMergeKeys);
 bool        keysHasCol(SNodeList* pKeys);
 bool        keysHasTbname(SNodeList* pKeys);
 bool        projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject);

@@ -312,6 +312,7 @@ static SKeyword keywordTable[] = {
     {"SMA",                  TK_SMA},
     {"SM4_DECRYPT",          TK_SM4_DECRYPT},
     {"SM4_ENCRYPT",          TK_SM4_ENCRYPT},
+    {"SMALLDATA_SCAN_SORT",  TK_SMALLDATA_SCAN_SORT},
     {"SMALLDATA_TS_SORT",    TK_SMALLDATA_TS_SORT},
     {"SMALLINT",             TK_SMALLINT},
     {"SNODE",                TK_SNODE},

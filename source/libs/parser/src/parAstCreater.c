@@ -929,6 +929,9 @@ bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, EHintOpt
     case HINT_SMALLDATA_TS_SORT:
       if (paramNum > 0 || hasHint(*ppHintList, HINT_SMALLDATA_TS_SORT)) return true;
       break;
+    case HINT_SMALLDATA_SCAN_SORT:
+      if (paramNum > 0 || hasHint(*ppHintList, HINT_SMALLDATA_SCAN_SORT)) return true;
+      break;
     case HINT_HASH_JOIN:
       if (paramNum > 0 || hasHint(*ppHintList, HINT_HASH_JOIN)) return true;
       break;
@@ -1038,6 +1041,14 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
           break;
         }
         opt = HINT_SMALLDATA_TS_SORT;
+        break;
+      case TK_SMALLDATA_SCAN_SORT:
+        lastComma = false;
+        if (0 != opt || inParamList) {
+          quit = true;
+          break;
+        }
+        opt = HINT_SMALLDATA_SCAN_SORT;
         break;
       case TK_HASH_JOIN:
         lastComma = false;

@@ -548,6 +548,28 @@ int32_t doMultiwayMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  /*
+    Sort-merge pulls its input through the sort handle's fetch callback
+    (sortMergeloadNextDataBlock), which bypasses getNextBlockFromDownstream and
+    therefore never records input_wait the way other operators do.  Reclassify
+    the time spent fetching raw data from downstream as input_wait, and remove it
+    from this operator's own compute (execElapsed) so the metrics stay consistent
+    with the rest of the pipeline.  recordOpExecEnd (called by the wrapper after
+    this function returns) will add this call's full slice to execElapsed, so the
+    subtraction here nets out to "compute excluding downstream fetch".
+
+    Since this block is the only writer of inputWaitElapsed for the sort-merge
+    type, the counter always equals the last-seen cumulative fetch time — no
+    separate baseline needs to be stored, and the accounting stays correct
+    across an operator reset (sort handle recreated and cost cleared together).
+  */
+  if (pInfo->type == MERGE_TYPE_SORT && QUERY_ENABLE_EXPLAIN(pTaskInfo)) {
+    int64_t cur = tsortGetFetchRawDataTime(pInfo->sortMergeInfo.pSortHandle);
+    int64_t delta = cur - pOperator->cost.inputWaitElapsed;
+    pOperator->cost.inputWaitElapsed = cur;
+    pOperator->cost.execElapsed -= delta;
+  }
+
   if ((*pResBlock) != NULL) {
     code = blockDataCheck(*pResBlock);
     QUERY_CHECK_CODE(code, lino, _end);

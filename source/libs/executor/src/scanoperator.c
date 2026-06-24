@@ -4234,6 +4234,20 @@ _end:
   return code;
 }
 
+/*
+ * Flush the reader's accumulated I/O stats into the recorder before closing it.
+ * The stats are dropped together with the reader on close, so every close site
+ * must go through this helper or EXPLAIN ANALYZE under-reports the scan cost.
+ */
+static void flushAndCloseTmsReader(STableScanBase* pBase, STsdbReader** ppReader) {
+  if (pBase->readerAPI.tsdReaderClose == NULL || *ppReader == NULL) {
+    return;
+  }
+  pBase->readerAPI.tsdReaderSetExecInfo(*ppReader, &pBase->readRecorder);
+  pBase->readerAPI.tsdReaderClose(*ppReader);
+  *ppReader = NULL;
+}
+
 static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSubTableInput* pInput,
                                                 bool* pSubTableHasBlock) {
   int32_t code = 0;
@@ -4303,11 +4317,14 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
     code = tableListGetTableGroupId(pInfo->base.pTableListInfo, pInput->pReaderBlock->info.id.uid,
                  &pInput->pReaderBlock->info.id.groupId, &pInput->pReaderBlock->info.id.baseGId);
     QUERY_CHECK_CODE(code, lino, _end);
-    pOperator->resultInfo.totalRows += pInput->pReaderBlock->info.rows;
+    /*
+     * See getBlockForTableMergeScan: resultInfo.totalRows is the OUTPUT-row
+     * counter (maintained by recordOpExecEnd). Adding sort-input rows here
+     * double-counts and inflates EXPLAIN ANALYZE numOfRows to ~2x.
+     */
   }
   if (!pInput->bInMemReader || !*pSubTableHasBlock) {
-    pAPI->tsdReader.tsdReaderClose(pInput->pReader);
-    pInput->pReader = NULL;
+    flushAndCloseTmsReader(&pInfo->base, &pInput->pReader);
   }
 
   pInfo->base.dataReader = NULL;
@@ -4689,8 +4706,7 @@ static void stopSubTablesTableMergeScan(STableMergeScanInfo* pInfo) {
       blockDataDestroy(pInput->pReaderBlock);
       blockDataDestroy(pInput->pPageBlock);
       taosArrayDestroy(pInput->aBlockPages);
-      pInfo->base.readerAPI.tsdReaderClose(pInput->pReader);
-      pInput->pReader = NULL;
+      flushAndCloseTmsReader(&pInfo->base, &pInput->pReader);
     }
 
     destroyDiskbasedBuf(pSubTblsInfo->pBlocksBuf);
@@ -4747,10 +4763,7 @@ static int32_t createVTableMergeScanInfoFromBatchParam(SOperatorInfo* pOperator)
   if (pInfo->pSortHandle) {
     stopDurationForGroupTableMergeScan(pOperator);
   }
-  if (pInfo->base.dataReader) {
-    pAPI->tsdReader.tsdReaderClose(pInfo->base.dataReader);
-    pInfo->base.dataReader = NULL;
-  }
+  flushAndCloseTmsReader(&pInfo->base, &pInfo->base.dataReader);
 
   for (int32_t i = 0; i < pInfo->numNextDurationBlocks; ++i) {
     if (pInfo->nextDurationBlocks[i]) {
@@ -4923,6 +4936,9 @@ int32_t doTableMergeScanParaSubTablesNext(SOperatorInfo* pOperator, SSDataBlock*
     }
   }
 
+  /* Sync inputRows from the final checkRows value (see doTableMergeScanNext for rationale). */
+  pOperator->cost.inputRows = pInfo->base.readRecorder.checkRows;
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -5093,7 +5109,15 @@ static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
                  &pBlock->info.id.baseGId);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    pOperator->resultInfo.totalRows += pBlock->info.rows;
+    /*
+     * Do NOT add to resultInfo.totalRows here: this is a block fed INTO the
+     * sort (scan input). resultInfo.totalRows is the operator's OUTPUT-row
+     * counter, already maintained generically by recordOpExecEnd on every
+     * getNextFn call that emits a sorted block. Counting the input here too
+     * double-counts and makes EXPLAIN ANALYZE report numOfRows ~= 2x the rows
+     * actually emitted. Scanned-row volume is tracked separately via
+     * readRecorder.checkRows (cost.inputRows / check_rows).
+     */
     *ppBlock = pBlock;
 
     return code;
@@ -5260,13 +5284,23 @@ void startGroupTableMergeScan(SOperatorInfo* pOperator) {
 
   int32_t        numOfTable = tableEndIdx - tableStartIdx + 1;
   STableKeyInfo* startKeyInfo = tableListGetInfo(pInfo->base.pTableListInfo, tableStartIdx);
-  code = pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock,
-                                       (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->mSkipTables);
-  QUERY_CHECK_CODE(code, lino, _end);
-  if (pInfo->filesetDelimited) {
-    pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
+
+  if (pInfo->base.dataReader == NULL) {
+    /* First group: create a new reader */
+    code = pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInfo->base.cond, startKeyInfo, numOfTable, pInfo->pReaderBlock,
+                                         (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->mSkipTables);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pInfo->filesetDelimited) {
+      pAPI->tsdReader.tsdSetFilesetDelimited(pInfo->base.dataReader);
+    }
+    pAPI->tsdReader.tsdSetSetNotifyCb(pInfo->base.dataReader, tableMergeScanTsdbNotifyCb, pInfo);
+  } else {
+    /* Subsequent groups: reuse the existing reader with new table list */
+    code = pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, startKeyInfo, numOfTable);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
-  pAPI->tsdReader.tsdSetSetNotifyCb(pInfo->base.dataReader, tableMergeScanTsdbNotifyCb, pInfo);
 
   code = startDurationForGroupTableMergeScan(pOperator);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -5282,14 +5316,14 @@ _end:
 void stopGroupTableMergeScan(SOperatorInfo* pOperator) {
   STableMergeScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
-  SStorageAPI*         pAPI = &pTaskInfo->storageAPI;
 
   stopDurationForGroupTableMergeScan(pOperator);
 
-  if (pInfo->base.dataReader != NULL) {
-    pAPI->tsdReader.tsdReaderClose(pInfo->base.dataReader);
-    pInfo->base.dataReader = NULL;
-  }
+  /*
+   * Keep reader alive for reuse by the next group. It will be closed in
+   * destroyTableMergeScanOperatorInfo when the operator is destroyed.
+   */
+
   for (int32_t i = 0; i < pInfo->numNextDurationBlocks; ++i) {
     if (pInfo->nextDurationBlocks[i]) {
       blockDataDestroy(pInfo->nextDurationBlocks[i]);
@@ -5425,6 +5459,14 @@ int32_t doTableMergeScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
   }
 
+  /*
+   * Always sync inputRows from the final checkRows value.  Without this,
+   * scans that return 0 rows never execute the pBlock != NULL branch, so
+   * cost.inputRows stays 0 and EXPLAIN ANALYZE reports efficiency=100%
+   * instead of the true selectivity.
+   */
+  pOperator->cost.inputRows = pInfo->base.readRecorder.checkRows;
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -5447,10 +5489,7 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   STableMergeScanInfo* pTableScanInfo = (STableMergeScanInfo*)param;
 
   // start one reader variable
-  if (pTableScanInfo->base.readerAPI.tsdReaderClose != NULL) {
-    pTableScanInfo->base.readerAPI.tsdReaderClose(pTableScanInfo->base.dataReader);
-    pTableScanInfo->base.dataReader = NULL;
-  }
+  flushAndCloseTmsReader(&pTableScanInfo->base, &pTableScanInfo->base.dataReader);
 
   for (int32_t i = 0; i < pTableScanInfo->numNextDurationBlocks; ++i) {
     if (pTableScanInfo->nextDurationBlocks[i] != NULL) {
@@ -5493,6 +5532,33 @@ int32_t getTableMergeScanExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExpla
     return terrno;
   }
   STableMergeScanInfo* pInfo = pOptr->info;
+
+  /*
+   * Collect I/O stats from still-alive readers before snapshotting readRecorder
+   *
+   * Two execution paths exist depending on paraTablesSort / dynamicOp:
+   *   - Group scan  (pSubTablesMergeInfo == NULL): one shared reader for all
+   *     tables in a group, kept alive in pInfo->base.dataReader.
+   *   - Per-subtable merge (pSubTablesMergeInfo != NULL): one reader per child
+   *     table, kept alive in pSubTablesMergeInfo->aInputs[i].pReader.
+   *
+   * In both cases the reader may still be open when this function is called
+   * (e.g. LIMIT reached before all data was consumed), so the stats must be
+   * flushed here rather than waiting for the reader to close.
+   */
+  STmsSubTablesMergeInfo* pSubTblsInfo = pInfo->pSubTablesMergeInfo;
+  if (pSubTblsInfo != NULL) {
+    for (int32_t i = 0; i < pSubTblsInfo->numSubTables; ++i) {
+      STmsSubTableInput* pInput = pSubTblsInfo->aInputs + i;
+      if (pInput->pReader != NULL) {
+        pInfo->base.readerAPI.tsdReaderSetExecInfo(pInput->pReader, &pInfo->base.readRecorder);
+      }
+    }
+  } else if (pInfo->base.dataReader != NULL) {
+    pInfo->base.readerAPI.tsdReaderSetExecInfo(pInfo->base.dataReader,
+                                               &pInfo->base.readRecorder);
+  }
+
   execInfo->blockRecorder = pInfo->base.readRecorder;
   execInfo->sortExecInfo = pInfo->sortExecInfo;
 
@@ -5510,10 +5576,7 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
   pInfo->tableEndIndex = 0;
   pInfo->tableStartIndex = 0;
   pInfo->hasGroupId = false;
-  if (pInfo->base.readerAPI.tsdReaderClose) {
-    pInfo->base.readerAPI.tsdReaderClose(pInfo->base.dataReader);
-  }
-  pInfo->base.dataReader = NULL;
+  flushAndCloseTmsReader(&pInfo->base, &pInfo->base.dataReader);
   pInfo->base.scanFlag = MAIN_SCAN;
 
   pInfo->base.limitInfo = (SLimitInfo){0};
@@ -5568,6 +5631,15 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
   pInfo->numNextDurationBlocks = 0;
 
   stopSubTablesTableMergeScan(pInfo);
+
+  /*
+   * Re-execution starts a fresh measurement: zero the I/O recorder so the next
+   * run's EXPLAIN ANALYZE counters (file_load_blocks/stt_load_blocks/...) do not
+   * include the cost of the previous run. Must come after the flushAndCloseTmsReader
+   * calls above (reader close and stopSubTablesTableMergeScan both flush into it).
+   * Matches resultInfo.totalRows being reset above.
+   */
+  pInfo->base.readRecorder = (SFileBlockLoadRecorder){0};
   return code;
 }
 

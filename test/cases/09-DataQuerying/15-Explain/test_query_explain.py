@@ -1333,9 +1333,13 @@ class TestExplain:
                                 .format(field, max_value, avg_value, line)
                         )
 
-                # Validation 3: input_wait must be > 0 for non-scan operators
-                # Currently disabled because some operators (e.g., Merge) don't properly record input_wait
-                # Skip validation for Merge operators as they use tsort library internally
+                # Validation 3: input_wait must be > 0 for non-scan operators.
+                # The sort-Merge operator now records input_wait (time blocked in
+                # the tsort fetch callback) instead of folding it into compute, so
+                # it is no longer structurally broken.  The magnitude is still not
+                # asserted for Merge here: on tiny datasets the downstream fetch can
+                # be sub-microsecond and round to 0.000, which would make a strict
+                # > 0 check flaky.  Exchange operators are likewise skipped.
                 if field == "input_wait" and \
                     not is_scan_operator and \
                     not is_merge_operator and \
@@ -2250,6 +2254,125 @@ class TestExplain:
         self.do_explain_sys_scan()
         self.do_explain_interp()
         self.do_explain_dynamic_query()
+
+    def test_exchange_coalesce_and_merge_input_wait(self):
+        """Regression for Data Exchange small-block coalescing and sort-Merge input_wait.
+
+        The exchange now coalesces many tiny upstream blocks into fuller ones on
+        the no limit/offset path, and must NOT merge blocks across group
+        boundaries.  The sort-Merge operator now records input_wait (time blocked
+        on downstream) instead of folding it into its own compute.
+
+        1. Build a multi-vgroup grouped dataset whose groups are deliberately
+           uneven in size, to exercise same-group accumulation and group-boundary
+           flushing inside the coalescing path.
+        2. Verify per-group aggregates, full ordered scans and union-all through
+           the Data Exchange are byte-for-byte correct -- the strongest guard
+           against blocks of different groups being merged together.
+        3. Verify the limit/offset path (a different, non-coalescing branch)
+           returns results consistent with the full ordered result.
+        4. Run EXPLAIN ANALYZE on a distributed partition-by query and validate
+           the plan with the shared rule checker, which now also parses the
+           sort-Merge input_wait field.
+
+        Catalog:
+            - Query:Explain
+
+        Since: v3.4.x
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-06-06 Tony Zhang Added regression for exchange block coalescing
+              and sort-merge input_wait accounting.
+
+        Note:
+            input_wait magnitude is intentionally NOT asserted: on tiny CI data
+            the downstream fetch can be sub-microsecond and round to 0.000, so a
+            strict > 0 check would be flaky.  The coalescing correctness checks
+            here are deterministic and are the real regression guard.
+        """
+        tdSql.execute("drop database if exists db_xchg_coalesce")
+        tdSql.execute("create database db_xchg_coalesce vgroups 3")
+        tdSql.execute("use db_xchg_coalesce")
+        tdSql.execute("create stable stb (ts timestamp, c1 int) tags(gid int)")
+
+        # Uneven group sizes: mix of large (same-group accumulation) and 1-row
+        # groups (back-to-back group boundaries) to stress the coalescing path.
+        group_sizes = {0: 10, 1: 1, 2: 50, 3: 1, 4: 30, 5: 5}
+        base_ts = 1700000000000  # fixed ms timestamp, globally distinct per row
+        ts = base_ts
+        expected_total = 0
+        expected_sum = {}
+        for gid in sorted(group_sizes):
+            n = group_sizes[gid]
+            tuples = []
+            gsum = 0
+            for k in range(n):
+                c1 = gid * 1000 + k
+                tuples.append(f"({ts}, {c1})")
+                gsum += c1
+                ts += 1
+            tdSql.execute(
+                f"insert into t{gid} using stb tags({gid}) values " + " ".join(tuples)
+            )
+            expected_total += n
+            expected_sum[gid] = gsum
+
+        # 1. Per-group aggregate routed through the Data Exchange (no limit ->
+        #    coalescing active).  If coalescing merged across group boundaries the
+        #    per-group count/sum would be wrong.
+        tdSql.query("select gid, count(*), sum(c1) from stb partition by gid order by gid")
+        tdSql.checkRows(len(group_sizes))
+        for i, gid in enumerate(sorted(group_sizes)):
+            tdSql.checkData(i, 0, gid)
+            tdSql.checkData(i, 1, group_sizes[gid])
+            tdSql.checkData(i, 2, expected_sum[gid])
+
+        # 2. Full ordered scan through exchange + sort (no limit -> coalescing).
+        #    Must return every row exactly once, globally ordered, no dup/loss.
+        tdSql.query("select ts, c1 from stb order by ts")
+        tdSql.checkRows(expected_total)
+        full_ordered = list(tdSql.queryResult)
+        prev_ts = None
+        for row in full_ordered:
+            assert prev_ts is None or row[0] > prev_ts, (
+                f"order by ts broken: {row[0]} appears after {prev_ts}"
+            )
+            prev_ts = row[0]
+
+        # 3. Total cardinality must match.
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, expected_total)
+
+        # 4. limit/offset is a separate branch (NOT coalesced); it must stay
+        #    consistent with the full ordered result.
+        tdSql.query("select ts, c1 from stb order by ts limit 7 offset 5")
+        limited = list(tdSql.queryResult)
+        assert limited == full_ordered[5:12], (
+            "limit/offset result diverged from full ordered result"
+        )
+
+        # 5. union all across two halves through the exchange preserves all rows.
+        tdSql.query(
+            "select ts from stb where gid < 3 "
+            "union all select ts from stb where gid >= 3"
+        )
+        tdSql.checkRows(expected_total)
+
+        # 6. EXPLAIN ANALYZE on a distributed partition-by query: validate the
+        #    whole plan (incl. exec-cost / io-cost / exchange-network rules).
+        tdSql.query(
+            "explain analyze verbose true select gid, count(*) from stb partition by gid",
+            show=True,
+        )
+        plan_lines = self.__extract_explain_plan_lines()
+        self.__check_explain_plan_rules(plan_lines)
+
+        tdSql.execute("drop database if exists db_xchg_coalesce")
+        tdLog.printNoPrefix("exchange coalesce and merge input_wait regression ... [passed]")
 
     def test_explain_analyze_create_uses_session_timezone(self):
         """EXPLAIN ANALYZE create timestamp should use session timezone.

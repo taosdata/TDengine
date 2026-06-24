@@ -24,7 +24,7 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
 
 select_list:
     select_expr [, select_expr] ...
@@ -162,6 +162,7 @@ Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适�
 |   PARTITION_FIRST   | 无      | 在聚合之前使用 PARTITION 计算分组，与 SORT_FOR_GROUP 冲突                       | partition by 列表有普通列时 |
 |  PARA_TABLES_SORT   | 无      | 超级表的数据按时间戳排序时，不使用临时磁盘空间，只使用内存。当子表数量多，行长比较大时候，会使用大量内存，可能发生 OOM    | 超级表的数据按时间戳排序时        |
 |  SMALLDATA_TS_SORT  | 无      | 超级表的数据按时间戳排序时，查询列长度大于等于 256，但是行数不多，使用这个提示，可以提高性能                 | 超级表的数据按时间戳排序时        |
+| SMALLDATA_SCAN_SORT | 无      | 超级表查询需要按时间戳有序的扫描输出时，用普通表扫描加排序代替表合并扫描；每 vnode 数据量较小时性能更优。凡引擎会用表合并扫描产生时间戳有序输出的场景均适用，包括 ORDER BY ts，以及会话窗口 SESSION、状态窗口 STATE_WINDOW（无需显式 ORDER BY）；对时间窗口 INTERVAL（本就不使用表合并扫描）以及按非时间戳列的 ORDER BY 均无效 | 小数据量超级表需要时间戳有序时 |
 |      SKIP_TSMA      | 无      | 用于显示的禁用 TSMA 查询优化                                                | 带 Agg 函数的查询语句        |
 
 举例：
@@ -172,6 +173,7 @@ SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
+SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
 ```
 
 ## 列表

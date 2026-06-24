@@ -405,6 +405,14 @@ static int32_t qExplainBufAppendExecInfo(SArray *pExecInfo, char *tbuf,
     maxExecInfo.execLastRow = TMAX(maxExecInfo.execLastRow, pExec->execLastRow);
     maxExecInfo.numOfRows = TMAX(maxExecInfo.numOfRows, pExec->numOfRows);
   }
+  /*
+   * Filter efficiency is the fraction of scanned rows that pass the filter
+   * (numOfRows = rows emitted, inputRows = rows scanned), so it is in [0, 100].
+   * numOfRows is the operator's OUTPUT-row count maintained by recordOpExecEnd;
+   * scan operators must not also add their scan-input rows to that counter (see
+   * getBlockForTableMergeScan), otherwise the ratio would spuriously exceed
+   * 100%.
+   */
   *filterEfficiency = execInfo.inputRows > 0 ?
                       (double)execInfo.numOfRows * 100.0 / (double)execInfo.inputRows : 100.0;
 
