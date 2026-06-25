@@ -24,6 +24,7 @@ class TestStreamSubQueryInVtable:
         History:
             - 2026-03-18 Created
             - 2026-03-20 Split into two files for CI stability
+            - 2026-06-16 Increase interval stream wait for CI load stability
         """
 
         tdCom.create_snode_if_not_exists()
@@ -294,6 +295,7 @@ class TestStreamSubQueryInVtable:
             tdSql.execute(f"insert into {self.db}.{self.triggertb} values ('2026-01-01 00:01:00', 1, 25.5) ('2026-01-01 00:01:01', 2, 30.0) ('2026-01-01 00:01:02', 3, 22.0) ('2026-01-01 00:01:03', 1, 26.0)")
 
         def check1(self):
+            tdStream.checkStreamStatus(self.stream, timeout=90)
             waitForRows(f"select * from {self.db}.{self.restb} order by ts", 3, 180)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(1, 1, 3)
