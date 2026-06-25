@@ -95,6 +95,7 @@ Additionally, for an audit database:
 - The default value for `keep` is 1825 days. If a user specifies `keep`, it must be greater than 1825 days.
 - `WAL_LEVEL` defaults to 2 and cannot be changed by the user.
 - `ENCRYPT_ALGORITHM` cannot be specified as `None`. The user can choose any symmetric encryption algorithm in CBC mode.
+- `PRECISION` defaults to nanosecond (`ns`) and cannot be changed to other precisions.
 
 Audit databases created before version 3.4.0.0 are incompatible with audit features in version 3.4.0.0 and later. In older versions, the `is_audit` parameter was not enforced, so there were no mandatory requirements for `DURATION`, `WAL_LEVEL`, and `ENCRYPT_ALGORITHM`. To enable new audit features for an old audit database, it must be dropped and recreated. As a workaround to access data from a pre-3.4.0.0 audit database in a newer version (without new audit features), you can disable `auditUseToken` by setting it to 0.
 
