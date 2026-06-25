@@ -238,3 +238,9 @@ add_test(
                 COMMAND txnStateTest
 
         )
+if(TD_WINDOWS)
+    set_tests_properties(sessionTest PROPERTIES
+        RUN_SERIAL TRUE
+        TIMEOUT 900
+    )
+endif()

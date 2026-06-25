@@ -2,6 +2,7 @@
 import copy
 import json
 import os
+from pathlib import Path
 import random
 import shutil
 import tempfile
@@ -9,6 +10,48 @@ import time
 import uuid
 
 import pytest
+
+
+_WINDOWS_DLL_DIR = None
+
+
+def _setup_windows_taos_dll_dir():
+    if os.name != "nt":
+        return
+
+    candidates = []
+    env_bin = os.getenv("TAOS_BIN_PATH")
+    if env_bin:
+        candidates.append(Path(env_bin))
+
+    for parent in Path(__file__).resolve().parents:
+        candidate = parent / "debug" / "build" / "bin"
+        if (candidate / "taosd.exe").exists() and (candidate / "taos.dll").exists():
+            candidates.append(candidate)
+
+    seen = set()
+    for candidate in candidates:
+        candidate = candidate.resolve()
+        key = str(candidate).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if not candidate.is_dir():
+            continue
+
+        candidate_str = str(candidate)
+        path_items = os.environ.get("PATH", "").split(os.pathsep)
+        if not any(item.lower() == candidate_str.lower() for item in path_items if item):
+            os.environ["PATH"] = candidate_str + os.pathsep + os.environ.get("PATH", "")
+
+        global _WINDOWS_DLL_DIR
+        if hasattr(os, "add_dll_directory"):
+            _WINDOWS_DLL_DIR = os.add_dll_directory(candidate_str)
+        break
+
+
+_setup_windows_taos_dll_dir()
+
 from new_test_framework.utils import (
     BeforeTest,
     eos,

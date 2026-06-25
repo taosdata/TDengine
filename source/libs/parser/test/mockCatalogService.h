@@ -16,6 +16,10 @@
 #ifndef MOCK_CATALOG_SERVICE_H
 #define MOCK_CATALOG_SERVICE_H
 
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
+
 #include <memory>
 #include <string>
 #include <vector>

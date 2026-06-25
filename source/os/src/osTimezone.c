@@ -1146,21 +1146,32 @@ int64_t getWindowsTimezoneOffset(void) {
   DWORD len = GetEnvironmentVariableA("TZ", tz_env, sizeof(tz_env));
 
   if (len > 0 && len < sizeof(tz_env) && tz_env[0] != '\0') {
-    /* TZ is always stored in POSIX format by taosSetGlobalTimezone /
+    /* TZ is normally stored in POSIX format by taosSetGlobalTimezone /
      * initTimezoneInfo: optional alpha prefix (e.g. "UTC") then sign+offset.
      * POSIX sign: '+' = west of UTC, '-' = east.
      * E.g. "UTC-8:00" or "-8:00" = (East 8, e.g. Asia/Shanghai);
-     *      "UTC+5:00" or "+5:00" = (West 5, e.g. America/Bogota). */
+     *      "UTC+5:00" or "+5:00" = (West 5, e.g. America/Bogota).
+     *
+     * Keep backward compatibility with older bare ISO 8601 values such as
+     * "+08:00"/"-05:00", where the sign follows UTC direction instead. */
     const char *p = tz_env;
-    while (*p && ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z'))) p++;
+    bool        hasPrefix = false;
+    while (*p && ((*p >= 'A' && *p <= 'Z') || (*p >= 'a' && *p <= 'z'))) {
+      hasPrefix = true;
+      ++p;
+    }
     if (*p == '+' || *p == '-') {
       char sign = *p;
       int  hours = 0;
       int  minutes = 0;
       if (sscanf(p + 1, "%d:%d", &hours, &minutes) >= 1) {
         int64_t offset_seconds = (hours * 3600 + minutes * 60);
-        /* POSIX: '+' means west, '-' means east; return east-negative. */
-        return (sign == '+') ? offset_seconds : -offset_seconds;
+        if (hasPrefix) {
+          /* POSIX: '+' means west, '-' means east; return east-negative. */
+          return (sign == '+') ? offset_seconds : -offset_seconds;
+        }
+        /* Bare ISO 8601: '+' means east, '-' means west; still return east-negative. */
+        return (sign == '+') ? -offset_seconds : offset_seconds;
       }
     }
   }

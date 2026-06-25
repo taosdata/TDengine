@@ -19,7 +19,7 @@ import string
 import taos
 
 #  
-# 192.168.1.52 MINIO
+# 192.168.2.52 MINIO
 #
 
 '''
@@ -30,7 +30,7 @@ Common:
     ssAutoMigrateIntervalSec: 600,
 
 ssAccessString Common:
-    Endpoint        : 192.168.1.52:9000
+    Endpoint        : 192.168.2.52:9000
     Protocol        : http
     UriStyle        : path
     ChunkSize       : 64MB
@@ -55,7 +55,7 @@ class TestSSBasic:
     updatecfgDict = {
         "supportVnodes":"1000",
         "ssEnabled": "2",
-        "ssAccessString": f's3:endpoint=192.168.1.52:9000;bucket={bucketName};uriStyle=path;protocol=http;accessKeyId=zOgllR6bSnw2Ah3mCNel;secretAccessKey=cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX;chunkSize=64;maxChunks=10000;maxRetry=3',
+        "ssAccessString": f's3:endpoint=192.168.2.52:9000;bucket={bucketName};uriStyle=path;protocol=http;accessKeyId=zOgllR6bSnw2Ah3mCNel;secretAccessKey=cdO7oXAu3Cqdb1rUdevFgJMi0LtRwCXdWKQx4bhX;chunkSize=64;maxChunks=10000;maxRetry=3',
         'ssPageCacheSize': '10240',
         "ssUploadDelaySec": "10",
         'ssAutoMigrateIntervalSec': '600',

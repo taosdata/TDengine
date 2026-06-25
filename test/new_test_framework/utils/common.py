@@ -709,16 +709,20 @@ class TDCom:
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
+        normSelfPath = selfPath.replace("\\", "/")
+        buildPath = ""
 
-        if "taos-community" in selfPath:
+        if "taos-community" in normSelfPath:
             # tsdb repo layout: /mnt/tsdb/source/taos-community/test/...
-            projPath = selfPath[: selfPath.find("source/taos-community")]
-        elif "community" in selfPath:
-            projPath = selfPath[: selfPath.find("community")]
-        elif "TDengine" in selfPath:
-            projPath = selfPath[: selfPath.find("TDengine") + len("TDengine")]
+            projPath = normSelfPath[: normSelfPath.find("source/taos-community")]
+        elif "community" in normSelfPath:
+            projPath = normSelfPath[: normSelfPath.find("community")]
+        elif "TDengine" in normSelfPath:
+            projPath = normSelfPath[: normSelfPath.find("TDengine") + len("TDengine")]
         else:
-            projPath = selfPath[: selfPath.find("test")]
+            projPath = normSelfPath[: normSelfPath.find("test")]
+
+        projPath = os.path.normpath(projPath)
 
         for root, dirs, files in os.walk(projPath):
             if ".git" in root:
@@ -726,11 +730,13 @@ class TDCom:
             if "taosd" in files or "taosd.exe" in files:
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if "packaging" not in rootRealPath:
-                    buildPath = root[: len(root) - len("/build/bin")]
+                    normRoot = os.path.normpath(root)
+                    buildBinSuffix = os.path.normpath(os.path.join("build", "bin"))
+                    if normRoot.endswith(buildBinSuffix):
+                        buildPath = os.path.dirname(os.path.dirname(normRoot))
+                    else:
+                        buildPath = rootRealPath
                     break
-        # if platform.system().lower() == 'windows':
-        #    win_sep = "\\"
-        #    buildPath = buildPath.replace(win_sep,'/')
 
         return buildPath
 

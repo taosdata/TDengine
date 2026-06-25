@@ -1,6 +1,6 @@
 # Patch Arrow 19.0.1's ThirdpartyToolchain.cmake for CMake 4.0+ compatibility.
 #
-# CMake 4.0 removed support for projects declaring cmake_minimum_required(VERSION < 3.5).
+# CMake 4.0 removed support for projects declaring cmake_minimum_required(VERSION <3.5).
 # Arrow 19.0.1 bundles mimalloc 2.0 whose CMakeLists.txt declares VERSION 3.0, so its
 # ExternalProject configure step fails on CMake 4.0+. This script injects
 # -DCMAKE_POLICY_VERSION_MINIMUM:STRING=3.5 into Arrow's EP_COMMON_CMAKE_ARGS so the

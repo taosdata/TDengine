@@ -1,6 +1,10 @@
 ﻿#ifndef __ADDR_ANY_H__
 #define __ADDR_ANY_H__
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
 #include <windows.h>
 // Now we have to define _NO_CVCONST_H to be able to access 
 // various declarations from DbgHelp.h, which are not available by default 

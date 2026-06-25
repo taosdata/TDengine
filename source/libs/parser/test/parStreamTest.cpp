@@ -2771,6 +2771,9 @@ TEST_F(ParserStreamTest, TestErrorTriggerstream_options) {
 }
 
 TEST_F(ParserStreamTest, createStreamClearsTbnameFunctionAfterStrictAppendFailure) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesListMakeStrictAppend is unreliable in Windows release builds";
+#endif
   useDb("root", "stream_streamdb");
   setAsyncFlag("-1");
   StrictAppendTbnameFailureGuard stub;

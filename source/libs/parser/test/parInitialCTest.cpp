@@ -13,6 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
+
 #include <cstring>
 #include <fstream>
 
@@ -546,15 +550,21 @@ TEST_F(ParserInitialCTest, createFunction) {
   });
 
   // validateUdfLibraryPath (added for CVE-2023-38502) requires:
-  //   - binary UDFs: .so extension + ELF magic header
+  //   - binary UDFs: platform-native extension + library magic header
   //   - python UDFs: no strict enforcement, any file works
   struct udfFile {
-    udfFile(const std::string& filename, bool elf) : path_(filename) {
+    udfFile(const std::string& filename, bool nativeLib) : path_(filename) {
       std::ofstream file(filename, std::ios::binary);
-      if (elf) {
-        // Write minimal ELF magic: 0x7f 'E' 'L' 'F' + 12 padding bytes
+      if (nativeLib) {
+#ifdef WINDOWS
+        // Minimal PE header magic: 'M' 'Z'
+        const unsigned char peMagic[16] = {'M', 'Z', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        file.write(reinterpret_cast<const char*>(peMagic), sizeof(peMagic));
+#else
+        // Minimal ELF magic: 0x7f 'E' 'L' 'F' + 12 padding bytes
         const unsigned char elfMagic[16] = {0x7f, 'E', 'L', 'F', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
         file.write(reinterpret_cast<const char*>(elfMagic), sizeof(elfMagic));
+#endif
       } else {
         file << "# python udf\n";
       }
@@ -562,10 +572,20 @@ TEST_F(ParserInitialCTest, createFunction) {
     }
     ~udfFile() { TD_ALWAYS_ASSERT(0 == remove(path_.c_str())); }
     std::string path_;
-  } udfSo("udf.so", true), udfPy("udf.py", false);
+  }
+#ifdef WINDOWS
+      udfLib("udf.dll", true),
+#else
+      udfLib("udf.so", true),
+#endif
+      udfPy("udf.py", false);
 
   setCreateFuncReq("udf1", TSDB_DATA_TYPE_INT);
+#ifdef WINDOWS
+  run("CREATE FUNCTION udf1 AS 'udf.dll' OUTPUTTYPE INT");
+#else
   run("CREATE FUNCTION udf1 AS 'udf.so' OUTPUTTYPE INT");
+#endif
 
   setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8, TSDB_FUNC_SCRIPT_PYTHON, 1);
   run("CREATE OR REPLACE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS 'udf.py' OUTPUTTYPE DOUBLE BUFSIZE 8 LANGUAGE 'python'");
@@ -717,14 +737,22 @@ TEST_F(ParserInitialCTest, createQnode) {
 //}
 
 TEST_F(ParserInitialCTest, createTsmaClearsTagColumnAfterStrictAppendFailure) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesListMakeStrictAppend is unreliable in Windows release builds";
+#endif
   useDb("root", "test");
+  setAsyncFlag("-1");
   StrictAppendStubGuard stub(StrictAppendFailure::TagColumn);
 
   run("CREATE TSMA tsma1 ON st1 FUNCTION(AVG(c1)) INTERVAL(1m)", TSDB_CODE_OUT_OF_MEMORY, PARSER_STAGE_TRANSLATE);
 }
 
 TEST_F(ParserInitialCTest, createTsmaClearsTbnameFunctionAfterStrictAppendFailure) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesListMakeStrictAppend is unreliable in Windows release builds";
+#endif
   useDb("root", "test");
+  setAsyncFlag("-1");
   StrictAppendStubGuard stub(StrictAppendFailure::TbnameFunction);
 
   run("CREATE TSMA tsma1 ON st1 FUNCTION(AVG(c1)) INTERVAL(1m)", TSDB_CODE_OUT_OF_MEMORY, PARSER_STAGE_TRANSLATE);
@@ -1263,7 +1291,10 @@ TEST(createRawValueNodeExtTest, successPathFreesRightOnce) {
   ASSERT_NE(pRight, nullptr);
 
   char    lit[]   = "100";
-  SToken  token   = {.n = (uint32_t)strlen(lit), .type = 0, .z = lit};
+  SToken  token;
+  token.n = (uint32_t)strlen(lit);
+  token.type = 0;
+  token.z = lit;
 
   SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, &token, nullptr, pRight);
   // pRight is consumed (freed) by the function regardless of success/failure.

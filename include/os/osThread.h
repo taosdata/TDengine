@@ -23,8 +23,8 @@ extern "C" {
 #endif
 
 #ifdef WINDOWS
+#include "osWindows.h"
 #include <tlhelp32.h>
-#include <windows.h>
 #endif
 
 #if defined(WINDOWS) && !defined(__USE_PTHREAD)
