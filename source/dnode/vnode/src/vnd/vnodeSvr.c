@@ -3801,13 +3801,22 @@ static int32_t vnodeProcessAuditRecordReq(SVnode *pVnode, int64_t ver, void *pRe
   vTrace("vgId:%d, get audit stable entry, uid:%" PRId64 ", suid:% " PRId64 ", version:%" PRId64 ", api:%p",
          TD_VID(pVnode), merStb.me.uid, merStb.me.ctbEntry.suid, merStb.me.version, merStb.pAPI);
 
-  code = vnodeGetTableSchema(pVnode, merStb.me.uid, &pSchema, &suid, &pTagSchema);
+  // 死锁修复：merStb 是用 META_READER_LOCK 初始化的，初始化时已经持有 meta 的读锁，
+  // 该读锁要到 metaReaderClear 才释放。下面的 vnodeGetTableSchema 内部会再创建一个
+  // 带锁的 SMetaReader，并在 meta cache 未命中时由 metaGetInfo() 把读锁升级为写锁去
+  // 刷新缓存。若此处 merStb 仍持有外层读锁（同一线程），写锁请求将永远无法满足，
+  // 造成同线程自死锁（pthread_rwlock 不可重入）。
+  // 这里其实只需要超级表的 uid，拿到后立即释放 merStb 的读锁，消除锁嵌套即可。
+  int64_t stbUid = merStb.me.uid;
+  metaReaderClear(&merStb);  // 在调用 vnodeGetTableSchema 之前先释放 meta 读锁，避免锁嵌套
+  vTrace("vgId:%d, released audit stable meta reader lock before schema lookup, stbUid:%" PRId64, TD_VID(pVnode),
+         stbUid);
+
+  code = vnodeGetTableSchema(pVnode, stbUid, &pSchema, &suid, &pTagSchema);
   if (code != 0) {
-    metaReaderClear(&merStb);
     TAOS_CHECK_GOTO(code, &lino, _exit);
   }
   vTrace("vgId:%d, get audit stable schema, version:%d, suid:%" PRId64, TD_VID(pVnode), pSchema->version, suid);
-  metaReaderClear(&merStb);
   // pSchema pTagSchema can be cached in the future
 
   SJson *pRecords = tjsonGetObjectItem(pJson, "records");
