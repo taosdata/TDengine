@@ -864,6 +864,7 @@ REVOKE ALL ON STREAM power.realtime_agg FROM operator;
 - Audit database is identified by `is_audit` attribute (not a fixed name)
 - Only SYSAUDIT can delete and modify audit databases
 - To prevent accidental deletion, a new `allow_drop` attribute has been added. Audit database defaults to 0, regular databases default to 1. To delete an audit database, you need to set `allow_drop` to 1.
+- Audit database precision defaults to nanosecond (`ns`) and cannot be changed to other precisions
 
 **Permission Restrictions:**
 

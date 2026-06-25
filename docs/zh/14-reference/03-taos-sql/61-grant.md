@@ -862,6 +862,7 @@ REVOKE ALL ON STREAM power.realtime_agg FROM operator;
 - 审计库通过 `is_audit` 属性标识（非固定名称）
 - 仅 SYSAUDIT 可删除和修改审计库
 - 为防止误删库，新增了 allow_drop 属性。审计库默认为 0，普通库默认为 1。删除审计库时，需要将 allow_drop 属性修改为 1。
+- 审计库的时间精度默认为纳秒（ns），不允许指定为其他精度
 
 **权限限制：**
 
