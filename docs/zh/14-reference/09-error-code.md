@@ -696,6 +696,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006106 | Audit database already exist                                              | 参数不正确                              | 检查并修正 SQL 语句               |
 | 0x80006107 | Audit database is not allowed to change                                   | 参数不正确                              | 检查并修正 SQL 语句               |
 | 0x80006108 | Audit database is not allowed to keep multiple vgroups                    | 参数不正确                              | 检查并修正 SQL 语句               |
+| 0x80006109 | Audit database precision must be nanosecond                               | 创建审计库时未使用纳秒精度                    | 创建审计库时将精度设置为纳秒 (ns)          |
 
 #### virtual table
 

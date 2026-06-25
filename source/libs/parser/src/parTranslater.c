@@ -11917,6 +11917,17 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->walFsyncPeriod = pStmt->pOptions->fsyncPeriod;
   pReq->walLevel = pStmt->pOptions->walLevel;
   pReq->precision = pStmt->pOptions->precision;
+  // 审计库精度处理：如果是审计库，用户未指定精度则默认纳秒；用户显式指定了非纳秒精度则报错
+  if (pStmt->pOptions->isAudit == 1) {
+    if ('\0' == pStmt->pOptions->precisionStr[0]) {
+      // 用户未指定精度，默认设置为纳秒
+      pReq->precision = TSDB_TIME_PRECISION_NANO;
+    } else if (pReq->precision != TSDB_TIME_PRECISION_NANO) {
+      // 用户显式指定了非纳秒精度，报错
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_AUDIT_MUST_NANO_PRECISION,
+                                     "Audit database precision must be nanosecond");
+    }
+  }
   pReq->compression = pStmt->pOptions->compressionLevel;
   pReq->replications = pStmt->pOptions->replica;
   pReq->strict = pStmt->pOptions->strict;
