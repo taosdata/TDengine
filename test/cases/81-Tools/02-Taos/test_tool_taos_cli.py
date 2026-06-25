@@ -321,8 +321,15 @@ class TestTaosCli:
 
 
     def checkExceptCmd(self):
+        # Modification history:
+        #   - 2026-06-23: use local unreachable DSN + -T 5 for network-related cases.
+        #     Reason: checkExcept() calls os.system() without timeout; -X to
+        #     gw.cloud.taosdata.com blocked ~13min per command in CI (MR 791).
+        #
         # exe
         taos = etool.taosFile()
+        # cap WebSocket/connect wait; only appended to DSN cases below
+        ws_timeout = " -T 5"
         # option
         options = [
             "-Z native -X http://127.0.0.1:6041",
@@ -330,10 +337,13 @@ class TestTaosCli:
             "-Z abcdefg",
             "-X",
             "-X  ",
-            "-X 127.0.0.1:6041",
-            "-X https://gw.cloud.taosdata.com?token617ffdf...",
-            "-Z 1 -X https://gw.cloud.taosdata.com?token=617ffdf...",
-            "-X http://127.0.0.1:6042"
+            "-X 127.0.0.1:6041" + ws_timeout,
+            # Historical (slow in CI, real outbound connect to cloud gateway):
+            # "-X https://gw.cloud.taosdata.com?token617ffdf...",
+            # "-Z 1 -X https://gw.cloud.taosdata.com?token=617ffdf...",
+            "-X http://127.0.0.1:1?token617ffdf..." + ws_timeout,
+            "-Z 1 -X http://127.0.0.1:1?token=617ffdf..." + ws_timeout,
+            "-X http://127.0.0.1:6042" + ws_timeout,
         ]
 
         # do check
@@ -566,6 +576,9 @@ class TestTaosCli:
         History:
             - 2025-10-23 Alex Duan Migrated from uncatalog/army/cmdline/test_taos_cli.py
             - 2025-12-25 Alex Duan Add totp code and token login check
+            - 2026-06-23 checkExceptCmd: replace cloud DSN with local unreachable
+              endpoint and add -T 5; avoid ~13min/blocking connect in CI
+            - 2026-06-23 trivial touch for incremental CI probe (cases.task edit)
 
         """
         tdLog.debug(f"start to excute {__file__}")

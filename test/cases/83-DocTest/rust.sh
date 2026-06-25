@@ -2,31 +2,17 @@
 
 set -e
 
-# Use internal Cargo mirror in CI (avoid mirrors.tuna.tsinghua.edu.cn timeouts).
-setup_cargo_mirror() {
-    export CARGO_HOME="${CARGO_HOME:-${HOME}/.cargo}"
-    mkdir -p "${CARGO_HOME}"
-    local _cfg="${CARGO_HOME}/config.toml"
-    if [ ! -f "${_cfg}" ] || ! grep -q 'nora.tdengine.net' "${_cfg}" 2>/dev/null; then
-        cat > "${_cfg}" <<'EOF'
-[source.crates-io]
-replace-with = 'internal'
-
-[source.internal]
-registry = "sparse+https://nora.tdengine.net/cargo/index/"
-
-[registries.internal]
-index = "sparse+https://nora.tdengine.net/cargo/index/"
-
-[http]
-multiplexing = false
-timeout = 120
-
-[net]
-git-fetch-with-cli = true
-EOF
-    fi
-}
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_TEST_CI="$(cd "${_SCRIPT_DIR}/../.." && pwd)/ci"
+if [ -f "${_TEST_CI}/setup_internal_mirrors.sh" ]; then
+  # shellcheck source=../../ci/setup_internal_mirrors.sh
+  source "${_TEST_CI}/setup_internal_mirrors.sh"
+else
+  _REPO_ROOT="$(cd "${_SCRIPT_DIR}/../../../../../" && pwd)"
+  # shellcheck source=../../../../../tools/cicd/tsdb-test-pipeline/ci/setup_internal_mirrors.sh
+  source "${_REPO_ROOT}/tools/cicd/tsdb-test-pipeline/ci/setup_internal_mirrors.sh"
+fi
+setup_internal_mirrors
 
 cargo_run_retry() {
     local max=3 attempt
@@ -41,8 +27,6 @@ cargo_run_retry() {
     done
     return 1
 }
-
-setup_cargo_mirror
 
 taosd >>/dev/null 2>&1 &
 taosadapter >>/dev/null 2>&1 &
