@@ -14,10 +14,10 @@ PACKAGE_ARCHIVE := $(BIN_DIR)/$(PACKAGE_NAME).tar.gz
 
 init:
 	go mod download
-	cd $(FRONTEND_DIR) && npm install
+	cd $(FRONTEND_DIR) && npm ci --include=dev
 
 build:
-	cd $(FRONTEND_DIR) && npm run build
+	cd $(FRONTEND_DIR) && npm exec vite -- build --outDir ../../internal/serve/webdist
 	mkdir -p $(BIN_DIR)
 	go build -o $(BACKEND_BIN) ./cmd/tdsqlsmith
 
