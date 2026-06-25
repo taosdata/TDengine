@@ -7243,9 +7243,12 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
               SSTriggerVirtTableInfo *pVirtTableInfo =
                   tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
               if (pVirtTableInfo == NULL) continue;
+              SSTriggerWalProgress *pGroupProgress =
+                  tSimpleHashGet(pContext->pReaderWalProgress, &pVirtTableInfo->vgId, sizeof(int32_t));
+              QUERY_CHECK_NULL(pGroupProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
               for (int32_t k = 0; k < TARRAY_SIZE(pVirtTableInfo->tbGids); k++) {
                 int64_t                          gid = *(int64_t *)TARRAY_GET_ELEM(pVirtTableInfo->tbGids, k);
-                SSTriggerPendingCreateTableEntry entry = {.gid = gid, .pProgress = pProgress, .attemptCount = 1};
+                SSTriggerPendingCreateTableEntry entry = {.gid = gid, .pProgress = pGroupProgress, .attemptCount = 1};
                 void                            *px = taosArrayPush(pContext->pPendingCreateTableGids, &entry);
                 QUERY_CHECK_NULL(px, code, lino, _end, terrno);
               }

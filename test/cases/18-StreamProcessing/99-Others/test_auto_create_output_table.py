@@ -16,7 +16,7 @@ class TestStreamAutoCreateOutputTable:
             - check_auto_create_out_ntb:
                 test auto create output ntable
 
-        Since: v3.4.7.0
+        Since: v3.4.2.0
 
         Catalog:
             - StreamProcessing:Others
@@ -36,6 +36,51 @@ class TestStreamAutoCreateOutputTable:
         self.check_auto_create_out_ntb()
         self.insertDataAndCheck()
 
+    def test_auto_create_output_table_for_vtable_period(self):
+        """summary: test nodelay output subtable creation for virtual table period stream
+
+        description:
+            - check period stream from virtual stable creates one output
+              subtable per tbname partition when output_subtable uses tbname
+
+        Since: v3.4.2.0
+
+        Catalog:
+            - StreamProcessing:Others
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7026933541
+
+        History:
+            - 2026-06-25 Created by regression
+
+        """
+
+        tdStream.ensureSnode()
+        self.prepareVtablePeriodData()
+        tdSql.execute("use db_vtable_period")
+        tdSql.execute(
+            "create stream s_vtable_period "
+            "period(5s) "
+            "from vst_period partition by tbname "
+            "stream_options(ignore_disorder|ignore_nodata_trigger) "
+            "into out_vtable_period nodelay_create_subtable "
+            "output_subtable(concat('out_', tbname, '_period')) "
+            "as select cast(_tlocaltime / 1000000 as timestamp) as ts, "
+            "max(current) as current from %%tbname "
+            "where _c0 >= now() - 10s and _c0 < now();"
+        )
+
+        tdStream.checkStreamStatus("s_vtable_period")
+        tdSql.checkResultsByFunc(
+            sql="select tags tbname from out_vtable_period order by tbname;",
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "out_vt_d6_ajrj26_period")
+            and tdSql.compareData(1, 0, "out_vt_d9_q5ox8n_period"),
+            retry=60,
+        )
+
     def prepareData(self):
         tdLog.info(f"prepare data")
 
@@ -52,6 +97,29 @@ class TestStreamAutoCreateOutputTable:
 
         tdSql.executes(sqls)
         tdLog.info(f"create successfully.")
+
+    def prepareVtablePeriodData(self):
+        tdLog.info(f"prepare virtual table period stream data")
+
+        sqls = [
+            "drop database if exists db_vtable_period;",
+            "create database db_vtable_period vgroups 8;",
+            "use db_vtable_period;",
+            "create table meters (`ts` timestamp, `current` float, `phase` float, `voltage` int) tags(`t1` int);",
+            "create table d6 using meters tags (6);",
+            "create table d9 using meters tags (9);",
+            "insert into d6 values (now - 5s, 10.0, 1.0, 220);",
+            "insert into d9 values (now - 5s, 20.0, 2.0, 221);",
+            "create stable vst_period (`ts` timestamp, `current` float, `phase` float, `voltage` int) "
+            "tags(`element` varchar(256)) virtual 1;",
+            "create vtable vt_d6_ajrj26 (`current` from d6.current, `phase` from d6.phase, `voltage` from d6.voltage) "
+            "using vst_period tags ('d6');",
+            "create vtable vt_d9_q5ox8n (`current` from d9.current, `phase` from d9.phase, `voltage` from d9.voltage) "
+            "using vst_period tags ('d9');",
+        ]
+
+        tdSql.executes(sqls)
+        tdLog.info(f"create virtual table period data successfully.")
 
     def check_auto_create_out_ctb(self):
         tdSql.execute(f"use db")
