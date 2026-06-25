@@ -1108,6 +1108,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_KEEPFORCE,           "Audit database keep
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_ALREADY_EXIST,         "Audit database already exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_NOT_ALLOW_CHANGE,      "Audit database is not allowed to change")
 TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_DB_NOT_MULTI_VGROUP,      "Audit database is not allowed to keep multiple vgroups")
+TAOS_DEFINE_ERROR(TSDB_CODE_AUDIT_MUST_NANO_PRECISION,      "Audit database precision must be nanosecond")
 
 // VTABLE
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR,     "Virtual table scan internal error")

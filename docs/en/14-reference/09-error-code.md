@@ -713,6 +713,7 @@ Below are the business error codes for each module.
 | 0x80006106 | Audit database already exist                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
 | 0x80006107 | Audit database is not allowed to change                       | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
 | 0x80006108 | Audit database is not allowed to keep multiple vgroups        | Invalid parameter                                                                                                 | Check and correct the SQL statement                           |
+| 0x80006109 | Audit database precision must be nanosecond                   | Audit database was created with non-nanosecond precision                                                          | Set precision to nanosecond (ns) when creating audit database |
 
 #### virtual table
 
