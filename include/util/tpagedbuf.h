@@ -172,6 +172,12 @@ void dBufSetPrintInfo(SDiskbasedBuf* pBuf);
 SDiskbasedBufStatis getDBufStatis(const SDiskbasedBuf* pBuf);
 
 /**
+ * Test-only: read the raw on-disk spill bytes through the open file handle.
+ * @return bytes read, or -1.
+ */
+int64_t dbgReadDiskbasedBufFile(SDiskbasedBuf* pBuf, char* out, int64_t cap);
+
+/**
  * Print the buffer statistics information
  * @param pBuf
  */
