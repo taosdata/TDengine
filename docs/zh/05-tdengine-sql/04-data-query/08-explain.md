@@ -164,7 +164,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `group_join=` | 是否启用分组连接 | 用于复杂连接诊断 |
 | `groups=` | 分组键数量 | 用于分析分组维度是否过多 |
 | `has_partition=` | 是否包含分区信息 | 用于判断虚拟表或动态查询是否保留了分区属性 |
-| `input_order=` | 输入时间序 | 用于判断上游是否已经满足当前算子对顺序的要求 |
+| `input_order=` | 输入数据按**主键时间戳列**的有序性（asc/desc/unknown） | 用于判断上游是否已经满足当前算子对时间序的要求 |
 | `jlimit=` | 单行匹配的最大连接行数 | 用于分析连接放大是否被限制 |
 | `limit=` | 当前算子承接到的 `LIMIT` | 用于确认 `LIMIT` 是否被尽早下推 |
 | `mode=grp_order` | 按分组顺序组织扫描 | 说明计划更强调分组输出顺序 |
@@ -174,7 +174,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `offset=` | 当前算子承接到的 `OFFSET` | 用于判断偏移是否参与了当前层裁剪 |
 | `order=[asc\|x desc\|y]` | 扫描时顺序读取与逆序读取的计数 | 用于判断扫描是否主要按升序还是降序进行 |
 | `origin_vgroup_num=` | 原始 vgroup 数量 | 用于观察虚拟稳定表查询的并行规模 |
-| `output_order=` | 输出时间序 | 用于判断当前算子是否改变了顺序，进而推断后续是否还能避免排序 |
+| `output_order=` | 输出数据按**主键时间戳列**的有序性（asc/desc/unknown） | 用于判断当前算子是否改变了时间序，进而推断后续是否还能避免排序 |
 | `partitions=` | 分片键数量 | 用于判断 `PARTITION BY` 的维度规模 |
 | `pseudo_columns=` | 伪列数量，例如 `_wstart`、`_wend`、`tbname` 等 | 可用于确认窗口列、表名列等是否被引入执行链路 |
 | `rows=` | 该算子输出的结果行数 | 用于判断某层是否放大了数据量，或某个 vgroup 是否输出异常偏大 |
@@ -192,6 +192,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 - 在多 vgroup 聚合输出中，`a(b)` 形式表示“平均值（最大值）”
 - 对 `rows=` 来说，`b` 可用于快速定位最重的单个执行节点
 - 对 `cost=` 来说，首值大多对应首包延迟，末值大多对应总处理时长
+- `input_order` / `output_order` 描述的是**主键时间戳列**的有序方向，**不是**按 `ORDER BY` 排序键的方向。因此按非时间戳列排序时（如 `ORDER BY val`），`Sort` 算子会显示 `output_order=unknown`——这表示排序后时间戳顺序已不确定，**并不代表结果未排序**（结果仍严格按排序键有序）。该字段主要供窗口、归并、`Join` 等依赖时间序的下游算子判断能否走流式、省去再次排序
 
 ### 2. `VERBOSE true` 下的结构与属性指标
 

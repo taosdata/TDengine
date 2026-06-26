@@ -46,6 +46,7 @@ typedef enum {
   DND_CS_VNODE_WAL = 2,
   DND_CS_SDB = 4,
   DND_CS_MNODE_WAL = 8,
+  DND_CS_QUERY_SPILL = 16,  // encrypt query spill (paged buffer) temp files
 } EEncryptScope;
 
 extern SConfig *tsCfg;
