@@ -43,6 +43,9 @@
 #define TD_MSG_RANGE_CODE_
 #include "tmsgdef.h"
 #include "tversion.h"
+#ifdef USE_LIBGSASL
+#include <gsasl.h>
+#endif
 
 #include "streamMsg.h"
 #include "tRealloc.h"
@@ -3535,6 +3538,29 @@ _exit:
 }
 void tFreeSCreateEncryptAlgrReq(SCreateEncryptAlgrReq *pReq) { FREESQL(); }
 
+void tDeriveScramCred(const char *passHash, SScramCred *pScram) {
+  memset(pScram, 0, sizeof(*pScram));
+#ifdef USE_LIBGSASL
+  char salt[TSDB_SCRAM_SALT_LEN] = {0};
+  char saltedPassword[TSDB_SCRAM_KEY_LEN] = {0};
+  char clientKey[TSDB_SCRAM_KEY_LEN] = {0};
+  char serverKey[TSDB_SCRAM_KEY_LEN] = {0};
+  char storedKey[TSDB_SCRAM_KEY_LEN] = {0};
+
+  if (gsasl_nonce(salt, sizeof(salt)) != GSASL_OK) return;
+  int rc = gsasl_scram_secrets_from_password(GSASL_HASH_SHA256, passHash, TSDB_SCRAM_DEFAULT_ITER,
+                                              salt, sizeof(salt),
+                                              saltedPassword, clientKey, serverKey, storedKey);
+  if (rc != GSASL_OK) return;
+  pScram->algo = TSDB_SCRAM_ALGO_SHA256;
+  pScram->iter = TSDB_SCRAM_DEFAULT_ITER;
+  pScram->saltLen = sizeof(salt);
+  memcpy(pScram->salt, salt, sizeof(salt));
+  memcpy(pScram->storedKey, storedKey, sizeof(storedKey));
+  memcpy(pScram->serverKey, serverKey, sizeof(serverKey));
+#endif
+}
+
 int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq) {
   SEncoder encoder = {0};
   int32_t  code = 0;
@@ -3612,6 +3638,13 @@ int32_t tSerializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pReq
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->minSecLevel));
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->maxSecLevel));
   }
+
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->scram.algo));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->scram.iter));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->scram.saltLen));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->scram.salt, sizeof(pReq->scram.salt)));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->scram.storedKey, sizeof(pReq->scram.storedKey)));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->scram.serverKey, sizeof(pReq->scram.serverKey)));
 
   tEndEncode(&encoder);
 
@@ -3736,6 +3769,19 @@ int32_t tDeserializeSCreateUserReq(void *buf, int32_t bufLen, SCreateUserReq *pR
   } else {
     pReq->minSecLevel = TSDB_DEFAULT_USER_MIN_SECURITY_LEVEL;
     pReq->maxSecLevel = TSDB_DEFAULT_USER_MAX_SECURITY_LEVEL;
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    uint8_t *pBin = NULL;
+    uint32_t binLen = 0;
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->scram.algo));
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->scram.iter));
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->scram.saltLen));
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBin, &binLen));
+    if (binLen == sizeof(pReq->scram.salt)) memcpy(pReq->scram.salt, pBin, binLen);
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBin, &binLen));
+    if (binLen == sizeof(pReq->scram.storedKey)) memcpy(pReq->scram.storedKey, pBin, binLen);
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBin, &binLen));
+    if (binLen == sizeof(pReq->scram.serverKey)) memcpy(pReq->scram.serverKey, pBin, binLen);
   }
 
   tEndDecode(&decoder);
@@ -4373,6 +4419,13 @@ int32_t tSerializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq) 
     TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->maxSecLevel));
   }
 
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->scram.algo));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->scram.iter));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pReq->scram.saltLen));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->scram.salt, sizeof(pReq->scram.salt)));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->scram.storedKey, sizeof(pReq->scram.storedKey)));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->scram.serverKey, sizeof(pReq->scram.serverKey)));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -4552,6 +4605,20 @@ int32_t tDeserializeSAlterUserReq(void *buf, int32_t bufLen, SAlterUserReq *pReq
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->minSecLevel));
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->maxSecLevel));
     }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    uint8_t *pBin = NULL;
+    uint32_t binLen = 0;
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->scram.algo));
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->scram.iter));
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pReq->scram.saltLen));
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBin, &binLen));
+    if (binLen == sizeof(pReq->scram.salt)) memcpy(pReq->scram.salt, pBin, binLen);
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBin, &binLen));
+    if (binLen == sizeof(pReq->scram.storedKey)) memcpy(pReq->scram.storedKey, pBin, binLen);
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBin, &binLen));
+    if (binLen == sizeof(pReq->scram.serverKey)) memcpy(pReq->scram.serverKey, pBin, binLen);
   }
 
   tEndDecode(&decoder);
@@ -11284,6 +11351,7 @@ int32_t tSerializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->token));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->connectTime));
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->signature, sizeof(pReq->signature)));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->saslToken));
   tEndEncode(&encoder);
 
 _exit:
@@ -11325,12 +11393,133 @@ int32_t tDeserializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->token));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->connectTime));
   TAOS_CHECK_EXIT(tDecodeBinaryTo(&decoder, pReq->signature, sizeof(pReq->signature)));
+  // SASL one-time token (optional trailing field; absent from older clients)
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->saslToken));
+  }
 
   tEndDecode(&decoder);
 
 _exit:
   tDecoderClear(&decoder);
   return code;
+}
+
+int32_t tSerializeSSaslStepReq(void *buf, int32_t bufLen, SSaslStepReq *pReq) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->mech));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->user));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->authId));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->sVer));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->data, pReq->dataLen));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSSaslStepReq(void *buf, int32_t bufLen, SSaslStepReq *pReq) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  uint64_t len = 0;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->mech));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->authId));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->sVer));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pReq->data, &len));
+  pReq->dataLen = (int32_t)len;
+  // The payload is fed to gsasl_step64(), which treats it as a NUL-terminated base64 C string. The
+  // wire bytes are attacker-controlled and tDecodeBinaryAlloc allocates exactly `len` bytes with no
+  // terminator, so append one defensively to prevent a read past the allocation.
+  if (pReq->data != NULL) {
+    uint8_t *pNulTerm = taosMemoryRealloc(pReq->data, len + 1);
+    if (pNulTerm == NULL) TAOS_CHECK_EXIT(terrno);
+    pNulTerm[len] = 0;
+    pReq->data = pNulTerm;
+  }
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSSaslStepReq(SSaslStepReq *pReq) {
+  if (pReq == NULL) return;
+  taosMemoryFreeClear(pReq->data);
+}
+
+int32_t tSerializeSSaslStepRsp(void *buf, int32_t bufLen, SSaslStepRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->authId));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pRsp->done));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pRsp->data, pRsp->dataLen));
+  TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->authToken));
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSSaslStepRsp(void *buf, int32_t bufLen, SSaslStepRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  uint64_t len = 0;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->authId));
+  TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->done));
+  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void **)&pRsp->data, &len));
+  pRsp->dataLen = (int32_t)len;
+  // Consumed by gsasl_step64()/taosStrdup() as a NUL-terminated C string; the peer-supplied bytes are
+  // not guaranteed to end in NUL, so append one to prevent a read past the exact-size allocation.
+  if (pRsp->data != NULL) {
+    uint8_t *pNulTerm = taosMemoryRealloc(pRsp->data, len + 1);
+    if (pNulTerm == NULL) TAOS_CHECK_EXIT(terrno);
+    pNulTerm[len] = 0;
+    pRsp->data = pNulTerm;
+  }
+  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pRsp->authToken));
+  tEndDecode(&decoder);
+
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+void tFreeSSaslStepRsp(SSaslStepRsp *pRsp) {
+  if (pRsp == NULL) return;
+  taosMemoryFreeClear(pRsp->data);
 }
 
 static void tCalculateConnectReqSignature(const SConnectReq *pReq, char *signature) {

@@ -78,6 +78,11 @@ typedef struct {
 typedef struct {
   SCacheObj *connCache;
   SCacheObj *appCache;
+  // SCRAM-SHA-256 application-layer auth (libgsasl). Leader-local: all mnode RPC is leader-served,
+  // so every handshake round and the bridging CONNECT land on the same mnode.
+  void      *saslCtx;         // Gsasl* context (void* keeps gsasl.h out of this header)
+  SCacheObj *saslSessCache;   // authId    -> in-flight Gsasl_session for a multi-round handshake
+  SCacheObj *saslTokenCache;  // authToken -> user that just completed authentication
 } SProfileMgmt;
 
 typedef struct {

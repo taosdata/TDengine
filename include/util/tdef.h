@@ -369,6 +369,19 @@ typedef enum {
 #define TSDB_PASSWORD_MAX_LEN                   255
 #define TSDB_PASSWORD_LEN                       32  // this is the length after encryption
 #define TSDB_PASSWORD_SALT_LEN                  31  // length of salt used in password encryption, excluding the terminator '\0'
+// SCRAM-SHA-256 credentials (application-layer SASL auth). StoredKey/ServerKey are raw
+// SHA-256 outputs (32 bytes); the salt is a server-generated random value.
+#define TSDB_SCRAM_KEY_LEN                      32  // SHA-256 digest size: SCRAM StoredKey / ServerKey
+#define TSDB_SCRAM_SALT_LEN                     32  // server-generated SCRAM salt length
+#define TSDB_SCRAM_DEFAULT_ITER                 4096 // PBKDF2 iteration count
+#define TSDB_SCRAM_ALGO_NONE                    0   // not provisioned -> fall back to legacy auth
+#define TSDB_SCRAM_ALGO_SHA256                  1   // SCRAM-SHA-256
+#define TSDB_SASL_MECH_LEN                      24  // SASL mechanism name buffer, e.g. "SCRAM-SHA-256"
+#define TSDB_SASL_AUTH_ID_LEN                   40  // server-assigned handshake id (random hex + '\0')
+// client auth mechanism policy (tsAuthMech)
+#define TSDB_AUTH_MECH_AUTO                     0   // try SCRAM, fall back to legacy if unavailable
+#define TSDB_AUTH_MECH_SCRAM                    1   // require SCRAM-SHA-256 (no fallback)
+#define TSDB_AUTH_MECH_LEGACY                   2   // legacy password CONNECT only
 #define TSDB_USER_PASSWORD_LEN                  129
 #define TSDB_USER_PASSWORD_LONGLEN              256
 #define TSDB_TOTP_SECRET_LEN                    32

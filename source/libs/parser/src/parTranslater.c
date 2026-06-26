@@ -19514,8 +19514,12 @@ static int32_t translateCreateUser(STranslateContext* pCxt, SCreateUserStmt* pSt
   createReq.ignoreExists = pStmt->ignoreExists;
 
   tstrncpy(createReq.user, pStmt->userName, TSDB_USER_LEN);
-  taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), createReq.pass); 
+  taosEncryptPass_c((uint8_t*)pStmt->password, strlen(pStmt->password), createReq.pass);
   createReq.pass[sizeof(createReq.pass) - 1] = 0;
+  // Derive SCRAM credentials in addition to the hashed password. The hashed password is still sent
+  // and stored so that non-SCRAM clients (other platforms, third-party connectors, REST) can keep
+  // authenticating via the legacy CONNECT path; it must NOT be cleared.
+  tDeriveScramCred(createReq.pass, &createReq.scram);
   createReq.isSimplePass = 1;
   for (char* p = pStmt->password; *p != 0; p++) {
     if (*p == ' ' || *p == '\'' || *p == '\"' || *p == '`' || *p == '\\') {
@@ -19622,8 +19626,11 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.changepass = opts->changepass;
 
   if (opts->hasPassword) {
-    taosEncryptPass_c((uint8_t*)opts->password, strlen(opts->password), alterReq.pass); 
+    taosEncryptPass_c((uint8_t*)opts->password, strlen(opts->password), alterReq.pass);
     alterReq.pass[sizeof(alterReq.pass) - 1] = 0;
+    // Keep sending/storing the hashed password (for legacy fallback) alongside the SCRAM credentials;
+    // clearing it would lock the user out of every non-SCRAM client.
+    tDeriveScramCred(alterReq.pass, &alterReq.scram);
     alterReq.isSimplePass = 1;
     for (char* p = opts->password; *p != 0; p++) {
       if (*p == ' ' || *p == '\'' || *p == '\"' || *p == '`' || *p == '\\') {

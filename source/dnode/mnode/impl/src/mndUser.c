@@ -37,6 +37,9 @@
 #include "totp.h"
 #include "mndDnode.h"
 #include "mndVgroup.h"
+#ifdef USE_LIBGSASL
+#include <gsasl.h>
+#endif
 
 // clang-format on
 
@@ -1014,6 +1017,41 @@ static void dropOldPasswords(SUserObj *pUser) {
   pUser->passwords = taosMemoryRealloc(pUser->passwords, sizeof(SUserPassword) * pUser->numOfPasswords);
 }
 
+// Derive SCRAM-SHA-256 credentials (salt/StoredKey/ServerKey) from the already-hashed password
+// string and store them in pScram. passHash must be the SAME normalized string the client reproduces
+// at CONNECT time (taosEncryptPass_c output stored in passwords[].pass), so the handshake derives
+// identical keys. On any failure -- or when libgsasl is not compiled in -- pScram->algo is left as
+// TSDB_SCRAM_ALGO_NONE and the user transparently falls back to legacy password verification.
+static void mndGenScramCred(const char *passHash, SScramCred *pScram) {
+  memset(pScram, 0, sizeof(*pScram));
+#ifdef USE_LIBGSASL
+  char salt[TSDB_SCRAM_SALT_LEN] = {0};
+  char saltedPassword[TSDB_SCRAM_KEY_LEN] = {0};
+  char clientKey[TSDB_SCRAM_KEY_LEN] = {0};
+  char serverKey[TSDB_SCRAM_KEY_LEN] = {0};
+  char storedKey[TSDB_SCRAM_KEY_LEN] = {0};
+
+  if (gsasl_nonce(salt, sizeof(salt)) != GSASL_OK) {
+    mError("failed to generate SCRAM salt, fall back to legacy auth");
+    return;
+  }
+  int rc = gsasl_scram_secrets_from_password(GSASL_HASH_SHA256, passHash, TSDB_SCRAM_DEFAULT_ITER, salt, sizeof(salt),
+                                             saltedPassword, clientKey, serverKey, storedKey);
+  if (rc != GSASL_OK) {
+    mError("failed to derive SCRAM secrets since %s, fall back to legacy auth", gsasl_strerror(rc));
+    return;
+  }
+  pScram->algo = TSDB_SCRAM_ALGO_SHA256;
+  pScram->iter = TSDB_SCRAM_DEFAULT_ITER;
+  pScram->saltLen = sizeof(salt);
+  memcpy(pScram->salt, salt, sizeof(salt));
+  memcpy(pScram->storedKey, storedKey, sizeof(storedKey));
+  memcpy(pScram->serverKey, serverKey, sizeof(serverKey));
+#else
+  (void)passHash;
+#endif
+}
+
 static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   int32_t  code = 0;
   int32_t  lino = 0;
@@ -1025,6 +1063,8 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   }
   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.passwords[0].pass);
   userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
+  // derive SCRAM credentials from the hashed password before it is (optionally) encrypted at rest
+  mndGenScramCred(userObj.passwords[0].pass, &userObj.scram);
   if (strlen(tsDataKey) > 0) {
     generateSalt(userObj.salt, sizeof(userObj.salt));
     TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino,
@@ -1564,6 +1604,14 @@ static int32_t tSerializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj) {
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, key));
   }
 
+  // SCRAM-SHA-256 credentials (appended last; forward-compatible -- decode guards with tDecodeIsEnd)
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pObj->scram.algo));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->scram.iter));
+  TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pObj->scram.saltLen));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pObj->scram.salt, sizeof(pObj->scram.salt)));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pObj->scram.storedKey, sizeof(pObj->scram.storedKey)));
+  TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pObj->scram.serverKey, sizeof(pObj->scram.serverKey)));
+
   tEndEncode(&encoder);
   tlen = encoder.pos;
 _exit:
@@ -1620,6 +1668,21 @@ static int32_t tDeserializeUserObjExt(void *buf, int32_t bufLen, SUserObj *pObj)
         TAOS_CHECK_EXIT(taosHashPut(pObj->ownedDbs, key, keyLen + 1, NULL, 0));
       }
     }
+  }
+
+  // SCRAM-SHA-256 credentials (optional trailing block; absent for users persisted before the feature)
+  if (!tDecodeIsEnd(&decoder)) {
+    uint8_t *pBin = NULL;
+    uint32_t binLen = 0;
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pObj->scram.algo));
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->scram.iter));
+    TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &pObj->scram.saltLen));
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBin, &binLen));
+    if (binLen == sizeof(pObj->scram.salt)) memcpy(pObj->scram.salt, pBin, binLen);
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBin, &binLen));
+    if (binLen == sizeof(pObj->scram.storedKey)) memcpy(pObj->scram.storedKey, pBin, binLen);
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pBin, &binLen));
+    if (binLen == sizeof(pObj->scram.serverKey)) memcpy(pObj->scram.serverKey, pBin, binLen);
   }
 
 _exit:
@@ -2859,6 +2922,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   TSWAP(pOld->passwords, pNew->passwords);
   (void)memcpy(pOld->salt, pNew->salt, sizeof(pOld->salt));
   (void)memcpy(pOld->totpsecret, pNew->totpsecret, sizeof(pOld->totpsecret));
+  pOld->scram = pNew->scram;  // carry refreshed SCRAM credentials after ALTER USER ... PASS
   pOld->sysPrivs = pNew->sysPrivs;
   TSWAP(pOld->ownedDbs, pNew->ownedDbs);
   TSWAP(pOld->objPrivs, pNew->objPrivs);
@@ -3020,6 +3084,11 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     generateSalt(userObj.salt, sizeof(userObj.salt));
     memcpy(userObj.passwords[0].pass, pCreate->pass, sizeof(userObj.passwords[0].pass));
     userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
+    if (pCreate->scram.algo == TSDB_SCRAM_ALGO_SHA256) {
+      userObj.scram = pCreate->scram;
+    } else {
+      mndGenScramCred(userObj.passwords[0].pass, &userObj.scram);
+    }
     if (strlen(tsDataKey) > 0) {
       TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _OVER);
     }
@@ -4416,6 +4485,11 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     char pass[TSDB_PASSWORD_LEN] = {0};
     memcpy(pass, pAlterReq->pass, sizeof(pass));
     pass[sizeof(pass) - 1] = 0;
+    if (pAlterReq->scram.algo == TSDB_SCRAM_ALGO_SHA256) {
+      newUser.scram = pAlterReq->scram;
+    } else {
+      mndGenScramCred(pass, &newUser.scram);
+    }
     if (strlen(tsDataKey) > 0) {
       TAOS_CHECK_GOTO(mndEncryptPass(pass, newUser.salt, &newUser.passEncryptAlgorithm), &lino, _OVER);
     }

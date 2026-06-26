@@ -1929,6 +1929,55 @@ if(${BUILD_LIBSASL})      # {
 endif(${BUILD_LIBSASL})   # }
 endif()
 
+# GNU SASL (libgsasl) -- application-layer SCRAM-SHA-256 authentication.
+# This is INDEPENDENT of the Cyrus libsasl2 used by the transport layer above; it is
+# linked into mnode (server) and the client so the CONNECT handshake can negotiate SCRAM.
+# Built with the minimal flag set so it pulls NO external runtime deps (no libidn / no
+# libgcrypt / no openssl / no NLS): GNU SASL falls back to its bundled gnulib crypto.
+# A post-install step (isolate_gsasl_syms.sh) renames the bundled gnulib symbols (base64_*,
+# md5_*, sha*_*, hmac_*, memxor, ...) to a tdgs_ prefix to avoid collisions with TDengine's
+# own base64_encode/base64_decode (source/util/src/tbase64.c) when statically linked.
+if(${BUILD_LIBGSASL} AND ${TD_LINUX})      # {
+    INIT_EXT(ext_gsasl
+        INC_DIR          include
+        LIB              lib/libgsasl.a
+    )
+    # gsasl is the only dependency not hosted on github; the GNU official FTP
+    # (ftp.gnu.org) is frequently slow/unreachable from CN networks. Prefer a CN
+    # GNU mirror (Tsinghua TUNA) as the primary source and keep ftp.gnu.org as a
+    # fallback -- ExternalProject tries the URLs in order until one matches the
+    # SHA256 below, so overseas/CI networks still resolve if the mirror is stale.
+    # When LOCAL_URL is set, get_from_local_if_exists() rewrites to
+    # ${LOCAL_URL}/gsasl-2.2.2.tar.gz (explicit filename arg), unaffected here.
+    get_from_local_if_exists(
+        "https://mirrors.tuna.tsinghua.edu.cn/gnu/gsasl/gsasl-2.2.2.tar.gz"
+        "gsasl-2.2.2.tar.gz"
+    )
+    ExternalProject_Add(ext_gsasl
+        URL ${_url} "https://ftp.gnu.org/gnu/gsasl/gsasl-2.2.2.tar.gz"
+        URL_HASH SHA256=41e8e442648eccaf6459d9ad93d4b18530b96c8eaf50e3f342532ef275eff3ba
+        PREFIX "${_base}"
+        BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E env
+                CC=gcc
+                CC_FOR_BUILD=gcc
+                CFLAGS=-fPIC
+                ./configure --prefix=${_ins} --with-pic --enable-static=yes --enable-shared=no
+                    --disable-nls --enable-scram-sha256
+                    --without-libidn-prefix --without-libgcrypt-prefix --without-libntlm-prefix
+                    --with-openssl=no --with-gssapi-impl=no
+                    --disable-gssapi --disable-gs2 --disable-ntlm --disable-cram-md5 --disable-digest-md5
+        BUILD_COMMAND
+            COMMAND ${_EXT_ENV_PREFIX} make
+        INSTALL_COMMAND
+            COMMAND ${_EXT_ENV_PREFIX} make install
+            COMMAND bash "${CMAKE_CURRENT_LIST_DIR}/isolate_gsasl_syms.sh" "${_ins}/lib/libgsasl.a" "${CMAKE_NM}" "${CMAKE_OBJCOPY}"
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_gsasl)     # this is for github workflow in cache-miss step.
+endif()                      # }
 
 if(TD_ENTERPRISE)   # { ext connector client libraries
 

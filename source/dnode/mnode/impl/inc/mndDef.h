@@ -664,6 +664,8 @@ typedef struct {
   int32_t setTime;  // password set time, in seconds
 } SUserPassword;
 
+// SScramCred is now defined in tmsg.h (shared by message layer and mnode)
+
 typedef struct {
   SHashObj* pReadDbs;
   SHashObj* pWriteDbs;
@@ -751,6 +753,7 @@ typedef struct {
   SHashObj*        ownedDbs;   // k:dbFName, v: empty
   SRWLatch         lock;
   int8_t           passEncryptAlgorithm;
+  SScramCred       scram;  // SCRAM-SHA-256 credentials for the current password (algo==0 if unset)
   SPrivHashObjSet* legacyPrivs;  // used to temporarily hold legacy privileges during upgrade
 } SUserObj;
 

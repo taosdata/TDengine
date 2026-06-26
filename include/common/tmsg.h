@@ -1605,6 +1605,7 @@ typedef struct {
   int64_t connectTime;
   char    sVer[TSDB_VERSION_LEN];
   char    signature[20]; // SHA1 produces a 20-byte signature
+  char    saslToken[TSDB_TOKEN_LEN]; // one-time token from a completed SASL handshake (empty for legacy auth)
 } SConnectReq;
 
 int32_t tSerializeSConnectReq(void* buf, int32_t bufLen, SConnectReq* pReq);
@@ -1650,6 +1651,34 @@ typedef struct {
 
 int32_t tSerializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
 int32_t tDeserializeSConnectRsp(void* buf, int32_t bufLen, SConnectRsp* pRsp);
+
+// One round of a SASL (SCRAM-SHA-256) authentication handshake. The `data` field carries the opaque
+// SASL token produced by gsasl_step64() and is shuttled verbatim between client and server; neither
+// side interprets it. The handshake repeats (TDMT_MND_AUTH_SASL) until the response sets done=1.
+typedef struct {
+  char     mech[TSDB_SASL_MECH_LEN];     // SASL mechanism, e.g. "SCRAM-SHA-256"
+  char     user[TSDB_USER_LEN];          // login user; used to look up credentials on the first round
+  char     authId[TSDB_SASL_AUTH_ID_LEN];// server-assigned handshake id; empty on the first round
+  char     sVer[TSDB_VERSION_LEN];       // client version, for compatibility checks
+  int32_t  dataLen;                      // opaque SASL payload length
+  uint8_t* data;                         // opaque SASL payload (gsasl_step64 output, base64 text)
+} SSaslStepReq;
+
+int32_t tSerializeSSaslStepReq(void* buf, int32_t bufLen, SSaslStepReq* pReq);
+int32_t tDeserializeSSaslStepReq(void* buf, int32_t bufLen, SSaslStepReq* pReq);
+void    tFreeSSaslStepReq(SSaslStepReq* pReq);
+
+typedef struct {
+  char     authId[TSDB_SASL_AUTH_ID_LEN];// echo back on the next round
+  int8_t   done;                         // 1 when the handshake has succeeded
+  int32_t  dataLen;
+  uint8_t* data;                         // opaque SASL payload
+  char     authToken[TSDB_TOKEN_LEN];    // short-lived token issued on success to drive CONNECT
+} SSaslStepRsp;
+
+int32_t tSerializeSSaslStepRsp(void* buf, int32_t bufLen, SSaslStepRsp* pRsp);
+int32_t tDeserializeSSaslStepRsp(void* buf, int32_t bufLen, SSaslStepRsp* pRsp);
+void    tFreeSSaslStepRsp(SSaslStepRsp* pRsp);
 
 typedef struct {
   char    user[TSDB_USER_LEN];
@@ -1842,6 +1871,20 @@ SDateTimeWhiteList* cloneDateTimeWhiteList(const SDateTimeWhiteList* src);
 bool isTimeInDateTimeWhiteList(const SDateTimeWhiteList *wl, int64_t tm);
 
 
+// SCRAM-SHA-256 credentials. When algo==TSDB_SCRAM_ALGO_SHA256, the client has
+// pre-derived the credentials locally and the server stores them directly — the
+// password hash is never sent over the wire.
+typedef struct {
+  int8_t  algo;     // TSDB_SCRAM_ALGO_*
+  int32_t iter;     // PBKDF2 iteration count
+  int32_t saltLen;  // length of salt actually used
+  uint8_t salt[TSDB_SCRAM_SALT_LEN];
+  uint8_t storedKey[TSDB_SCRAM_KEY_LEN];
+  uint8_t serverKey[TSDB_SCRAM_KEY_LEN];
+} SScramCred;
+
+void tDeriveScramCred(const char *passHash, SScramCred *pScram);
+
 typedef struct {
   int8_t createType;
 
@@ -1903,6 +1946,7 @@ typedef struct {
 
   int32_t sqlLen;
   char*   sql;
+  SScramCred scram;
 } SCreateUserReq;
 
 int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
@@ -2009,6 +2053,7 @@ typedef struct {
   int32_t     tagCondLen;
   int32_t     sqlLen;
   char*       sql;
+  SScramCred  scram;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);

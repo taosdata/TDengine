@@ -196,6 +196,7 @@ extern bool    tsMndSkipGrant;
 extern int32_t tsTxnTimeout;
 extern bool    tsEnableWhiteList;
 extern bool    tsForceKillTrans;
+extern bool    tsForceScram;
 extern int8_t  tsSodEnforceMode;  // 0: not enforce, 1: enforce mandatory SoD
 
 // dnode
@@ -305,6 +306,7 @@ extern int32_t tsRedirectPeriod;
 extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;
 extern int32_t tsMaxRetryWaitTime;
+extern int32_t tsAuthMech;
 extern int32_t tsRetryOnOverloadBaseInterval;
 extern int32_t tsRetryOnOverloadTimeout;
 extern bool    tsUseAdapter;

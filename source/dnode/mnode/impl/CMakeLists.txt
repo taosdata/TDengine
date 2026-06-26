@@ -47,15 +47,21 @@ if(TD_ENTERPRISE)
   )
 endif()
 target_link_libraries(
-  mnode scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode
+  mnode PUBLIC scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode
 )
+
+# libgsasl: application-layer SCRAM-SHA-256 authentication on the CONNECT handshake
+if(${BUILD_LIBGSASL} AND ${TD_LINUX})
+  DEP_ext_gsasl(mnode)
+  add_definitions(-DUSE_LIBGSASL)
+endif()
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)
   add_definitions(-DGRANTS_CFG)
 endif()
 
 if(TD_GRANT)
-  TARGET_LINK_LIBRARIES(mnode grant)
+  TARGET_LINK_LIBRARIES(mnode PUBLIC grant)
   ADD_DEFINITIONS(-D_GRANT)
 endif()
 

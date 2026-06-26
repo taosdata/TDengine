@@ -34,9 +34,13 @@
 #include "tref.h"
 #include "tsched.h"
 #include "tversion.h"
+#ifdef USE_LIBGSASL
+#include <gsasl.h>
+#endif
 
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
-static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode);
+static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode,
+                               const char* saslToken);
 
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
@@ -2789,6 +2793,184 @@ int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* p
   return 0;
 }
 
+#ifdef USE_LIBGSASL
+// Async response handler for one SASL handshake round: stash the decoded SSaslStepRsp into the
+// caller-owned struct referenced by `param`, then wake the synchronous loop.
+typedef struct {
+  int64_t       reqSelf;
+  SSaslStepRsp* pRspOut;
+} SScramRspParam;
+
+static int32_t scramStepRspHandler(void* param, SDataBuf* pMsg, int32_t code) {
+  SScramRspParam* p = (SScramRspParam*)param;
+  SRequestObj*    pRequest = acquireRequest(p->reqSelf);
+  if (pRequest != NULL) {
+    if (code == TSDB_CODE_SUCCESS && pMsg != NULL && pMsg->pData != NULL) {
+      if (tDeserializeSSaslStepRsp(pMsg->pData, pMsg->len, p->pRspOut) != 0) {
+        code = TSDB_CODE_TSC_INVALID_VERSION;
+      }
+    }
+    pRequest->code = code;
+    if (tsem_post(&pRequest->body.rspSem) != 0) {
+      tscError("scram: failed to post semaphore");
+    }
+    (void)releaseRequest(pRequest->self);
+  }
+  // `param` is freed by the transport via body->paramFreeFp (set in scramSendStep), which also
+  // covers the asyncSendMsgToServer failure path where this callback never runs. Do not free here.
+  if (pMsg != NULL) {
+    taosMemoryFree(pMsg->pEpSet);
+    taosMemoryFree(pMsg->pData);
+  }
+  return code;
+}
+
+// One synchronous SASL round-trip to the mnode.
+static int32_t scramSendStep(STscObj* pObj, SSaslStepReq* pReq, SSaslStepRsp* pRsp) {
+  SRequestObj* pRequest = NULL;
+  int32_t      code = createRequest(pObj->id, TDMT_MND_AUTH_SASL, 0, &pRequest);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  int32_t contLen = tSerializeSSaslStepReq(NULL, 0, pReq);
+  if (contLen < 0) {
+    destroyRequest(pRequest);
+    return contLen;
+  }
+  void* pData = taosMemoryMalloc(contLen);
+  if (pData == NULL) {
+    destroyRequest(pRequest);
+    return terrno;
+  }
+  if (tSerializeSSaslStepReq(pData, contLen, pReq) < 0) {
+    taosMemoryFree(pData);
+    destroyRequest(pRequest);
+    return terrno;
+  }
+
+  SMsgSendInfo*   body = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  SScramRspParam* cbParam = taosMemoryCalloc(1, sizeof(SScramRspParam));
+  if (body == NULL || cbParam == NULL) {
+    taosMemoryFree(pData);
+    taosMemoryFree(body);
+    taosMemoryFree(cbParam);
+    destroyRequest(pRequest);
+    return terrno;
+  }
+  cbParam->reqSelf = pRequest->self;
+  cbParam->pRspOut = pRsp;
+
+  body->msgType = TDMT_MND_AUTH_SASL;
+  body->requestObjRefId = pRequest->self;
+  body->requestId = pRequest->requestId;
+  body->fp = scramStepRspHandler;
+  body->param = cbParam;
+  body->paramFreeFp = taosAutoMemoryFree;  // transport frees cbParam, incl. the send-failure path
+  body->target.type = TARGET_TYPE_MNODE;
+  body->msgInfo.pData = pData;
+  body->msgInfo.len = contLen;
+
+  SEpSet epset = getEpSet_s(&pObj->pAppInfo->mgmtEp);
+  code = asyncSendMsgToServer(pObj->pAppInfo->pTransporter, &epset, NULL, body);
+  if (code != TSDB_CODE_SUCCESS) {
+    destroyRequest(pRequest);
+    return code;
+  }
+  if (tsem_wait(&pRequest->body.rspSem) != 0) {
+    destroyRequest(pRequest);
+    return terrno;
+  }
+  code = pRequest->code;
+  destroyRequest(pRequest);
+  return code;
+}
+
+// Drive the full SCRAM-SHA-256 handshake. On success, authTokenOut (size TSDB_TOKEN_LEN) receives the
+// one-time token that the subsequent CONNECT presents. `auth` is the already-hashed password; it must
+// be normalized to the SAME truncated form the server provisioned from (see tbase64/passwords[].pass).
+static int32_t doScramHandshake(STscObj* pObj, const char* user, const char* auth, char* authTokenOut) {
+  Gsasl*         ctx = NULL;
+  Gsasl_session* sctx = NULL;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  char*          in = NULL;  // server data carried into the next gsasl_step
+  char           scramPass[TSDB_PASSWORD_LEN] = {0};
+
+  authTokenOut[0] = 0;
+  // match the server's SCRAM password: the hashed password truncated to a NUL-terminated string
+  tstrncpy(scramPass, auth, sizeof(scramPass));
+
+  if (gsasl_init(&ctx) != GSASL_OK) return TSDB_CODE_OUT_OF_MEMORY;
+  if (gsasl_client_start(ctx, "SCRAM-SHA-256", &sctx) != GSASL_OK) {
+    gsasl_done(ctx);
+    return TSDB_CODE_FAILED;
+  }
+  (void)gsasl_property_set(sctx, GSASL_AUTHID, user);
+  (void)gsasl_property_set(sctx, GSASL_PASSWORD, scramPass);
+
+  char authId[TSDB_SASL_AUTH_ID_LEN] = {0};
+  while (1) {
+    char* out = NULL;
+    int   rc = gsasl_step64(sctx, in != NULL ? in : "", &out);
+    if (rc != GSASL_OK && rc != GSASL_NEEDS_MORE) {
+      code = TSDB_CODE_MND_AUTH_FAILURE;
+      gsasl_free(out);
+      break;
+    }
+
+    SSaslStepReq req = {0};
+    tstrncpy(req.mech, "SCRAM-SHA-256", sizeof(req.mech));
+    tstrncpy(req.user, user, sizeof(req.user));
+    tstrncpy(req.authId, authId, sizeof(req.authId));
+    tstrncpy(req.sVer, td_version, sizeof(req.sVer));
+    if (out != NULL) {
+      req.data = (uint8_t*)out;
+      req.dataLen = (int32_t)strlen(out) + 1;
+    }
+
+    SSaslStepRsp rsp = {0};
+    code = scramSendStep(pObj, &req, &rsp);
+    gsasl_free(out);
+    if (code != TSDB_CODE_SUCCESS) {
+      tFreeSSaslStepRsp(&rsp);
+      break;
+    }
+    tstrncpy(authId, rsp.authId, sizeof(authId));
+
+    if (rsp.done) {
+      // SCRAM mutual auth: the server MUST send its final ServerSignature for us to authenticate it.
+      // A done=1 with no server data cannot be verified, so reject it rather than blindly trusting the
+      // token -- otherwise a rogue/MITM server could short-circuit the exchange.
+      if (rsp.data != NULL) {
+        char* o = NULL;
+        int   vrc = gsasl_step64(sctx, (const char*)rsp.data, &o);
+        gsasl_free(o);
+        if (vrc != GSASL_OK) code = TSDB_CODE_MND_AUTH_FAILURE;
+      } else {
+        code = TSDB_CODE_MND_AUTH_FAILURE;
+      }
+      // A verified handshake must carry a usable one-time token; an empty token is a server-side error.
+      if (code == TSDB_CODE_SUCCESS && rsp.authToken[0] == 0) {
+        code = TSDB_CODE_MND_AUTH_FAILURE;
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        tstrncpy(authTokenOut, rsp.authToken, TSDB_TOKEN_LEN);
+      }
+      tFreeSSaslStepRsp(&rsp);
+      break;
+    }
+
+    // carry the server data into the next step
+    taosMemoryFreeClear(in);
+    if (rsp.data != NULL) in = taosStrdup((const char*)rsp.data);
+    tFreeSSaslStepRsp(&rsp);
+  }
+
+  taosMemoryFree(in);
+  gsasl_finish(sctx);
+  gsasl_done(ctx);
+  return code;
+}
+#endif  // USE_LIBGSASL
+
 int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, const char* db, __taos_async_fn_t fp,
                         void* param, SAppInstInfo* pAppInfo, int connType, STscObj** pTscObj) {
   *pTscObj = NULL;
@@ -2797,7 +2979,58 @@ int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, co
     return code;
   }
 
+  char         saslToken[TSDB_TOKEN_LEN] = {0};
   SRequestObj* pRequest = NULL;
+  int32_t      saslConnAttempt = 0;
+
+_scram_reconnect:
+  saslToken[0] = 0;
+#ifdef USE_LIBGSASL
+  if (tsAuthMech != TSDB_AUTH_MECH_LEGACY) {
+    for (int32_t attempt = 0; attempt < 2; ++attempt) {
+      code = doScramHandshake(*pTscObj, user, auth, saslToken);
+      if (TSDB_CODE_SUCCESS == code) break;
+      if (code == TSDB_CODE_MND_SASL_SESSION_EXPIRED && attempt == 0) {
+        tscDebug("SCRAM session expired for user:%s, retrying (possible leader change)", user);
+        continue;
+      }
+      break;
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      // authenticated via SCRAM; CONNECT will present saslToken
+    } else if (tsAuthMech == TSDB_AUTH_MECH_SCRAM) {
+      // SCRAM explicitly required: do not fall back
+      tscError("SCRAM handshake failed for user:%s (SCRAM required), code:%s", user, tstrerror(code));
+      destroyTscObj(*pTscObj);
+      *pTscObj = NULL;
+      return code;
+    } else if (code == TSDB_CODE_MSG_NOT_PROCESSED || code == TSDB_CODE_OPS_NOT_SUPPORT ||
+               code == TSDB_CODE_MND_SASL_SESSION_EXPIRED) {
+      // auto mode: server too old, the user has no SCRAM credentials, or the SASL session kept
+      // expiring across retries (persistent leader churn) -> fall back to legacy CONNECT. The latter
+      // is a transient infrastructure condition, not a wrong password, so legacy auth (which still
+      // verifies the stored hash) is the right graceful degradation here.
+      tscDebug("SCRAM unavailable for user:%s (code:%s), falling back to legacy auth", user, tstrerror(code));
+      saslToken[0] = 0;
+      code = TSDB_CODE_SUCCESS;
+    } else {
+      // genuine authentication failure -> surface it, do not mask with a legacy retry
+      tscError("SCRAM handshake failed for user:%s, code:%s", user, tstrerror(code));
+      destroyTscObj(*pTscObj);
+      *pTscObj = NULL;
+      return code;
+    }
+  }
+#else
+  if (tsAuthMech == TSDB_AUTH_MECH_SCRAM) {
+    tscError("SCRAM auth required (authMech=1) but libgsasl is not built in");
+    destroyTscObj(*pTscObj);
+    *pTscObj = NULL;
+    return TSDB_CODE_OPS_NOT_SUPPORT;
+  }
+#endif
+
+  pRequest = NULL;
   code = createRequest((*pTscObj)->id, TDMT_MND_CONNECT, 0, &pRequest);
   if (TSDB_CODE_SUCCESS != code) {
     destroyTscObj(*pTscObj);
@@ -2812,7 +3045,7 @@ int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, co
   }
 
   SMsgSendInfo* body = NULL;
-  code = buildConnectMsg(pRequest, &body, totpCode);
+  code = buildConnectMsg(pRequest, &body, totpCode, saslToken);
   if (TSDB_CODE_SUCCESS != code) {
     destroyTscObj(*pTscObj);
     return code;
@@ -2830,6 +3063,15 @@ int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, co
     destroyTscObj(*pTscObj);
     tscError("failed to wait sem, code:%s", terrstr());
     return terrno;
+  }
+  // The one-time SASL token is leader-local; a leadership change in the gap between the handshake and
+  // this CONNECT invalidates it (server returns SASL_SESSION_EXPIRED). Redo the whole handshake+CONNECT
+  // once against the current leader before surfacing the failure.
+  if (pRequest->code == TSDB_CODE_MND_SASL_SESSION_EXPIRED && saslToken[0] != 0 && saslConnAttempt++ == 0) {
+    tscDebug("SCRAM token expired at CONNECT for user:%s, retrying handshake (possible leader change)", user);
+    destroyRequest(pRequest);
+    pRequest = NULL;
+    goto _scram_reconnect;
   }
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg = (code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
@@ -2855,7 +3097,8 @@ int32_t taosConnectImpl(const char* user, const char* auth, int32_t totpCode, co
   return code;
 }
 
-static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode) {
+static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode,
+                               const char* saslToken) {
   *pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (*pMsgSendInfo == NULL) {
     return terrno;
@@ -2894,8 +3137,15 @@ static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInf
 
   tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));
   tstrncpy(connectReq.user, pObj->user, sizeof(connectReq.user));
-  tstrncpy(connectReq.passwd, pObj->pass, sizeof(connectReq.passwd));
+  if (saslToken != NULL && saslToken[0] != 0) {
+    memset(connectReq.passwd, 0, sizeof(connectReq.passwd));
+  } else {
+    tstrncpy(connectReq.passwd, pObj->pass, sizeof(connectReq.passwd));
+  }
   tstrncpy(connectReq.token, pObj->token, sizeof(connectReq.token));
+  if (saslToken != NULL) {
+    tstrncpy(connectReq.saslToken, saslToken, sizeof(connectReq.saslToken));
+  }
   tstrncpy(connectReq.sVer, td_version, sizeof(connectReq.sVer));
   tSignConnectReq(&connectReq);
 

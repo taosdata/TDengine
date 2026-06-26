@@ -101,6 +101,11 @@ else()
   DEP_ext_ssl(common)
 endif()
 
+if(${BUILD_LIBGSASL} AND ${TD_LINUX})
+  add_definitions(-DUSE_LIBGSASL)
+  DEP_ext_gsasl(common)
+endif()
+
 if(BUILD_SHARED_STORAGE)
   add_definitions(-DUSE_SHARED_STORAGE)
 

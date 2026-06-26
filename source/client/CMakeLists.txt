@@ -55,6 +55,13 @@ target_link_libraries(
     PUBLIC os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry decimal
 )
 
+# libgsasl: application-layer SCRAM-SHA-256 authentication on the CONNECT handshake
+if(${BUILD_LIBGSASL} AND ${TD_LINUX})
+    DEP_ext_gsasl(${TAOS_NATIVE_LIB})
+    DEP_ext_gsasl(${TAOS_NATIVE_LIB_STATIC})
+    add_definitions(-DUSE_LIBGSASL)
+endif()
+
 if(BUILD_TEST)
     ADD_SUBDIRECTORY(test)
 endif()
