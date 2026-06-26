@@ -20,6 +20,7 @@ target_include_directories(common
         ${CMAKE_SOURCE_DIR}/utils/TSZ/sz/inc      # TODO: tweak for defines.h, potential cyclic-dependencies, and need to be refactored!!!
     PUBLIC
         ${PROJECT_BINARY_DIR}/source/libs/parser    # TODO: tweak for taos_lemon_token.h, potential cyclic-dependencies!!!
+        ${TD_SOURCE_DIR}/include/libs/nodes         # for nodes.h used by tmsg.c (tEncodeTagCond)
 )
 
 if(DEFINED GRANT_CFG_INCLUDE_DIR)

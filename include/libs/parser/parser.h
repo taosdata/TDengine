@@ -166,9 +166,14 @@ typedef struct SParseContext {
   SArray*     pSubMetaList;
   setQueryFn  setQueryFp;
   timezone_t  timezone;
-  char        timezoneName[TD_TIMEZONE_LEN]; /* IANA name matching timezone; needed for expr serialization */
+  char        timezoneName[TD_TIMEZONE_LEN]; // IANA name for serialization to taosd
   void*       charsetCxt;
   int8_t      firstDayOfWeek;  /* 0-6; -1 = not set (use global tsFirstDayOfWeek) */
+  // External source context: set by client from STscObj when USE ext_source was called.
+  // These allow 1-seg table references to resolve against the active external source.
+  char        currentExtSource[TSDB_EXT_SOURCE_NAME_LEN];  // active external source name (empty = none)
+  char        currentExtNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty if not set
+  char        currentExtNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg only); empty otherwise
 } SParseContext;
 
 typedef struct SPureInsertParserCtx {
@@ -301,6 +306,9 @@ typedef struct SParseMetaCache {
   SArray*   pDnodes;       // element is SDNodeAddr
   bool      dnodeRequired;
   bool      forceFetchViewMeta;
+  // Federated query ext source metadata (populated by collectMetaKey / putMetaDataToCache)
+  SHashObj* pExtSources;   // key is sourceName (varchar), element is SMetaRes* → SExtSourceInfo*
+  SHashObj* pExtTableMeta; // key is ext-table composite key, element is SMetaRes* → SExtTableMeta*
 } SParseMetaCache;
 
 int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMetaCache);

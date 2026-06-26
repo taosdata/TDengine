@@ -750,6 +750,39 @@ Below are the business error codes for each module.
 | 0x8000620D | Virtual table query cannot resolve ref column                              | The virtual-table query cannot resolve a valid next reference or final referenced column while recursively expanding the reference chain.         | Check the virtual-table reference chain and metadata definition, or contact development. |
 | 0x8000620E | Virtual table circular reference detected                                  | A circular reference (A→B→...→A) was detected while recursively resolving the virtual-table reference chain.                                     | Check the virtual-table reference chain and eliminate the circular dependency. |
 
+#### federated query
+
+| Error Code | Description                                      | Possible Error Scenarios or Reasons                                      | Recommended Actions for Users                                      |
+| ---------- | ------------------------------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| 0x80006400 | External source connection failed                | The external source connection failed because the address, port, or network may be unreachable | Check the external source address, port, firewall, and network connectivity |
+| 0x80006401 | External source authentication failed            | The external source username or password authentication failed           | Check the external source username, password, and authentication configuration |
+| 0x80006402 | External source access denied                    | The external source user has insufficient privileges                     | Check the external source privileges for the database, table, and columns |
+| 0x80006403 | External query timeout                           | The external query timed out while executing or returning data           | Check the external source load, network latency, and query complexity |
+| 0x80006404 | External source internal error                   | The external source returned an unrecognized internal error              | Check the external source logs and handle the original error        |
+| 0x80006405 | External column type not mappable                | The external column type cannot be mapped to a supported TDengine type   | Adjust the external table column type or query fields to avoid unsupported types |
+| 0x80006406 | External table has no timestamp primary key      | The external table has no column that can be converted to a TDengine timestamp primary key | Ensure the external table has a column that can be mapped to the timestamp primary key |
+| 0x80006407 | External source not found                        | The referenced external source does not exist                           | Check the external source name, or create the external source first |
+| 0x80006409 | SQL syntax unsupported for external source       | The SQL pushed down to the external source contains unsupported syntax   | Simplify or rewrite the SQL to avoid syntax unsupported by the external source |
+| 0x8000640A | External source resource exhausted               | The external source connection pool, memory, or other resources are exhausted | Reduce concurrency, release resources, or adjust external source and TDengine configuration |
+| 0x8000640B | External source already exists                   | An external source with the same name already exists during creation     | Use IF NOT EXISTS, or choose another external source name           |
+| 0x8000640C | External source default namespace not configured | Path resolution requires a default database or schema, but none is configured | Configure the default database or schema, or use a fully qualified path in SQL |
+| 0x8000640D | External data type conversion failed             | A row from the external source failed to convert to TDengine types       | Check the external data values and column types, and fix data that cannot be converted |
+| 0x8000640E | Federated query is disabled                      | federatedQueryEnable is disabled                                        | Enable federatedQueryEnable and retry                              |
+| 0x8000640F | External pushdown SQL failed, need replanning    | Pushdown SQL generation or execution failed and the query must be replanned | Check the query and external source capabilities, or contact support |
+| 0x80006410 | External table not found on remote source        | The referenced table does not exist in the external source              | Check the external table name, schema, and database                 |
+| 0x80006411 | External data fetch failed                       | The connection was lost or a protocol error occurred while fetching external data | Check the network and external source status, then retry            |
+| 0x80006412 | External source configuration changed            | The external source configuration changed and the cached version is inconsistent | Refresh the metadata cache or retry the query                       |
+| 0x80006413 | External table schema changed                    | The external table schema changed and column definitions are inconsistent | Refresh the metadata cache and confirm the external table structure matches the query |
+| 0x80006414 | External source capability changed, need retry   | Runtime capability probing detected a changed external source capability | Refresh the capability cache and retry the query                    |
+| 0x80006415 | External source type not supported or provider not initialized | The external source type is unsupported or its provider is not initialized | Check the external source type and server provider configuration |
+| 0x80006416 | External source TLS options are incomplete       | TLS client certificate and client key are not configured together       | Configure both tls_client_cert and tls_client_key, or configure neither |
+| 0x80006417 | External source database or schema not found     | The external source database or schema does not exist                   | Check the external database or schema name                          |
+| 0x80006418 | Connector internal logic error                   | The external connector encountered an internal logic error              | Preserve the scene and logs, and contact support                    |
+| 0x80006419 | Write operation not supported on external source table | A write, delete, drop, or alter operation was issued against an external source table | Only run supported read-only queries against external source tables |
+| 0x8000641A | Database name conflicts with an existing external source | The database name conflicts with an existing external source name | Choose another database name or external source name                |
+| 0x8000641B | External column not found                        | The referenced column does not exist in the external table              | Check the external column name and case, and confirm the remote table structure |
+| 0x8000641C | InfluxDB tag columns cannot be used as virtual table column source | An InfluxDB tag column is referenced as a regular virtual table column source | Reference the InfluxDB tag column as a tag, or adjust the virtual table definition |
+
 #### stream
 
 | Error Code | Description                           | Possible Error Scenarios or Reasons   | Recommended Actions for Users                                                                                   |

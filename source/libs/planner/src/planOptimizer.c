@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include "extConnector.h"
 #include "filter.h"
 #include "functionMgt.h"
 #include "nodes.h"
@@ -38,6 +39,7 @@
 #define OPTIMIZE_FLAG_VTB_WINDOW      OPTIMIZE_FLAG_MASK(5)
 #define OPTIMIZE_FLAG_VTB_AGG         OPTIMIZE_FLAG_MASK(6)
 #define OPTIMIZE_FLAG_ELIMINATE_VSCAN OPTIMIZE_FLAG_MASK(5)
+#define OPTIMIZE_FLAG_FQ_PUSHDOWN     OPTIMIZE_FLAG_MASK(7)
 
 #define OPTIMIZE_FLAG_SET_MASK(val, mask)   (val) |= (mask)
 #define OPTIMIZE_FLAG_CLEAR_MASK(val, mask) (val) &= (~(mask))
@@ -54,6 +56,11 @@ typedef struct SOptimizeRule {
   char*     pName;
   FOptimize optimizeFunc;
 } SOptimizeRule;
+
+// Forward declarations for functions used before their definitions.
+static bool    nodeHasExternalScan(const SLogicNode* pNode);
+static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan);
+static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan);
 
 typedef struct SOptimizePKCtx {
   SNodeList* pList;
@@ -120,19 +127,16 @@ typedef enum ECondAction {
   COND_ACTION_PUSH_JOIN,
   COND_ACTION_PUSH_LEFT_CHILD,
   COND_ACTION_PUSH_RIGHT_CHILD,
-  // Copy-down: push a clone to child scan while keeping the original in WHERE.
-  // Used for ASOF/WINDOW join right-side (or left-side) WHERE conditions to
-  // reduce the scan range without altering join semantics.
+  COND_ACTION_COPY_LEFT_CHILD,
   COND_ACTION_COPY_RIGHT_CHILD,
-  COND_ACTION_COPY_LEFT_CHILD
+  // after supporting outer join, there are other possibilities
 } ECondAction;
 
 #define PUSH_DOWN_LEFT_FLT       (1 << 0)
 #define PUSH_DOWN_RIGHT_FLT      (1 << 1)
 #define PUSH_DOWN_ON_COND        (1 << 2)
-// Copy (not move) the condition to the child scan and keep it in WHERE.
-#define PUSH_DOWN_RIGHT_FLT_COPY (1 << 3)
-#define PUSH_DOWN_LEFT_FLT_COPY  (1 << 4)
+#define PUSH_DOWN_LEFT_FLT_COPY  (1 << 3)
+#define PUSH_DOWN_RIGHT_FLT_COPY (1 << 4)
 #define PUSH_DONW_FLT_COND  (PUSH_DOWN_LEFT_FLT | PUSH_DOWN_RIGHT_FLT)
 #define PUSH_DOWN_ALL_COND  (PUSH_DOWN_LEFT_FLT | PUSH_DOWN_RIGHT_FLT | PUSH_DOWN_ON_COND)
 
@@ -143,11 +147,11 @@ typedef struct SJoinOptimizeOpt {
 typedef bool (*FMayBeOptimized)(SLogicNode* pNode, void* pCtx);
 typedef bool (*FShouldBeOptimized)(SLogicNode* pNode, void* pInfo);
 
-static bool pdcJoinIsSafeAsofCopyCond(SJoinLogicNode* pJoin, SNode* pCond, SSHashObj* pTables);
-static bool joinCondHasValidPrimKeyCond(SJoinLogicNode* pJoin);
-static const char* getJoinCondPKTable(SNode* pNode);
+static bool          pdcJoinIsSafeAsofCopyCond(SJoinLogicNode* pJoin, SNode* pCond, SSHashObj* pTables);
+static bool          joinCondHasValidPrimKeyCond(SJoinLogicNode* pJoin);
+static const char*   getJoinCondPKTable(SNode* pNode);
 static EOperatorType asofJoinGetReverseOp(EOperatorType opType);
-static bool asofJoinGetMatchedCmpOp(SJoinLogicNode* pJoin, EOperatorType* pMatchedOpType);
+static bool          asofJoinGetMatchedCmpOp(SJoinLogicNode* pJoin, EOperatorType* pMatchedOpType);
 
 #if 0
 static SJoinOptimizeOpt gJoinOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
@@ -159,10 +163,13 @@ static SJoinOptimizeOpt gJoinOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
 };
 #else
 static SJoinOptimizeOpt gJoinWhereOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
-    /* NONE                OUTER                  SEMI                  ANTI                   ASOF                                           WINDOW */
+    /* NONE                OUTER                  SEMI                  ANTI                   ASOF WINDOW */
     /*INNER*/ {{PUSH_DOWN_ALL_COND}, {0}, {0}, {0}, {0}, {0}},
     /*LEFT*/
-    {{0}, {PUSH_DOWN_LEFT_FLT}, {PUSH_DOWN_LEFT_FLT}, {PUSH_DOWN_LEFT_FLT},
+    {{0},
+     {PUSH_DOWN_LEFT_FLT},
+     {PUSH_DOWN_LEFT_FLT},
+     {PUSH_DOWN_LEFT_FLT},
      {PUSH_DOWN_LEFT_FLT | PUSH_DOWN_RIGHT_FLT_COPY},
      {PUSH_DOWN_LEFT_FLT}},
     /*RIGHT*/
@@ -319,6 +326,10 @@ static bool scanPathOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode)) {
+    return false;
+  }
+  // FQ guard: external scan has no scanOrder/dataRequired/dynamicScanFuncs semantics.
+  if (SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pNode)->scanType) {
     return false;
   }
   return true;
@@ -780,6 +791,11 @@ _exit:
 }
 
 static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
+  // FQ guard: external scan conditions must stay intact for fqPushdownOptimize to harvest.
+  // Splitting into primaryKeyCond/tagCond/otherCond would destroy the WHERE clause.
+  if (SCAN_TYPE_EXTERNAL == pScan->scanType) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (NULL == pScan->node.pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)
       // || TSDB_SYSTEM_TABLE == pScan->tableType
@@ -952,8 +968,21 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
     PLAN_ERR_JRET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
                                       "pdcDealVirtualSuperTableScan get invalid vtable scan logic node from dyn query ctrl node"));
   }
-  SScanLogicNode* pOrgScan = (SScanLogicNode*)nodesListGetNode(pVscan->node.pChildren, LIST_LENGTH(pVscan->node.pChildren) - 1);
-  if (NULL == pOrgScan || QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pOrgScan) || pOrgScan->tableType != TSDB_SUPER_TABLE) {
+  // Find the SUPER_TABLE scan among pVscan's children (may not be last when external scans are present).
+  // Must also exclude Tag Scan nodes which share the same tableType but use SCAN_TYPE_TAG.
+  SScanLogicNode* pOrgScan = NULL;
+  {
+    SNode* pChild = NULL;
+    FOREACH(pChild, pVscan->node.pChildren) {
+      if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) &&
+          ((SScanLogicNode*)pChild)->tableType == TSDB_SUPER_TABLE &&
+          ((SScanLogicNode*)pChild)->scanType != SCAN_TYPE_TAG) {
+        pOrgScan = (SScanLogicNode*)pChild;
+        break;
+      }
+    }
+  }
+  if (NULL == pOrgScan) {
     PLAN_ERR_JRET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
                                       "pdcDealVirtualSuperTableScan get invalid org scan logic node from vtable scan node"));
   }
@@ -965,6 +994,15 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
 
   if (NULL != pPrimaryKeyCond) {
     PLAN_ERR_JRET(pushDownCondOptCalcTimeRange(pCxt, &pOrgScan->scanRange, &pPrimaryKeyCond, &pOtherCond, &pOrgScan->pPrimaryCond));
+    // Propagate the resolved time range to external scan children so that
+    // federated queries include a WHERE ts clause on the remote source.
+    SNode* pExtChild = NULL;
+    FOREACH(pExtChild, pVscan->node.pChildren) {
+      if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pExtChild) &&
+          SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pExtChild)->scanType) {
+        ((SScanLogicNode*)pExtChild)->scanRange = pOrgScan->scanRange;
+      }
+    }
   }
 
   // For virtual super tables, ref-tag values store NULL in vnode meta,
@@ -1071,6 +1109,12 @@ static EDealRes pdcJoinIsCrossTableCond(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static bool pdcJoinCopyTargetIsLocalTableScan(SJoinLogicNode* pJoin, bool leftChild) {
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, leftChild ? 0 : 1);
+  return NULL != pChild && QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) &&
+         SCAN_TYPE_TABLE == ((SScanLogicNode*)pChild)->scanType;
+}
+
 static ECondAction pdcJoinGetCondAction(SJoinLogicNode* pJoin, SSHashObj* pLeftTbls, SSHashObj* pRightTbls,
                                         SNode* pNode, bool whereCond) {
   EJoinType               t = pJoin->joinType;
@@ -1091,7 +1135,7 @@ static ECondAction pdcJoinGetCondAction(SJoinLogicNode* pJoin, SSHashObj* pLeftT
       return COND_ACTION_PUSH_LEFT_CHILD;
     }
     if (whereCond && gJoinWhereOpt[t][s].pushDownFlag & PUSH_DOWN_LEFT_FLT_COPY &&
-        joinCondHasValidPrimKeyCond(pJoin) &&
+        pdcJoinCopyTargetIsLocalTableScan(pJoin, true) && joinCondHasValidPrimKeyCond(pJoin) &&
         pdcJoinIsSafeAsofCopyCond(pJoin, pNode, pLeftTbls)) {
       return COND_ACTION_COPY_LEFT_CHILD;
     }
@@ -1104,7 +1148,7 @@ static ECondAction pdcJoinGetCondAction(SJoinLogicNode* pJoin, SSHashObj* pLeftT
       return COND_ACTION_PUSH_RIGHT_CHILD;
     }
     if (whereCond && gJoinWhereOpt[t][s].pushDownFlag & PUSH_DOWN_RIGHT_FLT_COPY &&
-        joinCondHasValidPrimKeyCond(pJoin) &&
+        pdcJoinCopyTargetIsLocalTableScan(pJoin, false) && joinCondHasValidPrimKeyCond(pJoin) &&
         pdcJoinIsSafeAsofCopyCond(pJoin, pNode, pRightTbls)) {
       return COND_ACTION_COPY_RIGHT_CHILD;
     }
@@ -1151,37 +1195,31 @@ static int32_t pdcJoinSplitLogicCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SN
     }
     if (COND_ACTION_PUSH_JOIN == condAction && NULL != pOnCond) {
       code = nodesListMakeAppend(&pOnConds, pNew);
-      if (TSDB_CODE_SUCCESS != code) nodesDestroyNode(pNew);
     } else if (COND_ACTION_PUSH_LEFT_CHILD == condAction) {
       code = nodesListMakeAppend(&pLeftChildConds, pNew);
-      if (TSDB_CODE_SUCCESS != code) nodesDestroyNode(pNew);
     } else if (COND_ACTION_PUSH_RIGHT_CHILD == condAction) {
       code = nodesListMakeAppend(&pRightChildConds, pNew);
-      if (TSDB_CODE_SUCCESS != code) nodesDestroyNode(pNew);
-    } else if (COND_ACTION_COPY_RIGHT_CHILD == condAction || COND_ACTION_COPY_LEFT_CHILD == condAction) {
-      // Clone condition into the child scan for scan-range optimization, while
-      // keeping the original in the WHERE clause for correct join semantics.
-      SNode* pNew2 = NULL;
-      code = nodesCloneNode(pCond, &pNew2);
+    } else if (COND_ACTION_COPY_LEFT_CHILD == condAction || COND_ACTION_COPY_RIGHT_CHILD == condAction) {
+      SNode* pRemain = NULL;
+      code = nodesCloneNode(pCond, &pRemain);
       if (TSDB_CODE_SUCCESS != code) {
         nodesDestroyNode(pNew);
         break;
       }
-      SNodeList** ppCopyList =
-          (COND_ACTION_COPY_RIGHT_CHILD == condAction) ? &pRightChildConds : &pLeftChildConds;
-      code = nodesListMakeAppend(&pRemainConds, pNew2);
+      SNodeList** ppChildConds =
+          (COND_ACTION_COPY_LEFT_CHILD == condAction) ? &pLeftChildConds : &pRightChildConds;
+      code = nodesListMakeAppend(&pRemainConds, pRemain);
       if (TSDB_CODE_SUCCESS == code) {
-        code = nodesListMakeAppend(ppCopyList, pNew);
+        code = nodesListMakeAppend(ppChildConds, pNew);
         if (TSDB_CODE_SUCCESS != code) {
           nodesDestroyNode(pNew);
         }
       } else {
+        nodesDestroyNode(pRemain);
         nodesDestroyNode(pNew);
-        nodesDestroyNode(pNew2);
       }
     } else {
       code = nodesListMakeAppend(&pRemainConds, pNew);
-      if (TSDB_CODE_SUCCESS != code) nodesDestroyNode(pNew);
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -1259,12 +1297,10 @@ static int32_t pdcJoinSplitOpCond(SJoinLogicNode* pJoin, SNode** pSrcCond, SNode
     *pLeftChildCond = *pSrcCond;
   } else if (COND_ACTION_PUSH_RIGHT_CHILD == condAction) {
     *pRightChildCond = *pSrcCond;
-  } else if (COND_ACTION_COPY_RIGHT_CHILD == condAction) {
-    // Clone to right child scan; keep original in WHERE for join semantics.
-    return nodesCloneNode(*pSrcCond, pRightChildCond);
   } else if (COND_ACTION_COPY_LEFT_CHILD == condAction) {
-    // Clone to left child scan; keep original in WHERE for join semantics.
     return nodesCloneNode(*pSrcCond, pLeftChildCond);
+  } else if (COND_ACTION_COPY_RIGHT_CHILD == condAction) {
+    return nodesCloneNode(*pSrcCond, pRightChildCond);
   }
   *pSrcCond = NULL;
   return TSDB_CODE_SUCCESS;
@@ -1485,7 +1521,8 @@ static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables, bool constAsPrim, bo
 
   if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType) {
+    if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType &&
+        FUNCTION_TYPE_TIMESTAMP_SCALE != pFunc->funcType) {
       return false;
     }
     SListCell* pCell = nodesListGetCell(pFunc->pParameterList, 0);
@@ -1497,6 +1534,14 @@ static bool pdcJoinIsPrim(SNode* pNode, SSHashObj* pTables, bool constAsPrim, bo
 
   SColumnNode* pCol = (SColumnNode*)pNode;
   if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId || TSDB_SYSTEM_TABLE == pCol->tableType) {
+    return false;
+  }
+  // External tables (e.g. MySQL without a timestamp column) assign colId=1 to the first
+  // column sequentially, even when it is not a timestamp.  Require TIMESTAMP type so that
+  // non-timestamp columns with colId==PRIMARYKEY_TIMESTAMP_COL_ID are not mistaken for
+  // primary key columns, which would bypass the "primary timestamp equal condition" check
+  // and cause the Merge Join executor to misread INT columns as int64 timestamps.
+  if (TSDB_DATA_TYPE_TIMESTAMP != pCol->node.resType.type) {
     return false;
   }
   return pdcJoinColInTableList(pNode, pTables);
@@ -1522,7 +1567,8 @@ static EOperatorType asofJoinGetReverseOp(EOperatorType opType) {
 }
 
 static bool asofJoinGetMatchedCmpOp(SJoinLogicNode* pJoin, EOperatorType* pMatchedOpType) {
-  if (NULL == pMatchedOpType || NULL == pJoin->pPrimKeyEqCond || QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) {
+  if (NULL == pMatchedOpType || NULL == pJoin->pPrimKeyEqCond ||
+      QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) {
     return false;
   }
 
@@ -1539,7 +1585,6 @@ static bool asofJoinGetMatchedCmpOp(SJoinLogicNode* pJoin, EOperatorType* pMatch
   if (TSDB_CODE_SUCCESS != code) {
     return false;
   }
-
   code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
   if (TSDB_CODE_SUCCESS != code) {
     tSimpleHashCleanup(pLeftTables);
@@ -1576,7 +1621,6 @@ static bool asofJoinGetMatchedCmpOp(SJoinLogicNode* pJoin, EOperatorType* pMatch
     *pMatchedOpType = pOp->opType;
     return true;
   }
-
   if (probeOnLeftExpr && matchedOnRightExpr) {
     *pMatchedOpType = asofJoinGetReverseOp(pOp->opType);
     return true;
@@ -1692,6 +1736,27 @@ static bool pdcJoinIsPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond, bool con
   return res;
 }
 
+static bool pdcJoinPrimEqualCondHasFunc(SNode* pCond) {
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
+    return false;
+  }
+
+  SOperatorNode* pOper = (SOperatorNode*)pCond;
+  SNode*         pNodes[2] = {pOper->pLeft, pOper->pRight};
+  for (int32_t i = 0; i < 2; ++i) {
+    if (NULL == pNodes[i] || QUERY_NODE_FUNCTION != nodeType(pNodes[i])) {
+      continue;
+    }
+
+    SFunctionNode* pFunc = (SFunctionNode*)pNodes[i];
+    if (FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType || FUNCTION_TYPE_TIMESTAMP_SCALE == pFunc->funcType) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 static bool pdcJoinHasPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond, bool* errCond) {
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond)) {
     SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pCond;
@@ -1721,9 +1786,22 @@ static int32_t pdcJoinSplitPrimInLogicCond(SJoinLogicNode* pJoin, SNode** ppInpu
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* pOnConds = NULL;
   SNode*     pCond = NULL;
+
+  bool preferFuncPrim = false;
+  if (!constAsPrim) {
+    FOREACH(pCond, pLogicCond->pParameterList) {
+      if (pdcJoinIsPrimEqualCond(pJoin, pCond, constAsPrim) && pdcJoinPrimEqualCondHasFunc(pCond)) {
+        preferFuncPrim = true;
+        break;
+      }
+    }
+  }
+
   WHERE_EACH(pCond, pLogicCond->pParameterList) {
     SNode* pNew = NULL;
-    if (pdcJoinIsPrimEqualCond(pJoin, pCond, constAsPrim) && (NULL == *ppPrimEqCond) && (!constAsPrim || pJoin->leftConstPrimGot || pJoin->rightConstPrimGot)) {
+    if (pdcJoinIsPrimEqualCond(pJoin, pCond, constAsPrim) && (NULL == *ppPrimEqCond) &&
+        (!constAsPrim || pJoin->leftConstPrimGot || pJoin->rightConstPrimGot) &&
+        (!preferFuncPrim || pdcJoinPrimEqualCondHasFunc(pCond))) {
       code = nodesCloneNode(pCond, &pNew);
       if (TSDB_CODE_SUCCESS != code) break;
       *ppPrimEqCond = pNew;
@@ -1797,13 +1875,41 @@ static int32_t pdcJoinIsEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond, bool* a
     return code;
   }
   SOperatorNode* pOper = (SOperatorNode*)pCond;
-  if ((QUERY_NODE_COLUMN != nodeType(pOper->pLeft) &&
-       !(QUERY_NODE_OPERATOR == nodeType(pOper->pLeft) &&
-         OP_TYPE_JSON_GET_VALUE == ((SOperatorNode*)pOper->pLeft)->opType)) ||
-      NULL == pOper->pRight ||
-      (QUERY_NODE_COLUMN != nodeType(pOper->pRight) &&
-       !(QUERY_NODE_OPERATOR == nodeType(pOper->pRight) &&
-         OP_TYPE_JSON_GET_VALUE == ((SOperatorNode*)pOper->pRight)->opType))) {
+
+  // Helper lambda-like checks: accept COLUMN, JSON_GET_VALUE operator, or timestamp-scale/timetruncate function
+  bool leftOk = false, rightOk = false;
+  if (QUERY_NODE_COLUMN == nodeType(pOper->pLeft)) {
+    leftOk = true;
+  } else if (QUERY_NODE_OPERATOR == nodeType(pOper->pLeft) &&
+             OP_TYPE_JSON_GET_VALUE == ((SOperatorNode*)pOper->pLeft)->opType) {
+    leftOk = true;
+  } else if (QUERY_NODE_FUNCTION == nodeType(pOper->pLeft)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pOper->pLeft;
+    if (FUNCTION_TYPE_TIMESTAMP_SCALE == pFunc->funcType || FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType) {
+      SListCell* pCell = nodesListGetCell(pFunc->pParameterList, 0);
+      if (pCell && pCell->pNode && QUERY_NODE_COLUMN == nodeType(pCell->pNode)) {
+        leftOk = true;
+      }
+    }
+  }
+  if (NULL == pOper->pRight) {
+    return code;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pOper->pRight)) {
+    rightOk = true;
+  } else if (QUERY_NODE_OPERATOR == nodeType(pOper->pRight) &&
+             OP_TYPE_JSON_GET_VALUE == ((SOperatorNode*)pOper->pRight)->opType) {
+    rightOk = true;
+  } else if (QUERY_NODE_FUNCTION == nodeType(pOper->pRight)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pOper->pRight;
+    if (FUNCTION_TYPE_TIMESTAMP_SCALE == pFunc->funcType || FUNCTION_TYPE_TIMETRUNCATE == pFunc->funcType) {
+      SListCell* pCell = nodesListGetCell(pFunc->pParameterList, 0);
+      if (pCell && pCell->pNode && QUERY_NODE_COLUMN == nodeType(pCell->pNode)) {
+        rightOk = true;
+      }
+    }
+  }
+  if (!leftOk || !rightOk) {
     return code;
   }
 
@@ -1816,15 +1922,25 @@ static int32_t pdcJoinIsEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond, bool* a
     return code;
   }
 
-  SColumnNode* pLeft = (SColumnNode*)(pOper->pLeft);
-  SColumnNode* pRight = (SColumnNode*)(pOper->pRight);
-
-  if (QUERY_NODE_OPERATOR == nodeType(pOper->pLeft)) {
+  // Extract the inner column node, unwrapping __timestamp_scale / timetruncate / JSON operators
+  SColumnNode* pLeft = NULL;
+  if (QUERY_NODE_COLUMN == nodeType(pOper->pLeft)) {
+    pLeft = (SColumnNode*)(pOper->pLeft);
+  } else if (QUERY_NODE_OPERATOR == nodeType(pOper->pLeft)) {
     pLeft = (SColumnNode*)((SOperatorNode*)pOper->pLeft)->pLeft;
+  } else if (QUERY_NODE_FUNCTION == nodeType(pOper->pLeft)) {
+    SListCell* pCell = nodesListGetCell(((SFunctionNode*)pOper->pLeft)->pParameterList, 0);
+    pLeft = (SColumnNode*)pCell->pNode;
   }
 
-  if (QUERY_NODE_OPERATOR == nodeType(pOper->pRight)) {
+  SColumnNode* pRight = NULL;
+  if (QUERY_NODE_COLUMN == nodeType(pOper->pRight)) {
+    pRight = (SColumnNode*)(pOper->pRight);
+  } else if (QUERY_NODE_OPERATOR == nodeType(pOper->pRight)) {
     pRight = (SColumnNode*)((SOperatorNode*)pOper->pRight)->pLeft;
+  } else if (QUERY_NODE_FUNCTION == nodeType(pOper->pRight)) {
+    SListCell* pCell = nodesListGetCell(((SFunctionNode*)pOper->pRight)->pParameterList, 0);
+    pRight = (SColumnNode*)pCell->pNode;
   }
 
   *allTags = (COLUMN_TYPE_TAG == pLeft->colType) && (COLUMN_TYPE_TAG == pRight->colType);
@@ -2790,7 +2906,6 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (pJoin->joinAlgo != JOIN_ALGO_UNKNOWN) {
     return TSDB_CODE_SUCCESS;
   }
-
   EJoinType    t = pJoin->joinType;
   EJoinSubType s = pJoin->subType;
   SNode*       pOnCond = NULL;
@@ -2798,8 +2913,6 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   SNode*       pRightChildCond = NULL;
   int32_t      code = pdcJoinCheckAllCond(pCxt, pJoin);
 
-  // For ASOF joins, extract pPrimKeyEqCond from pFullOnCond early so that the COPY safety
-  // check in pdcJoinIsSafeAsofCopyCond can determine the ASOF direction during WHERE splitting.
   if (TSDB_CODE_SUCCESS == code && IS_ASOF_JOIN(pJoin->subType) && NULL != pJoin->pFullOnCond &&
       NULL == pJoin->addPrimEqCond && NULL == pJoin->pPrimKeyEqCond) {
     code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
@@ -2870,6 +2983,27 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
 
   if (TSDB_CODE_SUCCESS == code) {
     code = pdcJoinAddFilterColsToTarget(pCxt, pJoin);
+  }
+
+  // For external-table JOINs, the entire plan stays in one subplan (no Exchange between
+  // the JOIN and the Sort/Project above it). The physical plan builder uses the JOIN logic
+  // node's pTargets to create the JOIN's output block desc; if pTargets is NULL the block
+  // is empty and the parent Sort/Project physi node cannot resolve its columns, causing
+  // TSDB_CODE_PLAN_SLOT_NOT_FOUND. Normal TDengine-table JOINs are split into separate
+  // subplans, so their pTargets never needs to be set here.
+  if (TSDB_CODE_SUCCESS == code && NULL == pJoin->node.pTargets) {
+    bool hasExternalChild = false;
+    SNode* pChildNode = NULL;
+    FOREACH(pChildNode, pJoin->node.pChildren) {
+      if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChildNode) &&
+          SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pChildNode)->scanType) {
+        hasExternalChild = true;
+        break;
+      }
+    }
+    if (hasExternalChild && NULL != pJoin->node.pParent && NULL != pJoin->node.pParent->pTargets) {
+      code = nodesCloneList(pJoin->node.pParent->pTargets, &pJoin->node.pTargets);
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -3495,10 +3629,28 @@ static int32_t pdcTrivialPushDown(SOptimizeContext* pCxt, SLogicNode* pLogicNode
  * @param pVScan Virtual table scan node being rewritten in place.
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
  */
+
+static bool hasExternalColRef(SVirtualScanLogicNode* pNode) {
+  if (pNode && nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, pNode->node.pChildren) {
+      if (nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_SCAN &&
+          ((SScanLogicNode*)pChild)->scanType == SCAN_TYPE_EXTERNAL) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode* pVScan) {
   if (NULL == pVScan->node.pConditions || OPTIMIZE_FLAG_TEST_MASK(pVScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE) ||
       pVScan->tableType == TSDB_SUPER_TABLE ||
       (pVScan->node.pParent && nodeType(pVScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (hasExternalColRef(pVScan)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -3615,6 +3767,12 @@ static int32_t pdcDealInterp(SOptimizeContext* pCxt, SInterpFuncLogicNode* pInte
   // (see interpPruneExtWindows; other modes keep both sides)
   pScan->interpFillMode = pInterp->fillMode;
 
+  // External scan INTERP is handled by the dedicated FqInterp optimizer rule; skip here.
+  if (pScan->scanType == SCAN_TYPE_EXTERNAL) {
+    OPTIMIZE_FLAG_SET_MASK(pInterp->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    pCxt->optimized = true;
+    return TSDB_CODE_SUCCESS;
+  }
   if (NULL == pInterp->pTimeRange) {
     pScan->pExtScanRange = taosMemoryMalloc(sizeof(*pScan->pExtScanRange));
     TSDB_CHECK_NULL(pScan->pExtScanRange, code, lino, _exit, terrno);
@@ -3700,6 +3858,10 @@ static bool eliminateNotNullCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  // FQ guard: external columns have no NOT NULL guarantee, do not eliminate IS NOT NULL.
+  if (SCAN_TYPE_EXTERNAL == pScan->scanType) {
+    return false;
+  }
   if (NULL == pScan->node.pConditions || QUERY_NODE_OPERATOR != nodeType(pScan->node.pConditions)) {
     return false;
   }
@@ -3766,8 +3928,27 @@ static bool sortPriKeyOptIsPriKeyOrderBy(SNodeList* pSortKeys) {
   return (QUERY_NODE_COLUMN == nodeType(pNode) ? isPrimaryKeyImpl(pNode) : false);
 }
 
+static bool sortPriKeyOptHasAscPriKeyPrefix(SNodeList* pSortKeys) {
+  if (NULL == pSortKeys || LIST_LENGTH(pSortKeys) < 1) {
+    return false;
+  }
+
+  SOrderByExprNode* pOrderBy = (SOrderByExprNode*)nodesListGetNode(pSortKeys, 0);
+  if (ORDER_DESC == pOrderBy->order) {
+    return false;
+  }
+
+  SNode* pNode = pOrderBy->pExpr;
+  return (QUERY_NODE_COLUMN == nodeType(pNode) ? isPrimaryKeyImpl(pNode) : false);
+}
+
 static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (QUERY_NODE_LOGIC_PLAN_SORT != nodeType(pNode)) {
+    return false;
+  }
+  // FQ guard: external data is not guaranteed to be ordered by primary key.
+  // Eliminating the Sort would produce incorrect unordered results.
+  if (nodeHasExternalScan(pNode)) {
     return false;
   }
   SSortLogicNode* pSort = (SSortLogicNode*)pNode;
@@ -4412,7 +4593,11 @@ static bool joinCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
-  return joinCondHasValidPrimKeyCond(pJoin);
+  if (!joinCondHasValidPrimKeyCond(pJoin)) {
+    return false;
+  }
+
+  return true;
 }
 
 static bool joinCondHasValidPrimKeyCond(SJoinLogicNode* pJoin) {
@@ -4520,7 +4705,8 @@ static bool asofJoinCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   SScanLogicNode* pLScan = joinCondGetScanNode(pLeft);
   SScanLogicNode* pRScan = joinCondGetScanNode(pRight);
 
-  if (NULL == pLScan || NULL == pRScan || !joinCondHasValidPrimKeyCond(pJoin)) {
+  if (NULL == pLScan || NULL == pRScan || SCAN_TYPE_TABLE != pLScan->scanType ||
+      SCAN_TYPE_TABLE != pRScan->scanType || !joinCondHasValidPrimKeyCond(pJoin)) {
     OPTIMIZE_FLAG_SET_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
     return false;
   }
@@ -4556,15 +4742,15 @@ static bool asofJoinDeriveMatchedScanRange(SJoinLogicNode* pJoin, SScanLogicNode
     return false;
   }
 
-  bool   updated = false;
+  bool    updated = false;
+  int64_t oldSKey = pMatchedRange->skey;
   int64_t oldEKey = pMatchedRange->ekey;
+
   if (asofJoinCanDeriveMatchedUpperBound(pJoin) && pProbeRange->ekey != TSKEY_MAX &&
       pProbeRange->ekey < pMatchedRange->ekey) {
     pMatchedRange->ekey = pProbeRange->ekey;
     updated = true;
   }
-
-  int64_t oldSKey = pMatchedRange->skey;
   if (asofJoinCanDeriveMatchedLowerBound(pJoin) && pProbeRange->skey != TSKEY_MIN &&
       pProbeRange->skey > pMatchedRange->skey) {
     pMatchedRange->skey = pProbeRange->skey;
@@ -4576,12 +4762,13 @@ static bool asofJoinDeriveMatchedScanRange(SJoinLogicNode* pJoin, SScanLogicNode
     updated = true;
   }
 
-  return updated || oldEKey != pMatchedRange->ekey || oldSKey != pMatchedRange->skey;
+  return updated || oldSKey != pMatchedRange->skey || oldEKey != pMatchedRange->ekey;
 }
 
 static int32_t asofJoinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   while (true) {
-    SJoinLogicNode* pJoin = (SJoinLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, asofJoinCondMayBeOptimized, NULL);
+    SJoinLogicNode* pJoin =
+        (SJoinLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, asofJoinCondMayBeOptimized, NULL);
     if (NULL == pJoin) {
       return TSDB_CODE_SUCCESS;
     }
@@ -4853,6 +5040,10 @@ static bool partTagsIsOptimizableNode(SLogicNode* pNode) {
              QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0)) &&
              SCAN_TYPE_TAG != ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->scanType;
   if (!ret) return ret;
+  // FQ guard: external scan has no tag concept, tag-related optimization is not applicable.
+  if (SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->scanType) {
+    return false;
+  }
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_PARTITION: {
       if (pNode->pParent) {
@@ -6974,8 +7165,20 @@ static bool vtableTagScanOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
   SDynQueryCtrlLogicNode* pDyn = (SDynQueryCtrlLogicNode*)pNode;
   SVirtualScanLogicNode*  pVtableScan = (SVirtualScanLogicNode*)nodesListGetNode(pDyn->node.pChildren, 0);
-  if (!pVtableScan || LIST_LENGTH(pVtableScan->node.pChildren) != 2 || !pDyn->vtbScan.useTagScan) {
+  if (!pVtableScan || !pDyn->vtbScan.useTagScan) {
     return false;
+  } else {
+    int32_t nonExtChildCount = 0;
+    SNode*  pChild = NULL;
+    FOREACH(pChild, pVtableScan->node.pChildren) {
+      if (!(nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_SCAN &&
+            ((SScanLogicNode*)pChild)->scanType == SCAN_TYPE_EXTERNAL)) {
+        nonExtChildCount++;
+      }
+    }
+    if (nonExtChildCount != 2) {
+      return false;
+    }
   }
   SScanLogicNode*         pTagScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 0);
   SScanLogicNode*         pScan = (SScanLogicNode*)nodesListGetNode(pVtableScan->node.pChildren, 1);
@@ -7093,6 +7296,24 @@ static void swapLimit(SLogicNode* pParent, SLogicNode* pChild) {
   pParent->pLimit = NULL;
 }
 
+static bool dynQueryCtrlSupportsLimitPushdown(SDynQueryCtrlLogicNode* pDyn) {
+  return DYN_QTYPE_VTB_TS_SCAN == pDyn->qType || DYN_QTYPE_VTB_SCAN == pDyn->qType;
+}
+
+static bool limitBelongsToDescPriKeySort(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPushTo) {
+  if (QUERY_NODE_LOGIC_PLAN_SORT != nodeType(pNodeWithLimit) ||
+      QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL != nodeType(pNodeLimitPushTo)) {
+    return false;
+  }
+  SSortLogicNode* pSort = (SSortLogicNode*)pNodeWithLimit;
+  if (1 != LIST_LENGTH(pSort->pSortKeys)) {
+    return false;
+  }
+  SOrderByExprNode* pOrderBy = (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0);
+  return ORDER_DESC == pOrderBy->order && QUERY_NODE_COLUMN == nodeType(pOrderBy->pExpr) &&
+         isPrimaryKeyImpl(pOrderBy->pExpr);
+}
+
 static int32_t pushDownLimitHow(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPushTo, bool* pPushed);
 static int32_t pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimitPushTo, bool* pPushed) {
   int32_t code = 0;
@@ -7166,6 +7387,10 @@ static int32_t pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimi
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SCAN:
+      // FQ guard: do not push LIMIT into external scan; fqPushdownOptimize will harvest it.
+      if (SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pNodeLimitPushTo)->scanType) {
+        break;
+      }
       if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT && limitHasFiniteRows(pNodeWithLimit->pLimit)) {
         if (((SProjectLogicNode*)pNodeWithLimit)->inputIgnoreGroup) {
           code = cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT, &cloned);
@@ -7182,6 +7407,17 @@ static int32_t pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimi
       code = cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT, &cloned);
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL: {
+      SDynQueryCtrlLogicNode* pDyn = (SDynQueryCtrlLogicNode*)pNodeLimitPushTo;
+      if (!dynQueryCtrlSupportsLimitPushdown(pDyn) || limitBelongsToDescPriKeySort(pNodeWithLimit, pNodeLimitPushTo)) {
+        break;
+      }
+      code = cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT, &cloned);
+      if (TSDB_CODE_SUCCESS == code) {
+        *pPushed = cloned;
+      }
+      return code;
+    }
     default:
       break;
   }
@@ -7196,8 +7432,11 @@ static int32_t pushDownLimitHow(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLim
       return pushDownLimitTo(pNodeWithLimit, pNodeLimitPushTo, pPushed);
     case QUERY_NODE_LOGIC_PLAN_SORT: {
       SSortLogicNode* pSort = (SSortLogicNode*)pNodeWithLimit;
-      if (sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys))
+      if (sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys) ||
+          (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pNodeLimitPushTo) &&
+           sortPriKeyOptHasAscPriKeyPrefix(pSort->pSortKeys))) {
         return pushDownLimitTo(pNodeWithLimit, pNodeLimitPushTo, pPushed);
+      }
     }
     default:
       break;
@@ -9567,6 +9806,10 @@ static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  if (hasExternalColRef((SVirtualScanLogicNode*)pNode)) {
+    return false;
+  }
+
   if (pNode->pConditions || ((SVirtualScanLogicNode *)pNode)->pScanPseudoCols) {
     return false;
   }
@@ -9645,12 +9888,17 @@ static bool pdaMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  if (hasExternalColRef((SVirtualScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))) {
+    return false;
+  }
+
   SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode *)nodesListGetNode(pNode->pChildren, 0);
 
   // All VirtualScan children must be plain table-scan nodes.
   // TagRefSource children cannot participate in PDA restructuring.
   SNode* pChild;
   FOREACH(pChild, pVScan->node.pChildren) {
+    
     if (nodeType(pChild) != QUERY_NODE_LOGIC_PLAN_SCAN) {
       return false;
     }
@@ -10070,6 +10318,10 @@ static bool vtableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
 
   SNode *pChild = nodesListGetNode(pNode->pChildren, 0);
   if (NULL == pChild || nodeType(pChild) != QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
+    return false;
+  }
+
+  if (hasExternalColRef((SVirtualScanLogicNode*)pChild)) {
     return false;
   }
 
@@ -10570,6 +10822,10 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   SNode *pVirtualScan = nodesListGetNode(((SLogicNode*)pDynCtrl)->pChildren, 0);
   if (NULL == pVirtualScan || nodeType(pVirtualScan) != QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN ||
       LIST_LENGTH(((SLogicNode*)pVirtualScan)->pChildren) != 1 || ((SVirtualScanLogicNode*)pVirtualScan)->node.pConditions) {
+    return false;
+  }
+
+  if (hasExternalColRef((SVirtualScanLogicNode*)pVirtualScan)) {
     return false;
   }
 
@@ -11377,6 +11633,7 @@ static bool vstableWindowSortMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (NULL == pChild || nodeType(pChild) != QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL || ((SDynQueryCtrlLogicNode*)pChild)->qType != DYN_QTYPE_VTB_SCAN) {
     return false;
   }
+
   return true;
 }
 
@@ -11603,6 +11860,10 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
         // the virtual table interleaves column refs across multiple physical source tables
         // (see vscanRefsInterleaveSourceTables). Fall back to the unoptimized VTB_SCAN path.
         if (isStreamCalc && vscanRefsInterleaveSourceTables(pVscan)) {
+          return false;
+        }
+        // External column refs require FederatedScan; VStableAgg cannot handle them.
+        if (hasExternalColRef(pVscan)) {
           return false;
         }
       }
@@ -12484,6 +12745,18 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
   {.pName = "PushDownCondition",          .optimizeFunc = pdcOptimize},
   {.pName = "EliminateNotNullCond",       .optimizeFunc = eliminateNotNullCondOptimize},
+  // FqPushdown must run BEFORE Sort/Limit/Project optimizations.  Once it
+  // extracts the Sort+Project chain into pRemoteLogicPlan, later rules
+  // (PushDownLimit, EliminateProject, etc.) see no Sort/Project above the
+  // ExternalScan and naturally become no-ops for that subtree.
+  // Rules above (RewriteTail, RewriteUnique, ScanPath, PushDownCondition,
+  // EliminateNotNullCond) have been audited:
+  //   - RewriteTail/RewriteUnique: only match IndefRowsFunc nodes (N/A)
+  //   - ScanPath: explicit SCAN_TYPE_EXTERNAL guard
+  //   - PushDownCondition: pdcDealScan has SCAN_TYPE_EXTERNAL guard
+  //   - EliminateNotNullCond: explicit SCAN_TYPE_EXTERNAL guard
+  {.pName = "FqPushdown",                 .optimizeFunc = fqPushdownOptimize},
+  {.pName = "FqInterp",                   .optimizeFunc = fqInterpOptimize},
   {.pName = "JoinCondOptimize",           .optimizeFunc = joinCondOptimize},
   {.pName = "AsofJoinCondOptimize",       .optimizeFunc = asofJoinCondOptimize},
   {.pName = "HashJoin",                   .optimizeFunc = hashJoinOptimize},
@@ -12506,7 +12779,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "Tsma",                       .optimizeFunc = tsmaOptimize},
   {.pName = "EliminateVirtualScan",       .optimizeFunc = eliminateVirtualScanOptimize},
   {.pName = "PushDownAgg",                .optimizeFunc = pdaOptimize},
-  {.pName = "VtableWindow",               .optimizeFunc = vtableWindowOptimize},
+  //{.pName = "VtableWindow",               .optimizeFunc = vtableWindowOptimize},
   {.pName = "VStableWindow",              .optimizeFunc = vstableWindowOptimize},
   {.pName = "VStableWindowSort",          .optimizeFunc = vstableWindowSortOptimize},
   {.pName = "VtableTagScan",              .optimizeFunc = vtableTagScanOptimize},
@@ -12561,6 +12834,1977 @@ static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicSubplan* pLogicSubpla
   return code;
 }
 
+static bool nodeHasExternalScan(const SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    if (((const SScanLogicNode*)pNode)->scanType == SCAN_TYPE_EXTERNAL) {
+      return true;
+    }
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (nodeHasExternalScan((const SLogicNode*)pChild)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool subplanHasExternalScan(SLogicSubplan* pSubplan) {
+  return pSubplan->pNode != NULL && nodeHasExternalScan(pSubplan->pNode);
+}
+
+// ─── Federated Query Pushdown Optimizer ────────────────────────────────────
+// Identifies consecutive pushdownable parent nodes (Sort, Project) of an
+// ExternalScan and moves them into SScanLogicNode.pRemoteLogicPlan, removing
+// them from the main logical tree.
+//
+// This eliminates the bug where the physical plan walker would also visit those
+// parent nodes and produce duplicate physical plan nodes.  Physical plan
+// generation converts pRemoteLogicPlan → pRemotePlan without parent-chain logic.
+// ─────────────────────────────────────────────────────────────────────────────
+
+static SScanLogicNode* fqFindExternalScan(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) &&
+      ((SScanLogicNode*)pNode)->scanType == SCAN_TYPE_EXTERNAL &&
+      !OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN)) {
+    return (SScanLogicNode*)pNode;
+  }
+  SNode* pChild;
+  FOREACH(pChild, pNode->pChildren) {
+    SScanLogicNode* pFound = fqFindExternalScan((SLogicNode*)pChild);
+    if (pFound) return pFound;
+  }
+  return NULL;
+}
+
+static bool fqNodeIsPushdownable(ENodeType type) {
+  // Phase 1: only Sort and Project are pushed down.
+  // Phase 2 can extend this (Filter, Agg, Join …).
+  return type == QUERY_NODE_LOGIC_PLAN_SORT || type == QUERY_NODE_LOGIC_PLAN_PROJECT;
+}
+
+// Phase 1: keep Project pushdown conservative.  Only pure column projections
+// are pushed down; expression projections stay local to avoid remote type
+// mapping instability in mixed-source parity paths.
+static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan);
+static bool fqTargetsAllColumns(const SNodeList* pTargets);
+static bool fqExprListHasColumnRef(const SNodeList* pExprList);
+static bool fqProjectIsPushdownable(const SLogicNode* pNode) {
+  if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_PROJECT) return true;
+  const SProjectLogicNode* pProj = (const SProjectLogicNode*)pNode;
+  // In some optimizer paths, expression projections can be rewritten into
+  // node.pTargets while pProjections becomes NULL/columnized.  Guard both
+  // containers to prevent accidental expression pushdown.
+  if (pProj->pProjections != NULL && !fqTargetsAllColumns(pProj->pProjections)) {
+    return false;
+  }
+  if (pProj->node.pTargets != NULL && !fqTargetsAllColumns(pProj->node.pTargets)) {
+    return false;
+  }
+  return true;
+}
+
+// Check if all sort keys in a Sort node are simple column references.
+// Non-renderable expressions (e.g. length(name), abs(val)) cannot be pushed
+// to the remote DB, so the entire Sort must stay in the local plan.
+static bool fqSortAllKeysPushdownable(const SLogicNode* pNode) {
+  if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_SORT) return true;
+  const SSortLogicNode* pSort = (const SSortLogicNode*)pNode;
+  SNode*                pKey  = NULL;
+  FOREACH(pKey, pSort->pSortKeys) {
+    const SNode* pInner = pKey;
+    if (nodeType(pInner) == QUERY_NODE_ORDER_BY_EXPR) {
+      pInner = ((const SOrderByExprNode*)pInner)->pExpr;
+    }
+    if (pInner == NULL || nodeType(pInner) != QUERY_NODE_COLUMN) {
+      return false;
+    }
+    // colId==0 indicates a synthetic/precalculated column (e.g. _length_name_
+    // from ORDER BY length(name)).  These don't exist in the remote table schema
+    // and must NOT be pushed down.
+    if (((const SColumnNode*)pInner)->colId == 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Sort pushdown is only safe when the sort node outputs pure columns.
+// If pTargets contains expression outputs (e.g. val * 2 + 1), pushing Sort
+// alone can accidentally push projection expressions to remote SQL, which may
+// break federated type mapping for parity comparison.
+static bool fqTargetsAllColumns(const SNodeList* pTargets) {
+  if (pTargets == NULL) return true;
+
+  SNode* pTarget = NULL;
+  FOREACH(pTarget, pTargets) {
+    const SNode* pInner = pTarget;
+    if (nodeType(pInner) == QUERY_NODE_TARGET) {
+      pInner = ((const STargetNode*)pInner)->pExpr;
+    }
+    if (pInner == NULL || nodeType(pInner) != QUERY_NODE_COLUMN) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Return true when any expression in the list references at least one table
+// column. This is used to detect zero-column-dependency projections such as
+// NOW()/TODAY(), which must be evaluated locally in fallback mode.
+static bool fqExprListHasColumnRef(const SNodeList* pExprList) {
+  if (pExprList == NULL || LIST_LENGTH(pExprList) == 0) return false;
+
+  SNodeListNode* pListNode = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&pListNode);
+  if (TSDB_CODE_SUCCESS != code || pListNode == NULL) return false;
+
+  pListNode->pNodeList = (SNodeList*)pExprList;
+
+  SNodeList* pCols = NULL;
+  code = nodesCollectColumnsFromNode((SNode*)pListNode, NULL, COLLECT_COL_TYPE_ALL, &pCols);
+  bool hasRef = (TSDB_CODE_SUCCESS == code && pCols != NULL && LIST_LENGTH(pCols) > 0);
+
+  nodesDestroyList(pCols);
+  nodesFree((void*)pListNode);
+  return hasRef;
+}
+
+// ─── Phase 2 sub-function stubs ────────────────────────────────────────────
+// Each sub-function handles one category of pushdown for federated queries.
+// Phase 1 only implements fqHarvestSort + fqHarvestProject (inline below).
+// The remaining stubs are no-ops until Phase 2 implementation.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Returns true if pExpr is an EXISTS/NOT_EXISTS with a RAW_SQL_FRAG operand.
+// NOT EXISTS may be represented as either:
+//   (a) OperatorNode(opType=OP_TYPE_NOT_EXISTS, pLeft=RAW_SQL_FRAG)  — direct
+//   (b) LogicConditionNode(condType=NOT, Parameters=[OperatorNode(EXISTS, RAW_SQL_FRAG)])
+static bool fqIsRawSqlExistsOp(SNode* pCond) {
+  if (pCond == NULL || nodeType(pCond) != QUERY_NODE_OPERATOR) return false;
+  SOperatorNode* pOp = (SOperatorNode*)pCond;
+  if (pOp->opType != OP_TYPE_EXISTS && pOp->opType != OP_TYPE_NOT_EXISTS) return false;
+  if (pOp->pLeft == NULL || nodeType(pOp->pLeft) != QUERY_NODE_VALUE) return false;
+  return (((SValueNode*)pOp->pLeft)->flag & VALUE_FLAG_RAW_SQL_FRAG) != 0;
+}
+
+static bool fqIsFullyPushedCondition(SNode* pCond) {
+  if (pCond == NULL) return false;
+  // Case (a): direct EXISTS/NOT_EXISTS operator with RAW_SQL_FRAG
+  if (fqIsRawSqlExistsOp(pCond)) return true;
+  // Case (b): NOT(EXISTS(RAW_SQL_FRAG)) — parser emits this for NOT EXISTS
+  if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pCond;
+    if (pLogic->condType == LOGIC_COND_TYPE_NOT &&
+        pLogic->pParameterList && LIST_LENGTH(pLogic->pParameterList) == 1) {
+      return fqIsRawSqlExistsOp((SNode*)pLogic->pParameterList->pHead->pNode);
+    }
+  }
+  return false;
+}
+
+// Returns true if this condition is LIKE / NOT LIKE on a PG JSONB column.
+// Such conditions cannot be sent to the remote DB (PG rejects LIKE on JSONB);
+// they must be executed locally by the FederatedScan operator instead.
+static bool fqIsJsonbLikeOp(SNode* pCond, SScanLogicNode* pScan) {
+  if (pCond == NULL || pScan == NULL) return false;
+  if (nodeType(pCond) != QUERY_NODE_OPERATOR) return false;
+  SOperatorNode* pOp = (SOperatorNode*)pCond;
+  if (pOp->opType != OP_TYPE_LIKE && pOp->opType != OP_TYPE_NOT_LIKE) return false;
+  SNode* pLeft = pOp->pLeft;
+  if (pLeft == NULL || nodeType(pLeft) != QUERY_NODE_COLUMN) return false;
+  const char* colName = ((SColumnNode*)pLeft)->colName;
+  if (colName == NULL || colName[0] == '\0') return false;
+
+  // Look up the column's external type in the ext table metadata.
+  if (pScan->pExtTableNode == NULL) return false;
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  SExtTableMeta* pExtMeta = pExtNode->pExtMeta;
+  if (pExtMeta == NULL || pExtMeta->pCols == NULL) return false;
+
+  for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
+    if (strcasecmp(pExtMeta->pCols[i].colName, colName) == 0) {
+      return strcasecmp(pExtMeta->pCols[i].extTypeName, "jsonb") == 0;
+    }
+  }
+  return false;
+}
+
+// InfluxDB 3.0 (DataFusion) requires all time-column filters to produce a
+// contiguous time range.  IN / NOT IN on the time column cannot be expressed
+// in any SQL syntax that DataFusion accepts (!=, NOT, NOT IN, OR on time all
+// fail with "The operator must be a comparison operator to propagate intervals").
+// Keep these conditions local so the executor applies them via doFilter().
+static bool fqIsInfluxTimeInOp(SNode* pCond, SScanLogicNode* pScan) {
+  if (pCond == NULL || pScan == NULL) return false;
+  if (nodeType(pCond) != QUERY_NODE_OPERATOR) return false;
+  SOperatorNode* pOp = (SOperatorNode*)pCond;
+  if (pOp->opType != OP_TYPE_IN && pOp->opType != OP_TYPE_NOT_IN) return false;
+  // Check if target is InfluxDB
+  if (pScan->pExtTableNode == NULL) return false;
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  if ((EExtSourceType)pExtNode->sourceType != EXT_SOURCE_INFLUXDB) return false;
+  // Check if left operand is a TIMESTAMP column
+  if (pOp->pLeft == NULL) return false;
+  if (nodeType(pOp->pLeft) == QUERY_NODE_COLUMN) {
+    return ((SExprNode*)pOp->pLeft)->resType.type == TSDB_DATA_TYPE_TIMESTAMP;
+  }
+  return false;
+}
+
+// Check if an operator type is in the allowlist for pushdown to remote DB.
+// Only operators that nodesRemotePlanToSQL can translate are allowed.
+static bool fqOpTypeIsPushable(EOperatorType opType) {
+  switch (opType) {
+    // Comparison
+    case OP_TYPE_EQUAL:
+    case OP_TYPE_NOT_EQUAL:
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+    // Pattern matching
+    case OP_TYPE_LIKE:
+    case OP_TYPE_NOT_LIKE:
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+    // Set
+    case OP_TYPE_IN:
+    case OP_TYPE_NOT_IN:
+    // Null check
+    case OP_TYPE_IS_NULL:
+    case OP_TYPE_IS_NOT_NULL:
+    // Existence (correlated subquery)
+    case OP_TYPE_EXISTS:
+    case OP_TYPE_NOT_EXISTS:
+    // Arithmetic (standard SQL, supported by all dialects)
+    case OP_TYPE_ADD:
+    case OP_TYPE_SUB:
+    case OP_TYPE_MULTI:
+    case OP_TYPE_DIV:
+    case OP_TYPE_REM:
+    case OP_TYPE_MINUS:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// Returns true if the expression tree is fully pushable to the remote DB.
+// Uses an allowlist: only explicitly allowed node types and operator types
+// are considered pushable.  Everything else (FUNCTION, BIT_AND, JSON ops,
+// unknown node types) stays in local execution (node.pConditions).
+static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan) {
+  if (pExpr == NULL) return true;
+
+  switch (nodeType(pExpr)) {
+    case QUERY_NODE_COLUMN:
+    case QUERY_NODE_VALUE:
+      return true;
+
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOp = (SOperatorNode*)pExpr;
+      if (!fqOpTypeIsPushable(pOp->opType)) return false;
+      // EXISTS/NOT_EXISTS: pushable when operand is RAW_SQL_FRAG (correlated
+      // same-source subquery pre-rendered by nodesRenderCorrelatedExistsBody)
+      // or REMOTE_ZERO_ROWS (non-correlated subquery resolved TDengine-side,
+      // emitted as a literal integer in the remote SQL).
+      if (pOp->opType == OP_TYPE_EXISTS || pOp->opType == OP_TYPE_NOT_EXISTS) {
+        if (pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_VALUE &&
+            (((const SValueNode*)pOp->pLeft)->flag & VALUE_FLAG_RAW_SQL_FRAG))
+          return true;
+        if (pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_REMOTE_ZERO_ROWS)
+          return true;
+        return false;
+      }
+      // LIKE/NOT LIKE on JSONB column cannot be pushed (PG rejects LIKE on JSONB)
+      if (fqIsJsonbLikeOp(pExpr, pScan)) return false;
+      // IN/NOT IN on InfluxDB time column cannot be pushed (DataFusion limitation)
+      if (fqIsInfluxTimeInOp(pExpr, pScan)) return false;
+      return fqExprIsPushable(pOp->pLeft, pScan) && fqExprIsPushable(pOp->pRight, pScan);
+    }
+
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SLogicConditionNode* pLogic = (SLogicConditionNode*)pExpr;
+      SNode* pChild = NULL;
+      FOREACH(pChild, pLogic->pParameterList) {
+        if (!fqExprIsPushable(pChild, pScan)) return false;
+      }
+      return true;
+    }
+
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode* pCW = (SCaseWhenNode*)pExpr;
+      if (pCW->pCase && !fqExprIsPushable(pCW->pCase, pScan)) return false;
+      SNode* pItem = NULL;
+      FOREACH(pItem, pCW->pWhenThenList) {
+        SWhenThenNode* pWT = (SWhenThenNode*)pItem;
+        if (!fqExprIsPushable(pWT->pWhen, pScan)) return false;
+        if (!fqExprIsPushable(pWT->pThen, pScan)) return false;
+      }
+      if (pCW->pElse && !fqExprIsPushable(pCW->pElse, pScan)) return false;
+      return true;
+    }
+
+    case QUERY_NODE_NODE_LIST: {
+      SNodeListNode* pList = (SNodeListNode*)pExpr;
+      SNode* pItem = NULL;
+      FOREACH(pItem, pList->pNodeList) {
+        if (!fqExprIsPushable(pItem, pScan)) return false;
+      }
+      return true;
+    }
+
+    // Executor-resolved nodes for subquery correlation
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+    case QUERY_NODE_REMOTE_VALUE:
+    case QUERY_NODE_REMOTE_ROW:
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      return true;
+
+    default:
+      // FUNCTION, and any other unknown node type — not pushable
+      return false;
+  }
+}
+
+// Harvest WHERE conditions that can be pushed to the remote source.
+// Classifies each condition:
+//   - EXISTS/NOT EXISTS with RAW_SQL_FRAG → always pushed (pPushedConditions)
+//   - Non-pushable expression (FUNCTION, BIT ops, JSONB LIKE, unknown nodes)
+//                                         → kept local (node.pConditions)
+//   - Pushable expression (comparison, arithmetic, pattern, IN, CASE WHEN, etc.)
+//                                         → pushed to remote SQL (pPushedConditions)
+//
+// If a condition (or sub-condition) is non-pushable, the ENTIRE condition stays
+// in node.pConditions for local execution by FederatedScan.  This is conservative
+// for mixed AND conditions (the whole AND stays local) but always correct.
+// fqEnsureLocalFilterColsInScanCols ensures all referenced columns are fetched.
+static int32_t fqHarvestConditions(SScanLogicNode* pScan) {
+  if (pScan->node.pConditions == NULL) return TSDB_CODE_SUCCESS;
+
+  // Special case: EXISTS/RAW_SQL_FRAG — always pushed.
+  if (fqIsFullyPushedCondition(pScan->node.pConditions)) {
+    pScan->pPushedConditions = pScan->node.pConditions;
+    pScan->node.pConditions = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // If any sub-expression is non-pushable (FUNCTION, BIT ops, JSONB LIKE,
+  // unknown operator types, etc.), keep the entire condition in
+  // node.pConditions for local execution.
+  if (!fqExprIsPushable(pScan->node.pConditions, pScan)) {
+    // node.pConditions stays as-is; pPushedConditions remains NULL.
+    return TSDB_CODE_SUCCESS;
+  }
+  // All sub-conditions are safe to push to the remote DB.
+  pScan->pPushedConditions = pScan->node.pConditions;
+  pScan->node.pConditions = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
+// ---------------------------------------------------------------------------
+// fqEnsureLocalFilterColsInScanCols
+//
+// After the pushdown optimizer reduces pScanCols to only the SELECT output
+// columns, any column referenced exclusively in the local WHERE clause
+// (node.pConditions) would be missing from pScanCols.  The remote SQL would
+// then not fetch those columns, making local filter evaluation impossible.
+//
+// This helper re-adds any such missing columns to:
+//   1. pScan->pScanCols       — so the remote SQL's SELECT includes them
+//   2. pRemoteLogicPlan->pTargets — so planPhysiCreater uses the right list
+//      for pLeaf->pScanCols (when pRemoteLogicPlan != NULL)
+//   3. The Project logic node's pProjections (if a Project is in the chain)
+//      — so assembleRemoteSQL emits them in the SELECT clause
+//
+// Called immediately after pScanCols is reduced in fqPushdownOptimize.
+// ---------------------------------------------------------------------------
+static int32_t fqEnsureLocalFilterColsInScanCols(SScanLogicNode* pScan) {
+  if (pScan->node.pConditions == NULL) return TSDB_CODE_SUCCESS;
+
+  // Collect all column references from the local filter condition.
+  SNodeList* pCondCols = NULL;
+  int32_t    code      = nodesCollectColumnsFromNode(pScan->node.pConditions, NULL,
+                                                     COLLECT_COL_TYPE_ALL, &pCondCols);
+  if (TSDB_CODE_SUCCESS != code || pCondCols == NULL) return code;
+
+  SLogicNode* pTopRemote = (pScan->pRemoteLogicPlan != NULL)
+                               ? (SLogicNode*)pScan->pRemoteLogicPlan
+                               : NULL;
+
+  // Find the Project logic node in the chain (if any).
+  // It may be pTopRemote itself, or a child node in the chain.
+  SProjectLogicNode* pProjLogic = NULL;
+  if (pTopRemote != NULL) {
+    SLogicNode* pCurr = pTopRemote;
+    while (pCurr != NULL) {
+      if (nodeType(pCurr) == QUERY_NODE_LOGIC_PLAN_PROJECT) {
+        pProjLogic = (SProjectLogicNode*)pCurr;
+        break;
+      }
+      pCurr = (pCurr->pChildren && LIST_LENGTH(pCurr->pChildren) > 0)
+                  ? (SLogicNode*)nodesListGetNode(pCurr->pChildren, 0)
+                  : NULL;
+    }
+  }
+
+  SNode* pCondCol = NULL;
+  FOREACH(pCondCol, pCondCols) {
+    if (nodeType(pCondCol) != QUERY_NODE_COLUMN) continue;
+    const char* condColName = ((const SColumnNode*)pCondCol)->colName;
+
+    // Check whether condColName already exists in pScan->pScanCols.
+    bool found = false;
+    SNode* pScanCol = NULL;
+    FOREACH(pScanCol, pScan->pScanCols) {
+      const SNode* pInner = pScanCol;
+      if (nodeType(pInner) == QUERY_NODE_TARGET)
+        pInner = ((const STargetNode*)pInner)->pExpr;
+      if (pInner != NULL && nodeType(pInner) == QUERY_NODE_COLUMN) {
+        const SColumnNode* pScanColNode = (const SColumnNode*)pInner;
+        if (pScanColNode->colName[0] != '\0') {
+          if (strcasecmp(pScanColNode->colName, condColName) == 0) { found = true; break; }
+        } else {
+          int32_t condColId = ((const SColumnNode*)pCondCol)->colId;
+          if (condColId != 0 && pScanColNode->colId == condColId) { found = true; break; }
+        }
+      }
+    }
+
+    // Also check pProjections to avoid adding a duplicate when the same column
+    // already appears in the SELECT list (handles the case where pScanCols has
+    // slot-id-only refs that fail name comparison above).
+    if (!found && pProjLogic != NULL) {
+      SNode* pProjCol = NULL;
+      FOREACH(pProjCol, pProjLogic->pProjections) {
+        const SNode* pInner = pProjCol;
+        if (nodeType(pInner) == QUERY_NODE_TARGET)
+          pInner = ((const STargetNode*)pInner)->pExpr;
+        if (pInner != NULL && nodeType(pInner) == QUERY_NODE_COLUMN) {
+          if (strcasecmp(((const SColumnNode*)pInner)->colName, condColName) == 0) {
+            found = true; break;
+          }
+        }
+      }
+    }
+    if (found) continue;
+
+    // Column is only in the local filter — add it to pScanCols.
+    SNode* pClone1 = NULL;
+    code = nodesCloneNode(pCondCol, &pClone1);
+    if (TSDB_CODE_SUCCESS != code) goto _done;
+    code = nodesListMakeStrictAppend(&pScan->pScanCols, pClone1);
+    if (TSDB_CODE_SUCCESS != code) goto _done;
+
+    // Also add to pRemoteLogicPlan->pTargets so that pLeaf->pScanCols in
+    // planPhysiCreater.c (which uses pTargets when pRemoteLogicPlan is set)
+    // also includes the column.
+    if (pTopRemote != NULL) {
+      SNode* pClone2 = NULL;
+      code = nodesCloneNode(pCondCol, &pClone2);
+      if (TSDB_CODE_SUCCESS != code) goto _done;
+      code = nodesListMakeStrictAppend(&pTopRemote->pTargets, pClone2);
+      if (TSDB_CODE_SUCCESS != code) goto _done;
+    }
+
+    // If a Project node is in the chain, add the column to its pProjections
+    // so that assembleRemoteSQL emits it in the SELECT clause.
+    // Without this, the SELECT list is built from pProjections = {id} only,
+    // so the WHERE-only column (e.g. data) would not be fetched by the
+    // external DB, making local LIKE evaluation impossible.
+    if (pProjLogic != NULL) {
+      SNode* pClone3 = NULL;
+      code = nodesCloneNode(pCondCol, &pClone3);
+      if (TSDB_CODE_SUCCESS != code) goto _done;
+      code = nodesListMakeStrictAppend(&pProjLogic->pProjections, pClone3);
+      if (TSDB_CODE_SUCCESS != code) goto _done;
+    }
+  }
+
+_done:
+  nodesDestroyList(pCondCols);
+  return code;
+}
+
+
+// Convert TDengine PARTITION BY semantics into standard SQL GROUP BY for remote.
+//
+// For InfluxDB: when the query is `SELECT agg(...) FROM t PARTITION BY TBNAME`,
+// TDengine rewrites TBNAME into a partition key SFunctionNode.  The physical
+// plan's PARTITION operator resolves its partition key slot via a cast from
+// SFunctionNode → SColumnNode, reading an uninitialized (zero) slotId.  To
+// make the zero-init slotId point to a meaningful column, we prepend all
+// isTag=true columns from the external metadata to pScanCols so that the
+// first slot (slot 0) is a tag column.  The PARTITION operator then groups by
+// that tag and the downstream AGG computes the aggregate per group.
+//
+// For MySQL / PostgreSQL: PARTITION BY TBNAME has no sensible mapping (those
+// sources are not multi-measurement and have no "tbname" concept), so we
+// reject the query with TSDB_CODE_EXT_SYNTAX_UNSUPPORTED.
+
+// Helper: find a PARTITION BY TBNAME logic node in the given logic subtree.
+static SPartitionLogicNode* fqFindPartitionTbname(SLogicNode* pNode) {
+  if (pNode == NULL) return NULL;
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
+    SPartitionLogicNode* pPart = (SPartitionLogicNode*)pNode;
+    SNode* pKey = NULL;
+    FOREACH(pKey, pPart->pPartitionKeys) {
+      if (nodeType(pKey) == QUERY_NODE_FUNCTION &&
+          ((SFunctionNode*)pKey)->funcType == FUNCTION_TYPE_TBNAME)
+        return pPart;
+      if (nodeType(pKey) == QUERY_NODE_COLUMN &&
+          ((SColumnNode*)pKey)->colType == COLUMN_TYPE_TBNAME)
+        return pPart;
+    }
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    SPartitionLogicNode* pFound = fqFindPartitionTbname((SLogicNode*)pChild);
+    if (pFound != NULL) return pFound;
+  }
+  return NULL;
+}
+
+static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSubplan) {
+  // Find the nearest ancestor PARTITION BY TBNAME logic node.
+  // First: walk up through pParent chain (within the same subplan).
+  // Second: if not found, search parent subplans (PARTITION and FedScan may be
+  //         in different subplans after plan splitting).
+  SLogicNode* pParentNode = pScan->node.pParent;
+  SPartitionLogicNode* pPart = NULL;
+  while (pParentNode != NULL) {
+    ENodeType pt = nodeType(pParentNode);
+    if (pt == QUERY_NODE_LOGIC_PLAN_PARTITION) {
+      // Only handle PARTITION BY TBNAME here.  Plain PARTITION BY col (e.g.
+      // PARTITION BY host INTERVAL(1m)) is executed locally by TDengine and
+      // must NOT be rejected for MySQL/PG.
+      SPartitionLogicNode* pPartCandidate = (SPartitionLogicNode*)pParentNode;
+      bool hasTbname = false;
+      SNode* pKey = NULL;
+      FOREACH(pKey, pPartCandidate->pPartitionKeys) {
+        if ((nodeType(pKey) == QUERY_NODE_FUNCTION &&
+             ((SFunctionNode*)pKey)->funcType == FUNCTION_TYPE_TBNAME) ||
+            (nodeType(pKey) == QUERY_NODE_COLUMN &&
+             ((SColumnNode*)pKey)->colType == COLUMN_TYPE_TBNAME)) {
+          hasTbname = true;
+          break;
+        }
+      }
+      if (hasTbname) {
+        pPart = pPartCandidate;
+        break;
+      }
+      // Non-TBNAME PARTITION: continue walking up the chain.
+      pParentNode = pParentNode->pParent;
+      continue;
+    }
+    // Only walk through single-child "passthrough" nodes
+    if (pt == QUERY_NODE_LOGIC_PLAN_AGG ||
+        pt == QUERY_NODE_LOGIC_PLAN_PROJECT ||
+        pt == QUERY_NODE_LOGIC_PLAN_SORT) {
+      if (pParentNode->pChildren != NULL && LIST_LENGTH(pParentNode->pChildren) == 1) {
+        pParentNode = pParentNode->pParent;
+        continue;
+      }
+    }
+    break;  // non-passthrough or multi-child node
+  }
+  // If not found in local pParent chain, search parent subplans.
+  // This handles the case where PARTITION is in a parent subplan and the
+  // current subplan only contains AGG + FedScan.
+  if (pPart == NULL && pLogicSubplan != NULL) {
+    SNode* pParentSubplanNode = NULL;
+    FOREACH(pParentSubplanNode, pLogicSubplan->pParents) {
+      SLogicSubplan* pParentSubplan = (SLogicSubplan*)pParentSubplanNode;
+      if (pParentSubplan == NULL || pParentSubplan->pNode == NULL) continue;
+      SPartitionLogicNode* pFound = fqFindPartitionTbname(pParentSubplan->pNode);
+      if (pFound != NULL) {
+        pPart = pFound;
+        break;
+      }
+    }
+  }
+  if (pPart == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // pPartitionKeys were already checked in fqFindPartitionTbname or directly.
+  // Resolve the external table node.
+  if (pScan->pExtTableNode == NULL) return TSDB_CODE_SUCCESS;
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  EExtSourceType srcType  = (EExtSourceType)pExtNode->sourceType;
+
+  // MySQL and PostgreSQL do not support PARTITION BY TBNAME.
+  if (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_POSTGRESQL) {
+    planError("FQ: PARTITION BY TBNAME unsupported for srcType=%d at line %d", srcType, __LINE__);
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+
+  // For InfluxDB (and future tag-aware sources): prepend isTag columns to
+  // pScanCols in reverse order so that the first tag column ends up at slot 0.
+  // The PARTITION operator reads its group key from slot 0 (zero-init from the
+  // SFunctionNode→SColumnNode cast in makeColumnArrayFromList / doSetSlotId).
+  SExtTableMeta* pMeta = pExtNode->pExtMeta;
+  if (pMeta == NULL || pMeta->pCols == NULL || pMeta->numOfCols <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Check whether the external metadata has any tag columns.
+  bool hasTags = false;
+  for (int32_t i = 0; i < pMeta->numOfCols; i++) {
+    if (pMeta->pCols[i].isTag) {
+      hasTags = true;
+      break;
+    }
+  }
+
+  // Tagless measurement (e.g. InfluxDB with no tag keys): PARTITION BY TBNAME
+  // is a no-op because all rows belong to the same measurement.  Remove the
+  // PARTITION node from the logic plan so the AGG operates on all rows
+  // directly (producing a single group — the correct result).
+  if (!hasTags) {
+    SLogicNode* pPartChild = (SLogicNode*)nodesListGetNode(pPart->node.pChildren, 0);
+    if (pPartChild != NULL) {
+      if (NULL == pPart->node.pParent) {
+        TSWAP(pPart->node.pTargets, pPartChild->pTargets);
+      }
+      code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pPart, pPartChild);
+      if (TSDB_CODE_SUCCESS == code) {
+        NODES_CLEAR_LIST(pPart->node.pChildren);
+        nodesDestroyNode((SNode*)pPart);
+      }
+    }
+    return code;
+  }
+
+  // Iterate in reverse so that nodesListPushFront preserves original tag order
+  // (tag[0] pushed last → ends up first in the list, i.e. slot 0).
+  for (int32_t i = pMeta->numOfCols - 1; i >= 0; i--) {
+    if (!pMeta->pCols[i].isTag) continue;
+    const char* tagColName = pMeta->pCols[i].colName;
+
+    // Skip if this tag column is already in pScanCols.
+    bool   found    = false;
+    SNode* pExisting = NULL;
+    FOREACH(pExisting, pScan->pScanCols) {
+      if (nodeType(pExisting) == QUERY_NODE_COLUMN &&
+          strcmp(((SColumnNode*)pExisting)->colName, tagColName) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (found) continue;
+
+    // Build a minimal SColumnNode for this tag column.
+    SColumnNode* pTagCol = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagCol);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    tstrncpy(pTagCol->colName, tagColName, TSDB_COL_NAME_LEN);
+    tstrncpy(pTagCol->node.aliasName, tagColName, TSDB_COL_NAME_LEN);
+    pTagCol->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
+    pTagCol->node.resType.bytes = TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE;
+
+    // Ensure the scan column list exists.
+    if (pScan->pScanCols == NULL) {
+      code = nodesMakeList(&pScan->pScanCols);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pTagCol);
+        return code;
+      }
+    }
+
+    // Push to the front so the tag ends up at the lowest slot index.
+    code = nodesListPushFront(pScan->pScanCols, (SNode*)pTagCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pTagCol);
+      return code;
+    }
+  }
+
+  // Replace TBNAME in pPartitionKeys with actual tag column nodes so the
+  // partition operator groups by the real tag values instead of the fixed
+  // external table name.  This supersedes the old zero-init slotId hack.
+  {
+    SNodeList* pNewKeys = NULL;
+    code = nodesMakeList(&pNewKeys);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    // First, keep any non-TBNAME partition keys.
+    SNode* pKey = NULL;
+    FOREACH(pKey, pPart->pPartitionKeys) {
+      bool isTbname = false;
+      if (nodeType(pKey) == QUERY_NODE_FUNCTION &&
+          ((SFunctionNode*)pKey)->funcType == FUNCTION_TYPE_TBNAME) {
+        isTbname = true;
+      } else if (nodeType(pKey) == QUERY_NODE_COLUMN &&
+                 ((SColumnNode*)pKey)->colType == COLUMN_TYPE_TBNAME) {
+        isTbname = true;
+      }
+      if (!isTbname) {
+        SNode* pClone = NULL;
+        code = nodesCloneNode(pKey, &pClone);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+        code = nodesListStrictAppend(pNewKeys, pClone);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+      }
+    }
+
+    // Then, append tag column nodes.
+    for (int32_t i = 0; i < pMeta->numOfCols; i++) {
+      if (!pMeta->pCols[i].isTag) continue;
+      SColumnNode* pTagKey = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagKey);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+      tstrncpy(pTagKey->colName, pMeta->pCols[i].colName, TSDB_COL_NAME_LEN);
+      tstrncpy(pTagKey->node.aliasName, pMeta->pCols[i].colName, TSDB_COL_NAME_LEN);
+      pTagKey->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
+      pTagKey->node.resType.bytes = TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE;
+      code = nodesListStrictAppend(pNewKeys, (SNode*)pTagKey);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+    }
+
+    nodesDestroyList(pPart->pPartitionKeys);
+    pPart->pPartitionKeys = pNewKeys;
+  }
+
+  // Also rebuild pTargets of the partition node to include the tag columns,
+  // so the physical plan builder can resolve them when assigning slot ids.
+  {
+    nodesDestroyList(pPart->node.pTargets);
+    pPart->node.pTargets = NULL;
+    // Collect targets from children first, then add partition's own expressions.
+    SLogicNode* pPartChild = (SLogicNode*)nodesListGetNode(pPart->node.pChildren, 0);
+    if (pPartChild != NULL && pPartChild->pTargets != NULL) {
+      code = nodesCloneList(pPartChild->pTargets, &pPart->node.pTargets);
+      if (TSDB_CODE_SUCCESS != code) return code;
+    }
+  }
+
+  // Rebuild pTargets from the updated pScanCols so the physical plan builder
+  // sees the correct column set when assigning slot descriptors.
+  nodesDestroyList(pScan->node.pTargets);
+  pScan->node.pTargets = NULL;
+  return createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
+}
+
+// ---------------------------------------------------------------------------
+// fqConvertGroupBy: handle GROUP BY TBNAME on federated (external) scans.
+//
+// Mirrors fqConvertPartition for the GROUP BY path:
+//   - MySQL/PG: return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
+//   - InfluxDB tagless: remove TBNAME from pGroupKeys (single-group semantics)
+//   - InfluxDB with tags: replace TBNAME in pGroupKeys with real tag column
+//     nodes and add those tag columns to pScanCols so the physi creator can
+//     resolve slot IDs correctly.
+// ---------------------------------------------------------------------------
+static int32_t fqConvertGroupBy(SScanLogicNode* pScan, SLogicSubplan* pLogicSubplan) {
+  // Walk up from the external scan to find the nearest AGG node whose
+  // pGroupKeys contains TBNAME.
+  SLogicNode*    pParentNode = pScan->node.pParent;
+  SAggLogicNode* pAgg        = NULL;
+  while (pParentNode != NULL) {
+    ENodeType pt = nodeType(pParentNode);
+    if (pt == QUERY_NODE_LOGIC_PLAN_AGG) {
+      SAggLogicNode* pAggCandidate = (SAggLogicNode*)pParentNode;
+      // Use keysHasTbname which correctly unwraps GROUPING_SET nodes.
+      if (keysHasTbname(pAggCandidate->pGroupKeys)) {
+        pAgg = pAggCandidate;
+        break;
+      }
+      pParentNode = pParentNode->pParent;
+      continue;
+    }
+    // Walk through single-child passthrough nodes.
+    if (pt == QUERY_NODE_LOGIC_PLAN_PROJECT ||
+        pt == QUERY_NODE_LOGIC_PLAN_SORT) {
+      if (pParentNode->pChildren != NULL && LIST_LENGTH(pParentNode->pChildren) == 1) {
+        pParentNode = pParentNode->pParent;
+        continue;
+      }
+    }
+    break;
+  }
+
+  if (pAgg == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+
+  // Resolve external table info.
+  if (pScan->pExtTableNode == NULL) return TSDB_CODE_SUCCESS;
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  EExtSourceType srcType  = (EExtSourceType)pExtNode->sourceType;
+
+  if (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_POSTGRESQL) {
+    planError("FQ: GROUP BY TBNAME unsupported for srcType=%d at line %d", srcType, __LINE__);
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+
+  SExtTableMeta* pMeta = pExtNode->pExtMeta;
+  if (pMeta == NULL || pMeta->pCols == NULL || pMeta->numOfCols <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Check whether the external metadata has any tag columns.
+  bool hasTags = false;
+  for (int32_t i = 0; i < pMeta->numOfCols; i++) {
+    if (pMeta->pCols[i].isTag) {
+      hasTags = true;
+      break;
+    }
+  }
+
+  // Tagless measurement: GROUP BY TBNAME is a no-op because all rows belong
+  // to the same measurement.  Remove TBNAME from pGroupKeys so the AGG
+  // operates on all rows directly (producing a single group).
+  if (!hasTags) {
+    SNodeList* pNewKeys = NULL;
+    SNode* pKey = NULL;
+    FOREACH(pKey, pAgg->pGroupKeys) {
+      SNode* pActualKey = pKey;
+      if (QUERY_NODE_GROUPING_SET == nodeType(pActualKey)) {
+        pActualKey = nodesListGetNode(((SGroupingSetNode*)pActualKey)->pParameterList, 0);
+      }
+      bool isTbname = false;
+      if ((nodeType(pActualKey) == QUERY_NODE_FUNCTION &&
+           ((SFunctionNode*)pActualKey)->funcType == FUNCTION_TYPE_TBNAME) ||
+          (nodeType(pActualKey) == QUERY_NODE_COLUMN &&
+           ((SColumnNode*)pActualKey)->colType == COLUMN_TYPE_TBNAME)) {
+        isTbname = true;
+      }
+      if (!isTbname) {
+        if (pNewKeys == NULL) {
+          code = nodesMakeList(&pNewKeys);
+          if (TSDB_CODE_SUCCESS != code) return code;
+        }
+        SNode* pClone = NULL;
+        code = nodesCloneNode(pKey, &pClone);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+        code = nodesListStrictAppend(pNewKeys, pClone);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+      }
+    }
+    nodesDestroyList(pAgg->pGroupKeys);
+    pAgg->pGroupKeys = pNewKeys;
+    pAgg->isGroupTb = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // InfluxDB with tags: add tag columns to the scan and replace TBNAME in
+  // pGroupKeys with tag column nodes so the group operator groups by real
+  // tag values.
+
+  // 1. Add tag columns to pScanCols (same logic as fqConvertPartition).
+  for (int32_t i = pMeta->numOfCols - 1; i >= 0; i--) {
+    if (!pMeta->pCols[i].isTag) continue;
+    const char* tagColName = pMeta->pCols[i].colName;
+
+    // Skip if already present.
+    bool   found    = false;
+    SNode* pExisting = NULL;
+    FOREACH(pExisting, pScan->pScanCols) {
+      if (nodeType(pExisting) == QUERY_NODE_COLUMN &&
+          strcmp(((SColumnNode*)pExisting)->colName, tagColName) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (found) continue;
+
+    SColumnNode* pTagCol = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagCol);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    tstrncpy(pTagCol->colName, tagColName, TSDB_COL_NAME_LEN);
+    tstrncpy(pTagCol->node.aliasName, tagColName, TSDB_COL_NAME_LEN);
+    pTagCol->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
+    pTagCol->node.resType.bytes = TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE;
+
+    if (pScan->pScanCols == NULL) {
+      code = nodesMakeList(&pScan->pScanCols);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pTagCol);
+        return code;
+      }
+    }
+
+    code = nodesListPushFront(pScan->pScanCols, (SNode*)pTagCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pTagCol);
+      return code;
+    }
+  }
+
+  // 2. Replace TBNAME in pGroupKeys with actual tag column nodes.
+  {
+    SNodeList* pNewKeys = NULL;
+    code = nodesMakeList(&pNewKeys);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    // Keep non-TBNAME group keys.
+    SNode* pKey = NULL;
+    FOREACH(pKey, pAgg->pGroupKeys) {
+      SNode* pActualKey = pKey;
+      if (QUERY_NODE_GROUPING_SET == nodeType(pActualKey)) {
+        pActualKey = nodesListGetNode(((SGroupingSetNode*)pActualKey)->pParameterList, 0);
+      }
+      bool isTbname = false;
+      if (nodeType(pActualKey) == QUERY_NODE_FUNCTION &&
+          ((SFunctionNode*)pActualKey)->funcType == FUNCTION_TYPE_TBNAME) {
+        isTbname = true;
+      } else if (nodeType(pActualKey) == QUERY_NODE_COLUMN &&
+                 ((SColumnNode*)pActualKey)->colType == COLUMN_TYPE_TBNAME) {
+        isTbname = true;
+      }
+      if (!isTbname) {
+        SNode* pClone = NULL;
+        code = nodesCloneNode(pKey, &pClone);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+        code = nodesListStrictAppend(pNewKeys, pClone);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+      }
+    }
+
+    // Append tag column nodes.
+    for (int32_t i = 0; i < pMeta->numOfCols; i++) {
+      if (!pMeta->pCols[i].isTag) continue;
+      SColumnNode* pTagKey = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagKey);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+      tstrncpy(pTagKey->colName, pMeta->pCols[i].colName, TSDB_COL_NAME_LEN);
+      tstrncpy(pTagKey->node.aliasName, pMeta->pCols[i].colName, TSDB_COL_NAME_LEN);
+      pTagKey->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
+      pTagKey->node.resType.bytes = TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE;
+      code = nodesListStrictAppend(pNewKeys, (SNode*)pTagKey);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+    }
+
+    nodesDestroyList(pAgg->pGroupKeys);
+    pAgg->pGroupKeys = pNewKeys;
+    pAgg->isGroupTb = false;
+  }
+
+  // 3. Rebuild scan targets from the updated pScanCols.
+  nodesDestroyList(pScan->node.pTargets);
+  pScan->node.pTargets = NULL;
+  code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  // 4. Rebuild AGG node targets: aggregate functions + group keys.
+  nodesDestroyList(pAgg->node.pTargets);
+  pAgg->node.pTargets = NULL;
+  if (pAgg->pAggFuncs != NULL) {
+    code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+  if (pAgg->pGroupKeys != NULL) {
+    code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+
+  return code;
+}
+
+// Convert TDengine window functions (INTERVAL/SESSION/STATE) into standard SQL
+// window expressions or GROUP BY + aggregation for remote execution.
+static int32_t fqConvertWindow(SScanLogicNode* pScan) {
+  // Phase 2: transform TDengine window → standard SQL
+  return TSDB_CODE_SUCCESS;
+}
+
+// Harvest aggregation nodes (AGG) detached by aggOptimize and push them
+// into the remote plan for remote-side aggregation.
+// Check if a logic node (expected: AGG) contains any REPEAT_SCAN_FUNC (e.g. PERCENTILE).
+static bool fqNodeHasRepeatScanFunc(const SLogicNode* pNode) {
+  if (NULL == pNode || nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_AGG) {
+    return false;
+  }
+  const SAggLogicNode* pAgg = (const SAggLogicNode*)pNode;
+  int32_t cnt = pAgg->pAggFuncs ? (int32_t)LIST_LENGTH(pAgg->pAggFuncs) : 0;
+  const SNode* pFunc = NULL;
+  FOREACH(pFunc, pAgg->pAggFuncs) {
+    if (QUERY_NODE_FUNCTION == nodeType(pFunc)) {
+      int32_t funcId   = ((const SFunctionNode*)pFunc)->funcId;
+      bool    isRepeat = fmIsRepeatScanFunc(funcId);
+      if (isRepeat) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// Insert a GroupCacheLogicNode(twoPassMode=true) between FedScan and its AGG parent when the
+// AGG contains REPEAT_SCAN_FUNC (e.g. PERCENTILE).  The GroupCache intercepts the two-phase
+// scan: Phase 1 (PRE_SCAN) fetches + caches all blocks; Phase 2 (MAIN_SCAN) replays them.
+// This gives PERCENTILE the two-pass behaviour it requires even when the source is FedScan.
+static int32_t fqInjectTwoPassGroupCache(SLogicSubplan* pLogicSubplan, SScanLogicNode* pScan) {
+  if (!fqNodeHasRepeatScanFunc(pScan->node.pParent)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SGroupCacheLogicNode* pGrpCache = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_GROUP_CACHE, (SNode**)&pGrpCache);
+  if (NULL == pGrpCache) return code;
+
+  pGrpCache->twoPassMode      = true;
+  pGrpCache->grpByUid         = false;
+  pGrpCache->globalGrp        = false;
+  pGrpCache->batchFetch       = false;
+  pGrpCache->grpColsMayBeNull = false;
+
+  // GroupCache output = FedScan output (same column set)
+  code = nodesCloneList(pScan->node.pTargets, &pGrpCache->node.pTargets);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pGrpCache);
+    return code;
+  }
+
+  // replaceLogicNode: puts pGrpCache where pScan was in pParent->pChildren,
+  //                   sets pGrpCache->pParent = pScan->pParent (AGG).
+  code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pScan, (SLogicNode*)pGrpCache);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pGrpCache);
+    return code;
+  }
+
+  // Wire pScan as the sole child of pGrpCache.
+  pScan->node.pParent = (SLogicNode*)pGrpCache;
+  code = nodesMakeList(&pGrpCache->node.pChildren);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = nodesListStrictAppend(pGrpCache->node.pChildren, (SNode*)pScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  planDebug("FqInjectTwoPassGroupCache: inserted GroupCache(twoPassMode) between AGG and FedScan for PERCENTILE");
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fqHarvestAgg(SLogicSubplan* pLogicSubplan, SScanLogicNode* pScan) {
+  // Two-pass PERCENTILE support: set scanSeq[0]=2 when the parent AGG has REPEAT_SCAN_FUNC.
+  // planPhysiCreater reads scanSeq[0]>1 → sets twoPassMode on SFederatedScanPhysiNode.
+  // This is done here (in optimizer) rather than in createExternalScanLogicNode to ensure
+  // the parent chain is fully built and fqNodeHasRepeatScanFunc can check pAgg->pAggFuncs.
+  if (fqNodeHasRepeatScanFunc(pScan->node.pParent)) {
+    pScan->scanSeq[0] = 2;
+    planDebug("FqHarvestAgg: set scanSeq[0]=2 (twoPassMode) for REPEAT_SCAN_FUNC (PERCENTILE)");
+  }
+  (void)pLogicSubplan;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Harvest LIMIT/OFFSET from the main plan and push into remote plan.
+//
+// PushDownLimit's cloneLimit adjusts Sort->pLimit to {limit+offset, 0} for
+// cascaded local execution, but keeps the Project->pLimit at the original
+// {limit, offset}.  Because fqPushdownOptimize moves both Sort and Project
+// into pRemoteLogicPlan (removing them from the main plan), no local operator
+// remains to apply the precise LIMIT/OFFSET.  We must push the exact values
+// to the external source.
+//
+// Since FqPushdown now runs BEFORE PushDownLimit/EliminateProject in the
+// optimization rule order, pRemoteLogicPlan nodes still carry the original
+// unadjusted pLimit from the parser (PushDownLimit's cloneLimit has not yet
+// modified them).
+//
+// Strategy:
+//  1. Walk pRemoteLogicPlan top-down to find the first node with pLimit.
+//  2. Clone that limit onto pScan->node.pLimit (the SScanLogicNode).
+//  3. Clear pLimit from all nodes in pRemoteLogicPlan.
+//  4. createFederatedScanPhysiNode's makePhysiNode TSwaps pScan->node.pLimit
+//     onto the physical Mode-1 scan, and then clones it to the Mode-2 pLeaf.
+//  5. nodesRemotePlanToSQL reads pLeaf->pLimit and emits "LIMIT n OFFSET m".
+static int32_t fqHarvestLimit(SScanLogicNode* pScan) {
+  if (NULL == pScan->pRemoteLogicPlan) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // FqPushdown now runs BEFORE PushDownLimit, so every node in
+  // pRemoteLogicPlan still carries the original, unadjusted pLimit from the
+  // parser.  Walk top-down and take the first pLimit we find (typically on the
+  // Project node for "… LIMIT n OFFSET m" queries).
+  SNode*      pCurr   = pScan->pRemoteLogicPlan;
+  SLimitNode* pSource = NULL;
+
+  while (pCurr != NULL) {
+    SLogicNode* pLogic = (SLogicNode*)pCurr;
+    if (pLogic->pLimit != NULL) {
+      pSource = (SLimitNode*)pLogic->pLimit;
+      break;
+    }
+    SNodeList* pChildren = pLogic->pChildren;
+    pCurr = (pChildren != NULL && LIST_LENGTH(pChildren) > 0)
+                ? nodesListGetNode(pChildren, 0)
+                : NULL;
+  }
+
+  if (NULL == pSource) {
+    return TSDB_CODE_SUCCESS;  // no LIMIT in chain
+  }
+
+  // Clone the correct LIMIT onto pScan->node.pLimit.
+  // makePhysiNode() TSwaps this to physi-scan->node.pLimit, and
+  // createFederatedScanPhysiNode subsequently clones it to pLeaf->node.pLimit,
+  // which nodesRemotePlanToSQL reads to emit the LIMIT / OFFSET clause.
+  SNode*  pCloned = NULL;
+  int32_t code    = nodesCloneNode((SNode*)pSource, &pCloned);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  nodesDestroyNode(pScan->node.pLimit);
+  pScan->node.pLimit = pCloned;
+
+  // Clear pLimit from all nodes in pRemoteLogicPlan so that
+  // remoteLogicNodeToPhysi does not propagate a stale/adjusted value to
+  // pLeaf before it gets overwritten by pScan->node.pLimit above.
+  pCurr = pScan->pRemoteLogicPlan;
+  while (pCurr != NULL) {
+    SLogicNode* pLogic = (SLogicNode*)pCurr;
+    nodesDestroyNode(pLogic->pLimit);
+    pLogic->pLimit = NULL;
+    SNodeList* pChildren = pLogic->pChildren;
+    pCurr = (pChildren != NULL && LIST_LENGTH(pChildren) > 0)
+                ? nodesListGetNode(pChildren, 0)
+                : NULL;
+  }
+
+  planDebug("FqHarvestLimit: pushed LIMIT %" PRId64 " OFFSET %" PRId64 " to external scan",
+            pSource->limit ? ((SValueNode*)pSource->limit)->datum.i : (int64_t)-1,
+            pSource->offset ? ((SValueNode*)pSource->offset)->datum.i : (int64_t)0);
+  return TSDB_CODE_SUCCESS;
+}
+
+// Merge local JOIN with remote tables: restructure JOIN so that each remote
+// leg becomes a separate subquery with its own pRemoteLogicPlan.
+static int32_t fqMergeJoin(SScanLogicNode* pScan) {
+  // Phase 2: split JOIN legs for federated execution
+  return TSDB_CODE_SUCCESS;
+}
+
+// Push correlated/uncorrelated subqueries down to remote for execution.
+static int32_t fqPushdownSubquery(SScanLogicNode* pScan) {
+  // Phase 2: push subquery into pRemoteLogicPlan
+  return TSDB_CODE_SUCCESS;
+}
+
+// ─── fqInjectPkOrderBy ─────────────────────────────────────────────────────
+// Append a SSortLogicNode (ORDER BY <pk_col> ASC) at the bottom of
+// pScan->pRemoteLogicPlan so that nodesRemotePlanToSQL emits:
+//
+//   SELECT ... FROM <table> [WHERE ...] ORDER BY <pk_col> ASC
+//
+// This guarantees external DB returns rows ordered by timestamp pk, matching
+// TDengine's implicit ordering guarantee for scan results (DS §5.2.x).
+//
+// Called only when:
+//   (a) no Sort node is present in pRemoteLogicPlan (user/optimizer did not
+//       specify ORDER BY), and
+//   (b) the outer query is projection-only — no AGG or WINDOW above the scan
+//       in the main logical plan (verified by the caller).
+// ─────────────────────────────────────────────────────────────────────────────
+static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  if (NULL == pExtNode || NULL == pExtNode->pExtMeta ||
+      pExtNode->tsPrimaryColIdx < 0 ||
+      pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
+    // No pk info available — skip silently; local Sort will handle ordering if needed.
+    return TSDB_CODE_SUCCESS;
+  }
+  const char* pkColName = pExtNode->pExtMeta->pCols[pExtNode->tsPrimaryColIdx].colName;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // ── SColumnNode for the pk column ──
+  SColumnNode* pPkCol = NULL;
+  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pPkCol);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  tstrncpy(pPkCol->colName, pkColName, TSDB_COL_NAME_LEN);
+  pPkCol->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
+  pPkCol->node.resType.bytes = (int32_t)sizeof(int64_t);  // TIMESTAMP is always 8 bytes
+
+  // ── SOrderByExprNode wrapping the column ──
+  SOrderByExprNode* pOrdExpr = NULL;
+  code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrdExpr);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pPkCol);
+    return code;
+  }
+  pOrdExpr->pExpr      = (SNode*)pPkCol;
+  pOrdExpr->order      = ORDER_ASC;
+  pOrdExpr->nullOrder  = NULL_ORDER_FIRST;  // ts pk cannot be NULL; NULLS FIRST is harmless
+
+  // ── SSortLogicNode with pSortKeys = [pOrdExpr] ──
+  SSortLogicNode* pSortLogic = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&pSortLogic);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pOrdExpr);  // pPkCol owned by pOrdExpr
+    return code;
+  }
+  code = nodesMakeList(&pSortLogic->pSortKeys);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSortLogic);
+    nodesDestroyNode((SNode*)pOrdExpr);
+    return code;
+  }
+  code = nodesListStrictAppend(pSortLogic->pSortKeys, (SNode*)pOrdExpr);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSortLogic);
+    nodesDestroyNode((SNode*)pOrdExpr);
+    return code;
+  }
+
+  // ── Wire pSortLogic into pRemoteLogicPlan ──
+  // If pRemoteLogicPlan is NULL: sort becomes the sole remote plan node.
+  // Otherwise: append at the bottom of the existing chain (the chain's
+  // bottommost node has pChildren == NULL; set it to [pSortLogic]).
+  if (NULL == pScan->pRemoteLogicPlan) {
+    pScan->pRemoteLogicPlan = (SNode*)pSortLogic;
+  } else {
+    SLogicNode* pBottom = (SLogicNode*)pScan->pRemoteLogicPlan;
+    while (pBottom->pChildren != NULL && LIST_LENGTH(pBottom->pChildren) > 0) {
+      pBottom = (SLogicNode*)nodesListGetNode(pBottom->pChildren, 0);
+    }
+    code = nodesMakeList(&pBottom->pChildren);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pSortLogic);
+      return code;
+    }
+    code = nodesListStrictAppend(pBottom->pChildren, (SNode*)pSortLogic);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pBottom->pChildren);
+      pBottom->pChildren = NULL;
+      nodesDestroyNode((SNode*)pSortLogic);
+      return code;
+    }
+    pSortLogic->node.pParent = pBottom;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// ─── FqInterp: build UNION ALL remote plan for INTERP on external scan ──────
+//
+// For INTERP queries on external tables, the local TimeSlice operator needs
+// boundary data rows (PREV / NEXT) in addition to the RANGE data for
+// fill modes that require interpolation beyond the query range.
+//
+// This rule runs AFTER FqPushdown.  It finds the INTERP logic node above an
+// external scan, reads fillMode + timeRange, and constructs a complete
+// pRemoteLogicPlan sub-tree using UNION ALL (SProjectLogicNode with
+// isSetOpProj=true and multiple children) so that the remote source returns
+// all necessary data in a single query.
+//
+// Fill mode → branches:
+//   NULL/VALUE/VALUE_F/NULL_F/NONE → 1 branch  (MAIN only)
+//   PREV                          → 2 branches (PREV + MAIN)
+//   NEXT                          → 2 branches (MAIN + NEXT)
+//   LINEAR/NEAR                   → 3 branches (PREV + MAIN + NEXT)
+//
+// Each branch is: SSortLogicNode → SScanLogicNode (with WHERE + optional LIMIT).
+// The UNION ALL container is: SProjectLogicNode(isSetOpProj=true, ignoreGroupId=true).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Helper: find SInterpFuncLogicNode ancestor above a given scan node.
+static SInterpFuncLogicNode* fqFindInterpAboveScan(SScanLogicNode* pScan) {
+  SLogicNode* pCur = pScan->node.pParent;
+  while (pCur != NULL) {
+    if (nodeType(pCur) == QUERY_NODE_LOGIC_PLAN_INTERP_FUNC) {
+      return (SInterpFuncLogicNode*)pCur;
+    }
+    pCur = pCur->pParent;
+  }
+  return NULL;
+}
+
+// Helper: create one branch (Sort→Scan) for the UNION ALL plan.
+// pScan: the original external scan node (used for column/table info cloning).
+// pkColName: primary key column name for ORDER BY.
+// order: ORDER_ASC or ORDER_DESC.
+// pCondExpr: WHERE condition (owned by caller, will be cloned).
+// hasLimit1: whether to add LIMIT 1 to the scan.
+static int32_t fqInterpCreateBranch(SScanLogicNode* pScan, const char* pkColName,
+                                    EOrder order, SNode* pCondExpr, bool hasLimit1,
+                                    SLogicNode** ppBranch) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // ── Create SScanLogicNode (leaf of the branch) ──
+  SScanLogicNode* pNewScan = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pNewScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  pNewScan->scanType = SCAN_TYPE_EXTERNAL;
+  // Clone pScanCols, pExtTableNode
+  code = nodesCloneList(pScan->pScanCols, &pNewScan->pScanCols);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
+  code = nodesCloneNode(pScan->pExtTableNode, &pNewScan->pExtTableNode);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
+  code = nodesCloneList(pScan->node.pTargets, &pNewScan->node.pTargets);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
+
+  // Set WHERE condition
+  if (pCondExpr != NULL) {
+    code = nodesCloneNode(pCondExpr, &pNewScan->node.pConditions);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
+  }
+
+  // Set LIMIT 1
+  if (hasLimit1) {
+    SLimitNode* pLimit = NULL;
+    code = nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&pLimit);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
+    code = nodesMakeValueNodeFromInt64(1, (SNode**)&pLimit->limit);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pLimit); return code; }
+    code = nodesMakeValueNodeFromInt64(0, (SNode**)&pLimit->offset);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pLimit); return code; }
+    pNewScan->node.pLimit = (SNode*)pLimit;
+  }
+
+  // ── Create SSortLogicNode (wraps the scan) ──
+  SSortLogicNode* pSort = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&pSort);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); return code; }
+
+  // Create ORDER BY key
+  SColumnNode* pPkCol = NULL;
+  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pPkCol);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); return code; }
+  tstrncpy(pPkCol->colName, pkColName, TSDB_COL_NAME_LEN);
+  pPkCol->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
+  pPkCol->node.resType.bytes = (int32_t)sizeof(int64_t);
+
+  SOrderByExprNode* pOrd = NULL;
+  code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrd);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); nodesDestroyNode((SNode*)pPkCol); return code; }
+  pOrd->pExpr     = (SNode*)pPkCol;
+  pOrd->order     = order;
+  pOrd->nullOrder = NULL_ORDER_FIRST;
+
+  code = nodesMakeList(&pSort->pSortKeys);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); nodesDestroyNode((SNode*)pOrd); return code; }
+  code = nodesListStrictAppend(pSort->pSortKeys, (SNode*)pOrd);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); return code; }
+
+  // Clone pTargets for sort
+  code = nodesCloneList(pScan->node.pTargets, &pSort->node.pTargets);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); return code; }
+
+  // Wire scan as child of sort
+  code = nodesMakeList(&pSort->node.pChildren);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); return code; }
+  code = nodesListStrictAppend(pSort->node.pChildren, (SNode*)pNewScan);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pNewScan); nodesDestroyNode((SNode*)pSort); return code; }
+  pNewScan->node.pParent = (SLogicNode*)pSort;
+
+  *ppBranch = (SLogicNode*)pSort;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper: create a comparison condition node: <pkCol> <op> <tsValue>
+static int32_t fqInterpCreateTsCond(const char* pkColName, EOperatorType opType,
+                                    int64_t tsVal, SNode** ppCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SOperatorNode* pOp = NULL;
+  code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  pOp->opType = opType;
+  pOp->node.resType.type  = TSDB_DATA_TYPE_BOOL;
+  pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+
+  // Left: column node
+  SColumnNode* pCol = NULL;
+  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pOp); return code; }
+  tstrncpy(pCol->colName, pkColName, TSDB_COL_NAME_LEN);
+  pCol->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
+  pCol->node.resType.bytes = (int32_t)sizeof(int64_t);
+  pOp->pLeft = (SNode*)pCol;
+
+  // Right: value node
+  SValueNode* pVal = NULL;
+  code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pOp); return code; }
+  pVal->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
+  pVal->node.resType.bytes = (int32_t)sizeof(int64_t);
+  pVal->datum.i   = tsVal;
+  pVal->translate  = true;
+  pOp->pRight = (SNode*)pVal;
+
+  *ppCond = (SNode*)pOp;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper: create AND(left, right) condition node.  Takes ownership of pLeft and pRight.
+static int32_t fqInterpCreateAndCond(SNode* pLeft, SNode* pRight, SNode** ppCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SLogicConditionNode* pAnd = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pAnd);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pLeft); nodesDestroyNode(pRight); return code; }
+  pAnd->condType = LOGIC_COND_TYPE_AND;
+  pAnd->node.resType.type  = TSDB_DATA_TYPE_BOOL;
+  pAnd->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  code = nodesMakeList(&pAnd->pParameterList);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pLeft); nodesDestroyNode(pRight); nodesDestroyNode((SNode*)pAnd); return code; }
+  code = nodesListStrictAppend(pAnd->pParameterList, pLeft);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pRight); nodesDestroyNode((SNode*)pAnd); return code; }
+  code = nodesListStrictAppend(pAnd->pParameterList, pRight);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pAnd); return code; }
+  *ppCond = (SNode*)pAnd;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  // Find external scan node
+  SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
+  if (NULL == pScan) return TSDB_CODE_SUCCESS;
+
+  // Find INTERP ancestor above the scan
+  SInterpFuncLogicNode* pInterp = fqFindInterpAboveScan(pScan);
+  if (NULL == pInterp) return TSDB_CODE_SUCCESS;
+
+  // Get pk column name
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  if (NULL == pExtNode || NULL == pExtNode->pExtMeta ||
+      pExtNode->tsPrimaryColIdx < 0 ||
+      pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
+    return TSDB_CODE_SUCCESS;  // no pk info — cannot build time conditions
+  }
+  const char* pkColName = pExtNode->pExtMeta->pCols[pExtNode->tsPrimaryColIdx].colName;
+
+  int64_t   t1       = pInterp->timeRange.skey;
+  int64_t   t2       = pInterp->timeRange.ekey;
+  EFillMode fillMode = pInterp->fillMode;
+
+  // Determine which branches are needed
+  bool needPrev = (fillMode == FILL_MODE_PREV || fillMode == FILL_MODE_LINEAR || fillMode == FILL_MODE_NEAR);
+  bool needNext = (fillMode == FILL_MODE_NEXT || fillMode == FILL_MODE_LINEAR || fillMode == FILL_MODE_NEAR);
+  int  nBranches = 1 + (needPrev ? 1 : 0) + (needNext ? 1 : 0);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // Destroy existing pRemoteLogicPlan (injected by FqPushdown's fqInjectPkOrderBy)
+  if (pScan->pRemoteLogicPlan != NULL) {
+    nodesDestroyNode(pScan->pRemoteLogicPlan);
+    pScan->pRemoteLogicPlan = NULL;
+  }
+
+  if (nBranches == 1) {
+    // Single branch: Sort(ASC) → Scan(WHERE ts >= t1 AND ts <= t2)
+    SNode* pGe = NULL;
+    code = fqInterpCreateTsCond(pkColName, OP_TYPE_GREATER_EQUAL, t1, &pGe);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    SNode* pLe = NULL;
+    code = fqInterpCreateTsCond(pkColName, OP_TYPE_LOWER_EQUAL, t2, &pLe);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pGe); return code; }
+    SNode* pCond = NULL;
+    code = fqInterpCreateAndCond(pGe, pLe, &pCond);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    SLogicNode* pBranch = NULL;
+    code = fqInterpCreateBranch(pScan, pkColName, ORDER_ASC, pCond, false, &pBranch);
+    nodesDestroyNode(pCond);
+    if (TSDB_CODE_SUCCESS != code) return code;
+
+    pScan->pRemoteLogicPlan = (SNode*)pBranch;
+  } else {
+    // Multiple branches: wrap in SProjectLogicNode(isSetOpProj=true)
+    SProjectLogicNode* pUnion = NULL;
+    code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pUnion);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    pUnion->isSetOpProj   = true;
+    pUnion->ignoreGroupId = true;
+
+    // Clone pTargets from scan
+    code = nodesCloneList(pScan->node.pTargets, &pUnion->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+
+    // Build projections = simple column refs matching pTargets
+    code = nodesCloneList(pScan->node.pTargets, &pUnion->pProjections);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+
+    code = nodesMakeList(&pUnion->node.pChildren);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+
+    // ── PREV branch: Sort(DESC) → Scan(WHERE ts < t1, LIMIT 1) ──
+    if (needPrev) {
+      SNode* pCond = NULL;
+      code = fqInterpCreateTsCond(pkColName, OP_TYPE_LOWER_THAN, t1, &pCond);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      SLogicNode* pBranch = NULL;
+      code = fqInterpCreateBranch(pScan, pkColName, ORDER_DESC, pCond, true, &pBranch);
+      nodesDestroyNode(pCond);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      pBranch->pParent = (SLogicNode*)pUnion;
+      code = nodesListStrictAppend(pUnion->node.pChildren, (SNode*)pBranch);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+    }
+
+    // ── MAIN branch: Sort(ASC) → Scan(WHERE ts >= t1 AND ts <= t2) ──
+    {
+      SNode* pGe = NULL;
+      code = fqInterpCreateTsCond(pkColName, OP_TYPE_GREATER_EQUAL, t1, &pGe);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      SNode* pLe = NULL;
+      code = fqInterpCreateTsCond(pkColName, OP_TYPE_LOWER_EQUAL, t2, &pLe);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pGe); nodesDestroyNode((SNode*)pUnion); return code; }
+      SNode* pCond = NULL;
+      code = fqInterpCreateAndCond(pGe, pLe, &pCond);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      SLogicNode* pBranch = NULL;
+      code = fqInterpCreateBranch(pScan, pkColName, ORDER_ASC, pCond, false, &pBranch);
+      nodesDestroyNode(pCond);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      pBranch->pParent = (SLogicNode*)pUnion;
+      code = nodesListStrictAppend(pUnion->node.pChildren, (SNode*)pBranch);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+    }
+
+    // ── NEXT branch: Sort(ASC) → Scan(WHERE ts > t2, LIMIT 1) ──
+    if (needNext) {
+      SNode* pCond = NULL;
+      code = fqInterpCreateTsCond(pkColName, OP_TYPE_GREATER_THAN, t2, &pCond);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      SLogicNode* pBranch = NULL;
+      code = fqInterpCreateBranch(pScan, pkColName, ORDER_ASC, pCond, true, &pBranch);
+      nodesDestroyNode(pCond);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+      pBranch->pParent = (SLogicNode*)pUnion;
+      code = nodesListStrictAppend(pUnion->node.pChildren, (SNode*)pBranch);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+    }
+
+    pScan->pRemoteLogicPlan = (SNode*)pUnion;
+  }
+
+  planInfo("FqInterp: built %d-branch remote plan for fillMode=%d range=[%" PRId64 ",%" PRId64 "]",
+           nBranches, fillMode, t1, t2);
+
+  // Mark scan as processed by FqPushdown flag to prevent re-entry
+  OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
+  pCxt->optimized = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+// ─── Phase 1 core: harvest Sort + Project, inject default pk ORDER BY ───────
+//
+// Rules for pk ORDER BY injection (DS §5.2.x — "fallback flow ordering"):
+//   Inject when ALL of the following hold:
+//   1. No Sort node was pushed down (user did not specify ORDER BY).
+//   2. The outer query is projection-only: no AGG or WINDOW node sits above
+//      the external scan in the main logical plan.
+//   3. We are in the Phase 1 "fallback" flow (external DB is raw data source,
+//      TDengine performs all computation).  This is always true in Phase 1.
+// ─────────────────────────────────────────────────────────────────────────────
+
+static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
+  if (NULL == pScan) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Skip external scans that are children of a VirtualTableScan.
+  // The VTB scan manages its children's output columns; applying fqPushdown
+  // here would overwrite pScanCols/pTargets with the wrong ancestor's columns.
+  // However, we still inject ORDER BY <pk> ASC so the VTableScan sort-merge
+  // receives sorted input from each source (required for correct ts-merge).
+  if (pScan->node.pParent != NULL &&
+      nodeType(pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
+    int32_t code = fqInjectPkOrderBy(pScan);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
+    pCxt->optimized = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // ── Phase 2 stubs (no-ops until implemented) ──
+  int32_t code = TSDB_CODE_SUCCESS;
+  code = fqHarvestConditions(pScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = fqConvertPartition(pScan, pLogicSubplan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = fqConvertGroupBy(pScan, pLogicSubplan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = fqConvertWindow(pScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = fqHarvestAgg(pLogicSubplan, pScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  // ── Phase 1: harvest Sort + Project chain ──
+  // Collect consecutive pushdownable single-child ancestors, bottom → top.
+  // Also track whether a Sort node appears in the chain (= user specified ORDER BY).
+  SArray* pChain = taosArrayInit(4, POINTER_BYTES);
+  if (NULL == pChain) return terrno;
+
+  bool        hasSortInChain    = false;
+  bool        hasProjectInChain = false;  // stop at second consecutive Project
+  SLogicNode* pParent           = pScan->node.pParent;
+  while (pParent != NULL && fqNodeIsPushdownable(nodeType(pParent)) &&
+      fqProjectIsPushdownable(pParent) &&
+       (nodeType(pParent) != QUERY_NODE_LOGIC_PLAN_SORT ||
+        fqTargetsAllColumns(pParent->pTargets)) &&
+         fqSortAllKeysPushdownable(pParent) &&
+         LIST_LENGTH(pParent->pChildren) == 1) {
+    if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_SORT) {
+      hasSortInChain = true;
+      // Extra safety: verify sort keys are all simple column refs
+      SSortLogicNode* _pS = (SSortLogicNode*)pParent;
+      SNode* _pK = NULL;
+      FOREACH(_pK, _pS->pSortKeys) {
+        const SNode* _pI = _pK;
+        if (nodeType(_pI) == QUERY_NODE_ORDER_BY_EXPR)
+          _pI = ((const SOrderByExprNode*)_pI)->pExpr;
+        if (_pI == NULL || nodeType(_pI) != QUERY_NODE_COLUMN ||
+            ((const SColumnNode*)_pI)->colId == 0) {
+          // Non-renderable sort key — bail out of while loop entirely
+          goto _chain_done;
+        }
+      }
+    }
+    // Stop pushing when a second Project is encountered.  TAIL rewrite
+    // inserts an inner Project (rewrite output) below the outer Project
+    // (SELECT clause wrapper).  Pushing both creates a nested-subquery
+    // chain in renderNode that breaks SQL for all external sources:
+    //   SELECT expr_1 FROM (SELECT val FROM ...) _sq
+    // The outer SELECT references "expr_1" but the inner only exposes "val".
+    // Keeping the outer Project in the local plan avoids the subquery and
+    // lets the executor fill the slot by position instead of by name.
+    if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_PROJECT) {
+      if (hasProjectInChain) break;
+      hasProjectInChain = true;
+    }
+    if (NULL == taosArrayPush(pChain, &pParent)) {
+      code = terrno;
+      goto _cleanup;
+    }
+    pParent = pParent->pParent;
+  }
+_chain_done:
+  // ── Extract chain into pRemoteLogicPlan (only when chain is non-empty) ──
+  if (taosArrayGetSize(pChain) > 0) {
+    int32_t     n           = (int32_t)taosArrayGetSize(pChain);
+    SLogicNode* pTopmost    = *(SLogicNode**)taosArrayGet(pChain, n - 1);
+    SLogicNode* pBottommost = *(SLogicNode**)taosArrayGet(pChain, 0);
+
+    // Rewire main tree: replace topmost pushed-down node with the scan.
+    // replaceLogicNode also sets pScan->node.pParent = pTopmost->pParent (= pParent).
+    code = replaceLogicNode(pLogicSubplan, pTopmost, (SLogicNode*)pScan);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+
+    // ── Update pScan->pTargets to match pTopmost's output column order ──
+    // The topmost pushed-down node's pTargets defines the column order the
+    // parent plan expects.  eliminateProjOptimize may have already updated
+    // pTopmost's pTargets to match the user's SELECT list.  After removing
+    // pTopmost from the main plan, the scan node must produce the same
+    // column order that pTopmost would have.
+    //
+    // Note: do NOT guard this update with a count equality check.  When the
+    // user writes `SELECT a, b FROM t ORDER BY ts` (ts not in SELECT), the
+    // Sort node's pTargets = {a, b} (2 items) while the scan's original
+    // pTargets = {ts, a, b} (3 items) because the scan feeds ts to Sort.
+    // After Sort is pushed into pRemoteLogicPlan the scan no longer needs
+    // to output ts, so its pTargets must be reduced to {a, b}.  Requiring
+    // the counts to match prevents this necessary reduction and causes the
+    // remote SQL SELECT to include ts, producing a column count mismatch
+    // between the returned block (N+1 cols) and the query metadata (N cols),
+    // which triggers TSDB_CODE_TSC_INTERNAL_ERROR in setResultDataPtr.
+    if (pTopmost->pTargets != NULL) {
+      SNodeList* pNewTargets = NULL;
+      code = nodesCloneList(pTopmost->pTargets, &pNewTargets);
+      if (TSDB_CODE_SUCCESS == code && pNewTargets != NULL) {
+        nodesDestroyList(pScan->node.pTargets);
+        pScan->node.pTargets = pNewTargets;
+      }
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    }
+
+    // Disconnect pBottommost from the scan without destroying the scan node.
+    nodesClearList(pBottommost->pChildren);
+    pBottommost->pChildren = NULL;
+
+    // pTopmost is now the root of pRemoteLogicPlan — detach from main tree.
+    pTopmost->pParent = NULL;
+
+    // Hand the pushed-down chain over to the scan node.
+    pScan->pRemoteLogicPlan = (SNode*)pTopmost;
+
+    // ── Update pScan output columns to match pushed-down topmost node ──
+    // After pushing Sort (and Project) into pRemoteLogicPlan, the outer
+    // FederatedScan sits where pTopmost was.  Its pTargets must reflect what
+    // pTopmost outputs (= SELECT columns in SELECT order, WITHOUT sort-key-only
+    // columns now handled remotely).  This ensures:
+    //   1. makePhysiNode builds OutputDataBlockDesc with only output=true slots.
+    //   2. pScanCols / pColTypeMappings have the correct column count and order.
+    //   3. nodesRemotePlanToSQL SELECT list matches the actual remote DB response.
+    // Without this fix the outer FederatedScan would include ts (ORDER BY key)
+    // in its output, causing a col-count mismatch on the client side.
+    if (pTopmost->pTargets != NULL && LIST_LENGTH(pTopmost->pTargets) > 0) {
+      SNodeList* pNewTargets = NULL;
+      code = nodesCloneList(pTopmost->pTargets, &pNewTargets);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+      nodesDestroyList(pScan->node.pTargets);
+      pScan->node.pTargets = pNewTargets;
+
+      // Keep pScanCols in sync (= SELECT columns in SELECT order)
+      SNodeList* pNewScanCols = NULL;
+      code = nodesCloneList(pTopmost->pTargets, &pNewScanCols);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+      nodesDestroyList(pScan->pScanCols);
+      pScan->pScanCols = pNewScanCols;
+
+      // Re-add any columns that appear only in local WHERE conditions
+      // (node.pConditions) but were dropped from pScanCols during reduction.
+      // Without these columns the remote DB won't return them and local
+      // filter evaluation (e.g. LIKE on PG JSONB) will silently fail.
+      code = fqEnsureLocalFilterColsInScanCols(pScan);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    }
+  }
+  // If chain is empty, pScan->pRemoteLogicPlan stays NULL and
+  // pScan->node.pParent is unchanged (== pParent from the loop).
+
+  // ── Default pk ORDER BY injection (DS §5.2.x — fallback flow ordering) ──
+  // Inject ORDER BY <pk> ASC into the remote plan whenever no Sort was pushed
+  // down.  Injecting even when a complex operator (csum, partition, agg) sits
+  // above ensures the external source returns rows in ascending timestamp order
+  // for correct local processing (e.g. csum depends on input row order).
+  // Phase 2 aggregate-pushdown will need to revisit this logic.
+  if (!hasSortInChain) {
+    // Do not inject a remote pk ORDER BY when the immediate parent is a
+    // (non-pushdownable) Sort: that Sort will re-sort all output locally,
+    // making a remote ORDER BY redundant.  Injecting it also adds ts to
+    // pScanCols, conflicting with the slot reserved for the Sort's precalc
+    // expressions (e.g. ORDER BY length(name)) in the FedScan output block,
+    // causing TIMESTAMP data to be written to an INT-typed precalc slot.
+    bool parentIsLocalSort = (pScan->node.pParent != NULL &&
+                              nodeType(pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_SORT);
+    if (!parentIsLocalSort) {
+      code = fqInjectPkOrderBy(pScan);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    }
+
+    // ── Fix pScan output columns for the empty-chain case ──
+    // When a non-pushdownable node (e.g. DYN_QUERY_CTRL for IN subquery) sits
+    // between ExternalScan and the Sort, the chain is empty and the Sort stays
+    // in the local plan.  We still need to:
+    //   1. Set pScan->node.pTargets = SELECT cols only (host, val) — so that
+    //      OutputDataBlockDesc marks only those as output=true.
+    //   2. Set pScan->pScanCols = SELECT cols + ORDER BY-only cols (host, val, ts)
+    //      in that order — so the remote SQL SELECT produces columns in the right
+    //      position for the block, and ts can be a reserve slot for the local Sort.
+    // Find the SELECT column list from the nearest ancestor Sort or Project.
+    //
+    // IMPORTANT: Skip this adjustment when parentIsLocalSort=true.  In that
+    // case the local Sort computes scalar expressions (e.g. length(name)) on
+    // FedScan output columns, and the original pScanCols already includes the
+    // necessary slots for those scalar results.  Overwriting pScanCols here
+    // would strip those slots, causing the Sort's scalar function to silently
+    // write to a non-existent column (resulting in wrong sort order).
+    if (taosArrayGetSize(pChain) == 0 && !parentIsLocalSort) {
+      SLogicNode* pOutputSpec = NULL;
+      bool        hasAggBetween  = false;
+      bool        hasJoinBetween = false;
+      for (SLogicNode* pAnc = (SLogicNode*)pScan->node.pParent;
+           pAnc != NULL; pAnc = pAnc->pParent) {
+        ENodeType at = nodeType(pAnc);
+        // Stop at JOIN: a Sort/Project above a JOIN has pTargets that include
+        // columns from BOTH join legs.  Using those targets to overwrite this
+        // scan's pScanCols/pTargets would (a) include columns from the other
+        // table, breaking remote SQL, and (b) drop the JOIN-key column (ts),
+        // causing TSDB_CODE_PLAN_SLOT_NOT_FOUND when the JOIN physi node tries
+        // to resolve the primary-key equality condition slot.
+        if (at == QUERY_NODE_LOGIC_PLAN_JOIN) break;
+        // Track whether a complex node sits between Scan and the candidate.
+        // If so, the candidate's pTargets contain derived column names
+        // (e.g. "count(*)", "avg(val)", "lag(val,1)") instead of real table columns.
+        if (at == QUERY_NODE_LOGIC_PLAN_AGG || at == QUERY_NODE_LOGIC_PLAN_WINDOW ||
+            at == QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC || at == QUERY_NODE_LOGIC_PLAN_INTERP_FUNC ||
+            at == QUERY_NODE_LOGIC_PLAN_FILL || at == QUERY_NODE_LOGIC_PLAN_PARTITION ||
+            at == QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC || at == QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC) {
+          hasAggBetween = true;
+        }
+        // Track whether a JOIN sits between the scan and the candidate Sort/Project.
+        // A JOIN's pTargets contain columns from BOTH tables; using them to
+        // overwrite pScanCols for one scan leg would include the other table's
+        // columns, causing 0x2704 slot-key-not-found in createMergeJoinPhysiNode.
+        if (at == QUERY_NODE_LOGIC_PLAN_JOIN) {
+          hasJoinBetween = true;
+        }
+        if ((at == QUERY_NODE_LOGIC_PLAN_SORT || at == QUERY_NODE_LOGIC_PLAN_PROJECT) &&
+            pAnc->pTargets != NULL && LIST_LENGTH(pAnc->pTargets) > 0) {
+          // Stop at a Project whose pTargets contain non-column entries (e.g.
+          // function aliases like "val*2 AS doubled").  Any ancestor above such
+          // a Project references DERIVED columns, not real table columns.  Using
+          // those derived column names to overwrite pScanCols would produce names
+          // absent from the external table schema, causing 0x2704 slot-key-not-found
+          // in the InnerProject's slot-id resolution step.
+          if (at == QUERY_NODE_LOGIC_PLAN_PROJECT && !fqProjectIsPushdownable(pAnc)) {
+            planDebug("FqPushdown empty-chain: stopping at non-pushdownable Project (has expressions), "
+                      "pOutputSpec stays NULL, pScan->pTargets unchanged");
+            break;
+          }
+          // Skip if an Agg/Window node was found between Scan and this ancestor;
+          // its pTargets carry derived column names, not real table columns.
+          if (hasAggBetween) {
+            continue;
+          }
+          // Skip if a JOIN node was found between Scan and this ancestor;
+          // a JOIN's pTargets combine columns from all legs — using them to
+          // overwrite one scan's pScanCols/pTargets causes slot-key-not-found.
+          if (hasJoinBetween) {
+            continue;
+          }
+          // Only use pure-column output specs here.  If Sort/Project targets
+          // contain expressions, copying them into pScan->pTargets/pScanCols
+          // will make remote SQL project expressions directly, which breaks
+          // federated parity type mapping in fallback mode.
+          if (!fqTargetsAllColumns(pAnc->pTargets)) {
+            continue;
+          }
+          pOutputSpec = pAnc;
+          break;
+        }
+      }
+
+      if (pOutputSpec != NULL) {
+        // Build pScanCols = SELECT cols first, then any ORDER BY-only cols.
+        // ORDER BY cols come from pScan->pRemoteLogicPlan (the injected Sort).
+        SNodeList* pNewScanCols = NULL;
+        code = nodesCloneList(pOutputSpec->pTargets, &pNewScanCols);
+        if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+
+        // Append ORDER BY cols not already in the SELECT list.
+        if (pScan->pRemoteLogicPlan != NULL &&
+            nodeType(pScan->pRemoteLogicPlan) == QUERY_NODE_LOGIC_PLAN_SORT) {
+          SSortLogicNode* pRemSort = (SSortLogicNode*)pScan->pRemoteLogicPlan;
+          SNode* pKey = NULL;
+          FOREACH(pKey, pRemSort->pSortKeys) {
+            if (nodeType(pKey) != QUERY_NODE_ORDER_BY_EXPR) continue;
+            SNode* pKeyExpr = ((SOrderByExprNode*)pKey)->pExpr;
+            if (nodeType(pKeyExpr) != QUERY_NODE_COLUMN) continue;
+            SColumnNode* pSortCol = (SColumnNode*)pKeyExpr;
+            // Check if this sort col is already in pNewScanCols (by colName).
+            bool found = false;
+            SNode* pExisting = NULL;
+            FOREACH(pExisting, pNewScanCols) {
+              if (nodeType(pExisting) == QUERY_NODE_COLUMN &&
+                  strcmp(((SColumnNode*)pExisting)->colName, pSortCol->colName) == 0) {
+                found = true;
+                break;
+              }
+            }
+            if (!found) {
+              // Clone the sort col (has correct colName and resType for pScanCols).
+              SNode* pNewCol = NULL;
+              code = nodesCloneNode((SNode*)pSortCol, &pNewCol);
+              if (TSDB_CODE_SUCCESS != code) {
+                nodesDestroyList(pNewScanCols);
+                goto _cleanup;
+              }
+              code = nodesListMakeStrictAppend(&pNewScanCols, pNewCol);
+              if (TSDB_CODE_SUCCESS != code) {
+                nodesDestroyNode(pNewCol);
+                nodesDestroyList(pNewScanCols);
+                goto _cleanup;
+              }
+            }
+          }
+        }
+
+        nodesDestroyList(pScan->pScanCols);
+        pScan->pScanCols = pNewScanCols;
+
+        // Set pTargets = SELECT cols only (no ORDER BY-only cols in output).
+        SNodeList* pNewTargets = NULL;
+        code = nodesCloneList(pOutputSpec->pTargets, &pNewTargets);
+        if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+        nodesDestroyList(pScan->node.pTargets);
+        pScan->node.pTargets = pNewTargets;
+      }
+    }
+  }
+
+  // ── Fallback: ensure pScan->pScanCols has at least one column ──
+  // For queries like `SELECT timezone() FROM ext_t` or `SELECT client_version()
+  // FROM ext_t` where the SELECT list has no remote column dependencies,
+  // pScanCols is still NULL at this point.  An empty pScanCols causes
+  // nodesRemotePlanToSQL to emit `SELECT *` and pColTypeMappings to be empty;
+  // the remote connector then fails with a column-count mismatch.
+  // Inject the pk column (from the fqInjectPkOrderBy Sort already in
+  // pRemoteLogicPlan) as a minimal anchor so the remote SQL becomes
+  //   SELECT <pk> FROM … ORDER BY <pk> [LIMIT …]
+  // and the remote connector returns exactly 1 column.
+  // The local Project (timezone()/client_version()/…) ignores the pk column
+  // and computes its zero-argument function per returned row.
+  bool noRemoteColDependency = !fqExprListHasColumnRef(pScan->pScanCols);
+  if (TSDB_CODE_SUCCESS == code && noRemoteColDependency) {
+    // For zero-column-dependency projections (NOW/TODAY/constant expressions),
+    // never emit expression SELECT items to remote DB; fetch only a pk anchor.
+    nodesDestroyList(pScan->pScanCols);
+    pScan->pScanCols = NULL;
+    if (!fqExprListHasColumnRef(pScan->node.pTargets)) {
+      nodesDestroyList(pScan->node.pTargets);
+      pScan->node.pTargets = NULL;
+    }
+
+    // If pk ORDER BY was injected, use its pk column as a stable anchor.
+    if (pScan->pRemoteLogicPlan != NULL &&
+        nodeType(pScan->pRemoteLogicPlan) == QUERY_NODE_LOGIC_PLAN_SORT) {
+      SSortLogicNode* pInjSort = (SSortLogicNode*)pScan->pRemoteLogicPlan;
+      SNode* pKey0 = (pInjSort->pSortKeys != NULL && LIST_LENGTH(pInjSort->pSortKeys) > 0)
+                         ? nodesListGetNode(pInjSort->pSortKeys, 0) : NULL;
+      if (pKey0 != NULL && nodeType(pKey0) == QUERY_NODE_ORDER_BY_EXPR) {
+        SNode* pKeyExpr = ((SOrderByExprNode*)pKey0)->pExpr;
+        if (pKeyExpr != NULL && nodeType(pKeyExpr) == QUERY_NODE_COLUMN) {
+          SNode* pPkClone = NULL;
+          code = nodesCloneNode(pKeyExpr, &pPkClone);
+          if (TSDB_CODE_SUCCESS == code) {
+            code = nodesListMakeStrictAppend(&pScan->pScanCols, pPkClone);
+            if (TSDB_CODE_SUCCESS != code) {
+              nodesDestroyNode(pPkClone);
+            } else {
+              // Also update pTargets so makePhysiNode creates a valid output
+              // block descriptor for the FederatedScan physi node.
+              if (LIST_LENGTH(pScan->node.pTargets) == 0) {
+                SNode* pTgtClone = NULL;
+                code = nodesCloneNode(pKeyExpr, &pTgtClone);
+                if (TSDB_CODE_SUCCESS == code) {
+                  code = nodesListMakeStrictAppend(&pScan->node.pTargets, pTgtClone);
+                  if (TSDB_CODE_SUCCESS != code) {
+                    nodesDestroyNode(pTgtClone);
+                  }
+                }
+              }
+            }
+          }
+          planDebug("FqPushdown: injected pk column '%s' into pScanCols/pTargets"
+                    " for zero-column-dependency query",
+                    ((SColumnNode*)pKeyExpr)->colName);
+        }
+      }
+    }
+  }
+
+  // ── Phase 2 stubs (post-chain, no-ops until implemented) ──
+  if (TSDB_CODE_SUCCESS == code) {
+    code = fqHarvestLimit(pScan);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    code = fqMergeJoin(pScan);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    code = fqPushdownSubquery(pScan);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+  }
+
+  // Mark this ExternalScan as processed so subsequent rounds skip it.
+  OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
+  // Signal optimized so the outer loop re-scans for additional ExternalScan nodes.
+  pCxt->optimized = true;
+
+_cleanup:
+  taosArrayDestroy(pChain);
+  return code;
+}
+
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType && NULL == pLogicSubplan->pNode->pChildren) {
     return TSDB_CODE_SUCCESS;
@@ -12605,8 +14849,29 @@ static int32_t postSplitEliminateSortImpl(SLogicSubplan* pSubplan, SLogicNode* p
     return TSDB_CODE_SUCCESS;
   }
 
+  // Sort may also serve as the projection that trims helper columns kept by its child
+  // for filters/order-by evaluation.  Replacing Sort with a child that exposes a wider
+  // target list breaks exchange/scan schema alignment after split.
+  SLogicNode* pDirectChild = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
+  if (NULL == pDirectChild) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (LIST_LENGTH(pSort->node.pTargets) != LIST_LENGTH(pDirectChild->pTargets)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < LIST_LENGTH(pSort->node.pTargets); ++i) {
+    SNode* pSortTarget = nodesListGetNode(pSort->node.pTargets, i);
+    SNode* pChildTarget = nodesListGetNode(pDirectChild->pTargets, i);
+    if (!nodesEqualNode(pSortTarget, pChildTarget)) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+
   // Walk past passthrough Projections to find the actual data-producing child.
-  SLogicNode* pDataChild = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
+  SLogicNode* pDataChild = pDirectChild;
   while (NULL != pDataChild && QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pDataChild) &&
          1 == LIST_LENGTH(pDataChild->pChildren)) {
     pDataChild = (SLogicNode*)nodesListGetNode(pDataChild->pChildren, 0);
@@ -12633,7 +14898,6 @@ static int32_t postSplitEliminateSortImpl(SLogicSubplan* pSubplan, SLogicNode* p
            pSubplan->id.queryId, sortOrder);
 
   // Eliminate the Sort: replace it with its direct child.
-  SLogicNode* pDirectChild = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
   if (QUERY_NODE_LOGIC_PLAN_EXCHANGE == nodeType(pDirectChild) &&
       !postSplitTargetsEqual(pSort->node.pTargets, pDirectChild->pTargets)) {
     return TSDB_CODE_SUCCESS;

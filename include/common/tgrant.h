@@ -69,6 +69,7 @@ typedef enum {
   TSDB_GRANT_VNODE,
   TSDB_GRANT_MOUNT,
   TSDB_GRANT_XNODE,
+  TSDB_GRANT_EXT_SOURCE,  // federated query: external data source
 } EGrantType;
 
 int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);

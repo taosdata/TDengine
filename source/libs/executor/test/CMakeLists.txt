@@ -33,6 +33,7 @@ TARGET_INCLUDE_DIRECTORIES(
         joinTests
         PUBLIC "${TD_SOURCE_DIR}/include/common"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 
 ADD_EXECUTABLE(queryPlanTests queryPlanTests.cpp)
@@ -47,6 +48,7 @@ TARGET_INCLUDE_DIRECTORIES(
         queryPlanTests
         PUBLIC "${TD_SOURCE_DIR}/include/common"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 
 ADD_EXECUTABLE(execUtilTests execUtilTests.cpp)
@@ -60,6 +62,7 @@ TARGET_INCLUDE_DIRECTORIES(
         execUtilTests
         PUBLIC "${TD_SOURCE_DIR}/include/common"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 
 ADD_EXECUTABLE(windowFuncFrameTests windowFuncFrameTests.cpp)

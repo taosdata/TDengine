@@ -868,7 +868,8 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
                       .ntbEntry.ncid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1,
                       .ntbEntry.ownerId = pReq->ntb.userId,
                       .pExtSchemas = pReq->pExtSchemas,
-                      .colRef = pReq->colRef};
+                      .colRef = pReq->colRef,
+                      .series = pReq->series};
   // Batch meta txn: shadow-in-B+tree — write with PRE_CREATE status, invisible until COMMIT
   if (pReq->txnId != 0) {
     entry.txnId = pReq->txnId;
@@ -973,7 +974,8 @@ static int32_t metaCreateVirtualChildTable(SMeta *pMeta, int64_t version, SVCrea
                       .ctbEntry.comment = pReq->comment,
                       .ctbEntry.suid = pReq->ctb.suid,
                       .ctbEntry.pTags = pReq->ctb.pTag,
-                      .colRef = pReq->colRef};
+                      .colRef = pReq->colRef,
+                      .series = pReq->series};
   // Batch meta txn: shadow-in-B+tree — write with PRE_CREATE status, invisible until COMMIT
   if (pReq->txnId != 0) {
     entry.txnId = pReq->txnId;
@@ -1588,14 +1590,46 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
     if (TSDB_ALTER_TABLE_ADD_COLUMN == pReq->action) {
       tmpRef.hasRef = false;
       tmpRef.id = pColumn->colId;
+      tmpRef.tagCondLen = 0;
+      tmpRef.tagCondJson = NULL;
     } else {
       tmpRef.hasRef = true;
       tmpRef.id = pColumn->colId;
+      tmpRef.refType = pReq->refType;
+      if (pReq->refSourceName && pReq->refSourceName[0] != '\0') {
+        tstrncpy(tmpRef.refSourceName, pReq->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      } else {
+        tmpRef.refSourceName[0] = '\0';
+      }
+      tmpRef.refSchemaName[0] = '\0';
       tstrncpy(tmpRef.refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
       tstrncpy(tmpRef.refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
       tstrncpy(tmpRef.refColName, pReq->refColName, TSDB_COL_NAME_LEN);
+      tmpRef.tagCondLen = 0;
+      tmpRef.tagCondJson = NULL;
+      if (pReq->refType == 1 && pEntry->series.nSeries > 0) {
+        for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
+          SSeriesEntry *s = &pEntry->series.pSeries[i];
+          bool matched = false;
+          if (pReq->seriesAlias && pReq->seriesAlias[0] != '\0') {
+            matched = (strcasecmp(s->alias, pReq->seriesAlias) == 0);
+          } else {
+            matched = (strcasecmp(s->sourceName, pReq->refSourceName ? pReq->refSourceName : "") == 0 &&
+                       strcasecmp(s->dbName, pReq->refDbName) == 0 &&
+                       strcasecmp(s->measurementName, pReq->refTbName) == 0);
+          }
+          if (matched) {
+            if (s->tagCondLen > 0 && s->tagCondJson) {
+              tmpRef.tagCondJson = taosStrdup(s->tagCondJson);
+              tmpRef.tagCondLen = s->tagCondLen;
+            }
+            break;
+          }
+        }
+      }
     }
     code = updataTableColRef(&pEntry->colRef, pColumn, 1, &tmpRef);
+    taosMemoryFreeClear(tmpRef.tagCondJson);
     if (code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pMeta->pVnode), __func__, __FILE__,
                 __LINE__, tstrerror(code), version);
@@ -1657,6 +1691,9 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
         pRsp->pColRefs[i].hasRef = p->hasRef;
         pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
+          pRsp->pColRefs[i].refType = p->refType;
+          tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
           tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
@@ -1807,6 +1844,9 @@ int32_t metaDropTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, S
         pRsp->pColRefs[i].hasRef = p->hasRef;
         pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
+          pRsp->pColRefs[i].refType = p->refType;
+          tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
           tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
@@ -1914,6 +1954,9 @@ int32_t metaAlterTableColumnName(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
         pRsp->pColRefs[i].hasRef = p->hasRef;
         pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
+          pRsp->pColRefs[i].refType = p->refType;
+          tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
           tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
@@ -2032,6 +2075,9 @@ int32_t metaAlterTableColumnBytes(SMeta *pMeta, int64_t version, SVAlterTbReq *p
         pRsp->pColRefs[i].hasRef = p->hasRef;
         pRsp->pColRefs[i].id = p->id;
         if (p->hasRef) {
+          pRsp->pColRefs[i].refType = p->refType;
+          tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
           tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
           tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
@@ -3491,13 +3537,40 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
   }
 
-  // do update column name
+  // do update column ref
   pEntry->version = version;
   pColRef->hasRef = true;
   pColRef->id = pSchema->pSchema[iColumn].colId;
+  pColRef->refType = pReq->refType;
+  tstrncpy(pColRef->refSourceName, pReq->refSourceName ? pReq->refSourceName : "", TSDB_EXT_SOURCE_NAME_LEN);
+  pColRef->refSchemaName[0] = '\0';
   tstrncpy(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
+
+  // If external ref, look up matching series for tag condition
+  taosMemoryFreeClear(pColRef->tagCondJson);
+  pColRef->tagCondLen = 0;
+  if (pReq->refType == 1 && pEntry->series.nSeries > 0) {
+    for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
+      SSeriesEntry *s = &pEntry->series.pSeries[i];
+      bool matched = false;
+      if (pReq->seriesAlias && pReq->seriesAlias[0] != '\0') {
+        matched = (strcasecmp(s->alias, pReq->seriesAlias) == 0);
+      } else {
+        matched = (strcasecmp(s->sourceName, pReq->refSourceName ? pReq->refSourceName : "") == 0 &&
+                   strcasecmp(s->dbName, pReq->refDbName) == 0 &&
+                   strcasecmp(s->measurementName, pReq->refTbName) == 0);
+      }
+      if (matched) {
+        if (s->tagCondLen > 0 && s->tagCondJson) {
+          pColRef->tagCondJson = taosStrdup(s->tagCondJson);
+          pColRef->tagCondLen = s->tagCondLen;
+        }
+        break;
+      }
+    }
+  }
   pSchema->version++;
   pEntry->colRef.version++;
 
@@ -3529,6 +3602,9 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
       pRsp->pColRefs[i].hasRef = p->hasRef;
       pRsp->pColRefs[i].id = p->id;
       if (p->hasRef) {
+        pRsp->pColRefs[i].refType = p->refType;
+        tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
         tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
@@ -3636,6 +3712,9 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
       pRsp->pColRefs[i].hasRef = p->hasRef;
       pRsp->pColRefs[i].id = p->id;
       if (p->hasRef) {
+        pRsp->pColRefs[i].refType = p->refType;
+        tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
         tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
         tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
@@ -3765,6 +3844,172 @@ int32_t metaAlterTagRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
   metaFetchEntryFree(&pSuper);
   TAOS_RETURN(code);
 }
+
+int32_t metaAddTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pReq->seriesAlias || pReq->seriesAlias[0] == '\0') {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  SMetaEntry *pEntry = NULL;
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed since table %s not found", TD_VID(pMeta->pVnode), __func__, pReq->tbName);
+    TAOS_RETURN(code);
+  }
+
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE && pEntry->type != TSDB_VIRTUAL_CHILD_TABLE) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  if (pEntry->version >= version) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // check alias doesn't already exist
+  for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
+    if (strncmp(pEntry->series.pSeries[i].alias, pReq->seriesAlias, TSDB_COL_NAME_LEN) == 0) {
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_VND_COL_ALREADY_EXISTS);
+    }
+  }
+
+  // grow series array
+  int32_t newCount = pEntry->series.nSeries + 1;
+  SSeriesEntry *pNew = taosMemoryRealloc(pEntry->series.pSeries, newCount * sizeof(SSeriesEntry));
+  if (!pNew) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(terrno);
+  }
+  pEntry->series.pSeries = pNew;
+
+  SSeriesEntry *pSeries = &pEntry->series.pSeries[pEntry->series.nSeries];
+  memset(pSeries, 0, sizeof(SSeriesEntry));
+  tstrncpy(pSeries->alias, pReq->seriesAlias, TSDB_COL_NAME_LEN);
+  tstrncpy(pSeries->sourceName, pReq->seriesSourceName ? pReq->seriesSourceName : "", TSDB_EXT_SOURCE_NAME_LEN);
+  tstrncpy(pSeries->dbName, pReq->seriesDbName ? pReq->seriesDbName : "", TSDB_DB_NAME_LEN);
+  tstrncpy(pSeries->measurementName, pReq->seriesMeasurementName ? pReq->seriesMeasurementName : "", TSDB_TABLE_NAME_LEN);
+  if (pReq->seriesTagCondLen > 0 && pReq->seriesTagCondJson) {
+    pSeries->tagCondJson = taosStrdup(pReq->seriesTagCondJson);
+    pSeries->tagCondLen = pReq->seriesTagCondLen;
+  }
+  pEntry->series.nSeries = newCount;
+
+  pEntry->version = version;
+  pEntry->colRef.version++;
+
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed since %s, table:%s", TD_VID(pMeta->pVnode), __func__, tstrerror(code), pReq->tbName);
+  } else {
+    metaInfo("vgId:%d, table %s added series %s", TD_VID(pMeta->pVnode), pReq->tbName, pReq->seriesAlias);
+    // Build response so client catalog cache is updated with new series
+    SSchemaWrapper *pSchema = &pEntry->ntbEntry.schemaRow;
+    code = metaUpdateVtbMetaRsp(pEntry, pReq->tbName, pSchema, &pEntry->colRef, pEntry->pExtSchemas,
+                                pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
+    if (code) {
+      metaError("vgId:%d, %s metaUpdateVtbMetaRsp failed: %s", TD_VID(pMeta->pVnode), __func__, tstrerror(code));
+    } else {
+      for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
+        SColRef *p = &pEntry->colRef.pColRef[i];
+        pRsp->pColRefs[i].hasRef = p->hasRef;
+        pRsp->pColRefs[i].id = p->id;
+        if (p->hasRef) {
+          pRsp->pColRefs[i].refType = p->refType;
+          tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+          tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
+          tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
+          if (p->tagCondLen > 0 && p->tagCondJson) {
+            pRsp->pColRefs[i].tagCondLen = p->tagCondLen;
+            pRsp->pColRefs[i].tagCondJson = taosStrdup(p->tagCondJson);
+          } else {
+            pRsp->pColRefs[i].tagCondLen = 0;
+            pRsp->pColRefs[i].tagCondJson = NULL;
+          }
+        }
+      }
+    }
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
+int32_t metaRemoveTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pReq->seriesAlias || pReq->seriesAlias[0] == '\0') {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  SMetaEntry *pEntry = NULL;
+  code = metaFetchEntryByName(pMeta, pReq->tbName, &pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed since table %s not found", TD_VID(pMeta->pVnode), __func__, pReq->tbName);
+    TAOS_RETURN(code);
+  }
+
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE && pEntry->type != TSDB_VIRTUAL_CHILD_TABLE) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  if (pEntry->version >= version) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  // find the series by alias
+  int32_t idx = -1;
+  for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
+    if (strncmp(pEntry->series.pSeries[i].alias, pReq->seriesAlias, TSDB_COL_NAME_LEN) == 0) {
+      idx = i;
+      break;
+    }
+  }
+  if (idx < 0) {
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
+  }
+
+  // check no column references this series
+  SSeriesEntry *pTarget = &pEntry->series.pSeries[idx];
+  for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
+    SColRef *p = &pEntry->colRef.pColRef[i];
+    if (p->hasRef &&
+        strncmp(p->refSourceName, pTarget->sourceName, TSDB_EXT_SOURCE_NAME_LEN) == 0 &&
+        strncmp(p->refDbName, pTarget->dbName, TSDB_DB_NAME_LEN) == 0 &&
+        strncmp(p->refTableName, pTarget->measurementName, TSDB_TABLE_NAME_LEN) == 0) {
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+    }
+  }
+
+  // free and remove
+  taosMemoryFreeClear(pEntry->series.pSeries[idx].tagCondJson);
+  if (idx < pEntry->series.nSeries - 1) {
+    memmove(&pEntry->series.pSeries[idx], &pEntry->series.pSeries[idx + 1],
+            (pEntry->series.nSeries - idx - 1) * sizeof(SSeriesEntry));
+  }
+  pEntry->series.nSeries--;
+
+  pEntry->version = version;
+  code = metaHandleEntry2(pMeta, pEntry);
+  if (code) {
+    metaError("vgId:%d, %s failed since %s, table:%s", TD_VID(pMeta->pVnode), __func__, tstrerror(code), pReq->tbName);
+  } else {
+    metaInfo("vgId:%d, table %s removed series %s", TD_VID(pMeta->pVnode), pReq->tbName, pReq->seriesAlias);
+  }
+
+  metaFetchEntryFree(&pEntry);
+  TAOS_RETURN(code);
+}
+
 
 int32_t metaAddIndexToSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;

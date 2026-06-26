@@ -196,6 +196,7 @@ typedef struct {
 typedef struct {
   timezone_t    timezone;
   char          timezoneName[TD_TIMEZONE_LEN]; /* original IANA name from SET TIMEZONE */
+  bool          timezoneExplicit;
   void         *charsetCxt;
   char          userApp[TSDB_APP_NAME_LEN];
   char          cInfo[CONNECTOR_INFO_LEN];
@@ -259,6 +260,10 @@ typedef struct STscObj {
 
   SConnAccessInfo sessInfo;
   void*           pSessMetric;
+  // External source session context (set by USE source[.ns1[.ns2]] command)
+  char  extSource[TSDB_EXT_SOURCE_NAME_LEN];  // active external source name; empty = none
+  char  extNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty = none
+  char  extNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg); empty = none
 } STscObj;
 
 typedef struct STscDbg {
@@ -380,6 +385,8 @@ typedef struct SRequestObj {
   int8_t               secureDelete;
 
   TAOS_STMT2          *literal_by_stmt2; // reference only
+  char                 extSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // ext source for this request (FH-10)
+  uint32_t             extPoolRetry;  // pool-exhaustion retry count (client-side delayed retry)
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -458,6 +465,7 @@ int64_t      removeFromMostPrevReq(SRequestObj* pRequest);
 
 char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
+void  setConnectionExtSource(STscObj* pTscObj, const char* srcName, const char* ns1, const char* ns2);
 void  resetConnectDB(STscObj* pTscObj);
 void  tscBestEffortRollbackOrphanTxn(STscObj* pTscObj, txn_id_t txnId, const char* source);// Reset all client-side txn state (txnId, txnState, txnDdlCount, pTxnVgSet, pTxnTableMeta, pTxnSuidMap).
 // Used for explicit COMMIT/ROLLBACK completion and for local-only cleanup after a timeout-killed txn.
@@ -540,6 +548,7 @@ int32_t qnodeRequired(SRequestObj* pRequest, bool* required);
 void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
 void    handleQueryAnslyseRes(SSqlCallbackWrapper* pWrapper, SMetaData* pResultMeta, int32_t code);
+void    handleExtSourceError(SRequestObj* pRequest, int32_t code);
 void    restartAsyncQuery(SRequestObj* pRequest, int32_t code);
 void    destroyCtxInRequest(SRequestObj* pRequest);
 int32_t buildPreviousRequest(SRequestObj* pRequest, const char* sql, SRequestObj** pNewRequest);

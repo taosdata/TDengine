@@ -2055,9 +2055,11 @@ static int32_t extWinInitWindowList(SExternalWindowOperator* pExtW, SExecTaskInf
     }
   }
   
-  pExtW->outputWinId = pInfo->curIdx;
+  // Window scan state is operator-local. Sibling external-window subqueries share the
+  // task-level pseudo-column cursor, so inheriting it here may skip early windows.
+  pExtW->outputWinId = 0;
   pExtW->lastWinId = -1;
-  pExtW->blkWinStartIdx = pInfo->curIdx;
+  pExtW->blkWinStartIdx = 0;
   pExtW->blkScanFlag = -1;
 
 _exit:
@@ -2082,7 +2084,13 @@ static void extWinPrepareBlockScan(SOperatorInfo* pOperator, SExternalWindowOper
   }
 
   pExtW->blkScanFlag = pBlock->info.scanFlag;
-  pExtW->blkWinStartIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
+  // Downstream stream subqueries may leave the task-global pseudo-column cursor on a later window.
+  int32_t nextWinIdx = TMAX(pExtW->outputWinId, pExtW->lastWinId);
+  if (nextWinIdx < 0) {
+    nextWinIdx = 0;
+  }
+  extWinSetCurWinIdx(pOperator, nextWinIdx);
+  pExtW->blkWinStartIdx = nextWinIdx;
   pExtW->blkRowStartIdx = 0;
 }
 

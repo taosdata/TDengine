@@ -49,6 +49,11 @@ fi
 
 declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
 
+if [ -d "${BUILD_DIR}/build/lib" ]; then
+  export LD_LIBRARY_PATH="${BUILD_DIR}/build/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+  echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
+fi
+
 # Derive SIM_DIR from taosd binary path: place 'sim' alongside 'debug' directory
 if [ -n "$TAOSD_DIR" ]; then
   TAOSD_REALPATH=$(realpath "$TOP_DIR/$TAOSD_DIR" 2>/dev/null)
@@ -91,7 +96,7 @@ mkdir -p "${PRG_DIR}"
 mkdir -p "${ASAN_DIR}"
 
 cd "${TEST_CODE_DIR}" || exit
-ulimit -n 600000
+ulimit -S -n 600000
 ulimit -c unlimited
 
 # sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e

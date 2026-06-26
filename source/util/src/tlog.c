@@ -1335,16 +1335,17 @@ _return:
   taosPrintLog(flags, level, dflag, "crash signal is %d", signum);
 
 // print the stack trace
-#if 0
 #ifdef _TD_DARWIN_64
   taosPrintTrace(flags, level, dflag, 4);
 #elif !defined(WINDOWS)
-  taosPrintLog(flags, level, dflag, "sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid,
-               taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
+  if (sigInfo != NULL) {
+    siginfo_t *pSigInfo = (siginfo_t *)sigInfo;
+    taosPrintLog(flags, level, dflag, "sender PID:%d cmdline:%s", pSigInfo->si_pid,
+                 taosGetCmdlineByPID(pSigInfo->si_pid));
+  }
   taosPrintTrace(flags, level, dflag, 3);
 #else
   taosPrintTrace(flags, level, dflag, 8);
-#endif
 #endif
   taosMemoryFree(pMsg);
 }

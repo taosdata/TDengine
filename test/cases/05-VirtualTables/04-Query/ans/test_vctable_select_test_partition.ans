@@ -1,0 +1,862 @@
+
+taos> select count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col order by u_tinyint_col slimit 10 limit 10;
+       count(*)        |
+========================
+                    46 |
+                    44 |
+                    34 |
+                    39 |
+                    41 |
+                    34 |
+                    39 |
+                    39 |
+                    38 |
+                    54 |
+
+taos> select u_tinyint_col from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col order by u_tinyint_col slimit 10 limit 10;
+ u_tinyint_col |
+================
+             0 |
+             0 |
+             0 |
+             0 |
+             0 |
+             0 |
+             0 |
+             0 |
+             0 |
+             0 |
+
+taos> select u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col order by u_tinyint_col slimit 10 limit 10;
+ u_tinyint_col |       count(*)        |
+========================================
+             0 |                    46 |
+             1 |                    44 |
+             2 |                    34 |
+             3 |                    39 |
+             4 |                    41 |
+             5 |                    34 |
+             6 |                    39 |
+             7 |                    39 |
+             8 |                    38 |
+             9 |                    54 |
+
+taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col order by u_tinyint_col slimit 10 limit 10;
+      avg(u_int_col)       |
+============================
+          1064520777.50475 |
+              1001479108.5 |
+          737219949.111111 |
+              1533345536.2 |
+              1361502144.5 |
+              1443245381.5 |
+               865617643.5 |
+             992573189.625 |
+             1007210883.25 |
+                1035784689 |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col order by u_tinyint_col slimit 10 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+ NULL                      |          33219.3126312631 |          1064520777.50475 | NULL                      |          -1.8027302730273 |                282.548125 | NULL                      |     -9.22337203685478e+18 |         -316.811431817502 | NULL                      |
+                         0 |          32553.2307692308 |              1001479108.5 |          1180661432.41304 |         -17.4615384615385 |                    2934.5 |         -3803401.56521739 |     -9.22337203685478e+18 |          13721.1726888021 |         -4646513.48510621 |
+                         1 |                   30707.2 |          737219949.111111 |          1108589656.68182 |                     -18.6 |         -1146.77777777778 |              -66257392.25 |     -9.22337203685478e+18 |          4392.15321180556 |           535582.58024007 |
+                         2 |          35524.2142857143 |              1533345536.2 |          1012609326.14706 |        -0.785714285714286 |                    9207.8 |          50244262.2941176 |     -9.22337203685478e+18 |             2357.97890625 |           6142083.2282555 |
+                         3 |                   33242.6 |              1361502144.5 |          933709179.948718 |                     -11.6 |                 -3235.625 |          154885334.948718 |     -9.22337203685478e+18 |          23445.6504211426 |          11218824.0760349 |
+                         4 |                29779.4375 |              1443245381.5 |          1176711614.95122 |                   27.9375 |         -1656.83333333333 |          14666685.2195122 |     -9.22337203685478e+18 |          8945.05159505208 |         -4764848.01668708 |
+                         5 |          32925.7272727273 |               865617643.5 |          1136101091.20588 |         -42.5454545454545 |                   2880.25 |          17021034.0588235 |     -9.22337203685478e+18 |          21866.7925415039 |            2915765.137079 |
+                         6 |                   26627.5 |             992573189.625 |          1063176194.41026 |          23.4166666666667 |                 -9844.125 |         -128265778.820513 |     -9.22337203685478e+18 |         -21368.9774169922 |           7151907.2976838 |
+                         7 |          29818.5454545455 |             1007210883.25 |          1148559331.92308 |         -22.5454545454545 |                  9341.625 |          -13430176.025641 |     -9.22337203685478e+18 |          16469.6047363281 |         -19931226.9753984 |
+                         8 |          30334.6666666667 |                1035784689 |          1229215272.31579 |         -31.8888888888889 |         -145.666666666667 |          36091812.7894737 |     -9.22337203685478e+18 |          16991.1941731771 |         -8697205.63416163 |
+
+taos> select * from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col order by u_tinyint_col slimit 10 limit 10;
+           ts            | u_tinyint_col | u_smallint_col |  u_int_col  |     u_bigint_col      | tinyint_col | smallint_col |   int_col   |      bigint_col       |      float_col       |        double_col         | bool_col |   binary_16_col    |         binary_32_col          |          nchar_16_col          |          nchar_32_col          |
+==========================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:00.021 | NULL          |          17602 | NULL        | NULL                  |         109 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | false    | NULL               | NULL                           | 二。Los Angle                  | NULL                           |
+ 2020-10-01 00:00:00.015 | NULL          |          28679 |   549641959 | NULL                  |        -106 |         4776 | NULL        |  -9223372036854775808 |              9916.03 | NULL                      | true     | Cupertino          | NULL                           | 十。Cupertino                  | 帕洛阿托 - Palo Alto           |
+ 2020-10-01 00:00:00.005 | NULL          | NULL           |  1273134528 | NULL                  | NULL        |        -2199 | NULL        | NULL                  |             -31883.6 | NULL                      | NULL     | Santa Clara        | NULL                           | NULL                           | 森尼韦尔 - Sunnyvale           |
+ 2020-10-01 00:00:00.003 | NULL          |          30154 | NULL        | NULL                  |          44 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | false    | NULL               | NULL                           | 三。San Diego                  | NULL                           |
+ 2020-10-01 00:00:00.035 | NULL          | NULL           |   188212190 | NULL                  | NULL        |         3783 | NULL        | NULL                  |              5491.97 | NULL                      | NULL     | Campbell           | NULL                           | NULL                           | 山景城 - Mountain View         |
+ 2020-10-01 00:00:00.033 | NULL          |          61533 | NULL        | NULL                  |          89 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | false    | NULL               | NULL                           | 十。Cupertino                  | NULL                           |
+ 2020-10-01 00:00:00.025 | NULL          | NULL           |   638358317 | NULL                  | NULL        |        -5544 | NULL        | NULL                  |             -9574.89 | NULL                      | NULL     | San Francisco      | NULL                           | NULL                           | 山景城 - Mountain View         |
+ 2020-10-01 00:00:00.009 | NULL          |           4884 | NULL        | NULL                  |          25 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | true     | NULL               | NULL                           | 八。Sunnyvale                  | NULL                           |
+ 2020-10-01 00:00:00.039 | NULL          |          18529 | NULL        | NULL                  |          10 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | true     | NULL               | NULL                           | 三。San Diego                  | NULL                           |
+ 2020-10-01 00:00:00.027 | NULL          |          52813 | NULL        | NULL                  |        -102 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | true     | NULL               | NULL                           | 六。Campbell                   | NULL                           |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col + 1 order by u_tinyint_col + 1 slimit 10 limit 10;
+       count(*)        |
+========================
+                    46 |
+                    44 |
+                    34 |
+                    39 |
+                    41 |
+                    34 |
+                    39 |
+                    39 |
+                    38 |
+                    54 |
+
+taos> select u_tinyint_col + 1 from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col + 1 order by u_tinyint_col + 1 slimit 10 limit 10;
+     u_tinyint_col + 1     |
+============================
+                         1 |
+                         1 |
+                         1 |
+                         1 |
+                         1 |
+                         1 |
+                         1 |
+                         1 |
+                         1 |
+                         1 |
+
+taos> select u_tinyint_col + 1, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col + 1 order by u_tinyint_col + 1 slimit 10 limit 10;
+     u_tinyint_col + 1     |       count(*)        |
+====================================================
+                         1 |                    46 |
+                         2 |                    44 |
+                         3 |                    34 |
+                         4 |                    39 |
+                         5 |                    41 |
+                         6 |                    34 |
+                         7 |                    39 |
+                         8 |                    39 |
+                         9 |                    38 |
+                        10 |                    54 |
+
+taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col + 1 order by u_tinyint_col + 1 slimit 10 limit 10;
+      avg(u_int_col)       |
+============================
+          1064520777.50475 |
+              1001479108.5 |
+          737219949.111111 |
+              1533345536.2 |
+              1361502144.5 |
+              1443245381.5 |
+               865617643.5 |
+             992573189.625 |
+             1007210883.25 |
+                1035784689 |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col + 1 order by u_tinyint_col + 1 slimit 10 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+ NULL                      |          33219.3126312631 |          1064520777.50475 | NULL                      |          -1.8027302730273 |                282.548125 | NULL                      |     -9.22337203685478e+18 |         -316.811431817502 | NULL                      |
+                         0 |          32553.2307692308 |              1001479108.5 |          1180661432.41304 |         -17.4615384615385 |                    2934.5 |         -3803401.56521739 |     -9.22337203685478e+18 |          13721.1726888021 |         -4646513.48510621 |
+                         1 |                   30707.2 |          737219949.111111 |          1108589656.68182 |                     -18.6 |         -1146.77777777778 |              -66257392.25 |     -9.22337203685478e+18 |          4392.15321180556 |           535582.58024007 |
+                         2 |          35524.2142857143 |              1533345536.2 |          1012609326.14706 |        -0.785714285714286 |                    9207.8 |          50244262.2941176 |     -9.22337203685478e+18 |             2357.97890625 |           6142083.2282555 |
+                         3 |                   33242.6 |              1361502144.5 |          933709179.948718 |                     -11.6 |                 -3235.625 |          154885334.948718 |     -9.22337203685478e+18 |          23445.6504211426 |          11218824.0760349 |
+                         4 |                29779.4375 |              1443245381.5 |          1176711614.95122 |                   27.9375 |         -1656.83333333333 |          14666685.2195122 |     -9.22337203685478e+18 |          8945.05159505208 |         -4764848.01668708 |
+                         5 |          32925.7272727273 |               865617643.5 |          1136101091.20588 |         -42.5454545454545 |                   2880.25 |          17021034.0588235 |     -9.22337203685478e+18 |          21866.7925415039 |            2915765.137079 |
+                         6 |                   26627.5 |             992573189.625 |          1063176194.41026 |          23.4166666666667 |                 -9844.125 |         -128265778.820513 |     -9.22337203685478e+18 |         -21368.9774169922 |           7151907.2976838 |
+                         7 |          29818.5454545455 |             1007210883.25 |          1148559331.92308 |         -22.5454545454545 |                  9341.625 |          -13430176.025641 |     -9.22337203685478e+18 |          16469.6047363281 |         -19931226.9753984 |
+                         8 |          30334.6666666667 |                1035784689 |          1229215272.31579 |         -31.8888888888889 |         -145.666666666667 |          36091812.7894737 |     -9.22337203685478e+18 |          16991.1941731771 |         -8697205.63416163 |
+
+taos> select * from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col + 1 order by u_tinyint_col + 1 slimit 10 limit 10;
+           ts            | u_tinyint_col | u_smallint_col |  u_int_col  |     u_bigint_col      | tinyint_col | smallint_col |   int_col   |      bigint_col       |      float_col       |        double_col         | bool_col |   binary_16_col    |         binary_32_col          |          nchar_16_col          |          nchar_32_col          |
+==========================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:00.021 | NULL          |          17602 | NULL        | NULL                  |         109 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | false    | NULL               | NULL                           | 二。Los Angle                  | NULL                           |
+ 2020-10-01 00:00:00.015 | NULL          |          28679 |   549641959 | NULL                  |        -106 |         4776 | NULL        |  -9223372036854775808 |              9916.03 | NULL                      | true     | Cupertino          | NULL                           | 十。Cupertino                  | 帕洛阿托 - Palo Alto           |
+ 2020-10-01 00:00:00.005 | NULL          | NULL           |  1273134528 | NULL                  | NULL        |        -2199 | NULL        | NULL                  |             -31883.6 | NULL                      | NULL     | Santa Clara        | NULL                           | NULL                           | 森尼韦尔 - Sunnyvale           |
+ 2020-10-01 00:00:00.003 | NULL          |          30154 | NULL        | NULL                  |          44 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | false    | NULL               | NULL                           | 三。San Diego                  | NULL                           |
+ 2020-10-01 00:00:00.035 | NULL          | NULL           |   188212190 | NULL                  | NULL        |         3783 | NULL        | NULL                  |              5491.97 | NULL                      | NULL     | Campbell           | NULL                           | NULL                           | 山景城 - Mountain View         |
+ 2020-10-01 00:00:00.033 | NULL          |          61533 | NULL        | NULL                  |          89 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | false    | NULL               | NULL                           | 十。Cupertino                  | NULL                           |
+ 2020-10-01 00:00:00.025 | NULL          | NULL           |   638358317 | NULL                  | NULL        |        -5544 | NULL        | NULL                  |             -9574.89 | NULL                      | NULL     | San Francisco      | NULL                           | NULL                           | 山景城 - Mountain View         |
+ 2020-10-01 00:00:00.009 | NULL          |           4884 | NULL        | NULL                  |          25 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | true     | NULL               | NULL                           | 八。Sunnyvale                  | NULL                           |
+ 2020-10-01 00:00:00.039 | NULL          |          18529 | NULL        | NULL                  |          10 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | true     | NULL               | NULL                           | 三。San Diego                  | NULL                           |
+ 2020-10-01 00:00:00.027 | NULL          |          52813 | NULL        | NULL                  |        -102 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | true     | NULL               | NULL                           | 六。Campbell                   | NULL                           |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col, tinyint_col order by u_tinyint_col, tinyint_col slimit 10 limit 10;
+       count(*)        |
+========================
+                    25 |
+                    23 |
+                    27 |
+                    33 |
+                    25 |
+                    28 |
+                    21 |
+                    25 |
+                    20 |
+                    26 |
+
+taos> select u_tinyint_col, tinyint_col from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col, tinyint_col order by u_tinyint_col, tinyint_col slimit 10 limit 10;
+ u_tinyint_col | tinyint_col |
+==============================
+ NULL          |        -128 |
+ NULL          |        -128 |
+ NULL          |        -128 |
+ NULL          |        -128 |
+ NULL          |        -128 |
+ NULL          |        -128 |
+ NULL          |        -128 |
+ NULL          |        -128 |
+ NULL          |        -128 |
+ NULL          |        -128 |
+
+taos> select u_tinyint_col, tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col, tinyint_col order by u_tinyint_col, tinyint_col slimit 10 limit 10;
+ u_tinyint_col | tinyint_col |       count(*)        |
+======================================================
+ NULL          |        -128 |                    25 |
+ NULL          |        -127 |                    23 |
+ NULL          |        -126 |                    27 |
+ NULL          |        -125 |                    33 |
+ NULL          |        -124 |                    25 |
+ NULL          |        -123 |                    28 |
+ NULL          |        -122 |                    21 |
+ NULL          |        -121 |                    25 |
+ NULL          |        -120 |                    20 |
+ NULL          |        -119 |                    26 |
+
+taos> select avg(u_int_col), avg(tinyint_col) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col, tinyint_col order by u_tinyint_col, tinyint_col slimit 10 limit 10;
+      avg(u_int_col)       |     avg(tinyint_col)      |
+========================================================
+          1062043764.81311 | NULL                      |
+          988883794.571429 |                      -128 |
+               870433879.5 |                      -127 |
+                 952511109 |                      -126 |
+          958681296.571429 |                      -125 |
+                 554365904 |                      -124 |
+                 924502703 |                      -123 |
+                1511324076 |                      -122 |
+          846450106.571429 |                      -121 |
+              1187084736.5 |                      -120 |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col, tinyint_col order by u_tinyint_col, tinyint_col slimit 10 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+ NULL                      | NULL                      |          1062043764.81311 | NULL                      | NULL                      |          264.781310934453 | NULL                      | NULL                      |         -537.816131558003 | NULL                      |
+ NULL                      |                  30551.84 |          988883794.571429 | NULL                      |                      -128 |          3137.85714285714 | NULL                      |     -9.22337203685478e+18 |          16681.2859933036 | NULL                      |
+ NULL                      |          32257.6086956522 |               870433879.5 | NULL                      |                      -127 |         -12381.1666666667 | NULL                      |     -9.22337203685478e+18 |          26930.1963704427 | NULL                      |
+ NULL                      |          32689.7407407407 |                 952511109 | NULL                      |                      -126 |                   -6572.6 | NULL                      |     -9.22337203685478e+18 |                -37501.025 | NULL                      |
+ NULL                      |          38550.4242424242 |          958681296.571429 | NULL                      |                      -125 |          4823.57142857143 | NULL                      |     -9.22337203685478e+18 |          13260.4573800223 | NULL                      |
+ NULL                      |                  36614.12 |                 554365904 | NULL                      |                      -124 |                    -13005 | NULL                      |     -9.22337203685478e+18 |           -40140.58203125 | NULL                      |
+ NULL                      |          35351.0714285714 |                 924502703 | NULL                      |                      -123 |                   12208.5 | NULL                      |     -9.22337203685478e+18 |          -77056.544921875 | NULL                      |
+ NULL                      |          31372.8095238095 |                1511324076 | NULL                      |                      -122 |                     -7365 | NULL                      |     -9.22337203685478e+18 |         -30638.3321707589 | NULL                      |
+ NULL                      |                  34211.08 |          846450106.571429 | NULL                      |                      -121 |         -12430.7142857143 | NULL                      |     -9.22337203685478e+18 |          28501.9195033482 | NULL                      |
+ NULL                      |                   33647.8 |              1187084736.5 | NULL                      |                      -120 |                  -3195.75 | NULL                      |     -9.22337203685478e+18 |          -23223.671081543 | NULL                      |
+
+taos> select * from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col, tinyint_col order by u_tinyint_col, tinyint_col slimit 10 limit 10;
+           ts            | u_tinyint_col | u_smallint_col |  u_int_col  |     u_bigint_col      | tinyint_col | smallint_col |   int_col   |      bigint_col       |      float_col       |        double_col         | bool_col |   binary_16_col    |         binary_32_col          |          nchar_16_col          |          nchar_32_col          |
+==========================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:00.065 | NULL          | NULL           |  1426642886 | NULL                  | NULL        |        23141 | NULL        | NULL                  |               -21563 | NULL                      | NULL     | San Francisco      | NULL                           | NULL                           | 森尼韦尔 - Sunnyvale           |
+ 2020-10-01 00:00:00.055 | NULL          | NULL           |  1826273228 | NULL                  | NULL        |         1901 | NULL        | NULL                  |             -81083.9 | NULL                      | NULL     | Los Angles         | NULL                           | NULL                           | 圣何塞 - San Jose              |
+ 2020-10-01 00:00:00.025 | NULL          | NULL           |   638358317 | NULL                  | NULL        |        -5544 | NULL        | NULL                  |             -9574.89 | NULL                      | NULL     | San Francisco      | NULL                           | NULL                           | 山景城 - Mountain View         |
+ 2020-10-01 00:00:00.005 | NULL          | NULL           |  1273134528 | NULL                  | NULL        |        -2199 | NULL        | NULL                  |             -31883.6 | NULL                      | NULL     | Santa Clara        | NULL                           | NULL                           | 森尼韦尔 - Sunnyvale           |
+ 2020-10-01 00:00:00.125 | NULL          | NULL           |   490577399 | NULL                  | NULL        |       -10382 | NULL        | NULL                  |             -11387.1 | NULL                      | NULL     | San Jose           | NULL                           | NULL                           | 山景城 - Mountain View         |
+ 2020-10-01 00:00:00.115 | NULL          | NULL           |   438280193 | NULL                  | NULL        |        14874 | NULL        | NULL                  |              31818.2 | NULL                      | NULL     | San Diego          | NULL                           | NULL                           | 库比蒂诺 - Cupertino           |
+ 2020-10-01 00:00:00.085 | NULL          | NULL           |    14797455 | NULL                  | NULL        |        17282 | NULL        | NULL                  |             -45825.1 | NULL                      | NULL     | San Diego          | NULL                           | NULL                           | 森尼韦尔 - Sunnyvale           |
+ 2020-10-01 00:00:00.035 | NULL          | NULL           |   188212190 | NULL                  | NULL        |         3783 | NULL        | NULL                  |              5491.97 | NULL                      | NULL     | Campbell           | NULL                           | NULL                           | 山景城 - Mountain View         |
+ 2020-10-01 00:00:00.145 | NULL          | NULL           |  1232705763 | NULL                  | NULL        |        23226 | NULL        | NULL                  |              84786.7 | NULL                      | NULL     | San Jose           | NULL                           | NULL                           | 圣何塞 - San Jose              |
+ 2020-10-01 00:00:00.095 | NULL          | NULL           |    12210447 | NULL                  | NULL        |        28807 | NULL        | NULL                  |             -40498.3 | NULL                      | NULL     | San Jose           | NULL                           | NULL                           | 帕洛阿托 - Palo Alto           |
+
+taos> select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col interval(10s) order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | u_tinyint_col |       count(*)        |
+============================================================================================
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:10.000 |             0 |                    23 |
+ 2020-10-01 00:00:10.000 | 2020-10-01 00:00:20.000 |             0 |                    23 |
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:10.000 |             1 |                    25 |
+ 2020-10-01 00:00:10.000 | 2020-10-01 00:00:20.000 |             1 |                    19 |
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:10.000 |             2 |                    17 |
+ 2020-10-01 00:00:10.000 | 2020-10-01 00:00:20.000 |             2 |                    17 |
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:10.000 |             3 |                    19 |
+ 2020-10-01 00:00:10.000 | 2020-10-01 00:00:20.000 |             3 |                    20 |
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:10.000 |             4 |                    23 |
+ 2020-10-01 00:00:10.000 | 2020-10-01 00:00:20.000 |             4 |                    18 |
+
+taos> select _wstart, _wend, tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by tinyint_col interval(10s) order by tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | tinyint_col |       count(*)        |
+==========================================================================================
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:10.000 |        -128 |                    15 |
+ 2020-10-01 00:00:10.000 | 2020-10-01 00:00:20.000 |        -128 |                    11 |
+ 2020-10-01 00:00:20.000 | 2020-10-01 00:00:30.000 |        -128 |                    12 |
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:10.000 |        -127 |                     8 |
+ 2020-10-01 00:00:10.000 | 2020-10-01 00:00:20.000 |        -127 |                    12 |
+ 2020-10-01 00:00:20.000 | 2020-10-01 00:00:30.000 |        -127 |                    12 |
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:10.000 |        -126 |                    11 |
+ 2020-10-01 00:00:10.000 | 2020-10-01 00:00:20.000 |        -126 |                    20 |
+ 2020-10-01 00:00:20.000 | 2020-10-01 00:00:30.000 |        -126 |                    11 |
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:10.000 |        -125 |                    15 |
+
+taos> select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col interval(10s) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |
+=======================================================================================
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:10.000 | false    |                  1684 |
+ 2020-10-01 00:00:10.000 | 2020-10-01 00:00:20.000 | false    |                  1620 |
+ 2020-10-01 00:00:20.000 | 2020-10-01 00:00:30.000 | false    |                  1665 |
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:10.000 | true     |                  1650 |
+ 2020-10-01 00:00:10.000 | 2020-10-01 00:00:20.000 | true     |                  1713 |
+ 2020-10-01 00:00:20.000 | 2020-10-01 00:00:30.000 | true     |                  1668 |
+
+taos> select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col interval(1d) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |
+=======================================================================================
+ 2020-10-01 00:00:00.000 | 2020-10-02 00:00:00.000 | false    |                  4969 |
+ 2020-10-01 00:00:00.000 | 2020-10-02 00:00:00.000 | true     |                  5031 |
+
+taos> select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col interval(1d) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |   count(u_int_col)    | count(u_tinyint_col)  | count(u_smallint_col) |
+===============================================================================================================================================================
+ 2020-10-01 00:00:00.000 | 2020-10-02 00:00:00.000 | NULL     |                 13333 |                  8000 |                  6666 |                     0 |
+ 2020-10-01 00:00:00.000 | 2020-10-02 00:00:00.000 | false    |                  4969 |                  1002 |                  1653 |                  4969 |
+ 2020-10-01 00:00:00.000 | 2020-10-02 00:00:00.000 | true     |                  5031 |                   998 |                  1681 |                  5031 |
+
+taos> select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col interval(1d) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |   count(u_int_col)    | count(u_tinyint_col)  |
+=======================================================================================================================================
+ 2020-10-01 00:00:00.000 | 2020-10-02 00:00:00.000 | NULL     |                 13333 |                  8000 |                  6666 |
+ 2020-10-01 00:00:00.000 | 2020-10-02 00:00:00.000 | false    |                  4969 |                  1002 |                  1653 |
+ 2020-10-01 00:00:00.000 | 2020-10-02 00:00:00.000 | true     |                  5031 |                   998 |                  1681 |
+
+taos> select _wstart, _wend, bool_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col interval(1d) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |   count(u_int_col)    |
+===============================================================================================================
+ 2020-10-01 00:00:00.000 | 2020-10-02 00:00:00.000 | NULL     |                  8000 |                  8000 |
+ 2020-10-01 00:00:00.000 | 2020-10-02 00:00:00.000 | false    |                  4969 |                  1002 |
+ 2020-10-01 00:00:00.000 | 2020-10-02 00:00:00.000 | true     |                  5031 |                   998 |
+
+taos> select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col state_window(bool_col) order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | u_tinyint_col |       count(*)        |
+============================================================================================
+ 2020-10-01 00:00:00.003 | 2020-10-01 00:00:00.003 | NULL          |                     1 |
+ 2020-10-01 00:00:00.009 | 2020-10-01 00:00:00.015 | NULL          |                     2 |
+ 2020-10-01 00:00:00.021 | 2020-10-01 00:00:00.021 | NULL          |                     1 |
+ 2020-10-01 00:00:00.027 | 2020-10-01 00:00:00.027 | NULL          |                     1 |
+ 2020-10-01 00:00:00.033 | 2020-10-01 00:00:00.033 | NULL          |                     1 |
+ 2020-10-01 00:00:00.039 | 2020-10-01 00:00:00.039 | NULL          |                     1 |
+ 2020-10-01 00:00:00.045 | 2020-10-01 00:00:00.045 | NULL          |                     1 |
+ 2020-10-01 00:00:00.051 | 2020-10-01 00:00:00.057 | NULL          |                     2 |
+ 2020-10-01 00:00:00.063 | 2020-10-01 00:00:00.063 | NULL          |                     1 |
+ 2020-10-01 00:00:00.069 | 2020-10-01 00:00:00.069 | NULL          |                     1 |
+
+taos> select _wstart, _wend, tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by tinyint_col state_window(bool_col) order by tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | tinyint_col |       count(*)        |
+==========================================================================================
+ 2020-10-01 00:00:01.494 | 2020-10-01 00:00:03.432 |        -128 |                     4 |
+ 2020-10-01 00:00:04.110 | 2020-10-01 00:00:04.110 |        -128 |                     1 |
+ 2020-10-01 00:00:04.173 | 2020-10-01 00:00:05.652 |        -128 |                     3 |
+ 2020-10-01 00:00:06.753 | 2020-10-01 00:00:06.753 |        -128 |                     1 |
+ 2020-10-01 00:00:06.792 | 2020-10-01 00:00:06.792 |        -128 |                     1 |
+ 2020-10-01 00:00:07.407 | 2020-10-01 00:00:09.105 |        -128 |                     4 |
+ 2020-10-01 00:00:09.522 | 2020-10-01 00:00:10.023 |        -128 |                     2 |
+ 2020-10-01 00:00:13.839 | 2020-10-01 00:00:13.839 |        -128 |                     1 |
+ 2020-10-01 00:00:14.226 | 2020-10-01 00:00:14.226 |        -128 |                     1 |
+ 2020-10-01 00:00:15.351 | 2020-10-01 00:00:17.775 |        -128 |                     5 |
+
+taos> select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col state_window(bool_col) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |
+=======================================================================================
+ 2020-10-01 00:00:00.003 | 2020-10-01 00:00:29.988 | false    |                  4969 |
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:29.997 | true     |                  5031 |
+
+taos> select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col state_window(bool_col) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |
+=======================================================================================
+ 2020-10-01 00:00:00.003 | 2020-10-01 00:00:29.988 | false    |                  4969 |
+ 2020-10-01 00:00:00.000 | 2020-10-01 00:00:29.997 | true     |                  5031 |
+
+taos> select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full partition by tinyint_col state_window(bool_col) order by tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |   count(u_int_col)    | count(u_tinyint_col)  | count(u_smallint_col) |
+===============================================================================================================================================================
+ 2020-10-01 00:00:01.494 | 2020-10-01 00:00:03.432 | true     |                     4 |                     0 |                     3 |                     4 |
+ 2020-10-01 00:00:04.110 | 2020-10-01 00:00:04.110 | false    |                     1 |                     1 |                     1 |                     1 |
+ 2020-10-01 00:00:04.173 | 2020-10-01 00:00:05.652 | true     |                     3 |                     0 |                     1 |                     3 |
+ 2020-10-01 00:00:06.753 | 2020-10-01 00:00:06.753 | false    |                     1 |                     0 |                     0 |                     1 |
+ 2020-10-01 00:00:06.792 | 2020-10-01 00:00:06.792 | true     |                     1 |                     0 |                     1 |                     1 |
+ 2020-10-01 00:00:07.407 | 2020-10-01 00:00:09.105 | false    |                     4 |                     1 |                     1 |                     4 |
+ 2020-10-01 00:00:09.522 | 2020-10-01 00:00:10.023 | true     |                     2 |                     0 |                     1 |                     2 |
+ 2020-10-01 00:00:13.839 | 2020-10-01 00:00:13.839 | false    |                     1 |                     0 |                     0 |                     1 |
+ 2020-10-01 00:00:14.226 | 2020-10-01 00:00:14.226 | true     |                     1 |                     0 |                     1 |                     1 |
+ 2020-10-01 00:00:15.351 | 2020-10-01 00:00:17.775 | false    |                     5 |                     2 |                     3 |                     5 |
+
+taos> select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full partition by tinyint_col state_window(bool_col) order by tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |   count(u_int_col)    | count(u_tinyint_col)  |
+=======================================================================================================================================
+ 2020-10-01 00:00:01.494 | 2020-10-01 00:00:03.432 | true     |                     4 |                     0 |                     3 |
+ 2020-10-01 00:00:04.110 | 2020-10-01 00:00:04.110 | false    |                     1 |                     1 |                     1 |
+ 2020-10-01 00:00:04.173 | 2020-10-01 00:00:05.652 | true     |                     3 |                     0 |                     1 |
+ 2020-10-01 00:00:06.753 | 2020-10-01 00:00:06.753 | false    |                     1 |                     0 |                     0 |
+ 2020-10-01 00:00:06.792 | 2020-10-01 00:00:06.792 | true     |                     1 |                     0 |                     1 |
+ 2020-10-01 00:00:07.407 | 2020-10-01 00:00:09.105 | false    |                     4 |                     1 |                     1 |
+ 2020-10-01 00:00:09.522 | 2020-10-01 00:00:10.023 | true     |                     2 |                     0 |                     1 |
+ 2020-10-01 00:00:13.839 | 2020-10-01 00:00:13.839 | false    |                     1 |                     0 |                     0 |
+ 2020-10-01 00:00:14.226 | 2020-10-01 00:00:14.226 | true     |                     1 |                     0 |                     1 |
+ 2020-10-01 00:00:15.351 | 2020-10-01 00:00:17.775 | false    |                     5 |                     2 |                     3 |
+
+taos> select _wstart, _wend, bool_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full partition by tinyint_col state_window(bool_col) order by tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |   count(u_int_col)    |
+===============================================================================================================
+ 2020-10-01 00:00:01.494 | 2020-10-01 00:00:03.432 | true     |                     4 |                     0 |
+ 2020-10-01 00:00:04.110 | 2020-10-01 00:00:04.110 | false    |                     1 |                     1 |
+ 2020-10-01 00:00:04.173 | 2020-10-01 00:00:05.652 | true     |                     3 |                     0 |
+ 2020-10-01 00:00:06.753 | 2020-10-01 00:00:06.753 | false    |                     1 |                     0 |
+ 2020-10-01 00:00:06.792 | 2020-10-01 00:00:06.792 | true     |                     1 |                     0 |
+ 2020-10-01 00:00:07.407 | 2020-10-01 00:00:09.105 | false    |                     4 |                     1 |
+ 2020-10-01 00:00:09.522 | 2020-10-01 00:00:10.023 | true     |                     2 |                     0 |
+ 2020-10-01 00:00:13.839 | 2020-10-01 00:00:13.839 | false    |                     1 |                     0 |
+ 2020-10-01 00:00:14.226 | 2020-10-01 00:00:14.226 | true     |                     1 |                     0 |
+ 2020-10-01 00:00:15.351 | 2020-10-01 00:00:17.775 | false    |                     5 |                     2 |
+
+taos> select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col session(ts, 10a) order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | u_tinyint_col |       count(*)        |
+============================================================================================
+ 2020-10-01 00:00:01.030 | 2020-10-01 00:00:01.030 |             0 |                     1 |
+ 2020-10-01 00:00:01.488 | 2020-10-01 00:00:01.488 |             0 |                     1 |
+ 2020-10-01 00:00:01.506 | 2020-10-01 00:00:01.506 |             0 |                     1 |
+ 2020-10-01 00:00:01.834 | 2020-10-01 00:00:01.834 |             0 |                     1 |
+ 2020-10-01 00:00:02.122 | 2020-10-01 00:00:02.122 |             0 |                     1 |
+ 2020-10-01 00:00:02.374 | 2020-10-01 00:00:02.374 |             0 |                     1 |
+ 2020-10-01 00:00:02.706 | 2020-10-01 00:00:02.706 |             0 |                     1 |
+ 2020-10-01 00:00:02.896 | 2020-10-01 00:00:02.896 |             0 |                     1 |
+ 2020-10-01 00:00:03.012 | 2020-10-01 00:00:03.012 |             0 |                     1 |
+ 2020-10-01 00:00:03.254 | 2020-10-01 00:00:03.254 |             0 |                     1 |
+
+taos> select _wstart, _wend, tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by tinyint_col session(ts, 10a) order by tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | tinyint_col |       count(*)        |
+==========================================================================================
+ 2020-10-01 00:00:01.494 | 2020-10-01 00:00:01.494 |        -128 |                     1 |
+ 2020-10-01 00:00:01.608 | 2020-10-01 00:00:01.608 |        -128 |                     1 |
+ 2020-10-01 00:00:03.201 | 2020-10-01 00:00:03.201 |        -128 |                     1 |
+ 2020-10-01 00:00:03.432 | 2020-10-01 00:00:03.432 |        -128 |                     1 |
+ 2020-10-01 00:00:04.110 | 2020-10-01 00:00:04.110 |        -128 |                     1 |
+ 2020-10-01 00:00:04.173 | 2020-10-01 00:00:04.173 |        -128 |                     1 |
+ 2020-10-01 00:00:04.767 | 2020-10-01 00:00:04.767 |        -128 |                     1 |
+ 2020-10-01 00:00:05.652 | 2020-10-01 00:00:05.652 |        -128 |                     1 |
+ 2020-10-01 00:00:06.753 | 2020-10-01 00:00:06.753 |        -128 |                     1 |
+ 2020-10-01 00:00:06.792 | 2020-10-01 00:00:06.792 |        -128 |                     1 |
+
+taos> select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col session(ts, 10a) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |
+=======================================================================================
+ 2020-10-01 00:00:00.003 | 2020-10-01 00:00:00.033 | false    |                     5 |
+ 2020-10-01 00:00:00.045 | 2020-10-01 00:00:00.048 | false    |                     2 |
+ 2020-10-01 00:00:00.060 | 2020-10-01 00:00:00.084 | false    |                     6 |
+ 2020-10-01 00:00:00.099 | 2020-10-01 00:00:00.141 | false    |                     9 |
+ 2020-10-01 00:00:00.162 | 2020-10-01 00:00:00.168 | false    |                     3 |
+ 2020-10-01 00:00:00.180 | 2020-10-01 00:00:00.225 | false    |                    13 |
+ 2020-10-01 00:00:00.243 | 2020-10-01 00:00:00.261 | false    |                     6 |
+ 2020-10-01 00:00:00.273 | 2020-10-01 00:00:00.276 | false    |                     2 |
+ 2020-10-01 00:00:00.294 | 2020-10-01 00:00:00.303 | false    |                     2 |
+ 2020-10-01 00:00:00.315 | 2020-10-01 00:00:00.363 | false    |                    12 |
+
+taos> select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col session(ts, 10a) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |
+=======================================================================================
+ 2020-10-01 00:00:00.003 | 2020-10-01 00:00:00.033 | false    |                     5 |
+ 2020-10-01 00:00:00.045 | 2020-10-01 00:00:00.048 | false    |                     2 |
+ 2020-10-01 00:00:00.060 | 2020-10-01 00:00:00.084 | false    |                     6 |
+ 2020-10-01 00:00:00.099 | 2020-10-01 00:00:00.141 | false    |                     9 |
+ 2020-10-01 00:00:00.162 | 2020-10-01 00:00:00.168 | false    |                     3 |
+ 2020-10-01 00:00:00.180 | 2020-10-01 00:00:00.225 | false    |                    13 |
+ 2020-10-01 00:00:00.243 | 2020-10-01 00:00:00.261 | false    |                     6 |
+ 2020-10-01 00:00:00.273 | 2020-10-01 00:00:00.276 | false    |                     2 |
+ 2020-10-01 00:00:00.294 | 2020-10-01 00:00:00.303 | false    |                     2 |
+ 2020-10-01 00:00:00.315 | 2020-10-01 00:00:00.363 | false    |                    12 |
+
+taos> select _wstart, _wend, tinyint_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full partition by tinyint_col session(ts, 10a) order by tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | tinyint_col |       count(*)        |   count(u_int_col)    | count(u_tinyint_col)  | count(u_smallint_col) |
+==================================================================================================================================================================
+ 2020-10-01 00:00:00.002 | 2020-10-01 00:00:49.995 | NULL        |                 13333 |                  8000 |                  6666 |                     0 |
+ 2020-10-01 00:00:01.494 | 2020-10-01 00:00:01.494 |        -128 |                     1 |                     0 |                     1 |                     1 |
+ 2020-10-01 00:00:01.608 | 2020-10-01 00:00:01.608 |        -128 |                     1 |                     0 |                     1 |                     1 |
+ 2020-10-01 00:00:03.201 | 2020-10-01 00:00:03.201 |        -128 |                     1 |                     0 |                     0 |                     1 |
+ 2020-10-01 00:00:03.432 | 2020-10-01 00:00:03.432 |        -128 |                     1 |                     0 |                     1 |                     1 |
+ 2020-10-01 00:00:04.110 | 2020-10-01 00:00:04.110 |        -128 |                     1 |                     1 |                     1 |                     1 |
+ 2020-10-01 00:00:04.173 | 2020-10-01 00:00:04.173 |        -128 |                     1 |                     0 |                     0 |                     1 |
+ 2020-10-01 00:00:04.767 | 2020-10-01 00:00:04.767 |        -128 |                     1 |                     0 |                     0 |                     1 |
+ 2020-10-01 00:00:05.652 | 2020-10-01 00:00:05.652 |        -128 |                     1 |                     0 |                     1 |                     1 |
+ 2020-10-01 00:00:06.753 | 2020-10-01 00:00:06.753 |        -128 |                     1 |                     0 |                     0 |                     1 |
+
+taos> select _wstart, _wend, tinyint_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full partition by tinyint_col session(ts, 10a) order by tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | tinyint_col |       count(*)        |   count(u_int_col)    | count(u_tinyint_col)  |
+==========================================================================================================================================
+ 2020-10-01 00:00:00.002 | 2020-10-01 00:00:49.995 | NULL        |                 13333 |                  8000 |                  6666 |
+ 2020-10-01 00:00:01.494 | 2020-10-01 00:00:01.494 |        -128 |                     1 |                     0 |                     1 |
+ 2020-10-01 00:00:01.608 | 2020-10-01 00:00:01.608 |        -128 |                     1 |                     0 |                     1 |
+ 2020-10-01 00:00:03.201 | 2020-10-01 00:00:03.201 |        -128 |                     1 |                     0 |                     0 |
+ 2020-10-01 00:00:03.432 | 2020-10-01 00:00:03.432 |        -128 |                     1 |                     0 |                     1 |
+ 2020-10-01 00:00:04.110 | 2020-10-01 00:00:04.110 |        -128 |                     1 |                     1 |                     1 |
+ 2020-10-01 00:00:04.173 | 2020-10-01 00:00:04.173 |        -128 |                     1 |                     0 |                     0 |
+ 2020-10-01 00:00:04.767 | 2020-10-01 00:00:04.767 |        -128 |                     1 |                     0 |                     0 |
+ 2020-10-01 00:00:05.652 | 2020-10-01 00:00:05.652 |        -128 |                     1 |                     0 |                     1 |
+ 2020-10-01 00:00:06.753 | 2020-10-01 00:00:06.753 |        -128 |                     1 |                     0 |                     0 |
+
+taos> select _wstart, _wend, tinyint_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full partition by tinyint_col session(ts, 10a) order by tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | tinyint_col |       count(*)        |   count(u_int_col)    |
+==================================================================================================================
+ 2020-10-01 00:00:00.005 | 2020-10-01 00:00:49.995 | NULL        |                  8000 |                  8000 |
+ 2020-10-01 00:00:01.494 | 2020-10-01 00:00:01.494 |        -128 |                     1 |                     0 |
+ 2020-10-01 00:00:01.608 | 2020-10-01 00:00:01.608 |        -128 |                     1 |                     0 |
+ 2020-10-01 00:00:03.201 | 2020-10-01 00:00:03.201 |        -128 |                     1 |                     0 |
+ 2020-10-01 00:00:03.432 | 2020-10-01 00:00:03.432 |        -128 |                     1 |                     0 |
+ 2020-10-01 00:00:04.110 | 2020-10-01 00:00:04.110 |        -128 |                     1 |                     1 |
+ 2020-10-01 00:00:04.173 | 2020-10-01 00:00:04.173 |        -128 |                     1 |                     0 |
+ 2020-10-01 00:00:04.767 | 2020-10-01 00:00:04.767 |        -128 |                     1 |                     0 |
+ 2020-10-01 00:00:05.652 | 2020-10-01 00:00:05.652 |        -128 |                     1 |                     0 |
+ 2020-10-01 00:00:06.753 | 2020-10-01 00:00:06.753 |        -128 |                     1 |                     0 |
+
+taos> select _wstart, _wend, first(tinyint_col), last(tinyint_col), u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with tinyint_col > 100 order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | first(tinyint_col) | last(tinyint_col) | u_tinyint_col |       count(*)        |
+=====================================================================================================================================
+ 2020-10-01 00:00:00.021 | 2020-10-01 00:00:00.021 |                109 |               109 | NULL          |                     1 |
+ 2020-10-01 00:00:00.033 | 2020-10-01 00:00:00.075 |                 89 |               102 | NULL          |                     8 |
+ 2020-10-01 00:00:00.111 | 2020-10-01 00:00:00.237 |                 52 |               122 | NULL          |                    22 |
+ 2020-10-01 00:00:00.243 | 2020-10-01 00:00:00.351 |                 94 |               121 | NULL          |                    19 |
+ 2020-10-01 00:00:00.381 | 2020-10-01 00:00:00.393 |                 64 |               118 | NULL          |                     3 |
+ 2020-10-01 00:00:00.399 | 2020-10-01 00:00:00.453 |                 71 |               108 | NULL          |                    10 |
+ 2020-10-01 00:00:00.471 | 2020-10-01 00:00:00.471 |                101 |               101 | NULL          |                     1 |
+ 2020-10-01 00:00:00.519 | 2020-10-01 00:00:00.549 |                 58 |               114 | NULL          |                     6 |
+ 2020-10-01 00:00:00.561 | 2020-10-01 00:00:00.573 |                 74 |               121 | NULL          |                     3 |
+ 2020-10-01 00:00:00.591 | 2020-10-01 00:00:00.681 |                 82 |               117 | NULL          |                    16 |
+
+taos> select _wstart, _wend, first(tinyint_col), last(tinyint_col), u_tinyint_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with tinyint_col > 100 order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | first(tinyint_col) | last(tinyint_col) | u_tinyint_col |       count(*)        |   count(u_int_col)    | count(u_tinyint_col)  | count(u_smallint_col) |
+=============================================================================================================================================================================================================
+ 2020-10-01 00:00:00.021 | 2020-10-01 00:00:00.021 |                109 |               109 | NULL          |                     1 |                     0 |                     0 |                     1 |
+ 2020-10-01 00:00:00.033 | 2020-10-01 00:00:00.075 |                 89 |               102 | NULL          |                    11 |                     5 |                     0 |                     8 |
+ 2020-10-01 00:00:00.111 | 2020-10-01 00:00:00.237 |                 52 |               122 | NULL          |                    31 |                    13 |                     0 |                    22 |
+ 2020-10-01 00:00:00.243 | 2020-10-01 00:00:00.351 |                 94 |               121 | NULL          |                    26 |                    11 |                     0 |                    19 |
+ 2020-10-01 00:00:00.381 | 2020-10-01 00:00:00.393 |                 64 |               118 | NULL          |                     4 |                     1 |                     0 |                     3 |
+ 2020-10-01 00:00:00.399 | 2020-10-01 00:00:00.453 |                 71 |               108 | NULL          |                    13 |                     5 |                     0 |                    10 |
+ 2020-10-01 00:00:00.471 | 2020-10-01 00:00:00.471 |                101 |               101 | NULL          |                     1 |                     0 |                     0 |                     1 |
+ 2020-10-01 00:00:00.519 | 2020-10-01 00:00:00.549 |                 58 |               114 | NULL          |                     8 |                     3 |                     0 |                     6 |
+ 2020-10-01 00:00:00.561 | 2020-10-01 00:00:00.573 |                 74 |               121 | NULL          |                     4 |                     1 |                     0 |                     3 |
+ 2020-10-01 00:00:00.591 | 2020-10-01 00:00:00.681 |                 82 |               117 | NULL          |                    22 |                     9 |                     0 |                    16 |
+
+taos> select _wstart, _wend, first(tinyint_col), last(tinyint_col), u_tinyint_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with tinyint_col > 100 order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | first(tinyint_col) | last(tinyint_col) | u_tinyint_col |       count(*)        |   count(u_int_col)    | count(u_tinyint_col)  |
+=====================================================================================================================================================================================
+ 2020-10-01 00:00:00.021 | 2020-10-01 00:00:00.021 |                109 |               109 | NULL          |                     1 |                     0 |                     0 |
+ 2020-10-01 00:00:00.033 | 2020-10-01 00:00:00.075 |                 89 |               102 | NULL          |                    11 |                     5 |                     0 |
+ 2020-10-01 00:00:00.111 | 2020-10-01 00:00:00.237 |                 52 |               122 | NULL          |                    31 |                    13 |                     0 |
+ 2020-10-01 00:00:00.243 | 2020-10-01 00:00:00.351 |                 94 |               121 | NULL          |                    26 |                    11 |                     0 |
+ 2020-10-01 00:00:00.381 | 2020-10-01 00:00:00.393 |                 64 |               118 | NULL          |                     4 |                     1 |                     0 |
+ 2020-10-01 00:00:00.399 | 2020-10-01 00:00:00.453 |                 71 |               108 | NULL          |                    13 |                     5 |                     0 |
+ 2020-10-01 00:00:00.471 | 2020-10-01 00:00:00.471 |                101 |               101 | NULL          |                     1 |                     0 |                     0 |
+ 2020-10-01 00:00:00.519 | 2020-10-01 00:00:00.549 |                 58 |               114 | NULL          |                     8 |                     3 |                     0 |
+ 2020-10-01 00:00:00.561 | 2020-10-01 00:00:00.573 |                 74 |               121 | NULL          |                     4 |                     1 |                     0 |
+ 2020-10-01 00:00:00.591 | 2020-10-01 00:00:00.681 |                 82 |               117 | NULL          |                    22 |                     9 |                     0 |
+
+taos> select _wstart, _wend, first(tinyint_col), last(tinyint_col), u_tinyint_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with tinyint_col > 100 order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | first(tinyint_col) | last(tinyint_col) | u_tinyint_col |       count(*)        |   count(u_int_col)    |
+=============================================================================================================================================================
+ 2020-10-01 00:00:00.021 | 2020-10-01 00:00:00.021 |                109 |               109 | NULL          |                     1 |                     0 |
+ 2020-10-01 00:00:00.033 | 2020-10-01 00:00:00.075 |                 89 |               102 | NULL          |                    11 |                     5 |
+ 2020-10-01 00:00:00.111 | 2020-10-01 00:00:00.237 |                 52 |               122 | NULL          |                    31 |                    13 |
+ 2020-10-01 00:00:00.243 | 2020-10-01 00:00:00.351 |                 94 |               121 | NULL          |                    26 |                    11 |
+ 2020-10-01 00:00:00.381 | 2020-10-01 00:00:00.393 |                 64 |               118 | NULL          |                     4 |                     1 |
+ 2020-10-01 00:00:00.399 | 2020-10-01 00:00:00.453 |                 71 |               108 | NULL          |                    13 |                     5 |
+ 2020-10-01 00:00:00.471 | 2020-10-01 00:00:00.471 |                101 |               101 | NULL          |                     1 |                     0 |
+ 2020-10-01 00:00:00.519 | 2020-10-01 00:00:00.549 |                 58 |               114 | NULL          |                     8 |                     3 |
+ 2020-10-01 00:00:00.561 | 2020-10-01 00:00:00.573 |                 74 |               121 | NULL          |                     4 |                     1 |
+ 2020-10-01 00:00:00.591 | 2020-10-01 00:00:00.681 |                 82 |               117 | NULL          |                    22 |                     9 |
+
+taos> select _wstart, _wend, first(tinyint_col), last(smallint_col), u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with smallint_col > 1000 order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | first(tinyint_col) | last(smallint_col) | u_tinyint_col |       count(*)        |
+======================================================================================================================================
+ 2020-10-01 00:00:00.021 | 2020-10-01 00:00:00.035 |                109 |               3783 | NULL          |                     5 |
+ 2020-10-01 00:00:00.051 | 2020-10-01 00:00:00.055 |                 97 |               1901 | NULL          |                     2 |
+ 2020-10-01 00:00:00.075 | 2020-10-01 00:00:00.075 |                102 |               3277 | NULL          |                     1 |
+ 2020-10-01 00:00:00.111 | 2020-10-01 00:00:00.115 |                 52 |              14874 | NULL          |                     2 |
+ 2020-10-01 00:00:00.117 | 2020-10-01 00:00:00.145 |                 63 |              23226 | NULL          |                     7 |
+ 2020-10-01 00:00:00.147 | 2020-10-01 00:00:00.165 |                 96 |              19984 | NULL          |                     5 |
+ 2020-10-01 00:00:00.177 | 2020-10-01 00:00:00.195 |                 72 |              24708 | NULL          |                     5 |
+ 2020-10-01 00:00:00.231 | 2020-10-01 00:00:00.245 |                 67 |               5073 | NULL          |                     5 |
+ 2020-10-01 00:00:00.255 | 2020-10-01 00:00:00.255 |                 92 |              14795 | NULL          |                     1 |
+ 2020-10-01 00:00:00.309 | 2020-10-01 00:00:00.315 |                 84 |              19609 | NULL          |                     2 |
+
+taos> select _wstart, _wend, first(tinyint_col), last(smallint_col), u_tinyint_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with smallint_col > 1000 order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | first(tinyint_col) | last(smallint_col) | u_tinyint_col |       count(*)        |   count(u_int_col)    | count(u_tinyint_col)  | count(u_smallint_col) |
+==============================================================================================================================================================================================================
+ 2020-10-01 00:00:00.021 | 2020-10-01 00:00:00.035 |                109 |               3783 | NULL          |                     5 |                     2 |                     0 |                     3 |
+ 2020-10-01 00:00:00.051 | 2020-10-01 00:00:00.055 |                 97 |               1901 | NULL          |                     2 |                     1 |                     0 |                     1 |
+ 2020-10-01 00:00:00.075 | 2020-10-01 00:00:00.075 |                102 |               3277 | NULL          |                     1 |                     1 |                     0 |                     1 |
+ 2020-10-01 00:00:00.111 | 2020-10-01 00:00:00.115 |                 52 |              14874 | NULL          |                     2 |                     1 |                     0 |                     1 |
+ 2020-10-01 00:00:00.117 | 2020-10-01 00:00:00.145 |                 63 |              23226 | NULL          |                     7 |                     3 |                     0 |                     5 |
+ 2020-10-01 00:00:00.147 | 2020-10-01 00:00:00.165 |                 96 |              19984 | NULL          |                     5 |                     2 |                     0 |                     4 |
+ 2020-10-01 00:00:00.177 | 2020-10-01 00:00:00.195 |                 72 |              24708 | NULL          |                     5 |                     2 |                     0 |                     4 |
+ 2020-10-01 00:00:00.231 | 2020-10-01 00:00:00.245 |                 67 |               5073 | NULL          |                     5 |                     2 |                     0 |                     3 |
+ 2020-10-01 00:00:00.255 | 2020-10-01 00:00:00.255 |                 92 |              14795 | NULL          |                     1 |                     1 |                     0 |                     1 |
+ 2020-10-01 00:00:00.309 | 2020-10-01 00:00:00.315 |                 84 |              19609 | NULL          |                     2 |                     1 |                     0 |                     2 |
+
+taos> select _wstart, _wend, first(tinyint_col), last(smallint_col), u_tinyint_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with smallint_col > 1000 order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | first(tinyint_col) | last(smallint_col) | u_tinyint_col |       count(*)        |   count(u_int_col)    | count(u_tinyint_col)  |
+======================================================================================================================================================================================
+ 2020-10-01 00:00:00.021 | 2020-10-01 00:00:00.035 |                109 |               3783 | NULL          |                     5 |                     2 |                     0 |
+ 2020-10-01 00:00:00.051 | 2020-10-01 00:00:00.055 |                 97 |               1901 | NULL          |                     2 |                     1 |                     0 |
+ 2020-10-01 00:00:00.075 | 2020-10-01 00:00:00.075 |                102 |               3277 | NULL          |                     1 |                     1 |                     0 |
+ 2020-10-01 00:00:00.111 | 2020-10-01 00:00:00.115 |                 52 |              14874 | NULL          |                     2 |                     1 |                     0 |
+ 2020-10-01 00:00:00.117 | 2020-10-01 00:00:00.145 |                 63 |              23226 | NULL          |                     7 |                     3 |                     0 |
+ 2020-10-01 00:00:00.147 | 2020-10-01 00:00:00.165 |                 96 |              19984 | NULL          |                     5 |                     2 |                     0 |
+ 2020-10-01 00:00:00.177 | 2020-10-01 00:00:00.195 |                 72 |              24708 | NULL          |                     5 |                     2 |                     0 |
+ 2020-10-01 00:00:00.231 | 2020-10-01 00:00:00.245 |                 67 |               5073 | NULL          |                     5 |                     2 |                     0 |
+ 2020-10-01 00:00:00.255 | 2020-10-01 00:00:00.255 |                 92 |              14795 | NULL          |                     1 |                     1 |                     0 |
+ 2020-10-01 00:00:00.309 | 2020-10-01 00:00:00.315 |                 84 |              19609 | NULL          |                     2 |                     1 |                     0 |
+
+taos> select _wstart, _wend, first(tinyint_col), last(smallint_col), u_tinyint_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col event_window start with tinyint_col > 50 end with smallint_col > 1000 order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | first(tinyint_col) | last(smallint_col) | u_tinyint_col |       count(*)        |   count(u_int_col)    |
+==============================================================================================================================================================
+ 2020-10-01 00:00:00.021 | 2020-10-01 00:00:00.035 |                109 |               3783 | NULL          |                     5 |                     2 |
+ 2020-10-01 00:00:00.051 | 2020-10-01 00:00:00.055 |                 97 |               1901 | NULL          |                     2 |                     1 |
+ 2020-10-01 00:00:00.075 | 2020-10-01 00:00:00.075 |                102 |               3277 | NULL          |                     1 |                     1 |
+ 2020-10-01 00:00:00.111 | 2020-10-01 00:00:00.115 |                 52 |              14874 | NULL          |                     2 |                     1 |
+ 2020-10-01 00:00:00.117 | 2020-10-01 00:00:00.145 |                 63 |              23226 | NULL          |                     7 |                     3 |
+ 2020-10-01 00:00:00.147 | 2020-10-01 00:00:00.165 |                 96 |              19984 | NULL          |                     5 |                     2 |
+ 2020-10-01 00:00:00.177 | 2020-10-01 00:00:00.195 |                 72 |              24708 | NULL          |                     5 |                     2 |
+ 2020-10-01 00:00:00.231 | 2020-10-01 00:00:00.245 |                 67 |               5073 | NULL          |                     5 |                     2 |
+ 2020-10-01 00:00:00.255 | 2020-10-01 00:00:00.255 |                 92 |              14795 | NULL          |                     1 |                     1 |
+ 2020-10-01 00:00:00.309 | 2020-10-01 00:00:00.315 |                 84 |              19609 | NULL          |                     2 |                     1 |
+
+taos> select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col count_window(10) order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | u_tinyint_col |       count(*)        |
+============================================================================================
+ 2020-10-01 00:00:01.030 | 2020-10-01 00:00:03.254 |             0 |                    10 |
+ 2020-10-01 00:00:03.446 | 2020-10-01 00:00:07.826 |             0 |                    10 |
+ 2020-10-01 00:00:08.126 | 2020-10-01 00:00:14.524 |             0 |                    10 |
+ 2020-10-01 00:00:15.040 | 2020-10-01 00:00:17.918 |             0 |                    10 |
+ 2020-10-01 00:00:18.134 | 2020-10-01 00:00:19.996 |             0 |                     6 |
+ 2020-10-01 00:00:00.004 | 2020-10-01 00:00:03.468 |             1 |                    10 |
+ 2020-10-01 00:00:04.178 | 2020-10-01 00:00:07.498 |             1 |                    10 |
+ 2020-10-01 00:00:07.654 | 2020-10-01 00:00:12.922 |             1 |                    10 |
+ 2020-10-01 00:00:13.280 | 2020-10-01 00:00:17.840 |             1 |                    10 |
+ 2020-10-01 00:00:18.512 | 2020-10-01 00:00:19.542 |             1 |                     4 |
+
+taos> select _wstart, _wend, tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by tinyint_col count_window(10) order by tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | tinyint_col |       count(*)        |
+==========================================================================================
+ 2020-10-01 00:00:01.494 | 2020-10-01 00:00:06.792 |        -128 |                    10 |
+ 2020-10-01 00:00:07.407 | 2020-10-01 00:00:16.146 |        -128 |                    10 |
+ 2020-10-01 00:00:16.656 | 2020-10-01 00:00:22.710 |        -128 |                    10 |
+ 2020-10-01 00:00:23.310 | 2020-10-01 00:00:29.514 |        -128 |                     8 |
+ 2020-10-01 00:00:01.155 | 2020-10-01 00:00:10.449 |        -127 |                    10 |
+ 2020-10-01 00:00:11.541 | 2020-10-01 00:00:18.414 |        -127 |                    10 |
+ 2020-10-01 00:00:20.628 | 2020-10-01 00:00:26.715 |        -127 |                    10 |
+ 2020-10-01 00:00:27.867 | 2020-10-01 00:00:29.898 |        -127 |                     2 |
+ 2020-10-01 00:00:00.540 | 2020-10-01 00:00:08.667 |        -126 |                    10 |
+ 2020-10-01 00:00:09.960 | 2020-10-01 00:00:14.664 |        -126 |                    10 |
+
+taos> select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col count_window(10) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |
+=======================================================================================
+ 2020-10-01 00:00:00.003 | 2020-10-01 00:00:00.066 | false    |                    10 |
+ 2020-10-01 00:00:00.072 | 2020-10-01 00:00:00.129 | false    |                    10 |
+ 2020-10-01 00:00:00.135 | 2020-10-01 00:00:00.201 | false    |                    10 |
+ 2020-10-01 00:00:00.204 | 2020-10-01 00:00:00.246 | false    |                    10 |
+ 2020-10-01 00:00:00.249 | 2020-10-01 00:00:00.318 | false    |                    10 |
+ 2020-10-01 00:00:00.324 | 2020-10-01 00:00:00.363 | false    |                    10 |
+ 2020-10-01 00:00:00.375 | 2020-10-01 00:00:00.432 | false    |                    10 |
+ 2020-10-01 00:00:00.435 | 2020-10-01 00:00:00.489 | false    |                    10 |
+ 2020-10-01 00:00:00.492 | 2020-10-01 00:00:00.543 | false    |                    10 |
+ 2020-10-01 00:00:00.546 | 2020-10-01 00:00:00.588 | false    |                    10 |
+
+taos> select _wstart, _wend, bool_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col count_window(10) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |
+=======================================================================================
+ 2020-10-01 00:00:00.003 | 2020-10-01 00:00:00.066 | false    |                    10 |
+ 2020-10-01 00:00:00.072 | 2020-10-01 00:00:00.129 | false    |                    10 |
+ 2020-10-01 00:00:00.135 | 2020-10-01 00:00:00.201 | false    |                    10 |
+ 2020-10-01 00:00:00.204 | 2020-10-01 00:00:00.246 | false    |                    10 |
+ 2020-10-01 00:00:00.249 | 2020-10-01 00:00:00.318 | false    |                    10 |
+ 2020-10-01 00:00:00.324 | 2020-10-01 00:00:00.363 | false    |                    10 |
+ 2020-10-01 00:00:00.375 | 2020-10-01 00:00:00.432 | false    |                    10 |
+ 2020-10-01 00:00:00.435 | 2020-10-01 00:00:00.489 | false    |                    10 |
+ 2020-10-01 00:00:00.492 | 2020-10-01 00:00:00.543 | false    |                    10 |
+ 2020-10-01 00:00:00.546 | 2020-10-01 00:00:00.588 | false    |                    10 |
+
+taos> select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col), count(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col count_window(10) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |   count(u_int_col)    | count(u_tinyint_col)  | count(u_smallint_col) |
+===============================================================================================================================================================
+ 2020-10-01 00:00:00.002 | 2020-10-01 00:00:00.025 | NULL     |                    10 |                     4 |                     8 |                     0 |
+ 2020-10-01 00:00:00.026 | 2020-10-01 00:00:00.050 | NULL     |                    10 |                     3 |                     9 |                     0 |
+ 2020-10-01 00:00:00.052 | 2020-10-01 00:00:00.074 | NULL     |                    10 |                     3 |                     8 |                     0 |
+ 2020-10-01 00:00:00.076 | 2020-10-01 00:00:00.098 | NULL     |                    10 |                     3 |                     8 |                     0 |
+ 2020-10-01 00:00:00.100 | 2020-10-01 00:00:00.124 | NULL     |                    10 |                     3 |                     9 |                     0 |
+ 2020-10-01 00:00:00.125 | 2020-10-01 00:00:00.148 | NULL     |                    10 |                     4 |                     8 |                     0 |
+ 2020-10-01 00:00:00.152 | 2020-10-01 00:00:00.175 | NULL     |                    10 |                     4 |                     8 |                     0 |
+ 2020-10-01 00:00:00.176 | 2020-10-01 00:00:00.200 | NULL     |                    10 |                     3 |                     9 |                     0 |
+ 2020-10-01 00:00:00.202 | 2020-10-01 00:00:00.224 | NULL     |                    10 |                     3 |                     8 |                     0 |
+ 2020-10-01 00:00:00.226 | 2020-10-01 00:00:00.248 | NULL     |                    10 |                     3 |                     8 |                     0 |
+
+taos> select _wstart, _wend, bool_col, count(*), count(u_int_col),count(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col count_window(10) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |   count(u_int_col)    | count(u_tinyint_col)  |
+=======================================================================================================================================
+ 2020-10-01 00:00:00.002 | 2020-10-01 00:00:00.025 | NULL     |                    10 |                     4 |                     8 |
+ 2020-10-01 00:00:00.026 | 2020-10-01 00:00:00.050 | NULL     |                    10 |                     3 |                     9 |
+ 2020-10-01 00:00:00.052 | 2020-10-01 00:00:00.074 | NULL     |                    10 |                     3 |                     8 |
+ 2020-10-01 00:00:00.076 | 2020-10-01 00:00:00.098 | NULL     |                    10 |                     3 |                     8 |
+ 2020-10-01 00:00:00.100 | 2020-10-01 00:00:00.124 | NULL     |                    10 |                     3 |                     9 |
+ 2020-10-01 00:00:00.125 | 2020-10-01 00:00:00.148 | NULL     |                    10 |                     4 |                     8 |
+ 2020-10-01 00:00:00.152 | 2020-10-01 00:00:00.175 | NULL     |                    10 |                     4 |                     8 |
+ 2020-10-01 00:00:00.176 | 2020-10-01 00:00:00.200 | NULL     |                    10 |                     3 |                     9 |
+ 2020-10-01 00:00:00.202 | 2020-10-01 00:00:00.224 | NULL     |                    10 |                     3 |                     8 |
+ 2020-10-01 00:00:00.226 | 2020-10-01 00:00:00.248 | NULL     |                    10 |                     3 |                     8 |
+
+taos> select _wstart, _wend, bool_col, count(*), count(u_int_col) from test_vtable_select.vtb_virtual_ctb_full partition by bool_col count_window(10) order by bool_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | bool_col |       count(*)        |   count(u_int_col)    |
+===============================================================================================================
+ 2020-10-01 00:00:00.005 | 2020-10-01 00:00:00.070 | NULL     |                    10 |                    10 |
+ 2020-10-01 00:00:00.080 | 2020-10-01 00:00:00.145 | NULL     |                    10 |                    10 |
+ 2020-10-01 00:00:00.155 | 2020-10-01 00:00:00.220 | NULL     |                    10 |                    10 |
+ 2020-10-01 00:00:00.230 | 2020-10-01 00:00:00.295 | NULL     |                    10 |                    10 |
+ 2020-10-01 00:00:00.305 | 2020-10-01 00:00:00.370 | NULL     |                    10 |                    10 |
+ 2020-10-01 00:00:00.380 | 2020-10-01 00:00:00.445 | NULL     |                    10 |                    10 |
+ 2020-10-01 00:00:00.455 | 2020-10-01 00:00:00.520 | NULL     |                    10 |                    10 |
+ 2020-10-01 00:00:00.530 | 2020-10-01 00:00:00.595 | NULL     |                    10 |                    10 |
+ 2020-10-01 00:00:00.605 | 2020-10-01 00:00:00.670 | NULL     |                    10 |                    10 |
+ 2020-10-01 00:00:00.680 | 2020-10-01 00:00:00.745 | NULL     |                    10 |                    10 |
+
+taos> select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col interval(1s) order by u_tinyint_col, 1, 2 slimit 10 limit 10;
+         _wstart         |          _wend          | u_tinyint_col |       count(*)        |
+============================================================================================
+ 2020-10-01 00:00:01.000 | 2020-10-01 00:00:02.000 |             0 |                     4 |
+ 2020-10-01 00:00:02.000 | 2020-10-01 00:00:03.000 |             0 |                     4 |
+ 2020-10-01 00:00:03.000 | 2020-10-01 00:00:04.000 |             0 |                     3 |
+ 2020-10-01 00:00:04.000 | 2020-10-01 00:00:05.000 |             0 |                     2 |
+ 2020-10-01 00:00:05.000 | 2020-10-01 00:00:06.000 |             0 |                     1 |
+ 2020-10-01 00:00:06.000 | 2020-10-01 00:00:07.000 |             0 |                     1 |
+ 2020-10-01 00:00:07.000 | 2020-10-01 00:00:08.000 |             0 |                     5 |
+ 2020-10-01 00:00:08.000 | 2020-10-01 00:00:09.000 |             0 |                     1 |
+ 2020-10-01 00:00:09.000 | 2020-10-01 00:00:10.000 |             0 |                     2 |
+ 2020-10-01 00:00:10.000 | 2020-10-01 00:00:11.000 |             0 |                     2 |
+
+taos> select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col interval(1s) order by u_tinyint_col, 1, 2 slimit 2 limit 10;
+         _wstart         |          _wend          | u_tinyint_col |       count(*)        |
+============================================================================================
+ 2020-10-01 00:00:01.000 | 2020-10-01 00:00:02.000 |             0 |                     4 |
+ 2020-10-01 00:00:02.000 | 2020-10-01 00:00:03.000 |             0 |                     4 |
+ 2020-10-01 00:00:03.000 | 2020-10-01 00:00:04.000 |             0 |                     3 |
+ 2020-10-01 00:00:04.000 | 2020-10-01 00:00:05.000 |             0 |                     2 |
+ 2020-10-01 00:00:05.000 | 2020-10-01 00:00:06.000 |             0 |                     1 |
+ 2020-10-01 00:00:06.000 | 2020-10-01 00:00:07.000 |             0 |                     1 |
+ 2020-10-01 00:00:07.000 | 2020-10-01 00:00:08.000 |             0 |                     5 |
+ 2020-10-01 00:00:08.000 | 2020-10-01 00:00:09.000 |             0 |                     1 |
+ 2020-10-01 00:00:09.000 | 2020-10-01 00:00:10.000 |             0 |                     2 |
+ 2020-10-01 00:00:10.000 | 2020-10-01 00:00:11.000 |             0 |                     2 |
+
+taos> select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col interval(1s) order by u_tinyint_col, 1, 2 slimit 2 limit 5;
+         _wstart         |          _wend          | u_tinyint_col |       count(*)        |
+============================================================================================
+ 2020-10-01 00:00:01.000 | 2020-10-01 00:00:02.000 |             0 |                     4 |
+ 2020-10-01 00:00:02.000 | 2020-10-01 00:00:03.000 |             0 |                     4 |
+ 2020-10-01 00:00:03.000 | 2020-10-01 00:00:04.000 |             0 |                     3 |
+ 2020-10-01 00:00:04.000 | 2020-10-01 00:00:05.000 |             0 |                     2 |
+ 2020-10-01 00:00:05.000 | 2020-10-01 00:00:06.000 |             0 |                     1 |
+
+taos> select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col interval(1s) order by u_tinyint_col, 1, 2 slimit 20 limit 2;
+         _wstart         |          _wend          | u_tinyint_col |       count(*)        |
+============================================================================================
+ 2020-10-01 00:00:01.000 | 2020-10-01 00:00:02.000 |             0 |                     4 |
+ 2020-10-01 00:00:02.000 | 2020-10-01 00:00:03.000 |             0 |                     4 |
+
+taos> select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col interval(1s) order by u_tinyint_col, 1, 2 slimit 20 limit 5;
+         _wstart         |          _wend          | u_tinyint_col |       count(*)        |
+============================================================================================
+ 2020-10-01 00:00:01.000 | 2020-10-01 00:00:02.000 |             0 |                     4 |
+ 2020-10-01 00:00:02.000 | 2020-10-01 00:00:03.000 |             0 |                     4 |
+ 2020-10-01 00:00:03.000 | 2020-10-01 00:00:04.000 |             0 |                     3 |
+ 2020-10-01 00:00:04.000 | 2020-10-01 00:00:05.000 |             0 |                     2 |
+ 2020-10-01 00:00:05.000 | 2020-10-01 00:00:06.000 |             0 |                     1 |
+
+taos> select _wstart, _wend, u_tinyint_col, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by u_tinyint_col interval(1s) order by u_tinyint_col, 1, 2 slimit 10 limit 2;
+         _wstart         |          _wend          | u_tinyint_col |       count(*)        |
+============================================================================================
+ 2020-10-01 00:00:01.000 | 2020-10-01 00:00:02.000 |             0 |                     4 |
+ 2020-10-01 00:00:02.000 | 2020-10-01 00:00:03.000 |             0 |                     4 |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_ctb_full partition by int_tag order by int_tag slimit 10 limit 10;
+       count(*)        |
+========================
+                 23333 |
+
+taos> select int_tag from test_vtable_select.vtb_virtual_ctb_full partition by int_tag order by int_tag slimit 10 limit 10;
+   int_tag   |
+==============
+           0 |
+           0 |
+           0 |
+           0 |
+           0 |
+           0 |
+           0 |
+           0 |
+           0 |
+           0 |
+
+taos> select int_tag, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by int_tag order by int_tag slimit 10 limit 10;
+   int_tag   |       count(*)        |
+======================================
+           0 |                 23333 |
+
+taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_ctb_full partition by int_tag order by int_tag slimit 10 limit 10;
+      avg(u_int_col)       |
+============================
+           1064174999.6801 |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_ctb_full partition by int_tag order by int_tag slimit 10 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+                  127.1223 |                33072.8972 |           1064174999.6801 |           1070761472.7482 |                   -0.1846 |                  169.9224 |              -146132.5514 |     -9.22337203685478e+18 |          17.6425190647364 |         -1822137.86790735 |
+
+taos> select * from test_vtable_select.vtb_virtual_ctb_full partition by int_tag order by int_tag slimit 10 limit 10;
+           ts            | u_tinyint_col | u_smallint_col |  u_int_col  |     u_bigint_col      | tinyint_col | smallint_col |   int_col   |      bigint_col       |      float_col       |        double_col         | bool_col |   binary_16_col    |         binary_32_col          |          nchar_16_col          |          nchar_32_col          |
+==========================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:00.009 | NULL          |           4884 | NULL        | NULL                  |          25 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | true     | NULL               | NULL                           | 八。Sunnyvale                  | NULL                           |
+ 2020-10-01 00:00:00.003 | NULL          |          30154 | NULL        | NULL                  |          44 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | false    | NULL               | NULL                           | 三。San Diego                  | NULL                           |
+ 2020-10-01 00:00:00.004 |             1 | NULL           | NULL        |             514811543 | NULL        | NULL         |   683409189 | NULL                  | NULL                 |            94762575.40613 | NULL     | NULL               | Taiyuan - Santa Clara          | NULL                           | NULL                           |
+ 2020-10-01 00:00:00.000 |            29 |          13238 |   432633471 |            1825145387 |          80 |        32519 |  -650873068 |  -9223372036854775808 |              99528.7 |           73495720.958304 | true     | San Diego          | Shanghai - Los Angles          | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
+ 2020-10-01 00:00:00.005 | NULL          | NULL           |  1273134528 | NULL                  | NULL        |        -2199 | NULL        | NULL                  |             -31883.6 | NULL                      | NULL     | Santa Clara        | NULL                           | NULL                           | 森尼韦尔 - Sunnyvale           |
+ 2020-10-01 00:00:00.002 |           158 | NULL           | NULL        |             722563855 | NULL        | NULL         |   -77824226 | NULL                  | NULL                 |           34582987.167108 | NULL     | NULL               | Xian - Sunnyvale               | NULL                           | NULL                           |
+ 2020-10-01 00:00:00.010 |            11 | NULL           |   675749918 |             643987270 | NULL        |        18263 |   296030311 | NULL                  |              70852.8 |          -29472170.793985 | NULL     | Los Angles         | Harbin - Campbell              | NULL                           | 山景城 - Mountain View         |
+ 2020-10-01 00:00:00.008 |            74 | NULL           | NULL        |            1158746468 | NULL        | NULL         |  -439167365 | NULL                  | NULL                 |           -16761361.20062 | NULL     | NULL               | Shanghai - Los Angles          | NULL                           | NULL                           |
+ 2020-10-01 00:00:00.006 |            49 |          51523 | NULL        |                654411 |         -91 | NULL         |  -140653792 |  -9223372036854775808 | NULL                 |            4540042.841226 | true     | NULL               | Shanghai - Los Angles          | 六。Campbell                   | NULL                           |
+ 2020-10-01 00:00:00.012 |            77 |          36105 | NULL        |            1318736917 |          70 | NULL         |  -944313433 |  -9223372036854775808 | NULL                 |           18127464.490065 | false    | NULL               | Shanghai - Los Angles          | 七。Mountain                   | NULL                           |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_ctb_full partition by tbname order by tbname slimit 10 limit 10;
+       count(*)        |
+========================
+                 23333 |
+
+taos> select tbname from test_vtable_select.vtb_virtual_ctb_full partition by tbname order by tbname slimit 10 limit 10;
+             tbname             |
+=================================
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_full           |
+ vtb_virtual_ctb_full           |
+
+taos> select tbname, count(*) from test_vtable_select.vtb_virtual_ctb_full partition by tbname order by tbname slimit 10 limit 10;
+             tbname             |       count(*)        |
+=========================================================
+ vtb_virtual_ctb_full           |                 23333 |
+
+taos> select avg(u_int_col) from test_vtable_select.vtb_virtual_ctb_full partition by tbname order by tbname slimit 10 limit 10;
+      avg(u_int_col)       |
+============================
+           1064174999.6801 |
+
+taos> select avg(u_tinyint_col), avg(u_smallint_col), avg(u_int_col), avg(u_bigint_col), avg(tinyint_col), avg(smallint_col), avg(int_col), avg(bigint_col), avg(float_col), avg(double_col) from test_vtable_select.vtb_virtual_ctb_full partition by tbname order by tbname slimit 10 limit 10;
+    avg(u_tinyint_col)     |    avg(u_smallint_col)    |      avg(u_int_col)       |     avg(u_bigint_col)     |     avg(tinyint_col)      |     avg(smallint_col)     |       avg(int_col)        |      avg(bigint_col)      |      avg(float_col)       |      avg(double_col)      |
+========================================================================================================================================================================================================================================================================================
+                  127.1223 |                33072.8972 |           1064174999.6801 |           1070761472.7482 |                   -0.1846 |                  169.9224 |              -146132.5514 |     -9.22337203685478e+18 |          17.6425190647364 |         -1822137.86790735 |
+
+taos> select * from test_vtable_select.vtb_virtual_ctb_full partition by tbname order by tbname slimit 10 limit 10;
+           ts            | u_tinyint_col | u_smallint_col |  u_int_col  |     u_bigint_col      | tinyint_col | smallint_col |   int_col   |      bigint_col       |      float_col       |        double_col         | bool_col |   binary_16_col    |         binary_32_col          |          nchar_16_col          |          nchar_32_col          |
+==========================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:00.009 | NULL          |           4884 | NULL        | NULL                  |          25 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | true     | NULL               | NULL                           | 八。Sunnyvale                  | NULL                           |
+ 2020-10-01 00:00:00.003 | NULL          |          30154 | NULL        | NULL                  |          44 | NULL         | NULL        |  -9223372036854775808 | NULL                 | NULL                      | false    | NULL               | NULL                           | 三。San Diego                  | NULL                           |
+ 2020-10-01 00:00:00.004 |             1 | NULL           | NULL        |             514811543 | NULL        | NULL         |   683409189 | NULL                  | NULL                 |            94762575.40613 | NULL     | NULL               | Taiyuan - Santa Clara          | NULL                           | NULL                           |
+ 2020-10-01 00:00:00.000 |            29 |          13238 |   432633471 |            1825145387 |          80 |        32519 |  -650873068 |  -9223372036854775808 |              99528.7 |           73495720.958304 | true     | San Diego          | Shanghai - Los Angles          | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
+ 2020-10-01 00:00:00.005 | NULL          | NULL           |  1273134528 | NULL                  | NULL        |        -2199 | NULL        | NULL                  |             -31883.6 | NULL                      | NULL     | Santa Clara        | NULL                           | NULL                           | 森尼韦尔 - Sunnyvale           |
+ 2020-10-01 00:00:00.002 |           158 | NULL           | NULL        |             722563855 | NULL        | NULL         |   -77824226 | NULL                  | NULL                 |           34582987.167108 | NULL     | NULL               | Xian - Sunnyvale               | NULL                           | NULL                           |
+ 2020-10-01 00:00:00.010 |            11 | NULL           |   675749918 |             643987270 | NULL        |        18263 |   296030311 | NULL                  |              70852.8 |          -29472170.793985 | NULL     | Los Angles         | Harbin - Campbell              | NULL                           | 山景城 - Mountain View         |
+ 2020-10-01 00:00:00.008 |            74 | NULL           | NULL        |            1158746468 | NULL        | NULL         |  -439167365 | NULL                  | NULL                 |           -16761361.20062 | NULL     | NULL               | Shanghai - Los Angles          | NULL                           | NULL                           |
+ 2020-10-01 00:00:00.006 |            49 |          51523 | NULL        |                654411 |         -91 | NULL         |  -140653792 |  -9223372036854775808 | NULL                 |            4540042.841226 | true     | NULL               | Shanghai - Los Angles          | 六。Campbell                   | NULL                           |
+ 2020-10-01 00:00:00.012 |            77 |          36105 | NULL        |            1318736917 |          70 | NULL         |  -944313433 |  -9223372036854775808 | NULL                 |           18127464.490065 | false    | NULL               | Shanghai - Los Angles          | 七。Mountain                   | NULL                           |
+

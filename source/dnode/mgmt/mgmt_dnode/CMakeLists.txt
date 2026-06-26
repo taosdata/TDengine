@@ -19,6 +19,7 @@ target_include_directories(
   mgmt_dnode
   PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc"
   PUBLIC "${GRANT_CFG_INCLUDE_DIR}"
+  PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 
 if(TD_ENTERPRISE)

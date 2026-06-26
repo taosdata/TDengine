@@ -733,6 +733,39 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000620D | Virtual table query cannot resolve ref column                              | 虚拟表查询在递归解析引用列时，找不到合法的下一跳引用或最终引用列               | 检查虚拟表引用链和元数据定义，必要时联系开发处理 |
 | 0x8000620E | Virtual table circular reference detected                                  | 虚拟表查询在递归解析引用链时，检测到循环引用（A→B→...→A）                | 检查虚拟表引用链，消除循环依赖             |
 
+#### federated query
+
+| 错误码     | 错误描述                                      | 可能的出错场景或者可能的原因                                      | 建议用户采取的措施                                      |
+| ---------- | --------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------- |
+| 0x80006400 | External source connection failed             | 外部数据源连接失败，可能是地址、端口或网络不可达                  | 检查外部数据源地址、端口、防火墙和网络连通性            |
+| 0x80006401 | External source authentication failed         | 外部数据源用户名或密码认证失败                                    | 检查外部数据源用户名、密码和认证配置                    |
+| 0x80006402 | External source access denied                 | 外部数据源用户权限不足                                            | 检查外部数据源侧的数据库、表和列访问权限                |
+| 0x80006403 | External query timeout                        | 外部查询执行或返回数据超时                                        | 检查外部数据源负载、网络延迟和查询复杂度                |
+| 0x80006404 | External source internal error                | 外部数据源返回无法识别的内部错误                                  | 查看外部数据源日志，并根据原始错误信息处理              |
+| 0x80006405 | External column type not mappable             | 外部列类型无法映射为 TDengine 支持的类型                          | 调整外部表列类型或查询字段，避免使用不支持的类型        |
+| 0x80006406 | External table has no timestamp primary key   | 外部表没有可转换为 TDengine 时间戳主键的列                        | 确认外部表包含可映射为时间戳主键的列                    |
+| 0x80006407 | External source not found                     | 引用的外部数据源不存在                                            | 检查外部数据源名称，必要时先创建外部数据源              |
+| 0x80006409 | SQL syntax unsupported for external source    | 下推到外部数据源的 SQL 包含不支持的语法                           | 简化查询或改写 SQL，避免外部数据源不支持的语法          |
+| 0x8000640A | External source resource exhausted            | 外部数据源连接池、内存或其他资源耗尽                              | 降低并发、释放资源，或调整外部数据源和 TDengine 配置    |
+| 0x8000640B | External source already exists                | 创建外部数据源时名称已经存在                                      | 使用 IF NOT EXISTS，或更换外部数据源名称                |
+| 0x8000640C | External source default namespace not configured | 路径解析需要默认数据库或 schema，但未配置                      | 配置默认数据库或 schema，或在 SQL 中使用完整路径        |
+| 0x8000640D | External data type conversion failed          | 外部数据行转换为 TDengine 类型时失败                              | 检查外部数据内容和列类型，修正无法转换的数据            |
+| 0x8000640E | Federated query is disabled                   | federatedQueryEnable 未启用                                       | 启用 federatedQueryEnable 后重试                        |
+| 0x8000640F | External pushdown SQL failed, need replanning | 下推 SQL 生成或执行失败，需要重新规划查询                         | 检查查询语句和外部数据源能力，必要时联系技术支持        |
+| 0x80006410 | External table not found on remote source     | 外部数据源中不存在引用的表                                        | 检查外部表名、schema 和数据库是否正确                   |
+| 0x80006411 | External data fetch failed                    | 拉取外部数据时连接中断或协议异常                                  | 检查网络和外部数据源状态，然后重试                      |
+| 0x80006412 | External source configuration changed         | 外部数据源配置发生变化，缓存版本不一致                            | 刷新元数据缓存或重试查询                                |
+| 0x80006413 | External table schema changed                 | 外部表 schema 发生变化，列定义不一致                              | 刷新元数据缓存，并确认外部表结构与查询一致              |
+| 0x80006414 | External source capability changed, need retry | 运行时能力探测发现外部数据源能力发生变化                         | 刷新能力缓存后重试查询                                  |
+| 0x80006415 | External source type not supported or provider not initialized | 外部数据源类型不支持或对应 provider 未初始化       | 检查外部数据源类型和服务端 provider 配置                |
+| 0x80006416 | External source TLS options are incomplete    | TLS 客户端证书和私钥没有成对配置                                  | 同时配置 tls_client_cert 和 tls_client_key，或都不配置  |
+| 0x80006417 | External source database or schema not found  | 外部数据源数据库或 schema 不存在                                  | 检查外部数据库或 schema 名称是否正确                    |
+| 0x80006418 | Connector internal logic error                | 外部连接器内部逻辑异常                                            | 保留现场和日志，联系技术支持                            |
+| 0x80006419 | Write operation not supported on external source table | 对外部数据源表执行写入、删除、删除表或修改表操作         | 仅对外部数据源表执行支持的只读查询                      |
+| 0x8000641A | Database name conflicts with an existing external source | 创建数据库时名称和已有外部数据源冲突                | 更换数据库名称或外部数据源名称                          |
+| 0x8000641B | External column not found                     | 外部表中找不到引用的列                                            | 检查外部列名和大小写，确认远端表结构                    |
+| 0x8000641C | InfluxDB tag columns cannot be used as virtual table column source | InfluxDB tag 列被用作虚拟表普通列的数据源 | 将 InfluxDB tag 列作为 tag 引用，或调整虚拟表定义       |
+
 #### TDgpt
 
 | 错误码     | 错误描述                                            | 可能的出错场景或者可能的原因 | 建议用户采取的措施                           |

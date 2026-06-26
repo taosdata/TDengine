@@ -45,6 +45,7 @@ void metaReaderClear(SMetaReader *pReader) {
   if (pReader->pMeta && !(pReader->flags & META_READER_NOLOCK)) {
     metaULock(pReader->pMeta);
   }
+  tFreeSSeriesWrapper(&pReader->me.series);
   tDecoderClear(&pReader->coder);
   tdbFree(pReader->pBuf);
   pReader->pBuf = NULL;
@@ -61,6 +62,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   }
 
   // decode the entry
+  tFreeSSeriesWrapper(&pReader->me.series);
   tDecoderClear(&pReader->coder);
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 

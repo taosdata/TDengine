@@ -287,6 +287,10 @@ static int32_t functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) 
   COPY_OBJECT_FIELD(srcFuncInputType, sizeof(SDataType));
   COPY_SCALAR_FIELD(tz);
   COPY_SCALAR_FIELD(isDistinct);
+  COPY_CHAR_ARRAY_FIELD(tzName);
+  // Don't share the tz pointer — clone will lazy-init its own handle if needed
+  pDst->tz = NULL;
+  pDst->tzAllocated = false;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -634,6 +638,16 @@ static int32_t virtualTableNodeCopy(const SVirtualTableNode * pSrc, SVirtualTabl
   CLONE_OBJECT_FIELD(pMeta, tableMetaClone);
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   CLONE_NODE_LIST_FIELD(refTables);
+  if (pSrc->pExtSourceNames) {
+    int32_t sz = taosArrayGetSize(pSrc->pExtSourceNames);
+    pDst->pExtSourceNames = taosArrayInit(sz, POINTER_BYTES);
+    if (NULL == pDst->pExtSourceNames) return terrno;
+    for (int32_t i = 0; i < sz; i++) {
+      char* s = taosStrdup(taosArrayGetP(pSrc->pExtSourceNames, i));
+      if (NULL == s) return terrno;
+      if (NULL == taosArrayPush(pDst->pExtSourceNames, &s)) return terrno;
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -796,6 +810,16 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(virtualStableScan);
   COPY_SCALAR_FIELD(placeholderType);
   COPY_SCALAR_FIELD(phTbnameScan);
+  // --- external scan extension ---
+  COPY_SCALAR_FIELD(fqPushdownFlags);
+  CLONE_NODE_FIELD(pExtTableNode);
+  CLONE_NODE_LIST_FIELD(pFqAggFuncs);
+  CLONE_NODE_LIST_FIELD(pFqGroupKeys);
+  CLONE_NODE_LIST_FIELD(pFqSortKeys);
+  CLONE_NODE_FIELD(pFqLimit);
+  CLONE_NODE_LIST_FIELD(pFqJoinTables);
+  CLONE_NODE_FIELD(pRemoteLogicPlan);
+  CLONE_NODE_FIELD(pPushedConditions);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1223,6 +1247,78 @@ static int32_t physiRowsetSourceCopy(const SRowsetSourcePhysiNode* pSrc, SRowset
     memcpy(pDst->pBlockBuf, pSrc->pBlockBuf, pSrc->blockBufLen);
   } else {
     pDst->pBlockBuf = NULL;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t federatedScanPhysiNodeCopy(const SFederatedScanPhysiNode* pSrc, SFederatedScanPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
+  CLONE_NODE_FIELD(pExtTable);
+  CLONE_NODE_LIST_FIELD(pScanCols);
+  CLONE_NODE_FIELD(pRemotePlan);
+  COPY_SCALAR_FIELD(pushdownFlags);
+  COPY_SCALAR_FIELD(sourceType);
+  COPY_CHAR_ARRAY_FIELD(srcHost);
+  COPY_SCALAR_FIELD(srcPort);
+  COPY_CHAR_ARRAY_FIELD(srcUser);
+  COPY_CHAR_ARRAY_FIELD(srcPassword);
+  COPY_CHAR_ARRAY_FIELD(srcDatabase);
+  COPY_CHAR_ARRAY_FIELD(srcSchema);
+  COPY_CHAR_ARRAY_FIELD(srcOptions);
+  COPY_SCALAR_FIELD(metaVersion);
+  COPY_SCALAR_FIELD(twoPassMode);
+  COPY_CHAR_ARRAY_FIELD(timezone);
+  COPY_SCALAR_FIELD(scanRange);
+  COPY_SCALAR_FIELD(underVTableScan);
+  // pColTypeMappings: deep copy if present
+  if (pSrc->pColTypeMappings && pSrc->numColTypeMappings > 0) {
+    pDst->pColTypeMappings = (SExtColTypeMapping*)taosMemoryMalloc(
+        sizeof(SExtColTypeMapping) * pSrc->numColTypeMappings);
+    if (!pDst->pColTypeMappings) return terrno;
+    memcpy(pDst->pColTypeMappings, pSrc->pColTypeMappings,
+           sizeof(SExtColTypeMapping) * pSrc->numColTypeMappings);
+    pDst->numColTypeMappings = pSrc->numColTypeMappings;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extTableNodeCopy(const SExtTableNode* pSrc, SExtTableNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
+  COPY_CHAR_ARRAY_FIELD(sourceName);
+  COPY_CHAR_ARRAY_FIELD(schemaName);
+  COPY_SCALAR_FIELD(sourceType);
+  COPY_CHAR_ARRAY_FIELD(srcHost);
+  COPY_SCALAR_FIELD(srcPort);
+  COPY_CHAR_ARRAY_FIELD(srcUser);
+  COPY_CHAR_ARRAY_FIELD(srcPassword);
+  COPY_CHAR_ARRAY_FIELD(srcDatabase);
+  COPY_CHAR_ARRAY_FIELD(srcSchema);
+  COPY_CHAR_ARRAY_FIELD(srcOptions);
+  COPY_SCALAR_FIELD(metaVersion);
+  COPY_OBJECT_FIELD(capability, sizeof(SExtSourceCapability));
+  COPY_SCALAR_FIELD(tsPrimaryColIdx);
+  COPY_CHAR_ARRAY_FIELD(remoteTableName);
+  // pExtMeta: deep-copied so the planner can translate TDengine column names to
+  // remote column names (e.g. 'ts' → 'time' for InfluxDB) before serialization.
+  if (pSrc->pExtMeta) {
+    pDst->pExtMeta = (SExtTableMeta*)taosMemoryMalloc(sizeof(SExtTableMeta));
+    if (!pDst->pExtMeta) return TSDB_CODE_OUT_OF_MEMORY;
+    TAOS_MEMCPY(pDst->pExtMeta, pSrc->pExtMeta, sizeof(SExtTableMeta));
+    if (pSrc->pExtMeta->pCols && pSrc->pExtMeta->numOfCols > 0) {
+      pDst->pExtMeta->pCols = (SExtColumnDef*)taosMemoryMalloc(
+          (size_t)pSrc->pExtMeta->numOfCols * sizeof(SExtColumnDef));
+      if (!pDst->pExtMeta->pCols) {
+        taosMemoryFree(pDst->pExtMeta);
+        pDst->pExtMeta = NULL;
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      TAOS_MEMCPY(pDst->pExtMeta->pCols, pSrc->pExtMeta->pCols,
+                  (size_t)pSrc->pExtMeta->numOfCols * sizeof(SExtColumnDef));
+    } else {
+      pDst->pExtMeta->pCols = NULL;
+    }
+  } else {
+    pDst->pExtMeta = NULL;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1802,6 +1898,12 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE:
       code = physiRowsetSourceCopy((const SRowsetSourcePhysiNode*)pNode, (SRowsetSourcePhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN:
+      code = federatedScanPhysiNodeCopy((const SFederatedScanPhysiNode*)pNode, (SFederatedScanPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_EXTERNAL_TABLE:
+      code = extTableNodeCopy((const SExtTableNode*)pNode, (SExtTableNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       code = physiProjectCopy((const SProjectPhysiNode*)pNode, (SProjectPhysiNode*)pDst);

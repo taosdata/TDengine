@@ -665,6 +665,9 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       code = createVirtualTableMergeOperatorInfo(NULL, 0, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOperator);
     } else if (QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE == type) {
       code = createRowsetSourceOperatorInfo(pPhyNode, pTaskInfo, &pOperator);
+    } else if (QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN == type) {
+      SFederatedScanPhysiNode* pFedScan = (SFederatedScanPhysiNode*)pPhyNode;
+      code = createFederatedScanOperatorInfo(NULL, pFedScan, pTaskInfo, &pOperator);
     } else {
       code = TSDB_CODE_INVALID_PARA;
       pTaskInfo->code = code;

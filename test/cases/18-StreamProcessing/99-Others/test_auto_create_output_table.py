@@ -93,6 +93,8 @@ class TestStreamAutoCreateOutputTable:
             "create table tb2 using stb tags (2);",
             "create table out_exists (`ts` timestamp, `c1` int, `t1` int) tags(`tag_tbname` varchar(128));",
             "create table out_normal_exists (`ts` timestamp, `c1` int);",
+            "create table tb_decimal (`ts` timestamp, `c1` decimal(10, 2));",
+            "create table out_decimal_exists (`ts` timestamp, `c1` decimal(10, 2));",
         ]
 
         tdSql.executes(sqls)
@@ -148,11 +150,13 @@ class TestStreamAutoCreateOutputTable:
         sql1 ="create stream s10 count_window(1) from tb1 into out_normal NODELAY_CREATE_SUBTABLE as select * from tb1 where c1 > 10000;"
         sql2 = "create stream s11 state_window(c1) from tb1 into out_normal_2 NODELAY_CREATE_SUBTABLE as select * from tb1 where c1 > 10000;"
         sql3 = "create stream s12 state_window(c1) from tb1 into out_normal_exists NODELAY_CREATE_SUBTABLE as select * from tb1 where c1 > 10000;"
+        sql4 = "create stream s13 count_window(1) from tb_decimal into out_decimal_exists NODELAY_CREATE_SUBTABLE as select * from tb_decimal where c1 > 0;"
 
         streams = [
             self.StreamItem(sql1, self.checks10),
             self.StreamItem(sql2, self.checks11),
-            self.StreamItem(sql3, self.checks12)
+            self.StreamItem(sql3, self.checks12),
+            self.StreamItem(sql4, self.checks13),
         ]
         for stream in streams:
             tdSql.execute(stream.sql)
@@ -259,6 +263,18 @@ class TestStreamAutoCreateOutputTable:
         res_tbl_num = tdSql.query(result_sql)
         if res_tbl_num != 0:
             tdLog.exit(f"check_auto_create_out_ntb fail to exit[res_tbl_num: {res_tbl_num}]")
+
+    def checks13(self):
+        result_sql = f"select * from information_schema.ins_tables where table_name like 'out_decimal_exists';"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "out_decimal_exists")
+        )
+        result_sql = f"select * from out_decimal_exists;"
+        res_tbl_num = tdSql.query(result_sql)
+        if res_tbl_num != 0:
+            tdLog.exit(f"check_auto_create_out_ntb fail to exit[res_tbl_num: {res_tbl_num}]")
     
     def checks11(self):
         result_sql = f"select * from information_schema.ins_tables where table_name like 'out_normal_2';"
@@ -289,6 +305,7 @@ class TestStreamAutoCreateOutputTable:
         sqls = [
             "insert into tb1 values ('2025-01-01 00:00:00', 10001);",
             "insert into tb2 values ('2025-01-01 00:00:01', 10002);",
+            "insert into tb_decimal values ('2025-01-01 00:00:00', 100.12);",
         ]
         tdSql.executes(sqls)
         tdLog.info(f"insert data successfully")
@@ -363,6 +380,13 @@ class TestStreamAutoCreateOutputTable:
             and tdSql.compareData(0, 1, "10001")
             and tdSql.compareData(1, 0, "2025-01-01 00:00:02")
             and tdSql.compareData(1, 1, "10003")
+        )
+        result_sql = f"select * from out_decimal_exists order by ts;"
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2025-01-01 00:00:00")
+            and tdSql.compareData(0, 1, "100.12")
         )
 
     class StreamItem:

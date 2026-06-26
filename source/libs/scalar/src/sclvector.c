@@ -18,6 +18,7 @@
 #include "decimal.h"
 #include "filter.h"
 #include "filterInt.h"
+#include "tjson.h"
 #include "geosWrapper.h"
 #include "query.h"
 #include "querynodes.h"
@@ -2441,6 +2442,8 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
+  int16_t leftType = pLeft->columnData->info.type;
+
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
 
   char *pRightData = colDataGetVarData(pRight->columnData, 0);
@@ -2453,9 +2456,28 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
     bool isExist = false;
 
     if (!colDataIsNull_var(pLeft->columnData, i)) {
-      char   *pLeftData = colDataGetVarData(pLeft->columnData, i);
-      STagVal value;
-      SCL_ERR_JRET(getJsonValue(pLeftData, jsonKey, &isExist, &value));
+      char *pLeftData = colDataGetVarData(pLeft->columnData, i);
+      if (leftType == TSDB_DATA_TYPE_VARCHAR) {
+        // VARCHAR path: left operand is a text JSON string (e.g. from
+        // CAST(NCHAR→VARCHAR) applied to InfluxDB JSON fields).
+        // Use tjsonParse to check key existence in the JSON text.
+        char *jsonText = taosMemoryCalloc(1, varDataLen(pLeftData) + 1);
+        if (NULL == jsonText) {
+          code = terrno;
+          goto _return;
+        }
+        (void)memcpy(jsonText, varDataVal(pLeftData), varDataLen(pLeftData));
+        SJson *pJson = tjsonParse(jsonText);
+        taosMemoryFree(jsonText);
+        if (pJson != NULL) {
+          isExist = (tjsonGetObjectItem(pJson, jsonKey) != NULL);
+          tjsonDelete(pJson);
+        }
+      } else {
+        // Native JSON (STag binary) path — unchanged.
+        STagVal value;
+        SCL_ERR_JRET(getJsonValue(pLeftData, jsonKey, &isExist, &value));
+      }
     }
     if (isExist) {
       ++pOut->numOfQualified;

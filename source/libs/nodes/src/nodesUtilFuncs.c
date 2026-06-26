@@ -642,6 +642,12 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
       code = makeNode(type, sizeof(SCreateVSubTableStmt), &pNode);
       break;
+    case QUERY_NODE_SERIES_DECL:
+      code = makeNode(type, sizeof(SSeriesDeclNode), &pNode);
+      break;
+    case QUERY_NODE_SERIES_TAG_ASSIGN:
+      code = makeNode(type, sizeof(SNode), &pNode);
+      break;
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE:
       code = makeNode(type, sizeof(SCreateSubTableFromFileClause), &pNode);
       break;
@@ -715,6 +721,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
       break;
     case QUERY_NODE_USE_DATABASE_STMT:
       code = makeNode(type, sizeof(SUseDatabaseStmt), &pNode);
+      break;
+    case QUERY_NODE_USE_EXT_SOURCE_STMT:
+      code = makeNode(type, sizeof(SUseExtSourceStmt), &pNode);
       break;
     case QUERY_NODE_CREATE_DNODE_STMT:
       code = makeNode(type, sizeof(SCreateDnodeStmt), &pNode);
@@ -1340,6 +1349,41 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
       code = makeNode(type, sizeof(SShowValidateVirtualTable), &pNode);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN:
+      code = makeNode(type, sizeof(SFederatedScanPhysiNode), &pNode);
+      if (TSDB_CODE_SUCCESS == code && pNode) {
+        SFederatedScanPhysiNode* pFedScan = (SFederatedScanPhysiNode*)pNode;
+        pFedScan->scanRange.skey = INT64_MIN;
+        pFedScan->scanRange.ekey = INT64_MAX;
+      }
+      break;
+    case QUERY_NODE_EXTERNAL_TABLE:
+      code = makeNode(type, sizeof(SExtTableNode), &pNode);
+      break;
+    case QUERY_NODE_CREATE_EXT_SOURCE_STMT:
+      code = makeNode(type, sizeof(SCreateExtSourceStmt), &pNode);
+      break;
+    case QUERY_NODE_ALTER_EXT_SOURCE_STMT:
+      code = makeNode(type, sizeof(SAlterExtSourceStmt), &pNode);
+      break;
+    case QUERY_NODE_DROP_EXT_SOURCE_STMT:
+      code = makeNode(type, sizeof(SDropExtSourceStmt), &pNode);
+      break;
+    case QUERY_NODE_REFRESH_EXT_SOURCE_STMT:
+      code = makeNode(type, sizeof(SRefreshExtSourceStmt), &pNode);
+      break;
+    case QUERY_NODE_SHOW_EXT_SOURCES_STMT:
+      code = makeNode(type, sizeof(SShowExtSourcesStmt), &pNode);
+      break;
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
+      code = makeNode(type, sizeof(SDescribeExtSourceStmt), &pNode);
+      break;
+    case QUERY_NODE_EXT_OPTION:
+      code = makeNode(type, sizeof(SExtOptionNode), &pNode);
+      break;
+    case QUERY_NODE_EXT_ALTER_CLAUSE:
+      code = makeNode(type, sizeof(SExtAlterClauseNode), &pNode);
+      break;
     default:
 
       code = TSDB_CODE_OPS_NOT_SUPPORT;
@@ -1530,11 +1574,16 @@ void nodesDestroyNode(SNode* pNode) {
       destroyExprNode((SExprNode*)pNode);
       nodesDestroyList(((SLogicConditionNode*)pNode)->pParameterList);
       break;
-    case QUERY_NODE_FUNCTION:
-      destroyExprNode((SExprNode*)pNode);
-      nodesDestroyList(((SFunctionNode*)pNode)->pParameterList);
-      nodesDestroyNode(((SFunctionNode*)pNode)->pOver);
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFn = (SFunctionNode*)pNode;
+      destroyExprNode((SExprNode*)pFn);
+      nodesDestroyList(pFn->pParameterList);
+      nodesDestroyNode(pFn->pOver);
+      if (pFn->tzAllocated && pFn->tz != NULL) {
+        tzfree(pFn->tz);
+      }
       break;
+    }
     case QUERY_NODE_REAL_TABLE: {
       SRealTableNode* pReal = (SRealTableNode*)pNode;
       taosMemoryFreeClear(pReal->pMeta);
@@ -1542,6 +1591,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosArrayDestroyEx(pReal->pSmaIndexes, destroySmaIndex);
       taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pReal->tsmaTargetTbInfo);
+      nodesDestroyNode(pReal->pExtTableNode);
       break;
     }
     case QUERY_NODE_VIRTUAL_TABLE: {
@@ -1549,6 +1599,7 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pVirtual->pMeta);
       taosMemoryFreeClear(pVirtual->pVgroupList);
       nodesDestroyList(pVirtual->refTables);
+      taosArrayDestroyP(pVirtual->pExtSourceNames, NULL);
       break;
     }
     case QUERY_NODE_TEMP_TABLE:
@@ -1719,6 +1770,8 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_COLUMN_OPTIONS: {
       SColumnOptions* pOptions = (SColumnOptions*)pNode;
+      nodesDestroyNode(pOptions->pTagCond);
+      pOptions->pTagCond = NULL;
       break;
     }
     case QUERY_NODE_INDEX_OPTIONS: {
@@ -1765,9 +1818,14 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_LEFT_VALUE:      // no pointer field
-    case QUERY_NODE_COLUMN_REF:      // no pointer field
     case QUERY_NODE_TAG_REF_COLUMN:  // no pointer field
       break;
+    case QUERY_NODE_COLUMN_REF: {
+      SColumnRefNode* pRef = (SColumnRefNode*)pNode;
+      nodesDestroyNode(pRef->pTagCond);
+      pRef->pTagCond = NULL;
+      break;
+    }
     case QUERY_NODE_WHEN_THEN: {
       SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
       destroyExprNode((SExprNode*)pNode);
@@ -1972,6 +2030,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT: {
       SCreateVTableStmt* pStmt = (SCreateVTableStmt*)pNode;
       nodesDestroyList(pStmt->pCols);
+      nodesDestroyList(pStmt->pSeriesList);
       break;
     }
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT: {
@@ -1982,8 +2041,17 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pValsOfTags);
       nodesDestroyList(pStmt->pSpecificTagRefs);
       nodesDestroyList(pStmt->pTagRefs);
+      nodesDestroyList(pStmt->pSeriesList);
       break;
     }
+    case QUERY_NODE_SERIES_DECL: {
+      SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pNode;
+      nodesDestroyNode(pDecl->pTagCond);
+      pDecl->pTagCond = NULL;
+      break;
+    }
+    case QUERY_NODE_SERIES_TAG_ASSIGN:
+      break;
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {
       SCreateSubTableFromFileClause* pStmt = (SCreateSubTableFromFileClause*)pNode;
       nodesDestroyList(pStmt->pSpecificTags);
@@ -2047,6 +2115,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_DROP_USER_STMT:                // no pointer field
     case QUERY_NODE_USE_DATABASE_STMT:             // no pointer field
+    case QUERY_NODE_USE_EXT_SOURCE_STMT:           // no pointer field
     case QUERY_NODE_CREATE_DNODE_STMT:             // no pointer field
     case QUERY_NODE_DROP_DNODE_STMT:               // no pointer field
     case QUERY_NODE_ALTER_DNODE_STMT:              // no pointer field
@@ -2354,6 +2423,11 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pQuery);
       break;
     }
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT: {
+      SDescribeExtSourceStmt* pStmt = (SDescribeExtSourceStmt*)pNode;
+      taosMemoryFree(pStmt->pExtSrcInfo);
+      break;
+    }
     case QUERY_NODE_QUERY: {
       SQuery* pQuery = (SQuery*)pNode;
       nodesDestroyNode(pQuery->pPrevRoot);
@@ -2414,6 +2488,14 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pExtTimeRange);
       nodesDestroyNode(pLogicNode->pPrimaryCond);
+      nodesDestroyNode(pLogicNode->pExtTableNode);
+      nodesDestroyList(pLogicNode->pFqAggFuncs);
+      nodesDestroyList(pLogicNode->pFqGroupKeys);
+      nodesDestroyList(pLogicNode->pFqSortKeys);
+      nodesDestroyNode(pLogicNode->pFqLimit);
+      nodesDestroyList(pLogicNode->pFqJoinTables);
+      nodesDestroyNode(pLogicNode->pRemoteLogicPlan);
+      nodesDestroyNode(pLogicNode->pPushedConditions);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -2637,6 +2719,37 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pPhyNode->pVgroupList);
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
+      SFederatedScanPhysiNode* pFedNode = (SFederatedScanPhysiNode*)pNode;
+      destroyPhysiNode((SPhysiNode*)pFedNode);
+      nodesDestroyNode(pFedNode->pExtTable);
+      nodesDestroyList(pFedNode->pScanCols);
+      nodesDestroyNode(pFedNode->pRemotePlan);
+      taosMemoryFreeClear(pFedNode->pColTypeMappings);
+      break;
+    }
+    case QUERY_NODE_EXTERNAL_TABLE: {
+      SExtTableNode* pExtTbl = (SExtTableNode*)pNode;
+      if (pExtTbl->pExtMeta) {
+        taosMemoryFree(pExtTbl->pExtMeta->pCols);
+        taosMemoryFree(pExtTbl->pExtMeta);
+        pExtTbl->pExtMeta = NULL;
+      }
+      break;
+    }
+    case QUERY_NODE_CREATE_EXT_SOURCE_STMT:
+      nodesDestroyList(((SCreateExtSourceStmt*)pNode)->pOptions);
+      break;
+    case QUERY_NODE_ALTER_EXT_SOURCE_STMT:
+      nodesDestroyList(((SAlterExtSourceStmt*)pNode)->pAlterItems);
+      break;
+    case QUERY_NODE_DROP_EXT_SOURCE_STMT:   // no pointer fields
+    case QUERY_NODE_REFRESH_EXT_SOURCE_STMT:  // no pointer fields
+    case QUERY_NODE_EXT_OPTION:               // no pointer fields (char arrays only)
+      break;
+    case QUERY_NODE_EXT_ALTER_CLAUSE:
+      nodesDestroyList(((SExtAlterClauseNode*)pNode)->pOptions);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL: {

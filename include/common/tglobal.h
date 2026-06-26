@@ -430,19 +430,6 @@ extern int32_t tsAuthReqHBInterval;
 extern char    tsAuthReqUrl[];
 extern bool    tsSessionControl;
 
-// cls
-extern bool    tsClsEnabled;
-extern char    tsClsUrl[];
-extern char    tsClsLicenseId[];
-extern char    tsClsQuotaSlotId[];
-extern int32_t tsClsRefreshInterval;
-extern char    tsClsLastSucTime[];
-extern char    tsClsLastReqTime[];
-extern char    tsClsLastFailReason[];
-extern int32_t gGrantClsPreRefreshInterval;
-#define GRANT_CLS_CLOSING 1
-#define GRANT_CLS_OPENING 2
-
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
 int32_t taosReadDataFolder(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl,
@@ -477,6 +464,15 @@ int32_t setAllConfigs(SConfig *pCfg);
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
 void    taosSetSkipKeyCheckMode(void);
+
+// federated query configuration
+extern bool    tsFederatedQueryEnable;                // master switch for federated query; default false
+extern int32_t tsFederatedQueryConnectTimeoutMs;      // connector TCP connect timeout (ms); default 5000; server only
+extern int32_t tsFederatedQueryQueryTimeoutMs;        // external query execution timeout (ms); default 1000000000 (~11.6d, effectively no timeout); server only
+extern int32_t tsFederatedQueryMaxPoolSizePerSource;  // max connections per external source; default 64; server only
+extern int32_t tsFederatedQueryIdleConnTtlSec;        // idle connection time-to-live (sec); default 600; server only
+extern int32_t tsFederatedQueryProbeTimeoutMs;        // liveness probe timeout (ms); default 5000; server only
+
 #ifdef __cplusplus
 }
 #endif

@@ -1116,7 +1116,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     pVnode->config.vgId, TMSG_INFO(pMsg->msgType), pMsg, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META || pMsg->msgType == TDMT_VND_TABLE_NAME ||
-       pMsg->msgType == TDMT_VND_VSUBTABLES_META || pMsg->msgType == TDMT_VND_VSTB_REF_DBS) &&
+       pMsg->msgType == TDMT_VND_VSUBTABLES_META || pMsg->msgType == TDMT_VND_VSTB_REF_DBS ||
+       pMsg->msgType == TDMT_VND_VTB_TAG_COND) &&
       !syncIsReadyForRead(pVnode->sync)) {
     vnodeRedirectRpcMsg(pVnode, pMsg, terrno);
     return 0;
@@ -1151,6 +1152,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetVSubtablesMeta(pVnode, pMsg);
     case TDMT_VND_VSTB_REF_DBS:
       return vnodeGetVStbRefDbs(pVnode, pMsg);
+    case TDMT_VND_VTB_TAG_COND:
+      return vnodeGetVTbTagCond(pVnode, pMsg, true);
     case TDMT_VND_QUERY_SCAN_PROGRESS:
       return vnodeQueryScanProgress(pVnode, pMsg);
 #ifdef TD_ENTERPRISE
@@ -2779,6 +2782,42 @@ static int32_t vnodeRebuildSubmitReqMsg(SSubmitReq2 *pSubmitReq, void **ppMsg) {
   return code;
 }
 
+static int32_t fillExistTableSchemaExt(const SSchemaWrapper *pSchema, const SColCmprWrapper *pColCmpr,
+                                       const SExtSchema *pExtSchemas, SSchemaExt **ppSchemaExt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pSchema == NULL || pSchema->nCols <= 0 || ppSchemaExt == NULL) {
+    return code;
+  }
+
+  *ppSchemaExt = taosMemoryCalloc(pSchema->nCols, sizeof(SSchemaExt));
+  if (*ppSchemaExt == NULL) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < pSchema->nCols; ++i) {
+    (*ppSchemaExt)[i].colId = pSchema->pSchema[i].colId;
+    if (pExtSchemas != NULL) {
+      (*ppSchemaExt)[i].typeMod = pExtSchemas[i].typeMod;
+    }
+  }
+
+  if (pColCmpr != NULL && pColCmpr->pColCmpr != NULL) {
+    if (pColCmpr->nCols != pSchema->nCols) {
+      taosMemoryFreeClear(*ppSchemaExt);
+      return TSDB_CODE_APP_ERROR;
+    }
+
+    for (int32_t i = 0; i < pColCmpr->nCols; ++i) {
+      SColCmpr *pCmpr = &pColCmpr->pColCmpr[i];
+      (*ppSchemaExt)[i].colId = pCmpr->id;
+      (*ppSchemaExt)[i].compress = pCmpr->alg;
+    }
+  }
+
+  return code;
+}
+
 static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbData, STableMetaRsp **ppRsp) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -2817,14 +2856,14 @@ static int32_t buildExistSubTalbeRsp(SVnode *pVnode, SSubmitTbData *pSubmitTbDat
   memcpy((*ppRsp)->pSchemas + pEntry->stbEntry.schemaRow.nCols, pEntry->stbEntry.schemaTag.pSchema,
          pEntry->stbEntry.schemaTag.nCols * sizeof(SSchema));
   if (pEntry->pExtSchemas != NULL) {
-    (*ppRsp)->pSchemaExt = taosMemoryCalloc(pEntry->colCmpr.nCols, sizeof(SExtSchema));
-    if (NULL == (*ppRsp)->pSchemaExt) {
+    code = fillExistTableSchemaExt(&pEntry->stbEntry.schemaRow, &pEntry->colCmpr, pEntry->pExtSchemas,
+                                   &(*ppRsp)->pSchemaExt);
+    if (code) {
       taosMemoryFree((*ppRsp)->pSchemas);
       taosMemoryFree(*ppRsp);
       *ppRsp = NULL;
-      TSDB_CHECK_CODE(code = terrno, lino, _exit);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
-    memcpy((*ppRsp)->pSchemaExt, pEntry->pExtSchemas, pEntry->colCmpr.nCols * sizeof(SExtSchema));
   }
 
   if (pEntry->stbEntry.schemaRow.version != pSubmitTbData->sver) {
@@ -2870,13 +2909,13 @@ static int32_t buildExistNormalTalbeRsp(SVnode *pVnode, int64_t uid, STableMetaR
   }
   memcpy((*ppRsp)->pSchemas, pEntry->ntbEntry.schemaRow.pSchema, pEntry->ntbEntry.schemaRow.nCols * sizeof(SSchema));
   if (pEntry->pExtSchemas != NULL) {
-    (*ppRsp)->pSchemaExt = taosMemoryCalloc(pEntry->ntbEntry.schemaRow.nCols, sizeof(SSchemaExt));
-    if (NULL == (*ppRsp)->pSchemaExt) {
+    code = fillExistTableSchemaExt(&pEntry->ntbEntry.schemaRow, &pEntry->colCmpr, pEntry->pExtSchemas,
+                                   &(*ppRsp)->pSchemaExt);
+    if (code) {
       taosMemoryFree((*ppRsp)->pSchemas);
       taosMemoryFree(*ppRsp);
-      TSDB_CHECK_CODE(code = terrno, lino, _exit);
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
-    memcpy((*ppRsp)->pSchemaExt, pEntry->pExtSchemas, pEntry->ntbEntry.schemaRow.nCols * sizeof(SSchemaExt));
   }
 
 _exit:

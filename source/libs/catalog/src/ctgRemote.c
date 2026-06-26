@@ -23,6 +23,34 @@
 
 typedef void* (*MallocType)(int64_t);
 
+static int32_t ctgRestoreMsgCtxBatchs(SCtgJob* pJob, int32_t taskId, int32_t msgIdx, SHashObj* pPrevBatchs) {
+  SCatalog* pCtg = pJob ? pJob->pCtg : NULL;
+  SCtgTask* pTask = NULL;
+  int32_t   taskNum = pJob ? taosArrayGetSize(pJob->pTasks) : 0;
+
+  for (int32_t i = 0; i < taskNum; ++i) {
+    SCtgTask* p = taosArrayGet(pJob->pTasks, i);
+    if (p && p->taskId == taskId) {
+      pTask = p;
+      break;
+    }
+  }
+
+  if (NULL == pTask) {
+    ctgError("fail to get catalog task:%d after handling rsp", taskId);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  SCtgMsgCtx* pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, msgIdx);
+  if (NULL == pMsgCtx) {
+    ctgError("task:%d, get SCtgMsgCtx failed after handling rsp, taskType:%d", msgIdx, pTask->type);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  pMsgCtx->pBatchs = pPrevBatchs;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBuf* pMsg, int32_t rspCode) {
   int32_t       code = 0;
   SCatalog*     pCtg = pJob->pCtg;
@@ -119,7 +147,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
 
     (void)(*gCtgAsyncFps[pTask->type].handleRspFp)(
         &tReq, pRsp->reqType, &taskMsg, (pRsp->rspCode ? pRsp->rspCode : rspCode));  // error handled internal
-    pMsgCtx->pBatchs = pPrevMsgBatchs;
+    CTG_ERR_JRET(ctgRestoreMsgCtxBatchs(pJob, *taskId, tReq.msgIdx, pPrevMsgBatchs));
   }
 
   CTG_ERR_JRET(ctgLaunchBatchs(pJob->pCtg, pJob, pBatchs));
@@ -445,6 +473,19 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       }
       break;
     }
+    case TDMT_MND_GET_EXT_SOURCE: {
+      if (TSDB_CODE_SUCCESS != rspCode) {
+        qError("source:%s, error rsp for get ext source, error:%s", target, tstrerror(rspCode));
+        CTG_ERR_RET(rspCode);
+      }
+      code = queryProcessMsgRsp[TMSG_INDEX(reqType)](out, msg, msgSize);
+      if (code) {
+        qError("source:%s, process get ext source rsp failed, error:%s", target, tstrerror(code));
+        CTG_ERR_RET(code);
+      }
+      qDebug("source:%s, got ext source from mnode", target);
+      break;
+    }
     default:
       if (TSDB_CODE_SUCCESS != rspCode) {
         qError("get error rsp, error:%s", tstrerror(rspCode));
@@ -522,7 +563,7 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
     int32_t ret = (*gCtgAsyncFps[pTask->type].handleRspFp)(&tReq, cbParam->reqType, pMsg, rspCode);
 
 #if CTG_BATCH_FETCH
-    pMsgCtx->pBatchs = pPrevTaskBatchs;
+    CTG_ERR_JRET(ctgRestoreMsgCtxBatchs(pJob, *taskId, -1, pPrevTaskBatchs));
     CTG_ERR_JRET(ctgLaunchBatchs(pJob->pCtg, pJob, pBatchs));
 #endif
     CTG_ERR_JRET(ret);
@@ -2074,4 +2115,66 @@ int32_t ctgGetVSubtablesMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, i
                             .txnId = pConn->txnId};
 
   return ctgAddBatch(pCtg, vgroupInfo->vgId, &vConn, tReq, reqType, msg, msgLen);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Federated query: fetch ext source info from mnode
+// ─────────────────────────────────────────────────────────────────────────────
+int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* sourceName,
+                                 SGetExtSourceRsp* out, SCtgTask* pTask) {
+  char*   msg = NULL;
+  int32_t msgLen = 0;
+  int32_t reqType = TDMT_MND_GET_EXT_SOURCE;
+  void* (*mallocFp)(int64_t) = pTask ? (MallocType)taosMemMalloc : (MallocType)rpcMallocCont;
+  void (*freeFp)(void*) = pTask ? taosMemFree : rpcFreeCont;
+
+  ctgDebug("source:%s, try to get ext source from mnode", sourceName);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(reqType)]((void*)sourceName, &msg, 0, &msgLen, mallocFp, freeFp);
+  if (code) {
+    ctgError("source:%s, build get ext source msg failed, code:%s", sourceName, tstrerror(code));
+    CTG_ERR_RET(code);
+  }
+
+  if (pTask) {
+    void* pOut = taosMemoryCalloc(1, sizeof(SGetExtSourceRsp));
+    if (NULL == pOut) {
+      ctgError("ctgGetExtSourceFromMnode: calloc SGetExtSourceRsp failed, source:%s, error:%s",
+               sourceName, tstrerror(terrno));
+      CTG_ERR_RET(terrno);
+    }
+    CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)sourceName));
+
+#if CTG_BATCH_FETCH
+    SCtgTaskReq tReq = {0};
+    tReq.pTask = pTask;
+    tReq.msgIdx = -1;
+    CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));
+#else
+    SArray* pTaskId = taosArrayInit(1, sizeof(int32_t));
+    if (NULL == pTaskId) {
+      ctgError("ctgGetExtSourceFromMnode: taosArrayInit pTaskId failed, source:%s, error:%s",
+               sourceName, tstrerror(terrno));
+      CTG_ERR_RET(terrno);
+    }
+    if (NULL == taosArrayPush(pTaskId, &pTask->taskId)) {
+      ctgError("ctgGetExtSourceFromMnode: taosArrayPush taskId failed, source:%s, error:%s",
+               sourceName, tstrerror(terrno));
+      taosArrayDestroy(pTaskId);
+      CTG_ERR_RET(terrno);
+    }
+    CTG_RET(ctgAsyncSendMsg(pCtg, pConn, pTask->pJob, pTaskId, -1, NULL, NULL, 0, reqType, msg, msgLen));
+#endif
+  }
+
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_MND_GET_EXT_SOURCE,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+  SRpcMsg rpcRsp = {0};
+  CTG_ERR_RET(rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp));
+  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)sourceName));
+  rpcFreeCont(rpcRsp.pCont);
+  return TSDB_CODE_SUCCESS;
 }

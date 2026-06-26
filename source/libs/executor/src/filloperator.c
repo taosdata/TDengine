@@ -85,7 +85,8 @@ static void doHandleRemainBlockForNewGroupImpl(SOperatorInfo* pOperator, SFillOp
   taosFillSetStartInfo(pInfo->pFillInfo, pInfo->pRes->info.rows, ts);
 
   taosFillSetInputDataBlock(pInfo->pFillInfo, pInfo->pRes);
-  if (pInfo->pFillInfo->type == TSDB_FILL_PREV || pInfo->pFillInfo->type == TSDB_FILL_LINEAR) {
+  if (pInfo->pFillInfo->type == TSDB_FILL_PREV || pInfo->pFillInfo->type == TSDB_FILL_NEAR ||
+      pInfo->pFillInfo->type == TSDB_FILL_LINEAR) {
     int32_t code = fillResetPrevForNewGroup(pInfo->pFillInfo);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -199,6 +200,13 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
   blockDataCleanup(pResBlock);
   int32_t        order = pInfo->pFillInfo->order;
 
+  // Detect unbounded fill: no explicit WHERE time range was provided.
+  // In this mode, fill bounds are derived from the actual data timestamps.
+  SFillPhysiNode* pPhyFillNode = (SFillPhysiNode*)pOperator->pPhyNode;
+  bool isUnboundedFill = (pInfo->pTimeRange == NULL && pPhyFillNode != NULL &&
+                          pPhyFillNode->timeRange.skey == INT64_MIN &&
+                          pPhyFillNode->timeRange.ekey == INT64_MAX);
+
   doHandleRemainBlockFromNewGroup(pOperator, pInfo, pResultInfo, order);
   if (pResBlock->info.rows > 0) {
     pResBlock->info.id.groupId = pInfo->curGroupId;
@@ -213,10 +221,20 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
         setOperatorCompleted(pOperator);
         return NULL;
       } else if (pInfo->totalInputRows == 0 && taosFillNotStarted(pInfo->pFillInfo)) {
+        if (isUnboundedFill) {
+          // No data and unbounded fill range: nothing to fill.
+          setOperatorCompleted(pOperator);
+          return NULL;
+        }
         reviseFillStartAndEndKey(pInfo, order);
       }
 
-      taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
+      // For unbounded fill, use last-seen data timestamp to avoid filling to INT64_MAX.
+      int64_t closeKey = pInfo->win.ekey;
+      if (isUnboundedFill && pInfo->totalInputRows > 0) {
+        closeKey = pInfo->pFillInfo->end;
+      }
+      taosFillSetStartInfo(pInfo->pFillInfo, 0, closeKey);
     } else {
       pResBlock->info.scanFlag = pBlock->info.scanFlag;
       pBlock->info.dataLoad = 1;
@@ -232,6 +250,16 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
 
       if (pInfo->curGroupId == 0 || (pInfo->curGroupId == pInfo->pRes->info.id.groupId)) {
         if (pInfo->curGroupId == 0 && taosFillNotStarted(pInfo->pFillInfo)) {
+          if (isUnboundedFill) {
+            // Derive fill start/end bounds from the first data block's actual window range.
+            if (order == TSDB_ORDER_ASC) {
+              pInfo->win.skey = pBlock->info.window.skey;
+              pInfo->win.ekey = pBlock->info.window.ekey;
+            } else {
+              pInfo->win.ekey = pBlock->info.window.ekey;
+              pInfo->win.skey = pBlock->info.window.skey;
+            }
+          }
           reviseFillStartAndEndKey(pInfo, order);
         }
 
@@ -245,8 +273,12 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
         pInfo->existNewGroupBlock = pBlock;
 
         // Fill the previous group data block, before handle the data block of new group.
-        // Close the fill operation for previous group data block
-        taosFillSetStartInfo(pInfo->pFillInfo, 0, pInfo->win.ekey);
+        // Close the fill operation for previous group data block.
+        int64_t closeKey = pInfo->win.ekey;
+        if (isUnboundedFill && pInfo->totalInputRows > 0) {
+          closeKey = pInfo->pFillInfo->end;
+        }
+        taosFillSetStartInfo(pInfo->pFillInfo, 0, closeKey);
       }
     }
 

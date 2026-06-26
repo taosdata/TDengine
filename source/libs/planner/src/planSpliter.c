@@ -105,6 +105,10 @@ static SLogicSubplan* splCreateScanSubplan(SSplitContext* pCxt, SLogicNode* pNod
 
 static bool splHasScan(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    // External scans are not vnode scans; they are handled as MERGE subplans
+    if (((SScanLogicNode*)pNode)->scanType == SCAN_TYPE_EXTERNAL) {
+      return false;
+    }
     return true;
   }
 
@@ -2125,8 +2129,16 @@ typedef struct SVirtualTableSplitInfo {
 
 static bool virtualTableFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
                                       SVirtualTableSplitInfo* pInfo) {
-  if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pNode) && 0 != LIST_LENGTH(pNode->pChildren) &&
-      QUERY_NODE_LOGIC_PLAN_EXCHANGE != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+  if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pNode) || 0 == LIST_LENGTH(pNode->pChildren)) {
+    return false;
+  }
+  // Match only when at least one child still needs splitting
+  // (is neither an Exchange node nor an external scan).
+  SNode* pChild;
+  FOREACH(pChild, pNode->pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_EXCHANGE == nodeType(pChild)) continue;
+    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) &&
+        ((SScanLogicNode*)pChild)->scanType == SCAN_TYPE_EXTERNAL) continue;
     pInfo->pVirtual = (SVirtualScanLogicNode*)pNode;
     pInfo->pSubplan = pSubplan;
     return true;
@@ -2147,8 +2159,16 @@ static int32_t virtualTableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   if (!splMatch(pCxt, pSubplan, 0, (FSplFindSplitNode)virtualTableFindSplitNode, &info)) {
     return TSDB_CODE_SUCCESS;
   }
+  bool    didSplit = false;
   SNode*  pChild = NULL;
   FOREACH(pChild, info.pVirtual->node.pChildren) {
+    if (nodeType((SLogicNode*)pChild) == QUERY_NODE_LOGIC_PLAN_SCAN &&
+        ((SScanLogicNode*)pChild)->scanType == SCAN_TYPE_EXTERNAL) {
+      continue;
+    }
+    if (nodeType((SLogicNode*)pChild) == QUERY_NODE_LOGIC_PLAN_EXCHANGE) {
+      continue;
+    }
     SExchangeLogicNode* pExchange = NULL;
     PLAN_ERR_JRET(splCreateExchangeNode(pCxt, (SLogicNode*)pChild, &pExchange));
 
@@ -2163,10 +2183,15 @@ static int32_t virtualTableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     sub->processOneBlock = needProcessOneBlockEachTime(info.pVirtual);
     PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)sub));
     ++(pCxt->groupId);
+    didSplit = true;
   }
-  info.pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+  if (didSplit) {
+    info.pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+  }
 _return:
-  pCxt->split = true;
+  if (didSplit) {
+    pCxt->split = true;
+  }
   return code;
 }
 
@@ -2337,6 +2362,11 @@ static int32_t mergeExtWinSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   PLAN_ERR_RET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, info.pSplitNode, info.pSubplan->subplanType, false));
   PLAN_ERR_RET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, info.pSplitNode, 0)));
 
+  // After moving the scan out, re-evaluate the parent subplan type: if no scan
+  // remains in the parent tree, it must not stay SUBPLAN_TYPE_SCAN, otherwise
+  // the scheduler will reject it with TSDB_CODE_SCH_DATA_SRC_EP_MISS.
+  splSetSubplanType(info.pSubplan);
+
   ++(pCxt->groupId);
   pCxt->split = true;
   return code;
@@ -2353,6 +2383,7 @@ static bool qndSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SL
       QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC != nodeType(pNode->pParent) &&
       QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC != nodeType(pNode->pParent) &&
       !pNode->pParent->dynamicOp &&
+      ((SScanLogicNode*)pNode)->scanType != SCAN_TYPE_EXTERNAL &&  // skip external (federated) scans
       ((SScanLogicNode*)pNode)->scanSeq[0] <= 1 &&
       ((SScanLogicNode*)pNode)->scanSeq[1] <= 1) {
     pInfo->pSplitNode = pNode;

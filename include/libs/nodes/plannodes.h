@@ -78,7 +78,17 @@ typedef enum EScanType {
   SCAN_TYPE_BLOCK_INFO,
   SCAN_TYPE_LAST_ROW,
   SCAN_TYPE_TABLE_COUNT,
+  SCAN_TYPE_EXTERNAL,  // federated query: external data source scan
 } EScanType;
+
+// ---- Federated query pushdown bit masks ----
+// Used by Optimizer to mark what can be pushed to remote; Phase 1 = all 0 (no pushdown)
+#define FQ_PUSHDOWN_FILTER     (1u << 0)
+#define FQ_PUSHDOWN_PROJECTION (1u << 1)
+#define FQ_PUSHDOWN_LIMIT      (1u << 2)
+#define FQ_PUSHDOWN_AGG        (1u << 3)
+#define FQ_PUSHDOWN_ORDER      (1u << 4)
+#define FQ_PUSHDOWN_JOIN       (1u << 5)
 
 typedef struct SScanLogicNode {
   SLogicNode         node;
@@ -140,6 +150,24 @@ typedef struct SScanLogicNode {
   bool               virtualStableScan;
   bool               phTbnameScan;
   EStreamPlaceholder placeholderType;
+  // --- external scan extension (valid only when scanType == SCAN_TYPE_EXTERNAL) ---
+  uint32_t    fqPushdownFlags;                     // FQ_PUSHDOWN_* bitmask; Phase 1 = 0
+  SNode*      pExtTableNode;  // cloned SExtTableNode carrying connection info for Planner → Physi transfer
+  SNodeList*  pFqAggFuncs;    // Phase 2: pushdown-eligible aggregate function list
+  SNodeList*  pFqGroupKeys;   // Phase 2: pushdown-eligible GROUP BY columns
+  SNodeList*  pFqSortKeys;    // Phase 2: pushdown-eligible ORDER BY columns
+  SNode*      pFqLimit;       // Phase 2: pushdown-eligible LIMIT
+  SNodeList*  pFqJoinTables;  // Phase 2: pushdown-eligible JOIN tables
+  // Logical pushdown sub-plan set by the FqPushdown optimizer rule.
+  // Contains the chain of pushed-down Sort/Project logic nodes (topmost first,
+  // bottommost has pChildren=NULL — the scan itself is NOT in this chain).
+  // Physical plan generation converts this to SFederatedScanPhysiNode.pRemotePlan.
+  SNode*      pRemoteLogicPlan;
+  // WHERE conditions fully pushed to the remote source (e.g. EXISTS with RAW_SQL_FRAG).
+  // Set by fqHarvestConditions; clears node.pConditions so the outer physical scan
+  // gets pConditions=NULL. Physical plan creation puts these into the leaf's pConditions
+  // for nodesRemotePlanToSQL, but NOT into the outer scan operator.
+  SNode*      pPushedConditions;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -300,6 +328,7 @@ typedef struct SGroupCacheLogicNode {
   bool       grpByUid;
   bool       globalGrp;
   bool       batchFetch;
+  bool       twoPassMode;  // single-group two-pass for repeat-scan functions (e.g. PERCENTILE)
   SNodeList* pGroupCols;
 } SGroupCacheLogicNode;
 
@@ -736,6 +765,78 @@ typedef STableScanPhysiNode STableSeqScanPhysiNode;
 typedef STableScanPhysiNode STableMergeScanPhysiNode;
 typedef STableScanPhysiNode SStreamScanPhysiNode;
 
+// ---- Federated query: column type mapping entry ----
+// Computed by Parser (extTypeNameToTDengineType()), written into physical plan,
+// then passed to Connector for raw value → TDengine column binary conversion.
+typedef struct SExtColTypeMapping {
+  char      extTypeName[64];  // original external type name (e.g. "VARCHAR(255)", "INT4")
+  SDataType tdType;           // mapped TDengine type: type, precision, scale, bytes
+  int8_t    tsPrecision;      // source-side timestamp precision for TIMESTAMP columns
+                              // (TSDB_TIME_PRECISION_MICRO = 1, TSDB_TIME_PRECISION_NANO = 2);
+                              // 0 for non-timestamp columns or when unknown.
+  char      colName[65];      // TDengine column name (TSDB_COL_NAME_LEN=65); used by InfluxDB
+                              // connector for name-based Arrow column lookup on SELECT *.
+} SExtColTypeMapping;
+
+// ---- Federated query: physical scan node ----
+// Inherits SPhysiNode directly (NOT SScanPhysiNode): external scan has no uid/suid/tableType.
+// All connection info is embedded here because Executor runs in taosd (server side) and
+// cannot access Catalog (client-side libtaos). The physical plan is the only data channel
+// from client to server.
+//
+// TWO USAGE MODES — determined by whether pRemotePlan is NULL:
+//
+// Mode 1 — Outer wrapper node (pRemotePlan != NULL):
+//   Appears in the TDengine executor plan as the scan leaf.
+//   pRemotePlan is a mini physi-plan sub-tree encoding the full SQL to push down:
+//     [SProjectPhysiNode]? → [SSortPhysiNode]? → SFederatedScanPhysiNode(Mode 2 leaf)
+//   nodesRemotePlanToSQL() walks pRemotePlan to generate the external SQL string.
+//   pExtTable and pScanCols are NOT used for SQL generation in this mode.
+//   Connection fields (srcHost/srcPort/…) provide the data source endpoint.
+//
+// Mode 2 — Inner leaf node (pRemotePlan == NULL):
+//   Appears only INSIDE a pRemotePlan sub-tree.  Never directly in the executor plan.
+//   pExtTable + pScanCols  → FROM clause and SELECT column list.
+//   node.pConditions       → WHERE clause (simple push-downable predicates).
+//   node.pLimit            → LIMIT / OFFSET clause.
+//   Connection fields are NOT used (the outer Mode 1 node holds them).
+typedef struct SFederatedScanPhysiNode {
+  SPhysiNode  node;              // standard physi node header (pConditions, pLimit, pOutputDataBlockDesc, etc.)
+  SNode*      pExtTable;         // SExtTableNode* — external table AST node  [used in Mode 2]
+  SNodeList*  pScanCols;         // scan column list                           [used in Mode 2]
+  SNode*      pRemotePlan;       // mini physi-plan sub-tree for SQL gen       [non-NULL = Mode 1]
+  uint32_t    pushdownFlags;     // FQ_PUSHDOWN_* combination
+  // --- connection info (copied from SExtTableNode by Planner) ---
+  int8_t      sourceType;                      // EExtSourceType
+  char        srcHost[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t     srcPort;
+  char        srcUser[TSDB_EXT_SOURCE_USER_LEN];
+  char        srcPassword[TSDB_EXT_SOURCE_PASSWORD_LEN];  // shown as ****** in EXPLAIN
+  char        srcDatabase[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char        srcSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char        srcOptions[TSDB_EXT_SOURCE_OPTIONS_LEN];
+  // --- metadata version (copied from Catalog's SExtSource.meta_version) ---
+  int64_t     metaVersion;       // connector pool uses this to detect config changes
+  // --- column type mappings (computed by Parser, carried to Executor via plan) ---
+  SExtColTypeMapping* pColTypeMappings;  // one entry per pScanCols column, in the same order
+  int32_t             numColTypeMappings;
+  // --- two-pass scan support (for PERCENTILE and other REPEAT_SCAN_FUNC) ---
+  bool                twoPassMode;       // true: FedScan must do PRE_SCAN pass then MAIN_SCAN pass
+  // --- client timezone (filled by Planner from SPlanContext.timezoneName) ---
+  // IANA timezone name or POSIX offset string (e.g. "Asia/Shanghai", "UTC", "Etc/GMT-8").
+  // Executor reconstructs timezone_t via tzalloc(timezone) and passes it to the Connector
+  // for converting timezone-naive source types (MySQL DATETIME, PG timestamp without tz, etc.)
+  // to UTC epoch. Empty string means "use server global default timezone".
+  char                timezone[TD_TIMEZONE_LEN];
+  // --- time range for vstb dynamic queries (set by optimizer pushdown) ---
+  STimeWindow         scanRange;         // INT64_MIN..INT64_MAX = no filter
+  // True when this federate scan is a downstream of a virtual-table scan
+  // (either static or VStb dispatch).  Used by the executor to gate
+  // per-block TIMESTAMP precision conversion to the vtable's declared
+  // precision; direct external-table queries leave this false.
+  bool                underVTableScan;
+} SFederatedScanPhysiNode;
+
 typedef struct SProjectPhysiNode {
   SPhysiNode node;
   SNodeList* pProjections;
@@ -841,6 +942,7 @@ typedef struct SGroupCachePhysiNode {
   bool       grpByUid;
   bool       globalGrp;
   bool       batchFetch;
+  bool       twoPassMode;  // single-group two-pass for repeat-scan functions (e.g. PERCENTILE)
   SNodeList* pGroupCols;
 } SGroupCachePhysiNode;
 
@@ -1189,9 +1291,62 @@ typedef struct SQueryPlan {
   char*         subSql;
   SExplainInfo  explainInfo;
   void*         pPostPlan;
+  bool          hasFederatedScan;  // true when plan contains at least one SCAN_TYPE_EXTERNAL node
+  bool          hasScan;           // true when plan contains at least one local (vnode) scan
 } SQueryPlan;
 
 const char* dataOrderStr(EDataOrderLevel order);
+
+// ---------------------------------------------------------------------------
+// Federated query: Plan-to-SQL API
+// Defined in source/libs/nodes/src/nodesRemotePlanToSQL.c
+// Callers: Module F (Executor), Module B (Connector), EXPLAIN output.
+//
+// SNodesRemoteSQLCtx — optional callback context for resolving REMOTE_* nodes
+//   during SQL generation.  Pass a populated struct from the Executor (which has
+//   access to the sub-job context and qFetchRemoteNode).  Pass NULL from the
+//   Connector and EXPLAIN — REMOTE_VALUE_LIST nodes will then cause the WHERE
+//   clause to be omitted (best-effort, same behaviour as before).
+// ---------------------------------------------------------------------------
+typedef int32_t (*FResolveRemoteForSQL)(void* pCtx, int32_t subQIdx, SNode* pNode);
+typedef struct SNodesRemoteSQLCtx {
+  void*               pCtx;  // STaskSubJobCtx* from the executor task
+  FResolveRemoteForSQL fp;   // qFetchRemoteNode
+  // When true, column references in WHERE clauses are rendered as
+  // "tableName"."colName" instead of just "colName".  Used when rendering
+  // the body of a correlated EXISTS subquery that is pushed down to an
+  // external source, where column prefixes are required for disambiguation.
+  bool                includeTableName;
+  // DS §5.2.6: client timezone name (e.g. "UTC", "Asia/Shanghai").
+  // When non-NULL and non-empty, timestamp epoch values in WHERE conditions
+  // are formatted to calendar strings using this timezone instead of the
+  // server-side global timezone.  This ensures tz-naive external columns
+  // (MySQL DATETIME, PG TIMESTAMP WITHOUT TIME ZONE) receive correctly
+  // formatted filter values that match the client's interpretation.
+  const char*         tzName;
+} SNodesRemoteSQLCtx;
+
+// nodesRemotePlanToSQL() — walk a Mode 1 outer SFederatedScanPhysiNode's
+//   .pRemotePlan sub-tree and render the full SQL to send to the external source.
+//   pRemotePlan  : the mini physi-plan tree (MUST NOT be NULL).
+//   sourceType   : EExtSourceType value; the SQL dialect is selected internally.
+//   pResolveCtx  : optional; when non-NULL, REMOTE_VALUE_LIST nodes are resolved
+//                  via pResolveCtx->fp and emitted as IN (v1, v2, ...) in SQL.
+//   ppSQL        : OUT — heap-allocated result string; caller must taosMemoryFree().
+//
+// The tree must be rooted at one of:
+//   SProjectPhysiNode → SSortPhysiNode → SFederatedScanPhysiNode(Mode 2 leaf)
+//   SSortPhysiNode    → SFederatedScanPhysiNode(Mode 2 leaf)
+//   SFederatedScanPhysiNode(Mode 2 leaf, pRemotePlan==NULL)
+//
+// nodesExprToExtSQL() — serialize a single expression subtree to a SQL fragment.
+//   Returns TSDB_CODE_EXT_SYNTAX_UNSUPPORTED for unsupported expression types.
+// ---------------------------------------------------------------------------
+int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, int8_t sourceType,
+                             const SNodesRemoteSQLCtx* pResolveCtx,
+                             char** ppSQL);
+int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf, int32_t bufLen,
+                          int32_t* pLen);
 
 #ifdef __cplusplus
 }

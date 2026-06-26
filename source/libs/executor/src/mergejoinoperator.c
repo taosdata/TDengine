@@ -25,6 +25,7 @@
 #include "tdatablock.h"
 #include "thash.h"
 #include "tmsg.h"
+#include "ttime.h"
 #include "ttypes.h"
 #include "functionMgt.h"
 #include "mergejoin.h"
@@ -908,12 +909,23 @@ static int32_t mJoinInitFinColsInfo(SMJoinTableCtx* pTable, SNodeList* pList) {
 
 static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pTarget) {
   SFunctionNode* pFunc = (SFunctionNode*)pTarget->pExpr;
-  if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType) {
-    qError("%s failed at line %d, code:0x%x, error:%s, reason:merge join prim "
-           "expr expects TIMETRUNCATE, funcType:%d",
-           __func__, __LINE__, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,
-           tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR), pFunc->funcType);
+  if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType &&
+      FUNCTION_TYPE_TIMESTAMP_SCALE != pFunc->funcType) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  if (FUNCTION_TYPE_TIMESTAMP_SCALE == pFunc->funcType) {
+    // __timestamp_scale(expr, target_precision) — 2 parameters
+    if (2 != pFunc->pParameterList->length) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    SValueNode* pPrec = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+    if (NULL == pPrec) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    pCtx->targetPrec = (int8_t)pPrec->datum.i;
+    pCtx->type = E_PRIM_TIMESTAMP_SCALE;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t numOfParams = pFunc->pParameterList->length;
@@ -1123,6 +1135,19 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
 
   SMJoinPrimExprCtx* pCtx = &pTable->primCtx;
   switch (pCtx->type) {
+    case E_PRIM_TIMESTAMP_SCALE: {
+      SColumnInfoData* pPrimIn = taosArrayGet(pBlock->pDataBlock, pTable->primCol->srcSlot);
+      if (NULL == pPrimIn) {
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+
+      int8_t srcPrec = pPrimIn->info.precision;
+      int8_t tgtPrec = pCtx->targetPrec;
+      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+        ((int64_t*)pPrimOut->pData)[i] = convertTimePrecision(((int64_t*)pPrimIn->pData)[i], srcPrec, tgtPrec);
+      }
+      break;
+    }
     case E_PRIM_TIMETRUNCATE: {
       SColumnInfoData* pPrimIn = taosArrayGet(pBlock->pDataBlock, pTable->primCol->srcSlot);
       if (NULL == pPrimIn) {
@@ -1164,71 +1189,6 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mJoinGetExternalWinIdx(SMJoinTableCtx* pTable, int32_t rowIdx) {
-  if (NULL == pTable->pBlkWinIdx || taosArrayGetSize(pTable->pBlkWinIdx) <= 0) {
-    return -1;
-  }
-
-  int32_t size = taosArrayGetSize(pTable->pBlkWinIdx);
-  for (int32_t i = size - 1; i >= 0; --i) {
-    int64_t* pIdx = taosArrayGet(pTable->pBlkWinIdx, i);
-    if (NULL == pIdx) {
-      continue;
-    }
-
-    int32_t* pPair = (int32_t*)pIdx;
-    if (rowIdx >= pPair[1]) {
-      return pPair[0];
-    }
-  }
-
-  return -1;
-}
-
-static void mJoinSetExternalWinIdxFromPeer(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
-  SExecTaskInfo* pTaskInfo = pJoin->pOperator->pTaskInfo;
-  if (NULL == pTaskInfo->pStreamRuntimeInfo || !pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow) {
-    return;
-  }
-
-  SMJoinTableCtx* pPeer = (pTable == pJoin->build) ? pJoin->probe : pJoin->build;
-  if (NULL == pPeer || NULL == pPeer->blk || pPeer->blkRowIdx >= pPeer->blk->info.rows) {
-    return;
-  }
-
-  int32_t winIdx = mJoinGetExternalWinIdx(pPeer, pPeer->blkRowIdx);
-  if (winIdx >= 0) {
-    pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = winIdx;
-  }
-}
-
-static int32_t mJoinSaveExternalWinIdx(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
-  SExecTaskInfo* pTaskInfo = pJoin->pOperator->pTaskInfo;
-  if (NULL == pTaskInfo->pStreamRuntimeInfo || !pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow) {
-    if (pTable->pBlkWinIdx) {
-      taosArrayClear(pTable->pBlkWinIdx);
-    }
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SArray* pInputWinIdx = pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx;
-  int32_t size = (NULL == pInputWinIdx) ? 0 : taosArrayGetSize(pInputWinIdx);
-  if (NULL == pTable->pBlkWinIdx) {
-    pTable->pBlkWinIdx = taosArrayInit(TMAX(size, 1), sizeof(int64_t));
-    if (NULL == pTable->pBlkWinIdx) {
-      return terrno;
-    }
-  } else {
-    taosArrayClear(pTable->pBlkWinIdx);
-  }
-
-  if (size > 0 && NULL == taosArrayAddBatch(pTable->pBlkWinIdx, TARRAY_DATA(pInputWinIdx), size)) {
-    return terrno;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
   SSDataBlock* pTmp = NULL;
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -1246,16 +1206,10 @@ SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTa
       return NULL;
     }
 
-    mJoinSetExternalWinIdxFromPeer(pJoin, pTable);
     pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, dsIdx);
     if (NULL == pTmp) {
       pTable->dsFetchDone = true;
       return NULL;
-    }
-    code = mJoinSaveExternalWinIdx(pJoin, pTable);
-    if (code) {
-      pJoin->errCode = code;
-      T_LONG_JMP(pJoin->pOperator->pTaskInfo->env, pJoin->errCode);
     }
 
     if (0 == pTable->lastInGid) {
@@ -1293,16 +1247,10 @@ SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTa
       return NULL;
     }
 
-    mJoinSetExternalWinIdxFromPeer(pJoin, pTable);
     SSDataBlock* pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, dsIdx);
     if (NULL == pTmp) {
       pTable->dsFetchDone = true;
       return NULL;
-    }
-    code = mJoinSaveExternalWinIdx(pJoin, pTable);
-    if (code) {
-      pJoin->errCode = code;
-      T_LONG_JMP(pJoin->pOperator->pTaskInfo->env, pJoin->errCode);
     }
 
     pTable->remainInBlk = pTmp;
@@ -1324,17 +1272,11 @@ static FORCE_INLINE SSDataBlock* mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, SM
     return NULL;
   }
 
-  mJoinSetExternalWinIdxFromPeer(pJoin, pTable);
   SSDataBlock* pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, pTable->downStreamIdx);
   if (NULL == pTmp) {
     pTable->dsFetchDone = true;
   } else {
     int32_t code = mJoinLaunchPrimExpr(pTmp, pTable);
-    if (code) {
-      pJoin->errCode = code;
-      T_LONG_JMP(pJoin->pOperator->pTaskInfo->env, pJoin->errCode);
-    }
-    code = mJoinSaveExternalWinIdx(pJoin, pTable);
     if (code) {
       pJoin->errCode = code;
       T_LONG_JMP(pJoin->pOperator->pTaskInfo->env, pJoin->errCode);
@@ -1797,9 +1739,6 @@ void mJoinResetGroupTableCtx(SMJoinTableCtx* pCtx) {
   pCtx->blk = NULL;
   pCtx->blkRowIdx = 0;
   pCtx->newBlk = false;
-  if (pCtx->pBlkWinIdx) {
-    taosArrayClear(pCtx->pBlkWinIdx);
-  }
 
   mJoinDestroyCreatedBlks(pCtx->createdBlks);
   tSimpleHashClear(pCtx->pGrpHash);
@@ -1956,7 +1895,6 @@ void destroyMergeJoinTableCtx(SMJoinTableCtx* pTable) {
 
   taosArrayDestroy(pTable->eqGrps);
   taosArrayDestroyEx(pTable->pGrpArrays, destroyGrpArray);
-  taosArrayDestroy(pTable->pBlkWinIdx);
 }
 
 void destroyMergeJoinOperator(void* param) {

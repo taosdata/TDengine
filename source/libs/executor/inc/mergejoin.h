@@ -42,7 +42,8 @@ typedef enum EJoinTableType {
 
 typedef enum EPrimExprType {
   E_PRIM_TIMETRUNCATE = 1,
-  E_PRIM_VALUE
+  E_PRIM_VALUE,
+  E_PRIM_TIMESTAMP_SCALE
 } EPrimExprType;
 
 
@@ -90,7 +91,7 @@ typedef struct SMJoinNMatchCtx {
   int32_t grpIdx;
 } SMJoinNMatchCtx;
 
-// for now timetruncate only
+// for now timetruncate and timestamp_scale
 typedef struct SMJoinPrimExprCtx {
   EPrimExprType type;
 
@@ -104,6 +105,9 @@ typedef struct SMJoinPrimExprCtx {
 
   // FOR VALUE
   int64_t       constTs;
+
+  // FOR TIMESTAMP_SCALE
+  int8_t        targetPrec;
 } SMJoinPrimExprCtx;
 
 typedef struct SMJoinTableCtx {
@@ -136,7 +140,6 @@ typedef struct SMJoinTableCtx {
   bool               newBlk;
   SSDataBlock*       blk;
   int32_t            blkRowIdx;
-  SArray*            pBlkWinIdx;
 
   // merge join
   

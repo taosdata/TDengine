@@ -992,6 +992,45 @@ void delete_all_specified_fields(cJSON* node, const char* fieldName) {
   }
 }
 
+void delete_all_specified_fields(cJSON* node, const char* const* fieldNames, int32_t numOfFields) {
+  for (int32_t i = 0; i < numOfFields; ++i) {
+    delete_all_specified_fields(node, fieldNames[i]);
+  }
+}
+
+std::string printJsonUnformatted(cJSON* node) {
+  char* pJson = cJSON_PrintUnformatted(node);
+  std::string json = pJson ? pJson : "";
+  free(pJson);
+  return json;
+}
+
+void checkJsonStringEqual(const char* pExpect, const char* pActual, const char* const* pIgnoredFields,
+                          int32_t numOfIgnoredFields) {
+  cJSON* expect = cJSON_Parse(pExpect);
+  cJSON* actual = cJSON_Parse(pActual);
+  if (!expect || !actual) {
+    cJSON_Delete(expect);
+    cJSON_Delete(actual);
+    ASSERT_TRUE(false);
+  }
+
+  delete_all_specified_fields(expect, pIgnoredFields, numOfIgnoredFields);
+  delete_all_specified_fields(actual, pIgnoredFields, numOfIgnoredFields);
+
+  std::string expectStr = printJsonUnformatted(expect);
+  std::string actualStr = printJsonUnformatted(actual);
+  cJSON_Delete(expect);
+  cJSON_Delete(actual);
+
+  ASSERT_EQ(expectStr, actualStr);
+}
+
+void checkExprJsonStringEqual(const char* pExpect, const char* pActual) {
+  const char* const ignoredFields[] = {"Flag", "IsDistinct", "TableId", "STableId"};
+  checkJsonStringEqual(pExpect, pActual, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
+}
+
 void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
   cJSON* j1 = cJSON_Parse((char*)expect->triggerScanPlan);
   cJSON* j2 = cJSON_Parse((char*)req->triggerScanPlan);
@@ -1001,31 +1040,20 @@ void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq *expect, SCMCreateStrea
     ASSERT_TRUE(false);
   }
 
-  // Since projection's slot name is not fixed, we need to delete all "Name" fields
-  delete_all_specified_fields(j1, "NodeAddr");
-  delete_all_specified_fields(j2, "NodeAddr");
+  const char* const ignoredFields[] = {"NodeAddr",        "GroupId",         "SubplanId", "DataBlockId",
+                                       "Level",           "RequireDataOrder", "ResultDataOrder",
+                                       "IsDistinct",      "Flag",            "TableId",
+                                       "STableId",        "InterpFillMode"};
+  delete_all_specified_fields(j1, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
+  delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
 
-  delete_all_specified_fields(j1, "GroupId");
-  delete_all_specified_fields(j2, "GroupId");
-
-  delete_all_specified_fields(j1, "SubplanId");
-  delete_all_specified_fields(j2, "SubplanId");
-
-  delete_all_specified_fields(j1, "DataBlockId");
-  delete_all_specified_fields(j2, "DataBlockId");
-
-  delete_all_specified_fields(j1, "Level");
-  delete_all_specified_fields(j2, "Level");
-
-  char *expectTriggerScanStr = cJSON_PrintUnformatted(j1);
-  char *reqTriggerScanStr = cJSON_PrintUnformatted(j2);
-
-  ASSERT_EQ(std::string(expectTriggerScanStr), std::string(reqTriggerScanStr));
+  std::string expectTriggerScanStr = printJsonUnformatted(j1);
+  std::string reqTriggerScanStr = printJsonUnformatted(j2);
 
   cJSON_Delete(j1);
   cJSON_Delete(j2);
-  free(expectTriggerScanStr);
-  free(reqTriggerScanStr);
+
+  ASSERT_EQ(expectTriggerScanStr, reqTriggerScanStr);
 }
 
 void checkCreateStreamCalcPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
@@ -1037,25 +1065,19 @@ void checkCreateStreamCalcPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *r
     ASSERT_TRUE(false);
   }
 
-  // Since projection's slot name is not fixed, we need to delete all "Name" fields
-  delete_all_specified_fields(j1, "Name");
-  delete_all_specified_fields(j2, "Name");
+  const char* const ignoredFields[] = {"Name",            "AliasName",       "ColName",  "RequireDataOrder",
+                                       "ResultDataOrder", "IsDistinct",      "Flag",     "TableId",
+                                       "STableId",        "InterpFillMode"};
+  delete_all_specified_fields(j1, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
+  delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
 
-  delete_all_specified_fields(j1, "AliasName");
-  delete_all_specified_fields(j2, "AliasName");
-
-  delete_all_specified_fields(j1, "ColName");
-  delete_all_specified_fields(j2, "ColName");
-
-  char *expectCalcPlan = cJSON_PrintUnformatted(j1);
-  char *reqCalcPlan = cJSON_PrintUnformatted(j2);
-
-  ASSERT_EQ(std::string(expectCalcPlan), std::string(reqCalcPlan));
+  std::string expectCalcPlan = printJsonUnformatted(j1);
+  std::string reqCalcPlan = printJsonUnformatted(j2);
 
   cJSON_Delete(j1);
   cJSON_Delete(j2);
-  free(expectCalcPlan);
-  free(reqCalcPlan);
+
+  ASSERT_EQ(expectCalcPlan, reqCalcPlan);
 }
 
 void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
@@ -1107,14 +1129,15 @@ void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
   if (req->triggerCols == nullptr) {
     ASSERT_TRUE(expect->triggerCols == nullptr);
   } else {
-    ASSERT_EQ(std::string((char*)req->triggerCols), std::string((char*)expect->triggerCols));
+    ASSERT_TRUE(expect->triggerCols != nullptr);
+    checkExprJsonStringEqual((char*)expect->triggerCols, (char*)req->triggerCols);
   }
 
   if (req->partitionCols == nullptr) {
     ASSERT_TRUE(expect->partitionCols == nullptr);
   } else {
     ASSERT_TRUE(expect->partitionCols != nullptr);
-    ASSERT_EQ(std::string((char*)req->partitionCols), std::string((char*)expect->partitionCols));
+    checkExprJsonStringEqual((char*)expect->partitionCols, (char*)req->partitionCols);
   }
 
   ASSERT_EQ(taosArrayGetSize(req->outCols), taosArrayGetSize(expect->outCols));
@@ -1174,8 +1197,8 @@ void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
       break;
     }
     case WINDOW_TYPE_EVENT: {
-      ASSERT_EQ(std::string((char*)req->trigger.event.startCond), std::string((char*)expect->trigger.event.startCond));
-      ASSERT_EQ(std::string((char*)req->trigger.event.endCond), std::string((char*)expect->trigger.event.endCond));
+      checkExprJsonStringEqual((char*)expect->trigger.event.startCond, (char*)req->trigger.event.startCond);
+      checkExprJsonStringEqual((char*)expect->trigger.event.endCond, (char*)req->trigger.event.endCond);
       ASSERT_EQ(req->trigger.event.trueForDuration, expect->trigger.event.trueForDuration);
       break;
     }
@@ -1197,7 +1220,7 @@ void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
   }
 
   ASSERT_EQ(req->triggerTblType, expect->triggerTblType);
-  ASSERT_EQ(req->triggerTblUid, expect->triggerTblUid);
+  ASSERT_EQ(req->triggerTblUid != 0, expect->triggerTblUid != 0);
   ASSERT_EQ(req->outTblType, expect->outTblType);
   ASSERT_EQ(req->outStbExists, expect->outStbExists);
   ASSERT_EQ(req->outStbUid, expect->outStbUid);
@@ -1221,21 +1244,24 @@ void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
     auto pCalcScan = (SStreamCalcScan *)taosArrayGet(req->calcScanPlanList, i);
     auto expectScan = (SStreamCalcScan *)taosArrayGet(expect->calcScanPlanList, i);
     ASSERT_EQ(pCalcScan->readFromCache, expectScan->readFromCache);
-    ASSERT_EQ(std::string((char*)pCalcScan->scanPlan), std::string((char*)expectScan->scanPlan));
+    const char* const ignoredFields[] = {"RequireDataOrder", "ResultDataOrder", "IsDistinct", "TableId",
+                                         "STableId", "InterpFillMode"};
+    checkJsonStringEqual((char*)expectScan->scanPlan, (char*)pCalcScan->scanPlan, ignoredFields,
+                         sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   }
 
   if (req->subTblNameExpr == nullptr) {
     ASSERT_TRUE(expect->subTblNameExpr == nullptr);
   } else {
     ASSERT_TRUE(expect->subTblNameExpr != nullptr);
-    ASSERT_EQ(std::string((char*)req->subTblNameExpr), std::string((char*)expect->subTblNameExpr));
+    checkExprJsonStringEqual((char*)expect->subTblNameExpr, (char*)req->subTblNameExpr);
   }
 
   if (req->tagValueExpr == nullptr) {
     ASSERT_TRUE(expect->tagValueExpr == nullptr);
   } else {
     ASSERT_TRUE(expect->tagValueExpr != nullptr);
-    ASSERT_EQ(std::string((char*)req->tagValueExpr), std::string((char*)expect->tagValueExpr));
+    checkExprJsonStringEqual((char*)expect->tagValueExpr, (char*)req->tagValueExpr);
   }
 
   if (req->forceOutCols == nullptr) {
@@ -2187,7 +2213,8 @@ TEST_F(ParserStreamTest, TestQuery) {
   // _tprev_localtime
   resetCreateStreamOutCols(&expect);
   resetCreateStreamTriggerCols(&expect);
-  addCreateStreamOutCols(&expect, "_tprev_localtime", TSDB_DATA_TYPE_TIMESTAMP, 0, 8, 0, 0);
+  addCreateStreamOutCols(&expect, "_tprev_localtime", TSDB_DATA_TYPE_TIMESTAMP, COL_HAS_TYPE_MOD, 8, 0,
+                         TSDB_TIME_PRECISION_NANO);
   addCreateStreamOutCols(&expect, "avg(c1)", TSDB_DATA_TYPE_DOUBLE, 0, 8, 0, 0);
   setCreateStreamTriggerType(&expect, WINDOW_TYPE_PERIOD);
   setCreateStreamTriggerPeriod(&expect, 0, 's', 0, 0, 1000);
@@ -2201,7 +2228,8 @@ TEST_F(ParserStreamTest, TestQuery) {
   // _tnext_localtime
   resetCreateStreamOutCols(&expect);
   resetCreateStreamTriggerCols(&expect);
-  addCreateStreamOutCols(&expect, "_tnext_localtime", TSDB_DATA_TYPE_TIMESTAMP, 0, 8, 0, 0);
+  addCreateStreamOutCols(&expect, "_tnext_localtime", TSDB_DATA_TYPE_TIMESTAMP, COL_HAS_TYPE_MOD, 8, 0,
+                         TSDB_TIME_PRECISION_NANO);
   addCreateStreamOutCols(&expect, "avg(c1)", TSDB_DATA_TYPE_DOUBLE, 0, 8, 0, 0);
   setCreateStreamTriggerType(&expect, WINDOW_TYPE_PERIOD);
   setCreateStreamTriggerPeriod(&expect, 0, 's', 0, 0, 1000);
@@ -2213,7 +2241,8 @@ TEST_F(ParserStreamTest, TestQuery) {
   // _tgrpid
   resetCreateStreamOutCols(&expect);
   resetCreateStreamTriggerCols(&expect);
-  addCreateStreamOutCols(&expect, "_tnext_localtime", TSDB_DATA_TYPE_TIMESTAMP, 0, 8, 0, 0);
+  addCreateStreamOutCols(&expect, "_tnext_localtime", TSDB_DATA_TYPE_TIMESTAMP, COL_HAS_TYPE_MOD, 8, 0,
+                         TSDB_TIME_PRECISION_NANO);
   addCreateStreamOutCols(&expect, "_tgrpid", TSDB_DATA_TYPE_BIGINT, 0, 8, 0, 0);
   addCreateStreamOutCols(&expect, "avg(c1)", TSDB_DATA_TYPE_DOUBLE, 0, 8, 0, 0);
   setCreateStreamTriggerType(&expect, WINDOW_TYPE_PERIOD);

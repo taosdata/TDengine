@@ -861,9 +861,12 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SOperatorInfo* pDownstream = pOperator->pDownstream[i];
     if (pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
-        pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+        pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE &&
+        pDownstream->operatorType != QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
       /**
-        Only table scan and exchange operator are supported right now.
+        Only table scan, exchange and federated scan operators are supported right now.
+        Federated scan is treated as a no-op for notify (UNION ALL LIMIT already
+        controls boundary data precisely).
       */
       qWarn("%s, %s only table scan and exchange operators are supported "
              "for notify right now, but got %d, skip notify step done",
@@ -871,6 +874,17 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
              pDownstream->operatorType);
       continue;
     }
+
+    // Federated scan: notify is a no-op — do NOT store a pParam in pDownstreamGetParams.
+    // federatedScanGetNextExtFn resets the external-source connection whenever it receives
+    // any non-NULL pParam, so storing even an empty param here would cause an infinite
+    // re-scan loop: INTERP sends a notify on every downstream fetch when checkWindowBound
+    // is true, the FedScan restarts from scratch, returns the same rows, INTERP never
+    // advances, and OOM / taosd crash follows.
+    if (pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
+      continue;
+    }
+
     SOperatorParam* pParam = pOperator->pDownstreamGetParams[i];
     if (pParam == NULL) {
       pParam = (SOperatorParam*)taosMemoryCalloc(1, sizeof(SOperatorParam));

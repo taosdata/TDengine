@@ -848,6 +848,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.ctb.pTag = me.ctbEntry.pTags;
     req.ctb.tagName = tagName;
     req.colRef = me.colRef;
+    req.series = me.series;
     // batch meta txn: propagate txn fields for snapshot replication
     req.txnId = me.txnId;
     req.txnStatus = me.txnStatus;
@@ -877,6 +878,7 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.colCmpr = me.colCmpr;
     req.pExtSchemas = me.pExtSchemas;
     req.colRef = me.colRef;
+    req.series = me.series;
     // batch meta txn: propagate txn fields for snapshot replication
     req.txnId = me.txnId;
     req.txnStatus = me.txnStatus;

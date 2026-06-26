@@ -93,6 +93,7 @@ typedef struct SMetaEntry {
   SColCmprWrapper colCmpr;  // col compress alg
   SExtSchema*     pExtSchemas;
   SColRefWrapper  colRef;   // col reference for virtual table
+  SSeriesWrapper  series;   // series declarations for virtual table
 } SMetaEntry;
 
 typedef struct SMetaReader {
@@ -326,6 +327,8 @@ typedef struct SStoreMeta {
 
   int32_t (*metaGetCachedRefDbs)(void* pVnode, tb_uid_t suid, SArray* pList);
   int32_t (*metaPutRefDbsToCache)(void* pVnode, tb_uid_t suid, SArray* pList);
+  int32_t (*metaGetCachedExtSources)(void* pVnode, tb_uid_t suid, SArray* pList);
+  int32_t (*metaPutExtSourcesToCache)(void* pVnode, tb_uid_t suid, SArray* pList);
 
   void* (*storeGetIndexInfo)(void* pVnode);
   void* (*getInvertIndex)(void* pVnode);

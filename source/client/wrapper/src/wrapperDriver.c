@@ -13,8 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if !defined(WINDOWS) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+
 #include "wrapper.h"
 #include "wrapperHint.h"
+#ifndef WINDOWS
+#include <dlfcn.h>
+#endif
 
 #ifdef WINDOWS
 #define DRIVER_NATIVE_NAME    "taosnative.dll"
@@ -54,6 +61,33 @@ static int32_t taosGetDevelopPath(char *driverPath, const char *driverName) {
   return ret;
 }
 
+#ifndef WINDOWS
+static int32_t taosGetCoLocatedPath(char *driverPath, const char *driverName) {
+  Dl_info info = {0};
+  if (dladdr((void*)taosDriverInit, &info) == 0 || info.dli_fname == NULL) {
+    return -1;
+  }
+
+  const char *full = info.dli_fname;
+  const char *sep = strrchr(full, TD_DIRSEP[0]);
+  if (sep == NULL) {
+    return -1;
+  }
+
+  size_t dirLen = (size_t)(sep - full);
+  if (dirLen == 0 || dirLen >= PATH_MAX) {
+    return -1;
+  }
+
+  int32_t n = snprintf(driverPath, PATH_MAX, "%.*s%s%s", (int)dirLen, full, TD_DIRSEP, driverName);
+  if (n <= 0 || n >= PATH_MAX) {
+    return -1;
+  }
+
+  return taosRealPath(driverPath, NULL, PATH_MAX);
+}
+#endif
+
 void taosDriverEnvInit() {
   const char *driver = getenv("TDENGINE_DRIVER");
   if (driver) {
@@ -76,6 +110,13 @@ int32_t taosDriverInit(EDriverType driverType) {
   } else {
     driverName = DRIVER_WSBSOCKET_NAME;
   }
+
+  // Prefer the driver colocated with loaded libtaos wrapper.
+#ifndef WINDOWS
+  if (tsDriver == NULL && taosGetCoLocatedPath(driverPath, driverName) == 0) {
+    tsDriver = taosLoadDll(driverPath);
+  }
+#endif
 
   // load from develop build path
   if (tsDriver == NULL && taosGetDevelopPath(driverPath, driverName) == 0) {

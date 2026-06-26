@@ -11314,7 +11314,6 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         pGroup->parentWindow.wrownum++;
         pGroup->parentWindow.range.ekey = (pTsData[i] | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
       }
-
       // End-condition streak tracking and close decision
       // _ekey: the window's official close timestamp.
       // For end-streak: first row of the satisfying streak; for immediate close: current row.
@@ -11696,9 +11695,9 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
     bool deferFirstSubWinOpen = (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows == 1 &&
                                  pWin->range.skey == pGroup->parentWindow.range.skey);
     if ((calcOpen || notifyOpen) && !ignore && !deferFirstSubWinOpen && !pContext->recovering) {
-      SSTriggerCalcParam param = {.triggerTime = now,
-                                  .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
-                                  .extraNotifyContent = pWin->pWinOpenNotify};
+      SSTriggerCalcParam    param = {.triggerTime = now,
+                                     .notifyType = (notifyOpen ? STRIGGER_EVENT_WINDOW_OPEN : STRIGGER_EVENT_WINDOW_NONE),
+                                     .extraNotifyContent = pWin->pWinOpenNotify};
       SSTriggerNotifyWindow win = *pWin;
       if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
         win.range.ekey = win.range.skey;
@@ -13503,7 +13502,8 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
               QUERY_CHECK_CODE(code, lino, _end_block);
             }
             if (cut.splitStandalone) {
-              code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false, false);
+              code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true,
+                                              false, false);
               QUERY_CHECK_CODE(code, lino, _end_block);
               TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->ds.numDeferredPartialNull;
               TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->ds.lastDeferredPartialNullTs;
@@ -13611,7 +13611,8 @@ static int32_t stHistoryGroupDoStateCheck(SSTriggerHistoryGroup *pGroup) {
                 QUERY_CHECK_CODE(code, lino, _end_block);
               }
               if (cut.splitStandalone) {
-                code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true, false, false);
+                code = stHistoryGroupOpenWindow(pGroup, cut.splitStandaloneStartTs, &pExtraNotifyContent, false, true,
+                                                false, false);
                 QUERY_CHECK_CODE(code, lino, _end_block);
                 TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->ds.numDeferredPartialNull;
                 TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pGroup->ds.lastDeferredPartialNullTs;

@@ -1,0 +1,369 @@
+### xsrc-01 POS
+SQL: SELECT id, val FROM {M}.ta UNION ALL SELECT id, val FROM {P}.ta ORDER BY 1, 2
+RESULT
+1|10
+1|10
+2|20
+2|20
+3|30
+3|30
+4|40
+4|40
+5|50
+5|50
+6|10
+6|10
+---
+### xsrc-02 POS
+SQL: SELECT id, val FROM {M}.ta UNION ALL SELECT id, val FROM {I}.ta ORDER BY 1, 2
+RESULT
+1|10
+1|10
+2|20
+2|20
+3|30
+3|30
+4|40
+4|40
+5|50
+5|50
+6|10
+6|10
+---
+### xsrc-03 POS
+SQL: SELECT id, val FROM {P}.ta UNION ALL SELECT id, val FROM {I}.ta ORDER BY 1, 2
+RESULT
+1|10
+1|10
+2|20
+2|20
+3|30
+3|30
+4|40
+4|40
+5|50
+5|50
+6|10
+6|10
+---
+### xsrc-04 POS
+SQL: SELECT id, val FROM {M}.ta UNION SELECT id, val FROM {P}.ta ORDER BY 1, 2
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+6|10
+---
+### xsrc-05 POS
+SQL: SELECT id, val FROM {M}.ta UNION SELECT id, val FROM {I}.ta ORDER BY 1, 2
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+6|10
+---
+### xsrc-06 POS
+SQL: SELECT id, val FROM {M}.ta UNION ALL SELECT id, val FROM {P}.ta UNION ALL SELECT id, val FROM {I}.ta ORDER BY 1, 2
+RESULT
+1|10
+1|10
+1|10
+2|20
+2|20
+2|20
+3|30
+3|30
+3|30
+4|40
+4|40
+4|40
+5|50
+5|50
+5|50
+6|10
+6|10
+6|10
+---
+### xsrc-07 POS
+SQL: SELECT id, val FROM {M}.ta UNION ALL SELECT id, val FROM {P}.ta UNION ALL SELECT id, val FROM {I}.ta UNION ALL SELECT id, val FROM {L}.ta ORDER BY 1, 2
+RESULT
+1|10
+1|10
+1|10
+1|10
+2|20
+2|20
+2|20
+2|20
+3|30
+3|30
+3|30
+3|30
+4|40
+4|40
+4|40
+4|40
+5|50
+5|50
+5|50
+5|50
+6|10
+6|10
+6|10
+6|10
+---
+### xsrc-08 POS
+SQL: SELECT id, val FROM {M}.ta WHERE id IN (SELECT ref_id FROM {P}.tb) ORDER BY id
+RESULT
+1|10
+2|20
+3|30
+5|50
+---
+### xsrc-09 POS
+SQL: SELECT id, val FROM {M}.ta WHERE id IN (SELECT val FROM {L}.ref_t) ORDER BY id
+RESULT
+1|10
+3|30
+---
+### xsrc-10 POS
+SQL: SELECT id, val FROM {I}.ta WHERE id IN (SELECT val FROM {L}.ref_t) ORDER BY time
+RESULT
+1|10
+3|30
+---
+### xsrc-11 POS
+SQL: SELECT id, val FROM {M}.ta WHERE id NOT IN (SELECT val FROM {L}.ref_t) ORDER BY id
+RESULT
+2|20
+4|40
+5|50
+6|10
+---
+### xsrc-12 POS
+SQL: SELECT id FROM {M}.ta WHERE EXISTS (SELECT 1 FROM {L}.ref_t WHERE val = 1) ORDER BY id
+RESULT
+1
+2
+3
+4
+5
+6
+---
+### xsrc-13 POS
+SQL: SELECT id FROM {P}.ta WHERE NOT EXISTS (SELECT 1 FROM {L}.empty_t) ORDER BY id
+RESULT
+1
+2
+3
+4
+5
+6
+---
+### xsrc-14 POS
+SQL: SELECT id FROM {I}.ta WHERE EXISTS (SELECT 1 FROM {L}.ref_t WHERE val = 1) ORDER BY time
+RESULT
+1
+2
+3
+4
+5
+6
+---
+### xsrc-15 POS
+SQL: SELECT id, val FROM {I}.ta WHERE val > (SELECT MAX(val2) FROM {P}.tb WHERE flag = 1) ORDER BY time
+RESULT
+5|50
+---
+### xsrc-16 POS
+SQL: SELECT id, val FROM {M}.ta WHERE val > ANY (SELECT val2 FROM {P}.tb WHERE flag = 1) ORDER BY id
+RESULT
+2|20
+3|30
+4|40
+5|50
+---
+### xsrc-17 POS
+SQL: SELECT id, val FROM {I}.ta WHERE val > ALL (SELECT val FROM {L}.ref_t) ORDER BY time
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+6|10
+---
+### xsrc-18 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {M}.ta a INNER JOIN {P}.tb b ON a.time = b.time ORDER BY a.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+6|10|4|45
+---
+### xsrc-19 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {M}.ta a INNER JOIN {I}.tb b ON a.time = b.time ORDER BY a.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+6|10|4|45
+---
+### xsrc-20 POS
+SQL: SELECT a.id, a.val, b.val2 FROM {M}.ta a LEFT ASOF JOIN {P}.tb b ON a.time >= b.time ORDER BY a.time
+RESULT
+1|10|15
+2|20|25
+3|30|30
+4|40|30
+5|50|30
+6|10|45
+---
+### xsrc-21 POS
+SQL: SELECT a.id, a.val, b.val2 FROM {M}.ta a LEFT WINDOW JOIN {I}.tb b WINDOW_OFFSET(-1m, 1m) ORDER BY a.time, b.time
+RESULT
+1|10|15
+1|10|25
+2|20|15
+2|20|25
+2|20|30
+3|30|25
+3|30|30
+4|40|30
+5|50|45
+6|10|45
+6|10|50
+---
+### xsrc-22 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {P}.ta a FULL JOIN {I}.tb b ON a.time = b.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+4|40|NULL|NULL
+5|50|NULL|NULL
+6|10|4|45
+NULL|NULL|5|50
+---
+### xsrc-23 POS
+SQL: SELECT id, val FROM {P}.ta WHERE val > (SELECT MAX(val2) FROM {M}.tb WHERE flag = 1) ORDER BY id
+RESULT
+5|50
+---
+### xsrc-24 POS
+SQL: SELECT a.val, b.bid, b.val2 FROM {I}.ta a RIGHT ASOF JOIN {P}.tb b ON b.time >= a.time ORDER BY b.time
+RESULT
+10|1|15
+20|2|25
+30|3|30
+10|4|45
+10|5|50
+---
+### xsrc-25-neg NEG
+SQL: SELECT a.id, a.val, b.val2 FROM {M}.ta a LEFT WINDOW JOIN {I}.tb b WINDOW_OFFSET(-1m, 1m) ORDER BY a.time, b.ts
+ERROR -0x7fffd9fe: Invalid column name: ts
+---
+### xsrc-26-neg NEG
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {P}.ta a FULL JOIN {I}.tb b ON a.time = b.ts
+ERROR -0x7fffd9fe: Invalid column name: ts
+---
+### xsrc-27-neg NEG
+SQL: SELECT a.val, b.bid, b.val2 FROM {I}.ta a RIGHT ASOF JOIN {P}.tb b ON b.time >= a.ts ORDER BY b.time
+ERROR -0x7fffd9fe: Invalid column name: ts
+---
+### neg-m-01 NEG
+SQL: SELECT a.id, b.bid FROM {M}.ta a JOIN {M}.tb b ON a.id = b.bid ORDER BY a.id
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-m-02 NEG
+SQL: SELECT a.id, b.bid FROM {M}.ta a FULL JOIN {M}.tb b ON a.id = b.bid
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-m-03 NEG
+SQL: SELECT a.id FROM {M}.ta a LEFT SEMI JOIN {M}.tb b ON a.id = b.bid ORDER BY a.id
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-m-04 NEG
+SQL: SELECT a.id FROM {M}.ta a LEFT ANTI JOIN {M}.tb b ON a.id = b.bid ORDER BY a.id
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-m-05 NEG
+SQL: SELECT b.bid FROM {M}.ta a RIGHT SEMI JOIN {M}.tb b ON a.id = b.bid ORDER BY b.bid
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-m-06 NEG
+SQL: SELECT b.bid FROM {M}.ta a RIGHT ANTI JOIN {M}.tb b ON a.id = b.bid ORDER BY b.bid
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-p-01 NEG
+SQL: SELECT a.id, b.bid FROM {P}.ta a JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-p-02 NEG
+SQL: SELECT a.id, b.bid FROM {P}.ta a FULL JOIN {P}.tb b ON a.id = b.bid
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-p-03 NEG
+SQL: SELECT a.id FROM {P}.ta a LEFT SEMI JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-p-04 NEG
+SQL: SELECT a.id FROM {P}.ta a LEFT ANTI JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-p-05 NEG
+SQL: SELECT b.bid FROM {P}.ta a RIGHT SEMI JOIN {P}.tb b ON a.id = b.bid ORDER BY b.bid
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-p-06 NEG
+SQL: SELECT b.bid FROM {P}.ta a RIGHT ANTI JOIN {P}.tb b ON a.id = b.bid ORDER BY b.bid
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-i-01 NEG
+SQL: SELECT a.id, b.bid FROM {I}.ta a JOIN {I}.tb b ON a.id = b.bid ORDER BY a.id
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-i-02 NEG
+SQL: SELECT a.id, b.bid FROM {I}.ta a FULL JOIN {I}.tb b ON a.id = b.bid
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-i-03 NEG
+SQL: SELECT a.id FROM {I}.ta a LEFT SEMI JOIN {I}.tb b ON a.id = b.bid ORDER BY a.id
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-i-04 NEG
+SQL: SELECT a.id FROM {I}.ta a LEFT ANTI JOIN {I}.tb b ON a.id = b.bid ORDER BY a.id
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-i-05 NEG
+SQL: SELECT b.bid FROM {I}.ta a RIGHT SEMI JOIN {I}.tb b ON a.id = b.bid ORDER BY b.bid
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-i-06 NEG
+SQL: SELECT b.bid FROM {I}.ta a RIGHT ANTI JOIN {I}.tb b ON a.id = b.bid ORDER BY b.bid
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-x-01 NEG
+SQL: SELECT a.id FROM {M}.ta a JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id
+ERROR -0x7fffd99c: External source JOIN requires primary timestamp column in ON condition
+---
+### neg-csub-m-01 NEG
+SQL: SELECT id FROM {M}.ta a WHERE EXISTS (SELECT 1 FROM {M}.tb b WHERE b.ref_id = a.id) ORDER BY id
+ERROR -0x7fffd95a: Not supported subquery as expr
+---
+### neg-csub-m-02 NEG
+SQL: SELECT id FROM {M}.ta a WHERE NOT EXISTS (SELECT 1 FROM {M}.tb b WHERE b.ref_id = a.id) ORDER BY id
+ERROR -0x7fffd95a: Not supported subquery as expr
+---
+### neg-csub-p-01 NEG
+SQL: SELECT id FROM {P}.ta a WHERE EXISTS (SELECT 1 FROM {P}.tb b WHERE b.ref_id = a.id) ORDER BY id
+ERROR -0x7fffd95a: Not supported subquery as expr
+---
+### neg-csub-p-02 NEG
+SQL: SELECT id FROM {P}.ta a WHERE NOT EXISTS (SELECT 1 FROM {P}.tb b WHERE b.ref_id = a.id) ORDER BY id
+ERROR -0x7fffd95a: Not supported subquery as expr
+---

@@ -18,6 +18,7 @@
 #include "dmInt.h"
 // #include "dmMgmt.h"
 #include "crypt.h"
+#include "extConnector.h"
 #include "monitor.h"
 #include "stream.h"
 #include "systable.h"
@@ -891,6 +892,20 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (cfgReq.version > 0) {
     tsdmConfigVersion = cfgReq.version;
   }
+
+  // Propagate federatedQuery* changes to the ext connector module so that
+  // pools created after this ALTER pick up the new values without restart.
+  if (taosStrncasecmp(cfgReq.config, "federatedQuery", 14) == 0) {
+    SExtConnectorModuleCfg extConnCfg = {
+      .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+      .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+      .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+      .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+      .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+    };
+    extConnectorUpdateModuleCfg(&extConnCfg);
+  }
+
   return code;
 }
 

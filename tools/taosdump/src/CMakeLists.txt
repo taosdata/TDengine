@@ -85,7 +85,7 @@ ENDIF ()
 # ------------- taosdump --------------
 #
 # Apache Arrow + Parquet are built from source via ExternalProject_Add in
-# cmake/external.cmake (ext_arrow), using ARROW_DEPENDENCY_SOURCE=BUNDLED so
+# cmake/external.cmake (ext_arrow_static), using ARROW_DEPENDENCY_SOURCE=BUNDLED so
 # Arrow fetches/builds Thrift, Snappy, Zstd, etc. internally.
 # The three static archives produced are:
 #   libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
@@ -136,10 +136,10 @@ SET_TARGET_PROPERTIES(taosdump PROPERTIES LINKER_LANGUAGE CXX)
 target_compile_features(taosdump PRIVATE cxx_std_17)
 
 # Arrow include directory (set by INIT_EXT in external.cmake)
-target_include_directories(taosdump PRIVATE "${ext_arrow_inc_dir}")
+target_include_directories(taosdump PRIVATE "${ext_arrow_static_inc_dir}")
 
-# Declare build-time dependency so ext_arrow is compiled before taosdump links
-add_dependencies(taosdump ext_arrow)
+# Declare build-time dependency so ext_arrow_static is compiled before taosdump links
+add_dependencies(taosdump ext_arrow_static)
 
 if(TD_DARWIN)
     # Suppress ld64 duplicate static library noise caused by transitive links.
@@ -156,11 +156,12 @@ if(NOT ${TD_WINDOWS})
     target_compile_options(taosdump PRIVATE -ffunction-sections -fdata-sections)
 
     # Prevent ZSTD symbol interposition: libtaos.so exports TSZ's ZSTD symbols
-    # which collide with ext_arrow's statically bundled ZSTD.
+    # which collide with ext_arrow_static's statically bundled ZSTD.
     if(NOT TD_DARWIN)
         target_link_options(taosdump PRIVATE
             -Wl,--gc-sections
             -Wl,-Bsymbolic-functions
+            -Wl,--exclude-libs,ALL
             -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/zstd_local.map
         )
     endif()
@@ -240,7 +241,7 @@ if(NOT ${TD_WINDOWS})
     endif()
     set(_stripped_arrow_libs "")
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/stripped_arrow")
-    foreach(_arrow_lib ${ext_arrow_libs})
+    foreach(_arrow_lib ${ext_arrow_static_libs})
         get_filename_component(_arrow_name "${_arrow_lib}" NAME)
         set(_stripped_lib "${CMAKE_CURRENT_BINARY_DIR}/stripped_arrow/${_arrow_name}")
         add_custom_command(
@@ -253,7 +254,7 @@ if(NOT ${TD_WINDOWS})
         list(APPEND _stripped_arrow_libs "${_stripped_lib}")
     endforeach()
     add_custom_target(strip_arrow_libs ALL DEPENDS ${_stripped_arrow_libs})
-    add_dependencies(strip_arrow_libs ext_arrow)
+    add_dependencies(strip_arrow_libs ext_arrow_static)
     add_dependencies(taosdump strip_arrow_libs)
 
     foreach(_stripped_lib ${_stripped_arrow_libs})
@@ -261,7 +262,7 @@ if(NOT ${TD_WINDOWS})
     endforeach()
 else()
     # Windows: link Arrow libs as-is (MSVC PDBs are separate files)
-    foreach(_arrow_lib ${ext_arrow_libs})
+    foreach(_arrow_lib ${ext_arrow_static_libs})
         target_link_libraries(taosdump PRIVATE "${_arrow_lib}")
     endforeach()
 endif()

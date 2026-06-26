@@ -14,10 +14,13 @@
  */
 
 #include "catalogInt.h"
+#include "extConnector.h"
 #include "query.h"
 #include "systable.h"
 #include "tname.h"
 #include "trpc.h"
+
+static void ctgFreeExtTableMetaPRes(void* p);
 
 void ctgFreeSViewMeta(SViewMeta* pMeta) {
   if (NULL == pMeta) {
@@ -209,6 +212,12 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pVStbRefDbs);
   pData->pVStbRefDbs = NULL;
 
+  taosArrayDestroy(pData->pExtSourceInfo);
+  pData->pExtSourceInfo = NULL;
+
+  taosArrayDestroyEx(pData->pExtTableMetaRsp, ctgFreeExtTableMetaPRes);
+  pData->pExtTableMetaRsp = NULL;
+
   taosMemoryFreeClear(pData->pSvrVer);
 }
 
@@ -388,6 +397,7 @@ void ctgFreeHandleImpl(SCatalog* pCtg) {
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
   ctgFreeMetaRent(&pCtg->tsmaRent);
+  ctgDestroyExtSourceCache(pCtg);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -418,6 +428,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
   ctgFreeMetaRent(&pCtg->tsmaRent);
+  ctgDestroyExtSourceCache(pCtg);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -512,6 +523,7 @@ void ctgClearHandle(SCatalog* pCtg) {
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
   ctgFreeMetaRent(&pCtg->tsmaRent);
+  ctgDestroyExtSourceCache(pCtg);
 
   ctgFreeInstDbCache(pCtg->dbCache);
   ctgFreeInstUserCache(pCtg->userCache);
@@ -648,6 +660,12 @@ void ctgFreeMsgCtx(SCtgMsgCtx* pCtx) {
       taosMemoryFreeClear(pCtx->target);
       break;
     }
+    case TDMT_MND_GET_EXT_SOURCE: {
+      if (pCtx->out) {
+        taosMemoryFreeClear(pCtx->out);
+      }
+      break;
+    }
     default:
       qError("invalid reqType %d", pCtx->reqType);
       break;
@@ -667,6 +685,12 @@ void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput) {
     return;
   }
 
+  if (pOutput->tbMeta) {
+    queryFreeSeriesEntries(pOutput->tbMeta->seriesEntries, pOutput->tbMeta->numOfSeries);
+  }
+  if (pOutput->vctbMeta && (!pOutput->tbMeta || pOutput->vctbMeta->seriesEntries != pOutput->tbMeta->seriesEntries)) {
+    queryFreeSeriesEntries(pOutput->vctbMeta->seriesEntries, pOutput->vctbMeta->numOfSeries);
+  }
   taosMemoryFree(pOutput->tbMeta);
   taosMemoryFree(pOutput->vctbMeta);
   taosMemoryFree(pOutput);
@@ -858,6 +882,10 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       taosArrayDestroyEx(pArray, tDestroySVStbRefDbsRsp);
       break;
     }
+    case CTG_TASK_GET_EXT_SOURCE: {
+      taosMemoryFreeClear(*pRes);
+      break;
+    }
     default:
       qError("invalid task type %d", type);
       break;
@@ -906,7 +934,8 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
     case CTG_TASK_GET_SVR_VER:
-    case CTG_TASK_GET_USER: {
+    case CTG_TASK_GET_USER:
+    case CTG_TASK_GET_EXT_SOURCE: {
       taosMemoryFreeClear(*pRes);
       break;
     }
@@ -1054,7 +1083,8 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
     case CTG_TASK_GET_QNODE:
-    case CTG_TASK_GET_USER: {
+    case CTG_TASK_GET_USER:
+    case CTG_TASK_GET_EXT_SOURCE: {
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
@@ -1119,6 +1149,8 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
       }
       taosHashCleanup(taskCtx->pFinalDbs);
       taskCtx->pFinalDbs = NULL;
+      taosHashCleanup(taskCtx->pFinalExtSources);
+      taskCtx->pFinalExtSources = NULL;
       taosMemoryFreeClear(taskCtx->pColRefCols);
       taskCtx->numOfColRefs = 0;
       taosMemoryFreeClear(taskCtx->pTagRefCols);
@@ -1798,6 +1830,17 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     } else {
       (*pOutput)->vctbMeta->tagRef = NULL;
     }
+
+    code = queryCloneSeriesEntries(output->vctbMeta->seriesEntries, output->vctbMeta->numOfSeries,
+                                   &(*pOutput)->vctbMeta->seriesEntries);
+    if (TSDB_CODE_SUCCESS != code) {
+      taosMemoryFreeClear((*pOutput)->vctbMeta);
+      taosMemoryFreeClear(*pOutput);
+      CTG_ERR_RET(code);
+    }
+    if (NULL == (*pOutput)->vctbMeta->seriesEntries) {
+      (*pOutput)->vctbMeta->numOfSeries = 0;
+    }
   }
 
   if (output->tbMeta) {
@@ -1934,6 +1977,8 @@ static int32_t ctgCloneDbVgroup(void* pSrc, void** ppDst) {
 }
 
 static void ctgFreeDbVgroup(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
+static void ctgFreeExtSourceInfoPRes(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
+static void ctgFreeExtTableMetaPRes(void* p) { extConnectorFreeTableSchema((SExtTableMeta*)((SMetaRes*)p)->pRes); }
 
 int32_t ctgCloneDbCfgInfo(void* pSrc, SDbCfgInfo** ppDst) {
   SDbCfgInfo* pDst = taosMemoryMalloc(sizeof(SDbCfgInfo));
@@ -2868,6 +2913,10 @@ void ctgDestroySMetaData(SMetaData* pData) {
   taosArrayDestroyEx(pData->pTsmas, ctgFreeTbTSMAInfo);
   taosArrayDestroyEx(pData->pVStbRefDbs, ctgFreeVStbRefDbs);
   taosMemoryFreeClear(pData->pSvrVer);
+  // Federated query: SMetaData owns Phase-B ext table schema responses.  Semantic analysis clones the ones that
+  // need to live in SExtTableNode, while validation-only responses remain owned here.
+  taosArrayDestroyEx(pData->pExtSourceInfo, ctgFreeExtSourceInfoPRes);
+  taosArrayDestroyEx(pData->pExtTableMetaRsp, ctgFreeExtTableMetaPRes);
 }
 
 uint64_t ctgGetTbIndexCacheSize(STableIndex* pIndex) {

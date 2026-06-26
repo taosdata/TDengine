@@ -927,19 +927,27 @@ static int32_t datumToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_GEOMETRY:
-      code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, varDataTLen(pNode->datum.p));
+      if (pNode->datum.p) {
+        code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, varDataTLen(pNode->datum.p));
+      }
       break;
     case TSDB_DATA_TYPE_JSON:
-      code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, getJsonValueLen(pNode->datum.p));
+      if (pNode->datum.p) {
+        code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, getJsonValueLen(pNode->datum.p));
+      }
       break;
     case TSDB_DATA_TYPE_DECIMAL:
-      code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, pNode->node.resType.bytes);
+      if (pNode->datum.p) {
+        code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, pNode->node.resType.bytes);
+      }
       break;
     case TSDB_DATA_TYPE_DECIMAL64:
       code = tlvEncodeI64(pEncoder, VALUE_CODE_DATUM, pNode->datum.i);
       break;
     case TSDB_DATA_TYPE_BLOB:
-      code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, blobDataTLen(pNode->datum.p));
+      if (pNode->datum.p) {
+        code = tlvEncodeBinary(pEncoder, VALUE_CODE_DATUM, pNode->datum.p, blobDataTLen(pNode->datum.p));
+      }
       break;
       // todo
     default:
@@ -968,7 +976,7 @@ static int32_t valueNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, VALUE_CODE_IS_NULL, pNode->isNull);
   }
-  if (TSDB_CODE_SUCCESS == code && !pNode->isNull && !IS_VAL_UNSET(pNode->flag)) {
+  if (TSDB_CODE_SUCCESS == code && !pNode->isNull && !IS_VAL_UNSET(pNode->flag) && pNode->translate) {
     code = datumToMsg(pNode, pEncoder);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -1472,6 +1480,7 @@ enum {
   FUNCTION_SRC_FUNC_INPUT_TYPE,
   FUNCTION_CODE_IS_DISTINCT,
   FUNCTION_CODE_OVER,
+  FUNCTION_CODE_TZ_NAME,
 };
 
 static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1516,6 +1525,9 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, FUNCTION_CODE_IS_DISTINCT, pNode->isDistinct);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->tzName[0] != '\0') {
+    code = tlvEncodeCStr(pEncoder, FUNCTION_CODE_TZ_NAME, pNode->tzName);
   }
 
   return code;
@@ -1569,6 +1581,9 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case FUNCTION_CODE_IS_DISTINCT:
         code = tlvDecodeBool(pTlv, &pNode->isDistinct);
+        break;
+      case FUNCTION_CODE_TZ_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->tzName, sizeof(pNode->tzName));
         break;
       default:
         break;
@@ -2913,6 +2928,294 @@ static int32_t msgToPhysiVirtualTableScanNode(STlvDecoder* pDecoder, void* pObj)
     }
   }
 
+  return code;
+}
+
+// ---------------------------------------------------------------------------
+// SFederatedScanPhysiNode TLV encode/decode
+// ---------------------------------------------------------------------------
+enum {
+  PHY_FEDERATED_SCAN_CODE_BASE_NODE = 1,
+  PHY_FEDERATED_SCAN_CODE_EXT_TABLE,
+  PHY_FEDERATED_SCAN_CODE_SCAN_COLS,
+  PHY_FEDERATED_SCAN_CODE_REMOTE_PLAN,
+  PHY_FEDERATED_SCAN_CODE_PUSHDOWN_FLAGS,
+  PHY_FEDERATED_SCAN_CODE_SOURCE_TYPE,
+  PHY_FEDERATED_SCAN_CODE_SRC_HOST,
+  PHY_FEDERATED_SCAN_CODE_SRC_PORT,
+  PHY_FEDERATED_SCAN_CODE_SRC_USER,
+  PHY_FEDERATED_SCAN_CODE_SRC_PASSWORD,
+  PHY_FEDERATED_SCAN_CODE_SRC_DATABASE,
+  PHY_FEDERATED_SCAN_CODE_SRC_SCHEMA,
+  PHY_FEDERATED_SCAN_CODE_SRC_OPTIONS,
+  PHY_FEDERATED_SCAN_CODE_COL_TYPE_MAPPINGS,  // SExtColTypeMapping[] blob
+  PHY_FEDERATED_SCAN_CODE_TWO_PASS_MODE,
+  PHY_FEDERATED_SCAN_CODE_TIMEZONE,
+  PHY_FEDERATED_SCAN_CODE_SCAN_RANGE_SKEY,
+  PHY_FEDERATED_SCAN_CODE_SCAN_RANGE_EKEY,
+  PHY_FEDERATED_SCAN_CODE_UNDER_VTABLE_SCAN,
+};
+
+static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SFederatedScanPhysiNode* pNode = (const SFederatedScanPhysiNode*)pObj;
+  int32_t code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_EXT_TABLE, nodeToMsg, pNode->pExtTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_SCAN_COLS, nodeListToMsg, pNode->pScanCols);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pRemotePlan != NULL) {
+    code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_REMOTE_PLAN, nodeToMsg, pNode->pRemotePlan);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_FEDERATED_SCAN_CODE_PUSHDOWN_FLAGS, (int32_t)pNode->pushdownFlags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, PHY_FEDERATED_SCAN_CODE_SOURCE_TYPE, pNode->sourceType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_HOST, pNode->srcHost);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_PORT, pNode->srcPort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_USER, pNode->srcUser);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_PASSWORD, pNode->srcPassword);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_DATABASE, pNode->srcDatabase);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_SCHEMA, pNode->srcSchema);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_SRC_OPTIONS, pNode->srcOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->numColTypeMappings > 0 && pNode->pColTypeMappings) {
+    code = tlvEncodeBinary(pEncoder, PHY_FEDERATED_SCAN_CODE_COL_TYPE_MAPPINGS,
+                           pNode->pColTypeMappings,
+                           (int32_t)(pNode->numColTypeMappings * sizeof(SExtColTypeMapping)));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_FEDERATED_SCAN_CODE_TWO_PASS_MODE, pNode->twoPassMode);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezone[0] != '\0') {
+    code = tlvEncodeCStr(pEncoder, PHY_FEDERATED_SCAN_CODE_TIMEZONE, pNode->timezone);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_FEDERATED_SCAN_CODE_SCAN_RANGE_SKEY, pNode->scanRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI64(pEncoder, PHY_FEDERATED_SCAN_CODE_SCAN_RANGE_EKEY, pNode->scanRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_FEDERATED_SCAN_CODE_UNDER_VTABLE_SCAN, pNode->underVTableScan);
+  }
+  return code;
+}
+
+static int32_t msgToFederatedScanPhysiNode(STlvDecoder* pDecoder, void* pObj) {
+  SFederatedScanPhysiNode* pNode = (SFederatedScanPhysiNode*)pObj;
+  // Default scanRange to "no filter" for backward compatibility with plans
+  // that don't include the scanRange fields.
+  pNode->scanRange.skey = INT64_MIN;
+  pNode->scanRange.ekey = INT64_MAX;
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_FEDERATED_SCAN_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_EXT_TABLE:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pExtTable);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SCAN_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pScanCols);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_REMOTE_PLAN:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pRemotePlan);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_PUSHDOWN_FLAGS: {
+        int32_t flags = 0;
+        code = tlvDecodeI32(pTlv, &flags);
+        pNode->pushdownFlags = (uint32_t)flags;
+        break;
+      }
+      case PHY_FEDERATED_SCAN_CODE_SOURCE_TYPE:
+        code = tlvDecodeI8(pTlv, &pNode->sourceType);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_HOST:
+        code = tlvDecodeCStr(pTlv, pNode->srcHost, sizeof(pNode->srcHost));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_PORT:
+        code = tlvDecodeI32(pTlv, &pNode->srcPort);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_USER:
+        code = tlvDecodeCStr(pTlv, pNode->srcUser, sizeof(pNode->srcUser));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_PASSWORD:
+        code = tlvDecodeCStr(pTlv, pNode->srcPassword, sizeof(pNode->srcPassword));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_DATABASE:
+        code = tlvDecodeCStr(pTlv, pNode->srcDatabase, sizeof(pNode->srcDatabase));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_SCHEMA:
+        code = tlvDecodeCStr(pTlv, pNode->srcSchema, sizeof(pNode->srcSchema));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SRC_OPTIONS:
+        code = tlvDecodeCStr(pTlv, pNode->srcOptions, sizeof(pNode->srcOptions));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_COL_TYPE_MAPPINGS: {
+        int32_t nBytes = (int32_t)pTlv->len;
+        if (nBytes > 0 && (int32_t)sizeof(SExtColTypeMapping) > 0 &&
+            nBytes % (int32_t)sizeof(SExtColTypeMapping) == 0) {
+          pNode->numColTypeMappings = nBytes / (int32_t)sizeof(SExtColTypeMapping);
+          pNode->pColTypeMappings   = (SExtColTypeMapping*)taosMemoryMalloc(nBytes);
+          if (!pNode->pColTypeMappings) {
+            code = terrno;
+          } else {
+            code = tlvDecodeBinary(pTlv, pNode->pColTypeMappings);
+          }
+        }
+        break;
+      }
+      case PHY_FEDERATED_SCAN_CODE_TWO_PASS_MODE:
+        code = tlvDecodeBool(pTlv, &pNode->twoPassMode);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_TIMEZONE:
+        code = tlvDecodeCStr(pTlv, pNode->timezone, sizeof(pNode->timezone));
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SCAN_RANGE_SKEY:
+        code = tlvDecodeI64(pTlv, &pNode->scanRange.skey);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_SCAN_RANGE_EKEY:
+        code = tlvDecodeI64(pTlv, &pNode->scanRange.ekey);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_UNDER_VTABLE_SCAN:
+        code = tlvDecodeBool(pTlv, &pNode->underVTableScan);
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
+// ---------------------------------------------------------------------------
+// SExtTableNode TLV encode/decode
+// ---------------------------------------------------------------------------
+enum {
+  EXT_TABLE_CODE_DB_NAME = 1,
+  EXT_TABLE_CODE_TABLE_NAME,
+  EXT_TABLE_CODE_SOURCE_NAME,
+  EXT_TABLE_CODE_SCHEMA_NAME,
+  EXT_TABLE_CODE_SOURCE_TYPE,
+  EXT_TABLE_CODE_SRC_HOST,
+  EXT_TABLE_CODE_SRC_PORT,
+  EXT_TABLE_CODE_SRC_USER,
+  EXT_TABLE_CODE_SRC_PASSWORD,
+  EXT_TABLE_CODE_SRC_DATABASE,
+  EXT_TABLE_CODE_SRC_SCHEMA,
+  EXT_TABLE_CODE_SRC_OPTIONS,
+  EXT_TABLE_CODE_REMOTE_TABLE_NAME,
+};
+
+static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SExtTableNode* pNode = (const SExtTableNode*)pObj;
+  int32_t code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_DB_NAME, pNode->table.dbName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_TABLE_NAME, pNode->table.tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SOURCE_NAME, pNode->sourceName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SCHEMA_NAME, pNode->schemaName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI8(pEncoder, EXT_TABLE_CODE_SOURCE_TYPE, pNode->sourceType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_HOST, pNode->srcHost);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, EXT_TABLE_CODE_SRC_PORT, pNode->srcPort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_USER, pNode->srcUser);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_PASSWORD, pNode->srcPassword);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_DATABASE, pNode->srcDatabase);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_SCHEMA, pNode->srcSchema);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SRC_OPTIONS, pNode->srcOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_REMOTE_TABLE_NAME, pNode->remoteTableName);
+  }
+  return code;
+}
+
+static int32_t msgToExtTableNode(STlvDecoder* pDecoder, void* pObj) {
+  SExtTableNode* pNode = (SExtTableNode*)pObj;
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case EXT_TABLE_CODE_DB_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->table.dbName, sizeof(pNode->table.dbName));
+        break;
+      case EXT_TABLE_CODE_TABLE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->table.tableName, sizeof(pNode->table.tableName));
+        break;
+      case EXT_TABLE_CODE_SOURCE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->sourceName, sizeof(pNode->sourceName));
+        break;
+      case EXT_TABLE_CODE_SCHEMA_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->schemaName, sizeof(pNode->schemaName));
+        break;
+      case EXT_TABLE_CODE_SOURCE_TYPE:
+        code = tlvDecodeI8(pTlv, &pNode->sourceType);
+        break;
+      case EXT_TABLE_CODE_SRC_HOST:
+        code = tlvDecodeCStr(pTlv, pNode->srcHost, sizeof(pNode->srcHost));
+        break;
+      case EXT_TABLE_CODE_SRC_PORT:
+        code = tlvDecodeI32(pTlv, &pNode->srcPort);
+        break;
+      case EXT_TABLE_CODE_SRC_USER:
+        code = tlvDecodeCStr(pTlv, pNode->srcUser, sizeof(pNode->srcUser));
+        break;
+      case EXT_TABLE_CODE_SRC_PASSWORD:
+        code = tlvDecodeCStr(pTlv, pNode->srcPassword, sizeof(pNode->srcPassword));
+        break;
+      case EXT_TABLE_CODE_SRC_DATABASE:
+        code = tlvDecodeCStr(pTlv, pNode->srcDatabase, sizeof(pNode->srcDatabase));
+        break;
+      case EXT_TABLE_CODE_SRC_SCHEMA:
+        code = tlvDecodeCStr(pTlv, pNode->srcSchema, sizeof(pNode->srcSchema));
+        break;
+      case EXT_TABLE_CODE_SRC_OPTIONS:
+        code = tlvDecodeCStr(pTlv, pNode->srcOptions, sizeof(pNode->srcOptions));
+        break;
+      case EXT_TABLE_CODE_REMOTE_TABLE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->remoteTableName, sizeof(pNode->remoteTableName));
+        break;
+      default:
+        break;
+    }
+  }
   return code;
 }
 
@@ -6453,6 +6756,12 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
       code = physiTagRefSourceNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN:
+      code = federatedScanPhysiNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_EXTERNAL_TABLE:
+      code = extTableNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       code = subplanToMsg(pObj, pEncoder);
       break;
@@ -6658,6 +6967,12 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE:
       code = msgToPhysiTagRefSourceNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN:
+      code = msgToFederatedScanPhysiNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_EXTERNAL_TABLE:
+      code = msgToExtTableNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       code = msgToSubplan(pDecoder, pObj);

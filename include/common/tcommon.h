@@ -414,6 +414,12 @@ typedef struct SNonSortExecInfo {
   int32_t blkNums;
 } SNonSortExecInfo;
 
+typedef struct SFederatedScanExplainInfo {
+  int64_t fetchedRows;
+  int64_t fetchBlockCount;
+  int64_t elapsedTimeUs;
+} SFederatedScanExplainInfo;
+
 typedef struct STUidTagInfo {
   char*    name;
   uint64_t uid;

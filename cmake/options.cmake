@@ -146,6 +146,20 @@ if(BUILD_RELEASE)
   message(STATUS "[options] BUILD_RELEASE=ON => CMAKE_BUILD_TYPE forced to Release")
 endif()
 
+if(TD_ENTERPRISE)
+    option(BUILD_WITH_MARIADB "If build with MariaDB Connector/C (ext source: MySQL)" ON)
+    option(BUILD_WITH_LIBPQ   "If build with libpq (ext source: PostgreSQL)" ON)
+    option(BUILD_WITH_ARROW   "If build with Apache Arrow Flight SQL (ext source: InfluxDB)" ON)
+else()
+    set(BUILD_WITH_MARIADB OFF)
+    set(BUILD_WITH_LIBPQ   OFF)
+    set(BUILD_WITH_ARROW   OFF)
+endif()
+
+message(STATUS "BUILD_WITH_MARIADB:${BUILD_WITH_MARIADB}")
+message(STATUS "BUILD_WITH_LIBPQ:${BUILD_WITH_LIBPQ}")
+message(STATUS "BUILD_WITH_ARROW:${BUILD_WITH_ARROW}")
+
 message(STATUS
   "[options] BUILD_CONTRIB=${BUILD_CONTRIB}, BUILD_ROCKSDB=${BUILD_ROCKSDB}"
 )

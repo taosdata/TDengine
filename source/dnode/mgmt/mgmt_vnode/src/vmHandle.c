@@ -2083,6 +2083,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_VSUBTABLES_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_VSTB_REF_DBS, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_VTABLE_REF_RESOLVE, vmPutMsgToQueryQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_VTB_TAG_COND, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLE_CFG, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_BATCH_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLES_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
@@ -2229,7 +2230,6 @@ void vmUpdateMetricsInfo(SVnodeMgmt *pMgmt, int64_t clusterId) {
 
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 }
-
 int32_t vmProcessCloseVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SCloseVnodeReq req = {0};
   if (tDeserializeSCloseVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {

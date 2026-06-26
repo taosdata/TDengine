@@ -405,12 +405,16 @@ class _TimezoneFuncMixin:
 
         tdSql.connect()
         tdSql.query("select timezone()")
-        original = tdSql.queryResult[0][0]
-        original_global = _get_global_timezone().split(' (')[0]
+        baseline = tdSql.queryResult[0][0]
 
         target = 'Asia/Shanghai'
-        if 'Shanghai' in original or '+08' in original:
+        if 'Shanghai' in baseline or '+08' in baseline:
             target = 'UTC'
+
+        tdSql.execute(f"SET TIMEZONE '{target}'")
+        tdSql.query("select timezone()")
+        original = tdSql.queryResult[0][0]
+        original_global = _get_global_timezone().split(' (')[0]
 
         try:
             tdSql.execute(f"alter local 'timezone {target}'")

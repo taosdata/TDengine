@@ -14,7 +14,7 @@
  */
 
 #include "catalog.h"
-#include "clientInt.h"
+#include "extConnector.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
 #include "clientSession.h"
@@ -164,10 +164,9 @@ END:
 #endif
 
 /* Snapshot the current client-level timezone (tsTimezoneStr) into the
- * session-level timezone (pObj->optionInfo.timezone) at the time the
- * connection is established.  Subsequent ALTER LOCAL timezone calls change
- * the client-level setting only; the session-level snapshot stays at the
- * connection-time value and is independent. */
+ * session-level timezone (pObj->optionInfo.timezone) when the connection is
+ * established.  Later ALTER LOCAL timezone calls update the client-level
+ * setting first, then execLocalCmd syncs the accepted value back here. */
 int32_t tscInitSessionTimezone(STscObj *pObj) {
 #if defined(WINDOWS) || defined(TD_ASTRA)
   (void)pObj;
@@ -201,6 +200,7 @@ int32_t tscInitSessionTimezone(STscObj *pObj) {
 
   pObj->optionInfo.timezone = tz;
   tstrncpy(pObj->optionInfo.timezoneName, tzName, sizeof(pObj->optionInfo.timezoneName));
+  pObj->optionInfo.timezoneExplicit = false;
   return TSDB_CODE_SUCCESS;
 #endif
 }
@@ -289,9 +289,11 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
       }
       pObj->optionInfo.timezone = tz;
       tstrncpy(pObj->optionInfo.timezoneName, val, sizeof(pObj->optionInfo.timezoneName));
+      pObj->optionInfo.timezoneExplicit = true;
     } else {
       pObj->optionInfo.timezone = NULL;
       pObj->optionInfo.timezoneName[0] = '\0';
+      pObj->optionInfo.timezoneExplicit = false;
     }
 #endif
   }
@@ -362,6 +364,7 @@ void taos_cleanup(void) {
 
   hbMgrCleanUp();
 
+  extConnectorModuleDestroy();
   catalogDestroy();
   schedulerDestroy();
 
@@ -1951,6 +1954,22 @@ void destroyCtxInRequest(SRequestObj *pRequest) {
   pRequest->pWrapper = NULL;
 }
 
+static void stashFirstExtSourceNameFromCatalogReq(SRequestObj *pRequest, const SCatalogReq *pCatalogReq) {
+  if (pRequest == NULL || pCatalogReq == NULL || pCatalogReq->pExtSourceCheck == NULL ||
+      pRequest->extSourceName[0] != '\0') {
+    return;
+  }
+
+  if (taosArrayGetSize(pCatalogReq->pExtSourceCheck) <= 0) {
+    return;
+  }
+
+  const char *srcName = (const char *)taosArrayGet(pCatalogReq->pExtSourceCheck, 0);
+  if (srcName != NULL && srcName[0] != '\0') {
+    tstrncpy(pRequest->extSourceName, srcName, TSDB_EXT_SOURCE_NAME_LEN);
+  }
+}
+
 static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t code) {
   SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
   SRequestObj         *pRequest = pWrapper->pRequest;
@@ -1965,6 +1984,8 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
   if (TSDB_CODE_SUCCESS == code) {
     code = qAnalyseSqlSemantic(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
+
+  stashFirstExtSourceNameFromCatalogReq(pRequest, pWrapper->pCatalogReq);
 
   if (TSDB_CODE_SUCCESS == code) {
     code = sqlSecurityCheckASTLevel(pRequest, pQuery);
@@ -2006,6 +2027,8 @@ int32_t cloneCatalogReq(SCatalogReq **ppTarget, SCatalogReq *pSrc) {
     pTarget->svrVerRequired = pSrc->svrVerRequired;
     pTarget->forceUpdate = pSrc->forceUpdate;
     pTarget->cloned = true;
+    pTarget->pExtSourceCheck = taosArrayDup(pSrc->pExtSourceCheck, NULL);
+    pTarget->pExtTableMeta = taosArrayDup(pSrc->pExtTableMeta, NULL);
 
     *ppTarget = pTarget;
   }
@@ -2084,7 +2107,14 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     qDestroyQuery(pRequest->pQuery);
     pRequest->pQuery = NULL;
 
-    if (NEED_CLIENT_HANDLE_ERROR(code) && (pRequest->stmtBindVersion == 0 || (pRequest->stmtBindVersion == 2 && pRequest->literal_by_stmt2))) {
+    if (NEED_CLIENT_HANDLE_EXT_ERROR(code) && pRequest->stmtBindVersion == 0) {
+      pRequest->code = code;
+      handleExtSourceError(pRequest, code);
+      return;
+    }
+
+    if (NEED_CLIENT_HANDLE_ERROR(code) &&
+        (pRequest->stmtBindVersion == 0 || (pRequest->stmtBindVersion == 2 && pRequest->literal_by_stmt2))) {
       // NOTE: also cover literal statement by stmt2
       tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
@@ -2155,6 +2185,8 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
     code = qContinueParseSql(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
 
+  stashFirstExtSourceNameFromCatalogReq(pRequest, pWrapper->pCatalogReq);
+
   if (TSDB_CODE_SUCCESS == code) {
     code = phaseAsyncQuery(pWrapper);
   }
@@ -2164,6 +2196,11 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
              tstrerror(code), pWrapper->pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
     pRequest->pWrapper = NULL;
+    if (NEED_CLIENT_HANDLE_EXT_ERROR(code) && pRequest->stmtBindVersion == 0) {
+      pRequest->code = code;
+      handleExtSourceError(pRequest, code);
+      return;
+    }
     terrno = code;
     pRequest->code = code;
     doRequestCallback(pRequest, code);
@@ -2243,6 +2280,14 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
   (*pCxt)->minSecLevel = pTscObj->minSecLevel;
   (*pCxt)->maxSecLevel = pTscObj->maxSecLevel;
   (*pCxt)->macMode = pTscObj->pAppInfo->serverCfg.macActive;
+
+  // Inject active external source context so 1-seg table refs can be resolved after USE ext_source
+  (void)taosThreadMutexLock(&((STscObj *)pTscObj)->mutex);
+  tstrncpy((*pCxt)->currentExtSource, pTscObj->extSource, sizeof((*pCxt)->currentExtSource));
+  tstrncpy((*pCxt)->currentExtNs1,    pTscObj->extNs1,    sizeof((*pCxt)->currentExtNs1));
+  tstrncpy((*pCxt)->currentExtNs2,    pTscObj->extNs2,    sizeof((*pCxt)->currentExtNs2));
+  tstrncpy((*pCxt)->timezoneName,     pTscObj->optionInfo.timezoneName, sizeof((*pCxt)->timezoneName));
+  (void)taosThreadMutexUnlock(&((STscObj *)pTscObj)->mutex);
   return TSDB_CODE_SUCCESS;
 }
 

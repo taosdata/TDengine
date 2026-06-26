@@ -714,14 +714,43 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
 
   pTableMeta->colRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta));
   memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+  for (int32_t i = 0; i < msg->numOfColRefs; ++i) {
+    pTableMeta->colRef[i].tagCondJson = NULL;
+    if (msg->pColRefs[i].tagCondJson) { pTableMeta->colRef[i].tagCondJson = taosStrdup(msg->pColRefs[i].tagCondJson); }
+  }
 
   if (pTagRefSize > 0) {
     pTableMeta->tagRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta) + pColRefSize);
     memcpy(pTableMeta->tagRef, msg->pTagRefs, pTagRefSize);
     pTableMeta->numOfTagRefs = msg->numOfTagRefs;
+    for (int32_t i = 0; i < msg->numOfTagRefs; ++i) {
+      pTableMeta->tagRef[i].tagCondJson = NULL;
+      if (msg->pTagRefs[i].tagCondJson) { pTableMeta->tagRef[i].tagCondJson = taosStrdup(msg->pTagRefs[i].tagCondJson); }
+    }
   } else {
     pTableMeta->tagRef = NULL;
     pTableMeta->numOfTagRefs = 0;
+  }
+
+  // Populate series
+  if (msg->numOfSeries > 0 && msg->pSeries) {
+    pTableMeta->numOfSeries = msg->numOfSeries;
+    pTableMeta->seriesEntries = taosMemoryCalloc(msg->numOfSeries, sizeof(SSeriesEntry));
+    if (pTableMeta->seriesEntries) {
+      for (int32_t i = 0; i < msg->numOfSeries; ++i) {
+        SSeriesEntry *dst = &pTableMeta->seriesEntries[i];
+        SSeriesEntry *src = &msg->pSeries[i];
+        tstrncpy(dst->alias, src->alias, TSDB_COL_NAME_LEN);
+        tstrncpy(dst->sourceName, src->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        tstrncpy(dst->dbName, src->dbName, TSDB_DB_NAME_LEN);
+        tstrncpy(dst->measurementName, src->measurementName, TSDB_TABLE_NAME_LEN);
+        dst->tagCondLen = src->tagCondLen;
+        dst->tagCondJson = src->tagCondJson ? taosStrdup(src->tagCondJson) : NULL;
+      }
+    }
+  } else {
+    pTableMeta->numOfSeries = 0;
+    pTableMeta->seriesEntries = NULL;
   }
 
   qDebug("ctable %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s suid %" PRIx64, msg->tbName, (pTableMeta)->uid,
@@ -791,6 +820,10 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   if (hasColRef(msg->tableType) && msg->pColRefs && !isStb) {
     pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
     memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+    for (int32_t i = 0; i < msg->numOfColRefs; ++i) {
+      pTableMeta->colRef[i].tagCondJson = NULL;
+      if (msg->pColRefs[i].tagCondJson) { pTableMeta->colRef[i].tagCondJson = taosStrdup(msg->pColRefs[i].tagCondJson); }
+    }
   } else {
     pTableMeta->colRef = NULL;
   }
@@ -799,9 +832,34 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
     pTableMeta->tagRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize + pColRefSize);
     memcpy(pTableMeta->tagRef, msg->pTagRefs, pTagRefSize);
     pTableMeta->numOfTagRefs = msg->numOfTagRefs;
+    for (int32_t i = 0; i < msg->numOfTagRefs; ++i) {
+      pTableMeta->tagRef[i].tagCondJson = NULL;
+      if (msg->pTagRefs[i].tagCondJson) { pTableMeta->tagRef[i].tagCondJson = taosStrdup(msg->pTagRefs[i].tagCondJson); }
+    }
   } else {
     pTableMeta->tagRef = NULL;
     pTableMeta->numOfTagRefs = 0;
+  }
+
+  // Populate series
+  if (msg->numOfSeries > 0 && msg->pSeries && !isStb) {
+    pTableMeta->numOfSeries = msg->numOfSeries;
+    pTableMeta->seriesEntries = taosMemoryCalloc(msg->numOfSeries, sizeof(SSeriesEntry));
+    if (pTableMeta->seriesEntries) {
+      for (int32_t i = 0; i < msg->numOfSeries; ++i) {
+        SSeriesEntry *dst = &pTableMeta->seriesEntries[i];
+        SSeriesEntry *src = &msg->pSeries[i];
+        tstrncpy(dst->alias, src->alias, TSDB_COL_NAME_LEN);
+        tstrncpy(dst->sourceName, src->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        tstrncpy(dst->dbName, src->dbName, TSDB_DB_NAME_LEN);
+        tstrncpy(dst->measurementName, src->measurementName, TSDB_TABLE_NAME_LEN);
+        dst->tagCondLen = src->tagCondLen;
+        dst->tagCondJson = src->tagCondJson ? taosStrdup(src->tagCondJson) : NULL;
+      }
+    }
+  } else {
+    pTableMeta->numOfSeries = 0;
+    pTableMeta->seriesEntries = NULL;
   }
 
   bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
@@ -872,8 +930,33 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   if (hasColRef(msg->tableType) && msg->pColRefs && !isStb) {
     pTableMeta->colRef = pColRef;
     memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+    for (int32_t i = 0; i < msg->numOfColRefs; ++i) {
+      pTableMeta->colRef[i].tagCondJson = NULL;
+      if (msg->pColRefs[i].tagCondJson) { pTableMeta->colRef[i].tagCondJson = taosStrdup(msg->pColRefs[i].tagCondJson); }
+    }
   } else {
     pTableMeta->colRef = NULL;
+  }
+
+  // Populate series
+  if (msg->numOfSeries > 0 && msg->pSeries && !isStb) {
+    pTableMeta->numOfSeries = msg->numOfSeries;
+    pTableMeta->seriesEntries = taosMemoryCalloc(msg->numOfSeries, sizeof(SSeriesEntry));
+    if (pTableMeta->seriesEntries) {
+      for (int32_t i = 0; i < msg->numOfSeries; ++i) {
+        SSeriesEntry *dst = &pTableMeta->seriesEntries[i];
+        SSeriesEntry *src = &msg->pSeries[i];
+        tstrncpy(dst->alias, src->alias, TSDB_COL_NAME_LEN);
+        tstrncpy(dst->sourceName, src->sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+        tstrncpy(dst->dbName, src->dbName, TSDB_DB_NAME_LEN);
+        tstrncpy(dst->measurementName, src->measurementName, TSDB_TABLE_NAME_LEN);
+        dst->tagCondLen = src->tagCondLen;
+        dst->tagCondJson = src->tagCondJson ? taosStrdup(src->tagCondJson) : NULL;
+      }
+    }
+  } else {
+    pTableMeta->numOfSeries = 0;
+    pTableMeta->seriesEntries = NULL;
   }
 
   bool hasPK = (msg->numOfColumns > 1) && (pTableMeta->schema[1].flags & COL_IS_KEY);
@@ -1338,6 +1421,46 @@ int32_t queryProcessVStbRefDbsRsp(void* output, char* msg, int32_t msgSize) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildGetExtSourceMsg(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
+                                   void* (*mallcFp)(int64_t), void (*freeFp)(void*)) {
+  QUERY_PARAM_CHECK(input);
+  QUERY_PARAM_CHECK(msg);
+  QUERY_PARAM_CHECK(msgLen);
+
+  SGetExtSourceReq req = {0};
+  tstrncpy(req.source_name, (const char*)input, TSDB_EXT_SOURCE_NAME_LEN);
+
+  int32_t bufLen = tSerializeSGetExtSourceReq(NULL, 0, &req);
+  void*   pBuf   = (*mallcFp)(bufLen);
+  if (NULL == pBuf) return terrno;
+
+  int32_t ret = tSerializeSGetExtSourceReq(pBuf, bufLen, &req);
+  if (ret < 0) {
+    if (freeFp) (*freeFp)(pBuf);
+    return ret;
+  }
+
+  *msg    = (char*)pBuf;
+  *msgLen = bufLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t queryProcessGetExtSourceRsp(void* output, char* msg, int32_t msgSize) {
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    qError("queryProcessGetExtSourceRsp: invalid param, output:%p msg:%p msgSize:%d", output, msg, msgSize);
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SGetExtSourceRsp out = {0};
+  if (tDeserializeSGetExtSourceRsp(msg, msgSize, &out) != 0) {
+    qError("tDeserializeSGetExtSourceRsp failed, msgSize:%d", msgSize);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  TAOS_MEMCPY(output, &out, sizeof(out));
+  return TSDB_CODE_SUCCESS;
+}
+
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_NAME)] = queryBuildTableMetaReqMsg;
@@ -1384,6 +1507,8 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_STREAM_CREATE_SQL)] = queryProcessGetStreamCreateSqlRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSUBTABLES_META)] = queryProcessVSubTablesRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_VSTB_REF_DBS)] = queryProcessVStbRefDbsRsp;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_EXT_SOURCE)]           = queryBuildGetExtSourceMsg;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_EXT_SOURCE)]      = queryProcessGetExtSourceRsp;
 }
 
 #pragma GCC diagnostic pop

@@ -352,7 +352,7 @@ static void checkParamIsFunc(SFunctionNode* pFunc) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   for (int32_t i = 0; i < numOfParams; ++i) {
     SNode* pPara = nodesListGetNode(pFunc->pParameterList, i);
-    if (numOfParams > 1 && nodeType(pPara) == QUERY_NODE_FUNCTION) {
+    if (nodeType(pPara) == QUERY_NODE_FUNCTION) {
       ((SFunctionNode*)pPara)->node.asParam = true;
     }
     if (nodeType(pPara) == QUERY_NODE_COLUMN) {

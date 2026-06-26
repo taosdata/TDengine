@@ -1046,6 +1046,15 @@ int32_t catalogGetHandle(int64_t clusterId, SCatalog** catalogHandle) {
       CTG_ERR_JRET(terrno);
     }
 
+#ifdef TD_ENTERPRISE
+    code = ctgInitExtSourceCache(clusterCtg);
+    if (code) {
+      qError("catalogGetHandle: ctgInitExtSourceCache failed, clusterId:0x%" PRIx64 ", error:%s",
+             clusterId, tstrerror(code));
+      goto _return;
+    }
+#endif
+
     code = taosHashPut(gCtgMgmt.pCluster, &clusterId, sizeof(clusterId), &clusterCtg, POINTER_BYTES);
     if (code) {
       if (HASH_NODE_EXIST(code)) {
@@ -1669,7 +1678,7 @@ int32_t catalogGetQnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray* pQn
 
 _return:
 
-  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  CTG_API_LEAVE(code);
 }
 
 int32_t catalogGetDnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray** pDnodeList) {
@@ -1685,7 +1694,7 @@ int32_t catalogGetDnodeList(SCatalog* pCtg, SRequestConnInfo* pConn, SArray** pD
 
 _return:
 
-  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  CTG_API_LEAVE(code);
 }
 
 int32_t catalogGetExpiredSTables(SCatalog* pCtg, SSTableVersion** stables, uint32_t* num) {
@@ -2201,6 +2210,225 @@ int32_t catalogClearCache(void) {
   qInfo("clear catalog cache end, code:%s", tstrerror(code));
 
   CTG_API_LEAVE_NOLOCK(code);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Federated query: ext-source catalog public APIs
+// ─────────────────────────────────────────────────────────────────────────────
+
+int32_t catalogIsExtSource(SCatalog* pCtg, const char* sourceName, bool* pIsExtSource) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pIsExtSource) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *pIsExtSource = false;
+  SHashObj*              pHash = NULL;
+  void*                  pHandle = NULL;
+  SExtSourceCacheEntry*  pEntry = NULL;
+  int32_t code = ctgAcquireExtSource(pCtg, sourceName, &pHash, &pHandle, &pEntry);
+  if (TSDB_CODE_SUCCESS == code && NULL != pEntry) {
+    *pIsExtSource = true;
+    ctgReleaseExtSource(pCtg, pHash, pHandle);
+  }
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogGetExtSourceInfo(SCatalog* pCtg, const char* sourceName, SExtSourceInfo** ppInfo) {
+  CTG_API_ENTER();
+  int32_t code = 0;
+  if (NULL == pCtg || NULL == sourceName || NULL == ppInfo) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *ppInfo = NULL;
+
+  SHashObj*             pHash   = NULL;
+  void*                 pHandle = NULL;
+  SExtSourceCacheEntry* pEntry  = NULL;
+  CTG_ERR_JRET(ctgAcquireExtSource(pCtg, sourceName, &pHash, &pHandle, &pEntry));
+  if (NULL == pEntry) {
+    CTG_API_LEAVE(TSDB_CODE_EXT_SOURCE_NOT_FOUND);
+  }
+
+  SExtSourceInfo* pInfo = (SExtSourceInfo*)taosMemoryCalloc(1, sizeof(SExtSourceInfo));
+  if (NULL == pInfo) {
+    ctgReleaseExtSource(pCtg, pHash, pHandle);
+    CTG_API_LEAVE(terrno);
+  }
+
+  CTG_LOCK(CTG_READ, &pEntry->entryLock);
+  tstrncpy(pInfo->source_name, pEntry->source.source_name, TSDB_EXT_SOURCE_NAME_LEN);
+  pInfo->type = pEntry->source.type;
+  tstrncpy(pInfo->host, pEntry->source.host, sizeof(pInfo->host));
+  pInfo->port = pEntry->source.port;
+  tstrncpy(pInfo->user, pEntry->source.user, TSDB_EXT_SOURCE_USER_LEN);
+  tstrncpy(pInfo->password, pEntry->source.password, TSDB_EXT_SOURCE_PASSWORD_LEN);
+  tstrncpy(pInfo->database, pEntry->source.database, TSDB_EXT_SOURCE_DATABASE_LEN);
+  tstrncpy(pInfo->schema_name, pEntry->source.schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  tstrncpy(pInfo->options, pEntry->source.options, sizeof(pInfo->options));
+  pInfo->meta_version = pEntry->source.meta_version;
+  pInfo->create_time  = pEntry->source.create_time;
+  pInfo->capability   = pEntry->capability;
+  CTG_UNLOCK(CTG_READ, &pEntry->entryLock);
+
+  ctgReleaseExtSource(pCtg, pHash, pHandle);
+  *ppInfo = pInfo;
+
+_return:
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogSyncGetExtSourceInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* sourceName,
+                                    SExtSourceInfo** ppInfo) {
+  CTG_API_ENTER();
+  int32_t code = 0;
+  if (NULL == pCtg || NULL == pConn || NULL == sourceName || NULL == ppInfo) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *ppInfo = NULL;
+
+  // Try local cache first.
+  code = catalogGetExtSourceInfo(pCtg, sourceName, ppInfo);
+  if (TSDB_CODE_SUCCESS == code && NULL != *ppInfo) {
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  }
+
+  // Cache miss — sync fetch from mnode.
+  SGetExtSourceRsp rsp = {0};
+  code = ctgGetExtSourceFromMnode(pCtg, pConn, sourceName, &rsp, NULL);
+  if (TSDB_CODE_SUCCESS != code) {
+    ctgError("catalogSyncGetExtSourceInfo: sync fetch from mnode failed for source '%s', error:%s",
+             sourceName, tstrerror(code));
+    CTG_API_LEAVE(code);
+  }
+
+  // Populate cache for subsequent lookups.
+  (void)ctgUpdateExtSourceEnqueue(pCtg, sourceName, &rsp, false);
+
+  // Build result.
+  SExtSourceInfo* pInfo = (SExtSourceInfo*)taosMemoryCalloc(1, sizeof(SExtSourceInfo));
+  if (NULL == pInfo) {
+    CTG_API_LEAVE(terrno);
+  }
+  tstrncpy(pInfo->source_name, rsp.source_name, TSDB_EXT_SOURCE_NAME_LEN);
+  pInfo->type = rsp.type;
+  tstrncpy(pInfo->host, rsp.host, sizeof(pInfo->host));
+  pInfo->port = rsp.port;
+  tstrncpy(pInfo->user, rsp.user, TSDB_EXT_SOURCE_USER_LEN);
+  tstrncpy(pInfo->password, rsp.password, TSDB_EXT_SOURCE_PASSWORD_LEN);
+  tstrncpy(pInfo->database, rsp.database, TSDB_EXT_SOURCE_DATABASE_LEN);
+  tstrncpy(pInfo->schema_name, rsp.schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  tstrncpy(pInfo->options, rsp.options, sizeof(pInfo->options));
+  pInfo->meta_version = rsp.meta_version;
+  pInfo->create_time  = rsp.create_time;
+  pInfo->capability   = (SExtSourceCapability){0};
+
+  *ppInfo = pInfo;
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  CTG_API_LEAVE(ctgDropExtSourceEnqueue(pCtg, sourceName, true));
+}
+
+int32_t catalogGetExtTableMetaFromCache(SCatalog* pCtg, const char* sourceName, const char* dbName,
+                                        const char* tableName, SExtTableMeta** ppMeta) {
+  CTG_API_ENTER();
+  int32_t code = 0;
+  if (NULL == pCtg || NULL == sourceName || NULL == tableName || NULL == ppMeta) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *ppMeta = NULL;
+
+  SHashObj*             pSrcHash   = NULL;
+  void*                 pSrcHandle = NULL;
+  SExtSourceCacheEntry* pSrc       = NULL;
+  CTG_ERR_JRET(ctgAcquireExtSource(pCtg, sourceName, &pSrcHash, &pSrcHandle, &pSrc));
+  if (NULL == pSrc) {
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);  // not found, leave *ppMeta as NULL
+  }
+
+  const char* dbKey = (dbName && dbName[0] != '\0') ? dbName : "";
+  size_t dbKeyLen = strlen(dbKey);
+  if (dbKeyLen == 0) dbKeyLen = 1;
+
+  void* ppDbHandle = taosHashAcquire(pSrc->pDbHash, dbKey, dbKeyLen);
+  if (ppDbHandle) {
+    SExtDbCache* pDb = *(SExtDbCache**)ppDbHandle;
+    void* ppTEHandle = taosHashAcquire(pDb->pTableHash, tableName, strlen(tableName));
+    if (ppTEHandle) {
+      SExtTableCacheEntry* pTE = *(SExtTableCacheEntry**)ppTEHandle;
+      CTG_LOCK(CTG_READ, &pTE->metaLock);
+      *ppMeta = extConnectorCloneTableSchema(pTE->pMeta);
+      CTG_UNLOCK(CTG_READ, &pTE->metaLock);
+      taosHashRelease(pDb->pTableHash, ppTEHandle);
+    }
+    taosHashRelease(pSrc->pDbHash, ppDbHandle);
+  }
+
+  ctgReleaseExtSource(pCtg, pSrcHash, pSrcHandle);
+
+_return:
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                          const SExtSourceCapability* pCap, int64_t capFetchedAt) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pCap) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  CTG_API_LEAVE(ctgUpdateExtCapEnqueue(pCtg, sourceName, pCap, capFetchedAt, true));
+}
+
+int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == pGlobalVer) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *pGlobalVer = atomic_load_64(&pCtg->extSrcGlobalVer);
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+// Replace the entire ext-source cache with the list pushed from mnode and update
+// the global version.  Sources not present in pSources are dropped; sources in
+// pSources are upserted.  globalVer is stored after all enqueue ops so that a
+// concurrent heartbeat cannot report the new version before the data is applied.
+int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pSources) {
+  CTG_API_ENTER();
+  if (NULL == pCtg) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  // ctgReplaceExtSourceCacheEnqueue builds the complete new pExtSourceHash on the
+  // calling thread (inside the function, before enqueue) and enqueues a single
+  // CTG_OP_REPLACE_EXT_SOURCE_CACHE op.  The write thread does only an O(1)
+  // pointer swap under extHashLatch, then cleans up the old hash.
+  int32_t code = ctgReplaceExtSourceCacheEnqueue(pCtg, globalVer, pSources);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("catalogUpdateAllExtSources: ctgReplaceExtSourceCacheEnqueue failed, error:%s", tstrerror(code));
+  }
+  CTG_API_LEAVE(code);
+}
+
+// Phase 1 stubs: pushdown capability disable/restore are not triggered because
+// capability bits are initialised to 0 (no pushdown).  The framework is wired
+// so the logic compiles and is ready for Phase 2.
+int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  (void)pCtg;
+  (void)sourceName;
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+int32_t catalogRestoreExtSourceCapabilities(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  (void)pCtg;
+  (void)sourceName;
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
 
 void catalogDestroy(void) {

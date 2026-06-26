@@ -1216,7 +1216,8 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
 
       STR_TO_VARSTR(typeName, "VIRTUAL_CHILD_TABLE");
       STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
-      if (!virtualChildTableNeedCollect(pInfo->pSubTableListInfo, pInfo->pCur->mr.me.uid)) {
+      bool needCollect = virtualChildTableNeedCollect(pInfo->pSubTableListInfo, pInfo->pCur->mr.me.uid);
+      if (!needCollect) {
         qDebug("skip virtual child table:%s uid:%" PRId64 " %s", varDataVal(tableName), pInfo->pCur->mr.me.uid,
                GET_TASKID(pTaskInfo));
         continue;
@@ -2069,6 +2070,15 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
   SColRef* pTagRefs = isVirtualChild ? smrChildTable->me.colRef.pTagRef : NULL;
   int32_t  nTagRefs = isVirtualChild ? smrChildTable->me.colRef.nTagRefs : 0;
 
+  if (isVirtualChild) {
+    qError("sys-tags child:%s nTagRefs:%d", smrChildTable->me.name, nTagRefs);
+    for (int32_t r = 0; r < nTagRefs; ++r) {
+      qError("sys-tags child:%s tagRef[%d] hasRef:%d id:%d src:%s db:%s tb:%s col:%s", smrChildTable->me.name, r,
+             pTagRefs[r].hasRef, pTagRefs[r].id, pTagRefs[r].refSourceName, pTagRefs[r].refDbName,
+             pTagRefs[r].refTableName, pTagRefs[r].refColName);
+    }
+  }
+
   int32_t numOfTags = (*smrSuperTable).me.stbEntry.schemaTag.nCols;
   for (int32_t i = 0; i < numOfTags; ++i) {
     SColumnInfoData* pColInfoData = NULL;
@@ -2347,12 +2357,17 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
     if (!colRef || !colRef->pColRef[i].hasRef) {
       colDataSetNULL(pColInfoData, numOfRows);
     } else {
-      char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      char tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
+      char refColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE + 1] = {0};
+      char tmpColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + 1] = {0};
 
       TSlice refColNameBuf = {0};
       sliceInit(&refColNameBuf, tmpColName, sizeof(tmpColName));
 
+      if (colRef->pColRef[i].refSourceName[0] != '\0') {
+        QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, colRef->pColRef[i].refSourceName, strlen(colRef->pColRef[i].refSourceName)),
+                         lino, _end);
+        QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+      }
       QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, colRef->pColRef[i].refDbName, strlen(colRef->pColRef[i].refDbName)),
                        lino, _end);
       QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
@@ -2465,11 +2480,17 @@ static int32_t sysTableUserColsFillOneVirtualTableCol(const char* dbname, int32_
   if (!colRef || !colRef->pColRef[colIdx].hasRef) {
     colDataSetNULL(pColInfoData, numOfRows);
   } else {
-    char   refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    char   tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
+    char   refColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE + 1] = {0};
+    char   tmpColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + 1] = {0};
     TSlice refColNameBuf = {0};
 
     sliceInit(&refColNameBuf, tmpColName, sizeof(tmpColName));
+    if (colRef->pColRef[colIdx].refSourceName[0] != '\0') {
+      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, colRef->pColRef[colIdx].refSourceName,
+                                   strlen(colRef->pColRef[colIdx].refSourceName)),
+                       lino, _end);
+      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+    }
     QUERY_CHECK_CODE(
         sliceAppend(&refColNameBuf, colRef->pColRef[colIdx].refDbName, strlen(colRef->pColRef[colIdx].refDbName)),
         lino, _end);
@@ -3831,6 +3852,13 @@ static int32_t vtbRefResolveEntryColumn(const SSysTableScanInfo* pInfo, SExecTas
     return TSDB_CODE_SUCCESS;
   }
 
+  // External-source refs are validated by FederatedScan/runtime metadata checks,
+  // not by local/remote vnode schema traversal.
+  if (pRef->refSourceName[0] != 0) {
+    *pErrCode = TSDB_CODE_SUCCESS;
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (pRef->refDbName[0] == 0 || pRef->refTableName[0] == 0 || pRef->refColName[0] == 0) {
     *pErrCode = TSDB_CODE_PAR_INVALID_REF_COLUMN;
     return TSDB_CODE_SUCCESS;
@@ -3966,6 +3994,17 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
       continue;
     }
 
+    qError("vtb-ref validate col idx:%d src:%s db:%s tb:%s col:%s", i, pColRef->pColRef[i].refSourceName,
+           pColRef->pColRef[i].refDbName, pColRef->pColRef[i].refTableName, pColRef->pColRef[i].refColName);
+
+    if (pColRef->pColRef[i].refSourceName[0] != 0) {
+      if (NULL == taosArrayPush(pResult, &errCode)) {
+        code = terrno;
+        goto _cleanup;
+      }
+      continue;
+    }
+
     const char* refDbName = pColRef->pColRef[i].refDbName;
     const char* refTableName = pColRef->pColRef[i].refTableName;
     const char* refColName = pColRef->pColRef[i].refColName;
@@ -3985,6 +4024,17 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
     int32_t errCode = TSDB_CODE_SUCCESS;
 
     if (!pColRef->pTagRef[i].hasRef) {
+      if (NULL == taosArrayPush(pResult, &errCode)) {
+        code = terrno;
+        goto _cleanup;
+      }
+      continue;
+    }
+
+    qError("vtb-ref validate tag idx:%d src:%s db:%s tb:%s col:%s", i, pColRef->pTagRef[i].refSourceName,
+           pColRef->pTagRef[i].refDbName, pColRef->pTagRef[i].refTableName, pColRef->pTagRef[i].refColName);
+
+    if (pColRef->pTagRef[i].refSourceName[0] != 0) {
       if (NULL == taosArrayPush(pResult, &errCode)) {
         code = terrno;
         goto _cleanup;
@@ -6415,7 +6465,6 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
       T_LONG_JMP(pTaskInfo->env, code);
     }
     updateLoadRemoteInfo(&pInfo->loadInfo, pRsp->numOfRows, pRsp->compLen, startTs, pOperator);
-    // todo log the filter info
     code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));

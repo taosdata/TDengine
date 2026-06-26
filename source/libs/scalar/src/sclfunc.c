@@ -1548,11 +1548,13 @@ int32_t findInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 }
 
 static bool likeInSetCompare(const char *a, int32_t aLen, const char *b, int32_t bLen) {
+  // a = pattern, b = input string from set
   SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
   return patternMatch(a, aLen, b, bLen, &pInfo) == TSDB_PATTERN_MATCH;
 }
 
 static bool wcsLikeInSetCompare(const char *a, int32_t aLen, const char *b, int32_t bLen) {
+  // a = pattern, b = input string from set
   SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
   return wcsPatternMatch((TdUcs4 *)a, aLen / TSDB_NCHAR_SIZE, (TdUcs4 *)b, bLen / TSDB_NCHAR_SIZE, &pInfo) ==
          TSDB_PATTERN_MATCH;
@@ -1570,6 +1572,7 @@ int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 int32_t threadGetRegComp(regex_t **regex, const char *pPattern);
 
 static bool regexpInSetCompare(const char *a, int32_t aLen, const char *b, int32_t bLen) {
+  // a = regex pattern, b = input string from set
   char patBuf[256], strBuf[256], msgbuf[256];
 
   char *pattern = patBuf, *str = strBuf;
@@ -1654,8 +1657,8 @@ int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   if (setNum == 1) {
     setLen = varDataLen(colDataGetData(sets, 0));
     setstr = varDataVal(colDataGetData(sets, 0));
-    if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NCHAR) {
-      SCL_ERR_RET(convNcharToVarchar(patstr, &patstr, patLen, &patLen, pInput[0].charsetCxt));
+    if (GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NCHAR) {
+      SCL_ERR_RET(convNcharToVarchar(setstr, &setstr, setLen, &setLen, pInput[1].charsetCxt));
       needFreeSet = true;
     }
   }
@@ -2269,7 +2272,8 @@ int32_t sha2Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
 
     uint32_t digestLen = SHA512_DIGEST_SIZE;
-    GET_TYPED_DATA(digestLen, uint32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, i),
+    int32_t  digestIdx = (pInput[1].numOfRows == 1) ? 0 : i;
+    GET_TYPED_DATA(digestLen, uint32_t, GET_PARAM_TYPE(&pInput[1]), colDataGetData(pInput[1].columnData, digestIdx),
                    typeGetTypeModFromColInfo(&pInput[1].columnData->info));
 
     int32_t len = taosCreateSHA2Hash(varDataVal(output), varDataLen(input), digestLen, bufLen - VARSTR_HEADER_SIZE);
@@ -2833,6 +2837,8 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
     char   *output = outputBuf + VARSTR_HEADER_SIZE;
     char   *orgStr = varDataVal(colDataGetData(pInputData[0], colIdx1));
     int32_t orgLen = varDataLen(colDataGetData(pInputData[0], colIdx1));
+    // Convert byte length to character count (maskLen > 1 only for NCHAR where each char = 4 bytes)
+    int32_t orgLenChars = (maskLen > 1) ? (orgLen / maskLen) : orgLen;
     char   *fromStr = varDataVal(colDataGetData(pInputData[1], colIdx2));
     int32_t fromLen = maskLen;
     bool    needFreeFrom = false;
@@ -2851,13 +2857,13 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
       needFreeFrom = true;
     }
 
-    for (int initialIdx = 0; initialIdx < initialLen && initialIdx < outLen; ++initialIdx) {
+    for (int initialIdx = 0; initialIdx < initialLen && initialIdx < orgLenChars; ++initialIdx) {
       (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
     }
-    for (int initialIdx = initialLen; initialIdx < orgLen - finalLen && initialIdx < outLen; ++initialIdx) {
+    for (int initialIdx = initialLen; initialIdx < orgLenChars - finalLen && initialIdx < orgLenChars; ++initialIdx) {
       (void)memcpy(output + initialIdx * maskLen, orgStr + initialIdx * maskLen, maskLen);
     }
-    for (int initialIdx = orgLen - finalLen; initialIdx < orgLen && initialIdx < outLen; ++initialIdx) {
+    for (int initialIdx = orgLenChars - finalLen; initialIdx < orgLenChars; ++initialIdx) {
       (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
     }
 
@@ -4339,6 +4345,7 @@ int32_t toTimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
   char   *format = taosMemoryMalloc(TS_FORMAT_MAX_LEN);
   int32_t len, code = TSDB_CODE_SUCCESS;
   SArray *formats = NULL;
+  bool    inputIsNchar = (GET_PARAM_TYPE(pInput) == TSDB_DATA_TYPE_NCHAR);
 
   if (tsStr == NULL || format == NULL) {
     SCL_ERR_JRET(terrno);
@@ -4351,9 +4358,22 @@ int32_t toTimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
 
     char *tsData = colDataGetData(pInput[0].columnData, i);
     char *formatData = colDataGetData(pInput[1].columnData, pInput[1].numOfRows > 1 ? i : 0);
-    len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(tsData));
-    (void)TAOS_STRNCPY(tsStr, varDataVal(tsData), len);  // No need to handle the return value.
-    tsStr[len] = '\0';
+
+    if (inputIsNchar) {
+      // NCHAR data is UCS-4; convert to UTF-8 so taosChar2Ts can parse the string.
+      int32_t mbsLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(tsData), varDataLen(tsData), tsStr, pInput->charsetCxt);
+      if (mbsLen < 0) {
+        qError("func to_timestamp: UCS-4 to multibyte conversion failed");
+        SCL_ERR_JRET(TSDB_CODE_FAILED);
+      }
+      len = TMIN(TS_FORMAT_MAX_LEN - 1, mbsLen);
+      tsStr[len] = '\0';
+    } else {
+      len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(tsData));
+      (void)TAOS_STRNCPY(tsStr, varDataVal(tsData), len);  // No need to handle the return value.
+      tsStr[len] = '\0';
+    }
+
     len = TMIN(TS_FORMAT_MAX_LEN - 1, varDataLen(formatData));
     if (pInput[1].numOfRows > 1 || i == 0) {
       (void)TAOS_STRNCPY(format, varDataVal(formatData), len);  // No need to handle the return value.
@@ -4882,9 +4902,24 @@ int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   } else {
     char *tzName = (char *)taosHashGet(pTimezoneNameMap, &pInput->tz, sizeof(timezone_t));
     if (tzName == NULL) {
-      tzName = TZ_UNKNOWN;
+      // pTimezoneNameMap is only populated on the client side; on taosd, fall back to
+      // rebuilding the formatted string from the IANA name carried in pInput->tzName.
+      if (pInput->tzName[0] != '\0') {
+        time_t tx1 = taosGetTimestampSec();
+        char   tmpBuf[TD_TIMEZONE_LEN] = {0};
+        (void)taosFormatTimezoneStr(tx1, pInput->tzName, pInput->tz, tmpBuf);
+        if (tmpBuf[0] != '\0') {
+          tstrncpy(varDataVal(output), tmpBuf, TD_TIMEZONE_LEN);
+        } else {
+          tstrncpy(varDataVal(output), pInput->tzName, strlen(pInput->tzName) + 1);
+        }
+      } else {
+        tzName = TZ_UNKNOWN;
+        tstrncpy(varDataVal(output), tzName, strlen(tzName) + 1);
+      }
+    } else {
+      tstrncpy(varDataVal(output), tzName, strlen(tzName) + 1);
     }
-    tstrncpy(varDataVal(output), tzName, strlen(tzName) + 1);
   }
 
   varDataSetLen(output, strlen(varDataVal(output)));
@@ -7063,4 +7098,34 @@ _exit:
   }
 
   return code;
+}
+
+// __timestamp_scale(expr, target_precision) — internal scalar function
+// Scales a TIMESTAMP column from its source precision to target precision
+// using convertTimePrecision(). Parser auto-inserts this for cross-precision comparisons.
+int32_t timestampScaleFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData  = pInput[0].columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+
+  // Second parameter is a constant: the target precision (0=ms, 1=µs, 2=ns)
+  int8_t targetPrec = 0;
+  if (pInput[1].numOfRows == 1 && !colDataIsNull_s(pInput[1].columnData, 0)) {
+    targetPrec = *(int8_t *)colDataGetData(pInput[1].columnData, 0);
+  }
+
+  int8_t srcPrec = pInputData->info.precision;
+
+  int64_t *in  = (int64_t *)pInputData->pData;
+  int64_t *out = (int64_t *)pOutputData->pData;
+
+  for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+    out[i] = convertTimePrecision(in[i], srcPrec, targetPrec);
+  }
+
+  pOutput->numOfRows = pInput[0].numOfRows;
+  return TSDB_CODE_SUCCESS;
 }

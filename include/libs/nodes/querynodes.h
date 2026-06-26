@@ -27,6 +27,10 @@ extern "C" {
 #include "tvariant.h"
 #include "ttypes.h"
 #include "streamMsg.h"
+// SExtTableMeta is defined in extConnector.h; only a pointer is stored here,
+// so a forward declaration is sufficient and avoids a nodes → extconnector
+// header dependency.
+typedef struct SExtTableMeta SExtTableMeta;
 
 #define VGROUPS_INFO_SIZE(pInfo) \
   (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
@@ -112,9 +116,14 @@ typedef struct SColumnNode {
 typedef struct SColumnRefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
+  int8_t    refType;                                      // 0=internal, 1=external (DS §6.2.8)
   char      refDbName[TSDB_DB_NAME_LEN];
   char      refTableName[TSDB_TABLE_NAME_LEN];
   char      refColName[TSDB_COL_NAME_LEN];
+  // [FG-9] Extended for federated query 4-segment path: source.db.table.col
+  // Non-empty refSourceName indicates an external (4-segment path) reference.
+  char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN];    // 4-segment first token (external source name)
+  SNode*    pTagCond;           // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
 } SColumnRefNode;
 
 typedef struct STargetNode {
@@ -127,10 +136,14 @@ typedef struct STargetNode {
 #define VALUE_FLAG_IS_DURATION    (1 << 0)
 #define VALUE_FLAG_IS_TIME_OFFSET (1 << 1)
 #define VALUE_FLAG_VAL_UNSET      (1 << 2)
+// When set on a TSDB_DATA_TYPE_BINARY SValueNode, datum.p is a raw SQL fragment
+// (unquoted, unescaped) to be emitted verbatim into the remote SQL string.
+#define VALUE_FLAG_RAW_SQL_FRAG   (1 << 4)
 
 #define IS_DURATION_VAL(_flag)    ((_flag)&VALUE_FLAG_IS_DURATION)
 #define IS_TIME_OFFSET_VAL(_flag) ((_flag)&VALUE_FLAG_IS_TIME_OFFSET)
 #define IS_VAL_UNSET(_flag) ((_flag)&VALUE_FLAG_VAL_UNSET)
+#define IS_RAW_SQL_FRAG(_flag)    ((_flag)&VALUE_FLAG_RAW_SQL_FRAG)
 
 typedef struct SValueNode {
   SExprNode  node;  // QUERY_NODE_VALUE
@@ -312,6 +325,8 @@ typedef struct SFunctionNode {
   bool       dual; // whether select stmt without from stmt, true for without.
   bool       isDistinct; // DISTINCT modifier in function arg, e.g. COUNT(DISTINCT col)
   timezone_t tz;
+  char       tzName[TD_TIMEZONE_LEN]; // IANA timezone name (for serialization to taosd)
+  bool       tzAllocated;             // true if tz was allocated by us and must be freed
   void      *charsetCxt;
   int8_t     firstDayOfWeek;  /* 0-6, from connection/global config */
   const struct SFunctionNode* pSrcFuncRef;
@@ -355,6 +370,10 @@ typedef struct SRealTableNode {
   SArray*            tsmaTargetTbInfo;    // SArray<STsmaTargetTbInfo>, used for child table or normal table only
   EStreamPlaceholder placeholderType;
   bool               asSingleTable; // only used in stream calc query
+  // External table path fields (3-segment or 4-segment path)
+  SNode*             pExtTableNode;                      // translated external table node (enterprise only)
+  int8_t             numPathSegments;                    // 0/1 = default; 2 = db.tbl; 3 = src.schema.tbl; 4 = src.schema.db.tbl
+  char               extSeg[2][TSDB_EXT_SOURCE_NAME_LEN];    // raw prefix segments: [0]=source; [1]=schema/mid
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -407,6 +426,7 @@ typedef struct SVirtualTableNode {
   struct STableMeta* pMeta;
   SVgroupsInfo*      pVgroupList;
   SNodeList*         refTables;
+  SArray*            pExtSourceNames;  // SArray<char*> external source names (super table path)
 } SVirtualTableNode;
 
 typedef struct SViewNode {
@@ -418,6 +438,34 @@ typedef struct SViewNode {
   SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
 } SViewNode;
+
+// ---- Federated query: external table AST node ----
+// table.dbName  = external database name (the third segment of a 3-part path, or from USE)
+// table.tableName = external table name
+// Connection info and capability are filled by Parser from SParseMetaCache
+// and later copied by Planner into SFederatedScanPhysiNode.
+typedef struct SExtTableNode {
+  STableNode            table;                       // type = QUERY_NODE_EXTERNAL_TABLE
+  char                  sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external data source name
+  char                  schemaName[TSDB_DB_NAME_LEN];    // PG schema name; empty for MySQL/InfluxDB
+  SExtTableMeta*        pExtMeta;                    // external table raw metadata (Catalog cache ref)
+  // --- connection info (Parser fills from SParseMetaCache → SExtSourceInfo) ---
+  int8_t                sourceType;                  // EExtSourceType
+  char                  srcHost[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t               srcPort;
+  char                  srcUser[TSDB_EXT_SOURCE_USER_LEN];
+  char                  srcPassword[TSDB_EXT_SOURCE_PASSWORD_LEN];  // internal RPC only; never exposed to end user
+  char                  srcDatabase[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char                  srcSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char                  srcOptions[TSDB_EXT_SOURCE_OPTIONS_LEN];    // JSON options string
+  int64_t               metaVersion;                 // ext source meta_version (for connector pool invalidation)
+  // --- capability profile (Parser reads from SExtSourceInfo.capability) ---
+  SExtSourceCapability  capability;                  // all false until runtime probe updates Catalog
+  // --- primary key index (computed at translation time) ---
+  int32_t               tsPrimaryColIdx;             // index of the timestamp primary key column (-1 = not found)
+  // --- remote table name (original case from remote INFORMATION_SCHEMA) ---
+  char                  remoteTableName[TSDB_TABLE_NAME_LEN];  // actual table name on remote (preserves case)
+} SExtTableNode;
 
 #define JOIN_JLIMIT_MAX_VALUE 1024
 
@@ -1068,6 +1116,23 @@ bool nodesContainsColumn(SNode* pNode);
 int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
 int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst);
 SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr);
+
+// nodesRenderCorrelatedExistsBody — render the body SQL of a correlated EXISTS
+// subquery that can be pushed down to an external data source.
+//
+// pInnerSelect : the inner SSelectStmt (FROM table must be SRealTableNode with
+//                pExtTableNode set).
+// sourceType   : EExtSourceType value (determines SQL dialect: MySQL/PG/Influx).
+// ppSQL        : OUT — heap-allocated SQL string; caller must taosMemoryFree().
+//
+// Column references in the WHERE clause are rendered as "tableName"."colName"
+// so that the generated SQL is self-contained and can be embedded in a correlated
+// EXISTS clause of the outer query.
+//
+// Returns TSDB_CODE_SUCCESS on success or an error code.
+int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
+                                        int8_t             sourceType,
+                                        char**             ppSQL);
 
 #ifdef __cplusplus
 }

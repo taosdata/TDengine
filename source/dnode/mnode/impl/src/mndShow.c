@@ -205,6 +205,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_TXN_ORPHANS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_TRANSACTIONS, len) == 0) {
     type = TSDB_MGMT_TABLE_TRANS;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_EXT_SOURCES, len) == 0) {
+    type = TSDB_MGMT_TABLE_EXT_SOURCES;
   } else {
     mError("invalid show name:%s len:%d", name, len);
   }

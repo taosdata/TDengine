@@ -269,6 +269,7 @@ static SKeyword keywordTable[] = {
     {"READ",                 TK_READ},
     {"RECURSIVE",            TK_RECURSIVE},
     {"REDISTRIBUTE",         TK_REDISTRIBUTE},
+    {"REMOVE",               TK_REMOVE},
     {"RENAME",               TK_RENAME},
     {"RELOAD",               TK_RELOAD},
     {"RECALCULATE",          TK_RECALCULATE},
@@ -299,6 +300,7 @@ static SKeyword keywordTable[] = {
     {"SEMI",                 TK_SEMI},
     {"SERVER_STATUS",        TK_SERVER_STATUS},
     {"SERVER_VERSION",       TK_SERVER_VERSION},
+    {"SERIES",               TK_SERIES},
     {"SESSION",              TK_SESSION},
     {"SHA",                  TK_SHA},
     {"SHA1",                 TK_SHA1},
@@ -516,6 +518,16 @@ static SKeyword keywordTable[] = {
     {"NODELAY_CREATE_SUBTABLE", TK_NODELAY_CREATE_SUBTABLE},
     {"ZEROTH_STATE",         TK_ZEROTH_STATE},
     {"CPU_ALLOCATION",       TK_CPU_ALLOCATION},
+    // Federated query: new keywords for EXTERNAL SOURCE DDL
+    {"EXTERNAL",             TK_EXTERNAL},
+    {"SOURCE",               TK_SOURCE},
+    {"SOURCES",              TK_SOURCES},
+    {"REFRESH",              TK_REFRESH},
+    {"OPTIONS",              TK_OPTIONS},
+    {"SCHEMA",               TK_SCHEMA},
+    {"TYPE",                 TK_TYPE},
+    {"PASSWORD",             TK_PASSWORD},
+    {"API_TOKEN",            TK_API_TOKEN},
 };
 // clang-format on
 

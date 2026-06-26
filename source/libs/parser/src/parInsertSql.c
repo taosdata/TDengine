@@ -2491,6 +2491,17 @@ static int32_t preParseTargetTableName(SInsertParseContext* pCxt, SVnodeModifyOp
     if (IS_SYS_DBNAME(pStmt->targetTableName.dbname)) {
       return TSDB_CODE_PAR_SYSTABLE_NOT_ALLOWED;
     }
+#ifdef TD_ENTERPRISE
+    // Fast-path: if ext source cache is already populated (warm connection),
+    // reject immediately without needing Phase 2 catalog fetch.
+    if (tsFederatedQueryEnable && pStmt->targetTableName.dbname[0] != '\0' && pCxt->pComCxt->pCatalog) {
+      bool isExtSrc = false;
+      int32_t rc = catalogIsExtSource(pCxt->pComCxt->pCatalog, pStmt->targetTableName.dbname, &isExtSrc);
+      if (TSDB_CODE_SUCCESS == rc && isExtSrc) {
+        return TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED;
+      }
+    }
+#endif
   }
 
   return code;
@@ -4615,6 +4626,21 @@ static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCata
     pStmt->pTagCond = NULL;
   }
 
+#ifdef TD_ENTERPRISE
+  // Federated query: reject INSERT into external source tables (Phase 2 check).
+  // In Phase 1, the dbname was registered in pCatalogReq->pExtSourceCheck.
+  // If the catalog resolved it as a valid ext source, reject the write here.
+  if (tsFederatedQueryEnable && pMetaData != NULL && pMetaData->pExtSourceInfo != NULL) {
+    int32_t nSrc = (int32_t)taosArrayGetSize(pMetaData->pExtSourceInfo);
+    for (int32_t i = 0; i < nSrc; ++i) {
+      SMetaRes* pRes = taosArrayGet(pMetaData->pExtSourceInfo, i);
+      if (pRes && pRes->code == TSDB_CODE_SUCCESS && pRes->pRes != NULL) {
+        return TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED;
+      }
+    }
+  }
+#endif
+
   int32_t code = checkAuthFromMetaData(pCxt, pMetaData, pStmt);
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -4912,6 +4938,18 @@ static int32_t buildInsertCatalogReq(SInsertParseContext* pCxt, SVnodeModifyOpSt
   if (TSDB_CODE_SUCCESS == code) {
     code = buildInsertDbReq(&pStmt->targetTableName, &pCatalogReq->pTableHash);
   }
+#ifdef TD_ENTERPRISE
+  if (TSDB_CODE_SUCCESS == code && tsFederatedQueryEnable && pStmt->targetTableName.dbname[0] != '\0') {
+    if (NULL == pCatalogReq->pExtSourceCheck) {
+      pCatalogReq->pExtSourceCheck = taosArrayInit(1, TSDB_TABLE_NAME_LEN);
+    }
+    if (NULL != pCatalogReq->pExtSourceCheck) {
+      char nameBuf[TSDB_TABLE_NAME_LEN] = {0};
+      tstrncpy(nameBuf, pStmt->targetTableName.dbname, TSDB_TABLE_NAME_LEN);
+      taosArrayPush(pCatalogReq->pExtSourceCheck, nameBuf);
+    }
+  }
+#endif
   return code;
 }
 

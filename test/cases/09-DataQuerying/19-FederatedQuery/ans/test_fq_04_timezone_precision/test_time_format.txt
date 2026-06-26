@@ -1,0 +1,312 @@
+### cst-tfmt-02 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts > 1704067260000 ORDER BY ts
+RESULT
+1
+2
+3
+4
+5
+---
+### cst-tfmt-04 POS
+SQL: SELECT val FROM {M}.pk_ts WHERE ts > 1704067260000 ORDER BY ts
+RESULT
+1
+2
+3
+4
+5
+---
+### cst-tfmt-06 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts BETWEEN 1704067260000 AND 1704067380000 ORDER BY ts
+RESULT
+---
+### cst-tfmt-08 POS
+SQL: SELECT val FROM {P}.pk_ts WHERE ts > 1704067260000 ORDER BY ts
+RESULT
+1
+2
+3
+4
+5
+---
+### cst-tfmt-10 POS
+SQL: SELECT val FROM {P}.pk_tstz WHERE ts > 1704067260000 ORDER BY ts
+RESULT
+1
+2
+3
+4
+5
+---
+### cst-tfmt-12 POS
+SQL: SELECT val FROM {I}.sensor WHERE time > 1704067260000 ORDER BY time
+RESULT
+1
+2
+3
+4
+5
+---
+### cst-tfmt-13 POS
+SQL: SELECT val FROM {I}.sensor WHERE time > 1704067260000000 ORDER BY time
+RESULT
+1
+2
+3
+4
+5
+---
+### cst-tfmt-14 POS
+SQL: SELECT val FROM {I}.sensor WHERE time > 1704067260000000000 ORDER BY time
+RESULT
+3
+4
+5
+---
+### cst-tfmt-16 POS
+SQL: SELECT val FROM {L_ms}.t WHERE ts > 1704067260000 ORDER BY ts
+RESULT
+3
+4
+5
+---
+### cst-tfmt-17 POS
+SQL: SELECT val FROM {L_us}.t WHERE ts > 1704067260000000 ORDER BY ts
+RESULT
+3
+4
+5
+---
+### cst-tfmt-18 POS
+SQL: SELECT val FROM {L_ns}.t WHERE ts > 1704067260000000000 ORDER BY ts
+RESULT
+3
+4
+5
+---
+### cst-tfmt-19 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts < NOW() ORDER BY ts
+RESULT
+1
+2
+3
+4
+5
+---
+### cst-tfmt-20 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts < TODAY() ORDER BY ts
+RESULT
+1
+2
+3
+4
+5
+---
+### cst-tfmt-01 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts > '2024-01-01 00:01:00' ORDER BY ts
+RESULT
+3
+4
+5
+---
+### cst-tfmt-03 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts > 1704067260000000 ORDER BY ts
+RESULT
+---
+### cst-tfmt-05 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts BETWEEN '2024-01-01 00:01:00' AND '2024-01-01 00:03:00' ORDER BY ts
+RESULT
+2
+3
+4
+---
+### cst-tfmt-07 POS
+SQL: SELECT val FROM {P}.pk_ts WHERE ts > '2024-01-01 00:01:00' ORDER BY ts
+RESULT
+3
+4
+5
+---
+### cst-tfmt-09 POS
+SQL: SELECT val FROM {P}.pk_ts WHERE ts > 1704067260000000 ORDER BY ts
+RESULT
+---
+### cst-tfmt-11 POS
+SQL: SELECT val FROM {I}.sensor WHERE time > '2024-01-01 00:01:00' ORDER BY time
+RESULT
+1
+2
+3
+4
+5
+---
+### cst-tfmt-15 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts > 1704067260000 UNION ALL SELECT val FROM {P}.pk_ts WHERE ts > '2024-01-01 00:01:00' ORDER BY 1
+RESULT
+1
+2
+3
+3
+4
+4
+5
+5
+---
+### utc-tfmt-02 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts > 1704067260000 ORDER BY ts
+RESULT
+1
+2
+3
+4
+5
+---
+### utc-tfmt-04 POS
+SQL: SELECT val FROM {M}.pk_ts WHERE ts > 1704067260000 ORDER BY ts
+RESULT
+1
+2
+3
+4
+5
+---
+### utc-tfmt-06 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts BETWEEN 1704067260000 AND 1704067380000 ORDER BY ts
+RESULT
+---
+### utc-tfmt-08 POS
+SQL: SELECT val FROM {P}.pk_ts WHERE ts > 1704067260000 ORDER BY ts
+RESULT
+1
+2
+3
+4
+5
+---
+### utc-tfmt-10 POS
+SQL: SELECT val FROM {P}.pk_tstz WHERE ts > 1704067260000 ORDER BY ts
+RESULT
+1
+2
+3
+4
+5
+---
+### utc-tfmt-12 POS
+SQL: SELECT val FROM {I}.sensor WHERE time > 1704067260000 ORDER BY time
+RESULT
+1
+2
+3
+4
+5
+---
+### utc-tfmt-13 POS
+SQL: SELECT val FROM {I}.sensor WHERE time > 1704067260000000 ORDER BY time
+RESULT
+1
+2
+3
+4
+5
+---
+### utc-tfmt-14 POS
+SQL: SELECT val FROM {I}.sensor WHERE time > 1704067260000000000 ORDER BY time
+RESULT
+3
+4
+5
+---
+### utc-tfmt-16 POS
+SQL: SELECT val FROM {L_ms}.t WHERE ts > 1704067260000 ORDER BY ts
+RESULT
+3
+4
+5
+---
+### utc-tfmt-17 POS
+SQL: SELECT val FROM {L_us}.t WHERE ts > 1704067260000000 ORDER BY ts
+RESULT
+3
+4
+5
+---
+### utc-tfmt-18 POS
+SQL: SELECT val FROM {L_ns}.t WHERE ts > 1704067260000000000 ORDER BY ts
+RESULT
+3
+4
+5
+---
+### utc-tfmt-19 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts < NOW() ORDER BY ts
+RESULT
+1
+2
+3
+4
+5
+---
+### utc-tfmt-20 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts < TODAY() ORDER BY ts
+RESULT
+1
+2
+3
+4
+5
+---
+### utc-tfmt-01 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts > '2024-01-01 00:01:00' ORDER BY ts
+RESULT
+3
+4
+5
+---
+### utc-tfmt-03 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts > 1704067260000000 ORDER BY ts
+RESULT
+3
+4
+5
+---
+### utc-tfmt-05 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts BETWEEN '2024-01-01 00:01:00' AND '2024-01-01 00:03:00' ORDER BY ts
+RESULT
+2
+3
+4
+---
+### utc-tfmt-07 POS
+SQL: SELECT val FROM {P}.pk_ts WHERE ts > '2024-01-01 00:01:00' ORDER BY ts
+RESULT
+3
+4
+5
+---
+### utc-tfmt-09 POS
+SQL: SELECT val FROM {P}.pk_ts WHERE ts > 1704067260000000 ORDER BY ts
+RESULT
+3
+4
+5
+---
+### utc-tfmt-11 POS
+SQL: SELECT val FROM {I}.sensor WHERE time > '2024-01-01 00:01:00' ORDER BY time
+RESULT
+3
+4
+5
+---
+### utc-tfmt-15 POS
+SQL: SELECT val FROM {M}.pk_dt WHERE ts > 1704067260000 UNION ALL SELECT val FROM {P}.pk_ts WHERE ts > '2024-01-01 00:01:00' ORDER BY 1
+RESULT
+1
+2
+3
+3
+4
+4
+5
+5
+---

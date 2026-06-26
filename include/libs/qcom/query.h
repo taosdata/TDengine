@@ -98,6 +98,7 @@ typedef struct SExecResult {
   uint64_t numOfBytes;
   int32_t  msgType;
   void*    res;
+  char*    extErrMsg;  // federated query: remote-side error message (heap-allocated, caller frees)
 } SExecResult;
 
 #pragma pack(push, 1)
@@ -120,6 +121,8 @@ typedef struct SVCTableMeta {
   SColRef* colRef;
   int32_t  numOfTagRefs;
   SColRef* tagRef;
+  int32_t       numOfSeries;
+  SSeriesEntry* seriesEntries;
 } SVCTableMeta;
 #pragma pack(pop)
 
@@ -138,6 +141,8 @@ typedef struct STableMeta {
   SColRef*      colRef;
   int32_t       numOfTagRefs;
   SColRef*      tagRef;
+  int32_t       numOfSeries;
+  SSeriesEntry* seriesEntries;
   // END: KEEP THIS PART SAME WITH SVCTableMeta
 
   // if the table is TSDB_CHILD_TABLE, the following information is acquired from the corresponding super table meta
@@ -486,6 +491,8 @@ int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
 int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
+void    queryFreeSeriesEntries(SSeriesEntry* pSeries, int32_t nSeries);
+int32_t queryCloneSeriesEntries(const SSeriesEntry* pSrc, int32_t nSeries, SSeriesEntry** ppDst);
 char*   jobTaskStatusStr(int32_t status);
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name);
@@ -493,7 +500,8 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
 void    destroyQueryExecRes(SExecResult* pRes);
 int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len);
 void    parseTagDatatoJson(void* p, char** jsonStr, void *charsetCxt);
-int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName, char* refDbName);
+int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName,
+                  char* refDbName, int8_t refType, const char* refSourceName, const char* tagCondJson, int32_t tagCondLen);
 int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 void    getColumnTypeFromMeta(STableMeta* pMeta, char* pName, ETableColumnType* pType);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
@@ -531,6 +539,33 @@ void* getTaskPoolWorkerCb();
 #define NEED_CLIENT_HANDLE_ERROR(_code)                                          \
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
+
+// Federated query: external data source error classification macros
+// NOTE: ext error codes are intentionally NOT merged into NEED_CLIENT_HANDLE_ERROR.
+// External source retries are handled inside the FederatedScan operator (Module B FB-9);
+// once exhausted, the client dispatches through NEED_CLIENT_HANDLE_EXT_ERROR.
+#define NEED_CLIENT_RM_EXT_SOURCE_ERROR(_code) \
+  ((_code) == TSDB_CODE_EXT_SOURCE_NOT_FOUND)
+#define NEED_CLIENT_REFRESH_EXT_SOURCE_ERROR(_code) \
+  ((_code) == TSDB_CODE_EXT_SOURCE_CHANGED || \
+   (_code) == TSDB_CODE_EXT_SCHEMA_CHANGED || \
+   (_code) == TSDB_CODE_EXT_TABLE_NOT_EXIST)
+#define NEED_CLIENT_RETURN_EXT_SOURCE_ERROR(_code) \
+  ((_code) == TSDB_CODE_EXT_CONNECT_FAILED || \
+   (_code) == TSDB_CODE_EXT_AUTH_FAILED || \
+   (_code) == TSDB_CODE_EXT_ACCESS_DENIED || \
+   (_code) == TSDB_CODE_EXT_QUERY_TIMEOUT || \
+   (_code) == TSDB_CODE_EXT_FETCH_FAILED || \
+   (_code) == TSDB_CODE_EXT_REMOTE_INTERNAL)
+#define NEED_CLIENT_RETRY_EXT_POOL_ERROR(_code) \
+  ((_code) == TSDB_CODE_EXT_RESOURCE_EXHAUSTED)
+#define NEED_CLIENT_HANDLE_EXT_ERROR(_code) \
+  (NEED_CLIENT_RM_EXT_SOURCE_ERROR(_code) || \
+   NEED_CLIENT_REFRESH_EXT_SOURCE_ERROR(_code) || \
+   NEED_CLIENT_RETURN_EXT_SOURCE_ERROR(_code) || \
+   NEED_CLIENT_RETRY_EXT_POOL_ERROR(_code) || \
+   (_code) == TSDB_CODE_EXT_PUSHDOWN_FAILED || \
+   (_code) == TSDB_CODE_EXT_CAPABILITY_CHANGED)
 
 #define SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code)                                    \
   ((_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_SYN_INTERNAL_ERROR || \

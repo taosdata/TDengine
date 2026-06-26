@@ -1998,6 +1998,7 @@ void freeExternalWindowGetOperatorParam(SOperatorParam* pParam) {
 void freeVirtualTableScanGetOperatorParam(SOperatorParam* pParam) {
   SVTableScanOperatorParam* pVTableScanParam = (SVTableScanOperatorParam*)pParam->value;
   taosArrayDestroyEx(pVTableScanParam->pOpParamArray, freeOpParamItem);
+  taosArrayDestroyEx(pVTableScanParam->pForeignParamArray, freeOpParamItem);
   if (pVTableScanParam->pRefColGroups) {
     taosArrayDestroyEx(pVTableScanParam->pRefColGroups, destroyRefColIdGroupParam);
     pVTableScanParam->pRefColGroups = NULL;
@@ -2063,6 +2064,16 @@ void freeOperatorParam(SOperatorParam* pParam, SOperatorParamType type) {
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
       type == OP_GET_PARAM ? freeDynQueryCtrlGetOperatorParam(pParam) : freeDynQueryCtrlNotifyOperatorParam(pParam);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
+      SForeignScanOperatorParam* pFsParam = (SForeignScanOperatorParam*)pParam->value;
+      if (pFsParam) {
+        taosArrayDestroy(pFsParam->colMap);
+        taosMemoryFreeClear(pFsParam->tagCond);
+        nodesDestroyNode(pFsParam->pPushedCond);
+      }
+      freeOperatorParamImpl(pParam, type);
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
       type == OP_GET_PARAM ? freeInterpFuncGetOperatorParam(pParam) : freeInterpFuncNotifyOperatorParam(pParam);
       break;

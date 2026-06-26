@@ -177,6 +177,14 @@ typedef struct SUseDatabaseStmt {
   char      dbName[TSDB_DB_NAME_LEN];
 } SUseDatabaseStmt;
 
+// USE source_name | USE source.ns1 | USE source.ns1.ns2 (PG 3-seg)
+typedef struct SUseExtSourceStmt {
+  ENodeType type;
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // registered source name
+  char      ns1[TSDB_EXT_SOURCE_DATABASE_LEN];     // database (MySQL/Influx) or schema (PG 2-seg)
+  char      ns2[TSDB_EXT_SOURCE_SCHEMA_LEN];       // schema (PG 3-seg only; else empty)
+} SUseExtSourceStmt;
+
 typedef struct SDropDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
@@ -301,9 +309,12 @@ typedef struct SColumnOptions {
   char      compressLevel[TSDB_CL_COMPRESS_OPTION_LEN];
   bool      bPrimaryKey;
   bool      hasRef;
+  int8_t    refType;                              // 0=internal, 1=external (DS §6.2.8)
+  char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN]; // non-empty = external source 4-part ref
   char      refDb[TSDB_DB_NAME_LEN];
   char      refTable[TSDB_TABLE_NAME_LEN];
   char      refColumn[TSDB_COL_NAME_LEN];
+  SNode     *pTagCond;        // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
 } SColumnOptions;
 
 typedef struct SColumnDefNode {
@@ -330,6 +341,7 @@ typedef struct SCreateVTableStmt {
   char       tableName[TSDB_TABLE_NAME_LEN];
   bool       ignoreExists;
   SNodeList* pCols;
+  SNodeList* pSeriesList;     // list of SSeriesDeclNode (nullable)
 } SCreateVTableStmt;
 
 typedef struct SCreateVSubTableStmt {
@@ -345,7 +357,18 @@ typedef struct SCreateVSubTableStmt {
   SNodeList* pColRefs;
   SNodeList* pSpecificTagRefs;  // tag_name FROM db.table.tag_col (same as specific_column_ref)
   SNodeList* pTagRefs;          // db.table.tag_col (same as column_ref, positional)
+  SNodeList* pSeriesList;       // list of SSeriesDeclNode (nullable)
 } SCreateVSubTableStmt;
+
+// Series declaration: SERIES alias AS source.db.measurement (tag1='v1', ...)
+typedef struct SSeriesDeclNode {
+  ENodeType  type;
+  char       alias[TSDB_COL_NAME_LEN];
+  char       sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       measurementName[TSDB_TABLE_NAME_LEN];
+  SNode*     pTagCond;   // SOperatorNode (single tag) or SLogicConditionNode(AND) (multiple)
+} SSeriesDeclNode;
 
 typedef struct SCreateSubTableClause {
   ENodeType      type;
@@ -431,10 +454,14 @@ typedef struct SAlterTableStmt {
   SValueNode*     pVal;
   SColumnOptions* pColOptions;
   SNodeList*      pList; // list of tag, table or something else, depending on alter type
+  char            refSourceName[TSDB_TABLE_NAME_LEN];
   char            refDbName[TSDB_DB_NAME_LEN];
   char            refTableName[TSDB_TABLE_NAME_LEN];
   char            refColName[TSDB_COL_NAME_LEN];
+  int8_t          refType;  // 0=local, 1=external
   SNode*          pWhere;
+  SNode*          pSeriesDecl;  // SSeriesDeclNode* for ADD SERIES
+  char            seriesAlias[TSDB_COL_NAME_LEN]; // for REMOVE SERIES
 } SAlterTableStmt;
 
 
@@ -1099,6 +1126,10 @@ typedef struct SDescribeStmt {
   char        dbName[TSDB_DB_NAME_LEN];
   char        tableName[TSDB_TABLE_NAME_LEN];
   STableMeta* pMeta;
+  // External source path fields — mirrors SRealTableNode.numPathSegments / extSeg.
+  // Set when the DESCRIBE target uses a multi-segment external path (src.tbl or src.db.tbl).
+  int8_t      numPathSegments;                      // 0/1 = local; 2 = src.tbl; 3 = src.db.tbl; 4 = src.db.schema.tbl
+  char        extSeg[2][TSDB_EXT_SOURCE_NAME_LEN];  // [0]=source name; [1]=mid segment (db or schema)
 } SDescribeStmt;
 
 typedef struct SKillStmt {
@@ -1329,6 +1360,91 @@ typedef struct SAlterRsmaStmt {
   int8_t     alterType;
   SNodeList* pFuncs;
 } SAlterRsmaStmt;
+
+// ============== Federated query: external source DDL AST nodes ==============
+
+// CREATE EXTERNAL SOURCE [IF NOT EXISTS] name TYPE <type> HOST <host> PORT <port>
+//   USER <user> PASSWORD <password> [DATABASE <db>] [SCHEMA <schema>] [OPTIONS (...)]
+typedef struct SCreateExtSourceStmt {
+  ENodeType  type;         // QUERY_NODE_CREATE_EXT_SOURCE_STMT
+  char       sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  int8_t     sourceType;   // EExtSourceType
+  char       host[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t    port;
+  char       user[TSDB_EXT_SOURCE_USER_LEN];
+  char       password[TSDB_EXT_SOURCE_PASSWORD_LEN];
+  char       database[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char       schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  SNodeList* pOptions;     // list of SExtOptionNode (key-value option pairs)
+  bool       ignoreExists;
+} SCreateExtSourceStmt;
+
+// ALTER EXTERNAL SOURCE [IF EXISTS] name SET key=value [, key=value ...]
+typedef struct SAlterExtSourceStmt {
+  ENodeType  type;           // QUERY_NODE_ALTER_EXT_SOURCE_STMT
+  char       sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  SNodeList* pAlterItems;    // list of SExtAlterClauseNode (one per SET clause, comma-separated)
+  bool       ignoreNotExists;
+} SAlterExtSourceStmt;
+
+// DROP EXTERNAL SOURCE [IF EXISTS] name
+typedef struct SDropExtSourceStmt {
+  ENodeType type;          // QUERY_NODE_DROP_EXT_SOURCE_STMT
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  bool      ignoreNotExists;
+} SDropExtSourceStmt;
+
+// REFRESH EXTERNAL SOURCE name
+typedef struct SRefreshExtSourceStmt {
+  ENodeType type;          // QUERY_NODE_REFRESH_EXT_SOURCE_STMT
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+} SRefreshExtSourceStmt;
+
+// SHOW EXTERNAL SOURCES
+typedef struct SShowExtSourcesStmt {
+  ENodeType type;          // QUERY_NODE_SHOW_EXT_SOURCES_STMT
+} SShowExtSourcesStmt;
+
+// DESCRIBE EXTERNAL SOURCE name
+// Fields below are populated during rewriteDescribeExtSource (translation phase)
+// and consumed by execDescribeExtSource (LOCAL command execution).
+typedef struct SDescribeExtSourceStmt {
+  ENodeType type;          // QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  // Populated by rewriteDescribeExtSource: heap-allocated SExtSourceInfo copy.
+  // Freed in nodesDestroyNode (QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT case).
+  void*     pExtSrcInfo;   // SExtSourceInfo* — taosMemoryMalloc'd, not in node chunk
+} SDescribeExtSourceStmt;
+
+// Alter clause type for ALTER EXTERNAL SOURCE SET ...
+typedef enum EExtAlterType {
+  EXT_ALTER_HOST     = 1,
+  EXT_ALTER_PORT     = 2,
+  EXT_ALTER_USER     = 3,
+  EXT_ALTER_PASSWORD = 4,
+  EXT_ALTER_DATABASE = 5,
+  EXT_ALTER_SCHEMA   = 6,
+  EXT_ALTER_OPTIONS  = 7,
+} EExtAlterType;
+
+// Single key=value option for OPTIONS(...) or ALTER SET clause
+typedef struct SExtOptionNode {
+  ENodeType type;          // QUERY_NODE_EXT_OPTION
+  char      key[TSDB_EXT_SOURCE_OPTION_KEY_LEN];
+  char      value[TSDB_EXT_SOURCE_OPTION_VALUE_LEN];  // single option value (e.g. schema name, path)
+} SExtOptionNode;
+
+// One clause in ALTER EXTERNAL SOURCE SET ... (discriminated union on alterType):
+//   - EXT_ALTER_HOST/PORT/USER/PASSWORD/DATABASE/SCHEMA: uses `value`, pOptions is NULL
+//   - EXT_ALTER_OPTIONS: uses `pOptions` (list of SExtOptionNode), value is unused
+typedef struct SExtAlterClauseNode {
+  ENodeType     type;          // QUERY_NODE_EXT_ALTER_CLAUSE
+  EExtAlterType alterType;     // discriminator: which field to alter
+  char          value[TSDB_EXT_SOURCE_HOST_LEN];  // structured field value (host is longest at 257)
+  SNodeList*    pOptions;      // OPTIONS key-value list; only set when alterType == EXT_ALTER_OPTIONS
+} SExtAlterClauseNode;
+
+// ============== end of federated query DDL AST nodes ==============
 
 #ifdef __cplusplus
 }

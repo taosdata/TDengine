@@ -3155,6 +3155,10 @@ int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     return code;
   }
 
+  qDebug("firstLastFinalize: func=%s slotId=%d subsidiaries=%d val=%" PRId64,
+         pCtx->pExpr->pExpr->_function.functionName, slotId,
+         pCtx->subsidiaries.num, *(int64_t*)pRes->buf);
+
   // handle selectivity
   code = setSelectivityValue(pCtx, pBlock, &pRes->pos, pBlock->info.rows);
   if (TSDB_CODE_SUCCESS != code) {
@@ -7260,19 +7264,24 @@ void modeFunctionCleanupExt(SqlFunctionCtx* pCtx) {
 }
 
 static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo* pInfo, STuplePos* pPos) {
+  size_t saveLen;
   if (IS_VAR_DATA_TYPE(pInfo->colType)) {
     if (pInfo->colType == TSDB_DATA_TYPE_JSON) {
-      (void)memcpy(pInfo->buf, data, getJsonValueLen(data));
+      saveLen = getJsonValueLen(data);
+      (void)memcpy(pInfo->buf, data, saveLen);
     } else if (IS_STR_DATA_BLOB(pInfo->colType)) {
-      (void)memcpy(pInfo->buf, data, blobDataTLen(data));
+      saveLen = blobDataTLen(data);
+      (void)memcpy(pInfo->buf, data, saveLen);
     } else {
-      (void)memcpy(pInfo->buf, data, varDataTLen(data));
+      saveLen = varDataTLen(data);
+      (void)memcpy(pInfo->buf, data, saveLen);
     }
   } else {
-    (void)memcpy(pInfo->buf, data, pInfo->colBytes);
+    saveLen = pInfo->colBytes;
+    (void)memcpy(pInfo->buf, data, saveLen);
   }
 
-  return doSaveTupleData(&pCtx->saveHandle, pInfo->buf, pInfo->colBytes, NULL, pPos, pCtx->pStore);
+  return doSaveTupleData(&pCtx->saveHandle, pInfo->buf, saveLen, NULL, pPos, pCtx->pStore);
 }
 
 static int32_t doModeAdd(SModeInfo* pInfo, int32_t rowIndex, SqlFunctionCtx* pCtx, char* data) {

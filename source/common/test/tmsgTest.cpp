@@ -466,3 +466,123 @@ int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
+
+TEST(td_msg_test, vtb_tag_cond_codec) {
+  SVTagCondReq req = {0};
+  req.header.vgId = 7;
+  tstrncpy(req.dbFName, "1.db_series", sizeof(req.dbFName));
+  req.uid = 0x123456789aLL;
+
+  int32_t reqSize = tSerializeSVTagCondReq(NULL, 0, &req);
+  ASSERT_GT(reqSize, 0);
+  std::vector<char> reqBuf(reqSize, 0);
+  ASSERT_EQ(tSerializeSVTagCondReq(reqBuf.data(), reqSize, &req), reqSize);
+
+  SVTagCondReq reqOut = {0};
+  ASSERT_EQ(tDeserializeSVTagCondReq(reqBuf.data(), reqSize, &reqOut), 0);
+  ASSERT_STREQ(reqOut.dbFName, req.dbFName);
+  ASSERT_EQ(reqOut.uid, req.uid);
+
+  SVTagCondRsp rsp = {0};
+  rsp.pEntries = taosArrayInit(2, sizeof(SVTagCondEntry));
+  ASSERT_NE(rsp.pEntries, nullptr);
+  SVTagCondEntry e1 = {0};
+  e1.colId = 2;
+  e1.tagCondJson = (char*)"COND_JSON_A";
+  e1.tagCondLen = (int32_t)strlen(e1.tagCondJson);
+  ASSERT_NE(taosArrayPush(rsp.pEntries, &e1), nullptr);
+  SVTagCondEntry e2 = {0};
+  e2.colId = 5;
+  e2.tagCondJson = (char*)"COND_JSON_B2";
+  e2.tagCondLen = (int32_t)strlen(e2.tagCondJson);
+  ASSERT_NE(taosArrayPush(rsp.pEntries, &e2), nullptr);
+  rsp.numOfRefs = 2;
+
+  int32_t rspSize = tSerializeSVTagCondRsp(NULL, 0, &rsp);
+  ASSERT_GT(rspSize, 0);
+  std::vector<char> rspBuf(rspSize, 0);
+  ASSERT_EQ(tSerializeSVTagCondRsp(rspBuf.data(), rspSize, &rsp), rspSize);
+
+  SVTagCondRsp rspOut = {0};
+  ASSERT_EQ(tDeserializeSVTagCondRsp(rspBuf.data(), rspSize, &rspOut), 0);
+  ASSERT_EQ(rspOut.numOfRefs, 2);
+  ASSERT_EQ((int32_t)taosArrayGetSize(rspOut.pEntries), 2);
+  SVTagCondEntry* p0 = (SVTagCondEntry*)taosArrayGet(rspOut.pEntries, 0);
+  SVTagCondEntry* p1 = (SVTagCondEntry*)taosArrayGet(rspOut.pEntries, 1);
+  ASSERT_EQ(p0->colId, 2);
+  ASSERT_STREQ(p0->tagCondJson, "COND_JSON_A");
+  ASSERT_EQ(p1->colId, 5);
+  ASSERT_STREQ(p1->tagCondJson, "COND_JSON_B2");
+
+  taosArrayDestroy(rsp.pEntries);   // shallow: e1/e2 json are literals
+  tDestroySVTagCondRsp(&rspOut);    // deep free decoded copies
+}
+
+TEST(td_msg_test, federated_scan_op_param_codec) {
+  SOperatorParam param = {0};
+  param.opType = QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN;
+  param.downstreamIdx = 1;
+  param.reUse = false;
+  param.pChildren = NULL;
+
+  SForeignScanOperatorParam fsParam = {0};
+  tstrncpy(fsParam.sourceName, "influx1", sizeof(fsParam.sourceName));
+  tstrncpy(fsParam.dbName, "extdb", sizeof(fsParam.dbName));
+  tstrncpy(fsParam.tableName, "cpu", sizeof(fsParam.tableName));
+  fsParam.dstPrecision = 2;
+  fsParam.colMap = taosArrayInit(2, sizeof(SColIdNameKV));
+  ASSERT_NE(fsParam.colMap, nullptr);
+  SColIdNameKV kv1 = {0};
+  kv1.colId = 3;
+  tstrncpy(kv1.colName, "usage", sizeof(kv1.colName));
+  ASSERT_NE(taosArrayPush(fsParam.colMap, &kv1), nullptr);
+  SColIdNameKV kv2 = {0};
+  kv2.colId = 7;
+  tstrncpy(kv2.colName, "idle", sizeof(kv2.colName));
+  ASSERT_NE(taosArrayPush(fsParam.colMap, &kv2), nullptr);
+  const char* cond = "host='h1' AND region='r2'";
+  fsParam.tagCond = (char*)cond;
+  fsParam.tagCondLen = (int32_t)strlen(cond);
+  param.value = &fsParam;
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tSerializeSOperatorParam(&encoder, &param), 0);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GT(len, 0);
+
+  std::vector<uint8_t> buf(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tSerializeSOperatorParam(&encoder, &param), 0);
+  tEncoderClear(&encoder);
+
+  SOperatorParam out = {0};
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDeserializeSOperatorParam(&decoder, &out), 0);
+  tDecoderClear(&decoder);
+
+  ASSERT_EQ(out.opType, QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
+  ASSERT_EQ(out.downstreamIdx, 1);
+  SForeignScanOperatorParam* pOut = (SForeignScanOperatorParam*)out.value;
+  ASSERT_NE(pOut, nullptr);
+  ASSERT_STREQ(pOut->sourceName, "influx1");
+  ASSERT_STREQ(pOut->dbName, "extdb");
+  ASSERT_STREQ(pOut->tableName, "cpu");
+  ASSERT_EQ(pOut->dstPrecision, 2);
+  ASSERT_EQ((int32_t)taosArrayGetSize(pOut->colMap), 2);
+  SColIdNameKV* o1 = (SColIdNameKV*)taosArrayGet(pOut->colMap, 0);
+  SColIdNameKV* o2 = (SColIdNameKV*)taosArrayGet(pOut->colMap, 1);
+  ASSERT_EQ(o1->colId, 3);
+  ASSERT_STREQ(o1->colName, "usage");
+  ASSERT_EQ(o2->colId, 7);
+  ASSERT_STREQ(o2->colName, "idle");
+  ASSERT_EQ(pOut->tagCondLen, (int32_t)strlen(cond));
+  ASSERT_STREQ(pOut->tagCond, cond);
+
+  taosArrayDestroy(fsParam.colMap);
+  taosArrayDestroy(pOut->colMap);
+  taosMemoryFree(pOut->tagCond);
+  taosMemoryFree(pOut);
+}

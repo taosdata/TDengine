@@ -187,7 +187,7 @@ _exit:
   }
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);
-  
+
   terrno = code;
   return code;
 }

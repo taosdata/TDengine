@@ -294,6 +294,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_DB_USAGE = 4300,
   FUNCTION_TYPE_DB_USAGE_INFO,
 
+  // internal functions (not user-callable)
+  FUNCTION_TYPE_TIMESTAMP_SCALE = 4400,
+
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;

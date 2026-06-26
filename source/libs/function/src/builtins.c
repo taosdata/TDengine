@@ -2268,6 +2268,21 @@ static int32_t translateRepeat(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
+// __timestamp_scale(expr, target_precision): internal function for cross-precision TIMESTAMP scaling
+static int32_t translateTimestampScale(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // 2 params: TIMESTAMP expr, TINYINT target_precision constant
+  SNode* pPrecNode = nodesListGetNode(pFunc->pParameterList, 1);
+  if (QUERY_NODE_VALUE != nodeType(pPrecNode)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_TYPE,
+                           "__timestamp_scale 2nd parameter must be a constant");
+  }
+  int8_t targetPrec = ((SValueNode*)pPrecNode)->datum.i;
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,
+                                    .type = TSDB_DATA_TYPE_TIMESTAMP,
+                                    .precision = targetPrec};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (numOfParams <= 0) {
@@ -8236,6 +8251,34 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = firstDayOfWeekFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "__timestamp_scale",
+    .type = FUNCTION_TYPE_TIMESTAMP_SCALE,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = true,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_TINYINT_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+    .translateFunc = translateTimestampScale,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = timestampScaleFunction,
     .finalizeFunc = NULL,
   },
 };

@@ -40,6 +40,7 @@ extern "C" {
 #include "tpagedbuf.h"
 #include "tlrucache.h"
 #include "tworker.h"
+#include "extConnector.h"
 
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
@@ -250,6 +251,52 @@ typedef struct SExchangeInfo {
   bool                notifyToSend;  // need to send notify STEP DONE message
   TSKEY               notifyTs;      // notify timestamp
 } SExchangeInfo;
+
+// ---------------------------------------------------------------------------
+// SFederatedScanOperatorInfo — state for the FederatedScan operator (Module F)
+// ---------------------------------------------------------------------------
+
+// Per-table scan context for multi-table FederatedScan (VStb dynamic dispatch)
+typedef struct SFedScanTableCtx {
+  SExtConnectorHandle*  pConnHandle;
+  SExtQueryHandle*      pQueryHandle;
+  bool                  queryStarted;
+  bool                  queryFinished;
+  bool                  twoPassPhase1Done;
+  SExtColTypeMapping*   pDynColMappings;   // dynamically built column mappings (VStb)
+  int32_t               numDynColMappings;
+  SSDataBlock*          pFetchedBlock;      // last fetched block owned by this table context
+} SFedScanTableCtx;
+
+typedef struct SFederatedScanOperatorInfo {
+  SFederatedScanPhysiNode*  pFedScanNode;      // physi node ref (not owned)
+  SExtConnectorHandle*      pConnHandle;        // connector handle (Module B)
+  SExtQueryHandle*          pQueryHandle;       // query handle (Module B)
+  bool                      queryStarted;       // query has been issued
+  bool                      queryFinished;      // EOF reached
+  bool                      twoPassMode;        // true: execute query twice (PRE_SCAN then MAIN_SCAN)
+  bool                      twoPassPhase1Done;  // true: PRE_SCAN pass done, now doing MAIN_SCAN pass
+  int64_t                   fetchedRows;        // cumulative rows fetched
+  int64_t                   fetchBlockCount;    // cumulative block count
+  int64_t                   elapsedTimeUs;      // cumulative elapsed time (µs)
+  SSDataBlock*              pFetchedBlock;      // owned block returned by extConnectorFetchBlock
+  char                      extErrMsg[512];     // formatted remote error message
+  // Per-table context cache for VStb multi-table dispatch
+  SHashObj*                 pTableCtxMap;       // key: source/db/table/filter hashes, value: SFedScanTableCtx
+  char                      activeTableKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 32];
+  // VStb dynamic query: column type mappings built at runtime
+  SForeignScanOperatorParam* pActiveVStbParam;  // borrowed ref to current VStb param (not owned)
+  SExtColTypeMapping*       pDynColMappings;    // dynamically built column mappings
+  int32_t                   numDynColMappings;
+  // True when this federate scan feeds a virtual-table scan operator (either
+  // static or VStb dispatch path).  Used to gate per-block TIMESTAMP precision
+  // conversion to the consumer's declared precision so unrelated direct
+  // external-table queries are unaffected.
+  bool                      underVTableScan;
+} SFederatedScanOperatorInfo;
+
+void fedScanReleaseFetchedBlock(SFederatedScanOperatorInfo* pInfo);
+int32_t fedScanSaveActiveCtx(SFederatedScanOperatorInfo* pInfo);
 
 typedef struct SScanInfo {
   int32_t numOfAsc;

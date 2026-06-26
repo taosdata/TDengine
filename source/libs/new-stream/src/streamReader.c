@@ -974,10 +974,14 @@ static EDealRes checkPlaceHolderColumn(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(void* pTask, const SStreamReaderDeployMsg* pMsg, SNode* pPlan, bool keepPlan) {
+static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(void* pTask, const SStreamReaderDeployMsg* pMsg, SNode* pPlan,
+                                                               bool keepPlan, bool* pPlanTaken) {
   int32_t    code = 0;
   int32_t    lino = 0;
   SNodeList* triggerCols = NULL;
+  if (pPlanTaken != NULL) {
+    *pPlanTaken = false;
+  }
 
   SStreamTriggerReaderCalcInfo* sStreamReaderCalcInfo = taosMemoryCalloc(1, sizeof(SStreamTriggerReaderCalcInfo));
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo, terrno);
@@ -985,6 +989,9 @@ static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(void* pTask, con
   sStreamReaderCalcInfo->pTask = pTask;
   if (keepPlan) {
     sStreamReaderCalcInfo->calcAst = (SSubplan*)pPlan;
+    if (pPlanTaken != NULL) {
+      *pPlanTaken = true;
+    }
   } else {
     STREAM_CHECK_RET_GOTO(nodesCloneNode(pPlan, (SNode**)&sStreamReaderCalcInfo->calcAst));
   }
@@ -1002,7 +1009,7 @@ static SStreamTriggerReaderCalcInfo* createStreamReaderCalcInfo(void* pTask, con
   }
   
   bool hasPlaceHolderColumn = false;
-  nodesWalkExpr(((SSubplan*)pPlan)->pTagCond, checkPlaceHolderColumn, (void*)&hasPlaceHolderColumn);
+  nodesWalkExpr(sStreamReaderCalcInfo->calcAst->pTagCond, checkPlaceHolderColumn, (void*)&hasPlaceHolderColumn);
   sStreamReaderCalcInfo->hasPlaceHolder = hasPlaceHolderColumn;
   sStreamReaderCalcInfo->calcScanPlan = taosStrdup(pMsg->msg.calc.calcScanPlan);
   STREAM_CHECK_NULL_GOTO(sStreamReaderCalcInfo->calcScanPlan, terrno);
@@ -1024,6 +1031,8 @@ end:
 int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg) {
   int32_t code = 0;
   int32_t lino = 0;
+  SNode*  pPlan = NULL;
+  bool    pPlanMoved = false;
   STREAM_CHECK_NULL_GOTO(pTask, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(pMsg, TSDB_CODE_INVALID_PARA);
 
@@ -1034,17 +1043,27 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
     pTask->info = createStreamReaderInfo(pTask, pMsg);
     STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
   } else {
-    SNode* pPlan = NULL;
     ST_TASK_DLOGL("calcScanPlan:%s", (char*)(pMsg->msg.calc.calcScanPlan));
     pTask->info = taosArrayInit(pMsg->msg.calc.execReplica, POINTER_BYTES);
     STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
     STREAM_CHECK_RET_GOTO(nodesStringToNode(pMsg->msg.calc.calcScanPlan, &pPlan));
     
     for (int32_t i = 0; i < pMsg->msg.calc.execReplica; ++i) {
-      SStreamTriggerReaderCalcInfo* pCalcInfo = createStreamReaderCalcInfo(pTask, pMsg, pPlan, 0 == i);
+      bool pPlanTaken = false;
+      SStreamTriggerReaderCalcInfo* pCalcInfo = createStreamReaderCalcInfo(pTask, pMsg, pPlan, 0 == i, &pPlanTaken);
+      if (pPlanTaken) {
+        pPlanMoved = true;
+      }
       STREAM_CHECK_NULL_GOTO(pCalcInfo, terrno);
-      STREAM_CHECK_NULL_GOTO(taosArrayPush(pTask->info, &pCalcInfo), terrno);
+      if (NULL == taosArrayPush(pTask->info, &pCalcInfo)) {
+        releaseStreamReaderCalcInfo(pCalcInfo);
+        STREAM_CHECK_NULL_GOTO(NULL, terrno);
+      }
     }
+    if (!pPlanMoved) {
+      nodesDestroyNode(pPlan);
+    }
+    pPlan = NULL;
   }
   ST_TASK_DLOG("stReaderTaskDeploy: stream %" PRIx64 " task %" PRIx64 " vgId:%d pTask:%p, info:%p", pTask->task.streamId,
          pTask->task.taskId, pTask->task.nodeId, pTask, pTask->info);
@@ -1056,6 +1075,15 @@ end:
   STREAM_PRINT_LOG_END(code, lino);
 
   if (code) {
+    if (!pPlanMoved) {
+      nodesDestroyNode(pPlan);
+    }
+    if (pTask->triggerReader == 1) {
+      releaseStreamReaderInfo(pTask->info);
+    } else {
+      taosArrayDestroyP(pTask->info, releaseStreamReaderCalcInfo);
+    }
+    pTask->info = NULL;
     pTask->task.status = STREAM_STATUS_FAILED;
   }
 

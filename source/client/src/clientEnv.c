@@ -16,7 +16,7 @@
 #include <ttimer.h>
 #include "cJSON.h"
 #include "catalog.h"
-#include "clientInt.h"
+#include "extConnector.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
 #include "functionMgt.h"
@@ -585,9 +585,9 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
 
   (void)atomic_add_fetch_64(&(*pObj)->pAppInfo->numOfConns, 1);
 
-  /* Snapshot the current client timezone (L3) into the session timezone (L2)
-   * so that ALTER LOCAL timezone only affects L3 going forward; this session's
-   * L2 remains the value captured at connection creation. */
+  /* Snapshot the current client timezone into the session timezone. ALTER LOCAL
+   * timezone is synchronized back to this connection after the local command
+   * succeeds. */
   (void)tscInitSessionTimezone(*pObj);
 
   updateConnAccessInfo(&(*pObj)->sessInfo);
@@ -1198,6 +1198,19 @@ void taos_init_imp(void) {
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   ENV_ERR_RET(catalogInit(&cfg), "failed to init catalog");
+
+#ifdef TD_ENTERPRISE
+  {
+    SExtConnectorModuleCfg extConnCfg = {
+      .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+      .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+      .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+      .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+      .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+    };
+    ENV_ERR_RET(extConnectorModuleInit(&extConnCfg), "failed to init ext connector");
+  }
+#endif
   ENV_ERR_RET(schedulerInit(), "failed to init scheduler");
   ENV_ERR_RET(initClientId(), "failed to init clientId");
 

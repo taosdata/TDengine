@@ -35,6 +35,7 @@ EXPECTED_INFO_TABLES = {
     "ins_encrypt_algorithms",
     "ins_encrypt_status",
     "ins_encryptions",
+    "ins_ext_sources",
     "ins_filesets",
     "ins_functions",
     "ins_grants",

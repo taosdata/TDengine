@@ -11,6 +11,7 @@ if(TD_ENTERPRISE)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/mnode/src/mndDnode.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/view/src/mndView.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/mnode/src/mndMount.c)
+  LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/mnode/src/mndExtSource.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/token/src/mndTokenImpl.c)
   LIST(APPEND MNODE_SRC ${TD_ENTERPRISE_DIR}/source/plugins/xnode/src/mndXnodeImpl.c)
 
@@ -42,6 +43,7 @@ if(TD_ENTERPRISE)
   target_include_directories(
     mnode
     PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/taosk/inc"
+    PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
   )
 endif()
 target_link_libraries(

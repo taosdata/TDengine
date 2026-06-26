@@ -228,7 +228,7 @@ static bool checkObjName(SAstCreateContext* pCxt, SToken* pObjName, bool need) {
 
 static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool demandDb) {
   if (NULL == pDbName) {
-    if (demandDb && NULL == pCxt->pQueryCxt->db) {
+    if (demandDb && NULL == pCxt->pQueryCxt->db && pCxt->pQueryCxt->currentExtSource[0] == '\0') {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DB_NOT_SPECIFIED);
     }
   } else {
@@ -738,6 +738,7 @@ SNode* createPlaceHolderColumnNode(SAstCreateContext* pCxt, SNode* pColId) {
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, pColId);
   CHECK_PARSER_STATUS(pCxt);
   pFunc->tz = pCxt->pQueryCxt->timezone;
+  tstrncpy(pFunc->tzName, pCxt->pQueryCxt->timezoneName, TD_TIMEZONE_LEN);
   pFunc->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   pFunc->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
   return (SNode*)pFunc;
@@ -1521,6 +1522,7 @@ SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNod
   COPY_STRING_FORM_ID_TOKEN(func->functionName, pFuncName);
   func->pParameterList = pParameterList;
   func->tz = pCxt->pQueryCxt->timezone;
+  tstrncpy(func->tzName, pCxt->pQueryCxt->timezoneName, TD_TIMEZONE_LEN);
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
   return (SNode*)func;
@@ -1545,6 +1547,7 @@ SNode* createPHTbnameFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncNa
   tstrncpy(func->functionName, "_placeholder_tbname", TSDB_FUNC_NAME_LEN);
   func->pParameterList = pParameterList;
   func->tz = pCxt->pQueryCxt->timezone;
+  tstrncpy(func->tzName, pCxt->pQueryCxt->timezoneName, TD_TIMEZONE_LEN);
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
   return (SNode*)func;
@@ -1589,6 +1592,7 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   pCxt->errCode = nodesListMakeAppend(&func->pParameterList, pExpr);
   CHECK_PARSER_STATUS(pCxt);
   func->tz = pCxt->pQueryCxt->timezone;
+  tstrncpy(func->tzName, pCxt->pQueryCxt->timezoneName, TD_TIMEZONE_LEN);
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
   func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
 
@@ -1732,8 +1736,10 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTa
   CHECK_MAKE_NODE(realTable);
   if (NULL != pDbName) {
     COPY_STRING_FORM_ID_TOKEN(realTable->table.dbName, pDbName);
-  } else {
+  } else if (pCxt->pQueryCxt->db) {
     snprintf(realTable->table.dbName, sizeof(realTable->table.dbName), "%s", pCxt->pQueryCxt->db);
+  } else {
+    realTable->table.dbName[0] = '\0';
   }
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
     COPY_STRING_FORM_ID_TOKEN(realTable->table.tableAlias, pTableAlias);
@@ -1741,6 +1747,7 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTa
     COPY_STRING_FORM_ID_TOKEN(realTable->table.tableAlias, pTableName);
   }
   COPY_STRING_FORM_ID_TOKEN(realTable->table.tableName, pTableName);
+  realTable->numPathSegments = (NULL != pDbName) ? 2 : 1;
   return (SNode*)realTable;
 _err:
   return NULL;
@@ -1765,16 +1772,18 @@ _err:
 
 SNode* createStreamNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pStreamName) {
   CHECK_PARSER_STATUS(pCxt);
-  CHECK_NAME(checkDbName(pCxt, pDbName, true));
+  // demandDb=false: allow no-db for DROP STREAM IF EXISTS; CREATE STREAM will validate later
+  CHECK_NAME(checkDbName(pCxt, pDbName, false));
   CHECK_NAME(checkStreamName(pCxt, pStreamName));
   SStreamNode* pStream = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_STREAM, (SNode**)&pStream);
   CHECK_MAKE_NODE(pStream);
   if (NULL != pDbName) {
     COPY_STRING_FORM_ID_TOKEN(pStream->dbName, pDbName);
-  } else {
+  } else if (NULL != pCxt->pQueryCxt->db) {
     snprintf(pStream->dbName, sizeof(pStream->dbName), "%s", pCxt->pQueryCxt->db);
   }
+  // else: dbName stays empty; translateDropStream will handle gracefully with IF EXISTS
   COPY_STRING_FORM_ID_TOKEN(pStream->streamName, pStreamName);
   return (SNode*)pStream;
 _err:
@@ -2953,6 +2962,20 @@ _err:
   return NULL;
 }
 
+SNode* createSimpleExternalWindowClause(SAstCreateContext* pCxt) {
+  SExternalWindowNode* pExtWin = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, (SNode**)&pExtWin);
+  CHECK_MAKE_NODE(pExtWin);
+  pExtWin->pSubquery = NULL;
+  pExtWin->pFill = NULL;
+  pExtWin->aliasName[0] = '\0';
+  return (SNode*)pExtWin;
+_err:
+  nodesDestroyNode((SNode*)pExtWin);
+  return NULL;
+}
+
 SNode* addJLimitClause(SAstCreateContext* pCxt, SNode* pJoin, SNode* pJLimit) {
   CHECK_PARSER_STATUS(pCxt);
   if (NULL == pJLimit) {
@@ -3694,6 +3717,8 @@ SNode* setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SNode* pRef)
   CHECK_PARSER_STATUS(pCxt);
 
   ((SColumnOptions*)pOptions)->hasRef = true;
+  ((SColumnOptions*)pOptions)->refType = ((SColumnRefNode*)pRef)->refType;
+  tstrncpy(((SColumnOptions*)pOptions)->refSourceName, ((SColumnRefNode*)pRef)->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
   tstrncpy(((SColumnOptions*)pOptions)->refDb, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(((SColumnOptions*)pOptions)->refTable, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(((SColumnOptions*)pOptions)->refColumn, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
@@ -3766,9 +3791,11 @@ SNode* createColumnRefNodeByNode(SAstCreateContext* pCxt, SToken* pColName, SNod
   if (pColName) {
     COPY_STRING_FORM_ID_TOKEN(pCol->colName, pColName);
   }
+  pCol->refType = ((SColumnRefNode*)pRef)->refType;
   tstrncpy(pCol->refDbName, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pCol->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pCol->refColName, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->refSourceName, ((SColumnRefNode*)pRef)->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
   return (SNode*)pCol;
 _err:
   return NULL;
@@ -3801,7 +3828,11 @@ SNode* createColumnRefNodeFromPair(SAstCreateContext* pCxt, SToken* pTable, STok
   SColumnRefNode* pNode = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pNode);
   CHECK_MAKE_NODE(pNode);
-  snprintf(pNode->refDbName, TSDB_DB_NAME_LEN, "%s", pCxt->pQueryCxt->db);
+  if (pCxt->pQueryCxt->db) {
+    snprintf(pNode->refDbName, TSDB_DB_NAME_LEN, "%s", pCxt->pQueryCxt->db);
+  } else {
+    pNode->refDbName[0] = '\0';
+  }
   COPY_STRING_FORM_ID_TOKEN(pNode->refTableName, pTable);
   COPY_STRING_FORM_ID_TOKEN(pNode->refColName, pCol);
   return (SNode*)pNode;
@@ -3825,7 +3856,7 @@ _err:
 STokenTriplet* setColumnName(SAstCreateContext* pCxt, STokenTriplet* pTokenTri, SToken pName) {
   CHECK_PARSER_STATUS(pCxt);
 
-  if (pTokenTri->numOfName >= 3) {
+  if (pTokenTri->numOfName >= 4) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     goto _err;
   }
@@ -3847,7 +3878,11 @@ SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenT
     case 2: {
       CHECK_NAME(checkTableName(pCxt, &pTokenTri->name[0]));
       CHECK_NAME(checkColumnName(pCxt, &pTokenTri->name[1]));
-      snprintf(pCol->refDbName, TSDB_DB_NAME_LEN, "%s", pCxt->pQueryCxt->db);
+      if (pCxt->pQueryCxt->db) {
+        snprintf(pCol->refDbName, TSDB_DB_NAME_LEN, "%s", pCxt->pQueryCxt->db);
+      } else {
+        pCol->refDbName[0] = '\0';
+      }
       COPY_STRING_FORM_ID_TOKEN(pCol->refTableName, &pTokenTri->name[0]);
       COPY_STRING_FORM_ID_TOKEN(pCol->refColName, &pTokenTri->name[1]);
       break;
@@ -3861,6 +3896,19 @@ SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenT
       COPY_STRING_FORM_ID_TOKEN(pCol->refColName, &pTokenTri->name[2]);
       break;
     }
+    case 4: {
+      // 4-part external source reference: source.db.table.column
+      pCol->refType = 1;
+      trimEscape(pCxt, &pTokenTri->name[0], true);
+      COPY_STRING_FORM_ID_TOKEN(pCol->refSourceName, &pTokenTri->name[0]);
+      CHECK_NAME(checkDbName(pCxt, &pTokenTri->name[1], true));
+      CHECK_NAME(checkTableName(pCxt, &pTokenTri->name[2]));
+      CHECK_NAME(checkColumnName(pCxt, &pTokenTri->name[3]));
+      COPY_STRING_FORM_ID_TOKEN(pCol->refDbName, &pTokenTri->name[1]);
+      COPY_STRING_FORM_ID_TOKEN(pCol->refTableName, &pTokenTri->name[2]);
+      COPY_STRING_FORM_ID_TOKEN(pCol->refColName, &pTokenTri->name[3]);
+      break;
+    }
     default: {
       pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
       goto _err;
@@ -3872,6 +3920,96 @@ SNode* createColumnRefNodeByName(SAstCreateContext* pCxt, STokenTriplet* pTokenT
 _err:
   taosMemFree(pTokenTri);
   nodesDestroyNode((SNode*)pCol);
+  return NULL;
+}
+
+SNode* createSeriesTagOperatorNode(SAstCreateContext* pCxt, const SToken* pTagName, const SToken* pTagValue) {
+  SValueNode* pVal = NULL;
+  SColumnNode* pCol = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+
+  // Build SColumnNode for left operand (tag name)
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  CHECK_MAKE_NODE(pCol);
+  COPY_STRING_FORM_ID_TOKEN(pCol->colName, pTagName);
+
+  // Build SValueNode for right operand (tag value)
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
+  CHECK_MAKE_NODE(pVal);
+  // Strip surrounding quotes from string literal
+  if (pTagValue->n >= 2 && (pTagValue->z[0] == '\'' || pTagValue->z[0] == '"')) {
+    int32_t len = pTagValue->n - 2;
+    pVal->literal = taosStrndup(pTagValue->z + 1, len);
+  } else {
+    pVal->literal = taosStrndup(pTagValue->z, pTagValue->n);
+  }
+  pVal->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+  pVal->node.resType.bytes = strlen(pVal->literal);
+
+  // Build SOperatorNode(OP_TYPE_EQUAL)
+  SOperatorNode* pOp = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp);
+  CHECK_MAKE_NODE(pOp);
+  pOp->opType = OP_TYPE_EQUAL;
+  pOp->pLeft = (SNode*)pCol;
+  pOp->pRight = (SNode*)pVal;
+  return (SNode*)pOp;
+_err:
+  nodesDestroyNode((SNode*)pCol);
+  nodesDestroyNode((SNode*)pCol);
+  return NULL;
+}
+
+// Build or extend a SLogicConditionNode(AND) from series tag operator nodes.
+// pList==NULL: create new LogicConditionNode with pOperator as first child.
+// pList!=NULL: append pOperator to existing LogicConditionNode.
+SNode* createSeriesTagListNode(SAstCreateContext* pCxt, SNode* pList, SNode* pOperator) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pList) {
+    SLogicConditionNode* pLogic = NULL;
+    pCxt->errCode = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogic);
+    CHECK_MAKE_NODE(pLogic);
+    pLogic->condType = LOGIC_COND_TYPE_AND;
+    pCxt->errCode = nodesListMakeAppend(&pLogic->pParameterList, pOperator);
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+      nodesDestroyNode((SNode*)pLogic);
+      goto _err;
+    }
+    return (SNode*)pLogic;
+  } else {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pList;
+    pCxt->errCode = nodesListAppend(pLogic->pParameterList, pOperator);
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) goto _err;
+    return pList;
+  }
+_err:
+  nodesDestroyNode(pOperator);
+  return pList;
+}
+
+SNode* createSeriesDeclNode(SAstCreateContext* pCxt, const SToken* pAlias,
+                            STokenTriplet* pTarget, SNode* pTagCond) {
+  SSeriesDeclNode* pDecl = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SERIES_DECL, (SNode**)&pDecl);
+  CHECK_MAKE_NODE(pDecl);
+  COPY_STRING_FORM_ID_TOKEN(pDecl->alias, pAlias);
+  if (pTarget->numOfName != 3) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                          "SERIES target must be source.db.measurement (3 segments)");
+    goto _err;
+  }
+  COPY_STRING_FORM_ID_TOKEN(pDecl->sourceName, &pTarget->name[0]);
+  COPY_STRING_FORM_ID_TOKEN(pDecl->dbName, &pTarget->name[1]);
+  COPY_STRING_FORM_ID_TOKEN(pDecl->measurementName, &pTarget->name[2]);
+  pDecl->pTagCond = pTagCond;
+
+  taosMemFree(pTarget);
+  return (SNode*)pDecl;
+_err:
+  nodesDestroyNode(pTagCond);
+  taosMemFree(pTarget);
+  nodesDestroyNode((SNode*)pDecl);
   return NULL;
 }
 
@@ -3917,7 +4055,8 @@ SDataType createDecimalDataType(uint8_t type, const SToken* pPrecisionToken, con
   return dt;
 }
 
-SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols) {
+SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                              SNodeList* pCols, SNodeList* pSeriesList) {
   SCreateVTableStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT, (SNode**)&pStmt);
@@ -3926,18 +4065,21 @@ SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
   tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pStmt->tableName));
   pStmt->ignoreExists = ignoreExists;
   pStmt->pCols = pCols;
+  pStmt->pSeriesList = pSeriesList;
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:
   nodesDestroyNode(pRealTable);
   nodesDestroyList(pCols);
+  nodesDestroyList(pSeriesList);
   return NULL;
 }
 
 SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
                                  SNodeList* pSpecificColRefs, SNodeList* pColRefs, SNode* pUseRealTable,
                                  SNodeList* pSpecificTags, SNodeList* pValsOfTags,
-                                 SNodeList* pSpecificTagRefs, SNodeList* pTagRefs) {
+                                 SNodeList* pSpecificTagRefs, SNodeList* pTagRefs,
+                                 SNodeList* pSeriesList) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateVSubTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT, (SNode**)&pStmt);
@@ -3958,6 +4100,7 @@ SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNo
   pStmt->pColRefs = pColRefs;
   pStmt->pSpecificTagRefs = pSpecificTagRefs;
   pStmt->pTagRefs = pTagRefs;
+  pStmt->pSeriesList = pSeriesList;
   nodesDestroyNode(pRealTable);
   nodesDestroyNode(pUseRealTable);
   return (SNode*)pStmt;
@@ -3970,12 +4113,23 @@ _err:
   nodesDestroyList(pColRefs);
   nodesDestroyList(pSpecificTagRefs);
   nodesDestroyList(pTagRefs);
+  nodesDestroyList(pSeriesList);
   return NULL;
 }
 
 SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
                              SNodeList* pTags, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
+#ifdef TD_ENTERPRISE
+  if (((SRealTableNode*)pRealTable)->numPathSegments >= 3) {
+    pCxt->errCode = TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED;
+    nodesDestroyNode(pRealTable);
+    nodesDestroyList(pCols);
+    nodesDestroyList(pTags);
+    nodesDestroyNode(pOptions);
+    return NULL;
+  }
+#endif
   SCreateTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
@@ -3998,6 +4152,18 @@ _err:
 SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNode* pUseRealTable,
                                   SNodeList* pSpecificTags, SNodeList* pValsOfTags, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
+#ifdef TD_ENTERPRISE
+  if (((SRealTableNode*)pRealTable)->numPathSegments >= 3 ||
+      ((SRealTableNode*)pUseRealTable)->numPathSegments >= 3) {
+    pCxt->errCode = TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED;
+    nodesDestroyNode(pRealTable);
+    nodesDestroyNode(pUseRealTable);
+    nodesDestroyList(pSpecificTags);
+    nodesDestroyList(pValsOfTags);
+    nodesDestroyNode(pOptions);
+    return NULL;
+  }
+#endif
   SCreateSubTableClause* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_SUBTABLE_CLAUSE, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
@@ -4060,6 +4226,13 @@ _err:
 
 SNode* createDropTableClause(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
+#ifdef TD_ENTERPRISE
+  if (((SRealTableNode*)pRealTable)->numPathSegments >= 3) {
+    pCxt->errCode = TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED;
+    nodesDestroyNode(pRealTable);
+    return NULL;
+  }
+#endif
   SDropTableClause* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_TABLE_CLAUSE, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
@@ -4088,6 +4261,13 @@ _err:
 
 SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool withOpt, bool ignoreNotExists, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
+#ifdef TD_ENTERPRISE
+  if (((SRealTableNode*)pRealTable)->numPathSegments >= 3) {
+    pCxt->errCode = TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED;
+    nodesDestroyNode(pRealTable);
+    return NULL;
+  }
+#endif
   SDropSuperTableStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_SUPER_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
@@ -4118,7 +4298,15 @@ _err:
   return NULL;
 }
 
-static SNode* createAlterTableStmtFinalize(SNode* pRealTable, SAlterTableStmt* pStmt) {
+static SNode* createAlterTableStmtFinalize(SAstCreateContext* pCxt, SNode* pRealTable, SAlterTableStmt* pStmt) {
+#ifdef TD_ENTERPRISE
+  if (((SRealTableNode*)pRealTable)->numPathSegments >= 3) {
+    pCxt->errCode = TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED;
+    nodesDestroyNode(pRealTable);
+    nodesDestroyNode((SNode*)pStmt);
+    return NULL;
+  }
+#endif
   tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   nodesDestroyNode(pRealTable);
@@ -4132,7 +4320,7 @@ SNode* createAlterTableModifyOptions(SAstCreateContext* pCxt, SNode* pRealTable,
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_OPTIONS;
   pStmt->pOptions = (STableOptions*)pOptions;
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
   nodesDestroyNode(pRealTable);
   nodesDestroyNode(pOptions);
@@ -4149,7 +4337,7 @@ SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, 
   pStmt->alterType = alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
   pStmt->dataType = dataType;
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
   nodesDestroyNode(pRealTable);
   return NULL;
@@ -4175,6 +4363,8 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
         pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
       }
       pStmt->alterType = TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF;
+      pStmt->refType = pOption->refType;
+      tstrncpy(pStmt->refSourceName, pOption->refSourceName, TSDB_TABLE_NAME_LEN);
       tstrncpy(pStmt->refDbName, pOption->refDb, TSDB_DB_NAME_LEN);
       tstrncpy(pStmt->refTableName, pOption->refTable, TSDB_TABLE_NAME_LEN);
       tstrncpy(pStmt->refColName, pOption->refColumn, TSDB_COL_NAME_LEN);
@@ -4193,7 +4383,7 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
       CHECK_PARSER_STATUS(pCxt);
     }
   }
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
   nodesDestroyNode(pOptions);
   nodesDestroyNode((SNode*)pStmt);
@@ -4211,7 +4401,7 @@ SNode* createAlterTableAddModifyColOptions(SAstCreateContext* pCxt, SNode* pReal
   pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
   pStmt->pColOptions = (SColumnOptions*)pOptions;
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
   nodesDestroyNode(pOptions);
   nodesDestroyNode(pRealTable);
@@ -4226,7 +4416,7 @@ SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
   nodesDestroyNode(pRealTable);
   return NULL;
@@ -4243,7 +4433,7 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
   pStmt->alterType = alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pOldColName);
   COPY_STRING_FORM_ID_TOKEN(pStmt->newColName, pNewColName);
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
   nodesDestroyNode(pRealTable);
   return NULL;
@@ -4258,10 +4448,12 @@ SNode* createAlterTableAlterColRef(SAstCreateContext* pCxt, SNode* pRealTable, i
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
+  pStmt->refType = ((SColumnRefNode*)pRef)->refType;
+  tstrncpy(pStmt->refSourceName, ((SColumnRefNode*)pRef)->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
   tstrncpy(pStmt->refDbName, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pStmt->refColName, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
   nodesDestroyNode(pRealTable);
   return NULL;
@@ -4276,7 +4468,7 @@ SNode* createAlterTableRemoveColRef(SAstCreateContext* pCxt, SNode* pRealTable, 
   CHECK_MAKE_NODE(pStmt);
   pStmt->alterType = alterType;
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
   nodesDestroyNode(pRealTable);
   return NULL;
@@ -4294,7 +4486,34 @@ SNode* createAlterTableAlterTagRef(SAstCreateContext* pCxt, SNode* pRealTable, i
   tstrncpy(pStmt->refDbName, ((SColumnRefNode*)pRef)->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->refTableName, ((SColumnRefNode*)pRef)->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pStmt->refColName, ((SColumnRefNode*)pRef)->refColName, TSDB_COL_NAME_LEN);
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
+_err:
+  nodesDestroyNode(pRealTable);
+  return NULL;
+}
+
+SNode* createAlterTableAddSeries(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pSeriesDecl) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_ADD_SERIES;
+  pStmt->pSeriesDecl = pSeriesDecl;
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
+_err:
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pSeriesDecl);
+  return NULL;
+}
+
+SNode* createAlterTableRemoveSeries(SAstCreateContext* pCxt, SNode* pRealTable, const SToken* pAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = TSDB_ALTER_TABLE_REMOVE_SERIES;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->seriesAlias, pAlias);
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
   nodesDestroyNode(pRealTable);
   return NULL;
@@ -4316,7 +4535,6 @@ _err:
   nodesDestroyNode((SNode*)pNode);
   return NULL;
 }
-
 
 // NOTE: this function only supports REGEXP_REPLACE for now, it should be extended
 // for full expression support in the future, and the prototype needs to be changed
@@ -4405,7 +4623,7 @@ SNode* createAlterChildTableUpdateTagValStmt(SAstCreateContext* pCxt, SNode* pRe
   pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_CHILD_TABLE_TAG_VAL;
   pStmt->pList = pTagList;
   pStmt->pWhere = pWhere;
-  return createAlterTableStmtFinalize(pRealTable, pStmt);
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 
 _err:
   nodesDestroyNode((SNode*)pStmt);
@@ -4435,6 +4653,26 @@ SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
   COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   return (SNode*)pStmt;
 _err:
+  return NULL;
+}
+
+// CREATE USE-EXT-SOURCE stmt for: USE src | USE src.ns1 | USE src.ns1.ns2
+// pNs1 and pNs2 may be NULL (pass NULL for absent components).
+SNode* createUseExtSourceStmt(SAstCreateContext* pCxt, SToken* pSrc, SToken* pNs1, SToken* pNs2) {
+  CHECK_PARSER_STATUS(pCxt);
+  SUseExtSourceStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_USE_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pSrc);
+  if (pNs1 && pNs1->n > 0) {
+    strncpy(pStmt->ns1, pNs1->z, TMIN((int32_t)pNs1->n, (int32_t)sizeof(pStmt->ns1) - 1));
+  }
+  if (pNs2 && pNs2->n > 0) {
+    strncpy(pStmt->ns2, pNs2->z, TMIN((int32_t)pNs2->n, (int32_t)sizeof(pStmt->ns2) - 1));
+  }
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
   return NULL;
 }
 
@@ -7256,6 +7494,16 @@ SNode* createRealTableNodeForIndexName(SAstCreateContext* pCxt, SToken* pDbName,
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SNode* pIndexName,
                              SNode* pRealTable, SNodeList* pCols, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
+#ifdef TD_ENTERPRISE
+  if (((SRealTableNode*)pRealTable)->numPathSegments >= 3) {
+    pCxt->errCode = TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED;
+    nodesDestroyNode(pIndexName);
+    nodesDestroyNode(pRealTable);
+    nodesDestroyList(pCols);
+    nodesDestroyNode(pOptions);
+    return NULL;
+  }
+#endif
   SCreateIndexStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_INDEX_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
@@ -7561,8 +7809,11 @@ SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable) {
   SDescribeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_DESCRIBE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  SRealTableNode* pReal = (SRealTableNode*)pRealTable;
+  tstrncpy(pStmt->dbName, pReal->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, pReal->table.tableName, TSDB_TABLE_NAME_LEN);
+  pStmt->numPathSegments = pReal->numPathSegments;
+  (void)memcpy(pStmt->extSeg, pReal->extSeg, sizeof(pStmt->extSeg));
   nodesDestroyNode(pRealTable);
   return (SNode*)pStmt;
 _err:
@@ -8004,6 +8255,11 @@ SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
   }
 
   if (pStream) {
+    // CREATE STREAM requires a valid db context (unlike DROP STREAM IF EXISTS)
+    if ('\0' == ((SStreamNode*)pStream)->dbName[0]) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DB_NOT_SPECIFIED);
+      goto _err;
+    }
     tstrncpy(pStmt->streamDbName, ((SStreamNode*)pStream)->dbName, TSDB_DB_NAME_LEN);
     tstrncpy(pStmt->streamName, ((SStreamNode*)pStream)->streamName, TSDB_STREAM_NAME_LEN);
   } else {
@@ -8891,6 +9147,372 @@ SNode* createFileTableNode(SAstCreateContext* pCxt, const SToken* pPath, const S
     COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableAlias);
   } else {
     taosRandStr(pNode->table.tableAlias, 32);
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+// ===================== Federated query: External Source DDL =====================
+
+// Helper: parse TYPE string → EExtSourceType (case-insensitive)
+static int8_t parseExtSourceType(const SToken* pToken) {
+  // pToken is a NK_STRING, e.g. 'mysql'; strip surrounding quotes
+  if (pToken == NULL || pToken->n < 2) return -1;
+  char buf[32] = {0};
+  size_t len = (size_t)(pToken->n - 2);
+  if (len == 0 || len >= sizeof(buf)) return -1;
+  memcpy(buf, pToken->z + 1, len);
+  for (size_t i = 0; i < len; i++) buf[i] = (char)tolower((unsigned char)buf[i]);
+  if (strcmp(buf, "mysql") == 0)      return EXT_SOURCE_MYSQL;
+  if (strcmp(buf, "postgresql") == 0) return EXT_SOURCE_POSTGRESQL;
+  if (strcmp(buf, "influxdb") == 0)   return EXT_SOURCE_INFLUXDB;
+  if (strcmp(buf, "tdengine") == 0)   return EXT_SOURCE_TDENGINE;
+  return -1;
+}
+
+static uint32_t getExtSourceIdLen(const SToken* pToken) {
+  if (pToken == NULL || pToken->z == NULL || pToken->n == 0) {
+    return 0;
+  }
+
+  if (pToken->z[0] == '`') {
+    uint32_t logicalLen = 0;
+    uint32_t i = 1;
+    while (pToken->z[i] != '\0') {
+      if (pToken->z[i] == '`') {
+        if (pToken->z[i + 1] == '`') {
+          ++logicalLen;
+          i += 2;
+          continue;
+        }
+        break;
+      }
+      ++logicalLen;
+      ++i;
+    }
+    if (logicalLen > 0) {
+      return logicalLen;
+    }
+    return (pToken->n >= 2 ? pToken->n - 2 : 0);
+  }
+
+  uint32_t scannedLen = 0;
+  while (pToken->z[scannedLen] != '\0') {
+    char c = pToken->z[scannedLen];
+    if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_')) {
+      break;
+    }
+    ++scannedLen;
+  }
+  return (scannedLen > pToken->n ? scannedLen : pToken->n);
+}
+
+static uint32_t getExtSourceTokenLogicalLen(const SToken* pToken) {
+  if (pToken == NULL || pToken->z == NULL || pToken->n == 0) {
+    return 0;
+  }
+
+  char quote = pToken->z[0];
+  if (pToken->n >= 2 && (quote == '\'' || quote == '"' || quote == '`')) {
+    uint32_t logicalLen = 0;
+    for (uint32_t i = 1; i < pToken->n; ++i) {
+      char c = pToken->z[i];
+      if (c == quote) {
+        if (i + 1 < pToken->n && pToken->z[i + 1] == quote) {
+          ++logicalLen;
+          ++i;
+          continue;
+        }
+        break;
+      }
+      ++logicalLen;
+    }
+    return logicalLen;
+  }
+
+  return pToken->n;
+}
+
+SNode* createCreateExtSourceStmt(SAstCreateContext* pCxt, bool ignoreExists,
+    const SToken* pName, const SToken* pType, const SToken* pHost,
+    const SToken* pPort, const SToken* pUser, const SToken* pPassword,
+    const SToken* pDb, const SToken* pSchema, SNodeList* pOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateExtSourceStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->ignoreExists = ignoreExists;
+  uint32_t sourceNameLen = getExtSourceIdLen(pName);
+  if (sourceNameLen == 0) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
+  if (sourceNameLen >= TSDB_EXT_SOURCE_NAME_LEN) {
+    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _err;
+  }
+  if (getExtSourceTokenLogicalLen(pHost) >= TSDB_EXT_SOURCE_HOST_LEN) {
+    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _err;
+  }
+  if (pUser != NULL && pUser->n > 0 && pUser->z != NULL &&
+      getExtSourceTokenLogicalLen(pUser) >= TSDB_EXT_SOURCE_USER_LEN) {
+    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _err;
+  }
+  if (pPassword != NULL && pPassword->n > 0 && pPassword->z != NULL &&
+      getExtSourceTokenLogicalLen(pPassword) >= TSDB_EXT_SOURCE_PASSWORD_LEN) {
+    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _err;
+  }
+  if (pDb != NULL && pDb->n > 0 && pDb->z != NULL &&
+      getExtSourceTokenLogicalLen(pDb) >= TSDB_EXT_SOURCE_DATABASE_LEN) {
+    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _err;
+  }
+  if (pSchema != NULL && pSchema->n > 0 && pSchema->z != NULL &&
+      getExtSourceTokenLogicalLen(pSchema) >= TSDB_EXT_SOURCE_SCHEMA_LEN) {
+    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _err;
+  }
+  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  if (strlen(pStmt->sourceName) < sourceNameLen) {
+    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _err;
+  }
+  pStmt->sourceType = parseExtSourceType(pType);
+  (void)trimString(pHost->z, pHost->n, pStmt->host, sizeof(pStmt->host));
+  pStmt->port = taosStr2Int32(pPort->z, NULL, 10);
+  if (pUser != NULL && pUser->n > 0 && pUser->z != NULL) {
+    (void)trimString(pUser->z, pUser->n, pStmt->user, sizeof(pStmt->user));
+  }
+  if (pPassword != NULL && pPassword->n > 0 && pPassword->z != NULL) {
+    (void)trimString(pPassword->z, pPassword->n, pStmt->password, sizeof(pStmt->password));
+  }
+  if (pDb != NULL && pDb->n > 0 && pDb->z != NULL) {
+    if (pDb->n > 2 && (pDb->z[0] == '\'' || pDb->z[0] == '"')) {
+      (void)trimString(pDb->z, pDb->n, pStmt->database, sizeof(pStmt->database));
+    } else {
+      COPY_STRING_FORM_ID_TOKEN(pStmt->database, pDb);
+    }
+  }
+  if (pSchema != NULL && pSchema->n > 0 && pSchema->z != NULL) {
+    if (pSchema->n > 2 && (pSchema->z[0] == '\'' || pSchema->z[0] == '"')) {
+      (void)trimString(pSchema->z, pSchema->n, pStmt->schemaName, sizeof(pStmt->schemaName));
+    } else {
+      COPY_STRING_FORM_ID_TOKEN(pStmt->schemaName, pSchema);
+    }
+  }
+  pStmt->pOptions = pOptions;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+/* InfluxDB-style CREATE where api_token replaces user+password.
+ * The api_token is injected into the options list as a key-value pair. */
+SNode* createCreateExtSourceStmtInflux(SAstCreateContext* pCxt, bool ignoreExists,
+    const SToken* pName, const SToken* pType, const SToken* pHost,
+    const SToken* pPort, const SToken* pApiToken,
+    const SToken* pDb, const SToken* pSchema, SNodeList* pOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+  /* Convert api_token value into an options node and prepend to pOptions */
+  SExtOptionNode* pOptNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pOptNode);
+  CHECK_MAKE_NODE(pOptNode);
+  tstrncpy(pOptNode->key, "api_token", TSDB_EXT_SOURCE_OPTION_KEY_LEN);
+  /* pApiToken is a NK_STRING — strip surrounding quotes for the value */
+  if (pApiToken->n > 2 && (pApiToken->z[0] == '\'' || pApiToken->z[0] == '"')) {
+    uint32_t vlen = pApiToken->n - 2;
+    if (vlen >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) vlen = TSDB_EXT_SOURCE_OPTION_VALUE_LEN - 1;
+    (void)memcpy(pOptNode->value, pApiToken->z + 1, vlen);
+    pOptNode->value[vlen] = '\0';
+  } else {
+    COPY_STRING_FORM_ID_TOKEN(pOptNode->value, pApiToken);
+  }
+  /* Prepend the api_token option to the existing options list */
+  SNodeList* pAllOpts = pOptions;
+  if (pAllOpts == NULL) {
+    pCxt->errCode = nodesMakeList(&pAllOpts);
+    if (pCxt->errCode != TSDB_CODE_SUCCESS || pAllOpts == NULL) {
+      nodesDestroyNode((SNode*)pOptNode);
+      goto _err;
+    }
+  }
+  pCxt->errCode = nodesListPushFront(pAllOpts, (SNode*)pOptNode);
+  if (pCxt->errCode != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pOptNode);
+    nodesDestroyList(pAllOpts);
+    goto _err;
+  }
+  /* Empty user and password tokens for InfluxDB (password check is skipped for influxdb) */
+  SToken emptyUser = {.type = TK_NK_STRING, .z = "", .n = 2};
+  SToken emptyPwd  = {.type = TK_NK_STRING, .z = "''", .n = 2};
+  SNode* pResult = createCreateExtSourceStmt(pCxt, ignoreExists, pName, pType, pHost, pPort,
+                                              &emptyUser, &emptyPwd, pDb, pSchema, pAllOpts);
+  return pResult;
+_err:
+  return NULL;
+}
+
+SNode* createAlterExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName, SNodeList* pAlterClauses) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterExtSourceStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  pStmt->pAlterItems = pAlterClauses;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createDropExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDropExtSourceStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->ignoreNotExists = ignoreNotExists;
+  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createShowExtSourcesStmt(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowExtSourcesStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_EXT_SOURCES_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createDescribeExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SDescribeExtSourceStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createRefreshExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName) {
+  CHECK_PARSER_STATUS(pCxt);
+  SRefreshExtSourceStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_REFRESH_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createExtOptionNode(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue) {
+  CHECK_PARSER_STATUS(pCxt);
+  SExtOptionNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  if (getExtSourceTokenLogicalLen(pKey) >= TSDB_EXT_SOURCE_OPTION_KEY_LEN ||
+      getExtSourceTokenLogicalLen(pValue) >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) {
+    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _err;
+  }
+  // key is NK_STRING — strip quotes
+  COPY_STRING_FORM_STR_TOKEN(pNode->key, pKey);
+  COPY_STRING_FORM_STR_TOKEN(pNode->value, pValue);
+  if (0 == strcmp(pNode->value, "''") || 0 == strcmp(pNode->value, "\"\"")) {
+    pNode->value[0] = '\0';
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+// Same as createExtOptionNode but the key is an unquoted NK_ID token.
+SNode* createExtOptionNodeFromId(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue) {
+  CHECK_PARSER_STATUS(pCxt);
+  SExtOptionNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  if (getExtSourceTokenLogicalLen(pKey) >= TSDB_EXT_SOURCE_OPTION_KEY_LEN ||
+      getExtSourceTokenLogicalLen(pValue) >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) {
+    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _err;
+  }
+  // key is NK_ID — copy as raw identifier (no quote stripping)
+  COPY_STRING_FORM_ID_TOKEN(pNode->key, pKey);
+  COPY_STRING_FORM_STR_TOKEN(pNode->value, pValue);
+  if (0 == strcmp(pNode->value, "''") || 0 == strcmp(pNode->value, "\"\"")) {
+    pNode->value[0] = '\0';
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+SNode* createAlterExtClause(SAstCreateContext* pCxt, EExtAlterType alterType,
+                             SNodeList* pOpts, const SToken* pVal) {
+  CHECK_PARSER_STATUS(pCxt);
+  SExtAlterClauseNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_ALTER_CLAUSE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  pNode->alterType = alterType;
+  if (alterType == EXT_ALTER_OPTIONS) {
+    pNode->pOptions = pOpts;
+  } else if (pVal != NULL) {
+    // NK_STRING token — strip quotes/unescape; NK_INTEGER token — copy as-is.
+    if (pVal->z[0] == '\'' || pVal->z[0] == '"') {
+      (void)trimString(pVal->z, pVal->n, pNode->value, sizeof(pNode->value));
+    } else {
+      COPY_STRING_FORM_ID_TOKEN(pNode->value, pVal);
+    }
+
+    if ((alterType == EXT_ALTER_DATABASE || alterType == EXT_ALTER_SCHEMA) &&
+        (0 == strcmp(pNode->value, "''") || 0 == strcmp(pNode->value, "\"\""))) {
+      pNode->value[0] = '\0';
+    }
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+SNode* createRealTableNodeExt3(SAstCreateContext* pCxt,
+    SToken* pSeg1, SToken* pSeg2, SToken* pTableName, SToken* pAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  // Strip backtick/quote escapes from all path segments (matching createRealTableNode behavior)
+  trimEscape(pCxt, pSeg1, true);
+  trimEscape(pCxt, pSeg2, true);
+  trimEscape(pCxt, pTableName, true);
+  if (NULL != pAlias && TK_NK_NIL != pAlias->type) trimEscape(pCxt, pAlias, true);
+  SRealTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  pNode->numPathSegments = 3;
+  COPY_STRING_FORM_ID_TOKEN(pNode->extSeg[0], pSeg1);
+  COPY_STRING_FORM_ID_TOKEN(pNode->extSeg[1], pSeg2);
+  COPY_STRING_FORM_ID_TOKEN(pNode->table.tableName, pTableName);
+  pNode->table.dbName[0] = '\0';  // 3-seg cannot be local, leave dbName empty
+  if (NULL != pAlias && TK_NK_NIL != pAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pAlias);
+  } else {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableName);
   }
   return (SNode*)pNode;
 _err:

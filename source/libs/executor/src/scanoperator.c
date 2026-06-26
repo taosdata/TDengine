@@ -1633,10 +1633,14 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
 _return:
   if (code) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    if (pInfo->lastColArray == pColArray) {
+      pInfo->lastColArray = NULL;
+    }
+    if (pInfo->lastBlockColArray == pBlockColArray) {
+      pInfo->lastBlockColArray = NULL;
+    }
     taosArrayDestroy(pColArray);
     taosArrayDestroy(pBlockColArray);
-    pInfo->lastBlockColArray = NULL;
-    pInfo->lastColArray = NULL;
   }
   pAPI->metaReaderFn.clearReader(&superTable);
   pAPI->metaReaderFn.clearReader(&orgTable);
@@ -2398,6 +2402,9 @@ static int32_t doVstbBatchDynamicTableScanNext(SOperatorInfo* pOperator, SSDataB
   }
 
 _end:
+  if (code != TSDB_CODE_SUCCESS) {
+    clearVstbBatchDynamicTableScanInfo(pInfo);
+  }
   return code;
 }
 
@@ -2582,6 +2589,7 @@ static void cleanReaderForVTable(STableScanInfo* pInfo){
 
 static void destroyTableScanOperatorInfo(void* param) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
+  clearVstbBatchDynamicTableScanInfo(pTableScanInfo);
   blockDataDestroy(pTableScanInfo->pResBlock);
   blockDataDestroy(pTableScanInfo->pOrgBlock);
   taosHashCleanup(pTableScanInfo->pIgnoreTables);

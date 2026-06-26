@@ -17,6 +17,8 @@
 #include "catalog.h"
 #include "commandInt.h"
 #include "decimal.h"
+#include "nodes.h"
+#include "querynodes.h"
 #include "osMemory.h"
 #include "osString.h"
 #include "scheduler.h"
@@ -37,6 +39,37 @@
   } while (0)
 
 extern SConfig* tsCfg;
+
+// Format pTagCond (SOperatorNode or SLogicConditionNode) to "tag1='v1',tag2='v2'" display string
+static int32_t tagCondToDisplayStr(const SNode* pTagCond, TSlice* pBuf) {
+  if (!pTagCond) return TSDB_CODE_SUCCESS;
+
+  if (nodeType(pTagCond) == QUERY_NODE_OPERATOR) {
+    SOperatorNode* pOp = (SOperatorNode*)pTagCond;
+    if (pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_COLUMN &&
+        pOp->pRight && nodeType(pOp->pRight) == QUERY_NODE_VALUE) {
+      SColumnNode* pCol = (SColumnNode*)pOp->pLeft;
+      SValueNode*  pVal = (SValueNode*)pOp->pRight;
+      const char*  valStr = pVal->literal ? pVal->literal : "";
+      QRY_ERR_RET(sliceAppend(pBuf, pCol->colName, strlen(pCol->colName)));
+      QRY_ERR_RET(sliceAppend(pBuf, "='", 2));
+      QRY_ERR_RET(sliceAppend(pBuf, valStr, strlen(valStr)));
+      QRY_ERR_RET(sliceAppend(pBuf, "'", 1));
+    }
+  } else if (nodeType(pTagCond) == QUERY_NODE_LOGIC_CONDITION) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pTagCond;
+    SNode* pChild = NULL;
+    bool   first = true;
+    FOREACH(pChild, pLogic->pParameterList) {
+      if (!first) {
+        QRY_ERR_RET(sliceAppend(pBuf, ",", 1));
+      }
+      QRY_ERR_RET(tagCondToDisplayStr(pChild, pBuf));
+      first = false;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRetrieveTableRsp** pRsp) {
   if (NULL == pBlock || NULL == pRsp) {
@@ -253,33 +286,42 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
     } else if (hasColRef(pMeta->tableType) && (pMeta->colRef || pMeta->tagRef)) {
       bool isTagRow = (i >= pMeta->tableInfo.numOfColumns);
       STR_TO_VARSTR(buf, "");  // default: empty ref
-      if (!isTagRow && pMeta->colRef) {
+
+      const SColRef* pRef = NULL;
+      if (!isTagRow && pMeta->colRef && i < pMeta->numOfColRefs) {
         // column: match by position (colRef is always aligned with schema columns)
-        if (i < pMeta->numOfColRefs && pMeta->colRef[i].hasRef) {
-          char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
-          TSlice strBuf = {0};
-          sliceInit(&strBuf, refColName, sizeof(refColName));
-          QRY_ERR_RET(sliceAppend(&strBuf, pMeta->colRef[i].refDbName, strlen(pMeta->colRef[i].refDbName)));
-          QRY_ERR_RET(sliceAppend(&strBuf, ".", 1));
-          QRY_ERR_RET(sliceAppend(&strBuf, pMeta->colRef[i].refTableName, strlen(pMeta->colRef[i].refTableName)));
-          QRY_ERR_RET(sliceAppend(&strBuf, ".", 1));
-          QRY_ERR_RET(sliceAppend(&strBuf, pMeta->colRef[i].refColName, strlen(pMeta->colRef[i].refColName)));
-          STR_TO_VARSTR(buf, refColName);
-        }
+        pRef = &pMeta->colRef[i];
       } else if (isTagRow && pMeta->tagRef) {
         // tag: match by colId — tagRef is appended in SET TAG order, not schema position order
-        const SColRef* pRef = findTagRefByColId(pMeta->tagRef, pMeta->numOfTagRefs, pMeta->schema[i].colId);
-        if (pRef && pRef->hasRef) {
-          char refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
-          TSlice strBuf = {0};
-          sliceInit(&strBuf, refColName, sizeof(refColName));
-          QRY_ERR_RET(sliceAppend(&strBuf, pRef->refDbName, strlen(pRef->refDbName)));
+        pRef = findTagRefByColId(pMeta->tagRef, pMeta->numOfTagRefs, pMeta->schema[i].colId);
+      }
+
+      if (pRef && pRef->hasRef) {
+        char refColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN +
+                        1024 + 4] = {0};
+
+        TSlice strBuf = {0};
+        sliceInit(&strBuf, refColName, sizeof(refColName));
+
+        if (pRef->refType == 1 && pRef->refSourceName[0] != '\0') {
+          QRY_ERR_RET(sliceAppend(&strBuf, pRef->refSourceName, strlen(pRef->refSourceName)));
           QRY_ERR_RET(sliceAppend(&strBuf, ".", 1));
-          QRY_ERR_RET(sliceAppend(&strBuf, pRef->refTableName, strlen(pRef->refTableName)));
-          QRY_ERR_RET(sliceAppend(&strBuf, ".", 1));
-          QRY_ERR_RET(sliceAppend(&strBuf, pRef->refColName, strlen(pRef->refColName)));
-          STR_TO_VARSTR(buf, refColName);
         }
+        QRY_ERR_RET(sliceAppend(&strBuf, pRef->refDbName, strlen(pRef->refDbName)));
+        QRY_ERR_RET(sliceAppend(&strBuf, ".", 1));
+        QRY_ERR_RET(sliceAppend(&strBuf, pRef->refTableName, strlen(pRef->refTableName)));
+        QRY_ERR_RET(sliceAppend(&strBuf, ".", 1));
+        QRY_ERR_RET(sliceAppend(&strBuf, pRef->refColName, strlen(pRef->refColName)));
+        if (pRef->tagCondJson) {
+          SNode* pTagCond = NULL;
+          if (TSDB_CODE_SUCCESS == nodesStringToNode(pRef->tagCondJson, &pTagCond)) {
+            QRY_ERR_RET(sliceAppend(&strBuf, " (", 2));
+            QRY_ERR_RET(tagCondToDisplayStr(pTagCond, &strBuf));
+            QRY_ERR_RET(sliceAppend(&strBuf, ")", 1));
+            nodesDestroyNode(pTagCond);
+          }
+        }
+        STR_TO_VARSTR(buf, refColName);
       }
 
       COL_DATA_SET_VAL_AND_CHECK(pCol8, pBlock->info.rows, buf, false);
@@ -661,7 +703,12 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
     }
 
     if (hasColRef(pCfg->tableType) && pRef && pRef->hasRef) {
-      typeLen += snprintf(type + typeLen, LTYPE_LEN - typeLen, " FROM `%s`", pRef->refDbName);
+      if (pRef->refType == 1 && pRef->refSourceName[0] != '\0') {
+        typeLen += snprintf(type + typeLen, LTYPE_LEN - typeLen, " FROM `%s`", pRef->refSourceName);
+        typeLen += snprintf(type + typeLen, LTYPE_LEN - typeLen, ".`%s`", pRef->refDbName);
+      } else {
+        typeLen += snprintf(type + typeLen, LTYPE_LEN - typeLen, " FROM `%s`", pRef->refDbName);
+      }
       typeLen += snprintf(type + typeLen, LTYPE_LEN - typeLen, ".");
       typeLen +=
           snprintf(type + typeLen, LTYPE_LEN - typeLen, "`%s`", expandIdentifier(pRef->refTableName, expandName));
@@ -686,17 +733,31 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
   for (int32_t i = 1; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs + i;
-    char     type[TSDB_COL_NAME_LEN + 10 + TSDB_COL_FNAME_LEN + TSDB_DB_NAME_LEN];
+    char     type[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_COL_FNAME_LEN + 20];
     int      typeLen = 0;
 
     if (hasColRef(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
-      typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, "FROM `%s`", pRef->refDbName);
-      typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, ".");
-      typeLen +=
-          snprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", expandIdentifier(pRef->refTableName, expandName));
-      typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, ".");
-      typeLen +=
-          snprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", expandIdentifier(pRef->refColName, expandName));
+      if (pRef->refType == 1 && pRef->refSourceName[0] != '\0') {
+        // External ref: always emit full 4-segment path source.db.table.col
+        typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, "FROM `%s`", pRef->refSourceName);
+        typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, ".");
+        typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", pRef->refDbName);
+        typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, ".");
+        typeLen +=
+            snprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", expandIdentifier(pRef->refTableName, expandName));
+        typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, ".");
+        typeLen +=
+            snprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", expandIdentifier(pRef->refColName, expandName));
+      } else {
+        // Internal ref: db.table.col
+        typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, "FROM `%s`", pRef->refDbName);
+        typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, ".");
+        typeLen +=
+            snprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", expandIdentifier(pRef->refTableName, expandName));
+        typeLen += snprintf(type + typeLen, sizeof(type) - typeLen, ".");
+        typeLen +=
+            snprintf(type + typeLen, sizeof(type) - typeLen, "`%s`", expandIdentifier(pRef->refColName, expandName));
+      }
     } else {
       continue;
     }
@@ -800,10 +861,19 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
     if (pTagRef && pTagRef->hasRef) {
       char expandRefTable[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
       char expandRefCol[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
-      *len +=
-          snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                   "FROM `%s`.`%s`.`%s`", pTagRef->refDbName, expandIdentifier(pTagRef->refTableName, expandRefTable),
-                   expandIdentifier(pTagRef->refColName, expandRefCol));
+      if (pTagRef->refType == 1 && pTagRef->refSourceName[0] != '\0') {
+        *len += snprintf(buf + VARSTR_HEADER_SIZE + *len,
+                         SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                         "FROM `%s`.`%s`.`%s`.`%s`", pTagRef->refSourceName, pTagRef->refDbName,
+                         expandIdentifier(pTagRef->refTableName, expandRefTable),
+                         expandIdentifier(pTagRef->refColName, expandRefCol));
+      } else {
+        *len += snprintf(buf + VARSTR_HEADER_SIZE + *len,
+                         SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                         "FROM `%s`.`%s`.`%s`", pTagRef->refDbName,
+                         expandIdentifier(pTagRef->refTableName, expandRefTable),
+                         expandIdentifier(pTagRef->refColName, expandRefCol));
+      }
       continue;
     }
 
@@ -995,6 +1065,26 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     appendColumnFields(buf2, &len, pCfg);
     len +=
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+    if (pCfg->numOfSeries > 0) {
+      for (int32_t i = 0; i < pCfg->numOfSeries; i++) {
+        SSeriesEntry* p = &pCfg->pSeries[i];
+        len += snprintf(buf2 + VARSTR_HEADER_SIZE + len,
+                        SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                        " SERIES `%s` AS %s.%s.%s", p->alias, p->sourceName, p->dbName, p->measurementName);
+        if (p->tagCondJson && p->tagCondJson[0]) {
+          SNode* pCond = NULL;
+          if (TSDB_CODE_SUCCESS == nodesStringToNode(p->tagCondJson, &pCond)) {
+            TSlice strBuf = {.buf = buf2 + VARSTR_HEADER_SIZE + len,
+                             .cap = SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), .len = 0};
+            sliceAppend(&strBuf, " (", 2);
+            tagCondToDisplayStr(pCond, &strBuf);
+            sliceAppend(&strBuf, ")", 1);
+            len += strBuf.len;
+            nodesDestroyNode(pCond);
+          }
+        }
+      }
+    }
   } else if (TSDB_VIRTUAL_CHILD_TABLE == pCfg->tableType) {
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                      "CREATE VTABLE `%s`", expandIdentifier(tbName, buf1));
@@ -1008,6 +1098,26 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     TAOS_CHECK_ERRNO(code);
     len +=
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+    if (pCfg->numOfSeries > 0) {
+      for (int32_t i = 0; i < pCfg->numOfSeries; i++) {
+        SSeriesEntry* p = &pCfg->pSeries[i];
+        len += snprintf(buf2 + VARSTR_HEADER_SIZE + len,
+                        SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                        " SERIES `%s` AS %s.%s.%s", p->alias, p->sourceName, p->dbName, p->measurementName);
+        if (p->tagCondJson && p->tagCondJson[0]) {
+          SNode* pCond = NULL;
+          if (TSDB_CODE_SUCCESS == nodesStringToNode(p->tagCondJson, &pCond)) {
+            TSlice strBuf = {.buf = buf2 + VARSTR_HEADER_SIZE + len,
+                             .cap = SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), .len = 0};
+            sliceAppend(&strBuf, " (", 2);
+            tagCondToDisplayStr(pCond, &strBuf);
+            sliceAppend(&strBuf, ")", 1);
+            len += strBuf.len;
+            nodesDestroyNode(pCond);
+          }
+        }
+      }
+    }
   }
 
   varDataLen(buf2) = (len > 65535) ? 65535 : len;
@@ -1451,11 +1561,193 @@ static int32_t execShowCreateStream(SShowCreateStreamStmt* pStmt, SRetrieveTable
   return code;
 }
 
+// ============================================================
+// DESCRIBE EXTERNAL SOURCE — LOCAL execution
+// Returns one row with all ins_ext_sources columns for the named source.
+// ============================================================
+
+// Number of columns returned by DESCRIBE EXTERNAL SOURCE (matches ins_ext_sources schema).
+#define EXT_SOURCE_RESULT_COLS 10
+
+static const char* extSrcTypeToStr(int8_t srcType) {
+  switch (srcType) {
+    case 0: return "mysql";
+    case 1: return "postgresql";
+    case 2: return "influxdb";
+    default: return "unknown";
+  }
+}
+
+// Mask sensitive keys inside an OPTIONS JSON string (replicates mndExtSource.c logic).
+static void maskExtSrcSensitiveOpts(const char *src, char *dst, int32_t dstLen) {
+  static const char *sensitiveKeys[] = {
+    "tls_client_key", "tls_ca_cert", "tls_client_cert", "api_token", NULL
+  };
+  if (!src || !dst || dstLen <= 0) {
+    if (dst && dstLen > 0) dst[0] = '\0';
+    return;
+  }
+  int32_t sLen = (int32_t)strlen(src);
+  int32_t wi = 0, ri = 0;
+  while (ri < sLen && wi < dstLen - 1) {
+    bool replaced = false;
+    if (src[ri] == '"') {
+      for (int32_t k = 0; sensitiveKeys[k] && !replaced; ++k) {
+        const char *key = sensitiveKeys[k];
+        int32_t kl = (int32_t)strlen(key);
+        int32_t pattLen = kl + 4;
+        if (ri + pattLen <= sLen &&
+            src[ri + 1 + kl] == '"' && src[ri + 1 + kl + 1] == ':' && src[ri + 1 + kl + 2] == '"' &&
+            memcmp(src + ri + 1, key, (size_t)kl) == 0) {
+          if (wi + pattLen >= dstLen - 1) break;
+          (void)memcpy(dst + wi, src + ri, (size_t)pattLen);
+          wi += pattLen;
+          ri += pattLen;
+          while (ri < sLen && src[ri] != '"') ri++;
+          const char *mask = "******\"";
+          int32_t ml = (int32_t)strlen(mask);
+          if (wi + ml < dstLen - 1) { (void)memcpy(dst + wi, mask, (size_t)ml); wi += ml; }
+          if (ri < sLen) ri++;
+          replaced = true;
+        }
+      }
+    }
+    if (!replaced) dst[wi++] = src[ri++];
+  }
+  dst[wi] = '\0';
+}
+
+static int32_t buildExtSrcResultDataBlock(SSDataBlock** pOutput) {
+  QRY_PARAM_CHECK(pOutput);
+  SSDataBlock* pBlock = NULL;
+  TAOS_CHECK_RETURN(createDataBlock(&pBlock));
+
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SColumnInfoData  col;
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, (TSDB_EXT_SOURCE_NAME_LEN - 1) + VARSTR_HEADER_SIZE, 1);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 16 + VARSTR_HEADER_SIZE, 2);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, (TSDB_EXT_SOURCE_HOST_LEN - 1) + VARSTR_HEADER_SIZE, 3);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 4);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, (TSDB_EXT_SOURCE_USER_LEN - 1) + VARSTR_HEADER_SIZE, 5);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 8 + VARSTR_HEADER_SIZE, 6);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, (TSDB_EXT_SOURCE_DATABASE_LEN - 1) + VARSTR_HEADER_SIZE, 7);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, (TSDB_EXT_SOURCE_SCHEMA_LEN - 1) + VARSTR_HEADER_SIZE, 8);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, (TSDB_EXT_SOURCE_OPTIONS_LEN - 1) + VARSTR_HEADER_SIZE, 9);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 10);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  *pOutput = pBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Helper macro: set a VARCHAR column value from a C-string.
+#define SET_STR_COL(pBlock, colIdx, row, cstr, maxBytes)                         \
+  do {                                                                            \
+    SColumnInfoData* _col = taosArrayGet((pBlock)->pDataBlock, (colIdx));         \
+    char _buf[(maxBytes) + VARSTR_HEADER_SIZE];                                   \
+    STR_WITH_MAXSIZE_TO_VARSTR(_buf, (cstr), (maxBytes) + VARSTR_HEADER_SIZE);   \
+    code = colDataSetVal(_col, (row), _buf, false);                               \
+    if (code) { (void)blockDataDestroy(pBlock); return code; }                    \
+  } while (0)
+
+static int32_t execDescribeExtSource(SNode* pStmt, SRetrieveTableRsp** pRsp) {
+  SDescribeExtSourceStmt* pDesc = (SDescribeExtSourceStmt*)pStmt;
+  SExtSourceInfo*         pSrc  = (SExtSourceInfo*)pDesc->pExtSrcInfo;
+  if (NULL == pSrc) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildExtSrcResultDataBlock(&pBlock);
+  if (code) return code;
+
+  code = blockDataEnsureCapacity(pBlock, 1);
+  if (code) { (void)blockDataDestroy(pBlock); return code; }
+
+  // col 0: source_name
+  SET_STR_COL(pBlock, 0, 0, pDesc->sourceName, TSDB_EXT_SOURCE_NAME_LEN - 1);
+
+  // col 1: type (string)
+  SET_STR_COL(pBlock, 1, 0, extSrcTypeToStr(pSrc->type), 16);
+
+  // col 2: host
+  SET_STR_COL(pBlock, 2, 0, pSrc->host, TSDB_EXT_SOURCE_HOST_LEN - 1);
+
+  // col 3: port (INT)
+  {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 3);
+    code = colDataSetVal(pCol, 0, (const char*)&pSrc->port, false);
+    if (code) { (void)blockDataDestroy(pBlock); return code; }
+  }
+
+  // col 4: user
+  SET_STR_COL(pBlock, 4, 0, pSrc->user, TSDB_EXT_SOURCE_USER_LEN - 1);
+
+  // col 5: password — always "******"
+  SET_STR_COL(pBlock, 5, 0, "******", 8);
+
+  // col 6: database
+  SET_STR_COL(pBlock, 6, 0, pSrc->database, TSDB_EXT_SOURCE_DATABASE_LEN - 1);
+
+  // col 7: schema
+  SET_STR_COL(pBlock, 7, 0, pSrc->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
+
+  // col 8: options (sensitive values masked)
+  {
+    char maskedOpts[TSDB_EXT_SOURCE_OPTIONS_LEN] = {0};
+    maskExtSrcSensitiveOpts(pSrc->options, maskedOpts, sizeof(maskedOpts));
+    SET_STR_COL(pBlock, 8, 0, maskedOpts, TSDB_EXT_SOURCE_OPTIONS_LEN - 1);
+  }
+
+  // col 9: create_time (TIMESTAMP)
+  {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 9);
+    code = colDataSetVal(pCol, 0, (const char*)&pSrc->create_time, false);
+    if (code) { (void)blockDataDestroy(pBlock); return code; }
+  }
+
+  pBlock->info.rows = 1;
+  code = buildRetrieveTableRsp(pBlock, EXT_SOURCE_RESULT_COLS, pRsp);
+  (void)blockDataDestroy(pBlock);
+  return code;
+}
+
 int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, uint8_t showVarPrivMask, SNode* pStmt,
                      SRetrieveTableRsp** pRsp, int8_t biMode, void* charsetCxt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
       return execDescribe(sysInfoUser, pStmt, pRsp, biMode);
+    case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
+      return execDescribeExtSource(pStmt, pRsp);
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
       return execResetQueryCache();
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:

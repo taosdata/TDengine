@@ -37,6 +37,29 @@ static void setErrno(SRequestObj* pRequest, int32_t code) {
   terrno = code;
 }
 
+static bool isExtSourceDdlReq(int32_t msgType) {
+  return msgType == TDMT_MND_CREATE_EXT_SOURCE || msgType == TDMT_MND_ALTER_EXT_SOURCE ||
+         msgType == TDMT_MND_DROP_EXT_SOURCE || msgType == TDMT_MND_REFRESH_EXT_SOURCE;
+}
+
+static void invalidateExtSourceCacheAfterDdl(SRequestObj* pRequest, int32_t code) {
+  if (code != TSDB_CODE_SUCCESS || pRequest == NULL || !isExtSourceDdlReq(pRequest->type) ||
+      pRequest->extSourceName[0] == '\0') {
+    return;
+  }
+
+  SCatalog*     pCtg  = NULL;
+  SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
+  if (TSDB_CODE_SUCCESS == catalogGetHandle(pInst->clusterId, &pCtg)) {
+    int32_t rmCode = catalogRemoveExtSource(pCtg, pRequest->extSourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource for %s after %s failed: %s, QID:0x%" PRIx64,
+              pRequest->self, pRequest->extSourceName, TMSG_INFO(pRequest->type), tstrerror(rmCode),
+              pRequest->requestId);
+    }
+  }
+}
+
 #ifdef TD_ENTERPRISE
 void tscBestEffortRollbackOrphanTxn(STscObj* pTscObj, txn_id_t txnId, const char* source) {
   if (pTscObj == NULL || pTscObj->pAppInfo == NULL || pTscObj->pAppInfo->pTransporter == NULL || txnId == 0) {
@@ -143,6 +166,8 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
   }
 
+  invalidateExtSourceCacheAfterDdl(pRequest, code);
+
   // Preserve MNode custom error detail string (e.g. MAC preflight user list)
   if (code != TSDB_CODE_SUCCESS && pMsg->pData != NULL && pMsg->len > 0) {
     if (pMsg->len <= pRequest->msgBufLen) {
@@ -156,7 +181,6 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
       pRequest->msgBufLen = pMsg->len;
     }
   }
-
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
   if (pRequest->body.queryFp != NULL) {
@@ -1718,4 +1742,3 @@ __async_send_cb_fn_t getMsgRspHandle(int32_t msgType) {
       return genericRspCallback;
   }
 }
-

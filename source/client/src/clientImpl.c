@@ -19,6 +19,7 @@
 #include "clientMonitor.h"
 #include "clientSession.h"
 #include "command.h"
+#include "extConnector.h"
 #include "decimal.h"
 #include "scheduler.h"
 #include "tdatablock.h"
@@ -28,6 +29,7 @@
 #include "tmisce.h"
 #include "tmsg.h"
 #include "tmsgtype.h"
+#include "ttimer.h"
 #include "tpagedbuf.h"
 #include "tref.h"
 #include "tsched.h"
@@ -409,6 +411,14 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
   };
   tstrncpy(cxt.timezoneName, pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
 
+  // Inject active external source context so 1-seg table refs can be resolved
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  tstrncpy(cxt.currentExtSource, pTscObj->extSource, sizeof(cxt.currentExtSource));
+  tstrncpy(cxt.currentExtNs1,    pTscObj->extNs1,    sizeof(cxt.currentExtNs1));
+  tstrncpy(cxt.currentExtNs2,    pTscObj->extNs2,    sizeof(cxt.currentExtNs2));
+  tstrncpy(cxt.timezoneName,     pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
@@ -492,7 +502,33 @@ static bool execLocalSetCmd(SRequestObj* pRequest, SQuery* pQuery, int32_t* pCod
   }
 }
 
+static int32_t syncAlterLocalConnectionOption(SRequestObj* pRequest, SAlterLocalStmt* pStmt) {
+  if (pRequest == NULL || pStmt == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (strcasecmp(pStmt->config, "timezone") == 0) {
+    int64_t rid = pRequest->pTscObj->id;
+    int32_t code = taos_options_connection((TAOS*)&rid, TSDB_OPTION_CONNECTION_TIMEZONE, pStmt->value);
+    if (code == TSDB_CODE_PAR_INVALID_TIMEZONE && pRequest->msgBuf != NULL && pRequest->msgBufLen > 0) {
+      (void)snprintf(pRequest->msgBuf, pRequest->msgBufLen, "Invalid timezone: '%s'", pStmt->value);
+    }
+    return code;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
+  // Handle USE ext_source stmt: update session ext source context without mnode round-trip
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_USE_EXT_SOURCE_STMT) {
+    SUseExtSourceStmt* pStmt = (SUseExtSourceStmt*)pQuery->pRoot;
+    tscError("execLocalCmd: USE ext_source '%s' ns1='%s' ns2='%s', setting connection ext source",
+             pStmt->sourceName, pStmt->ns1, pStmt->ns2);
+    setConnectionExtSource(pRequest->pTscObj, pStmt->sourceName, pStmt->ns1, pStmt->ns2);
+    return TSDB_CODE_SUCCESS;
+  }
+
   SRetrieveTableRsp* pRsp = NULL;
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -512,6 +548,36 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
                                  pRequest->stmtBindVersion > 0);
+  }
+
+  // DS §5.2.6: propagate ALTER LOCAL "timezone" to per-connection optionInfo so the
+  // timezone name flows planner → SFederatedScanPhysiNode → external connectors.
+  if (TSDB_CODE_SUCCESS == code && pQuery->pRoot != NULL &&
+      nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_LOCAL_STMT) {
+    SAlterLocalStmt* pAlterStmt = (SAlterLocalStmt*)pQuery->pRoot;
+    if (strcasecmp(pAlterStmt->config, "timezone") == 0) {
+      if (pAlterStmt->value[0] != '\0') {
+        tstrncpy(pRequest->pTscObj->optionInfo.timezoneName, pAlterStmt->value,
+                 sizeof(pRequest->pTscObj->optionInfo.timezoneName));
+      } else {
+        pRequest->pTscObj->optionInfo.timezoneName[0] = '\0';
+      }
+      tscDebug("ALTER LOCAL timezone: updated connection timezoneName to '%s'",
+               pRequest->pTscObj->optionInfo.timezoneName);
+    }
+#ifdef TD_ENTERPRISE
+    // Propagate federatedQuery* pool/timeout changes to the client-side ext connector module.
+    if (TSDB_CODE_SUCCESS == code && strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
+      SExtConnectorModuleCfg extConnCfg = {
+        .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+        .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+        .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+        .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+        .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+      };
+      extConnectorUpdateModuleCfg(&extConnCfg);
+    }
+#endif
   }
 
   return code;
@@ -544,6 +610,57 @@ static int32_t tscTxnTrackVgId(STscObj* pTscObj, int32_t vgId) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool isExtSourceDdlReq(int32_t msgType) {
+  return msgType == TDMT_MND_CREATE_EXT_SOURCE || msgType == TDMT_MND_ALTER_EXT_SOURCE ||
+         msgType == TDMT_MND_DROP_EXT_SOURCE || msgType == TDMT_MND_REFRESH_EXT_SOURCE;
+}
+
+static void setRequestExtSourceNameFromDdl(SRequestObj* pRequest, const SQuery* pQuery) {
+  if (pRequest == NULL || pQuery == NULL || pQuery->pRoot == NULL || !isExtSourceDdlReq(pRequest->type)) {
+    return;
+  }
+
+  const char* sourceName = NULL;
+  switch (nodeType(pQuery->pRoot)) {
+    case QUERY_NODE_CREATE_EXT_SOURCE_STMT:
+      sourceName = ((const SCreateExtSourceStmt*)pQuery->pRoot)->sourceName;
+      break;
+    case QUERY_NODE_ALTER_EXT_SOURCE_STMT:
+      sourceName = ((const SAlterExtSourceStmt*)pQuery->pRoot)->sourceName;
+      break;
+    case QUERY_NODE_DROP_EXT_SOURCE_STMT:
+      sourceName = ((const SDropExtSourceStmt*)pQuery->pRoot)->sourceName;
+      break;
+    case QUERY_NODE_REFRESH_EXT_SOURCE_STMT:
+      sourceName = ((const SRefreshExtSourceStmt*)pQuery->pRoot)->sourceName;
+      break;
+    default:
+      break;
+  }
+
+  if (sourceName != NULL && sourceName[0] != '\0') {
+    tstrncpy(pRequest->extSourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  }
+}
+
+static void invalidateExtSourceCacheAfterDdl(SRequestObj* pRequest, int32_t code) {
+  if (code != TSDB_CODE_SUCCESS || pRequest == NULL || !isExtSourceDdlReq(pRequest->type) ||
+      pRequest->extSourceName[0] == '\0') {
+    return;
+  }
+
+  SCatalog*     pCtg  = NULL;
+  SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
+  if (TSDB_CODE_SUCCESS == catalogGetHandle(pInst->clusterId, &pCtg)) {
+    int32_t rmCode = catalogRemoveExtSource(pCtg, pRequest->extSourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource for %s after %s failed: %s, QID:0x%" PRIx64,
+              pRequest->self, pRequest->extSourceName, TMSG_INFO(pRequest->type), tstrerror(rmCode),
+              pRequest->requestId);
+    }
+  }
+}
+
 int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   // drop table if exists not_exists_table
   if (NULL == pQuery->pCmdMsg) {
@@ -552,6 +669,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
   pRequest->type = pMsgInfo->msgType;
+  setRequestExtSourceNameFromDdl(pRequest, pQuery);
 
   // Track VNode vgId for batch metadata transaction
   STscObj* pTscObj = pRequest->pTscObj;
@@ -590,6 +708,16 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
+  // Handle USE ext_source stmt: update session ext source context
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_USE_EXT_SOURCE_STMT) {
+    SUseExtSourceStmt* pStmt = (SUseExtSourceStmt*)pQuery->pRoot;
+    tscError("asyncExecLocalCmd: USE ext_source '%s' ns1='%s' ns2='%s'",
+             pStmt->sourceName, pStmt->ns1, pStmt->ns2);
+    setConnectionExtSource(pRequest->pTscObj, pStmt->sourceName, pStmt->ns1, pStmt->ns2);
+    doRequestCallback(pRequest, 0);
+    return;
+  }
+
   uint8_t showVarPrivMask = SHOW_VAR_PRIV_ALL;
 #ifdef TD_ENTERPRISE
   if (pQuery->pRoot != NULL && nodeType(pQuery->pRoot) == QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT) {
@@ -601,6 +729,26 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, pRequest->body.resInfo.convertUcs4,
                                  pRequest->stmtBindVersion > 0);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && pQuery->pRoot != NULL &&
+      nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_LOCAL_STMT) {
+    SAlterLocalStmt* pAlterStmt = (SAlterLocalStmt*)pQuery->pRoot;
+    code = syncAlterLocalConnectionOption(pRequest, pAlterStmt);
+
+#ifdef TD_ENTERPRISE
+    // Propagate federatedQuery* pool/timeout changes to the client-side ext connector module.
+    if (TSDB_CODE_SUCCESS == code && strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
+      SExtConnectorModuleCfg extConnCfg = {
+        .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
+        .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
+        .query_timeout_ms         = tsFederatedQueryQueryTimeoutMs,
+        .idle_conn_ttl_s          = tsFederatedQueryIdleConnTtlSec,
+        .probe_timeout_ms         = tsFederatedQueryProbeTimeoutMs,
+      };
+      extConnectorUpdateModuleCfg(&extConnCfg);
+    }
+#endif
   }
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -636,6 +784,7 @@ int32_t asyncExecDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   // triggered by the async response callback on another thread) will not double-free pCmdMsg.
   pQuery->pCmdMsg = NULL;
   pRequest->type = pMsgInfo->msgType;
+  setRequestExtSourceNameFromDdl(pRequest, pQuery);
 
   // Track VNode vgId for batch metadata transaction
   STscObj* pTscObj = pRequest->pTscObj;
@@ -685,6 +834,8 @@ int compareQueryNodeLoad(const void* elem1, const void* elem2) {
 }
 
 int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
+  int64_t qnodeNum = (NULL != pNodeList) ? taosArrayGetSize(pNodeList) : 0;
+
   TSC_ERR_RET(taosThreadMutexLock(&pInfo->qnodeMutex));
   if (pInfo->pQnodeList) {
     taosArrayDestroy(pInfo->pQnodeList);
@@ -692,11 +843,13 @@ int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
     tscDebug("QnodeList cleared in cluster 0x%" PRIx64, pInfo->clusterId);
   }
 
-  if (pNodeList) {
+  if (qnodeNum > 0) {
     pInfo->pQnodeList = taosArrayDup(pNodeList, NULL);
     taosArraySort(pInfo->pQnodeList, compareQueryNodeLoad);
     tscDebug("QnodeList updated in cluster 0x%" PRIx64 ", num:%ld", pInfo->clusterId,
              taosArrayGetSize(pInfo->pQnodeList));
+  } else {
+    tscDebug("QnodeList updated in cluster 0x%" PRIx64 ", num:0 (cache cleared)", pInfo->clusterId);
   }
   TSC_ERR_RET(taosThreadMutexUnlock(&pInfo->qnodeMutex));
 
@@ -728,12 +881,18 @@ int32_t getQnodeList(SRequestObj* pRequest, SArray** pNodeList) {
     *pNodeList = taosArrayDup(pInfo->pQnodeList, NULL);
   }
   TSC_ERR_RET(taosThreadMutexUnlock(&pInfo->qnodeMutex));
+
   if (NULL == *pNodeList) {
     SCatalog* pCatalog = NULL;
     code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (TSDB_CODE_SUCCESS != code) {
+      tscError("req:0x%" PRIx64 " getQnodeList catalogGetHandle failed, code:0x%x, cluster:0x%" PRIx64,
+               pRequest->requestId, code, pInfo->clusterId);
+    }
+
     if (TSDB_CODE_SUCCESS == code) {
       *pNodeList = taosArrayInit(5, sizeof(SQueryNodeLoad));
-      if (NULL == pNodeList) {
+      if (NULL == *pNodeList) {
         TSC_ERR_RET(terrno);
       }
       SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
@@ -751,6 +910,28 @@ int32_t getQnodeList(SRequestObj* pRequest, SArray** pNodeList) {
   return code;
 }
 
+static int32_t syncQnodeListIfEmpty(SRequestObj* pRequest, SArray** pQnodeList) {
+  if (NULL != *pQnodeList && taosArrayGetSize(*pQnodeList) > 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray* pLatestQnodeList = NULL;
+  int32_t code = getQnodeList(pRequest, &pLatestQnodeList);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroy(pLatestQnodeList);
+    return code;
+  }
+
+  if (NULL != pLatestQnodeList && taosArrayGetSize(pLatestQnodeList) > 0) {
+    taosArrayDestroy(*pQnodeList);
+    *pQnodeList = pLatestQnodeList;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  taosArrayDestroy(pLatestQnodeList);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
   pRequest->type = pQuery->msgType;
   SAppInstInfo* pAppInfo = getAppInfo(pRequest);
@@ -765,11 +946,13 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pUser = pRequest->pTscObj->user,
                       .userId = pRequest->pTscObj->userId,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
+                      .timezoneExplicit = pRequest->pTscObj->optionInfo.timezoneExplicit,
                       .sysInfo = pRequest->pTscObj->sysInfo,
                       .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
                       .minSecLevel = pRequest->pTscObj->minSecLevel,
                       .maxSecLevel = pRequest->pTscObj->maxSecLevel,
                       .macMode = pAppInfo->serverCfg.macActive};
+  tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
 
   tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
 
@@ -809,7 +992,9 @@ int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32
     // userFields must convert to type bytes, no matter isStmt or not
     pResInfo->userFields[i].bytes = calcTypeBytesFromSchemaBytes(pSchema[i].type, pSchema[i].bytes, false);
     pResInfo->fields[i].bytes = calcTypeBytesFromSchemaBytes(pSchema[i].type, pSchema[i].bytes, isStmt);
-    if (IS_DECIMAL_TYPE(pSchema[i].type) && pExtSchema) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_TIMESTAMP && pExtSchema && pExtSchema[i].typeMod != 0) {
+      pResInfo->fields[i].precision = (uint8_t)(pExtSchema[i].typeMod);
+    } else if (IS_DECIMAL_TYPE(pSchema[i].type) && pExtSchema) {
       decimalFromTypeMod(pExtSchema[i].typeMod, &pResInfo->fields[i].precision, &pResInfo->fields[i].scale);
     }
 
@@ -945,13 +1130,26 @@ void freeVgList(void* list) {
   taosArrayDestroy(pList);
 }
 
-int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SMetaData* pResultMeta) {
+int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SMetaData* pResultMeta,
+                               SQueryPlan* pDag) {
   SArray* pDbVgList = NULL;
   SArray* pQnodeList = NULL;
   FDelete fp = NULL;
   int32_t code = 0;
 
-  switch (tsQueryPolicy) {
+  // FH-11: For *pure* federated queries (hasFederatedScan && !hasScan), override VNODE/CLIENT
+  // policy to HYBRID so that qnodes (External Connector hosts) are included in nodeList.
+  // Mixed local+federated queries (hasScan=true) keep the original VNODE policy: both the
+  // local TableScan and the FederatedScan sub-plan are routed to the same vnode.
+  int32_t effectivePolicy = tsQueryPolicy;
+  if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan &&
+      (tsQueryPolicy == QUERY_POLICY_VNODE || tsQueryPolicy == QUERY_POLICY_CLIENT)) {
+    effectivePolicy = QUERY_POLICY_HYBRID;
+    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override async policy %d → HYBRID, QID:0x%" PRIx64,
+             pRequest->requestId, tsQueryPolicy, pRequest->requestId);
+  }
+
+  switch (effectivePolicy) {
     case QUERY_POLICY_VNODE:
     case QUERY_POLICY_CLIENT: {
       if (pResultMeta) {
@@ -1040,6 +1238,21 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
         TSC_ERR_JRET(taosThreadMutexUnlock(&pInst->qnodeMutex));
       }
 
+      // FH-11: Pure federated queries REQUIRE qnode — reject mnode fallback
+      int64_t qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
+      if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan && qnodeNum == 0) {
+        TSC_ERR_JRET(syncQnodeListIfEmpty(pRequest, &pQnodeList));
+        qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
+      }
+
+      if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan && qnodeNum == 0) {
+        tscError("req:0x%" PRIx64 " pure-federated query requires qnode but none deployed, "
+                 "run 'CREATE QNODE ON DNODE <id>' first, QID:0x%" PRIx64,
+                 pRequest->requestId, pRequest->requestId);
+        code = TSDB_CODE_QNODE_NOT_FOUND;
+        goto _return;
+      }
+
       code = buildQnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pQnodeList);
       break;
     }
@@ -1055,12 +1268,24 @@ _return:
   return code;
 }
 
-int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList) {
+int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SQueryPlan* pDag) {
   SArray* pDbVgList = NULL;
   SArray* pQnodeList = NULL;
   int32_t code = 0;
 
-  switch (tsQueryPolicy) {
+  // FH-11: For *pure* federated queries (hasFederatedScan && !hasScan), override VNODE/CLIENT
+  // policy to HYBRID so that qnodes (External Connector hosts) are included in nodeList.
+  // Mixed local+federated queries (hasScan=true) keep the original VNODE policy: both the
+  // local TableScan and the FederatedScan sub-plan are routed to the same vnode.
+  int32_t effectivePolicy = tsQueryPolicy;
+  if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan &&
+      (tsQueryPolicy == QUERY_POLICY_VNODE || tsQueryPolicy == QUERY_POLICY_CLIENT)) {
+    effectivePolicy = QUERY_POLICY_HYBRID;
+    tscDebug("req:0x%" PRIx64 " pure-federated query detected, override sync policy %d → HYBRID, QID:0x%" PRIx64,
+             pRequest->requestId, tsQueryPolicy, pRequest->requestId);
+  }
+
+  switch (effectivePolicy) {
     case QUERY_POLICY_VNODE:
     case QUERY_POLICY_CLIENT: {
       int32_t dbNum = taosArrayGetSize(pRequest->dbList);
@@ -1104,6 +1329,21 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
     case QUERY_POLICY_HYBRID:
     case QUERY_POLICY_QNODE: {
       TSC_ERR_JRET(getQnodeList(pRequest, &pQnodeList));
+      int64_t qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
+
+      // FH-11: Pure federated queries REQUIRE qnode — reject mnode fallback
+      if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan && qnodeNum == 0) {
+        TSC_ERR_JRET(syncQnodeListIfEmpty(pRequest, &pQnodeList));
+        qnodeNum = (NULL != pQnodeList) ? taosArrayGetSize(pQnodeList) : 0;
+      }
+
+      if (pDag != NULL && pDag->hasFederatedScan && !pDag->hasScan && qnodeNum == 0) {
+        tscError("req:0x%" PRIx64 " pure-federated query requires qnode but none deployed, "
+                 "run 'CREATE QNODE ON DNODE <id>' first, QID:0x%" PRIx64,
+                 pRequest->requestId, pRequest->requestId);
+        code = TSDB_CODE_QNODE_NOT_FOUND;
+        goto _return;
+      }
 
       code = buildQnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pQnodeList);
       break;
@@ -1128,9 +1368,12 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self};
+  // FH-11: CLIENT policy + federated scan must execute on server (Connector runs server-side)
+  bool localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT) &&
+                  !(pDag != NULL && pDag->hasFederatedScan);
   SSchedulerReq    req = {
          .syncReq = true,
-         .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+         .localReq = localReq,
          .pConn = &conn,
          .pNodeList = pNodeList,
          .pDag = pDag,
@@ -1632,6 +1875,143 @@ void handlePostSubQuery(SSqlCallbackWrapper* pWrapper) {
   }
 }
 
+// Pool-exhaustion retry: async delayed re-execution via client timer.
+// Timer handle is created once on first exhaustion; ref ID (not pointer) is
+// passed as the timer parameter so the callback can safely acquire the request.
+#define EXT_POOL_RETRY_MAX_TIMES 5
+#define EXT_POOL_RETRY_DELAY_MS  1000
+#define EXT_SOURCE_NOT_FOUND_RETRY_MAX_TIMES 1
+
+static void*        tscExtPoolTimer     = NULL;
+static TdThreadOnce tscExtPoolTimerOnce = PTHREAD_ONCE_INIT;
+
+static void tscExtPoolTimerInit(void) {
+  tscExtPoolTimer = taosTmrInit(128, 100, 60000, "EXT_POOL_RETRY");
+}
+
+static void extPoolRetryTimerCb(void* param, void* tmrId) {
+  int64_t      refId    = (int64_t)(intptr_t)param;
+  SRequestObj* pRequest = acquireRequest(refId);
+  if (NULL == pRequest) {
+    return;  // request already freed; nothing to do
+  }
+  // Reset the general metadata-refresh retry counter so doAsyncQuery does not
+  // give up due to that unrelated limit; extPoolRetry guards pool retries.
+  pRequest->retry = 0;
+  restartAsyncQuery(pRequest, TSDB_CODE_EXT_RESOURCE_EXHAUSTED);
+  (void)releaseRequest(refId);
+}
+
+// FH-8/9/7: Handle ext source errors returned by Executor/FederatedScan.
+// extErrMsg should already have been copied to pRequest->msgBuf before this call.
+void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
+  // Pool exhaustion: retry even if sourceName not yet stashed (catalog phase).
+  if (NEED_CLIENT_RETRY_EXT_POOL_ERROR(code)) {
+    if (pRequest->extPoolRetry < EXT_POOL_RETRY_MAX_TIMES) {
+      pRequest->extPoolRetry++;
+      tscDebug("req:0x%" PRIx64 ", ext pool exhausted (src:'%s'), scheduling retry %u/%d after %dms, QID:0x%" PRIx64,
+               pRequest->self, pRequest->extSourceName, pRequest->extPoolRetry, EXT_POOL_RETRY_MAX_TIMES,
+               EXT_POOL_RETRY_DELAY_MS, pRequest->requestId);
+      (void)taosThreadOnce(&tscExtPoolTimerOnce, tscExtPoolTimerInit);
+      if (tscExtPoolTimer != NULL &&
+          taosTmrStart(extPoolRetryTimerCb, EXT_POOL_RETRY_DELAY_MS,
+                       (void*)(intptr_t)pRequest->self, tscExtPoolTimer) != NULL) {
+        return;  // timer scheduled; request will be restarted by callback
+      }
+      tscWarn("req:0x%" PRIx64 ", taosTmrStart failed for pool retry, returning error to user", pRequest->self);
+    } else {
+      tscWarn("req:0x%" PRIx64 ", ext pool exhausted max retries (%d) reached, returning error, QID:0x%" PRIx64,
+              pRequest->self, EXT_POOL_RETRY_MAX_TIMES, pRequest->requestId);
+    }
+    returnToUser(pRequest);
+    return;
+  }
+
+  const char* sourceName = pRequest->extSourceName;
+  if ('\0' == sourceName[0]) {
+    // No ext source context stashed — just return to user.
+    returnToUser(pRequest);
+    return;
+  }
+
+  SCatalog*     pCtg    = NULL;
+  SAppInstInfo* pInst   = pRequest->pTscObj->pAppInfo;
+  int32_t       ctgCode = catalogGetHandle(pInst->clusterId, &pCtg);
+  if (TSDB_CODE_SUCCESS != ctgCode) {
+    tscWarn("req:0x%" PRIx64 ", handleExtSourceError: catalogGetHandle failed:%s, non-retrying, QID:0x%" PRIx64,
+            pRequest->self, tstrerror(ctgCode), pRequest->requestId);
+    returnToUser(pRequest);
+    return;
+  }
+
+  if (NEED_CLIENT_RM_EXT_SOURCE_ERROR(code)) {
+    // A CREATE EXTERNAL SOURCE commit can be followed immediately by a query on
+    // the same connection. Give catalog one forced refresh before returning a
+    // real not-found error to the user.
+    tscDebug("req:0x%" PRIx64 ", ext source not found, removing cache for:%s, retry:%u, QID:0x%" PRIx64,
+             pRequest->self, sourceName, pRequest->retry, pRequest->requestId);
+    int32_t rmCode = catalogRemoveExtSource(pCtg, sourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource failed for:%s, error:%s, QID:0x%" PRIx64,
+              pRequest->self, sourceName, tstrerror(rmCode), pRequest->requestId);
+    }
+
+    if (pRequest->retry <= EXT_SOURCE_NOT_FOUND_RETRY_MAX_TIMES) {
+      restartAsyncQuery(pRequest, code);
+      return;
+    }
+
+    returnToUser(pRequest);
+    return;
+  }
+
+  if (NEED_CLIENT_REFRESH_EXT_SOURCE_ERROR(code)) {
+    // EXT_SOURCE_CHANGED / EXT_SCHEMA_CHANGED / EXT_TABLE_NOT_EXIST:
+    // remove cache and retry (re-resolve metadata)
+    tscDebug("req:0x%" PRIx64 ", ext source meta stale, removing cache for:%s, retrying, QID:0x%" PRIx64,
+             pRequest->self, sourceName, pRequest->requestId);
+    int32_t rmCode = catalogRemoveExtSource(pCtg, sourceName);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource failed for:%s, error:%s (continuing retry), QID:0x%" PRIx64,
+              pRequest->self, sourceName, tstrerror(rmCode), pRequest->requestId);
+    }
+    restartAsyncQuery(pRequest, code);
+    return;
+  }
+
+  if (NEED_CLIENT_RETURN_EXT_SOURCE_ERROR(code)) {
+    // Connection / auth / runtime errors — return details to user, no retry
+    tscDebug("req:0x%" PRIx64 ", ext source runtime error %s for:%s, returning to user, QID:0x%" PRIx64,
+             pRequest->self, tstrerror(code), sourceName, pRequest->requestId);
+    returnToUser(pRequest);
+    return;
+  }
+
+  if (code == TSDB_CODE_EXT_PUSHDOWN_FAILED) {
+    // Phase 1 stub: capability bits are 0, pushdown never attempted.
+    // Disable capabilities, re-plan without pushdown, then restore.
+    tscDebug("req:0x%" PRIx64 ", ext pushdown failed for:%s, disabling caps & retrying, QID:0x%" PRIx64,
+             pRequest->self, sourceName, pRequest->requestId);
+    (void)catalogDisableExtSourceCapabilities(pCtg, sourceName);
+    restartAsyncQuery(pRequest, code);
+    // Note: capabilities are restored when the re-planned query completes
+    // (catalogRestoreExtSourceCapabilities is called by the new query lifecycle)
+    return;
+  }
+
+  if (code == TSDB_CODE_EXT_CAPABILITY_CHANGED) {
+    // Executor probed new capabilities; update cache and re-plan
+    tscDebug("req:0x%" PRIx64 ", ext capability changed for:%s, updating & retrying, QID:0x%" PRIx64,
+             pRequest->self, sourceName, pRequest->requestId);
+    // extErrMsg carried new capability info — update cache then retry
+    restartAsyncQuery(pRequest, code);
+    return;
+  }
+
+  // Catch-all: unknown ext error, return to user
+  returnToUser(pRequest);
+}
+
 // todo refacto the error code  mgmt
 void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SSqlCallbackWrapper* pWrapper = param;
@@ -1666,6 +2046,16 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   tscDebug("req:0x%" PRIx64 ", enter scheduler exec cb, code:%s, QID:0x%" PRIx64, pRequest->self, tstrerror(code),
            pRequest->requestId);
 
+  // FH-8/9/10: Copy ext error message to msgBuf BEFORE any error dispatch.
+  // This ensures taos_errstr() returns remote error details on any exit path.
+  {
+    SExecResult* pRes = &pRequest->body.resInfo.execRes;
+    if (pRes->extErrMsg != NULL && pRequest->msgBuf != NULL) {
+      tstrncpy(pRequest->msgBuf, pRes->extErrMsg, pRequest->msgBufLen > 0 ? pRequest->msgBufLen : 1);
+      taosMemoryFreeClear(pRes->extErrMsg);
+    }
+  }
+
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL &&
       pRequest->stmtBindVersion == 0) {
     tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%s, tryCount:%d, QID:0x%" PRIx64,
@@ -1674,6 +2064,17 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
       tscError("req:0x%" PRIx64 ", remove meta failed, QID:0x%" PRIx64, pRequest->self, pRequest->requestId);
     }
     restartAsyncQuery(pRequest, code);
+    return;
+  }
+
+  // FH-8/9/7: ext source error dispatch (independent of NEED_CLIENT_HANDLE_ERROR)
+  if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_EXT_ERROR(code) && pRequest->sqlstr != NULL &&
+      pRequest->stmtBindVersion == 0) {
+    tscDebug("req:0x%" PRIx64 ", ext source error dispatch code:%s, tryCount:%d, QID:0x%" PRIx64,
+             pRequest->self, tstrerror(code), pRequest->retry, pRequest->requestId);
+    destorySqlCallbackWrapper(pWrapper);
+    pRequest->pWrapper = NULL;
+    handleExtSourceError(pRequest, code);
     return;
   }
 
@@ -1713,6 +2114,8 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
       }
     }
   }
+
+  invalidateExtSourceCacheAfterDdl(pRequest, code);
 
   pRequest->metric.execCostUs = taosGetTimestampUs() - pRequest->metric.execStart;
 
@@ -1990,7 +2393,7 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
         pRequest->body.subplanNum = pDag->numOfSubplans;
         if (!pRequest->validateOnly) {
           SArray* pNodeList = NULL;
-          code = buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList);
+          code = buildSyncExecNodeList(pRequest, &pNodeList, pMnodeList, pDag);
 
           if (TSDB_CODE_SUCCESS == code) {
             code = sessMetricCheckValue((SSessMetric*)pRequest->pTscObj->pSessMetric, SESSION_MAX_CALL_VNODE_NUM,
@@ -2103,6 +2506,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .userId = pRequest->pTscObj->userId,
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
+                        .timezoneExplicit = pRequest->pTscObj->optionInfo.timezoneExplicit,
                         .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
                         .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
     tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
@@ -2124,7 +2528,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
     if (QUERY_NODE_VNODE_MODIFY_STMT != nodeType(pQuery->pRoot)) {
       CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_SCHEDULE);
-      code = buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
+      code = buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta, pDag);
     }
 
     if (code == TSDB_CODE_SUCCESS) {
@@ -2136,9 +2540,12 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
       SRequestConnInfo conn = {.pTrans = getAppInfo(pRequest)->pTransporter,
                                .requestId = pRequest->requestId,
                                .requestObjRefId = pRequest->self};
+      // FH-11: CLIENT policy + federated scan must execute on server (Connector runs server-side)
+      bool localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT) &&
+                      !(pDag != NULL && pDag->hasFederatedScan);
       SSchedulerReq    req = {
              .syncReq = false,
-             .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+             .localReq = localReq,
              .pConn = &conn,
              .pNodeList = pNodeList,
              .pDag = pDag,
@@ -3397,6 +3804,22 @@ void setConnectionDB(STscObj* pTscObj, const char* db) {
 
   (void)taosThreadMutexLock(&pTscObj->mutex);
   tstrncpy(pTscObj->db, db, tListLen(pTscObj->db));
+  // Switching to a local DB clears any active external source context
+  pTscObj->extSource[0] = '\0';
+  pTscObj->extNs1[0]    = '\0';
+  pTscObj->extNs2[0]    = '\0';
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+}
+
+void setConnectionExtSource(STscObj* pTscObj, const char* srcName,
+                            const char* ns1, const char* ns2) {
+  if (pTscObj == NULL || srcName == NULL) return;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  tstrncpy(pTscObj->extSource, srcName, sizeof(pTscObj->extSource));
+  if (ns1 && ns1[0]) tstrncpy(pTscObj->extNs1, ns1, sizeof(pTscObj->extNs1));
+  else pTscObj->extNs1[0] = '\0';
+  if (ns2 && ns2[0]) tstrncpy(pTscObj->extNs2, ns2, sizeof(pTscObj->extNs2));
+  else pTscObj->extNs2[0] = '\0';
   (void)taosThreadMutexUnlock(&pTscObj->mutex);
 }
 

@@ -180,6 +180,9 @@ int32_t createDynQueryCtrlOperatorInfo(SOperatorInfo** pDownstream, int32_t numO
 
 int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SVirtualScanPhysiNode * pJoinNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo);
 
+int32_t createFederatedScanOperatorInfo(SOperatorInfo* pDownstream, SFederatedScanPhysiNode* pFedScanNode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrInfo);
+void    federatedScanResetForNewChild(SOperatorInfo* pOperator);
+
 int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** pOptrOut);
 int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pPhynode, SExecTaskInfo* pTaskInfo, SOperatorInfo** ppOptrOut);
 
