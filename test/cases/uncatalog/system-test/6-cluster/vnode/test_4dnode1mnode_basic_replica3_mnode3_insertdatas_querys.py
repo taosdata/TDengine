@@ -170,8 +170,7 @@ class Test4dnode1mnodeBasicReplica3Mnode3InsertdatasQuerys:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional
         Jira: xxx
 
         Catalog:

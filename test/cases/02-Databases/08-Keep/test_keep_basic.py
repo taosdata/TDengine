@@ -87,8 +87,7 @@ class TestKeepBasic:
     
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2023-9-27 Alex Duan Created
             - 2025-5-13 Huo Hong Migrated to new test framework

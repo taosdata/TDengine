@@ -17,8 +17,7 @@ class TestUserPrivilegeTable:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional,security
         Jira: None
 
         History:
@@ -447,8 +446,7 @@ class TestUserPrivilegeTable:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional,security
         Jira: None
 
         """

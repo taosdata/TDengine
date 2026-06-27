@@ -210,8 +210,7 @@ class TestStateWindow:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional
         Jira: xxx
 
         Catalog:
@@ -244,8 +243,7 @@ class TestStateWindow:
 
         Since: v3.3.8.2
 
-        Labels: state window
-
+        Labels: state window,integration,functional
         Jira: TD-38341
 
         Catalog:
@@ -376,8 +374,7 @@ class TestStateWindow:
 
         Since: v3.4.0.0
 
-        Labels: state window
-
+        Labels: state window,integration,functional
         Catalog:
             - Function:aggregation
 

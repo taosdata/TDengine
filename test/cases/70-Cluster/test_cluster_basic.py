@@ -35,8 +35,7 @@ class TestClusterBasic:
 
         Since: v3.3.0.0
 
-        Labels: cluster
-
+        Labels: cluster,integration,functional
         Jira: None
 
         History:
@@ -72,8 +71,7 @@ class TestClusterBasic:
 
         Since: v3.3.0.0
 
-        Labels: cluster
-
+        Labels: cluster,integration,functional
         Jira: None 
 
         History:

@@ -34,8 +34,7 @@ class TestWindowTrueFor:
         Catalog:
             - Streams:TestTrueFor
 
-        Labels: common,ci,stream,true_for,state_window,event_window
-
+        Labels: common,ci,event_window,state_window,stream,true_for,integration,functional
         JIRA: FEAT-589462593
 
         History:

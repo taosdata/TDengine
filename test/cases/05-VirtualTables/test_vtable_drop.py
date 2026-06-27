@@ -143,8 +143,7 @@ class TestVtableDrop:
 
         Since: v3.3.6.0
 
-        Labels: virtual, drop
-
+        Labels: drop,virtual,integration,functional
         Jira: None
 
         History:
@@ -173,8 +172,7 @@ class TestVtableDrop:
 
         Since: v3.3.6.0
 
-        Labels: virtual, drop
-
+        Labels: drop,virtual,integration,functional
         Jira: None
 
         History:
@@ -203,8 +201,7 @@ class TestVtableDrop:
 
         Since: v3.3.6.0
 
-        Labels: virtual, drop
-
+        Labels: drop,virtual,integration,functional
         Jira: None
 
         History:
@@ -233,8 +230,7 @@ class TestVtableDrop:
 
         Since: v3.3.6.0
 
-        Labels: virtual, drop
-
+        Labels: drop,virtual,integration,functional
         Jira: None
 
         History:

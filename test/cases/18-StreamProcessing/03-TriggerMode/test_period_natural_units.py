@@ -314,8 +314,7 @@ class TestPeriodNaturalUnits:
 
         Since: 3.4.1.0
 
-        Labels: stream, common, ci
-
+        Labels: common,ci,stream,integration,functional
         Feishu: https://project.feishu.cn/taosdata_td/feature/detail/6490755304
 
         History:

@@ -913,7 +913,7 @@ class TestCase:
 
         Since: v3.3.8.0
 
-        Lables: common,ci,rsma
+        Labels: common,ci,rsma,integration,functional
 
         Jira: TS-6113
 

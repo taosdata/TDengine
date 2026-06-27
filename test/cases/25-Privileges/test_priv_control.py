@@ -4329,8 +4329,7 @@ class TestPrivControl:
         
         Since: v3.4.0.0
 
-        Labels: common,ci,privilege
-
+        Labels: common,ci,privilege,integration,functional,security
         Jira: TS-7232
 
         History:

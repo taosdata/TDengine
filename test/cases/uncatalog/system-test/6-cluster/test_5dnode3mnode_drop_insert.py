@@ -404,8 +404,7 @@ class Test5dnode3mnodeDropInsert:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional
         Jira: xxx
 
         Catalog:

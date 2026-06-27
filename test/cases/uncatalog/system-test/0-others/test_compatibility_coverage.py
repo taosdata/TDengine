@@ -99,8 +99,7 @@ class TestCompatibilityCoverage:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional,compatibility
         Jira: xxx
 
         Catalog:

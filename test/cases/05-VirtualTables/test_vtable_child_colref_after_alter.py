@@ -48,8 +48,7 @@ class TestVtableChildColrefAfterAlter:
 
         Since: v3.3.8.0
 
-        Labels: virtual, alter
-
+        Labels: alter,virtual,integration,functional
         Jira: None
 
         History:

@@ -108,8 +108,7 @@ class TestVtableQueryAfterDropOriginTable:
 
         Since: v3.3.6.0
 
-        Labels: virtual
-
+        Labels: virtual,integration,functional
         Jira: None
 
         History:
@@ -415,8 +414,7 @@ class TestVtableQueryAfterDropOriginTable:
 
         Since: v3.3.6.0
 
-        Labels: virtual, drop
-
+        Labels: drop,virtual,integration,functional
         Jira: None
 
         History:

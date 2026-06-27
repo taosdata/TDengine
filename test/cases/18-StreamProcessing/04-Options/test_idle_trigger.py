@@ -37,8 +37,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
-
+        Labels: ci,idle-trigger,stream,integration,functional
         Jira: None
 
         History:
@@ -81,8 +80,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
-
+        Labels: ci,idle-trigger,stream,integration,functional
         Jira: None
 
         History:
@@ -129,8 +127,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
-
+        Labels: ci,idle-trigger,stream,integration,functional
         Jira: None
 
         History:
@@ -183,8 +180,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
-
+        Labels: ci,idle-trigger,stream,integration,functional
         Jira: None
 
         History:
@@ -281,8 +277,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
-
+        Labels: ci,idle-trigger,stream,integration,functional
         Jira: None
 
         History:
@@ -329,8 +324,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
-
+        Labels: ci,idle-trigger,stream,integration,functional
         Jira: None
 
         History:
@@ -421,8 +415,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
-
+        Labels: ci,idle-trigger,stream,integration,functional
         Jira: None
 
         History:
@@ -460,8 +453,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
-
+        Labels: ci,idle-trigger,stream,integration,functional
         Jira: None
 
         History:
@@ -511,8 +503,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
-
+        Labels: ci,idle-trigger,stream,integration,functional
         Jira: None
 
         History:
@@ -546,8 +537,7 @@ class TestStreamIdleTrigger:
 
         Since: v3.3.4.0
 
-        Labels: stream, idle-trigger, ci
-
+        Labels: ci,idle-trigger,stream,integration,functional
         Jira: None
 
         History:

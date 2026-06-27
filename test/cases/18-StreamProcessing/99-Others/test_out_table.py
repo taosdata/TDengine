@@ -24,8 +24,7 @@ class TestStreamTagCache:
 
         Since: v3.3.8.8
 
-        Labels: stream, outTable, schemaChange
-
+        Labels: outTable,schemaChange,stream,integration,functional
         Catalog:
             - StreamProcessing:Others
 

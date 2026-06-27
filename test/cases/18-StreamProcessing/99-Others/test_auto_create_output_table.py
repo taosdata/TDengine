@@ -21,8 +21,7 @@ class TestStreamAutoCreateOutputTable:
         Catalog:
             - StreamProcessing:Others
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: ID-6490870739
 
         History:

@@ -34,8 +34,7 @@ class TestVtableAuthCreate:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, auth
-
+        Labels: auth,create,virtual,integration,functional
         Jira: None
 
         History:
@@ -119,8 +118,7 @@ class TestVtableAuthCreate:
             
         Since: v3.3.6.0
 
-        Labels: virtual, create, auth
-
+        Labels: auth,create,virtual,integration,functional
         Jira: None
 
         History:
