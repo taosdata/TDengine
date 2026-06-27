@@ -56,8 +56,7 @@ class TestIntervalMore:
 
         Since: v3.3.0.0
 
-        Labels: interval
-
+        Labels: interval,integration,functional
         History:
             - 2024-9-14 Jinqing Kuang Created
             - 2025-5-08 Huo Hong Migrated to new test framework

@@ -398,8 +398,7 @@ class TestDdosDefense:
 
         Since: v3.3.0.0
 
-        Labels: common
-
+        Labels: common,integration,functional,security
         Jira: None
 
         History:

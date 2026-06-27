@@ -471,8 +471,7 @@ class TestTaosdumpMaxcols:
 
         Since: v3.3.6.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TD-6989427572
 
         History:

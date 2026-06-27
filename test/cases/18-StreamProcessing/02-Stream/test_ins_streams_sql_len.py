@@ -14,8 +14,7 @@ class TestInsStreamsSqlLen:
 
         Since: v3.3.8.11
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Feishu: https://project.feishu.cn/taosdata_td/defect/detail/6593026343
 
         History:

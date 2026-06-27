@@ -158,8 +158,7 @@ class TestVtableStress:
 
         Since: v3.3.6.0
 
-        Labels: virtual, stress
-
+        Labels: stress,virtual,integration,functional
         Jira: None
 
         History:
@@ -196,8 +195,7 @@ class TestVtableStress:
 
         Since: v3.3.6.0
 
-        Labels: virtual, stress
-
+        Labels: stress,virtual,integration,functional
         Jira: None
 
         History:
@@ -229,8 +227,7 @@ class TestVtableStress:
 
         Since: v3.3.6.0
 
-        Labels: virtual, stress
-
+        Labels: stress,virtual,integration,functional
         Jira: None
 
         History:
@@ -269,8 +266,7 @@ class TestVtableStress:
 
         Since: v3.3.6.0
 
-        Labels: virtual, stress
-
+        Labels: stress,virtual,integration,functional
         Jira: None
 
         History:
@@ -308,8 +304,7 @@ class TestVtableStress:
 
         Since: v3.3.6.0
 
-        Labels: virtual, stress
-
+        Labels: stress,virtual,integration,functional
         Jira: None
 
         History:
@@ -351,8 +346,7 @@ class TestVtableStress:
 
         Since: v3.3.6.0
 
-        Labels: virtual, stress
-
+        Labels: stress,virtual,integration,functional
         Jira: None
 
         History:
@@ -394,8 +388,7 @@ class TestVtableStress:
 
         Since: v3.3.6.0
 
-        Labels: virtual, stress
-
+        Labels: stress,virtual,integration,functional
         Jira: None
 
         History:
@@ -441,8 +434,7 @@ class TestVtableStress:
 
         Since: v3.3.6.0
 
-        Labels: virtual, stress
-
+        Labels: stress,virtual,integration,functional
         Jira: None
 
         History:

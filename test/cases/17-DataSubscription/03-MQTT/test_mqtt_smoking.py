@@ -36,8 +36,7 @@ class TestMqttDevBasic:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

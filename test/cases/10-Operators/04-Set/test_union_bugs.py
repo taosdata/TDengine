@@ -38,8 +38,7 @@ class TestUnionBugs:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: https://jira.taosdata.com:18080/browse/TS-6660
 
         History:
@@ -145,8 +144,7 @@ class TestUnionBugs:
 
         Since: v3.0.0.0
 
-        Labels: set operator, order by, pseudo function
-
+        Labels: order by,pseudo function,set operator,integration,functional
         Jira: TS-7311
 
         History:
@@ -223,8 +221,7 @@ class TestUnionBugs:
         
         Since: v3.0.0.0
 
-        Labels: set operator, order by, normal function
-
+        Labels: normal function,order by,set operator,integration,functional
         Jira: TS-7311
 
         History:
@@ -320,8 +317,7 @@ class TestUnionBugs:
 
         Since: v3.8.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: https://jira.taosdata.com:18080/browse/TD-38544
 
         History:
@@ -768,8 +764,7 @@ class TestUnionBugs:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -809,8 +804,7 @@ class TestUnionBugs:
 
         Since: v3.0.0.0
 
-        Labels: regression,common,ci
-
+        Labels: common,ci,regression,integration,functional
         Jira: None
 
         History:

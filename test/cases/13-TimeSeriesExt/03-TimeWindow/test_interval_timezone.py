@@ -37,8 +37,7 @@ class TestIntervalDiffTz:
 
         Since: v3.3.0.0
 
-        Labels: decimal
-
+        Labels: decimal,integration,functional
         History:
             - 2024-9-14 Feng Chao Created
             - 2025-5-08 Huo Hong Migrated to new test framework

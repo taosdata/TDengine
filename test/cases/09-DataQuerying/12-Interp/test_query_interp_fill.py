@@ -173,8 +173,7 @@ class TestInterpFill:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2024-10-30 Jing Sima Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -198,8 +197,7 @@ class TestInterpFill:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2024-10-30 Jing Sima Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -236,8 +234,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-12-12 Tony Zhang created
 
@@ -261,8 +258,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-12-22 Tony Zhang created
 
@@ -343,8 +339,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-12-22 Tony Zhang created
 
@@ -935,8 +930,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2026-01-08 Tony Zhang created
 
@@ -1299,8 +1293,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2026-01-12 Tony Zhang created
 
@@ -1464,8 +1457,7 @@ class TestInterpFill:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1865,8 +1857,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2026-01-19 Tony Zhang created
 
@@ -1891,8 +1882,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2026-01-19 Tony Zhang created
 
@@ -2001,8 +1991,7 @@ class TestInterpFill:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2026-01-19 Tony Zhang created
 

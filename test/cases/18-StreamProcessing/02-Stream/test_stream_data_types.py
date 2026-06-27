@@ -41,8 +41,7 @@ class TestStreamDatatypes:
 
         Since: v3.4.1.10
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: https://project.feishu.cn/taosdata_td/defect/detail/6996748560
 
         History:

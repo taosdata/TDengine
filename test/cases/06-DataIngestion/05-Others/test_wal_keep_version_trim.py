@@ -26,8 +26,7 @@ class TestWalKeepVersionTrim:
 
         Since: v3.3.6.31
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TS-7567
 
         History:

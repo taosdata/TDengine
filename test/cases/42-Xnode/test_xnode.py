@@ -37,8 +37,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -62,8 +61,7 @@ class TestXnode:
 
         Since: v3.4.0.5
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -82,8 +80,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -109,8 +106,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -138,8 +134,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -211,8 +206,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -339,8 +333,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -389,8 +382,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -465,8 +457,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -504,8 +495,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -684,8 +674,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -771,8 +760,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -865,8 +853,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -900,8 +887,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1071,8 +1057,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1263,8 +1248,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1330,8 +1314,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1354,8 +1337,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1394,8 +1376,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1435,8 +1416,7 @@ class TestXnode:
 
         Since: v3.4.0.3
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1487,8 +1467,7 @@ class TestXnode:
 
         Since: v3.4.0.10
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1596,8 +1575,7 @@ class TestXnode:
 
         Since: v3.4.0.12
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

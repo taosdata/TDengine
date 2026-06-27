@@ -18,7 +18,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_core_fixture()
         dbname = fixture["dbname"]
@@ -55,7 +55,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_multi_fileset_core_fixture()
         dbname = fixture["dbname"]
@@ -87,7 +87,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         dbname = f"tsdb_repair_rebuild_blocks_{time.time_ns()}"
         tdSql.execute(f"drop database if exists {dbname}")
@@ -175,7 +175,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_core_fixture()
         dbname = fixture["dbname"]
@@ -225,7 +225,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_core_fixture()
         dbname = fixture["dbname"]
@@ -258,7 +258,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_multi_fileset_core_fixture()
         dbname = fixture["dbname"]
@@ -303,7 +303,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_multi_fileset_core_fixture()
         dbname = fixture["dbname"]
@@ -347,7 +347,7 @@ class TestTsdbForceRepairCoreE2E(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_core_fixture()
         dbname = fixture["dbname"]

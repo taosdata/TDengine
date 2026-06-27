@@ -33,8 +33,7 @@ class TestIntervalBugFix:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-11-20 xs Ren Created
             - 2024-9-14 Feng Chao Created

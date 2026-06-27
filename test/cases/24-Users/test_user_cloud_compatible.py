@@ -13,9 +13,7 @@ Overview:
 
 Since: v3.4.0.0
 
-Labels: common,ci,user,cloud：
-
-
+Labels: common,ci,cloud,user,integration,functional,compatibility,security
 Jira: None
 
 History:
@@ -1326,8 +1324,7 @@ class TestUserCloud:
 
         Since: v3.4.0.0
 
-        Labels: common,ci,user,cloud
-
+        Labels: common,ci,cloud,user,integration,functional,compatibility,security
         Jira: None
 
         History:

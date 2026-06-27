@@ -20,8 +20,7 @@ class TestHavingBugs:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TS-4806
 
         History:
@@ -92,8 +91,7 @@ class TestHavingBugs:
 
         Since: v3.3.0.0
 
-        Labels: last_row
-
+        Labels: last_row,integration,functional
         Jira: TD-31880
 
         History:
@@ -128,8 +126,7 @@ class TestHavingBugs:
 
         Since: v3.3.0.0
 
-        Labels: percentile, windows
-
+        Labels: percentile,windows,integration,functional
         Jira: TD-31966
 
         History:
@@ -198,8 +195,7 @@ class TestHavingBugs:
 
         Since: v3.3.0.0
 
-        Labels: having
-
+        Labels: having,integration,functional
         Jira: TD-32059
 
         History:

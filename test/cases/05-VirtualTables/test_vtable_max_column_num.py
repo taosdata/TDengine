@@ -37,8 +37,7 @@ class TestVtableCreate:
 
         Since: v3.3.8.0
 
-        Labels: virtual, create
-
+        Labels: create,virtual,integration,functional
         Jira: None
 
         History:
@@ -116,8 +115,7 @@ class TestVtableCreate:
 
         Since: v3.3.8.0
 
-        Labels: virtual, create
-
+        Labels: create,virtual,integration,functional
         Jira: None
 
         History:
@@ -155,8 +153,7 @@ class TestVtableCreate:
 
         Since: v3.3.8.0
 
-        Labels: virtual, create, negative
-
+        Labels: create,negative,virtual,integration,functional
         Jira: None
 
         History:
@@ -214,8 +211,7 @@ class TestVtableCreate:
 
         Since: v3.3.8.0
 
-        Labels: virtual, create
-
+        Labels: create,virtual,integration,functional
         Jira: None
 
         History:
@@ -298,8 +294,7 @@ class TestVtableCreate:
 
         Since: v3.3.8.0
 
-        Labels: virtual, create
-
+        Labels: create,virtual,integration,functional
         Jira: None
 
         History:
@@ -362,8 +357,7 @@ class TestVtableCreate:
 
         Since: v3.3.8.0
 
-        Labels: virtual, create, negative
-
+        Labels: create,negative,virtual,integration,functional
         Jira: None
 
         History:
