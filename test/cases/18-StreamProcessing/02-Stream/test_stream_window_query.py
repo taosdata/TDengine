@@ -29,8 +29,7 @@ class TestStreamWindowQuery:
 
         Since: v3.3.8.9
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

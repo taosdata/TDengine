@@ -27,8 +27,7 @@ class TestStreamTagCache:
 
         Since: v3.3.8.5
 
-        Labels: stream, meta, tagCache
-
+        Labels: meta,stream,tagCache,integration,functional
         Catalog:
             - StreamProcessing:Others
 

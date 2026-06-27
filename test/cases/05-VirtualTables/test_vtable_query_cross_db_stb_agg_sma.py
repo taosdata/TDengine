@@ -38,8 +38,7 @@ class TestVTableQueryCrossDBStbAggSma:
 
         Since: v3.4.0.0
 
-        Labels: virtual
-
+        Labels: virtual,integration,functional
         Jira: None
 
         History:

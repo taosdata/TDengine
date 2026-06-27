@@ -242,8 +242,7 @@ class TestVTableDecimal:
 
         Since: v3.4.1.0
 
-        Labels: virtual, decimal, create
-
+        Labels: create,decimal,virtual,integration,functional
         Jira: None
 
         History:
@@ -365,8 +364,7 @@ class TestVTableDecimal:
 
         Since: v3.4.1.0
 
-        Labels: virtual, decimal, alter
-
+        Labels: alter,decimal,virtual,integration,functional
         Jira: None
 
         History:
@@ -469,8 +467,7 @@ class TestVTableDecimal:
 
         Since: v3.4.1.0
 
-        Labels: virtual, decimal, metadata
-
+        Labels: decimal,metadata,virtual,integration,functional
         Jira: None
 
         History:
@@ -552,8 +549,7 @@ class TestVTableDecimal:
 
         Since: v3.4.1.0
 
-        Labels: virtual, decimal, query
-
+        Labels: decimal,query,virtual,integration,functional
         Jira: None
 
         History:
@@ -662,8 +658,7 @@ class TestVTableDecimal:
 
         Since: v3.4.1.0
 
-        Labels: virtual, decimal, aggregate
-
+        Labels: aggregate,decimal,virtual,integration,functional
         Jira: None
 
         History:
@@ -814,8 +809,7 @@ class TestVTableDecimal:
 
         Since: v3.4.1.0
 
-        Labels: virtual, decimal, restart
-
+        Labels: decimal,restart,virtual,integration,functional
         Jira: None
 
         History:

@@ -82,8 +82,7 @@ class TestVTableQueryOptimizeTypeMismatch:
 
         Catalog: query/window
 
-        Labels: virtual_table,interval,optimize,batch_scan,regression
-
+        Labels: batch_scan,interval,optimize,regression,virtual_table,integration,functional
         Jira: None
 
         History:
@@ -110,8 +109,7 @@ class TestVTableQueryOptimizeTypeMismatch:
 
         Catalog: query/window
 
-        Labels: virtual_table,event_window,optimize,batch_scan,regression
-
+        Labels: batch_scan,event_window,optimize,regression,virtual_table,integration,functional
         Jira: None
 
         History:
@@ -139,8 +137,7 @@ class TestVTableQueryOptimizeTypeMismatch:
 
         Catalog: query/window
 
-        Labels: virtual_table,session_window,optimize,batch_scan,regression
-
+        Labels: batch_scan,optimize,regression,session_window,virtual_table,integration,functional
         Jira: None
 
         History:
@@ -167,8 +164,7 @@ class TestVTableQueryOptimizeTypeMismatch:
 
         Catalog: query/window
 
-        Labels: virtual_table,state_window,optimize,batch_scan,regression
-
+        Labels: batch_scan,optimize,regression,state_window,virtual_table,integration,functional
         Jira: None
 
         History:
@@ -194,8 +190,7 @@ class TestVTableQueryOptimizeTypeMismatch:
 
         Catalog: query/aggregate
 
-        Labels: virtual_table,aggregate,optimize,batch_scan,regression
-
+        Labels: aggregate,batch_scan,optimize,regression,virtual_table,integration,functional
         Jira: None
 
         History:
@@ -219,8 +214,7 @@ class TestVTableQueryOptimizeTypeMismatch:
 
         Catalog: query/aggregate
 
-        Labels: virtual_table,aggregate,partition,optimize,batch_scan,regression
-
+        Labels: aggregate,batch_scan,optimize,partition,regression,virtual_table,integration,functional
         Jira: None
 
         History:

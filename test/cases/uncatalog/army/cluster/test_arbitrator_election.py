@@ -23,8 +23,7 @@ class TestArbitratorElection:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional
         Jira: xxx
 
         Catalog:

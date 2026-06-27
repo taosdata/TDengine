@@ -74,8 +74,7 @@ class TestNewStreamCompatibility:
 
         Since: v3.3.8.7
 
-        Labels: common, ci
-
+        Labels: common,ci,integration,functional,compatibility
         Jira: TD-38416
 
         History:

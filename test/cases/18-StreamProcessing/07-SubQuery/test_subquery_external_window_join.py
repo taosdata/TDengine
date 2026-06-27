@@ -178,8 +178,7 @@ class TestStreamSubqueryExternalWindowJoin:
 
         Since: v3.4.1.8
 
-        Labels: common, ci
-
+        Labels: common,ci,integration,functional
         Feishu: https://project.feishu.cn/taosdata_td/sub_task1/detail/6980647586
 
         History:

@@ -31,8 +31,7 @@ class TestVtableAuthAlterDropChild:
 
         Since: v3.3.6.0
 
-        Labels: virtual, alter, auth
-
+        Labels: alter,auth,virtual,integration,functional
         Jira: None
 
         History:

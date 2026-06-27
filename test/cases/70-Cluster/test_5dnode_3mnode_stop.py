@@ -37,8 +37,7 @@ class Test5dnode3mnodeStop:
 
         Since: v3.3.0.0
 
-        Labels: cluster
-
+        Labels: cluster,integration,functional
         History:
             - 2022-6-11 tomchon Created
             - 2025-5-13 Huo Hong Migrated to new test framework

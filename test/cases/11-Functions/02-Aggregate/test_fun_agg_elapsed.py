@@ -59,8 +59,7 @@ class TestFunElapsed:
             
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -114,8 +113,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-9-14 Feng Chao Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -218,8 +216,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -249,8 +246,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -316,8 +312,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -430,8 +425,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -473,8 +467,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -537,8 +530,7 @@ class TestFunElapsed:
 
         Since: v3.3.0.0
 
-        Labels: elapsed
-
+        Labels: elapsed,integration,functional
         History:
             - 2024-9-10 Jing Sima Created
 
@@ -2135,8 +2127,7 @@ class TestFunElapsed:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

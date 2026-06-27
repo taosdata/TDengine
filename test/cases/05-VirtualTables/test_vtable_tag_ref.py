@@ -156,8 +156,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, tag_ref
-
+        Labels: create,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -196,8 +195,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, tag_ref
-
+        Labels: create,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -266,8 +264,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, tag_ref
-
+        Labels: create,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -336,8 +333,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, tag_ref
-
+        Labels: create,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -392,8 +388,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, tag_ref
-
+        Labels: create,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -448,8 +443,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, tag_ref
-
+        Labels: create,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -516,8 +510,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, tag_ref
-
+        Labels: create,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -602,8 +595,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, tag_ref
-
+        Labels: create,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -638,8 +630,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, tag_ref
-
+        Labels: create,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -692,8 +683,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, tag_ref, negative
-
+        Labels: create,negative,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -775,8 +765,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, tag_ref, negative
-
+        Labels: create,negative,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -839,8 +828,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, query, tag_ref
-
+        Labels: query,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -881,8 +869,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, query, tag_ref
-
+        Labels: query,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -919,8 +906,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, drop, tag_ref
-
+        Labels: create,drop,tag_ref,virtual,integration,functional
         Jira: None
 
         History:
@@ -984,8 +970,7 @@ class TestVtableTagRef:
 
         Since: v3.3.6.0
 
-        Labels: virtual, create, tag_ref
-
+        Labels: create,tag_ref,virtual,integration,functional
         Jira: None
 
         History:

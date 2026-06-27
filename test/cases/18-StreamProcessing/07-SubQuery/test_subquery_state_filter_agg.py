@@ -21,8 +21,7 @@ class TestStreamSubqueryStateFilterAgg:
 
         Since: v3.3.8.x
 
-        Labels: common, ci
-
+        Labels: common,ci,integration,functional
         Feishu: https://project.feishu.cn/taosdata_td/defect/detail/6842208309
 
         """

@@ -1068,7 +1068,6 @@
 # 70-Cluster
 
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_balance_vgroup_leader_db_name.py -N 3
-<<<<<<< HEAD
 ,,n,.,pytest cases/70-Cluster/test_cluster_arbitrator.py -N 3
 ,,n,.,pytest cases/70-Cluster/test_cluster_arbitrator_applied_index.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_basic.py -N 5

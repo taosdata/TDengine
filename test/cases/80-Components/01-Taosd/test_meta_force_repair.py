@@ -189,7 +189,7 @@ class TestMetaForceRepair:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         cases = [
             ("default_strategy", f"-r --mode force --node-type vnode --repair-target {self._meta_target(3)} -V", 0, "version"),
@@ -219,7 +219,7 @@ class TestMetaForceRepair:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         tdSql.prepare()
         dbname = "meta_repair_real"
@@ -269,7 +269,7 @@ class TestMetaForceRepair:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         tdSql.prepare()
         dbname = f"meta_repair_exists_{int(time.time())}"
@@ -317,7 +317,7 @@ class TestMetaForceRepair:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         tdSql.prepare()
         dbname = f"meta_repair_default_{int(time.time())}"

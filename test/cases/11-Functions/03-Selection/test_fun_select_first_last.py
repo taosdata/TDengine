@@ -20,8 +20,7 @@ class TestFunSelectFirstLast:
 
         Since: v3.3.6.0
 
-        Labels: first, last, interval window, ci
-
+        Labels: ci,first,interval window,last,integration,functional
         Jira: TS-7474
 
         History:

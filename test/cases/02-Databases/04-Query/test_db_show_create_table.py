@@ -22,8 +22,7 @@ class TestDatabaseShowCreateTable:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -110,8 +109,7 @@ class TestDatabaseShowCreateTable:
 
         Since: v3.3.6.14
 
-        Labels: common,ci,nchar,tag
-
+        Labels: common,ci,nchar,tag,integration,functional
         Jira: TS-7526
 
         History:

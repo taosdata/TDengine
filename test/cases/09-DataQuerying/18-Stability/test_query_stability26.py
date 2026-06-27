@@ -36,8 +36,7 @@ class TestStability1:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-12-21 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_stablity_1.py
 

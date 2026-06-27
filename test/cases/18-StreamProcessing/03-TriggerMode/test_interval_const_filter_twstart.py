@@ -19,8 +19,7 @@ class TestStreamIntervalConstFilterTwstart:
 
         Since: v3.4.0.9
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Feishu: https://project.feishu.cn/taosdata_td/defect/detail/6766024000
 
         History:

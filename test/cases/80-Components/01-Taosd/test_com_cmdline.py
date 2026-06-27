@@ -77,8 +77,7 @@ class TestComCmdLine:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -127,7 +126,7 @@ class TestComCmdLine:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         self._assert_taosd_case(
             "repair_help_contract",
@@ -145,7 +144,7 @@ class TestComCmdLine:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         cases = [
             (
@@ -208,7 +207,7 @@ class TestComCmdLine:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         cases = [
             (
@@ -284,7 +283,7 @@ class TestComCmdLine:
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         cases = [
             (

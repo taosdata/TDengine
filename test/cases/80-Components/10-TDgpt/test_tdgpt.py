@@ -17,8 +17,7 @@ class TestTDgptBasic:
 
         Since: v3.3.2.16
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -52,8 +51,7 @@ class TestTDgptBasic:
 
         Since: v3.3.2.16
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -266,8 +264,7 @@ class TestTDgptBasic:
 
         Since: v3.3.8.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -334,8 +331,7 @@ class TestTDgptBasic:
         
         Since: v3.3.8.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -388,8 +384,7 @@ class TestTDgptBasic:
 
         Since: v3.3.0.0
 
-        Labels: common,ci,ignore
-
+        Labels: common,ci,ignore,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 

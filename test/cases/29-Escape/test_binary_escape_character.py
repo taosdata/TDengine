@@ -273,8 +273,7 @@ class TestBinaryEscapeCharacter:
 
         Since: v3.0.0.0
 
-        Labels: common,ci,security
-
+        Labels: common,ci,integration,functional,security
         Jira: None
 
         History:

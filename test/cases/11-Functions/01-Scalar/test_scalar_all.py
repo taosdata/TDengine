@@ -464,8 +464,7 @@ class TestScalarFunction:
             
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2024-9-28 qevolg Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -491,8 +490,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -513,8 +511,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -535,8 +532,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -557,8 +553,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -579,8 +574,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -601,8 +595,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -623,8 +616,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -644,8 +636,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -664,8 +655,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -689,8 +679,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -712,8 +701,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -731,8 +719,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-13 Alex Duan add doc
 
@@ -751,8 +738,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-14 Alex Duan add doc
 
@@ -773,8 +759,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-14 Alex Duan add doc
 
@@ -794,8 +779,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-14 Alex Duan add doc
 
@@ -817,8 +801,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-14 Alex Duan add doc
 
@@ -840,8 +823,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-15 Alex Duan add doc
 
@@ -863,8 +845,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-15 Alex Duan add doc
 
@@ -885,8 +866,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-15 Alex Duan add doc
 
@@ -909,8 +889,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-15 Alex Duan add doc
 
@@ -931,8 +910,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-15 Alex Duan add doc
 
@@ -955,8 +933,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-14 Alex Duan add doc
 
@@ -978,8 +955,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-16 Alex Duan add doc
 
@@ -1000,8 +976,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-16 Alex Duan add doc
 
@@ -1024,8 +999,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-16 Alex Duan add doc
 
@@ -1046,8 +1020,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-16 Alex Duan add doc
 
@@ -1069,8 +1042,7 @@ class TestScalarFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-16 Alex Duan add doc
 

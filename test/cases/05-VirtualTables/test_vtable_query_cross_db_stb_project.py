@@ -39,8 +39,7 @@ class TestVtableQueryCrossDbStb:
 
         Since: v3.3.6.0
 
-        Labels: virtual
-
+        Labels: virtual,integration,functional
         Jira: None
 
         History:

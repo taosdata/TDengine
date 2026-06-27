@@ -2638,8 +2638,7 @@ class TestInsertNullNone:
         
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-12-14 Alex Duan Migrated cases/uncatalog/system-test/2-query/test_insert_null_none.py
 

@@ -180,8 +180,7 @@ class Test6dnode3mnodeInsertDataRebootModifyMetaAlterRep3to1:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional
         Jira: xxx
 
         Catalog:
