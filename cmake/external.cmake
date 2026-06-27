@@ -2674,7 +2674,8 @@ ExternalProject_Add(ext_arrow_static
     VERBATIM
 )
 add_dependencies(build_externals ext_arrow_static)     # this is for github workflow in cache-miss step.
-endif(TD_TAOS_TOOLS)
+endif()
+
 if(BUILD_PYUDF)
 
 # ── CPython SDK (headers + import libs, auto-downloaded) ─────────────────
