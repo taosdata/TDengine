@@ -33,6 +33,7 @@ import RequestId from "./resources/_request_id.mdx";
 
 | driver-go 版本 | 主要变化                                       | TDengine TSDB 版本 |
 |--------------|--------------------------------------------|------------------|
+| v3.8.1       | WebSocket 连接支持 `skipVerify` 跳过 TLS 证书校验       | -                |
 | v3.8.0       | 引入 `ws/unified` 统一 WebSocket 接口；支持多节点 DSN、自动重连和故障切换；`ws/stmt`、`ws/schemaless` 自该版本起标记为废弃 | -                |
 | v3.7.8       | WebSocket 连接支持双因素认证以及 token 认证             | -                |
 | v3.7.7       | 修复因竞态条件导致的 WebSocket 连接崩溃                  | -                |
@@ -185,6 +186,7 @@ taos, err := sql.Open("taosWS", taosUri)
 - `token` 指定云服务使用的 token。
 - `bearerToken` 指定用于身份验证的 Bearer Token。
 - `totpCode` 指定用于双因素身份验证的 TOTP 码。
+- `skipVerify` WebSocket Secure（`wss`）连接是否跳过 TLS 证书校验，默认为 false（`v3.8.1` 版本开始支持，生产环境不建议使用）。
 - `autoReconnect` 是否自动重连，默认为 false（`v3.8.0` 版本开始支持）。
 - `chanLength` 消息通道长度，默认为 1（`v3.8.0` 版本开始支持）。
 - `reconnectIntervalMs` 自动重连间隔（毫秒），默认为 2000（`v3.8.0` 版本开始支持）。
@@ -929,6 +931,7 @@ type ConfigMap map[string]ConfigValue
 - `ws.message.timeout`：WebSocket 消息超时时间，默认 5m。
 - `ws.message.writeWait`：WebSocket 写入消息超时时间，默认 10s。
 - `ws.message.enableCompression`：WebSocket 是否启用压缩，默认 false。
+- `ws.skipVerify`：WebSocket Secure（`wss`）TMQ 连接是否跳过 TLS 证书校验，默认 false（`v3.8.1` 版本开始支持，生产环境不建议使用）。
 - `ws.autoReconnect`：WebSocket 是否自动重连，默认 false。
 - `ws.reconnectIntervalMs`：WebSocket 重连间隔时间毫秒，默认 2000。
 - `ws.reconnectRetryCount`：WebSocket 重连重试次数，默认 3。
