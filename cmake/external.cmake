@@ -1928,12 +1928,12 @@ if(TD_TAOS_TOOLS)
 # Linux/macOS produces: libparquet.a  libarrow.a  libarrow_bundled_dependencies.a
 # Windows/MSVC produces: parquet_static.lib  arrow_static.lib  arrow_bundled_dependencies.lib
 if(${TD_WINDOWS})
-    INIT_EXT(ext_arrow
+    INIT_EXT(ext_arrow_static
         INC_DIR  include
         LIB      lib/parquet_static.lib lib/arrow_static.lib lib/arrow_bundled_dependencies.lib
     )
 else()
-    INIT_EXT(ext_arrow
+    INIT_EXT(ext_arrow_static
         INC_DIR  include
         LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
     )
@@ -2125,7 +2125,7 @@ else()
     set(_arrow_patch_arg "")
 endif()
 
-ExternalProject_Add(ext_arrow
+ExternalProject_Add(ext_arrow_static
     URL ${_url}
     URL_HASH SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
     ${_arrow_ts_args}
@@ -2141,7 +2141,7 @@ ExternalProject_Add(ext_arrow
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
-add_dependencies(build_externals ext_arrow)     # this is for github workflow in cache-miss step.
+add_dependencies(build_externals ext_arrow_static)     # this is for github workflow in cache-miss step.
 endif()
 
 if(BUILD_PYUDF)
