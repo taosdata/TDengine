@@ -134,13 +134,13 @@ void smUndeployVgTasks(int32_t vgId, bool cleanup);
 int32_t smDeployStreams(SStreamDeployActions* actions);
 void stmDestroySStreamInfo(void* param);
 int32_t streamBuildMultiStateNotifyContent(ESTriggerEventType eventType, const SArray* pStateCols,
-                                           const SArray* pFromStates, const bool* pFromDefined, const SArray* pToStates,
-                                           const bool* pToDefined, char** ppContent);
+                                           const SArray* pFromStates, const bool* pFromDefined,
+                                           const SArray* pToStates, const bool* pToDefined,
+                                           char** ppContent);
 int32_t streamBuildIdleNotifyContent(ESTriggerEventType eventType, int64_t idleDurationMs, char** ppContent);
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
-                                      const char* conditionPath, const SArray* parentTriggerIds, int64_t groupId,
-                                      int64_t windowStart, char** ppContent);
-int32_t streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, const char* conditionPath, char* triggerId);
+                                      int32_t condIdx, int32_t winIdx, int64_t groupId, int64_t windowStart,
+                                      int64_t parentWindowStart, char** ppContent);
 int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent,
                                             const SArray* pFields, const int32_t startRow, const int32_t endRow);
 int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
@@ -148,7 +148,7 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
                                 const SSTriggerCalcParam* pParams, int32_t nParam);
 
 int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
-                            TSKEY end, const char* eventConditionPath, void*** pppIter);
+                            TSKEY end, void*** pppIter);
 void streamTimerCleanUp();
 void streamTmrWaitAllCallbacks(void);
 void smRemoveTaskPostCheck(int64_t streamId, SStreamInfo* pStream, bool* isLastTask);

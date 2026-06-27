@@ -223,7 +223,6 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TIDLEEND,                    // _tidleend
   FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG,      // %%rollup_tag
   FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT,  // _trollup_tbcount
-  FUNCTION_TYPE_TEVENT_CONDITION_PATH,       // _event_condition_path
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,

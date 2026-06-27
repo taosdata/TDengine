@@ -43,17 +43,10 @@ def _subevent_key(event):
     cond = event.get("triggerCondition", {})
     return (
         event.get("eventType"),
-        cond.get("conditionPath"),
+        event.get("windowIndex"),
+        cond.get("conditionIndex"),
         event.get("windowStart"),
     )
-
-
-def _assert_condition_path_payload(events):
-    for event in events:
-        cond = event.get("triggerCondition", {})
-        assert "windowIndex" not in event, events
-        assert "conditionIndex" not in cond, events
-        assert isinstance(event.get("parentTriggerId"), list), events
 
 
 class TestStreamNotifyTrigger:
@@ -2329,36 +2322,23 @@ class TestStreamNotifyTrigger:
             events = _wait_notify_events(single_log, 2)
             actual = [_subevent_key(e) for e in events[:2]]
             expected = [
-                ("WINDOW_OPEN", "0", 1735660800000),
-                ("WINDOW_CLOSE", "0", 1735660800000),
+                ("WINDOW_OPEN", -1, 0, 1735660800000),
+                ("WINDOW_CLOSE", -1, 0, 1735660800000),
             ]
             assert actual == expected, events
             assert len(events) == 2, events
-            _assert_condition_path_payload(events)
-            parent_trigger_id = events[0].get("parentTriggerId", [None])[0]
-            assert parent_trigger_id, events
-            assert all(e.get("parentTriggerId") == [parent_trigger_id] for e in events[:2]), events
-            assert all(e.get("triggerId") != parent_trigger_id for e in events[:2]), events
 
             order_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_order.log")
             _wait_notify_events(order_log, 1)
             time.sleep(1)
             events = _load_notify_events(order_log)
-            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", "0", 1735660800000)], events
-            _assert_condition_path_payload(events)
-            parent_trigger_id = events[0].get("parentTriggerId", [None])[0]
-            assert parent_trigger_id, events
-            assert events[0].get("triggerId") != parent_trigger_id, events
+            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", -1, 0, 1735660800000)], events
 
             history_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_history.log")
             _wait_notify_events(history_log, 1)
             time.sleep(1)
             events = _load_notify_events(history_log)
-            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", "0", 1735660800000)], events
-            _assert_condition_path_payload(events)
-            parent_trigger_id = events[0].get("parentTriggerId", [None])[0]
-            assert parent_trigger_id, events
-            assert events[0].get("triggerId") != parent_trigger_id, events
+            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", -1, 0, 1735660800000)], events
 
         def insert2(self):
             tdSql.execute("insert into t_order values ('2025-01-01 00:00:01.000', 0, 1)")
@@ -2370,39 +2350,35 @@ class TestStreamNotifyTrigger:
             events = _wait_notify_events(order_log, 4)
             actual = [_subevent_key(e) for e in events[:4]]
             expected = [
-                ("WINDOW_OPEN", "", 1735660800000),
-                ("WINDOW_OPEN", "0", 1735660800000),
-                ("WINDOW_CLOSE", "0", 1735660800000),
-                ("WINDOW_OPEN", "1", 1735660801000),
+                ("WINDOW_OPEN", -1, 0, 1735660800000),
+                ("WINDOW_OPEN", 0, 0, 1735660800000),
+                ("WINDOW_CLOSE", 0, 0, 1735660800000),
+                ("WINDOW_OPEN", 1, 1, 1735660801000),
             ]
             assert actual == expected, events
-            _assert_condition_path_payload(events[:4])
             parent_open = events[0]
             first_child_open = events[1]
             first_child_close = events[2]
             second_child_open = events[3]
             parent_trigger_id = parent_open.get("triggerId")
             assert parent_trigger_id, events
-            assert parent_open.get("parentTriggerId") == [], events
             assert first_child_open.get("triggerId") != parent_trigger_id, events
             assert first_child_close.get("triggerId") != parent_trigger_id, events
             assert first_child_close.get("triggerId") == first_child_open.get("triggerId"), events
-            assert first_child_open.get("parentTriggerId") == [parent_trigger_id], events
-            assert first_child_close.get("parentTriggerId") == [parent_trigger_id], events
-            assert second_child_open.get("parentTriggerId") == [parent_trigger_id], events
+            assert first_child_open.get("parentTriggerId") == parent_trigger_id, events
+            assert first_child_close.get("parentTriggerId") == parent_trigger_id, events
+            assert second_child_open.get("parentTriggerId") == parent_trigger_id, events
 
             history_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_history.log")
             events = _wait_notify_events(history_log, 4)
             actual = [_subevent_key(e) for e in events[:4]]
             assert actual == expected, events
-            _assert_condition_path_payload(events[:4])
             parent_open = events[0]
             parent_trigger_id = parent_open.get("triggerId")
             assert parent_trigger_id, events
-            assert parent_open.get("parentTriggerId") == [], events
             for child_event in events[1:4]:
                 assert child_event.get("triggerId") != parent_trigger_id, events
-                assert child_event.get("parentTriggerId") == [parent_trigger_id], events
+                assert child_event.get("parentTriggerId") == parent_trigger_id, events
 
     class Basic19(StreamCheckItem):
         def __init__(self):

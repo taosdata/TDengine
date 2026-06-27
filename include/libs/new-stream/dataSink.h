@@ -87,7 +87,6 @@ typedef struct SSlidingWindowInMem {
   int64_t startTime;
   int64_t endTime;
   int64_t dataLen;
-  char    eventConditionPath[32];
   // char*   realDataBuf;    // realDataBuf == &pData + sizeof(SSlidingWindowInMem)
 } SSlidingWindowInMem;
 
@@ -169,7 +168,6 @@ typedef struct SResultIter {
   void*             groupData;    // SAlignGrpMgr(data in mem) or SSlidingGrpMgr(data in file)
   SDataSinkFileMgr* pFileMgr;     // when has data in file, pFileMgr is not NULL
   int32_t           tsColSlotId;  // ts column slot id
-  int32_t           blockIndex;   // only for exact-window immediate clean mode
   int32_t           winIndex;     // only for immediate clean mode, index of the window in the block
                      // when tmpBlocksInMem is not NULL, this is the index of the current tmpBlocksInMem's block
   int64_t      offset;          // array index, start from 0
@@ -178,9 +176,6 @@ typedef struct SResultIter {
   int64_t      groupId;
   int64_t      reqStartTime;
   int64_t      reqEndTime;
-  char         eventConditionPath[32];
-  bool         exactWindow;
-  bool         exactWindowMatched;
 } SResultIter;
 
 typedef enum {
@@ -206,9 +201,6 @@ void destroyStreamDataCache(void* pCache);
 // Append data to cache.
 int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
                            int32_t startIndex, int32_t endIndex);
-int32_t putStreamDataCacheWithPath(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend,
-                                   const char* eventConditionPath, SSDataBlock* pBlock, int32_t startIndex,
-                                   int32_t endIndex);
 
 // Append data by transferring ownership of pBlock to cache on success.
 int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock);
@@ -242,12 +234,12 @@ int32_t moveMemFromWaitList(int8_t mode);
 void* getWindowDataBuf(SSlidingWindowInMem* pWindowData);
 
 int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t startIndex, int32_t endIndex,
-                                const char* eventConditionPath, SSlidingWindowInMem** ppSlidingWinInMem);
+                                SSlidingWindowInMem** ppSlidingWinInMem);
 void    destroySlidingWindowInMem(void* pSlidingWinInMem);
 void    destroySlidingWindowInMemPP(void* ppSlidingWinInMem);
 
 int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
-                                   TSKEY wend, const char* eventConditionPath, int32_t startIndex, int32_t endIndex);
+                                   TSKEY wend, int32_t startIndex, int32_t endIndex);
 int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
                                   TSKEY wend);
 

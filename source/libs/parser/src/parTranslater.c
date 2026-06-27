@@ -5035,11 +5035,6 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
       PAR_ERR_JRET(nodesMakeValueNodeFromInt64(0, &extraValue));
       break;
     }
-    case FUNCTION_TYPE_TEVENT_CONDITION_PATH: {
-      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_EVENT_CONDITION_PATH);
-      PAR_ERR_JRET(nodesMakeValueNodeFromString("", (SValueNode**)&extraValue));
-      break;
-    }
     case FUNCTION_TYPE_TPREV_LOCALTIME: {
       BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PREV_LOCAL);
       PAR_ERR_JRET(nodesMakeValueNodeFromTimestamp(0, &extraValue));
@@ -13677,68 +13672,8 @@ _return:
   return code;
 }
 
-#define EVENT_WINDOW_TREE_MAX_DEPTH 8
-#define EVENT_WINDOW_TREE_MAX_NODES 256
-
-typedef struct SEventTreeCheckCtx {
-  STranslateContext* pCxt;
-  int32_t            nodes;
-} SEventTreeCheckCtx;
-
-static int32_t checkEventStartLeaf(STranslateContext* pCxt, SEventStartLeafNode* pLeaf) {
-  if (pLeaf == NULL || pLeaf->pCond == NULL) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                   "EVENT_WINDOW START WITH leaf condition is empty");
-  }
-  return checkTrueForLimit(pCxt, pLeaf->pTrueFor);
-}
-
-static int32_t checkEventStartTreeNode(SEventTreeCheckCtx* pCtx, SNode* pNode, int32_t depth) {
-  if (pNode == NULL) {
-    return generateSyntaxErrMsgExt(&pCtx->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                   "EVENT_WINDOW START WITH condition is empty");
-  }
-  if (++pCtx->nodes > EVENT_WINDOW_TREE_MAX_NODES) {
-    return generateSyntaxErrMsgExt(&pCtx->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                   "EVENT_WINDOW START WITH condition tree exceeds node limit");
-  }
-  if (depth > EVENT_WINDOW_TREE_MAX_DEPTH) {
-    return generateSyntaxErrMsgExt(&pCtx->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                   "EVENT_WINDOW START WITH condition tree exceeds depth limit");
-  }
-
-  if (nodeType(pNode) == QUERY_NODE_EVENT_START_LEAF) {
-    return checkEventStartLeaf(pCtx->pCxt, (SEventStartLeafNode*)pNode);
-  }
-  if (nodeType(pNode) == QUERY_NODE_NODE_LIST) {
-    SNodeListNode* pListNode = (SNodeListNode*)pNode;
-    if (pListNode->pNodeList == NULL || LIST_LENGTH(pListNode->pNodeList) == 0) {
-      return generateSyntaxErrMsgExt(&pCtx->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                     "EVENT_WINDOW START WITH group is empty");
-    }
-    SNode* pChild = NULL;
-    FOREACH(pChild, pListNode->pNodeList) {
-      int32_t code = checkEventStartTreeNode(pCtx, pChild, depth + 1);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-    }
-    return TSDB_CODE_SUCCESS;
-  }
-
-  return generateSyntaxErrMsgExt(&pCtx->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                 "EVENT_WINDOW START WITH condition tree contains invalid node");
-}
-
 static int32_t checkEventWindow(STranslateContext* pCxt, SEventWindowNode* pEvent) {
   PAR_ERR_RET(checkTrueForLimit(pCxt, pEvent->pTrueForLimit));
-
-  SEventTreeCheckCtx treeCtx = {.pCxt = pCxt, .nodes = 0};
-  if (nodeType(pEvent->pStartCond) == QUERY_NODE_EVENT_START_LEAF ||
-      nodeType(pEvent->pStartCond) == QUERY_NODE_NODE_LIST) {
-    PAR_ERR_RET(checkEventStartTreeNode(&treeCtx, pEvent->pStartCond, 1));
-  }
-
   PAR_RET(checkWindowsConditonValid(pEvent));
 }
 
@@ -23282,26 +23217,6 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
       PAR_ERR_JRET(
           generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
                                   "_tidlestart/_tidleend can be used when event type only includes IDLE or RESUME"));
-    }
-  }
-
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_EVENT_CONDITION_PATH)) {
-    if (pReq->triggerType != WINDOW_TYPE_EVENT) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-                                           "_event_condition_path can only be used in event window"));
-    }
-    if (pReq->trigger.event.startCond == NULL) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-                                           "_event_condition_path requires sub-event START WITH"));
-    }
-
-    SNode* pStart = NULL;
-    PAR_ERR_JRET(nodesStringToNode((char*)pReq->trigger.event.startCond, &pStart));
-    bool hasGroup = (pStart != NULL && nodeType(pStart) == QUERY_NODE_NODE_LIST);
-    nodesDestroyNode(pStart);
-    if (!hasGroup) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-                                           "_event_condition_path requires sub-event START WITH"));
     }
   }
 

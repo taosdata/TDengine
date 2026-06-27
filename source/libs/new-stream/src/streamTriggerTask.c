@@ -104,737 +104,6 @@ static void stTriggerTaskFormatGroupPath(SArray *groupColVals, char *buf, int32_
   }
 }
 
-static void stTriggerTaskFormatFlatConditionPath(int32_t condIdx, char *buf, int32_t bufLen) {
-  if (buf == NULL || bufLen <= 0) {
-    return;
-  }
-  if (condIdx < 0) {
-    condIdx = 0;
-  }
-  (void)snprintf(buf, bufLen, "%d", condIdx);
-}
-
-static bool stEventNotifyChildHasParent(bool checkSubEvent, int32_t numSubWindows) {
-  (void)numSubWindows;
-  return checkSubEvent;
-}
-
-static int32_t stBuildEventNotifyContent(const SSDataBlock *pInputBlock, const SNodeList *pCondCols, int32_t rowIdx,
-                                         const char *conditionPath, bool hasParent, int64_t groupId,
-                                         int64_t windowStart, int64_t parentWindowStart, char **ppContent) {
-  SArray *parentIds = taosArrayInit(hasParent ? 1 : 0, 32);
-  if (parentIds == NULL) {
-    return terrno;
-  }
-
-  if (hasParent) {
-    char    parentId[32] = {0};
-    int32_t code = streamBuildNotifyTriggerId(groupId, parentWindowStart, "", parentId);
-    if (code != TSDB_CODE_SUCCESS) {
-      taosArrayDestroy(parentIds);
-      return code;
-    }
-    if (taosArrayPush(parentIds, parentId) == NULL) {
-      code = terrno;
-      taosArrayDestroy(parentIds);
-      return code;
-    }
-  }
-
-  int32_t code = streamBuildEventNotifyContent(pInputBlock, pCondCols, rowIdx, conditionPath, parentIds, groupId,
-                                               windowStart, ppContent);
-  taosArrayDestroy(parentIds);
-  return code;
-}
-
-static const SStreamEventTreeNode *stEventTreeGetNode(const SStreamEventTree *pTree, int32_t nodeIdx) {
-  if (pTree == NULL || pTree->nodes == NULL || nodeIdx < 0 || nodeIdx >= taosArrayGetSize(pTree->nodes)) {
-    return NULL;
-  }
-  return taosArrayGet((SArray *)pTree->nodes, nodeIdx);
-}
-
-static int32_t stEventTreeBuildLeafNodePath(const SStreamEventTree *pTree, int32_t leafIdx, SArray *pNodeIndexes) {
-  int32_t  code = TSDB_CODE_SUCCESS;
-  int32_t  lino = 0;
-  int32_t *pStack = NULL;
-
-  QUERY_CHECK_NULL(pTree, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_NULL(pTree->leaves, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_NULL(pNodeIndexes, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_CONDITION(leafIdx >= 0 && leafIdx < taosArrayGetSize(pTree->leaves), code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
-
-  taosArrayClear(pNodeIndexes);
-  const int32_t *pLeafNodeIdx = taosArrayGet((SArray *)pTree->leaves, leafIdx);
-  QUERY_CHECK_NULL(pLeafNodeIdx, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-  int32_t nodeIdx = *pLeafNodeIdx;
-
-  int32_t depth = 0;
-  for (int32_t cursor = nodeIdx; cursor >= 0; ++depth) {
-    const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTree, cursor);
-    QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    cursor = pNode->parent;
-  }
-
-  pStack = taosMemoryCalloc(depth, sizeof(int32_t));
-  QUERY_CHECK_NULL(pStack, code, lino, _end, terrno);
-  int32_t pos = depth;
-  for (int32_t cursor = nodeIdx; cursor >= 0;) {
-    const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTree, cursor);
-    QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    pStack[--pos] = cursor;
-    cursor = pNode->parent;
-  }
-  for (int32_t i = 0; i < depth; ++i) {
-    QUERY_CHECK_NULL(taosArrayPush(pNodeIndexes, &pStack[i]), code, lino, _end, terrno);
-  }
-
-_end:
-  taosMemoryFreeClear(pStack);
-  return code;
-}
-
-static int32_t stEventTreeCommonPrefixLen(const SArray *pLeft, const SArray *pRight) {
-  int32_t leftSize = pLeft != NULL ? taosArrayGetSize((SArray *)pLeft) : 0;
-  int32_t rightSize = pRight != NULL ? taosArrayGetSize((SArray *)pRight) : 0;
-  int32_t size = TMIN(leftSize, rightSize);
-  int32_t i = 0;
-  for (; i < size; ++i) {
-    int32_t *pLeftIdx = taosArrayGet((SArray *)pLeft, i);
-    int32_t *pRightIdx = taosArrayGet((SArray *)pRight, i);
-    if (pLeftIdx == NULL || pRightIdx == NULL || *pLeftIdx != *pRightIdx) {
-      break;
-    }
-  }
-  return i;
-}
-
-static int32_t stEventTreeBuildParentTriggerIds(const SStreamEventTree *pTree, const SArray *pPath,
-                                                const SArray *pWindows, int32_t pathPos, int64_t groupId,
-                                                SArray **ppParentIds) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  QUERY_CHECK_NULL(ppParentIds, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  *ppParentIds = taosArrayInit(pathPos > 0 ? pathPos : 0, 32);
-  QUERY_CHECK_NULL(*ppParentIds, code, lino, _end, terrno);
-
-  for (int32_t i = 0; i < pathPos; ++i) {
-    const int32_t               *pNodeIdx = taosArrayGet((SArray *)pPath, i);
-    const SSTriggerNotifyWindow *pWin = taosArrayGet((SArray *)pWindows, i);
-    QUERY_CHECK_NULL(pNodeIdx, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    QUERY_CHECK_NULL(pWin, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTree, *pNodeIdx);
-    QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    char parentId[32] = {0};
-    QUERY_CHECK_CODE(streamBuildNotifyTriggerId(groupId, pWin->range.skey, pNode->path, parentId), lino, _end);
-    QUERY_CHECK_NULL(taosArrayPush(*ppParentIds, parentId), code, lino, _end, terrno);
-  }
-  return code;
-
-_end:
-  if (ppParentIds != NULL) {
-    taosArrayDestroy(*ppParentIds);
-    *ppParentIds = NULL;
-  }
-  return code;
-}
-
-static int32_t stEventTreeBuildNotifyContent(const SStreamEventTree *pTree, const SArray *pPath, const SArray *pWindows,
-                                             int32_t pathPos, const SSDataBlock *pInputBlock,
-                                             const SNodeList *pCondCols, int32_t rowIdx, int64_t groupId,
-                                             char **ppContent) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  SArray *pParentIds = NULL;
-
-  const int32_t *pNodeIdx = taosArrayGet((SArray *)pPath, pathPos);
-  QUERY_CHECK_NULL(pNodeIdx, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-  const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTree, *pNodeIdx);
-  QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-  const SSTriggerNotifyWindow *pWin = taosArrayGet((SArray *)pWindows, pathPos);
-  QUERY_CHECK_NULL(pWin, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-
-  QUERY_CHECK_CODE(stEventTreeBuildParentTriggerIds(pTree, pPath, pWindows, pathPos, groupId, &pParentIds), lino, _end);
-  code = streamBuildEventNotifyContent(pInputBlock, pCondCols, rowIdx, pNode->path, pParentIds, groupId,
-                                       pWin->range.skey, ppContent);
-  QUERY_CHECK_CODE(code, lino, _end);
-
-_end:
-  taosArrayDestroy(pParentIds);
-  return code;
-}
-
-static int32_t stEventTreeSetCalcParamPath(const SStreamEventTree *pTree, SSTriggerCalcParam *pParam, int32_t nodeIdx) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  if (pParam == NULL || nodeIdx < 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-  const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTree, nodeIdx);
-  QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-  pParam->eventConditionPath = taosStrdup(pNode->path);
-  QUERY_CHECK_NULL(pParam->eventConditionPath, code, lino, _end, terrno);
-
-_end:
-  return code;
-}
-
-static bool stTrueForInfoConfigured(const STrueForInfo *pTrueForInfo) {
-  return pTrueForInfo != NULL && (pTrueForInfo->duration > 0 || pTrueForInfo->count > 0);
-}
-
-static bool stEventTreeIsSingleStartCondition(const SStreamEventTree *pTree) {
-  return pTree != NULL && pTree->leaves != NULL && taosArrayGetSize((SArray *)pTree->leaves) == 1;
-}
-
-static bool stNotifyWindowSatisfiesTrueFor(const SSTriggerNotifyWindow *pWin, const STrueForInfo *pTrueForInfo) {
-  return !stTrueForInfoConfigured(pTrueForInfo) ||
-         isTrueForSatisfied((STrueForInfo *)pTrueForInfo, pWin->range.skey,
-                            pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
-}
-
-static bool stEventTreeShouldEmitNodeWindow(const SStreamEventTree *pTree, const SStreamEventTreeNode *pNode,
-                                            const SSTriggerNotifyWindow *pWin, ESTriggerEventType eventType) {
-  if (pTree == NULL || pNode == NULL || pWin == NULL) {
-    return false;
-  }
-
-  if (pNode->isLeaf && stEventTreeIsSingleStartCondition(pTree)) {
-    return false;
-  }
-
-  if (!pNode->isLeaf && stTrueForInfoConfigured(&pNode->trueFor)) {
-    return stNotifyWindowSatisfiesTrueFor(pWin, &pNode->trueFor);
-  }
-
-  return true;
-}
-
-static int32_t stEventTreeInitLeafStreaks(const SStreamEventTree *pTree, SArray **ppStreaks) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  QUERY_CHECK_NULL(pTree, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_NULL(ppStreaks, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  int32_t leafCount = taosArrayGetSize(pTree->leaves);
-  *ppStreaks = taosArrayInit_s(sizeof(SEventLeafStreak), leafCount);
-  QUERY_CHECK_NULL(*ppStreaks, code, lino, _end, terrno);
-  for (int32_t i = 0; i < leafCount; ++i) {
-    SEventLeafStreak *pStreak = taosArrayGet(*ppStreaks, i);
-    QUERY_CHECK_NULL(pStreak, code, lino, _end, terrno);
-    pStreak->firstTs = TSKEY_MIN;
-    pStreak->lastTs = TSKEY_MIN;
-    pStreak->prevTsBeforeFirst = TSKEY_MIN;
-  }
-
-_end:
-  if (code != TSDB_CODE_SUCCESS && ppStreaks != NULL) {
-    taosArrayDestroy(*ppStreaks);
-    *ppStreaks = NULL;
-  }
-  return code;
-}
-
-static int32_t stEventTreeUpdateLeafStreaks(const SStreamEventTree *pTree, SArray *pLeafStreaks,
-                                            const bool *pLeafMatches, bool *pLeafSatisfied, int32_t leafCount, TSKEY ts,
-                                            TSKEY prevTsBeforeNewStreak) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  QUERY_CHECK_NULL(pTree, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_NULL(pLeafStreaks, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_NULL(pLeafMatches, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_NULL(pLeafSatisfied, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  QUERY_CHECK_CONDITION(leafCount == taosArrayGetSize(pLeafStreaks), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-
-  for (int32_t i = 0; i < leafCount; ++i) {
-    SEventLeafStreak *pStreak = taosArrayGet(pLeafStreaks, i);
-    QUERY_CHECK_NULL(pStreak, code, lino, _end, terrno);
-    if (!pLeafMatches[i]) {
-      pStreak->count = 0;
-      pStreak->firstTs = TSKEY_MIN;
-      pStreak->lastTs = TSKEY_MIN;
-      pStreak->prevTsBeforeFirst = TSKEY_MIN;
-      pLeafSatisfied[i] = false;
-      continue;
-    }
-    if (pStreak->count == 0) {
-      pStreak->firstTs = ts;
-      pStreak->prevTsBeforeFirst = prevTsBeforeNewStreak;
-    }
-    pStreak->count++;
-    pStreak->lastTs = ts;
-
-    const int32_t *pNodeIdx = taosArrayGet((SArray *)pTree->leaves, i);
-    QUERY_CHECK_NULL(pNodeIdx, code, lino, _end, terrno);
-    const SStreamEventTreeNode *pLeaf = stEventTreeGetNode(pTree, *pNodeIdx);
-    QUERY_CHECK_CONDITION(pLeaf != NULL && pLeaf->isLeaf, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    pLeafSatisfied[i] =
-        isTrueForSatisfied((STrueForInfo *)&pLeaf->trueFor, pStreak->firstTs, pStreak->lastTs, pStreak->count);
-  }
-
-_end:
-  return code;
-}
-
-static void stEventTreeResetLeafStreaksAfter(SArray *pLeafStreaks, int32_t leafIdx) {
-  if (pLeafStreaks == NULL) {
-    return;
-  }
-
-  int32_t leafCount = taosArrayGetSize(pLeafStreaks);
-  for (int32_t i = leafIdx + 1; i < leafCount; ++i) {
-    SEventLeafStreak *pStreak = taosArrayGet(pLeafStreaks, i);
-    if (pStreak == NULL) {
-      continue;
-    }
-    pStreak->count = 0;
-    pStreak->firstTs = TSKEY_MIN;
-    pStreak->lastTs = TSKEY_MIN;
-    pStreak->prevTsBeforeFirst = TSKEY_MIN;
-  }
-}
-
-static void stEventTreeResetLeafStreaks(SArray *pLeafStreaks) { stEventTreeResetLeafStreaksAfter(pLeafStreaks, -1); }
-
-static bool stEventTreeHasActiveLeafStreak(SArray *pLeafStreaks) {
-  if (pLeafStreaks == NULL) {
-    return false;
-  }
-  int32_t leafCount = taosArrayGetSize(pLeafStreaks);
-  for (int32_t i = 0; i < leafCount; ++i) {
-    SEventLeafStreak *pStreak = taosArrayGet(pLeafStreaks, i);
-    if (pStreak != NULL && pStreak->count > 0 && pStreak->firstTs != TSKEY_MIN) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static TSKEY stEventTreeEarliestActiveLeafStreakTs(SArray *pLeafStreaks) {
-  TSKEY minTs = TSKEY_MAX;
-  if (pLeafStreaks == NULL) {
-    return TSKEY_MIN;
-  }
-  int32_t leafCount = taosArrayGetSize(pLeafStreaks);
-  for (int32_t i = 0; i < leafCount; ++i) {
-    SEventLeafStreak *pStreak = taosArrayGet(pLeafStreaks, i);
-    if (pStreak != NULL && pStreak->count > 0 && pStreak->firstTs != TSKEY_MIN) {
-      minTs = TMIN(minTs, pStreak->firstTs);
-    }
-  }
-  return minTs == TSKEY_MAX ? TSKEY_MIN : minTs;
-}
-
-static bool stEventTreeHasOpenNodeWindow(SArray *pOpenNodeWindows) {
-  return pOpenNodeWindows != NULL && taosArrayGetSize(pOpenNodeWindows) > 0;
-}
-
-static TSKEY stEventTreeEarliestOpenNodeWindowTs(SArray *pOpenNodeWindows) {
-  TSKEY minTs = TSKEY_MAX;
-  if (pOpenNodeWindows == NULL) {
-    return TSKEY_MIN;
-  }
-  int32_t winCount = taosArrayGetSize(pOpenNodeWindows);
-  for (int32_t i = 0; i < winCount; ++i) {
-    SSTriggerNotifyWindow *pWin = taosArrayGet(pOpenNodeWindows, i);
-    if (pWin != NULL) {
-      minTs = TMIN(minTs, pWin->range.skey);
-    }
-  }
-  return minTs == TSKEY_MAX ? TSKEY_MIN : minTs;
-}
-
-static int32_t stEventTreeAdvanceOpenNodeWindows(SArray *pOpenNodeWindows, TSKEY ts, bool markUnclosed) {
-  int32_t winCount = taosArrayGetSize(pOpenNodeWindows);
-  for (int32_t i = 0; i < winCount; ++i) {
-    SSTriggerNotifyWindow *pWin = taosArrayGet(pOpenNodeWindows, i);
-    if (pWin == NULL) {
-      return TSDB_CODE_INTERNAL_ERROR;
-    }
-    pWin->wrownum++;
-    pWin->range.ekey = markUnclosed ? (ts | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK) : ts;
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
-static void stEventTreeResetEndStreak(int32_t *pCount, TSKEY *pFirstTs) {
-  if (pCount != NULL) {
-    *pCount = 0;
-  }
-  if (pFirstTs != NULL) {
-    *pFirstTs = INT64_MIN;
-  }
-}
-
-static bool stEventTreeEndTrueForSatisfied(const STrueForInfo *pTrueForInfo, bool endMatched, TSKEY ts, int32_t *pCount,
-                                           TSKEY *pFirstTs, TSKEY *pCloseTs) {
-  if (!endMatched) {
-    stEventTreeResetEndStreak(pCount, pFirstTs);
-    return false;
-  }
-
-  if (!stTrueForInfoConfigured(pTrueForInfo)) {
-    if (pCloseTs != NULL) {
-      *pCloseTs = ts;
-    }
-    return true;
-  }
-
-  if (pCount == NULL || pFirstTs == NULL) {
-    return false;
-  }
-  if (*pCount == 0) {
-    *pFirstTs = ts;
-  }
-  ++(*pCount);
-  if (isTrueForSatisfied((STrueForInfo *)pTrueForInfo, *pFirstTs, ts, *pCount)) {
-    if (pCloseTs != NULL) {
-      *pCloseTs = *pFirstTs;
-    }
-    stEventTreeResetEndStreak(pCount, pFirstTs);
-    return true;
-  }
-
-  return false;
-}
-
-static void stEventTreeDestroyNode(void *ptr) {
-  SStreamEventTreeNode *pNode = ptr;
-  if (pNode != NULL) {
-    taosMemoryFreeClear(pNode->path);
-  }
-}
-
-static void stEventTreeDestroy(SStreamEventTree *pTree) {
-  if (pTree == NULL) {
-    return;
-  }
-  taosArrayDestroyEx(pTree->nodes, stEventTreeDestroyNode);
-  taosArrayDestroy(pTree->leaves);
-  taosMemoryFreeClear(pTree);
-}
-
-static char *stEventTreeDupString(const char *src) {
-  const char *value = src != NULL ? src : "";
-  int32_t     len = strlen(value);
-  char       *dst = taosMemoryCalloc(1, len + 1);
-  if (dst != NULL && len > 0) {
-    (void)memcpy(dst, value, len);
-  }
-  return dst;
-}
-
-static char *stEventTreeBuildChildPath(const char *parentPath, int32_t childIdx) {
-  char idxBuf[32] = {0};
-  (void)snprintf(idxBuf, sizeof(idxBuf), "%d", childIdx);
-
-  int32_t parentLen = (parentPath != NULL) ? strlen(parentPath) : 0;
-  int32_t idxLen = strlen(idxBuf);
-  int32_t pathLen = parentLen > 0 ? parentLen + 1 + idxLen : idxLen;
-  char   *path = taosMemoryCalloc(1, pathLen + 1);
-  if (path == NULL) {
-    return NULL;
-  }
-
-  if (parentLen > 0) {
-    (void)snprintf(path, pathLen + 1, "%s.%s", parentPath, idxBuf);
-  } else {
-    (void)snprintf(path, pathLen + 1, "%s", idxBuf);
-  }
-  return path;
-}
-
-static STrueForInfo stEventTreeGetTrueForInfo(SNode *pTrueFor) {
-  if (pTrueFor == NULL) {
-    return (STrueForInfo){0};
-  }
-  if (nodeType(pTrueFor) == QUERY_NODE_VALUE) {
-    return (STrueForInfo){
-        .trueForType = TRUE_FOR_DURATION_ONLY, .count = 0, .duration = ((SValueNode *)pTrueFor)->datum.i};
-  }
-
-  STrueForNode *pTrueForNode = (STrueForNode *)pTrueFor;
-  return (STrueForInfo){.trueForType = pTrueForNode->trueForType,
-                        .count = pTrueForNode->count,
-                        .duration = pTrueForNode->pDuration ? ((SValueNode *)pTrueForNode->pDuration)->datum.i : 0};
-}
-
-static int32_t stEventTreeAddNode(SStreamEventTree *pTree, const char *path, int32_t parent, bool isLeaf, SNode *pCond,
-                                  STrueForInfo trueFor, int32_t *pNodeIdx) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  SStreamEventTreeNode node = {.path = stEventTreeDupString(path),
-                               .parent = parent,
-                               .firstChild = -1,
-                               .childCount = 0,
-                               .firstLeaf = -1,
-                               .leafCount = 0,
-                               .isLeaf = isLeaf,
-                               .pCond = pCond,
-                               .trueFor = trueFor};
-  QUERY_CHECK_NULL(node.path, code, lino, _end, terrno);
-
-  int32_t nodeIdx = taosArrayGetSize(pTree->nodes);
-  QUERY_CHECK_NULL(taosArrayPush(pTree->nodes, &node), code, lino, _end, terrno);
-  node.path = NULL;
-
-  if (parent >= 0) {
-    SStreamEventTreeNode *pParent = taosArrayGet(pTree->nodes, parent);
-    QUERY_CHECK_NULL(pParent, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    if (pParent->childCount == 0) {
-      pParent->firstChild = nodeIdx;
-    }
-    ++pParent->childCount;
-  }
-
-  if (isLeaf) {
-    QUERY_CHECK_NULL(taosArrayPush(pTree->leaves, &nodeIdx), code, lino, _end, terrno);
-  }
-
-  if (pNodeIdx != NULL) {
-    *pNodeIdx = nodeIdx;
-  }
-  return code;
-
-_end:
-  taosMemoryFreeClear(node.path);
-  return code;
-}
-
-static int32_t stEventTreeBuildNode(SStreamEventTree *pTree, SNode *pStartCond, const STrueForInfo *pGlobalTrueFor,
-                                    int32_t parent, const char *path, int32_t depth, bool inheritGlobalLeafTrueFor,
-                                    int32_t *pNodeIdx) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  int32_t beforeLeafCount = taosArrayGetSize(pTree->leaves);
-
-  if (depth > pTree->maxDepth) {
-    pTree->maxDepth = depth;
-  }
-
-  if (pStartCond == NULL) {
-    QUERY_CHECK_CODE(TSDB_CODE_INVALID_PARA, lino, _end);
-  }
-
-  if (nodeType(pStartCond) == QUERY_NODE_NODE_LIST) {
-    int32_t nodeIdx = -1;
-    QUERY_CHECK_CODE(stEventTreeAddNode(pTree, path, parent, false, NULL,
-                                        pGlobalTrueFor != NULL ? *pGlobalTrueFor : (STrueForInfo){0}, &nodeIdx),
-                     lino, _end);
-
-    SNodeListNode *pListNode = (SNodeListNode *)pStartCond;
-    SNode         *pChild = NULL;
-    int32_t        childIdx = 0;
-    FOREACH(pChild, pListNode->pNodeList) {
-      char *childPath = stEventTreeBuildChildPath(path, childIdx);
-      QUERY_CHECK_NULL(childPath, code, lino, _end, terrno);
-      code = stEventTreeBuildNode(pTree, pChild, pGlobalTrueFor, nodeIdx, childPath, depth + 1, true, NULL);
-      taosMemoryFreeClear(childPath);
-      QUERY_CHECK_CODE(code, lino, _end);
-      ++childIdx;
-    }
-
-    SStreamEventTreeNode *pNode = taosArrayGet(pTree->nodes, nodeIdx);
-    QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    pNode->firstLeaf = beforeLeafCount;
-    pNode->leafCount = taosArrayGetSize(pTree->leaves) - beforeLeafCount;
-    if (pNodeIdx != NULL) {
-      *pNodeIdx = nodeIdx;
-    }
-    return code;
-  }
-
-  SNode       *pCond = pStartCond;
-  STrueForInfo trueFor = (inheritGlobalLeafTrueFor && pGlobalTrueFor != NULL) ? *pGlobalTrueFor : (STrueForInfo){0};
-  if (nodeType(pStartCond) == QUERY_NODE_EVENT_START_LEAF) {
-    SEventStartLeafNode *pLeaf = (SEventStartLeafNode *)pStartCond;
-    pCond = pLeaf->pCond;
-    STrueForInfo leafTrueFor = stEventTreeGetTrueForInfo(pLeaf->pTrueFor);
-    if (stTrueForInfoConfigured(&leafTrueFor)) {
-      trueFor = leafTrueFor;
-    }
-  }
-
-  int32_t nodeIdx = -1;
-  QUERY_CHECK_CODE(stEventTreeAddNode(pTree, path, parent, true, pCond, trueFor, &nodeIdx), lino, _end);
-  SStreamEventTreeNode *pNode = taosArrayGet(pTree->nodes, nodeIdx);
-  QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-  pNode->firstLeaf = beforeLeafCount;
-  pNode->leafCount = 1;
-  if (pNodeIdx != NULL) {
-    *pNodeIdx = nodeIdx;
-  }
-
-_end:
-  return code;
-}
-
-static int32_t stEventTreeBuild(SNode *pStartCond, const STrueForInfo *pGlobalTrueFor, SStreamEventTree **ppTree) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  if (ppTree == NULL) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-  *ppTree = NULL;
-
-  SStreamEventTree *pTree = taosMemoryCalloc(1, sizeof(SStreamEventTree));
-  QUERY_CHECK_NULL(pTree, code, lino, _end, terrno);
-  pTree->nodes = taosArrayInit(0, sizeof(SStreamEventTreeNode));
-  QUERY_CHECK_NULL(pTree->nodes, code, lino, _end, terrno);
-  pTree->leaves = taosArrayInit(0, sizeof(int32_t));
-  QUERY_CHECK_NULL(pTree->leaves, code, lino, _end, terrno);
-
-  int32_t envelopeIdx = -1;
-  QUERY_CHECK_CODE(stEventTreeAddNode(pTree, "", -1, false, NULL,
-                                      pGlobalTrueFor != NULL ? *pGlobalTrueFor : (STrueForInfo){0}, &envelopeIdx),
-                   lino, _end);
-  if (pStartCond != NULL && nodeType(pStartCond) == QUERY_NODE_NODE_LIST) {
-    SNodeListNode *pListNode = (SNodeListNode *)pStartCond;
-    SNode         *pChild = NULL;
-    int32_t        childIdx = 0;
-    FOREACH(pChild, pListNode->pNodeList) {
-      char *childPath = stEventTreeBuildChildPath("", childIdx);
-      QUERY_CHECK_NULL(childPath, code, lino, _end, terrno);
-      code = stEventTreeBuildNode(pTree, pChild, pGlobalTrueFor, envelopeIdx, childPath, 1, true, NULL);
-      taosMemoryFreeClear(childPath);
-      QUERY_CHECK_CODE(code, lino, _end);
-      ++childIdx;
-    }
-  } else if (pStartCond != NULL) {
-    char *childPath = stEventTreeBuildChildPath("", 0);
-    QUERY_CHECK_NULL(childPath, code, lino, _end, terrno);
-    code = stEventTreeBuildNode(pTree, pStartCond, pGlobalTrueFor, envelopeIdx, childPath, 1, false, NULL);
-    taosMemoryFreeClear(childPath);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
-
-  SStreamEventTreeNode *pEnvelope = taosArrayGet(pTree->nodes, envelopeIdx);
-  QUERY_CHECK_NULL(pEnvelope, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-  pEnvelope->firstLeaf = 0;
-  pEnvelope->leafCount = taosArrayGetSize(pTree->leaves);
-  QUERY_CHECK_CONDITION(pEnvelope->leafCount > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  *ppTree = pTree;
-  return code;
-
-_end:
-  stEventTreeDestroy(pTree);
-  return code;
-}
-
-static int32_t stEventTreeApplySingleLeafStartTrueFor(SNode *pStartCond, SStreamEventTree *pTree,
-                                                      const STrueForInfo *pStartTrueFor) {
-  if (pStartCond == NULL || nodeType(pStartCond) == QUERY_NODE_NODE_LIST || !stEventTreeIsSingleStartCondition(pTree) ||
-      !stTrueForInfoConfigured(pStartTrueFor)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t *pNodeIdx = taosArrayGet(pTree->leaves, 0);
-  if (pNodeIdx == NULL) {
-    return terrno;
-  }
-  SStreamEventTreeNode *pNode = taosArrayGet(pTree->nodes, *pNodeIdx);
-  if (pNode == NULL || !pNode->isLeaf) {
-    return TSDB_CODE_INTERNAL_ERROR;
-  }
-  if (!stTrueForInfoConfigured(&pNode->trueFor)) {
-    pNode->trueFor = *pStartTrueFor;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t stEventTreeChooseLeaf(const bool *matches, int32_t leafCount) {
-  if (matches == NULL || leafCount <= 0) {
-    return -1;
-  }
-
-  for (int32_t i = 0; i < leafCount; ++i) {
-    if (matches[i]) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-static bool stEventStartCondNeedsEventTree(SNode *pStartCond, int64_t placeHolderBitmap, bool isRoot) {
-  if (pStartCond == NULL) {
-    return false;
-  }
-  if (placeHolderBitmap & PLACE_HOLDER_EVENT_CONDITION_PATH) {
-    return true;
-  }
-
-  if (nodeType(pStartCond) == QUERY_NODE_EVENT_START_LEAF) {
-    return ((SEventStartLeafNode *)pStartCond)->pTrueFor != NULL;
-  }
-
-  if (nodeType(pStartCond) != QUERY_NODE_NODE_LIST) {
-    return false;
-  }
-  if (!isRoot) {
-    return true;
-  }
-
-  SNodeListNode *pListNode = (SNodeListNode *)pStartCond;
-  SNode         *pChild = NULL;
-  FOREACH(pChild, pListNode->pNodeList) {
-    if (stEventStartCondNeedsEventTree(pChild, placeHolderBitmap, false)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static int32_t stEventStartCondStripLeafWrappers(SNode *pStartCond, SNode **ppStripped) {
-  int32_t        code = TSDB_CODE_SUCCESS;
-  int32_t        lino = 0;
-  SNodeListNode *pNewListNode = NULL;
-
-  QUERY_CHECK_NULL(ppStripped, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  *ppStripped = NULL;
-  QUERY_CHECK_NULL(pStartCond, code, lino, _end, TSDB_CODE_INVALID_PARA);
-
-  if (nodeType(pStartCond) == QUERY_NODE_EVENT_START_LEAF) {
-    SEventStartLeafNode *pLeaf = (SEventStartLeafNode *)pStartCond;
-    QUERY_CHECK_CONDITION(pLeaf->pTrueFor == NULL, code, lino, _end, TSDB_CODE_INVALID_PARA);
-    QUERY_CHECK_CODE(nodesCloneNode(pLeaf->pCond, ppStripped), lino, _end);
-    return code;
-  }
-
-  if (nodeType(pStartCond) == QUERY_NODE_NODE_LIST) {
-    SNodeListNode *pListNode = (SNodeListNode *)pStartCond;
-    SNode         *pChild = NULL;
-
-    QUERY_CHECK_CODE(nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode **)&pNewListNode), lino, _end);
-    FOREACH(pChild, pListNode->pNodeList) {
-      SNode *pStrippedChild = NULL;
-      code = stEventStartCondStripLeafWrappers(pChild, &pStrippedChild);
-      QUERY_CHECK_CODE(code, lino, _end);
-      code = nodesListMakeStrictAppend(&pNewListNode->pNodeList, pStrippedChild);
-      pStrippedChild = NULL;
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    *ppStripped = (SNode *)pNewListNode;
-    pNewListNode = NULL;
-    return code;
-  }
-
-  QUERY_CHECK_CODE(nodesCloneNode(pStartCond, ppStripped), lino, _end);
-  return code;
-
-_end:
-  nodesDestroyNode((SNode *)pNewListNode);
-  nodesDestroyNode(*ppStripped);
-  *ppStripped = NULL;
-  return code;
-}
-
 static int32_t stTriggerTaskUpdateRollupTbCount(SSHashObj *pRollupTbCount, SSHashObj *pRollupTbCountSeen, int32_t vgId,
                                                 int64_t gid, int32_t rollupTbCount) {
   if (pRollupTbCount == NULL || pRollupTbCountSeen == NULL) {
@@ -926,10 +195,6 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup);
 static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup);
 // Update the next execution time of the group and add into the heap if needed
 static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int64_t now, bool enterHeap);
-static int32_t stRealtimeGroupSwitchTreePath(SSTriggerRealtimeGroup *pGroup, int32_t targetLeaf,
-                                             const SSDataBlock *pDataBlock, int32_t rowIdx, TSKEY closeTs, TSKEY openTs,
-                                             int64_t openRowsBeforeCurrent, bool closeAll);
-static TSKEY   stRealtimeGroupTreeLastActiveTs(SSTriggerRealtimeGroup *pGroup, TSKEY fallback);
 
 static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistoryContext *pContext, int64_t gid);
 static void    stHistoryGroupDestroy(void *ptr);
@@ -940,7 +205,6 @@ static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup);
 static int32_t stHistoryGroupGetDataBlock(SSTriggerHistoryGroup *pGroup, bool saveWindow, SSDataBlock **ppDataBlock,
                                           int32_t *pStartIdx, int32_t *pEndIdx, bool *pAllTableProcessed,
                                           bool *pNeedFetchData);
-static bool    stHistoryCalcParamCanSkipPrevRows(SStreamTriggerTask *pTask, const SSTriggerCalcParam *pParam);
 static void    stHistoryGroupClearTempState(SSTriggerHistoryGroup *pGroup);
 static void    stHistoryGroupClearMetadatas(SSTriggerHistoryGroup *pGroup);
 static int32_t stHistoryGroupRetrievePendingCalc(SSTriggerHistoryGroup *pGroup);
@@ -970,12 +234,7 @@ static FORCE_INLINE bool stRealtimeGroupNeedCheck(SSTriggerRealtimeGroup *pGroup
     return false;
   }
   SStreamTriggerTask *pTask = pGroup->pContext->pTask;
-  if (pTask->triggerType == STREAM_TRIGGER_EVENT && pTask->pEventTree != NULL) {
-    return pGroup->activeLeaf >= 0 || stEventTreeHasActiveLeafStreak(pGroup->leafStreaks) ||
-           stEventTreeHasOpenNodeWindow(pGroup->openNodeWindows);
-  }
-  return pGroup->windows.neles > 0 ||
-         (pTask->triggerType == STREAM_TRIGGER_EVENT && (pGroup->numSubWindows > 0 || pGroup->activeLeaf >= 0));
+  return pGroup->windows.neles > 0 || (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows > 0);
 }
 
 typedef struct SRewriteSlotidCxt {
@@ -4065,15 +3324,6 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     nodesWalkExprs(pTask->histEndCondCols, nodeRewriteSlotid, &cxt);
     code = cxt.errCode;
     QUERY_CHECK_CODE(code, lino, _end);
-    stEventTreeDestroy(pTask->pHistEventTree);
-    pTask->pHistEventTree = NULL;
-    if (pTask->pEventTree != NULL) {
-      code = stEventTreeBuild(pTask->histStartCond, &pTask->eventTrueForInfo, &pTask->pHistEventTree);
-      QUERY_CHECK_CODE(code, lino, _end);
-      code =
-          stEventTreeApplySingleLeafStartTrueFor(pTask->histStartCond, pTask->pHistEventTree, &pTask->startTrueForInfo);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
   }
 
   pTask->pVirTrigSlots = pTrigSlotids;
@@ -4218,7 +3468,6 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
   SNodeList *pPartitionCols = NULL;
-  SNode     *pRawStartCond = NULL;
 
   EWindowType type = pMsg->triggerType;
   switch (pMsg->triggerType) {
@@ -4268,7 +3517,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     case WINDOW_TYPE_EVENT: {
       pTask->triggerType = STREAM_TRIGGER_EVENT;
       const SEventTrigger *pEvent = &pMsg->trigger.event;
-      code = nodesStringToNode(pEvent->startCond, &pRawStartCond);
+      code = nodesStringToNode(pEvent->startCond, &pTask->pStartCond);
       QUERY_CHECK_CODE(code, lino, _end);
       code = nodesStringToNode(pEvent->endCond, &pTask->pEndCond);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -4278,22 +3527,9 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
       pTask->startTrueForInfo.trueForType = pEvent->startTrueForType;
       pTask->startTrueForInfo.count       = pEvent->startTrueForCount;
       pTask->startTrueForInfo.duration    = pEvent->startTrueForDuration;
-      pTask->endTrueForInfo.trueForType = pEvent->endTrueForType;
-      pTask->endTrueForInfo.count = pEvent->endTrueForCount;
-      pTask->endTrueForInfo.duration = pEvent->endTrueForDuration;
-      if (stEventStartCondNeedsEventTree(pRawStartCond, pMsg->placeHolderBitmap, true)) {
-        pTask->pStartCond = pRawStartCond;
-        pRawStartCond = NULL;
-        code = stEventTreeBuild(pTask->pStartCond, &pTask->eventTrueForInfo, &pTask->pEventTree);
-        QUERY_CHECK_CODE(code, lino, _end);
-        code = stEventTreeApplySingleLeafStartTrueFor(pTask->pStartCond, pTask->pEventTree, &pTask->startTrueForInfo);
-        QUERY_CHECK_CODE(code, lino, _end);
-      } else {
-        code = stEventStartCondStripLeafWrappers(pRawStartCond, &pTask->pStartCond);
-        nodesDestroyNode(pRawStartCond);
-        pRawStartCond = NULL;
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
+      pTask->endTrueForInfo.trueForType   = pEvent->endTrueForType;
+      pTask->endTrueForInfo.count         = pEvent->endTrueForCount;
+      pTask->endTrueForInfo.duration      = pEvent->endTrueForDuration;
       code = nodesCollectColumnsFromNode(pTask->pStartCond, NULL, COLLECT_COL_TYPE_ALL, &pTask->pStartCondCols);
       QUERY_CHECK_CODE(code, lino, _end);
       if (nodeType(pTask->pStartCond) == QUERY_NODE_NODE_LIST) {
@@ -4422,13 +3658,6 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
     QUERY_CHECK_CODE(code, lino, _end);
     code = nodesCloneList(pTask->pEndCondCols, &pTask->histEndCondCols);
     QUERY_CHECK_CODE(code, lino, _end);
-    if (pTask->pEventTree != NULL) {
-      code = stEventTreeBuild(pTask->histStartCond, &pTask->eventTrueForInfo, &pTask->pHistEventTree);
-      QUERY_CHECK_CODE(code, lino, _end);
-      code =
-          stEventTreeApplySingleLeafStartTrueFor(pTask->histStartCond, pTask->pHistEventTree, &pTask->startTrueForInfo);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
   }
 
   if (pTask->isVirtualTable) {
@@ -4508,16 +3737,7 @@ _end:
   if (pPartitionCols != NULL) {
     nodesDestroyList(pPartitionCols);
   }
-  nodesDestroyNode(pRawStartCond);
   if (code != TSDB_CODE_SUCCESS) {
-    if (pTask->triggerType == STREAM_TRIGGER_EVENT && pTask->pEventTree != NULL) {
-      stEventTreeDestroy(pTask->pEventTree);
-      pTask->pEventTree = NULL;
-    }
-    if (pTask->triggerType == STREAM_TRIGGER_EVENT && pTask->pHistEventTree != NULL) {
-      stEventTreeDestroy(pTask->pHistEventTree);
-      pTask->pHistEventTree = NULL;
-    }
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     pTask->task.status = STREAM_STATUS_FAILED;
   }
@@ -4589,10 +3809,6 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     }
 
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    if (pTask->pEventTree != NULL) {
-      stEventTreeDestroy(pTask->pEventTree);
-      pTask->pEventTree = NULL;
-    }
     if (pTask->pStartCond != NULL) {
       nodesDestroyNode(pTask->pStartCond);
       pTask->pStartCond = NULL;
@@ -4629,10 +3845,6 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     taosArrayDestroy(pTask->pHistStateSlotIds);
     pTask->pHistStateSlotIds = NULL;
     pTask->histStateSlotId = -1;
-  }
-  if (pTask->pHistEventTree != NULL) {
-    stEventTreeDestroy(pTask->pHistEventTree);
-    pTask->pHistEventTree = NULL;
   }
   if (pTask->histStartCond != NULL) {
     nodesDestroyNode(pTask->histStartCond);
@@ -5406,53 +4618,6 @@ _end:
   return code;
 }
 
-static void stEventTreeDestroyLeafCol(void *ptr) {
-  SColumnInfoData *pCol = ptr;
-  if (pCol != NULL) {
-    colDataDestroy(pCol);
-  }
-}
-
-static void stEventTreeDestroyLeafCols(SArray *pLeafCols) {
-  if (pLeafCols != NULL) {
-    taosArrayDestroyEx(pLeafCols, stEventTreeDestroyLeafCol);
-  }
-}
-
-static int32_t stEventTreeEvalLeaves(SStreamTriggerTask *pTask, const SStreamEventTree *pTree, SSDataBlock *pBlock,
-                                     SArray *pLeafCols) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  QUERY_CHECK_CONDITION(pTask != NULL && pTree != NULL && pBlock != NULL && pLeafCols != NULL, code, lino, _end,
-                        TSDB_CODE_INVALID_PARA);
-
-  int32_t leafCount = taosArrayGetSize(pTree->leaves);
-  for (int32_t i = 0; i < leafCount; ++i) {
-    const int32_t *pNodeIdx = taosArrayGet(pTree->leaves, i);
-    QUERY_CHECK_NULL(pNodeIdx, code, lino, _end, terrno);
-    SStreamEventTreeNode *pLeaf = taosArrayGet((SArray *)pTree->nodes, *pNodeIdx);
-    QUERY_CHECK_CONDITION(pLeaf != NULL && pLeaf->isLeaf, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-
-    SColumnInfoData col = {0};
-    code = stTriggerCalcExpr(pTask, pBlock, pLeaf->pCond, &col);
-    if (code != TSDB_CODE_SUCCESS) {
-      colDataDestroy(&col);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    if (taosArrayPush(pLeafCols, &col) == NULL) {
-      colDataDestroy(&col);
-      QUERY_CHECK_CODE(terrno, lino, _end);
-    }
-  }
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
 static int32_t stRealtimeContextCompareGroup(const HeapNode *a, const HeapNode *b) {
   SSTriggerRealtimeGroup *pGroup1 = container_of(a, SSTriggerRealtimeGroup, heapNode);
   SSTriggerRealtimeGroup *pGroup2 = container_of(b, SSTriggerRealtimeGroup, heapNode);
@@ -5568,7 +4733,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
     QUERY_CHECK_NULL(pContext->pSorter, code, lino, _end, terrno);
     int32_t verColBias = 0;
     if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-      verColBias = (pTask->pEventTree != NULL) ? 1 : 2;
+      verColBias = 2;
     } else if (pTask->triggerType == STREAM_TRIGGER_STATE) {
       verColBias = stCountExprKeys(pTask->pStateSlotIds);
     }
@@ -5614,7 +4779,7 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
 
   if (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) {
     pContext->pCalcDataCacheIters =
-        taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+        taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
     QUERY_CHECK_NULL(pContext->pCalcDataCacheIters, code, lino, _end, errno);
     taosHashSetFreeFp(pContext->pCalcDataCacheIters, (FDelete)releaseDataResult);
   }
@@ -6644,15 +5809,13 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
           break;
         }
         if (pTask->isVirtualTable) {
-          code = putStreamDataCacheWithPath(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
-                                            pContext->pCurParam->wend, pContext->pCurParam->eventConditionPath,
-                                            pDataBlock, startIdx, endIdx - 1);
+          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
+                                    pContext->pCurParam->wend, pDataBlock, startIdx, endIdx - 1);
           QUERY_CHECK_CODE(code, lino, _end);
         } else {
           TARRAY_SIZE(pDataBlock->pDataBlock)--;
-          code = putStreamDataCacheWithPath(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
-                                            pContext->pCurParam->wend, pContext->pCurParam->eventConditionPath,
-                                            pDataBlock, startIdx, endIdx - 1);
+          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pCurParam->wstart,
+                                    pContext->pCurParam->wend, pDataBlock, startIdx, endIdx - 1);
           QUERY_CHECK_CODE(code, lino, _end);
           TARRAY_SIZE(pDataBlock->pDataBlock)++;
         }
@@ -7581,9 +6744,7 @@ _check:
       SSTriggerRealtimeGroup **ppGroup = tSimpleHashIterate(pTask->pRealtimeContext->pGroups, NULL, &giter);
       while (ppGroup != NULL) {
         SSTriggerRealtimeGroup *pGroup = *ppGroup;
-        if (pGroup != NULL && (pGroup->startCondCount > 0 || pGroup->endCondCount > 0 ||
-                               stEventTreeHasActiveLeafStreak(pGroup->leafStreaks) ||
-                               stEventTreeHasOpenNodeWindow(pGroup->openNodeWindows))) {
+        if (pGroup != NULL && (pGroup->startCondCount > 0 || pGroup->endCondCount > 0)) {
           int32_t vgId = pGroup->vgId;
           if (taosHashPut(pFrozenVgIds, &vgId, sizeof(int32_t), &vgId, sizeof(int32_t)) != 0) {
             taosHashCleanup(pFrozenVgIds);
@@ -8417,24 +7578,19 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
           SColumnInfoData *pStartCol = NULL;
           SColumnInfoData *pEndCol = NULL;
-          bool             useEventTree = pTask->pEventTree != NULL;
           if (firstDataBlock) {
-            if (!useEventTree) {
-              SColumnInfoData startCol = {0};
-              void           *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &startCol);
-              QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-            }
+            SColumnInfoData startCol = {0};
+            void           *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &startCol);
+            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
             SColumnInfoData endCol = {0};
-            void           *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &endCol);
+            px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &endCol);
             QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           }
           pEndCol = taosArrayGetLast(pProgress->pTrigBlock->pDataBlock);
           QUERY_CHECK_NULL(pEndCol, code, lino, _end, terrno);
-          if (!useEventTree) {
-            pStartCol = pEndCol - 1;
-            code = stTriggerCalcExpr(pTask, pProgress->pTrigBlock, pTask->pStartCond, pStartCol);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
+          pStartCol = pEndCol - 1;
+          code = stTriggerCalcExpr(pTask, pProgress->pTrigBlock, pTask->pStartCond, pStartCol);
+          QUERY_CHECK_CODE(code, lino, _end);
           code = stTriggerCalcExpr(pTask, pProgress->pTrigBlock, pTask->pEndCond, pEndCol);
           QUERY_CHECK_CODE(code, lino, _end);
         } else if (pTask->triggerType == STREAM_TRIGGER_STATE) {
@@ -9225,7 +8381,7 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
   QUERY_CHECK_CODE(code, lino, _end);
 
   pContext->pCalcDataCacheIters =
-      taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+      taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   taosHashSetFreeFp(pContext->pCalcDataCacheIters, (_hash_free_fn_t)releaseDataResult);
   QUERY_CHECK_NULL(pContext->pCalcDataCacheIters, code, lino, _end, errno);
 
@@ -9486,8 +8642,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       pReq->skey = pContext->pParamToFetch->wstart;
       pReq->ekey = pContext->pParamToFetch->wend;
       pReq->ver = pProgress->version;
-      if (stHistoryCalcParamCanSkipPrevRows(pTask, pContext->pParamToFetch) &&
-          pContext->pParamToFetch != TARRAY_DATA(pContext->pCalcReq->params)) {
+      if (pContext->pParamToFetch != TARRAY_DATA(pContext->pCalcReq->params)) {
         int64_t prevEnd = (pContext->pParamToFetch - 1)->wend;
         pReq->skey = TMAX(pReq->skey, prevEnd + 1);
       }
@@ -9719,9 +8874,8 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
         }
         everGetData = true;
         if (!pTask->isVirtualTable) {
-          code = putStreamDataCacheWithPath(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
-                                            pContext->pParamToFetch->wend, pContext->pParamToFetch->eventConditionPath,
-                                            pDataBlock, startIdx, endIdx - 1);
+          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
+                                    pContext->pParamToFetch->wend, pDataBlock, startIdx, endIdx - 1);
           QUERY_CHECK_CODE(code, lino, _end);
         } else {
           if (pCalcDataBlock == NULL) {
@@ -9738,9 +8892,8 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
             QUERY_CHECK_CODE(code, lino, _end);
           }
           pCalcDataBlock->info.rows = pDataBlock->info.rows;
-          code = putStreamDataCacheWithPath(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
-                                            pContext->pParamToFetch->wend, pContext->pParamToFetch->eventConditionPath,
-                                            pCalcDataBlock, startIdx, endIdx - 1);
+          code = putStreamDataCache(pContext->pCalcDataCache, pGroup->gid, pContext->pParamToFetch->wstart,
+                                    pContext->pParamToFetch->wend, pCalcDataBlock, startIdx, endIdx - 1);
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
@@ -11001,14 +10154,6 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
     pGroup->startCondFirstTs = INT64_MIN;
     pGroup->endCondCount     = 0;
     pGroup->endCondFirstTs   = INT64_MIN;
-    pGroup->activeLeaf = -1;
-    if (pTask->pEventTree != NULL) {
-      pGroup->activePath = taosArrayInit(0, sizeof(int32_t));
-      QUERY_CHECK_NULL(pGroup->activePath, code, lino, _end, terrno);
-      pGroup->openNodeWindows = taosArrayInit(0, sizeof(SSTriggerNotifyWindow));
-      QUERY_CHECK_NULL(pGroup->openNodeWindows, code, lino, _end, terrno);
-      QUERY_CHECK_CODE(stEventTreeInitLeafStreaks(pTask->pEventTree, &pGroup->leafStreaks), lino, _end);
-    }
   }
   pGroup->prevWindow = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MIN};
   code = taosObjListInit(&pGroup->windows, &pContext->windowPool);
@@ -11053,12 +10198,6 @@ static void stRealtimeGroupDestroy(void *ptr) {
   } else if (pGroup->pContext->pTask->triggerType == STREAM_TRIGGER_EVENT) {
     stRealtimeContextDestroyWindow(&pGroup->parentWindow);
     taosMemoryFreeClear(pGroup->pFirstSubWinOpenNotify);
-    taosArrayDestroy(pGroup->activePath);
-    pGroup->activePath = NULL;
-    taosArrayDestroyEx(pGroup->openNodeWindows, stRealtimeContextDestroyWindow);
-    pGroup->openNodeWindows = NULL;
-    taosArrayDestroy(pGroup->leafStreaks);
-    pGroup->leafStreaks = NULL;
   }
   taosObjListClear(&pGroup->windows);
   taosObjListClearEx(&pGroup->pPendingParWinCalcParams, tDestroySSTriggerCalcParam);
@@ -11132,12 +10271,6 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup) {
     if (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows > 0) {
       threshold = TMIN(threshold, pGroup->parentWindow.range.skey - 1);
     }
-    if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-      TSKEY openNodeWindowTs = stEventTreeEarliestOpenNodeWindowTs(pGroup->openNodeWindows);
-      if (openNodeWindowTs != TSKEY_MIN) {
-        threshold = TMIN(threshold, openNodeWindowTs - 1);
-      }
-    }
     // Preserve WAL metadata covering an in-progress start-condition streak that
     // spans multiple blocks. Without this, batch N may delete metadata for
     // earlier streak rows so that when the streak finally satisfies in batch
@@ -11146,12 +10279,6 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup) {
     if (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->startCondCount > 0 &&
         pGroup->startCondFirstTs != INT64_MIN) {
       threshold = TMIN(threshold, pGroup->startCondFirstTs - 1);
-    }
-    if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-      TSKEY leafStreakTs = stEventTreeEarliestActiveLeafStreakTs(pGroup->leafStreaks);
-      if (leafStreakTs != TSKEY_MIN) {
-        threshold = TMIN(threshold, leafStreakTs - 1);
-      }
     }
   } else if (pTask->watermark > 0) {
     threshold = pGroup->newThreshold;
@@ -11381,8 +10508,7 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
         QUERY_CHECK_NULL(pMetas, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         QUERY_CHECK_NULL(pContext->pCurParam, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         STimeWindow range = {.skey = pContext->pCurParam->wstart, .ekey = pContext->pCurParam->wend};
-        bool        allowOverlap = pTask->triggerType == STREAM_TRIGGER_EVENT && pTask->pEventTree != NULL;
-        if (!allowOverlap && TARRAY_DATA(pContext->pCalcReq->params) != pContext->pCurParam) {
+        if (TARRAY_DATA(pContext->pCalcReq->params) != pContext->pCurParam) {
           range.skey = TMAX(range.skey, (pContext->pCurParam - 1)->wend + 1);
         }
         code = stNewTimestampSorterSetData(pContext->pCalcSorter, tbUid, pTask->calcTsIndex, pTask->calcPkIndex, &range,
@@ -11410,8 +10536,7 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
         }
         QUERY_CHECK_NULL(pContext->pCurParam, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         STimeWindow range = {.skey = pContext->pCurParam->wstart, .ekey = pContext->pCurParam->wend};
-        bool        allowOverlap = pTask->triggerType == STREAM_TRIGGER_EVENT && pTask->pEventTree != NULL;
-        if (!allowOverlap && TARRAY_DATA(pContext->pCalcReq->params) != pContext->pCurParam) {
+        if (TARRAY_DATA(pContext->pCalcReq->params) != pContext->pCurParam) {
           range.skey = TMAX(range.skey, (pContext->pCurParam - 1)->wend + 1);
         }
         code = stNewVtableMergerSetData(pContext->pCalcMerger, vtbUid, pTask->calcTsIndex, pTask->calcPkIndex, &range,
@@ -12044,9 +11169,6 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
   SSDataBlock              *pDataBlock = NULL;
   int32_t                   startIdx = 0;
   int32_t                   endIdx = 0;
-  SArray                   *pLeafCols = NULL;
-  bool                     *pLeafMatches = NULL;
-  bool                     *pLeafSatisfied = NULL;
 
   if (TARRAY_SIZE(pContext->pWindows) == 0) {
     SSTriggerNotifyWindow newWin = {0};
@@ -12083,111 +11205,26 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
     int64_t         *pTsData = (int64_t *)pTsCol->pData;
     SColumnInfoData *psCol = NULL;
     SColumnInfoData *peCol = NULL;
-    int32_t          leafCount = pTask->pEventTree != NULL ? taosArrayGetSize(pTask->pEventTree->leaves) : 0;
-    bool             useEventTree = pTask->pEventTree != NULL;
-    if (useEventTree) {
-      pLeafCols = taosArrayInit(leafCount, sizeof(SColumnInfoData));
-      QUERY_CHECK_NULL(pLeafCols, code, lino, _end, terrno);
-      QUERY_CHECK_CODE(stEventTreeEvalLeaves(pTask, pTask->pEventTree, pDataBlock, pLeafCols), lino, _end);
-      pLeafMatches = taosMemoryCalloc(leafCount, sizeof(bool));
-      QUERY_CHECK_NULL(pLeafMatches, code, lino, _end, terrno);
-      pLeafSatisfied = taosMemoryCalloc(leafCount, sizeof(bool));
-      QUERY_CHECK_NULL(pLeafSatisfied, code, lino, _end, terrno);
-    }
     if (pTask->isVirtualTable) {
-      if (!useEventTree) {
-        code = stTriggerCalcExpr(pTask, pDataBlock, pTask->pStartCond, &pContext->eventStartCol);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
+      code = stTriggerCalcExpr(pTask, pDataBlock, pTask->pStartCond, &pContext->eventStartCol);
+      QUERY_CHECK_CODE(code, lino, _end);
       code = stTriggerCalcExpr(pTask, pDataBlock, pTask->pEndCond, &pContext->eventEndCol);
       QUERY_CHECK_CODE(code, lino, _end);
-      psCol = useEventTree ? NULL : &pContext->eventStartCol;
+      psCol = &pContext->eventStartCol;
       peCol = &pContext->eventEndCol;
     } else {
       peCol = taosArrayGetLast(pDataBlock->pDataBlock);
       QUERY_CHECK_NULL(peCol, code, lino, _end, terrno);
-      psCol = useEventTree ? NULL : peCol - 1;
+      psCol = peCol - 1;
     }
-    uint8_t *ps = useEventTree ? NULL : (uint8_t *)psCol->pData;
+    uint8_t *ps = (uint8_t *)psCol->pData;
     uint8_t *pe = (uint8_t *)peCol->pData;
     bool     checkSubEvent = (nodeType(pTask->pStartCond) == QUERY_NODE_NODE_LIST);
     for (int32_t i = startIdx; i < endIdx; i++) {
-      int32_t targetLeaf = -1;
-      int32_t candidateLeaf = -1;
-      uint8_t psValue = 0;
-      if (useEventTree) {
-        for (int32_t leafIdx = 0; leafIdx < leafCount; ++leafIdx) {
-          SColumnInfoData *pLeafCol = taosArrayGet(pLeafCols, leafIdx);
-          QUERY_CHECK_NULL(pLeafCol, code, lino, _end, terrno);
-          pLeafMatches[leafIdx] = ((uint8_t *)pLeafCol->pData)[i] != 0;
-        }
-        candidateLeaf = stEventTreeChooseLeaf(pLeafMatches, leafCount);
-        TSKEY lastActiveTs = stRealtimeGroupTreeLastActiveTs(pGroup, TSKEY_MIN);
-        QUERY_CHECK_CODE(stEventTreeUpdateLeafStreaks(pTask->pEventTree, pGroup->leafStreaks, pLeafMatches,
-                                                      pLeafSatisfied, leafCount, pTsData[i], lastActiveTs),
-                         lino, _end);
-        if (candidateLeaf >= 0 && pLeafSatisfied[candidateLeaf]) {
-          targetLeaf = candidateLeaf;
-        }
-        psValue = targetLeaf >= 0 ? (uint8_t)(targetLeaf + 1) : 0;
-      } else {
-        psValue = ps[i];
-      }
-      if (useEventTree) {
-        if (targetLeaf >= 0) {
-          SEventLeafStreak *pTargetStreak = taosArrayGet(pGroup->leafStreaks, targetLeaf);
-          QUERY_CHECK_NULL(pTargetStreak, code, lino, _end, terrno);
-          TSKEY   openTs = pTargetStreak->firstTs;
-          int64_t openRowsBeforeCurrent = pTargetStreak->count > 0 ? pTargetStreak->count - 1 : 0;
-          if (pGroup->activeLeaf < 0) {
-            code = stRealtimeGroupSwitchTreePath(pGroup, targetLeaf, pDataBlock, i, pTsData[i], openTs,
-                                                 openRowsBeforeCurrent, false);
-            QUERY_CHECK_CODE(code, lino, _end);
-          } else if (targetLeaf != pGroup->activeLeaf) {
-            TSKEY closeTs = pTargetStreak->prevTsBeforeFirst != TSKEY_MIN
-                                ? pTargetStreak->prevTsBeforeFirst
-                                : stRealtimeGroupTreeLastActiveTs(pGroup, pTsData[i]);
-            code = stRealtimeGroupSwitchTreePath(pGroup, targetLeaf, pDataBlock, i, closeTs, openTs,
-                                                 openRowsBeforeCurrent, false);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-          stEventTreeResetLeafStreaksAfter(pGroup->leafStreaks, targetLeaf);
-          code = stEventTreeAdvanceOpenNodeWindows(pGroup->openNodeWindows, pTsData[i], true);
-          QUERY_CHECK_CODE(code, lino, _end);
-        } else if (!checkSubEvent && pGroup->activeLeaf >= 0) {
-          code = stEventTreeAdvanceOpenNodeWindows(pGroup->openNodeWindows, pTsData[i], true);
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
-
-        bool  closeNow = false;
-        TSKEY closeTs = stRealtimeGroupTreeLastActiveTs(pGroup, pTsData[i]);
-        if (pGroup->activeLeaf >= 0 && pe[i]) {
-          if (checkSubEvent) {
-            closeNow = true;
-            if (candidateLeaf >= 0) {
-              closeTs = pTsData[i];
-            }
-          } else {
-            closeNow = stEventTreeEndTrueForSatisfied(&pTask->endTrueForInfo, true, pTsData[i], &pGroup->endCondCount,
-                                                      &pGroup->endCondFirstTs, &closeTs);
-          }
-        } else if (checkSubEvent && pGroup->activeLeaf >= 0 && candidateLeaf < 0) {
-          closeNow = true;
-        } else if (!checkSubEvent) {
-          stEventTreeResetEndStreak(&pGroup->endCondCount, &pGroup->endCondFirstTs);
-        }
-        if (closeNow) {
-          code = stRealtimeGroupSwitchTreePath(pGroup, -1, pDataBlock, i, closeTs, closeTs, 0, true);
-          QUERY_CHECK_CODE(code, lino, _end);
-          stEventTreeResetLeafStreaks(pGroup->leafStreaks);
-          stEventTreeResetEndStreak(&pGroup->endCondCount, &pGroup->endCondFirstTs);
-        }
-        continue;
-      }
-      if ((pWin == NULL) && psValue) {
+      if ((pWin == NULL) && ps[i]) {
         // Start-condition streak check
         bool  _startNow = true;
-        TSKEY _skey = pTsData[i];  // default skey = current row; overridden to firstTs on streak satisfy
+        TSKEY _skey     = pTsData[i];  // default skey = current row; overridden to firstTs on streak satisfy
         if (pTask->startTrueForInfo.count || pTask->startTrueForInfo.duration) {
           // sub-event + start/end is rejected at parse time, so checkSubEvent is always false here
           if (!pGroup->startCondCount) {
@@ -12203,53 +11240,52 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
           }
         }
         if (_startNow) {
-          if (checkSubEvent) {
-            if (pGroup->numSubWindows == 0) {
-              pGroup->parentWindow = (SSTriggerNotifyWindow){.range.skey = _skey, .range.ekey = INT64_MAX};
-              if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-                code = stBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, "", false, pGroup->gid, _skey, 0,
-                                                 &pGroup->parentWindow.pWinOpenNotify);
-                QUERY_CHECK_CODE(code, lino, _end);
-                // A single sub-event is still a regular event window. Keep the first sub-window open pending until a
-                // second sub-window proves that parent/child window events are needed.
-                char conditionPath[32] = {0};
-                stTriggerTaskFormatFlatConditionPath(psValue - 1, conditionPath, sizeof(conditionPath));
-                code =
-                    stBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, conditionPath, true, pGroup->gid,
-                                              _skey, pGroup->parentWindow.range.skey, &pGroup->pFirstSubWinOpenNotify);
-                QUERY_CHECK_CODE(code, lino, _end);
-              }
+        if (checkSubEvent) {
+          if (pGroup->numSubWindows == 0) {
+            pGroup->parentWindow = (SSTriggerNotifyWindow){.range.skey = _skey, .range.ekey = INT64_MAX};
+            if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+              code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, -1, pGroup->gid,
+                                                   _skey, 0, &pGroup->parentWindow.pWinOpenNotify);
+              QUERY_CHECK_CODE(code, lino, _end);
+              // A single sub-event is still a regular event window. Keep the first sub-window open pending until a
+              // second sub-window proves that parent/child window events are needed.
+              code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, 0, pGroup->gid,
+                                                   _skey, pGroup->parentWindow.range.skey,
+                                                   &pGroup->pFirstSubWinOpenNotify);
+              QUERY_CHECK_CODE(code, lino, _end);
             }
-            pGroup->numSubWindows++;
-            pGroup->conditionIdx = psValue;
           }
+          pGroup->numSubWindows++;
+          pGroup->conditionIdx = ps[i];
+        }
 
-          SSTriggerNotifyWindow newWin = {0};
-          newWin.range.skey = _skey;
-          newWin.range.ekey = INT64_MAX;
-          pWin = taosArrayPush(pContext->pWindows, &newWin);
-          QUERY_CHECK_NULL(pWin, code, lino, _end, terrno);
-          if ((pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) && (!checkSubEvent || pGroup->numSubWindows > 1)) {
-            int64_t parentWindowStart = checkSubEvent ? pGroup->parentWindow.range.skey : 0;
-            char    conditionPath[32] = {0};
-            stTriggerTaskFormatFlatConditionPath(checkSubEvent ? psValue - 1 : 0, conditionPath, sizeof(conditionPath));
-            code = stBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, conditionPath,
-                                             stEventNotifyChildHasParent(checkSubEvent, pGroup->numSubWindows),
-                                             pGroup->gid, _skey, parentWindowStart, &pWin->pWinOpenNotify);
-            QUERY_CHECK_CODE(code, lino, _end);
+        SSTriggerNotifyWindow newWin = {0};
+        newWin.range.skey = _skey;
+        newWin.range.ekey = INT64_MAX;
+        pWin = taosArrayPush(pContext->pWindows, &newWin);
+        QUERY_CHECK_NULL(pWin, code, lino, _end, terrno);
+        if ((pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) && (!checkSubEvent || pGroup->numSubWindows > 1)) {
+          int32_t winIdx = -1;
+          if (checkSubEvent && pGroup->numSubWindows > 1) {
+            winIdx = pGroup->numSubWindows - 1;
           }
+          int64_t parentWindowStart = (checkSubEvent && winIdx >= 0) ? pGroup->parentWindow.range.skey : 0;
+          code = streamBuildEventNotifyContent(pDataBlock, pTask->pStartCondCols, i, ps[i] - 1, winIdx, pGroup->gid,
+                                               _skey, parentWindowStart, &pWin->pWinOpenNotify);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
         }  // if (_startNow)
-      } else if (pWin == NULL && !psValue) {
+      } else if (pWin == NULL && !ps[i]) {
         // Start condition not firing: reset streak state.
-        pGroup->startCondCount = 0;
-        pGroup->startCondFirstTs = INT64_MIN;
+        pGroup->startCondCount    = 0;
+        pGroup->startCondFirstTs  = INT64_MIN;
       }
 
       if (pWin == NULL) {
         continue;
       }
 
-      if (checkSubEvent && psValue && psValue != pGroup->conditionIdx) {
+      if (checkSubEvent && ps[i] && ps[i] != pGroup->conditionIdx) {
         // close previous sub-window since start condition index is changed
         pWin->forceWinOpen = true;
         if (pGroup->pFirstSubWinOpenNotify != NULL && pWin->pWinOpenNotify == NULL) {
@@ -12258,10 +11294,10 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         }
         pWin->range.ekey &= (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-          char conditionPath[32] = {0};
-          stTriggerTaskFormatFlatConditionPath(pGroup->conditionIdx - 1, conditionPath, sizeof(conditionPath));
-          code = stBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, conditionPath, true, pGroup->gid,
-                                           pWin->range.skey, pGroup->parentWindow.range.skey, &pWin->pWinCloseNotify);
+          int32_t winIdx = pGroup->numSubWindows - 1;
+          code =
+              streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, winIdx, pGroup->gid,
+                                            pWin->range.skey, pGroup->parentWindow.range.skey, &pWin->pWinCloseNotify);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         pWin = NULL;
@@ -12281,8 +11317,8 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
       // End-condition streak tracking and close decision
       // _ekey: the window's official close timestamp.
       // For end-streak: first row of the satisfying streak; for immediate close: current row.
-      TSKEY _ekey = pTsData[i];
-      bool  _closeNow = (checkSubEvent && !psValue);  // sub-event: close when no condition fires
+      TSKEY _ekey     = pTsData[i];
+      bool  _closeNow = (checkSubEvent && !ps[i]);  // sub-event: close when no condition fires
       if (pe[i]) {
         if (pTask->endTrueForInfo.count || pTask->endTrueForInfo.duration) {
           if (!pGroup->endCondCount) {
@@ -12309,13 +11345,13 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         SSTriggerNotifyWindow *pClosedWin = pWin;
         pWin->range.ekey = _ekey;
         if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-          int64_t parentWindowStart = checkSubEvent ? pGroup->parentWindow.range.skey : 0;
-          char    conditionPath[32] = {0};
-          stTriggerTaskFormatFlatConditionPath(checkSubEvent ? pGroup->conditionIdx - 1 : 0, conditionPath,
-                                               sizeof(conditionPath));
-          code = stBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, conditionPath,
-                                           stEventNotifyChildHasParent(checkSubEvent, pGroup->numSubWindows),
-                                           pGroup->gid, pWin->range.skey, parentWindowStart, &pWin->pWinCloseNotify);
+          int32_t winIdx = -1;
+          if (checkSubEvent && pGroup->numSubWindows > 1) {
+            winIdx = pGroup->numSubWindows - 1;
+          }
+          int64_t parentWindowStart = (checkSubEvent && winIdx >= 0) ? pGroup->parentWindow.range.skey : 0;
+          code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, winIdx, pGroup->gid,
+                                               pWin->range.skey, parentWindowStart, &pWin->pWinCloseNotify);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         pWin = NULL;
@@ -12324,8 +11360,9 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         if (checkSubEvent) {
           pGroup->parentWindow.range.ekey = _ekey;
           if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-            code = stBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, "", false, pGroup->gid,
-                                             pGroup->parentWindow.range.skey, 0, &pGroup->parentWindow.pWinCloseNotify);
+            code = streamBuildEventNotifyContent(pDataBlock, pTask->pEndCondCols, i, 0, -1, pGroup->gid,
+                                                 pGroup->parentWindow.range.skey, 0,
+                                                 &pGroup->parentWindow.pWinCloseNotify);
             QUERY_CHECK_CODE(code, lino, _end);
           }
           if (pGroup->numSubWindows > 1) {
@@ -12333,8 +11370,8 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
             QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           } else {
             if (pClosedWin->pWinOpenNotify == NULL) {
-              pClosedWin->pWinOpenNotify = pGroup->pFirstSubWinOpenNotify;
-              pGroup->pFirstSubWinOpenNotify = NULL;
+              pClosedWin->pWinOpenNotify = pGroup->parentWindow.pWinOpenNotify;
+              pGroup->parentWindow.pWinOpenNotify = NULL;
             }
             stRealtimeContextDestroyWindow(&pGroup->parentWindow);
           }
@@ -12345,16 +11382,9 @@ static int32_t stRealtimeGroupDoEventCheck(SSTriggerRealtimeGroup *pGroup) {
         }
       }
     }
-    stEventTreeDestroyLeafCols(pLeafCols);
-    pLeafCols = NULL;
-    taosMemoryFreeClear(pLeafMatches);
-    taosMemoryFreeClear(pLeafSatisfied);
   }
 
 _end:
-  stEventTreeDestroyLeafCols(pLeafCols);
-  taosMemoryFreeClear(pLeafMatches);
-  taosMemoryFreeClear(pLeafSatisfied);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -12561,195 +11591,6 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
-}
-
-static int32_t stRealtimeGroupAddTreeCalcParam(SSTriggerRealtimeGroup *pGroup, SSTriggerNotifyWindow *pWin,
-                                               ESTriggerEventType eventType, bool isParent) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SSTriggerRealtimeContext *pContext = pGroup->pContext;
-  SStreamTriggerTask       *pTask = pContext->pTask;
-  bool                      needCalc = pTask->calcEventType & eventType;
-  bool                      needNotify = pTask->notifyEventType & eventType;
-  SSTriggerCalcParam        param = {0};
-
-  if (!needCalc && !needNotify) {
-    goto _end;
-  }
-  const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTask->pEventTree, pWin->eventTreeNodeIdx);
-  QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-  if (!stEventTreeShouldEmitNodeWindow(pTask->pEventTree, pNode, pWin, eventType)) {
-    goto _end;
-  }
-
-  param = (SSTriggerCalcParam){
-      .triggerTime = taosGetTimestampNs(),
-      .notifyType = needNotify ? eventType : STRIGGER_EVENT_WINDOW_NONE,
-      .extraNotifyContent = (eventType == STRIGGER_EVENT_WINDOW_OPEN) ? pWin->pWinOpenNotify : pWin->pWinCloseNotify,
-  };
-  if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
-    pWin->pWinOpenNotify = NULL;
-  } else {
-    pWin->pWinCloseNotify = NULL;
-  }
-
-  SSTriggerNotifyWindow win = *pWin;
-  if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
-    win.range.ekey = win.range.skey;
-  }
-  QUERY_CHECK_CODE(stRealtimeGroupFillParam(pGroup, &param, &win), lino, _end);
-  QUERY_CHECK_CODE(stEventTreeSetCalcParamPath(pTask->pEventTree, &param, pWin->eventTreeNodeIdx), lino, _end);
-
-  if (needCalc) {
-    SObjList *pParamList = isParent ? &pGroup->pPendingParWinCalcParams : &pGroup->pPendingCalcParams;
-    code = taosObjListAppend(pParamList, &param);
-    QUERY_CHECK_CODE(code, lino, _end);
-    if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
-      pWin->winOpenEmitted = true;
-    }
-    param.extraNotifyContent = NULL;
-    param.eventConditionPath = NULL;
-  } else if (needNotify) {
-    void *px = taosArrayPush(pContext->pNotifyParams, &param);
-    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-    if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
-      pWin->winOpenEmitted = true;
-    }
-    param.extraNotifyContent = NULL;
-    param.eventConditionPath = NULL;
-  }
-
-_end:
-  tDestroySSTriggerCalcParam(&param);
-  return code;
-}
-
-static int32_t stRealtimeGroupOpenTreeSuffix(SSTriggerRealtimeGroup *pGroup, SArray *pNewPath, int32_t fromPos,
-                                             const SSDataBlock *pDataBlock, int32_t rowIdx, TSKEY ts,
-                                             int64_t rowsBeforeCurrent) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SSTriggerRealtimeContext *pContext = pGroup->pContext;
-  SStreamTriggerTask       *pTask = pContext->pTask;
-
-  for (int32_t i = fromPos; i < taosArrayGetSize(pNewPath); ++i) {
-    const int32_t              *pNodeIdx = taosArrayGet(pNewPath, i);
-    QUERY_CHECK_NULL(pNodeIdx, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTask->pEventTree, *pNodeIdx);
-    QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    SSTriggerNotifyWindow win = {
-        .range = {.skey = ts, .ekey = ts | TRIGGER_GROUP_UNCLOSED_WINDOW_MASK},
-        .wrownum = rowsBeforeCurrent,
-        .eventTreeNodeIdx = *pNodeIdx,
-    };
-    QUERY_CHECK_NULL(taosArrayPush(pGroup->activePath, pNodeIdx), code, lino, _end, terrno);
-    QUERY_CHECK_NULL(taosArrayPush(pGroup->openNodeWindows, &win), code, lino, _end, terrno);
-    SSTriggerNotifyWindow *pStoredWin = taosArrayGet(pGroup->openNodeWindows, i);
-    QUERY_CHECK_NULL(pStoredWin, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-      QUERY_CHECK_CODE(
-          stEventTreeBuildNotifyContent(pTask->pEventTree, pNewPath, pGroup->openNodeWindows, i, pDataBlock,
-                                        pTask->pStartCondCols, rowIdx, pGroup->gid, &pStoredWin->pWinOpenNotify),
-          lino, _end);
-    }
-    QUERY_CHECK_CODE(stRealtimeGroupAddTreeCalcParam(pGroup, pStoredWin, STRIGGER_EVENT_WINDOW_OPEN, !pNode->isLeaf),
-                     lino, _end);
-  }
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-static int32_t stRealtimeGroupCloseTreeSuffix(SSTriggerRealtimeGroup *pGroup, int32_t fromPos,
-                                              const SSDataBlock *pDataBlock, int32_t rowIdx, TSKEY ekey) {
-  int32_t                   code = TSDB_CODE_SUCCESS;
-  int32_t                   lino = 0;
-  SSTriggerRealtimeContext *pContext = pGroup->pContext;
-  SStreamTriggerTask       *pTask = pContext->pTask;
-  (void)pContext;
-
-  for (int32_t i = fromPos; i < taosArrayGetSize(pGroup->activePath); ++i) {
-    int32_t               *pNodeIdx = taosArrayGet(pGroup->activePath, i);
-    SSTriggerNotifyWindow *pWin = taosArrayGet(pGroup->openNodeWindows, i);
-    QUERY_CHECK_NULL(pNodeIdx, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    QUERY_CHECK_NULL(pWin, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTask->pEventTree, *pNodeIdx);
-    QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    pWin->range.ekey = ekey;
-    if (!pNode->isLeaf && stTrueForInfoConfigured(&pNode->trueFor) && !pWin->winOpenEmitted) {
-      QUERY_CHECK_CODE(stRealtimeGroupAddTreeCalcParam(pGroup, pWin, STRIGGER_EVENT_WINDOW_OPEN, true), lino, _end);
-    }
-  }
-
-  for (int32_t i = taosArrayGetSize(pGroup->activePath) - 1; i >= fromPos; --i) {
-    int32_t               *pNodeIdx = taosArrayGet(pGroup->activePath, i);
-    SSTriggerNotifyWindow *pWin = taosArrayGet(pGroup->openNodeWindows, i);
-    QUERY_CHECK_NULL(pNodeIdx, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    QUERY_CHECK_NULL(pWin, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTask->pEventTree, *pNodeIdx);
-    QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    pWin->range.ekey = ekey;
-    if (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
-      QUERY_CHECK_CODE(
-          stEventTreeBuildNotifyContent(pTask->pEventTree, pGroup->activePath, pGroup->openNodeWindows, i, pDataBlock,
-                                        pTask->pEndCondCols, rowIdx, pGroup->gid, &pWin->pWinCloseNotify),
-          lino, _end);
-    }
-    QUERY_CHECK_CODE(stRealtimeGroupAddTreeCalcParam(pGroup, pWin, STRIGGER_EVENT_WINDOW_CLOSE, !pNode->isLeaf), lino,
-                     _end);
-    stRealtimeContextDestroyWindow(pWin);
-    QUERY_CHECK_NULL(taosArrayPop(pGroup->activePath), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    QUERY_CHECK_NULL(taosArrayPop(pGroup->openNodeWindows), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-  }
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-static int32_t stRealtimeGroupSwitchTreePath(SSTriggerRealtimeGroup *pGroup, int32_t targetLeaf,
-                                             const SSDataBlock *pDataBlock, int32_t rowIdx, TSKEY closeTs, TSKEY openTs,
-                                             int64_t openRowsBeforeCurrent, bool closeAll) {
-  int32_t             code = TSDB_CODE_SUCCESS;
-  int32_t             lino = 0;
-  SStreamTriggerTask *pTask = pGroup->pContext->pTask;
-  SArray             *pNewPath = NULL;
-  int32_t             prefixLen = 0;
-
-  pNewPath = taosArrayInit(0, sizeof(int32_t));
-  QUERY_CHECK_NULL(pNewPath, code, lino, _end, terrno);
-  if (targetLeaf >= 0) {
-    QUERY_CHECK_CODE(stEventTreeBuildLeafNodePath(pGroup->pContext->pTask->pEventTree, targetLeaf, pNewPath), lino,
-                     _end);
-  }
-  prefixLen = closeAll ? 0 : stEventTreeCommonPrefixLen(pGroup->activePath, pNewPath);
-  QUERY_CHECK_CODE(stRealtimeGroupCloseTreeSuffix(pGroup, prefixLen, pDataBlock, rowIdx, closeTs), lino, _end);
-  if (targetLeaf >= 0) {
-    QUERY_CHECK_CODE(
-        stRealtimeGroupOpenTreeSuffix(pGroup, pNewPath, prefixLen, pDataBlock, rowIdx, openTs, openRowsBeforeCurrent),
-        lino, _end);
-  }
-  pGroup->activeLeaf = targetLeaf;
-
-_end:
-  taosArrayDestroy(pNewPath);
-  if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-static TSKEY stRealtimeGroupTreeLastActiveTs(SSTriggerRealtimeGroup *pGroup, TSKEY fallback) {
-  SSTriggerNotifyWindow *pWin = taosArrayGetLast(pGroup->openNodeWindows);
-  if (pWin == NULL) {
-    return fallback;
-  }
-  return pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK);
 }
 
 static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int64_t now, bool enterHeap) {
@@ -13122,7 +11963,6 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
       void *px = taosArrayPush(pContext->pCalcReq->params, pParam);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       pParam->extraNotifyContent = NULL;
-      pParam->eventConditionPath = NULL;
       nele++;
     }
     if (nele > 0) {
@@ -13156,7 +11996,6 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
       void *px = taosArrayPush(pContext->pCalcReq->params, pParam);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       pParam->extraNotifyContent = NULL;
-      pParam->eventConditionPath = NULL;
       nele++;
     }
     taosObjListPopHeadTo(&pGroup->pPendingCalcParams, pParam, nele);
@@ -13284,17 +12123,6 @@ static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistor
     pGroup->ds.numDeferredTailAllNull = 0;
     pGroup->ds.firstDeferredPartialNullTs = INT64_MIN;
     pGroup->ds.lastDeferredPartialNullTs = INT64_MIN;
-  } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-    pGroup->endCondCount = 0;
-    pGroup->endCondFirstTs = INT64_MIN;
-    pGroup->activeLeaf = -1;
-    if (pTask->pHistEventTree != NULL) {
-      pGroup->activePath = taosArrayInit(0, sizeof(int32_t));
-      QUERY_CHECK_NULL(pGroup->activePath, code, lino, _end, terrno);
-      pGroup->openNodeWindows = taosArrayInit(0, sizeof(SSTriggerNotifyWindow));
-      QUERY_CHECK_NULL(pGroup->openNodeWindows, code, lino, _end, terrno);
-      QUERY_CHECK_CODE(stEventTreeInitLeafStreaks(pTask->pHistEventTree, &pGroup->leafStreaks), lino, _end);
-    }
   }
   code = taosObjListInit(&pGroup->pPendingParWinCalcParams, &pContext->calcParamPool);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -13331,12 +12159,6 @@ static void stHistoryGroupDestroy(void *ptr) {
     taosMemoryFreeClear(pGroup->ds.pendingColTouched);
   } else if (pGroup->pContext->pTask->triggerType == STREAM_TRIGGER_EVENT) {
     stRealtimeContextDestroyWindow(&pGroup->parentWindow);
-    taosArrayDestroy(pGroup->activePath);
-    pGroup->activePath = NULL;
-    taosArrayDestroyEx(pGroup->openNodeWindows, stRealtimeContextDestroyWindow);
-    pGroup->openNodeWindows = NULL;
-    taosArrayDestroy(pGroup->leafStreaks);
-    pGroup->leafStreaks = NULL;
   }
   taosObjListClearEx(&pGroup->pPendingParWinCalcParams, tDestroySSTriggerCalcParam);
   taosObjListClearEx(&pGroup->pPendingCalcParams, tDestroySSTriggerCalcParam);
@@ -13394,16 +12216,6 @@ static void stHistoryGroupClearMetadatas(SSTriggerHistoryGroup *pGroup) {
     }
     if (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows > 0) {
       threshold = TMIN(threshold, pGroup->parentWindow.range.skey - 1);
-    }
-    if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-      TSKEY openNodeWindowTs = stEventTreeEarliestOpenNodeWindowTs(pGroup->openNodeWindows);
-      if (openNodeWindowTs != TSKEY_MIN) {
-        threshold = TMIN(threshold, openNodeWindowTs - 1);
-      }
-      TSKEY leafStreakTs = stEventTreeEarliestActiveLeafStreakTs(pGroup->leafStreaks);
-      if (leafStreakTs != TSKEY_MIN) {
-        threshold = TMIN(threshold, leafStreakTs - 1);
-      }
     }
   } else {
     threshold = pContext->stepRange.ekey;
@@ -13585,193 +12397,6 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
-}
-
-static int32_t stHistoryGroupAddTreeCalcParam(SSTriggerHistoryGroup *pGroup, SSTriggerNotifyWindow *pWin,
-                                              ESTriggerEventType eventType, bool isParent) {
-  int32_t                  code = TSDB_CODE_SUCCESS;
-  int32_t                  lino = 0;
-  SSTriggerHistoryContext *pContext = pGroup->pContext;
-  SStreamTriggerTask      *pTask = pContext->pTask;
-  bool                     needCalc = pTask->calcEventType & eventType;
-  bool                     needNotify = pTask->notifyHistory && (pTask->notifyEventType & eventType);
-  SSTriggerCalcParam       param = {0};
-
-  if (!needCalc && !needNotify) {
-    goto _end;
-  }
-  const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTask->pHistEventTree, pWin->eventTreeNodeIdx);
-  QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-  if (!stEventTreeShouldEmitNodeWindow(pTask->pHistEventTree, pNode, pWin, eventType)) {
-    goto _end;
-  }
-
-  param = (SSTriggerCalcParam){
-      .triggerTime = taosGetTimestampNs(),
-      .notifyType = needNotify ? eventType : STRIGGER_EVENT_WINDOW_NONE,
-      .extraNotifyContent = (eventType == STRIGGER_EVENT_WINDOW_OPEN) ? pWin->pWinOpenNotify : pWin->pWinCloseNotify,
-      .wstart = pWin->range.skey,
-      .wend = eventType == STRIGGER_EVENT_WINDOW_OPEN ? pWin->range.skey : pWin->range.ekey,
-      .wrownum = pWin->wrownum,
-  };
-  param.wduration = param.wend - param.wstart;
-  if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
-    pWin->pWinOpenNotify = NULL;
-  } else {
-    pWin->pWinCloseNotify = NULL;
-  }
-  QUERY_CHECK_CODE(stEventTreeSetCalcParamPath(pTask->pHistEventTree, &param, pWin->eventTreeNodeIdx), lino, _end);
-
-  if (needCalc) {
-    code = stHistoryGroupAddCalcParam(pGroup, &param, isParent);
-    QUERY_CHECK_CODE(code, lino, _end);
-    if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
-      pWin->winOpenEmitted = true;
-    }
-    param.extraNotifyContent = NULL;
-    param.eventConditionPath = NULL;
-  } else if (needNotify) {
-    void *px = taosArrayPush(pContext->pNotifyParams, &param);
-    QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-    if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
-      pWin->winOpenEmitted = true;
-    }
-    param.extraNotifyContent = NULL;
-    param.eventConditionPath = NULL;
-  }
-
-_end:
-  tDestroySSTriggerCalcParam(&param);
-  return code;
-}
-
-static int32_t stHistoryGroupOpenTreeSuffix(SSTriggerHistoryGroup *pGroup, SArray *pNewPath, int32_t fromPos,
-                                            const SSDataBlock *pDataBlock, int32_t rowIdx, TSKEY ts,
-                                            int64_t rowsBeforeCurrent) {
-  int32_t                  code = TSDB_CODE_SUCCESS;
-  int32_t                  lino = 0;
-  SSTriggerHistoryContext *pContext = pGroup->pContext;
-  SStreamTriggerTask      *pTask = pContext->pTask;
-  (void)pContext;
-
-  for (int32_t i = fromPos; i < taosArrayGetSize(pNewPath); ++i) {
-    const int32_t              *pNodeIdx = taosArrayGet(pNewPath, i);
-    QUERY_CHECK_NULL(pNodeIdx, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTask->pHistEventTree, *pNodeIdx);
-    QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    SSTriggerNotifyWindow win = {
-        .range = {.skey = ts, .ekey = ts},
-        .wrownum = rowsBeforeCurrent,
-        .eventTreeNodeIdx = *pNodeIdx,
-    };
-    QUERY_CHECK_NULL(taosArrayPush(pGroup->activePath, pNodeIdx), code, lino, _end, terrno);
-    QUERY_CHECK_NULL(taosArrayPush(pGroup->openNodeWindows, &win), code, lino, _end, terrno);
-    SSTriggerNotifyWindow *pStoredWin = taosArrayGet(pGroup->openNodeWindows, i);
-    QUERY_CHECK_NULL(pStoredWin, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
-      QUERY_CHECK_CODE(
-          stEventTreeBuildNotifyContent(pTask->pHistEventTree, pNewPath, pGroup->openNodeWindows, i, pDataBlock,
-                                        pTask->histStartCondCols, rowIdx, pGroup->gid, &pStoredWin->pWinOpenNotify),
-          lino, _end);
-    }
-    QUERY_CHECK_CODE(stHistoryGroupAddTreeCalcParam(pGroup, pStoredWin, STRIGGER_EVENT_WINDOW_OPEN, !pNode->isLeaf),
-                     lino, _end);
-  }
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-static int32_t stHistoryGroupCloseTreeSuffix(SSTriggerHistoryGroup *pGroup, int32_t fromPos,
-                                             const SSDataBlock *pDataBlock, int32_t rowIdx, TSKEY ekey) {
-  int32_t                  code = TSDB_CODE_SUCCESS;
-  int32_t                  lino = 0;
-  SSTriggerHistoryContext *pContext = pGroup->pContext;
-  SStreamTriggerTask      *pTask = pContext->pTask;
-  (void)pContext;
-
-  for (int32_t i = fromPos; i < taosArrayGetSize(pGroup->activePath); ++i) {
-    int32_t               *pNodeIdx = taosArrayGet(pGroup->activePath, i);
-    SSTriggerNotifyWindow *pWin = taosArrayGet(pGroup->openNodeWindows, i);
-    QUERY_CHECK_NULL(pNodeIdx, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    QUERY_CHECK_NULL(pWin, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTask->pHistEventTree, *pNodeIdx);
-    QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    pWin->range.ekey = ekey;
-    if (!pNode->isLeaf && stTrueForInfoConfigured(&pNode->trueFor) && !pWin->winOpenEmitted) {
-      QUERY_CHECK_CODE(stHistoryGroupAddTreeCalcParam(pGroup, pWin, STRIGGER_EVENT_WINDOW_OPEN, true), lino, _end);
-    }
-  }
-
-  for (int32_t i = taosArrayGetSize(pGroup->activePath) - 1; i >= fromPos; --i) {
-    int32_t               *pNodeIdx = taosArrayGet(pGroup->activePath, i);
-    SSTriggerNotifyWindow *pWin = taosArrayGet(pGroup->openNodeWindows, i);
-    QUERY_CHECK_NULL(pNodeIdx, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    QUERY_CHECK_NULL(pWin, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    const SStreamEventTreeNode *pNode = stEventTreeGetNode(pTask->pHistEventTree, *pNodeIdx);
-    QUERY_CHECK_NULL(pNode, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    pWin->range.ekey = ekey;
-    if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-      QUERY_CHECK_CODE(stEventTreeBuildNotifyContent(pTask->pHistEventTree, pGroup->activePath, pGroup->openNodeWindows,
-                                                     i, pDataBlock, pTask->histEndCondCols, rowIdx, pGroup->gid,
-                                                     &pWin->pWinCloseNotify),
-                       lino, _end);
-    }
-    QUERY_CHECK_CODE(stHistoryGroupAddTreeCalcParam(pGroup, pWin, STRIGGER_EVENT_WINDOW_CLOSE, !pNode->isLeaf), lino,
-                     _end);
-    stRealtimeContextDestroyWindow(pWin);
-    QUERY_CHECK_NULL(taosArrayPop(pGroup->activePath), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    QUERY_CHECK_NULL(taosArrayPop(pGroup->openNodeWindows), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-  }
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-static int32_t stHistoryGroupSwitchTreePath(SSTriggerHistoryGroup *pGroup, int32_t targetLeaf,
-                                            const SSDataBlock *pDataBlock, int32_t rowIdx, TSKEY closeTs, TSKEY openTs,
-                                            int64_t openRowsBeforeCurrent, bool closeAll) {
-  int32_t             code = TSDB_CODE_SUCCESS;
-  int32_t             lino = 0;
-  SStreamTriggerTask *pTask = pGroup->pContext->pTask;
-  SArray             *pNewPath = NULL;
-  int32_t             prefixLen = 0;
-
-  pNewPath = taosArrayInit(0, sizeof(int32_t));
-  QUERY_CHECK_NULL(pNewPath, code, lino, _end, terrno);
-  if (targetLeaf >= 0) {
-    QUERY_CHECK_CODE(stEventTreeBuildLeafNodePath(pGroup->pContext->pTask->pHistEventTree, targetLeaf, pNewPath), lino,
-                     _end);
-  }
-  prefixLen = closeAll ? 0 : stEventTreeCommonPrefixLen(pGroup->activePath, pNewPath);
-  QUERY_CHECK_CODE(stHistoryGroupCloseTreeSuffix(pGroup, prefixLen, pDataBlock, rowIdx, closeTs), lino, _end);
-  if (targetLeaf >= 0) {
-    QUERY_CHECK_CODE(
-        stHistoryGroupOpenTreeSuffix(pGroup, pNewPath, prefixLen, pDataBlock, rowIdx, openTs, openRowsBeforeCurrent),
-        lino, _end);
-  }
-  pGroup->activeLeaf = targetLeaf;
-
-_end:
-  taosArrayDestroy(pNewPath);
-  if (code != TSDB_CODE_SUCCESS) {
-    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-static TSKEY stHistoryGroupTreeLastActiveTs(SSTriggerHistoryGroup *pGroup, TSKEY fallback) {
-  SSTriggerNotifyWindow *pWin = taosArrayGetLast(pGroup->openNodeWindows);
-  if (pWin == NULL) {
-    return fallback;
-  }
-  return pWin->range.ekey;
 }
 
 static int32_t stHistoryGroupOpenWindow(SSTriggerHistoryGroup *pGroup, int64_t ts, char **ppExtraNotifyContent,
@@ -14319,8 +12944,7 @@ static int32_t stHistoryGroupGetDataBlock(SSTriggerHistoryGroup *pGroup, bool sa
           if (pTask->triggerType != STREAM_TRIGGER_PERIOD) {
             range.skey = pContext->pParamToFetch->wstart;
             range.ekey = pContext->pParamToFetch->wend;
-            if (stHistoryCalcParamCanSkipPrevRows(pTask, pContext->pParamToFetch) &&
-                TARRAY_ELEM_IDX(pContext->pCalcReq->params, pContext->pParamToFetch) > 0) {
+            if (TARRAY_ELEM_IDX(pContext->pCalcReq->params, pContext->pParamToFetch) > 0) {
               SSTriggerCalcParam *pPrevParam = pContext->pParamToFetch - 1;
               range.skey = TMAX(range.skey, pPrevParam->wend + 1);
             }
@@ -14373,8 +12997,7 @@ static int32_t stHistoryGroupGetDataBlock(SSTriggerHistoryGroup *pGroup, bool sa
           if (pTask->triggerType != STREAM_TRIGGER_PERIOD) {
             range.skey = pContext->pParamToFetch->wstart;
             range.ekey = pContext->pParamToFetch->wend;
-            if (stHistoryCalcParamCanSkipPrevRows(pTask, pContext->pParamToFetch) &&
-                TARRAY_ELEM_IDX(pContext->pCalcReq->params, pContext->pParamToFetch) > 0) {
+            if (TARRAY_ELEM_IDX(pContext->pCalcReq->params, pContext->pParamToFetch) > 0) {
               SSTriggerCalcParam *pPrevParam = pContext->pParamToFetch - 1;
               range.skey = TMAX(range.skey, pPrevParam->wend + 1);
             }
@@ -14411,14 +13034,6 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
-}
-
-static bool stHistoryCalcParamCanSkipPrevRows(SStreamTriggerTask *pTask, const SSTriggerCalcParam *pParam) {
-  if (pTask == NULL || pParam == NULL) {
-    return true;
-  }
-  return !(pTask->triggerType == STREAM_TRIGGER_EVENT && pTask->pHistEventTree != NULL &&
-           pParam->eventConditionPath != NULL);
 }
 
 static int32_t stHistoryGroupDoSlidingCheck(SSTriggerHistoryGroup *pGroup) {
@@ -15081,9 +13696,6 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
   char                    *pExtraNotifyContent = NULL;
   SColumnInfoData          startCol = {0};
   SColumnInfoData          endCol = {0};
-  SArray                  *pLeafCols = NULL;
-  bool                    *pLeafMatches = NULL;
-  bool                    *pLeafSatisfied = NULL;
 
   while (!allTableProcessed && !needFetchData) {
     //  read all data of the current table
@@ -15099,109 +13711,24 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
     SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, pTask->histTrigTsIndex);
     QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
     int64_t *pTsData = (int64_t *)pTsCol->pData;
-    int32_t  leafCount = pTask->pHistEventTree != NULL ? taosArrayGetSize(pTask->pHistEventTree->leaves) : 0;
-    bool     useEventTree = pTask->pHistEventTree != NULL;
-    if (useEventTree) {
-      pLeafCols = taosArrayInit(leafCount, sizeof(SColumnInfoData));
-      QUERY_CHECK_NULL(pLeafCols, code, lino, _end, terrno);
-      QUERY_CHECK_CODE(stEventTreeEvalLeaves(pTask, pTask->pHistEventTree, pDataBlock, pLeafCols), lino, _end);
-      pLeafMatches = taosMemoryCalloc(leafCount, sizeof(bool));
-      QUERY_CHECK_NULL(pLeafMatches, code, lino, _end, terrno);
-      pLeafSatisfied = taosMemoryCalloc(leafCount, sizeof(bool));
-      QUERY_CHECK_NULL(pLeafSatisfied, code, lino, _end, terrno);
-    } else {
-      code = stTriggerCalcExpr(pTask, pDataBlock, pTask->histStartCond, &startCol);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
+    code = stTriggerCalcExpr(pTask, pDataBlock, pTask->histStartCond, &startCol);
+    QUERY_CHECK_CODE(code, lino, _end);
     code = stTriggerCalcExpr(pTask, pDataBlock, pTask->histEndCond, &endCol);
     QUERY_CHECK_CODE(code, lino, _end);
-    uint8_t *ps = useEventTree ? NULL : (uint8_t *)startCol.pData;
+    uint8_t *ps = (uint8_t *)startCol.pData;
     uint8_t *pe = (uint8_t *)endCol.pData;
     bool     checkSubEvent = (nodeType(pTask->histStartCond) == QUERY_NODE_NODE_LIST);
 
     for (int32_t r = startIdx; r < endIdx; r++) {
-      int32_t targetLeaf = -1;
-      int32_t candidateLeaf = -1;
-      uint8_t psValue = 0;
-      if (useEventTree) {
-        for (int32_t leafIdx = 0; leafIdx < leafCount; ++leafIdx) {
-          SColumnInfoData *pLeafCol = taosArrayGet(pLeafCols, leafIdx);
-          QUERY_CHECK_NULL(pLeafCol, code, lino, _end, terrno);
-          pLeafMatches[leafIdx] = ((uint8_t *)pLeafCol->pData)[r] != 0;
-        }
-        candidateLeaf = stEventTreeChooseLeaf(pLeafMatches, leafCount);
-        TSKEY lastActiveTs = stHistoryGroupTreeLastActiveTs(pGroup, TSKEY_MIN);
-        QUERY_CHECK_CODE(stEventTreeUpdateLeafStreaks(pTask->pHistEventTree, pGroup->leafStreaks, pLeafMatches,
-                                                      pLeafSatisfied, leafCount, pTsData[r], lastActiveTs),
-                         lino, _end);
-        if (candidateLeaf >= 0 && pLeafSatisfied[candidateLeaf]) {
-          targetLeaf = candidateLeaf;
-        }
-        psValue = targetLeaf >= 0 ? (uint8_t)(targetLeaf + 1) : 0;
-      } else {
-        psValue = ps[r];
-      }
-      if (useEventTree) {
-        if (targetLeaf >= 0) {
-          SEventLeafStreak *pTargetStreak = taosArrayGet(pGroup->leafStreaks, targetLeaf);
-          QUERY_CHECK_NULL(pTargetStreak, code, lino, _end, terrno);
-          TSKEY   openTs = pTargetStreak->firstTs;
-          int64_t openRowsBeforeCurrent = pTargetStreak->count > 0 ? pTargetStreak->count - 1 : 0;
-          if (pGroup->activeLeaf < 0) {
-            code = stHistoryGroupSwitchTreePath(pGroup, targetLeaf, pDataBlock, r, pTsData[r], openTs,
-                                                openRowsBeforeCurrent, false);
-            QUERY_CHECK_CODE(code, lino, _end);
-          } else if (targetLeaf != pGroup->activeLeaf) {
-            TSKEY closeTs = pTargetStreak->prevTsBeforeFirst != TSKEY_MIN
-                                ? pTargetStreak->prevTsBeforeFirst
-                                : stHistoryGroupTreeLastActiveTs(pGroup, pTsData[r]);
-            code = stHistoryGroupSwitchTreePath(pGroup, targetLeaf, pDataBlock, r, closeTs, openTs,
-                                                openRowsBeforeCurrent, false);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-          stEventTreeResetLeafStreaksAfter(pGroup->leafStreaks, targetLeaf);
-          code = stEventTreeAdvanceOpenNodeWindows(pGroup->openNodeWindows, pTsData[r], false);
-          QUERY_CHECK_CODE(code, lino, _end);
-        } else if (!checkSubEvent && pGroup->activeLeaf >= 0) {
-          code = stEventTreeAdvanceOpenNodeWindows(pGroup->openNodeWindows, pTsData[r], false);
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
-
-        bool  closeNow = false;
-        TSKEY closeTs = stHistoryGroupTreeLastActiveTs(pGroup, pTsData[r]);
-        if (pGroup->activeLeaf >= 0 && pe[r]) {
-          if (checkSubEvent) {
-            closeNow = true;
-            if (candidateLeaf >= 0) {
-              closeTs = pTsData[r];
-            }
-          } else {
-            closeNow = stEventTreeEndTrueForSatisfied(&pTask->endTrueForInfo, true, pTsData[r], &pGroup->endCondCount,
-                                                      &pGroup->endCondFirstTs, &closeTs);
-          }
-        } else if (checkSubEvent && pGroup->activeLeaf >= 0 && candidateLeaf < 0) {
-          closeNow = true;
-        } else if (!checkSubEvent) {
-          stEventTreeResetEndStreak(&pGroup->endCondCount, &pGroup->endCondFirstTs);
-        }
-        if (closeNow) {
-          code = stHistoryGroupSwitchTreePath(pGroup, -1, pDataBlock, r, closeTs, closeTs, 0, true);
-          QUERY_CHECK_CODE(code, lino, _end);
-          stEventTreeResetLeafStreaks(pGroup->leafStreaks);
-          stEventTreeResetEndStreak(&pGroup->endCondCount, &pGroup->endCondFirstTs);
-        }
-        continue;
-      }
       if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
-        if (checkSubEvent && psValue && psValue != pGroup->conditionIdx) {
+        if (checkSubEvent && ps[r] && ps[r] != pGroup->conditionIdx) {
           // close previous sub-window since start condition index is changed
+          int32_t winIdx = pGroup->numSubWindows - 1;
           if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
             SSTriggerWindow *pCurWin = TRINGBUF_HEAD(&pGroup->winBuf);
-            char             conditionPath[32] = {0};
-            stTriggerTaskFormatFlatConditionPath(pGroup->conditionIdx - 1, conditionPath, sizeof(conditionPath));
-            code =
-                stBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, conditionPath, true, pGroup->gid,
-                                          pCurWin->range.skey, pGroup->parentWindow.range.skey, &pExtraNotifyContent);
+            code = streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, winIdx, pGroup->gid,
+                                                 pCurWin->range.skey, pGroup->parentWindow.range.skey,
+                                                 &pExtraNotifyContent);
             QUERY_CHECK_CODE(code, lino, _end);
           }
           code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
@@ -15216,56 +13743,63 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
           pGroup->parentWindow.range.ekey = pTsData[r];
           pGroup->parentWindow.wrownum++;
         }
-      } else if (psValue) {
+      } else if (ps[r]) {
         if (checkSubEvent) {
           if (pGroup->numSubWindows == 0) {
             pGroup->parentWindow = (SSTriggerNotifyWindow){.range.skey = pTsData[r], .range.ekey = pTsData[r]};
             if (pTask->notifyHistory && pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN) {
-              code = stBuildEventNotifyContent(pDataBlock, pTask->histStartCondCols, r, "", false, pGroup->gid,
-                                               pTsData[r], 0, &pGroup->parentWindow.pWinOpenNotify);
+              code = streamBuildEventNotifyContent(pDataBlock, pTask->histStartCondCols, r, ps[r] - 1, -1, pGroup->gid,
+                                                   pTsData[r], 0, &pGroup->parentWindow.pWinOpenNotify);
               QUERY_CHECK_CODE(code, lino, _end);
             }
           }
           pGroup->parentWindow.wrownum++;
           pGroup->numSubWindows++;
-          pGroup->conditionIdx = psValue;
+          pGroup->conditionIdx = ps[r];
         }
-        bool deferOpen = false;
+        int32_t winIdx = -1;
+        bool    deferOpen = false;
         if (checkSubEvent) {
           if (pGroup->numSubWindows == 1) {
+            winIdx = 0;
             deferOpen = true;
+          } else {
+            winIdx = pGroup->numSubWindows - 1;
           }
         }
         if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
-          int64_t parentWindowStart = checkSubEvent ? pGroup->parentWindow.range.skey : 0;
-          char    conditionPath[32] = {0};
-          stTriggerTaskFormatFlatConditionPath(checkSubEvent ? psValue - 1 : 0, conditionPath, sizeof(conditionPath));
-          code = stBuildEventNotifyContent(pDataBlock, pTask->histStartCondCols, r, conditionPath,
-                                           stEventNotifyChildHasParent(checkSubEvent, pGroup->numSubWindows),
-                                           pGroup->gid, pTsData[r], parentWindowStart, &pExtraNotifyContent);
+          int64_t parentWindowStart = (checkSubEvent && winIdx >= 0) ? pGroup->parentWindow.range.skey : 0;
+          code = streamBuildEventNotifyContent(pDataBlock, pTask->histStartCondCols, r, ps[r] - 1, winIdx, pGroup->gid,
+                                               pTsData[r], parentWindowStart, &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false, deferOpen);
         QUERY_CHECK_CODE(code, lino, _end);
       }
-      if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && (pe[r] || (checkSubEvent && !psValue))) {
+      if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && (pe[r] || (checkSubEvent && !ps[r]))) {
+        int32_t winIdx = -1;
+        if (checkSubEvent && pGroup->numSubWindows > 1) {
+          winIdx = pGroup->numSubWindows - 1;
+        }
+        if (checkSubEvent && pGroup->numSubWindows == 1 && pGroup->pendingWinOpen) {
+          taosMemoryFreeClear(pGroup->pendingWinParam.extraNotifyContent);
+          pGroup->pendingWinParam.extraNotifyContent = pGroup->parentWindow.pWinOpenNotify;
+          pGroup->parentWindow.pWinOpenNotify = NULL;
+        }
         if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-          int64_t          parentWindowStart = checkSubEvent ? pGroup->parentWindow.range.skey : 0;
+          int64_t          parentWindowStart = (checkSubEvent && winIdx >= 0) ? pGroup->parentWindow.range.skey : 0;
           SSTriggerWindow *pCurWin = TRINGBUF_HEAD(&pGroup->winBuf);
-          char             conditionPath[32] = {0};
-          stTriggerTaskFormatFlatConditionPath(checkSubEvent ? pGroup->conditionIdx - 1 : 0, conditionPath,
-                                               sizeof(conditionPath));
-          code = stBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, conditionPath,
-                                           stEventNotifyChildHasParent(checkSubEvent, pGroup->numSubWindows),
-                                           pGroup->gid, pCurWin->range.skey, parentWindowStart, &pExtraNotifyContent);
+          code = streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, winIdx, pGroup->gid,
+                                               pCurWin->range.skey, parentWindowStart, &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
         QUERY_CHECK_CODE(code, lino, _end);
         if (checkSubEvent) {
           if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-            code = stBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, "", false, pGroup->gid,
-                                             pGroup->parentWindow.range.skey, 0, &pGroup->parentWindow.pWinCloseNotify);
+            code = streamBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, 0, -1, pGroup->gid,
+                                                 pGroup->parentWindow.range.skey, 0,
+                                                 &pGroup->parentWindow.pWinCloseNotify);
             QUERY_CHECK_CODE(code, lino, _end);
           }
           if (pGroup->numSubWindows > 1) {
@@ -15285,16 +13819,9 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
         }
       }
     }
-    stEventTreeDestroyLeafCols(pLeafCols);
-    pLeafCols = NULL;
-    taosMemoryFreeClear(pLeafMatches);
-    taosMemoryFreeClear(pLeafSatisfied);
   }
 
 _end:
-  stEventTreeDestroyLeafCols(pLeafCols);
-  taosMemoryFreeClear(pLeafMatches);
-  taosMemoryFreeClear(pLeafSatisfied);
   colDataDestroy(&startCol);
   colDataDestroy(&endCol);
   if (pExtraNotifyContent != NULL) {
@@ -15390,7 +13917,6 @@ static int32_t stHistoryGroupRetrievePendingCalc(SSTriggerHistoryGroup *pGroup) 
       void *px = taosArrayPush(pContext->pCalcReq->params, pParam);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       pParam->extraNotifyContent = NULL;
-      pParam->eventConditionPath = NULL;
       nele++;
     }
     if (nele > 0) {
@@ -15423,7 +13949,6 @@ static int32_t stHistoryGroupRetrievePendingCalc(SSTriggerHistoryGroup *pGroup) 
       void *px = taosArrayPush(pContext->pCalcReq->params, pParam);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       pParam->extraNotifyContent = NULL;
-      pParam->eventConditionPath = NULL;
       nele++;
     }
     taosObjListPopHeadTo(&pGroup->pPendingCalcParams, pParam, nele);

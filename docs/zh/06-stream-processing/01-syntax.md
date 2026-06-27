@@ -21,13 +21,9 @@ trigger_type: {
   | SESSION(ts_col, session_val)
   | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
-  | EVENT_WINDOW(START WITH start_event_item [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
 }
-
-start_event_item:
-    search_condition [TRUE_FOR(limit_expr)]
-  | (start_event_item, start_event_item [, ...])
 
 true_for_expr:
     true_for_arg [, true_for_arg [, true_for_arg]]
@@ -256,22 +252,17 @@ CREATE STREAM s_tag_event
 
 适用场景：需要通过事件窗口驱动计算和（或）通知的场景。
 
-##### 事件窗口触发（支持开始事件树）
+##### 事件窗口触发 (支持子事件窗口)
 
 ```sql
-EVENT_WINDOW(START WITH start_event_item [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
-
-start_event_item:
-    search_condition [TRUE_FOR(limit_expr)]
-  | (start_event_item, start_event_item [, ...])
+EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
 ```
 
-事件窗口的 `START WITH` 支持递归开始事件树。叶子节点是普通条件表达式，分组节点用括号包裹，分组内的子节点按 SQL 书写顺序排列。系统会为整棵树中的 envelope、分组节点和叶子节点生成稳定的条件路径，用于区分不同层级的事件窗口。各参数含义如下：
+事件窗口触发是指对触发表的写入数据按照事件窗口的方式进行窗口划分，它现在支持指定多个开始条件，并能根据有效触发条件的变化，在原有的事件窗口内进一步划分和管理子事件窗口，同时引入父事件窗口的概念来聚合相关的子事件窗口。各参数含义如下：
 
-- start_event_item：开始事件树节点。叶子节点为 `search_condition [TRUE_FOR(limit_expr)]`，分组节点为 `(start_event_item, start_event_item [, ...])`。
-- search_condition：事件开始条件的定义，可以是任意合法条件表达式。
-- end_condition：事件结束条件的定义。当该条件满足时，当前 envelope 以及已打开的分组/叶子窗口关闭。该参数可选；如果未指定 `END WITH`，当所有叶子开始条件都不满足时关闭 envelope。
-- true_for_expr：可选，指定窗口的过滤条件，只有满足条件的窗口才会产生触发。用于开始事件树时，仅支持窗口整体过滤，不支持 `start(...)` 和 `end(...)`。支持以下四种模式：
+- start_condition_1, start_condition_2 [,...]：定义多个事件开始条件。当任何一个条件满足时，事件窗口开启。系统会从前往后依次评估这些条件，第一个满足的条件即为“有效触发条件”。当所有 start_condition 都不满足时，父窗口和最后一个子窗口关闭。
+- end_condition：事件结束条件的定义。当该条件满足时，当前父窗口和最后一个子窗口均关闭。该参数现在是可选的。
+- true_for_expr：可选，指定窗口的过滤条件，只有满足条件的窗口才会产生触发。支持以下四种模式：
   - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
   - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
   - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
@@ -284,47 +275,15 @@ start_event_item:
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
 - 搭配超级表时，必须与 `partition by tbname` 一起使用。
 - 支持对写入数据进行处理过滤后（有条件）的窗口触发。
-- 多个开始条件以及可选的 `end_condition` 同样可以引用触发表上下文中可见的 tag 列。
-- 现有单个开始条件和一层子事件列表继续兼容，例如 `START WITH c1 >= 12`、`START WITH (c1 >= 12, c2 < 215)`。
-- 叶子条件可以写局部 `TRUE_FOR(limit_expr)`，只对该叶子生效。未写局部 `TRUE_FOR` 的叶子使用外层 `EVENT_WINDOW(...) TRUE_FOR(...)` 作为默认值；分组节点和 envelope 始终使用外层 `TRUE_FOR`，不继承子叶子的局部设置。
-- 分组节点后不能写 `TRUE_FOR`，例如 `START WITH (c1 >= 12, c2 < 215) TRUE_FOR(1s)` 是非法语法。
-- `END WITH` 保持为单个普通条件，不支持递归嵌套。
-- 开始事件树任一时刻最多只有一条 envelope 到叶子的活跃路径。多个叶子在同一行同时命中时，按 SQL 书写顺序的深度优先顺序裁定优先级；更高优先级叶子满足自身 `TRUE_FOR` 后，可以抢占当前低优先级叶子窗口。
-- 任一行不满足任何叶子开始条件时，关闭整个 envelope；如果存在 `END WITH`，某行额外满足结束条件时也关闭整个 envelope。
-
-条件路径规则：
-
-- envelope 的路径固定为空字符串 `""`。
-- envelope 的直接子节点按 SQL 书写顺序从 `"0"` 开始编号。
-- 更深层节点使用 `.` 拼接父路径和本层编号，例如 `"0.1"`、`"0.1.2"`。
-- `conditionPath` 只表示节点在开始事件树中的静态位置，不表示运行时窗口实例；不同窗口实例可以拥有相同的 `conditionPath`，实例区分依赖 `triggerId`。
-
-示例：
-
-```sql
-CREATE STREAM s_event_tree
-  EVENT_WINDOW(
-    START WITH ((current >= 12 TRUE_FOR(1s), current >= 10), voltage < 215 TRUE_FOR(COUNT 3))
-    END WITH voltage < 210
-  )
-  TRUE_FOR(10s)
-  FROM meters
-  PARTITION BY tbname
-  INTO event_tree_out(ts, path COMPOSITE KEY, cnt)
-  AS SELECT _twstart, _event_condition_path, COUNT(*) FROM %%trows;
-```
-
-上例的条件路径如下：
-
-| 节点 | conditionPath |
-| --- | --- |
-| envelope | `""` |
-| 分组 `(current >= 12 TRUE_FOR(1s), current >= 10)` | `"0"` |
-| `current >= 12 TRUE_FOR(1s)` | `"0.0"` |
-| `current >= 10` | `"0.1"` |
-| `voltage < 215 TRUE_FOR(COUNT 3)` | `"1"` |
-
-`_event_condition_path` 可以写入结果表。建议将 `_twstart` 与 `_event_condition_path` 一起作为结果行标识，避免 envelope、分组节点和叶子节点共享同一个 `_twstart` 时互相覆盖。
+- 多个 `start_condition` 以及可选的 `end_condition` 同样可以引用触发表上下文中可见的 tag 列。
+- 父子窗口行为：
+  - 没有父/子窗口：在事件窗口开启期间，如果有效触发条件没有变化，则只产生一个窗口，系统将其视为常规事件窗口，不产生父/子窗口的概念。
+  - 子窗口：当某一个具体的 start_condition 成为有效触发条件时，会开启一个子窗口。如果有效触发条件发生变化，或者 end_condition 满足时，当前子窗口关闭。子窗口之间不重叠。
+  - 父窗口：仅当第二个子窗口开启时，才会开启父窗口。父窗口的起始时间为第一个子窗口的起始时间，结束时间为最后一个子窗口的结束时间，当所有 start_condition 都不满足，或者 end_condition 满足时关闭。
+- 通知消息扩展：在窗口开启（WINDOW_OPEN）的通知消息中，新增两个字段：
+  - conditionIndex：触发当前窗口开启的开始条件的序号，从 0 开始计数。对于父窗口，其值与第一个子窗口的值相同。
+  - windowIndex：子事件窗口在父窗口中的序号，从 0 开始计数。如果不是子窗口（即常规事件窗口或父窗口），该字段值为 -1。
+- TRUE_FOR 选项对子窗口和父窗口均生效，即小于该时长限制的窗口（无论是子窗口还是父窗口）将直接被忽略。当父窗口下有部分子窗口不满足 TRUE_FOR 条件时，有效的子窗口可能不是连续的。如果父窗口下仅有 1 个子窗口满足 TRUE_FOR 条件，父/子窗口仍保留并触发通知和计算。
 
 适用场景：需要通过事件窗口驱动计算和（或）通知的场景，尤其适用于需要根据多个动态变化的条件来精细化监控和分析事件的物联网、工业数据管理等领域。例如，设备故障告警，可以定义多个告警级别条件（如“负载高于 90”、“负载高于 60”），并在告警级别变化时，清晰地追踪告警状态的升级或降级。
 
@@ -456,7 +415,6 @@ tag_definition:
 | 窗口触发 | _twend           | 本次触发窗口的结束时间戳，只适用于 `WINDOW_CLOSE` 触发使用 |
 | 窗口触发 | _twduration      | 本次触发窗口的持续时间，只适用于 `WINDOW_CLOSE` 触发使用   |
 | 窗口触发 | _twrownum        | 本次触发窗口的记录条数，只适用于 `WINDOW_CLOSE` 触发使用   |
-| 事件窗口触发 | _event_condition_path | 当前事件窗口节点在 `START WITH` 开始事件树中的条件路径。只适用于 `EVENT_WINDOW` 且 `START WITH` 至少包含一层括号分组的场景 |
 | 空闲触发 | _tidlestart      | 分组进入空闲前最后一次收到数据的时间（processing time，精度：ns）。只适用于 `IDLE`/`RESUME` 触发使用，不可与 `_twstart/_twend` 混用。由于输出表通常为 ms 精度，建议使用 `cast(_tidlestart/1000000 as timestamp)` 进行转换。 |
 | 空闲触发 | _tidleend        | IDLE 或 RESUME 事件的触发时间（精度：ns）。只适用于 `IDLE`/`RESUME` 触发使用，不可与 `_twstart/_twend` 混用。由于输出表通常为 ms 精度，建议使用 `cast(_tidleend/1000000 as timestamp)` 进行转换。 |
 | 通用     | _tgrpid     | 触发分组的 ID 值，类型为 BIGINT         |
@@ -473,7 +431,6 @@ tag_definition:
 - %%tbname：可以用于 FROM、SELECT 和 WHERE 子句。
 - %%rollup_tag：只在使用 `ROLLUP BY` 时可用，可以用于 `OUTPUT_SUBTABLE`、`TAGS`、`AS subquery` 中现有触发占位符允许的位置。
 - _trollup_tbcount：只在使用 `ROLLUP BY` 时可用，只能用于 `AS subquery`，不能用于 `OUTPUT_SUBTABLE` 或 `TAGS`。
-- _event_condition_path：只在 `EVENT_WINDOW` 且 `START WITH` 使用子事件结构（至少一层括号分组）时可用。单个普通开始条件或非事件窗口触发中使用会报错。
 - 其他占位符：只能用于 SELECT 和 WHERE 子句。
 
 ### 流式计算的控制选项
@@ -604,9 +561,8 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME | IDLE | RESUME}
           "triggerType": "Event",
           "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
-          "parentTriggerId": [],
           "triggerCondition": {
-            "conditionPath": "",
+            "conditionIndex": 0,
             "fieldValue": {
               "c1": 10,
               "c2": 15
@@ -617,14 +573,13 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME | IDLE | RESUME}
           "tableName": "t_96f62b752f36e9b16dc969fe45363748",
           "eventType": "WINDOW_CLOSE",
           "eventTime": 1733284887231,
-          "triggerId": "window-id-24680",
+          "triggerId": "window-id-13579",
           "triggerType": "Event",
           "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "windowEnd": 1733284810000,
-          "parentTriggerId": ["window-id-13579"],
           "triggerCondition": {
-            "conditionPath": "0.1",
+            "conditionIndex": 1,
             "fieldValue": {
               "c1": 20,
               "c2": 3
@@ -723,16 +678,14 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME | IDLE | RESUME}
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
 - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
-- parentTriggerId：字符串数组，表示当前节点从 envelope 到直接父节点的祖先 `triggerId`，按根到父的顺序排列。envelope 自身为空数组。
 - triggerCondition：触发窗口开始的条件信息，包括以下字段：
-  - conditionPath：字符串，表示当前事件窗口节点在 `START WITH` 开始事件树中的条件路径。envelope 为 `""`，一层子事件为 `"0"`、`"1"`，多级子事件使用 `.` 拼接路径，例如 `"0.1"`。
+  - conditionIndex：整型，表示满足的触发窗口开始的条件的索引，从 0 开始编号。
   - fieldValue：键值对形式，包含条件列列名及其对应的值。
 - 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
   - windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
-  - parentTriggerId：字符串数组，表示当前节点从 envelope 到直接父节点的祖先 `triggerId`，按根到父的顺序排列。envelope 自身为空数组。
   - triggerCondition：触发窗口关闭的条件信息，包括以下字段：
-    - conditionPath：字符串，表示当前事件窗口节点在 `START WITH` 开始事件树中的条件路径。
+    - conditionIndex：整型，表示满足的触发窗口关闭的条件的索引，从 0 开始编号。
     - fieldValue：键值对形式，包含条件列列名及其对应的值。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 

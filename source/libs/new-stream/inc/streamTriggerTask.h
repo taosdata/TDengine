@@ -58,18 +58,9 @@ typedef struct SSTriggerNotifyWindow {
   STimeWindow range;
   int64_t     wrownum;
   bool        forceWinOpen;
-  bool        winOpenEmitted;
-  int32_t     eventTreeNodeIdx;
   char       *pWinOpenNotify;
   char       *pWinCloseNotify;
 } SSTriggerNotifyWindow;
-
-typedef struct SEventLeafStreak {
-  int32_t count;
-  TSKEY   firstTs;
-  TSKEY   lastTs;
-  TSKEY   prevTsBeforeFirst;
-} SEventLeafStreak;
 
 typedef TRINGBUF(SSTriggerWindow) TriggerWindowBuf;
 
@@ -119,10 +110,6 @@ typedef struct SSTriggerRealtimeGroup {
       TSKEY   startCondFirstTs;
       int32_t endCondCount;
       TSKEY   endCondFirstTs;
-      SArray *activePath;       // SArray<int32_t>, envelope..leaf
-      SArray *openNodeWindows;  // SArray<SSTriggerNotifyWindow>, same order as activePath
-      SArray *leafStreaks;      // SArray<SEventLeafStreak>, one per event-tree leaf
-      int32_t activeLeaf;       // leaf array index, -1 when no active leaf
     };
     int64_t totalCount;  // for count window trigger
   };
@@ -162,12 +149,6 @@ typedef struct SSTriggerHistoryGroup {
       SSTriggerNotifyWindow parentWindow;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
-      int32_t               endCondCount;
-      TSKEY                 endCondFirstTs;
-      SArray               *activePath;       // SArray<int32_t>, envelope..leaf
-      SArray               *openNodeWindows;  // SArray<SSTriggerNotifyWindow>, same order as activePath
-      SArray               *leafStreaks;      // SArray<SEventLeafStreak>, one per event-tree leaf
-      int32_t               activeLeaf;       // leaf array index, -1 when no active leaf
     };
   };
 
@@ -399,24 +380,6 @@ typedef struct SSTriggerCalcNode {
   TD_DLIST(SSTriggerCalcSlot) idleSlots;
 } SSTriggerCalcNode;
 
-typedef struct SStreamEventTreeNode {
-  char        *path;
-  int32_t      parent;
-  int32_t      firstChild;
-  int32_t      childCount;
-  int32_t      firstLeaf;
-  int32_t      leafCount;
-  bool         isLeaf;
-  SNode       *pCond;  // borrowed from the AST used to build this tree
-  STrueForInfo trueFor;
-} SStreamEventTreeNode;
-
-typedef struct SStreamEventTree {
-  SArray *nodes;   // SArray<SStreamEventTreeNode>, index 0 is envelope
-  SArray *leaves;  // SArray<int32_t>, pre-order leaf node indexes
-  int32_t maxDepth;
-} SStreamEventTree;
-
 typedef struct SSTriggerRecalcRequest {
   int64_t     gid;
   STimeWindow scanRange;
@@ -455,12 +418,11 @@ typedef struct SStreamTriggerTask {
     struct {  // for event window
       SNode       *pStartCond;
       SNode       *pEndCond;
-      SNodeList        *pStartCondCols;
-      SNodeList        *pEndCondCols;
-      STrueForInfo      eventTrueForInfo;
-      SStreamEventTree *pEventTree;
-      STrueForInfo      startTrueForInfo;  // start condition consecutive-streak limit
-      STrueForInfo      endTrueForInfo;    // end condition consecutive-streak limit
+      SNodeList   *pStartCondCols;
+      SNodeList   *pEndCondCols;
+      STrueForInfo eventTrueForInfo;
+      STrueForInfo startTrueForInfo;  // start condition consecutive-streak limit
+      STrueForInfo endTrueForInfo;    // end condition consecutive-streak limit
     };
   };
   int32_t trigTsIndex;
@@ -495,13 +457,12 @@ typedef struct SStreamTriggerTask {
   int32_t    histCalcPkIndex;
   int64_t    histStateSlotId;
   SArray     *pHistStateSlotIds;  // SArray<int16_t>
-  SNode            *histTriggerFilter;
-  SNode            *histStateExpr;
-  SNodeList        *histStateExprs;
-  SStreamEventTree *pHistEventTree;
-  SNode            *histStartCond;
-  SNode            *histEndCond;
-  SNodeList        *histStartCondCols;
+  SNode     *histTriggerFilter;
+  SNode     *histStateExpr;
+  SNodeList *histStateExprs;
+  SNode     *histStartCond;
+  SNode     *histEndCond;
+  SNodeList *histStartCondCols;
   SNodeList *histEndCondCols;
   // notify options
   ESTriggerEventType calcEventType;

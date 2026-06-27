@@ -15,15 +15,11 @@
 
 #include <gtest/gtest.h>
 #include <time.h>
-#include "cJSON.h"
 
 extern "C" {
-#include "nodes.h"
-#include "streamInt.h"
 #include "streamTriggerTask.h"
 #include "taosdef.h"
 #include "taoserror.h"
-#include "tdatablock.h"
 #include "ttime.h"
 }
 
@@ -72,52 +68,6 @@ static void freeMockTriggerTask(SStreamTriggerTask* pTask) {
   if (pTask) {
     taosMemoryFree(pTask);
   }
-}
-
-static SSDataBlock* createEventNotifyTestBlock() {
-  SSDataBlock* pBlock = nullptr;
-  if (createDataBlock(&pBlock) != TSDB_CODE_SUCCESS) {
-    return nullptr;
-  }
-
-  SColumnInfoData col = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
-  if (blockDataAppendColInfo(pBlock, &col) != TSDB_CODE_SUCCESS ||
-      blockDataEnsureCapacity(pBlock, 1) != TSDB_CODE_SUCCESS) {
-    blockDataDestroy(pBlock);
-    return nullptr;
-  }
-
-  int32_t          value = 42;
-  SColumnInfoData* pCol = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, 0);
-  if (colDataSetVal(pCol, 0, (const char*)&value, false) != TSDB_CODE_SUCCESS) {
-    blockDataDestroy(pBlock);
-    return nullptr;
-  }
-  pBlock->info.rows = 1;
-  return pBlock;
-}
-
-static SNodeList* createEventNotifyCondCols() {
-  SNode* pNode = nullptr;
-  if (nodesMakeNode(QUERY_NODE_COLUMN, &pNode) != TSDB_CODE_SUCCESS) {
-    return nullptr;
-  }
-
-  SColumnNode* pCol = (SColumnNode*)pNode;
-  pCol->slotId = 0;
-  tstrncpy(pCol->colName, "c1", sizeof(pCol->colName));
-
-  SNodeList* pList = nullptr;
-  if (nodesListMakeAppend(&pList, pNode) != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode(pNode);
-    return nullptr;
-  }
-  return pList;
-}
-
-static const char* getJsonString(cJSON* obj, const char* name) {
-  cJSON* item = cJSON_GetObjectItemCaseSensitive(obj, name);
-  return cJSON_IsString(item) ? item->valuestring : nullptr;
 }
 
 class StreamTriggerTaskTest : public ::testing::Test {
@@ -241,57 +191,6 @@ class StreamTriggerTaskTest : public ::testing::Test {
     }
   }
 };
-
-TEST_F(StreamTriggerTaskTest, EventNotifyUsesConditionPathPayload) {
-  SSDataBlock* pBlock = createEventNotifyTestBlock();
-  ASSERT_NE(pBlock, nullptr);
-  SNodeList* pCondCols = createEventNotifyCondCols();
-  ASSERT_NE(pCondCols, nullptr);
-
-  SArray* parentIds = taosArrayInit(1, 32);
-  ASSERT_NE(parentIds, nullptr);
-  char parentId[32] = "parent-trigger-id";
-  ASSERT_NE(taosArrayPush(parentIds, parentId), nullptr);
-
-  char* content = nullptr;
-  ASSERT_EQ(TSDB_CODE_SUCCESS,
-            streamBuildEventNotifyContent(pBlock, pCondCols, 0, "0.1", parentIds, 1001, 2002, &content));
-  ASSERT_NE(content, nullptr);
-
-  cJSON* root = cJSON_Parse(content);
-  ASSERT_NE(root, nullptr);
-  cJSON* cond = cJSON_GetObjectItemCaseSensitive(root, "triggerCondition");
-  ASSERT_TRUE(cJSON_IsObject(cond));
-  EXPECT_STREQ(getJsonString(cond, "conditionPath"), "0.1");
-  EXPECT_FALSE(cJSON_HasObjectItem(cond, "conditionIndex"));
-  EXPECT_FALSE(cJSON_HasObjectItem(root, "windowIndex"));
-  cJSON* parents = cJSON_GetObjectItemCaseSensitive(root, "parentTriggerId");
-  ASSERT_TRUE(cJSON_IsArray(parents));
-  ASSERT_EQ(cJSON_GetArraySize(parents), 1);
-  EXPECT_STREQ(cJSON_GetStringValue(cJSON_GetArrayItem(parents, 0)), parentId);
-  const char* triggerIdForPath01 = getJsonString(root, "triggerId");
-  ASSERT_NE(triggerIdForPath01, nullptr);
-  char triggerIdCopy[32] = {0};
-  tstrncpy(triggerIdCopy, triggerIdForPath01, sizeof(triggerIdCopy));
-
-  cJSON_Delete(root);
-  taosMemoryFreeClear(content);
-
-  ASSERT_EQ(TSDB_CODE_SUCCESS,
-            streamBuildEventNotifyContent(pBlock, pCondCols, 0, "0.2", parentIds, 1001, 2002, &content));
-  ASSERT_NE(content, nullptr);
-  root = cJSON_Parse(content);
-  ASSERT_NE(root, nullptr);
-  const char* triggerIdForPath02 = getJsonString(root, "triggerId");
-  ASSERT_NE(triggerIdForPath02, nullptr);
-  EXPECT_STRNE(triggerIdCopy, triggerIdForPath02);
-
-  cJSON_Delete(root);
-  taosMemoryFreeClear(content);
-  taosArrayDestroy(parentIds);
-  nodesDestroyList(pCondCols);
-  blockDataDestroy(pBlock);
-}
 
 /**
  * Test week unit window calculation

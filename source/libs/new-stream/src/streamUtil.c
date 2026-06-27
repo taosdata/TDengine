@@ -662,16 +662,17 @@ _end:
   return code;
 }
 
+static void streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, int32_t winIdx, char* triggerId);
+
 int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNodeList* pCondCols, int32_t rowIdx,
-                                      const char* conditionPath, const SArray* parentTriggerIds, int64_t groupId,
-                                      int64_t windowStart, char** ppContent) {
+                                      int32_t condIdx, int32_t winIdx, int64_t groupId, int64_t windowStart,
+                                      int64_t parentWindowStart, char** ppContent) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   const SNode* pNode = NULL;
   cJSON*       obj = NULL;
   cJSON*       cond = NULL;
   cJSON*       fields = NULL;
-  cJSON*       parents = NULL;
 
   *ppContent = NULL;
 
@@ -687,28 +688,22 @@ int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNod
 
   cond = cJSON_CreateObject();
   QUERY_CHECK_NULL(cond, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  JSON_CHECK_ADD_ITEM(cond, "conditionPath", cJSON_CreateString(conditionPath != NULL ? conditionPath : ""));
+  JSON_CHECK_ADD_ITEM(cond, "conditionIndex", cJSON_CreateNumber(condIdx));
   JSON_CHECK_ADD_ITEM(cond, "fieldValues", fields);
   fields = NULL;
 
   obj = cJSON_CreateObject();
   QUERY_CHECK_NULL(obj, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   char triggerId[32];
-  code = streamBuildNotifyTriggerId(groupId, windowStart, conditionPath, triggerId);
-  QUERY_CHECK_CODE(code, lino, _end);
+  streamBuildNotifyTriggerId(groupId, windowStart, winIdx, triggerId);
   JSON_CHECK_ADD_ITEM(obj, "triggerId", cJSON_CreateString(triggerId));
   JSON_CHECK_ADD_ITEM(obj, "triggerCondition", cond);
-  parents = cJSON_CreateArray();
-  QUERY_CHECK_NULL(parents, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  int32_t parentNum = (parentTriggerIds != NULL) ? taosArrayGetSize(parentTriggerIds) : 0;
-  for (int32_t i = 0; i < parentNum; ++i) {
-    const char* parentId = (const char*)taosArrayGet(parentTriggerIds, i);
-    cJSON*      parent = cJSON_CreateString(parentId);
-    QUERY_CHECK_NULL(parent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-    JSON_CHECK_ADD_ARRAY_ITEM(parents, parent);
+  JSON_CHECK_ADD_ITEM(obj, "windowIndex", cJSON_CreateNumber(winIdx));
+  if (winIdx >= 0) {
+    char parentTriggerId[32];
+    streamBuildNotifyTriggerId(groupId, parentWindowStart, -1, parentTriggerId);
+    JSON_CHECK_ADD_ITEM(obj, "parentTriggerId", cJSON_CreateString(parentTriggerId));
   }
-  JSON_CHECK_ADD_ITEM(obj, "parentTriggerId", parents);
-  parents = NULL;
   cond = NULL;
 
   *ppContent = cJSON_PrintUnformatted(obj);
@@ -720,9 +715,6 @@ _end:
   }
   if (cond != NULL) {
     cJSON_Delete(cond);
-  }
-  if (parents != NULL) {
-    cJSON_Delete(parents);
   }
   if (obj != NULL) {
     cJSON_Delete(obj);
@@ -872,28 +864,16 @@ _end:
   return code;
 }
 
-int32_t streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, const char* conditionPath, char* triggerId) {
-  size_t pathLen = (conditionPath != NULL) ? strlen(conditionPath) : 0;
-  size_t bufLen = sizeof(uint64_t) + sizeof(uint64_t) + pathLen;
-  char*  buf = taosMemoryMalloc(bufLen);
-  if (buf == NULL) {
-    return terrno;
+static void streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, int32_t winIdx, char* triggerId) {
+  uint64_t hash = 0;
+  if (winIdx >= 0) {
+    uint64_t ar[] = {(uint64_t)groupId, (uint64_t)windowStart, (uint64_t)(uint32_t)winIdx};
+    hash = MurmurHash3_64((const char*)ar, sizeof(ar));
+  } else {
+    uint64_t ar[] = {(uint64_t)groupId, (uint64_t)windowStart};
+    hash = MurmurHash3_64((const char*)ar, sizeof(ar));
   }
-  size_t   pos = 0;
-  uint64_t group = (uint64_t)groupId;
-  uint64_t start = (uint64_t)windowStart;
-  TAOS_MEMCPY(buf + pos, &group, sizeof(group));
-  pos += sizeof(group);
-  TAOS_MEMCPY(buf + pos, &start, sizeof(start));
-  pos += sizeof(start);
-  if (pathLen > 0) {
-    TAOS_MEMCPY(buf + pos, conditionPath, pathLen);
-    pos += pathLen;
-  }
-  uint64_t hash = MurmurHash3_64(buf, (uint32_t)pos);
-  taosMemoryFree(buf);
   (void)u64toaFastLut(hash, triggerId);
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, const SSTriggerCalcParam* pParam,
@@ -922,8 +902,7 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
       (pParam->notifyType == STRIGGER_EVENT_WINDOW_OPEN || pParam->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) &&
       pParam->extraNotifyContent != NULL;
   if (!hasEventTriggerId) {
-    code = streamBuildNotifyTriggerId(groupId, pParam->wstart, "", triggerId);
-    QUERY_CHECK_CODE(code, lino, _end);
+    streamBuildNotifyTriggerId(groupId, pParam->wstart, -1, triggerId);
   }
 
   const char* triggerTypeStr = NULL;
@@ -1132,15 +1111,8 @@ _end:
   return code;
 }
 
-typedef struct SStreamDataCacheIterKey {
-  int64_t groupId;
-  TSKEY   start;
-  TSKEY   end;
-  char    eventConditionPath[32];
-} SStreamDataCacheIterKey;
-
 int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int64_t groupId, TSKEY start,
-                            TSKEY end, const char* eventConditionPath, void*** pppIter) {
+                            TSKEY end, void*** pppIter) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask* pTask = NULL;
@@ -1177,26 +1149,17 @@ int32_t readStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  SStreamDataCacheIterKey key = {.groupId = groupId, .start = start, .end = end};
-  if (eventConditionPath != NULL) {
-    tstrncpy(key.eventConditionPath, eventConditionPath, sizeof(key.eventConditionPath));
-  }
-  void** px = taosHashGet(pCalcDataCacheIters, &key, sizeof(key));
+  void** px = taosHashGet(pCalcDataCacheIters, &groupId, sizeof(int64_t));
   if (px == NULL) {
     void* pIter = NULL;
-    code = taosHashPut(pCalcDataCacheIters, &key, sizeof(key), &pIter, POINTER_BYTES);
+    code = taosHashPut(pCalcDataCacheIters, &groupId, sizeof(int64_t), &pIter, POINTER_BYTES);
     QUERY_CHECK_CODE(code, lino, _end);
-    px = taosHashGet(pCalcDataCacheIters, &key, sizeof(key));
+    px = taosHashGet(pCalcDataCacheIters, &groupId, sizeof(int64_t));
     QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INVALID_PARA);
   }
   if (*px == NULL) {
     code = getStreamDataCache(pCalcDataCache, groupId, start, end, px);
     QUERY_CHECK_CODE(code, lino, _end);
-    if (*px != NULL && pTask->triggerType == STREAM_TRIGGER_EVENT && pTask->pEventTree != NULL) {
-      ((SResultIter*)*px)->exactWindow = true;
-      tstrncpy(((SResultIter*)*px)->eventConditionPath, key.eventConditionPath,
-               sizeof(((SResultIter*)*px)->eventConditionPath));
-    }
   }
   *pppIter = px;
 

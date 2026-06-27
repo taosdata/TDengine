@@ -543,9 +543,6 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_EVENT_WINDOW:
       code = makeNode(type, sizeof(SEventWindowNode), &pNode);
       break;
-    case QUERY_NODE_EVENT_START_LEAF:
-      code = makeNode(type, sizeof(SEventStartLeafNode), &pNode);
-      break;
     case QUERY_NODE_COUNT_WINDOW:
       code = makeNode(type, sizeof(SCountWindowNode), &pNode);
       break;
@@ -1850,12 +1847,6 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pEvent->pStartCond);
       nodesDestroyNode(pEvent->pEndCond);
       nodesDestroyNode(pEvent->pTrueForLimit);
-      break;
-    }
-    case QUERY_NODE_EVENT_START_LEAF: {
-      SEventStartLeafNode* pLeaf = (SEventStartLeafNode*)pNode;
-      nodesDestroyNode(pLeaf->pCond);
-      nodesDestroyNode(pLeaf->pTrueFor);
       break;
     }
     case QUERY_NODE_COUNT_WINDOW: {
