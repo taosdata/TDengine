@@ -14,7 +14,7 @@ TDengine 产品安全漏洞公告与修复信息会统一发布在本页。
 - 邮件上报：[TDengine 安全团队](mailto:security@taosdata.com)
 - GitHub 私密上报：[GitHub Security Advisory](https://github.com/taosdata/TDengine/security/advisories/new)
 
-## CVE-2026-42542
+## CVE-2026-42542 (TD-SEC-2026-001)
 
 1. 基本信息
 
@@ -230,3 +230,147 @@ TDengine 产品安全漏洞公告与修复信息会统一发布在本页。
 4. 漏洞摘要
 
     TDengine 数据库存在拒绝服务漏洞，攻击者可通过特定操作使服务不可用。该漏洞已在 3.0.7.1 版本修复，并在 3.4.1.14 版本中全面确认修复。
+
+## GHSA-v8cj-fw82-9jjf (TD-SEC-2026-018)
+
+1. 基本信息
+
+    - 严重级别：高危
+    - CVSS：7.5
+    - GHSA：`GHSA-v8cj-fw82-9jjf`
+    - 标题：Parser 模块 createSimpleSubQStmt Double-Free / UAF
+    - 发布日期：2026-06-27
+    - CWE：`CWE-415` Double Free / `CWE-416` Use After Free
+    - 发现者：RigelYoung
+
+2. 受影响版本
+
+    - `>= 3.4.1.0`
+
+3. 已修复版本
+
+    - `3.4.1.14`
+
+4. 漏洞摘要
+
+    `source/libs/parser/src/parTranslater.c` 的 `createSimpleSubQStmt()` 函数在错误检查时错误地评估了 `pCxt->errCode` 而非本地 `code` 变量，导致已释放的 AST 节点 `pSelect` 被上层调用者继续使用，触发 Double-Free 和 Use-After-Free，可造成 taosd 进程崩溃或内存损坏。
+
+## GHSA-f8pf-77fh-53wv (TD-SEC-2026-019)
+
+1. 基本信息
+
+    - 严重级别：低危
+    - CVSS：3.1
+    - GHSA：`GHSA-f8pf-77fh-53wv`
+    - 标题：projectApplyFunction 错误处理路径 Double Free
+    - 发布日期：2026-06-27
+    - CWE：`CWE-415` Double Free
+    - 发现者：RigelYoung
+
+2. 受影响版本
+
+    - `>= 3.3.7.0`
+
+3. 已修复版本
+
+    - `3.4.1.14`
+
+4. 漏洞摘要
+
+    `source/libs/parser/src/parTranslater.c` 的 `projectApplyFunction()` 中，`nodesListMakeStrictAppend` 失败时释放了 `pCol` 节点但未将其置空，上层 `_return` 清理路径再次释放同一指针，导致 Double-Free 内存损坏。
+
+## GHSA-998r-264c-5jcv (TD-SEC-2026-021)
+
+1. 基本信息
+
+    - 严重级别：低危
+    - CVSS：3.1
+    - GHSA：`GHSA-998r-264c-5jcv`
+    - 标题：createStreamReqBuildTriggerSelect 错误处理路径 Double Free
+    - 发布日期：2026-06-27
+    - CWE：`CWE-415` Double Free
+    - 发现者：RigelYoung
+
+2. 受影响版本
+
+    - `>= 3.3.7.0`
+
+3. 已修复版本
+
+    - `3.4.1.14`
+
+4. 漏洞摘要
+
+    `source/libs/parser/src/parTranslater.c` 的 `createStreamReqBuildTriggerSelect()` 中 `nodesListMakeStrictAppend` 失败时内部释放 `pFunc` 但仍返回非零错误码，`PAR_ERR_JRET` 宏导致跳转到 `_return` 标签再次释放同一指针。
+
+## GHSA-vqj6-pwq9-qc5j (TD-SEC-2026-022)
+
+1. 基本信息
+
+    - 严重级别：高危
+    - CVSS：7.5
+    - GHSA：`GHSA-vqj6-pwq9-qc5j`
+    - 标题：monGenDnodeStatusInfoTable 悬垂 gauge 指针 UAF
+    - 发布日期：2026-06-27
+    - CWE：`CWE-416` Use After Free
+    - 发现者：RigelYoung
+
+2. 受影响版本
+
+    - `>= 3.3.3.0`
+
+3. 已修复版本
+
+    - `3.4.1.14`
+
+4. 漏洞摘要
+
+    `source/libs/monitor/src/monFramework.c` 的 `monGenDnodeStatusInfoTable()` 中，指标注册失败时销毁 gauge 后未将其置 `NULL`，后续循环中通过悬垂指针调用 `taos_gauge_set()` 写入已释放内存，导致 Use-After-Free 和 taosd 崩溃。
+
+## GHSA-c97w-rp4j-2jc9 (TD-SEC-2026-023)
+
+1. 基本信息
+
+    - 严重级别：低危
+    - CVSS：3.1
+    - GHSA：`GHSA-c97w-rp4j-2jc9`
+    - 标题：buildTriggerPartitionForCreateStream 错误处理路径 Double Free / UAF
+    - 发布日期：2026-06-27
+    - CWE：`CWE-415` Double Free / `CWE-416` Use After Free
+    - 发现者：RigelYoung
+
+2. 受影响版本
+
+    - `>= 3.3.8.0`
+
+3. 已修复版本
+
+    - `3.4.1.14`
+
+4. 漏洞摘要
+
+    `source/libs/parser/src/parTranslater.c` 的 `buildTriggerPartitionForCreateStream()` 中，`nodesListMakeStrictAppend` 在列表初始化失败时释放了 `pTagCol` 节点，但 `PAR_ERR_JRET` 跳回 `_return` 标签后再次释放同一指针。
+
+## GHSA-4h6w-f7vf-96xj (TD-SEC-2026-024)
+
+1. 基本信息
+
+    - 严重级别：高危
+    - CVSS：7.5
+    - GHSA：`GHSA-4h6w-f7vf-96xj`
+    - 标题：tableMetaCommit 错误处理路径 UAF / Double Free
+    - 发布日期：2026-06-27
+    - CWE：`CWE-415` Double Free / `CWE-416` Use After Free
+    - 发现者：RigelYoung
+
+2. 受影响版本
+
+    - `>= 3.3.7.0`
+
+3. 已修复版本
+
+    - `3.4.1.14`
+
+4. 漏洞摘要
+
+    `source/dnode/mnode/impl/src/mndVgroup.c` 的 `tableMetaCommit()` 错误处理路径中，资源清理顺序不当导致已释放的哈希表对象被再次使用和释放。
