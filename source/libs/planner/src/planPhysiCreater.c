@@ -441,12 +441,9 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
       // for both tables. For FedScan ASOF/WINDOW JOIN conditions, the full key
       // (hash of "tableAlias.colName") correctly identifies which table's block.
       {
-        char tmpName[len + 1];
-        TAOS_MEMCPY(tmpName, name, len);
-        tmpName[len] = 0;
-        SSlotIndex* pFullIdx = taosHashGet(pCxt->pLeftHash, tmpName, len);
+        SSlotIndex* pFullIdx = taosHashGet(pCxt->pLeftHash, name, len);
         if (NULL == pFullIdx) {
-          pFullIdx = taosHashGet(pCxt->pRightHash, tmpName, len);
+          pFullIdx = taosHashGet(pCxt->pRightHash, name, len);
         }
         if (pFullIdx) {
           pIndex = pFullIdx;
@@ -1596,7 +1593,7 @@ static void translateExtColNamesInRemotePlan(SPhysiNode* pNode, const SExtTableM
 static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
                                             SScanLogicNode* pScanLogicNode, SPhysiNode** pPhyNode) {
   if (NULL == pScanLogicNode->pExtTableNode) {
-    planError("createFederatedScanPhysiNode: pExtTableNode is NULL");
+    planError("%s", "createFederatedScanPhysiNode: pExtTableNode is NULL");
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
   SExtTableNode* pExtNode = (SExtTableNode*)pScanLogicNode->pExtTableNode;

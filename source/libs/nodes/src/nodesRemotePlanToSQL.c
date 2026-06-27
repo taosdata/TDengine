@@ -24,6 +24,7 @@
 // generated SQL has no fixed-length limit.
 
 #include "nodes.h"
+#include "os.h"
 #include "plannodes.h"
 #include "querynodes.h"
 #include "taoserror.h"
@@ -293,7 +294,7 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
       // format the epoch using the client timezone so that filter values match the
       // external DB's interpretation.  InfluxDB stores epoch UTC — always use UTC.
       if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
-        gmtime_r(&sec, &tmBuf);
+        taosGmTimeR(&sec, &tmBuf);
       } else {
         // Use client timezone when available; fall back to server global default.
         timezone_t tz = (s->tzName && s->tzName[0]) ? tzalloc(s->tzName) : NULL;
@@ -352,7 +353,7 @@ static void dynAppendIntAsTimestamp(SDynSQL* s, int64_t ts, int8_t precision,
   struct tm tmBuf;
   // DS §5.2.6: same timezone logic as dynAppendValueLiteral TIMESTAMP case.
   if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
-    gmtime_r(&sec, &tmBuf);
+    taosGmTimeR(&sec, &tmBuf);
   } else {
     timezone_t tz = (s->tzName && s->tzName[0]) ? tzalloc(s->tzName) : NULL;
     taosLocalTime(&sec, &tmBuf, NULL, 0, tz);

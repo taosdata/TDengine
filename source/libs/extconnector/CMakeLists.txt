@@ -113,6 +113,7 @@ if(TD_ENTERPRISE)
   # ──────────────────────────────────────────────────────────────────────────
   if(NOT TD_WINDOWS)
   set(_ext_staging_dir "${CMAKE_BINARY_DIR}/build/lib")
+  set(_stage_runtime_libs_script "${TD_SOURCE_DIR}/cmake/stage_runtime_libs.sh")
 
   if(BUILD_WITH_MARIADB)
     if(EXT_MARIADB_SO_SRCPATH)
@@ -148,6 +149,16 @@ if(TD_ENTERPRISE)
       COMMENT "Staging ${_mariadb_staged_name} → build/lib/mariadb/"
       VERBATIM
     )
+    if(TD_LINUX)
+      add_custom_command(TARGET extconnector POST_BUILD
+        COMMAND /bin/bash "${_stage_runtime_libs_script}"
+          copy-ldd
+          "${_mariadb_so_src}"
+          "${_ext_staging_dir}"
+        COMMENT "Staging MariaDB SSL runtime deps → build/lib/"
+        VERBATIM
+      )
+    endif()
   endif()
 
   if(BUILD_WITH_LIBPQ)
@@ -205,36 +216,32 @@ if(TD_ENTERPRISE)
     endif()
     set(_arrow_stage_libs libarrow libarrow_flight libarrow_flight_sql libparquet)
     foreach(_arrow_lib ${_arrow_stage_libs})
-      if(EXISTS "${_arrow_libdir}/${_arrow_lib}.${_arrow_so_suffix}" OR EXT_ARROW_SYSTEM_LIBDIR)
-        if(TD_DARWIN)
-          set(_arrow_link_name "${_arrow_lib}.dylib")
-        else()
-          set(_arrow_link_name "${_arrow_lib}.so")
-        endif()
-        add_custom_command(TARGET extconnector POST_BUILD
-          COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${_arrow_libdir}/${_arrow_lib}.${_arrow_so_suffix}"
-            "${_ext_staging_dir}/${_arrow_lib}.${_arrow_so_suffix}"
-          COMMAND "${CMAKE_COMMAND}" -E create_symlink
-            "${_arrow_lib}.${_arrow_so_suffix}"
-            "${_ext_staging_dir}/${_arrow_link_name}"
-          COMMENT "Staging ${_arrow_lib}.${_arrow_so_suffix} → build/lib/"
-          VERBATIM
-        )
+      if(TD_DARWIN)
+        set(_arrow_link_name "${_arrow_lib}.dylib")
+      else()
+        set(_arrow_link_name "${_arrow_lib}.so")
       endif()
+      add_custom_command(TARGET extconnector POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+          "${_arrow_libdir}/${_arrow_lib}.${_arrow_so_suffix}"
+          "${_ext_staging_dir}/${_arrow_lib}.${_arrow_so_suffix}"
+        COMMAND "${CMAKE_COMMAND}" -E create_symlink
+          "${_arrow_lib}.${_arrow_so_suffix}"
+          "${_ext_staging_dir}/${_arrow_link_name}"
+        COMMENT "Staging ${_arrow_lib}.${_arrow_so_suffix} → build/lib/"
+        VERBATIM
+      )
     endforeach()
     if(NOT TD_DARWIN)
-      file(GLOB _arrow_extra_shared_libs "${_arrow_libdir}/lib*.so.*")
-      foreach(_arrow_extra_lib ${_arrow_extra_shared_libs})
-        get_filename_component(_arrow_extra_name "${_arrow_extra_lib}" NAME)
-        add_custom_command(TARGET extconnector POST_BUILD
-          COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-            "${_arrow_extra_lib}"
-            "${_ext_staging_dir}/${_arrow_extra_name}"
-          COMMENT "Staging ${_arrow_extra_name} -> build/lib/"
-          VERBATIM
-        )
-      endforeach()
+      add_custom_command(TARGET extconnector POST_BUILD
+        COMMAND /bin/bash "${_stage_runtime_libs_script}"
+          copy-glob
+          "${_arrow_libdir}"
+          "${_ext_staging_dir}"
+          "lib*.so.*"
+        COMMENT "Staging Arrow shared runtime deps → build/lib/"
+        VERBATIM
+      )
     endif()
   endif()
 

@@ -243,12 +243,21 @@ if(NOT ${TD_WINDOWS})
     file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/stripped_arrow")
     foreach(_arrow_lib ${ext_arrow_static_libs})
         get_filename_component(_arrow_name "${_arrow_lib}" NAME)
+        if(_arrow_name STREQUAL "libarrow_bundled_dependencies.a")
+            message(STATUS "taosdump: skip strip for ${_arrow_name} (binutils cannot safely rewrite this archive)")
+            list(APPEND _stripped_arrow_libs "${_arrow_lib}")
+            continue()
+        endif()
         set(_stripped_lib "${CMAKE_CURRENT_BINARY_DIR}/stripped_arrow/${_arrow_name}")
+        set(_arrow_strip_depends ext_arrow_static)
+        if(ext_arrow_static_install_byproducts_available)
+            list(APPEND _arrow_strip_depends "${_arrow_lib}")
+        endif()
         add_custom_command(
             OUTPUT  "${_stripped_lib}"
             COMMAND ${CMAKE_COMMAND} -E copy "${_arrow_lib}" "${_stripped_lib}"
             COMMAND ${CMAKE_STRIP} ${_strip_flag} "${_stripped_lib}"
-            DEPENDS "${_arrow_lib}"
+            DEPENDS ${_arrow_strip_depends}
             COMMENT "Stripping debug info from ${_arrow_name}"
         )
         list(APPEND _stripped_arrow_libs "${_stripped_lib}")

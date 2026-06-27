@@ -30,6 +30,7 @@
 #include "operator.h"
 #include "query.h"
 #include "querytask.h"
+#include "os.h"
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "ttime.h"
@@ -684,7 +685,7 @@ static char* formatTimestampUTC(char* buf, int32_t cap, int64_t val, int precisi
     else { frac += 1000; tt -= 1; }
   }
   struct tm tm;
-  gmtime_r(&tt, &tm);
+  taosGmTimeR(&tt, &tm);
   int pos = snprintf(buf, cap, "%04d-%02d-%02d %02d:%02d:%02d",
                      tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
                      tm.tm_hour, tm.tm_min, tm.tm_sec);

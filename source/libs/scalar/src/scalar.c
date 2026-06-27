@@ -1556,12 +1556,13 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
     ((SFunctionNode*)node)->tz = tzalloc(node->tzName);
     ((SFunctionNode*)node)->tzAllocated = true;
   }
-  // Set tz and tzName on ALL params so multi-param functions (e.g. TIMEDIFF, WEEKDAY) use the correct timezone
-  for (int32_t _i = 0; _i < paramNum; _i++) {
-    setTzCharset(&params[_i], node->tz, node->charsetCxt);
-    tstrncpy(params[_i].tzName, node->tzName, TD_TIMEZONE_LEN);
-  }
   if (params != NULL) {
+    // rowNum may be 0, in which case sclInitParamList() releases the param list and returns NULL.
+    // Keep timezone propagation behind the same guard so zero-row evaluation does not dereference NULL.
+    for (int32_t _i = 0; _i < paramNum; _i++) {
+      setTzCharset(&params[_i], node->tz, node->charsetCxt);
+      tstrncpy(params[_i].tzName, node->tzName, sizeof(params[_i].tzName));
+    }
     params[0].firstDayOfWeek = node->firstDayOfWeek;
   }
 

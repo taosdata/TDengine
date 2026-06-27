@@ -12557,7 +12557,7 @@ static int32_t distinctAggFilterOptimizeImpl(SOptimizeContext* pCxt, SAggLogicNo
 
   // If hasGroup but we couldn't determine group columns, abort optimization
   if (pAgg->hasGroup && (pFilter->pGroupKeys == NULL || pFilter->pGroupKeys->length == 0)) {
-    planWarn("DistinctFilter: hasGroup=true but no group cols found");
+    qWarn("plan DistinctFilter: hasGroup=true but no group cols found");
     nodesDestroyNode((SNode*)pFilter);
     return TSDB_CODE_SUCCESS;
   }
@@ -13879,7 +13879,7 @@ static int32_t fqInjectTwoPassGroupCache(SLogicSubplan* pLogicSubplan, SScanLogi
   code = nodesListStrictAppend(pGrpCache->node.pChildren, (SNode*)pScan);
   if (TSDB_CODE_SUCCESS != code) return code;
 
-  planDebug("FqInjectTwoPassGroupCache: inserted GroupCache(twoPassMode) between AGG and FedScan for PERCENTILE");
+  planDebug("%s", "FqInjectTwoPassGroupCache: inserted GroupCache(twoPassMode) between AGG and FedScan for PERCENTILE");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -13890,7 +13890,7 @@ static int32_t fqHarvestAgg(SLogicSubplan* pLogicSubplan, SScanLogicNode* pScan)
   // the parent chain is fully built and fqNodeHasRepeatScanFunc can check pAgg->pAggFuncs.
   if (fqNodeHasRepeatScanFunc(pScan->node.pParent)) {
     pScan->scanSeq[0] = 2;
-    planDebug("FqHarvestAgg: set scanSeq[0]=2 (twoPassMode) for REPEAT_SCAN_FUNC (PERCENTILE)");
+    planDebug("%s", "FqHarvestAgg: set scanSeq[0]=2 (twoPassMode) for REPEAT_SCAN_FUNC (PERCENTILE)");
   }
   (void)pLogicSubplan;
   return TSDB_CODE_SUCCESS;
@@ -14639,8 +14639,8 @@ _chain_done:
           // absent from the external table schema, causing 0x2704 slot-key-not-found
           // in the InnerProject's slot-id resolution step.
           if (at == QUERY_NODE_LOGIC_PLAN_PROJECT && !fqProjectIsPushdownable(pAnc)) {
-            planDebug("FqPushdown empty-chain: stopping at non-pushdownable Project (has expressions), "
-                      "pOutputSpec stays NULL, pScan->pTargets unchanged");
+            planDebug("%s", "FqPushdown empty-chain: stopping at non-pushdownable Project (has expressions), "
+                            "pOutputSpec stays NULL, pScan->pTargets unchanged");
             break;
           }
           // Skip if an Agg/Window node was found between Scan and this ancestor;

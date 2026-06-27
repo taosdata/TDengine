@@ -151,6 +151,17 @@ if(TD_ENTERPRISE)
     option(BUILD_WITH_MARIADB "If build with MariaDB Connector/C (ext source: MySQL)" ON)
     option(BUILD_WITH_LIBPQ   "If build with libpq (ext source: PostgreSQL)" ON)
     option(BUILD_WITH_ARROW   "If build with Apache Arrow Flight SQL (ext source: InfluxDB)" ON)
+    if(TD_WINDOWS)
+        set(BUILD_WITH_MARIADB OFF CACHE BOOL
+            "If build with MariaDB Connector/C (ext source: MySQL)" FORCE)
+        set(BUILD_WITH_LIBPQ OFF CACHE BOOL
+            "If build with libpq (ext source: PostgreSQL)" FORCE)
+        set(BUILD_WITH_ARROW OFF CACHE BOOL
+            "If build with Apache Arrow Flight SQL (ext source: InfluxDB)" FORCE)
+        message(STATUS
+            "[options] TD_WINDOWS=ON: federated query providers are disabled on Windows; "
+            "taosdump still uses ext_arrow_static when TD_TAOS_TOOLS=ON")
+    endif()
 else()
     set(BUILD_WITH_MARIADB OFF)
     set(BUILD_WITH_LIBPQ   OFF)

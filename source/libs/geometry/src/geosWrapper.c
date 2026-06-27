@@ -16,7 +16,6 @@
 #ifdef USE_GEOS
 #include "geosWrapper.h"
 #include <ctype.h>
-#include <strings.h>
 #include "tutil.h"
 #include "types.h"
 

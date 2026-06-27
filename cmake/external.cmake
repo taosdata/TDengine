@@ -2027,11 +2027,14 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                 INC_DIR  include/mariadb
                 LIB      ${_ext_mariadb_lib}
             )
-            get_from_local_repo_if_exists("https://github.com/mariadb-corporation/mariadb-connector-c.git")
+            get_from_local_if_exists(
+                "https://github.com/mariadb-corporation/mariadb-connector-c/archive/refs/tags/v3.3.10.tar.gz"
+                "mariadb-connector-c-v3.3.10.tar.gz"
+            )
             ExternalProject_Add(ext_mariadb
-                GIT_REPOSITORY ${_git_url}
-                GIT_TAG        v3.3.10
-                GIT_SHALLOW    TRUE
+                URL            ${_url}
+                URL_HASH       SHA256=0a79088af2fbde4dbe6655dbc51bbb272b606c0d9116745697e08879e70198a7
+                DEPENDS        ext_zlib
                 PREFIX         "${_base}"
                 CMAKE_ARGS     -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
                 CMAKE_ARGS     -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -2039,6 +2042,10 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                 CMAKE_ARGS     -DWITH_SSL:STRING=$<IF:$<BOOL:${TD_WINDOWS}>,SCHANNEL,OPENSSL>
                 CMAKE_ARGS     -DBUILD_SHARED_LIBS:BOOL=ON
                 CMAKE_ARGS     -DWITH_EXTERNAL_ZLIB:BOOL=ON
+                CMAKE_ARGS     -DZLIB_USE_STATIC_LIBS:BOOL=ON
+                CMAKE_ARGS     -DZLIB_ROOT:PATH=${ext_zlib_install}
+                CMAKE_ARGS     -DZLIB_INCLUDE_DIR:PATH=${ext_zlib_install}/include
+                CMAKE_ARGS     -DZLIB_LIBRARY:FILEPATH=${ext_zlib_install}/lib/${ext_zlib_static}
                 BUILD_COMMAND
                     COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
                 INSTALL_COMMAND
@@ -2135,31 +2142,101 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                 INC_DIR  include
                 LIB      ${_ext_libpq_lib}
             )
+            macro(DEP_ext_libpq_INC tgt)
+                target_include_directories(${tgt} PRIVATE
+                    ${ext_libpq_inc_dir}
+                    ${ext_libpq_source}/src/include
+                    ${ext_libpq_source}/src/interfaces/libpq)
+                add_definitions(-D_ext_libpq)
+                if(NOT TD_EXTERNALS_USE_ONLY)
+                    add_dependencies(${tgt} ext_libpq)
+                endif()
+            endmacro()
             # REL_16_3 ≡ PostgreSQL 16.3；使用官方源码 tarball，避免 CI 从 GitHub git clone 不稳定
             get_from_local_if_exists(
                 "https://ftp.postgresql.org/pub/source/v16.3/postgresql-16.3.tar.gz"
                 "postgresql-16.3.tar.gz"
             )
             if(TD_WINDOWS)
+                find_package(Python3 COMPONENTS Interpreter REQUIRED)
+                find_program(_EXT_LIBPQ_NINJA_EXECUTABLE NAMES ninja ninja.exe)
+                if(NOT _EXT_LIBPQ_NINJA_EXECUTABLE)
+                    message(FATAL_ERROR
+                        "[ext_libpq] BUILD_WITH_LIBPQ=ON on Windows requires ninja. "
+                        "Install it with: python -m pip install -i https://nexus.tdengine.net/repository/pypi-group/simple/ ninja")
+                endif()
+                execute_process(
+                    COMMAND "${Python3_EXECUTABLE}" -c "import mesonbuild"
+                    RESULT_VARIABLE _ext_libpq_meson_check
+                    OUTPUT_QUIET
+                    ERROR_QUIET)
+                if(NOT _ext_libpq_meson_check EQUAL 0)
+                    message(FATAL_ERROR
+                        "[ext_libpq] BUILD_WITH_LIBPQ=ON on Windows requires meson. "
+                        "Install it with: python -m pip install -i https://nexus.tdengine.net/repository/pypi-group/simple/ meson")
+                endif()
+
+                set(_ext_libpq_meson "${Python3_EXECUTABLE}" -m mesonbuild.mesonmain)
+                if(TD_CONFIG_NAME_RESOLVED STREQUAL "Debug")
+                    set(_ext_libpq_buildtype debug)
+                else()
+                    set(_ext_libpq_buildtype release)
+                endif()
+                if(NOT OpenSSL_FOUND OR NOT OPENSSL_INCLUDE_DIR)
+                    message(FATAL_ERROR
+                        "[ext_libpq] BUILD_WITH_LIBPQ=ON on Windows requires OpenSSL with MSVC libraries. "
+                        "Install/provide OpenSSL before configuring libpq.")
+                endif()
+                get_filename_component(_ext_libpq_openssl_root "${OPENSSL_INCLUDE_DIR}" DIRECTORY)
+                set(_ext_libpq_configure_env
+                    "OPENSSL_ROOT_DIR=${_ext_libpq_openssl_root}"
+                    "CMAKE_PREFIX_PATH=${_ext_libpq_openssl_root}"
+                    "PKG_CONFIG_LIBDIR=${_ext_libpq_openssl_root}/lib/pkgconfig"
+                    "LDFLAGS=crypt32.lib ws2_32.lib advapi32.lib user32.lib"
+                )
                 ExternalProject_Add(ext_libpq
                     URL ${_url}
                     URL_HASH SHA256=bd3798c399bc1b6d08b94340f9dd7a75a30a7fa076788ef2f4848be2be6a5fc5
                     PREFIX         "${_base}"
+                    PATCH_COMMAND
+                        COMMAND "${CMAKE_COMMAND}"
+                            -DPOSTGRESQL_SOURCE_DIR=<SOURCE_DIR>
+                            -P "${TD_SUPPORT_DIR}/patch_postgresql_meson_release.cmake"
                     CONFIGURE_COMMAND
-                        COMMAND "${MESON_EXECUTABLE}" setup <BINARY_DIR> <SOURCE_DIR>
-                            --native-file=${MESON_NATIVE_FILE}
+                        COMMAND "${CMAKE_COMMAND}" -E env ${_ext_libpq_configure_env}
+                            ${_ext_libpq_meson} setup <BINARY_DIR> <SOURCE_DIR>
                             --prefix=${_ins}
-                            --buildtype=$<IF:$<STREQUAL:${TD_CONFIG_NAME},Debug>,debug,release>
-                            -Dssl=none
+                            --buildtype=${_ext_libpq_buildtype}
+                            -Dssl=openssl
                             -Dldap=disabled
                             -Dgssapi=disabled
                             -Dnls=disabled
                             -Dreadline=disabled
                             -Dicu=disabled
+                            -Dzlib=disabled
+                            -Dlibxml=disabled
                     BUILD_COMMAND
-                        COMMAND "${MESON_EXECUTABLE}" compile -C <BINARY_DIR>
+                        COMMAND ${_ext_libpq_meson} compile -C <BINARY_DIR> libpq:shared_library
                     INSTALL_COMMAND
-                        COMMAND "${MESON_EXECUTABLE}" install -C <BINARY_DIR>
+                        COMMAND "${CMAKE_COMMAND}" -E make_directory "${_ins}/bin" "${_ins}/lib" "${_ins}/include"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                            <BINARY_DIR>/src/interfaces/libpq/libpq.dll
+                            "${_ins}/bin/libpq.dll"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                            <BINARY_DIR>/src/interfaces/libpq/libpq.lib
+                            "${_ins}/lib/libpq.lib"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                            <SOURCE_DIR>/src/include
+                            "${_ins}/include"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                            <BINARY_DIR>/src/include/pg_config.h
+                            <BINARY_DIR>/src/include/pg_config_ext.h
+                            <BINARY_DIR>/src/include/pg_config_os.h
+                            "${_ins}/include"
+                        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+                            <SOURCE_DIR>/src/interfaces/libpq/libpq-fe.h
+                            <SOURCE_DIR>/src/interfaces/libpq/libpq-events.h
+                            "${_ins}/include"
                     EXCLUDE_FROM_ALL TRUE
                     VERBATIM
                 )
@@ -2227,6 +2304,152 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
 
 endif()   # } TD_ENTERPRISE ext connector client libraries
 
+
+# Shared Arrow source definition used by both the federated-query shared build
+# and taosdump's static parquet support.
+set(TD_ARROW_VERSION "19.0.1")
+set(TD_ARROW_GIT_TAG "apache-arrow-${TD_ARROW_VERSION}")
+set(TD_ARROW_ARCHIVE_URL "https://github.com/apache/arrow/archive/refs/tags/${TD_ARROW_GIT_TAG}.tar.gz")
+set(TD_ARROW_ARCHIVE_NAME "arrow-${TD_ARROW_GIT_TAG}.tar.gz")
+
+function(td_prepare_arrow_external arrow_build_profile)
+    # Platform-specific cmake args for the Arrow sub-build
+    set(ARROW_EXTRA_CMAKE_ARGS "")
+    if(NOT ${TD_WINDOWS})
+        set(_arrow_c_flags "-ffunction-sections -fdata-sections")
+        if(${TD_DARWIN})
+            set(_arrow_cxx_flags "-ffunction-sections -fdata-sections -include array")
+        else()
+            set(_arrow_cxx_flags "-ffunction-sections -fdata-sections")
+        endif()
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DCMAKE_C_FLAGS:STRING=${_arrow_c_flags}"
+            "-DCMAKE_CXX_FLAGS:STRING=${_arrow_cxx_flags}"
+        )
+        # -O1 avoids GCC 14 debug-build failures in Arrow's vendored xxhash
+        # SSE2 helpers while keeping the output debuggable.
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DCMAKE_C_FLAGS_DEBUG:STRING=-O1 -g"
+            "-DCMAKE_CXX_FLAGS_DEBUG:STRING=-O1 -g"
+        )
+        # Arrow's CHECKIN warning level appends -Werror in debug builds.
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DBUILD_WARNING_LEVEL:STRING=PRODUCTION"
+        )
+        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+            list(APPEND ARROW_EXTRA_CMAKE_ARGS
+                "-DCMAKE_C_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
+                "-DCMAKE_CXX_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
+                "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
+                "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
+            )
+        endif()
+    else()
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            -DARROW_USE_STATIC_CRT:BOOL=OFF
+            -DARROW_USE_CCACHE:BOOL=OFF
+            -DARROW_USE_SCCACHE:BOOL=OFF
+            "-DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}"
+            "-DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}"
+            "-DCMAKE_LINKER:FILEPATH=${CMAKE_LINKER}"
+            "-DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}"
+            "-DCMAKE_AR:FILEPATH=${CMAKE_AR}"
+        )
+        if("${arrow_build_profile}" STREQUAL "shared")
+            # Federated query keeps its historical shared-build MSVC flags.
+            list(APPEND ARROW_EXTRA_CMAKE_ARGS
+                "-DCMAKE_CXX_FLAGS:STRING=/D_HAS_AUTO_PTR_ETC=1"
+                "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+                "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+                "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
+                "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /Gy /Gw"
+                "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /Gy /Gw"
+                "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /Gy /Gw"
+            )
+        else()
+            # taosdump's static build needs the newer MSVC C++17 and warning
+            # workarounds used by Arrow 19.0.1 and its bundled dependencies.
+            list(APPEND ARROW_EXTRA_CMAKE_ARGS
+                "-DCMAKE_CXX_STANDARD:STRING=17"
+                "-DCMAKE_CXX_STANDARD_REQUIRED:BOOL=ON"
+                "-DCMAKE_CXX_EXTENSIONS:BOOL=OFF"
+                "-DCMAKE_CXX_FLAGS:STRING=/Zc:__cplusplus"
+                "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zc:__cplusplus /FIarray /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Zi /Ob0 /Od /RTC1"
+                "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/Zc:__cplusplus /FIarray /O1 /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Ob2 /DNDEBUG"
+                "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zc:__cplusplus /FIarray /O1 /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Zi /Ob1 /DNDEBUG"
+                "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Od /RTC1"
+                "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /DNDEBUG"
+                "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /DNDEBUG"
+            )
+        endif()
+    endif()
+
+    set(_arrow_ts_args "")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+        list(APPEND _arrow_ts_args DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    endif()
+
+    # Arrow's bundled third-party downloads happen in its own CMake sub-build,
+    # so patch ThirdpartyToolchain.cmake directly when using an internal mirror.
+    set(_arrow_patch_commands "")
+    if(NOT "${LOCAL_URL}" STREQUAL "")
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}"
+                "-DARROW_THIRDPARTY_TOOLCHAIN:FILEPATH=<SOURCE_DIR>/cpp/cmake_modules/ThirdpartyToolchain.cmake"
+                "-DLOCAL_URL:STRING=${LOCAL_URL}"
+                -P "${TD_SOURCE_DIR}/cmake/patch_arrow_thirdparty_mirror.cmake"
+        )
+    endif()
+
+    set(_arrow_configure_env "")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
+        set(_arrow_configure_env "${CMAKE_COMMAND}" -E env CMAKE_POLICY_VERSION_MINIMUM=3.5)
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}"
+                -DARROW_SOURCE_DIR=<SOURCE_DIR>
+                -P "${CMAKE_CURRENT_LIST_DIR}/arrow-cmake4-mimalloc-fix.cmake"
+        )
+    endif()
+    list(APPEND _arrow_patch_commands
+        COMMAND "${CMAKE_COMMAND}"
+            -DARROW_SOURCE_DIR=<SOURCE_DIR>
+            -P "${CMAKE_CURRENT_LIST_DIR}/arrow-absl-gcc13-stdint-fix.cmake"
+    )
+
+    if(_arrow_patch_commands)
+        # The Arrow sub-build may already have generated vendored dependency
+        # download scripts (snappy_ep, thrift_ep, ...).  After patching
+        # ThirdpartyToolchain.cmake, force Arrow's configure step to regenerate
+        # those scripts so cached build dirs do not keep using public URLs.
+        list(APPEND _arrow_patch_commands
+            COMMAND "${CMAKE_COMMAND}" -E remove -f <BINARY_DIR>/CMakeCache.txt
+            COMMAND "${CMAKE_COMMAND}" -E remove_directory <BINARY_DIR>/CMakeFiles
+        )
+    endif()
+
+    set(_arrow_generator_args "")
+    if(TD_WINDOWS)
+        list(APPEND _arrow_generator_args -G "${CMAKE_GENERATOR}")
+        if(CMAKE_GENERATOR_PLATFORM)
+            list(APPEND _arrow_generator_args -A "${CMAKE_GENERATOR_PLATFORM}")
+        endif()
+        if(CMAKE_GENERATOR_TOOLSET)
+            list(APPEND _arrow_generator_args -T "${CMAKE_GENERATOR_TOOLSET}")
+        endif()
+    endif()
+
+    if(_arrow_patch_commands)
+        set(_arrow_patch_arg PATCH_COMMAND ${_arrow_patch_commands})
+    else()
+        set(_arrow_patch_arg "")
+    endif()
+
+    set(ARROW_EXTRA_CMAKE_ARGS "${ARROW_EXTRA_CMAKE_ARGS}" PARENT_SCOPE)
+    set(_arrow_ts_args "${_arrow_ts_args}" PARENT_SCOPE)
+    set(_arrow_configure_env "${_arrow_configure_env}" PARENT_SCOPE)
+    set(_arrow_generator_args "${_arrow_generator_args}" PARENT_SCOPE)
+    set(_arrow_patch_arg "${_arrow_patch_arg}" PARENT_SCOPE)
+endfunction()
 
 # Apache Arrow Flight SQL — used by the InfluxDB federated query path.
 # Guard: only included when BUILD_WITH_ARROW=ON (enterprise builds on Linux/macOS).
@@ -2297,102 +2520,64 @@ if(${BUILD_WITH_ARROW})
     endif()  # Arrow_FOUND
     if(NOT Arrow_FOUND OR NOT ArrowFlight_FOUND OR NOT ArrowFlightSql_FOUND OR NOT Parquet_FOUND)
     # Build from source — only reached when system Arrow was NOT found above.
-    get_from_local_repo_if_exists("https://github.com/apache/arrow.git")
+    get_from_local_if_exists(
+        "${TD_ARROW_ARCHIVE_URL}"
+        "${TD_ARROW_ARCHIVE_NAME}"
+    )
+    td_prepare_arrow_external(shared)
     if(TD_WINDOWS)
         set(_arrow_flight_flag
-            CMAKE_ARGS -DARROW_FLIGHT:BOOL=OFF
-            CMAKE_ARGS -DARROW_FLIGHT_SQL:BOOL=OFF)
+            -DARROW_FLIGHT:BOOL=OFF
+            -DARROW_FLIGHT_SQL:BOOL=OFF)
     else()
         set(_arrow_flight_flag
-            CMAKE_ARGS -DARROW_FLIGHT:BOOL=ON
-            CMAKE_ARGS -DARROW_FLIGHT_SQL:BOOL=ON)
+            -DARROW_FLIGHT:BOOL=ON
+            -DARROW_FLIGHT_SQL:BOOL=ON)
     endif()
-    # Platform-specific cmake args for the Arrow sub-build
-    set(ARROW_EXTRA_CMAKE_ARGS "")
-    if(NOT ${TD_WINDOWS})
-        set(_arrow_c_flags "-ffunction-sections -fdata-sections")
-        if(${TD_DARWIN})
-            set(_arrow_cxx_flags "-ffunction-sections -fdata-sections -include array")
-        else()
-            set(_arrow_cxx_flags "-ffunction-sections -fdata-sections")
-        endif()
-        list(APPEND ARROW_EXTRA_CMAKE_ARGS
-            "-DCMAKE_C_FLAGS:STRING=${_arrow_c_flags}"
-            "-DCMAKE_CXX_FLAGS:STRING=${_arrow_cxx_flags}"
-        )
-        list(APPEND ARROW_EXTRA_CMAKE_ARGS
-            "-DCMAKE_C_FLAGS_DEBUG:STRING=-O1 -g"
-            "-DCMAKE_CXX_FLAGS_DEBUG:STRING=-O1 -g"
-        )
-        list(APPEND ARROW_EXTRA_CMAKE_ARGS
-            "-DBUILD_WARNING_LEVEL:STRING=PRODUCTION"
-        )
-        if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-            list(APPEND ARROW_EXTRA_CMAKE_ARGS
-                "-DCMAKE_C_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
-                "-DCMAKE_CXX_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
-                "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
-                "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
-            )
-        endif()
-    else()
-        list(APPEND ARROW_EXTRA_CMAKE_ARGS
-            -DARROW_USE_STATIC_CRT:BOOL=OFF
-            -DARROW_USE_CCACHE:BOOL=OFF
-            -DARROW_USE_SCCACHE:BOOL=OFF
-            "-DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}"
-            "-DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}"
-            "-DCMAKE_LINKER:FILEPATH=${CMAKE_LINKER}"
-            "-DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}"
-            "-DCMAKE_AR:FILEPATH=${CMAKE_AR}"
-            "-DCMAKE_CXX_FLAGS:STRING=/D_HAS_AUTO_PTR_ETC=1"
-            "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
-            "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
-            "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /FI array /D_HAS_AUTO_PTR_ETC=1 /Gy /Gw"
-            "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Ob0 /Od /RTC1 /Gy /Gw"
-            "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /Ob2 /DNDEBUG /Gy /Gw"
-            "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /Ob1 /DNDEBUG /Gy /Gw"
-        )
-    endif()
-    ExternalProject_Add(ext_arrow
-        GIT_REPOSITORY ${_git_url}
-        GIT_TAG        apache-arrow-19.0.1
-        GIT_SHALLOW    TRUE
-        GIT_SUBMODULES  ""
-        PREFIX         "${_base}"
-        SOURCE_SUBDIR  cpp
-        CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
-        CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
-        CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
-        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
-        CMAKE_ARGS -DCMAKE_CXX_STANDARD:STRING=17
-        CMAKE_ARGS -DARROW_BUILD_STATIC:BOOL=OFF
-        CMAKE_ARGS -DARROW_BUILD_SHARED:BOOL=ON
+    set(_arrow_shared_cmake_args
+        -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+        -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+        -DCMAKE_INSTALL_LIBDIR:PATH=lib
+        -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+        -DCMAKE_CXX_STANDARD:STRING=17
+        -DARROW_BUILD_STATIC:BOOL=OFF
+        -DARROW_BUILD_SHARED:BOOL=ON
         ${_arrow_flight_flag}
-        CMAKE_ARGS -DARROW_IPC:BOOL=ON
-        CMAKE_ARGS -DARROW_PARQUET:BOOL=ON
-        CMAKE_ARGS -DARROW_WITH_SNAPPY:BOOL=ON
-        CMAKE_ARGS -DARROW_COMPUTE:BOOL=OFF
-        CMAKE_ARGS -DARROW_DATASET:BOOL=OFF
-        CMAKE_ARGS -DARROW_FILESYSTEM:BOOL=OFF
-        CMAKE_ARGS -DARROW_S3:BOOL=OFF
-        CMAKE_ARGS -DARROW_WITH_SNAPPY:BOOL=ON
-        CMAKE_ARGS -DARROW_WITH_ZLIB:BOOL=OFF
-        CMAKE_ARGS -DARROW_WITH_ZSTD:BOOL=OFF
-        CMAKE_ARGS -DARROW_WITH_LZ4:BOOL=OFF
-        CMAKE_ARGS -DARROW_WITH_BZ2:BOOL=OFF
-        CMAKE_ARGS -DARROW_WITH_RE2:BOOL=OFF
-        CMAKE_ARGS -DARROW_WITH_UTF8PROC:BOOL=OFF
-        CMAKE_ARGS -DARROW_BUILD_TESTS:BOOL=OFF
-        CMAKE_ARGS -DARROW_BUILD_BENCHMARKS:BOOL=OFF
-        CMAKE_ARGS -DARROW_DEPENDENCY_SOURCE:STRING=BUNDLED
-        CMAKE_ARGS -DARROW_VERBOSE_THIRDPARTY_BUILD:BOOL=OFF
-        CMAKE_ARGS -DARROW_JEMALLOC:BOOL=OFF
-        CMAKE_ARGS -DARROW_BUILD_UTILITIES:BOOL=OFF
-        CMAKE_ARGS -DARROW_USE_GLOG:BOOL=OFF
-        CMAKE_ARGS -DARROW_SIMD_LEVEL:STRING=NONE
-        CMAKE_ARGS -DARROW_RUNTIME_SIMD_LEVEL:STRING=NONE
-        CMAKE_ARGS ${ARROW_EXTRA_CMAKE_ARGS}
+        -DARROW_IPC:BOOL=ON
+        -DARROW_PARQUET:BOOL=ON
+        -DARROW_WITH_SNAPPY:BOOL=ON
+        -DARROW_COMPUTE:BOOL=OFF
+        -DARROW_DATASET:BOOL=OFF
+        -DARROW_FILESYSTEM:BOOL=OFF
+        -DARROW_S3:BOOL=OFF
+        -DARROW_WITH_ZLIB:BOOL=OFF
+        -DARROW_WITH_ZSTD:BOOL=OFF
+        -DARROW_WITH_LZ4:BOOL=OFF
+        -DARROW_WITH_BZ2:BOOL=OFF
+        -DARROW_WITH_RE2:BOOL=OFF
+        -DARROW_WITH_UTF8PROC:BOOL=OFF
+        -DARROW_BUILD_TESTS:BOOL=OFF
+        -DARROW_BUILD_BENCHMARKS:BOOL=OFF
+        -DARROW_DEPENDENCY_SOURCE:STRING=BUNDLED
+        -DARROW_VERBOSE_THIRDPARTY_BUILD:BOOL=OFF
+        -DARROW_JEMALLOC:BOOL=OFF
+        -DARROW_MIMALLOC:BOOL=OFF
+        -DARROW_BUILD_UTILITIES:BOOL=OFF
+        -DARROW_USE_GLOG:BOOL=OFF
+        -DARROW_SIMD_LEVEL:STRING=NONE
+        -DARROW_RUNTIME_SIMD_LEVEL:STRING=NONE
+        ${ARROW_EXTRA_CMAKE_ARGS}
+    )
+    ExternalProject_Add(ext_arrow
+        URL            ${_url}
+        URL_HASH       SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
+        ${_arrow_ts_args}
+        PREFIX         "${_base}"
+        STAMP_DIR      "${_base}/src/ext_arrow-url-stamp"
+        SOURCE_SUBDIR  cpp
+        CMAKE_ARGS     ${_arrow_shared_cmake_args}
+        CONFIGURE_COMMAND ${_arrow_configure_env} "${CMAKE_COMMAND}" ${_arrow_generator_args} <SOURCE_DIR>/cpp ${_arrow_shared_cmake_args}
+        ${_arrow_patch_arg}
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
                     --parallel $<IF:$<BOOL:${TD_WINDOWS}>,1,4>
@@ -2421,128 +2606,12 @@ else()
         LIB      lib/libparquet.a lib/libarrow.a lib/libarrow_bundled_dependencies.a
     )
 endif()
-# Source: https://github.com/apache/arrow tag apache-arrow-19.0.1
+# Source: https://github.com/apache/arrow tag ${TD_ARROW_GIT_TAG}
 get_from_local_if_exists(
-    "https://github.com/apache/arrow/archive/refs/tags/apache-arrow-19.0.1.tar.gz"
-    "arrow-apache-arrow-19.0.1.tar.gz"
+    "${TD_ARROW_ARCHIVE_URL}"
+    "${TD_ARROW_ARCHIVE_NAME}"
 )
-# Platform-specific cmake args for the Arrow sub-build
-set(ARROW_EXTRA_CMAKE_ARGS "")
-if(NOT ${TD_WINDOWS})
-    set(_arrow_c_flags "-ffunction-sections -fdata-sections")
-    if(${TD_DARWIN})
-        set(_arrow_cxx_flags "-ffunction-sections -fdata-sections -include array")
-    else()
-        set(_arrow_cxx_flags "-ffunction-sections -fdata-sections")
-    endif()
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DCMAKE_C_FLAGS:STRING=${_arrow_c_flags}"
-        "-DCMAKE_CXX_FLAGS:STRING=${_arrow_cxx_flags}"
-    )
-    # GCC 14 changed inlining behaviour for functions carrying both
-    # __attribute__((always_inline)) and __attribute__((target("sse2"))).
-    # Under -Og the compiler emits a hard compilation error (not a warning)
-    # when it cannot inline such a function, which breaks the vendored xxhash
-    # SSE2 helpers (XXH3_scrambleAcc_sse2 / XXH3_accumulate_sse2).
-    # Switching to -O1 avoids the restriction while still producing debuggable
-    # binaries. -O1 is strictly better than -Og here because -Og explicitly
-    # disables optimizations that would allow inlining across target boundaries.
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DCMAKE_C_FLAGS_DEBUG:STRING=-O1 -g"
-        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=-O1 -g"
-    )
-    # Arrow's SetupCxxFlags.cmake appends -Werror to DEBUG builds when the
-    # warning level is CHECKIN (the default). Use PRODUCTION to keep the
-    # build clean without -Werror.
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DBUILD_WARNING_LEVEL:STRING=PRODUCTION"
-    )
-    # -Os replaces the default -O3 in Release builds, shrinking Arrow's
-    # code sections by ~15-20 %. Specified via the build-type-specific variable
-    # so it unambiguously overrides the compiler's Release default.
-    # CMAKE_INTERPROCEDURAL_OPTIMIZATION enables LTO across Arrow and its
-    # bundled deps (snappy, thrift ...), letting the linker dead-strip at a finer
-    # granularity than --gc-sections alone.
-    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        list(APPEND ARROW_EXTRA_CMAKE_ARGS
-            "-DCMAKE_C_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
-            "-DCMAKE_CXX_FLAGS_RELEASE:STRING=-Os -DNDEBUG"
-            "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
-            "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=-Os -g -DNDEBUG"
-        )
-    endif()
-else()
-    # Match the MSVC DLL CRT (/MD) used by the rest of the project
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        -DARROW_USE_STATIC_CRT:BOOL=OFF
-    )
-    # Disable ccache/sccache detection in Arrow sub-build.
-    # Strawberry Perl ships ccache.exe but it mishandles MSVC response-file
-    # /Fo output, causing .obj files to disappear silently (LNK1181).
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        -DARROW_USE_CCACHE:BOOL=OFF
-        -DARROW_USE_SCCACHE:BOOL=OFF
-    )
-    # Explicitly forward compiler/linker/make so ExternalProject_Add
-    # CMake configure step does not depend on having cl.exe in PATH.
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DCMAKE_C_COMPILER:FILEPATH=${CMAKE_C_COMPILER}"
-        "-DCMAKE_CXX_COMPILER:FILEPATH=${CMAKE_CXX_COMPILER}"
-        "-DCMAKE_LINKER:FILEPATH=${CMAKE_LINKER}"
-        "-DCMAKE_MAKE_PROGRAM:FILEPATH=${CMAKE_MAKE_PROGRAM}"
-        "-DCMAKE_AR:FILEPATH=${CMAKE_AR}"
-    )
-    # Arrow 19.0.1 bug on MSVC: parquet/size_statistics.cc uses std::array
-    # without #include <array>. GCC/Clang pick it up transitively via other
-    # standard headers; MSVC does not.
-    # IMPORTANT: ARROW_CXX_FLAGS_* is inside if(NOT MSVC) in Arrow's
-    # SetupCxxFlags.cmake and has NO effect on MSVC builds. We must set
-    # CMAKE_CXX_FLAGS_* directly, repeating the MSVC platform defaults so
-    # cmake does not lose them:
-    #   Debug defaults:          /Zi /Ob0 /Od /RTC1
-    #   Release defaults:        /O2 /Ob2 /DNDEBUG  (we replace /O2 with /O1)
-    #   RelWithDebInfo defaults: /Zi /O2 /Ob1 /DNDEBUG  (replace /O2 with /O1)
-    # Additional MSVC size-reduction flags:
-    #   /FI array  = force-include <array> (fixes size_statistics.cc)
-    #   /O1        = minimize size (replaces default /O2 in Release builds)
-    #   /Gy        = function-level COMDAT (equivalent of -ffunction-sections)
-    #   /Gw        = data-level COMDAT     (equivalent of -fdata-sections)
-    #   /wd4146    = allow unary minus on unsigned in Arrow SIMD code
-    #   /wd4996    = silence unsafe CRT warnings
-    #   /wd4244    = allow narrowing conversions in Arrow code
-    #   /wd4456    = nested-local shadow in generated benchmarks/examples
-    #   /wd4459    = parameter shadowing in vendored code
-    #   /wd4828    = source file encoding warnings from vendored headers
-    #   /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING
-    #              = suppress deprecated shared_ptr atomic free functions used
-    #                by Arrow 19.0.1 with newer MSVC toolsets.
-    #
-    # Also switch MSVC's __cplusplus macro to the real language level so
-    # Arrow's C++17 feature checks (e.g. std::void_t in type_traits.h) work.
-    # Without /Zc:__cplusplus MSVC reports 199711L even in C++17 mode, causing
-    # build failures like:
-    #   error C2039: 'void_t': is not a member of 'std'
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DCMAKE_CXX_STANDARD:STRING=17"
-        "-DCMAKE_CXX_STANDARD_REQUIRED:BOOL=ON"
-        "-DCMAKE_CXX_EXTENSIONS:BOOL=OFF"
-        "-DCMAKE_CXX_FLAGS:STRING=/Zc:__cplusplus"
-        "-DCMAKE_CXX_FLAGS_DEBUG:STRING=/Zc:__cplusplus /FIarray /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Zi /Ob0 /Od /RTC1"
-        "-DCMAKE_CXX_FLAGS_RELEASE:STRING=/Zc:__cplusplus /FIarray /O1 /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Ob2 /DNDEBUG"
-        "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO:STRING=/Zc:__cplusplus /FIarray /O1 /Gy /Gw /wd4146 /wd4996 /wd4244 /wd4456 /wd4459 /wd4828 /D_SILENCE_CXX20_OLD_SHARED_PTR_ATOMIC_SUPPORT_DEPRECATION_WARNING /Zi /Ob1 /DNDEBUG"
-    )
-    # Keep the corresponding C flags in sync with the size/debug goals.
-    list(APPEND ARROW_EXTRA_CMAKE_ARGS
-        "-DCMAKE_C_FLAGS_DEBUG:STRING=/Zi /Od /RTC1"
-        "-DCMAKE_C_FLAGS_RELEASE:STRING=/O1 /DNDEBUG"
-        "-DCMAKE_C_FLAGS_RELWITHDEBINFO:STRING=/Zi /O1 /DNDEBUG"
-    )
-endif()
-
-set(_arrow_ts_args "")
-if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
-    list(APPEND _arrow_ts_args DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
-endif()
+td_prepare_arrow_external(static)
 # Collect all Arrow cmake arguments into one list so we can wrap the configure
 # command with an environment prefix when necessary.
 set(_arrow_cmake_args
@@ -2570,6 +2639,7 @@ set(_arrow_cmake_args
     -DARROW_DEPENDENCY_SOURCE:STRING=BUNDLED
     -DARROW_VERBOSE_THIRDPARTY_BUILD:BOOL=OFF
     -DARROW_JEMALLOC:BOOL=OFF
+    -DARROW_MIMALLOC:BOOL=OFF
     -DARROW_BUILD_UTILITIES:BOOL=OFF
     -DARROW_USE_GLOG:BOOL=OFF
     -DPARQUET_REQUIRE_ENCRYPTION:BOOL=OFF
@@ -2579,53 +2649,11 @@ set(_arrow_cmake_args
     ${ARROW_EXTRA_CMAKE_ARGS}
 )
 
-# CMake 4.0+ removed compatibility with cmake_minimum_required(VERSION < 3.5).
-# Arrow 19.0.1 bundles mimalloc 2.0 which declares VERSION 3.0, causing the
-# mimalloc_ep configure step to fail on newer CMake. Raise the policy floor by
-# injecting CMAKE_POLICY_VERSION_MINIMUM into the Arrow sub-build environment.
-set(_arrow_configure_env "")
-if(NOT "${LOCAL_URL}" STREQUAL "")
-    string(REGEX REPLACE "/$" "" _arrow_thirdparty_mirror "${LOCAL_URL}")
-    list(APPEND _arrow_configure_env
-        "${CMAKE_COMMAND}" -E env
-        "ARROW_BOOST_URL=${_arrow_thirdparty_mirror}/boost_1_81_0.tar.gz"
-        "ARROW_SNAPPY_URL=${_arrow_thirdparty_mirror}/snappy-1.1.10.tar.gz"
-        "ARROW_THRIFT_URL=${_arrow_thirdparty_mirror}/thrift-0.20.0.tar.gz"
-    )
-endif()
-if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
-    if(_arrow_configure_env)
-        list(APPEND _arrow_configure_env "CMAKE_POLICY_VERSION_MINIMUM=3.5")
-    else()
-        set(_arrow_configure_env "${CMAKE_COMMAND}" -E env CMAKE_POLICY_VERSION_MINIMUM=3.5)
-    endif()
-endif()
-
-set(_arrow_generator_args -G "${CMAKE_GENERATOR}")
-if(CMAKE_GENERATOR_PLATFORM)
-    list(APPEND _arrow_generator_args -A "${CMAKE_GENERATOR_PLATFORM}")
-endif()
-if(CMAKE_GENERATOR_TOOLSET)
-    list(APPEND _arrow_generator_args -T "${CMAKE_GENERATOR_TOOLSET}")
-endif()
-
-set(_arrow_patch_command "")
-if(CMAKE_VERSION VERSION_GREATER_EQUAL "4.0")
-    # CMake 4.0+ removed compatibility with cmake_minimum_required(VERSION < 3.5).
-    # Arrow 19.0.1's bundled mimalloc declares VERSION 3.0, so patch Arrow's
-    # ThirdpartyToolchain.cmake to pass CMAKE_POLICY_VERSION_MINIMUM to every
-    # vendored dependency it builds.
-    set(_arrow_patch_command
-        "${CMAKE_COMMAND}"
-        -DARROW_SOURCE_DIR=<SOURCE_DIR>
-        -P "${CMAKE_CURRENT_LIST_DIR}/arrow-cmake4-mimalloc-fix.cmake"
-    )
-endif()
-
-if(_arrow_patch_command)
-    set(_arrow_patch_arg PATCH_COMMAND ${_arrow_patch_command})
-else()
-    set(_arrow_patch_arg "")
+set(ext_arrow_static_install_byproducts_available FALSE)
+set(_arrow_install_byproducts "")
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.26")
+    set(ext_arrow_static_install_byproducts_available TRUE)
+    set(_arrow_install_byproducts INSTALL_BYPRODUCTS ${ext_arrow_static_libs})
 endif()
 
 ExternalProject_Add(ext_arrow_static
@@ -2641,6 +2669,7 @@ ExternalProject_Add(ext_arrow_static
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
     INSTALL_COMMAND
         COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
+    ${_arrow_install_byproducts}
     EXCLUDE_FROM_ALL TRUE
     VERBATIM
 )
