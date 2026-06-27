@@ -84,6 +84,8 @@ class Configure:
             "draw_result": False,
             "host": "0.0.0.0",
             "port": 6035,
+            "certfile": None,
+            "keyfile": None,
         }
 
     def _get_default_conf_linux(self):
@@ -98,6 +100,8 @@ class Configure:
             "draw_result": False,
             "host": "0.0.0.0",
             "port": 6035,
+            "certfile": None,
+            "keyfile": None,
         }
 
     def _get_default_conf(self) -> dict:
@@ -150,6 +154,14 @@ class Configure:
         """return (host, port) for the HTTP server"""
         return self._conf['host'], self._conf['port']
 
+    def get_ssl_context(self) -> Optional[tuple]:
+        """return SSL context (certfile, keyfile) or None if SSL is not configured"""
+        certfile = self._conf.get('certfile')
+        keyfile = self._conf.get('keyfile')
+        if certfile and keyfile:
+            return (certfile, keyfile)
+        return None
+
     def get_img_dir(self) -> str:
         return self._conf["img_dir"]
 
@@ -198,6 +210,14 @@ class Configure:
             if port.isdigit():
                 self._conf['port'] = int(port)
             conf_vars.pop('bind')
+
+        if 'certfile' in conf_vars:
+            self._conf['certfile'] = conf_vars['certfile']
+            conf_vars.pop('certfile')
+
+        if 'keyfile' in conf_vars:
+            self._conf['keyfile'] = conf_vars['keyfile']
+            conf_vars.pop('keyfile')
 
         self._conf.update(conf_vars)
 

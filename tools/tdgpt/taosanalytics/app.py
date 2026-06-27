@@ -305,9 +305,19 @@ if __name__ == '__main__':
     # Run development server
     conf = Configure.get_instance()
     host, port = conf.get_server_bind()
-    AppLogger.info("Starting development server on %s:%d", host, port)
 
-    app.run(host=host, port=port)
+    # Setup SSL context for development/testing if certificates are provided
+    ssl_context = None
+    if args.certfile and args.keyfile:
+        ssl_context = (args.certfile, args.keyfile)
+        AppLogger.info("Starting development server on %s:%d with SSL", host, port)
+    elif conf.get_ssl_context():
+        ssl_context = conf.get_ssl_context()
+        AppLogger.info("Starting development server on %s:%d with SSL", host, port)
+    else:
+        AppLogger.info("Starting development server on %s:%d", host, port)
+
+    app.run(host=host, port=port, ssl_context=ssl_context)
 else:
     # Initialize on module import when used as a WSGI module (e.g. gunicorn).
     # When running as __main__, initialization is deferred until after argument

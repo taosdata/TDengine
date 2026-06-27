@@ -17,6 +17,12 @@ log_dir = _os.path.join(base_dir, 'log') if (on_windows or on_github_actions) el
 # list address and port
 bind = '0.0.0.0:6035'
 
+# SSL/TLS configuration (for production HTTPS support via gunicorn)
+# Uncomment and set the paths to enable HTTPS
+# certfile = '/path/to/cert.pem'
+# keyfile = '/path/to/key.pem'
+# ssl_version = 'TLSv1_2'
+
 # Number of worker processes (typically recommended 2 * CPU cores + 1)
 workers = 2
 

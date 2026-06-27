@@ -237,4 +237,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='TDgpt analytics service')
     parser.add_argument('-c', '--config', dest='conf_path', default=None,
                         help='path to configuration file')
+    parser.add_argument('--cert', dest='certfile', default=None,
+                        help='path to SSL certificate file')
+    parser.add_argument('--key', dest='keyfile', default=None,
+                        help='path to SSL private key file')
     return parser.parse_args()

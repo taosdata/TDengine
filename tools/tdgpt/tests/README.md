@@ -1,6 +1,6 @@
-# TDGPT Service Manager Tests
+# TDGPT Tests
 
-This directory contains unit tests for the TDGPT service management system.
+This directory contains unit tests and integration tests for the TDGPT service, including service management, configuration, and SSL/TLS functionality.
 
 ## Prerequisites
 
@@ -65,11 +65,16 @@ pytest -m "not skipif" tests/
 
 ## Test Structure
 
+### Unit Tests
 - **conftest.py**: Shared pytest fixtures and configuration
 - **test_process_manager.py**: Tests for ProcessManager class
 - **test_config.py**: Tests for Config class
 - **test_taosanode_service.py**: Tests for TaosanodeService class
 - **test_model_service.py**: Tests for ModelService class
+
+### Integration Tests
+- **test_ssl.py**: HTTPS connectivity tests for SSL-enabled service
+- **setup_ssl_test.sh**: Self-signed certificate generation helper
 
 ## Test Coverage
 
@@ -115,6 +120,72 @@ Tests use `unittest.mock` and `pytest-mock` for:
 - Mocking file operations
 - Mocking process management
 - Mocking logger calls
+
+## SSL/TLS Testing
+
+### Quick Start: SSL Development/Testing
+
+#### 1. Generate Self-Signed Certificate
+
+```bash
+# Use the helper script (recommended)
+bash tests/setup_ssl_test.sh .
+
+# Or manually generate
+openssl req -x509 -newkey rsa:4096 -nodes -days 365 \
+  -out cert.pem -keyout key.pem \
+  -subj "/C=CN/ST=BJ/L=Beijing/O=TDengine/CN=localhost"
+```
+
+#### 2. Start TDgpt with SSL
+
+```bash
+# Method 1: Command-line arguments
+python -m taosanalytics.app --cert cert.pem --key key.pem
+
+# Method 2: Configuration file
+# Edit taosanode.config.py and add:
+# certfile = 'cert.pem'
+# keyfile = 'key.pem'
+python -m taosanalytics.app -c taosanode.config.py
+```
+
+#### 3. Test HTTPS Connection
+
+```bash
+# Quick test with curl (skip certificate verification for self-signed certs)
+curl -k https://localhost:6035/status
+
+# Or use the Python test script
+python tests/test_ssl.py
+
+# Test with specific URL
+python tests/test_ssl.py -u https://your-server:6035
+```
+
+### Test Script Details
+
+**test_ssl.py** - Automated HTTPS connectivity test
+- Tests multiple endpoints: `/status`, `/list`, `/models`
+- Supports custom URLs and CA certificate bundles
+- Handles self-signed certificates with `--insecure` flag
+- Usage: `python tests/test_ssl.py [--url URL] [--ca-bundle PATH] [--insecure]`
+
+**setup_ssl_test.sh** - Helper script for certificate generation
+- Generates 4096-bit RSA self-signed certificate
+- Valid for 365 days
+- Usage: `bash tests/setup_ssl_test.sh [output_dir]`
+
+### Production SSL Setup
+
+For Gunicorn production deployment, see [../SSL_SETUP.md](../SSL_SETUP.md):
+
+```python
+# In taosanode.config.py
+certfile = '/path/to/cert.pem'
+keyfile = '/path/to/key.pem'
+ssl_version = 'TLSv1_2'
+```
 
 ## Continuous Integration
 
