@@ -244,12 +244,12 @@ SNode*     createViewNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pVie
 SNode*     createLimitNode(SAstCreateContext* pCxt, SNode* pLimit, SNode* pOffset);
 SNode*     createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order, ENullOrder nullOrder);
 SNode*     createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap);
-SNode*     createStateWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList, SNodeList* pOptions,
-                                 SNode* pTrueForLimit);
-SNode*     createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond, SNode* pTrueForLimit);
-SNode*     createTrueForCountNode(SAstCreateContext* pCxt, const SToken* pCount);
-SNode*     createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount);
-SNode*     createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount);
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList, SNodeList* pOptions, SNode* pTrueForLimit);
+SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond, SNode* pTrueForLimit);
+SNode* createEventStartLeafNode(SAstCreateContext* pCxt, SNode* pCond, SNode* pTrueFor);
+SNode* createTrueForCountNode(SAstCreateContext* pCxt, const SToken* pCount);
+SNode* createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount);
+SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount);
 SNode*     createTrueForDurationNode(SAstCreateContext* pCxt, SNode* pDuration);
 SNode*     createTrueForFullNode(SAstCreateContext* pCxt, SNode* pWindowLimit, SNode* pStartLimit, SNode* pEndLimit);
 SNode*     createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken,

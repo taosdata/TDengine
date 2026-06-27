@@ -135,6 +135,7 @@ typedef struct SStreamCacheReadInfo {
   int64_t      gid;
   TSKEY        start;
   TSKEY        end;
+  const char  *eventConditionPath;
   SSDataBlock *pBlock;
 } SStreamCacheReadInfo;
 

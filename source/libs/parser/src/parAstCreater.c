@@ -2039,6 +2039,21 @@ _err:
   return NULL;
 }
 
+SNode* createEventStartLeafNode(SAstCreateContext* pCxt, SNode* pCond, SNode* pTrueFor) {
+  SEventStartLeafNode* pLeaf = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EVENT_START_LEAF, (SNode**)&pLeaf);
+  CHECK_MAKE_NODE(pLeaf);
+  pLeaf->pCond = pCond;
+  pLeaf->pTrueFor = pTrueFor;
+  return (SNode*)pLeaf;
+_err:
+  nodesDestroyNode((SNode*)pLeaf);
+  nodesDestroyNode(pCond);
+  nodesDestroyNode(pTrueFor);
+  return NULL;
+}
+
 static bool parseTrueForCount(SAstCreateContext* pCxt, const SToken* pCount, int32_t* pValue) {
   int64_t count = taosStr2Int64(pCount->z, NULL, 10);
   if (count < 0 || count > INT32_MAX) {

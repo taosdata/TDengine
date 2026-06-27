@@ -57,14 +57,15 @@ typedef struct STokenBucket       STokenBucket;
 #define PLACE_HOLDER_PARTITION_IDX    BIT_FLAG_MASK(10)
 #define PLACE_HOLDER_PARTITION_TBNAME BIT_FLAG_MASK(11)
 #define PLACE_HOLDER_PARTITION_ROWS   BIT_FLAG_MASK(12)
-#define PLACE_HOLDER_GRPID            BIT_FLAG_MASK(13)
-#define PLACE_HOLDER_IDLE_START       BIT_FLAG_MASK(14)
-#define PLACE_HOLDER_IDLE_END         BIT_FLAG_MASK(15)
-#define PLACE_HOLDER_ROLLUP_TAG       BIT_FLAG_MASK(16)
-#define PLACE_HOLDER_ROLLUP_TBCOUNT   BIT_FLAG_MASK(17)
+#define PLACE_HOLDER_GRPID                BIT_FLAG_MASK(13)
+#define PLACE_HOLDER_IDLE_START           BIT_FLAG_MASK(14)
+#define PLACE_HOLDER_IDLE_END             BIT_FLAG_MASK(15)
+#define PLACE_HOLDER_ROLLUP_TAG           BIT_FLAG_MASK(16)
+#define PLACE_HOLDER_ROLLUP_TBCOUNT       BIT_FLAG_MASK(17)
+#define PLACE_HOLDER_EVENT_CONDITION_PATH BIT_FLAG_MASK(18)
 
-#define CREATE_STREAM_FLAG_NONE                     0
-#define CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB      BIT_FLAG_MASK(0)
+#define CREATE_STREAM_FLAG_NONE                0
+#define CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB BIT_FLAG_MASK(0)
 
 typedef enum EStreamPlaceholder {
   SP_NONE = 0,
@@ -974,6 +975,7 @@ typedef struct SSTriggerCalcParam {
   int64_t triggerTime;  // _tlocaltime
 
   int32_t notifyType;           // See also: ESTriggerEventType
+  char*   eventConditionPath;   // _event_condition_path
   char*   extraNotifyContent;   // NULL if not available
   char*   resultNotifyContent;  // does not serialize
   SArray* pExternalWindowData;
@@ -1083,6 +1085,7 @@ typedef struct SStreamRuntimeFuncInfo {
   int64_t groupId;
   int32_t rollupTbCount;
   int32_t curIdx; // for pesudo func calculation
+  char*    curEventConditionPath;
   int64_t sessionId;
   uint64_t streamGen;
   bool    withExternalWindow;

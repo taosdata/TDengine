@@ -908,6 +908,8 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return &pParams->wduration;
     case FUNCTION_TYPE_TWROWNUM:
       return &pParams->wrownum;
+    case FUNCTION_TYPE_TEVENT_CONDITION_PATH:
+      return pParams->eventConditionPath;
     case FUNCTION_TYPE_TPREV_LOCALTIME:
       return &pParams->prevLocalTime;
     case FUNCTION_TYPE_TLOCALTIME:
@@ -1090,6 +1092,29 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
         break;
       }
     }
+  } else if (FUNCTION_TYPE_TEVENT_CONDITION_PATH == t) {
+    SValueNode* pFirstVal = (SValueNode*)pFirstParam;
+    if (!IS_VAR_DATA_TYPE(pFirstVal->node.resType.type)) {
+      uError("invalid value type: %d for func: %d, should be varstr", pFirstVal->node.resType.type, funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+
+    const char* path = (const char*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    if (path == NULL) {
+      path = "";
+    }
+    int32_t pathLen = (int32_t)strlen(path);
+    char*   buf = taosMemoryCalloc(1, pathLen + VARSTR_HEADER_SIZE);
+    if (buf == NULL) {
+      return terrno;
+    }
+    if (pathLen > 0) {
+      memcpy(varDataVal(buf), path, pathLen);
+    }
+    varDataSetLen(buf, pathLen);
+    taosMemoryFreeClear(pFirstVal->datum.p);
+    pFirstVal->datum.p = buf;
+    pFirstVal->isNull = false;
   } else if (FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
     if (NULL == pParamNodes || LIST_LENGTH(pParamNodes) < 2) {
       uError("invalid stream external window column param list %p, len: %d", pParamNodes,

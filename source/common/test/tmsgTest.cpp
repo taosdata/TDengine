@@ -459,8 +459,130 @@ TEST(td_msg_test, stream_rollup_group_leaf_extracts_last_nchar_segment) {
   ASSERT_EQ(*(const TdUcs4*)leaf, (TdUcs4)'C');
 }
 
+TEST(td_msg_test, trigger_calc_request_preserves_event_condition_path) {
+  SArray* params = taosArrayInit(0, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(params, nullptr);
+  SArray* groupColVals = taosArrayInit(0, sizeof(SStreamGroupValue));
+  ASSERT_NE(groupColVals, nullptr);
+
+  const int32_t kEventWindowClose = 1;
+  const int32_t kEventWindowOpen = 2;
+
+  SSTriggerCalcParam param = {0};
+  param.triggerTime = 100;
+  param.notifyType = kEventWindowOpen;
+  param.eventConditionPath = (char*)"0.1";
+  param.extraNotifyContent = (char*)"{\"event\":\"open\"}";
+  ASSERT_NE(taosArrayPush(params, &param), nullptr);
+
+  SSTriggerCalcParam emptyPathParam = {0};
+  emptyPathParam.triggerTime = 200;
+  emptyPathParam.notifyType = kEventWindowClose;
+  ASSERT_NE(taosArrayPush(params, &emptyPathParam), nullptr);
+
+  SSTriggerCalcRequest req = {0};
+  req.streamId = 1;
+  req.runnerTaskId = 2;
+  req.sessionId = 3;
+  req.triggerType = STREAM_TRIGGER_EVENT;
+  req.gid = 4;
+  req.params = params;
+  req.groupColVals = groupColVals;
+
+  int32_t len = tSerializeSTriggerCalcRequest(NULL, 0, &req);
+  ASSERT_GT(len, 0);
+  std::vector<char> buf(len);
+  ASSERT_EQ(tSerializeSTriggerCalcRequest(buf.data(), len, &req), len);
+
+  SSTriggerCalcRequest out = {0};
+  ASSERT_EQ(tDeserializeSTriggerCalcRequest(buf.data(), len, &out), 0);
+  ASSERT_NE(out.params, nullptr);
+  ASSERT_EQ(taosArrayGetSize(out.params), 2);
+
+  SSTriggerCalcParam* first = (SSTriggerCalcParam*)taosArrayGet(out.params, 0);
+  ASSERT_NE(first, nullptr);
+  EXPECT_EQ(first->notifyType, kEventWindowOpen);
+  ASSERT_NE(first->eventConditionPath, nullptr);
+  EXPECT_STREQ(first->eventConditionPath, "0.1");
+  ASSERT_NE(first->extraNotifyContent, nullptr);
+  EXPECT_STREQ(first->extraNotifyContent, "{\"event\":\"open\"}");
+
+  SSTriggerCalcParam* second = (SSTriggerCalcParam*)taosArrayGet(out.params, 1);
+  ASSERT_NE(second, nullptr);
+  EXPECT_EQ(second->notifyType, kEventWindowClose);
+  ASSERT_NE(second->eventConditionPath, nullptr);
+  EXPECT_STREQ(second->eventConditionPath, "");
+  EXPECT_EQ(second->extraNotifyContent, nullptr);
+
+  tDestroySTriggerCalcRequest(&out);
+  taosArrayDestroy(groupColVals);
+  taosArrayDestroy(params);
+}
+
+TEST(td_msg_test, stream_runtime_info_preserves_current_event_condition_path) {
+  SArray* params = taosArrayInit(0, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(params, nullptr);
+  SArray* groupColVals = taosArrayInit(0, sizeof(SStreamGroupValue));
+  ASSERT_NE(groupColVals, nullptr);
+
+  SSTriggerCalcParam param = {0};
+  param.triggerTime = 100;
+  param.notifyType = 2;
+  param.eventConditionPath = (char*)"0.1";
+  param.extraNotifyContent = (char*)"{\"event\":\"open\"}";
+  ASSERT_NE(taosArrayPush(params, &param), nullptr);
+
+  SStreamRuntimeFuncInfo info = {0};
+  info.pStreamPesudoFuncVals = params;
+  info.pStreamPartColVals = groupColVals;
+  info.curEventConditionPath = (char*)"0.1";
+  info.groupId = 10;
+  info.rollupTbCount = 11;
+  info.curWindow = {.skey = 12, .ekey = 13};
+  info.curIdx = 0;
+  info.sessionId = 14;
+  info.triggerType = 15;
+  info.isWindowTrigger = true;
+  info.precision = TSDB_TIME_PRECISION_MILLI;
+  info.streamGen = 16;
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, nullptr, 0);
+  ASSERT_EQ(tSerializeStRtFuncInfo(&encoder, &info, true, false), 0);
+  int32_t len = encoder.pos;
+  ASSERT_GT(len, 0);
+  tEncoderClear(&encoder);
+
+  std::vector<uint8_t> buf(len);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tSerializeStRtFuncInfo(&encoder, &info, true, false), 0);
+  tEncoderClear(&encoder);
+
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  SStreamRuntimeFuncInfo out = {0};
+  ASSERT_EQ(tDeserializeStRtFuncInfo(&decoder, &out), 0);
+  tDecoderClear(&decoder);
+
+  ASSERT_NE(out.pStreamPesudoFuncVals, nullptr);
+  ASSERT_EQ(taosArrayGetSize(out.pStreamPesudoFuncVals), 1);
+  SSTriggerCalcParam* decoded = (SSTriggerCalcParam*)taosArrayGet(out.pStreamPesudoFuncVals, 0);
+  ASSERT_NE(decoded, nullptr);
+  EXPECT_EQ(decoded->triggerTime, param.triggerTime);
+  EXPECT_EQ(decoded->eventConditionPath, nullptr);
+  EXPECT_EQ(decoded->extraNotifyContent, nullptr);
+  ASSERT_NE(out.curEventConditionPath, nullptr);
+  EXPECT_STREQ(out.curEventConditionPath, "0.1");
+  EXPECT_EQ(out.groupId, info.groupId);
+  EXPECT_EQ(out.rollupTbCount, info.rollupTbCount);
+
+  tDestroyStRtFuncInfo(&out);
+  taosArrayDestroy(groupColVals);
+  taosArrayDestroy(params);
+}
+
 #include "SClientHbBatchReq.cpp"
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   processCommandArgs(argc, argv);
 
   testing::InitGoogleTest(&argc, argv);
