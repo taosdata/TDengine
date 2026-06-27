@@ -73,6 +73,7 @@ Supported properties list for creating consumers:
 - `ws.message.timeout`: WebSocket message timeout, default 5m.
 - `ws.message.writeWait`: WebSocket message write timeout, default 10s.
 - `ws.message.enableCompression`: Whether to enable compression for WebSocket, default false.
+- `ws.skipVerify`: Whether to skip TLS certificate verification for WebSocket Secure (`wss`) TMQ connections, default false (supported since `v3.8.1`; not recommended for production).
 - `ws.autoReconnect`: Whether WebSocket should automatically reconnect, default false.
 - `ws.reconnectIntervalMs`: WebSocket reconnect interval in milliseconds, default 2000.
 - `ws.reconnectRetryCount`: WebSocket reconnect retry count, default 3.

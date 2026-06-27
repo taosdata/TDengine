@@ -340,6 +340,7 @@ root:taosdata@ws([::1]:6041)/testdb
   - `token` 指定云服务使用的 token。
   - `bearerToken` 指定用于身份验证的 Bearer Token。
   - `totpCode` 指定用于双因素身份验证的 TOTP 码。
+  - `skipVerify` WebSocket Secure（`wss`）连接是否跳过 TLS 证书校验，默认为 false（`v3.8.1` 版本开始支持，生产环境不建议使用）。
   - `autoReconnect` 是否自动重连，默认为 false（`v3.8.0` 版本开始支持）。
   - `chanLength` 消息通道长度，默认为 1（`v3.8.0` 版本开始支持）。
   - `reconnectIntervalMs` 自动重连间隔（毫秒），默认为 2000（`v3.8.0` 版本开始支持）。

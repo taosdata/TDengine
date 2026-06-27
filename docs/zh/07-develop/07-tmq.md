@@ -176,6 +176,7 @@ Java 连接器创建消费者的参数为 Properties，可以设置的参数列�
 - `ws.message.timeout`：WebSocket 消息超时时间，默认 5m。
 - `ws.message.writeWait`：WebSocket 写入消息超时时间，默认 10s。
 - `ws.message.enableCompression`：WebSocket 是否启用压缩，默认 false。
+- `ws.skipVerify`：WebSocket Secure（`wss`）TMQ 连接是否跳过 TLS 证书校验，默认 false（`v3.8.1` 版本开始支持，生产环境不建议使用）。
 - `ws.autoReconnect`：WebSocket 是否自动重连，默认 false。
 - `ws.reconnectIntervalMs`：WebSocket 重连间隔时间毫秒，默认 2000。
 - `ws.reconnectRetryCount`：WebSocket 重连重试次数，默认 3。
