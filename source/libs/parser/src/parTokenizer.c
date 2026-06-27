@@ -438,6 +438,7 @@ static SKeyword keywordTable[] = {
     {"_TWEND",               TK_TWEND},
     {"_TWDURATION",          TK_TWDURATION},
     {"_TWROWNUM",            TK_TWROWNUM},
+    {"_EVENT_CONDITION_PATH", TK_TEVENT_CONDITION_PATH},
     {"_TPREV_LOCALTIME",     TK_TPREV_LOCALTIME},
     {"_TNEXT_LOCALTIME",     TK_TNEXT_LOCALTIME},
     {"_TLOCALTIME",          TK_TLOCALTIME},

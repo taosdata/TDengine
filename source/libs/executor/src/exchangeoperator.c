@@ -1361,14 +1361,29 @@ _return:
   return code;
 }
 
-static int32_t getCurrentWinCalcTimeRange(SStreamRuntimeFuncInfo* pRuntimeInfo, STimeWindow* pTimeRange) {
-  if (!pRuntimeInfo || !pTimeRange) {
+static int32_t getCurrentWinCalcParam(SStreamRuntimeFuncInfo* pRuntimeInfo, SSTriggerCalcParam** ppParam) {
+  if (!pRuntimeInfo || !ppParam) {
     return TSDB_CODE_INTERNAL_ERROR;
   }
 
   SSTriggerCalcParam* pParam = taosArrayGet(pRuntimeInfo->pStreamPesudoFuncVals, pRuntimeInfo->curIdx);
   if (!pParam) {
     return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  *ppParam = pParam;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getCurrentWinCalcTimeRange(SStreamRuntimeFuncInfo* pRuntimeInfo, STimeWindow* pTimeRange) {
+  if (!pRuntimeInfo || !pTimeRange) {
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  SSTriggerCalcParam* pParam = NULL;
+  int32_t             code = getCurrentWinCalcParam(pRuntimeInfo, &pParam);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
 
   switch (pRuntimeInfo->triggerType) {
@@ -1460,6 +1475,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     bool needStreamRtInfo = true;
     bool needStreamGrpInfo = false;
     SResFetchReq req = {0};
+    SStreamRuntimeFuncInfo cacheRtInfo = {0};
     req.header.vgId = pSource->addr.nodeId;
     req.sId = pSource->sId;
     req.clientId = pSource->clientId;
@@ -1474,8 +1490,14 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
       if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_RUNNER) {
         qDebug("%s stream fetch from runner, execId:%d, %p", GET_TASKID(pTaskInfo), req.execId, pTaskInfo->pStreamRuntimeInfo);
       } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_FROM_CACHE) {
+        SSTriggerCalcParam* pParam = NULL;
+        code = getCurrentWinCalcParam(req.pStRtFuncInfo, &pParam);
+        QUERY_CHECK_CODE(code, lino, _end);
         code = getCurrentWinCalcTimeRange(req.pStRtFuncInfo, &req.pStRtFuncInfo->curWindow);
         QUERY_CHECK_CODE(code, lino, _end);
+        cacheRtInfo = *req.pStRtFuncInfo;
+        cacheRtInfo.curEventConditionPath = pParam->eventConditionPath;
+        req.pStRtFuncInfo = &cacheRtInfo;
         needStreamRtInfo = false;
         qDebug("%s stream fetch from cache, execId:%d, curWinIdx:%d, time range:[%" PRId64 ", %" PRId64 "]",
                GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, req.pStRtFuncInfo->curWindow.skey,
