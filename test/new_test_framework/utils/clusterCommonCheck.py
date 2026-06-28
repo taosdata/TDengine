@@ -18,6 +18,7 @@ import threading
 import requests
 import time
 import taos
+import os
 
 from .log import *
 from .sql import *
@@ -37,6 +38,8 @@ class ClusterComCheck:
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def checkDnodes(self, dnodeNum, timeout=100):
+        if os.environ.get("CI_ASAN_BUILD", "0") == "1":
+            timeout = max(timeout, timeout * 2)
         count = 0
 
         while count < timeout:

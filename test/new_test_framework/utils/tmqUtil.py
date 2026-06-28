@@ -21,7 +21,7 @@ import platform
 import os
 # import socketfrom
 
-from new_test_framework.utils import tdLog, tdSql, tdCom, cluster
+from new_test_framework.utils import tdLog, tdSql, tdCom, cluster, clusterComCheck
 
 # class actionType(Enum):
 #     CREATE_DATABASE = 0
@@ -65,7 +65,9 @@ class TMQCom:
                         tdLog.exit("rm error")
 
                 tdDnodes[dnodeId - 1].starttaosd()
-                time.sleep(1)
+                _asan = os.environ.get("CI_ASAN_BUILD", "0") == "1"
+                time.sleep(5 if _asan else 1)
+                clusterComCheck.checkDnodes(len(tdDnodes), timeout=180 if _asan else 100)
                 break
         tdLog.info("restart dnode ok")
 

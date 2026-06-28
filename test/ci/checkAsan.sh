@@ -72,6 +72,7 @@ else
   # 非 arm64 只关心真泄漏
   [[ $non_32 -eq 0 ]] && echo "no memory leak detected"
 fi
+memory_leak=${non_32}
 
 # shellcheck disable=SC2126
 indirect_leak=$(cat "${LOG_DIR}"/*.asan | grep "Indirect leak" | wc -l)
