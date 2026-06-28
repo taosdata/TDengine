@@ -2016,6 +2016,7 @@ int32_t tableMetaWriterCommit(SBtableMetaWriter *pMeta) {
 _error:
   if (code != 0) {
     bseError("failed to commit table meta %s at line %d since %s", pMeta->name, lino, tstrerror(code));
+    // Intentionally no tableMetaWriterClose here: lifetime is owned by the caller (tableMetaCommit).
   }
   return code;
 }
