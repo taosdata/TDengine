@@ -33,8 +33,7 @@ class TestVtableAuthSelect:
 
         Since: v3.3.6.0
 
-        Labels: virtual, select, auth
-
+        Labels: auth,select,virtual,integration,functional
         Jira: None
 
         History:
@@ -110,8 +109,7 @@ class TestVtableAuthSelect:
 
         Since: v3.3.6.0
 
-        Labels: virtual, select, auth
-
+        Labels: auth,select,virtual,integration,functional
         Jira: None
 
         History:

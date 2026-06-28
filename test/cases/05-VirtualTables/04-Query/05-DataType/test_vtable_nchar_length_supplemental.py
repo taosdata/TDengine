@@ -227,8 +227,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, scenario, gt, no_truncation
-
+        Labels: gt,no_truncation,scenario,virtual,integration,functional
         Jira: None
 
         History:
@@ -272,8 +271,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, scenario, eq, no_truncation
-
+        Labels: eq,no_truncation,scenario,virtual,integration,functional
         Jira: None
 
         History:
@@ -322,8 +320,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, scenario, lt, no_truncation, key
-
+        Labels: key,lt,no_truncation,scenario,virtual,integration,functional
         Jira: None
 
         History:
@@ -368,8 +365,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, scenario, consistency, key
-
+        Labels: consistency,key,scenario,virtual,integration,functional
         Jira: None
 
         History:
@@ -414,8 +410,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, edge, empty_string
-
+        Labels: edge,empty_string,virtual,integration,functional
         Jira: None
 
         History:
@@ -442,8 +437,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, edge, single_char
-
+        Labels: edge,single_char,virtual,integration,functional
         Jira: None
 
         History:
@@ -470,8 +464,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, edge, null
-
+        Labels: edge,null,virtual,integration,functional
         Jira: None
 
         History:
@@ -500,8 +493,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, unicode, emoji
-
+        Labels: emoji,unicode,virtual,integration,functional
         Jira: None
 
         History:
@@ -526,8 +518,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, unicode, symbols
-
+        Labels: symbols,unicode,virtual,integration,functional
         Jira: None
 
         History:
@@ -552,8 +543,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, unicode, mixed
-
+        Labels: mixed,unicode,virtual,integration,functional
         Jira: None
 
         History:
@@ -580,8 +570,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, varchar
-
+        Labels: varchar,virtual,integration,functional
         Jira: None
 
         History:
@@ -606,8 +595,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, varbinary
-
+        Labels: varbinary,virtual,integration,functional
         Jira: None
 
         History:
@@ -635,8 +623,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, super_table, consistency
-
+        Labels: consistency,super_table,virtual,integration,functional
         Jira: None
 
         History:
@@ -672,8 +659,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, super_table, aggregate
-
+        Labels: aggregate,super_table,virtual,integration,functional
         Jira: None
 
         History:
@@ -701,8 +687,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, consistency
-
+        Labels: consistency,virtual,integration,functional
         Jira: None
 
         History:
@@ -736,8 +721,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, string, unicode
-
+        Labels: string,unicode,virtual,integration,functional
         Jira: None
 
         History:
@@ -762,8 +746,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, string, concat
-
+        Labels: concat,string,virtual,integration,functional
         Jira: None
 
         History:
@@ -789,8 +772,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, null, string
-
+        Labels: null,string,virtual,integration,functional
         Jira: None
 
         History:
@@ -814,8 +796,7 @@ class TestVtableNcharLengthSupplemental:
 
         Since: v3.3.6.0
 
-        Labels: virtual, null, aggregate
-
+        Labels: aggregate,null,virtual,integration,functional
         Jira: None
 
         History:

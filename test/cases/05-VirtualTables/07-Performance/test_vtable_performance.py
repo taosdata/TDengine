@@ -220,8 +220,7 @@ class TestVtablePerformance:
 
         Since: v3.3.6.0
 
-        Labels: virtual, performance
-
+        Labels: performance,virtual,integration,functional
         Jira: None
 
         History:
@@ -253,8 +252,7 @@ class TestVtablePerformance:
 
         Since: v3.3.6.0
 
-        Labels: virtual, performance
-
+        Labels: performance,virtual,integration,functional
         Jira: None
 
         History:
@@ -296,8 +294,7 @@ class TestVtablePerformance:
 
         Since: v3.3.6.0
 
-        Labels: virtual, performance
-
+        Labels: performance,virtual,integration,functional
         Jira: None
 
         History:
@@ -330,8 +327,7 @@ class TestVtablePerformance:
 
         Since: v3.3.6.0
 
-        Labels: virtual, performance
-
+        Labels: performance,virtual,integration,functional
         Jira: None
 
         History:
@@ -364,8 +360,7 @@ class TestVtablePerformance:
 
         Since: v3.3.6.0
 
-        Labels: virtual, performance
-
+        Labels: performance,virtual,integration,functional
         Jira: None
 
         History:
@@ -395,8 +390,7 @@ class TestVtablePerformance:
 
         Since: v3.3.6.0
 
-        Labels: virtual, performance
-
+        Labels: performance,virtual,integration,functional
         Jira: None
 
         History:
@@ -427,8 +421,7 @@ class TestVtablePerformance:
 
         Since: v3.3.6.0
 
-        Labels: virtual, performance
-
+        Labels: performance,virtual,integration,functional
         Jira: None
 
         History:
@@ -455,8 +448,7 @@ class TestVtablePerformance:
 
         Since: v3.3.6.0
 
-        Labels: virtual, performance
-
+        Labels: performance,virtual,integration,functional
         Jira: None
 
         History:
@@ -488,8 +480,7 @@ class TestVtablePerformance:
 
         Since: v3.3.6.0
 
-        Labels: virtual, performance
-
+        Labels: performance,virtual,integration,functional
         Jira: None
 
         History:
@@ -523,8 +514,7 @@ class TestVtablePerformance:
 
         Since: v3.3.6.0
 
-        Labels: virtual, performance
-
+        Labels: performance,virtual,integration,functional
         Jira: None
 
         History:
@@ -551,8 +541,7 @@ class TestVtablePerformance:
 
         Since: v3.3.6.0
 
-        Labels: virtual, performance
-
+        Labels: performance,virtual,integration,functional
         Jira: None
 
         History:

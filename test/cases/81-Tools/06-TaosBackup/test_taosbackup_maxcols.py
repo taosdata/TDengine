@@ -571,9 +571,14 @@ class TestTaosBackupMaxcols:
 
         Since: v3.3.6.0
 
+<<<<<<< HEAD:source/taos-community/test/cases/81-Tools/06-TaosBackup/test_taosbackup_maxcols.py
         Labels: common,ci
 
         Jira: TD-6993142503
+=======
+        Labels: common,ci,integration,functional
+        Jira: TD-6989427572
+>>>>>>> aee7fe4a56da59285d6c07ca33174b1c818c185c:source/taos-community/test/cases/81-Tools/04-Taosdump/test_taosdump_maxcols.py
 
         History:
             - 2025-05-15 Alex Duan Created (migrated from taosdump MR !224)

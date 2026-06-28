@@ -18,7 +18,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_core_fixture()
 
@@ -37,7 +37,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_multi_fileset_core_fixture()
 
@@ -58,7 +58,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_stt_fixture()
 
@@ -76,7 +76,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         with tempfile.NamedTemporaryFile(delete=False) as fp:
             fp.write(b"x" * 64)
@@ -102,7 +102,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         fixture = self._prepare_core_fixture()
         dbname = fixture["dbname"]
@@ -135,7 +135,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         dbname = f"tsdb_repair_dispatch_{int(time.time())}"
         tdSql.execute(f"drop database if exists {dbname}")
@@ -185,7 +185,7 @@ class TestTsdbForceRepairMetadata(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         dbname = f"tsdb_repair_entry_{int(time.time())}"
         tdSql.execute(f"drop database if exists {dbname}")

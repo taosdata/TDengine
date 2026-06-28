@@ -18,8 +18,7 @@ class TestStreamOutputTable:
         Catalog:
             - Streams: 02-Stream
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TS-7721
 
         History:

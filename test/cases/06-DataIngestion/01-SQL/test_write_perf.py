@@ -119,8 +119,7 @@ class TestInsertPerf:
 
         Since: v3.0.0.0
 
-        Labels: common,ci,skip
-
+        Labels: common,ci,skip,integration,functional
         Jira: None
 
         History:

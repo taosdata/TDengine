@@ -23,8 +23,7 @@ class TestTmqForceDropTopic:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TD-35287
 
         History:

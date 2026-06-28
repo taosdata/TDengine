@@ -192,8 +192,7 @@ class TestBatchAlterTag:
         
         Since: v3.4.1.0
 
-        Labels: tmq,alter
-
+        Labels: alter,tmq,integration,functional
         Jira: None
 
         History:

@@ -29,8 +29,7 @@ class TestMetaSysDb2:
 
         Since: v3.3.6
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TS-7600
 
         History:

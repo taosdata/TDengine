@@ -35,8 +35,7 @@ class TestIdmpTobacco:
 
         Since: v3.3.6.14
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TD-36514
 
         History:

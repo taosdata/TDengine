@@ -422,8 +422,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: common, virtual, validate
-
+        Labels: common,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -455,8 +454,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: common, virtual, validate
-
+        Labels: common,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -488,8 +486,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: common, virtual, validate
-
+        Labels: common,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -919,8 +916,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: common, virtual, validate
-
+        Labels: common,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -962,8 +958,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: common, virtual, validate
-
+        Labels: common,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1020,8 +1015,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: common, virtual, validate
-
+        Labels: common,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1069,8 +1063,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: common, virtual, validate
-
+        Labels: common,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1121,8 +1114,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: common, virtual, validate
-
+        Labels: common,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1152,8 +1144,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: common, virtual, validate
-
+        Labels: common,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1191,8 +1182,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: common, virtual, validate
-
+        Labels: common,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1237,8 +1227,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: common, virtual, validate
-
+        Labels: common,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1311,8 +1300,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, complex
-
+        Labels: complex,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1392,8 +1380,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, complex
-
+        Labels: complex,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1470,8 +1457,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, complex
-
+        Labels: complex,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1565,8 +1551,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, cross-db
-
+        Labels: cross-db,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1658,8 +1643,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, cross-db
-
+        Labels: cross-db,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1738,8 +1722,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, cross-db
-
+        Labels: cross-db,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1808,8 +1791,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, combination
-
+        Labels: combination,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1858,8 +1840,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, combination
-
+        Labels: combination,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -1957,8 +1938,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, types
-
+        Labels: types,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2011,8 +1991,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show
-
+        Labels: show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2038,8 +2017,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show
-
+        Labels: show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2069,8 +2047,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, cross-db
-
+        Labels: cross-db,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2097,8 +2074,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show
-
+        Labels: show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2126,8 +2102,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, negative
-
+        Labels: negative,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2154,8 +2129,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, negative
-
+        Labels: negative,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2182,8 +2156,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show
-
+        Labels: show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2215,8 +2188,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show
-
+        Labels: show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2263,8 +2235,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show
-
+        Labels: show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2292,8 +2263,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show
-
+        Labels: show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2328,8 +2298,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, schema
-
+        Labels: exception,schema,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2389,8 +2358,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, schema
-
+        Labels: exception,schema,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2441,8 +2409,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, schema
-
+        Labels: exception,schema,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2492,8 +2459,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, schema
-
+        Labels: exception,schema,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2559,8 +2525,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, schema
-
+        Labels: schema,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2606,8 +2571,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, schema
-
+        Labels: exception,schema,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2659,8 +2623,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, table
-
+        Labels: exception,show,table,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2710,8 +2673,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, table
-
+        Labels: show,table,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2758,8 +2720,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, table
-
+        Labels: exception,show,table,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2809,8 +2770,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, table
-
+        Labels: exception,show,table,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2864,8 +2824,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, table
-
+        Labels: exception,show,table,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2922,8 +2881,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, cross-db
-
+        Labels: cross-db,exception,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -2980,8 +2938,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, cross-db
-
+        Labels: cross-db,exception,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -3037,8 +2994,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, cross-db
-
+        Labels: cross-db,exception,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -3113,8 +3069,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, cross-db
-
+        Labels: cross-db,exception,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -3182,8 +3137,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, negative
-
+        Labels: exception,negative,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -3211,8 +3165,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, negative
-
+        Labels: exception,negative,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -3240,8 +3193,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, negative
-
+        Labels: exception,negative,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -3265,8 +3217,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, negative
-
+        Labels: exception,negative,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -3305,8 +3256,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, mixed
-
+        Labels: exception,mixed,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -3392,8 +3342,7 @@ class TestVtableValidateReferencing:
 
         Since: v3.3.6.0
 
-        Labels: virtual, validate, show, exception, cascade
-
+        Labels: cascade,exception,show,validate,virtual,integration,functional
         Jira: None
 
         History:
@@ -3464,8 +3413,7 @@ class TestVtableValidateReferencing:
         
         Since: v3.3.6.0
         
-        Labels: virtual, validate, show, edge-case
-        
+        Labels: edge-case,show,validate,virtual,integration,functional
         Jira: None
         
         History:
@@ -3502,8 +3450,7 @@ class TestVtableValidateReferencing:
         
         Since: v3.3.6.0
         
-        Labels: virtual, validate, show, many-cols
-        
+        Labels: many-cols,show,validate,virtual,integration,functional
         Jira: None
         
         History:
@@ -3545,8 +3492,7 @@ class TestVtableValidateReferencing:
         
         Since: v3.3.6.0
         
-        Labels: virtual, validate, show, error-msg
-        
+        Labels: error-msg,show,validate,virtual,integration,functional
         Jira: None
         
         History:
@@ -3596,8 +3542,7 @@ class TestVtableValidateReferencing:
         
         Since: v3.3.6.0
         
-        Labels: virtual, validate, show, concurrent
-        
+        Labels: concurrent,show,validate,virtual,integration,functional
         Jira: None
         
         History:
@@ -3629,8 +3574,7 @@ class TestVtableValidateReferencing:
         
         Since: v3.3.6.0
         
-        Labels: virtual, validate, show, vstb
-        
+        Labels: show,validate,virtual,vstb,integration,functional
         Jira: None
         
         History:
@@ -3659,8 +3603,7 @@ class TestVtableValidateReferencing:
         
         Since: v3.3.6.0
         
-        Labels: virtual, validate, show, stability
-        
+        Labels: show,stability,validate,virtual,integration,functional
         Jira: None
         
         History:
@@ -3802,8 +3745,7 @@ class TestVtableValidateReferencing:
         
         Since: v3.3.6.0
         
-        Labels: virtual, validate, show, alter
-        
+        Labels: alter,show,validate,virtual,integration,functional
         Jira: None
         
         History:
@@ -3848,8 +3790,7 @@ class TestVtableValidateReferencing:
         
         Since: v3.3.6.0
         
-        Labels: virtual, validate, show, special-names
-        
+        Labels: show,special-names,validate,virtual,integration,functional
         Jira: None
         
         History:
@@ -3894,8 +3835,7 @@ class TestVtableValidateReferencing:
         
         Since: v3.3.6.0
         
-        Labels: virtual, validate, show, ordering
-        
+        Labels: ordering,show,validate,virtual,integration,functional
         Jira: None
         
         History:

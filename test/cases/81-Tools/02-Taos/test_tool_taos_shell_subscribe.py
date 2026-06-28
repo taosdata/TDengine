@@ -101,8 +101,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -120,8 +119,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -137,8 +135,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -155,8 +152,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -175,8 +171,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -196,8 +191,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -216,8 +210,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -236,8 +229,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -269,8 +261,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -293,8 +284,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -313,8 +303,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -334,8 +323,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -357,8 +345,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -387,8 +374,7 @@ class TestTaosShellSubscribe:
 
         Since: v3.4.2.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

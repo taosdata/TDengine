@@ -446,8 +446,7 @@ class TestSelectFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2024-9-28 qevolg Created
             - 2025-5-08 Huo Hong Migrated to new test framework

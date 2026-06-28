@@ -17,8 +17,7 @@ class TestString:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -746,8 +745,7 @@ class TestString:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-14 Alex Duan add doc
 
@@ -765,8 +763,7 @@ class TestString:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-15 Alex Duan add doc
 

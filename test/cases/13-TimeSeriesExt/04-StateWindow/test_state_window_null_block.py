@@ -35,8 +35,7 @@ class TestStateWindowNullBlock:
 
         Since: v3.3.8.5
 
-        Labels: state window, null block
-
+        Labels: null block,state window,integration,functional
         Jira: TS-7129
 
         Catalog:

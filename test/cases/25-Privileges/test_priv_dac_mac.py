@@ -1550,8 +1550,7 @@ class TestCase:
         
         Since: v3.4.1.0
 
-        Labels: basic,ci
-
+        Labels: ci,basic,integration,functional,security
         Jira: 6670071929,6671585124
 
         History:

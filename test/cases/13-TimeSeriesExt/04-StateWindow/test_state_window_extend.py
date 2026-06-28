@@ -27,8 +27,7 @@ class TestStateWindowExtend:
 
         Since: v3.3.8.0
 
-        Labels: state window, extend, stream
-
+        Labels: extend,state window,stream,integration,functional
         Jira: TS-7129
 
         Catalog:

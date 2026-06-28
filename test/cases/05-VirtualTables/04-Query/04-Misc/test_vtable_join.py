@@ -182,8 +182,7 @@ class TestVtableJoin:
 
         Since: v3.3.6.0
 
-        Labels: virtual, join
-
+        Labels: join,virtual,integration,functional
         Jira: None
 
         History:

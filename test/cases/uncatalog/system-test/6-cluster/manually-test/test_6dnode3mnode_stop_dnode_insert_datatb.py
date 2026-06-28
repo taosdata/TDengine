@@ -168,8 +168,7 @@ class Test6dnode3mnodeStopDnodeInsertDatatb:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional
         Jira: xxx
 
         Catalog:

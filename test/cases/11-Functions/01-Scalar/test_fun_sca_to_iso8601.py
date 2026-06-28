@@ -188,8 +188,7 @@ class TestFunToIso8601:
    
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -210,8 +209,7 @@ class TestFunToIso8601:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2025-10-16 Alex Duan add doc
 

@@ -168,8 +168,7 @@ class TestVTableQuery:
 
         Since: v3.3.8.0
 
-        Labels: virtual
-
+        Labels: virtual,integration,functional
         Jira: None
 
         History:

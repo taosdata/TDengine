@@ -60,8 +60,7 @@ class TestVTableQueryBoundary:
 
         Catalog: query/window
 
-        Labels: virtual_table,state_window,boundary_case,window_optimize
-
+        Labels: boundary_case,state_window,virtual_table,window_optimize,integration,functional
         History:
             - 2026-05-29 Codex Added regression case
 
@@ -117,8 +116,7 @@ class TestVTableQueryBoundary:
 
         Catalog: query/window
 
-        Labels: virtual_table,event_window,boundary_case,window_optimize
-
+        Labels: boundary_case,event_window,virtual_table,window_optimize,integration,functional
         History:
             - 2026-03-05 Jing Sima Added boundary regression case
             - 2026-03-05 Codex Rewrote metadata to align with guideline
@@ -147,8 +145,7 @@ class TestVTableQueryBoundary:
 
         Catalog: query/window
 
-        Labels: virtual_table,event_window,boundary_case,window_optimize
-
+        Labels: boundary_case,event_window,virtual_table,window_optimize,integration,functional
         History:
             - 2026-03-05 Jing Sima Added boundary regression case
             - 2026-03-05 Codex Rewrote metadata to align with guideline
@@ -193,8 +190,7 @@ class TestVTableQueryBoundary:
 
         Catalog: query/window
 
-        Labels: virtual_table,event_window,true_for,boundary_case
-
+        Labels: boundary_case,event_window,true_for,virtual_table,integration,functional
         History:
             - 2026-03-05 Codex Added semantic cross-check for TRUE_FOR
 

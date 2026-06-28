@@ -391,8 +391,7 @@ class TestCase:
 
         Since: 2026-03-13
 
-        Labels: grant, timeseries, system-table, audit, log, regression
-
+        Labels: audit,grant,log,regression,system-table,timeseries,integration,functional,security
         Jira: 6672169603
 
         Catalog:

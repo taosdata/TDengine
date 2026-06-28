@@ -36,7 +36,7 @@ class TestWalForceRepairE2E(TsdbForceRepairBase):
 
         Since: v3.4.1.0
 
-        Labels: common,ci
+        Labels: common,ci,integration,functional
         """
         dbname = f"wal_force_repair_{int(time.time())}"
         tdSql.execute(f"drop database if exists {dbname}")

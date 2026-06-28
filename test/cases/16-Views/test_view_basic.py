@@ -783,7 +783,7 @@ class TestViewBasic:
 
         Since: v3.3.7.0
 
-        Lables: common,ci,mount
+        Labels: common,ci,mount,integration,functional
 
         Jira: TS-5868
 

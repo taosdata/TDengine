@@ -345,8 +345,7 @@ class TestVtableNcharLength:
 
         Since: v3.3.6.0
 
-        Labels: virtual, nchar, binary, length
-
+        Labels: binary,length,nchar,virtual,integration,functional
         Jira: None
 
         History:
@@ -379,8 +378,7 @@ class TestVtableNcharLength:
 
         Since: v3.3.6.0
 
-        Labels: virtual, nchar, binary, length
-
+        Labels: binary,length,nchar,virtual,integration,functional
         Jira: None
 
         History:
@@ -413,8 +411,7 @@ class TestVtableNcharLength:
 
         Since: v3.3.6.0
 
-        Labels: virtual, nchar, binary, length
-
+        Labels: binary,length,nchar,virtual,integration,functional
         Jira: None
 
         History:
@@ -447,8 +444,7 @@ class TestVtableNcharLength:
 
         Since: v3.3.6.0
 
-        Labels: virtual, nchar, binary, length
-
+        Labels: binary,length,nchar,virtual,integration,functional
         Jira: None
 
         History:
@@ -484,8 +480,7 @@ class TestVtableNcharLength:
 
         Since: v3.3.6.0
 
-        Labels: virtual, nchar, binary, length
-
+        Labels: binary,length,nchar,virtual,integration,functional
         Jira: None
 
         History:
@@ -550,8 +545,7 @@ class TestVtableNcharLength:
 
         Since: v3.3.6.0
 
-        Labels: virtual, nchar, binary, length
-
+        Labels: binary,length,nchar,virtual,integration,functional
         Jira: None
 
         History:
