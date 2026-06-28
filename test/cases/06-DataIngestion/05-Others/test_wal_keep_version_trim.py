@@ -3,7 +3,7 @@ import os
 import time
 import json
 
-from new_test_framework.utils import tdLog, tdSql, sc, tdDnodes,clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, sc, tdDnodes,clusterComCheck, ci_scaled_retry
 
 
 class TestWalKeepVersionTrim:
@@ -57,7 +57,7 @@ class TestWalKeepVersionTrim:
         tdSql.query("show test.vgroups")
         tdSql.checkData(0, 20, 0)
 
-        max_retry = 240
+        max_retry = ci_scaled_retry(240)
         # check wal vgId 2 firstVer is 0
         for dnode_id in [1,2,3]:
             check_ver = False
