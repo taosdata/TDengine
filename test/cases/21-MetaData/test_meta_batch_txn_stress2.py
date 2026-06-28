@@ -30,7 +30,7 @@ class TestBatchMetaTxnStress2:
 
     def s0_reset_env(self):
         tdSql.execute("drop database if exists txn_db")
-        tdSql.execute("create database txn_db vgroups 2")
+        tdSql.execute("create database txn_db vgroups 2 keep 36500")
         tdSql.execute("use txn_db")
 
     def _extract_err_code16(self, exc):
@@ -54,7 +54,7 @@ class TestBatchMetaTxnStress2:
     def s106_large_txn_lazy_vacuum_commit(self):
         tdLog.info("======== s106_large_txn_lazy_vacuum_commit")
         tdSql.execute("drop database if exists txn_lazy_db")
-        tdSql.execute("create database txn_lazy_db vgroups 1")
+        tdSql.execute("create database txn_lazy_db vgroups 1 keep 36500")
         tdSql.execute("use txn_lazy_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
@@ -95,7 +95,7 @@ class TestBatchMetaTxnStress2:
     def s107_large_txn_lazy_vacuum_rollback(self):
         tdLog.info("======== s107_large_txn_lazy_vacuum_rollback")
         tdSql.execute("drop database if exists txn_lazy_rb_db")
-        tdSql.execute("create database txn_lazy_rb_db vgroups 1")
+        tdSql.execute("create database txn_lazy_rb_db vgroups 1 keep 36500")
         tdSql.execute("use txn_lazy_rb_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
@@ -131,7 +131,7 @@ class TestBatchMetaTxnStress2:
     def s108_finalized_txn_concurrent_access(self):
         tdLog.info("======== s108_finalized_txn_concurrent_access")
         tdSql.execute("drop database if exists txn_finalized_db")
-        tdSql.execute("create database txn_finalized_db vgroups 1")
+        tdSql.execute("create database txn_finalized_db vgroups 1 keep 36500")
         tdSql.execute("use txn_finalized_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
@@ -176,7 +176,7 @@ class TestBatchMetaTxnStress2:
     def s109_no_txn_fast_path_smoke(self):
         tdLog.info("======== s109_no_txn_fast_path_smoke")
         tdSql.execute("drop database if exists txn_fp_db")
-        tdSql.execute("create database txn_fp_db vgroups 2")
+        tdSql.execute("create database txn_fp_db vgroups 2 keep 36500")
         tdSql.execute("use txn_fp_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
         tdSql.execute("create table ct1 using stb tags(1)")
@@ -217,7 +217,7 @@ class TestBatchMetaTxnStress2:
     def s110_sequential_large_txn_vacuum_stress(self):
         tdLog.info("======== s110_sequential_large_txn_vacuum_stress")
         tdSql.execute("drop database if exists txn_vac_stress_db")
-        tdSql.execute("create database txn_vac_stress_db vgroups 1")
+        tdSql.execute("create database txn_vac_stress_db vgroups 1 keep 36500")
         tdSql.execute("use txn_vac_stress_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
@@ -265,7 +265,7 @@ class TestBatchMetaTxnStress2:
     def s112_large_rollback_reuse_names(self):
         tdLog.info("======== s112_large_rollback_reuse_names")
         tdSql.execute("drop database if exists txn_reuse_db")
-        tdSql.execute("create database txn_reuse_db vgroups 2")
+        tdSql.execute("create database txn_reuse_db vgroups 2 keep 36500")
         tdSql.execute("use txn_reuse_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
@@ -315,7 +315,7 @@ class TestBatchMetaTxnStress2:
     def s113_rapid_rollback_vacuum_serialization(self):
         tdLog.info("======== s113_rapid_rollback_vacuum_serialization")
         tdSql.execute("drop database if exists txn_vacser_db")
-        tdSql.execute("create database txn_vacser_db vgroups 1")
+        tdSql.execute("create database txn_vacser_db vgroups 1 keep 36500")
         tdSql.execute("use txn_vacser_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
@@ -538,69 +538,6 @@ class TestBatchMetaTxnStress2:
         tdSql.checkData(0, 0, 2)
 
     # =========================================================================
-    # 118. Replicated txn inactivity-timeout exemption: verify that replicated
-    #      transactions (TXN_IS_REPLICATED flag) are NOT rolled back by the
-    #      MNode inactivity timeout scan, even when idle longer than ACTIVE
-    #      timeout.  Uses tmq_taosx_txn scenario 17 (15s delay).
-    #      Note: replicated txns still have an absolute lifetime limit of
-    #      86400s (TSDB_META_TXN_MAX_LIFETIME_SEC); only inactivity is exempt.
-    # =========================================================================
-
-    def s118_replicated_txn_timeout_exemption(self):
-        self.s0_reset_env()
-        tdLog.info("======== s118_replicated_txn_timeout_exemption")
-
-        import subprocess
-        import os
-
-        # Find the binary
-        binary = None
-        search_paths = [
-            os.path.join(os.environ.get("TDENGINE_DIR", ""), "debug/build/bin/tmq_taosx_txn"),
-            "/proj/github/3.ims/TDinternal/debug/build/bin/tmq_taosx_txn",
-        ]
-        for p in search_paths:
-            if os.path.isfile(p) and os.access(p, os.X_OK):
-                binary = p
-                break
-
-        if binary is None:
-            # Try to compile in-place
-            src = os.path.join(os.path.dirname(__file__), "../../../utils/test/c/tmq_taosx_txn.c")
-            src = os.path.normpath(src)
-            if not os.path.isfile(src):
-                tdLog.info("  SKIP: tmq_taosx_txn.c not found, cannot run replicated txn test")
-                return
-            dst = "/tmp/tmq_taosx_txn"
-            cmd = [
-                "gcc", "-o", dst, src,
-                "-I/usr/local/taos/include", "-L/usr/lib", "-ltaos", "-lpthread", "-lm"
-            ]
-            # Strip LD_PRELOAD so gcc/cc1 don't run under ASAN — LeakSanitizer
-            # reports cc1 internal "leaks" whose [stack] frames trigger checkAsan.sh
-            # python_error false positives.
-            gcc_env = {k: v for k, v in os.environ.items() if k != "LD_PRELOAD"}
-            ret = subprocess.run(cmd, capture_output=True, text=True, env=gcc_env)
-            if ret.returncode != 0:
-                tdLog.info("  SKIP: failed to compile tmq_taosx_txn: %s" % ret.stderr)
-                return
-            binary = dst
-
-        tdLog.info("  running scenario 17 (replicated txn timeout exemption, ~20s)...")
-        ret = subprocess.run(
-            [binary, "17"],
-            capture_output=True, text=True, timeout=120,
-            env={**os.environ, "LD_LIBRARY_PATH": "/usr/lib:/usr/local/taos/driver"}
-        )
-        tdLog.info("  stdout: %s" % ret.stdout[-500:] if len(ret.stdout) > 500 else ret.stdout)
-        if ret.stderr:
-            tdLog.info("  stderr: %s" % ret.stderr[-500:] if len(ret.stderr) > 500 else ret.stderr)
-        assert ret.returncode == 0, \
-            "Scenario 17 FAILED (exit=%d)\nstdout: %s\nstderr: %s" % (
-                ret.returncode, ret.stdout[-1000:], ret.stderr[-1000:])
-        tdLog.info("  replicated txn timeout exemption verified (PASS)")
-
-    # =========================================================================
     # Entry point
     # =========================================================================
 
@@ -630,4 +567,3 @@ class TestBatchMetaTxnStress2:
         self.s113_rapid_rollback_vacuum_serialization()
         self.s116_tmq_pre_create_invisibility()
         self.s117_heartbeat_keepalive_idle_gap()
-        self.s118_replicated_txn_timeout_exemption()

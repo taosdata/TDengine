@@ -20,6 +20,7 @@
 #include "tmsg.h"
 #include "tpriv.h"
 #include "tq.h"
+#include "vnd.h"
 
 static int32_t tqRetrieveCols(STqReader *pReader, SSDataBlock *pRes, SHashObj* pCol2SlotId);
 static int32_t tqAddTableListForStbSub(STqHandle* pTqHandle, STQ* pTq, const SArray* tbUidList, int64_t version);
@@ -346,8 +347,8 @@ static bool tqProcessMetaForStbSub(STQ* pTq, STqHandle* pHandle, SWalCont* pHead
   }
 
   int16_t msgType = pHead->msgType;
-  char*   body = pHead->body;
-  int32_t bodyLen = pHead->bodyLen;
+  char*   body = (char *)walContBody(pHead);
+  int32_t bodyLen = walContBodyLen(pHead);
 
   int64_t  tbSuid = pHandle->execHandle.execTb.suid;
   int64_t  realTbSuid = 0;
@@ -392,6 +393,23 @@ end:
   return tmp;
 }
 
+// ---------------------------------------------------------------------------
+// txn pending queue helpers
+// ---------------------------------------------------------------------------
+
+// Point the pending queue at pMsgs (a borrowed reference from STxnWalManager).
+// The cache (STxnCacheSlot) owns the SArray and its SWalContCopy elements;
+// this handle must NOT free or destroy them.  Pass pMsgs=NULL to clear.
+static void tqHandleResetTxnPending(STqHandle* pHandle, SArray* pMsgs, int64_t nextFetchVer) {
+  // Drop the old borrow — do NOT free contents or destroy the array.
+  pHandle->pTxnPendingMsgs = pMsgs;
+  pHandle->txnPendingIdx = 0;
+  pHandle->txnPendingFetchVer = nextFetchVer;
+}
+
+// Free all entries and reset all three fields.
+static void tqHandleClearTxnPending(STqHandle* pHandle) { tqHandleResetTxnPending(pHandle, NULL, 0); }
+
 static int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, uint64_t reqId) {
   if (pTq == NULL || pHandle == NULL || fetchOffset == NULL) {
     return -1;
@@ -433,6 +451,88 @@ static int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, ui
           }
 
           pHead = &(pHandle->pWalReader->pHead->head);
+
+          // txn-atomic CDC: skip individual DDL entries that belong to a transaction.
+          // They are part of a BEGIN…COMMIT block and will be delivered atomically by
+          // STxnWalManager when TXN_COMMIT is processed below.  Delivering them here
+          // would cause double-delivery (PRE_CREATE then NORMAL) to the consumer.
+          // TXN_COMMIT and TXN_ROLLBACK are not skipped — they trigger the atomic delivery
+          // path (COMMIT) or are skipped cleanly (ROLLBACK).
+          if (WAL_IS_TXN_MSG(pHead) &&
+              pHead->msgType != TDMT_VND_TXN_COMMIT &&
+              pHead->msgType != TDMT_VND_TXN_ROLLBACK &&
+              pTq->pVnode->pTxnWalMgr != NULL) {
+            // In-txn DDL entry: skip silently, wait for COMMIT to deliver atomically.
+            offset++;
+            code = -1;
+            continue;
+          }
+
+          // txn-atomic CDC: intercept TXN_COMMIT / TXN_ROLLBACK before generic meta delivery
+          if (pHead->msgType == TDMT_VND_TXN_COMMIT || pHead->msgType == TDMT_VND_TXN_ROLLBACK) {
+            txn_id_t txnId = walContTxnId(pHead);
+            if (txnId != 0 && pTq->pVnode->pTxnWalMgr != NULL) {
+              if (pHead->msgType == TDMT_VND_TXN_ROLLBACK) {
+                // Consumer reads rollback: nothing to deliver, advance offset.
+                offset++;
+                code = -1;
+                continue;
+              }
+              // TXN_COMMIT: fetch cached message sequence from manager.
+              // Cache is fully populated at startup (eager load) and by the live producer.
+              // If a slot is not ready, hold the offset and retry the next poll — the producer
+              // will write the slot before this consumer can advance past this TXN_COMMIT.
+              // After TXN_NOT_READY_MAX_RETRIES consecutive missed polls, treat as lost/corrupted.
+#define TXN_NOT_READY_MAX_RETRIES 10
+              SArray* pMsgs = NULL;
+              int32_t r = txnMgrConsumerGet(pTq->pVnode->pTxnWalMgr, txnId, taosGetTimestampMs(), &pMsgs);
+              if (r == TSDB_CODE_VND_TXN_MSGS_NOT_READY) {
+                // Reset counter when we arrive at a new offset.
+                if (pHandle->txnNotReadyOffset != offset) {
+                  pHandle->txnNotReadyRetries = 0;
+                  pHandle->txnNotReadyOffset  = offset;
+                }
+                pHandle->txnNotReadyRetries++;
+
+                if (pHandle->txnNotReadyRetries >= TXN_NOT_READY_MAX_RETRIES) {
+                  // Exhausted retries: WAL likely truncated/corrupted or slot was evicted.
+                  vError("tq: txnId=%" PRId64 " msgs permanently lost after %d poll retries at offset=%" PRId64
+                         ", skipping (WAL may be truncated or slot evicted)",
+                         txnId, pHandle->txnNotReadyRetries, offset);
+                  pHandle->txnNotReadyRetries = 0;
+                  offset++;
+                  code = -1;
+                  continue;
+                }
+
+                // Hold offset, return empty batch, retry next poll.
+                vWarn("tq: txnId=%" PRId64 " msgs not ready, poll=%d/%d offset=%" PRId64,
+                      txnId, pHandle->txnNotReadyRetries, TXN_NOT_READY_MAX_RETRIES, offset);
+                code = -1;
+                goto END;
+              }
+              if (r == 0 || pMsgs == NULL || taosArrayGetSize(pMsgs) == 0) {
+                // rolledBack or empty txn — skip and reset retry counter
+                pHandle->txnNotReadyRetries = 0;
+                offset++;
+                code = -1;
+                continue;
+              }
+              // Success: reset retry counter and park the cached sequence on the handle.
+              // Return -1 so the outer loop doesn't try to send TXN_COMMIT as a meta msg.
+              // The outer loop will drain the pending queue instead.
+              pHandle->txnNotReadyRetries = 0;
+              tqHandleResetTxnPending(pHandle, pMsgs, offset + 1); // cache pMsgs and nextFetchVer for subsequent fetches
+              offset++;  // advance past TXN_COMMIT; END will set *fetchOffset = offset
+              code = -1; // no WAL entry to return; outer loop drains pending
+              goto END;
+            }
+            // txnId==0 or no manager: fall through to skip
+            offset++;
+            code = -1;
+            continue;
+          }
+
           if (tqProcessMetaForStbSub(pTq, pHandle, pHead)) {
             code = 0;
             goto END;
@@ -623,8 +723,8 @@ int32_t tqNextBlockInWal(STqReader* pReader, SSDataBlock* pRes, SHashObj* pCol2S
       break;
     }
 
-    void*   pBody = POINTER_SHIFT(pWalReader->pHead->head.body, sizeof(SSubmitReq2Msg));
-    int32_t bodyLen = pWalReader->pHead->head.bodyLen - sizeof(SSubmitReq2Msg);
+    void*   pBody = POINTER_SHIFT(walContBody(&pWalReader->pHead->head), sizeof(SSubmitReq2Msg));
+    int32_t bodyLen = walContBodyLen(&pWalReader->pHead->head) - sizeof(SSubmitReq2Msg);
     int64_t ver = pWalReader->pHead->head.version;
     SDecoder decoder = {0};
     code = tqReaderSetSubmitMsg(pReader, pBody, bodyLen, ver, NULL, &decoder);
@@ -2264,8 +2364,8 @@ end:
 #define PROCESS_EXCLUDED_MSG(TYPE, DECODE_FUNC, DELETE_FUNC)                                               \
   SDecoder decoder = {0};                                                                                  \
   TYPE     req = {0};                                                                                      \
-  void*    data = POINTER_SHIFT(pHead->body, sizeof(SMsgHead));                                            \
-  int32_t  len = pHead->bodyLen - sizeof(SMsgHead);                                                        \
+  void*    data = POINTER_SHIFT(walContBody(pHead), sizeof(SMsgHead));                                     \
+  int32_t  len = walContBodyLen(pHead) - sizeof(SMsgHead);                                                 \
   tDecoderInit(&decoder, data, len);                                                                       \
   if (DECODE_FUNC(&decoder, &req) == 0 && (req.source & TD_REQ_FROM_TAOX) != 0) {                          \
     tqDebug("tmq poll: consumer:0x%" PRIx64 " (epoch %d) iter log, jump meta for, vgId:%d offset %" PRId64 \
@@ -2406,7 +2506,82 @@ static int32_t tqExtractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle
         goto END;
       }
 
+      // txn-atomic CDC: drain pending message sequence parked by a prior TXN_COMMIT.
+      // Each SWalContCopy is fed into the existing meta processing path via a
+      // stack-allocated SWalCont (flags=0 so walContBody() returns body directly).
+      while (pHandle->pTxnPendingMsgs != NULL && pHandle->txnPendingIdx < taosArrayGetSize(pHandle->pTxnPendingMsgs)) {
+        SWalContCopy* pCopy = taosArrayGetP(pHandle->pTxnPendingMsgs, pHandle->txnPendingIdx);
+        pHandle->txnPendingIdx++;
+
+        // Build a temporary SWalCont on the heap (body is variable-length).
+        // flags = 0: not a txn WAL entry, so walContBody()/walContBodyLen() return body/bodyLen directly.
+        int32_t   tmpSize = (int32_t)(sizeof(SWalCont) + pCopy->bodyLen);
+        SWalCont* pTmpHead = taosMemoryMalloc(tmpSize);
+        if (pTmpHead == NULL) continue;
+        memset(pTmpHead, 0, sizeof(SWalCont));
+        pTmpHead->version = pCopy->walIndex;
+        pTmpHead->msgType = pCopy->msgType;
+        pTmpHead->bodyLen = pCopy->bodyLen;
+        if (pCopy->bodyLen > 0) {
+          (void)memcpy(pTmpHead->body, pCopy->body, pCopy->bodyLen);
+        }
+
+        bool matched = tqProcessMetaForStbSub(pTq, pHandle, pTmpHead);
+        taosMemoryFree(pTmpHead);
+
+        if (matched) {
+          // Found a matching meta msg — ship it.
+          // pHandle->pWalReader->pHead has NOT been updated; build the response
+          // directly from btMetaRsp / taosxRsp paths used below.
+          // For non-batch mode, send a single-meta response immediately.
+          if (!pRequest->enableBatchMeta && !pRequest->useSnapshot) {
+            // Re-fetch pTmpHead data for the response (already freed, need another copy).
+            SWalCont* pRspHead = taosMemoryMalloc(tmpSize);
+            if (pRspHead == NULL) goto txnPendingDone;
+            memset(pRspHead, 0, sizeof(SWalCont));
+            pRspHead->version = pCopy->walIndex;
+            pRspHead->msgType = pCopy->msgType;
+            pRspHead->bodyLen = pCopy->bodyLen;
+            if (pCopy->bodyLen > 0) {
+              (void)memcpy(pRspHead->body, pCopy->body, pCopy->bodyLen);
+            }
+            SMqMetaRsp metaRsp = {0};
+            // All pending msgs in this txn batch share the same committed position
+            // (one past TXN_COMMIT).  Use txnPendingFetchVer so the consumer's offset
+            // is correct after draining the last entry in the batch.
+            tqOffsetResetToLog(&metaRsp.rspOffset, pHandle->txnPendingFetchVer);
+            metaRsp.resMsgType = pRspHead->msgType;
+            metaRsp.metaRspLen = walContBodyLen(pRspHead);
+            metaRsp.metaRsp = (void*)walContBody(pRspHead);
+            code = tqSendMetaPollRsp(pHandle, pMsg, pRequest, &metaRsp, vgId);
+            taosMemoryFree(pRspHead);
+            goto END;
+          }
+          code = tqBuildBatchMeta(&btMetaRsp, pCopy->msgType, pCopy->bodyLen, pCopy->body);
+          if (code != 0) goto END;
+          totalMetaRows++;
+          if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= pRequest->minPollRows) ||
+              (taosGetTimestampMs() - st > pRequest->timeout)) {
+            SEND_BATCH_META_RSP
+          }
+        }
+      }
+    txnPendingDone:
+      // All pending msgs consumed — free the queue and advance fetchVer.
+      if (pHandle->pTxnPendingMsgs != NULL && pHandle->txnPendingIdx >= taosArrayGetSize(pHandle->pTxnPendingMsgs)) {
+        int64_t nextVer = pHandle->txnPendingFetchVer;
+        tqHandleClearTxnPending(pHandle);
+        fetchVer = nextVer;
+      }
+
       if (tqFetchLog(pTq, pHandle, &fetchVer, pRequest->reqId) < 0) {
+        // TXN_COMMIT handling may have parked DDL msgs in the pending queue while returning
+        // -1 (no WAL entry to expose to the consumer).  Drain them now instead of returning
+        // an empty response.
+        if (pHandle->pTxnPendingMsgs != NULL &&
+            pHandle->txnPendingIdx < taosArrayGetSize(pHandle->pTxnPendingMsgs)) {
+          continue;
+        }
         if (totalMetaRows > 0) {
           SEND_BATCH_META_RSP
         }
@@ -2441,12 +2616,12 @@ static int32_t tqExtractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle
           SMqMetaRsp metaRsp = {0};
           tqOffsetResetToLog(&metaRsp.rspOffset, fetchVer + 1);
           metaRsp.resMsgType = pHead->msgType;
-          metaRsp.metaRspLen = pHead->bodyLen;
-          metaRsp.metaRsp = pHead->body;
+          metaRsp.metaRspLen = walContBodyLen(pHead);
+          metaRsp.metaRsp = (void *)walContBody(pHead);
           code = tqSendMetaPollRsp(pHandle, pMsg, pRequest, &metaRsp, vgId);
           goto END;
         }
-        code = tqBuildBatchMeta(&btMetaRsp, pHead->msgType, pHead->bodyLen, pHead->body);
+        code = tqBuildBatchMeta(&btMetaRsp, pHead->msgType, walContBodyLen(pHead), (void *)walContBody(pHead));
         fetchVer++;
         if (code != 0){
           goto END;
@@ -2464,8 +2639,8 @@ static int32_t tqExtractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle
 
       // process data
       SPackedData submit = {
-          .msgStr = POINTER_SHIFT(pHead->body, sizeof(SSubmitReq2Msg)),
-          .msgLen = pHead->bodyLen - sizeof(SSubmitReq2Msg),
+          .msgStr = POINTER_SHIFT(walContBody(pHead), sizeof(SSubmitReq2Msg)),
+          .msgLen = walContBodyLen(pHead) - sizeof(SSubmitReq2Msg),
           .ver = pHead->version,
       };
 

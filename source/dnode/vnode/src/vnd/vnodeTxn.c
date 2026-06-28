@@ -69,7 +69,7 @@ typedef struct SVnodeTxnEntry {
   SSHashObj *pCreatedUids;  // SSHashObj: key=tb_uid_t, value=int8_t(dummy) — O(1) same-txn undo
   SArray    *pDroppedUids;  // Array of tb_uid_t — tables dropped in this txn (pre-existing tables only)
   // Lazy vacuum fields (populated at finalization, consumed by vacuum)
-  int8_t    finalStatus;    // ETxnFinalStatus: TXN_FINAL_COMMITTED / TXN_FINAL_ROLLEDBACK
+  int8_t    status;         // ETxnMetaStatus: TXN_META_COMMITTED / TXN_META_ROLLEDBACK
   tb_uid_t *pVacuumUids;    // Array of UIDs to vacuum (converted from pTouchedUids)
   int32_t   numVacuumUids;  // Total UIDs in vacuum array
   int32_t   vacuumIdx;      // Next UID index to process
@@ -82,6 +82,10 @@ typedef struct SVnodeTxnEntry {
   // STB's UID entry and vnodeTxnVacuumOneTxn will drop children in batches
   // (up to maxOps per tick) rather than all at once. Reset to 0 when done.
   tb_uid_t bulkDropUid;
+  // WAL index of the first DDL message that created this entry (the TXN_BEGIN
+  // equivalent for DDL txns). Used by txnMgrGetMinWalIndex to protect WAL
+  // segments from being trimmed before vacuum completes.
+  int64_t beginWalIndex;
 } SVnodeTxnEntry;
 
 // Initialize vnode transaction manager
@@ -101,8 +105,8 @@ int32_t vnodeTxnInit(SVnode *pVnode) {
   }
 
   // Thread-safe cache for finalized txn status (read by query threads, written by apply thread)
-  pVnode->pFinalizedTxns = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-  if (pVnode->pFinalizedTxns == NULL) {
+  pVnode->pTxnMetaCache = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  if (pVnode->pTxnMetaCache == NULL) {
     vError("vgId:%d, failed to init finalized txns hash", TD_VID(pVnode));
     taosHashCleanup(pVnode->pTxnTableLock);
     pVnode->pTxnTableLock = NULL;
@@ -112,8 +116,8 @@ int32_t vnodeTxnInit(SVnode *pVnode) {
   }
 
   if (taosThreadMutexInit(&pVnode->txnMutex, NULL) != 0) {
-    taosHashCleanup(pVnode->pFinalizedTxns);
-    pVnode->pFinalizedTxns = NULL;
+    taosHashCleanup(pVnode->pTxnMetaCache);
+    pVnode->pTxnMetaCache = NULL;
     taosHashCleanup(pVnode->pTxnTableLock);
     pVnode->pTxnTableLock = NULL;
     taosHashCleanup(pVnode->pTxnHash);
@@ -155,9 +159,9 @@ void vnodeTxnCleanup(SVnode *pVnode) {
     pVnode->pTxnTableLock = NULL;
   }
 
-  if (pVnode->pFinalizedTxns) {
-    taosHashCleanup(pVnode->pFinalizedTxns);
-    pVnode->pFinalizedTxns = NULL;
+  if (pVnode->pTxnMetaCache) {
+    taosHashCleanup(pVnode->pTxnMetaCache);
+    pVnode->pTxnMetaCache = NULL;
   }
 
   (void)taosThreadMutexDestroy(&pVnode->txnMutex);
@@ -168,9 +172,9 @@ void vnodeTxnCleanup(SVnode *pVnode) {
  * Reset in-memory txn state after snapshot apply on a follower.
  *
  * After a snapshot replaces all meta B+ trees, the old in-memory txn state
- * (pTxnHash, pFinalizedTxns, pTxnTableLock) is stale.  This function clears
+ * (pTxnHash, pTxnMetaCache, pTxnTableLock) is stale.  This function clears
  * those structures and rebuilds them from the new B+ tree content (txn.idx
- * and txn_final.idx populated during snapshot write).
+ * and txn.meta populated during snapshot write).
  *
  * Must be called AFTER vnodeBegin (so pMeta->txn is active for any cleanup
  * deletes inside vnodeTxnRebuildFromMeta).
@@ -202,8 +206,8 @@ int32_t vnodeTxnResetForSnapshot(SVnode *pVnode) {
     taosHashClear(pVnode->pTxnHash);
   }
 
-  if (pVnode->pFinalizedTxns) {
-    taosHashClear(pVnode->pFinalizedTxns);
+  if (pVnode->pTxnMetaCache) {
+    taosHashClear(pVnode->pTxnMetaCache);
   }
 
   if (pVnode->pTxnTableLock) {
@@ -230,7 +234,7 @@ int32_t vnodeTxnResetForSnapshot(SVnode *pVnode) {
 
 // Forward declarations for static helpers used by vnodeTxnRebuildFromMeta
 static SVnodeTxnEntry *vnodeGetTxnEntry(SVnode *pVnode, int64_t txnId);
-static int32_t         vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term);
+static int32_t         vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term, int64_t ver);
 static int32_t         vnodeTxnTrackUid(SVnodeTxnEntry *pEntry, tb_uid_t uid);
 static int32_t         vnodeTxnPrepareVacuumArray(SVnodeTxnEntry *pEntry);
 
@@ -270,7 +274,15 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
     // Ensure SVnodeTxnEntry exists for this txnId
     SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, pScan->txnId);
     if (pEntry == NULL) {
-      code = vnodeCreateTxnEntry(pVnode, pScan->txnId, 0 /* term unknown after restart */);
+      // Restore beginWalIndex from txn.meta (TXN_META_NONE begin-record) for WAL keepVersion protection.
+      // Falls back to 0 if not present (old data or follower with no pending txns at crash time).
+      int64_t      beginWalIndex = 0;
+      STxnMetaVal finalVal = {0};
+      if (metaTxnMetaGet(pVnode->pMeta, pScan->txnId, &finalVal) == 0) {
+        beginWalIndex = finalVal.beginWalIndex;
+      }
+      // term=0: corrected at COMMIT/ROLLBACK time via "Lazy term correction".
+      code = vnodeCreateTxnEntry(pVnode, pScan->txnId, 0 /* term: corrected at commit */, beginWalIndex);
       if (code != 0) {
         vError("vgId:%d, txn rebuild: failed to create entry for txnId:%" PRId64, TD_VID(pVnode), pScan->txnId);
         break;
@@ -281,6 +293,8 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
         vError("vgId:%d, txn rebuild: entry missing after create for txnId:%" PRId64, TD_VID(pVnode), pScan->txnId);
         break;
       }
+      vInfo("vgId:%d, txn rebuild: created entry txnId:%" PRId64 " beginWalIndex:%" PRId64, TD_VID(pVnode),
+            pScan->txnId, beginWalIndex);
     }
 
     // Track this UID
@@ -317,14 +331,14 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
   vInfo("vgId:%d, txn rebuild phase 1: %d unique txns, %d total entries from txn.idx", TD_VID(pVnode), numTxns,
         numEntries);
 
-  // === Phase 2: Rebuild finalized txn cache from txn_final.idx ===
+  // === Phase 2: Rebuild finalized txn cache from txn.meta ===
   // After a crash, some txns may have been finalized (COMMITTED/ROLLEDBACK) but
-  // not fully vacuumed. Scan txn_final.idx and restore the in-memory cache so
+  // not fully vacuumed. Scan txn.meta and restore the in-memory cache so
   // visibility filters and vacuum can resume.
   SArray *pFinalResult = NULL;
-  code = metaScanTxnFinalEntries(pVnode->pMeta, &pFinalResult);
+  code = metaScanTxnMetaEntries(pVnode->pMeta, &pFinalResult);
   if (code != 0) {
-    vError("vgId:%d, failed to scan txn_final.idx, code:0x%x", TD_VID(pVnode), code);
+    vError("vgId:%d, failed to scan txn.meta, code:0x%x", TD_VID(pVnode), code);
     return code;
   }
 
@@ -333,19 +347,25 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
   int32_t numStale = 0;
 
   for (int32_t i = 0; i < numFinal; i++) {
-    // Each entry is { int64_t txnId; STxnFinalVal val; }
+    // Each entry is { int64_t txnId; STxnMetaVal val; }
     const void         *pElem = taosArrayGet(pFinalResult, i);
     int64_t             txnId = *(int64_t *)pElem;
-    const STxnFinalVal *pFinalVal = (const STxnFinalVal *)((const char *)pElem + sizeof(int64_t));
+    const STxnMetaVal *pFinalVal = (const STxnMetaVal *)((const char *)pElem + sizeof(int64_t));
 
     // Always populate the in-memory cache so visibility filters work immediately.
-    // On failure (OOM during recovery), persistent txn_final.idx remains authoritative;
+    // Skip TXN_META_NONE entries: these are "begin" records written at first DDL to
+    // persist beginWalIndex — they represent in-progress txns, not finalized ones.
+    // On failure (OOM during recovery), persistent txn.meta remains authoritative;
     // log a warning so the rare condition is visible.
+    if (pFinalVal->status == TXN_META_NONE) {
+      // In-progress begin record — skip visibility cache; beginWalIndex is read via metaTxnMetaGet in Phase 1.
+      continue;
+    }
     int32_t putCode =
-        taosHashPut(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t), &pFinalVal->finalStatus, sizeof(int8_t));
+        taosHashPut(pVnode->pTxnMetaCache, &txnId, sizeof(int64_t), &pFinalVal->status, sizeof(int8_t));
     if (putCode != 0) {
       vWarn("vgId:%d, txn rebuild: failed to cache finalized txn:%" PRId64 " status:%d, code:0x%x", TD_VID(pVnode),
-            txnId, pFinalVal->finalStatus, putCode);
+            txnId, pFinalVal->status, putCode);
     } else {
       atomic_fetch_add_32(&pVnode->txnPendingCount, 1);
     }
@@ -363,24 +383,24 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
                " — entry left un-finalized, will retry on next restart",
                TD_VID(pVnode), txnId);
       } else {
-        pEntry->finalStatus = pFinalVal->finalStatus;
+        pEntry->status = pFinalVal->status;
         pEntry->stage = VTXN_STAGE_FINISHING;
         numResumed++;
         vInfo("vgId:%d, txn rebuild: resume vacuum for txnId:%" PRId64 " status:%d numUids:%d", TD_VID(pVnode), txnId,
-              pFinalVal->finalStatus, pEntry->numVacuumUids);
+              pFinalVal->status, pEntry->numVacuumUids);
       }
     } else {
-      // No txn.idx entries remain — vacuum was complete, but txn_final.idx entry is stale.
+      // No txn.idx entries remain — vacuum was complete, but txn.meta entry is stale.
       // Clean it up (delete from persistent idx; cache entry is harmless and will be ignored).
-      (void)metaTxnFinalIdxDelete(pVnode->pMeta, txnId);
-      if (taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t)) != 0) {
+      (void)metaTxnMetaDelete(pVnode->pMeta, txnId);
+      if (taosHashRemove(pVnode->pTxnMetaCache, &txnId, sizeof(int64_t)) != 0) {
         vWarn("vgId:%d, txn rebuild: failed to remove stale txnId:%" PRId64 " from finalized cache", TD_VID(pVnode),
               txnId);
       } else {
         atomic_fetch_sub_32(&pVnode->txnPendingCount, 1);
       }
       numStale++;
-      vDebug("vgId:%d, txn rebuild: removed stale txn_final.idx entry for txnId:%" PRId64, TD_VID(pVnode), txnId);
+      vDebug("vgId:%d, txn rebuild: removed stale txn.meta entry for txnId:%" PRId64, TD_VID(pVnode), txnId);
     }
   }
 
@@ -397,7 +417,7 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
   }
 
   vInfo("vgId:%d, txn rebuild complete: %d active txns, %d pending vacuum", TD_VID(pVnode),
-        taosHashGetSize(pVnode->pTxnHash), taosHashGetSize(pVnode->pFinalizedTxns));
+        taosHashGetSize(pVnode->pTxnHash), taosHashGetSize(pVnode->pTxnMetaCache));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -407,12 +427,13 @@ static SVnodeTxnEntry *vnodeGetTxnEntry(SVnode *pVnode, int64_t txnId) {
 }
 
 // Create new transaction entry
-static int32_t vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term) {
+static int32_t vnodeCreateTxnEntry(SVnode *pVnode, int64_t txnId, int64_t term, int64_t ver) {
   SVnodeTxnEntry entry = {0};
   entry.txnId = txnId;
   entry.term = term;
   entry.startTime = taosGetTimestampMs();
   entry.stage = VTXN_STAGE_ACTIVE;
+  entry.beginWalIndex = ver;  // WAL index of first DDL in this txn
   entry.pTouchedUids = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   entry.pAlterPrevVers = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   entry.pLockedTables = taosArrayInit(8, sizeof(char *));
@@ -453,6 +474,24 @@ static void vnodeReleaseTxnTableLocks(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
   pEntry->pLockedTables = NULL;
 }
 
+// Returns the minimum beginWalIndex across all live DDL txn entries.
+// Returns INT64_MAX when hash is empty or all entries have beginWalIndex==0.
+int64_t vnodeTxnGetMinBeginWalIndex(SVnode *pVnode) {
+  if (pVnode == NULL || pVnode->pTxnHash == NULL) return INT64_MAX;
+  int64_t minIdx = INT64_MAX;
+  (void)taosThreadMutexLock(&pVnode->txnMutex);
+  void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
+  while (pIter) {
+    SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
+    if (pEntry->beginWalIndex > 0 && pEntry->beginWalIndex < minIdx) {
+      minIdx = pEntry->beginWalIndex;
+    }
+    pIter = taosHashIterate(pVnode->pTxnHash, pIter);
+  }
+  (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+  return minIdx;
+}
+
 // Remove transaction entry (caller must hold txnMutex)
 static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
@@ -479,7 +518,7 @@ static void vnodeRemoveTxnEntry(SVnode *pVnode, int64_t txnId) {
  * Ensure a txn entry exists for the given txnId (lazy create).
  * Called by DDL handlers in vnodeSvr.c before writing to meta.
  */
-int32_t vnodeTxnEnsureEntry(SVnode *pVnode, int64_t txnId) {
+int32_t vnodeTxnEnsureEntry(SVnode *pVnode, int64_t txnId, int64_t ver) {
   if (pVnode->pTxnHash == NULL || txnId == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -489,9 +528,24 @@ int32_t vnodeTxnEnsureEntry(SVnode *pVnode, int64_t txnId) {
 
   SVnodeTxnEntry *pEntry = vnodeGetTxnEntry(pVnode, txnId);
   if (pEntry == NULL) {
-    code = vnodeCreateTxnEntry(pVnode, txnId, pVnode->maxSeenTerm);
+    // ver is the WAL index of the first DDL that triggers this txn entry creation.
+    // Subsequent EnsureEntry calls for the same txn are no-ops (entry already exists).
+    code = vnodeCreateTxnEntry(pVnode, txnId, pVnode->maxSeenTerm, ver);
     if (code == 0) {
-      vInfo("vgId:%d, txn entry lazily created, txnId:%" PRId64, TD_VID(pVnode), txnId);
+      // Write a TXN_META_NONE begin-record to txn.meta to persist beginWalIndex.
+      // This allows crash recovery to restore WAL keepVersion even before COMMIT/ROLLBACK.
+      // The record is later overwritten (upserted) by vnodeTxnFinalizeLazy with the final status.
+      STxnMetaVal beginVal = {.status = TXN_META_NONE, .timestamp = 0, .beginWalIndex = ver};
+      int32_t      metaCode = metaTxnMetaUpsert(pVnode->pMeta, txnId, &beginVal);
+      if (metaCode != 0) {
+        vWarn("vgId:%d, txn: failed to write begin record to txn.meta txnId:%" PRId64
+              " beginWalIndex:%" PRId64 " code:0x%x (WAL may be under-protected after crash)",
+              TD_VID(pVnode), txnId, ver, metaCode);
+        // non-fatal
+      } else {
+        vInfo("vgId:%d, txn entry lazily created, txnId:%" PRId64 " beginWalIndex:%" PRId64, TD_VID(pVnode), txnId,
+              ver);
+      }
     }
   }
 
@@ -1080,29 +1134,31 @@ static int32_t vnodeTxnPrepareVacuumArray(SVnodeTxnEntry *pEntry) {
 }
 
 /**
- * Finalize a txn lazily: write O(1) record to txn_final.idx + in-memory cache,
+ * Finalize a txn lazily: write O(1) record to txn.meta + in-memory cache,
  * convert pTouchedUids to vacuum array. Does NOT modify the B+ tree shadow entries.
  * The actual cleanup is done incrementally by vnodeTxnVacuumBatch().
  */
 static int32_t vnodeTxnFinalizeLazy(SVnode *pVnode, SVnodeTxnEntry *pEntry, int8_t finalStatus) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  // 1. Write finalization record to persistent txn_final.idx (O(1))
-  STxnFinalVal finalVal = {.finalStatus = finalStatus, .timestamp = taosGetTimestampMs()};
-  code = metaTxnFinalIdxUpsert(pVnode->pMeta, pEntry->txnId, &finalVal);
+  // 1. Write finalization record to persistent txn.meta (O(1))
+  STxnMetaVal finalVal = {.status        = finalStatus,
+                           .timestamp    = taosGetTimestampMs(),
+                           .beginWalIndex = pEntry->beginWalIndex};
+  code = metaTxnMetaUpsert(pVnode->pMeta, pEntry->txnId, &finalVal);
   if (code != 0) {
-    vError("vgId:%d, failed to write txn_final.idx for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), pEntry->txnId,
+    vError("vgId:%d, failed to write txn.meta for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode), pEntry->txnId,
            code);
     return code;
   }
 
   // 2. Update in-memory cache (thread-safe, visible to query threads immediately).
-  // On failure (OOM), persistent txn_final.idx is still authoritative — visibility
+  // On failure (OOM), persistent txn.meta is still authoritative — visibility
   // queries will fall back to disk lookup, but log a warning so the issue is visible.
   int32_t cacheCode =
-      taosHashPut(pVnode->pFinalizedTxns, &pEntry->txnId, sizeof(int64_t), &finalStatus, sizeof(int8_t));
+      taosHashPut(pVnode->pTxnMetaCache, &pEntry->txnId, sizeof(int64_t), &finalStatus, sizeof(int8_t));
   if (cacheCode != 0) {
-    vWarn("vgId:%d, failed to cache finalized txn:%" PRId64 " status:%d in pFinalizedTxns, code:0x%x", TD_VID(pVnode),
+    vWarn("vgId:%d, failed to cache finalized txn:%" PRId64 " status:%d in pTxnMetaCache, code:0x%x", TD_VID(pVnode),
           pEntry->txnId, finalStatus, cacheCode);
   } else {
     atomic_fetch_add_32(&pVnode->txnPendingCount, 1);
@@ -1115,7 +1171,7 @@ static int32_t vnodeTxnFinalizeLazy(SVnode *pVnode, SVnodeTxnEntry *pEntry, int8
            tstrerror(code));
     // Rollback step 2: remove cache entry and decrement counter to avoid drift on retry
     if (cacheCode == 0) {
-      int32_t removeCode = taosHashRemove(pVnode->pFinalizedTxns, &pEntry->txnId, sizeof(int64_t));
+      int32_t removeCode = taosHashRemove(pVnode->pTxnMetaCache, &pEntry->txnId, sizeof(int64_t));
       if(removeCode != 0) {
         vWarn("vgId:%d, failed to remove from finilize hash for txnId:%" PRId64 " since %s", TD_VID(pVnode),
               pEntry->txnId, tstrerror(code));
@@ -1126,7 +1182,7 @@ static int32_t vnodeTxnFinalizeLazy(SVnode *pVnode, SVnodeTxnEntry *pEntry, int8
   }
 
   // 4. Mark entry as finalized (keep in pTxnHash for vacuum, release table locks)
-  pEntry->finalStatus = finalStatus;
+  pEntry->status = finalStatus;
   pEntry->stage = VTXN_STAGE_FINISHING;
 
   // Release table locks immediately (other txns can now operate on these tables)
@@ -1240,7 +1296,7 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
     // ---- Bulk child cascade: mid-progress continuation for a large DROP STB ----
     // When bulkDropUid is set, vacuumIdx still points to the STB's UID so that
     // we can keep retrying until all children are gone, then drop the STB itself.
-    if (pEntry->finalStatus == TXN_FINAL_COMMITTED && pEntry->bulkDropUid == uid) {
+    if (pEntry->status == TXN_META_COMMITTED && pEntry->bulkDropUid == uid) {
       int32_t quota = maxOps - processed;
       int32_t childDropped = 0;
       vnodeTxnBulkDropChildren(pVnode, uid, quota, &childDropped);
@@ -1308,7 +1364,7 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
     bool bulkYield = false;      // true when a bulk DROP STB hits quota mid-cascade
     bool skipTxnIdxDel = false;  // true when orphaned entry's pTxnIdx must be preserved
 
-    if (pEntry->finalStatus == TXN_FINAL_COMMITTED) {
+    if (pEntry->status == TXN_META_COMMITTED) {
       // === COMMIT vacuum: same logic as vnodeTxnPromoteShadowEntries ===
       switch (pME->txnStatus) {
         case META_TXN_PRE_CREATE:
@@ -1468,14 +1524,14 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
  * Returns total UIDs processed in this batch.
  */
 int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
-  if (pVnode->pTxnHash == NULL || pVnode->pFinalizedTxns == NULL) return 0;
-  if (taosHashGetSize(pVnode->pFinalizedTxns) == 0) return 0;
+  if (pVnode->pTxnHash == NULL || pVnode->pTxnMetaCache == NULL) return 0;
+  if (taosHashGetSize(pVnode->pTxnMetaCache) == 0) return 0;
 
   int32_t totalProcessed = 0;
 
   // Pre-allocate before entering the loop. Lazy allocation inside the loop causes a silent
   // stuck-entry bug: if taosArrayInit returns NULL on OOM mid-loop, a fully-vacuumed txn
-  // is never added to the removal list, leaks in pTxnHash/pFinalizedTxns forever, and
+  // is never added to the removal list, leaks in pTxnHash/pTxnMetaCache forever, and
   // causes vnodeTxnVacuumExecute to spin in infinite no-op retries.
   SArray *pCompletedTxns = taosArrayInit(4, sizeof(int64_t));
   if (pCompletedTxns == NULL) {
@@ -1500,7 +1556,7 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
     void *pIter = taosHashIterate(pVnode->pTxnHash, NULL);
     while (pIter != NULL) {
       SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)pIter;
-      if (pEntry->finalStatus != TXN_FINAL_NONE) {
+      if (pEntry->status != TXN_META_NONE) {
         if (taosArrayPush(pPendingTxns, &pEntry->txnId) == NULL) {
           vWarn("vgId:%d, out of memory snapshotting txnId:%" PRId64 " in vacuum batch", TD_VID(pVnode), pEntry->txnId);
           // Continue: process whatever fit in the snapshot.
@@ -1521,7 +1577,7 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
     // could in principle have removed it. If gone, skip.
     (void)taosThreadMutexLock(&pVnode->txnMutex);
     SVnodeTxnEntry *pEntry = (SVnodeTxnEntry *)taosHashGet(pVnode->pTxnHash, &txnId, sizeof(int64_t));
-    if (pEntry == NULL || pEntry->finalStatus == TXN_FINAL_NONE) {
+    if (pEntry == NULL || pEntry->status == TXN_META_NONE) {
       (void)taosThreadMutexUnlock(&pVnode->txnMutex);
       continue;
     }
@@ -1555,19 +1611,19 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
   for (int32_t i = 0; i < numCompleted; i++) {
     int64_t txnId = *(int64_t *)taosArrayGet(pCompletedTxns, i);
 
-    // Remove from txn_final.idx
-    int32_t delCode = metaTxnFinalIdxDelete(pVnode->pMeta, txnId);
+    // Remove from txn.meta
+    int32_t delCode = metaTxnMetaDelete(pVnode->pMeta, txnId);
     if (delCode != 0) {
       // Persistent record survives; vacuum will retry on next restart (idempotent).
-      vWarn("vgId:%d, failed to delete txn_final.idx for txnId:%" PRId64 ": %s", TD_VID(pVnode), txnId,
+      vWarn("vgId:%d, failed to delete txn.meta for txnId:%" PRId64 ": %s", TD_VID(pVnode), txnId,
             tstrerror(delCode));
     }
 
     // Remove from in-memory cache
-    int32_t rmCode = taosHashRemove(pVnode->pFinalizedTxns, &txnId, sizeof(int64_t));
+    int32_t rmCode = taosHashRemove(pVnode->pTxnMetaCache, &txnId, sizeof(int64_t));
     if (rmCode != 0) {
-      // Stale key left in pFinalizedTxns; vacuum will be re-triggered unnecessarily.
-      vWarn("vgId:%d, failed to remove txnId:%" PRId64 " from pFinalizedTxns: %s", TD_VID(pVnode), txnId,
+      // Stale key left in pTxnMetaCache; vacuum will be re-triggered unnecessarily.
+      vWarn("vgId:%d, failed to remove txnId:%" PRId64 " from pTxnMetaCache: %s", TD_VID(pVnode), txnId,
             tstrerror(rmCode));
     } else {
       atomic_fetch_sub_32(&pVnode->txnPendingCount, 1);
@@ -1581,6 +1637,12 @@ int32_t vnodeTxnVacuumBatch(SVnode *pVnode, int32_t maxOps) {
     vInfo("vgId:%d, vacuum complete for txnId:%" PRId64, TD_VID(pVnode), txnId);
   }
   taosArrayDestroy(pCompletedTxns);
+
+  // If any txns were fully vacuumed this round, the minimum beginIndex in the
+  // txn WAL cache may have advanced — refresh the WAL keep-version so trim can proceed.
+  if (numCompleted > 0 && pVnode->pTxnWalMgr != NULL) {
+    txnMgrRefreshWalKeepVersion(pVnode->pTxnWalMgr, pVnode->pWal, pVnode);
+  }
 
   if (totalProcessed > 0) {
     vDebug("vgId:%d, vacuum batch: processed %d UIDs", TD_VID(pVnode), totalProcessed);
@@ -1606,7 +1668,7 @@ static int32_t vnodeTxnVacuumExecute(void *arg) {
   SVnode *pVnode = (SVnode *)arg;
   int32_t totalProcessed = 0;
 
-  while (pVnode->pFinalizedTxns && taosHashGetSize(pVnode->pFinalizedTxns) > 0) {
+  while (pVnode->pTxnMetaCache && taosHashGetSize(pVnode->pTxnMetaCache) > 0) {
     if (atomic_load_8(&pVnode->closing)) {
       vDebug("vgId:%d, async vacuum interrupted by vnode close after %d UIDs", TD_VID(pVnode), totalProcessed);
       break;
@@ -1632,8 +1694,8 @@ static int32_t vnodeTxnVacuumExecute(void *arg) {
     vDebug("vgId:%d, async vacuum done: processed %d UIDs total", TD_VID(pVnode), totalProcessed);
   }
   atomic_store_8(&pVnode->vacuumRunning, 0);
-  if (totalProcessed > 0 && !atomic_load_8(&pVnode->closing) && pVnode->pFinalizedTxns &&
-      taosHashGetSize(pVnode->pFinalizedTxns) > 0) {
+  if (totalProcessed > 0 && !atomic_load_8(&pVnode->closing) && pVnode->pTxnMetaCache &&
+      taosHashGetSize(pVnode->pTxnMetaCache) > 0) {
     vnodeTxnSubmitVacuumAsync(pVnode);
   }
   return 0;
@@ -1720,7 +1782,7 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
   // Idempotency: if already finalized (finalStatus set on successful vnodeTxnFinalizeLazy or
   // inline promote+remove), return success. Do NOT check stage==FINISHING here — that only
   // means we started finalization, not that it completed. A failed finalize must allow retries.
-  if (pEntry->finalStatus != TXN_FINAL_NONE) {
+  if (pEntry->status != TXN_META_NONE) {
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     vInfo("vgId:%d, txn commit idempotent (already finalized), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
     return TSDB_CODE_SUCCESS;
@@ -1753,7 +1815,7 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
       // remaining PRE_* entries. Removing the entry here would turn subsequent
       // COMMIT retries into no-ops while txn.idx still contains pending UIDs.
       (void)taosThreadMutexLock(&pVnode->txnMutex);
-      int32_t finalizeCode = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_FINAL_COMMITTED);
+      int32_t finalizeCode = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_META_COMMITTED);
       (void)taosThreadMutexUnlock(&pVnode->txnMutex);
       if (finalizeCode != 0) {
         vError("vgId:%d, failed to fallback finalize commit for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode),
@@ -1772,11 +1834,13 @@ int32_t vnodeProcessTxnCommitReq(SVnode *pVnode, int64_t ver, void *pReq, int32_
     (void)taosThreadMutexLock(&pVnode->txnMutex);
     vnodeRemoveTxnEntry(pVnode, req.txnId);
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+    // Inline path: entry removed, refresh WAL keep-version so min beginWalIndex can advance.
+    if (pVnode->pTxnWalMgr != NULL) txnMgrRefreshWalKeepVersion(pVnode->pTxnWalMgr, pVnode->pWal, pVnode);
 
     vInfo("vgId:%d, txn commit done (inline), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId, numUids);
   } else {
     // ── Large txn: lazy finalize O(1) + async vacuum ──
-    code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_FINAL_COMMITTED);
+    code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_META_COMMITTED);
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
     if (code != 0) {
@@ -1833,7 +1897,7 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
 
   // Idempotency: if already finalized, return success (WAL replay / MNode retry).
   // Do NOT check stage==FINISHING — a failed finalize must allow retries.
-  if (pEntry->finalStatus != TXN_FINAL_NONE) {
+  if (pEntry->status != TXN_META_NONE) {
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
     vInfo("vgId:%d, txn rollback idempotent (already finalized), txnId:%" PRId64, TD_VID(pVnode), req.txnId);
     return TSDB_CODE_SUCCESS;
@@ -1864,7 +1928,7 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
 
       if (hasAlterRollback) {
         (void)taosThreadMutexLock(&pVnode->txnMutex);
-        if (pEntry->finalStatus == TXN_FINAL_NONE) {
+        if (pEntry->status == TXN_META_NONE) {
           pEntry->stage = VTXN_STAGE_ACTIVE;
         }
         (void)taosThreadMutexUnlock(&pVnode->txnMutex);
@@ -1872,7 +1936,7 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
       }
 
       (void)taosThreadMutexLock(&pVnode->txnMutex);
-      int32_t finalizeCode = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_FINAL_ROLLEDBACK);
+      int32_t finalizeCode = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_META_ROLLEDBACK);
       (void)taosThreadMutexUnlock(&pVnode->txnMutex);
       if (finalizeCode != 0) {
         vError("vgId:%d, failed to fallback finalize rollback for txnId:%" PRId64 ", code:0x%x", TD_VID(pVnode),
@@ -1887,11 +1951,13 @@ int32_t vnodeProcessTxnRollbackReq(SVnode *pVnode, int64_t ver, void *pReq, int3
     (void)taosThreadMutexLock(&pVnode->txnMutex);
     vnodeRemoveTxnEntry(pVnode, req.txnId);
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
+    // Inline path: entry removed, refresh WAL keep-version so min beginWalIndex can advance.
+    if (pVnode->pTxnWalMgr != NULL) txnMgrRefreshWalKeepVersion(pVnode->pTxnWalMgr, pVnode->pWal, pVnode);
 
     vInfo("vgId:%d, txn rollback done (inline), txnId:%" PRId64 ", numUids:%d", TD_VID(pVnode), req.txnId, numUids);
   } else {
     // ── Large txn: lazy finalize O(1) + async vacuum ──
-    code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_FINAL_ROLLEDBACK);
+    code = vnodeTxnFinalizeLazy(pVnode, pEntry, TXN_META_ROLLEDBACK);
     (void)taosThreadMutexUnlock(&pVnode->txnMutex);
 
     if (code != 0) {
@@ -1950,7 +2016,7 @@ int32_t vnodeTxnFencing(SVnode *pVnode, int64_t newTerm, int64_t newTxnId) {
     // or rebuilt after restart). They'll be cleaned up by their own explicit COMMIT/ROLLBACK.
     // Also skip entries already in FINISHING state or finalized (being vacuum'd or already done).
     if (pEntry->term > 0 && pEntry->term < newTerm && pEntry->txnId != newTxnId &&
-        pEntry->stage != VTXN_STAGE_FINISHING && pEntry->finalStatus == TXN_FINAL_NONE) {
+        pEntry->stage != VTXN_STAGE_FINISHING && pEntry->status == TXN_META_NONE) {
       vInfo("vgId:%d, fencing: abort txn, txnId:%" PRId64 ", term:%" PRId64 ", newTerm:%" PRId64, TD_VID(pVnode),
             pEntry->txnId, pEntry->term, newTerm);
       if (taosArrayPush(toAbort, &pEntry->txnId) == NULL) {
@@ -2195,13 +2261,13 @@ int32_t vnodeTxnCheckConflict(SVnode *pVnode, const char *tableName, int8_t inco
   int32_t ret = TSDB_CODE_SUCCESS;
   if (pME->txnId != 0) {
     // Check if the owning txn is finalized → no conflict (vacuum will clean up)
-    int8_t finalStatus = metaGetTxnFinalStatus(pVnode->pMeta, pME->txnId);
-    if (finalStatus == TXN_FINAL_COMMITTED || finalStatus == TXN_FINAL_ROLLEDBACK) {
+    int8_t finalStatus = metaGetTxnMetaStatus(pVnode->pMeta, pME->txnId);
+    if (finalStatus == TXN_META_COMMITTED || finalStatus == TXN_META_ROLLEDBACK) {
       // For COMMITTED PRE_CREATE: table exists, CREATE should fail (TABLE_ALREADY_EXIST)
       // For ROLLEDBACK PRE_CREATE: table doesn't exist, CREATE should succeed (no conflict)
       // For COMMITTED PRE_DROP: table is gone, handled elsewhere
       // For ROLLEDBACK PRE_DROP: table restored, no conflict with new ops
-      if (finalStatus == TXN_FINAL_COMMITTED && pME->txnStatus == META_TXN_PRE_CREATE && incomingOp == 1) {
+      if (finalStatus == TXN_META_COMMITTED && pME->txnStatus == META_TXN_PRE_CREATE && incomingOp == 1) {
         ret = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
       }
       metaFetchEntryFree(&pME);
@@ -2276,8 +2342,8 @@ int32_t vnodeTxnCheckDeleteConflict(SVnode *pVnode, tb_uid_t uid) {
   int32_t ret = TSDB_CODE_SUCCESS;
   if (pME->txnId != 0 && pME->txnStatus == META_TXN_PRE_DROP) {
     // Check if finalized → no conflict
-    int8_t finalStatus = metaGetTxnFinalStatus(pVnode->pMeta, pME->txnId);
-    if (finalStatus == TXN_FINAL_NONE) {
+    int8_t finalStatus = metaGetTxnMetaStatus(pVnode->pMeta, pME->txnId);
+    if (finalStatus == TXN_META_NONE) {
       ret = TSDB_CODE_TXN_RESOURCE_BUSY;
       vWarn("vgId:%d, DELETE conflict: uid=%" PRId64 " is in PRE_DROP, txnId:%" PRId64, TD_VID(pVnode), uid,
             pME->txnId);

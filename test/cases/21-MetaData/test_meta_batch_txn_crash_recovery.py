@@ -39,7 +39,7 @@ class TestBatchMetaTxnCrashRecovery:
     def _reset_env(self, db_name):
         """Reset test database with replica 3."""
         tdSql.execute(f"drop database if exists {db_name}")
-        tdSql.execute(f"create database {db_name} vgroups 2 replica 3")
+        tdSql.execute(f"create database {db_name} vgroups 2 replica 3 keep 36500")
         tdSql.execute(f"use {db_name}")
 
     def _get_vgroup_leader_dnode(self, db_name, vgId, timeout=30):

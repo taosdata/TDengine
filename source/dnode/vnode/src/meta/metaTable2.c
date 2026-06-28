@@ -167,8 +167,8 @@ static int32_t metaCheckDropTableReq(SMeta *pMeta, int64_t version, SVDropTbReq 
     SMetaEntry *pExist = NULL;
     if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
       if (pExist->txnId != 0) {
-        int8_t finalStatus = metaGetTxnFinalStatus(pMeta, pExist->txnId);
-        if (pExist->txnStatus == META_TXN_PRE_CREATE && finalStatus == TXN_FINAL_ROLLEDBACK) {
+        int8_t finalStatus = metaGetTxnMetaStatus(pMeta, pExist->txnId);
+        if (pExist->txnStatus == META_TXN_PRE_CREATE && finalStatus == TXN_META_ROLLEDBACK) {
           // Rolled-back PRE_CREATE: table never existed, return NOT_EXIST
           metaFetchEntryFree(&pExist);
           metaULock(pMeta);
@@ -492,13 +492,13 @@ static int32_t metaCheckCreateChildTableReq(SMeta *pMeta, int64_t version, SVCre
       metaULock(pMeta);
       if (fetchRet == 0 && pExist != NULL) {
         if (pExist->txnId != 0) {
-          int8_t finalStatus = metaGetTxnFinalStatus(pMeta, pExist->txnId);
-          if (pExist->txnStatus == META_TXN_PRE_CREATE && finalStatus == TXN_FINAL_ROLLEDBACK) {
+          int8_t finalStatus = metaGetTxnMetaStatus(pMeta, pExist->txnId);
+          if (pExist->txnStatus == META_TXN_PRE_CREATE && finalStatus == TXN_META_ROLLEDBACK) {
             // Rolled-back PRE_CREATE: treat as non-existent (vacuum will clean up)
             metaFetchEntryFree(&pExist);
             goto _check_stb;
           }
-          if (pExist->txnStatus == META_TXN_PRE_DROP && finalStatus == TXN_FINAL_COMMITTED) {
+          if (pExist->txnStatus == META_TXN_PRE_DROP && finalStatus == TXN_META_COMMITTED) {
             // Committed PRE_DROP: table is logically deleted (vacuum will clean up), allow CREATE
             metaFetchEntryFree(&pExist);
             goto _check_stb;
@@ -682,12 +682,12 @@ static int32_t metaCheckCreateNormalTableReq(SMeta *pMeta, int64_t version, SVCr
       SMetaEntry *pExist = NULL;
       if (metaFetchEntryByUid(pMeta, pReq->uid, &pExist) == 0 && pExist != NULL) {
         if (pExist->txnId != 0) {
-          int8_t finalStatus = metaGetTxnFinalStatus(pMeta, pExist->txnId);
-          if (pExist->txnStatus == META_TXN_PRE_CREATE && finalStatus == TXN_FINAL_ROLLEDBACK) {
+          int8_t finalStatus = metaGetTxnMetaStatus(pMeta, pExist->txnId);
+          if (pExist->txnStatus == META_TXN_PRE_CREATE && finalStatus == TXN_META_ROLLEDBACK) {
             metaFetchEntryFree(&pExist);
             goto _grant;
           }
-          if (pExist->txnStatus == META_TXN_PRE_DROP && finalStatus == TXN_FINAL_COMMITTED) {
+          if (pExist->txnStatus == META_TXN_PRE_DROP && finalStatus == TXN_META_COMMITTED) {
             metaFetchEntryFree(&pExist);
             goto _grant;
           }

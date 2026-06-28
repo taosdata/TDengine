@@ -27,6 +27,7 @@ set(
     "src/vnd/vnodeStreamVTable.c"
     "src/vnd/vnodeScan.c"
     "src/vnd/vnodeTxn.c"
+    "src/vnd/vnodeTxnWalMgr.c"
     # meta
     "src/meta/metaOpen.c"
     "src/meta/metaTable.c"

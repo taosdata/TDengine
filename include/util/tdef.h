@@ -959,14 +959,14 @@ typedef int64_t txn_id_t;
 #define TSDB_TXN_VACUUM_BATCH_SIZE   1024   // Max UIDs processed per async vacuum batch
 #define TSDB_TXN_INLINE_THRESHOLD    64     // Txns with <= this many UIDs use sync inline path
 
-// ETxnFinalStatus: terminal state of a VNode-side transaction (persisted to txn_final.idx).
+// ETxnMetaStatus: terminal state of a VNode-side transaction (persisted to txn.meta).
 // COMMIT/ROLLBACK writes a single O(1) terminal record; background vacuum lazily cleans
 // up shadow data in the B+ tree.
 typedef enum {
-  TXN_FINAL_NONE = 0,        // not yet finalised (transaction in progress)
-  TXN_FINAL_COMMITTED = 1,   // committed; pending vacuum (shadow data needs to be made permanent)
-  TXN_FINAL_ROLLEDBACK = 2,  // rolled back; pending vacuum (shadow data needs to be discarded)
-} ETxnFinalStatus;
+  TXN_META_NONE = 0,        // not yet finalised (transaction in progress)
+  TXN_META_COMMITTED = 1,   // committed; pending vacuum (shadow data needs to be made permanent)
+  TXN_META_ROLLEDBACK = 2,  // rolled back; pending vacuum (shadow data needs to be discarded)
+} ETxnMetaStatus;
 
 #define MIN_RESERVE_MEM_SIZE 1024  // MB
 

@@ -585,6 +585,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_TTL_FLUSH_INCOMPLETION,   "Failed to flush all t
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_EXIST_BUT_NOT_MATCH,   "Vnode already exist but Dbid not match")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_VNODE_OFFLINE,            "Vnode is offline")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_EXCEED_MAX_COL_ID,        "Exceed max column id")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_TXN_MSGS_NOT_READY,       "Txn messages not ready in cache, retry later")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_TXN_MSGS_LOST,            "Txn messages lost (WAL truncated or corrupted)")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_SAME_TAG,                 "Tags are same")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ALREADY_CLOSED,           "Vnode is already closed")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_CLOSED,               "Vnode is not in closed state")

@@ -697,6 +697,10 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_VND_SAME_TAG                  TAOS_DEF_ERROR_CODE(0, 0x0543)
 #define TSDB_CODE_VND_ALREADY_CLOSED            TAOS_DEF_ERROR_CODE(0, 0x0544)
 #define TSDB_CODE_VND_NOT_CLOSED                TAOS_DEF_ERROR_CODE(0, 0x0545)
+// txn WAL cache: messages not yet available in cache (transient, caller should retry after lazyLoad)
+#define TSDB_CODE_VND_TXN_MSGS_NOT_READY        TAOS_DEF_ERROR_CODE(0, 0x0546)
+// txn WAL cache: messages permanently lost (WAL truncated / corrupted), caller should skip
+#define TSDB_CODE_VND_TXN_MSGS_LOST             TAOS_DEF_ERROR_CODE(0, 0x0547)
 
 // tsdb
 #define TSDB_CODE_TDB_INVALID_TABLE_ID          TAOS_DEF_ERROR_CODE(0, 0x0600)

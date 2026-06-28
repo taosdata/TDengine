@@ -38,7 +38,7 @@ class TestMndTxnSeqEdgeCases:
     def _reset_env(self, db_name):
         """Reset test database."""
         tdSql.execute(f"drop database if exists {db_name}")
-        tdSql.execute(f"create database {db_name} vgroups 2")
+        tdSql.execute(f"create database {db_name} vgroups 2 keep 36500")
         tdSql.execute(f"use {db_name}")
 
     def _get_txn_id(self):

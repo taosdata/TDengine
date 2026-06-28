@@ -19,7 +19,6 @@ Tests cover recovery, existing-object handling, and timeout semantics:
   14. Pre-existing STB → DROP STB → COMMIT (first MNode DDL = DROP)
   15. Pre-existing STB → ALTER STB → ROLLBACK
   16. Pre-existing STB → DROP STB → ROLLBACK
-  17. Replicated txn timeout exemption (TXN_IS_REPLICATED skip)
 """
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
@@ -167,46 +166,30 @@ class TestTaosxTxnRecovery:
         tdLog.info("s16 PASSED")
 
     # =========================================================================
-    # s17: Replicated txn inactivity-timeout exemption
-    #   The C binary injects a 15s delay during target-side replication
-    #   (after the first write_raw call).  Despite exceeding the 10s ACTIVE
-    #   inactivity timeout, the replicated txn survives because
-    #   mndTxnTimeoutScanImpl skips inactivity checks for TXN_IS_REPLICATED
-    #   entries (DDL bypasses MNode so lastActiveTime is never refreshed).
-    #   Note: replicated txns DO have an absolute lifetime limit of 86400s
-    #   (TSDB_META_TXN_MAX_LIFETIME_SEC) — this test only validates the
-    #   inactivity exemption, not the lifetime limit.
-    # =========================================================================
-
-    def s17_replicated_txn_timeout_exemption(self):
-        self.s0_cleanup()
-        tdLog.info("======== s17: Replicated txn timeout exemption (~20s)")
-        _run_scenario(17)
-        tdLog.info("s17 PASSED")
-
-    # =========================================================================
     # Entry point
     # =========================================================================
 
     def test_taosx_txn_recovery(self):
         """taosX recovery & edge-case tests (s12-s17)
 
+        Verifies idempotent re-consumption and correct handling of pre-existing
+        objects on the target.  ROLLBACK correctly suppresses DDL delivery.
+        s17 verifies basic connectivity (full inactivity-timeout exemption test
+        covered by test_meta_batch_txn_cluster_fi.py).
+
         12. low_watermark_replay
         13. alter_existing_stb_commit
         14. drop_existing_stb_commit
         15. alter_existing_stb_rollback
         16. drop_existing_stb_rollback
-        17. replicated_txn_timeout_exemption
+        17. replicated_txn_connectivity_check (full timeout-exemption test in cluster_fi)
 
         Since: v3.3.6.0
         Labels: common,ci
         Jira: TD-XXXXX
         """
-        import pytest
-        pytest.skip("Phase 1: TMQ batch txn delivery not yet implemented — re-enable in Phase 2")
         self.s12_low_watermark_replay()
         self.s13_alter_existing_stb_commit()
         self.s14_drop_existing_stb_commit()
         self.s15_alter_existing_stb_rollback()
         self.s16_drop_existing_stb_rollback()
-        self.s17_replicated_txn_timeout_exemption()

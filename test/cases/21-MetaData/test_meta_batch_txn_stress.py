@@ -37,7 +37,7 @@ class TestBatchMetaTxnStress:
 
     def s0_reset_env(self):
         tdSql.execute("drop database if exists txn_db")
-        tdSql.execute("create database txn_db vgroups 2")
+        tdSql.execute("create database txn_db vgroups 2 keep 36500")
         tdSql.execute("use txn_db")
 
 
@@ -752,7 +752,7 @@ class TestBatchMetaTxnStress:
 
         # Drop and recreate database
         tdSql.execute("drop database if exists txn_db")
-        tdSql.execute("create database txn_db vgroups 2")
+        tdSql.execute("create database txn_db vgroups 2 keep 36500")
         tdSql.execute("use txn_db")
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
@@ -791,7 +791,7 @@ class TestBatchMetaTxnStress:
     def s104_ddl_count_limit_per_vnode(self):
         tdLog.info("======== s104_ddl_count_limit_per_vnode")
         tdSql.execute("drop database if exists txn_ddl_limit_db")
-        tdSql.execute("create database txn_ddl_limit_db vgroups 1")
+        tdSql.execute("create database txn_ddl_limit_db vgroups 1 keep 36500")
         tdSql.execute("use txn_ddl_limit_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags(t1 int)")
 
@@ -836,7 +836,7 @@ class TestBatchMetaTxnStress:
     def s105_txn_lifetime_limit(self):
         tdLog.info("======== s105_txn_lifetime_limit")
         tdSql.execute("drop database if exists txn_lifetime_db")
-        tdSql.execute("create database txn_lifetime_db vgroups 1")
+        tdSql.execute("create database txn_lifetime_db vgroups 1 keep 36500")
         tdSql.execute("use txn_lifetime_db")
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
 

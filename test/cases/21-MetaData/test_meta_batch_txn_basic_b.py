@@ -27,7 +27,7 @@ class TestBatchMetaTxnBasicB:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.execute("drop database if exists txn_db")
-        tdSql.execute("create database txn_db vgroups 2")
+        tdSql.execute("create database txn_db vgroups 2 keep 36500")
 
     def s0_reset_env(self):
         # Fast cleanup: cancel any open transaction, then drop all user objects

@@ -107,7 +107,7 @@ struct SMeta {
   TTB* pTxnIdx;
 
   // batch meta txn: lazy COMMIT/ROLLBACK — txn finalization record for O(1) finalize
-  TTB* pTxnFinalIdx;
+  TTB* pTxnMeta;
 
   // stream
   TTB* pStreamDb;

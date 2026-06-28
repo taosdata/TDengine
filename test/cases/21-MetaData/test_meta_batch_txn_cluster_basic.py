@@ -43,7 +43,7 @@ class TestBatchMetaTxnClusterBasic:
     def _reset_env(self, db_name="txn_cdb"):
         """Reset test database. Uses replica 3 for VNode HA tests."""
         tdSql.execute(f"drop database if exists {db_name}")
-        tdSql.execute(f"create database {db_name} vgroups 2 replica 3")
+        tdSql.execute(f"create database {db_name} vgroups 2 replica 3 keep 36500")
         tdSql.execute(f"use {db_name}")
 
 
@@ -474,7 +474,7 @@ class TestBatchMetaTxnClusterBasic:
     def s49_cross_vnode_multi_dnode_commit(self):
         db = "txn_xvn"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 3 replica 1")
+        tdSql.execute(f"create database {db} vgroups 3 replica 1 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s49_cross_vnode_multi_dnode_commit")
 
@@ -538,7 +538,7 @@ class TestBatchMetaTxnClusterBasic:
     def s50_cross_vnode_multi_dnode_rollback(self):
         db = "txn_xvn2"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 3 replica 1")
+        tdSql.execute(f"create database {db} vgroups 3 replica 1 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s50_cross_vnode_multi_dnode_rollback")
 
@@ -595,7 +595,7 @@ class TestBatchMetaTxnClusterBasic:
     def s51_cross_vnode_fencing_commit(self):
         db = "txn_xvf"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 3 replica 3")
+        tdSql.execute(f"create database {db} vgroups 3 replica 3 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s51_cross_vnode_fencing_commit")
 

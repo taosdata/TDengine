@@ -35,7 +35,27 @@ TARGET_LINK_LIBRARIES(
          PUBLIC os util common vnode
 )
 
+# ---------------------------------------------------------------------------
+# walTxnMgrTest: STxnWalManager unit + integration tests
+# No --wrap linker flags needed → works on Linux and macOS (not Windows).
+# ---------------------------------------------------------------------------
+IF(NOT TD_WINDOWS)
+ADD_EXECUTABLE(walTxnMgrTest walTxnMgrTest.cpp)
+DEP_ext_gtest(walTxnMgrTest)
+TARGET_LINK_LIBRARIES(walTxnMgrTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode wal)
+TARGET_INCLUDE_DIRECTORIES(
+     walTxnMgrTest
+     PUBLIC "${TD_SOURCE_DIR}/include/common"
+     PUBLIC "${TD_SOURCE_DIR}/include/libs/wal"
+     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../../../libs/wal/inc"
+     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+add_test(NAME walTxnMgrTest COMMAND walTxnMgrTest)
+ENDIF()
+
 IF(TD_LINUX)
+
 ADD_EXECUTABLE(vnodeTxnTest vnodeTxnTest.cpp)
 DEP_ext_gtest(vnodeTxnTest)
 TARGET_LINK_LIBRARIES(
@@ -44,7 +64,7 @@ TARGET_LINK_LIBRARIES(
 )
 SET_TARGET_PROPERTIES(
          vnodeTxnTest PROPERTIES
-         LINK_FLAGS "-Wl,--wrap=metaFetchEntryByUid -Wl,--wrap=metaFetchEntryFree -Wl,--wrap=metaDropTable2 -Wl,--wrap=metaRollbackAlterTable -Wl,--wrap=metaTxnIdxDelete -Wl,--wrap=metaScanTxnEntries -Wl,--wrap=metaScanTxnFinalEntries -Wl,--wrap=metaTxnFinalIdxDelete -Wl,--wrap=metaTxnFinalIdxUpsert -Wl,--wrap=taosArrayAddBatch -Wl,--wrap=metaMarkTableTxnStatus -Wl,--wrap=vnodeAsync -Wl,--wrap=metaRLock -Wl,--wrap=metaULock"
+         LINK_FLAGS "-Wl,--wrap=metaFetchEntryByUid -Wl,--wrap=metaFetchEntryFree -Wl,--wrap=metaDropTable2 -Wl,--wrap=metaRollbackAlterTable -Wl,--wrap=metaTxnIdxDelete -Wl,--wrap=metaScanTxnEntries -Wl,--wrap=metaScanTxnMetaEntries -Wl,--wrap=metaTxnMetaDelete -Wl,--wrap=metaTxnMetaGet -Wl,--wrap=metaTxnMetaUpsert -Wl,--wrap=taosArrayAddBatch -Wl,--wrap=metaMarkTableTxnStatus -Wl,--wrap=vnodeAsync -Wl,--wrap=metaRLock -Wl,--wrap=metaULock"
 )
 
 TARGET_INCLUDE_DIRECTORIES(

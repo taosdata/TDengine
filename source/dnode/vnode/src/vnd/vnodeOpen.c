@@ -527,6 +527,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
   TAOS_UNUSED(ret);
 
   vInfo("vgId:%d, start to open vnode wal", TD_VID(pVnode));
+  pVnode->config.walCfg.enableTxnFile = 1;  // vnode WAL: enable .txn files for CDC lazy load
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
     vError("vgId:%d, failed to open vnode wal since %s. wal:%s", TD_VID(pVnode), tstrerror(terrno), tdir);
@@ -552,6 +553,24 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
     vError("vgId:%d, failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
+
+  // open txn WAL manager (CDC txn-atomic cache)
+  vInfo("vgId:%d, start to open txn WAL manager", TD_VID(pVnode));
+  pVnode->pTxnWalMgr = txnMgrOpen(pVnode->pWal, pVnode, info.lastTxnConsumeTs);
+  if (pVnode->pTxnWalMgr == NULL) {
+    vError("vgId:%d, failed to open txn WAL manager since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+  // Rebuild cache from WAL for any txns that were in-flight before restart.
+  {
+    int64_t minTxnVer = walGetFirstVer(pVnode->pWal);
+    int64_t appliedVer = pVnode->state.applied;
+    if (minTxnVer > 0 && minTxnVer <= appliedVer) {
+      (void)txnMgrReloadFromWal(pVnode->pTxnWalMgr, pVnode->pWal, minTxnVer, appliedVer);
+    }
+  }
+  // Set initial WAL keep-version based on slots loaded from WAL restart scan.
+  txnMgrRefreshWalKeepVersion(pVnode->pTxnWalMgr, pVnode->pWal, pVnode);
 
   // open blob store engine
   vInfo("vgId:%d, start to open blob store engine", TD_VID(pVnode));
@@ -602,6 +621,10 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
 _err:
   if (pVnode->pQuery) vnodeQueryClose(pVnode);
   if (pVnode->pTq) tqClose(pVnode->pTq);
+  if (pVnode->pTxnWalMgr) {
+    txnMgrClose(pVnode->pTxnWalMgr);
+    pVnode->pTxnWalMgr = NULL;
+  }
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
   vnodeTxnCleanup(pVnode);
@@ -644,6 +667,10 @@ void vnodeClose(SVnode *pVnode) {
     vnodeSyncClose(pVnode);
     vnodeQueryClose(pVnode);
     tqClose(pVnode->pTq);
+    if (pVnode->pTxnWalMgr) {
+      txnMgrClose(pVnode->pTxnWalMgr);
+      pVnode->pTxnWalMgr = NULL;
+    }
     walClose(pVnode->pWal);
     if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
     vnodeTxnCleanup(pVnode);

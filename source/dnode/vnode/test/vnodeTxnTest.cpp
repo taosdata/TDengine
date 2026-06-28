@@ -207,11 +207,11 @@ int32_t __wrap_metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, 
   return g_ctx.markTxnStatusCode;
 }
 
-// Mock metaScanTxnFinalEntries: always returns empty (unit tests skip Phase 2 rebuild)
-int32_t __wrap_metaScanTxnFinalEntries(SMeta* pMeta, SArray** ppResult) {
+// Mock metaScanTxnMetaEntries: always returns empty (unit tests skip Phase 2 rebuild)
+int32_t __wrap_metaScanTxnMetaEntries(SMeta* pMeta, SArray** ppResult) {
   (void)pMeta;
   // Always return an empty array — unit tests don't test Phase 2 rebuild
-  SArray* pResult = taosArrayInit(1, sizeof(int64_t) + sizeof(STxnFinalVal));
+  SArray* pResult = taosArrayInit(1, sizeof(int64_t) + sizeof(STxnMetaVal));
   if (pResult == nullptr) {
     *ppResult = nullptr;
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -220,19 +220,31 @@ int32_t __wrap_metaScanTxnFinalEntries(SMeta* pMeta, SArray** ppResult) {
   return TSDB_CODE_SUCCESS;
 }
 
-// Mock metaTxnFinalIdxDelete: no-op stub for final index cleanup
-int32_t __wrap_metaTxnFinalIdxDelete(SMeta* pMeta, int64_t txnId) {
+// Mock metaTxnMetaDelete: no-op stub for final index cleanup
+int32_t __wrap_metaTxnMetaDelete(SMeta* pMeta, int64_t txnId) {
   (void)pMeta;
   (void)txnId;
   return TSDB_CODE_SUCCESS;
 }
 
-// Mock metaTxnFinalIdxUpsert: tracks lazy-finalize persistence calls without touching real meta.
-int32_t __wrap_metaTxnFinalIdxUpsert(SMeta* pMeta, int64_t txnId, const STxnFinalVal* pVal) {
+// Mock metaTxnMetaGet: returns NOT_FOUND so rebuild uses beginWalIndex=0 fallback.
+// The real implementation dereferences pMeta->pTxnMeta which is invalid in test context.
+int32_t __wrap_metaTxnMetaGet(SMeta* pMeta, int64_t txnId, STxnMetaVal* pVal) {
   (void)pMeta;
   (void)txnId;
   (void)pVal;
-  ++g_ctx.txnFinalIdxUpsertCalls;
+  return TSDB_CODE_NOT_FOUND;
+}
+
+// Mock metaTxnMetaUpsert: tracks lazy-finalize persistence calls without touching real meta.
+// Begin-record writes (status == TXN_META_NONE) from vnodeTxnEnsureEntry are NOT counted,
+// since txnFinalIdxUpsertCalls is intended to verify finalization behaviour only.
+int32_t __wrap_metaTxnMetaUpsert(SMeta* pMeta, int64_t txnId, const STxnMetaVal* pVal) {
+  (void)pMeta;
+  (void)txnId;
+  if (pVal != NULL && pVal->status != TXN_META_NONE) {
+    ++g_ctx.txnFinalIdxUpsertCalls;
+  }
   return g_ctx.txnFinalIdxUpsertCode;
 }
 
@@ -293,7 +305,7 @@ TEST(vnodeTxnCase, fencingPropagatesPreCreateUndoFailure) {
   SVnode vnode;
   initTestVnode(&vnode);
 
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnId, uid), TSDB_CODE_SUCCESS);
 
   int32_t code = vnodeTxnFencing(&vnode, 2, txnId + 1);
@@ -322,7 +334,7 @@ TEST(vnodeTxnCase, fencingPropagatesChainedPreCreateCleanupFailureAfterAlterRoll
   SVnode vnode;
   initTestVnode(&vnode);
 
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackAlter(&vnode, txnId, uid, prevVersion), TSDB_CODE_SUCCESS);
 
   int32_t code = vnodeTxnFencing(&vnode, 2, txnId + 1);
@@ -365,7 +377,7 @@ TEST(vnodeTxnCase, fencingPropagatesTxnIdxDeleteFailure) {
   SVnode vnode;
   initTestVnode(&vnode);
 
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnId, uid), TSDB_CODE_SUCCESS);
 
   int32_t code = vnodeTxnFencing(&vnode, 2, txnId + 1);
@@ -390,7 +402,7 @@ TEST(vnodeTxnCase, fencingToleratesTxnIdxDeleteNotFound) {
   SVnode vnode;
   initTestVnode(&vnode);
 
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnId, uid), TSDB_CODE_SUCCESS);
 
   int32_t code = vnodeTxnFencing(&vnode, 2, txnId + 1);
@@ -452,7 +464,7 @@ TEST(vnodeTxnCase, fencingSameTermIsNoOp) {
   SVnode vnode;
   initTestVnode(&vnode, 5);  // maxSeenTerm = 5
 
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnId, uid), TSDB_CODE_SUCCESS);
 
   // Same term (5) with different txnId → no fencing, just no-op
@@ -502,9 +514,9 @@ TEST(vnodeTxnCase, fencingPreservesExcludedTxn) {
   initTestVnode(&vnode, 1);
 
   // Register two txns
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnIdKeep), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnIdKeep, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnIdKeep, uidKeep), TSDB_CODE_SUCCESS);
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnIdOld), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnIdOld, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnIdOld, uidOld), TSDB_CODE_SUCCESS);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 2);
 
@@ -535,7 +547,7 @@ TEST(vnodeTxnCase, fencingRollbackPreDropRestoresTable) {
   SVnode vnode;
   initTestVnode(&vnode, 1);
 
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnId, uid), TSDB_CODE_SUCCESS);
 
   // Fencing with higher term, excluding a different txnId
@@ -560,11 +572,11 @@ TEST(vnodeTxnCase, ensureEntryIdempotent) {
   SVnode vnode;
   initTestVnode(&vnode);
 
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId, 0), TSDB_CODE_SUCCESS);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 1);
 
   // Double ensure should be idempotent
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId, 0), TSDB_CODE_SUCCESS);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 1);
 
   vnodeTxnCleanup(&vnode);
@@ -581,7 +593,7 @@ TEST(vnodeTxnCase, trackMultipleUidsInSameTxn) {
   SVnode vnode;
   initTestVnode(&vnode);
 
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnId, 9100), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnId, 9101), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnId, 9102), TSDB_CODE_SUCCESS);
@@ -606,7 +618,7 @@ TEST(vnodeTxnCase, inlineCommitPartialFailureFallsBackToLazyFinalize) {
   SVnode vnode;
   initTestVnode(&vnode, 1);
 
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnId, uid), TSDB_CODE_SUCCESS);
 
   std::vector<char> reqBuf = serializeCommitReq(txnId, 1);
@@ -618,11 +630,11 @@ TEST(vnodeTxnCase, inlineCommitPartialFailureFallsBackToLazyFinalize) {
   EXPECT_EQ(g_ctx.txnFinalIdxUpsertCalls, 1);
   EXPECT_EQ(g_ctx.vnodeAsyncCalls, 1);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 1);
-  EXPECT_EQ(taosHashGetSize(vnode.pFinalizedTxns), 1);
+  EXPECT_EQ(taosHashGetSize(vnode.pTxnMetaCache), 1);
 
-  auto* pFinalStatus = static_cast<int8_t*>(taosHashGet(vnode.pFinalizedTxns, &txnId, sizeof(txnId)));
+  auto* pFinalStatus = static_cast<int8_t*>(taosHashGet(vnode.pTxnMetaCache, &txnId, sizeof(txnId)));
   ASSERT_NE(pFinalStatus, nullptr);
-  EXPECT_EQ(*pFinalStatus, TXN_FINAL_COMMITTED);
+  EXPECT_EQ(*pFinalStatus, TXN_META_COMMITTED);
 
   vnodeTxnCleanup(&vnode);
 }
@@ -641,7 +653,7 @@ TEST(vnodeTxnCase, rollbackAlterFailureKeepsTxnEntryRetryable) {
   SVnode vnode;
   initTestVnode(&vnode, 1);
 
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackAlter(&vnode, txnId, uid, prevVersion), TSDB_CODE_SUCCESS);
 
   std::vector<char> reqBuf = serializeRollbackReq(txnId, 1, 0);
@@ -653,9 +665,9 @@ TEST(vnodeTxnCase, rollbackAlterFailureKeepsTxnEntryRetryable) {
   EXPECT_EQ(g_ctx.txnFinalIdxUpsertCalls, 0);
   EXPECT_EQ(g_ctx.vnodeAsyncCalls, 0);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 1);
-  EXPECT_EQ(taosHashGetSize(vnode.pFinalizedTxns), 0);
+  EXPECT_EQ(taosHashGetSize(vnode.pTxnMetaCache), 0);
 
-  auto* pFinalStatus = static_cast<int8_t*>(taosHashGet(vnode.pFinalizedTxns, &txnId, sizeof(txnId)));
+  auto* pFinalStatus = static_cast<int8_t*>(taosHashGet(vnode.pTxnMetaCache, &txnId, sizeof(txnId)));
   EXPECT_EQ(pFinalStatus, nullptr);
 
   vnodeTxnCleanup(&vnode);
@@ -690,7 +702,7 @@ TEST(vnodeTxnCase, vacuumFailureMidwayStopsAtFailedUid) {
   initTestVnode(&vnode, 1);
 
   // Setup: create entry, track 3 UIDs
-  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(vnodeTxnEnsureEntry(&vnode, txnId, 0), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnId, uid1), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnId, uid2), TSDB_CODE_SUCCESS);
   ASSERT_EQ(vnodeTxnTrackTable(&vnode, txnId, uid3), TSDB_CODE_SUCCESS);
@@ -702,10 +714,10 @@ TEST(vnodeTxnCase, vacuumFailureMidwayStopsAtFailedUid) {
 
   // Verify lazy finalization occurred (entry preserved for async vacuum)
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 1);
-  EXPECT_EQ(taosHashGetSize(vnode.pFinalizedTxns), 1);
-  auto* pFinalStatus = static_cast<int8_t*>(taosHashGet(vnode.pFinalizedTxns, &txnId, sizeof(txnId)));
+  EXPECT_EQ(taosHashGetSize(vnode.pTxnMetaCache), 1);
+  auto* pFinalStatus = static_cast<int8_t*>(taosHashGet(vnode.pTxnMetaCache, &txnId, sizeof(txnId)));
   ASSERT_NE(pFinalStatus, nullptr);
-  EXPECT_EQ(*pFinalStatus, TXN_FINAL_COMMITTED);
+  EXPECT_EQ(*pFinalStatus, TXN_META_COMMITTED);
 
   // ---- Vacuum phase 1: uid1 succeeds (maxOps=1 → process only uid1) ----
   resetMockContext();
@@ -719,7 +731,7 @@ TEST(vnodeTxnCase, vacuumFailureMidwayStopsAtFailedUid) {
   EXPECT_EQ(g_ctx.txnIdxDeleteCalls, 1);
   // Entry still present (2 UIDs remaining)
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 1);
-  EXPECT_EQ(taosHashGetSize(vnode.pFinalizedTxns), 1);
+  EXPECT_EQ(taosHashGetSize(vnode.pTxnMetaCache), 1);
 
   // ---- Vacuum phase 2: uid2 fails → stops, vacuumIdx stays ----
   resetMockContext();
@@ -746,7 +758,7 @@ TEST(vnodeTxnCase, vacuumFailureMidwayStopsAtFailedUid) {
   EXPECT_EQ(processed, 2);
   // After full vacuum, vnodeTxnVacuumBatch removes the entry from hashes.
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 0);
-  EXPECT_EQ(taosHashGetSize(vnode.pFinalizedTxns), 0);
+  EXPECT_EQ(taosHashGetSize(vnode.pTxnMetaCache), 0);
 
   vnodeTxnCleanup(&vnode);
 }

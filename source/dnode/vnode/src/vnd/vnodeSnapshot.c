@@ -45,11 +45,14 @@ struct SVSnapReader {
   int64_t index;
   // config
   int8_t cfgDone;
+  // wal txn files
+  int8_t             txnWalDone;
+  SWalTxnSnapReader *pWalTxnReader;
+  // txn.meta (§44 lazy COMMIT/ROLLBACK durable transfer)
+  int8_t txnMetaDone;
   // meta
   int8_t           metaDone;
   SMetaSnapReader *pMetaReader;
-  // txn_final.idx (§44 lazy COMMIT/ROLLBACK durable transfer)
-  int8_t txnFinalDone;
   // tsdb
   int8_t              tsdbDone;
   TFileSetRangeArray *pRanges;
@@ -261,6 +264,10 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
   if (pReader->pMetaReader) {
     metaSnapReaderClose(&pReader->pMetaReader);
   }
+
+  if (pReader->pWalTxnReader) {
+    walSnapTxnReaderClose(&pReader->pWalTxnReader);
+  }
 #ifdef USE_TQ
   if (pReader->pTqSnapReader) {
     tqSnapReaderClose(&pReader->pTqSnapReader);
@@ -336,6 +343,51 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     goto _exit;
   }
 
+  // WAL_TXN ==============
+  if (!pReader->txnWalDone) {
+    if (pReader->pWalTxnReader == NULL) {
+      code = walSnapTxnReaderOpen(pVnode->pWal, pReader->ever, &pReader->pWalTxnReader);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    uint8_t *pRaw   = NULL;
+    uint32_t rawLen = 0;
+    code = walSnapTxnRead(pReader->pWalTxnReader, &pRaw, &rawLen);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (pRaw) {
+      uint8_t *pBlock = taosMemoryMalloc(sizeof(SSnapDataHdr) + rawLen);
+      if (pBlock == NULL) {
+        taosMemoryFree(pRaw);
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
+      }
+      ((SSnapDataHdr *)pBlock)->type = SNAP_DATA_TXN_WAL;
+      ((SSnapDataHdr *)pBlock)->size = rawLen;
+      (void)memcpy(((SSnapDataHdr *)pBlock)->data, pRaw, rawLen);
+      taosMemoryFree(pRaw);
+      *ppData = pBlock;
+      goto _exit;
+    } else {
+      pReader->txnWalDone = 1;
+      walSnapTxnReaderClose(&pReader->pWalTxnReader);
+    }
+  }
+
+  // TXN_META ==============
+  // §44: replicate txn.meta so that a follower joining via full snapshot
+  // resumes lazy vacuum of large-txn shadow entries instead of leaking PRE_*
+  // status forever. Emitted AFTER WAL_TXN, BEFORE META entries.
+  if (!pReader->txnMetaDone) {
+    code = metaSnapTxnMetaRead(pReader->pVnode->pMeta, ppData);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    pReader->txnMetaDone = 1;  // single-shot: one block contains all entries
+    if (*ppData) {
+      goto _exit;
+    }
+    // empty txn.meta: fall through to meta stage
+  }
+
   // META ==============
   if (!pReader->metaDone) {
     // open reader if not
@@ -353,21 +405,6 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       pReader->metaDone = 1;
       metaSnapReaderClose(&pReader->pMetaReader);
     }
-  }
-
-  // TXN_FINAL ==============
-  // §44: replicate txn_final.idx so that a follower joining via full snapshot
-  // resumes lazy vacuum of large-txn shadow entries instead of leaking PRE_*
-  // status forever. Emitted exactly once, AFTER all META entries are sent.
-  if (!pReader->txnFinalDone) {
-    code = metaSnapTxnFinalRead(pReader->pVnode->pMeta, ppData);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
-    pReader->txnFinalDone = 1;  // single-shot: one block contains all entries
-    if (*ppData) {
-      goto _exit;
-    }
-    // empty txn_final.idx: fall through to tsdb stage
   }
 
   // TSDB ==============
@@ -782,8 +819,8 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
   if (code) goto _exit;
 
   // After snapshot apply, reset in-memory txn state and rebuild from the new
-  // B+ tree content.  txn.idx was populated during metaSnapWrite; txn_final.idx
-  // was written by metaSnapTxnFinalWrite.  The old in-memory state (from before
+  // B+ tree content.  txn.idx was populated during metaSnapWrite; txn.meta
+  // was written by metaSnapTxnMetaWrite.  The old in-memory state (from before
   // the snapshot) is now stale and must be replaced.
   if (!rollback) {
     code = vnodeTxnResetForSnapshot(pVnode);
@@ -875,11 +912,15 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       code = metaSnapWrite(pWriter->pMetaSnapWriter, pData, nData);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
-    case SNAP_DATA_TXN_FINAL: {
-      // §44: bulk-apply finalized-txn records into local txn_final.idx so
+    case SNAP_DATA_TXN_WAL: {
+      code = walSnapTxnWrite(pVnode->pWal, pHdr->data, (uint32_t)pHdr->size);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } break;
+    case SNAP_DATA_TXN_META: {
+      // §44: bulk-apply finalized-txn records into local txn.meta so
       // that follower-side vnodeTxnRebuildFromMeta Phase 2 can resume vacuum.
-      // metaSnapTxnFinalWrite manages its own meta txn (begin/commit/abort).
-      code = metaSnapTxnFinalWrite(pVnode->pMeta, pData, nData);
+      // metaSnapTxnMetaWrite manages its own meta txn (begin/commit/abort).
+      code = metaSnapTxnMetaWrite(pVnode->pMeta, pData, nData);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
     case SNAP_DATA_TSDB:

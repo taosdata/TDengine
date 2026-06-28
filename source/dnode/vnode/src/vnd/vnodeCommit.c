@@ -519,12 +519,15 @@ static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData) {
   code = tjsonAddObject(pJson, "state", vnodeEncodeState, (void *)&pInfo->state);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  code = tjsonAddIntegerToObject(pJson, "lastTxnConsumeTs", (uint64_t)pInfo->lastTxnConsumeTs);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   pData = tjsonToString(pJson);
   if (pData == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
-  tjsonDelete(pJson);
+  tjsonDelete(pJson); 
 
 _exit:
   if (code) {
@@ -551,6 +554,9 @@ int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
 
   code = tjsonToObject(pJson, "state", vnodeDecodeState, (void *)&pInfo->state);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  // lastTxnConsumeTs is optional (absent in older vnode-info files → stays 0)
+  (void)tjsonGetBigIntValue(pJson, "lastTxnConsumeTs", &pInfo->lastTxnConsumeTs);
 
 _exit:
   tjsonDelete(pJson);

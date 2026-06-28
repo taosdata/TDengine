@@ -71,7 +71,7 @@ class TestBatchMetaTxnClusterFIC:
     def s70_pre_alter_snapshot_commit(self):
         db = "txn_palter_sc"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 1 replica 3 wal_retention_period 1")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3 wal_retention_period 1 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s70_pre_alter_snapshot_commit")
 
@@ -171,7 +171,7 @@ class TestBatchMetaTxnClusterFIC:
     def s71_pre_alter_snapshot_rollback(self):
         db = "txn_palter_sr"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 1 replica 3 wal_retention_period 1")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3 wal_retention_period 1 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s71_pre_alter_snapshot_rollback")
 

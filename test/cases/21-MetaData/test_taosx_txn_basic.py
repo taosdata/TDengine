@@ -45,8 +45,8 @@ def _find_binary():
 
     # Search common locations; derive root from this file's location
     # __file__ is .../community/test/cases/21-MetaData/test_taosx_txn_basic.py
-    # 4 levels up reaches the TDinternal repo root
-    _root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../"))
+    # 5 levels up reaches the TDinternal repo root (source/taos-community/test/cases/21-MetaData → repo root)
+    _root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../../"))
     search_paths = [
         os.path.join(_root, "debug/build/bin/tmq_taosx_txn"),
         os.path.join(os.environ.get("TDENGINE_DIR", ""), "debug/build/bin/tmq_taosx_txn"),
@@ -79,10 +79,15 @@ def _run_scenario(scenario, expect_pass=True):
     """Run a tmq_taosx_txn scenario and check result."""
     binary = _find_binary()
     tdLog.info("Running tmq_taosx_txn scenario %d (%s)" % (scenario, binary))
+    # Prepend the build-output lib directory so the binary uses the freshly-built
+    # libtaos instead of any stale installed copy.  Fall back to the system paths.
+    build_lib = os.path.normpath(os.path.join(os.path.dirname(binary), "../lib"))
+    lib_path = (build_lib + ":") if os.path.isdir(build_lib) else ""
+    lib_path += "/usr/lib:/usr/local/taos/driver"
     ret = subprocess.run(
         [binary, str(scenario)],
         capture_output=True, text=True, timeout=120,
-        env={**os.environ, "LD_LIBRARY_PATH": "/usr/lib:/usr/local/taos/driver"}
+        env={**os.environ, "LD_LIBRARY_PATH": lib_path}
     )
     tdLog.info("stdout: %s" % ret.stdout)
     if ret.stderr:
@@ -230,6 +235,11 @@ class TestTaosxTxnBasic:
     def test_taosx_txn_basic(self):
         """taosX basic replication tests (s1-s11)
 
+        Verifies atomic batch delivery via STxnWalManager: DDL messages within
+        a BEGIN…COMMIT block arrive as a single atomic batch on the consumer side;
+        ROLLBACK produces no DDL messages. Individual PRE_CREATE WAL entries are
+        filtered in tqScan.c and delivered only on COMMIT.
+
         1. commit_stb_and_ctb
         2. rollback_stb_and_ctb
         3. alter_stb_commit
@@ -246,8 +256,6 @@ class TestTaosxTxnBasic:
         Labels: common,ci
         Jira: TD-XXXXX
         """
-        import pytest
-        pytest.skip("Phase 1: TMQ batch txn delivery not yet implemented — re-enable in Phase 2")
         self.s1_commit_stb_and_ctb()
         self.s2_rollback_stb_and_ctb()
         self.s3_alter_stb_commit()

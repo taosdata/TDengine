@@ -13,21 +13,23 @@
 
 """Target-side (taosX) replication: snapshot-mode tests (s18-s20).
 
-Tests verify that transactions replicated through TMQ in snapshot mode
-(td.enable.snapshot=1) correctly propagate txnId/txnStatus from
-SVCreateTbReq so the target can process subsequent COMMIT/ROLLBACK:
+Design (current implementation):
+  tqMeta.c caps snapshotVer = min(committedVer, minTxnBeginIndex-1).
+  buildSnapContext stops iterating at version > snapshotVer, so in-flight
+  PRE_CREATE/PRE_ALTER/PRE_DROP entries are NEVER included in the meta snapshot.
+  Consumers always receive a "clean" snapshot containing only NORMAL entries.
+  After snapshot, WAL replay starts at snapshotVer+1:
+    - Individual in-txn DDL entries are filtered (WAL_IS_TXN_MSG skip).
+    - TXN_COMMIT triggers atomic delivery via STxnWalManager.
+    - TXN_ROLLBACK is silently skipped (no PRE_CREATE was ever seen by the
+      consumer, so nothing to clean up on the target).
 
-  18. Snapshot + PRE_CREATE child tables → ROLLBACK → target has stb1 only
-  19. Snapshot + PRE_CREATE child tables → COMMIT  → target has stb1 + ct1 + ct2
-  20. Idempotent ROLLBACK via double replay → target has 0 stables, 0 tables
-      (second ROLLBACK is a no-op on VNode when txnEntry was already removed)
-
-These tests exercise the getTableInfoFromSnapshot() code path in
-metaSnapshot.c which was fixed to copy me.txnId and me.txnStatus into
-the SVCreateTbReq it builds for the consumer.  Scenario 20 specifically
-covers the vnodeProcessTxnRollbackReq idempotency path (pEntry == NULL
-→ return SUCCESS) which is invoked when MNode sends orphan ROLLBACK for
-a txn that VNode already cleaned up.
+Scenarios:
+  18. Snapshot + all data committed before subscribe → target gets everything.
+  19. Snapshot while txn in-flight → snapshot capped before txn start →
+      delivers only committed (stb1); WAL replay atomically delivers ct1+ct2
+      on COMMIT.  Final target: stb1 + ct1 + ct2.
+  20. Snapshot idempotent double-replay → two consumer groups, same result.
 """
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
@@ -47,8 +49,8 @@ def _find_binary():
 
     # Search common locations; derive root from this file's location
     # __file__ is .../community/test/cases/21-MetaData/test_taosx_txn_snapshot.py
-    # 4 levels up reaches the TDinternal repo root
-    _root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../"))
+    # 5 levels up reaches the TDinternal repo root (file is under source/taos-community/test/cases/21-MetaData/)
+    _root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../../"))
     search_paths = [
         os.path.join(_root, "debug/build/bin/tmq_taosx_txn"),
         os.path.join(os.environ.get("TDENGINE_DIR", ""), "debug/build/bin/tmq_taosx_txn"),
@@ -81,7 +83,10 @@ def _run_scenario(scenario, expect_pass=True):
     """Run a tmq_taosx_txn scenario and check result."""
     binary = _find_binary()
     tdLog.info("Running tmq_taosx_txn scenario %d (%s)" % (scenario, binary))
-    env = {**os.environ, "LD_LIBRARY_PATH": "/usr/lib:/usr/local/taos/driver"}
+    build_lib = os.path.normpath(os.path.join(os.path.dirname(binary), "../lib"))
+    lib_path = (build_lib + ":") if os.path.isdir(build_lib) else ""
+    lib_path += "/usr/lib:/usr/local/taos/driver"
+    env = {**os.environ, "LD_LIBRARY_PATH": lib_path}
     # Keep LD_PRELOAD if it contains ASAN runtime (needed for instrumented binaries)
     ld_preload = env.get("LD_PRELOAD", "")
     if "libasan" not in ld_preload:
@@ -116,80 +121,83 @@ class TestTaosxTxnSnapshot:
         tdSql.execute("drop database if exists dst_txn_db")
 
     # =========================================================================
-    # s18: Snapshot mode + PRE_CREATE child tables → ROLLBACK
+    # s18: Snapshot mode — all data committed before subscribe → target gets all
     #
-    # The consumer subscribes in snapshot mode while ct1 and ct2 are in
-    # PRE_CREATE state (transaction not yet committed or rolled back).
-    # getTableInfoFromSnapshot() must copy txnId/txnStatus into SVCreateTbReq
-    # so that the target vnode registers ct1/ct2 under the correct txnId.
-    # When the subsequent ROLLBACK WAL entry arrives, the target vnode can
-    # find and delete the PRE_CREATE tables.
-    # Expected result: target has stb1, but 0 child tables.
+    # All DDL (stb1 + ct1 + ct2) is committed to the source database before the
+    # consumer subscribes.  The consumer uses snapshot mode (td.enable.snapshot=1).
+    # Because all transactions are fully committed and vacuumed, minTxnBeginIndex
+    # does not constrain snapshotVer; the snapshot delivers everything.
+    # Expected result: target has stb1 + ct1 + ct2.
     # =========================================================================
 
-    def s18_snapshot_pre_create_rollback(self):
+    def s18_snapshot_committed_data(self):
         self.s0_cleanup()
-        tdLog.info("======== s18: snapshot + PRE_CREATE CTBs → ROLLBACK → target empty CTBs")
+        tdLog.info("======== s18: snapshot of fully-committed data → target gets all")
         _run_scenario(18)
         tdLog.info("s18 PASSED")
 
     # =========================================================================
-    # s19: Snapshot mode + PRE_CREATE child tables → COMMIT
+    # s19: Snapshot mode while txn in-flight → COMMIT → target gets full state
     #
-    # Same ordering as s18 but the transaction is committed.  The consumer
-    # carries PRE_CREATE ct1/ct2 with txnId/txnStatus, and the subsequent
-    # COMMIT WAL entry promotes them to NORMAL on the target.
+    # stb1 is committed outside any transaction.  Then a BEGIN…CREATE ct1+ct2
+    # transaction is opened but NOT yet committed.  The consumer subscribes in
+    # snapshot mode while ct1 and ct2 are still PRE_CREATE (in-flight).
+    #
+    # snapshotVer = min(committedVer, minTxnBeginIndex-1) ensures the snapshot
+    # stops before the in-flight transaction's first WAL entry.  The snapshot
+    # therefore delivers only stb1 (NORMAL); ct1 and ct2 are excluded.
+    #
+    # After the consumer subscribes, the source commits the transaction.  WAL
+    # replay from snapshotVer+1 filters individual in-txn DDL (WAL_IS_TXN_MSG),
+    # then delivers ct1+ct2 atomically when TXN_COMMIT is encountered via
+    # STxnWalManager.
+    #
     # Expected result: target has stb1 + ct1 + ct2.
     # =========================================================================
 
-    def s19_snapshot_pre_create_commit(self):
+    def s19_snapshot_inflight_txn_commit(self):
         self.s0_cleanup()
-        tdLog.info("======== s19: snapshot + PRE_CREATE CTBs → COMMIT → target has 2 CTBs")
+        tdLog.info("======== s19: snapshot while txn in-flight → COMMIT → target has stb1+ct1+ct2")
         _run_scenario(19)
         tdLog.info("s19 PASSED")
 
     # =========================================================================
-    # s20: Idempotent ROLLBACK via double replay
+    # s20: Snapshot idempotent double-replay → same target state
     #
-    # Source creates a committed STB (outside BEGIN) then creates CT1/CT2 inside
-    # a BEGIN…ROLLBACK.  The scenario is replayed twice via different consumer
-    # groups.  In the second replay, the committed STB already exists (no-op),
-    # CT1/CT2 are recreated in PRE_CREATE state under the same replicated txnId,
-    # and the ROLLBACK event finalises them again.  The second ROLLBACK must be
-    # idempotent: vnodeProcessTxnRollbackReq sees finalStatus != TXN_FINAL_NONE
-    # or pEntry == NULL and returns SUCCESS without corrupting any data.
-    #
-    # This directly covers the scenario where MNode's orphan-cleanup mechanism
-    # (mndRollbackOrphanTxnOnVnode) sends a ROLLBACK via STrans for a txn that
-    # VNode already cleaned up, verifying that the VNode handler is idempotent.
-    #
-    # Expected result: target has 1 stable (stb1) and 0 tables after both replays.
+    # Two consumer groups (both with td.enable.snapshot=1) consume the same
+    # topic from earliest offset.  The second group re-applies all messages;
+    # TABLE_ALREADY_EXIST errors are tolerated (idempotent replay).
+    # Expected result: target state is identical after both groups finish.
     # =========================================================================
 
-    def s20_idempotent_rollback_double_replay(self):
+    def s20_snapshot_idempotent_replay(self):
         self.s0_cleanup()
-        tdLog.info("======== s20: idempotent ROLLBACK via double replay → target empty")
+        tdLog.info("======== s20: snapshot idempotent double-replay → same target state")
         _run_scenario(20)
         tdLog.info("s20 PASSED")
 
     def test_taosx_txn_snapshot(self):
         """taosX snapshot-mode replication tests (s18-s20)
 
-        These tests exercise the getTableInfoFromSnapshot() code path that
-        must preserve txnId/txnStatus in SVCreateTbReq so the consumer-side
-        target can correctly process ROLLBACK and COMMIT for in-flight
-        transactions that were captured in the TMQ meta snapshot.
+        Verifies that a TMQ consumer with td.enable.snapshot=1 correctly
+        delivers committed DDL to the target under the current snapshot design.
 
-        18. snapshot_pre_create_rollback
-        19. snapshot_pre_create_commit
-        20. idempotent_rollback_double_replay
+        Design: tqMeta.c caps snapshotVer at min(committedVer, minTxnBeginIndex-1).
+        buildSnapContext stops iterating at version > snapshotVer, so in-flight
+        PRE_CREATE/PRE_ALTER/PRE_DROP entries are NEVER included in the snapshot.
+        After snapshot, WAL replay starts at snapshotVer+1; individual in-txn DDL
+        entries are filtered (WAL_IS_TXN_MSG); TXN_COMMIT triggers atomic delivery
+        via STxnWalManager; TXN_ROLLBACK is silently skipped (no PRE_CREATE was
+        ever seen by the consumer, so nothing to clean up on the target).
+
+        18. snapshot_committed_data
+        19. snapshot_inflight_txn_commit
+        20. snapshot_idempotent_replay
 
         Since: v3.3.6.0
         Labels: common,ci
         Jira: TD-6659965197
         """
-        import pytest
-        pytest.skip("Phase 1: TMQ batch txn delivery not yet implemented — re-enable in Phase 2")
-        self.s18_snapshot_pre_create_rollback()
-        self.s19_snapshot_pre_create_commit()
-        self.s20_idempotent_rollback_double_replay()
+        self.s18_snapshot_committed_data()
+        self.s19_snapshot_inflight_txn_commit()
+        self.s20_snapshot_idempotent_replay()

@@ -111,7 +111,9 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   pReq.virtualStb = req.virtualStb;
   pReq.securityLevel = req.securityLevel;  // Preserve source cluster's security classification
 
-  pReq.txnId = req.txnId;
+  // tmq_write_raw applies already-committed DDL to the destination; the source txnId
+  // is irrelevant there (no transaction was opened on the destination).
+  pReq.txnId = 0;
 
   uDebug(LOG_ID_TAG " create stable name:%s suid:%" PRId64 " processSuid:%" PRId64 " txnId:%" PRIu64, LOG_ID_VALUE,
          req.name, req.suid, pReq.suid, pReq.txnId);
@@ -184,13 +186,14 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
   SCatalog* pCatalog = NULL;
   RAW_RETURN_CHECK(catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog));
 
-  pReq.txnId = req.txnId;
+  // tmq_write_raw applies already-committed DDL to the destination; no txn on dest.
+  pReq.txnId = 0;
 
   SRequestConnInfo conn = {.pTrans = pRequest->pTscObj->pAppInfo->pTransporter,
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
-                           .txnId = pReq.txnId};
+                           .txnId = 0};
   SName            pName = {0};
   toName(pRequest->pTscObj->acctId, pRequest->pDb, req.name, &pName);
   STableMeta* pTableMeta = NULL;
@@ -458,6 +461,31 @@ end:
   return code;
 }
 
+// Clear source-cluster txnIds from decoded vnode DDL request structs before replaying
+// to a destination cluster via tmq_write_raw.  STB operations are omitted here because
+// taosCreateStb/taosDropStb route through mnode with freshly-built SM*StbReq structs
+// (zero-initialised by calloc).  If a new DDL type carries txnId to a vnode directly,
+// add a case here.
+static void rawReplayClearTxnId(tmsg_t msgType, void *pDecoded) {
+  switch (msgType) {
+    case TDMT_VND_CREATE_TABLE: {
+      SVCreateTbBatchReq *pBatch = (SVCreateTbBatchReq *)pDecoded;
+      for (int32_t i = 0; i < pBatch->nReqs; i++) pBatch->pReqs[i].txnId = 0;
+      break;
+    }
+    case TDMT_VND_DROP_TABLE: {
+      SVDropTbBatchReq *pBatch = (SVDropTbBatchReq *)pDecoded;
+      for (int32_t i = 0; i < pBatch->nReqs; i++) pBatch->pReqs[i].txnId = 0;
+      break;
+    }
+    case TDMT_VND_ALTER_TABLE:
+      ((SVAlterTbReq *)pDecoded)->txnId = 0;
+      break;
+    default:
+      break;
+  }
+}
+
 static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
   if (taos == NULL || meta == NULL) {
     uError("invalid parameter in %s", __func__);
@@ -490,6 +518,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
   uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   RAW_RETURN_CHECK(tDecodeSVCreateTbBatchReq(&coder, &req));
+  rawReplayClearTxnId(TDMT_VND_CREATE_TABLE, &req);
   STscObj* pTscObj = pRequest->pTscObj;
 
   SVCreateTbReq* pCreateReq = NULL;
@@ -509,10 +538,6 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
   // loop to create table
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
-
-    if (pCreateReq->txnId != 0) {
-      conn.txnId = pCreateReq->txnId;
-    }
 
     SVgroupInfo pInfo = {0};
     SName       pName = {0};
@@ -655,6 +680,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
   uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   RAW_RETURN_CHECK(tDecodeSVDropTbBatchReq(&coder, &req));
+  rawReplayClearTxnId(TDMT_VND_DROP_TABLE, &req);
   STscObj* pTscObj = pRequest->pTscObj;
 
   SVDropTbReq* pDropReq = NULL;
@@ -676,9 +702,6 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
     pDropReq = req.pReqs + iReq;
     pDropReq->igNotExists = true;
 
-    if (pDropReq->txnId != 0) {
-      conn.txnId = pDropReq->txnId;
-    }
     //    pDropReq->suid = processSuid(pDropReq->suid, pRequest->pDb);
 
     SVgroupInfo pInfo = {0};
@@ -812,6 +835,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
   uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&dcoder, data, len);
   RAW_RETURN_CHECK(tDecodeSVAlterTbReq(&dcoder, &req));
+  rawReplayClearTxnId(TDMT_VND_ALTER_TABLE, &req);
 
   // do not deal TSDB_ALTER_TABLE_UPDATE_OPTIONS
   if (req.action == TSDB_ALTER_TABLE_UPDATE_OPTIONS) {
@@ -826,11 +850,6 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
                            .requestId = pRequest->requestId,
                            .requestObjRefId = pRequest->self,
                            .mgmtEps = getEpSet_s(&pTscObj->pAppInfo->mgmtEp)};
-  // §35: thread replicated txnId into catalog lookups so VNode returns
-  // PRE_CREATE entries for same-txn ALTER
-  if (req.txnId != 0) {
-    conn.txnId = req.txnId;
-  }
 
   // Handle Type 1 batch modification with vnode grouping
   if (req.action == TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL) {

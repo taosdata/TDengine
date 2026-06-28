@@ -226,6 +226,17 @@ static int32_t inline vnodeProposeMsg(SVnode *pVnode, SRpcMsg *pMsg, bool isWeak
   (void)taosThreadMutexUnlock(&pVnode->lock);
 
   if (code > 0) {
+    // Single-node optimized path: FpCommitCb (vnodeSyncApplyMsg) is bypassed.
+    // Feed committed entry into the txn WAL cache here before apply.
+    // applyIndex was set by syncNodeOnClientRequest; txnId was set by PreProcess.
+    if (pMsg->info.txnId != 0 && pVnode->pTxnWalMgr != NULL) {
+      int32_t rc = txnMgrProducerPut(pVnode->pTxnWalMgr, pMsg->info.txnId, pMsg->info.conn.applyIndex,
+                                     pMsg->msgType, pMsg->pCont, pMsg->contLen);
+      if (rc != 0) {
+        vError("vnodeProposeMsg optimized: txnMgrProducerPut failed vgId:%d txnId:%" PRId64 " since %s",
+               TD_VID(pVnode), pMsg->info.txnId, tstrerror(rc));
+      }
+    }
     vnodeHandleWriteMsg(pVnode, pMsg);
   } else if (code < 0) {
     if (terrno != 0) code = terrno;
@@ -553,6 +564,17 @@ static int32_t vnodeSyncApplyMsg(const SSyncFSM *pFsm, SRpcMsg *pMsg, const SFsm
   SVnode *pVnode = pFsm->data;
   pMsg->info.conn.applyIndex = pMeta->index;
   pMsg->info.conn.applyTerm = pMeta->term;
+
+  // txn WAL cache: feed committed entries before pMsg->pCont may be freed.
+  // FpCommitCb fires after WAL fsync, so pCont is still valid here.
+  if (pMsg->info.txnId != 0) {
+    int32_t rc = txnMgrProducerPut(pVnode->pTxnWalMgr, pMsg->info.txnId, pMeta->index, pMsg->msgType, pMsg->pCont,
+                                   pMsg->contLen);
+    if (rc != 0) {
+      vError("applyMsg: txnMgrProducerPut failed vgId:%d txnId:%" PRId64 " since %s",
+             pVnode->config.vgId, pMsg->info.txnId, tstrerror(rc));
+    }
+  }
 
   vGDebug(&pMsg->info.traceId,
           "vgId:%d, index:%" PRId64 ", execute commit cb, fsm:%p, term:%" PRIu64 ", msg-index:%" PRId64

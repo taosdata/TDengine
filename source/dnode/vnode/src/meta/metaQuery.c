@@ -93,8 +93,8 @@ bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
       STxnIdxVal txnVal = *(const STxnIdxVal *)pTxnVal;
       if (txnVal.txnStatus == META_TXN_PRE_CREATE) {
         // Check if txn is committed → table exists
-        int8_t finalStatus = metaGetTxnFinalStatus(pVnodeObj->pMeta, txnVal.txnId);
-        if (finalStatus != TXN_FINAL_COMMITTED) {
+        int8_t finalStatus = metaGetTxnMetaStatus(pVnodeObj->pMeta, txnVal.txnId);
+        if (finalStatus != TXN_META_COMMITTED) {
           tdbFree(pTxnVal);
           metaULock(pVnodeObj->pMeta);
           return false;
@@ -102,8 +102,8 @@ bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
       }
       // Check if txn is committed + PRE_DROP → table doesn't exist
       if (txnVal.txnStatus == META_TXN_PRE_DROP) {
-        int8_t finalStatus = metaGetTxnFinalStatus(pVnodeObj->pMeta, txnVal.txnId);
-        if (finalStatus == TXN_FINAL_COMMITTED) {
+        int8_t finalStatus = metaGetTxnMetaStatus(pVnodeObj->pMeta, txnVal.txnId);
+        if (finalStatus == TXN_META_COMMITTED) {
           tdbFree(pTxnVal);
           metaULock(pVnodeObj->pMeta);
           return false;
@@ -134,8 +134,8 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
 
   // batch meta txn: finalized txn visibility adjustment
   if (pReader->me.txnId != 0) {
-    int8_t finalStatus = metaGetTxnFinalStatus(pReader->pMeta, pReader->me.txnId);
-    if (finalStatus == TXN_FINAL_COMMITTED) {
+    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
+    if (finalStatus == TXN_META_COMMITTED) {
       // COMMITTED: PRE_CREATE/PRE_ALTER → visible as normal; PRE_DROP → invisible (deleted)
       if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
         return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
@@ -150,8 +150,8 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   //   - other-txn reader OR non-txn reader (txnId == 0): invisible (snapshot isolation)
   //   - same-txn reader: visible (RYOW — read your own writes)
   if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
-    int8_t finalStatus = metaGetTxnFinalStatus(pReader->pMeta, pReader->me.txnId);
-    if (finalStatus == TXN_FINAL_ROLLEDBACK) {
+    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
+    if (finalStatus == TXN_META_ROLLEDBACK) {
       return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
     if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
@@ -244,8 +244,8 @@ int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, t
 
   // batch meta txn: finalized txn visibility adjustment
   if (pReader->me.txnId != 0) {
-    int8_t finalStatus = metaGetTxnFinalStatus(pReader->pMeta, pReader->me.txnId);
-    if (finalStatus == TXN_FINAL_COMMITTED) {
+    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
+    if (finalStatus == TXN_META_COMMITTED) {
       if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
         return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
       }
@@ -288,8 +288,8 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
 
   // batch meta txn: finalized txn visibility adjustment
   if (pReader->me.txnId != 0) {
-    int8_t finalStatus = metaGetTxnFinalStatus(pReader->pMeta, pReader->me.txnId);
-    if (finalStatus == TXN_FINAL_COMMITTED) {
+    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
+    if (finalStatus == TXN_META_COMMITTED) {
       if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
         return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
       }
@@ -303,8 +303,8 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
       //   - ROLLEDBACK: invisible
       //   - other-txn reader OR non-txn reader (txnId==0): invisible (snapshot isolation)
       //   - same-txn reader: visible (RYOW — read your own writes)
-      int8_t finalStatus = metaGetTxnFinalStatus(pReader->pMeta, pReader->me.txnId);
-      if (finalStatus == TXN_FINAL_ROLLEDBACK) {
+      int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
+      if (finalStatus == TXN_META_ROLLEDBACK) {
         return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
       }
       if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
@@ -594,7 +594,7 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
             tdbFree(pSuTxnVal);
             if (suTxnVal.txnStatus == META_TXN_PRE_DROP) {
               if ((pTbCur->txnId != 0 && pTbCur->txnId == suTxnVal.txnId) ||
-                  metaGetTxnFinalStatus(pMeta, suTxnVal.txnId) == TXN_FINAL_COMMITTED) {
+                  metaGetTxnMetaStatus(pMeta, suTxnVal.txnId) == TXN_META_COMMITTED) {
                 skipChild = true;
               }
             }
@@ -607,21 +607,21 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
 
       // 2. Entry-level txn status: short-circuit for normal (txnStatus == 0) entries.
       if (pTbCur->mr.me.txnStatus != META_TXN_NORMAL) {
-        int8_t finalStatus = metaGetTxnFinalStatus(pMeta, pTbCur->mr.me.txnId);
+        int8_t finalStatus = metaGetTxnMetaStatus(pMeta, pTbCur->mr.me.txnId);
         if (pTbCur->mr.me.txnStatus == META_TXN_PRE_CREATE) {
           // skip uncommitted shadow-creates; allow same-txn and committed
-          if (finalStatus != TXN_FINAL_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
+          if (finalStatus != TXN_META_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
             continue;
           }
         } else if (pTbCur->mr.me.txnStatus == META_TXN_PRE_DROP) {
           // logically deleted once committed
-          if ((finalStatus == TXN_FINAL_COMMITTED) ||
+          if ((finalStatus == TXN_META_COMMITTED) ||
               ((pTbCur->txnId != 0) && (pTbCur->txnId == pTbCur->mr.me.txnId))) {
             continue;
           }
         } else if (pTbCur->mr.me.txnStatus == META_TXN_PRE_ALTER) {
           // redirect other-txn readers to old version for snapshot isolation
-          if (finalStatus != TXN_FINAL_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
+          if (finalStatus != TXN_META_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
             if (pTbCur->mr.me.txnPrevVer > 0) {
               tb_uid_t uid = *(tb_uid_t *)pTbCur->pKey;
               tDecoderClear(&pTbCur->mr.coder);
@@ -630,8 +630,8 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
               // If the old version is PRE_CREATE (same-txn CREATE then ALTER),
               // the table never existed outside this txn — skip for other sessions.
               if (pTbCur->mr.me.txnStatus == META_TXN_PRE_CREATE) {
-                int8_t prevEntryFinalStatus = metaGetTxnFinalStatus(pMeta, pTbCur->mr.me.txnId);
-                if (prevEntryFinalStatus != TXN_FINAL_COMMITTED) {
+                int8_t prevEntryFinalStatus = metaGetTxnMetaStatus(pMeta, pTbCur->mr.me.txnId);
+                if (prevEntryFinalStatus != TXN_META_COMMITTED) {
                   continue;
                 }
               }
@@ -695,7 +695,7 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
             tdbFree(pSuTxnVal);
             if (suTxnVal.txnStatus == META_TXN_PRE_DROP) {
               if ((pTbCur->txnId != 0 && pTbCur->txnId == suTxnVal.txnId) ||
-                  metaGetTxnFinalStatus(pMeta, suTxnVal.txnId) == TXN_FINAL_COMMITTED) {
+                  metaGetTxnMetaStatus(pMeta, suTxnVal.txnId) == TXN_META_COMMITTED) {
                 skipChild = true;
               }
             }
@@ -708,21 +708,21 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
 
       // 2. Entry-level txn status: short-circuit for normal (txnStatus == 0) entries.
       if (pTbCur->mr.me.txnStatus != META_TXN_NORMAL) {
-        int8_t finalStatus = metaGetTxnFinalStatus(pMeta, pTbCur->mr.me.txnId);
+        int8_t finalStatus = metaGetTxnMetaStatus(pMeta, pTbCur->mr.me.txnId);
         if (pTbCur->mr.me.txnStatus == META_TXN_PRE_CREATE) {
           // skip uncommitted shadow-creates; allow same-txn and committed
-          if (finalStatus != TXN_FINAL_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
+          if (finalStatus != TXN_META_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
             continue;
           }
         } else if (pTbCur->mr.me.txnStatus == META_TXN_PRE_DROP) {
           // logically deleted once committed
-          if ((finalStatus == TXN_FINAL_COMMITTED) ||
+          if ((finalStatus == TXN_META_COMMITTED) ||
               ((pTbCur->txnId != 0) && (pTbCur->txnId == pTbCur->mr.me.txnId))) {
             continue;
           }
         } else if (pTbCur->mr.me.txnStatus == META_TXN_PRE_ALTER) {
           // redirect other-txn readers to old version for snapshot isolation
-          if (finalStatus != TXN_FINAL_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
+          if (finalStatus != TXN_META_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
             if (pTbCur->mr.me.txnPrevVer > 0) {
               tb_uid_t uid = *(tb_uid_t *)pTbCur->pKey;
               tDecoderClear(&pTbCur->mr.coder);
@@ -731,8 +731,8 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
               // If the old version is PRE_CREATE (same-txn CREATE then ALTER),
               // the table never existed outside this txn — skip for other sessions.
               if (pTbCur->mr.me.txnStatus == META_TXN_PRE_CREATE) {
-                int8_t prevEntryFinalStatus = metaGetTxnFinalStatus(pMeta, pTbCur->mr.me.txnId);
-                if (prevEntryFinalStatus != TXN_FINAL_COMMITTED) {
+                int8_t prevEntryFinalStatus = metaGetTxnMetaStatus(pMeta, pTbCur->mr.me.txnId);
+                if (prevEntryFinalStatus != TXN_META_COMMITTED) {
                   continue;
                 }
               }
@@ -999,8 +999,8 @@ _query:
 
   // batch meta txn: finalized txn visibility adjustment
   if (me.txnId != 0) {
-    int8_t finalStatus = metaGetTxnFinalStatus(pMeta, me.txnId);
-    if (finalStatus == TXN_FINAL_COMMITTED) {
+    int8_t finalStatus = metaGetTxnMetaStatus(pMeta, me.txnId);
+    if (finalStatus == TXN_META_COMMITTED) {
       if (me.txnStatus == META_TXN_PRE_DROP) {
         tDecoderClear(&dc);
         code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
@@ -1203,7 +1203,7 @@ int32_t metaResumeCtbCursor(SMCtbCursor *pCtbCur, int8_t first) {
         if (suTxnVal.txnStatus == META_TXN_PRE_DROP) {
           if (pCtbCur->txnId != 0 && pCtbCur->txnId == suTxnVal.txnId) {
             pCtbCur->stbTxnDropped = 1;
-          } else if (metaGetTxnFinalStatus(pCtbCur->pMeta, suTxnVal.txnId) == TXN_FINAL_COMMITTED) {
+          } else if (metaGetTxnMetaStatus(pCtbCur->pMeta, suTxnVal.txnId) == TXN_META_COMMITTED) {
             pCtbCur->stbTxnDropped = 1;
           }
         }
@@ -1272,8 +1272,8 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
         int64_t    entryTxnId  = txnVal.txnId;
         tdbFree(pTxnVal);
         if (st == META_TXN_PRE_CREATE) {
-          int8_t finalStatus = metaGetTxnFinalStatus(pCtbCur->pMeta, entryTxnId);
-          if (finalStatus == TXN_FINAL_COMMITTED) {
+          int8_t finalStatus = metaGetTxnMetaStatus(pCtbCur->pMeta, entryTxnId);
+          if (finalStatus == TXN_META_COMMITTED) {
             // Committed PRE_CREATE: visible, don't skip
           } else if (pCtbCur->txnId == 0 || pCtbCur->txnId != entryTxnId) {
             continue;
@@ -1281,8 +1281,8 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
         }
         // Committed PRE_DROP: skip (logically deleted)
         if (st == META_TXN_PRE_DROP) {
-          int8_t finalStatus = metaGetTxnFinalStatus(pCtbCur->pMeta, entryTxnId);
-          if (finalStatus == TXN_FINAL_COMMITTED) {
+          int8_t finalStatus = metaGetTxnMetaStatus(pCtbCur->pMeta, entryTxnId);
+          if (finalStatus == TXN_META_COMMITTED) {
             continue;
           }
         }
@@ -2269,7 +2269,7 @@ static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLe
     return NULL;
   }
   // If the txn is already committed the dirty pCtbIdx value is correct — no redirect.
-  if (metaGetTxnFinalStatus(pMeta, txnVal.txnId) == TXN_FINAL_COMMITTED) {
+  if (metaGetTxnMetaStatus(pMeta, txnVal.txnId) == TXN_META_COMMITTED) {
     return NULL;
   }
 

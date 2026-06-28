@@ -2456,8 +2456,8 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
     SWalCont* wCont = &pWalReader->pHead->head;
     rsp->verTime = wCont->ingestTs;
     if (wCont->ingestTs / 1000 > ctime) break;
-    void*   data = POINTER_SHIFT(wCont->body, sizeof(SMsgHead));
-    int32_t len = wCont->bodyLen - sizeof(SMsgHead);
+    void*   data = POINTER_SHIFT(walContBody(wCont), sizeof(SMsgHead));
+    int32_t len = walContBodyLen(wCont) - sizeof(SMsgHead);
     int64_t ver = wCont->version;
 
     ST_TASK_DLOG("vgId:%d stream reader scan wal ver:%" PRId64 "/%" PRId64 ", type:%s, deleteData:%d, deleteTb:%d",
@@ -2468,8 +2468,8 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
         rsp->ver--;
         break;
       }
-      data = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
-      len = wCont->bodyLen - sizeof(SSubmitReq2Msg);
+      data = POINTER_SHIFT(walContBody(wCont), sizeof(SSubmitReq2Msg));
+      len = walContBodyLen(wCont) - sizeof(SSubmitReq2Msg);
       STREAM_CHECK_RET_GOTO(scanSubmitDataForMeta(sStreamReaderInfo, rsp, data, len, ver));
     } else {
       STREAM_CHECK_RET_GOTO(processMeta(wCont->msgType, sStreamReaderInfo, data, len, rsp, ver));
@@ -3412,8 +3412,8 @@ static int32_t prepareIndexMetaData(SWalReader* pWalReader, SStreamTriggerReader
     resultRsp->ver = pWalReader->curVersion;
     SWalCont* wCont = &pWalReader->pHead->head;
     resultRsp->verTime = wCont->ingestTs;
-    void*   data = POINTER_SHIFT(wCont->body, sizeof(SMsgHead));
-    int32_t len = wCont->bodyLen - sizeof(SMsgHead);
+    void*   data = POINTER_SHIFT(walContBody(wCont), sizeof(SMsgHead));
+    int32_t len = walContBodyLen(wCont) - sizeof(SMsgHead);
     int64_t ver = wCont->version;
     ST_TASK_DLOG("%s scan wal ver:%" PRId64 ", type:%s, deleteData:%d, deleteTb:%d, msg len:%d", __func__,
       ver, TMSG_INFO(wCont->msgType), sStreamReaderInfo->deleteReCalc, sStreamReaderInfo->deleteOutTbl, len);
@@ -3423,8 +3423,8 @@ static int32_t prepareIndexMetaData(SWalReader* pWalReader, SStreamTriggerReader
         resultRsp->ver--;
         break;
       }
-      data = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
-      len = wCont->bodyLen - sizeof(SSubmitReq2Msg);
+      data = POINTER_SHIFT(walContBody(wCont), sizeof(SSubmitReq2Msg));
+      len = walContBodyLen(wCont) - sizeof(SSubmitReq2Msg);
       STREAM_CHECK_RET_GOTO(scanSubmitDataPre(sStreamReaderInfo, data, len, NULL, resultRsp, ver));
     } else {
       STREAM_CHECK_RET_GOTO(processMeta(wCont->msgType, sStreamReaderInfo, data, len, resultRsp, ver));
@@ -3460,8 +3460,8 @@ static int32_t prepareIndexData(SWalReader* pWalReader, SStreamTriggerReaderInfo
     STREAM_CHECK_RET_GOTO(walFetchBody(pWalReader));
 
     SWalCont* wCont = &pWalReader->pHead->head;
-    void*   pBody = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
-    int32_t bodyLen = wCont->bodyLen - sizeof(SSubmitReq2Msg);
+    void*   pBody = POINTER_SHIFT(walContBody(wCont), sizeof(SSubmitReq2Msg));
+    int32_t bodyLen = walContBodyLen(wCont) - sizeof(SSubmitReq2Msg);
 
     STREAM_CHECK_RET_GOTO(scanSubmitDataPre(sStreamReaderInfo, pBody, bodyLen, ranges, rsp, *ver));
   }
@@ -3512,8 +3512,8 @@ static int32_t processWalVerMetaDataNew(SVnode* pVnode, SStreamTriggerReaderInfo
     }
     STREAM_CHECK_RET_GOTO(walFetchBody(pWalReader));
     SWalCont* wCont = &pWalReader->pHead->head;
-    void*   pBody = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
-    int32_t bodyLen = wCont->bodyLen - sizeof(SSubmitReq2Msg);
+    void*   pBody = POINTER_SHIFT(walContBody(wCont), sizeof(SSubmitReq2Msg));
+    int32_t bodyLen = walContBodyLen(wCont) - sizeof(SSubmitReq2Msg);
     ST_TASK_DLOG("process wal ver:%" PRId64 ", type:%d, bodyLen:%d", wCont->version, wCont->msgType, bodyLen);
     STREAM_CHECK_RET_GOTO(scanSubmitData(pVnode, sStreamReaderInfo, pBody, bodyLen, NULL, resultRsp, wCont->version));
   }
@@ -3563,8 +3563,8 @@ static int32_t processWalVerDataNew(SVnode* pVnode, SStreamTriggerReaderInfo* sS
     }
     STREAM_CHECK_RET_GOTO(walFetchBody(pWalReader));
     SWalCont* wCont = &pWalReader->pHead->head;
-    void*   pBody = POINTER_SHIFT(wCont->body, sizeof(SSubmitReq2Msg));
-    int32_t bodyLen = wCont->bodyLen - sizeof(SSubmitReq2Msg);
+    void*   pBody = POINTER_SHIFT(walContBody(wCont), sizeof(SSubmitReq2Msg));
+    int32_t bodyLen = walContBodyLen(wCont) - sizeof(SSubmitReq2Msg);
 
     STREAM_CHECK_RET_GOTO(scanSubmitData(pVnode, sStreamReaderInfo, pBody, bodyLen, ranges, rsp, wCont->version));
   }

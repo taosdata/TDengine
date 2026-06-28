@@ -37,7 +37,7 @@ class TestBatchMetaTxnClusterSnapshotB:
     def _reset_env(self, db_name="txn_cdb"):
         """Reset test database. Uses replica 3 for VNode HA tests."""
         tdSql.execute(f"drop database if exists {db_name}")
-        tdSql.execute(f"create database {db_name} vgroups 2 replica 3")
+        tdSql.execute(f"create database {db_name} vgroups 2 replica 3 keep 36500")
         tdSql.execute(f"use {db_name}")
 
 
@@ -284,7 +284,7 @@ class TestBatchMetaTxnClusterSnapshotB:
     def s58_concurrent_txn_different_vgroups(self):
         db = "txn_cvg"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 3 replica 3")
+        tdSql.execute(f"create database {db} vgroups 3 replica 3 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s58_concurrent_txn_different_vgroups")
 

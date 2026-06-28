@@ -14,6 +14,7 @@
  */
 #include "tdbInt.h"
 #include "tq.h"
+#include "vnd.h"
 
 int32_t tqEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle) {
   if (pEncoder == NULL || pHandle == NULL) {
@@ -116,6 +117,14 @@ void tqDestroySTqHandle(void* data) {
     walCloseRef(pData->pRef->pWal, pData->pRef->refId);
   }
   taosHashCleanup(pData->tableCreateTimeHash);
+  if (pData->pTxnPendingMsgs != NULL) {
+    int32_t size = taosArrayGetSize(pData->pTxnPendingMsgs);
+    for (int32_t i = 0; i < size; i++) {
+      taosMemoryFree(taosArrayGetP(pData->pTxnPendingMsgs, i));
+    }
+    taosArrayDestroy(pData->pTxnPendingMsgs);
+    pData->pTxnPendingMsgs = NULL;
+  }
 }
 
 int32_t tqMetaDecodeOffsetInfo(STqOffset* info, void* pVal, uint32_t vLen) {
@@ -403,7 +412,21 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
     handle->execHandle.execTb.qmsg = tmp;
   }
 
-  handle->snapshotVer = walGetCommittedVer(pTq->pVnode->pWal);
+  {
+    int64_t snapVer = walGetCommittedVer(pTq->pVnode->pWal);
+    // Cap snapshotVer at minTxnBeginIndex-1 so that in-flight transaction entries
+    // (PRE_CREATE/PRE_ALTER/PRE_DROP) are never visible in the meta snapshot.
+    // buildSnapContext stops at version > snapVersion, so any TDB entry written at
+    // WAL index >= minTxnBeginIndex is excluded.  Those entries arrive atomically
+    // via STxnWalManager when the consumer's WAL replay reaches TXN_COMMIT.
+    if (pTq->pVnode->pTxnWalMgr != NULL) {
+      int64_t minTxnIdx = txnMgrGetMinWalIndex(pTq->pVnode->pTxnWalMgr, pTq->pVnode);
+      if (minTxnIdx != INT64_MAX && minTxnIdx > 0) {
+        snapVer = TMIN(snapVer, minTxnIdx - 1);
+      }
+    }
+    handle->snapshotVer = snapVer;
+  }
 
   int32_t code = tqMetaInitHandle(pTq, handle);
   if (code != 0) {

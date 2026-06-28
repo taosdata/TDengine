@@ -26,7 +26,7 @@ class TestBatchMetaTxnDdlVisibility:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.execute("drop database if exists txn_vis_db")
-        tdSql.execute("create database txn_vis_db vgroups 2")
+        tdSql.execute("create database txn_vis_db vgroups 2 keep 36500")
 
     # ---- helpers ----
 

@@ -37,7 +37,7 @@ class TestBatchMetaTxnClusterSnapshotC:
     def _reset_env(self, db_name="txn_cdb"):
         """Reset test database. Uses replica 3 for VNode HA tests."""
         tdSql.execute(f"drop database if exists {db_name}")
-        tdSql.execute(f"create database {db_name} vgroups 2 replica 3")
+        tdSql.execute(f"create database {db_name} vgroups 2 replica 3 keep 36500")
         tdSql.execute(f"use {db_name}")
 
 
@@ -160,7 +160,7 @@ class TestBatchMetaTxnClusterSnapshotC:
     def s60_lazy_vacuum_snapshot_commit(self):
         db = "txn_lv_snap"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 1 replica 3 wal_retention_period 1")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3 wal_retention_period 1 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s60_lazy_vacuum_snapshot_commit")
 
@@ -260,7 +260,7 @@ class TestBatchMetaTxnClusterSnapshotC:
     def s61_lazy_vacuum_snapshot_rollback(self):
         db = "txn_lv_snap_rb"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 1 replica 3 wal_retention_period 1")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3 wal_retention_period 1 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s61_lazy_vacuum_snapshot_rollback")
 

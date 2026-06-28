@@ -617,6 +617,86 @@ _exit:
   return code;
 }
 
+// Extract txnId from the encoded message body so that walWriteImpl can mark the WAL
+// entry with WAL_IS_TXN_MSG.  SRpcHandleInfo.txnId is NOT transmitted over the RPC
+// wire — only STransMsgHead fields (traceId, qid, seqNum, ...) are.  We must read
+// txnId from the message body before handing the message to syncPropose / WAL.
+// This runs before Raft consensus, so overhead (< 1 µs per DDL) is negligible compared
+// to the Raft round-trip (milliseconds).
+static txn_id_t vnodeExtractTxnId(SRpcMsg *pMsg) {
+  void    *body    = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t  bodyLen = pMsg->contLen - (int32_t)sizeof(SMsgHead);
+  if (bodyLen <= 0) return 0;
+
+  switch (pMsg->msgType) {
+    case TDMT_VND_TXN_COMMIT: {
+      SVTxnCommitReq req = {0};
+      if (tDeserializeSVTxnCommitReq(body, bodyLen, &req) >= 0) return req.txnId;
+      break;
+    }
+    case TDMT_VND_TXN_ROLLBACK: {
+      SVTxnRollbackReq req = {0};
+      if (tDeserializeSVTxnRollbackReq(body, bodyLen, &req) >= 0) return req.txnId;
+      break;
+    }
+    case TDMT_VND_CREATE_STB:
+    case TDMT_VND_ALTER_STB: {
+      SVCreateStbReq req  = {0};
+      SDecoder       coder = {0};
+      tDecoderInit(&coder, body, bodyLen);
+      txn_id_t txnId = 0;
+      if (tDecodeSVCreateStbReq(&coder, &req) >= 0) txnId = req.txnId;
+      tDecoderClear(&coder);  // frees all decoder-pool allocations (pSchema etc.)
+      return txnId;
+    }
+    case TDMT_VND_DROP_STB: {
+      SVDropStbReq req  = {0};
+      SDecoder     coder = {0};
+      tDecoderInit(&coder, body, bodyLen);
+      txn_id_t txnId = 0;
+      if (tDecodeSVDropStbReq(&coder, &req) >= 0) txnId = req.txnId;
+      tDecoderClear(&coder);  // SVDropStbReq has no separate heap fields
+      return txnId;
+    }
+    case TDMT_VND_CREATE_TABLE: {
+      SVCreateTbBatchReq req  = {0};
+      SDecoder           coder = {0};
+      tDecoderInit(&coder, body, bodyLen);
+      txn_id_t txnId = 0;
+      if (tDecodeSVCreateTbBatchReq(&coder, &req) >= 0 && req.nReqs > 0) {
+        txnId = req.pReqs[0].txnId;
+      }
+      tDeleteSVCreateTbBatchReq(&req);  // free heap fields before decoder pool (matches apply handler pattern)
+      tDecoderClear(&coder);
+      return txnId;
+    }
+    case TDMT_VND_ALTER_TABLE: {
+      SVAlterTbReq req  = {0};
+      SDecoder     coder = {0};
+      tDecoderInit(&coder, body, bodyLen);
+      txn_id_t txnId = 0;
+      if (tDecodeSVAlterTbReq(&coder, &req) >= 0) txnId = req.txnId;
+      destroyAlterTbReq(&req);
+      tDecoderClear(&coder);
+      return txnId;
+    }
+    case TDMT_VND_DROP_TABLE: {
+      SVDropTbBatchReq req  = {0};
+      SDecoder         coder = {0};
+      tDecoderInit(&coder, body, bodyLen);
+      txn_id_t txnId = 0;
+      if (tDecodeSVDropTbBatchReq(&coder, &req) >= 0 && req.nReqs > 0) {
+        txnId = req.pReqs[0].txnId;
+      }
+      tDecoderClear(&coder);  // pReqs freed here via tDecoderMalloc pool
+      return txnId;
+    }
+    default:
+      break;
+  }
+  return 0;
+}
+
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t code = 0;
 
@@ -668,6 +748,17 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   if (code && code != TSDB_CODE_MSG_PREPROCESSED) {
     vError("vgId:%d, failed to preprocess write request since %s, msg type:%s", TD_VID(pVnode), tstrerror(code),
            TMSG_INFO(pMsg->msgType));
+  } else {
+    // Restore txnId from message body into pMsg->info.txnId so that syncPropose
+    // carries it into the WAL entry (WAL_IS_TXN_MSG flag + .txn file write).
+    // SRpcHandleInfo.txnId is NOT transmitted over the RPC wire; we must re-derive it.
+    if (pMsg->info.txnId == 0 && IS_META_MSG(pMsg->msgType)) {
+      pMsg->info.txnId = vnodeExtractTxnId(pMsg);
+      if (pMsg->info.txnId != 0) {
+        vDebug("vnodePreProcess: vgId:%d msgType:%s txnId:%" PRId64 " restored from body", TD_VID(pVnode),
+               TMSG_INFO(pMsg->msgType), pMsg->info.txnId);
+      }
+    }
   }
   return code;
 }
@@ -1438,7 +1529,7 @@ static int32_t vnodeProcessCreateStbReq(SVnode *pVnode, int64_t ver, void *pReq,
 
   // batch-meta-txn: lock/conflict check BEFORE meta operation
   if (req.txnId != 0) {
-    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, req.txnId);
+    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, req.txnId, ver);
     if (ensureCode != 0) {
       pRsp->code = ensureCode;
       goto _err;
@@ -1565,7 +1656,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
     // COMMIT clears txnId/txnStatus → visible. ROLLBACK deletes entry.
     if (pCreateReq->txnId != 0) {
       // Register txn entry in VNode (for tracking, table locking, etc.)
-      int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, pCreateReq->txnId);
+      int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, pCreateReq->txnId, ver);
       if (ensureCode != 0) {
         cRsp.code = ensureCode;
         if (taosArrayPush(rsp.pArray, &cRsp) == NULL) {
@@ -1767,7 +1858,7 @@ static int32_t vnodeProcessAlterStbReq(SVnode *pVnode, int64_t ver, void *pReq, 
 
   // batch-meta-txn: full transactional ALTER STB support
   if (req.txnId != 0) {
-    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, req.txnId);
+    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, req.txnId, ver);
     if (ensureCode != 0) {
       pRsp->code = ensureCode;
       tDecoderClear(&dc);
@@ -1870,7 +1961,7 @@ static int32_t vnodeProcessDropStbReq(SVnode *pVnode, int64_t ver, void *pReq, i
 
   // batch-meta-txn: transactional DROP STB
   if (req.txnId != 0) {
-    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, req.txnId);
+    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, req.txnId, ver);
     if (ensureCode != 0) {
       rcode = ensureCode;
       goto _exit;
@@ -2067,7 +2158,7 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
   // The ALTER creates a new version of the entry. On COMMIT, clear status → visible.
   // On ROLLBACK, restore old version.
   if (vAlterTbReq.txnId != 0) {
-    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, vAlterTbReq.txnId);
+    int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, vAlterTbReq.txnId, ver);
     if (ensureCode != 0) {
       vAlterTbRsp.code = ensureCode;
       tDecoderClear(&dc);
@@ -2349,7 +2440,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t ver, void *pReq, in
     // The table remains visible (snapshot isolation) but INSERT fails.
     // COMMIT physically deletes. ROLLBACK clears back to NORMAL.
     if (pDropTbReq->txnId != 0) {
-      int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, pDropTbReq->txnId);
+      int32_t ensureCode = vnodeTxnEnsureEntry(pVnode, pDropTbReq->txnId, ver);
       if (ensureCode != 0) {
         dropTbRsp.code = ensureCode;
         if (taosArrayPush(rsp.pArray, &dropTbRsp) == NULL) {

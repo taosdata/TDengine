@@ -45,7 +45,7 @@ class TestBatchMetaTxnAlterTag:
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.execute("drop database if exists txn_tag_db")
-        tdSql.execute("create database txn_tag_db vgroups 2")
+        tdSql.execute("create database txn_tag_db vgroups 2 keep 36500")
 
     def s0_reset_env(self):
         tdSql.execute_ignore_error("ROLLBACK")
@@ -321,7 +321,7 @@ class TestBatchMetaTxnAlterTag:
     def _setup_vtag_env(self):
         """Create a dedicated database with source tables and virtual STB/CTB."""
         tdSql.execute("drop database if exists txn_vtag_db")
-        tdSql.execute("create database txn_vtag_db vgroups 1")
+        tdSql.execute("create database txn_vtag_db vgroups 1 keep 36500")
         tdSql.execute("use txn_vtag_db")
 
         # Source regular STB used as column provider for virtual CTBs

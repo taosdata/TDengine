@@ -39,7 +39,7 @@ class TestBatchMetaTxnClusterSnapshot:
     def _reset_env(self, db_name="txn_cdb"):
         """Reset test database. Uses replica 3 for VNode HA tests."""
         tdSql.execute(f"drop database if exists {db_name}")
-        tdSql.execute(f"create database {db_name} vgroups 2 replica 3")
+        tdSql.execute(f"create database {db_name} vgroups 2 replica 3 keep 36500")
         tdSql.execute(f"use {db_name}")
 
 
@@ -119,7 +119,7 @@ class TestBatchMetaTxnClusterSnapshot:
         """STB created in txn -> cluster restart -> COMMIT -> STB visible"""
         db = "txn_stb_rc"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s62_stb_create_restart_commit")
 
@@ -164,7 +164,7 @@ class TestBatchMetaTxnClusterSnapshot:
         """STB altered in txn -> cluster restart -> COMMIT -> schema updated"""
         db = "txn_stb_ac"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s63_stb_alter_restart_commit")
 
@@ -209,7 +209,7 @@ class TestBatchMetaTxnClusterSnapshot:
         """STB marked for DROP in txn -> cluster restart -> ROLLBACK -> STB restored"""
         db = "txn_stb_dr"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s64_stb_drop_restart_rollback")
 
@@ -256,7 +256,7 @@ class TestBatchMetaTxnClusterSnapshot:
         """STB CREATE + ALTER chain in txn -> cluster restart -> COMMIT -> final schema visible"""
         db = "txn_stb_cac"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 1 replica 3")
+        tdSql.execute(f"create database {db} vgroups 1 replica 3 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s65_stb_create_alter_restart_commit")
 

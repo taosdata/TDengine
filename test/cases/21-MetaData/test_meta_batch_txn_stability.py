@@ -52,7 +52,7 @@ class TestBatchMetaTxnStability:
 
     def _reset_env(self, db_name="txn_stab_db"):
         tdSql.execute(f"drop database if exists {db_name}")
-        tdSql.execute(f"create database {db_name} vgroups 4")
+        tdSql.execute(f"create database {db_name} vgroups 4 keep 36500")
         tdSql.execute(f"use {db_name}")
 
     # =========================================================================

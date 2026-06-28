@@ -61,6 +61,7 @@ extern "C" {
 #endif
 
 typedef struct SVnodeInfo         SVnodeInfo;
+typedef struct STxnWalManager     STxnWalManager;  // forward decl; defined in vnd.h
 typedef struct SSma               SSma;
 typedef struct STsdb              STsdb;
 typedef struct STQ                STQ;
@@ -335,13 +336,13 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData);
 int32_t metaSnapWriterOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapWriter** ppWriter);
 int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
 int32_t metaSnapWriterClose(SMetaSnapWriter** ppWriter, int8_t rollback);
-// metaSnapshot.c — txn_final.idx batched snapshot read/write (§44 lazy COMMIT/ROLLBACK)
-//   metaSnapTxnFinalRead: emits one SNAP_DATA_TXN_FINAL block per call until done.
-//                          On *ppData==NULL with code==0 the stream is finished.
-//   metaSnapTxnFinalWrite: bulk-applies a SNAP_DATA_TXN_FINAL payload via
-//                          metaTxnFinalIdxUpsert (idempotent — safe on retry).
-int32_t metaSnapTxnFinalRead(SMeta* pMeta, uint8_t** ppData);
-int32_t metaSnapTxnFinalWrite(SMeta* pMeta, uint8_t* pData, uint32_t nData);
+// metaSnapshot.c — txn.meta batched snapshot read/write (§44 lazy COMMIT/ROLLBACK)
+//   metaSnapTxnMetaRead: emits one SNAP_DATA_TXN_META block containing all txn.meta entries.
+//                          On *ppData==NULL with code==0 there are no entries (stream done).
+//   metaSnapTxnMetaWrite: bulk-applies a SNAP_DATA_TXN_META payload via
+//                          metaTxnMetaUpsert (idempotent — safe on retry).
+int32_t metaSnapTxnMetaRead(SMeta* pMeta, uint8_t** ppData);
+int32_t metaSnapTxnMetaWrite(SMeta* pMeta, uint8_t* pData, uint32_t nData);
 // STsdbSnapReader ========================================
 int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type, void* pRanges,
                            STsdbSnapReader** ppReader);
@@ -442,6 +443,7 @@ struct SVnodeInfo {
   SVnodeCfg config;
   SVState   state;
   SVStatis  statis;
+  int64_t   lastTxnConsumeTs;  // persisted: last consumer access time (ms); gates cache enable
 };
 
 #if 0
@@ -545,11 +547,12 @@ struct SVnode {
     SVATaskID      metaCompactTask;
   };
 
-  STsdb*        pTsdb;
-  SWal*         pWal;
-  STQ*          pTq;
-  SBse*         pBse;
-  SSink*        pSink;
+  STsdb*          pTsdb;
+  SWal*           pWal;
+  STQ*            pTq;
+  SBse*           pBse;
+  SSink*          pSink;
+  STxnWalManager* pTxnWalMgr;  // txn-atomic WAL cache for CDC consumers
   int64_t       sync;
   TdThreadMutex lock;
   bool          blocked;
@@ -567,12 +570,12 @@ struct SVnode {
   // Batch Metadata Transaction
   SHashObj*     pTxnHash;       // key: int64_t txnId, value: SVnodeTxnEntry
   SHashObj*     pTxnTableLock;  // key: tableName (char*), value: int64_t txnId
-  SHashObj*     pFinalizedTxns;  // key: int64_t txnId, value: int8_t (ETxnFinalStatus) — thread-safe cache
+  SHashObj*     pTxnMetaCache;   // key: int64_t txnId, value: int8_t (ETxnMetaStatus) — thread-safe cache
   TdThreadMutex txnMutex;       // protects pTxnHash and pTxnTableLock
   int64_t       maxSeenTerm;    // max Raft term seen (for fencing)
   SVATaskID     vacuumTask;     // async vacuum task on SCAN_TASK_ASYNC pool
   int8_t        vacuumRunning;  // atomic flag: 1 = a txn vacuum task is queued or running
-  int32_t txnPendingCount;  // atomic: total entries in pTxnHash + pFinalizedTxns; 0 → no visibility filtering needed
+  int32_t txnPendingCount;  // atomic: total entries in pTxnHash + pTxnMetaCache; 0 → no visibility filtering needed
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
@@ -635,13 +638,18 @@ enum {
   // SNAP_DATA_TQ_CHECKINFO = 13,
   SNAP_DATA_RAW = 14,
   SNAP_DATA_BSE = 15,
-  // Batch-meta-txn (§44 lazy COMMIT/ROLLBACK): replicate txn_final.idx so that
+  // Batch-meta-txn (§44 lazy COMMIT/ROLLBACK): replicate txn.meta so that
   // a follower joining via full snapshot can resume vacuum of large-txn
   // shadow entries instead of leaking PRE_* status forever. Reader emits
   // these AFTER SNAP_DATA_META so that the meta entries referenced by each
   // finalized txn already exist on the receiving side.
-  SNAP_DATA_TXN_FINAL = 16,
+  SNAP_DATA_TXN_META = 16,
   SNAP_DATA_MEDIUM = 17,
+  // WAL .txn files: replicate per-vnode CDC txn files so the follower has
+  // complete txn-entry history for TMQ lazy load within the snapshot range.
+  // Transmitted BEFORE TXN_META and META so the follower has .txn data
+  // available when META entries arrive.
+  SNAP_DATA_TXN_WAL = 18,
 };
 
 struct SSnapDataHdr {
@@ -700,9 +708,14 @@ int32_t vnodeTxnFencing(SVnode* pVnode, int64_t newTerm, int64_t newTxnId);
 int32_t vnodeCollectIdleTxns(SVnode* pVnode, SArray** ppQueries);
 
 // Shadow-in-B+tree: ensure txn entry exists (lazy create), track ALTER old versions
-int32_t vnodeTxnEnsureEntry(SVnode* pVnode, int64_t txnId);
+int32_t vnodeTxnEnsureEntry(SVnode* pVnode, int64_t txnId, int64_t ver);
 int32_t vnodeTxnTrackTable(SVnode* pVnode, int64_t txnId, tb_uid_t uid);
 int32_t vnodeTxnTrackAlter(SVnode* pVnode, int64_t txnId, tb_uid_t uid, int64_t prevVersion);
+
+// Returns the minimum beginWalIndex across all live DDL txn entries in pVnode->pTxnHash.
+// Returns INT64_MAX when the hash is empty or all entries have beginWalIndex==0.
+// Caller must NOT hold pVnode->txnMutex.
+int64_t vnodeTxnGetMinBeginWalIndex(SVnode *pVnode);
 
 // TMQ notification: track created/dropped UIDs for post-COMMIT batch notification
 int32_t vnodeTxnTrackCreate(SVnode* pVnode, int64_t txnId, tb_uid_t uid);
@@ -745,20 +758,23 @@ int32_t metaScanTxnEntries(SMeta* pMeta, SArray** ppResult);
 int32_t metaTxnIdxUpsert(SMeta* pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer);
 int32_t metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid);
 
-// metaEntry2.c — txn_final.idx CRUD (lazy COMMIT/ROLLBACK finalization record)
+// metaEntry2.c — txn.meta CRUD (lazy COMMIT/ROLLBACK finalization record)
+// beginWalIndex: WAL index of first DDL in this txn. Written at txn begin (TXN_META_NONE),
+// preserved through COMMIT/ROLLBACK upsert. Used at crash recovery to restore WAL keepVersion.
 #pragma pack(push, 1)
 typedef struct {
-  int8_t  finalStatus;  // ETxnFinalStatus: TXN_FINAL_COMMITTED or TXN_FINAL_ROLLEDBACK
-  int64_t timestamp;    // When finalized (ms)
-} STxnFinalVal;
+  int8_t  status;         // ETxnMetaStatus: TXN_META_NONE / TXN_META_COMMITTED / TXN_META_ROLLEDBACK
+  int64_t timestamp;      // When finalized (ms); 0 for in-progress BEGIN record
+  int64_t beginWalIndex;  // WAL index of first DDL in this txn; 0 = unknown (old data)
+} STxnMetaVal;
 #pragma pack(pop)
-int32_t metaTxnFinalIdxUpsert(SMeta* pMeta, int64_t txnId, const STxnFinalVal* pVal);
-int32_t metaTxnFinalIdxDelete(SMeta* pMeta, int64_t txnId);
-int32_t metaTxnFinalIdxGet(SMeta* pMeta, int64_t txnId, STxnFinalVal* pVal);
-int32_t metaScanTxnFinalEntries(SMeta* pMeta, SArray** ppResult);
+int32_t metaTxnMetaUpsert(SMeta* pMeta, int64_t txnId, const STxnMetaVal* pVal);
+int32_t metaTxnMetaDelete(SMeta* pMeta, int64_t txnId);
+int32_t metaTxnMetaGet(SMeta* pMeta, int64_t txnId, STxnMetaVal* pVal);
+int32_t metaScanTxnMetaEntries(SMeta* pMeta, SArray** ppResult);
 
 // metaEntry2.c — visibility helper: check if txn is finalized (O(1) hash lookup)
-int8_t metaGetTxnFinalStatus(SMeta* pMeta, int64_t txnId);
+int8_t metaGetTxnMetaStatus(SMeta* pMeta, int64_t txnId);
 
 // vnodeTxn.c — rebuild in-memory txn state from B+ tree (called at VNode startup)
 int32_t vnodeTxnRebuildFromMeta(SVnode* pVnode);

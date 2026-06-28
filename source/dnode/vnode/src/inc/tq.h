@@ -85,6 +85,17 @@ typedef struct {
   SSDataBlock* block;
   int64_t      blockTime;
   SHashObj*    tableCreateTimeHash;  // for process create table msg in submit if fetch raw data
+
+  // txn-atomic CDC: when tqFetchLog encounters TXN_COMMIT, the cached message
+  // sequence is parked here and consumed one-by-one on subsequent poll iterations.
+  SArray* pTxnPendingMsgs;     // SArray<SWalContCopy*>*; NULL when no pending txn
+  int32_t txnPendingIdx;       // next index to consume from pTxnPendingMsgs
+  int64_t txnPendingFetchVer;  // fetchVer to advance to after pending queue drains
+
+  // retry tracking for txn cache miss: counts consecutive NOT_READY polls
+  // for the same TXN_COMMIT offset.  Reset to 0 whenever offset advances.
+  int32_t txnNotReadyRetries;
+  int64_t txnNotReadyOffset;   // offset at which retries are being counted
 } STqHandle;
 
 struct STQ {

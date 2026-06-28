@@ -73,6 +73,7 @@ typedef struct SRpcHandleInfo {
   int64_t      qId;     // queryId Get from client, other req's qId = -1;
   int32_t      refIdMgt;
   int32_t      msgType;
+  txn_id_t     txnId;   // batch-meta-txn: non-zero when this message belongs to a transaction
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {

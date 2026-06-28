@@ -87,7 +87,7 @@ class TestBatchMetaTxnClusterFIB:
     def s68_fi_vnode_restart_mid_vacuum(self):
         db = "txn_fi68"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 2 replica 3")
+        tdSql.execute(f"create database {db} vgroups 2 replica 3 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s68_fi_vnode_restart_mid_vacuum")
 
@@ -133,7 +133,7 @@ class TestBatchMetaTxnClusterFIB:
     def s69_fi_mnode_leader_switch_before_vacuum_broadcast(self):
         db = "txn_fi69"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 2 replica 3")
+        tdSql.execute(f"create database {db} vgroups 2 replica 3 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s69_fi_mnode_leader_switch_before_vacuum_broadcast")
 

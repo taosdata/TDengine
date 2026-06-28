@@ -42,7 +42,7 @@ class TestBatchMetaTxnClusterFI:
     def _reset_env(self, db_name="txn_cdb"):
         """Reset test database. Uses replica 3 for VNode HA tests."""
         tdSql.execute(f"drop database if exists {db_name}")
-        tdSql.execute(f"create database {db_name} vgroups 2 replica 3")
+        tdSql.execute(f"create database {db_name} vgroups 2 replica 3 keep 36500")
         tdSql.execute(f"use {db_name}")
 
 
@@ -121,7 +121,7 @@ class TestBatchMetaTxnClusterFI:
     def s66_fi_leader_switch_during_vacuum(self):
         db = "txn_fi66"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 2 replica 3")
+        tdSql.execute(f"create database {db} vgroups 2 replica 3 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s66_fi_leader_switch_during_vacuum")
 
@@ -166,7 +166,7 @@ class TestBatchMetaTxnClusterFI:
     def s67_fi_concurrent_drop_during_vacuum(self):
         db = "txn_fi67"
         tdSql.execute(f"drop database if exists {db}")
-        tdSql.execute(f"create database {db} vgroups 2 replica 3")
+        tdSql.execute(f"create database {db} vgroups 2 replica 3 keep 36500")
         tdSql.execute(f"use {db}")
         tdLog.info("======== s67_fi_concurrent_drop_during_vacuum")
 
