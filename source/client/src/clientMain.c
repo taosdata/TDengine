@@ -372,6 +372,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos connect to %s:%u, user:%s db:%s", ip, port, user, db);
+      taos_close_internal(pObj);
       return NULL;
     }
     *rid = pObj->id;
@@ -409,6 +410,7 @@ static int set_connection_option_or_close(TAOS *taos, TSDB_OPTION_CONNECTION opt
   if (code != TSDB_CODE_SUCCESS) {
     tscError("failed to set option(%d): %s", (int)option, value);
     taos_close(taos);
+    terrno = code;
     return code;
   }
   return TSDB_CODE_SUCCESS;
