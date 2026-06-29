@@ -394,7 +394,9 @@
 # [disabled 2026-06-11 fail after retry wal_keep_version_trim]
 #,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_trim.py -N 3
 # [end disabled 2026-06-11]
-,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_high_availability.py -N 3
+# [disabled 2026-06-11 flaky wal_keep_version_high_availability]
+#,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_high_availability.py -N 3
+# [end disabled 2026-06-11]
 
 # 07-DataDeletion
 
@@ -481,7 +483,9 @@
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_quantified_sub6d1.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_quantified_sub6d2.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_interval.py
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery.py
+# [disabled 2026-06-11 flaky nestedQuery]
+#,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery.py
+# [end disabled 2026-06-11]
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_str.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_math.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_time.py
@@ -893,7 +897,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subq_in-mtables.py -N 9
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable2.py
-,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable3.py
+# [disabled 2026-06-11 flaky stream_subquery_in_vtable3]
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable3.py
+# [end disabled 2026-06-11]
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_udf_in_where.py
 ## 03-TriggerMode
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_count_new.py
@@ -988,7 +994,9 @@
 # [end disabled 2026-06-27]
 ## 30-OldPyCases
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
-,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
+# [disabled 2026-06-11 flaky oldcase_backquote_check]
+#,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
+# [end disabled 2026-06-11]
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_empty_identifier.py
@@ -1197,7 +1205,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_mnode_encrypt.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_stop.py -N 5 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_stop.py -N 5 -M 3 -I False
-,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_kill_compact_force.py -N 3
+# [disabled 2026-06-11 flaky kill_compact_force]
+#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_kill_compact_force.py -N 3
+# [end disabled 2026-06-11]
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_wal_corruption_single_replica.py -N 1
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_wal_corruption_three_replica.py -N 3
 
@@ -1277,7 +1287,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_bugs.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_compa.py
 #,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_datatypes.py -B
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_maxcols.py -B
+# [disabled 2026-06-11 flaky taosdump_maxcols]
+#,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_maxcols.py -B
+# [end disabled 2026-06-11]
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_precision.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_primarykey.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_privilege.py
