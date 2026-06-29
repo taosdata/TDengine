@@ -9,9 +9,11 @@ import TabItem from "@theme/TabItem";
 
 TDengine TSDB 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine TSDB 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。数据订阅的基础知识请参考 [数据订阅](../../advanced/subscription/topic/) 。
 
+如果只是想快速查看 Topic 是否能正常推送数据，或在开发、测试、排障时观察订阅结果，也可以使用 TDengine TSDB CLI 的 `subscribe` 命令。该命令可在 taos 交互模式或 `-s` 非交互模式下直接订阅 Topic 并输出数据，详情请参考 [TDengine TSDB CLI 数据订阅](../14-reference/02-tools/07-taos-cli.md#数据订阅)。
+
 ## 创建主题
 
-请用 TDengine TSDB CLI 或者参考 [执行 SQL](../sql/) 章节用程序执行创建主题的 SQL：`CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`  
+请用 TDengine TSDB CLI 或者参考 [执行 SQL](../sql/) 章节用程序执行创建主题的 SQL：`CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`
 
 上述 SQL 将创建一个名为 topic_meters 的订阅。使用该订阅所获取的消息中的每条记录都由此查询语句 `SELECT ts, current, voltage, phase, groupid, location FROM meters` 所选择的列组成。
 

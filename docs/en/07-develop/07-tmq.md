@@ -7,6 +7,8 @@ import TabItem from "@theme/TabItem";
 
 TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../06-advanced/01-subscription/index.md)
 
+If you only need to quickly check whether a topic can deliver data, or observe subscription results during development, testing, or troubleshooting, you can also use the `subscribe` command in TDengine CLI. This command can subscribe to a topic and print received data directly in either taos interactive mode or `-s` non-interactive mode. For details, see [TDengine CLI Data Subscription](../14-reference/02-tools/07-taos-cli.md#data-subscription).
+
 ## Creating Topics
 
 Please use TDengine CLI or refer to the [Execute SQL](02-sql.md) section to execute the SQL for creating topics: `CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`
