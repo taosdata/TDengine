@@ -326,7 +326,7 @@ void txnMgrEvict(STxnWalManager *pMgr, int64_t nowMs) {
     // cleaned up after the same idle threshold without holding memory or hash entries forever.
     if ((committed || rolledBack) && lastConsume > 0 && (nowMs - lastConsume) > idleThresholdMs) {
       if (taosArrayPush(toDelete, &pSlot->txnId) == NULL) {
-        vWarn("txnMgr: evict failed to enqueue txnId=" PRId64 ", skipping", pSlot->txnId);
+        vWarn("txnMgr: evict failed to enqueue txnId=%" PRId64 ", skipping", pSlot->txnId);
       }
     }
     pIter = taosHashIterate(pMgr->pTxnHash, pIter);
@@ -346,7 +346,7 @@ void txnMgrEvict(STxnWalManager *pMgr, int64_t nowMs) {
       taosMemoryFree(pSlot);
       int32_t removeCode = taosHashRemove(pMgr->pTxnHash, pId, sizeof(*pId));
       if (removeCode != 0) {
-        vError("txnMgr: evict failed to remove txnId=" PRId64 " from hash, dangling pointer risk", *pId);
+        vError("txnMgr: evict failed to remove txnId=%" PRId64 " from hash, dangling pointer risk", *pId);
       }
     }
     if (atomic_load_64(&pMgr->totalMemBytes) <= gTxnWalMaxMemBytes) break;
