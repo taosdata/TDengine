@@ -8272,6 +8272,37 @@ static int32_t stHistoryContextCompareGroup(const HeapNode *a, const HeapNode *b
   return pGroup1->pPendingCalcParams.neles > pGroup2->pPendingCalcParams.neles;
 }
 
+static FORCE_INLINE bool stHistoryGroupHasPendingCalc(SSTriggerHistoryGroup *pGroup) {
+  return pGroup->pPendingCalcParams.neles > 0 || pGroup->pPendingParWinCalcParams.neles > 0;
+}
+
+static FORCE_INLINE void stHistoryGroupEnterMaxDelayHeap(SSTriggerHistoryContext *pContext,
+                                                         SSTriggerHistoryGroup   *pGroup) {
+  if (!pGroup->inMaxDelayHeap) {
+    heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
+    pGroup->inMaxDelayHeap = true;
+  }
+}
+
+static FORCE_INLINE void stHistoryGroupLeaveMaxDelayHeap(SSTriggerHistoryContext *pContext,
+                                                         SSTriggerHistoryGroup   *pGroup) {
+  if (pGroup->inMaxDelayHeap) {
+    heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
+    pGroup->inMaxDelayHeap = false;
+    pGroup->heapNode.left = NULL;
+    pGroup->heapNode.right = NULL;
+    pGroup->heapNode.parent = NULL;
+  }
+}
+
+static FORCE_INLINE void stHistoryGroupRefreshMaxDelayHeap(SSTriggerHistoryContext *pContext,
+                                                           SSTriggerHistoryGroup   *pGroup) {
+  stHistoryGroupLeaveMaxDelayHeap(pContext, pGroup);
+  if (stHistoryGroupHasPendingCalc(pGroup)) {
+    stHistoryGroupEnterMaxDelayHeap(pContext, pGroup);
+  }
+}
+
 static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTriggerTask *pTask) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
@@ -9278,10 +9309,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       case STRIGGER_CONTEXT_SEND_CALC_REQ: {
         code = stHistoryGroupRetrievePendingCalc(pGroup);
         QUERY_CHECK_CODE(code, lino, _end);
-        heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
-        if (pGroup->pPendingCalcParams.neles > 0 || pGroup->pPendingParWinCalcParams.neles > 0) {
-          heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
-        }
+        stHistoryGroupRefreshMaxDelayHeap(pContext, pGroup);
         if (pContext->pCalcReq == NULL) {
           // do nothing
         } else if (TARRAY_SIZE(pContext->pCalcReq->params) > 0) {
@@ -9483,10 +9511,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
-    heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
-    if (pGroup->pPendingCalcParams.neles > 0 || pGroup->pPendingParWinCalcParams.neles > 0) {
-      heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
-    }
+    stHistoryGroupRefreshMaxDelayHeap(pContext, pGroup);
     pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
     if (pContext->pMaxDelayHeap->min != NULL) {
       pContext->pMinGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerHistoryGroup, heapNode);
@@ -12143,6 +12168,8 @@ static void stHistoryGroupDestroy(void *ptr) {
   }
 
   SSTriggerHistoryGroup *pGroup = *ppGroup;
+  stHistoryGroupLeaveMaxDelayHeap(pGroup->pContext, pGroup);
+
   if (pGroup->pVirtTableInfos != NULL) {
     taosArrayDestroyEx(pGroup->pVirtTableInfos, stTriggerTaskDestroyVirtTableInfoClone);
   }
@@ -12341,7 +12368,6 @@ static int32_t stHistoryGroupAddCalcParam(SSTriggerHistoryGroup *pGroup, SSTrigg
   int32_t                  lino = 0;
   SSTriggerHistoryContext *pContext = pGroup->pContext;
   SStreamTriggerTask      *pTask = pContext->pTask;
-  int32_t                  initSize = pGroup->pPendingCalcParams.neles + pGroup->pPendingParWinCalcParams.neles;
   bool overlap = (pParam->wstart <= pContext->calcRange.ekey) && (pParam->wend >= pContext->calcRange.skey);
   bool hasBefore = (pParam->wstart < pContext->calcRange.skey);
   bool hasAfter = (pParam->wend > pContext->calcRange.ekey);
@@ -12385,9 +12411,7 @@ static int32_t stHistoryGroupAddCalcParam(SSTriggerHistoryGroup *pGroup, SSTrigg
   QUERY_CHECK_CODE(code, lino, _end);
   pParam = NULL;
 
-  if (initSize == 0) {
-    heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
-  }
+  stHistoryGroupEnterMaxDelayHeap(pContext, pGroup);
 
 _end:
   if (pParam != NULL) {

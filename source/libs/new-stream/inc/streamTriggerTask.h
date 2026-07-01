@@ -158,6 +158,7 @@ typedef struct SSTriggerHistoryGroup {
   bool               pendingWinOpen;            // for event window trigger and state window trigger
   SSTriggerCalcParam pendingWinParam;           // for event window trigger and state window trigger
   HeapNode           heapNode;
+  bool               inMaxDelayHeap;
 } SSTriggerHistoryGroup;
 
 typedef enum ESTriggerContextStatus {
