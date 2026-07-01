@@ -14,6 +14,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <stdio.h>
 #include <string.h>
 #include <atomic>
 #include <chrono>
@@ -401,6 +402,78 @@ int stmtSelectTimestampRangeRowCount(TAOS* taos, const char* sql, int64_t tsStar
   }
   taos_stmt2_close(stmt);
   return rows;
+}
+
+// Helper: run a synchronous taos_query and return fetched row count. Returns -1 on error.
+int countTaosQueryRows(TAOS* taos, const char* sql) {
+  TAOS_RES* res = taos_query(taos, sql);
+  int       code = taos_errno(res);
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_free_result(res);
+    return -1;
+  }
+
+  int rows = 0;
+  while (taos_fetch_row(res) != nullptr) {
+    rows++;
+  }
+  taos_free_result(res);
+  return rows;
+}
+
+// Generic stmt2 SELECT executor; caps fetch at kMaxRows.
+int stmtExecSelectRowCount(TAOS* taos, const char* sql, TAOS_STMT2_BINDV* bindv, int kMaxRows = 512) {
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  if (!stmt) return -1;
+
+  int code = taos_stmt2_prepare(stmt, sql, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_stmt2_close(stmt);
+    return -1;
+  }
+
+  int             fieldNum = 0;
+  TAOS_FIELD_ALL* pFields = NULL;
+  code = taos_stmt2_get_fields(stmt, &fieldNum, &pFields);
+  taos_stmt2_free_fields(stmt, pFields);
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_stmt2_close(stmt);
+    return -1;
+  }
+
+  code = taos_stmt2_bind_param(stmt, bindv, -1);
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_stmt2_close(stmt);
+    return -1;
+  }
+
+  code = taos_stmt2_exec(stmt, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    taos_stmt2_close(stmt);
+    return -1;
+  }
+
+  TAOS_RES* pRes = taos_stmt2_result(stmt);
+  int       rows = 0;
+  if (pRes) {
+    while (taos_fetch_row(pRes) != nullptr) {
+      rows++;
+      if (rows > kMaxRows) {
+        break;
+      }
+    }
+  }
+  taos_stmt2_close(stmt);
+  return rows;
+}
+
+void expectStmt2RowsMatchTaos(TAOS* taos, const char* stmtSql, TAOS_STMT2_BINDV* bindv, const char* refSql) {
+  const int expected = countTaosQueryRows(taos, refSql);
+  ASSERT_GE(expected, 0) << refSql;
+  const int actual = stmtExecSelectRowCount(taos, stmtSql, bindv);
+  ASSERT_GE(actual, 0) << stmtSql;
+  ASSERT_EQ(actual, expected) << "stmt: " << stmtSql << "\nref: " << refSql;
 }
 
 }  // namespace
@@ -6113,8 +6186,7 @@ TEST(stmt2Case, query_timestamp_auto_precision) {
   // ── Sanity: a slightly off ms value must not match ────────────────────────
   ASSERT_EQ(stmtSelectTimestampRowCount(taos, "select * from stmt2_ts_auto_ms.t where ts = ?", TS_MS + 1), 0);
 
-  // ── Range predicate regression: placeholders must be converted before timeRange extraction ──
-  // This specifically guards against "WHERE fixed but pSelect->timeRange still stale".
+  // ── Range predicate: precision fix must run before getQueryTimeRange ────────
   ASSERT_EQ(stmtSelectTimestampRangeRowCount(taos, "select * from stmt2_ts_auto_us.t where ts >= ? and ts <= ?", TS_MS,
                                              TS_MS),
             1);
@@ -6124,17 +6196,9 @@ TEST(stmt2Case, query_timestamp_auto_precision) {
   ASSERT_EQ(stmtSelectTimestampRangeRowCount(taos, "select * from stmt2_ts_auto_ms.t where ts >= ? and ts <= ?", TS_US,
                                              TS_US),
             1);
-
-  // ── stmt2(v2) early-return path regression ────────────────────────────────
-  // translateWhere() returns early for stmtBindVersion==2. The placeholder
-  // precision fix must still run before that return. These assertions guard
-  // that behavior explicitly.
-  ASSERT_EQ(stmtSelectTimestampRangeRowCount(taos, "select * from stmt2_ts_auto_us.t where ts >= ? and ts <= ?", TS_MS,
-                                             TS_MS),
-            1);
-  ASSERT_EQ(stmtSelectTimestampRangeRowCount(taos, "select * from stmt2_ts_auto_ns.t where ts >= ? and ts <= ?", TS_US,
-                                             TS_US),
-            1);
+  ASSERT_EQ(
+      stmtSelectTimestampRangeRowCount(taos, "select * from stmt2_ts_auto_us.t where ts between ? and ?", TS_MS, TS_MS),
+      1);
   ASSERT_EQ(stmtSelectTimestampRangeRowCount(taos, "select * from stmt2_ts_auto_us.t where ts >= ? and ts <= ?",
                                              TS_MS + 1, TS_MS + 1),
             0);
@@ -6173,6 +6237,222 @@ TEST(stmt2Case, query_timestamp_auto_precision) {
   do_query(taos, "drop database if exists stmt2_ts_auto_ms");
   do_query(taos, "drop database if exists stmt2_ts_auto_us");
   do_query(taos, "drop database if exists stmt2_ts_auto_ns");
+  taos_close(taos);
+}
+
+TEST(stmt2Case, query_interval_fill_time_range) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  const int64_t tsStart = 1700000000000LL;
+  const int64_t tsEnd = tsStart + 3600000LL;
+  const int64_t tsMid = tsStart + 1800000LL;
+
+  do_query(taos, "drop database if exists stmt2_fill_timerange");
+  do_query(taos, "create database stmt2_fill_timerange precision 'ms'");
+  do_query(taos, "create stable stmt2_fill_timerange.stb (ts timestamp, current float) tags(location varchar(32))");
+
+  char insertSql[512];
+  (void)snprintf(insertSql, sizeof(insertSql),
+                 "insert into stmt2_fill_timerange.d0 using stmt2_fill_timerange.stb tags('location_1') "
+                 "values (%lld, 12.5)",
+                 (long long)tsMid);
+  do_query(taos, insertSql);
+
+  const char* stmtSql =
+      "select _wstart, last(current) as last_current from stmt2_fill_timerange.stb "
+      "where location = ? and ts between ? and ? interval(1m) fill(null_f) order by _wstart asc";
+
+  char refSql[1024];
+  (void)snprintf(refSql, sizeof(refSql),
+                 "select _wstart, last(current) as last_current from stmt2_fill_timerange.stb "
+                 "where location = 'location_1' and ts between %lld and %lld interval(1m) fill(null_f) "
+                 "order by _wstart asc",
+                 (long long)tsStart, (long long)tsEnd);
+
+  int32_t          locLen = (int32_t)strlen("location_1");
+  TAOS_STMT2_BIND  params[3] = {{TSDB_DATA_TYPE_VARCHAR, (void*)"location_1", &locLen, NULL, 1},
+                                {TSDB_DATA_TYPE_TIMESTAMP, (void*)&tsStart, NULL, NULL, 1},
+                                {TSDB_DATA_TYPE_TIMESTAMP, (void*)&tsEnd, NULL, NULL, 1}};
+  TAOS_STMT2_BIND* paramv[3] = {&params[0], &params[1], &params[2]};
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv[0]};
+  expectStmt2RowsMatchTaos(taos, stmtSql, &bindv, refSql);
+
+  const char* stmtSql2 =
+      "select _wstart, last(current) as last_current from stmt2_fill_timerange.stb "
+      "where location = ? and ts >= ? and ts <= ? interval(1m) fill(null_f) order by _wstart asc";
+
+  char refSql2[1024];
+  (void)snprintf(refSql2, sizeof(refSql2),
+                 "select _wstart, last(current) as last_current from stmt2_fill_timerange.stb "
+                 "where location = 'location_1' and ts >= %lld and ts <= %lld interval(1m) fill(null_f) "
+                 "order by _wstart asc",
+                 (long long)tsStart, (long long)tsEnd);
+  expectStmt2RowsMatchTaos(taos, stmtSql2, &bindv, refSql2);
+
+  do_query(taos, "drop database if exists stmt2_fill_timerange");
+  taos_close(taos);
+}
+
+TEST(stmt2Case, query_timestamp_time_range_suite) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  const int64_t TS_BASE = 1700000000000LL;
+  const int64_t TS_1M = 60000LL;
+  const int64_t ts0 = TS_BASE;
+  const int64_t ts1 = TS_BASE + TS_1M;
+  const int64_t ts2 = TS_BASE + TS_1M * 2;
+  const int64_t tsEnd5m = TS_BASE + TS_1M * 5;
+
+  do_query(taos, "drop database if exists stmt2_ts_range");
+  do_query(taos, "create database stmt2_ts_range precision 'ms'");
+  do_query(taos, "create table stmt2_ts_range.ntb (ts timestamp, val int)");
+  do_query(taos, "create stable stmt2_ts_range.stb (ts timestamp, val float) tags(loc varchar(16))");
+
+  char insertSql[512];
+  (void)snprintf(insertSql, sizeof(insertSql), "insert into stmt2_ts_range.ntb values (%lld, 1)(%lld, 2)(%lld, 3)",
+                 (long long)ts0, (long long)ts1, (long long)ts2);
+  do_query(taos, insertSql);
+  (void)snprintf(insertSql, sizeof(insertSql),
+                 "insert into stmt2_ts_range.d0 using stmt2_ts_range.stb tags('a') values (%lld, 9.9)",
+                 (long long)(TS_BASE + TS_1M + TS_1M / 2));
+  do_query(taos, insertSql);
+
+  // ── NTB point / range / between / open interval ───────────────────────────
+  {
+    int64_t          tsParam = ts1;
+    TAOS_STMT2_BIND  p0 = {TSDB_DATA_TYPE_TIMESTAMP, &tsParam, NULL, NULL, 1};
+    TAOS_STMT2_BIND* pv0[1] = {&p0};
+    TAOS_STMT2_BINDV bv0 = {1, NULL, NULL, &pv0[0]};
+    char             ref[256];
+    (void)snprintf(ref, sizeof(ref), "select ts, val from stmt2_ts_range.ntb where ts = %lld", (long long)ts1);
+    expectStmt2RowsMatchTaos(taos, "select ts, val from stmt2_ts_range.ntb where ts = ?", &bv0, ref);
+  }
+
+  {
+    int64_t          tsStart = ts0;
+    int64_t          tsEnd = ts2;
+    TAOS_STMT2_BIND  ps[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &tsStart, NULL, NULL, 1},
+                              {TSDB_DATA_TYPE_TIMESTAMP, &tsEnd, NULL, NULL, 1}};
+    TAOS_STMT2_BIND* pv[2] = {&ps[0], &ps[1]};
+    TAOS_STMT2_BINDV bv = {1, NULL, NULL, &pv[0]};
+    char             ref[256];
+    (void)snprintf(ref, sizeof(ref),
+                   "select ts, val from stmt2_ts_range.ntb where ts >= %lld and ts <= %lld order by ts",
+                   (long long)tsStart, (long long)tsEnd);
+    expectStmt2RowsMatchTaos(taos, "select ts, val from stmt2_ts_range.ntb where ts >= ? and ts <= ? order by ts", &bv,
+                             ref);
+
+    (void)snprintf(ref, sizeof(ref),
+                   "select ts, val from stmt2_ts_range.ntb where ts between %lld and %lld order by ts",
+                   (long long)tsStart, (long long)tsEnd);
+    expectStmt2RowsMatchTaos(taos, "select ts, val from stmt2_ts_range.ntb where ts between ? and ? order by ts", &bv,
+                             ref);
+  }
+
+  {
+    int64_t          tsLo = ts0;
+    int64_t          tsHi = ts2;
+    TAOS_STMT2_BIND  ps[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &tsLo, NULL, NULL, 1},
+                              {TSDB_DATA_TYPE_TIMESTAMP, &tsHi, NULL, NULL, 1}};
+    TAOS_STMT2_BIND* pv[2] = {&ps[0], &ps[1]};
+    TAOS_STMT2_BINDV bv = {1, NULL, NULL, &pv[0]};
+    char             ref[256];
+    (void)snprintf(ref, sizeof(ref), "select ts, val from stmt2_ts_range.ntb where ts > %lld and ts < %lld order by ts",
+                   (long long)tsLo, (long long)tsHi);
+    expectStmt2RowsMatchTaos(taos, "select ts, val from stmt2_ts_range.ntb where ts > ? and ts < ? order by ts", &bv,
+                             ref);
+  }
+
+  // ── NTB INTERVAL without FILL ─────────────────────────────────────────────
+  {
+    int64_t          tsStart = ts0;
+    int64_t          tsEnd = tsEnd5m;
+    TAOS_STMT2_BIND  ps[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &tsStart, NULL, NULL, 1},
+                              {TSDB_DATA_TYPE_TIMESTAMP, &tsEnd, NULL, NULL, 1}};
+    TAOS_STMT2_BIND* pv[2] = {&ps[0], &ps[1]};
+    TAOS_STMT2_BINDV bv = {1, NULL, NULL, &pv[0]};
+    char             ref[512];
+    (void)snprintf(ref, sizeof(ref),
+                   "select _wstart, last(val) from stmt2_ts_range.ntb where ts >= %lld and ts <= %lld interval(1m)",
+                   (long long)tsStart, (long long)tsEnd);
+    expectStmt2RowsMatchTaos(taos,
+                             "select _wstart, last(val) from stmt2_ts_range.ntb where ts >= ? and ts <= ? "
+                             "interval(1m)",
+                             &bv, ref);
+  }
+
+  // ── NTB INTERVAL + FILL (production-like 1s window) ───────────────────────
+  {
+    const int64_t    tsStart = TS_BASE;
+    const int64_t    tsEnd = TS_BASE + TS_1M * 2;
+    TAOS_STMT2_BIND  ps[2] = {{TSDB_DATA_TYPE_TIMESTAMP, (void*)&tsStart, NULL, NULL, 1},
+                              {TSDB_DATA_TYPE_TIMESTAMP, (void*)&tsEnd, NULL, NULL, 1}};
+    TAOS_STMT2_BIND* pv[2] = {&ps[0], &ps[1]};
+    TAOS_STMT2_BINDV bv = {1, NULL, NULL, &pv[0]};
+    char             ref[512];
+    (void)snprintf(ref, sizeof(ref),
+                   "select _wstart, last(val) from stmt2_ts_range.ntb where ts >= %lld and ts <= %lld "
+                   "interval(1s) fill(null_f) order by _wstart",
+                   (long long)tsStart, (long long)tsEnd);
+    expectStmt2RowsMatchTaos(taos,
+                             "select _wstart, last(val) from stmt2_ts_range.ntb where ts >= ? and ts <= ? "
+                             "interval(1s) fill(null_f) order by _wstart",
+                             &bv, ref);
+  }
+
+  // ── STB tag + BETWEEN + INTERVAL + FILL ───────────────────────────────────
+  {
+    const char*      loc = "a";
+    int32_t          locLen = (int32_t)strlen(loc);
+    int64_t          tsStart = ts0;
+    int64_t          tsEnd = tsEnd5m;
+    TAOS_STMT2_BIND  ps[3] = {{TSDB_DATA_TYPE_VARCHAR, (void*)loc, &locLen, NULL, 1},
+                              {TSDB_DATA_TYPE_TIMESTAMP, &tsStart, NULL, NULL, 1},
+                              {TSDB_DATA_TYPE_TIMESTAMP, &tsEnd, NULL, NULL, 1}};
+    TAOS_STMT2_BIND* pv[3] = {&ps[0], &ps[1], &ps[2]};
+    TAOS_STMT2_BINDV bv = {1, NULL, NULL, &pv[0]};
+    char             ref[512];
+    (void)snprintf(ref, sizeof(ref),
+                   "select _wstart, last(val) from stmt2_ts_range.stb where loc = 'a' and ts between %lld and %lld "
+                   "interval(1m) fill(null_f) order by _wstart",
+                   (long long)tsStart, (long long)tsEnd);
+    expectStmt2RowsMatchTaos(taos,
+                             "select _wstart, last(val) from stmt2_ts_range.stb where loc = ? and ts between ? and ? "
+                             "interval(1m) fill(null_f) order by _wstart",
+                             &bv, ref);
+  }
+
+  // ── Cross-precision DB (us) with ms bind values ───────────────────────────
+  do_query(taos, "drop database if exists stmt2_ts_range_us");
+  do_query(taos, "create database stmt2_ts_range_us precision 'us'");
+  do_query(taos, "create table stmt2_ts_range_us.t (ts timestamp, val int)");
+  do_query(taos, "insert into stmt2_ts_range_us.t values (1700000000000000, 1)(1700000060000000, 2)");
+
+  {
+    // stmt2 binds ms-magnitude values (auto-detected); ref SQL must use us literals.
+    int64_t          tsStartMs = TS_BASE;
+    int64_t          tsEndMs = TS_BASE + TS_1M * 2;
+    int64_t          tsStartUs = tsStartMs * 1000LL;
+    int64_t          tsEndUs = tsEndMs * 1000LL;
+    TAOS_STMT2_BIND  ps[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &tsStartMs, NULL, NULL, 1},
+                              {TSDB_DATA_TYPE_TIMESTAMP, &tsEndMs, NULL, NULL, 1}};
+    TAOS_STMT2_BIND* pv[2] = {&ps[0], &ps[1]};
+    TAOS_STMT2_BINDV bv = {1, NULL, NULL, &pv[0]};
+    char             ref[512];
+    (void)snprintf(ref, sizeof(ref),
+                   "select _wstart, last(val) from stmt2_ts_range_us.t where ts >= %lld and ts <= %lld "
+                   "interval(1m) fill(null_f) order by _wstart",
+                   (long long)tsStartUs, (long long)tsEndUs);
+    expectStmt2RowsMatchTaos(taos,
+                             "select _wstart, last(val) from stmt2_ts_range_us.t where ts >= ? and ts <= ? "
+                             "interval(1m) fill(null_f) order by _wstart",
+                             &bv, ref);
+  }
+
+  do_query(taos, "drop database if exists stmt2_ts_range_us");
+  do_query(taos, "drop database if exists stmt2_ts_range");
   taos_close(taos);
 }
 

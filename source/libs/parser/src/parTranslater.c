@@ -10675,7 +10675,6 @@ static int32_t translateWhere(STranslateContext* pCxt, SSelectStmt* pSelect) {
   PAR_ERR_RET(translateExpr(pCxt, &pSelect->pWhere));
   if (pCxt->pParseCxt->stmtBindVersion == 2) {
     fixStmtTsPlaceholderPrecisionInWhere(pSelect);
-    return code;
   }
   PAR_ERR_RET(
       getQueryTimeRange(pCxt, &pSelect->pWhere, &pSelect->timeRange, &pSelect->pTimeRange, pSelect->pFromTable));
