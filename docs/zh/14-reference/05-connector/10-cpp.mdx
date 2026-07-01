@@ -271,6 +271,7 @@ TDengine TSDB 客户端驱动支持 WebSocket 连接和原生连接两种方式�
     | userApp           | Native/WebSocket  | 用户 APP 名称                                                                             |
     | connectorInfo     | Native            | 连接器信息                                                                                |
     | adapterList       | WebSocket         | taosAdapter 地址列表，用于负载均衡和故障转移。多个地址使用英文逗号分隔，格式为 `host1:port1,host2:port2,...`。优先级高于 `ip` 参数。 |
+    | adapterHa         | WebSocket         | 是否启用 taosAdapter 高可用。启用后，连接器会向 taosAdapter 请求当前可用的实例列表，并将发现的节点加入地址池，用于负载均衡和故障转移。默认值为 false。v3.4.2.0 开始支持。 |
     | compression       | WebSocket         | 数据压缩开关。0：禁用，1：启用。默认值为 0。                                                    |
     | connRetries       | WebSocket         | 连接失败时的最大重试次数。默认值为 5。                                                         |
     | retryBackoffMs    | WebSocket         | 连接失败时的初始等待时间（毫秒）。此值会随着连续失败而指数增长，直到达到最大等待时间。默认值为 200。      |
@@ -835,6 +836,14 @@ stmt 升级到 stmt2 的改动：
 
   - **接口说明**：创建一个新的 TMQ 配置对象。
   - **返回值**：非 `NULL`：成功，返回一个指向 tmq_conf_t 结构体的指针，该结构体用于配置 TMQ 的行为和特性。`NULL`：失败，可调用函数 taos_errstr(NULL) 获取更详细的错误信息。
+  - **C WebSocket 连接器专有配置项**：
+
+    | 配置项 | 类型 | 取值范围 | 说明 | 备注 |
+    | ------ | ---- | -------- | ---- | ---- |
+    | `ws.tls.mode` | integer | `0`：禁用 TLS 加密。若服务端启用 TLS，客户端会自动升级连接。<br/>`1`：启用 TLS 加密，但不验证服务端证书。<br/>`2`：启用 TLS 加密，验证服务端证书，但不验证主机名。<br/>`3`：启用 TLS 加密，验证服务端证书及主机名（服务端证书需包含 SAN，CN 会被忽略）。 | C WebSocket 连接支持的 TLS 加密模式 | 默认值为 `0`。v3.3.8.12 开始支持。 |
+    | `ws.tls.version` | string | `TLSv1.2`、`TLSv1.3` | C WebSocket 连接支持的 TLS 协议版本列表，多个版本使用英文逗号分隔。 | 默认值为 `TLSv1.3`。v3.3.8.12 开始支持。 |
+    | `ws.tls.ca` | string | CA 证书文件路径或 PEM 格式的证书内容 | C WebSocket 连接用于验证服务端证书的 CA 证书。该证书应为签发服务端证书的 CA 证书。 | v3.3.8.12 开始支持。 |
+    | `ws.adapter.ha` | boolean | `true`、`false` | C WebSocket 连接是否启用 taosAdapter 高可用。启用后，连接器会向 taosAdapter 请求当前可用的实例列表，并将发现的节点加入地址池，用于负载均衡和故障转移。 | 默认值为 `false`。v3.4.2.0 开始支持。 |
 
 - `tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value)`
 
