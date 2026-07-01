@@ -58,7 +58,7 @@ class TDengineConan(ConanFile):
 
         # tzcode (libtz.a) is linked by source/os on non-Windows
         if self.settings.os != "Windows":
-            self.requires("tz/2025a")
+            self.requires("tz/2023c")
 
         # Core compression libraries
         self.requires("zlib/1.3.1")
