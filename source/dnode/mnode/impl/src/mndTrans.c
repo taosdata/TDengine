@@ -645,6 +645,19 @@ static void mndSetTransLastAction(STrans *pTrans, STransAction *pAction) {
   }
 }
 
+static int32_t mndTransGetActionErrCode(SArray *pActions) {
+  int32_t numOfActions = taosArrayGetSize(pActions);
+  for (int32_t action = 0; action < numOfActions; ++action) {
+    STransAction *pAction = taosArrayGet(pActions, action);
+    if (pAction->errCode != 0 && pAction->errCode != TSDB_CODE_ACTION_IN_PROGRESS &&
+        pAction->errCode != pAction->acceptableCode) {
+      return pAction->errCode;
+    }
+  }
+
+  return 0;
+}
+
 static void mndTransTestStartFunc(SMnode *pMnode, void *param, int32_t paramLen) {
   mInfo("test trans start, param:%s, len:%d", (char *)param, paramLen);
 }
@@ -1538,6 +1551,7 @@ static int32_t mndTransPreFinish(SMnode *pMnode, STrans *pTrans) {
 static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   bool    sendRsp = false;
   int32_t code = pTrans->code;
+  if (code == 0) code = mndTransGetActionErrCode(pTrans->redoActions);
 
   if (pTrans->stage == TRN_STAGE_FINISH) {
     sendRsp = true;

@@ -1667,6 +1667,7 @@
 
 # 19-TSMAs
 
+,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma_no_snode.py
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_time_range_wise.py -N 3
