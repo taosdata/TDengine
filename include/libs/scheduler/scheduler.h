@@ -67,6 +67,7 @@ typedef struct SSchedulerReq {
   SExecResult*       pExecRes;
   void**             pFetchRes;
   int8_t             source;
+  int8_t             secureDelete;
   void*              pWorkerCb;
 } SSchedulerReq;
 
@@ -77,6 +78,8 @@ int32_t schedulerExecJob(SSchedulerReq* pReq, int64_t* pJob);
 int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq* pReq);
 
 int32_t schedulerGetTasksStatus(int64_t job, SArray* pSub);
+
+int32_t schedulerGetJobPhase(int64_t jobId, int32_t *pPhase, int64_t *pPhaseStartTime);
 
 void schedulerStopQueryHb(void* pTrans);
 

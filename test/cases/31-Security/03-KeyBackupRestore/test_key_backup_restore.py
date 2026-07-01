@@ -52,7 +52,10 @@ class TestBasic:
         
         tdLog.info(f"Config directory: {cfg_path}")
         tdLog.info(f"Data directory: {data_dir}")
-        
+
+        taosk_bin = etool.taoskFile()
+        tdLog.info(f"taosk binary: {taosk_bin}")
+
         # Verify initial keys exist
         assert os.path.exists(master_file), f"master.bin should exist at {master_file}"
 
@@ -60,11 +63,11 @@ class TestBasic:
         tdLog.info("=" * 80)
         tdLog.info("Test 1: Backing up keys with correct SVR_KEY")
         tdLog.info("=" * 80)
-        
-        cmd_backup = ['taosk', '-c', cfg_path, '--backup', '--svr-key', 'backupsvr12']
+
+        cmd_backup = [taosk_bin, '-c', cfg_path, '--backup', '--svr-key', 'backupsvr12']
         result_backup = subprocess.run(cmd_backup, capture_output=True, text=True, timeout=30, check=True)
         tdLog.info(f"Backup output: {result_backup.stdout}")
-        
+
         # Check if backup file was created
         backup_files = [f for f in os.listdir(key_dir) if f.startswith('master.bin.backup')]
         assert len(backup_files) > 0, "Backup file should be created"
@@ -75,8 +78,8 @@ class TestBasic:
         tdLog.info("=" * 80)
         tdLog.info("Test 2: Testing backup with wrong SVR_KEY")
         tdLog.info("=" * 80)
-        
-        cmd_wrong = ['taosk', '-c', cfg_path, '--backup', '--svr-key', 'wrongkey123']
+
+        cmd_wrong = [taosk_bin, '-c', cfg_path, '--backup', '--svr-key', 'wrongkey123']
         result_wrong = subprocess.run(cmd_wrong, capture_output=True, text=True, timeout=30)
         assert result_wrong.returncode != 0, "Backup with wrong SVR_KEY should fail"
         tdLog.info(f"Backup failed as expected with wrong key: {result_wrong.stderr}")
@@ -85,8 +88,8 @@ class TestBasic:
         tdLog.info("=" * 80)
         tdLog.info("Test 3: Testing backup without SVR_KEY")
         tdLog.info("=" * 80)
-        
-        cmd_no_key = ['taosk', '-c', cfg_path, '--backup']
+
+        cmd_no_key = [taosk_bin, '-c', cfg_path, '--backup']
         result_no_key = subprocess.run(cmd_no_key, capture_output=True, text=True, timeout=30)
         assert result_no_key.returncode != 0, "Backup without SVR_KEY should fail"
         tdLog.info(f"Backup failed as expected without key: {result_no_key.stderr}")
@@ -95,23 +98,23 @@ class TestBasic:
         tdLog.info("=" * 80)
         tdLog.info("Test 4: Restoring keys from backup")
         tdLog.info("=" * 80)
-        
+
         # Remove master.bin to simulate new machine
         if os.path.exists(master_file):
             master_backup = master_file + ".original"
             shutil.copy2(master_file, master_backup)
             os.remove(master_file)
-        
-        cmd_restore = ['taosk', '-c', cfg_path, '--restore', 
-                       '--machine-code', backup_file, 
+
+        cmd_restore = [taosk_bin, '-c', cfg_path, '--restore',
+                       '--machine-code', backup_file,
                        '--svr-key', 'backupsvr12']
         result_restore = subprocess.run(cmd_restore, capture_output=True, text=True, timeout=30, check=True)
         tdLog.info(f"Restore output: {result_restore.stdout}")
-        
+
         # Verify master.bin was restored
         assert os.path.exists(master_file), f"master.bin should be restored at {master_file}"
         tdLog.info("Keys restored successfully")
-        
+
         # Restore original file
         if os.path.exists(master_backup):
             shutil.copy2(master_backup, master_file)
@@ -121,9 +124,9 @@ class TestBasic:
         tdLog.info("=" * 80)
         tdLog.info("Test 5: Testing restore with wrong SVR_KEY")
         tdLog.info("=" * 80)
-        
-        cmd_restore_wrong = ['taosk', '-c', cfg_path, '--restore', 
-                             '--machine-code', backup_file, 
+
+        cmd_restore_wrong = [taosk_bin, '-c', cfg_path, '--restore',
+                             '--machine-code', backup_file,
                              '--svr-key', 'wrongkey123']
         result_restore_wrong = subprocess.run(cmd_restore_wrong, capture_output=True, text=True, timeout=30)
         assert result_restore_wrong.returncode != 0, "Restore with wrong SVR_KEY should fail"

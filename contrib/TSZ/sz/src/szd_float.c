@@ -58,7 +58,7 @@ int SZ_decompress_args_float(float* newData, size_t r1, unsigned char* cmpBytes,
 		{
 			if(targetUncompressSize<MIN_ZLIB_DEC_ALLOMEM_BYTES) //Considering the minimum size
 				targetUncompressSize = MIN_ZLIB_DEC_ALLOMEM_BYTES; 
-			tmpSize = sz_lossless_decompress(pde_params->losslessCompressor, cmpBytes, (unsigned long)cmpSize, &szTmpBytes, (unsigned long)targetUncompressSize+4+MetaDataByteLength+8);
+			tmpSize = sz_lossless_decompress(pde_params->losslessCompressor, cmpBytes, cmpSize, &szTmpBytes, targetUncompressSize+4+MetaDataByteLength+8);
 	        needFree = true;
 		}
 	}

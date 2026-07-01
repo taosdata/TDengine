@@ -83,7 +83,10 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SReadHandle handle = {0};
   handle.pMsgCb = &pQnode->msgCb;
   handle.pWorkerCb = pInfo->workerCb;
-  qTrace("message in qnode queue is processing");
+  
+  const STraceId *trace = &pMsg->info.traceId;
+  qDebug("qnodeId:%d, msg:%s, %p in qnode queue is processing, %" PRIx64 ":%" PRIx64, 
+    pQnode->qndId, TMSG_INFO(pMsg->msgType), pMsg, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
 
   switch (pMsg->msgType) {
     case TDMT_SCH_QUERY:

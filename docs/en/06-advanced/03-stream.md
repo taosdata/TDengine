@@ -1,6 +1,5 @@
 ---
 title: Stream Processing
-slug: /advanced-features/stream-processing
 ---
 
 In time-series data processing, there are many common stream processing requirements, such as:
@@ -22,7 +21,7 @@ For detailed usage instructions, see [SQL Manual](../14-reference/03-taos-sql/41
 ## Create a Stream
 
 ```sql
-CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
+CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 options: {
     trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
@@ -33,7 +32,7 @@ trigger_type: {
   | SLIDING(sliding_val[, offset_time])
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(col [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 }
@@ -45,17 +44,17 @@ true_for_expr: {
   | duration_time OR COUNT count_val
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types)}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IDLE_TIMEOUT(duration_time)}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
 notify_option: [NOTIFY_HISTORY | ON_FAILURE_PAUSE]
-    
+
 event_types:
-    event_type [|event_type]    
-    
-event_type: {WINDOW_OPEN | WINDOW_CLOSE}    
+    event_type [|event_type]
+
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 
 tag_definition:
     tag_name type_name [COMMENT 'string_value'] AS expr
@@ -67,7 +66,7 @@ tag_definition:
 - Sliding trigger: drives execution based on a fixed interval of event time for data written to the trigger table. The division rules are the same as periodic triggers, with the only difference being that system time is replaced by event time.
 - Time window trigger: divides the incoming data written to the trigger table into windows based on time windows, and triggers when a window starts and/or closes.
 - Session window trigger: divides the incoming data written to the trigger table into windows based on session boundaries, and triggers when a window starts and/or closes.
-- State window trigger: divides the written data of the trigger table into windows based on the values in a state column. A trigger occurs when a window is opened and/or closed.
+- State window trigger: divides the written data of the trigger table into windows based on the evaluated result of the state expression. A trigger occurs when a window is opened and/or closed.
 - Event window trigger: partitions the incoming data of the trigger table into windows based on defined event start and end conditions, and triggers when the window opens and/or closes.
 - Count window trigger: partitions the written data from the trigger table based on a counting window, and triggers when the window starts and/or closes. It supports column-based triggering, where the trigger occurs when the specified columns receive data writes.
 
@@ -96,6 +95,8 @@ A computation task is the calculation executed by the stream after an event is t
 - `_twend`: end timestamp of current window
 - `_twduration`: duration of current window
 - `_twrownum`: number of rows in current window
+- `_tidlestart`: the time (processing time) of the last data received before the group entered idle state (nanosecond precision). Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`.
+- `_tidleend`: the trigger time of the IDLE or RESUME event (nanosecond precision). Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`.
 - `_tprev_localtime`: system time of previous trigger
 - `_tnext_localtime`: system time of next trigger
 - `_tgrpid`: ID of trigger group
@@ -119,8 +120,9 @@ Control options are used to manage trigger and computation behavior. Multiple op
 - PRE_FILTER(expr) specifies data filtering on the trigger table before evaluation. Only rows that meet the condition will be considered for triggering.
 - FORCE_OUTPUT forces an output row even when a trigger produces no computation result.
 - MAX_DELAY(delay_time) defines the maximum waiting time (processing time) before a window is forcibly triggered if it has not yet closed.
-- EVENT_TYPE(event_types) specifies the types of events that can trigger (open or close) a window.
+- EVENT_TYPE(event_types) specifies the types of events that can trigger a window, including window open/close events and idle (IDLE) and resume (RESUME) events.
 - IGNORE_NODATA_TRIGGER ignores triggers when the trigger table has no input data.
+- IDLE_TIMEOUT(duration_time) enables group idle detection and specifies the idle timeout duration (valid range: 1s to 10d). Must be used together with `EVENT_TYPE(IDLE)` and/or `EVENT_TYPE(RESUME)`.
 
 ### Notification Mechanism
 

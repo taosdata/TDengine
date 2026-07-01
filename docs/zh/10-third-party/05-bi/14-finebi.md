@@ -42,7 +42,7 @@ title: 与 FineBI 集成
 
 ![finebi-workbook](./finebi/jdbc-connect.webp)
 
-**第 7 步**，在配置页面，先输入数据连接名称，接着在【驱动】选项中选择“自定义”，并从下拉列表里选取已配置的驱动（例如 `com.taosdata.jdbc.ws.WebSocketDriver (tdengine-websocket)`），之后配置“数据连接 URL”（例如 `jdbc:TAOS-WS://localhost:6041/power?user=root&password=taosdata&fineBIDialect=mysql`）。设置完成后，点击右上角的【测试连接】进行连接测试，验证成功后点击【保存】即可完成配置。
+**第 7 步**，在配置页面，先输入数据连接名称，接着在【驱动】选项中选择“自定义”，并从下拉列表里选取已配置的驱动（例如 `com.taosdata.jdbc.ws.WebSocketDriver (tdengine-websocket)`），之后配置“数据连接 URL”（例如 `jdbc:TAOS-WS://localhost:6041/power?user=root&password=taosdata&fineBIDialect=mysql&varcharAsString=true`）。设置完成后，点击右上角的【测试连接】进行连接测试，验证成功后点击【保存】即可完成配置。
 
 :::tip
 `fineBIDialect=mysql` 设置的含义是采用 MySQL 数据库的 SQL 方言规则。简单来说，就是告诉 FineBI 按照 MySQL 数据库处理 SQL 语句的特定方式来解析和执行相关的查询与操作。

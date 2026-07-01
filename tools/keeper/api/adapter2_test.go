@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/db"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/testutil"
 	"github.com/taosdata/taoskeeper/util"
 )
 
@@ -27,8 +28,8 @@ func TestAdapter2(t *testing.T) {
 		TDengine: config.TDengineRestful{
 			Host:     "127.0.0.1",
 			Port:     6041,
-			Username: "root",
-			Password: "taosdata",
+			Username: testutil.TestUsername(),
+			Password: testutil.TestPassword(),
 			Usessl:   false,
 		},
 		Metrics: config.Metrics{
@@ -132,14 +133,14 @@ func TestAdapter2(t *testing.T) {
 }
 
 func Test_adapterTableSql(t *testing.T) {
-	conn, _ := db.NewConnector("root", "taosdata", "127.0.0.1", 6041, false)
+	conn, _ := db.NewConnector(testutil.TestUsername(), testutil.TestPassword(), "127.0.0.1", 6041, false)
 	defer conn.Close()
 
 	dbName := "db_202412031446"
 	conn.Exec(context.Background(), "create database "+dbName, util.GetQidOwn(config.Conf.InstanceID))
 	defer conn.Exec(context.Background(), "drop database "+dbName, util.GetQidOwn(config.Conf.InstanceID))
 
-	conn, _ = db.NewConnectorWithDb("root", "taosdata", "127.0.0.1", 6041, dbName, false)
+	conn, _ = db.NewConnectorWithDb(testutil.TestUsername(), testutil.TestPassword(), "127.0.0.1", 6041, dbName, false)
 	defer conn.Close()
 
 	conn.Exec(context.Background(), adapterTableSql, util.GetQidOwn(config.Conf.InstanceID))
@@ -283,6 +284,51 @@ func TestAdapter_handleFunc_ParseError_ReturnsBadRequest(t *testing.T) {
 	if !strings.HasPrefix(body["error"], "parse adapter report data error: ") {
 		t.Fatalf("error prefix mismatch, got %q", body["error"])
 	}
+}
+
+func TestAdapter_createTable_UpgradeEndpointTagLengthTo255(t *testing.T) {
+	cfg := config.GetCfg()
+	qid := util.GetQidOwn(cfg.InstanceID)
+
+	conn1, err := db.NewConnector(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+	defer conn1.Close()
+
+	_, err = conn1.Query(context.Background(), "drop database if exists test_1777449664", qid)
+	assert.NoError(t, err)
+	_, err = conn1.Query(context.Background(), "create database test_1777449664", qid)
+	assert.NoError(t, err)
+	defer func() {
+		_, _ = conn1.Query(context.Background(), "drop database if exists test_1777449664", qid)
+	}()
+
+	conn2, err := db.NewConnectorWithDb(cfg.TDengine.Username, cfg.TDengine.Password, cfg.TDengine.Host, cfg.TDengine.Port, "test_1777449664", cfg.TDengine.Usessl)
+	assert.NoError(t, err)
+	defer conn2.Close()
+
+	oldAdapterTableSql := strings.Replace(adapterTableSql, "varchar(255)", "varchar(32)", 1)
+	_, err = conn2.Query(context.Background(), oldAdapterTableSql, qid)
+	assert.NoError(t, err)
+
+	a := &Adapter{conn: conn2}
+	err = a.createTable()
+	assert.NoError(t, err)
+
+	result, err := conn2.Query(context.Background(), "desc adapter_requests", qid)
+	assert.NoError(t, err)
+
+	foundEndpoint := false
+	endpointLen := int32(0)
+	for _, row := range result.Data {
+		if row[0] == "endpoint" {
+			foundEndpoint = true
+			endpointLen, _ = row[2].(int32)
+			break
+		}
+	}
+
+	assert.True(t, foundEndpoint)
+	assert.Equal(t, int32(255), endpointLen)
 }
 
 func TestAdapter_createTable_NoConnection_ReturnsErrNoConnection(t *testing.T) {

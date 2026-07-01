@@ -107,15 +107,23 @@ bool initLog() {
 // exit log
 void exitLog() {
     for (int32_t i = 0; i < LOG_COUNT; i++) {
-        taosThreadMutexDestroy(&mutexs[i]);
+        if (taosThreadMutexDestroy(&mutexs[i]) != 0) {
+            fprintf(stderr, "Failed to destroy mutex %d, error: %s\n", i, strerror(errno));
+        }
     }
 }
 
 // lock
 void lockLog(int8_t idx) {
-    taosThreadMutexLock(&mutexs[idx]);
+    if (taosThreadMutexLock(&mutexs[idx]) != 0) {
+        fprintf(stderr, "FATAL: Failed to lock mutex %d, error: %s. Aborting.\n", idx, strerror(errno));
+        abort();
+    }
 }
 // unlock
 void unlockLog(int8_t idx) {
-    taosThreadMutexUnlock(&mutexs[idx]);
+    if (taosThreadMutexUnlock(&mutexs[idx]) != 0) {
+        fprintf(stderr, "FATAL: Failed to unlock mutex %d, error: %s. Aborting.\n", idx, strerror(errno));
+        abort();
+    }
 }

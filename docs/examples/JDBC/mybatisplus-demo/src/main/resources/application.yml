@@ -1,7 +1,7 @@
 spring:
   datasource:
     driver-class-name: com.taosdata.jdbc.ws.WebSocketDriver
-    url: jdbc:TAOS-WS://localhost:6041/mp_test?charset=UTF-8&locale=en_US.UTF-8&timezone=UTC-8
+    url: jdbc:TAOS-WS://localhost:6041/mp_test?charset=UTF-8&locale=en_US.UTF-8&timezone=UTC-8&varcharAsString=true
     username: root
     password: taosdata
 

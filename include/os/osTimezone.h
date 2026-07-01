@@ -27,6 +27,11 @@ extern void* pTimezoneNameMap;
 
 #ifdef WINDOWS
 typedef void *timezone_t;
+
+// Add Windows version function declarations
+timezone_t tzalloc(char const *);
+void       tzfree(timezone_t);
+
 #else
 typedef struct state *timezone_t;
 
@@ -39,12 +44,17 @@ void       truncateTimezoneString(char *tz);
 
 #endif
 
-int32_t taosGetLocalTimezoneOffset();
+int32_t taosGetLocalTimezoneOffset(int32_t *code);
+int32_t taosGetTZOffsetSeconds(timezone_t tz, int32_t *code);   // east-positive (tm_gmtoff convention); tz=NULL uses global default
 int32_t taosGetSystemTimezone(char *outTimezone);
 int32_t taosSetGlobalTimezone(const char *tz);
 int32_t taosFormatTimezoneStr(time_t t, const char *tzStr, timezone_t sp, char *outTimezoneStr);
 int32_t initTimezoneInfo();
 void    cleanupTimezoneInfo();
+
+#ifdef WINDOWS
+int64_t getWindowsTimezoneOffset(void);
+#endif
 
 timezone_t getGlobalDefaultTZ();
 #ifdef __cplusplus

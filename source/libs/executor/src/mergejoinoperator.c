@@ -940,6 +940,8 @@ static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pT
         offsetFromTz(varDataVal(pTimeZone->datum.p), TSDB_TICK_PER_SECOND(pFunc->node.resType.precision));
   }
 
+  qDebug("%s literal:%s, pCurrTz:%p", __func__, varDataVal(pTimeZone->datum.p), pCurrTz);
+
   pCtx->type = E_PRIM_TIMETRUNCATE;
 
   return TSDB_CODE_SUCCESS;
@@ -1128,6 +1130,71 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mJoinGetExternalWinIdx(SMJoinTableCtx* pTable, int32_t rowIdx) {
+  if (NULL == pTable->pBlkWinIdx || taosArrayGetSize(pTable->pBlkWinIdx) <= 0) {
+    return -1;
+  }
+
+  int32_t size = taosArrayGetSize(pTable->pBlkWinIdx);
+  for (int32_t i = size - 1; i >= 0; --i) {
+    int64_t* pIdx = taosArrayGet(pTable->pBlkWinIdx, i);
+    if (NULL == pIdx) {
+      continue;
+    }
+
+    int32_t* pPair = (int32_t*)pIdx;
+    if (rowIdx >= pPair[1]) {
+      return pPair[0];
+    }
+  }
+
+  return -1;
+}
+
+static void mJoinSetExternalWinIdxFromPeer(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
+  SExecTaskInfo* pTaskInfo = pJoin->pOperator->pTaskInfo;
+  if (NULL == pTaskInfo->pStreamRuntimeInfo || !pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow) {
+    return;
+  }
+
+  SMJoinTableCtx* pPeer = (pTable == pJoin->build) ? pJoin->probe : pJoin->build;
+  if (NULL == pPeer || NULL == pPeer->blk || pPeer->blkRowIdx >= pPeer->blk->info.rows) {
+    return;
+  }
+
+  int32_t winIdx = mJoinGetExternalWinIdx(pPeer, pPeer->blkRowIdx);
+  if (winIdx >= 0) {
+    pTaskInfo->pStreamRuntimeInfo->funcInfo.curIdx = winIdx;
+  }
+}
+
+static int32_t mJoinSaveExternalWinIdx(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
+  SExecTaskInfo* pTaskInfo = pJoin->pOperator->pTaskInfo;
+  if (NULL == pTaskInfo->pStreamRuntimeInfo || !pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow) {
+    if (pTable->pBlkWinIdx) {
+      taosArrayClear(pTable->pBlkWinIdx);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray* pInputWinIdx = pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx;
+  int32_t size = (NULL == pInputWinIdx) ? 0 : taosArrayGetSize(pInputWinIdx);
+  if (NULL == pTable->pBlkWinIdx) {
+    pTable->pBlkWinIdx = taosArrayInit(TMAX(size, 1), sizeof(int64_t));
+    if (NULL == pTable->pBlkWinIdx) {
+      return terrno;
+    }
+  } else {
+    taosArrayClear(pTable->pBlkWinIdx);
+  }
+
+  if (size > 0 && NULL == taosArrayAddBatch(pTable->pBlkWinIdx, TARRAY_DATA(pInputWinIdx), size)) {
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTable) {
   SSDataBlock* pTmp = NULL;
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -1145,10 +1212,16 @@ SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTa
       return NULL;
     }
 
+    mJoinSetExternalWinIdxFromPeer(pJoin, pTable);
     pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, dsIdx);
     if (NULL == pTmp) {
       pTable->dsFetchDone = true;
       return NULL;
+    }
+    code = mJoinSaveExternalWinIdx(pJoin, pTable);
+    if (code) {
+      pJoin->errCode = code;
+      T_LONG_JMP(pJoin->pOperator->pTaskInfo->env, pJoin->errCode);
     }
 
     if (0 == pTable->lastInGid) {
@@ -1186,10 +1259,16 @@ SSDataBlock* mJoinGrpRetrieveImpl(SMJoinOperatorInfo* pJoin, SMJoinTableCtx* pTa
       return NULL;
     }
 
+    mJoinSetExternalWinIdxFromPeer(pJoin, pTable);
     SSDataBlock* pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, dsIdx);
     if (NULL == pTmp) {
       pTable->dsFetchDone = true;
       return NULL;
+    }
+    code = mJoinSaveExternalWinIdx(pJoin, pTable);
+    if (code) {
+      pJoin->errCode = code;
+      T_LONG_JMP(pJoin->pOperator->pTaskInfo->env, pJoin->errCode);
     }
 
     pTable->remainInBlk = pTmp;
@@ -1211,11 +1290,17 @@ static FORCE_INLINE SSDataBlock* mJoinRetrieveImpl(SMJoinOperatorInfo* pJoin, SM
     return NULL;
   }
 
+  mJoinSetExternalWinIdxFromPeer(pJoin, pTable);
   SSDataBlock* pTmp = getNextBlockFromDownstreamRemain(pJoin->pOperator, pTable->downStreamIdx);
   if (NULL == pTmp) {
     pTable->dsFetchDone = true;
   } else {
     int32_t code = mJoinLaunchPrimExpr(pTmp, pTable);
+    if (code) {
+      pJoin->errCode = code;
+      T_LONG_JMP(pJoin->pOperator->pTaskInfo->env, pJoin->errCode);
+    }
+    code = mJoinSaveExternalWinIdx(pJoin, pTable);
     if (code) {
       pJoin->errCode = code;
       T_LONG_JMP(pJoin->pOperator->pTaskInfo->env, pJoin->errCode);
@@ -1678,6 +1763,9 @@ void mJoinResetGroupTableCtx(SMJoinTableCtx* pCtx) {
   pCtx->blk = NULL;
   pCtx->blkRowIdx = 0;
   pCtx->newBlk = false;
+  if (pCtx->pBlkWinIdx) {
+    taosArrayClear(pCtx->pBlkWinIdx);
+  }
 
   mJoinDestroyCreatedBlks(pCtx->createdBlks);
   tSimpleHashClear(pCtx->pGrpHash);
@@ -1775,11 +1863,6 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
     }
   }
 
-  int64_t st = 0;
-  if (pOperator->cost.openCost == 0) {
-    st = taosGetTimestampUs();
-  }
-
   SSDataBlock* pBlock = NULL;
   while (true) {
     pBlock = (*pJoin->joinFp)(pOperator);
@@ -1804,10 +1887,6 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
       pBlock->info.dataLoad = 1;
       break;
     }
-  }
-
-  if (pOperator->cost.openCost == 0) {
-    pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   }
 
   pJoin->execInfo.resRows += pBlock ? pBlock->info.rows : 0;
@@ -1839,6 +1918,7 @@ void destroyMergeJoinTableCtx(SMJoinTableCtx* pTable) {
 
   taosArrayDestroy(pTable->eqGrps);
   taosArrayDestroyEx(pTable->pGrpArrays, destroyGrpArray);
+  taosArrayDestroy(pTable->pBlkWinIdx);
 }
 
 void destroyMergeJoinOperator(void* param) {
@@ -1966,6 +2046,7 @@ int32_t createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDo
     code = terrno;
     goto _return;
   }
+  initOperatorCostInfo(pOperator);
 
   pInfo->pOperator = pOperator;
   MJ_ERR_JRET(mJoinInitDownstreamInfo(pInfo, &pDownstream, &numOfDownstream, &newDownstreams));

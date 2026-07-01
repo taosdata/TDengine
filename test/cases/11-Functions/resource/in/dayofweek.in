@@ -28,7 +28,7 @@ select dayofweek(ts) from ts_4893.meters order by ts limit 10
 select dayofweek('2024-02-29')
 select dayofweek('2024-01-01')
 select dayofweek('2024-12-31')
-select dayofweek('9999-12-31')
+select dayofweek('3000-12-31')
 select dayofweek(ts) from ts_4893.meters limit 1
 select dayofweek(name) from ts_4893.meters limit 1
 select dayofweek(timediff(ts, '2024-10-10 09:36:50.172')) from ts_4893.meters limit 1

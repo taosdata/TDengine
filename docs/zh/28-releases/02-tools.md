@@ -8,7 +8,7 @@ description: taosTools 的发布历史、Release Notes 和下载链接
 
 2.6 的历史版本安装包请访问 [这里](https://www.taosdata.com/all-downloads)
 
-import Release from "/components/ReleaseV3";
+import Release from "/src/components/Release";
 
 ## 2.5.2
 

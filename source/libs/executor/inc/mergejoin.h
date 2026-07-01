@@ -112,7 +112,7 @@ typedef struct SMJoinTableCtx {
   SNode*             primExpr;
   SMJoinPrimExprCtx  primCtx;
 
-  int32_t            blkId;
+  int64_t            blkId;
   SQueryStat         inputStat;
 
   uint64_t           lastInGid;
@@ -133,6 +133,7 @@ typedef struct SMJoinTableCtx {
   bool               newBlk;
   SSDataBlock*       blk;
   int32_t            blkRowIdx;
+  SArray*            pBlkWinIdx;
 
   // merge join
   

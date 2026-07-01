@@ -196,7 +196,7 @@ static int32_t decimalVarFromStr(const char* str, int32_t len, DecimalVar* resul
   while(pos2 < len) {
     if (isdigit(str[pos2] || str[pos] == '.')) continue;
     if (str[pos2] == 'e' || str[pos2] == 'E') {
-      result->exponent = atoi(str + pos2 + 1);
+      result->exponent = taosStr2Int32(str + pos2 + 1, NULL, 10);
       break;
     }
     pos2++;
@@ -454,7 +454,7 @@ int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32
   char    buf[64] = {0};
 
   if (DECIMAL64_SIGN((Decimal64*)pInt) == -1) {
-    pos = sprintf(buf, "-");
+    pos = snprintf(buf, sizeof(buf), "-");
   }
   decimal64GetWhole(pInt, scale, &whole);
   pos += snprintf(buf + pos, bufLen - pos, "%" PRId64, DECIMAL64_GET_VALUE(&whole));

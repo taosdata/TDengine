@@ -1,6 +1,5 @@
 ---
 title: Performance Data
-slug: /tdengine-reference/sql-manual/performance-data
 ---
 
 Starting from TDengine 3.0, a built-in database `performance_schema` is provided, which stores performance-related statistical data. This section details the tables and table structures within it.

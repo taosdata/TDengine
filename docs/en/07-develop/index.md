@@ -1,6 +1,5 @@
 ---
 title: Developer's Guide
-slug: /developer-guide
 ---
 
 import DocCardList from '@theme/DocCardList';
@@ -18,7 +17,7 @@ To develop an application, if you plan to use TDengine as a tool for time-series
 8. If you find that TDengine's functions do not meet your requirements, you can use User Defined Functions (UDF) to solve the problem.
 
 This section is organized in the order mentioned above. For ease of understanding, TDengine provides example code for each feature and each supported programming language, located at [Example Code](https://github.com/taosdata/TDengine/tree/main/docs/examples). All example codes are guaranteed to be correct by CI, scripts located at [Example Code CI](https://github.com/taosdata/TDengine/tree/main/tests/docs-examples-test).
-If you want to learn more about using SQL, check out the [SQL Manual](../tdengine-reference/sql-manual/). If you want to learn more about using various connectors, read the [Connector Reference Guide](../tdengine-reference/client-libraries/). If you also want to integrate TDengine with third-party systems, such as Grafana, please refer to [Third-Party Tools](../third-party-tools/).
+If you want to learn more about using SQL, check out the [SQL Manual](../14-reference/03-taos-sql/index.md). If you want to learn more about using various connectors, read the [Connector Reference Guide](../14-reference/05-connector/index.md). If you also want to integrate TDengine with third-party systems, such as Grafana, please refer to [Third-Party Tools](../10-third-party/index.md).
 
 If you encounter any problems during the development process, please click ["Report Issue"](https://github.com/taosdata/TDengine/issues/new/choose) at the bottom of each page to submit an Issue directly on GitHub.
 

@@ -73,7 +73,7 @@ static int csvValidateParamTsFormat(const char* csv_ts_format) {
         }
         p++;
     }
- 
+
     if (has_Y == 0 || has_m == 0 || has_d == 0) {
         return -1;
     }
@@ -88,7 +88,7 @@ static long csvValidateParamTsInterval(const char* csv_ts_interval) {
     char* endptr;
     errno = 0;
     const long num = strtol(csv_ts_interval, &endptr, 10);
-    
+
     if (errno == ERANGE ||
         endptr == csv_ts_interval ||
         num <= 0) {
@@ -157,11 +157,17 @@ static int csvParseStbParameter(SSuperTable* stb) {
 static time_t csvAlignTimestamp(time_t seconds, const char* ts_format) {
     struct tm aligned_tm;
 #ifdef _WIN32
-    localtime_s(&aligned_tm, &seconds);
+    if (localtime_s(&aligned_tm, &seconds) != 0) {
+        perror("localtime_s failed");
+        return (time_t)-1;
+    }
 #else
-    localtime_r(&seconds, &aligned_tm);
+    if (localtime_r(&seconds, &aligned_tm) == NULL) {
+        perror("localtime_r failed");
+        return (time_t)-1;
+    }
 #endif
- 
+
     int has_Y = 0, has_m = 0, has_d = 0, has_H = 0, has_M = 0, has_S = 0;
     const char* p = ts_format;
     while (*p) {
@@ -178,14 +184,14 @@ static time_t csvAlignTimestamp(time_t seconds, const char* ts_format) {
         }
         p++;
     }
- 
+
     if (!has_S) aligned_tm.tm_sec  = 0;
     if (!has_M) aligned_tm.tm_min  = 0;
     if (!has_H) aligned_tm.tm_hour = 0;
     if (!has_d) aligned_tm.tm_mday = 1;
     if (!has_m) aligned_tm.tm_mon  = 0;
     if (!has_Y) aligned_tm.tm_year = 0;
- 
+
     return mktime(&aligned_tm);
 }
 
@@ -270,7 +276,7 @@ static void csvCalcCtbRange(CsvThreadMeta* thread_meta, size_t total_threads, in
     size_t    tid_idx       = thread_meta->thread_id - 1;
     size_t    base          = ctb_count / total_threads;
     size_t    remainder     = ctb_count % total_threads;
- 
+
     if (tid_idx < remainder) {
         ctb_start_idx = ctb_offset + tid_idx * (base + 1);
         ctb_end_idx   = ctb_start_idx  + (base + 1);
@@ -278,8 +284,8 @@ static void csvCalcCtbRange(CsvThreadMeta* thread_meta, size_t total_threads, in
         ctb_start_idx = ctb_offset + remainder * (base + 1) + (tid_idx - remainder) * base;
         ctb_end_idx   = ctb_start_idx  + base;
     }
- 
-    if (ctb_end_idx  > ctb_offset + ctb_count) {
+
+    if ((int64_t)ctb_end_idx  > ctb_offset + ctb_count) {
         ctb_end_idx  = ctb_offset + ctb_count;
     }
 
@@ -674,7 +680,7 @@ static int csvInitWriteMeta(SDataBase* db, SSuperTable* stb, CsvWriteMeta* write
 }
 
 
-static void csvInitThreadMeta(CsvWriteMeta* write_meta, uint32_t thread_id, CsvThreadMeta* thread_meta) {
+static void csvInitThreadMeta(CsvWriteMeta* write_meta, size_t thread_id, CsvThreadMeta* thread_meta) {
     SDataBase*      db      = write_meta->db;
     SSuperTable*    stb     = write_meta->stb;
 
@@ -832,8 +838,8 @@ static int csvGenRowFields(char* buf, int size, SSuperTable* stb, int fields_cat
         field_count = stb->cols->size;
     }
 
-    for (uint16_t i = 0; i < field_count; ++i) {
-        Field* field = benchArrayGet(fields, i);
+    for (int16_t i = 0; i < field_count; ++i) {
+        Field* field = benchArrayGet(fields, (size_t)i);
         char* prefix = "";
         if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_VARBINARY ||
             field->type == TSDB_DATA_TYPE_BLOB) {
@@ -906,8 +912,8 @@ static CsvRowTagsBuf* csvGenCtbTagData(CsvWriteMeta* write_meta, CsvThreadMeta* 
         return NULL;
     }
 
-    char* tags_buf      = NULL; 
-    int   tags_buf_size = TSDB_TABLE_NAME_LEN + stb->lenOfTags + stb->tags->size; 
+    char* tags_buf      = NULL;
+    int   tags_buf_size = TSDB_TABLE_NAME_LEN + stb->lenOfTags + stb->tags->size;
     for (uint64_t i = 0; i < thread_meta->ctb_count; ++i) {
         tags_buf = benchCalloc(1, tags_buf_size, true);
         if (!tags_buf) {
@@ -936,7 +942,7 @@ error:
 static CsvFileHandle* csvOpen(const char* filename, CsvCompressionLevel compress_level) {
     CsvFileHandle* fhdl = NULL;
     bool failed = false;
-    
+
     fhdl = (CsvFileHandle*)benchCalloc(1, sizeof(CsvFileHandle), false);
     if (!fhdl) {
         errorPrint("Failed to malloc csv file handle. filename: %s, compress level: %d.\n",
@@ -1192,7 +1198,7 @@ static void* csvGenStbThread(void* arg) {
                     }
                 }
             }
-            
+
             slice_cur_ts = slice_batch_ts;
         }
 
@@ -1254,32 +1260,32 @@ static int csvGenStbProcess(SDataBase* db, SSuperTable* stb) {
     }
 
     start_ts = toolsGetTimestampMs();
-    for (uint32_t i = 0; (i < write_meta->total_threads && !g_arguments->terminate); ++i) {
+    for (size_t i = 0; (i < write_meta->total_threads && !g_arguments->terminate); ++i) {
         CsvThreadArgs* arg = &args[i];
         arg->write_meta  = write_meta;
         csvInitThreadMeta(write_meta, i + 1, &arg->thread_meta);
 
         ret = pthread_create(&pids[i], NULL, csvGenStbThread, arg);
         if (ret) {
-            perror("Failed to create thread"); 
+            perror("Failed to create thread");
             goto end;
         }
     }
 
     // wait threads
-    for (uint32_t i = 0; i < write_meta->total_threads; ++i) {
+    for (size_t i = 0; i < write_meta->total_threads; ++i) {
         if (g_arguments->terminate && prompt) {
             infoPrint("Operation cancelled by user, exiting gracefully...\n");
             prompt = false;
         }
 
-        infoPrint("pthread_join %u ...\n", i);
+        infoPrint("pthread_join %zu ...\n", i);
         pthread_join(pids[i], NULL);
     }
 
     // statistics
     total_rows = 0;
-    for (uint32_t i = 0; i < write_meta->total_threads; ++i) {
+    for (size_t i = 0; i < write_meta->total_threads; ++i) {
         CsvThreadArgs* arg = &args[i];
         CsvThreadMeta* thread_meta = &arg->thread_meta;
         total_rows += thread_meta->total_rows;

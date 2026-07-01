@@ -184,7 +184,7 @@ class TestScalarSubQuery3c:
                         #self.querySql = self.querySql.replace("{ntableName}", self.tableNames[self.ntableIdx])
                         # ensure exactly one trailing semicolon
                         self.querySql = self.querySql.rstrip().rstrip(';') + ';'
-                        tdLog.info(f"generated sql: {self.querySql}")
+                        #tdLog.info(f"generated sql: {self.querySql}")
 
                         self.saved_count += 1
 

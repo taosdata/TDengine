@@ -248,7 +248,7 @@ static void storeOffsetRows(SMnode *pMnode, SMqHbReq *req, SMqConsumerObj *pCons
     if (data == NULL){
       continue;
     }
-    mInfo("heartbeat report offset rows.%s:%s", pConsumer->cgroup, data->topicName);
+    mDebug("heartbeat report offset rows.%s:%s", pConsumer->cgroup, data->topicName);
 
     SMqSubscribeObj *pSub = NULL;
     char  key[TSDB_SUBSCRIBE_KEY_LEN] = {0};
@@ -1193,6 +1193,7 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
 END:
   sdbRelease(pSdb, pConsumer);
   sdbCancelFetch(pSdb, pShow->pIter);
+  mndReleaseUser(pMnode, pOperUser);
   if (code != 0) {
     mError("show consumer failed, code:%d", code);
     return code;

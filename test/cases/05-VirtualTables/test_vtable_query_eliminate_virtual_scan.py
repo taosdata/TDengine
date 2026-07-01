@@ -215,6 +215,7 @@ class TestVtableQueryEliminateVirtualScan:
         """Query: v-table query
 
         1. test vtable query when eliminate virtual table scan operator
+        2. test vtable query when select column without reference
 
         Since: v3.3.8.0
 
@@ -251,3 +252,6 @@ class TestVtableQueryEliminateVirtualScan:
             )
             tdSql.checkResultsBySql(sql=sql, exp_sql=exp_sql)
 
+        tdSql.execute("alter vtable test_vtable_select.vtb_virtual_ntb_full alter column u_tinyint_col set NULL;")
+        tdSql.query("select ts, u_tinyint_col from test_vtable_select.vtb_virtual_ntb_full;")
+        tdSql.checkRows(0)

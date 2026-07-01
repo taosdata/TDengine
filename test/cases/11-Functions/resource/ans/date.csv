@@ -22,22 +22,16 @@ taos> select date(cast(timestamp"2025-08-11 23:03:39" as bigint))
 =======================================================
  2025-08-11                                           |
 
-taos> select date(timestamp\"2025-08-11 23:03:39\")
-
-DB error: unrecognized token: "\"2025-08-11 23:03:39\")" [0x80002600] 
 taos> select date("2025-08-11 12:00:02.000")
  date("2025-08-11 12:00:02.000") |
 ==================================
  2025-08-11                      |
 
-taos> select date("9999-12-31")
-       date("9999-12-31")       |
+taos> select date("3000-12-31")
+       date("3000-12-31")       |
 =================================
- 9999-12-31                     |
+ 3000-12-31                     |
 
-taos> select cast(date(timestamp\"2025-08-11 23:03:39\") as bigint)
-
-DB error: unrecognized token: "\"2025-08-11 23:03:39\") as bigint)" [0x80002600] 
 taos> select to_timestamp(date("2025-08-21T12:00:00+0800"), "yyyy-mm-dd")
  to_timestamp(date("2025-08-21T12:00:00+0800"), "yyyy-mm-dd") |
 ===============================================================

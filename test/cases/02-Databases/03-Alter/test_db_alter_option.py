@@ -52,10 +52,10 @@ class TestDatabaseAlterOption:
         tdSql.checkKeyData("db", 14, "ns")
         tdSql.checkKeyData("db", 18, "both")
         tdSql.checkKeyData("db", 19, 1)
-        tdSql.checkKeyData("db", 20, 2)
-        tdSql.checkKeyData("db", 21, 1000)
-        tdSql.checkKeyData("db", 22, 3600)
-        tdSql.checkKeyData("db", 23, 0)
+        tdSql.checkKeyData("db", 21, 2)
+        tdSql.checkKeyData("db", 22, 1000)
+        tdSql.checkKeyData("db", 23, 3600)
+        tdSql.checkKeyData("db", 24, 0)
 
         # sql show db.vgroups
         # if $tdSql.getData(0,4) == leader then
@@ -229,11 +229,11 @@ class TestDatabaseAlterOption:
         tdLog.info(f"============== step wal_level")
         tdSql.execute(f"alter database db wal_level 1")
         tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkKeyData("db", 20, 1)
+        tdSql.checkKeyData("db", 21, 1)
 
         tdSql.execute(f"alter database db wal_level 2")
         tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkKeyData("db", 20, 2)
+        tdSql.checkKeyData("db", 21, 2)
 
         tdSql.error(f"alter database db wal_level 0     # TD-14436")
         tdSql.error(f"alter database db wal_level 3")
@@ -243,15 +243,15 @@ class TestDatabaseAlterOption:
         tdLog.info(f"============== modify wal_fsync_period")
         tdSql.execute(f"alter database db wal_fsync_period 2000")
         tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkKeyData("db", 21, 2000)
+        tdSql.checkKeyData("db", 22, 2000)
 
         tdSql.execute(f"alter database db wal_fsync_period 500")
         tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkKeyData("db", 21, 500)
+        tdSql.checkKeyData("db", 22, 500)
 
         tdSql.execute(f"alter database db wal_fsync_period 0")
         tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkKeyData("db", 21, 0)
+        tdSql.checkKeyData("db", 22, 0)
 
         tdSql.error(f"alter database db wal_fsync_period 180001")
         tdSql.error(f"alter database db wal_fsync_period -1")
@@ -365,11 +365,11 @@ class TestDatabaseAlterOption:
         tdLog.info(f"check alter wal_level")
         tdSql.execute("ALTER DATABASE test wal_level 1")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 20, '1')
+        tdSql.checkData(2, 21, '1')
         
         tdSql.execute("ALTER DATABASE test wal_level 2")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 20, '2')
+        tdSql.checkData(2, 21, '2')
         
         tdSql.error("ALTER DATABASE test wal_level 3",expectErrInfo="Invalid option", fullMatched=False)
 
@@ -377,7 +377,7 @@ class TestDatabaseAlterOption:
         tdLog.info(f"check alter wal_fsync_period")
         tdSql.execute("ALTER DATABASE test wal_fsync_period 1000")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 21, '1000')
+        tdSql.checkData(2, 22, '1000')
         
         tdSql.error("ALTER DATABASE test wal_fsync_period 180001",expectErrInfo="Invalid option", fullMatched=False)
 
@@ -385,7 +385,7 @@ class TestDatabaseAlterOption:
         tdLog.info(f"check alter stt_trigger")
         tdSql.execute("ALTER DATABASE test stt_trigger 5")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 24, '5')
+        tdSql.checkData(2, 25, '5')
     
         
         tdSql.error("ALTER DATABASE test stt_trigger 18",expectErrInfo="Invalid option", fullMatched=False)
@@ -394,30 +394,30 @@ class TestDatabaseAlterOption:
         tdLog.info(f"check alter wal_retention_period")
         tdSql.execute("ALTER DATABASE test wal_retention_period 3600")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 22, '3600')
+        tdSql.checkData(2, 23, '3600')
         
         
     def check_alter_wal_retention_size(self):
         tdLog.info(f"check alter wal_retention_size")
         tdSql.execute("ALTER DATABASE test wal_retention_size 1000")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 23, '1000')
+        tdSql.checkData(2, 24, '1000')
 
     def check_alter_ss_keeplocal(self):
         tdLog.info(f"check alter ss_keeplocal")
         tdSql.execute("ALTER DATABASE test ss_keeplocal 2880m")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 30, '2880m')
+        tdSql.checkData(2, 31, '2880m')
 
     def check_alter_ss_compact(self):
         tdLog.info(f"check alter ss_compact")
         tdSql.execute("ALTER DATABASE test ss_compact 1")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 31, '1')
+        tdSql.checkData(2, 32, '1')
         
         tdSql.execute("ALTER DATABASE test ss_compact 0")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 31, '0')
+        tdSql.checkData(2, 32, '0')
 
         tdSql.error("ALTER DATABASE test ss_compact 2",expectErrInfo="Invalid option", fullMatched=False)
 
@@ -426,23 +426,23 @@ class TestDatabaseAlterOption:
         tdLog.info(f"check alter keep_time_offset")
         tdSql.execute("ALTER DATABASE test keep_time_offset 22")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 28, '22')
+        tdSql.checkData(2, 29, '22')
 
     def check_alter_compact_interval(self):
         tdLog.info(f"check alter compact_interval")
         tdSql.execute("ALTER DATABASE test compact_interval 1800d")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 34, '1800d')
+        tdSql.checkData(2, 35, '1800d')
         
         tdSql.execute("ALTER DATABASE test compact_interval 1h")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 34, '1h')
+        tdSql.checkData(2, 35, '1h')
         
     def check_alter_compact_time_offset(self):
         tdLog.info(f"check alter compact_time_offset")
         tdSql.execute("ALTER DATABASE test compact_time_offset 18")
         tdSql.query("select * from information_schema.ins_databases")
-        tdSql.checkData(2, 36, '18h')
+        tdSql.checkData(2, 37, '18h')
         
 
     def check_alter_unsupport_option(self):

@@ -68,6 +68,8 @@ size_t taosLRUCacheGetCapacity(SLRUCache *cache);
 void taosLRUCacheSetStrictCapacity(SLRUCache *cache, bool strict);
 bool taosLRUCacheIsStrictCapacity(SLRUCache *cache);
 
+int32_t taosLRUCacheGetNumShards(SLRUCache *cache);
+
 #ifdef __cplusplus
 }
 #endif

@@ -501,7 +501,7 @@ class TestStableQueryFromDnodes:
 
         #### query a STable and using where clause to filter out all the data from tb2 and make the query only return first/last of tb1
         tdSql.query(
-            f"select first(ts,c1), last(ts,c1), spread(c1), t1 from {stb} where c1 > 0 group by t1"
+            f"select first(ts,c1), last(ts,c1), spread(c1), t1 from {stb} where c1 > 0 group by t1 order by t1"
         )
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "2018-09-17 09:00:01.000")
@@ -512,7 +512,7 @@ class TestStableQueryFromDnodes:
         tdSql.checkData(0, 5, 1)
 
         tdSql.query(
-            f"select max(c1), min(c1), sum(c1), avg(c1), count(c1), t1 from {stb} where c1 > 0 group by t1"
+            f"select max(c1), min(c1), sum(c1), avg(c1), count(c1), t1 from {stb} where c1 > 0 group by t1 order by t1"
         )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 319)

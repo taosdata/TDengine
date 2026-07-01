@@ -51,7 +51,7 @@ TDengine TSDB 可以高效地从 Kafka 读取数据并将其写入 TDengine TSDB
 
 ![kafka-04-sasl-plain.png](./kafka-04-sasl-plain.png)
 
-#### 4.1. SCRAM(SCRAM-SHA-256) 认证
+#### 4.2. SCRAM(SCRAM-SHA-256) 认证
 
 选择 `SCRAM-SHA-256` 认证机制，输入用户名和密码：
 
@@ -107,7 +107,7 @@ kcat <topic> \
 
 在 **消费者组 ID** 中填写消费者组标识，填写后会生成带有 `taosx` 前缀的消费者组 ID（例如，如果填写的标识为 `foo`，则生成的消费者组 ID 为 `taosxfoo`）。如果打开末尾处的开关，则会把当前任务的任务 ID 拼接到 `taosx` 之后，输入的标识之前（生成的消费者组 ID 形如 `taosx100foo`）。
 
-在 **Offset** 的下拉列表中选择从哪个 Offset 开始消费数据。有三个选项：`Earliest`、`Latest`、`ByTime(ms)`。默认值为 Earliest。
+在 **Offset** 的下拉列表中选择从哪个 Offset 开始消费数据。有三个选项：`Earliest`、`Latest`。默认值为 Earliest。
 
 - Earliest：用于请求最早的 offset。
 - Latest：用于请求最晚的 offset。
@@ -123,6 +123,14 @@ kcat <topic> \
 ### 7. 配置 Payload 解析
 
 在 **Payload 解析** 区域填写 Payload 解析相关的配置参数。
+
+Kafka 支持针对不同的数据结构使用不同的解析规则，在对 payload 进行解析之后，添加多个规则块对不同的数据进行不同的解析。
+
+1. 匹配表达式用于判断消息是否匹配当前规则块，填写规则同 `过滤` 规则，默认为 true，表示直接匹配
+2. 从列中提取或拆分 / 过滤 / 映射 块的填写规则保持不变
+3. 规则块可以添加/删除，但受限于表字段大小限制，不可无限添加
+
+![kafka-multi-datastructures](./kafka-multi-datastructures.png)
 
 #### 7.1 解析
 

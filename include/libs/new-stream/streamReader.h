@@ -149,6 +149,7 @@ int32_t createStreamTaskForTs(SStreamOptions* options, SStreamReaderTaskInner** 
 int32_t  initStreamTableListInfo(StreamTableListInfo* pTableListInfo);
 int32_t  qStreamGetTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size);
 void     qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo);
+void     qStreamClearTableInfo(StreamTableListInfo* pTableListInfo);
 int32_t  qStreamCopyTableInfo(SStreamTriggerReaderInfo* sStreamReaderInfo, StreamTableListInfo* dst);
 int32_t  qStreamSetTableList(StreamTableListInfo* pTableListInfo, int64_t uid, uint64_t gid);
 int32_t  qStreamGetTableListGroupNum(SStreamTriggerReaderInfo* sStreamReaderInfo);

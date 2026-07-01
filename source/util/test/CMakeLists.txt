@@ -117,6 +117,14 @@ add_test(
     COMMAND regexTest
 )
 
+add_executable(lrucacheTest "lrucacheTest.cpp")
+DEP_ext_gtest(lrucacheTest)
+target_link_libraries(lrucacheTest PRIVATE os util)
+add_test(
+    NAME lrucacheTest
+    COMMAND lrucacheTest
+)
+
 add_executable(logTest "log.cpp")
 DEP_ext_gtest(logTest)
 target_link_libraries(logTest PRIVATE os util common)
@@ -143,6 +151,15 @@ target_link_libraries(objpoolTest PRIVATE os util common)
 add_test(
     NAME objpoolTest
     COMMAND objpoolTest
+)
+
+# timerTest
+add_executable(timerTest "timerTest.cpp")
+DEP_ext_gtest(timerTest)
+target_link_libraries(timerTest PRIVATE os util)
+add_test(
+    NAME timerTest
+    COMMAND timerTest
 )
 
 if(${TD_LINUX})

@@ -175,6 +175,135 @@ class TestTaosdumpDataTypes:
 
         print("do type binary ........................ [passed]")
 
+    def do_taosdump_type_decimal(self, mode):
+        if mode == "-Z 'WebSocket'":
+            tdLog.debug("WebSocket mode does not support decimal type, skip this test")
+            return
+
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database db  keep 3649 ")
+
+        tdSql.execute("create table db.st(ts timestamp, c1 DECIMAL(30, 16), c2 DECIMAL(16, 10)) tags(dtag DOUBLE)")
+        tdSql.execute("create table db.t1 using  db.st tags(98765.123456)")
+        tdSql.execute("insert into db.t1 values(1640000000000, '98765432109876.1234567890123456', '56789.1234567890')")
+        tdSql.execute("create table db.t2 using  db.st tags(NULL)")
+        tdSql.execute("insert into db.t2 values(1640000000000, NULL, NULL)")
+
+        if not os.path.exists(self.tmpdir):
+            os.makedirs(self.tmpdir)
+        else:
+
+            os.system("rm -rf %s" % self.tmpdir)
+            os.makedirs(self.tmpdir)
+
+        os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
+        tdSql.execute("drop database db")
+
+        os.system(f"%s {mode} -i %s" % (self.binPath, self.tmpdir))
+
+        tdSql.query("show databases")
+        dbresult = tdSql.queryResult
+        assert any(row[0] == "db" for row in dbresult)
+
+        tdSql.query("show db.stables")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "st")
+
+        tdSql.query("show db.tables")
+        tdSql.checkRows(2)
+        dbresult = tdSql.queryResult
+        print(dbresult)
+        for i in range(len(dbresult)):
+            assert dbresult[i][0] in ("t1", "t2")
+
+        tdSql.query("select distinct(dtag) from db.st where tbname = 't1'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 98765.123456)
+
+        tdSql.query("select distinct(dtag) from db.st where tbname = 't2'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query("select * from db.st where dtag = 98765.123456")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "98765432109876.1234567890123456")
+        tdSql.checkData(0, 2, "56789.1234567890")
+
+        tdSql.query("select * from db.st where dtag is null")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+
+        print("do type decimal ........................ [passed]")
+
+
+    def do_taosdump_type_blob(self, mode):
+        if mode == "-Z 'WebSocket'":
+            tdLog.debug("WebSocket mode does not support blob type, skip this test")
+            return
+
+        tdSql.execute("drop database if exists db")
+        tdSql.execute("create database db keep 3649 ")
+
+        tdSql.execute("create table db.st(ts timestamp, c1 BLOB) tags(ntag INT)")
+        tdSql.execute("create table db.t1 using db.st tags(1)")
+        tdSql.execute("insert into db.t1 values(1640000000000, 'abc')")
+        tdSql.execute("insert into db.t1 values(1640000000001, '\\x61620063')")
+        tdSql.execute("create table db.t2 using db.st tags(NULL)")
+        tdSql.execute("insert into db.t2 values(1640000000000, NULL)")
+
+        if not os.path.exists(self.tmpdir):
+            os.makedirs(self.tmpdir)
+        else:
+            os.system("rm -rf %s" % self.tmpdir)
+            os.makedirs(self.tmpdir)
+
+        os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
+        tdSql.execute("drop database db")
+
+        os.system(f"%s {mode} -i %s" % (self.binPath, self.tmpdir))
+
+        tdSql.query("show databases")
+        dbresult = tdSql.queryResult
+        assert any(row[0] == "db" for row in dbresult)
+
+        tdSql.query("show db.stables")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "st")
+
+        tdSql.query("show db.tables")
+        tdSql.checkRows(2)
+        dbresult = tdSql.queryResult
+        for i in range(len(dbresult)):
+            assert dbresult[i][0] in ("t1", "t2")
+
+        # verify tag
+        tdSql.query("select distinct(ntag) from db.st where tbname = 't1'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query("select distinct(ntag) from db.st where tbname = 't2'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        # row with simple strings
+        tdSql.query("select * from db.st where ntag = 1 order by ts limit 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, b"abc")
+
+        # row with embedded 0-byte
+        tdSql.query("select c1 from db.st where ntag = 1 order by ts limit 1 offset 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, b"\x61\x62\x00\x63")
+
+        # null row
+        tdSql.query("select * from db.st where ntag is null")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, None)
+
+        print("do type blob .......................... [passed]")
+
+
     #
     # ------------------- test_taosdump_test_type_bool.py ----------------
     #
@@ -1358,6 +1487,8 @@ class TestTaosdumpDataTypes:
         self.do_taosdump_type_unsigned_int(mode)
         self.do_taosdump_type_unsigned_small_int(mode)
         self.do_taosdump_type_unsigned_tiny_int(mode)
+        self.do_taosdump_type_decimal(mode)
+        self.do_taosdump_type_blob(mode)
 
     def test_taosdump_datatypes(self):
         """taosdump data types

@@ -1,6 +1,5 @@
 ---
 title: Advanced Features
-slug: /advanced-features
 ---
 
 import DocCardList from '@theme/DocCardList';

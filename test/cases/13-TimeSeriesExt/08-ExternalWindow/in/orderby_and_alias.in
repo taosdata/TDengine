@@ -1,0 +1,11 @@
+use test;
+
+select _wstart, _wend, w.mark, cast(ts as bigint) as ts64 from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w) order by ts desc limit 8;
+select _wstart, _wend, w.mark, cast(ts as bigint) - cast(_wstart as bigint) as delta from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w) order by ts desc limit 8;
+select cast(_wstart as bigint) as ws, cast(_wend as bigint) as we, count(*) as c from ext_ord_src external_window((select ts, endtime, mark from ext_ord_win_all) w) order by ws;
+select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select ts, endtime, mark from ext_ord_win_all) w) order by tbname, ws;
+select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by t1 external_window((select ts, endtime, mark from ext_ord_win_all) w) order by t1, ws;
+select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_ord_win partition by t1 interval(10m)) w) order by t1, ws;
+select t1, cast(_wstart as bigint) as ws, w.wc from ext_ord_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_ord_win partition by t1 interval(10m)) w) order by t1, ws;
+select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w) order by tbname, ws desc;
+select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_ord_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_ord_win interval(10m)) w) order by c desc, tbname limit 4;

@@ -18,6 +18,7 @@ class TestPrivBasic:
     def prepare_data1(self):
         # database
         tdSql.execute("create database db;")
+        tdSql.execute("alter database db security_level 0;")
         tdSql.execute("use db;")
         
         # create super table

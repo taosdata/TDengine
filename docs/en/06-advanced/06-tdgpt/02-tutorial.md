@@ -5,6 +5,8 @@ sidebar_label: Installation
 
 import PkgList from "/src/components/PkgList";
 
+Before installing TDgpt, review the [system requirements](11-system-requirements.md) and ensure that your container or machine meets the minimum specifications.
+
 This section describes how to use TDgpt in Docker.
 
 ## Get Started with Docker
@@ -39,7 +41,7 @@ Start the container:
 ```shell
 docker run -d \
   -p 6035:6035 \
-  -p 6036:6036 \
+   -p 6061:6061 \
   tdengine/tdgpt:latest
 ```
 
@@ -66,10 +68,10 @@ docker pull tdengine/tdgpt-full:{{VERSION}}
 Start the container:
 
 ```shell
-docker run -d -p 6035:6035 -p 6036:6036 -p 6037:6037 tdengine/tdgpt-full:latest
+docker run -d -p 6035:6035 -p 6061:6061 -p 6062:6062 tdengine/tdgpt-full:latest
 ```
 
-Note: TDgpt runs on TCP port 6035. The standard image also uses port 6036, and the full image uses port 6037.
+Note: TDgpt runs on TCP port 6035. Port 6061 is used by the TDtsfm model service and port 6062 is used by the Time-MoE model service. In current versions, Chronos, Moirai, TimesFM, and Moment use ports 6063-6066 by default, and 6067-6070 are reserved for additional model services.
 
 TDgpt is a stateless analytics agent and does not persist data. It only saves log files to local disk.
 
@@ -99,7 +101,7 @@ To use the analytics capabilities offered by TDgpt, you deploy an AI node (anode
 
 - Python: 3.10 or 3.11. 3.12 is not supported for now due to library conflict.
 - TDengine TSDB: 3.3.6.0 or later
-- C compiler: Because uWSGI is compiled during the TDgpt installation process, your environment must contain a C compiler.
+- C compiler: PyTorch can dynamically generate C++ code to improve the performance of model inference. This procedure requires the cc1x, so a development environment is required in this case.
 
 You can run the following commands to install Python 3.10 in Ubuntu.. If you already have a supported version of Python installed, skip this section.
 

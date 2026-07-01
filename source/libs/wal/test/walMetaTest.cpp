@@ -1195,6 +1195,306 @@ TEST_F(WalRetentionEnv, corruptedDirDeleteLastFile) {
   ASSERT_NE(pWal, nullptr);
   ASSERT_EQ(pWal->vers.firstVer, 0);
   ASSERT_EQ(pWal->vers.lastVer, 199);
-  
+
   tsWalDeleteOnCorruption = oldVal;
+}
+
+// Test for the bug: data loss after WAL corruption and recovery
+// Scenario:
+// 1. Write data to WAL
+// 2. Simulate crash (close WAL)
+// 3. Manually corrupt the last WAL file by appending garbage data
+// 4. Restart and write new data
+// 5. Restart again - verify new data is not lost
+TEST_F(WalKeepEnv, corruptionRecoveryDataLoss) {
+  // Start with clean environment
+  walClose(pWal);
+  taosRemoveDir(pathName);
+
+  SWalCfg cfg = {0};
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.retentionPeriod = 0;
+  cfg.retentionSize = 0;
+  cfg.level = TAOS_WAL_FSYNC;
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  int code;
+
+  // Step 1: Write initial data (version 0-9)
+  for (int i = 0; i < 10; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  // Get the log file path before closing
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  int64_t firstVer = pFileInfo->firstVer;
+  int64_t validFileSize = pFileInfo->fileSize;
+
+  char logFileName[256];
+  snprintf(logFileName, sizeof(logFileName), "%s" TD_DIRSEP "%020" PRId64 ".log", pathName, firstVer);
+
+  printf("Log file: %s, valid size: %" PRId64 "\n", logFileName, validFileSize);
+
+  // Step 2: Simulate crash - close WAL (but don't delete directory)
+  walClose(pWal);
+  pWal = NULL;
+
+  // Step 3: Manually corrupt the WAL file by appending garbage data
+  TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pFile == nullptr) {
+    printf("Failed to open file: %s, error: %s\n", logFileName, strerror(errno));
+  }
+  ASSERT_NE(pFile, nullptr);
+
+  // Append 100 bytes of garbage data
+  char garbage[100];
+  memset(garbage, 0xFF, sizeof(garbage));
+  int64_t written = taosWriteFile(pFile, garbage, sizeof(garbage));
+  ASSERT_EQ(written, sizeof(garbage));
+  taosCloseFile(&pFile);
+
+  printf("Corrupted WAL file: %s (appended %d bytes of garbage)\n", logFileName, (int)sizeof(garbage));
+
+  // Step 4: Restart WAL and write new data (version 10-19)
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  // Verify that we recovered to version 9
+  ASSERT_EQ(pWal->vers.lastVer, 9);
+
+  // Write new data after corruption
+  for (int i = 10; i < 20; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  ASSERT_EQ(pWal->vers.lastVer, 19);
+
+  // Step 5: Restart again and verify all data (0-19) can be read
+  walClose(pWal);
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  // After restart, lastVer should still be 19
+  ASSERT_EQ(pWal->vers.lastVer, 19);
+
+  // Verify we can read all data from 0 to 19
+  SWalReader* pRead = walOpenReader(pWal, 0);
+  ASSERT_NE(pRead, nullptr);
+
+  for (int i = 0; i < 20; i++) {
+    code = walReadVer(pRead, i);
+    ASSERT_EQ(code, 0) << "Failed to read version " << i;
+
+    ASSERT_EQ(pRead->pHead->head.version, i);
+    char expectedStr[100];
+    sprintf(expectedStr, "%s-%d", ranStr, i);
+    int expectedLen = strlen(expectedStr);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, expectedLen);
+
+    for (int j = 0; j < expectedLen; j++) {
+      EXPECT_EQ(expectedStr[j], pRead->pHead->head.body[j]);
+    }
+  }
+
+  walCloseReader(pRead);
+
+  printf("SUCCESS: All data (version 0-19) recovered correctly after corruption\n");
+}
+
+// Test for the bug with multiple files
+// Verify that corruption in the last file doesn't affect data recovery
+TEST_F(WalKeepEnv, corruptionRecoveryMultipleFiles) {
+  // Start with clean environment
+  walClose(pWal);
+  taosRemoveDir(pathName);
+
+  SWalCfg cfg = {0};
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.retentionPeriod = 0;
+  cfg.retentionSize = 0;
+  cfg.level = TAOS_WAL_FSYNC;
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  int code;
+
+  // Write data to first file (version 0-99)
+  for (int i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  // Roll to create second file
+  code = walRollImpl(pWal);
+  ASSERT_EQ(code, 0);
+
+  // Write data to second file (version 100-199)
+  for (int i = 100; i < 200; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  // Get the last log file path
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  int64_t lastFileFirstVer = pFileInfo->firstVer;
+
+  char logFileName[256];
+  snprintf(logFileName, sizeof(logFileName), "%s" TD_DIRSEP "%020" PRId64 ".log", pathName, lastFileFirstVer);
+
+  // Close WAL
+  walClose(pWal);
+  pWal = NULL;
+
+  // Corrupt the last file by appending garbage
+  TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE | TD_FILE_APPEND);
+  ASSERT_NE(pFile, nullptr);
+
+  char garbage[200];
+  memset(garbage, 0xAA, sizeof(garbage));
+  int64_t written = taosWriteFile(pFile, garbage, sizeof(garbage));
+  ASSERT_EQ(written, sizeof(garbage));
+  taosCloseFile(&pFile);
+
+  printf("Corrupted last WAL file: %s\n", logFileName);
+
+  // Restart and write new data
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  ASSERT_EQ(pWal->vers.lastVer, 199);
+
+  // Write new data (version 200-249)
+  for (int i = 200; i < 250; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  ASSERT_EQ(pWal->vers.lastVer, 249);
+
+  // Restart and verify all data
+  walClose(pWal);
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  ASSERT_EQ(pWal->vers.lastVer, 249);
+
+  // Verify we can read all data
+  SWalReader* pRead = walOpenReader(pWal, 0);
+  ASSERT_NE(pRead, nullptr);
+
+  for (int i = 0; i < 250; i++) {
+    code = walReadVer(pRead, i);
+    ASSERT_EQ(code, 0) << "Failed to read version " << i;
+    ASSERT_EQ(pRead->pHead->head.version, i);
+  }
+
+  walCloseReader(pRead);
+
+  printf("SUCCESS: All data recovered correctly with multiple files\n");
+}
+
+// Test behavior when corruption is in the middle of a WAL file (file size unchanged).
+// The repair logic triggers a full scan when fileSize != meta fileSize (e.g. appended garbage).
+// For in-place overwrites the file size matches, so the scan is skipped and lastVer stays at 19.
+// Reading entries at/after the corrupted offset will fail with a checksum error.
+TEST_F(WalKeepEnv, corruptionInMiddleOfFile) {
+  // Start with clean environment
+  walClose(pWal);
+  taosRemoveDir(pathName);
+
+  SWalCfg cfg = {0};
+  cfg.rollPeriod = -1;
+  cfg.segSize = -1;
+  cfg.retentionPeriod = 0;
+  cfg.retentionSize = 0;
+  cfg.level = TAOS_WAL_FSYNC;
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+
+  int code;
+
+  // Write initial data (version 0-19)
+  for (int i = 0; i < 20; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walAppendLog(pWal, i, 0, syncMeta, newStr, len, NULL);
+    ASSERT_EQ(code, 0);
+  }
+
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT_NE(pFileInfo, nullptr);
+  int64_t validFileSize = pFileInfo->fileSize;
+  int64_t firstVer = pFileInfo->firstVer;
+
+  char logFileName[256];
+  snprintf(logFileName, sizeof(logFileName), "%s" TD_DIRSEP "%020" PRId64 ".log", pathName, firstVer);
+
+  // Close WAL
+  walClose(pWal);
+  pWal = NULL;
+
+  // Corrupt by overwriting middle of file with garbage (file size unchanged)
+  TdFilePtr pFile = taosOpenFile(logFileName, TD_FILE_WRITE);
+  ASSERT_NE(pFile, nullptr);
+
+  int64_t corruptOffset = validFileSize / 2;
+  taosLSeekFile(pFile, corruptOffset, SEEK_SET);
+
+  char garbage[50];
+  memset(garbage, 0xBB, sizeof(garbage));
+  taosWriteFile(pFile, garbage, sizeof(garbage));
+  taosCloseFile(&pFile);
+
+  printf("Corrupted middle of WAL file at offset %" PRId64 "\n", corruptOffset);
+
+  // Restart - file size matches meta, so repair scan is skipped; lastVer stays at 19
+  pWal = walOpen(pathName, &cfg);
+  ASSERT_NE(pWal, nullptr);
+  ASSERT_EQ(pWal->vers.lastVer, 19);
+
+  // Reading entries at/after the corrupted offset will fail
+  SWalReader* pRead = walOpenReader(pWal, 0);
+  ASSERT_NE(pRead, nullptr);
+
+  // Version 0 (before corruption) should be readable
+  code = walReadVer(pRead, 0);
+  ASSERT_EQ(code, 0);
+
+  // At least one entry in the corrupted region should fail
+  bool foundError = false;
+  for (int i = 0; i < 20; i++) {
+    if (walReadVer(pRead, i) != 0) {
+      foundError = true;
+      printf("Read error at version %d as expected\n", i);
+      break;
+    }
+  }
+  ASSERT_TRUE(foundError) << "Expected at least one read failure due to middle corruption";
+
+  walCloseReader(pRead);
+
+  printf("SUCCESS: Middle corruption detected at read time as expected\n");
 }

@@ -11,6 +11,7 @@ import time
 import re
 import platform
 import subprocess
+from new_test_framework.utils.server.win_process import start_taosd_windows, stop_taosd_windows
 try:
     import taos
 except:
@@ -137,8 +138,7 @@ class TaosD:
                 self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
             else:
                 if platform.system().lower() == "windows":
-                    start_cmd = f"mintty -h never {taosd_path} -c {dnode['config_dir']}"
-                    self._remote.cmd_windows(cfg["fqdn"], [start_cmd])
+                    start_taosd_windows(taosd_path, dnode['config_dir'], log=self.logger)
                 else:
                     start_cmd = f"screen -L -d -m {taosd_path} -c {dnode['config_dir']}  "
                     self._remote.cmd(cfg["fqdn"], ["ulimit -n 1048576", start_cmd])
@@ -220,10 +220,17 @@ class TaosD:
             print(f"taosd path: {dnode['taosdPath']}")
             taosdPath = dnode['taosdPath']
             parentPath = os.path.dirname(taosdPath)
-            taosk_path = os.path.join(parentPath, "taosk")
+            taosk_name = "taosk.exe" if platform.system().lower() == "windows" else "taosk"
+            taosk_path = os.path.join(parentPath, taosk_name)
+            system_platform = dnode.get("system", "Linux").lower()
 
             if not os.path.exists(taosk_path):
-                self.logger.error(f"taosk not found at: {taosk_path}")
+                if system_platform == "windows":
+                    self.logger.warning("Skip encryption key generation: "
+                        f"taosk is not supported on {system_platform} system")
+                else:
+                    self.logger.error(f"taosk not found at: {taosk_path}, "
+                        f"system platform: {system_platform}")
                 return
             
             # Build taosk command to execute on remote server
@@ -231,13 +238,13 @@ class TaosD:
             
             # Add server key (optional, auto-generated if not provided)
             if svr_key:
-                cmd_parts.extend(['--encrypt-server', f"'{svr_key}'"])
+                cmd_parts.extend(['--encrypt-server', svr_key])
             else:
                 cmd_parts.append('--encrypt-server')
             
             # Add database key (optional, auto-generated if not provided)
             if db_key:
-                cmd_parts.extend(['--encrypt-database', f"'{db_key}'"])
+                cmd_parts.extend(['--encrypt-database', db_key])
             else:
                 cmd_parts.append('--encrypt-database')
             
@@ -250,7 +257,7 @@ class TaosD:
             
             if generate_data:
                 if data_key:
-                    cmd_parts.extend(['--encrypt-data', f"'{data_key}'"])
+                    cmd_parts.extend(['--encrypt-data', data_key])
                 else:
                     cmd_parts.append('--encrypt-data')
             
@@ -270,24 +277,13 @@ class TaosD:
             self.logger.warning(f"Error generating encryption keys on {fqdn}: {e}")
 
     def configure_and_start(self, tmp_dir, nodeDict):
-        threads = []
-
         # 调试信息，检查 nodeDict["spec"]["dnodes"] 的内容
         self.logger.debug(f"nodeDict['spec']['dnodes']: {nodeDict['spec']['dnodes']}")
 
         for index, dnode in enumerate(nodeDict["spec"]["dnodes"]):
             common_cfg: dict = nodeDict["spec"]["config"] if 'config' in nodeDict['spec'] else {
             }
-            if "system" in dnode.keys() and dnode["system"].lower() == "windows":
-                t = Thread(target = self._configure_and_start_windows, args = (tmp_dir, dnode, common_cfg))
-                pass
-            else:
-                #t = Thread(target = self._configure_and_start, args = (tmp_dir, dnode, common_cfg))
-                self._configure_and_start(tmp_dir, dnode, common_cfg, index)
-            #t.start()
-            #threads.append(t)
-        #for thread in threads:
-            #thread.join()
+            self._configure_and_start(tmp_dir, dnode, common_cfg, index)
 
     def update_taosd(self, nodeDict):
         for dnode in nodeDict["spec"]["dnodes"]:
@@ -452,20 +448,12 @@ class TaosD:
                         self.logger.info("Windows not support asanDir yet")
                     else:
                         self.logger.debug("destroy taosd on windows")
-                        pid = None
-                        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
-                            if ('mintty' in  proc.info['name']
-                                and proc.info['cmdline']  # 确保 cmdline 非空
-                                and any('taosd' in arg for arg in proc.info['cmdline'])
-                            ):
-                                self.logger.debug(proc.info)
-                                self.logger.debug("Found taosd.exe process with PID: %s", proc.info['pid'])
-                                pid = proc.info['pid']
-                                #kernel32 = ctypes.windll.kernel32
-                                #kernel32.GenerateConsoleCtrlEvent(0, pid)
-                                killCmd = f"taskkill /PID {pid} /T /F"
-                                #killCmd = "for /f %%a in ('wmic process where \"name='taosd.exe'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)"
-                                self._remote.cmd_windows(fqdn, [killCmd])
+                        if fqdn == self._local_host or fqdn == "localhost":
+                            stop_taosd_windows(config_dir=i["config_dir"], log=self.logger)
+                        else:
+                            # 远程 Windows：通过 cmd_windows 查找并停止 taosd
+                            killCmd = f'wmic process where "name=\'taosd.exe\' and CommandLine like \'%{i["config_dir"]}%\'" call terminate'
+                            self._remote.cmd_windows(fqdn, [killCmd])
 
                 else:
                     if "asanDir" in i:

@@ -278,15 +278,10 @@ mkdir -p ${TMP_DIR}/thread_volume/$thread_no/coverage_info
 
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/coredump/*
 
+# 如果 test 目录不存在，复制整个 test 目录内容
 if [ ! -d "${TMP_DIR}/thread_volume/$thread_no/test" ]; then
-    if [ "$exec_dir" != "." ]; then
-        subdir=`echo "$exec_dir"|cut -d/ -f1`
-        echo "cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/"
-        cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/
-    else
-        echo "cp -rf ${REPDIR}/test/* ${TMP_DIR}/thread_volume/$thread_no/"
-        cp -rf "${REPDIR}/test/"* "${TMP_DIR}/thread_volume/$thread_no/"
-    fi
+    echo "cp -rf ${REPDIR}/test/* ${TMP_DIR}/thread_volume/$thread_no/"
+    cp -rf "${REPDIR}/test/"* "${TMP_DIR}/thread_volume/$thread_no/"
 fi
 
 MOUNT_SOURCE="${TMP_DIR}/thread_volume/${thread_no}"

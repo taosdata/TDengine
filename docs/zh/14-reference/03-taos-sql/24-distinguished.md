@@ -40,17 +40,18 @@ select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10
 
 ## 窗口切分查询
 
-TDengine TSDB 支持按时间窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（state window）、会话窗口（session window）、事件窗口（event window）、计数窗口（count window）五种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。
+TDengine TSDB 支持按时间窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（state window）、会话窗口（session window）、事件窗口（event window）、计数窗口（count window）、外部窗口（external window）六种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。
 
 窗口子句语法如下：
 
 ```sql
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(col[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
+  | STATE_WINDOW(expr[, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
+  | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 ```
 
@@ -62,6 +63,8 @@ window_clause: {
 
 ### 窗口子句的规则
 
+以下规则适用于 SESSION、STATE_WINDOW、INTERVAL、EVENT_WINDOW、COUNT_WINDOW 五种窗口。EXTERNAL_WINDOW 的规则与其他窗口有差异，详见[外部窗口](#外部窗口)章节。
+
 - 窗口子句位于数据切分子句之后，不可以和 GROUP BY 子句一起使用。
 - 窗口子句将数据按窗口进行切分，对每个窗口进行 SELECT 列表中的表达式的计算，SELECT 列表中的表达式只能包含：
   - 常量。
@@ -72,41 +75,13 @@ window_clause: {
 - 窗口子句不可以和 GROUP BY 子句一起使用。
 - WHERE 语句可以指定查询的起止时间和其他过滤条件。
 
-### FILL 子句
-
-FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填充模式包括以下几种：
-
-1. 不进行填充：NONE（默认填充模式）。
-2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如 `FILL(VALUE, 1.23)`。这里需要注意，最终填充的值受由相应列的类型决定，如 `FILL(VALUE, 1.23)`，相应列为 INT 类型，则填充值为 1，若查询列表中有多列需要 FILL，则需要给每一个 FILL 列指定 VALUE，如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`，注意，SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE，如 `_wstart`、`_wstart+1a`、`now`、`1+1` 以及使用 `partition by` 时的 `partition key` (如 tbname) 都不需要指定 VALUE，如 `timediff(last(ts), _wstart)` 则需要指定 VALUE。
-3. PREV 填充：使用前一个值填充数据。例如 FILL(PREV)。
-4. NULL 填充：使用 NULL 填充数据。例如 FILL(NULL)。
-5. LINEAR 填充：根据前后距离最近的值做线性插值填充。例如 FILL(LINEAR)。
-6. NEXT 填充：使用下一个值填充数据。例如 FILL(NEXT)。
-
-以上填充模式中，除了 NONE 模式默认不填充值之外，其他模式在查询的整个时间范围内如果没有数据 FILL 子句将被忽略，即不产生填充数据，查询结果为空。这种行为在部分模式（PREV、NEXT、LINEAR）下具有合理性，因为在这些模式下没有数据意味着无法产生填充数值。而对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，从 v3.0.3.0 开始，增加了两种新的填充模式：
-
-7. NULL_F：强制填充 NULL 值
-8. VALUE_F：强制填充 VALUE 值
-
-NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如下：
-
-- INTERVAL 子句：NULL_F、VALUE_F 为强制填充模式；NULL、VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
-- 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
-- INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
-
-:::info
-
-1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
-2. 在时间维度聚合中，返回的结果中时间序列严格单调递增。
-3. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用 PARTITION BY 语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了 PARTITION BY 语句分组，则返回结果中每个 PARTITION 内按照时间序列严格单调递增。
-
-:::
-
 ### 时间窗口
 
 时间窗口又可分为滑动时间窗口和翻转时间窗口。
 
 INTERVAL 子句用于产生相等时间周期的窗口，SLIDING 用以指定窗口向前滑动的时间。每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window）大小和每次前向增量时间（forward sliding times）。如图，[t0s, t0e] ，[t1s , t1e]，[t2s, t2e] 是分别是执行三次连续查询的时间窗口范围，窗口的前向滑动的时间范围 sliding time 标识。查询过滤、聚合等操作按照每个时间窗口为独立的单位执行。当 SLIDING 与 INTERVAL 相等的时候，滑动窗口即为翻转窗口。默认情况下，窗口是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分的；如果设置了 interval_offset，那么窗口的划分将从“Unix time 0 + interval_offset”开始。
+
+查询对象是超级表时，聚合函数会作用于该超级表下满足过滤条件的所有表的数据，返回的结果按照窗口起始时间严格单调递增；如果使用 PARTITION BY 语句分组，则返回结果中每个 PARTITION 内按照窗口起始时间严格单调递增。
 
 ![TDengine TSDB Database 时间窗口示意图](./pic/time_window.webp)
 
@@ -134,6 +109,8 @@ SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, A
 -- 起始时间限制不明确，不生效，仍以 0 为偏移量
 SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 ```
+
+INTERVAL 子句支持使用 FILL 子句来指定数据缺失时的数据填充方法，支持除 NEAR 填充模式外的所有填充模式。关于 FILL 子句如何使用请参考 [FILL 子句](./20-select.md#fill-子句)。
 
 使用时间窗口需要注意：
 
@@ -166,6 +143,18 @@ TDengine TSDB 还支持将 CASE 表达式用在状态量，可以表达某个状
 ```sql
 SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
 ```
+
+在超级表查询或包含 tag 列的子查询中，状态表达式也可以引用当前查询上下文中可见的 tag 列，只要最终表达式结果类型仍为整型、布尔型或字符串类型。例如，可以根据 tag `groupId` 动态调整阈值：
+
+```sql
+SELECT tbname, _wstart, _wend,
+       CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END AS status
+FROM meters
+PARTITION BY tbname
+STATE_WINDOW(CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END);
+```
+
+需要注意，`STATE_WINDOW(groupId)` 这种直接将 tag 列作为状态表达式的写法仍然不支持；如果要使用 tag 列，需要让它参与到状态表达式中。
 
 Extend 参数可以设置窗口开始结束时的扩展策略，可选值为 0（默认值）、1、2。
 
@@ -223,7 +212,7 @@ select _wstart, _wduration, _wend, count(*) from state_window_test state_window(
  2025-01-01 00:00:06.001 |                  1999 | 2025-01-01 00:00:08.000 |                     2 |
 ```
 
-Zeroth_state 指定“零状态”，状态列为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置 zeroth_extend 数值时，extend 值为强制输入项，不允许留空或省略。
+Zeroth_state 指定“零状态”，状态表达式结果为此状态的窗口将不会被计算和输出，输入必须是整型、布尔型或字符串常量。当设置 `zeroth_state` 时，`extend` 值为强制输入项，不允许留空或省略。
 仍以相同数据为例
 
 当 `zeroth_state` 值为 `2` 时
@@ -277,9 +266,18 @@ SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 
 事件窗口根据开始条件和结束条件来划定窗口，当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine TSDB 支持的条件表达式，且可以包含不同的列。
 
+在超级表查询或包含 tag 列的子查询中，开始/结束条件表达式同样可以引用 tag 列。例如，可以根据 tag `groupId` 使用不同的电压阈值：
+
+```sql
+SELECT tbname, _wstart, _wend, count(*)
+FROM meters
+PARTITION BY tbname
+EVENT_WINDOW START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupId;
+```
+
 事件窗口可以仅包含一条数据。即当一条数据同时满足 start_trigger_condition 和 end_trigger_condition，且当前不在一个窗口内时，这条数据自己构成了一个窗口。
 
-事件窗口无法关闭时，不构成一个窗口，不会被输出。即有数据满足 start_trigger_condition，此时窗口打开，但后续数据都不能满足 end_trigger_condition，这个窗口无法被关闭，这部分数据不够成一个窗口，不会被输出。
+事件窗口无法关闭时，不构成一个窗口，不会被输出。即有数据满足 start_trigger_condition，此时窗口打开，但后续数据都不能满足 end_trigger_condition，这个窗口无法被关闭，这部分数据不构成一个窗口，不会被输出。
 
 如果直接在超级表上进行事件窗口查询，TDengine TSDB 会将超级表的数据汇总成一条时间线，然后进行事件窗口的计算。
 如果需要对子查询的结果集进行事件窗口查询，那么子查询的结果集需要满足按时间线输出的要求，且可以输出有效的时间戳列。
@@ -328,6 +326,119 @@ select _wstart, _wend, count(*) from t count_window(4);
 ```
 
 ![TDengine TSDB Database 计数窗口示意图](./pic/count_window.png)
+
+### 外部窗口
+
+外部窗口（External Window）用于"先定义窗口，再在窗口内计算"。与 INTERVAL、EVENT_WINDOW 等内建窗口不同，外部窗口的时间范围由子查询显式给出，适合做跨事件关联、窗口复用、分层过滤等复杂分析。
+
+外部窗口的语法：
+
+```sql
+SELECT ...
+FROM table_name
+[PARTITION BY expr_list]
+EXTERNAL_WINDOW (
+    (subquery_that_defines_windows) window_alias
+)
+[HAVING condition]
+[ORDER BY ...]
+```
+
+其中：
+
+- 子查询的前两列必须是 timestamp 类型，分别表示窗口开始时间和窗口结束时间。
+- 子查询第 3 列及之后的列会成为"窗口属性列"。
+- 外部查询会在每个窗口范围内独立计算。
+
+#### 核心特性
+
+1. **子查询生成窗口的灵活性：** 定义窗口的子查询本身支持多种写法，包括普通子查询、INTERVAL、EVENT_WINDOW、SESSION 等方式，用户可以灵活地生成所需的窗口范围。
+
+2. **窗口内聚合和计算：** 外部查询在每个窗口范围内独立计算，支持聚合和标量运算。
+
+3. **伪列支持：** `_wstart`（窗口开始时间）、`_wend`（窗口结束时间）、`_wduration`（窗口时长）可在 SELECT、HAVING、ORDER BY 子句中使用。
+
+4. **分组和对齐：**
+    - 子查询可以使用 `PARTITION BY` 或 `GROUP BY` 进行分组，外部查询只能使用 `PARTITION BY` 进行分组。
+    - 当子查询与外部查询都使用了分组时，按分组键对齐：同组数据只匹配同组窗口。
+    - 若某个分组在某个窗口内没有匹配数据，则该分组在该窗口下不会产出结果行（会被自然忽略）。
+    - 当子查询未使用分组时，内部子查询只生成一组共享窗口；若外部查询使用了分组，则每个外部分组都会在这同一组窗口上分别进行计算。
+    - 当子查询使用了分组，但外部查询未使用分组时，语法禁止。
+    - **当前限制与注意事项**：当内外查询都使用了分组，且窗口子查询中再使用 `ORDER BY` 时，排序可能打乱各分组窗口流的原有组织方式；外部查询可能作用于合并后的窗口流，表现为内部分组语义失效（等同未分组），不再按内外分组一一对齐。
+
+5. **嵌套调用支持：** 支持多层外部窗口嵌套，即外部窗口的子查询本身也可以使用 EXTERNAL_WINDOW，从而实现分层聚合。例如：先用第一层外部窗口按事件划定时间范围并聚合出中间指标，再用第二层外部窗口在新的时间范围内对这些中间指标做二次聚合。
+
+#### 窗口属性列引用规则
+
+子查询中前两列之后的列（例如 `groupid`、`location`）会作为窗口属性列。引用规则如下：
+
+1. 必须使用窗口别名按 `别名.列名` 的方式逐列引用：`window_alias.column_name`，例如 `w.groupid`、`w.location`。
+2. 窗口属性列只能以 `w.column_name` 这种形式出现在外层查询的 SELECT、HAVING、ORDER BY 子句中。
+3. **不能在 WHERE 子句中引用**（WHERE 用于过滤外部表记录，此时窗口尚未生成；窗口属性只有在窗口定义后才可用，应该在 HAVING 中使用）。
+4. 当前实现中，窗口别名并不是一张完整的"虚拟表"，**不支持使用 `w.*` 通配符展开全部窗口属性列**，也不能在 FROM/JOIN 中单独把 `w` 当作表来引用，如有需要请在子查询中显式选择并在外层逐列引用。
+
+#### 使用示例
+
+**示例 1** - 以 INTERVAL 子查询生成窗口，统计窗口内的聚合值：
+
+```sql
+SELECT _wstart, _wend, COUNT(*), AVG(voltage)
+FROM meters
+EXTERNAL_WINDOW (
+    (SELECT _wstart, _wend FROM meters INTERVAL(10m)) w
+);
+```
+
+上面的 SQL，先通过内部子查询按 10 分钟时间窗口划分出窗口范围，再由外部查询在每个窗口范围内独立统计 `meters` 表中的记录总数和电压平均值。
+
+**示例 2** - 以事件驱动方式生成窗口，跨表统计告警信息：
+
+智能电表的建表语句如下：
+
+```sql
+CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
+```
+
+假设还有一张告警事件表 `alerts`（超级表），包含列 `ts`、`alert_code`、`alert_value`，标签为 `groupid` 和 `location`。
+
+目标：以每组电表的电压异常事件为时间窗口（电压 >= 225V 的时刻起 60 秒内），统计该窗口内的告警情况。输出应包含：分组信息、窗口内告警数量和最大告警值，并过滤出"有告警产生"的窗口，按分组和时间排序。
+
+```sql
+SELECT
+    w.groupid,
+    w.location,
+    _wstart                AS event_start_time,
+    COUNT(*)               AS alert_count,
+    MAX(a.alert_value)     AS max_alert_value,
+    AVG(a.alert_value)     AS avg_alert_value
+FROM alerts a
+PARTITION BY a.groupid
+EXTERNAL_WINDOW (
+    (SELECT ts, ts + 60s, groupid, location
+     FROM meters
+     WHERE voltage >= 225
+     PARTITION BY groupid
+    ) w
+)
+HAVING COUNT(*) > 0
+ORDER BY w.groupid, event_start_time;
+```
+
+**结果说明：**
+
+- 每行代表一个电压异常事件窗口（由 `meters` 中 `voltage >= 225` 的记录驱动），窗口时长为事件发生后 60 秒。
+- `alert_count`、`max_alert_value`、`avg_alert_value`：该窗口内来自 `alerts` 的统计指标。
+- `w.groupid`、`w.location`：窗口属性列，来自子查询中的标签列，用于展示分组信息。
+- `HAVING` 条件使用聚合函数 (`COUNT`) 过滤出至少有一条告警的窗口。
+- `PARTITION BY` 对齐：内外查询均按 `groupid` 分组，确保每组电表的告警只与该组的异常窗口匹配。
+
+#### 约束与限制
+
+- 暂时不支持在流计算和订阅中使用。
+- 窗口子查询的前两列必须为 timestamp 类型，分别表示窗口开始和结束时间。
+- 子查询返回的窗口行需要保持有序：未分组场景按窗口开始时间（即第一列）升序；分组场景在各分组内按窗口开始时间升序；如果不满足条件执行时报错。
+- 若外部窗口（内部子查询）使用了分组，则外部查询必须同时使用 PARTITION BY；否则语法报错。
+- 不支持窗口作用域内的不定行函数（如 DIFF、INTERP）。
 
 ### 时间戳伪列
 

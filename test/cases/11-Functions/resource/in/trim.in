@@ -145,3 +145,4 @@ select trim(replace('   hello world   ', ' ', '-'))
 select name, trim(name) from ts_4893.meters limit 1
 select var1, trim(trailing '!' from var1) from ts_4893.meters limit 1
 select nch1, trim(leading '-' from nch1) from ts_4893.meters limit 1
+select * from ts_4893.d0 order by now(), nvl(ifnull(trim('s_203'), nch2), 8) limit 1

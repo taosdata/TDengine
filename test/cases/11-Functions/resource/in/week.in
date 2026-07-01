@@ -83,7 +83,7 @@ select week('20/01/01', 2)
 select week('01/01/2020', 2)
 select week('01-JAN-20', 2)
 select week('2023-09-25')
-select week('9999-12-31')
+select week('3000-12-31')
 select week('2024-02-29 00:00:00')
 select week(ts) from ts_4893.meters limit 1
 select week(name) from ts_4893.meters limit 1

@@ -1,6 +1,5 @@
 ---
 title: MQTT Data Subscription
-slug: /advanced-features/data-subscription/mqtt-data-sub
 ---
 
 In addition to classic data subscription, TDengine supports subscription over MQTT. You can create a broker node (bnode) in TDengine and connect your MQTT client to it. The client can then subscribe to TDengine topics.

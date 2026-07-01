@@ -1171,9 +1171,9 @@ static void mndRetrieveRsmaFuncList(SMnode *pMnode, SRsmaObj *pObj, char *buf, i
     for (; j < pStb->numOfColumns;) {
       if (pColumns[j].colId == colId) {
         int32_t colFuncLen =
-            tsnprintf(colFunc, sizeof(colFunc), "%s(%s),", fmGetFuncName(pObj->funcIds[i]), pColumns[j].name);
+            snprintf(colFunc, sizeof(colFunc), "%s(%s),", fmGetFuncName(pObj->funcIds[i]), pColumns[j].name);
         if ((qBufLen - len) > colFuncLen) {
-          len += tsnprintf(qBuf + len, colFuncLen + 1, "%s", colFunc);
+          len += snprintf(qBuf + len, colFuncLen + 1, "%s", colFunc);
         } else {
           goto _exit;
         }

@@ -2,7 +2,6 @@
 toc_max_heading_level: 4
 sidebar_label: Node.js
 title: Node.js Client Library
-slug: /tdengine-reference/client-libraries/node
 ---
 
 import Tabs from "@theme/Tabs";
@@ -25,13 +24,16 @@ Support all platforms that can run Node.js.
 
 | Node.js Connector Version | Major Changes                                                            | TDengine Version            |
 | ------------------------- | ------------------------------------------------------------------------ | --------------------------- |
+| 3.4.0                     | 1. Supports BLOB data type. <br/> 2. Parameter binding supports DECIMAL data type. <br/> 3. Supports reporting user APP name and IP address. | - |
+| 3.3.0                     | Supports load balancing and failover | - |
+| 3.2.3                     | 1. Supports token authentication. <br/> 2. Supports reporting connector version information. | - |
 | 3.2.2                     | Fix timezone handling issues on Windows systems. | - |
 | 3.2.1                     | Fix SQL query result sorting issue. | - |
 | 3.2.0                     | Optimize STMT parameter binding to improve write efficiency. | - |
 | 3.1.9                     | Fix timezone handling in WebSocket connections. | - |
 | 3.1.8                     | Fix when the connection pool returns unavailable connections during network anomalies. | - |
 | 3.1.7                     | Fix cloud service TMQ connection parameter issue. | - |
-| 3.1.6                     | 1. Check if the connector supports database version.  <br/> 2. The connector supports adding new subscription parameters. | - |  
+| 3.1.6                     | 1. Check if the connector supports database version. <br/> 2. The connector supports adding new subscription parameters. | - |  
 | 3.1.5                     | Password supports special characters. |  - |
 | 3.1.4                     | Modified the readme.| -                           |
 | 3.1.3                     | Upgraded the es5-ext version to address vulnerabilities in the lower version. | -                      |
@@ -41,7 +43,7 @@ Support all platforms that can run Node.js.
 
 ## Exception Handling
 
-For error code information please refer to [Error Codes](../../error-codes/)
+For error code information please refer to [Error Codes](../09-error-code.md)
 
 ## Data Type Mapping
 
@@ -64,8 +66,10 @@ The table below shows the mapping between TDengine DataType and Node.js DataType
 | BINARY            | string           |
 | NCHAR             | string           |
 | JSON              | string           |
+| DECIMAL           | string           |
 | VARBINARY         | ArrayBuffer      |
 | GEOMETRY          | ArrayBuffer      |
+| BLOB              | ArrayBuffer      |
 
 **Note**: JSON type is only supported in tags.
 
@@ -85,7 +89,7 @@ The table below shows the mapping between TDengine DataType and Node.js DataType
 - The Node.js connector (`@tdengine/websocket`) supports Node.js version 14 and above. Versions below 14 may have package compatibility issues.
 - Currently, only WebSocket connections are supported, and taosAdapter needs to be started in advance.
 - After using the connector, you need to call taos.connectorDestroy(); to release the connector resources.
-- To set the time zone for time strings in SQL statements, you need to configure the time zone settings of taosc on the machine where taosadapter is located.
+- To set the time zone for time strings in SQL statements, you need to configure the time zone settings of taosc on the machine where taosAdapter is located.
 - When parsing result sets, JavaScript does not support the int64 type, so timezone conversion cannot be directly performed. If users have such requirements, third-party libraries can be introduced to provide support.
 
 ## Common Issues
@@ -101,16 +105,21 @@ Node.js connector (`@tdengine/websocket`), which connects to a TDengine instance
 ### URL Specification
 
 ```text
-[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
-|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|   protocol |   | username  | password  | host | port |  database  |  params               |
+[+<protocol>]://[<username>:<password>@][<host1>:<port1>[,...<hostN>:<portN>]][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|-----------|---|-----------|-----------|------------------------------------|------------|-----------------------|
+|  protocol |   | username  | password  |  addresses                         |  database  |  params               |
 ```
 
-- **protocol**: Use the websocket protocol to establish a connection. For example, `ws://localhost:6041`
-- **username/password**: Username and password for the database.
-- **host/port**: The host_name parameter supports valid domain names or IP addresses. The `@tdengine/websocket` supports both IPv4 and IPv6 formats. For IPv6 addresses, square brackets must be used (e.g., [::1] or [2001:db8:1234:5678::1]) to avoid port number parsing conflicts.
+- **protocol**: Uses the WebSocket protocol to establish the connection. For example, `ws://localhost:6041`.
+- **username/password**: Database username and password.
+- **addresses**: A list of addresses, supporting one or more `host:port` addresses, separated by commas (e.g., `localhost:6041,localhost:6042`). `@tdengine/websocket` supports both IPv4 and IPv6 address formats. For IPv6 addresses, they must be enclosed in square brackets (e.g., `[::1]` or `[2001:db8:1234:5678::1]`) to avoid port number resolution conflicts.
 - **database**: Database name.
-- **params**: Other parameters. For example, token.
+- **params**:
+  - `token`: Used for TDengine TSDB cloud service authentication.
+  - `bearer_token`: Used for TDengine TSDB authentication, with higher priority than username/password.
+  - `retries`: Maximum number of retries when the connection fails, defaults to 5.
+  - `retry_backoff_ms`: The initial wait time (milliseconds) when a connection fails, defaulting to 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.
+  - `retry_backoff_max_ms`: The maximum wait time (milliseconds) when a connection fails, defaulting to 2000.
 
 - Complete DSN example:
 
@@ -120,6 +129,9 @@ Node.js connector (`@tdengine/websocket`), which connects to a TDengine instance
     
   // IPV6:
   ws://root:taosdata@[::1]:6041
+
+  // Multiple addresses (can be used for load balancing and failover scenarios):
+  ws://root:taosdata@localhost:6041,localhost:6042,localhost:6043
 ```
 
 ### WSConfig
@@ -151,7 +163,10 @@ The configurations in WSConfig are as follows:
 - setPwd(pws:string) Set the database password.
 - setDb(db: string) Set the database name.
 - setTimeOut(ms : number) Set the connection timeout in milliseconds.
-- setToken(token: string) Set the taosAdapter authentication token.
+- setToken(token: string) Set the cloud service authentication token.
+- setBearerToken(token: string) Set the TDengine TSDB authentication token, which has higher priority than username and password.
+- setUserApp(userApp: string) Set the name of the app reported by the user.
+- setUserIp(userIp: string) Set the IP address reported by the user.
 
 ### Connection Features
 
@@ -269,23 +284,25 @@ The configurations in WSConfig are as follows:
     - `params`: List of boolean types.
   - **Exception**: Throws `TDWebSocketClientError` if connection fails.
 - The following interfaces are similar to setBoolean except for the type of value to be set:
-  - `setTinyInt(params :any[])`
-  - `setUTinyInt(params :any[])`
-  - `setSmallInt(params :any[])`
-  - `setUSmallInt(params :any[])`
-  - `setInt(params :any[])`
-  - `setUInt(params :any[])`
-  - `setBigint(params :any[])`
-  - `setUBigint(params :any[])`
-  - `setFloat(params :any[])`
-  - `setDouble(params :any[])`
-  - `setVarchar(params :any[])`
-  - `setBinary(params :any[])`
-  - `setNchar(params :any[])`
-  - `setJson(params :any[])`
-  - `setVarBinary(params :any[])`
-  - `setGeometry(params :any[])`
-  - `setTimestamp(params :any[])`
+  - `setTinyInt(params: any[])`
+  - `setUTinyInt(params: any[])`
+  - `setSmallInt(params: any[])`
+  - `setUSmallInt(params: any[])`
+  - `setInt(params: any[])`
+  - `setUInt(params: any[])`
+  - `setBigint(params: any[])`
+  - `setUBigint(params: any[])`
+  - `setFloat(params: any[])`
+  - `setDouble(params: any[])`
+  - `setVarchar(params: any[])`
+  - `setBinary(params: any[])`
+  - `setNchar(params: any[])`
+  - `setJson(params: any[])`
+  - `setVarBinary(params: any[])`
+  - `setGeometry(params: any[])`
+  - `setBlob(params: any[])`
+  - `setDecimal(params: any[])`
+  - `setTimestamp(params: any[])`
 - `async setTags(paramsArray:StmtBindParams): Promise<void>`
   - **Interface Description** Set table Tags data for automatic table creation.
   - **Parameter Description**:

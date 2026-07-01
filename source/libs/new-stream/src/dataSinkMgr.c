@@ -54,7 +54,7 @@ int32_t     initStreamDataSink() {
   taosHashSetFreeFp(g_pDataSinkManager.dsStreamTaskList, destroySStreamDSTaskMgr);
   stInfo("data sink manager init success, max mem size: %" PRId64, tsStreamBufferSizeBytes);
   return TSDB_CODE_SUCCESS;
-};
+}
 
 static bool isManagerReady() {
   if (g_pDataSinkManager.dsStreamTaskList != NULL) {
@@ -246,7 +246,7 @@ static int32_t createSlidingTaskMgr(int64_t streamId, int64_t taskId, int64_t se
   return TSDB_CODE_SUCCESS;
 }
 
-// @brief 初始化数据缓存
+// initialize data cache
 int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode, int32_t tsSlotId,
                             void** ppCache) {
   int32_t code = 0;                            
@@ -280,7 +280,7 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
   return code;
 }
 
-// @brief 销毁数据缓存
+// destroy data cache
 void destroyStreamDataCache(void* pCache) {
   int32_t code = 0;
   if (pCache == NULL) {

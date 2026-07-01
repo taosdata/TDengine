@@ -1,0 +1,9 @@
+-f https://download.pytorch.org/whl/torch_stable.html
+torch==2.3.1+cpu
+transformers==4.33.3
+numpy==1.25.2
+matplotlib
+pandas==1.5
+scikit-learn
+flask==3.0.3
+momentfm

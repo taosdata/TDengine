@@ -245,7 +245,7 @@ typedef struct SUdfInterBuf {
 
 ### C UDF 示例代码
 
-#### 标量函数示例 [bit_and](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/bit_and.c)
+#### 标量函数示例
 
 bit_and 实现多列的按位与功能。如果只有一列，返回这一列。bit_and 忽略空值。
 
@@ -253,12 +253,12 @@ bit_and 实现多列的按位与功能。如果只有一列，返回这一列。
 <summary>bit_and.c</summary>
 
 ```c
-{{#include test/cases/12-UDFs/sh/bit_and.c}}
+{{#include docs/examples/udf/bit_and.c}}
 ```
 
 </details>
 
-#### 聚合函数示例 1 返回值为数值类型 [l2norm](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/l2norm.c)
+#### 聚合函数示例 1 返回值为数值类型
 
 l2norm 实现了输入列的所有数据的二阶范数，即对每个数据先平方，再累加求和，最后开方。
 
@@ -266,12 +266,12 @@ l2norm 实现了输入列的所有数据的二阶范数，即对每个数据先�
 <summary>l2norm.c</summary>
 
 ```c
-{{#include test/cases/12-UDFs/sh/l2norm.c}}
+{{#include docs/examples/udf/l2norm.c}}
 ```
 
 </details>
 
-#### 聚合函数示例 2 返回值为字符串类型 [max_vol](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/max_vol.c)
+#### 聚合函数示例 2 返回值为字符串类型
 
 max_vol 实现了从多个输入的电压列中找到最大电压，返回由设备 ID + 最大电压所在（行，列）+ 最大电压值 组成的组合字符串值
 
@@ -297,12 +297,12 @@ select max_vol(vol1, vol2, vol3, deviceid) from battery;
 <summary>max_vol.c</summary>
 
 ```c
-{{#include test/cases/12-UDFs/sh/max_vol.c}}
+{{#include docs/examples/udf/max_vol.c}}
 ```
 
 </details>
 
-#### 聚合函数示例 3 切分字符串求平均值 [extract_avg](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/extract_avg.c)
+#### 聚合函数示例 3 切分字符串求平均值
 
 `extract_avg` 函数是将一个逗号分隔的字符串数列转为一组数值，统计所有行的结果，计算最终平均值。实现时需注意：
 
@@ -338,7 +338,79 @@ gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
 <summary>extract_avg.c</summary>
 
 ```c
-{{#include test/cases/12-UDFs/sh/extract_avg.c}}
+{{#include docs/examples/udf/extract_avg.c}}
+```
+
+</details>
+
+#### 聚合函数示例 4 全量累积后计算——排列熵
+
+排列熵（Permutation Entropy）由 Bandt 和 Pompe 于 2002 年提出，通过统计时间序列中各种有序排列模式的概率分布来度量序列的复杂度，广泛应用于故障检测、生理信号分析等领域。
+
+`perm_entropy` 是一种**全量累积型**聚合函数：其计算算法要求在获取窗口内全部数据后才能开始，因此各次 AGG_PROC 调用仅完成数据积累，在 `perm_entropy_finish` 回调中统一执行排列熵计算。这与 `l2norm` 等可逐行累进计算的聚合函数有本质区别。
+
+该模式涉及**两层独立的内存**，必须分清所有权：
+
+| 内存层 | 持有者 | 典型变量 | 分配/释放方 |
+|--------|--------|----------|-------------|
+| **框架容器**（固定大小，等于 BUFSIZE） | 框架 | `interBuf->buf`、`newInterBuf->buf`、`resultData->buf` | 框架在每次回调前 `malloc`，回调后 `freeUdfInterBuf()` 释放；UDF 只能写入，**不得替换指针** |
+| **UDF 堆内容**（动态大小） | UDF | `state->values`（嵌入在容器内的指针） | UDF 用 `realloc` 按需增长；框架的 `freeUdfInterBuf()` 只释放容器本身，**不感知**内部指针；UDF 必须在 `finish` 及所有错误路径中显式释放 |
+
+各回调的职责如下：
+
+- `perm_entropy_start`：将 `PermEntropyState` 以 `memset` 初始化方式写入框架提供的 `interBuf->buf`，`values` 指针置为 `NULL`（尚未分配堆内容）。
+- `perm_entropy`（AGG_PROC）：
+  1. 以值拷贝的方式将 `interBuf->buf` 的状态复制到栈变量 `newState`；
+  2. 若本批有效行数 > 0，通过 `realloc` 扩展 UDF 堆内容（`newState.values`）并追加数据；
+  3. 将 `newState`（含更新后的 `values` 指针）以 `memcpy` 写入框架预分配的 `newInterBuf->buf`，**绝不**用新的 `malloc` 替换 `newInterBuf->buf`，否则框架原有的 BUFSIZE 字节分配在每次 AGG_PROC 调用后丢失；
+  4. 若 `realloc` 失败，需通过 `interBuf->buf` 释放原有的 UDF 堆内容并将指针清零，因为框架的 `freeUdfInterBuf()` 仅释放容器，不会释放其内部的 `values` 指针。
+- `perm_entropy_finish`：使用全部累积数据计算排列熵，**释放 `state->values`** 并将结果写入框架预分配的 `resultData->buf`。
+
+创建表：
+
+```sql
+-- 普通表，用于全表聚合和时间窗口查询
+CREATE TABLE vibration (ts TIMESTAMP, val DOUBLE);
+
+-- 超级表，用于按子表分组查询
+CREATE STABLE vibration_stb (ts TIMESTAMP, val DOUBLE) TAGS (device_id INT);
+CREATE TABLE vibration_d1 USING vibration_stb TAGS (1);
+CREATE TABLE vibration_d2 USING vibration_stb TAGS (2);
+```
+
+生成 `.so` 文件：
+
+```bash
+gcc -g -O0 -fPIC -shared perm_entropy.c -o libperm_entropy.so -lm
+```
+
+创建自定义函数：
+
+```sql
+CREATE AGGREGATE FUNCTION perm_entropy
+  AS '/path/to/libperm_entropy.so'
+  OUTPUTTYPE DOUBLE
+  BUFSIZE 256;
+```
+
+使用自定义函数：
+
+```sql
+-- 全表聚合，计算整张表的排列熵
+SELECT perm_entropy(val) FROM vibration;
+
+-- 时间窗口聚合，对每个窗口独立计算排列熵
+SELECT perm_entropy(val) FROM vibration INTERVAL(10s);
+
+-- 按子表分组，分别计算每个设备的排列熵
+SELECT perm_entropy(val) FROM vibration_stb PARTITION BY tbname;
+```
+
+<details>
+<summary>perm_entropy.c</summary>
+
+```c
+{{#include docs/examples/udf/perm_entropy.c}}
 ```
 
 </details>
@@ -346,7 +418,7 @@ gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
 ## 用 Python 语言开发 UDF
 
 ### 准备环境
-  
+
 准备环境的具体步骤如下：
 
 - 第 1 步，准备好 Python 运行环境。本地编译安装 python 注意打开 `--enable-shared` 选项，不然后续安装 taospyudf 会因无法生成共享库而导致失败。
@@ -869,7 +941,7 @@ close log file: spread.log
 
 ### 更多 Python UDF 示例代码
 
-#### 标量函数示例 [pybitand](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/pybitand.py)
+#### 标量函数示例
 
 pybitand 实现多列的按位与功能。如果只有一列，返回这一列。pybitand 忽略空值。
 
@@ -877,12 +949,12 @@ pybitand 实现多列的按位与功能。如果只有一列，返回这一列�
 <summary>pybitand.py</summary>
 
 ```Python
-{{#include test/cases/12-UDFs/sh/pybitand.py}}
+{{#include docs/examples/udf/pybitand.py}}
 ```
 
 </details>
 
-#### 聚合函数示例 [pyl2norm](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/pyl2norm.py)
+#### 聚合函数示例
 
 pyl2norm 实现了输入列的所有数据的二阶范数，即对每个数据先平方，再累加求和，最后开方。
 
@@ -890,19 +962,19 @@ pyl2norm 实现了输入列的所有数据的二阶范数，即对每个数据�
 <summary>pyl2norm.py</summary>
 
 ```python
-{{#include test/cases/12-UDFs/sh/pyl2norm.py}}
+{{#include docs/examples/udf/pyl2norm.py}}
 ```
 
 </details>
 
-#### 聚合函数示例 [pycumsum](https://github.com/taosdata/TDengine/blob/3.0/test/cases/12-UDFs/sh/pycumsum.py)
+#### 聚合函数示例
 
 pycumsum 使用 numpy 计算输入列所有数据的累积和。
 <details>
 <summary>pycumsum.py</summary>
 
 ```python
-{{#include test/cases/12-UDFs/sh/pycumsum.py}}
+{{#include docs/examples/udf/pycumsum.py}}
 ```
 
 </details>
@@ -965,7 +1037,7 @@ show functions;
 ```
 
 ### 查看函数信息
-  
+
 同名的 UDF 每更新一次，版本号会增加 1。
 
 ```sql

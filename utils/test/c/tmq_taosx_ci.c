@@ -898,8 +898,7 @@ void initLogFile() {
             "\"colType\":8,\"colLength\":64}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":1,\"colName\":\"t2\","
             "\"colType\":8,\"colLength\":64}",
-            "{\"type\":\"alter\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"alterType\":4,\"colName\":\"t1\","
-            "\"colValue\":\"5000\",\"colValueNull\":false}",
+            "{\"type\":\"alter\",\"tableType\":\"child\",\"tableName\":\"\",\"alterType\":19,\"tables\":[{\"tableName\":\"ct3\",\"tags\":[{\"colName\":\"t1\",\"colValue\":\"5000\",\"colValueNull\":false}]}]}",
             "{\"type\":\"drop\",\"tableNameList\":[\"ct3\",\"ct1\"]}",
             "{\"type\":\"drop\",\"tableType\":\"super\",\"tableName\":\"st1\"}",
             "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":"
@@ -1049,8 +1048,7 @@ void initLogFile() {
             "\"colType\":8,\"colLength\":64}",
             "{\"type\":\"alter\",\"tableType\":\"super\",\"tableName\":\"st1\",\"alterType\":1,\"colName\":\"t2\","
             "\"colType\":8,\"colLength\":64}",
-            "{\"type\":\"alter\",\"tableType\":\"child\",\"tableName\":\"ct3\",\"alterType\":4,\"colName\":\"t1\","
-            "\"colValue\":\"5000\",\"colValueNull\":false}",
+            "{\"type\":\"alter\",\"tableType\":\"child\",\"tableName\":\"\",\"alterType\":19,\"tables\":[{\"tableName\":\"ct3\",\"tags\":[{\"colName\":\"t1\",\"colValue\":\"5000\",\"colValueNull\":false}]}]}",
             "{\"type\":\"delete\",\"sql\":\"delete from `ct3` where `ts` >= 1626006833600 and `ts` <= 1626006833605\"}",
             "{\"type\":\"create\",\"tableType\":\"normal\",\"tableName\":\"n1\",\"columns\":[{\"name\":\"ts\",\"type\":"
             "9,\"isPrimarykey\":false,\"encode\":\"delta-i\",\"compress\":\"lz4\",\"level\":\"medium\"}"

@@ -65,7 +65,7 @@ Change `ds_predict` to the URL that you want to use in your environment.
 ```python
     app.run(
             host='0.0.0.0',
-            port=6037,
+            port=6062,
             threaded=True,  
             debug=False     
         )
@@ -87,7 +87,7 @@ Check the `service-output.out` file to confirm that the model has been loaded:
 
 ```shell
 Running on all addresses (0.0.0.0)
-Running on http://127.0.0.1:6037
+Running on http://127.0.0.1:6062
 ```
 
 ## Verify the Service
@@ -95,7 +95,7 @@ Running on http://127.0.0.1:6037
 Verify that the service is running normally:
 
 ```shell
-curl 127.0.0.1:6037/ds_predict
+curl 127.0.0.1:6062/ds_predict
 ```
 
 The following indicates that Time-MoE has been deployed:
@@ -126,7 +126,7 @@ class _TimeMOEService(AbstractForecastService):
 
         # Use the default address if the service URL is not specified in the taosanode.ini configuration file.
         if  self.service_host is None:
-            self.service_host = 'http://127.0.0.1:6037/timemoe'
+            self.service_host = 'http://127.0.0.1:6062/timemoe'
 
     def execute(self):
         # Verify support for past covariate analysis; raise an exception if unsupported. (Note: time-moe lacks this support and will trigger the exception.)
@@ -146,7 +146,7 @@ Modify the `[tsfm-service]` section of `/etc/taos/taosanode.ini`:
 
 ```ini
 [tsfm-service]
-timemoe-fc = http://127.0.0.1:6037/ds_predict
+timemoe-fc = http://127.0.0.1:6062/ds_predict
 ```
 
 Add the path for your deployment. The key is the name of the model defined in your Python code, and the value is the URL of Time-MoE on your local machine.
@@ -217,7 +217,7 @@ Set the service address and model in `chronos-server.py`. You can also use the d
 def main():
     app.run(
         host='0.0.0.0',
-        port=6038,
+        port=6063,
         threaded=True,
         debug=False
     )

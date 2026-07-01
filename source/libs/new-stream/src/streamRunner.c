@@ -39,9 +39,10 @@ static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRu
   for (int32_t i = 0; i < pTask->parallelExecutionNun && code == 0; ++i) {
     exec.runtimeInfo.execId = i + pTask->task.deployId * pTask->parallelExecutionNun;
     if (pMsg->outTblType == TSDB_NORMAL_TABLE) {
-      strncpy(exec.tbname, pMsg->outTblName, TSDB_TABLE_NAME_LEN);
+      tstrncpy(exec.tbname, pMsg->outTblName, sizeof(exec.tbname));
     }
-    ST_TASK_DLOG("init task exec mgr with execId:%d, topTask:%d", exec.runtimeInfo.execId, pTask->topTask);
+    ST_TASK_DLOG("init task exec mgr with execId:%d, topTask:%d, deployId: %d", exec.runtimeInfo.execId, pTask->topTask,
+		    pTask->task.deployId);
     code = tdListAppend(pMgr->pFreeExecs, &exec);
     if (code != 0) {
       ST_TASK_ELOG("failed to append task exec mgr:%s", tstrerror(code));
@@ -148,7 +149,7 @@ static void stRunnerTaskReleaseExec(SStreamRunnerTask* pTask, SStreamRunnerTaskE
 
 static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg) {
   if (pMsg->outDBFName) {
-    strncpy(pTask->output.outDbFName, pMsg->outDBFName, TSDB_DB_FNAME_LEN);
+    tstrncpy(pTask->output.outDbFName, pMsg->outDBFName, sizeof(pTask->output.outDbFName));
   } else {
     pTask->output.outDbFName[0] = '\0';
   }
@@ -158,7 +159,8 @@ static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, SStreamRunnerDeployM
   TSWAP(pTask->output.outTags, pMsg->outTags);
   TSWAP(pTask->output.colCids, pMsg->colCids);
   TSWAP(pTask->output.tagCids, pMsg->tagCids);
-  if (pMsg->outTblType == TSDB_SUPER_TABLE) strncpy(pTask->output.outSTbName, pMsg->outTblName, TSDB_TABLE_NAME_LEN);
+  if (pMsg->outTblType == TSDB_SUPER_TABLE)
+    tstrncpy(pTask->output.outSTbName, pMsg->outTblName, sizeof(pTask->output.outSTbName));
 }
 
 int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMsg) {
@@ -787,6 +789,20 @@ static void printOutputProjBlock(SStreamRunnerTask* pTask, const SSDataBlock* pB
   }
 }
 
+static int32_t stRunnerAdvanceExternalWinOutput(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
+                                                SSDataBlock** ppForceOutBlock, bool finished, bool* createTable,
+                                                int32_t* pNextOutIdx) {
+  if (finished || ((*ppForceOutBlock) && (*ppForceOutBlock)->info.rows > 0)) {
+    int32_t code = stRunnerMergeOutputBlock(pTask, pExec, *ppForceOutBlock, false, createTable);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  (*pNextOutIdx)++;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t stRunnerTopTaskHandleExternalWinOutputBlock(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                                     SSDataBlock* pBlock, SSDataBlock** ppForceOutBlock,
                                                     int32_t* pNextOutIdx, bool finished, bool* createTable) {
@@ -815,41 +831,55 @@ static int32_t stRunnerTopTaskHandleExternalWinOutputBlock(SStreamRunnerTask* pT
     }
 
     // printOutputProjBlock(pTask, pBlock, pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx);
+    SArray* pBlkWinIdx = pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx;
+    if (pBlkWinIdx == NULL || taosArrayGetSize(pBlkWinIdx) == 0) {
+      int32_t totalWins = (int32_t)taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
+      int32_t remainingWins = totalWins - *pNextOutIdx;
+      if (remainingWins != 1) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        lino = __LINE__;
+        ST_TASK_ELOG("missing external-window row index for output block, remainingWins:%d, rows:%" PRId64,
+                     remainingWins, pBlock->info.rows);
+        goto _exit;
+      }
 
-    int64_t idx = *(int64_t*)taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx, 0);
-    int32_t winOutIdx = idx & 0xFFFFFFFF;
-    int32_t lastStartIdx = idx >> 32;
-    while (*pNextOutIdx < winOutIdx) {
-      TAOS_CHECK_GOTO(streamForceOutput(pExec->pExecutor, ppForceOutBlock, *pNextOutIdx), &lino, _exit);
-      TAOS_CHECK_GOTO(streamPrepareNotification(pTask, pExec, *ppForceOutBlock, *pNextOutIdx, 0, 0), &lino, _exit);
-      (*pNextOutIdx)++;
-    }
-
-    for (int i = 1; i < taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx); ++i) {
-      int64_t idx = *(int64_t*)taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamBlkWinIdx, i);
-      winOutIdx = idx & 0xFFFFFFFF;
-      int32_t rowStartIdx = idx >> 32;
-
-      TAOS_CHECK_GOTO(streamPrepareNotification(pTask, pExec, pBlock, *pNextOutIdx, lastStartIdx, rowStartIdx - 1),
+      TAOS_CHECK_GOTO(streamPrepareNotification(pTask, pExec, pBlock, *pNextOutIdx, 0, pBlock->info.rows - 1),
                       &lino, _exit);
-      (*pNextOutIdx)++;
-
+      TAOS_CHECK_GOTO(stRunnerAdvanceExternalWinOutput(pTask, pExec, ppForceOutBlock, finished, createTable,
+                                                       pNextOutIdx), &lino, _exit);
+    } else {
+      int64_t idx = *(int64_t*)taosArrayGet(pBlkWinIdx, 0);
+      int32_t winOutIdx = idx & 0xFFFFFFFF;
+      int32_t lastStartIdx = idx >> 32;
       while (*pNextOutIdx < winOutIdx) {
         TAOS_CHECK_GOTO(streamForceOutput(pExec->pExecutor, ppForceOutBlock, *pNextOutIdx), &lino, _exit);
         TAOS_CHECK_GOTO(streamPrepareNotification(pTask, pExec, *ppForceOutBlock, *pNextOutIdx, 0, 0), &lino, _exit);
         (*pNextOutIdx)++;
       }
 
-      lastStartIdx = rowStartIdx;
-    }
+      for (int i = 1; i < taosArrayGetSize(pBlkWinIdx); ++i) {
+        int64_t idx = *(int64_t*)taosArrayGet(pBlkWinIdx, i);
+        winOutIdx = idx & 0xFFFFFFFF;
+        int32_t rowStartIdx = idx >> 32;
 
-    TAOS_CHECK_GOTO(streamPrepareNotification(pTask, pExec, pBlock, *pNextOutIdx, lastStartIdx, pBlock->info.rows - 1),
-                    &lino, _exit);
+        TAOS_CHECK_GOTO(streamPrepareNotification(pTask, pExec, pBlock, *pNextOutIdx, lastStartIdx, rowStartIdx - 1),
+                        &lino, _exit);
+        (*pNextOutIdx)++;
 
-    if (finished || (*ppForceOutBlock) && (*ppForceOutBlock)->info.rows > 0) {
-      TAOS_CHECK_GOTO(stRunnerMergeOutputBlock(pTask, pExec, *ppForceOutBlock, false, createTable), &lino, _exit);
+        while (*pNextOutIdx < winOutIdx) {
+          TAOS_CHECK_GOTO(streamForceOutput(pExec->pExecutor, ppForceOutBlock, *pNextOutIdx), &lino, _exit);
+          TAOS_CHECK_GOTO(streamPrepareNotification(pTask, pExec, *ppForceOutBlock, *pNextOutIdx, 0, 0), &lino, _exit);
+          (*pNextOutIdx)++;
+        }
+
+        lastStartIdx = rowStartIdx;
+      }
+
+      TAOS_CHECK_GOTO(streamPrepareNotification(pTask, pExec, pBlock, *pNextOutIdx, lastStartIdx, pBlock->info.rows - 1),
+                      &lino, _exit);
+      TAOS_CHECK_GOTO(stRunnerAdvanceExternalWinOutput(pTask, pExec, ppForceOutBlock, finished, createTable,
+                                                       pNextOutIdx), &lino, _exit);
     }
-    (*pNextOutIdx)++;
   }
 
   if (pBlock) {  // && *pNextOutIdx < taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals)
@@ -969,8 +999,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     }
     bool         finished = false;
     SSDataBlock* pBlock = NULL;
-    uint64_t     ts = 0;
-    STREAM_CHECK_RET_GOTO(streamExecuteTask(pExec->pExecutor, &pBlock, &ts, &finished));
+    STREAM_CHECK_RET_GOTO(streamExecuteTask(pExec->pExecutor, &pBlock, &finished));
     printDataBlock(pBlock, __func__, "streamExecuteTask block", pTask->task.streamId);
     if (pTask->topTask) {
       if (pExec->runtimeInfo.funcInfo.withExternalWindow) {

@@ -13,6 +13,7 @@ from new_test_framework.utils import (
 from random import randint
 import os
 import subprocess
+import platform
 
 
 class TestStreamParametersCheckMinVal:
@@ -153,9 +154,24 @@ class TestStreamParametersCheckMinVal:
         tdLog.info(f"streamNotifyFrameSize is {result}, test passed!")
 
     def getCpu(self):
-        cmd = "lscpu | grep -v -i numa | grep 'CPU(s):' | awk -F ':' '{print $2}' | head -n 1"
-        output = subprocess.check_output(cmd, shell=True).decode().strip()
-        tdLog.info(f"cpu num is {output}")
+        system = platform.system().lower()
+        try:
+            if system == "windows":
+                cpu_count = os.cpu_count()
+                tdLog.info(f"cpu num is {cpu_count}")
+                return cpu_count
+            else:
+                try:
+                    cmd = "lscpu | grep -v -i numa | grep 'CPU(s):' | awk -F ':' '{print $2}' | head -n 1"
+                    output = subprocess.check_output(cmd, shell=True).decode().strip()
+                    cpu_count = int(output)
+                except Exception:
+                    cpu_count = os.cpu_count()
+                tdLog.info(f"cpu num is {cpu_count}")
+                return cpu_count
+        except Exception as e:
+            tdLog.warning(f"getCpu failed: {e}, fallback to 1")
+            return 1
 
     def createUser(self):
         tdLog.info(f"create user")

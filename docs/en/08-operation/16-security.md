@@ -1,9 +1,8 @@
 ---
 title: Advanced Security Options
-slug: /operations-and-maintenance/advanced-security-options
 ---
 
-import Enterprise from '../assets/resources/_enterprise.mdx';
+import { Enterprise } from '../assets/resources/_resources.mdx';
 
 <Enterprise/>
 
@@ -98,6 +97,8 @@ Additionally, for an audit database:
 - `ENCRYPT_ALGORITHM` cannot be specified as `None`. The user can choose any symmetric encryption algorithm in CBC mode.
 
 Audit databases created before version 3.4.0.0 are incompatible with audit features in version 3.4.0.0 and later. In older versions, the `is_audit` parameter was not enforced, so there were no mandatory requirements for `DURATION`, `WAL_LEVEL`, and `ENCRYPT_ALGORITHM`. To enable new audit features for an old audit database, it must be dropped and recreated. As a workaround to access data from a pre-3.4.0.0 audit database in a newer version (without new audit features), you can disable `auditUseToken` by setting it to 0.
+
+In versions 3.4.1.0 and later, audit information can be saved locally rather than sent to taoskeeper. To use this functionality, you need to set the parameter auditSaveInSelf to 1, and the number of vgroups in the audit database created must be limited to one.
 
 ### taosKeeper Configuration
 
@@ -198,7 +199,7 @@ auditLevel = 3 // AUDIT_LEVEL_DATABASE
 | recalc stream     | recalcStream | streamName | recalcName | SQL |
 | create topic    | createTopic | topic's DB | name of the created topic | SQL |
 | drop topic      | dropTopic | topic's DB | name of the deleted topic | SQL |
-| reload topic      | reloadTopic | NULL | name of the deleted topic | SQL |
+| reload topic      | reloadTopic | topic's DB | name of the topic | SQL |
 | create Rsma      | createRsma | Rsma name | NULL | SQL |
 | alter Rsma      | alterRsma | Rsma name | Table name | SQL |
 | drop Rsma      | dropRsma | Rsma name | NULL | SQL |
@@ -252,6 +253,7 @@ taosk -c /etc/taos \
 Parameter descriptions:
 
 - `-c`: Specify configuration file path, default `/etc/taos`
+- `-d`: Specify data directory (dataDir), default from configuration
 - `--set-cfg-algorithm`: Set configuration file encryption algorithm (sm4 or aes), default sm4
 - `--set-meta-algorithm`: Set metadata encryption algorithm (sm4 or aes), default sm4
 - `--encrypt-server`: Enable server encryption, optionally specify SVR_KEY, auto-generate if not specified
@@ -286,6 +288,39 @@ After keys are generated, they will be saved in the following locations:
 
 - `{dataDir}/dnode/config/master.bin`: Stores SVR_KEY and DB_KEY
 - `{dataDir}/dnode/config/derived.bin`: Stores CFG_KEY, META_KEY, and DATA_KEY
+
+### View Encrypted Configuration Files
+
+Use the `taosk` tool to view encrypted configuration file content:
+
+```shell
+taosk -d /var/lib/taos --view-config /path/to/encrypted_config.json
+```
+
+This command automatically loads keys from the data directory, decrypts and displays the configuration file content.
+
+### Edit Encrypted Configuration Files
+
+Use the `taosk` tool to directly edit encrypted configuration files:
+
+```shell
+taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json
+```
+
+This command will:
+
+1. Load CFG_KEY from the data directory
+2. Decrypt the configuration file to a temporary file (permissions 0600)
+3. Open the file with the system editor ($EDITOR or vi)
+4. Detect file changes via SHA-256 hash comparison
+5. If modified, automatically re-encrypt and write back to the original file
+6. Clean up temporary files
+
+**Notes**:
+
+- Keys containing CFG_KEY must be generated first (using `--encrypt-config` option)
+- Specify editor via EDITOR environment variable, e.g., EDITOR=nano taosk -d /var/lib/taos --edit-file ...
+- If you exit the editor without saving, the file will not be modified
 
 ### View Encryption Algorithms
 

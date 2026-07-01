@@ -140,8 +140,8 @@ typedef unsigned __int32 uint32_t;
 // 16*MAX_COLUMNS + (192+32)*2 + insert into
 #define HEAD_BUFF_LEN         (TSDB_MAX_COLUMNS * 24)
 
-#define FETCH_BUFFER_SIZE     (100 * TSDB_MAX_ALLOWED_SQL_LEN)
-#define COND_BUF_LEN          (TSDB_MAX_ALLOWED_SQL_LEN - 30)
+#define FETCH_BUFFER_SIZE     (100 * TOOLS_MAX_ALLOWED_SQL_LEN)
+#define COND_BUF_LEN          (TOOLS_MAX_ALLOWED_SQL_LEN - 30)
 
 #define OPT_ABORT                 1    /* –abort */
 #define MAX_RECORDS_PER_REQ       65536
@@ -293,7 +293,7 @@ enum enum_TAOS_INTERFACE {
     STMT_IFACE,
     STMT2_IFACE,
     SML_IFACE,
-    SML_REST_IFACE,    
+    SML_REST_IFACE,
     INTERFACE_BUT
 };
 
@@ -702,7 +702,7 @@ typedef struct SuperQueryInfo_S {
     int       subscribeKeepProgress;
     int64_t   childTblCount;
     int       sqlCount;
-    char      sql[MAX_QUERY_SQL_COUNT][TSDB_MAX_ALLOWED_SQL_LEN + 1];
+    char      sql[MAX_QUERY_SQL_COUNT][TOOLS_MAX_ALLOWED_SQL_LEN + 1];
     char      result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN];
     int       resubAfterConsume;
     int       endAfterConsume;
@@ -795,7 +795,7 @@ typedef struct SArguments_S {
 #endif
     bool                terminate;
     bool                in_prompt;
-    
+
     // websocket
     char*               dsn;
 

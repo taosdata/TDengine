@@ -30,7 +30,7 @@ algo=expr1
 "}
 ```
 
-1. `column_name`: The data column in which to detect anomalies. Specify only one column per query. The data type of the column must be numerical; string types such as NCHAR are not supported. Functions are not supported.
+1. `column_name(s)`: The data column(s) in which to detect anomalies. The data type of the column(s) must be numerical; string types such as NCHAR are not supported. Functions are not supported. Starting from version 3.4.1.0, multi-column data input is supported for anomaly detection. For models that only handle a single column, only the first column will be used, and any additional columns will be ignored automatically.
 2. `options`: The parameters for anomaly detection. Enter parameters in key=value format, separating multiple parameters with a comma (,). It is not necessary to use quotation marks or escape characters. Only ASCII characters are supported. For example: `algo=ksigma,k=2` indicates that the anomaly detection algorithm is k-sigma and the k value is 2.
 3. You can use the results of anomaly detection as the inner part of a nested query. The same functions are supported as in other windowed queries.
 4. White noise checking is performed on the input data by default. If the input data is white noise, no results are returned.
@@ -64,7 +64,7 @@ Query OK, 1 row(s) in set (0.028946s)
 
 ### Built-In Anomaly Detection Algorithms
 
-TDgpt comes with six anomaly detection algorithms, divided among the following three categories: [Statistical Algorithms](./statistics-approach/), [Data Density Algorithms](./data-density/), and [Machine Learning Algorithms](./machine-learning/). If you do not specify an algorithm, the IQR algorithm is used by default.
+TDgpt comes with six anomaly detection algorithms, divided among the following three categories: [Statistical Algorithms](02-statistics-approach.md), [Data Density Algorithms](03-data-density.md), and [Machine Learning Algorithms](04-machine-learning.md). If you do not specify an algorithm, the IQR algorithm is used by default.
 
 ### Evaluating Algorithm Effectiveness
 

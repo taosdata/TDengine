@@ -1,9 +1,8 @@
 ---
 title: Oracle Database
-slug: /advanced-features/data-connectors/oracle-database
 ---
 
-import Enterprise from '../../assets/resources/_enterprise.mdx';
+import { AddDataSource, Enterprise } from '../../assets/resources/_resources.mdx';
 
 <Enterprise/>
 
@@ -15,33 +14,19 @@ The Oracle database system is a popular relational database management system wo
 
 TDengine can efficiently read data from Oracle and write it to TDengine, enabling historical data migration or real-time data synchronization.
 
-## Creating a Task
+## Procedure
 
-### 1. Add a Data Source
+### Add a Data Source
 
-Click the **+ Add Data Source** button in the upper left corner of the data writing page to enter the Add Data Source page, as shown below:
+<AddDataSource connectorName="Oracle" />
 
-![Add data source](../../assets/oracle-database-01.png)
-
-### 2. Configure Basic Information
-
-Enter the task name in the **Name** field, for example, *`test_oracle_01`*.
-
-Select *`Oracle`* from the **Type** dropdown menu, as shown below (the fields on the page will change after selection).
-
-**Agent** is optional. If needed, you can select a specific agent from the dropdown menu or click the **+ Create New Agent** button on the right to create a new agent.
-
-**Target Database** is required. You can click the **+ Create Database** button on the right to create a new database.
-
-![Configure basic settings](../../assets/oracle-database-02.png)
-
-### 3. Configure Connection Information
+### Configure Connection Information
 
 Fill in the *`connection information for the source Oracle database`* in the **Connection Configuration** area, as shown below:
 
 ![Configure connection information](../../assets/oracle-database-03.png)
 
-### 4. Configure Authentication Information
+### Configure Authentication Information
 
 **User** Enter the user of the source Oracle database, who must have read permissions in the organization.
 
@@ -51,7 +36,7 @@ Fill in the *`connection information for the source Oracle database`* in the **C
 
 Then click the **Check Connectivity** button, where users can click this button to check if the information filled in above can normally access data from the source Oracle database.
 
-### 5. Configure SQL Query
+### Configure SQL Query
 
 **Subtable Field** is used to split the subtable field, which is a select distinct SQL statement querying non-repeated items of specified field combinations, usually corresponding to the tag in transform:
 > This configuration is mainly to solve the problem of data migration disorder. It needs to be used in conjunction with **SQL Template**, otherwise, it cannot achieve the expected effect. Usage examples are as follows:
@@ -79,7 +64,7 @@ Then click the **Check Connectivity** button, where users can click this button 
 
 ![Configure data collection](../../assets/oracle-database-05.png)
 
-### 6. Configure Data Mapping
+### Configure Data Mapping
 
 In the **Data Mapping** area, fill in the configuration parameters related to data mapping.
 
@@ -95,7 +80,7 @@ Click **Preview** to view the results of the mapping.
 
 ![Configure data mapping](../../assets/oracle-database-06.png)
 
-### 7. Configure Advanced Options
+### Configure Advanced Options
 
 The **Advanced Options** area is collapsed by default, click the `>` on the right to expand it, as shown below:
 
@@ -105,6 +90,6 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 
 ![Configure advanced options](../../assets/oracle-database-07.png)
 
-### 8. Completion
+### Completion
 
 Click the **Submit** button to complete the creation of the data synchronization task from Oracle to TDengine, return to the **Data Source List** page to view the status of the task execution.

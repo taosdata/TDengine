@@ -190,7 +190,7 @@ int taos_metric_formatter_load_metric_new(taos_metric_formatter_t *self, taos_me
     SJson* table = tjsonGetArrayItem(tableArray, i);
 
     char tableName[MONITOR_TABLENAME_LEN] = {0};
-    if ((r = tjsonGetStringValue(table, "name", tableName)) != 0) {
+    if ((r = tjsonGetStringValue1(table, "name", tableName, sizeof(tableName))) != 0) {
       taosMemoryFreeClear(name);
       return r;
     }
@@ -280,7 +280,7 @@ int taos_metric_formatter_load_metrics_new(taos_metric_formatter_t *self, taos_m
         if (metric == NULL) {
 #ifdef TAOS_LOG_ENABLE
           char tmp[200] = {0};
-          sprintf(tmp, "fail to get metric(%d):%s", count, metric_name);
+          snprintf(tmp, sizeof(tmp), "fail to get metric(%d):%s", count, metric_name);
           TAOS_LOG(tmp);
 #endif
           continue;;
@@ -294,7 +294,7 @@ int taos_metric_formatter_load_metrics_new(taos_metric_formatter_t *self, taos_m
 
 #ifdef TAOS_LOG_ENABLE
       char tmp[20] = {0};
-      sprintf(tmp, "list count:%d", count);
+      snprintf(tmp, sizeof(tmp), "list count:%d", count);
       TAOS_LOG(tmp);
 #endif
       r = pthread_rwlock_unlock(metrics->rwlock);

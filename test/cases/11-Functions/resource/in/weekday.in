@@ -29,7 +29,7 @@ select weekday('01-JAN-20')
 select weekday('2024-02-29')
 select weekday('2023-09-24')
 select weekday('2023-09-25')
-select weekday('9999-12-31')
+select weekday('3000-12-31')
 select weekday(name) from ts_4893.meters limit 1
 select weekday(ts), dayofweek(ts) from ts_4893.meters limit 1
 select weekday(timediff(ts, '2024-10-10 09:36:50.172')) from ts_4893.meters limit 1

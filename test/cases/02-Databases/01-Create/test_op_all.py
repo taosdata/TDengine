@@ -84,10 +84,10 @@ class TestDatabaseCreateAllOptions:
         tdSql.checkKeyData("db", 13, 2)
         tdSql.checkKeyData("db", 14, "ms")
         tdSql.checkKeyData("db", 18, "none")
-        tdSql.checkKeyData("db", 20, 1)
-        tdSql.checkKeyData("db", 21, 3000)
-        tdSql.checkKeyData("db", 30, "525600m")
-        tdSql.checkKeyData("db", 31, 1)
+        tdSql.checkKeyData("db", 21, 1)
+        tdSql.checkKeyData("db", 22, 3000)
+        tdSql.checkKeyData("db", 31, "525600m")
+        tdSql.checkKeyData("db", 32, 1)
 
         tdSql.execute(f"drop database db")
 
@@ -207,13 +207,13 @@ class TestDatabaseCreateAllOptions:
         tdLog.info(f"====> WAL_FSYNC_PERIOD value [0 ~ 180000 ms, default: 3000]")
         tdSql.execute(f"create database db WAL_FSYNC_PERIOD 0")
         tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkKeyData("db", 21, 0)
+        tdSql.checkKeyData("db", 22, 0)
 
         tdSql.execute(f"drop database db")
 
         tdSql.execute(f"create database db WAL_FSYNC_PERIOD 180000")
         tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkKeyData("db", 21, 180000)
+        tdSql.checkKeyData("db", 22, 180000)
 
         tdSql.execute(f"drop database db")
         tdSql.error(f"create database db WAL_FSYNC_PERIOD 180001")
@@ -320,13 +320,13 @@ class TestDatabaseCreateAllOptions:
         tdLog.info(f"====> WAL_LEVEL value [1 | 2, default: 1]")
         tdSql.execute(f"create database db WAL_LEVEL 2")
         tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkKeyData("db", 20, 2)
+        tdSql.checkKeyData("db", 21, 2)
 
         tdSql.execute(f"drop database db")
 
         tdSql.execute(f"create database db WAL_LEVEL 1")
         tdSql.query(f"select * from information_schema.ins_databases")
-        tdSql.checkKeyData("db", 20, 1)
+        tdSql.checkKeyData("db", 21, 1)
 
         tdSql.execute(f"drop database db")
         tdSql.error(f"create database db WAL_LEVEL 3")

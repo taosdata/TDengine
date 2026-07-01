@@ -62,7 +62,6 @@ add_subdirectory(tools)
 add_subdirectory(utils)
 add_subdirectory(tests)
 add_subdirectory(examples/c)
-add_subdirectory(docs/doxgen)
 
 include(cmake/install.cmake)
 include(CPack)

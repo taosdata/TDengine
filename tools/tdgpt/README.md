@@ -96,7 +96,7 @@ cd tdengine-tdgpt-oss-3.3.7.0.alpha-linux-x64
 ```
 
 During the installation, Python virtual environment will be established in `/var/lib/taos/taosanode/venv` by default, as well as the required libraries.
-The taosanode will be installed as an system service, but will not automatic started when installed. You need to start the service mannually, by using the following command
+The taosanode will be installed as a system service, but will not be automatically started when installed. You need to start the service manually, by using the following command
 
 ```bash
 systemctl start taosanoded
@@ -119,7 +119,7 @@ http = 127.0.0.1:6035
 
 ## 7.2 Uninstall
 
-The command `rmtaosanode` will remove the installed taosanode from your system. Note that the python environment won't removed by this script, you need to remove it mannually.
+The command `rmtaosanode` will remove the installed taosanode from your system. Note that the python environment won't be removed by this script, you need to remove it manually.
 
 # 8. Testing
 

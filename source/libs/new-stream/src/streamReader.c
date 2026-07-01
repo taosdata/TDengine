@@ -25,6 +25,22 @@ void qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo) {
   pTableListInfo->uIdMap = NULL;
 }
 
+void qStreamClearTableInfo(StreamTableListInfo* pTableListInfo){
+  if (pTableListInfo->pTableList) {
+    taosArrayClearP(pTableListInfo->pTableList, taosMemFree);
+  }
+
+  if (pTableListInfo->gIdMap) {
+    taosHashCancelIterate(pTableListInfo->gIdMap, pTableListInfo->pIter);
+    taosHashClear(pTableListInfo->gIdMap);
+    pTableListInfo->pIter = NULL;
+  }
+
+  if (pTableListInfo->uIdMap) {
+    taosHashClear(pTableListInfo->uIdMap);
+  }
+}
+
 static int32_t removeList(SHashObj* idMap, SStreamTableKeyInfo* table, uint64_t key){
   int32_t code = 0;
   int32_t lino = 0;
@@ -638,13 +654,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
   sStreamReaderInfo->tableType = pMsg->msg.trigger.triggerTblType;
   sStreamReaderInfo->isVtableStream = pMsg->msg.trigger.isTriggerTblVirt;
 
-  if (pMsg->msg.trigger.triggerTblType == TD_SUPER_TABLE) {
-    sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblUid;
-    sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
-  } else {
-    sStreamReaderInfo->suid = 0;
-    sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
-  }
+  sStreamReaderInfo->suid = pMsg->msg.trigger.triggerTblSuid;
+  sStreamReaderInfo->uid = pMsg->msg.trigger.triggerTblUid;
 
   ST_TASK_DLOG("pMsg->msg.trigger.deleteReCalc: %d", pMsg->msg.trigger.deleteReCalc);
   sStreamReaderInfo->deleteReCalc = pMsg->msg.trigger.deleteReCalc;

@@ -875,7 +875,7 @@ int32_t vnodeSetElectBaseline(SVnode* pVnode, int32_t ms){
 }
 
 void vnodeSyncPreClose(SVnode *pVnode) {
-  vInfo("vgId:%d, sync pre close", pVnode->config.vgId);
+  vInfo("vgId:%d, vnode sync pre close", pVnode->config.vgId);
   int32_t code = syncLeaderTransfer(pVnode->sync);
   if (code) {
     vError("vgId:%d, failed to transfer leader since %s", pVnode->config.vgId, tstrerror(code));
@@ -894,12 +894,12 @@ void vnodeSyncPreClose(SVnode *pVnode) {
 }
 
 void vnodeSyncPostClose(SVnode *pVnode) {
-  vInfo("vgId:%d, sync post close", pVnode->config.vgId);
+  vInfo("vgId:%d, vnode sync post close", pVnode->config.vgId);
   syncPostStop(pVnode->sync);
 }
 
 void vnodeSyncClose(SVnode *pVnode) {
-  vInfo("vgId:%d, close sync", pVnode->config.vgId);
+  vInfo("vgId:%d, vnode close sync", pVnode->config.vgId);
   syncStop(pVnode->sync);
 }
 

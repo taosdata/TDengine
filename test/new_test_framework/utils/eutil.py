@@ -23,6 +23,8 @@ import psutil
 import glob
 from .srvCtl import *
 from .eos    import *
+from .log import tdLog
+from .sql import tdSql
 
 # cpu frequent as random
 def cpuRand(max):
@@ -121,3 +123,67 @@ def findTaosdThread(threadName):
             continue
 
     return thread_count
+
+
+def check_db_cachemodel(dbname, cachemodel, retry=10):
+    """
+    Check whether the database's cachemodel matches the expected value.
+
+    Args:
+        dbname: Database name.
+        cachemodel: Expected cachemodel value.
+        retry: Max retry count, default 10.
+
+    Returns:
+        bool: True if matched, exit otherwise.
+    """
+    sql = (
+        f"select `cachemodel` from information_schema.ins_databases "
+        f"where name = '{dbname}'"
+    )
+    actual = None
+    for _ in range(retry):
+        tdSql.query(sql)
+        if tdSql.queryRows > 0:
+            actual = tdSql.queryResult[0][0]
+            if str(actual) == str(cachemodel):
+                tdLog.info(f"Database {dbname} cachemodel is {cachemodel}")
+                return True
+        time.sleep(1)
+    tdLog.exit(f"Database {dbname} cachemodel is {actual}, expected {cachemodel}")
+
+
+def check_explain_last_row_scan(sql, retry=10):
+    """
+    Check whether the explain plan contains "Last row scan" and
+    does not contain "table scan".
+
+    Args:
+        sql: SELECT statement to explain (e.g. "select LAST_ROW(c1) from db.tb").
+        retry: Max retry count, default 10.
+
+    Returns:
+        bool: True if plan contains "Last row scan" and does not contain
+              "table scan"; exit after retry attempts otherwise.
+    """
+    explain_sql = (
+        f"explain {sql.rstrip(';')}"
+        if not sql.strip().lower().startswith("explain")
+        else sql
+    )
+    for _ in range(retry):
+        tdSql.query(explain_sql)
+        plan_parts = []
+        for row in (tdSql.queryResult or []):
+            for cell in row:
+                if cell is not None:
+                    plan_parts.append(str(cell))
+        plan_text = " ".join(plan_parts)
+        plan_lower = plan_text.lower()
+        has_last_row_scan = "last row scan" in plan_lower
+        has_table_scan = "table scan" in plan_lower
+        if has_last_row_scan and not has_table_scan:
+            tdLog.info("Explain plan contains 'Last row scan' and does not contain 'table scan'")
+            return True
+        time.sleep(1)
+    tdLog.exit("Explain plan does not contain 'Last row scan' or contains 'table scan'")

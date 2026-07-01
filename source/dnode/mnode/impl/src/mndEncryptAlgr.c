@@ -14,6 +14,11 @@
  */
 
 #define MND_ENCRYPT_ALGR_VER_NUMBER 1
+#if defined(TD_ENTERPRISE) && defined(LINUX)
+#define MND_ENCRYPT_ALGR_LAST_ID 6
+#else
+#define MND_ENCRYPT_ALGR_LAST_ID 1
+#endif
 
 #include "audit.h"
 #include "mndEncryptAlgr.h"
@@ -204,58 +209,58 @@ typedef void (*mndSetEncryptAlgrFp)(SEncryptAlgrObj *Obj);
 
 static void mndSetSM4EncryptAlgr(SEncryptAlgrObj *Obj){
   Obj->id = 1;
-  strncpy(Obj->algorithm_id, "SM4-CBC", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->name, "SM4", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->desc, "SM4 symmetric encryption", TSDB_ENCRYPT_ALGR_DESC_LEN);
+  tstrncpy(Obj->algorithm_id, "SM4-CBC", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->name, "SM4", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->desc, "SM4 symmetric encryption", TSDB_ENCRYPT_ALGR_DESC_LEN);
   Obj->type = ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
-  strncpy(Obj->ossl_algr_name, "SM4-CBC:SM4", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->ossl_algr_name, "SM4-CBC:SM4", TSDB_ENCRYPT_ALGR_NAME_LEN);
 }
 
 static void mndSetAESEncryptAlgr(SEncryptAlgrObj *Obj){
   Obj->id = 2;
-  strncpy(Obj->algorithm_id, "AES-128-CBC", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->name, "AES", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->desc, "AES symmetric encryption", TSDB_ENCRYPT_ALGR_DESC_LEN);
+  tstrncpy(Obj->algorithm_id, "AES-128-CBC", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->name, "AES", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->desc, "AES symmetric encryption", TSDB_ENCRYPT_ALGR_DESC_LEN);
   Obj->type = ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
-  strncpy(Obj->ossl_algr_name, "AES-128-CBC", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->ossl_algr_name, "AES-128-CBC", TSDB_ENCRYPT_ALGR_NAME_LEN);
 }
 
 static void mndSetSM3EncryptAlgr(SEncryptAlgrObj *Obj) {
   Obj->id = 3;
-  strncpy(Obj->algorithm_id, "SM3", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->name, "SM3", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->desc, "SM3 digests", TSDB_ENCRYPT_ALGR_DESC_LEN);
+  tstrncpy(Obj->algorithm_id, "SM3", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->name, "SM3", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->desc, "SM3 digests", TSDB_ENCRYPT_ALGR_DESC_LEN);
   Obj->type = ENCRYPT_ALGR_TYPE__DIGEST;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
-  strncpy(Obj->ossl_algr_name, "SM3", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->ossl_algr_name, "SM3", TSDB_ENCRYPT_ALGR_NAME_LEN);
 }
 
 static void mndSetSHAEncryptAlgr(SEncryptAlgrObj *Obj) {
   Obj->id = 4;
-  strncpy(Obj->algorithm_id, "SHA-256", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->name, "SHA-256", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->desc, "SHA2 digests", TSDB_ENCRYPT_ALGR_DESC_LEN);
+  tstrncpy(Obj->algorithm_id, "SHA-256", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->name, "SHA-256", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->desc, "SHA2 digests", TSDB_ENCRYPT_ALGR_DESC_LEN);
   Obj->type = ENCRYPT_ALGR_TYPE__DIGEST;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
-  strncpy(Obj->ossl_algr_name, "SHA-256", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->ossl_algr_name, "SHA-256", TSDB_ENCRYPT_ALGR_NAME_LEN);
 }
 
 static void mndSetSM2EncryptAlgr(SEncryptAlgrObj *Obj) {
   Obj->id = 5;
-  strncpy(Obj->algorithm_id, "SM2", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->name, "SM2", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->desc, "SM2 Asymmetric Cipher", TSDB_ENCRYPT_ALGR_DESC_LEN);
+  tstrncpy(Obj->algorithm_id, "SM2", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->name, "SM2", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->desc, "SM2 Asymmetric Cipher", TSDB_ENCRYPT_ALGR_DESC_LEN);
   Obj->type = ENCRYPT_ALGR_TYPE__ASYMMETRIC_CIPHERS;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
 }
 
 static void mndSetRSAEncryptAlgr(SEncryptAlgrObj *Obj) {
   Obj->id = 6;
-  strncpy(Obj->algorithm_id, "RSA", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->name, "RSA", TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj->desc, "RSA Asymmetric Cipher", TSDB_ENCRYPT_ALGR_DESC_LEN);
+  tstrncpy(Obj->algorithm_id, "RSA", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->name, "RSA", TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj->desc, "RSA Asymmetric Cipher", TSDB_ENCRYPT_ALGR_DESC_LEN);
   Obj->type = ENCRYPT_ALGR_TYPE__ASYMMETRIC_CIPHERS;
   Obj->source = ENCRYPT_ALGR_SOURCE_BUILTIN;
 }
@@ -371,7 +376,18 @@ static int32_t mndProcessBuiltinRsp(SRpcMsg *pRsp) {
 static int32_t mndUpgradeBuiltinEncryptAlgr(SMnode *pMnode, int32_t version) {
   if (version >= TSDB_MNODE_BUILTIN_DATA_VERSION) return 0;
 
+  mInfo("upgrade builtin encrypt algr, current version:%d, target version:%d", version,
+        TSDB_MNODE_BUILTIN_DATA_VERSION);
   return mndSendCreateBuiltinReq(pMnode);
+}
+
+static bool mndIsUpgradedBuiltinEncryptAlgr(SMnode *pMnode) {
+  SEncryptAlgrObj *obj = mndAcquireEncryptAlgrById(pMnode, MND_ENCRYPT_ALGR_LAST_ID);
+  if (obj != NULL) {
+    mndReleaseEncryptAlgr(pMnode, obj);
+    return true;
+  }
+  return false;
 }
 
 #define SYMCBC "Symmetric Ciphers CBC mode"
@@ -485,9 +501,9 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
   int32_t         id = sdbGetMaxId(pMnode->pSdb, SDB_ENCRYPT_ALGORITHMS);
   if (id < 100) id = 101;
   Obj.id = id;
-  strncpy(Obj.algorithm_id, createReq.algorithmId, TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj.name, createReq.name, TSDB_ENCRYPT_ALGR_NAME_LEN);
-  strncpy(Obj.desc, createReq.desc, TSDB_ENCRYPT_ALGR_DESC_LEN);
+  tstrncpy(Obj.algorithm_id, createReq.algorithmId, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj.name, createReq.name, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj.desc, createReq.desc, TSDB_ENCRYPT_ALGR_DESC_LEN);
   if (strncmp(createReq.type, "Symmetric_Ciphers_CBC_mode", TSDB_ENCRYPT_ALGR_TYPE_LEN) == 0) {
     Obj.type = ENCRYPT_ALGR_TYPE__SYMMETRIC_CIPHERS;
   } else if (strncmp(createReq.type, "Digests", TSDB_ENCRYPT_ALGR_TYPE_LEN) == 0) {
@@ -498,7 +514,7 @@ static int32_t mndProcessCreateEncryptAlgrReq(SRpcMsg *pReq) {
     TAOS_CHECK_GOTO(TSDB_CODE_MNODE_INVALID_ENCRYPT_ALGR_TYPE, &lino, _OVER);
   }
   Obj.source = ENCRYPT_ALGR_SOURCE_CUSTOMIZED;
-  strncpy(Obj.ossl_algr_name, createReq.osslAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
+  tstrncpy(Obj.ossl_algr_name, createReq.osslAlgrName, TSDB_ENCRYPT_ALGR_NAME_LEN);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-enc-algr");
   if (pTrans == NULL) {
@@ -736,6 +752,7 @@ int32_t mndInitEncryptAlgr(SMnode *pMnode) {
       .insertFp = (SdbInsertFp)mndEncryptAlgrActionInsert,
       .updateFp = (SdbUpdateFp)mndEncryptAlgrActionUpdate,
       .deleteFp = (SdbDeleteFp)mndEncryptAlgrActionDelete,
+      .isUpgradedFp = (SdbIsUpgradedFp)mndIsUpgradedBuiltinEncryptAlgr,
   };
 
   return sdbSetTable(pMnode->pSdb, table);

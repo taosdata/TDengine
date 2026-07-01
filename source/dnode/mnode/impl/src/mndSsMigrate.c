@@ -627,6 +627,10 @@ _exit:
 
 
 static int32_t mndKillSsMigrate(SMnode *pMnode, SRpcMsg *pReq, SSsMigrateObj *pSsMigrate) {
+  if (pSsMigrate->vgIdx >= taosArrayGetSize(pSsMigrate->vgroups)) {
+    return mndDropSsMigrate(pMnode, pSsMigrate);
+  }
+
   int32_t vgId = *(int32_t*)taosArrayGet(pSsMigrate->vgroups, pSsMigrate->vgIdx);
   SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
   if (pVgroup == NULL) {

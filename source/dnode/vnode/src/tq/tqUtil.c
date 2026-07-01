@@ -168,19 +168,10 @@ static int32_t extractDataAndRspForNormalSubscribe(STQ* pTq, STqHandle* pHandle,
     goto end;
   }
 
-  //   till now, all data has been transferred to consumer, new data needs to push client once arrived.
-  if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST && dataRsp.blockNum == 0) {
-    // lock
-    taosWLockLatch(&pTq->lock);
-    int64_t ver = walGetCommittedVer(pTq->pVnode->pWal);
-    if (dataRsp.rspOffset.version > ver) {  // check if there are data again to avoid lost data
-      code = tqRegisterPushHandle(pTq, pHandle, pMsg);
-      taosWUnLockLatch(&pTq->lock);
-      goto end;
-    }
-    taosWUnLockLatch(&pTq->lock);
+  if (terrno == TSDB_CODE_TMQ_FETCH_TIMEOUT && dataRsp.blockNum == 0) {
+    dataRsp.timeout = true;
   }
-
+  
   // reqOffset represents the current date offset, may be changed if wal not exists
   tOffsetCopy(&dataRsp.reqOffset, pOffset);
   code = tqSendDataRsp(pHandle, pMsg, pRequest, &dataRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
@@ -221,9 +212,6 @@ end:
   tDecoderClear(&decoder);
 
 static void tDeleteCommon(void* parm) {}
-static void tDeleteAlterTable(SVAlterTbReq* req) {
-  taosArrayDestroy(req->pMultiTag);
-}
 
 #define POLL_RSP_TYPE(pRequest,taosxRsp) \
 taosxRsp.createTableNum > 0 ? TMQ_MSG_TYPE__POLL_DATA_META_RSP : \
@@ -371,7 +359,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           if (pHead->msgType == TDMT_VND_CREATE_TABLE) {
             PROCESS_EXCLUDED_MSG(SVCreateTbBatchReq, tDecodeSVCreateTbBatchReq, tDeleteSVCreateTbBatchReq)
           } else if (pHead->msgType == TDMT_VND_ALTER_TABLE) {
-            PROCESS_EXCLUDED_MSG(SVAlterTbReq, tDecodeSVAlterTbReq, tDeleteAlterTable)
+            PROCESS_EXCLUDED_MSG(SVAlterTbReq, tDecodeSVAlterTbReq, destroyAlterTbReq)
           } else if (pHead->msgType == TDMT_VND_CREATE_STB || pHead->msgType == TDMT_VND_ALTER_STB) {
             PROCESS_EXCLUDED_MSG(SVCreateStbReq, tDecodeSVCreateStbReq, tDeleteCommon)
           } else if (pHead->msgType == TDMT_VND_DELETE) {
@@ -396,7 +384,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           goto END;
         }
         totalMetaRows++;
-        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) || (taosGetTimestampMs() - st > pRequest->timeout)) {
+        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= pRequest->minPollRows) || (taosGetTimestampMs() - st > pRequest->timeout)) {
           SEND_BATCH_META_RSP
         }
         continue;
@@ -437,7 +425,7 @@ static int32_t extractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle, 
           goto END;
         }
         totalMetaRows++;
-        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= tmqRowSize) ||
+        if ((taosArrayGetSize(btMetaRsp.batchMetaReq) >= pRequest->minPollRows) ||
             (taosGetTimestampMs() - st > pRequest->timeout) ||
             (!pRequest->enableBatchMeta && !pRequest->useSnapshot)) {
           SEND_BATCH_META_RSP

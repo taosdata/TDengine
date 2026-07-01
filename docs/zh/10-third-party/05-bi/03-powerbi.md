@@ -35,7 +35,7 @@ Power BI 是由 Microsoft 提供的一种商业分析工具。通过配置使用
 - 度量：可以用于进行计算的定量（数值）字段，常见计算有求和、取平均值和最小值等。如果测点的采集周期为 1s，那么一年就有 3000 多万条记录，把这些数据全部导入 Power BI 会严重影响其执行效率。在 TDengine TSDB 中，用户可以使用数据切分查询、窗口切分查询等语法，结合与窗口相关的伪列，把降采样后的数据导入 Power BI 中，具体语法请参阅 TDengine TSDB 官方文档的特色查询功能部分。
 - 窗口切分查询：比如温度传感器每秒采集一次数据，但须查询每隔 10min 的温度平均值，在这种场景下可以使用窗口子句来获得需要的降采样查询结果，对应的 SQL 形如 `select tbname, _wstart date，avg(temperature) temp from table interval(10m)`，其中，`_wstart` 是伪列，表示时间窗口起始时间，10m 表示时间窗口的持续时间，`avg(temperature)` 表示时间窗口内的聚合值。
 - 数据切分查询：如果需要同时获取很多温度传感器的聚合数值，可对数据进行切分，然后在切分出的数据空间内进行一系列的计算，对应的 SQL 形如 `partition by part_list`。数据切分子句最常见的用法是在超级表查询中按标签将子表数据进行切分，将每个子表的数据独立出来，形成一条条独立的时间序列，方便针对各种时序场景的统计分析。
-- 时序：在绘制曲线或者按照时间聚合数据时，通常需要引入日期表。日期表可以从 Excel 表格中导入，也可以在 TDengine TSDB 中执行 SQL 获取，例如 `select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0)`，其中 fill 字句表示数据缺失情况下的填充模式，伪列 _wstart 则为要获取的日期列。
+- 时序：在绘制曲线或者按照时间聚合数据时，通常需要引入日期表。日期表可以从 Excel 表格中导入，也可以在 TDengine TSDB 中执行 SQL 获取，例如 `select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(value, 0)`，其中 fill 字句表示数据缺失情况下的填充模式，伪列 _wstart 则为要获取的日期列。
 - 相关性：告诉数据之间如何关联，如度量和维度可以通过 tbname 列关联在一起，日期表和度量则可以通过 date 列关联，配合形成可视化报表。
 
 ### 智能电表样例

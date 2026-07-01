@@ -1,6 +1,5 @@
 ---
 title: Metadata
-slug: /tdengine-reference/sql-manual/metadata
 ---
 
 TDengine has a built-in database called `INFORMATION_SCHEMA`, which provides access to database metadata, system information, and status, such as the names of databases or tables, the SQL statements currently being executed, etc. This database stores information about all other databases maintained by TDengine. It contains multiple read-only tables. In fact, these tables are views, not base tables, so there are no files associated with them. Therefore, you can only query these tables, and cannot perform write operations like INSERT. The `INFORMATION_SCHEMA` database is designed to provide access to the information provided by various SHOW statements supported by TDengine (such as SHOW TABLES, SHOW DATABASES) in a more consistent way. Compared to SHOW statements, using SELECT ... FROM INFORMATION_SCHEMA.tablename has the following advantages:
@@ -114,6 +113,7 @@ Provides information about database objects created by users. You can also use S
 | 27   |     table_prefix     | SMALLINT      | length of the prefix to ignore when the internal storage engine allocates a VNODE to store data for a table based on its name. Note, `table_prefix` is a TDengine keyword and must be escaped with ` when used as a column name. |
 | 28   |     table_suffix     | SMALLINT      | length of the suffix to ignore when the internal storage engine allocates a VNODE to store data for a table based on its name. Note, `table_suffix` is a TDengine keyword and must be escaped with ` when used as a column name. |
 | 29   |    tsdb_pagesize     | INT           | page size in the time-series data storage engine. Note, `tsdb_pagesize` is a TDengine keyword and must be escaped with ` when used as a column name. |
+| 30   |   cacheshardbits    | INT           | number of shard bits for the last-value LRU cache. The actual number of shards equals `2^cacheshardbits`. -1 means the system automatically calculates the value based on cachesize. Note, `cacheshardbits` is a TDengine keyword and must be escaped with ` when used as a column name. |
 
 ## INS_FUNCTIONS
 

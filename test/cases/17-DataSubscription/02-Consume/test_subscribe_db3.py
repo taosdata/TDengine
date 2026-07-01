@@ -216,12 +216,7 @@ class TestCase:
         tmqCom.getStartConsumeNotifyFromTmqsim()
 
         tdLog.info("pkill consume processor")
-        if (platform.system().lower() == 'windows'):
-            os.system("TASKKILL /F /IM tmq_sim.exe")
-        else:
-            os.system('unset LD_PRELOAD; pkill tmq_sim')
-        expectRows = 0
-        resultList = self.selectConsumeResult(expectRows)
+        tdCom.killProcessor("tmq_sim")
 
         # wait for data ready
         prepareEnvThread.join()
@@ -294,12 +289,7 @@ class TestCase:
         tmqCom.getStartCommitNotifyFromTmqsim()
 
         tdLog.info("pkill consume processor")
-        if (platform.system().lower() == 'windows'):
-            os.system("TASKKILL /F /IM tmq_sim.exe")
-        else:
-            os.system('unset LD_PRELOAD; pkill tmq_sim')
-        # expectRows = 0
-        # resultList = self.selectConsumeResult(expectRows)
+        tdCom.killProcessor("tmq_sim")
 
         # wait for data ready
         prepareEnvThread.join()

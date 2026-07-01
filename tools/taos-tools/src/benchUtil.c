@@ -19,7 +19,7 @@
 #include <sys/sysctl.h>
 #include <mach/mach.h>
 #include <mach/mach_host.h>
-#include <mach/vm_page_size.h> 
+#include <mach/vm_page_size.h>
 #endif
 
 char resEncodingChunk[] = "Encoding: chunked";
@@ -54,7 +54,7 @@ FORCE_INLINE void tmfree(void *buf) {
     }
 }
 
-FORCE_INLINE bool isRest(int32_t iface) { 
+FORCE_INLINE bool isRest(int32_t iface) {
     return REST_IFACE == iface || SML_REST_IFACE == iface;
 }
 
@@ -119,7 +119,7 @@ int getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
         char ** childTblNameOfSuperTbl,
         int64_t childTblCountOfSuperTbl) {
     char cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
+    (void)snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
              "select distinct tbname from %s.`%s` limit %" PRId64,
             dbName, stbName, childTblCountOfSuperTbl);
     TAOS_RES *res = taos_query(taos, cmd);
@@ -246,20 +246,20 @@ int32_t replaceChildTblName(char *inSql, char *outSql, int tblIndex) {
     // child table mark
     char mark[32] = "xxxx";
     char *pos = strstr(inSql, mark);
-    if (0 == pos) {
+    if (NULL == pos) {
         errorPrint("sql format error, sql not found mark string '%s'", mark);
         return -1;
-    }        
+    }
 
     char subTblName[TSDB_TABLE_NAME_LEN];
-    snprintf(subTblName, TSDB_TABLE_NAME_LEN,
+    (void)snprintf(subTblName, TSDB_TABLE_NAME_LEN,
             "`%s`.%s", g_queryInfo.dbName,
             g_queryInfo.superQueryInfo.childTblName[tblIndex]);
 
     TOOLS_STRNCPY(outSql, inSql, pos - inSql + 1);
-    snprintf(outSql + (pos - inSql), TSDB_MAX_ALLOWED_SQL_LEN - 1,
+    (void)snprintf(outSql + (pos - inSql), TOOLS_MAX_ALLOWED_SQL_LEN - (pos - inSql),
              "%s%s", subTblName, pos + strlen(mark));
-    return 0;         
+    return 0;
 }
 
 int64_t toolsGetTimestamp(int32_t precision) {
@@ -327,7 +327,7 @@ SBenchConn* initBenchConnImpl(char *dbName) {
             port = defaultPort(g_arguments->connMode, g_arguments->dsn);
         }
 
-        sprintf(show, "host:%s port:%d dbname:%s", host, port, dbName);
+        (void)snprintf(show, sizeof(show), "host:%s port:%d dbname:%s", host, port, dbName);
     }
 
     // connect main
@@ -369,8 +369,8 @@ SBenchConn* initBenchConn(char *dbName) {
         infoPrint("sleep %dms and try to connect... %d/%d  \n", g_arguments->trying_interval, keep_trying, g_arguments->keep_trying);
         if(g_arguments->trying_interval > 0) {
             toolsMsleep(g_arguments->trying_interval);
-        }        
-    } 
+        }
+    }
 
     return conn;
 }
@@ -400,7 +400,7 @@ int64_t fetchResult(TAOS_RES *res, char * filePath) {
     int64_t     rows       = 0;
     char       *databuf    = NULL;
     bool        toFile     = strlen(filePath) > 0;
-    
+
 
     if(toFile) {
         num_fields = taos_field_count(res);
@@ -469,7 +469,7 @@ char *convertDatatypeToString(int type) {
         case TSDB_DATA_TYPE_DOUBLE:
             return "double";
         case TSDB_DATA_TYPE_JSON:
-            return "json";    
+            return "json";
         case TSDB_DATA_TYPE_VARBINARY:
             return "varbinary";
         case TSDB_DATA_TYPE_GEOMETRY:
@@ -546,7 +546,7 @@ int64_t convertDatatypeToDefaultMin(uint8_t type) {
         case TSDB_DATA_TYPE_DOUBLE:
         case TSDB_DATA_TYPE_DECIMAL:
         case TSDB_DATA_TYPE_DECIMAL64:
-            ret = -1 * (RAND_MAX >> 1);
+            ret = -((int64_t)(((uint64_t)RAND_MAX) >> 1));
             break;
         default:
             break;
@@ -579,7 +579,7 @@ int64_t convertDatatypeToDefaultMax(uint8_t type) {
         case TSDB_DATA_TYPE_DOUBLE:
         case TSDB_DATA_TYPE_DECIMAL:
         case TSDB_DATA_TYPE_DECIMAL64:
-            ret = RAND_MAX >> 1;
+            ret = ((uint64_t)RAND_MAX) >> 1;
             break;
         case TSDB_DATA_TYPE_UINT:
         case TSDB_DATA_TYPE_UBIGINT:
@@ -631,11 +631,11 @@ void getDecimal64DefaultMax(uint8_t precision, uint8_t scale, Decimal64* dec) {
     char maxStr[DECIMAL64_BUFF_LEN];
 
     precision = MIN(precision, DECIMAL64_BUFF_LEN - 1);
-    for(int i = 0; i < precision; ++i) {
+    for(uint8_t i = 0; i < precision; ++i) {
         maxStr[i] = '9';
     }
     maxStr[precision] = '\0';
-    
+
     stringToDecimal64(maxStr, precision, scale, dec);
     return;
 }
@@ -646,11 +646,11 @@ void getDecimal64DefaultMin(uint8_t precision, uint8_t scale, Decimal64* dec) {
 
     precision = MIN(precision, DECIMAL64_BUFF_LEN - 2);
     minStr[0] = '-';
-    for(int i = 1; i <= precision; ++i) {
+    for(uint8_t i = 1; i <= precision; ++i) {
         minStr[i] = '9';
     }
     minStr[precision + 1] = '\0';
-    
+
     stringToDecimal64(minStr, precision, scale, dec);
     return;
 }
@@ -660,11 +660,11 @@ void getDecimal128DefaultMax(uint8_t precision, uint8_t scale, Decimal128* dec) 
     char maxStr[DECIMAL_BUFF_LEN];
 
     precision = MIN(precision, DECIMAL_BUFF_LEN - 1);
-    for(int i = 0; i < precision; ++i) {
+    for(uint8_t i = 0; i < precision; ++i) {
         maxStr[i] = '9';
     }
     maxStr[precision] = '\0';
-    
+
     stringToDecimal128(maxStr, precision, scale, dec);
     return;
 }
@@ -675,11 +675,11 @@ void getDecimal128DefaultMin(uint8_t precision, uint8_t scale, Decimal128* dec) 
 
     precision = MIN(precision, DECIMAL_BUFF_LEN - 2);
     minStr[0] = '-';
-    for(int i = 1; i <= precision; ++i) {
+    for(uint8_t i = 1; i <= precision; ++i) {
         minStr[i] = '9';
     }
     minStr[precision + 1] = '\0';
-    
+
     stringToDecimal128(minStr, precision, scale, dec);
     return;
 }
@@ -938,15 +938,15 @@ int convertServAddr(int iface, bool tcp, int protocol) {
     if (tcp
             && iface == SML_REST_IFACE
             && protocol == TSDB_SML_TELNET_PROTOCOL) {
-        // telnet_tcp_port        
+        // telnet_tcp_port
         if (convertHostToServAddr(host,
                     g_arguments->telnet_tcp_port,
                     &(g_arguments->serv_addr))) {
-            errorPrint("failed to convertHostToServAddr host=%s telnet_tcp_port:%d iface=%d \n", 
+            errorPrint("failed to convertHostToServAddr host=%s telnet_tcp_port:%d iface=%d \n",
                     host, g_arguments->telnet_tcp_port, iface);
             return -1;
         }
-        infoPrint("restful connect -> convertServAddr host=%s telnet_tcp_port:%d to serv_addr=%p iface=%d \n", 
+        infoPrint("restful connect -> convertServAddr host=%s telnet_tcp_port:%d to serv_addr=%p iface=%d \n",
                 host, g_arguments->telnet_tcp_port, &g_arguments->serv_addr, iface);
     } else {
         // port
@@ -957,7 +957,7 @@ int convertServAddr(int iface, bool tcp, int protocol) {
             errorPrint("%s\n", "convert host to server address");
             return -1;
         }
-        infoPrint("restful connect -> convertServAddr host=%s port:%d to serv_addr=%p iface=%d \n", 
+        infoPrint("restful connect -> convertServAddr host=%s port:%d to serv_addr=%p iface=%d \n",
                 host, port, &g_arguments->serv_addr, iface);
     }
     return 0;
@@ -1042,11 +1042,11 @@ void destroySockFd(int sockfd) {
     closeSockFd(sockfd);
 }
 
-FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {    
+FORCE_INLINE void printErrCmdCodeStr(char *cmd, int32_t code, TAOS_RES *res) {
     char buff[530];
     char *msg = cmd;
     if (strlen(cmd) >= sizeof(buff)) {
-        snprintf(buff, sizeof(buff), "%s", cmd);
+        (void)snprintf(buff, sizeof(buff), "%s", cmd);
         msg = buff;
     }
     errorPrint("%s error code: 0x%08x, reason: %s command %s\n", TIP_ENGINE_ERR,
@@ -1072,11 +1072,11 @@ char *genColNames(BArray *cols, bool tbName, char * primaryKeyName) {
     // reserve tbname,ts and "," space
     char * buf = benchCalloc(TSDB_TABLE_NAME_LEN + 1, cols->size + 1, false);
     if (tbName) {
-        snprintf(buf, TSDB_TABLE_NAME_LEN, "tbname,%s", primaryKeyName);
+        (void)snprintf(buf, TSDB_TABLE_NAME_LEN, "tbname,%s", primaryKeyName);
     } else {
         strcpy(buf, primaryKeyName);
     }
-   
+
     for (int32_t i = 0; i < cols->size; i++) {
         Field * col = benchArrayGet(cols, i);
         strcat(buf, ",");
@@ -1086,13 +1086,13 @@ char *genColNames(BArray *cols, bool tbName, char * primaryKeyName) {
 }
 
 //
-//  STMT2  
+//  STMT2
 //
 
 // create
 TAOS_STMT2_BINDV* createBindV(int32_t capacity, int32_t tagCnt, int32_t colCnt) {
     // calc total size
-    int32_t tableSize = sizeof(char *) + sizeof(TAOS_STMT2_BIND *) + sizeof(TAOS_STMT2_BIND *) + 
+    int32_t tableSize = sizeof(char *) + sizeof(TAOS_STMT2_BIND *) + sizeof(TAOS_STMT2_BIND *) +
                         sizeof(TAOS_STMT2_BIND) * tagCnt + sizeof(TAOS_STMT2_BIND) * colCnt;
     int32_t size = sizeof(TAOS_STMT2_BINDV) + tableSize * capacity;
     TAOS_STMT2_BINDV *bindv = benchCalloc(1, size, false);
@@ -1140,7 +1140,7 @@ void freeBindV(TAOS_STMT2_BINDV *bindv) {
 }
 
 //
-//   debug show 
+//   debug show
 //
 
 void showBind(TAOS_STMT2_BIND* bind) {
@@ -1163,7 +1163,7 @@ void showBind(TAOS_STMT2_BIND* bind) {
             break;
         default:
             break;
-        } 
+        }
     }
 
 }
@@ -1182,14 +1182,14 @@ void showTableBinds(char* label, TAOS_STMT2_BIND* binds, int32_t cnt) {
 // show bindv
 void showBindV(TAOS_STMT2_BINDV *bindv, BArray *tags, BArray *cols) {
     // num and base info
-    debugPrint("show bindv table count=%d names=%p tags=%p bind_cols=%p\n", 
+    debugPrint("show bindv table count=%d names=%p tags=%p bind_cols=%p\n",
                 bindv->count, bindv->tbnames, bindv->tags, bindv->bind_cols);
-    
+
     for(int32_t i=0; i< bindv->count; i++) {
         debugPrint(" show bindv table index=%d name=%s \n", i, bindv->tbnames[i]);
         if(bindv->tags)
             showTableBinds("tag",    bindv->tags[i],      tags->size);
-        if(bindv->bind_cols)    
+        if(bindv->bind_cols)
             showTableBinds("column", bindv->bind_cols[i], cols->size + 1);
     }
 }
@@ -1203,7 +1203,7 @@ int32_t calcGroupIndex(char* dbName, char* tbName, int32_t groupCnt) {
         return -1;
     }
     char key[1024];
-    snprintf(key, sizeof(key), "1.%s.%s", dbName, tbName);
+    (void)snprintf(key, sizeof(key), "1.%s.%s", dbName, tbName);
     uint32_t hash = MurmurHash3_32(key, strlen(key));
     uint32_t step = UINT32_MAX / groupCnt;
     for (int32_t i = 0; i < groupCnt; i++) {
@@ -1314,7 +1314,7 @@ void *queryKiller(void *arg) {
                     TOOLS_STRNCPY(killId, (char*)row[0],
                             min(strlen((char*)row[0])+1, KILLID_LEN));
                     char killCommand[KILLID_LEN + 32] = {0};
-                    snprintf(killCommand, sizeof(killCommand), "KILL QUERY '%s'", killId);
+                    (void)snprintf(killCommand, sizeof(killCommand), "KILL QUERY '%s'", killId);
                     TAOS_RES *resKill = taos_query(taos, killCommand);
                     int32_t codeKill = taos_errno(resKill);
                     if (codeKill) {
@@ -1358,7 +1358,7 @@ int fetchChildTableName(char *dbName, char *stbName) {
 
     // get child count
     char  cmd[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
+    (void)snprintf(cmd, SHORT_1K_SQL_BUFF_LEN,
             "SELECT COUNT(*) FROM( SELECT DISTINCT(TBNAME) FROM `%s`.`%s`)",
             dbName, stbName);
     TAOS_RES *res = taos_query(conn->taos, cmd);
@@ -1397,7 +1397,7 @@ int fetchChildTableName(char *dbName, char *stbName) {
                 conn->taos, dbName, stbName,
                 g_queryInfo.superQueryInfo.childTblName,
                 g_queryInfo.superQueryInfo.childTblCount)) {
-        // faild            
+        // faild
         tmfree(g_queryInfo.superQueryInfo.childTblName);
         closeBenchConn(conn);
         return -1;
@@ -1425,7 +1425,7 @@ int trimCaseCmp(char *str1, char *str2) {
     }
 
     // Check if the remaining characters in str1 are all whitespace
-    while (*str1 != '\0') {    
+    while (*str1 != '\0') {
         if (!isblank((unsigned char)*str1)) {
             return -1;
         }
@@ -1473,7 +1473,7 @@ void encodeAuthBase64() {
     // auth
     char *user     = g_arguments->user     ? g_arguments->user     : TSDB_DEFAULT_USER;
     char *password = g_arguments->password ? g_arguments->password : TSDB_DEFAULT_PASS;
-    snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s", user, password);
+    (void)snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s", user, password);
 
     int mod_table[] = {0, 2, 1};
 
@@ -1511,10 +1511,10 @@ int postProceSqlImpl(char *sqlstr, char* dbName, int precision, int iface,
         "application/x-www-form-urlencoded\r\n\r\n%s";
     char url[URL_BUFF_LEN] = {0};
     if (iface == REST_IFACE) {
-        snprintf(url, URL_BUFF_LEN, "/rest/sql/%s", dbName);
+        (void)snprintf(url, URL_BUFF_LEN, "/rest/sql/%s", dbName);
     } else if (iface == SML_REST_IFACE
             && protocol == TSDB_SML_LINE_PROTOCOL) {
-        snprintf(url, URL_BUFF_LEN,
+        (void)snprintf(url, URL_BUFF_LEN,
                  "/influxdb/v1/write?db=%s&precision=%s", dbName,
                 precision == TSDB_TIME_PRECISION_MILLI
                 ? "ms"
@@ -1523,11 +1523,11 @@ int postProceSqlImpl(char *sqlstr, char* dbName, int precision, int iface,
                 : "u");
     } else if (iface == SML_REST_IFACE
             && protocol == TSDB_SML_TELNET_PROTOCOL) {
-        snprintf(url, URL_BUFF_LEN, "/opentsdb/v1/put/telnet/%s", dbName);
+        (void)snprintf(url, URL_BUFF_LEN, "/opentsdb/v1/put/telnet/%s", dbName);
     } else if (iface == SML_REST_IFACE
             && (protocol == TSDB_SML_JSON_PROTOCOL
                 || protocol == SML_JSON_TAOS_FORMAT)) {
-        snprintf(url, URL_BUFF_LEN, "/opentsdb/v1/put/json/%s", dbName);
+        (void)snprintf(url, URL_BUFF_LEN, "/opentsdb/v1/put/json/%s", dbName);
     }
 
     int      bytes, sent, received, req_str_len, resp_len;
@@ -1648,7 +1648,7 @@ free_of_postImpl:
 static int getServerVersionRestImpl(int16_t rest_port, int sockfd) {
     int server_ver = -1;
     char       command[SHORT_1K_SQL_BUFF_LEN] = "\0";
-    snprintf(command, SHORT_1K_SQL_BUFF_LEN, "SELECT SERVER_VERSION()");
+    (void)snprintf(command, SHORT_1K_SQL_BUFF_LEN, "SELECT SERVER_VERSION()");
     char *responseBuf = benchCalloc(1, RESP_BUF_LEN, false);
     int code = postProceSqlImpl(command,
                                 NULL,
@@ -1685,7 +1685,7 @@ static int getServerVersionRestImpl(int16_t rest_port, int sockfd) {
         tools_cJSON *versionObj = tools_cJSON_GetArrayItem(dataObj, 0);
         tools_cJSON *versionStrObj = tools_cJSON_GetArrayItem(versionObj, 0);
         server_ver = atoi(versionStrObj->valuestring);
-        char* pstr = tools_cJSON_Print(versionStrObj);        
+        char* pstr = tools_cJSON_Print(versionStrObj);
         debugPrint("versionStrObj: %s, version: %s, server_ver: %d\n",
                    pstr ? pstr : "null",
                    versionStrObj->valuestring, server_ver);
@@ -1861,6 +1861,6 @@ int check_write_permission(const char *path) {
         return -1;
     }
     fclose(fp);
-    
+
     return 0;
 }

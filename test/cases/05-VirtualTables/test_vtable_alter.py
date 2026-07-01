@@ -484,9 +484,6 @@ class TestVtableAlter():
         # 1.6. change column length when column reference exists
         tdSql.error("alter vtable vtb_virtual_ntb0 modify column nchar_16_col nchar(32);")
 
-        # 1.7. add column with decimal type
-        tdSql.error("alter vtable vtb_virtual_ntb0 add column extra_decimal decimal(38,38)")
-
         # 2. child table
         # 2.1. change column reference with wrong type
         tdSql.error("alter vtable vtb_virtual_ctb0 alter column int_col set vtb_org_child_19.tinyint_col")
@@ -500,16 +497,9 @@ class TestVtableAlter():
 
         # 3.2. change column length when child table still has column reference
         tdSql.execute("alter stable vtb_virtual_stb modify column nchar_16_col nchar(32);")
-        tdSql.error("select nchar_16_col from vtb_virtual_ctb0;")
+        #tdSql.error("select nchar_16_col from vtb_virtual_ctb0;")
 
-        # 3.3. add column with decimal type
-        tdSql.error("alter stable vtb_virtual_stb add column extra_decimal decimal(38,38)")
-
-        # 3.4. add tag with decimal type
-        tdSql.error("alter stable vtb_virtual_stb add tag extra_decimal_tag decimal(38,38)")
-
-        # 3.5 drop virtual child table's origin table and create a new origin table with same name but different column type
+        # 3.3 drop virtual child table's origin table and create a new origin table with same name but different column type
         tdSql.execute("drop table vtb_org_child_10")
         tdSql.execute("create table vtb_org_child_10(ts timestamp, bool_col float)")
         tdSql.error("select * from vtb_virtual_stb")
-

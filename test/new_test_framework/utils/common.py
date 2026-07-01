@@ -22,6 +22,7 @@ import toml
 import subprocess
 import os
 import platform
+import tempfile
 from .boundary import DataBoundary
 import taos
 from .log import *
@@ -31,6 +32,7 @@ from .common import *
 from .constant import *
 from .epath import *
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from typing import List
 from datetime import datetime, timedelta
 import re
@@ -1205,7 +1207,7 @@ class TDCom:
         if platform.system().lower() == "windows":
             os.system("TASKKILL /F /IM %s.exe" % processorName)
         else:
-            os.system("unset LD_PRELOAD; pkill %s " % processorName)
+            os.system("unset LD_PRELOAD; pkill -9 %s " % processorName)
 
     def kill_signal_process(self, signal=15, processor_name: str = "taosd"):
         if platform.system().lower() == "windows":
@@ -2968,13 +2970,33 @@ class TDCom:
                     self.record_history_ts = ts_value
 
     def generate_query_result_file(self, test_case, idx, sql):
+        import shlex
         self.query_result_file = f"./{test_case}.{idx}.csv"
         cfgPath = self.getClientCfgPath()
-        taosCmd = f"taos -c {cfgPath} -s '{sql}' | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}  "
-        # print(f"taosCmd:{taosCmd}, currentPath:{os.getcwd()}")
-        os.system(taosCmd)
+        # Construct command parameters to avoid platform compatibility issues
+        cmd = ["taos", "-c", cfgPath, "-s", sql]
+        try:
+            # Capture output
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", errors="ignore", shell=False)
+            output = result.stdout.splitlines()
+        except Exception as e:
+            tdLog.error(f"Failed to run taos command: {e}")
+            output = []
+
+        # Filter out unwanted lines
+        ignore_patterns = [
+            "Query OK",
+            "Copyright",
+            "Welcome to the TDengine TSDB Command"
+        ]
+        filtered = [line for line in output if not any(pat in line for pat in ignore_patterns)]
+
+        # Write to file
+        with open(self.query_result_file, "w", encoding="utf-8") as fout:
+            for line in filtered:
+                fout.write(line.rstrip("\r\n") + "\n")
         return self.query_result_file
-    
+
     def run_sql(self, sql, db):
         tdsql = self.newTdSql()
         if db:
@@ -2988,20 +3010,32 @@ class TDCom:
             tdLog.error(f"SQL执行失败: {sql}\n{e}")
 
     def execute_query_file(self, inputfile, max_workers=8):
+        # Normalize path to support Windows
+        inputfile = os.path.normpath(inputfile)
+
         if not os.path.exists(inputfile):
             tdLog.exit(f"Input file '{inputfile}' does not exist.")
             return
 
         tdLog.info(f"Executing query file: {inputfile}")
 
-        with open(inputfile, 'r') as f:
-            lines = [line.strip() for line in f if line.strip()]
-        # 假设第一行是 use 语句
-        db = lines[0].split()[1].rstrip(';')
-        sql_lines = [
-            line.replace('\\G', '').rstrip(';') + ';'
-            for line in lines[1:]
-        ]
+        # Try multiple encodings to support different platforms
+        lines = []
+        for encoding in ['utf-8', 'gbk', 'utf-8-sig', 'latin-1']:
+            try:
+                with open(inputfile, "r", encoding=encoding, newline=None) as f:
+                    lines = [line.strip() for line in f if line.strip()]
+                break
+            except (UnicodeDecodeError, LookupError):
+                continue
+
+        if not lines:
+            tdLog.exit(f"Failed to read file '{inputfile}' with supported encodings.")
+            return
+
+        # Assume the first line is a use statement
+        db = lines[0].split()[1].rstrip(";")
+        sql_lines = [line.replace("\\G", "").rstrip(";") + ";" for line in lines[1:]]
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
             executor.map(lambda sql: self.run_sql(sql, db), sql_lines)
@@ -3016,9 +3050,36 @@ class TDCom:
                 f"Generating query result file: {self.query_result_file} using input file: {inputfile}"
             )
             if platform.system().lower() == "windows":
-                # 过滤 taos> 行
+                # Filter taos> lines
                 os.system(
-                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' > {self.query_result_file}.raw "
+                    f"taos -c {cfgPath} -f {inputfile} "
+                    "| grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' "
+                    "| grep -v 'Exec cost:' "
+                    "| sed -E 's/[[:space:]]*\\([0-9]+\\.[0-9]+s\\)/ /g' "
+                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\.\\.[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)\\.\\.[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/slowest_vgroup_id=[0-9]+//g' "
+                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/fetch_times=[0-9]+\\.[0-9]+\\([0-9]+\\)//g' "
+                    "| sed -E 's/fetch_times=[0-9]+//g' "
+                    "| sed -E 's/slow_deviation=[0-9]+\\.[0-9]+%//g' "
+                    "| sed -E 's/cost_ratio=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/data_deviation=-?[0-9]+\\.[0-9]+%//g' "
+                    "| sed -E 's/Planning Time: [0-9]+\\.[0-9]+ ms//g' "
+                    "| sed -E 's/Execution Time: [0-9]+\\.[0-9]+ ms//g' "
+                    "| sed -E 's/max_row_task=[0-9]+, //g' "
+                    f"> {self.query_result_file}.raw "
                 )
                 time.sleep(1)
                 with (
@@ -3027,10 +3088,10 @@ class TDCom:
                 ):
                     for line in fin:
                         stripped = line.rstrip()
-                        # 跳过整行是 taos> 或 taos> 后全是空白的行
+                        # Skip lines that are entirely taos> or taos> followed by whitespace
                         if re.match(r"^taos>\s*$", stripped):
                             continue
-                        # taos> 开头的行去除行尾空白
+                        # Remove trailing whitespace from lines starting with taos>
                         if stripped.startswith("taos>"):
                             fout.write(stripped + "\n")
                         else:
@@ -3038,38 +3099,217 @@ class TDCom:
                 os.system(f"rm -f {self.query_result_file}.raw")
             else:
                 os.system(
-                    f"taos -c {cfgPath} -f {inputfile} | grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' | sed 's/([0-9]\+\.[0-9]\+s)//g' | sed 's/cost=[0-9]\+\.[0-9]\+\.\.[0-9]\+\.[0-9]\+//g' | sed 's/Planning Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/Execution Time: [0-9]\+\.[0-9]\+ ms//g' | sed 's/max_row_task=[0-9]\+, //g' > {self.query_result_file}"
+                    f"taos -c {cfgPath} -f {inputfile} "
+                    "| grep -v 'Query OK'|grep -v 'Copyright'| grep -v 'Welcome to the TDengine TSDB Command' "
+                    "| grep -v 'Exec cost:' " 
+                    "| sed -E 's/[[:space:]]*\\([0-9]+\\.[0-9]+s\\)/ /g' "
+                    # cost=0.000..1.111
+                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\.\\.[0-9]+\\.[0-9]+//g' "
+                    # cost=0.000(0.000)..1.111(1.111)
+                    "| sed -E 's/cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)\\.\\.[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/file_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/stt_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/mem_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/sma_load_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/composed_elapsed=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/slowest_vgroup_id=[0-9]+//g' "
+                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+\\([0-9]+\\.[0-9]+\\)//g' "
+                    "| sed -E 's/fetch_cost=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/fetch_times=[0-9]+\\.[0-9]+\\([0-9]+\\)//g' "
+                    "| sed -E 's/fetch_times=[0-9]+//g' "
+                    "| sed -E 's/slow_deviation=[0-9]+\\.[0-9]+%//g' "
+                    "| sed -E 's/cost_ratio=[0-9]+\\.[0-9]+//g' "
+                    "| sed -E 's/data_deviation=-?[0-9]+\\.[0-9]+%//g' "
+                    "| sed -E 's/Planning Time: [0-9]+\\.[0-9]+ ms//g' "
+                    "| sed -E 's/Execution Time: [0-9]+\\.[0-9]+ ms//g' "
+                    f"> {self.query_result_file}"
                 )
             return self.query_result_file
 
-    def compare_result_files(self, file1, file2):
+    def _get_numeric_compare_tolerance(self, token1, token2, float_tolerance):
+        if float_tolerance > 0.0:
+            return Decimal(str(float_tolerance))
+
+        def count_decimal_places(token):
+            mantissa = token.lower().split("e", 1)[0]
+            if "." not in mantissa:
+                return 0
+            return len(mantissa.split(".", 1)[1])
+
+        precision = max(count_decimal_places(token1), count_decimal_places(token2))
+        if precision <= 0:
+            return Decimal("0")
+        return Decimal(1).scaleb(-precision)
+
+    def _normalize_result_line_for_compare(self, line):
+        """Normalize CLI-only suffixes before answer/result file comparison.
+
+        Args:
+            line: A single line from an answer or result file.
+
+        Returns:
+            The normalized line with runtime-only Windows suffixes removed.
+        """
+
+        normalized = line.rstrip()
+        normalized = re.sub(r"\s*\([0-9]+\.[0-9]+s\)$", "", normalized)
+        normalized = re.sub(r"cost=[0-9]+\.[0-9]+\.\.[0-9]+\.[0-9]+", "", normalized)
+        normalized = re.sub(r"Planning Time: [0-9]+\.[0-9]+ ms", "", normalized)
+        normalized = re.sub(r"Execution Time: [0-9]+\.[0-9]+ ms", "", normalized)
+        normalized = re.sub(r"max_row_task=[0-9]+, ", "", normalized)
+        return normalized.rstrip()
+
+    def _compare_normalized_result_lines(self, file1, file2):
+        """Compare result files after stripping platform-specific CLI noise.
+
+        Args:
+            file1: Expected result file path.
+            file2: Actual result file path.
+
+        Returns:
+            True when the normalized result lines are identical.
+        """
+
+        with open(file1, "r", encoding="utf-8", errors="ignore") as f1:
+            lines1 = f1.read().splitlines()
+        with open(file2, "r", encoding="utf-8", errors="ignore") as f2:
+            lines2 = f2.read().splitlines()
+
+        if len(lines1) != len(lines2):
+            return False
+
+        for line1, line2 in zip(lines1, lines2):
+            if self._normalize_result_line_for_compare(
+                line1
+            ) != self._normalize_result_line_for_compare(line2):
+                return False
+
+        return True
+
+    def _compare_file_lines_with_float_tolerance(self, file1, file2, float_tolerance):
+        number_pattern = re.compile(r"[-+]?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][-+]?\d+)?")
+
+        with open(file1, "r", encoding="utf-8", errors="ignore") as f1:
+            lines1 = f1.read().splitlines()
+        with open(file2, "r", encoding="utf-8", errors="ignore") as f2:
+            lines2 = f2.read().splitlines()
+
+        if len(lines1) != len(lines2):
+            return False
+
+        for line1, line2 in zip(lines1, lines2):
+            line1 = self._normalize_result_line_for_compare(line1)
+            line2 = self._normalize_result_line_for_compare(line2)
+
+            if line1 == line2:
+                continue
+
+            matches1 = list(number_pattern.finditer(line1))
+            matches2 = list(number_pattern.finditer(line2))
+            if len(matches1) != len(matches2):
+                return False
+
+            cursor1 = 0
+            cursor2 = 0
+            for match1, match2 in zip(matches1, matches2):
+                if line1[cursor1:match1.start()] != line2[cursor2:match2.start()]:
+                    return False
+
+                token1 = match1.group(0)
+                token2 = match2.group(0)
+                try:
+                    value1 = Decimal(token1)
+                    value2 = Decimal(token2)
+                except InvalidOperation:
+                    if token1 != token2:
+                        return False
+                else:
+                    tolerance = self._get_numeric_compare_tolerance(
+                        token1, token2, float_tolerance
+                    )
+                    if abs(value1 - value2) > tolerance:
+                        return False
+
+                cursor1 = match1.end()
+                cursor2 = match2.end()
+
+            if line1[cursor1:] != line2[cursor2:]:
+                return False
+
+        return True
+
+    def compare_result_files(self, file1, file2, float_tolerance=0.0):
+        normalized_file1 = None
+        normalized_file2 = None
+
         try:
             # use subprocess.run to execute  diff/fc commands
             # print(file1, file2)
             if platform.system().lower() != "windows":
+                normalized_file1 = self._normalize_diff_file(file1)
+                normalized_file2 = self._normalize_diff_file(file2)
                 cmd = "diff"
                 tdLog.info(f"cmd: {cmd} -u --color {file1} {file2}")
                 result = subprocess.run(
-                    [cmd, "-u", "--color", file1, file2], text=True, capture_output=True
+                    [cmd, "-u", "--color", normalized_file1, normalized_file2],
+                    text=True,
+                    capture_output=True,
                 )
                 tdLog.info(f"result: {result}")
             else:
                 cmd = "fc"
                 file1 = os.path.abspath(os.path.normpath(file1))
                 file2 = os.path.abspath(os.path.normpath(file2))
-                # /W 参数忽略结尾空格和空白字符
-                result = subprocess.run(
-                    [cmd, "/W", file1, file2],
-                    text=True,
-                    capture_output=True,
-                    encoding="utf-8",
-                    errors="ignore",
-                )
-                # Windows: 只要 returncode==0 就认为一致
+
+                # Create temporary files, filter empty lines
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as tmp1, \
+                    tempfile.NamedTemporaryFile(mode='w', delete=False, encoding='utf-8') as tmp2:
+
+                    # Copy non-empty lines to temporary file
+                    with open(file1, 'r', encoding='utf-8', errors='ignore') as f:
+                        tmp1.writelines(line for line in f if line.strip())
+                    temp1 = tmp1.name
+
+                    with open(file2, 'r', encoding='utf-8', errors='ignore') as f:
+                        tmp2.writelines(line for line in f if line.strip())
+                    temp2 = tmp2.name
+
+                try:
+                    result = subprocess.run(
+                        [cmd, "/W", temp1, temp2],
+                        text=True,
+                        capture_output=True,
+                        encoding="utf-8",
+                        errors="replace",
+                    )
+                finally:
+                    os.unlink(temp1)
+                    os.unlink(temp2)
+
+                # Windows fc: returncode 0 means files are identical
                 if result.returncode == 0:
                     return True
-            # if result is not empty, print the differences and files name. Otherwise, the files are identical.
+
+            # Result check logic for diff/fc
             if result.returncode != 0:
+                if self._compare_normalized_result_lines(file1, file2):
+                    tdLog.info("Result files matched after output normalization.")
+                    return True
+                if platform.system().lower() == "windows" and self._compare_file_lines_with_float_tolerance(
+                    file1, file2, float_tolerance
+                ):
+                    tdLog.info(
+                        "Result files matched after Windows output normalization."
+                        if float_tolerance <= 0.0
+                        else "Result files matched after Windows output normalization "
+                        f"with float tolerance {float_tolerance}."
+                    )
+                    return True
                 tdLog.info(f"{cmd} result.returncode: {result.returncode}")
                 tdLog.info(f"{cmd} result.stdout: {result.stdout}")
                 tdLog.info(f"{cmd} result.stderr: {result.stderr}")
@@ -3087,12 +3327,35 @@ class TDCom:
             tdLog.debug(
                 "The 'diff' command is not found. Please make sure it's installed and available in your PATH."
             )
+            return False
         except Exception as e:
             tdLog.debug(f"An error occurred: {e}")
+            return False			
+        finally:
+            for normalized_file in (normalized_file1, normalized_file2):
+                if normalized_file and os.path.exists(normalized_file):
+                    os.remove(normalized_file)
 
-    def compare_query_with_result_file(self, idx, sql, resultFile, test_case):
+    def _normalize_diff_file(self, input_file):
+        with open(input_file, "r", encoding="utf-8", newline="") as fin:
+            with tempfile.NamedTemporaryFile(
+                mode="w", delete=False, encoding="utf-8", newline=""
+            ) as fout:
+                for line in fin:
+                    if re.fullmatch(r"[ \t]+\|\r?\n", line):
+                        line_ending = "\r\n" if line.endswith("\r\n") else "\n"
+                        fout.write("|" + line_ending)
+                    else:
+                        fout.write(line)
+                return fout.name
+
+    def compare_query_with_result_file(
+        self, idx, sql, resultFile, test_case, float_tolerance=0.0
+    ):
         self.generate_query_result_file(test_case, idx, sql)
-        if self.compare_result_files(resultFile, self.query_result_file):
+        if self.compare_result_files(
+            resultFile, self.query_result_file, float_tolerance=float_tolerance
+        ):
             tdLog.info("Test passed: Result files are identical.")
             # os.system(f"rm -f {self.query_result_file}")
         else:
@@ -3101,10 +3364,14 @@ class TDCom:
                 f"{caller.lineno}(line:{caller.lineno}) failed: expect_file:{resultFile}  != reult_file:{self.query_result_file} "
             )
 
-    def compare_testcase_result(self, inputfile, expected_file, test_case):
+    def compare_testcase_result(
+        self, inputfile, expected_file, test_case, float_tolerance=0.0
+    ):
         test_reulst_file = self.generate_query_result(inputfile, test_case)
 
-        if self.compare_result_files(expected_file, test_reulst_file):
+        if self.compare_result_files(
+            expected_file, test_reulst_file, float_tolerance=float_tolerance
+        ):
             tdLog.info("Test passed: Result files are identical.")
             os.system(f"rm -f {test_reulst_file}")
         else:

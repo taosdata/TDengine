@@ -20,3 +20,15 @@ bpftrace 是一个高级的动态跟踪工具，基于 eBPF（Extended Berkeley 
 ## perf
 
 perf 是一个强大的 Linux 性能分析工具。它提供了对系统和应用程序的详细性能分析，帮助开发者和系统管理员识别和解决性能瓶颈。
+
+## core dump 文件
+
+taosd 崩溃时会生成 core dump 文件，不同操作系统生成位置不一样。
+
+| 操作系统 | core dump 生成位置 | 加载示例 |
+|---------|----------------|-----------|
+| Linux   | `sysctl kernel.core_pattern` 定义路径 | gdb /usr/lib/taos/taosd core.12345 |
+| macOS   | `/cores/core.<PID>` | lldb /usr/local/bin/taosd -c /cores/core.12345      |
+| Windows | 崩溃栈信息，十几 KB，taosd 所在目录下，格式：`taosd_年月日_时分秒_stack.log` | 记事本打开查看|
+| Windows | MinDump，通常约 20–80 MB，taosd 所在目录下，格式：`taosd_年月日_时分秒.dmp` | WinDbg + PDB 文件|
+| Windows | WER 全量 Dump，数百 MB ~ GB，系统配置目录下 | WinDbg + PDB 文件 |

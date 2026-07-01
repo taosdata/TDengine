@@ -683,7 +683,7 @@ static void *tQueryAutoQWorkerThreadFp(SQueryAutoQWorker *worker) {
       break;
     }
 
-    if (pool->exit) {
+    if (pool->stopNoWaitQueue && pool->exit) {
       uInfo("worker:%s:%d exit, thread:%08" PRId64, pool->name, worker->id, worker->pid);
       break;
     }
@@ -877,12 +877,11 @@ int32_t tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pool) {
 
 void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
   (void)taosThreadMutexLock(&pPool->poolLock);
-  if (pPool->stopNoWaitQueue) {
-    pPool->exit = true;
-  }
+  pPool->exit = true;
+
   int32_t size = 0;
   if (pPool->workers) {
-    size = listNEles(pPool->workers);
+    size += listNEles(pPool->workers);
   }
   if (pPool->backupWorkers) {
     size += listNEles(pPool->backupWorkers);
@@ -910,7 +909,7 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
   SQueryAutoQWorker *worker = NULL;
   while (pPool->workers) {
     (void)taosThreadMutexLock(&pPool->poolLock);
-    if (listNEles(pPool->workers) == 0) {
+    if (listNEles(pPool->workers) <= 0) {
       (void)taosThreadMutexUnlock(&pPool->poolLock);
       break;
     }
@@ -929,11 +928,13 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
 
   while (pPool->backupWorkers) {
     (void)taosThreadMutexLock(&pPool->poolLock);
-    if (listNEles(pPool->backupWorkers) == 0) {
+    if (listNEles(pPool->backupWorkers) <= 0) {
       (void)taosThreadMutexUnlock(&pPool->poolLock);
       break;
     }
-    uDebug("backupworker head:%p, prev:%p, next:%p", TD_DLIST_HEAD(pPool->backupWorkers), TD_DLIST_NODE_PREV(TD_DLIST_HEAD(pPool->backupWorkers)), TD_DLIST_NODE_NEXT(TD_DLIST_HEAD(pPool->backupWorkers)));
+    uDebug("backupworker head:%p, prev:%p, next:%p", TD_DLIST_HEAD(pPool->backupWorkers), 
+        TD_DLIST_HEAD(pPool->backupWorkers) ? TD_DLIST_NODE_PREV(TD_DLIST_HEAD(pPool->backupWorkers)) : NULL, 
+        TD_DLIST_HEAD(pPool->backupWorkers) ? TD_DLIST_NODE_NEXT(TD_DLIST_HEAD(pPool->backupWorkers)) : NULL);
     SListNode *pNode = tdListPopHead(pPool->backupWorkers);
     worker = pNode ? (SQueryAutoQWorker *)pNode->data : NULL;
     (void)taosThreadMutexUnlock(&pPool->poolLock);

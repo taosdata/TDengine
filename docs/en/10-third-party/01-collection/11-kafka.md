@@ -1,7 +1,6 @@
 ---
 sidebar_label: Kafka Connect
 title: Kafka Connect
-slug: /third-party-tools/data-collection/kafka-connect
 ---
 
 The TDengine Kafka Connector includes two plugins: TDengine Source Connector and TDengine Sink Connector. Users only need to provide a simple configuration file to synchronize data from a specified topic in Kafka to TDengine, or synchronize data from a specified database in TDengine to Kafka, either in batches or in real-time.
@@ -23,7 +22,7 @@ Prerequisites for running the examples in this tutorial.
 1. Linux operating system
 2. Java 8 and Maven installed
 3. Git, curl, vi installed
-4. TDengine installed and running. If not yet installed, refer to [Installation and Uninstallation](../../../get-started/)
+4. TDengine installed and running. If not yet installed, refer to [Installation and Uninstallation](../../04-get-started/index.md)
 
 ## Installing Kafka
 
@@ -94,7 +93,7 @@ If all components have started successfully, the following output will be displa
 
 The TDengine Sink Connector is used to synchronize data from a specified topic to TDengine. Users do not need to create the database and supertables in advance. You can manually specify the name of the target database (see configuration parameter `connection.database`), or generate it according to certain rules (see configuration parameter `connection.database.prefix`).
 
-The TDengine Sink Connector internally uses TDengine's [schemaless write interface](../../../developer-guide/schemaless-ingestion/) to write data to TDengine, currently supporting three data formats: InfluxDB Line Protocol format, OpenTSDB Telnet Protocol format, and OpenTSDB JSON Protocol format.
+The TDengine Sink Connector internally uses TDengine's [schemaless write interface](../../07-develop/04-schemaless.md) to write data to TDengine, currently supporting three data formats: InfluxDB Line Protocol format, OpenTSDB Telnet Protocol format, and OpenTSDB JSON Protocol format.
 
 The following example synchronizes data from the topic `meters` to the target database `power`. The data format is InfluxDB Line Protocol format.
 

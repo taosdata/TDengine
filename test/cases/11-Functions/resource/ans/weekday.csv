@@ -235,10 +235,10 @@ taos> select weekday('2023-09-25')
 ========================
                      0 |
 
-taos> select weekday('9999-12-31')
- weekday('9999-12-31') |
+taos> select weekday('3000-12-31')
+ weekday('3000-12-31') |
 ========================
-                     4 |
+                     2 |
 
 taos> select weekday(name) from ts_4893.meters limit 1
      weekday(name)     |

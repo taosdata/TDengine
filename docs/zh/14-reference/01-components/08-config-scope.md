@@ -49,7 +49,6 @@ toc_max_heading_level: 4
 | countAlwaysReturnValue | both | count/hyperloglog 函数在输入数据为空或者 NULL 的情况下是否返回值 |
 | tagFilterCache | taosd | 是否缓存标签过滤结果 |
 | stableTagFilterCache | taosd | 流计算中，是否缓存标签等值条件的过滤结果，不会因为增删子表、更新标签值或修改超级表标签而失效 |
-| queryBufferSize | taosd | 查询可用的缓存大小 |
 | queryRspPolicy | taosd | 查询响应策略 |
 | queryUseMemoryPool | taosd | 查询是否使用内存池管理内存 |
 | minReservedMemorySize | taosd | 内存池开启时，最小预留的系统可用内存数量 |
@@ -92,7 +91,6 @@ toc_max_heading_level: 4
 | ssAccessString | taosd | 共享存储访问参数字符串 |
 | ssPageCacheSize | taosd | 共享存储 page cache 缓存页数目 |
 | ssUploadDelaySec | taosd | data 文件持续多长时间不再变动后上传至共享存储 |
-| cacheLazyLoadThreshold | taosd | 缓存的装载策略 |
 | **集群相关** | | |
 | supportVnodes | taosd | dnode 支持的最大 vnode 数目 |
 | numOfCommitThreads | taosd | 落盘线程的最大数量 |
@@ -109,7 +107,6 @@ toc_max_heading_level: 4
 | retentionSpeedLimitMB | taosd | 数据在不同级别硬盘上迁移时的速度限制 |
 | maxTsmaNum | taosd | 集群内可创建的 TSMA 个数 |
 | tmqMaxTopicNum | taosd | 订阅最多可建立的 topic 数量 |
-| tmqRowSize | taosd | 订阅数据块的最大记录条数 |
 | audit | taosd | 审计功能开关 |
 | auditInterval | taosd | 审计数据上报的时间间隔 |
 | auditCreateTable | taosd | 是否针对创建子表开启申计功能 |
@@ -189,7 +186,6 @@ toc_max_heading_level: 4
 | **调试相关** | | |
 | enableCoreFile | both | crash 时是否生成 core 文件 |
 | configDir | both | 配置文件所在目录 |
-| forceReadConfig | taosd | 是否使用持久化的局部配置参数 |
 | scriptDir | both | 测试工具的脚本目录 |
 | assert | both | 断言控制开关 |
 | randErrorChance | both | 用于随机失败测试 |
@@ -221,6 +217,8 @@ toc_max_heading_level: 4
 | smlTsDefaultName | taosc | schemaless 自动建表的时间列名字通过该配置设置 |
 | smlDot2Underline | taosc | schemaless 把超级表名中的 dot 转成下划线 |
 | maxInsertBatchRows | taosc | 一批写入的最大条数 |
+| tmqWriteRefDB | taosc | tmq_write_raw 接口写入 meta 消息时，虚拟表 ref 信息里的 db 替换为该参数，空标识不替换 |
+| tmqWriteCheckRef | taosc | tmq_write_raw 接口写入另一个集群时，是否校验虚拟表 ref 信息的有效性 |
 | **SHELL 相关** | | |
 | enableScience | taosc | 是否开启科学计数法显示浮点数 |
 | **WebSocket 相关** | | |

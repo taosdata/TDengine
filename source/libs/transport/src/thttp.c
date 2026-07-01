@@ -571,7 +571,7 @@ static void httpHandleQuit(SHttpMsg* msg) {
 
 static bool httpFailFastShoudIgnoreMsg(SHashObj* pTable, char* server, int16_t port) {
   char buf[256] = {0};
-  sprintf(buf, "%s:%d", server, port);
+  snprintf(buf, sizeof(buf) - 1, "%s:%d", server, port);
 
   int32_t* failedTime = (int32_t*)taosHashGet(pTable, buf, strlen(buf));
   if (failedTime == NULL) {
@@ -589,7 +589,7 @@ static bool httpFailFastShoudIgnoreMsg(SHashObj* pTable, char* server, int16_t p
 static void httpFailFastMayUpdate(SHashObj* pTable, char* server, int16_t port, int8_t succ) {
   int32_t code = 0;
   char    buf[256] = {0};
-  sprintf(buf, "%s:%d", server, port);
+  snprintf(buf, sizeof(buf) - 1, "%s:%d", server, port);
 
   if (succ) {
     TAOS_UNUSED(taosHashRemove(pTable, buf, strlen(buf)));

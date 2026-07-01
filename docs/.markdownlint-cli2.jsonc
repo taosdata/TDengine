@@ -21,7 +21,7 @@
     "./custom-rules/no-angle-bracket-url.js",
     "./custom-rules/space-after-punctuation-in-emphasis.js"
   ],
-  "ignores": ["node_modules/**", "dist/**"] // 忽略路径
+  "ignores": ["node_modules/**", "dist/**", ".claude/**"] // 忽略路径
 // Fix any fixable errors
 //   "fix": true
 }

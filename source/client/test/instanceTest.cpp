@@ -285,4 +285,57 @@ TEST(instanceCase, update_and_delete) {
   ASSERT_EQ(count, 0);
 }
 
+TEST(instanceCase, secondEp) {
+  // init env
+  initEnv();
+
+  OPTIONS options = {0};
+  taos_set_option(&options, "ip", "localhost");
+  taos_set_option(&options, "port", "6030");
+  taos_set_option(&options, "firstEp", "1.1.1.1:1111");
+  taos_set_option(&options, "secondEp", "localhost:6030");
+  taos_set_option(&options, "user", "root");
+  taos_set_option(&options, "pass", "taosdata");
+
+  TAOS *taos = taos_connect_with(&options);
+  ASSERT_NE(taos, nullptr);
+
+  // taos_register_instance basic
+  int32_t code = taos_register_instance("taosadapter-1001", "taosadapter", "desc:test_instance", 100);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  code = taos_register_instance("taosadapter-1002", "taosadapter", "desc:test_instance", 100);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+  // taos_register_instance type filter
+  char  **list;
+  int32_t count;
+  code = taos_list_instances("taosadapter", &list, &count);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_NE(list, nullptr);
+  ASSERT_EQ(count, 2);
+  ASSERT_EQ(strcmp(list[0], "taosadapter-1001") == 0 || strcmp(list[0], "taosadapter-1002") == 0, true);
+  ASSERT_EQ(strcmp(list[1], "taosadapter-1001") == 0 || strcmp(list[1], "taosadapter-1002") == 0, true);
+  taos_free_instances(&list, count);
+}
+
+TEST(instanceCase, instance_api_rate_limit) {
+  initEnv();
+  taosMsleep(1000);
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t t0 = taosGetTimestampMs();
+  for (int i = 0; i < 100; i++) {
+    code = taos_register_instance("id-1", "taosadapter", "desc:test_instance", 100);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  }
+  int64_t t1 = taosGetTimestampMs();
+
+  code = taos_register_instance("id-1", "taosadapter", "desc:test_instance", 100);
+  if (t1 - t0 >= 1000) {
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  } else {
+    ASSERT_EQ(code, TSDB_CODE_TSC_INSTANCE_API_RATE_LIMIT);
+  }
+}
+
 #pragma GCC diagnostic pop

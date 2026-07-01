@@ -1099,9 +1099,8 @@ class TestQueryCaseWhen:
         os.system("rm -rf %s/%s.sql" % (self.testcasePath, self.testcaseFilename))
         self.db = "case_when"
 
-    def dropandcreateDB_random(self,database,n):
+    def dropandcreateDB_random(self,database,n,num_random=10):
         ts = 1630000000000
-        num_random = 10
         fake = Faker('zh_CN')
         tdSql.execute('''drop database if exists %s ;''' %database)
         tdSql.execute('''create database %s keep 36500 ;'''%(database))
@@ -1411,7 +1410,7 @@ class TestQueryCaseWhen:
         startTime = time.time()  
                   
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
-        self.dropandcreateDB_random("%s" %self.db, 10)
+        self.dropandcreateDB_random("%s" %self.db, 10, num_random=10)
         self.users_bug("%s" %self.db)
         self.base_case("%s" %self.db)
         self.state_window_case("%s" %self.db)

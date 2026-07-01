@@ -27,7 +27,7 @@ TDengine TSDB 双活系统的部署架构图如下，其中涉及到三个关键
 目前只有 Java 连接器在 WebSocket 连接模式下支持双活，其配置示例如下
 
 ```java
-url = "jdbc:TAOS-WS://" + host + ":6041/?user=root&password=taosdata";
+url = "jdbc:TAOS-WS://" + host + ":6041/?user=root&password=taosdata&varcharAsString=true";
 Properties properties = new Properties();
 properties.setProperty(TSDBDriver.PROPERTY_KEY_SLAVE_CLUSTER_HOST, "192.168.1.11");
 properties.setProperty(TSDBDriver.PROPERTY_KEY_SLAVE_CLUSTER_PORT, "6041");

@@ -499,7 +499,7 @@ void mqttdOnNewConnection(uv_stream_t *server, int status) {
     }
     ctx->pWorkList = NULL;
     ctx->client = (uv_stream_t *)client;
-    ctx->inputBuf = 0;
+    ctx->inputBuf = NULL;
     ctx->inputLen = 0;
     ctx->inputCap = 0;
     client->data = ctx;
@@ -549,7 +549,7 @@ static int32_t mqttdParseArgs(int32_t argc, char *argv[]) {
       }
     } else if (strcmp(argv[i], "-d") == 0) {
       if (i < argc - 1) {
-        global.dnode_id = atoi(argv[++i]);
+        global.dnode_id = taosStr2Int32(argv[++i], NULL, 10);
       } else {
         (void)printf("'-d' requires dnode_id parameter, default is %d\n", 1);
         bndError("'-d' requires dnode_id parameter, default is %d\n", 1);

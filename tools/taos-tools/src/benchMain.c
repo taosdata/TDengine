@@ -38,8 +38,12 @@ void benchQueryInterruptHandler(int32_t signum, void* sigingo, void* context) {
         infoPrint("%s", "Benchmark process forced exit!\n");
         exit(1);
     }
-    
-    sem_post(&g_arguments->cancelSem);
+
+    if (sem_post(&g_arguments->cancelSem) != 0) {
+        const char* msg = "sem_post failed in signal handler\n";
+        write(STDERR_FILENO, msg, strlen(msg));
+    }
+
     g_stopping = true;
 }
 
@@ -58,7 +62,7 @@ void* benchCancelHandler(void* arg) {
 int checkArgumentValid() {
      // check prepared_rand valid
     if(g_arguments->prepared_rand < g_arguments->reqPerReq) {
-        infoPrint("prepared_rand(%"PRIu64") < num_of_records_per_req(%d), so set num_of_records_per_req = prepared_rand\n", 
+        infoPrint("prepared_rand(%"PRIu64") < num_of_records_per_req(%d), so set num_of_records_per_req = prepared_rand\n",
                    g_arguments->prepared_rand, g_arguments->reqPerReq);
         g_arguments->reqPerReq = g_arguments->prepared_rand;
     }
@@ -73,7 +77,7 @@ int checkArgumentValid() {
         encodeAuthBase64();
         g_arguments->rest_server_ver_major =
             getServerVersionRest(g_arguments->port);
-    }    
+    }
 
     // check batch query
     if (g_arguments->test_mode == QUERY_TEST) {
@@ -86,17 +90,17 @@ int checkArgumentValid() {
             }
         }
     }
-    
+
     if (isRest(g_arguments->iface) && g_arguments->bind_vgroup) {
         errorPrint("rest interface does not support bind vgroup, please use native or websocket mode\n");
-        return -1; 
+        return -1;
     }
     return 0;
 }
 
 // apply cfg
 int32_t applyConfigDir(char * cfgDir){
-    // set engine config dir 
+    // set engine config dir
     int32_t code;
 #ifdef LINUX
     wordexp_t full_path;
@@ -126,7 +130,7 @@ int main(int argc, char* argv[]) {
     srand(time(NULL)%1000000);
 
     // majorVersion
-    snprintf(g_client_info, CLIENT_INFO_LEN, "%s", taos_get_client_info());
+    (void)snprintf(g_client_info, CLIENT_INFO_LEN, "%s", taos_get_client_info());
     g_majorVersionOfClient = atoi(g_client_info);
     debugPrint("Client info: %s, major version: %d\n",
             g_client_info,
@@ -151,9 +155,9 @@ int main(int argc, char* argv[]) {
         if (dsn != NULL && strlen(dsn) > 0) {
             g_arguments->dsn = dsn;
             infoPrint("Get dsn from getenv TDENGINE_CLOUD_DSN=%s\n", g_arguments->dsn);
-        } 
+        }
     }
-    
+
     // read json config
     if (g_arguments->metaFile) {
         g_arguments->totalChildTables = 0;
@@ -196,7 +200,7 @@ int main(int argc, char* argv[]) {
         // apply
         if(applyConfigDir(g_configDir) != TSDB_CODE_SUCCESS) {
             exitLog();
-            return -1;    
+            return -1;
         }
         infoPrint("Set engine cfgdir successfully, dir:%s\n", g_configDir);
     }

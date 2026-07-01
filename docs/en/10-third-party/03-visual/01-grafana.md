@@ -1,6 +1,5 @@
 ---
 title: Grafana
-slug: /third-party-tools/visualization/grafana
 ---
 
 import Tabs from "@theme/Tabs";
@@ -14,10 +13,10 @@ This document describes how to integrate the TDengine data source with the open-
 
 To add the TDengine data source to Grafana normally, the following preparations are needed.
 
-- Grafana service has been deployed and is running normally. TDengine currently supports Grafana version 7.5 and above. It is recommended to use the latest version.  
+- Grafana service has been deployed and is running normally. TDengine currently supports Grafana version 8.0 and above. It is recommended to use the latest version.  
     **Note**: Ensure that the account starting Grafana has write permissions to its installation directory, otherwise you may not be able to install plugins later.
 - TDengine cluster has been deployed and is running normally.
-- taosAdapter has been installed and is running normally. For details, please refer to the [taosAdapter user manual](../../../tdengine-reference/components/taosadapter/)
+- taosAdapter has been installed and is running normally. For details, please refer to the [taosAdapter user manual](../../14-reference/01-components/03-taosadapter.md)
 
 Record the following information:
 
@@ -29,7 +28,7 @@ Record the following information:
 <Tabs defaultValue="script">
 <TabItem value="script" label="Installation Script">
 
-For users using Grafana version 7.x or configuring with [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), you can use the installation script on the Grafana server to automatically install the plugin and add the data source Provisioning configuration file.
+For users using Grafana version 8.x or later or configuring with [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/), you can use the installation script on the Grafana server to automatically install the plugin and add the data source Provisioning configuration file.
 
 ```shell
 bash -c "$(curl -fsSL \
@@ -266,7 +265,7 @@ On top of supporting standard SQL, TDengine also offers a series of special quer
 - The `fill` statement specifies the filling mode for missing data in a window interval.
 - `Timestamp pseudocolumns` If you need to output the time window information corresponding to the aggregation results in the results, you need to use timestamp-related pseudo-columns in the SELECT clause: window start time (_wstart), window end time (_wend), etc.
 
-Detailed introduction to the above features can be found at [Distinguished Queries](../../../tdengine-reference/sql-manual/time-series-extensions/).
+Detailed introduction to the above features can be found at [Distinguished Queries](../../14-reference/03-taos-sql/24-distinguished.md).
 
 ### Creating a Dashboard
 

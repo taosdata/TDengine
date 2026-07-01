@@ -12,34 +12,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-// 一个 group 无法避免有多个数据块在同一个文件中
-// 需要有标记来记录已经 get 完成 但是没有开始 put 的 group， 这些是优先要淘汰的内存
-// 上述内存淘汰完之后，内存还不足，代表这需要淘汰正在写的和正在读的的内存块了。
-
-// 1. 非 sliding, 读取后立即释放内存，一个单独 list 存放 buff 信息，每个 buff 10 M，当前 buff 写满开始下一个
-// buff，总大小超过则按时间升序将部分 buff 块写入文件，释放内存； 每次读取数据，会同时读取文件和 buff
-// 中的数据，读取完成后会全部释放。内存和文件中数据会有一个 groupid 标签，目前非 sliding 模式同时只会存在一个 groupid
-// 的数据，如果发现 有多个 groupid 数据在尝试同时写入，报错。 非 slidng
-// 模式，内存中需保存管理信息(同时保存的group信息理论上只有一个)： groupid，usedMemSize  blocksInMem: address, capacity,
-// size + (windows: startTime, endTime, dataLen) + dataBlock serialized data blocksInFile: offset, capacity, size
-//                文件中保存信息：(windows: startTime, endTime, dataLen) + dataBlock serialized data
-// 2. sliding 模式：每次写入数据，写入独立的内存段，内存不足时触发淘汰机制，将某些 group 的数据从内存淘汰，写入文件
-// 内存不足时，先淘汰占用内存最多并且当前不活跃的 group ，淘汰后内存仍不足时，淘汰当前 group
-// 的数据（理论上同一时间只有一个活跃的 group ） 当前不活跃的 group: 定义为 getdata 完成，没有进行新一轮的 putdata 的
-// group 每个 task 首次需要写入文件时，计算要写入的 group data 的长度（考虑 +20% 做缓冲，最多 + 1M ），作为文件中每个
-// group block 的大小，后续写入的 group block 均使用改大小，当大小不足时，申请新的 block 淘汰内存时，linux 下使用 writev
-// 来写入文件, 可以将分散的内存连续一次写入，其他平台不支持，可以先逐个写入内存后再写入文件，后续优化 从 group
-// 读取数据时，文件/内存中可能均有数据，先读文件后读取内存；
-// 每次读取数据后，检查使用内存情况，如果需要触发淘汰机制，在一个新线程中进行内存淘汰。读取数据时的内存淘汰触发条件要比写入时内存淘汰更敏感，设置一个略小的值（例如比写入时限制小
-// 10 M），尽量提前触发，避免在读取时需要阻塞读取进行释放 sliding 模式，内存中需保存的管理信息（多个
-// group）：groupid，usedMemSize  blocksInMem: address, capacity, size + (windows: startTime, endTime, dataLen) +
-// dataBlock serialized data blocksInFile: groupOffset, dataStartOffset, dataLen， capacity(same in a task)
-//                  文件中保存信息：(windows: startTime, endTime, dataLen) + dataBlock serialized data
-// 每个块写入的 window 保存：list, endtime, len
+// Notes:
+// - A group may map to multiple data blocks in one file.
+// - Memory blocks are spilled to file when memory pressure is high.
+// - For sliding mode, both in-memory and on-disk blocks may coexist and are read in order.
 
 #ifndef TDENGINE_DATA_SINK_H
 #define TDENGINE_DATA_SINK_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "tarray.h"
 #include "tcommon.h"
@@ -113,14 +94,14 @@ typedef struct SAlignBlocksInMem {
   int64_t capacity;
   int64_t dataLen;
   int32_t nWindow;
-  // void*   address;   // 后续地址存放的内容为 SSlidingWindowInMem 数组序列化后的内容
+  // trailing bytes store serialized SSlidingWindowInMem items
 } SAlignBlocksInMem;
 
 typedef struct SBlocksInfoFile {
   int64_t groupOffset;  // offset in file
   int64_t dataLen;
   int64_t capacity;  // size in file
-  // SSlidingWindowInMem *windowDataInFile;  // array SSlidingWindowInMem 实际数据，反序列化保存至文件
+  // serialized SSlidingWindowInMem payload is stored in file at groupOffset
 } SBlocksInfoFile;
 
 typedef struct STaskDSMgr {
@@ -143,7 +124,7 @@ typedef struct SSlidingTaskDSMgr {
   int64_t           taskId;
   int64_t           sessionId;  // sessionId is used to distinguish different sessions in the same task
   int32_t           tsSlotId;
-  int64_t           capacity;         // group 在文件中的每个 block 块大小
+  int64_t           capacity;         // per-group block size in file
   SHashObj*         pSlidingGrpList;  // hash <groupId, SSlidingGrpMgr>
   SDataSinkFileMgr* pFileMgr;
 } SSlidingTaskDSMgr;
@@ -209,77 +190,39 @@ typedef struct SSlidingGrpMemList {
 } SSlidingGrpMemList;
 extern SSlidingGrpMemList g_slidigGrpMemList;
 
-//----------------- **************************************   -----------------//
-//----------------- 以下函数 DataSink 对外提供接口   -----------------//
-//----------------- **************************************   -----------------//
+// ----------------- External DataSink APIs -----------------
 
-// @brief 创建一个数据缓存
-// @param cleanMode 清理模式，具体含义如下:
-//        1. 一行数据只会被读取一次，所以读取结束后可以立刻被清理
-//        2. 一行数据可能被读取多次，所以等到下次读取时，才清理时间范围之前的数据
+// Create a data sink cache.
 int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId, int32_t cleanMode, int32_t tsSlotId, void** ppCache);
 
-// @brief 清理数据缓存，包括缓存的数据文件和内存
+// Destroy a data sink cache and associated resources.
 void destroyStreamDataCache(void* pCache);
 
-// @brief 向数据缓存中添加数据
-// @param pCache 数据缓存,使用 StreamDataCacheInit 创建
-// @param wstart 当前数据集的起始时间戳
-// @param wend 当前数据集的结束时间戳
-// @param pBlock 数据块
-// @param startIndex 数据块的起始索引
-// @param endIndex 数据块的结束索引
-// @note
-//      1. 起始索引和结束索引是数据块数据的索引范围,从0开始计数
-//      2. 可能会对同一个 {groupId, tableId, wstart} 进行多次调用,添加多个数据块,调用者保证这些数据是严格时间有序的
+// Append data to cache.
 int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
                            int32_t startIndex, int32_t endIndex);
 
-// @brief 向数据缓存中添加数据
-// @note 和 putStreamDataCache 区别是：
-//        1. 会移交 pBlock 的所有权
-//        2. 如果返回 success，pBlock 的内存释放由 Cache Sink 负责；
-//        3. 如果返回 error，pBlock 的内存释放由调用者负责；
+// Append data by transferring ownership of pBlock to cache on success.
 int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock);
 
-// @brief 从数据缓存中读取数据
-// @param pCache 数据缓存,使用 StreamDataCacheInit 创建
-// @param groupId 数据的分组ID,实际上是 "<streamid>_<taskid>_<groupid>" 格式的字符串
-// @param start 读取数据的起始时间戳
-// @param end 读取数据的结束时间戳
-// @param pIter 迭代器,用于遍历数据块
-// @note
-//      1. 没有数据时，把 pIter 置为 NULL
-//      2. 符合筛选条件的数据可能包含多个数据块,由 pIter 负责迭代遍历
-//      3. 这里没有区分 tableId,后续对 pIter 遍历的结果应该是按照 tableId 有序,内部再以时间戳有序
-//      4. start, end 一定是对齐到数据集边界的，即 [start, end] 包含若干个数据集，但不会包含任意数据集的一部分
+// Get an iterator for reading cached blocks by group and time range.
 int32_t getStreamDataCache(void* pCache, int64_t groupId, TSKEY start, TSKEY end, void** pIter);
 
-// @brief 遍历获取所有符合条件的数据块
-// @param pIter 迭代器,用于遍历数据块
-// @param ppBlock 用于指向结果数据块，调用者不会释放指向的内存
-// @note
-//      1. 需要把 pIter 指向迭代器的下一位，如果没有数据了，返回 NULL
+// Read next block from iterator.
 int32_t getNextStreamDataCache(void** pIter, SSDataBlock** ppBlock);
 
-// @brief 清理数据缓存中的数据
-// @param pCache 数据缓存,使用 StreamDataCacheInit 创建
+// Clean cache data for a group.
 int32_t cleanStreamDataCache(void* pCache, int64_t groupId);
 
-// @brief 取消对读取结果的遍历
-// @note
-//      1. 调用者在使用 pIter 遍历数据时，可以用这个接口提前结束遍历，通常用于异常情况
-//      2. 取消数据遍历意味着读取操作结束，会触发底层 Cache Sink 的数据清理
+// Cancel iterator traversal early.
 void cancelStreamDataCacheIterate(void** pIter);
 
-// @brief 释放 DataSink 相关所有资源
+// Destroy all DataSink manager resources.
 void destroyDataSinkMgr();
 
 void setDataSinkMaxMemSize(int64_t maxMemSize);
 
-//----------------- **************************************   -----------------//
-//----------------- 以下函数 DataSink 内部调用，不提供于其他模块   -----------------//
-//----------------- **************************************   -----------------//
+// ----------------- Internal DataSink APIs -----------------
 int32_t initDataSinkFileDir();
 int32_t initStreamDataSink();
 int32_t checkAndMoveMemCache(bool forWrite);
@@ -300,12 +243,12 @@ int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlo
 int32_t buildMoveAlignWindowInMem(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
                                   TSKEY wend);
 
-// @brief 读取数据从内存
+// Read data from in-memory cache.
 int32_t readDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, bool* finished);
 int32_t readDataFromFile(SResultIter* pResult, SSDataBlock** ppBlock, int32_t tsColSlotId);
 
-// @brief 从内存查找下一组数据位置
-// return true: 需要继续查看文件, false: 不需要继续查看文件
+// Find next iterator position from memory cache.
+// return true: continue to file side, false: no file-side iteration needed
 bool    setNextIteratorFromMem(SResultIter** ppResult);
 bool    setNextIteratorFromFile(SResultIter** ppResult);
 int32_t createDataResult(void** ppResult);

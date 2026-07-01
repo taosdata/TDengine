@@ -1,7 +1,6 @@
 ---
 sidebar_label: Analytics
 title: Integrate with Analytics Tools
-slug: /third-party-tools/analytics
 ---
 
 import DocCardList from '@theme/DocCardList';

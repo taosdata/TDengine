@@ -168,6 +168,7 @@ class TestViewMgmt:
     def privilege_basic_view(self):
         tdSql.connect("root")
         tdSql.execute(f"use testa;")
+        tdSql.execute(f"alter all dnodes 'enableAdvancedSecurity 1'")
 
         tdSql.execute(f'create user u1 pass "taosdata_12345"')
         tdSql.execute(f'create user u2 pass "taosdata_12345"')
@@ -179,8 +180,9 @@ class TestViewMgmt:
         tdSql.execute(f"create view view3 as select * from view2;")
 
         # grant/revoke to or from root is allowed since 3.4.0.0
-        tdSql.error(f"grant all on view1 to root;", expectErrInfo="Table name cannot be empty for non-database level privileges")
-        tdSql.error(f"revoke all on view1 from root;", expectErrInfo="Table name cannot be empty for non-database level privileges")
+        tdSql.error(f"grant all on view1 to root;", expectErrInfo="Insufficient privilege for operation")
+        tdSql.error(f"grant all on view1 to u1;", expectErrInfo="Grant object not exist")
+        tdSql.execute(f"revoke all on view1 from u1;") # revoke doesn't check the existence of view1
 
         tdSql.error(f"grant select on view1 to u1;", expectErrInfo="Table name cannot be empty for non-database level privileges")
         tdSql.execute(f"grant select on view testa.view1 to u1;")

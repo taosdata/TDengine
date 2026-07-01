@@ -103,6 +103,10 @@ static int32_t getDataLen(int32_t type, const char* pData) {
 
 int32_t calcStrBytesByType(int8_t type, char* data) { return getDataLen(type, data); }
 
+int32_t blockDataGetPagedColumnReservedBytes(const SColumnInfoData* pColumnInfoData) {
+  return pColumnInfoData->info.bytes;
+}
+
 static int32_t checkAllocLen(SColumnInfoData* pColumnInfoData, char** pData, int32_t dataLen){
   SVarColAttr* pAttr = &pColumnInfoData->varmeta;
   char* buf = NULL;
@@ -199,7 +203,9 @@ int32_t varColSetVarData(SColumnInfoData* pColumnInfoData, uint32_t rowIndex, co
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t dataLen = VARSTR_HEADER_SIZE + varDataLen;
+  int32_t headerSize = IS_STR_DATA_BLOB(pColumnInfoData->info.type) ?
+                         BLOBSTR_HEADER_SIZE : VARSTR_HEADER_SIZE;
+  int32_t dataLen = headerSize + varDataLen;
   if (pColumnInfoData->varmeta.offset[rowIndex] > 0) {
     pColumnInfoData->varmeta.length = pColumnInfoData->varmeta.offset[rowIndex];
   }
@@ -581,7 +587,9 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
   }
 
   pColumnInfoData->hasNull = pSource->hasNull;
+  int16_t slotId = pColumnInfoData->info.slotId;
   pColumnInfoData->info = pSource->info;
+  pColumnInfoData->info.slotId = slotId;
   return 0;
 }
 
@@ -1236,11 +1244,11 @@ int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity)
       }
     }
 
-    if (!colDataIsNNull(pCol, 0, pBlock->info.rows)) {
+    if (colLength != 0 && !colDataIsNNull(pCol, 0, pBlock->info.rows)) {
       memcpy(pCol->pData, pStart, colLength);
     }
 
-    pStart += pCol->info.bytes * capacity;
+    pStart += blockDataGetPagedColumnReservedBytes(pCol) * capacity;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1269,10 +1277,10 @@ size_t blockDataGetRowSize(SSDataBlock* pBlock) {
 size_t blockDataGetSerialMetaSizeImpl(uint32_t numOfCols, bool internal) {
   // | version | total length | total rows | blankFull | total columns | flag seg| block group id | column schema
   // | each column length
-  // internal: |scanFlag |
+  // internal: | scanFlag baseGid |
   return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) + sizeof(bool) + sizeof(int32_t) + sizeof(int32_t) +
          sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t)) + numOfCols * sizeof(int32_t) + 
-         (internal ? (sizeof(uint8_t)) : 0);
+         (internal ? (sizeof(uint8_t) + sizeof(uint64_t) + numOfCols * sizeof(int16_t)) : 0);
 }
 
 size_t blockDataGetSerialMetaSizeInternal(uint32_t numOfCols) {
@@ -1930,99 +1938,6 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
   return code;
 }
 
-int32_t createSpecialDataBlock(EStreamType type, SSDataBlock** pBlock) {
-  QRY_PARAM_CHECK(pBlock);
-
-  int32_t      code = 0;
-  SSDataBlock* p = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  if (p == NULL) {
-    return terrno;
-  }
-
-  p->info.hasVarCol = false;
-  p->info.id.groupId = 0;
-  p->info.rows = 0;
-  p->info.type = type;
-  p->info.rowSize = sizeof(TSKEY) + sizeof(TSKEY) + sizeof(uint64_t) + sizeof(uint64_t) + sizeof(TSKEY) +
-                    sizeof(TSKEY) + VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN;
-  p->info.watermark = INT64_MIN;
-
-  p->pDataBlock = taosArrayInit(6, sizeof(SColumnInfoData));
-  if (p->pDataBlock == NULL) {
-    taosMemoryFree(p);
-    return terrno;
-  }
-
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_TIMESTAMP;
-  infoData.info.bytes = sizeof(TSKEY);
-
-  // window start ts
-  void* px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  // window end ts
-  px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  infoData.info.type = TSDB_DATA_TYPE_UBIGINT;
-  infoData.info.bytes = sizeof(uint64_t);
-
-  // uid
-  px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  // group id
-  px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  infoData.info.type = TSDB_DATA_TYPE_TIMESTAMP;
-  infoData.info.bytes = sizeof(TSKEY);
-
-  // calculate start ts
-  px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  // calculate end ts
-  px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  // table name
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN;
-  px = taosArrayPush(p->pDataBlock, &infoData);
-  if (px == NULL) {
-    code = terrno;
-    goto _err;
-  }
-
-  *pBlock = p;
-  return code;
-
-_err:
-  taosArrayDestroy(p->pDataBlock);
-  taosMemoryFree(p);
-  return code;
-}
-
 int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
 
@@ -2300,6 +2215,8 @@ int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDat
   pDstBlock->info.rows = pSrcBlock->info.rows;
   pDstBlock->info.capacity = pSrcBlock->info.rows;
   pDstBlock->info.window = pSrcBlock->info.window;
+  pDstBlock->info.dataLoad = pSrcBlock->info.dataLoad;
+  pDstBlock->info.scanFlag = pSrcBlock->info.scanFlag;
 
   *pResBlock = pDstBlock;
   return code;
@@ -2578,8 +2495,11 @@ static void colDataKeepFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_
           }
         }
       }
-      if (newLen <= -1) {
-        uFatal("colDataKeepFirstNRows: newLen:%d  old:%d", newLen, pColInfoData->varmeta.length);
+      if (newLen < 0) {
+        // All kept rows are NULL — no valid var data belongs to them.
+        uDebug("colDataKeepFirstNRows: all kept rows are NULL, newLen:%d old:%u, reset length to 0",
+               newLen, pColInfoData->varmeta.length);
+        pColInfoData->varmeta.length = 0;
       } else {
         pColInfoData->varmeta.length = newLen;
       }
@@ -2802,9 +2722,9 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
 
   int32_t colNum = taosArrayGetSize(pDataBlock->pDataBlock);
   len += tsnprintf(dumpBuf + len, size - len,
-                  "%" PRIx64 " %s %s|block type %d|child id %d|group id:%" PRIx64 "|uid:%" PRId64 "|rows:%" PRId64
+                  "%" PRIx64 " %s %s|child id %d|group id:%" PRIx64 "|uid:%" PRId64 "|rows:%" PRId64
                   "|version:%" PRIu64 "|cal start:%" PRIu64 "|cal end:%" PRIu64 "|tbl:%s\n",
-                  qId, taskIdStr, flag, (int32_t)pDataBlock->info.type, pDataBlock->info.childId,
+                  qId, taskIdStr, flag, pDataBlock->info.childId,
                   pDataBlock->info.id.groupId, pDataBlock->info.id.uid, pDataBlock->info.rows, pDataBlock->info.version,
                   pDataBlock->info.calWin.skey, pDataBlock->info.calWin.ekey, pDataBlock->info.parTbName);
   if (len >= size - 1) {
@@ -2812,7 +2732,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
   }
 
   for (int32_t j = 0; j < rows; j++) {
-    len += tsnprintf(dumpBuf + len, size - len, "%" PRIx64 " %s|", qId, flag);
+    len += snprintf(dumpBuf + len, size - len, "%" PRIx64 " %s|", qId, flag);
     if (len >= size - 1) {
       goto _exit;
     }
@@ -2826,7 +2746,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
       }
 
       if (colDataIsNull(pColInfoData, rows, j, NULL) || !pColInfoData->pData) {
-        len += tsnprintf(dumpBuf + len, size - len, " %15s |", "NULL");
+        len += snprintf(dumpBuf + len, size - len, " %15s |", "NULL");
         if (len >= size - 1) goto _exit;
         continue;
       }
@@ -2837,53 +2757,53 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           memset(pBuf, 0, sizeof(pBuf));
           code = formatTimestamp(pBuf, sizeof(pBuf), *(uint64_t*)var, pColInfoData->info.precision);
           if (code != TSDB_CODE_SUCCESS) {
-            TAOS_UNUSED(tsnprintf(pBuf, sizeof(pBuf), "NaN"));
+            TAOS_UNUSED(snprintf(pBuf, sizeof(pBuf), "NaN"));
           }
-          len += tsnprintf(dumpBuf + len, size - len, " %25s |", pBuf);
+          len += snprintf(dumpBuf + len, size - len, " %25s |", pBuf);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_TINYINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(int8_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(int8_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_UTINYINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(uint8_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(uint8_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_SMALLINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(int16_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(int16_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_USMALLINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(uint16_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(uint16_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_INT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(int32_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(int32_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_UINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15u |", *(uint32_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15u |", *(uint32_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15" PRId64 " |", *(int64_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15" PRId64 " |", *(int64_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_UBIGINT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15" PRIu64 " |", *(uint64_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15" PRIu64 " |", *(uint64_t*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_FLOAT:
-          len += tsnprintf(dumpBuf + len, size - len, " %15f |", *(float*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15f |", *(float*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          len += tsnprintf(dumpBuf + len, size - len, " %15f |", *(double*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15f |", *(double*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_BOOL:
-          len += tsnprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);
           if (len >= size - 1) goto _exit;
           break;
         case TSDB_DATA_TYPE_VARCHAR:
@@ -2894,7 +2814,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
           dataSize = TMIN(dataSize, 50);
           memcpy(pBuf, varDataVal(pData), dataSize);
-          len += tsnprintf(dumpBuf + len, size - len, " %15s |", pBuf);
+          len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) goto _exit;
         } break;
         case TSDB_DATA_TYPE_NCHAR: {
@@ -2909,7 +2829,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           } else {  // reset the length value
             code = TSDB_CODE_SUCCESS;
           }
-          len += tsnprintf(dumpBuf + len, size - len, " %15s |", pBuf);
+          len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) goto _exit;
         } break;
         case TSDB_DATA_TYPE_MEDIUMBLOB:
@@ -2919,16 +2839,16 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
           int32_t dataSize = TMIN(sizeof(pBuf), blobDataLen(pData));
           dataSize = TMIN(dataSize, 50);
           memcpy(pBuf, blobDataVal(pData), dataSize);
-          len += tsnprintf(dumpBuf + len, size - len, " %15s |", pBuf);
+          len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) goto _exit;
           break;
         }
       }
     }
-    len += tsnprintf(dumpBuf + len, size - len, "%d\n", j);
+    len += snprintf(dumpBuf + len, size - len, "%d\n", j);
     if (len >= size - 1) goto _exit;
   }
-  len += tsnprintf(dumpBuf + len, size - len, "%s |end\n", flag);
+  len += snprintf(dumpBuf + len, size - len, "%s |end\n", flag);
 
 _exit:
   if (code == TSDB_CODE_SUCCESS) {
@@ -3470,6 +3390,22 @@ int32_t blockEncodeImpl(const SSDataBlock* pBlock, char* data, size_t dataBuflen
     uint8_t* scanFlag = (uint8_t*)data;
     *scanFlag = pBlock->info.scanFlag;
     data += sizeof(uint8_t);
+
+    uint64_t* baseGid = (uint64_t*)data;
+    *baseGid = pBlock->info.id.baseGId;
+    data += sizeof(uint64_t);
+
+    // Slot ids used only for virtual super table scan: each column's slotId here
+    // refers to the slot position in virtual super table's datablock.
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      if (pColInfoData == NULL) {
+        return -1;
+      }
+
+      *((int16_t *)data) = pColInfoData->info.slotId;
+      data += sizeof(int16_t);
+    }
   }
 
   *actualLen = dataLen;
@@ -3626,6 +3562,21 @@ int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const char** pEn
   if (internal && (pStart - pData) < dataLen) {
     pBlock->info.scanFlag = *(uint8_t*)pStart;
     pStart += sizeof(uint8_t);
+
+    pBlock->info.id.baseGId = *(uint64_t*)pStart;
+    pStart += sizeof(uint64_t);
+  }
+
+  if (internal && (pStart - pData) < dataLen) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+      if (pColInfoData == NULL) {
+        return terrno;
+      }
+
+      pColInfoData->info.slotId = *(int16_t*)pStart;
+      pStart += sizeof(int16_t);
+    }
   }
 
   pBlock->info.dataLoad = 1;
@@ -4507,4 +4458,3 @@ int32_t getStreamBlockTS(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t row, 
   *ts = *(TSKEY*)(pColInfoData->pData + row * sizeof(TSKEY));
   return TSDB_CODE_SUCCESS;
 }
-

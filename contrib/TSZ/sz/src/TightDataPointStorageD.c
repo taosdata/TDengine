@@ -84,13 +84,13 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 
 	for (i = 0; i < 4; i++)
 		byteBuf[i] = flatBytes[index++];
-	int max_quant_intervals = bytesToInt_bigEndian(byteBuf);// 4	
+	int max_quant_intervals = bytesToInt32_bigEndian(byteBuf);// 4	
 
 	pde_params->maxRangeRadius = max_quant_intervals/2;
 
 	for (i = 0; i < 4; i++)
 		byteBuf[i] = flatBytes[index++];
-	(*this)->intervals = bytesToInt_bigEndian(byteBuf);// 4	
+	(*this)->intervals = bytesToInt32_bigEndian(byteBuf);// 4	
 
 	for (i = 0; i < 8; i++)
 		byteBuf[i] = flatBytes[index++];
@@ -136,7 +136,7 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 	if ((*this)->ifAdtFse == 0) {
 		(*this)->typeArray = &flatBytes[index];
 		//retrieve the number of states (i.e., stateNum)
-		(*this)->allNodes = bytesToInt_bigEndian((*this)->typeArray); //the first 4 bytes store the stateNum
+		(*this)->allNodes = bytesToInt32_bigEndian((*this)->typeArray); //the first 4 bytes store the stateNum
 		(*this)->stateNum = ((*this)->allNodes+1)/2;	
 		index+=(*this)->typeArray_size;
 	} else {
@@ -147,10 +147,21 @@ int new_TightDataPointStorageD_fromFlatBytes(TightDataPointStorageD **this, unsi
 		index+=(*this)->transCodeBits_size;
 	}
 
-    // todo need check length
-	(*this)->residualMidBits_size = flatBytesLength - 1 - 1 - MetaDataByteLength - pde_exe->SZ_SIZE_TYPE - 4 - 4 - 4 - 1 - 8 
-			- pde_exe->SZ_SIZE_TYPE - pde_exe->SZ_SIZE_TYPE
-			- (*this)->leadNumArray_size - (*this)->exactMidBytes_size;
+	// todo need check length
+	(*this)->residualMidBits_size = flatBytesLength                 // total length of flatBytes
+									- 1                             // version
+									- 1                             // sameByte
+									- MetaDataByteLength_double     // meta data
+									- pde_exe->SZ_SIZE_TYPE         // data series length
+									- 4                             // max quant intervals
+									- 4                             // intervals
+									- sizeof(double)                // median value
+									- 1                             // req length
+									- sizeof(double)                // real precision
+									- pde_exe->SZ_SIZE_TYPE         // leadNumArray_size
+									- pde_exe->SZ_SIZE_TYPE         // exactMidBytes_size
+									- (*this)->leadNumArray_size    // data length of leadNumArray
+									- (*this)->exactMidBytes_size;  // data length of exactMidBytes
 	if ((*this)->ifAdtFse == 0) {
 		(*this)->residualMidBits_size = (*this)->residualMidBits_size - (*this)->typeArray_size - pde_exe->SZ_SIZE_TYPE ;
 	} else {
@@ -250,11 +261,11 @@ void convertTDPStoBytes_double(TightDataPointStorageD* tdps, unsigned char* byte
 	
 	for(i = 0;i<exe_params->SZ_SIZE_TYPE;i++)//ST: 4 or 8 bytes
 		bytes[k++] = dsLengthBytes[i];	
-	intToBytes_bigEndian(max_quant_intervals_Bytes, confparams_cpr->max_quant_intervals);
+	int32ToBytes_bigEndian(max_quant_intervals_Bytes, confparams_cpr->max_quant_intervals);
 	for(i = 0;i<4;i++)//4
 		bytes[k++] = max_quant_intervals_Bytes[i];		
 	
-	intToBytes_bigEndian(intervalsBytes, tdps->intervals);
+	int32ToBytes_bigEndian(intervalsBytes, tdps->intervals);
 	for(i = 0;i<4;i++)//4
 		bytes[k++] = intervalsBytes[i];		
 	
@@ -326,9 +337,9 @@ bool convertTDPStoFlatBytes_double(TightDataPointStorageD *tdps, unsigned char* 
 	unsigned char dsLengthBytes[8];
 	
 	if(exe_params->SZ_SIZE_TYPE==4)
-		intToBytes_bigEndian(dsLengthBytes, tdps->dataSeriesLength);//4
+		int32ToBytes_bigEndian(dsLengthBytes, tdps->dataSeriesLength);//4
 	else
-		longToBytes_bigEndian(dsLengthBytes, tdps->dataSeriesLength);//8
+		int64ToBytes_bigEndian(dsLengthBytes, tdps->dataSeriesLength);//8
 	
 	unsigned char sameByte = tdps->allSameData==1?(unsigned char)1:(unsigned char)0;
 	//sameByte = sameByte | (confparams_cpr->szMode << 1);

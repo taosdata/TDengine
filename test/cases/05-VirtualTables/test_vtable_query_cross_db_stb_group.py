@@ -20,7 +20,7 @@ class TestVtableQueryCrossDbStbGroup:
     }
     def setup_class(cls):
         vtbUtil = VtableQueryUtil()
-        vtbUtil.prepare_same_db_vtables()
+        vtbUtil.prepare_cross_db_vtables()
 
     def run_normal_query(self, testCase):
         # read sql from .sql file and execute

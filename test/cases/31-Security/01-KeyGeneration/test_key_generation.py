@@ -42,16 +42,19 @@ class TestBasic:
         
         tdLog.info(f"Config: {cfg_path}, Data: {data_dir}, Keys: {key_dir}")
 
+        taosk_bin = etool.taoskFile()
+        tdLog.info(f"taosk binary: {taosk_bin}")
+
         # Test 1: Help and version
         tdLog.info("=" * 80)
         tdLog.info("Test 1: taosk --help and --version")
         tdLog.info("=" * 80)
-        
-        result = subprocess.run(['taosk', '--help'], capture_output=True, text=True, timeout=10)
+
+        result = subprocess.run([taosk_bin, '--help'], capture_output=True, text=True, timeout=10)
         assert result.returncode == 0 or 'help' in result.stdout.lower(), "taosk --help failed"
         tdLog.info("--help passed")
 
-        result = subprocess.run(['taosk', '--version'], capture_output=True, text=True, timeout=10)
+        result = subprocess.run([taosk_bin, '--version'], capture_output=True, text=True, timeout=10)
         assert result.returncode == 0 or 'version' in result.stdout.lower(), "taosk --version failed"
         tdLog.info("--version passed")
 
@@ -59,11 +62,11 @@ class TestBasic:
         tdLog.info("=" * 80)
         tdLog.info("Test 2: Generate default SM4 keys")
         tdLog.info("=" * 80)
-        
-        cmd = ['taosk', '-c', cfg_path, '--encrypt-server', '--encrypt-database']
+
+        cmd = [taosk_bin, '-c', cfg_path, '--encrypt-server', '--encrypt-database']
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
         tdLog.info(f"Output: {result.stdout}")
-        
+
         assert os.path.exists(master_file), f"master.bin missing at {master_file}"
         tdLog.info(f"master.bin: {os.path.getsize(master_file)} bytes")
 
@@ -71,13 +74,13 @@ class TestBasic:
         tdLog.info("=" * 80)
         tdLog.info("Test 3: Generate with specified SVR_KEY/DB_KEY")
         tdLog.info("=" * 80)
-        
+
         if os.path.exists(master_file):
             os.remove(master_file)
-        
-        cmd = ['taosk', '-c', cfg_path, '--encrypt-server', 'mysvr123', '--encrypt-database', 'mydb4567']
+
+        cmd = [taosk_bin, '-c', cfg_path, '--encrypt-server', 'mysvr123', '--encrypt-database', 'mydb4567']
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
-        
+
         assert os.path.exists(master_file), "master.bin not generated"
         tdLog.info("Custom keys generated")
 
@@ -85,16 +88,16 @@ class TestBasic:
         tdLog.info("=" * 80)
         tdLog.info("Test 4: All encryption options")
         tdLog.info("=" * 80)
-        
+
         if os.path.exists(master_file):
             os.remove(master_file)
         if os.path.exists(derived_file):
             os.remove(derived_file)
-        
-        cmd = ['taosk', '-c', cfg_path, '--encrypt-server', '--encrypt-database',
+
+        cmd = [taosk_bin, '-c', cfg_path, '--encrypt-server', '--encrypt-database',
                '--encrypt-config', '--encrypt-metadata', '--encrypt-data']
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
-        
+
         assert os.path.exists(master_file), "master.bin not generated"
         assert os.path.exists(derived_file), "derived.bin not generated"
         tdLog.info(f"master: {os.path.getsize(master_file)}B, derived: {os.path.getsize(derived_file)}B")
@@ -103,24 +106,24 @@ class TestBasic:
         tdLog.info("=" * 80)
         tdLog.info("Test 5: Key length validation")
         tdLog.info("=" * 80)
-        
+
         # Short key
-        cmd_short = ['taosk', '-c', cfg_path, '--encrypt-server', 'short', '--encrypt-database']
+        cmd_short = [taosk_bin, '-c', cfg_path, '--encrypt-server', 'short', '--encrypt-database']
         result_short = subprocess.run(cmd_short, capture_output=True, text=True, timeout=30)
         tdLog.info(f"Short key exit: {result_short.returncode}")
-        
+
         # Long key
-        cmd_long = ['taosk', '-c', cfg_path, '--encrypt-server', 'toolongkey123456', '--encrypt-database']
+        cmd_long = [taosk_bin, '-c', cfg_path, '--encrypt-server', 'toolongkey123456', '--encrypt-database']
         result_long = subprocess.run(cmd_long, capture_output=True, text=True, timeout=30)
         tdLog.info(f"Long key exit: {result_long.returncode}")
-        
+
         # Valid key
         if os.path.exists(master_file):
             os.remove(master_file)
-        
-        cmd_valid = ['taosk', '-c', cfg_path, '--encrypt-server', 'validkey12', '--encrypt-database', 'validdb34']
+
+        cmd_valid = [taosk_bin, '-c', cfg_path, '--encrypt-server', 'validkey12', '--encrypt-database', 'validdb34']
         result_valid = subprocess.run(cmd_valid, capture_output=True, text=True, timeout=30, check=True)
-        
+
         assert os.path.exists(master_file), "Valid key failed"
         tdLog.info("Valid key passed")
 

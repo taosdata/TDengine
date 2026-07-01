@@ -86,6 +86,7 @@ class TestStreamOldCaseCheckPoint:
         def insert2(self):
             sc.dnodeStop(1)
             sc.dnodeStart(1)
+            tdSql.execute(f"alter dnode 1 'qdebugflag 143'")
 
         def check2(self):
             clusterComCheck.checkDnodes(1)
@@ -353,7 +354,7 @@ class TestStreamOldCaseCheckPoint:
                 and tdSql.compareData(1, 1, "2022-04-01 13:33:53.003")
                 and tdSql.compareData(1, 2, 1)
                 and tdSql.compareData(1, 3, 4),
-            )
+            )   
 
     class State0(StreamCheckItem):
         def __init__(self):
@@ -368,6 +369,7 @@ class TestStreamOldCaseCheckPoint:
             )
 
         def insert1(self):
+            tdSql.execute(f"alter dnode 1 'qdebugflag 143'")
             tdSql.execute(f"insert into state0_t1 values(1648791213000, 1, 2, 3, 1.0);")
             tdSql.execute(f"insert into state0_t1 values(1648791213001, 2, 2, 3, 1.1);")
 

@@ -85,6 +85,17 @@ func (r *Reporter) getConn() *db.Connector {
 	return conn
 }
 
+// tryGetConn attempts to connect to database without retrying forever.
+// Returns nil connection on error (for use in metrics collection where timeout matters).
+func (r *Reporter) tryGetConn() *db.Connector {
+	conn, err := db.NewConnector(r.username, r.password, r.host, r.port, r.usessl)
+	if err != nil {
+		logger.Tracef("connect to database failed (will skip metrics), msg:%s", err)
+		return nil
+	}
+	return conn
+}
+
 func (r *Reporter) detectGrantInfoFieldType() {
 	// `expire_time` `timeseries_used` `timeseries_total` in table `grant_info` changed to bigint from TS-3003.
 	ctx := context.Background()

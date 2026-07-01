@@ -153,6 +153,7 @@ typedef struct SQueryAutoQWorkerPool {
   TdThreadMutex waitingBeforeProcessMsgLock;
   TdThreadCond  waitingBeforeProcessMsgCond;
 
+  
   int32_t       backupNum; // workers that are in backup pool, not reading msg from queue
   TdThreadMutex backupLock;
   TdThreadCond  backupCond;

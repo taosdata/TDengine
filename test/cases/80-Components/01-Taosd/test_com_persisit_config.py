@@ -11,7 +11,6 @@ class TestPersisitConfig:
         "tmqMaxTopicNum":"30",
         "maxShellConns":"1000",
         "monitorFqdn":"localhost:9033",
-        "tmqRowSize":"1000",
         "ttlChangeOnWrite":"1",
         "compressor":"1",
         "statusInterval":"4",

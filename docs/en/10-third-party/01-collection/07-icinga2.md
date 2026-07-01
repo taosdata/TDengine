@@ -1,6 +1,5 @@
 ---
 title: Icinga2
-slug: /third-party-tools/data-collection/icinga2
 ---
 
 import Icinga2 from "../../assets/resources/_icinga2.mdx"
@@ -14,7 +13,7 @@ To store data collected by icinga2 into TDengine, simply modify the icinga2 conf
 The following preparations are needed to write icinga2 data into TDengine:
 
 - TDengine cluster is deployed and running normally
-- taosAdapter is installed and running normally. For details, please refer to [taosAdapter user manual](../../../tdengine-reference/components/taosadapter/)
+- taosAdapter is installed and running normally. For details, please refer to [taosAdapter user manual](../../14-reference/01-components/03-taosadapter.md)
 - icinga2 is installed. For icinga2 installation, please refer to [official documentation](https://icinga.com/docs/icinga-2/latest/doc/02-installation/)
 
 ## Configuration Steps

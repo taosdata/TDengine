@@ -89,7 +89,6 @@ Usage: taosdump [OPTION...] dbname [tbname ...]
   -C, --cloud=CLOUD_DSN      Alias for the -X/--dsn option.
   -k, --retry-count=VALUE    Set the number of retry attempts for connection or
                              query failures.
-  -R, --restful              Use RESTful interface to connect server.
   -t, --timeout=SECONDS      The timeout seconds for websocket to interact.
   -X, --dsn=DSN              The dsn to connect the cloud service.
   -z, --retry-sleep-ms=VALUE Sleep interval between retries, in milliseconds.

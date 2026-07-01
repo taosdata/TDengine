@@ -370,6 +370,7 @@ int32_t mndSetCreateIdxCommitLogs(SMnode *pMnode, STrans *pTrans, SIdxObj *pIdx)
     if (terrno != 0) code = terrno;
     return -1;
   }
+  mInfo("trans:%d, add create idx to commit log", pTrans->id);
   TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pCommitRaw));
   TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY));
 

@@ -652,7 +652,7 @@ class CompatibilityBase:
     def checkstatus(self,retry_times=30):
         
         # sleep before check status to avoid dnodes not ready issue
-        time.sleep(10)
+        time.sleep(30)
         tdsql=tdCom.newTdSql()
         dnodes_ready = False
         for i in range(retry_times):

@@ -85,7 +85,10 @@ jobs:
         working-directory: tools/keeper
         run: |
           go mod tidy
-          sudo go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" -coverpkg=./... -coverprofile=coverage.out ./...
+          sudo TEST_USERNAME=${{ secrets.KEEPER_TEST_USERNAME }} \
+            TEST_PASSWORD=${{ secrets.KEEPER_TEST_PASSWORD }} \
+            go test -v -ldflags="-X 'github.com/taosdata/taoskeeper/version.IsEnterprise=true'" \
+            -coverpkg=./... -coverprofile=coverage.out ./...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5

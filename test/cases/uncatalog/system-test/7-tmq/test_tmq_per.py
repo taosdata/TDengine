@@ -57,42 +57,6 @@ class TestCase:
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         return
 
-    def restartAndRemoveWal(self, deleteWal):
-        tdDnodes = cluster.dnodes
-        tdSql.query("select * from information_schema.ins_vnodes")
-        for result in tdSql.queryResult:
-            if result[2] == 'dbt':
-                tdLog.debug("dnode is %d"%(result[0]))
-                dnodeId = result[0]
-                vnodeId = result[1]
-
-                tdDnodes[dnodeId - 1].stoptaosd()
-                time.sleep(1)
-                dataPath = self.getDataPath()
-                dataPath = dataPath%(dnodeId,vnodeId)
-                tdLog.debug("dataPath:%s"%dataPath)
-                if deleteWal:
-                    if os.system('rm -rf ' + dataPath) != 0:
-                        tdLog.exit("rm error")
-
-                tdDnodes[dnodeId - 1].starttaosd()
-                time.sleep(1)
-                break
-        tdLog.debug("restart dnode ok")
-
-    def splitVgroups(self):
-        tdSql.query("select * from information_schema.ins_vnodes")
-        vnodeId = 0
-        for result in tdSql.queryResult:
-            if result[2] == 'dbt':
-                vnodeId = result[1]
-                tdLog.debug("vnode is %d"%(vnodeId))
-                break
-        splitSql = "split vgroup %d" %(vnodeId)
-        tdLog.debug("splitSql:%s"%(splitSql))
-        tdSql.query(splitSql)
-        tdLog.debug("splitSql ok")
-
     def tmqCase1(self, deleteWal=False):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'dbt',

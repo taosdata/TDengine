@@ -10,11 +10,12 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taoskeeper/infrastructure/config"
+	"github.com/taosdata/taoskeeper/testutil"
 	"github.com/taosdata/taoskeeper/version"
 )
 
 func TestConfig(t *testing.T) {
-	data := `
+	data := fmt.Sprintf(`
 # Start with debug middleware for gin
 debug = true
 # Listen port, default is 6043
@@ -28,9 +29,9 @@ RotationInterval = "10s"
 [tdengine]
 address = "http://localhost:6041"
 authtype = "Basic"
-username = "root"
-password = "taosdata"
-`
+username = "%s"
+password = "%s"
+`, testutil.TestUsername(), testutil.TestPassword())
 	var c config.Config
 	_, err := toml.Decode(data, &c)
 	if err != nil {

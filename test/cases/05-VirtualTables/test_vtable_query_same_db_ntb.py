@@ -38,9 +38,12 @@ class TestVTableQuerySameDBNtb:
         5. test vntable select normal table session
         6. test vntable select normal table event
         7. test vntable select normal table count
-        8. test vntable select normal table partition
-        9. test vntable select normal table group
-        10. test vntable select normal table orderby
+        8. test vntable select child table state in mode 0
+        9. test vntable select child table state in mode 1
+        10. test vntable select child table state in mode 2
+        11. test vntable select normal table partition
+        12. test vntable select normal table group
+        13. test vntable select normal table orderby
 
         Catalog:
             - VirtualTable
@@ -57,6 +60,7 @@ class TestVTableQuerySameDBNtb:
             - 2025-10-17 Jing Sima Add timerange filter test case
             - 2025-11-21 Jing Sima Split Add state different mode test
             - 2026-1-6 Jing Sima Split state window test to another file
+            - 2026-1-14 Jing Sima add back state window test
         """
         self.run_normal_query("test_vtable_select_test_projection")
         self.run_normal_query("test_vtable_select_test_projection_filter")
@@ -67,6 +71,9 @@ class TestVTableQuerySameDBNtb:
         self.run_normal_query("test_vtable_select_test_session")
         self.run_normal_query("test_vtable_select_test_event")
         self.run_normal_query("test_vtable_select_test_count")
+        self.run_normal_query("test_vtable_select_test_state_mode_0")
+        self.run_normal_query("test_vtable_select_test_state_mode_1")
+        self.run_normal_query("test_vtable_select_test_state_mode_2")
 
         self.run_normal_query("test_vtable_select_test_partition")
         self.run_normal_query("test_vtable_select_test_group")

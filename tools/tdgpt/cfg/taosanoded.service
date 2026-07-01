@@ -1,13 +1,14 @@
 [Unit]
-Description=TaosANode Service
+Description=TaosAnode Service
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
 Environment=PATH=/var/lib/taos/taosanode/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-ExecStart=/var/lib/taos/taosanode/venv/bin/uwsgi /usr/local/taos/taosanode/cfg/taosanode.ini
-ExecStop=/var/lib/taos/taosanode/venv/bin/uwsgi --stop /usr/local/taos/taosanode/taosanode.pid
+ExecStart=/var/lib/taos/taosanode/venv/bin/gunicorn -c /usr/local/taos/taosanode/cfg/taosanode.config.py
+ExecStop=/bin/kill -s TERM $MAINPID
+KillMode=process
 TimeoutStartSec=0
 TimeoutStopSec=120s
 LimitNOFILE=1048576

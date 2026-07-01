@@ -47,7 +47,7 @@ class TestXnodeLifecycle:
         sql = f"CREATE XNODE '{ep1}' USER {user} PASS '{password}'"
         tdLog.info(f"Creating first xnode with user/password: {sql}")
         try:
-            tdSql.execute(sql)
+            tdSql.execute(sql, queryTimes=1)
             tdLog.success(f"Successfully created xnode with user {user}")
         except Exception as e:
             # 可能因为 xnoded 进程未运行而失败，但语法应该正确
@@ -86,7 +86,7 @@ class TestXnodeLifecycle:
         sql = f"CREATE XNODE '{ep2}'"
         tdLog.info(f"Creating second xnode without password: {sql}")
         try:
-            tdSql.execute(sql)
+            tdSql.execute(sql, queryTimes=1)
             tdLog.success(f"Successfully created xnode {ep2}")
         except Exception as e:
             msg = str(e).lower()
@@ -112,19 +112,19 @@ class TestXnodeLifecycle:
 
         # 第一次创建
         try:
-            tdSql.execute(f"DROP XNODE FORCE '{ep}'")
+            tdSql.execute(f"DROP XNODE FORCE '{ep}'", queryTimes=1)
         except:
             pass
 
         try:
-            tdSql.execute(f"CREATE XNODE '{ep}'")
+            tdSql.execute(f"CREATE XNODE '{ep}'", queryTimes=1)
         except Exception as e:
             msg = str(e).lower()
             assert "syntax" not in msg and "parse" not in msg
 
         # 第二次创建同一个 - 应该失败（运行时错误）
         try:
-            tdSql.execute(f"CREATE XNODE '{ep}'")
+            tdSql.execute(f"CREATE XNODE '{ep}'", queryTimes=1)
             tdLog.notice("Duplicate xnode creation did not fail as expected")
         except Exception as e:
             msg = str(e).lower()
@@ -150,7 +150,7 @@ class TestXnodeLifecycle:
 
         # 先创建
         try:
-            tdSql.execute(f"CREATE XNODE '{ep}'")
+            tdSql.execute(f"CREATE XNODE '{ep}'", queryTimes=1)
         except:
             pass
 
@@ -158,7 +158,7 @@ class TestXnodeLifecycle:
         sql = f"DROP XNODE '{ep}'"
         tdLog.info(f"Dropping xnode by endpoint: {sql}")
         try:
-            tdSql.execute(sql)
+            tdSql.execute(sql, queryTimes=1)
             tdLog.success(f"Successfully dropped xnode {ep}")
         except Exception as e:
             msg = str(e).lower()
@@ -185,7 +185,7 @@ class TestXnodeLifecycle:
         sql = f"DROP XNODE {xnode_id}"
         tdLog.info(f"Dropping xnode by ID: {sql}")
         try:
-            tdSql.execute(sql)
+            tdSql.execute(sql, queryTimes=1)
         except Exception as e:
             msg = str(e).lower()
             assert "syntax" not in msg and "parse" not in msg
@@ -210,7 +210,7 @@ class TestXnodeLifecycle:
 
         # 先创建
         try:
-            tdSql.execute(f"CREATE XNODE '{ep}'")
+            tdSql.execute(f"CREATE XNODE '{ep}'", queryTimes=1)
         except:
             pass
 
@@ -218,7 +218,7 @@ class TestXnodeLifecycle:
         sql = f"DROP XNODE FORCE '{ep}'"
         tdLog.info(f"Force dropping xnode: {sql}")
         try:
-            tdSql.execute(sql)
+            tdSql.execute(sql, queryTimes=1)
             tdLog.success(f"Successfully force dropped xnode {ep}")
         except Exception as e:
             msg = str(e).lower()
@@ -245,7 +245,7 @@ class TestXnodeLifecycle:
         sql = f"DRAIN XNODE {xnode_id}"
         tdLog.info(f"Draining xnode: {sql}")
         try:
-            tdSql.execute(sql)
+            tdSql.execute(sql, queryTimes=1)
         except Exception as e:
             msg = str(e).lower()
             assert "syntax" not in msg and "parse" not in msg
@@ -271,7 +271,7 @@ class TestXnodeLifecycle:
         sql = f"DROP XNODE '{ep}'"
         tdLog.info(f"Dropping non-existent xnode: {sql}")
         try:
-            tdSql.execute(sql)
+            tdSql.execute(sql, queryTimes=1)
             # 如果没有报错，说明语法正确
             tdLog.notice(f"No error for dropping non-existent xnode")
         except Exception as e:
@@ -331,7 +331,7 @@ class TestXnodeLifecycle:
         sql = f"CREATE XNODE '{ep_ipv6}'"
         tdLog.info(f"Creating xnode with IPv6: {sql}")
         try:
-            tdSql.execute(sql)
+            tdSql.execute(sql, queryTimes=1)
             tdLog.success(f"Successfully created xnode with IPv6")
         except Exception as e:
             msg = str(e).lower()
@@ -340,7 +340,7 @@ class TestXnodeLifecycle:
 
         # 清理
         try:
-            tdSql.execute(f"DROP XNODE FORCE '{ep_ipv6}'")
+            tdSql.execute(f"DROP XNODE FORCE '{ep_ipv6}'", queryTimes=1)
         except:
             pass
 
@@ -366,7 +366,7 @@ class TestXnodeLifecycle:
         sql = f"CREATE XNODE '{ep}' USER __xnode__ PASS '{weak_pass}'"
         tdLog.info(f"Testing weak password: {sql}")
         try:
-            tdSql.execute(sql)
+            tdSql.execute(sql, queryTimes=1)
             tdLog.notice("Weak password was accepted")
         except Exception as e:
             msg = str(e).lower()
@@ -381,7 +381,7 @@ class TestXnodeLifecycle:
         sql = f"CREATE XNODE '{ep}' USER __xnode__ PASS '{strong_pass}'"
         tdLog.info(f"Testing strong password: {sql}")
         try:
-            tdSql.execute(sql)
+            tdSql.execute(sql, queryTimes=1)
             tdLog.success("Strong password accepted")
         except Exception as e:
             msg = str(e).lower()

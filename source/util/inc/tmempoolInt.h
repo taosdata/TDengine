@@ -24,6 +24,7 @@ extern "C" {
 #include "tglobal.h"
 #include "thash.h"
 #include "tlockfree.h"
+#include "tutil.h"
 
 #define MP_CHUNK_CACHE_ALLOC_BATCH_SIZE   1000
 #define MP_NSCHUNK_CACHE_ALLOC_BATCH_SIZE 500
@@ -468,20 +469,17 @@ enum {
 #define MP_CHECK_QUOTA(_pool, _job, _size)                                                                             \
   do {                                                                                                                 \
     if (*(_pool)->cfg.jobQuota > 0) {                                                                                  \
-      int64_t cAllocSize = atomic_add_fetch_64(&(_job)->job.allocMemSize, (_size));                                    \
-      if (cAllocSize > (*(_pool)->cfg.jobQuota * 1048576L)) {                                                          \
+      int64_t cAllocSize = atomic_add_fetch_64_relax(&(_job)->job.allocMemSize, (_size));                              \
+      if (UNLIKELY(cAllocSize > (*(_pool)->cfg.jobQuota * 1048576L))) {                                                \
         uWarn("job 0x%" PRIx64 " remainSession:%d allocSize %" PRId64 " is over than quota %dMB", (_job)->job.jobId,   \
               (_job)->job.remainSession, cAllocSize, *(_pool)->cfg.jobQuota);                                          \
         (_pool)->cfg.cb.reachFp(pJob->job.jobId, (_job)->job.clientId, TSDB_CODE_QRY_REACH_QMEM_THRESHOLD);            \
         mpSchedTrim(NULL);                                                                                             \
         terrno = TSDB_CODE_QRY_REACH_QMEM_THRESHOLD;                                                                   \
         return NULL;                                                                                                   \
-      } else {                                                                                                         \
-        uDebug("job 0x%" PRIx64 " remainSession:%d allocSize %" PRId64 " is lower than quota %dMB", (_job)->job.jobId, \
-               (_job)->job.remainSession, cAllocSize, *(_pool)->cfg.jobQuota);                                         \
       }                                                                                                                \
     }                                                                                                                  \
-    if (atomic_load_64(&tsCurrentAvailMemorySize) <= ((_pool)->cfg.reserveSize + (_size))) {                           \
+    if (UNLIKELY(atomic_load_64(&tsCurrentAvailMemorySize) <= ((_pool)->cfg.reserveSize + (_size)))) {                 \
       uWarn("%s pool sysAvailMemSize %" PRId64 " can't alloc %" PRId64 " while keeping reserveSize %" PRId64 " bytes", \
             (_pool)->name, atomic_load_64(&tsCurrentAvailMemorySize), (_size), (_pool)->cfg.reserveSize);              \
       (_pool)->cfg.cb.reachFp((_job)->job.jobId, (_job)->job.clientId, TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED);             \

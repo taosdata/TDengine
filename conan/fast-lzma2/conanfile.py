@@ -90,6 +90,7 @@ class FastLzma2Conan(ConanFile):
 
         # Build make command
         cflags = "-Wall -O2 -pthread"
+        asflags = "-Wa,--noexecstack"
         if self.options.get_safe("fPIC"):
             cflags += " -fPIC"
 

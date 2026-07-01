@@ -5,6 +5,8 @@ target_include_directories(
     new-stream
     PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
     PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+    PUBLIC "${TD_SOURCE_DIR}/include/os"
+    PUBLIC "${TD_SOURCE_DIR}/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 if (${BUILD_CONTRIB} OR NOT ${TD_LINUX})

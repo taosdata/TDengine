@@ -1,0 +1,12 @@
+use test;
+
+select cast(_wstart as bigint) as ws, count(*) as c from ext_path_src external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w) order by ws;
+select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_path_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w) order by t1, ws;
+select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_path_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w) order by tbname, ws;
+select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_path_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_path_win partition by t1 interval(10m)) w) order by t1, ws;
+select t1, cast(_wstart as bigint) as ws, w.wc from ext_path_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_path_win partition by t1 interval(10m)) w) order by t1, ws;
+select t1, cast(_wstart as bigint) as ws from ext_path_src partition by t1 external_window((select _wstart, _wend, count(*) as wc from ext_path_win partition by t1 interval(10m)) w) order by t1, ws;
+select t1, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64 from ext_path_src partition by t1 external_window((select _wstart, _wend from ext_path_win partition by t1 interval(10m)) w) order by t1, ts;
+select tbname, cast(_wstart as bigint) as ws, cast(ts as bigint) as ts64 from ext_path_src partition by tbname external_window((select _wstart, _wend from ext_path_win interval(10m)) w) order by tbname, ts;
+select _wstart, _wend, count(*), (select count(*) from (select ts from ext_path_src) t) as total_rows from ext_path_src external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w) order by _wstart;
+select tbname, cast(_wstart as bigint) as ws, count(*), (select count(*) from (select ts from ext_path_src) t) as total_rows from ext_path_src partition by tbname external_window((select _wstart, _wend, count(*) as wc from ext_path_win interval(10m)) w) order by tbname, ws;

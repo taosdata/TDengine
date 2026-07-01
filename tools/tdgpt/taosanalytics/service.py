@@ -62,13 +62,14 @@ class AbstractAnalyticsService(AnalyticsService, ABC):
 
 
 class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
-    """ abstract anomaly detection service, all anomaly detection algorithm class should be
-     inherent from this class"""
+    """ abstract anomaly detection service, all anomaly detection algorithm class should
+    inherit from this class"""
 
     def __init__(self):
         self.valid_code = 1
         super().__init__()
         self.type = "anomaly-detection"
+        self.input_data_lists = []
 
     def input_is_empty(self):
         """ check if the input list is empty or None """
@@ -79,6 +80,25 @@ class AbstractAnomalyDetectionService(AbstractAnalyticsService, ABC):
 
         if "valid_code" in params:
             self.valid_code = int(params["valid_code"])
+
+    def set_input_list(self, input_list: list, input_ts_list: list = None):
+        """ set the input list """
+        self.ts_list = input_ts_list
+
+        # let's check if the input list is 1-dimensional or 2-dimensional
+        if input_list is not None and len(input_list) > 0:
+            if isinstance(input_list[0], list):
+
+                # check for the length of all items in the list
+                list_len = len(input_list[0])
+                if not all(len(x) == list_len for x in input_list):
+                    raise ValueError("multiple dimensions of data for anomaly detection are not equal")
+
+                self.input_data_lists = input_list
+                self.list = input_list[0]  # keep the first element of the self.input_data_lists
+            else:
+                self.list = input_list
+                self.input_data_lists = [input_list]
 
 
 class AbstractForecastService(AbstractAnalyticsService, ABC):

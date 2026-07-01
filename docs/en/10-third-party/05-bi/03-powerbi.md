@@ -1,6 +1,5 @@
 ---
 title: Microsoft Power BI
-slug: /third-party-tools/analytics/power-bi
 ---
 
 Power BI is a business analytics tool provided by Microsoft. By configuring the use of the ODBC connector, Power BI can quickly access data from TDengine. Users can import tag data, raw time-series data, or time-aggregated time series data from TDengine into Power BI to create reports or dashboards, all without the need for any coding.
@@ -8,13 +7,13 @@ Power BI is a business analytics tool provided by Microsoft. By configuring the 
 ## Prerequisites
 
 - TDengine 3.3.4.0 and above version is installed and running normally (both Enterprise and Community versions are available).
-- taosAdapter is running normally, refer to [taosAdapter Reference](../../../tdengine-reference/components/taosadapter/).
+- taosAdapter is running normally, refer to [taosAdapter Reference](../../14-reference/01-components/03-taosadapter.md).
 - Install and run Power BI Desktop software (if not installed, please download the latest version for Windows OS 32/64 bit from its official address).
 - Download the latest Windows OS X64 client driver from the TDengine official website and install it on the machine running Power BI. After successful installation, the TDengine driver can be seen in the "ODBC Data Sources (32-bit)" or "ODBC Data Sources (64-bit)" management tool.
 
 ## Configure Data Source
 
-**Step 1**, Search and open the [ODBC Data Source (64 bit)] management tool in the Start menu of the Windows operating system and configure it, refer to [Install ODBC Driver](../../../tdengine-reference/client-libraries/odbc/#installation).
+**Step 1**, Search and open the [ODBC Data Source (64 bit)] management tool in the Start menu of the Windows operating system and configure it, refer to [Install ODBC Driver](../../14-reference/05-connector/50-odbc.md#installation).
 
 **Step 2**, Open Power BI and log in, click [Home] -> [Get Data] -> [Other] -> [ODBC] -> [Connect], add data source.
 
@@ -32,7 +31,7 @@ To fully leverage Power BI's advantages in analyzing data from TDengine, users n
 - Metrics: Quantitative (numeric) fields that can be used for calculations, common calculations include sum, average, and minimum. If the measurement point's collection period is 1s, then there are over 30 million records in a year, importing all these data into Power BI would severely affect its performance. In TDengine, users can use data split queries, window split queries, and other syntax combined with window-related pseudocolumns to import down-sampled data into Power BI, for specific syntax please refer to the TDengine official documentation's feature query function section.
 - Window split query: For example, a temperature sensor collects data every second, but needs to query the average temperature every 10 minutes, in this scenario you can use the window clause to get the required down-sampling query result, corresponding SQL like `select tbname, _wstart date, avg(temperature) temp from table interval(10m)`, where `_wstart` is a pseudocolumn, representing the start time of the time window, 10m represents the duration of the time window, avg(temperature) represents the aggregate value within the time window.
 - Data split query: If you need to obtain aggregate values for many temperature sensors at the same time, you can split the data, then perform a series of calculations within the split data space, corresponding SQL like `partition by part_list`. The most common use of the data split clause is to split subtable data by tags in supertable queries, isolating each subtable's data into independent time-series, facilitating statistical analysis for various time series scenarios.
-- Time-Series: When drawing curves or aggregating data by time, it is usually necessary to introduce a date table. Date tables can be imported from Excel spreadsheets, or obtained in TDengine by executing SQL like `select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(0)`, where the fill clause represents the filling mode in case of data missing, and the pseudocolumn `_wstart` is the date column to be obtained.
+- Time-Series: When drawing curves or aggregating data by time, it is usually necessary to introduce a date table. Date tables can be imported from Excel spreadsheets, or obtained in TDengine by executing SQL like `select _wstart date, count(*) cnt from test.meters where ts between A and B interval(1d) fill(value, 0)`, where the fill clause represents the filling mode in case of data missing, and the pseudocolumn `_wstart` is the date column to be obtained.
 - Correlation: Tells how data is related, such as metrics and dimensions can be associated together through the tbname column, date tables and metrics can be associated through the date column, combined to form visual reports.
 
 ### Smart Meter Example

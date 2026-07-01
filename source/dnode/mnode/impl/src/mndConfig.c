@@ -791,7 +791,7 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   }
 
   char configName[TSDB_DNODE_CONFIG_LEN] = {0};
-  strncpy(configName, cfgReq.config, sizeof(configName) - 1);
+  tstrncpy(configName, cfgReq.config, sizeof(configName));
   const char *p = strstr(configName, " ");
   if (p) *(char *)p = 0;
   EPrivType privType = cfgGetPrivType(tsCfg, configName, 0);
@@ -848,7 +848,7 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   // Audit log
   if (tsAuditLevel >= AUDIT_LEVEL_SYSTEM) {
     char obj[50] = {0};
-    (void)tsnprintf(obj, sizeof(obj), "%d", cfgReq.dnodeId);
+    (void)snprintf(obj, sizeof(obj), "%d", cfgReq.dnodeId);
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
@@ -947,18 +947,18 @@ static int32_t mndHandleSyncTimeoutConfigs(STrans *pTrans, const char *srcName, 
   int32_t baseTimeout = syncTimeout - syncTimeout / SYNC_TIMEOUT_DIVISOR;
 
   // arbSetAssignedTimeoutMs = syncTimeout
-  sprintf(tmp, "%d", syncTimeout);
+  snprintf(tmp, sizeof(tmp), "%d", syncTimeout);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbSetAssignedTimeoutMs", tmp, lino), lino, _OVER);
 
   // arbHeartBeatIntervalMs = syncTimeout / 4
-  sprintf(tmp, "%d", syncTimeout / SYNC_TIMEOUT_DIVISOR);
+  snprintf(tmp, sizeof(tmp), "%d", syncTimeout / SYNC_TIMEOUT_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbHeartBeatIntervalMs", tmp, lino), lino, _OVER);
 
   // arbCheckSyncIntervalMs = syncTimeout / 4
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "arbCheckSyncIntervalMs", tmp, lino), lino, _OVER);
 
   // syncVnodeElectIntervalMs = (syncTimeout - syncTimeout / 4) / 2
-  sprintf(tmp, "%d", baseTimeout / SYNC_TIMEOUT_ELECT_DIVISOR);
+  snprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_ELECT_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "syncVnodeElectIntervalMs", tmp, lino), lino, _OVER);
 
   // syncMnodeElectIntervalMs = (syncTimeout - syncTimeout / 4) / 2
@@ -968,11 +968,11 @@ static int32_t mndHandleSyncTimeoutConfigs(STrans *pTrans, const char *srcName, 
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "statusTimeoutMs", tmp, lino), lino, _OVER);
 
   // statusSRTimeoutMs = (syncTimeout - syncTimeout / 4) / 4
-  sprintf(tmp, "%d", baseTimeout / SYNC_TIMEOUT_SR_DIVISOR);
+  snprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_SR_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "statusSRTimeoutMs", tmp, lino), lino, _OVER);
 
   // syncVnodeHeartbeatIntervalMs = (syncTimeout - syncTimeout / 4) / 8
-  sprintf(tmp, "%d", baseTimeout / SYNC_TIMEOUT_HB_DIVISOR);
+  snprintf(tmp, sizeof(tmp), "%d", baseTimeout / SYNC_TIMEOUT_HB_DIVISOR);
   TAOS_CHECK_GOTO(mndCreateAndCommitConfigObj(pTrans, srcName, "syncVnodeHeartbeatIntervalMs", tmp, lino), lino, _OVER);
 
   // syncMnodeHeartbeatIntervalMs = (syncTimeout - syncTimeout / 4) / 8
@@ -1232,7 +1232,43 @@ static void cfgObjArrayCleanUp(SArray *array) {
   taosArrayDestroy(array);
 }
 
-static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern) {
+#ifdef TD_ENTERPRISE
+static bool mndShowVarPrivAllowed(uint8_t showPrivMask, int8_t cfgPrivType) {
+  switch (cfgPrivType) {
+    case CFG_PRIV_SYSTEM:
+      return (showPrivMask & SHOW_VAR_PRIV_SYSTEM) != 0;
+    case CFG_PRIV_SECURITY:
+      return (showPrivMask & SHOW_VAR_PRIV_SECURITY) != 0;
+    case CFG_PRIV_AUDIT:
+      return (showPrivMask & SHOW_VAR_PRIV_AUDIT) != 0;
+    case CFG_PRIV_DEBUG:
+      return (showPrivMask & SHOW_VAR_PRIV_DEBUG) != 0;
+    default:
+      return false;
+  }
+}
+
+static uint8_t mndBuildShowVarPrivMask(SMnode *pMnode, SUserObj *pUser, const char *token) {
+  static const EPrivType kShowVarPrivTypes[] = {
+      PRIV_VAR_SYSTEM_SHOW,
+      PRIV_VAR_SECURITY_SHOW,
+      PRIV_VAR_AUDIT_SHOW,
+      PRIV_VAR_DEBUG_SHOW,
+  };
+
+  uint64_t rawMask =
+      mndBuildSysPrivBatchMask(pMnode, pUser, token, kShowVarPrivTypes, (int32_t)ARRAY_SIZE(kShowVarPrivTypes));
+
+  uint8_t mask = 0;
+  if (rawMask & (1ULL << 0)) mask |= SHOW_VAR_PRIV_SYSTEM;
+  if (rawMask & (1ULL << 1)) mask |= SHOW_VAR_PRIV_SECURITY;
+  if (rawMask & (1ULL << 2)) mask |= SHOW_VAR_PRIV_AUDIT;
+  if (rawMask & (1ULL << 3)) mask |= SHOW_VAR_PRIV_DEBUG;
+  return mask;
+}
+#endif
+
+static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern, uint8_t showPrivMask) {
   if (pItems == NULL) {
     return NULL;
   }
@@ -1251,30 +1287,35 @@ static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern) {
     if (likePattern != NULL && rawStrPatternMatch(pItem->name, likePattern) != TSDB_PATTERN_MATCH) {
       continue;
     }
+#ifdef TD_ENTERPRISE
+    if (!mndShowVarPrivAllowed(showPrivMask, pItem->privType)) {
+      continue;
+    }
+#endif
 
     // init info value
     switch (pItem->dtype) {
       case CFG_DTYPE_NONE:
         break;
       case CFG_DTYPE_BOOL:
-        tsnprintf(info.value, sizeof(info.value), "%d", pItem->bval);
+        snprintf(info.value, sizeof(info.value), "%d", pItem->bval);
         break;
       case CFG_DTYPE_INT32:
-        tsnprintf(info.value, sizeof(info.value), "%d", pItem->i32);
+        snprintf(info.value, sizeof(info.value), "%d", pItem->i32);
         break;
       case CFG_DTYPE_INT64:
-        tsnprintf(info.value, sizeof(info.value), "%" PRId64, pItem->i64);
+        snprintf(info.value, sizeof(info.value), "%" PRId64, pItem->i64);
         break;
       case CFG_DTYPE_FLOAT:
       case CFG_DTYPE_DOUBLE:
-        tsnprintf(info.value, sizeof(info.value), "%f", pItem->fval);
+        snprintf(info.value, sizeof(info.value), "%f", pItem->fval);
         break;
       case CFG_DTYPE_STRING:
       case CFG_DTYPE_DIR:
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
       case CFG_DTYPE_TIMEZONE:
-        tsnprintf(info.value, sizeof(info.value), "%s", pItem->str);
+        snprintf(info.value, sizeof(info.value), "%s", pItem->str);
         break;
     }
 
@@ -1319,7 +1360,9 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
   SShowVariablesRsp rsp = {0};
   int32_t           code = TSDB_CODE_SUCCESS;
   SShowVariablesReq req = {0};
-  SArray           *array = NULL;
+  SUserObj         *pUser = NULL;
+  uint8_t           showPrivMask = 0;
+  SMnode           *pMnode = pReq->info.node;
 
   code = tDeserializeSShowVariablesReq(pReq->pCont, pReq->contLen, &req);
   if (code != 0) {
@@ -1327,13 +1370,19 @@ static int32_t mndProcessShowVariablesReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if ((code = mndCheckOperPrivilege(pReq->info.node, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_VARIABLES)) != 0) {
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_VARIABLES)) != 0) {
     goto _OVER;
   }
 
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser)) != 0) {
+    goto _OVER;
+  }
+#ifdef TD_ENTERPRISE
+  showPrivMask = mndBuildShowVarPrivMask(pMnode, pUser, RPC_MSG_TOKEN(pReq));
+#endif
   SVariablesInfo info = {0};
   char          *likePattern = req.opType == OP_TYPE_LIKE ? req.val : NULL;
-  rsp.variables = initVariablesFromItems(taosGetGlobalCfg(tsCfg), likePattern);
+  rsp.variables = initVariablesFromItems(taosGetGlobalCfg(tsCfg), likePattern, showPrivMask);
   if (rsp.variables == NULL) {
     code = terrno;
     goto _OVER;
@@ -1360,6 +1409,7 @@ _OVER:
   if (code != 0) {
     mError("failed to get show variables info since %s", tstrerror(code));
   }
+  mndReleaseUser(pMnode, pUser);
   tFreeSShowVariablesReq(&req);
   tFreeSShowVariablesRsp(&rsp);
   TAOS_RETURN(code);

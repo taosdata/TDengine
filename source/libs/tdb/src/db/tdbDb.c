@@ -285,7 +285,7 @@ void tdbEnvRemovePager(TDB *pDb, SPager *pPager) {
     tdbError("tdb/db: invalid pPager: %p, *ppPager: %p", pPager, *ppPager);
     return;
   }
-  *ppPager = pPager->pNext;
+  *ppPager = pPager->pHashNext;
 
   // decrease the counter
   pDb->nPager--;

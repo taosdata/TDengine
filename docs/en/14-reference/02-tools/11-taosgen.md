@@ -1,13 +1,12 @@
----
+﻿---
 title: taosgen Reference Manual
 sidebar_label: taosgen
-slug: /tdengine-reference/tools/taosgen
 toc_max_heading_level: 4
 ---
 
 taosgen is a performance benchmarking tool for time-series data products, supporting data generation, write performance testing, and more. taosgen uses "jobs" as the basic unit, where a job is user-defined and consists of a set of operations to accomplish a specific task. Each job contains one or more steps and can be connected to other jobs via dependencies, forming a Directed Acyclic Graph (DAG) execution flow for flexible and efficient task orchestration.
 
-taosgen currently supports Linux and macOS systems.
+taosgen currently supports Windows, Linux and macOS systems.
 
 ## Comparison of taosBenchmark and taosgen Features
 
@@ -57,6 +56,8 @@ taosgen -h 127.0.0.1 -c config.yaml
 | -u/--user              | Username for connecting to the server, default is root |
 | -p/--password          | Password for connecting to the server, default is taosdata |
 | -c/--config-file       | Path to the YAML configuration file |
+| -d/--log-dir           | Specify log output directory, default is ./log |
+| -f/--log-file          | Specify complete log file path (overrides --log-dir) |
 | -?/--help              | Show help information and exit |
 | -V/--version           | Show version information and exit. Cannot be used with other parameters |
 
@@ -74,6 +75,8 @@ The configuration file is divided into many parts: "tdengine", "mqtt", "kafka", 
 - schema: Describes configuration parameters for data definition and generation.
 - concurrency: Describes job execution concurrency.
 - jobs: List structure, describes specific parameters for all jobs.
+- log_dir: Specifies the log output directory, default: `log/`.
+- log_file: Specifies the complete log file path (overrides log_dir).
 
 #### Job Format
 
@@ -95,6 +98,19 @@ A step is the basic operation unit in a job, representing the execution process 
 By combining multiple steps, jobs can implement complex logic flows, such as TDengine creating super tables & child tables, writing data, etc.
 
 ### Global Configuration Parameters
+
+#### Log Parameters
+
+- log_dir (string): Specifies the log output directory, default: `log/`. When only log_dir is set, the log file will be written to `<log_dir>/taosgen.log`.
+- log_file (string): Specifies the complete log file path. When set, this overrides log_dir.
+
+These parameters can also be set via command line options (`--log-dir`, `--log-file`). The priority order from highest to lowest is:
+
+1. `--log-file` (CLI)
+2. `--log-dir` (CLI)
+3. `log_file` (YAML config)
+4. `log_dir` (YAML config)
+5. Default: `log/taosgen.log`
 
 #### TDengine Parameters
 
@@ -154,12 +170,13 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
   - name (string): Name of the schema.
   - from_csv: Configuration for using CSV files as data sources.
     - tags: Tag configuration.
-      - file_path (string): Path to tag data CSV file.
+      - file_path (string): Path to tag data CSV file. Supports a single file, a directory path (automatically discovers all `.csv` files in the directory), and glob patterns (e.g., `tags_*.csv`). Multiple files are read in alphabetical order by filename. All files must have the same column structure.
       - has_header (bool): Whether the file contains a header row, default: true.
       - tbname_index (int): Column index for table name (starting from 0), default: -1 (inactive).
       - exclude_indices (string): Indices of unused tag columns to exclude (comma-separated, 0-based), default: empty (no exclusion).
     - columns: Configuration for time-series data columns.
-      - file_path (string): Path to time-series data CSV file.
+      - loading_mode (string): CSV data loading mode. Options: "preload" (load all data into memory) and "streaming" (stream rows on demand). Default: "preload".
+      - file_path (string): Path to time-series data CSV file. Supports a single file, a directory path (automatically discovers all `.csv` files in the directory), and glob patterns (e.g., `data_*.csv`). Multiple files are read in alphabetical order and logically concatenated into a continuous data stream. All files must have the same column structure.
       - has_header (bool): Whether the file contains a header row, default: true.
       - repeat_read (bool): Whether to read data repeatedly, default: false.
       - tbname_index (int): Column index for child table name (starting from 0), default: -1 (inactive).
@@ -168,7 +185,7 @@ By combining multiple steps, jobs can implement complex logic flows, such as TDe
       - timestamp_offset: Timestamp offset configuration.
         - offset_type (string): Offset type, options: "relative", "absolute".
         - value (string/int): Offset value (relative) or starting timestamp (absolute):
-          - For "relative": string format `±[value][unit]` (e.g., "+1d3h" means add 1 day 3 hours), units: y (year), m (month), d (day), s (second).
+          - For "relative": string format `±[value][unit]` (e.g., "+1d3h30m" means add 1 day 3 hours 30 minutes), units: y (year), M (month, uppercase), d (day), h (hour), m (minute, lowercase), s (second).
           - For "absolute": int or string, either timestamp value (precision as per timestamp_precision) or ISO 8601 string ("YYYY-MM-DD HH:mm:ss").
   - tbname: Table name generation configuration:
     - prefix (string): Table name prefix, default: "d".
@@ -251,6 +268,10 @@ Currently supported built-in actions:
 - `mqtt/publish`: Publish data to MQTT Broker
 - `kafka/produce`: Publish data to Kafka Broker
 Each action can receive parameters via the with field, with content varying by action type.
+
+:::note
+`tdengine/insert-data` was the old name used in v0.7.x and earlier. Using it from v0.8.0 onward will show: "Action 'tdengine/insert-data' is deprecated and will be removed in future versions. Please use 'tdengine/insert' instead". This name is no longer supported as of v0.8.3 (corresponding to TDengine TSDB 3.3.6.39/3.3.8.16/3.4.0.2).
+:::
 
 ### Format for Creating TDengine Database Action
 

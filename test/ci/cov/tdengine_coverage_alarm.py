@@ -1,3 +1,4 @@
+import os
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -488,12 +489,16 @@ def send_to_feishu(send_to_feishu_url, message, notifier, coverage_result_url,co
         )
 
 
+# 修复因手动运行与自动运行的工作目录不同而导致路径不一致的问题
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+_HIGHEST_COVERAGE_FILE = os.path.join(_SCRIPT_DIR, "highest_coverage.json")
+
 def get_highest_coverage():
     """
     获取历史最高覆盖率
     """
     try:
-        with open("highest_coverage.json", "r") as file:
+        with open(_HIGHEST_COVERAGE_FILE, "r") as file:
             data = json.load(file)
             return data.get("highest_coverage", 0)
     except FileNotFoundError:
@@ -504,7 +509,7 @@ def update_highest_coverage(new_coverage):
     更新历史最高覆盖率
     """
     data = {"highest_coverage": new_coverage}
-    with open("highest_coverage.json", "w") as file:
+    with open(_HIGHEST_COVERAGE_FILE, "w") as file:
         json.dump(data, file)
 
 def get_detailed_coverage_info(build_detail_url):

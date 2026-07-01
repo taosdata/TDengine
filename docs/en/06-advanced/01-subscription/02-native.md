@@ -4,7 +4,7 @@ title: Native Subscription
 
 TDengine TSDB provides data subscription and consumption interfaces similar to those of message queue systems. In many scenarios, using TDengine TSDB as the time-series data platform eliminates the need to integrate an additional message queue, thereby simplifying application design and reducing operational costs.
 
-For fundamental concepts such as topic management, refer to the [documentation](../topic/). For detailed API usage, see the Developer Guide.
+For fundamental concepts such as topic management, refer to the [documentation](01-topic.md). For detailed API usage, see the Developer Guide.
 
 ## Create a Topic
 
@@ -23,6 +23,7 @@ The key parameters for creating a consumer include:
 - td.connect.ip: FQDN of the server.
 - td.connect.user: Username.
 - td.connect.pass: Password.
+- td.connect.token: Token.
 - td.connect.port: Server port.
 - group.id: Consumer group ID; members of the same group share consumption progress.
 - client.id: Client ID.

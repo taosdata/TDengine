@@ -92,6 +92,8 @@ database_option: {
 
 在 3.4.0.0 之前版本创建的审计库，与 3.4.0.0 及之后版本的审计库不兼容。3.4.0.0 之前版本的审计库无法开启 is_audit 参数，因此不会对 DURATION、WAL_LEVEL、ENCRYPT_ALGORITHM 做强制要求。对于 3.4.0.0 之前创建的审计库，如需使用新版本的审计能力，建议先 drop 该审计库后再重新创建。如果要在 3.4.0.0 之后的版本中继续使用由 3.4.0.0 之前版本创建的审计库，则需要将 auditUseToken 关闭（设置为 0）。
 
+在 3.4.1.0 之后的版本可以将审计信息保存在自身，而不发送给 taoskeeper，若要使用该功能，需要将参数 auditSaveInSelf 设置为 1，并且在使用该功能时，创建的审计库的 vgroups 的数量只能为 1。
+
 ### taosKeeper 配置
 
 在 taosKeeper 的配置文件 keeper.toml 中配置与审计日志有关的配置参数，如下表所示
@@ -191,7 +193,7 @@ auditLevel = 3 // AUDIT_LEVEL_DATABASE
 | recalc stream     | recalcStream | streamName | recalcName | SQL |
 | create topic    | createTopic | topic 所在 DB | 创建的 topic 名字 | SQL |
 | drop topic      | dropTopic | topic 所在 DB | 删除的 topic 名字 | SQL |
-| reload topic      | reloadTopic | NULL | 删除的 topic 名字 | SQL |
+| reload topic      | reloadTopic | topic 所在 DB | topic 名字 | SQL |
 | create Rsma      | createRsma | Rsma name | NULL | SQL |
 | alter Rsma      | alterRsma | Rsma name | Table name | SQL |
 | drop Rsma      | dropRsma | Rsma name | NULL | SQL |
@@ -231,6 +233,7 @@ taosk -c /etc/taos \
 主要参数说明：
 
 - `-c`：指定配置文件路径，默认 `/etc/taos`
+- `-d`：指定数据目录（dataDir），默认从配置文件读取
 - `--set-cfg-algorithm`：设置配置文件加密算法（sm4 或 aes），默认 sm4
 - `--set-meta-algorithm`：设置元数据加密算法（sm4 或 aes），默认 sm4
 - `--encrypt-server`：启用服务器加密，可选择性指定 SVR_KEY，不指定则自动生成
@@ -265,6 +268,41 @@ taosk -c /etc/taos \
 
 - `{dataDir}/dnode/config/master.bin`：存储 SVR_KEY 和 DB_KEY
 - `{dataDir}/dnode/config/derived.bin`：存储 CFG_KEY、META_KEY 和 DATA_KEY
+
+### 查看加密配置文件
+
+使用 `taosk` 工具可以查看加密的配置文件内容：
+
+其中 `-d` 用于指定 TDengine 的数据目录（即 `dataDir`，例如 `/var/lib/taos`），工具会从该目录加载解密所需的密钥。如果已经通过 `-c` 指定了配置目录，且对应配置文件中包含正确的 `dataDir`，则可以省略 `-d`。
+
+```shell
+taosk -d /var/lib/taos --view-config /path/to/encrypted_config.json
+```
+
+该命令会自动从数据目录加载密钥，解密并显示配置文件内容。
+
+### 编辑加密配置文件
+
+使用 `taosk` 工具可以直接编辑加密的配置文件：
+
+```shell
+taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json
+```
+
+该命令会：
+
+1. 从数据目录加载 CFG_KEY
+2. 解密配置文件到临时文件（权限 0600）
+3. 使用系统编辑器（$EDITOR 或 vi）打开文件
+4. 通过 SHA-256 哈希检测文件变化
+5. 如有修改，自动重新加密并写回原文件
+6. 清理临时文件
+
+**注意**：
+
+- 编辑前必须先生成包含 CFG_KEY 的密钥（使用 `--encrypt-config` 选项）
+- 可通过 EDITOR 环境变量指定编辑器，如 `EDITOR=nano taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json`
+- 如果退出编辑器时未保存，文件不会被修改
 
 ### 查看加密状态
 

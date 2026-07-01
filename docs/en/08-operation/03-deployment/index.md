@@ -1,6 +1,5 @@
 ---
 title: Deploying Your Cluster
-slug: /operations-and-maintenance/deploy-your-cluster
 ---
 
 import DocCardList from '@theme/DocCardList';

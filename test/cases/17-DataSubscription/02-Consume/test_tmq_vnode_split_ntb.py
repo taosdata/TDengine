@@ -14,11 +14,6 @@ class TestCase:
         cls.ctbNum     = 10
         cls.rowsPerTbl = 1000
 
-    def getDataPath(self):
-        selfPath = tdCom.getBuildPath()
-
-        return selfPath + '/../sim/dnode%d/data/vnode/vnode%d/wal/*';
-
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
         paraDict = {'dbName':     'dbt',
@@ -54,41 +49,6 @@ class TestCase:
         tdSql.query("insert into dbt.t values('2022-01-01 00:00:02.000', 0)")
         tdSql.query("insert into dbt.t values('2022-01-01 00:00:03.000', 0)")
         return
-
-    def restartAndRemoveWal(self, deleteWal):
-        tdDnodes = cluster.dnodes
-        tdSql.query("select * from information_schema.ins_vnodes")
-        for result in tdSql.queryResult:
-            if result[2] == 'dbt':
-                tdLog.debug("dnode is %d"%(result[0]))
-                dnodeId = result[0]
-                vnodeId = result[1]
-
-                tdDnodes[dnodeId - 1].stoptaosd()
-                time.sleep(1)
-                dataPath = self.getDataPath()
-                dataPath = dataPath%(dnodeId,vnodeId)
-                tdLog.debug("dataPath:%s"%dataPath)
-                if deleteWal:
-                    if os.system('rm -rf ' + dataPath) != 0:
-                        tdLog.exit("rm error")
-
-                tdDnodes[dnodeId - 1].starttaosd()
-                time.sleep(1)
-                break
-        tdLog.debug("restart dnode ok")
-
-    def splitVgroups(self):
-        tdSql.query("select * from information_schema.ins_vnodes")
-        vnodeId = 0
-        for result in tdSql.queryResult:
-            if result[2] == 'dbt':
-                vnodeId = result[1]
-                tdLog.debug("vnode is %d"%(vnodeId))
-                break
-        splitSql = "split vgroup %d" %(vnodeId)
-        tdLog.debug("splitSql:%s"%(splitSql))
-        tdSql.query(splitSql)
 
     def tmqCase1(self, deleteWal=False):
         tdLog.printNoPrefix("======== test case 1: ")
@@ -145,10 +105,11 @@ class TestCase:
         tmqCom.getStartCommitNotifyFromTmqsim()
 
         #restart dnode & remove wal
-        self.restartAndRemoveWal(deleteWal)
+        tmqCom.restartAndRemoveWal(deleteWal)
 
         # split vgroup
-        self.splitVgroups()
+        tmqCom.splitVgroups()
+        tmqCom.checkSplitVgroups()
 
         clusterComCheck.check_vgroups_status(vgroup_numbers=2,db_replica=self.replicaVar,db_name="dbt",count_number=240)
 

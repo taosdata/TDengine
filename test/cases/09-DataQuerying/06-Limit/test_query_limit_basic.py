@@ -123,31 +123,31 @@ class TestLimit:
             tdSql.execute(f"create table {tb} using {stb} tags( {i} )")
             tdSql.execute(f"create table {tb1} using {stb} tags( {tbId} )")
 
-            x = 0
-            while x < rowNum:
-                xs = x * delta
-                ts = ts0 + xs
-                c = x % 10
-                c2 = c
-                binary = "'binary" + str(c) + "'"
-                nchar = "'nchar" + str(c) + "'"
+            # Batch insert to improve performance
+            batch_size = 10
+            for batch_start in range(0, rowNum, batch_size):
+                batch_end = min(batch_start + batch_size, rowNum)
+                values_tb = []
+                values_tb1 = []
+                for x in range(batch_start, batch_end):
+                    xs = x * delta
+                    ts = ts0 + xs
+                    c = x % 10
+                    c2 = c
+                    binary = "'binary" + str(c) + "'"
+                    nchar = "'nchar" + str(c) + "'"
 
-                ts = ts + i
-                tdLog.info(
-                    f"insert into {tb} values ( {ts} , {c} , {c} , {c} , {c} , {c} , {c} , true, {binary} , {nchar} )"
-                )
-                tdSql.execute(
-                    f"insert into {tb} values ( {ts} , {c} , {c} , {c} , {c} , {c} , {c} , true, {binary} , {nchar} )"
-                )
+                    ts_tb = ts + i
+                    values_tb.append(f"( {ts_tb} , {c} , {c} , {c} , {c} , {c} , {c} , true, {binary} , {nchar} )")
 
-                ts = ts + int(halfNum)
-                tdLog.info(
-                    f"insert into {tb1} values ( {ts} , {c2} , NULL , {c2} , NULL , {c2} , {c2} , true, {binary} , {nchar} )"
-                )
-                tdSql.execute(
-                    f"insert into {tb1} values ( {ts} , {c2} , NULL , {c2} , NULL , {c2} , {c2} , true, {binary} , {nchar} )"
-                )
-                x = x + 1
+                    ts_tb1 = ts_tb + int(halfNum)
+                    values_tb1.append(f"( {ts_tb1} , {c2} , NULL , {c2} , NULL , {c2} , {c2} , true, {binary} , {nchar} )")
+                
+                # Two separate INSERTs (original behavior) - timestamps are different
+                if values_tb:
+                    tdSql.execute(f"insert into {tb} values {','.join(values_tb)}")
+                if values_tb1:
+                    tdSql.execute(f"insert into {tb1} values {','.join(values_tb1)}")
 
             i = i + 1
 
@@ -1339,17 +1339,23 @@ class TestLimit:
             tdSql.execute(f"create table {tb} using {stb} tags( {i} )")
             tdSql.execute(f"create table {tb1} using {stb} tags( {tbId} )")
 
-            x = 0
-            while x < rowNum:
-                xs = x * delta
-                ts = ts0 + xs
-                c = x % 10
-                binary = "'binary" + str(c) + "'"
-                nchar = "'nchar" + str(c) + "'"
-                tdSql.execute(
-                    f"insert into {tb} values ( {ts} , {c} , {c} , {c} , {c} , {c} , {c} , true, {binary} , {nchar} )  {tb1} values ( {ts} , {c} , NULL , {c} , NULL , {c} , {c} , true, {binary} , {nchar} )"
-                )
-                x = x + 1
+            # Batch insert to improve performance (batch size 100)
+            batch_size = 100
+            for batch_start in range(0, rowNum, batch_size):
+                batch_end = min(batch_start + batch_size, rowNum)
+                values_tb = []
+                values_tb1 = []
+                for x in range(batch_start, batch_end):
+                    xs = x * delta
+                    ts = ts0 + xs
+                    c = x % 10
+                    binary = "'binary" + str(c) + "'"
+                    nchar = "'nchar" + str(c) + "'"
+                    values_tb.append(f"( {ts} , {c} , {c} , {c} , {c} , {c} , {c} , true, {binary} , {nchar} )")
+                    values_tb1.append(f"( {ts} , {c} , NULL , {c} , NULL , {c} , {c} , true, {binary} , {nchar} )")
+                # Single INSERT for both tables (same timestamp)
+                if values_tb and values_tb1:
+                    tdSql.execute(f"insert into {tb} values {','.join(values_tb)} {tb1} values {','.join(values_tb1)}")
             i = i + 1
 
         tdLog.info(f"====== tables created")
@@ -2452,20 +2458,23 @@ class TestLimit:
                 f"create table {tb1} using {stb} tags( {i1} , {tgstr1} , {tgstr1} , {i} , {i} , {i} )"
             )
 
-            x = 0
-            while x < rowNum:
-                xs = x * delta
-                ts = ts0 + xs
-                c = x % 10
-                binary = "'binary" + str(c) + "'"
-                nchar = "'nchar" + str(c) + "'"
-                tdSql.execute(
-                    f"insert into {tb} values ( {ts} , {c} , {c} , {c} , {c} , {c} , {c} , true, {binary} , {nchar} )"
-                )
-                tdSql.execute(
-                    f"insert into {tb1} values ( {ts} , {c} , NULL , {c} , NULL , {c} , {c} , true, {binary} , {nchar} )"
-                )
-                x = x + 1
+            # Batch insert to improve performance (batch size 100)
+            batch_size = 100
+            for batch_start in range(0, rowNum, batch_size):
+                batch_end = min(batch_start + batch_size, rowNum)
+                values_tb = []
+                values_tb1 = []
+                for x in range(batch_start, batch_end):
+                    xs = x * delta
+                    ts = ts0 + xs
+                    c = x % 10
+                    binary = "'binary" + str(c) + "'"
+                    nchar = "'nchar" + str(c) + "'"
+                    values_tb.append(f"( {ts} , {c} , {c} , {c} , {c} , {c} , {c} , true, {binary} , {nchar} )")
+                    values_tb1.append(f"( {ts} , {c} , NULL , {c} , NULL , {c} , {c} , true, {binary} , {nchar} )")
+                # Single INSERT for both tables to maintain atomicity
+                if values_tb and values_tb1:
+                    tdSql.execute(f"insert into {tb} values {','.join(values_tb)} {tb1} values {','.join(values_tb1)}")
 
             i = i + 1
 
@@ -2789,12 +2798,12 @@ class TestLimit:
             tb = tbPrefix + str(i)
             tdSql.execute(f"create table {tb} using {mt} tags( {i} )")
 
-            x = 0
-            while x < rowNum:
-                xs = x * delta
-                ts = ts0 + xs
-                tdSql.execute(f"insert into {tb} values ( {ts} , {x} )")
-                x = x + 1
+            # Batch insert to improve performance
+            batch_size = 100
+            for batch_start in range(0, rowNum, batch_size):
+                batch_end = min(batch_start + batch_size, rowNum)
+                values = ','.join([f"( {ts0 + x * delta} , {x} )" for x in range(batch_start, batch_end)])
+                tdSql.execute(f"insert into {tb} values {values}")
             i = i + 1
 
         tdSql.query(f"select * from {mt} order by ts limit 10")
@@ -2833,19 +2842,22 @@ class TestLimit:
             tdSql.execute(f"create table {tb} using {mt} tags( {i} , {tg2} )")
             tdSql.execute(f"create table {tb1} using {mt} tags( {i} , {tg2} )")
 
-            x = 0
-            while x < rowNum:
-                ms = str(x) + "m"
-                c = x % 100
-
-                binary = "'binary" + str(c) + "'"
-                nchar = "'nchar" + str(c) + "'"
-
-                tdSql.execute(
-                    f"insert into {tb} values ({tstart} , {c} , {c} , {c} , {c} , {c} , {c} , {c} , {binary} , {nchar} ) {tb1} values ({tstart} , {c} , {c} , {c} , {c} , {c} , {c} , {c} , {binary} , {nchar} )"
-                )
-                tstart = tstart + 1
-                x = x + 1
+            # Batch insert to improve performance (batch size 100)
+            batch_size = 100
+            for batch_start in range(0, rowNum, batch_size):
+                batch_end = min(batch_start + batch_size, rowNum)
+                values_tb = []
+                values_tb1 = []
+                for x in range(batch_start, batch_end):
+                    c = x % 100
+                    binary = "'binary" + str(c) + "'"
+                    nchar = "'nchar" + str(c) + "'"
+                    values_tb.append(f"({tstart} , {c} , {c} , {c} , {c} , {c} , {c} , {c} , {binary} , {nchar} )")
+                    values_tb1.append(f"({tstart} , {c} , {c} , {c} , {c} , {c} , {c} , {c} , {binary} , {nchar} )")
+                    tstart = tstart + 1
+                # Single INSERT for both tables (same timestamp)
+                if values_tb and values_tb1:
+                    tdSql.execute(f"insert into {tb} values {','.join(values_tb)} {tb1} values {','.join(values_tb1)}")
 
             i = i + 1
             tstart = 100000

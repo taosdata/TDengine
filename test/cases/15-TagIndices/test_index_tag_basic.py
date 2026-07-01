@@ -233,7 +233,7 @@ class TestTagIndexBasic:
     # ------------------- 2 ----------------
     #
     def prepareData(self):
-        self.dbname = 'db'
+        self.dbname = 'db_ts4403'
         self.stbname = 'st'
         # db
         tdSql.execute("create database {};".format(self.dbname))
@@ -284,6 +284,51 @@ class TestTagIndexBasic:
         # add index for multiple tags(TD-28078)
         tdSql.error("create index tt on {} (t2, t3);".format(self.stbname))
         tdLog.debug("Verify add index for multiple tags successfully")
+
+    def do_tag_column_comparison(self):
+        """Test that tag-to-tag comparison does not crash taosd
+        
+        Bug: When executing query like 'select * from st where tag1=tag2',
+        the index filter sifSetFltParam would crash because right->condValue is NULL.
+        The fix skips the index filter for column-to-column comparisons,
+        allowing the query to execute via fallback path without crash.
+        """
+        tdSql.execute("create database if not exists test_tag_col;")
+        tdSql.execute("use test_tag_col;")
+        tdSql.execute("create stable st(ts timestamp, val int) tags(tag1 int, tag2 int);")
+        tdSql.execute("create table ct1 using st tags(1, 2);")
+        tdSql.execute("create table ct2 using st tags(3, 3);")
+        tdSql.execute("create table ct3 using st tags(5, 6);")
+        tdSql.execute("insert into ct1 values(now, 1);")
+        tdSql.execute("insert into ct2 values(now, 2);")
+        tdSql.execute("insert into ct3 values(now, 3);")
+        
+        # tag1=tag2 should work without crash (fallback to non-index filter path)
+        tdSql.query("select * from st where tag1=tag2;")
+        tdSql.checkRows(1)  # ct2 where tag1=3, tag2=3
+        tdLog.info("tag1=tag2 query works correctly (no crash)")
+        
+        # tag1<tag2 should also work
+        tdSql.query("select * from st where tag1<tag2;")
+        tdSql.checkRows(2)  # ct1 and ct3
+        tdLog.info("tag1<tag2 query works correctly (no crash)")
+        
+        # tag1>tag2 should also work
+        tdSql.query("select * from st where tag1>tag2;")
+        tdSql.checkRows(0)  # no matching rows
+        tdLog.info("tag1>tag2 query works correctly (no crash)")
+        # Normal tag=value queries should still work
+        tdSql.query("select * from st where tag1=1;")
+        tdSql.checkRows(1)
+        tdLog.info("tag1=1 query works correctly")
+        
+        tdSql.query("select * from st where tag2=3;")
+        tdSql.checkRows(1)
+        tdLog.info("tag2=3 query works correctly")
+        
+        # Cleanup
+        tdSql.execute("drop database test_tag_col;")
+        tdLog.info("Tag-to-tag comparison test passed")
     
 
     #
@@ -304,6 +349,7 @@ class TestTagIndexBasic:
         8. Drop all tag indexes
         9. Attempt to create tag index with excessively long name and verify error
         10. bug TS-4403: Create/drop tag index on supertable and verify behavior
+        11. Verify tag-to-tag comparison does not crash taosd
         
         Since: v3.0.0.0
 
@@ -334,6 +380,7 @@ class TestTagIndexBasic:
         self.longname_idx(stable)
         
         self.do_ts4403()
+        self.do_tag_column_comparison()
 
 
 

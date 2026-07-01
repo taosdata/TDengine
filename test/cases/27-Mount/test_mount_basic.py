@@ -5,6 +5,7 @@ from new_test_framework.utils.sqlset import TDSetSql
 import os
 import time
 import shutil
+import platform
 
 class TestMountBasic:
     path_parts = os.getcwd().split(os.sep)
@@ -98,13 +99,21 @@ class TestMountBasic:
             lines = file.readlines()
         modified = False
         new_lines = []
+        patterns = [(origin, dest)]
+        if platform.system() == "Windows":
+            # local.json stores paths with escaped separators (e.g. D:\\td\\...),
+            # while runtime paths are unescaped (e.g. D:\td\...).
+            patterns.extend([
+                (origin.replace("\\", "\\\\"), dest.replace("\\", "\\\\")),
+                (origin.replace("\\", "/"), dest.replace("\\", "/")),
+            ])
         for line in lines:
-            if origin in line:
-                modified_line = line.replace(origin, dest)
-                new_lines.append(modified_line)
-                modified = True
-            else:
-                new_lines.append(line)
+            modified_line = line
+            for src, dst in patterns:
+                if src in modified_line:
+                    modified_line = modified_line.replace(src, dst)
+                    modified = True
+            new_lines.append(modified_line)
         if modified:
             with open(filename, 'w', encoding='utf-8') as file:
                 file.writelines(new_lines)
@@ -142,7 +151,9 @@ class TestMountBasic:
         tdSql.error("create mount mnt1 on dnode 1 from ''", expectErrInfo=f"The mount path is invalid", fullMatched=False)
         tdSql.error("create mount mnt1 on dnode 1 from 'path_not_exist'", expectErrInfo="No such file or directory", fullMatched=False)
         tdSql.error(f"create mount mnt1 on dnode 1 from '{self.mountPath}'", expectErrInfo="No such file or directory", fullMatched=False)
-        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.hostPrimary}'", expectErrInfo="Resource temporarily unavailable", fullMatched=False)
+        tdSql.error(f"create mount mnt1 on dnode 1 from '{self.hostPrimary}'",
+                     expectErrInfo= "windows api error, code: 0x00000021" if platform.system() == "Windows" else "Resource temporarily unavailable",
+                     fullMatched=False)
         tdSql.error(f"create mount d0 on dnode 1 from '{self.hostPrimary}'", expectErrInfo="Database with identical name already exists", fullMatched=False)
         self.refact_mount_dataDir()
         self.corruptMntClusterId()
@@ -254,9 +265,9 @@ class TestMountBasic:
     def s3_create_drop_show_mount(self):
         tdLog.info(" =============== step 3 create_drop_show_mount")
         tdSql.execute(f"create mount mnt1 on dnode 1 from '{self.mountPrimary}'")
-        tdSql.query("show mounts", count_expected_res=1)
-        tdLog.info(f"result: {tdSql.queryResult}")
-        tdSql.checkRows(1)
+        # Wait for mount to be ready using framework helper
+        tdSql.checkRowsLoop(1, "show mounts", loopCount=30, waitTime=1)
+        tdSql.query("show mounts")
         tdSql.checkData(0, 0, "mnt1")
         tdSql.checkData(0, 1, "1")
         tdSql.checkData(0, 3, self.mountPrimary)
@@ -264,7 +275,7 @@ class TestMountBasic:
         tdLog.info("check mount query")
         self.check_mount_query()
         tdLog.info("reboot and query from mount db")
-        tdSql.execute(f"GRANT drop,alter,show,show create ON mnt1_db0.* to u1;")
+        tdSql.execute(f"GRANT drop,alter,show,show create ON table mnt1_db0.* to u1;")
         tdSql.execute(f"GRANT select ON mnt1_db0.* to u1;")
         tdSql.execute(f"GRANT insert ON mnt1_db0.* to u1;")
         tdSql.execute(f"GRANT delete ON table mnt1_db0.* to u1;")

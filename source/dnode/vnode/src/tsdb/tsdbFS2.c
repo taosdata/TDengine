@@ -21,6 +21,9 @@
 
 #define BLOCK_COMMIT_FACTOR 3
 
+bool    tsdbShouldForceRepair(STFileSystem *fs);
+int32_t tsdbForceRepair(STFileSystem *fs);
+
 typedef struct STFileHashEntry {
   struct STFileHashEntry *next;
   char                    fname[TSDB_FILENAME_LEN];
@@ -631,8 +634,13 @@ static int32_t open_fs(STFileSystem *fs, int8_t rollback) {
     code = tsdbFSDupState(fs);
     TSDB_CHECK_CODE(code, lino, _exit);
 
-    code = tsdbFSScanAndFix(fs);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    if (!tsdbShouldForceRepair(fs)) {
+      code = tsdbFSScanAndFix(fs);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } else {
+      code = tsdbForceRepair(fs);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
   } else {
     code = save_fs(fs->fSetArr, fCurrent);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -924,6 +932,11 @@ int32_t tsdbFSEditCommit(STFileSystem *fs) {
   // commit
   code = commit_edit(fs);
   TSDB_CHECK_CODE(code, lino, _exit);
+
+  // Disable merge schedule when repair
+  if (fs->etype == TSDB_FEDIT_FORCE_REPAIR) {
+    goto _exit;
+  }
 
   // schedule merge
   int32_t sttTrigger = fs->tsdb->pVnode->config.sttTrigger;

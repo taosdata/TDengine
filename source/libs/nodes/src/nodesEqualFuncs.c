@@ -16,6 +16,8 @@
 #include "functionMgt.h"
 #include "querynodes.h"
 
+static bool nodeListNodeEqual(const SNodeListNode* a, const SNodeListNode* b);
+
 #define COMPARE_SCALAR_FIELD(fldname)           \
   do {                                          \
     if (a->fldname != b->fldname) return false; \
@@ -133,6 +135,7 @@ static bool valueNodeEqual(const SValueNode* a, const SValueNode* b) {
 
 static bool operatorNodeEqual(const SOperatorNode* a, const SOperatorNode* b) {
   COMPARE_SCALAR_FIELD(opType);
+  COMPARE_SCALAR_FIELD(flag);
   COMPARE_NODE_FIELD(pLeft);
   COMPARE_NODE_FIELD(pRight);
   return true;
@@ -184,6 +187,40 @@ static bool remoteValueNodeEqual(const SRemoteValueNode* a, const SRemoteValueNo
   return valueNodeEqual(&a->val, &b->val);
 }
 
+static bool remoteValueNodeListEqual(const SRemoteValueListNode* a, const SRemoteValueListNode* b) {
+  COMPARE_OBJECT_FIELD(node.resType, dataTypeEqual);
+  COMPARE_SCALAR_FIELD(subQIdx);
+  return true;
+}
+
+static bool remoteRowNodeEqual(const SRemoteRowNode* a, const SRemoteRowNode* b) {
+  COMPARE_SCALAR_FIELD(valSet);
+  COMPARE_SCALAR_FIELD(hasValue);
+  COMPARE_SCALAR_FIELD(hasNull);
+  COMPARE_SCALAR_FIELD(subQIdx);
+  return valueNodeEqual(&a->val, &b->val);
+}
+
+static bool remoteZeroRowsNodeEqual(const SRemoteZeroRowsNode* a, const SRemoteZeroRowsNode* b) {
+  return remoteValueNodeEqual((const SRemoteValueNode*)a, (const SRemoteValueNode*)b);
+}
+
+static bool remoteTableNodeEqual(const SRemoteTableNode* a, const SRemoteTableNode* b) {
+  COMPARE_SCALAR_FIELD(resCols);
+  COMPARE_SCALAR_FIELD(subQIdx);
+  return true;
+}
+
+static bool nodeListNodeEqual(const SNodeListNode* a, const SNodeListNode* b) {
+  if (LIST_LENGTH(a->pNodeList) != LIST_LENGTH(b->pNodeList)) {
+    return false;
+  }
+
+  COMPARE_NODE_LIST_FIELD(pNodeList);
+  return true;
+}
+
+
 bool nodesEqualNode(const SNode* a, const SNode* b) {
   if (a == b) {
     return true;
@@ -214,6 +251,8 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
       return caseWhenNodeEqual((const SCaseWhenNode*)a, (const SCaseWhenNode*)b);
     case QUERY_NODE_GROUPING_SET:
       return groupingSetNodeEqual((const SGroupingSetNode*)a, (const SGroupingSetNode*)b);
+    case QUERY_NODE_NODE_LIST:
+      return nodeListNodeEqual((const SNodeListNode*)a, (const SNodeListNode*)b);
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_VIRTUAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
@@ -223,27 +262,17 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
       return false;
     case QUERY_NODE_REMOTE_VALUE:
       return remoteValueNodeEqual((const SRemoteValueNode*)a, (const SRemoteValueNode*)b);
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      return remoteValueNodeListEqual((const SRemoteValueListNode*)a, (const SRemoteValueListNode*)b);
+    case QUERY_NODE_REMOTE_ROW:
+      return remoteRowNodeEqual((const SRemoteRowNode*)a, (const SRemoteRowNode*)b);
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      return remoteZeroRowsNodeEqual((const SRemoteZeroRowsNode*)a, (const SRemoteZeroRowsNode*)b);
+    case QUERY_NODE_REMOTE_TABLE:
+      return remoteTableNodeEqual((const SRemoteTableNode*)a, (const SRemoteTableNode*)b);
     default:
       break;
   }
 
-  return false;
-}
-
- bool nodeListNodeEqual(const SNodeList* a, const SNode* b) {
-  if (NULL == a || NULL == b) {
-    return false;
-  }
-
-  if (LIST_LENGTH(a) < 1) {
-    return false;
-  }
-
-  SNode *na;
-  FOREACH(na, a) {
-    if (nodesEqualNode(na, b)) {
-      return true;
-    }
-  }
   return false;
 }

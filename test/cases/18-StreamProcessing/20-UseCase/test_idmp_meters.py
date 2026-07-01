@@ -634,6 +634,7 @@ class Test_IDMP_Meters:
         vals = "40,500,300"
         ts = tdSql.insertFixedVal(table, ts, step, count, cols, vals)
 
+        time.sleep(5)
         # disorder write 2 rows from spanTs
         count = 2
         disTs = spanTs + 3 * step
@@ -643,6 +644,7 @@ class Test_IDMP_Meters:
         # blank 12
         disTs += 12 * step
 
+        time.sleep(5)
         # disorder write 1 rows
         count = 2
         vals = "39,200,200"

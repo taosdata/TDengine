@@ -25,7 +25,6 @@ set(
     "src/vnd/vnodeHash.c"
     "src/vnd/vnodeStream.c"
     "src/vnd/vnodeScan.c"
-
     # meta
     "src/meta/metaOpen.c"
     "src/meta/metaTable.c"
@@ -73,7 +72,6 @@ set(
     "src/tq/tqMeta.c"
     "src/tq/tqRead.c"
     "src/tq/tqOffset.c"
-    "src/tq/tqPush.c"
     "src/tq/tqSink.c"
     "src/tq/tqSnapshot.c"
 

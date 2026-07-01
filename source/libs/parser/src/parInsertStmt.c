@@ -212,7 +212,6 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
       }
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-      //      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
         if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
@@ -695,7 +694,6 @@ int32_t qBindStmtTagsValue2(void* pBlock, void* boundTags, int64_t suid, const c
       }
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
-      //      strcpy(val.colName, pTagSchema->name);
       if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_VARBINARY ||
           pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
         if (pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
@@ -962,8 +960,8 @@ int32_t qBindStmtStbColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCol
     code = tBlobSetCreate(1024, 1, ppBlob);
     TAOS_CHECK_GOTO(code, &lino, _return);
 
-    code = tRowBuildFromBind2WithBlob(pBindInfos, boundInfo->numOfBound, colInOrder, *pTSchema, pCols,
-                                      &pDataBlock->ordered, &pDataBlock->duplicateTs, *ppBlob);
+    code = tRowBuildFromBind2WithBlob(pBindInfos, boundInfo->numOfBound, parsedCols, colInOrder, *pTSchema, pSchemaExt,
+                                      pCols, &pDataBlock->ordered, &pDataBlock->duplicateTs, *ppBlob);
     TAOS_CHECK_GOTO(code, &lino, _return);
   }
 

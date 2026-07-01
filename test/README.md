@@ -2,10 +2,10 @@
 
 1. [Introduction](#1-introduction)
 1. [Prerequisites](#2-prerequisites)
-1. [Project Structure](#3-Project-Structure)
-1. [Run Test Cases](#4-Run-Test-Cases)
-1. [Add New Case](#5-Add-New-Case)
-1. [Add New Case to CI](#6-Add-New-Case-to-CI)
+1. [Project Structure](#3-project-structure)
+1. [Run Test Cases](#4-run-test-cases)
+1. [Add New Case](#5-add-new-case)
+1. [Add New Case to CI](#6-add-new-case-to-ci)
 1. [Workflows](#7-workflows)
 1. [Test Report](#8-test-report)
 
@@ -26,6 +26,7 @@ This is the new end-to-end testing framework for TDengine. It offers several adv
 6. **Integration with Github Action**: Including workflow to run the test cases in the new test framework, workflow to validate the docstring of test cases and workflow to publish case docs to Github Pages.
 
 > [!NOTE]
+>
 > - The commands and scripts below are verified on Linux (Ubuntu 18.04/20.04/22.04).
 > - [taos-connector-python](https://github.com/taosdata/taos-connector-python) is used by tests written in Python, which requires Python 3.8+.
 
@@ -34,8 +35,8 @@ This is the new end-to-end testing framework for TDengine. It offers several adv
 - Install Python3
 
 ```bash
-apt install python3
-apt install python3-pip
+apt install python3 -y
+apt install python3-pip -y
 ```
 
 - Install Python dependencies
@@ -43,6 +44,12 @@ apt install python3-pip
 ```bash
 cd test
 pip3 install -r requirements.txt
+```
+
+- Install screen
+
+```bash
+apt install screen -y
 ```
 
 - Building (Optional)
@@ -58,7 +65,8 @@ make && make install
 # 3. Project Structure
 
 Outline the main directories and their purposes:
-```
+
+```text
 test/
 │
 ├── cases/                # cases directory
@@ -96,7 +104,8 @@ pytest [options] [test_file_path]
 ```
 
 Notes:
-- options: described below 
+
+- options: described below
 - test_file_path: optional, if provided, only the test case in the file or path will be run; if not provided, all test cases (files start with test_) will be run
 
 ## 4.3 Run tests by command line arguments
@@ -141,9 +150,10 @@ Options:
 
 ## 4.4 Run tests by configuration file
 
-- `--yaml_file <file>`: TDengine deploy configuration yaml file (default directory is `env`, no need to specify the `env` path) 
+- `--yaml_file <file>`: TDengine deploy configuration yaml file (default directory is `env`, no need to specify the `env` path)
 
 **Mutually Exclusive Options**:
+
 - The `--yaml_file` option is mutually exclusive with the following options:
   - `-N`
   - `-R`
@@ -156,6 +166,7 @@ Options:
 ## 4.5 Common Options
 
 Some useful pytest common options:
+
 - `-s`: disable output capturing
 - `--log-level`: set log level
 - `--alluredir`: generate allure report directory
@@ -190,6 +201,7 @@ pytest --clean --only_deploy
 To run test cases in batch:
 
 Run with default test list file:
+
 ```bash
 ./start_run_test_list.sh                           #run with default test list file(test_list.txt)
 ./start_run_test_list.sh path/to/case_list_file    #run with custom test list file
@@ -198,11 +210,13 @@ Run with default test list file:
 For the format of the test list file, please refer to `test_list.txt`.
 
 To stop the test execution:
+
 ```bash
 ./stop_run_test_list.sh    #the script will stop after completing the current test case.
 ```
 
 Batch test results can be found in the `test_logs` directory:
+
 - `test_logs/case_result.txt`: Case execution results
 - `test_logs/run_tests.log`: All cases outputs
 - `test_logs/xxx.log`: Failed case outputs
@@ -248,15 +262,19 @@ To add a new test case to the CI pipeline, include the case run command in the `
 Every time new code is submitted, the corresponding GitHub workflows are triggered as follows:
 
 ## 7.1 CI Test
+
 A CI test is triggered whenever a pull request (PR) is submitted.
 
 ## 7.2 Docstring Check
+
 A Docstring check is triggered for any PR submitted to the `test/cases` directory, ensuring the completeness of the case descriptions.
 
 ## 7.3 Cases Doc Publish
+
 A cases documentation publish is triggered when a PR is merged into the `test/cases` directory, updating the case description documentation page.
 
 Note:
+
 - Please referto [Deploy Case Docs](https://github.com/taosdata/TDengine/actions/workflows/deploy-case-docs.yml) for details.
 - Published cases doc can be found at [TDengine Case List](https://taosdata.github.io/TDengine/main/).
 

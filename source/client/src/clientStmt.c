@@ -1342,6 +1342,10 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
 
     SParseContext ctx = {.requestId = pStmt->exec.pRequest->requestId,
                          .acctId = pStmt->taos->acctId,
+                         .minSecLevel = pStmt->taos->minSecLevel,
+                         .maxSecLevel = pStmt->taos->maxSecLevel,
+                         .sodInitial = pStmt->taos->pAppInfo->serverCfg.sodInitial,
+                         .macMode = pStmt->taos->pAppInfo->serverCfg.macActive,
                          .db = pStmt->exec.pRequest->pDb,
                          .topicQuery = false,
                          .pSql = pStmt->sql.sqlStr,
@@ -1357,7 +1361,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
     ctx.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
     STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &ctx.pCatalog));
 
-    STMT_ERR_RET(qStmtParseQuerySql(&ctx, pStmt->sql.pQuery));
+    STMT_ERR_RET(qStmtParseQuerySql(&ctx, pStmt->sql.pQuery, NULL));
 
     if (pStmt->sql.pQuery->haveResultSet) {
       STMT_ERR_RET(setResSchemaInfo(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->pResSchema,

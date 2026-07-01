@@ -1,0 +1,40 @@
+
+taos> use db1;
+Database changed.
+
+taos> select f1 from tb1 a where f1 in (select a.f1 from tb2);
+
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select f1 from tb1 a where f1 in (select tb1.f1 from tb2);
+
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select f1 from tb1 a where f1 in (select f1 from tb2 where f1 = a.f1);
+
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select f1 from tb1 a where f1 in (select f1 from tb2 where f1 = tb1.f1);
+
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select f1 from (select * from tb1) a where f1 in (select f1 from tb2 where f1 = a.f1);
+
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select f1 from (select * from (select * from tb1 where b.f1 in (1)) a) b;
+
+DB error: Table does not exist: b [0x80002603] 
+taos> select a.f1 from (select * from tb1) a join (select * from tb2 where a.f1 in (1)) b on a.ts = b.ts and a.f1 = b.f1;
+
+DB error: Table does not exist: a [0x80002603] 
+taos> select a.f1 from (select * from tb1) a join (select * from tb2 where b.f1 in (1)) b on a.ts = b.ts and a.f1 = b.f1;
+
+DB error: Table does not exist: b [0x80002603] 
+taos> select f1 in (select avg(f1) from tb2 where f1 < a.f1) from tb1 a;
+
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select f1 in (select avg(f1) from tb2 where f1 < tb1.f1) from tb1;
+
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select f1 from tb1 where f1 in (select f1 from tb2 where f1 = (select f1 from tb3 where f1 = tb1.f1));
+
+DB error: Not supported subquery as expr [0x800026A6] 
+taos> select f1 from tb1 where f1 in (select f1 from tb2 where f1 = (select f1 from tb3 where f1 = tb2.f1));
+
+DB error: Not supported subquery as expr [0x800026A6] 

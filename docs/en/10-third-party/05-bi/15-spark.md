@@ -6,14 +6,14 @@ toc_max_heading_level: 5
 
 [Apache Spark](https://spark.apache.org/) is an open - source big data processing engine. Based on in - memory computing, it can be applied in various scenarios such as batch processing, stream processing, machine learning, and graph computing. It supports the MapReduce computing model and a rich variety of computing operators and functions, boasting powerful distributed processing and computing capabilities for extremely large - scale data.
 
-By using the [TDengine Java Connector](../../../tdengine-reference/client-libraries/java), Spark can rapidly read TDengine data. Leveraging the powerful Spark engine, the data processing and computing capabilities of TDengine can be expanded. Meanwhile, through it, Spark can also write data into TDengine and subscribe to data from TDengine.
+By using the [TDengine Java Connector](../../14-reference/05-connector/14-java.md), Spark can rapidly read TDengine data. Leveraging the powerful Spark engine, the data processing and computing capabilities of TDengine can be expanded. Meanwhile, through it, Spark can also write data into TDengine and subscribe to data from TDengine.
 
 ## Prerequisites
 
 Prepare the following environments:
 
 - TDengine 3.3.6.0 and above version is installed and running normally (both Enterprise and Community versions are available).
-- taosAdapter is running normally, refer to [taosAdapter Reference](../../../tdengine-reference/components/taosadapter/).
+- taosAdapter is running normally, refer to [taosAdapter Reference](../../14-reference/01-components/03-taosadapter.md).
 - Spark 3.3.2 and above version ([Spark Down](https://spark.apache.org/downloads.html)).
 - JDBC driver 3.6.2 and above version. Download from [maven.org](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver).
 
@@ -25,7 +25,7 @@ Connect to the TDengine data source via JDBC WebSocket. The connection URL forma
 jdbc:TAOS-WS://[host_name]:[port]/[database_name]?[user={user}|&password={password}]
 ```
 
-For detailed parameters, see: [URL Parameter](../../../tdengine-reference/client-libraries/java/#url-specification).
+For detailed parameters, see: [URL Parameter](../../14-reference/05-connector/14-java.md#url-specification).
 
 Set driverClass  to "com.taosdata.jdbc.ws.WebSocketDriver".
 
@@ -39,7 +39,7 @@ SparkSession spark = SparkSession.builder()
     .getOrCreate();
 
 // connect TDengine and create reader
-String url     = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
+String url     = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
 String driver  = "com.taosdata.jdbc.ws.WebSocketDriver";
 DataFrameReader dataFrameReader = spark.read()
     .format("jdbc")
@@ -50,7 +50,7 @@ DataFrameReader dataFrameReader = spark.read()
 
 ## Data Interaction
 
-When accessing data, it is necessary to register the TDengine dialect. The dialect mainly deals with backticks. The data - type mapping is the same as that of JDBC and requires no additional processing. see: [JDBC DataType Map](../../../tdengine-reference/client-libraries/java/#data-type-mapping)
+When accessing data, it is necessary to register the TDengine dialect. The dialect mainly deals with backticks. The data - type mapping is the same as that of JDBC and requires no additional processing. see: [JDBC DataType Map](../../14-reference/05-connector/14-java.md#data-type-mapping)
 
 The following takes a Spark task written in the JAVA language and submitted for execution via `spark-submit` as an example to introduce data access. The complete example code is attached later.
 
@@ -62,7 +62,7 @@ Data writing uses parameter binding and is accomplished in three steps:
 
     ```java
       // create connect
-      String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
+      String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
       Connection connection = DriverManager.getConnection(url);
     ```
 
@@ -133,7 +133,7 @@ Data reading is achieved through table mapping and is completed in four steps:
 
     ```java
     // create reader
-    String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata";
+    String url = "jdbc:TAOS-WS://localhost:6041/?user=root&password=taosdata&varcharAsString=true";
     int    timeout  = 60; // seconds
     DataFrameReader reader = spark.read()
         .format("jdbc") 
