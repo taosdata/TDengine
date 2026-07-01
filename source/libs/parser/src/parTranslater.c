@@ -21516,12 +21516,18 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     }
   }
 
-  if (nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_COUNT_WINDOW ||
-      nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_PERIOD_WINDOW || isSlidingWindow(pTrigger->pTriggerWindow)) {
-    if (pTriggerOptions && pTriggerOptions->deleteRecalc) {
+  if (pTriggerOptions && pTriggerOptions->deleteRecalc) {
+    if (nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_COUNT_WINDOW) {
+      SCountWindowNode* pCountWindow = (SCountWindowNode*)pTrigger->pTriggerWindow;
+      if (pCountWindow->windowSliding != 1) {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                             "delete recalc is not supported when count window sliding is not 1"));
+      }
+    } else if (nodeType(pTrigger->pTriggerWindow) == QUERY_NODE_PERIOD_WINDOW ||
+               isSlidingWindow(pTrigger->pTriggerWindow)) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                           "delete recalc is not supported when trigger is count window, "
-                                           "period window or sliding window"));
+                                           "delete recalc is not supported when trigger is period window or sliding "
+                                           "window"));
     }
   }
 

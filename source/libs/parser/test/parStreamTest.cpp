@@ -438,6 +438,51 @@ static void pstCheckCreateStreamReqNoRollupTagCol(const char* pSql) {
   EXPECT_EQ(req.rollupTagCols, nullptr);
 }
 
+static void pstCheckCreateStreamCountTrigger(const char* pSql, int64_t expectedCountVal, int64_t expectedSliding) {
+  array<char, 1024> msgBuf = {0};
+  SQuery*           pQuery = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, pstTranslateCreateStreamSql(pSql, &pQuery, msgBuf.data(), msgBuf.max_size()))
+      << msgBuf.data();
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> queryGuard(pQuery, qDestroyQuery);
+  ASSERT_NE(pQuery, nullptr);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_EQ(req.triggerType, WINDOW_TYPE_COUNT);
+  EXPECT_EQ(req.trigger.count.countVal, expectedCountVal);
+  EXPECT_EQ(req.trigger.count.sliding, expectedSliding);
+}
+
+static void pstCheckCountTriggerJson(const char* pTriggerJson, int64_t expectedSliding) {
+  char json[4096] = {0};
+  snprintf(json, sizeof(json),
+           "{\"streamId\":\"0\",\"name\":\"0.stream_streamdb.s1\",\"sql\":\"\",\"streamDB\":\"0.stream_streamdb\","
+           "\"triggerDB\":\"0.stream_triggerdb\",\"outDB\":\"0.stream_outdb\",\"calcDB\":[],"
+           "\"triggerTblName\":\"stream_t1\",\"outTblName\":\"stream_out\",\"igExists\":\"0\",\"triggerType\":\"%d\","
+           "\"igDisorder\":\"0\",\"deleteReCalc\":\"0\",\"deleteOutTbl\":\"0\",\"fillHistory\":\"0\","
+           "\"fillHistoryFirst\":\"0\",\"calcNotifyOnly\":\"0\",\"lowLatencyCalc\":\"0\",\"igNoDataTrigger\":\"0\","
+           "\"multiGroupCalc\":\"0\",\"notifyEventTypes\":\"0\",\"addOptions\":\"0\",\"notifyHistory\":\"0\","
+           "\"outCols\":[],\"outTags\":[],\"maxDelay\":\"0\",\"fillHistoryStartTime\":\"0\",\"watermark\":\"0\","
+           "\"expiredTime\":\"0\",\"idleTimeoutMs\":\"0\",\"trigger\":%s,\"triggerTblType\":\"%d\","
+           "\"triggerTblUid\":\"0\",\"triggerTblSuid\":\"0\",\"triggerPrec\":\"0\",\"vtableCalc\":\"0\","
+           "\"outTblType\":\"%d\",\"outStbExists\":\"0\",\"outStbUid\":\"0\",\"outStbSversion\":\"0\","
+           "\"eventTypes\":\"0\",\"flags\":\"0\",\"tsmaId\":\"0\",\"placeHolderBitmap\":\"0\","
+           "\"calcTsSlotId\":\"-1\",\"triTsSlotId\":\"-1\",\"calcPkSlotId\":\"-1\",\"triPkSlotId\":\"-1\","
+           "\"triggerTblVgId\":\"0\",\"outTblVgId\":\"0\",\"calcScanPlanList\":[],\"triggerHasPF\":\"0\","
+           "\"numOfCalcSubplan\":\"0\",\"forceOutCols\":[],\"colCids\":[],\"tagCids\":[],"
+           "\"nodelayCreateSubtable\":\"0\"}",
+           WINDOW_TYPE_COUNT, pTriggerJson, TSDB_NORMAL_TABLE, TSDB_NORMAL_TABLE);
+
+  unique_ptr<SJson, decltype(&tjsonDelete)> jsonGuard(tjsonParse(json), tjsonDelete);
+  ASSERT_NE(jsonGuard.get(), nullptr);
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, jsonToSCMCreateStreamReq(jsonGuard.get(), &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_EQ(req.triggerType, WINDOW_TYPE_COUNT);
+  EXPECT_EQ(req.trigger.count.sliding, expectedSliding);
+}
+
 static void pstCheckCreateStreamRollupError(const char* pSql, int32_t expectedCode, const char* pExpectedMsg) {
   array<char, 1024> msgBuf = {0};
   SQuery*           pQuery = nullptr;
@@ -863,7 +908,7 @@ void setCreateStreamTriggerSession(SCMCreateStreamReq *expect,int64_t pSessionVa
   expect->trigger.session.slotId = slotId;
 }
 
-void setCreateStreamTriggerCount(SCMCreateStreamReq *expect, int64_t countVal, int64_t sliding) {
+void setCreateStreamTriggerCount(SCMCreateStreamReq* expect, int64_t countVal, int64_t sliding) {
   expect->trigger.count.countVal = countVal;
   expect->trigger.count.sliding = sliding;
 }
@@ -1437,6 +1482,45 @@ TEST_F(ParserStreamTest, TestTriggerOption) {
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s)  from stream_triggerdb.stream_t1  stream_options(delete_recalc) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
   setCreateStreamDeleteReCalc(&expect, false);
 
+  // count window delete recalc: only sliding step 1 is supported
+  setCreateStreamTriggerType(&expect, WINDOW_TYPE_COUNT);
+  setCreateStreamTriggerCount(&expect, 3, 1);
+  setCreateStreamDeleteReCalc(&expect, true);
+  setCreateStreamSql(&expect,
+                     "create stream stream_streamdb.s1 count_window(3, 1) from stream_triggerdb.stream_t1 "
+                     "stream_options(delete_recalc) into stream_outdb.stream_out as select _twstart, "
+                     "avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 count_window(3, 1) from stream_triggerdb.stream_t1 "
+      "stream_options(delete_recalc) into stream_outdb.stream_out as select _twstart, avg(c1) from "
+      "stream_querydb.stream_t2");
+  setCreateStreamDeleteReCalc(&expect, false);
+
+  run("create stream stream_streamdb.s1 count_window(3) from stream_triggerdb.stream_t1 "
+      "stream_options(delete_recalc) into stream_outdb.stream_out as select _twstart, avg(c1) from "
+      "stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_TRIGGER);
+
+  setCreateStreamTriggerCount(&expect, 1, 1);
+  setCreateStreamDeleteReCalc(&expect, true);
+  setCreateStreamSql(&expect,
+                     "create stream stream_streamdb.s1 count_window(1) from stream_triggerdb.stream_t1 "
+                     "stream_options(delete_recalc) into stream_outdb.stream_out as select _twstart, "
+                     "avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 count_window(1) from stream_triggerdb.stream_t1 "
+      "stream_options(delete_recalc) into stream_outdb.stream_out as select _twstart, avg(c1) from "
+      "stream_querydb.stream_t2");
+
+  setCreateStreamTriggerCount(&expect, 3, 1);
+  run("create stream stream_streamdb.s1 count_window(3, 2) from stream_triggerdb.stream_t1 "
+      "stream_options(delete_recalc) into stream_outdb.stream_out as select _twstart, avg(c1) from "
+      "stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_TRIGGER);
+
+  setCreateStreamDeleteReCalc(&expect, false);
+  setCreateStreamTriggerCount(&expect, 0, 0);
+  setCreateStreamTriggerType(&expect, WINDOW_TYPE_INTERVAL);
+  setCreateStreamTriggerSliding(&expect, 's', 's', 0, 0, 0, 1000, 0, 1000, 0);
+
   // delete output table
   setCreateStreamDeleteOutTbl(&expect, true);
   setCreateStreamSql(&expect, "create stream stream_streamdb.s1 interval(1s) sliding(1s)  from stream_triggerdb.stream_t1  stream_options(delete_output_table ) into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
@@ -1525,6 +1609,51 @@ TEST_F(ParserStreamTest, TestTriggerOption) {
   setCreateStreamIdleTimeout(&expect, 0);  // Reset
 
   clearCreateStreamReq();
+}
+
+TEST_F(ParserStreamTest, TestCountWindowDeleteRecalcSupportsSlideOne) {
+  run("create stream stream_streamdb.s1 count_window(3, 1) from stream_triggerdb.stream_t1 "
+      "stream_options(delete_recalc) into stream_outdb.stream_out as select _twstart, avg(c1) from "
+      "stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 count_window(1) from stream_triggerdb.stream_t1 "
+      "stream_options(delete_recalc) into stream_outdb.stream_out as select _twstart, avg(c1) from "
+      "stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 count_window(3) from stream_triggerdb.stream_t1 "
+      "stream_options(delete_recalc) into stream_outdb.stream_out as select _twstart, avg(c1) from "
+      "stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_TRIGGER);
+  run("create stream stream_streamdb.s1 count_window(3, 2) from stream_triggerdb.stream_t1 "
+      "stream_options(delete_recalc) into stream_outdb.stream_out as select _twstart, avg(c1) from "
+      "stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_TRIGGER);
+}
+
+TEST_F(ParserStreamTest, TestCountWindowDefaultSlidingInCreateReq) {
+  pstCheckCreateStreamCountTrigger(
+      "create stream stream_streamdb.s1 count_window(1) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      1, 1);
+  pstCheckCreateStreamCountTrigger(
+      "create stream stream_streamdb.s1 count_window(1, 1) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      1, 1);
+  pstCheckCreateStreamCountTrigger(
+      "create stream stream_streamdb.s1 count_window(3) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      3, 3);
+  pstCheckCreateStreamCountTrigger(
+      "create stream stream_streamdb.s1 count_window(3, 1) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      3, 1);
+}
+
+TEST_F(ParserStreamTest, TestCountWindowTriggerJsonSliding) {
+  pstCheckCountTriggerJson("{\"countVal\":\"3\",\"sliding\":\"2\"}", 2);
+  pstCheckCountTriggerJson("{\"countVal\":\"3\",\"sliding\":\"3\"}", 3);
 }
 
 TEST_F(ParserStreamTest, TestTriggerType) {

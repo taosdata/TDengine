@@ -69,7 +69,7 @@ class TaosD:
     def _taosd_start_with_nofile_limit(self, start_cmd):
         if platform.system().lower() == "windows":
             return start_cmd
-        return f"ulimit -n 1048576 && {start_cmd}"
+        return f"limit=$(ulimit -Hn); [ \"$limit\" = unlimited ] || [ \"$limit\" -gt 1048576 ] && limit=1048576; ulimit -n \"$limit\" && {start_cmd}"
 
     def check_status(self):
         pass

@@ -636,7 +636,8 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
     }
     case WINDOW_TYPE_COUNT: {
       SCountTrigger* t = &q->trigger.count;
-      mstsDebug("count trigger options, countVal:%" PRId64 ", sliding:%" PRId64 ", condCols:%s", t->countVal, t->sliding, (char*)t->condCols);
+      mstsDebug("count trigger options, countVal:%" PRId64 ", sliding:%" PRId64 ", condCols:%s", t->countVal,
+                t->sliding, (char*)t->condCols);
       break;
     }
     case WINDOW_TYPE_PERIOD: {

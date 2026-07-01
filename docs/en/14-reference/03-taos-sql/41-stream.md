@@ -455,8 +455,8 @@ Control options are used to manage trigger and computation behavior. Multiple op
 
 - WATERMARK(duration_time) specifies the tolerance duration for out-of-order data. Data arriving later than this duration is treated as out-of-order and processed according to the out-of-order handling strategy of the trigger type and user configuration. Default: duration_time = 0 (no tolerance).
 - EXPIRED_TIME(exp_time) specifies an expiration interval after which data is ignored. If not set, no data is considered expired. This option can be used when data writes or updates older than a certain time range are irrelevant. exp_time defines the expiration interval. Supported time units: milliseconds (a), seconds (s), minutes (m), hours (h), days (d).
-- IGNORE_DISORDER ignores out-of-order data in the trigger table. By default, out-of-order data is not ignored. This option is useful in scenarios where timeliness of computation or notification is more important, and where out-of-order data does not affect the result. Out-of-order data includes both newly written late data and updates to previously written data.
-- DELETE_RECALC specifies that data deletions in the trigger table (including when a child table is dropped) should trigger automatic recomputation. This can only be set if the trigger type supports automatic recomputation for deletions. By default, deletions are ignored. This is only needed when data deletions in the trigger table may affect computation results.
+- IGNORE_DISORDER ignores out-of-order data in the trigger table. By default, out-of-order data is not ignored. This option is useful in scenarios where timeliness of computation or notification is more important, and where out-of-order data does not affect the result. Out-of-order data includes both newly written late data and updates to previously written data. For count windows whose sliding step is 1, such as `COUNT_WINDOW(1)` and `COUNT_WINDOW(n, 1)`, out-of-order data and updates trigger automatic recalculation unless this option is specified; count windows whose sliding step is not 1 ignore out-of-order data and updates.
+- DELETE_RECALC specifies that data deletions in the trigger table (including when a child table is dropped) should trigger automatic recomputation. This can only be set if the trigger type supports automatic recomputation for deletions. By default, deletions are ignored. This is only needed when data deletions in the trigger table may affect computation results. For count windows, only windows whose sliding step is 1, such as `COUNT_WINDOW(1)` and `COUNT_WINDOW(n, 1)`, support this option. Count windows whose sliding step is not 1 do not support it.
 - DELETE_OUTPUT_TABLE ensures that when a subtable in the trigger table is deleted, its corresponding output subtable is also deleted. It applies only to streams grouped by subtable and does not apply to `PARTITION BY` tag grouping or `ROLLUP BY` rollup tag grouping. Default: If not specified, deleting a subtable does not delete its output subtable.
 - FILL_HISTORY[(start_time)] triggers historical data computation starting from start_time (event time). Default: If not specified, computation starts from the earliest record. If neither FILL_HISTORY nor FILL_HISTORY_FIRST is specified, historical computation is disabled. Cannot be used together with FILL_HISTORY_FIRST. Not supported in PERIOD (scheduled trigger) mode.
 - FILL_HISTORY_FIRST[(start_time)] triggers historical data computation with priority, starting from start_time (event time). Default: If not specified, computation starts from the earliest record. Suitable when historical data must be processed strictly in time order, and real-time computation should not begin until historical processing is complete. Cannot be used together with FILL_HISTORY. Not supported in PERIOD (scheduled trigger) mode.
@@ -878,7 +878,8 @@ Out-of-order data refers to records written to the trigger table in a non-sequen
 
 | Trigger Type                                                 | Impact and Handling                                          |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| Periodic trigger<br/>Sliding trigger<br/>Count window trigger | Ignored; no processing performed.                            |
+| Periodic trigger<br/>Sliding trigger<br/>Count window trigger whose sliding step is not 1 | Ignored; no processing performed.                            |
+| Count window trigger whose sliding step is 1, such as `COUNT_WINDOW(1)` or `COUNT_WINDOW(n, 1)` | Default: Handled through recalculation.<br/>Optional: Ignored with `STREAM_OPTIONS(IGNORE_DISORDER)`. |
 | Other window triggers                                        | Default: Handled through recalculation.<br/>Optional: Ignored; no processing performed. |
 
 #### Data Updates
@@ -887,7 +888,8 @@ Data updates refer to multiple writes of records with the same timestamp, where 
 
 | Trigger Type                                                 | Impact and Handling                                          |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| Periodic trigger<br/>Sliding trigger<br/>Count window trigger | Ignored; no processing performed.                            |
+| Periodic trigger<br/>Sliding trigger<br/>Count window trigger whose sliding step is not 1 | Ignored; no processing performed.                            |
+| Count window trigger whose sliding step is 1, such as `COUNT_WINDOW(1)` or `COUNT_WINDOW(n, 1)` | Default: Treated as out-of-order data and handled through recalculation.<br/>Optional: Ignored with `STREAM_OPTIONS(IGNORE_DISORDER)`. |
 | Other window triggers                                        | Treated as out-of-order data and handled through recalculation. |
 
 #### Data Deletions
@@ -896,7 +898,8 @@ Data deletions affect only the trigger table and the triggering behavior—they 
 
 | Trigger Type                                                 | Impact and Handling                                          |
 | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| Periodic trigger<br/>Sliding trigger<br/>Count window trigger | Ignored; no processing performed.                            |
+| Periodic trigger<br/>Sliding trigger<br/>Count window trigger whose sliding step is not 1 | Ignored; no processing performed.                            |
+| Count window trigger whose sliding step is 1, such as `COUNT_WINDOW(1)` or `COUNT_WINDOW(n, 1)` | Default: Ignored; no processing performed.<br/>Optional: Treated as out-of-order data and handled through recalculation with `STREAM_OPTIONS(DELETE_RECALC)`. |
 | Other window triggers                                        | Default: Ignored; no processing performed.<br/>Optional: Treated as out-of-order data and handled through recalculation. |
 
 #### Expired Data
@@ -1016,7 +1019,7 @@ Before creating a stream, users should carefully review the following key checkp
   - If out-of-order data is present, confirm whether it affects the correctness of results. In scenarios where timeliness is more important, or where trigger table disorder does not affect computation results, you can use STREAM_OPTIONS(IGNORE_DISORDER) to ignore the out-of-order data.
   - If there are severe out-of-order records from far in the past (where the event time is much earlier than the current processed event time) and these records do not affect correctness, or their timeliness has already been lost, you can mark them as expired and ignore them with STREAM_OPTIONS(EXPIRED_TIME(exp_time)).
 - Verify the validity of recalculation for stream results: Out-of-order, update, and delete scenarios are mainly addressed through recalculation. If recalculation is not idempotent or produces invalid results, correctness may be affected. This should be judged based on business requirements.
-- Check the impact of deletions on stream processing: If deletions occur and results need to be recomputed based on deleted data, use STREAM_OPTIONS(DELETE_RECALC).
+- Check the impact of deletions on stream processing: If deletions occur and results need to be recomputed based on deleted data, use STREAM_OPTIONS(DELETE_RECALC). For count windows, only windows whose sliding step is 1, such as `COUNT_WINDOW(1)` and `COUNT_WINDOW(n, 1)`, support this option.
 - Confirm whether historical data needs to be computed and how:
   - If data already exists in the database before the stream is created, it may need to be computed. Depending on business requirements and logic, confirm whether historical data should be prioritized over real-time data. For example, COUNT_WINDOW triggers should prioritize historical data, otherwise windows may not align properly.
   - To prioritize historical data, specify STREAM_OPTIONS(FILL_HISTORY_FIRST). Otherwise, specify STREAM_OPTIONS(FILL_HISTORY).

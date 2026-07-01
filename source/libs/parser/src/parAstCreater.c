@@ -2143,27 +2143,6 @@ _err:
   return NULL;
 }
 
-SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken,
-                             SNodeList* pColList) {
-  SCountWindowNode* pCount = NULL;
-  CHECK_PARSER_STATUS(pCxt);
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_COUNT_WINDOW, (SNode**)&pCount);
-  CHECK_MAKE_NODE(pCount);
-  pCount->pCol = createPrimaryKeyCol(pCxt, NULL);
-  CHECK_MAKE_NODE(pCount->pCol);
-  pCount->windowCount = taosStr2Int64(pCountToken->z, NULL, 10);
-  if (pSlidingToken == NULL) {
-    pCount->windowSliding = taosStr2Int64(pSlidingToken->z, NULL, 10);
-  } else {
-    pCount->windowSliding = taosStr2Int64(pCountToken->z, NULL, 10);
-  }
-  pCount->pColList = pColList;
-  return (SNode*)pCount;
-_err:
-  nodesDestroyNode((SNode*)pCount);
-  return NULL;
-}
-
 SNode* createCountWindowNodeFromArgs(SAstCreateContext* pCxt, SNode* arg) {
   SCountWindowArgs* args = (SCountWindowArgs*)arg;
   SCountWindowNode* pCount = NULL;
