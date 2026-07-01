@@ -124,7 +124,8 @@ tag_definition:
 
 - WATERMARK(duration_time)：数据乱序的容忍时长。
 - EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据。
-- IGNORE_DISORDER：指定忽略触发表的乱序数据。
+- IGNORE_DISORDER：指定忽略触发表的乱序数据。对于滑动步长为 1 的计数窗口（例如 `COUNT_WINDOW(1)` 和 `COUNT_WINDOW(n, 1)`），未指定时乱序数据和更新会触发自动重算，指定后仍会被忽略。
+- DELETE_RECALC：指定触发表的数据删除需要自动重新计算。计数窗口中只有滑动步长为 1 的窗口（例如 `COUNT_WINDOW(1)` 和 `COUNT_WINDOW(n, 1)`）支持该选项。
 - DELETE_OUTPUT_TABLE：指定触发子表被删除时其对应的输出子表也需要被删除，只适用于按子表分组，不适用于按标签分组和 `ROLLUP BY`。
 - FILL_HISTORY[(start_time)]：指定需要从 `start_time`（事件时间）开始触发历史数据计算。
 - FILL_HISTORY_FIRST[(start_time)]：指定需要从 `start_time`（事件时间）开始优先触发历史数据计算。

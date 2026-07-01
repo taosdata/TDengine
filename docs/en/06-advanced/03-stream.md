@@ -122,7 +122,8 @@ Control options are used to manage trigger and computation behavior. Multiple op
 
 - WATERMARK(duration_time) specifies the tolerance duration for out-of-order data.
 - EXPIRED_TIME(exp_time) specifies an expiration interval after which data is ignored.
-- IGNORE_DISORDER ignores out-of-order data in the trigger table.
+- IGNORE_DISORDER ignores out-of-order data in the trigger table. For count windows whose sliding step is 1, such as `COUNT_WINDOW(1)` and `COUNT_WINDOW(n, 1)`, out-of-order data and updates trigger automatic recalculation unless this option is specified.
+- DELETE_RECALC specifies that deletions in the trigger table should trigger automatic recomputation. For count windows, only windows whose sliding step is 1, such as `COUNT_WINDOW(1)` and `COUNT_WINDOW(n, 1)`, support this option.
 - DELETE_OUTPUT_TABLE ensures that when a subtable in the trigger table is deleted, its corresponding output subtable is also deleted. It applies only to streams grouped by subtable and does not apply to tag grouping or `ROLLUP BY`.
 - FILL_HISTORY[(start_time)] triggers historical data computation starting from the earliest record.
 - FILL_HISTORY_FIRST[(start_time)] triggers historical data computation with priority, starting from start_time (event time).

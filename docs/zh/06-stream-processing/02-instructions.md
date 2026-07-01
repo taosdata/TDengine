@@ -88,7 +88,8 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 
 | 触发方式       | 影响和处理 |
 | --------------| ----------|
-| 定时触发<br/>滑动触发<br/>计数窗口触发 | 忽略，不处理 |
+| 定时触发<br/>滑动触发<br/>计数窗口触发（滑动步长不为 1） | 忽略，不处理 |
+| 计数窗口触发（滑动步长为 1，例如 `COUNT_WINDOW(1)` 或 `COUNT_WINDOW(n, 1)`） | 默认处理：通过重算进行处理 <br/> 可选处理：通过 `STREAM_OPTIONS(IGNORE_DISORDER)` 忽略，不处理 |
 | 其他窗口触发                         | 默认处理：通过重算进行处理 <br/> 可选处理：忽略，不处理 |
 
 ### 数据更新
@@ -98,7 +99,8 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 
 | 触发方式       | 影响和处理 |
 | --------------| ----------|
-| 定时触发<br/>滑动触发<br/>计数窗口触发 | 忽略，不处理 |
+| 定时触发<br/>滑动触发<br/>计数窗口触发（滑动步长不为 1） | 忽略，不处理 |
+| 计数窗口触发（滑动步长为 1，例如 `COUNT_WINDOW(1)` 或 `COUNT_WINDOW(n, 1)`） | 默认当做乱序数据处理（重算） <br/> 可选处理：通过 `STREAM_OPTIONS(IGNORE_DISORDER)` 忽略，不处理 |
 | 其他窗口触发                         | 当做乱序数据处理（重算）|
 
 ### 数据删除
@@ -107,7 +109,8 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 
 | 触发方式       | 影响和处理 |
 | --------------| ----------|
-| 定时触发<br/>滑动触发<br/>计数窗口触发 | 忽略，不处理 |
+| 定时触发<br/>滑动触发<br/>计数窗口触发（滑动步长不为 1） | 忽略，不处理 |
+| 计数窗口触发（滑动步长为 1，例如 `COUNT_WINDOW(1)` 或 `COUNT_WINDOW(n, 1)`） | 默认处理：忽略，不处理 <br/> 可选处理：通过 `STREAM_OPTIONS(DELETE_RECALC)` 当做乱序数据处理（重算） |
 | 其他窗口触发                         | 默认处理：忽略，不处理 <br/> 可选处理：当做乱序数据处理（重算）|
 
 ### 过期数据

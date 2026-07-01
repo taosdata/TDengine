@@ -3582,8 +3582,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->expiredTime = pMsg->expiredTime;
   pTask->idleTimeoutMs = pMsg->idleTimeoutMs;
   pTask->ignoreDisorder = pMsg->igDisorder;
-  if (pTask->triggerType == STREAM_TRIGGER_COUNT) {
-    pTask->ignoreDisorder = true;  // count window trigger has no recalculation
+  if (pTask->triggerType == STREAM_TRIGGER_COUNT && pTask->windowSliding != 1) {
+    pTask->ignoreDisorder = true;
   }
   pTask->fillHistory = pMsg->fillHistory || pMsg->fillHistoryFirst;
   pTask->fillHistoryFirst = pMsg->fillHistoryFirst;
