@@ -964,6 +964,24 @@ static int32_t processSubmitCol(SArray*         pCols,
   int32_t        code = 0;
   int32_t        line = 0;
 
+  // A column-format submit may set only a subset of the table's columns (partial
+  // insert). Projected columns that are absent from this submit must be NULL;
+  // otherwise they would be serialized from uninitialized/reused block buffers
+  // (garbage doubles, headerless nchar -> downstream consume corruption/crash).
+  // NULL-fill every target column for the new rows first; columns actually present
+  // in the submit are overwritten in the loop below.
+  if (taosArrayGetSize(pCols) > 0) {
+    SColData* pFirstCol = taosArrayGet(pCols, 0);
+    TSDB_CHECK_NULL(pFirstCol, code, line, END, terrno);
+    int32_t numOfRows = pFirstCol->nVal;
+    int32_t numOfTargetCols = taosArrayGetSize(pBlock->pDataBlock);
+    for (int32_t s = 0; s < numOfTargetCols; ++s) {
+      SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, s);
+      TSDB_CHECK_NULL(pColData, code, line, END, terrno);
+      colDataSetNItemsNull(pColData, pBlock->info.rows, numOfRows);
+    }
+  }
+
   for (int32_t i = 0; i < taosArrayGetSize(pCols); i++) {
     SColData* pCol = taosArrayGet(pCols, i);
     TSDB_CHECK_NULL(pCol, code, line, END, terrno);
