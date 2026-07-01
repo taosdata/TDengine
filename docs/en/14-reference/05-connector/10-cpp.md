@@ -276,6 +276,7 @@ The basic API is used to establish database connections and provide a runtime en
     | userApp           | Native/WebSocket | User app name |
     | connectorInfo     | Native           | Connector information |
     | adapterList       | WebSocket        | List of taosAdapter addresses, used for load balancing and failover. Multiple addresses are separated by commas, in the format `host1:port1,host2:port2,...`. They have higher priority than the `ip` parameter. |
+    | adapterHa         | WebSocket        | Whether to enable taosAdapter high availability. When enabled, the connector requests the available taosAdapter instance list and adds discovered endpoints to the address pool for load balancing and failover. Default is false. Supported from v3.4.2.0. |
     | compression       | WebSocket        | Data compression switch. 0: Disabled, 1: Enabled. Default is 0. |
     | connRetries       | WebSocket        | Maximum number of retries on connection failure. Default is 5. |
     | retryBackoffMs    | WebSocket        | Initial wait time (milliseconds) on connection failure. This value increases exponentially with consecutive failures until the maximum wait time is reached. Default is 200. |
@@ -837,6 +838,14 @@ Description:
 
   - **Interface Description**: Creates a new TMQ configuration object.
   - **Return Value**: Non `NULL`: Success, returns a pointer to a tmq_conf_t structure, which is used to configure the behavior and features of TMQ. `NULL`: Failure, you can call the function taos_errstr(NULL) for more detailed error information.
+  - **C WebSocket connector proprietary configuration items**:
+
+    | Configuration Item | Type | Valid Values | Description | Remarks |
+    | ------------------ | ---- | ------------ | ----------- | ------- |
+    | `ws.tls.mode` | integer | `0`: TLS encryption disabled. If the server enables TLS, the client will automatically upgrade the connection.<br/>`1`: TLS encryption enabled, but the server certificate is not verified.<br/>`2`: TLS encryption enabled, the server certificate is verified, but the hostname is not verified.<br/>`3`: TLS encryption enabled, both the server certificate and hostname are verified. The server certificate must include SAN; CN will be ignored. | TLS encryption modes supported by C WebSocket connections. | Default is `0`. Supported from v3.3.8.12. |
+    | `ws.tls.version` | string | `TLSv1.2`, `TLSv1.3` | List of TLS protocol versions supported by C WebSocket connections, separated by commas. | Default is `TLSv1.3`. Supported from v3.3.8.12. |
+    | `ws.tls.ca` | string | CA certificate file path or certificate content in PEM format. | CA certificate used by C WebSocket connections to verify the server certificate. This certificate should be the CA certificate that issued the server certificate. | Supported from v3.3.8.12. |
+    | `ws.adapter.ha` | boolean | `true`, `false` | Whether to enable taosAdapter high availability for C WebSocket connections. When enabled, the connector requests the available taosAdapter instance list and adds discovered endpoints to the address pool for load balancing and failover. | Default is `false`. Supported from v3.4.2.0. |
 
 - `tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value)`
 
