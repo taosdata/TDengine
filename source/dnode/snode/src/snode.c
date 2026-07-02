@@ -176,6 +176,7 @@ static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, void** data, size_t* siz
   pRetrieve->version = 0;
   pRetrieve->precision = precision;
   pRetrieve->compressed = 0;
+  pRetrieve->completed = finished ? 1 : 0;
   *((int32_t*)(pRetrieve->data)) = blockSize;
   *((int32_t*)(pRetrieve->data + INT_BYTES)) = blockSize;
   if (pBlock == NULL || pBlock->info.rows == 0) {
@@ -194,9 +195,6 @@ static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, void** data, size_t* siz
       code = terrno;
       goto end;
     }
-  }
-  if (finished) {
-    pRetrieve->completed = 1;
   }
 
   *data = buf;
@@ -253,7 +251,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   
   TAOS_CHECK_EXIT(stRunnerTaskExecute(pTask, &calcReq));
 
-  TAOS_CHECK_EXIT(buildStreamFetchRsp(calcReq.pOutBlock, &buf, &size, 0, false));
+  TAOS_CHECK_EXIT(buildStreamFetchRsp(calcReq.pOutBlock, &buf, &size, 0, req.forceFetchCompleted));
 
 _exit:
 

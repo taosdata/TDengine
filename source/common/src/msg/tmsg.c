@@ -13950,6 +13950,7 @@ int32_t tSerializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, bo
   }
   TAOS_CHECK_EXIT(tEncodeBool(&encoder, pReq->reset));
   TAOS_CHECK_EXIT(tEncodeBool(&encoder, pReq->dynTbname));
+  TAOS_CHECK_EXIT(tEncodeBool(&encoder, pReq->forceFetchCompleted));
 
   tEndEncode(&encoder);
 
@@ -14020,6 +14021,9 @@ int32_t tDeserializeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq) 
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->reset));
     TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->dynTbname));
+  }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeBool(&decoder, &pReq->forceFetchCompleted));
   }
 
   tEndDecode(&decoder);
