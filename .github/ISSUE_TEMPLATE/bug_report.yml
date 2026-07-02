@@ -1,0 +1,43 @@
+name: "🐛 Bug Report / 缺陷反馈"
+description: "Report a bug or unexpected error in TDengine"
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please fill out this form to help us diagnose the issue. / 请填写此表单帮助我们定位问题。
+  - type: textarea
+    id: description
+    attributes:
+      label: "Bug Description / 问题描述"
+      description: "A clear description of what the issue is."
+      placeholder: "e.g., Query fails with error code 0x0200 when executing select..."
+    validations:
+      required: true
+  - type: dropdown
+    id: version
+    attributes:
+      label: "TDengine Version / 版本"
+      options:
+        - v3.x Stable (Latest)
+        - v2.x Legacy
+        - Main branch (Source build)
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: "Reproduction Steps / 复现步骤"
+      description: "How can we reproduce the error?"
+      placeholder: |
+        1. Create table...
+        2. Insert values...
+        3. Run select...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: "Server Logs & Output / 日志和命令行输出"
+      render: shell

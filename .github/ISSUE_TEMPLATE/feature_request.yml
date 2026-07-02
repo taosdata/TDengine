@@ -1,0 +1,17 @@
+name: "🚀 Feature Request / 功能需求"
+description: "Suggest a new capability, connector, or feature for TDengine"
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggest enhancements or connector requests for the TDengine engine. / 欢迎为 TDengine 提出改进或新功能建议。
+  - type: textarea
+    id: details
+    attributes:
+      label: "Proposed Feature Details / 功能详情"
+      description: "What new SQL syntax, storage algorithm, or connector should be added?"
+      placeholder: "Add support for custom window function..."
+    validations:
+      required: true
