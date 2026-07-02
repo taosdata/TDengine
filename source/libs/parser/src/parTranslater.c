@@ -5372,9 +5372,7 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
     SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
     bool         isSqlWindowFunc = isSqlWindowFunctionNode(pFunc);
     pSelect->hasAggFuncs = pSelect->hasAggFuncs ? true : (!isSqlWindowFunc && fmIsAggFunc(pFunc->funcId));
-    if (!isSqlWindowFunc && fmIsAggFunc(pFunc->funcId) && !fmIsSelectFunc(pFunc->funcId)) {
-      pSelect->hasNonSelectAggFuncs = true;
-    }
+
     pSelect->hasCountFunc = pSelect->hasCountFunc ? true : (FUNCTION_TYPE_COUNT == pFunc->funcType);
     pSelect->hasRepeatScanFuncs =
         pSelect->hasRepeatScanFuncs ? true : (!isSqlWindowFunc && fmIsRepeatScanFunc(pFunc->funcId));

@@ -1580,7 +1580,6 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(hasRepeatScanFuncs);
   COPY_SCALAR_FIELD(hasIndefiniteRowsFunc);
   COPY_SCALAR_FIELD(hasMultiRowsFunc);
-  COPY_SCALAR_FIELD(hasNonSelectAggFuncs);
   COPY_SCALAR_FIELD(mavgFuncKParam);
   COPY_SCALAR_FIELD(hasSelectFunc);
   COPY_SCALAR_FIELD(hasSelectValFunc);

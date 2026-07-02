@@ -9402,7 +9402,6 @@ static const char* jkSelectStmtLimit = "Limit";
 static const char* jkSelectStmtSlimit = "Slimit";
 static const char* jkSelectStmtStmtName = "StmtName";
 static const char* jkSelectStmtHasAggFuncs = "HasAggFuncs";
-static const char* jkSelectStmtHasNonSelectAggFuncs = "HasNonSelectAggFuncs";
 static const char* jkSelectStmtInterpFuncs = "HasInterpFuncs";
 static const char* jkSelectStmtInterpFill = "InterpFill";
 static const char* jkSelectStmtInterpEvery = "InterpEvery";
@@ -9453,9 +9452,6 @@ static int32_t selectStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkSelectStmtHasAggFuncs, pNode->hasAggFuncs);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddBoolToObject(pJson, jkSelectStmtHasNonSelectAggFuncs, pNode->hasNonSelectAggFuncs);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkSelectStmtInterpFuncs, pNode->hasInterpFunc);
@@ -9517,9 +9513,6 @@ static int32_t jsonToSelectStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkSelectStmtHasAggFuncs, &pNode->hasAggFuncs);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonGetBoolValue(pJson, jkSelectStmtHasNonSelectAggFuncs, &pNode->hasNonSelectAggFuncs);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkSelectStmtInterpFuncs, &pNode->hasInterpFunc);
