@@ -20190,22 +20190,33 @@ static int32_t translateGrantRevoke(STranslateContext* pCxt, SGrantStmt* pStmt, 
         } else if (conflict == 2) {
           if (pStmt->objName[0] == 0)
             return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                           "The object of non-system privileges cannot be empty");
+                                           "The object of non-system privileges cannot be empty:%s(%d),%s(%d)",
+                                           privInfoGetName(conflict1), conflict1,
+                                           privObjGetName(pStmt->privileges.objType), pStmt->privileges.objType);
 
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                         "Object privileges of different types cannot be mixed");
+                                         "Object privileges of different types cannot be mixed:%s(%d),%s(%d),%s.%s",
+                                         privInfoGetName(conflict1), conflict1,
+                                         privObjGetName(pStmt->privileges.objType), pStmt->privileges.objType,
+                                         pStmt->objName, pStmt->tabName);
         } else if (conflict == 3) {
           if (pStmt->objName[0] == 0)
             return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                           "The object of non-system privileges cannot be empty");
+                                           "The object of non-system privileges cannot be empty:%s(%d)",
+                                           privObjGetName(pStmt->privileges.objType), pStmt->privileges.objType);
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_OPS_NOT_SUPPORT,
-                                         "Object privileges of different levels cannot be mixed");
+                                         "Object privileges of different levels cannot be mixed:%s(%d),%s(%d),%s.%s",
+                                         privInfoGetName(conflict1), conflict1,
+                                         privObjGetName(pStmt->privileges.objType), pStmt->privileges.objType,
+                                         pStmt->objName, pStmt->tabName);
         }
       } else if (conflict != 0) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, conflict);
       } else if (pStmt->pCond != NULL && objType != PRIV_OBJ_TBL) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                       "The With clause can only be used for table privileges");
+                                       "The With clause can only be used for table privileges:%s(%d),%s.%s",
+                                       privObjGetName(pStmt->privileges.objType), pStmt->privileges.objType,
+                                       pStmt->objName, pStmt->tabName);
       }
       req.privileges.privSet = pStmt->privileges.privSet;  // assign the privileges
       if (objType == PRIV_OBJ_VIEW) {                      // rewrite query for view to improve usability
