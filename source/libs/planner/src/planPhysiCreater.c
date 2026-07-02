@@ -695,6 +695,28 @@ static int32_t setConditionsSlotId(SPhysiPlanContext* pCxt, const SLogicNode* pL
   return TSDB_CODE_SUCCESS;
 }
 
+static bool isTableScanPhysiNode(const SScanPhysiNode* pScanPhysiNode) {
+  switch (nodeType(pScanPhysiNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static int32_t setTableScanPrimaryCondSlotId(SPhysiPlanContext* pCxt, const SScanLogicNode* pScanLogicNode,
+                                             SScanPhysiNode* pScanPhysiNode) {
+  if (NULL == pScanLogicNode->pPrimaryCond || !isTableScanPhysiNode(pScanPhysiNode)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STableScanPhysiNode* pTableScan = (STableScanPhysiNode*)pScanPhysiNode;
+  return setNodeSlotId(pCxt, pScanPhysiNode->node.pOutputDataBlockDesc->dataBlockId, -1, pScanLogicNode->pPrimaryCond,
+                       &pTableScan->pPrimaryCond);
+}
+
 static int32_t colIdCompare(const void* pLeft, const void* pRight) {
   SColumnNode* pLeftCol = *(SColumnNode**)pLeft;
   SColumnNode* pRightCol = *(SColumnNode**)pRight;
@@ -759,6 +781,10 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SSubplan* pS
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setConditionsSlotId(pCxt, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScanPhysiNode);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setTableScanPrimaryCondSlotId(pCxt, pScanLogicNode, pScanPhysiNode);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -964,12 +990,6 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
     nodesDestroyNode((SNode*)pTableScan);
     return code;
   }
-  code = nodesCloneNode(pScanLogicNode->pPrimaryCond, &pTableScan->pPrimaryCond);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pTableScan);
-    return code;
-  }
-  
   pTableScan->groupSort = pScanLogicNode->groupSort;
   pTableScan->interval = pScanLogicNode->interval;
   pTableScan->offset = pScanLogicNode->offset;

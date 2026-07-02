@@ -933,6 +933,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py
 ## 07-SubQuery
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_basic.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_scalar.py
 100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_1.py
 100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_2.py
 100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_event.py

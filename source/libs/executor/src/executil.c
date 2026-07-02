@@ -5147,12 +5147,63 @@ _exit:
 #define STREAM_TASK_REPLICA_NUM 5
 #define STREAM_TASK_DEPLOY_NUM 3
 
+int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStreamRuntimeFuncInfo* pDst) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pSrc == NULL || pDst == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pDst = *pSrc;
+  pDst->pStreamPesudoFuncVals = NULL;
+
+  if (pSrc->isMultiGroupCalc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t winNum = taosArrayGetSize(pSrc->pStreamPesudoFuncVals);
+  if (pSrc->curIdx < 0 || pSrc->curIdx >= winNum) {
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  SSTriggerCalcParam* pSrcParam = taosArrayGet(pSrc->pStreamPesudoFuncVals, pSrc->curIdx);
+  QUERY_CHECK_NULL(pSrcParam, code, lino, _exit, terrno);
+
+  pDst->pStreamPesudoFuncVals = taosArrayInit_s(sizeof(SSTriggerCalcParam), 1);
+  QUERY_CHECK_NULL(pDst->pStreamPesudoFuncVals, code, lino, _exit, terrno);
+
+  SSTriggerCalcParam* pDstParam = taosArrayGet(pDst->pStreamPesudoFuncVals, 0);
+  QUERY_CHECK_NULL(pDstParam, code, lino, _exit, terrno);
+
+  int64_t plainFieldSize = offsetof(SSTriggerCalcParam, notifyType);
+  TAOS_MEMCPY(pDstParam, pSrcParam, plainFieldSize);
+  pDst->curIdx = 0;
+  pDst->curOutIdx = 0;
+
+_exit:
+  if (code != TSDB_CODE_SUCCESS) {
+    cleanupStreamRunnerFetchRtInfo(pDst);
+  }
+  return code;
+}
+
+void cleanupStreamRunnerFetchRtInfo(SStreamRuntimeFuncInfo* pInfo) {
+  if (pInfo == NULL) {
+    return;
+  }
+
+  taosArrayDestroy(pInfo->pStreamPesudoFuncVals);
+  pInfo->pStreamPesudoFuncVals = NULL;
+}
+
 int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes, bool reset) {
-  int32_t          code = TSDB_CODE_SUCCESS;
-  int32_t          lino = 0;
-  int32_t          innerIdx = 0;
-  SExecTaskInfo*   pTaskInfo = ctx->pTaskInfo;
-  bool             needStreamPesudoFuncVals = false;
+  int32_t                code = TSDB_CODE_SUCCESS;
+  int32_t                lino = 0;
+  int32_t                innerIdx = 0;
+  SExecTaskInfo*         pTaskInfo = ctx->pTaskInfo;
+  bool                   needStreamPesudoFuncVals = false;
+  SStreamRuntimeFuncInfo rtInfo = {0};
 
   if (IS_STREAM_MODE(pTaskInfo)) {
     innerIdx = pTaskInfo->pStreamRuntimeInfo->execId / STREAM_TASK_REPLICA_NUM;
@@ -5175,8 +5226,16 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
     req.queryId = pSource->clientId;
     // Use deterministic execId from stream runtime (unique per reader task execution)
     req.execId = pTaskInfo->pStreamRuntimeInfo->execId;
-    req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+    if (nodeType(pRes) == QUERY_NODE_REMOTE_TABLE) {
+      req.pStRtFuncInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
+    } else {
+      code = buildStreamRunnerFetchRtInfo(&pTaskInfo->pStreamRuntimeInfo->funcInfo, &rtInfo);
+      QUERY_CHECK_CODE(code, lino, _end);
+      req.pStRtFuncInfo = &rtInfo;
+    }
     req.reset = reset;
+    req.forceFetchCompleted = (nodeType(pRes) == QUERY_NODE_REMOTE_VALUE || nodeType(pRes) == QUERY_NODE_REMOTE_ROW ||
+                               nodeType(pRes) == QUERY_NODE_REMOTE_ZERO_ROWS);
 
     needStreamPesudoFuncVals = true;
     subQIdx = (subQIdx - innerIdx) / STREAM_TASK_DEPLOY_NUM;
@@ -5184,18 +5243,21 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
 
   int32_t msgSize = tSerializeSResFetchReq(NULL, 0, &req, needStreamPesudoFuncVals, false);
   if (msgSize < 0) {
-    return msgSize;
+    code = msgSize;
+    goto _end;
   }
 
   void* msg = taosMemoryCalloc(1, msgSize);
   if (NULL == msg) {
-    return terrno;
+    code = terrno;
+    goto _end;
   }
 
   msgSize = tSerializeSResFetchReq(msg, msgSize, &req, needStreamPesudoFuncVals, false);
   if (msgSize < 0) {
     taosMemoryFree(msg);
-    return msgSize;
+    code = msgSize;
+    goto _end;
   }
 
   qDebug("%s scl build fetch msg and send to nodeId:%d, ep:%s, clientId:0x%" PRIx64 " taskId:0x%" PRIx64
@@ -5208,7 +5270,8 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
   if (NULL == pMsgSendInfo) {
     taosMemoryFreeClear(msg);
     qError("%s prepare message %d failed", ctx->idStr, (int32_t)sizeof(SMsgSendInfo));
-    return terrno;
+    code = terrno;
+    goto _end;
   }
 
   SScalarFetchParam* param = taosMemoryCalloc(1, sizeof(SScalarFetchParam));
@@ -5216,7 +5279,8 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
     taosMemoryFreeClear(msg);
     taosMemoryFreeClear(pMsgSendInfo);
     qError("%s prepare param %d failed", ctx->idStr, (int32_t)sizeof(SScalarFetchParam));
-    return terrno;
+    code = terrno;
+    goto _end;
   }
 
   if (ctx->code) {
@@ -5227,7 +5291,7 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
     code = ctx->code;
     goto _end;
   }
-  
+
   param->subQIdx = subQIdx;
   param->pRes = pRes;
   param->subJobRefId = ctx->subJobRefId;
@@ -5242,13 +5306,14 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
 
   code = asyncSendMsgToServer(ctx->rpcHandle, &pSource->addr.epSet, &ctx->transporterId, pMsgSendInfo);
   QUERY_CHECK_CODE(code, lino, _end);
-      
+
 _end:
 
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s %s failed at line %d since %s", ctx->idStr, __func__, lino, tstrerror(code));
   }
-  
+  cleanupStreamRunnerFetchRtInfo(&rtInfo);
+
   return code;
 }
 
