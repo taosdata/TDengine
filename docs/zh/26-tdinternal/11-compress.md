@@ -52,7 +52,7 @@ make -j$(nproc)
 
 | 环境变量 | 取值 | 说明 |
 |---|---|---|
-| `TAOS_COMPRESS_ACCEL` | 目录路径 / `off` / 不设置 | 设为目录则按惯例从 `<dir>/libz.so`、`<dir>/libzstd.so`、`<dir>/liblz4.so` 加载；`off` 显式禁用；不设置等同 `off` |
+| `TAOS_COMPRESS_ACCEL` | 目录路径 / 不设置 | 设为目录则按惯例从 `<dir>/libz.so`、`<dir>/libzstd.so`、`<dir>/liblz4.so` 加载；不设置（或设为空）时使用内置实现 |
 | `TAOS_COMPRESS_ACCEL_ZLIB` | `.so` 完整路径 | 单独覆盖 zlib 路径，优先于 `TAOS_COMPRESS_ACCEL` |
 | `TAOS_COMPRESS_ACCEL_ZSTD` | `.so` 完整路径 | 同上，覆盖 zstd |
 | `TAOS_COMPRESS_ACCEL_LZ4` | `.so` 完整路径 | 同上，覆盖 lz4 |

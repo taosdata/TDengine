@@ -282,18 +282,21 @@ static int joinDirAndName(char *dst, size_t dstSize, const char *dir, const char
   return 0;
 }
 
+// An empty value counts as unset, so operators can disable acceleration with
+// FOO= in unit files / container images where deleting a variable is awkward.
+static const char *getenvNonEmpty(const char *name) {
+  const char *v = getenv(name);
+  return (v != NULL && v[0] != '\0') ? v : NULL;
+}
+
 void tcompressionAccelInit(void) {
-  const char *dir     = getenv("TAOS_COMPRESS_ACCEL");
-  const char *zlibLib = getenv("TAOS_COMPRESS_ACCEL_ZLIB");
-  const char *zstdLib = getenv("TAOS_COMPRESS_ACCEL_ZSTD");
-  const char *lz4Lib  = getenv("TAOS_COMPRESS_ACCEL_LZ4");
+  const char *dir     = getenvNonEmpty("TAOS_COMPRESS_ACCEL");
+  const char *zlibLib = getenvNonEmpty("TAOS_COMPRESS_ACCEL_ZLIB");
+  const char *zstdLib = getenvNonEmpty("TAOS_COMPRESS_ACCEL_ZSTD");
+  const char *lz4Lib  = getenvNonEmpty("TAOS_COMPRESS_ACCEL_LZ4");
 
   if (dir == NULL && zlibLib == NULL && zstdLib == NULL && lz4Lib == NULL) {
     uInfo("accel compression: TAOS_COMPRESS_ACCEL{,_ZLIB,_ZSTD,_LZ4} unset; using stock L2 implementations");
-    return;
-  }
-  if (dir != NULL && strcmp(dir, "off") == 0) {
-    uInfo("accel compression: explicitly disabled (TAOS_COMPRESS_ACCEL=off)");
     return;
   }
 
