@@ -24,19 +24,9 @@ create_subtable_clause: {
 
 create_definition:
     col_name column_definition
-  | table_constraint
 
 column_definition:
     type_name [COMPOSITE KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
-
-table_constraint:
-    CONSTRAINT constraint_name CHECK (check_expression)
-
-check_expression: {
-    col_name NK_GT literal
-  | col_name NK_LE literal
-  | col_name NK_GT literal NK_AND col_name NK_LE literal
-}
 
 table_options:
     table_option ...
@@ -70,39 +60,6 @@ table_option: {
 ```sql
 CREATE TABLE [IF NOT EXISTS] tb_name (create_definition [, create_definition] ...);
 ```
-
-### CHECK 约束
-
-CHECK 约束用于在**普通表**建表时对**单列**声明取值范围。约束定义写入表的 schema，可通过 `SHOW CREATE TABLE` 回显；INSERT 时若语句中提供了约束列的值，则在 SQL 解析阶段校验，不满足约束的行会被拒绝。
-
-```sql
-CONSTRAINT constraint_name CHECK (check_expression)
-```
-
-`check_expression` 支持以下三种形式（`col_name` 为表中已定义的列名，`literal` 为与该列类型兼容的常量）：
-
-```sql
-check_expression: {
-    col_name > literal
-  | col_name <= literal
-  | col_name > literal AND col_name <= literal
-}
-```
-
-| 形式 | 含义 | 示例 |
-| --- | --- | --- |
-| `col > bound` | 仅下界：值必须 **大于** bound | `CHECK (level > 5)` |
-| `col <= bound` | 仅上界：值必须 **小于等于** bound | `CHECK (level <= 10)` |
-| `col > lower AND col <= upper` | 开闭区间 **(lower, upper]** | `CHECK (level > 5 AND level <= 10)` |
-
-约束名 `constraint_name` 遵循 [名称命名规则](../limit/#名称命名规则)，在表内唯一。约束列与边界常量须类型兼容、可比较。
-
-#### 使用限制
-
-1. 每个约束仅支持**单列**与常量的比较，暂不支持函数、子查询、多列组合表达式等复杂 CHECK 表达式。
-2. 约束列的数据类型须与边界常量**类型兼容**；若类型不可比较，建表或写入时会报错。
-3. 暂不支持通过 `ALTER TABLE` 添加、修改或删除 CHECK 约束；如需变更，请重建表。
-4. 每张表可定义多个 CHECK 约束，每个约束为上述三种表达式形式之一。
 
 ### 创建子表
 
