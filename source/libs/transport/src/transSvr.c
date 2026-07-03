@@ -1670,6 +1670,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     tError("failed to read pip ");
     taosMemoryFree(buf->base);
     uv_close((uv_handle_t*)q, NULL);
+    return;
   }
 
   taosMemoryFree(buf->base);

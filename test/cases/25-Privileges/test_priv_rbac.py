@@ -111,6 +111,22 @@ class TestCase:
         tdSql.execute("revoke create totp_secret,drop totp_secret from u1")
         tdSql.query("select user_name,priv_type from information_schema.ins_user_privileges where priv_type like '%TOTP_SECRET'")
         tdSql.checkRows(0)
+        tdSql.error("grant use to u1", expectErrInfo="The object of non-system privileges cannot be empty:USE DATABASE(31),CLUSTER(0)", fullMatched=False)
+        tdSql.error("grant select to u1", expectErrInfo="The object of non-system privileges cannot be empty:SELECT(71),CLUSTER(0)", fullMatched=False)
+        tdSql.error("grant select on database d0 to u1", expectErrInfo="Object privileges of different types cannot be mixed:SELECT(71),DATABASE(2),d0.", fullMatched=False)
+        tdSql.error("grant use on d0.stb0 to u1", expectErrInfo="Object privileges of different types cannot be mixed:USE DATABASE(31),NONE(16),d0.stb0", fullMatched=False)
+        tdSql.error("grant use on table d0.stb0 to u1", expectErrInfo="Object privileges of different types cannot be mixed:USE DATABASE(31),TABLE(3),d0.stb0", fullMatched=False)
+        tdSql.error("grant use on *.* to u1", expectErrInfo="Object privileges of different levels cannot be mixed:USE DATABASE(31),NONE(16),*.*", fullMatched=False)
+        tdSql.error("grant create table on * to u1", expectErrInfo="Object privileges of different levels cannot be mixed:CREATE TABLE(70),NONE(16),*.*", fullMatched=False)
+        tdSql.error("grant use on database d0 with t1=0 to u1", expectErrInfo="The With clause can only be used for table privileges:DATABASE(2),d0.", fullMatched=False)
+        tdSql.error("revoke use from u1", expectErrInfo="The object of non-system privileges cannot be empty:USE DATABASE(31),CLUSTER(0)", fullMatched=False)
+        tdSql.error("revoke select from u1", expectErrInfo="The object of non-system privileges cannot be empty:SELECT(71),CLUSTER(0)", fullMatched=False)
+        tdSql.error("revoke select on database d0 from u1", expectErrInfo="Object privileges of different types cannot be mixed:SELECT(71),DATABASE(2),d0.", fullMatched=False)
+        tdSql.error("revoke use on d0.stb0 from u1", expectErrInfo="Object privileges of different types cannot be mixed:USE DATABASE(31),NONE(16),d0.stb0", fullMatched=False)
+        tdSql.error("revoke use on table d0.stb0 from u1", expectErrInfo="Object privileges of different types cannot be mixed:USE DATABASE(31),TABLE(3),d0.stb0", fullMatched=False)
+        tdSql.error("revoke use on *.* from u1", expectErrInfo="Object privileges of different levels cannot be mixed:USE DATABASE(31),NONE(16),*.*", fullMatched=False)
+        tdSql.error("revoke create table on * from u1", expectErrInfo="Object privileges of different levels cannot be mixed:CREATE TABLE(70),NONE(16),*.*", fullMatched=False)
+        tdSql.error("revoke use on database d0 with t1=0 from u1", expectErrInfo="The With clause can only be used for table privileges:DATABASE(2),d0.", fullMatched=False)
 
     def do_basic_role_privileges(self):
         """Test basic role privileges(grant/revoke/show role privileges)"""

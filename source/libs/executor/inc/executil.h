@@ -282,6 +282,8 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* p
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
 int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId);
+int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStreamRuntimeFuncInfo* pDst);
+void    cleanupStreamRunnerFetchRtInfo(SStreamRuntimeFuncInfo* pInfo);
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
 
 int32_t          findDataBlockColIndexBySlotId(const SSDataBlock* pBlock, int32_t slotId);

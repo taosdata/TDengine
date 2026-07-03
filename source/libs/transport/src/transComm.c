@@ -1326,8 +1326,9 @@ int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqE
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy((char*)pReq, (char*)pEpset, size);
-  // clear previous
+  // clear previous; NULL out before validation so no dangling pointer on failure
   taosMemoryFree(*pReqEpSet);
+  *pReqEpSet = NULL;
 
   if (transValidReqEpset(pReq) != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pReq);
@@ -1911,8 +1912,9 @@ int32_t transCreateReqEpsetFromUserEpset(const SEpSet* pEpset, SReqEpSet** pReqE
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   memcpy((char*)pReq, (char*)pEpset, size);
-  // clear previous
+  // clear previous; NULL out before validation so no dangling pointer on failure
   taosMemoryFree(*pReqEpSet);
+  *pReqEpSet = NULL;
 
   if (transValidReqEpset(pReq) != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pReq);

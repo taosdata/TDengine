@@ -4983,6 +4983,7 @@ typedef struct {
   struct SStreamRuntimeFuncInfo* pStRtFuncInfo;
   bool                           reset;
   bool                           dynTbname;
+  bool                           forceFetchCompleted;
   // used for new-stream
 } SResFetchReq;
 

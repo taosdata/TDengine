@@ -227,6 +227,7 @@ toc_max_heading_level: 4
 | maxInsertBatchRows | taosc | 一批写入的最大条数 |
 | tmqWriteRefDB | taosc | tmq_write_raw 接口写入 meta 消息时，虚拟表 ref 信息里的 db 替换为该参数，空标识不替换 |
 | tmqWriteCheckRef | taosc | tmq_write_raw 接口写入另一个集群时，是否校验虚拟表 ref 信息的有效性 |
+| forceUpdate | taosd | 写入时遇到重复时间戳的处理策略：`1`（默认）覆盖旧行；`0` 拒绝整批写入并返回 `0x061F` (TSDB_CODE_TDB_DUPLICATE_TIMESTAMP) 错误。可用 `ALTER ALL DNODES 'forceUpdate' '<0\|1>'` 动态切换 |
 | **SHELL 相关** | | |
 | enableScience | taosc | 是否开启科学计数法显示浮点数 |
 | **WebSocket 相关** | | |

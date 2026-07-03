@@ -6,14 +6,15 @@ from random import randint
 import os
 import subprocess
 
-class TestStreamSubquery:
+class TestStreamDoubleSubquery:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
-    def test_stream_subquery(self):
-        """Stream with single subquery filter of more tables and data
+    def test_stream_double_subquery(self):
+        """Stream with double subquery filter of more tables and data
 
-        1. Check stream with subq result (groupid in (select ...))
+        1. Check stream with two correlated subqueries
+           (current > (select first-1 ...) and current < (select last+1 ...))
 
 
         Since: v3.4.1.0
@@ -23,15 +24,15 @@ class TestStreamSubquery:
         Jira: None
 
         History:
-            - 2026-02-06 Stephen Jin Created
+            - 2026-07-01 Stephen Jin Created
 
         """
 
 
         # stb
         self.prepareData()
-        self.createStream()
-        self.checkResult()
+        self.createDoubleSubqStream()
+        self.checkDoubleSubqResult()
 
     def dropStream(self, streamName):
         tdLog.info(f"Drop stream {streamName}")
@@ -96,10 +97,11 @@ class TestStreamSubquery:
 
         tdLog.info(f"insert data successfully.")
 
-    def createStream(self):
+    def createDoubleSubqStream(self):
         tdLog.info(f"create stb stream.")
-        #sql = (f"create stream db.stb_stream count_window(2, 1) from db.meters partition by tbname,groupid stream_options(fill_history('2026-01-01 00:00:00')|low_latency_calc) into db.stream_meters output_subtable (concat('sm#', tbname)) tags (groupid int as groupid) as  select _twstart as ts, first(current) as ff1, last(current) as lf1 from %%tbname where ts>= _twstart and ts<= _twend and current > (select first(current)-1 from db.meters);")
-        sql = (f"create stream db.stb_stream count_window(2, 1) from db.meters partition by tbname,groupid stream_options(fill_history('2026-01-01 00:00:00')|low_latency_calc) into db.stream_meters output_subtable (concat('sm#', tbname)) tags (groupid int as groupid) as  select _twstart as ts, first(current) as ff1, last(current) as lf1 from %%tbname where ts>= _twstart and ts<= _twend and groupid in (select groupid from db.meters);")
+        sql = (
+        f"create stream db.stb_stream count_window(2, 1) from db.meters partition by tbname,groupid stream_options(fill_history('2026-01-01 00:00:00')|low_latency_calc) into db.stream_meters output_subtable (concat('dsm#', tbname)) tags (groupid int as groupid) as  select _twstart as ts, first(current) as ff1, last(current) as lf1 from %%tbname where ts>= _twstart and ts<= _twend and current > (select first(current)-1 from %%tbname) and current < (select last(current)+1 from %%tbname);"
+        )
 
         tdLog.info(f"create stream:{sql}")
 
@@ -118,7 +120,7 @@ class TestStreamSubquery:
             tdLog.debug(f"current stream status: {tdSql.getData(0,0)}")
             time.sleep(1)
 
-    def checkResult(self):
+    def checkDoubleSubqResult(self):
         tdLog.info(f"check stb result start")
 
         while True:
@@ -130,7 +132,7 @@ class TestStreamSubquery:
             tdLog.debug(f"current row count: {tdSql.getData(0,0)}")
             time.sleep(1)
 
-        tdSql.query(f"select * from db.`sm#d0` order by ts;")
+        tdSql.query(f"select * from db.`dsm#d0` order by ts;")
         tdSql.checkData(0, 1, 0)
         tdSql.checkData(0, 2, 1000)
         tdSql.checkData(4998, 1, 4998000)

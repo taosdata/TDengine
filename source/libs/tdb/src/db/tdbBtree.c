@@ -964,7 +964,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           szRCell = tdbBtreeCellSize(pPage, pCell, NULL);
         }
 
-        if (!(infoNews[iNew - 1].cnt > 0)) {
+        if (infoNews[iNew - 1].cnt <= 0) {
           return TSDB_CODE_FAILED;
         }
 
@@ -1070,10 +1070,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
         pCell = tdbPageGetCell(pPage, oIdx);
         szCell = tdbBtreeCellSize(pPage, pCell, NULL);
 
-        if (!(nNewCells <= infoNews[iNew].cnt)) {
+        if (nNewCells > infoNews[iNew].cnt) {
           return TSDB_CODE_FAILED;
         }
-        if (!(iNew < nNews)) {
+        if (iNew >= nNews) {
           return TSDB_CODE_FAILED;
         }
 
@@ -1140,7 +1140,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           if (childIsLeaf) {
             return TSDB_CODE_FAILED;
           }
-          if (!(iNew < nNews - 1)) {
+          if (iNew >= nNews - 1) {
             return TSDB_CODE_FAILED;
           }
 
@@ -1148,7 +1148,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           ((SIntHdr *)pNews[iNew]->pData)->pgno = ((SPgno *)pCell)[0];
 
           // insert to parent as divider cell
-          if (!(iNew < nNews - 1)) {
+          if (iNew >= nNews - 1) {
             return TSDB_CODE_FAILED;
           }
           ((SPgno *)pCell)[0] = TDB_PAGE_PGNO(pNews[iNew]);
@@ -1173,7 +1173,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     }
 
     if (!childIsLeaf) {
-      if (!(TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) == infoNews[nNews - 1].cnt)) {
+      if (TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) != infoNews[nNews - 1].cnt) {
         return TSDB_CODE_FAILED;
       }
       ((SIntHdr *)(pNews[nNews - 1]->pData))->pgno = rPgno;
@@ -1466,7 +1466,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
     nLeft -= kLen;
     // pack partial val to local if any space left
     if (nLocal > nHeader + kLen + sizeof(SPgno)) {
-      if (!(pVal != NULL && vLen != 0)) {
+      if (pVal == NULL || vLen == 0) {
         tdbFree(pBuf);
         tdbPCacheRelease(pBt->pPager->pCache, ofp, pTxn);
         return TSDB_CODE_FAILED;
@@ -1602,13 +1602,13 @@ static int tdbBtreeEncodeCell(SPage *pPage, const void *pKey, int kLen, const vo
   int nPayload;
   int ret;
 
-  if (!(pPage->kLen == TDB_VARIANT_LEN || pPage->kLen == kLen)) {
+  if (pPage->kLen != TDB_VARIANT_LEN && pPage->kLen != kLen) {
     return TSDB_CODE_INVALID_PARA;
   }
-  if (!(pPage->vLen == TDB_VARIANT_LEN || pPage->vLen == vLen)) {
+  if (pPage->vLen != TDB_VARIANT_LEN && pPage->vLen != vLen) {
     return TSDB_CODE_INVALID_PARA;
   }
-  if (!(pKey != NULL && kLen > 0)) {
+  if (pKey == NULL || kLen <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
 

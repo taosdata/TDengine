@@ -21,7 +21,8 @@ char tsSIMDEnable = 1;
 char tsSIMDEnable = 0;
 #endif
 
-int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type) {
+int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t ninput, const int32_t nelements,
+                               char *const output, const char type) {
 #ifdef __AVX512F__
   int32_t word_length = getWordLength(type);
 
@@ -30,11 +31,15 @@ int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements,
   int32_t selector_to_elems[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
 
   const char *ip = input + 1;
+  const char *ip_end = input + ninput;
   int32_t     count = 0;
   int32_t     _pos = 0;
   int64_t     prevValue = 0;
 
   while (_pos < nelements) {
+    if (ip + LONG_BYTES > ip_end) {
+      return TSDB_CODE_INVALID_MSG;
+    }
     uint64_t w = *(uint64_t *)ip;
 
     char    selector = (char)(w & INT64MASK(4));       // selector = 4

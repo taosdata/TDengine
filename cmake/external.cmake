@@ -1259,13 +1259,14 @@ if(BUILD_PCRE2)          # {
         INC_DIR          include
         LIB              lib/${ext_pcre2_static}
     )
+    # CVE-2025-58050: heap buffer over-read in (*scs:...)/(*ACCEPT) combo fixed in 10.46
     get_from_local_if_exists(
-        "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-10.45.tar.gz"
-        "pcre2-pcre2-10.45.tar.gz"
+        "https://github.com/PCRE2Project/pcre2/archive/refs/tags/pcre2-10.47.tar.gz"
+        "pcre2-pcre2-10.47.tar.gz"
     )
     ExternalProject_Add(ext_pcre2
         URL ${_url}
-        URL_HASH SHA256=35ce7d21f511c4a81d7079164077d25fbc41af00f19e1b547801df905c5f0fab
+        URL_HASH SHA256=409c443549b13b216da40049850a32f3e6c57d4224ab11553ab5a786878a158e
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}

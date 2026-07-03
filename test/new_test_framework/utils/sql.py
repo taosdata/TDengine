@@ -34,6 +34,50 @@ from tzlocal import get_localzone
 from typing import Optional, Literal
 
 
+_TRANSIENT_SQL_ERRORS = (
+    "Dnode is starting up",
+    "0x0130",
+    "Vnode is not leader",
+    "Sync leader transfer",
+    "cluster not ready",
+    "not ready",
+)
+_TRIM_WAL_SQL_RE = re.compile(r"^\s*trim\s+database\s+(\S+)\s+wal\s*", re.I)
+
+
+def _is_asan_ci_build():
+    return os.environ.get("CI_ASAN_BUILD", "0") == "1"
+
+
+def ci_scaled_retry(seconds):
+    """Scale retry/timeout windows for slower ASAN CI runs."""
+    if _is_asan_ci_build():
+        return seconds * 2
+    return seconds
+
+
+def _scaled_query_times(queryTimes, err=None):
+    if not _is_asan_ci_build():
+        return queryTimes
+    if err is not None and any(token in str(err) for token in _TRANSIENT_SQL_ERRORS):
+        return max(queryTimes, 60)
+    return queryTimes
+
+
+def _wait_after_trim_wal(cursor, sql):
+    trim_match = _TRIM_WAL_SQL_RE.match(sql)
+    if not trim_match or not _is_asan_ci_build():
+        return
+    dbname = trim_match.group(1)
+    tdLog.info(f"[ASAN] wait for WAL trim propagation on database {dbname}")
+    if cursor is not None:
+        try:
+            cursor.execute(f"flush database {dbname}")
+        except Exception as exc:
+            tdLog.notice(f"flush after trim ignored: {exc}")
+    time.sleep(10)
+
+
 def _parse_ns_timestamp(timestr):
     dt_obj = datetime.datetime.strptime(
         timestr[: len(timestr) - 3], "%Y-%m-%d %H:%M:%S.%f"
@@ -284,7 +328,8 @@ class TDSql:
             tdLog.info(sql)
         self.sql = sql
         i = 1
-        while i <= queryTimes:
+        max_times = queryTimes
+        while i <= max_times:
             try:
                 self.cursor.execute(sql)
                 self.queryResult = self.cursor.fetchall()
@@ -296,7 +341,7 @@ class TDSql:
                     while len(self.queryResult) == 0 or count_expected_res != self.queryResult[0][0]:
                         self.cursor.execute(sql)
                         self.queryResult = self.cursor.fetchall()
-                        if counter < queryTimes:
+                        if counter < max_times:
                             counter += 0.5
                             time.sleep(0.5)
                         else:
@@ -305,7 +350,8 @@ class TDSql:
                     return self.queryResult
                 return self.queryRows
             except Exception as e:
-                if i == queryTimes:
+                max_times = _scaled_query_times(queryTimes, e)
+                if i == max_times:
                     if exit:
                         filename, lineno = _fast_caller(1)
                         args = (filename, lineno, sql, repr(e))
@@ -464,13 +510,16 @@ class TDSql:
         if show:
             tdLog.info(sql)
         i = 1
-        while i <= queryTimes:
+        max_times = queryTimes
+        while i <= max_times:
             try:
                 self.affectedRows = self.cursor.execute(sql)
+                _wait_after_trim_wal(self.cursor, sql)
                 return self.affectedRows
             except Exception as e:
+                max_times = _scaled_query_times(queryTimes, e)
                 tdLog.notice("Try to execute sql again, execute times: %d " % i)
-                if i == queryTimes:
+                if i == max_times:
                     filename, lineno = _fast_caller(1)
                     args = (filename, lineno, sql, repr(e))
                     tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
