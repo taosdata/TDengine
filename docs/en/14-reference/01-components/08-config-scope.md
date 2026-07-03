@@ -218,7 +218,6 @@ This document compares the configuration parameters of taosd (server-side) and t
 | maxInsertBatchRows | taosc | Maximum number of rows per batch insert |
 | tmqWriteRefDB | taosc | When writing meta messages via the tmq_write_raw interface, the database name in the virtual table ref information will be replaced with this parameter value. If empty, no replacement is performed |
 | tmqWriteCheckRef | taosc | Whether to validate the virtual table ref information when writing to another cluster via the tmq_write_raw interface |
-| forceUpdate | taosd | Behavior on duplicate timestamps during writes: `1` (default) overwrites the existing row; `0` rejects the entire batch with error `0x061F` (TSDB_CODE_TDB_DUPLICATE_TIMESTAMP). Toggle at runtime via `ALTER ALL DNODES 'forceUpdate' '<0\|1>'` |
 | **SHELL Related** | | |
 | enableScience | taosc | Whether to enable scientific notation for displaying floating numbers |
 | **WebSocket Related** | | |
