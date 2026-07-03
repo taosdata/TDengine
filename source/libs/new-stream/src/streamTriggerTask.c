@@ -8303,37 +8303,6 @@ static FORCE_INLINE void stHistoryGroupRefreshMaxDelayHeap(SSTriggerHistoryConte
   }
 }
 
-static FORCE_INLINE bool stHistoryGroupHasPendingCalc(SSTriggerHistoryGroup *pGroup) {
-  return pGroup->pPendingCalcParams.neles > 0 || pGroup->pPendingParWinCalcParams.neles > 0;
-}
-
-static FORCE_INLINE void stHistoryGroupEnterMaxDelayHeap(SSTriggerHistoryContext *pContext,
-                                                         SSTriggerHistoryGroup   *pGroup) {
-  if (!pGroup->inMaxDelayHeap) {
-    heapInsert(pContext->pMaxDelayHeap, &pGroup->heapNode);
-    pGroup->inMaxDelayHeap = true;
-  }
-}
-
-static FORCE_INLINE void stHistoryGroupLeaveMaxDelayHeap(SSTriggerHistoryContext *pContext,
-                                                         SSTriggerHistoryGroup   *pGroup) {
-  if (pGroup->inMaxDelayHeap) {
-    heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
-    pGroup->inMaxDelayHeap = false;
-    pGroup->heapNode.left = NULL;
-    pGroup->heapNode.right = NULL;
-    pGroup->heapNode.parent = NULL;
-  }
-}
-
-static FORCE_INLINE void stHistoryGroupRefreshMaxDelayHeap(SSTriggerHistoryContext *pContext,
-                                                           SSTriggerHistoryGroup   *pGroup) {
-  stHistoryGroupLeaveMaxDelayHeap(pContext, pGroup);
-  if (stHistoryGroupHasPendingCalc(pGroup)) {
-    stHistoryGroupEnterMaxDelayHeap(pContext, pGroup);
-  }
-}
-
 static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTriggerTask *pTask) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
