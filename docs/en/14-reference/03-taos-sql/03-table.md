@@ -22,19 +22,9 @@ create_subtable_clause: {
 
 create_definition:
     col_name column_definition
-  | table_constraint
 
 column_definition:
     type_name [COMPOSITE KEY] [ENCODE 'encode_type'] [COMPRESS 'compress_type'] [LEVEL 'level_type']
-
-table_constraint:
-    CONSTRAINT constraint_name CHECK (check_expression)
-
-check_expression: {
-    col_name NK_GT literal
-  | col_name NK_LE literal
-  | col_name NK_GT literal NK_AND col_name NK_LE literal
-}
 
 table_options:
     table_option ...
@@ -63,44 +53,7 @@ Parameter Description:
 2. SMA: Small Materialized Aggregates, provides block-based pre-computation to accelerate aggregation queries. Pre-computation types include MAX, MIN, and SUM. By default, the system creates block-wise SMA for most columns (some types such as BINARY/NCHAR are not created by default); if `SMA(col_name, ...)` is specified at table creation, block-wise SMA is created only for the listed columns; use `NOSMA` in column definitions to disable block-wise SMA for a column. Available for supertables/basic tables.
 3. TTL: Time to Live, a parameter used by users to specify the lifespan of a table. If this parameter is specified when creating a table, TDengine automatically deletes the table after its existence exceeds the specified TTL time. This TTL time is approximate, the system does not guarantee deletion at the exact time but ensures that such a mechanism exists and will eventually delete it. TTL is measured in days, with a range of [0, 2147483647], defaulting to 0, meaning no limit, with the expiration time being the table creation time plus TTL time. TTL is not associated with the database KEEP parameter; if KEEP is smaller than TTL, data may be deleted before the table is removed.
 
-### Create Basic Table
-
-```sql
-CREATE TABLE [IF NOT EXISTS] tb_name (create_definition [, create_definition] ...);
-```
-
-### CHECK Constraints
-
-CHECK constraints let you declare value-range limits on a **single column** when creating a **basic table**. Definitions are stored in the table schema and appear in `SHOW CREATE TABLE` output. On INSERT, when the constrained column value is supplied in the SQL statement, validation runs at parse time and violating rows are rejected.
-
-```sql
-CONSTRAINT constraint_name CHECK (check_expression)
-```
-
-`check_expression` supports the following three forms (`col_name` is a column defined in the same table; `literal` is a constant compatible with that column's type):
-
-```sql
-check_expression: {
-    col_name > literal
-  | col_name <= literal
-  | col_name > literal AND col_name <= literal
-}
-```
-
-| Form | Meaning | Example |
-| --- | --- | --- |
-| `col > bound` | Lower bound only: value must be **greater than** bound | `CHECK (level > 5)` |
-| `col <= bound` | Upper bound only: value must be **less than or equal to** bound | `CHECK (level <= 10)` |
-| `col > lower AND col <= upper` | Half-open interval **(lower, upper]** | `CHECK (level > 5 AND level <= 10)` |
-
-The constraint name `constraint_name` follows the [Naming Rules](91-limit.md) and must be unique within the table. The constrained column and bound literals must be type-compatible and comparable.
-
-#### Limitations
-
-1. Each constraint supports **single-column** comparisons against constants only. Functions, subqueries, multi-column expressions, and other complex CHECK expressions are not supported.
-2. The constrained column type must be **compatible** with the bound literals; incompatible or non-comparable types fail at table creation or insert time.
-3. `ALTER TABLE` cannot add, modify, or drop CHECK constraints yet. Recreate the table to change constraints.
-4. A table may define multiple CHECK constraints; each uses one of the three expression forms above.
+## Create Subtable
 
 ### Create Subtable
 
