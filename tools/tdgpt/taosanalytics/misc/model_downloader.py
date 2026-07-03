@@ -2,8 +2,10 @@ import os
 import sys
 from tqdm import tqdm
 
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
+
 try:
-    from .hf_download import parse_bool, snapshot_download_with_fallback
+    from taosanalytics.misc.hf_download import parse_bool, snapshot_download_with_fallback
 except ImportError:
     from hf_download import parse_bool, snapshot_download_with_fallback
 
