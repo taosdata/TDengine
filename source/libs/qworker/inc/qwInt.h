@@ -183,6 +183,7 @@ typedef struct SQWTaskCtx {
   SRWLatch      lock;
   int8_t        phase;
   int8_t        inFetch;
+  int8_t        inQuickFetch;
   int8_t        taskType;
   int8_t        explain;
   int8_t        needFetch;
@@ -364,6 +365,7 @@ extern SQueryMgmt gQueryMgmt;
 
 #define QW_QUERY_RUNNING(ctx)     (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
 #define QW_FETCH_RUNNING(ctx)     ((ctx)->inFetch)
+#define QW_QUICK_FETCH_RUNNING(ctx) atomic_load_8(&(ctx)->inQuickFetch)
 #define QW_QUERY_NOT_STARTED(ctx) (QW_GET_PHASE(ctx) == -1)
 
 #define QW_SET_QCID(id, qId, cId)                                                 \

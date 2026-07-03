@@ -16,6 +16,7 @@
 #include "dataSinkInt.h"
 #include "dataSinkMgt.h"
 #include "executorInt.h"
+#include "lz4.h"
 #include "planner.h"
 #include "tcompression.h"
 #include "tdatablock.h"
@@ -225,8 +226,9 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
   pBuf->useSize = sizeof(SDataCacheEntry);
 
   {
+    size_t dataBufSize = pBuf->allocSize - sizeof(SDataCacheEntry);
     // allocate additional 8 bytes to avoid invalid write if compress failed to reduce the size
-    size_t dataEncodeBufSize = pBuf->allocSize + 8;
+    size_t dataEncodeBufSize = dataBufSize + 8;
     if ((pBuf->allocSize > tsCompressMsgSize) && (tsCompressMsgSize > 0) && pHandle->pManager->cfg.compress) {
       if (pHandle->pCompressBuf == NULL) {
         pHandle->pCompressBuf = taosMemoryMalloc(dataEncodeBufSize);
@@ -253,7 +255,7 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
         return terrno;
       }
       int32_t len =
-          tsCompressString(pHandle->pCompressBuf, dataLen, 1, pEntry->data, pBuf->allocSize, ONE_STAGE_COMP, NULL, 0);
+          tsCompressString(pHandle->pCompressBuf, dataLen, 1, pEntry->data, dataBufSize, ONE_STAGE_COMP, NULL, 0);
       if (len < dataLen) {
         pEntry->compressed = 1;
         pEntry->dataLen = len;
@@ -267,8 +269,8 @@ static int32_t toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* 
     } else {
       pEntry->dataLen =
           pHandle->dynamicSchema
-              ? blockEncodeInternal(pInput->pData, pEntry->data,  pBuf->allocSize, numOfCols)
-              : blockEncode(pInput->pData, pEntry->data,  pBuf->allocSize, numOfCols);
+              ? blockEncodeInternal(pInput->pData, pEntry->data, dataBufSize, numOfCols)
+              : blockEncode(pInput->pData, pEntry->data, dataBufSize, numOfCols);
       if(pEntry->dataLen < 0) {
         qError("failed to encode data block, code: %d", pEntry->dataLen);
         return terrno;
@@ -295,9 +297,32 @@ static int32_t allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInp
     }
   */
 
-  pBuf->allocSize = sizeof(SDataCacheEntry) + (pDispatcher->dynamicSchema
-                                                   ? blockGetInternalEncodeSize(pInput->pData)
-                                                   : blockGetEncodeSize(pInput->pData));
+  int32_t dataEncodeSize = pDispatcher->dynamicSchema ? blockGetInternalEncodeSize(pInput->pData)
+                                                      : blockGetEncodeSize(pInput->pData);
+  if (dataEncodeSize <= 0) {
+    qError("invalid data encode size:%d in data dispatcher", dataEncodeSize);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  size_t dataBufSize = dataEncodeSize;
+  size_t totalEncodeSize = sizeof(SDataCacheEntry) + dataBufSize;
+  if ((totalEncodeSize > tsCompressMsgSize) && (tsCompressMsgSize > 0) && pDispatcher->pManager->cfg.compress) {
+    int32_t compressBound = LZ4_compressBound(dataEncodeSize);
+    if (compressBound <= 0) {
+      qError("failed to get lz4 compress bound, data encode size:%d", dataEncodeSize);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    dataBufSize = TMAX(dataBufSize, (size_t)compressBound + 1);
+    totalEncodeSize = sizeof(SDataCacheEntry) + dataBufSize;
+  }
+
+  if (totalEncodeSize > INT32_MAX) {
+    qError("data dispatcher buffer too large, dataEncodeSize:%d, dataBufSize:%zu, total:%zu", dataEncodeSize,
+           dataBufSize, totalEncodeSize);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  pBuf->allocSize = (int32_t)totalEncodeSize;
 
   pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
@@ -373,33 +398,62 @@ static void resetDispatcher(struct SDataSinkHandle* pHandle) {
 
 static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, int64_t* pRowLen, bool* pQueryEnd) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
-  if (taosQueueEmpty(pDispatcher->pDataBlocks)) {
-    *pQueryEnd = pDispatcher->queryEnd;
+  SDataCacheEntry*     pEntry = NULL;
+
+  (void)taosThreadMutexLock(&pDispatcher->mutex);
+  pEntry = (SDataCacheEntry*)pDispatcher->nextOutput.pData;
+
+  if (pEntry == NULL) {
+    if (taosQueueEmpty(pDispatcher->pDataBlocks)) {
+      if (pQueryEnd != NULL) {
+        *pQueryEnd = pDispatcher->queryEnd;
+      }
+      *pLen = 0;
+      (void)taosThreadMutexUnlock(&pDispatcher->mutex);
+      return;
+    }
+
+    SDataDispatchBuf* pBuf = NULL;
+    taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
+    if (pBuf != NULL) {
+      TAOS_MEMCPY(&pDispatcher->nextOutput, pBuf, sizeof(SDataDispatchBuf));
+      taosFreeQitem(pBuf);
+    }
+
+    pEntry = (SDataCacheEntry*)pDispatcher->nextOutput.pData;
+  }
+
+  if (pEntry == NULL) {
+    if (pQueryEnd != NULL) {
+      *pQueryEnd = pDispatcher->queryEnd;
+    }
     *pLen = 0;
+    (void)taosThreadMutexUnlock(&pDispatcher->mutex);
     return;
   }
 
-  SDataDispatchBuf* pBuf = NULL;
-  taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
-  if (pBuf != NULL) {
-    TAOS_MEMCPY(&pDispatcher->nextOutput, pBuf, sizeof(SDataDispatchBuf));
-    taosFreeQitem(pBuf);
+  *pLen = pEntry->dataLen;
+  if (pRowLen != NULL) {
+    *pRowLen = pEntry->rawLen;
   }
 
-  SDataCacheEntry* pEntry = (SDataCacheEntry*)pDispatcher->nextOutput.pData;
-  *pLen = pEntry->dataLen;
-  *pRowLen = pEntry->rawLen;
-
-  *pQueryEnd = pDispatcher->queryEnd;
-  qDebug("got data len %" PRId64 ", row num %d in sink", *pLen,
-         ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->numOfRows);
+  if (pQueryEnd != NULL) {
+    *pQueryEnd = pDispatcher->queryEnd;
+  }
+  qDebug("got data len %" PRId64 ", row num %d in sink", *pLen, pEntry->numOfRows);
+  (void)taosThreadMutexUnlock(&pDispatcher->mutex);
 }
 
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
-  if (NULL == pDispatcher->nextOutput.pData) {
+
+  (void)taosThreadMutexLock(&pDispatcher->mutex);
+  char* pData = atomic_exchange_ptr(&pDispatcher->nextOutput.pData, NULL);
+  if (NULL == pData) {
     if (!pDispatcher->queryEnd) {
-      qError("empty res while query not end in data dispatcher");
+      qError("empty res while query not end in data dispatcher, dispatcher:%p, tid:%" PRId64, pDispatcher,
+             taosGetSelfPthreadId());
+      (void)taosThreadMutexUnlock(&pDispatcher->mutex);
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
 
@@ -407,10 +461,11 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
     pOutput->precision = pDispatcher->pSchema->precision;
     pOutput->bufStatus = DS_BUF_EMPTY;
     pOutput->queryEnd = pDispatcher->queryEnd;
+    (void)taosThreadMutexUnlock(&pDispatcher->mutex);
     return TSDB_CODE_SUCCESS;
   }
 
-  SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDispatcher->nextOutput.pData);
+  SDataCacheEntry* pEntry = (SDataCacheEntry*)pData;
   TAOS_MEMCPY(pOutput->pData, pEntry->data, pEntry->dataLen);
   pOutput->numOfRows = pEntry->numOfRows;
   pOutput->numOfCols = pEntry->numOfCols;
@@ -419,14 +474,12 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   (void)atomic_sub_fetch_64(&pDispatcher->cachedSize, pEntry->dataLen);
   (void)atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen);
 
-  taosMemoryFreeClear(pDispatcher->nextOutput.pData);  // todo persistent
-  pOutput->bufStatus = updateStatus(pDispatcher);
-  
-  (void)taosThreadMutexLock(&pDispatcher->mutex);
+  taosMemoryFree(pData);  // todo persistent
   pOutput->queryEnd = pDispatcher->queryEnd;
   pOutput->useconds = pDispatcher->useconds;
   pOutput->precision = pDispatcher->pSchema->precision;
   (void)taosThreadMutexUnlock(&pDispatcher->mutex);
+  pOutput->bufStatus = updateStatus(pDispatcher);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -434,7 +487,14 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
 static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   (void)atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pDispatcher->cachedSize);
-  taosMemoryFreeClear(pDispatcher->nextOutput.pData);
+  (void)taosThreadMutexLock(&pDispatcher->mutex);
+  char* pData = atomic_exchange_ptr(&pDispatcher->nextOutput.pData, NULL);
+  if (pData != NULL) {
+    qWarn("destroy sink dispatcher:%p releasing pending nextOutput:%p, tid:%" PRId64, pDispatcher, pData,
+          taosGetSelfPthreadId());
+    taosMemoryFree(pData);
+  }
+  (void)taosThreadMutexUnlock(&pDispatcher->mutex);
   nodesDestroyNode((SNode*)pDispatcher->pSinkNode);
 
   while (!taosQueueEmpty(pDispatcher->pDataBlocks)) {
