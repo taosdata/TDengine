@@ -89,8 +89,8 @@ void tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg
 
   tdbTrace("tdb/page-destroy: %p/%d %p", pPage, pPage->id, xFree);
 
-  if (pPage->isDirty) {
-    tdbError("tdb/page-destroy: dirty page: %" PRIu8 ".", pPage->isDirty);
+  if (tdbPageGetFlag(pPage, PAGE_FLAG_DIRTY)) {
+    tdbError("tdb/page-destroy: dirty page: %p", pPage);
     return;
   }
 
