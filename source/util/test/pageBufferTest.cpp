@@ -276,8 +276,8 @@ void testEncryptedFlushAndReadBackBuffer() {
   std::string marker;
   for (int i = 0; i < 4; ++i) marker.append(rowData, len);
   bool leaked = onDisk.find(marker) != std::string::npos;
-#if defined(TD_ENTERPRISE) && defined(LINUX)
-  ASSERT_FALSE(leaked);  // real SM4-CBC: no plaintext on disk
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA)
+  ASSERT_FALSE(leaked);  // real SM4-CBC on any platform: ciphertext only
 #else
   ASSERT_TRUE(leaked);   // community memcpy stub: plaintext present (control)
 #endif
