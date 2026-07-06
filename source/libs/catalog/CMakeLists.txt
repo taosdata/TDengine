@@ -16,5 +16,6 @@ target_link_libraries(
 )
 
 if(BUILD_TEST AND NOT TD_WINDOWS)
+ target_compile_definitions(catalog PRIVATE BUILD_TEST)
  ADD_SUBDIRECTORY(test)
 endif()
