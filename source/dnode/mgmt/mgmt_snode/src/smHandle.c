@@ -261,8 +261,19 @@ SArray *smGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_FROM_RUNNER, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_FROM_CACHE, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_DROP, smPutMsgToRunnerQueue, 1) == NULL) goto _OVER;
+  /* Route EXT reader PULL requests to the runner queue; sndProcessStreamMsg
+   * handles them via TDMT_STREAM_TRIGGER_PULL_EXT case. */
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL_EXT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
+  /* P4-E1: route runner→reader EXT fetch requests to the runner queue.
+   * The runner queue worker dispatches TDMT_STREAM_FETCH_EXT to
+   * handleExtFetchReq, which invokes the ETR task's extConnector. */
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_EXT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL_RSP, smPutMsgToTriggerQueue, 0) == NULL) goto _OVER;
+  /* Route EXT PULL responses back to the trigger task queue so that
+   * stTriggerTaskProcessRsp can dispatch TDMT_STREAM_TRIGGER_PULL_EXT_RSP
+   * to stRealtimeContextProcExtPullRsp. */
+  if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL_EXT_RSP, smPutMsgToTriggerQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_CALC_RSP, smPutMsgToTriggerQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_DROP_RSP, smPutMsgToTriggerQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_SNODE_DROP_TABLE_RSP, smPutMsgToTriggerQueue, 1) == NULL) goto _OVER;

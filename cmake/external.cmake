@@ -2241,6 +2241,11 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                     VERBATIM
                 )
             else()
+                find_program(_EXT_LIBPQ_MAKE_EXECUTABLE NAMES gmake make)
+                if(NOT _EXT_LIBPQ_MAKE_EXECUTABLE)
+                    message(FATAL_ERROR
+                        "[ext_libpq] BUILD_WITH_LIBPQ=ON requires GNU Make for the PostgreSQL autoconf build.")
+                endif()
                 set(_ext_libpq_configure_env
                     "CPPFLAGS=-I${ext_ssl_inc_dir}"
                     "LDFLAGS=-L${ext_ssl_install}/lib"
@@ -2266,22 +2271,22 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                         # BUILD_IN_SOURCE reuses the cached PostgreSQL source tree across
                         # CI runs. Clean libpq objects so old non-SSL fe-secure.o is not
                         # linked together with fe-secure-openssl.o after enabling OpenSSL.
-                        COMMAND ${CMAKE_MAKE_PROGRAM} -C src/interfaces/libpq clean
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/interfaces/libpq clean
                         COMMAND perl src/backend/utils/generate-errcodes.pl
                             --outfile src/include/utils/errcodes.h
                             src/backend/utils/errcodes.txt
-                        COMMAND ${CMAKE_MAKE_PROGRAM} -C src/backend/catalog
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/backend/catalog
                             distprep generated-header-symlinks
-                        COMMAND ${CMAKE_MAKE_PROGRAM} -C src/backend/nodes
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/backend/nodes
                             distprep generated-header-symlinks
-                        COMMAND ${CMAKE_MAKE_PROGRAM} -C src/backend/utils
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/backend/utils
                             distprep generated-header-symlinks
-                        COMMAND ${CMAKE_MAKE_PROGRAM} -C src/backend
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/backend
                             generated-headers
-                        COMMAND ${CMAKE_MAKE_PROGRAM} -C src/interfaces/libpq
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/interfaces/libpq
                     INSTALL_COMMAND
-                        COMMAND ${CMAKE_MAKE_PROGRAM} -C src/interfaces/libpq install
-                        COMMAND ${CMAKE_MAKE_PROGRAM} -C src/include install
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/interfaces/libpq install
+                        COMMAND ${_EXT_LIBPQ_MAKE_EXECUTABLE} -C src/include install
                             prefix=${_ins}
                     EXCLUDE_FROM_ALL TRUE
                     VERBATIM
@@ -2501,14 +2506,12 @@ if(${BUILD_WITH_ARROW})
                 lib/libparquet.so
                 lib/libarrow_flight_sql.so
                 lib/libarrow_flight.so
-                lib/libparquet.so
                 lib/libarrow.so)
         elseif(TD_DARWIN)
             set(_ext_arrow_libs
                 lib/libparquet.dylib
                 lib/libarrow_flight_sql.dylib
                 lib/libarrow_flight.dylib
-                lib/libparquet.dylib
                 lib/libarrow.dylib)
         elseif(TD_WINDOWS)
             set(_ext_arrow_libs lib/parquet.lib lib/arrow.lib)

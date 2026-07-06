@@ -352,6 +352,9 @@ static int32_t jsonToInt16(const SJson* pJson, void* pObj) {
 static const char* jkSstreamCalcScanVgList        = "vgList";
 static const char* jkSstreamCalcScanReadFromCache = "readFromCache";
 static const char* jkSstreamCalcScanScanPlan      = "scanPlan";
+static const char* jkSstreamCalcScanSourceName    = "sourceName";
+static const char* jkSstreamCalcScanExtTable      = "extTable";
+static const char* jkSstreamCalcScanTsColumn      = "tsColumn";
 static int32_t calcScanPlanToJson(const void* pObj, SJson* pJson) {
   const SStreamCalcScan* pPlan = (const SStreamCalcScan*)pObj;
   TAOS_CHECK_RETURN(tjsonAddArray(
@@ -363,6 +366,17 @@ static int32_t calcScanPlanToJson(const void* pObj, SJson* pJson) {
   if (NULL != pPlan->scanPlan) {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(
       pJson, jkSstreamCalcScanScanPlan, (const char*)pPlan->scanPlan));
+  }
+  /* Per-scan ext source identity (federated multi-source calc). Only written
+   * when set, so non-ext streams stay unchanged and old readers ignore them. */
+  if (pPlan->sourceName[0] != '\0') {
+    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkSstreamCalcScanSourceName, pPlan->sourceName));
+  }
+  if (pPlan->extTable[0] != '\0') {
+    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkSstreamCalcScanExtTable, pPlan->extTable));
+  }
+  if (pPlan->tsColumn[0] != '\0') {
+    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkSstreamCalcScanTsColumn, pPlan->tsColumn));
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -376,6 +390,14 @@ static int32_t jsonToCalcScanPlan(const SJson* pJson, void* pObj) {
     pJson, jkSstreamCalcScanReadFromCache, &pPlan->readFromCache));
   TAOS_CHECK_RETURN(tjsonDupStringValue(
     pJson, jkSstreamCalcScanScanPlan, (char**)&pPlan->scanPlan));
+  /* Missing keys leave the fields empty (old streams) — tjsonGetStringValue1
+   * returns SUCCESS without touching the buffer, so single-source fallback holds. */
+  TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, jkSstreamCalcScanSourceName, pPlan->sourceName,
+                                         sizeof(pPlan->sourceName)));
+  TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, jkSstreamCalcScanExtTable, pPlan->extTable,
+                                         sizeof(pPlan->extTable)));
+  TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, jkSstreamCalcScanTsColumn, pPlan->tsColumn,
+                                         sizeof(pPlan->tsColumn)));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -522,6 +544,155 @@ static const char* jkCreateStreamReqForceOutCols         = "forceOutCols";
 static const char* jkCreateStreamReqColCids = "colCids";
 static const char* jkCreateStreamReqTagCids = "tagCids";
 static const char* jkCreateStreamReqNodelayCreateSubtable = "nodelayCreateSubtable";
+
+/* === Federated query: extSpecs JSON keys (Pt A6) ===
+ * Wire format mirrors SStreamExtTriggerSpec (streamMsg.h). Currently 9
+ * scalar/string fields are persisted; encryptedPassword bytes are NOT
+ * carried on the wire (taosc leaves zero, mnode fills from sdb in P1 B2)
+ * and triggerColumns / prefilter are deferred (only consumed by reader in
+ * P3+, not built by parser yet — see TODO in createStreamReqBuildExtSpecs).
+ * encryptedPasswordLen is written only as a sanity flag (always 0 over the
+ * wire). Old mnodes silently ignore the unknown jkCreateStreamReqExtSpecs key. */
+static const char* jkCreateStreamReqExtSpecs           = "extSpecs";
+static const char* jkExtSpecSourceName                  = "sourceName";
+static const char* jkExtSpecSourceType                  = "sourceType";
+static const char* jkExtSpecExtDb                       = "extDb";
+static const char* jkExtSpecExtSchema                   = "extSchema";
+static const char* jkExtSpecExtTable                    = "extTable";
+static const char* jkExtSpecTsColumn                    = "tsColumn";
+static const char* jkExtSpecHost                        = "host";
+static const char* jkExtSpecPort                        = "port";
+static const char* jkExtSpecUser                        = "user";
+static const char* jkExtSpecEncryptedPasswordLen        = "encPwdLen";
+static const char* jkExtSpecConnCfgVersion              = "connCfgVersion";
+static const char* jkExtSpecPrefilter                   = "prefilter";
+static const char* jkExtSpecTriggerPrefilter             = "triggerPrefilter";
+static const char* jkExtSpecPartitionByTag               = "partitionByTag";
+static const char* jkExtSpecPartitionTagCols             = "partitionTagCols";
+
+/* partitionTagCols element codec: SArray<char[TSDB_COL_NAME_LEN]> — the
+ * element IS the fixed-size name buffer itself (not a char*), unlike
+ * stringToJson/jsonToString above which operate on SArray<char*>. */
+static int32_t extSpecTagColToJson(const void* pObj, SJson* pJson) {
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "value", (const char*)pObj));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t jsonToExtSpecTagCol(const SJson* pJson, void* pObj) {
+  TAOS_CHECK_RETURN(tjsonGetStringValue(pJson, "value", (char*)pObj));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extTriggerSpecToJson(const void* pObj, SJson* pJson) {
+  const SStreamExtTriggerSpec* pSpec = (const SStreamExtTriggerSpec*)pObj;
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecSourceName, pSpec->sourceName));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkExtSpecSourceType, pSpec->sourceType));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecExtDb, pSpec->extDb));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecExtSchema, pSpec->extSchema));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecExtTable, pSpec->extTable));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecTsColumn, pSpec->tsColumn));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecHost, pSpec->host));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkExtSpecPort, pSpec->port));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecUser, pSpec->user));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkExtSpecEncryptedPasswordLen,
+                                            pSpec->encryptedPasswordLen));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkExtSpecConnCfgVersion,
+                                            (int64_t)pSpec->connCfgVersion));
+  /* prefilter: optional WHERE clause fragment for calc (aggregate) reader queries. */
+  if (pSpec->prefilter != NULL && pSpec->prefilter[0] != '\0') {
+    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecPrefilter, pSpec->prefilter));
+  }
+  /* triggerPrefilter: optional WHERE clause fragment for trigger reader queries (PRE_FILTER). */
+  if (pSpec->triggerPrefilter != NULL && pSpec->triggerPrefilter[0] != '\0') {
+    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecTriggerPrefilter, pSpec->triggerPrefilter));
+  }
+  /* partitionByTag / partitionTagCols: PARTITION BY groupId derivation (see
+   * streamReaderExt.c). Must cross the wire here — unlike triggerColumns/
+   * calcColumns (deferred to reader-task deploy time, derivable from the
+   * already-transmitted scan plan), the PARTITION BY tag subset is a
+   * parse-time-only fact the mnode cannot re-derive later. */
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkExtSpecPartitionByTag, pSpec->partitionByTag));
+  if (pSpec->partitionTagCols != NULL && taosArrayGetSize(pSpec->partitionTagCols) > 0) {
+    TAOS_CHECK_RETURN(tjsonAddTArray(pJson, jkExtSpecPartitionTagCols, extSpecTagColToJson, pSpec->partitionTagCols));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t jsonToExtTriggerSpec(const SJson* pJson, void* pObj) {
+  /* tjsonToTArray decodes into a calloc'd buffer of size elemSize. We pass
+   * sizeof(SStreamExtTriggerSpec*) and decode INTO a stack copy first, then
+   * allocate a real heap spec and store its pointer. This matches the
+   * SArray<SStreamExtTriggerSpec*> shape used by SCMCreateStreamReq.extSpecs. */
+  SStreamExtTriggerSpec** ppOut = (SStreamExtTriggerSpec**)pObj;
+  SStreamExtTriggerSpec*  pSpec = taosMemoryCalloc(1, sizeof(SStreamExtTriggerSpec));
+  if (pSpec == NULL) return terrno;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if ((code = tjsonGetStringValue(pJson, jkExtSpecSourceName, pSpec->sourceName)) != 0) goto _err;
+  if ((code = tjsonGetTinyIntValue(pJson, jkExtSpecSourceType, &pSpec->sourceType)) != 0) goto _err;
+  if ((code = tjsonGetStringValue(pJson, jkExtSpecExtDb, pSpec->extDb)) != 0) goto _err;
+  /* extSchema is optional in the JSON (absent in streams created by older taosc);
+   * tolerate missing key by ignoring TSDB_CODE_SUCCESS with empty result. */
+  if ((code = tjsonGetStringValue(pJson, jkExtSpecExtSchema, pSpec->extSchema)) != 0) goto _err;
+  if ((code = tjsonGetStringValue(pJson, jkExtSpecExtTable, pSpec->extTable)) != 0) goto _err;
+  if ((code = tjsonGetStringValue(pJson, jkExtSpecTsColumn, pSpec->tsColumn)) != 0) goto _err;
+  if ((code = tjsonGetStringValue(pJson, jkExtSpecHost, pSpec->host)) != 0) goto _err;
+  {
+    int32_t p32 = 0;
+    if ((code = tjsonGetIntValue(pJson, jkExtSpecPort, &p32)) != 0) goto _err;
+    pSpec->port = (uint16_t)p32;
+  }
+  if ((code = tjsonGetStringValue(pJson, jkExtSpecUser, pSpec->user)) != 0) goto _err;
+  {
+    int32_t lp = 0;
+    if ((code = tjsonGetIntValue(pJson, jkExtSpecEncryptedPasswordLen, &lp)) != 0) goto _err;
+    pSpec->encryptedPasswordLen = (uint16_t)lp;
+  }
+  {
+    int64_t v = 0;
+    if ((code = tjsonGetBigIntValue(pJson, jkExtSpecConnCfgVersion, &v)) != 0) goto _err;
+    pSpec->connCfgVersion = (uint64_t)v;
+  }
+  /* encryptedPassword left zero — mnode (P1 B2) fills from sdb. */
+
+  /* prefilter: optional calc reader WHERE fragment.  Absent on streams created
+   * by older taosc or when no static WHERE was present in the calc query. */
+  {
+    char pfBuf[4096] = {0};
+    int32_t pfCode = tjsonGetStringValue(pJson, jkExtSpecPrefilter, pfBuf);
+    if (pfCode == TSDB_CODE_SUCCESS && pfBuf[0] != '\0') {
+      pSpec->prefilter    = tstrdup(pfBuf);
+      if (pSpec->prefilter == NULL) { code = terrno; goto _err; }
+    }
+  }
+  /* triggerPrefilter: optional trigger reader PRE_FILTER fragment. */
+  {
+    char pfBuf[4096] = {0};
+    int32_t pfCode = tjsonGetStringValue(pJson, jkExtSpecTriggerPrefilter, pfBuf);
+    if (pfCode == TSDB_CODE_SUCCESS && pfBuf[0] != '\0') {
+      pSpec->triggerPrefilter    = tstrdup(pfBuf);
+      if (pSpec->triggerPrefilter == NULL) { code = terrno; goto _err; }
+    }
+  }
+  /* partitionByTag: absent on streams created by older taosc; defaults to 0
+   * (calloc'd) when the key is missing, matching "no PARTITION BY". */
+  (void)tjsonGetTinyIntValue(pJson, jkExtSpecPartitionByTag, &pSpec->partitionByTag);
+  /* partitionTagCols: absent means empty (PARTITION BY tbname, or none). */
+  if ((code = tjsonToTArray(pJson, jkExtSpecPartitionTagCols, jsonToExtSpecTagCol,
+                            &pSpec->partitionTagCols, TSDB_COL_NAME_LEN)) != 0) {
+    goto _err;
+  }
+
+  *ppOut = pSpec;
+  return TSDB_CODE_SUCCESS;
+
+_err:
+  taosMemoryFree(pSpec->prefilter);
+  taosMemoryFree(pSpec->triggerPrefilter);
+  taosArrayDestroy(pSpec->partitionTagCols);
+  taosMemoryFree(pSpec);
+  return code;
+}
 
 static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
   const SCMCreateStreamReq* pReq = (const SCMCreateStreamReq*)pObj;
@@ -764,6 +935,28 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
   TAOS_CHECK_RETURN(
       tjsonAddIntegerToObject(pJson, jkCreateStreamReqNodelayCreateSubtable, pReq->nodelayCreateSubtable));
 
+  /* Pt A6: federated query extSpecs. Encode as a JSON array of spec objects.
+   * Each element is SStreamExtTriggerSpec*; iterate and tjsonAddItemToArray.
+   * Skipped entirely when no ext sources referenced (numOfExtSpecs == 0). */
+  if (pReq->extSpecs != NULL && pReq->numOfExtSpecs > 0) {
+    SJson* pArr = tjsonCreateArray();
+    if (pArr == NULL) return terrno;
+    int32_t n = (int32_t)taosArrayGetSize(pReq->extSpecs);
+    for (int32_t i = 0; i < n; ++i) {
+      SStreamExtTriggerSpec* pSpec = *(SStreamExtTriggerSpec**)taosArrayGet(pReq->extSpecs, i);
+      if (pSpec == NULL) continue;
+      SJson* pItem = tjsonCreateObject();
+      if (pItem == NULL) { tjsonDelete(pArr); return terrno; }
+      int32_t c = extTriggerSpecToJson(pSpec, pItem);
+      if (c != TSDB_CODE_SUCCESS) { tjsonDelete(pItem); tjsonDelete(pArr); return c; }
+      if ((c = tjsonAddItemToArray(pArr, pItem)) != 0) { tjsonDelete(pItem); tjsonDelete(pArr); return c; }
+    }
+    if (tjsonAddItemToObject(pJson, jkCreateStreamReqExtSpecs, pArr) != 0) {
+      tjsonDelete(pArr);
+      return terrno;
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -989,6 +1182,29 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
   TAOS_CHECK_RETURN(tjsonToTArray(pJson, jkCreateStreamReqColCids, jsonToInt16, &pReq->colCids, sizeof(int16_t)));
   TAOS_CHECK_RETURN(tjsonToTArray(pJson, jkCreateStreamReqTagCids, jsonToInt16, &pReq->tagCids, sizeof(int16_t)));
   (void)tjsonGetTinyIntValue(pJson, jkCreateStreamReqNodelayCreateSubtable, &pReq->nodelayCreateSubtable);
+
+  /* Pt A6: decode extSpecs array (optional — absent on streams without
+   * EXTERNAL sources and on messages from older taosc). */
+  SJson* pExtArr = tjsonGetObjectItem(pJson, jkCreateStreamReqExtSpecs);
+  if (pExtArr != NULL) {
+    int32_t n = tjsonGetArraySize(pExtArr);
+    if (n > 0) {
+      pReq->extSpecs = taosArrayInit(n, POINTER_BYTES);
+      if (pReq->extSpecs == NULL) return terrno;
+      for (int32_t i = 0; i < n; ++i) {
+        SJson* pItem = tjsonGetArrayItem(pExtArr, i);
+        if (pItem == NULL) continue;
+        SStreamExtTriggerSpec* pSpec = NULL;
+        int32_t c = jsonToExtTriggerSpec(pItem, &pSpec);
+        if (c != TSDB_CODE_SUCCESS) return c;
+        if (taosArrayPush(pReq->extSpecs, &pSpec) == NULL) {
+          taosMemoryFree(pSpec);
+          return terrno;
+        }
+      }
+      pReq->numOfExtSpecs = (int32_t)taosArrayGetSize(pReq->extSpecs);
+    }
+  }
 
   return TSDB_CODE_SUCCESS;
 }

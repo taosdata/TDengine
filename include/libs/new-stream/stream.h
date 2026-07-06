@@ -37,10 +37,12 @@ extern "C" {
 #define STREAM_FLAG_TRIGGER_READER  (1 << 0)
 #define STREAM_FLAG_TOP_RUNNER      (1 << 1)
 #define STREAM_FLAG_REDEPLOY_RUNNER (1 << 2)
+#define STREAM_FLAG_REF_EXT_SOURCE  (1 << 3)  // stream references at least one external source
 
 #define STREAM_IS_TRIGGER_READER(_flags) ((_flags) & STREAM_FLAG_TRIGGER_READER)
 #define STREAM_IS_TOP_RUNNER(_flags) ((_flags) & STREAM_FLAG_TOP_RUNNER)
 #define STREAM_IS_REDEPLOY_RUNNER(_flags) ((_flags) & STREAM_FLAG_REDEPLOY_RUNNER)
+#define STREAM_IS_REF_EXT_SOURCE(_flags) ((_flags) & STREAM_FLAG_REF_EXT_SOURCE)
 
 #define STREAM_CLR_FLAG(st, f) (st) &= (~f)
 

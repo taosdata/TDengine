@@ -112,6 +112,23 @@ class ParserTestBaseImpl {
     }
   }
 
+  // Skips the two sync interfaces (which can never see the SParseMetaCache
+  // populated by MockCatalogService.catalogGetAllMeta).  Used by tests that
+  // rely on EXT source / EXT table metadata being routed through the cache.
+  void runAsyncOnly(const string& sql, int32_t expect, ParserStage checkStage) {
+    ++sqlNo_;
+    if (caseEnv_.numOfSkipSql_ > 0) {
+      --(caseEnv_.numOfSkipSql_);
+      return;
+    }
+    if (caseEnv_.numOfLimitSql_ > 0 && caseEnv_.numOfLimitSql_ == sqlNum_) {
+      return;
+    }
+    ++sqlNum_;
+    runAsyncInternalFuncs(sql, expect, checkStage);
+    runAsyncApis(sql, expect, checkStage);
+  }
+
  private:
   struct caseEnv {
     string  acctId_;
@@ -572,6 +589,10 @@ void ParserTestBase::useDb(const std::string& acctId, const std::string& db) { i
 
 void ParserTestBase::run(const std::string& sql, int32_t expect, ParserStage checkStage) {
   return impl_->run(sql, expect, checkStage);
+}
+
+void ParserTestBase::runAsyncOnly(const std::string& sql, int32_t expect, ParserStage checkStage) {
+  return impl_->runAsyncOnly(sql, expect, checkStage);
 }
 
 void ParserTestBase::checkDdl(const SQuery* pQuery, ParserStage stage) { return; }

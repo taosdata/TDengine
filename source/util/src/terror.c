@@ -1131,6 +1131,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_SUBTABLE,        "Invalid subtable in
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_OUT_TAGS,        "Invalid out tags in create stream clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_NOTIFY_COND,     "Invalid notify condition in create stream clause")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,    "Invalid placeholder in create stream clause")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_DISABLED,                "Federated query is disabled for stream (federatedQueryEnable=false)")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_TS_COLUMN_MISSING,       "External source table has no timestamp primary key column")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_PARTITION_NOT_SUPPORTED, "PARTITION BY is not supported for the given external source type")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO,    "External reader has no local SStreamTriggerReaderInfo; trigger must resend uid maxTs hash")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_ROLLUP_ILLEGAL_PATH,     "Stream rollup tag path is illegal")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_ROLLUP,          "Invalid ROLLUP BY clause")
 

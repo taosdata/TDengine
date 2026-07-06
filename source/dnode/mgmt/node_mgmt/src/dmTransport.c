@@ -202,6 +202,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_STREAM_FETCH_RSP:
     case TDMT_STREAM_FETCH_FROM_RUNNER_RSP:
     case TDMT_STREAM_FETCH_FROM_CACHE_RSP:
+    case TDMT_STREAM_FETCH_EXT_RSP:  /* P4-E1: EXT fetch response from ETR */
     case TDMT_VND_SNODE_DROP_TABLE_RSP:
     case TDMT_VND_VTABLE_REF_RESOLVE_RSP:
       code = qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);

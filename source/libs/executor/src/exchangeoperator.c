@@ -1480,6 +1480,30 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
         qDebug("%s stream fetch from cache, execId:%d, curWinIdx:%d, time range:[%" PRId64 ", %" PRId64 "]",
                GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, req.pStRtFuncInfo->curWindow.skey,
                req.pStRtFuncInfo->curWindow.ekey);
+      } else if (pSource->fetchMsgType == TDMT_STREAM_FETCH_EXT) {
+        /* P4-E3: EXT fetch — runner requests data from an ETR (external-table
+         * reader) task.  Only set a merged time range when the runner has an
+         * external window operator (%%trows); otherwise leave curWindow as
+         * {0,0} so the ext reader does a full table scan — the calc SQL has
+         * no time range filter or uses _twstart/_twend which are evaluated
+         * on the runner side after fetching. */
+        if (req.pStRtFuncInfo->withExternalWindow) {
+          SArray *pVals = req.pStRtFuncInfo->pStreamPesudoFuncVals;
+          int32_t nWin = (int32_t)taosArrayGetSize(pVals);
+          if (nWin > 0) {
+            SSTriggerCalcParam *p0 = taosArrayGet(pVals, 0);
+            SSTriggerCalcParam *pN = taosArrayGet(pVals, nWin - 1);
+            req.pStRtFuncInfo->curWindow.skey = p0->wstart;
+            req.pStRtFuncInfo->curWindow.ekey = pN->wend;
+          }
+        }
+        needStreamRtInfo = true;
+        needStreamGrpInfo = false;
+        qDebug("%s stream fetch ext, execId:%d, withExtWin:%d, merged time range:[%" PRId64 ", %" PRId64 "] nWin:%d",
+               GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->withExternalWindow,
+               req.pStRtFuncInfo->curWindow.skey,
+               req.pStRtFuncInfo->curWindow.ekey,
+               (int32_t)taosArrayGetSize(req.pStRtFuncInfo->pStreamPesudoFuncVals));
       } else {
         needStreamGrpInfo = true;
       }

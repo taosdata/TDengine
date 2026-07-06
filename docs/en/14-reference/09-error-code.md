@@ -796,6 +796,10 @@ Below are the business error codes for each module.
 | 0x80004100 | Stream task not exist | The stream computing task does not exist                     | Check the server-side error logs |
 | 0x80004118 | Stream rollup tag path is illegal | The ROLLUP BY tag path is invalid | Check and correct the rollup tag path |
 | 0x80004119 | Invalid ROLLUP BY clause | The stream ROLLUP BY clause is invalid | Check and correct the stream creation statement |
+| 0x8000411A | Federated query is disabled for stream (federatedQueryEnable=false) | The stream references an EXTERNAL SOURCE table but federated query is disabled | Enable federatedQueryEnable, or remove the external source reference from the stream |
+| 0x8000411B | External source table has no timestamp primary key column | The referenced external source table has no resolvable timestamp column | Specify a valid timestamp column for the external source table |
+| 0x8000411C | PARTITION BY is not supported for the given external source type | The external source type does not support PARTITION BY | Remove PARTITION BY, or use an external source type that supports it |
+| 0x8000411D | External reader has no local SStreamTriggerReaderInfo; trigger must resend uid maxTs hash | Internal stream state for the external reader is missing | Report the issue to developers on GitHub |
 
 #### xnode
 

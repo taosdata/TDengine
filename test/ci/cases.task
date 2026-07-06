@@ -1663,6 +1663,22 @@
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_state.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+## federated support for streaming
+# Test files will be appended one per follow-up commit.
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_subset_partition
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_twice
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_no_trows
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_no_trows_with_wstart
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_no_trows_with_range
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_03_options_matrix.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_04_ts_column.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_05_create_errors.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_06_runtime_errors.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_07_ddl_propagation.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_08_observability.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_09_constraints.py
 ## 99-Others
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_stream_tag_cache.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_out_table.py
@@ -2028,3 +2044,4 @@
 ## 02-Repair
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/02-Repair/test_copy_repair.py
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/02-Repair/test_copy_accuracy.py
+

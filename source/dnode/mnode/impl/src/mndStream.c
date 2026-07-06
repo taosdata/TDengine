@@ -15,7 +15,9 @@
 
 #include "mndStream.h"
 #include "audit.h"
+#include "libs/new-stream/stream.h"
 #include "mndDb.h"
+#include "mndExtSource.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -25,6 +27,7 @@
 #include "osMemory.h"
 #include "parser.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "tmisce.h"
 #include "tname.h"
 
@@ -83,7 +86,7 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   code = sdbGetRawSoftVer(pRaw, &sver);
   TSDB_CHECK_CODE(code, lino, _over);
 
-  if (sver != MND_STREAM_VER_NUMBER && sver != MND_STREAM_COMPATIBLE_VER_NUMBER) {
+  if (sver > MND_STREAM_VER_NUMBER) {
     mError("stream read invalid ver, data ver: %d, curr ver: %d", sver, MND_STREAM_VER_NUMBER);
     goto _over;
   }
@@ -214,6 +217,34 @@ static void mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamR
 
   pObj->createTime = taosGetTimestampMs();
   pObj->updateTime = pObj->createTime;
+
+  // P1 B1: lift the taosc-side flag CREATE_STREAM_FLAG_REF_EXT_SOURCE
+  // (set in buildCreateStreamReq when the stream references any EXTERNAL
+  // SOURCE table) into the SStreamObj flag STREAM_FLAG_REF_EXT_SOURCE.
+  // Downstream:
+  //   - msmAssignTaskSnodeId (P1 B4) picks the snode with the least EXT
+  //     reader count when this bit is set.
+  //   - msmTDAdd*ReaderTasks (P1 B5) attach the matching extSpec to the
+  //     STREAM_TASK_DEPLOY message.
+  // See DS Sec 6.1.1 / Sec 6.1.2.
+  if (pCreate->flags & CREATE_STREAM_FLAG_REF_EXT_SOURCE) {
+    pObj->flags |= STREAM_FLAG_REF_EXT_SOURCE;
+    mDebug("stream:%s flagged STREAM_FLAG_REF_EXT_SOURCE (federated query stream)", pObj->name);
+  }
+
+  /* === P1 B3: move extSpecs ownership from pCreate to pObj ===
+   * SStreamObj.extSpecs is the persistent (sdb-encoded) home for
+   * SStreamExtTriggerSpec; pCreate->extSpecs only lives during the
+   * transient TDMT_MND_CREATE_STREAM RPC. We transfer the SArray pointer
+   * (shallow move) so tFreeSCMCreateStreamReq does not free it; the
+   * matching free in tFreeStreamObj is added in P1 B6. */
+  if (pCreate->extSpecs != NULL) {
+    pObj->extSpecs           = pCreate->extSpecs;
+    pCreate->extSpecs        = NULL;
+    pCreate->numOfExtSpecs   = 0;
+    mDebug("stream:%s extSpecs ownership moved to SStreamObj (%d specs)",
+           pObj->name, (int)taosArrayGetSize(pObj->extSpecs));
+  }
 
   mstLogSStreamObj("create stream", pObj);
 }
@@ -608,6 +639,18 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SRpcMsg *pReq, SCMCreateS
   int64_t streamId = pCreate->streamId;
   char   *pUser = RPC_MSG_USER(pReq);
 
+#ifdef TD_ENTERPRISE
+  /* Reject EXT-driven stream creation when federatedQueryEnable=false on the server.
+   * The parser checks the client-side flag, but ALTER ALL DNODES only updates the
+   * server-side tsFederatedQueryEnable, so we must re-validate here in the mnode. */
+  if (!tsFederatedQueryEnable && pCreate->numOfExtSpecs > 0) {
+    code = TSDB_CODE_STREAM_EXT_DISABLED;
+    mstsError("user %s failed to create stream %s since %s (federatedQueryEnable=false on server)",
+              pUser, pCreate->name, tstrerror(code));
+    TSDB_CHECK_CODE(code, lino, _OVER);
+  }
+#endif
+
   if (pCreate->streamDB) {
     // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_WRITE_DB, pCreate->streamDB);
     code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
@@ -621,15 +664,34 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SRpcMsg *pReq, SCMCreateS
   }
 
   if (pCreate->triggerDB) {
-    // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_READ_DB, pCreate->triggerDB);
-    code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
-                                     pCreate->triggerDB, false);
-    if (code) {
-      if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
-      mstsError("user %s failed to create stream %s using trigger db %s since %s", pUser, pCreate->name,
-                pCreate->triggerDB, tstrerror(code));
+    // triggerDB may reference an external-source DB (federated query stream).
+    // External-source DBs do not exist in TDengine's SDB, so mndAcquireDb would
+    // return NULL and the privilege check would crash on a NULL realDbName inside
+    // mndCheckDbPrivilegeByName.  Skip the check when the DB is not in SDB and
+    // the stream references at least one external source (extSpecs non-empty).
+    bool skipTriggerDbCheck = false;
+#ifdef TD_ENTERPRISE
+    if (pCreate->numOfExtSpecs > 0) {
+      SDbObj *pTrigDb = mndAcquireDb(pMnode, pCreate->triggerDB);
+      if (pTrigDb == NULL) {
+        skipTriggerDbCheck = true;
+        mDebug("stream:%s triggerDB '%s' not in sdb, treated as ext-source db — skipping privilege check",
+               pCreate->name, pCreate->triggerDB);
+      } else {
+        mndReleaseDb(pMnode, pTrigDb);
+      }
     }
-    TSDB_CHECK_CODE(code, lino, _OVER);
+#endif
+    if (!skipTriggerDbCheck) {
+      code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB,
+                                       pCreate->triggerDB, false);
+      if (code) {
+        if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+        mstsError("user %s failed to create stream %s using trigger db %s since %s", pUser, pCreate->name,
+                  pCreate->triggerDB, tstrerror(code));
+      }
+      TSDB_CHECK_CODE(code, lino, _OVER);
+    }
 #if 0  // TODO check the owner of trigger table
     if (pCreate->triggerTblName) {
       // check trigger table privilege
@@ -647,14 +709,32 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SRpcMsg *pReq, SCMCreateS
     int32_t dbNum = taosArrayGetSize(pCreate->calcDB);
     for (int32_t i = 0; i < dbNum; ++i) {
       char *calcDB = taosArrayGetP(pCreate->calcDB, i);
-      // code = mndCheckDbPrivilegeByName(pMnode, pUser, MND_OPER_READ_DB, calcDB);
-      code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, calcDB, false);
-      if (code) {
-        if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
-        mstsError("user %s failed to create stream %s using calcDB %s since %s", pUser, pCreate->name, calcDB,
-                  tstrerror(code));
+      // calcDB entries may also reference external-source DBs (federated calc readers).
+      // Apply the same guard: skip privilege check if the DB is absent from SDB and
+      // extSpecs are present.
+      bool skipCalcDbCheck = false;
+#ifdef TD_ENTERPRISE
+      if (pCreate->numOfExtSpecs > 0) {
+        SDbObj *pCDb = mndAcquireDb(pMnode, calcDB);
+        if (pCDb == NULL) {
+          skipCalcDbCheck = true;
+          mDebug("stream:%s calcDB '%s' not in sdb, treated as ext-source db — skipping privilege check",
+                 pCreate->name, calcDB);
+        } else {
+          mndReleaseDb(pMnode, pCDb);
+        }
       }
-      TSDB_CHECK_CODE(code, lino, _OVER);
+#endif
+      if (!skipCalcDbCheck) {
+        code = mndCheckDbPrivilegeByName(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, calcDB,
+                                         false);
+        if (code) {
+          if (code == TSDB_CODE_MND_NO_RIGHTS) code = TSDB_CODE_PAR_DB_USE_PERMISSION_DENIED;
+          mstsError("user %s failed to create stream %s using calcDB %s since %s", pUser, pCreate->name, calcDB,
+                    tstrerror(code));
+        }
+        TSDB_CHECK_CODE(code, lino, _OVER);
+      }
     }
   }
 
@@ -1323,6 +1403,36 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   code = mndStreamValidateCreate(pMnode, pReq, pCreate);
   TSDB_CHECK_CODE(code, lino, _OVER);
+
+  /* === P1 B2: federated query — fill encryptedPassword into extSpecs ===
+   * taosc leaves SStreamExtTriggerSpec.encryptedPassword zero on purpose
+   * (DS Sec 6.1.1 "password fill responsibility split"). For each unique
+   * sourceName, look up the AES-CBC ciphertext from mnode-local sdb
+   * (SExtSourceObj, mndDef.h) and memcpy it into the spec. The snode
+   * reader later calls extDecryptPassword to recover the plaintext.
+   * Failure (source missing or DROPped between parser cache fetch and
+   * mnode arrival) returns TSDB_CODE_EXT_SOURCE_NOT_FOUND (0x6407,
+   * MR 245). DS Sec 6.1.2 line 266. */
+  if (pCreate->extSpecs != NULL && pCreate->numOfExtSpecs > 0) {
+    int32_t n = (int32_t)taosArrayGetSize(pCreate->extSpecs);
+    for (int32_t i = 0; i < n; ++i) {
+      SStreamExtTriggerSpec* pSpec = *(SStreamExtTriggerSpec**)taosArrayGet(pCreate->extSpecs, i);
+      if (pSpec == NULL) continue;
+      SExtSourceObj* pSrcObj = mndAcquireExtSource(pMnode, pSpec->sourceName);
+      if (pSrcObj == NULL) {
+        mError("stream:%s ext source '%s' not found in sdb (race with DROP?)",
+               pCreate->name, pSpec->sourceName);
+        code = TSDB_CODE_EXT_SOURCE_NOT_FOUND;
+        TSDB_CHECK_CODE(code, lino, _OVER);
+      }
+      memcpy(pSpec->encryptedPassword, pSrcObj->encryptedPassword,
+             TSDB_EXT_SOURCE_ENC_PASSWORD_LEN);
+      pSpec->encryptedPasswordLen = TSDB_EXT_SOURCE_ENC_PASSWORD_LEN;
+      mDebug("stream:%s spec[%d] source=%s encryptedPassword filled (len=%u)",
+             pCreate->name, i, pSpec->sourceName, (unsigned)pSpec->encryptedPasswordLen);
+      mndReleaseExtSource(pMnode, pSrcObj);
+    }
+  }
 
   mndStreamBuildObj(pMnode, &streamObj, pCreate, pOperUser, snodeId);
   pCreate = NULL;

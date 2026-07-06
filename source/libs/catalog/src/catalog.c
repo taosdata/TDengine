@@ -2177,6 +2177,14 @@ int32_t catalogGetStreamTriggerTable(SCatalog* pCtg, SRequestConnInfo* pConn, co
     if (code == TSDB_CODE_SUCCESS) {
       pTriggerTable->type = TSDB_TABLE_NAME_T;
       tstrncpy(pTriggerTable->tname, rsp.triggerTblName, TSDB_TABLE_NAME_LEN);
+    } else if (code == TSDB_CODE_INVALID_PARA) {
+      /* triggerDB has no valid local DB component (e.g. ext-source stream stores
+       * "acctId." with an empty dbName).  There is no local table to check
+       * privileges against, so treat this as "no trigger table" and succeed. */
+      uInfo("catalogGetStreamTriggerTable: triggerDB='%s' has no local db part, skip (ext-source stream)",
+            rsp.triggerDB);
+      memset(pTriggerTable, 0, sizeof(*pTriggerTable));
+      code = TSDB_CODE_SUCCESS;
     }
   }
 

@@ -1731,7 +1731,16 @@ int32_t buildNormalTableCreateReq(SDataInserterHandle* pInserter, SStreamInserte
     tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].colId = i + 1;
     tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].type = pField->type;
     tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].bytes = pField->bytes;
+    /* Clear COL_HAS_TYPE_MOD for non-decimal columns: pExtSchemas is only
+     * populated for decimal types.  If a source field carries COL_HAS_TYPE_MOD
+     * in its flags but the column is not decimal, keeping the flag would cause
+     * metaDecodeExtSchemas to attempt reading typeMod bytes that were never
+     * encoded (metaEncodeExtSchema skips when pExtSchemas == NULL), corrupting
+     * the decoder position and producing an OUT_OF_RANGE error on ownerId. */
     tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].flags = pField->flags;
+    if (!IS_DECIMAL_TYPE(pField->type)) {
+      tbData->pCreateTbReq->ntb.schemaRow.pSchema[i].flags &= ~COL_HAS_TYPE_MOD;
+    }
     if (i == 0 && pField->type != TSDB_DATA_TYPE_TIMESTAMP) {
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       qError("buildNormalTableCreateReq, the first column must be timestamp.");
