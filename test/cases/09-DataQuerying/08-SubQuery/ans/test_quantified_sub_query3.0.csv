@@ -8141,14 +8141,26 @@ taos> select not exists (select f1 from st1 where f1 < 0) from st1 partition by 
  true                                         |
 
 taos> select sum(case when 1 = any (select 1) then 1 else 2 end) from st1 STATE_WINDOW(f1);
+ sum(case when 1 = any (select 1) then 1 else 2 end) |
+======================================================
+                                                   3 |
+                                                   2 |
+                                                   1 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
 taos> select sum(case when f1 != some (select f1 from st1) then 1 else 2 end) from st1 STATE_WINDOW(f1);
+ sum(case when f1 != some (select f1 from st1) then 1 else 2 end) |
+===================================================================
+                                                                3 |
+                                                                2 |
+                                                                1 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
 taos> select sum(case when f1 >= all (select count(*) from st1) then 1 else 2 end) from st1 STATE_WINDOW(f1);
+ sum(case when f1 >= all (select count(*) from st1) then 1 else 2 |
+===================================================================
+                                                                6 |
+                                                                4 |
+                                                                1 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
 taos> select sum(case when f1 = any (select last(*) from st1) then 1 else 2 end) from st1 STATE_WINDOW(f1);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4]
@@ -8156,41 +8168,76 @@ taos> select sum(case when f1 = some (select f1, ts from st1 union all select f1
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4]
 taos> select sum(case when exists (select f1 from st1 where f1 is null) then 1 else 2 end) from st1 STATE_WINDOW(f1);
+ sum(case when exists (select f1 from st1 where f1 is null) then  |
+===================================================================
+                                                                6 |
+                                                                4 |
+                                                                2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
 taos> select sum(case when not exists (select f1 from st1 where f1 < 0) then 1 else 2 end) from st1 STATE_WINDOW(f1);
+ sum(case when not exists (select f1 from st1 where f1 < 0) then  |
+===================================================================
+                                                                3 |
+                                                                2 |
+                                                                1 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
-taos> select sum(case when f1 = 1 then cast(1 = any (select 1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(1 = any (select 1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
+             tbname             | sum(case when f1 = 1 then cast(1 = any (select 1) as bigint) els |
+====================================================================================================
+ tb1                            |                                                                1 |
+ tb2                            |                                                                2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
-taos> select sum(case when f1 = 1 then cast(f1 != some (select f1 from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(f1 != some (select f1 from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
+             tbname             | sum(case when f1 = 1 then cast(f1 != some (select f1 from st1) a |
+====================================================================================================
+ tb1                            |                                                                1 |
+ tb2                            |                                                                2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
-taos> select sum(case when f1 = 1 then cast(f1 >= all (select count(*) from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(f1 >= all (select count(*) from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
+             tbname             | sum(case when f1 = 1 then cast(f1 >= all (select count(*) from s |
+====================================================================================================
+ tb1                            |                                                                0 |
+ tb2                            |                                                                2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
-taos> select sum(case when f1 = 1 then cast(f1 = any (select last(*) from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(f1 = any (select last(*) from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4]
-taos> select sum(case when f1 = 1 then cast(f1 = some (select f1, ts from st1 union all select f1, ts from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(f1 = some (select f1, ts from st1 union all select f1, ts from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4]
-taos> select sum(case when f1 = 1 then cast(exists (select f1 from st1 where f1 is null) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(exists (select f1 from st1 where f1 is null) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
+             tbname             | sum(case when f1 = 1 then cast(exists (select f1 from st1 where  |
+====================================================================================================
+ tb1                            |                                                                0 |
+ tb2                            |                                                                2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
-taos> select sum(case when f1 = 1 then cast(not exists (select f1 from st1 where f1 < 0) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(not exists (select f1 from st1 where f1 < 0) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
+             tbname             | sum(case when f1 = 1 then cast(not exists (select f1 from st1 wh |
+====================================================================================================
+ tb1                            |                                                                1 |
+ tb2                            |                                                                2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
 taos> select sum(case when f1 = 1 then 1 else 1 = any (select 1) end + 1) from st1 COUNT_WINDOW(2);
+ sum(case when f1 = 1 then 1 else 1 = any (select 1) end + 1) |
+===============================================================
+                                                            4 |
+                                                            4 |
+                                                            4 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
 taos> select sum(case when f1 = 1 then 1 else f1 != some (select f1 from st1) end + 1) from st1 COUNT_WINDOW(2);
+ sum(case when f1 = 1 then 1 else f1 != some (select f1 from st1) |
+===================================================================
+                                                               4 |
+                                                               4 |
+                                                               4 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
 taos> select sum(case when f1 = 1 then 1 else f1 >= all (select count(*) from st1) end + 1) from st1 COUNT_WINDOW(2);
+ sum(case when f1 = 1 then 1 else f1 >= all (select count(*) from |
+===================================================================
+                                                               3 |
+                                                               2 |
+                                                               3 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
 taos> select sum(case when f1 = 1 then 1 else f1 = any (select last(*) from st1) end + 1) from st1 COUNT_WINDOW(2);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4]
@@ -8198,66 +8245,74 @@ taos> select sum(case when f1 = 1 then 1 else f1 = some (select f1, ts from st1 
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4]
 taos> select sum(case when f1 = 1 then 1 else exists (select f1 from st1 where f1 is null) end + 1) from st1 COUNT_WINDOW(2);
+ sum(case when f1 = 1 then 1 else exists (select f1 from st1 wher |
+===================================================================
+                                                               3 |
+                                                               2 |
+                                                               2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
 taos> select sum(case when f1 = 1 then 1 else not exists (select f1 from st1 where f1 < 0) end + 1) from st1 COUNT_WINDOW(2);
+ sum(case when f1 = 1 then 1 else not exists (select f1 from st1  |
+===================================================================
+                                                               4 |
+                                                               4 |
+                                                               4 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E]
-taos> select 1 = any (select 1) from st1 partition by tbname interval(1d);
- 1 = any (select 1) |
-=====================
- true               |
- true               |
- true               |
- true               |
- true               |
- true               |
+taos> select tbname, 1 = any (select 1) from st1 partition by tbname interval(1d) order by tbname;
+             tbname             | 1 = any (select 1) |
+======================================================
+ tb1                            | true               |
+ tb2                            | true               |
+ tb2                            | true               |
+ tb3                            | true               |
+ tb3                            | true               |
+ tb3                            | true               |
 
-taos> select f1 != some (select f1 from st1) from st1 partition by tbname interval(1d);
- f1 != some (select f1 from st1) |
-==================================
- true                            |
- true                            |
- true                            |
- true                            |
- true                            |
- true                            |
+taos> select tbname, f1 != some (select f1 from st1) from st1 partition by tbname interval(1d) order by tbname;
+             tbname             | f1 != some (select f1 from st1) |
+===================================================================
+ tb1                            | true                            |
+ tb2                            | true                            |
+ tb2                            | true                            |
+ tb3                            | true                            |
+ tb3                            | true                            |
+ tb3                            | true                            |
 
-taos> select f1 >= all (select count(*) from st1) from st1 partition by tbname interval(1d);
- f1 >= all (select count(*) from st1) |
-=======================================
- false                                |
- false                                |
- false                                |
- false                                |
- false                                |
- true                                 |
+taos> select tbname, f1 >= all (select count(*) from st1) from st1 partition by tbname interval(1d) order by tbname;
+             tbname             | f1 >= all (select count(*) from st1) |
+========================================================================
+ tb1                            | false                                |
+ tb2                            | false                                |
+ tb2                            | false                                |
+ tb3                            | false                                |
+ tb3                            | false                                |
+ tb3                            | true                                 |
 
-taos> select f1 = any (select last(*) from st1) from st1 partition by tbname interval(1d);
+taos> select tbname, f1 = any (select last(*) from st1) from st1 partition by tbname interval(1d) order by tbname;
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
-taos> select f1 = some (select f1, ts from st1 union all select f1, ts from st1) from st1 partition by tbname interval(1d);
+taos> select tbname, f1 = some (select f1, ts from st1 union all select f1, ts from st1) from st1 partition by tbname interval(1d) order by tbname;
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
-taos> select exists (select f1 from st1 where f1 is null) from st1 partition by tbname interval(1d);
- exists (select f1 from st1 where f1 is null) |
-===============================================
- false                                        |
- false                                        |
- false                                        |
- false                                        |
- false                                        |
- false                                        |
+taos> select tbname, exists (select f1 from st1 where f1 is null) from st1 partition by tbname interval(1d) order by tbname;
+             tbname             | exists (select f1 from st1 where f1 is null) |
+================================================================================
+ tb1                            | false                                        |
+ tb2                            | false                                        |
+ tb2                            | false                                        |
+ tb3                            | false                                        |
+ tb3                            | false                                        |
+ tb3                            | false                                        |
 
-taos> select not exists (select f1 from st1 where f1 < 0) from st1 partition by tbname interval(1d);
- not exists (select f1 from st1 where f1 < 0) |
-===============================================
- true                                         |
- true                                         |
- true                                         |
- true                                         |
- true                                         |
- true                                         |
+taos> select tbname, not exists (select f1 from st1 where f1 < 0) from st1 partition by tbname interval(1d) order by tbname;
+             tbname             | not exists (select f1 from st1 where f1 < 0) |
+================================================================================
+ tb1                            | true                                         |
+ tb2                            | true                                         |
+ tb2                            | true                                         |
+ tb3                            | true                                         |
+ tb3                            | true                                         |
+ tb3                            | true                                         |
 
 taos> select avg(abs(1 = any (select 1))) from st1 partition by f1 interval(1d);
 

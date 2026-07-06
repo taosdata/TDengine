@@ -1188,6 +1188,40 @@ class TestJoin:
                     }
                 },
                 {
+                    "id": "fj_c5_1_first",
+                    "desc": "full outer join nested query with first",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": ["select first(ts2), tbname, count(v_int) from (select t1.ts ts1, t2.ts ts2, t2.v_int, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts) group by tbname order by tbname;"],
+                    "res": {
+                        "total_rows": 3,
+                        "value_check": {
+                            "type": "contain",
+                            "values": [
+                                [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)],
+                                [None, None, 0, "2024-01-01 12:00:00.000", "db1_st2_ct1", 5, "2024-01-01 12:00:00.800", "db1_st2_ct2", 5]
+                            ]
+                        }
+                    }
+                },
+                {
+                    "id": "fj_c5_1_last",
+                    "desc": "full outer join nested query with last",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": ["select last(ts2), tbname, count(v_int) from (select t1.ts ts1, t2.ts ts2, t2.v_int, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts) group by tbname order by tbname;"],
+                    "res": {
+                        "total_rows": 3,
+                        "value_check": {
+                            "type": "contain",
+                            "values": [
+                                [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0), (2, 1), (2, 2)],
+                                [None, None, 0, "2024-01-01 12:00:00.400", "db1_st2_ct1", 5, "2024-01-01 12:00:01.600", "db1_st2_ct2", 5]
+                            ]
+                        }
+                    }
+                },
+                {
                     "id": "fj_c5_1",
                     "desc": "full outer join exceptions",
                     "is_ci": True,
@@ -1198,8 +1232,6 @@ class TestJoin:
                             "select * from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
                             "select * from db1_st1 t1 full join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
                             "select * from db1_st1 t1 full join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
-                            "select first(ts2), tbname, count(v_int) from (select t1.ts ts1, t2.ts ts2, t2.v_int, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts) group by tbname order by tbname;",
-                            "select last(ts2), tbname, count(v_int) from (select t1.ts ts1, t2.ts ts2, t2.v_int, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts) group by tbname order by tbname;",
                             "select diff(ts2), tbname, count(v_int) from (select t1.ts ts1, t2.ts ts2, t2.v_int, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts) group by tbname order by tbname;",
                             "select t1.ts, total from (select _wstart as ts, sum(v_int) total from db1_st1 partition by tbname interval(2s)) t1 full join db1_st2 on t1.ts = t2.ts;"],
                 }
@@ -2586,6 +2618,7 @@ class TestJoin:
                     "exception": False,
                     "sql": ["select _wstart ts, count(ts1) from (select t1.ts ts1, t2.ts ts2, t2.tbname from db1_st1 t1 right asof join db1_st2 t2) partition by tbname interval(1s) order by ts;",
                             "select _wstart ts, count(t_bool1) from (select t2.ts ts2, t1.t_bool t_bool1, t2.tbname from db1_st1 t1 right asof join db1_st2 t2 on t1.ts <= t2.ts) partition by tbname interval(1s) order by ts;",
+                            "select _wstart ts, count(t_bool1) from (select t1.ts ts1, t1.t_bool t_bool1, t2.tbname from db1_st1 t1 right asof join db1_st2 t2 on t1.ts <= t2.ts) partition by tbname interval(1s) order by ts;",
                         ],
                     "res": {
                         "total_rows": 3,
@@ -2627,8 +2660,7 @@ class TestJoin:
                             "select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 on t1.t_int > t2.t_int jlimit 2 order by t1.ts, t2.ts;",
                             "select * from db1_st1 t1 right asof join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
                             "select * from db1_st1 t1 right asof join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
-                            "select * from db1_st1 t1 right asof join (select * from db1_st2) t2;",
-                            "select _wstart ts, count(t_bool1) from (select t1.ts ts1, t1.t_bool t_bool1, t2.tbname from db1_st1 t1 right asof join db1_st2 t2 on t1.ts <= t2.ts) partition by tbname interval(1s) order by ts;"
+                            "select * from db1_st1 t1 right asof join (select * from db1_st2) t2;"
                         ]
                 }
             ],
@@ -3435,6 +3467,4 @@ class TestJoin:
         self.run_join("pk_str", pk=True)
         
         tdLog.success(f"{self.total_sql_num} for join verification SQLs are executed successfully")
-
-
 

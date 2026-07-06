@@ -412,6 +412,10 @@ bool fmIsDBUsageFunc(int32_t funcId) {
 
 bool fmIsProcessByRowFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PROCESS_BY_ROW); }
 
+bool fmIsDegradedTimelineRowOrderFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC);
+}
+
 bool fmIsVolatileFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_VOLATILE_FUNC); }
 
 bool fmIsNoPushdownFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_NO_PUSHDOWN_FUNC); }

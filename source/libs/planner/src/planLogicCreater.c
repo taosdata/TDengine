@@ -4868,6 +4868,25 @@ static bool isInterpFunc(int32_t funcId) {
          fmisSelectGroupConstValueFunc(funcId);
 }
 
+static int8_t getInterpTimelineSource(SNode* pTimeSeries) {
+  if (NULL == pTimeSeries) {
+    return TIME_LINE_SOURCE_UNSPECIFIED;
+  }
+
+  if (isPrimaryKeyImpl(pTimeSeries)) {
+    return TIME_LINE_SOURCE_PRIMARY_TS;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pTimeSeries)) {
+    SColumnNode* pCol = (SColumnNode*)pTimeSeries;
+    if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      return TIME_LINE_SOURCE_PRIMARY_TS;
+    }
+  }
+
+  return TIME_LINE_SOURCE_DEGRADED_TS;
+}
+
 static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (!pSelect->hasInterpFunc) {
     return TSDB_CODE_SUCCESS;
@@ -4894,6 +4913,7 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
     pInterpFunc->fillMode = pFill->mode;
     pInterpFunc->pTimeSeries = NULL;
     PLAN_ERR_JRET(nodesCloneNode(pFill->pWStartTs, &pInterpFunc->pTimeSeries));
+    pInterpFunc->timelineSource = getInterpTimelineSource(pFill->pWStartTs);
     PLAN_ERR_JRET(nodesCloneNode(pFill->pValues, &pInterpFunc->pFillValues));
     if (NULL != pFill->pSurroundingTime &&
         nodeType(pFill->pSurroundingTime) == QUERY_NODE_VALUE) {

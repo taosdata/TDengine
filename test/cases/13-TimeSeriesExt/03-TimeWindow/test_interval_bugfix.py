@@ -316,11 +316,19 @@ class TestIntervalBugFix:
         
         # interval window: subquery is union all window with order by non-pk column
         sql = f"select  _wstart, first(`event_time`) from (select _wstart, first(`event_time`) as t2, `event_time`, `status`,  tbname from st partition by tbname interval(2s) union all (select _wstart, first(`event_time`) as t2, `event_time`, `status`, tbname from st partition by tbname interval(2s)) order by t2 asc) interval(3s)"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1763617914000)
+        tdSql.checkData(1, 0, 1763617917000)
+        tdSql.checkData(2, 0, 1763617920000)
 
         # union all window without order by
         sql = f"select  _wstart, first(`event_time`) from (select _wstart, first(`event_time`), `event_time`, `status`,  tbname from st partition by tbname interval(2s) union all (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s))) interval(3s)"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1763617914000)
+        tdSql.checkData(1, 0, 1763617917000)
+        tdSql.checkData(2, 0, 1763617920000)
         
         # interval window: subquery is state window with order by asc
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 1) interval(3s);"
@@ -407,7 +415,16 @@ class TestIntervalBugFix:
         
         # session window: subquery is state window with order by non-pk column
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 2 desc) session(t2, 500a);"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1763617916000)
+        tdSql.checkData(0, 1, 15)
+        tdSql.checkData(1, 0, 1763617918000)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(2, 0, 1763617922000)
+        tdSql.checkData(2, 1, 25)
+        tdSql.checkData(3, 0, 1763617923000)
+        tdSql.checkData(3, 1, 30)
         
         # session window: subquery is state window without order by
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`)) session(t2, 500a);"
@@ -471,11 +488,23 @@ class TestIntervalBugFix:
         
         # state window: subquery is state window without order
         sql = f"select _wstart, sum(`status`) from (select ts, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s)) state_window(status);"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(15)
+        tdSql.checkData(0, 0, 1763617916000)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(14, 0, 1763617922004)
+        tdSql.checkData(14, 1, 3)
         
         # state window: subquery is state window with order by non-pk column
         sql = f"select _wstart, sum(`status`) from (select ts, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 2 desc) state_window(status);"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1763617916001)
+        tdSql.checkData(0, 1, 5)
+        tdSql.checkData(1, 0, 1763617920002)
+        tdSql.checkData(1, 1, 20)
+        tdSql.checkData(2, 0, 1763617922004)
+        tdSql.checkData(2, 1, 15)
         
         sql = f"select _wstart, first(`status`), ts from (select ts, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1 desc) state_window(status);"
         tdSql.query(sql, show=True)
@@ -531,7 +560,16 @@ class TestIntervalBugFix:
         
         # count window: subquery is state window with order by non-pk column
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 2 desc) count_window(5);"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1763617923004)
+        tdSql.checkData(0, 1, 15)
+        tdSql.checkData(1, 0, 1763617922001)
+        tdSql.checkData(1, 1, 14)
+        tdSql.checkData(2, 0, 1763617918003)
+        tdSql.checkData(2, 1, 9)
+        tdSql.checkData(3, 0, 1763617916004)
+        tdSql.checkData(3, 1, 4)
         
         # count window: subquery is state window without order by
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`)) count_window(5);"
@@ -553,7 +591,10 @@ class TestIntervalBugFix:
         
         # event window: subquery is state window with order by non-pk column
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 2) event_window start with status > 1 end with status > 4;"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1763617918004)
+        tdSql.checkData(0, 1, 37)
         
         # event window: subquery is state window without order by
         sql = f"select _wstart, sum(`status`) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`)) event_window start with status > 1 end with status > 4;"
@@ -581,7 +622,13 @@ class TestIntervalBugFix:
         
         # event window: subquery is state window with order by non-pk column
         sql = f"select _wstart, sum(`status`), first(t2), last(t2), count(*) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`) order by 2 desc) event_window start with status%3 == 1 end with status%3 == 0;"
-        tdSql.error(sql)
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1763617923003)
+        tdSql.checkData(0, 1, 8)
+        tdSql.checkData(0, 2, 1763617922000)
+        tdSql.checkData(0, 3, 1763617923003)
+        tdSql.checkData(0, 4, 3)
         
         # event window: subquery is state window without order by
         sql = f"select _wstart, sum(`status`), first(t2), last(t2), count(*) from (select _wstart as t2, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname state_window(`status`)) event_window start with status%3 == 1 end with status%3 == 0;"

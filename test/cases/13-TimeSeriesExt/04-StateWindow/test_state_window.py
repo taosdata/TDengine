@@ -775,7 +775,12 @@ class TestStateWindow:
         tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
         tdSql.checkData(0, 1, "2025-03-12 13:31:30.230")   
                
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) state_window(vol)")
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) state_window(vol)")
+        tdSql.checkRows(73)
+        tdSql.checkData(0, 0, "2025-03-12 13:31:19.000")
+        tdSql.checkData(0, 1, 215)
+        tdSql.checkData(72, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(72, 1, 248)
         
         tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a desc) state_window(vol)")
         tdSql.checkRows(34)
@@ -807,8 +812,10 @@ class TestStateWindow:
         tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
         tdSql.checkData(0, 1, "2025-03-12 13:39:43.230")
         
-        # dumplicate timestamp in super table
-        tdSql.error("select last(a) as d from (select _wstart as a, last(ts2) as b, avg(current) as c from meters state_window(voltage) order by b desc) order by d desc")
+        # duplicate timestamps across child tables are allowed.
+        tdSql.query("select last(a) as d from (select _wstart as a, last(ts2) as b, avg(current) as c from meters state_window(voltage) order by b desc) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:33.230")
         
         tdSql.query("select last(a) as d from (select _wstart as a, last(ts2) as b, avg(current) as c from t1 state_window(voltage) order by b desc) order by d desc")
         tdSql.checkRows(1)
@@ -818,14 +825,24 @@ class TestStateWindow:
         tdSql.checkData(0, 0, "2025-03-12 13:39:33.230")
 
         # state_window
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from t1 state_window(voltage) order by b) state_window(vol)")      
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from t1 state_window(voltage) order by b) state_window(vol)")
+        tdSql.checkRows(34)
+        tdSql.checkData(0, 0, "2025-03-12 13:31:25.230")
+        tdSql.checkData(0, 1, 215)
+        tdSql.checkData(33, 0, "2025-03-12 13:39:33.230")
+        tdSql.checkData(33, 1, 248)
         tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from t1 state_window(voltage) order by a) state_window(vol)")
         tdSql.checkRows(34)
         tdSql.checkData(33, 0, "2025-03-12 13:39:33.230")
         tdSql.checkData(33, 1, 248)
 
         # session_window
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) session(a, 10s)") 
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) session(a, 10s)")
+        tdSql.checkRows(73)
+        tdSql.checkData(0, 0, "2025-03-12 13:31:19.000")
+        tdSql.checkData(0, 1, 215)
+        tdSql.checkData(72, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(72, 1, 248)
         tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s)) session(a, 10s)")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
@@ -856,11 +873,23 @@ class TestStateWindow:
         tdSql.checkData(72, 0, "2025-03-12 13:39:43.000")
         tdSql.checkData(72, 1, 248)  
         
-        # Only support SESSION on primary timestamp column
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) session(b, 10s)") 
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s)) session(b, 10s)")
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a asc) session(b, 10s)")    
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a desc) session(b, 10s)")
+        # Non-primary timestamp column can be used as session timeline when input order is valid.
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) session(b, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s)) session(b, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a asc) session(b, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a desc) session(b, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
 
         # event_window
         tdSql.query("select last(a) as d, b, _c0 from (select ts as b,  max(voltage) vol, _wstart as a from meters interval(7s) order by b desc) event_window start with vol > 240 end with vol < 239 order by d desc;")

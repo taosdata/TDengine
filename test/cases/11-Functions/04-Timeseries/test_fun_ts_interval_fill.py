@@ -2184,12 +2184,14 @@ class TestFunTsIntervalFill:
         self._setup_basic()
         self._setup_super()
 
-        # --- no partition → error ---
+        # --- no partition: duplicate timestamps across child tables are allowed ---
         tdLog.debug("csum super table no partition")
-        tdSql.error(
+        tdSql.query(
             f"select _wstart, csum(val) from st1 {WHERE} "
             "interval(1s) fill(null)"
         )
+        if tdSql.queryRows <= 0:
+            tdLog.exit("csum super table no partition expected non-empty result")
 
         # --- partition fill(none): verify per-partition values ---
         tdLog.debug("csum partition fill(none)")

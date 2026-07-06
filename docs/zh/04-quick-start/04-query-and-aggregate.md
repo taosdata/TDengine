@@ -785,9 +785,29 @@ ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 
 更多 JOIN 操作相关介绍参见页面 [TDengine TSDB 关联查询](../05-tdengine-sql/04-data-query/07-join.md)
 
+## 时间线
+
+TDengine 的时间线函数（如 `diff`、`derivative`、`twa`、`elapsed` 等）和窗口算子（如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）需要一条有效时间线才能执行。
+
+直接查询物理表或虚拟表时，系统时间列（主键列 `ts`/`_rowts`，以及窗口伪列 `_wstart` 等派生列）自动作为有效时间线，用户无需额外操作。
+
+当外层查询的输入来自子查询，且子查询结果中不存在系统时间列、或系统时间列不有序时，系统会自动选择输出列中第一个 `TIMESTAMP` 类型列作为退化时间线。如果不存在任何 `TIMESTAMP` 列，仅 `first`、`last`、`last_row` 可按输入行顺序返回结果，其他时间线函数和窗口算子报错。
+
+```sql
+-- 子查询未输出系统时间列 ts，event_time 成为退化时间线
+SELECT diff(val)
+FROM (
+  SELECT event_time, val
+  FROM sensor_data
+  ORDER BY event_time
+);
+```
+
+**注意**：退化时间线的数据质量由用户负责。如果退化时间线乱序，依赖时间差的函数（`derivative`、`twa`、`elapsed`、`stateduration`、`interp`）结果可能无物理意义。用户应在子查询中通过 `ORDER BY` 保证退化时间线有序。
+
 ## 嵌套查询
 
-“嵌套查询”又称为“子查询”，也即在一条 SQL 语句中，“内层查询”的计算结果可以作为“外层查询”的计算对象来使用。
+“嵌套查询”又称为“子查询”，也即在一条 SQL 语句中，”内层查询”的计算结果可以作为”外层查询”的计算对象来使用。
 
 从 2.2.0.0 版本开始，TDengine TSDB 的查询引擎开始支持在 FROM 子句中使用非关联子查询（“非关联”的意思是，子查询不会用到父查询中的参数）。也即在普通 SELECT 语句的 tb_name_list 位置，用一个独立的 SELECT 语句来代替（这一 SELECT 语句被包含在英文圆括号内），于是完整的嵌套查询 SQL 语句形如：
 
@@ -804,7 +824,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
   - 内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。
 - 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
   - 计算函数部分：
-    - 如果内层查询的结果数据未提供时间戳，那么计算过程隐式依赖时间戳的函数在外层会无法正常工作。例如：INTERP、DERIVATIVE、IRATE、LAST_ROW、FIRST、LAST、TWA、STATEDURATION、TAIL、UNIQUE。
+    - 如果内层查询的结果数据未提供任何 TIMESTAMP 类型列，那么依赖时间线的函数在外层无法使用（仅 FIRST、LAST、LAST_ROW 可按输入行顺序返回结果）。如果内层查询输出了普通 TIMESTAMP 列但未输出主键列，系统会自动选择第一个 TIMESTAMP 列作为退化时间线。
     - 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES、ELAPSED、INTERP、DERIVATIVE、IRATE、TWA、DIFF、STATECOUNT、STATEDURATION、CSUM、MAVG、TAIL、UNIQUE。
     - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：PERCENTILE。
 

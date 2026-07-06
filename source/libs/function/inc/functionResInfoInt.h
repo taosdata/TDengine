@@ -376,8 +376,6 @@ typedef struct SDiffInfo {
     int64_t i64;
     double  d64;
   } prev;
-
-  int64_t prevTs;
 } SDiffInfo;
 
 typedef struct SElapsedInfo {
@@ -393,6 +391,7 @@ typedef struct STwaInfo {
   int64_t     numOfElems;
   SPoint1     p;
   STimeWindow win;
+  int8_t      tsOrder;
 } STwaInfo;
 
 typedef struct SHistoFuncBin {
@@ -416,6 +415,7 @@ typedef struct SStateInfo {
   };
   int64_t prevTs;
   bool    isPrevTsSet;
+  int8_t  tsOrder;
 } SStateInfo;
 
 typedef struct SMavgInfo {
@@ -498,6 +498,7 @@ typedef struct SDerivInfo {
   bool    ignoreNegative;  // ignore the negative value
   int64_t tsWindow;        // time window for derivative
   bool    valueSet;        // the value has been set already
+  int8_t  tsOrder;
 } SDerivInfo;
 
 typedef struct SRateInfo {

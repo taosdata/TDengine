@@ -52,13 +52,7 @@ taos> select bottom(voltage, 10) from keeporderdb.meters;
                  215 |
                  215 |
 
-taos> select statecount(voltage, 'LE', 223) from keeporderdb.meters;
-
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select stateduration(voltage, 'LE', 223) from keeporderdb.meters;
-
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
-taos> select mavg(voltage, 4) from keeporderdb.meters;
 
 DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select tail(voltage, 1) from keeporderdb.meters;
@@ -423,14 +417,33 @@ taos> select bottom(voltage, 10) from (select ts, current, voltage from keeporde
                  262 |
 
 taos> select statecount(voltage, 'LE', 223) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+ statecount(voltage, 'LE', 223) |
+=================================
+                             -1 |
+                             -1 |
+                             -1 |
+                             -1 |
+                             -1 |
+                             -1 |
+                             -1 |
+                             -1 |
+                             -1 |
+                             -1 |
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select stateduration(voltage, 'LE', 223) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
 
 DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select mavg(voltage, 4) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
+     mavg(voltage, 4)      |
+============================
+                       262 |
+                       262 |
+                       262 |
+                       262 |
+                       262 |
+                       262 |
+                       262 |
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select tail(voltage, 1) from (select ts, current, voltage from keeporderdb.meters order by ts desc limit 10);
  tail(voltage, 1) |
 ===================
@@ -894,13 +907,7 @@ taos> select bottom(voltage, 2) from (select ts, current, voltage from keeporder
                 261 |
                 261 |
 
-taos> select statecount(voltage, 'LE', 223) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
-
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select stateduration(voltage, 'LE', 223) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
-
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
-taos> select mavg(voltage, 4) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);
 
 DB error: Duplicate timestamps not allowed in function [0x80002805] 
 taos> select tail(voltage, 1) from (select ts, current, voltage from keeporderdb.meters order by ts desc) interval(30s);

@@ -545,7 +545,26 @@ class TestFunDiff:
         tdSql.checkData(3, 2, 2)
         
         tdSql.execute(f"insert into  {dbname}.stb30749_2 values(%d, null, 1)" % (ts1 + 1))
-        tdSql.error(f"select ts, diff(col1, 3), diff(col2, 2) from {dbname}.stb30749")
+        tdSql.query(f"select ts, diff(col1, 3), diff(col2, 2) from {dbname}.stb30749")
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, '2023-09-17 09:00:00.000')
+        tdSql.checkData(1, 0, '2023-09-17 09:00:00.001')
+        tdSql.checkData(2, 0, '2023-09-17 09:00:00.001')
+        tdSql.checkData(3, 0, '2023-09-17 09:00:00.003')
+        tdSql.checkData(4, 0, '2023-09-17 09:00:00.004')
+        tdSql.checkData(5, 0, '2023-09-17 09:00:00.005')
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(1, 2, -2)
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(2, 2, 0)
+        tdSql.checkData(3, 1, 1)
+        tdSql.checkData(3, 2, 2)
+        tdSql.checkData(4, 1, None)
+        tdSql.checkData(4, 2, -2)
+        tdSql.checkData(5, 1, 1)
+        tdSql.checkData(5, 2, None)
 
     def withPkTest(self):
         dbname = "db"

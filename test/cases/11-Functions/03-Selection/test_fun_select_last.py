@@ -1,6 +1,7 @@
 import random
 import string
 import time
+from pathlib import Path
 from new_test_framework.utils import (
     tdLog,
     tdSql,
@@ -1702,12 +1703,13 @@ class TestFunLast:
             f'insert into tb values("2022-05-17 00:01:08.000", 3, 3.0, "cde")'
         )
 
+        case_dir = Path(__file__).resolve().parent
         resultfile = tdCom.generate_query_result(
-            "cases/11-Functions/03-Selection/t/multires_func.sql", "test_func_multires"
+            str(case_dir / "t" / "multires_func.sql"), "test_func_multires"
         )
         tdLog.info(f"resultfile: {resultfile}")
         tdCom.compare_result_files(
-            resultfile, "cases/11-Functions/03-Selection/r/multires_func.result"
+            resultfile, str(case_dir / "r" / "multires_func.result")
         )
 
     def ComputeLast(self):
@@ -2455,4 +2457,3 @@ class TestFunLast:
         self.do_sim_last()
         self.do_army_last()
         self.do_last()
-

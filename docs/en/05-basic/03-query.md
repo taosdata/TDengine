@@ -56,6 +56,65 @@ If you need the concrete configuration methods, continue with the following refe
 - [Set the current session timezone](../14-reference/03-taos-sql/95-timezone.md#set-timezone)
 - [Understand how DST affects writes and queries](../27-train-faq/02-dst.md)
 
+## Timeline
+
+TDengine's timeline functions (such as `diff`, `derivative`, `twa`, `elapsed`) and window operators (such as `INTERVAL`, `SESSION`, `STATE_WINDOW`) require a valid timeline to execute.
+
+### Primary Key Timeline
+
+A primary key timeline is a time sequence that TDengine identifies in the query input as preserving primary-key time semantics. It is used by functions and window operators that depend on time order. When querying a physical table or virtual table directly, the TIMESTAMP primary key column defined in the table schema forms the primary key timeline. This column can be referenced by its defined column name, or by `_rowts` or `_c0`.
+
+When the query input comes from a subquery, window result, or Join result, the output can continue to carry a primary key timeline if it still contains an ordered primary key time column, an expression based on the primary key time column, or a window pseudo-column with equivalent time semantics, such as `_wstart` or `_wend`. A primary key timeline is different from a regular `TIMESTAMP` column: a regular `TIMESTAMP` column only represents time values. Only columns that TDengine determines to preserve primary-key time semantics and satisfy ordering requirements are used as the primary key timeline for subsequent timeline calculations.
+
+### Effective Timeline Selection
+
+When querying physical tables or virtual tables directly, the primary key timeline is automatically used as the effective timeline. This is the most common scenario and requires no additional action from the user.
+
+When the outer query reads from a subquery, if the subquery result cannot provide a directly usable primary key timeline, TDengine selects the effective timeline as follows:
+
+1. **A directly usable primary key timeline exists**: Use the primary key timeline.
+2. **No directly usable primary key timeline exists**: Use the first `TIMESTAMP` column in the output schema as the degraded timeline.
+3. **No TIMESTAMP column at all**: Only `first`, `last`, `last_row` can return results by input row order. Other timeline functions and window operators will report an error.
+
+```sql
+-- Subquery does not output the primary key time column ts; event_time becomes the degraded timeline
+SELECT diff(val)
+FROM (
+  SELECT event_time, val
+  FROM sensor_data
+  ORDER BY event_time
+);
+```
+
+### Degraded Timeline Handling
+
+A degraded timeline comes from a `TIMESTAMP` column in the query result. TDengine does not assume that it is ordered, unique, or non-NULL. The handling principles are as follows:
+
+1. Strong time-continuity functions check the degraded timeline during execution. If TDengine finds out-of-order timestamps, non-NULL duplicate timestamps, or NULL timestamps, it reports an error to avoid returning misleading results. Functions in this category include `derivative`, `stateduration`, `twa`, and `interp`.
+2. Functions that do not reject degraded timeline quality issues and process related rows by input order handle duplicate timestamps and NULL timestamps normally. For example, `diff` computes differences between adjacent input rows, and `unique` keeps the first occurrence for the same value. Functions in this category include `diff`, `unique`, `csum`, `mavg`, `statecount`, `lag`, `lead`, and `fill_forward`.
+3. Functions and window operators that calculate, select rows, or split windows by time values use the time values in the degraded timeline to determine results. NULL timestamps do not participate in time-value comparison, time-difference calculation, or window assignment. Functions and window operators in this category include `first`, `last`, `last_row`, `tail`, `elapsed`, `irate`, `INTERVAL`, `SESSION`, `STATE_WINDOW`, `EVENT_WINDOW`, and `COUNT_WINDOW`.
+
+Additional notes:
+
+- For functions and window operators that allow degraded timelines, out-of-order timestamps, duplicate timestamps, or NULL timestamps are handled according to their own rules. Results that depend on time values may lack physical meaning when the degraded timeline is out of order.
+- If you need results with clear time semantics, use `ORDER BY` in the subquery to ensure that the degraded timeline is ordered.
+
+### Independent Time Columns for elapsed and SESSION
+
+`elapsed(time_col, unit)` and `SESSION(time_col, gap)` can explicitly specify a TIMESTAMP column different from the effective timeline. In this case, elapsed/SESSION uses the specified column, while other functions in the same query continue to use the effective timeline.
+
+```sql
+-- twa uses ts (effective timeline) for weighting; elapsed uses event_time for time span
+SELECT twa(power), elapsed(event_time, 1s)
+FROM (
+  SELECT ts, event_time, power
+  FROM meter
+  ORDER BY ts
+);
+```
+
+When different time columns are used, the system does not report an error, but the physical meaning of combined expressions is the user's responsibility to verify.
+
 ## Aggregate Query
 
 TDengine supports aggregate queries through the GROUP BY clause. When an SQL statement includes a GROUP BY clause, the SELECT list can only contain the following expressions:

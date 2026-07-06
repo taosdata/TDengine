@@ -4091,6 +4091,7 @@ static int32_t createInterpFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
     pInterpFunc->timeRange = pFuncLogicNode->timeRange;
     pInterpFunc->interval = pFuncLogicNode->interval;
     pInterpFunc->fillMode = pFuncLogicNode->fillMode;
+    pInterpFunc->timelineSource = pFuncLogicNode->timelineSource;
     pInterpFunc->intervalUnit = pFuncLogicNode->intervalUnit;
     pInterpFunc->precision = pFuncLogicNode->node.precision;
     pInterpFunc->timezone = pFuncLogicNode->timezone;

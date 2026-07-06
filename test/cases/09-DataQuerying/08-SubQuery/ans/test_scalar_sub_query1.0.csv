@@ -18202,17 +18202,29 @@ taos> select (select f1 from st1 union all select f1 from st1) > 0 from st1 SESS
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(case when (select 1) > 0 then 1 else 2 end) from st1 STATE_WINDOW(f1);
+ sum(case when (select 1) > 0 then 1 else 2 end) |
+==================================================
+                                               3 |
+                                               2 |
+                                               1 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select sum(case when (select f1 from st1) > 0 then 1 else 2 end) from st1 STATE_WINDOW(f1);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(case when (select f1 from st1 order by ts, f1 limit 1) > 0 then 1 else 2 end) from st1 STATE_WINDOW(f1);
+ sum(case when (select f1 from st1 order by ts, f1 limit 1) > 0 t |
+===================================================================
+                                                                3 |
+                                                                2 |
+                                                                1 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select sum(case when (select count(*) from st1) > 0 then 1 else 2 end) from st1 STATE_WINDOW(f1);
+ sum(case when (select count(*) from st1) > 0 then 1 else 2 end) |
+==================================================================
+                                                               3 |
+                                                               2 |
+                                                               1 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select sum(case when (select null from st1) > 0 then 1 else 2 end) from st1 STATE_WINDOW(f1);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -18223,8 +18235,12 @@ taos> select sum(case when (select 2 from st1) > 0 then 1 else 2 end) from st1 S
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(case when (select avg(f1) from st1) > 0 then 1 else 2 end) from st1 STATE_WINDOW(f1);
+ sum(case when (select avg(f1) from st1) > 0 then 1 else 2 end) |
+=================================================================
+                                                              3 |
+                                                              2 |
+                                                              1 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select sum(case when (select last(*) from st1) > 0 then 1 else 2 end) from st1 STATE_WINDOW(f1);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
@@ -18243,60 +18259,84 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select sum(case when (select f1 from st1 union all select f1 from st1) > 0 then 1 else 2 end) from st1 STATE_WINDOW(f1);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum(case when f1 = 1 then cast(2 / (select 1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select 1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
+             tbname             | sum(case when f1 = 1 then cast(2 / (select 1) as bigint) else 2  |
+====================================================================================================
+ tb1                            |                                                                2 |
+ tb2                            |                                                                2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
-taos> select sum(case when f1 = 1 then cast(2 / (select f1 from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
-
-DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum(case when f1 = 1 then cast(2 / (select f1 from st1 order by ts, f1 limit 1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
-
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
-taos> select sum(case when f1 = 1 then cast(2 / (select count(*) from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
-
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
-taos> select sum(case when f1 = 1 then cast(2 / (select null from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select f1 from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum(case when f1 = 1 then cast(2 / (select * from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select f1 from st1 order by ts, f1 limit 1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
+             tbname             | sum(case when f1 = 1 then cast(2 / (select f1 from st1 order by  |
+====================================================================================================
+ tb1                            |                                                                2 |
+ tb2                            |                                                                2 |
+
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select count(*) from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
+             tbname             | sum(case when f1 = 1 then cast(2 / (select count(*) from st1) as |
+====================================================================================================
+ tb1                            |                                                                0 |
+ tb2                            |                                                                2 |
+
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select null from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
+
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select * from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
-taos> select sum(case when f1 = 1 then cast(2 / (select 2 from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select 2 from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum(case when f1 = 1 then cast(2 / (select avg(f1) from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select avg(f1) from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
+             tbname             | sum(case when f1 = 1 then cast(2 / (select avg(f1) from st1) as  |
+====================================================================================================
+ tb1                            |                                                                0 |
+ tb2                            |                                                                2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
-taos> select sum(case when f1 = 1 then cast(2 / (select last(*) from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select last(*) from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
-taos> select sum(case when f1 = 1 then cast(2 / (select max(f1) from st1 partition by f1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select max(f1) from st1 partition by f1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum(case when f1 = 1 then cast(2 / (select a.ts from st1 a join st1 b on a.ts = b.ts) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select a.ts from st1 a join st1 b on a.ts = b.ts) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum(case when f1 = 1 then cast(2 / (select sum(f1) from st1 interval(1d)) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select sum(f1) from st1 interval(1d)) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum(case when f1 = 1 then cast(2 / (select f1 from st1 union select f1 from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select f1 from st1 union select f1 from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum(case when f1 = 1 then cast(2 / (select f1 from st1 union all select f1 from st1) as bigint) else 2 end) from st1 EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2;
+taos> select tbname, sum(case when f1 = 1 then cast(2 / (select f1 from st1 union all select f1 from st1) as bigint) else 2 end) from st1 partition by tbname EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(case when f1 = 1 then 1 else (select 1) is null end + 1) from st1 COUNT_WINDOW(2);
+ sum(case when f1 = 1 then 1 else (select 1) is null end + 1) |
+===============================================================
+                                                            3 |
+                                                            2 |
+                                                            2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select sum(case when f1 = 1 then 1 else (select f1 from st1) is null end + 1) from st1 COUNT_WINDOW(2);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(case when f1 = 1 then 1 else (select f1 from st1 order by ts, f1 limit 1) is null end + 1) from st1 COUNT_WINDOW(2);
+ sum(case when f1 = 1 then 1 else (select f1 from st1 order by ts |
+===================================================================
+                                                               3 |
+                                                               2 |
+                                                               2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select sum(case when f1 = 1 then 1 else (select count(*) from st1) is null end + 1) from st1 COUNT_WINDOW(2);
+ sum(case when f1 = 1 then 1 else (select count(*) from st1) is n |
+===================================================================
+                                                               3 |
+                                                               2 |
+                                                               2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select sum(case when f1 = 1 then 1 else (select null from st1) is null end + 1) from st1 COUNT_WINDOW(2);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -18307,8 +18347,12 @@ taos> select sum(case when f1 = 1 then 1 else (select 2 from st1) is null end + 
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(case when f1 = 1 then 1 else (select avg(f1) from st1) is null end + 1) from st1 COUNT_WINDOW(2);
+ sum(case when f1 = 1 then 1 else (select avg(f1) from st1) is nu |
+===================================================================
+                                                               3 |
+                                                               2 |
+                                                               2 |
 
-DB error: Duplicate timestamp not allowed in count/event/state window [0x8000073E] 
 taos> select sum(case when f1 = 1 then 1 else (select last(*) from st1) is null end + 1) from st1 COUNT_WINDOW(2);
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
@@ -18327,74 +18371,74 @@ DB error: More than 1 row returned in subquery as expr [0x800026A5]
 taos> select sum(case when f1 = 1 then 1 else (select f1 from st1 union all select f1 from st1) is null end + 1) from st1 COUNT_WINDOW(2);
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum((select 1)) from st1 partition by tbname interval(1d);
-    sum((select 1))    |
-========================
-                     1 |
-                     1 |
-                     1 |
-                     1 |
-                     1 |
-                     1 |
+taos> select tbname, sum((select 1)) from st1 partition by tbname interval(1d) order by tbname;
+             tbname             |    sum((select 1))    |
+=========================================================
+ tb1                            |                     1 |
+ tb2                            |                     1 |
+ tb2                            |                     1 |
+ tb3                            |                     1 |
+ tb3                            |                     1 |
+ tb3                            |                     1 |
 
-taos> select sum((select f1 from st1)) from st1 partition by tbname interval(1d);
-
-DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum((select f1 from st1 order by ts, f1 limit 1)) from st1 partition by tbname interval(1d);
- sum((select f1 from st1 order by ts, f1 limit 1)) |
-====================================================
-                                                 1 |
-                                                 1 |
-                                                 1 |
-                                                 1 |
-                                                 1 |
-                                                 1 |
-
-taos> select sum((select count(*) from st1)) from st1 partition by tbname interval(1d);
- sum((select count(*) from st1)) |
-==================================
-                               6 |
-                               6 |
-                               6 |
-                               6 |
-                               6 |
-                               6 |
-
-taos> select sum((select null from st1)) from st1 partition by tbname interval(1d);
+taos> select tbname, sum((select f1 from st1)) from st1 partition by tbname interval(1d) order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum((select * from st1)) from st1 partition by tbname interval(1d);
+taos> select tbname, sum((select f1 from st1 order by ts, f1 limit 1)) from st1 partition by tbname interval(1d) order by tbname;
+             tbname             | sum((select f1 from st1 order by ts, f1 limit 1)) |
+=====================================================================================
+ tb1                            |                                                 1 |
+ tb2                            |                                                 1 |
+ tb2                            |                                                 1 |
+ tb3                            |                                                 1 |
+ tb3                            |                                                 1 |
+ tb3                            |                                                 1 |
+
+taos> select tbname, sum((select count(*) from st1)) from st1 partition by tbname interval(1d) order by tbname;
+             tbname             | sum((select count(*) from st1)) |
+===================================================================
+ tb1                            |                               6 |
+ tb2                            |                               6 |
+ tb2                            |                               6 |
+ tb3                            |                               6 |
+ tb3                            |                               6 |
+ tb3                            |                               6 |
+
+taos> select tbname, sum((select null from st1)) from st1 partition by tbname interval(1d) order by tbname;
+
+DB error: More than 1 row returned in subquery as expr [0x800026A5] 
+taos> select tbname, sum((select * from st1)) from st1 partition by tbname interval(1d) order by tbname;
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
-taos> select sum((select 2 from st1)) from st1 partition by tbname interval(1d);
+taos> select tbname, sum((select 2 from st1)) from st1 partition by tbname interval(1d) order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum((select avg(f1) from st1)) from st1 partition by tbname interval(1d);
- sum((select avg(f1) from st1)) |
-=================================
-                            3.5 |
-                            3.5 |
-                            3.5 |
-                            3.5 |
-                            3.5 |
-                            3.5 |
+taos> select tbname, sum((select avg(f1) from st1)) from st1 partition by tbname interval(1d) order by tbname;
+             tbname             | sum((select avg(f1) from st1)) |
+==================================================================
+ tb1                            |                            3.5 |
+ tb2                            |                            3.5 |
+ tb2                            |                            3.5 |
+ tb3                            |                            3.5 |
+ tb3                            |                            3.5 |
+ tb3                            |                            3.5 |
 
-taos> select sum((select last(*) from st1)) from st1 partition by tbname interval(1d);
+taos> select tbname, sum((select last(*) from st1)) from st1 partition by tbname interval(1d) order by tbname;
 
 DB error: More than 1 column returned in subquery as expr [0x800026A4] 
-taos> select sum((select max(f1) from st1 partition by f1)) from st1 partition by tbname interval(1d);
+taos> select tbname, sum((select max(f1) from st1 partition by f1)) from st1 partition by tbname interval(1d) order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum((select a.ts from st1 a join st1 b on a.ts = b.ts)) from st1 partition by tbname interval(1d);
+taos> select tbname, sum((select a.ts from st1 a join st1 b on a.ts = b.ts)) from st1 partition by tbname interval(1d) order by tbname;
 
 DB error: Invalid parameter data type : sum [0x80002802] 
-taos> select sum((select sum(f1) from st1 interval(1d))) from st1 partition by tbname interval(1d);
+taos> select tbname, sum((select sum(f1) from st1 interval(1d))) from st1 partition by tbname interval(1d) order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum((select f1 from st1 union select f1 from st1)) from st1 partition by tbname interval(1d);
+taos> select tbname, sum((select f1 from st1 union select f1 from st1)) from st1 partition by tbname interval(1d) order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select sum((select f1 from st1 union all select f1 from st1)) from st1 partition by tbname interval(1d);
+taos> select tbname, sum((select f1 from st1 union all select f1 from st1)) from st1 partition by tbname interval(1d) order by tbname;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select avg(abs((select 1) * -1)) from st1 partition by f1 interval(1d);

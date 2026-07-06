@@ -179,6 +179,15 @@ class TestScalarSubQuery1:
                 for self.subIdx in range(len(self.scalarSqls)):
                     self.querySql = self.subSqls[self.mainIdx].replace("{scalarSql}", self.scalarSqls[self.subIdx])
                     self.querySql = self.querySql.replace("{tableName}", self.tableNames[self.tableIdx])
+                    if self.tableNames[self.tableIdx] == "st1" and "EVENT_WINDOW" in self.querySql:
+                        self.querySql = self.querySql.replace(" from st1 EVENT_WINDOW", " from st1 partition by tbname EVENT_WINDOW")
+                        # Keep event windows independent per child table and make partition order deterministic.
+                        self.querySql = self.querySql.replace("select ", "select tbname, ", 1)
+                        self.querySql = f"{self.querySql} order by tbname"
+                    if self.tableNames[self.tableIdx] == "st1" and "partition by tbname interval(1d)" in self.querySql:
+                        # Include the partition key so ordering by partition is deterministic.
+                        self.querySql = self.querySql.replace("select ", "select tbname, ", 1)
+                        self.querySql = f"{self.querySql} order by tbname"
                     # ensure exactly one trailing semicolon
                     self.querySql = self.querySql.rstrip().rstrip(';') + ';'
                     #tdLog.info(f"generated sql: {self.querySql}")

@@ -61,6 +61,65 @@ TDengine TSDB 的时间查询遵循一套清晰的时区管理机制：底层保
 - [设置当前会话时区](../10-time/01-timezone.md#设置时区)
 - [了解夏令时（DST）对写入与查询的影响](../10-time/02-dst.md)
 
+## 时间线
+
+TDengine 的时间线函数（如 `diff`、`derivative`、`twa`、`elapsed` 等）和窗口算子（如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）需要一条有效时间线才能执行。
+
+### 主键时间线
+
+主键时间线是 TDengine 在查询输入中识别出的、保留主键时间语义的时间序列，用于支撑依赖时间顺序的函数和窗口算子。直接查询物理表或虚拟表时，建表定义的 TIMESTAMP 主键列构成主键时间线；该列可以使用建表时定义的列名引用，也可以通过 `_rowts` 或 `_c0` 引用。
+
+当查询输入来自子查询、窗口或 Join 结果时，如果输出中仍保留有序的主键时间列、基于主键时间列的表达式，或具有同等时间语义的窗口伪列（如 `_wstart`、`_wend`），该输出也可以继续携带主键时间线。主键时间线不同于普通 `TIMESTAMP` 列：普通 `TIMESTAMP` 列只表示时间值，只有被系统判定为保留主键时间语义并满足顺序要求的列，才会作为主键时间线继续用于后续时间线计算。
+
+### 有效时间线选择
+
+直接查询物理表或虚拟表时，主键时间线自动作为有效时间线使用。这是最常见的使用场景，用户无需额外操作。
+
+当外层查询的输入来自子查询时，如果子查询结果不能提供可直接使用的主键时间线，系统按以下规则选择有效时间线：
+
+1. **存在可直接使用的主键时间线**：使用主键时间线。
+2. **不存在可直接使用的主键时间线**：取输出列中第一个 `TIMESTAMP` 类型列作为退化时间线。
+3. **不存在任何 TIMESTAMP 列**：仅 `first`、`last`、`last_row` 可按输入行顺序返回结果，其他函数和窗口算子报错。
+
+```sql
+-- 子查询未输出主键时间列 ts，event_time 成为退化时间线
+SELECT diff(val)
+FROM (
+  SELECT event_time, val
+  FROM sensor_data
+  ORDER BY event_time
+);
+```
+
+### 退化时间线的处理
+
+退化时间线来自查询结果列中的 `TIMESTAMP` 列，系统不假设它一定有序、唯一或非 NULL。处理原则如下：
+
+1. 强时间连续性函数会在执行阶段检查退化时间线。如果发现乱序、非 NULL 重复时间戳或 NULL 时间戳，系统会报错，以避免返回容易误解的结果。包含函数有：`derivative`、`stateduration`、`twa`、`interp`。
+2. 不因退化时间线脏值拒绝执行、按输入行顺序处理相关行的函数，会正常处理重复时间戳和 NULL 时间戳；例如 `diff` 按相邻输入行计算差值，`unique` 对相同值保留首次出现的行。包含函数有：`diff`、`unique`、`csum`、`mavg`、`statecount`、`lag`、`lead`、`fill_forward`。
+3. 按时间值计算、选行或分窗的函数和窗口，会使用退化时间线的时间值决定结果。NULL 时间戳不参与时间值比较、时间差计算或窗口归属。包含函数和窗口有：`first`、`last`、`last_row`、`tail`、`elapsed`、`irate`、`INTERVAL`、`SESSION`、`STATE_WINDOW`、`EVENT_WINDOW`、`COUNT_WINDOW`。
+
+补充说明：
+
+- 对允许退化时间线执行的函数和窗口，乱序、重复时间戳或 NULL 时间戳会按各自规则处理；其中依赖时间值的结果在乱序场景下可能缺少物理意义。
+- 用户如果需要结果具有明确的时间含义，应在子查询中使用 `ORDER BY` 保证退化时间线有序。
+
+### elapsed 和 SESSION 的独立时间列
+
+`elapsed(time_col, unit)` 和 `SESSION(time_col, gap)` 可以显式指定与有效时间线不同的 TIMESTAMP 列。此时 elapsed/SESSION 按指定列计算，同一查询中的其他函数仍使用有效时间线。
+
+```sql
+-- twa 按 ts（有效时间线）加权，elapsed 按 event_time 计算跨度
+SELECT twa(power), elapsed(event_time, 1s)
+FROM (
+  SELECT ts, event_time, power
+  FROM meter
+  ORDER BY ts
+);
+```
+
+两者使用不同时间列时系统不报错，但组合运算的物理含义需用户自行确认。
+
 ## 聚合查询
 
 TDengine TSDB 支持通过 GROUP BY 子句，对数据进行聚合查询。SQL 语句包含 GROUP BY 子句时，SELECT 列表只能包含如下表达式：
