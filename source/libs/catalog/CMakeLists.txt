@@ -6,6 +6,10 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
+if(BUILD_TEST)
+    target_compile_definitions(catalog PRIVATE BUILD_TEST)
+endif()
+
 target_link_libraries(
     catalog
     PRIVATE os util transport qcom nodes
