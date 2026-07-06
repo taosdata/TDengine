@@ -4128,6 +4128,31 @@ _err:
   return NULL;
 }
 
+SNode* createCreateInheritedStableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                                       SNodeList* pCols, SNodeList* pTags, SNodeList* pBaseOnList,
+                                       SNode* pOptions) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pCols = pCols;
+  pStmt->pTags = pTags;
+  pStmt->pOptions = (STableOptions*)pOptions;
+  pStmt->pBaseOnList = pBaseOnList;
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pRealTable);
+  nodesDestroyList(pCols);
+  nodesDestroyList(pTags);
+  nodesDestroyList(pBaseOnList);
+  nodesDestroyNode(pOptions);
+  return NULL;
+}
+
 SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNode* pUseRealTable,
                                   SNodeList* pSpecificTags, SNodeList* pValsOfTags, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
@@ -4495,6 +4520,20 @@ SNode* createAlterTableRemoveSeries(SAstCreateContext* pCxt, SNode* pRealTable, 
   return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
   nodesDestroyNode(pRealTable);
+  return NULL;
+}
+
+SNode* createAlterTableBaseOn(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SNodeList* pBaseOnList) {
+  CHECK_PARSER_STATUS(pCxt);
+  SAlterTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->alterType = alterType;
+  pStmt->pList = pBaseOnList;
+  return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
+_err:
+  nodesDestroyNode(pRealTable);
+  nodesDestroyList(pBaseOnList);
   return NULL;
 }
 

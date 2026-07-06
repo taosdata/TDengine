@@ -229,6 +229,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_EXT_SOURCES,
   TSDB_MGMT_TABLE_TXN_LOG,
   TSDB_MGMT_TABLE_TXN_ORPHANS,
+  TSDB_MGMT_TABLE_VSTABLE_INHERITS,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -349,6 +350,8 @@ typedef enum {
 #define TSDB_ALTER_TABLE_ALTER_TAG_REF                  21 // set/change tag reference for virtual child table
 #define TSDB_ALTER_TABLE_ADD_SERIES                      22
 #define TSDB_ALTER_TABLE_REMOVE_SERIES                   23
+#define TSDB_ALTER_TABLE_ADD_BASE_ON                     24
+#define TSDB_ALTER_TABLE_DROP_BASE_ON                    25
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -698,6 +701,8 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_CPU_ALLOCATION_STMT,
   QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT,
   QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT,
+  // VST inheritance (BASE ON): appended at the end to preserve existing enum values.
+  QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT,
 
 
   // logic plan node
@@ -1068,7 +1073,8 @@ typedef struct {
   SColRef*    pTagRefs;
   int32_t       numOfSeries;
   SSeriesEntry* pSeries;
-  int8_t   secureDelete;
+  int8_t        secureDelete;
+  int8_t        hasInheritors;  // 1 if other VSTs inherit from this STB (non-leaf)
 } STableMetaRsp;
 
 typedef struct {
@@ -1528,6 +1534,11 @@ typedef struct {
   int8_t   virtualStb;
   int8_t   secureDelete;
   int8_t   securityLevel;
+  // VST inheritance
+  int8_t   numParents;
+  char     parentStbFNames[TSDB_MAX_VST_PARENTS][TSDB_TABLE_FNAME_LEN];
+  int16_t  ownColStart;
+  int16_t  ownTagStart;
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
@@ -1572,6 +1583,9 @@ typedef struct {
   SArray* pTypeMods;
   int8_t  secureDelete;
   int8_t  securityLevel;
+  // VST inheritance: for ADD_BASE_ON / DROP_BASE_ON
+  int8_t   numParents;
+  char     parentStbFNames[TSDB_MAX_VST_PARENTS][TSDB_TABLE_FNAME_LEN];
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
@@ -2395,6 +2409,10 @@ typedef struct {
   int32_t       numOfSeries;
   SSeriesEntry* pSeries;
   int8_t   secureDelete;
+  int8_t   numParents;
+  char     parentStbNames[TSDB_MAX_VST_PARENTS][TSDB_TABLE_NAME_LEN];
+  int16_t  ownColStart;  // index of first own (non-inherited) column; 0 when no inheritance
+  int16_t  ownTagStart;  // index of first own (non-inherited) tag; 0 when no inheritance
 } STableCfg;
 
 typedef STableCfg STableCfgRsp;
@@ -2405,6 +2423,29 @@ int32_t tDeserializeSTableCfgReq(void* buf, int32_t bufLen, STableCfgReq* pReq);
 int32_t tSerializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
 int32_t tDeserializeSTableCfgRsp(void* buf, int32_t bufLen, STableCfgRsp* pRsp);
 void    tFreeSTableCfgRsp(STableCfgRsp* pRsp);
+
+// VST leaf descendants query
+typedef struct {
+  char    dbFName[TSDB_DB_FNAME_LEN];
+  int64_t suid;
+} SVstLeavesReq;
+
+typedef struct {
+  char    dbFName[TSDB_DB_FNAME_LEN];
+  char    stbName[TSDB_TABLE_NAME_LEN];
+  int64_t suid;
+} SVstLeafInfo;
+
+typedef struct {
+  int32_t       numLeaves;
+  SVstLeafInfo* pLeaves;
+} SVstLeavesRsp;
+
+int32_t tSerializeSVstLeavesReq(void* buf, int32_t bufLen, SVstLeavesReq* pReq);
+int32_t tDeserializeSVstLeavesReq(void* buf, int32_t bufLen, SVstLeavesReq* pReq);
+int32_t tSerializeSVstLeavesRsp(void* buf, int32_t bufLen, SVstLeavesRsp* pRsp);
+int32_t tDeserializeSVstLeavesRsp(void* buf, int32_t bufLen, SVstLeavesRsp* pRsp);
+void    tFreeSVstLeavesRsp(SVstLeavesRsp* pRsp);
 
 typedef struct {
   SMsgHead header;
@@ -5360,6 +5401,16 @@ typedef struct SVCreateStbReq {
   int8_t          virtualStb;
   int8_t          secureDelete;
   int8_t          securityLevel;
+  // VST inheritance
+  int8_t   numParents;
+  int64_t  parentSuids[TSDB_MAX_VST_PARENTS];
+  int16_t  ownColStart;
+  int16_t  ownTagStart;
+  // parent full names, resolved from parentSuids on the mnode when building the
+  // WAL entry, so the TMQ meta path (which has no catalog/connection handle and
+  // no suid index, and on a cross-cluster replay sees foreign suids) can emit a
+  // replayable BASE ON clause without a suid lookup.
+  char     parentStbFNames[TSDB_MAX_VST_PARENTS][TSDB_TABLE_FNAME_LEN];
 } SVCreateStbReq;
 
 int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
@@ -5374,6 +5425,14 @@ typedef struct SVDropStbReq {
 
 int32_t tEncodeSVDropStbReq(SEncoder* pCoder, const SVDropStbReq* pReq);
 int32_t tDecodeSVDropStbReq(SDecoder* pCoder, SVDropStbReq* pReq);
+
+// TDMT_VND_CHECK_HAS_CTB ==============
+typedef struct SVCheckHasCtbReq {
+  int64_t suid;
+} SVCheckHasCtbReq;
+
+int32_t tSerializeSVCheckHasCtbReq(void* buf, int32_t bufLen, const SVCheckHasCtbReq* pReq);
+int32_t tDeserializeSVCheckHasCtbReq(const void* buf, int32_t bufLen, SVCheckHasCtbReq* pReq);
 
 // TDMT_VND_CREATE_TABLE ==============
 #define TD_CREATE_IF_NOT_EXISTS       0x1

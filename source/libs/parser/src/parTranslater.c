@@ -566,6 +566,13 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  {
+    .showType = QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_VSTABLE_INHERITS,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -7642,6 +7649,16 @@ static int32_t setVSuperTableRefScanVgroupList(STranslateContext* pCxt, SName* p
 
   SArray* pVStbRefs = NULL;
   code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
+  // A non-leaf VST query expands to subqueries over leaf descendants discovered at translate time.
+  // Those leaves were not gathered during collectMetaKey, so their ref-db info is absent from cache.
+  // A miss here means "no tag-ref source dbs for this table" (e.g. leaves with literal-only tags),
+  // which is non-fatal: leave the ref-scan vgroup list empty.
+  // TODO: when a late-discovered leaf has tag references, its ref dbs need a synchronous catalog
+  // fetch (no sync API exists for VStbRefDbs yet); add one to cover that case.
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+    pVStbRefs = NULL;
+    code = TSDB_CODE_SUCCESS;
+  }
   PAR_ERR_JRET(code);
 
   dbNameHash = tSimpleHashInit(taosArrayGetSize(pVStbRefs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
@@ -8506,6 +8523,188 @@ _return:
 
 static void setTableNameByColRef(SRealTableNode* pTable, SColRef* pRef);
 
+// Build SELECT col1, col2, ... FROM <tableName> using the parent's schema columns
+static int32_t buildLeafSelectStmt(STranslateContext* pCxt, const char* dbName, const char* tableName,
+                                   STableMeta* pParentMeta, SNode** ppStmt) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SSelectStmt* pSelect = NULL;
+  PAR_ERR_RET(nodesMakeNode(QUERY_NODE_SELECT_STMT, (SNode**)&pSelect));
+  // stmtName and windowMode must be initialized like createSimpleSelectStmtImpl does, otherwise
+  // semantic analysis of the generated subquery fails (e.g. 0x2667 invalid SCALAR/AGG usage).
+  snprintf(pSelect->stmtName, TSDB_TABLE_NAME_LEN, "%p", pSelect);
+  pSelect->windowMode = WINDOW_MODE_NONE;
+  // Mark as a subquery so projection aliases keep the real column names (translateProjectionList
+  // rewrites top-level projection aliases to "expr_N", which would hide the columns from the outer
+  // query that wraps this select in a temp table).
+  pSelect->isSubquery = true;
+
+  // Create FROM: SRealTableNode
+  SRealTableNode* pFromTable = NULL;
+  code = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pFromTable);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pSelect);
+    return code;
+  }
+  // dbName arrives as a full name ("<acctId>.<db>"); the table node expects the short db name,
+  // since toName() re-applies the acctId prefix during translation.
+  const char* pShortDb = strchr(dbName, '.');
+  pShortDb = (NULL != pShortDb) ? pShortDb + 1 : dbName;
+  tstrncpy(pFromTable->table.dbName, pShortDb, sizeof(pFromTable->table.dbName));
+  tstrncpy(pFromTable->table.tableName, tableName, sizeof(pFromTable->table.tableName));
+  tstrncpy(pFromTable->table.tableAlias, tableName, sizeof(pFromTable->table.tableAlias));
+  pSelect->pFromTable = (SNode*)pFromTable;
+
+  // Build projection list from parent's schema columns
+  // Project both columns and tags of the parent schema, so the outer query over the non-leaf VST
+  // can reference inherited tags (e.g. GROUP BY parent_tag). The meta's schema array stores columns
+  // first, followed by tags.
+  int32_t numCols = pParentMeta->tableInfo.numOfColumns + pParentMeta->tableInfo.numOfTags;
+  SSchema* pSchema = pParentMeta->schema;
+  for (int32_t i = 0; i < numCols; ++i) {
+    SColumnNode* pCol = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pSelect);
+      return code;
+    }
+    tstrncpy(pCol->colName, pSchema[i].name, sizeof(pCol->colName));
+    tstrncpy(pCol->tableAlias, tableName, sizeof(pCol->tableAlias));
+    // Set the output alias so the wrapping temp table exposes this column by its real name,
+    // allowing the outer query to reference it (e.g. "select mid_col from <non-leaf vst>").
+    tstrncpy(pCol->node.aliasName, pSchema[i].name, sizeof(pCol->node.aliasName));
+    tstrncpy(pCol->node.userAlias, pSchema[i].name, sizeof(pCol->node.userAlias));
+    code = nodesListMakeAppend(&pSelect->pProjectionList, (SNode*)pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pCol);
+      nodesDestroyNode((SNode*)pSelect);
+      return code;
+    }
+  }
+
+  *ppStmt = (SNode*)pSelect;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Rewrite a non-leaf VST query to UNION ALL of leaf descendants (projecting parent's schema)
+static int32_t rewriteNonLeafVstQuery(STranslateContext* pCxt, SNode** pTable, SRealTableNode* pRealTable) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  SVstLeavesRsp  rsp = {0};
+
+  // Get leaf descendants from mnode
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  SName name = {0};
+  toName(pParCxt->acctId, pRealTable->table.dbName, pRealTable->table.tableName, &name);
+  (void)tNameGetFullDbName(&name, dbFName);
+
+  SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                           .requestId = pParCxt->requestId,
+                           .requestObjRefId = pParCxt->requestRid,
+                           .mgmtEps = pParCxt->mgmtEpSet};
+
+  code = catalogGetVstLeaves(pParCxt->pCatalog, &conn, dbFName, pRealTable->pMeta->suid, &rsp);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (rsp.numLeaves == 0) {
+    // No leaf descendants - query returns empty
+    tFreeSVstLeavesRsp(&rsp);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STableMeta* pParentMeta = pRealTable->pMeta;
+
+  if (rsp.numLeaves == 1) {
+    // Single leaf: build SELECT <parent_cols> FROM leaf as subquery
+    SNode* pSubquery = NULL;
+    code = buildLeafSelectStmt(pCxt, rsp.pLeaves[0].dbFName, rsp.pLeaves[0].stbName, pParentMeta, &pSubquery);
+    if (TSDB_CODE_SUCCESS != code) {
+      tFreeSVstLeavesRsp(&rsp);
+      return code;
+    }
+
+    STempTableNode* pTempTable = NULL;
+    code = nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&pTempTable);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pSubquery);
+      tFreeSVstLeavesRsp(&rsp);
+      return code;
+    }
+    pTempTable->pSubquery = pSubquery;
+    tstrncpy(pTempTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(pTempTable->table.tableAlias));
+    tstrncpy(pTempTable->table.dbName, pRealTable->table.dbName, sizeof(pTempTable->table.dbName));
+    // The subquery's stmtName becomes the tableAlias of its output columns (see createColumnByExpr).
+    // The outer query references those columns through the temp table's alias, so the subquery's
+    // stmtName must equal the temp table alias - otherwise slot keys mismatch (0x2704) for any outer
+    // aggregate/filter/group-by. Mirrors what the parser's createTempTableNode does for "(subq) alias".
+    tstrncpy(((SSelectStmt*)pSubquery)->stmtName, pTempTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+
+    nodesDestroyNode(*pTable);
+    *pTable = (SNode*)pTempTable;
+    tFreeSVstLeavesRsp(&rsp);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Multiple leaves: build UNION ALL
+  SNode* pSetOp = NULL;
+  SNode* pLeft = NULL;
+  SNode* pRight = NULL;
+  PAR_ERR_JRET(buildLeafSelectStmt(pCxt, rsp.pLeaves[0].dbFName, rsp.pLeaves[0].stbName, pParentMeta, &pLeft));
+  PAR_ERR_JRET(buildLeafSelectStmt(pCxt, rsp.pLeaves[1].dbFName, rsp.pLeaves[1].stbName, pParentMeta, &pRight));
+
+  SSetOperator* pOp = NULL;
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_SET_OPERATOR, (SNode**)&pOp));
+  pOp->opType = SET_OP_TYPE_UNION_ALL;
+  pOp->pLeft = pLeft;
+  pOp->pRight = pRight;
+  snprintf(pOp->stmtName, TSDB_TABLE_NAME_LEN, "%p", pOp);
+  pLeft = NULL;
+  pRight = NULL;
+  pSetOp = (SNode*)pOp;
+
+  for (int32_t i = 2; i < rsp.numLeaves; ++i) {
+    SNode* pNext = NULL;
+    PAR_ERR_JRET(buildLeafSelectStmt(pCxt, rsp.pLeaves[i].dbFName, rsp.pLeaves[i].stbName, pParentMeta, &pNext));
+    SSetOperator* pNewOp = NULL;
+    code = nodesMakeNode(QUERY_NODE_SET_OPERATOR, (SNode**)&pNewOp);
+    if (TSDB_CODE_SUCCESS != code) {
+      // pNext built above is not yet attached; destroy to avoid leak on nodesMakeNode failure.
+      nodesDestroyNode(pNext);
+      goto _return;
+    }
+    pNewOp->opType = SET_OP_TYPE_UNION_ALL;
+    pNewOp->pLeft = pSetOp;
+    pNewOp->pRight = pNext;
+    snprintf(pNewOp->stmtName, TSDB_TABLE_NAME_LEN, "%p", pNewOp);
+    pSetOp = (SNode*)pNewOp;
+  }
+
+  // Wrap in STempTableNode
+  STempTableNode* pTempTable = NULL;
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_TEMP_TABLE, (SNode**)&pTempTable));
+  pTempTable->pSubquery = pSetOp;
+  pSetOp = NULL;
+  tstrncpy(pTempTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(pTempTable->table.tableAlias));
+  tstrncpy(pTempTable->table.dbName, pRealTable->table.dbName, sizeof(pTempTable->table.dbName));
+  // The set operator's stmtName becomes the tableAlias of the union's output columns; the outer
+  // query references them through the temp table alias, so they must match (see single-leaf path).
+  tstrncpy(((SSetOperator*)pTempTable->pSubquery)->stmtName, pTempTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+
+  nodesDestroyNode(*pTable);
+  *pTable = (SNode*)pTempTable;
+
+  tFreeSVstLeavesRsp(&rsp);
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  nodesDestroyNode(pSetOp);
+  nodesDestroyNode(pLeft);
+  nodesDestroyNode(pRight);
+  tFreeSVstLeavesRsp(&rsp);
+  return code;
+}
+
 static int32_t collectVStbExternalSourceList(STranslateContext* pCxt, SName* pName,
                                               SVirtualTableNode* pVTable) {
   int32_t    code = TSDB_CODE_SUCCESS;
@@ -8513,6 +8712,10 @@ static int32_t collectVStbExternalSourceList(STranslateContext* pCxt, SName* pNa
 
   SArray* pVStbRefs = NULL;
   code = getVStbRefDbsFromCache(pCxt->pMetaCache, pName, &pVStbRefs);
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+    pVStbRefs = NULL;
+    code = TSDB_CODE_SUCCESS;
+  }
   PAR_ERR_JRET(code);
 
   sourceNameHash = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
@@ -10019,6 +10222,28 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
     // create stream trigger's plan will treat virtual table as real table
     if (pRealTable->placeholderType != SP_PARTITION_ROWS && !inStreamTriggerClause(pCxt) &&
         (isVirtualTable(pRealTable->pMeta) || isVirtualSTable(pRealTable->pMeta))) {
+      // Non-leaf VST: rewrite to UNION ALL of leaf descendants
+      if (pRealTable->pMeta->tableType == TSDB_SUPER_TABLE && pRealTable->pMeta->hasInheritors) {
+        // Leaf descendants are discovered at translate time (via GET_VST_LEAVES RPC), so their
+        // metadata was never gathered during the up-front collectMetaKey phase. Force synchronous
+        // catalog lookups (meta/vgroup) while expanding and translating the leaf subqueries, then
+        // restore the original mode. Mirrors setVSuperTableRefScanVgroupList's async toggle.
+        bool savedAsync = pCxt->pParseCxt->async;
+        pCxt->pParseCxt->async = false;
+        code = rewriteNonLeafVstQuery(pCxt, pTable, pRealTable);
+        if (TSDB_CODE_SUCCESS != code) {
+          pCxt->pParseCxt->async = savedAsync;
+          goto _return;
+        }
+        // Rewritten to temp table - translate it and return
+        if (nodeType(*pTable) == QUERY_NODE_TEMP_TABLE) {
+          code = translateTable(pCxt, pTable, inJoin);
+          pCxt->pParseCxt->async = savedAsync;
+          PAR_RET(code);
+        }
+        pCxt->pParseCxt->async = savedAsync;
+        // No leaves found - fall through to normal virtual table path (will return empty)
+      }
       PAR_RET(translateVirtualTable(pCxt, pTable, &name));
     }
 
@@ -18810,6 +19035,32 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCreateStbReq(pCxt, pStmt, &createReq);
   }
+  // Handle BASE ON inheritance fields
+  if (TSDB_CODE_SUCCESS == code && pStmt->pBaseOnList != NULL) {
+    int32_t numParents = LIST_LENGTH(pStmt->pBaseOnList);
+    if (numParents > TSDB_MAX_VST_PARENTS) {
+      code = TSDB_CODE_MND_VST_MAX_PARENTS_EXCEED;
+    } else {
+      createReq.numParents = (int8_t)numParents;
+      createReq.ownColStart = createReq.numOfColumns;
+      createReq.ownTagStart = createReq.numOfTags;
+      int32_t idx = 0;
+      SNode*  pNode = NULL;
+      FOREACH(pNode, pStmt->pBaseOnList) {
+        SRealTableNode* pParent = (SRealTableNode*)pNode;
+        SName           parentName = {0};
+        toName(pCxt->pParseCxt->acctId, pParent->table.dbName, pParent->table.tableName, &parentName);
+        code = tNameExtractFullName(&parentName, createReq.parentStbFNames[idx]);
+        if (TSDB_CODE_SUCCESS != code) break;
+        // The parent's hasInheritors flag flips once this child is created. Mark the parent so its
+        // stale cached meta is invalidated after the request, otherwise a later non-leaf query on
+        // this connection would read hasInheritors=0 and skip the UNION ALL expansion.
+        code = collectUseTable(&parentName, pCxt->pTargetTables);
+        if (TSDB_CODE_SUCCESS != code) break;
+        idx++;
+      }
+    }
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_STB, (FSerializeFunc)tSerializeSMCreateStbReq, &createReq);
   }
@@ -18991,6 +19242,29 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
   }
 
   pAlterReq->numOfFields = taosArrayGetSize(pAlterReq->pFields);
+
+  // Handle BASE ON alter types
+  if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON || pStmt->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
+    int32_t numParents = LIST_LENGTH(pStmt->pList);
+    if (numParents > TSDB_MAX_VST_PARENTS) {
+      return TSDB_CODE_MND_VST_MAX_PARENTS_EXCEED;
+    }
+    pAlterReq->numParents = (int8_t)numParents;
+    int32_t idx = 0;
+    SNode*  pListNode = NULL;
+    FOREACH(pListNode, pStmt->pList) {
+      SRealTableNode* pParent = (SRealTableNode*)pListNode;
+      SName           parentName = {0};
+      toName(pCxt->pParseCxt->acctId, pParent->table.dbName, pParent->table.tableName, &parentName);
+      int32_t ret = tNameExtractFullName(&parentName, pAlterReq->parentStbFNames[idx]);
+      if (TSDB_CODE_SUCCESS != ret) return ret;
+      // Invalidate the parent's cached meta: ADD/DROP BASE ON flips its hasInheritors flag.
+      ret = collectUseTable(&parentName, pCxt->pTargetTables);
+      if (TSDB_CODE_SUCCESS != ret) return ret;
+      idx++;
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -33576,6 +33850,11 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
     PAR_ERR_JRET(TSDB_CODE_VTABLE_NOT_VIRTUAL_SUPER_TABLE);
   }
 
+  // Non-leaf VST (has child VSTs inheriting from it) cannot have VCT
+  if (pSuperTableMeta->hasInheritors) {
+    PAR_ERR_JRET(TSDB_CODE_MND_VST_NOT_LEAF);
+  }
+
   toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
 
   // Expand SERIES alias refs before column validation
@@ -34516,6 +34795,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_RSMAS_STMT:
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
     case QUERY_NODE_SHOW_ROLES_STMT:
+    case QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_STREAMS_STMT:
@@ -34551,11 +34831,15 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       code = rewriteShowTableDist(pCxt, pQuery);
       break;
-    case QUERY_NODE_CREATE_TABLE_STMT:
-      if (NULL == ((SCreateTableStmt*)pQuery->pRoot)->pTags) {
+    case QUERY_NODE_CREATE_TABLE_STMT: {
+      SCreateTableStmt* pCreate = (SCreateTableStmt*)pQuery->pRoot;
+      // Skip NTB rewrite when BASE ON is present: inherited VSTB with no own tags
+      // must go through translateCreateSuperTable (mnode STB path), not vnode NTB path.
+      if (NULL == pCreate->pTags && NULL == pCreate->pBaseOnList) {
         code = rewriteCreateTable(pCxt, pQuery);
       }
       break;
+    }
     case QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT:
       code = rewriteCreateVirtualTable(pCxt, pQuery);
       break;

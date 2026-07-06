@@ -290,6 +290,16 @@ int32_t metaCreateSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq
     TABLE_SET_VIRTUAL(entry.flags);
   }
 
+  // VST inheritance (BASE ON): persist parent names + own-column/tag boundaries so the
+  // TMQ snapshot path can reconstruct a replayable BASE ON clause (the incremental WAL
+  // path carries these in the CREATE_STB message; the snapshot path has only this entry).
+  entry.stbEntry.numParents = pReq->numParents;
+  entry.stbEntry.ownColStart = pReq->ownColStart;
+  entry.stbEntry.ownTagStart = pReq->ownTagStart;
+  if (pReq->numParents > 0 && pReq->numParents <= TSDB_MAX_VST_PARENTS) {
+    memcpy(entry.stbEntry.parentStbFNames, pReq->parentStbFNames,
+           sizeof(char) * pReq->numParents * TSDB_TABLE_FNAME_LEN);
+  }
   // batch-meta-txn: mark STB as PRE_CREATE (invisible to other sessions)
   if (pReq->txnId != 0) {
     entry.txnId = pReq->txnId;

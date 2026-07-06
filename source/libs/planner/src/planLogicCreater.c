@@ -4048,6 +4048,28 @@ static int32_t comparePseudoColsByColId(SNode* pNode1, SNode* pNode2) {
   return (id1 < id2) ? -1 : ((id1 > id2) ? 1 : 0);
 }
 
+static int32_t addVirtualScanPrimaryTsCol(SVirtualTableNode* pVirtualTable, SNodeList** pCols) {
+  const SSchema* pSchema = &pVirtualTable->pMeta->schema[0];
+  SColumnNode*   pCol = NULL;
+  int32_t        code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  if (NULL == pCol) {
+    return code;
+  }
+  pCol->node.resType.type = pSchema->type;
+  pCol->node.resType.bytes = pSchema->bytes;
+  pCol->tableId = pVirtualTable->pMeta->uid;
+  pCol->colId = pSchema->colId;
+  pCol->colType = COLUMN_TYPE_COLUMN;
+  tstrncpy(pCol->tableAlias, pVirtualTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pCol->tableName, pVirtualTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pCol->colName, pSchema->name, TSDB_COL_NAME_LEN);
+  code = nodesListMakeStrictAppend(pCols, (SNode*)pCol);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pCol);
+  }
+  return code;
+}
+
 static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
                                            SVirtualTableNode* pVirtualTable, SLogicNode** pLogicNode) {
   int32_t                 code = TSDB_CODE_SUCCESS;
@@ -4085,6 +4107,16 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
   if (pVtableScan->pScanPseudoCols) {
     nodesSortList(&pVtableScan->pScanPseudoCols, comparePseudoColsByColId);
+  }
+
+  // count(*)/count(1) reference no column and no tag, so both pScanCols and pScanPseudoCols are
+  // empty. A vtable scan with no columns reads no rows. Add ts so the scan produces rows to count.
+  // Tag-only queries (e.g. select abs(int_tag)) have empty pScanCols but non-empty pScanPseudoCols,
+  // so they are NOT affected — their results stay unchanged.
+  bool noScanCols = (NULL == pVtableScan->pScanCols || LIST_LENGTH(pVtableScan->pScanCols) == 0);
+  bool noPseudoCols = (NULL == pVtableScan->pScanPseudoCols || LIST_LENGTH(pVtableScan->pScanPseudoCols) == 0);
+  if (noScanCols && noPseudoCols) {
+    PLAN_ERR_JRET(addVirtualScanPrimaryTsCol(pVirtualTable, &pVtableScan->pScanCols));
   }
 
   PLAN_ERR_JRET(rewriteExprsForSelect(pVtableScan->pScanPseudoCols, pSelect, SQL_CLAUSE_FROM, NULL));

@@ -1064,6 +1064,12 @@ cmd ::= CREATE TABLE not_exists_opt(B) USING full_table_name(C)
   NK_LP tag_list_opt(D) NK_RP FILE NK_STRING(E).                                  { pCxt->pRootNode = createCreateSubTableFromFileClause(pCxt, B, C, D, &E); }
 cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP tags_def(D) table_options(E).                    { pCxt->pRootNode = createCreateTableStmt(pCxt, A, B, C, D, E); }
+cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
+  NK_LP column_def_list(C) NK_RP tags_def(D) BASE ON base_on_list(F) table_options(E).
+                                                                                   { pCxt->pRootNode = createCreateInheritedStableStmt(pCxt, A, B, C, D, F, E); }
+cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
+  NK_LP column_def_list(C) NK_RP BASE ON base_on_list(F) table_options(E).
+                                                                                   { pCxt->pRootNode = createCreateInheritedStableStmt(pCxt, A, B, C, NULL, F, E); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP series_clause_opt(D).                            { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C, D); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
@@ -1113,6 +1119,10 @@ alter_table_clause(A) ::=
 alter_table_clause(A) ::=
   full_table_name(B) SET TAG column_name(C) NK_EQ column_ref(D).
                                                                                   { A = createAlterTableAlterTagRef(pCxt, B, TSDB_ALTER_TABLE_ALTER_TAG_REF, &C, D); }
+alter_table_clause(A) ::=
+  full_table_name(B) ADD BASE ON base_on_list(C).                                 { A = createAlterTableBaseOn(pCxt, B, TSDB_ALTER_TABLE_ADD_BASE_ON, C); }
+alter_table_clause(A) ::=
+  full_table_name(B) DROP BASE ON base_on_list(C).                                { A = createAlterTableBaseOn(pCxt, B, TSDB_ALTER_TABLE_DROP_BASE_ON, C); }
 alter_table_clause(A) ::=
   full_table_name(B) ADD series_decl(C).                                          { A = createAlterTableAddSeries(pCxt, B, C); }
 
@@ -1260,6 +1270,11 @@ tags_def_opt(A) ::= tags_def(B).                                                
 %type tags_def                                                                    { SNodeList* }
 %destructor tags_def                                                              { nodesDestroyList($$); }
 tags_def(A) ::= TAGS NK_LP tag_def_list(B) NK_RP.                                 { A = B; }
+
+%type base_on_list                                                                { SNodeList* }
+%destructor base_on_list                                                          { nodesDestroyList($$); }
+base_on_list(A) ::= full_table_name(B).                                           { A = createNodeList(pCxt, B); }
+base_on_list(A) ::= base_on_list(B) NK_COMMA full_table_name(C).                  { A = addNodeToList(pCxt, B, C); }
 
 table_options(A) ::= .                                                            { A = createDefaultTableOptions(pCxt); }
 table_options(A) ::= table_options(B) COMMENT NK_STRING(C).                       { A = setTableOption(pCxt, B, TABLE_OPTION_COMMENT, &C); }
@@ -1417,6 +1432,7 @@ cmd ::= SHOW SSMIGRATES.                                                        
 cmd ::= SHOW TOKENS.                                                              { pCxt->pRootNode = createShowTokensStmt(pCxt, QUERY_NODE_SHOW_TOKENS_STMT); }
 cmd ::= SHOW VTABLE VALIDATE FOR full_table_name(A).                             { pCxt->pRootNode = createShowValidateVirtualTableStmt(pCxt, QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT, A); 
 }
+cmd ::= SHOW VTABLE INHERITS.                                                     { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT); }
 
 %type table_kind_db_name_cond_opt                                                 { SShowTablesOption }
 %destructor table_kind_db_name_cond_opt                                           { }

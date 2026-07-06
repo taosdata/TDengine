@@ -131,6 +131,7 @@ int     vnodeGetTableCfg(SVnode* pVnode, SRpcMsg* pMsg, bool direct);
 int32_t vnodeGetBatchMeta(SVnode* pVnode, SRpcMsg* pMsg);
 int32_t vnodeGetVSubtablesMeta(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg);
+int32_t vnodeProcessCheckHasCtbReq(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessVTableRefResolveReq(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeGetVTbTagCond(SVnode *pVnode, SRpcMsg *pMsg, bool direct);
 

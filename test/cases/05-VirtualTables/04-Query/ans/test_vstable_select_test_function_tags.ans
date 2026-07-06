@@ -117,6 +117,13 @@ taos> select tan(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 lim
         -0.142546543074278 |
 
 taos> select PI() from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+           pi()            |
+============================
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
 
 taos> select PI(), u_tinyint_col from test_vtable_select.vtb_virtual_stb order by 1,2 limit 5;
            pi()            | u_tinyint_col |
@@ -526,4 +533,4 @@ taos> select count(1) from test_vtable_select.vtb_virtual_stb;
        count(1)        |
 ========================
                  69999 |
- 
+

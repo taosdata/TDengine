@@ -356,6 +356,177 @@ TEST(td_msg_test, delete_req_codec_backward_compat_without_secure_delete) {
 }
 
 
+// Encode an SVCreateStbReq the "old" way: stop after ownTagStart, i.e. without the
+// appended parentStbFNames[] suffix. Used to prove the decoder is backward compatible
+// with WAL entries written before the parent-name suffix existed.
+static int32_t encodeOldSVCreateStbReqNoParentNames(SEncoder* pCoder, const SVCreateStbReq* pReq) {
+  if (tStartEncode(pCoder) != 0) return -1;
+  if (tEncodeCStr(pCoder, pReq->name) != 0) return -1;
+  if (tEncodeI64(pCoder, pReq->suid) != 0) return -1;
+  if (tEncodeI8(pCoder, pReq->rollup) != 0) return -1;
+  if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaRow) != 0) return -1;
+  if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaTag) != 0) return -1;
+  if (tEncodeI32(pCoder, pReq->alterOriDataLen) != 0) return -1;
+  if (tEncodeI8(pCoder, pReq->source) != 0) return -1;
+  if (tEncodeI8(pCoder, pReq->colCmpred) != 0) return -1;
+  // Inline tEncodeSColCmprWrapper for the nCols==0 case (the symbol is internal to
+  // tmsg.c): just the column count and version, no per-column entries.
+  if (tEncodeI32v(pCoder, pReq->colCmpr.nCols) != 0) return -1;
+  if (tEncodeI32v(pCoder, pReq->colCmpr.version) != 0) return -1;
+  if (tEncodeI64(pCoder, pReq->keep) != 0) return -1;
+  if (tEncodeI8(pCoder, 0) != 0) return -1;  // no ext schema
+  if (tEncodeI8(pCoder, pReq->virtualStb) != 0) return -1;
+  if (tEncodeI64v(pCoder, pReq->ownerId) != 0) return -1;
+  if (tEncodeI8(pCoder, pReq->secureDelete) != 0) return -1;
+  if (tEncodeI8(pCoder, pReq->securityLevel) != 0) return -1;
+  // batch-meta-txn: txnId precedes the VST inheritance block in the wire format.
+  if (tEncodeU64v(pCoder, pReq->txnId) != 0) return -1;
+  // VST inheritance block, but WITHOUT the trailing parentStbFNames[] suffix.
+  if (tEncodeI8(pCoder, pReq->numParents) != 0) return -1;
+  for (int32_t i = 0; i < pReq->numParents; ++i) {
+    if (tEncodeI64(pCoder, pReq->parentSuids[i]) != 0) return -1;
+  }
+  if (tEncodeI16(pCoder, pReq->ownColStart) != 0) return -1;
+  if (tEncodeI16(pCoder, pReq->ownTagStart) != 0) return -1;
+  tEndEncode(pCoder);
+  return pCoder->pos;
+}
+
+TEST(td_msg_test, create_stb_req_codec_vst_base_on_roundtrip) {
+  SVCreateStbReq req = {0};
+  req.name = (char*)"1.test.vst_child";
+  req.suid = 100;
+  req.schemaRow.version = 1;
+  req.schemaTag.version = 1;
+  req.numParents = 2;
+  req.parentSuids[0] = 11;
+  req.parentSuids[1] = 22;
+  req.ownColStart = 3;
+  req.ownTagStart = 1;
+  tstrncpy(req.parentStbFNames[0], "1.test.vst_parent_a", TSDB_TABLE_FNAME_LEN);
+  tstrncpy(req.parentStbFNames[1], "1.test.vst_parent_b", TSDB_TABLE_FNAME_LEN);
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSVCreateStbReq(&encoder, &req), 0);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GT(size, 0);
+
+  std::vector<uint8_t> buf(size, 0);
+  tEncoderInit(&encoder, buf.data(), size);
+  ASSERT_EQ(tEncodeSVCreateStbReq(&encoder, &req), 0);
+  tEncoderClear(&encoder);
+
+  SVCreateStbReq out = {0};
+  SDecoder       decoder = {0};
+  tDecoderInit(&decoder, buf.data(), size);
+  ASSERT_EQ(tDecodeSVCreateStbReq(&decoder, &out), 0);
+
+  ASSERT_EQ(out.numParents, req.numParents);
+  ASSERT_EQ(out.parentSuids[0], req.parentSuids[0]);
+  ASSERT_EQ(out.parentSuids[1], req.parentSuids[1]);
+  ASSERT_EQ(out.ownColStart, req.ownColStart);
+  ASSERT_EQ(out.ownTagStart, req.ownTagStart);
+  ASSERT_STREQ(out.parentStbFNames[0], req.parentStbFNames[0]);
+  ASSERT_STREQ(out.parentStbFNames[1], req.parentStbFNames[1]);
+
+  tDecoderClear(&decoder);
+}
+
+TEST(td_msg_test, create_stb_req_codec_backward_compat_without_parent_names) {
+  // An old encoder wrote numParents + suids + own starts, but no parentStbFNames[].
+  // The decoder must accept it: parent suids/starts survive, names come back empty.
+  SVCreateStbReq req = {0};
+  req.name = (char*)"1.test.vst_child";
+  req.suid = 200;
+  req.schemaRow.version = 1;
+  req.schemaTag.version = 1;
+  req.numParents = 2;
+  req.parentSuids[0] = 33;
+  req.parentSuids[1] = 44;
+  req.ownColStart = 2;
+  req.ownTagStart = 0;
+  tstrncpy(req.parentStbFNames[0], "1.test.vst_parent_a", TSDB_TABLE_FNAME_LEN);
+  tstrncpy(req.parentStbFNames[1], "1.test.vst_parent_b", TSDB_TABLE_FNAME_LEN);
+
+  std::vector<uint8_t> buf(4096, 0);
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf.data(), (int32_t)buf.size());
+  int32_t size = encodeOldSVCreateStbReqNoParentNames(&encoder, &req);
+  tEncoderClear(&encoder);
+  ASSERT_GT(size, 0);
+
+  SVCreateStbReq out = {0};
+  SDecoder       decoder = {0};
+  tDecoderInit(&decoder, buf.data(), size);
+  ASSERT_EQ(tDecodeSVCreateStbReq(&decoder, &out), 0);
+
+  ASSERT_EQ(out.numParents, req.numParents);
+  ASSERT_EQ(out.parentSuids[0], req.parentSuids[0]);
+  ASSERT_EQ(out.parentSuids[1], req.parentSuids[1]);
+  ASSERT_EQ(out.ownColStart, req.ownColStart);
+  ASSERT_EQ(out.ownTagStart, req.ownTagStart);
+  // No names on the wire -> decoder leaves them empty (no garbage, no crash).
+  ASSERT_EQ(out.parentStbFNames[0][0], '\0');
+  ASSERT_EQ(out.parentStbFNames[1][0], '\0');
+
+  tDecoderClear(&decoder);
+}
+
+TEST(td_msg_test, create_stb_req_codec_rejects_overflow_num_parents) {
+  // A corrupt/malicious buffer claims more parents than TSDB_MAX_VST_PARENTS.
+  // The decoder must reject it rather than writing past parentSuids[]/parentStbFNames[].
+  SVCreateStbReq req = {0};
+  req.name = (char*)"1.test.vst_child";
+  req.suid = 300;
+  req.schemaRow.version = 1;
+  req.schemaTag.version = 1;
+
+  // Encode a valid req, then overwrite numParents on the wire with an oversized value.
+  // Use the old-format encoder (no name suffix) so the layout after numParents is just
+  // suids + own starts; we hand-forge a buffer with numParents = MAX+1 and that many suids.
+  std::vector<uint8_t> buf(4096, 0);
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf.data(), (int32_t)buf.size());
+  ASSERT_EQ(tStartEncode(&encoder), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, req.name), 0);
+  ASSERT_EQ(tEncodeI64(&encoder, req.suid), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, req.rollup), 0);
+  ASSERT_EQ(tEncodeSSchemaWrapper(&encoder, &req.schemaRow), 0);
+  ASSERT_EQ(tEncodeSSchemaWrapper(&encoder, &req.schemaTag), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, req.alterOriDataLen), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, req.source), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, req.colCmpred), 0);
+  ASSERT_EQ(tEncodeI32v(&encoder, req.colCmpr.nCols), 0);
+  ASSERT_EQ(tEncodeI32v(&encoder, req.colCmpr.version), 0);
+  ASSERT_EQ(tEncodeI64(&encoder, req.keep), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, 0), 0);  // no ext schema
+  ASSERT_EQ(tEncodeI8(&encoder, req.virtualStb), 0);
+  ASSERT_EQ(tEncodeI64v(&encoder, req.ownerId), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, req.secureDelete), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, req.securityLevel), 0);
+  int8_t bogusNumParents = TSDB_MAX_VST_PARENTS + 1;
+  ASSERT_EQ(tEncodeI8(&encoder, bogusNumParents), 0);
+  for (int32_t i = 0; i < bogusNumParents; ++i) {
+    ASSERT_EQ(tEncodeI64(&encoder, (int64_t)(1000 + i)), 0);
+  }
+  ASSERT_EQ(tEncodeI16(&encoder, 1), 0);
+  ASSERT_EQ(tEncodeI16(&encoder, 1), 0);
+  tEndEncode(&encoder);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GT(size, 0);
+
+  SVCreateStbReq out = {0};
+  SDecoder       decoder = {0};
+  tDecoderInit(&decoder, buf.data(), size);
+  // Must fail cleanly (non-zero), not corrupt memory.
+  ASSERT_NE(tDecodeSVCreateStbReq(&decoder, &out), 0);
+  tDecoderClear(&decoder);
+}
+
+
 void processCommandArgs(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {
     if (string(argv[i]) == "--output-config") {

@@ -40,6 +40,111 @@ static tb_uid_t processSuid(tb_uid_t suid, char* db) {
   return suid + MurmurHash3_32(db, strlen(db));
 }
 
+// VST inheritance: replay an ALTER STABLE ... ADD/DROP BASE ON by forwarding a
+// genuine TDMT_MND_ALTER_STB to the target mnode, rather than going through the
+// create-as-alter path in taosCreateStb. That path is gated on a single-dimension
+// schema-version bump and cannot express ADD/DROP BASE ON (which changes columns
+// AND tags at once), and would in any case lose the parent relationship. The
+// original SMAlterStbReq is preserved verbatim in SVCreateStbReq.alterOriData; we
+// decode it, re-stamp each parent name onto the target acctId+db (inheritance is
+// same-db only), and re-serialize. Returns TSDB_CODE_SUCCESS only after handling.
+static int32_t taosAlterStbBaseOn(SRequestObj* pRequest, SVCreateStbReq* pCreateReq) {
+  int32_t       code = 0;
+  int32_t       lino = 0;
+  SMAlterStbReq alterReq = {0};
+  SCmdMsgInfo   pCmdMsg = {0};
+  SQuery        pQuery = {0};
+
+  RAW_RETURN_CHECK(tDeserializeSMAlterStbReq(pCreateReq->alterOriData, pCreateReq->alterOriDataLen, &alterReq));
+
+  STscObj* pTscObj = pRequest->pTscObj;
+  // Re-stamp the stable name and every parent name onto the target cluster.
+  SName stbName = {0};
+  if ((code = tNameFromString(&stbName, alterReq.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) != 0) {
+    goto end;
+  }
+  SName tgtStb = {0};
+  toName(pTscObj->acctId, pRequest->pDb, tNameGetTableName(&stbName), &tgtStb);
+  if ((code = tNameExtractFullName(&tgtStb, alterReq.name)) != 0) {
+    goto end;
+  }
+  for (int8_t i = 0; i < alterReq.numParents; ++i) {
+    SName srcParent = {0};
+    if (alterReq.parentStbFNames[i][0] == '\0' ||
+        tNameFromString(&srcParent, alterReq.parentStbFNames[i], T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) != 0) {
+      uError("alter stb:%s has unresolvable parent name at index:%d on replay", alterReq.name, i);
+      code = TSDB_CODE_INVALID_MSG;
+      goto end;
+    }
+    SName tgtParent = {0};
+    toName(pTscObj->acctId, pRequest->pDb, tNameGetTableName(&srcParent), &tgtParent);
+    if ((code = tNameExtractFullName(&tgtParent, alterReq.parentStbFNames[i])) != 0) {
+      goto end;
+    }
+  }
+
+  pCmdMsg.epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+  pCmdMsg.msgType = TDMT_MND_ALTER_STB;
+  pCmdMsg.msgLen = tSerializeSMAlterStbReq(NULL, 0, &alterReq);
+  if (pCmdMsg.msgLen <= 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto end;
+  }
+  pCmdMsg.pMsg = taosMemoryMalloc(pCmdMsg.msgLen);
+  if (pCmdMsg.pMsg == NULL) {
+    code = terrno;
+    goto end;
+  }
+  if (tSerializeSMAlterStbReq(pCmdMsg.pMsg, pCmdMsg.msgLen, &alterReq) <= 0) {
+    taosMemoryFree(pCmdMsg.pMsg);
+    code = TSDB_CODE_INVALID_MSG;
+    goto end;
+  }
+
+  pQuery.execMode = QUERY_EXEC_MODE_RPC;
+  pQuery.pCmdMsg = &pCmdMsg;
+  pQuery.msgType = pCmdMsg.msgType;
+  pQuery.stableQuery = true;
+
+  launchQueryImpl(pRequest, &pQuery, true, NULL);
+  taosMemoryFree(pCmdMsg.pMsg);
+  code = pRequest->code;
+
+  // Idempotent replay: a multi-vgroup db-meta topic delivers the same stable's
+  // ADD/DROP BASE ON once per vnode, so the 2nd+ replay re-applies an alter that
+  // is already in effect. Mirror the create path (igExists) and the other alter
+  // replays (which ignore "not exist"): treat "already applied" as success.
+  //   ADD  re-applied -> parent already present -> VST_ALREADY_INHERITED (dedicated)
+  //   DROP re-applied -> parent already gone     -> INVALID_STB_OPTION
+  // VST_COL_NAME_CONFLICT is intentionally NOT suppressed: it fires for genuine
+  // schema conflicts on the target cluster and must not be hidden.
+  if (code == TSDB_CODE_MND_VST_ALREADY_INHERITED || code == TSDB_CODE_MND_INVALID_STB_OPTION) {
+    uInfo("alter stb base on replay: alter already applied (code:0x%x), ignored", code);
+    code = TSDB_CODE_SUCCESS;
+  }
+  uDebug("alter stb base on replay return, msg:%s", tstrerror(code));
+
+end:
+  tFreeSMAltertbReq(&alterReq);
+  return code;
+}
+
+// VST inheritance: peek at the embedded original alter request (if any) to detect
+// an ADD/DROP BASE ON alter, which needs the dedicated taosAlterStbBaseOn replay.
+static bool isAlterBaseOnReplay(SVCreateStbReq* pReq) {
+  if (pReq->alterOriDataLen <= 0 || pReq->alterOriData == NULL) {
+    return false;
+  }
+  SMAlterStbReq alterReq = {0};
+  if (tDeserializeSMAlterStbReq(pReq->alterOriData, pReq->alterOriDataLen, &alterReq) != 0) {
+    return false;
+  }
+  bool isBaseOn = (alterReq.alterType == TSDB_ALTER_TABLE_ADD_BASE_ON ||
+                   alterReq.alterType == TSDB_ALTER_TABLE_DROP_BASE_ON);
+  tFreeSMAltertbReq(&alterReq);
+  return isBaseOn;
+}
+
 static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   if (taos == NULL || meta == NULL) {
     uError("invalid parameter in %s", __func__);
@@ -69,15 +174,37 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   tDecoderInit(&coder, data, len);
   RAW_RETURN_CHECK(tDecodeSVCreateStbReq(&coder, &req));
 
+  // VST inheritance: an ALTER ... ADD/DROP BASE ON arrives here (TDMT_VND_ALTER_STB
+  // routes to taosCreateStb), but it must be replayed as a real alter so the parent
+  // relationship survives and the schema-version gate is bypassed. Detect and divert.
+  if (isAlterBaseOnReplay(&req)) {
+    code = taosAlterStbBaseOn(pRequest, &req);
+    goto end;
+  }
+
   int8_t           createDefaultCompress = 0;
   SColCmprWrapper* p = &req.colCmpr;
   if (p->nCols == 0) {
     createDefaultCompress = 1;
   }
+  // VST inheritance: the WAL schemaRow/schemaTag carry the *merged* schema
+  // (ts + parent cols + own cols, and parent tags + own tags). The target mnode
+  // re-merges parents on CREATE when numParents>0, so replaying the merged schema
+  // would double-merge and collide. Mirror the normal CREATE path instead: forward
+  // only the child's OWN columns/tags and let the mnode reconstruct the merge.
+  // Own columns are [0]=ts plus [ownColStart, nCols); own tags are [ownTagStart, nCols).
+  bool    inheritReplay = (req.numParents > 0);
+  int16_t ownColStart = req.ownColStart;
+  int16_t ownTagStart = req.ownTagStart;
+
   // build create stable
   pReq.pColumns = taosArrayInit(req.schemaRow.nCols, sizeof(SFieldWithOptions));
   RAW_NULL_CHECK(pReq.pColumns);
   for (int32_t i = 0; i < req.schemaRow.nCols; i++) {
+    // Skip inherited (parent) columns on replay: keep ts at index 0, drop [1, ownColStart).
+    if (inheritReplay && i > 0 && i < ownColStart) {
+      continue;
+    }
     SSchema*          pSchema = req.schemaRow.pSchema + i;
     SFieldWithOptions field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
     tstrncpy(field.name, pSchema->name, TSDB_COL_NAME_LEN);
@@ -94,6 +221,10 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   pReq.pTags = taosArrayInit(req.schemaTag.nCols, sizeof(SField));
   RAW_NULL_CHECK(pReq.pTags);
   for (int32_t i = 0; i < req.schemaTag.nCols; i++) {
+    // Skip inherited (parent) tags on replay: keep only own tags [ownTagStart, nCols).
+    if (inheritReplay && i < ownTagStart) {
+      continue;
+    }
     SSchema* pSchema = req.schemaTag.pSchema + i;
     SField   field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
     tstrncpy(field.name, pSchema->name, TSDB_COL_NAME_LEN);
@@ -102,8 +233,8 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
 
   pReq.colVer = req.schemaRow.version;
   pReq.tagVer = req.schemaTag.version;
-  pReq.numOfColumns = req.schemaRow.nCols;
-  pReq.numOfTags = req.schemaTag.nCols;
+  pReq.numOfColumns = (int32_t)taosArrayGetSize(pReq.pColumns);
+  pReq.numOfTags = (int32_t)taosArrayGetSize(pReq.pTags);
   pReq.commentLen = -1;
   pReq.suid = processSuid(req.suid, pRequest->pDb);
   pReq.source = TD_REQ_FROM_TAOX;
@@ -122,6 +253,31 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
   SName    tableName = {0};
   toName(pTscObj->acctId, pRequest->pDb, req.name, &tableName);
   RAW_RETURN_CHECK(tNameExtractFullName(&tableName, pReq.name));
+
+  // VST inheritance: carry the BASE ON parent list across the raw replay so the
+  // target cluster reconstructs the inheritance. The names on the wire are the
+  // *source* cluster's full names (acctId.db.table); re-stamp each with the target
+  // acctId + target db (inheritance is same-db only, so parents share the child's
+  // db). suids are source-local and intentionally dropped — the target mnode
+  // re-resolves names to its own suids on CREATE.
+  pReq.numParents = req.numParents;
+  pReq.ownColStart = req.ownColStart;
+  pReq.ownTagStart = req.ownTagStart;
+  for (int8_t i = 0; i < req.numParents; ++i) {
+    SName srcParent = {0};
+    // An empty or unparseable parent name cannot be re-stamped to the target cluster;
+    // forwarding it verbatim only defers the failure to the target mnode as a confusing
+    // "parent not virtual" lookup error. Reject it here where the cause is clear.
+    if (req.parentStbFNames[i][0] == '\0' ||
+        tNameFromString(&srcParent, req.parentStbFNames[i], T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) != 0) {
+      uError(LOG_ID_TAG " create stable name:%s has unresolvable parent name at index:%d", LOG_ID_VALUE, req.name, i);
+      RAW_RETURN_CHECK(TSDB_CODE_INVALID_MSG);
+    }
+    SName tgtParent = {0};
+    toName(pTscObj->acctId, pRequest->pDb, tNameGetTableName(&srcParent), &tgtParent);
+    RAW_RETURN_CHECK(tNameExtractFullName(&tgtParent, pReq.parentStbFNames[i]));
+  }
+
   pCmdMsg.epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   pCmdMsg.msgType = TDMT_MND_CREATE_STB;
   pCmdMsg.msgLen = tSerializeSMCreateStbReq(NULL, 0, &pReq);

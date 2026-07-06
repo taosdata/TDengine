@@ -479,6 +479,18 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_RSMA_FUNC_CONFLICT,       "Rsma func already spe
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VIEW_ALREADY_EXIST,       "view already exists in db")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VIEW_NOT_EXIST,           "view not exists in db")
 
+// mnode-vst-inherit
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VST_HAS_CHILDREN,         "VST has child VSTs, cannot drop or alter")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VST_PARENT_NOT_VIRTUAL,   "BASE ON target is not a virtual stable")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VST_COL_NAME_CONFLICT,    "Column or tag name conflict in VST inheritance")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VST_CIRCULAR_INHERIT,     "Circular inheritance detected in VST DAG")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VST_MAX_PARENTS_EXCEED,   "Exceed max number of parent VSTs")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VST_PARENT_HAS_VCT,       "Parent VST already has VCT, cannot be inherited")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VST_NOT_LEAF,             "Non-leaf VST cannot have VCT")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VST_DROP_BASE_MIN_COLS,   "After dropping base, remaining cols or tags below minimum")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VST_CROSS_DB,             "Parent and child VST must be in the same database")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_VST_ALREADY_INHERITED,    "Parent VST is already in the inheritance list")
+
 //mnode-compact
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_COMPACT_ID,       "Invalid compact id")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COMPACT_DETAIL_NOT_EXIST, "compact detail doesn't exist")

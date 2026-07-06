@@ -333,6 +333,7 @@ typedef struct SCreateTableStmt {
   SNodeList*     pCols;
   SNodeList*     pTags;
   STableOptions* pOptions;
+  SNodeList*     pBaseOnList;  // list of SRealTableNode for BASE ON parents (NULL = no inheritance)
 } SCreateTableStmt;
 
 typedef struct SCreateVTableStmt {

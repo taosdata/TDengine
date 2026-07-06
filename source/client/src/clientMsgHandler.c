@@ -617,6 +617,19 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
       tscError("failed to post semaphore");
     }
   }
+  // CREATE STABLE ... BASE ON flips the parents' hasInheritors flag. The response carries the new
+  // child's meta (so the generic RM_TBLMETA path is skipped), so invalidate the recorded parent
+  // stables explicitly here for both sync and async callers. No-op when the list is empty.
+  if (code == TSDB_CODE_SUCCESS && NULL != pRequest->targetTableList) {
+    // The request callback already fired with `code`, so a failure here cannot change
+    // the result; a stale parent meta entry is only re-fetched on next use. Log it
+    // rather than silently dropping the return.
+    int32_t rmCode = removeMeta(pRequest->pTscObj, pRequest->targetTableList, false);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("QID:0x%" PRIx64 ", failed to invalidate parent stable meta, error:%s",
+              pRequest->requestId, tstrerror(rmCode));
+    }
+  }
   return code;
 }
 
@@ -724,6 +737,19 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   } else {
     if (tsem_post(&pRequest->body.rspSem) != 0) {
       tscError("failed to post semaphore");
+    }
+  }
+  // ALTER STABLE ... ADD/DROP BASE ON flips the parents' hasInheritors flag. The response carries
+  // the altered table's meta (so the generic RM_TBLMETA path is skipped), so invalidate the recorded
+  // parent stables explicitly here for both sync and async callers. No-op when the list is empty.
+  if (code == TSDB_CODE_SUCCESS && NULL != pRequest->targetTableList) {
+    // The request callback already fired with `code`, so a failure here cannot change
+    // the result; a stale parent meta entry is only re-fetched on next use. Log it
+    // rather than silently dropping the return.
+    int32_t rmCode = removeMeta(pRequest->pTscObj, pRequest->targetTableList, false);
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      tscWarn("QID:0x%" PRIx64 ", failed to invalidate parent stable meta, error:%s",
+              pRequest->requestId, tstrerror(rmCode));
     }
   }
   return code;

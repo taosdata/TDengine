@@ -55,6 +55,7 @@ Notes:
 - `VIRTUAL`: Specify 1 to create a virtual supertable. The following restrictions apply:
   - `COMPOSITE KEY` is not supported.
   - Compression options (`ENCODE` and `COMPRESS`) are not supported.
+  - `BASE ON`: A virtual supertable can inherit columns and tags from one or more parent virtual supertables using the `BASE ON` clause. For details, see [Virtual Table Inheritance](05-virtualtable.md#virtual-supertable-inheritance).
 
 ## View Supertables
 
@@ -179,6 +180,8 @@ alter_table_clause: {
   | DROP TAG tag_name
   | MODIFY TAG tag_name tag_type
   | RENAME TAG old_tag_name new_tag_name
+  | ADD BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
+  | DROP BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
 }
  
 alter_table_options:

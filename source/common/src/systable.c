@@ -857,6 +857,14 @@ static const SSysDbTableSchema virtualTablesReferencing[] = {
     {.name = "err_msg", .bytes = TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
+static const SSysDbTableSchema vstableInheritsSchema[] = {
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "parent_stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "parent_uid", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "child_stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "child_uid", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
 
 
 /**
@@ -936,6 +944,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_TRANSACTION_LOGS,    transactionLogsSchema,   tListLen(transactionLogsSchema),   false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_TRANSACTION_ORPHANS, transactionOrphansSchema, tListLen(transactionOrphansSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_TRANSACTIONS, transSchema, tListLen(transSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_VSTABLE_INHERITS, vstableInheritsSchema, tListLen(vstableInheritsSchema), false, PRIV_CAT_BASIC},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

@@ -353,6 +353,9 @@ SNode*         setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SNod
 SNode*         createDefaultColumnOptions(SAstCreateContext* pCxt);
 SNode*         createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
                                      SNodeList* pTags, SNode* pOptions);
+SNode*         createCreateInheritedStableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                                               SNodeList* pCols, SNodeList* pTags, SNodeList* pBaseOnList,
+                                               SNode* pOptions);
 SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNode* pUseRealTable,
                                   SNodeList* pSpecificTags, SNodeList* pValsOfTags, SNode* pOptions);
 SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
@@ -387,6 +390,7 @@ SNode* createAlterTableRemoveColRef(SAstCreateContext* pCxt, SNode* pRealTable, 
                                     const SToken* pLiteral);
 SNode* createAlterTableAlterTagRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pTagName,
                                    SNode* pRef);
+SNode* createAlterTableBaseOn(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SNodeList* pBaseOnList);
 SNode* createAlterTableAddSeries(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pSeriesDecl);
 SNode* createAlterTableRemoveSeries(SAstCreateContext* pCxt, SNode* pRealTable, const SToken* pAlias);
 SNode* createAlterTableUpdateTagValClause(SAstCreateContext* pCxt, SNode* pRealTable, SNodeList* pTagList);

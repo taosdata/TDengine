@@ -1668,6 +1668,17 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       // cross-session pollution. Only populate per-connection pTxnTableMeta.
       if (pTscObj->txnId == 0) {
         code = handleAlterTbExecRes(pRes->res, pCatalog);
+        // ALTER ... ADD/DROP BASE ON flips the parents' hasInheritors. The create/alter response
+        // carries the altered table's meta (so the generic RM_TBLMETA path is skipped), so invalidate
+        // the recorded parent stables here explicitly. Best-effort: a failure only leaves a stale
+        // parent meta entry that is re-fetched on next use, so log it rather than failing the alter.
+        if (TSDB_CODE_SUCCESS == code && NULL != pRequest->targetTableList) {
+          int32_t rmCode = removeMeta(pRequest->pTscObj, pRequest->targetTableList, false);
+          if (rmCode != TSDB_CODE_SUCCESS) {
+            tscWarn("QID:0x%" PRIx64 ", failed to invalidate target table meta after alter, error:%s",
+                    pRequest->requestId, tstrerror(rmCode));
+          }
+        }
       } else if (pTscObj->txnId > 0) {
         if (pRes->res != NULL) {
           STableMetaRsp* pMetaRsp = (STableMetaRsp*)pRes->res;
@@ -1706,6 +1717,16 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       // cross-session pollution. Only populate per-connection pTxnTableMeta.
       if (pTscObj->txnId == 0) {
         code = handleCreateTbExecRes(pRes->res, pCatalog);
+        // CREATE STABLE ... BASE ON sets hasInheritors on its parents. As above, the response carries
+        // the new child's meta so the generic RM_TBLMETA path is skipped; invalidate parents here.
+        // Best-effort: log on failure rather than failing the (succeeded) create.
+        if (TSDB_CODE_SUCCESS == code && NULL != pRequest->targetTableList) {
+          int32_t rmCode = removeMeta(pRequest->pTscObj, pRequest->targetTableList, false);
+          if (rmCode != TSDB_CODE_SUCCESS) {
+            tscWarn("QID:0x%" PRIx64 ", failed to invalidate target table meta after create, error:%s",
+                    pRequest->requestId, tstrerror(rmCode));
+          }
+        }
       } else if (pTscObj->txnId > 0) {
         code = tscTxnCacheMetaFromRsp(pTscObj, (STableMetaRsp*)pRes->res, "cached STB");
       } else {

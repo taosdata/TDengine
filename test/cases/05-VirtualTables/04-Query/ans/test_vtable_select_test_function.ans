@@ -702,6 +702,58 @@ taos> select round(tan(u_tinyint_col)) from test_vtable_select.vtb_virtual_ntb_f
                          1 |
 
 taos> select PI() from test_vtable_select.vtb_virtual_ntb_full limit 50;
+           pi()            |
+============================
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
 
 taos> select PI(), u_tinyint_col from test_vtable_select.vtb_virtual_ntb_full limit 50;
            pi()            | u_tinyint_col |
@@ -2410,9 +2462,9 @@ taos> select first(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 5
      -650873068 |
 
 taos> select first(*) from test_vtable_select.vtb_virtual_ntb_full limit 50;
-        first(ts)        | first(u_tinyint_col) | first(u_smallint_col) |   first(u_int_col)    |  first(u_bigint_col)  | first(tinyint_col) | first(smallint_col) | first(int_col) |   first(bigint_col)   |   first(float_col)   |     first(double_col)     | first(bool_col) | first(binary_16_col) |      first(binary_32_col)      |      first(nchar_16_col)       |      first(nchar_32_col)       |
-============================================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:00.000 |                   29 |                 13238 |             432633471 |            1825145387 |                 80 |               32519 |     -650873068 |  -9223372036854775808 |              99528.7 |           73495720.958304 | true            | San Diego            | Shanghai - Los Angles          | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
+        first(ts)        | first(u_tinyint_col) | first(u_smallint_col) | first(u_int_col) |  first(u_bigint_col)  | first(tinyint_col) | first(smallint_col) | first(int_col) |   first(bigint_col)   |   first(float_col)   |     first(double_col)     | first(bool_col) | first(binary_16_col) |      first(binary_32_col)      |      first(nchar_16_col)       |      first(nchar_32_col)       |
+=======================================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:00.000 |                   29 |                 13238 |        432633471 |            1825145387 |                 80 |               32519 |     -650873068 |  -9223372036854775808 |              99528.7 |           73495720.958304 | true            | San Diego            | Shanghai - Los Angles          | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
 
 taos> select interp(u_smallint_col) from test_vtable_select.vtb_virtual_ntb_full where u_tinyint_col > 0 and u_int_col > 0 RANGE('2020-10-01 00:00:00.000', '2020-10-01 00:01:00.000') EVERY (2a) FILL(linear) limit 50;
  interp(u_smallint_col) |
@@ -2474,9 +2526,9 @@ taos> select last(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50
     1003732609 |
 
 taos> select last(*) from test_vtable_select.vtb_virtual_ntb_full limit 50;
-        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) |    last(u_int_col)    |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
-=====================================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:49.995 |                  51 |                10486 |            1812337397 |             896525845 |                 6 |               8984 |    1003732609 |  -9223372036854775808 |             -68902.9 |          -46321277.573751 | true           | Santa Clara         | Hangzhou - San Diego           | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
+        last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
+===============================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:49.995 |                  51 |                10486 |      1812337397 |             896525845 |                 6 |               8984 |    1003732609 |  -9223372036854775808 |             -68902.9 |          -46321277.573751 | true           | Santa Clara         | Hangzhou - San Diego           | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
 
 taos> select last_row(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
  last_row(int_col) |
@@ -2484,9 +2536,9 @@ taos> select last_row(int_col) from test_vtable_select.vtb_virtual_ntb_full limi
         1003732609 |
 
 taos> select last_row(*) from test_vtable_select.vtb_virtual_ntb_full limit 50;
-      last_row(ts)       | last_row(u_tinyint_col) | last_row(u_smallint_col) |  last_row(u_int_col)  | last_row(u_bigint_col) | last_row(tinyint_col) | last_row(smallint_col) | last_row(int_col) | last_row(bigint_col)  | last_row(float_col)  |   last_row(double_col)    | last_row(bool_col) | last_row(binary_16_col) |    last_row(binary_32_col)     |     last_row(nchar_16_col)     |     last_row(nchar_32_col)     |
-==================================================================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:49.995 | NULL                    | NULL                     |            1812337397 | NULL                   | NULL                  |                   8984 | NULL              | NULL                  |             -68902.9 | NULL                      | NULL               | Santa Clara             | NULL                           | NULL                           | 圣克拉拉 - Santa Clara         |
+      last_row(ts)       | last_row(u_tinyint_col) | last_row(u_smallint_col) | last_row(u_int_col) | last_row(u_bigint_col) | last_row(tinyint_col) | last_row(smallint_col) | last_row(int_col) | last_row(bigint_col)  | last_row(float_col)  |   last_row(double_col)    | last_row(bool_col) | last_row(binary_16_col) |    last_row(binary_32_col)     |     last_row(nchar_16_col)     |     last_row(nchar_32_col)     |
+================================================================================================================================================================================================================================================================================================================================================================================================================================
+ 2020-10-01 00:00:49.995 | NULL                    | NULL                     |          1812337397 | NULL                   | NULL                  |                   8984 | NULL              | NULL                  |             -68902.9 | NULL                      | NULL               | Santa Clara             | NULL                           | NULL                           | 圣克拉拉 - Santa Clara         |
 
 taos> select max(int_col) from test_vtable_select.vtb_virtual_ntb_full limit 50;
  max(int_col) |

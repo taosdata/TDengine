@@ -815,6 +815,19 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
     req.pExtSchemas = me.pExtSchemas;
     req.virtualStb = TABLE_IS_VIRTUAL(me.flags);
 
+    // VST inheritance (BASE ON): carry the persisted parent names + own-column/tag
+    // boundaries into the rebuilt create-stb meta, so a consumer bootstrapping from a
+    // snapshot reconstructs the inheritance just like the incremental WAL path does.
+    // parentSuids are intentionally left zero: they are source-local and the consumer
+    // re-resolves parents by name on replay.
+    req.numParents = me.stbEntry.numParents;
+    req.ownColStart = me.stbEntry.ownColStart;
+    req.ownTagStart = me.stbEntry.ownTagStart;
+    if (me.stbEntry.numParents > 0 && me.stbEntry.numParents <= TSDB_MAX_VST_PARENTS) {
+      memcpy(req.parentStbFNames, me.stbEntry.parentStbFNames,
+             sizeof(char) * me.stbEntry.numParents * TSDB_TABLE_FNAME_LEN);
+    }
+
     ret = buildSuperTableInfo(&req, pBuf, contLen);
     *type = TDMT_VND_CREATE_STB;
   } else if ((ctx->subType == TOPIC_SUB_TYPE__DB && (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE)) ||

@@ -167,6 +167,58 @@ end:
   return code;
 }
 
+// VST inheritance: create a "baseOn" JSON array on `json` and fill it with the bare
+// (db-stripped) parent table names. Parent names arrive as mnode full names
+// (acctId.db.table); same-db inheritance means we emit just the table name to match
+// the "tableName" convention. An unresolved parent arrives as an empty string (the
+// mnode leaves pFNames[i] empty when a suid could not be resolved) — skip it rather
+// than emit a "" element, which would replay as `BASE ON ``` and fail to parse.
+static int32_t buildBaseOnArray(cJSON* json, int8_t numParents,
+                                char parentStbFNames[][TSDB_TABLE_FNAME_LEN]) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  RAW_LOG_START
+  cJSON* baseOn = cJSON_AddArrayToObject(json, "baseOn");
+  RAW_NULL_CHECK(baseOn);
+  for (int8_t i = 0; i < numParents; ++i) {
+    if (parentStbFNames[i][0] == '\0') {
+      continue;  // unresolved parent name; skip rather than emit an empty element
+    }
+    SName pname = {0};
+    // Fail fast on an unparseable parent name rather than emitting the raw string:
+    // a malformed FQN in baseOn would replay as an invalid BASE ON clause. The sibling
+    // replay path (clientRawBlockWrite.c) rejects the same case; keep them consistent.
+    RAW_RETURN_CHECK(tNameFromString(&pname, parentStbFNames[i], T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+    RAW_NULL_CHECK(tmqAddStringToArray(baseOn, pname.tname));
+  }
+end:
+  RAW_LOG_END
+  return code;
+}
+
+// VST inheritance: append a BASE ON descriptor to a create/alter meta JSON object.
+// Contract (frozen): when numParents>0 the object gains
+//   "baseOn":      [ "<parent_table_name>", ... ]   (bare table name, same db as child)
+//   "ownColStart": <int>   index of first own (non-inherited) column
+//   "ownTagStart": <int>   index of first own (non-inherited) tag
+// When numParents==0 none of these keys are added, so non-inherited tables are
+// byte-for-byte unchanged and old consumers are unaffected.
+static int32_t addBaseOnToJson(cJSON* json, int8_t numParents,
+                               char parentStbFNames[][TSDB_TABLE_FNAME_LEN],
+                               int16_t ownColStart, int16_t ownTagStart) {
+  if (json == NULL || numParents <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = 0;
+  int32_t lino = 0;
+  RAW_RETURN_CHECK(buildBaseOnArray(json, numParents, parentStbFNames));
+  ADD_TO_JSON_NUMBER(json, "ownColStart", ownColStart);
+  ADD_TO_JSON_NUMBER(json, "ownTagStart", ownTagStart);
+
+end:
+  return code;
+}
+
 static int32_t setCompressOption(cJSON* json, uint32_t para) {
   if (json == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -307,6 +359,14 @@ static int32_t buildAlterSTableJson(void* alterData, int32_t alterDataLen, cJSON
       RAW_RETURN_CHECK(setCompressOption(json, field->bytes));
       break;
     }
+    case TSDB_ALTER_TABLE_ADD_BASE_ON:
+    case TSDB_ALTER_TABLE_DROP_BASE_ON: {
+      // VST inheritance: emit the parent list being added/dropped. alterType (22/23)
+      // already distinguishes the direction; "baseOn" carries bare parent table names
+      // (same-db inheritance), matching the create-meta convention.
+      RAW_RETURN_CHECK(buildBaseOnArray(json, req.numParents, req.parentStbFNames));
+      break;
+    }
     default:
       break;
   }
@@ -337,6 +397,9 @@ static int32_t processCreateStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_RETURN_CHECK(tDecodeSVCreateStbReq(&coder, &req));
   RAW_RETURN_CHECK(buildCreateTableJson(&req.schemaRow, &req.schemaTag, req.pExtSchemas, req.name, req.suid,
                                         TSDB_SUPER_TABLE, req.virtualStb, NULL, &req.colCmpr, pJson));
+  // VST inheritance: emit BASE ON parent list so the meta is replayable. The
+  // parent full names were resolved on the mnode when the WAL entry was built.
+  RAW_RETURN_CHECK(addBaseOnToJson(*pJson, req.numParents, req.parentStbFNames, req.ownColStart, req.ownTagStart));
 
 end:
   tDecoderClear(&coder);

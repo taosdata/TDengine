@@ -794,13 +794,16 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta *
   pTableMeta->secureDelete = msg->secureDelete;
   if (msg->virtualStb) {
     pTableMeta->virtualStb = 1;
+    pTableMeta->hasInheritors = msg->hasInheritors ? 1 : 0;
     pTableMeta->numOfColRefs = 0;
   } else {
     if (msg->tableType == TSDB_VIRTUAL_CHILD_TABLE && isStb) {
       pTableMeta->virtualStb = 1;
+      pTableMeta->hasInheritors = 0;
       pTableMeta->numOfColRefs = 0;
     } else {
       pTableMeta->virtualStb = 0;
+      pTableMeta->hasInheritors = 0;
       pTableMeta->numOfColRefs = msg->numOfColRefs;
     }
   }
@@ -911,6 +914,7 @@ int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta
   pTableMeta->tversion = msg->tversion;
   pTableMeta->rversion = msg->rversion;
   pTableMeta->virtualStb = msg->virtualStb;
+  pTableMeta->hasInheritors = msg->hasInheritors ? 1 : 0;
   pTableMeta->numOfColRefs = msg->numOfColRefs;
   pTableMeta->ownerId = msg->ownerId;
   pTableMeta->secureDelete = msg->secureDelete;
