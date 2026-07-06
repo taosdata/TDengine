@@ -61,6 +61,30 @@ SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
     {"SvrVer    ", CTG_CI_FLAG_LEVEL_CLUSTER}  //CTG_CI_SVR_VER,
 };
 
+#if defined(BUILD_TEST)
+static threadlocal int32_t g_ctgTestDropTsmaForTbFailAfterOwnershipCode = TSDB_CODE_SUCCESS;
+static threadlocal bool    g_ctgTestDropTsmaForTbOwnershipFailureFired = false;
+static threadlocal int32_t g_ctgTestDropTsmaForTbCallerCleanupCount = 0;
+
+void ctgTestResetDropTsmaForTbEnqueueState(void) {
+  g_ctgTestDropTsmaForTbFailAfterOwnershipCode = TSDB_CODE_SUCCESS;
+  g_ctgTestDropTsmaForTbOwnershipFailureFired = false;
+  g_ctgTestDropTsmaForTbCallerCleanupCount = 0;
+}
+
+void ctgTestSetDropTsmaForTbEnqueueFailAfterOwnershipOnce(int32_t code) {
+  g_ctgTestDropTsmaForTbFailAfterOwnershipCode = code;
+}
+
+bool ctgTestDidDropTsmaForTbEnqueueOwnershipFailureFire(void) {
+  return g_ctgTestDropTsmaForTbOwnershipFailureFired;
+}
+
+int32_t ctgTestGetDropTsmaForTbCallerCleanupCount(void) {
+  return g_ctgTestDropTsmaForTbCallerCleanupCount;
+}
+#endif
+
 int32_t ctgRLockVgInfo(SCatalog *pCtg, SCtgDBCache *dbCache, bool *inCache) {
   CTG_LOCK(CTG_READ, &dbCache->vgCache.vgLock);
 
@@ -951,6 +975,22 @@ void ctgDequeue(SCtgCacheOperation **op) {
 
 int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation, bool *enqueued) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+#if defined(BUILD_TEST)
+  if (CTG_OP_DROP_TB_TSMA == operation->opId &&
+      TSDB_CODE_SUCCESS != g_ctgTestDropTsmaForTbFailAfterOwnershipCode) {
+    code = g_ctgTestDropTsmaForTbFailAfterOwnershipCode;
+    g_ctgTestDropTsmaForTbFailAfterOwnershipCode = TSDB_CODE_SUCCESS;
+    g_ctgTestDropTsmaForTbOwnershipFailureFired = true;
+    if (enqueued) {
+      *enqueued = true;
+    }
+    taosMemoryFreeClear(operation->data);
+    taosMemoryFreeClear(operation);
+    return code;
+  }
+#endif
+
   SCtgQNode *node = taosMemoryCalloc(1, sizeof(SCtgQNode));
   if (NULL == node) {
     qError("calloc %d failed", (int32_t)sizeof(SCtgQNode));
@@ -1671,6 +1711,7 @@ int32_t ctgDropTSMAForTbEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
   ctgDebug("drop tsma meta for tb: %s.%s", pName->dbname, pName->tname);
   
   int32_t             code = 0;
+  bool                enqueued = false;
   SCtgDBCache        *pDbCache = NULL;
   SCtgCacheOperation *pOp = NULL;
   char                dbFName[TSDB_DB_FNAME_LEN];
@@ -1709,7 +1750,11 @@ int32_t ctgDropTSMAForTbEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
 
   CTG_ERR_JRET(code);
   
-  CTG_ERR_JRET(ctgEnqueue(pCtg, pOp, NULL));
+  code = ctgEnqueue(pCtg, pOp, &enqueued);
+  if (enqueued) {
+    pOp = NULL;
+  }
+  CTG_ERR_JRET(code);
   
   return TSDB_CODE_SUCCESS;
 
@@ -1722,8 +1767,13 @@ _return:
     ctgReleaseDBCache(pCtg, pDbCache);
   }
   if (pOp) {
+#if defined(BUILD_TEST)
+    ++g_ctgTestDropTsmaForTbCallerCleanupCount;
+#endif
     taosMemoryFree(pOp->data);
+    pOp->data = NULL;
     taosMemoryFree(pOp);
+    pOp = NULL;
   }
   
   CTG_RET(code);

@@ -3219,6 +3219,54 @@ TEST(apiTest, catalogGetDnodeList_test) {
   catalogDestroy();
 }
 
+TEST(apiTest, ctgDropTSMAForTbEnqueueOwnershipTransfer_test) {
+  SCatalog      ctg = {0};
+  SCtgDBCache   dbCache = {0};
+  SCtgTSMACache tsmaCache = {0};
+  STSMACache    tsma = {0};
+  STSMACache   *pTsma = &tsma;
+  SName         name = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  char          dbFName[TSDB_DB_FNAME_LEN] = {0};
+
+  TAOS_STRCPY(name.dbname, "db1");
+  TAOS_STRCPY(name.tname, "tb1");
+  ASSERT_EQ(tNameGetFullDbName(&name, dbFName), TSDB_CODE_SUCCESS);
+
+  ctg.dbCache = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  ASSERT_NE(ctg.dbCache, nullptr);
+
+  dbCache.tsmaCache = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  ASSERT_NE(dbCache.tsmaCache, nullptr);
+  taosInitRWLatch(&dbCache.dbLock);
+
+  tsmaCache.pTsmas = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(tsmaCache.pTsmas, nullptr);
+  taosInitRWLatch(&tsmaCache.tsmaLock);
+
+  tsma.dbId = 101;
+  tsma.suid = 202;
+  tsma.tsmaId = 303;
+  TAOS_STRCPY(tsma.name, "tsma1");
+  TAOS_STRCPY(tsma.tb, name.tname);
+  TAOS_STRCPY(tsma.dbFName, dbFName);
+
+  ASSERT_NE(taosArrayPush(tsmaCache.pTsmas, &pTsma), nullptr);
+  ASSERT_EQ(taosHashPut(dbCache.tsmaCache, name.tname, strlen(name.tname), &tsmaCache, sizeof(tsmaCache)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosHashPut(ctg.dbCache, dbFName, strlen(dbFName), &dbCache, sizeof(dbCache)), TSDB_CODE_SUCCESS);
+
+  ctgTestResetDropTsmaForTbEnqueueState();
+  ctgTestSetDropTsmaForTbEnqueueFailAfterOwnershipOnce(TSDB_CODE_CTG_EXIT);
+
+  ASSERT_EQ(ctgDropTSMAForTbEnqueue(&ctg, &name, false), TSDB_CODE_CTG_EXIT);
+  ASSERT_TRUE(ctgTestDidDropTsmaForTbEnqueueOwnershipFailureFire());
+  ASSERT_EQ(ctgTestGetDropTsmaForTbCallerCleanupCount(), 0);
+
+  ctgTestResetDropTsmaForTbEnqueueState();
+  taosArrayDestroy(tsmaCache.pTsmas);
+  taosHashCleanup(dbCache.tsmaCache);
+  taosHashCleanup(ctg.dbCache);
+}
+
 #ifdef INTEGRATION_TEST
 TEST(intTest, autoCreateTableTest) {
   struct SCatalog *pCtg = NULL;
