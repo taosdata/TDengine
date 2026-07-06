@@ -3,21 +3,14 @@
 
 # [disabled 2026-04-28 concurrent-test-failures]
 #200,,n,cases,bash 82-UnitTest/test.sh
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_ctb.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_ntb.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_sma.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_group.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_function.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_project.py
-#100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_optimize_type_mismatch.py
+#,,y,.,./ci/pytest.sh pytest cases/11-Functions/06-System/test_fun_sys_info.py
 #,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v2.py -N 6
 #,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_table_distributed.py
-#,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_transaction.py -N 3
-#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode1mnode.py
+,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_transaction.py -N 3
+#,,n,.,pytest cases/24-Users/test_user_passwd.py
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode1mnode.py
+#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop.py -N 5 -M 3 -I False
 #,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/03-MQTT/test_mqtt_bnodes.py -N 11
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg.py
 #,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_except.py -B
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_idle_trigger.py
 #,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_datatypes.py -B
@@ -31,7 +24,7 @@
 #,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a1.py
 #,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_sep1_vnode_stop_dnode_modify_meta.py  -N 6 -M 3
 #100,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config.py -N 3
-#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_compact_db_conflict.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_compact_db_conflict.py -N 3
 #,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a4.py
 #,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_snapshot.py -N 3 -L 3 -D 2
 # [end disabled 2026-04-28]
@@ -39,7 +32,6 @@
 # [disabled 2026-05-05 concurrent-test-failures]
 #,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_in_subq1.py
 #,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3a.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py
 #,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_bugs.py  -N 3
 #,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_quantified_sub1.py
 #,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_db0.py -N 3 --replica 3
@@ -60,11 +52,13 @@
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_idle_trigger.py
 #,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg.py
 # [disabled 2026-06-11 flaky compatibility_backward_forward_part1]
-#100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part1.py
+100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part1.py
 # [end disabled 2026-06-11]
 100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part2.py
 100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part3.py
 100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part4.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_except.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_format.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_query_rest.py -B
 # [disabled 2026-06-11 disable benchmark_conn_mode]
 #,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_conn_mode.py -B
@@ -74,7 +68,8 @@
 #,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
 # [end disabled 2026-06-11]
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_buffer_overflow.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_max_column_num.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_write_consume_alter_replica.py  -N 3
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_quantified_sub2.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_column_limit.py
 # [disabled 2026-06-27 flaky tmq_max_groups]
 #,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_groups.py
@@ -89,9 +84,42 @@
 # [end disabled 2026-06-27]
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_commandline.py
-# [disabled 2026-06-11 slow benchmark_except: high CI cost, timeout risk]
-#90,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_except.py
-# [end disabled 2026-06-11]
+90,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_except.py
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbAgg::test_agg
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbAgg::test_agg_group
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbAgg::test_agg_tag_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbAgg::test_agg_time_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbAgg::test_agg_partition_expr
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbAgg::test_agg
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbAgg::test_agg_group
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbAgg::test_agg_tag_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbAgg::test_agg_time_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbAgg::test_agg_partition_expr
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbAgg::test_agg
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbAgg::test_agg_group
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbAgg::test_agg_tag_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbAgg::test_agg_time_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbAgg::test_agg_partition_expr
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbAgg::test_agg
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbAgg::test_agg_group
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbAgg::test_agg_tag_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbAgg::test_agg_time_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbAgg::test_agg_partition_expr
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbAgg::test_agg
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbAgg::test_agg_group
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbAgg::test_agg_tag_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbAgg::test_agg_time_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbAgg::test_agg_partition_expr
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbAgg::test_agg
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbAgg::test_agg_group
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbAgg::test_agg_tag_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbAgg::test_agg_time_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbAgg::test_agg_partition_expr
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbAgg::test_agg
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbAgg::test_agg_group
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbAgg::test_agg_tag_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbAgg::test_agg_time_filter
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbAgg::test_agg_partition_expr
 
 # 83-DocTest
 
@@ -301,58 +329,702 @@
 
 # 05-VirtualTables
 
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_alter.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_normaltable.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_alter_subtable.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_create.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_auth_select.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_create.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_drop.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_insert.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_join.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_meta.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_eliminate_virtual_scan.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_pushdown_timerange.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_pushdown_ts_subquery.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_agg_optimize.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_window_optimize.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_plan_replace_tbname.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_alter_origin_table.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_after_drop_origin_table.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_child_colref_after_alter.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_ctb.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_ntb.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_agg_sma.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_function.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_group.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_project.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_cross_db_stb_window.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_eliminate_virtual_scan.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_optimize_type_mismatch.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_ctb.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_ntb.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg_sma.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_group.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_project.py
-100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_window.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_reference_col.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_boundary.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_ts_subquery_pushdown.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_with_null_value.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_schema_is_old.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_tag.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_show_create.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_decimal.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_nchar_length.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_validate_referencing.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_comprehensive.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_alter.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_alter_normaltable.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_alter_subtable.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_create.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_select.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_create.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_drop.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/03-Insert/test_vtable_insert.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_join.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_max_column_num.py::TestVtableCreate::test_virtual_super_child_table_max_column
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_max_column_num.py::TestVtableCreate::test_virtual_normal_table_max_column
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_max_column_num.py::TestVtableCreate::test_virtual_table_exceed_max_column
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_max_column_num.py::TestVtableCreate::test_virtual_table_wide_org_tables_32767_cols
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_max_column_num.py::TestVtableCreate::test_virtual_table_max_column_exceed_ref_mapping
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_max_column_num.py::TestVtableCreate::test_virtual_table_error_case
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_meta.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_eliminate_virtual_scan.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_timerange.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_ts_subquery.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_agg_optimize.py
+#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_window_optimize.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_replace_tbname.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_after_alter.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_after_alter_origin_table.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_after_drop_origin_table.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_projection
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_projection_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_projection_timerange_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_function
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_interval
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_session
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_event
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_count
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_state_mode_0
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_state_mode_1
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_state_mode_2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_partition
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_group
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ctb.py::TestVtableQueryCrossDBCtb::test_orderby
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_projection
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_projection_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_projection_timerange_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_function
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_interval
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_session
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_event
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_count
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_state_mode_0
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_state_mode_1
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_state_mode_2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_partition
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_group
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_ntb.py::TestVtableQueryCrossDBNtb::test_orderby
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2::test_agg
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2::test_agg_tag_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2::test_agg_time_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2::test_agg_partition_expr
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbSma::test_agg_sma
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_function_cols
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_function_tags
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_partition
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_group
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_orderby
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_projection
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_projection_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_projection_timerange_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_interval
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_session
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_event
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_count
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_state_mode_0
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_state_mode_1
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_function
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_state_mode_1
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_function_cols
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_function_tags
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_function_cols
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_function_tags
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_function_cols
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_function_tags
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_function_cols
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_function_tags
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_function_cols
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_function_tags
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_function_cols
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_function_tags
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_function_cols
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_function_tags
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_function_cols
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_function_tags
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_function_cols
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_function_tags
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_projection
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_projection_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_projection_timerange_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_function_cols
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_function_tags
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_partition
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_group
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_orderby
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_interval
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_session
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_event
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_count
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_state_mode_0
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb::test_state_mode_2
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_series.py::TestVTableQueryExtSourceSeries::test_describe_shows_filter
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_series.py::TestVTableQueryExtSourceSeries::test_vtable_queryable
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_series.py::TestVTableQueryExtSourceSeries::test_mixed_series_queryable
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_series.py::TestVTableQueryExtSourceSeries::test_series_isolation
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_pg_normal_vtable_query_fails_when_backend_down_and_recovers
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_influx_normal_vtable_query_fails_when_backend_down_and_recovers
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_vstable_query_fails_when_one_child_backend_down_and_recovers
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_runtime_libs.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_eliminate_virtual_scan.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_optimize_type_mismatch.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_projection
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_projection_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_projection_timerange_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_function
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_interval
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_session
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_event
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_count
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_state_mode_0
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_state_mode_1
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_state_mode_2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_partition
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_group
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_orderby
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_projection
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_projection_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_projection_timerange_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_function
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_interval
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_session
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_event
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_count
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_state_mode_0
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_state_mode_1
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_state_mode_2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_partition
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_group
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ntb.py::TestVTableQuerySameDBNtb::test_orderby
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbSma::test_agg_sma
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_partition
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_group
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_orderby
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_projection
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_projection_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_projection_timerange_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_function_cols
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_function_tags
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_interval
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_session
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_event
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_count
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_state_mode_0
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_state_mode_1
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbBasic::test_state_mode_2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_same_reference_col.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_boundary.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_ts_subquery_pushdown.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_with_null_value.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_schema_is_old.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_show_tag.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_show_create.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_decimal.py
+#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_nchar_length.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_validate_referencing.py
+#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_comprehensive.py
+
 # Performance and Stress tests
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_performance.py
-#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_stress.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_batch_set_tag_vals.py
+#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/07-Performance/test_vtable_performance.py
+#,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/07-Performance/test_vtable_stress.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_batch_set_tag_vals.py
+
+# --- upstream vtb-ref / tag-ref query cases (flat paths, not reorganized) ---
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_agg_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_agg_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_agg_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_agg_tag_filter_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_agg_tag_filter_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_agg_tag_filter_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_agg_time_filter_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_agg_time_filter_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_agg_time_filter_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_agg_partition_expr_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_agg_partition_expr_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_agg_partition_expr_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbSmaRef::test_agg_sma_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbSmaRef::test_agg_sma_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbSmaRef::test_agg_sma_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_function_cols_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_function_tags_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_function_cols_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_function_tags_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_function_cols_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_function_tags_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_partition_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_group_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_orderby_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_partition_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_group_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_orderby_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_partition_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_group_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_orderby_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_projection_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_projection_filter_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_projection_timerange_filter_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_projection_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_projection_filter_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_projection_timerange_filter_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_projection_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_projection_filter_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_projection_timerange_filter_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_interval_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_session_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_event_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_count_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_state_mode_0_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_state_mode_1_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_state_mode_2_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_interval_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_session_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_event_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_count_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_state_mode_0_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_state_mode_1_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_state_mode_2_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_interval_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_session_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_event_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_count_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_state_mode_0_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_state_mode_1_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_state_mode_2_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2::test_agg_group
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2::test_agg_tag_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2::test_agg_time_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2::test_agg_partition_expr
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_group_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_group_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_group_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_tag_filter_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_tag_filter_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_tag_filter_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_time_filter_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_time_filter_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_time_filter_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_partition_expr_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_partition_expr_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_agg_partition_expr_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbSmaRef::test_agg_sma_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbSmaRef::test_agg_sma_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbSmaRef::test_agg_sma_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_partition_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_group_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_orderby_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_partition_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_group_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_orderby_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_partition_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_group_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_orderby_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_projection_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_projection_filter_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_projection_timerange_filter_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_function_cols_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_function_tags_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_projection_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_projection_filter_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_projection_timerange_filter_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_function_cols_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_function_tags_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_projection_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_projection_filter_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_projection_timerange_filter_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_function_cols_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_function_tags_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_interval_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_session_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_event_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_count_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_state_mode_0_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_state_mode_1_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_state_mode_2_vtb_ref
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_interval_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_session_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_event_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_count_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_state_mode_0_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_state_mode_1_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_state_mode_2_vtb_ref -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_interval_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_session_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_event_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_count_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_state_mode_0_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_state_mode_1_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbRef::test_state_mode_2_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_direct_vchild_ref_vchild.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_direct_vchild_ref_vchild.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_direct_vchild_ref_vchild.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_tag_filtered_aggregate_matches_full_child
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_tag_filtered_null_aggregate_matches_half_child
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_tag_filtered_projection_matches_child
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_tag_filtered_function_matches_child
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_tag_filtered_aggregate_matches_full_child -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_tag_filtered_null_aggregate_matches_half_child -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_tag_filtered_projection_matches_child -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_tag_filtered_function_matches_child -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_tag_filtered_aggregate_matches_full_child -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_tag_filtered_null_aggregate_matches_half_child -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_tag_filtered_projection_matches_child -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBStbMode2Ref::test_tag_filtered_function_matches_child -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_tag_filtered_aggregate_matches_full_child
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_tag_filtered_null_aggregate_matches_half_child
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_tag_filtered_projection_matches_child
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_tag_filtered_function_matches_child
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_tag_filtered_aggregate_matches_full_child -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_tag_filtered_null_aggregate_matches_half_child -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_tag_filtered_projection_matches_child -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_tag_filtered_function_matches_child -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_tag_filtered_aggregate_matches_full_child -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_tag_filtered_null_aggregate_matches_half_child -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_tag_filtered_projection_matches_child -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref::test_tag_filtered_function_matches_child -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBVStbRefVStb::test_child_projection_from_virtual_stable_reference
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBVStbRefVStb::test_child_aggregate_on_second_layer_virtual_stable
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBVStbRefVStb::test_child_tag_predicate_with_data_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBVStbRefVStb::test_child_combined_tag_and_value_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBVStbRefVStb::test_child_projection_from_virtual_stable_reference -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBVStbRefVStb::test_child_aggregate_on_second_layer_virtual_stable -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBVStbRefVStb::test_child_tag_predicate_with_data_filter -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBVStbRefVStb::test_child_combined_tag_and_value_filter -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBVStbRefVStb::test_child_projection_from_virtual_stable_reference -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBVStbRefVStb::test_child_aggregate_on_second_layer_virtual_stable -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBVStbRefVStb::test_child_tag_predicate_with_data_filter -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_stb.py::TestVTableQuerySameDBVStbRefVStb::test_child_combined_tag_and_value_filter -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBVStbRefVStb::test_child_projection_from_cross_db_virtual_stable_reference
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBVStbRefVStb::test_child_aggregate_on_second_layer_virtual_stable
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBVStbRefVStb::test_child_tag_predicate_with_data_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBVStbRefVStb::test_child_combined_tag_and_value_filter
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBVStbRefVStb::test_child_projection_from_cross_db_virtual_stable_reference -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBVStbRefVStb::test_child_aggregate_on_second_layer_virtual_stable -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBVStbRefVStb::test_child_tag_predicate_with_data_filter -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBVStbRefVStb::test_child_combined_tag_and_value_filter -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBVStbRefVStb::test_child_projection_from_cross_db_virtual_stable_reference -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBVStbRefVStb::test_child_aggregate_on_second_layer_virtual_stable -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBVStbRefVStb::test_child_tag_predicate_with_data_filter -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBVStbRefVStb::test_child_combined_tag_and_value_filter -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_alter_tag_ref.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_alter_tag_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_alter_tag_ref.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_tag_ref_alter.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_tag_ref_alter.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_tag_ref_alter.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref_ins_tags.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref_ins_tags.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref_ins_tags.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref_multihop.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref_multihop.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref_multihop.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref_select_tags.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref_select_tags.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref_select_tags.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref_show_desc.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref_show_desc.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/test_vtable_tag_ref_show_desc.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_mixed_ref_literal_stb.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_mixed_ref_literal_stb.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_mixed_ref_literal_stb.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vstable_chain_bug.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_set_tag_batch.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_set_tag_batch.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/test_vtable_set_tag_batch.py -Q 3
+# Performance and Stress tests (run in nightly, not every CI)
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_stmt2_query.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_stmt2_query.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_stmt2_query.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vst_inheritance_cascade.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vst_has_children_cache.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vst_error_paths.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vst_nonleaf_queries.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vst_show_commands.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vst_schema_merge.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vst_concurrent.py
 
 # 06-DataIngestion
 ## 01-SQL
@@ -410,6 +1082,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/08-DataCompression/test_compress_alter_option.py
 ,,y,.,./ci/pytest.sh pytest cases/08-DataCompression/test_compress_alter_table.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/08-DataCompression/test_compress_basic.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/08-DataCompression/test_compress_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/08-DataCompression/test_compress_one_stage.py -N 3 -L 3 -D 1
 ,,y,.,./ci/pytest.sh pytest cases/08-DataCompression/test_compress_tsz.py
 
@@ -421,6 +1094,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_exact.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_funtion_null.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_select_null.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/01-Select/test_query_quarter.py
 ## 02-Filter
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_column.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_operator.py
@@ -438,6 +1112,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_double.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_orderby_subquery.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/04-OrderBy/test_smalldata_scan_sort.py
 ## 05-Aliase
 ## 06-Limit
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_query_limit_basic.py
@@ -490,6 +1165,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_math.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_time.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_26.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_text_source.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_file_source.py
 ## 09-Having
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having.py
@@ -501,9 +1178,8 @@
 ## 12-Interp
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_fill.py
-# [disabled 2026-06-11 flaky query_interp_fill -Q 3]
-#,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_fill.py -Q 3
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_query_interp_fill.py -Q 3
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/12-Interp/test_tz_fill_interp.py
 ## 13-CaseWhen
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/13-CaseWhen/test_query_case_when.py
 ## 14-Tags
@@ -515,6 +1191,7 @@
 ## 16-PartitionBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_tsbs.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_table_merge_scan_stt_reuse.py -N 3
 ## 17-BiMode
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/17-BiMode/test_bimode.py
 ## 18-Stability
@@ -522,6 +1199,27 @@
 #,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability.py
 # [end disabled 2026-06-11]
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability26.py
+
+## 19-FederatedQuery
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_02_path_resolution.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_03_type_mapping.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_04_timezone_precision.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_08_system_observability.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_10_performance.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_11_security.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_12_compatibility.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_13_explain.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_16_multi_table_parity.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_17_unsupported_ops.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_18_source_specific.py
+100,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py
+
 
 # 10-Operators
 
@@ -554,6 +1252,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_string.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_time.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_crypto.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_tz_config_display.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_tz_scalar_functions.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_abs.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_acos.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_asin.py
@@ -588,7 +1288,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_to_iso8601.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_to_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_to_unixtimestamp.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_regexp_extract.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_today.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_greatest_least.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_greatest_least_ignorenull.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_greatest_least_perf.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_upper.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_cast_blob.py
 ## 02-Aggregate
@@ -643,16 +1347,21 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_twa.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_derivative.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_with_window.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_interval_fill.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_timeline_fallback.py
 ## 05-Compare
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/05-Compare/test_fun_cmp_if.py
 #,,y,.,./ci/pytest.sh pytest cases/11-Functions/05-others/test_resinfo.py
 ## 06-System
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/06-System/test_fun_sys_sleep.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/06-System/test_fun_sys_info.py
 ## 07-Geometry
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/07-Geometry/test_fun_geo_basic.py
 ## 08-Window
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_fill_forward.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_keep_order.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_window_over_function.py
 
 ## 09-NoFrom
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/09-NoFrom/test_fun_no_from_all.py
@@ -682,12 +1391,14 @@
 #,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_interval_bugfix.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_interval_project_merge_resblock.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_interval_timezone.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_tz_interval.py
 ## 04-StateWindow
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_null_block.py
-# [disabled 2026-06-11 flaky state_window_extend]
-#,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_extend.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_extend.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_zeroth.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_multi_col.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/04-StateWindow/test_state_window_null_regression.py
 ## 05-EventWindow
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/05-EventWindow/test_event.py
 ## 06-SessionWindow
@@ -696,6 +1407,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/07-CountWindow/test_count.py
 ## 08-ExternalWindow
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/08-ExternalWindow/test_external.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/08-ExternalWindow/test_external_fill.py
+## 09-WindowProjection
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/09-WindowProjection/test_window_projection.py
 
 # 14-JoinQueries
 
@@ -754,7 +1468,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_db3.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_db4.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vtable.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vtable_tag_ref.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vtable_tag_ref.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vtable_tag_ref.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_batch_alter_tag.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_base_on.py
 #,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_basic.py
 #,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_bugs.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_topics_info.py
@@ -806,6 +1524,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_tsdb_wal_multi_ctb.py -N 3 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_ts6379.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_taosx.py
+#,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_change_epset.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_meta_json.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_seek_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_vnode_split_column.py -N 3 --replica 3
@@ -875,8 +1594,14 @@
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/01-Snode/test_snode_privileges_twodb.py   # PRIV_TODO
 ## 02-Stream
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_schema.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_vtable_interleaved_col_scatter.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop_table.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_place_holder_column.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_rollup_basic.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_rollup_expand.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_rollup_mgmt.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_rollup_topology.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_rollup_trigger_matrix.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_td37724.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_6570600210.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_check_name.py
@@ -898,10 +1623,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subq_double-mtables.py -N 9
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable2.py
-# [disabled 2026-06-11 flaky stream_subquery_in_vtable3]
-#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable3.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable3.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable4.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_agg_optimize.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_udf_in_where.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_vtable_chain_ref.py
 ## 03-TriggerMode
 #,,n,.,pytest cases/18-StreamProcessing/03-TriggerMode/test_count_new.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_count.py
@@ -918,6 +1644,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_ts_7622.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_window_true_for.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_period_natural_units.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_true_for_start_end.py
 ## 04-Options
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_abnormal_data_table.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_abnormal_data_vtable.py
@@ -929,6 +1656,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_options_us.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_options_vtable.py
 ## 05-Notify
+,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py
 #,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_notify.py
 ## 06-ResultSaved
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py
@@ -948,6 +1676,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_join.py
 ## 08-Recalc
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_combined_options.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_count_window_slide1.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_delete_recalc.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_expired_time.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_ignore_disorder.py
@@ -1018,6 +1747,22 @@
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_continuewindowclose.py
 ,,n,.,pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_state.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/31-OldTsimCases/test_oldcase_twa.py
+## federated support for streaming
+# Test files will be appended one per follow-up commit.
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001b_influx_subset_partition
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_twice
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_no_trows
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_no_trows_with_wstart
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_01_use_cases.py::TestFsUseCases::test_uc_001_periodic_summary_no_trows_with_range
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_02_trigger_matrix.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_03_options_matrix.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_04_ts_column.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_05_create_errors.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_06_runtime_errors.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_07_ddl_propagation.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_08_observability.py
+#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_09_constraints.py
 ## 99-Others
 # [disabled 2026-06-11 flaky stream_tag_cache]
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_stream_tag_cache.py
@@ -1027,6 +1772,7 @@
 
 # 19-TSMAs
 
+,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma_no_snode.py
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_sma_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_time_range_wise.py -N 3
@@ -1040,6 +1786,31 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_change.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_information_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_ins_tables.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_basic.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_basic_b.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_basic_c.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_advanced.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_alter_tag.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_ddl_visibility.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stress.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stress2.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_basic.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_snapshot.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_snapshot_a.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_snapshot_b.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_snapshot_c.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_fi.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_fi_b.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_fi_c.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_capi.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_crash_recovery.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_seq_edge.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stability.py
+#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_basic.py
+#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_recovery.py
+#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_snapshot.py
+#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_cluster.py -N 3 -M 3
+#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_txn_consumer_data_correctness.py
 
 # 22-PerformanceData
 
@@ -1097,6 +1868,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_drop_dnode_has_vnode_replica3.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_offline_reason.py -N 2 -C 1
 #,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_use_dropped_dnode.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/01-Dnode/test_snapshot_rate_limit.py
 ## 02-Mnode
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/02-Mnode/test_mnode_basic1.py -N 2
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/02-Mnode/test_mnode_basic3.py -N 4
@@ -1107,6 +1879,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/03-Qnode/test_qnode_basic.py -N 2
 ## 04-Snode
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/04-Snode/test_snode_basic1.py -N 2
+## 05-Vnode
+,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/05-Vnode/test_close_open_vnode.py -N 3
 
 # 27-Mount
 ,,y,.,./ci/pytest.sh pytest cases/27-Mount/test_mount_basic.py
@@ -1131,6 +1905,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/04-TransparentEncryption/test_transparent_encryption.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/06-EncryptionStatus/test_encryption_status.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/07-EncryptionMultiLevel/test_encryption_mlevel.py -L 3 -D 2
+,,y,.,./ci/pytest.sh pytest cases/31-Security/13-QuerySpillEncryption/test_query_spill_encrypt.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/13-QuerySpillEncryption/test_query_spill_encrypt_active.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_CVE-2023-38502.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_plaintext_check.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_ddos_defense.py
@@ -1140,6 +1916,13 @@
 
 # 32-Grants
 ,,n,.,./ci/pytest.sh pytest cases/32-Grants/test_grant_basic.py
+
+# 34-CpuAffinity
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_affinity_switch.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_management_cores.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_read_write_ratio.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_show_allocation.py
+,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_affinity_edge_cases.py
 
 # 42-xnode
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
@@ -1288,14 +2071,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_basic.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_bugs.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_compa.py
-#,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_datatypes.py -B
-# [disabled 2026-06-11 flaky taosdump_maxcols]
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_datatypes.py -B
 #,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_maxcols.py -B
-# [end disabled 2026-06-11]
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_precision.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_primarykey.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_privilege.py
-#,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_except.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_schema_change.py -B
 
 ## 05-Valgrind
@@ -1313,9 +2093,33 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/05-Valgrind/test_valgrind_checkerror8.py
 #,,y,.,./ci/pytest.sh pytest cases/81-Tools/05-Valgrind/test_valgrind_udf.py
 
+## 06-Backup
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_allnull.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_basic.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_bugs.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_checkpoint.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_chinese.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_commandline.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_avro_compat.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_coverage.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_datatypes.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_edge.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_errors.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_integrity.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_precision.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_primarykey.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_progress.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_schema_change.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_stream.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_vtable.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_maxcols.py -B
+
 # 82-UnitTest
 
 #200,,n,cases,bash 82-UnitTest/test.sh
+
+
+
 
 # ---------------------------- uncatalog --------------------------
 
@@ -1337,3 +2141,6 @@
 #,,n.,pytest cases/uncatalog/system-test/7-tmq/test_tmq_taosx.py
 
 ## 02-Repair
+,,y,.,./ci/pytest.sh pytest cases/50-Others/02-Repair/test_copy_repair.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/02-Repair/test_copy_accuracy.py
+

@@ -103,7 +103,6 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 
 #define MND_STREAM_RESERVE_SIZE      64
 #define MND_STREAM_VER_NUMBER        8
-#define MND_STREAM_COMPATIBLE_VER_NUMBER 7
 #define MND_STREAM_TRIGGER_NAME_SIZE 20
 #define MND_STREAM_DEFAULT_NUM       100
 #define MND_STREAM_DEFAULT_TASK_NUM  200
@@ -202,6 +201,7 @@ typedef struct SStmTaskStatus {
   SRWLatch        detailStatusLock;
   void*           detailStatus;     // SSTriggerRuntimeStatus*, only for trigger task now
   int32_t         errCode;
+  char*           extraErrMsg;
   int64_t         runningStartTs;
   int64_t         lastUpTs;
 } SStmTaskStatus;
@@ -246,6 +246,7 @@ typedef struct SStmActionQ {
 
 typedef struct SStmTaskSrcAddr {
   bool    isFromCache;
+  bool    isExt;    /* P4-E2: true when the source is an EXT (federated) reader */
   int64_t taskId;
   int32_t vgId;
   int32_t groupId;
@@ -273,6 +274,7 @@ typedef struct SStmStatus {
   int64_t           deployTimes;
   int64_t           lastActionTs;
   int32_t           fatalError;
+  char*             extraErrMsg;
   int64_t           fatalRetryDuration;
   int64_t           fatalRetryTs;
   int64_t           fatalRetryTimes;
@@ -341,8 +343,10 @@ typedef struct SStmSnodeTasksDeploy {
   SRWLatch lock;
   int32_t  triggerDeployed;
   int32_t  runnerDeployed;
-  SArray*  triggerList;  // SArray<SStmTaskToDeployExt>
-  SArray*  runnerList;   // SArray<SStmTaskToDeployExt>
+  int32_t  calcReaderDeployed;  // EXT-source calc reader tasks deployed count
+  SArray*  triggerList;         // SArray<SStmTaskToDeployExt>
+  SArray*  runnerList;          // SArray<SStmTaskToDeployExt>
+  SArray*  calcReaderList;      // SArray<SStmTaskToDeployExt>: EXT calc scan tasks on snode
 } SStmSnodeTasksDeploy;
 
 typedef struct SStmStreamUndeploy{
@@ -504,7 +508,9 @@ int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBloc
 int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid);
 int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWindow* pRange);
 int32_t mstCheckSnodeExists(SMnode *pMnode);
-void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
+int32_t mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
+int32_t mstSetExtraErrMsg(char** ppMsg, const char* msg);
+void    mstDestroySStmTaskStatus(void* param);
 void msmClearStreamToDeployMaps(SStreamHbMsg* pHb);
 void msmCleanStreamGrpCtx(SStreamHbMsg* pHb);
 int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SRpcMsg *pReq, SRpcMsg* pRspMsg);

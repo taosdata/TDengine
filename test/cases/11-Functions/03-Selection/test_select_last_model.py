@@ -702,14 +702,18 @@ class TestLastModel:
             tdLog.info(sql)  
             tdLog.exit(f"explain_scan_value : checkEqual error")   
 
+    def get_sql_result_with_reset_query_cache(self, sql):
+        tdSql.query("reset query cache;")
+        tdSql.query(sql)
+        return tdSql.queryResult
+
     def check_sql_result_include(self, sql,include_result):
-        result = os.popen(f"taos -s \"reset query cache; {sql}\"" )
-        res = result.read()
-        if  res is None or res == '':
+        res = self.get_sql_result_with_reset_query_cache(sql)
+        if  res is None or res == []:
             tdLog.info(sql)  
-            tdLog.exit(f"check_sql_result_include :  taos -s return null")
+            tdLog.exit(f"check_sql_result_include :  tdSql.query return null")
         else:
-            if (include_result in res):
+            if (include_result in str(res)):
                 tdLog.info(f"check_sql_result_include : checkEqual success")
             else :
                 tdLog.info(res)
@@ -717,14 +721,13 @@ class TestLastModel:
                 tdLog.exit(f"check_sql_result_include : checkEqual error")            
             
     def check_sql_result_not_include(self, sql,not_include_result):  
-        result = os.popen(f"taos -s \"reset query cache; {sql}\"" )
-        res = result.read()
+        res = self.get_sql_result_with_reset_query_cache(sql)
         #tdLog.info(res)
-        if  res is None or res == '':
+        if  res is None or res == []:
             tdLog.info(sql)  
-            tdLog.exit(f"check_sql_result_not_include :  taos -s return null")
+            tdLog.exit(f"check_sql_result_not_include :  tdSql.query return null")
         else:
-            if (not_include_result in res):
+            if (not_include_result in str(res)):
                 tdLog.info(res)
                 tdLog.info(sql)  
                 tdLog.exit(f"check_sql_result_not_include : checkEqual error") 
@@ -1015,4 +1018,3 @@ class TestLastModel:
         """
         self.do_last_and_last_row()
         self.do_last_and_last_row_nest()
-        

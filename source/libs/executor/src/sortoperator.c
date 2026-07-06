@@ -194,8 +194,7 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
   }
   if (code != TSDB_CODE_SUCCESS) goto _error;
 
-  pInfo->binfo.inputTsOrder = pSortNode->node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pSortNode->node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pSortNode->node);
   initLimitInfo(pSortNode->node.pLimit, pSortNode->node.pSlimit, &pInfo->limitInfo);
 
   setOperatorInfo(pOperator, "SortOperator", QUERY_NODE_PHYSICAL_PLAN_SORT, true, OP_NOT_OPENED, pInfo, pTaskInfo);
@@ -433,7 +432,7 @@ void applyScalarFunction(SSDataBlock* pBlock, void* param) {
   if (pOperator->exprSupp.pExprInfo != NULL && pOperator->exprSupp.numOfExprs > 0) {
     int32_t code = projectApplyFunctions(pOperator->exprSupp.pExprInfo, pBlock, pBlock, pOperator->exprSupp.pCtx,
                                          pOperator->exprSupp.numOfExprs, NULL,
-                                         GET_STM_RTINFO(pOperator->pTaskInfo));
+                                         GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pOperator->pTaskInfo->env, code);
     }
@@ -446,6 +445,10 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SSortSource* pSource =NULL;
+
+  if (pOperator->exprSupp.pFilterInfo != NULL) {
+    filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
+  }
 
   if (OPTR_IS_OPENED(pOperator)) {
     return code;
@@ -955,8 +958,7 @@ int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNo
   code = blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  pInfo->binfo.inputTsOrder = pSortPhyNode->node.inputTsOrder;
-  pInfo->binfo.outputTsOrder = pSortPhyNode->node.outputTsOrder;
+  setOptrBasicInfoOrder(&pInfo->binfo, &pSortPhyNode->node);
 
   int32_t numOfOutputCols = 0;
   code = extractColMatchInfo(pSortPhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID,

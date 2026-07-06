@@ -264,7 +264,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   int32_t code = 0;
   METRICS_TIMING_BLOCK(pData->pSyncNode->wal_write_time, METRIC_LEVEL_HIGH, {
     code = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen,
-                        &pEntry->originRpcTraceId);
+                        pEntry->txnId, &pEntry->originRpcTraceId);
   });
   METRICS_UPDATE(pData->pSyncNode->wal_write_bytes, METRIC_LEVEL_LOW, (int64_t)pEntry->bytes);
 
@@ -343,7 +343,24 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
     TAOS_RETURN(code);
   }
 
-  *ppEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
+  bool     isTxn = WAL_IS_TXN_MSG(&pWalHandle->pHead->head);
+  int32_t  rawBodyLen = pWalHandle->pHead->head.bodyLen;
+  char*    rawBody = pWalHandle->pHead->head.body;
+  txn_id_t entryTxnId = 0;
+  int32_t  dataLen = rawBodyLen;
+
+  if (isTxn) {
+    // Body on-disk layout for txn entries: [int64_t txnId][pCont...]
+    if (rawBodyLen < (int32_t)sizeof(txn_id_t)) {
+      (void)taosThreadMutexUnlock(&(pData->mutex));
+      TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+    }
+    (void)memcpy(&entryTxnId, rawBody, sizeof(txn_id_t));
+    rawBody += sizeof(txn_id_t);
+    dataLen -= (int32_t)sizeof(txn_id_t);
+  }
+
+  *ppEntry = syncEntryBuild(dataLen);
   if (*ppEntry == NULL) return TSDB_CODE_SYN_INTERNAL_ERROR;
   (*ppEntry)->msgType = TDMT_SYNC_CLIENT_REQUEST;
   (*ppEntry)->originalRpcType = pWalHandle->pHead->head.msgType;
@@ -351,8 +368,9 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
   (*ppEntry)->isWeak = pWalHandle->pHead->head.syncMeta.isWeek;
   (*ppEntry)->term = pWalHandle->pHead->head.syncMeta.term;
   (*ppEntry)->index = index;
-  if ((*ppEntry)->dataLen != pWalHandle->pHead->head.bodyLen) return TSDB_CODE_SYN_INTERNAL_ERROR;
-  (void)memcpy((*ppEntry)->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
+  (*ppEntry)->txnId = entryTxnId;
+  if ((*ppEntry)->dataLen != dataLen) return TSDB_CODE_SYN_INTERNAL_ERROR;
+  (void)memcpy((*ppEntry)->data, rawBody, dataLen);
 
   /*
     int32_t saveErr = terrno;

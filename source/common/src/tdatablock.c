@@ -1138,6 +1138,10 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
       continue;
     }
 
+    if (pCol->info.noData) {
+      continue;
+    }
+
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       size_t metaSize = pBlock->info.rows * sizeof(int32_t);
       memcpy(pCol->varmeta.offset, pStart, metaSize);
@@ -2775,6 +2779,7 @@ int32_t dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf
         case TSDB_DATA_TYPE_TIMESTAMP:
           memset(pBuf, 0, sizeof(pBuf));
           code = formatTimestamp(pBuf, sizeof(pBuf), *(uint64_t*)var, pColInfoData->info.precision);
+          // uDebug("timestamp precision:%d, val:%"PRIu64, pColInfoData->info.precision, *(uint64_t*)var);
           if (code != TSDB_CODE_SUCCESS) {
             TAOS_UNUSED(snprintf(pBuf, sizeof(pBuf), "NaN"));
           }

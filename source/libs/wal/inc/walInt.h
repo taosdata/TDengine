@@ -130,6 +130,26 @@ static inline void walBuildIdxName(SWal* pWal, int64_t fileFirstVer, char* buf) 
   TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_INDEX_SUFFIX, pWal->path, TD_DIRSEP, fileFirstVer));
 }
 
+static inline void walBuildTxnName(SWal* pWal, int64_t fileFirstVer, char* buf) {
+  TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_TXN_SUFFIX, pWal->path, TD_DIRSEP, fileFirstVer));
+}
+
+#define WAL_TXN_PENDING_FILE    "txn.pending"
+#define WAL_TXN_PENDING_MAGIC   0x544E5850U  // "TNXP"
+
+static inline void walBuildTxnPendingName(SWal* pWal, char* buf) {
+  TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s" WAL_TXN_PENDING_FILE, pWal->path, TD_DIRSEP));
+}
+
+// txn.pending on-disk layout: 16 bytes total, written as single pwrite
+#pragma pack(push, 1)
+typedef struct {
+  uint32_t magic;              // WAL_TXN_PENDING_MAGIC
+  uint32_t crc32;              // checksum of firstTxnWalIndex field
+  int64_t  firstTxnWalIndex;  // first txn walIndex pending in current batch; 0 = cleared
+} STxnPendingFile;
+#pragma pack(pop)
+
 static inline int walValidHeadCksum(SWalCkHead* pHead) {
   return taosCheckChecksum((uint8_t*)&pHead->head, sizeof(SWalCont), pHead->cksumHead);
 }
@@ -178,6 +198,19 @@ int32_t walMetaDeserialize(SWal* pWal, const char* bytes);
 // meta section end
 
 int32_t decryptBody(SWalCfg* cfg, SWalCkHead* pHead, int32_t plainBodyLen, const char* func);
+
+// txn file internal API (walTxn.c)
+int32_t walTxnFilesOpen(SWal* pWal);
+void    walTxnFilesClose(SWal* pWal);
+void    walTxnWriteEntry(SWal* pWal, int64_t index, uint64_t txnExtFlags, txn_id_t txnId, const void* body,
+                          int32_t bodyLen, const void* encBuf, int32_t encBodyLen);
+void    walTxnPreFsync(SWal* pWal);   // Step A: write txn.pending before .log fsync
+void    walTxnPostFsync(SWal* pWal);  // Steps C+D: fsync .txn, clear pending
+void    walTxnFilesRotate(SWal* pWal, int64_t newFirstVer);
+int32_t walTxnFilesRecover(SWal* pWal, int64_t committedVer);
+void    walTxnFilesTrim(SWal* pWal);
+// Truncate the current open .txn write file to remove entries with version > truncVer.
+int32_t walTxnTruncateCurrent(SWal* pWal, int64_t truncVer);
 
 int64_t walGetSeq();
 

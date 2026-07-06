@@ -2494,7 +2494,7 @@ SNode* qptCreateStateWindowPhysiNode(int32_t nodeType) {
   qptCreateWindowPhysiNode(&pState->window);
 
   qptInitMakeNodeCtx(QPT_CORRECT_HIGH_PROB() ? false : true, QPT_RAND_BOOL_V, QPT_RAND_BOOL_V, 0, NULL);
-  qptMakeColumnNode(&pState->pStateKey);
+  qptMakeColumnList(&pState->pStateKeys);
 
   return (SNode*)pPhysiNode;
 }
@@ -3042,7 +3042,8 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       if (pAggNode->pGroupKeys != NULL) {
         qptCtx.result.code = createGroupOperatorInfo(NULL, pAggNode, pTaskInfo, ppOperaotr);
       } else {
-        qptCtx.result.code = createAggregateOperatorInfo(NULL, pAggNode, pTaskInfo, ppOperaotr);
+        SOperatorInfo* nullOps[] = {NULL};
+        qptCtx.result.code = createAggregateOperatorInfo(nullOps, 1, pAggNode, pTaskInfo, ppOperaotr);
       }
       break;
     }
@@ -3119,7 +3120,8 @@ void qptExecPlan(SReadHandle* pReadHandle, SNode* pNode, SExecTaskInfo* pTaskInf
       qptCtx.result.code = createGroupCacheOperatorInfo(NULL, 0, (SGroupCachePhysiNode*)pNode, pTaskInfo, ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
-      qptCtx.result.code = createDynQueryCtrlOperatorInfo(NULL, 0, (SDynQueryCtrlPhysiNode*)pNode, pTaskInfo, pReadHandle->pMsgCb, ppOperaotr);
+      qptCtx.result.code = createDynQueryCtrlOperatorInfo(NULL, 0, (SDynQueryCtrlPhysiNode*)pNode, pTaskInfo,
+                                                          ppOperaotr);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_COUNT:
       qptCtx.result.code = createCountwindowOperatorInfo(NULL, (SPhysiNode*)pNode, pTaskInfo, ppOperaotr);

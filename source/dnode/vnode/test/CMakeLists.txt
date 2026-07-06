@@ -35,13 +35,83 @@ TARGET_LINK_LIBRARIES(
          PUBLIC os util common vnode
 )
 
+# ---------------------------------------------------------------------------
+# walTxnMgrTest: STxnWalManager unit + integration tests
+# No --wrap linker flags needed → works on Linux and macOS (not Windows).
+# ---------------------------------------------------------------------------
+IF(NOT TD_WINDOWS)
+ADD_EXECUTABLE(walTxnMgrTest walTxnMgrTest.cpp)
+DEP_ext_gtest(walTxnMgrTest)
+TARGET_LINK_LIBRARIES(walTxnMgrTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode wal)
+TARGET_INCLUDE_DIRECTORIES(
+     walTxnMgrTest
+     PUBLIC "${TD_SOURCE_DIR}/include/common"
+     PUBLIC "${TD_SOURCE_DIR}/include/libs/wal"
+     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../../../libs/wal/inc"
+     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+add_test(NAME walTxnMgrTest COMMAND walTxnMgrTest)
+ENDIF()
+
+IF(TD_LINUX)
+
+ADD_EXECUTABLE(vnodeTxnTest vnodeTxnTest.cpp)
+DEP_ext_gtest(vnodeTxnTest)
+TARGET_LINK_LIBRARIES(
+         vnodeTxnTest
+         PUBLIC os util common vnode mgmt_mnode
+)
+SET_TARGET_PROPERTIES(
+         vnodeTxnTest PROPERTIES
+         LINK_FLAGS "-Wl,--wrap=metaFetchEntryByUid -Wl,--wrap=metaFetchEntryFree -Wl,--wrap=metaDropTable2 -Wl,--wrap=metaRollbackAlterTable -Wl,--wrap=metaTxnIdxDelete -Wl,--wrap=metaScanTxnEntries -Wl,--wrap=metaScanTxnMetaEntries -Wl,--wrap=metaTxnMetaDelete -Wl,--wrap=metaTxnMetaGet -Wl,--wrap=metaTxnMetaUpsert -Wl,--wrap=taosArrayAddBatch -Wl,--wrap=metaMarkTableTxnStatus -Wl,--wrap=vnodeAsync -Wl,--wrap=metaRLock -Wl,--wrap=metaULock"
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+         vnodeTxnTest
+         PUBLIC "${TD_SOURCE_DIR}/include/common"
+         PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+
+add_test(
+         NAME vnodeTxnTest
+         COMMAND vnodeTxnTest
+)
+
+# Phase 1: metaSnapTxnTest disabled — snapshot sver-adjustment removed; re-enable in Phase 2
+# ADD_EXECUTABLE(metaSnapTxnTest metaSnapTxnTest.cpp)
+# DEP_ext_gtest(metaSnapTxnTest)
+# TARGET_LINK_LIBRARIES(
+#          metaSnapTxnTest
+#          PUBLIC os util common vnode
+# )
+# SET_TARGET_PROPERTIES(
+#          metaSnapTxnTest PROPERTIES
+#          LINK_FLAGS "-Wl,--wrap=metaGetInfo -Wl,--wrap=metaScanTxnEntries -Wl,--wrap=tdbTbcOpen -Wl,--wrap=tdbTbcMoveTo -Wl,--wrap=tdbTbcClose -Wl,--wrap=metaRLock -Wl,--wrap=metaULock -Wl,--wrap=metaWLock -Wl,--wrap=metaCacheGet -Wl,--wrap=metaCacheUpsert"
+# )
+#
+# TARGET_INCLUDE_DIRECTORIES(
+#          metaSnapTxnTest
+#          PUBLIC "${TD_SOURCE_DIR}/include/common"
+#          PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+#          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+#          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+# )
+#
+# add_test(
+#          NAME metaSnapTxnTest
+#          COMMAND metaSnapTxnTest
+# )
+ENDIF()
+
 TARGET_INCLUDE_DIRECTORIES(
          bseTest
          PUBLIC "${TD_SOURCE_DIR}/include/common"
          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-
 IF(NOT TD_WINDOWS)
     ADD_EXECUTABLE(tsdbCacheTest tsdbCacheTest.cpp)
     DEP_ext_gtest(tsdbCacheTest)
@@ -60,6 +130,23 @@ IF(NOT TD_WINDOWS)
              PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
              PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
     )
+ENDIF()
+
+# ---------------------------------------------------------------------------
+# vnodeStreamVTable helpers unit test
+# ---------------------------------------------------------------------------
+IF(NOT TD_WINDOWS)
+    add_executable(vnodeStreamVTableTest vnodeStreamVTableTest.cpp)
+    DEP_ext_gtest(vnodeStreamVTableTest)
+    target_include_directories(vnodeStreamVTableTest
+        PUBLIC
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/libs/new-stream"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    TARGET_LINK_LIBRARIES(vnodeStreamVTableTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode)
+    add_test(NAME vnodeStreamVTableTest COMMAND vnodeStreamVTableTest)
 ENDIF()
 
 IF(NOT TD_WINDOWS)

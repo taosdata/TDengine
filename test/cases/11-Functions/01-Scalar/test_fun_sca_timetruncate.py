@@ -2,6 +2,12 @@ from new_test_framework.utils import tdLog, tdSql, gettime
 
 import time
 import datetime
+import pytest
+
+_is_utc8 = (
+    datetime.datetime.now(datetime.timezone.utc).astimezone().utcoffset()
+    == datetime.timedelta(hours=8)
+)
 class TestFunTimetruncate:
     def setup_class(cls):
         cls.replicaVar = 1  # 设置默认副本数
@@ -261,8 +267,118 @@ class TestFunTimetruncate:
             - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_timetruncate.py
         """
 
-        self.function_check_ntb()
-        self.function_check_stb()
+        tdSql.query("select first_day_of_week()")
+        previous_first_day_of_week = int(tdSql.queryResult[0][0])
+        tdSql.execute("set first_day_of_week 4")
+        try:
+            self.function_check_ntb()
+            self.function_check_stb()
+        finally:
+            tdSql.execute(f"set first_day_of_week {previous_first_day_of_week}")
 
         #tdSql.close()
+
+    @pytest.mark.skipif(not _is_utc8, reason="requires UTC+8 (Asia/Shanghai) timezone")
+    def test_fun_sca_timetruncate_dst_fallback(self):
+        """summary: TIMETRUNCATE during DST fall-back hour yields stable, non-NULL results.
+
+        description: During the America/New_York 2024 DST fall-back (2024-11-03 02:00 EDT
+                     → 01:00 EST), two distinct UTC timestamps both display as 01:30 local
+                     time but occupy different UTC epochs (05:30 UTC and 06:30 UTC).
+                     TIMETRUNCATE(ts, '1h', 'America/New_York') must:
+                       - return a non-NULL result for each
+                       - map each to its own unique 1-hour boundary
+                     Expected truncations (displayed in UTC):
+                       01:30 EDT (05:30 UTC) → 01:00 EDT = 05:00 UTC = "2024-11-03 05:00:00.000"
+                       01:30 EST (06:30 UTC) → 01:00 EST = 06:00 UTC = "2024-11-03 06:00:00.000"
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timetruncate
+
+        History:
+            - 2026-06-01: Tony Zhang created
+        """
+        dbname = 'db_tt_dst_fb'
+        tdSql.execute(f'drop database if exists {dbname}')
+        tdSql.execute(f'create database {dbname} precision "ms"')
+        tdSql.execute(f'create table {dbname}.t1 (ts timestamp, v int)')
+        # 2024-11-03 05:30:00 UTC = 2024-11-03 01:30:00 EDT (UTC-4, before fall-back)
+        tdSql.execute(f'insert into {dbname}.t1 values(1730611800000, 1)')
+        # 2024-11-03 06:30:00 UTC = 2024-11-03 01:30:00 EST (UTC-5, after fall-back)
+        tdSql.execute(f'insert into {dbname}.t1 values(1730615400000, 2)')
+        try:
+            tdSql.execute("SET TIMEZONE 'UTC'")
+            tdSql.query(
+                f"select timetruncate(ts, 1h, 'America/New_York') "
+                f"from {dbname}.t1 order by ts"
+            )
+            tdSql.checkRows(2)
+            assert tdSql.queryResult[0][0] is not None, \
+                "TIMETRUNCATE should not return NULL for fall-back ts (EDT)"
+            assert tdSql.queryResult[1][0] is not None, \
+                "TIMETRUNCATE should not return NULL for fall-back ts (EST)"
+            # Truncation of 01:30 EDT → 01:00 EDT = 05:00 UTC = 13:00 Asia/Shanghai (python connection defaults to UTC-8)
+            tdSql.checkData(0, 0, "2024-11-03 13:00:00.000")
+            # Truncation of 01:30 EST → 01:00 EST = 06:00 UTC = 14:00 Asia/Shanghai
+            tdSql.checkData(1, 0, "2024-11-03 14:00:00.000")
+            assert tdSql.queryResult[0][0] != tdSql.queryResult[1][0], (
+                "Two distinct fall-back timestamps must truncate to different epochs"
+            )
+        finally:
+            tdSql.connect()
+
+    @pytest.mark.skipif(not _is_utc8, reason="requires UTC+8 (Asia/Shanghai) timezone")
+    def test_fun_sca_timetruncate_quarter_dst(self):
+        """summary: TIMETRUNCATE('1q') correctly computes the quarter boundary under DST.
+
+        description: In a DST-observing timezone (America/New_York), Q1 starts in EST
+                     (UTC-5) while Q2 starts in EDT (UTC-4).  TIMETRUNCATE(ts, '1q', tz)
+                     must align to the correct local midnight on the first day of the
+                     quarter, applying the DST offset that is in effect on that day.
+
+                     Test cases (displayed in America/New_York):
+                       2024-05-15 12:00:00 EDT (Q2) → 2024-04-01 00:00:00 EDT (Q2 start)
+                       2024-02-10 10:00:00 EST (Q1) → 2024-01-01 00:00:00 EST (Q1 start)
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timetruncate
+
+        History:
+            - 2026-06-01: Tony Zhang created
+        """
+        dbname = 'db_tt_dst_q'
+        tdSql.execute(f'drop database if exists {dbname}')
+        tdSql.execute(f'create database {dbname} precision "ms"')
+        tdSql.execute(f'create table {dbname}.t1 (ts timestamp, v int)')
+        # 2024-05-15 16:00:00 UTC = 2024-05-15 12:00:00 EDT (Q2 2024)
+        tdSql.execute(f'insert into {dbname}.t1 values(1715788800000, 1)')
+        # 2024-02-10 15:00:00 UTC = 2024-02-10 10:00:00 EST (Q1 2024)
+        tdSql.execute(f'insert into {dbname}.t1 values(1707577200000, 2)')
+        try:
+            tdSql.execute("SET TIMEZONE 'America/New_York'")
+            tdSql.query(
+                f"select timetruncate(ts, 1q, 'America/New_York') "
+                f"from {dbname}.t1 order by ts"
+            )
+            tdSql.checkRows(2)
+            # Q1 2024 starts 2024-01-01 00:00:00 EST (UTC-5) → "2024-01-01 00:00:00.000" in NY
+            # = "2024-01-01 05:00:00.000" in UTC = "2024-01-01 13:00:00.000" in Asia/Shanghai (python connection defaults to UTC-8)
+            tdSql.checkData(0, 0, "2024-01-01 13:00:00.000")
+            # Q2 2024 starts 2024-04-01 00:00:00 EDT (UTC-4) → "2024-04-01 00:00:00.000" in NY
+            # = "2024-04-01 04:00:00.000" in UTC = "2024-04-01 12:00:00.000" in Asia/Shanghai
+            tdSql.checkData(1, 0, "2024-04-01 12:00:00.000")
+        finally:
+            tdSql.connect()
 

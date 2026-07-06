@@ -1,0 +1,42 @@
+
+taos> use text_src_db;
+Database changed.
+
+taos> SELECT ts, d FROM TEXT(ts TIMESTAMP, d DECIMAL(10,2)) VALUES ('2024-01-01 00:00:00', NULL) t_dec1 WHERE d IS NULL;
+           ts            |          d           |
+=================================================
+ 2024-01-01 00:00:00.000 | NULL                 |
+
+taos> SELECT d FROM TEXT(d DECIMAL(10,2)) VALUES (3.14)(0)(99.99) t_dec2;
+
+DB error: TEXT source requires the first column to be TIMESTAMP [0x80002600] 
+taos> SELECT ts, d FROM TEXT(ts TIMESTAMP, d DECIMAL(10,2)) VALUES ('2024-01-01 00:00:00', 3.14)('2024-01-02 00:00:00', 0)('2024-01-03 00:00:00', 99.99) t_dec2 ORDER BY ts;
+           ts            |          d           |
+=================================================
+ 2024-01-01 00:00:00.000 |                 3.14 |
+ 2024-01-02 00:00:00.000 |                    0 |
+ 2024-01-03 00:00:00.000 |                99.99 |
+
+taos> SELECT SUM(d) FROM TEXT(d DECIMAL(10,2)) VALUES (3.14)(0)(99.99) t_dec3;
+
+DB error: TEXT source requires the first column to be TIMESTAMP [0x80002600] 
+taos> SELECT SUM(d) FROM TEXT(ts TIMESTAMP, d DECIMAL(10,2)) VALUES ('2024-01-01 00:00:00', 3.14)('2024-01-02 00:00:00', 0)('2024-01-03 00:00:00', 99.99) t_dec3;
+                  sum(d)                  |
+===========================================
+                                   103.13 |
+
+taos> SELECT ts, d FROM TEXT(ts TIMESTAMP, d DECIMAL(38,10)) VALUES ('2024-01-01 00:00:00', 12345.6789) ('2024-01-02 00:00:00', NULL) t_dec4 ORDER BY ts;
+           ts            |                    d                     |
+=====================================================================
+ 2024-01-01 00:00:00.000 |                         12345.6789000000 |
+ 2024-01-02 00:00:00.000 | NULL                                     |
+
+taos> SELECT v FROM TEXT(v VARBINARY(64)) VALUES ('\x48454C4C4F')(NULL) t_vb;
+
+DB error: TEXT source requires the first column to be TIMESTAMP [0x80002600] 
+taos> SELECT ts, v FROM TEXT(ts TIMESTAMP, v VARBINARY(64)) VALUES ('2024-01-01 00:00:00', '\x48454C4C4F')('2024-01-02 00:00:00', NULL) t_vb ORDER BY ts;
+           ts            |               v                |
+===========================================================
+ 2024-01-01 00:00:00.000 | \x48454C4C4F                   |
+ 2024-01-02 00:00:00.000 | NULL                           |
+

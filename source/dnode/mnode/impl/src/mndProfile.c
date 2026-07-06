@@ -26,13 +26,18 @@
 #include "mndSecurityPolicy.h"
 #include "mndShow.h"
 #include "mndSma.h"
+#include "mndExtSource.h"
 #include "mndStb.h"
 #include "mndToken.h"
+#include "mndTxn.h"
 #include "mndUser.h"
 #include "mndView.h"
 #include "tglobal.h"
 #include "totp.h"
 #include "tversion.h"
+#ifdef USE_LIBGSASL
+#include <gsasl.h>
+#endif
 
 typedef struct {
   uint32_t id;
@@ -84,6 +89,11 @@ static void     *mndGetNextConn(SMnode *pMnode, SCacheIter *pIter);
 static void      mndCancelGetNextConn(SMnode *pMnode, void *pIter);
 static int32_t   mndProcessHeartBeatReq(SRpcMsg *pReq);
 static int32_t   mndProcessConnectReq(SRpcMsg *pReq);
+static int32_t   mndProcessSaslStepReq(SRpcMsg *pReq);
+#ifdef USE_LIBGSASL
+static int32_t   mndSaslInit(SMnode *pMnode);
+static void      mndSaslCleanup(SMnode *pMnode);
+#endif
 static int32_t   mndProcessKillQueryReq(SRpcMsg *pReq);
 static int32_t   mndProcessKillConnReq(SRpcMsg *pReq);
 static int32_t   mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -114,8 +124,13 @@ int32_t mndInitProfile(SMnode *pMnode) {
     TAOS_RETURN(code);
   }
 
+#ifdef USE_LIBGSASL
+  TAOS_CHECK_RETURN(mndSaslInit(pMnode));
+#endif
+
   mndSetMsgHandle(pMnode, TDMT_MND_HEARTBEAT, mndProcessHeartBeatReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CONNECT, mndProcessConnectReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_AUTH_SASL, mndProcessSaslStepReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_QUERY, mndProcessKillQueryReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_CONN, mndProcessKillConnReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SERVER_VERSION, mndProcessSvrVerReq);
@@ -132,6 +147,9 @@ int32_t mndInitProfile(SMnode *pMnode) {
 
 void mndCleanupProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+#ifdef USE_LIBGSASL
+  mndSaslCleanup(pMnode);
+#endif
   if (pMgmt->connCache != NULL) {
     taosCacheCleanup(pMgmt->connCache);
     pMgmt->connCache = NULL;
@@ -310,6 +328,21 @@ static int32_t verifyPassword(SUserObj* pUser, const char* inputPass) {
   (void)memcpy(currPass, pUser->passwords[0].pass, TSDB_PASSWORD_LEN);
   taosRUnLockLatch(&pUser->lock);
 
+  // A user with no legacy password hash (all-zero) must never authenticate by password: an empty
+  // supplied password would otherwise compare equal below. Such a user can only authenticate via the
+  // SASL handshake (which does not call this function). taosEncryptPass_c never yields an all-zero
+  // hash for a real password, so this rejects only the unprovisioned/zeroed sentinel.
+  bool currPassEmpty = true;
+  for (size_t i = 0; i < sizeof(currPass) - 1; i++) {
+    if (currPass[i] != 0) {
+      currPassEmpty = false;
+      break;
+    }
+  }
+  if (currPassEmpty) {
+    return TSDB_CODE_MND_AUTH_FAILURE;
+  }
+
   char pass[TSDB_PASSWORD_LEN] = {0};
   (void)memcpy(pass, inputPass, TSDB_PASSWORD_LEN);
   pass[TSDB_PASSWORD_LEN - 1] = 0;
@@ -339,7 +372,269 @@ static bool verifyTotp(SUserObj *pUser, int32_t totpCode) {
   return taosVerifyTotpCode(pUser->totpsecret, sizeof(pUser->totpsecret), totpCode, 6, 1) != 0;
 }
 
+// ----------------------------------------------------------------------------
+// SCRAM-SHA-256 application-layer authentication handshake (libgsasl).
+//
+// The single CONNECT is preceded by one or more TDMT_MND_AUTH_SASL rounds: the client and server
+// shuttle opaque SASL tokens (gsasl_step64 output) until the exchange completes, at which point the
+// server mints a short-lived one-time auth token. The client then runs the normal CONNECT carrying
+// that token, and mndProcessConnectReq trusts it instead of verifying a password. Everything is
+// leader-local because all mnode RPC is served by the leader.
+// ----------------------------------------------------------------------------
+#define MND_SASL_HANDSHAKE_TTL_MS 10000  // covers an in-flight handshake and the follow-up CONNECT
 
+#ifdef USE_LIBGSASL
+typedef struct {
+  Gsasl_session *sctx;
+  char           user[TSDB_USER_LEN];
+} SSaslSessionCache;
+
+typedef struct {
+  char user[TSDB_USER_LEN];
+} SSaslTokenCache;
+
+static void mndFreeSaslSession(void *p) {
+  SSaslSessionCache *pSess = p;
+  if (pSess != NULL && pSess->sctx != NULL) {
+    gsasl_finish(pSess->sctx);
+    pSess->sctx = NULL;
+  }
+}
+
+static void mndBinToHex(const uint8_t *in, int32_t len, char *out) {
+  static const char *hex = "0123456789abcdef";
+  for (int32_t i = 0; i < len; i++) {
+    out[i * 2] = hex[(in[i] >> 4) & 0xf];
+    out[i * 2 + 1] = hex[in[i] & 0xf];
+  }
+  out[len * 2] = 0;
+}
+
+// Supply the SCRAM secrets (never a plaintext password) for the authenticating user. The SMnode is
+// fetched from the gsasl global callback hook; the user name comes from GSASL_AUTHID parsed by gsasl.
+static int mndSaslServerCb(Gsasl *ctx, Gsasl_session *sctx, Gsasl_property prop) {
+  SMnode *pMnode = gsasl_callback_hook_get(ctx);
+  if (pMnode == NULL) return GSASL_NO_CALLBACK;
+
+  if (prop != GSASL_SCRAM_ITER && prop != GSASL_SCRAM_SALT && prop != GSASL_SCRAM_STOREDKEY &&
+      prop != GSASL_SCRAM_SERVERKEY) {
+    return GSASL_NO_CALLBACK;
+  }
+
+  const char *authid = gsasl_property_fast(sctx, GSASL_AUTHID);
+  if (authid == NULL) return GSASL_NO_AUTHID;
+
+  SUserObj *pUser = NULL;
+  if (mndAcquireUser(pMnode, authid, &pUser) != 0 || pUser == NULL) return GSASL_NO_AUTHID;
+  if (pUser->scram.algo != TSDB_SCRAM_ALGO_SHA256) {
+    mndReleaseUser(pMnode, pUser);
+    return GSASL_NO_PASSWORD;  // user has no SCRAM credentials -> client falls back to legacy auth
+  }
+
+  int rc = GSASL_OK;
+  if (prop == GSASL_SCRAM_ITER) {
+    char iter[16] = {0};
+    (void)snprintf(iter, sizeof(iter), "%d", pUser->scram.iter);
+    (void)gsasl_property_set(sctx, GSASL_SCRAM_ITER, iter);
+  } else if (prop == GSASL_SCRAM_SALT) {
+    char  *b64 = NULL;
+    size_t b64len = 0;
+    if (gsasl_base64_to((const char *)pUser->scram.salt, pUser->scram.saltLen, &b64, &b64len) == GSASL_OK) {
+      (void)gsasl_property_set(sctx, GSASL_SCRAM_SALT, b64);
+      gsasl_free(b64);
+    } else {
+      rc = GSASL_MALLOC_ERROR;
+    }
+  } else {
+    // gsasl's SCRAM server base64-decodes GSASL_SCRAM_STOREDKEY / GSASL_SCRAM_SERVERKEY
+    // (lib/scram/server.c: extract_serverkey -> gsasl_base64_from), so they MUST be supplied
+    // base64-encoded -- not hex -- or the StoredKey comparison fails with an auth error.
+    const uint8_t *key = (prop == GSASL_SCRAM_STOREDKEY) ? pUser->scram.storedKey : pUser->scram.serverKey;
+    char          *b64 = NULL;
+    size_t         b64len = 0;
+    if (gsasl_base64_to((const char *)key, TSDB_SCRAM_KEY_LEN, &b64, &b64len) == GSASL_OK) {
+      (void)gsasl_property_set(sctx, prop, b64);
+      gsasl_free(b64);
+    } else {
+      rc = GSASL_MALLOC_ERROR;
+    }
+  }
+
+  mndReleaseUser(pMnode, pUser);
+  return rc;
+}
+
+static int32_t mndSaslInit(SMnode *pMnode) {
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  Gsasl        *ctx = NULL;
+  if (gsasl_init(&ctx) != GSASL_OK) {
+    mError("failed to init gsasl context");
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  gsasl_callback_hook_set(ctx, pMnode);
+  gsasl_callback_set(ctx, mndSaslServerCb);
+  pMgmt->saslCtx = ctx;
+
+  int32_t ttl = MND_SASL_HANDSHAKE_TTL_MS;
+  pMgmt->saslSessCache =
+      taosCacheInit(TSDB_DATA_TYPE_BINARY, ttl, false, (__cache_free_fn_t)mndFreeSaslSession, "sasl-sess");
+  pMgmt->saslTokenCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, ttl, false, NULL, "sasl-token");
+  if (pMgmt->saslSessCache == NULL || pMgmt->saslTokenCache == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return 0;
+}
+
+static void mndSaslCleanup(SMnode *pMnode) {
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  if (pMgmt->saslSessCache != NULL) {
+    taosCacheCleanup(pMgmt->saslSessCache);
+    pMgmt->saslSessCache = NULL;
+  }
+  if (pMgmt->saslTokenCache != NULL) {
+    taosCacheCleanup(pMgmt->saslTokenCache);
+    pMgmt->saslTokenCache = NULL;
+  }
+  if (pMgmt->saslCtx != NULL) {
+    gsasl_done((Gsasl *)pMgmt->saslCtx);
+    pMgmt->saslCtx = NULL;
+  }
+}
+#endif  // USE_LIBGSASL
+
+// Validate (and consume, one-time) a SASL auth token previously issued to `user`. Returns 0 when the
+// token is valid for the user; an error code otherwise. Available regardless of USE_LIBGSASL so the
+// CONNECT path links cleanly; without gsasl the token cache is never populated so this always fails.
+static int32_t mndConsumeSaslToken(SMnode *pMnode, const char *user, const char *token) {
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  if (pMgmt->saslTokenCache == NULL || token == NULL || token[0] == 0) {
+    return TSDB_CODE_MND_AUTH_FAILURE;
+  }
+#ifdef USE_LIBGSASL
+  SSaslTokenCache *pTok = taosCacheAcquireByKey(pMgmt->saslTokenCache, token, strlen(token));
+  if (pTok == NULL) return TSDB_CODE_MND_SASL_SESSION_EXPIRED;
+  int32_t code = (strcmp(pTok->user, user) == 0) ? 0 : TSDB_CODE_MND_AUTH_FAILURE;
+  taosCacheRelease(pMgmt->saslTokenCache, (void **)&pTok, true);  // one-time use: drop on read
+  return code;
+#else
+  return TSDB_CODE_MND_AUTH_FAILURE;
+#endif
+}
+
+static int32_t mndProcessSaslStepReq(SRpcMsg *pReq) {
+#ifndef USE_LIBGSASL
+  mError("SASL handler called but USE_LIBGSASL is not defined");
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#else
+  int32_t       code = 0, lino = 0;
+  SMnode       *pMnode = pReq->info.node;
+  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+  SSaslStepReq  stepReq = {0};
+  SSaslStepRsp  stepRsp = {0};
+  char         *out = NULL;
+  void         *rspBuf = NULL;
+
+  TAOS_CHECK_GOTO(tDeserializeSSaslStepReq(pReq->pCont, pReq->contLen, &stepReq), &lino, _OVER);
+
+  mDebug("SASL step req: user=%s authId=%s mech=%s dataLen=%d", stepReq.user, stepReq.authId, stepReq.mech, stepReq.dataLen);
+
+  SSaslSessionCache *pSess = NULL;
+  Gsasl_session     *sctx = NULL;
+  char               authId[TSDB_SASL_AUTH_ID_LEN] = {0};
+
+  if (stepReq.authId[0] == 0) {
+    // first round: if the user exists but has no SCRAM credentials, tell the client to fall back to
+    // legacy password auth (OPS_NOT_SUPPORT). Unknown users fall through and fail in the handshake.
+    // This pre-check re-acquires the user (the gsasl callback acquires it again to read the secrets):
+    // a benign TOCTOU -- if ALTER USER changes the creds in between, the handshake just fails and the
+    // client retries, with no risk of corruption or auth bypass.
+    SUserObj *pCheck = NULL;
+    if (mndAcquireUser(pMnode, stepReq.user, &pCheck) == 0 && pCheck != NULL) {
+      int8_t algo = pCheck->scram.algo;
+      mndReleaseUser(pMnode, pCheck);
+      if (algo != TSDB_SCRAM_ALGO_SHA256) {
+        mDebug("SASL: user %s has no SCRAM credentials (algo=%d), returning OPS_NOT_SUPPORT", stepReq.user, algo);
+        TAOS_CHECK_GOTO(TSDB_CODE_OPS_NOT_SUPPORT, &lino, _OVER);
+      }
+    }
+    // start a server session and assign a handshake id
+    if (gsasl_server_start((Gsasl *)pMgmt->saslCtx, stepReq.mech, &sctx) != GSASL_OK) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_AUTH_FAILURE, &lino, _OVER);
+    }
+    char nonce[16] = {0};
+    if (gsasl_nonce(nonce, sizeof(nonce)) != GSASL_OK) {
+      gsasl_finish(sctx);
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_AUTH_FAILURE, &lino, _OVER);
+    }
+    mndBinToHex((uint8_t *)nonce, sizeof(nonce), authId);
+
+    SSaslSessionCache sess = {.sctx = sctx};
+    tstrncpy(sess.user, stepReq.user, sizeof(sess.user));
+    pSess = taosCachePut(pMgmt->saslSessCache, authId, strlen(authId), &sess, sizeof(sess), MND_SASL_HANDSHAKE_TTL_MS);
+    if (pSess == NULL) {
+      gsasl_finish(sctx);
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _OVER);
+    }
+  } else {
+    tstrncpy(authId, stepReq.authId, sizeof(authId));
+    pSess = taosCacheAcquireByKey(pMgmt->saslSessCache, authId, strlen(authId));
+    if (pSess == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_SASL_SESSION_EXPIRED, &lino, _OVER);
+    }
+    sctx = pSess->sctx;
+  }
+
+  int rc = gsasl_step64(sctx, stepReq.data ? (const char *)stepReq.data : "", &out);
+  if (rc != GSASL_OK && rc != GSASL_NEEDS_MORE) {
+    taosCacheRelease(pMgmt->saslSessCache, (void **)&pSess, true);  // failed -> drop session
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_AUTH_FAILURE, &lino, _OVER);
+  }
+
+  tstrncpy(stepRsp.authId, authId, sizeof(stepRsp.authId));
+  if (out != NULL) {
+    stepRsp.data = (uint8_t *)out;
+    stepRsp.dataLen = (int32_t)strlen(out) + 1;
+  }
+
+  if (rc == GSASL_OK) {
+    // handshake complete: mint a one-time auth token bound to the user
+    stepRsp.done = 1;
+    char tnonce[24] = {0};
+    // Fail closed: if we cannot mint a token (RNG failure), do NOT report done=1 with an empty token.
+    // An empty token would either drop the client to legacy auth or, under forceScram, lock out a user
+    // who actually completed SCRAM. Drop the session and surface an error so the client retries.
+    if (gsasl_nonce(tnonce, sizeof(tnonce)) != GSASL_OK) {
+      taosCacheRelease(pMgmt->saslSessCache, (void **)&pSess, true);  // failed -> drop session
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_AUTH_FAILURE, &lino, _OVER);
+    }
+    mndBinToHex((uint8_t *)tnonce, sizeof(tnonce), stepRsp.authToken);
+    SSaslTokenCache tok = {0};
+    tstrncpy(tok.user, pSess->user, sizeof(tok.user));
+    void *p = taosCachePut(pMgmt->saslTokenCache, stepRsp.authToken, strlen(stepRsp.authToken), &tok, sizeof(tok),
+                           MND_SASL_HANDSHAKE_TTL_MS);
+    if (p != NULL) taosCacheRelease(pMgmt->saslTokenCache, &p, false);
+    taosCacheRelease(pMgmt->saslSessCache, (void **)&pSess, true);  // done -> drop session
+  } else {
+    taosCacheRelease(pMgmt->saslSessCache, (void **)&pSess, false);
+  }
+
+  int32_t rspLen = tSerializeSSaslStepRsp(NULL, 0, &stepRsp);
+  if (rspLen < 0) TAOS_CHECK_GOTO(rspLen, &lino, _OVER);
+  rspBuf = rpcMallocCont(rspLen);
+  if (rspBuf == NULL) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  if (tSerializeSSaslStepRsp(rspBuf, rspLen, &stepRsp) < 0) TAOS_CHECK_GOTO(terrno, &lino, _OVER);
+  pReq->info.rsp = rspBuf;
+  pReq->info.rspLen = rspLen;
+
+_OVER:
+  if (out != NULL) gsasl_free(out);
+  tFreeSSaslStepReq(&stepReq);
+  if (code != 0) {
+    mError("failed to process sasl step req at line %d since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+#endif
+}
 
 static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   int32_t          code = 0, lino = 0;
@@ -370,11 +665,32 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   mndGetUserLoginInfo(user, &li);
   TAOS_CHECK_GOTO(mndCheckConnectPrivilege(pMnode, pUser, token, &li), &lino, _OVER);
 
-  if (token != NULL || tsMndSkipGrant) {
+  bool saslAuthed = false;
+  if (connReq.saslToken[0] != 0) {
+    int32_t saslCode = mndConsumeSaslToken(pMnode, user, connReq.saslToken);
+    if (saslCode == 0) {
+      saslAuthed = true;
+    } else if (saslCode == TSDB_CODE_MND_SASL_SESSION_EXPIRED) {
+      // The token was minted on a former leader and lost in a leadership change between the SASL
+      // handshake and this CONNECT. Surface SESSION_EXPIRED so the client redoes the handshake against
+      // the current leader, instead of falling through to verifyPassword -- which fails with
+      // AUTH_FAILURE because the client cleared the password once it presented a token.
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_SASL_SESSION_EXPIRED, &lino, _OVER);
+    }
+    // any other failure (token/user mismatch) -> genuine auth failure handled by the chain below
+  }
+
+  if (saslAuthed || token != NULL || tsMndSkipGrant) {
     li.lastLoginTime= now;
     if (connReq.connType != CONN_TYPE__AUTH_TEST) {
       mndSetUserLoginInfo(user, &li);
     }
+  } else if (tsForceScram && pUser->scram.algo == TSDB_SCRAM_ALGO_SHA256) {
+    // Opt-in hardening (forceScram): a user provisioned with SCRAM creds may ONLY authenticate via a
+    // completed SCRAM handshake, so a captured password hash cannot be replayed over legacy CONNECT.
+    // Default off: SCRAM users fall through to verifyPassword so non-SCRAM clients (other platforms,
+    // third-party connectors, REST) keep working.
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_AUTH_FAILURE, &lino, _OVER);
   } else if ((code = verifyPassword(pUser, connReq.passwd)) == TSDB_CODE_MND_AUTH_FAILURE) {
     if (pUser->failedLoginAttempts >= 0) {
       if (li.failedLoginCount >= pUser->failedLoginAttempts) {
@@ -398,7 +714,9 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     if (connReq.connType != CONN_TYPE__AUTH_TEST) {
       mndSetUserLoginInfo(user, &li);
     }
-  } 
+  }
+
+  memset(connReq.passwd, 0, sizeof(connReq.passwd));
 
   if (connReq.db[0] != 0) {
     char db[TSDB_DB_FNAME_LEN] = {0};
@@ -409,7 +727,6 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
         TAOS_CHECK_GOTO(TSDB_CODE_MND_DB_NOT_EXIST, &lino, _OVER);
       }
     }
-
     TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, user,RPC_MSG_TOKEN(pReq), MND_OPER_USE_DB, pDb), NULL, _OVER);
   }
 
@@ -842,6 +1159,51 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
         }
         break;
       }
+      case HEARTBEAT_KEY_TXN_KEEPALIVE: {
+        if (kv->value != NULL && kv->valueLen >= (int32_t)sizeof(txn_id_t)) {
+          txn_id_t txnId = *(txn_id_t *)kv->value;
+          if (txnId > 0) {
+            mndTxnRefreshKeepalive(pMnode, txnId);
+            // Notify the client if this txn was forcibly rolled back due to timeout.
+            // The client will transition to UTXN_STAGE_TIMEOUT_KILLED and stop keepalive.
+            if (mndTxnIsTimeoutKilled(pMnode, txnId)) {
+              txn_id_t *pKilledId = (txn_id_t *)taosMemoryMalloc(sizeof(txn_id_t));
+              if (pKilledId != NULL) {
+                *pKilledId = txnId;
+                SKv killedKv = {
+                    .key = HEARTBEAT_KEY_TXN_KILLED, .valueLen = (int32_t)sizeof(txn_id_t), .value = pKilledId};
+                if (taosArrayPush(hbRsp.info, &killedKv) == NULL) {
+                  taosMemoryFree(pKilledId);
+                  mWarn("txn:%" PRIi64 ", failed to push TXN_KILLED kv into hbRsp", txnId);
+                } else {
+                  mInfo("txn:%" PRIi64 ", notifying client of timeout rollback via HEARTBEAT_KEY_TXN_KILLED", txnId);
+                }
+              }
+            }
+          }
+        }
+        break;
+      }
+#ifdef TD_ENTERPRISE
+      case HEARTBEAT_KEY_EXTSOURCE: {
+        if (!needCheck) { break; }
+        if (kv->valueLen != sizeof(int64_t)) {
+          mError("invalid HEARTBEAT_KEY_EXTSOURCE kv len:%d, expected 8", kv->valueLen);
+          break;
+        }
+        int64_t clientGlobalVer = (int64_t)be64toh(*(uint64_t *)kv->value);
+        void   *rspMsg = NULL;
+        int32_t rspLen = 0;
+        (void)mndValidateExtSourceInfo(pMnode, clientGlobalVer, &rspMsg, &rspLen);
+        if (rspMsg && rspLen > 0) {
+          SKv kv1 = {.key = HEARTBEAT_KEY_EXTSOURCE, .valueLen = rspLen, .value = rspMsg};
+          if (taosArrayPush(hbRsp.info, &kv1) == NULL) {
+            mError("failed to put kv into array, but continue at this heartbeat");
+          }
+        }
+        break;
+      }
+#endif
       default:
         mError("invalid kv key:%d", kv->key);
         hbRsp.status = TSDB_CODE_APP_ERROR;

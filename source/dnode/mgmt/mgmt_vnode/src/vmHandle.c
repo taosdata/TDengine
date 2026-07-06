@@ -23,6 +23,11 @@
 
 extern taos_counter_t *tsInsertCounter;
 
+#ifdef TD_ENTERPRISE
+// Forward declaration for enterprise function
+extern int32_t vnodeGetCompactProgress(SVnode *pVnode, int32_t compactId, SQueryCompactProgressRsp *pRsp);
+#endif
+
 // Forward declaration for function defined in metrics.c
 extern int32_t addWriteMetrics(int32_t vgId, int32_t dnodeId, int64_t clusterId, const char *dnodeEp,
                                const char *dbname, const SRawWriteMetrics *pRawMetrics);
@@ -54,6 +59,21 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
     pIter = taosHashIterate(pMgmt->runngingHash, pIter);
   }
 
+  /*
+  pIter = taosHashIterate(pMgmt->closedHash, NULL);
+  while (pIter) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode == NULL || *ppVnode == NULL) continue;
+
+    SVnodeObj *pVnode = *ppVnode;
+    SVnodeLoad vload = {.vgId = pVnode->vgId, .syncState = TAOS_SYNC_STATE_OFFLINE};
+
+    if (taosArrayPush(pInfo->pVloads, &vload) == NULL) {
+      dError("failed to push vnode load");
+    }
+    pIter = taosHashIterate(pMgmt->closedHash, pIter);
+  }
+*/
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
 }
 
@@ -71,6 +91,32 @@ void vmSetVnodeSyncTimeout(SVnodeMgmt *pMgmt) {
       dError("vgId:%d, failed to vnodeSetSyncTimeout", pVnode->vgId);
     }
     pIter = taosHashIterate(pMgmt->runngingHash, pIter);
+  }
+
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+}
+
+void vmCollectTxnIdleQueries(SVnodeMgmt *pMgmt, SArray **ppQueries) {
+  // Defense-in-depth: scan for orphan non-replicated txns whose MNode STrans
+  // ROLLBACK was never delivered (extremely rare given TRN_POLICY_RETRY).
+  // Primary path (Client HB → MNode timeout → STrans) is robust enough that
+  // once-per-hour is more than sufficient for this fallback.
+  static int64_t lastRunMs = 0;
+  int64_t        now = taosGetTimestampMs();
+  if (now - lastRunMs < TSDB_ORPHAN_TXN_SCAN_MS) return;
+  lastRunMs = now;
+
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+
+  void *pIter = NULL;
+  while ((pIter = taosHashIterate(pMgmt->runngingHash, pIter))) {
+    SVnodeObj **ppVnode = pIter;
+    if (ppVnode != NULL && *ppVnode != NULL && !(*ppVnode)->failed) {
+      int32_t scanCode = vnodeCollectIdleTxns((*ppVnode)->pImpl, ppQueries);
+      if (scanCode != 0) {
+        dWarn("vgId:%d, vnodeCollectIdleTxns failed: %s", (*ppVnode)->vgId, tstrerror(scanCode));
+      }
+    }
   }
 
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
@@ -869,7 +915,7 @@ static int32_t vmRetrieveMountStbs(SVnodeMgmt *pMgmt, SRetrieveMountPathReq *pRe
         tb_uid_t    suid = 0;
         SMeta      *pMeta = vnode.pMeta;
 
-        metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
+        metaReaderDoInit(&mr, pMeta, META_READER_LOCK, 0);
         if (!suidList && !(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
           TSDB_CHECK_CODE(terrno, lino, _exit0);
         }
@@ -1868,94 +1914,6 @@ _OVER:
 
 extern int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnodeInfo *pInfo);
 
-#ifdef TD_ENTERPRISE
-extern int32_t vnodeGetCompactProgress(SVnode *pVnode, int32_t compactId, SQueryCompactProgressRsp *pRsp);
-#endif
-
-
-int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  int32_t                        code = 0;
-  SDnodeQueryCompactProgressReq  req = {0};
-  SDnodeQueryCompactProgressRsp  rsp = {0};
-  int8_t                        *pRsp = NULL;
-  int32_t                        rspLen = 0;
-
-  code = tDeserializeSDnodeQueryCompactProgressReq(pMsg->pCont, pMsg->contLen, &req);
-  if (code != 0) {
-    dError("dnode:%d, failed to deserialize dnode-query-compact-progress req, code:%s",
-           pMgmt->pData->dnodeId, tstrerror(code));
-    goto _OVER;
-  }
-
-  dDebug("dnode:%d, receive dnode-query-compact-progress req, compactId:%d", pMgmt->pData->dnodeId, req.compactId);
-
-  rsp.dnodeId = pMgmt->pData->dnodeId;
-
-  SArray *pProgressArray = taosArrayInit(16, sizeof(SQueryCompactProgressRsp));
-  if (pProgressArray == NULL) {
-    code = terrno;
-    goto _OVER;
-  }
-
-  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
-  SArray *pVnodes = taosArrayInit(taosHashGetSize(pMgmt->runngingHash), sizeof(SVnodeObj *));
-  if (pVnodes) {
-    void *pIter = taosHashIterate(pMgmt->runngingHash, NULL);
-    while (pIter) {
-      SVnodeObj **ppVnode = pIter;
-      if (*ppVnode && (*ppVnode)->pImpl) {
-        taosArrayPush(pVnodes, ppVnode);
-      }
-      pIter = taosHashIterate(pMgmt->runngingHash, pIter);
-    }
-  }
-  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
-
-  if (pVnodes) {
-    int32_t numOfVnodes = (int32_t)taosArrayGetSize(pVnodes);
-    for (int32_t i = 0; i < numOfVnodes; i++) {
-      SVnodeObj **ppVnode = taosArrayGet(pVnodes, i);
-      SVnodeObj  *pVnode = *ppVnode;
-      if (pVnode == NULL || pVnode->failed || pVnode->pImpl == NULL) continue;
-#ifdef TD_ENTERPRISE
-      SQueryCompactProgressRsp vnodeRsp = {0};
-      vnodeRsp.dnodeId = pMgmt->pData->dnodeId;
-      if (vnodeGetCompactProgress(pVnode->pImpl, req.compactId, &vnodeRsp) == 0 && vnodeRsp.compactId != 0) {
-        if (taosArrayPush(pProgressArray, &vnodeRsp) == NULL) {
-          dError("dnode:%d, vgId:%d, failed to push compact progress", pMgmt->pData->dnodeId, pVnode->vgId);
-        }
-      }
-#endif
-    }
-    taosArrayDestroy(pVnodes);
-  }
-
-  rsp.numOfVnodes   = (int32_t)taosArrayGetSize(pProgressArray);
-  rsp.vnodeProgress = (rsp.numOfVnodes > 0) ? (SQueryCompactProgressRsp *)taosArrayGet(pProgressArray, 0) : NULL;
-
-  dInfo("dnode:%d, send dnode-query-compact-progress rsp, numOfVnodes:%d", rsp.dnodeId, rsp.numOfVnodes);
-
-  rspLen = tSerializeSDnodeQueryCompactProgressRsp(NULL, 0, &rsp);
-  if (rspLen < 0) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    taosArrayDestroy(pProgressArray);
-    goto _OVER;
-  }
-  pRsp = rpcMallocCont(rspLen);
-  if (!pRsp) {
-    code = terrno;
-    taosArrayDestroy(pProgressArray);
-    goto _OVER;
-  }
-  tSerializeSDnodeQueryCompactProgressRsp(pRsp, rspLen, &rsp);
-  pMsg->info.rsp    = pRsp;
-  pMsg->info.rspLen = rspLen;
-  taosArrayDestroy(pProgressArray);
-
-_OVER:
-  return code;
-}
-
 int32_t vmProcessDnodeQuerySnapSendProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t                         code = 0;
   SDnodeQuerySnapSendProgressRsp  rsp = {0};
@@ -2019,6 +1977,95 @@ _OVER:
   return code;
 }
 
+int32_t vmProcessDnodeQueryCompactProgressReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t                       code = 0;
+  SDnodeQueryCompactProgressReq req = {0};
+  void                         *pRsp = NULL;
+  SVnodeObj                   **ppVnodes = NULL;
+  int32_t                       numOfVnodes = 0;
+
+  code = tDeserializeSDnodeQueryCompactProgressReq(pMsg->pCont, pMsg->contLen, &req);
+  if (code != 0) {
+    dError("dnode:%d, failed to deserialize dnode-query-compact-progress req, code:%s",
+           pMgmt->pData->dnodeId, tstrerror(code));
+    goto _exit;
+  }
+
+  dDebug("dnode:%d, receive dnode-query-compact-progress req, compactId:%d", pMgmt->pData->dnodeId, req.compactId);
+
+  // collect compact progress from all running vnodes
+  SArray *pProgressArray = taosArrayInit(16, sizeof(SQueryCompactProgressRsp));
+  if (pProgressArray == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  code = vmGetVnodeListFromHash(pMgmt, &numOfVnodes, &ppVnodes);
+  if (code != 0) {
+    dError("dnode:%d, failed to get vnode list, code:%s", pMgmt->pData->dnodeId, tstrerror(code));
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < numOfVnodes; i++) {
+    SVnodeObj *pVnode = ppVnodes[i];
+    if (pVnode == NULL) {
+      continue;
+    }
+    if (pVnode->failed || pVnode->pImpl == NULL) {
+      vmReleaseVnode(pMgmt, pVnode);
+      continue;
+    }
+#ifdef TD_ENTERPRISE
+    SQueryCompactProgressRsp vnodeRsp = {0};
+    vnodeRsp.dnodeId = pMgmt->pData->dnodeId;
+    if (vnodeGetCompactProgress(pVnode->pImpl, req.compactId, &vnodeRsp) == 0 && vnodeRsp.compactId != 0) {
+      if (taosArrayPush(pProgressArray, &vnodeRsp) == NULL) {
+        dError("dnode:%d, vgId:%d, failed to push compact progress", pMgmt->pData->dnodeId, pVnode->vgId);
+      }
+    }
+#endif
+    vmReleaseVnode(pMgmt, pVnode);
+  }
+  taosMemoryFree(ppVnodes);
+
+  SDnodeQueryCompactProgressRsp rsp = {0};
+  rsp.dnodeId       = pMgmt->pData->dnodeId;
+  rsp.numOfVnodes   = (int32_t)taosArrayGetSize(pProgressArray);
+  rsp.vnodeProgress = (rsp.numOfVnodes > 0) ? (SQueryCompactProgressRsp *)taosArrayGet(pProgressArray, 0) : NULL;
+
+  dInfo("dnode:%d, send dnode-query-compact-progress rsp, numOfVnodes:%d", rsp.dnodeId, rsp.numOfVnodes);
+
+  int32_t rspLen = tSerializeSDnodeQueryCompactProgressRsp(NULL, 0, &rsp);
+  if (rspLen < 0) {
+    code = rspLen;
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  if (tSerializeSDnodeQueryCompactProgressRsp(pRsp, rspLen, &rsp) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    rpcFreeCont(pRsp);
+    pRsp = NULL;
+    taosArrayDestroy(pProgressArray);
+    goto _exit;
+  }
+
+  taosArrayDestroy(pProgressArray);
+  pMsg->info.rsp    = pRsp;
+  pMsg->info.rspLen = rspLen;
+
+_exit:
+  return code;
+}
+
 SArray *vmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(32, sizeof(SMgmtHandle));
@@ -2035,6 +2082,9 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLE_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_VSUBTABLES_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_VSTB_REF_DBS, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_CHECK_HAS_CTB, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_VTABLE_REF_RESOLVE, vmPutMsgToQueryQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_VTB_TAG_COND, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLE_CFG, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_BATCH_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TABLES_META, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
@@ -2052,7 +2102,6 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_SUBSCRIBE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_DELETE_SUB, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_COMMIT_OFFSET, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_SEEK, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_CONSUME, vmPutMsgToQueryQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_VG_WALINFO, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_TMQ_VG_COMMITTEDINFO, vmPutMsgToFetchQueue, 0) == NULL) goto _OVER;
@@ -2092,10 +2141,12 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_MOUNT_VNODE, vmPutMsgToMultiMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_RETRIEVE_MOUNT_PATH, vmPutMsgToMultiMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_COMPACT_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_VNODE_TYPE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CHECK_VNODE_LEARNER_CATCHUP, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_SNAP_SEND_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_DND_QUERY_COMPACT_PROGRESS, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_CLOSE_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_OPEN_VNODE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CONFIG_CHANGE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_ELECTBASELINE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
@@ -2125,6 +2176,10 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL, vmPutMsgToStreamReaderQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_AUDIT_RECORD, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+
+  // Transaction messages
+  if (dmSetMgmtHandle(pArray, TDMT_VND_TXN_COMMIT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_TXN_ROLLBACK, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
   code = 0;
 
@@ -2175,4 +2230,104 @@ void vmUpdateMetricsInfo(SVnodeMgmt *pMgmt, int64_t clusterId) {
   }
 
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+}
+int32_t vmProcessCloseVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SCloseVnodeReq req = {0};
+  if (tDeserializeSCloseVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return terrno;
+  }
+
+  int32_t vgId = req.vgId;
+  dInfo("vgId:%d, start to close vnode", vgId);
+
+  SVnodeObj *pVnode = vmAcquireVnodeImpl(pMgmt, vgId, false);
+  if (pVnode == NULL) {
+    dError("vgId:%d, failed to close since vnode not found", vgId);
+    tFreeSCloseVnodeReq(&req);
+    terrno = TSDB_CODE_VND_NOT_EXIST;
+    return terrno;
+  }
+
+  vmCloseVnode(pMgmt, pVnode, false, true);
+
+  dInfo("vgId:%d, vnode is closed", vgId);
+  tFreeSCloseVnodeReq(&req);
+  return 0;
+}
+
+int32_t vmProcessOpenVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SOpenVnodeReq req = {0};
+  if (tDeserializeSOpenVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return terrno;
+  }
+
+  int32_t vgId = req.vgId;
+  dInfo("vgId:%d, start to open vnode", vgId);
+
+  // Check if vnode is already running
+  SVnodeObj *pExist = vmAcquireVnodeImpl(pMgmt, vgId, false);
+  if (pExist != NULL) {
+    vmReleaseVnode(pMgmt, pExist);
+    dError("vgId:%d, vnode is already open", vgId);
+    tFreeSOpenVnodeReq(&req);
+    terrno = TSDB_CODE_VND_ALREADY_EXIST;
+    return terrno;
+  }
+
+  // Check if vnode is in closedHash
+  SVnodeObj *pClosed = NULL;
+  (void)taosThreadRwlockRdlock(&pMgmt->hashLock);
+  int32_t r = taosHashGetDup(pMgmt->closedHash, &vgId, sizeof(int32_t), (void *)&pClosed);
+  (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
+
+  if (r != 0 || pClosed == NULL) {
+    dError("vgId:%d, failed to open since vnode is not in closed state", vgId);
+    tFreeSOpenVnodeReq(&req);
+    terrno = TSDB_CODE_VND_NOT_CLOSED;
+    return terrno;
+  }
+
+  int32_t diskPrimary = pClosed->diskPrimary;
+  int32_t vgVersion = pClosed->vgVersion;
+
+  char path[TSDB_FILENAME_LEN] = {0};
+  snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vgId);
+
+  dInfo("vgId:%d, begin to open vnode at %s", vgId, path);
+  SVnode *pImpl = vnodeOpen(path, diskPrimary, pMgmt->pTfs, NULL, pMgmt->msgCb, false);
+  if (pImpl == NULL) {
+    dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
+    tFreeSOpenVnodeReq(&req);
+    return terrno;
+  }
+
+  SWrapperCfg wrapperCfg = {
+      .vgId = vgId,
+      .vgVersion = vgVersion,
+      .dropped = 0,
+      .diskPrimary = diskPrimary,
+  };
+  snprintf(wrapperCfg.path, sizeof(wrapperCfg.path), "%s", path);
+
+  if (vmOpenVnode(pMgmt, &wrapperCfg, pImpl) != 0) {
+    dError("vgId:%d, failed to open vnode mgmt since %s", vgId, terrstr());
+    vnodeClose(pImpl);
+    tFreeSOpenVnodeReq(&req);
+    return terrno;
+  }
+
+  if (vnodeStart(pImpl) != 0) {
+    dError("vgId:%d, failed to start vnode since %s", vgId, terrstr());
+    tFreeSOpenVnodeReq(&req);
+    return terrno;
+  }
+
+  // Note: vmOpenVnode already called vmUnRegisterClosedState which frees pClosed
+  // and removes it from closedHash. Do NOT access pClosed after vmOpenVnode.
+
+  dInfo("vgId:%d, vnode is opened successfully", vgId);
+  tFreeSOpenVnodeReq(&req);
+  return 0;
 }

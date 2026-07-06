@@ -20,6 +20,12 @@ CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
 BOOLEAN_COL = [ BOOL_COL, ]
 TS_TYPE_COL = [ TS_COL, ]
 
+def get_sys_table_count(db_name):
+    tdSql.query(
+        f"select table_name from information_schema.ins_tables where db_name = '{db_name}'"
+    )
+    return tdSql.getRows()
+
 class TestUnionBugs:
 
     def setup_class(cls):
@@ -570,7 +576,8 @@ class TestUnionBugs:
         tdSql.query(f"select last(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
         tdSql.error(f"select irate(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
         tdSql.error(f"select elapsed(ts) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
-        tdSql.error(f"select diff(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
+        tdSql.query(f"select diff(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
+        tdSql.checkRows(14)
         tdSql.error(f"select derivative(c1, 1s, 0) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
 
     def __test_error(self, dbname="db"):
@@ -728,9 +735,11 @@ class TestUnionBugs:
         sql = "select 'asd' union all select 'asdasd'"
         tdSql.query(sql, queryTimes=1)
         tdSql.checkRows(2)
+        info_tables = get_sys_table_count("information_schema")
+        perf_tables = get_sys_table_count("performance_schema")
         sql = "select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, stable_name `TABLE_NAME`, 'TABLE' `TABLE_TYPE`, table_comment `REMARKS` from information_schema.ins_stables union all select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, table_name `TABLE_NAME`,  case when `type`='SYSTEM_TABLE' then 'TABLE'       when `type`='NORMAL_TABLE' then 'TABLE'       when `type`='CHILD_TABLE' then 'TABLE'       else 'UNKNOWN'  end `TABLE_TYPE`, table_comment `REMARKS` from information_schema.ins_tables union all select db_name `TABLE_CAT`, '' `TABLE_SCHEM`, view_name `TABLE_NAME`, 'VIEW' `TABLE_TYPE`, NULL `REMARKS` from information_schema.ins_views"
         tdSql.query(sql, queryTimes=1)
-        tdSql.checkRows(75)
+        tdSql.checkRows(info_tables + perf_tables + 8)
 
         sql = "select null union select null"
         tdSql.query(sql, queryTimes=1)

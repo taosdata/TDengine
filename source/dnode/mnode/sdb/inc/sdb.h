@@ -125,7 +125,6 @@ typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
 typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
 typedef bool (*sdbTraverseFp)(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3);
 typedef int32_t (*SdbUpgradeFp)(SMnode *pMnode, int32_t version);
-typedef bool (*SdbIsUpgradedFp)(SMnode *pMnode);
 
 typedef enum {
   SDB_KEY_BINARY = 1,
@@ -192,7 +191,11 @@ typedef enum {
   SDB_XNODE_USER_PASS = 46,
   SDB_SECURITY_POLICY = 47,
   SDB_GRANT_CLS = 48,
-  SDB_MAX = 49
+  SDB_TXN = 49,
+  SDB_TXN_LOG = 50,  // compact persistent log of terminal (COMMITTED/ROLLEDBACK/ZOMBIE) non-replicated txns
+  SDB_TXN_SEQ = 51,
+  SDB_EXT_SOURCE = 52,  // federated query: external data source metadata
+  SDB_MAX = 53
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -240,7 +243,6 @@ typedef struct SSdb {
   SdbDecodeFp        decodeFps[SDB_MAX];
   SdbValidateFp      validateFps[SDB_MAX];
   SdbUpgradeFp       upgradeFps[SDB_MAX];
-  SdbIsUpgradedFp    isUpgradedFps[SDB_MAX];
   TdThreadMutex      filelock;
   bool               encrypted;
 } SSdb;
@@ -263,7 +265,6 @@ typedef struct {
   SdbDeleteFp        deleteFp;
   SdbValidateFp      validateFp;
   SdbUpgradeFp       upgradeFp;
-  SdbIsUpgradedFp    isUpgradedFp;
 } SSdbTable;
 
 typedef struct SSdbOpt {
@@ -305,7 +306,6 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table);
  */
 int32_t sdbDeploy(SSdb *pSdb);
 int32_t sdbUpgrade(SSdb *pSdb, int32_t version);
-bool    sdbIsUpgraded(SSdb *pSdb);
 /**
  * @brief prepare the initial rows of sdb.
  *

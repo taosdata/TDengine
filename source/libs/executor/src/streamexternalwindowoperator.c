@@ -598,7 +598,7 @@ static int32_t mergeAlignExtWinProjectDo(SOperatorInfo* pOperator, SResultRowInf
   int32_t                  code = 0, lino = 0;
   
   TAOS_CHECK_EXIT(projectApplyFunctions(pExprSup->pExprInfo, pResultBlock, pBlock, pExprSup->pCtx, pExprSup->numOfExprs, NULL,
-                        GET_STM_RTINFO(pOperator->pTaskInfo)));
+                        GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo));
 
   TAOS_CHECK_EXIT(mergeAlignExtWinBuildWinRowIdx(pOperator, pBlock, pResultBlock));
 
@@ -764,8 +764,9 @@ int32_t createStreamMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstrea
 
   pExtW->primaryTsIndex = ((SColumnNode*)pPhynode->window.pTspk)->slotId;
   pExtW->mode = pPhynode->window.pProjs ? EEXT_MODE_SCALAR : EEXT_MODE_AGG;
-  pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
-  pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
+  pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
+  pPhynode->window.node.outputTsOrder = pPhynode->window.node.inputTsOrder;
+  setOptrBasicInfoOrder(&pExtW->binfo, &pPhynode->window.node);
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
@@ -1531,7 +1532,7 @@ static int32_t extWinProjectDo(SOperatorInfo* pOperator, SSDataBlock* pInputBloc
 
   qDebug("%s %s start to apply project to tmp blk", pOperator->pTaskInfo->id.str, __func__);
   TAOS_CHECK_EXIT(projectApplyFunctionsWithSelect(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx, pExprSup->numOfExprs,
-        NULL, GET_STM_RTINFO(pOperator->pTaskInfo), true, pExprSup->hasIndefRowsFunc));
+        NULL, GET_STM_RTINFO(pOperator->pTaskInfo), true, pExprSup->hasIndefRowsFunc, pOperator->pTaskInfo));
 
   TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock, extWinGetCurWinIdx(pOperator->pTaskInfo), rows));
 
@@ -1589,7 +1590,7 @@ static int32_t extWinIndefRowsDoImpl(SOperatorInfo* pOperator, SSDataBlock* pRes
   SExprSupp* pScalarSup = &pExtW->scalarSupp;
   if (pScalarSup->pExprInfo != NULL) {
     TAOS_CHECK_EXIT(projectApplyFunctions(pScalarSup->pExprInfo, pBlock, pBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
-                                 pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo)));
+                                 pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo));
   }
 
   TAOS_CHECK_EXIT(setInputDataBlock(pSup, pBlock, order, scanFlag, false));
@@ -1597,7 +1598,7 @@ static int32_t extWinIndefRowsDoImpl(SOperatorInfo* pOperator, SSDataBlock* pRes
   TAOS_CHECK_EXIT(blockDataEnsureCapacity(pRes, pRes->info.rows + pBlock->info.rows));
 
   TAOS_CHECK_EXIT(projectApplyFunctions(pSup->pExprInfo, pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
-                               pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo)));
+                               pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo));
 
 _exit:
 
@@ -1863,9 +1864,9 @@ static int32_t extWinAggOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBlock)
       if (pExtW->scalarSupp.pExprInfo) {
         SExprSupp* pScalarSup = &pExtW->scalarSupp;
         TAOS_CHECK_EXIT(projectApplyFunctions(pScalarSup->pExprInfo, pInputBlock, pInputBlock, pScalarSup->pCtx, pScalarSup->numOfExprs,
-                                     pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo)));
+                                     pExtW->pPseudoColInfo, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo));
       }
-      
+
       scalarCalc = true;
     }
 
@@ -2054,9 +2055,11 @@ static int32_t extWinInitWindowList(SExternalWindowOperator* pExtW, SExecTaskInf
     }
   }
   
-  pExtW->outputWinId = pInfo->curIdx;
+  // Window scan state is operator-local. Sibling external-window subqueries share the
+  // task-level pseudo-column cursor, so inheriting it here may skip early windows.
+  pExtW->outputWinId = 0;
   pExtW->lastWinId = -1;
-  pExtW->blkWinStartIdx = pInfo->curIdx;
+  pExtW->blkWinStartIdx = 0;
   pExtW->blkScanFlag = -1;
 
 _exit:
@@ -2081,7 +2084,13 @@ static void extWinPrepareBlockScan(SOperatorInfo* pOperator, SExternalWindowOper
   }
 
   pExtW->blkScanFlag = pBlock->info.scanFlag;
-  pExtW->blkWinStartIdx = extWinGetCurWinIdx(pOperator->pTaskInfo);
+  // Downstream stream subqueries may leave the task-global pseudo-column cursor on a later window.
+  int32_t nextWinIdx = TMAX(pExtW->outputWinId, pExtW->lastWinId);
+  if (nextWinIdx < 0) {
+    nextWinIdx = 0;
+  }
+  extWinSetCurWinIdx(pOperator, nextWinIdx);
+  pExtW->blkWinStartIdx = nextWinIdx;
   pExtW->blkRowStartIdx = 0;
 }
 
@@ -2381,8 +2390,9 @@ int32_t createStreamExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNod
 
   pExtW->primaryTsIndex = ((SColumnNode*)pPhynode->window.pTspk)->slotId;
   pExtW->mode = pPhynode->window.pProjs ? EEXT_MODE_SCALAR : (pPhynode->window.indefRowsFunc ? EEXT_MODE_INDEFR_FUNC : EEXT_MODE_AGG);
-  pExtW->binfo.inputTsOrder = pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
-  pExtW->binfo.outputTsOrder = pExtW->binfo.inputTsOrder;
+  pPhynode->window.node.inputTsOrder = TSDB_ORDER_ASC;
+  pPhynode->window.node.outputTsOrder = pPhynode->window.node.inputTsOrder;
+  setOptrBasicInfoOrder(&pExtW->binfo, &pPhynode->window.node);
   pExtW->isDynWindow = false;
 
   if (pTaskInfo->pStreamRuntimeInfo != NULL){
@@ -2488,8 +2498,7 @@ int32_t createStreamExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNod
                               pTaskInfo->pStreamRuntimeInfo);
     TSDB_CHECK_CODE(code, lino, _error);
     
-    pExtW->binfo.inputTsOrder = pNode->inputTsOrder;
-    pExtW->binfo.outputTsOrder = pNode->outputTsOrder;
+    setOptrBasicInfoOrder(&pExtW->binfo, pNode);
     code = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfExpr, &pExtW->pPseudoColInfo);
     TSDB_CHECK_CODE(code, lino, _error);
 

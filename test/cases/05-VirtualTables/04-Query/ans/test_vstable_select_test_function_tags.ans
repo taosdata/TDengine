@@ -1,0 +1,530 @@
+
+taos> select abs(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ abs(int_tag) |
+===============
+            0 |
+            0 |
+            0 |
+            0 |
+            0 |
+
+taos> select acos(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+       acos(int_tag)       |
+============================
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+
+taos> select asin(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+       asin(int_tag)       |
+============================
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+
+taos> select atan(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+       atan(int_tag)       |
+============================
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+
+taos> select ceil(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ ceil(int_tag) |
+================
+             0 |
+             0 |
+             0 |
+             0 |
+             0 |
+
+taos> select cos(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+       cos(int_tag)        |
+============================
+        -0.989992496600445 |
+        -0.989992496600445 |
+        -0.989992496600445 |
+        -0.989992496600445 |
+        -0.989992496600445 |
+
+taos> select floor(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ floor(int_tag) |
+=================
+              0 |
+              0 |
+              0 |
+              0 |
+              0 |
+
+taos> select log(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+       log(int_tag)        |
+============================
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+
+taos> select pow(int_tag, 2) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+      pow(int_tag, 2)      |
+============================
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+
+taos> select round(double_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+     round(double_tag)     |
+============================
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+
+taos> select sin(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+       sin(int_tag)        |
+============================
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+
+taos> select sqrt(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+       sqrt(int_tag)       |
+============================
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+
+taos> select tan(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+       tan(int_tag)        |
+============================
+        -0.142546543074278 |
+        -0.142546543074278 |
+        -0.142546543074278 |
+        -0.142546543074278 |
+        -0.142546543074278 |
+
+taos> select PI() from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+           pi()            |
+============================
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+          3.14159265358979 |
+
+taos> select PI(), u_tinyint_col from test_vtable_select.vtb_virtual_stb order by 1,2 limit 5;
+           pi()            | u_tinyint_col |
+============================================
+          3.14159265358979 |             0 |
+          3.14159265358979 |             0 |
+          3.14159265358979 |             0 |
+          3.14159265358979 |             0 |
+          3.14159265358979 |             0 |
+
+taos> select exp(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+       exp(int_tag)        |
+============================
+                         1 |
+                         1 |
+                         1 |
+                         1 |
+                         1 |
+
+taos> select ln(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+        ln(int_tag)        |
+============================
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+ NULL                      |
+
+taos> select mod(int_tag, 10) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+     mod(int_tag, 10)      |
+============================
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+
+taos> select sign(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ sign(int_tag) |
+================
+             0 |
+             0 |
+             0 |
+             0 |
+             0 |
+
+taos> select degrees(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+     degrees(int_tag)      |
+============================
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+
+taos> select radians(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+     radians(int_tag)      |
+============================
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+                         0 |
+
+taos> select char_length(binary_32_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ char_length(binary_32_tag) |
+=============================
+                          6 |
+                          6 |
+                          6 |
+                          6 |
+                          6 |
+
+taos> select concat(binary_32_tag, binary_32_col) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ concat(binary_32_tag, binary_32_col) |
+=======================================
+ child0Beijing - San Francisco        |
+ child0Beijing - San Francisco        |
+ child0Beijing - San Francisco        |
+ child0Beijing - San Francisco        |
+ child0Beijing - San Francisco        |
+
+taos> select concat_ws(' ', binary_32_tag, binary_32_col) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ concat_ws(' ', binary_32_tag, binary_32_col) |
+===============================================
+ child0 Beijing - San Francisco               |
+ child0 Beijing - San Francisco               |
+ child0 Beijing - San Francisco               |
+ child0 Beijing - San Francisco               |
+ child0 Beijing - San Francisco               |
+
+taos> select lower(binary_32_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+      lower(binary_32_tag)      |
+=================================
+ child0                         |
+ child0                         |
+ child0                         |
+ child0                         |
+ child0                         |
+
+taos> select upper(binary_32_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+      upper(binary_32_tag)      |
+=================================
+ CHILD0                         |
+ CHILD0                         |
+ CHILD0                         |
+ CHILD0                         |
+ CHILD0                         |
+
+taos> select ltrim(binary_32_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+      ltrim(binary_32_tag)      |
+=================================
+ child0                         |
+ child0                         |
+ child0                         |
+ child0                         |
+ child0                         |
+
+taos> select rtrim(binary_32_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+      rtrim(binary_32_tag)      |
+=================================
+ child0                         |
+ child0                         |
+ child0                         |
+ child0                         |
+ child0                         |
+
+taos> select substring(nchar_32_tag, 1, 5) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ substring(nchar_32_tag, 1, 5)  |
+=================================
+ child                          |
+ child                          |
+ child                          |
+ child                          |
+ child                          |
+
+taos> select substring_index(nchar_32_tag, ' ', 1) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ substring_index(nchar_32_tag, ' ', 1) |
+========================================
+ child0                                |
+ child0                                |
+ child0                                |
+ child0                                |
+ child0                                |
+
+taos> select char(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ char(int_tag) |
+================
+               |
+               |
+               |
+               |
+               |
+
+taos> select ascii(binary_32_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ ascii(binary_32_tag) |
+=======================
+                   99 |
+                   99 |
+                   99 |
+                   99 |
+                   99 |
+
+taos> select position(' ' IN binary_32_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ position(' ' in binary_32_tag) |
+=================================
+                              0 |
+                              0 |
+                              0 |
+                              0 |
+                              0 |
+
+taos> select repeat(binary_32_tag, 2) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+    repeat(binary_32_tag, 2)    |
+=================================
+ child0child0                   |
+ child0child0                   |
+ child0child0                   |
+ child0child0                   |
+ child0child0                   |
+
+taos> select replace(binary_32_tag, ' ', '_') from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ replace(binary_32_tag, ' ', '_') |
+===================================
+ child0                           |
+ child0                           |
+ child0                           |
+ child0                           |
+ child0                           |
+
+taos> select cast(int_col as nchar(16)) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+   cast(int_col as nchar(16))   |
+=================================
+ -1000051566                    |
+ -1000078806                    |
+ -1000188716                    |
+ -1000223871                    |
+ -1000271870                    |
+
+taos> select to_ISO8601(ts) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+         to_iso8601(ts)         |
+=================================
+ 2020-10-01T00:00:00.000+0800   |
+ 2020-10-01T00:00:00.002+0800   |
+ 2020-10-01T00:00:00.003+0800   |
+ 2020-10-01T00:00:00.004+0800   |
+ 2020-10-01T00:00:00.005+0800   |
+
+taos> select to_unixtimestamp(to_ISO8601(ts)) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ to_unixtimestamp(to_iso8601(ts)) |
+===================================
+                    1601481600000 |
+                    1601481600002 |
+                    1601481600003 |
+                    1601481600004 |
+                    1601481600005 |
+
+taos> select to_char(ts, 'YYYY-MM-DD HH24:MI:SS') from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ to_char(ts, 'YYYY-MM-DD HH24:MI:SS') |
+=======================================
+ 2020-10-01 00:00:00                  |
+ 2020-10-01 00:00:00                  |
+ 2020-10-01 00:00:00                  |
+ 2020-10-01 00:00:00                  |
+ 2020-10-01 00:00:00                  |
+
+taos> select timetruncate(ts, 1a) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+  timetruncate(ts, 1a)   |
+==========================
+ 2020-10-01 00:00:00.000 |
+ 2020-10-01 00:00:00.002 |
+ 2020-10-01 00:00:00.003 |
+ 2020-10-01 00:00:00.004 |
+ 2020-10-01 00:00:00.005 |
+
+taos> select week(ts) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+       week(ts)        |
+========================
+                    39 |
+                    39 |
+                    39 |
+                    39 |
+                    39 |
+
+taos> select dayofweek(ts) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+     dayofweek(ts)     |
+========================
+                     5 |
+                     5 |
+                     5 |
+                     5 |
+                     5 |
+
+taos> select weekofyear(ts) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+    weekofyear(ts)     |
+========================
+                    40 |
+                    40 |
+                    40 |
+                    40 |
+                    40 |
+
+taos> select weekday(ts) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+      weekday(ts)      |
+========================
+                     3 |
+                     3 |
+                     3 |
+                     3 |
+                     3 |
+
+taos> select apercentile(int_tag, 10) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ apercentile(int_tag, 10)  |
+============================
+                         0 |
+
+taos> select avg(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+       avg(int_tag)        |
+============================
+          1.33333333333333 |
+
+taos> select count(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+    count(int_tag)     |
+========================
+                 69999 |
+
+taos> select count(*) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+       count(*)        |
+========================
+                 69999 |
+
+taos> select elapsed(ts) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+        elapsed(ts)        |
+============================
+                 172849995 |
+
+taos> select spread(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+      spread(int_tag)      |
+============================
+                         3 |
+
+taos> select stddev(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+      stddev(int_tag)      |
+============================
+          1.24721912892464 |
+
+taos> select sum(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+     sum(int_tag)      |
+========================
+                 93332 |
+
+taos> select hyperloglog(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ hyperloglog(int_tag)  |
+========================
+                     3 |
+
+taos> select percentile(int_tag, 0.5) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+
+DB error: percentile is only supported in single table query [0x8000265F] 
+taos> select bottom(int_tag, 10) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ bottom(int_tag, 10) |
+======================
+                   0 |
+                   0 |
+                   0 |
+                   0 |
+                   0 |
+
+taos> select top(int_tag, 10) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ top(int_tag, 10) |
+===================
+                3 |
+                3 |
+                3 |
+                3 |
+                3 |
+
+taos> select max(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ max(int_tag) |
+===============
+            3 |
+
+taos> select min(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ min(int_tag) |
+===============
+            0 |
+
+taos> select mode(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ mode(int_tag) |
+================
+             0 |
+
+taos> select tail(int_tag, 20) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ tail(int_tag, 20) |
+====================
+                 3 |
+                 3 |
+                 3 |
+                 3 |
+                 3 |
+
+taos> select unique(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+ unique(int_tag) |
+==================
+               0 |
+               1 |
+               3 |
+
+taos> select derivative(int_tag, 5a, 1) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+
+DB error: Invalid timeline in function [0x80002816] 
+taos> select irate(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
+      irate(int_tag)       |
+============================
+                         0 |
+
+taos> select statecount(int_tag, "GT", 20) from test_vtable_select.vtb_virtual_stb where int_tag = 1 limit 5;
+ statecount(int_tag, "GT", 20) |
+================================
+                            -1 |
+                            -1 |
+                            -1 |
+                            -1 |
+                            -1 |
+
+taos> select stateduration(int_tag, "GT", 20, 1a) from test_vtable_select.vtb_virtual_stb where int_tag = 1 limit 5;
+ stateduration(int_tag, "GT", 20, 1a) |
+=======================================
+                                   -1 |
+                                   -1 |
+                                   -1 |
+                                   -1 |
+                                   -1 |
+
+taos> select count(tbname) from test_vtable_select.vtb_virtual_stb;
+     count(tbname)     |
+========================
+                 69999 |
+
+taos> select count(1) from test_vtable_select.vtb_virtual_stb;
+       count(1)        |
+========================
+                 69999 |
+

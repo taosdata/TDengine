@@ -5314,7 +5314,8 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 3)
 
-        tdSql.error(f"select csum(b.col1) from sta a join sta b on a.ts = b.ts;")
+        tdSql.query(f"select csum(b.col1) from sta a join sta b on a.ts = b.ts;")
+        tdSql.checkRows(12)
         tdSql.query(f"select csum(b.col1) from tba1 a join tba2 b on a.ts = b.ts;")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 2)
@@ -5343,9 +5344,14 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 12)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from sta a join sta b on a.ts = b.ts state_window(b.col1);"
         )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 4)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 5)
+        tdSql.checkData(3, 0, 1)
 
         # left join
         tdSql.query(f"select sum(a.col1) c1 from sta a left join sta b on a.ts = b.ts;")
@@ -5368,7 +5374,8 @@ class TestJoinFull:
         tdSql.checkData(1, 0, 3)
         tdSql.checkData(2, 0, None)
 
-        tdSql.error(f"select csum(b.col1) from sta a left join sta b on a.ts = b.ts;")
+        tdSql.query(f"select csum(b.col1) from sta a left join sta b on a.ts = b.ts;")
+        tdSql.checkRows(12)
         tdSql.query(f"select csum(b.col1) from tba1 a left join tba2 b on a.ts = b.ts;")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 2)
@@ -5391,13 +5398,20 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 12)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from sta a left join sta b on a.ts = b.ts session(b.ts, 1s);"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 12)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from sta a left join sta b on a.ts = b.ts state_window(b.col1);"
         )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 4)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 5)
+        tdSql.checkData(3, 0, 1)
 
         # left semi join
         tdSql.query(
@@ -5418,9 +5432,10 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 3)
 
-        tdSql.error(
+        tdSql.query(
             f"select csum(b.col1) from sta a left semi join sta b on a.ts = b.ts;"
         )
+        tdSql.checkRows(8)
         tdSql.query(
             f"select csum(b.col1) from tba1 a left semi join tba2 b on a.ts = b.ts;"
         )
@@ -5451,9 +5466,15 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 8)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from sta a left semi join sta b on a.ts = b.ts state_window(b.col1);"
         )
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(3, 0, 1)
+        tdSql.checkData(4, 0, 1)
 
         # left anti join
         tdSql.query(
@@ -5506,13 +5527,20 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(1, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from sta a left anti join sta b on a.ts = b.ts session(b.ts, 1s);"
         )
+        tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from sta a left semi join sta b on a.ts = b.ts state_window(b.col1);"
         )
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(3, 0, 1)
+        tdSql.checkData(4, 0, 1)
 
         # left asof join + join group
         tdSql.query(
@@ -5564,9 +5592,10 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 30)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(a.col1) c1 from sta a left asof join sta b on a.ts > b.ts;"
         )
+        tdSql.checkRows(7)
         tdSql.query(
             f"select diff(a.col1) c1 from tba1 a left asof join tba2 b on a.ts > b.ts;"
         )
@@ -5616,9 +5645,12 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(1, 0, 3)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) c1 from tba1 a left asof join tba2 b on a.ts > b.ts session(b.ts, 1s);"
         )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 1)
 
         tdSql.query(
             f"select count(a.col1) c1 from tba1 a left asof join tba2 b on a.ts > b.ts state_window(b.col1);"
@@ -5672,9 +5704,10 @@ class TestJoinFull:
         tdSql.checkData(6, 0, 20)
         tdSql.checkData(7, 0, 20)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(a.col1) c1 from sta a left window join sta b window_offset(-1s, 1s);"
         )
+        tdSql.checkRows(20)
         tdSql.query(
             f"select diff(a.col1) c1 from tba1 a left window join tba2 b window_offset(-1s, 0s);"
         )
@@ -5697,12 +5730,14 @@ class TestJoinFull:
         tdSql.checkData(5, 0, 1)
         tdSql.checkData(6, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select csum(a.col1) from sta a left window join sta b window_offset(-1s, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(28)
+        tdSql.query(
             f"select csum(a.col1) from tba1 a left window join tba2 b window_offset(-1s, 1s);"
         )
+        tdSql.checkRows(7)
         tdSql.query(
             f"select csum(a.col1) from tba1 a left window join tba2 b window_offset(-1s, 0s);"
         )
@@ -5959,9 +5994,10 @@ class TestJoinFull:
         )
 
         # inner join + left join
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a join sta b on a.ts = b.ts;"
         )
+        tdSql.checkRows(20)
         tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a join sta b on a.ts = b.ts;"
         )
@@ -5972,9 +6008,11 @@ class TestJoinFull:
         )
         tdSql.checkRows(36)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 20)
         tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left join sta tb2 on tb1.ts=tb2.ts) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
@@ -6003,9 +6041,10 @@ class TestJoinFull:
         )
 
         # inner join + left anti join
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts order by tb2.ts) a join sta b on a.ts = b.ts;"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts) a join sta b on a.ts = b.ts;"
         )
@@ -6016,17 +6055,19 @@ class TestJoinFull:
         )
         tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts order by tb2.ts desc) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left anti join sta tb2 on tb1.ts=tb2.ts) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
 
         # inner join + left asof join
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2 order by tb2.ts) a join sta b on a.ts = b.ts;"
         )
+        tdSql.checkRows(12)
         tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left asof join sta tb2) a join sta b on a.ts = b.ts;"
         )
@@ -6037,17 +6078,20 @@ class TestJoinFull:
         )
         tdSql.checkRows(12)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left asof join sta tb2 order by tb2.ts desc) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 12)
         tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left asof join sta tb2) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
 
         # inner join + left window join
-        tdSql.error(
+        tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left window join sta tb2 window_offset(-1s,1s) order by tb2.ts) a join sta b on a.ts = b.ts;"
         )
+        tdSql.checkRows(15)
         tdSql.query(
             f"select a.ts from (select tb1.ts from sta tb1 left window join sta tb2 window_offset(-1s,1s)) a join sta b on a.ts = b.ts;"
         )
@@ -6058,9 +6102,11 @@ class TestJoinFull:
         )
         tdSql.checkRows(152)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left window join sta tb2 window_offset(-1s,1s) order by tb2.ts desc) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 42)
         tdSql.query(
             f"select count(a.col1) from (select tb1.ts,tb1.col1 from sta tb1 left window join sta tb2 window_offset(-1s,1s)) a join (select * from sta partition by tbname order by ts desc) b on a.ts = b.ts session(a.ts, 1s);;"
         )
@@ -6447,9 +6493,10 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(1, 0, 4)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from sta a join sta b on a.ts = b.ts);"
         )
+        tdSql.checkRows(11)
         tdSql.error(
             f"select diff(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1);"
         )
@@ -6459,9 +6506,10 @@ class TestJoinFull:
         tdSql.error(
             f"select diff(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 order by a.ts);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select a.col1 c1, a.ts from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 order by a.ts);"
         )
+        tdSql.checkRows(7)
         tdSql.error(
             f"select count(c1) from (select a.col1 c1 from tba1 a join sta b on a.ts = b.ts) interval(1s);"
         )
@@ -6481,9 +6529,13 @@ class TestJoinFull:
         tdSql.error(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left join tba2 b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left join tba2 b on a.ts = b.ts);"
         )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, None)
         tdSql.query(
             f"select diff(c1) from (select a.ts, b.col1 c1 from tba1 a left join tba2 b on a.ts = b.ts);"
         )
@@ -6495,12 +6547,22 @@ class TestJoinFull:
         tdSql.error(
             f"select count(c1) from (select a.col1 c1 from tba1 a left join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(3, 0, 1)
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts order by b.ts) interval(1s);"
         )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(3, 0, 1)
         tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts) interval(1s);"
         )
@@ -6510,12 +6572,18 @@ class TestJoinFull:
         tdSql.checkData(2, 0, 2)
         tdSql.checkData(3, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 4)
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts order by ts1) c session(c.ts1, 1s);"
         )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 4)
         tdSql.query(
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a left join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
@@ -6606,9 +6674,11 @@ class TestJoinFull:
         tdSql.error(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left anti join tba2 b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left anti join tba2 b on a.ts = b.ts);"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
 
         # ????
         tdSql.query(
@@ -6621,12 +6691,14 @@ class TestJoinFull:
         tdSql.error(
             f"select count(c1) from (select a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts order by b.ts) interval(1s);"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts) interval(1s);"
         )
@@ -6637,12 +6709,14 @@ class TestJoinFull:
         )
         tdSql.checkRows(0)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(0)
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts order by ts1) c session(c.ts1, 1s);"
         )
+        tdSql.checkRows(0)
         tdSql.query(
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a left anti join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
@@ -6667,15 +6741,19 @@ class TestJoinFull:
         tdSql.checkData(1, 0, 1)
         tdSql.checkData(2, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a left asof join tba2 b on a.col1 = b.col1);"
         )
         tdSql.error(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left asof join tba2 b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left asof join tba2 b on a.ts = b.ts);"
         )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, None)
 
         tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1,a.ts from tba1 a left asof join tba2 b on a.ts = b.ts);"
@@ -6688,12 +6766,22 @@ class TestJoinFull:
         tdSql.error(
             f"select count(c1) from (select a.col1 c1 from tba1 a left asof join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left asof join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 0, 1)
+        tdSql.checkData(3, 0, 1)
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left asof join sta b on a.ts = b.ts order by b.ts) interval(1s);"
         )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 0, 1)
+        tdSql.checkData(3, 0, 1)
         tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left asof join sta b on a.col1 = b.col1) interval(1s);"
         )
@@ -6721,13 +6809,19 @@ class TestJoinFull:
         tdSql.checkData(2, 0, 1)
         tdSql.checkData(3, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left asof join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 3)
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left asof join sta b on a.ts = b.ts order by ts1) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 3)
+        tdSql.query(
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a left asof join sta b on a.col1 = b.col1) c session(c.ts1, 1s);"
         )
         tdSql.query(
@@ -6737,7 +6831,7 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 1)
         tdSql.checkData(1, 0, 3)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select a.col1 c1, timetruncate(a.ts, 1d) ts1 from tba1 a left asof join sta b on a.col1 = b.col1) c session(c.ts1, 1s);"
         )
         tdSql.query(
@@ -6746,7 +6840,7 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 4)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select a.col1 c1, a.ts + 1s ts1 from tba1 a left asof join sta b on a.col1 = b.col1) c session(c.ts1, 1s);"
         )
         tdSql.query(
@@ -6765,15 +6859,19 @@ class TestJoinFull:
         tdSql.checkData(1, 0, 1)
         tdSql.checkData(2, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a left window join tba2 b on a.col1 = b.col1 window_offset(1s,1s));"
         )
         tdSql.error(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left window join tba2 b window_offset(1s,1s));"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left window join tba2 b window_offset(1s,1s));"
         )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, None)
+        tdSql.checkData(2, 0, 2)
 
         tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1,a.ts from tba1 a left window join tba2 b window_offset(1s,1s));"
@@ -6786,12 +6884,26 @@ class TestJoinFull:
         tdSql.error(
             f"select count(c1) from (select a.col1 c1 from tba1 a left window join sta b window_offset(-1s,1s)) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left window join sta b window_offset(-1s,1s)) interval(1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 1)
+        tdSql.checkData(3, 0, 5)
+        tdSql.checkData(4, 0, 4)
+        tdSql.checkData(5, 0, 1)
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a left window join sta b window_offset(-1s,1s) order by b.ts) interval(1s);"
         )
+        tdSql.checkRows(6)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 2)
+        tdSql.checkData(2, 0, 2)
+        tdSql.checkData(3, 0, 6)
+        tdSql.checkData(4, 0, 2)
+        tdSql.checkData(5, 0, 1)
         tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a left window join sta b on a.col1 = b.col1 window_offset(-1s,1s)) interval(1s);"
         )
@@ -6819,13 +6931,17 @@ class TestJoinFull:
         tdSql.checkData(2, 0, 4)
         tdSql.checkData(3, 0, 4)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left window join sta b window_offset(-1s,1s)) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 15)
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a left window join sta b window_offset(-1s,1s) order by ts1) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 15)
+        tdSql.query(
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a left window join sta b on a.col1 = b.col1 window_offset(-1s,1s)) c session(c.ts1, 1s);"
         )
         tdSql.query(
@@ -6835,7 +6951,7 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 3)
         tdSql.checkData(1, 0, 12)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select a.col1 c1, timetruncate(a.ts, 1d) ts1 from tba1 a left window join sta b on a.col1 = b.col1 window_offset(-1s,1s)) c session(c.ts1, 1s);"
         )
         tdSql.query(
@@ -6844,7 +6960,7 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 15)
 
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select a.col1 c1, a.ts + 1s ts1 from tba1 a left window join sta b on a.col1 = b.col1 window_offset(-1s,1s)) c session(c.ts1, 1s);"
         )
         tdSql.query(
@@ -6855,37 +6971,39 @@ class TestJoinFull:
         tdSql.checkData(1, 0, 12)
 
         # timeline + full join
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a full join tba2 b on a.ts = b.ts);"
         )
         tdSql.error(
             f"select diff(c1) from (select b.col1 c1 from tba1 a full join tba2 b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a full join tba2 b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select a.ts, b.col1 c1 from tba1 a full join tba2 b on a.ts = b.ts);"
         )
         tdSql.error(
             f"select count(c1) from (select a.col1 c1 from tba1 a full join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a full join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts, a.col1 c1 from tba1 a full join sta b on a.ts = b.ts order by b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select a.ts, a.col1 c1 from tba1 a full join sta b on a.ts = b.ts) interval(1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a full join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(c1) from (select b.ts ts1, a.col1 c1 from tba1 a full join sta b on a.ts = b.ts order by ts1) c session(c.ts1, 1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+        tdSql.query(
             f"select count(c1) from (select a.ts ts1, a.col1 c1 from tba1 a full join sta b on a.ts = b.ts) c session(c.ts1, 1s);"
         )
 
@@ -7615,12 +7733,14 @@ class TestJoinFull:
         tdSql.error(
             f"select a.col1, b.col1, count(a.col1) from sta a left window join sta b window_offset(-1s,1s) where a.col1 > 0;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(a.col1) from sta a left window join sta b window_offset(-1s,1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(20)
+        tdSql.query(
             f"select csum(a.col1) from sta a left window join sta b window_offset(-1s,1s);"
         )
+        tdSql.checkRows(28)
         tdSql.query(
             f"select diff(a.col1) from tba1 a left window join tba1 b window_offset(0s,0s);"
         )
@@ -8286,12 +8406,14 @@ class TestJoinFull:
         tdSql.error(
             f"select a.col1, b.col1, count(a.col1) from sta a right window join sta b window_offset(-1s,1s) where a.col1 > 0;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(a.col1) from sta a right window join sta b window_offset(-1s,1s);"
         )
-        tdSql.error(
+        tdSql.checkRows(20)
+        tdSql.query(
             f"select csum(a.col1) from sta a right window join sta b window_offset(-1s,1s);"
         )
+        tdSql.checkRows(28)
         tdSql.query(
             f"select diff(a.col1) from tba1 a right window join tba1 b window_offset(0s,0s);"
         )
@@ -9260,10 +9382,10 @@ class TestJoinFull:
         tdSql.error(
             f"explain analyze verbose true select a.col1, b.col1, count(a.col1) from sta a left window join sta b window_offset(-1s,1s) where a.col1 > 0;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select diff(a.col1) from sta a left window join sta b window_offset(-1s,1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select csum(a.col1) from sta a left window join sta b window_offset(-1s,1s);"
         )
         tdSql.query(
@@ -9979,10 +10101,10 @@ class TestJoinFull:
         tdSql.error(
             f"explain analyze verbose true select a.col1, b.col1, count(a.col1) from sta a right window join sta b window_offset(-1s,1s) where a.col1 > 0;"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select diff(a.col1) from sta a right window join sta b window_offset(-1s,1s);"
         )
-        tdSql.error(
+        tdSql.query(
             f"explain analyze verbose true select csum(a.col1) from sta a right window join sta b window_offset(-1s,1s);"
         )
         tdSql.query(

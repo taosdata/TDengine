@@ -15,17 +15,20 @@
 
 #include "meta.h"
 #include "tencode.h"
+#include "thash.h"
+#include "types.h"
 
-void _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI) {
+void _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI, int64_t txnId) {
   SMeta *pMeta = ((SVnode *)pVnode)->pMeta;
-  metaReaderDoInit(pReader, pMeta, flags);
+  metaReaderDoInit(pReader, pMeta, flags, txnId);
   pReader->pAPI = pAPI;
 }
 
-void metaReaderDoInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
+void metaReaderDoInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags, int64_t txnId) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->pMeta = pMeta;
   pReader->flags = flags;
+  pReader->txnId = txnId;
   if (pReader->pMeta && !(flags & META_READER_NOLOCK)) {
     metaRLock(pMeta);
   }
@@ -42,6 +45,7 @@ void metaReaderClear(SMetaReader *pReader) {
   if (pReader->pMeta && !(pReader->flags & META_READER_NOLOCK)) {
     metaULock(pReader->pMeta);
   }
+  tFreeSSeriesWrapper(&pReader->me.series);
   tDecoderClear(&pReader->coder);
   tdbFree(pReader->pBuf);
   pReader->pBuf = NULL;
@@ -58,6 +62,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   }
 
   // decode the entry
+  tFreeSSeriesWrapper(&pReader->me.series);
   tDecoderClear(&pReader->coder);
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 
@@ -80,9 +85,39 @@ bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
     return false;
   }
 
+  // batch meta txn: check txn.idx for PRE_CREATE entries (invisible to external readers)
+  if (metaHasPendingTxnEntries(pVnodeObj->pMeta)) {
+    void   *pTxnVal = NULL;
+    int32_t txnValLen = 0;
+    if (tdbTbGet(pVnodeObj->pMeta->pTxnIdx, &uid, sizeof(uid), &pTxnVal, &txnValLen) == 0) {
+      STxnIdxVal txnVal = *(const STxnIdxVal *)pTxnVal;
+      if (txnVal.txnStatus == META_TXN_PRE_CREATE) {
+        // Check if txn is committed → table exists
+        int8_t finalStatus = metaGetTxnMetaStatus(pVnodeObj->pMeta, txnVal.txnId);
+        if (finalStatus != TXN_META_COMMITTED) {
+          tdbFree(pTxnVal);
+          metaULock(pVnodeObj->pMeta);
+          return false;
+        }
+      }
+      // Check if txn is committed + PRE_DROP → table doesn't exist
+      if (txnVal.txnStatus == META_TXN_PRE_DROP) {
+        int8_t finalStatus = metaGetTxnMetaStatus(pVnodeObj->pMeta, txnVal.txnId);
+        if (finalStatus == TXN_META_COMMITTED) {
+          tdbFree(pTxnVal);
+          metaULock(pVnodeObj->pMeta);
+          return false;
+        }
+      }
+      tdbFree(pTxnVal);
+    }
+  }  // metaHasPendingTxnEntries
+
   metaULock(pVnodeObj->pMeta);
   return true;
 }
+
+
 
 int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   SMeta  *pMeta = pReader->pMeta;
@@ -94,15 +129,55 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   }
 
   version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
-  return metaGetTableEntryByVersion(pReader, version1, uid);
+  int code = metaGetTableEntryByVersion(pReader, version1, uid);
+  if (code) return code;
+
+  // batch meta txn: finalized txn visibility adjustment
+  if (pReader->me.txnId != 0) {
+    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
+    if (finalStatus == TXN_META_COMMITTED) {
+      // COMMITTED: PRE_CREATE/PRE_ALTER → visible as normal; PRE_DROP → invisible (deleted)
+      if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
+        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      }
+      // PRE_CREATE and PRE_ALTER: fall through (visible, use current version)
+      return 0;
+    }
+  }
+
+  // batch meta txn: PRE_CREATE entries visibility:
+  //   - ROLLEDBACK txn: always invisible
+  //   - other-txn reader OR non-txn reader (txnId == 0): invisible (snapshot isolation)
+  //   - same-txn reader: visible (RYOW — read your own writes)
+  if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
+    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
+    if (finalStatus == TXN_META_ROLLEDBACK) {
+      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
+    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
+  }
+
+  // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
+  // Same-txn readers see the new (altered) version directly
+  if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnPrevVer > 0) {
+    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+      int64_t prevVer = pReader->me.txnPrevVer;
+      tDecoderClear(&pReader->coder);
+      code = metaGetTableEntryByVersion(pReader, prevVer, uid);
+      if (code) return code;
+    }
+  }
+
+  return 0;
 }
 
 static int32_t getUidVersion(SMetaReader *pReader, int64_t *version, tb_uid_t uid) {
   int32_t code = 0;
   SMeta *pMeta = pReader->pMeta;
   void* pKey = NULL;
-  void* pVal = NULL;
-  int   vLen = 0, kLen = 0;
+  int   kLen = 0;
 
   TBC* pCur = NULL;
   code = tdbTbcOpen(pMeta->pTbDb, (TBC**)&pCur, NULL);
@@ -115,23 +190,24 @@ static int32_t getUidVersion(SMetaReader *pReader, int64_t *version, tb_uid_t ui
   if (code != 0) {
     goto END;
   }
-  if (c >= 0){
-    metaError("%s move to version:%"PRId64 " max failed", __func__, *version);
-    code = TSDB_CODE_FAILED;
-    goto END;
-  }
-  code = tdbTbcMoveToPrev(pCur);
-  if (code != 0) {
-    metaError("%s move to prev failed", __func__);
-    goto END;
-  }
 
+  void   *tKey = NULL;
+  code = tdbTbcGet(pCur, (const void**)&tKey, &kLen, NULL, NULL);
+  if (code != 0) {
+    goto END;
+  }
+  STbDbKey* tmp = (STbDbKey*)tKey;
+  if (tmp->uid == uid && tmp->version <= *version) {
+    *version = tmp->version;
+    goto END;
+  }
+  
   while (1) {
-    int32_t ret = tdbTbcPrev(pCur, &pKey, &kLen, &pVal, &vLen);
+    int32_t ret = tdbTbcPrev(pCur, &pKey, &kLen, NULL, NULL);
     if (ret < 0) break;
 
     STbDbKey* tmp = (STbDbKey*)pKey;
-    if (tmp->uid == uid) {
+    if (tmp->uid == uid && tmp->version <= *version) {
       *version = tmp->version;
       goto END;
     }
@@ -140,7 +216,6 @@ static int32_t getUidVersion(SMetaReader *pReader, int64_t *version, tb_uid_t ui
   metaError("%s uid:%" PRId64 " version:%" PRId64 " not found", __func__, uid, *version);
 END:
   tdbFree(pKey);
-  tdbFree(pVal);
   tdbTbcClose(pCur);
   return code;
 } 
@@ -164,7 +239,39 @@ int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, t
       version = -1;
     }
   }
-  return metaGetTableEntryByVersion(pReader, version, uid);
+  code = metaGetTableEntryByVersion(pReader, version, uid);
+  if (code) return code;
+
+  // batch meta txn: finalized txn visibility adjustment
+  if (pReader->me.txnId != 0) {
+    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
+    if (finalStatus == TXN_META_COMMITTED) {
+      if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
+        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      }
+      return 0;
+    }
+  }
+
+  // batch meta txn: PRE_CREATE entries are invisible unless same-txn reader
+  if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
+    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
+  }
+
+  // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
+  // Same-txn readers see the new (altered) version directly
+  if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnPrevVer > 0) {
+    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+      int64_t prevVer = pReader->me.txnPrevVer;
+      tDecoderClear(&pReader->coder);
+      code = metaGetTableEntryByVersion(pReader, prevVer, uid);
+      if (code) return code;
+    }
+  }
+
+  return 0;
 }
 
 int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
@@ -176,7 +283,46 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
     return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
   }
 
-  return metaGetTableEntryByVersion(pReader, info.version, uid);
+  code = metaGetTableEntryByVersion(pReader, info.version, uid);
+  if (code) return code;
+
+  // batch meta txn: finalized txn visibility adjustment
+  if (pReader->me.txnId != 0) {
+    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
+    if (finalStatus == TXN_META_COMMITTED) {
+      if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
+        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      }
+      return 0;
+    }
+  }
+
+  if (pReader->me.txnStatus != META_TXN_NORMAL) {
+    if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
+      // batch meta txn: PRE_CREATE visibility:
+      //   - ROLLEDBACK: invisible
+      //   - other-txn reader OR non-txn reader (txnId==0): invisible (snapshot isolation)
+      //   - same-txn reader: visible (RYOW — read your own writes)
+      int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
+      if (finalStatus == TXN_META_ROLLEDBACK) {
+        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      }
+      if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      }
+    } else if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnPrevVer > 0) {
+      // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
+      // Same-txn readers see the new (altered) version directly
+      if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+        int64_t prevVer = pReader->me.txnPrevVer;
+        tDecoderClear(&pReader->coder);
+        code = metaGetTableEntryByVersion(pReader, prevVer, uid);
+        if (code) return code;
+      }
+    }
+  }
+
+  return 0;
 }
 
 int metaGetTableEntryByVersionName(SMetaReader *pReader, int64_t version, const char *name) {
@@ -189,6 +335,7 @@ int metaGetTableEntryByVersionName(SMetaReader *pReader, int64_t version, const 
   }
 
   uid = *(tb_uid_t *)pReader->pBuf;
+  // PRE_CREATE filtering is handled inside metaReaderGetTableEntryByVersionUid
   return metaReaderGetTableEntryByVersionUid(pReader, version, uid);
 }
 
@@ -213,10 +360,10 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
   return uid;
 }
 
-int metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName) {
+int metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName, int64_t txnId) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, META_READER_LOCK, txnId);
   code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     metaReaderClear(&mr);
@@ -232,7 +379,7 @@ int metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName) {
 int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, (SMeta *)meta, META_READER_LOCK);
+  metaReaderDoInit(&mr, (SMeta *)meta, META_READER_LOCK, 0);
   code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     metaReaderClear(&mr);
@@ -244,10 +391,10 @@ int metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName) {
   return 0;
 }
 
-int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
+int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid, int64_t txnId) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, META_READER_LOCK, txnId);
 
   SMetaReader *pReader = &mr;
 
@@ -264,10 +411,10 @@ int metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid) {
   return 0;
 }
 
-int metaGetTableTypeSuidByName(void *pVnode, char *tbName, ETableType *tbType, uint64_t *suid) {
+int metaGetTableTypeSuidByName(void *pVnode, char *tbName, ETableType *tbType, uint64_t *suid, int64_t txnId) {
   int         code = 0;
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, ((SVnode *)pVnode)->pMeta, META_READER_LOCK, txnId);
 
   code = metaGetTableEntryByName(&mr, tbName);
   if (code == 0) *tbType = mr.me.type;
@@ -278,6 +425,7 @@ int metaGetTableTypeSuidByName(void *pVnode, char *tbName, ETableType *tbType, u
   } else {
     *suid = 0;
   }
+  metaDebug("metaGetTableTypeSuidByName table %s code:%d", tbName, code);
 
   metaReaderClear(&mr);
   return code;
@@ -294,7 +442,7 @@ int metaReadNext(SMetaReader *pReader) {
 int metaGetTableTtlByUid(void *meta, uint64_t uid, int64_t *ttlDays) {
   int         code = -1;
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, (SMeta *)meta, META_READER_LOCK);
+  metaReaderDoInit(&mr, (SMeta *)meta, META_READER_LOCK, 0);
   code = metaReaderGetTableEntryByUid(&mr, uid);
   if (code < 0) {
     goto _exit;
@@ -363,7 +511,7 @@ int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
   int32_t lino;
   int8_t  locked = 0;
   if (pTbCur->paused) {
-    metaReaderDoInit(&pTbCur->mr, pTbCur->pMeta, META_READER_LOCK);
+    metaReaderDoInit(&pTbCur->mr, pTbCur->pMeta, META_READER_LOCK, 0);
     locked = 1;
     code = tdbTbcOpen(((SMeta *)pTbCur->pMeta)->pUidIdx, (TBC **)&pTbCur->pDbc, NULL);
     if (code != 0) {
@@ -402,6 +550,11 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
   int    ret;
   void  *pBuf;
   STbCfg tbCfg;
+  SMeta *pMeta = (SMeta *)pTbCur->mr.pMeta;
+  // 1-entry suid cache: avoids a tdbTbGet(pTxnIdx) per CTB when consecutive loop
+  // iterations skip children of the same dropped STB.
+  tb_uid_t lastSuid = 0;
+  bool     lastSkip = false;
 
   for (;;) {
     ret = tdbTbcNext((TBC *)pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
@@ -418,6 +571,76 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
       continue;
     }
 
+    // batch meta txn: all visibility filtering is gated on a single fast-path check.
+    // metaHasPendingTxnEntries() returns false in the common case (no active txns),
+    // making the entire block below free.
+    if (metaHasPendingTxnEntries(pMeta)) {
+      // 1. Parent STB PRE_DROP: child tables are logically gone when the STB is
+      //    dropped by the same transaction or committed-but-not-yet-vacuumed.
+      //    This check is INDEPENDENT of the entry's own txnStatus — a CTB can
+      //    simultaneously have its own PRE_CREATE/PRE_ALTER and a dropped parent.
+      //    1-entry suid cache: all CTBs of the same STB share one tdbTbGet call.
+      if (pTbCur->mr.me.type == TSDB_CHILD_TABLE || pTbCur->mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+        tb_uid_t suid = pTbCur->mr.me.ctbEntry.suid;
+        bool     skipChild;
+        if (suid == lastSuid) {
+          skipChild = lastSkip;
+        } else {
+          skipChild = false;
+          void   *pSuTxnVal = NULL;
+          int32_t suTxnValLen = 0;
+          if (tdbTbGet(pMeta->pTxnIdx, &suid, sizeof(suid), &pSuTxnVal, &suTxnValLen) == 0) {
+            STxnIdxVal suTxnVal = *(const STxnIdxVal *)pSuTxnVal;
+            tdbFree(pSuTxnVal);
+            if (suTxnVal.txnStatus == META_TXN_PRE_DROP) {
+              if ((pTbCur->txnId != 0 && pTbCur->txnId == suTxnVal.txnId) ||
+                  metaGetTxnMetaStatus(pMeta, suTxnVal.txnId) == TXN_META_COMMITTED) {
+                skipChild = true;
+              }
+            }
+          }
+          lastSuid = suid;
+          lastSkip = skipChild;
+        }
+        if (skipChild) continue;
+      }
+
+      // 2. Entry-level txn status: short-circuit for normal (txnStatus == 0) entries.
+      if (pTbCur->mr.me.txnStatus != META_TXN_NORMAL) {
+        int8_t finalStatus = metaGetTxnMetaStatus(pMeta, pTbCur->mr.me.txnId);
+        if (pTbCur->mr.me.txnStatus == META_TXN_PRE_CREATE) {
+          // skip uncommitted shadow-creates; allow same-txn and committed
+          if (finalStatus != TXN_META_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
+            continue;
+          }
+        } else if (pTbCur->mr.me.txnStatus == META_TXN_PRE_DROP) {
+          // logically deleted once committed
+          if ((finalStatus == TXN_META_COMMITTED) ||
+              ((pTbCur->txnId != 0) && (pTbCur->txnId == pTbCur->mr.me.txnId))) {
+            continue;
+          }
+        } else if (pTbCur->mr.me.txnStatus == META_TXN_PRE_ALTER) {
+          // redirect other-txn readers to old version for snapshot isolation
+          if (finalStatus != TXN_META_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
+            if (pTbCur->mr.me.txnPrevVer > 0) {
+              tb_uid_t uid = *(tb_uid_t *)pTbCur->pKey;
+              tDecoderClear(&pTbCur->mr.coder);
+              ret = metaGetTableEntryByVersion(&pTbCur->mr, pTbCur->mr.me.txnPrevVer, uid);
+              if (ret != 0) return ret;
+              // If the old version is PRE_CREATE (same-txn CREATE then ALTER),
+              // the table never existed outside this txn — skip for other sessions.
+              if (pTbCur->mr.me.txnStatus == META_TXN_PRE_CREATE) {
+                int8_t prevEntryFinalStatus = metaGetTxnMetaStatus(pMeta, pTbCur->mr.me.txnId);
+                if (prevEntryFinalStatus != TXN_META_COMMITTED) {
+                  continue;
+                }
+              }
+            }
+          }
+        }
+      }
+    }  // metaHasPendingTxnEntries
+
     break;
   }
 
@@ -425,9 +648,12 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
 }
 
 int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
-  int    ret;
-  void  *pBuf;
-  STbCfg tbCfg;
+  int      ret;
+  void    *pBuf;
+  STbCfg   tbCfg;
+  SMeta   *pMeta = (SMeta *)pTbCur->mr.pMeta;
+  tb_uid_t lastSuid = 0;
+  bool     lastSkip = false;
 
   for (;;) {
     ret = tdbTbcPrev((TBC *)pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
@@ -446,17 +672,290 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
       continue;
     }
 
+    // batch meta txn: all visibility filtering is gated on a single fast-path check.
+    // metaHasPendingTxnEntries() returns false in the common case (no active txns),
+    // making the entire block below free.
+    if (metaHasPendingTxnEntries(pMeta)) {
+      // 1. Parent STB PRE_DROP: child tables are logically gone when the STB is
+      //    dropped by the same transaction or committed-but-not-yet-vacuumed.
+      //    This check is INDEPENDENT of the entry's own txnStatus — a CTB can
+      //    simultaneously have its own PRE_CREATE/PRE_ALTER and a dropped parent.
+      //    1-entry suid cache: all CTBs of the same STB share one tdbTbGet call.
+      if (pTbCur->mr.me.type == TSDB_CHILD_TABLE || pTbCur->mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+        tb_uid_t suid = pTbCur->mr.me.ctbEntry.suid;
+        bool     skipChild;
+        if (suid == lastSuid) {
+          skipChild = lastSkip;
+        } else {
+          skipChild = false;
+          void   *pSuTxnVal = NULL;
+          int32_t suTxnValLen = 0;
+          if (tdbTbGet(pMeta->pTxnIdx, &suid, sizeof(suid), &pSuTxnVal, &suTxnValLen) == 0) {
+            STxnIdxVal suTxnVal = *(const STxnIdxVal *)pSuTxnVal;
+            tdbFree(pSuTxnVal);
+            if (suTxnVal.txnStatus == META_TXN_PRE_DROP) {
+              if ((pTbCur->txnId != 0 && pTbCur->txnId == suTxnVal.txnId) ||
+                  metaGetTxnMetaStatus(pMeta, suTxnVal.txnId) == TXN_META_COMMITTED) {
+                skipChild = true;
+              }
+            }
+          }
+          lastSuid = suid;
+          lastSkip = skipChild;
+        }
+        if (skipChild) continue;
+      }
+
+      // 2. Entry-level txn status: short-circuit for normal (txnStatus == 0) entries.
+      if (pTbCur->mr.me.txnStatus != META_TXN_NORMAL) {
+        int8_t finalStatus = metaGetTxnMetaStatus(pMeta, pTbCur->mr.me.txnId);
+        if (pTbCur->mr.me.txnStatus == META_TXN_PRE_CREATE) {
+          // skip uncommitted shadow-creates; allow same-txn and committed
+          if (finalStatus != TXN_META_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
+            continue;
+          }
+        } else if (pTbCur->mr.me.txnStatus == META_TXN_PRE_DROP) {
+          // logically deleted once committed
+          if ((finalStatus == TXN_META_COMMITTED) ||
+              ((pTbCur->txnId != 0) && (pTbCur->txnId == pTbCur->mr.me.txnId))) {
+            continue;
+          }
+        } else if (pTbCur->mr.me.txnStatus == META_TXN_PRE_ALTER) {
+          // redirect other-txn readers to old version for snapshot isolation
+          if (finalStatus != TXN_META_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
+            if (pTbCur->mr.me.txnPrevVer > 0) {
+              tb_uid_t uid = *(tb_uid_t *)pTbCur->pKey;
+              tDecoderClear(&pTbCur->mr.coder);
+              ret = metaGetTableEntryByVersion(&pTbCur->mr, pTbCur->mr.me.txnPrevVer, uid);
+              if (ret != 0) return ret;
+              // If the old version is PRE_CREATE (same-txn CREATE then ALTER),
+              // the table never existed outside this txn — skip for other sessions.
+              if (pTbCur->mr.me.txnStatus == META_TXN_PRE_CREATE) {
+                int8_t prevEntryFinalStatus = metaGetTxnMetaStatus(pMeta, pTbCur->mr.me.txnId);
+                if (prevEntryFinalStatus != TXN_META_COMMITTED) {
+                  continue;
+                }
+              }
+            }
+          }
+        }
+      }
+    }  // metaHasPendingTxnEntries
+
     break;
   }
 
   return 0;
 }
 
+static SSchemaWrapper * getSchemaWithVer(SMeta *pMeta, tb_uid_t uid, int32_t sver, SExtSchema **extSchema) {
+  SDecoder        dc = {0};
+  int32_t         code = 0;
+  void           *pData = NULL;
+  int             nData = 0;
+  SSchemaWrapper  schema = {0};
+  SSchemaWrapper *pSchema = NULL;
+  
+  // query from skm ext db
+  if (extSchema != NULL) {
+    if ((tdbTbGet(pMeta->pSkmExtDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData)) == 0) {
+      *extSchema = taosMemoryMalloc(nData);
+      if (*extSchema) {
+        (void)memcpy(*extSchema, pData, nData);
+      }
+    }
+    tdbFree(pData);
+    pData = NULL;
+  }
+  
+  // query from skm db
+  if ((code = tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData)) < 0) {
+    goto _err;
+  }
+
+  tDecoderInit(&dc, pData, nData);
+  if ((code = tDecodeSSchemaWrapperEx(&dc, &schema)) != 0) {
+    tDecoderClear(&dc);
+    goto _err;
+  }
+  pSchema = tCloneSSchemaWrapper(&schema);
+  if (pSchema == NULL) {
+    tDecoderClear(&dc);
+    code = terrno;
+    goto _err;
+  }
+  tDecoderClear(&dc);
+
+  tdbFree(pData);
+  return pSchema;
+
+_err:
+  tdbFree(pData);
+  tDeleteSchemaWrapper(pSchema);
+  if (extSchema != NULL) {
+    taosMemoryFreeClear(*extSchema);
+  }
+  terrno = code;
+  return NULL;
+}
+
+static int32_t metaGetSuidByUidIfTableNotExist(SMeta *pMeta, int64_t uid, int64_t* id){
+  int32_t code = 0;
+  void   *pKey = NULL;
+  void   *pVal = NULL;
+  int     kLen = 0;
+  int     vLen = 0;
+
+  int64_t* suid = (int64_t*)taosHashGet(pMeta->uidSuidHash, &uid, sizeof(uid));
+  if (suid != NULL) {
+    *id = *suid;
+    return code;
+  }
+
+  TBC *pCur = NULL;
+  code = tdbTbcOpen(pMeta->pTbDb, (TBC**)&pCur, NULL);
+  if (code != 0) {
+    goto END;
+  }
+  code = tdbTbcMoveToFirst(pCur);
+  if (code != 0) {
+    goto END;
+  }
+
+  void       *tKey = NULL;
+  void       *tVal = NULL;
+  int         tKLen = 0;
+  int         tVLen = 0;
+  code = tdbTbcGet(pCur, (const void**)&tKey, &tKLen, (const void**)&tVal, &tVLen);
+  if (code != 0) {
+    goto END;
+  }
+  STbDbKey *tmp = (STbDbKey*)tKey;
+  if (tmp->uid == uid) {
+    SMetaEntry  me = {0};
+    SDecoder    dc = {0};
+    tDecoderInit(&dc, tVal, tVLen);
+    if (metaDecodeEntry(&dc, &me) == 0 && (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE)) {
+      *id = me.ctbEntry.suid;
+    }
+    tDecoderClear(&dc);
+    goto END;
+  }
+
+  while (1) {
+    int32_t ret = tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen);
+    if (ret < 0) break;
+
+    tmp = (STbDbKey*)pKey;
+    if (tmp->uid == uid) {
+      SMetaEntry  me = {0};
+      SDecoder    dc = {0};
+      tDecoderInit(&dc, pVal, vLen);
+      if (metaDecodeEntry(&dc, &me) == 0 && (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE)) {
+        *id = me.ctbEntry.suid;
+      }
+      tDecoderClear(&dc);
+      goto END;
+    }
+  }
+
+END:
+  tdbFree(pKey);
+  tdbFree(pVal);
+  tdbTbcClose(pCur);
+  if (code != 0) {
+    metaError("%s failed to get suid reason:%s", __func__, tstrerror(terrno));
+  } else {
+    code = taosHashPut(pMeta->uidSuidHash, &uid, sizeof(uid), id, sizeof(*id));
+    if (code != 0) {
+      metaError("%s failed to put suid into uidSuidHash, reason:%s", __func__, tstrerror(terrno));
+    }
+  }
+  return code;
+}
+
+int32_t metaGetTbnameByIdIfTableNotExist(SMeta *pMeta, int64_t uid, char *tbname){
+  int32_t code = 0;
+  void   *pKey = NULL;
+  void   *pVal = NULL;
+  int     kLen = 0;
+  int     vLen = 0;
+
+  char* name = (char*)taosHashGet(pMeta->uidNameHash, &uid, sizeof(uid));
+  if (name != NULL) {
+    tstrncpy(tbname, name, TSDB_TABLE_NAME_LEN);
+    return code;
+  }
+
+  TBC *pCur = NULL;
+  code = tdbTbcOpen(pMeta->pTbDb, (TBC**)&pCur, NULL);
+  if (code != 0) {
+    goto END;
+  }
+  code = tdbTbcMoveToFirst(pCur);
+  if (code != 0) {
+    goto END;
+  }
+
+  void       *tKey = NULL;
+  void       *tVal = NULL;
+  int         tKLen = 0;
+  int         tVLen = 0;
+  code = tdbTbcGet(pCur, (const void**)&tKey, &tKLen, (const void**)&tVal, &tVLen);
+  if (code != 0) {
+    goto END;
+  }
+  STbDbKey *tmp = (STbDbKey*)tKey;
+  if (tmp->uid == uid) {
+    SMetaEntry  me = {0};
+    SDecoder    dc = {0};
+    tDecoderInit(&dc, tVal, tVLen);
+    code = metaDecodeEntry(&dc, &me);
+    if (code == 0){
+      tstrncpy(tbname, me.name, TSDB_TABLE_NAME_LEN);
+    }
+    tDecoderClear(&dc);
+    goto END;
+  }
+
+  while (1) {
+    int32_t ret = tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen);
+    if (ret < 0) break;
+
+    tmp = (STbDbKey*)pKey;
+    if (tmp->uid == uid) {
+      SMetaEntry  me = {0};
+      SDecoder    dc = {0};
+      tDecoderInit(&dc, pVal, vLen);
+      code = metaDecodeEntry(&dc, &me);
+      if (code == 0){
+        tstrncpy(tbname, me.name, TSDB_TABLE_NAME_LEN);
+      }
+      tDecoderClear(&dc);
+      goto END;
+    }
+  }
+
+END:
+  tdbFree(pKey);
+  tdbFree(pVal);
+  tdbTbcClose(pCur);
+  if (code != 0) {
+    metaError("%s failed to get suid reason:%s", __func__, tstrerror(terrno));
+  } else {
+    code = taosHashPut(pMeta->uidNameHash, &uid, sizeof(uid), tbname, strlen(tbname) + 1);
+    if (code != 0) {
+      metaError("%s failed to put suid into uidSuidHash, reason:%s", __func__, tstrerror(terrno));
+    }
+  }
+  return code;
+}
+
 /**
  * @param type 0x01 fetchRsmaSchema if table is rsma
  */
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock, SExtSchema **extSchema,
-                                   int8_t type) {
+                                   int8_t type, bool ignoreExist) {
   int32_t         code = 0;
   void           *pData = NULL;
   int             nData = 0;
@@ -468,7 +967,18 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int
     metaRLock(pMeta);
   }
 _query:
-  if ((code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData)) < 0) {
+  code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData);
+  if (code == TSDB_CODE_NOT_FOUND && ignoreExist){
+    int64_t id = 0;
+    code = metaGetSuidByUidIfTableNotExist(pMeta, uid, &id);
+    if (code != 0) {
+      goto _err;
+    }
+    pSchema = getSchemaWithVer(pMeta, id, sver, extSchema);
+    goto _exit;
+  }
+
+  if (code < 0) {
     goto _err;
   }
 
@@ -486,6 +996,53 @@ _query:
     tDecoderClear(&dc);
     goto _err;
   }
+
+  // batch meta txn: finalized txn visibility adjustment
+  if (me.txnId != 0) {
+    int8_t finalStatus = metaGetTxnMetaStatus(pMeta, me.txnId);
+    if (finalStatus == TXN_META_COMMITTED) {
+      if (me.txnStatus == META_TXN_PRE_DROP) {
+        tDecoderClear(&dc);
+        code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+        goto _err;
+      }
+      // PRE_CREATE and PRE_ALTER: visible with current version, skip filters below
+      goto _schema;
+    }
+  }
+
+  if (me.txnStatus != META_TXN_NORMAL) {
+    // batch meta txn: PRE_CREATE entries are invisible — return error
+    if (me.txnStatus == META_TXN_PRE_CREATE) {
+      tDecoderClear(&dc);
+      code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      goto _err;
+    }
+
+    // batch meta txn: PRE_ALTER entries should return old schema (snapshot isolation)
+    // Redirect to old version entry via txnPrevVer
+    if (me.txnStatus == META_TXN_PRE_ALTER && me.txnPrevVer > 0) {
+      int64_t oldVersion = me.txnPrevVer;
+      tDecoderClear(&dc);
+
+      if ((code = tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = me.uid, .version = oldVersion}, sizeof(STbDbKey), &pData,
+                           &nData)) != 0) {
+        metaError("vgId:%d, PRE_ALTER: old version %" PRId64 " not found for uid %" PRId64, TD_VID(pMeta->pVnode),
+                  oldVersion, me.uid);
+        goto _err;
+      }
+
+      memset(&me, 0, sizeof(me));
+      tDecoderInit(&dc, pData, nData);
+      code = metaDecodeEntry(&dc, &me);
+      if (code) {
+        tDecoderClear(&dc);
+        goto _err;
+      }
+    }
+  }
+
+_schema:
   if (me.type == TSDB_SUPER_TABLE) {
     if (sver == -1 || sver == me.stbEntry.schemaRow.version) {
       pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
@@ -511,24 +1068,9 @@ _query:
       goto _exit;
     }
   }
-  if (extSchema != NULL) *extSchema = metaGetSExtSchema(&me);
   tDecoderClear(&dc);
 
-  // query from skm db
-  if ((code = tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData)) < 0) {
-    goto _err;
-  }
-
-  tDecoderInit(&dc, pData, nData);
-  if ((code = tDecodeSSchemaWrapperEx(&dc, &schema)) != 0) {
-    goto _err;
-  }
-  pSchema = tCloneSSchemaWrapper(&schema);
-  if (pSchema == NULL) {
-    code = terrno;
-    goto _err;
-  }
-  tDecoderClear(&dc);
+  pSchema = getSchemaWithVer(pMeta, uid, sver, extSchema);
 
 _exit:
   if (lock) {
@@ -592,7 +1134,7 @@ _exit:
   return createTime;
 }
 
-SMCtbCursor *metaOpenCtbCursor(void *pVnode, tb_uid_t uid, int lock) {
+SMCtbCursor *metaOpenCtbCursor(void *pVnode, tb_uid_t uid, int lock, int64_t txnId) {
   SMeta       *pMeta = ((SVnode *)pVnode)->pMeta;
   SMCtbCursor *pCtbCur = NULL;
   SCtbIdxKey   ctbIdxKey;
@@ -607,6 +1149,7 @@ SMCtbCursor *metaOpenCtbCursor(void *pVnode, tb_uid_t uid, int lock) {
   pCtbCur->pMeta = pMeta;
   pCtbCur->suid = uid;
   pCtbCur->lock = lock;
+  pCtbCur->txnId = txnId;
   pCtbCur->paused = 1;
 
   ret = metaResumeCtbCursor(pCtbCur, 1);
@@ -647,6 +1190,26 @@ int32_t metaResumeCtbCursor(SMCtbCursor *pCtbCur, int8_t first) {
     if (pCtbCur->lock) {
       metaRLock(pCtbCur->pMeta);
     }
+
+    // Check STB PRE_DROP state once here, under the lock, so metaCtbCursorNext
+    // can skip the B+ tree lookup on every iteration.
+    pCtbCur->stbTxnDropped = 0;
+    if (metaHasPendingTxnEntries(pCtbCur->pMeta)) {
+      void   *pSuTxnVal = NULL;
+      int32_t suTxnValLen = 0;
+      if (tdbTbGet(pCtbCur->pMeta->pTxnIdx, &pCtbCur->suid, sizeof(pCtbCur->suid), &pSuTxnVal, &suTxnValLen) == 0) {
+        STxnIdxVal suTxnVal = *(const STxnIdxVal *)pSuTxnVal;
+        tdbFree(pSuTxnVal);
+        if (suTxnVal.txnStatus == META_TXN_PRE_DROP) {
+          if (pCtbCur->txnId != 0 && pCtbCur->txnId == suTxnVal.txnId) {
+            pCtbCur->stbTxnDropped = 1;
+          } else if (metaGetTxnMetaStatus(pCtbCur->pMeta, suTxnVal.txnId) == TXN_META_COMMITTED) {
+            pCtbCur->stbTxnDropped = 1;
+          }
+        }
+      }
+    }
+
     int ret = 0;
     ret = tdbTbcOpen(pCtbCur->pMeta->pCtbIdx, (TBC **)&pCtbCur->pCur, NULL);
     if (ret < 0) {
@@ -681,17 +1244,53 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   int         ret;
   SCtbIdxKey *pCtbIdxKey;
 
-  ret = tdbTbcNext(pCtbCur->pCur, &pCtbCur->pKey, &pCtbCur->kLen, &pCtbCur->pVal, &pCtbCur->vLen);
-  if (ret < 0) {
+  // STB PRE_DROP was checked once in metaResumeCtbCursor (under the lock).
+  // If it was dropped, all children are invisible — no need to iterate.
+  if (pCtbCur->stbTxnDropped) {
     return 0;
   }
 
-  pCtbIdxKey = pCtbCur->pKey;
-  if (pCtbIdxKey->suid > pCtbCur->suid) {
-    return 0;
-  }
+  for (;;) {
+    ret = tdbTbcNext(pCtbCur->pCur, &pCtbCur->pKey, &pCtbCur->kLen, &pCtbCur->pVal, &pCtbCur->vLen);
+    if (ret < 0) {
+      return 0;
+    }
 
-  return pCtbIdxKey->uid;
+    pCtbIdxKey = pCtbCur->pKey;
+    if (pCtbIdxKey->suid > pCtbCur->suid) {
+      return 0;
+    }
+
+    // batch meta txn: skip PRE_CREATE entries via txn.idx lookup
+    // but allow same-txn visibility: if cursor's txnId matches the entry's, don't skip
+    if (metaHasPendingTxnEntries(pCtbCur->pMeta)) {
+      void   *pTxnVal = NULL;
+      int32_t txnValLen = 0;
+      if (tdbTbGet(pCtbCur->pMeta->pTxnIdx, &pCtbIdxKey->uid, sizeof(pCtbIdxKey->uid), &pTxnVal, &txnValLen) == 0) {
+        STxnIdxVal txnVal      = *(const STxnIdxVal *)pTxnVal;
+        int8_t     st          = txnVal.txnStatus;
+        int64_t    entryTxnId  = txnVal.txnId;
+        tdbFree(pTxnVal);
+        if (st == META_TXN_PRE_CREATE) {
+          int8_t finalStatus = metaGetTxnMetaStatus(pCtbCur->pMeta, entryTxnId);
+          if (finalStatus == TXN_META_COMMITTED) {
+            // Committed PRE_CREATE: visible, don't skip
+          } else if (pCtbCur->txnId == 0 || pCtbCur->txnId != entryTxnId) {
+            continue;
+          }
+        }
+        // Committed PRE_DROP: skip (logically deleted)
+        if (st == META_TXN_PRE_DROP) {
+          int8_t finalStatus = metaGetTxnMetaStatus(pCtbCur->pMeta, entryTxnId);
+          if (finalStatus == TXN_META_COMMITTED) {
+            continue;
+          }
+        }
+      }
+    }  // metaHasPendingTxnEntries
+
+    return pCtbIdxKey->uid;
+  }
 }
 
 struct SMStbCursor {
@@ -764,7 +1363,7 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) {
   STSchema       *pTSchema = NULL;
   SSchemaWrapper *pSW = NULL;
 
-  pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL, 0);
+  pSW = metaGetTableSchema(pMeta, uid, sver, lock, NULL, 0, false);
   if (!pSW) return NULL;
 
   pTSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version);
@@ -781,7 +1380,7 @@ SRSchema *metaGetTbTSchemaR(SMeta *pMeta, tb_uid_t uid, int32_t sver, int lock) 
   SSchemaWrapper *pSW = NULL;
 
   if (!(pRSchema = (SRSchema *)taosMemoryCalloc(1, sizeof(SRSchema)))) goto _err;
-  if (!(pSW = metaGetTableSchema(pMeta, uid, sver, lock, (SExtSchema **)&pRSchema->extSchema, 0x01))) goto _err;
+  if (!(pSW = metaGetTableSchema(pMeta, uid, sver, lock, (SExtSchema **)&pRSchema->extSchema, 0x01, false))) goto _err;
   if (!(pRSchema->tSchema = tBuildTSchema(pSW->pSchema, pSW->nCols, pSW->version))) goto _err;
 
   if (pSW->pRsma) {
@@ -1056,7 +1655,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
   }
 
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, pMeta, META_READER_LOCK, 0);
   int64_t smaId;
   int     smaIdx = 0;
   STSma  *pTSma = NULL;
@@ -1111,7 +1710,7 @@ _err:
 STSma *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid) {
   STSma      *pTSma = NULL;
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, pMeta, META_READER_LOCK, 0);
   if (metaReaderGetTableEntryByUid(&mr, indexUid) < 0) {
     metaWarn("vgId:%d, failed to get table entry for smaId:%" PRIi64, TD_VID(pMeta->pVnode), indexUid);
     metaReaderClear(&mr);
@@ -1610,22 +2209,98 @@ END:
   return code;
 }
 
-static int32_t metaGetTableTagByUid(SMeta *pMeta, int64_t suid, int64_t uid, void **tag, int32_t *len, bool lock) {
+static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t uid, int64_t version, void** tag) {
+  void   *val = NULL;
+  int32_t len = 0;
   int ret = 0;
-  if (lock) {
-    metaRLock(pMeta);
-  }
 
-  SCtbIdxKey ctbIdxKey = {.suid = suid, .uid = uid};
-  ret = tdbTbGet(pMeta->pCtbIdx, &ctbIdxKey, sizeof(SCtbIdxKey), tag, len);
-  if (lock) {
-    metaULock(pMeta);
+  if (version != -1) {
+    SMetaReader mr = {0};
+    metaReaderDoInit(&mr, pMeta, META_READER_NOLOCK, 0);
+    if (getUidVersion(&mr, &version, uid) != 0) {
+      version = -1;
+    }
+
+    ret = metaGetTableEntryByVersion(&mr, version, uid);
+    if (ret == 0) {
+      val = mr.me.ctbEntry.pTags;
+      len = ((STag *)(mr.me.ctbEntry.pTags))->len;
+      *tag = taosMemoryMalloc(len);
+      if (*tag) {
+        memcpy(*tag, val, len);
+      } else {
+        ret = terrno;
+      }
+    }
+    metaReaderClear(&mr);
+  } else {
+    SCtbIdxKey ctbIdxKey = {.suid = suid, .uid = uid};
+    ret = tdbTbGet(pMeta->pCtbIdx, &ctbIdxKey, sizeof(SCtbIdxKey), &val, &len);
+    if (ret == 0) {
+      *tag = taosMemoryMalloc(len);
+      if (*tag) {
+        memcpy(*tag, val, len);
+      } else {
+        ret = terrno;
+      }
+      tdbFree(val);
+    }
   }
 
   return ret;
 }
 
-int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
+/**
+ * batch-meta-txn: if uid has an uncommitted PRE_ALTER, return the old tag blob
+ * from pTbDb at txnPrevVer so that non-owning readers see the pre-alter value.
+ * Returns a taosMemoryMalloc'd buffer on redirect (caller owns), NULL otherwise.
+ * Must be called under metaRLock (held by the caller).
+ */
+static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLen) {
+  void   *pTxnVal = NULL;
+  int32_t txnValLen = 0;
+  if (tdbTbGet(pMeta->pTxnIdx, &uid, sizeof(uid), &pTxnVal, &txnValLen) != 0) {
+    return NULL;
+  }
+  STxnIdxVal txnVal = *(const STxnIdxVal *)pTxnVal;
+  tdbFree(pTxnVal);
+
+  if (txnVal.txnStatus != META_TXN_PRE_ALTER || txnVal.txnPrevVer < 0) {
+    return NULL;
+  }
+  // If the txn is already committed the dirty pCtbIdx value is correct — no redirect.
+  if (metaGetTxnMetaStatus(pMeta, txnVal.txnId) == TXN_META_COMMITTED) {
+    return NULL;
+  }
+
+  // Read old entry from pTbDb at txnPrevVer.
+  void    *pOldBuf = NULL;
+  int32_t  oldLen = 0;
+  STbDbKey oldKey = {.version = txnVal.txnPrevVer, .uid = uid};
+  if (tdbTbGet(pMeta->pTbDb, &oldKey, sizeof(oldKey), &pOldBuf, &oldLen) != 0) {
+    return NULL;
+  }
+
+  SDecoder   dc = {0};
+  SMetaEntry me = {0};
+  tDecoderInit(&dc, pOldBuf, oldLen);
+  void *result = NULL;
+  if (metaDecodeEntry(&dc, &me) == 0 &&
+      (me.type == TSDB_CHILD_TABLE || me.type == TSDB_VIRTUAL_CHILD_TABLE) &&
+      me.ctbEntry.pTags != NULL) {
+    const STag *pOldTags = (const STag *)me.ctbEntry.pTags;
+    result = taosMemoryMalloc(pOldTags->len);
+    if (result != NULL) {
+      memcpy(result, pOldTags, pOldTags->len);
+      *pOutLen = pOldTags->len;
+    }
+  }
+  tDecoderClear(&dc);
+  tdbFree(pOldBuf);
+  return result;
+}
+
+int32_t metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version) {
   SMeta        *pMeta = ((SVnode *)pVnode)->pMeta;
   const int32_t LIMIT = 128;
 
@@ -1641,30 +2316,27 @@ int32_t metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList) {
       metaRLock(pMeta);
       isLock = true;
     }
-
-    //    if (taosHashGet(tags, &p->uid, sizeof(tb_uid_t)) == NULL) {
-    void   *val = NULL;
-    int32_t len = 0;
-    if (metaGetTableTagByUid(pMeta, suid, p->uid, &val, &len, false) == 0) {
-      p->pTagVal = taosMemoryMalloc(len);
-      if (!p->pTagVal) {
-        if (isLock) metaULock(pMeta);
-
-        TAOS_RETURN(terrno);
+    // batch-meta-txn: redirect uncommitted PRE_ALTER to the old tag
+    if (metaHasPendingTxnEntries(pMeta)) {
+      int32_t oldLen = 0;
+      void   *pOldTags = metaGetOldTagIfPreAlter(pMeta, p->uid, &oldLen);
+      if (pOldTags != NULL) {
+        p->pTagVal = pOldTags;
+        continue;
       }
-      memcpy(p->pTagVal, val, len);
-      tdbFree(val);
-    } else {
-      metaError("vgId:%d, failed to table tags, suid: %" PRId64 ", uid: %" PRId64, TD_VID(pMeta->pVnode), suid, p->uid);
+    }
+    int32_t code = metaGetTableTagByUidVersion(pMeta, suid, p->uid, version, &p->pTagVal);
+    if (code != 0) {
+      metaError("vgId:%d, failed to table tags, code:%d, suid: %" PRId64 ", uid: %" PRId64 " version: %" PRId64, TD_VID(pMeta->pVnode), code, suid, p->uid, version);
     }
   }
-  //  }
   if (isLock) metaULock(pMeta);
   return 0;
 }
 
-int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 1);
+int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo, int64_t txnId) {
+  SMeta       *pMeta = ((SVnode *)pVnode)->pMeta;
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, suid, 1, txnId);
   if (!pCur) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
@@ -1676,7 +2348,23 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo) {
       break;
     }
 
-    STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
+    STUidTagInfo info = {.uid = uid};
+
+    // batch-meta-txn: redirect uncommitted PRE_ALTER to the old tag blob
+    if (metaHasPendingTxnEntries(pMeta)) {
+      int32_t oldLen = 0;
+      void   *pOldTags = metaGetOldTagIfPreAlter(pMeta, uid, &oldLen);
+      if (pOldTags != NULL) {
+        info.pTagVal = pOldTags;
+        if (taosArrayPush(pUidTagInfo, &info) == NULL) {
+          taosMemoryFree(pOldTags);
+          metaCloseCtbCursor(pCur);
+          return terrno;
+        }
+        continue;
+      }
+    }
+
     info.pTagVal = taosMemoryMalloc(pCur->vLen);
     if (!info.pTagVal) {
       metaCloseCtbCursor(pCur);

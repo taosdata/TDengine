@@ -167,6 +167,17 @@ void dmGetVnodeLoadsLite(SMonVloadInfo *pInfo) {
   }
 }
 
+void dmCollectVnodeTxnIdle(SArray **ppQueries) {
+  SDnode       *pDnode = dmInstance();
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    if (pWrapper->pMgmt != NULL) {
+      vmCollectTxnIdleQueries(pWrapper->pMgmt, ppQueries);
+    }
+    dmReleaseWrapper(pWrapper);
+  }
+}
+
 void dmGetMnodeLoads(SMonMloadInfo *pInfo) {
   SDnode       *pDnode = dmInstance();
   SMgmtWrapper *pWrapper = &pDnode->wrappers[MNODE];

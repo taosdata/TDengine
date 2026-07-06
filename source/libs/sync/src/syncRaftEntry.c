@@ -60,6 +60,7 @@ SSyncRaftEntry* syncEntryBuildFromRpcMsg(const SRpcMsg* pMsg, SyncTerm term, Syn
   pEntry->isWeak = 0;
   pEntry->term = term;
   pEntry->index = index;
+  pEntry->txnId = pMsg->info.txnId;  // propagate transaction ID for WAL body prefix
   memcpy(pEntry->data, pMsg->pCont, pMsg->contLen);
 
   return pEntry;
@@ -112,6 +113,7 @@ int32_t syncEntry2OriginalRpc(const SSyncRaftEntry* pEntry, SRpcMsg* pRpcMsg) {
     return terrno;
   }
   memcpy(pRpcMsg->pCont, pEntry->data, pRpcMsg->contLen);
+  pRpcMsg->info.txnId = pEntry->txnId;  // restore txnId so apply-side can fast-filter
 
   return 0;
 }

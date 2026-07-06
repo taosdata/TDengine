@@ -35,6 +35,7 @@ typedef struct {
   int32_t     numFields;
   TAOS_FIELD *fields;
   int32_t     precision;
+  timezone_t  tz;
 
   int32_t maxColNameLen;            // for vertical print
   int32_t width[TSDB_MAX_COLUMNS];  // for horizontal print
@@ -47,7 +48,7 @@ static int32_t shellRunSingleCommand(char *command);
 static void    shellRecordCommandToHistory(char *command);
 static int32_t shellRunCommand(char *command, bool recordHistory);
 static void    shellRunSingleCommandImp(char *command);
-static char   *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t precision);
+static char   *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t precision, timezone_t tz);
 static int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
 static void    shellPrintNChar(const char *str, int32_t length, int32_t width);
 static void    shellPrintGeometry(const unsigned char *str, int32_t length, int32_t width);
@@ -261,7 +262,7 @@ void shellRunSingleCommandImp(char *command) {
     return;
   }
 
-  if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(command, "^[[:space:]]*use[[:space:]]+[a-zA-Z0-9_]+[[:space:]]*;?[[:space:]]*$", REG_EXTENDED | REG_ICASE)) {
     (void)printf("Database changed.\r\n\r\n");
 
     // call back auto tab module
@@ -274,13 +275,13 @@ void shellRunSingleCommandImp(char *command) {
 
   // pre string
   char *pre = "Query OK";
-  if (shellRegexMatch(command, "^\\s*delete\\s*from\\s*.*", REG_EXTENDED | REG_ICASE)) {
+  if (shellRegexMatch(command, "^[[:space:]]*delete[[:space:]]+from[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Delete OK";
-  } else if (shellRegexMatch(command, "^\\s*insert\\s*into\\s*.*", REG_EXTENDED | REG_ICASE)) {
+  } else if (shellRegexMatch(command, "^[[:space:]]*insert[[:space:]]+into[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Insert OK";
-  } else if (shellRegexMatch(command, "^\\s*create\\s*.*", REG_EXTENDED | REG_ICASE)) {
+  } else if (shellRegexMatch(command, "^[[:space:]]*create[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Create OK";
-  } else if (shellRegexMatch(command, "^\\s*drop\\s*.*", REG_EXTENDED | REG_ICASE)) {
+  } else if (shellRegexMatch(command, "^[[:space:]]*drop[[:space:]]*.*", REG_EXTENDED | REG_ICASE)) {
     pre = "Drop OK";
   }
 
@@ -315,7 +316,7 @@ void shellRunSingleCommandImp(char *command) {
   (void)printf("\r\n");
 }
 
-char *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t precision) {
+char *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t precision, timezone_t tz) {
   if (shell.args.is_raw_time) {
     (void)sprintf(buf, "%" PRId64, val);
     return buf;
@@ -346,7 +347,7 @@ char *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t prec
   }
 
   struct tm ptm = {0};
-  if (taosLocalTime(&tt, &ptm, buf, bufSize, NULL) == NULL) {
+  if (taosLocalTime(&tt, &ptm, buf, bufSize, tz) == NULL) {
     return buf;
   }
   size_t pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", &ptm);
@@ -371,7 +372,8 @@ char *shellDumpHexValue(char *buf, const char *val, int32_t length) {
   return buf;
 }
 
-void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision) {
+void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field,
+                          int32_t length, int32_t precision, timezone_t tz) {
   if (val == NULL) {
     taosFprintfFile(pFile, "NULL");
     return;
@@ -484,7 +486,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP:
-      shellFormatTimestamp(buf, sizeof(buf), *(int64_t *)val, precision);
+      shellFormatTimestamp(buf, sizeof(buf), *(int64_t *)val, precision, tz);
       taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       break;
     case TSDB_DATA_TYPE_DECIMAL64:
@@ -528,6 +530,7 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
   TAOS_FIELD *fields = taos_fetch_fields(tres);
   int32_t     num_fields = taos_num_fields(tres);
   int32_t     precision = taos_result_precision(tres);
+  timezone_t  tz = (timezone_t)taos_get_result_tz(tres);
 
   for (int32_t col = 0; col < num_fields; col++) {
     if (col > 0) {
@@ -544,7 +547,7 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
       if (i > 0) {
         taosFprintfFile(pFile, ",");
       }
-      shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision);
+      shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision, tz);
     }
     taosFprintfFile(pFile, "\r\n");
 
@@ -730,7 +733,8 @@ void shellPrintGeometry(const unsigned char *val, int32_t length, int32_t width)
   geosFreeBuffer(outputWKT);
 }
 
-void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision) {
+void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width,
+                     int32_t length, int32_t precision, timezone_t tz) {
   if (val == NULL) {
     shellPrintString(TSDB_DATA_NULL_STR, width);
     return;
@@ -811,7 +815,8 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       shellPrintGeometry(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
-      shellFormatTimestamp(buf, sizeof(buf), taosGetInt64Aligned((int64_t *)val), precision);
+      shellFormatTimestamp(buf, sizeof(buf),
+                           taosGetInt64Aligned((int64_t *)val), precision, tz);
       (void)printf("%s", buf);
       break;
 
@@ -886,6 +891,7 @@ void init_dump_info(tsDumpInfo *dump_info, TAOS_RES *tres, const char *sql, bool
   dump_info->numFields = taos_num_fields(tres);
   dump_info->fields = taos_fetch_fields(tres);
   dump_info->precision = taos_result_precision(tres);
+  dump_info->tz = (timezone_t)taos_get_result_tz(tres);
 
   dump_info->resShowMaxNum = UINT64_MAX;
 
@@ -935,7 +941,7 @@ void shellVerticalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
       int32_t padding = (int32_t)(dump_info->maxColNameLen - strlen(field->name));
       (void)printf("%*.s%s: ", padding, " ", field->name);
 
-      shellPrintField((const char *)row[i], field, 0, length[i], dump_info->precision);
+      shellPrintField((const char *)row[i], field, 0, length[i], dump_info->precision, dump_info->tz);
       putchar('\r');
       putchar('\n');
     }
@@ -1088,7 +1094,7 @@ void shellHorizontalPrintResult(TAOS_RES *tres, tsDumpInfo *dump_info) {
     for (int32_t i = 0; i < dump_info->numFields; i++) {
       putchar(' ');
       shellPrintField((const char *)row[i], dump_info->fields + i, dump_info->width[i], length[i],
-                      dump_info->precision);
+                      dump_info->precision, dump_info->tz);
       putchar(' ');
       putchar('|');
     }
@@ -1250,7 +1256,7 @@ void shellPrintError(TAOS_RES *tres, int64_t st) {
 
 bool shellIsCommentLine(char *line) {
   if (line == NULL) return true;
-  return shellRegexMatch(line, "^\\s*#.*", REG_EXTENDED);
+  return shellRegexMatch(line, "^[[:space:]]*#.*", REG_EXTENDED);
 }
 
 void shellSourceFile(const char *file) {

@@ -27,6 +27,7 @@
 #include "taoserror.h"
 #include "tbase64.h"
 #include "tglobal.h"
+#include "ttime.h"
 #include "ttypes.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
@@ -66,6 +67,36 @@ static int32_t validateTimeUnitParam(uint8_t dbPrec, const SValueNode* pVal) {
   if (pVal->literal[0] != '1' ||
       (pVal->literal[1] != 'u' && pVal->literal[1] != 'a' && pVal->literal[1] != 's' && pVal->literal[1] != 'm' &&
        pVal->literal[1] != 'h' && pVal->literal[1] != 'd' && pVal->literal[1] != 'w' && pVal->literal[1] != 'b')) {
+    return TSDB_CODE_FUNC_TIME_UNIT_INVALID;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Extended time-unit validator for TIMETRUNCATE only.
+ * Identical to validateTimeUnitParam but also accepts 1n/1q/1y
+ * (natural calendar units: month, quarter, year).
+ * All units still require a multiplier of exactly 1; Nx (N>1) is invalid.
+ */
+static int32_t validateTimeUnitParamEx(uint8_t dbPrec, const SValueNode* pVal) {
+  if (!IS_DURATION_VAL(pVal->flag)) {
+    return TSDB_CODE_FUNC_TIME_UNIT_INVALID;
+  }
+
+  if (TSDB_TIME_PRECISION_MILLI == dbPrec &&
+      (0 == strcasecmp(pVal->literal, "1u") || 0 == strcasecmp(pVal->literal, "1b"))) {
+    return TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL;
+  }
+
+  if (TSDB_TIME_PRECISION_MICRO == dbPrec && 0 == strcasecmp(pVal->literal, "1b")) {
+    return TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL;
+  }
+
+  if (pVal->literal[0] != '1' ||
+      (pVal->literal[1] != 'u' && pVal->literal[1] != 'a' && pVal->literal[1] != 's' && pVal->literal[1] != 'm' &&
+       pVal->literal[1] != 'h' && pVal->literal[1] != 'd' && pVal->literal[1] != 'w' && pVal->literal[1] != 'b' &&
+       pVal->literal[1] != 'n' && pVal->literal[1] != 'q' && pVal->literal[1] != 'y')) {
     return TSDB_CODE_FUNC_TIME_UNIT_INVALID;
   }
 
@@ -138,21 +169,221 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
   return numOfSpaces;
 }
 
-static int32_t addTimezoneParam(SNodeList* pList, timezone_t tz) {
-  char    buf[TD_TIME_STR_LEN] = {0};
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t offsetSeconds = taosGetTZOffsetSeconds(tz, &code);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+/*
+ * Extract fixed UTC offset (+HHMM/-HHMM) from timezone display text.
+ *
+ * Expected display examples:
+ *   "Asia/Shanghai (CST, +0800)"
+ *   "US/Eastern (EST, -0500)"
+ *   "System (UTC, +0000)"
+ *
+ * Searches for ", +" or ", -" to locate the offset, so any abbreviation
+ * (CST, EST, UTC, ...) is handled uniformly.
+ *
+ * Returns true and writes a 5-byte offset string when found, otherwise false.
+ */
+static bool extractUtcOffsetFromTzDisplay(const char* display, char* out, int32_t outLen) {
+  if (display == NULL || out == NULL || outLen < 6) {
+    return false;
   }
 
-  int32_t absOffset = (offsetSeconds < 0) ? -offsetSeconds : offsetSeconds;
-  int32_t hours = absOffset / 3600;
-  int32_t minutes = (absOffset % 3600) / 60;
-  (void)snprintf(buf, sizeof(buf), "%c%02d%02d", (offsetSeconds < 0) ? '-' : '+', hours, minutes);
+  /* Find ", +" or ", -" — the comma-space before the sign of the offset */
+  const char* p = strstr(display, ", +");
+  if (p == NULL) {
+    p = strstr(display, ", -");
+  }
+  if (p == NULL) {
+    return false;
+  }
+
+  p += 2; /* skip ", " to point at '+' or '-' */
+  if (!isdigit((unsigned char)p[1]) || !isdigit((unsigned char)p[2]) ||
+      !isdigit((unsigned char)p[3]) || !isdigit((unsigned char)p[4])) {
+    return false;
+  }
+
+  (void)memcpy(out, p, 5);
+  out[5] = '\0';
+  return true;
+}
+
+/*
+ * Heuristic: treat a timezone name as an IANA region-based name iff it
+ * contains '/'.  Examples: "Asia/Shanghai", "America/New_York", "Europe/London".
+ * Everything else — "+0800", "UTC-2", "GMT+5", "CST", etc. — is treated as
+ * non-IANA and uses POSIX sign convention which must be converted for ISO 8601.
+ *
+ * Known limitations of the '/' test (acceptable because inputs come from the
+ * tz database name map, not arbitrary user strings):
+ *  - Bare UTC-equivalent abbreviations ("UTC", "GMT", "Z") have no '/', so they
+ *    are classified non-IANA.  That is fine: they carry no sign, so the POSIX
+ *    sign-flip below is a no-op for them, and isUtcZeroOffsetName() guards the
+ *    flip explicitly so a zero offset is never inverted.
+ *  - A malformed name that happens to contain '/' (e.g. "UTC+8/DST") would be
+ *    misclassified as IANA and passed through unconverted.  Such strings do not
+ *    occur in the tz name map, so this is left as a documented edge case.
+ */
+static bool isIANATimezoneName(const char *name) {
+  if (name == NULL || name[0] == '\0') return false;
+  return (strchr(name, '/') != NULL);
+}
+
+/*
+ * Well-known UTC-equivalent zone names that carry a zero offset and therefore
+ * need no POSIX->ISO sign conversion.  Matched case-insensitively as the whole
+ * token, so offset-bearing forms like "UTC+8" / "GMT-5" are intentionally NOT
+ * matched and still get converted.
+ */
+static bool isUtcZeroOffsetName(const char *name) {
+  return strcasecmp(name, "UTC") == 0 || strcasecmp(name, "GMT") == 0 ||
+         strcasecmp(name, "UT") == 0 || strcasecmp(name, "Z") == 0 ||
+         strcasecmp(name, "Zulu") == 0;
+}
+
+/*
+ * Inject the timezone string as a parameter.
+ *
+ * useISOOffset controls the format for non-IANA timezones:
+ *  - true:  extract ISO 8601 offset ("+0800") from display string.
+ *          Used by TO_ISO8601 which parses offset with ISO sign convention.
+ *  - false: keep the POSIX leading token ("UTC-8") or prepend "UTC" to
+ *          bare offsets.  Used by TIMETRUNCATE / TO_CHAR / joins which
+ *          create timezone handles via taosValidateTimezone() (POSIX).
+ *
+ * Falls back to the system timezone string if tz is NULL or the name
+ * lookup fails.
+ */
+static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISOOffset) {
+  char    buf[TD_TIMEZONE_LEN] = {0};
+  char    origTzName[TD_TIMEZONE_LEN] = {0};
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  /*
+   * Preferred path: use connection/session timezone name map so downstream
+   * scalar functions can preserve IANA semantics (DST-aware when applicable).
+   */
+  if (tz != NULL && pTimezoneNameMap != NULL) {
+    char *tzName = (char *)taosHashGet(pTimezoneNameMap, &tz, sizeof(timezone_t));
+    if (tzName != NULL) {
+      /* extract original name before " (" from formatted "Asia/Shanghai (CST, +0800)" */
+      const char *paren = strchr(tzName, ' ');
+      int32_t nameLen = paren ? (int32_t)(paren - tzName) : (int32_t)strlen(tzName);
+      int32_t cpLen = TMIN(nameLen, TD_TIMEZONE_LEN - 1);
+      (void)memcpy(buf, tzName, cpLen);
+      buf[cpLen] = '\0';
+
+      if (!isIANATimezoneName(buf)) {
+        if (useISOOffset) {
+          /*
+           * TO_ISO8601 path: save original tz name for format matching,
+           * then extract ISO 8601 offset from display string so the sign
+           * is consistent with what the scalar function expects
+           * (local = UTC + offset).  E.g. session "UTC-8" → inject "+0800".
+           */
+          tstrncpy(origTzName, buf, sizeof(origTzName));
+          char isoBuf[8] = {0};
+          if (extractUtcOffsetFromTzDisplay(tzName, isoBuf, sizeof(isoBuf))) {
+            (void)memcpy(buf, isoBuf, strlen(isoBuf) + 1);
+          } else {
+            /*
+             * Display extraction failed: convert the POSIX offset string to ISO
+             * in place by flipping its sign (POSIX +H = west = ISO -H).  Without
+             * this the scalar function would parse a POSIX offset with the ISO
+             * convention and invert the rendered local time.  UTC-equivalent
+             * names ("UTC"/"GMT"/"Z") are skipped: they have no sign to flip and
+             * must stay zero-offset (the loop would already be a no-op, but the
+             * guard makes the intent explicit).
+             */
+            if (!isUtcZeroOffsetName(buf)) {
+              for (char *s = buf; *s != '\0'; ++s) {
+                if (*s == '+') {
+                  *s = '-';
+                  break;
+                } else if (*s == '-') {
+                  *s = '+';
+                  break;
+                }
+              }
+            }
+          }
+        } else if (buf[0] == '+' || buf[0] == '-') {
+          /*
+           * TIMETRUNCATE / TO_CHAR path: bare offsets ("+0800") are ambiguous.
+           * Prepend "UTC" to make POSIX convention explicit for
+           * taosValidateTimezone().
+           */
+          int slen = (int)strlen(buf);
+          if (slen + 3 < TD_TIMEZONE_LEN) {
+            memmove(buf + 3, buf, slen + 1);
+            memcpy(buf, "UTC", 3);
+          }
+        }
+      }
+    }
+  }
+
+  if (buf[0] == '\0') {
+    /*
+     * Fallback path when session timezone handle is unavailable.
+     *
+     * First try to extract a fixed offset from global display text so
+     * scalar offset parser can still compute local boundary correctly.
+     * This is especially important for Windows values like:
+     *   "System (UTC, +0800)"
+     * where taking the leading token ("System") would lose offset info.
+     *
+     * If offset extraction fails, keep legacy behavior and use leading token
+     * as a best-effort fallback.
+     *
+     * Prefer fixed offset extracted from "...(UTC, +0800)" so scalar
+     * offsetFromTz() can parse it on platforms where session tz handle is NULL.
+     */
+    if (!extractUtcOffsetFromTzDisplay(tsTimezoneStr, buf, sizeof(buf))) {
+      const char *paren = strchr(tsTimezoneStr, ' ');
+      int32_t nameLen = paren ? (int32_t)(paren - tsTimezoneStr) : (int32_t)strlen(tsTimezoneStr);
+      int32_t cpLen = TMIN(nameLen, TD_TIMEZONE_LEN - 1);
+      (void)memcpy(buf, tsTimezoneStr, cpLen);
+      buf[cpLen] = '\0';
+    }
+  }
+
+  /* Normalize bare +HH / -HH (3 chars) to +HHMM so the ISO8601 suffix is
+   * canonical when the connection timezone was set with a short form like
+   * SET TIMEZONE '+08'.  Explicit user-supplied params in to_iso8601(ts, '+06')
+   * are NOT injected here and are preserved as-is by the scalar function. */
+  {
+    size_t blen = strlen(buf);
+    if (blen == 3 && (buf[0] == '+' || buf[0] == '-') &&
+        buf[1] >= '0' && buf[1] <= '9' && buf[2] >= '0' && buf[2] <= '9') {
+      buf[3] = '0';
+      buf[4] = '0';
+      buf[5] = '\0';
+    }
+  }
+
+  /* For TO_ISO8601: match output offset format to the original SET TIMEZONE
+   * input format.  The scalar function's fixed-offset path echoes tzStr
+   * verbatim, so Z and colon must already be present in the injected param.
+   * - Z/z input  → output Z/z
+   * - colon input (e.g. +08:00) → insert colon into ±HHMM → ±HH:MM
+   * - otherwise  → keep ±HHMM as-is */
+  if (useISOOffset && origTzName[0] != '\0') {
+    if (origTzName[0] == 'Z' || origTzName[0] == 'z') {
+      buf[0] = origTzName[0];
+      buf[1] = '\0';
+    } else if (strchr(origTzName, ':') != NULL) {
+      size_t blen = strlen(buf);
+      if (blen == 5 && (buf[0] == '+' || buf[0] == '-')) {
+        char m0 = buf[3], m1 = buf[4];
+        buf[3] = ':';
+        buf[4] = m0;
+        buf[5] = m1;
+        buf[6] = '\0';
+      }
+    }
+  }
 
   int32_t len = (int32_t)strlen(buf);
-
   SValueNode* pVal = NULL;
   code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal);
   if (pVal == NULL) {
@@ -176,12 +407,29 @@ static int32_t addTimezoneParam(SNodeList* pList, timezone_t tz) {
   varDataSetLen(pVal->datum.p, len);
   tstrncpy(varDataVal(pVal->datum.p), pVal->literal, len + 1);
 
-  //printf("%s literal:%s", __func__, pVal->literal);
-
   code = nodesListAppend(pList, (SNode*)pVal);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pVal);
     return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateTimezoneValueNode(const SValueNode* pValue, char* pErrBuf, int32_t len) {
+  if (TSDB_DATA_TYPE_BINARY != pValue->node.resType.type) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_INVALID_TIMEZONE, "Invalid timezone format");
+  }
+
+  char*   tz = varDataVal(pValue->datum.p);
+  int32_t tzLen = varDataLen(pValue->datum.p);
+  char    tzBuf[TD_TIMEZONE_LEN] = {0};
+  int32_t cpLen = TMIN(tzLen, TD_TIMEZONE_LEN - 1);
+  (void)memcpy(tzBuf, tz, cpLen);
+  tzBuf[cpLen] = '\0';
+
+  int32_t code = taosValidateTimezone(tzBuf, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_INVALID_TIMEZONE, "Invalid timezone format");
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -738,6 +986,18 @@ static int32_t checkPrimTS(SNode* pNode, bool* isMatch) {
   return code;
 }
 
+// Check that pNode is any TIMESTAMP column (not necessarily the primary key).
+// Used by elapsed() to support timeline-fallback subqueries.
+static int32_t checkTSColumn(SNode* pNode, bool* isMatch) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_TIMESTAMP_TYPE(getSDataTypeFromNode(pNode)->type) ||
+      ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TAG) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    *isMatch = false;
+  }
+  return code;
+}
+
 static int32_t checkPrimaryKey(SNode* pNode, bool* isMatch) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type) ||
@@ -783,21 +1043,40 @@ static int32_t checkTimeUnit(SNode* pNode, int32_t precision, bool* isMatch) {
   }
   return code;
 }
+
+static int32_t checkTimeUnitOrCalendar(SNode* pNode, int32_t precision, bool* isMatch) {
+  if (nodeType(pNode) != QUERY_NODE_VALUE || !IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type)) {
+    *isMatch = false;
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  if (IS_NULL_TYPE(getSDataTypeFromNode(pNode)->type)) {
+    *isMatch = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = validateTimeUnitParamEx(precision, (SValueNode*)pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    *isMatch = false;
+  }
+  return code;
+}
+
 static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* paramList = pFunc->pParameterList;
   char       errMsg[128] = {0};
-
-  // no need to check
-  if (funcMgtBuiltins[pFunc->funcId].parameters.paramInfoPattern == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
 
   // check param num
   if ((funcMgtBuiltins[pFunc->funcId].parameters.maxParamNum != -1 &&
        LIST_LENGTH(paramList) > funcMgtBuiltins[pFunc->funcId].parameters.maxParamNum) ||
       LIST_LENGTH(paramList) < funcMgtBuiltins[pFunc->funcId].parameters.minParamNum) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  // no need to check
+  if (funcMgtBuiltins[pFunc->funcId].parameters.paramInfoPattern == 0) {
+    return TSDB_CODE_SUCCESS;
   }
 
   // check each param
@@ -859,6 +1138,9 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
           case FUNC_PARAM_MUST_BE_PRIMTS:
             code = checkPrimTS(pNode, &isMatch);
             break;
+          case FUNC_PARAM_MUST_BE_TS_COLUMN:
+            code = checkTSColumn(pNode, &isMatch);
+            break;
           case FUNC_PARAM_MUST_BE_PK:
             code = checkPrimaryKey(pNode, &isMatch);
             break;
@@ -870,6 +1152,9 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
             break;
           case FUNC_PARAM_MUST_BE_TIME_UNIT:
             code = checkTimeUnit(pNode, pFunc->node.resType.precision, &isMatch);
+            break;
+          case FUNC_PARAM_MUST_BE_TIME_UNIT_OR_CALENDAR:
+            code = checkTimeUnitOrCalendar(pNode, pFunc->node.resType.precision, &isMatch);
             break;
           default:
             break;
@@ -908,7 +1193,7 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_HAS_COL, "Parameter should have column : %s",
                              pFunc->functionName);
     case TSDB_CODE_FUNC_TIME_UNIT_INVALID:
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_TIME_UNIT_INVALID, "Invalid timzone format : %s",
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_TIME_UNIT_INVALID, "Invalid time unit : %s",
                              pFunc->functionName);
     case TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL:
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_TIME_UNIT_TOO_SMALL, "Time unit is too small : %s",
@@ -1047,6 +1332,12 @@ static int32_t translateOutBigInt(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateSqlWindowValue(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateOutUnsignedInt(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_UINT].bytes, .type = TSDB_DATA_TYPE_UINT};
@@ -1113,6 +1404,123 @@ static int32_t translateRand(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateSleep(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes, .type = TSDB_DATA_TYPE_INT};
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  // param[1]: pattern must be a literal/parameter constant VALUE node.
+  // Constant expressions are not accepted here because regexp_extract
+  // currently validates only VALUE nodes.
+  SNode* pPatNode = nodesListGetNode(pFunc->pParameterList, 1);
+  if (QUERY_NODE_VALUE != nodeType(pPatNode)) {
+    return invaildFuncParaTypeErrMsg(
+        pErrBuf, len, "regexp_extract: pattern must be a literal or parameter constant");
+  }
+
+  // Validate the regex pattern compiles as POSIX ERE.
+  // For prepared-statement placeholders, literal may contain the placeholder
+  // token (for example "?") instead of the bound pattern. Prefer the
+  // materialized datum when available, and otherwise defer validation to
+  // runtime for placeholders. For NCHAR patterns datum.p holds UCS-4 vardata;
+  // convert it to UTF-8 to match the runtime path in regexpExtractFunction.
+  SValueNode* pPatVal = (SValueNode*)pPatNode;
+  {
+    const char* regPattern = NULL;
+    char*       utf8Pat = NULL;
+    bool        freeUtf8Pat = false;
+    bool        deferValidation = (pPatVal->placeholderNo != 0 && pPatVal->datum.p == NULL);
+
+    if (!deferValidation) {
+      if (pPatVal->node.resType.type == TSDB_DATA_TYPE_NCHAR && pPatVal->datum.p != NULL) {
+        int32_t ncharBytes = varDataLen(pPatVal->datum.p);
+        utf8Pat = taosMemoryCalloc(ncharBytes + 1, 1);
+        if (utf8Pat == NULL) return terrno;
+        int32_t utf8Len = taosUcs4ToMbs((TdUcs4*)varDataVal(pPatVal->datum.p), ncharBytes,
+                                        utf8Pat, pPatVal->charsetCxt);
+        if (utf8Len < 0) {
+          taosMemoryFree(utf8Pat);
+          return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
+                                 "regexp_extract: failed to convert NCHAR pattern to UTF-8");
+        }
+        utf8Pat[utf8Len] = '\0';
+        regPattern = utf8Pat;
+        freeUtf8Pat = true;
+      } else if (pPatVal->datum.p != NULL) {
+        // datum.p is a length-prefixed vardata buffer — not NUL-terminated.
+        // Build a NUL-terminated copy for regcomp().
+        int32_t patBytes = varDataLen(pPatVal->datum.p);
+        utf8Pat = taosMemoryMalloc(patBytes + 1);
+        if (utf8Pat == NULL) return terrno;
+        (void)memcpy(utf8Pat, varDataVal(pPatVal->datum.p), patBytes);
+        utf8Pat[patBytes] = '\0';
+        regPattern  = utf8Pat;
+        freeUtf8Pat = true;
+      } else {
+        regPattern = pPatVal->literal;
+      }
+    }
+
+    if (regPattern != NULL) {
+      regex_t re;
+      int     ret = regcomp(&re, regPattern, REG_EXTENDED);
+      if (ret != 0) {
+        char msgbuf[256] = {0};
+        (void)regerror(ret, NULL, msgbuf, sizeof(msgbuf));
+        // do not call regfree — regcomp failed, re is partially initialised (POSIX)
+        if (freeUtf8Pat) taosMemoryFree(utf8Pat);
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
+                               "Invalid regex pattern for regexp_extract: %s", msgbuf);
+      }
+      regfree(&re);  // only reached when regcomp succeeded
+    }
+    if (freeUtf8Pat) taosMemoryFree(utf8Pat);
+  }
+
+  // param[2]: group_idx (optional) must be a non-negative integer constant.
+  // NULL is also allowed by the builtin signature and should propagate like
+  // other scalar functions, so accept NULL-typed value nodes here and rely
+  // on runtime to return a NULL result.
+  if (numOfParams == 3) {
+    SNode* pIdxNode = nodesListGetNode(pFunc->pParameterList, 2);
+    if (QUERY_NODE_VALUE != nodeType(pIdxNode)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: group_idx must be a constant integer");
+    }
+
+    SValueNode* pIdxVal = (SValueNode*)pIdxNode;
+    int32_t idxType = pIdxVal->node.resType.type;
+
+    if (TSDB_DATA_TYPE_NULL != idxType) {
+      if (!IS_INTEGER_TYPE(idxType)) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, "regexp_extract: group_idx must be an integer");
+      }
+      // Skip range validation for prepared-statement placeholders — the bound value
+      // is not yet known; the runtime check in regexpExtractFunction applies instead.
+      if (pIdxVal->placeholderNo == 0) {
+        int64_t groupIdx = pIdxVal->datum.i;
+        if (groupIdx < 0 || groupIdx > REGEXP_EXTRACT_MAX_GROUP_IDX) {
+          char errmsg[64];
+          (void)snprintf(errmsg, sizeof(errmsg),
+                         "regexp_extract: group_idx must be between 0 and %d",
+                         REGEXP_EXTRACT_MAX_GROUP_IDX);
+          return invaildFuncParaValueErrMsg(pErrBuf, len, errmsg);
+        }
+      }
+    }
+  }
+
+  // Return type matches str (param[0]): same VARCHAR/NCHAR type and byte width
+  pFunc->node.resType = *getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0));
+
+  return TSDB_CODE_SUCCESS;
+}
+
 // return type is same as first input parameter's type
 static int32_t translateOutFirstIn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
@@ -1154,6 +1562,13 @@ static int32_t translatePlaceHolderPseudoColumn(SFunctionNode* pFunc, char* pErr
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME: {
       pFunc->node.resType =
           (SDataType){.bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
+      break;
+    }
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG: {
+      break;
+    }
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT: {
+      pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes, .type = TSDB_DATA_TYPE_INT};
       break;
     }
     case FUNCTION_TYPE_PLACEHOLDER_COLUMN: {
@@ -1562,23 +1977,59 @@ static int32_t validateLagLeadDefaultType(SFunctionNode* pFunc, char* pErrBuf, i
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateLag(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+static int32_t validateSqlWindowLagLeadParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams < 1 || numOfParams > 3) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (numOfParams >= 2) {
+    SNode* pOffset = nodesListGetNode(pFunc->pParameterList, 1);
+    if (pOffset == NULL || QUERY_NODE_VALUE != nodeType(pOffset) ||
+        !IS_INTEGER_TYPE(getSDataTypeFromNode(pOffset)->type)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    ((SValueNode*)pOffset)->notReserved = true;
+    if (((SValueNode*)pOffset)->datum.i < 0) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  if (numOfParams >= 3) {
+    SNode* pDefault = nodesListGetNode(pFunc->pParameterList, 2);
+    if (pDefault == NULL || QUERY_NODE_VALUE != nodeType(pDefault)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+    ((SValueNode*)pDefault)->notReserved = true;
+  }
+
   FUNC_ERR_RET(validateLagLeadDefaultType(pFunc, pErrBuf, len));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateLag(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateSqlWindowLagLeadParam(pFunc, pErrBuf, len));
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
 
-static EFuncReturnRows lagEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_NORMAL; }
+static EFuncReturnRows lagEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
 static int32_t translateLead(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
-  FUNC_ERR_RET(validateLagLeadDefaultType(pFunc, pErrBuf, len));
+  FUNC_ERR_RET(validateSqlWindowLagLeadParam(pFunc, pErrBuf, len));
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
 
-static EFuncReturnRows leadEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_NORMAL; }
+static EFuncReturnRows leadEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
+
+static EFuncReturnRows stateCountEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
+
+static EFuncReturnRows stateDurationEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
+
+static EFuncReturnRows mavgEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_INDEFINITE; }
+
+static EFuncReturnRows tailEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
 static EFuncReturnRows fillforwardEstReturnRows(SFunctionNode* pFunc) { return FUNC_RETURN_ROWS_N; }
 
@@ -1832,6 +2283,21 @@ static int32_t translateRepeat(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
+// __timestamp_scale(expr, target_precision): internal function for cross-precision TIMESTAMP scaling
+static int32_t translateTimestampScale(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // 2 params: TIMESTAMP expr, TINYINT target_precision constant
+  SNode* pPrecNode = nodesListGetNode(pFunc->pParameterList, 1);
+  if (QUERY_NODE_VALUE != nodeType(pPrecNode)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_PARA_TYPE,
+                           "__timestamp_scale 2nd parameter must be a constant");
+  }
+  int8_t targetPrec = ((SValueNode*)pPrecNode)->datum.i;
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,
+                                    .type = TSDB_DATA_TYPE_TIMESTAMP,
+                                    .precision = targetPrec};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   if (numOfParams <= 0) {
@@ -1890,11 +2356,13 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   // param1
   if (numOfParams == 2) {
     SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
-    if (!validateTimezoneFormat(pValue)) {
-      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Invalid timzone format");
+    int32_t code = validateTimezoneValueNode(pValue, pErrBuf, len);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
-  } else {  // add default client timezone
-    int32_t code = addTimezoneParam(pFunc->pParameterList, pFunc->tz);
+  } else {
+    /* inject connection timezone as ISO offset for TO_ISO8601 */
+    int32_t code = addTimezoneNameParam(pFunc->pParameterList, pFunc->tz, true);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -1939,19 +2407,114 @@ static int32_t translateToTimestamp(SFunctionNode* pFunc, char* pErrBuf, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Emit a unified 7-parameter layout for TIMETRUNCATE so that all
+ * downstream consumers (sclfunc, hash join, merge join) can use
+ * fixed indices:
+ *
+ *   [0] ts           — the timestamp expression
+ *   [1] unit         — truncation interval (ticks)
+ *   [2] use_curr_tz  — integer 0 or 1
+ *   [3] precision    — database time precision
+ *   [4] tz_name      — timezone IANA name / offset string
+ *   [5] fdow         — firstDayOfWeek (0-6)
+ *   [6] unitCh       — unit character (n/y/w/d/…)
+ */
 static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+
+  bool   hasStringTz = false;
+  SNode* pSavedTzNode = NULL;   /* saved user timezone node for re-insertion */
+
+  if (numOfParams == 3) {
+    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    if (TSDB_DATA_TYPE_BINARY == pValue->node.resType.type) {
+      int32_t code = validateTimezoneValueNode(pValue, pErrBuf, len);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      hasStringTz = true;
+      /*
+       * Save the user timezone node from position 2 and replace it
+       * with use_curr_tz=1 so position 2 is always the integer flag.
+       * The saved node will be re-appended at position 4 (tz_name).
+       */
+      SListCell* pCell = nodesListGetCell(pFunc->pParameterList, 2);
+      pSavedTzNode = pCell->pNode;
+
+      SValueNode* pNewVal = NULL;
+      code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pNewVal);
+      if (pNewVal == NULL) {
+        return code;
+      }
+      pNewVal->literal = NULL;
+      pNewVal->translate = true;
+      pNewVal->notReserved = true;
+      pNewVal->node.resType.type = TSDB_DATA_TYPE_TINYINT;
+      pNewVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes;
+      pNewVal->datum.i = 1;
+      pNewVal->typeData = 1;
+      pCell->pNode = (SNode*)pNewVal;
+    } else if (IS_INTEGER_TYPE(pValue->node.resType.type)) {
+      /* integer 0/1 — validate value */
+      if (pValue->datum.i != 0 && pValue->datum.i != 1) {
+        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                               "TIMETRUNCATE third parameter should be 0/1 or a timezone string");
+      }
+    } else {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "TIMETRUNCATE third parameter should be 0/1 or a timezone string");
+    }
+  }
+
+  /* [2] use_curr_tz — when user provided only 2 params, default to 1 */
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (numOfParams == 2) {
+    code = addUint8Param(&pFunc->pParameterList, 1);
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode(pSavedTzNode);
+      return code;
+    }
+  }
+
+  /* [3] precision */
   uint8_t dbPrec = pFunc->node.resType.precision;
-  // add database precision as param
-  int32_t code = addUint8Param(&pFunc->pParameterList, dbPrec);
+  code = addUint8Param(&pFunc->pParameterList, dbPrec);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(pSavedTzNode);
+    return code;
+  }
+
+  /* [4] tz_name — re-use saved user string or inject connection timezone */
+  if (hasStringTz && pSavedTzNode != NULL) {
+    code = nodesListMakeAppend(&pFunc->pParameterList, pSavedTzNode);
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode(pSavedTzNode);
+      return code;
+    }
+    pSavedTzNode = NULL;  /* ownership transferred to list */
+  } else {
+    code = addTimezoneNameParam(pFunc->pParameterList, pFunc->tz, false);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  /* [5] fdow — firstDayOfWeek (0-6) */
+  code = addUint8Param(&pFunc->pParameterList, (uint8_t)pFunc->firstDayOfWeek);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
 
-  // add client timezone as param
-  code = addTimezoneParam(pFunc->pParameterList, pFunc->tz);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
+  /* [6] unitCh — unit character for calendar-unit detection */
+  {
+    SValueNode* pUnitNode = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+    uint8_t unitCh = (uint8_t)(pUnitNode != NULL ? (uint8_t)pUnitNode->unit : 0);
+    code = addUint8Param(&pFunc->pParameterList, unitCh);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
   pFunc->node.resType =
@@ -2047,6 +2610,28 @@ static int32_t translateServerStatusFunc(SFunctionNode* pFunc, char* pErrBuf, in
 
 static int32_t translateTagsPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // The _tags pseudo-column will be expanded to the actual tags on the client side
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateToChar(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams == 3) {
+    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    int32_t code = validateTimezoneValueNode(pValue, pErrBuf, len);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  } else {
+    /* inject connection timezone as POSIX form for taosValidateTimezone() */
+    int32_t code = addTimezoneNameParam(pFunc->pParameterList,
+                                        pFunc->tz, false);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  /* when numOfParams == 2 (no explicit tz), scalar layer uses pInput->tz directly */
+  pFunc->node.resType = (SDataType){.bytes = 4096, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2213,13 +2798,21 @@ static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
   bool mixTypeToStrings = tsCompareAsStrInGreatest;
+  bool ignoreNull = tsIgnoreNullInGreatest;
 
   SDataType res = {.type = 0};
   bool      resInit = false;
+  int32_t   nullLitCount = 0;
   for (int32_t i = 0; i < LIST_LENGTH(pFunc->pParameterList); i++) {
     SDataType* para = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i));
 
     if (IS_NULL_TYPE(para->type)) {
+      if (ignoreNull) {
+        // Skip NULL literal params from result-type derivation; they are also
+        // ignored at runtime in greatestLeastImpl/vectorCompareAndSelect.
+        nullLitCount++;
+        continue;
+      }
       res.type = TSDB_DATA_TYPE_NULL;
       res.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
       break;
@@ -2260,7 +2853,20 @@ static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32
       }
     }
   }
+  // ignoreNullInGreatest=1: if every param was a NULL literal the output is
+  // still NULL type (matches default behavior; FS §4.5).
+  if (ignoreNull && !resInit && nullLitCount > 0) {
+    res.type = TSDB_DATA_TYPE_NULL;
+    res.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
+  }
   pFunc->node.resType = res;
+
+  // tsIgnoreNullInGreatest is a CFG_SCOPE_CLIENT flag, so the runtime
+  // (which executes per-vnode) must receive its value via the param list.
+  // The flag is appended as a trailing TINYINT and stripped at runtime by
+  // greatestLeastImpl.  Mirrors the addUint8Param pattern used by trim,
+  // translateDate, and similar builtins.
+  FUNC_ERR_RET(addUint8Param(&pFunc->pParameterList, ignoreNull ? 1 : 0));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2285,7 +2891,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "count",
     .type = FUNCTION_TYPE_COUNT,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_COUNT_LIKE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_COUNT_LIKE_FUNC |
+                      FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -2312,7 +2919,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "sum",
     .type = FUNCTION_TYPE_SUM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC |
+                      FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -2339,7 +2947,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "min",
     .type = FUNCTION_TYPE_MIN,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC |
+                      FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -2366,7 +2975,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "max",
     .type = FUNCTION_TYPE_MAX,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC |
+                      FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -2495,7 +3105,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "avg",
     .type = FUNCTION_TYPE_AVG,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC |
+                      FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -2570,7 +3181,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "percentile",
     .type = FUNCTION_TYPE_PERCENTILE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_REPEAT_SCAN_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED ,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_REPEAT_SCAN_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED |
+                      FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 11,
                    .paramInfoPattern = 1,
@@ -2879,7 +3491,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_COLUMN_NODE,
-                                           .paramAttribute = FUNC_PARAM_MUST_BE_PRIMTS,
+                                           .paramAttribute = FUNC_PARAM_MUST_BE_TS_COLUMN,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
@@ -3090,7 +3702,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "last_row",
     .type = FUNCTION_TYPE_LAST_ROW,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
+                      FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = -1,
                    .paramInfoPattern = 1,
@@ -3205,7 +3818,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "first",
     .type = FUNCTION_TYPE_FIRST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC |
+                      FUNC_MGT_PRIMARY_KEY_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC | FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = -1,
                    .paramInfoPattern = 1,
@@ -3282,7 +3896,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "last",
     .type = FUNCTION_TYPE_LAST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_IGNORE_NULL_FUNC |
+                      FUNC_MGT_PRIMARY_KEY_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC | FUNC_MGT_SQL_WINDOW_AGG_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = -1,
                    .paramInfoPattern = 1,
@@ -3572,7 +4187,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
+                      FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -3606,7 +4222,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "statecount",
     .type = FUNCTION_TYPE_STATE_COUNT,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
-                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 3,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
@@ -3640,6 +4256,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = stateCountFunction,
     .sprocessFunc = stateCountScalarFunction,
     .finalizeFunc = NULL,
+    .estimateReturnRowsFunc = stateCountEstReturnRows,
   },
   {
     .name = "stateduration",
@@ -3686,12 +4303,14 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = stateDurationFunction,
     .sprocessFunc = stateDurationScalarFunction,
     .finalizeFunc = NULL,
+    .estimateReturnRowsFunc = stateDurationEstReturnRows,
   },
   {
     .name = "csum",
     .type = FUNCTION_TYPE_CSUM,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
+                      FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC |
+                      FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3715,7 +4334,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "mavg",
     .type = FUNCTION_TYPE_MAVG,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
-                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -3741,6 +4360,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = mavgFunction,
     .sprocessFunc = mavgScalarFunction,
     .finalizeFunc = NULL,
+    .estimateReturnRowsFunc = mavgEstReturnRows,
   },
   {
     .name = "sample",
@@ -3810,7 +4430,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = tailFunctionSetup,
     .processFunc  = tailFunction,
     .sprocessFunc = tailScalarFunction,
-    .finalizeFunc = NULL,
+    .finalizeFunc = tailFinalize,
+    .estimateReturnRowsFunc = tailEstReturnRows,
   },
   {
     .name = "unique",
@@ -4452,17 +5073,15 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
-                                           .paramAttribute = FUNC_PARAM_MUST_BE_TIME_UNIT,
+                                           .paramAttribute = FUNC_PARAM_MUST_BE_TIME_UNIT_OR_CALENDAR,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
-                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
-                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
-                                           .fixedValueSize = 2,
-                                           .fixedNumValue = {0, 1}},
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
     .translateFunc = translateTimeTruncate,
     .getEnvFunc   = NULL,
@@ -4529,7 +5148,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "timezone",
     .type = FUNCTION_TYPE_TIMEZONE,
-    .classification = FUNC_MGT_SCALAR_FUNC,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
     .parameters = {.minParamNum = 0,
                    .maxParamNum = 0,
                    .paramInfoPattern = 0,
@@ -4675,9 +5294,14 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_block_dist",
     .type = FUNCTION_TYPE_BLOCK_DIST,
     .classification = FUNC_MGT_AGG_FUNC,
-    .parameters = {.minParamNum = 0,
-                   .maxParamNum = 0,
-                   .paramInfoPattern = 0,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc   = getBlockDistFuncEnv,
@@ -5065,7 +5689,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_TO_CHAR,
     .classification = FUNC_MGT_SCALAR_FUNC,
     .parameters = {.minParamNum = 2,
-                   .maxParamNum = 2,
+                   .maxParamNum = 3,
                    .paramInfoPattern = 1,
                    .inputParaInfo[0][0] = {.isLastParam = false,
                                            .startParam = 1,
@@ -5074,15 +5698,22 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
-                   .inputParaInfo[0][1] = {.isLastParam = true,
+                   .inputParaInfo[0][1] = {.isLastParam = false,
                                            .startParam = 2,
                                            .endParam = 2,
                                            .validDataType = FUNC_PARAM_SUPPORT_STRING_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][2] = {.isLastParam = true,
+                                           .startParam = 3,
+                                           .endParam = 3,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
-    .translateFunc = translateOutVarchar,
+    .translateFunc = translateToChar,
     .getEnvFunc = NULL,
     .initFunc = NULL,
     .sprocessFunc = toCharFunction,
@@ -6137,9 +6768,14 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "_db_usage",
     .type = FUNCTION_TYPE_DB_USAGE,
     .classification = FUNC_MGT_AGG_FUNC,
-    .parameters = {.minParamNum = 0,
-                   .maxParamNum = 0,
-                   .paramInfoPattern = 0,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutVarchar,
     .getEnvFunc   = getBlockDBUsageFuncEnv,
@@ -6437,6 +7073,34 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
     .translateFunc = translatePlaceHolderPseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "_placeholder_rollup_tag",
+    .type = FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE},},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "_trollup_tbcount",
+    .type = FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_INT_TYPE},},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = streamPseudoScalarFunction,
     .finalizeFunc = NULL,
@@ -7298,8 +7962,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "lag",
     .type = FUNCTION_TYPE_LAG,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
-    .parameters = {.minParamNum = 2,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
+                      FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC | FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
+    .parameters = {.minParamNum = 1,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
                    .inputParaInfo[0][0] = {.isLastParam = false,
@@ -7316,7 +7981,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
-                                           .range = {.iMinVal = 1, .iMaxVal = INT64_MAX}},
+                                           .range = {.iMinVal = 0, .iMaxVal = INT64_MAX}},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
@@ -7338,8 +8003,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "lead",
     .type = FUNCTION_TYPE_LEAD,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
-    .parameters = {.minParamNum = 2,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
+                      FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC | FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
+    .parameters = {.minParamNum = 1,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
                    .inputParaInfo[0][0] = {.isLastParam = false,
@@ -7356,7 +8022,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
-                                           .range = {.iMinVal = 1, .iMaxVal = INT64_MAX}},
+                                           .range = {.iMinVal = 0, .iMaxVal = INT64_MAX}},
                    .inputParaInfo[0][2] = {.isLastParam = true,
                                            .startParam = 3,
                                            .endParam = 3,
@@ -7375,10 +8041,120 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFuncByRow  = leadFunctionByRow,
   },
   {
+    .name = "row_number",
+    .type = FUNCTION_TYPE_ROW_NUMBER,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
+    .translateFunc = translateOutBigInt,
+  },
+  {
+    .name = "rank",
+    .type = FUNCTION_TYPE_RANK,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
+    .translateFunc = translateOutBigInt,
+  },
+  {
+    .name = "dense_rank",
+    .type = FUNCTION_TYPE_DENSE_RANK,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
+    .translateFunc = translateOutBigInt,
+  },
+  {
+    .name = "percent_rank",
+    .type = FUNCTION_TYPE_PERCENT_RANK,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
+    .translateFunc = translateOutDouble,
+  },
+  {
+    .name = "cume_dist",
+    .type = FUNCTION_TYPE_CUME_DIST,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
+    .translateFunc = translateOutDouble,
+  },
+  {
+    .name = "first_value",
+    .type = FUNCTION_TYPE_FIRST_VALUE,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
+    .translateFunc = translateSqlWindowValue,
+  },
+  {
+    .name = "last_value",
+    .type = FUNCTION_TYPE_LAST_VALUE,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
+    .translateFunc = translateSqlWindowValue,
+  },
+  {
+    .name = "nth_value",
+    .type = FUNCTION_TYPE_NTH_VALUE,
+    .classification = FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = true,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 1, .iMaxVal = INT64_MAX}},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
+    .translateFunc = translateSqlWindowValue,
+  },
+  {
     .name = "fill_forward",
     .type = FUNCTION_TYPE_FILL_FORWARD,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
+                      FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -7423,6 +8199,104 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = streamPseudoScalarFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "sleep",
+    .type = FUNCTION_TYPE_SLEEP,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_VOLATILE_FUNC | FUNC_MGT_NO_PUSHDOWN_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE}},
+    .translateFunc = translateSleep,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = sleepFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "regexp_extract",
+    .type = FUNCTION_TYPE_REGEXP_EXTRACT,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 3,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = false,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][2] = {.isLastParam = true,
+                                           .startParam = 3,
+                                           .endParam = 3,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE}},
+    .translateFunc = translateRegexpExtract,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = regexpExtractFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "first_day_of_week",
+    .type = FUNCTION_TYPE_FIRST_DAY_OF_WEEK,
+    .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
+    .parameters = {.minParamNum = 0,
+                   .maxParamNum = 0,
+                   .paramInfoPattern = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
+    .translateFunc = translateOutBigInt,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = firstDayOfWeekFunction,
+    .finalizeFunc = NULL,
+  },
+  {
+    .name = "__timestamp_scale",
+    .type = FUNCTION_TYPE_TIMESTAMP_SCALE,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = true,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_TINYINT_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+    .translateFunc = translateTimestampScale,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = timestampScaleFunction,
     .finalizeFunc = NULL,
   },
 };

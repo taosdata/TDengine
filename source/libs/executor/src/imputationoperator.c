@@ -1265,6 +1265,7 @@ _OVER:
 
 int32_t createGenericAnalysisOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrInfo) {
+  qError("createGenericAnalysisOperatorInfo failed since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 void analysisDestroyOperatorInfo(void* param) {}

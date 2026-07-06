@@ -118,6 +118,14 @@ const char *sdbTableName(ESdbType type) {
       return "security_policy";
     case SDB_GRANT_CLS:
       return "grant_cls";
+    case SDB_TXN:
+      return "txn";
+    case SDB_TXN_LOG:
+      return "txn_log";
+    case SDB_TXN_SEQ:
+      return "txn_seq";
+    case SDB_EXT_SOURCE:
+      return "ext_source";
     default:
       return "undefine";
   }
@@ -604,5 +612,4 @@ bool sdbCheckExists(SSdb *pSdb, ESdbType type, const void *pKey) {
 
   return (NULL != p);
 }
-
 

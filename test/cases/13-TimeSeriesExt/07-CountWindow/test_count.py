@@ -235,9 +235,10 @@ class TestCount:
         tdSql.execute(f"insert into t2 values(1648791223001,9,1,11,1.1);")
         tdSql.execute(f"insert into t2 values(1648791223009,0,1,12,1.0);")
 
-        tdSql.error(
+        tdSql.query(
             f"select  _wstart as s, count(*) c1,  sum(b), max(c) from st count_window(4,1);"
         )
+        tdSql.checkRows(12)
 
     def Count0(self):
         tdLog.info(f"step1: normatable")
@@ -562,9 +563,10 @@ class TestCount:
         tdSql.execute(f"insert into t2 values(1648791223001,9,1,11,1.1);")
         tdSql.execute(f"insert into t2 values(1648791223009,0,1,12,1.0);")
 
-        tdSql.error(
+        tdSql.query(
             f"select  _wstart as s, count(*) c1,  sum(b), max(c) from st count_window(4);"
         )
+        tdSql.checkRows(3)
 
         tdLog.info(f"step2")
         tdLog.info(f"=============== create database")

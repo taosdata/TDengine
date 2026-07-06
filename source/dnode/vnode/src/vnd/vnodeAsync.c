@@ -220,6 +220,7 @@ static void *vnodeAsyncLoop(void *arg) {
   }
 
   setThreadName(async->label);
+  taosSetCpuAffinity(THREAD_CAT_WRITE);
 
   for (;;) {
     (void)taosThreadMutexLock(&async->mutex);
@@ -871,4 +872,21 @@ bool vnodeATaskValid(SVATaskID *taskID) {
   (void)taosThreadMutexUnlock(&async->mutex);
 
   return ret == 0 && task != NULL;
+}
+
+bool vnodeAsyncHasQueuedTask(int64_t asyncID) {
+  if (asyncID < MIN_ASYNC_ID || asyncID > MAX_ASYNC_ID) return false;
+
+  SVAsync *async = GVnodeAsyncs[asyncID].async;
+  if (async == NULL) return false;
+
+  bool hasQueued = false;
+  (void)taosThreadMutexLock(&async->mutex);
+  // Tasks in queue = total tasks minus running tasks.
+  // Running tasks = launched workers - idle workers.
+  int32_t runningWorkers = async->numLaunchWorkers - async->numIdleWorkers;
+  hasQueued = (async->numTasks > runningWorkers);
+  (void)taosThreadMutexUnlock(&async->mutex);
+
+  return hasQueued;
 }

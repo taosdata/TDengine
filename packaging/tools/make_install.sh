@@ -11,6 +11,7 @@ source_dir=$1
 binary_dir=$2
 osType=$3
 verNumber=$4
+install_fq_runtime_libs=${TD_INSTALL_FQ_RUNTIME_LIBS:-OFF}
 
 if [ "$osType" != "Darwin" ]; then
   script_dir=$(dirname $(readlink -f "$0"))
@@ -68,10 +69,17 @@ NC='\033[0m'
 
 csudo=""
 csudouser=""
-if command -v sudo >/dev/null; then
+if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null; then
   csudo="sudo "
   csudouser="sudo -u ${USER} "
 fi
+
+function is_true() {
+  case "$1" in
+    ON|on|On|TRUE|true|True|1|YES|yes|Yes) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 service_mod=2
 os_type=0
@@ -323,13 +331,140 @@ function install_avro() {
 }
 
 function install_lib() {
+  copy_driver_runtime_libs() {
+    local patterns=()
+    local src=""
+
+    if [ "$osType" != "Darwin" ]; then
+      patterns=(
+        "libssl.so*"
+        "libcrypto.so*"
+      )
+    else
+      patterns=(
+        "libssl*.dylib*"
+        "libcrypto*.dylib*"
+      )
+    fi
+
+    for pattern in "${patterns[@]}"; do
+      for src in "${binary_dir}/build/lib"/${pattern}; do
+        [ -e "${src}" ] || continue
+        ${csudo}cp -RfL "${src}" "${install_main_dir}/driver/" &&
+          ${csudo}chmod 755 "${install_main_dir}/driver/$(basename "${src}")"
+      done
+    done
+  }
+
+  remove_fq_runtime_libs() {
+    local pattern=""
+    local src=""
+
+    is_true "${install_fq_runtime_libs}" && return
+
+    for pattern in \
+      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*"; do
+      for src in "${install_main_dir}/driver"/${pattern}; do
+        [ -e "${src}" ] || continue
+        ${csudo}rm -f "${src}" || :
+      done
+    done
+  }
+
+  copy_fq_runtime_libs() {
+    local pattern=""
+    local src=""
+
+    is_true "${install_fq_runtime_libs}" || return
+    [ -d "${binary_dir}/build/lib" ] || return
+
+    for pattern in \
+      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*"; do
+      for src in "${binary_dir}/build/lib"/${pattern}; do
+        [ -e "${src}" ] || continue
+        ${csudo}cp -RfL "${src}" "${install_main_dir}/driver/" &&
+          ${csudo}chmod 755 "${install_main_dir}/driver/$(basename "${src}")"
+      done
+    done
+  }
+
+  link_driver_runtime_libs() {
+    local target_dir=$1
+    local patterns=()
+    local lib=""
+
+    [ -d "${target_dir}" ] || return
+
+    if [ "$osType" != "Darwin" ]; then
+      patterns=(
+        "libssl.so*"
+        "libcrypto.so*"
+      )
+    else
+      patterns=(
+        "libssl*.dylib*"
+        "libcrypto*.dylib*"
+      )
+    fi
+
+    for pattern in "${patterns[@]}"; do
+      for lib in "${install_main_dir}/driver"/${pattern}; do
+        [ -e "${lib}" ] || continue
+        ${csudo}ln -sf "${lib}" "${target_dir}/$(basename "${lib}")"
+      done
+    done
+  }
+
+  remove_managed_driver_links() {
+    local dir=$1
+    local pattern=""
+    local link_path=""
+    local resolved=""
+
+    [ -d "${dir}" ] || return
+
+    for pattern in \
+      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libssl.so*" "libcrypto.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libssl*.dylib*" "libcrypto*.dylib*"; do
+      for link_path in "${dir}"/${pattern}; do
+        [ -L "${link_path}" ] || continue
+        resolved=$(readlink -f "${link_path}" 2>/dev/null || true)
+        case "${resolved}" in
+          "${install_main_dir}/driver/"*)
+            ${csudo}rm -f "${link_path}" || :
+            ;;
+        esac
+      done
+    done
+  }
+
+  configure_driver_runtime_path() {
+    local conf_file="/etc/ld.so.conf.d/tdengine-connector.conf"
+
+    if [ "$osType" = "Darwin" ]; then
+      return
+    fi
+
+    if [ -d /etc/ld.so.conf.d ]; then
+      echo "${install_main_dir}/driver" | ${csudo}tee "${conf_file}" >/dev/null || \
+        echo -e "failed to write ${conf_file}"
+      ${csudo}ldconfig
+    else
+      echo "/etc/ld.so.conf.d not found!"
+    fi
+  }
+
   # Remove links
   remove_links() {
     local dir=$1
     if [ -d "$dir" ]; then
-      for pattern in "libtaos.*" "libtaosnative.*" "libtaosws.*" "libtaospyudf.*"; do
+      for pattern in \
+        "libtaos.*" "libtaosnative.*" "libtaosws.*" "libtaospyudf.*"; do
           ${csudo}find "$dir" -name "$pattern" -exec ${csudo}rm -f {} \; || :
-      done      
+      done
+      remove_managed_driver_links "${dir}"
     fi
   }
 
@@ -405,6 +540,10 @@ function install_lib() {
         ${csudo}ln -sf ${lib64_link_dir}/libtaospyudf.so.1 ${lib64_link_dir}/libtaospyudf.so > /dev/null 2>&1
         fi
     fi
+
+    copy_driver_runtime_libs
+    copy_fq_runtime_libs
+    remove_fq_runtime_libs
   else
     ${csudo}cp -Rf ${binary_dir}/build/lib/libtaos.dylib \
       ${install_main_dir}/driver/libtaos.${verNumber}.dylib && ${csudo}chmod 777 ${install_main_dir}/driver/*
@@ -437,6 +576,11 @@ function install_lib() {
 
       ${csudo}ln -sf ${install_main_dir}/driver/libtaospyudf.${verNumber}.dylib ${lib_link_dir}/libtaospyudf.dylib > /dev/null 2>&1 || :
     fi
+
+    copy_driver_runtime_libs
+    copy_fq_runtime_libs
+    remove_fq_runtime_libs
+    link_driver_runtime_libs "${lib_link_dir}"
   fi
 
   install_jemalloc
@@ -444,7 +588,7 @@ function install_lib() {
   #install_avro lib64
 
   if [ "$osType" != "Darwin" ]; then
-    ${csudo}ldconfig /etc/ld.so.conf.d
+    configure_driver_runtime_path
   fi
 }
 

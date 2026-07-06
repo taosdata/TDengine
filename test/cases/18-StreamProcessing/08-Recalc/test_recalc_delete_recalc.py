@@ -293,7 +293,7 @@ class TestStreamRecalcDeleteRecalc:
         # Test 6: COUNT_WINDOW with DELETE_RECALC - should recalculate when data is deleted
         stream = StreamItem(
             id=6,
-            stream="create stream rdb.s_count_delete count_window(3) from tdb.trigger_count_delete partition by tbname into rdb.r_count_delete as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
+            stream="create stream rdb.s_count_delete count_window(3, 1) from tdb.trigger_count_delete partition by tbname stream_options(delete_recalc) into rdb.r_count_delete as select _twstart ts, count(*) cnt, avg(cint) avg_val from qdb.meters where cts >= _twstart and cts < _twend;",
             check_func=self.check06,
         )
         self.streams.append(stream)
@@ -468,25 +468,68 @@ class TestStreamRecalcDeleteRecalc:
 
         tdSql.checkResultsByFunc(
                 sql=f"select ts, cnt, avg_val from rdb.r_count_delete",
-                func=lambda: tdSql.getRows() == 2
+                func=lambda: tdSql.getRows() == 4
                 and tdSql.compareData(0, 0, "2025-01-01 02:15:00")
                 and tdSql.compareData(0, 1, 100)
                 and tdSql.compareData(0, 2, 270)
-                and tdSql.compareData(1, 0, "2025-01-01 02:15:45")
+                and tdSql.compareData(1, 0, "2025-01-01 02:15:15")
                 and tdSql.compareData(1, 1, 100)
-                and tdSql.compareData(1, 2, 272)
+                and tdSql.compareData(1, 2, 271)
+                and tdSql.compareData(2, 0, "2025-01-01 02:15:30")
+                and tdSql.compareData(2, 1, 100)
+                and tdSql.compareData(2, 2, 271)
+                and tdSql.compareData(3, 0, "2025-01-01 02:15:45")
+                and tdSql.compareData(3, 1, 100)
+                and tdSql.compareData(3, 2, 272)
             )
+        before_rows = self.result_rows("rdb.r_count_delete")
         tdSql.execute("insert into qdb.t0 values ('2025-01-01 02:15:01', 10, 100, 1.5, 1.5, 0.8, 0.8, 'normal', 1, 1, 1, 1, true, 'normal', 'normal', '10', '10', 'POINT(0.8 0.8)');")
         tdSql.execute("delete from tdb.dc1 where ts = '2025-01-01 02:15:15';")
 
         tdSql.checkResultsByFunc(
-                sql=f"select ts, cnt, avg_val from rdb.r_count_delete",
-                func=lambda: tdSql.getRows() == 2
-                and tdSql.compareData(0, 0, "2025-01-01 02:15:00")
-                and tdSql.compareData(0, 1, 100)
-                and tdSql.compareData(0, 2, 270)
-                and tdSql.compareData(1, 0, "2025-01-01 02:15:45")
-                and tdSql.compareData(1, 1, 100)
-                and tdSql.compareData(1, 2, 272)
-            )
+            sql=self.result_sql("rdb.r_count_delete"),
+            func=lambda: self.has_count_delete_recalculated_rows(before_rows),
+        )
         tdLog.info("COUNT_WINDOW with DELETE_RECALC successfully handled data deletion")
+
+    def result_rows(self, table):
+        tdSql.query(self.result_sql(table))
+        rows = []
+        for i in range(tdSql.getRows()):
+            rows.append(
+                (
+                    str(tdSql.getData(i, 0)).removesuffix(".000"),
+                    tdSql.getData(i, 1),
+                    None if tdSql.getData(i, 2) is None else float(tdSql.getData(i, 2)),
+                    tdSql.getData(i, 3),
+                )
+            )
+        return rows
+
+    def result_sql(self, table):
+        return f"select ts, cnt, avg_val, tag_tbname from {table} order by tag_tbname, ts"
+
+    def has_count_delete_recalculated_rows(self, before_rows):
+        rows = self.result_rows("rdb.r_count_delete")
+        return rows != before_rows and self.rows_match(
+            rows,
+            [
+                ("2025-01-01 02:15:00", 201, 269.2039800995025, "dc1"),
+                ("2025-01-01 02:15:15", 100, 271.0, "dc1"),
+                ("2025-01-01 02:15:30", 100, 271.0, "dc1"),
+                ("2025-01-01 02:15:45", 100, 272.0, "dc1"),
+            ],
+        )
+
+    def rows_match(self, actual_rows, expected_rows):
+        if len(actual_rows) != len(expected_rows):
+            return False
+        for actual, expected in zip(actual_rows, expected_rows):
+            if actual[0] != expected[0] or actual[1] != expected[1] or actual[3] != expected[3]:
+                return False
+            if actual[2] is None or expected[2] is None:
+                if actual[2] != expected[2]:
+                    return False
+            elif abs(actual[2] - expected[2]) > 0.000001:
+                return False
+        return True

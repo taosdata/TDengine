@@ -63,7 +63,7 @@ class TestStreamOptionsAbnormal:
             tdSql.error(f"create vtable if not exists err_ct1 using {self.stbName2} tags(100)")
             
             tdSql.execute(f"create vtable if not exists null_vntb1 (cts timestamp, cint int)")
-            tdSql.error(f"alter table null_vntb1 alter column cint set {self.ntbName}.cint")
+            tdSql.execute(f"alter table null_vntb1 alter column cint set {self.ntbName}.cint")
             tdSql.execute(f"alter vtable null_vntb1 alter column cint set {self.ntbName}.cint")
             tdSql.error(f"alter vtable null_vntb1 alter column cint set {self.ntbName}.cdouble")
             # drop table can be used to drop any type of table

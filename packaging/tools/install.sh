@@ -576,8 +576,8 @@ function install_bin() {
     fi
 
     # Add LD_LIBRARY_PATH
-    if ! grep -q "${lib_link_dir}" "$env_file" 2>/dev/null; then
-      echo "export LD_LIBRARY_PATH=\"${lib_link_dir}:\$LD_LIBRARY_PATH\"" >> "$env_file"
+    if ! grep -q "${driver_dir}" "$env_file" 2>/dev/null; then
+      echo "export LD_LIBRARY_PATH=\"${driver_dir}:${lib_link_dir}:\$LD_LIBRARY_PATH\"" >> "$env_file"
       log info "Added ${productName} lib to LD_LIBRARY_PATH (${env_file})"
     fi
 
@@ -588,16 +588,92 @@ function install_bin() {
 }
 
 function install_lib() {
+  link_driver_runtime_libs() {
+    local target_dir=$1
+    local patterns=()
+    local lib=""
+
+    [ -d "${target_dir}" ] || return
+
+    if [ "$osType" != "Darwin" ]; then
+      patterns=(
+        "libmariadb.so*"
+        "libpq.so*"
+        "libarrow*.so*"
+        "libparquet.so*"
+        "libssl.so*"
+        "libcrypto.so*"
+      )
+    else
+      patterns=(
+        "libmariadb*.dylib*"
+        "libpq*.dylib*"
+        "libarrow*.dylib*"
+        "libparquet*.dylib*"
+        "libssl*.dylib*"
+        "libcrypto*.dylib*"
+      )
+    fi
+
+    for pattern in "${patterns[@]}"; do
+      for lib in "${driver_dir}"/${pattern}; do
+        [ -e "${lib}" ] || continue
+        ln -sf "${lib}" "${target_dir}/$(basename "${lib}")"
+      done
+    done
+  }
+
+  remove_managed_driver_links() {
+    local dir=$1
+    local pattern=""
+    local link_path=""
+    local resolved=""
+
+    [ -d "${dir}" ] || return
+
+    for pattern in \
+      "libmariadb.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libssl.so*" "libcrypto.so*" \
+      "libmariadb*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libssl*.dylib*" "libcrypto*.dylib*"; do
+      for link_path in "${dir}"/${pattern}; do
+        [ -L "${link_path}" ] || continue
+        resolved=$(readlink -f "${link_path}" 2>/dev/null || true)
+        case "${resolved}" in
+          "${driver_dir}/"*)
+            rm -f "${link_path}" || :
+            ;;
+        esac
+      done
+    done
+  }
+
+  configure_driver_runtime_path() {
+    local conf_file="/etc/ld.so.conf.d/tdengine-connector.conf"
+
+    if [ "$osType" = "Darwin" ] || [[ $user_mode -ne 0 ]]; then
+      return
+    fi
+
+    if [ -d /etc/ld.so.conf.d ]; then
+      echo "${driver_dir}" | tee "${conf_file}" >/dev/null || \
+        log warn "Failed to write ${conf_file}"
+      ldconfig 2>/dev/null || log warn "Failed to update library cache (ldconfig)"
+    else
+      log warn "/etc/ld.so.conf.d not found!"
+    fi
+  }
+
   # Remove links
   rm -f ${lib_link_dir}/libtaos.* || :
   rm -f ${lib_link_dir}/libtaosnative.* || :
   rm -f ${lib_link_dir}/libtaosws.* || :
   rm -f ${lib_link_dir}/libtaospyudf.* || :
+  remove_managed_driver_links "${lib_link_dir}"
   if [ "$osType" != "Darwin" ]; then
     rm -f ${lib64_link_dir}/libtaos.* || :
     rm -f ${lib64_link_dir}/libtaosnative.* || :
     rm -f ${lib64_link_dir}/libtaosws.* || :
     rm -f ${lib64_link_dir}/libtaospyudf.* || :
+    remove_managed_driver_links "${lib64_link_dir}"
   fi
   #rm -rf ${v15_java_app_dir}              || :
   cp -rf ${script_dir}/driver/* ${driver_dir}/ && chmod 755 ${driver_dir}/*
@@ -624,10 +700,7 @@ function install_lib() {
       ln -sf ${driver_dir}/libtaospyudf.so.* ${lib64_link_dir}/libtaospyudf.so || :
     fi
 
-    # Update library cache
-    if [[ $user_mode -eq 0 ]]; then
-      ldconfig 2>/dev/null || log warn "Failed to update library cache (ldconfig)"
-    fi
+    configure_driver_runtime_path
   else
     # macOS specific linking
     ln -sf ${driver_dir}/libtaos.* ${lib_link_dir}/libtaos.3.dylib
@@ -641,6 +714,7 @@ function install_lib() {
     for f in ${driver_dir}/libtaospyudf.dylib.*; do
       [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaospyudf.dylib"
     done
+    link_driver_runtime_libs "${lib_link_dir}"
     # Update dyld shared cache
     if [[ $user_mode -eq 0 ]]; then
       update_dyld_shared_cache 2>/dev/null || log warn "Failed to update dyld shared cache"

@@ -31,6 +31,12 @@ extern "C" {
 #define UNUSED(A) (void)(A)
 #endif
 
+#ifdef _MSC_VER
+#include <string.h>
+#define strcasecmp  _stricmp
+#define strncasecmp _strnicmp
+#endif
+
 #define LIBTMQTT_MAJOR    1
 #define LIBTMQTT_MINOR    0
 #define LIBTMQTT_REVISION 0

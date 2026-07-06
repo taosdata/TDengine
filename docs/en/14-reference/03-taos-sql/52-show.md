@@ -174,13 +174,37 @@ SHOW [db_name.]STABLES [LIKE 'pattern'];
 
 Displays information about all supertables in the current database. You can use LIKE for fuzzy matching of table names.
 
+## SHOW CREATE VTABLE
+
+```sql
+SHOW CREATE VTABLE [db_name.]vtable_name;
+```
+
+Displays the creation statement for a virtual table. For virtual subtables created with tag-ref, the returned statement preserves the tag-ref definition.
+
+## SHOW VTABLES
+
+```sql
+SHOW [NORMAL | CHILD] [db_name.]VTABLES [LIKE 'pattern'];
+```
+
+Displays virtual basic tables and virtual subtables in the specified database. `SHOW TABLES` does not return these virtual tables; use `SHOW VTABLES` instead.
+
+## SHOW VTABLE VALIDATE
+
+```sql
+SHOW VTABLE VALIDATE FOR [db_name.]vtable_name;
+```
+
+Validates column/tag references for a virtual basic table or virtual child table. For batch inspection, query `information_schema.ins_virtual_tables_referencing`.
+
 ## SHOW STREAMS
 
 ```sql
-SHOW [db_name.]STREAMS;
+SHOW [db_name.]STREAMS [LIKE 'pattern'];
 ```
 
-Displays information about all stream computations in the current database.
+Displays information about stream computations. If db_name is not specified, it displays streams from all databases. You can use LIKE for fuzzy matching of stream names.
 
 ## SHOW SUBSCRIPTIONS
 
@@ -290,6 +314,7 @@ SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
 Displays tag information for the child table.
+For a tag-ref virtual child table, the result shows the currently resolved tag values.
 
 ## SHOW TOPICS
 
@@ -324,6 +349,24 @@ SHOW DNODE dnode_id VARIABLES [like pattern];
 ```
 
 Displays the runtime values of configuration parameters that need to be the same across nodes in the current system, or you can specify a DNODE to view its configuration parameters. And you can use the like pattern to filter by name.
+
+## SHOW CPU_ALLOCATION
+
+```sql
+SHOW CPU_ALLOCATION;
+```
+
+Displays the CPU core allocation status for the three thread categories (management, write, read) on all dnodes in the cluster. This is only meaningful when the `enableCpuAffinity` configuration parameter is enabled. Returns 3 rows per dnode with the following columns:
+
+| Column Name      | Data Type    | Description                                                                 |
+| ---------------- | ------------ | --------------------------------------------------------------------------- |
+| dnode_id         | INT          | Dnode identifier                                                            |
+| thread_category  | VARCHAR(16)  | Thread category: `management`, `write`, or `read`                           |
+| cores            | INT          | Number of CPU cores allocated to this category (0 when disabled)            |
+| core_ids         | VARCHAR(256) | Comma-separated list of assigned core IDs, or `"-"` when disabled           |
+| enabled          | BOOL         | Whether CPU affinity is active for this category                            |
+
+When `enableCpuAffinity` is off (default), all rows show `enabled=false`, `cores=0`, and `core_ids="-"`.
 
 ## SHOW VGROUPS
 

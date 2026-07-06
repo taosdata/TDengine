@@ -50,8 +50,8 @@ else
   install_dir="${release_dir}/${productName2}-server-${version}"
 fi
 
-if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
-  cd ${top_dir}/tools/taos-tools/packaging/deb
+if [ -d ${top_dir}/tools/taosBenchmark/packaging/deb ]; then
+  cd ${top_dir}/tools/taosBenchmark/packaging/deb
 
   taostools_ver=$(git for-each-ref --sort=taggerdate --format '%(tag)' refs/tags|grep -v taos | tail -1)
   [ -z "$taostools_ver" ] && taostools_ver="0.1.0"
@@ -203,8 +203,8 @@ fi
 #         && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
 #         && chmod a+x ${taostools_install_dir}/bin/* || :
 
-#     if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh ]; then
-#         cp ${top_dir}/tools/taos-tools/packaging/tools/install-tools.sh \
+#     if [ -f ${top_dir}/tools/taosBenchmark/packaging/tools/install-tools.sh ]; then
+#         cp ${top_dir}/tools/taosBenchmark/packaging/tools/install-tools.sh \
 #             ${taostools_install_dir}/ > /dev/null \
 #             && chmod a+x ${taostools_install_dir}/install-tools.sh \
 #             || echo -e "failed to copy install-tools.sh"
@@ -212,8 +212,8 @@ fi
 #         echo -e "install-tools.sh not found"
 #     fi
 
-#     if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh ]; then
-#         cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-tools.sh \
+#     if [ -f ${top_dir}/tools/taosBenchmark/packaging/tools/uninstall-tools.sh ]; then
+#         cp ${top_dir}/tools/taosBenchmark/packaging/tools/uninstall-tools.sh \
 #             ${taostools_install_dir}/ > /dev/null \
 #             && chmod a+x ${taostools_install_dir}/uninstall-tools.sh \
 #             || echo -e "failed to copy uninstall-tools.sh"
@@ -340,7 +340,7 @@ if [[ $dbName == "taos" ]]; then
     cp -r ${examples_dir}/go ${install_dir}/examples ||:
     cp -r ${examples_dir}/nodejs ${install_dir}/examples ||:
     cp -r ${examples_dir}/C# ${install_dir}/examples ||:
-    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
+    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taosBenchmark/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
   if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then    

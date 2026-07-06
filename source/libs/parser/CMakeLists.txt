@@ -17,6 +17,7 @@ set(PARSER_SRC
 
 IF(TD_ENTERPRISE)
         LIST(APPEND PARSER_SRC ${TD_ENTERPRISE_DIR}/source/plugins/view/src/parserView.c)
+        LIST(APPEND PARSER_SRC ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/parserExtSource.c)
 ENDIF()
 
 message(STATUS "Debugging ............................")
@@ -51,6 +52,7 @@ target_include_directories(
         parser
         PUBLIC "${TD_SOURCE_DIR}/include/libs/parser"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+        PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 
 target_link_libraries(

@@ -80,6 +80,7 @@ int32_t vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 int32_t vnodeSetWalKeepVersion(SVnode *pVnode, int64_t keepVersion);
 void vnodeGetInfo(void *pVnode, const char **dbname, int32_t *vgId, int64_t *numOfTables, int64_t *numOfNormalTables);
 int8_t    vnodeGetSecurityLevel(void *pVnode);
+bool      vnodeHasPendingTxnEntries(void *pVnode);
 int32_t   vnodeGetTableList(void *pVnode, int8_t type, SArray *pList);
 int32_t   vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list);
 int32_t   vnodeIsCatchUp(SVnode *pVnode);
@@ -119,27 +120,29 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeProcessStreamReaderMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
+
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
 void    vnodeProposeCommitOnNeed(SVnode *pVnode, bool atExit);
-void    vnodeAlterTagForTmq(SVnode *pVnode, const SArray* tbUidList, const SArray *tags, const SArray* uidTags);
+void    vnodeAlterTagForQuerySub(SVnode *pVnode, const SArray* tbUidList, const SArray *tags, const SArray* uidTags);
 
 // meta
-void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI);
+void        _metaReaderInit(SMetaReader *pReader, void *pVnode, int32_t flags, SStoreMeta *pAPI, int64_t txnId);
 void        metaReaderReleaseLock(SMetaReader *pReader);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, tb_uid_t uid);
 int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
-int32_t     metaGetTableTags(void *pVnode, uint64_t suid, SArray *uidList);
-int32_t     metaGetTableTagsByUids(void *pVnode, int64_t suid, SArray *uidList);
+int32_t     metaGetTbnameByIdIfTableNotExist(SMeta *pMeta, int64_t uid, char *tbname);
+int32_t     metaGetTableTags(void *pVnode, uint64_t suid, SArray *uidList, int64_t txnId);
+int32_t     metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(const void *tag, int16_t type, STagVal *tagVal);
-int32_t     metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName);
+int32_t     metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName, int64_t txnId);
 
 int      metaGetTableSzNameByUid(void *meta, uint64_t uid, char *tbName);
-int      metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid);
-int      metaGetTableTypeSuidByName(void *meta, char *tbName, ETableType *tbType, uint64_t *suid);
+int      metaGetTableUidByName(void *pVnode, char *tbName, uint64_t *uid, int64_t txnId);
+int      metaGetTableTypeSuidByName(void *meta, char *tbName, ETableType *tbType, uint64_t *suid, int64_t txnId);
 int      metaGetTableTtlByUid(void *meta, uint64_t uid, int64_t *ttlDays);
 bool     metaIsTableExist(void *pVnode, tb_uid_t uid);
 int32_t  metaGetCachedTableUidList(void *pVnode, tb_uid_t suid, const uint8_t *key, int32_t keyLen, SArray *pList,
@@ -177,6 +180,8 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
 
 int32_t metaGetCachedRefDbs(void *pVnode, tb_uid_t suid, SArray *pList);
 int32_t metaPutRefDbsToCache(void *pVnode, tb_uid_t suid, SArray *pList);
+int32_t metaGetCachedExtSources(void *pVnode, tb_uid_t suid, SArray *pList);
+int32_t metaPutExtSourcesToCache(void *pVnode, tb_uid_t suid, SArray *pList);
 
 // tsdb
 typedef struct STsdbReader STsdbReader;
@@ -290,7 +295,6 @@ bool tqCurrentBlockConsumed(const STqReader *pReader);
 int32_t      tqReaderSeek(STqReader *pReader, int64_t ver, const char *id);
 int32_t      tqNextBlockInWal(STqReader *pReader, SSDataBlock* pRes, SHashObj* pCol2SlotId, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
                               int sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay);
-bool         tqNextBlockImpl(STqReader *pReader, const char *idstr);
 SWalReader  *tqGetWalReader(STqReader *pReader);
 int64_t      tqGetResultBlockTime(STqReader *pReader);
 
@@ -299,10 +303,8 @@ void      tqUpdateTableTagCache(STqReader* pReader, SExprInfo* pExprInfo, int32_
 
 int32_t tqReaderSetSubmitMsg(STqReader *pReader, void *msgStr, int32_t msgLen, int64_t ver, SArray* rawList, SDecoder* decoder);
 void    tqReaderClearSubmitMsg(STqReader *pReader);
-bool    tqNextDataBlockFilterOut(STqReader *pReader, SHashObj *filterOutUids);
-int32_t tqRetrieveTaosxBlock(STqReader *pReader, SMqDataRsp *pRsp, SArray *blocks, SArray *schemas, SSubmitTbData **pSubmitTbDataRet, SArray* rawList, int8_t fetchMeta);
 
-int32_t tqCommitOffset(void* p);
+int32_t tqOffsetCommit(void* p);
 // sma
 int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
@@ -411,6 +413,14 @@ struct SVnodeCfg {
 #define TABLE_IS_VIRTUAL(FLG)  (((FLG) & (TABLE_VIRTUAL)) != 0)
 #define TABLE_SET_VIRTUAL(FLG) ((FLG) |= TABLE_VIRTUAL)
 
+// Bit 6 (0x40) of the encoded type byte marks an entry carrying txnId/txnStatus.
+// Only set when txnId != 0 (entry is in a batch meta transaction).
+// Non-txn entries pay zero disk overhead.
+#define TABLE_TYPE_TXN_BIT    ((int8_t)0x40)
+#define TABLE_TYPE_HAS_TXN(T) ((T) > 0 && ((T) & TABLE_TYPE_TXN_BIT))
+#define TABLE_TYPE_SET_TXN(T) ((int8_t)((T) | TABLE_TYPE_TXN_BIT))
+#define TABLE_TYPE_CLR_TXN(T) ((int8_t)((T) & ~TABLE_TYPE_TXN_BIT))
+
 struct SFileSetReader;
 int32_t tsdbFileSetReaderOpen(void *pVnode, struct SFileSetReader **ppReader);
 int32_t tsdbFileSetReaderNext(struct SFileSetReader *pReader);
@@ -418,6 +428,7 @@ int32_t tsdbFileSetGetEntryField(struct SFileSetReader *pReader, const char *fie
 void    tsdbFileSetReaderClose(struct SFileSetReader **ppReader);
 
 int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry);
+int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntry);
 void    metaFetchEntryFree(SMetaEntry **ppEntry);
 
 /**

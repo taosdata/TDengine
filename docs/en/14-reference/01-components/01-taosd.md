@@ -14,16 +14,19 @@ The command line parameters for taosd are as follows:
 - -s: Prints SDB information.
 - -C: Prints configuration information.
 - -e: Specifies environment variables, formatted like `-e 'TAOS_FQDN=td1'`.
-- -r: Starts local repair mode. This option must be used together with `--mode force`, `--node-type vnode`, and at least one `--repair-target`.
+- -r: Starts repair mode. Two modes are supported: `--mode force` (in-place local repair) and `--mode copy` (copy vnode data from a healthy source node).
 - -k: Retrieves the machine code.
 - -dm: Enables memory scheduling.
 - -V: Prints version information.
 
 ## Repair Mode
 
-Use `taosd -r` to start local repair mode. In the current phase, repair mode only supports `--mode force` and `--node-type vnode`.
+Use `taosd -r` to start repair mode. Two modes are supported:
 
-### Syntax
+- **Force mode**: In-place repair of local vnodes with specified repair targets.
+- **Copy mode**: When the volume of corrupted data is too large for regular repair mode to handle within acceptable time, copy vnode files directly from a healthy source node to the target node.
+
+### Force Mode Syntax
 
 ```bash
 taosd -r --mode force --node-type vnode [--backup-path <path>] \
@@ -67,14 +70,14 @@ Additional notes:
   - `full_rebuild`: deep-scan valid core blocks and rebuild the full core payload with the existing writer path.
   - Use `head_only_rebuild` or `full_rebuild` when you need recovery behavior for size-mismatch corruption.
 
-### Limitations
+### Force Mode Limitations
 
-- Only `--mode force` is supported.
 - Only `--node-type vnode` is supported.
-- `taosd -r` without `--mode`, `--node-type`, or `--repair-target` is invalid.
+- `taosd -r --mode force` without `--node-type` or `--repair-target` is invalid.
+- `--backup-path` and `--repair-target` cannot be used with `--mode copy`.
 - The older repair parameters `--file-type`, `--vnode-id`, and `--replica-node` have been removed from this interface.
 
-### Examples
+### Force Mode Examples
 
 Repair meta on one vnode and use the default strategy:
 
@@ -111,6 +114,59 @@ taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
   --repair-target meta:vnode=3 \
   --repair-target tsdb:vnode=5:fileid=1809 \
   --repair-target wal:vnode=6
+```
+
+### Copy Mode
+
+Copy mode copies files for specified vnodes directly from a healthy source node to the current (target) node. This is intended for scenarios where the volume of corrupted data is too large for regular repair mode to handle within acceptable time.
+
+#### Copy Mode Syntax
+
+```bash
+taosd -r --mode copy --node-type vnode --source-cfg <path> \
+  [--source-host <host>] --vnode <id>[,<id>|<id>-<id>]...
+```
+
+#### Copy Mode Options
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--source-cfg` | Yes | Path to the source node's `taos.cfg` configuration file, or the directory containing it |
+| `--source-host` | No | SSH host of the source node; omit for local source |
+| `--vnode` | Yes | Comma-separated list of vnode IDs to copy; ranges with `-` are supported (e.g., `3,5-8,10`) |
+
+#### Copy Mode Limitations
+
+- Only `--node-type vnode` is supported.
+- Windows is not currently supported for copy mode.
+- `--backup-path` and `--repair-target` cannot be used with `--mode copy`.
+- Remote mode requires passwordless SSH access (BatchMode).
+
+#### Copy Mode Examples
+
+Copy a single vnode from a local source node:
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /data/source-cluster/taos.cfg \
+  --vnode 3
+```
+
+Copy multiple vnodes from a local source node (specifying config directory):
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /etc/taos/ \
+  --vnode 3,5,8
+```
+
+Copy vnodes from a remote source node:
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /etc/taos/taos.cfg \
+  --source-host 192.168.1.100 \
+  --vnode 3,5
 ```
 
 ## Configuration Parameters
@@ -190,7 +246,7 @@ Additional Notes:
 | singleQueryMaxMemorySize |                   | Not supported                      | The memory limit that a single query can use on a single node (dnode), exceeding this limit will return an error, unit: MB, default value: 0 (no limit), value range 0-1000000000 |
 | filterScalarMode         |                   | Supported, effective after restart | Force scalar filter mode, 0: off; 1: on, default value 0     |
 | queryRsmaTolerance       |                   | Not supported                      | Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds |
-| pqSortMemThreshold       |                   | Not supported                      | Internal parameter, memory threshold for sorting             |
+| pqSortMemThreshold       |                   | Not supported                      | Internal parameter, memory threshold (MB) for sorting and DISTINCT aggregation spill-to-disk |
 | updateCacheBatch         | After 3.3.4.11    | Not supported                      | Whether to batch update cache; default value true |
 | sessionControl           | After 3.4.0.0     | Supported, effective after restart | Whether to enable session control function; default value true |
 | sessionPerUser           | After 3.4.0.0     | Supported, effective immediately   | Maximum number of sessions allowed per user, -1 means no limit, range -1-INT32_MAX, default value -1 |
@@ -224,11 +280,10 @@ On Linux/macOS, the client automatically reads the time zone information set by 
 
 ```text
 timezone UTC-8
-timezone GMT-8
 timezone Asia/Shanghai
 ```
 
-All are valid settings for the GMT+8 time zone. However, note that on Windows, the format `timezone UTC-8` is not supported, and must be written as `timezone Asia/Shanghai`.
+Both are valid settings for the east-8 (Beijing) time zone. Note that under the POSIX sign convention, `UTC-8` means 8 hours east of UTC — the sign is counterintuitive. When in doubt, use an IANA name such as `Asia/Shanghai` to avoid confusion. For the full list of accepted timezone formats, see [Supported Timezone Formats](../03-taos-sql/95-timezone.md#supported-timezone-formats).
 
 The setting of the time zone affects the querying and writing of SQL statements involving non-Unix timestamp content (timestamp strings, interpretation of the keyword now). For example:
 
@@ -337,7 +392,7 @@ The effective value of charset is UTF-8.
 | auditCreateTable           |                   | Supported, effective immediately   | Whether to enable audit feature for creating subtables; Enterprise parameter                                                                                                                                                                                                   |
 | auditSaveInSelf            | After 3.4.1.0     | Supported, effective immediately   | Whether to save audit information locally instead of sending it to taoskeeper. Range: 0-1, default: 0 (1: enabled, 0: disabled).                                                                                                                                                                                                    |
 | encryptAlgorithm           |                   | Not supported                      | Data encryption algorithm; Enterprise parameter                                                                                                                                                                                                                                |
-| encryptScope               |                   | Not supported                      | Encryption scope; Enterprise parameter                                                                                                                                                                                                                                         |
+| encryptScope               |                   | Not supported                      | Encryption scope; Enterprise parameter. A comma-separated combination of: `tsdb` (TSDB data files), `vnode_wal` (vnode WAL files), `sdb` (mnode SDB files), `mnode_wal` (mnode WAL files), `query_spill` (temp files spilled to disk during query execution, since v3.4.2.0), `all` (all of the above)                            |
 | encryptExtDir              | v3.4.0.0           | Not supported                      | User-defined encryption algorithms extensions path; Enterprise parameter                                                                                                                                                                                                                                         |
 | encryptPassAlgorithm       |v3.3.7.0           |Supported, effective immediately    | Switch for saving user password as encrypted string                                                                                                                                                                                                                            |
 | enableWhiteList            |                   | Supported, effective immediately   | Switch for whitelist feature; Enterprise parameter                                                                                                                                                                                                                             |
@@ -347,6 +402,7 @@ The effective value of charset is UTF-8.
 | authReqUrl                 | After 3.4.0.0     | Supported, effective immediately   | Authentication request URL; Enterprise parameter; default value empty |
 | syncLogBufferMemoryAllowed |                   | Supported, effective immediately   | Maximum memory allowed for sync log cache messages for a dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory, effective from versions 3.1.3.2/3.3.2.13                                                                                          |
 | syncApplyQueueSize         |                   | supported, effective immediately   | Size of apply queue for sync log, range 32-2048, default is 512                                                                                                                                                                                                                |
+| syncNegotiationWin         | After 3.4.2.0     | supported, effective immediately   | Size of the negotiation window for sync, used to control the negotiation buffer during log synchronization, range 128-10240, default is 512                                                                                                                                    |
 | statusIntervalMs           |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | statusSRTimeoutMs          |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | statusTimeoutMs            |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
@@ -358,6 +414,7 @@ The effective value of charset is UTF-8.
 | syncMnodeHeartbeatIntervalMs|                  | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | syncHeartbeatTimeout       |                   | Not supported                      | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | syncSnapReplMaxWaitN       |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| snapshotRateLimit          | After 3.4.2.0     | Supported, effective immediately   | Controls the total snapshot sending bandwidth per dnode (MB/s). When multiple vgroups perform snapshot replication concurrently, this parameter limits the sending rate to avoid IO bottlenecks on follower nodes. 0 means no rate limit. Range: 0-10240, default: 0             |
 | arbHeartBeatIntervalSec    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | arbCheckSyncIntervalSec    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | arbSetAssignedTimeoutSec   |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
@@ -478,6 +535,15 @@ The effective value of charset is UTF-8.
 | slowLogThresholdTest |                   | Not supported                    | Internal parameter, used for testing slow logs               |
 | bypassFlag           | After 3.3.4.5     | Supported, effective immediately | Internal parameter, used for  short-circuit testing          |
 
+### CPU Affinity
+
+| Parameter Name       | Supported Version | Dynamic Modification             | Description                                                  |
+| -------------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
+| enableCpuAffinity    | After 3.3.6.0     | Not supported                    | Master switch for CPU affinity binding. When enabled (1), taosd threads are pinned to specific CPU cores by category (management, write, read). When disabled (0, default), all threads run freely on all available cores. Requires restart to take effect. Systems with fewer than 3 CPU cores will auto-disable affinity with a warning. |
+| managementCpuCores   | After 3.3.6.0     | Not supported                    | Number of CPU cores dedicated to management threads (cluster coordination, networking, system-level tasks). Cores are assigned sequentially starting from core 0. Range: 1-256; default value is 1. Only effective when enableCpuAffinity is 1. |
+| readCpuCores         | After 3.3.6.0     | Not supported                    | Number of CPU cores dedicated to read (query) threads. Cores are assigned sequentially after management and write cores. Range: 1-256; default value is dynamically computed as half of remaining cores (totalCores - managementCpuCores) / 2. Only effective when enableCpuAffinity is 1. |
+| otherCpuCores        | After 3.3.6.0     | Not supported                    | Number of CPU cores dedicated to write threads. Cores are assigned sequentially after management cores. Range: 1-256; default value is dynamically computed as the other half of remaining cores. Only effective when enableCpuAffinity is 1. The sum managementCpuCores + readCpuCores + otherCpuCores must not exceed total available CPU cores. |
+
 ### Compression Parameters
 
 | Parameter Name | Supported Version | Dynamic Modification               | Description                                                  |
@@ -490,6 +556,7 @@ The effective value of charset is UTF-8.
 | curRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compressor     |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
 | compareAsStrInGreatest | After 3.4.0.0  | Supported, effective immediately   | Whether to compare values as strings in GREATEST function; default value true |
+| ignoreNullInGreatest   | After 3.4.2.0  | Supported, effective immediately   | Whether GREATEST and LEAST skip NULL arguments; 0 (default): MySQL-compatible, any NULL makes the result NULL; 1: skip NULL arguments and compare only non-NULL values |
 | showFullCreateTableColumn |  After 3.4.0.0 | Supported, effective immediately   | Whether SHOW CREATE TABLE displays full column information; 0: only table name and database name, 1: full create statement; default value 0 |
 | multiResultFunctionStarReturnTags | After 3.4.0.0 | Supported, effective immediately   | Whether multi-result functions return tag columns when using *; default value false |
 

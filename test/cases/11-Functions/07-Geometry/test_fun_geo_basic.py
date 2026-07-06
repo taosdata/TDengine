@@ -84,7 +84,7 @@ class TestGeometry:
         tdSql.error(f"select ST_GeomFromText(c1) from {dbname}.t1", self.errno_FUNTION_PARA_TYPE)
 
         # wrong number of params input
-        tdSql.error(f"select ST_GeomFromText()", self.errno_PAR_SYNTAX_ERROR)
+        tdSql.error(f"select ST_GeomFromText()", self.errno_FUNTION_PARA_NUM)
         tdSql.error(f"select ST_GeomFromText(c3, c3) from {dbname}.t1", self.errno_FUNTION_PARA_NUM)
 
         # wrong param content input
@@ -118,7 +118,7 @@ class TestGeometry:
         tdSql.error(f"select ST_AsText(c2) from {dbname}.ct1", self.errno_FUNTION_PARA_TYPE)
 
         # wrong number of params input
-        tdSql.error(f"select ST_AsText() from {dbname}.ct1", self.errno_PAR_SYNTAX_ERROR)
+        tdSql.error(f"select ST_AsText() from {dbname}.ct1", self.errno_FUNTION_PARA_NUM)
         tdSql.error(f"select ST_AsText(c4, c4) from {dbname}.ct1", self.errno_FUNTION_PARA_NUM)
 
         # wrong param content input should NOT happen for GEOMETRY type

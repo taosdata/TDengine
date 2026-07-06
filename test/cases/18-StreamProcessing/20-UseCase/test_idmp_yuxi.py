@@ -1,9 +1,4 @@
-import time
-import math
-import random
-from new_test_framework.utils import tdLog, tdSql, tdStream, etool
-from datetime import datetime
-from datetime import date
+from new_test_framework.utils import tdLog, tdSql, tdStream
 
 
 class Test_IDMP_Meters:
@@ -121,13 +116,13 @@ class Test_IDMP_Meters:
     # 5. verify results
     #
     def verifyResults(self):
-        # sleep
-        time.sleep(5)
-
         # result_stream8
         result_sql = f"select * from test.`ana_vt_电子皮带秤_07_564885_anaEnd_ana_1914678932738560_1` "
 
-        tdSql.query(result_sql)
-        tdSql.checkRows(1)
+        tdSql.checkResultsByFunc(
+            sql=result_sql,
+            func=lambda: tdSql.checkRows(1),
+            retry=60,
+        )
 
         tdLog.info(f"verify stream ................................. successfully.")

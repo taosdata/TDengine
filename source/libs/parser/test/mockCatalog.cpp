@@ -226,6 +226,17 @@ void generateTestStables(MockCatalogService* mcs, const std::string& db) {
     mcs->createSubTable(db, "st2", "st2s2", 3);
   }
   {
+    ITableBuilder& builder = mcs->createTableBuilder(db, "meters", TSDB_SUPER_TABLE, 3, 1)
+                                 .setPrecision(TSDB_TIME_PRECISION_MILLI)
+                                 .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+                                 .addColumn("c1", TSDB_DATA_TYPE_INT)
+                                 .addColumn("c2", TSDB_DATA_TYPE_INT)
+                                 .addTag("location", TSDB_DATA_TYPE_BINARY, 20);
+    builder.done();
+    mcs->createSubTable(db, "meters", "meters_0", 2);
+    mcs->createSubTable(db, "meters", "meters_1", 3);
+  }
+  {
     ITableBuilder& builder = mcs->createTableBuilder(db, "stream_t1", TSDB_NORMAL_TABLE, 3, 0)
                                  .setPrecision(TSDB_TIME_PRECISION_MILLI)
                                  .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)

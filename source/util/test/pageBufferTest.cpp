@@ -1,8 +1,10 @@
 #include <gtest/gtest.h>
 #include <cassert>
 #include <iostream>
+#include <string>
 
 #include "taos.h"
+#include "tglobal.h"
 #include "tpagedbuf.h"
 
 #pragma GCC diagnostic push
@@ -220,6 +222,77 @@ void testFlushAndReadBackBuffer() {
   taosMemoryFree(rowData);
 }
 
+// Same flush-and-readback as testFlushAndReadBackBuffer but with spill
+// encryption enabled. Verifies the encrypt-on-write / decrypt-on-read round
+// trip preserves data (padding + plaintext-length bookkeeping), and that the
+// on-disk spill file holds ciphertext (no plaintext leak) under real crypto.
+void testEncryptedFlushAndReadBackBuffer() {
+  EEncryptScope savedScope = tsiEncryptScope;
+  tsiEncryptScope = (EEncryptScope)(tsiEncryptScope | DND_CS_QUERY_SPILL);
+
+  // Dedicated temp dir so the spill file on disk is unambiguous to inspect.
+  char tmpDir[512] = {0};
+  (void)snprintf(tmpDir, sizeof(tmpDir), "%s/qspill_gtest_%d", TD_TMP_DIR_PATH,
+                 taosGetPId());
+  (void)taosMulMkDir(tmpDir);  // recursive: TD_TMP_DIR_PATH may not exist yet
+
+  SDiskbasedBuf* pBuf = NULL;
+  uint32_t       totalLen = 4096;
+  auto           code =
+      createDiskbasedBuf(&pBuf, totalLen, totalLen * 2, "enc", tmpDir);
+  ASSERT_EQ(code, 0);
+  int32_t pageId = -1;
+  auto*   pPg = (SFilePage*)getNewBufPage(pBuf, &pageId);
+  ASSERT_TRUE(pPg != nullptr);
+  pPg->num = sizeof(SFilePage);
+
+  // distinctive 3-byte payload so the plaintext page is greppable on disk
+  uint32_t len = 6;
+  char*    rowData = (char*)taosMemoryCalloc(1, len);
+  *(uint16_t*)(rowData + 2) = (uint16_t)2;
+  rowData[3] = 'Q';
+  rowData[4] = 'Z';
+  rowData[5] = '!';
+
+  while (pPg->num + len <= getBufPageSize(pBuf)) {
+    saveDataToPage(pPg, rowData, len);
+  }
+  ASSERT_EQ(pPg->num, totalLen);
+  releaseBufPage(pBuf, pPg);
+
+  // force the dirty page to disk (encrypted), then evict so it must be reloaded
+  int32_t newPgId = -1;
+  pPg = (SFilePage*)getNewBufPage(pBuf, &newPgId);
+  releaseBufPage(pBuf, pPg);
+  pPg = (SFilePage*)getNewBufPage(pBuf, &newPgId);
+  releaseBufPage(pBuf, pPg);
+
+  // Inspect the raw on-disk spill bytes. The marker (a few repeated rows) is
+  // present in plaintext; real SM4 must turn it into ciphertext.
+  char    diskBuf[16384] = {0};
+  int64_t nbytes = dbgReadDiskbasedBufFile(pBuf, diskBuf, sizeof(diskBuf));
+  ASSERT_GT(nbytes, 0);  // the page really spilled to disk
+  std::string onDisk(diskBuf, (size_t)nbytes);
+  std::string marker;
+  for (int i = 0; i < 4; ++i) marker.append(rowData, len);
+  bool leaked = onDisk.find(marker) != std::string::npos;
+#if defined(TD_ENTERPRISE) || defined(TD_ASTRA)
+  ASSERT_FALSE(leaked);  // real SM4-CBC on any platform: ciphertext only
+#else
+  ASSERT_TRUE(leaked);   // community memcpy stub: plaintext present (control)
+#endif
+
+  // reload from disk and verify the decrypted data matches
+  pPg = (SFilePage*)getBufPage(pBuf, pageId);
+  ASSERT_TRUE(pPg != nullptr);
+  ASSERT_TRUE(checkBufVarData(pPg, rowData + 3, len));
+
+  destroyDiskbasedBuf(pBuf);
+  taosRemoveDir(tmpDir);
+  taosMemoryFree(rowData);
+  tsiEncryptScope = savedScope;
+}
+
 }  // namespace
 
 TEST(testCase, resultBufferTest) {
@@ -228,6 +301,7 @@ TEST(testCase, resultBufferTest) {
   writeDownTest();
   recyclePageTest();
   testFlushAndReadBackBuffer();
+  testEncryptedFlushAndReadBackBuffer();
 }
 
 #pragma GCC diagnostic pop

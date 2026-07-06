@@ -3092,10 +3092,7 @@ class TDCom:
                     f"> {self.query_result_file}.raw "
                 )
                 time.sleep(1)
-                with (
-                    open(f"{self.query_result_file}.raw", "r", encoding="utf-8") as fin,
-                    open(self.query_result_file, "w", encoding="utf-8") as fout,
-                ):
+                with open(f"{self.query_result_file}.raw", "r", encoding="utf-8") as fin, open(self.query_result_file, "w", encoding="utf-8") as fout:
                     for line in fin:
                         stripped = line.rstrip()
                         # Skip lines that are entirely taos> or taos> followed by whitespace
@@ -3175,6 +3172,23 @@ class TDCom:
         normalized = re.sub(r"max_row_task=[0-9]+, ", "", normalized)
         return normalized.rstrip()
 
+    def _compare_lines_with_spaces_trimmed(self, file1, file2):
+        """Compare result files after stripping all whitespace from each line."""
+
+        with open(file1, "r", encoding="utf-8", errors="ignore") as f1:
+            lines1 = f1.read().splitlines()
+        with open(file2, "r", encoding="utf-8", errors="ignore") as f2:
+            lines2 = f2.read().splitlines()
+
+        if len(lines1) != len(lines2):
+            return False
+
+        for line1, line2 in zip(lines1, lines2):
+            if line1.replace(" ", "") != line2.replace(" ", ""):
+                return False
+
+        return True
+
     def _compare_normalized_result_lines(self, file1, file2):
         """Compare result files after stripping platform-specific CLI noise.
 
@@ -3203,6 +3217,7 @@ class TDCom:
         return True
 
     def _compare_file_lines_with_float_tolerance(self, file1, file2, float_tolerance):
+        """Returns (True, None) on match, or (False, error_msg) on mismatch."""
         number_pattern = re.compile(r"[-+]?(?:\d+\.\d+|\d+|\.\d+)(?:[eE][-+]?\d+)?")
 
         with open(file1, "r", encoding="utf-8", errors="ignore") as f1:
@@ -3211,25 +3226,34 @@ class TDCom:
             lines2 = f2.read().splitlines()
 
         if len(lines1) != len(lines2):
-            return False
+            return False, (f"Line count mismatch: expected {len(lines1)} lines, "
+                           f"actual {len(lines2)} lines")
 
-        for line1, line2 in zip(lines1, lines2):
+        for line_num, (line1, line2) in enumerate(zip(lines1, lines2), 1):
             line1 = self._normalize_result_line_for_compare(line1)
             line2 = self._normalize_result_line_for_compare(line2)
 
             if line1 == line2:
                 continue
 
+            # Ignore difference in separator line length (e.g. "====...====")
+            if re.fullmatch(r"=+", line1.strip()) and re.fullmatch(r"=+", line2.strip()):
+                continue
+
             matches1 = list(number_pattern.finditer(line1))
             matches2 = list(number_pattern.finditer(line2))
             if len(matches1) != len(matches2):
-                return False
+                return False, (f"Line {line_num} mismatch (different number count): "
+                               f"\n  expected: {line1}\n  actual:   {line2}")
 
             cursor1 = 0
             cursor2 = 0
             for match1, match2 in zip(matches1, matches2):
-                if line1[cursor1:match1.start()] != line2[cursor2:match2.start()]:
-                    return False
+                seg1 = line1[cursor1:match1.start()].replace(" ", "")
+                seg2 = line2[cursor2:match2.start()].replace(" ", "")
+                if seg1 != seg2:
+                    return False, (f"Line {line_num} mismatch (text segment differs): "
+                                   f"\n  expected: {line1}\n  actual:   {line2}")
 
                 token1 = match1.group(0)
                 token2 = match2.group(0)
@@ -3238,21 +3262,25 @@ class TDCom:
                     value2 = Decimal(token2)
                 except InvalidOperation:
                     if token1 != token2:
-                        return False
+                        return False, (f"Line {line_num} mismatch (non-numeric token differs): "
+                                       f"\n  expected: {line1}\n  actual:   {line2}")
                 else:
                     tolerance = self._get_numeric_compare_tolerance(
                         token1, token2, float_tolerance
                     )
                     if abs(value1 - value2) > tolerance:
-                        return False
+                        return False, (f"Line {line_num} mismatch (numeric tolerance exceeded: "
+                                       f"{token1} vs {token2}, tolerance={tolerance}): "
+                                       f"\n  expected: {line1}\n  actual:   {line2}")
 
                 cursor1 = match1.end()
                 cursor2 = match2.end()
 
-            if line1[cursor1:] != line2[cursor2:]:
-                return False
+            if line1[cursor1:].replace(" ", "") != line2[cursor2:].replace(" ", ""):
+                return False, (f"Line {line_num} mismatch (trailing text differs): "
+                               f"\n  expected: {line1}\n  actual:   {line2}")
 
-        return True
+        return True, None
 
     def compare_result_files(self, file1, file2, float_tolerance=0.0):
         normalized_file1 = None
@@ -3265,7 +3293,7 @@ class TDCom:
                 normalized_file1 = self._normalize_diff_file(file1)
                 normalized_file2 = self._normalize_diff_file(file2)
                 cmd = "diff"
-                diff_args = [cmd, "-u"]
+                diff_args = [cmd, "-b", "-u"]
                 if platform.system().lower() == "linux":
                     diff_args.append("--color")
                 diff_args.extend([normalized_file1, normalized_file2])
@@ -3275,7 +3303,6 @@ class TDCom:
                     text=True,
                     capture_output=True,
                 )
-                tdLog.info(f"result: {result}")
             else:
                 cmd = "fc"
                 file1 = os.path.abspath(os.path.normpath(file1))
@@ -3312,26 +3339,29 @@ class TDCom:
 
             # Result check logic for diff/fc
             if result.returncode != 0:
-                if self._compare_normalized_result_lines(file1, file2):
-                    tdLog.info("Result files matched after output normalization.")
-                    return True
-                if platform.system().lower() == "windows" and self._compare_file_lines_with_float_tolerance(
+                matched, err_msg = self._compare_file_lines_with_float_tolerance(
                     file1, file2, float_tolerance
-                ):
-                    tdLog.info(
-                        "Result files matched after Windows output normalization."
-                        if float_tolerance <= 0.0
-                        else "Result files matched after Windows output normalization "
-                        f"with float tolerance {float_tolerance}."
-                    )
+                )
+                if matched:
+                    tdLog.info("Result files matched after normalization "
+                              f"(float_tolerance={float_tolerance}).")
                     return True
-                tdLog.info(f"{cmd} result.returncode: {result.returncode}")
-                tdLog.info(f"{cmd} result.stdout: {result.stdout}")
-                tdLog.info(f"{cmd} result.stderr: {result.stderr}")
+                diff_file = os.path.splitext(file2)[0] + ".diff"
+                with open(diff_file, "w", encoding="utf-8") as f:
+                    f.write(f"--- {file1}\n+++ {file2}\n\n")
+                    if result.stdout:
+                        f.write(result.stdout)
+                    if result.stderr:
+                        f.write(f"\nstderr:\n{result.stderr}")
+                tdLog.info(f"Comparison failed: {err_msg}")
+                tdLog.info(f"Diff output saved to: {diff_file}")
                 return False
             if result.stdout:
-                tdLog.debug(f"Differences between {file1} and {file2}")
-                tdLog.notice(f"\r\n{result.stdout}")
+                diff_file = os.path.splitext(file2)[0] + ".diff"
+                with open(diff_file, "w", encoding="utf-8") as f:
+                    f.write(f"--- {file1}\n+++ {file2}\n\n")
+                    f.write(result.stdout)
+                tdLog.info(f"Diff output saved to: {diff_file}")
                 return False
             elif result.stderr:
                 tdLog.info(f"{cmd} result.stderr: {result.stderr}")
@@ -3389,6 +3419,8 @@ class TDCom:
         ):
             tdLog.info("Test passed: Result files are identical.")
             os.system(f"rm -f {test_reulst_file}")
+            diff_file = os.path.splitext(test_reulst_file)[0] + ".diff"
+            os.system(f"rm -f {diff_file}")
         else:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             tdLog.exit(

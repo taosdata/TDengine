@@ -24,7 +24,7 @@ For detailed usage instructions, see [SQL Manual](../14-reference/03-taos-sql/41
 CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 options: {
-    trigger_type [FROM [db_name.]table_name] [PARTITION BY col1 [, ...]] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
+    trigger_type [FROM [db_name.]table_name] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
     
 trigger_type: {
@@ -32,12 +32,21 @@ trigger_type: {
   | SLIDING(sliding_val[, offset_time])
   | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
   | SESSION(ts_col, session_val)
-  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+  | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 }
 
-true_for_expr: {
+true_for_expr:
+    true_for_arg [, true_for_arg [, true_for_arg]]
+
+true_for_arg: {
+    limit_expr
+  | start(limit_expr)
+  | end(limit_expr)
+}
+
+limit_expr: {
     duration_time
   | COUNT count_val
   | duration_time AND COUNT count_val
@@ -66,7 +75,7 @@ tag_definition:
 - Sliding trigger: drives execution based on a fixed interval of event time for data written to the trigger table. The division rules are the same as periodic triggers, with the only difference being that system time is replaced by event time.
 - Time window trigger: divides the incoming data written to the trigger table into windows based on time windows, and triggers when a window starts and/or closes.
 - Session window trigger: divides the incoming data written to the trigger table into windows based on session boundaries, and triggers when a window starts and/or closes.
-- State window trigger: divides the written data of the trigger table into windows based on the evaluated result of the state expression. A trigger occurs when a window is opened and/or closed.
+- State window trigger: divides the written data of the trigger table into windows based on one or more state keys. A trigger occurs when a window is opened and/or closed. The current window closes when any state key changes.
 - Event window trigger: partitions the incoming data of the trigger table into windows based on defined event start and end conditions, and triggers when the window opens and/or closes.
 - Count window trigger: partitions the written data from the trigger table based on a counting window, and triggers when the window starts and/or closes. It supports column-based triggering, where the trigger occurs when the specified columns receive data writes.
 
@@ -82,7 +91,7 @@ After a trigger occurs, different actions can be performed as needed, for exampl
 
 In general, one stream computing task corresponds to a single computation — for example, triggering a computation based on one subtable and storing the result in one output table. Following TDengine’s “one device, one table” design philosophy, if you need to compute results separately for all devices, you would traditionally need to create a separate stream computing task for each subtable. This can be inconvenient to manage and inefficient to process. To address this, TDengine TSDB's stream computing supports trigger grouping. A group is the smallest execution unit in stream computing. Logically, you can think of each group as an independent stream computing task, with its own output table and its own event notifications.
 
-In summary, the number of output tables (subtables or regular tables) produced by a stream computing task equals the number of groups in the trigger table. If no grouping is specified, only one output table (a regular table) is created.
+In summary, the number of output tables (subtables or regular tables) produced by a stream computing task equals the number of groups in the trigger table. If no grouping is specified, only one output table (a regular table) is created. `ROLLUP BY tag_name` can be used to create hierarchical rollup groups from the `.`-separated path value of one string tag column. It is mutually exclusive with `PARTITION BY`. For detailed rules, see [Stream Processing](../14-reference/03-taos-sql/41-stream.md#trigger-grouping).
 
 ### Stream Tasks
 
@@ -104,6 +113,8 @@ A computation task is the calculation executed by the stream after an event is t
 - `%%n`: reference to the trigger grouping column, where n is the index of the grouping column
 - `%%tbname`: reference to trigger table; can be used in queries as `FROM %%tbname`.
 - `%%trows`: reference to the trigger dataset for each group in the trigger table (i.e., the set of rows that meet the current trigger condition)
+- `%%rollup_tag`: when `ROLLUP BY` is used, the last path segment of the current rollup node.
+- `_trollup_tbcount`: when `ROLLUP BY` is used, the number of source child tables associated with the current rollup node at this trigger.
 
 ### Control Options
 
@@ -111,8 +122,9 @@ Control options are used to manage trigger and computation behavior. Multiple op
 
 - WATERMARK(duration_time) specifies the tolerance duration for out-of-order data.
 - EXPIRED_TIME(exp_time) specifies an expiration interval after which data is ignored.
-- IGNORE_DISORDER ignores out-of-order data in the trigger table.
-- DELETE_OUTPUT_TABLE ensures that when a subtable in the trigger table is deleted, its corresponding output subtable is also deleted.
+- IGNORE_DISORDER ignores out-of-order data in the trigger table. For count windows whose sliding step is 1, such as `COUNT_WINDOW(1)` and `COUNT_WINDOW(n, 1)`, out-of-order data and updates trigger automatic recalculation unless this option is specified.
+- DELETE_RECALC specifies that deletions in the trigger table should trigger automatic recomputation. For count windows, only windows whose sliding step is 1, such as `COUNT_WINDOW(1)` and `COUNT_WINDOW(n, 1)`, support this option.
+- DELETE_OUTPUT_TABLE ensures that when a subtable in the trigger table is deleted, its corresponding output subtable is also deleted. It applies only to streams grouped by subtable and does not apply to tag grouping or `ROLLUP BY`.
 - FILL_HISTORY[(start_time)] triggers historical data computation starting from the earliest record.
 - FILL_HISTORY_FIRST[(start_time)] triggers historical data computation with priority, starting from start_time (event time).
 - CALC_NOTIFY_ONLY sends computation results as notifications only, without saving them to the output table.

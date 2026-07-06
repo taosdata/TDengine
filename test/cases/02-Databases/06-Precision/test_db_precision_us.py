@@ -415,6 +415,7 @@ class TestDatabasePrecisionUs:
         self.checkExpect(sql, expectVal)
 
         # timetruncate check
+        tdSql.execute("set first_day_of_week 4")
         sql = '''select ts,timetruncate(ts,1a),
                           timetruncate(ts,1s),
                           timetruncate(ts,1m),

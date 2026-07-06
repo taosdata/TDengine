@@ -231,7 +231,9 @@ class TestTS_3821:
         tdSql.checkRows(6)
 
         # status window
-        tdSql.error("select _wstart, count(*) from st state_window(t_bool);")
+        tdSql.query("select _wstart, count(*) from st state_window(t_bool);")
+        tdSql.checkRows(100)
+        tdSql.checkData(0, 1, 6)
         tdSql.query("select _wstart, count(*) from st partition by tbname state_window(c_bool);")
         tdSql.checkRows(5)
         tdSql.checkData(0, 1, 100)
@@ -242,7 +244,9 @@ class TestTS_3821:
         tdSql.checkData(0, 1, 100)
 
         # event window
-        tdSql.error("select _wstart, _wend, count(*) from (select * from st order by ts, tbname) event_window start with t_bool=true end with t_bool=false;")
+        tdSql.query("select _wstart, _wend, count(*) from (select * from st order by ts, tbname) event_window start with t_bool=true end with t_bool=false;")
+        tdSql.checkRows(200)
+        tdSql.checkData(0, 2, 2)
 
     def check_query_with_union(self):
         tdSql.query("select count(ts) from (select * from ct1 union select * from ct2 union select * from ct3);")

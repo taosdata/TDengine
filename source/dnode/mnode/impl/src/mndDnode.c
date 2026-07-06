@@ -28,6 +28,7 @@
 #include "mndSnode.h"
 #include "mndToken.h"
 #include "mndTrans.h"
+#include "mndTxn.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "taos_monitor.h"
@@ -1045,9 +1046,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     mndReleaseDb(pMnode, pDb);
   }
 
+  bool hasTxnQueries = (statusReq.pTxnActiveQueries != NULL && taosArrayGetSize(statusReq.pTxnActiveQueries) > 0);
   bool needCheck = !online || dnodeChanged || reboot || supportVnodesChanged || analVerChanged ||
                    pMnode->ipWhiteVer != statusReq.ipWhiteVer || pMnode->timeWhiteVer != statusReq.timeWhiteVer ||
-                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditInfoChanged;
+                   encryptKeyChanged || enableWhiteListChanged || auditDBChanged || auditInfoChanged || hasTxnQueries;
   const STraceId *trace = &pReq->info.traceId;
   char            timestamp[TD_TIME_STR_LEN] = {0};
   if (mDebugFlag & DEBUG_TRACE)
@@ -1112,6 +1114,49 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
 
     mndReleaseVgroup(pMnode, pVgroup);
+  }
+
+  // Mark vnodes on this dnode that were NOT reported as OFFLINE (e.g. closed vnodes)
+  // Skip during reboot — vnodes may not all be ready in the first heartbeat after restart
+  if (!reboot) {
+    SSdb *pSdb = pMnode->pSdb;
+    void *pIter2 = NULL;
+    while (1) {
+      SVgObj *pVgroup = NULL;
+      pIter2 = sdbFetch(pSdb, SDB_VGROUP, pIter2, (void **)&pVgroup);
+      if (pIter2 == NULL) break;
+
+      for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
+        SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
+        if (pGid->dnodeId == statusReq.dnodeId && pGid->syncState != TAOS_SYNC_STATE_OFFLINE) {
+          bool found = false;
+          for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
+            SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
+            if (pVload->vgId == pVgroup->vgId) {
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            mInfo("vgId:%d, state changed to offline by status msg (not reported), dnode:%d, old state:%s",
+                  pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState));
+            pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
+            pGid->syncRestore = 0;
+            pGid->syncCanRead = 0;
+            pGid->startTimeMs = 0;
+
+            SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
+            if (pDb != NULL && pDb->stateTs != curMs) {
+              pDb->stateTs = curMs;
+            }
+            mndReleaseDb(pMnode, pDb);
+          }
+          break;
+        }
+      }
+
+      sdbRelease(pSdb, pVgroup);
+    }
   }
 
   SMnodeObj *pObj = mndAcquireMnode(pMnode, pDnode->id);
@@ -1224,6 +1269,41 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       }
     }
 
+    // Process txn keepalive queries from VNodes: each VNode is reporting an idle
+    // txn (ACTIVE for 30+ min) and asking MNode what to do.  MNode is authoritative
+    // and must respond based on the committed state in SDB.
+    if (hasTxnQueries) {
+      int32_t nQueries = (int32_t)taosArrayGetSize(statusReq.pTxnActiveQueries);
+      for (int32_t i = 0; i < nQueries; ++i) {
+        STxnActiveQuery *pQuery = TARRAY_GET_ELEM(statusReq.pTxnActiveQueries, i);
+        if (pQuery == NULL) continue;
+        EOrphanTxnAction action = mndGetOrphanTxnAction(pMnode, pQuery->txnId);
+        if (action == ORPHAN_TXN_ACTION_COMMIT) {
+          mDebug("dnode:%d, txn:%" PRIi64 " on vgId:%d committed on MNode, re-delivering COMMIT to VNode", pDnode->id,
+                 pQuery->txnId, pQuery->vgId);
+          int32_t rc = mndCommitOrphanTxnOnVnode(pMnode, pQuery->txnId, pQuery->vgId);
+          if (rc != 0) {
+            mWarn("dnode:%d, failed to commit orphan txn:%" PRIi64 " on vgId:%d: %s", pDnode->id, pQuery->txnId,
+                  pQuery->vgId, tstrerror(rc));
+          }
+        } else if (action == ORPHAN_TXN_ACTION_ROLLBACK) {
+          mDebug("dnode:%d, orphan txn:%" PRIi64 " on vgId:%d, initiating Raft-safe rollback", pDnode->id,
+                 pQuery->txnId, pQuery->vgId);
+          int32_t rc = mndRollbackOrphanTxnOnVnode(pMnode, pQuery->txnId, pQuery->vgId);
+          if (rc != 0) {
+            mWarn("dnode:%d, failed to rollback orphan txn:%" PRIi64 " on vgId:%d: %s", pDnode->id, pQuery->txnId,
+                  pQuery->vgId, tstrerror(rc));
+          }
+        }
+        // else ORPHAN_TXN_ACTION_SKIP: txn in-progress, MNode owns lifecycle
+        // else ORPHAN_TXN_ACTION_SKIP_UNKNOWN: not found in any SDB; record for visibility
+        if (action == ORPHAN_TXN_ACTION_SKIP_UNKNOWN) {
+          mndRecordOrphanTxn(pMnode, pQuery->txnId, pQuery->vgId);
+        }
+      }
+      mTrace("dnode:%d, processed %d txn keepalive queries", pDnode->id, nQueries);
+    }
+
     int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
     contLen = tSerializeSStatusRsp(pHead, contLen, &statusRsp);
@@ -1247,6 +1327,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
   taosArrayDestroy(statusReq.pVloads);
+  taosArrayDestroy(statusReq.pTxnActiveQueries);
   if (code != 0) {
     mError("dnode:%d, failed to process status req at line:%d since %s", statusReq.dnodeId, lino, tstrerror(code));
     return code;

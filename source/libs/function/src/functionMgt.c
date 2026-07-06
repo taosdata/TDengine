@@ -112,10 +112,29 @@ bool canCoexistIndefiniteRowsFunc(int32_t funcId1, int32_t funcId2) {
   if (funcId1 == funcId2) {
     return true;
   }
-  if ((funcMgtBuiltins[funcId1].type == FUNCTION_TYPE_LAG || funcMgtBuiltins[funcId1].type == FUNCTION_TYPE_LEAD) &&
-      (funcMgtBuiltins[funcId2].type == FUNCTION_TYPE_LAG || funcMgtBuiltins[funcId2].type == FUNCTION_TYPE_LEAD)) {
+  EFunctionType type1 = funcMgtBuiltins[funcId1].type;
+  EFunctionType type2 = funcMgtBuiltins[funcId2].type;
+
+  // DIFF/DERIVATIVE can coexist with each other (both are N-1 row PROCESS_BY_ROW funcs)
+  bool isDiffDeriv1 = (type1 == FUNCTION_TYPE_DIFF || type1 == FUNCTION_TYPE_DERIVATIVE);
+  bool isDiffDeriv2 = (type2 == FUNCTION_TYPE_DIFF || type2 == FUNCTION_TYPE_DERIVATIVE);
+  if (isDiffDeriv1 && isDiffDeriv2) {
     return true;
   }
+
+  // N-row INDEFINITE_ROWS functions can coexist with each other.
+  // MAVG outputs N-K+1 rows and is handled by the translator's MAVG-specific K check,
+  // so it must not be added to this N-row coexistence whitelist.
+  bool isNRow1 = (type1 == FUNCTION_TYPE_CSUM || type1 == FUNCTION_TYPE_FILL_FORWARD ||
+                  type1 == FUNCTION_TYPE_STATE_COUNT || type1 == FUNCTION_TYPE_STATE_DURATION ||
+                  type1 == FUNCTION_TYPE_LAG || type1 == FUNCTION_TYPE_LEAD);
+  bool isNRow2 = (type2 == FUNCTION_TYPE_CSUM || type2 == FUNCTION_TYPE_FILL_FORWARD ||
+                  type2 == FUNCTION_TYPE_STATE_COUNT || type2 == FUNCTION_TYPE_STATE_DURATION ||
+                  type2 == FUNCTION_TYPE_LAG || type2 == FUNCTION_TYPE_LEAD);
+  if (isNRow1 && isNRow2) {
+    return true;
+  }
+
   return false;
 }
 
@@ -225,6 +244,8 @@ bool fmIsScanPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(fu
 bool fmIsWindowPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_WINDOW_PC_FUNC); }
 
 bool fmIsWindowClauseFunc(int32_t funcId) { return fmIsAggFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId); }
+
+bool fmIsWindowIndefRowsFunc(int32_t funcId) { return fmIsVectorFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId); }
 
 bool fmIsStreamWindowClauseFunc(int32_t funcId) { return fmIsWindowClauseFunc(funcId) || fmIsPlaceHolderFunc(funcId); }
 
@@ -391,7 +412,32 @@ bool fmIsDBUsageFunc(int32_t funcId) {
 
 bool fmIsProcessByRowFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PROCESS_BY_ROW); }
 
+bool fmIsDegradedTimelineRowOrderFunc(int32_t funcId) {
+  return isSpecificClassifyFunc(funcId, FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC);
+}
+
+bool fmIsVolatileFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_VOLATILE_FUNC); }
+
+bool fmIsNoPushdownFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_NO_PUSHDOWN_FUNC); }
+
 bool fmIsIgnoreNullFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_IGNORE_NULL_FUNC); }
+
+static bool fmIsSpecificClassifyFuncByName(const char* pFuncName, uint64_t classification) {
+  int32_t funcId = fmGetFuncId(pFuncName);
+  return isSpecificClassifyFunc(funcId, classification);
+}
+
+bool fmIsSqlWindowFunc(const char* pFuncName) {
+  return fmIsSpecificClassifyFuncByName(pFuncName, FUNC_MGT_SQL_WINDOW_FUNC);
+}
+
+bool fmIsSqlWindowOrderRequiredFunc(const char* pFuncName) {
+  return fmIsSpecificClassifyFuncByName(pFuncName, FUNC_MGT_SQL_WINDOW_ORDER_FUNC);
+}
+
+bool fmCanUseAsSqlWindowAgg(const char* pFuncName) {
+  return fmIsSpecificClassifyFuncByName(pFuncName, FUNC_MGT_SQL_WINDOW_AGG_FUNC);
+}
 
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
@@ -549,6 +595,7 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
   }
   (*pPartialFunc)->hasOriginalFunc = true;
   (*pPartialFunc)->originalFuncId = pSrcFunc->hasOriginalFunc ? pSrcFunc->originalFuncId : pSrcFunc->funcId;
+  (*pPartialFunc)->isDistinct = pSrcFunc->isDistinct;
   char name[TSDB_FUNC_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_POINTER_PRINT_BYTES + 1] = {0};
 
   int32_t len = snprintf(name, sizeof(name), "%s.%p", (*pPartialFunc)->functionName, pSrcFunc);
@@ -627,7 +674,7 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMidFunc,
                         SFunctionNode** pMergeFunc) {
-  if (!fmIsDistExecFunc(pFunc->funcId)) {
+  if (!fmIsDistExecFunc(pFunc->funcId) || pFunc->isDistinct) {
     return TSDB_CODE_FAILED;
   }
 
@@ -833,19 +880,24 @@ const void* fmGetExternalWindowColumnFuncVal(const SStreamRuntimeFuncInfo* pStre
 }
 
 const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInfo* pStreamRuntimeFuncInfo) {
-  switch (funcMgtBuiltins[funcId].type) {
+  int32_t type = funcMgtBuiltins[funcId].type;
+  switch (type) {
     case FUNCTION_TYPE_TGRPID:
       return &pStreamRuntimeFuncInfo->groupId;
     case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
     case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
       return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG:
+      return pStreamRuntimeFuncInfo->pStreamPartColVals;
+    case FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT:
+      return &pStreamRuntimeFuncInfo->rollupTbCount;
     default:
       break;
   }
 
   SSTriggerCalcParam *pParams = taosArrayGet(pStreamRuntimeFuncInfo->pStreamPesudoFuncVals, pStreamRuntimeFuncInfo->curIdx);
-  switch (funcMgtBuiltins[funcId].type) {
+  switch (type) {
     case FUNCTION_TYPE_TPREV_TS:
       return &pParams->prevTs;
     case FUNCTION_TYPE_TCURRENT_TS:
@@ -866,12 +918,6 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return &pParams->triggerTime;
     case FUNCTION_TYPE_TNEXT_LOCALTIME:
       return &pParams->nextLocalTime;
-    case FUNCTION_TYPE_TGRPID:
-      return &pStreamRuntimeFuncInfo->groupId;
-    case FUNCTION_TYPE_PLACEHOLDER_COLUMN:
-      return pStreamRuntimeFuncInfo->pStreamPartColVals;
-    case FUNCTION_TYPE_PLACEHOLDER_TBNAME:
-      return pStreamRuntimeFuncInfo->pStreamPartColVals;
     case FUNCTION_TYPE_TIDLESTART:
       return &pParams->idlestart;
     case FUNCTION_TYPE_TIDLEEND:
@@ -882,12 +928,56 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
   return NULL;
 }
 
+static int32_t fmSetRollupTagValue(SValueNode* pNode, SArray* pVals) {
+  SStreamGroupValue* pValue = taosArrayGet(pVals, 0);
+  if (pValue == NULL) {
+    uError("failed to set rollup tag, invalid group column value");
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  if (pValue->isNull) {
+    pNode->isNull = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pValue->data.type != pNode->node.resType.type) {
+    uError("failed to set rollup tag, source type:%d mismatch result type:%d", pValue->data.type,
+           pNode->node.resType.type);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  const char* pLeaf = NULL;
+  int32_t     leafLen = 0;
+  int32_t     code = tGetStreamRollupGroupLeaf(pValue, &pLeaf, &leafLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to set rollup tag, invalid source type:%d, data length:%d", pValue->data.type, pValue->data.nData);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  int32_t bufSize = leafLen + VARSTR_HEADER_SIZE;
+  char*   tmp = taosMemoryCalloc(1, bufSize);
+  if (tmp == NULL) {
+    return terrno;
+  }
+
+  if (leafLen > 0) {
+    (void)memcpy(varDataVal(tmp), pLeaf, leafLen);
+  }
+
+  taosMemFree(pNode->datum.p);
+  pNode->datum.p = tmp;
+  varDataSetLen(pNode->datum.p, leafLen);
+  pNode->isNull = false;
+  return TSDB_CODE_SUCCESS;
+}
+
 bool fmIsStreamPesudoColVal(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
   }
-  return funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_COLUMN
-         || funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_TBNAME;
+  return funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_COLUMN ||
+         funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_TBNAME ||
+         funcMgtBuiltins[funcId].type == FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG;
 }
 
 int32_t fmGetStreamPesudoFuncEnv(int32_t funcId, SNodeList* pParamNodes, SFuncExecEnv *pEnv) {
@@ -970,6 +1060,24 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       }
     }
     ((SValueNode*)pFirstParam)->isNull = pValue->isNull;
+  } else if (FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG == t) {
+    SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    code = fmSetRollupTagValue((SValueNode*)pFirstParam, pVal);
+    if (code != 0) {
+      return code;
+    }
+  } else if (FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT == t) {
+    const int32_t* pVal = (const int32_t*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    if (pVal == NULL) {
+      uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+
+    code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)pVal);
+    if (code != 0) {
+      uError("failed to set value node value: %s", tstrerror(code));
+      return code;
+    }
   } else if (FUNCTION_TYPE_PLACEHOLDER_TBNAME == t) {
     SArray* pVal = (SArray*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
     for (int32_t i = 0; i < taosArrayGetSize(pVal); ++i) {
@@ -986,7 +1094,7 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
         break;
       }
     }
-  } else if(FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
+  } else if (FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
     if (NULL == pParamNodes || LIST_LENGTH(pParamNodes) < 2) {
       uError("invalid stream external window column param list %p, len: %d", pParamNodes,
              pParamNodes ? LIST_LENGTH(pParamNodes) : 0);
@@ -1044,7 +1152,6 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
     uError("invalid placeholder function type: %d", t);
     return TSDB_CODE_INTERNAL_ERROR;
   }
-  
+
   return code;
 }
-

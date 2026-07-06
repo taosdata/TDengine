@@ -190,7 +190,7 @@ class TestPerformanceSchema:
         clusterComCheck.checkTransactions(300)
         
         tdSql.query('describe performance_schema.perf_trans')
-        tdSql.checkRows(10)
+        tdSql.checkRows(11)
         tdSql.checkData(0, 0, 'id')
         tdSql.checkData(1, 0, 'create_time')
         tdSql.checkData(2, 0, 'stage')
@@ -201,6 +201,7 @@ class TestPerformanceSchema:
         tdSql.checkData(7, 0, 'failed_times')
         tdSql.checkData(8, 0, 'last_exec_time')
         tdSql.checkData(9, 0, 'last_action_info')
+        tdSql.checkData(10, 0, 'type')
 
         t1.join()
 

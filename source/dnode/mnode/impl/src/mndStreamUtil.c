@@ -36,6 +36,23 @@ bool mstWaitLock(SRWLatch* pLock, bool readLock) {
   return true;
 }
 
+int32_t mstSetExtraErrMsg(char** ppMsg, const char* msg) {
+  taosMemoryFreeClear(*ppMsg);
+  if (msg == NULL || msg[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *ppMsg = taosStrdup(msg);
+  return *ppMsg == NULL ? terrno : TSDB_CODE_SUCCESS;
+}
+
+void mstDestroySStmTaskStatus(void* param) {
+  SStmTaskStatus* pTask = (SStmTaskStatus*)param;
+  if (pTask != NULL) {
+    taosMemoryFreeClear(pTask->extraErrMsg);
+  }
+}
+
 void mstDestroySStmVgStreamStatus(void* p) { 
   SStmVgStreamStatus* pStatus = (SStmVgStreamStatus*)p;
   taosArrayDestroy(pStatus->trigReaders); 
@@ -97,6 +114,7 @@ void mstDestroySStmSnodeTasksDeploy(void* param) {
   SStmSnodeTasksDeploy* pSnode = (SStmSnodeTasksDeploy*)param;
   taosArrayDestroyEx(pSnode->triggerList, mstDestroySStmTaskToDeployExt);
   taosArrayDestroyEx(pSnode->runnerList, mstDestroySStmTaskToDeployExt);
+  taosArrayDestroyEx(pSnode->calcReaderList, mstDestroySStmTaskToDeployExt);
 }
 
 void mstDestroySStmVgTasksToDeploy(void* param) {
@@ -116,25 +134,27 @@ void mstDestroySStmVgroupStatus(void* param) {
 
 void mstFreeTrigOReaderList(void* param) {
   SArray** ppList = (SArray**)param;
-  taosArrayDestroy(*ppList);
+  taosArrayDestroyEx(*ppList, mstDestroySStmTaskStatus);
 }
 
 void mstResetSStmStatus(SStmStatus* pStatus) {
   (void)mstWaitLock(&pStatus->resetLock, false);
 
-  taosArrayDestroy(pStatus->trigReaders);
+  taosArrayDestroyEx(pStatus->trigReaders, mstDestroySStmTaskStatus);
   pStatus->trigReaders = NULL;
   taosArrayDestroyEx(pStatus->trigOReaders, mstFreeTrigOReaderList);
   pStatus->trigOReaders = NULL;
-  pStatus->calcReaders = tdListFree(pStatus->calcReaders);
+  tdListFreeP(pStatus->calcReaders, mstDestroySStmTaskStatus);
+  pStatus->calcReaders = NULL;
   if (pStatus->triggerTask) {
     (void)mstWaitLock(&pStatus->triggerTask->detailStatusLock, false);
     taosMemoryFreeClear(pStatus->triggerTask->detailStatus);
     taosWUnLockLatch(&pStatus->triggerTask->detailStatusLock);
+    mstDestroySStmTaskStatus(pStatus->triggerTask);
   }
   taosMemoryFreeClear(pStatus->triggerTask);
   for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
-    taosArrayDestroy(pStatus->runners[i]);
+    taosArrayDestroyEx(pStatus->runners[i], mstDestroySStmTaskStatus);
     pStatus->runners[i] = NULL;
   }
   pStatus->lastTrigMgmtReqId = 0;
@@ -145,6 +165,7 @@ void mstResetSStmStatus(SStmStatus* pStatus) {
 void mstDestroySStmStatus(void* param) {
   SStmStatus* pStatus = (SStmStatus*)param;
   taosMemoryFreeClear(pStatus->streamName);
+  taosMemoryFreeClear(pStatus->extraErrMsg);
 
   mstResetSStmStatus(pStatus);
 
@@ -274,7 +295,7 @@ int32_t mstCheckSnodeExists(SMnode *pMnode) {
   return TSDB_CODE_SNODE_NOT_DEPLOYED;
 }
 
-void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg) {
+int32_t mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg) {
   pTask->id.taskId = pMsg->taskId;
   pTask->id.deployId = pMsg->deployId;
   pTask->id.seriousId = pMsg->seriousId;
@@ -284,7 +305,10 @@ void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskSt
   pTask->type = pMsg->type;
   pTask->flags = pMsg->flags;
   pTask->status = pMsg->status;
+  pTask->errCode = pMsg->errorCode;
   pTask->lastUpTs = pCtx->currTs;
+  TAOS_CHECK_RETURN(mstSetExtraErrMsg(&pTask->extraErrMsg, pMsg->extraErrMsg));
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
 bool mndStreamActionDequeue(SStmActionQ* pQueue, SStmQNode **param) {
@@ -594,10 +618,13 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
     }
     case WINDOW_TYPE_STATE: {
       SStateWinTrigger* t = &q->trigger.stateWin;
+      int32_t           slotIdNum = t->pSlotIds ? taosArrayGetSize(t->pSlotIds) : 0;
+      int16_t           firstSlotId = (slotIdNum > 0) ? *(int16_t*)taosArrayGet(t->pSlotIds, 0) : -1;
       mstsDebug(
-          "state trigger options, slotId:%d, expr:%s, extend:%d, zeroth:%s, trueForType: %d, trueForCount: %d, "
+          "state trigger options, slotIdNum:%d, firstSlotId:%d, expr:%s, extend:%d, zeroth:%s, trueForType: %d, trueForCount: %d, "
           "trueForDuration:%" PRId64,
-          t->slotId, (char*)t->expr, t->extend, (char*)t->zeroth, t->trueForType, t->trueForCount, t->trueForDuration);
+          slotIdNum, firstSlotId, (char*)t->expr, t->extend, (char*)t->zeroth, t->trueForType, t->trueForCount,
+          t->trueForDuration);
       break;
     }
     case WINDOW_TYPE_EVENT:{
@@ -610,7 +637,8 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
     }
     case WINDOW_TYPE_COUNT: {
       SCountTrigger* t = &q->trigger.count;
-      mstsDebug("count trigger options, countVal:%" PRId64 ", sliding:%" PRId64 ", condCols:%s", t->countVal, t->sliding, (char*)t->condCols);
+      mstsDebug("count trigger options, countVal:%" PRId64 ", sliding:%" PRId64 ", condCols:%s", t->countVal,
+                t->sliding, (char*)t->condCols);
       break;
     }
     case WINDOW_TYPE_PERIOD: {
@@ -788,7 +816,13 @@ int32_t mstGetStreamStatusStr(SStreamObj* pStream, char* status, int32_t statusS
   switch (stopped) {
     case 1:
       STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[STREAM_STATUS_FAILED], statusSize);
-      snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError), pStatus->fatalRetryTimes);
+      if (pStatus->extraErrMsg != NULL) {
+        snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError),
+                 pStatus->extraErrMsg, pStatus->fatalRetryTimes);
+      } else {
+        snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, Failed times: %" PRId64, tstrerror(pStatus->fatalError),
+                 pStatus->fatalRetryTimes);
+      }
       STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
       goto _exit;
       break;
@@ -916,7 +950,11 @@ int32_t mstGetTaskStatusStr(SStmTaskStatus* pTask, char* status, int32_t statusS
   
   STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[pTask->status], statusSize);
   if (STREAM_STATUS_FAILED == pTask->status && pTask->errCode) {
-    snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s", tstrerror(pTask->errCode));
+    if (pTask->extraErrMsg != NULL) {
+      snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, %s", tstrerror(pTask->errCode), pTask->extraErrMsg);
+    } else {
+      snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s", tstrerror(pTask->errCode));
+    }
     STR_WITH_MAXSIZE_TO_VARSTR(msg, tmpBuf, msgSize);
     return TSDB_CODE_SUCCESS;
   }
@@ -1382,11 +1420,20 @@ int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid) {
   
   TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
 
-  if (pSubplan->pNode && nodeType(pSubplan->pNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
-    SScanPhysiNode* pScanNode = (SScanPhysiNode*)pSubplan->pNode;
-    *uid = pScanNode->uid;
+  // The calc-scan reader root is usually a TABLE_SCAN. For the virtual-stable-agg pushdown the
+  // reader is rooted at a partial aggregate (HASH_AGG -> TableScan); only in that case descend
+  // through the aggregate to the nested table scan. For every other plan shape, preserve the
+  // original behavior of inspecting the root node only, so we never bind to an unrelated nested
+  // TABLE_SCAN (which would route the reader to the wrong table). A plan with no resolvable
+  // TABLE_SCAN is a legitimate case (the caller treats an unset/zero uid as "no match").
+  SPhysiNode* pNode = (SPhysiNode*)pSubplan->pNode;
+  while (pNode && nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_HASH_AGG) {
+    pNode = (SPhysiNode*)nodesListGetNode(pNode->pChildren, 0);
   }
-  
+  if (pNode && nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    *uid = ((SScanPhysiNode*)pNode)->uid;
+  }
+
 _exit:
 
   if (code) {

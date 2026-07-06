@@ -252,3 +252,36 @@ class TestFunTimezone:
 
         #tdSql.close()
 
+    def test_fun_sca_timezone_set_fixed_offset(self):
+        """summary: SET TIMEZONE with a fixed offset → TIMEZONE() returns fixed-offset representation.
+
+        description: After SET TIMEZONE '+08:00', SELECT TIMEZONE() must return a string
+                     whose prefix matches the original fixed-offset spec (e.g. '+08:00'),
+                     not an IANA name such as 'Asia/Shanghai'.  This verifies that the
+                     L2 session timezone is correctly reflected by TIMEZONE() when the
+                     caller uses a numeric fixed-offset rather than an IANA name.
+
+        Since: v3.4.2.0
+
+        Labels: timezone,common
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-06-01: Tony Zhang created
+        """
+        for offset in ['+08:00', '+05:30', '-05:00']:
+            tdSql.execute(f"SET TIMEZONE '{offset}'")
+            tdSql.query("SELECT TIMEZONE()")
+            tdSql.checkRows(1)
+            result = str(tdSql.queryResult[0][0])
+            assert result.startswith(offset), (
+                f"TIMEZONE() after SET TIMEZONE '{offset}' should start with "
+                f"'{offset}', got: {result!r}"
+            )
+
+        tdSql.connect()
+

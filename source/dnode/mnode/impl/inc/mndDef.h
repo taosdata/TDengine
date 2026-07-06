@@ -123,8 +123,16 @@ typedef enum {
   MND_OPER_CREATE_XNODE_AGENT,
   MND_OPER_UPDATE_XNODE_AGENT,
   MND_OPER_DROP_XNODE_AGENT,
+  MND_OPER_CREATE_EXT_SOURCE,
+  MND_OPER_ALTER_EXT_SOURCE,
+  MND_OPER_DROP_EXT_SOURCE,
+  MND_OPER_REFRESH_EXT_SOURCE,
   MND_OPER_CONFIG_SOD,
   MND_OPER_CONFIG_MAC,
+  MND_OPER_BEGIN_TXN,
+  MND_OPER_COMMIT_TXN,
+  MND_OPER_ROLLBACK_TXN,
+  MND_OPER_ALLOC_TXN_SEQ,
   MND_OPER_MAX  // the max operation type
 } EOperType;
 
@@ -268,6 +276,66 @@ typedef struct {
   void*         userData;
   int32_t       userDataLen;
 } STrans;
+
+// STxnObj: persistent object for a user batch transaction, stored in SDB and replicated
+// across all Raft peers.
+// Durable fields:     id / createUser / ownerId / createTime / term / stage / completedAt / pDbList
+// Non-durable fields: lastActiveTime, lock, pVgList, pShadowOps (all runtime-only, re-initialised on restore)
+// Design note on VGroup list:
+//   pVgList is NOT persisted in STxnObj.  VGroups are supplied by the client in every
+//   COMMIT / ROLLBACK message (SMTransReq.pVgSet).  The PREPARING stage is entered before
+//   COMMIT/ROLLBACK is processed, so the MNode always receives a fresh, authoritative list
+//   from the client at that point.  Persisting it in SDB would be redundant and would
+//   complicate the serialisation/deserialisation path.
+// Terminal outcome is encoded entirely in stage (COMMITTED / ROLLEDBACK).
+// completedAt is retained for TTL-based GC.
+// Inactivity timeout uses the global macro TSDB_TXN_HB_TIMEOUT and is not persisted.
+typedef struct {
+  txn_id_t id;
+  char     createUser[TSDB_USER_LEN];
+  int64_t  ownerId;         // owner ID of the associated client connection
+  int64_t  createTime;      // transaction creation timestamp (ms)
+  int64_t  lastActiveTime;  // (memory only, not serialised) most recent activity timestamp (ms); for timeout detection
+  SyncTerm   term;          // Raft term at txn creation; used for fencing after leader switchover
+  int8_t     stage;         // EUtxnStage: current transaction stage (persisted for leader recovery)
+  int64_t    completedAt;   // completion timestamp (ms); used for TTL GC (persisted; 0 = not yet done)
+  SArray*    pDbList;  // participating DB fullNames (array of char[TSDB_DB_FNAME_LEN]); persisted; for STB shadow op
+                       // DB resolution when rebuilding VGroup list on timeout rollback
+  SRWLatch lock;       // runtime read/write latch; not persisted
+  // --- runtime-only fields; not persisted to SDB ---
+  SSHashObj* pVgList;   // set of participating VGroup IDs (key=int32_t vgId); runtime-only, NOT persisted
+                        // populated from client COMMIT/ROLLBACK messages (SMTransReq.pVgSet) via mndMergeVgList()
+  // pShadowOps is accumulated by mndTxnAddShadowOp() and rebuilt via mndTxnRebuildShadowOpsFromSdb() from SStbObj.txnId
+  // on restart
+  SArray* pShadowOps;  // MNode-side list of STB shadow operations (array of SMndShadowOp); in-memory only
+} STxnObj;
+
+typedef struct {
+  int32_t  id;
+  txn_id_t maxRangeId;
+  SRWLatch lock;
+} STxnSeqObj;
+
+// STxnLogObj: compact persistent record of a completed (terminal) non-replicated user transaction.
+// Stored in SDB_TXN_LOG so mndGetOrphanTxnAction can answer VNode orphan queries after MNode restart.
+// Queried via: SELECT * FROM information_schema.ins_transaction_logs
+//
+// ETxnRollbackReason: why a rolled-back transaction was rolled back.
+// Persisted in STxnLogObj.rollbackReason (SDB_TXN_LOG v2+).
+typedef enum {
+  TXN_ROLLBACK_EXPLICIT = 0,           // explicit ROLLBACK issued by the client
+  TXN_ROLLBACK_HB_TIMEOUT = 1,         // MNode forcibly rolled back due to client inactivity (HB timeout)
+  TXN_ROLLBACK_EXCEEDED_LIFETIME = 2,  // MNode forcibly rolled back due to exceeded absolute lifetime limit
+} ETxnRollbackReason;
+
+typedef struct {
+  txn_id_t id;              // transaction ID (SDB key)
+  int8_t   stage;           // terminal stage: UTXN_STAGE_COMMITTED / ROLLEDBACK / ZOMBIE
+  int8_t   rollbackReason;  // ETxnRollbackReason (0 = explicit; only meaningful when stage == ROLLEDBACK)
+  int64_t  createTime;      // creation timestamp (ms)
+  int64_t  completedAt;     // completion timestamp (ms); used for adaptive GC TTL
+  char     createUser[TSDB_USER_LEN];
+} STxnLogObj;
 
 typedef struct {
   int64_t id;
@@ -596,6 +664,8 @@ typedef struct {
   int32_t setTime;  // password set time, in seconds
 } SUserPassword;
 
+// SScramCred is now defined in tmsg.h (shared by message layer and mnode)
+
 typedef struct {
   SHashObj* pReadDbs;
   SHashObj* pWriteDbs;
@@ -683,6 +753,7 @@ typedef struct {
   SHashObj*        ownedDbs;   // k:dbFName, v: empty
   SRWLatch         lock;
   int8_t           passEncryptAlgorithm;
+  SScramCred       scram;  // SCRAM-SHA-256 credentials for the current password (algo==0 if unset)
   SPrivHashObjSet* legacyPrivs;  // used to temporarily hold legacy privileges during upgrade
 } SUserObj;
 
@@ -707,7 +778,7 @@ typedef struct {
    * stored in objPrivs.
    */
   SHashObj* objPrivs;  // k:EPrivObjType + "." + objName, v: SPrivObjPolicies.
-  
+
   // table level privileges combined with row/col/tag conditions
   SHashObj* selectTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
   SHashObj* insertTbs;  // k:tbFName  1.db.tbName, v: SPrivTblPolicies
@@ -983,6 +1054,10 @@ typedef struct {
   SExtSchema* pExtSchemas;
   int8_t      virtualStb;
   int8_t      secureDelete;
+  int8_t      txnStatus;  // batch-meta-txn: EMetaTxnStatus — transaction status flag (shared enum for VNode/MNode)
+  int32_t     txnAlterReqsLen;  // batch-meta-txn: length of above blob (0 means no ALTER pending)
+  txn_id_t    txnId;            // batch-meta-txn: 0=normal, >0=created within this txn (invisible to others)
+  void*       pTxnAlterReqs;    // batch-meta-txn: chained ALTER request data blob for crash recovery
   union {
     uint32_t flags;
     struct {
@@ -990,6 +1065,12 @@ typedef struct {
       uint32_t padding : 5;
     };
   };
+  // VST inheritance
+  int8_t   numParents;
+  int64_t  parentSuids[TSDB_MAX_VST_PARENTS];
+  int16_t  ownColStart;
+  int16_t  ownTagStart;
+  int8_t   hasChildren;  // Cache: whether this VST has child VSTs (1=yes, 0=no, -1=unknown)
 } SStbObj;
 
 typedef struct {
@@ -1034,6 +1115,7 @@ typedef struct {
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
   char           filterTb[TSDB_TABLE_NAME_LEN];
+  int64_t        txnId;  // batch meta txn: same-txn visibility
 } SShowObj;
 
 typedef struct {
@@ -1078,7 +1160,6 @@ typedef struct {
 
   // data for display
   int32_t pid;
-  SEpSet  ep;
   int64_t createTime;
   int64_t pollTime;
   int64_t subscribeTime;
@@ -1100,16 +1181,8 @@ int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
 void*   tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
 
 typedef struct {
-  int32_t vgId;
-  SEpSet epSet;
-} SMqVgEp;
-
-int32_t  tEncodeSMqVgEp(void** buf, const SMqVgEp* pVgEp);
-void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp, int8_t sver);
-
-typedef struct {
   int64_t consumerId;  // -1 for unassigned
-  SArray* vgs;         // SArray<SMqVgEp>
+  SArray* vgs;         // SArray<vgId>
   SArray* offsetRows;  // SArray<OffsetRows>
 } SMqConsumerEp;
 
@@ -1125,7 +1198,7 @@ typedef struct {
   int8_t    withMeta;
   int64_t   stbUid;
   SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
-  SArray*   unassignedVgs;  // SArray<SMqVgEp>
+  SArray*   unassignedVgs;  // SArray<vgId>
   SArray*   offsetRows;
   char      dbName[TSDB_DB_FNAME_LEN];
   SRWLatch  lock;
@@ -1145,7 +1218,7 @@ typedef struct {
 typedef struct {
   int64_t  oldConsumerId;
   int64_t  newConsumerId;
-  SMqVgEp  pVgEp;
+  int32_t  vgId;
 } SMqRebOutputVg;
 
 typedef struct {
@@ -1170,6 +1243,18 @@ typedef struct {
   int64_t createTime;
   int64_t updateTime;
   int64_t ownerId;
+  // Bitmap of STREAM_FLAG_* (defined in libs/new-stream/stream.h). Currently
+  // only STREAM_FLAG_REF_EXT_SOURCE (bit 3) is consumed; lifted from
+  // SCMCreateStreamReq.flags by mndStreamBuildObj. SDB (en|de)coding for this
+  // field will be added together with extSpecs in P1 B6.
+  uint64_t flags;
+  // External source trigger specs. NULL if the stream references no external
+  // source. Each element is SStreamExtTriggerSpec*. Serialization into stream
+  // metadata is added in P1 (mndStream codec extension). P0 leaves this field
+  // always NULL (no producer yet); tFreeStreamObj therefore does not touch it.
+  // TODO(P1): add a per-element destructor and free path once P1 introduces
+  // the constructor.
+  SArray* extSpecs;
 } SStreamObj;
 #if 0
 typedef struct SStreamConf {
@@ -1473,7 +1558,26 @@ typedef struct {
   SRWLatch     lock;
 } SGrantLogObj;
 
+// ============================================================
+// External Source Object (SDB persistent object for federated query)
+// ============================================================
+#define EXT_SOURCE_VER_NUMBER   1    // SDB encoding version; increment when fields are added
+#define EXT_SOURCE_RESERVE_SIZE 64   // reserved tail bytes for future fields
 
+typedef struct SExtSourceObj {
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];      // SDB key (SDB_KEY_BINARY)
+  int8_t  type;                                 // EExtSourceType
+  char    host[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t port;
+  char    user[TSDB_EXT_SOURCE_USER_LEN];
+  char    encryptedPassword[TSDB_EXT_SOURCE_ENC_PASSWORD_LEN]; // AES-encrypted password
+  char    defaultDatabase[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char    defaultSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char    options[TSDB_EXT_SOURCE_OPTIONS_LEN];  // JSON string
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t metaVersion;                          // incremented by REFRESH
+} SExtSourceObj;
 #ifdef __cplusplus
 }
 #endif

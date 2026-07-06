@@ -48,6 +48,7 @@ extern "C" {
 #define TSDB_INS_TABLE_COLS                "ins_columns"
 #define TSDB_INS_TABLE_VC_COLS             "ins_virtual_child_columns"
 #define TSDB_INS_TABLE_TABLE_DISTRIBUTED   "ins_table_distributed"
+#define TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED "ins_table_fixed_distributed"
 #define TSDB_INS_TABLE_USERS               "ins_users"
 #define TSDB_INS_TABLE_USERS_FULL          "ins_users_full"
 #define TSDB_INS_TABLE_TOKENS              "ins_tokens"
@@ -56,6 +57,7 @@ extern "C" {
 #define TSDB_INS_TABLE_VNODES              "ins_vnodes"
 #define TSDB_INS_TABLE_CONFIGS             "ins_configs"
 #define TSDB_INS_TABLE_DNODE_VARIABLES     "ins_dnode_variables"
+#define TSDB_INS_TABLE_CPU_ALLOCATION             "ins_cpu_allocation"
 #define TSDB_INS_TABLE_SUBSCRIPTIONS       "ins_subscriptions"
 #define TSDB_INS_TABLE_TOPICS              "ins_topics"
 #define TSDB_INS_TABLE_STREAMS             "ins_streams"
@@ -88,7 +90,12 @@ extern "C" {
 #define TSDB_INS_TABLE_ROLE_PRIVILEGES     "ins_role_privileges"
 #define TSDB_INS_TABLE_ROLE_COL_PRIVILEGES "ins_role_column_privileges"
 #define TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING "ins_virtual_tables_referencing"
+#define TSDB_INS_TABLE_VSTABLE_INHERITS "ins_vstable_inherits"
+#define TSDB_INS_TABLE_EXT_SOURCES                "ins_ext_sources"  // federated query: external data sources
 #define TSDB_INS_TABLE_SECURITY_POLICIES   "ins_security_policies"
+#define TSDB_INS_TABLE_TRANSACTIONS        "ins_transactions"
+#define TSDB_INS_TABLE_TRANSACTION_LOGS    "ins_transaction_logs"
+#define TSDB_INS_TABLE_TRANSACTION_ORPHANS "ins_transaction_orphans"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "perf_smas"

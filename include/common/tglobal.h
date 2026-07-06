@@ -46,6 +46,7 @@ typedef enum {
   DND_CS_VNODE_WAL = 2,
   DND_CS_SDB = 4,
   DND_CS_MNODE_WAL = 8,
+  DND_CS_QUERY_SPILL = 16,  // encrypt query spill (paged buffer) temp files
 } EEncryptScope;
 
 extern SConfig *tsCfg;
@@ -65,7 +66,7 @@ extern int32_t       tsLocalKeyVersion;
 extern int32_t       tsStatusInterval;
 extern int32_t       tsStatusIntervalMs;
 extern int32_t       tsStatusSRTimeoutMs;
-extern int32_t       tsStatusTimeoutMs;
+extern int32_t        tsStatusTimeoutMs;
 extern int32_t       tsNumOfSupportVnodes;
 extern uint16_t      tsMqttPort;
 extern char          tsEncryptAlgorithm[];
@@ -94,6 +95,8 @@ extern int64_t tsTickPerMin[3];
 extern int64_t tsTickPerHour[3];
 extern int64_t tsSecTimes[3];
 extern int32_t tsCountAlwaysReturnValue;
+extern int32_t tsDefaultFirstDayOfWeek;  // 0-6; shared default for firstDayOfWeek
+extern int32_t tsFirstDayOfWeek;  // 0-6; int32_t required by config framework (cfgAddInt32)
 extern float   tsSelectivityRatio;
 extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsBypassFlag;
@@ -144,6 +147,12 @@ extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;
 extern int32_t tsSecureEraseMode;
 
+// cpu affinity
+extern bool    tsEnableCpuAffinity;
+extern int32_t tsManagementCpuCores;
+extern int32_t tsReadCpuCores;
+extern int32_t tsOtherCpuCores;
+
 // sync raft
 extern int32_t tsElectInterval;
 extern int32_t tsHeartbeatInterval;
@@ -153,8 +162,10 @@ extern int32_t tsMnodeElectIntervalMs;
 extern int32_t tsMnodeHeartbeatIntervalMs;
 extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
+extern int32_t tsSnapshotRateLimit;
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
 extern int64_t tsSyncApplyQueueSize;
+extern int32_t tsSyncNegotiationWin;  // negotiation window size for sync module
 extern int32_t tsRoutineReportInterval;
 extern bool    tsSyncLogHeartbeat;
 extern int32_t tsSyncTimeout;
@@ -182,8 +193,10 @@ extern char tsSnodeAddress[];  // 127.0.0.1:873
 extern int64_t tsMndSdbWriteDelta;
 extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
+extern int32_t tsTxnTimeout;
 extern bool    tsEnableWhiteList;
 extern bool    tsForceKillTrans;
+extern bool    tsForceScram;
 extern int8_t  tsSodEnforceMode;  // 0: not enforce, 1: enforce mandatory SoD
 
 // dnode
@@ -293,6 +306,9 @@ extern int32_t tsRedirectPeriod;
 extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;
 extern int32_t tsMaxRetryWaitTime;
+extern int32_t tsAuthMech;
+extern int32_t tsRetryOnOverloadBaseInterval;
+extern int32_t tsRetryOnOverloadTimeout;
 extern bool    tsUseAdapter;
 extern int32_t tsMetaCacheMaxSize;
 extern int32_t tsSlowLogThreshold;
@@ -383,6 +399,7 @@ extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern int32_t tsStreamBatchRequestWaitMs;
 extern bool    tsCompareAsStrInGreatest;
+extern bool    tsIgnoreNullInGreatest;
 extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
 extern int32_t tsRpcRecvLogThreshold;        // in seconds, default 3
 
@@ -415,19 +432,6 @@ extern int32_t tsAuthReqInterval;
 extern int32_t tsAuthReqHBInterval;
 extern char    tsAuthReqUrl[];
 extern bool    tsSessionControl;
-
-// cls
-extern bool    tsClsEnabled;
-extern char    tsClsUrl[];
-extern char    tsClsLicenseId[];
-extern char    tsClsQuotaSlotId[];
-extern int32_t tsClsRefreshInterval;
-extern char    tsClsLastSucTime[];
-extern char    tsClsLastReqTime[];
-extern char    tsClsLastFailReason[];
-extern int32_t gGrantClsPreRefreshInterval;
-#define GRANT_CLS_CLOSING 1
-#define GRANT_CLS_OPENING 2
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
@@ -463,6 +467,15 @@ int32_t setAllConfigs(SConfig *pCfg);
 bool    isConifgItemLazyMode(SConfigItem *item);
 int32_t taosUpdateTfsItemDisable(SConfig *pCfg, const char *value, void *pTfs);
 void    taosSetSkipKeyCheckMode(void);
+
+// federated query configuration
+extern bool    tsFederatedQueryEnable;                // master switch for federated query; default false
+extern int32_t tsFederatedQueryConnectTimeoutMs;      // connector TCP connect timeout (ms); default 5000; server only
+extern int32_t tsFederatedQueryQueryTimeoutMs;        // external query execution timeout (ms); default 1000000000 (~11.6d, effectively no timeout); server only
+extern int32_t tsFederatedQueryMaxPoolSizePerSource;  // max connections per external source; default 64; server only
+extern int32_t tsFederatedQueryIdleConnTtlSec;        // idle connection time-to-live (sec); default 600; server only
+extern int32_t tsFederatedQueryProbeTimeoutMs;        // liveness probe timeout (ms); default 5000; server only
+
 #ifdef __cplusplus
 }
 #endif

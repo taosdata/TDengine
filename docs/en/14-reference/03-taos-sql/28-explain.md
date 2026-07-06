@@ -77,6 +77,8 @@ Not applicable, either because there is no explainable query plan or the syntax 
 
 `EXPLAIN` returns a single column named `QUERY_PLAN`. Each row is either a node in the plan tree or a row with detailed statistical information.
 
+If the optimizer can prove at compile time that a query always returns no rows, for example `EXPLAIN SELECT * FROM meters WHERE 0 = 1`, the statement is pruned directly. No executable plan is generated, and the statement does not enter the execution phase. As a result, this kind of query typically does not produce meaningful `EXPLAIN` / `EXPLAIN ANALYZE` output for diagnosis.
+
 The execution plan is displayed as a tree:
 
 - The topmost node is where the final result is produced
@@ -159,7 +161,7 @@ These metrics usually appear on the `-> operator (...)` line.
 | `group_join=` | Whether grouped join is enabled | Used in diagnosing complex joins |
 | `groups=` | Number of grouping keys | Helps determine whether grouping dimensions are excessive |
 | `has_partition=` | Whether partition information is included | Used to determine whether a virtual table or dynamic query retains partition attributes |
-| `input_order=` | Input time order | Indicates whether upstream already satisfies the ordering requirement of the current operator |
+| `input_order=` | Ordering of the input data by the **primary timestamp column** (asc/desc/unknown) | Indicates whether upstream already satisfies the current operator's time-order requirement |
 | `jlimit=` | Maximum number of joined rows per input row | Used to analyze whether join amplification is constrained |
 | `limit=` | `LIMIT` seen by the current operator | Helps confirm whether `LIMIT` has been pushed down early |
 | `mode=grp_order` | Scan organized by group order | Indicates that the plan emphasizes grouped output order |
@@ -169,7 +171,7 @@ These metrics usually appear on the `-> operator (...)` line.
 | `offset=` | `OFFSET` seen by the current operator | Helps determine whether offset trimming participates at this layer |
 | `order=[asc\|x desc\|y]` | Counts of forward and reverse scan reads | Indicates whether the scan is mainly ascending or descending |
 | `origin_vgroup_num=` | Original number of vgroups | Useful for observing the parallelism of virtual supertable queries |
-| `output_order=` | Output time order | Indicates whether the operator changes ordering, which helps infer whether later sorting can still be avoided |
+| `output_order=` | Ordering of the output data by the **primary timestamp column** (asc/desc/unknown) | Indicates whether the operator changes the time order, which helps infer whether later sorting can still be avoided |
 | `partitions=` | Number of partition keys | Helps understand the scale of `PARTITION BY` dimensions |
 | `pseudo_columns=` | Number of pseudo-columns such as `_wstart`, `_wend`, `tbname`, and so on | Useful for confirming whether window columns, table name columns, and similar values have entered the execution pipeline |
 | `rows=` | Number of rows output by the operator | Useful for spotting where row counts expand or where a vgroup outputs an unusually large amount of data |
@@ -187,6 +189,7 @@ Notes:
 - In multi-vgroup aggregated output, `a(b)` means `average(maximum)`
 - For `rows=`, `b` can be used to quickly locate the heaviest execution node
 - For `cost=`, the first value mostly corresponds to first-response latency, while the last value mostly corresponds to total processing time
+- `input_order` / `output_order` describe the ordering by the **primary timestamp column**, **not** the ordering by the `ORDER BY` sort key. Therefore, when sorting by a non-timestamp column (e.g. `ORDER BY val`), the `Sort` operator shows `output_order=unknown`: this means the timestamp ordering is undefined after sorting, and **does not mean the result is unsorted** (the result is still strictly ordered by the sort key). This field mainly lets time-order-dependent downstream operators (window, merge, `Join`) decide whether they can stream and skip a re-sort
 
 ### 2. Structural and Attribute Metrics with `VERBOSE true`
 

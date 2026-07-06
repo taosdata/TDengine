@@ -48,6 +48,19 @@ else
 fi
 
 declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
+export PATH="${BUILD_DIR}/build/bin${PATH:+:${PATH}}"
+
+if [ -d "${BUILD_DIR}/build/lib" ]; then
+  export LD_LIBRARY_PATH="${BUILD_DIR}/build/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+  echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
+fi
+
+FQ_RUNTIME_HELPER="${TEST_CODE_DIR}/cases/09-DataQuerying/19-FederatedQuery/fq_runtime_libs.sh"
+if [ -f "${FQ_RUNTIME_HELPER}" ]; then
+  # shellcheck source=/dev/null
+  source "${FQ_RUNTIME_HELPER}"
+  fq_runtime_libs_setup "${BUILD_DIR}" "$@"
+fi
 
 # Derive SIM_DIR from taosd binary path: place 'sim' alongside 'debug' directory
 if [ -n "$TAOSD_DIR" ]; then
@@ -91,7 +104,7 @@ mkdir -p "${PRG_DIR}"
 mkdir -p "${ASAN_DIR}"
 
 cd "${TEST_CODE_DIR}" || exit
-ulimit -n 600000
+ulimit -S -n 600000
 ulimit -c unlimited
 
 # sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
@@ -104,25 +117,30 @@ else
   echo "AsanFile:" "$AsanFile"
 
   unset LD_PRELOAD
+  AsanStdoutTmp=$(mktemp "${TMPDIR:-/tmp}/psim.stdout.XXXXXX") || exit 1
+  AsanStderrTmp=$(mktemp "${TMPDIR:-/tmp}/psim.stderr.XXXXXX") || exit 1
   if [[ "${CI_ASAN_BUILD}" == "1" ]]; then
     # ASAN 构建（others:latest GCC14, libasan.so.8 与测试容器匹配）
     LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
     export LD_PRELOAD
     echo "Preload AsanSo: LD_PRELOAD=${LD_PRELOAD} (CI_ASAN_BUILD=1)"
-    "$@" -A 2>"${AsanFile}.tmp" | tee "$AsanFile"
+    "$@" -A 2>"${AsanStderrTmp}" | tee "${AsanStdoutTmp}"
   elif [[ "${CI_NO_ASAN}" == "1" ]]; then
     echo "Preload AsanSo: skipped (CI_NO_ASAN=1)"
-    "$@" 2>"${AsanFile}.tmp" | tee "$AsanFile"
+    "$@" 2>"${AsanStderrTmp}" | tee "${AsanStdoutTmp}"
   else
     # 兜底：legacy 路径（本地开发环境）
     LD_PRELOAD="$(realpath "$(gcc -print-file-name=libasan.so)") $(realpath "$(gcc -print-file-name=libstdc++.so)")"
     export LD_PRELOAD
     echo "Preload AsanSo: LD_PRELOAD=${LD_PRELOAD}"
-    "$@" -A 2>"${AsanFile}.tmp" | tee "$AsanFile"
+    "$@" -A 2>"${AsanStderrTmp}" | tee "${AsanStdoutTmp}"
   fi
-  # Append stderr (ASAN) to psim.info for checkAsan.sh compatibility
-  cat "${AsanFile}.tmp" >> "$AsanFile" 2>/dev/null
-  rm -f "${AsanFile}.tmp"
+  # pytest --clean may recreate SIM_DIR while tee is running, so stage output
+  # outside SIM_DIR and publish it after pytest exits.
+  mkdir -p "${ASAN_DIR}"
+  cat "${AsanStdoutTmp}" > "$AsanFile" 2>/dev/null
+  cat "${AsanStderrTmp}" >> "$AsanFile" 2>/dev/null
+  rm -f "${AsanStdoutTmp}" "${AsanStderrTmp}"
 
   unset LD_PRELOAD
   for ((i = 1; i <= 20; i++)); do

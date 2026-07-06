@@ -13,6 +13,7 @@
 #include <unordered_map>
 #include <gtest/gtest.h>
 
+#include "streamMsg.h"
 #include "tmsg.h"
 
 #undef TD_MSG_NUMBER_
@@ -355,6 +356,177 @@ TEST(td_msg_test, delete_req_codec_backward_compat_without_secure_delete) {
 }
 
 
+// Encode an SVCreateStbReq the "old" way: stop after ownTagStart, i.e. without the
+// appended parentStbFNames[] suffix. Used to prove the decoder is backward compatible
+// with WAL entries written before the parent-name suffix existed.
+static int32_t encodeOldSVCreateStbReqNoParentNames(SEncoder* pCoder, const SVCreateStbReq* pReq) {
+  if (tStartEncode(pCoder) != 0) return -1;
+  if (tEncodeCStr(pCoder, pReq->name) != 0) return -1;
+  if (tEncodeI64(pCoder, pReq->suid) != 0) return -1;
+  if (tEncodeI8(pCoder, pReq->rollup) != 0) return -1;
+  if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaRow) != 0) return -1;
+  if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaTag) != 0) return -1;
+  if (tEncodeI32(pCoder, pReq->alterOriDataLen) != 0) return -1;
+  if (tEncodeI8(pCoder, pReq->source) != 0) return -1;
+  if (tEncodeI8(pCoder, pReq->colCmpred) != 0) return -1;
+  // Inline tEncodeSColCmprWrapper for the nCols==0 case (the symbol is internal to
+  // tmsg.c): just the column count and version, no per-column entries.
+  if (tEncodeI32v(pCoder, pReq->colCmpr.nCols) != 0) return -1;
+  if (tEncodeI32v(pCoder, pReq->colCmpr.version) != 0) return -1;
+  if (tEncodeI64(pCoder, pReq->keep) != 0) return -1;
+  if (tEncodeI8(pCoder, 0) != 0) return -1;  // no ext schema
+  if (tEncodeI8(pCoder, pReq->virtualStb) != 0) return -1;
+  if (tEncodeI64v(pCoder, pReq->ownerId) != 0) return -1;
+  if (tEncodeI8(pCoder, pReq->secureDelete) != 0) return -1;
+  if (tEncodeI8(pCoder, pReq->securityLevel) != 0) return -1;
+  // batch-meta-txn: txnId precedes the VST inheritance block in the wire format.
+  if (tEncodeU64v(pCoder, pReq->txnId) != 0) return -1;
+  // VST inheritance block, but WITHOUT the trailing parentStbFNames[] suffix.
+  if (tEncodeI8(pCoder, pReq->numParents) != 0) return -1;
+  for (int32_t i = 0; i < pReq->numParents; ++i) {
+    if (tEncodeI64(pCoder, pReq->parentSuids[i]) != 0) return -1;
+  }
+  if (tEncodeI16(pCoder, pReq->ownColStart) != 0) return -1;
+  if (tEncodeI16(pCoder, pReq->ownTagStart) != 0) return -1;
+  tEndEncode(pCoder);
+  return pCoder->pos;
+}
+
+TEST(td_msg_test, create_stb_req_codec_vst_base_on_roundtrip) {
+  SVCreateStbReq req = {0};
+  req.name = (char*)"1.test.vst_child";
+  req.suid = 100;
+  req.schemaRow.version = 1;
+  req.schemaTag.version = 1;
+  req.numParents = 2;
+  req.parentSuids[0] = 11;
+  req.parentSuids[1] = 22;
+  req.ownColStart = 3;
+  req.ownTagStart = 1;
+  tstrncpy(req.parentStbFNames[0], "1.test.vst_parent_a", TSDB_TABLE_FNAME_LEN);
+  tstrncpy(req.parentStbFNames[1], "1.test.vst_parent_b", TSDB_TABLE_FNAME_LEN);
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSVCreateStbReq(&encoder, &req), 0);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GT(size, 0);
+
+  std::vector<uint8_t> buf(size, 0);
+  tEncoderInit(&encoder, buf.data(), size);
+  ASSERT_EQ(tEncodeSVCreateStbReq(&encoder, &req), 0);
+  tEncoderClear(&encoder);
+
+  SVCreateStbReq out = {0};
+  SDecoder       decoder = {0};
+  tDecoderInit(&decoder, buf.data(), size);
+  ASSERT_EQ(tDecodeSVCreateStbReq(&decoder, &out), 0);
+
+  ASSERT_EQ(out.numParents, req.numParents);
+  ASSERT_EQ(out.parentSuids[0], req.parentSuids[0]);
+  ASSERT_EQ(out.parentSuids[1], req.parentSuids[1]);
+  ASSERT_EQ(out.ownColStart, req.ownColStart);
+  ASSERT_EQ(out.ownTagStart, req.ownTagStart);
+  ASSERT_STREQ(out.parentStbFNames[0], req.parentStbFNames[0]);
+  ASSERT_STREQ(out.parentStbFNames[1], req.parentStbFNames[1]);
+
+  tDecoderClear(&decoder);
+}
+
+TEST(td_msg_test, create_stb_req_codec_backward_compat_without_parent_names) {
+  // An old encoder wrote numParents + suids + own starts, but no parentStbFNames[].
+  // The decoder must accept it: parent suids/starts survive, names come back empty.
+  SVCreateStbReq req = {0};
+  req.name = (char*)"1.test.vst_child";
+  req.suid = 200;
+  req.schemaRow.version = 1;
+  req.schemaTag.version = 1;
+  req.numParents = 2;
+  req.parentSuids[0] = 33;
+  req.parentSuids[1] = 44;
+  req.ownColStart = 2;
+  req.ownTagStart = 0;
+  tstrncpy(req.parentStbFNames[0], "1.test.vst_parent_a", TSDB_TABLE_FNAME_LEN);
+  tstrncpy(req.parentStbFNames[1], "1.test.vst_parent_b", TSDB_TABLE_FNAME_LEN);
+
+  std::vector<uint8_t> buf(4096, 0);
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf.data(), (int32_t)buf.size());
+  int32_t size = encodeOldSVCreateStbReqNoParentNames(&encoder, &req);
+  tEncoderClear(&encoder);
+  ASSERT_GT(size, 0);
+
+  SVCreateStbReq out = {0};
+  SDecoder       decoder = {0};
+  tDecoderInit(&decoder, buf.data(), size);
+  ASSERT_EQ(tDecodeSVCreateStbReq(&decoder, &out), 0);
+
+  ASSERT_EQ(out.numParents, req.numParents);
+  ASSERT_EQ(out.parentSuids[0], req.parentSuids[0]);
+  ASSERT_EQ(out.parentSuids[1], req.parentSuids[1]);
+  ASSERT_EQ(out.ownColStart, req.ownColStart);
+  ASSERT_EQ(out.ownTagStart, req.ownTagStart);
+  // No names on the wire -> decoder leaves them empty (no garbage, no crash).
+  ASSERT_EQ(out.parentStbFNames[0][0], '\0');
+  ASSERT_EQ(out.parentStbFNames[1][0], '\0');
+
+  tDecoderClear(&decoder);
+}
+
+TEST(td_msg_test, create_stb_req_codec_rejects_overflow_num_parents) {
+  // A corrupt/malicious buffer claims more parents than TSDB_MAX_VST_PARENTS.
+  // The decoder must reject it rather than writing past parentSuids[]/parentStbFNames[].
+  SVCreateStbReq req = {0};
+  req.name = (char*)"1.test.vst_child";
+  req.suid = 300;
+  req.schemaRow.version = 1;
+  req.schemaTag.version = 1;
+
+  // Encode a valid req, then overwrite numParents on the wire with an oversized value.
+  // Use the old-format encoder (no name suffix) so the layout after numParents is just
+  // suids + own starts; we hand-forge a buffer with numParents = MAX+1 and that many suids.
+  std::vector<uint8_t> buf(4096, 0);
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf.data(), (int32_t)buf.size());
+  ASSERT_EQ(tStartEncode(&encoder), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, req.name), 0);
+  ASSERT_EQ(tEncodeI64(&encoder, req.suid), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, req.rollup), 0);
+  ASSERT_EQ(tEncodeSSchemaWrapper(&encoder, &req.schemaRow), 0);
+  ASSERT_EQ(tEncodeSSchemaWrapper(&encoder, &req.schemaTag), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, req.alterOriDataLen), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, req.source), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, req.colCmpred), 0);
+  ASSERT_EQ(tEncodeI32v(&encoder, req.colCmpr.nCols), 0);
+  ASSERT_EQ(tEncodeI32v(&encoder, req.colCmpr.version), 0);
+  ASSERT_EQ(tEncodeI64(&encoder, req.keep), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, 0), 0);  // no ext schema
+  ASSERT_EQ(tEncodeI8(&encoder, req.virtualStb), 0);
+  ASSERT_EQ(tEncodeI64v(&encoder, req.ownerId), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, req.secureDelete), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, req.securityLevel), 0);
+  int8_t bogusNumParents = TSDB_MAX_VST_PARENTS + 1;
+  ASSERT_EQ(tEncodeI8(&encoder, bogusNumParents), 0);
+  for (int32_t i = 0; i < bogusNumParents; ++i) {
+    ASSERT_EQ(tEncodeI64(&encoder, (int64_t)(1000 + i)), 0);
+  }
+  ASSERT_EQ(tEncodeI16(&encoder, 1), 0);
+  ASSERT_EQ(tEncodeI16(&encoder, 1), 0);
+  tEndEncode(&encoder);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GT(size, 0);
+
+  SVCreateStbReq out = {0};
+  SDecoder       decoder = {0};
+  tDecoderInit(&decoder, buf.data(), size);
+  // Must fail cleanly (non-zero), not corrupt memory.
+  ASSERT_NE(tDecodeSVCreateStbReq(&decoder, &out), 0);
+  tDecoderClear(&decoder);
+}
+
+
 void processCommandArgs(int argc, char** argv) {
   for (int i = 1; i < argc; ++i) {
     if (string(argv[i]) == "--output-config") {
@@ -365,6 +537,98 @@ void processCommandArgs(int argc, char** argv) {
   }
 }
 
+TEST(td_msg_test, destroy_sv_create_tb_req_frees_tag_ref) {
+  SVCreateTbReq req = {0};
+  req.type = TSDB_VIRTUAL_CHILD_TABLE;
+  req.colRef.nCols = 1;
+  req.colRef.pColRef = (SColRef*)taosMemoryCalloc(1, sizeof(SColRef));
+  ASSERT_NE(req.colRef.pColRef, nullptr);
+  req.colRef.nTagRefs = 2;
+  req.colRef.pTagRef = (SColRef*)taosMemoryCalloc(2, sizeof(SColRef));
+  ASSERT_NE(req.colRef.pTagRef, nullptr);
+
+  req.colRef.pTagRef[0].hasRef = true;
+  req.colRef.pTagRef[0].id = 1;
+
+  tDestroySVCreateTbReq(&req, TSDB_MSG_FLG_DECODE);
+
+  ASSERT_EQ(req.colRef.pColRef, nullptr);
+  ASSERT_EQ(req.colRef.pTagRef, nullptr);
+}
+
+TEST(td_msg_test, destroy_sv_submit_create_tb_req_frees_tag_ref) {
+  SVCreateTbReq req = {0};
+  req.type = TSDB_VIRTUAL_CHILD_TABLE;
+  req.colRef.nCols = 0;
+  req.colRef.pColRef = nullptr;
+  req.colRef.nTagRefs = 1;
+  req.colRef.pTagRef = (SColRef*)taosMemoryCalloc(1, sizeof(SColRef));
+  ASSERT_NE(req.colRef.pTagRef, nullptr);
+
+  tDestroySVSubmitCreateTbReq(&req, TSDB_MSG_FLG_DECODE);
+
+  ASSERT_EQ(req.colRef.pTagRef, nullptr);
+}
+
+static int32_t serializeOldStreamHbMsg(void* buf, int32_t bufLen, const SStreamHbMsg* pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, (uint8_t*)buf, bufLen);
+
+  if (tStartEncode(&encoder) != 0) return -1;
+  if (tEncodeI32(&encoder, pReq->dnodeId) != 0) return -1;
+  if (tEncodeI32(&encoder, pReq->streamGId) != 0) return -1;
+  if (tEncodeI32(&encoder, pReq->snodeId) != 0) return -1;
+  if (tEncodeI32(&encoder, pReq->runnerThreadNum) != 0) return -1;
+  if (tEncodeI32(&encoder, 0) != 0) return -1;  // pVgLeaders
+  if (tEncodeI32(&encoder, 0) != 0) return -1;  // pStreamStatus
+  if (tEncodeI32(&encoder, 0) != 0) return -1;  // pStreamReq
+  if (tEncodeI32(&encoder, 0) != 0) return -1;  // pTriggerStatus
+  tEndEncode(&encoder);
+
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+  return len;
+}
+
+TEST(td_msg_test, stream_hb_msg_backward_compat_without_extra_error_messages) {
+  SStreamHbMsg req = {0};
+  req.dnodeId = 11;
+  req.streamGId = 22;
+  req.snodeId = 33;
+  req.runnerThreadNum = 44;
+
+  std::vector<char> buf(256, 0);
+  int32_t           len = serializeOldStreamHbMsg(buf.data(), (int32_t)buf.size(), &req);
+  ASSERT_GT(len, 0);
+
+  SStreamHbMsg out = {0};
+  SDecoder     decoder = {0};
+  tDecoderInit(&decoder, (uint8_t*)buf.data(), len);
+  ASSERT_EQ(tDecodeStreamHbMsg(&decoder, &out), 0);
+  ASSERT_EQ(out.dnodeId, req.dnodeId);
+  ASSERT_EQ(out.streamGId, req.streamGId);
+  ASSERT_EQ(out.snodeId, req.snodeId);
+  ASSERT_EQ(out.runnerThreadNum, req.runnerThreadNum);
+  ASSERT_EQ(taosArrayGetSize(out.pStreamStatus), 0);
+  ASSERT_EQ(taosArrayGetSize(out.pTriggerStatus), 0);
+
+  tCleanupStreamHbMsg(&out, true);
+  tDecoderClear(&decoder);
+}
+
+TEST(td_msg_test, stream_rollup_group_leaf_extracts_last_nchar_segment) {
+  TdUcs4            path[] = {'A', '.', 'B', '.', 'C'};
+  SStreamGroupValue value = {0};
+  value.data.type = TSDB_DATA_TYPE_NCHAR;
+  value.data.pData = (uint8_t*)path;
+  value.data.nData = sizeof(path);
+
+  const char* leaf = NULL;
+  int32_t     leafLen = 0;
+  ASSERT_EQ(tGetStreamRollupGroupLeaf(&value, &leaf, &leafLen), 0);
+  ASSERT_EQ(leafLen, (int32_t)sizeof(TdUcs4));
+  ASSERT_EQ(*(const TdUcs4*)leaf, (TdUcs4)'C');
+}
 
 #include "SClientHbBatchReq.cpp"
 int main(int argc, char **argv) {
@@ -372,4 +636,124 @@ int main(int argc, char **argv) {
 
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+
+TEST(td_msg_test, vtb_tag_cond_codec) {
+  SVTagCondReq req = {0};
+  req.header.vgId = 7;
+  tstrncpy(req.dbFName, "1.db_series", sizeof(req.dbFName));
+  req.uid = 0x123456789aLL;
+
+  int32_t reqSize = tSerializeSVTagCondReq(NULL, 0, &req);
+  ASSERT_GT(reqSize, 0);
+  std::vector<char> reqBuf(reqSize, 0);
+  ASSERT_EQ(tSerializeSVTagCondReq(reqBuf.data(), reqSize, &req), reqSize);
+
+  SVTagCondReq reqOut = {0};
+  ASSERT_EQ(tDeserializeSVTagCondReq(reqBuf.data(), reqSize, &reqOut), 0);
+  ASSERT_STREQ(reqOut.dbFName, req.dbFName);
+  ASSERT_EQ(reqOut.uid, req.uid);
+
+  SVTagCondRsp rsp = {0};
+  rsp.pEntries = taosArrayInit(2, sizeof(SVTagCondEntry));
+  ASSERT_NE(rsp.pEntries, nullptr);
+  SVTagCondEntry e1 = {0};
+  e1.colId = 2;
+  e1.tagCondJson = (char*)"COND_JSON_A";
+  e1.tagCondLen = (int32_t)strlen(e1.tagCondJson);
+  ASSERT_NE(taosArrayPush(rsp.pEntries, &e1), nullptr);
+  SVTagCondEntry e2 = {0};
+  e2.colId = 5;
+  e2.tagCondJson = (char*)"COND_JSON_B2";
+  e2.tagCondLen = (int32_t)strlen(e2.tagCondJson);
+  ASSERT_NE(taosArrayPush(rsp.pEntries, &e2), nullptr);
+  rsp.numOfRefs = 2;
+
+  int32_t rspSize = tSerializeSVTagCondRsp(NULL, 0, &rsp);
+  ASSERT_GT(rspSize, 0);
+  std::vector<char> rspBuf(rspSize, 0);
+  ASSERT_EQ(tSerializeSVTagCondRsp(rspBuf.data(), rspSize, &rsp), rspSize);
+
+  SVTagCondRsp rspOut = {0};
+  ASSERT_EQ(tDeserializeSVTagCondRsp(rspBuf.data(), rspSize, &rspOut), 0);
+  ASSERT_EQ(rspOut.numOfRefs, 2);
+  ASSERT_EQ((int32_t)taosArrayGetSize(rspOut.pEntries), 2);
+  SVTagCondEntry* p0 = (SVTagCondEntry*)taosArrayGet(rspOut.pEntries, 0);
+  SVTagCondEntry* p1 = (SVTagCondEntry*)taosArrayGet(rspOut.pEntries, 1);
+  ASSERT_EQ(p0->colId, 2);
+  ASSERT_STREQ(p0->tagCondJson, "COND_JSON_A");
+  ASSERT_EQ(p1->colId, 5);
+  ASSERT_STREQ(p1->tagCondJson, "COND_JSON_B2");
+
+  taosArrayDestroy(rsp.pEntries);   // shallow: e1/e2 json are literals
+  tDestroySVTagCondRsp(&rspOut);    // deep free decoded copies
+}
+
+TEST(td_msg_test, federated_scan_op_param_codec) {
+  SOperatorParam param = {0};
+  param.opType = QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN;
+  param.downstreamIdx = 1;
+  param.reUse = false;
+  param.pChildren = NULL;
+
+  SForeignScanOperatorParam fsParam = {0};
+  tstrncpy(fsParam.sourceName, "influx1", sizeof(fsParam.sourceName));
+  tstrncpy(fsParam.dbName, "extdb", sizeof(fsParam.dbName));
+  tstrncpy(fsParam.tableName, "cpu", sizeof(fsParam.tableName));
+  fsParam.dstPrecision = 2;
+  fsParam.colMap = taosArrayInit(2, sizeof(SColIdNameKV));
+  ASSERT_NE(fsParam.colMap, nullptr);
+  SColIdNameKV kv1 = {0};
+  kv1.colId = 3;
+  tstrncpy(kv1.colName, "usage", sizeof(kv1.colName));
+  ASSERT_NE(taosArrayPush(fsParam.colMap, &kv1), nullptr);
+  SColIdNameKV kv2 = {0};
+  kv2.colId = 7;
+  tstrncpy(kv2.colName, "idle", sizeof(kv2.colName));
+  ASSERT_NE(taosArrayPush(fsParam.colMap, &kv2), nullptr);
+  const char* cond = "host='h1' AND region='r2'";
+  fsParam.tagCond = (char*)cond;
+  fsParam.tagCondLen = (int32_t)strlen(cond);
+  param.value = &fsParam;
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tSerializeSOperatorParam(&encoder, &param), 0);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GT(len, 0);
+
+  std::vector<uint8_t> buf(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tSerializeSOperatorParam(&encoder, &param), 0);
+  tEncoderClear(&encoder);
+
+  SOperatorParam out = {0};
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDeserializeSOperatorParam(&decoder, &out), 0);
+  tDecoderClear(&decoder);
+
+  ASSERT_EQ(out.opType, QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
+  ASSERT_EQ(out.downstreamIdx, 1);
+  SForeignScanOperatorParam* pOut = (SForeignScanOperatorParam*)out.value;
+  ASSERT_NE(pOut, nullptr);
+  ASSERT_STREQ(pOut->sourceName, "influx1");
+  ASSERT_STREQ(pOut->dbName, "extdb");
+  ASSERT_STREQ(pOut->tableName, "cpu");
+  ASSERT_EQ(pOut->dstPrecision, 2);
+  ASSERT_EQ((int32_t)taosArrayGetSize(pOut->colMap), 2);
+  SColIdNameKV* o1 = (SColIdNameKV*)taosArrayGet(pOut->colMap, 0);
+  SColIdNameKV* o2 = (SColIdNameKV*)taosArrayGet(pOut->colMap, 1);
+  ASSERT_EQ(o1->colId, 3);
+  ASSERT_STREQ(o1->colName, "usage");
+  ASSERT_EQ(o2->colId, 7);
+  ASSERT_STREQ(o2->colName, "idle");
+  ASSERT_EQ(pOut->tagCondLen, (int32_t)strlen(cond));
+  ASSERT_STREQ(pOut->tagCond, cond);
+
+  taosArrayDestroy(fsParam.colMap);
+  taosArrayDestroy(pOut->colMap);
+  taosMemoryFree(pOut->tagCond);
+  taosMemoryFree(pOut);
 }

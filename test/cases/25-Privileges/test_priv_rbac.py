@@ -347,6 +347,7 @@ class TestCase:
         tdSql.connect("u_7002_db", self.test_pass)
         time.sleep(5)  # wait for privilege changes to take effect
         tdSql.error("select * from d_7002.not_exist_tb", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
+        tdSql.error("insert into d_7002.not_exist_tb values(now(), 1)", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
         tdSql.error("show create table d_7002.not_exist_tb", expectErrInfo="Permission denied or target object not exist", fullMatched=False)
 
         # Cleanup

@@ -109,7 +109,8 @@ struct SMetaCache {
 
   struct STbRefDbCache {
     TdThreadMutex lock;
-    SHashObj*     pStbRefs; // key: suid, value: SHashObj<dbName, refTimes>
+    SHashObj*     pStbRefs;       // key: suid, value: SHashObj<dbName, refTimes>
+    SHashObj*     pStbExtSources; // key: suid, value: SHashObj<sourceName, 0>
   } STbRefDbCache;
 };
 
@@ -264,11 +265,15 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   // open ref db cache
   pMeta->pCache->STbRefDbCache.pStbRefs =
       taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  if (pMeta->pCache->STbRefDbCache.pStbRefs == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
+  QUERY_CHECK_NULL(pMeta->pCache->STbRefDbCache.pStbRefs, code, lino, _exit, terrno);
 
   taosHashSetFreeFp(pMeta->pCache->STbRefDbCache.pStbRefs, freeRefDbFp);
+
+  pMeta->pCache->STbRefDbCache.pStbExtSources =
+      taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  QUERY_CHECK_NULL(pMeta->pCache->STbRefDbCache.pStbExtSources, code, lino, _exit, terrno);
+  taosHashSetFreeFp(pMeta->pCache->STbRefDbCache.pStbExtSources, freeRefDbFp);
+
   (void)taosThreadMutexInit(&pMeta->pCache->STbRefDbCache.lock, NULL);
 
 
@@ -304,8 +309,10 @@ void metaCacheClose(SMeta* pMeta) {
     taosHashCleanup(pMeta->pCache->STbFilterCache.pStbName);
 
     taosHashClear(pMeta->pCache->STbRefDbCache.pStbRefs);
+    taosHashClear(pMeta->pCache->STbRefDbCache.pStbExtSources);
     (void)taosThreadMutexDestroy(&pMeta->pCache->STbRefDbCache.lock);
     taosHashCleanup(pMeta->pCache->STbRefDbCache.pStbRefs);
+    taosHashCleanup(pMeta->pCache->STbRefDbCache.pStbExtSources);
 
     taosMemoryFree(pMeta->pCache);
     pMeta->pCache = NULL;
@@ -993,11 +1000,11 @@ static int32_t rebuildTagDigestUidMap(void* pVnode, uint64_t suid, const SArray*
   TSDB_CHECK_NULL(pDigestUidMap, code, lino, _end, terrno);
   taosHashSetFreeFp(pDigestUidMap, freeSArrayPtr);
 
-  _metaReaderInit(&mr, pVnode, META_READER_LOCK, NULL);
+  _metaReaderInit(&mr, pVnode, META_READER_LOCK, NULL, 0);
   code = metaReaderGetTableEntryByUid(&mr, suid);
   TSDB_CHECK_CODE(code, lino, _end);
 
-  pCur = metaOpenCtbCursor(pVnode, suid, 0);
+  pCur = metaOpenCtbCursor(pVnode, suid, 0, 0);
   TSDB_CHECK_NULL(pCur, code, lino, _end, terrno);
 
   while (1) {
@@ -1811,7 +1818,10 @@ int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid) {
   }
 
   SMetaEntry* pEntry = NULL;
-  if (metaFetchEntryByUid(pMeta, uid, &pEntry) == TSDB_CODE_SUCCESS) {
+  metaRLock(pMeta);
+  int32_t fetchCode = metaFetchEntryByUid(pMeta, uid, &pEntry);
+  metaULock(pMeta);
+  if (fetchCode == TSDB_CODE_SUCCESS) {
     int64_t keep = -1;
     if (pEntry->type == TSDB_SUPER_TABLE) {
       keep = pEntry->stbEntry.keep;
@@ -1819,24 +1829,31 @@ int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid) {
     metaFetchEntryFree(&pEntry);
     return keep;
   }
-  
+
   return -1;
 }
 
 int32_t metaRefDbsCacheClear(SMeta* pMeta, uint64_t suid) {
   int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        line = 0;
   int32_t        vgId = TD_VID(pMeta->pVnode);
   SHashObj*      pEntryHashMap = pMeta->pCache->STbRefDbCache.pStbRefs;
+  SHashObj*      pExtSourceMap = pMeta->pCache->STbRefDbCache.pStbExtSources;
   TdThreadMutex* pLock = &pMeta->pCache->STbRefDbCache.lock;
 
   (void)taosThreadMutexLock(pLock);
 
   SHashObj** pEntry = taosHashGet(pEntryHashMap, &suid, sizeof(uint64_t));
-  if (pEntry == NULL) {
-    goto _return;
+  if (pEntry != NULL) {
+    code = taosHashRemove(pEntryHashMap, &suid, sizeof(uint64_t));
+    QUERY_CHECK_CODE(code, line, _return);
   }
 
-  code = taosHashRemove(pEntryHashMap, &suid, sizeof(uint64_t));
+  SHashObj** pExtSourceEntry = taosHashGet(pExtSourceMap, &suid, sizeof(uint64_t));
+  if (pExtSourceEntry != NULL) {
+    code = taosHashRemove(pExtSourceMap, &suid, sizeof(uint64_t));
+    QUERY_CHECK_CODE(code, line, _return);
+  }
 
   metaDebug("vgId:%d suid:%" PRId64 " cached virtual stable ref db cleared", vgId, suid);
 
@@ -1922,6 +1939,74 @@ int32_t metaPutRefDbsToCache(void* pVnode, tb_uid_t suid, SArray* pList) {
     void* pItem = taosHashGet(pEntry, dbName, strlen(dbName));
     if (pItem == NULL) {
       code = taosHashPut(pEntry, dbName, strlen(dbName), NULL, 0);
+      TSDB_CHECK_CODE(code, line, _return);
+    }
+  }
+
+_return:
+  if (code) {
+    metaError("%s failed at line %d since %s", __func__, line, tstrerror(code));
+  }
+  (void)taosThreadMutexUnlock(pLock);
+
+  return code;
+}
+
+int32_t metaGetCachedExtSources(void* pVnode, tb_uid_t suid, SArray* pList) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        line = 0;
+  SMeta*         pMeta = ((SVnode*)pVnode)->pMeta;
+  SHashObj*      pTableMap = pMeta->pCache->STbRefDbCache.pStbExtSources;
+  TdThreadMutex* pLock = &pMeta->pCache->STbRefDbCache.lock;
+
+  (void)taosThreadMutexLock(pLock);
+
+  SHashObj** pEntry = taosHashGet(pTableMap, &suid, sizeof(uint64_t));
+  if (pEntry) {
+    void* iter = taosHashIterate(*pEntry, NULL);
+    while (iter != NULL) {
+      size_t keyLen = 0;
+      char*  name = taosHashGetKey(iter, &keyLen);
+      TSDB_CHECK_NULL(name, code, line, _return, terrno);
+      char* dup = taosMemoryMalloc(keyLen + 1);
+      TSDB_CHECK_NULL(dup, code, line, _return, terrno);
+      tstrncpy(dup, name, keyLen + 1);
+      TSDB_CHECK_NULL(taosArrayPush(pList, &dup), code, line, _return, terrno);
+      iter = taosHashIterate(*pEntry, iter);
+    }
+  }
+
+_return:
+  if (code) {
+    metaError("%s failed at line %d since %s", __func__, line, tstrerror(code));
+  }
+  (void)taosThreadMutexUnlock(pLock);
+  return code;
+}
+
+int32_t metaPutExtSourcesToCache(void* pVnode, tb_uid_t suid, SArray* pList) {
+  int32_t        code = 0;
+  int32_t        line = 0;
+  SMeta*         pMeta = ((SVnode*)pVnode)->pMeta;
+  SHashObj*      pStbExtSources = pMeta->pCache->STbRefDbCache.pStbExtSources;
+  TdThreadMutex* pLock = &pMeta->pCache->STbRefDbCache.lock;
+
+  (void)taosThreadMutexLock(pLock);
+
+  SHashObj*  pEntry = NULL;
+  SHashObj** find = taosHashGet(pStbExtSources, &suid, sizeof(uint64_t));
+  if (find == NULL) {
+    code = addRefDbsCacheNewEntry(pStbExtSources, suid, &pEntry);
+    TSDB_CHECK_CODE(code, line, _return);
+  } else {
+    pEntry = *find;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pList); i++) {
+    char* srcName = taosArrayGetP(pList, i);
+    void* pItem = taosHashGet(pEntry, srcName, strlen(srcName));
+    if (pItem == NULL) {
+      code = taosHashPut(pEntry, srcName, strlen(srcName), NULL, 0);
       TSDB_CHECK_CODE(code, line, _return);
     }
   }

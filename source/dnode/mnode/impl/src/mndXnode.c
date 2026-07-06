@@ -672,6 +672,7 @@ _OVER:
 #ifndef TD_ENTERPRISE
 
 int32_t mndXnodeCreateDefaultToken(SRpcMsg* pReq, char** ppToken) {
+  mError("failed to create xnode default token since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
@@ -2374,6 +2375,7 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
 
 _end:
   if (code != 0) {
+    sdbRelease(pSdb, pObj);
     mError("failed to retrieve xnode tasks, code:%s", tstrerror(code));
   }
   mndReleaseUser(pMnode, pOperUser);

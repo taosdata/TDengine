@@ -60,6 +60,7 @@ If the `taosd` process becomes unresponsive, you can manually generate a `.dmp` 
 
 A crash stack trace can only be resolved to function names and line numbers when combined with PDB files. PDB files can be obtained as follows:
 
+- **Community Edition users**: Download from the official symbol server at [TDengine Symbol Server](https://www.taosdata.com/symbols/) — select the matching version.
 - **Enterprise Edition users**: PDB files are not currently available for download. Contact TDengine technical support to obtain them.
 - **Locally compiled builds**: PDB files are in the same directory as the compiled executables.
 
@@ -68,21 +69,21 @@ A crash stack trace can only be resolved to function names and line numbers when
 To analyze a `.dmp` file, you need to load the matching PDB file to view the complete crash stack information. The following steps describe how to analyze a `.dmp` file:
 
 1. **Obtain WinDbg**
-   
+
    WinDbg is Microsoft's official tool for analyzing `.dmp` files. You can [download it](https://apps.microsoft.com/detail/9pgjgd53tn86) from the Microsoft website or install it by selecting the `Windows Debugging Tools` option when installing Visual Studio.
 
 2. **Load PDB**
-   
+
    Launch WinDbg, open the menu File -> Symbol File Path, click the `browse...` button in the popup window to select the folder containing the PDB files, then click `OK` to save and close.
-   
+
    ![dmp-step-1.webp](../pic/dmp-step-1.webp)
 
 3. **Analyze .dmp**
-   
+
    Select the menu File -> Open Crash Dump, choose the `.dmp` file in the popup window, and open it for analysis.
-   
+
    After opening the `.dmp` file, enter the `k` command in the command line at the bottom to display the crash stack. When the PDB is successfully loaded, you can see function names along with source file names and line numbers, as shown below:
-   
+
    ![dmp-step-2.webp](../pic/dmp-step-2.webp)
 
    At this point, use the command line provided by WinDbg to analyze the crash cause in detail.

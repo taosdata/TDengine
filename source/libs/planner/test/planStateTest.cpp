@@ -24,12 +24,26 @@ TEST_F(PlanStateTest, basic) {
   useDb("root", "test");
 
   run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1, 1)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1, 1, 0)");
 }
 
 TEST_F(PlanStateTest, stateExpr) {
   useDb("root", "test");
 
   run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END, c2)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1, CASE WHEN c2 = 'abc' THEN 1 ELSE 0 END)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(CASE WHEN c1 > 10 THEN 1 ELSE 0 END, CASE WHEN c2 = 'abc' THEN 1 ELSE 0 END)");
+}
+
+TEST_F(PlanStateTest, logicExpr) {
+  useDb("root", "test");
+
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5 AND c3 < 100)");
+  run("SELECT COUNT(*) FROM t1 STATE_WINDOW(c1 > 5, c3)");
+  run("SELECT COUNT(*) FROM st1 STATE_WINDOW(tag1 > 1)");
 }
 
 TEST_F(PlanStateTest, selectFunc) {
@@ -37,6 +51,8 @@ TEST_F(PlanStateTest, selectFunc) {
 
   // select function for STATE_WINDOW clause
   run("SELECT MAX(c1), MIN(c1) FROM t1 STATE_WINDOW(c3)");
+  run("SELECT MAX(c1), MIN(c1) FROM t1 STATE_WINDOW(c3, 1)");
+  run("SELECT MAX(c1), MIN(c1) FROM t1 STATE_WINDOW(c3, 1, 0)");
   // select function along with the columns of select row, and with STATE_WINDOW clause
   run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
 }
@@ -48,4 +64,13 @@ TEST_F(PlanStateTest, stable) {
   run("SELECT MAX(c1), MIN(c1) FROM st1 STATE_WINDOW(c2)");
   // select function along with the columns of select row, and with STATE_WINDOW clause
   run("SELECT MAX(c1), c2 FROM st1 STATE_WINDOW(c2)");
+}
+
+TEST_F(PlanStateTest, smallDataScanSortHint) {
+  useDb("root", "test");
+
+  // A super-table STATE_WINDOW query has no ORDER BY / Sort node; the batch split
+  // uses a per-vnode Table Merge Scan as the order source.  With the hint, that
+  // merge scan must be replaced by a plain Table Scan plus an inserted Sort.
+  run("SELECT /*+ smalldata_scan_sort() */ MAX(c1), MIN(c1) FROM st1 STATE_WINDOW(c2)");
 }

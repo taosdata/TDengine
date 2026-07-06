@@ -169,6 +169,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   TAOS_CHECK_EXIT(createLogicPlan(pCxt, &pLogicSubplan));
   TAOS_CHECK_EXIT(optimizeLogicPlan(pCxt, pLogicSubplan));
   TAOS_CHECK_EXIT(splitLogicPlan(pCxt, pLogicSubplan));
+  TAOS_CHECK_EXIT(postSplitOptimize(pCxt, pLogicSubplan));
   TAOS_CHECK_EXIT(scaleOutLogicPlan(pCxt, pLogicSubplan, &pLogicPlan));
   TAOS_CHECK_EXIT(createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList));
   TAOS_CHECK_EXIT(validateQueryPlan(pCxt, *pPlan));
@@ -186,7 +187,7 @@ _exit:
   }
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);
-  
+
   terrno = code;
   return code;
 }

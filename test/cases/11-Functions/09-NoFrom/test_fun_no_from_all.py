@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool
-import subprocess
 
 
 class TestFunctionNoFromAll:
@@ -18,7 +17,7 @@ class TestFunctionNoFromAll:
         ("abs", "select abs(1);"),
         ("acos", "select acos(1);"),
         ("aes_decrypt", "select aes_decrypt(aes_encrypt('abc', 'key123456789012'), 'key123456789012');"),
-        ("aes_encrypt", "select aes_encrypt('abc', 'key123456789012');"),
+        ("aes_encrypt", "select to_base64(aes_encrypt('abc', 'key123456789012'));"),
         ("apercentile", "select apercentile(1, 50);"),
         ("ascii", "select ascii('a');"),
         ("asin", "select asin(1);"),
@@ -88,7 +87,7 @@ class TestFunctionNoFromAll:
         ("sign", "select sign(1);"),
         ("sin", "select sin(1);"),
         ("sm4_decrypt", "select sm4_decrypt(sm4_encrypt('abc', 'key123456789012'), 'key123456789012');"),
-        ("sm4_encrypt", "select sm4_encrypt('abc', 'key123456789012');"),
+        ("sm4_encrypt", "select to_base64(sm4_encrypt('abc', 'key123456789012'));"),
         ("spread", "select spread(1);"),
         ("sqrt", "select sqrt(1);"),
         ("st_astext", "select st_astext(st_geomfromtext('POINT(1 2)'));"),
@@ -153,29 +152,59 @@ class TestFunctionNoFromAll:
         ("_table_count", "select _table_count;"),
     ]
 
-    def _run_by_taos_cli(self, sql):
-        taos_file = etool.taosFile()
-        escaped_sql = sql.replace('"', '\\"')
-        cmd = f'"{taos_file}" -s "{escaped_sql}"'
-        proc = subprocess.run(cmd, shell=True, text=True, capture_output=True)
-        return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
+    def _query_sql(self, sql):
+        tdSql.sql = sql
+        try:
+            tdSql.cursor.execute(sql)
+            tdSql.queryResult = tdSql.cursor.fetchall()
+            tdSql.queryRows = len(tdSql.queryResult)
+            tdSql.queryCols = len(tdSql.cursor.description)
+            return True, f"rows={tdSql.queryRows}"
+        except Exception as err:
+            tdSql.queryResult = None
+            tdSql.queryRows = 0
+            tdSql.queryCols = 0
+            return False, repr(err)
 
-    def _is_sql_failed(self, code, output):
-        if code != 0:
-            return True
+    def do_positive_no_from_calls(self):
+        failed = []
+        for name, sql in self.CASES:
+            success, detail = self._query_sql(sql)
+            if not success:
+                failed.append((name, sql, detail))
 
-        lower = output.lower()
-        err_markers = [
-            "db error:",
-            "syntax error",
-            "invalid column name",
-            "not supported",
-            "failed",
-        ]
-        return any(marker in lower for marker in err_markers)
+        if failed:
+            preview = []
+            for name, sql, detail in failed[:30]:
+                tdLog.error(f"positive failed - {name}: {sql} => {detail}")
+                preview.append(f"{name}: {sql} => {detail}")
+            tdLog.exit(
+                f"no-from function calls failed: {len(failed)}\\n" + "\\n".join(preview)
+            )
+
+        print("positive no-from function calls ......................... [ passed ]")
+
+    def do_negative_no_from_calls(self):
+        unexpected_success = []
+        for name, sql in self.NEGATIVE_CASES:
+            success, detail = self._query_sql(sql)
+            if success:
+                unexpected_success.append((name, sql, detail))
+
+        if unexpected_success:
+            preview = []
+            for name, sql, detail in unexpected_success[:30]:
+                tdLog.error(f"negative unexpected success - {name}: {sql} => {detail}")
+                preview.append(f"{name}: {sql} => {detail}")
+            tdLog.exit(
+                "unsupported no-from functions unexpectedly succeeded: "
+                f"{len(unexpected_success)}\\n" + "\\n".join(preview)
+            )
+
+        print("negative no-from function calls ......................... [ passed ]")
 
     def test_fun_no_from_all(self):
-        """Function no-from: 
+        """Function no-from:
 
         1. Execute one fixed no-from call for each function
         2. Ensure every positive call can be executed successfully
@@ -191,39 +220,8 @@ class TestFunctionNoFromAll:
 
         History:
             - 2026-04-02 wpan Add full no-from function tests
+            - 2026-06-18 Codex Execute SQL through tdSql instead of taos CLI
 
         """
-        failed = []
-        for name, sql in self.CASES:
-            code, output = self._run_by_taos_cli(sql)
-            if self._is_sql_failed(code, output):
-                tail = output.strip().splitlines()
-                detail = tail[-1] if tail else "no output"
-                failed.append((name, sql, detail))
-
-        if failed:
-            preview = []
-            for name, sql, detail in failed[:30]:
-                tdLog.error(f"positive failed - {name}: {sql} => {detail}")
-                preview.append(f"{name}: {sql} => {detail}")
-            tdLog.exit(
-                f"no-from function calls failed: {len(failed)}\\n" + "\\n".join(preview)
-            )
-
-        unexpected_success = []
-        for name, sql in self.NEGATIVE_CASES:
-            code, output = self._run_by_taos_cli(sql)
-            if not self._is_sql_failed(code, output):
-                tail = output.strip().splitlines()
-                detail = tail[-1] if tail else "no output"
-                unexpected_success.append((name, sql, detail))
-
-        if unexpected_success:
-            preview = []
-            for name, sql, detail in unexpected_success[:30]:
-                tdLog.error(f"negative unexpected success - {name}: {sql} => {detail}")
-                preview.append(f"{name}: {sql} => {detail}")
-            tdLog.exit(
-                "unsupported no-from functions unexpectedly succeeded: "
-                f"{len(unexpected_success)}\\n" + "\\n".join(preview)
-            )
+        self.do_positive_no_from_calls()
+        self.do_negative_no_from_calls()

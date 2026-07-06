@@ -197,7 +197,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
 
   // init write buffer
   (void)memset(&pWal->writeHead, 0, sizeof(SWalCkHead));
-  pWal->writeHead.head.protoVer = WAL_PROTO_VER;
+  WAL_SET_PROTO_VER(&pWal->writeHead.head, WAL_PROTO_VER);
   pWal->writeHead.magic = WAL_MAGIC;
 
   // load meta
@@ -216,6 +216,21 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     if (code < 0) {
       wError("vgId:%d, cannot open wal since repair idx file failed since %s", pWal->cfg.vgId, tstrerror(code));
       goto _err;
+    }
+
+    // Open .txn files and recover any missing entries (after main WAL repair).
+    if (pWal->cfg.enableTxnFile) {
+      code = walTxnFilesOpen(pWal);
+      if (code != TSDB_CODE_SUCCESS) {
+        wWarn("vgId:%d, walTxnFilesOpen failed since %s, disabling .txn support", pWal->cfg.vgId, tstrerror(code));
+        pWal->cfg.enableTxnFile = 0;
+        code = TSDB_CODE_SUCCESS;
+      } else {
+        int32_t recoverCode = walTxnFilesRecover(pWal, pWal->vers.lastVer);
+        if (recoverCode != TSDB_CODE_SUCCESS) {
+          wWarn("vgId:%d, walTxnFilesRecover failed since %s (non-fatal)", pWal->cfg.vgId, tstrerror(recoverCode));
+        }
+      }
     }
   } else {
     code = walInitWriteFileForSkip(pWal);
@@ -299,6 +314,7 @@ void walClose(SWal *pWal) {
   if (walSaveMeta(pWal) < 0) {
     wError("vgId:%d, failed to save meta since %s", pWal->cfg.vgId, tstrerror(terrno));
   }
+  walTxnFilesClose(pWal);  // fsync + close .txn and txn.pending
   TAOS_UNUSED(taosCloseFile(&pWal->pLogFile));
   pWal->pLogFile = NULL;
   (void)taosCloseFile(&pWal->pIdxFile);
@@ -365,11 +381,13 @@ static void walFsyncAll() {
     if (walNeedFsync(pWal)) {
       wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->cfg.vgId, pWal->cfg.level, pWal->fsyncSeq,
              atomic_load_32((volatile int32_t *)&tsWal.seq));
+      walTxnPreFsync(pWal);  // Step A
       int32_t code = taosFsyncFile(pWal->pLogFile);
       if (code != 0) {
         wError("vgId:%d, file:%" PRId64 ".log, failed to fsync since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
                strerror(ERRNO));
       }
+      walTxnPostFsync(pWal);  // Steps C+D
     }
     pWal = taosIterateRef(tsWal.refSetId, pWal->refId);
   }
@@ -377,6 +395,7 @@ static void walFsyncAll() {
 
 static void *walThreadFunc(void *param) {
   setThreadName("wal");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   while (1) {
     walUpdateSeq();
     walFsyncAll();

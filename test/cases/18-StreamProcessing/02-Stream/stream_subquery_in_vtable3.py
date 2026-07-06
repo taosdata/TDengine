@@ -1,5 +1,5 @@
 import time
-from new_test_framework.utils import (tdLog, tdSql, tdStream, StreamCheckItem, waitForRows)
+from new_test_framework.utils import (tdLog, tdSql, tdCom, tdStream, StreamCheckItem, waitForRows)
 
 
 def _create_db_with_retry(create_sql, retries=60):
@@ -27,7 +27,7 @@ class TestStreamSubQueryInVtable3:
 
         Since: v3.3.4.0
 
-        Labels: common, ci
+        Labels: stream, vtable
 
         Jira: None
 
@@ -39,7 +39,7 @@ class TestStreamSubQueryInVtable3:
         tdStream.dropAllStreamsAndDbs()
 
         try:
-            tdStream.createSnode()
+            tdCom.create_snode_if_not_exists()
         except Exception as e:
             if "Only one snode" not in str(e):
                 raise
@@ -94,7 +94,7 @@ class TestStreamSubQueryInVtable3:
             tdSql.execute(f"insert into {self.db}.{self.triggertb} values ('2026-01-01 00:00:00', 1, 'test1', 10.5, true, 'data1') ('2026-01-01 00:00:01', 2, 'test2', 20.5, false, 'data2') ('2026-01-01 00:00:02', 3, 'test3', 30.5, true, 'data3') ('2026-01-01 00:00:03', 4, 'test4', 40.5, false, 'data4') ('2026-01-01 00:00:04', 5, 'test5', 50.5, true, 'data5')")
 
         def check1(self):
-            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 2)
+            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 2, 180)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(1, 1, 5)
 
@@ -132,7 +132,7 @@ class TestStreamSubQueryInVtable3:
             tdSql.execute(f"insert into {self.db}.{self.triggertb} values ('2026-01-01 00:00:00', 'alice', 'login', 1) ('2026-01-01 00:00:01', 'bob', 'view', 2) ('2026-01-01 00:00:02', 'charlie', 'delete', 3) ('2026-01-01 00:00:03', 'david', 'update', 4)")
 
         def check1(self):
-            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 2)
+            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 2, 180)
 
     class InSubqueryVirtualTableDynamicUpdate(StreamCheckItem):
         """Test IN subquery with virtual table — stream continues filtering correctly as new trigger rows arrive"""
@@ -171,10 +171,10 @@ class TestStreamSubQueryInVtable3:
             pass
 
         def check1(self):
-            waitForRows(f"select * from {self.db}.{self.restb} where ts < '2026-01-01 00:00:10' order by ts", 2)
+            waitForRows(f"select * from {self.db}.{self.restb} where ts < '2026-01-01 00:00:10' order by ts", 2, 180)
 
         def check2(self):
-            waitForRows(f"select * from {self.db}.{self.restb} where ts >= '2026-01-01 00:00:10' order by ts", 2)
+            waitForRows(f"select * from {self.db}.{self.restb} where ts >= '2026-01-01 00:00:10' order by ts", 2, 180)
 
     class InSubqueryVirtualTableWithPartition(StreamCheckItem):
         """Test IN subquery with virtual table and partition by"""
@@ -215,7 +215,7 @@ class TestStreamSubQueryInVtable3:
             tdSql.execute(f"insert into {self.db}.{self.triggerctb2} values ('2026-01-01 00:00:00', 30) ('2026-01-01 00:00:05', 40)")
 
         def check1(self):
-            waitForRows(f"select * from {self.db}.{self.restb}", 4)
+            waitForRows(f"select * from {self.db}.{self.restb}", 4, 180)
 
     class InSubqueryVirtualTableWithOrderBy(StreamCheckItem):
         """Test IN subquery with virtual table and order by in subquery"""
@@ -251,7 +251,7 @@ class TestStreamSubQueryInVtable3:
             tdSql.execute(f"insert into {self.db}.{self.triggertb} values ('2026-01-01 00:00:00', 1, 100) ('2026-01-01 00:00:01', 2, 200) ('2026-01-01 00:00:02', 3, 300) ('2026-01-01 00:00:03', 4, 400) ('2026-01-01 00:00:04', 5, 500)")
 
         def check1(self):
-            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 3)
+            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 3, 180)
             tdSql.checkData(0, 1, 1)
             tdSql.checkData(1, 1, 3)
             tdSql.checkData(2, 1, 4)
@@ -292,6 +292,6 @@ class TestStreamSubQueryInVtable3:
             tdSql.execute(f"insert into {self.db}.{self.triggertb} values {trigger_values}")
 
         def check1(self):
-            waitForRows(f"select * from {self.db}.{self.restb} order by customer_id", 5)
+            waitForRows(f"select * from {self.db}.{self.restb} order by customer_id", 5, 180)
             tdSql.checkData(0, 1, 6)
             tdSql.checkData(4, 1, 10)

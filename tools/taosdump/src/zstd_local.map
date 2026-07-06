@@ -1,0 +1,19 @@
+/*
+ * zstd_local.map – linker version script for taosBackup
+ *
+ * libtaos.so (TDengine client) exports its own copy of the ZSTD internal
+ * compression helpers (ZSTD_compressBlock_doubleFast, ZSTD_buildSeqStore …)
+ * because it statically links contrib/TSZ/zstd and LTO-exports the symbols.
+ *
+ * ext_arrow (statically linked into taosBackup) also contains ZSTD.
+ * With a PIE binary the dynamic linker's PLT-based symbol lookup can pick
+ * libtaos.so's ZSTD when ext_arrow's code calls its own internal helpers,
+ * leading to a NULL-context crash inside ZSTD_compressBlock_doubleFast.
+ *
+ * Marking all ZSTD_* symbols as "local" via this version script forces
+ * the linker to resolve them to the binary's own copies, bypassing PLT.
+ */
+{
+  global: *;
+  local:  ZSTD_*;
+};

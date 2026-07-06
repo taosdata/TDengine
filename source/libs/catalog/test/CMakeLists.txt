@@ -19,6 +19,7 @@ IF(NOT TD_DARWIN)
                 catalogTest
                 PUBLIC "${TD_SOURCE_DIR}/include/libs/catalog/"
                 PRIVATE "${TD_SOURCE_DIR}/source/libs/catalog/inc"
+                PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
         )
 
         add_test(

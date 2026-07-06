@@ -61,12 +61,31 @@ target_link_libraries(
     PRIVATE os util common nodes function dnode
 )
 
+if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
+    # libextconnector.a references nodesRemotePlanToSQL (in libnodes.a).
+    # libextconnector.a appears twice in the transitive link command; the object file that
+    # holds nodesRemotePlanToSQL is only extracted from the second occurrence (after libnodes.a
+    # has already been scanned). Using --undefined forces the linker to extract
+    # nodesRemotePlanToSQL.c.o from libnodes.a on first encounter, making the symbol available
+    # for all subsequent libextconnector.a references.
+    target_link_options(taosudf PRIVATE "LINKER:--undefined=nodesRemotePlanToSQL")
+endif()
+
 if(NOT TD_WINDOWS)
-    set_target_properties(taosudf PROPERTIES
-        INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib:$ORIGIN/../driver"
-        BUILD_WITH_INSTALL_RPATH TRUE
-        SKIP_BUILD_RPATH FALSE
-    )
+    if(APPLE)
+        # macOS uses @loader_path (not $ORIGIN) and one LC_RPATH entry per path.
+        set_target_properties(taosudf PROPERTIES
+            INSTALL_RPATH "@loader_path;@loader_path/../lib;@loader_path/../driver"
+            BUILD_WITH_INSTALL_RPATH FALSE
+            SKIP_BUILD_RPATH FALSE
+        )
+    else()
+        set_target_properties(taosudf PROPERTIES
+            INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib:$ORIGIN/../driver"
+            BUILD_WITH_INSTALL_RPATH FALSE
+            SKIP_BUILD_RPATH FALSE
+        )
+    endif()
 endif()
 
 if(UNIX AND NOT APPLE)

@@ -192,9 +192,9 @@ class Test_IDMP_Meters:
             "CREATE STREAM `tdasset`.`ana_stream5_sub2` SESSION(ts, 10m) FROM `tdasset`.`vt_em-5` STREAM_OPTIONS(PRE_FILTER(`电压`>300)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub2` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`电流`) AS `最后电流` FROM tdasset.`vt_em-5` WHERE ts >= _twstart AND ts <=_twend",
             "CREATE STREAM `tdasset`.`ana_stream5_sub3` SESSION(ts, 10m) FROM `asset01`.`em-5`    STREAM_OPTIONS(PRE_FILTER(`voltage`>300)) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub3` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`current`) AS `最后电流` FROM %%trows",
             "CREATE STREAM `tdasset`.`ana_stream5_sub4` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1` PARTITION BY tbname,`地址`        NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub4` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, LAST(`电流`) AS `最后电流` FROM %%trows",
-            "CREATE STREAM `tdasset`.`ana_stream5_sub5` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1`                                  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub5` (ts, row PRIMARY KEY, wstart, wend, vol_min, power_sum)       AS SELECT _twstart, _twrownum, _twstart, _twend, MIN(`电压`), SUM(`功率`)   FROM %%trows",
-            "CREATE STREAM `tdasset`.`ana_stream5_sub6` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1`                                  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub6` (ts, vol PRIMARY KEY, wstart, wend, row, power, addr)         AS SELECT ts, `电压`, _twstart, _twend, _twrownum, `功率`, `地址`            FROM %%trows",
-            "CREATE STREAM `tdasset`.`ana_stream5_sub7` SESSION(ts, 10m) FROM `tdasset`.`vt_em-5`                                        NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub7` (ts, vol PRIMARY KEY, wstart, wend, row, power, addr)         AS SELECT ts, `电压`, _twstart, _twend, _twrownum, `功率`, `地址`            FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream5_sub5` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1`                                  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub5` (ts, `row` PRIMARY KEY, wstart, wend, vol_min, power_sum)       AS SELECT _twstart, _twrownum, _twstart, _twend, MIN(`电压`), SUM(`功率`)   FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream5_sub6` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1`                                  NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub6` (ts, vol PRIMARY KEY, wstart, wend, `row`, power, addr)         AS SELECT ts, `电压`, _twstart, _twend, _twrownum, `功率`, `地址`            FROM %%trows",
+            "CREATE STREAM `tdasset`.`ana_stream5_sub7` SESSION(ts, 10m) FROM `tdasset`.`vt_em-5`                                        NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_sub7` (ts, vol PRIMARY KEY, wstart, wend, `row`, power, addr)         AS SELECT ts, `电压`, _twstart, _twend, _twrownum, `功率`, `地址`            FROM %%trows",
             # stream6 count
             "CREATE STREAM `tdasset`.`ana_stream6`      COUNT_WINDOW(5)               FROM `tdasset`.`vt_em-6` STREAM_OPTIONS(PRE_FILTER(`电压`>=200)|IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6`      AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
             "CREATE STREAM `tdasset`.`ana_stream6_sub1` COUNT_WINDOW(5)               FROM `tdasset`.`vt_em-6` STREAM_OPTIONS(PRE_FILTER(`电压`>=200))                 NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream6_sub1` AS SELECT _twstart AS ts, COUNT(*) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
@@ -251,7 +251,7 @@ class Test_IDMP_Meters:
             # stream5
             "CREATE STREAM `tdasset`.`err_stream5_sub1` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1` NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_err` (ts, col2 PRIMARY KEY, col3, col4, col5) TAGS ( mytbname varchar(100) as tbname) AS SELECT ts,tbname,`电压`,`电流`,`地址` FROM `tdasset`.`vst_智能电表_1` WHERE ts >=_twstart AND ts <_twend",
             "CREATE STREAM `tdasset`.`err_stream5_sub2` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1` NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_err` (ts, col2 PRIMARY KEY, col3, col4)                                               AS SELECT ts,tbname,`电压`,`电流`,`地址` FROM %%trows",
-            "CREATE STREAM `tdasset`.`err_stream5_sub3` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1` NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_err` (ts, `tbname` PRIMARY KEY, wstart, wend, row, vol_sum, cur, addr)                AS SELECT _twstart,tbname, _twstart, _twend, _twrownum, SUM(`电压`), `电流`, `地址` FROM %%trows",
+            "CREATE STREAM `tdasset`.`err_stream5_sub3` SESSION(ts, 10m) FROM `tdasset`.`vst_智能电表_1` NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream5_err` (ts, `tbname` PRIMARY KEY, wstart, wend, `row`, vol_sum, cur, addr)                AS SELECT _twstart,tbname, _twstart, _twend, _twrownum, SUM(`电压`), `电流`, `地址` FROM %%trows",
             # stream6
             "CREATE STREAM `tdasset`.`err_stream6_sub1` COUNT_WINDOW(5, 5,`电流`, `地址`)  FROM `tdasset`.`vt_em-6`                                 STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream_err` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
             "CREATE STREAM `tdasset`.`err_stream6_sub2` COUNT_WINDOW(5,5,`电流`, tbname)  FROM `tdasset`.`vt_em-6`                                 STREAM_OPTIONS(IGNORE_DISORDER) NOTIFY('ws://idmp:6042/eventReceive') ON(WINDOW_OPEN|WINDOW_CLOSE) INTO `tdasset`.`result_stream_err` AS SELECT _twstart+0s AS ts, COUNT(*) AS cnt, MIN(`电压`) AS `最小电压`, MAX(`电压`) AS `最大电压` FROM tdasset.`vt_em-6` WHERE ts >= _twstart AND ts <=_twend",
@@ -1310,7 +1310,7 @@ class Test_IDMP_Meters:
 
     def verify_stream5_sub5(self):
         # check
-        result_sql = f"select ts,row,wend from tdasset.`result_stream5_sub5` "
+        result_sql = f"select ts,`row`,wend from tdasset.`result_stream5_sub5` "
 
         tdSql.checkResultsByFunc (
             sql=result_sql, 
@@ -1631,25 +1631,10 @@ class Test_IDMP_Meters:
     # verify stream8
     #
     def verify_stream8(self):
-        # sleep
-        time.sleep(5)
-
-        # result_stream8
-        result_sql = f"select * from tdasset.`result_stream8` "
-
-        tdSql.query(result_sql)
-        count = tdSql.getRows()
-        sum = 0
-
-        for i in range(count):
-            # row
-            cnt = tdSql.getData(i, 1)
-            sum += cnt
-
-        if sum != 30:
-            tdLog.exit(
-                f"stream8 not found expected data. expected sum(cnt) == 30, actual: {sum}"
-            )
+        tdSql.checkResultsByFunc(
+            sql=f"select sum(cnt) from tdasset.`result_stream8`",
+            func=lambda: tdSql.getRows() == 1 and tdSql.compareData(0, 0, 30),
+        )
 
         # sub
         self.verify_stream8_sub1()

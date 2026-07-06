@@ -570,6 +570,7 @@ static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) 
 
 static int32_t authShowCreateView(SAuthCxt* pCxt, SShowCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("authShowCreateView: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   int32_t code = checkDbUseAuth(pCxt, ((SShowCreateViewStmt*)pStmt)->dbName);
@@ -853,6 +854,7 @@ static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
 
 static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("authCreateView: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   int32_t code = checkDbUseAuth(pCxt, pStmt->dbName);
@@ -873,6 +875,7 @@ static int32_t authCreateView(SAuthCxt* pCxt, SCreateViewStmt* pStmt) {
 
 static int32_t authDropView(SAuthCxt* pCxt, SDropViewStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("authDropView: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   int32_t code = checkDbUseAuth(pCxt, pStmt->dbName);
@@ -987,6 +990,7 @@ static int32_t authDropRsma(SAuthCxt* pCxt, SDropRsmaStmt* pStmt) {
 
 static int32_t authShowCreateRsma(SAuthCxt* pCxt, SShowCreateRsmaStmt* pStmt) {
 #ifndef TD_ENTERPRISE
+  parserError("authShowCreateRsma: operation not supported in community edition");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #else
   int32_t code = checkDbUseAuth(pCxt, ((SShowCreateRsmaStmt*)pStmt)->dbName);
@@ -1159,6 +1163,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_ENCRYPTIONS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
+    case QUERY_NODE_SHOW_CPU_ALLOCATION_STMT:
       return !pCxt->pParseCxt->enableSysInfo ? TSDB_CODE_PAR_PERMISSION_DENIED : TSDB_CODE_SUCCESS;
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return authObjPrivileges(pCxt, ((SShowCreateDatabaseStmt*)pStmt)->dbName, NULL, PRIV_CM_SHOW_CREATE, PRIV_OBJ_DB);
@@ -1268,6 +1273,8 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_DROP_ANODE_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_NODE_DROP);
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTION_LOGS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTION_ORPHANS_STMT:
     case QUERY_NODE_SHOW_TRANSACTION_DETAILS_STMT:
       return authSysPrivileges(pCxt, pStmt, PRIV_TRANS_SHOW);
     case QUERY_NODE_KILL_TRANSACTION_STMT:
@@ -1284,6 +1291,9 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
       return authAlterDatabase(pCxt, (SAlterDatabaseStmt*)pStmt);
     case QUERY_NODE_ALTER_LOCAL_STMT:
       return authAlterLocal(pCxt, (SAlterLocalStmt*)pStmt);
+    case QUERY_NODE_SET_TIMEZONE_STMT:
+    case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_DROP_DATABASE_STMT:
       return authDropDatabase(pCxt, (SDropDatabaseStmt*)pStmt);
     case QUERY_NODE_USE_DATABASE_STMT:

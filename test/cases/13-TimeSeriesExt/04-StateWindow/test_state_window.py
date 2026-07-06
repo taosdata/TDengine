@@ -231,8 +231,175 @@ class TestStateWindow:
         self.check_crash_for_state_window4()
         self.check_crash_for_state_window5()
         self.test_state_window_start_with_null()
+        self.check_multi_column_state_window_expr()
 
-        #tdSql.close()
+
+    def check_multi_column_state_window_expr(self):
+        tdSql.execute("drop database if exists test_multi_state_window_expr", show=True)
+        tdSql.execute("create database test_multi_state_window_expr keep 3650", show=True)
+        tdSql.execute("use test_multi_state_window_expr", show=True)
+        tdSql.execute("create table ntb (ts timestamp, s1 int, s2 binary(10), v int)", show=True)
+        tdSql.execute("""insert into ntb values
+                      ('2026-03-30 12:00:00', 1, 'a', 10)
+                    , ('2026-03-30 12:00:01', 1, 'a', 11)
+                    , ('2026-03-30 12:00:02', 2, 'a', 12)
+                    , ('2026-03-30 12:00:03', 2, 'b', 13)
+                    , ('2026-03-30 12:00:04', 2, 'b', 14)""", show=True)
+
+        tdSql.query(
+            "select _wstart, _wend, count(*) from ntb "
+            "state_window(case when s1 >= 2 then 1 else 0 end, "
+            "case when s2 = 'b' then 'hot' else 'cold' end) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "2026-03-30 12:00:00.000")
+        tdSql.checkData(0, 1, "2026-03-30 12:00:01.000")
+        tdSql.checkData(0, 2, 2)
+
+        tdSql.checkData(1, 0, "2026-03-30 12:00:02.000")
+        tdSql.checkData(1, 1, "2026-03-30 12:00:02.000")
+        tdSql.checkData(1, 2, 1)
+
+        tdSql.checkData(2, 0, "2026-03-30 12:00:03.000")
+        tdSql.checkData(2, 1, "2026-03-30 12:00:04.000")
+        tdSql.checkData(2, 2, 2)
+
+    def prepare_multi_column_state_window_invalid_env(self):
+        tdSql.execute("drop database if exists test_multi_state_window_invalid", show=True)
+        tdSql.execute("create database test_multi_state_window_invalid keep 3650", show=True)
+        tdSql.execute("use test_multi_state_window_invalid", show=True)
+        tdSql.execute(
+            "create table ntb (ts timestamp, s1 int, s2 bool, s3 binary(10), v double)",
+            show=True,
+        )
+        tdSql.execute(
+            "create stable stb (ts timestamp, c1 int, c2 binary(10), v int) tags (tg1 int, tg2 binary(10))",
+            show=True,
+        )
+        tdSql.execute("create table ctb0 using stb tags(1, 'g0')", show=True)
+        tdSql.execute(
+            "insert into ntb values ('2026-03-31 09:00:00', 1, true, 'a', 10.5)",
+            show=True,
+        )
+        tdSql.execute(
+            "insert into ctb0 values ('2026-03-31 09:00:00', 1, 'a', 10)",
+            show=True,
+        )
+
+    def check_multi_column_state_window_invalid(self):
+        tdSql.error(
+            "select count(*) from ntb state_window(s1, ts)",
+            expectErrInfo="Only support STATE_WINDOW on integer/bool/varchar column",
+            show=True,
+        )
+        tdSql.query(
+            "select count(*) from ctb0 state_window(c1, tg1)",
+            show=True,
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.error(
+            "select count(*) from ntb state_window(s1, s3) extend(3)",
+            expectErrInfo="Invalid state window extend option",
+            show=True,
+        )
+        tdSql.error(
+            "select count(*) from ntb state_window(s1, s3) zeroth_state(NO_ZEROTH)",
+            expectErrInfo="ZEROTH_STATE argument count must match STATE_WINDOW key count",
+            show=True,
+        )
+        tdSql.error(
+            "select count(*) from ntb state_window(s1, s3) zeroth_state(0, s3)",
+            expectErrInfo="syntax error near",
+            fullMatched=False,
+            show=True,
+        )
+        tdSql.error(
+            "select count(*) from ntb state_window(s1, case when s1 > 0 then v else v end)",
+            expectErrInfo="Only support STATE_WINDOW on integer/bool/varchar column",
+            show=True,
+        )
+
+    def check_multi_column_state_window_zeroth(self):
+        tdSql.execute("drop database if exists test_multi_state_window_zeroth", show=True)
+        tdSql.execute("create database test_multi_state_window_zeroth keep 3650", show=True)
+        tdSql.execute("use test_multi_state_window_zeroth", show=True)
+        tdSql.execute("create table ntb (ts timestamp, s1 int, s2 binary(10), v int)", show=True)
+        tdSql.execute("""insert into ntb values
+            ('2026-03-30 11:00:00', 1, 'a', 10),
+            ('2026-03-30 11:00:01', 1, 'a', 11),
+            ('2026-03-30 11:00:02', 2, 'a', 12),
+            ('2026-03-30 11:00:03', 2, 'b', 13),
+            ('2026-03-30 11:00:04', 1, 'b', 14),
+            ('2026-03-30 11:00:05', 3, 'c', 15)""", show=True)
+
+        tdSql.query(
+            "select _wstart, _wend, count(*), s1, s2 from ntb "
+            "state_window(s1, s2) extend(0) zeroth_state(1, NO_ZEROTH) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(3)
+
+        tdSql.checkData(0, 0, "2026-03-30 11:00:02.000")
+        tdSql.checkData(0, 1, "2026-03-30 11:00:02.000")
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, 2)
+        tdSql.checkData(0, 4, "a")
+
+        tdSql.checkData(1, 0, "2026-03-30 11:00:03.000")
+        tdSql.checkData(1, 1, "2026-03-30 11:00:03.000")
+        tdSql.checkData(1, 2, 1)
+        tdSql.checkData(1, 3, 2)
+        tdSql.checkData(1, 4, "b")
+
+        tdSql.checkData(2, 0, "2026-03-30 11:00:05.000")
+        tdSql.checkData(2, 1, "2026-03-30 11:00:05.000")
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(2, 3, 3)
+        tdSql.checkData(2, 4, "c")
+
+    def test_multi_column_state_window_zeroth(self):
+        """summary: test multi-column state window zeroth_state
+
+        description: verify multi-column state window honors NO_ZEROTH on
+            non-leading columns while filtering on the constrained column.
+
+        Since: v3.4.0.0
+
+        Labels: state window
+
+        Catalog:
+            - Function:aggregation
+
+        History:
+            - 2026-04-01: Tony Zhang created
+        """
+
+        self.check_multi_column_state_window_zeroth()
+
+    def test_multi_column_state_window_invalid(self):
+        """summary: test invalid multi-column state window
+
+        description: verify parser and semantic checks reject invalid
+            multi-column state window inputs with stable error messages.
+
+        Since: v3.4.0.0
+
+        Labels: state window
+
+        Jira: None
+
+        Catalog:
+            - Function:aggregation
+
+        History:
+            - 2026-04-02: Tony Zhang created
+
+        """
+
+        self.prepare_multi_column_state_window_invalid_env()
+        self.check_multi_column_state_window_invalid()
 
     
     def test_state_window_start_with_null(self):
@@ -281,7 +448,7 @@ class TestStateWindow:
         tdSql.query("""
             select _wstart, _wduration, _wend, count(*), count(s), count(v),
             avg(v), first(v), cols(last(v), ts), cols(last_row(v), ts), s
-            from ntb state_window(s, 2)
+            from ntb state_window(s) extend(2)
         """, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
@@ -332,7 +499,7 @@ class TestStateWindow:
         tdSql.checkData(3, 9, "2025-09-01 10:00:13.000")
         tdSql.checkData(3, 10, "b")
         
-        sql = "select _wstart, _wduration, _wend, s from ntb state_window(s, 2)"
+        sql = "select _wstart, _wduration, _wend, s from ntb state_window(s) extend(2)"
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, "2025-09-01 10:00:00.000")
@@ -352,21 +519,165 @@ class TestStateWindow:
         tdSql.checkData(3, 2, "2025-09-01 10:00:13.000")
         tdSql.checkData(3, 3, "b")
         
-        sql = "select _wstart, ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s, 2) ) state_window(ss)"
+        sql = "select _wstart, ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s) extend(2) ) state_window(ss)"
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
 
-        sql = "select ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s, 2) ) state_window(ss)"
+        sql = "select ss from (select _wstart as ts1, _wduration, _wend, s as ss from ntb state_window(s) extend(2) ) state_window(ss)"
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
                 
-        sql = "select 1 from ntb state_window(s, 2)"
+        sql = "select 1 from ntb state_window(s) extend(2)"
         tdSql.query(sql, show=True)
         tdSql.checkRows(4)
         
-        sql = "select _wstart, _wduration, _wend, v from ntb state_window(s, 2)"
-        tdSql.error(sql, show=True)
+        sql = "select _wstart, _wduration, _wend, v from ntb state_window(s) extend(2)"
+        tdSql.query(sql, show=True)
+        tdSql.checkRows(14)
+
     
+    def test_state_window_logic_expr(self):
+        """summary: test logic expressions as state window key
+
+        description: verify that boolean/logic expressions (c1 > 5, c1 > 5 AND c2 < 10,
+            NOT c1 > 5, etc.) can be used as STATE_WINDOW keys and produce correct
+            window partitioning based on the boolean result.
+
+        Since: v3.4.0.0
+
+        Labels: state window
+
+        Catalog:
+            - Function:aggregation
+
+        History:
+            - 2026-05-21: Tony Zhang created
+
+        """
+        tdSql.execute("drop database if exists test_logic_state", show=True)
+        tdSql.execute("create database test_logic_state keep 3650", show=True)
+        tdSql.execute("use test_logic_state", show=True)
+        tdSql.execute("create table ntb (ts timestamp, c_int int, c_str varchar(10), v double)", show=True)
+        tdSql.execute("""insert into ntb values
+            ('2026-05-01 10:00:00', 1, 'a', 10.0),
+            ('2026-05-01 10:00:01', 3, 'a', 11.0),
+            ('2026-05-01 10:00:02', 7, 'b', 12.0),
+            ('2026-05-01 10:00:03', 8, 'b', 13.0),
+            ('2026-05-01 10:00:04', 2, 'a', 14.0),
+            ('2026-05-01 10:00:05', 9, 'c', 15.0)""", show=True)
+
+        # single comparison: c_int > 5
+        # states: F, F, T, T, F, T -> 4 windows: [F,F](2), [T,T](2), [F](1), [T](1)
+        tdSql.query("select _wstart, _wend, count(*) from ntb state_window(c_int > 5) order by _wstart", show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(3, 2, 1)
+
+        # verify equivalence with CASE WHEN
+        tdSql.query(
+            "select _wstart, _wend, count(*) from ntb "
+            "state_window(case when c_int > 5 then true else false end) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 2, 2)
+        tdSql.checkData(2, 2, 1)
+        tdSql.checkData(3, 2, 1)
+
+        # AND: c_int > 5 AND c_str = 'b'
+        # row0:F, row1:F, row2:T, row3:T, row4:F, row5:F -> 3 windows
+        tdSql.query("select _wstart, count(*) from ntb state_window(c_int > 5 AND c_str = 'b') order by _wstart", show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(2, 1, 2)
+
+        # OR: c_int > 5 OR c_str = 'a' -> all rows true -> 1 window
+        tdSql.query("select _wstart, count(*) from ntb state_window(c_int > 5 OR c_str = 'a') order by _wstart", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 6)
+
+        # NOT: NOT c_int > 5
+        # states: T, T, F, F, T, F -> 4 windows
+        tdSql.query("select _wstart, count(*) from ntb state_window(NOT c_int > 5) order by _wstart", show=True)
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(3, 1, 1)
+
+        # IS NULL: all non-null -> 1 window (false)
+        tdSql.query("select _wstart, count(*) from ntb state_window(c_int IS NULL) order by _wstart", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 6)
+
+        # IN: c_int IN (1, 3, 9)
+        # states: T, T, F, F, F, T -> 3 windows
+        tdSql.query("select _wstart, count(*) from ntb state_window(c_int IN (1, 3, 9)) order by _wstart", show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 1, 3)
+        tdSql.checkData(2, 1, 1)
+
+        # BETWEEN: c_int BETWEEN 3 AND 8
+        # states: F, T, T, T, F, F -> 3 windows
+        tdSql.query("select _wstart, count(*) from ntb state_window(c_int BETWEEN 3 AND 8) order by _wstart", show=True)
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 3)
+        tdSql.checkData(2, 1, 2)
+
+        # logic expr + multi-key: (c_int > 5, c_str)
+        # compound: (F,'a'), (F,'a'), (T,'b'), (T,'b'), (F,'a'), (T,'c') -> 4 windows
+        tdSql.query(
+            "select _wstart, count(*) from ntb state_window(c_int > 5, c_str) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, 2)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(2, 1, 1)
+        tdSql.checkData(3, 1, 1)
+
+        # logic expr with aggregation
+        tdSql.query(
+            "select _wstart, _wend, count(*), sum(v) from ntb state_window(c_int > 5) order by _wstart",
+            show=True,
+        )
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 3, 21.0)  # 10+11
+        tdSql.checkData(1, 3, 25.0)  # 12+13
+
+        # constant comparison -> allowed, all rows share the same constant state
+        tdSql.query("select count(*) from ntb state_window(1 > 0)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+
+        tdSql.query("select count(*) from ntb state_window(1 = 1)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+
+        # semi-constant: scalar folds one side, whole expr becomes constant
+        # c_int > 5 AND false -> constant false -> 1 window
+        tdSql.query("select count(*) from ntb state_window(c_int > 5 AND 1 > 2)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+
+        # c_int > 5 OR true -> constant true -> 1 window
+        tdSql.query("select count(*) from ntb state_window(c_int > 5 OR 1 < 2)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+
+        # NOT true -> constant false -> 1 window
+        tdSql.query("select count(*) from ntb state_window(NOT 1 > 0)", show=True)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 6)
+
+        tdSql.execute("drop database if exists test_logic_state", show=True)
+
     def test_state_window_group(self):
         """summary: test state window on multiple groups
 
@@ -402,7 +713,7 @@ class TestStateWindow:
         tdSql.execute("insert into ctb3 values('2026-01-12 12:00:11', NULL, 1);")
         tdSql.execute("insert into ctb3 values('2026-01-12 12:00:12', NULL, 1);")
 
-        tdSql.query("select _wstart, _wend, _wduration, count(*) from stb partition by tbname state_window(vb, 1);")
+        tdSql.query("select _wstart, _wend, _wduration, count(*) from stb partition by tbname state_window(vb) extend(1);")
         tdSql.checkRows(3)
         tdSql.checkData(0, 0, "2026-01-12 12:00:04.000")
         tdSql.checkData(0, 1, "2026-01-12 12:00:04.999")
@@ -464,7 +775,12 @@ class TestStateWindow:
         tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
         tdSql.checkData(0, 1, "2025-03-12 13:31:30.230")   
                
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) state_window(vol)")
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) state_window(vol)")
+        tdSql.checkRows(73)
+        tdSql.checkData(0, 0, "2025-03-12 13:31:19.000")
+        tdSql.checkData(0, 1, 215)
+        tdSql.checkData(72, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(72, 1, 248)
         
         tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a desc) state_window(vol)")
         tdSql.checkRows(34)
@@ -496,8 +812,10 @@ class TestStateWindow:
         tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
         tdSql.checkData(0, 1, "2025-03-12 13:39:43.230")
         
-        # dumplicate timestamp in super table
-        tdSql.error("select last(a) as d from (select _wstart as a, last(ts2) as b, avg(current) as c from meters state_window(voltage) order by b desc) order by d desc")
+        # duplicate timestamps across child tables are allowed.
+        tdSql.query("select last(a) as d from (select _wstart as a, last(ts2) as b, avg(current) as c from meters state_window(voltage) order by b desc) order by d desc")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:33.230")
         
         tdSql.query("select last(a) as d from (select _wstart as a, last(ts2) as b, avg(current) as c from t1 state_window(voltage) order by b desc) order by d desc")
         tdSql.checkRows(1)
@@ -507,14 +825,24 @@ class TestStateWindow:
         tdSql.checkData(0, 0, "2025-03-12 13:39:33.230")
 
         # state_window
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from t1 state_window(voltage) order by b) state_window(vol)")      
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from t1 state_window(voltage) order by b) state_window(vol)")
+        tdSql.checkRows(34)
+        tdSql.checkData(0, 0, "2025-03-12 13:31:25.230")
+        tdSql.checkData(0, 1, 215)
+        tdSql.checkData(33, 0, "2025-03-12 13:39:33.230")
+        tdSql.checkData(33, 1, 248)
         tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from t1 state_window(voltage) order by a) state_window(vol)")
         tdSql.checkRows(34)
         tdSql.checkData(33, 0, "2025-03-12 13:39:33.230")
         tdSql.checkData(33, 1, 248)
 
         # session_window
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) session(a, 10s)") 
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) session(a, 10s)")
+        tdSql.checkRows(73)
+        tdSql.checkData(0, 0, "2025-03-12 13:31:19.000")
+        tdSql.checkData(0, 1, 215)
+        tdSql.checkData(72, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(72, 1, 248)
         tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s)) session(a, 10s)")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
@@ -545,11 +873,23 @@ class TestStateWindow:
         tdSql.checkData(72, 0, "2025-03-12 13:39:43.000")
         tdSql.checkData(72, 1, 248)  
         
-        # Only support SESSION on primary timestamp column
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) session(b, 10s)") 
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s)) session(b, 10s)")
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a asc) session(b, 10s)")    
-        tdSql.error("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a desc) session(b, 10s)")
+        # Non-primary timestamp column can be used as session timeline when input order is valid.
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by b desc) session(b, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s)) session(b, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a asc) session(b, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
+        tdSql.query("select last(a), vol as d from (select _wstart as a, last(ts2) as b, max(voltage) as vol from meters interval(7s) order by a desc) session(b, 10s)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2025-03-12 13:39:43.000")
+        tdSql.checkData(0, 1, 248)
 
         # event_window
         tdSql.query("select last(a) as d, b, _c0 from (select ts as b,  max(voltage) vol, _wstart as a from meters interval(7s) order by b desc) event_window start with vol > 240 end with vol < 239 order by d desc;")

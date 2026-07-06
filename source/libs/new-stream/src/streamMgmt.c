@@ -226,8 +226,8 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
       TAOS_CHECK_EXIT(code);
     }
 
-    ST_TASK_DLOG("trigger task deploy succeed, tidx:%d", pSrc->taskIdx);   
-    
+    ST_TASK_DLOG("trigger task deploy succeed, tidx:%d flags:%" PRId64, pSrc->taskIdx, pTask->task.flags);
+
     (void)atomic_add_fetch_32(&pStream->taskNum, 1);
     streamReleaseTask(taskAddr);
   }
@@ -578,6 +578,7 @@ void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, ES
       if (pTask->taskId == *taskId && pTask->seriousId == *seriousId) {
         SListNode* tmp = tdListPopNode(pTaskList, listNode);
         ST_TASK_DLOG("task %p removed from stream taskList, remain:%d", pTask, TD_DLIST_NELES(pTaskList));
+        taosMemoryFreeClear(pTask->extraErrMsg);
         taosMemoryFreeClear(tmp);
         smRemoveTaskPostCheck(streamId, pStream, &isLastTask);
         break;
@@ -938,5 +939,3 @@ void smEnableVgDeploy(int32_t vgId) {
 
   taosHashRelease(gStreamMgmt.vgroupMap, pVg);
 }
-
-
