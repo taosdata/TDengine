@@ -1248,6 +1248,13 @@ int32_t ctgUpdateDbTsmaVersionEnqueue(SCatalog* pCtg, int32_t tsmaVersion, const
                                       bool syncOper);
 void    ctgFreeTask(SCtgTask* pTask, bool freeRes);
 
+#if defined(BUILD_TEST)
+void    ctgTestResetDropTsmaForTbEnqueueState(void);
+void    ctgTestSetDropTsmaForTbEnqueueFailAfterOwnershipOnce(int32_t code);
+bool    ctgTestDidDropTsmaForTbEnqueueOwnershipFailureFire(void);
+int32_t ctgTestGetDropTsmaForTbCallerCleanupCount(void);
+#endif
+
 extern SCatalogMgmt      gCtgMgmt;
 extern SCtgDebug         gCTGDebug;
 extern SCtgAsyncFps      gCtgAsyncFps[];
