@@ -3172,6 +3172,7 @@ FIRST(expr)
 - If all values in a column in the result set are NULL, the return for that column is also NULL;
 - If all columns in the result set are NULL, no results are returned.
 - For tables with composite primary keys, if there are multiple entries with the smallest timestamp, only the data with the smallest composite primary key is returned.
+- With a degraded timeline, NULL time rows are skipped during time-value comparison; the row with the smallest non-NULL time is returned. If all time values are NULL, an empty result is returned. When no TIMESTAMP column exists, the first row in input order is returned.
 
 ### LAST
 
@@ -3195,6 +3196,7 @@ LAST(expr)
 - If all values in a column in the result set are NULL, the return result for that column is also NULL; if all columns in the result set are NULL, no result is returned.
 - When used with supertables, if there are multiple rows with the same timestamp and it is the largest, one will be randomly returned, and it is not guaranteed that the same row will be selected in multiple runs.
 - For tables with composite primary keys, if there are multiple records with the maximum timestamp, only the data with the largest corresponding composite primary key is returned.
+- With a degraded timeline, NULL time rows are skipped; the row with the largest non-NULL time is returned. If all time values are NULL, an empty result is returned. When no TIMESTAMP column exists, the last row in input order is returned.
 
 ### LAST_ROW
 
@@ -3217,6 +3219,7 @@ LAST_ROW(expr)
 - To return the last record (timestamp largest) of each column, you can use LAST_ROW(\*); when querying a supertable, and if multiResultFunctionStarReturnTags is set to 0 (default), LAST_ROW(\*) only returns the normal columns of the supertable; if set to 1, it returns both the normal and tag columns of the supertable.
 - When used with supertables, if there are multiple rows with the same timestamp and it is the largest, one will be randomly returned, and it is not guaranteed that the same row will be selected in multiple runs.
 - Similar to the LAST function, for tables with composite primary keys, if there are multiple records with the maximum timestamp, only the data with the largest corresponding composite primary key is returned.
+- With a degraded timeline, NULL time rows are skipped; the row with the largest non-NULL time is returned. Behavior is consistent with LAST. When no TIMESTAMP column exists, the last row in input order is returned.
 
 ### MAX
 
@@ -3398,6 +3401,7 @@ CSUM(expr)
 
 - Does not support +, -, *, / operations, such as csum(col1) + csum(col2).
 - Can only be used with aggregation functions. This function can be applied to both basic tables and supertables.
+- With a degraded timeline, csum does not depend on time values and computes by row order. Still reports errors for real (non-NULL) duplicate timestamps; NULL time rows do not trigger duplicate timestamp checks.
 
 ### DERIVATIVE
 
@@ -3423,6 +3427,8 @@ ignore_negative: {
 **Usage Instructions**:
 
 - Can be used with the columns associated with the selection. For example: select _rowts, DERIVATIVE(col1, 1s, 1) from tb1.
+- With a degraded timeline, duplicate timestamp rows output NULL (avoiding division by zero) without updating the previous value; NULL time rows also output NULL. Output row count is always N-1.
+- With a disordered degraded timeline, derivative can still execute but time differences alternate between positive and negative, producing physically meaningless slope values. Use `ORDER BY` in the subquery to ensure ordering.
 
 ### DIFF
 
@@ -3464,6 +3470,7 @@ ignore_option: {
 - Can be used with associated columns. For example: select _rowts, DIFF() from.
 - When there is no composite primary key, if different subtables have data with the same timestamp, a "Duplicate timestamps not allowed" message will be displayed
 - When using composite primary keys, the timestamp and composite primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
+- With a degraded timeline, duplicate timestamp rows output NULL without updating the previous value (the next non-duplicate row uses the last valid row for calculation); NULL time rows also output NULL. Output row count is always N-1.
 
 ### FILL_FORWARD
 
@@ -3576,6 +3583,8 @@ STATEDURATION(expr, oper, val, unit)
 **Usage Notes**:
 
 - When used with a window clause, `STATEDURATION` measures continuous duration only inside the current window and does not accumulate across windows.
+- With a degraded timeline, NULL time rows output -1 (do not participate in time difference calculation).
+- With a disordered degraded timeline, stateduration can still execute but time differences may be negative, causing negative or jumping duration values. Use `ORDER BY` in the subquery to ensure ordering.
 
 ### LAG
 
@@ -3651,13 +3660,15 @@ ELAPSED(ts_primary_key [, time_unit])
 
 **Notes**:
 
-- The `ts_primary_key` parameter can only be the first column of the table, i.e., the TIMESTAMP type primary key column.
+- The `ts_primary_key` parameter can be the primary key column or a regular TIMESTAMP column from a subquery output. When the subquery does not output a primary key column, elapsed can use the degraded timeline column (the first TIMESTAMP column in the output schema).
+- elapsed can specify a TIMESTAMP column different from the current effective timeline. In this case, elapsed computes the time span using the specified column without affecting other functions' timeline selection in the same query.
 - The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units `time_unit` include: 1b (nanosecond), 1u (microsecond), 1a (millisecond), 1s (second), 1m (minute), 1h (hour), 1d (day), 1w (week).
 - Can be used in combination with interval, returning the timestamp difference for each time window. It is important to note that, except for the first and last time windows, the timestamp differences for the middle windows are all the length of the window.
 - order by asc/desc does not affect the calculation of the difference.
 - For supertables, it needs to be used in combination with the group by tbname clause, and cannot be used directly.
 - For regular tables, it is not supported in combination with the group by clause.
-- For nested queries, it is only valid when the inner query outputs an implicit timestamp column. For example, the statement `select elapsed(ts) from (select diff(value) from sub1)`, the diff function causes the inner query to output an implicit timestamp column, which is the primary key column and can be used as the first parameter of the elapsed function. Conversely, for example, the statement `select elapsed(ts) from (select * from sub1)`, the ts column output to the outer layer no longer has the meaning of the primary key column and cannot use the elapsed function. Additionally, as a function strongly dependent on the timeline, although `select elapsed(ts) from (select diff(value) from st group by tbname)` will return a calculation result, it doesn't make sense, and such usage will also be restricted in the future.
+- For nested queries, elapsed can use any TIMESTAMP column output by the inner query. If no TIMESTAMP column is output, elapsed cannot be used.
+- With a disordered degraded timeline, elapsed results depend on the time difference between the first and last input rows, which may not equal the actual time span. Use `ORDER BY` in the subquery to ensure ordering.
 - Not supported in combination with leastsquares, diff, derivative, top, bottom, last_row, interp, and other functions.
 
 ### IRATE
@@ -3676,6 +3687,11 @@ IRATE(expr)
 
 **Applicable to**: Tables and supertables.
 
+**Usage Instructions**:
+
+- With a degraded timeline, duplicate timestamp points are skipped; if all timestamps are identical, returns 0. NULL time rows are skipped.
+- irate internally selects the two points with the largest time values, so results remain meaningful even with disordered input.
+
 ### TWA
 
 ```sql
@@ -3691,6 +3707,11 @@ TWA(expr)
 **Applicable Data Types**: Numeric types.
 
 **Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- With a degraded timeline, duplicate timestamp points are skipped (zero area contribution); NULL time rows are skipped for weighting calculation.
+- With a disordered degraded timeline, twa can still execute but negative time differences produce negative weights, causing the weighted average to deviate from the true mean. Use `ORDER BY` in the subquery to ensure ordering.
 
 ## Interpolation Functions
 
@@ -3727,6 +3748,7 @@ Usage Instructions:
 - INTERP can be used with the pseudocolumn _isfilled to display whether the return result is from the original record or generated by the interpolation algorithm (supported from version 3.0.3.0).
 - INTERP can only use the pseudocolumn `_irowts_origin` when using FILL PREV/NEXT/NEAR modes. `_irowts_origin` is supported from version 3.3.4.9.
 - For queries on tables with composite primary keys, if there are data with the same timestamp, only the data with the smallest composite primary key participates in the calculation.
+- With a degraded timeline, NULL time rows are skipped; interpolation uses non-NULL time rows only. With a disordered degraded timeline, interp can still execute but adjacent points have non-contiguous time values, making linear interpolation results physically meaningless. Use `ORDER BY` in the subquery to ensure ordering.
 
 ## System and Metadata Functions
 

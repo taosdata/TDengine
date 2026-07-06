@@ -3762,6 +3762,7 @@ static int32_t pdcDealInterp(SOptimizeContext* pCxt, SInterpFuncLogicNode* pInte
   }
 
   SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  bool            interpOnPrimaryTs = (pInterp->timelineSource == TIME_LINE_SOURCE_PRIMARY_TS);
 
   // let the scan skip the one ext-window FILL(PREV)/FILL(NEXT) never reads
   // (see interpPruneExtWindows; other modes keep both sides)
@@ -3773,14 +3774,21 @@ static int32_t pdcDealInterp(SOptimizeContext* pCxt, SInterpFuncLogicNode* pInte
     pCxt->optimized = true;
     return TSDB_CODE_SUCCESS;
   }
-  if (NULL == pInterp->pTimeRange) {
+
+  if (NULL == pInterp->pTimeRange && interpOnPrimaryTs) {
     pScan->pExtScanRange = taosMemoryMalloc(sizeof(*pScan->pExtScanRange));
     TSDB_CHECK_NULL(pScan->pExtScanRange, code, lino, _exit, terrno);
 
     pScan->pExtScanRange->skey = pInterp->timeRange.skey;
     pScan->pExtScanRange->ekey = pInterp->timeRange.ekey;
-  } else {
+  } else if (interpOnPrimaryTs) {
     TAOS_CHECK_EXIT(nodesCloneNode(pInterp->pTimeRange, &pScan->pExtTimeRange));
+  } else {
+    /*
+     * Only a real primary timestamp timeline may use scan-time range pushdown.
+     * Degraded timelines keep the full input so execution-stage validation can
+     * see NULL / duplicate / disorder rows on the actual interpolation axis.
+     */
   }
   
 _exit:

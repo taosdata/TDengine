@@ -1096,6 +1096,7 @@ static int32_t logicInterpFuncCopy(const SInterpFuncLogicNode* pSrc, SInterpFunc
   COPY_SCALAR_FIELD(fillMode);
   CLONE_NODE_FIELD(pFillValues);
   CLONE_NODE_FIELD(pTimeSeries);
+  COPY_SCALAR_FIELD(timelineSource);
   COPY_SCALAR_FIELD(surroundingTime);
   COPY_SCALAR_FIELD(timezone);  // borrowed from the plan context; logic nodes never own it
   COPY_CHAR_ARRAY_FIELD(timezoneName);

@@ -29,6 +29,40 @@ static void    destroyEWindowOperatorInfo(void* param);
 static int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
 void cleanupResultInfoInEventWindow(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo);
 
+static int32_t trimNullTimelineRows(SSDataBlock* pBlock, int32_t tsSlotId) {
+  if (pBlock == NULL || pBlock->info.rows <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+  if (pTsCol == NULL) {
+    return terrno;
+  }
+  if (!pTsCol->hasNull) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool* pKeep = taosMemoryCalloc(pBlock->info.rows, sizeof(bool));
+  if (pKeep == NULL) {
+    return terrno;
+  }
+
+  int32_t keepRows = 0;
+  for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+    if (!colDataIsNull_f(pTsCol, i)) {
+      pKeep[i] = true;
+      ++keepRows;
+    }
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (keepRows < pBlock->info.rows) {
+    code = trimDataBlock(pBlock, pBlock->info.rows, pKeep);
+  }
+  taosMemoryFree(pKeep);
+  return code;
+}
+
 static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
   SEventWindowOperatorInfo* pEvent = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
@@ -273,18 +307,24 @@ static int32_t eventWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
     pRes->info.dataLoad = 1;
-    code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
-    QUERY_CHECK_CODE(code, lino, _end);
-
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
                                    pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
+
+    code = trimNullTimelineRows(pBlock, pInfo->tsSlotId);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pBlock->info.rows == 0) {
+      continue;
+    }
+
+    code = setInputDataBlock(pSup, pBlock, order, pBlock->info.scanFlag, true);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     code = eventWindowAggImpl(pOperator, pInfo, pBlock);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -574,16 +614,15 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   QUERY_CHECK_CODE(code, lino, _return);
 
   for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+    if (pColInfoData->hasNull && colDataIsNull_f(pColInfoData, i)) {
+      continue;
+    }
+
     if (pBlock->info.scanFlag != PRE_SCAN) {
       if (pInfo->winSup.lastTs == INT64_MIN) {
         pInfo->winSup.lastTs = tsList[i];
       } else {
-        if (tsList[i] == pInfo->winSup.lastTs) {
-          qError("duplicate timestamp found in event window operator, groupId: %" PRId64 ", timestamp: %" PRId64,
-                 gid, tsList[i]);
-          code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
-          QUERY_CHECK_CODE(code, lino, _return);
-        } else {
+        if (tsList[i] != pInfo->winSup.lastTs) {
           pInfo->winSup.lastTs = tsList[i];
         }
       }
@@ -591,6 +630,13 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
   }
   int32_t startIndex = pInfo->inWindow ? 0 : -1;
   while (rowIndex < pBlock->info.rows) {
+    while (rowIndex < pBlock->info.rows && pColInfoData->hasNull && colDataIsNull_f(pColInfoData, rowIndex)) {
+      rowIndex++;
+    }
+    if (rowIndex >= pBlock->info.rows) {
+      break;
+    }
+
     if (pInfo->inWindow) {  // find enough consecutive end-condition rows to satisfy end_limit
       for (rowIndex = startIndex; rowIndex < pBlock->info.rows; ++rowIndex) {
         if (((bool*)pe->pData)[rowIndex]) {

@@ -102,32 +102,38 @@ class TestEvent:
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(1, 0, 4)
 
-        # super table: no window
-        # duplicate timestamp
-        tdSql.error(
+        # super table: no window; duplicate timestamps across child tables are allowed.
+        tdSql.query(
             f"select count(*) from sta event_window start with f1 = 0 end with f2 = 'c';"
         )
+        tdSql.checkRows(0)
 
         # super table: single row window
         tdLog.info(
             f"====> select count(*) from sta event_window start with f1 = 0 end with f3 = false;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(*) from sta event_window start with f1 = 0 end with f3 = false;"
         )
+        if tdSql.queryRows <= 0:
+            tdLog.exit("super table event_window expected non-empty result")
 
         # super table: multi rows window
-        tdSql.error(
+        tdSql.query(
             f"select count(*) from sta event_window start with f1 = 0 end with f2 = 'b';"
         )
+        if tdSql.queryRows <= 0:
+            tdLog.exit("super table event_window expected non-empty result")
 
         # super table: multi windows
         tdLog.info(
             f"====> select count(*) from sta event_window start with f1 >= 0 end with f3 = true;"
         )
-        tdSql.error(
+        tdSql.query(
             f"select count(*) from sta event_window start with f1 >= 0 end with f3 = true;"
         )
+        if tdSql.queryRows <= 0:
+            tdLog.exit("super table event_window expected non-empty result")
         # multi-child table: no window
         tdSql.query(
             f"select tbname, count(*) from sta partition by tbname event_window start with f1 = 0 end with f2 = 'c';"
@@ -229,9 +235,10 @@ class TestEvent:
         tdSql.checkData(0, 1, 2)
         tdSql.checkData(1, 1, 2)
 
-        tdSql.error(
+        tdSql.query(
             f"select f1, f2 from sta event_window start with f1 >0 end with f2 > 0;"
         )
+        tdSql.checkRows(7)
         tdSql.error(
             f"select count(*) from sta event_window start with f1 >0 end with f2 > 0 partition by tbname;"
         )
@@ -298,5 +305,3 @@ class TestEvent:
         tdSql.checkRows(4)
         tdSql.checkData(0, 0, 3)
                 
-
-

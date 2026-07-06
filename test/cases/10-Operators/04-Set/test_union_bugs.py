@@ -576,7 +576,8 @@ class TestUnionBugs:
         tdSql.query(f"select last(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
         tdSql.error(f"select irate(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
         tdSql.error(f"select elapsed(ts) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
-        tdSql.error(f"select diff(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
+        tdSql.query(f"select diff(c1) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
+        tdSql.checkRows(14)
         tdSql.error(f"select derivative(c1, 1s, 0) from (select * from {dbname}.t1 union select * from {dbname}.t1)")
 
     def __test_error(self, dbname="db"):

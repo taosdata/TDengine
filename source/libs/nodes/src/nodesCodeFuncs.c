@@ -1676,6 +1676,7 @@ static const char* jkInterpFuncLogicPlanPrecision = "Precision";
 static const char* jkInterpFuncLogicPlanFillMode = "fillMode";
 static const char* jkInterpFuncLogicPlanFillValues = "FillValues";
 static const char* jkInterpFuncLogicPlanTimeSeries = "TimeSeries";
+static const char* jkInterpFuncLogicPlanTimelineSource = "TimelineSource";
 static const char* jkInterpFuncLogicPlanSurroundingTime = "SurroundingTime";
 
 static int32_t logicInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
@@ -1708,6 +1709,9 @@ static int32_t logicInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkInterpFuncLogicPlanTimeSeries, nodeToJson, pNode->pTimeSeries);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkInterpFuncLogicPlanTimelineSource, pNode->timelineSource);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkInterpFuncLogicPlanSurroundingTime, pNode->surroundingTime);
@@ -1746,6 +1750,13 @@ static int32_t jsonToLogicInterpFuncNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkInterpFuncLogicPlanTimeSeries, &pNode->pTimeSeries);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != tjsonGetObjectItem(pJson, jkInterpFuncLogicPlanTimelineSource)) {
+      code = tjsonGetTinyIntValue(pJson, jkInterpFuncLogicPlanTimelineSource, &pNode->timelineSource);
+    } else {
+      pNode->timelineSource = TIME_LINE_SOURCE_UNSPECIFIED;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkInterpFuncLogicPlanSurroundingTime, &pNode->surroundingTime);
@@ -5099,6 +5110,7 @@ static const char* jkInterpFuncPhysiPlanPrecision = "precision";
 static const char* jkInterpFuncPhysiPlanFillMode = "FillMode";
 static const char* jkInterpFuncPhysiPlanFillValues = "FillValues";
 static const char* jkInterpFuncPhysiPlanTimeSeries = "TimeSeries";
+static const char* jkInterpFuncPhysiPlanTimelineSource = "TimelineSource";
 static const char* jkInterpFuncPhysiPlanSurroundingTime = "SurroundingTime";
 
 static int32_t physiInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
@@ -5137,6 +5149,9 @@ static int32_t physiInterpFuncNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkInterpFuncPhysiPlanTimeSeries, nodeToJson, pNode->pTimeSeries);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanTimelineSource, pNode->timelineSource);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkInterpFuncPhysiPlanSurroundingTime, pNode->surroundingTime);
@@ -5181,6 +5196,13 @@ static int32_t jsonToPhysiInterpFuncNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkInterpFuncPhysiPlanTimeSeries, &pNode->pTimeSeries);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != tjsonGetObjectItem(pJson, jkInterpFuncPhysiPlanTimelineSource)) {
+      code = tjsonGetTinyIntValue(pJson, jkInterpFuncPhysiPlanTimelineSource, &pNode->timelineSource);
+    } else {
+      pNode->timelineSource = TIME_LINE_SOURCE_UNSPECIFIED;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBigIntValue(pJson, jkInterpFuncPhysiPlanSurroundingTime, &pNode->surroundingTime);

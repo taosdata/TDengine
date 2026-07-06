@@ -782,18 +782,26 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   SExecTaskInfo* pTaskInfo = pOperatorInfo->pTaskInfo;
   SExprSupp*     pSup = &pOperatorInfo->exprSupp;
 
-  int32_t     startPos = 0;
-  int32_t     numOfOutput = pSup->numOfExprs;
-  int64_t*    tsCols = extractTsCol(pBlock, pInfo, pTaskInfo);
-  uint64_t    tableGroupId = pBlock->info.id.groupId;
-  bool        ascScan = (pInfo->binfo.inputTsOrder == TSDB_ORDER_ASC);
-  SResultRow* pResult = NULL;
-  bool        sorted = optrHasOrderedInput(&pInfo->binfo, DATA_ORDER_LEVEL_IN_BLOCK) || tsCols == NULL;
+  int32_t          startPos = 0;
+  int32_t          numOfOutput = pSup->numOfExprs;
+  int64_t*         tsCols = extractTsCol(pBlock, pInfo, pTaskInfo);
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
+  uint64_t         tableGroupId = pBlock->info.id.groupId;
+  bool             ascScan = (pInfo->binfo.inputTsOrder == TSDB_ORDER_ASC);
+  SResultRow*      pResult = NULL;
+  bool             sorted = optrHasOrderedInput(&pInfo->binfo, DATA_ORDER_LEVEL_IN_BLOCK) || tsCols == NULL;
   qTrace("%s %s ordered-check, groupId:%" PRIu64 ", sorted:%d, tsColsNull:%d, inputTsOrder:%d, inputDataOrder:%d, "
          "minDataOrder:%d, rows:%" PRId64 ", scanFlag:%d",
          GET_TASKID(pTaskInfo), __func__, tableGroupId, sorted, tsCols == NULL, pInfo->binfo.inputTsOrder,
          pInfo->binfo.inputDataOrder, DATA_ORDER_LEVEL_IN_BLOCK, pBlock->info.rows, scanFlag);
-  TSKEY       ts = sorted ? getStartTsKey(&pBlock->info.window, tsCols) : tsCols[startPos];
+  while (pTsCol != NULL && startPos < pBlock->info.rows && pTsCol->hasNull && colDataIsNull_f(pTsCol, startPos)) {
+    ++startPos;
+  }
+  if (startPos >= pBlock->info.rows) {
+    return false;
+  }
+
+  TSKEY       ts = (tsCols == NULL) ? pBlock->info.window.skey : tsCols[startPos];
   int32_t     ret = TSDB_CODE_SUCCESS;
 
   if (tableGroupId != pInfo->curGroupId) {
@@ -819,6 +827,13 @@ static bool hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   if (filterWindowWithLimit(pInfo, &win, tableGroupId, pTaskInfo)) return false;
 
   TSKEY   ekey = ascScan ? win.ekey : win.skey;
+  if (tsCols == NULL &&
+      ((ascScan && ekey < pBlock->info.window.ekey) || (!ascScan && ekey > pBlock->info.window.skey))) {
+    qError("%s failed at line %d since timestamp column data is not loaded and block spans multiple windows",
+           __func__, __LINE__);
+    T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
+
   int32_t forwardRows = sorted ? getNumOfRowsInTimeWindow(&pBlock->info, tsCols, startPos, ekey, binarySearchForKey,
                                                           NULL, pInfo->binfo.inputTsOrder)
                                : getNumOfRowsInTimeWinUnsorted(&pBlock->info, tsCols, &win, startPos);
@@ -1002,16 +1017,7 @@ int64_t* extractTsCol(SSDataBlock* pBlock, const SIntervalAggOperatorInfo* pInfo
     }
 
     tsCols = (int64_t*)pColDataInfo->pData;
-    if (tsCols[0] == 0) {
-      qWarn("%s at line %d.block start ts:%" PRId64 ",end ts:%" PRId64, __func__, __LINE__, tsCols[0],
-            tsCols[pBlock->info.rows - 1]);
-    }
-    qError("FQ-DIAG-INTERVAL-TS: rows=%d groupId=%" PRIu64 " ts[0]=%" PRId64 " ts[last]=%" PRId64,
-           (int)pBlock->info.rows, pBlock->info.id.groupId,
-           pBlock->info.rows > 0 ? tsCols[0] : (int64_t)-1,
-           pBlock->info.rows > 1 ? tsCols[pBlock->info.rows - 1] : (int64_t)-1);
-
-    if (tsCols[0] != 0 && (pBlock->info.window.skey == 0 && pBlock->info.window.ekey == 0)) {
+    if (tsCols != NULL && pBlock->info.window.skey == 0 && pBlock->info.window.ekey == 0) {
       int32_t code = blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -1019,9 +1025,64 @@ int64_t* extractTsCol(SSDataBlock* pBlock, const SIntervalAggOperatorInfo* pInfo
         T_LONG_JMP(pTaskInfo->env, code);
       }
     }
+
+    if (pColDataInfo->pData != NULL && pColDataInfo->hasNull) {
+      bool   found = false;
+      int64_t minTs = INT64_MAX;
+      int64_t maxTs = INT64_MIN;
+      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+        if (colDataIsNull_f(pColDataInfo, i)) {
+          continue;
+        }
+
+        int64_t ts = tsCols[i];
+        minTs = TMIN(minTs, ts);
+        maxTs = TMAX(maxTs, ts);
+        found = true;
+      }
+
+      if (found) {
+        pBlock->info.window.skey = minTs;
+        pBlock->info.window.ekey = maxTs;
+      }
+    }
   }
 
   return tsCols;
+}
+
+static int32_t trimNullTimelineRows(SSDataBlock* pBlock, int32_t tsSlotId) {
+  if (pBlock == NULL || pBlock->info.rows <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+  if (pTsCol == NULL) {
+    return terrno;
+  }
+  if (!pTsCol->hasNull) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool* pKeep = taosMemoryCalloc(pBlock->info.rows, sizeof(bool));
+  if (pKeep == NULL) {
+    return terrno;
+  }
+
+  int32_t keepRows = 0;
+  for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+    if (!colDataIsNull_f(pTsCol, i)) {
+      pKeep[i] = true;
+      ++keepRows;
+    }
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (keepRows < pBlock->info.rows) {
+    code = trimDataBlock(pBlock, pBlock->info.rows, pKeep);
+  }
+  taosMemoryFree(pKeep);
+  return code;
 }
 
 static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
@@ -1059,6 +1120,12 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
+    code = trimNullTimelineRows(pBlock, pInfo->primaryTsIndex);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pBlock->info.rows == 0) {
+      continue;
+    }
+
     // the pDataBlock are always the same one, no need to call this again
     code = setInputDataBlock(pSup, pBlock, pInfo->binfo.inputTsOrder, scanFlag, true);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1073,9 +1140,6 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
     QUERY_CHECK_CODE(code, lino, _end);
     pInfo->cleanGroupResInfo = true;
   }
-
-  qError("FQ-DIAG-INTERVAL-DONE: resultHashTable size=%d",
-         tSimpleHashGetSize(pInfo->aggSup.pResultRowHashTable));
 
   OPTR_SET_OPENED(pOperator);
 
@@ -1729,16 +1793,15 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator,
   }
 
   for (int32_t j = *startIndex; j < *endIndex; ++j) {
+    if (pColInfoData->hasNull && colDataIsNull_f(pColInfoData, j)) {
+      continue;
+    }
+
     if (pBlock->info.scanFlag != PRE_SCAN) {
       if (pInfo->winSup.lastTs == INT64_MIN || gid != pRowSup->groupId || !pInfo->hasKey) {
         pInfo->winSup.lastTs = tsList[j];
       } else {
-        if (tsList[j] == pInfo->winSup.lastTs) {
-          // forbid duplicated ts rows
-          qError("%s:%d duplicated ts found in state window aggregation", __FILE__, __LINE__);
-          pTaskInfo->code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
-          T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP);
-        } else {
+        if (tsList[j] != pInfo->winSup.lastTs) {
           pInfo->winSup.lastTs = tsList[j];
         }
       }
@@ -2387,9 +2450,6 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
   pSup->hasWindow = true;
 
   pInfo->primaryTsIndex = ((SColumnNode*)pPhyNode->window.pTspk)->slotId;
-  qError("FQ-DIAG-INTERVAL: primaryTsIndex=%d pTspk.colName=%s pTspk.resType=%d",
-         pInfo->primaryTsIndex, ((SColumnNode*)pPhyNode->window.pTspk)->colName,
-         ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.type);
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 512);
@@ -2532,46 +2592,54 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
   // In case of ascending or descending order scan data, only one time window needs to be kepted for each table.
   TSKEY* tsList = (TSKEY*)pColInfoData->pData;
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+    if (pColInfoData->hasNull && colDataIsNull_f(pColInfoData, j)) {
+      continue;
+    }
+
     if (gid != pRowSup->groupId || pInfo->winSup.prevTs == INT64_MIN) {
       doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
       doKeepTuple(pRowSup, tsList[j], j, gid);
-    } else if (((tsList[j] - pRowSup->prevTs >= 0) && (tsList[j] - pRowSup->prevTs <= gap)) ||
-               ((pRowSup->prevTs - tsList[j] >= 0) && (pRowSup->prevTs - tsList[j] <= gap))) {
-      // The gap is less than the threshold, so it belongs to current session window that has been opened already.
+    } else if (tsList[j] == pRowSup->prevTs) {
+      // Duplicate timestamp - keep in current window
       doKeepTuple(pRowSup, tsList[j], j, gid);
-    } else {  // start a new session window
-      // start a new session window
-      if (pRowSup->numOfRows > 0) {  // handled data that belongs to the previous session window
-        // keep the time window for the closed time window.
-        STimeWindow window = pRowSup->win;
+    } else {
+      int64_t absDiff = (tsList[j] > pRowSup->prevTs) ? (tsList[j] - pRowSup->prevTs) : (pRowSup->prevTs - tsList[j]);
+      if (absDiff <= gap) {
+        // Gap within threshold - belongs to current session window
+        doKeepTuple(pRowSup, tsList[j], j, gid);
+      } else {  // start a new session window
+        if (pRowSup->numOfRows > 0) {  // handled data that belongs to the previous session window
+          // keep the time window for the closed time window.
+          STimeWindow window = pRowSup->win;
 
-        int32_t ret = TSDB_CODE_SUCCESS;
-        if (pInfo->indefRowsMode) {
-          ret = applyIndefRowsWindowSegment(pOperator, &pInfo->indefRows, pInfo->binfo.pRes,
-                                            pInfo->aggSup.resultRowSize, gid, &window, pBlock,
-                                            pRowSup->startRowIndex, pRowSup->numOfRows, pInfo->binfo.inputTsOrder,
-                                            true);
-        } else {
-          SResultRow* pResult = NULL;
-          ret =
-              setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &window, masterScan, &pResult, gid, pSup->pCtx,
-                                     numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
-          if (ret == TSDB_CODE_SUCCESS) {
-            // pInfo->numOfRows data belong to the current session window
-            updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &window, 0);
+          int32_t ret = TSDB_CODE_SUCCESS;
+          if (pInfo->indefRowsMode) {
+            ret = applyIndefRowsWindowSegment(pOperator, &pInfo->indefRows, pInfo->binfo.pRes,
+                                              pInfo->aggSup.resultRowSize, gid, &window, pBlock,
+                                              pRowSup->startRowIndex, pRowSup->numOfRows, pInfo->binfo.inputTsOrder,
+                                              true);
+          } else {
+            SResultRow* pResult = NULL;
             ret =
-                applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData,
-                                                pRowSup->startRowIndex, pRowSup->numOfRows, pBlock->info.rows, numOfOutput);
+                setTimeWindowOutputBuf(&pInfo->binfo.resultRowInfo, &window, masterScan, &pResult, gid, pSup->pCtx,
+                                       numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
+            if (ret == TSDB_CODE_SUCCESS) {
+              // pInfo->numOfRows data belong to the current session window
+              updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &window, 0);
+              ret = applyAggFunctionOnPartialTuples(pTaskInfo, pSup->pCtx, &pInfo->twAggSup.timeWindowData,
+                                                    pRowSup->startRowIndex, pRowSup->numOfRows, pBlock->info.rows,
+                                                    numOfOutput);
+            }
+          }
+          if (ret != TSDB_CODE_SUCCESS) {
+            T_LONG_JMP(pTaskInfo->env, ret);
           }
         }
-        if (ret != TSDB_CODE_SUCCESS) {
-          T_LONG_JMP(pTaskInfo->env, ret);
-        }
-      }
 
-      // here we start a new session window
-      doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
-      doKeepTuple(pRowSup, tsList[j], j, gid);
+        // here we start a new session window
+        doKeepNewWindowStartInfo(pRowSup, tsList, j, gid);
+        doKeepTuple(pRowSup, tsList[j], j, gid);
+      }
     }
   }
 
@@ -3457,10 +3525,19 @@ static void doMergeIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultRowInfo*
   int32_t     startPos = 0;
   int32_t     numOfOutput = pExprSup->numOfExprs;
   int64_t*    tsCols = extractTsCol(pBlock, iaInfo, pTaskInfo);
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, iaInfo->primaryTsIndex);
   uint64_t    tableGroupId = pBlock->info.id.groupId;
   bool        ascScan = (iaInfo->binfo.inputTsOrder == TSDB_ORDER_ASC);
-  TSKEY       blockStartTs = getStartTsKey(&pBlock->info.window, tsCols);
   SResultRow* pResult = NULL;
+
+  while (pTsCol != NULL && startPos < pBlock->info.rows && pTsCol->hasNull && colDataIsNull_f(pTsCol, startPos)) {
+    ++startPos;
+  }
+  if (startPos >= pBlock->info.rows) {
+    return;
+  }
+
+  TSKEY blockStartTs = tsCols[startPos];
 
   STimeWindow win = getActiveTimeWindow(iaInfo->aggSup.pResultBuf, pResultRowInfo, blockStartTs, &iaInfo->interval,
                                         iaInfo->binfo.inputTsOrder);

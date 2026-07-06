@@ -72,6 +72,40 @@ void destroyCountWindowOperatorInfo(void* param) {
 
 static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 
+static int32_t trimNullTimelineRows(SSDataBlock* pBlock, int32_t tsSlotId) {
+  if (pBlock == NULL || pBlock->info.rows <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+  if (pTsCol == NULL) {
+    return terrno;
+  }
+  if (!pTsCol->hasNull) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool* pKeep = taosMemoryCalloc(pBlock->info.rows, sizeof(bool));
+  if (pKeep == NULL) {
+    return terrno;
+  }
+
+  int32_t keepRows = 0;
+  for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+    if (!colDataIsNull_f(pTsCol, i)) {
+      pKeep[i] = true;
+      ++keepRows;
+    }
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (keepRows < pBlock->info.rows) {
+    code = trimDataBlock(pBlock, pBlock->info.rows, pKeep);
+  }
+  taosMemoryFree(pKeep);
+  return code;
+}
+
 static void clearWinStateBuff(SCountWindowResult* pBuff) {
   pBuff->winRows = 0;
   pBuff->winSKey = 0;
@@ -142,23 +176,14 @@ void doCountWindowAggImpl(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  for (int32_t i = 0; i < pBlock->info.rows; i++) {
-    if (pBlock->info.scanFlag != PRE_SCAN) {
-      if (pInfo->countSup.lastTs == INT64_MIN) {
-        pInfo->countSup.lastTs = tsCols[i];
-      } else {
-        if (tsCols[i] == pInfo->countSup.lastTs) {
-          qError("duplicate timestamp found in count window operator" PRId64 ", timestamp: %" PRId64, tsCols[i]);
-          code = TSDB_CODE_QRY_WINDOW_DUP_TIMESTAMP;
-          QUERY_CHECK_CODE(code, lino, _end);
-        } else {
-          pInfo->countSup.lastTs = tsCols[i];
-        }
-      }
-    }
-  }
-
   for (int32_t i = 0; i < pBlock->info.rows;) {
+    while (i < pBlock->info.rows && pColInfoData->hasNull && colDataIsNull_f(pColInfoData, i)) {
+      ++i;
+    }
+    if (i >= pBlock->info.rows) {
+      break;
+    }
+
     SCountWindowResult* pBuffInfo = NULL;
     if (!pInfo->indefRowsMode) {
       code = setCountWindowOutputBuff(pExprSup, &pInfo->countSup, &pInfo->pRow, &pBuffInfo);
@@ -333,18 +358,24 @@ static int32_t countWindowAggregateNext(SOperatorInfo* pOperator, SSDataBlock** 
     }
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
-    code = setInputDataBlock(pExprSup, pBlock, order, MAIN_SCAN, true);
-    QUERY_CHECK_CODE(code, lino, _end);
-
-    code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
-    QUERY_CHECK_CODE(code, lino, _end);
-
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->scalarSup.pExprInfo != NULL) {
       code = projectApplyFunctions(pInfo->scalarSup.pExprInfo, pBlock, pBlock, pInfo->scalarSup.pCtx,
                                    pInfo->scalarSup.numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
+
+    code = trimNullTimelineRows(pBlock, pInfo->tsSlotId);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pBlock->info.rows == 0) {
+      continue;
+    }
+
+    code = setInputDataBlock(pExprSup, pBlock, order, MAIN_SCAN, true);
+    QUERY_CHECK_CODE(code, lino, _end);
+
+    code = blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     if (pInfo->groupId == 0) {
       pInfo->groupId = pBlock->info.id.groupId;

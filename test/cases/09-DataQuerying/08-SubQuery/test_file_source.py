@@ -404,7 +404,7 @@ class TestFileSource:
         E2: COUNT includes all duplicate-ts rows
         E3: GROUP BY ts with duplicates
         E4: FIRST/LAST with duplicate timestamps (non-deterministic FIRST)
-        E5: CSUM/DIFF/DERIVATIVE/TWA/IRATE reject duplicate timestamps
+        E5: DERIVATIVE/TWA reject duplicate timestamps; CSUM/DIFF/IRATE process duplicate timestamps by row order.
 
         Since: v3.4.2
 
@@ -437,13 +437,22 @@ class TestFileSource:
         tdSql.query(f"SELECT LAST(id) FROM {dup_sub}")
         tdSql.checkData(0, 0, 3)
 
-        # E5: CSUM/DIFF/DERIVATIVE/TWA/IRATE reject duplicate timestamps
-        tdLog.info("E5: time-series functions reject duplicate timestamps from FILE")
-        tdSql.error(f"SELECT CSUM(id) FROM {dup_sub}")
-        tdSql.error(f"SELECT DIFF(id) FROM {dup_sub}")
+        # E5: DERIVATIVE/TWA reject duplicate timestamps; CSUM/DIFF/IRATE process duplicate timestamps by row order.
+        tdLog.info("E5: time-series functions with duplicate timestamps from FILE")
+        tdSql.query(f"SELECT CSUM(id) FROM {dup_sub}")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 6)
+        tdSql.query(f"SELECT DIFF(id) FROM {dup_sub}")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, -1)
+        tdSql.checkData(1, 0, 2)
         tdSql.error(f"SELECT DERIVATIVE(id, 1s, 0) FROM {dup_sub}")
         tdSql.error(f"SELECT TWA(id) FROM {dup_sub}")
-        tdSql.error(f"SELECT IRATE(id) FROM {dup_sub}")
+        tdSql.query(f"SELECT IRATE(id) FROM {dup_sub}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1.1574074074074073e-05, tolerance=1e-12)
 
         tdLog.debug("test_file_source_dup_ts passed")
 

@@ -310,20 +310,19 @@ class TestStateWindowZeroth:
         tdSql.checkData(4, 2, 2)
         tdSql.checkData(4, 3, '正常')
 
-        # super table 
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cint) extend(0) zeroth_state(0)", show=True)
-
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cint) extend(0) zeroth_state(1)", show=True)
-
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cint) extend(0) zeroth_state(-1)", show=True)
-
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cbool) extend(0) zeroth_state(true)", show=True)
-
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cbool) extend(0) zeroth_state(false)", show=True)
-
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cstr) extend(0) zeroth_state('a')", show=True)
-
-        tdSql.error("select _wstart, _wend, count(*) from stb state_window(cstr) extend(0) zeroth_state('A')", show=True)
+        # super table: duplicate timestamps from different child tables are allowed.
+        for sql in [
+            "select _wstart, _wend, count(*) from stb state_window(cint) extend(0) zeroth_state(0)",
+            "select _wstart, _wend, count(*) from stb state_window(cint) extend(0) zeroth_state(1)",
+            "select _wstart, _wend, count(*) from stb state_window(cint) extend(0) zeroth_state(-1)",
+            "select _wstart, _wend, count(*) from stb state_window(cbool) extend(0) zeroth_state(true)",
+            "select _wstart, _wend, count(*) from stb state_window(cbool) extend(0) zeroth_state(false)",
+            "select _wstart, _wend, count(*) from stb state_window(cstr) extend(0) zeroth_state('a')",
+            "select _wstart, _wend, count(*) from stb state_window(cstr) extend(0) zeroth_state('A')",
+        ]:
+            tdSql.query(sql, show=True)
+            if tdSql.queryRows <= 0:
+                tdLog.exit(f"super table state_window expected non-empty result: {sql}")
 
     def check_zeroth_state_stream_compute(self):
         # create streams

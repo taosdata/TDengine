@@ -47,6 +47,12 @@ typedef enum EMergeType {
   MERGE_TYPE_MAX_VALUE
 } EMergeType;
 
+typedef enum ETimeLineSource {
+  TIME_LINE_SOURCE_UNSPECIFIED = 0,
+  TIME_LINE_SOURCE_PRIMARY_TS = 1,
+  TIME_LINE_SOURCE_DEGRADED_TS = 2,
+} ETimeLineSource;
+
 typedef struct SLogicNode {
   ENodeType          type;
   bool               dynamicOp;
@@ -300,6 +306,7 @@ typedef struct SInterpFuncLogicNode {
   EFillMode     fillMode;
   SNode*        pFillValues;  // SNodeListNode
   SNode*        pTimeSeries;  // SColumnNode
+  int8_t        timelineSource;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   int64_t       surroundingTime;
   void*         timezone;        // timezone_t handle for calendar/DST-aware EVERY stepping (d/w)
@@ -863,6 +870,7 @@ typedef struct SInterpFuncPhysiNode {
   EFillMode         fillMode;
   SNode*            pFillValues;  // SNodeListNode
   SNode*            pTimeSeries;  // SColumnNode
+  int8_t            timelineSource;
   // duration expression for surrounding_time (only for PREV/NEXT/NEAR)
   int64_t           surroundingTime;
   void*             timezone;        // timezone_t handle; EVERY calendar units (d/w) are calendar/DST aware

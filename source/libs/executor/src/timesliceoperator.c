@@ -40,21 +40,25 @@ typedef struct STimeSliceOperatorInfo {
   SColumn              tsCol;         // primary timestamp column
   SExprSupp            scalarSup;     // scalar calculation
   struct SFillColInfo* pFillColInfo;  // fill column info
-  SRowKey              prevKey;       // record previous row key
-  bool                 prevTsSet;     // denotes if previous timestamp is set
   uint64_t             groupId;
   SArray*              pPrevGroupKeys;
   SSDataBlock*         pNextGroupRes;
   SSDataBlock*         pRemainRes;   // save block unfinished processing
   int32_t              remainIndex;  // the remaining index in the block to be processed
-  bool                 hasPk;
-  SColumn              pkCol;
   bool                 prevNotified;
   bool                 nextNotified;
   int64_t              surroundingTime;
+  SArray*              pTimelineStates;
+  int8_t               timelineSource;
 } STimeSliceOperatorInfo;
 
 static void destroyTimeSliceOperatorInfo(void* param);
+
+typedef struct STimelineState {
+  uint64_t uid;
+  int64_t  prevTs;
+  bool     prevTsSet;
+} STimelineState;
 
 // Copy one column value. Var-length types carry their length in the data
 // itself; fixed-length types use the column-defined byte width.
@@ -176,47 +180,71 @@ typedef enum {
   INVALID_TIMESTAMP_REASON_PREV_TS_SMALLER = 2,
 } EInvalidTimestampReason;
 
-/**
-  @brief Timestamp is invalid if current timestamp <= previous timestamp.
-  Only timestamp is considered even if composite primary key exists.
-  @note On a valid timestamp this also advances prevKey/prevTsSet, so it must
-  be called exactly once per accepted row. The PREV_TS_SMALLER result is what
-  terminates processing of the prev-extension block, which is scanned in DESC
-  order: its first row is the closest one before the range and is kept, the
-  remaining (older) rows are dropped via this check.
-*/
-static EInvalidTimestampReason isInvalidTimestamp(
-  STimeSliceOperatorInfo* pSliceInfo, int64_t currentTs,
-  SColumnInfoData* pPkCol, int32_t curIndex) {
-  if (currentTs > pSliceInfo->win.ekey) {
-    return INVALID_TIMESTAMP_REASON_NONE;
-  }
-  if (pSliceInfo->prevTsSet && currentTs <= pSliceInfo->prevKey.ts) {
-    /**
-      Input data of time slice operator must be ordered by
-      timestamp ascendingly, except the prev scan.
-      So prevTs should never be updated to equal or smaller timestamp.
-    */
-    return currentTs == pSliceInfo->prevKey.ts ?
-      INVALID_TIMESTAMP_REASON_PREV_TS_EQUAL :
-      INVALID_TIMESTAMP_REASON_PREV_TS_SMALLER;
-  }
-
-  SRowKey cur = {.ts = currentTs, .numOfPKs = (pPkCol != NULL) ? 1 : 0};
-  if (pPkCol != NULL) {
-    cur.pks[0].type = pPkCol->info.type;
-    if (IS_VAR_DATA_TYPE(pPkCol->info.type)) {
-      cur.pks[0].pData = (uint8_t*)colDataGetVarData(pPkCol, curIndex);
-    } else {
-      valueSetDatum(cur.pks, pPkCol->info.type,
-                    colDataGetData(pPkCol, curIndex), pPkCol->info.bytes);
+static int32_t getTimelineState(STimeSliceOperatorInfo* pSliceInfo, uint64_t uid,
+                                STimelineState** ppState) {
+  int32_t num = taosArrayGetSize(pSliceInfo->pTimelineStates);
+  for (int32_t i = 0; i < num; ++i) {
+    STimelineState* pState = taosArrayGet(pSliceInfo->pTimelineStates, i);
+    if (pState->uid == uid) {
+      *ppState = pState;
+      return TSDB_CODE_SUCCESS;
     }
   }
 
-  pSliceInfo->prevTsSet = true;
-  tRowKeyAssign(&pSliceInfo->prevKey, &cur);
+  STimelineState state = {.uid = uid, .prevTs = INT64_MIN, .prevTsSet = false};
+  STimelineState* pState = taosArrayPush(pSliceInfo->pTimelineStates, &state);
+  if (pState == NULL) {
+    return terrno;
+  }
 
-  return INVALID_TIMESTAMP_REASON_NONE;
+  *ppState = pState;
+  return TSDB_CODE_SUCCESS;
+}
+
+static uint64_t getTimelineId(const SSDataBlock* pBlock) {
+  return (pBlock->info.id.uid != 0) ? pBlock->info.id.uid : pBlock->info.id.groupId;
+}
+
+static bool allowPrimaryTimelineDuplicateTimestamp(const STimeSliceOperatorInfo* pSliceInfo) {
+  return pSliceInfo->timelineSource == TIME_LINE_SOURCE_PRIMARY_TS;
+}
+
+/**
+  @brief Timestamp is invalid if current timestamp <= previous timestamp within
+  the same source table timeline. Primary-timestamp input keeps the legacy table
+  timeline semantics: equal timestamps are tolerated by the caller and skipped.
+  Degraded timelines are user-defined timestamp streams and remain strict:
+  equal timestamps are rejected there. Smaller timestamps always indicate an
+  invalid input order for the runtime timeline identity.
+  @note On a valid timestamp this also advances the table's prevTs state, so it
+  must be called exactly once per accepted row. The PREV_TS_SMALLER result is
+  what terminates processing of the prev-extension block, which is scanned in
+  DESC order: its first row is the closest one before the range and is kept, the
+  remaining (older) rows are dropped via this check.
+*/
+static int32_t isInvalidTimestamp(STimeSliceOperatorInfo* pSliceInfo, uint64_t uid,
+                                  int64_t currentTs,
+                                  EInvalidTimestampReason* pReason) {
+  *pReason = INVALID_TIMESTAMP_REASON_NONE;
+
+  STimelineState* pState = NULL;
+  int32_t code = getTimelineState(pSliceInfo, uid, &pState);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (pState->prevTsSet && currentTs <= pState->prevTs) {
+    if (currentTs == pState->prevTs) {
+      *pReason = INVALID_TIMESTAMP_REASON_PREV_TS_EQUAL;
+    } else {
+      *pReason = INVALID_TIMESTAMP_REASON_PREV_TS_SMALLER;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pState->prevTsSet = true;
+  pState->prevTs = currentTs;
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool isInterpFunc(SExprInfo* pExprInfo) {
@@ -968,14 +996,14 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
 
   SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock,
                                          pSliceInfo->tsCol.slotId);
-  SColumnInfoData* pPkCol = NULL;
-
-  if (pSliceInfo->hasPk) {
-    pPkCol = taosArrayGet(pBlock->pDataBlock, pSliceInfo->pkCol.slotId);
-  }
 
   int32_t i = (pSliceInfo->pRemainRes == NULL) ? 0 : pSliceInfo->remainIndex;
   for (; i < pBlock->info.rows; ++i) {
+    if (pTsCol->hasNull && colDataIsNull_f(pTsCol, i)) {
+      code = TSDB_CODE_FUNC_INVALID_TIMELINE;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, i);
 
     if (checkNullRow(&pOperator->exprSupp, pBlock, i, ignoreNull)) {
@@ -993,16 +1021,21 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
       }
     }
 
-    EInvalidTimestampReason invalidReason = isInvalidTimestamp(pSliceInfo, ts,
-                                                               pPkCol, i);
+    EInvalidTimestampReason invalidReason = INVALID_TIMESTAMP_REASON_NONE;
+    bool allowDuplicateTs = allowPrimaryTimelineDuplicateTimestamp(pSliceInfo);
+    code = isInvalidTimestamp(pSliceInfo, getTimelineId(pBlock), ts, &invalidReason);
+    QUERY_CHECK_CODE(code, lino, _end);
     if (invalidReason != INVALID_TIMESTAMP_REASON_NONE) {
-      if (invalidReason == INVALID_TIMESTAMP_REASON_PREV_TS_EQUAL) {
+      if (invalidReason == INVALID_TIMESTAMP_REASON_PREV_TS_EQUAL && allowDuplicateTs) {
         continue;
-      } else if (invalidReason == INVALID_TIMESTAMP_REASON_PREV_TS_SMALLER) {
+      }
+      if (invalidReason == INVALID_TIMESTAMP_REASON_PREV_TS_SMALLER && ts < pSliceInfo->win.skey) {
         break;
       }
+      code = (invalidReason == INVALID_TIMESTAMP_REASON_PREV_TS_EQUAL) ? TSDB_CODE_FUNC_DUP_TIMESTAMP
+                                                                       : TSDB_CODE_FUNC_INVALID_TIMELINE;
+      QUERY_CHECK_CODE(code, lino, _end);
     }
-
     if (ts == pSliceInfo->current) {
       code = addCurrentRowToResult(pSliceInfo, &pOperator->exprSupp,
                                    pResBlock, pBlock, i);
@@ -1120,7 +1153,7 @@ static int32_t copyPrevGroupKey(SExprSupp* pExprSup, SArray* pGroupKeys, SSDataB
 
 static void resetTimesliceInfo(STimeSliceOperatorInfo* pSliceInfo) {
   pSliceInfo->current = pSliceInfo->win.skey;
-  pSliceInfo->prevTsSet = false;
+  taosArrayClear(pSliceInfo->pTimelineStates);
   pSliceInfo->prevNotified = false;
   pSliceInfo->nextNotified = false;
   resetKeeperInfo(pSliceInfo);
@@ -1296,27 +1329,6 @@ _finished:
   return code;
 }
 
-static int32_t extractPkColumnFromFuncs(SNodeList* pFuncs, bool* pHasPk,
-                                        SColumn* pPkColumn) {
-  SNode* pNode;
-  FOREACH(pNode, pFuncs) {
-    if ((nodeType(pNode) == QUERY_NODE_TARGET) &&
-        (nodeType(((STargetNode*)pNode)->pExpr) == QUERY_NODE_FUNCTION)) {
-      SFunctionNode* pFunc = (SFunctionNode*)((STargetNode*)pNode)->pExpr;
-      if (fmIsInterpFunc(pFunc->funcId) && pFunc->hasPk) {
-        SNode* pNode2 = (pFunc->pParameterList->pTail->pNode);
-        if ((nodeType(pNode2) == QUERY_NODE_COLUMN) &&
-            ((SColumnNode*)pNode2)->isPk) {
-          *pHasPk = true;
-          *pPkColumn = extractColumnFromColumnNode((SColumnNode*)pNode2);
-          break;
-        }
-      }
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t resetTimeSliceOperState(SOperatorInfo* pOper) {
   STimeSliceOperatorInfo* pInfo = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
@@ -1333,21 +1345,11 @@ static int32_t resetTimeSliceOperState(SOperatorInfo* pOper) {
   }
 
   pInfo->current = pInfo->win.skey;
-  pInfo->prevTsSet = false;
-  pInfo->prevKey.ts = INT64_MIN;
+  taosArrayClear(pInfo->pTimelineStates);
   pInfo->groupId = 0;
   pInfo->pNextGroupRes = NULL;
   pInfo->pRemainRes = NULL;
   pInfo->remainIndex = 0;
-
-  if (pInfo->hasPk) {
-    pInfo->prevKey.numOfPKs = 1;
-    pInfo->prevKey.pks[0].type = pInfo->pkCol.type;
-
-    if (IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
-      memset(pInfo->prevKey.pks[0].pData, 0, pInfo->pkCol.bytes);
-    }
-  }
   blockDataCleanup(pInfo->pRes);
 
   // These keepers/cache are built lazily from the input block layout. Drop
@@ -1413,9 +1415,6 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream,
 
   pInfo->tsCol =
     extractColumnFromColumnNode((SColumnNode*)pInterpPhyNode->pTimeSeries);
-  code = extractPkColumnFromFuncs(pInterpPhyNode->pFuncs, &pInfo->hasPk,
-                                  &pInfo->pkCol);
-  QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->fillType = convertFillType(pInterpPhyNode->fillMode);
   initResultSizeInfo(&pOperator->resultInfo, 4096);
@@ -1456,25 +1455,15 @@ int32_t createTimeSliceOperatorInfo(SOperatorInfo* downstream,
     pInfo->interval.slidingUnit = pInterpPhyNode->intervalUnit;
   }
   pInfo->current = pInfo->win.skey;
-  pInfo->prevTsSet = false;
-  pInfo->prevKey.ts = INT64_MIN;
+  pInfo->pTimelineStates = taosArrayInit(8, sizeof(STimelineState));
+  QUERY_CHECK_NULL(pInfo->pTimelineStates, code, lino, _error, terrno);
   pInfo->groupId = 0;
   pInfo->pPrevGroupKeys = NULL;
   pInfo->pNextGroupRes = NULL;
   pInfo->pRemainRes = NULL;
   pInfo->remainIndex = 0;
   pInfo->surroundingTime = pInterpPhyNode->surroundingTime;
-
-  if (pInfo->hasPk) {
-    pInfo->prevKey.numOfPKs = 1;
-    pInfo->prevKey.ts = INT64_MIN;
-    pInfo->prevKey.pks[0].type = pInfo->pkCol.type;
-
-    if (IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
-      pInfo->prevKey.pks[0].pData = taosMemoryCalloc(1, pInfo->pkCol.bytes);
-      QUERY_CHECK_NULL(pInfo->prevKey.pks[0].pData, code, lino, _error, terrno);
-    }
-  }
+  pInfo->timelineSource = pInterpPhyNode->timelineSource;
 
   setOperatorInfo(pOperator, "TimeSliceOperator",
                   QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC, false, OP_NOT_OPENED,
@@ -1520,9 +1509,8 @@ void destroyTimeSliceOperatorInfo(void* param) {
     taosArrayDestroyEx(pInfo->pPrevGroupKeys, destroyGroupKey);
     pInfo->pPrevGroupKeys = NULL;
   }
-  if (pInfo->hasPk && IS_VAR_DATA_TYPE(pInfo->pkCol.type)) {
-    taosMemoryFreeClear(pInfo->prevKey.pks[0].pData);
-  }
+  taosArrayDestroy(pInfo->pTimelineStates);
+  pInfo->pTimelineStates = NULL;
 
   cleanupExprSupp(&pInfo->scalarSup);
   if (pInfo->pFillColInfo != NULL) {

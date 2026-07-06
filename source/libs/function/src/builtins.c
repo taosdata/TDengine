@@ -986,6 +986,18 @@ static int32_t checkPrimTS(SNode* pNode, bool* isMatch) {
   return code;
 }
 
+// Check that pNode is any TIMESTAMP column (not necessarily the primary key).
+// Used by elapsed() to support timeline-fallback subqueries.
+static int32_t checkTSColumn(SNode* pNode, bool* isMatch) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_TIMESTAMP_TYPE(getSDataTypeFromNode(pNode)->type) ||
+      ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TAG) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    *isMatch = false;
+  }
+  return code;
+}
+
 static int32_t checkPrimaryKey(SNode* pNode, bool* isMatch) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type) ||
@@ -1125,6 +1137,9 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
             break;
           case FUNC_PARAM_MUST_BE_PRIMTS:
             code = checkPrimTS(pNode, &isMatch);
+            break;
+          case FUNC_PARAM_MUST_BE_TS_COLUMN:
+            code = checkTSColumn(pNode, &isMatch);
             break;
           case FUNC_PARAM_MUST_BE_PK:
             code = checkPrimaryKey(pNode, &isMatch);
@@ -3476,7 +3491,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .endParam = 1,
                                            .validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_COLUMN_NODE,
-                                           .paramAttribute = FUNC_PARAM_MUST_BE_PRIMTS,
+                                           .paramAttribute = FUNC_PARAM_MUST_BE_TS_COLUMN,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
                    .inputParaInfo[0][1] = {.isLastParam = true,
                                            .startParam = 2,
@@ -4172,7 +4187,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
+                      FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -4206,7 +4222,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "statecount",
     .type = FUNCTION_TYPE_STATE_COUNT,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
-                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 3,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
@@ -4293,7 +4309,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "csum",
     .type = FUNCTION_TYPE_CSUM,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
-                      FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC,
+                      FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC |
+                      FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -4317,7 +4334,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "mavg",
     .type = FUNCTION_TYPE_MAVG,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
-                      FUNC_MGT_FORBID_SYSTABLE_FUNC,
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -7946,7 +7963,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_LAG,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
                       FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
-                      FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+                      FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC | FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
@@ -7987,7 +8004,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_LEAD,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
                       FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
-                      FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC,
+                      FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC | FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
@@ -8136,7 +8153,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "fill_forward",
     .type = FUNCTION_TYPE_FILL_FORWARD,
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
-                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC,
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
+                      FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,

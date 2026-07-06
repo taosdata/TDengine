@@ -48,7 +48,7 @@ class TestScalarSubQuery3d:
         "select {scalarSql} + 1, avg(f1) from {tableName} SESSION(ts, 1d)",
         "select {scalarSql} > 0 from {tableName} SESSION(ts, 1d)",
         "select sum(case when {scalarSql} > 0 then 1 else 2 end) from {tableName} STATE_WINDOW(f1)",
-        "select sum(case when f1 = 1 then cast(2 / {scalarSql} as bigint) else 2 end) from {tableName} EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2",
+        "select sum(case when f1 = 1 then cast(2 / {scalarSql} as bigint) else 2 end) from (select * from {tableName} order by ts, f1) EVENT_WINDOW START WITH f1 >= 1 END WITH f1 <= 2 order by 1",
         "select sum(case when f1 = 1 then 1 else {scalarSql} is null end + 1) from {tableName} COUNT_WINDOW(2)",
         "select sum({scalarSql}) from {tableName} partition by tbname interval(1d)",
         "select avg(abs({scalarSql} * -1)) from {tableName} partition by f1 interval(1d)",
@@ -206,4 +206,3 @@ class TestScalarSubQuery3d:
         self.rmoveSqlTmpFiles()
 
         return True
-

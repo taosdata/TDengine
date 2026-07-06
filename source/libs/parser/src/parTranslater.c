@@ -1756,6 +1756,20 @@ static SNodeList* getProjectList(const SNode* pNode) {
   return NULL;
 }
 
+static bool hasTimestampInProjection(SNodeList* pProjectionList) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pProjectionList) {
+    if (nodesIsExprNode(pNode) && TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pNode)->resType.type) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool hasTimestampProjection(const SNode* pStmt) {
+  return hasTimestampInProjection(getProjectList(pStmt));
+}
+
 static bool hasGroupOrPartition(const SNode* pNode) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pNode)) {
     return ((SSelectStmt*)pNode)->pPartitionByList != NULL || ((SSelectStmt*)pNode)->pGroupByList != NULL;
@@ -2452,6 +2466,7 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
   SNodeList*      pProjectList = getProjectList(pTempTable->pSubquery);
   SNode*          pNode;
   SExprNode*      pFoundExpr = NULL;
+  SExprNode*      pFirstTsExpr = NULL;
   bool            foundPrimTs = false;
   FOREACH(pNode, pProjectList) {
     SExprNode* pExpr = (SExprNode*)pNode;
@@ -2467,6 +2482,36 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
       pCol->isPrimTs = true;
       *pFound = true;
       foundPrimTs = true;
+    }
+    // Fallback: track first TIMESTAMP-typed projection (column or expression) for timeline use.
+    if (pFirstTsExpr == NULL &&
+        TSDB_DATA_TYPE_TIMESTAMP == pExpr->resType.type) {
+      pFirstTsExpr = pExpr;
+    }
+  }
+  // Fallback: when _rowts not found but internal primary key col requested, use first TIMESTAMP col
+  if (!*pFound && isInternalPrimaryKey(pCol) && pFirstTsExpr != NULL) {
+    pFoundExpr = pFirstTsExpr;
+    *pFound = true;
+  }
+  // Degraded timeline: primary key found but subquery is ordered by a different TIMESTAMP column.
+  // Use the first TIMESTAMP column in projection as the effective timeline.
+  if (*pFound && foundPrimTs && pFirstTsExpr != NULL) {
+    SNode* pSubquery = pTempTable->pSubquery;
+    SNodeList* pOrderByList = NULL;
+    if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+      pOrderByList = ((SSelectStmt*)pSubquery)->pOrderByList;
+    } else if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
+      pOrderByList = ((SSetOperator*)pSubquery)->pOrderByList;
+    }
+    if (pOrderByList && pOrderByList->length > 0) {
+      SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pOrderByList, 0);
+      if (pOrderExpr && pOrderExpr->pExpr &&
+          nodeType(pOrderExpr->pExpr) == QUERY_NODE_COLUMN &&
+          TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pOrderExpr->pExpr)->resType.type &&
+          !isPrimaryKeyImpl(pOrderExpr->pExpr)) {
+        pFoundExpr = pFirstTsExpr;
+      }
     }
   }
   if (pFoundExpr) {
@@ -4925,6 +4970,10 @@ static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFu
   bool         isTimelineAlignedQuery = false;
   if ((NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
        !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery))) {
+    SNode* pSubquery = ((STempTableNode*)pSelect->pFromTable)->pSubquery;
+    if (hasTimestampProjection(pSubquery) && fmIsDegradedTimelineRowOrderFunc(pFunc->funcId)) {
+      return TSDB_CODE_SUCCESS;
+    }
     int32_t code = isTimeLineAlignedQuery(pCxt->pCurrStmt, &isTimelineAlignedQuery);
     if (TSDB_CODE_SUCCESS != code) return code;
     if (!isTimelineAlignedQuery)
@@ -13593,7 +13642,8 @@ static int32_t translateZerothState(STranslateContext* pCxt, SSelectStmt* pSelec
 static int32_t translateStateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = 0;
   if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
-      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
+      !hasTimestampProjection(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
                                    "STATE_WINDOW requires valid time series input");
   }
@@ -13615,19 +13665,263 @@ static int32_t checkSessionWindow(STranslateContext* pCxt, SSessionWindowNode* p
   if ('y' == pSession->pGap->unit || 'n' == pSession->pGap->unit || 0 == pSession->pGap->datum.i) {
     PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_GAP));
   }
-  if (!isPrimaryKeyImpl((SNode*)pSession->pCol)) {
+  if (QUERY_NODE_COLUMN != nodeType((SNode*)pSession->pCol) ||
+      (!isPrimaryKeyImpl((SNode*)pSession->pCol) &&
+       !IS_TIMESTAMP_TYPE(((SColumnNode*)pSession->pCol)->node.resType.type))) {
     PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_COL));
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateSessionWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
-      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
-                                   "SESSION requires valid time series input");
+static SNodeList* getOrderByList(const SNode* pNode) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pNode)) {
+    return ((SSelectStmt*)pNode)->pOrderByList;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pNode)) {
+    return ((SSetOperator*)pNode)->pOrderByList;
+  }
+  return NULL;
+}
+
+static SNode* findProjectionByAlias(SNode* pSubquery, const char* alias) {
+  SNodeList* pProjectionList = getProjectList(pSubquery);
+  if (NULL == pProjectionList) {
+    return NULL;
   }
 
+  SNode* pNode = NULL;
+  FOREACH(pNode, pProjectionList) {
+    SExprNode* pExpr = (SExprNode*)pNode;
+    if (0 == strcmp(alias, pExpr->userAlias) || 0 == strcmp(alias, pExpr->aliasName)) {
+      return pNode;
+    }
+  }
+  return NULL;
+}
+
+static bool hasUniqueProjectionAlias(SNode* pSubquery, const char* alias) {
+  SNodeList* pProjectionList = getProjectList(pSubquery);
+  if (NULL == pProjectionList) {
+    return false;
+  }
+
+  int32_t matches = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pProjectionList) {
+    SExprNode* pExpr = (SExprNode*)pNode;
+    if (0 == strcmp(alias, pExpr->userAlias) || 0 == strcmp(alias, pExpr->aliasName)) {
+      if (++matches > 1) {
+        return false;
+      }
+    }
+  }
+
+  return 1 == matches;
+}
+
+static bool sessionWindowMatchesOrderColumn(SColumnNode* pSessionCol, SColumnNode* pOrderCol) {
+  return nodesEqualNode((SNode*)pSessionCol, (SNode*)pOrderCol) ||
+         (pSessionCol->slotId == pOrderCol->slotId && pSessionCol->projIdx == pOrderCol->projIdx &&
+          pSessionCol->colId == pOrderCol->colId && pSessionCol->tableId == pOrderCol->tableId &&
+          pSessionCol->dataBlockId == pOrderCol->dataBlockId);
+}
+
+static SNode* getPrimaryTsSourceExpr(SNode* pExpr) {
+  if (NULL == pExpr) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    return isPrimaryKeyImpl(pExpr) ? pExpr : NULL;
+  }
+
+  if (QUERY_NODE_FUNCTION != nodeType(pExpr)) {
+    return NULL;
+  }
+
+  SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+  if (FUNCTION_TYPE_WSTART == pFunc->funcType || FUNCTION_TYPE_WEND == pFunc->funcType ||
+      FUNCTION_TYPE_IROWTS == pFunc->funcType || FUNCTION_TYPE_IROWTS_ORIGIN == pFunc->funcType ||
+      FUNCTION_TYPE_FORECAST_ROWTS == pFunc->funcType || FUNCTION_TYPE_IMPUTATION_ROWTS == pFunc->funcType ||
+      FUNCTION_TYPE_TPREV_TS == pFunc->funcType || FUNCTION_TYPE_TCURRENT_TS == pFunc->funcType) {
+    return pExpr;
+  }
+
+  if (!isPrimaryKeyImpl(pExpr) || NULL == pFunc->pParameterList || 0 == pFunc->pParameterList->length) {
+    return NULL;
+  }
+
+  return getPrimaryTsSourceExpr(nodesListGetNode(pFunc->pParameterList, 0));
+}
+
+static bool sessionWindowSamePrimaryTsSource(SNode* pLeft, SNode* pRight) {
+  SNode* pLeftSrc = getPrimaryTsSourceExpr(pLeft);
+  SNode* pRightSrc = getPrimaryTsSourceExpr(pRight);
+  if (NULL == pLeftSrc || NULL == pRightSrc) {
+    return false;
+  }
+
+  if (nodesEqualNode(pLeftSrc, pRightSrc)) {
+    return true;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pLeftSrc) && QUERY_NODE_COLUMN == nodeType(pRightSrc)) {
+    SColumnNode* pLeftCol = (SColumnNode*)pLeftSrc;
+    SColumnNode* pRightCol = (SColumnNode*)pRightSrc;
+    return pLeftCol->colId == pRightCol->colId && pLeftCol->tableId == pRightCol->tableId &&
+           pLeftCol->dataBlockId == pRightCol->dataBlockId;
+  }
+
+  return false;
+}
+
+static bool sessionWindowIsIntervalEquivalentTimelineExpr(SNode* pExpr) {
+  SNode* pSource = getPrimaryTsSourceExpr(pExpr);
+  if (NULL == pSource) {
+    return false;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pSource)) {
+    return true;
+  }
+
+  if (QUERY_NODE_FUNCTION == nodeType(pSource)) {
+    int32_t funcType = ((SFunctionNode*)pSource)->funcType;
+    return FUNCTION_TYPE_WSTART == funcType || FUNCTION_TYPE_WEND == funcType || FUNCTION_TYPE_IROWTS == funcType ||
+           FUNCTION_TYPE_IROWTS_ORIGIN == funcType || FUNCTION_TYPE_FORECAST_ROWTS == funcType ||
+           FUNCTION_TYPE_IMPUTATION_ROWTS == funcType || FUNCTION_TYPE_TPREV_TS == funcType ||
+           FUNCTION_TYPE_TCURRENT_TS == funcType;
+  }
+
+  return false;
+}
+
+static bool sessionWindowMatchesEquivalentPrimaryTsAlias(SSessionWindowNode* pSession, SNode* pSubquery, SColumnNode* pOrderCol) {
+  if (!hasUniqueProjectionAlias(pSubquery, pSession->pCol->colName) || !hasUniqueProjectionAlias(pSubquery, pOrderCol->colName)) {
+    return false;
+  }
+
+  SNode* pOrderProjection = findProjectionByAlias(pSubquery, pOrderCol->colName);
+  SNode* pSessionProjection = findProjectionByAlias(pSubquery, pSession->pCol->colName);
+  if (NULL == pOrderProjection || NULL == pSessionProjection ||
+      QUERY_NODE_OPERATOR == nodeType(pOrderProjection) || QUERY_NODE_OPERATOR == nodeType(pSessionProjection)) {
+    return false;
+  }
+
+  if (sessionWindowSamePrimaryTsSource(pSessionProjection, pOrderProjection)) {
+    return true;
+  }
+
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    SSelectStmt* pSubSelect = (SSelectStmt*)pSubquery;
+    if (NULL != pSubSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSubSelect->pWindow) &&
+        sessionWindowIsIntervalEquivalentTimelineExpr(pSessionProjection) &&
+        sessionWindowIsIntervalEquivalentTimelineExpr(pOrderProjection)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool sessionWindowMatchesOrderExpr(SSessionWindowNode* pSession, SNode* pSubquery, SNode* pExpr) {
+  if (NULL == pExpr) {
+    return false;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    SColumnNode* pOrderCol = (SColumnNode*)pExpr;
+    if (sessionWindowMatchesOrderColumn(pSession->pCol, pOrderCol)) {
+      return true;
+    }
+    if (0 == strcmp(pOrderCol->colName, pSession->pCol->colName) && hasUniqueProjectionAlias(pSubquery, pSession->pCol->colName) &&
+        isPrimaryKeyImpl((SNode*)pSession->pCol) && isPrimaryKeyImpl((SNode*)pOrderCol)) {
+      return true;
+    }
+    if (sessionWindowMatchesEquivalentPrimaryTsAlias(pSession, pSubquery, pOrderCol)) {
+      return true;
+    }
+  }
+
+  SNode* pProjection = findProjectionByAlias(pSubquery, pSession->pCol->colName);
+  if (NULL == pProjection) {
+    return false;
+  }
+
+  if (nodesEqualNode(pExpr, pProjection) || sessionWindowSamePrimaryTsSource(pProjection, pExpr)) {
+    return true;
+  }
+
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    SSelectStmt* pSubSelect = (SSelectStmt*)pSubquery;
+    if (NULL != pSubSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSubSelect->pWindow) &&
+        sessionWindowIsIntervalEquivalentTimelineExpr(pProjection) &&
+        sessionWindowIsIntervalEquivalentTimelineExpr(pExpr)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool orderByStartsWithPartitionList(SNodeList* pOrderByList, SNodeList* pPartitionByList) {
+  if (NULL == pPartitionByList || pPartitionByList->length <= 0) {
+    return true;
+  }
+
+  if (NULL == pOrderByList || pOrderByList->length <= pPartitionByList->length) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < pPartitionByList->length; ++i) {
+    SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pOrderByList, i);
+    SNode* pPartitionExpr = nodesListGetNode(pPartitionByList, i);
+    if (NULL == pOrderExpr || NULL == pOrderExpr->pExpr || NULL == pPartitionExpr ||
+        !nodesEqualNode(pOrderExpr->pExpr, pPartitionExpr)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool sessionWindowOrderedByWindowCol(SSessionWindowNode* pSession, SNode* pSubquery, SNodeList* pPartitionByList) {
+  SNodeList* pOrderByList = getOrderByList(pSubquery);
+  if (NULL == pOrderByList || pOrderByList->length <= 0) {
+    return false;
+  }
+
+  int32_t orderExprIdx = 0;
+  if (NULL != pPartitionByList && pPartitionByList->length > 0) {
+    if (!orderByStartsWithPartitionList(pOrderByList, pPartitionByList)) {
+      return false;
+    }
+    orderExprIdx = pPartitionByList->length;
+  }
+
+  SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pOrderByList, orderExprIdx);
+  if (NULL == pOrderExpr || NULL == pOrderExpr->pExpr) {
+    return false;
+  }
+
+  return sessionWindowMatchesOrderExpr(pSession, pSubquery, pOrderExpr->pExpr);
+}
+
+static int32_t translateSessionWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable)) {
+    SNode* pSubquery = ((STempTableNode*)pSelect->pFromTable)->pSubquery;
+    SSessionWindowNode* pSession = (SSessionWindowNode*)pSelect->pWindow;
+    SNodeList* pOrderByList = getOrderByList(pSubquery);
+    if (NULL != pOrderByList && pOrderByList->length > 0) {
+      if (!sessionWindowOrderedByWindowCol(pSession, pSubquery, pSelect->pPartitionByList) &&
+          !hasTimestampProjection(pSubquery)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+                                       "SESSION requires valid time series input");
+      }
+    } else if (!isTimeLineQuery(pSubquery) && !hasTimestampProjection(pSubquery)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+                                     "SESSION requires valid time series input");
+    }
+  }
   return checkSessionWindow(pCxt, (SSessionWindowNode*)pSelect->pWindow);
 }
 
@@ -13677,7 +13971,8 @@ static int32_t checkEventWindow(STranslateContext* pCxt, SEventWindowNode* pEven
 
 static int32_t translateEventWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
-      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
+      !hasTimestampProjection(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
                                    "EVENT_WINDOW requires valid time series input");
   }
@@ -13727,7 +14022,8 @@ static int32_t translateCountWindow(STranslateContext* pCxt, SSelectStmt* pSelec
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
-      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
+      !hasTimestampProjection(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
                                    "COUNT_WINDOW requires valid time series input");
   }
@@ -13887,7 +14183,9 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   int32_t code = 0;
   if (QUERY_NODE_INTERVAL_WINDOW != nodeType(pSelect->pWindow)) {
     if (NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
-        !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+        QUERY_NODE_SESSION_WINDOW != nodeType(pSelect->pWindow) &&
+        !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
+        !hasTimestampProjection(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
       bool isTimelineAlignedQuery = false;
       code = isTimeLineAlignedQuery(pCxt->pCurrStmt, &isTimelineAlignedQuery);
       if (TSDB_CODE_SUCCESS != code) return code;
@@ -13901,7 +14199,8 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
 
   if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
     if (NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
-        !isBlockTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+        !isBlockTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
+        !hasTimestampProjection(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
       bool isTimelineAlignedQuery = false;
       code = isTimeLineAlignedQuery(pCxt->pCurrStmt, &isTimelineAlignedQuery);
       if (TSDB_CODE_SUCCESS != code) return code;
@@ -14025,6 +14324,23 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   if (TSDB_CODE_SUCCESS == code) {
     code = getQueryTimeRange(pCxt, &pSelect->pRange, &pFill->timeRange, &pFill->pTimeRange, pSelect->pFromTable);
   }
+  // For degraded timeline interp, RANGE clause has a non-primary timestamp col.
+  // getQueryTimeRange returns TSWINDOW_INITIALIZER since filterPartitionCond won't
+  // recognize it as primary key. Retry extraction directly from pRange.
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pRange) {
+    if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER)) {
+      SNode* pCondCopy = NULL;
+      code = nodesCloneNode(pSelect->pRange, &pCondCopy);
+      if (TSDB_CODE_SUCCESS == code && NULL != pCondCopy) {
+        bool isStrict = false;
+        int32_t rc = getTimeRange(&pCondCopy, &pFill->timeRange, &isStrict);
+        nodesDestroyNode(pCondCopy);
+        if (TSDB_CODE_SUCCESS != rc) {
+          TAOS_SET_OBJ_ALIGNED(&pFill->timeRange, TSWINDOW_INITIALIZER);
+        }
+      }
+    }
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateSurroundingTime(pCxt, pFill->pSurroundingTime);
   }
@@ -14109,7 +14425,6 @@ static int32_t translateInterp(STranslateContext* pCxt, SSelectStmt* pSelect) {
                                      "Interp not supported to be used in WINDOW join");
     }
   }
-
   int32_t code = 0;
   if (NULL == pSelect->pRange || NULL == pSelect->pEvery || NULL == pSelect->pFill) {
     if (pSelect->pRange != NULL && QUERY_NODE_OPERATOR == nodeType(pSelect->pRange) && pSelect->pEvery == NULL) {
@@ -14831,6 +15146,17 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
       pCxt->errCode = tranCreatePrimaryKeyCol(pCxt, tableAlias, &pPrimaryKey);
       tSimpleHashCleanup(pTableAlias);
     }
+    // When no primary timestamp is available, last/first can fall back to
+    // returning the last/first row in input order without timestamp comparison.
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+      EFunctionType ftype = pFunc->funcType;
+      if (ftype == FUNCTION_TYPE_LAST || ftype == FUNCTION_TYPE_FIRST ||
+          ftype == FUNCTION_TYPE_LAST_ROW) {
+        pCxt->errCode = TSDB_CODE_SUCCESS;
+        return DEAL_RES_IGNORE_CHILD;
+      }
+      return DEAL_RES_ERROR;
+    }
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
       pCxt->errCode = nodesListMakeStrictAppend(&pFunc->pParameterList, pPrimaryKey);
     }
@@ -14983,6 +15309,34 @@ static int32_t replaceOrderByAlias(STranslateContext* pCxt, SNodeList* pProjecti
   return pCxt->errCode;
 }
 
+static bool hasPrimaryKeyInProjection(SNodeList* pProjectionList) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pProjectionList) {
+    if (isPrimaryKeyImpl(pNode)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool isDegradedTimelineOrder(SNodeList* pProjectionList, SNode* pOrder) {
+  if (nodeType(pOrder) != QUERY_NODE_COLUMN ||
+      TSDB_DATA_TYPE_TIMESTAMP != ((SExprNode*)pOrder)->resType.type) {
+    return false;
+  }
+  // No primary timestamp in projection: fallback to ORDER BY timestamp.
+  if (!hasPrimaryKeyInProjection(pProjectionList)) {
+    return true;
+  }
+  // Primary timestamp exists but input is ordered by another timestamp column:
+  // the primary timestamp may be unordered. Treat the query as having an
+  // effective timeline; strict functions validate dirty timelines at runtime.
+  if (!isPrimaryKeyImpl(pOrder)) {
+    return true;
+  }
+  return false;
+}
+
 static void resetResultTimeline(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (NULL == pSelect->pOrderByList) {
     if (inStreamCalcClause(pCxt)) {
@@ -14997,7 +15351,8 @@ static void resetResultTimeline(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
   SNode* pOrder = ((SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, 0))->pExpr;
   if ((QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder)) ||
-      (QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder))) {
+      (QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable) && isPrimaryKeyImpl(pOrder)) ||
+      isDegradedTimelineOrder(pSelect->pProjectionList, pOrder)) {
     pSelect->timeLineResMode = TIME_LINE_GLOBAL;
     return;
   } else if (pSelect->pOrderByList->length > 1) {
@@ -16087,7 +16442,7 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
   }
   if (TSDB_CODE_SUCCESS == code) {
     SNode* pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, 0))->pExpr;
-    if (isPrimaryKeyImpl(pOrder)) {
+    if (isPrimaryKeyImpl(pOrder) || isDegradedTimelineOrder(pSetOperator->pProjectionList, pOrder)) {
       pSetOperator->timeLineResMode = TIME_LINE_GLOBAL;
       return code;
     } else if (pSetOperator->pOrderByList->length > 1) {

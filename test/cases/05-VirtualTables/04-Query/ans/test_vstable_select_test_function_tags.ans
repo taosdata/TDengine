@@ -486,14 +486,8 @@ taos> select unique(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 
                3 |
 
 taos> select derivative(int_tag, 5a, 1) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
- derivative(int_tag, 5a, 1) |
-=============================
-                          0 |
-                          0 |
-                          0 |
-                          0 |
-                          0 |
 
+DB error: Invalid timeline in function [0x80002816] 
 taos> select irate(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
       irate(int_tag)       |
 ============================

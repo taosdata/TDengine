@@ -504,7 +504,7 @@ class TestTextSource:
         Duplicate-timestamp (E-series):
         - E1-E4: duplicate timestamps preserved, auto-sorted
         - E5: FIRST/LAST with duplicate timestamps
-        - E6: CSUM/DIFF/DERIVATIVE/TWA/IRATE reject duplicate timestamps
+        - E6: duplicate timestamp behavior for time-series functions
 
         Since: v3.4.2
 
@@ -585,13 +585,22 @@ class TestTextSource:
         tdSql.query(f"SELECT LAST(id) FROM {dup_sub}")
         tdSql.checkData(0, 0, 3)
 
-        # E6: CSUM/DIFF/DERIVATIVE/TWA/IRATE reject duplicate timestamps
-        tdLog.info("E6: time-series functions reject duplicate timestamps")
-        tdSql.error(f"SELECT CSUM(id) FROM {dup_sub}")
-        tdSql.error(f"SELECT DIFF(id) FROM {dup_sub}")
+        # E6: DERIVATIVE/TWA reject duplicate timestamps; CSUM/DIFF/IRATE process duplicate timestamps by row order.
+        tdLog.info("E6: time-series functions with duplicate timestamps")
+        tdSql.query(f"SELECT CSUM(id) FROM {dup_sub}")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, 6)
+        tdSql.query(f"SELECT DIFF(id) FROM {dup_sub}")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 1)
         tdSql.error(f"SELECT DERIVATIVE(id, 1s, 0) FROM {dup_sub}")
         tdSql.error(f"SELECT TWA(id) FROM {dup_sub}")
-        tdSql.error(f"SELECT IRATE(id) FROM {dup_sub}")
+        tdSql.query(f"SELECT IRATE(id) FROM {dup_sub}")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 2.31481481481481e-05, tolerance=1e-12)
 
         tdLog.debug("test_text_source_no_ts passed")
 
