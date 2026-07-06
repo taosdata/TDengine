@@ -5,6 +5,7 @@
 #include "functionMgt.h"
 #include "libs/new-stream/dataSink.h"
 #include "osMemory.h"
+#include "querytask.h"
 #include "querynodes.h"
 #include "tdatablock.h"
 
@@ -13,6 +14,8 @@ extern "C" char      tsStableTagFilterCache;
 extern "C" int32_t getTableList(void *pVnode, SScanPhysiNode *pScanNode, SNode *pTagCond, SNode *pTagIndexCond,
                                 STableListInfo *pListInfo, uint8_t *digest, const char *idstr, SStorageAPI *pStorageAPI,
                                 void *pStreamInfo);
+extern "C" void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetrieveTableRsp* pRsp,
+                                    bool* fetchDone);
 
 namespace {
 
@@ -432,4 +435,56 @@ TEST(projectApplyFunctionsTest, scalarFuncNoDoubleFreeOnErrorAndSuccessPath) {
   blockDataDestroy(pResult);
   nodesDestroyNode(reinterpret_cast<SNode*>(pFuncNode));
   fmFuncMgtDestroy();
+}
+
+// Test for fix of double-free bug in handleRemoteRowRes / extractSingleRspBlock
+// (GHSA-2gr8-qqmv-v247).
+//
+// extractSingleRspBlock previously destroyed the caller-owned SSDataBlock on
+// error, and handleRemoteRowRes then destroyed the same block again in its
+// unified cleanup path. The fix keeps cleanup ownership in the caller.
+TEST(execUtilTest, handleRemoteRowResNoDoubleFreeOnExtractFailure) {
+  SExecTaskInfo    task;
+  STaskSubJobCtx   ctx = {0};
+  SScalarFetchParam param = {0};
+  SRemoteRowNode   remote;
+  SRetrieveTableRsp rsp = {0};
+  bool             fetchDone = false;
+  SNode*           pStored = nullptr;
+
+  memset(&task, 0, sizeof(task));
+  memset(&remote, 0, sizeof(remote));
+  task.execModel = OPTR_EXEC_MODEL_BATCH;
+
+  ctx.idStr = const_cast<char*>("executil-test");
+  ctx.pTaskInfo = &task;
+  ctx.subResNodes = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(ctx.subResNodes, nullptr);
+  ASSERT_NE(taosArrayPush(ctx.subResNodes, &pStored), nullptr);
+
+  remote.val.node.resType.type = TSDB_DATA_TYPE_INT;
+  remote.val.node.resType.bytes = sizeof(int32_t);
+  remote.val.flag = VALUE_FLAG_VAL_UNSET;
+
+  param.subQIdx = 0;
+  param.pRes = reinterpret_cast<SNode*>(&remote);
+
+  rsp.numOfRows = 1;
+  rsp.numOfBlocks = 1;
+  rsp.numOfCols = 2;
+  rsp.completed = true;
+
+  execUtilTestResetHandleRemoteRowResState();
+  execUtilTestSetExtractSingleRspBlockFailOnce(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
+  handleRemoteRowRes(&param, &ctx, &rsp, &fetchDone);
+
+  EXPECT_EQ(ctx.code, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  EXPECT_TRUE(fetchDone);
+  EXPECT_EQ(execUtilTestGetHandleRemoteRowResDestroyCount(), 1);
+  EXPECT_FALSE(remote.valSet);
+  EXPECT_FALSE(remote.hasValue);
+
+  execUtilTestResetHandleRemoteRowResState();
+  taosArrayDestroy(ctx.subResNodes);
 }

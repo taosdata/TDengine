@@ -6,6 +6,10 @@ if(TD_DARWIN)
   target_compile_options(executor PRIVATE -Wno-error=deprecated-non-prototype)
 endif()
 
+if(BUILD_TEST)
+  target_compile_definitions(executor PRIVATE BUILD_TEST)
+endif()
+
 if(BUILD_WITH_ANALYSIS)
   add_definitions(-DUSE_ANALYTICS)
 endif()
