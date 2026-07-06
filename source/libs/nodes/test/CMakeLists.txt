@@ -8,6 +8,7 @@ IF(NOT TD_DARWIN)
     
     ADD_EXECUTABLE(nodesTest ${SOURCE_LIST})
     DEP_ext_gtest(nodesTest)
+    target_compile_definitions(nodesTest PRIVATE BUILD_TEST)
     
     TARGET_INCLUDE_DIRECTORIES(
         nodesTest
