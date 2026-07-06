@@ -87,6 +87,7 @@ WebSocket Connector 历史版本：
 
 | WebSocket Connector 版本 | 主要变化                                                                              |   TDengine TSDB 版本    |
 | ----------------------- | ------------------------------------------------------------------------------------ | ----------------- |
+|          0.7.0          | 支持 taosAdapter 高可用                                                               | - |
 |          0.6.9           | 新增对 riscv64 架构的支持                                                              | - |
 |          0.6.8           | 支持 DECIMAL 数据类型                                                                 | - |
 |          0.6.7           | 将 SQLAlchemy dialect 迁移至 `taos-ws-py`，使用 SQLAlchemy 时不再依赖 `taospy`          | - |
@@ -218,6 +219,7 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Pytho
   - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。此值会随着连续失败而指数增长，直到达到最大等待时间。
   - `retry_backoff_max_ms`：连接失败时的最大等待时间（毫秒），默认为 2000。
   - `read_timeout`：WebSocket 连接的响应超时时间（秒），不含数据订阅，默认为 300（5 分钟）。
+  - `adapter_ha`：是否启用 taosAdapter 高可用。启用后，连接器会向 taosAdapter 请求当前可用的实例列表，并将发现的节点加入地址池，用于负载均衡和故障转移。默认值为 `false`。
 
 #### 建立连接
 
@@ -239,6 +241,7 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Pytho
       - `read_timeout`：WebSocket 连接的响应超时时间（秒），不含数据订阅，默认为 300（5 分钟）。
       - `totp_code`：用于基于时间的一次性密码（TOTP）身份验证
       - `bearer_token`：用于令牌身份验证
+      - `adapter_ha`：是否启用 taosAdapter 高可用。启用后，连接器会向 taosAdapter 请求当前可用的实例列表，并将发现的节点加入地址池，用于负载均衡和故障转移。默认值为 `false`。
   - **返回值**：连接对象。
   - **异常**：操作失败抛出 `ConnectionError` 异常。
 - `fn cursor(&self) -> PyResult<Cursor>`
@@ -398,6 +401,7 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
   - auto.offset.reset：来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
   - enable.auto.commit：是否允许自动提交。
   - auto.commit.interval.ms：自动提交间隔
+  - `adapter_ha`：是否启用 taosAdapter 高可用。启用后，连接器会向 taosAdapter 请求当前可用的实例列表，并将发现的节点加入地址池，用于负载均衡和故障转移。默认值为 `false`。
 
 - `fn Consumer(conf: Option<&PyDict>, dsn: Option<&str>) -> PyResult<Self>`
   - **接口说明** 消费者构造函数。
