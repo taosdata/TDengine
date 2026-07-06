@@ -110,6 +110,9 @@ typedef struct SParseStreamInfo {
   SNodeList*       rollupTagList;
   SNodeList*       triggerPartitionList;
   SHashObj*        calcDbs;
+  // SHashObj<sourceName(cstr) -> empty>, populated by collectExtSourceRefs in parTranslater.c (pt-a1).
+  // Iterated by pt-a4 to build SStreamExtTriggerSpec per unique source.
+  SHashObj*        extSourceNames;
 } SParseStreamInfo;
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);

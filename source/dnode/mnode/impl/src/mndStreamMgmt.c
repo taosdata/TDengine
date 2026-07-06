@@ -15,6 +15,7 @@
 
 #include "mndStream.h"
 #include "mndDb.h"
+#include "libs/new-stream/stream.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -29,6 +30,7 @@
 #include "mndSnode.h"
 #include "mndMnode.h"
 #include "cmdnodes.h"
+#include "mndExtSource.h"
 
 void msmDestroyActionQ() {
   SStmQNode* pQNode = NULL;
@@ -614,6 +616,69 @@ _return:
   return code;
 }
 
+// Route an EXT-source calc reader task to toDeploySnodeMap so snode heartbeat
+// picks it up.  The deploy info must have task.nodeId set to the real snodeId
+// (not SNODE_HANDLE) before calling this function.
+static int32_t msmTDAddCalcReaderToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pStream) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SStmSnodeTasksDeploy snode = {0};
+  SStmTaskToDeployExt ext;
+  SStreamTask* pTask = &pDeploy->task;
+
+  while (true) {
+    SStmSnodeTasksDeploy* pSnode =
+        taosHashAcquire(mStreamMgmt.toDeploySnodeMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId));
+    if (NULL == pSnode) {
+      snode.calcReaderList = taosArrayInit(10, sizeof(SStmTaskToDeployExt));
+      TSDB_CHECK_NULL(snode.calcReaderList, code, lino, _return, terrno);
+
+      ext.deploy = *pDeploy;
+      ext.deployed = false;
+      TSDB_CHECK_NULL(taosArrayPush(snode.calcReaderList, &ext), code, lino, _return, terrno);
+
+      code = taosHashPut(mStreamMgmt.toDeploySnodeMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId), &snode,
+                         sizeof(snode));
+      if (TSDB_CODE_SUCCESS == code) {
+        goto _return;
+      }
+      if (TSDB_CODE_DUP_KEY != code) {
+        goto _return;
+      }
+      taosArrayDestroy(snode.calcReaderList);
+      continue;
+    }
+
+    taosWLockLatch(&pSnode->lock);
+    if (NULL == pSnode->calcReaderList) {
+      pSnode->calcReaderList = taosArrayInit(10, sizeof(SStmTaskToDeployExt));
+      if (NULL == pSnode->calcReaderList) {
+        taosWUnLockLatch(&pSnode->lock);
+        TSDB_CHECK_NULL(pSnode->calcReaderList, code, lino, _return, terrno);
+      }
+    }
+
+    ext.deploy = *pDeploy;
+    ext.deployed = false;
+    if (NULL == taosArrayPush(pSnode->calcReaderList, &ext)) {
+      taosWUnLockLatch(&pSnode->lock);
+      TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
+    }
+    taosWUnLockLatch(&pSnode->lock);
+
+    taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
+    break;
+  }
+
+_return:
+  if (code) {
+    mstError("msmTDAddCalcReaderToSnodeMap failed at line %d, error:%s", lino, tstrerror(code));
+  } else {
+    msttDebug("EXT calc reader task added to toDeploySnodeMap, snodeId:%d tidx:%d", pTask->nodeId, pTask->taskIdx);
+  }
+  return code;
+}
+
 static int32_t msmTDAddRunnersToSnodeMap(SArray* runnerList, SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -740,6 +805,21 @@ void* msmSearchCalcCacheScanPlan(SArray* pList) {
   for (int32_t i = 0; i < num; ++i) {
     SStreamCalcScan* pScan = taosArrayGet(pList, i);
     if (pScan->readFromCache) {
+      return pScan->scanPlan;
+    }
+  }
+
+  return NULL;
+}
+
+/* For EXT-source (federated) streams the calc scan plans have readFromCache=false.
+ * Search for any scan plan regardless of readFromCache so the trigger reader can
+ * build calcColumns/pCalcMappings for %%trows processing. */
+void* msmSearchCalcExtScanPlan(SArray* pList) {
+  int32_t num = taosArrayGetSize(pList);
+  for (int32_t i = 0; i < num; ++i) {
+    SStreamCalcScan* pScan = taosArrayGet(pList, i);
+    if (!pScan->readFromCache && pScan->scanPlan != NULL) {
       return pScan->scanPlan;
     }
   }
@@ -895,9 +975,20 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
     SStmTaskStatus* pStatus = taosArrayGet(pInfo->trigReaders, i);
     addr.taskId = pStatus->id.taskId;
     addr.nodeId = pStatus->id.nodeId;
-    addr.epset = mndGetVgroupEpsetById(pMnode, pStatus->id.nodeId);
+    /* EXT-source trigger readers run on snode (nodeId is a dnode/snode id, not a
+     * vgroup id).  Use mndGetDnodeEpsetById to resolve the correct endpoint;
+     * mndGetVgroupEpsetById would return an empty epset for snode ids, causing
+     * tmsgSendReq to fail with TSDB_CODE_INVALID_PARA ("Invalid parameters"). */
+    if (STREAM_IS_REF_EXT_SOURCE(pStream->flags)) {
+      addr.epset = mndGetDnodeEpsetById(pMnode, pStatus->id.nodeId);
+      mstsDebug("the %dth ext trigReader src added to trigger's readerList via dnode epset, "
+                "TASK:%" PRIx64 " snodeId:%d", i, addr.taskId, addr.nodeId);
+    } else {
+      addr.epset = mndGetVgroupEpsetById(pMnode, pStatus->id.nodeId);
+      mstsDebug("the %dth trigReader src added to trigger's readerList, TASK:%" PRIx64 " nodeId:%d",
+                i, addr.taskId, addr.nodeId);
+    }
     TSDB_CHECK_NULL(taosArrayPush(pMsg->readerList, &addr), code, lino, _exit, terrno);
-    mstsDebug("the %dth trigReader src added to trigger's readerList, TASK:%" PRIx64 " nodeId:%d", i, addr.taskId, addr.nodeId);
   }
 
   pMsg->leaderSnodeId = pStream->mainSnodeId;
@@ -1167,6 +1258,69 @@ _exit:
   return snodeId;
 }
 
+/* P1 B4: pick the alive snode currently hosting the fewest streams that
+ * carry STREAM_FLAG_REF_EXT_SOURCE. Stream-level approximation; per-reader
+ * accounting will replace it once reader runtime stats are wired (P2 / P3).
+ * Returns 0 when no alive snode is found. */
+static int32_t msmAssignSnodeIdLeastExtReader(SMnode* pMnode) {
+  int32_t snodeNum = sdbGetSize(pMnode->pSdb, SDB_SNODE);
+  if (snodeNum <= 0) {
+    mInfo("LeastExtReader: no snode (num:%d)", snodeNum);
+    return 0;
+  }
+
+  SHashObj* pCnt = taosHashInit(snodeNum * 2,
+                                taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT),
+                                false, HASH_NO_LOCK);
+  if (pCnt == NULL) return 0;
+
+  void*       pIter   = NULL;
+  SStreamObj* pStream = NULL;
+  while (1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void**)&pStream);
+    if (pIter == NULL) break;
+    if (STREAM_IS_REF_EXT_SOURCE(pStream->flags)) {
+      int32_t  k  = pStream->mainSnodeId;
+      int32_t* pv = (int32_t*)taosHashGet(pCnt, &k, sizeof(k));
+      int32_t  nv = pv ? (*pv + 1) : 1;
+      int32_t code = taosHashPut(pCnt, &k, sizeof(k), &nv, sizeof(nv));
+      if (code) {
+        sdbRelease(pMnode->pSdb, pStream);
+        continue;
+      }
+    }
+    sdbRelease(pMnode->pSdb, pStream);
+  }
+
+  int32_t    bestId  = 0;
+  int32_t    bestCnt = INT32_MAX;
+  SSnodeObj* pObj    = NULL;
+  bool       alive   = false;
+  pIter = NULL;
+  while (1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_SNODE, pIter, (void**)&pObj);
+    if (pIter == NULL) break;
+    int32_t code = msmIsSnodeAlive(pMnode, pObj->id, 0, &alive);
+    if (code || !alive) {
+      sdbRelease(pMnode->pSdb, pObj);
+      continue;
+    }
+    int32_t  id = pObj->id;
+    int32_t* pv = (int32_t*)taosHashGet(pCnt, &id, sizeof(id));
+    int32_t  v  = pv ? *pv : 0;
+    if (v < bestCnt) {
+      bestCnt = v;
+      bestId  = id;
+    }
+    sdbRelease(pMnode->pSdb, pObj);
+  }
+  taosHashCleanup(pCnt);
+
+  mDebug("LeastExtReader: pick snode=%d (ext stream count=%d)", bestId,
+         bestCnt == INT32_MAX ? 0 : bestCnt);
+  return bestId;
+}
+
 int32_t msmAssignTaskSnodeId(SMnode* pMnode, SStreamObj* pStream, bool isStatic) {
   int64_t streamId = pStream->pCreate->streamId;
   int32_t snodeNum = sdbGetSize(pMnode->pSdb, SDB_SNODE);
@@ -1174,6 +1328,20 @@ int32_t msmAssignTaskSnodeId(SMnode* pMnode, SStreamObj* pStream, bool isStatic)
   if (snodeNum <= 0) {
     mstsInfo("no available snode now, num:%d", snodeNum);
     goto _exit;
+  }
+
+  /* P1 B4: federated query streams pick the snode currently hosting the
+   * fewest STREAM_FLAG_REF_EXT_SOURCE streams. This is a stream-level
+   * approximation; per-task reader accounting will replace it once runtime
+   * stats are in (P2 / P3). When no snode is alive we fall back to the
+   * legacy random/static path so the failure mode stays unchanged. */
+  if (STREAM_IS_REF_EXT_SOURCE(pStream->flags)) {
+    snodeId = msmAssignSnodeIdLeastExtReader(pMnode);
+    if (snodeId != 0) {
+      mstsDebug("msmAssignTaskSnodeId: federated stream picked snode=%d (least-ext-reader)", snodeId);
+      goto _exit;
+    }
+    mDebug("msmAssignTaskSnodeId: federated stream — no alive snode via least-ext-reader, fallback");
   }
 
   snodeId = isStatic ? msmRetrieveStaticSnodeId(pMnode, pStream) : msmAssignRandomSnodeId(pMnode, streamId);
@@ -1212,6 +1380,13 @@ static int32_t msmBuildTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStream
   info.task.seriousId = pInfo->triggerTask->id.seriousId;
   info.task.nodeId =  pInfo->triggerTask->id.nodeId;
   info.task.taskIdx =  pInfo->triggerTask->id.taskIdx;
+  /* P3: propagate STREAM_FLAG_REF_EXT_SOURCE from stream-level flag to the
+   * trigger task so that stRealtimeContextInit can initialise pReaderExtProgress
+   * and stRealtimeContextCheckExt can dispatch PULL_EXT requests to snode. */
+  if (STREAM_IS_REF_EXT_SOURCE(pStream->flags)) {
+    info.task.flags |= STREAM_FLAG_REF_EXT_SOURCE;
+    mDebug("stream:%s trigger task flags set STREAM_FLAG_REF_EXT_SOURCE", pStream->name);
+  }
   TAOS_CHECK_EXIT(msmBuildTriggerDeployInfo(pCtx->pMnode, pInfo, &info, pStream));
   TAOS_CHECK_EXIT(msmTDAddTriggerToSnodeMap(&info, pStream));
   
@@ -1229,7 +1404,7 @@ _exit:
   return code;
 }
 
-static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState, int32_t nodeId, SStmStatus* pInfo, int64_t streamId) {
+static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState, int32_t nodeId, SStmStatus* pInfo, int64_t streamId, SStreamExtTriggerSpec* pExtSpec, SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -1243,7 +1418,7 @@ static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState
   pState->status = STREAM_STATUS_UNDEPLOYED;
   pState->lastUpTs = pCtx->currTs;
   pState->pStream = pInfo;
-  
+
   SStmTaskDeploy info = {0};
   info.task.type = pState->type;
   info.task.streamId = streamId;
@@ -1253,7 +1428,20 @@ static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState
   info.task.nodeId = pState->id.nodeId;
   info.task.taskIdx = pState->id.taskIdx;
   TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, NULL, pInfo, true));
+  info.msg.reader.pExtSpec = pExtSpec;  // P1 B5: carry ext spec to vnode for federated reads
+
+  // External-source trigger readers (pExtSpec != NULL) run on snode, not on a vgroup.
+  // Route them through toDeploySnodeMap so msmGrpAddDeploySnodeTasks picks them up
+  // when the snode heartbeat arrives.  Normal trigger readers keep the vgroup path.
+#ifdef TD_ENTERPRISE
+  if (pExtSpec != NULL && pStream != NULL) {
+    TAOS_CHECK_EXIT(msmTDAddTriggerToSnodeMap(&info, pStream));
+  } else {
+    TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
+  }
+#else
   TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
+#endif
 
 _exit:
 
@@ -1264,6 +1452,25 @@ _exit:
   return code;
 }
 
+/* P1 B5: resolve the external-source spec matching the trigger table for a
+ * trigger-reader deploy (EXT-source streams only).  The trigger table of a
+ * federated stream is an EXT table; match by extTable name.  Returns NULL for
+ * non-federated streams or when no spec matches.  The returned pointer borrows
+ * into pStream->extSpecs, which stays valid as long as the stream is resident
+ * in SDB (mndReleaseStream only drops the acquire refcount, it does not free
+ * the object), so callers may release the stream right after the deploy call. */
+static SStreamExtTriggerSpec* msmGetTrigExtSpec(SStreamObj* pStream) {
+  if (!STREAM_IS_REF_EXT_SOURCE(pStream->flags) || pStream->extSpecs == NULL) return NULL;
+  int32_t nSpecs = (int32_t)taosArrayGetSize(pStream->extSpecs);
+  for (int32_t si = 0; si < nSpecs; ++si) {
+    SStreamExtTriggerSpec* pSpec = *(SStreamExtTriggerSpec**)taosArrayGet(pStream->extSpecs, si);
+    if (pSpec != NULL && strcmp(pSpec->extTable, pStream->pCreate->triggerTblName) == 0) {
+      return pSpec;
+    }
+  }
+  return NULL;
+}
+
 static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamObj* pStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -1272,7 +1479,16 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   SStmTaskStatus* pState = NULL;
   SVgObj *pVgroup = NULL;
   SDbObj* pDb = NULL;
-  
+
+  /* P1 B5: find the ext spec matching the trigger table (EXT-source streams only).
+   * Non-federated streams leave pTrigExtSpec = NULL. */
+  SStreamExtTriggerSpec* pTrigExtSpec = msmGetTrigExtSpec(pStream);
+  if (STREAM_IS_REF_EXT_SOURCE(pStream->flags) && pStream->extSpecs != NULL) {
+    mstsDebug("msmTDAddTrigReaderTasks: stream %" PRId64 " extSpec %s for trigger table %s",
+              streamId, pTrigExtSpec ? pTrigExtSpec->sourceName : "(not found)",
+              pStream->pCreate->triggerTblName);
+  }
+
   switch (pStream->pCreate->triggerTblType) {
     case TSDB_NORMAL_TABLE:
     case TSDB_CHILD_TABLE:
@@ -1281,8 +1497,21 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
       pInfo->trigReaders = taosArrayInit_s(sizeof(SStmTaskStatus), 1);
       TSDB_CHECK_NULL(pInfo->trigReaders, code, lino, _exit, terrno);
       pState = taosArrayGet(pInfo->trigReaders, 0);
-      
-      TAOS_CHECK_EXIT(msmTDAddSingleTrigReader(pCtx, pState, pStream->pCreate->triggerTblVgId, pInfo, streamId));
+
+      // External-source trigger readers are deployed on snode, not on a vgroup.
+      // triggerTblVgId is set to 0 by the parser for EXT tables (no vgroup).
+      // Use mainSnodeId as nodeId so toDeployVgMap / vgroupMap are keyed on the
+      // real snode ID that appears in the heartbeat's snodeId field.
+      int32_t trigNodeId = pStream->pCreate->triggerTblVgId;
+#ifdef TD_ENTERPRISE
+      if (pTrigExtSpec != NULL) {
+        trigNodeId = atomic_load_32(&pStream->mainSnodeId);
+        mstsDebug("msmTDAddTrigReaderTasks: EXT trigger reader nodeId overridden "
+                  "from triggerTblVgId(%d) to snodeId(%d)",
+                  pStream->pCreate->triggerTblVgId, trigNodeId);
+      }
+#endif
+      TAOS_CHECK_EXIT(msmTDAddSingleTrigReader(pCtx, pState, trigNodeId, pInfo, streamId, pTrigExtSpec, pStream));
       break;
     }
     case TSDB_SUPER_TABLE: {
@@ -1307,7 +1536,7 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
         if (pVgroup->dbUid == pDb->uid && !pVgroup->isTsma) {
           pState = taosArrayReserve(pInfo->trigReaders, 1);
 
-          code = msmTDAddSingleTrigReader(pCtx, pState, pVgroup->vgId, pInfo, streamId);
+          code = msmTDAddSingleTrigReader(pCtx, pState, pVgroup->vgId, pInfo, streamId, pTrigExtSpec, pStream);
           if (code) {
             sdbRelease(pSdb, pVgroup);
             sdbCancelFetch(pSdb, pIter);
@@ -1342,14 +1571,26 @@ int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, 
   SSubplan* pSubplan = NULL;
   int64_t streamId = pStream->pCreate->streamId;
   int64_t key[2] = {streamId, 0};
-  SStmTaskSrcAddr addr;
+  SStmTaskSrcAddr addr = {0};  /* zero-init: leave no field (e.g. isExt) as stack garbage */
   TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
   addr.isFromCache = false;
+  /* P4-E2: mark EXT-source readers so msmUpdateLowestPlanSourceAddr can
+   * select TDMT_STREAM_FETCH_EXT instead of TDMT_STREAM_FETCH. */
+  addr.isExt = STREAM_IS_REF_EXT_SOURCE(pStream->flags);
   
   if (MNODE_HANDLE == vgId) {
     mndGetMnodeEpSet(pCtx->pMnode, &addr.epset);
   } else if (vgId > MNODE_HANDLE) {
     addr.epset = mndGetVgroupEpsetById(pCtx->pMnode, vgId);
+  } else if (SNODE_HANDLE == vgId) {
+    // External-source calc reader: deployed on snode, not on a vgroup.
+    // The planner sets vgId=SNODE_HANDLE as a sentinel; replace it with the
+    // stream's assigned mainSnodeId so the runner can reach the reader.
+    int32_t snodeId = atomic_load_32(&pStream->mainSnodeId);
+    addr.epset = mndGetDnodeEpsetById(pCtx->pMnode, snodeId);
+    vgId = snodeId;  // reuse vgId so the generic addr.vgId assignment below is correct
+    mDebug("stream:%" PRId64 " ext-source calc reader vgId sentinel replaced with snodeId:%d",
+           pStream->pCreate->streamId, snodeId);
   } else {
     mstsError("invalid vgId %d in scanPlan", vgId);
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
@@ -1394,8 +1635,14 @@ int32_t msmUPAddCacheTask(SStmGrpCtx* pCtx, SStreamCalcScan* pScan, SStreamObj* 
   int64_t key[2] = {streamId, 0};
   TAOS_CHECK_EXIT(nodesStringToNode(pScan->scanPlan, (SNode**)&pSubplan));
 
-  SStmTaskSrcAddr addr;
+  /* Zero-init so addr.isExt (and any future fields) are not left as stack
+   * garbage. A cache reader is always a normal TDengine source, never an EXT
+   * (federated) source; a garbage isExt here would make the runner send
+   * TDMT_STREAM_FETCH_EXT and crash handleExtFetchReq via a type-confused
+   * pTask->info. */
+  SStmTaskSrcAddr addr = {0};
   addr.isFromCache = true;
+  addr.isExt       = false;
   addr.epset = mndGetDnodeEpsetById(pCtx->pMnode, pCtx->triggerNodeId);
   addr.taskId = pCtx->triggerTaskId;
   addr.vgId = pCtx->triggerNodeId;
@@ -1426,11 +1673,60 @@ _exit:
 }
 
 
-static int32_t msmTDAddSingleCalcReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState, int32_t taskIdx, int32_t nodeId, void* calcScanPlan, SStmStatus* pInfo, int64_t streamId) {
+/* Resolve the connection spec for a calc scan by external source name, mirroring
+ * msmGetTrigExtSpec (which matches by extTable). Returns a borrowed pointer into
+ * pStream->extSpecs (sdb-resident), or NULL when no source matches. */
+static SStreamExtTriggerSpec* msmGetCalcExtSpecByName(SStreamObj* pStream, const char* sourceName) {
+  if (!STREAM_IS_REF_EXT_SOURCE(pStream->flags) || pStream->extSpecs == NULL) return NULL;
+  if (sourceName == NULL || sourceName[0] == '\0') return NULL;
+  int32_t n = (int32_t)taosArrayGetSize(pStream->extSpecs);
+  for (int32_t i = 0; i < n; ++i) {
+    SStreamExtTriggerSpec* pSpec = *(SStreamExtTriggerSpec**)taosArrayGet(pStream->extSpecs, i);
+    if (pSpec != NULL && strcmp(pSpec->sourceName, sourceName) == 0) return pSpec;
+  }
+  return NULL;
+}
+
+/* Resolve the connection spec for one calc scan.  Each calc reader reads a single
+ * external table; the table-level identity (extTable/tsColumn) travels per-scan in
+ * the deploy msg, while this spec only supplies the source connection
+ * (host/user/encryptedPassword/options/db).  Multi-source JOINs pick the spec by
+ * pScan->sourceName; an old stream whose scan carries no sourceName falls back to
+ * extSpecs[0] (single-source behavior).  Returns a borrowed pointer (sdb-resident)
+ * or NULL for non-federated streams / when a named source is not found. */
+static SStreamExtTriggerSpec* msmResolveCalcExtSpec(SStreamObj* pStream, const SStreamCalcScan* pScan) {
+  if (!STREAM_IS_REF_EXT_SOURCE(pStream->flags) || pStream->extSpecs == NULL) return NULL;
+  if (taosArrayGetSize(pStream->extSpecs) == 0) return NULL;
+  if (pScan != NULL && pScan->sourceName[0] != '\0') {
+    SStreamExtTriggerSpec* pSpec = msmGetCalcExtSpecByName(pStream, pScan->sourceName);
+    if (pSpec == NULL) {
+      mError("msmResolveCalcExtSpec: no ext spec matches calc scan source=%s (stream %" PRId64 ")",
+             pScan->sourceName, pStream->pCreate->streamId);
+    }
+    return pSpec;
+  }
+  /* Old stream (no per-scan sourceName): single-source fallback. */
+  return *(SStreamExtTriggerSpec**)taosArrayGet(pStream->extSpecs, 0);
+}
+
+static int32_t msmTDAddSingleCalcReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState, int32_t taskIdx, int32_t nodeId,
+                                         void* calcScanPlan, SStmStatus* pInfo, int64_t streamId,
+                                         SStreamExtTriggerSpec* pExtSpec, SStreamObj* pStream,
+                                         const char* extTable, const char* tsColumn) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
   TAOS_CHECK_EXIT(mstGetScanUidFromPlan(streamId, calcScanPlan, &pState->id.uid));
+
+#ifdef TD_ENTERPRISE
+  // EXT-source calc readers: the planner uses SNODE_HANDLE as a sentinel.
+  // Replace it with the real snodeId so toDeploySnodeMap can be keyed correctly
+  // and the runner's exchange node gets the snode's epset.
+  if (SNODE_HANDLE == nodeId && pExtSpec != NULL && pStream != NULL) {
+    nodeId = atomic_load_32(&pStream->mainSnodeId);
+    mstsDebug("EXT calc reader: resolved SNODE_HANDLE to snodeId:%d for stream:%" PRId64, nodeId, streamId);
+  }
+#endif
 
   pState->id.taskId = msmAssignTaskId();
   pState->id.deployId = 0;
@@ -1442,7 +1738,7 @@ static int32_t msmTDAddSingleCalcReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState
   pState->status = STREAM_STATUS_UNDEPLOYED;
   pState->lastUpTs = pCtx->currTs;
   pState->pStream = pInfo;
-  
+
   SStmTaskDeploy info = {0};
   info.task.type = pState->type;
   info.task.streamId = streamId;
@@ -1452,7 +1748,27 @@ static int32_t msmTDAddSingleCalcReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState
   info.task.nodeId = pState->id.nodeId;
   info.task.taskIdx = pState->id.taskIdx;
   TAOS_CHECK_EXIT(msmBuildReaderDeployInfo(&info, calcScanPlan, pInfo, false));
+  info.msg.reader.pExtSpec = pExtSpec;
+  /* Per-scan ext table identity: the reader overrides its (source-level) ext spec
+   * with these so each calc reader scans its own table for multi-source JOINs. */
+  if (extTable != NULL && extTable[0] != '\0') {
+    tstrncpy(info.msg.reader.msg.calc.extTable, extTable, sizeof(info.msg.reader.msg.calc.extTable));
+  }
+  if (tsColumn != NULL && tsColumn[0] != '\0') {
+    tstrncpy(info.msg.reader.msg.calc.tsColumn, tsColumn, sizeof(info.msg.reader.msg.calc.tsColumn));
+  }
+
+#ifdef TD_ENTERPRISE
+  // EXT-source calc readers run on snode; route through toDeploySnodeMap.
+  if (pExtSpec != NULL && pStream != NULL) {
+    TAOS_CHECK_EXIT(msmTDAddCalcReaderToSnodeMap(&info, pStream));
+    (void)atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
+  } else {
+    TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
+  }
+#else
   TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
+#endif
 
 _exit:
 
@@ -1473,21 +1789,34 @@ static int32_t msmTDAddCalcReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   pInfo->calcReaders = tdListNew(sizeof(SStmTaskStatus));
   TSDB_CHECK_NULL(pInfo->calcReaders, code, lino, _exit, terrno);
 
-  
   for (int32_t i = 0; i < calcTasksNum; ++i) {
     SStreamCalcScan* pScan = taosArrayGet(pInfo->pCreate->calcScanPlanList, i);
     if (pScan->readFromCache) {
       TAOS_CHECK_EXIT(msmUPAddCacheTask(pCtx, pScan, pStream));
       continue;
     }
-    
+
+    /* Bind this calc scan to its own external source (multi-source JOIN): the
+     * connection spec is matched by pScan->sourceName; extTable/tsColumn travel
+     * per-scan in the deploy msg. */
+    SStreamExtTriggerSpec* pCalcExtSpec = msmResolveCalcExtSpec(pStream, pScan);
+    if (STREAM_IS_REF_EXT_SOURCE(pStream->flags) && pCalcExtSpec == NULL) {
+      mstsError("stream:%" PRId64 " calc reader deploy: no ext spec for calc scan source=%s",
+                streamId, pScan->sourceName);
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+    }
+
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
     for (int32_t m = 0; m < vgNum; ++m) {
       pState = tdListReserve(pInfo->calcReaders);
       TSDB_CHECK_NULL(pState, code, lino, _exit, terrno);
 
-      TAOS_CHECK_EXIT(msmTDAddSingleCalcReader(pCtx, pState, i, *(int32_t*)taosArrayGet(pScan->vgList, m), pScan->scanPlan, pInfo, streamId));
-      TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, pState->id.nodeId, pState->id.taskId));
+      int32_t scanNodeId = *(int32_t*)taosArrayGet(pScan->vgList, m);
+      TAOS_CHECK_EXIT(msmTDAddSingleCalcReader(pCtx, pState, i, scanNodeId, pScan->scanPlan, pInfo, streamId,
+                                               pCalcExtSpec, pStream, pScan->extTable, pScan->tsColumn));
+      // Pass the original sentinel (SNODE_HANDLE or real vgId) so msmUPAddScanTask
+      // can correctly resolve the epset for the runner's exchange node.
+      TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, scanNodeId, pState->id.taskId));
     }
   }
 
@@ -1524,7 +1853,13 @@ static int32_t msmUPPrepareReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
     for (int32_t m = 0; m < vgNum; ++m) {
       SStmTaskStatus* pReader = (SStmTaskStatus*)pNode->data;
-      TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, pReader->id.nodeId, pReader->id.taskId));
+      // Use the original planner sentinel (e.g. SNODE_HANDLE) from vgList so
+      // that msmUPAddScanTask can correctly resolve the snode epset.  After
+      // msmTDAddSingleCalcReader resolves SNODE_HANDLE -> real snodeId in
+      // pReader->id.nodeId, using nodeId directly would hit the wrong branch
+      // (vgId > MNODE_HANDLE) and produce a vgroup epset instead of snode.
+      int32_t scanSentinel = *(int32_t*)taosArrayGet(pScan->vgList, m);
+      TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, scanSentinel, pReader->id.taskId));
       pNode = TD_DLIST_NODE_NEXT(pNode);
     }
   }
@@ -1628,7 +1963,10 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
     int32_t childrenNum = taosArrayGetSize(*ppRes);
     for (int32_t i = 0; i < childrenNum; ++i) {
       SStmTaskSrcAddr* pAddr = taosArrayGet(*ppRes, i);
-      TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pTask, streamId, pPlan, pDeploy->task.taskId, pAddr, pAddr->isFromCache ? TDMT_STREAM_FETCH_FROM_CACHE : TDMT_STREAM_FETCH, key[1]));
+      TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pTask, streamId, pPlan, pDeploy->task.taskId, pAddr,
+          pAddr->isExt        ? TDMT_STREAM_FETCH_EXT :
+          pAddr->isFromCache  ? TDMT_STREAM_FETCH_FROM_CACHE : TDMT_STREAM_FETCH,
+          key[1]));
     }
   }
 
@@ -2330,16 +2668,31 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
         if (pExt->deployed || pExt->deploy.task.streamId != streamId) {
           continue;
         }
-        
+
         mstDestroySStmTaskToDeployExt(pExt);
         pExt->deployed = true;
+      }
+    }
+
+    // Clean up EXT calc reader tasks for this stream.
+    if (pSnode->calcReaderList != NULL) {
+      taskNum = taosArrayGetSize(pSnode->calcReaderList);
+      if (atomic_load_32(&pSnode->calcReaderDeployed) != taskNum) {
+        for (int32_t i = 0; i < taskNum; ++i) {
+          SStmTaskToDeployExt* pExt = taosArrayGet(pSnode->calcReaderList, i);
+          if (pExt->deployed || pExt->deploy.task.streamId != streamId) {
+            continue;
+          }
+          mstDestroySStmTaskToDeployExt(pExt);
+          pExt->deployed = true;
+        }
       }
     }
 
     taosWUnLockLatch(&pSnode->lock);
   }
 
-  
+
   while ((pIter = taosHashIterate(mStreamMgmt.snodeMap, pIter))) {
     SStmSnodeStatus* pSnode = (SStmSnodeStatus*)pIter;
     code = taosHashRemove(pSnode->streamTasks, &streamId, sizeof(streamId));
@@ -2392,6 +2745,41 @@ static void msmResetStreamForRedeploy(int64_t streamId, SStmStatus* pStatus) {
   pStatus->deployTimes++;
 }
 
+/* P6 g2: On each (re)deploy, refresh encryptedPassword in pStream->extSpecs
+ * from the live SDB so that a post-ALTER-EXTERNAL-SOURCE redeploy picks up
+ * the latest credential rather than the one frozen into the stream object at
+ * CREATE STREAM time.  Only compiled for TD_ENTERPRISE because
+ * mndAcquireExtSource / SExtSourceObj are enterprise-only constructs.
+ * Community builds are not affected (no extSpecs ever populated). */
+#ifdef TD_ENTERPRISE
+static int32_t msmRefreshExtSpecPasswords(SMnode *pMnode, SStreamObj *pStream) {
+  if (!STREAM_IS_REF_EXT_SOURCE(pStream->flags) || pStream->extSpecs == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t n = (int32_t)taosArrayGetSize(pStream->extSpecs);
+  for (int32_t i = 0; i < n; ++i) {
+    SStreamExtTriggerSpec *pSpec = *(SStreamExtTriggerSpec **)taosArrayGet(pStream->extSpecs, i);
+    if (pSpec == NULL) continue;
+    SExtSourceObj *pSrcObj = mndAcquireExtSource(pMnode, pSpec->sourceName);
+    if (pSrcObj == NULL) {
+      mWarn("stream %" PRId64 " spec[%d] source=%s not found in sdb during redeploy, password not refreshed",
+               pStream->pCreate->streamId, i, pSpec->sourceName);
+      /* Non-fatal: continue with the stale password; reader will fail again
+       * and trigger another redeploy cycle.  Do not abort the deploy. */
+      continue;
+    }
+    (void)memcpy(pSpec->encryptedPassword, pSrcObj->encryptedPassword,
+                 TSDB_EXT_SOURCE_ENC_PASSWORD_LEN);
+    pSpec->encryptedPasswordLen = TSDB_EXT_SOURCE_ENC_PASSWORD_LEN;
+    tstrncpy(pSpec->options, pSrcObj->options, sizeof(pSpec->options));
+    mDebug("stream %" PRId64 " spec[%d] source=%s encryptedPassword refreshed for redeploy",
+              pStream->pCreate->streamId, i, pSpec->sourceName);
+    mndReleaseExtSource(pMnode, pSrcObj);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+#endif  /* TD_ENTERPRISE */
+
 static int32_t msmLaunchStreamDeployAction(SStmGrpCtx* pCtx, SStmStreamAction* pAction) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -2440,7 +2828,14 @@ static int32_t msmLaunchStreamDeployAction(SStmGrpCtx* pCtx, SStmStreamAction* p
     mstsWarn("stream %s is stopped %d or removing %d, ignore deploy", streamName, userStopped, userDropped);
     goto _exit;
   }
-  
+
+#ifdef TD_ENTERPRISE
+  /* P6 g2: refresh encrypted credentials so that a post-ALTER-EXT-SOURCE
+   * redeploy picks up the latest password rather than the stale copy frozen
+   * into the stream SDB record at CREATE STREAM time. */
+  TAOS_CHECK_EXIT(msmRefreshExtSpecPasswords(pCtx->pMnode, pStream));
+#endif
+
   TAOS_CHECK_EXIT(msmDeployStreamTasks(pCtx, pStream, pStatus));
 
 _exit:
@@ -3047,7 +3442,13 @@ int32_t msmGrpAddDeploySnodeTasks(SStmGrpCtx* pCtx) {
   if (atomic_load_32(&pSnode->runnerDeployed) < taosArrayGetSize(pSnode->runnerList)) {
     TAOS_CHECK_EXIT(msmGrpAddDeployTasks(pCtx->deployStm, pSnode->runnerList, &pSnode->runnerDeployed));
   }
-  
+
+  // EXT-source calc readers also run on snode; deploy them via calcReaderList.
+  if (pSnode->calcReaderList != NULL &&
+      atomic_load_32(&pSnode->calcReaderDeployed) < taosArrayGetSize(pSnode->calcReaderList)) {
+    TAOS_CHECK_EXIT(msmGrpAddDeployTasks(pCtx->deployStm, pSnode->calcReaderList, &pSnode->calcReaderDeployed));
+  }
+
   taosWUnLockLatch(&pSnode->lock);
 
 _exit:
@@ -4269,7 +4670,20 @@ int32_t msmCheckDeployTrigReader(SStmGrpCtx* pCtx, SStmStatus* pStatus, SStmTask
     TAOS_CHECK_EXIT(msmEnsureGetOReaderList(streamId, pStatus, &pReaderList));
     
     SStmTaskStatus* pState = taosArrayReserve(pReaderList, 1);
-    TAOS_CHECK_EXIT(msmTDAddSingleTrigReader(pCtx, pState, vgId, pStatus, streamId));
+
+    /* Resolve the ext spec (and owning stream) so EXT-source trigger readers are
+     * routed to the snode deploy map with their federated connection details.
+     * The stream is only needed transiently: the deploy record borrows pExtSpec
+     * into the SDB-resident stream object, so it is safe to release right after. */
+    SStreamObj*            pStream      = NULL;
+    SStreamExtTriggerSpec* pTrigExtSpec = NULL;
+    if (mndAcquireStreamById(pCtx->pMnode, streamId, &pStream) == TSDB_CODE_SUCCESS && pStream != NULL) {
+      pTrigExtSpec = msmGetTrigExtSpec(pStream);
+    }
+    code = msmTDAddSingleTrigReader(pCtx, pState, vgId, pStatus, streamId, pTrigExtSpec, pStream);
+    mndReleaseStream(pCtx->pMnode, pStream);
+    TAOS_CHECK_EXIT(code);
+
     TAOS_CHECK_EXIT(msmSTAddToTaskMap(pCtx, streamId, NULL, NULL, pState));
     TAOS_CHECK_EXIT(msmSTAddToVgroupMap(pCtx, streamId, NULL, NULL, pState, true));
   }
@@ -4457,7 +4871,28 @@ int32_t msmCheckDeployCalcReader(SStmGrpCtx* pCtx, SStmStatus* pStatus, SStmTask
     TAOS_CHECK_EXIT(msmGetCalcScanFromList(streamId, pStatus->pCreate->calcScanPlanList, uid, &pScan));
     TSDB_CHECK_NULL(pScan, code, lino, _exit, TSDB_CODE_STREAM_INTERNAL_ERROR);
     pReader = tdListReserve(pStatus->calcReaders);
-    TAOS_CHECK_EXIT(msmTDAddSingleCalcReader(pCtx, pReader, taskIdx, vgId, pScan->scanPlan, pStatus, streamId));
+
+    /* Resolve the ext spec (and owning stream) so EXT-source calc readers are
+     * bound to the correct federated source (matched by pScan->sourceName) and
+     * routed to the snode deploy map.  The stream is only needed transiently: the
+     * deploy record borrows pExtSpec into the SDB-resident stream object, so it is
+     * safe to release right after. */
+    SStreamObj*            pStream      = NULL;
+    SStreamExtTriggerSpec* pCalcExtSpec = NULL;
+    if (mndAcquireStreamById(pCtx->pMnode, streamId, &pStream) == TSDB_CODE_SUCCESS && pStream != NULL) {
+      pCalcExtSpec = msmResolveCalcExtSpec(pStream, pScan);
+    }
+    if (pStream != NULL && STREAM_IS_REF_EXT_SOURCE(pStream->flags) && pCalcExtSpec == NULL) {
+      mndReleaseStream(pCtx->pMnode, pStream);
+      mstError("stream:%" PRId64 " calc reader deploy: no ext spec for calc scan source=%s",
+               streamId, pScan->sourceName);
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+    }
+    code = msmTDAddSingleCalcReader(pCtx, pReader, taskIdx, vgId, pScan->scanPlan, pStatus, streamId,
+                                    pCalcExtSpec, pStream, pScan->extTable, pScan->tsColumn);
+    mndReleaseStream(pCtx->pMnode, pStream);
+    TAOS_CHECK_EXIT(code);
+
     TAOS_CHECK_EXIT(msmSTAddToTaskMap(pCtx, streamId, NULL, NULL, pReader));
     TAOS_CHECK_EXIT(msmSTAddToVgroupMap(pCtx, streamId, NULL, NULL, pReader, false));
     pAddr->taskId = pReader->id.taskId;

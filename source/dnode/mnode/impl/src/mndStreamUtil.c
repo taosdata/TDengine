@@ -114,6 +114,7 @@ void mstDestroySStmSnodeTasksDeploy(void* param) {
   SStmSnodeTasksDeploy* pSnode = (SStmSnodeTasksDeploy*)param;
   taosArrayDestroyEx(pSnode->triggerList, mstDestroySStmTaskToDeployExt);
   taosArrayDestroyEx(pSnode->runnerList, mstDestroySStmTaskToDeployExt);
+  taosArrayDestroyEx(pSnode->calcReaderList, mstDestroySStmTaskToDeployExt);
 }
 
 void mstDestroySStmVgTasksToDeploy(void* param) {

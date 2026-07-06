@@ -1541,6 +1541,7 @@ static void initStreamInfo(SParseStreamInfo* pInfo) {
   pInfo->extRightEq = false;
   pInfo->triggerPartitionList = NULL;
   pInfo->triggerTbl = NULL;
+  pInfo->extSourceNames = NULL;
   pInfo->rollupTagList = NULL;
 }
 
@@ -1620,6 +1621,7 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
   taosHashCleanup(pCxt->pDbs);
   taosHashCleanup(pCxt->pTables);
   taosHashCleanup(pCxt->pTargetTables);
+  taosHashCleanup(pCxt->streamInfo.extSourceNames);
   nodesDestroyList(pCxt->pSubQueries);
 }
 
@@ -11390,6 +11392,18 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
   } else {
     tstrncpy(newPlaceHolderTable->table.tableAlias, pTriggerTable->table.tableAlias,
              sizeof(newPlaceHolderTable->table.tableAlias));
+  }
+
+  // For 3-seg external trigger tables (e.g. ext_src.remote_db.table), dbName is empty
+  // and the real path is stored in extSeg[]. Copy them so translateRealTable routes the
+  // placeholder through translateExternalTableImpl instead of the local catalog path.
+  if (pTriggerTable->extSeg[0][0] != '\0') {
+    tstrncpy(newPlaceHolderTable->extSeg[0], pTriggerTable->extSeg[0], sizeof(newPlaceHolderTable->extSeg[0]));
+    tstrncpy(newPlaceHolderTable->extSeg[1], pTriggerTable->extSeg[1], sizeof(newPlaceHolderTable->extSeg[1]));
+    newPlaceHolderTable->numPathSegments = pTriggerTable->numPathSegments;
+    parserDebug("translatePlaceHolderTable: EXT trigger, copying extSeg[0]=%s extSeg[1]=%s numPathSegments=%d",
+                newPlaceHolderTable->extSeg[0], newPlaceHolderTable->extSeg[1],
+                (int)newPlaceHolderTable->numPathSegments);
   }
 
   PAR_ERR_JRET(translateTable(pCxt, (SNode**)&newPlaceHolderTable, false));
@@ -22157,6 +22171,16 @@ static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pSt
     }
   }
 
+  // === Pt-Followup F1: EXT hard checks moved out of checkCreateStream ===
+  // The 3 DS Sec 6.1.1 hard checks (federatedQueryEnable, ts column, PARTITION BY)
+  // require pExtTableNode to be set on the trigger/calc real tables. Since
+  // translateExternalTableImpl runs inside buildCreateStreamReq (trigger AST +
+  // calc translate), collectExtSourceRefs + hard checks now run AFTER those
+  // translations. EXT-trigger ts-column and PARTITION BY checks live inline in
+  // createStreamReqBuildTriggerAst right after the EXT precheck; the global
+  // federatedQueryEnable=off path is now enforced by translateExternalTableImpl
+  // returning TSDB_CODE_EXT_FEDERATED_DISABLED.
+
   SDbCfgInfo dbCfg = {0};
   PAR_ERR_JRET(getDBCfg(pCxt, pStmt->streamDbName, &dbCfg));
   if (strlen(pStmt->targetDbName) != 0) {
@@ -22231,6 +22255,51 @@ typedef struct SStreamSetSlotIdCxt {
   SHashObj*  pHash;
   SNodeList* pCollect;
 } SStreamSetSlotIdCxt;
+
+// Context for walking a trigger window node and registering TIMESTAMP column keys.
+// Used by registerFederatedTriggerWindowTsKeys() to fix slot hash for EXT-source streams.
+typedef struct SFedTriggerTsKeyCxt {
+  int32_t  errCode;
+  SHashObj* pHash;
+  int16_t  tsSlotId;
+} SFedTriggerTsKeyCxt;
+
+static EDealRes doRegisterFedTriggerTsKey(SNode* pNode, void* pCtx) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SColumnNode*           pCol = (SColumnNode*)pNode;
+  SFedTriggerTsKeyCxt*   pCxt = (SFedTriggerTsKeyCxt*)pCtx;
+  if (pCol->node.resType.type != TSDB_DATA_TYPE_TIMESTAMP) {
+    return DEAL_RES_CONTINUE;
+  }
+  char*   key = NULL;
+  int32_t keyLen = 0;
+  pCxt->errCode = streamGetSlotKey(pNode, &key, &keyLen, 64);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    return DEAL_RES_ERROR;
+  }
+  parserDebug("registerFederatedTriggerWindowTsKeys: key='%s' len=%d slotId=%d",
+              key, keyLen, pCxt->tsSlotId);
+  // ignore put error — key may already exist from pSlot->name registration
+  int32_t ret = taosHashPut(pCxt->pHash, key, keyLen, &pCxt->tsSlotId, sizeof(int16_t));
+  if (ret != 0) {
+    parserWarn("%s taosHashPut error ret:%d key='%s' len=%d slotId=%d", __func__, ret,
+              key, keyLen, pCxt->tsSlotId);
+  }
+  taosMemoryFree(key);
+  return DEAL_RES_CONTINUE;
+}
+
+// Walk pTriggerWindow collecting all TIMESTAMP-typed COLUMN nodes.
+// For each one, compute its streamGetSlotKey() and register → tsSlotId in pHash.
+// This bridges the gap between slot hash keys (expr_N slot names) and the translated
+// column keys (tableAlias.colName hashes) used by doStreamSetSlotId().
+static int32_t registerFederatedTriggerWindowTsKeys(SNode* pTriggerWindow, SHashObj* pHash, int16_t tsSlotId) {
+  SFedTriggerTsKeyCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pHash = pHash, .tsSlotId = tsSlotId};
+  nodesWalkExpr(pTriggerWindow, doRegisterFedTriggerTsKey, &cxt);
+  return cxt.errCode;
+}
 
 static EDealRes doStreamSetSlotId(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 != strcmp(((SColumnNode*)pNode)->colName, "*")) {
@@ -22918,6 +22987,29 @@ static int32_t createStreamReqBuildTriggerTableInfo(STranslateContext* pCxt, SRe
                                                     STableMeta* pMeta, SCMCreateStreamReq* pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 
+#ifdef TD_ENTERPRISE
+  // Pt-Followup F1: EXT trigger does not belong to any vgroup; uid/suid/vgId stay 0.
+  // The deployment message carries an extSpec (DS Sec 6.1.3) instead, and reader
+  // resolves the source by sourceName from extSpecs.
+  if (pTriggerTable->pExtTableNode != NULL) {
+    pReq->triggerDB = taosMemoryMalloc(TSDB_DB_FNAME_LEN);
+    pReq->triggerTblName = taosStrdup(pTriggerTable->table.tableName);
+    if (NULL == pReq->triggerDB || NULL == pReq->triggerTblName) {
+      PAR_ERR_RET(terrno);
+    }
+    (void)snprintf(pReq->triggerDB, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId,
+                   pTriggerTable->table.dbName);
+    pReq->triggerTblType = pMeta->tableType;
+    pReq->triggerTblUid = 0;
+    pReq->triggerTblSuid = 0;
+    pReq->triggerTblVgId = 0;
+    pReq->triggerPrec = pMeta->tableInfo.precision;
+    parserDebug("createStreamReqBuildTriggerTableInfo EXT branch: source:%s table:%s prec:%d",
+                pTriggerTable->table.dbName, pTriggerTable->table.tableName, (int)pReq->triggerPrec);
+    return code;
+  }
+#endif
+
   switch (pMeta->tableType) {
     case TSDB_SUPER_TABLE:
       if (isVirtualSTable(pMeta)) {
@@ -23129,22 +23221,68 @@ _return:
   return code;
 }
 
+// getScanNodeScanCols: get pScanCols from either SScanPhysiNode or SFederatedScanPhysiNode.
+// SFederatedScanPhysiNode inherits SPhysiNode directly, not SScanPhysiNode, so its pScanCols
+// is at a different struct offset (after pExtTable). Casting a federated node to SScanPhysiNode*
+// and reading pScanCols would read pExtTable instead — an incorrect pointer.
+static SNodeList* getScanNodeScanCols(SScanPhysiNode* pScanNode) {
+  if (QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN == nodeType(pScanNode)) {
+    SFederatedScanPhysiNode* pFed = (SFederatedScanPhysiNode*)pScanNode;
+    parserDebug("getScanNodeScanCols: FEDERATED_SCAN pExtTable=%p pScanCols=%p", pFed->pExtTable, pFed->pScanCols);
+    return pFed->pScanCols;
+  }
+  parserDebug("getScanNodeScanCols: REGULAR_SCAN nodeType=%d pScanCols=%p", nodeType(pScanNode), pScanNode->pScanCols);
+  return pScanNode->pScanCols;
+}
+
 static void findTsSlotId(SScanPhysiNode* pScanNode, int16_t* pTsSlotId) {
+  SNodeList* pScanCols = getScanNodeScanCols(pScanNode);
   SNode* pNode = NULL;
-  FOREACH(pNode, pScanNode->pScanCols) {
+  parserDebug("findTsSlotId: nodeType=%d, pScanCols=%p, listSize=%d",
+              nodeType(pScanNode), pScanCols, pScanCols ? LIST_LENGTH(pScanCols) : -1);
+  FOREACH(pNode, pScanCols) {
     STargetNode* pTarget = (STargetNode*)pNode;
+    parserDebug("findTsSlotId: pNode=%p nodeType=%d", pNode, nodeType(pNode));
     if (nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
-      if (((SColumnNode*)pTarget->pExpr)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      SColumnNode* pCol = (SColumnNode*)pTarget->pExpr;
+      parserDebug("findTsSlotId: col colId=%d colName=%s isPrimTs=%d resType=%d slotId=%d",
+                  pCol->colId, pCol->colName, pCol->isPrimTs, pCol->node.resType.type, pTarget->slotId);
+      if (pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         *pTsSlotId = pTarget->slotId;
         break;
       }
+    } else {
+      parserDebug("findTsSlotId: pTarget->pExpr nodeType=%d (not COLUMN)", nodeType(pTarget->pExpr));
     }
   }
+
+  // For federated (external) scan nodes, the trigger SELECT projects _twstart as the first
+  // column. After translation this becomes a computed column (colId=0, colName=expr_N) instead
+  // of retaining the raw pk colId=1. Fall back to scanning the output block descriptor for the
+  // first TIMESTAMP-typed slot, which is always the window-start time column.
+  if (*pTsSlotId == -1 && nodeType(pScanNode) == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
+    SDataBlockDescNode* pDesc = pScanNode->node.pOutputDataBlockDesc;
+    if (pDesc != NULL) {
+      FOREACH(pNode, pDesc->pSlots) {
+        SSlotDescNode* pSlot = (SSlotDescNode*)pNode;
+        parserDebug("findTsSlotId fallback: slot slotId=%d dataType=%d name=%s",
+                    pSlot->slotId, pSlot->dataType.type, pSlot->name);
+        if (pSlot->dataType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+          *pTsSlotId = pSlot->slotId;
+          parserDebug("findTsSlotId fallback: found TIMESTAMP slot slotId=%d for federated scan", *pTsSlotId);
+          break;
+        }
+      }
+    }
+  }
+
+  parserDebug("findTsSlotId: result triTsSlotId=%d", *pTsSlotId);
 }
 
 static void findPkSlotId(SScanPhysiNode* pScanNode, int16_t* pPkSlotId) {
+  SNodeList* pScanCols = getScanNodeScanCols(pScanNode);
   SNode* pNode = NULL;
-  FOREACH(pNode, pScanNode->pScanCols) {
+  FOREACH(pNode, pScanCols) {
     STargetNode* pTarget = (STargetNode*)pNode;
     if (nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
       if (((SColumnNode*)pTarget->pExpr)->isPk) {
@@ -23153,6 +23291,63 @@ static void findPkSlotId(SScanPhysiNode* pScanNode, int16_t* pPkSlotId) {
       }
     }
   }
+}
+
+// For EXT-driven (federated) streams, the query planner rewrites EVERY scan-cols
+// output column of a federated scan to a synthetic colName ("expr_N", colId=0) —
+// not just computed/window expressions (this is the same phenomenon
+// findTsSlotId/registerFederatedTriggerWindowTsKeys already work around for the ts
+// column, but it turns out to apply to every plain scanned column, not only ts).
+// The original requested name survives only in node.userAlias.  Because colName no
+// longer matches, the trigger SELECT's translated PARTITION BY column (e.g. "host")
+// computes a streamGetSlotKey() that never matches any entry taosHashPut from
+// pScanTuple->pSlots, and createStreamSetListSlotId fails with
+// TSDB_CODE_PLAN_SLOT_NOT_FOUND for any non-tbname PARTITION BY column on an ext
+// trigger table.
+//
+// Match each partition COLUMN node against the federated scan's scan-cols by
+// colName OR userAlias (covers both the rewritten and not-yet-rewritten cases) and
+// register the scan-col's authoritative slotId under streamGetSlotKey() in pHash.
+static int32_t registerFederatedTriggerPartitionKeys(SScanPhysiNode* pScanNode, SNodeList* pTriggerPartition,
+                                                      SHashObj* pHash) {
+  if (pTriggerPartition == NULL || LIST_LENGTH(pTriggerPartition) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeList* pScanCols = getScanNodeScanCols(pScanNode);
+  SNode*     pPartNode = NULL;
+  FOREACH(pPartNode, pTriggerPartition) {
+    if (nodeType(pPartNode) != QUERY_NODE_COLUMN) continue;
+    SColumnNode* pPartCol = (SColumnNode*)pPartNode;
+
+    SNode* pScanColNode = NULL;
+    FOREACH(pScanColNode, pScanCols) {
+      STargetNode* pTarget = (STargetNode*)pScanColNode;
+      if (nodeType(pTarget->pExpr) != QUERY_NODE_COLUMN) continue;
+      SColumnNode* pScanCol = (SColumnNode*)pTarget->pExpr;
+      if (strcasecmp(pScanCol->colName, pPartCol->colName) == 0 ||
+          (pScanCol->node.userAlias[0] != '\0' &&
+           strcasecmp(pScanCol->node.userAlias, pPartCol->colName) == 0)) {
+        char*   key    = NULL;
+        int32_t keyLen = 0;
+        int32_t code   = streamGetSlotKey(pPartNode, &key, &keyLen, 64);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+        parserDebug("registerFederatedTriggerPartitionKeys: col='%s' slotId=%d",
+                    pPartCol->colName, pTarget->slotId);
+        // ignore put error — key may already exist from pSlot->name registration
+        int32_t ret = taosHashPut(pHash, key, keyLen, &pTarget->slotId, sizeof(int16_t));
+        if (ret != 0) {
+          parserWarn("%s taosHashPut error ret:%d col='%s' slotId=%d", __func__, ret,
+                     pPartCol->colName, pTarget->slotId);
+        }
+        taosMemoryFree(key);
+        break;
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 // build trigger query plan in create stream request
@@ -23210,6 +23405,26 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
   FOREACH(pNode, pScanTuple->pSlots) {
     SSlotDescNode* pSlot = (SSlotDescNode*)pNode;
     PAR_ERR_JRET(taosHashPut(*pTriggerSlotHash, pSlot->name, strlen(pSlot->name), &pSlot->slotId, sizeof(int16_t)));
+  }
+
+  // For EXT-driven (federated) streams, the trigger SELECT projects _twstart as an alias
+  // column (e.g. "expr_1") rather than the original pk timestamp column. After translation,
+  // the interval window's pCol carries the resolved column info (e.g. colName="ts",
+  // tableAlias="src_t"). streamGetSlotKey() then computes a hash-based key that does NOT
+  // match the slot name "expr_1" stored in pTriggerSlotHash above.
+  // Fix: walk pTriggerWindow COLUMN nodes, compute their streamGetSlotKey(), and register
+  // TIMESTAMP-typed ones as triTsSlotId in the hash so that doStreamSetSlotId() can resolve.
+  if (nodeType(pScanNode) == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN && pReq->triTsSlotId != -1) {
+    PAR_ERR_JRET(
+        registerFederatedTriggerWindowTsKeys(pTriggerWindow, *pTriggerSlotHash, pReq->triTsSlotId));
+  }
+
+  // Same fixup as above, generalized to PARTITION BY columns on an ext trigger
+  // table (e.g. InfluxDB PARTITION BY <tag>): register each partition column's
+  // streamGetSlotKey() -> authoritative slotId from the federated scan's scan-cols.
+  if (nodeType(pScanNode) == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
+    PAR_ERR_JRET(
+        registerFederatedTriggerPartitionKeys(pScanNode, pTriggerPartition, *pTriggerSlotHash));
   }
 
   PAR_ERR_JRET(nodesMakeList(&pTriggerCols));
@@ -23277,6 +23492,19 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
     return code;
   }
 
+  // EXT (federated) trigger tables map "unknown declared width" ext column types
+  // (e.g. InfluxDB's Dictionary/tag Arrow type) to a generic max-width NCHAR
+  // fallback (extTypeMap.c EXT_DEFAULT_VARCHAR_LEN, far larger than
+  // TSDB_MAX_TAGS_LEN).  When such a column is auto-derived into an output TAG
+  // here (no explicit TAGS(...) clause), clamp its width to EXT_INFLUX_TAG_NCHAR_CHARS
+  // — the same width the ext reader actually fetches for tag values at runtime
+  // (streamReaderExt.c's extInitInfluxTagPartition et al.) — so the derived TAG
+  // stays within TSDB_MAX_TAGS_LEN.  Local (non-ext) trigger tables keep their
+  // real declared widths unclamped.
+  SStreamTriggerNode* pTriggerNode = (SStreamTriggerNode*)pStmt->pTrigger;
+  bool                isExtTrigger = pTriggerNode->pTrigerTable != NULL &&
+                       ((SRealTableNode*)pTriggerNode->pTrigerTable)->pExtTableNode != NULL;
+
   FOREACH(pNode, pDefaultTagList) {
     PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_STREAM_TAG_DEF, (SNode**)&pTagDef));
     switch (nodeType(pNode)) {
@@ -23303,6 +23531,20 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
         tstrncpy(pTagDef->tagName, pExpr->userAlias, TSDB_COL_NAME_LEN);
         pTagDef->dataType = pExpr->resType;
         break;
+      }
+    }
+
+    if (isExtTrigger) {
+      int32_t maxBytes = 0;
+      if (pTagDef->dataType.type == TSDB_DATA_TYPE_NCHAR) {
+        maxBytes = EXT_INFLUX_TAG_NCHAR_CHARS * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+      } else if (pTagDef->dataType.type == TSDB_DATA_TYPE_VARCHAR ||
+                 pTagDef->dataType.type == TSDB_DATA_TYPE_VARBINARY ||
+                 pTagDef->dataType.type == TSDB_DATA_TYPE_GEOMETRY) {
+        maxBytes = EXT_INFLUX_TAG_NCHAR_CHARS + VARSTR_HEADER_SIZE;
+      }
+      if (maxBytes > 0 && pTagDef->dataType.bytes > maxBytes) {
+        pTagDef->dataType.bytes = maxBytes;
       }
     }
 
@@ -23538,10 +23780,14 @@ static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealT
                                              &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
   }
   // TODO(smj) : maybe we can remove tbname function from trigger select list, but some case will fail.
-  PAR_ERR_JRET(createTbnameFunction(&pFunc));
-  code = nodesListMakeStrictAppend(&((SSelectStmt*)*pTriggerSelect)->pProjectionList, (SNode*)pFunc);
-  pFunc = NULL;
-  PAR_ERR_JRET(code);
+  // For EXT trigger tables TBNAME is not a valid pseudo-column; skip adding it to avoid the
+  // checkExtTableTbnameUsage rejection that runs later inside translateSelect.
+  if (pTriggerTable->pExtTableNode == NULL) {
+    PAR_ERR_JRET(createTbnameFunction(&pFunc));
+    code = nodesListMakeStrictAppend(&((SSelectStmt*)*pTriggerSelect)->pProjectionList, (SNode*)pFunc);
+    pFunc = NULL;
+    PAR_ERR_JRET(code);
+  }
 
   return code;
 _return:
@@ -23601,14 +23847,32 @@ _return:
 typedef struct SCheckPartitionCxt {
   int32_t            code;
   STranslateContext* pCxt;
+  // Raw external metadata for the trigger table, non-NULL only for an EXTERNAL
+  // trigger table (InfluxDB).  The synthetic STableMeta built for ext tables
+  // (buildTableMetaFromExtMeta) flattens every column with numOfTags==0, so
+  // SColumnNode.colType can never resolve to COLUMN_TYPE_TAG for an ext column;
+  // isTag must instead be looked up by name in the raw SExtTableMeta.
+  const SExtTableMeta* pExtMeta;
 } SCheckPartitionCxt;
+
+// Look up whether `colName` is a tag column in the raw ext metadata.
+static bool extMetaColIsTag(const SExtTableMeta* pExtMeta, const char* colName) {
+  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
+    if (strcasecmp(pExtMeta->pCols[i].colName, colName) == 0) {
+      return pExtMeta->pCols[i].isTag;
+    }
+  }
+  return false;
+}
 
 static EDealRes createStreamReqBuildTriggerCheckPartitionWalker(SNode* pNode, void* pContext) {
   SCheckPartitionCxt* pCxt = (SCheckPartitionCxt*)pContext;
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN: {
       SColumnNode* pCol = (SColumnNode*)pNode;
-      if (pCol->colType != COLUMN_TYPE_TAG) {
+      bool         isTag = (pCxt->pExtMeta != NULL) ? extMetaColIsTag(pCxt->pExtMeta, pCol->colName)
+                                                     : (pCol->colType == COLUMN_TYPE_TAG);
+      if (!isTag) {
         pCxt->code = generateSyntaxErrMsgExt(&pCxt->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
                                              "only tag can be used in partition");
         return DEAL_RES_ERROR;
@@ -23631,11 +23895,12 @@ static EDealRes createStreamReqBuildTriggerCheckPartitionWalker(SNode* pNode, vo
 }
 
 static int32_t createStreamReqBuildTriggerCheckPartition(STranslateContext* pCxt, SNodeList* pTriggerPartition,
-                                                         STableMeta* pTriggerTableMeta, SNode* pTriggerWindow) {
+                                                         STableMeta* pTriggerTableMeta, SNode* pTriggerWindow,
+                                                         const SExtTableMeta* pExtMeta) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
 
-  SCheckPartitionCxt cxt = {.code = TSDB_CODE_SUCCESS, .pCxt = pCxt};
+  SCheckPartitionCxt cxt = {.code = TSDB_CODE_SUCCESS, .pCxt = pCxt, .pExtMeta = pExtMeta};
   nodesWalkExprs(pTriggerPartition, createStreamReqBuildTriggerCheckPartitionWalker, &cxt);
   PAR_ERR_JRET(cxt.code);
 
@@ -23669,13 +23934,15 @@ _return:
 
 // Translate trigger partition in create stream request
 static int32_t createStreamReqBuildTriggerTranslatePartition(STranslateContext* pCxt, SNodeList* pTriggerPartition,
-                                                             STableMeta* pTriggerTableMeta, SNode* pTriggerWindow) {
+                                                             STableMeta* pTriggerTableMeta, SNode* pTriggerWindow,
+                                                             const SExtTableMeta* pExtMeta) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   pCxt->currClause = SQL_CLAUSE_PARTITION_BY;
   PAR_ERR_JRET(translateExprList(pCxt, pTriggerPartition));
 
-  PAR_ERR_JRET(createStreamReqBuildTriggerCheckPartition(pCxt, pTriggerPartition, pTriggerTableMeta, pTriggerWindow));
+  PAR_ERR_JRET(createStreamReqBuildTriggerCheckPartition(pCxt, pTriggerPartition, pTriggerTableMeta, pTriggerWindow,
+                                                         pExtMeta));
 _return:
   if (code) {
     parserError("%s failed, code:%d", __func__, code);
@@ -23760,17 +24027,81 @@ static int32_t createStreamReqBuildTriggerAst(STranslateContext* pCxt, SCreateSt
 
   pReq->triggerHasPF = (*pTriggerFilter != NULL);
 
-  PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
+  // Pt-Followup F1: EXT precheck before local getTableMeta (mirrors translateRealTable line 8132).
+  // On EXT hit, translate the trigger table via EXT path so pExtTableNode + pMeta are set,
+  // then run DS Sec 6.1.1 hard checks #2/#3 (ts column, PARTITION BY) inline.
+#ifdef TD_ENTERPRISE
+  if (tsFederatedQueryEnable) {
+    SExtSourceInfo* pSrcInfo = NULL;
+    // For 3-seg path (src.db.table), extSeg[0] holds the source name and table.dbName is empty.
+    // For 2-seg path (src.table), table.dbName holds the source name.
+    // Always use extSeg[0] when present, fall back to table.dbName for 2-seg.
+    const char* extSrcKey = (pTriggerTable->extSeg[0][0] != '\0')
+                                ? pTriggerTable->extSeg[0]
+                                : pTriggerTable->table.dbName;
+    int32_t         extCode =
+        getExtSourceInfoFromCache(pCxt->pMetaCache, extSrcKey, &pSrcInfo);
+    parserDebug("createStreamReqBuildTriggerAst EXT precheck: source:%s(dbName:%s ext0:%s) table:%s extCode:0x%x found:%d",
+                extSrcKey, pTriggerTable->table.dbName, pTriggerTable->extSeg[0],
+                pTriggerTable->table.tableName, extCode,
+                NULL != pSrcInfo ? 1 : 0);
+    if (TSDB_CODE_SUCCESS == extCode && NULL != pSrcInfo) {
+      PAR_ERR_JRET(translateExternalTableImpl(pCxt, pTriggerTable));
+      pTriggerTable->table.precision = pTriggerTable->pMeta->tableInfo.precision;
+      pTriggerTable->table.singleTable = isSingleTable(pTriggerTable);
+      SExtTableNode* pExtTrig = (SExtTableNode*)pTriggerTable->pExtTableNode;
+      if (pExtTrig != NULL) {
+        if (pExtTrig->tsPrimaryColIdx < 0) {
+          PAR_ERR_JRET(generateSyntaxErrMsgExt(
+              &pCxt->msgBuf, TSDB_CODE_STREAM_EXT_TS_COLUMN_MISSING,
+              "EXTERNAL trigger table '%s' has no primary timestamp column",
+              pExtTrig->table.tableName));
+        }
+        if (LIST_LENGTH(pTriggerPartition) != 0 &&
+            pExtTrig->sourceType != EXT_SOURCE_INFLUXDB) {
+          /* Relational ext sources (MySQL/PostgreSQL) have no tag concept, so
+           * PARTITION BY is rejected here (FS-CERR-003).  InfluxDB is allowed:
+           * PARTITION BY tbname/tag flows to the standard partition translation
+           * (createStreamReqBuildTriggerTranslatePartition), whose
+           * createStreamReqBuildTriggerCheckPartitionWalker enforces the
+           * tag-only / tbname / scalar constraint and rejects field columns
+           * (FS-CERR-004).  The reader derives per-uid groupId from the
+           * partition-tag subset (streamReaderExt.c). */
+          PAR_ERR_JRET(generateSyntaxErrMsgExt(
+              &pCxt->msgBuf, TSDB_CODE_STREAM_EXT_PARTITION_NOT_SUPPORTED,
+              "PARTITION BY is not supported on EXTERNAL trigger tables"));
+        }
+      }
+      parserDebug("createStreamReqBuildTriggerAst EXT trigger translated, source:%s table:%s",
+                  pTriggerTable->table.dbName, pTriggerTable->table.tableName);
+    }
+  }
+#endif
+
+  if (pTriggerTable->pExtTableNode == NULL) {
+    PAR_ERR_JRET(getTableMeta(pCxt, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &pTriggerTableMeta));
+  }
+
+  // For EXT trigger, pTriggerTable->pMeta is owned by pTriggerTable (freed when node destroyed).
+  // For local trigger, pTriggerTableMeta is our local copy (freed at _return).
+  STableMeta* pMetaForHelpers =
+      (pTriggerTable->pExtTableNode != NULL) ? pTriggerTable->pMeta : pTriggerTableMeta;
+  // Raw ext metadata (carries isTag per column) for PARTITION BY tag validation;
+  // NULL for local triggers.  The synthetic pMetaForHelpers above cannot express
+  // tag-ness (buildTableMetaFromExtMeta sets numOfTags=0), so
+  // createStreamReqBuildTriggerCheckPartitionWalker needs this raw struct instead.
+  const SExtTableMeta* pTrigExtMeta =
+      (pTriggerTable->pExtTableNode != NULL) ? ((SExtTableNode*)pTriggerTable->pExtTableNode)->pExtMeta : NULL;
 
   SNodeList* projList = NULL;
-  PAR_ERR_JRET(createStreamReqBuildTriggerTableInfo(pCxt, pTriggerTable, pTriggerTableMeta, pReq));
+  PAR_ERR_JRET(createStreamReqBuildTriggerTableInfo(pCxt, pTriggerTable, pMetaForHelpers, pReq));
   PAR_ERR_JRET(createStreamReqBuildTriggerSelect(pCxt, pTriggerTable, pTriggerSelect, pStmt));
 
   PAR_ERR_JRET(createStreamReqBuildTriggerTranslateSelect(pCxt, pTrigger, *pTriggerSelect, pTriggerFilter));
   PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, pTriggerWindow));
-  PAR_ERR_JRET(
-      createStreamReqBuildTriggerTranslatePartition(pCxt, pTriggerPartition, pTriggerTableMeta, *pTriggerWindow));
-  PAR_ERR_JRET(createStreamReqBuildTriggerTranslateRollup(pCxt, pTrigger->pRollupTagList, pTriggerTableMeta));
+  PAR_ERR_JRET(createStreamReqBuildTriggerTranslatePartition(pCxt, pTriggerPartition, pMetaForHelpers, *pTriggerWindow,
+                                                             pTrigExtMeta));
+  PAR_ERR_JRET(createStreamReqBuildTriggerTranslateRollup(pCxt, pTrigger->pRollupTagList, pMetaForHelpers));
 
 _return:
   if (code) {
@@ -24219,6 +24550,12 @@ static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan
     SStreamCalcScan pNewScan = {0};
     pNewScan.readFromCache = pCalcScan->readFromCache;
     TSWAP(pNewScan.vgList, pCalcScan->vgList);
+    /* Carry the per-scan external source/table identity filled by the planner
+     * (planPhysiCreater.c) so the mnode can bind each calc reader to the right
+     * per-source spec for multi-source JOINs. */
+    tstrncpy(pNewScan.sourceName, pCalcScan->sourceName, sizeof(pNewScan.sourceName));
+    tstrncpy(pNewScan.extTable, pCalcScan->extTable, sizeof(pNewScan.extTable));
+    tstrncpy(pNewScan.tsColumn, pCalcScan->tsColumn, sizeof(pNewScan.tsColumn));
     PAR_ERR_JRET(nodesNodeToString(pCalcScan->scanPlan, false, (char**)&pNewScan.scanPlan, NULL));
     if (NULL == taosArrayPush(pReq->calcScanPlanList, &pNewScan)) {
       PAR_ERR_JRET(terrno);
@@ -24642,6 +24979,485 @@ _return:
   return code;
 }
 
+/* Walker: collect unique EXT source names referenced by a CREATE STREAM AST.
+ * Visits all SRealTableNode in trigger + calc trees and, when
+ * pExtTableNode != NULL, hashes the underlying SExtTableNode.sourceName
+ * for downstream extSpecs building (pt-a4). DS 6.1.1. */
+static EDealRes collectExtSourceRefsImpl(SNode* pNode, void* pContext) {
+  if (nodeType(pNode) == QUERY_NODE_REAL_TABLE) {
+    SRealTableNode* pReal    = (SRealTableNode*)pNode;
+    const char*     srcName  = NULL;
+
+    if (pReal->pExtTableNode != NULL) {
+      // Already translated: source name is in pExtTableNode->sourceName.
+      srcName = ((SExtTableNode*)pReal->pExtTableNode)->sourceName;
+    } else if (pReal->numPathSegments >= 3 && pReal->extSeg[0][0] != '\0') {
+      // Not yet translated 3-seg path: extSeg[0] is the ext source name.
+      srcName = pReal->extSeg[0];
+    }
+
+    if (srcName != NULL && srcName[0] != '\0') {
+      SHashObj* pHash = *(SHashObj**)pContext;
+      int32_t   code  = taosHashPut(pHash, srcName, strlen(srcName) + 1, NULL, 0);
+      if (code != 0 && code != TSDB_CODE_DUP_KEY) {
+        parserError("collectExtSourceRefs: taosHashPut failed, source=%s code=0x%x", srcName, code);
+        return DEAL_RES_ERROR;
+      }
+      parserDebug("collectExtSourceRefs: hashed ext source name=%s", srcName);
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+int32_t collectExtSourceRefs(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
+  SParseStreamInfo* pInfo = &pCxt->streamInfo;
+  if (pInfo->extSourceNames == NULL) {
+    pInfo->extSourceNames =
+        taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (pInfo->extSourceNames == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  /* Trigger side: pTrigger is SStreamTriggerNode. Walk both the trigger
+   * table reference and the trigger window expression (which may embed
+   * inner table references on EXT-window streams). */
+  if (pStmt->pTrigger != NULL) {
+    SStreamTriggerNode* pTrig = (SStreamTriggerNode*)pStmt->pTrigger;
+    if (pTrig->pTrigerTable != NULL) {
+      nodesWalkExpr(pTrig->pTrigerTable, collectExtSourceRefsImpl, &pInfo->extSourceNames);
+    }
+    if (pTrig->pTriggerWindow != NULL) {
+      nodesWalkExpr(pTrig->pTriggerWindow, collectExtSourceRefsImpl, &pInfo->extSourceNames);
+    }
+  }
+  /* Calc side: pQuery is the calc select (may itself reference EXT tables,
+   * including JOINs of multiple external sources).  nodesWalkExpr does not
+   * descend into a SELECT_STMT, so walk the FROM clause explicitly to reach
+   * every joined table (walkExpr recurses JOIN_TABLE left/right down to each
+   * REAL_TABLE).  Without this, a calc source that is not also the trigger
+   * source is never collected and gets no ext spec. */
+  if (pStmt->pQuery != NULL) {
+    nodesWalkExpr(pStmt->pQuery, collectExtSourceRefsImpl, &pInfo->extSourceNames);
+    if (nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
+      SSelectStmt* pCalcSelect = (SSelectStmt*)pStmt->pQuery;
+      if (pCalcSelect->pFromTable != NULL) {
+        nodesWalkExpr(pCalcSelect->pFromTable, collectExtSourceRefsImpl, &pInfo->extSourceNames);
+      }
+    }
+  }
+  parserDebug("collectExtSourceRefs done, %d unique ext sources", taosHashGetSize(pInfo->extSourceNames));
+  return TSDB_CODE_SUCCESS;
+}
+
+/* ---------------------------------------------------------------------------
+ * Utility: render a WHERE AST node to a source-specific SQL fragment for the
+ * ext-source prefilter.  Timestamps are formatted to the target dialect so
+ * the SQL can be AND-ed directly into every PULL query built on the snode.
+ * Returns TSDB_CODE_SUCCESS or TSDB_CODE_PAR_INTERNAL_ERROR on unsupported
+ * node types.
+ * --------------------------------------------------------------------------- */
+static int32_t renderExtPrefilterTimestamp(int64_t epoch, int32_t precision,
+                                           int32_t sourceType,
+                                           char *buf, int32_t bufLen) {
+  /* Normalize to microseconds for sub-second formatting. */
+  int64_t epoch_us;
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    epoch_us = epoch / 1000LL;
+  } else if (precision == TSDB_TIME_PRECISION_MILLI) {
+    epoch_us = epoch * 1000LL;
+  } else {
+    epoch_us = epoch;  /* MICRO — already in µs */
+  }
+
+  if (sourceType == EXT_SOURCE_INFLUXDB) {
+    /* InfluxDB DataFusion: use to_timestamp_nanos() for ns integers. */
+    return snprintf(buf, bufLen, "to_timestamp_nanos(%" PRId64 ")", epoch_us * 1000LL);
+  }
+  /* MySQL / PostgreSQL: quoted DATETIME literal. */
+  if (epoch_us < 0) epoch_us = 0;
+  time_t     sec = (time_t)(epoch_us / 1000000LL);
+  int        us  = (int)(epoch_us % 1000000LL);
+  struct tm  tm_info = {0};
+  taosLocalTime(&sec, &tm_info, NULL, 0, NULL);
+  return snprintf(buf, bufLen,
+                  "'%04d-%02d-%02d %02d:%02d:%02d.%06d'",
+                  tm_info.tm_year + 1900, tm_info.tm_mon + 1, tm_info.tm_mday,
+                  tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec, us);
+}
+
+/* Render a single VALUE node.  When treatAsTimestamp is true, the integer
+ * value is converted to a source-specific timestamp literal regardless of
+ * its declared type (covers BIGINT values that are semantically timestamps
+ * but haven't been cast by the translator). */
+static int32_t renderExtValueNode(SValueNode *pVal, int32_t sourceType,
+                                  int32_t precision, bool treatAsTimestamp,
+                                  char *buf, int32_t bufSize, int32_t *pOff) {
+  if (treatAsTimestamp || pVal->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+    *pOff += renderExtPrefilterTimestamp(pVal->datum.i, precision,
+                                        sourceType,
+                                        buf + *pOff, bufSize - *pOff);
+  } else {
+    char *str = nodesGetStrValueFromNode(pVal);
+    if (str) {
+      *pOff += snprintf(buf + *pOff, bufSize - *pOff, "%s", str);
+      taosMemoryFree(str);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t renderExtWhereNode(SNode *pNode, int32_t sourceType,
+                                  int32_t precision,
+                                  char *buf, int32_t bufSize, int32_t *pOff) {
+  if (pNode == NULL) return TSDB_CODE_SUCCESS;
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SLogicConditionNode *pLogic = (SLogicConditionNode *)pNode;
+      const char *op = (pLogic->condType == LOGIC_COND_TYPE_AND) ? " AND " : " OR ";
+      *pOff += snprintf(buf + *pOff, bufSize - *pOff, "(");
+      bool   first  = true;
+      SNode *pChild = NULL;
+      FOREACH(pChild, pLogic->pParameterList) {
+        if (!first) *pOff += snprintf(buf + *pOff, bufSize - *pOff, "%s", op);
+        int32_t code = renderExtWhereNode(pChild, sourceType, precision, buf, bufSize, pOff);
+        if (code != TSDB_CODE_SUCCESS) return code;
+        first = false;
+      }
+      *pOff += snprintf(buf + *pOff, bufSize - *pOff, ")");
+      break;
+    }
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode *pOp = (SOperatorNode *)pNode;
+
+      /* Detect timestamp comparison: one side is a TIMESTAMP column, the
+       * other is a BIGINT value that should be treated as an epoch
+       * timestamp for the external source.  This handles the common
+       * pattern `WHERE ts >= <epoch_integer>`. */
+      bool leftIsTsCol  = (pOp->pLeft != NULL &&
+                           nodeType(pOp->pLeft) == QUERY_NODE_COLUMN &&
+                           ((SColumnNode *)pOp->pLeft)->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP);
+      bool rightIsTsCol = (pOp->pRight != NULL &&
+                           nodeType(pOp->pRight) == QUERY_NODE_COLUMN &&
+                           ((SColumnNode *)pOp->pRight)->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP);
+      bool leftIsBigint  = (pOp->pLeft != NULL &&
+                            nodeType(pOp->pLeft) == QUERY_NODE_VALUE &&
+                            (((SValueNode *)pOp->pLeft)->node.resType.type == TSDB_DATA_TYPE_BIGINT ||
+                             ((SValueNode *)pOp->pLeft)->node.resType.type == TSDB_DATA_TYPE_UBIGINT));
+      bool rightIsBigint = (pOp->pRight != NULL &&
+                            nodeType(pOp->pRight) == QUERY_NODE_VALUE &&
+                            (((SValueNode *)pOp->pRight)->node.resType.type == TSDB_DATA_TYPE_BIGINT ||
+                             ((SValueNode *)pOp->pRight)->node.resType.type == TSDB_DATA_TYPE_UBIGINT));
+
+      *pOff += snprintf(buf + *pOff, bufSize - *pOff, "(");
+
+      /* Render left operand. */
+      if (nodeType(pOp->pLeft) == QUERY_NODE_VALUE) {
+        bool treatAsTs = leftIsBigint && rightIsTsCol;
+        int32_t code = renderExtValueNode((SValueNode *)pOp->pLeft, sourceType,
+                                          precision, treatAsTs, buf, bufSize, pOff);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      } else {
+        int32_t code = renderExtWhereNode(pOp->pLeft, sourceType, precision, buf, bufSize, pOff);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+
+      *pOff += snprintf(buf + *pOff, bufSize - *pOff, " %s ", operatorTypeStr(pOp->opType));
+
+      /* Render right operand. */
+      if (nodeType(pOp->pRight) == QUERY_NODE_VALUE) {
+        bool treatAsTs = rightIsBigint && leftIsTsCol;
+        int32_t code = renderExtValueNode((SValueNode *)pOp->pRight, sourceType,
+                                          precision, treatAsTs, buf, bufSize, pOff);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      } else {
+        int32_t code = renderExtWhereNode(pOp->pRight, sourceType, precision, buf, bufSize, pOff);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+
+      *pOff += snprintf(buf + *pOff, bufSize - *pOff, ")");
+      break;
+    }
+    case QUERY_NODE_COLUMN: {
+      SColumnNode *pCol = (SColumnNode *)pNode;
+      *pOff += snprintf(buf + *pOff, bufSize - *pOff, "%s", pCol->colName);
+      break;
+    }
+    case QUERY_NODE_VALUE: {
+      /* Standalone value (not inside an operator).  No timestamp hint. */
+      return renderExtValueNode((SValueNode *)pNode, sourceType, precision,
+                                false, buf, bufSize, pOff);
+    }
+    default:
+      parserWarn("renderExtWhereNode: unsupported node type %d, skipping prefilter",
+                 nodeType(pNode));
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Check whether a WHERE AST contains stream-specific placeholders (_twstart,
+ * _twend, %%trows, etc.).  When it does, the condition is window-relative and
+ * must NOT be serialised as a static prefilter — the stream executor applies
+ * it per window instead. */
+static bool whereHasStreamPlaceholders(SNode *pNode) {
+  if (pNode == NULL) return false;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN: {
+      SColumnNode *pCol = (SColumnNode *)pNode;
+      if (strcasecmp(pCol->colName, "_twstart") == 0 ||
+          strcasecmp(pCol->colName, "_twend") == 0 ||
+          strcasecmp(pCol->colName, "_wstart") == 0 ||
+          strcasecmp(pCol->colName, "_wend") == 0) {
+        return true;
+      }
+      return false;
+    }
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SNode *pChild = NULL;
+      FOREACH(pChild, ((SLogicConditionNode *)pNode)->pParameterList) {
+        if (whereHasStreamPlaceholders(pChild)) return true;
+      }
+      return false;
+    }
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode *pOp = (SOperatorNode *)pNode;
+      return whereHasStreamPlaceholders(pOp->pLeft) ||
+             whereHasStreamPlaceholders(pOp->pRight);
+    }
+    default:
+      return false;
+  }
+}
+
+/* Pt A4: build SCMCreateStreamReq.extSpecs from the unique EXT source names
+ * collected by collectExtSourceRefs.
+ *
+ * For each unique sourceName:
+ *   - Connection fields (sourceType / host / port / user / extDb /
+ *     connCfgVersion) are filled from SExtSourceInfo (via parser meta cache,
+ *     MR 245 path).
+ *   - encryptedPassword / encryptedPasswordLen are intentionally left zero
+ *     (taosc never reads SExtSourceInfo.password — plaintext stays mnode-
+ *     local; mnode fills the AES-CBC ciphertext from sdb in P1 B2).
+ *   - When the spec matches the trigger table's source, extTable + tsColumn
+ *     are filled from the trigger AST (SExtTableNode / SExtTableMeta).
+ *   - When the calc SELECT has a static WHERE clause (no _twstart/_twend
+ *     placeholders), it is rendered to source-specific SQL and stored in
+ *     pSpec->prefilter so the snode can AND it into every PULL query.
+ * See DS Sec 6.1.1 / Sec 6.2.1 for the full field semantics. */
+static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
+                                            SCreateStreamStmt* pStmt,
+                                            SCMCreateStreamReq* pReq) {
+  int32_t   code   = TSDB_CODE_SUCCESS;
+  SHashObj* pHash  = pCxt->streamInfo.extSourceNames;
+  SArray*   pSpecs = NULL;
+  void*     pIter  = NULL;
+
+  if (pHash == NULL || taosHashGetSize(pHash) == 0) {
+    parserDebug("buildExtSpecs: no ext sources referenced, skip");
+    return code;
+  }
+
+  /* Locate trigger EXT table descriptor (if the trigger table itself is an
+   * EXTERNAL table). When found, the matching spec will carry the trigger
+   * table name + ts column + PRE_FILTER. */
+  const char*    trigSourceName  = NULL;
+  const char*    trigExtTable    = NULL;
+  const char*    trigTsColumn    = NULL;
+  const char*    trigSchemaName  = NULL;  /* PG schema (e.g. "public"); empty for MySQL/InfluxDB */
+  SNode*         pTrigPreFilter  = NULL;  /* PRE_FILTER node from CREATE STREAM trigger options */
+  if (pStmt->pTrigger != NULL) {
+    SStreamTriggerNode* pTrig = (SStreamTriggerNode*)pStmt->pTrigger;
+    if (pTrig->pTrigerTable != NULL && nodeType(pTrig->pTrigerTable) == QUERY_NODE_REAL_TABLE) {
+      SRealTableNode* pRT = (SRealTableNode*)pTrig->pTrigerTable;
+      if (pRT->pExtTableNode != NULL) {
+        SExtTableNode* pExt = (SExtTableNode*)pRT->pExtTableNode;
+        trigSourceName = pExt->sourceName;
+        trigExtTable   = (pExt->remoteTableName[0] != '\0') ? pExt->remoteTableName : pExt->table.tableName;
+        /* schemaName is set for PostgreSQL (e.g. "public"); empty otherwise. */
+        if (pExt->schemaName[0] != '\0') trigSchemaName = pExt->schemaName;
+        if (pExt->tsPrimaryColIdx >= 0 && pExt->pExtMeta != NULL &&
+            pExt->tsPrimaryColIdx < pExt->pExtMeta->numOfCols && pExt->pExtMeta->pCols != NULL) {
+          trigTsColumn = pExt->pExtMeta->pCols[pExt->tsPrimaryColIdx].colName;
+        }
+      }
+    }
+    /* Extract PRE_FILTER from trigger options (only valid when trigger table is set). */
+    if (pTrig->pOptions != NULL) {
+      pTrigPreFilter = ((SStreamTriggerOptions*)pTrig->pOptions)->pPreFilter;
+    }
+  }
+
+  int32_t cap = taosHashGetSize(pHash);
+  pSpecs = taosArrayInit(cap, POINTER_BYTES);
+  if (pSpecs == NULL) PAR_ERR_JRET(terrno);
+
+  while ((pIter = taosHashIterate(pHash, pIter)) != NULL) {
+    size_t      keyLen     = 0;
+    const char* sourceName = (const char*)taosHashGetKey(pIter, &keyLen);
+
+    SExtSourceInfo* pSrc = NULL;
+    code = getExtSourceInfoFromCache(pCxt->pMetaCache, sourceName, &pSrc);
+    if (code != TSDB_CODE_SUCCESS || pSrc == NULL) {
+      parserError("buildExtSpecs: source '%s' not found in meta cache, code:0x%x", sourceName, code);
+      taosHashCancelIterate(pHash, pIter);
+      PAR_ERR_JRET(TSDB_CODE_EXT_SOURCE_NOT_FOUND);
+    }
+
+    SStreamExtTriggerSpec* pSpec = taosMemoryCalloc(1, sizeof(SStreamExtTriggerSpec));
+    if (pSpec == NULL) {
+      taosHashCancelIterate(pHash, pIter);
+      PAR_ERR_JRET(terrno);
+    }
+
+    tstrncpy(pSpec->sourceName, pSrc->source_name, sizeof(pSpec->sourceName));
+    pSpec->sourceType = pSrc->type;
+    tstrncpy(pSpec->extDb, pSrc->database, sizeof(pSpec->extDb));
+    tstrncpy(pSpec->extSchema, pSrc->schema_name, sizeof(pSpec->extSchema));
+    tstrncpy(pSpec->host, pSrc->host, sizeof(pSpec->host));
+    pSpec->port = (uint16_t)pSrc->port;
+    tstrncpy(pSpec->user, pSrc->user, sizeof(pSpec->user));
+    pSpec->connCfgVersion = (uint64_t)pSrc->meta_version;
+    tstrncpy(pSpec->options, pSrc->options, sizeof(pSpec->options));
+    /* partitionByTag: set when the stream has a PARTITION BY clause on this
+     * ext source — the InfluxDB reader always enumerates sub-tables, but uses
+     * this (and partitionTagCols) to derive groupId. */
+    SNodeList* pPartList = pCxt->streamInfo.triggerPartitionList;
+    pSpec->partitionByTag =
+        (pPartList != NULL && LIST_LENGTH(pPartList) > 0) ? 1 : 0;
+    /* partitionTagCols: concrete PARTITION BY tag column names, used by
+     * streamReaderExt.c to compute groupId over the partition-tag subset.
+     * PARTITION BY tbname (= all tags) is encoded as the empty list because the
+     * concrete tag columns are only discovered at reader time; leave the array
+     * NULL in that case. */
+    if (pSpec->partitionByTag && !hasTbnameFunction(pPartList)) {
+      pSpec->partitionTagCols = taosArrayInit(LIST_LENGTH(pPartList), TSDB_COL_NAME_LEN);
+      if (pSpec->partitionTagCols == NULL) {
+        taosMemoryFree(pSpec);
+        taosHashCancelIterate(pHash, pIter);
+        PAR_ERR_JRET(terrno);
+      }
+      SNode* pPartKey = NULL;
+      FOREACH(pPartKey, pPartList) {
+        /* colType is NOT usable here: the synthetic STableMeta built for ext
+         * tables (buildTableMetaFromExtMeta) sets numOfTags==0, so ext tag
+         * columns always resolve as COLUMN_TYPE_COLUMN, never COLUMN_TYPE_TAG.
+         * Any QUERY_NODE_COLUMN surviving in a non-tbname partition list is
+         * already guaranteed to be a genuine ext tag: the upstream
+         * createStreamReqBuildTriggerCheckPartitionWalker validated it via the
+         * raw SExtTableMeta.isTag lookup (extMetaColIsTag) and would have
+         * failed translation otherwise. */
+        if (nodeType(pPartKey) == QUERY_NODE_COLUMN) {
+          char colName[TSDB_COL_NAME_LEN] = {0};
+          tstrncpy(colName, ((SColumnNode*)pPartKey)->colName, sizeof(colName));
+          if (taosArrayPush(pSpec->partitionTagCols, colName) == NULL) {
+            taosArrayDestroy(pSpec->partitionTagCols);
+            taosMemoryFree(pSpec);
+            taosHashCancelIterate(pHash, pIter);
+            PAR_ERR_JRET(terrno);
+          }
+        }
+      }
+    }
+    /* encryptedPassword / encryptedPasswordLen left zero by calloc;
+     * mnode fills from sdb (P1 B2). triggerColumns left NULL/0;
+     * attached at reader-task deploy time (P1 B5). */
+
+    if (trigSourceName != NULL && strcmp(trigSourceName, sourceName) == 0) {
+      if (trigExtTable   != NULL) tstrncpy(pSpec->extTable,  trigExtTable,   sizeof(pSpec->extTable));
+      if (trigTsColumn   != NULL) tstrncpy(pSpec->tsColumn,  trigTsColumn,   sizeof(pSpec->tsColumn));
+      /* Override extSchema from the ext-table node so that PostgreSQL uses
+       * schema.table (e.g. public.src_t) instead of the source-level default
+       * which may be empty.  MySQL / InfluxDB have empty schemaName so this
+       * is a no-op for those source types. */
+      if (trigSchemaName != NULL) tstrncpy(pSpec->extSchema, trigSchemaName, sizeof(pSpec->extSchema));
+
+      int32_t extPrec = (pSpec->sourceType == EXT_SOURCE_INFLUXDB)
+                          ? TSDB_TIME_PRECISION_NANO
+                          : TSDB_TIME_PRECISION_MICRO;
+
+      /* Extract the calc SELECT's WHERE clause as a SQL fragment for the
+       * CALC reader prefilter.  Only static conditions (no _twstart / _twend
+       * placeholders) are eligible; window-relative filters are handled by
+       * the stream executor at runtime. */
+      if (pStmt->pQuery != NULL && nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
+        SSelectStmt *pCalcSelect = (SSelectStmt *)pStmt->pQuery;
+        if (pCalcSelect->pWhere != NULL &&
+            !whereHasStreamPlaceholders(pCalcSelect->pWhere)) {
+          char    pfBuf[4096] = {0};
+          int32_t pfOff = 0;
+          int32_t rc = renderExtWhereNode(pCalcSelect->pWhere,
+                                          pSpec->sourceType, extPrec,
+                                          pfBuf, sizeof(pfBuf), &pfOff);
+          if (rc == TSDB_CODE_SUCCESS && pfOff > 0) {
+            pSpec->prefilter = tstrdup(pfBuf);
+            if (pSpec->prefilter != NULL) {
+              parserDebug("buildExtSpecs: prefilter(calc)=\"%.120s\" len=%d for source=%s",
+                          pSpec->prefilter, pfOff, sourceName);
+            }
+          }
+        }
+      }
+
+      /* Extract the trigger PRE_FILTER clause as a SQL fragment for the
+       * TRIGGER reader triggerPrefilter.  This is the WHERE condition users
+       * specify in CREATE STREAM ... TRIGGER FROM ext_src.db.table PRE_FILTER
+       * (expr); it controls which rows the trigger reader considers. */
+      if (pTrigPreFilter != NULL) {
+        char    pfBuf[4096] = {0};
+        int32_t pfOff = 0;
+        int32_t rc = renderExtWhereNode(pTrigPreFilter,
+                                        pSpec->sourceType, extPrec,
+                                        pfBuf, sizeof(pfBuf), &pfOff);
+        if (rc == TSDB_CODE_SUCCESS && pfOff > 0) {
+          pSpec->triggerPrefilter = tstrdup(pfBuf);
+          if (pSpec->triggerPrefilter != NULL) {
+            parserDebug("buildExtSpecs: triggerPrefilter=\"%.120s\" len=%d for source=%s",
+                        pSpec->triggerPrefilter, pfOff, sourceName);
+          }
+        }
+      }
+    }
+
+    if (taosArrayPush(pSpecs, &pSpec) == NULL) {
+      taosMemoryFree(pSpec);
+      taosHashCancelIterate(pHash, pIter);
+      PAR_ERR_JRET(terrno);
+    }
+
+    parserDebug("buildExtSpecs: spec[%d] source=%s type=%d host=%s:%u extDb=%s extTable=%s tsCol=%s",
+                (int)(taosArrayGetSize(pSpecs) - 1), pSpec->sourceName, (int)pSpec->sourceType,
+                pSpec->host, (unsigned)pSpec->port, pSpec->extDb,
+                pSpec->extTable, pSpec->tsColumn);
+  }
+
+  pReq->extSpecs      = pSpecs;
+  pReq->numOfExtSpecs = (int32_t)taosArrayGetSize(pSpecs);
+  pSpecs              = NULL;  /* ownership transferred */
+
+  /* Pt A5: set the bit-1 flag so mnode can skip full plan traversal when
+   * picking the snode with the least EXT reader count. The plan-tree scan
+   * for SCAN_TYPE_EXTERNAL remains the source of truth (DS Sec 6.1.1). */
+  BIT_FLAG_SET_MASK(pReq->flags, CREATE_STREAM_FLAG_REF_EXT_SOURCE);
+  parserDebug("buildExtSpecs: %d specs built, CREATE_STREAM_FLAG_REF_EXT_SOURCE set",
+              pReq->numOfExtSpecs);
+  return code;
+
+_return:
+  if (pSpecs != NULL) {
+    int32_t n = (int32_t)taosArrayGetSize(pSpecs);
+    for (int32_t i = 0; i < n; ++i) {
+      SStreamExtTriggerSpec* p = *(SStreamExtTriggerSpec**)taosArrayGet(pSpecs, i);
+      taosArrayDestroy(p->partitionTagCols);
+      taosMemoryFree(p);
+    }
+    taosArrayDestroy(pSpecs);
+  }
+  parserError("buildExtSpecs failed, code:0x%x", code);
+  return code;
+}
+
 // build the create stream request from AST
 static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
   int32_t                code = TSDB_CODE_SUCCESS;
@@ -24661,16 +25477,33 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   pCxt->streamInfo.rollupTagList = pTrigger->pRollupTagList;
 
   PAR_ERR_JRET(createStreamReqBuildDefaultReq(pCxt, pStmt, pReq));
+  parserDebug("buildCreateStreamReq step: DefaultReq done");
   PAR_ERR_JRET(createStreamReqBuildNameAndId(pCxt, pStmt, pReq));
+  parserDebug("buildCreateStreamReq step: NameAndId done");
   PAR_ERR_JRET(createStreamReqBuildNotifyOptions(pCxt, pNotifyOptions, &pNotifyCond, pReq));
+  parserDebug("buildCreateStreamReq step: NotifyOptions done");
   // Split build AST and build plan into two steps, because trigger's select list may depend on stream's calculation
   // part.
   PAR_ERR_JRET(createStreamReqBuildTriggerAst(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, &pTriggerFilter, pReq));
+  parserDebug("buildCreateStreamReq step: TriggerAst done");
   PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pStmt, pTriggerOptions, pReq));
+  parserDebug("buildCreateStreamReq step: TriggerOptions done");
   PAR_ERR_JRET(createStreamReqBuildCalc(pCxt, pStmt, pTrigger->pPartitionList, pTriggerSelect, pTriggerWindow,
                                         &pNotifyCond, pReq));
+  parserDebug("buildCreateStreamReq step: Calc done");
+  // Pt A4/A5 + Pt-Followup F1 ordering: collect EXT source refs and build extSpecs AFTER trigger AST and calc
+  // translation, so pExtTableNode is set on both sides (see DS Sec 6.1.1 / Sec 6.2.1).
+  {
+    extern int32_t collectExtSourceRefs(STranslateContext * pCxt, SCreateStreamStmt * pStmt);
+    PAR_ERR_JRET(collectExtSourceRefs(pCxt, pStmt));
+  }
+  parserDebug("buildCreateStreamReq step: collectExtSourceRefs done");
+  PAR_ERR_JRET(createStreamReqBuildExtSpecs(pCxt, pStmt, pReq));
+  parserDebug("buildCreateStreamReq step: ExtSpecs done");
   PAR_ERR_JRET(createStreamReqBuildTriggerPlan(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, pReq));
+  parserDebug("buildCreateStreamReq step: TriggerPlan done");
   PAR_ERR_JRET(createStreamReqBuildOutTable(pCxt, pStmt, pTriggerSlotHash, pReq));
+  parserDebug("buildCreateStreamReq step: OutTable done");
 
 _return:
   pCxt->streamInfo.triggerPartitionList = pTriggerPartitionList;
@@ -24691,7 +25524,15 @@ static int32_t collectCreateStreamTriggerTable(STranslateContext* pCxt, SCreateS
   }
 
   SRealTableNode* pTriggerTable = (SRealTableNode*)pTrigger->pTrigerTable;
-  SName           name = {0};
+  /* For EXT-driven streams (e.g. FROM ext_src.remote_db.table), dbName is empty
+   * and the source info is stored in extSeg[]. These are not local catalog entries
+   * so skip collection to avoid TSDB_CODE_INVALID_PARA from tNameIsValid. */
+  if (pTriggerTable->extSeg[0][0] != '\0') {
+    parserDebug("collectCreateStreamTriggerTable: EXT trigger table extSeg[0]=%s, skipping", pTriggerTable->extSeg[0]);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SName name = {0};
   toName(pCxt->pParseCxt->acctId, pTriggerTable->table.dbName, pTriggerTable->table.tableName, &name);
   return collectUseTable(&name, pCxt->pTargetTables);
 }

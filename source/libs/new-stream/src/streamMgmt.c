@@ -226,8 +226,8 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
       TAOS_CHECK_EXIT(code);
     }
 
-    ST_TASK_DLOG("trigger task deploy succeed, tidx:%d", pSrc->taskIdx);   
-    
+    ST_TASK_DLOG("trigger task deploy succeed, tidx:%d flags:%" PRId64, pSrc->taskIdx, pTask->task.flags);
+
     (void)atomic_add_fetch_32(&pStream->taskNum, 1);
     streamReleaseTask(taskAddr);
   }

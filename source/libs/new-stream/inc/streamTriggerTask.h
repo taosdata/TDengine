@@ -91,6 +91,9 @@ typedef struct SSTriggerRealtimeGroup {
   int32_t                          vgId;
   int32_t                          activeVtableCount;
   bool                             recalcNextWindow;
+  // For EXT/federated groups only (vgId == 0): the taskId of the SSTriggerExtProgress
+  // that owns this group, so group-col-value pulls can be routed to the right reader.
+  int64_t                          extReaderTaskId;
   TD_DLIST_NODE(SSTriggerRealtimeGroup);
 
   SSHashObj *pWalMetas;  // SSHashObj<vgId, SObjList<SSTriggerMetaData>>
@@ -192,6 +195,52 @@ typedef struct SSTriggerWalProgress {
   SSDataBlock              *pCalcBlock;
 } SSTriggerWalProgress;
 
+/* Per (trigger task, EXT reader task) progress maintained by the trigger
+ * driver. Sibling of SSTriggerWalProgress; lives in SSTriggerRealtimeContext
+ * .pReaderExtProgress as SSHashObj<int64_t taskId, SSTriggerExtProgress*>.
+ * P0 only defines the struct; producer/consumer is added in P3.
+ * See DS §6.2.2 for full field semantics. */
+typedef struct SSTriggerExtProgress {
+  SStreamTaskAddr *pTaskAddr;            // EXT reader task address
+  SSHashObj       *triggerSideUidMaxTs;  // SSHashObj<int64_t uid, int64_t maxTs>;
+                                         // trigger-side watermark map; sent on
+                                         // every PULL so reader never stores it.
+  SSHashObj       *pUidWindow;           // SSHashObj<int64_t uid, SExtUidWindow>;
+                                         // uid -> {skey,ekey} collected from the latest
+                                         // META_EXT response; sent with DATA_EXT pull;
+                                         // owned by this struct, freed after DATA pull is sent.
+  SSHashObj       *pCalcUidWindow;       // SSHashObj<int64_t uid, SExtUidWindow>;
+                                         // accumulated uid -> {skey,ekey} across all
+                                         // DATA_EXT rounds that arrived while CALC_DATA_EXT
+                                         // was deferred by maxDelay; each new DATA_EXT round
+                                         // merges its pUidWindow here (skey=min, ekey=max)
+                                         // instead of replacing.  Freed after CALC_DATA_EXT
+                                         // response.
+  SSHashObj       *pUidToGid;            // SSHashObj<int64_t uid, int64_t groupId>;
+                                         // populated from META_COL_GROUP_ID in every
+                                         // META_EXT/META_DATA_EXT response so that trigger
+                                         // groups can be keyed by the reader's PARTITION BY
+                                         // groupId (which may merge several uids) instead of
+                                         // by raw uid.  Persists for the lifetime of this
+                                         // progress (not cleared per-request like pUidWindow).
+  SSDataBlock     *pTrigDataBlock;       // owned data block returned by DATA_EXT/META_DATA_EXT;
+                                         // borrowed by pSlices during trigger-side checks;
+                                         // freed in stExtProgressDestroy and on next trigger
+                                         // data response.
+  SSDataBlock     *pCalcDataBlock;       // owned data block returned by CALC_DATA_EXT;
+                                         // borrowed by pSlices during %%trows calc;
+                                         // freed in stExtProgressDestroy and on next CALC_DATA_EXT.
+  int64_t          lastTsNs;             // driver-internal heuristic only;
+                                         // NOT persisted, NOT in heartbeat,
+                                         // undefined for InfluxDB multi-uid.
+  void            *pullReq;              // in-flight pull request handle, or NULL
+  ESTriggerPullType pullType;            // last in-flight pull type; used when
+                                         // reader returns NO_DATA without payload.
+  struct SStreamTriggerTask *pOwnerTask; // back ref for async PULL callback
+  int32_t          sessionId;            // back ref for stTriggerTaskAddWaitSession
+  int64_t          pendingGroupColValGid; // gid of the in-flight GROUP_COL_VALUE_EXT pull, if pullType == STRIGGER_PULL_GROUP_COL_VALUE_EXT
+} SSTriggerExtProgress;
+
 // (gid, pProgress) for nodelay create-table; each gid must be pulled from its owning reader
 typedef struct {
   int64_t               gid;
@@ -225,6 +274,7 @@ typedef struct SSTriggerRealtimeContext {
   ESTriggerContextStatus     status;
 
   SSHashObj                  *pReaderWalProgress;  // SSHashObj<vgId, SSTriggerWalProgress>
+  SSHashObj                  *pReaderExtProgress;  // SSHashObj<int64_t taskId, SSTriggerExtProgress*>; NULL until P3 producer is introduced (DS §6.1.3)
   int32_t                     curReaderIdx;
   bool                        catchUp;  // whether all readers have caught up the latest wal data
   bool                        continueToFetch;

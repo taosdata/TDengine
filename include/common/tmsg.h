@@ -244,7 +244,6 @@ typedef enum EExtSourceType {
 // External source names follow the same rules as database names (globally unique, must not
 // conflict with local DB names), so the name length is capped at TSDB_DB_NAME_LEN (64 + NUL).
 #define TSDB_EXT_SOURCE_NAME_LEN         TSDB_DB_NAME_LEN  // max external source name length (64 chars + NUL)
-
 #define TSDB_EXT_SOURCE_HOST_LEN         257    // max hostname/IP length (256 chars + NUL)
 // External DB usernames can be longer than TDengine usernames (TSDB_USER_LEN=24).
 // MySQL max=32, PostgreSQL max=63; we use 128 for future-proofing.
@@ -285,6 +284,15 @@ typedef enum EExtSQLDialect {
   EXT_SQL_DIALECT_POSTGRES = 1,
   EXT_SQL_DIALECT_INFLUXQL = 2,
 } EExtSQLDialect;
+
+// Declared width (in characters) used for InfluxDB tag columns, both when the
+// ext reader fetches tag values at runtime (streamReaderExt.c's
+// extInitInfluxTagPartition / fetchDataBatchInflux column-type mappings) and
+// when the stream parser auto-derives an output TAG from a PARTITION BY tag
+// column (parTranslater.c's createStreamReqSetDefaultTag).  Keeping both sides
+// on this single constant prevents them drifting apart — InfluxDB tags have no
+// declared TDengine-side width, so the two call sites must agree on one.
+#define EXT_INFLUX_TAG_NCHAR_CHARS 256
 
 // SExtColumnDef / SExtTableMeta — external table metadata types.
 // Defined here so that nodes/querynodes.h and nodes source files can use them

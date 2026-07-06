@@ -103,7 +103,6 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 
 #define MND_STREAM_RESERVE_SIZE      64
 #define MND_STREAM_VER_NUMBER        8
-#define MND_STREAM_COMPATIBLE_VER_NUMBER 7
 #define MND_STREAM_TRIGGER_NAME_SIZE 20
 #define MND_STREAM_DEFAULT_NUM       100
 #define MND_STREAM_DEFAULT_TASK_NUM  200
@@ -247,6 +246,7 @@ typedef struct SStmActionQ {
 
 typedef struct SStmTaskSrcAddr {
   bool    isFromCache;
+  bool    isExt;    /* P4-E2: true when the source is an EXT (federated) reader */
   int64_t taskId;
   int32_t vgId;
   int32_t groupId;
@@ -343,8 +343,10 @@ typedef struct SStmSnodeTasksDeploy {
   SRWLatch lock;
   int32_t  triggerDeployed;
   int32_t  runnerDeployed;
-  SArray*  triggerList;  // SArray<SStmTaskToDeployExt>
-  SArray*  runnerList;   // SArray<SStmTaskToDeployExt>
+  int32_t  calcReaderDeployed;  // EXT-source calc reader tasks deployed count
+  SArray*  triggerList;         // SArray<SStmTaskToDeployExt>
+  SArray*  runnerList;          // SArray<SStmTaskToDeployExt>
+  SArray*  calcReaderList;      // SArray<SStmTaskToDeployExt>: EXT calc scan tasks on snode
 } SStmSnodeTasksDeploy;
 
 typedef struct SStmStreamUndeploy{

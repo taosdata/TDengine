@@ -630,6 +630,7 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
   pScan->scanSeq[0] = pSelect->hasRepeatScanFuncs ? 2 : 1;
   pScan->showRewrite = pCxt->pPlanCxt->showRewrite;
+  pScan->placeholderType = pRealTable->placeholderType;
 
   // Collect all columns referenced in this table alias (no tag/pseudo split for external)
   if (TSDB_CODE_SUCCESS == code) {
@@ -3975,6 +3976,23 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   }
 
   PLAN_ERR_JRET(replaceVtbTsWithSingleRefTs(pSelect, pVirtualTable, pVtableScan, pRefTablesMap));
+
+  // Add ts (primary key) column to every external scan child.
+  // The VTB sort/merge expects column 0 of every child block to be TIMESTAMP.
+  // External scans don't automatically include ts; we need to add the ext table's
+  // PK column so the remote SQL fetches it and the merge has a valid sort key.
+  {
+    void* pExtIter = NULL;
+    while ((pExtIter = taosHashIterate(pRefTablesMap, pExtIter))) {
+      SScanLogicNode** ppExtScan = (SScanLogicNode**)pExtIter;
+      SScanLogicNode*  pExtScan  = *ppExtScan;
+      if (pExtScan->scanType != SCAN_TYPE_EXTERNAL) {
+        continue;
+      }
+
+      PLAN_ERR_JRET(addExtPrimaryTsCol(pExtScan, &pExtScan->pScanCols));
+    }
+  }
 
   // Iterate the table map, build scan logic node for each origin table and add these node to vtable scan's child list.
   void* pIter = NULL;

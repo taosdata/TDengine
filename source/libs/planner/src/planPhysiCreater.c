@@ -2230,10 +2230,32 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
   if (inStreamCalcClause(pCxt->pPlanCxt)) {
     SStreamCalcScan pStreamCalcScan = {0};
     pStreamCalcScan.vgList = taosArrayInit(1, sizeof(int32_t));
-    if (NULL == taosArrayPush(pStreamCalcScan.vgList, &pSubplan->execNode.nodeId)) {
+    // External-source scans have no vgroup; execNode.nodeId is 0 (unset).
+    // Use SNODE_HANDLE as a sentinel so mnode can distinguish ext-source calc
+    // readers from normal vnode readers and assign the real snodeId / epset.
+    int32_t calcNodeId = (pScanLogicNode->scanType == SCAN_TYPE_EXTERNAL)
+                             ? SNODE_HANDLE
+                             : pSubplan->execNode.nodeId;
+    if (NULL == taosArrayPush(pStreamCalcScan.vgList, &calcNodeId)) {
       PLAN_ERR_RET(terrno);
     }
     pStreamCalcScan.scanPlan = (void*)pSubplan;
+    // Federated calc: record this scan's external source/table identity so the
+    // mnode can bind each calc reader to the correct per-source spec when the
+    // calc query JOINs multiple external tables/sources. tsColumn is resolved
+    // here (from pExtMeta) because pExtMeta is runtime-only and not serialized.
+    if (pScanLogicNode->scanType == SCAN_TYPE_EXTERNAL && pScanLogicNode->pExtTableNode != NULL) {
+      SExtTableNode* pExt = (SExtTableNode*)pScanLogicNode->pExtTableNode;
+      tstrncpy(pStreamCalcScan.sourceName, pExt->sourceName, sizeof(pStreamCalcScan.sourceName));
+      const char* remoteTbl =
+          (pExt->remoteTableName[0] != '\0') ? pExt->remoteTableName : pExt->table.tableName;
+      tstrncpy(pStreamCalcScan.extTable, remoteTbl, sizeof(pStreamCalcScan.extTable));
+      if (pExt->tsPrimaryColIdx >= 0 && pExt->pExtMeta != NULL &&
+          pExt->tsPrimaryColIdx < pExt->pExtMeta->numOfCols && pExt->pExtMeta->pCols != NULL) {
+        tstrncpy(pStreamCalcScan.tsColumn, pExt->pExtMeta->pCols[pExt->tsPrimaryColIdx].colName,
+                 sizeof(pStreamCalcScan.tsColumn));
+      }
+    }
     if (pScanLogicNode->placeholderType == SP_PARTITION_ROWS) {
       pStreamCalcScan.readFromCache = true;
     }

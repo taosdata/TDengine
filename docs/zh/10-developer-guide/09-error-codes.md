@@ -796,6 +796,10 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80004100 | Stream task not exist                 | 流计算任务不存在                    | 具体查看 server 端的错误日志       |
 | 0x80004118 | Stream rollup tag path is illegal     | ROLLUP BY 标签路径非法              | 检查并修正 rollup 标签路径         |
 | 0x80004119 | Invalid ROLLUP BY clause              | 流的 ROLLUP BY 子句非法             | 检查并修正建流语句                 |
+| 0x8000411A | Federated query is disabled for stream (federatedQueryEnable=false) | 流引用了 EXTERNAL SOURCE 表，但联邦查询未开启 | 开启 federatedQueryEnable，或移除流中的外部源引用 |
+| 0x8000411B | External source table has no timestamp primary key column | 引用的外部源表没有可解析的时间戳主键列 | 为外部源表指定有效的时间戳列 |
+| 0x8000411C | PARTITION BY is not supported for the given external source type | 该外部源类型不支持 PARTITION BY | 移除 PARTITION BY，或改用支持的外部源类型 |
+| 0x8000411D | External reader has no local SStreamTriggerReaderInfo; trigger must resend uid maxTs hash | 外部 reader 缺少本地流状态 | 保留现场和日志，github 上报 |
 
 #### xnode
 

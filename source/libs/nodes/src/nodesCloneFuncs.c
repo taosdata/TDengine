@@ -364,6 +364,12 @@ static int32_t realTableNodeCopy(const SRealTableNode* pSrc, SRealTableNode* pDs
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   COPY_CHAR_ARRAY_FIELD(qualDbName);
   COPY_SCALAR_FIELD(ratio);
+  // Copy external-source routing fields so cloned nodes (e.g. %%trows trigger table copy)
+  // preserve the 3-seg path and route through translateExternalTableImpl correctly.
+  COPY_SCALAR_FIELD(numPathSegments);
+  memcpy(pDst->extSeg, pSrc->extSeg, sizeof(pSrc->extSeg));
+  CLONE_NODE_FIELD(pExtTableNode);
+  COPY_SCALAR_FIELD(placeholderType);
   return TSDB_CODE_SUCCESS;
 }
 
