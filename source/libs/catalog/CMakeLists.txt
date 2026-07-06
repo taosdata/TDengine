@@ -6,6 +6,10 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
+if(BUILD_TEST)
+    target_compile_definitions(catalog PRIVATE BUILD_TEST)
+endif()
+
 target_link_libraries(
     catalog
     PRIVATE os util transport qcom nodes extconnector
@@ -19,5 +23,6 @@ if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
 endif()
 
 if(BUILD_TEST AND NOT TD_WINDOWS)
+ target_compile_definitions(catalog PRIVATE BUILD_TEST)
  ADD_SUBDIRECTORY(test)
 endif()

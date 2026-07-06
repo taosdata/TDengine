@@ -1318,6 +1318,11 @@ void    ctgFreeQNode(SCtgQNode* node);
 void    ctgClearHandle(SCatalog* pCtg);
 void    ctgFreeTbCacheImpl(SCtgTbCache* pCache, bool lock);
 void    ctgFreeViewCacheImpl(SCtgViewCache* pCache, bool lock);
+#if defined(BUILD_TEST)
+void    ctgTestResetStopQueueDestroyState(void);
+int32_t ctgTestGetStopQueueDestroyCount(void);
+bool    ctgTestDidStopQueueDestroyRspSemBeforeFree(void);
+#endif
 int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName, bool related);
 int32_t ctgRemoveCacheUser(SCatalog* pCtg, SCtgUserAuth* pUser, const char* user);
 int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup,
@@ -1422,6 +1427,12 @@ int32_t ctgUpdateExtCapEnqueue(SCatalog* pCtg, const char* sourceName, const SEx
 int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* sourceName,
                                  SGetExtSourceRsp* out, SCtgTask* pTask);
 int32_t ctgFetchExtTableMetas(SCtgJob* pJob);
+#if defined(BUILD_TEST)
+void    ctgTestResetDropTsmaForTbEnqueueState(void);
+void    ctgTestSetDropTsmaForTbEnqueueFailAfterOwnershipOnce(int32_t code);
+bool    ctgTestDidDropTsmaForTbEnqueueOwnershipFailureFire(void);
+int32_t ctgTestGetDropTsmaForTbCallerCleanupCount(void);
+#endif
 
 extern SCatalogMgmt      gCtgMgmt;
 extern SCtgDebug         gCTGDebug;

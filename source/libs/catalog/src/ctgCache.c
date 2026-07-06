@@ -43,6 +43,20 @@ SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {{CTG_OP_UPDATE_VGROUP, "update v
                                                 {CTG_OP_UPDATE_EXT_CAPABILITY, "update extCap", ctgOpUpdateExtCap},
                                                 {CTG_OP_REPLACE_EXT_SOURCE_CACHE, "replace extSource cache", ctgOpReplaceExtSourceCache}};
 
+#if defined(BUILD_TEST)
+static int32_t g_ctgTestStopQueueDestroyCount = 0;
+static bool    g_ctgTestStopQueueDestroyBeforeFree = false;
+
+void ctgTestResetStopQueueDestroyState(void) {
+  g_ctgTestStopQueueDestroyCount = 0;
+  g_ctgTestStopQueueDestroyBeforeFree = false;
+}
+
+int32_t ctgTestGetStopQueueDestroyCount(void) { return g_ctgTestStopQueueDestroyCount; }
+
+bool ctgTestDidStopQueueDestroyRspSemBeforeFree(void) { return g_ctgTestStopQueueDestroyBeforeFree; }
+#endif
+
 SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
     {"Cluster   ", CTG_CI_FLAG_LEVEL_GLOBAL},  //CTG_CI_CLUSTER
     {"Dnode     ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_DNODE,
@@ -68,6 +82,30 @@ SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
     {"VsubTbls  ", CTG_CI_FLAG_LEVEL_DB},      //CTG_CI_VSUB_TBLS,
     {"ExtSource ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_EXT_SOURCE,
 };
+
+#if defined(BUILD_TEST)
+static threadlocal int32_t g_ctgTestDropTsmaForTbFailAfterOwnershipCode = TSDB_CODE_SUCCESS;
+static threadlocal bool    g_ctgTestDropTsmaForTbOwnershipFailureFired = false;
+static threadlocal int32_t g_ctgTestDropTsmaForTbCallerCleanupCount = 0;
+
+void ctgTestResetDropTsmaForTbEnqueueState(void) {
+  g_ctgTestDropTsmaForTbFailAfterOwnershipCode = TSDB_CODE_SUCCESS;
+  g_ctgTestDropTsmaForTbOwnershipFailureFired = false;
+  g_ctgTestDropTsmaForTbCallerCleanupCount = 0;
+}
+
+void ctgTestSetDropTsmaForTbEnqueueFailAfterOwnershipOnce(int32_t code) {
+  g_ctgTestDropTsmaForTbFailAfterOwnershipCode = code;
+}
+
+bool ctgTestDidDropTsmaForTbEnqueueOwnershipFailureFire(void) {
+  return g_ctgTestDropTsmaForTbOwnershipFailureFired;
+}
+
+int32_t ctgTestGetDropTsmaForTbCallerCleanupCount(void) {
+  return g_ctgTestDropTsmaForTbCallerCleanupCount;
+}
+#endif
 
 int32_t ctgRLockVgInfo(SCatalog *pCtg, SCtgDBCache *dbCache, bool *inCache) {
   CTG_LOCK(CTG_READ, &dbCache->vgCache.vgLock);
@@ -1099,6 +1137,22 @@ void ctgDequeue(SCtgCacheOperation **op) {
 
 int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation, bool *enqueued) {
   int32_t code = TSDB_CODE_SUCCESS;
+
+#if defined(BUILD_TEST)
+  if (CTG_OP_DROP_TB_TSMA == operation->opId &&
+      TSDB_CODE_SUCCESS != g_ctgTestDropTsmaForTbFailAfterOwnershipCode) {
+    code = g_ctgTestDropTsmaForTbFailAfterOwnershipCode;
+    g_ctgTestDropTsmaForTbFailAfterOwnershipCode = TSDB_CODE_SUCCESS;
+    g_ctgTestDropTsmaForTbOwnershipFailureFired = true;
+    if (enqueued) {
+      *enqueued = true;
+    }
+    taosMemoryFreeClear(operation->data);
+    taosMemoryFreeClear(operation);
+    return code;
+  }
+#endif
+
   SCtgQNode *node = taosMemoryCalloc(1, sizeof(SCtgQNode));
   if (NULL == node) {
     qError("calloc %d failed", (int32_t)sizeof(SCtgQNode));
@@ -1123,7 +1177,15 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation, bool *enqueued
   CTG_LOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
 
   if (gCtgMgmt.queue.stopQueue) {
+    if (syncOp) {
+#if defined(BUILD_TEST)
+      ++g_ctgTestStopQueueDestroyCount;
+      g_ctgTestStopQueueDestroyBeforeFree = true;
+#endif
+      TAOS_UNUSED(tsem_destroy(&operation->rspSem));
+    }
     ctgFreeQNode(node);
+    operation = NULL;
     CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
     CTG_ERR_JRET(TSDB_CODE_CTG_EXIT);
   }
@@ -1164,6 +1226,9 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation, bool *enqueued
 
 _return:
   if (syncOp && operation) {
+#if defined(BUILD_TEST)
+    ++g_ctgTestStopQueueDestroyCount;
+#endif
     TAOS_UNUSED(tsem_destroy(&operation->rspSem));
   }
   return code;
@@ -1819,6 +1884,7 @@ int32_t ctgDropTSMAForTbEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
   ctgDebug("drop tsma meta for tb: %s.%s", pName->dbname, pName->tname);
   
   int32_t             code = 0;
+  bool                enqueued = false;
   SCtgDBCache        *pDbCache = NULL;
   SCtgCacheOperation *pOp = NULL;
   char                dbFName[TSDB_DB_FNAME_LEN];
@@ -1857,7 +1923,11 @@ int32_t ctgDropTSMAForTbEnqueue(SCatalog *pCtg, SName *pName, bool syncOp) {
 
   CTG_ERR_JRET(code);
   
-  CTG_ERR_JRET(ctgEnqueue(pCtg, pOp, NULL));
+  code = ctgEnqueue(pCtg, pOp, &enqueued);
+  if (enqueued) {
+    pOp = NULL;
+  }
+  CTG_ERR_JRET(code);
   
   return TSDB_CODE_SUCCESS;
 
@@ -1870,8 +1940,13 @@ _return:
     ctgReleaseDBCache(pCtg, pDbCache);
   }
   if (pOp) {
+#if defined(BUILD_TEST)
+    ++g_ctgTestDropTsmaForTbCallerCleanupCount;
+#endif
     taosMemoryFree(pOp->data);
+    pOp->data = NULL;
     taosMemoryFree(pOp);
+    pOp = NULL;
   }
   
   CTG_RET(code);

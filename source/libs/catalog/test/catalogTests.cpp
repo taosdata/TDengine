@@ -47,6 +47,7 @@ namespace {
 
 extern "C" int32_t ctgdGetClusterCacheNum(struct SCatalog *pCatalog, int32_t type);
 extern "C" int32_t ctgdGetStatNum(char *option, void *res);
+extern "C" int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation, bool *enqueued);
 
 void ctgTestSetRspTableMeta();
 void ctgTestSetRspCTableMeta();
@@ -3217,6 +3218,83 @@ TEST(apiTest, catalogGetDnodeList_test) {
   taosArrayDestroy(pList);
 
   catalogDestroy();
+}
+
+TEST(apiTest, ctgEnqueueStopQueueDestroyOrder_test) {
+  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
+  taosInitRWLatch(&gCtgMgmt.lock);
+  taosInitRWLatch(&gCtgMgmt.queue.qlock);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tsem_init(&gCtgMgmt.queue.reqSem, 0, 0));
+
+  gCtgMgmt.queue.head = (SCtgQNode *)taosMemoryCalloc(1, sizeof(SCtgQNode));
+  ASSERT_NE(gCtgMgmt.queue.head, nullptr);
+  gCtgMgmt.queue.tail = gCtgMgmt.queue.head;
+  gCtgMgmt.queue.stopQueue = true;
+
+  SCtgCacheOperation *operation = (SCtgCacheOperation *)taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  ASSERT_NE(operation, nullptr);
+  operation->opId = CTG_OP_DROP_DB_CACHE;
+  operation->syncOp = true;
+
+  ctgTestResetStopQueueDestroyState();
+
+  int32_t code = ctgEnqueue(NULL, operation, NULL);
+
+  EXPECT_EQ(code, TSDB_CODE_CTG_EXIT);
+  EXPECT_EQ(ctgTestGetStopQueueDestroyCount(), 1);
+  EXPECT_TRUE(ctgTestDidStopQueueDestroyRspSemBeforeFree());
+
+  TAOS_UNUSED(tsem_destroy(&gCtgMgmt.queue.reqSem));
+  taosMemoryFreeClear(gCtgMgmt.queue.head);
+  gCtgMgmt.queue.tail = NULL;
+}
+
+TEST(apiTest, ctgDropTSMAForTbEnqueueOwnershipTransfer_test) {
+  SCatalog      ctg = {0};
+  SCtgDBCache   dbCache = {0};
+  SCtgTSMACache tsmaCache = {0};
+  STSMACache    tsma = {0};
+  STSMACache   *pTsma = &tsma;
+  SName         name = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  char          dbFName[TSDB_DB_FNAME_LEN] = {0};
+
+  TAOS_STRCPY(name.dbname, "db1");
+  TAOS_STRCPY(name.tname, "tb1");
+  ASSERT_EQ(tNameGetFullDbName(&name, dbFName), TSDB_CODE_SUCCESS);
+
+  ctg.dbCache = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  ASSERT_NE(ctg.dbCache, nullptr);
+
+  dbCache.tsmaCache = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  ASSERT_NE(dbCache.tsmaCache, nullptr);
+  taosInitRWLatch(&dbCache.dbLock);
+
+  tsmaCache.pTsmas = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(tsmaCache.pTsmas, nullptr);
+  taosInitRWLatch(&tsmaCache.tsmaLock);
+
+  tsma.dbId = 101;
+  tsma.suid = 202;
+  tsma.tsmaId = 303;
+  TAOS_STRCPY(tsma.name, "tsma1");
+  TAOS_STRCPY(tsma.tb, name.tname);
+  TAOS_STRCPY(tsma.dbFName, dbFName);
+
+  ASSERT_NE(taosArrayPush(tsmaCache.pTsmas, &pTsma), nullptr);
+  ASSERT_EQ(taosHashPut(dbCache.tsmaCache, name.tname, strlen(name.tname), &tsmaCache, sizeof(tsmaCache)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosHashPut(ctg.dbCache, dbFName, strlen(dbFName), &dbCache, sizeof(dbCache)), TSDB_CODE_SUCCESS);
+
+  ctgTestResetDropTsmaForTbEnqueueState();
+  ctgTestSetDropTsmaForTbEnqueueFailAfterOwnershipOnce(TSDB_CODE_CTG_EXIT);
+
+  ASSERT_EQ(ctgDropTSMAForTbEnqueue(&ctg, &name, false), TSDB_CODE_CTG_EXIT);
+  ASSERT_TRUE(ctgTestDidDropTsmaForTbEnqueueOwnershipFailureFire());
+  ASSERT_EQ(ctgTestGetDropTsmaForTbCallerCleanupCount(), 0);
+
+  ctgTestResetDropTsmaForTbEnqueueState();
+  taosArrayDestroy(tsmaCache.pTsmas);
+  taosHashCleanup(dbCache.tsmaCache);
+  taosHashCleanup(ctg.dbCache);
 }
 
 #ifdef INTEGRATION_TEST

@@ -1169,6 +1169,21 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
       if (pCol->varmeta.length > pCol->varmeta.allocLen) {
         return TSDB_CODE_FAILED;
       }
+    } else {
+      int32_t expected = colDataGetLength(pCol, pBlock->info.rows);
+      if (colLength != 0 && colLength != expected) {
+        // Fixed-length column: the serialized length must be exactly
+        // numOfRows * info.bytes (that is what blockDataToBuf writes).
+        // Any other value means the page column's width does not match this
+        // template block (a read/write schema mismatch); the memcpy below would
+        // then overflow pData or misread the block. Fail fast rather than only
+        // guarding against over-length. (colLength == 0 is a NULL-type column.)
+        uError("blockDataFromBuf: fixed col %d type %d length mismatch, "
+               "colLen=%d expected=%" PRId64 " (rows=%d bytes=%d)",
+               i, pCol->info.type, colLength, (int64_t)expected,
+               (int32_t)pBlock->info.rows, pCol->info.bytes);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
     }
     if (colLength != 0) {
       // ubsan reports error if colLength==0 && pCol->pData == 0

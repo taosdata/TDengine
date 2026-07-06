@@ -47,6 +47,9 @@ struct SNodeAllocator {
 
 static threadlocal SNodeAllocator* g_pNodeAllocator;
 static int32_t                     g_allocatorReqRefPool = -1;
+#if defined(BUILD_TEST)
+static threadlocal bool g_nodesTestStrictAppendFailOnce = false;
+#endif
 
 int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, int32_t bufSize,
                                void** pTimezone, bool* pOwnsTimezone) {
@@ -3181,12 +3184,23 @@ int32_t nodesListStrictAppend(SNodeList* pList, SNode* pNode) {
   if (NULL == pNode) {
     return TSDB_CODE_INVALID_PARA;
   }
+#if defined(BUILD_TEST)
+  if (g_nodesTestStrictAppendFailOnce) {
+    g_nodesTestStrictAppendFailOnce = false;
+    nodesDestroyNode(pNode);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+#endif
   int32_t code = nodesListAppend(pList, pNode);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode(pNode);
   }
   return code;
 }
+
+#if defined(BUILD_TEST)
+void nodesTestSetStrictAppendFailOnce(void) { g_nodesTestStrictAppendFailOnce = true; }
+#endif
 
 int32_t nodesListMakeAppend(SNodeList** pList, SNode* pNode) {
   if (NULL == *pList) {
@@ -3813,8 +3827,6 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
       // Store cloned node pointer in hash so we can update its flags later
       pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, &pNew, POINTER_BYTES);
-    } else {
-      nodesDestroyNode(pNew);
     }
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
   } else if (0 == pCol->appendByPrivCond) {

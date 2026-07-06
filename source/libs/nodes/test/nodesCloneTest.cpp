@@ -19,6 +19,8 @@
 #include "plannodes.h"
 #include "querynodes.h"
 
+extern "C" void nodesTestSetStrictAppendFailOnce(void);
+
 class NodesCloneTest : public testing::Test {
  public:
   void registerCheckFunc(const std::function<void(const SNode*, const SNode*)>& func) { checkFunc_ = func; }
@@ -262,6 +264,24 @@ TEST_F(NodesCloneTest, physiSystemTableScan) {
     SSystemTableScanPhysiNode* pNode = (SSystemTableScanPhysiNode*)srcNode.get();
     return srcNode.get();
   }());
+}
+
+TEST(NodesCollectTest, collectColumnsAppendFailureDoesNotDoubleFree) {
+  SNode* pNode = NULL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &pNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> nodeGuard(pNode, nodesDestroyNode);
+
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  pCol->colType = COLUMN_TYPE_COLUMN;
+  snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", "t1");
+  snprintf(pCol->colName, sizeof(pCol->colName), "%s", "c1");
+
+  SNodeList* pCols = NULL;
+  nodesTestSetStrictAppendFailOnce();
+  int32_t code = nodesCollectColumnsFromNode(pNode, "t1", COLLECT_COL_TYPE_ALL, &pCols);
+
+  EXPECT_EQ(code, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(pCols, nullptr);
 }
 
 TEST_F(NodesCloneTest, physiPartition) {

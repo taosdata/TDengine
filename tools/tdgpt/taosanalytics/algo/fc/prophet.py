@@ -27,10 +27,48 @@ class _ProphetService(AbstractForecastService):
         super().set_params(params)
 
         self.growth = params.get("growth", "linear")
-        self.yearly_seasonality = params.get("yearly_seasonality", "auto")
-        self.weekly_seasonality = params.get("weekly_seasonality", "auto")
-        self.daily_seasonality = params.get("daily_seasonality", "auto")
+
+        # Convert seasonality parameters: 'auto' | True | False | numeric value
+        self.yearly_seasonality = self._convert_seasonality(
+            params.get("yearly_seasonality", "auto")
+        )
+        self.weekly_seasonality = self._convert_seasonality(
+            params.get("weekly_seasonality", "auto")
+        )
+        self.daily_seasonality = self._convert_seasonality(
+            params.get("daily_seasonality", "auto")
+        )
+
         self.changepoint_prior_scale = float(params.get("changepoint_prior_scale", 0.05))
+
+    @staticmethod
+    def _convert_seasonality(value):
+        """
+        Convert seasonality parameter to valid Prophet format.
+        Valid inputs: 'auto', True, False, or numeric value
+        Returns: 'auto', True, False, or float
+        """
+        if isinstance(value, str):
+            if value.lower() == 'auto':
+                return 'auto'
+            elif value.lower() == 'true':
+                return True
+            elif value.lower() == 'false':
+                return False
+            else:
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return 'auto'
+        elif isinstance(value, bool):
+            return value
+        elif value is None:
+            return 'auto'
+        else:
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return 'auto'
 
     def get_params(self):
         """ get the default value for fc algorithms """
