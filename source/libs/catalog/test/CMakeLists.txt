@@ -9,9 +9,7 @@ IF(NOT TD_DARWIN)
         ADD_EXECUTABLE(catalogTest ${SOURCE_LIST})
         DEP_ext_gtest(catalogTest)
         DEP_ext_cppstub(catalogTest)
-        if(BUILD_TEST)
-                target_compile_definitions(catalogTest PRIVATE BUILD_TEST)
-        endif()
+        target_compile_definitions(catalogTest PRIVATE BUILD_TEST)
         TARGET_LINK_LIBRARIES(
                 catalogTest
                 PUBLIC os util common nodes catalog transport qcom ${TAOS_NATIVE_LIB_STATIC}

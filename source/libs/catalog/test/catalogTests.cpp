@@ -47,6 +47,7 @@ namespace {
 
 extern "C" int32_t ctgdGetClusterCacheNum(struct SCatalog *pCatalog, int32_t type);
 extern "C" int32_t ctgdGetStatNum(char *option, void *res);
+extern "C" int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation, bool *enqueued);
 
 void ctgTestSetRspTableMeta();
 void ctgTestSetRspCTableMeta();
@@ -3217,6 +3218,35 @@ TEST(apiTest, catalogGetDnodeList_test) {
   taosArrayDestroy(pList);
 
   catalogDestroy();
+}
+
+TEST(apiTest, ctgEnqueueStopQueueDestroyOrder_test) {
+  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
+  taosInitRWLatch(&gCtgMgmt.lock);
+  taosInitRWLatch(&gCtgMgmt.queue.qlock);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tsem_init(&gCtgMgmt.queue.reqSem, 0, 0));
+
+  gCtgMgmt.queue.head = (SCtgQNode *)taosMemoryCalloc(1, sizeof(SCtgQNode));
+  ASSERT_NE(gCtgMgmt.queue.head, nullptr);
+  gCtgMgmt.queue.tail = gCtgMgmt.queue.head;
+  gCtgMgmt.queue.stopQueue = true;
+
+  SCtgCacheOperation *operation = (SCtgCacheOperation *)taosMemoryCalloc(1, sizeof(SCtgCacheOperation));
+  ASSERT_NE(operation, nullptr);
+  operation->opId = CTG_OP_DROP_DB_CACHE;
+  operation->syncOp = true;
+
+  ctgTestResetStopQueueDestroyState();
+
+  int32_t code = ctgEnqueue(NULL, operation, NULL);
+
+  EXPECT_EQ(code, TSDB_CODE_CTG_EXIT);
+  EXPECT_EQ(ctgTestGetStopQueueDestroyCount(), 1);
+  EXPECT_TRUE(ctgTestDidStopQueueDestroyRspSemBeforeFree());
+
+  TAOS_UNUSED(tsem_destroy(&gCtgMgmt.queue.reqSem));
+  taosMemoryFreeClear(gCtgMgmt.queue.head);
+  gCtgMgmt.queue.tail = NULL;
 }
 
 TEST(apiTest, ctgDropTSMAForTbEnqueueOwnershipTransfer_test) {

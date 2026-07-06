@@ -37,6 +37,20 @@ SCtgOperation gCtgCacheOperation[CTG_OP_MAX] = {{CTG_OP_UPDATE_VGROUP, "update v
                                                 {CTG_OP_CLEAR_CACHE, "clear cache", ctgOpClearCache},
                                                 {CTG_OP_UPDATE_DB_TSMA_VERSION, "update dbTsmaVersion", ctgOpUpdateDbTsmaVersion}};
 
+#if defined(BUILD_TEST)
+static int32_t g_ctgTestStopQueueDestroyCount = 0;
+static bool    g_ctgTestStopQueueDestroyBeforeFree = false;
+
+void ctgTestResetStopQueueDestroyState(void) {
+  g_ctgTestStopQueueDestroyCount = 0;
+  g_ctgTestStopQueueDestroyBeforeFree = false;
+}
+
+int32_t ctgTestGetStopQueueDestroyCount(void) { return g_ctgTestStopQueueDestroyCount; }
+
+bool ctgTestDidStopQueueDestroyRspSemBeforeFree(void) { return g_ctgTestStopQueueDestroyBeforeFree; }
+#endif
+
 SCtgCacheItemInfo gCtgStatItem[CTG_CI_MAX_VALUE] = {
     {"Cluster   ", CTG_CI_FLAG_LEVEL_GLOBAL},  //CTG_CI_CLUSTER
     {"Dnode     ", CTG_CI_FLAG_LEVEL_CLUSTER}, //CTG_CI_DNODE,
@@ -1015,7 +1029,15 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation, bool *enqueued
   CTG_LOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
 
   if (gCtgMgmt.queue.stopQueue) {
+    if (syncOp) {
+#if defined(BUILD_TEST)
+      ++g_ctgTestStopQueueDestroyCount;
+      g_ctgTestStopQueueDestroyBeforeFree = true;
+#endif
+      TAOS_UNUSED(tsem_destroy(&operation->rspSem));
+    }
     ctgFreeQNode(node);
+    operation = NULL;
     CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
     CTG_ERR_JRET(TSDB_CODE_CTG_EXIT);
   }
@@ -1056,6 +1078,9 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation, bool *enqueued
 
 _return:
   if (syncOp && operation) {
+#if defined(BUILD_TEST)
+    ++g_ctgTestStopQueueDestroyCount;
+#endif
     TAOS_UNUSED(tsem_destroy(&operation->rspSem));
   }
   return code;

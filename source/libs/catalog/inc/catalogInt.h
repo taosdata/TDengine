@@ -1185,6 +1185,11 @@ void    ctgFreeQNode(SCtgQNode* node);
 void    ctgClearHandle(SCatalog* pCtg);
 void    ctgFreeTbCacheImpl(SCtgTbCache* pCache, bool lock);
 void    ctgFreeViewCacheImpl(SCtgViewCache* pCache, bool lock);
+#if defined(BUILD_TEST)
+void    ctgTestResetStopQueueDestroyState(void);
+int32_t ctgTestGetStopQueueDestroyCount(void);
+bool    ctgTestDidStopQueueDestroyRspSemBeforeFree(void);
+#endif
 int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName, bool related);
 int32_t ctgRemoveCacheUser(SCatalog* pCtg, SCtgUserAuth* pUser, const char* user);
 int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup,
