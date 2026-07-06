@@ -44,6 +44,7 @@
 #   FQ_MYSQL_USER/PASS     credentials            default root / taosdata
 #   FQ_MYSQL_INIT_TIMEOUT_S mysqld --initialize timeout default 300
 #   FQ_PG_USER/PASS        credentials            default postgres / taosdata
+#   FQ_PG_TIMEZONE         PostgreSQL server timezone default Asia/Shanghai
 #   FQ_INFLUX_TOKEN/ORG    credentials            default test-token / test-org
 #   FQ_POOL_TEST_USER      pool-exhaustion test MySQL user   default fq_pool_test
 #   FQ_POOL_TEST_PASS      pool-exhaustion test user password default taosdata
@@ -150,6 +151,9 @@ _fq_staging_dirs() {
 }
 
 FQ_TARBALL_CACHE_DIR="${FQ_TARBALL_CACHE_DIR:-$(_default_tarball_cache_dir)}"
+FQ_POSTGIS_VERSION="${FQ_POSTGIS_VERSION:-3.6.3}"
+FQ_POSTGIS_URL="${FQ_POSTGIS_URL:-https://codeload.github.com/postgis/postgis/tar.gz/refs/tags/${FQ_POSTGIS_VERSION}}"
+FQ_POSTGIS_FALLBACK_URL="${FQ_POSTGIS_FALLBACK_URL:-https://download.osgeo.org/postgis/source/postgis-${FQ_POSTGIS_VERSION}.tar.gz}"
 # Extra search paths for pre-staged tarballs (container mount or host compat-packages).
 FQ_STAGING_DIR="${FQ_STAGING_DIR:-/usr/local/src}"
 
@@ -174,6 +178,9 @@ MYSQL_USER="${FQ_MYSQL_USER:-root}"
 MYSQL_PASS="${FQ_MYSQL_PASS:-taosdata}"
 PG_USER="${FQ_PG_USER:-postgres}"
 PG_PASS="${FQ_PG_PASS:-taosdata}"
+PG_TIMEZONE="${FQ_PG_TIMEZONE:-Asia/Shanghai}"
+export TZ="${TZ:-$PG_TIMEZONE}"
+export PGTZ="${PGTZ:-$PG_TIMEZONE}"
 INFLUX_TOKEN="${FQ_INFLUX_TOKEN:-test-token}"
 INFLUX_ORG="${FQ_INFLUX_ORG:-test-org}"
 
@@ -491,6 +498,7 @@ _download_with_retry() {
                 --location \
                 --retry 3 --retry-delay 5 --retry-connrefused \
                 --connect-timeout 30 --max-time 3600 \
+                --speed-time 60 --speed-limit 1024 \
                 -C - \
                 -o "$dest" \
                 "$url" 2>/dev/null; then
@@ -2098,7 +2106,7 @@ _pg_install() {
             local brew_prefix; brew_prefix="$(brew --prefix)"
             local brew_bin="${brew_prefix}/opt/postgresql@${ver}/bin"
             mkdir -p "${base}/bin"
-            for f in pg_ctl initdb psql postgres createdb dropdb; do
+            for f in pg_ctl initdb psql postgres createdb dropdb pg_config; do
                 [[ -x "${brew_bin}/${f}" ]] && ln -sf "${brew_bin}/${f}" "${base}/bin/${f}"
             done
             return 0
@@ -2141,7 +2149,7 @@ _pg_install() {
                     mkdir -p "${base}/bin"
                     # ln -sfn works on Linux; on macOS use individual links
                     ln -sfn "${sys_bin}"/* "${base}/bin/" 2>/dev/null || \
-                        for f in pg_ctl initdb psql postgres createdb dropdb; do
+                        for f in pg_ctl initdb psql postgres createdb dropdb pg_config; do
                             [[ -x "${sys_bin}/${f}" ]] && ln -sf "${sys_bin}/${f}" "${base}/bin/${f}"
                         done
                     return 0
@@ -2156,7 +2164,7 @@ _pg_install() {
                 local sys_bin="/usr/pgsql-${ver}/bin"
                 if [[ -d "$sys_bin" ]]; then
                     mkdir -p "${base}/bin"
-                    for f in pg_ctl initdb psql postgres createdb dropdb; do
+                    for f in pg_ctl initdb psql postgres createdb dropdb pg_config; do
                         [[ -x "${sys_bin}/${f}" ]] && ln -sf "${sys_bin}/${f}" "${base}/bin/${f}"
                     done
                     return 0
@@ -2167,7 +2175,7 @@ _pg_install() {
                 local sys_bin="/usr/libexec/postgresql${ver}"
                 [[ -d "$sys_bin" ]] || sys_bin="/usr/bin"
                 mkdir -p "${base}/bin"
-                for f in pg_ctl initdb psql postgres; do
+                for f in pg_ctl initdb psql postgres pg_config; do
                     [[ -x "${sys_bin}/${f}" ]] && ln -sf "${sys_bin}/${f}" "${base}/bin/${f}"
                 done
                 return 0
@@ -2242,16 +2250,21 @@ _pg_install_postgis() {
 
     case "$OS" in
         Darwin)
-            if brew list postgis &>/dev/null 2>&1; then
-                info "PostgreSQL ${ver}: PostGIS already installed (Homebrew)."
+            local _pg_config="$(_pg_config_path "$ver")"
+            local _pg_ext_dir; _pg_ext_dir="$("$_pg_config" --sharedir)/extension"
+            local _pg_lib_dir; _pg_lib_dir="$("$_pg_config" --pkglibdir)"
+            if [[ -f "${_pg_ext_dir}/postgis.control" && -f "${_pg_lib_dir}/postgis-3.dylib" ]]; then
+                info "PostgreSQL ${ver}: PostGIS already installed for this PostgreSQL runtime."
                 return 0
             fi
-            info "PostgreSQL ${ver}: installing PostGIS via Homebrew ..."
-            if ! brew install postgis 2>/dev/null; then
-                warn "PostgreSQL ${ver}: PostGIS brew install failed."
-                return 1
+            _pg_build_postgis_darwin "$ver" "$_pg_config"
+            if [[ -f "${_pg_ext_dir}/postgis.control" && -f "${_pg_lib_dir}/postgis-3.dylib" ]]; then
+                info "PostgreSQL ${ver}: PostGIS installed for this PostgreSQL runtime."
+                return 0
             fi
-            return 0
+            err "PostgreSQL ${ver}: PostGIS install did not produce ${_pg_ext_dir}/postgis.control and ${_pg_lib_dir}/postgis-3.dylib."
+            OVERALL_OK=1
+            return 1
             ;;
         Linux)
             ;;
@@ -2299,6 +2312,134 @@ _pg_install_postgis() {
     fi
 }
 
+_pg_config_path() {
+    local ver="$1"
+    local base="${FQ_BASE_DIR}/pg/${ver}"
+    if [[ -x "${base}/bin/pg_config" ]]; then
+        printf '%s\n' "${base}/bin/pg_config"
+        return 0
+    fi
+    if command -v brew >/dev/null 2>&1; then
+        local brew_prefix; brew_prefix="$(brew --prefix)"
+        if [[ -x "${brew_prefix}/opt/postgresql@${ver}/bin/pg_config" ]]; then
+            printf '%s\n' "${brew_prefix}/opt/postgresql@${ver}/bin/pg_config"
+            return 0
+        fi
+    fi
+    if command -v pg_config >/dev/null 2>&1; then
+        command -v pg_config
+        return 0
+    fi
+    err "PostgreSQL ${ver}: pg_config not found."
+    return 1
+}
+
+_brew_prefix_or_install() {
+    local pkg="$1"
+    if ! command -v brew >/dev/null 2>&1; then
+        err "Homebrew not found; cannot install ${pkg}."
+        return 1
+    fi
+    if brew list --versions "$pkg" >/dev/null 2>&1; then
+        local prefix; prefix="$(brew --prefix "$pkg")"
+        if [[ -d "$prefix" ]]; then
+            printf '%s\n' "$prefix"
+            return 0
+        fi
+        warn "Homebrew package ${pkg} is listed but ${prefix} is missing; reinstalling."
+        brew reinstall "$pkg" >/dev/null 2>&1 || return 1
+        brew --prefix "$pkg"
+        return 0
+    fi
+    brew install "$pkg" >/dev/null 2>&1 || return 1
+    brew --prefix "$pkg"
+}
+
+_pg_build_postgis_darwin() {
+    local ver="$1" pg_config="$2"
+    info "PostgreSQL ${ver}: building PostGIS ${FQ_POSTGIS_VERSION} for this PostgreSQL runtime ..."
+
+    local cache_dir; cache_dir="$(_fq_writable_tarball_dir "${FQ_TARBALL_CACHE_DIR}")"
+    local tarball="${cache_dir}/postgis-${FQ_POSTGIS_VERSION}.tar.gz"
+    if [[ -s "$tarball" ]] && ! tar -tzf "$tarball" >/dev/null 2>&1; then
+        warn "PostGIS tarball cache is invalid; re-downloading: ${tarball}"
+        rm -f "$tarball"
+    fi
+    if [[ ! -s "$tarball" ]]; then
+        _download_with_retry "$FQ_POSTGIS_URL" "$tarball" 2 \
+            || { rm -f "$tarball"; _download_with_retry "$FQ_POSTGIS_FALLBACK_URL" "$tarball" 2; }
+    fi
+    tar -tzf "$tarball" >/dev/null 2>&1 \
+        || { err "PostGIS tarball is not a valid gzip archive: ${tarball}"; return 1; }
+
+    local proj_prefix json_prefix protobuf_prefix libpq_prefix gettext_prefix
+    local pkgconf_prefix autoconf_prefix automake_prefix libtool_prefix
+    proj_prefix="$(_brew_prefix_or_install proj)" || return 1
+    json_prefix="$(_brew_prefix_or_install json-c)" || return 1
+    protobuf_prefix="$(_brew_prefix_or_install protobuf-c)" || return 1
+    libpq_prefix="$(_brew_prefix_or_install libpq)" || return 1
+    gettext_prefix="$(_brew_prefix_or_install gettext)" || return 1
+    pkgconf_prefix="$(_brew_prefix_or_install pkgconf)" || return 1
+    _brew_prefix_or_install geos >/dev/null || return 1
+    _brew_prefix_or_install gdal >/dev/null || return 1
+    _brew_prefix_or_install sfcgal >/dev/null || return 1
+    autoconf_prefix="$(_brew_prefix_or_install autoconf)" || return 1
+    automake_prefix="$(_brew_prefix_or_install automake)" || return 1
+    libtool_prefix="$(_brew_prefix_or_install libtool)" || return 1
+
+    local build_root="${FQ_BASE_DIR}/deps/postgis-${FQ_POSTGIS_VERSION}-pg${ver}"
+    local src_dir="${build_root}/src"
+    local install_dir="${FQ_BASE_DIR}/pg/${ver}/postgis"
+    rm -rf "$build_root"
+    mkdir -p "$src_dir" "${install_dir}/bin" "${install_dir}/doc" "${install_dir}/man"
+    _fq_env_clean tar -xzf "$tarball" --strip-components=1 -C "$src_dir"
+
+    local pg_bindir pg_sharedir pg_pkglibdir jobs
+    pg_bindir="$("$pg_config" --bindir)"
+    pg_sharedir="$("$pg_config" --sharedir)"
+    pg_pkglibdir="$("$pg_config" --pkglibdir)"
+    jobs="${FQ_POSTGIS_BUILD_JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
+    [[ "$jobs" =~ ^[0-9]+$ ]] || jobs=4
+
+    ln -sf "${pg_bindir}/postgres" "${install_dir}/bin/postgres"
+    (
+        cd "$src_dir"
+        export PATH="${gettext_prefix}/bin:${pkgconf_prefix}/bin:${autoconf_prefix}/bin:${automake_prefix}/bin:${libtool_prefix}/bin:${PATH}"
+        if [[ ! -x ./configure ]]; then
+            if [[ -x ./autogen.sh ]]; then
+                ./autogen.sh
+            elif [[ -f ./autogen.sh ]]; then
+                sh ./autogen.sh
+            else
+                err "PostGIS source has no configure or autogen.sh."
+                exit 1
+            fi
+        fi
+        CPPFLAGS="${CPPFLAGS:-} -I${protobuf_prefix}/include -I${gettext_prefix}/include" \
+        LDFLAGS="${LDFLAGS:-} -L${protobuf_prefix}/lib -L${gettext_prefix}/lib" \
+        CXXFLAGS="${CXXFLAGS:-} -std=c++17" \
+        ./configure \
+            "--prefix=${install_dir}" \
+            "--with-pgconfig=${pg_config}" \
+            "--with-projdir=${proj_prefix}" \
+            "--with-jsondir=${json_prefix}" \
+            "--with-protobufdir=${protobuf_prefix}" \
+            || exit 1
+        make -j"$jobs" \
+            "PGSQL_FE_CPPFLAGS=-I${libpq_prefix}/include" \
+            "PGSQL_FE_LDFLAGS=-L${libpq_prefix}/lib -lpq" \
+            || exit 1
+        make install \
+            "bindir=${install_dir}/bin" \
+            "docdir=${install_dir}/doc" \
+            "mandir=${install_dir}/man" \
+            "pkglibdir=${pg_pkglibdir}" \
+            "datadir=${pg_sharedir}" \
+            "PG_SHAREDIR=${pg_sharedir}" \
+            || exit 1
+    )
+}
+
 _pg_start() {
     local ver="$1" port="$2" base="$3"
     local data="${base}/data" log="${base}/log"
@@ -2307,6 +2448,7 @@ _pg_start() {
 
     # Apply TLS config if certs already present
     local cert_dst="${base}/data/certs"
+    _pg_write_base_conf "$data"
     if [[ -d "$cert_dst" ]]; then
         _pg_write_ssl_conf "$data" "$cert_dst"
     fi
@@ -2325,6 +2467,28 @@ _pg_start() {
             -o "-p ${port} -k /tmp" \
             start 2>>"${log}/pg_ctl.log" || true
     fi
+}
+
+_pg_write_base_conf() {
+    local data="$1"
+    local conf="${data}/postgresql.conf"
+    local tmp="${conf}.tmp.$$"
+
+    [[ -f "$conf" ]] || return 0
+    awk -v tz="$PG_TIMEZONE" '
+        BEGIN { done = 0 }
+        /^[[:space:]]*timezone[[:space:]]*=/ {
+            print "timezone = \047" tz "\047"
+            done = 1
+            next
+        }
+        { print }
+        END {
+            if (!done) {
+                print "timezone = \047" tz "\047"
+            }
+        }
+    ' "$conf" > "$tmp" && mv "$tmp" "$conf"
 }
 
 _pg_write_ssl_conf() {

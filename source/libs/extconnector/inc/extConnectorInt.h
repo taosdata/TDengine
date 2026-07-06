@@ -192,7 +192,16 @@ EExtSQLDialect extDialectFromSourceType(EExtSourceType srcType);
 #ifdef TD_ENTERPRISE
 extern SExtProvider mysqlProvider;
 extern SExtProvider pgProvider;
-extern SExtProvider influxProvider;
+bool mysqlProviderInit(void);
+void mysqlProviderCleanup(void);
+void mysqlProviderThreadCleanup(void);
+bool pgProviderInit(void);
+void pgProviderCleanup(void);
+bool influxProviderInit(SExtProvider *pProvider);
+void influxProviderCleanup(void);
+void *extConnectorLoadRuntimeLibrary(const char *const *names, int32_t numNames, const char **pLoadedName);
+void *extConnectorLoadRuntimeSymbol(void *handle, const char *symbol);
+void extConnectorCloseRuntimeLibrary(void *handle);
 #endif
 
 // ============================================================

@@ -11,6 +11,7 @@ source_dir=$1
 binary_dir=$2
 osType=$3
 verNumber=$4
+install_fq_runtime_libs=${TD_INSTALL_FQ_RUNTIME_LIBS:-OFF}
 
 if [ "$osType" != "Darwin" ]; then
   script_dir=$(dirname $(readlink -f "$0"))
@@ -72,6 +73,13 @@ if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null; then
   csudo="sudo "
   csudouser="sudo -u ${USER} "
 fi
+
+function is_true() {
+  case "$1" in
+    ON|on|On|TRUE|true|True|1|YES|yes|Yes) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
 service_mod=2
 os_type=0
@@ -329,25 +337,51 @@ function install_lib() {
 
     if [ "$osType" != "Darwin" ]; then
       patterns=(
-        "libmariadb.so*"
-        "libpq.so*"
-        "libarrow*.so*"
-        "libparquet.so*"
         "libssl.so*"
         "libcrypto.so*"
       )
     else
       patterns=(
-        "libmariadb*.dylib*"
-        "libpq*.dylib*"
-        "libarrow*.dylib*"
-        "libparquet*.dylib*"
         "libssl*.dylib*"
         "libcrypto*.dylib*"
       )
     fi
 
     for pattern in "${patterns[@]}"; do
+      for src in "${binary_dir}/build/lib"/${pattern}; do
+        [ -e "${src}" ] || continue
+        ${csudo}cp -RfL "${src}" "${install_main_dir}/driver/" &&
+          ${csudo}chmod 755 "${install_main_dir}/driver/$(basename "${src}")"
+      done
+    done
+  }
+
+  remove_fq_runtime_libs() {
+    local pattern=""
+    local src=""
+
+    is_true "${install_fq_runtime_libs}" && return
+
+    for pattern in \
+      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*"; do
+      for src in "${install_main_dir}/driver"/${pattern}; do
+        [ -e "${src}" ] || continue
+        ${csudo}rm -f "${src}" || :
+      done
+    done
+  }
+
+  copy_fq_runtime_libs() {
+    local pattern=""
+    local src=""
+
+    is_true "${install_fq_runtime_libs}" || return
+    [ -d "${binary_dir}/build/lib" ] || return
+
+    for pattern in \
+      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*"; do
       for src in "${binary_dir}/build/lib"/${pattern}; do
         [ -e "${src}" ] || continue
         ${csudo}cp -RfL "${src}" "${install_main_dir}/driver/" &&
@@ -365,19 +399,11 @@ function install_lib() {
 
     if [ "$osType" != "Darwin" ]; then
       patterns=(
-        "libmariadb.so*"
-        "libpq.so*"
-        "libarrow*.so*"
-        "libparquet.so*"
         "libssl.so*"
         "libcrypto.so*"
       )
     else
       patterns=(
-        "libmariadb*.dylib*"
-        "libpq*.dylib*"
-        "libarrow*.dylib*"
-        "libparquet*.dylib*"
         "libssl*.dylib*"
         "libcrypto*.dylib*"
       )
@@ -400,8 +426,8 @@ function install_lib() {
     [ -d "${dir}" ] || return
 
     for pattern in \
-      "libmariadb.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libssl.so*" "libcrypto.so*" \
-      "libmariadb*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libssl*.dylib*" "libcrypto*.dylib*"; do
+      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libssl.so*" "libcrypto.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libssl*.dylib*" "libcrypto*.dylib*"; do
       for link_path in "${dir}"/${pattern}; do
         [ -L "${link_path}" ] || continue
         resolved=$(readlink -f "${link_path}" 2>/dev/null || true)
@@ -516,6 +542,8 @@ function install_lib() {
     fi
 
     copy_driver_runtime_libs
+    copy_fq_runtime_libs
+    remove_fq_runtime_libs
   else
     ${csudo}cp -Rf ${binary_dir}/build/lib/libtaos.dylib \
       ${install_main_dir}/driver/libtaos.${verNumber}.dylib && ${csudo}chmod 777 ${install_main_dir}/driver/*
@@ -550,6 +578,8 @@ function install_lib() {
     fi
 
     copy_driver_runtime_libs
+    copy_fq_runtime_libs
+    remove_fq_runtime_libs
     link_driver_runtime_libs "${lib_link_dir}"
   fi
 

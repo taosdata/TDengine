@@ -712,6 +712,7 @@
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_pg_normal_vtable_query_fails_when_backend_down_and_recovers
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_influx_normal_vtable_query_fails_when_backend_down_and_recovers
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_vstable_query_fails_when_one_child_backend_down_and_recovers
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_runtime_libs.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_eliminate_virtual_scan.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_optimize_type_mismatch.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb::test_projection
@@ -1165,6 +1166,7 @@
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_16_multi_table_parity.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_17_unsupported_ops.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_18_source_specific.py
+100,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py
 
 
 # 10-Operators

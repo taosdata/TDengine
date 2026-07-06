@@ -21,6 +21,7 @@
 #include "trpc.h"
 
 static void ctgFreeExtTableMetaPRes(void* p);
+static void ctgFreeTableMeta(void* p);
 
 void ctgFreeSViewMeta(SViewMeta* pMeta) {
   if (NULL == pMeta) {
@@ -149,7 +150,7 @@ void ctgFreeSTableIndex(void* info) {
 }
 
 void ctgFreeSMetaData(SMetaData* pData) {
-  taosArrayDestroy(pData->pTableMeta);
+  taosArrayDestroyEx(pData->pTableMeta, ctgFreeTableMeta);
   pData->pTableMeta = NULL;
 
   /*
@@ -255,7 +256,8 @@ void ctgFreeTbCacheImpl(SCtgTbCache* pCache, bool lock) {
     if (lock) {
       CTG_LOCK(CTG_WRITE, &pCache->metaLock);
     }
-    taosMemoryFreeClear(pCache->pMeta);
+    queryFreeTableMeta(pCache->pMeta);
+    pCache->pMeta = NULL;
     if (lock) {
       CTG_UNLOCK(CTG_WRITE, &pCache->metaLock);
     }
@@ -685,14 +687,10 @@ void ctgFreeSTableMetaOutput(STableMetaOutput* pOutput) {
     return;
   }
 
-  if (pOutput->tbMeta) {
-    queryFreeSeriesEntries(pOutput->tbMeta->seriesEntries, pOutput->tbMeta->numOfSeries);
+  if ((STableMeta*)pOutput->vctbMeta != pOutput->tbMeta) {
+    queryFreeTableMeta((STableMeta*)pOutput->vctbMeta);
   }
-  if (pOutput->vctbMeta && (!pOutput->tbMeta || pOutput->vctbMeta->seriesEntries != pOutput->tbMeta->seriesEntries)) {
-    queryFreeSeriesEntries(pOutput->vctbMeta->seriesEntries, pOutput->vctbMeta->numOfSeries);
-  }
-  taosMemoryFree(pOutput->tbMeta);
-  taosMemoryFree(pOutput->vctbMeta);
+  queryFreeTableMeta(pOutput->tbMeta);
   taosMemoryFree(pOutput);
 }
 
@@ -710,7 +708,8 @@ void ctgResetTbMetaTask(SCtgTask* pTask) {
     pTask->msgCtx.out = NULL;
   }
   taosMemoryFreeClear(pTask->msgCtx.target);
-  taosMemoryFreeClear(pTask->res);
+  queryFreeTableMeta(pTask->res);
+  pTask->res = NULL;
 }
 
 void ctgFreeBatchMeta(void* meta) {
@@ -719,7 +718,8 @@ void ctgFreeBatchMeta(void* meta) {
   }
 
   SMetaRes* pRes = (SMetaRes*)meta;
-  taosMemoryFreeClear(pRes->pRes);
+  queryFreeTableMeta(pRes->pRes);
+  pRes->pRes = NULL;
 }
 
 void ctgFreeBatchHash(void* hash) {
@@ -813,12 +813,16 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       }
       break;
     }
+    case CTG_TASK_GET_TB_META: {
+      queryFreeTableMeta(*pRes);
+      *pRes = NULL;
+      break;
+    }
     case CTG_TASK_GET_TB_HASH:
     case CTG_TASK_GET_DB_INFO:
     case CTG_TASK_GET_INDEX_INFO:
     case CTG_TASK_GET_UDF:
-    case CTG_TASK_GET_SVR_VER:
-    case CTG_TASK_GET_TB_META: {
+    case CTG_TASK_GET_SVR_VER: {
       taosMemoryFreeClear(*pRes);
       break;
     }
@@ -928,7 +932,11 @@ void ctgFreeSubTaskRes(CTG_TASK_TYPE type, void** pRes) {
       }
       break;
     }
-    case CTG_TASK_GET_TB_META:
+    case CTG_TASK_GET_TB_META: {
+      queryFreeTableMeta(*pRes);
+      *pRes = NULL;
+      break;
+    }
     case CTG_TASK_GET_DB_INFO:
     case CTG_TASK_GET_TB_HASH:
     case CTG_TASK_GET_INDEX_INFO:
@@ -1159,7 +1167,8 @@ void ctgFreeTaskCtx(SCtgTask* pTask) {
         taosArrayDestroyEx(taskCtx->pResList, tDestroySVStbRefDbsRsp);
       }
       taosArrayDestroyEx(pTask->msgCtxs, (FDelete)ctgFreeMsgCtx);
-      taosMemoryFreeClear(taskCtx->pMeta);
+      queryFreeTableMeta(taskCtx->pMeta);
+      taskCtx->pMeta = NULL;
       taosMemoryFreeClear(pTask->taskCtx);
       break;
     }
@@ -1818,15 +1827,30 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     }
 
     TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
+    (*pOutput)->vctbMeta->seriesEntries = NULL;
     if (colRefSize > 0) {
       (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
       TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
+      code = queryCloneColRefTagConds(output->vctbMeta->colRef, output->vctbMeta->numOfColRefs,
+                                      (*pOutput)->vctbMeta->colRef);
+      if (TSDB_CODE_SUCCESS != code) {
+        queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
+        taosMemoryFreeClear(*pOutput);
+        CTG_ERR_RET(code);
+      }
     } else {
       (*pOutput)->vctbMeta->colRef = NULL;
     }
     if (tagRefSize > 0) {
       (*pOutput)->vctbMeta->tagRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize + colRefSize);
       TAOS_MEMCPY((*pOutput)->vctbMeta->tagRef, output->vctbMeta->tagRef, tagRefSize);
+      code = queryCloneColRefTagConds(output->vctbMeta->tagRef, output->vctbMeta->numOfTagRefs,
+                                      (*pOutput)->vctbMeta->tagRef);
+      if (TSDB_CODE_SUCCESS != code) {
+        queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
+        taosMemoryFreeClear(*pOutput);
+        CTG_ERR_RET(code);
+      }
     } else {
       (*pOutput)->vctbMeta->tagRef = NULL;
     }
@@ -1834,7 +1858,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     code = queryCloneSeriesEntries(output->vctbMeta->seriesEntries, output->vctbMeta->numOfSeries,
                                    &(*pOutput)->vctbMeta->seriesEntries);
     if (TSDB_CODE_SUCCESS != code) {
-      taosMemoryFreeClear((*pOutput)->vctbMeta);
+      queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
       taosMemoryFreeClear(*pOutput);
       CTG_ERR_RET(code);
     }
@@ -1846,7 +1870,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
   if (output->tbMeta) {
     int32_t code2 = cloneTableMeta(output->tbMeta, &(*pOutput)->tbMeta);
     if (TSDB_CODE_SUCCESS != code2) {
-      taosMemoryFreeClear((*pOutput)->vctbMeta);
+      queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
       taosMemoryFreeClear(*pOutput);
       CTG_ERR_RET(code2);
     }
@@ -2048,7 +2072,11 @@ static void ctgFreeDbInfo(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
 //   return pDst;
 // }
 
-static void ctgFreeTableMeta(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
+static void ctgFreeTableMeta(void* p) {
+  SMetaRes* pRes = (SMetaRes*)p;
+  queryFreeTableMeta(pRes->pRes);
+  pRes->pRes = NULL;
+}
 
 static int32_t ctgCloneVgroupInfo(void* pSrc, void** ppDst) {
 #if 0

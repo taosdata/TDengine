@@ -946,8 +946,9 @@ class ExtSrcEnv:
         import pwd as _pwd
         try:
             pg_owner = _pwd.getpwuid(os.stat(datadir).st_uid).pw_name
+            current_user = _pwd.getpwuid(os.geteuid()).pw_name
             runuser = shutil.which("runuser")
-            if runuser:
+            if runuser and os.geteuid() == 0 and current_user != pg_owner:
                 cmd = [runuser, "-u", pg_owner, "--",
                        pg_ctl_bin, "stop", "-D", datadir, "-m", "fast"]
             else:

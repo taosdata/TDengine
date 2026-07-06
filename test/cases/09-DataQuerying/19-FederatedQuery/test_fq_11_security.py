@@ -1465,26 +1465,27 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         names = [src_fast, src_slow]
         self._cleanup(*names)
 
-        blackhole_host = "10.255.255.1"
+        from test_fq_15_service_disruption import _BlackHoleListener
 
-        tdSql.execute(
-            f"create external source {src_fast} type='mysql' "
-            f"host='{blackhole_host}' port=3306 user='u' password='p' database='db' "
-            f"options('connect_timeout_ms'='200')"
-        )
-        tdSql.execute(
-            f"create external source {src_slow} type='mysql' "
-            f"host='{blackhole_host}' port=3306 user='u' password='p' database='db' "
-            f"options('connect_timeout_ms'='3000')"
-        )
+        with _BlackHoleListener() as bh:
+            tdSql.execute(
+                f"create external source {src_fast} type='mysql' "
+                f"host='127.0.0.1' port={bh.port} user='u' password='p' database='db' "
+                f"options('connect_timeout_ms'='200')"
+            )
+            tdSql.execute(
+                f"create external source {src_slow} type='mysql' "
+                f"host='127.0.0.1' port={bh.port} user='u' password='p' database='db' "
+                f"options('connect_timeout_ms'='3000')"
+            )
 
-        t0 = _time.time()
-        tdSql.error(f"select count(*) from {src_fast}.db.t1")
-        fast_elapsed = _time.time() - t0
+            t0 = _time.time()
+            tdSql.error(f"select count(*) from {src_fast}.db.t1")
+            fast_elapsed = _time.time() - t0
 
-        t1 = _time.time()
-        tdSql.error(f"select count(*) from {src_slow}.db.t1")
-        slow_elapsed = _time.time() - t1
+            t1 = _time.time()
+            tdSql.error(f"select count(*) from {src_slow}.db.t1")
+            slow_elapsed = _time.time() - t1
 
         tdLog.info(
             f"SEC-016 connect_timeout elapsed fast={fast_elapsed:.3f}s slow={slow_elapsed:.3f}s"
