@@ -2653,6 +2653,8 @@ int32_t ctgCallSubCb(SCtgTaskReq* pReq) {
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
+    ctgClearSubTaskRes(&pParent->subRes);
+    pParent->subRes.type = pTask->type;
     pParent->subRes.code = pTask->code;
     if (TSDB_CODE_SUCCESS == pTask->code) {
       code = (*gCtgAsyncFps[pTask->type].cloneFp)(pTask, &pParent->subRes.res);

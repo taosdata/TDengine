@@ -182,7 +182,7 @@ copy_driver_runtime_libs() {
   local src=""
 
   mkdir -p "${dst_dir}"
-  for pattern in "libmariadb.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libssl.so*" "libcrypto.so*"; do
+  for pattern in "libssl.so*" "libcrypto.so*"; do
     for src in "${build_dir}"/lib/${pattern}; do
       [ -e "${src}" ] || continue
       cp -Lf "${src}" "${dst_dir}/$(basename "${src}")"

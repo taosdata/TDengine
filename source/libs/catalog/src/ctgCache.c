@@ -596,14 +596,27 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
         CTG_ERR_RET(terrno);
       }
       TAOS_MEMCPY(tmpColRef, tbMeta->colRef, colRefSize);
+      int32_t cloneCode = queryCloneColRefTagConds(tbMeta->colRef, numOfColRefs, tmpColRef);
+      if (TSDB_CODE_SUCCESS != cloneCode) {
+        taosMemoryFreeClear(tmpColRef);
+        CTG_ERR_RET(cloneCode);
+      }
     }
     if (tagRefSize > 0) {
       tmpTagRef = taosMemoryMalloc(tagRefSize);
       if (NULL == tmpTagRef) {
+        queryFreeColRefTagConds(tmpColRef, numOfColRefs);
         taosMemoryFreeClear(tmpColRef);
         CTG_ERR_RET(terrno);
       }
       TAOS_MEMCPY(tmpTagRef, tbMeta->tagRef, tagRefSize);
+      int32_t cloneCode = queryCloneColRefTagConds(tbMeta->tagRef, numOfTagRefs, tmpTagRef);
+      if (TSDB_CODE_SUCCESS != cloneCode) {
+        queryFreeColRefTagConds(tmpColRef, numOfColRefs);
+        taosMemoryFreeClear(tmpColRef);
+        taosMemoryFreeClear(tmpTagRef);
+        CTG_ERR_RET(cloneCode);
+      }
     }
 
     ctgDebug("vctb:%s, get meta from cache, will continue to get its stb meta, tbType:%d, db:%s",
@@ -614,6 +627,8 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   if (seriesNum > 0 && tbMeta->seriesEntries) {
     int32_t cloneCode = queryCloneSeriesEntries(tbMeta->seriesEntries, seriesNum, &tmpSeries);
     if (TSDB_CODE_SUCCESS != cloneCode) {
+      queryFreeColRefTagConds(tmpColRef, numOfColRefs);
+      queryFreeColRefTagConds(tmpTagRef, numOfTagRefs);
       taosMemoryFreeClear(tmpColRef);
       taosMemoryFreeClear(tmpTagRef);
       CTG_ERR_RET(cloneCode);
@@ -629,7 +644,9 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
 
   *pTableMeta = taosMemoryCalloc(1, metaSize);
   if (NULL == *pTableMeta) {
+    queryFreeColRefTagConds(tmpColRef, numOfColRefs);
     taosMemoryFreeClear(tmpColRef);
+    queryFreeColRefTagConds(tmpTagRef, numOfTagRefs);
     taosMemoryFreeClear(tmpTagRef);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
     CTG_ERR_RET(terrno);
@@ -646,12 +663,16 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
 
   int32_t stbCode = ctgAcquireStbMetaFromCache(dbCache, pCtg, dbFName, ctx->tbInfo.suid, &tbCache);
   if (stbCode != TSDB_CODE_SUCCESS) {
+    queryFreeColRefTagConds(tmpColRef, numOfColRefs);
     taosMemoryFreeClear(tmpColRef);
+    queryFreeColRefTagConds(tmpTagRef, numOfTagRefs);
     taosMemoryFreeClear(tmpTagRef);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
     CTG_ERR_RET(stbCode);
   }
   if (NULL == tbCache) {
+    queryFreeColRefTagConds(tmpColRef, numOfColRefs);
+    queryFreeColRefTagConds(tmpTagRef, numOfTagRefs);
     taosMemoryFreeClear(tmpColRef);
     taosMemoryFreeClear(tmpTagRef);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
@@ -667,6 +688,8 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   if (stbMeta->suid != ctx->tbInfo.suid) {
     ctgError("stb:0x%" PRIx64 ", suid in stbCache mis-match, expected suid:0x%" PRIx64, stbMeta->suid, ctx->tbInfo.suid);
     taosMemoryFreeClear(*pTableMeta);
+    queryFreeColRefTagConds(tmpColRef, numOfColRefs);
+    queryFreeColRefTagConds(tmpTagRef, numOfTagRefs);
     taosMemoryFreeClear(tmpColRef);
     taosMemoryFreeClear(tmpTagRef);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
@@ -680,6 +703,8 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   }
   STableMeta* pTmp = taosMemoryRealloc(*pTableMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
   if (NULL == pTmp) {
+    queryFreeColRefTagConds(tmpColRef, numOfColRefs);
+    queryFreeColRefTagConds(tmpTagRef, numOfTagRefs);
     taosMemoryFreeClear(tmpColRef);
     taosMemoryFreeClear(tmpTagRef);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
@@ -2028,7 +2053,7 @@ int32_t ctgGetAddDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId, SCt
 int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, uint64_t dbId, char *tbName,
                               STableMeta *meta) {
   if (NULL == dbCache->tbCache || NULL == dbCache->stbCache) {
-    taosMemoryFree(meta);
+    queryFreeTableMeta(meta);
     ctgError("db is dropping, dbId:0x%" PRIx64, dbCache->dbId);
     CTG_ERR_RET(TSDB_CODE_CTG_DB_DROPPED);
   }
@@ -2053,7 +2078,7 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
         (origType == TSDB_CHILD_TABLE ||
          (origType == TSDB_VIRTUAL_CHILD_TABLE && orig->rversion >= meta->rversion) ||
          (orig->sversion >= meta->sversion && orig->tversion >= meta->tversion && orig->rversion >= meta->rversion))) {
-      taosMemoryFree(meta);
+      queryFreeTableMeta(meta);
       ctgDebug("ignore table %s meta update", tbName);
       return TSDB_CODE_SUCCESS;
     }
@@ -2077,7 +2102,7 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
     cache.pMeta = meta;
     if (taosHashPut(dbCache->tbCache, tbName, strlen(tbName), &cache, sizeof(SCtgTbCache)) != 0) {
       ctgError("taosHashPut new tbCache failed, db:%s, tbName:%s, tbType:%d", dbFName, tbName, meta->tableType);
-      taosMemoryFree(meta);
+      queryFreeTableMeta(meta);
       CTG_ERR_RET(terrno);
     }
 
@@ -2095,7 +2120,7 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
 
     (void)atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetTbMetaCacheSize(meta) - ctgGetTbMetaCacheSize(pCache->pMeta));
 
-    taosMemoryFree(pCache->pMeta);
+    queryFreeTableMeta(pCache->pMeta);
     pCache->pMeta = meta;
     
     CTG_UNLOCK(CTG_WRITE, &pCache->metaLock);
@@ -2763,8 +2788,10 @@ int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
 
 _return:
 
-  taosMemoryFreeClear(pMeta->tbMeta);
-  taosMemoryFreeClear(pMeta->vctbMeta);
+  queryFreeTableMeta(pMeta->tbMeta);
+  pMeta->tbMeta = NULL;
+  queryFreeTableMeta((STableMeta *)pMeta->vctbMeta);
+  pMeta->vctbMeta = NULL;
   taosMemoryFreeClear(pMeta);
 
   taosMemoryFreeClear(msg);
@@ -3445,8 +3472,10 @@ void ctgFreeCacheOperationData(SCtgCacheOperation *op) {
     }
     case CTG_OP_UPDATE_TB_META: {
       SCtgUpdateTbMetaMsg *msg = op->data;
-      taosMemoryFreeClear(msg->pMeta->tbMeta);
-      taosMemoryFreeClear(msg->pMeta->vctbMeta);
+      queryFreeTableMeta(msg->pMeta->tbMeta);
+      msg->pMeta->tbMeta = NULL;
+      queryFreeTableMeta((STableMeta *)msg->pMeta->vctbMeta);
+      msg->pMeta->vctbMeta = NULL;
       taosMemoryFreeClear(msg->pMeta);
       taosMemoryFreeClear(op->data);
       break;
@@ -3627,7 +3656,7 @@ int32_t ctgGetTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **p
       return TSDB_CODE_SUCCESS;
     }
 
-    taosMemoryFreeClear(*pTableMeta);
+    queryFreeTableMeta(*pTableMeta);
     *pTableMeta = NULL;
   }
 
@@ -3705,6 +3734,8 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
   STableMeta *lastTableMeta = NULL;
   SColRef    *tmpRef = NULL;
   SColRef    *tmpTagRef = NULL;
+  int32_t     tmpRefNum = 0;
+  int32_t     tmpTagRefNum = 0;
   SName      *pName = taosArrayGet(pList, 0);
   if (NULL == pName) {
     ctgError("fail to get the 0th SName from tableList, tableNum:%d", (int32_t)taosArrayGetSize(pList));
@@ -3811,6 +3842,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       }
 
       TAOS_MEMCPY(pTableMeta, tbMeta, metaSize);
+      pTableMeta->seriesEntries = NULL;
       if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
         pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
         TAOS_MEMCPY(pTableMeta->schemaExt, tbMeta->schemaExt, schemaExtSize);
@@ -3821,6 +3853,13 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
         pTableMeta->colRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize);
         pTableMeta->numOfColRefs = tbMeta->numOfColRefs;
         TAOS_MEMCPY(pTableMeta->colRef, tbMeta->colRef, colRefSize);
+        code = queryCloneColRefTagConds(tbMeta->colRef, tbMeta->numOfColRefs, pTableMeta->colRef);
+        if (TSDB_CODE_SUCCESS != code) {
+          queryFreeTableMeta(pTableMeta);
+          CTG_UNLOCK(CTG_READ, &pCache->metaLock);
+          taosHashRelease(dbCache->tbCache, pCache);
+          CTG_ERR_JRET(code);
+        }
       } else {
         pTableMeta->colRef = NULL;
       }
@@ -3828,8 +3867,26 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
         pTableMeta->tagRef = (SColRef *)((char *)pTableMeta + metaSize + schemaExtSize + colRefSize);
         pTableMeta->numOfTagRefs = tbMeta->numOfTagRefs;
         TAOS_MEMCPY(pTableMeta->tagRef, tbMeta->tagRef, tagRefSize);
+        code = queryCloneColRefTagConds(tbMeta->tagRef, tbMeta->numOfTagRefs, pTableMeta->tagRef);
+        if (TSDB_CODE_SUCCESS != code) {
+          queryFreeTableMeta(pTableMeta);
+          CTG_UNLOCK(CTG_READ, &pCache->metaLock);
+          taosHashRelease(dbCache->tbCache, pCache);
+          CTG_ERR_JRET(code);
+        }
       } else {
         pTableMeta->tagRef = NULL;
+      }
+
+      code = queryCloneSeriesEntries(tbMeta->seriesEntries, tbMeta->numOfSeries, &pTableMeta->seriesEntries);
+      if (TSDB_CODE_SUCCESS != code) {
+        queryFreeTableMeta(pTableMeta);
+        CTG_UNLOCK(CTG_READ, &pCache->metaLock);
+        taosHashRelease(dbCache->tbCache, pCache);
+        CTG_ERR_JRET(code);
+      }
+      if (NULL == pTableMeta->seriesEntries) {
+        pTableMeta->numOfSeries = 0;
       }
 
       CTG_UNLOCK(CTG_READ, &pCache->metaLock);
@@ -3839,6 +3896,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
       res.pRes = pTableMeta;
       if (NULL == taosArrayPush(ctx->pResList, &res)) {
+        queryFreeTableMeta(pTableMeta);
         CTG_ERR_JRET(terrno);
       }
 
@@ -3888,6 +3946,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     if (hasColRef(tbMeta->tableType) && tbMeta->colRef != NULL) {
       colRefSize = tbMeta->numOfColRefs * sizeof(SColRef);
       colRefNum = tbMeta->numOfColRefs;
+      tmpRefNum = colRefNum;
       taosMemoryFreeClear(tmpRef);
       tmpRef = taosMemoryMalloc(colRefSize);
       if (NULL == tmpRef) {
@@ -3895,22 +3954,42 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
         CTG_ERR_RET(terrno);
       }
       TAOS_MEMCPY(tmpRef, tbMeta->colRef, colRefSize);
+      int32_t cloneCode = queryCloneColRefTagConds(tbMeta->colRef, colRefNum, tmpRef);
+      if (TSDB_CODE_SUCCESS != cloneCode) {
+        taosMemoryFreeClear(tmpRef);
+        ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
+        CTG_ERR_RET(cloneCode);
+      }
     }
     if (hasTagRef(tbMeta->tableType) && tbMeta->tagRef != NULL && tbMeta->numOfTagRefs > 0) {
       tagRefSize = tbMeta->numOfTagRefs * sizeof(SColRef);
       tagRefNum = tbMeta->numOfTagRefs;
+      tmpTagRefNum = tagRefNum;
       tmpTagRef = taosMemoryMalloc(tagRefSize);
       if (NULL == tmpTagRef) {
+        queryFreeColRefTagConds(tmpRef, colRefNum);
         taosMemoryFreeClear(tmpRef);
         ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
         CTG_ERR_RET(terrno);
       }
       TAOS_MEMCPY(tmpTagRef, tbMeta->tagRef, tagRefSize);
+      int32_t cloneCode = queryCloneColRefTagConds(tbMeta->tagRef, tagRefNum, tmpTagRef);
+      if (TSDB_CODE_SUCCESS != cloneCode) {
+        queryFreeColRefTagConds(tmpRef, colRefNum);
+        taosMemoryFreeClear(tmpRef);
+        taosMemoryFreeClear(tmpTagRef);
+        ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
+        CTG_ERR_RET(cloneCode);
+      }
     }
 
     if (seriesNum > 0 && tbMeta->seriesEntries) {
       int32_t cloneCode = queryCloneSeriesEntries(tbMeta->seriesEntries, seriesNum, &tmpSeries);
       if (TSDB_CODE_SUCCESS != cloneCode) {
+        queryFreeColRefTagConds(tmpRef, colRefNum);
+        queryFreeColRefTagConds(tmpTagRef, tagRefNum);
+        taosMemoryFreeClear(tmpRef);
+        taosMemoryFreeClear(tmpTagRef);
         ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
         CTG_ERR_RET(cloneCode);
       }
@@ -3935,6 +4014,10 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
         CTG_ERR_JRET(terrno);
       }
       taosMemoryFreeClear(pTableMeta);
+      queryFreeColRefTagConds(tmpRef, colRefNum);
+      queryFreeColRefTagConds(tmpTagRef, tagRefNum);
+      taosMemoryFreeClear(tmpRef);
+      taosMemoryFreeClear(tmpTagRef);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
 
       CTG_META_NHIT_INC();
@@ -3951,6 +4034,10 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
         CTG_ERR_JRET(terrno);
       }
       taosMemoryFreeClear(pTableMeta);
+      queryFreeColRefTagConds(tmpRef, colRefNum);
+      queryFreeColRefTagConds(tmpTagRef, tagRefNum);
+      taosMemoryFreeClear(tmpRef);
+      taosMemoryFreeClear(tmpTagRef);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
 
       CTG_META_NHIT_INC();
@@ -3972,6 +4059,10 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       }
       
       taosMemoryFreeClear(pTableMeta);
+      queryFreeColRefTagConds(tmpRef, colRefNum);
+      queryFreeColRefTagConds(tmpTagRef, tagRefNum);
+      taosMemoryFreeClear(tmpRef);
+      taosMemoryFreeClear(tmpTagRef);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
 
       CTG_META_NHIT_INC();
@@ -3992,6 +4083,10 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       }
       
       taosMemoryFreeClear(pTableMeta);
+      queryFreeColRefTagConds(tmpRef, colRefNum);
+      queryFreeColRefTagConds(tmpTagRef, tagRefNum);
+      taosMemoryFreeClear(tmpRef);
+      taosMemoryFreeClear(tmpTagRef);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
 
       CTG_META_NHIT_INC();
@@ -4006,6 +4101,8 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     STableMeta* pTmp = taosMemoryRealloc(pTableMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
     if (NULL == pTmp) {
       ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
+      queryFreeColRefTagConds(tmpRef, colRefNum);
+      queryFreeColRefTagConds(tmpTagRef, tagRefNum);
       taosMemoryFreeClear(tmpRef);
       taosMemoryFreeClear(tmpTagRef);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
@@ -4065,6 +4162,8 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
   }
 
 _return:
+  queryFreeColRefTagConds(tmpRef, tmpRefNum);
+  queryFreeColRefTagConds(tmpTagRef, tmpTagRefNum);
   taosMemoryFreeClear(tmpRef);
   taosMemoryFreeClear(tmpTagRef);
   ctgReleaseDBCache(pCtg, dbCache);

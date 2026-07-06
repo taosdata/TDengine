@@ -117,6 +117,7 @@ typedef struct SExtConnectorModuleCfg {
 // Module lifecycle (called once at taosd startup / shutdown)
 int32_t extConnectorModuleInit(const SExtConnectorModuleCfg *cfg);
 void    extConnectorModuleDestroy(void);
+bool    extConnectorIsSourceTypeAvailable(EExtSourceType sourceType);
 
 // Connection handle lifecycle
 int32_t extConnectorOpen(const SExtSourceCfg *cfg, SExtConnectorHandle **ppHandle);

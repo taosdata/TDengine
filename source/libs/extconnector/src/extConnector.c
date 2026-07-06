@@ -30,6 +30,11 @@ int32_t extConnectorModuleInit(const SExtConnectorModuleCfg *cfg) {
 
 void extConnectorModuleDestroy(void) {}
 
+bool extConnectorIsSourceTypeAvailable(EExtSourceType sourceType) {
+  (void)sourceType;
+  return false;
+}
+
 int32_t extConnectorOpen(const SExtSourceCfg *cfg, SExtConnectorHandle **ppHandle) {
   (void)cfg;
   (void)ppHandle;

@@ -2039,6 +2039,7 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                 PREFIX         "${_base}"
                 CMAKE_ARGS     -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
                 CMAKE_ARGS     -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+                CMAKE_ARGS     -DCMAKE_INSTALL_LIBDIR:PATH=lib
                 CMAKE_ARGS     -DWITH_UNIT_TESTS:BOOL=OFF
                 CMAKE_ARGS     -DWITH_SSL:STRING=$<IF:$<BOOL:${TD_WINDOWS}>,SCHANNEL,OPENSSL>
                 CMAKE_ARGS     -DBUILD_SHARED_LIBS:BOOL=ON
@@ -2077,44 +2078,22 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
         if(PostgreSQL_FOUND)
             message(STATUS "[ext_libpq] Using system PostgreSQL ${PostgreSQL_VERSION_STRING} — skipping ExternalProject build")
             # Record real shared lib path for extconnector staging
+            get_filename_component(_pg_lib_dir "${PostgreSQL_LIBRARIES}" DIRECTORY)
             if(TD_DARWIN)
                 find_library(_EXT_LIBPQ_SO_REALPATH
                     NAMES libpq.5.dylib
-                    HINTS ${PostgreSQL_LIBRARY_DIRS}
+                    HINTS ${PostgreSQL_LIBRARY_DIRS} ${_pg_lib_dir}
                     NO_DEFAULT_PATH)
                 if(NOT _EXT_LIBPQ_SO_REALPATH)
-                    get_filename_component(_pg_lib_dir "${PostgreSQL_LIBRARIES}" DIRECTORY)
                     set(_EXT_LIBPQ_SO_REALPATH "${_pg_lib_dir}/libpq.5.dylib")
                 endif()
             else()
                 find_library(_EXT_LIBPQ_SO_REALPATH
                     NAMES libpq.so.5
-                    HINTS ${PostgreSQL_LIBRARY_DIRS} /usr/lib/x86_64-linux-gnu /usr/lib
+                    HINTS ${PostgreSQL_LIBRARY_DIRS} ${_pg_lib_dir}
                     NO_DEFAULT_PATH)
                 if(NOT _EXT_LIBPQ_SO_REALPATH)
-                    set(_EXT_LIBPQ_SO_REALPATH "/usr/lib/x86_64-linux-gnu/libpq.so.5")
-                endif()
-            endif()
-
-            if(TD_LINUX AND EXISTS "${_EXT_LIBPQ_SO_REALPATH}")
-                execute_process(
-                    COMMAND ldd "${_EXT_LIBPQ_SO_REALPATH}"
-                    OUTPUT_VARIABLE _libpq_ldd
-                    OUTPUT_STRIP_TRAILING_WHITESPACE
-                    ERROR_QUIET)
-                if(NOT _libpq_ldd MATCHES "libssl\\.so")
-                    set(_EXT_LIBPQ_SSL_CANDIDATE "/usr/lib/x86_64-linux-gnu/libpq.so.5")
-                    if(EXISTS "${_EXT_LIBPQ_SSL_CANDIDATE}")
-                        execute_process(
-                            COMMAND ldd "${_EXT_LIBPQ_SSL_CANDIDATE}"
-                            OUTPUT_VARIABLE _libpq_ssl_candidate_ldd
-                            OUTPUT_STRIP_TRAILING_WHITESPACE
-                            ERROR_QUIET)
-                        if(_libpq_ssl_candidate_ldd MATCHES "libssl\\.so")
-                            message(STATUS "[ext_libpq] '${_EXT_LIBPQ_SO_REALPATH}' has no SSL dependency; staging '${_EXT_LIBPQ_SSL_CANDIDATE}' instead")
-                            set(_EXT_LIBPQ_SO_REALPATH "${_EXT_LIBPQ_SSL_CANDIDATE}")
-                        endif()
-                    endif()
+                    set(_EXT_LIBPQ_SO_REALPATH "${_pg_lib_dir}/libpq.so.5")
                 endif()
             endif()
 
@@ -2252,6 +2231,13 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                     "LDFLAGS=-L${ext_ssl_install}/lib"
                     "PKG_CONFIG_PATH=${ext_ssl_install}/lib/pkgconfig"
                 )
+                if(TD_DARWIN)
+                    set(_ext_libpq_patch_refs_command
+                        COMMAND perl -0pi -e "s/grep -v __cxa_atexit \\| grep exit/grep -v __cxa_atexit | grep -v _atexit | grep exit/"
+                            src/interfaces/libpq/Makefile)
+                else()
+                    set(_ext_libpq_patch_refs_command "")
+                endif()
                 ExternalProject_Add(ext_libpq
                     URL ${_url}
                     URL_HASH SHA256=bd3798c399bc1b6d08b94340f9dd7a75a30a7fa076788ef2f4848be2be6a5fc5
@@ -2269,6 +2255,7 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                             --enable-shared
                             --with-openssl
                     BUILD_COMMAND
+                        ${_ext_libpq_patch_refs_command}
                         # BUILD_IN_SOURCE reuses the cached PostgreSQL source tree across
                         # CI runs. Clean libpq objects so old non-SSL fe-secure.o is not
                         # linked together with fe-secure-openssl.o after enabling OpenSSL.

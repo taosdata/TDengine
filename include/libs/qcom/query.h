@@ -493,6 +493,9 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 void    queryFreeSeriesEntries(SSeriesEntry* pSeries, int32_t nSeries);
+void    queryFreeColRefTagConds(SColRef* pColRef, int32_t nCols);
+void    queryFreeTableMeta(STableMeta* pMeta);
+int32_t queryCloneColRefTagConds(const SColRef* pSrc, int32_t nCols, SColRef* pDst);
 int32_t queryCloneSeriesEntries(const SSeriesEntry* pSrc, int32_t nSeries, SSeriesEntry** ppDst);
 char*   jobTaskStatusStr(int32_t status);
 

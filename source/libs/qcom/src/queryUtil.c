@@ -727,6 +727,49 @@ void queryFreeSeriesEntries(SSeriesEntry* pSeries, int32_t nSeries) {
   taosMemoryFree(pSeries);
 }
 
+void queryFreeColRefTagConds(SColRef* pColRef, int32_t nCols) {
+  tFreeSColRefArray(pColRef, nCols);
+}
+
+void queryFreeTableMeta(STableMeta* pMeta) {
+  if (NULL == pMeta) {
+    return;
+  }
+
+  if (pMeta->tableType != TSDB_CHILD_TABLE) {
+    queryFreeColRefTagConds(pMeta->colRef, pMeta->numOfColRefs);
+    queryFreeColRefTagConds(pMeta->tagRef, pMeta->numOfTagRefs);
+    queryFreeSeriesEntries(pMeta->seriesEntries, pMeta->numOfSeries);
+  }
+  taosMemoryFree(pMeta);
+}
+
+int32_t queryCloneColRefTagConds(const SColRef* pSrc, int32_t nCols, SColRef* pDst) {
+  if (NULL == pDst || nCols <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < nCols; ++i) {
+    pDst[i].tagCondJson = NULL;
+  }
+
+  if (NULL == pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < nCols; ++i) {
+    if (pSrc[i].tagCondJson) {
+      pDst[i].tagCondJson = taosStrdup(pSrc[i].tagCondJson);
+      if (NULL == pDst[i].tagCondJson) {
+        queryFreeColRefTagConds(pDst, i);
+        return terrno;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t queryCloneSeriesEntries(const SSeriesEntry* pSrc, int32_t nSeries, SSeriesEntry** ppDst) {
   QUERY_PARAM_CHECK(ppDst);
   *ppDst = NULL;
@@ -775,10 +818,25 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   }
   memcpy(*pDst, pSrc, metaSize);
   tableMetaResetPointers(*pDst);
+  (*pDst)->seriesEntries = NULL;
 
-  int32_t code = queryCloneSeriesEntries(pSrc->seriesEntries, pSrc->numOfSeries, &(*pDst)->seriesEntries);
+  int32_t code = queryCloneColRefTagConds(pSrc->colRef, pSrc->numOfColRefs, (*pDst)->colRef);
   if (TSDB_CODE_SUCCESS != code) {
-    taosMemoryFree(*pDst);
+    queryFreeTableMeta(*pDst);
+    *pDst = NULL;
+    return code;
+  }
+
+  code = queryCloneColRefTagConds(pSrc->tagRef, pSrc->numOfTagRefs, (*pDst)->tagRef);
+  if (TSDB_CODE_SUCCESS != code) {
+    queryFreeTableMeta(*pDst);
+    *pDst = NULL;
+    return code;
+  }
+
+  code = queryCloneSeriesEntries(pSrc->seriesEntries, pSrc->numOfSeries, &(*pDst)->seriesEntries);
+  if (TSDB_CODE_SUCCESS != code) {
+    queryFreeTableMeta(*pDst);
     *pDst = NULL;
     return code;
   }
