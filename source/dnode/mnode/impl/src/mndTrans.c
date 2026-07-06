@@ -2097,7 +2097,9 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
     char str[200] = {0};
     if (mndCannotExecuteTransWithInfo(pMnode, topHalf, str, 200)) {
       pTrans->lastErrorNo = code;
-      pTrans->code = code;
+      if (pTrans->code == 0) {
+        pTrans->code = code;
+      }
       mInfo("trans:%d, %s:%d cannot execute next action, stop execution, %s", pTrans->id, mndTransStr(pAction->stage),
             action, str);
       break;
@@ -2225,7 +2227,9 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
     char str[200] = {0};
     if (mndCannotExecuteTransWithInfo(pMnode, topHalf, str, 200)) {
       pTrans->lastErrorNo = code;
-      pTrans->code = code;
+      if (pTrans->code == 0) {
+        pTrans->code = code;
+      }
       if (code == TSDB_CODE_MND_TRANS_CTX_SWITCH) {
         mInfo(
             "trans:%d, %s:%d (%d/%d at group %d) not able to execute since %s, current state("

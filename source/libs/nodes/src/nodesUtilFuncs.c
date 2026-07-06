@@ -966,6 +966,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_SHOW_INSTANCES_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT:
     case QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT:
+    case QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT:
       code = makeNode(type, sizeof(SShowStmt), &pNode);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
@@ -2018,6 +2019,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pCols);
       nodesDestroyList(pStmt->pTags);
       nodesDestroyNode((SNode*)pStmt->pOptions);
+      nodesDestroyList(pStmt->pBaseOnList);
       break;
     }
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE: {
@@ -2331,7 +2333,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_MOUNTS_STMT:
     case QUERY_NODE_SHOW_RSMAS_STMT:
     case QUERY_NODE_SHOW_RETENTIONS_STMT:
-    case QUERY_NODE_SHOW_INSTANCES_STMT: {
+    case QUERY_NODE_SHOW_INSTANCES_STMT:
+    case QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT: {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbName);

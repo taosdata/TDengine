@@ -158,7 +158,8 @@ typedef struct STableMeta {
       uint8_t virtualStb : 1;
       uint8_t isAudit : 1;
       uint8_t secLvl : 3;  // security level (0-4), mapped from STableMetaRsp.secLvl
-      uint8_t reserved : 3;
+      uint8_t hasInheritors : 1;  // 1 if other VSTs inherit from this STB
+      uint8_t reserved : 2;
     };
   };
   int64_t ownerId;
@@ -586,7 +587,8 @@ void* getTaskPoolWorkerCb();
 
 #define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                       \
   ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE ||      \
-   (_type) == TDMT_MND_DROP_STB || (_type) == TDMT_MND_CREATE_VIEW || (_type) == TDMT_MND_DROP_VIEW ||          \
+   (_type) == TDMT_MND_DROP_STB || (_type) == TDMT_MND_ALTER_STB || (_type) == TDMT_MND_CREATE_VIEW ||          \
+   (_type) == TDMT_MND_DROP_VIEW ||                                                                             \
    (_type) == TDMT_MND_CREATE_TSMA || (_type) == TDMT_MND_DROP_TSMA || (_type) == TDMT_MND_DROP_TB_WITH_TSMA || \
    (_type) == TDMT_MND_CREATE_STREAM || (_type) == TDMT_MND_DROP_STREAM)
 

@@ -81,6 +81,7 @@ EXPECTED_INFO_TABLES = {
     "ins_virtual_child_columns",
     "ins_virtual_tables_referencing",
     "ins_vnodes",
+    "ins_vstable_inherits",
     "ins_xnode_agents",
     "ins_xnode_jobs",
     "ins_xnode_tasks",

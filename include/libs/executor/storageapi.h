@@ -65,6 +65,16 @@ typedef struct SMetaEntry {
       int64_t        keep;
       int64_t        ownerId;
       int8_t         securityLevel;
+      // VST inheritance (BASE ON): persisted so the TMQ snapshot path can rebuild a
+      // replayable BASE ON clause. The WAL/incremental path carries these in the
+      // CREATE_STB message, but a snapshot is reconstructed from this entry alone, so
+      // without them snapshot consumers silently lose the child's inheritance.
+      // Names are the resolved parent full names (acctId.db.table); suids are omitted
+      // because they are source-local and re-resolved by name on replay.
+      int8_t  numParents;
+      int16_t ownColStart;
+      int16_t ownTagStart;
+      char    parentStbFNames[TSDB_MAX_VST_PARENTS][TSDB_TABLE_FNAME_LEN];
     } stbEntry;
     struct {
       int64_t  btime;

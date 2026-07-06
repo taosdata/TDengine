@@ -4,6 +4,79 @@ title: Virtual Tables
 description: Various management operations for virtual tables
 ---
 
+## Virtual Supertable Inheritance
+
+A virtual supertable (VST) can inherit columns and tags from one or more parent VSTs using the `BASE ON` clause. This enables building hierarchical virtual table topologies — for example, a device-type VST that inherits common fields from a base device VST, then adds its own specialized columns.
+
+### Create an Inherited Virtual Supertable
+
+```sql
+CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name
+    (col_name col_type [, ...])
+    TAGS (tag_name tag_type [, ...])
+    BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
+    VIRTUAL 1
+```
+
+The `BASE ON` clause specifies one or more parent VSTs to inherit from. The child VST automatically inherits all columns and tags from each parent. The child's own columns and tags are appended after the inherited ones.
+
+Example:
+
+```sql
+-- Parent VST with common device fields
+CREATE STABLE p_device (ts timestamp, status int) TAGS (region int) VIRTUAL 1;
+
+-- Child VST inherits status + region, adds temperature
+CREATE STABLE p_temp (ts timestamp, temp float) TAGS (sensor_id int)
+    BASE ON test_db.p_device VIRTUAL 1;
+
+-- Create a VCT under the child
+CREATE VTABLE vct_t1 (status FROM src.c1, temp FROM src.c2)
+    USING test_db.p_temp TAGS (100, 1);
+
+-- Query the child VST (leaf)
+SELECT * FROM test_db.p_temp;
+
+-- Query the parent VST (non-leaf) — returns UNION ALL of all descendant VCTs
+SELECT count(*) FROM test_db.p_device;
+```
+
+### Alter Inheritance
+
+```sql
+-- Add a parent
+ALTER STABLE [db_name.]stb_name ADD BASE ON [db_name.]parent_stb_name;
+
+-- Drop a parent (columns/tags contributed by that parent are removed)
+ALTER STABLE [db_name.]stb_name DROP BASE ON [db_name.]parent_stb_name;
+```
+
+### Non-leaf VST Queries
+
+When you query a non-leaf VST (one that has child VSTs inheriting from it), the engine automatically rewrites the query into a `UNION ALL` of all leaf-descendant VCTs. This means:
+
+- `SELECT * FROM parent_vst` returns data from all descendant VCTs.
+- `SELECT count(*) FROM parent_vst` aggregates across all descendants.
+- Multi-level inheritance (grandparent → parent → leaf) is supported — querying the grandparent traverses the full descendant tree.
+
+### View Inheritance Relationships
+
+```sql
+SHOW VTABLE INHERITS;
+```
+
+This displays the parent-child relationships between VSTs, including database name, child stable name, and parent stable names.
+
+### Constraints
+
+1. **Virtual only**: `BASE ON` requires both parent and child to be virtual supertables (`VIRTUAL 1`).
+2. **Same database**: Parent and child VSTs must reside in the same database.
+3. **Column/tag conflict**: The child's own column/tag names must not conflict with inherited names from any parent.
+4. **Circular inheritance**: Circular dependency chains are detected and rejected.
+5. **Max parents**: A VST can inherit from at most 10 parent VSTs.
+6. **Non-leaf restrictions**: A non-leaf VST (one with children) cannot have VCTs created directly under it — VCTs must be created under leaf VSTs. A parent VST that already has VCTs cannot be used as a `BASE ON` target.
+7. **Schema changes**: `ADD COLUMN` / `DROP COLUMN` on a parent VST that has children is rejected. The parent's schema is frozen once it becomes a non-leaf.
+
 ## Create Virtual Table
 
 The `CREATE VTABLE` statement is used to create virtual basic tables and virtual subtables using virtual supertables as templates.

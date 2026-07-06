@@ -1645,6 +1645,11 @@ static int32_t collectMetaKeyFromShowRoles(SCollectMetaKeyCxt* pCxt, SShowStmt* 
   return code;
 }
 
+static int32_t collectMetaKeyFromShowVstableInherits(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB,
+                                 TSDB_INS_TABLE_VSTABLE_INHERITS, pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromShowLicence(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   int32_t code = reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_LICENCES,
                                          pCxt->pMetaCache);
@@ -2754,6 +2759,9 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       break;
     case QUERY_NODE_SHOW_VALIDATE_VTABLE_STMT:
       code = collectMetaKeyFromShowValidateVtable(pCxt, (SShowValidateVirtualTable*)pStmt);
+      break;
+    case QUERY_NODE_SHOW_VSTABLE_INHERITS_STMT:
+      code = collectMetaKeyFromShowVstableInherits(pCxt, (SShowStmt*)pStmt);
       break;
     case QUERY_NODE_SHOW_CPU_ALLOCATION_STMT:
       code = collectMetaKeyFromShowCpuAllocation(pCxt, (SShowStmt*)pStmt);

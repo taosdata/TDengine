@@ -43,7 +43,7 @@ table_option: {
     - 超级表的 keep 参数需小于数据库的 keep 参数。
     - compact 前必须进行 flush 否则可能不生效。
     - compact 之后，alter stable 的 keep 再 compact ,部分数据有可能无法被正确清理，这取决于对应的文件在上次 compact 之后是否有新的数据写入。
-8. 关于 table_option 中的 virtual 参数，仅对超级表生效，指定为 1 表示创建虚拟超级表，为 0 表示创建超级表，默认为 0。创建虚拟超级表时，column_definition 中只支持 type_name 选项，不支持定义额外主键列以及压缩选项。
+8. 关于 table_option 中的 virtual 参数，仅对超级表生效，指定为 1 表示创建虚拟超级表，为 0 表示创建超级表，默认为 0。创建虚拟超级表时，column_definition 中只支持 type_name 选项，不支持定义额外主键列以及压缩选项。虚拟超级表支持通过 `BASE ON` 子句继承其他虚拟超级表的列和标签，详见[虚拟超级表继承](./04-virtualtable.md#虚拟超级表继承)。
 
 ## 查看超级表
 
@@ -147,6 +147,8 @@ alter_table_clause: {
   | DROP TAG tag_name
   | MODIFY TAG tag_name tag_type
   | RENAME TAG old_tag_name new_tag_name
+  | ADD BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
+  | DROP BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
 }
  
 alter_table_options:

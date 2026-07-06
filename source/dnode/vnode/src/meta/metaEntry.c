@@ -571,6 +571,14 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->stbEntry.keep));
     TAOS_CHECK_RETURN(tEncodeI64v(pCoder, pME->stbEntry.ownerId));
     TAOS_CHECK_RETURN(tEncodeI8(pCoder, pME->stbEntry.securityLevel));
+    // VST inheritance (BASE ON): appended last for backward compatibility (older
+    // readers stop after securityLevel; the decoder tDecodeIsEnd-guards these reads).
+    TAOS_CHECK_RETURN(tEncodeI8(pCoder, pME->stbEntry.numParents));
+    TAOS_CHECK_RETURN(tEncodeI16(pCoder, pME->stbEntry.ownColStart));
+    TAOS_CHECK_RETURN(tEncodeI16(pCoder, pME->stbEntry.ownTagStart));
+    for (int8_t i = 0; i < pME->stbEntry.numParents && i < TSDB_MAX_VST_PARENTS; ++i) {
+      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pME->stbEntry.parentStbFNames[i]));
+    }
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ntbEntry.ownerId));
   }
@@ -695,6 +703,22 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     }
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pME->stbEntry.securityLevel));
+    }
+    // VST inheritance (BASE ON): appended after securityLevel. Older entries stop here,
+    // so guard each read and leave numParents=0 when absent.
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pME->stbEntry.numParents));
+      // numParents is read from persisted data; reject anything that would overflow the
+      // fixed-size parentStbFNames[] array before the decode loop runs.
+      if (pME->stbEntry.numParents < 0 || pME->stbEntry.numParents > TSDB_MAX_VST_PARENTS) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+      TAOS_CHECK_RETURN(tDecodeI16(pCoder, &pME->stbEntry.ownColStart));
+      TAOS_CHECK_RETURN(tDecodeI16(pCoder, &pME->stbEntry.ownTagStart));
+      for (int8_t i = 0; i < pME->stbEntry.numParents; ++i) {
+        if (tDecodeIsEnd(pCoder)) break;
+        TAOS_CHECK_RETURN(tDecodeCStrTo(pCoder, pME->stbEntry.parentStbFNames[i]));
+      }
     }
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (!tDecodeIsEnd(pCoder)) {
@@ -878,6 +902,14 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
     (*ppEntry)->stbEntry.keep = pEntry->stbEntry.keep;
     (*ppEntry)->stbEntry.ownerId = pEntry->stbEntry.ownerId;
     (*ppEntry)->stbEntry.securityLevel = pEntry->stbEntry.securityLevel;
+    // VST inheritance (BASE ON): copy parent names + own-column/tag boundaries.
+    (*ppEntry)->stbEntry.numParents = pEntry->stbEntry.numParents;
+    (*ppEntry)->stbEntry.ownColStart = pEntry->stbEntry.ownColStart;
+    (*ppEntry)->stbEntry.ownTagStart = pEntry->stbEntry.ownTagStart;
+    if (pEntry->stbEntry.numParents > 0 && pEntry->stbEntry.numParents <= TSDB_MAX_VST_PARENTS) {
+      memcpy((*ppEntry)->stbEntry.parentStbFNames, pEntry->stbEntry.parentStbFNames,
+             sizeof(char) * pEntry->stbEntry.numParents * TSDB_TABLE_FNAME_LEN);
+    }
   } else if (pEntry->type == TSDB_CHILD_TABLE || pEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
     (*ppEntry)->ctbEntry.btime = pEntry->ctbEntry.btime;
     (*ppEntry)->ctbEntry.ttlDays = pEntry->ctbEntry.ttlDays;

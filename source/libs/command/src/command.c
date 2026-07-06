@@ -667,7 +667,19 @@ static int32_t buildCreateViewResultDataBlock(SSDataBlock** pOutput) {
 
 static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
   char expandName[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+  // For an inherited virtual super table, columns [1, ownColStart) are inherited
+  // from parents and must NOT be listed inline (they are expressed by BASE ON).
+  // Emit only ts (index 0) plus own columns [ownColStart, numOfColumns).
+  int32_t inheritStart = 0, inheritEnd = 0;
+  if (TSDB_SUPER_TABLE == pCfg->tableType && pCfg->numParents > 0 && pCfg->ownColStart > 1) {
+    inheritStart = 1;
+    inheritEnd = pCfg->ownColStart;
+  }
+  bool emitted = false;
   for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
+    if (i >= inheritStart && i < inheritEnd) {
+      continue;
+    }
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs ? pCfg->pColRefs + i : NULL;
 #define LTYPE_LEN                                    \
@@ -718,12 +730,13 @@ static void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
 
     if (!(pSchema->flags & COL_IS_KEY)) {
       *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                       "%s`%s` %s", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
+                       "%s`%s` %s", (emitted ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
     } else {
       char* pk = "COMPOSITE KEY";
       *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                       "%s`%s` %s %s", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type, pk);
+                       "%s`%s` %s %s", (emitted ? ", " : ""), expandIdentifier(pSchema->name, expandName), type, pk);
     }
+    emitted = true;
   }
 }
 
@@ -774,7 +787,14 @@ static void appendColRefFields(char* buf, int32_t* len, STableCfg* pCfg) {
 
 static void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
   char expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
-  for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
+  // For an inherited virtual super table, tags [0, ownTagStart) are inherited from
+  // parents and are expressed by BASE ON, not listed inline. Emit only own tags.
+  int32_t tagStart = 0;
+  if (TSDB_SUPER_TABLE == pCfg->tableType && pCfg->numParents > 0 && pCfg->ownTagStart > 0) {
+    tagStart = pCfg->ownTagStart;
+  }
+  bool emitted = false;
+  for (int32_t i = tagStart; i < pCfg->numOfTags; ++i) {
     SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
     char     type[32];
     snprintf(type, sizeof(type), "%s", tDataTypes[pSchema->type].name);
@@ -788,7 +808,8 @@ static void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
     }
 
     *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                     "%s`%s` %s", ((i > 0) ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
+                     "%s`%s` %s", (emitted ? ", " : ""), expandIdentifier(pSchema->name, expandName), type);
+    emitted = true;
   }
 }
 
@@ -1033,11 +1054,36 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                     "CREATE STABLE `%s` (", expandIdentifier(tbName, buf1));
     appendColumnFields(buf2, &len, pCfg);
+    // For an inherited VST with no own tags (ownTagStart == numOfTags), the grammar
+    // "CREATE STABLE ... BASE ON" accepts an omitted TAGS clause (sql.y:1069).
+    // Emitting "TAGS ()" (empty list) is invalid syntax — tag_def_list requires ≥1 entry.
+    int32_t numOwnTags = (pCfg->numParents > 0) ? (pCfg->numOfTags - pCfg->ownTagStart) : pCfg->numOfTags;
+    if (numOwnTags > 0) {
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ") TAGS (");
+      appendTagFields(buf2, &len, pCfg);
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ")");
+    } else {
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ")");
+    }
+    if (pCfg->numParents > 0) {
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      " BASE ON ");
+      for (int8_t i = 0; i < pCfg->numParents; ++i) {
+        if (i > 0) {
+          len += snprintf(buf2 + VARSTR_HEADER_SIZE + len,
+                          SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ", ");
+        }
+        len += snprintf(buf2 + VARSTR_HEADER_SIZE + len,
+                        SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), "`%s`",
+                        pCfg->parentStbNames[i]);
+      }
+    }
+    // Note: VIRTUAL is emitted by appendTableOptions() below; do not duplicate it here.
     len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                    ") TAGS (");
-    appendTagFields(buf2, &len, pCfg);
-    len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                    ") SECURITY_LEVEL %d", pCfg->securityLevel);
+                    " SECURITY_LEVEL %d", pCfg->securityLevel);
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else if (TSDB_CHILD_TABLE == pCfg->tableType) {
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,

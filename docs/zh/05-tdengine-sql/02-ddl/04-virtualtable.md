@@ -4,6 +4,79 @@ title: 虚拟表
 description: 对虚拟表的各种管理操作
 ---
 
+## 虚拟超级表继承
+
+虚拟超级表（VST）可以通过 `BASE ON` 子句从一个或多个父虚拟超级表继承列和标签。这使得构建层次化的虚拟表拓扑成为可能——例如，一个设备类型 VST 从基础设备 VST 继承公共字段，再添加自身的特有列。
+
+### 创建继承的虚拟超级表
+
+```sql
+CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name
+    (col_name col_type [, ...])
+    TAGS (tag_name tag_type [, ...])
+    BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
+    VIRTUAL 1
+```
+
+`BASE ON` 子句指定一个或多个父虚拟超级表。子 VST 自动继承每个父 VST 的全部列和标签，子 VST 自身的列和标签追加在继承的列之后。
+
+示例：
+
+```sql
+-- 父 VST：通用设备字段
+CREATE STABLE p_device (ts timestamp, status int) TAGS (region int) VIRTUAL 1;
+
+-- 子 VST：继承 status + region，增加温度列
+CREATE STABLE p_temp (ts timestamp, temp float) TAGS (sensor_id int)
+    BASE ON test_db.p_device VIRTUAL 1;
+
+-- 在子 VST 下创建虚拟子表
+CREATE VTABLE vct_t1 (status FROM src.c1, temp FROM src.c2)
+    USING test_db.p_temp TAGS (100, 1);
+
+-- 查询子 VST（叶子）
+SELECT * FROM test_db.p_temp;
+
+-- 查询父 VST（非叶子）——返回所有后代 VCT 的 UNION ALL
+SELECT count(*) FROM test_db.p_device;
+```
+
+### 修改继承关系
+
+```sql
+-- 添加父表
+ALTER STABLE [db_name.]stb_name ADD BASE ON [db_name.]parent_stb_name;
+
+-- 移除父表（该父表贡献的列和标签会被级联删除）
+ALTER STABLE [db_name.]stb_name DROP BASE ON [db_name.]parent_stb_name;
+```
+
+### 非叶子 VST 查询
+
+查询非叶子 VST（即有子 VST 继承的 VST）时，引擎自动将查询重写为所有叶子后代 VCT 的 `UNION ALL`：
+
+- `SELECT * FROM parent_vst` 返回所有后代 VCT 的数据。
+- `SELECT count(*) FROM parent_vst` 跨所有后代聚合。
+- 支持多层继承（祖父→父→叶子）——查询祖父会遍历整个后代树。
+
+### 查看继承关系
+
+```sql
+SHOW VTABLE INHERITS;
+```
+
+显示 VST 之间的父子继承关系，包括数据库名、子表名、父表名。
+
+### 约束条件
+
+1. **仅限虚拟表**：`BASE ON` 要求父表和子表都是虚拟超级表（`VIRTUAL 1`）。
+2. **同库限制**：父表和子表必须在同一个数据库中。
+3. **列名/标签名冲突**：子表自身的列名和标签名不能与继承自任何父表的名称冲突。
+4. **循环继承**：循环依赖链会被检测并拒绝。
+5. **最大父表数**：一个 VST 最多可继承 10 个父 VST。
+6. **非叶子限制**：非叶子 VST（即有子表的 VST）不能直接创建 VCT——VCT 只能在叶子 VST 下创建。已有 VCT 的父表不能被用作 `BASE ON` 目标。
+7. **Schema 变更**：对有子表的父 VST 执行 `ADD COLUMN` / `DROP COLUMN` 会被拒绝。父表一旦成为非叶子，其 Schema 即被冻结。
+
 ## 创建虚拟表
 
 `CREATE VTABLE` 语句用于创建虚拟普通表和以虚拟超级表为模板创建虚拟子表。

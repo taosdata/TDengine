@@ -1076,6 +1076,36 @@ _return:
   return code;
 }
 
+int32_t vnodeProcessCheckHasCtbReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  SVCheckHasCtbReq req = {0};
+  int32_t          code = 0;
+  void            *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t          bufLen = pMsg->contLen - sizeof(SMsgHead);
+
+  code = tDeserializeSVCheckHasCtbReq(pBuf, bufLen, &req);
+  if (code != 0) {
+    vError("vgId:%d, failed to deserialize check-has-ctb req", TD_VID(pVnode));
+    goto _exit;
+  }
+
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode, req.suid, 0, 0);
+  if (pCur == NULL) {
+    code = (terrno != 0) ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    vError("vgId:%d, failed to open ctb cursor for suid:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.suid, code);
+  } else {
+    tb_uid_t id = metaCtbCursorNext(pCur);
+    metaCloseCtbCursor(pCur);
+    if (id != 0) {
+      code = TSDB_CODE_MND_VST_PARENT_HAS_VCT;
+    }
+  }
+
+_exit:;
+  SRpcMsg rspMsg = {.info = pMsg->info, .code = code};
+  tmsgSendRsp(&rspMsg);
+  return 0;  // return 0 so fetch worker doesn't double-send response
+}
+
 int32_t vnodeGetVStbRefDbs(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t        code = 0;
   int32_t        rspSize = 0;
