@@ -58,6 +58,24 @@ typedef enum {
   FILTER_OTHER,
 } FilterCondType;
 
+#if defined(BUILD_TEST)
+static threadlocal int32_t g_execUtilTestExtractSingleRspBlockFailCode = TSDB_CODE_SUCCESS;
+static threadlocal int32_t g_execUtilTestHandleRemoteRowResDestroyCount = 0;
+
+void execUtilTestResetHandleRemoteRowResState(void) {
+  g_execUtilTestExtractSingleRspBlockFailCode = TSDB_CODE_SUCCESS;
+  g_execUtilTestHandleRemoteRowResDestroyCount = 0;
+}
+
+void execUtilTestSetExtractSingleRspBlockFailOnce(int32_t code) {
+  g_execUtilTestExtractSingleRspBlockFailCode = code;
+}
+
+int32_t execUtilTestGetHandleRemoteRowResDestroyCount(void) {
+  return g_execUtilTestHandleRemoteRowResDestroyCount;
+}
+#endif
+
 static int32_t optimizeTbnameInCondImpl(void* pVnode, SArray* list, SNode* pTagCond, SStorageAPI* pStoreAPI,
                                         uint64_t suid);
 
@@ -4504,6 +4522,14 @@ int32_t extractSingleRspBlock(SRetrieveTableRsp* pRetrieveRsp, SSDataBlock* pb) 
 
   int32_t index = 0;
 
+#if defined(BUILD_TEST)
+  if (TSDB_CODE_SUCCESS != g_execUtilTestExtractSingleRspBlockFailCode) {
+    code = g_execUtilTestExtractSingleRspBlockFailCode;
+    g_execUtilTestExtractSingleRspBlockFailCode = TSDB_CODE_SUCCESS;
+    goto _end;
+  }
+#endif
+
   if (pRetrieveRsp->compressed) {  // decompress the data
     decompBuf = taosMemoryMalloc(pRetrieveRsp->payloadLen);
     QUERY_CHECK_NULL(decompBuf, code, lino, _end, terrno);
@@ -4531,7 +4557,8 @@ int32_t extractSingleRspBlock(SRetrieveTableRsp* pRetrieveRsp, SSDataBlock* pb) 
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    blockDataDestroy(pb);
+    // The response block is created and destroyed by the caller on both
+    // success and failure paths.
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
@@ -4831,7 +4858,13 @@ void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetriev
         taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
       }
 
+#if defined(BUILD_TEST)
+      if (NULL != pResBlock) {
+        ++g_execUtilTestHandleRemoteRowResDestroyCount;
+      }
+#endif
       blockDataDestroy(pResBlock);
+      pResBlock = NULL;
     } else if (NULL != *ppRes && 0 == pRsp->numOfRows) {
       // EOF after data in stream mode: keep the node typed as REMOTE_ROW
       // (do NOT rewrite to QUERY_NODE_VALUE) so the next per-event walker
@@ -4907,7 +4940,13 @@ void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetriev
     pRemote->hasValue = true;
   }
 
+#if defined(BUILD_TEST)
+  if (NULL != pResBlock) {
+    ++g_execUtilTestHandleRemoteRowResDestroyCount;
+  }
+#endif
   blockDataDestroy(pResBlock);
+  pResBlock = NULL;
 }
 
 
