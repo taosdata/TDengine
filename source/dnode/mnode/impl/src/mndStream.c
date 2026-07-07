@@ -232,18 +232,8 @@ static void mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamR
     mDebug("stream:%s flagged STREAM_FLAG_REF_EXT_SOURCE (federated query stream)", pObj->name);
   }
 
-  /* === P1 B3: move extSpecs ownership from pCreate to pObj ===
-   * SStreamObj.extSpecs is the persistent (sdb-encoded) home for
-   * SStreamExtTriggerSpec; pCreate->extSpecs only lives during the
-   * transient TDMT_MND_CREATE_STREAM RPC. We transfer the SArray pointer
-   * (shallow move) so tFreeSCMCreateStreamReq does not free it; the
-   * matching free in tFreeStreamObj is added in P1 B6. */
   if (pCreate->extSpecs != NULL) {
-    pObj->extSpecs           = pCreate->extSpecs;
-    pCreate->extSpecs        = NULL;
-    pCreate->numOfExtSpecs   = 0;
-    mDebug("stream:%s extSpecs ownership moved to SStreamObj (%d specs)",
-           pObj->name, (int)taosArrayGetSize(pObj->extSpecs));
+    mDebug("stream:%s references %d ext spec(s)", pObj->name, (int)taosArrayGetSize(pCreate->extSpecs));
   }
 
   mstLogSStreamObj("create stream", pObj);
@@ -1413,6 +1403,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
    * Failure (source missing or DROPped between parser cache fetch and
    * mnode arrival) returns TSDB_CODE_EXT_SOURCE_NOT_FOUND (0x6407,
    * MR 245). DS Sec 6.1.2 line 266. */
+  #ifdef TD_ENTERPRISE
   if (pCreate->extSpecs != NULL && pCreate->numOfExtSpecs > 0) {
     int32_t n = (int32_t)taosArrayGetSize(pCreate->extSpecs);
     for (int32_t i = 0; i < n; ++i) {
@@ -1433,6 +1424,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       mndReleaseExtSource(pMnode, pSrcObj);
     }
   }
+  #endif
 
   mndStreamBuildObj(pMnode, &streamObj, pCreate, pOperUser, snodeId);
   pCreate = NULL;

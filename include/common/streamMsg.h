@@ -336,11 +336,11 @@ typedef enum EStreamTaskType {
 
 static const char* gStreamTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
-/* External source trigger spec, carried inside SStreamObj for each EXT reader
- * task (SStreamObj.extSpecs, SArray<SStreamExtTriggerSpec*>). Serialized as a
- * TLV section appended to TDMT_STREAM_TASK_DEPLOY in P1; P0 only defines the
- * struct and the SStreamObj field — no producer / serializer exists yet.
- * See DS §6.2.1 for the full field semantics. */
+/* External source trigger spec, carried for each EXT reader task in
+ * SCMCreateStreamReq.extSpecs (SArray<SStreamExtTriggerSpec*>) — this is the
+ * sole persisted home; SStreamObj itself does not keep a separate copy.
+ * Serialized as JSON via extTriggerSpecToJson/jsonToExtTriggerSpec
+ * (streamJson.c). See DS §6.2.1 for the full field semantics. */
 typedef struct SStreamExtTriggerSpec {
   char        sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // External source name
   int8_t      sourceType;                            // EExtSourceType (tmsg.h:225): MySQL/PostgreSQL/InfluxDB/TDengine.
