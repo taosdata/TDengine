@@ -1245,16 +1245,12 @@ typedef struct {
   int64_t ownerId;
   // Bitmap of STREAM_FLAG_* (defined in libs/new-stream/stream.h). Currently
   // only STREAM_FLAG_REF_EXT_SOURCE (bit 3) is consumed; lifted from
-  // SCMCreateStreamReq.flags by mndStreamBuildObj. SDB (en|de)coding for this
-  // field will be added together with extSpecs in P1 B6.
+  // SCMCreateStreamReq.flags by mndStreamBuildObj.
   uint64_t flags;
-  // External source trigger specs. NULL if the stream references no external
-  // source. Each element is SStreamExtTriggerSpec*. Serialization into stream
-  // metadata is added in P1 (mndStream codec extension). P0 leaves this field
-  // always NULL (no producer yet); tFreeStreamObj therefore does not touch it.
-  // TODO(P1): add a per-element destructor and free path once P1 introduces
-  // the constructor.
-  SArray* extSpecs;
+  // External source trigger specs live in pCreate->extSpecs
+  // (SCMCreateStreamReq.extSpecs), which is JSON-serialized as part of
+  // pCreate and persists for the whole lifetime of the stream object; there
+  // is no separate copy on SStreamObj itself.
 } SStreamObj;
 #if 0
 typedef struct SStreamConf {

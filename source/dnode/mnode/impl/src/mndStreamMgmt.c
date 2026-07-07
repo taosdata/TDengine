@@ -1456,14 +1456,14 @@ _exit:
  * trigger-reader deploy (EXT-source streams only).  The trigger table of a
  * federated stream is an EXT table; match by extTable name.  Returns NULL for
  * non-federated streams or when no spec matches.  The returned pointer borrows
- * into pStream->extSpecs, which stays valid as long as the stream is resident
+ * into pStream->pCreate->extSpecs, which stays valid as long as the stream is resident
  * in SDB (mndReleaseStream only drops the acquire refcount, it does not free
  * the object), so callers may release the stream right after the deploy call. */
 static SStreamExtTriggerSpec* msmGetTrigExtSpec(SStreamObj* pStream) {
-  if (!STREAM_IS_REF_EXT_SOURCE(pStream->flags) || pStream->extSpecs == NULL) return NULL;
-  int32_t nSpecs = (int32_t)taosArrayGetSize(pStream->extSpecs);
+  if (!STREAM_IS_REF_EXT_SOURCE(pStream->flags) || pStream->pCreate->extSpecs == NULL) return NULL;
+  int32_t nSpecs = (int32_t)taosArrayGetSize(pStream->pCreate->extSpecs);
   for (int32_t si = 0; si < nSpecs; ++si) {
-    SStreamExtTriggerSpec* pSpec = *(SStreamExtTriggerSpec**)taosArrayGet(pStream->extSpecs, si);
+    SStreamExtTriggerSpec* pSpec = *(SStreamExtTriggerSpec**)taosArrayGet(pStream->pCreate->extSpecs, si);
     if (pSpec != NULL && strcmp(pSpec->extTable, pStream->pCreate->triggerTblName) == 0) {
       return pSpec;
     }
@@ -1483,7 +1483,7 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   /* P1 B5: find the ext spec matching the trigger table (EXT-source streams only).
    * Non-federated streams leave pTrigExtSpec = NULL. */
   SStreamExtTriggerSpec* pTrigExtSpec = msmGetTrigExtSpec(pStream);
-  if (STREAM_IS_REF_EXT_SOURCE(pStream->flags) && pStream->extSpecs != NULL) {
+  if (STREAM_IS_REF_EXT_SOURCE(pStream->flags) && pStream->pCreate->extSpecs != NULL) {
     mstsDebug("msmTDAddTrigReaderTasks: stream %" PRId64 " extSpec %s for trigger table %s",
               streamId, pTrigExtSpec ? pTrigExtSpec->sourceName : "(not found)",
               pStream->pCreate->triggerTblName);
@@ -1675,13 +1675,13 @@ _exit:
 
 /* Resolve the connection spec for a calc scan by external source name, mirroring
  * msmGetTrigExtSpec (which matches by extTable). Returns a borrowed pointer into
- * pStream->extSpecs (sdb-resident), or NULL when no source matches. */
+ * pStream->pCreate->extSpecs (sdb-resident), or NULL when no source matches. */
 static SStreamExtTriggerSpec* msmGetCalcExtSpecByName(SStreamObj* pStream, const char* sourceName) {
-  if (!STREAM_IS_REF_EXT_SOURCE(pStream->flags) || pStream->extSpecs == NULL) return NULL;
+  if (!STREAM_IS_REF_EXT_SOURCE(pStream->flags) || pStream->pCreate->extSpecs == NULL) return NULL;
   if (sourceName == NULL || sourceName[0] == '\0') return NULL;
-  int32_t n = (int32_t)taosArrayGetSize(pStream->extSpecs);
+  int32_t n = (int32_t)taosArrayGetSize(pStream->pCreate->extSpecs);
   for (int32_t i = 0; i < n; ++i) {
-    SStreamExtTriggerSpec* pSpec = *(SStreamExtTriggerSpec**)taosArrayGet(pStream->extSpecs, i);
+    SStreamExtTriggerSpec* pSpec = *(SStreamExtTriggerSpec**)taosArrayGet(pStream->pCreate->extSpecs, i);
     if (pSpec != NULL && strcmp(pSpec->sourceName, sourceName) == 0) return pSpec;
   }
   return NULL;
@@ -1695,8 +1695,8 @@ static SStreamExtTriggerSpec* msmGetCalcExtSpecByName(SStreamObj* pStream, const
  * extSpecs[0] (single-source behavior).  Returns a borrowed pointer (sdb-resident)
  * or NULL for non-federated streams / when a named source is not found. */
 static SStreamExtTriggerSpec* msmResolveCalcExtSpec(SStreamObj* pStream, const SStreamCalcScan* pScan) {
-  if (!STREAM_IS_REF_EXT_SOURCE(pStream->flags) || pStream->extSpecs == NULL) return NULL;
-  if (taosArrayGetSize(pStream->extSpecs) == 0) return NULL;
+  if (!STREAM_IS_REF_EXT_SOURCE(pStream->flags) || pStream->pCreate->extSpecs == NULL) return NULL;
+  if (taosArrayGetSize(pStream->pCreate->extSpecs) == 0) return NULL;
   if (pScan != NULL && pScan->sourceName[0] != '\0') {
     SStreamExtTriggerSpec* pSpec = msmGetCalcExtSpecByName(pStream, pScan->sourceName);
     if (pSpec == NULL) {
@@ -1706,7 +1706,7 @@ static SStreamExtTriggerSpec* msmResolveCalcExtSpec(SStreamObj* pStream, const S
     return pSpec;
   }
   /* Old stream (no per-scan sourceName): single-source fallback. */
-  return *(SStreamExtTriggerSpec**)taosArrayGet(pStream->extSpecs, 0);
+  return *(SStreamExtTriggerSpec**)taosArrayGet(pStream->pCreate->extSpecs, 0);
 }
 
 static int32_t msmTDAddSingleCalcReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState, int32_t taskIdx, int32_t nodeId,
@@ -2745,7 +2745,7 @@ static void msmResetStreamForRedeploy(int64_t streamId, SStmStatus* pStatus) {
   pStatus->deployTimes++;
 }
 
-/* P6 g2: On each (re)deploy, refresh encryptedPassword in pStream->extSpecs
+/* P6 g2: On each (re)deploy, refresh encryptedPassword in pStream->pCreate->extSpecs
  * from the live SDB so that a post-ALTER-EXTERNAL-SOURCE redeploy picks up
  * the latest credential rather than the one frozen into the stream object at
  * CREATE STREAM time.  Only compiled for TD_ENTERPRISE because
@@ -2753,12 +2753,12 @@ static void msmResetStreamForRedeploy(int64_t streamId, SStmStatus* pStatus) {
  * Community builds are not affected (no extSpecs ever populated). */
 #ifdef TD_ENTERPRISE
 static int32_t msmRefreshExtSpecPasswords(SMnode *pMnode, SStreamObj *pStream) {
-  if (!STREAM_IS_REF_EXT_SOURCE(pStream->flags) || pStream->extSpecs == NULL) {
+  if (!STREAM_IS_REF_EXT_SOURCE(pStream->flags) || pStream->pCreate->extSpecs == NULL) {
     return TSDB_CODE_SUCCESS;
   }
-  int32_t n = (int32_t)taosArrayGetSize(pStream->extSpecs);
+  int32_t n = (int32_t)taosArrayGetSize(pStream->pCreate->extSpecs);
   for (int32_t i = 0; i < n; ++i) {
-    SStreamExtTriggerSpec *pSpec = *(SStreamExtTriggerSpec **)taosArrayGet(pStream->extSpecs, i);
+    SStreamExtTriggerSpec *pSpec = *(SStreamExtTriggerSpec **)taosArrayGet(pStream->pCreate->extSpecs, i);
     if (pSpec == NULL) continue;
     SExtSourceObj *pSrcObj = mndAcquireExtSource(pMnode, pSpec->sourceName);
     if (pSrcObj == NULL) {
