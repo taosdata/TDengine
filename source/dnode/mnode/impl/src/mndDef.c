@@ -32,46 +32,10 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->createUser));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->ownerId));
 
-  // P1 B6: flags + extSpecs (appended after ownerId; absent in sver < 9 — guarded by tDecodeIsEnd)
+  // flags (appended after ownerId; absent in sver < 9 — guarded by tDecodeIsEnd).
+  // extSpecs has no separate encoding here: it lives solely in pObj->pCreate
+  // and is carried by the tSerializeSCMCreateStreamReqImpl call above (JSON).
   TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pObj->flags));
-  int32_t numOfExtSpecs = (pObj->extSpecs != NULL) ? (int32_t)taosArrayGetSize(pObj->extSpecs) : 0;
-  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, numOfExtSpecs));
-  for (int32_t i = 0; i < numOfExtSpecs; ++i) {
-    SStreamExtTriggerSpec* pSpec = *(SStreamExtTriggerSpec**)taosArrayGet(pObj->extSpecs, i);
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pSpec->sourceName));
-    TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pSpec->sourceType));
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pSpec->extDb));
-    /* extSchema added in sver 10 (between extDb and extTable) */
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pSpec->extSchema));
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pSpec->extTable));
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pSpec->tsColumn));
-    int32_t numTrigCols = (pSpec->triggerColumns != NULL) ? (int32_t)taosArrayGetSize(pSpec->triggerColumns) : 0;
-    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, numTrigCols));
-    for (int32_t j = 0; j < numTrigCols; ++j) {
-      TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, (char*)taosArrayGet(pSpec->triggerColumns, j)));
-    }
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pSpec->prefilter));
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pSpec->host));
-    TAOS_CHECK_RETURN(tEncodeU16(pEncoder, pSpec->port));
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pSpec->user));
-    TAOS_CHECK_RETURN(tEncodeBinary(pEncoder, pSpec->encryptedPassword, pSpec->encryptedPasswordLen));
-    TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pSpec->connCfgVersion));
-    /* Persist the remaining runtime fields the deploy path consumes, so they
-     * survive an mnode restart/failover. Previously dropped here: options,
-     * partitionByTag and triggerPrefilter — losing them disabled InfluxDB tag
-     * partitioning, the trigger PRE_FILTER and connection options after reload.
-     * Keep this in sync with the deploy codec (streamMsg.c
-     * tEncode/DecodeSStreamReaderDeployMsg). */
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pSpec->options));
-    TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pSpec->partitionByTag));
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pSpec->triggerPrefilter));
-    /* partitionTagCols added in sver 10 (PARTITION BY tag groupId derivation). */
-    int32_t numPartTags = (pSpec->partitionTagCols != NULL) ? (int32_t)taosArrayGetSize(pSpec->partitionTagCols) : 0;
-    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, numPartTags));
-    for (int32_t j = 0; j < numPartTags; ++j) {
-      TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, (char*)taosArrayGet(pSpec->partitionTagCols, j)));
-    }
-  }
 
   tEndEncode(pEncoder);
   return pEncoder->pos;
@@ -105,99 +69,10 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
     TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->ownerId));
   }
 
-  // P1 B6: flags + extSpecs (sver < 9: leave flags=0, extSpecs=NULL)
+  // flags (sver < 9: leave flags=0). extSpecs has no separate decoding here:
+  // it is restored solely from pObj->pCreate (JSON, decoded above).
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeU64(pDecoder, &pObj->flags));
-    int32_t numOfExtSpecs = 0;
-    TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &numOfExtSpecs));
-    if (numOfExtSpecs > 0) {
-      pObj->extSpecs = taosArrayInit(numOfExtSpecs, POINTER_BYTES);
-      if (pObj->extSpecs == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
-      for (int32_t i = 0; i < numOfExtSpecs; ++i) {
-        SStreamExtTriggerSpec* pSpec = (SStreamExtTriggerSpec*)taosMemoryCalloc(1, sizeof(SStreamExtTriggerSpec));
-        if (pSpec == NULL) {
-          TAOS_CHECK_EXIT(terrno);
-        }
-        TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pSpec->sourceName));
-        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pSpec->sourceType));
-        TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pSpec->extDb));
-        TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pSpec->extSchema));
-        TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pSpec->extTable));
-        TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pSpec->tsColumn));
-        int32_t numTrigCols = 0;
-        TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numTrigCols));
-        if (numTrigCols > 0) {
-          pSpec->triggerColumns = taosArrayInit(numTrigCols, TSDB_COL_NAME_LEN);
-          if (pSpec->triggerColumns == NULL) {
-            taosMemoryFree(pSpec);
-            TAOS_CHECK_EXIT(terrno);
-          }
-          for (int32_t j = 0; j < numTrigCols; ++j) {
-            char colName[TSDB_COL_NAME_LEN] = {0};
-            TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, colName));
-            if (taosArrayPush(pSpec->triggerColumns, colName) == NULL) {
-              taosMemoryFree(pSpec);
-              TAOS_CHECK_EXIT(terrno);
-            }
-          }
-        }
-        TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pSpec->prefilter));
-        TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pSpec->host));
-        TAOS_CHECK_EXIT(tDecodeU16(pDecoder, &pSpec->port));
-        TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pSpec->user));
-        uint8_t* pPwdBuf = NULL;
-        uint32_t pwdBufLen = 0;
-        TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &pPwdBuf, &pwdBufLen));
-        if (pwdBufLen > 0) {
-          if (pwdBufLen > TSDB_EXT_SOURCE_ENC_PASSWORD_LEN) {
-            taosMemoryFree(pSpec->prefilter);
-            taosMemoryFree(pSpec);
-            TAOS_CHECK_EXIT(TSDB_CODE_OUT_OF_RANGE);
-          }
-          pSpec->encryptedPasswordLen = (uint16_t)pwdBufLen;
-          TAOS_MEMCPY(pSpec->encryptedPassword, pPwdBuf, pwdBufLen);
-        }
-        TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pSpec->connCfgVersion));
-        /* options / partitionByTag / triggerPrefilter (mirror of encode above). */
-        TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pSpec->options));
-        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pSpec->partitionByTag));
-        TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pSpec->triggerPrefilter));
-        int32_t numPartTags = 0;
-        TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numPartTags));
-        if (numPartTags > 0) {
-          pSpec->partitionTagCols = taosArrayInit(numPartTags, TSDB_COL_NAME_LEN);
-          if (pSpec->partitionTagCols == NULL) {
-            taosMemoryFree(pSpec->triggerPrefilter);
-            taosMemoryFree(pSpec->prefilter);
-            taosArrayDestroy(pSpec->triggerColumns);
-            taosMemoryFree(pSpec);
-            TAOS_CHECK_EXIT(terrno);
-          }
-          for (int32_t j = 0; j < numPartTags; ++j) {
-            char colName[TSDB_COL_NAME_LEN] = {0};
-            TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, colName));
-            if (taosArrayPush(pSpec->partitionTagCols, colName) == NULL) {
-              taosArrayDestroy(pSpec->partitionTagCols);
-              taosMemoryFree(pSpec->triggerPrefilter);
-              taosMemoryFree(pSpec->prefilter);
-              taosArrayDestroy(pSpec->triggerColumns);
-              taosMemoryFree(pSpec);
-              TAOS_CHECK_EXIT(terrno);
-            }
-          }
-        }
-        if (taosArrayPush(pObj->extSpecs, &pSpec) == NULL) {
-          taosArrayDestroy(pSpec->partitionTagCols);
-          taosMemoryFree(pSpec->triggerPrefilter);
-          taosMemoryFree(pSpec->prefilter);
-          taosArrayDestroy(pSpec->triggerColumns);
-          taosMemoryFree(pSpec);
-          TAOS_CHECK_EXIT(terrno);
-        }
-      }
-    }
   }
 
 _exit:
@@ -209,24 +84,12 @@ _exit:
 }
 
 void tFreeStreamObj(SStreamObj *pStream) {
+  // tFreeSCMCreateStreamReq frees pCreate->extSpecs (each spec's
+  // triggerColumns/pColMappings/calcColumns/pCalcMappings/prefilter/
+  // triggerPrefilter/partitionTagCols included) since that is now the only
+  // place extSpecs is held.
   tFreeSCMCreateStreamReq(pStream->pCreate);
   taosMemoryFreeClear(pStream->pCreate);
-  // P1 B6: free extSpecs array and each heap-allocated spec
-  if (pStream->extSpecs != NULL) {
-    int32_t n = (int32_t)taosArrayGetSize(pStream->extSpecs);
-    for (int32_t i = 0; i < n; ++i) {
-      SStreamExtTriggerSpec** ppSpec = (SStreamExtTriggerSpec**)taosArrayGet(pStream->extSpecs, i);
-      if (ppSpec && *ppSpec) {
-        taosArrayDestroy((*ppSpec)->triggerColumns);
-        taosMemoryFree((*ppSpec)->prefilter);
-        taosMemoryFree((*ppSpec)->triggerPrefilter);
-        taosArrayDestroy((*ppSpec)->partitionTagCols);
-        taosMemoryFree(*ppSpec);
-      }
-    }
-    taosArrayDestroy(pStream->extSpecs);
-    pStream->extSpecs = NULL;
-  }
 }
 
 void freeSMqConsumerEp(void* data) {
