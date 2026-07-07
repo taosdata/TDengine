@@ -1,10 +1,14 @@
 # encoding:utf-8
 """DynamicAnomalyService: an anomaly detection service driven by a parameter config file."""
-from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+from taosanalytics.algo.tool.detector import IsolationForestModelDetector, SVMModelDetector
 from taosanalytics.log import AppLogger
 from taosanalytics.base import AbstractAnomalyDetectionService
 
-_SUPPORTED_ALGOS = {'iforest'}
+_SUPPORTED_ALGOS = {'iforest', 'svm'}
+_DETECTOR_CLASSES = {
+    'iforest': IsolationForestModelDetector,
+    'svm': SVMModelDetector,
+}
 
 
 class DynamicAnomalyService(AbstractAnomalyDetectionService):
@@ -32,7 +36,11 @@ class DynamicAnomalyService(AbstractAnomalyDetectionService):
         if algo_name not in _SUPPORTED_ALGOS:
             raise ValueError(f"unsupported algorithm '{algo_name}' in dynamic anomaly service")
 
-        detector = IsolationForestModelDetector(
+        detector_class = _DETECTOR_CLASSES.get(algo_name)
+        if detector_class is None:
+            raise ValueError(f"no detector class found for algorithm '{algo_name}'")
+
+        detector = detector_class(
             path=self.config_file_path,
             input_list=self.list,
             ts_list=self.ts_list,

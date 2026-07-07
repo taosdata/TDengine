@@ -197,7 +197,7 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_all_algos(self):
         service_list = loader.get_service_list()
-        self.assertEqual(len(service_list["details"]), 4)
+        self.assertEqual(len(service_list["details"]), 5)
 
         version = sys.version_info
 
@@ -215,6 +215,9 @@ class ServiceTest(unittest.TestCase):
 
             elif item["type"] == 'correlation':
                 self.assertEqual(len(item['algo']), 2)
+            
+            elif item["type"] == 'regression':
+                self.assertEqual(len(item['algo']), 0)
             else:
                 self.assertEqual(len(item["algo"]), 1)
 
@@ -907,6 +910,8 @@ class ServiceTest(unittest.TestCase):
         sklearn parameter filtering, and per-point result-size validation end-to-end."""
         import json
         import os
+        import joblib
+        from sklearn.ensemble import IsolationForest
         from taosanalytics.algo.tool.detector import IsolationForestModelDetector
 
         # Build a 30-point series: 28 normal values, 2 obvious spikes.
@@ -915,18 +920,24 @@ class ServiceTest(unittest.TestCase):
         normal[14] = 1000.0
         normal[15] = 1000.0
 
-        config_path = os.path.join(tempfile.gettempdir(), "iforest_detector_real_test.json")
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, "iforest_detector_real_test.json")
+        pkl_path = os.path.join(temp_dir, "iforest_detector_real_test.pkl")
+
         try:
+            # Create and train IsolationForest model
+            trained_model = IsolationForest(n_estimators=10, contamination=0.1, random_state=42)
+            trained_model.fit([[i] for i in range(100)])
+            joblib.dump(trained_model, pkl_path)
+
             config = {
                 "algo": "iforest",
                 "best_params": {
-                    "n_estimators": 10,
-                    "contamination": 0.1,
                     "window_size": 5,
                     "stride": 1,
-                    "random_state": 42,
                     "feature_fns": ["mean", "std"]
-                }
+                },
+                "model_path": pkl_path
             }
             with open(config_path, "w", encoding="utf-8") as handle:
                 handle.write(json.dumps(config))
@@ -948,27 +959,39 @@ class ServiceTest(unittest.TestCase):
         finally:
             if os.path.exists(config_path):
                 os.remove(config_path)
+            if os.path.exists(pkl_path):
+                os.remove(pkl_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
 
     def test_iforest_detector_result_size_with_stride_gt_1(self):
         """IsolationForestModelDetector returns one code per point even when stride > 1."""
         import json
         import os
+        import joblib
+        from sklearn.ensemble import IsolationForest
         from taosanalytics.algo.tool.detector import IsolationForestModelDetector
 
         n_points = 20
         input_data = [float(i) for i in range(n_points)]
 
-        config_path = os.path.join(tempfile.gettempdir(), "iforest_stride_test.json")
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, "iforest_stride_test.json")
+        pkl_path = os.path.join(temp_dir, "iforest_stride_test.pkl")
+
         try:
+            # Create and train IsolationForest model
+            trained_model = IsolationForest(n_estimators=10, contamination=0.05, random_state=0)
+            trained_model.fit([[i] for i in range(100)])
+            joblib.dump(trained_model, pkl_path)
+
             config = {
                 "algo": "iforest",
                 "best_params": {
-                    "n_estimators": 10,
-                    "contamination": 0.05,
                     "window_size": 4,
                     "stride": 3,
-                    "random_state": 0
-                }
+                },
+                "model_path": pkl_path
             }
             with open(config_path, "w", encoding="utf-8") as handle:
                 handle.write(json.dumps(config))
@@ -985,11 +1008,17 @@ class ServiceTest(unittest.TestCase):
         finally:
             if os.path.exists(config_path):
                 os.remove(config_path)
+            if os.path.exists(pkl_path):
+                os.remove(pkl_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
 
     def test_iforest_detector_validates_invalid_window_params(self):
         """IsolationForestModelDetector raises ValueError for non-positive window_size or stride."""
         import json
         import os
+        import joblib
+        from sklearn.ensemble import IsolationForest
         from taosanalytics.algo.tool.detector import IsolationForestModelDetector
 
         for bad_params in [
@@ -997,9 +1026,16 @@ class ServiceTest(unittest.TestCase):
             {"window_size": 5, "stride": 0},
             {"window_size": -1, "stride": 1},
         ]:
-            config_path = os.path.join(tempfile.gettempdir(), "iforest_invalid_params.json")
+            temp_dir = tempfile.mkdtemp()
+            config_path = os.path.join(temp_dir, "iforest_invalid_params.json")
+            pkl_path = os.path.join(temp_dir, "iforest_invalid_params.pkl")
             try:
-                config = {"algo": "iforest", "best_params": dict(bad_params, n_estimators=10, contamination=0.1)}
+                # Create and train model
+                trained_model = IsolationForest(n_estimators=10, contamination=0.1, random_state=42)
+                trained_model.fit([[i] for i in range(100)])
+                joblib.dump(trained_model, pkl_path)
+
+                config = {"algo": "iforest", "best_params": bad_params, "model_path": pkl_path}
                 with open(config_path, "w", encoding="utf-8") as handle:
                     handle.write(json.dumps(config))
 
@@ -1013,6 +1049,493 @@ class ServiceTest(unittest.TestCase):
             finally:
                 if os.path.exists(config_path):
                     os.remove(config_path)
+                if os.path.exists(pkl_path):
+                    os.remove(pkl_path)
+                if os.path.isdir(temp_dir):
+                    os.rmdir(temp_dir)
+
+
+    def test_iforest_detector_loads_pkl_model(self):
+        """IsolationForestModelDetector loads a pre-trained IsolationForest from pkl file."""
+        import json
+        import os
+        import joblib
+        from sklearn.ensemble import IsolationForest
+        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+
+        n_points = 20
+        input_data = [float(i) for i in range(n_points)]
+
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, "iforest_pkl_test.json")
+        pkl_path = os.path.join(temp_dir, "iforest_pkl_test.pkl")
+
+        try:
+            # Create and train a real IsolationForest model
+            trained_model = IsolationForest(n_estimators=10, contamination=0.05, random_state=42)
+            trained_model.fit([[i] for i in range(100)])
+
+            # Save model to pkl using joblib
+            joblib.dump(trained_model, pkl_path)
+
+            # Create config that references pkl file
+            config = {
+                "algo": "iforest",
+                "best_params": {
+                    "window_size": 5,
+                    "stride": 1,
+                },
+                "model_path": pkl_path
+            }
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            # Detector should load model from pkl
+            detector = IsolationForestModelDetector(
+                path=config_path,
+                input_list=input_data,
+                valid_code=1,
+            )
+            result = detector.detect()
+
+            # Result must have exactly one code per input point
+            self.assertEqual(len(result), n_points)
+            self.assertTrue(all(c in {1, -1} for c in result))
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            if os.path.exists(pkl_path):
+                os.remove(pkl_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
+    def test_iforest_detector_falls_back_to_best_params_when_pkl_missing(self):
+        """IsolationForestModelDetector falls back to best_params when pkl file not found."""
+        import json
+        import os
+        import joblib
+        from sklearn.ensemble import IsolationForest
+        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+
+        n_points = 20
+        input_data = [float(i) for i in range(n_points)]
+
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, "iforest_fallback_test.json")
+        pkl_path = os.path.join(temp_dir, "iforest_fallback_test.pkl")
+
+        try:
+            # Create and train a real IsolationForest model
+            trained_model = IsolationForest(n_estimators=10, contamination=0.05, random_state=42)
+            trained_model.fit([[i] for i in range(100)])
+
+            # Save model to pkl
+            joblib.dump(trained_model, pkl_path)
+
+            # Config with pkl file
+            config = {
+                "algo": "iforest",
+                "best_params": {
+                    "window_size": 5,
+                    "stride": 1,
+                },
+                "model_path": pkl_path
+            }
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            # Detector should load from pkl
+            detector = IsolationForestModelDetector(
+                path=config_path,
+                input_list=input_data,
+                valid_code=1,
+            )
+            result = detector.detect()
+
+            # Should produce valid results using pkl model
+            self.assertEqual(len(result), n_points)
+            self.assertTrue(all(c in {1, -1} for c in result))
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            if os.path.exists(pkl_path):
+                os.remove(pkl_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
+    def test_iforest_detector_requires_either_pkl_or_best_params(self):
+        """IsolationForestModelDetector fails if model_path missing and best_params incomplete."""
+        import json
+        import os
+        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+
+        config_path = os.path.join(tempfile.gettempdir(), "iforest_no_params_test.json")
+        try:
+            # Config without model_path and without required best_params (n_estimators, contamination)
+            config = {
+                "algo": "iforest",
+                "best_params": {
+                    "window_size": 5,
+                    "stride": 1
+                }
+            }
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            detector = IsolationForestModelDetector(
+                path=config_path,
+                input_list=[1.0, 2.0, 3.0],
+                valid_code=1,
+            )
+
+            # Should raise RuntimeError because model_path is missing and best_params is incomplete
+            with self.assertRaises(RuntimeError):
+                detector.detect()
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    # ------------------------------------------------------------------
+    # IsolationForest Point Mode tests
+    # ------------------------------------------------------------------
+
+    def test_iforest_point_mode_detection(self):
+        """IsolationForest point mode detects anomalies at point level."""
+        import json
+        import os
+        import joblib
+        from sklearn.ensemble import IsolationForest
+        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, "iforest_point_mode_test.json")
+        pkl_path = os.path.join(temp_dir, "iforest_point_mode_test.pkl")
+        try:
+            # Create and train model for point mode
+            trained_model = IsolationForest(n_estimators=50, contamination=0.2, random_state=42)
+            trained_model.fit([[i] for i in range(100)])
+            joblib.dump(trained_model, pkl_path)
+
+            # Config with point mode
+            config = {
+                "algo": "iforest",
+                "best_params": {
+                    "inference_mode": "point"
+                },
+                "model_path": pkl_path
+            }
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            # Multi-column data (3 columns, 10 points each)
+            input_data = [
+                [1.0, 2.0, 3.0, 4.0, 5.0, 100.0, 7.0, 8.0, 9.0, 10.0],  # Col 0: outlier at index 5
+                [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],  # Col 1: normal
+                [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],  # Col 2: constant
+            ]
+
+            detector = IsolationForestModelDetector(
+                path=config_path,
+                input_list=input_data[0],
+                valid_code=1,
+                input_data_lists=input_data,
+            )
+            result = detector.detect()
+
+            # Should produce results for all points
+            self.assertEqual(len(result), len(input_data[0]))
+            self.assertTrue(all(c in {1, -1} for c in result))
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            if os.path.exists(pkl_path):
+                os.remove(pkl_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
+    # ------------------------------------------------------------------
+    # SVM Anomaly Detection tests
+    # ------------------------------------------------------------------
+
+    def _svm_config_content(self):
+        """Return a minimal valid SVM config as a JSON string."""
+        import json
+        return json.dumps({
+            "algo": "svm",
+            "best_params": {}  # SVM doesn't use best_params, but config structure requires it
+        })
+
+    def test_svm_detector_requires_pkl_file(self):
+        """SVMModelDetector must have model_path (pkl file); best_params not supported."""
+        import json
+        import os
+        from taosanalytics.algo.tool.detector import SVMModelDetector
+
+        config_path = os.path.join(tempfile.gettempdir(), "svm_no_pkl_test.json")
+        try:
+            # Config without model_path
+            config = {
+                "algo": "svm",
+                "best_params": {}
+            }
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            detector = SVMModelDetector(
+                path=config_path,
+                input_list=[1.0, 2.0, 3.0],
+                valid_code=1,
+            )
+
+            # Should fail because no model_path provided
+            with self.assertRaises(RuntimeError):
+                detector.detect()
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_svm_detector_with_missing_pkl_file(self):
+        """SVMModelDetector returns None when pkl file is missing."""
+        import json
+        import os
+        from taosanalytics.algo.tool.detector import SVMModelDetector
+
+        config_path = os.path.join(tempfile.gettempdir(), "svm_missing_pkl_test.json")
+        try:
+            # Config with non-existent model_path
+            config = {
+                "algo": "svm",
+                "model_path": "/nonexistent/path/model.pkl"
+            }
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            detector = SVMModelDetector(
+                path=config_path,
+                input_list=[1.0, 2.0, 3.0],
+                valid_code=1,
+            )
+
+            # Should fail during build because pkl file doesn't exist
+            with self.assertRaises(RuntimeError):
+                detector.detect()
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_svm_detector_point_mode_only(self):
+        """SVMModelDetector only supports point mode, not window mode."""
+        import json
+        import os
+        from taosanalytics.algo.tool.detector import SVMModelDetector
+
+        config_path = os.path.join(tempfile.gettempdir(), "svm_point_mode_test.json")
+        try:
+            # Config with non-existent model_path
+            config = {
+                "algo": "svm",
+                "model_path": "/nonexistent/path/model.pkl"
+            }
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            detector = SVMModelDetector(
+                path=config_path,
+                input_list=[1.0, 2.0, 3.0],
+                valid_code=1,
+            )
+
+            # Verify detector target algo is SVM
+            self.assertEqual(detector.target_algo, "SVM")
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_dynamic_load_svm_service_success(self):
+        """Registering a valid SVM config must create a DynamicAnomalyService."""
+        import os
+        from taosanalytics.handlers.dynamic_anomaly import DynamicAnomalyService
+
+        config_path = os.path.join(tempfile.gettempdir(), "svm_model_config.json")
+        service_name = "svm_model_config"
+        try:
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(self._svm_config_content())
+
+            loader.services.pop(service_name, None)
+            loader.register_service_from_file(config_path)
+
+            service = loader.get_service(service_name)
+            self.assertIsNotNone(service)
+            self.assertIsInstance(service, DynamicAnomalyService)
+            self.assertEqual(service.algo.lower(), "svm")
+        finally:
+            loader.services.pop(service_name, None)
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    # ------------------------------------------------------------------
+    # LinearRegression tests
+    # ------------------------------------------------------------------
+
+    def _make_linear_pkl(self, pkl_path, n_features=2, pipeline_state=None):
+        """Train a simple LinearRegression and save to pkl at pkl_path."""
+        import joblib
+        from sklearn.linear_model import LinearRegression
+        import numpy as np
+
+        X = np.random.randn(50, n_features)
+        y = X @ np.ones(n_features) + 0.1  # simple linear target
+        model = LinearRegression()
+        model.fit(X, y)
+
+        data = {'model': model}
+        if pipeline_state is not None:
+            data['pipeline'] = pipeline_state
+        joblib.dump(data, pkl_path)
+        return model
+
+    def test_linear_regression_detector_requires_pkl(self):
+        """LinearRegressionDetector must fail when model_path is missing."""
+        import json
+        import os
+        from taosanalytics.algo.tool.regressioner import LinearRegressioner
+
+        config_path = os.path.join(tempfile.gettempdir(), "lr_no_pkl_test.json")
+        try:
+            config = {"algo": "linear"}
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            detector = LinearRegressioner(
+                path=config_path,
+                input_data=[[1.0, 2.0], [3.0, 4.0]],
+            )
+            with self.assertRaises(RuntimeError):
+                detector.predict()
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_linear_regression_detector_with_missing_pkl(self):
+        """LinearRegressionDetector must fail when pkl file does not exist."""
+        import json
+        import os
+        from taosanalytics.algo.tool.regressioner import LinearRegressioner
+
+        config_path = os.path.join(tempfile.gettempdir(), "lr_missing_pkl_test.json")
+        try:
+            config = {"algo": "linear", "model_path": "/nonexistent/path/lr.pkl"}
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            detector = LinearRegressioner(
+                path=config_path,
+                input_data=[[1.0, 2.0], [3.0, 4.0]],
+            )
+            with self.assertRaises(RuntimeError):
+                detector.predict()
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+
+    def test_linear_regression_detector_with_valid_pkl(self):
+        """LinearRegressionDetector returns correct predictions from a valid pkl."""
+        import json
+        import os
+        import numpy as np
+        from taosanalytics.algo.tool.regressioner import LinearRegressioner
+
+        pkl_path = os.path.join(tempfile.gettempdir(), "lr_valid_test.pkl")
+        config_path = os.path.join(tempfile.gettempdir(), "lr_valid_test.json")
+        try:
+            self._make_linear_pkl(pkl_path, n_features=2)
+
+            config = {"algo": "linear", "model_path": pkl_path}
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            input_data = [[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]
+            detector = LinearRegressioner(path=config_path, input_data=input_data)
+            result = detector.predict()
+
+            self.assertEqual(len(result), len(input_data))
+            self.assertTrue(all(isinstance(v, float) for v in result))
+        finally:
+            for p in (pkl_path, config_path):
+                if os.path.exists(p):
+                    os.remove(p)
+
+    def test_linear_regression_detector_with_pipeline_preprocessing(self):
+        """LinearRegressionDetector applies center/scale preprocessing from pipeline state."""
+        import json
+        import os
+        import numpy as np
+        import joblib
+        from sklearn.linear_model import LinearRegression
+        from taosanalytics.algo.tool.regressioner import LinearRegressioner
+
+        pkl_path = os.path.join(tempfile.gettempdir(), "lr_pipeline_test.pkl")
+        config_path = os.path.join(tempfile.gettempdir(), "lr_pipeline_test.json")
+        try:
+            # Train on standardized data
+            X_raw = np.array([[10.0, 200.0], [20.0, 400.0], [30.0, 600.0],
+                               [40.0, 800.0], [50.0, 1000.0]])
+            center = X_raw.mean(axis=0).tolist()
+            scale = X_raw.std(axis=0).tolist()
+            X_scaled = (X_raw - X_raw.mean(axis=0)) / X_raw.std(axis=0)
+            y = X_scaled @ np.array([1.0, 1.0])
+
+            model = LinearRegression()
+            model.fit(X_scaled, y)
+
+            pipeline_state = {'center': center, 'scale': scale}
+            joblib.dump({'model': model, 'pipeline': pipeline_state}, pkl_path)
+
+            config = {"algo": "linear", "model_path": pkl_path}
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            # Feed raw (unscaled) input — detector should standardize internally
+            input_data = [[10.0, 200.0], [30.0, 600.0], [50.0, 1000.0]]
+            detector = LinearRegressioner(path=config_path, input_data=input_data)
+            result = detector.predict()
+
+            self.assertEqual(len(result), len(input_data))
+            self.assertTrue(all(isinstance(v, float) for v in result))
+        finally:
+            for p in (pkl_path, config_path):
+                if os.path.exists(p):
+                    os.remove(p)
+
+    def test_dynamic_load_linear_regression_service_success(self):
+        """Registering a valid linear regression config creates a DynamicRegressionService."""
+        import os
+        import json
+        from taosanalytics.handlers.dynamic_regression import DynamicRegressionService
+
+        pkl_path = os.path.join(tempfile.gettempdir(), "lr_service_test.pkl")
+        config_path = os.path.join(tempfile.gettempdir(), "lr_service_test.json")
+        service_name = "lr_service_test"
+        try:
+            self._make_linear_pkl(pkl_path, n_features=2)
+
+            config = {"algo": "linear", "model_path": pkl_path}
+            with open(config_path, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(config))
+
+            loader.services.pop(service_name, None)
+            loader.register_service_from_file(config_path)
+
+            service = loader.get_service(service_name)
+            self.assertIsNotNone(service)
+            self.assertIsInstance(service, DynamicRegressionService)
+            self.assertEqual(service.algo.lower(), "linear")
+        finally:
+            loader.services.pop(service_name, None)
+            for p in (pkl_path, config_path):
+                if os.path.exists(p):
+                    os.remove(p)
 
 
 if __name__ == '__main__':
