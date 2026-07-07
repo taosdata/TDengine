@@ -25071,7 +25071,8 @@ static int32_t renderExtPrefilterTimestamp(int64_t epoch, int32_t precision,
 
   if (sourceType == EXT_SOURCE_INFLUXDB) {
     /* InfluxDB DataFusion: use to_timestamp_nanos() for ns integers. */
-    return snprintf(buf, bufLen, "to_timestamp_nanos(%" PRId64 ")", epoch_us * 1000LL);
+    int64_t epoch_ns = epoch_us * INT64_C(1000);
+    return snprintf(buf, bufLen, "to_timestamp_nanos(%" PRId64 ")", epoch_ns);
   }
   /* MySQL / PostgreSQL: quoted DATETIME literal. */
   if (epoch_us < 0) epoch_us = 0;

@@ -13,13 +13,15 @@ from pathlib import Path
 from taosanalytics.conf import Configure
 from taosanalytics.handlers.dynamic_forecast import DynamicForecastService
 from taosanalytics.handlers.dynamic_anomaly import DynamicAnomalyService
+from taosanalytics.handlers.dynamic_regression import DynamicRegressionService
 from taosanalytics.exception import NotFoundDynamicModelError
 from taosanalytics.log import AppLogger
 from taosanalytics.base import (
     AbstractAnomalyDetectionService,
     AbstractForecastService,
     AbstractImputationService,
-    AbstractCorrelationService
+    AbstractCorrelationService,
+    AbstractRegressionService
 )
 
 
@@ -27,13 +29,15 @@ class ServiceRegistry:
     """ Singleton register for multiple anomaly detection algorithms and forecast algorithms"""
 
     _only_params_models = ['arima', 'prophet', 'theta']
-    _only_params_anomaly_models = ['iforest']
+    _anomaly_models = ['iforest', 'svm']
+    _regression_models = ['linear', 'lasso', 'ridge', 'elasticnet']
 
     _base_class_name = [
         AbstractAnomalyDetectionService.__name__,
         AbstractForecastService.__name__,
         AbstractImputationService.__name__,
-        AbstractCorrelationService.__name__
+        AbstractCorrelationService.__name__,
+        AbstractRegressionService.__name__,
     ]
 
     def __init__(self):
@@ -87,6 +91,25 @@ class ServiceRegistry:
                         str(config_path),
                         str(e))
 
+            # Check for orphaned pkl files (config deleted but pkl still exists)
+            for pkl_path in dyn_dir.iterdir():
+                if not pkl_path.is_file() or pkl_path.suffix != '.pkl':
+                    continue
+
+                model_name = pkl_path.stem
+                config_path = dyn_dir / f"{model_name}.json"
+
+                if not config_path.exists():
+                    try:
+                        pkl_path.unlink()
+                        AppLogger.info(
+                            "removed orphaned pkl file '%s' because corresponding config file is gone",
+                            pkl_path.name)
+                    except Exception as e:
+                        AppLogger.warning(
+                            "failed to remove orphaned pkl file '%s': %s",
+                            pkl_path.name, str(e))
+
     def get_typed_services(self, type_str: str) -> list:
         """ get specified type service """
         all_items = []
@@ -121,7 +144,8 @@ class ServiceRegistry:
                 self.get_forecast_algo_list(),
                 self.get_anomaly_algo_list(),
                 self.get_imputation_algo_list(),
-                self.get_corr_algo_list()
+                self.get_corr_algo_list(),
+                self.get_regression_algo_list()
             ]
         }
 
@@ -152,6 +176,12 @@ class ServiceRegistry:
         return {
             "type": "correlation",
             "algo": self.get_typed_services("correlation")
+        }
+        
+    def get_regression_algo_list(self):
+        return {
+            "type": "regression",
+            "algo": self.get_typed_services("regression")
         }
 
     def register_service_from_file(self, config_file: str):
@@ -196,10 +226,17 @@ class ServiceRegistry:
                         algo=algo_name,
                         path=config_file,
                     )
-                elif algo_name.lower() in ServiceRegistry._only_params_anomaly_models:
+                elif algo_name.lower() in ServiceRegistry._anomaly_models:
                     serv = DynamicAnomalyService(
                         name=model_name,
                         desc=f"dynamic generated anomaly detection from {algo_name}",
+                        algo=algo_name,
+                        path=config_file,
+                    )
+                elif algo_name.lower() in ServiceRegistry._regression_models:
+                    serv = DynamicRegressionService(
+                        name=model_name,
+                        desc=f"dynamic generated regression from {algo_name}",
                         algo=algo_name,
                         path=config_file,
                     )
@@ -224,7 +261,7 @@ class ServiceRegistry:
                 if self.services[name].is_builtins:
                     raise RuntimeError(f"try to unregister built-in model:'{name}', operation not allowed")
 
-                if not isinstance(self.services[name], (DynamicForecastService, DynamicAnomalyService)):
+                if not isinstance(self.services[name], (DynamicForecastService, DynamicAnomalyService, DynamicRegressionService)):
                     raise RuntimeError(f"try to unregister non-dynamic model:'{name}', operation not allowed")
 
                 del self.services[name]

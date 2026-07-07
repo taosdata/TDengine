@@ -44,44 +44,30 @@
 100,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/02-Mnode/test_mnode_basic2.py -N 2
 ,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_basic.py
-# [disabled 2026-06-11 flaky 83-DocTest/python.sh]
-#,,n,cases,bash 83-DocTest/python.sh
-# [end disabled 2026-06-11]
+,,n,cases,bash 83-DocTest/python.sh
 #,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_transaction.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_state.py
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_idle_trigger.py
 #,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_query_same_db_stb_agg.py
-# [disabled 2026-06-11 flaky compatibility_backward_forward_part1]
 100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part1.py
-# [end disabled 2026-06-11]
 100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part2.py
 100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part3.py
 100,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_backward_forward_part4.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_except.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_format.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_query_rest.py -B
-# [disabled 2026-06-11 disable benchmark_conn_mode]
-#,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_conn_mode.py -B
-# [end disabled 2026-06-11]
-# [disabled 2026-06-11 flaky 5dnode_3mnode_add_1dnode]
-#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6
-#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_conn_mode.py -B
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_buffer_overflow.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_write_consume_alter_replica.py  -N 3
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_quantified_sub2.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_column_limit.py
-# [disabled 2026-06-27 flaky tmq_max_groups]
-#,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_groups.py
-# [end disabled 2026-06-27]
-# [disabled 2026-06-11 flaky benchmark_tmq]
-#,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_groups.py
+,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub1.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_quantified_sub2.py
-# [disabled 2026-06-27 DocTest rust.sh cargo mirror failures]
-#,,n,cases,bash 83-DocTest/rust.sh
-# [end disabled 2026-06-27]
+,,n,cases,bash 83-DocTest/rust.sh
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_commandline.py
 90,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_except.py
@@ -163,14 +149,10 @@
 
 ## 01-Create
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic.py
-# [disabled 2026-06-27 flaky db_compact]
-#,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_compact.py -N 3
-# [end disabled 2026-06-27]
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_compact.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_compact_meta.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_commit.py -N 2
-# [disabled 2026-06-11 flaky db_create_encrypt]
-#,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_create_encrypt.py -N 3 -M 3
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_create_encrypt.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_tables.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_retention.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_wal_fsync_period.py
@@ -212,15 +194,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica1.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica2.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v1_follower.py -N 5
-# [disabled 2026-06-11 flaky redistribute_vgroup_replica3_v1_leader]
-#,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v1_leader.py -N 5
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v1_leader.py -N 5
 #,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v2.py -N 6
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v3.py -N 8
 100,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_split_vgroup.py -N 3 --replica 1
-# [disabled 2026-06-11 timeout split_vgroup replica 3]
-#100,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_split_vgroup.py -N 3 --replica 3
-# [end disabled 2026-06-11]
+100,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_split_vgroup.py -N 3 --replica 3
 100,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_split_vgroup_replica1.py -N 3
 100,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_split_vgroup_replica2.py -N 4
 100,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_split_vgroup_replica3.py -N 4
@@ -250,9 +228,7 @@
 # 03-Tables
 
 ## 01-NormalTables
-# [disabled 2026-06-11 flaky normaltable_100w]
-#,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_100w.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_100w.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_datatypes.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_synatx.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_delete_reuse1.py
@@ -276,9 +252,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_query.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_set_tag_vals.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_batch_set_tag_vals.py
-# [disabled 2026-06-27 flaky subtable_ttl]
-#,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_ttl.py
-# [end disabled 2026-06-27]
+,,y,.,./ci/pytest.sh pytest cases/03-Tables/02-SubTables/test_subtable_ttl.py
 ## 03-PrimaryKey
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/03-PrimaryKey/test_primary_key_advance.py
@@ -297,18 +271,14 @@
 100,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_rowlength64k.py
 100,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_rowlength64k_call.py
 100,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_create_rowlength64k_benchmark.py
-# [disabled 2026-06-27 flaky stable_keep_compact]
-#,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_keep_compact.py
-#,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_keep_compact.py -N 3
-#,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_keep_compact.py -N 3 -M 3
-# [end disabled 2026-06-27]
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_keep_compact.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_keep_compact.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_stable_keep_compact.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_table_comment.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/01-Create/test_table_param_ttl.py
 ## 02-Drop
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_basic.py
-# [disabled 2026-06-11 flaky stable_drop_delfile]
-#,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_delfile.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_delfile.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/02-Drop/test_stable_drop_repeat.py
 ## 03-Alter
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/03-Alter/test_stable_alter_basic.py
@@ -322,9 +292,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_from_dnodes.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag_datatypes.py
-# [disabled 2026-06-11 fail after retry stable_query_tag_filter]
-#,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag_filter.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag_filter.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tbname_filter.py
 
 # 05-VirtualTables
@@ -1030,9 +998,7 @@
 ## 01-SQL
 ,,n,.,pytest cases/06-DataIngestion/01-SQL/test_write.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_basic.py
-# [disabled 2026-06-11 flaky write_bugs]
-#,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_bugs.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_column_value.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_commit.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_csv_with_quote.py
@@ -1046,9 +1012,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_update.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_update_multi_rows.py
 
-# [disabled 2026-06-11 flaky write_blob]
-#,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_blob.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/01-SQL/test_write_blob.py
 ## 02-STMT
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-STMT/test_stmt_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/02-STMT/test_write_stmt_error.py
@@ -1063,12 +1027,8 @@
 ## 04-Import
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/04-Import/test_write_import_csv.py
 ## 05-Others
-# [disabled 2026-06-11 fail after retry wal_keep_version_trim]
-#,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_trim.py -N 3
-# [end disabled 2026-06-11]
-# [disabled 2026-06-11 flaky wal_keep_version_high_availability]
-#,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_high_availability.py -N 3
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_trim.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_high_availability.py -N 3
 
 # 07-DataDeletion
 
@@ -1158,9 +1118,7 @@
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_quantified_sub6d1.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_quantified_sub6d2.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_interval.py
-# [disabled 2026-06-11 flaky nestedQuery]
-#,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_str.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_math.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_nestedQuery_time.py
@@ -1195,9 +1153,7 @@
 ## 17-BiMode
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/17-BiMode/test_bimode.py
 ## 18-Stability
-# [disabled 2026-06-11 flaky query_stability]
-#,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability26.py
 
 ## 19-FederatedQuery
@@ -1245,9 +1201,7 @@
 # 11-Functions
 
 ## 01-Scalar
-# [disabled 2026-06-11 flaky scalar_all]
-#,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_all.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_all.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_math.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_string.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_time.py
@@ -1262,9 +1216,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_ceil.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_char_length.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_concat.py
-# [disabled 2026-06-11 flaky fun_sca_concat2]
-#,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_concat2.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_concat2.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_concat_ws.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_cos.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_floor.py
@@ -1296,9 +1248,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_upper.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_cast_blob.py
 ## 02-Aggregate
-# [disabled 2026-06-11 flaky agg_all]
-#,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_all.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_all.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_gconcat.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_last.py
@@ -1317,9 +1267,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_all.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_last_and_last_row.py
-# [disabled 2026-06-11 flaky select_last_model]
-#,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_last_model.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_last_model.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_minmaxlast_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_with_520_cols.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_with_json.py
@@ -1415,9 +1363,7 @@
 
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_full.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_full2.py
-# [disabled 2026-06-11 flaky join_func]
-#,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_func.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_func.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_func_cursor.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_manyblocks.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_multitables.py
@@ -1438,9 +1384,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/15-TagIndices/test_index_tag_basic.py
 
 # 16-Views
-# [disabled 2026-06-11 flaky view_basic]
-#,,y,.,./ci/pytest.sh pytest cases/16-Views/test_view_basic.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/16-Views/test_view_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/16-Views/test_view_mgmt.py
 ,,y,.,./ci/pytest.sh pytest cases/16-Views/test_view_nested_join.py
 
@@ -1453,9 +1397,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/01-Mgmt/test_tmq_show.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/01-Mgmt/test_topic.py
 ## 02-Consume
-# [disabled 2026-06-11 flaky subscribe_stb0]
-#,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_stb0.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_stb0.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_stb1.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_stb2.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_subscribe_stb3.py
@@ -1554,9 +1496,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_replay.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_wal_remove.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_stb_tag_multi_ctb.py
-# [disabled 2026-06-27 flaky tmq_restart]
-#,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_restart.py
-# [end disabled 2026-06-27]
+,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_restart.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons1_v1_snapshot.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons1_v1_t1.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons1_v1_tn.py
@@ -1688,12 +1628,8 @@
 ## 20-UseCase
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_6771200393.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_privilege.py
-# [disabled 2026-06-27 flaky idmp_manager]
-#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_manager.py
-# [end disabled 2026-06-27]
-# [disabled 2026-06-11 flaky idmp_meters]
-#100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_meters.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_manager.py
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_meters.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_public.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_pv.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_tobacco.py
@@ -1708,9 +1644,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case3.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case4.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case6.py
-# [disabled 2026-06-27 flaky three_gorges_second_case17]
-#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case17.py
-# [end disabled 2026-06-27]
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case17.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case18.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case19.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case19_bug1.py
@@ -1720,14 +1654,10 @@
 ## 23-Compatibility
 
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_cross_version.py
-# [disabled 2026-06-27 flaky new_stream_compatibility]
-#,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_new_stream_compatibility.py
-# [end disabled 2026-06-27]
+,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_new_stream_compatibility.py
 ## 30-OldPyCases
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_at_once.py
-# [disabled 2026-06-11 flaky oldcase_backquote_check]
-#,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
-# [end disabled 2026-06-11]
+,,n,.,pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_backquote_check.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_checkpoint_info.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_drop.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/30-OldPyCases/test_oldcase_empty_identifier.py
@@ -1764,9 +1694,7 @@
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_08_observability.py
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/federated/test_fs_09_constraints.py
 ## 99-Others
-# [disabled 2026-06-11 flaky stream_tag_cache]
-#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_stream_tag_cache.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_stream_tag_cache.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_out_table.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_auto_create_output_table.py
 
@@ -1948,9 +1876,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_threads.py
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_threads.py -N 3 --replica 3 -R
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_tsdb_snapshot.py -N 3 -M 3
-# [disabled 2026-06-27 flaky 6dnode3mnode_insert_less_data_alter_rep3to1to3]
-#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py -N 6 -M 3
-# [end disabled 2026-06-27]
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_6dnode3mnode_insert_less_data_alter_rep3to1to3.py -N 6 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_4dnode1mnode_basic_create_db_replica1.py -N 4 -M 1
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_4dnode1mnode_basic_replica1_insertdatas.py -N 4 -M 1
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_4dnode1mnode_basic_replica1_insertdatas_querys.py -N 4 -M 1
@@ -1959,9 +1885,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_4dnode1mnode_basic_replica3_vgroups.py -N 4 -M 1
 #,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode1mnode.py
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode2mnode.py -N 5
-# [disabled 2026-06-27 flaky 5dnode3mnode_stop]
-#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop.py -N 5 -M 3
-# [end disabled 2026-06-27]
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop.py -N 5 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop.py -N 5 -M 3 -I False
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop_2follower.py -N 5 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop_2follower.py -N 5 -M 3 -I False
@@ -1990,9 +1914,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_mnode_encrypt.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_stop.py -N 5 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_stop.py -N 5 -M 3 -I False
-# [disabled 2026-06-11 flaky kill_compact_force]
-#,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_kill_compact_force.py -N 3
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_kill_compact_force.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_wal_corruption_single_replica.py -N 1
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_wal_corruption_three_replica.py -N 3
 
@@ -2005,9 +1927,7 @@
 ,,n,.,pytest cases/80-Components/01-Taosd/test_com_cmdline.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_meta_force_repair.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair_metadata.py
-# [disabled 2026-06-11 fail after retry tsdb_force_repair_core_e2e]
-#,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair_core_e2e.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair_core_e2e.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair_stt_e2e.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_statis_blk_security.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_wal_force_repair_e2e.py
@@ -2016,9 +1936,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_config_refresh.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_persisit_config.py
-# [disabled 2026-06-11 flaky com_taosd_audit]
-#,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_audit.py
-# [end disabled 2026-06-11]
+,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_audit.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_audit_no_token.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_self_audit.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_com_taosd_self_audit_switch_off.py
@@ -2059,9 +1977,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_sql.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt2.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tag_order_stmt.py
-# [disabled 2026-06-27 flaky benchmark_taosc]
-#,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_taosc.py
-# [end disabled 2026-06-27]
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_taosc.py
 # TD-38727: Temporarily disable memory leak detection for test_benchmark_tmq tests
 # ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_tmq.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_website.py

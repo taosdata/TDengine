@@ -232,3 +232,51 @@ class AbstractCorrelationService(AbstractAnalyticsService, ABC):
 
     def get_params(self):
         return {"dummy": "dummy"}
+
+
+class AbstractRegressionService(AbstractAnalyticsService, ABC):
+    """
+    Abstract regression service, all regression algorithms should inherit from this base class.
+
+    Mirrors the structure of AbstractForecastService:
+      - set_input_data()  ←→  set_input_data()
+      - set_params()      ←→  set_params()
+      - execute()         ←→  execute()
+
+    Responsibilities:
+      - Load and manage input feature data and labels
+      - Execute regression analysis
+      - Return predicted values as list[float]
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.type = "regression"
+        self.input_data = None   # Feature matrix: list of sample rows
+        self.schema = None       # Column schema metadata
+
+    def set_input_data(self, input_data: list, schema: list = None):
+        """Set the input feature data for regression.
+
+        Args:
+            input_data: Feature matrix (list of sample rows, each row is a list of feature values)
+            schema: Optional schema describing the columns (same format as forecast schema)
+        """
+        self.input_data = input_data
+        self.schema = schema
+
+    def set_params(self, params: dict) -> None:
+        """Set regression parameters. Override in subclass if needed."""
+        pass
+
+    def get_params(self):
+        return {"dummy": "dummy"}
+
+    @abstractmethod
+    def execute(self):
+        """Execute regression and return predicted values.
+
+        Returns:
+            list[float]: Predicted values, one per input sample
+        """
+        pass

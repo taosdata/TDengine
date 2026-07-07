@@ -1,4 +1,5 @@
 #include "streamMsg.h"
+#include "tbase64.h"
 #include "tjson.h"
 
 static int32_t int16ToJson(const void* pObj, SJson* pJson);
@@ -546,13 +547,13 @@ static const char* jkCreateStreamReqTagCids = "tagCids";
 static const char* jkCreateStreamReqNodelayCreateSubtable = "nodelayCreateSubtable";
 
 /* === Federated query: extSpecs JSON keys (Pt A6) ===
- * Wire format mirrors SStreamExtTriggerSpec (streamMsg.h). Currently 9
- * scalar/string fields are persisted; encryptedPassword bytes are NOT
- * carried on the wire (taosc leaves zero, mnode fills from sdb in P1 B2)
- * and triggerColumns / prefilter are deferred (only consumed by reader in
- * P3+, not built by parser yet — see TODO in createStreamReqBuildExtSpecs).
- * encryptedPasswordLen is written only as a sanity flag (always 0 over the
- * wire). Old mnodes silently ignore the unknown jkCreateStreamReqExtSpecs key. */
+ * Wire format mirrors SStreamExtTriggerSpec (streamMsg.h). This is the sole
+ * persisted form of SStreamExtTriggerSpec (SStreamObj no longer has its own
+ * extSpecs field/binary codec; SCMCreateStreamReq.extSpecs is authoritative
+ * for the whole lifetime of the stream object, mnode-filled fields included).
+ * encryptedPassword travels as base64 (see extSpecEncryptedPasswordToJson);
+ * encryptedPasswordLen is also written as a sanity/length flag. Old mnodes
+ * silently ignore the unknown jkCreateStreamReqExtSpecs key. */
 static const char* jkCreateStreamReqExtSpecs           = "extSpecs";
 static const char* jkExtSpecSourceName                  = "sourceName";
 static const char* jkExtSpecSourceType                  = "sourceType";
@@ -560,11 +561,14 @@ static const char* jkExtSpecExtDb                       = "extDb";
 static const char* jkExtSpecExtSchema                   = "extSchema";
 static const char* jkExtSpecExtTable                    = "extTable";
 static const char* jkExtSpecTsColumn                    = "tsColumn";
+static const char* jkExtSpecTriggerColumns               = "triggerColumns";
 static const char* jkExtSpecHost                        = "host";
 static const char* jkExtSpecPort                        = "port";
 static const char* jkExtSpecUser                        = "user";
+static const char* jkExtSpecEncryptedPassword           = "encryptedPassword";
 static const char* jkExtSpecEncryptedPasswordLen        = "encPwdLen";
 static const char* jkExtSpecConnCfgVersion              = "connCfgVersion";
+static const char* jkExtSpecOptions                     = "options";
 static const char* jkExtSpecPrefilter                   = "prefilter";
 static const char* jkExtSpecTriggerPrefilter             = "triggerPrefilter";
 static const char* jkExtSpecPartitionByTag               = "partitionByTag";
@@ -591,13 +595,34 @@ static int32_t extTriggerSpecToJson(const void* pObj, SJson* pJson) {
   TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecExtSchema, pSpec->extSchema));
   TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecExtTable, pSpec->extTable));
   TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecTsColumn, pSpec->tsColumn));
+  /* triggerColumns: col names referenced by the trigger. Currently always
+   * empty (attached at reader-task deploy time, not by the parser), but
+   * round-tripped for completeness since SCMCreateStreamReq.extSpecs is now
+   * the sole persisted home for SStreamExtTriggerSpec. */
+  if (pSpec->triggerColumns != NULL && taosArrayGetSize(pSpec->triggerColumns) > 0) {
+    TAOS_CHECK_RETURN(tjsonAddTArray(pJson, jkExtSpecTriggerColumns, extSpecTagColToJson, pSpec->triggerColumns));
+  }
   TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecHost, pSpec->host));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkExtSpecPort, pSpec->port));
   TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecUser, pSpec->user));
+  /* encryptedPassword: base64-encoded AES-CBC ciphertext. Absent until mnode
+   * fills it in from sdb (P1 B2); encryptedPasswordLen is written either way
+   * as a sanity/length flag. */
+  if (pSpec->encryptedPasswordLen > 0) {
+    char*   pB64    = NULL;
+    int32_t b64Code = base64_encode(pSpec->encryptedPassword, pSpec->encryptedPasswordLen, &pB64);
+    if (b64Code != TSDB_CODE_SUCCESS) {
+      return b64Code;
+    }
+    b64Code = tjsonAddStringToObject(pJson, jkExtSpecEncryptedPassword, pB64);
+    taosMemoryFree(pB64);
+    TAOS_CHECK_RETURN(b64Code);
+  }
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkExtSpecEncryptedPasswordLen,
                                             pSpec->encryptedPasswordLen));
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkExtSpecConnCfgVersion,
                                             (int64_t)pSpec->connCfgVersion));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecOptions, pSpec->options));
   /* prefilter: optional WHERE clause fragment for calc (aggregate) reader queries. */
   if (pSpec->prefilter != NULL && pSpec->prefilter[0] != '\0') {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecPrefilter, pSpec->prefilter));
@@ -607,10 +632,10 @@ static int32_t extTriggerSpecToJson(const void* pObj, SJson* pJson) {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecTriggerPrefilter, pSpec->triggerPrefilter));
   }
   /* partitionByTag / partitionTagCols: PARTITION BY groupId derivation (see
-   * streamReaderExt.c). Must cross the wire here — unlike triggerColumns/
-   * calcColumns (deferred to reader-task deploy time, derivable from the
-   * already-transmitted scan plan), the PARTITION BY tag subset is a
-   * parse-time-only fact the mnode cannot re-derive later. */
+   * streamReaderExt.c). Must cross the wire here — unlike calcColumns
+   * (deferred to reader-task deploy time, derivable from the already-
+   * transmitted scan plan), the PARTITION BY tag subset is a parse-time-only
+   * fact the mnode cannot re-derive later. */
   TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, jkExtSpecPartitionByTag, pSpec->partitionByTag));
   if (pSpec->partitionTagCols != NULL && taosArrayGetSize(pSpec->partitionTagCols) > 0) {
     TAOS_CHECK_RETURN(tjsonAddTArray(pJson, jkExtSpecPartitionTagCols, extSpecTagColToJson, pSpec->partitionTagCols));
@@ -636,6 +661,11 @@ static int32_t jsonToExtTriggerSpec(const SJson* pJson, void* pObj) {
   if ((code = tjsonGetStringValue(pJson, jkExtSpecExtSchema, pSpec->extSchema)) != 0) goto _err;
   if ((code = tjsonGetStringValue(pJson, jkExtSpecExtTable, pSpec->extTable)) != 0) goto _err;
   if ((code = tjsonGetStringValue(pJson, jkExtSpecTsColumn, pSpec->tsColumn)) != 0) goto _err;
+  /* triggerColumns: absent means empty (currently always the case). */
+  if ((code = tjsonToTArray(pJson, jkExtSpecTriggerColumns, jsonToExtSpecTagCol,
+                            &pSpec->triggerColumns, TSDB_COL_NAME_LEN)) != 0) {
+    goto _err;
+  }
   if ((code = tjsonGetStringValue(pJson, jkExtSpecHost, pSpec->host)) != 0) goto _err;
   {
     int32_t p32 = 0;
@@ -653,7 +683,31 @@ static int32_t jsonToExtTriggerSpec(const SJson* pJson, void* pObj) {
     if ((code = tjsonGetBigIntValue(pJson, jkExtSpecConnCfgVersion, &v)) != 0) goto _err;
     pSpec->connCfgVersion = (uint64_t)v;
   }
-  /* encryptedPassword left zero — mnode (P1 B2) fills from sdb. */
+  /* encryptedPassword: base64-encoded ciphertext. Absent means the spec has
+   * no credential yet (e.g. freshly parsed by taosc, not yet filled by mnode
+   * (P1 B2), or refreshed by msmRefreshExtSpecPasswords on redeploy). */
+  {
+    char b64Buf[256] = {0};
+    int32_t b64Code = tjsonGetStringValue(pJson, jkExtSpecEncryptedPassword, b64Buf);
+    if (b64Code == TSDB_CODE_SUCCESS && b64Buf[0] != '\0') {
+      uint8_t* pRaw   = NULL;
+      int32_t  rawLen = 0;
+      if ((code = base64_decode(b64Buf, (int32_t)strlen(b64Buf), &rawLen, &pRaw)) != 0) {
+        taosMemoryFree(pRaw);
+        goto _err;
+      }
+      if (rawLen > TSDB_EXT_SOURCE_ENC_PASSWORD_LEN) {
+        taosMemoryFree(pRaw);
+        code = TSDB_CODE_OUT_OF_RANGE;
+        goto _err;
+      }
+      (void)memcpy(pSpec->encryptedPassword, pRaw, rawLen);
+      taosMemoryFree(pRaw);
+    }
+  }
+  /* options: connection options JSON string (e.g. api_token, protocol).
+   * Absent means no options were configured on the ext source. */
+  if ((code = tjsonGetStringValue(pJson, jkExtSpecOptions, pSpec->options)) != 0) goto _err;
 
   /* prefilter: optional calc reader WHERE fragment.  Absent on streams created
    * by older taosc or when no static WHERE was present in the calc query. */
@@ -687,6 +741,7 @@ static int32_t jsonToExtTriggerSpec(const SJson* pJson, void* pObj) {
   return TSDB_CODE_SUCCESS;
 
 _err:
+  taosArrayDestroy(pSpec->triggerColumns);
   taosMemoryFree(pSpec->prefilter);
   taosMemoryFree(pSpec->triggerPrefilter);
   taosArrayDestroy(pSpec->partitionTagCols);

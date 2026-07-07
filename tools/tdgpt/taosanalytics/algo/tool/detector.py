@@ -11,9 +11,7 @@ Mirrors the structure of forecaster.py:
 import json
 from abc import ABC, abstractmethod
 from typing import Optional
-
 import numpy as np
-
 from taosanalytics.log import AppLogger
 
 
@@ -39,6 +37,7 @@ class BaseModelAnomalyDetector(ABC):
         self.input_list = input_list
         self.ts_list = ts_list
         self.valid_code = valid_code
+        
         # input_data_lists holds one sub-list per column (same layout as
         # AbstractAnomalyDetectionService.input_data_lists).  Falls back to
         # [input_list] when not provided so single-column callers are unaffected.
@@ -94,6 +93,73 @@ class BaseModelAnomalyDetector(ABC):
     def get_param(self) -> dict:
         """Return model parameters for logging / introspection."""
 
+    @staticmethod
+    def _load_pkl_model(model_path: str, expected_type) -> tuple:
+        """Load pkl file and extract model + pipeline_state.
+
+        Returns:
+            (model, pipeline_state) tuple, or (None, None) on failure
+        """
+        import joblib
+
+        try:
+            AppLogger.info(f"start to load model from {model_path}")
+            data = joblib.load(model_path)
+
+            # Handle both formats: direct model or dict with 'model' key
+            if isinstance(data, dict) and 'model' in data:
+                model = data['model']
+                pipeline_state = data.get('pipeline', {})
+                if not isinstance(model, expected_type):
+                    AppLogger.error(
+                        "loaded model from dict is not %s instance, got type: %s",
+                        expected_type.__name__, type(model).__name__)
+                    return None, None
+                return model, pipeline_state
+            elif isinstance(data, expected_type):
+                return data, {}
+            else:
+                AppLogger.error(
+                    "loaded data is not %s instance or valid dict format, got type: %s",
+                    expected_type.__name__, type(data).__name__)
+                return None, None
+        except FileNotFoundError:
+            AppLogger.error("model pkl file not found at %s", model_path)
+            return None, None
+        except Exception as e:
+            AppLogger.error("failed to load model from pkl file %s: %s", model_path, str(e))
+            return None, None
+
+    @staticmethod
+    def _apply_pipeline_preprocessing(X: np.ndarray, pipeline_state: dict) -> np.ndarray:
+        """Apply preprocessing from pipeline state (normalization, fillna, etc.).
+
+        Pipeline state may contain:
+        - fill_values: dict mapping column index to fill value for NaN
+        - center/scale: for standardization
+        """
+        X = np.array(X, dtype=float, copy=True)
+
+        # Handle missing values
+        fill_values = pipeline_state.get('fill_values', {})
+        if fill_values:
+            for col_idx, fill_val in fill_values.items():
+                if isinstance(col_idx, int) and col_idx < X.shape[1]:
+                    col_mask = np.isnan(X[:, col_idx])
+                    if col_mask.any():
+                        X[col_mask, col_idx] = fill_val
+
+        # Handle standardization (center and scale)
+        center = pipeline_state.get('center')
+        scale = pipeline_state.get('scale')
+        if center is not None and scale is not None:
+            center = np.array(center, dtype=float)
+            scale = np.array(scale, dtype=float)
+            if center.shape[0] == X.shape[1] and scale.shape[0] == X.shape[1]:
+                X = (X - center) / np.where(scale != 0, scale, 1.0)
+
+        return X
+
 
 class IsolationForestModelDetector(BaseModelAnomalyDetector):
     """
@@ -133,16 +199,18 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
     def _build_model(self):
         from sklearn.ensemble import IsolationForest
 
-        params = self.model_info.get('best_params', {})
-        _IF_KEYS = {'n_estimators', 'max_samples', 'max_features', 'contamination', 'random_state'}
-        if_params = {k: v for k, v in params.items() if k in _IF_KEYS}
+        model_path = self.model_info.get('model_path')
 
-        try:
-            model = IsolationForest(**if_params)
-            AppLogger.info("constructed IsolationForest with params: %s", if_params)
+        if not model_path:
+            AppLogger.error("IsolationForest models require model_path (pkl file); best_params not supported")
+            return None
+
+        model, pipeline_state = BaseModelAnomalyDetector._load_pkl_model(model_path, IsolationForest)
+        if model is not None:
+            self.model_info['_pipeline_state'] = pipeline_state
+            AppLogger.info("loaded IsolationForest from pkl file: %s", model_path)
             return model
-        except Exception as e:
-            AppLogger.error("failed to construct IsolationForest: %s", e)
+
         return None
 
     @staticmethod
@@ -181,11 +249,63 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
         return window_size, stride
 
     def _predict(self, model) -> list:
-        params = self.model_info.get('best_params', {})
-        feature_fns = params.get('feature_fns', [])
-        n = len(self.input_list)
+        pipeline_state = self.model_info.get('_pipeline_state')
+        inference_mode = self._get_inference_mode(self.model_info)
 
-        window_size, stride = self._validate_window_params(params)
+        if inference_mode == 'point':
+            return self._predict_point_level(model, pipeline_state)
+        else:
+            return self._predict_window_level(model, pipeline_state)
+
+    def _get_inference_mode(self, pipeline_state) -> str:
+        """Determine inference mode: 'point' or 'window' (default)."""
+        if pipeline_state:
+            return pipeline_state.get('mode', 'window')
+        else:
+            params = self.model_info.get('best_params', {})
+            return params.get('mode', 'window')
+
+    def _predict_point_level(self, model, pipeline_state) -> list:
+        """Point-level anomaly detection without windowing.
+
+        Treats each time point independently, evaluates raw values or simple per-point features.
+        """
+        n = len(self.input_list)
+        X = np.array(self.input_data_lists, dtype=float).T
+
+        if X.shape[0] != n:
+            AppLogger.error(
+                "input_data_lists shape mismatch: expected %d points, got %d",
+                n, X.shape[0])
+            raise ValueError(f"input_data_lists shape mismatch")
+
+        # Apply pipeline preprocessing if available (normalization, fillna, etc.)
+        if pipeline_state:
+            X = BaseModelAnomalyDetector._apply_pipeline_preprocessing(X, pipeline_state)
+            raw_preds = model.predict(X)
+        else:
+            raw_preds = model.fit_predict(X)
+
+        point_codes = [self.valid_code if pred == 1 else -1 for pred in raw_preds]
+        return point_codes
+
+    def _predict_window_level(self, model, pipeline_state) -> list:
+        """Window-based anomaly detection with sliding window and feature extraction.
+
+        Builds a feature matrix from sliding windows, then maps window predictions back to points.
+        """
+        if pipeline_state:
+            feature_fns = pipeline_state.get('feature_fns', [])
+            window_size = int(pipeline_state.get('window_size', 100))
+            stride = int(pipeline_state.get('stride', 1))
+            AppLogger.debug("using pipeline config from pkl: window_size=%d, stride=%d, feature_fns=%s",
+                          window_size, stride, feature_fns)
+        else:
+            params = self.model_info.get('best_params', {})
+            feature_fns = params.get('feature_fns', [])
+            window_size, stride = self._validate_window_params(params)
+
+        n = len(self.input_list)
 
         if n < window_size:
             AppLogger.warning(
@@ -212,11 +332,14 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
             rows.append(row)
         X = np.array(rows, dtype=float)
 
-        # sklearn IsolationForest: 1 = inlier, -1 = outlier
-        raw_preds = model.fit_predict(X)
+        # Use predict() for pkl models (already trained), fit_predict() for best_params models (need training)
+        if pipeline_state:
+            raw_preds = model.predict(X)
+        else:
+            raw_preds = model.fit_predict(X)
 
         # Map window predictions back to per-point codes.
-        # A point is flagged anomalous when any window covering it is anomalous.
+        # A point is flagged anomalous when any window that covers it is anomalous.
         point_codes = [self.valid_code] * n
         for start, pred in zip(starts, raw_preds):
             if pred == -1:
@@ -229,3 +352,153 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
     def get_param(self) -> dict:
         info = self.model_info or {}
         return dict(info.get('best_params', {}))
+
+
+class SVMModelDetector(BaseModelAnomalyDetector):
+    """
+    Anomaly detector using One-Class SVM for point-level detection.
+
+    SVM models are ONLY loaded from pkl files (pre-trained).
+    Does not support best_params construction or window-based detection.
+
+    Expected config layout:
+    {
+      "algo": "svm",
+      "model_path": "/path/to/trained_svm.pkl"
+    }
+
+    The pkl file must contain either:
+      - Direct OneClassSVM object, or
+      - Dict with keys: {"model": OneClassSVM, "pipeline": {...}}
+
+    Pipeline state (optional) can include:
+      - "fill_values": dict for NaN handling per column
+      - "center": list for standardization mean
+      - "scale": list for standardization std dev
+
+    Inference flow:
+      1. Load OneClassSVM from pkl
+      2. Apply preprocessing from pipeline state if available (fillna, standardization)
+      3. Evaluate each point: model.predict(X)
+      4. Return per-point anomaly codes (valid_code or -1)
+
+    Note: SVM is designed for multi-dimensional point-level anomaly detection,
+    not time-series pattern detection. Use IsolationForest for window-based detection.
+    """
+    target_algo = "SVM"
+
+    def _build_model(self):
+        from sklearn.svm import OneClassSVM
+
+        model_path = self.model_info.get('model_path')
+        if not model_path:
+            AppLogger.error("SVM models require model_path (pkl file); best_params not supported")
+            return None
+
+        model, pipeline_state = BaseModelAnomalyDetector._load_pkl_model(model_path, OneClassSVM)
+        if model is not None:
+            self.model_info['_pipeline_state'] = pipeline_state
+            AppLogger.info("loaded OneClassSVM from pkl file: %s", model_path)
+            return model
+
+        return None
+
+    def _predict(self, model) -> list:
+        """Point-level anomaly detection without windowing.
+        Each point is evaluated independently as a multi-dimensional vector.
+        """
+        pipeline_state = self.model_info.get('_pipeline_state')
+        n = len(self.input_list)
+        
+        X = np.array(self.input_data_lists, dtype=float).T
+
+        if X.shape[0] != n:
+            AppLogger.error(
+                "input_data_lists shape mismatch: expected %d points, got %d",
+                n, X.shape[0])
+            raise ValueError(f"input_data_lists shape mismatch")
+
+        # Apply pipeline preprocessing if available
+        if pipeline_state:
+            X = IsolationForestModelDetector._apply_pipeline_preprocessing(X, pipeline_state)
+
+        raw_preds = model.predict(X)
+        point_codes = [self.valid_code if pred == 1 else -1 for pred in raw_preds]
+        return point_codes
+
+    def get_param(self) -> dict:
+        info = self.model_info or {}
+        pipeline_state = info.get('_pipeline_state', {})
+        return dict(pipeline_state)
+
+
+class BaseModelRegressionDetector(ABC):
+    """
+    Dynamic loader for regression models driven by a JSON config file.
+
+    Responsibilities:
+      - Load and validate the config file
+      - Confirm the config describes the expected algorithm
+      - Load/build the model via _build_model()
+      - Return predicted values via predict() → list[float]
+
+    Expected input: Feature matrix (n_samples, n_features)
+    Expected output: Prediction values (n_samples,)
+    """
+    target_algo: str = ""
+
+    def __init__(self, path: str, input_data: list, schema: list = None):
+        self.path = path
+        self.input_data = input_data  # Feature matrix: list of lists
+        self.schema = schema  # Column metadata
+        self.model_info: Optional[dict] = None
+        self._model = None
+
+    def build(self):
+        self.model_info = self._load_config()
+        if not self.model_info:
+            return None
+
+        if not self._is_expected_algo():
+            AppLogger.error(
+                "config does not describe a %s model (got algo=%s), skipping",
+                self.target_algo, self.model_info.get('algo'))
+            return None
+
+        self._model = self._build_model()
+        return self._model
+
+    def predict(self) -> list:
+        """Run regression and return predicted values."""
+        model = self._model or self.build()
+        if model is None:
+            AppLogger.error("model unavailable for regression: %s", self.path)
+            raise RuntimeError(f"regression model unavailable: {self.path}")
+        return self._predict(model)
+
+    def _load_config(self) -> Optional[dict]:
+        try:
+            with open(self.path, "r", encoding="utf-8") as handle:
+                return json.load(handle)
+        except FileNotFoundError:
+            AppLogger.error("model config not found: %s", self.path)
+        except Exception as e:
+            AppLogger.error("failed to load model config %s: %s", self.path, e)
+        return None
+
+    def _is_expected_algo(self) -> bool:
+        algo = (self.model_info.get('algo') or '').upper().replace('-', '_')
+        return algo == self.target_algo.upper().replace('-', '_')
+
+    @abstractmethod
+    def _build_model(self):
+        """Load the model from pkl file."""
+
+    @abstractmethod
+    def _predict(self, model) -> list:
+        """Run inference and return predicted values."""
+
+    @abstractmethod
+    def get_param(self) -> dict:
+        """Return model parameters for logging / introspection."""
+

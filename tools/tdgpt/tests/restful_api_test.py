@@ -46,7 +46,7 @@ class RestfulTest(TestCase):
         self.assertEqual(res['protocol'], 1.0)
 
         d = res['details']
-        self.assertEqual(len(d), 4)
+        self.assertEqual(len(d), 5)
 
     def test_forecast(self):
         """test forecast api"""
