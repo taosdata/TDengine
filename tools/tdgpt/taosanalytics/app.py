@@ -13,6 +13,7 @@ from taosanalytics.handlers.imputation import handle_imputation
 from taosanalytics.handlers.anomaly import handle_anomaly
 from taosanalytics.handlers.forecast import handle_forecast
 from taosanalytics.handlers.correlation import handle_correlation
+from taosanalytics.handlers.regression import handle_regression
 from taosanalytics.handlers.misc import do_profile_search, handle_batch, handle_pearsonr
 
 from taosanalytics.conf import Configure
@@ -102,6 +103,13 @@ def handle_correlation_req():
     """handle the correlation request """
     AppLogger.info('recv correlation from %s', request.remote_addr)
     return handle_correlation(request)
+
+
+@app.route("/regression", methods=['POST'])
+def handle_regression_req():
+    """handle the regression request"""
+    AppLogger.info('recv regression request from %s', request.remote_addr)
+    return handle_regression(request)
 
 
 # Keep both routes mapped to this handler so existing clients using the legacy endpoint continue to work, while 
