@@ -176,20 +176,6 @@ copy_if_exists() {
   fi
 }
 
-copy_driver_runtime_libs() {
-  local dst_dir="$1"
-  local pattern=""
-  local src=""
-
-  mkdir -p "${dst_dir}"
-  for pattern in "libssl.so*" "libcrypto.so*"; do
-    for src in "${build_dir}"/lib/${pattern}; do
-      [ -e "${src}" ] || continue
-      cp -Lf "${src}" "${dst_dir}/$(basename "${src}")"
-    done
-  done
-}
-
 patch_server_install_messages() {
   local installer="$1"
 
@@ -261,7 +247,6 @@ tar -zcf package.tar.gz bin cfg inc --remove-files
 mkdir -p "${server_dir}/driver"
 cp "${build_dir}/lib/libtaos.so" "${server_dir}/driver/libtaos.so.${version}"
 cp "${build_dir}/lib/libtaosnative.so" "${server_dir}/driver/libtaosnative.so.${version}"
-copy_driver_runtime_libs "${server_dir}/driver"
 echo "${versionComp}" > "${server_dir}/driver/vercomp.txt"
 
 # --- Outer package: examples/ ---
@@ -398,7 +383,6 @@ tar -zcf package.tar.gz bin cfg inc --remove-files
 mkdir -p "${client_dir}/driver"
 cp "${build_dir}/lib/libtaos.so" "${client_dir}/driver/libtaos.so.${version}"
 cp "${build_dir}/lib/libtaosnative.so" "${client_dir}/driver/libtaosnative.so.${version}"
-copy_driver_runtime_libs "${client_dir}/driver"
 echo "${versionComp}" > "${client_dir}/driver/vercomp.txt"
 
 # --- Outer package: examples/ ---
