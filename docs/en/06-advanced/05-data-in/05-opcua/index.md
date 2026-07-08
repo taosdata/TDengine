@@ -76,7 +76,13 @@ After configuring the connection properties and authentication method, click the
 
 ### Configure Points Set
 
-**Points Set** can choose **Select Data Points** or **Upload CSV Configuration File**. Explorer shows the former by default.
+**Points Set** offers three mutually exclusive modes, switched via tabs:
+
+1. **Select Data Points** (default): browse and pick the OPC UA data points to collect.
+2. **Upload CSV Configuration File**: configure points in bulk via a CSV file.
+3. **Alarms & Events**: collect alarms and events (A&E) pushed by the OPC UA Server. See [OPC UA Alarm and Event Collection](./06-alarm-event.md).
+
+The first two are for point collection (Value); the third is for alarm and event collection (A&E), described below.
 
 #### Selecting Data Points
 
@@ -232,6 +238,21 @@ Core CSV rules:
 
 The full column reference, recommended patterns and how to handle reserved characters such as commas inside `point_id` are documented in [OPC UA CSV Mapping File Reference](./02-csv-reference.md).
 
+#### Alarms & Events
+
+Select the **Alarms & Events** tab to switch to OPC UA Alarm and Event (A&E) collection mode, which ingests alarms and events pushed by the Server into TDengine. This mode exposes the following options:
+
+- **Event Types** (required): multi-select the OPC UA event types to subscribe; selecting a type automatically includes its subtypes.
+- **Event Source Filter** (optional): multi-select the event sources (SourceNode) to collect; leave empty to collect from all sources.
+- **Min Severity** (optional): only collect events with Severity >= this value (1–1000); leave empty for no filter.
+- **Preview**: statically preview the supertable schema and effective filter that will be created before you submit — what you see is what gets created.
+
+For the data ingestion rules (supertable / subtable naming, field type mapping, state-machine splitting, query examples) and troubleshooting, see [OPC UA Alarm and Event Collection](./06-alarm-event.md).
+
+:::note
+Selecting this tab locks the **Collection Mode** below to `event` automatically.
+:::
+
 ### Collection Configuration
 
 In the collection configuration, configure the current task's collection mode, collection interval, collection timeout, etc.
@@ -240,9 +261,10 @@ In the collection configuration, configure the current task's collection mode, c
 
 As shown in the image above:
 
-- **Collection Mode**: Can use `subscribe` or `observe` mode.
-  - `subscribe`: Subscription mode, reports data changes and writes to TDengine.
-  - `observe`: According to the `collection interval`, polls the latest value of the data point and writes to TDengine.
+- **Collection Mode**: Can use `subscribe`, `observe`, or `event` mode.
+  - `subscribe`: Subscription mode, reports data changes and writes to TDengine. Used for point collection.
+  - `observe`: According to the `collection interval`, polls the latest value of the data point and writes to TDengine. Used for point collection.
+  - `event`: Alarm and Event (A&E) collection mode. Automatically locked to this mode (and not editable) when **Points Set** is on the **Alarms & Events** tab. See [OPC UA Alarm and Event Collection](./06-alarm-event.md).
 - **Collection Interval**: Default is 10 seconds, the interval for collecting data points, starting from the end of the last data collection, polls the latest value of the data point and writes to TDengine. Only configurable in `observe` **Collection Mode**.
 - **Collection Timeout**: If the data from the OPC server is not returned within the set time when reading data points, the read fails, default is 10 seconds. Only configurable in `observe` **Collection Mode**.
 
