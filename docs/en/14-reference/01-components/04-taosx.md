@@ -719,6 +719,12 @@ The plugin directory reuses the plugins configuration in the `taosx.toml` config
 
 ### Plugin API Description
 
+:::warning
+
+The current plugin ABI contract described in this section is supported starting from version 3.4.1.15 and does not support older taos-explorer and taosX versions. To develop or maintain plugins for those versions, use the ABI contract in the [TDengine 3.4.0 taosX data parsing plugin documentation](https://docs.tdengine.com/3.4.0/tdengine-reference/components/taosx/#taosx-data-parsing-plugin).
+
+:::
+
 #### 1. Get Plugin Name
 
 Get the plugin name for display on the frontend.
