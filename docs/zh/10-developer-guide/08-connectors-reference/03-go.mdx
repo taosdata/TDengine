@@ -33,6 +33,7 @@ import RequestId from "./resources/_request_id.mdx";
 
 | driver-go 版本 | 主要变化                                       | TDengine TSDB 版本 |
 |--------------|--------------------------------------------|------------------|
+| v3.8.2       | WebSocket 连接支持 taosAdapter 高可用         | -                |
 | v3.8.1       | WebSocket 连接支持 `skipVerify` 跳过 TLS 证书校验       | -                |
 | v3.8.0       | 引入 `ws/unified` 统一 WebSocket 接口；支持多节点 DSN、自动重连和故障切换；`ws/stmt`、`ws/schemaless` 自该版本起标记为废弃 | -                |
 | v3.7.8       | WebSocket 连接支持双因素认证以及 token 认证             | -                |
@@ -188,6 +189,7 @@ taos, err := sql.Open("taosWS", taosUri)
 - `totpCode` 指定用于双因素身份验证的 TOTP 码。
 - `skipVerify` WebSocket Secure（`wss`）连接是否跳过 TLS 证书校验，默认为 false（`v3.8.1` 版本开始支持，生产环境不建议使用）。
 - `autoReconnect` 是否自动重连，默认为 false（`v3.8.0` 版本开始支持）。
+- `adapterHa` 是否启用 taosAdapter 高可用，默认为 false（`v3.8.2` 版本开始支持）。启用后，连接器会在首次成功建立 WebSocket 连接时向 taosAdapter 请求当前可用实例列表，并将发现的节点加入地址池，用于负载均衡和故障转移。
 - `chanLength` 消息通道长度，默认为 1（`v3.8.0` 版本开始支持）。
 - `reconnectIntervalMs` 自动重连间隔（毫秒），默认为 2000（`v3.8.0` 版本开始支持）。
 - `reconnectRetryCount` 自动重连重试次数，默认为 3（`v3.8.0` 版本开始支持）。
@@ -933,6 +935,7 @@ type ConfigMap map[string]ConfigValue
 - `ws.message.enableCompression`：WebSocket 是否启用压缩，默认 false。
 - `ws.skipVerify`：WebSocket Secure（`wss`）TMQ 连接是否跳过 TLS 证书校验，默认 false（`v3.8.1` 版本开始支持，生产环境不建议使用）。
 - `ws.autoReconnect`：WebSocket 是否自动重连，默认 false。
+- `ws.adapterHa`：是否启用 taosAdapter 高可用，默认 false（`v3.8.2` 版本开始支持）。启用后，连接器会在首次成功订阅时向 taosAdapter 请求当前可用实例列表，并将发现的节点加入地址池，用于负载均衡和故障转移。
 - `ws.reconnectIntervalMs`：WebSocket 重连间隔时间毫秒，默认 2000。
 - `ws.reconnectRetryCount`：WebSocket 重连重试次数，默认 3。
 - `timezone`：订阅结果时间类型解析使用的时区，使用 IANA 时区格式，例如：`Asia/Shanghai`（v3.7.4 及以上版本支持）。
