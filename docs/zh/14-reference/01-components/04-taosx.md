@@ -787,6 +787,12 @@ taosX Parser 插件是一个要求用 C/Rust 语言开发的 C ABI 兼容动态�
 
 ### 插件 api 说明
 
+:::warning
+
+本节描述的当前插件 ABI 约定从 3.4.1.15 版本开始支持，不支持更早版本的 taos-explorer 和 taosX。若需要为旧版本开发或维护插件，请使用 [TDengine 3.4.0 taosX 数据解析插件文档](https://docs.taosdata.com/3.4.0/reference/components/taosx/#taosx-%E6%95%B0%E6%8D%AE%E8%A7%A3%E6%9E%90%E6%8F%92%E4%BB%B6) 中的 ABI 约定。
+
+:::
+
 #### 1. 获取插件名称
 
 获取插件名，用于前端显示。
