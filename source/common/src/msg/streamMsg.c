@@ -2133,7 +2133,7 @@ int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
       SStreamTaskUndeploy* pTask = (SStreamTaskUndeploy*)taosArrayGet(pRsp->undeploy.taskList, i);
       TAOS_CHECK_EXIT(tDecodeSStreamTaskUndeploy(pDecoder, pTask));
     }
-  }  
+  }
 
   int32_t rspNum = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &rspNum));
@@ -3969,6 +3969,9 @@ static int32_t tSerializeSTriggerCalcParam(SEncoder* pEncoder, SArray* pParams, 
 
     if (!ignoreNotificationInfo) {
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, param->notifyType));
+      const char* path = (param->eventConditionPath != NULL) ? param->eventConditionPath : "";
+      uint64_t    pathLen = strlen(path) + 1;
+      TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, (const uint8_t*)path, pathLen));
       uint64_t len = (param->extraNotifyContent != NULL) ? strlen(param->extraNotifyContent) + 1 : 0;
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, (uint8_t*)param->extraNotifyContent, len));
     }
@@ -3979,6 +3982,9 @@ _exit:
 
 void tDestroySSTriggerCalcParam(void* ptr) {
   SSTriggerCalcParam* pParam = ptr;
+  if (pParam && pParam->eventConditionPath != NULL) {
+    taosMemoryFreeClear(pParam->eventConditionPath);
+  }
   if (pParam && pParam->extraNotifyContent != NULL) {
     taosMemoryFreeClear(pParam->extraNotifyContent);
   }
@@ -4098,6 +4104,8 @@ static int32_t tDeserializeSTriggerCalcParam(SDecoder* pDecoder, SArray**ppParam
 
     if (!ignoreNotificationInfo) {
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &param->notifyType));
+      uint64_t pathLen = 0;
+      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&param->eventConditionPath, &pathLen));
       uint64_t len = 0;
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&param->extraNotifyContent, &len));
     }
@@ -4650,6 +4658,8 @@ int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo*
   TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pInfo->isWindowTrigger));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pInfo->precision));
   TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pInfo->streamGen));
+  const char* path = (pInfo->curEventConditionPath != NULL) ? pInfo->curEventConditionPath : "";
+  TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, (const uint8_t*)path, strlen(path) + 1));
 _exit:
   return code;
 }
@@ -4758,6 +4768,10 @@ int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pIn
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pInfo->streamGen));
   }
+  if (!tDecodeIsEnd(pDecoder)) {
+    uint64_t pathLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pInfo->curEventConditionPath, &pathLen));
+  }
 _exit:
   return code;
 }
@@ -4779,7 +4793,10 @@ void tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo){
   if (pInfo->pGroupReadInfos != NULL) {
     tSimpleHashCleanup(pInfo->pGroupReadInfos);
     pInfo->pGroupReadInfos = NULL;
-  }  
+  }
+  if (pInfo->curEventConditionPath != NULL) {
+    taosMemoryFreeClear(pInfo->curEventConditionPath);
+  }
   if (pInfo->outNormalTable != NULL) {
     taosMemoryFreeClear(pInfo->outNormalTable);
   }

@@ -366,8 +366,8 @@ static int32_t getOrCreateAlignGrpMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t g
   return code;
 }
 
-int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t groupId, SSDataBlock* pBlock,
-                                int32_t startIndex, int32_t endIndex) {
+int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t groupId, const char* eventConditionPath,
+                                SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SSlidingGrpMgr* pSlidingGrpMgr = NULL;
@@ -387,7 +387,8 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
   }
 
   SSlidingWindowInMem* pSlidingWinInMem = NULL;
-  code = buildSlidingWindowInMem(pBlock, pStreamTaskMgr->tsSlotId, startIndex, endIndex, &pSlidingWinInMem);
+  code = buildSlidingWindowInMem(pBlock, pStreamTaskMgr->tsSlotId, startIndex, endIndex, eventConditionPath,
+                                 &pSlidingWinInMem);
   QUERY_CHECK_CODE(code, lino, _end);
 
   void* p = taosArrayPush(pSlidingGrpMgr->winDataInMem, &pSlidingWinInMem);
@@ -414,7 +415,8 @@ _end:
 }
 
 int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, TSKEY wstart, TSKEY wend,
-                              SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
+                              const char* eventConditionPath, SSDataBlock* pBlock, int32_t startIndex,
+                              int32_t endIndex) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   SAlignGrpMgr* pAlignGrpMgr = NULL;
@@ -442,7 +444,8 @@ int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, 
     }
   }
 
-  code = buildAlignWindowInMemBlock(pAlignGrpMgr, pBlock, pStreamTaskMgr->tsSlotId, wstart, wend, startIndex, endIndex);
+  code = buildAlignWindowInMemBlock(pAlignGrpMgr, pBlock, pStreamTaskMgr->tsSlotId, wstart, wend, eventConditionPath,
+                                    startIndex, endIndex);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -483,8 +486,9 @@ int32_t moveDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, SSDataBlock* pBl
   return code;
 }
 
-int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
-                           int32_t startIndex, int32_t endIndex) {
+int32_t putStreamDataCacheWithPath(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend,
+                                   const char* eventConditionPath, SSDataBlock* pBlock, int32_t startIndex,
+                                   int32_t endIndex) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   int64_t streamId = 0;
   if (pCache == NULL) {
@@ -520,11 +524,12 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
     SAlignTaskDSMgr* pStreamTaskMgr = (SAlignTaskDSMgr*)pCache;
     printDataBlock(pBlock, __func__, "", pStreamTaskMgr->streamId);
-    code = putDataToAlignTaskMgr(pStreamTaskMgr, groupId, wstart, wend, pBlock, startIndex, endIndex);
+    code =
+        putDataToAlignTaskMgr(pStreamTaskMgr, groupId, wstart, wend, eventConditionPath, pBlock, startIndex, endIndex);
   } else {
     SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
     printDataBlock(pBlock, __func__, "", pStreamTaskMgr->streamId);
-    code = putDataToSlidingTaskMgr(pStreamTaskMgr, groupId, pBlock, startIndex, endIndex);
+    code = putDataToSlidingTaskMgr(pStreamTaskMgr, groupId, eventConditionPath, pBlock, startIndex, endIndex);
   }
   (void)checkAndMoveMemCache(false);
 
@@ -537,6 +542,11 @@ _exit:
         groupId, wstart, wend, startIndex, endIndex);
   }
   return code;
+}
+
+int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
+                           int32_t startIndex, int32_t endIndex) {
+  return putStreamDataCacheWithPath(pCache, groupId, wstart, wend, NULL, pBlock, startIndex, endIndex);
 }
 
 int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock) {

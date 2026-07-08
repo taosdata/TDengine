@@ -1171,7 +1171,7 @@ int32_t stRunnerFetchDataFromCache(SStreamCacheReadInfo* pInfo, bool* finished) 
   void**  ppIter = NULL;
   int64_t streamId = pInfo->taskInfo.streamId;
   TAOS_CHECK_EXIT(readStreamDataCache(pInfo->taskInfo.streamId, pInfo->taskInfo.taskId, pInfo->taskInfo.sessionId,
-                                     pInfo->gid, pInfo->start, pInfo->end, &ppIter));
+                                      pInfo->gid, pInfo->start, pInfo->end, pInfo->eventConditionPath, &ppIter));
   if (*ppIter != NULL) {
     TAOS_CHECK_EXIT(getNextStreamDataCache(ppIter, &pInfo->pBlock));
   }
