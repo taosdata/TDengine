@@ -16,6 +16,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include "dataSink.h"
 #include "osAtomic.h"
 #include "stream.h"
@@ -39,6 +40,10 @@ void setUsedBlockBuf(SAlignBlocksInMem* pAlignBlockInfo, size_t usedSize) {
 }
 
 void* getWindowDataBuf(SSlidingWindowInMem* pWindowData) { return (char*)pWindowData + sizeof(SSlidingWindowInMem); }
+
+static size_t getWindowDataSize(SSlidingWindowInMem* pWindowData) {
+  return pWindowData->dataLen == 0 ? sizeof(SSlidingWindowInMem) + sizeof(SMoveWindowInfo) : pWindowData->dataLen;
+}
 
 static int32_t getRangeInWindowBlock(SSlidingWindowInMem* pWindowData, int32_t tsColSlotId, TSKEY start, TSKEY end,
                                      SSDataBlock** ppBlock) {
@@ -75,8 +80,19 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
   int32_t lino = 0;
 
   SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
-  for (; pAlignGrpMgr->blocksInMem->size > 0;) {
-    SAlignBlocksInMem** ppBlockInfo = (SAlignBlocksInMem**)taosArrayGet(pAlignGrpMgr->blocksInMem, 0);
+  for (;;) {
+    if (pResult->exactWindow) {
+      if (pResult->blockIndex >= pAlignGrpMgr->blocksInMem->size) {
+        *finished = true;
+        return code;
+      }
+    } else if (pAlignGrpMgr->blocksInMem->size == 0) {
+      *finished = true;
+      return code;
+    }
+
+    int32_t             blockIndex = pResult->exactWindow ? pResult->blockIndex : 0;
+    SAlignBlocksInMem** ppBlockInfo = (SAlignBlocksInMem**)taosArrayGet(pAlignGrpMgr->blocksInMem, blockIndex);
     SAlignBlocksInMem*  pBlockInfo = *ppBlockInfo;
     if (pBlockInfo == NULL) {
       stError("failed to get block info from mem, since block is NULL");
@@ -86,12 +102,21 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
       SSlidingWindowInMem* pWindowData = (SSlidingWindowInMem*)((char*)pBlockInfo + sizeof(SAlignBlocksInMem) + pResult->offset);
 
       bool found = false;
-      if (pWindowData->startTime > pResult->reqEndTime) {
+      if (!pResult->exactWindow && pWindowData->startTime > pResult->reqEndTime) {
         *finished = true;
         return code;
       }
 
-      if (pWindowData->endTime >= pResult->reqStartTime) {
+      bool windowMatched =
+          pResult->exactWindow
+              ? (pWindowData->startTime == pResult->reqStartTime && pWindowData->endTime == pResult->reqEndTime &&
+                 strcmp(pWindowData->eventConditionPath, pResult->eventConditionPath) == 0)
+              : (pWindowData->endTime >= pResult->reqStartTime);
+      if (pResult->exactWindow && pResult->exactWindowMatched && !windowMatched) {
+        *finished = true;
+        return code;
+      }
+      if (windowMatched) {
         found = true;
         if (pWindowData->dataLen == 0) {
           SMoveWindowInfo* pMoveWinInfo = getWindowDataBuf(pWindowData);
@@ -101,28 +126,41 @@ static int32_t getAlignDataFromMem(SResultIter* pResult, SSDataBlock** ppBlock, 
           }
           (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pMoveWinInfo->moveSize);
         } else {
-          code = getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, TSKEY_MIN, TSKEY_MAX,
-                                       ppBlock);
+          TSKEY start = pResult->exactWindow ? pResult->reqStartTime : TSKEY_MIN;
+          TSKEY end = pResult->exactWindow ? pResult->reqEndTime : TSKEY_MAX;
+          code = getRangeInWindowBlock(pWindowData, pResult->tsColSlotId, start, end, ppBlock);
           if (code) {
             return code;
           }
         }
+        if (pResult->exactWindow) {
+          pResult->exactWindowMatched = true;
+        }
       }
 
+      size_t windowSize = getWindowDataSize(pWindowData);
       if (++pResult->winIndex >= pBlockInfo->nWindow) {
         pResult->winIndex = 0;
         pResult->offset = 0;
-        destroyAlignBlockInMemPP(ppBlockInfo);
-        taosArrayRemove(pAlignGrpMgr->blocksInMem, 0);
-        if (pAlignGrpMgr->blocksInMem->size == 0) {
-          *finished = true;
-          return code;
+        if (pResult->exactWindow) {
+          pResult->blockIndex++;
+          if (pResult->blockIndex >= pAlignGrpMgr->blocksInMem->size) {
+            *finished = true;
+            return code;
+          }
+        } else {
+          destroyAlignBlockInMemPP(ppBlockInfo);
+          taosArrayRemove(pAlignGrpMgr->blocksInMem, 0);
+          if (pAlignGrpMgr->blocksInMem->size == 0) {
+            *finished = true;
+            return code;
+          }
         }
         if (!found) {
           break;  // break the while loop
         }
       } else {
-        pResult->offset += pWindowData->dataLen == 0 ? (sizeof(SAlignBlocksInMem) + sizeof(SMoveWindowInfo)) : pWindowData->dataLen;
+        pResult->offset += windowSize;
         if (!found) {
           continue;  // to check next window
         }
@@ -239,7 +277,7 @@ bool setNextIteratorFromMem(SResultIter** ppResult) {
 }
 
 int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_t startIndex, int32_t endIndex,
-                                SSlidingWindowInMem** ppSlidingWinInMem) {
+                                const char* eventConditionPath, SSlidingWindowInMem** ppSlidingWinInMem) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -256,6 +294,10 @@ int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_
 
   code = getStreamBlockTS(pBlock, tsColSlotId, startIndex, &(*ppSlidingWinInMem)->startTime);
   QUERY_CHECK_CODE(code, lino, _end);
+  if (eventConditionPath != NULL) {
+    tstrncpy((*ppSlidingWinInMem)->eventConditionPath, eventConditionPath,
+             sizeof((*ppSlidingWinInMem)->eventConditionPath));
+  }
 
   char*   pStart = buf + sizeof(SSlidingWindowInMem);
   int32_t len = 0;
@@ -341,7 +383,7 @@ int32_t getEnoughBuffWindow(SAlignGrpMgr* pAlignGrpMgr, size_t dataEncodeBufSize
 }
 
 int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlock, int32_t tsColSlotId, TSKEY wstart,
-                                   TSKEY wend, int32_t startIndex, int32_t endIndex) {
+                                   TSKEY wend, const char* eventConditionPath, int32_t startIndex, int32_t endIndex) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -358,6 +400,9 @@ int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlo
   pSlidingWinInMem->endTime = wend;
   pSlidingWinInMem->startTime = wstart;
   pSlidingWinInMem->dataLen = buffSize;
+  if (eventConditionPath != NULL) {
+    tstrncpy(pSlidingWinInMem->eventConditionPath, eventConditionPath, sizeof(pSlidingWinInMem->eventConditionPath));
+  }
 
   char*   pStart = getWindowDataBuf(pSlidingWinInMem);
   int32_t len = 0;

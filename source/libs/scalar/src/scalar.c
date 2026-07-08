@@ -947,7 +947,33 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t sclAssignEventConditionPathRes(SColumnInfoData *pResColData, int64_t offset, int64_t rows,
+                                              const char *path) {
+  int32_t code = TSDB_CODE_SUCCESS;
 
+  if (!IS_VAR_DATA_TYPE(pResColData->info.type)) {
+    uError("invalid event condition path placeholder type: %d", pResColData->info.type);
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+
+  if (path == NULL) {
+    path = "";
+  }
+  int32_t pathLen = (int32_t)strlen(path);
+  char   *buf = taosMemoryCalloc(1, pathLen + VARSTR_HEADER_SIZE);
+  if (buf == NULL) {
+    return terrno;
+  }
+
+  if (pathLen > 0) {
+    (void)memcpy(varDataVal(buf), path, pathLen);
+  }
+  varDataSetLen(buf, pathLen);
+
+  code = colDataSetNItems(pResColData, offset, buf, rows, 1, false);
+  taosMemoryFree(buf);
+  return code;
+}
 
 int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarParam* res, SScalarCtx *pCtx) {
   int32_t code = 0;
@@ -1009,6 +1035,9 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
         break;
       case FUNCTION_TYPE_TIDLEEND:
         ((int64_t*)res->columnData->pData)[i] = pParams->idleend;
+        break;
+      case FUNCTION_TYPE_TEVENT_CONDITION_PATH:
+        SCL_ERR_RET(sclAssignEventConditionPathRes(res->columnData, i, 1, pParams->eventConditionPath));
         break;
       default:
         uError("invalid placeholder function type: %d in ext win range expr", t);
@@ -1165,6 +1194,8 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
     case FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN: {
       return sclAssignExternalWindowColumnRes(pResColData, offset, rows, pParams, pParamNode);
     }
+    case FUNCTION_TYPE_TEVENT_CONDITION_PATH:
+      return sclAssignEventConditionPathRes(pResColData, offset, rows, pParams->eventConditionPath);
     case FUNCTION_TYPE_TIDLESTART:
       pData = &pParams->idlestart;
       break;
