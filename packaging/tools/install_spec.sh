@@ -290,62 +290,10 @@ function install_bin() {
 }
 
 function install_lib() {
-  link_driver_runtime_libs() {
-    local target_dir=$1
-    local pattern=""
-    local lib=""
-
-    [ -d "${target_dir}" ] || return
-
-    for pattern in "libmariadb.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libssl.so*" "libcrypto.so*"; do
-      for lib in "${install_main_dir}/driver"/${pattern}; do
-        [ -e "${lib}" ] || continue
-        ${csudo}ln -sf "${lib}" "${target_dir}/$(basename "${lib}")"
-      done
-    done
-  }
-
-  remove_managed_driver_links() {
-    local dir=$1
-    local pattern=""
-    local link_path=""
-    local resolved=""
-
-    [ -d "${dir}" ] || return
-
-    for pattern in "libmariadb.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libssl.so*" "libcrypto.so*"; do
-      for link_path in "${dir}"/${pattern}; do
-        [ -L "${link_path}" ] || continue
-        resolved=$(readlink -f "${link_path}" 2>/dev/null || true)
-        case "${resolved}" in
-          "${install_main_dir}/driver/"*)
-            ${csudo}rm -f "${link_path}" || :
-            ;;
-        esac
-      done
-    done
-  }
-
-  configure_driver_runtime_path() {
-    local conf_file="/etc/ld.so.conf.d/tdengine-connector.conf"
-
-    if [ "$osType" = "Darwin" ]; then
-      return
-    fi
-
-    if [ -d /etc/ld.so.conf.d ]; then
-      echo "${install_main_dir}/driver" | ${csudo}tee "${conf_file}" >/dev/null || echo -e "failed to write ${conf_file}"
-      ${csudo}ldconfig
-    else
-      echo "/etc/ld.so.conf.d not found!"
-    fi
-  }
-
   # Remove links
   ${csudo}rm -f ${lib_link_dir}/libtaos.* || :
   ${csudo}rm -f ${lib_link_dir}/libtaosnative.* || :
   ${csudo}rm -f ${lib_link_dir}/libtaosws.* || :
-  remove_managed_driver_links "${lib_link_dir}"
   #${csudo}rm -rf ${v15_java_app_dir}              || :
   ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
 
@@ -356,14 +304,12 @@ function install_lib() {
   ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
   [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
-  configure_driver_runtime_path
-
   ${csudo}mkdir -p ${bin_link_dir}
   ${csudo}mkdir -p ${lib_link_dir}
   ${csudo}mkdir -p ${inc_link_dir}
   
   export PATH=$bin_link_dir:$PATH  
-  export LD_LIBRARY_PATH=${install_main_dir}/driver:$lib_link_dir
+  export LD_LIBRARY_PATH=$lib_link_dir
 }
 
 function install_avro() {
@@ -1088,10 +1034,10 @@ function updateProduct() {
   else
       echo -e  "\n# taos bin env\nexport PATH=$bin_link_dir:\$PATH\n" >> ~/.bashrc
   fi
-  if grep -q "export LD_LIBRARY_PATH=${install_main_dir}/driver:$lib_link_dir" ~/.bashrc; then
+  if grep -q "export LD_LIBRARY_PATH=$lib_link_dir" ~/.bashrc; then
       echo "taos lib env has been added to LD_LIBRARY_PATH"
   else
-      echo -e  "\n# taos lib env\nexport LD_LIBRARY_PATH=${install_main_dir}/driver:$lib_link_dir\n" >> ~/.bashrc
+      echo -e  "\n# taos lib env\nexport LD_LIBRARY_PATH=$lib_link_dir\n" >> ~/.bashrc
   fi
 }
 
@@ -1196,11 +1142,11 @@ function installProduct() {
   else
     echo -e  "\n# taos bin env\nexport PATH=$bin_link_dir:\$PATH\n" >> ~/.bashrc
   fi
-  if grep -q "export LD_LIBRARY_PATH=${install_main_dir}/driver:$lib_link_dir" ~/.bashrc; then
+  if grep -q "export LD_LIBRARY_PATH=$lib_link_dir" ~/.bashrc; then
     echo "taos lib env has been added to LD_LIBRARY_PATH"
     return
   else
-    echo -e  "\n# taos lib env\nexport LD_LIBRARY_PATH=${install_main_dir}/driver:$lib_link_dir\n" >> ~/.bashrc
+    echo -e  "\n# taos lib env\nexport LD_LIBRARY_PATH=$lib_link_dir\n" >> ~/.bashrc
   fi
 }
 
