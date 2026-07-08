@@ -1520,7 +1520,7 @@ class ServiceTest(unittest.TestCase):
         try:
             self._make_linear_pkl(pkl_path, n_features=2)
 
-            config = {"algo": "linear", "model_path": pkl_path}
+            config = {"algo": "linear_regression", "model_path": pkl_path}
             with open(config_path, "w", encoding="utf-8") as handle:
                 handle.write(json.dumps(config))
 
@@ -1530,7 +1530,7 @@ class ServiceTest(unittest.TestCase):
             service = loader.get_service(service_name)
             self.assertIsNotNone(service)
             self.assertIsInstance(service, DynamicRegressionService)
-            self.assertEqual(service.algo.lower(), "linear")
+            self.assertEqual(service.algo.lower(), "linear_regression")
         finally:
             loader.services.pop(service_name, None)
             for p in (pkl_path, config_path):
