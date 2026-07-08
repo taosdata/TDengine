@@ -376,8 +376,8 @@ function install_lib() {
     local pattern=""
     local src=""
 
-    is_true "${install_fq_runtime_libs}" || return
-    [ -d "${binary_dir}/build/lib" ] || return
+    is_true "${install_fq_runtime_libs}" || return 0
+    [ -d "${binary_dir}/build/lib" ] || return 0
 
     for pattern in \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
