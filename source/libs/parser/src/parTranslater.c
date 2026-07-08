@@ -2861,6 +2861,26 @@ static int32_t biMakeTbnameProjectAstNode(char* funcName, char* tableAlias, SNod
   return code;
 }
 
+static const STableMeta* getBiTableMeta(const STableNode* pTable) {
+  if (NULL == pTable) {
+    return NULL;
+  }
+
+  switch (nodeType(pTable)) {
+    case QUERY_NODE_REAL_TABLE:
+      return ((const SRealTableNode*)pTable)->pMeta;
+    case QUERY_NODE_VIRTUAL_TABLE:
+      return ((const SVirtualTableNode*)pTable)->pMeta;
+    default:
+      return NULL;
+  }
+}
+
+static bool isBiStableTable(const STableNode* pTable) {
+  const STableMeta* pMeta = getBiTableMeta(pTable);
+  return NULL != pMeta && TSDB_SUPER_TABLE == pMeta->tableType;
+}
+
 static int32_t biRewriteSelectFuncParamStar(STranslateContext* pCxt, SSelectStmt* pSelect, SNode* pNode,
                                             SListCell* pSelectListCell) {
   SNodeList* pTbnameNodeList = NULL;
@@ -2878,8 +2898,7 @@ static int32_t biRewriteSelectFuncParamStar(STranslateContext* pCxt, SSelectStmt
         size_t  n = taosArrayGetSize(pTables);
         for (int32_t i = 0; i < n && TSDB_CODE_SUCCESS == code; ++i) {
           STableNode* pTable = taosArrayGetP(pTables, i);
-          if (nodeType(pTable) == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)pTable)->pMeta != NULL &&
-              ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
+          if (isBiStableTable(pTable)) {
             SNode* pTbnameNode = NULL;
             code = biMakeTbnameProjectAstNode(pFunc->functionName, NULL, &pTbnameNode);
             if (TSDB_CODE_SUCCESS == code) code = nodesListStrictAppend(pTbnameNodeList, pTbnameNode);
@@ -2893,9 +2912,7 @@ static int32_t biRewriteSelectFuncParamStar(STranslateContext* pCxt, SSelectStmt
         char*       pTableAlias = ((SColumnNode*)pPara)->tableAlias;
         STableNode* pTable = NULL;
         code = findTable(pCxt, pTableAlias, &pTable);
-        if (TSDB_CODE_SUCCESS == code && nodeType(pTable) == QUERY_NODE_REAL_TABLE &&
-            ((SRealTableNode*)pTable)->pMeta != NULL &&
-            ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
+        if (TSDB_CODE_SUCCESS == code && isBiStableTable(pTable)) {
           SNode* pTbnameNode = NULL;
           code = biMakeTbnameProjectAstNode(pFunc->functionName, pTableAlias, &pTbnameNode);
           if (TSDB_CODE_SUCCESS == code) code = nodesListStrictAppend(pTbnameNodeList, pTbnameNode);
@@ -2926,8 +2943,7 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
       size_t  n = taosArrayGetSize(pTables);
       for (int32_t i = 0; i < n && TSDB_CODE_SUCCESS == code; ++i) {
         STableNode* pTable = taosArrayGetP(pTables, i);
-        if (nodeType(pTable) == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)pTable)->pMeta != NULL &&
-            ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
+        if (isBiStableTable(pTable)) {
           SNode* pTbnameNode = NULL;
           code = biMakeTbnameProjectAstNode(NULL, NULL, &pTbnameNode);
           if (TSDB_CODE_SUCCESS == code) code = nodesListStrictAppend(pTbnameNodeList, pTbnameNode);
@@ -2941,8 +2957,7 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
       char*       pTableAlias = ((SColumnNode*)pNode)->tableAlias;
       STableNode* pTable = NULL;
       code = findTable(pCxt, pTableAlias, &pTable);
-      if (TSDB_CODE_SUCCESS == code && nodeType(pTable) == QUERY_NODE_REAL_TABLE &&
-          ((SRealTableNode*)pTable)->pMeta != NULL && ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
+      if (TSDB_CODE_SUCCESS == code && isBiStableTable(pTable)) {
         SNode* pTbnameNode = NULL;
         code = biMakeTbnameProjectAstNode(NULL, pTableAlias, &pTbnameNode);
         if (TSDB_CODE_SUCCESS == code) code = nodesListStrictAppend(pTbnameNodeList, pTbnameNode);
@@ -2965,7 +2980,7 @@ int32_t biRewriteSelectStar(STranslateContext* pCxt, SSelectStmt* pSelect) {
 int32_t biRewriteToTbnameFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRet) {
   SColumnNode* pCol = (SColumnNode*)(*ppNode);
   if ((strcasecmp(pCol->colName, "tbname") == 0) && ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable &&
-      QUERY_NODE_REAL_TABLE == nodeType(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
+      NULL != getBiTableMeta((STableNode*)((SSelectStmt*)pCxt->pCurrStmt)->pFromTable)) {
     SFunctionNode* tbnameFuncNode = NULL;
     int32_t        code = biMakeTbnameProjectAstNode(NULL, (pCol->tableAlias[0] != '\0') ? pCol->tableAlias : NULL,
                                                      (SNode**)&tbnameFuncNode);

@@ -1935,6 +1935,12 @@ endif()
 # linked into mnode (server) and the client so the CONNECT handshake can negotiate SCRAM.
 # Built with the minimal flag set so it pulls NO external runtime deps (no libidn / no
 # libgcrypt / no openssl / no NLS): GNU SASL falls back to its bundled gnulib crypto.
+# NOTE: --without-stringprep is REQUIRED, not optional. --without-libidn-prefix only skips
+# a custom search prefix; it does NOT disable auto-detection of a system libidn in default
+# paths. On a host with libidn-dev installed, configure would otherwise set HAVE_LIBIDN=1 and
+# compile saslprep.o with calls to stringprep_profile / pr29_8z, leaving libtaos.so with
+# undefined references (no -lidn on its link line). --without-stringprep forces saslprep.c
+# into its ASCII-passthrough branch, which is what we want for SCRAM-SHA-256 usernames.
 # A post-install step (isolate_gsasl_syms.sh) renames the bundled gnulib symbols (base64_*,
 # md5_*, sha*_*, hmac_*, memxor, ...) to a tdgs_ prefix to avoid collisions with TDengine's
 # own base64_encode/base64_decode (source/util/src/tbase64.c) when statically linked.
@@ -1966,6 +1972,7 @@ if(${BUILD_LIBGSASL} AND ${TD_LINUX})      # {
                 CFLAGS=-fPIC
                 ./configure --prefix=${_ins} --with-pic --enable-static=yes --enable-shared=no
                     --disable-nls --enable-scram-sha256
+                    --without-stringprep
                     --without-libidn-prefix --without-libgcrypt-prefix --without-libntlm-prefix
                     --with-openssl=no --with-gssapi-impl=no
                     --disable-gssapi --disable-gs2 --disable-ntlm --disable-cram-md5 --disable-digest-md5

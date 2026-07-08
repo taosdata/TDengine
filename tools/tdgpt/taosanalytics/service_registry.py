@@ -14,6 +14,7 @@ from taosanalytics.conf import Configure
 from taosanalytics.handlers.dynamic_forecast import DynamicForecastService
 from taosanalytics.handlers.dynamic_anomaly import DynamicAnomalyService
 from taosanalytics.handlers.dynamic_regression import DynamicRegressionService
+from taosanalytics.handlers.dynamic_regression import DynamicRegressionService
 from taosanalytics.exception import NotFoundDynamicModelError
 from taosanalytics.log import AppLogger
 from taosanalytics.base import (
@@ -30,7 +31,7 @@ class ServiceRegistry:
 
     _only_params_models = ['arima', 'prophet', 'theta']
     _anomaly_models = ['iforest', 'svm']
-    _regression_models = ['linear', 'lasso', 'ridge', 'elasticnet']
+    _regression_models = ['linear_regression', 'lasso', 'ridge', 'elasticnet']
 
     _base_class_name = [
         AbstractAnomalyDetectionService.__name__,

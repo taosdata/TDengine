@@ -142,57 +142,6 @@ function clean_lib() {
 }
 
 function install_lib() {
-    link_driver_runtime_libs() {
-        local target_dir=$1
-        local pattern=""
-        local lib=""
-
-        [ -d "${target_dir}" ] || return
-
-        for pattern in "libmariadb.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libssl.so*" "libcrypto.so*"; do
-            for lib in "${install_main_dir}/driver"/${pattern}; do
-                [ -e "${lib}" ] || continue
-                ${csudo}ln -sf "${lib}" "${target_dir}/$(basename "${lib}")"
-            done
-        done
-    }
-
-    remove_managed_driver_links() {
-        local dir=$1
-        local pattern=""
-        local link_path=""
-        local resolved=""
-
-        [ -d "${dir}" ] || return
-
-        for pattern in "libmariadb.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libssl.so*" "libcrypto.so*"; do
-            for link_path in "${dir}"/${pattern}; do
-                [ -L "${link_path}" ] || continue
-                resolved=$(readlink -f "${link_path}" 2>/dev/null || true)
-                case "${resolved}" in
-                    "${install_main_dir}/driver/"*)
-                        ${csudo}rm -f "${link_path}" || :
-                        ;;
-                esac
-            done
-        done
-    }
-
-    configure_driver_runtime_path() {
-        local conf_file="/etc/ld.so.conf.d/tdengine-connector.conf"
-
-        if [ "$osType" = "Darwin" ]; then
-            return
-        fi
-
-        if [ -d /etc/ld.so.conf.d ]; then
-            echo "${install_main_dir}/driver" | ${csudo}tee "${conf_file}" >/dev/null || echo -e "failed to write ${conf_file}"
-            ${csudo}ldconfig
-        else
-            echo "/etc/ld.so.conf.d not found!"
-        fi
-    }
-
     # Remove links
     ${csudo}rm -f ${lib_link_dir}/libtaos.*         || :
     ${csudo}rm -f ${lib64_link_dir}/libtaos.*       || :
@@ -201,9 +150,6 @@ function install_lib() {
 
     [ -f ${lib_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.so         || :
     [ -f ${lib64_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.so         || :
-    remove_managed_driver_links "${lib_link_dir}"
-    remove_managed_driver_links "${lib64_link_dir}"
-
     #${csudo}rm -rf ${v15_java_app_dir}              || :
 
     ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 777 ${install_main_dir}/driver/*
@@ -231,7 +177,7 @@ function install_lib() {
             fi
         fi
 
-        configure_driver_runtime_path
+        ${csudo}ldconfig
     else
         ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
         ${csudo}ln -s ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib

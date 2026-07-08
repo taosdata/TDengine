@@ -461,18 +461,6 @@ function remove_install_dir() {
   fi
 }
 
-function clean_driver_runtime_path() {
-  local conf_file="/etc/ld.so.conf.d/tdengine-connector.conf"
-
-  if [ "$osType" = "Darwin" ] || [ "$user_mode" -ne 0 ]; then
-    return 0
-  fi
-
-  if [ -f "${conf_file}" ]; then
-    rm -f "${conf_file}" || :
-    command -v ldconfig >/dev/null 2>&1 && ldconfig >/dev/null 2>&1 || true
-  fi
-}
 # ====== main logic starts here ======
 if [ "$interactive_remove" == "yes" ]; then
   echo -e "\nDo you want to remove all the data, log and configuration files? [y/n]"
@@ -512,7 +500,6 @@ if [ X$remove_flag == X"true" ]; then
 fi
 
 remove_install_dir
-clean_driver_runtime_path
 
 if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
@@ -551,17 +538,14 @@ function clean_env_file() {
   fi
 
   local tmp_file="${env_file}.tmp.$$"
-  local escaped_bin escaped_lib escaped_driver
+  local escaped_bin escaped_lib
   escaped_bin=$(printf '%s' "${bin_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
   escaped_lib=$(printf '%s' "${lib_link_dir}" | sed 's/[.[\\/^$*]/\\&/g')
-  escaped_driver=$(printf '%s' "${driver_dir}" | sed 's/[.[\\/^$*]/\\&/g')
   sed -e "/^# ${productName} install path$/d" \
       -e "/^# taos bin env$/d" \
       -e "/^# taos lib env$/d" \
       -e "\|^export PATH=\"${escaped_bin}:.*\"|d" \
       -e "\|^export PATH=${escaped_bin}:.*|d" \
-      -e "\|^export LD_LIBRARY_PATH=\"${escaped_driver}:${escaped_lib}:.*\"|d" \
-      -e "\|^export LD_LIBRARY_PATH=${escaped_driver}:${escaped_lib}$|d" \
       -e "\|^export LD_LIBRARY_PATH=\"${escaped_lib}:.*\"|d" \
       -e "\|^export LD_LIBRARY_PATH=${escaped_lib}$|d" \
       "$env_file" > "$tmp_file" && mv "$tmp_file" "$env_file" || rm -f "$tmp_file"

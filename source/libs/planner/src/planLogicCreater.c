@@ -2548,6 +2548,46 @@ static bool isTagUsedInAnyClause(SSelectStmt* pSelect, SColumnNode* pCol, bool* 
   return usedInFilter || usedInNonFilter;
 }
 
+static bool isVirtualTagRefCol(SVirtualTableNode* pVirtualTable, SNode* pNode) {
+  if (pVirtualTable == NULL || pVirtualTable->pMeta == NULL || pVirtualTable->pMeta->tagRef == NULL ||
+      nodeType(pNode) != QUERY_NODE_COLUMN) {
+    return false;
+  }
+
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  int32_t      tagRefIndex = findTagRefIndex(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colId);
+  if (tagRefIndex == -1) {
+    tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
+  }
+  if (tagRefIndex == -1) {
+    int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
+    int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
+    if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
+      int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
+      if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs && pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
+        tagRefIndex = tagPos;
+      }
+    }
+  }
+
+  return tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef;
+}
+
+static bool hasVirtualTagRefPseudoCol(SVirtualTableNode* pVirtualTable, SVirtualScanLogicNode* pVtableScan) {
+  if (pVtableScan == NULL || pVtableScan->pScanPseudoCols == NULL) {
+    return false;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pVtableScan->pScanPseudoCols) {
+    if (isVirtualTagRefCol(pVirtualTable, pNode)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 static int32_t keepOnlyLocalTagPseudoCols(SVirtualTableNode* pVirtualTable, SVirtualScanLogicNode* pVtableScan) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -2563,24 +2603,7 @@ static int32_t keepOnlyLocalTagPseudoCols(SVirtualTableNode* pVirtualTable, SVir
     bool keepInPseudoCols = true;
 
     if (nodeType(pNode) == QUERY_NODE_COLUMN) {
-      SColumnNode* pCol = (SColumnNode*)pNode;
-      int32_t      tagRefIndex = findTagRefIndex(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colId);
-      if (tagRefIndex == -1) {
-        tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
-      }
-      if (tagRefIndex == -1) {
-        int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
-        int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
-        if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
-          int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
-          if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs &&
-              pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
-            tagRefIndex = tagPos;
-          }
-        }
-      }
-
-      if (tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
+      if (isVirtualTagRefCol(pVirtualTable, pNode)) {
         keepInPseudoCols = false;
       }
     }
@@ -3266,12 +3289,20 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   SNode*                  pTagScan = NULL;
   SNodeList*              pTagRefCols = NULL;
 
-  // Virtual table scan node -> Real table scan node
-  PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 0), &pRealTableScan));
-
   if (LIST_LENGTH(pVtableScan->pScanCols) == 0 && LIST_LENGTH(pVtableScan->pScanPseudoCols) == 0) {
     scanAllCols = false;
   }
+  if (pSelect->tagScan && LIST_LENGTH(pVtableScan->pScanCols) == 0 && LIST_LENGTH(pVtableScan->pScanPseudoCols) > 0 &&
+      !hasVirtualTagRefPseudoCol(pVirtualTable, pVtableScan)) {
+    PLAN_ERR_JRET(createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan));
+    nodesDestroyNode((SNode*)pVtableScan);
+    *pLogicNode = (SLogicNode*)pTagScan;
+    return code;
+  }
+
+  // Virtual table scan node -> Real table scan node
+  PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 0), &pRealTableScan));
+
   if (((SScanLogicNode*)pRealTableScan)->scanType == SCAN_TYPE_TAG) {
     ((SScanLogicNode*)pRealTableScan)->scanType = SCAN_TYPE_TABLE;
   }
