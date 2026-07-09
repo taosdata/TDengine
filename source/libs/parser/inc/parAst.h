@@ -97,6 +97,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_SECURE_DELETE,
   DB_OPTION_CACHESHARDBITS,
   DB_OPTION_SECURITY_LEVEL,
+  DB_OPTION_PARALLEL,
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
