@@ -268,6 +268,7 @@ typedef struct {
   ETrnKillMode  killMode;
   SHashObj*     redoGroupActions;
   SHashObj*     groupActionPos;
+  int32_t       groupParallelNum;
 
   // user data is for upper layer to store some additional infomation in the transaction,
   // it is set and interpreted by upper layer, the transaction layer does not care about it.

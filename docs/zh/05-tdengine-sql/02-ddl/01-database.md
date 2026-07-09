@@ -293,7 +293,7 @@ alter_database_option: {
   | CACHESHARDBITS value
   | BUFFER value
   | PAGES value
-  | REPLICA value
+  | REPLICA value [PARALLEL value]
   | STT_TRIGGER value
   | WAL_LEVEL value
   | WAL_FSYNC_PERIOD value
@@ -305,6 +305,35 @@ alter_database_option: {
   | COMPACT_TIME_RANGE value
   | COMPACT_TIME_OFFSET value  
 }
+```
+
+### 修改副本数与并发控制
+
+在修改数据库副本数时，可以通过 `PARALLEL` 参数控制副本变更操作的并发度：
+
+```sql
+ALTER DATABASE db_name REPLICA value [PARALLEL parallel_value];
+```
+
+- `value`: 目标副本数（1、2 或 3）。
+- `parallel_value`: 控制同时执行副本变更的 vgroup 数量。默认值为 0（无限制）。
+  - `0`: 无限制并发。所有 vgroup 同时执行副本变更。速度最快，但资源消耗较高。
+  - `1`: 串行执行。一次只有一个 vgroup 执行副本变更。速度最慢，但资源消耗最低。
+  - `N`（N > 1）: 有限并发。最多 N 个 vgroup 同时执行副本变更。在速度和资源消耗之间取得平衡。
+
+**注意：** `PARALLEL` 参数仅适用于修改 `REPLICA` 时使用，不能与其他 ALTER DATABASE 选项一起使用。
+
+**示例：**
+
+```sql
+-- 修改为 3 副本，无限制并发（默认）
+ALTER DATABASE db_name REPLICA 3;
+
+-- 修改为 3 副本，串行执行（一个 vgroup 一个 vgroup 地执行）
+ALTER DATABASE db_name REPLICA 3 PARALLEL 1;
+
+-- 修改为 3 副本，有限并发（最多 2 个 vgroup 同时执行）
+ALTER DATABASE db_name REPLICA 3 PARALLEL 2;
 ```
 
 ### 修改 CACHESHARDBITS
