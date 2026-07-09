@@ -1526,6 +1526,7 @@ static int32_t physiSubplanCopy(const SSubplan* pSrc, SSubplan* pDst) {
   COPY_SCALAR_FIELD(rowsThreshold);
   COPY_SCALAR_FIELD(processOneBlock);
   COPY_SCALAR_FIELD(dynTbname);
+  COPY_SCALAR_FIELD(userAppId);
   return TSDB_CODE_SUCCESS;
 }
 
