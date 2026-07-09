@@ -542,7 +542,7 @@ function install_lib() {
     fi
 
     copy_driver_runtime_libs
-    copy_fq_runtime_libs
+    copy_fq_runtime_libs || :
     remove_fq_runtime_libs
   else
     ${csudo}cp -Rf ${binary_dir}/build/lib/libtaos.dylib \
@@ -578,7 +578,7 @@ function install_lib() {
     fi
 
     copy_driver_runtime_libs
-    copy_fq_runtime_libs
+    copy_fq_runtime_libs || :
     remove_fq_runtime_libs
     link_driver_runtime_libs "${lib_link_dir}"
   fi
@@ -700,8 +700,9 @@ function install_log() {
 }
 
 function install_data() {
+  ${csudo}rm -rf ${install_main_dir}/data || :
   ${csudo}mkdir -p ${data_dir} && ${csudo}chmod 777 ${data_dir}
-  ${csudo}ln -s ${data_dir} ${install_main_dir}/data > /dev/null 2>&1
+  ${csudo}ln -s ${data_dir} ${install_main_dir}/data > /dev/null 2>&1 || :
 }
 
 function install_connector() {
