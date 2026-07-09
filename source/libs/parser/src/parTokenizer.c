@@ -530,6 +530,7 @@ static SKeyword keywordTable[] = {
     {"TYPE",                 TK_TYPE},
     {"PASSWORD",             TK_PASSWORD},
     {"API_TOKEN",            TK_API_TOKEN},
+    {"PARALLEL",             TK_PARALLEL},
 };
 // clang-format on
 

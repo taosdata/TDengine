@@ -18145,6 +18145,7 @@ static int32_t buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStm
   pReq->allowDrop = pStmt->pOptions->allowDrop;
   pReq->secureDelete = pStmt->pOptions->secureDelete;
   pReq->securityLevel = pStmt->pOptions->securityLevel;
+  pReq->parallel = pStmt->pOptions->parallel;
   return code;
 }
 

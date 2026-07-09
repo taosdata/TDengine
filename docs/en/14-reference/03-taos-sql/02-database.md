@@ -165,7 +165,7 @@ alter_database_option: {
   | CACHESHARDBITS value
   | BUFFER value
   | PAGES value
-  | REPLICA value
+  | REPLICA value [PARALLEL value]
   | STT_TRIGGER value
   | WAL_LEVEL value
   | WAL_FSYNC_PERIOD value
@@ -174,6 +174,35 @@ alter_database_option: {
   | WAL_RETENTION_SIZE value
   | MINROWS value
 }
+```
+
+### Modify REPLICA with PARALLEL
+
+When changing the number of replicas for a database, you can optionally specify the `PARALLEL` parameter to control the concurrency of the replica change operation:
+
+```sql
+ALTER DATABASE db_name REPLICA value [PARALLEL parallel_value];
+```
+
+- `value`: The target replica count (1, 2, or 3).
+- `parallel_value`: Controls how many vgroups can perform replica changes concurrently. Default is 0 (unlimited).
+  - `0`: Unlimited concurrency. All vgroups perform replica changes simultaneously. This is the fastest but may consume more resources.
+  - `1`: Serial execution. Only one vgroup performs replica change at a time. This is the slowest but most resource-friendly.
+  - `N` (where N > 1): Limited concurrency. At most N vgroups perform replica changes concurrently. This provides a balance between speed and resource usage.
+
+**Note:** The `PARALLEL` parameter only applies when modifying `REPLICA`. It cannot be used with other ALTER DATABASE options.
+
+**Example:**
+
+```sql
+-- Change to 3 replicas with unlimited concurrency (default)
+ALTER DATABASE db_name REPLICA 3;
+
+-- Change to 3 replicas with serial execution (one vgroup at a time)
+ALTER DATABASE db_name REPLICA 3 PARALLEL 1;
+
+-- Change to 3 replicas with limited concurrency (max 2 vgroups at a time)
+ALTER DATABASE db_name REPLICA 3 PARALLEL 2;
 ```
 
 ### Modify CACHESHARDBITS
