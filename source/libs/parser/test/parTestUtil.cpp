@@ -21,6 +21,7 @@
 #include <thread>
 
 #include "catalog.h"
+#include "catalogInt.h"
 #include "mockCatalogService.h"
 #include "parInt.h"
 
@@ -72,10 +73,13 @@ static void initKeywordsTableOnce() {
   });
 }
 
-// Dummy catalog object for parser tests. Never dereferenced; only checked for NULL.
-static struct {
-  char dummy;  // minimal non-empty struct to avoid UB
-} g_dummyCatalog = {0};
+// Dummy catalog object for parser tests. Kept non-NULL for privilege checks.
+// Must be a fully-sized, zero-initialized SCatalog: the enterprise
+// federated-query path (preParseTargetTableName -> catalogIsExtSource ->
+// ctgAcquireExtSource) dereferences catalog fields (pExtSourceHash, extHashLatch).
+// A zeroed SCatalog makes pExtSourceHash == NULL so that path safely returns
+// "not an ext source"; a truncated stub would read those fields out of bounds.
+static SCatalog g_dummyCatalog = {};
 
 class ParserTestBaseImpl {
  public:
