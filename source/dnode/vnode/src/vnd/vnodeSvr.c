@@ -2394,16 +2394,7 @@ _exit:
   }
 
   tEncoderClear(&ec);
-  if (vMetaRsp.pSchemas) {
-    taosMemoryFree(vMetaRsp.pSchemas);
-    taosMemoryFree(vMetaRsp.pSchemaExt);
-  }
-  if (vMetaRsp.pColRefs) {
-    taosMemoryFree(vMetaRsp.pColRefs);
-  }
-  if (vMetaRsp.pTagRefs) {
-    taosMemoryFree(vMetaRsp.pTagRefs);
-  }
+  tFreeSTableMetaRsp(&vMetaRsp);
   return 0;
 }
 

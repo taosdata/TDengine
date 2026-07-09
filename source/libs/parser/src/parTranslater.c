@@ -31069,7 +31069,7 @@ static int32_t buildVirtualSubTableBatchReq(STranslateContext* pCxt, const SCrea
       if (pColRef->pTagCond) {
         PAR_ERR_JRET(nodesNodeToString(pColRef->pTagCond, false, &tagJson, &tagCondLen));
       }
-      code = setColRef(&req.colRef.pColRef[index], index + 1, pSchema->name, pColRef->refColName,
+      code = setColRef(&req.colRef.pColRef[index], pSchema->colId, pSchema->name, pColRef->refColName,
                        pColRef->refTableName, pColRef->refDbName,
                        pColRef->refType, pColRef->refSourceName, tagJson, tagCondLen);
       taosMemoryFree(tagJson);
@@ -34536,6 +34536,8 @@ _return:
   return code;
 }
 
+static int32_t translateExtSeriesTagCond(STranslateContext* pCxt, SNode* pTagCond);
+
 // Match pTagCond conditions against influx metadata tags: exact 1:1, no duplicates, no missing.
 static int32_t matchSeriesTagsToMeta(STranslateContext* pCxt, const SSeriesDeclNode* pSeries,
                                      const SExtTableMeta* pExtMeta) {
@@ -34610,6 +34612,7 @@ static int32_t checkInfluxSeriesDecl(STranslateContext* pCxt, SSeriesDeclNode* p
                                          "SERIES '%s' must specify tag conditions", pSeries->alias));
   }
   PAR_ERR_JRET(matchSeriesTagsToMeta(pCxt, pSeries, pExtMeta));
+  PAR_ERR_JRET(translateExtSeriesTagCond(pCxt, pSeries->pTagCond));
 
   return code;
 _return:

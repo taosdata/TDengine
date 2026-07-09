@@ -1112,7 +1112,7 @@ class _InfluxAdapter:
             # the expected 2020+ timestamps. Stale data (from prior runs that
             # used wrong precision) must be cleared because InfluxDB upserts
             # by timestamp and can't overwrite ts in a different range.
-            if self._row_count(db, "vtb_org_tb_0") >= 10000 and \
+            if self._row_count(db, "vtb_org_tb_0") >= 1000 and \
                     self._data_looks_valid(db):
                 tdLog.info(f"InfluxDB data already exists with valid ts in "
                            f"{db}/vtb_org_tb_0 — skipping reload.")
@@ -1133,9 +1133,9 @@ class _InfluxAdapter:
                     f"vtb_org_tb_{i+9}", datafile, ts_offset_ms=offset_ms))
 
             count = self._row_count(db, "vtb_org_tb_0")
-            if count < 10000:
+            if count < 1000:
                 tdLog.info(f"WARNING: InfluxDB {db}/vtb_org_tb_0 has only "
-                           f"{count} rows, expected 10000. Waiting more...")
+                           f"{count} rows, expected 1000. Waiting more...")
                 time.sleep(self.SNAPSHOT_WAIT_S)
                 count = self._row_count(db, "vtb_org_tb_0")
                 tdLog.info(f"After additional wait: {count} rows in {db}")
@@ -1153,7 +1153,7 @@ class _InfluxAdapter:
         offset_ms = 3 * 24 * 3600 * 1000
 
         for db in self.DB_NAMES:
-            if self._row_count_series(db, "vtb_org_tb_0") >= 10000 and \
+            if self._row_count_series(db, "vtb_org_tb_0") >= 1000 and \
                     self._data_looks_valid_series(db):
                 tdLog.info(f"InfluxDB series data already exists with valid ts "
                            f"in {db}/{self.SHARED_MEASUREMENT} — skipping reload.")
@@ -1174,10 +1174,10 @@ class _InfluxAdapter:
                     f"vtb_org_tb_{i+9}", datafile, ts_offset_ms=offset_ms))
 
             count = self._row_count_series(db, "vtb_org_tb_0")
-            if count < 10000:
+            if count < 1000:
                 tdLog.info(f"WARNING: InfluxDB {db}/{self.SHARED_MEASUREMENT} "
                            f"org_tb=vtb_org_tb_0 has only {count} rows, expected "
-                           f"10000. Waiting more...")
+                           f"1000. Waiting more...")
                 time.sleep(self.SNAPSHOT_WAIT_S)
                 count = self._row_count_series(db, "vtb_org_tb_0")
                 tdLog.info(f"After additional wait: {count} rows in {db}")
