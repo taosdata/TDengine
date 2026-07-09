@@ -123,4 +123,5 @@ if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
   endif()
   # brew install argp-standalone
   target_include_directories(taosBenchmark PRIVATE ${BREW_PREFIX}/include)
+  td_fix_macos_client_libtaos_dep(taosBenchmark)
 endif()
