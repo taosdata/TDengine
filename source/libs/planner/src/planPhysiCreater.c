@@ -5626,6 +5626,7 @@ static int32_t makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubplan
   pSubplan->dynamicRowThreshold = false;
   pSubplan->isView = pCxt->pPlanCxt->isView;
   pSubplan->isAudit = pCxt->pPlanCxt->isAudit;
+  pSubplan->userAppId = pCxt->pPlanCxt->userAppId;
   pSubplan->processOneBlock = pLogicSubplan->processOneBlock;
   pSubplan->dynTbname = pLogicSubplan->dynTbname;
   if (NULL != pCxt->pPlanCxt->pUser) {

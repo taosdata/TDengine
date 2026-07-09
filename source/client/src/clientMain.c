@@ -301,8 +301,10 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
   if (option == TSDB_OPTION_CONNECTION_USER_APP || option == TSDB_OPTION_CONNECTION_CLEAR) {
     if (val != NULL) {
       tstrncpy(pObj->optionInfo.userApp, val, sizeof(pObj->optionInfo.userApp));
+      pObj->optionInfo.userAppId = taosAppNameToId(val);
     } else {
       pObj->optionInfo.userApp[0] = 0;
+      pObj->optionInfo.userAppId = TD_APP_UNKNOWN;
     }
   }
 

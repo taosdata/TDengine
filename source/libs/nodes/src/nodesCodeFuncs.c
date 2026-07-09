@@ -6013,6 +6013,7 @@ static const char* jkSubplanIsView = "IsView";
 static const char* jkSubplanIsAudit = "IsAudit";
 static const char* jkSubplanDynTbname = "DynTbname";
 static const char* jkSubplanProcessOneBlock = "ProcessOneBlock";
+static const char* jkSubplanUserAppId = "UserAppId";
 
 static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   const SSubplan* pNode = (const SSubplan*)pObj;
@@ -6077,6 +6078,9 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkSubplanProcessOneBlock, pNode->processOneBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkSubplanUserAppId, pNode->userAppId);
   }
 
   return code;
@@ -6245,6 +6249,9 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkSubplanProcessOneBlock, &pNode->processOneBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetSmallIntValue(pJson, jkSubplanUserAppId, &pNode->userAppId);
   }
 
   return code;
