@@ -148,6 +148,7 @@ if(TD_DARWIN)
     if(_have_no_warn_dup_libs)
         target_link_options(taosdump PRIVATE -Wl,-no_warn_duplicate_libraries)
     endif()
+    td_fix_macos_client_libtaos_dep(taosdump)
 endif()
 
 if(NOT ${TD_WINDOWS})
