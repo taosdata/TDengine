@@ -317,11 +317,11 @@ taos> select replace(binary_32_tag, ' ', '_') from test_vtable_select.vtb_virtua
 taos> select cast(int_col as nchar(16)) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
    cast(int_col as nchar(16))   |
 =================================
- -1000051566                    |
- -1000078806                    |
- -1000188716                    |
- -1000223871                    |
- -1000271870                    |
+ -100095184                     |
+ -1001581211                    |
+ -1002453561                    |
+ -1002801331                    |
+ -100299667                     |
 
 taos> select to_ISO8601(ts) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
          to_iso8601(ts)         |
@@ -408,17 +408,17 @@ taos> select avg(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 lim
 taos> select count(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
     count(int_tag)     |
 ========================
-                 69999 |
+                  6999 |
 
 taos> select count(*) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
        count(*)        |
 ========================
-                 69999 |
+                  6999 |
 
 taos> select elapsed(ts) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
         elapsed(ts)        |
 ============================
-                 172849995 |
+                 172804995 |
 
 taos> select spread(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
       spread(int_tag)      |
@@ -428,12 +428,12 @@ taos> select spread(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 
 taos> select stddev(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
       stddev(int_tag)      |
 ============================
-          1.24721912892464 |
+          1.24721912892465 |
 
 taos> select sum(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
      sum(int_tag)      |
 ========================
-                 93332 |
+                  9332 |
 
 taos> select hyperloglog(int_tag) from test_vtable_select.vtb_virtual_stb order by 1 limit 5;
  hyperloglog(int_tag)  |
@@ -521,10 +521,10 @@ taos> select stateduration(int_tag, "GT", 20, 1a) from test_vtable_select.vtb_vi
 taos> select count(tbname) from test_vtable_select.vtb_virtual_stb;
      count(tbname)     |
 ========================
-                 69999 |
+                  6999 |
 
 taos> select count(1) from test_vtable_select.vtb_virtual_stb;
        count(1)        |
 ========================
-                 69999 |
+                  6999 |
 

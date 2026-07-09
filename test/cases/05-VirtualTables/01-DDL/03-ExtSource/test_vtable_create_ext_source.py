@@ -656,12 +656,16 @@ class TestVtableCreateExtSource:
         tdSql.checkData(0, 0, f"{_PG_SRC}.{_PG_DB}.t_4seg.v")
         tdSql.execute("DROP VTABLE v_4seg")
 
-        # (h) 3-seg with source name disambiguates to ext.
+        # (h) 3-component source.table.col is ambiguous for vtable external
+        # column refs; query ext-source tests use source.db.table.col.
         create_pg_remote_table("t_3disamb", [("v", "INTEGER", "int")])
         tdSql.execute(f"REFRESH EXTERNAL SOURCE {_PG_SRC}")
+        tdSql.error(
+            f"CREATE VTABLE v_3disamb_bad (ts timestamp, "
+            f"v int FROM {_PG_SRC}.t_3disamb.v)")
         tdSql.execute(
             f"CREATE VTABLE v_3disamb (ts timestamp, "
-            f"v int FROM {_PG_SRC}.t_3disamb.v)")
+            f"v int FROM {_PG_SRC}.{_PG_DB}.t_3disamb.v)")
         tdSql.query(
             "SELECT col_source FROM information_schema.ins_columns "
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_3disamb' "
@@ -702,11 +706,11 @@ class TestVtableCreateExtSource:
             "CREATE VTABLE v_5seg (ts timestamp, "
             f"v int FROM x.{_PG_SRC}.{_PG_DB}.t_4seg.v)")
 
-        # (n) 3-seg mix with 4-seg
+        # (n) Explicit external refs with multiple columns.
         tdSql.execute(
             f"CREATE VTABLE v_3mix4 (ts timestamp, "
-            f"v int FROM {_PG_SRC}.t_3disamb.v, "
-            f"v2 int FROM {_PG_SRC}.t_4seg.v)")
+            f"v int FROM {_PG_SRC}.{_PG_DB}.t_3disamb.v, "
+            f"v2 int FROM {_PG_SRC}.{_PG_DB}.t_4seg.v)")
         tdSql.query(
             "SELECT col_source FROM information_schema.ins_columns "
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_3mix4' "
@@ -883,8 +887,8 @@ class TestVtableCreateExtSource:
         tdSql.checkData(0, 1, f"{_INF_SRC}.{_INF_DB}.kpi_in.temperature")
         tdSql.execute("DROP STABLE IF EXISTS vstb_patent")
 
-        # --- §3.2: Child vtable with mixed 2/3/4-seg FROM refs ---
-        tdLog.info("§3.2: mixed segment refs in child vtable")
+        # --- §3.2: Child vtable with mixed local and external FROM refs ---
+        tdLog.info("§3.2: mixed local and external refs in child vtable")
         # Create a local table for 2-seg ref.
         tdSql.execute(
             "CREATE TABLE local_kpi (ts timestamp, temperature double, "
@@ -895,14 +899,14 @@ class TestVtableCreateExtSource:
             "CREATE STABLE vstb_mix (ts timestamp, "
             "t1 double, t2 double, t3 double) "
             "TAGS (site nchar(16)) VIRTUAL 1")
-        # Child with: 2-seg (local), 3-seg (ext disambiguated), 4-seg (ext explicit)
+        # Child with: 2-seg local ref plus explicit external refs.
         tdSql.execute(
             f"CREATE VTABLE vctb_mix ("
             f"t1 FROM local_kpi.temperature, "
-            f"t2 FROM {_PG_SRC}.kpi_pg.temperature, "
+            f"t2 FROM {_PG_SRC}.{_PG_DB}.kpi_pg.temperature, "
             f"t3 FROM {_PG_SRC}.{_PG_DB}.kpi_pg.humidity) "
             f"USING vstb_mix TAGS ('mixed')")
-        # Verify ins_columns: 2-seg stays local (db.table.col), 3-seg/4-seg are full 4-seg.
+        # Verify ins_columns: 2-seg stays local; external refs are full 4-seg.
         tdSql.query(
             "SELECT col_name, col_source FROM information_schema.ins_columns "
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='vctb_mix' "
