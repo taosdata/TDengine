@@ -7762,7 +7762,8 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->secureDelete));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->cacheLastShardBits));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->securityLevel));
- 
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->parallel));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -7873,6 +7874,11 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->securityLevel));
   } else {
     pReq->securityLevel = -1;
+  }
+
+  pReq->parallel = 0;
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->parallel));
   }
 
   tEndDecode(&decoder);

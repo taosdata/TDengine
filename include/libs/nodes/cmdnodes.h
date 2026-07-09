@@ -153,6 +153,7 @@ typedef struct SDatabaseOptions {
   int8_t      allowDrop;
   int8_t      secureDelete;
   int8_t      securityLevel;
+  int32_t     parallel;       // concurrency limit for GROUP_PARALLEL trans, 0 = unlimited
   // for auto-compact
   int32_t     compactTimeOffset;  // hours
   int32_t     compactInterval;    // minutes

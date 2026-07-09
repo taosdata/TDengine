@@ -36,7 +36,7 @@
 #define TRANS_VER_CURRENT    4 // current version
 
 #define TRANS_ARRAY_SIZE     8
-#define TRANS_RESERVE_SIZE   39
+#define TRANS_RESERVE_SIZE   35
 #define TRANS_ACTION_TIMEOUT (1000 * 1000 * 60 * 15)
 
 static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans);
@@ -271,6 +271,8 @@ SSdbRaw *mndTransEncode(STrans *pTrans) {
       SDB_SET_BINARY(pRaw, dataPos, pTrans->userData, pTrans->userDataLen, _OVER)
     }
   }
+
+  SDB_SET_INT32(pRaw, dataPos, pTrans->groupParallelNum, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -575,6 +577,9 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
       SDB_GET_BINARY(pRaw, dataPos, pTrans->userData, pTrans->userDataLen, _OVER)
     }
   }
+
+  pTrans->groupParallelNum = 0;
+  SDB_GET_INT32(pRaw, dataPos, &pTrans->groupParallelNum, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
 
@@ -1146,6 +1151,11 @@ void mndTransSetSerial(STrans *pTrans) {
 void mndTransSetGroupParallel(STrans *pTrans) {
   mInfo("trans:%d, set Group Parallel", pTrans->id);
   pTrans->exec = TRN_EXEC_GROUP_PARALLEL;
+}
+
+void mndTransSetGroupParallelNum(STrans *pTrans, int32_t parallelNum) {
+  pTrans->groupParallelNum = parallelNum;
+  mInfo("trans:%d, set group parallel num:%d", pTrans->id, parallelNum);
 }
 
 void mndTransSetParallel(STrans *pTrans) {
@@ -2327,7 +2337,37 @@ static int32_t mndTransExecuteRedoActionGroup(SMnode *pMnode, STrans *pTrans, bo
   }
   mTrace("trans:%d, temp save all action msgSent", pTrans->id);
 
-  mInfo("trans:%d, redo action group begin to execute, total group count:%d", pTrans->id, groupCount);
+  int32_t parallelNum = pTrans->groupParallelNum;
+  int32_t activeCount = 0;
+
+  if (parallelNum > 0) {
+    void *pCountIter = taosHashIterate(pTrans->redoGroupActions, NULL);
+    while (pCountIter) {
+      SArray **actions = pCountIter;
+      size_t   kLen = 0;
+      int32_t *gid = taosHashGetKey(pCountIter, &kLen);
+      int32_t  numActions = taosArrayGetSize(*actions);
+      int32_t *pos = taosHashGet(pTrans->groupActionPos, gid, sizeof(int32_t));
+      int32_t  groupPos = (pos != NULL) ? *pos : 0;
+
+      if (groupPos > 0 && groupPos < numActions) {
+        // mInfo("trans:%d, add active1 %d", pTrans->id, activeCount);
+        activeCount++;
+      } else if (groupPos == 0 && numActions > 0) {
+        STransAction **ppFirst = taosArrayGet(*actions, 0);
+        if (ppFirst != NULL && (*ppFirst)->msgSent) {
+          // mInfo("trans:%d, add active2 %d", pTrans->id, activeCount);
+          activeCount++;
+        }
+      }
+      pCountIter = taosHashIterate(pTrans->redoGroupActions, pCountIter);
+    }
+    // mInfo("trans:%d, execute redo action group, group parallel limit:%d, active groups:%d", pTrans->id, parallelNum,
+    //       activeCount);
+  }
+
+  mInfo("trans:%d, redo action group begin to execute, total group count:%d, group parallel limit:%d, active groups:%d",
+        pTrans->id, groupCount, parallelNum, activeCount);
   void   *pIter = taosHashIterate(pTrans->redoGroupActions, NULL);
   int32_t currentGroup = 1;
   while (pIter) {
@@ -2335,6 +2375,28 @@ static int32_t mndTransExecuteRedoActionGroup(SMnode *pMnode, STrans *pTrans, bo
     size_t   keyLen = 0;
     int32_t *key = taosHashGetKey(pIter, &keyLen);
     int32_t  actionCount = taosArrayGetSize(*redoActions);
+
+    if (parallelNum > 0) {
+      int32_t *pos = taosHashGet(pTrans->groupActionPos, key, sizeof(int32_t));
+      int32_t  groupPos = (pos != NULL) ? *pos : 0;
+      if (groupPos == 0) {
+        STransAction **ppFirst = taosArrayGet(*redoActions, 0);
+        if (ppFirst == NULL || !(*ppFirst)->msgSent) {
+          // This group is pending (not yet started)
+          if (activeCount >= parallelNum) {
+            mInfo("trans:%d, group:%d/%d(%d) skipped, parallel limit reached (active:%d, limit:%d)", pTrans->id,
+                  currentGroup, groupCount, *key, activeCount, parallelNum);
+            currentGroup++;
+            pIter = taosHashIterate(pTrans->redoGroupActions, pIter);
+            continue;
+          }
+          // About to start a new group, count it as active
+          mInfo("trans:%d, About to start a new group, activeCount:%d", pTrans->id, activeCount);
+          activeCount++;
+        }
+      }
+    }
+
     mInfo("trans:%d, group:%d/%d(%d) begin to execute, current group(action count:%d) transaction(action pos:%d)",
           pTrans->id, currentGroup, groupCount, *key, actionCount, pTrans->actionPos);
     code = mndTransExecuteActionsSerialGroup(pMnode, pTrans, *redoActions, topHalf, *key, currentGroup, groupCount,
@@ -2345,16 +2407,46 @@ static int32_t mndTransExecuteRedoActionGroup(SMnode *pMnode, STrans *pTrans, bo
     } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mInfo("trans:%d, group:%d/%d(%d) is executed and still in progress", pTrans->id, currentGroup, groupCount, *key);
     } else if (code == TSDB_CODE_MND_TRANS_GROUP_FINISHED) {
-      mInfo("trans:%d, group:%d/%d(%d) is finished", pTrans->id, currentGroup, groupCount, *key);
+      mInfo("trans:%d, group:%d/%d(%d) is finished, activeCount:%d", pTrans->id, currentGroup, groupCount, *key,
+            activeCount);
+      // if (parallelNum > 0 && activeCount > 0) activeCount--;
     } else if (code != 0) {
       mError("trans:%d, group:%d/%d(%d) failed to execute, code:%s", pTrans->id, currentGroup, groupCount, *key,
              tstrerror(code));
     } else {
       successCount++;
-      mInfo("trans:%d, group:%d/%d(%d) is finished", pTrans->id, currentGroup, groupCount, *key);
+      mInfo("trans:%d, group:%d/%d(%d) is finished, successCount:%d, code:%d, activeCount:%d", pTrans->id, currentGroup,
+            groupCount, *key, successCount, code, activeCount);
+      // if (parallelNum > 0 && activeCount > 0) activeCount--;
     }
     currentGroup++;
     pIter = taosHashIterate(pTrans->redoGroupActions, pIter);
+
+    activeCount = 0;
+    if (parallelNum > 0) {
+      void *pCountIter = taosHashIterate(pTrans->redoGroupActions, NULL);
+      while (pCountIter) {
+        SArray **actions = pCountIter;
+        size_t   kLen = 0;
+        int32_t *gid = taosHashGetKey(pCountIter, &kLen);
+        int32_t  numActions = taosArrayGetSize(*actions);
+        int32_t *pos = taosHashGet(pTrans->groupActionPos, gid, sizeof(int32_t));
+        int32_t  groupPos = (pos != NULL) ? *pos : 0;
+
+        if (groupPos > 0 && groupPos < numActions) {
+          // mInfo("trans:%d, add active1 %d", pTrans->id, activeCount);
+          activeCount++;
+        } else if (groupPos == 0 && numActions > 0) {
+          STransAction **ppFirst = taosArrayGet(*actions, 0);
+          if (ppFirst != NULL && (*ppFirst)->msgSent) {
+            // mInfo("trans:%d, add active2 %d", pTrans->id, activeCount);
+            activeCount++;
+          }
+        }
+        pCountIter = taosHashIterate(pTrans->redoGroupActions, pCountIter);
+      }
+      mInfo("trans:%d, group parallel limit:%d, active groups:%d", pTrans->id, parallelNum, activeCount);
+    }
   }
 
   taosHashCleanup(pHash);
