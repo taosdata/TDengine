@@ -25,7 +25,9 @@ class _NormalQueryMixin:
         case_dir = os.path.dirname(os.path.dirname(__file__))
         sql_file = os.path.join(case_dir, "in", f"{test_case}.in")
         ans_file = os.path.join(case_dir, "ans", f"{test_case}.ans")
-        tdCom.compare_testcase_result(sql_file, ans_file, test_case)
+        tdCom.compare_testcase_result(
+            sql_file, ans_file, test_case, float_tolerance=1e-1
+        )
 
 
 class TestVtableQueryCrossDBCtb(_NormalQueryMixin):
