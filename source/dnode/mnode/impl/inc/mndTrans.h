@@ -88,6 +88,7 @@ void    mndTransSetUserData(STrans *pTrans, void* data, int32_t dataLen);
 void    mndTransAddArbGroupId(STrans *pTrans, int32_t groupId);
 void    mndTransSetSerial(STrans *pTrans);
 void    mndTransSetGroupParallel(STrans *pTrans);
+void    mndTransSetGroupParallelNum(STrans *pTrans, int32_t parallelNum);
 void    mndTransSetBeKilled(STrans *pTrans, bool ableToBeKilled);
 void    mndTransSetKillMode(STrans *pTrans, ETrnKillMode killMode);
 void    mndTransSetParallel(STrans *pTrans);

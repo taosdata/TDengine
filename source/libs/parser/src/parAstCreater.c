@@ -3156,6 +3156,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->allowDrop = -1;
   pOptions->secureDelete = -1;
   pOptions->securityLevel = -1;
+  pOptions->parallel = 0;
   return (SNode*)pOptions;
 _err:
   return NULL;
@@ -3220,6 +3221,9 @@ static SNode* setDatabaseOptionImpl(SAstCreateContext* pCxt, SNode* pOptions, ED
       if (!alter) {
         updateWalOptionsDefault(pDbOptions);
       }
+      break;
+    case DB_OPTION_PARALLEL:
+      pDbOptions->parallel = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_STRICT:
       COPY_STRING_FORM_STR_TOKEN(pDbOptions->strictStr, (SToken*)pVal);
