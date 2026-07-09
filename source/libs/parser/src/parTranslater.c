@@ -25,6 +25,7 @@
 #include "taoserror.h"
 #include "tarray.h"
 #include "tdatablock.h"
+#include "tmisce.h"
 
 #include "catalog.h"
 #include "cmdnodes.h"

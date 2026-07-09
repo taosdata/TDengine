@@ -333,12 +333,14 @@ void monGenVgroupInfoTable(SMonInfo *pMonitor){
     if (taos_counter_destroy(tableNumGauge) != 0) {
       uError("failed to delete metric " TABLES_NUM);
     }
+    tableNumGauge = NULL;
   }
   taos_gauge_t *statusGauge = taos_gauge_new(STATUS, "",  vgroup_label_count, vgroup_sample_labels);
   if(taos_collector_registry_register_metric(statusGauge) == 1){
     if (taos_counter_destroy(statusGauge) != 0) {
       uError("failed to delete metric " STATUS);
     }
+    statusGauge = NULL;
   }
 
   char cluster_id[TSDB_CLUSTER_ID_LEN] = {0};

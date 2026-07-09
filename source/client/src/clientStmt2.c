@@ -3811,9 +3811,13 @@ const char* stmt2Errstr(TAOS_STMT2* stmt) {
     return (char*)tstrerror(terrno);
   }
 
-  // if stmt async exec ,error code is pStmt->exec.pRequest->code
+  // Async exec keeps request code set by callback; otherwise prefer stmt errCode over stale terrno.
   if (!(pStmt->sql.status >= STMT_EXECUTE && pStmt->options.asyncExecFn != NULL && pStmt->asyncResultAvailable)) {
-    pStmt->exec.pRequest->code = terrno;
+    if (pStmt->errCode != TSDB_CODE_SUCCESS) {
+      pStmt->exec.pRequest->code = pStmt->errCode;
+    } else if (pStmt->exec.pRequest->code == TSDB_CODE_SUCCESS && terrno != TSDB_CODE_SUCCESS) {
+      pStmt->exec.pRequest->code = terrno;
+    }
   }
 
   SRequestObj* pRequest = pStmt->exec.pRequest;

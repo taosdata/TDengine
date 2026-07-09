@@ -17,6 +17,9 @@ Currently, TDengine supports data publishing to the following mainstream platfor
 - **Flink**  
    TDengine can also stream data to Flink. Flink is a high-performance stream processing engine suitable for real-time data analytics and complex event processing. With TDengine's Flink publishing capability, users can build end-to-end real-time data processing pipelines, meeting requirements for low latency and high reliability.
 
+- **Parquet**<br />
+   TDengine can export the result of a read-only SQL query to a single Parquet file on the taosX server node. This is suitable for offline analysis, file-based exchange, and downstream systems that consume Parquet files.
+
 Through the data publishing feature, TDengine achieves deep integration with mainstream stream processing and message queue systems, helping users build flexible and efficient data distribution and processing architectures. Whether for IoT data collection, real-time monitoring, or big data analytics, this feature enables efficient data flow and value extraction.
 
 For detailed configuration methods, usage steps, and precautions, please refer to the following sections.

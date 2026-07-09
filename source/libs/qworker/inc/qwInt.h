@@ -603,6 +603,7 @@ void    qwFreeTaskHandle(SQWTaskCtx *ctx);
 void    qwFreeSinkHandle(SQWTaskCtx *ctx);
 int32_t qwChkSaveSubQFetchRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd);
 int32_t qwCloneSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppRes, int32_t* dataLen, bool* toFetch, SQWRspItem* pItem);
+int32_t grantCheckQuery(uint32_t tsGrantVal, const SSubplan *pSubplan);
 
 #ifdef __cplusplus
 }

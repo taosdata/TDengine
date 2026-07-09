@@ -62,6 +62,7 @@ typedef struct SPlanContext {
   int32_t     msgLen;
   const char* pUser;
   bool        sysInfo;
+  int16_t     userAppId;
   union {
     uint16_t privInfo;
     struct {

@@ -1565,6 +1565,8 @@ int32_t shellExecute(int argc, char *argv[]) {
     return -1;
   }
 
+  (void)taos_options_connection(shell.conn, TSDB_OPTION_CONNECTION_USER_APP, "taos");
+
   bool runOnce = pArgs->commands != NULL || pArgs->file[0] != 0;
   shellSetConn(shell.conn, runOnce);
   shellReadHistory();

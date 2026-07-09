@@ -1274,6 +1274,7 @@ typedef struct SSubplan {
   int32_t        rowsThreshold;
   bool           processOneBlock;
   bool           dynTbname;
+  int16_t        userAppId;  // encoded from client user_app, propagated for server-side use
 } SSubplan;
 
 typedef enum EExplainMode {

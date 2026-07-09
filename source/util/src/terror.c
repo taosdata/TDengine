@@ -736,6 +736,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_RESTFUL_ERROR,          "RESTful response erro
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_RESTFUL_TIMEOUT,        "RESTful request timed out")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_NO_UPDATE_NEEDED,       "Cluster is not about to expire; no update needed")
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_QUOTA_OUT_OF_RANGE,     "Quota is out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_QRY_RESTRICTED,         "Query denied by license: external query is restricted")
 
 // sync
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TIMEOUT,                  "Sync timeout")

@@ -657,18 +657,17 @@ int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnIn
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset) {
   bool returnNotNull = false;
   for (int32_t j = 0; j < numOfExprs; ++j) {
+    if (pCtx[j].isNotNullFunc) {
+      returnNotNull = true;
+    }
+
     SResultRowEntryInfo* pResInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
     if (!isRowEntryInitialized(pResInfo)) {
       continue;
-    } else {
     }
 
     if (pRow->numOfRows < pResInfo->numOfRes) {
       pRow->numOfRows = pResInfo->numOfRes;
-    }
-
-    if (pCtx[j].isNotNullFunc) {
-      returnNotNull = true;
     }
   }
   // if all expr skips all blocks, e.g. all null inputs for max function, output one row in final result.

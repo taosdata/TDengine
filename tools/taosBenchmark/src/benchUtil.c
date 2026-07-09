@@ -345,9 +345,14 @@ SBenchConn* initBenchConnImpl(char *dbName) {
     }
     succPrint("%s connect successfully.\n", show);
 
+    (void)taos_options_connection(conn->taos, TSDB_OPTION_CONNECTION_USER_APP, "taosBenchmark");
+
     // check write correct connect
     if (g_arguments->check_sql) {
         conn->ctaos = taos_connect(host, user, pwd, NULL, port);
+        if (conn->ctaos) {
+            (void)taos_options_connection(conn->ctaos, TSDB_OPTION_CONNECTION_USER_APP, "taosBenchmark");
+        }
     }
 
     if (dsnc) {
@@ -1287,6 +1292,7 @@ void *queryKiller(void *arg) {
                     g_arguments->host);
             return NULL;
         }
+        (void)taos_options_connection(taos, TSDB_OPTION_CONNECTION_USER_APP, "taosBenchmark");
 
         char command[] =
             "SELECT kill_id,exec_usec,sql FROM performance_schema.perf_queries";

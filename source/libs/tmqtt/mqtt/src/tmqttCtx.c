@@ -36,6 +36,7 @@ bool tmq_ctx_auth(struct tmq_ctx* context, const char* username, const char* pas
 
     conn = taos_connect(host, username, password, NULL, port);
     if (conn) {
+      (void)taos_options_connection(conn, TSDB_OPTION_CONNECTION_USER_APP, "TSDB");
       context->conn = conn;
 
       break;

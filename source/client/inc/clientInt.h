@@ -200,6 +200,7 @@ typedef struct {
   void         *charsetCxt;
   char          userApp[TSDB_APP_NAME_LEN];
   char          cInfo[CONNECTOR_INFO_LEN];
+  int16_t       userAppId;
   uint32_t      userIp;
   SIpRange      userDualIp;  // user ip range
   int8_t        firstDayOfWeek;  // 0-6, snapshotted from tsFirstDayOfWeek at connection creation

@@ -154,6 +154,10 @@ TAOS* getConnection(int *code) {
 
             TAOS *conn = taos_connect(argHost(), argUser(), argPassword(), NULL, argPort());
 
+            if (conn) {
+                (void)taos_options_connection(conn, TSDB_OPTION_CONNECTION_USER_APP, "taosdump");
+            }
+
             // Re-lock to commit or rollback
             taosThreadMutexLock(&g_pool.mutex);
 

@@ -12,6 +12,10 @@
 #include "tmsg.h"
 #include "tname.h"
 
+#ifndef _GRANT
+int32_t grantCheckQuery(uint32_t tsGrantVal, const SSubplan *pSubplan) { return TSDB_CODE_SUCCESS; }
+#endif
+
 SQWorkerMgmt gQwMgmt = {
     .lock = 0,
     .qwRef = -1,
@@ -996,6 +1000,12 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
   if (NULL == plan) {
     QW_TASK_ELOG("empty task physical plan to subplan, msg:%p, len:%d", qwMsg->msg, qwMsg->msgLen);
     QW_ERR_JRET(TSDB_CODE_QRY_INVALID_MSG);
+  }
+
+  code = grantCheckQuery(atomic_load_32(&tsGrant), plan);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode *)plan);
+    QW_ERR_JRET(code);
   }
 
   taosEnableMemPoolUsage(ctx->memPoolSession);
