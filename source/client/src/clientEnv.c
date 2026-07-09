@@ -30,6 +30,7 @@
 #include "tconv.h"
 #include "tglobal.h"
 #include "thttp.h"
+#include "tmisce.h"
 #include "tmsg.h"
 #include "tqueue.h"
 #include "tref.h"
@@ -555,6 +556,7 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   (*pObj)->connType = connType;
   (*pObj)->pAppInfo = pAppInfo;
   (*pObj)->appHbMgrIdx = pAppInfo->pAppHbMgr->idx;
+  (*pObj)->optionInfo.userAppId = TD_APP_UNKNOWN;
   (*pObj)->optionInfo.firstDayOfWeek = (int8_t)tsFirstDayOfWeek;
   if (user == NULL) {
     (*pObj)->user[0] = 0;
