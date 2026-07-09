@@ -13,8 +13,8 @@
 """Performance benchmark: VTable-ref-VTable depth (VCT dimension) — single depth.
 
 Usage:
-  DEPTH=1  pytest -s cases/05-VirtualTables/perf/test_perf_vct_depth_one.py
-  DEPTH=32 pytest -s cases/05-VirtualTables/perf/test_perf_vct_depth_one.py
+  DEPTH=1  pytest -s cases/05-VirtualTables/07-Performance/test_perf_vct_depth_one.py
+  DEPTH=32 pytest -s cases/05-VirtualTables/07-Performance/test_perf_vct_depth_one.py
 
 Or use run_perf_vct_depth.sh to run all depths and merge results.
 """

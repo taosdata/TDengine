@@ -3922,27 +3922,6 @@ int32_t metaAddTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
                                 pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
     if (code) {
       metaError("vgId:%d, %s metaUpdateVtbMetaRsp failed: %s", TD_VID(pMeta->pVnode), __func__, tstrerror(code));
-    } else {
-      for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
-        SColRef *p = &pEntry->colRef.pColRef[i];
-        pRsp->pColRefs[i].hasRef = p->hasRef;
-        pRsp->pColRefs[i].id = p->id;
-        if (p->hasRef) {
-          pRsp->pColRefs[i].refType = p->refType;
-          tstrncpy(pRsp->pColRefs[i].refSourceName, p->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
-          tstrncpy(pRsp->pColRefs[i].refSchemaName, p->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
-          tstrncpy(pRsp->pColRefs[i].refDbName, p->refDbName, TSDB_DB_NAME_LEN);
-          tstrncpy(pRsp->pColRefs[i].refTableName, p->refTableName, TSDB_TABLE_NAME_LEN);
-          tstrncpy(pRsp->pColRefs[i].refColName, p->refColName, TSDB_COL_NAME_LEN);
-          if (p->tagCondLen > 0 && p->tagCondJson) {
-            pRsp->pColRefs[i].tagCondLen = p->tagCondLen;
-            pRsp->pColRefs[i].tagCondJson = taosStrdup(p->tagCondJson);
-          } else {
-            pRsp->pColRefs[i].tagCondLen = 0;
-            pRsp->pColRefs[i].tagCondJson = NULL;
-          }
-        }
-      }
     }
   }
 
@@ -3991,10 +3970,15 @@ int32_t metaRemoveTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq,
   SSeriesEntry *pTarget = &pEntry->series.pSeries[idx];
   for (int32_t i = 0; i < pEntry->colRef.nCols; i++) {
     SColRef *p = &pEntry->colRef.pColRef[i];
+    bool sameTagCond = p->tagCondLen == pTarget->tagCondLen;
+    if (sameTagCond && p->tagCondLen > 0) {
+      sameTagCond = p->tagCondJson != NULL && pTarget->tagCondJson != NULL &&
+                    strncmp(p->tagCondJson, pTarget->tagCondJson, p->tagCondLen) == 0;
+    }
     if (p->hasRef &&
         strncmp(p->refSourceName, pTarget->sourceName, TSDB_EXT_SOURCE_NAME_LEN) == 0 &&
         strncmp(p->refDbName, pTarget->dbName, TSDB_DB_NAME_LEN) == 0 &&
-        strncmp(p->refTableName, pTarget->measurementName, TSDB_TABLE_NAME_LEN) == 0) {
+        strncmp(p->refTableName, pTarget->measurementName, TSDB_TABLE_NAME_LEN) == 0 && sameTagCond) {
       metaFetchEntryFree(&pEntry);
       TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
     }

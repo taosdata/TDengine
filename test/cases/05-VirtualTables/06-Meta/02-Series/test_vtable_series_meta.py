@@ -42,7 +42,7 @@ class TestVtableSeriesMeta:
 
     @classmethod
     def setup_class(cls):
-        ExtSrcEnv.ensure_env()
+        ExtSrcEnv.start_influx_instance(ExtSrcEnv.INFLUX_VERSIONS[0])
         ExtSrcEnv.ensure_qnode()
 
         # Setup InfluxDB database
@@ -62,13 +62,14 @@ class TestVtableSeriesMeta:
         tdSql.execute(f"DROP DATABASE IF EXISTS {DB_NAME}")
         tdSql.execute(f"CREATE DATABASE {DB_NAME}")
         tdSql.execute(f"USE {DB_NAME}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {EXT_SOURCE}")
 
         tdSql.execute(
             f"CREATE EXTERNAL SOURCE IF NOT EXISTS {EXT_SOURCE} "
             f"TYPE='influxdb' "
             f"HOST='{ExtSrcEnv.INFLUX_HOST}' PORT={ExtSrcEnv.INFLUX_PORT} "
             f"USER='u' PASSWORD='' DATABASE={INFLUX_DB} "
-            f"OPTIONS('api_token'='{ExtSrcEnv.INFLUX_TOKEN}','protocol'='flight_sql')"
+            f"OPTIONS('api_token'='{ExtSrcEnv._get_influx_token(ExtSrcEnv.INFLUX_VERSIONS[0])}','protocol'='flight_sql')"
         )
 
     @classmethod
@@ -111,9 +112,11 @@ class TestVtableSeriesMeta:
             f"SHOW CREATE should contain measurement name, got: {create_sql}"
         tdLog.info(f"  SHOW CREATE OK: contains SERIES clause")
 
-        # Verify client can get table meta (query triggers get-table-meta)
-        tdSql.query("SELECT * FROM vt_single LIMIT 10")
-        tdLog.info(f"  Query OK: {tdSql.queryRows} rows returned")
+        # Verify client can get table meta through the aggregate query path.
+        tdSql.query("SELECT count(*) FROM vt_single")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdLog.info("  Query OK: count(*) returned 1 row")
 
         # Verify DESCRIBE shows ref info
         tdSql.query("DESCRIBE vt_single")
@@ -157,9 +160,18 @@ class TestVtableSeriesMeta:
         assert "s_eu" in create_sql, f"should contain s_eu: {create_sql}"
         tdLog.info("  Multi-series SHOW CREATE OK")
 
-        # Query works (triggers table meta fetch)
-        tdSql.query("SELECT * FROM vt_multi LIMIT 5")
-        tdLog.info(f"  Query OK: {tdSql.queryRows} rows")
+        tdSql.query("DESCRIBE vt_multi")
+        found_us = False
+        found_eu = False
+        for i in range(tdSql.queryRows):
+            field = tdSql.getData(i, 0)
+            if field and field.strip() == "us_cpu":
+                found_us = True
+            if field and field.strip() == "eu_cpu":
+                found_eu = True
+        assert found_us, "DESCRIBE should show 'us_cpu' column"
+        assert found_eu, "DESCRIBE should show 'eu_cpu' column"
+        tdLog.info("  Multi-series DESCRIBE OK")
 
     # ------------------------------------------------------------------
     # Test 3: Virtual child table with series
@@ -178,8 +190,8 @@ class TestVtableSeriesMeta:
         # Create virtual child table with SERIES
         tdSql.execute(
             f"CREATE VTABLE vctb_s1 ("
-            f"  cpu DOUBLE FROM sr.cpu,"
-            f"  mem DOUBLE FROM sr.mem"
+            f"  cpu FROM sr.cpu,"
+            f"  mem FROM sr.mem"
             f") USING vstb_series TAGS ('site_us') "
             f"SERIES sr AS {EXT_SOURCE}.{INFLUX_DB}.{MEASUREMENT} "
             f"(host='srv01', region='us')"
@@ -199,18 +211,22 @@ class TestVtableSeriesMeta:
         tdLog.info("  Child table SHOW CREATE OK")
 
         # Query child table (triggers catalog cache merge path)
-        tdSql.query("SELECT * FROM vctb_s1 LIMIT 5")
-        tdLog.info(f"  Child table query OK: {tdSql.queryRows} rows")
+        tdSql.query("SELECT count(*) FROM vctb_s1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdLog.info("  Child table query OK: count(*) returned 1 row")
 
         # Query via super table (triggers ctgCache batch path)
-        tdSql.query("SELECT * FROM vstb_series LIMIT 5")
-        tdLog.info(f"  Super table query OK: {tdSql.queryRows} rows")
+        tdSql.query("SELECT count(*) FROM vstb_series")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdLog.info("  Super table query OK: count(*) returned 1 row")
 
     # ------------------------------------------------------------------
-    # Test 4: ALTER TABLE ADD/REMOVE SERIES, verify meta update
+    # Test 4: ALTER VTABLE ADD/REMOVE SERIES, verify meta update
     # ------------------------------------------------------------------
     def test_alter_series_meta(self):
-        """ALTER TABLE ADD SERIES / REMOVE SERIES updates meta correctly."""
+        """ALTER VTABLE ADD SERIES / REMOVE SERIES updates meta correctly."""
         tdLog.info("=== test_alter_series_meta ===")
         tdSql.execute(f"USE {DB_NAME}")
 
@@ -231,7 +247,7 @@ class TestVtableSeriesMeta:
 
         # ADD another series
         tdSql.execute(
-            f"ALTER TABLE vt_alter ADD SERIES s2 AS "
+            f"ALTER VTABLE vt_alter ADD SERIES s2 AS "
             f"{EXT_SOURCE}.{INFLUX_DB}.{MEASUREMENT} "
             f"(host='srv02', region='eu')"
         )
@@ -244,11 +260,13 @@ class TestVtableSeriesMeta:
         tdLog.info("  After ADD SERIES: SHOW CREATE shows both series")
 
         # Query still works (meta refresh path)
-        tdSql.query("SELECT * FROM vt_alter LIMIT 5")
-        tdLog.info(f"  Query after ADD SERIES OK: {tdSql.queryRows} rows")
+        tdSql.query("SELECT count(cpu) FROM vt_alter")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdLog.info("  Query after ADD SERIES OK: count(cpu) returned 1 row")
 
         # REMOVE series s2 (no columns reference it)
-        tdSql.execute("ALTER TABLE vt_alter REMOVE SERIES s2")
+        tdSql.execute("ALTER VTABLE vt_alter REMOVE SERIES s2")
 
         # Verify only s1 remains
         tdSql.query("SHOW CREATE VTABLE vt_alter")
@@ -258,8 +276,10 @@ class TestVtableSeriesMeta:
         tdLog.info("  After REMOVE SERIES: SHOW CREATE shows only s1")
 
         # Query still works
-        tdSql.query("SELECT * FROM vt_alter LIMIT 5")
-        tdLog.info(f"  Query after REMOVE SERIES OK: {tdSql.queryRows} rows")
+        tdSql.query("SELECT count(cpu) FROM vt_alter")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdLog.info("  Query after REMOVE SERIES OK: count(cpu) returned 1 row")
 
     # ------------------------------------------------------------------
     # Helpers

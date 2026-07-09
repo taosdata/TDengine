@@ -15,6 +15,8 @@ if(TD_DARWIN)
     if(HAVE_NO_WARN_DUP_LIBS)
       target_link_options(${TAOS_LIB} PRIVATE -Wl,-no_warn_duplicate_libraries)
     endif()
+    set_target_properties(${TAOS_LIB} PROPERTIES INSTALL_NAME_DIR "@rpath")
+    taos_configure_macos_client_rpath(${TAOS_LIB})
 endif()
 
 # jni include

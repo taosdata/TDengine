@@ -39,6 +39,10 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
+if(TD_DARWIN)
+    td_fix_macos_client_libtaos_dep(shell)
+endif()
+
 # tweaking pitfalls found on Windows
 # both taos.dll and taos.exe targets will generate taos.lib in ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY}
 # this makes some targets, such as tmq_taosx_ci, which rely on taos.dll,

@@ -101,6 +101,7 @@ int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
   if (code) {
     metaError("vgId:%d, failed to decode entry by uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), uid,
               tstrerror(code));
+    tFreeSSeriesWrapper(&entry.series);
     tDecoderClear(&decoder);
     tdbFreeClear(value);
     return code;
@@ -110,11 +111,13 @@ int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
   if (code) {
     metaError("vgId:%d, failed to clone entry by uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), uid,
               tstrerror(code));
+    tFreeSSeriesWrapper(&entry.series);
     tDecoderClear(&decoder);
     tdbFreeClear(value);
     return code;
   }
 
+  tFreeSSeriesWrapper(&entry.series);
   tdbFreeClear(value);
   tDecoderClear(&decoder);
   return code;

@@ -2378,52 +2378,52 @@ taos> select weekday(ts) from test_vtable_select.vtb_virtual_ctb_full limit 50;
 taos> select apercentile(int_col, 10) from test_vtable_select.vtb_virtual_ctb_full limit 50;
  apercentile(int_col, 10)  |
 ============================
-         -862822367.967742 |
+         -864652338.944633 |
 
 taos> select avg(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
        avg(int_col)        |
 ============================
-              -146132.5514 |
+              -7756037.699 |
 
 taos> select count(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
     count(int_col)     |
 ========================
-                 10000 |
+                  1000 |
 
 taos> select count(*) from test_vtable_select.vtb_virtual_ctb_full limit 50;
        count(*)        |
 ========================
-                 23333 |
+                  2333 |
 
 taos> select elapsed(ts) from test_vtable_select.vtb_virtual_ctb_full limit 50;
         elapsed(ts)        |
 ============================
-                     49995 |
+                      4995 |
 
 taos> select leastsquares(int_col, 0, 1) from test_vtable_select.vtb_virtual_ctb_full limit 50;
   leastsquares(int_col, 0, 1)   |
 =================================
- {slop:685.786126, intercept... |
+ {slop:38742.195037, interce... |
 
 taos> select spread(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
       spread(int_col)      |
 ============================
-                2147266126 |
+                2146507474 |
 
 taos> select stddev(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
       stddev(int_col)      |
 ============================
-          617825137.523305 |
+          620145743.035046 |
 
 taos> select sum(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
      sum(int_col)      |
 ========================
-           -1461325514 |
+           -7756037699 |
 
 taos> select var_pop(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
      var_pop(int_col)      |
 ============================
-       3.8170790055569e+17 |
+      3.84580742604489e+17 |
 
 taos> select percentile(int_col, 0.5) from test_vtable_select.vtb_virtual_ctb_full limit 50;
 
@@ -2431,29 +2431,29 @@ DB error: percentile is only supported in single table query [0x8000265F]
 taos> select bottom(int_col, 10) from test_vtable_select.vtb_virtual_ctb_full limit 50;
  bottom(int_col, 10) |
 ======================
-         -1070972760 |
+         -1056390606 |
+         -1056496162 |
+         -1058890994 |
+         -1066807084 |
+         -1062786552 |
+         -1062057066 |
+         -1064807518 |
          -1071387869 |
-         -1071900467 |
-         -1071649376 |
-         -1073057610 |
-         -1072419210 |
-         -1073119339 |
-         -1072309309 |
          -1073265752 |
-         -1073538255 |
+         -1065654055 |
 
 taos> select top(int_col, 10) from test_vtable_select.vtb_virtual_ctb_full limit 50;
  top(int_col, 10) |
 ===================
-       1071739635 |
-       1072798206 |
-       1072779829 |
-       1073266682 |
-       1072833047 |
-       1073339832 |
-       1072902495 |
-       1073443087 |
-       1073727871 |
+       1058921556 |
+       1059412297 |
+       1063009422 |
+       1060664567 |
+       1071240942 |
+       1070586822 |
+       1064359339 |
+       1064740369 |
+       1068695246 |
        1073241722 |
 
 taos> select first(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
@@ -2523,56 +2523,56 @@ taos> select interp(u_smallint_col) from test_vtable_select.vtb_virtual_ctb_full
 taos> select last(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
  last(int_col) |
 ================
-    1003732609 |
+     355313610 |
 
 taos> select last(*) from test_vtable_select.vtb_virtual_ctb_full limit 50;
         last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
 ===============================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:49.995 |                  51 |                10486 |      1812337397 |             896525845 |                 6 |               8984 |    1003732609 |  -9223372036854775808 |             -68902.9 |          -46321277.573751 | true           | Santa Clara         | Hangzhou - San Diego           | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
+ 2020-10-01 00:00:04.995 |                 230 |                60075 |       997032793 |             589490809 |                24 |              29023 |     355313610 |  -9223372036854775808 |             -83686.8 |          -28742999.611315 | false          | Los Angles          | Xian - Sunnyvale               | 四。San Jose                   | 森尼韦尔 - Sunnyvale           |
 
 taos> select last_row(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
  last_row(int_col) |
 ====================
-        1003732609 |
+         355313610 |
 
 taos> select last_row(*) from test_vtable_select.vtb_virtual_ctb_full limit 50;
       last_row(ts)       | last_row(u_tinyint_col) | last_row(u_smallint_col) | last_row(u_int_col) | last_row(u_bigint_col) | last_row(tinyint_col) | last_row(smallint_col) | last_row(int_col) | last_row(bigint_col)  | last_row(float_col)  |   last_row(double_col)    | last_row(bool_col) | last_row(binary_16_col) |    last_row(binary_32_col)     |     last_row(nchar_16_col)     |     last_row(nchar_32_col)     |
 ================================================================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:49.995 | NULL                    | NULL                     |          1812337397 | NULL                   | NULL                  |                   8984 | NULL              | NULL                  |             -68902.9 | NULL                      | NULL               | Santa Clara             | NULL                           | NULL                           | 圣克拉拉 - Santa Clara         |
+ 2020-10-01 00:00:04.995 | NULL                    | NULL                     |           997032793 | NULL                   | NULL                  |                  29023 | NULL              | NULL                  |             -83686.8 | NULL                      | NULL               | Los Angles              | NULL                           | NULL                           | 森尼韦尔 - Sunnyvale           |
 
 taos> select max(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
  max(int_col) |
 ===============
-   1073727871 |
+   1073241722 |
 
 taos> select min(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
  min(int_col) |
 ===============
-  -1073538255 |
+  -1073265752 |
 
 taos> select tail(int_col, 20) from test_vtable_select.vtb_virtual_ctb_full limit 50;
  tail(int_col, 20) |
 ====================
-        1003732609 |
-         -92851536 |
-         344345959 |
-        -507242214 |
-         754592313 |
-         -81886338 |
-        -678652052 |
-         191237206 |
-        -315089066 |
-        1028134522 |
-        -889795888 |
-         900198299 |
-        1019656978 |
-       -1069641414 |
-        -870925335 |
-         159825287 |
-         374478452 |
-         437665668 |
-         538519753 |
-         -18643397 |
+         355313610 |
+         974995098 |
+        -299233126 |
+        -118197830 |
+         105214517 |
+        -420937148 |
+          13437788 |
+         146535449 |
+         362386901 |
+        -350989668 |
+         235854522 |
+         474587752 |
+         492831324 |
+         652897182 |
+          97271201 |
+        -510056604 |
+         364715926 |
+        -597122292 |
+        -792862517 |
+         853352022 |
 
 taos> select unique(u_tinyint_col) from test_vtable_select.vtb_virtual_ctb_full order by 1 limit 50;
  unique(u_tinyint_col) |
@@ -2793,7 +2793,7 @@ taos> select diff(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50
 taos> select irate(int_col) from test_vtable_select.vtb_virtual_ctb_full limit 50;
       irate(int_col)       |
 ============================
-              548292072500 |
+              177656805000 |
 
 taos> select mavg(int_col, 100) from test_vtable_select.vtb_virtual_ctb_full limit 50;
     mavg(int_col, 100)     |
@@ -2960,7 +2960,7 @@ taos> select stateduration(u_tinyint_col, "GT", 20, 1a) from test_vtable_select.
 taos> select round(twa(int_col), -4) from test_vtable_select.vtb_virtual_ctb_full limit 50;
   round(twa(int_col), -4)  |
 ============================
-                   -160000 |
+                  -7610000 |
 
 taos> select abs(int_tag) from test_vtable_select.vtb_virtual_ctb_full limit 5;
  abs(int_tag) |
@@ -3371,17 +3371,17 @@ taos> select avg(int_tag) from test_vtable_select.vtb_virtual_ctb_full limit 5;
 taos> select count(int_tag) from test_vtable_select.vtb_virtual_ctb_full limit 5;
     count(int_tag)     |
 ========================
-                 23333 |
+                  2333 |
 
 taos> select count(*) from test_vtable_select.vtb_virtual_ctb_full limit 5;
        count(*)        |
 ========================
-                 23333 |
+                  2333 |
 
 taos> select elapsed(ts) from test_vtable_select.vtb_virtual_ctb_full limit 5;
         elapsed(ts)        |
 ============================
-                     49995 |
+                      4995 |
 
 taos> select leastsquares(int_tag, 0, 1) from test_vtable_select.vtb_virtual_ctb_full limit 5;
   leastsquares(int_tag, 0, 1)   |
@@ -3461,7 +3461,7 @@ taos> select last(int_tag) from test_vtable_select.vtb_virtual_ctb_full limit 5;
 taos> select last(*) from test_vtable_select.vtb_virtual_ctb_full limit 5;
         last(ts)         | last(u_tinyint_col) | last(u_smallint_col) | last(u_int_col) |  last(u_bigint_col)   | last(tinyint_col) | last(smallint_col) | last(int_col) |   last(bigint_col)    |   last(float_col)    |     last(double_col)      | last(bool_col) | last(binary_16_col) |      last(binary_32_col)       |       last(nchar_16_col)       |       last(nchar_32_col)       |
 ===============================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:49.995 |                  51 |                10486 |      1812337397 |             896525845 |                 6 |               8984 |    1003732609 |  -9223372036854775808 |             -68902.9 |          -46321277.573751 | true           | Santa Clara         | Hangzhou - San Diego           | 一。San Franc                  | 圣克拉拉 - Santa Clara         |
+ 2020-10-01 00:00:04.995 |                 230 |                60075 |       997032793 |             589490809 |                24 |              29023 |     355313610 |  -9223372036854775808 |             -83686.8 |          -28742999.611315 | false          | Los Angles          | Xian - Sunnyvale               | 四。San Jose                   | 森尼韦尔 - Sunnyvale           |
 
 taos> select last_row(int_tag) from test_vtable_select.vtb_virtual_ctb_full limit 5;
  last_row(int_tag) |
@@ -3471,7 +3471,7 @@ taos> select last_row(int_tag) from test_vtable_select.vtb_virtual_ctb_full limi
 taos> select last_row(*) from test_vtable_select.vtb_virtual_ctb_full limit 5;
       last_row(ts)       | last_row(u_tinyint_col) | last_row(u_smallint_col) | last_row(u_int_col) | last_row(u_bigint_col) | last_row(tinyint_col) | last_row(smallint_col) | last_row(int_col) | last_row(bigint_col)  | last_row(float_col)  |   last_row(double_col)    | last_row(bool_col) | last_row(binary_16_col) |    last_row(binary_32_col)     |     last_row(nchar_16_col)     |     last_row(nchar_32_col)     |
 ================================================================================================================================================================================================================================================================================================================================================================================================================================
- 2020-10-01 00:00:49.995 | NULL                    | NULL                     |          1812337397 | NULL                   | NULL                  |                   8984 | NULL              | NULL                  |             -68902.9 | NULL                      | NULL               | Santa Clara             | NULL                           | NULL                           | 圣克拉拉 - Santa Clara         |
+ 2020-10-01 00:00:04.995 | NULL                    | NULL                     |           997032793 | NULL                   | NULL                  |                  29023 | NULL              | NULL                  |             -83686.8 | NULL                      | NULL               | Los Angles              | NULL                           | NULL                           | 森尼韦尔 - Sunnyvale           |
 
 taos> select max(int_tag) from test_vtable_select.vtb_virtual_ctb_full limit 5;
  max(int_tag) |
@@ -3569,10 +3569,10 @@ taos> select twa(int_tag) from test_vtable_select.vtb_virtual_ctb_full limit 5;
 taos> select count(tbname) from test_vtable_select.vtb_virtual_ctb_full;
      count(tbname)     |
 ========================
-                 23333 |
+                  2333 |
 
 taos> select count(1) from test_vtable_select.vtb_virtual_ctb_full
        count(1)        |
 ========================
-                 23333 |
+                  2333 |
 

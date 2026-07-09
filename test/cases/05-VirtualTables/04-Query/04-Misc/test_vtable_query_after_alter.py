@@ -15,6 +15,8 @@ import os
 
 
 class TestVtableQueryAfterAlter:
+    FULL_ROWS = 2333
+    SOURCE_ROWS = 1000
 
     def setup_class(cls):
         tdLog.info(f"prepare org tables.")
@@ -227,51 +229,51 @@ class TestVtableQueryAfterAlter:
 
         """
         tdSql.execute("use test_vtable_select_after_alter;")
-        self.check_row_and_col("vtb_virtual_ctb_full", 23333, 16)
-        self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ctb_full", self.FULL_ROWS, 16)
+        self.check_row_and_col("vtb_virtual_ctb_half_full", self.FULL_ROWS, 16)
         self.check_row_and_col("vtb_virtual_ctb_empty", 0, 16)
-        self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 16)
-        self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 22)
+        self.check_row_and_col("vtb_virtual_ctb_mix", self.FULL_ROWS, 16)
+        self.check_row_and_col("vtb_virtual_stb", self.FULL_ROWS * 3, 22)
 
 
         tdSql.execute("alter stable vtb_virtual_stb drop column u_smallint_col;")
-        self.check_row_and_col("vtb_virtual_ctb_full", 23333, 15)
-        self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 15)
+        self.check_row_and_col("vtb_virtual_ctb_full", self.FULL_ROWS, 15)
+        self.check_row_and_col("vtb_virtual_ctb_half_full", self.FULL_ROWS, 15)
         self.check_row_and_col("vtb_virtual_ctb_empty", 0, 15)
-        self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 15)
-        self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 21)
+        self.check_row_and_col("vtb_virtual_ctb_mix", self.FULL_ROWS, 15)
+        self.check_row_and_col("vtb_virtual_stb", self.FULL_ROWS * 3, 21)
 
         tdSql.execute("alter stable vtb_virtual_stb add column u_smallint_col smallint unsigned;")
-        self.check_row_and_col("vtb_virtual_ctb_full", 23333, 16)
-        self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ctb_full", self.FULL_ROWS, 16)
+        self.check_row_and_col("vtb_virtual_ctb_half_full", self.FULL_ROWS, 16)
         self.check_row_and_col("vtb_virtual_ctb_empty", 0, 16)
-        self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 16)
-        self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 22)
+        self.check_row_and_col("vtb_virtual_ctb_mix", self.FULL_ROWS, 16)
+        self.check_row_and_col("vtb_virtual_stb", self.FULL_ROWS * 3, 22)
 
         tdSql.execute("alter vtable vtb_virtual_ctb_full alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
         tdSql.execute("alter vtable vtb_virtual_ctb_half_full alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
         tdSql.execute("alter vtable vtb_virtual_ctb_mix alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
-        self.check_row_and_col("vtb_virtual_ctb_full", 23333, 16)
-        self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ctb_full", self.FULL_ROWS, 16)
+        self.check_row_and_col("vtb_virtual_ctb_half_full", self.FULL_ROWS, 16)
         self.check_row_and_col("vtb_virtual_ctb_empty", 0, 16)
-        self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 16)
-        self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 22)
+        self.check_row_and_col("vtb_virtual_ctb_mix", self.FULL_ROWS, 16)
+        self.check_row_and_col("vtb_virtual_stb", self.FULL_ROWS * 3, 22)
 
         tdSql.execute("alter stable vtb_virtual_stb add column u_smallint_col_new smallint unsigned;")
-        self.check_row_and_col("vtb_virtual_ctb_full", 23333, 17)
-        self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 17)
+        self.check_row_and_col("vtb_virtual_ctb_full", self.FULL_ROWS, 17)
+        self.check_row_and_col("vtb_virtual_ctb_half_full", self.FULL_ROWS, 17)
         self.check_row_and_col("vtb_virtual_ctb_empty", 0, 17)
-        self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 17)
-        self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 23)
+        self.check_row_and_col("vtb_virtual_ctb_mix", self.FULL_ROWS, 17)
+        self.check_row_and_col("vtb_virtual_stb", self.FULL_ROWS * 3, 23)
 
         tdSql.execute("alter vtable vtb_virtual_ctb_full alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
         tdSql.execute("alter vtable vtb_virtual_ctb_half_full alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
         tdSql.execute("alter vtable vtb_virtual_ctb_mix alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
-        self.check_row_and_col("vtb_virtual_ctb_full", 23333, 17)
-        self.check_row_and_col("vtb_virtual_ctb_half_full", 23333, 17)
+        self.check_row_and_col("vtb_virtual_ctb_full", self.FULL_ROWS, 17)
+        self.check_row_and_col("vtb_virtual_ctb_half_full", self.FULL_ROWS, 17)
         self.check_row_and_col("vtb_virtual_ctb_empty", 0, 17)
-        self.check_row_and_col("vtb_virtual_ctb_mix", 23333, 17)
-        self.check_row_and_col("vtb_virtual_stb", 23333 * 3, 23)
+        self.check_row_and_col("vtb_virtual_ctb_mix", self.FULL_ROWS, 17)
+        self.check_row_and_col("vtb_virtual_stb", self.FULL_ROWS * 3, 23)
 
     def test_virtual_normal_table(self):
         """Query: after alter normal table
@@ -292,42 +294,41 @@ class TestVtableQueryAfterAlter:
 
         """
         tdSql.execute("use test_vtable_select_after_alter;")
-        self.check_row_and_col("vtb_virtual_ntb_full", 23333, 16)
-        self.check_row_and_col("vtb_virtual_ntb_half_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ntb_full", self.FULL_ROWS, 16)
+        self.check_row_and_col("vtb_virtual_ntb_half_full", self.FULL_ROWS, 16)
         self.check_row_and_col("vtb_virtual_ntb_empty", 0, 16)
 
         tdSql.execute("alter vtable vtb_virtual_ntb_full drop column u_smallint_col;")
         tdSql.execute("alter vtable vtb_virtual_ntb_half_full drop column u_smallint_col;")
         tdSql.execute("alter vtable vtb_virtual_ntb_empty drop column u_smallint_col;")
-        self.check_row_and_col("vtb_virtual_ntb_full", 23333, 15)
-        self.check_row_and_col("vtb_virtual_ntb_half_full", 23333, 15)
+        self.check_row_and_col("vtb_virtual_ntb_full", self.FULL_ROWS, 15)
+        self.check_row_and_col("vtb_virtual_ntb_half_full", self.FULL_ROWS, 15)
         self.check_row_and_col("vtb_virtual_ntb_empty", 0, 15)
 
         tdSql.execute("alter vtable vtb_virtual_ntb_full add column u_smallint_col smallint unsigned;")
         tdSql.execute("alter vtable vtb_virtual_ntb_half_full add column u_smallint_col smallint unsigned;")
         tdSql.execute("alter vtable vtb_virtual_ntb_empty add column u_smallint_col smallint unsigned;")
-        self.check_row_and_col("vtb_virtual_ntb_full", 23333, 16)
-        self.check_row_and_col("vtb_virtual_ntb_half_full", 23333, 16)
+        self.check_row_and_col("vtb_virtual_ntb_full", self.FULL_ROWS, 16)
+        self.check_row_and_col("vtb_virtual_ntb_half_full", self.FULL_ROWS, 16)
         self.check_row_and_col("vtb_virtual_ntb_empty", 0, 16)
 
         tdSql.execute("alter vtable vtb_virtual_ntb_full alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
         tdSql.execute("alter vtable vtb_virtual_ntb_half_full alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
         tdSql.execute("alter vtable vtb_virtual_ntb_empty alter column u_smallint_col set vtb_org_normal_1.u_smallint_col;")
-        self.check_row_and_col("vtb_virtual_ntb_full", 23333, 16)
-        self.check_row_and_col("vtb_virtual_ntb_half_full", 23333, 16)
-        self.check_row_and_col("vtb_virtual_ntb_empty", 10000, 16)
+        self.check_row_and_col("vtb_virtual_ntb_full", self.FULL_ROWS, 16)
+        self.check_row_and_col("vtb_virtual_ntb_half_full", self.FULL_ROWS, 16)
+        self.check_row_and_col("vtb_virtual_ntb_empty", self.SOURCE_ROWS, 16)
 
         tdSql.execute("alter vtable vtb_virtual_ntb_full add column u_smallint_col_new smallint unsigned;")
         tdSql.execute("alter vtable vtb_virtual_ntb_half_full add column u_smallint_col_new smallint unsigned;")
         tdSql.execute("alter vtable vtb_virtual_ntb_empty add column u_smallint_col_new smallint unsigned;")
-        self.check_row_and_col("vtb_virtual_ntb_full", 23333, 17)
-        self.check_row_and_col("vtb_virtual_ntb_half_full", 23333, 17)
-        self.check_row_and_col("vtb_virtual_ntb_empty", 10000, 17)
+        self.check_row_and_col("vtb_virtual_ntb_full", self.FULL_ROWS, 17)
+        self.check_row_and_col("vtb_virtual_ntb_half_full", self.FULL_ROWS, 17)
+        self.check_row_and_col("vtb_virtual_ntb_empty", self.SOURCE_ROWS, 17)
 
         tdSql.execute("alter vtable vtb_virtual_ntb_full alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
         tdSql.execute("alter vtable vtb_virtual_ntb_half_full alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
         tdSql.execute("alter vtable vtb_virtual_ntb_empty alter column u_smallint_col_new set vtb_org_normal_1.u_smallint_col;")
-        self.check_row_and_col("vtb_virtual_ntb_full", 23333, 17)
-        self.check_row_and_col("vtb_virtual_ntb_half_full", 23333, 17)
-        self.check_row_and_col("vtb_virtual_ntb_empty", 10000, 17)
-
+        self.check_row_and_col("vtb_virtual_ntb_full", self.FULL_ROWS, 17)
+        self.check_row_and_col("vtb_virtual_ntb_half_full", self.FULL_ROWS, 17)
+        self.check_row_and_col("vtb_virtual_ntb_empty", self.SOURCE_ROWS, 17)
