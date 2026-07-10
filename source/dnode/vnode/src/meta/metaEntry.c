@@ -19,6 +19,9 @@
 #include "tencode.h"
 #include "tmsg.h"
 
+static int32_t metaEncodeSColRefBase(SEncoder *pCoder, const SColRef *pColRef);
+static int32_t metaDecodeSColRefBase(SDecoder *pDecoder, SColRef *pColRef);
+
 bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols) {
   for (int32_t i = 0; i < nCols; i++) {
     if (HAS_TYPE_MOD(pSchema + i)) {
@@ -73,47 +76,29 @@ int meteEncodeColRefEntry(SEncoder *pCoder, const SMetaEntry *pME) {
 
   for (int32_t i = 0; i < pw->nCols; i++) {
     SColRef *p = &pw->pColRef[i];
-    TAOS_CHECK_RETURN(tEncodeI8(pCoder, p->hasRef));
-    TAOS_CHECK_RETURN(tEncodeI16v(pCoder, p->id));
-    if (p->hasRef) {
-      TAOS_CHECK_RETURN(tEncodeI8(pCoder, p->refType));
-      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refSourceName));
-      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refDbName));
-      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refTableName));
-      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refColName));
-      TAOS_CHECK_RETURN(tEncodeI32(pCoder, p->tagCondLen));
-      if (p->tagCondLen > 0) {
-        TAOS_CHECK_RETURN(tEncodeBinary(pCoder, (const uint8_t *)p->tagCondJson, p->tagCondLen));
-      }
-    }
+    TAOS_CHECK_RETURN(metaEncodeSColRefBase(pCoder, p));
   }
 
   // Encode tag references
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nTagRefs));
   for (int32_t i = 0; i < pw->nTagRefs; i++) {
     SColRef *p = &pw->pTagRef[i];
-    TAOS_CHECK_RETURN(tEncodeI8(pCoder, p->hasRef));
-    TAOS_CHECK_RETURN(tEncodeI16v(pCoder, p->id));
-    if (p->hasRef) {
-      TAOS_CHECK_RETURN(tEncodeI8(pCoder, p->refType));
-      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refSourceName));
-      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refDbName));
-      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refTableName));
-      TAOS_CHECK_RETURN(tEncodeCStr(pCoder, p->refColName));
-      TAOS_CHECK_RETURN(tEncodeI32(pCoder, p->tagCondLen));
-      if (p->tagCondLen > 0) {
-        TAOS_CHECK_RETURN(tEncodeBinary(pCoder, (const uint8_t *)p->tagCondJson, p->tagCondLen));
-      }
-    }
+    TAOS_CHECK_RETURN(metaEncodeSColRefBase(pCoder, p));
   }
+
+  return 0;
+}
+
+static int32_t metaEncodeColRefEntryTail(SEncoder *pCoder, const SMetaEntry *pME) {
+  const SColRefWrapper *pw = &pME->colRef;
 
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nCols));
   for (int32_t i = 0; i < pw->nCols; i++) {
-    TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pw->pColRef[i].refSchemaName));
+    TAOS_CHECK_RETURN(tEncodeSColRefExt(pCoder, &pw->pColRef[i]));
   }
   TAOS_CHECK_RETURN(tEncodeI32v(pCoder, pw->nTagRefs));
   for (int32_t i = 0; i < pw->nTagRefs; i++) {
-    TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pw->pTagRef[i].refSchemaName));
+    TAOS_CHECK_RETURN(tEncodeSColRefExt(pCoder, &pw->pTagRef[i]));
   }
 
   return 0;
@@ -162,6 +147,33 @@ SExtSchema* metaGetSExtSchema(const SMetaEntry *pME) {
     return ret;
   }
   return NULL;
+}
+
+static int32_t metaEncodeSColRefBase(SEncoder *pCoder, const SColRef *pColRef) {
+  TAOS_CHECK_RETURN(tEncodeI8(pCoder, pColRef->hasRef));
+  TAOS_CHECK_RETURN(tEncodeI16v(pCoder, pColRef->id));
+  if (pColRef->hasRef) {
+    TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pColRef->refDbName));
+    TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pColRef->refTableName));
+    TAOS_CHECK_RETURN(tEncodeCStr(pCoder, pColRef->refColName));
+  }
+  return 0;
+}
+
+static int32_t metaDecodeSColRefBase(SDecoder *pDecoder, SColRef *pColRef) {
+  pColRef->tagCondLen = 0;
+  pColRef->tagCondJson = NULL;
+  pColRef->refType = 0;
+  pColRef->refSourceName[0] = '\0';
+  pColRef->refSchemaName[0] = '\0';
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&pColRef->hasRef));
+  TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &pColRef->id));
+  if (pColRef->hasRef) {
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refDbName));
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refTableName));
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refColName));
+  }
+  return 0;
 }
 
 int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
@@ -220,6 +232,33 @@ int32_t metaGetRsmaSchema(const SMetaEntry *pME, SSchemaRsma **rsmaSchema) {
   return 0;
 }
 
+static int32_t metaDecodeSColRefExt(SDecoder *pDecoder, SColRef *p, const char *kind, int32_t index) {
+  if (p->hasRef) {
+    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &p->refType));
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refSourceName));
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refSchemaName));
+    TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &p->tagCondLen));
+    if (p->tagCondLen > 0) {
+      uint8_t *tmpBuf = NULL;
+      uint32_t tmpLen = 0;
+      TAOS_CHECK_RETURN(tDecodeBinary(pDecoder, &tmpBuf, &tmpLen));
+      if ((int32_t)tmpLen != p->tagCondLen) {
+        uError("meteDecodeColRefEntry: tagCondLen mismatch %s %d: stored=%d decoded=%u", kind, index,
+               p->tagCondLen, tmpLen);
+        return TSDB_CODE_INVALID_MSG;
+      }
+      p->tagCondJson = (char *)tDecoderMalloc(pDecoder, p->tagCondLen + 1);
+      if (p->tagCondJson == NULL) {
+        TAOS_CHECK_RETURN(terrno);
+      }
+      memcpy(p->tagCondJson, tmpBuf, p->tagCondLen);
+      p->tagCondJson[p->tagCondLen] = '\0';
+    }
+  }
+
+  return 0;
+}
+
 int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   SColRefWrapper *pWrapper = &pME->colRef;
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->nCols));
@@ -235,36 +274,7 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
 
   for (int i = 0; i < pWrapper->nCols; i++) {
     SColRef *p = &pWrapper->pColRef[i];
-    p->tagCondLen = 0;
-    p->tagCondJson = NULL;
-    p->refSchemaName[0] = '\0';
-    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
-    TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &p->id));
-    if (p->hasRef) {
-      TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &p->refType));
-      TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refSourceName));
-      TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refDbName));
-      TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refTableName));
-      TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refColName));
-      TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &p->tagCondLen));
-      if (p->tagCondLen > 0) {
-        uint8_t *tmpBuf = NULL;
-        uint32_t tmpLen = 0;
-        TAOS_CHECK_RETURN(tDecodeBinary(pDecoder, &tmpBuf, &tmpLen));
-        if ((int32_t)tmpLen != p->tagCondLen) {
-          uError("meteDecodeColRefEntry: tagCondLen mismatch col %d: stored=%d decoded=%u", i, p->tagCondLen, tmpLen);
-          return TSDB_CODE_INVALID_MSG;
-        }
-        p->tagCondJson = (char *)tDecoderMalloc(pDecoder, p->tagCondLen + 1);
-        if (p->tagCondJson == NULL) {
-          TAOS_CHECK_RETURN(terrno);
-        }
-        memcpy(p->tagCondJson, tmpBuf, p->tagCondLen);
-        p->tagCondJson[p->tagCondLen] = '\0';
-      }
-    } else {
-      p->tagCondJson = NULL;
-    }
+    TAOS_CHECK_RETURN(metaDecodeSColRefBase(pDecoder, p));
   }
 
   // Decode tag references (backward compatible)
@@ -280,55 +290,34 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
 
       for (int i = 0; i < pWrapper->nTagRefs; i++) {
         SColRef *p = &pWrapper->pTagRef[i];
-        p->tagCondLen = 0;
-        p->tagCondJson = NULL;
-        p->refSchemaName[0] = '\0';
-        TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&p->hasRef));
-        TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &p->id));
-        if (p->hasRef) {
-          TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &p->refType));
-          TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refSourceName));
-          TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refDbName));
-          TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refTableName));
-          TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, p->refColName));
-          TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &p->tagCondLen));
-          if (p->tagCondLen > 0) {
-            uint8_t *tmpBuf = NULL;
-            uint32_t tmpLen = 0;
-            TAOS_CHECK_RETURN(tDecodeBinary(pDecoder, &tmpBuf, &tmpLen));
-            if ((int32_t)tmpLen != p->tagCondLen) {
-              uError("meteDecodeColRefEntry: tagCondLen mismatch tag %d: stored=%d decoded=%u", i, p->tagCondLen, tmpLen);
-              return TSDB_CODE_INVALID_MSG;
-            }
-            p->tagCondJson = (char *)tDecoderMalloc(pDecoder, p->tagCondLen + 1);
-            if (p->tagCondJson == NULL) {
-              TAOS_CHECK_RETURN(terrno);
-            }
-            memcpy(p->tagCondJson, tmpBuf, p->tagCondLen);
-            p->tagCondJson[p->tagCondLen] = '\0';
-          }
-        }
+        TAOS_CHECK_RETURN(metaDecodeSColRefBase(pDecoder, p));
       }
     }
   }
 
+  return 0;
+}
+
+static int32_t metaDecodeColRefEntryTail(SDecoder *pDecoder, SMetaEntry *pME) {
+  SColRefWrapper *pWrapper = &pME->colRef;
+
   if (!tDecodeIsEnd(pDecoder)) {
-    int32_t nColSchemas = 0;
-    TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &nColSchemas));
-    if (nColSchemas != pWrapper->nCols) {
+    int32_t nColExts = 0;
+    TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &nColExts));
+    if (nColExts != pWrapper->nCols) {
       return TSDB_CODE_INVALID_MSG;
     }
-    for (int32_t i = 0; i < nColSchemas; i++) {
-      TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pWrapper->pColRef[i].refSchemaName));
+    for (int32_t i = 0; i < nColExts; i++) {
+      TAOS_CHECK_RETURN(metaDecodeSColRefExt(pDecoder, &pWrapper->pColRef[i], "col", i));
     }
 
-    int32_t nTagSchemas = 0;
-    TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &nTagSchemas));
-    if (nTagSchemas != pWrapper->nTagRefs) {
+    int32_t nTagExts = 0;
+    TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &nTagExts));
+    if (nTagExts != pWrapper->nTagRefs) {
       return TSDB_CODE_INVALID_MSG;
     }
-    for (int32_t i = 0; i < nTagSchemas; i++) {
-      TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pWrapper->pTagRef[i].refSchemaName));
+    for (int32_t i = 0; i < nTagExts; i++) {
+      TAOS_CHECK_RETURN(metaDecodeSColRefExt(pDecoder, &pWrapper->pTagRef[i], "tag", i));
     }
   }
 
@@ -544,7 +533,6 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     }
     if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
       TAOS_CHECK_RETURN(meteEncodeColRefEntry(pCoder, pME));
-      TAOS_CHECK_RETURN(tEncodeSSeriesWrapper(pCoder, &pME->series));
     } else {
       if (pME->type == TSDB_SUPER_TABLE && TABLE_IS_COL_COMPRESSED(pME->flags)) {
         TAOS_CHECK_RETURN(meteEncodeColCmprEntry(pCoder, pME));
@@ -588,6 +576,10 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->txnId));
     TAOS_CHECK_RETURN(tEncodeI8(pCoder, (int8_t)pME->txnStatus));
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->txnPrevVer));
+  }
+  if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    TAOS_CHECK_RETURN(tEncodeSSeriesWrapper(pCoder, &pME->series));
+    TAOS_CHECK_RETURN(metaEncodeColRefEntryTail(pCoder, pME));
   }
 
   tEndEncode(pCoder);
@@ -684,9 +676,6 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
            TAOS_CHECK_RETURN(metatInitDefaultSColRefWrapper(pCoder, &pME->colRef, &pME->ntbEntry.schemaRow));
         }
       }
-      if (!tDecodeIsEnd(pCoder)) {
-        TAOS_CHECK_RETURN(tDecodeSSeriesWrapper(pCoder, &pME->series));
-      }
     }
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_RETURN(metaDecodeExtSchemas(pCoder, pME));
@@ -737,6 +726,14 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     pME->txnId = 0;
     pME->txnStatus = META_TXN_NORMAL;
     pME->txnPrevVer = -1;
+  }
+  if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_RETURN(tDecodeSSeriesWrapper(pCoder, &pME->series));
+    }
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_RETURN(metaDecodeColRefEntryTail(pCoder, pME));
+    }
   }
 
   tEndDecode(pCoder);
