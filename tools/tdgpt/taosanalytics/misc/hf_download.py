@@ -6,6 +6,10 @@ from huggingface_hub import snapshot_download
 
 DEFAULT_HF_MIRROR_ENDPOINT = "https://hf-mirror.com"
 OFFICIAL_HF_ENDPOINT = "https://huggingface.co"
+RETRIABLE_ENDPOINT_ERROR_NAMES = {
+    "FileMetadataError",
+    "LocalEntryNotFoundError",
+}
 
 
 def parse_bool(value: object) -> bool:
@@ -36,6 +40,13 @@ def is_official_endpoint(endpoint: Optional[str]) -> bool:
     return effective_endpoint.rstrip("/") == OFFICIAL_HF_ENDPOINT
 
 
+def _matches_retriable_endpoint_error(exc: Exception) -> bool:
+    return any(
+        error_class.__name__ in RETRIABLE_ENDPOINT_ERROR_NAMES
+        for error_class in type(exc).__mro__
+    )
+
+
 def _is_retriable_on_endpoint_change(exc: Exception) -> bool:
     """Return True if retrying with a different endpoint might succeed.
 
@@ -46,6 +57,8 @@ def _is_retriable_on_endpoint_change(exc: Exception) -> bool:
     - Local OS errors (PermissionError, disk full, etc.): switching endpoint
       cannot fix a local filesystem problem.
     """
+    if _matches_retriable_endpoint_error(exc):
+        return True
     response = getattr(exc, "response", None)
     if response is not None:
         status_code = getattr(response, "status_code", 0)
