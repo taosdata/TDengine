@@ -20000,8 +20000,14 @@ static int32_t translateCheckUserOptsPriv(STranslateContext* pCxt, void* pStmt, 
     }
   }
 
-  if (ops->hasPassword) {
-    const char* targetUser = isAlter ? ((SAlterUserStmt*)pStmt)->userName : ((SCreateUserStmt*)pStmt)->userName;
+  // Only ALTER USER's password change is gated by PRIV_PASS_ALTER/PRIV_PASS_ALTER_SELF.
+  // CREATE USER ... PASS sets the INITIAL password for a brand-new user, which is not
+  // a "change" of anyone's password — it's already gated by PRIV_USER_CREATE at the
+  // MNode (mndProcessCreateUserReq). Applying the ALTER-only ownership check here means
+  // targetUser (the new user) almost never equals the creator's own name, so CREATE USER
+  // would wrongly demand PRIV_PASS_ALTER on top of PRIV_USER_CREATE.
+  if (isAlter && ops->hasPassword) {
+    const char* targetUser = ((SAlterUserStmt*)pStmt)->userName;
     if (strncmp(authRsp.user, targetUser, TSDB_USER_LEN) != 0) {
       if (!PRIV_HAS(&authRsp.sysPrivs, PRIV_PASS_ALTER)) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_PERMISSION_DENIED,
