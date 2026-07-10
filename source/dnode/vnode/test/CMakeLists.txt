@@ -80,6 +80,30 @@ add_test(
          COMMAND vnodeTxnTest
 )
 
+# ---------------------------------------------------------------------------
+# metaTxnAlterStbTest: real-meta round-trip guarding the batch-meta-txn STB
+# ALTER path — repeated ALTER of the same STB in one txn must record the
+# ORIGINAL pre-txn version in txn.idx (metaTable2.c metaAlterSuperTable), which
+# the snapshot reader treats as authoritative. No --wrap: drives the real code.
+# ---------------------------------------------------------------------------
+ADD_EXECUTABLE(metaTxnAlterStbTest metaTxnAlterStbTest.cpp)
+DEP_ext_gtest(metaTxnAlterStbTest)
+TARGET_LINK_LIBRARIES(
+         metaTxnAlterStbTest
+         PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+)
+TARGET_INCLUDE_DIRECTORIES(
+         metaTxnAlterStbTest
+         PUBLIC "${TD_SOURCE_DIR}/include/common"
+         PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+add_test(
+         NAME metaTxnAlterStbTest
+         COMMAND metaTxnAlterStbTest
+)
+
 # Phase 1: metaSnapTxnTest disabled — snapshot sver-adjustment removed; re-enable in Phase 2
 # ADD_EXECUTABLE(metaSnapTxnTest metaSnapTxnTest.cpp)
 # DEP_ext_gtest(metaSnapTxnTest)

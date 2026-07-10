@@ -571,11 +571,11 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->ntbEntry.ownerId));
   }
 
-  // Batch meta txn: append txnId + txnStatus + txnPrevVer only when bit 6 was set.
+  // Batch meta txn: append txnId + txnStatus + txnOrigVer only when bit 6 was set.
   if (pME->txnId != 0 && pME->type > 0) {
     TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->txnId));
     TAOS_CHECK_RETURN(tEncodeI8(pCoder, (int8_t)pME->txnStatus));
-    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->txnPrevVer));
+    TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->txnOrigVer));
   }
   if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
     TAOS_CHECK_RETURN(tEncodeSSeriesWrapper(pCoder, &pME->series));
@@ -715,17 +715,17 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     }
   }
 
-  // Batch meta txn: decode txnId + txnStatus + txnPrevVer when bit 6 was set on type.
+  // Batch meta txn: decode txnId + txnStatus + txnOrigVer when bit 6 was set on type.
   if (hasTxn) {
     TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->txnId));
     int8_t status = 0;
     TAOS_CHECK_RETURN(tDecodeI8(pCoder, &status));
     pME->txnStatus = (uint8_t)status;
-    TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->txnPrevVer));
+    TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->txnOrigVer));
   } else {
     pME->txnId = 0;
     pME->txnStatus = META_TXN_NORMAL;
-    pME->txnPrevVer = -1;
+    pME->txnOrigVer = -1;
   }
   if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
     if (!tDecodeIsEnd(pCoder)) {
@@ -860,7 +860,7 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
   (*ppEntry)->uid = pEntry->uid;
   (*ppEntry)->txnId = pEntry->txnId;
   (*ppEntry)->txnStatus = pEntry->txnStatus;
-  (*ppEntry)->txnPrevVer = pEntry->txnPrevVer;
+  (*ppEntry)->txnOrigVer = pEntry->txnOrigVer;
 
   if (pEntry->type < 0) {
     return TSDB_CODE_SUCCESS;

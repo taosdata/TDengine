@@ -160,7 +160,7 @@ typedef struct {
 typedef struct {
   int64_t txnId;
   int8_t  txnStatus;
-  int64_t txnPrevVer;
+  int64_t txnOrigVer;
 } STxnIdxVal;
 #pragma pack(pop)
 typedef struct {

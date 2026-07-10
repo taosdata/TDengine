@@ -25,10 +25,10 @@ struct SMetaSnapReader {
   TBC*    pTbc;
   int32_t iLoop;
   // batch meta txn: PRE_ALTER prev-version rescue map.
-  // Key = uid, Value = txnPrevVer. Populated at open time by scanning txn.idx for
-  // entries with status==META_TXN_PRE_ALTER && 0 <= txnPrevVer < sver. When the
+  // Key = uid, Value = txnOrigVer. Populated at open time by scanning txn.idx for
+  // entries with status==META_TXN_PRE_ALTER && 0 <= txnOrigVer < sver. When the
   // walker is about to emit such a uid's row in iLoop 0/1, we first emit the
-  // (txnPrevVer, uid) row from pTbDb so the destination keeps the prev-version
+  // (txnOrigVer, uid) row from pTbDb so the destination keeps the prev-version
   // entry — required for vnodeTxnRollbackShadowEntries to correctly restore the
   // pre-ALTER schema on ROLLBACK after an incremental snapshot transfer.
   SHashObj* pPrevVerNeeded;
@@ -70,9 +70,9 @@ int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapRe
             }
           }
           // PRE_ALTER: also consider the previous version entry
-          if (e->txnStatus == META_TXN_PRE_ALTER && e->txnPrevVer >= 0) {
-            if (e->txnPrevVer < minTxnVer) {
-              minTxnVer = e->txnPrevVer;
+          if (e->txnStatus == META_TXN_PRE_ALTER && e->txnOrigVer >= 0) {
+            if (e->txnOrigVer < minTxnVer) {
+              minTxnVer = e->txnOrigVer;
             }
           }
         }
@@ -94,9 +94,9 @@ int32_t metaSnapReaderOpen(SMeta* pMeta, int64_t sver, int64_t ever, SMetaSnapRe
         } else {
           for (int32_t i = 0; i < nTxn; i++) {
             SMetaTxnScanEntry* e = (SMetaTxnScanEntry*)taosArrayGet(pTxnArr, i);
-            if (e->txnStatus == META_TXN_PRE_ALTER && e->txnPrevVer >= 0 && e->txnPrevVer < sver) {
+            if (e->txnStatus == META_TXN_PRE_ALTER && e->txnOrigVer >= 0 && e->txnOrigVer < sver) {
               int32_t hrc =
-                  taosHashPut(pReader->pPrevVerNeeded, &e->uid, sizeof(e->uid), &e->txnPrevVer, sizeof(int64_t));
+                  taosHashPut(pReader->pPrevVerNeeded, &e->uid, sizeof(e->uid), &e->txnOrigVer, sizeof(int64_t));
               if (hrc != 0) {
                 metaWarn("vgId:%d, snap: taosHashPut failed for uid:%" PRId64 " rc:%d, skip entry",
                          TD_VID(pMeta->pVnode), e->uid, hrc);
@@ -224,7 +224,7 @@ int32_t metaSnapRead(SMetaSnapReader* pReader, uint8_t** ppData) {
     }
 
     // batch meta txn: PRE_ALTER prev-version rescue.
-    // If this uid is in pPrevVerNeeded, emit the (txnPrevVer, uid) row from pTbDb FIRST,
+    // If this uid is in pPrevVerNeeded, emit the (txnOrigVer, uid) row from pTbDb FIRST,
     // WITHOUT advancing the cursor. The next call will re-read this same row and (since the
     // hash entry is removed) fall through to the normal send path.
     // Order matters: prev row must arrive before the PRE_ALTER row so that on the destination
@@ -389,8 +389,8 @@ int32_t metaSnapWrite(SMetaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
   // PRE_ALTER / PRE_DROP) become zombie when COMMIT/ROLLBACK arrives later.
   // Only insert/update entries (type > 0) carry meaningful txn state.
   if (metaEntry.txnId != 0 && metaEntry.type > 0) {
-    int64_t txnPrevVer = (metaEntry.txnStatus == META_TXN_PRE_ALTER) ? metaEntry.txnPrevVer : -1;
-    TAOS_CHECK_EXIT(metaTxnIdxUpsert(pMeta, metaEntry.uid, metaEntry.txnId, metaEntry.txnStatus, txnPrevVer));
+    int64_t txnOrigVer = (metaEntry.txnStatus == META_TXN_PRE_ALTER) ? metaEntry.txnOrigVer : -1;
+    TAOS_CHECK_EXIT(metaTxnIdxUpsert(pMeta, metaEntry.uid, metaEntry.txnId, metaEntry.txnStatus, txnOrigVer));
     metaDebug("vgId:%d, snap write: upserted txn.idx uid:%" PRId64 " txnId:%" PRId64 " status:%d",
               TD_VID(pMeta->pVnode), metaEntry.uid, metaEntry.txnId, metaEntry.txnStatus);
     // Persist beginWalIndex into txn.meta (TXN_META_NONE = in-progress marker) if not already present.
