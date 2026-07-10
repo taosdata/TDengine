@@ -725,36 +725,31 @@ _end:
   return code;
 }
 
-int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent, const SArray* pFields,
-                                            const int32_t startRow, const int32_t endRow) {
+int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent,
+                                            const SArray* pFields, const int32_t startRow, const int32_t endRow,
+                                            bool* pHasNotifyRows) {
   int32_t code = 0, lino = 0;
   cJSON*  pContent = NULL;
   cJSON*  pResult = NULL;
   cJSON*  pRow = NULL;
+  bool    hasNotifyFilter = (pTask->addOptions & NOTIFY_HAS_FILTER) != 0;
+  int32_t filteredRows = 0;
+  int32_t curSize = endRow - startRow + 1;
+
+  if (pHasNotifyRows != NULL) {
+    *pHasNotifyRows = !hasNotifyFilter;
+  }
+
   pResult = cJSON_CreateObject();
   QUERY_CHECK_NULL(pResult, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
   cJSON* pArr = cJSON_AddArrayToObject(pResult, "data");
   QUERY_CHECK_NULL(pArr, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
-  cJSON* size = cJSON_CreateNumber(endRow - startRow + 1);
-  QUERY_CHECK_NULL(size, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  JSON_CHECK_ADD_ITEM_SAFE(pResult, "curSize", size);
-
-  cJSON* offset = cJSON_CreateNumber(0);
-  QUERY_CHECK_NULL(offset, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  JSON_CHECK_ADD_ITEM_SAFE(pResult, "curOffset", offset);
-
-  cJSON* finish = cJSON_CreateTrue();
-  QUERY_CHECK_NULL(finish, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-  JSON_CHECK_ADD_ITEM_SAFE(pResult, "finish", finish);
-
-  bool hasData = false;
-
   if (pBlock && pBlock->info.rows > 0) {
     int32_t          realCols = taosArrayGetSize(pBlock->pDataBlock);
     SColumnInfoData* pFilterCol = NULL;
-    if (pTask->addOptions & NOTIFY_HAS_FILTER) {
+    if (hasNotifyFilter) {
       realCols -= 1;
       pFilterCol = taosArrayGet(pBlock->pDataBlock, realCols);
       if (pFilterCol->info.type != TSDB_DATA_TYPE_BOOL) {
@@ -765,7 +760,10 @@ int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, cons
     }
 
     for (int32_t rowIdx = startRow; rowIdx <= endRow && rowIdx < pBlock->info.rows; ++rowIdx) {
-      if (pFilterCol && !colDataIsNull_s(pFilterCol, rowIdx)) {
+      if (pFilterCol != NULL) {
+        if (colDataIsNull_s(pFilterCol, rowIdx)) {
+          continue;
+        }
         bool filter = *(bool*)colDataGetData(pFilterCol, rowIdx);
         if (!filter) {
           continue;
@@ -790,10 +788,29 @@ int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, cons
       }
 
       TSDB_CHECK_CONDITION(cJSON_AddItemToArray(pArr, pRow), code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-      hasData = true;
+      filteredRows++;
       pRow = NULL;
     }
   }
+
+  if (hasNotifyFilter) {
+    curSize = filteredRows;
+    if (pHasNotifyRows != NULL) {
+      *pHasNotifyRows = (filteredRows > 0);
+    }
+  }
+
+  cJSON* size = cJSON_CreateNumber(curSize);
+  QUERY_CHECK_NULL(size, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  JSON_CHECK_ADD_ITEM_SAFE(pResult, "curSize", size);
+
+  cJSON* offset = cJSON_CreateNumber(0);
+  QUERY_CHECK_NULL(offset, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  JSON_CHECK_ADD_ITEM_SAFE(pResult, "curOffset", offset);
+
+  cJSON* finish = cJSON_CreateTrue();
+  QUERY_CHECK_NULL(finish, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
+  JSON_CHECK_ADD_ITEM_SAFE(pResult, "finish", finish);
 
   pContent = cJSON_CreateObject();
   QUERY_CHECK_NULL(pContent, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
