@@ -1379,11 +1379,32 @@ static FORCE_INLINE int32_t tEncodeSColRef(SEncoder* pEncoder, const SColRef* pC
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refDbName));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refTableName));
     TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refColName));
-    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refSourceName));
+  }
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeSColRef(SDecoder* pDecoder, SColRef* pColRef) {
+  pColRef->tagCondLen = 0;
+  pColRef->tagCondJson = NULL;
+  pColRef->refType = 0;
+  pColRef->refSourceName[0] = '\0';
+  pColRef->refSchemaName[0] = '\0';
+  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t*)&pColRef->hasRef));
+  TAOS_CHECK_RETURN(tDecodeI16(pDecoder, &pColRef->id));
+  if (pColRef->hasRef) {
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refDbName));
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refTableName));
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refColName));
+  }
+
+  return 0;
+}
+
+static FORCE_INLINE int32_t tEncodeSColRefExt(SEncoder* pEncoder, const SColRef* pColRef) {
+  if (pColRef->hasRef) {
     TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pColRef->refType));
-    // Always emit tagCondLen so the decoder can read a fixed-width field; in
-    // a wrapper with multiple SColRefs the !tDecodeIsEnd guard cannot tell
-    // "no optional payload" from "next SColRef starts here".
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refSourceName));
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColRef->refSchemaName));
     TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pColRef->tagCondLen));
     if (pColRef->tagCondLen > 0) {
       TAOS_CHECK_RETURN(tEncodeBinary(pEncoder, (const uint8_t*)pColRef->tagCondJson, pColRef->tagCondLen));
@@ -1392,43 +1413,25 @@ static FORCE_INLINE int32_t tEncodeSColRef(SEncoder* pEncoder, const SColRef* pC
   return 0;
 }
 
-static FORCE_INLINE int32_t tDecodeSColRef(SDecoder* pDecoder, SColRef* pColRef) {
-  pColRef->tagCondLen = 0;
-  pColRef->tagCondJson = NULL;
-  pColRef->refSchemaName[0] = '\0';
-  TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t*)&pColRef->hasRef));
-  TAOS_CHECK_RETURN(tDecodeI16(pDecoder, &pColRef->id));
+static FORCE_INLINE int32_t tDecodeSColRefExt(SDecoder* pDecoder, SColRef* pColRef) {
   if (pColRef->hasRef) {
-    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refDbName));
-    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refTableName));
-    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refColName));
+    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pColRef->refType));
     TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refSourceName));
-    if (!tDecodeIsEnd(pDecoder)) {
-      TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pColRef->refType));
-    } else {
-      pColRef->refType = 0;
-    }
-    if (!tDecodeIsEnd(pDecoder)) {
-      TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pColRef->tagCondLen));
-      if (pColRef->tagCondLen > 0) {
-        uint8_t* tmpBuf = NULL;
-        uint32_t tmpLen = 0;
-        TAOS_CHECK_RETURN(tDecodeBinary(pDecoder, &tmpBuf, &tmpLen));
-        if ((int32_t)tmpLen != pColRef->tagCondLen) {
-          return TSDB_CODE_INVALID_MSG;
-        }
-        pColRef->tagCondJson = (char*)taosMemoryMalloc(pColRef->tagCondLen + 1);
-        if (pColRef->tagCondJson == NULL) {
-          TAOS_CHECK_RETURN(terrno);
-        }
-        memcpy(pColRef->tagCondJson, tmpBuf, pColRef->tagCondLen);
-        pColRef->tagCondJson[pColRef->tagCondLen] = '\0';
-      } else {
-        pColRef->tagCondJson = NULL;
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refSchemaName));
+    TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pColRef->tagCondLen));
+    if (pColRef->tagCondLen > 0) {
+      uint8_t* tmpBuf = NULL;
+      uint32_t tmpLen = 0;
+      TAOS_CHECK_RETURN(tDecodeBinary(pDecoder, &tmpBuf, &tmpLen));
+      if ((int32_t)tmpLen != pColRef->tagCondLen) {
+        return TSDB_CODE_INVALID_MSG;
       }
-    } else {
-      pColRef->tagCondLen = 0;
-      pColRef->tagCondJson = NULL;
+      pColRef->tagCondJson = (char*)taosMemoryMalloc(pColRef->tagCondLen + 1);
+      if (pColRef->tagCondJson == NULL) {
+        TAOS_CHECK_RETURN(terrno);
+      }
+      memcpy(pColRef->tagCondJson, tmpBuf, pColRef->tagCondLen);
+      pColRef->tagCondJson[pColRef->tagCondLen] = '\0';
     }
   }
 
