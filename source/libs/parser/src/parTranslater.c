@@ -13356,8 +13356,10 @@ void tryCalcIntervalAutoOffset(SIntervalWindowNode* pInterval) {
     return;
   }
 
-  // ignore auto offset if not applicable
-  if (pInterval->timeRange.skey == INT64_MIN) {
+  // ignore auto offset if not applicable: an unbounded start (INT64_MIN,
+  // full range) or an empty range (TSWINDOW_DESC_INITIALIZER, INT64_MAX).
+  if (pInterval->timeRange.skey == INT64_MIN ||
+      pInterval->timeRange.skey == INT64_MAX) {
     pOffset->datum.i = 0;
     return;
   }
