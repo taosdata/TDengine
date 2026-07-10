@@ -30,7 +30,7 @@ class TestCloseOpenVnode:
             - 2026-5-26 Created
 
         """
-        clusterComCheck.checkDnodes(1)
+        clusterComCheck.checkDnodes(3)
 
         # Create database and insert data
         tdSql.execute("drop database if exists test_cv")
@@ -295,10 +295,10 @@ class TestCloseOpenVnode:
         tdSql.error("select * from t1")
 
         # Restart taosd
-        sc.dnodeStop(1)
-        sc.dnodeStart(1)
+        sc.dnodeStop(dnodeId)
+        sc.dnodeStart(dnodeId)
         time.sleep(3)
-        clusterComCheck.checkDnodes(1)
+        clusterComCheck.checkDnodes(3)
 
         # Reconnect
         tdSql.execute("use test_cv6")
