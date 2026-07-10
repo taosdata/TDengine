@@ -39,6 +39,14 @@ def _wait_notify_events(path, min_events, retries=30):
     return _load_notify_events(path)
 
 
+def _assert_no_notify_events(path, settle_seconds=5):
+    time.sleep(settle_seconds)
+    if not os.path.exists(path):
+        return
+    events = _load_notify_events(path)
+    assert len(events) == 0, events
+
+
 def _subevent_key(event):
     cond = event.get("triggerCondition", {})
     return (
@@ -125,6 +133,17 @@ class TestStreamNotifyTrigger:
 
         tdStream.checkAll(streams)      
         stop_notify_server_background()
+
+    def test_stream_notify_where_filter(self):
+        """Notify WHERE filters result rows and suppresses empty notifications."""
+
+        self.start_notify_server()
+        try:
+            tdStream.dropAllStreamsAndDbs()
+            tdStream.ensureSnode()
+            tdStream.checkAll([self.NotifyWhereFilter()])
+        finally:
+            stop_notify_server_background()
 
     class Basic1(StreamCheckItem):
         def __init__(self):
@@ -2473,3 +2492,99 @@ class TestStreamNotifyTrigger:
 
             tdSql.query("show tables like 'test_stream_alarm'")
             tdSql.checkRows(0)
+
+    class NotifyWhereFilter(StreamCheckItem):
+        def __init__(self):
+            self.db = "sdb_notify_where"
+
+        def create(self):
+            tdSql.execute(f"create database {self.db} vgroups 1")
+            tdSql.execute(f"use {self.db}")
+            tdSql.execute("create table t (ts timestamp, grp int, val int)")
+            tdSql.execute("create table t_sparse (ts timestamp, val int)")
+            tdSql.execute(
+                "create stream s_partial "
+                "interval(10s) sliding(10s) from t "
+                "notify('ws://localhost:12345/notify_where_partial') "
+                "on(window_close) where max_val >= 20 "
+                "into r_partial (ts, grp primary key, cnt, max_val) as "
+                "select _twstart, grp, count(*) as cnt, max(val) as max_val "
+                "from %%trows partition by grp"
+            )
+            tdSql.execute(
+                "create stream s_none "
+                "interval(10s) sliding(10s) from t "
+                "notify('ws://localhost:12345/notify_where_none') "
+                "on(window_close) where max_val > 100 "
+                "into r_none (ts, grp primary key, cnt, max_val) as "
+                "select _twstart, grp, count(*) as cnt, max(val) as max_val "
+                "from %%trows partition by grp"
+            )
+            tdSql.execute(
+                "create stream s_sparse_windows "
+                "interval(10s) sliding(10s) from t_sparse "
+                "notify('ws://localhost:12345/notify_where_sparse_windows') "
+                "on(window_close) where max_val >= 20 "
+                "into r_sparse_windows (ts, cnt, max_val) as "
+                "select _twstart, count(*) as cnt, max(val) as max_val from %%trows"
+            )
+
+        def insert1(self):
+            tdSql.execute(
+                "insert into t values "
+                "('2025-01-01 00:00:00.000', 1, 10) "
+                "('2025-01-01 00:00:01.000', 2, 20) "
+                "('2025-01-01 00:00:02.000', 3, 30) "
+                "('2025-01-01 00:00:10.000', 1, 0)"
+            )
+            tdSql.execute(
+                "insert into t_sparse values "
+                "('2025-01-01 00:00:00.000', 20) "
+                "('2025-01-01 00:00:10.000', 0) "
+                "('2025-01-01 00:00:20.000', 30) "
+                "('2025-01-01 00:00:30.000', 0) "
+                "('2025-01-01 00:00:40.000', 40) "
+                "('2025-01-01 00:00:50.000', 0)"
+            )
+
+        def check1(self):
+            partial_log = os.path.join(NOTIFY_RESULT_DIR, "notify_where_partial.log")
+            none_log = os.path.join(NOTIFY_RESULT_DIR, "notify_where_none.log")
+            sparse_log = os.path.join(NOTIFY_RESULT_DIR, "notify_where_sparse_windows.log")
+
+            event = expect_event(
+                partial_log,
+                streamName=f"{self.db}.s_partial",
+                eventType="WINDOW_CLOSE",
+                triggerType="Interval",
+                result_pred=lambda rows: sorted(
+                    (row["grp"], row["cnt"], row["max_val"]) for row in rows
+                ) == [(2, 1, 20), (3, 1, 30)],
+            )
+            assert event.result["curSize"] == 2, event.raw
+            assert all(set(row) == {"ts", "grp", "cnt", "max_val"} for row in event.resultData), event.raw
+
+            _assert_no_notify_events(none_log)
+
+            tdSql.query("select grp, cnt, max_val from r_partial order by grp")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(0, 2, 10)
+            tdSql.checkData(1, 0, 2)
+            tdSql.checkData(1, 1, 1)
+            tdSql.checkData(1, 2, 20)
+            tdSql.checkData(2, 0, 3)
+            tdSql.checkData(2, 1, 1)
+            tdSql.checkData(2, 2, 30)
+
+            tdSql.query("select grp, cnt, max_val from r_none order by grp")
+            tdSql.checkRows(3)
+
+            sparse_events = _wait_notify_events(sparse_log, 3)
+            sparse_windows = sorted((event["windowStart"], event["result"]["data"][0]["max_val"]) for event in sparse_events)
+            assert sparse_windows == [
+                (1735660800000, 20),
+                (1735660820000, 30),
+                (1735660840000, 40),
+            ], sparse_events

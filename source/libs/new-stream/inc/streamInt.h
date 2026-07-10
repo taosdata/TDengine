@@ -142,7 +142,8 @@ int32_t streamBuildEventNotifyContent(const SSDataBlock* pInputBlock, const SNod
                                       int32_t condIdx, int32_t winIdx, int64_t groupId, int64_t windowStart,
                                       int64_t parentWindowStart, char** ppContent);
 int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent,
-                                            const SArray* pFields, const int32_t startRow, const int32_t endRow);
+                                            const SArray* pFields, const int32_t startRow, const int32_t endRow,
+                                            bool* pHasNotifyRows);
 int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
                                 int64_t groupId, const SArray* pNotifyAddrUrls, int32_t addOptions,
                                 const SSTriggerCalcParam* pParams, int32_t nParam);

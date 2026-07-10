@@ -2120,6 +2120,31 @@ TEST_F(ParserStreamTest, TestNotify) {
   clearCreateStreamReq();
 }
 
+TEST_F(ParserStreamTest, TestNotifyWhereFilterFlag) {
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) {
+      return;
+    }
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+    ASSERT_NE(pQuery->pCmdMsg, nullptr);
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_TRUE((req.addOptions & NOTIFY_HAS_FILTER) != 0);
+    ASSERT_EQ(req.notifyEventTypes, EVENT_WINDOW_CLOSE);
+    ASSERT_NE(req.outCols, nullptr);
+    ASSERT_EQ(taosArrayGetSize(req.outCols), 4);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_notify_where interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 "
+      "notify('ws://localhost:8080/notify_where') on (window_close) where max_v >= 20 "
+      "into stream_outdb.stream_out as "
+      "select _twstart, c1, count(*) as cnt, max(c1) as max_v from %%trows partition by c1");
+}
+
 TEST_F(ParserStreamTest, TestOutTable) {
     setAsyncFlag("-1");
   useDb("root", "stream_streamdb");
