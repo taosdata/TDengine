@@ -103,6 +103,73 @@ class TestIntervalBugFix:
         self.testSql.checkData(1, 0, 1704067204000)
         self.testSql.checkData(1, 1, 2)
 
+    def test_last_row_sliding_interval_matches_subquery(self):
+        """Interval: last functions over sliding windows match subquery results.
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: TD-7043509904
+        """
+
+        db = "db_interval_last_row_sliding"
+        days = [
+            "2021-08-27",
+            "2021-08-28",
+            "2021-08-29",
+            "2021-08-30",
+            "2021-08-31",
+            "2021-09-01",
+            "2021-09-02",
+            "2021-09-03",
+            "2021-09-04",
+            "2021-09-05",
+            "2021-09-06",
+            "2021-09-07",
+            "2021-09-08",
+            "2021-09-09",
+            "2021-09-10",
+            "2021-09-11",
+            "2021-09-12",
+            "2021-09-13",
+            "2021-12-20",
+            "2021-12-21",
+            "2021-12-22",
+        ]
+
+        self.testSql.execute(f"drop database if exists {db}")
+        self.testSql.execute(f"create database {db} vgroups 4 keep 365000d")
+        self.testSql.execute(f"use {db}")
+        self.testSql.execute("create stable st(ts timestamp, v int) tags(g int)")
+        self.testSql.execute("create table t0 using st tags(0)")
+        self.testSql.execute("create table t1 using st tags(1)")
+
+        for table, ms, value_offset in (("t0", "000", 0), ("t1", "001", 100)):
+            values = " ".join(
+                f"('{day} 01:00:00.{ms}', {idx + value_offset})"
+                for idx, day in enumerate(days, start=1)
+            )
+            self.testSql.execute(f"insert into {table} values {values}")
+
+        for func in ("last_row", "last"):
+            direct_sql = (
+                f"select cast(_wstart as bigint), cast({func}(ts) as bigint) "
+                "from st interval(18d) sliding(1d) order by 1"
+            )
+            subquery_sql = (
+                f"select cast(_wstart as bigint), cast({func}(ts) as bigint) "
+                "from (select * from st) interval(18d) sliding(1d) order by 1"
+            )
+
+            self.testSql.query(direct_sql)
+            direct_rows = list(self.testSql.queryResult)
+            self.testSql.query(subquery_sql)
+            subquery_rows = list(self.testSql.queryResult)
+
+            self.testSql.checkEqual(len(subquery_rows), 55)
+            self.testSql.checkEqual(direct_rows, subquery_rows)
+
     def sliding_month_february(self):
         """Validate interval(1n) monthly windows over February with various sliding values.
 
