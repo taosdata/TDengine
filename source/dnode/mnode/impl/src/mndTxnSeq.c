@@ -295,7 +295,19 @@ static int32_t mndTxnSeqActionUpdate(SSdb *pSdb, STxnSeqObj *pOld, STxnSeqObj *p
          pOld->id, pOld, pNew, pOld->maxRangeId, pNew->maxRangeId);
   taosWLockLatch(&pOld->lock);
   pOld->id = pNew->id;
-  pOld->maxRangeId = pNew->maxRangeId;
+  // maxRangeId must be monotonically non-decreasing. Multiple range-allocation requests can
+  // be in flight at once (e.g. mndTxnSeqPrepare on a leader restore racing with mndGenTxnId's
+  // own watermark-triggered renewal, each computed from a maxRangeId snapshot taken at a
+  // different time) and their responses can be applied out of order. Blindly overwriting
+  // would let a stale, smaller response regress maxRangeId backwards below the already-issued
+  // currentTxnId, which then makes every subsequent BEGIN see "exhausted" and request a new
+  // range that's immediately stale again too -- a permanent loop that never converges.
+  if (pNew->maxRangeId > pOld->maxRangeId) {
+    pOld->maxRangeId = pNew->maxRangeId;
+  } else {
+    mWarn("txnSeq:%d, ignoring stale/out-of-order maxRangeId update: old:%" PRIu64 " >= new:%" PRIu64, pOld->id,
+          pOld->maxRangeId, pNew->maxRangeId);
+  }
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -374,9 +386,10 @@ int64_t mndGenTxnId(int32_t nodeId) { // deprecated, only for test, not used in 
  * to increase until next range is exhausted.
  *
  * @param pMnode
- * @return txn_id_t
+ * @param pTxnId  out: the generated txn id, valid only when the return code is 0
+ * @return int32_t error code; 0 on success
  */
-txn_id_t mndGenTxnId(SMnode *pMnode) {
+int32_t mndGenTxnId(SMnode *pMnode, txn_id_t *pTxnId) {
   int32_t     code = 0, lino = 0;
   STxnSeqObj *pObj = NULL;
   // Note: mndAcquireTxnSeq returns a negative error code on failure; callers must check the return value.
@@ -423,7 +436,8 @@ txn_id_t mndGenTxnId(SMnode *pMnode) {
     TAOS_RETURN(TSDB_CODE_MND_TXN_SEQ_IN_CREATING);
   }
 
-  return nextId;
+  *pTxnId = nextId;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 #endif
 

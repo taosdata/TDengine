@@ -40,7 +40,7 @@ struct MockMetaEntrySpec {
   tb_uid_t    uid;
   txn_id_t    txnId;
   uint8_t     txnStatus;
-  int64_t     txnPrevVer;
+  int64_t     txnOrigVer;
   int8_t      type;
   int64_t     suid;
   const char* name;
@@ -75,7 +75,7 @@ SMetaEntry* cloneMetaEntry(const MockMetaEntrySpec& spec) {
   pEntry->uid = spec.uid;
   pEntry->txnId = spec.txnId;
   pEntry->txnStatus = spec.txnStatus;
-  pEntry->txnPrevVer = spec.txnPrevVer;
+  pEntry->txnOrigVer = spec.txnOrigVer;
   pEntry->type = spec.type;
   pEntry->name = spec.name == nullptr ? nullptr : taosStrdup(spec.name);
   pEntry->ctbEntry.suid = spec.suid;
@@ -197,12 +197,12 @@ int32_t __wrap_metaScanTxnEntries(SMeta* pMeta, SArray** ppResult) {
 }
 
 // Mock metaMarkTableTxnStatus: tracks mark call count for PRE_DROP undo verification
-int32_t __wrap_metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer) {
+int32_t __wrap_metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer) {
   (void)pMeta;
   (void)uid;
   (void)txnId;
   (void)txnStatus;
-  (void)txnPrevVer;
+  (void)txnOrigVer;
   ++g_ctx.markTxnStatusCalls;
   return g_ctx.markTxnStatusCode;
 }

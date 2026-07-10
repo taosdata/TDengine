@@ -972,6 +972,203 @@ class TestBatchMetaTxnAlterTag:
     # Test entry
     # =========================================================================
 
+    # =========================================================================
+    # s14: repeated SET TAG on the same child within one txn (single-table path)
+    #      must keep the ORIGINAL pre-txn version, not the previous in-txn version.
+    # =========================================================================
+
+    def s14_repeated_set_tag_single_keeps_original(self):
+        self.s0_reset_env()
+        tdLog.info("======== s14_repeated_set_tag_single_keeps_original")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ctb1 using stb tags(10)")   # original tag = 10
+        tdSql.execute("insert into ctb1 values(now, 1)")
+
+        # BEGIN, then alter the same child's tag MULTIPLE times (uncommitted)
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ctb1 set tag t1=20")   # 1st in-txn
+        tdSql.execute("alter table ctb1 set tag t1=30")   # 2nd in-txn
+        tdSql.execute("alter table ctb1 set tag t1=40")   # 3rd in-txn
+
+        # Owner sees the latest in-txn value
+        tdSql.query("select t1 from stb where tbname='ctb1'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 40)
+
+        # Outside session must see the ORIGINAL value (10), NOT an intermediate
+        # in-txn value (20/30). This is the core regression: when the tracked version
+        # recorded the PREVIOUS in-txn version instead of the ORIGINAL pre-txn version,
+        # the reader was redirected to the previous in-txn value (30).
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_tag_db")
+        tdSql2.query("select t1 from stb where tbname='ctb1'")
+        tdSql2.checkRows(1)
+        tdSql2.checkData(0, 0, 10)
+        tdSql2.close()
+
+        # ROLLBACK must restore the ORIGINAL value (10), not an intermediate (30)
+        tdSql.execute("ROLLBACK")
+        tdSql.query("select t1 from stb where tbname='ctb1'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        # Now repeat and COMMIT: last value must win and be visible to all
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table ctb1 set tag t1=50")
+        tdSql.execute("alter table ctb1 set tag t1=60")
+        tdSql.execute("COMMIT")
+        tdSql.query("select t1 from stb where tbname='ctb1'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 60)
+
+        tdSql3 = tdCom.newTdSql()
+        tdSql3.execute("use txn_tag_db")
+        tdSql3.query("select t1 from stb where tbname='ctb1'")
+        tdSql3.checkRows(1)
+        tdSql3.checkData(0, 0, 60)
+        tdSql3.close()
+
+        tdLog.info("s14 PASSED: repeated single-table SET TAG keeps original version for readers/rollback")
+
+    # =========================================================================
+    # s15: repeated WHERE-based bulk SET TAG on the same children within one txn
+    #      (pre-scan path metaPreScanChildTableTagUpdate) — same guarantees as s14.
+    # =========================================================================
+
+    def s15_repeated_bulk_set_tag_keeps_original(self):
+        self.s0_reset_env()
+        tdLog.info("======== s15_repeated_bulk_set_tag_keeps_original")
+
+        # grp is a stable filter tag (never altered) shared by both children so the
+        # WHERE-based bulk update matches both and hits the pre-scan path each round.
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int, grp int)")
+        tdSql.execute("create table ct1 using stb tags(1, 7)")   # original t1 = 1
+        tdSql.execute("create table ct2 using stb tags(2, 7)")   # original t1 = 2
+        tdSql.execute("insert into ct1 values(now, 1)")
+        tdSql.execute("insert into ct2 values(now, 1)")
+
+        # BEGIN, then bulk-update the same children's tag MULTIPLE times via WHERE
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table using stb set tag t1=100 where grp=7")
+        tdSql.execute("alter table using stb set tag t1=200 where grp=7")
+        tdSql.execute("alter table using stb set tag t1=300 where grp=7")
+
+        # Owner sees the latest in-txn value
+        tdSql.query("select t1 from stb where tbname='ct1'")
+        tdSql.checkData(0, 0, 300)
+        tdSql.query("select t1 from stb where tbname='ct2'")
+        tdSql.checkData(0, 0, 300)
+
+        # Outside session must see ORIGINAL values (1, 2), not intermediate (100/200)
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_tag_db")
+        tdSql2.query("select t1 from stb where tbname='ct1'")
+        tdSql2.checkData(0, 0, 1)
+        tdSql2.query("select t1 from stb where tbname='ct2'")
+        tdSql2.checkData(0, 0, 2)
+        tdSql2.close()
+
+        # ROLLBACK restores the ORIGINAL values (1, 2)
+        tdSql.execute("ROLLBACK")
+        tdSql.query("select t1 from stb where tbname='ct1'")
+        tdSql.checkData(0, 0, 1)
+        tdSql.query("select t1 from stb where tbname='ct2'")
+        tdSql.checkData(0, 0, 2)
+
+        tdLog.info("s15 PASSED: repeated bulk SET TAG keeps original version for readers/rollback")
+
+    # =========================================================================
+    # s17: repeated SET TAG via super table with a single named child in the
+    #      WHERE clause (`using stb ... where tbname='x'`) — action 20 pre-scan
+    #      path, nChildren==1. Must keep the ORIGINAL pre-txn version.
+    # =========================================================================
+
+    def s17_repeated_bulk_set_tag_single_named_keeps_original(self):
+        self.s0_reset_env()
+        tdLog.info("======== s17_repeated_bulk_set_tag_single_named_keeps_original")
+
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct1 using stb tags(1)")   # original t1 = 1
+        tdSql.execute("create table ct2 using stb tags(2)")   # untouched control
+        tdSql.execute("insert into ct1 values(now, 1)")
+        tdSql.execute("insert into ct2 values(now, 1)")
+
+        # BEGIN, then repeatedly update ONE named child via super-table WHERE tbname
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table using stb set tag t1=100 where tbname='ct1'")
+        tdSql.execute("alter table using stb set tag t1=200 where tbname='ct1'")
+        tdSql.execute("alter table using stb set tag t1=300 where tbname='ct1'")
+
+        # Owner sees the latest in-txn value; ct2 unchanged
+        tdSql.query("select t1 from stb where tbname='ct1'")
+        tdSql.checkData(0, 0, 300)
+        tdSql.query("select t1 from stb where tbname='ct2'")
+        tdSql.checkData(0, 0, 2)
+
+        # Outside session must see ORIGINAL (1), not intermediate (100/200)
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_tag_db")
+        tdSql2.query("select t1 from stb where tbname='ct1'")
+        tdSql2.checkData(0, 0, 1)
+        tdSql2.close()
+
+        # ROLLBACK restores ORIGINAL (1)
+        tdSql.execute("ROLLBACK")
+        tdSql.query("select t1 from stb where tbname='ct1'")
+        tdSql.checkData(0, 0, 1)
+
+        tdLog.info("s17 PASSED: repeated single-named bulk SET TAG keeps original version")
+
+    # =========================================================================
+    # s16: repeated SET TAG on the same VIRTUAL child within one txn must keep
+    #      the ORIGINAL pre-txn version (mirrors the user-reported vtable repro).
+    # =========================================================================
+
+    def s16_repeated_set_tag_vctb_keeps_original(self):
+        self.s0_reset_env()
+        tdLog.info("======== s16_repeated_set_tag_vctb_keeps_original")
+        self._setup_vtag_env()   # creates vstb + vctb1 (vt1=10) in txn_vtag_db
+
+        # BEGIN, then alter the virtual child's tag MULTIPLE times (uncommitted)
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table vctb1 set tag vt1=111")   # 1st in-txn
+        tdSql.execute("alter table vctb1 set tag vt1=115")   # 2nd in-txn
+
+        # Owner sees the latest in-txn value
+        tdSql.query("select vt1 from vstb where tbname='vctb1'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 115)
+
+        # Outside session must see the ORIGINAL value (10), NOT the previous
+        # in-txn value (111). This is the exact user-reported symptom.
+        tdSql2 = tdCom.newTdSql()
+        tdSql2.execute("use txn_vtag_db")
+        tdSql2.query("select vt1 from vstb where tbname='vctb1'")
+        tdSql2.checkRows(1)
+        tdSql2.checkData(0, 0, 10)
+        tdSql2.close()
+
+        # ROLLBACK must restore the ORIGINAL value (10)
+        tdSql.execute("ROLLBACK")
+        tdSql.query("select vt1 from vstb where tbname='vctb1'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        # Repeat and COMMIT: last value wins, visible to all
+        tdSql.execute("BEGIN")
+        tdSql.execute("alter table vctb1 set tag vt1=120")
+        tdSql.execute("alter table vctb1 set tag vt1=130")
+        tdSql.execute("COMMIT")
+        tdSql3 = tdCom.newTdSql()
+        tdSql3.execute("use txn_vtag_db")
+        tdSql3.query("select vt1 from vstb where tbname='vctb1'")
+        tdSql3.checkRows(1)
+        tdSql3.checkData(0, 0, 130)
+        tdSql3.close()
+
+        tdLog.info("s16 PASSED: repeated virtual-ctb SET TAG keeps original version for readers/rollback")
+
     def test_meta_batch_txn_alter_tag(self):
         """Batch meta txn: ALTER TABLE SET TAG transactional isolation.
 
@@ -995,6 +1192,17 @@ class TestBatchMetaTxnAlterTag:
             ROLLBACK reverts, COMMIT visible
         13. Virtual normal table CREATE/DROP: in-txn visibility, out-txn isolation,
             ROLLBACK reverts, COMMIT visible
+        14. Repeated SET TAG on same child in one txn (single-table path): outside session
+            always sees the ORIGINAL value, COMMIT shows the last value, ROLLBACK reverts
+            to the ORIGINAL (regression: txnOrigVer must keep the pre-txn version, not the
+            previous in-txn version)
+        15. Repeated WHERE-based bulk SET TAG on same children in one txn (pre-scan path):
+            same guarantees as s14 across multiple children
+        16. Repeated SET TAG on the same VIRTUAL child in one txn: outside session sees the
+            ORIGINAL value (not the previous in-txn value), ROLLBACK reverts, COMMIT wins
+            (mirrors the user-reported virtual-table repro)
+        17. Repeated SET TAG via super table with a single named child (`using stb ...
+            where tbname='x'`, action 20 pre-scan, nChildren==1): keeps ORIGINAL version
 
         Since: v3.3.6.0
         Labels: common,ci
@@ -1012,3 +1220,7 @@ class TestBatchMetaTxnAlterTag:
         self.s11_vstb_add_drop_column_txn()
         self.s12_vstb_add_drop_tag_txn()
         self.s13_virtual_ntb_create_drop_txn()
+        self.s14_repeated_set_tag_single_keeps_original()
+        self.s15_repeated_bulk_set_tag_keeps_original()
+        self.s16_repeated_set_tag_vctb_keeps_original()
+        self.s17_repeated_bulk_set_tag_single_named_keeps_original()

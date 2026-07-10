@@ -1063,7 +1063,7 @@ typedef struct {
     uint32_t flags;
     struct {
       uint32_t securityLevel : 3;  // TD: 6671585124
-      uint32_t padding : 5;
+      uint32_t padding : 29;
     };
   };
   // VST inheritance

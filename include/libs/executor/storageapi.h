@@ -54,7 +54,10 @@ typedef struct SMetaEntry {
   int8_t    flags;
   uint8_t   txnStatus;   // EMetaTxnStatus
   txn_id_t  txnId;       // for meta transaction, 0 if not in transaction
-  int64_t   txnPrevVer;  // for PRE_ALTER: version before ALTER (for rollback)
+  int64_t   txnOrigVer;  // for PRE_ALTER: the ORIGINAL committed version before the FIRST alter
+                         // in this txn (for rollback & pre-alter read redirect). Preserved across
+                         // repeated alters of the same uid within one txn — never overwritten with
+                         // an intermediate in-txn version.
   tb_uid_t  uid;
   char*     name;
   union {

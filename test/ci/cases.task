@@ -1294,11 +1294,18 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_crash_recovery.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_seq_edge.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stability.py
-#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_basic.py
-#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_recovery.py
-#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_snapshot.py
-#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_cluster.py -N 3 -M 3
-#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_txn_consumer_data_correctness.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_basic.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_recovery.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_snapshot.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_cluster.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_txn_consumer_data_correctness.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_ddl_matrix.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_mixed_nontxn.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_concurrent_sessions.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_txn_consumer_mixed_snapshot_wal.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_boundary.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_stress_consumer.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_wal_trim.py
 
 # 22-PerformanceData
 

@@ -306,9 +306,9 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
     }
 
     // If PRE_ALTER, also reconstruct the ALTER old version record
-    if (pScan->txnStatus == META_TXN_PRE_ALTER && pScan->txnPrevVer >= 0) {
+    if (pScan->txnStatus == META_TXN_PRE_ALTER && pScan->txnOrigVer >= 0) {
       int32_t putCode =
-          tSimpleHashPut(pEntry->pAlterPrevVers, &pScan->uid, sizeof(tb_uid_t), &pScan->txnPrevVer, sizeof(int64_t));
+          tSimpleHashPut(pEntry->pAlterPrevVers, &pScan->uid, sizeof(tb_uid_t), &pScan->txnOrigVer, sizeof(int64_t));
       if (putCode != 0) {
         vError("vgId:%d, txn rebuild: failed to put alter record for uid:%" PRId64, TD_VID(pVnode), pScan->uid);
         code = putCode;
@@ -317,7 +317,7 @@ int32_t vnodeTxnRebuildFromMeta(SVnode *pVnode) {
     }
 
     vDebug("vgId:%d, txn rebuild: uid:%" PRId64 " txnId:%" PRId64 " status:%d oldVer:%" PRId64, TD_VID(pVnode),
-           pScan->uid, pScan->txnId, pScan->txnStatus, pScan->txnPrevVer);
+           pScan->uid, pScan->txnId, pScan->txnStatus, pScan->txnOrigVer);
   }
 
   taosArrayDestroy(pScanResult);
@@ -1002,9 +1002,9 @@ static int32_t vnodeTxnUndoOneShadowEntry(SVnode *pVnode, SVnodeTxnEntry *pEntry
 
     case META_TXN_PRE_ALTER: {
       // ALTER created a new version — need to delete it and restore old version.
-      // Primary source: txnPrevVer persisted in B+ tree entry (survives snapshot).
+      // Primary source: txnOrigVer persisted in B+ tree entry (survives snapshot).
       // Fallback: in-memory pAlterPrevVers hash (O(1) lookup by uid).
-      int64_t prevVersion = pME->txnPrevVer;
+      int64_t prevVersion = pME->txnOrigVer;
       if (prevVersion < 0 && pEntry->pAlterPrevVers) {
         int64_t *pPrevVer = (int64_t *)tSimpleHashGet(pEntry->pAlterPrevVers, &uid, sizeof(tb_uid_t));
         if (pPrevVer != NULL) {

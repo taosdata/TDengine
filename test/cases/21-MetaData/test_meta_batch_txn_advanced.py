@@ -284,7 +284,7 @@ class TestBatchMetaTxnAdvanced:
         # Session B: try to DROP same table → should fail
         tdSql2.error("drop table ntb1")
 
-        # Session B: SELECT should work (old schema via txnPrevVer)
+        # Session B: SELECT should work (old schema via txnOrigVer)
         tdSql2.query("select c1 from ntb1")
         tdSql2.checkRows(1)
         tdSql2.checkData(0, 0, 42)

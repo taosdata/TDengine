@@ -738,8 +738,8 @@ int32_t vnodeTxnCheckDeleteConflict(SVnode* pVnode, tb_uid_t uid);
 // Mark txn as containing a DROP STB with children; forces lazy/vacuum COMMIT path.
 int32_t vnodeTxnMarkBulkDrop(SVnode* pVnode, int64_t txnId);
 
-// metaTable2.c — mark existing entry with txnId/txnStatus/txnPrevVer in-place
-int32_t metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer);
+// metaTable2.c — mark existing entry with txnId/txnStatus/txnOrigVer in-place
+int32_t metaMarkTableTxnStatus(SMeta* pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer);
 // metaTable2.c — rollback ALTER: delete new version entry, restore pUidIdx to old version
 int32_t metaRollbackAlterTable(SMeta* pMeta, int64_t uid, int64_t prevVersion);
 // metaEntry2.c — rollback child table tag ALTER: restore pTagIdx + pCtbIdx to old version
@@ -750,12 +750,12 @@ typedef struct SMetaTxnScanEntry {
   tb_uid_t uid;
   int64_t  txnId;
   int8_t   txnStatus;
-  int64_t  txnPrevVer;
+  int64_t  txnOrigVer;
 } SMetaTxnScanEntry;
 int32_t metaScanTxnEntries(SMeta* pMeta, SArray** ppResult);
 
 // metaEntry2.c — txn.idx CRUD (small B+ tree for O(k) startup rebuild)
-int32_t metaTxnIdxUpsert(SMeta* pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer);
+int32_t metaTxnIdxUpsert(SMeta* pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer);
 int32_t metaTxnIdxDelete(SMeta* pMeta, tb_uid_t uid);
 
 // metaEntry2.c — txn.meta CRUD (lazy COMMIT/ROLLBACK finalization record)

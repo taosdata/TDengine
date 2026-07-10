@@ -589,17 +589,31 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   // sync info for sync module
   pWal->writeHead.head.syncMeta = syncMeta;
 
+  // For non-encrypted transactional entries, build the combined [txnExtFlags:8B][txnId:8B]+body
+  // buffer up front so the checksum below and the write further down both operate on the exact
+  // same bytes. Computing the checksum from two independently-seeded CRCs XOR'd together (as
+  // this used to do) does NOT equal the CRC of the concatenation for a real CRC32 (crc32c here)
+  // — CRC combination requires shifting one operand by the other's length, not a plain XOR — so
+  // that always produced a checksum that mismatched what walValidBodyCksum() checks on replay,
+  // silently corrupting every non-encrypted transactional WAL entry.
+  // Owned heap buffers are declared here — BEFORE any `goto _exit` below — so the
+  // centralized cleanup at _exit can free them on every error path without touching
+  // an uninitialized variable (jumping over an initializer leaves indeterminate value).
+  char *nonEncTxnBody = NULL;
+  char *newBody = NULL;
+  char *newBodyEncrypted = NULL;
+  if (txnId != 0 && pWal->cfg.encryptData.encryptAlgrName[0] == '\0') {
+    nonEncTxnBody = taosMemoryMalloc(plainBodyLen);
+    TSDB_CHECK_NULL(nonEncTxnBody, code, lino, _exit, terrno);
+    (void)memcpy(nonEncTxnBody, &txnExtFlags, sizeof(uint64_t));
+    (void)memcpy(nonEncTxnBody + sizeof(uint64_t), &txnId, sizeof(int64_t));
+    (void)memcpy(nonEncTxnBody + WAL_TXN_HDR_SIZE, body, bodyLen);
+  }
+
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   // Body checksum must cover the full on-disk body: [txnExtFlags:8B][txnId:8B] prefix + content.
-  if (txnId != 0) {
-    // Build a contiguous 16-byte prefix to compute checksum without extra allocation.
-    char prefix[WAL_TXN_HDR_SIZE];
-    (void)memcpy(prefix, &txnExtFlags, sizeof(uint64_t));
-    (void)memcpy(prefix + sizeof(uint64_t), &txnId, sizeof(int64_t));
-    uint32_t cksumPrefix = walCalcBodyCksum(prefix, WAL_TXN_HDR_SIZE);
-    uint32_t cksumData   = walCalcBodyCksum(body, bodyLen);
-    // XOR-combine: equivalent to checksum over concatenation for CRC32-based impl.
-    pWal->writeHead.cksumBody = cksumPrefix ^ cksumData;
+  if (nonEncTxnBody != NULL) {
+    pWal->writeHead.cksumBody = walCalcBodyCksum(nonEncTxnBody, plainBodyLen);
   } else {
     pWal->writeHead.cksumBody = walCalcBodyCksum(body, plainBodyLen);
   }
@@ -622,8 +636,6 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   int32_t cyptedBodyLen = plainBodyLen;
   char   *buf = (char *)body;
-  char   *newBody = NULL;
-  char   *newBodyEncrypted = NULL;
 
   if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     cyptedBodyLen = ENCRYPTED_LEN(cyptedBodyLen);
@@ -646,8 +658,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
       wGError(trace, "vgId:%d, file:%" PRId64 ".log, failed to malloc since %s", pWal->cfg.vgId,
               walGetLastFileFirstVer(pWal), strerror(ERRNO));
 
-      if (newBody != NULL) taosMemoryFreeClear(newBody);
-
+      // newBody is freed centrally at _exit.
       TAOS_CHECK_GOTO(terrno, &lino, _exit);
     }
 
@@ -665,42 +676,31 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     //       pWal->cfg.vgId, walGetLastFileFirstVer(pWal), index, count, plainBodyLen, __FUNCTION__);
 
     buf = newBodyEncrypted;
-  } else if (txnId != 0) {
-    // No encryption: write [txnExtFlags:8B][txnId:8B] and body as separate syscalls.
-    // We do NOT copy into a combined buffer to avoid an extra malloc on the hot path.
-    if (pWal->cfg.level != TAOS_WAL_SKIP &&
-        taosWriteFile(pWal->pLogFile, &txnExtFlags, sizeof(uint64_t)) != sizeof(uint64_t)) {
-      code = terrno;
-      wGError(trace, "vgId:%d, file:%" PRId64 ".log, failed to write txnExtFlags since %s", pWal->cfg.vgId,
-              walGetLastFileFirstVer(pWal), strerror(ERRNO));
-      walStopDnode(pWal);
-      TAOS_CHECK_GOTO(code, &lino, _exit);
-    }
-    if (pWal->cfg.level != TAOS_WAL_SKIP &&
-        taosWriteFile(pWal->pLogFile, (char *)&txnId, sizeof(txn_id_t)) != sizeof(txn_id_t)) {
-      code = terrno;
-      wGError(trace, "vgId:%d, file:%" PRId64 ".log, failed to write txnId prefix since %s", pWal->cfg.vgId,
-              walGetLastFileFirstVer(pWal), strerror(ERRNO));
-      walStopDnode(pWal);
-      TAOS_CHECK_GOTO(code, &lino, _exit);
-    }
+  } else if (nonEncTxnBody != NULL) {
+    // No encryption but transactional: the combined [txnExtFlags:8B][txnId:8B][body] buffer
+    // built above (also used for the checksum) is written with a SINGLE syscall below. This
+    // used to be 3 separate taosWriteFile() calls; a crash (SIGKILL/OOM-kill/power loss)
+    // between any of them left a WAL entry whose header/checksum (already written) claim a
+    // complete record while the on-disk bytes are truncated — permanently corrupting that
+    // entry, since restart always replays the same WAL and the vnode could never reopen again.
+    // A single write call makes the append atomic from the WAL's perspective: it either lands
+    // in full or not at all.
+    buf = nonEncTxnBody;
   }
 
   // For non-encrypted non-txn entries, write the original body directly.
   // For encrypted entries (txnId prefix already merged into newBodyEncrypted), use buf.
-  // For non-encrypted txn entries, the prefix was already written above; write the rest.
+  // For non-encrypted txn entries, the combined [txnExtFlags+txnId+body] buffer (buf) is used.
   if (pWal->cfg.level != TAOS_WAL_SKIP) {
-    int32_t writeLen = (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') ? cyptedBodyLen : bodyLen;
+    int32_t writeLen = (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') ? cyptedBodyLen
+                        : (nonEncTxnBody != NULL)                         ? plainBodyLen
+                                                                           : bodyLen;
     if (taosWriteFile(pWal->pLogFile, (char *)buf, writeLen) != writeLen) {
       code = terrno;
       wGError(trace, "vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId,
               walGetLastFileFirstVer(pWal), strerror(ERRNO));
 
-      if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
-        taosMemoryFreeClear(newBody);
-        taosMemoryFreeClear(newBodyEncrypted);
-      }
-
+      // Heap buffers (newBody/newBodyEncrypted/nonEncTxnBody) are freed centrally at _exit.
       walStopDnode(pWal);
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
@@ -717,6 +717,8 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
     taosMemoryFreeClear(newBody);
     taosMemoryFreeClear(newBodyEncrypted);
+  } else if (nonEncTxnBody != NULL) {
+    taosMemoryFreeClear(nonEncTxnBody);
   }
 
   // set status
@@ -757,6 +759,14 @@ _exit:
   if (code) {
     wGError(trace, "vgId:%d, %s failed at line %d since %s", pWal->cfg.vgId, __func__, lino, tstrerror(code));
   }
+
+  // Free owned heap buffers on every error path. These are declared at the top of the
+  // function and cleared on the success path, so this is always safe (and a no-op for
+  // NULL). Covers the early `goto _exit` sites (walWriteIndex / header write / encrypt
+  // failure / body write) that previously leaked nonEncTxnBody / newBody / newBodyEncrypted.
+  taosMemoryFreeClear(nonEncTxnBody);
+  taosMemoryFreeClear(newBody);
+  taosMemoryFreeClear(newBodyEncrypted);
 
   // recover in a reverse order
   if (taosFtruncateFile(pWal->pLogFile, offset) < 0) {

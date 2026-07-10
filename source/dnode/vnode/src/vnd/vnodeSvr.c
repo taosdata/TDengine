@@ -758,10 +758,6 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     // SRpcHandleInfo.txnId is NOT transmitted over the RPC wire; we must re-derive it.
     if (pMsg->info.txnId == 0 && IS_META_MSG(pMsg->msgType)) {
       pMsg->info.txnId = vnodeExtractTxnId(pMsg);
-      if (pMsg->info.txnId != 0) {
-        vDebug("vnodePreProcess: vgId:%d msgType:%s txnId:%" PRId64 " restored from body", TD_VID(pVnode),
-               TMSG_INFO(pMsg->msgType), pMsg->info.txnId);
-      }
     }
   }
   return code;
@@ -1603,6 +1599,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
   SArray            *tbUids = NULL;
   SArray            *tbNames = NULL;
   int64_t            tss = taosGetTimestampMs();
+
   pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
   pRsp->pCont = NULL;
@@ -1707,12 +1704,12 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t ver, void *pReq, 
         // Use txnStatus from message if set (snapshot replication may carry PRE_DROP/PRE_ALTER),
         // otherwise default to PRE_CREATE for normal WAL/DDL path.
         int8_t effectiveTxnStatus = pCreateReq->txnStatus > 0 ? pCreateReq->txnStatus : META_TXN_PRE_CREATE;
-        // NOTE: txnPrevVer is intentionally set to -1 here. For snapshot-replicated PRE_ALTER
+        // NOTE: txnOrigVer is intentionally set to -1 here. For snapshot-replicated PRE_ALTER
         // entries, the old-version pTbDb entry is NOT available on the target (TMQ snapshot only
         // sends the latest version). Passing -1 ensures ROLLBACK hits the safe fallback path
         // (clears txnStatus, keeps current schema) rather than attempting metaRollbackAlterTable
         // which would corrupt pUidIdx by pointing to a non-existent old version.
-        // Phase 2 fix: extend SVCreateTbReq with txnPrevVer + send old-version entry via snapshot.
+        // Phase 2 fix: extend SVCreateTbReq with txnOrigVer + send old-version entry via snapshot.
         int32_t idxCode = metaTxnIdxUpsert(pVnode->pMeta, pCreateReq->uid, pCreateReq->txnId, effectiveTxnStatus, -1);
         if (idxCode != 0) {
           vError("vgId:%d, txn create table %s: metaTxnIdxUpsert failed, code:0x%x", TD_VID(pVnode), tbName, idxCode);
@@ -2212,6 +2209,14 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
         if (fetchCode == 0 && pOldEntry != NULL) {
           tb_uid_t uid = pOldEntry->uid;
           int64_t  prevVer = pOldEntry->version;
+          // Preserve the ORIGINAL pre-txn version across repeated SET TAG on the same table
+          // within one txn: if the entry is already PRE_ALTER from this txn, pOldEntry->version
+          // is an intermediate in-txn version. Reuse the recorded original txnOrigVer so outside
+          // readers and rollback see the pre-txn value, not the previous in-txn alter.
+          if (pOldEntry->txnStatus == META_TXN_PRE_ALTER && pOldEntry->txnId == vAlterTbReq.txnId &&
+              pOldEntry->txnOrigVer >= 0) {
+            prevVer = pOldEntry->txnOrigVer;
+          }
           int32_t  trackCode = vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, uid, prevVer);
           metaFetchEntryFree(&pOldEntry);
           if (trackCode != 0) {
@@ -2287,6 +2292,14 @@ static int32_t vnodeProcessAlterTbReq(SVnode *pVnode, int64_t ver, void *pReq, i
       if (fetchCode == 0 && pOldEntry != NULL) {
         alterUid = pOldEntry->uid;
         alterPrevVer = pOldEntry->version;
+        // Preserve the ORIGINAL pre-txn version across repeated ALTERs of the same table within
+        // one txn: if the entry is already PRE_ALTER from this txn, pOldEntry->version is an
+        // intermediate in-txn version. Reuse the recorded original txnOrigVer so outside readers
+        // and rollback see the pre-txn value, not the previous in-txn alter.
+        if (pOldEntry->txnStatus == META_TXN_PRE_ALTER && pOldEntry->txnId == vAlterTbReq.txnId &&
+            pOldEntry->txnOrigVer >= 0) {
+          alterPrevVer = pOldEntry->txnOrigVer;
+        }
         int32_t trackCode = vnodeTxnTrackAlter(pVnode, vAlterTbReq.txnId, alterUid, alterPrevVer);
         metaFetchEntryFree(&pOldEntry);
         if (trackCode != 0) {

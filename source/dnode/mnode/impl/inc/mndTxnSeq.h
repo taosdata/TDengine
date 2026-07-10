@@ -27,7 +27,7 @@ extern "C" {
 int32_t   mndInitTxnSeq(SMnode *pMnode);
 void      mndCleanupTxnSeq(SMnode *pMnode);
 int32_t   mndTxnSeqPrepare(SMnode *pMnode);
-txn_id_t  mndGenTxnId(SMnode *pMnode);
+int32_t   mndGenTxnId(SMnode *pMnode, txn_id_t *pTxnId);
 
 #ifdef __cplusplus
 }

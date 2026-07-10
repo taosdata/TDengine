@@ -44,6 +44,7 @@ SSyncRaftEntry* syncEntryBuildFromClientRequest(const SyncClientRequest* pMsg, S
   pEntry->isWeak = pMsg->isWeak;
   pEntry->term = term;
   pEntry->index = index;
+  pEntry->txnId = pMsg->txnId;  // propagate transaction ID for WAL body prefix (multi-replica path)
   memcpy(pEntry->data, pMsg->data, pMsg->dataLen);
 
   return pEntry;

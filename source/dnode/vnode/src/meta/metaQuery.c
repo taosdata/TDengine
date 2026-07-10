@@ -161,9 +161,9 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
 
   // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
   // Same-txn readers see the new (altered) version directly
-  if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnPrevVer > 0) {
+  if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0) {
     if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-      int64_t prevVer = pReader->me.txnPrevVer;
+      int64_t prevVer = pReader->me.txnOrigVer;
       tDecoderClear(&pReader->coder);
       code = metaGetTableEntryByVersion(pReader, prevVer, uid);
       if (code) return code;
@@ -262,9 +262,9 @@ int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, t
 
   // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
   // Same-txn readers see the new (altered) version directly
-  if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnPrevVer > 0) {
+  if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0) {
     if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-      int64_t prevVer = pReader->me.txnPrevVer;
+      int64_t prevVer = pReader->me.txnOrigVer;
       tDecoderClear(&pReader->coder);
       code = metaGetTableEntryByVersion(pReader, prevVer, uid);
       if (code) return code;
@@ -310,11 +310,11 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
       if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
         return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
       }
-    } else if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnPrevVer > 0) {
+    } else if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0) {
       // batch meta txn: PRE_ALTER entries — redirect to old version for snapshot isolation
       // Same-txn readers see the new (altered) version directly
       if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-        int64_t prevVer = pReader->me.txnPrevVer;
+        int64_t prevVer = pReader->me.txnOrigVer;
         tDecoderClear(&pReader->coder);
         code = metaGetTableEntryByVersion(pReader, prevVer, uid);
         if (code) return code;
@@ -622,10 +622,10 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
         } else if (pTbCur->mr.me.txnStatus == META_TXN_PRE_ALTER) {
           // redirect other-txn readers to old version for snapshot isolation
           if (finalStatus != TXN_META_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
-            if (pTbCur->mr.me.txnPrevVer > 0) {
+            if (pTbCur->mr.me.txnOrigVer > 0) {
               tb_uid_t uid = *(tb_uid_t *)pTbCur->pKey;
               tDecoderClear(&pTbCur->mr.coder);
-              ret = metaGetTableEntryByVersion(&pTbCur->mr, pTbCur->mr.me.txnPrevVer, uid);
+              ret = metaGetTableEntryByVersion(&pTbCur->mr, pTbCur->mr.me.txnOrigVer, uid);
               if (ret != 0) return ret;
               // If the old version is PRE_CREATE (same-txn CREATE then ALTER),
               // the table never existed outside this txn — skip for other sessions.
@@ -723,10 +723,10 @@ int32_t metaTbCursorPrev(SMTbCursor *pTbCur, ETableType jumpTableType) {
         } else if (pTbCur->mr.me.txnStatus == META_TXN_PRE_ALTER) {
           // redirect other-txn readers to old version for snapshot isolation
           if (finalStatus != TXN_META_COMMITTED && (pTbCur->txnId == 0 || pTbCur->txnId != pTbCur->mr.me.txnId)) {
-            if (pTbCur->mr.me.txnPrevVer > 0) {
+            if (pTbCur->mr.me.txnOrigVer > 0) {
               tb_uid_t uid = *(tb_uid_t *)pTbCur->pKey;
               tDecoderClear(&pTbCur->mr.coder);
-              ret = metaGetTableEntryByVersion(&pTbCur->mr, pTbCur->mr.me.txnPrevVer, uid);
+              ret = metaGetTableEntryByVersion(&pTbCur->mr, pTbCur->mr.me.txnOrigVer, uid);
               if (ret != 0) return ret;
               // If the old version is PRE_CREATE (same-txn CREATE then ALTER),
               // the table never existed outside this txn — skip for other sessions.
@@ -1020,9 +1020,9 @@ _query:
     }
 
     // batch meta txn: PRE_ALTER entries should return old schema (snapshot isolation)
-    // Redirect to old version entry via txnPrevVer
-    if (me.txnStatus == META_TXN_PRE_ALTER && me.txnPrevVer > 0) {
-      int64_t oldVersion = me.txnPrevVer;
+    // Redirect to old version entry via txnOrigVer
+    if (me.txnStatus == META_TXN_PRE_ALTER && me.txnOrigVer > 0) {
+      int64_t oldVersion = me.txnOrigVer;
       tDecoderClear(&dc);
 
       if ((code = tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = me.uid, .version = oldVersion}, sizeof(STbDbKey), &pData,
@@ -2252,7 +2252,7 @@ static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t u
 
 /**
  * batch-meta-txn: if uid has an uncommitted PRE_ALTER, return the old tag blob
- * from pTbDb at txnPrevVer so that non-owning readers see the pre-alter value.
+ * from pTbDb at txnOrigVer so that non-owning readers see the pre-alter value.
  * Returns a taosMemoryMalloc'd buffer on redirect (caller owns), NULL otherwise.
  * Must be called under metaRLock (held by the caller).
  */
@@ -2265,7 +2265,7 @@ static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLe
   STxnIdxVal txnVal = *(const STxnIdxVal *)pTxnVal;
   tdbFree(pTxnVal);
 
-  if (txnVal.txnStatus != META_TXN_PRE_ALTER || txnVal.txnPrevVer < 0) {
+  if (txnVal.txnStatus != META_TXN_PRE_ALTER || txnVal.txnOrigVer < 0) {
     return NULL;
   }
   // If the txn is already committed the dirty pCtbIdx value is correct — no redirect.
@@ -2273,10 +2273,10 @@ static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLe
     return NULL;
   }
 
-  // Read old entry from pTbDb at txnPrevVer.
+  // Read old entry from pTbDb at txnOrigVer.
   void    *pOldBuf = NULL;
   int32_t  oldLen = 0;
-  STbDbKey oldKey = {.version = txnVal.txnPrevVer, .uid = uid};
+  STbDbKey oldKey = {.version = txnVal.txnOrigVer, .uid = uid};
   if (tdbTbGet(pMeta->pTbDb, &oldKey, sizeof(oldKey), &pOldBuf, &oldLen) != 0) {
     return NULL;
   }
