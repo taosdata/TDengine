@@ -1284,8 +1284,6 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
       mstsError("trans:%d, failed to append drop stream %s trans since %s", pTrans->id, streamName, tstrerror(code));
       sdbRelease(pMnode->pSdb, pStream);
       pStream = NULL;
-      // mndStreamTransAppend already called mndTransDrop on failure, set pTrans to NULL to avoid double free
-      pTrans = NULL;
       goto _OVER;
     }
 
@@ -1300,7 +1298,6 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     code = mndTransPrepare(pMnode, pTrans);
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
       mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, tstrerror(code));
-      mndTransDrop(pTrans);
       goto _OVER;
     }
     mInfo("trans:%d, drop stream transaction prepared for %d streams", pTrans->id, dropReq.count - notExistNum);
