@@ -226,3 +226,35 @@ def test_connection_error_triggers_fallback(monkeypatch):
 
     assert result == "ok"
     assert snapshot_download.call_count == 2
+
+
+@pytest.mark.parametrize("error_name", ["FileMetadataError", "LocalEntryNotFoundError"])
+def test_endpoint_metadata_errors_trigger_fallback(monkeypatch, error_name):
+    """Mirror metadata failures should still fall back to the official endpoint."""
+    hf_download, snapshot_download = import_hf_download(monkeypatch)
+    monkeypatch.setenv("TAOS_HF_ENDPOINT", "https://custom.endpoint")
+
+    error_type = type(error_name, (OSError,), {})
+
+    def side_effect(**kwargs):
+        if kwargs.get("endpoint") == "https://custom.endpoint":
+            raise error_type("metadata lookup failed")
+        return "ok"
+
+    snapshot_download.side_effect = side_effect
+
+    result = hf_download.snapshot_download_with_fallback("repo-id", "local-dir", True)
+
+    assert result == "ok"
+    assert snapshot_download.call_args_list == [
+        mock.call(
+            repo_id="repo-id",
+            local_dir="local-dir",
+            endpoint="https://custom.endpoint",
+        ),
+        mock.call(
+            repo_id="repo-id",
+            local_dir="local-dir",
+            endpoint=hf_download.OFFICIAL_HF_ENDPOINT,
+        ),
+    ]
