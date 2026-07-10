@@ -22,6 +22,7 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "tunit.h"
 #include "tutil.h"
 #include "tcompare.h"
 
