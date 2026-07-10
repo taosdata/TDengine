@@ -12328,6 +12328,71 @@ _exit:
   return code;
 }
 
+/* Wrap an arbitrary expression node with mask_full(<expr>, '*'), keeping the
+ * mask as the OUTERMOST operation. Takes ownership of *ppExpr on success (it
+ * becomes the first parameter of the new function) and replaces *ppExpr with the
+ * mask function. The masked output inherits the wrapped node's alias identity so
+ * the result slot and header are unchanged.
+ *
+ * This is needed when a masked column has already been rewritten into a
+ * _group_key()/_select_value() wrapper (partition-by + agg): masking the inner
+ * column would bury mask_full inside the group key, and the split's merge phase
+ * would surface the raw group-key value. Wrapping the whole function keeps the
+ * grouping/sort/merge working on the real value while the output stays masked. */
+static int32_t wrapExprWithMaskFunc(STranslateContext* pCxt, SNode** ppExpr) {
+  int32_t        code = TSDB_CODE_SUCCESS;
+  SFunctionNode* pFunc = NULL;
+  SValueNode*    pMaskVal = NULL;
+  SExprNode*     pInner = (SExprNode*)(*ppExpr);
+
+  /* mask_full only supports VARCHAR / NCHAR; leave other types untouched */
+  if (pInner->resType.type != TSDB_DATA_TYPE_VARCHAR && pInner->resType.type != TSDB_DATA_TYPE_NCHAR) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  tstrncpy(pFunc->functionName, "mask_full", TSDB_FUNC_NAME_LEN);
+  tstrncpy(pFunc->node.aliasName, pInner->aliasName, TSDB_COL_NAME_LEN);
+  tstrncpy(pFunc->node.userAlias, pInner->userAlias, TSDB_COL_NAME_LEN);
+  pFunc->node.asAlias = pInner->asAlias;
+  pFunc->node.projIdx = pInner->projIdx;
+  pFunc->node.relatedTo = pInner->relatedTo;
+  pFunc->node.bindExprID = pInner->bindExprID;
+
+  /* The wrapped expression becomes the first parameter. nodesListMakeStrictAppend
+   * is strict: it consumes the node either way — appended on success, freed on
+   * failure. Clear *ppExpr unconditionally right after the call, otherwise a
+   * failure leaves the enclosing tree holding a dangling pointer to the already
+   * freed node, which the caller's error-path tree teardown would double-free. */
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, *ppExpr);
+  *ppExpr = NULL; /* ownership transferred to pFunc (or freed on failure) */
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  /* Create '*' as the masking value (second parameter) */
+  code = nodesMakeValueNodeFromString("*", &pMaskVal);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pMaskVal);
+  if (TSDB_CODE_SUCCESS != code) {
+    pMaskVal = NULL;
+    goto _exit;
+  }
+  pMaskVal = NULL; /* ownership transferred to pFunc */
+
+  /* Fill in funcId and resolve result type */
+  code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
+
+  *ppExpr = (SNode*)pFunc;
+  return TSDB_CODE_SUCCESS;
+
+_exit:
+  if (pFunc) nodesDestroyNode((SNode*)pFunc);
+  return code;
+}
+
 typedef struct SRewriteMaskCxt {
   STranslateContext* pCxt;
   int32_t            code;
@@ -12338,6 +12403,30 @@ typedef struct SRewriteMaskCxt {
  * functions applied to masked columns naturally operate on '*', e.g.
  * length(c1) → length(mask_full(c1,'*')) → length('*') → 1. */
 static EDealRes rewriteMaskedColWalker(SNode** ppNode, void* pContext) {
+  /* A masked partition/group key has already been rewritten into
+   * _group_key(<masked col>) before the mask pass runs. Masking the inner
+   * column would leave mask_full BURIED inside the group key, and a super-table
+   * split's merge phase would surface the raw group-key value (plaintext leak).
+   * Instead, wrap the whole _group_key() so the mask is the OUTERMOST operation:
+   * _group_key(c1) → mask_full(_group_key(c1), '*'). The inner column stays raw
+   * so grouping/sort/merge keep working; only the output is masked. */
+  if (QUERY_NODE_FUNCTION == nodeType(*ppNode) &&
+      FUNCTION_TYPE_GROUP_KEY == ((SFunctionNode*)*ppNode)->funcType) {
+    SFunctionNode* pGk = (SFunctionNode*)*ppNode;
+    SNode*         pParam = nodesListGetNode(pGk->pParameterList, 0);
+    if (1 == LIST_LENGTH(pGk->pParameterList) && NULL != pParam &&
+        QUERY_NODE_COLUMN == nodeType(pParam) && ((SColumnNode*)pParam)->hasMask) {
+      SRewriteMaskCxt* pRCxt = (SRewriteMaskCxt*)pContext;
+      /* Clear the inner column's mask flag so the raw group key is preserved. */
+      ((SColumnNode*)pParam)->hasMask = 0;
+      int32_t code = wrapExprWithMaskFunc(pRCxt->pCxt, ppNode);
+      if (TSDB_CODE_SUCCESS != code) {
+        pRCxt->code = code;
+        return DEAL_RES_ERROR;
+      }
+      return DEAL_RES_IGNORE_CHILD;
+    }
+  }
   if (QUERY_NODE_COLUMN == nodeType(*ppNode) && ((SColumnNode*)*ppNode)->hasMask) {
     SRewriteMaskCxt* pRCxt = (SRewriteMaskCxt*)pContext;
     SNode*           pMaskFunc = NULL;
