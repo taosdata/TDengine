@@ -50,6 +50,47 @@ def _setup_windows_taos_dll_dir():
         break
 
 
+def _raise_open_files_limit(target=1048576):
+    """Raise the open-files (RLIMIT_NOFILE) limit for this pytest process.
+
+    The test client opens many TDengine connections (every self.login()
+    reconnects to each dnode) plus allure result files. A low fd ceiling causes
+    two fd-exhaustion failure modes under parallel CI + ASAN:
+      - client socket/fd exhaustion -> 0x012f "third party error" at connect
+      - pytest/allure -> "OSError: [Errno 24] Too many open files" which aborts
+        the whole session with an INTERNALERROR (not a normal test failure).
+
+    Raising the soft limit up to the hard limit needs no privilege. Raising the
+    hard limit needs CAP_SYS_RESOURCE, which the CI container has (--privileged);
+    when unavailable we silently fall back to the hard limit. This only affects
+    this process and its children; taosd is launched separately and manages its
+    own limit in remote.py.
+    """
+    try:
+        import resource
+    except ImportError:
+        return  # not POSIX (e.g. Windows); nothing to do
+
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+
+    # Best effort: try to raise the hard limit too (needs CAP_SYS_RESOURCE).
+    if hard != resource.RLIM_INFINITY and hard < target:
+        try:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, target))
+            soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        except (ValueError, OSError):
+            pass  # not permitted; keep the existing hard limit
+
+    desired = target if hard == resource.RLIM_INFINITY else min(target, hard)
+    if soft == resource.RLIM_INFINITY or soft >= desired:
+        return
+    try:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (desired, hard))
+    except (ValueError, OSError):
+        pass
+
+
+_raise_open_files_limit()
 _setup_windows_taos_dll_dir()
 
 from new_test_framework.utils import (

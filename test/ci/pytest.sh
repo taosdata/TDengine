@@ -104,7 +104,27 @@ mkdir -p "${PRG_DIR}"
 mkdir -p "${ASAN_DIR}"
 
 cd "${TEST_CODE_DIR}" || exit
-ulimit -S -n 600000
+# Ensure a high open-files limit for the test client. The pytest process opens
+# many TDengine connections (each self.login() reconnects to every dnode) plus
+# allure result files; a low fd ceiling causes two failure modes under parallel
+# CI + ASAN, both rooted in fd exhaustion:
+#   - client socket/fd exhaustion -> 0x012f "third party error" at connect time
+#   - pytest/allure -> "OSError: [Errno 24] Too many open files" aborting the
+#     whole session with an INTERNALERROR
+# Previously `ulimit -S -n 600000` failed with EINVAL ("cannot modify limit:
+# Invalid argument") whenever the hard limit was below 600000, silently leaving
+# the soft limit at its low default. This container runs --privileged, so raise
+# the hard limit first (best effort), then set the soft limit clamped to
+# whatever the hard limit actually allows.
+want_nofile=1048576
+ulimit -H -n "$want_nofile" 2>/dev/null || true
+hard_nofile=$(ulimit -H -n)
+if [ "$hard_nofile" = "unlimited" ] || [ "$hard_nofile" -gt "$want_nofile" ]; then
+  ulimit -S -n "$want_nofile"
+else
+  ulimit -S -n "$hard_nofile"
+fi
+echo "open files limit: soft=$(ulimit -S -n) hard=$(ulimit -H -n)"
 ulimit -c unlimited
 
 # sudo sysctl -w kernel.core_pattern=$TOP_DIR/core.%p.%e
