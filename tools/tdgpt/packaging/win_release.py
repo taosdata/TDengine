@@ -353,14 +353,20 @@ def copy_model_files():
     logging.info("Model files copied")
 
 
+def resolve_taos_internal_path(*parts):
+    """Resolve paths under the GitLab monorepo taos-internal checkout."""
+    return os.path.join(install_info.source_dir, "..", "..", "..", "taos-internal", *parts)
+
+
 def copy_enterprise_files():
     """Copy enterprise-specific files"""
     if tdgpt_version.ver_type != "enterprise":
         return
 
     # Copy enterprise tools from outside
-    enterprise_src = os.path.join(install_info.source_dir, "..", "..", "..", "enterprise",
-                                  "src", "kit", "tools", "tdgpt", "taosanalytics", "misc")
+    enterprise_src = resolve_taos_internal_path(
+        "source", "kit", "tools", "tdgpt", "taosanalytics", "misc"
+    )
     enterprise_dst = os.path.join(install_info.install_dir, "lib", "taosanalytics", "misc")
 
     if os.path.exists(enterprise_src) and os.path.exists(enterprise_dst):
@@ -407,8 +413,7 @@ def copy_service_scripts():
 def copy_icon_file():
     """Copy icon file from enterprise packaging"""
     # Try to find icon file from enterprise packaging
-    enterprise_icon = os.path.join(install_info.source_dir, "..", "..", "..", "enterprise",
-                                   "packaging", "windows", "favicon.ico")
+    enterprise_icon = resolve_taos_internal_path("packaging", "windows", "favicon.ico")
 
     if os.path.exists(enterprise_icon):
         dst_icon = os.path.join(install_info.install_dir, "favicon.ico")
