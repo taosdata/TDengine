@@ -200,7 +200,9 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
     goto _error;
   }
 
-  pInfo->bufSize = sizeof(int32_t) + pInfo->aggSup.resultRowSize;
+  // pResultRow points to the beginning of the buffer, so only append the
+  // custom anomaly payload after the full flexible result-row bytes.
+  pInfo->bufSize = pInfo->aggSup.resultRowSize;
 
   for (int32_t i = 0; i < LIST_LENGTH(pColNodes); ++i) {
     SColumn node = extractColumnFromColumnNode((SColumnNode*)nodesListGetNode(pColNodes, i));
