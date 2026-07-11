@@ -344,7 +344,7 @@ int32_t metaDropSuperTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
     if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId) {
       if (pExist->txnStatus == META_TXN_PRE_ALTER) {
         // Same-txn ALTER→DROP: undo ALTER first, then check restored state
-        int64_t prevVer = pExist->txnPrevVer;
+        int64_t prevVer = pExist->txnOrigVer;
         metaFetchEntryFree(&pExist);
         if (prevVer >= 0) {
           code = metaRollbackAlterTable(pMeta, pReq->suid, prevVer);
@@ -1039,7 +1039,7 @@ int32_t metaCreateTable2(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STa
  * Reads the entry from pTbDb, updates txnId/txnStatus, re-encodes, and writes back.
  * Indexes are NOT modified — the entry remains visible but filtered by txnStatus.
  */
-int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer) {
+int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer) {
   int32_t code = TSDB_CODE_SUCCESS;
   void   *uidValue = NULL, *tbValue = NULL;
   int32_t uidValueSize = 0, tbValueSize = 0;
@@ -1086,7 +1086,7 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
   // Update txn fields
   entry.txnId = txnId;
   entry.txnStatus = txnStatus;
-  entry.txnPrevVer = txnPrevVer;
+  entry.txnOrigVer = txnOrigVer;
 
   // Re-encode and write back to the same key (in-place update)
   // NOTE: decoder/tbValue must stay alive until after encoding because
@@ -1344,7 +1344,7 @@ int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
     if (fetchCode == 0 && pExist != NULL && pExist->txnId == pReq->txnId) {
       if (pExist->txnStatus == META_TXN_PRE_ALTER) {
         // Same-txn ALTER→DROP: undo ALTER first to restore previous version
-        int64_t prevVer = pExist->txnPrevVer;
+        int64_t prevVer = pExist->txnOrigVer;
         metaFetchEntryFree(&pExist);
         if (prevVer >= 0) {
           code = metaRollbackAlterTable(pMeta, pReq->uid, prevVer);
@@ -3052,7 +3052,19 @@ int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray 
   }
 
   if (pReq->whereLen > 0) {
-    code = nodesMsgToNode(pReq->where, pReq->whereLen, &pWhere);
+    // nodesMsgToNode() byte-swaps the TLV headers of its input buffer IN PLACE (tlvGetNextTlv
+    // does ntohs/ntohl on pBuf despite the const contract). This prescan is the FIRST of two
+    // decodes of pReq->where within one txn apply — the authoritative metaUpdateTableChildTable
+    // TagValue() decodes it again. Decoding the original here would corrupt it and make the
+    // second decode fail ("invalid where condition"). Decode a private copy so pReq->where stays
+    // pristine for the real update. (Non-txn path has no prescan, so it never hit this.)
+    char *whereCopy = taosMemoryMalloc(pReq->whereLen);
+    if (whereCopy == NULL) {
+      return terrno;
+    }
+    memcpy(whereCopy, pReq->where, pReq->whereLen);
+    code = nodesMsgToNode(whereCopy, pReq->whereLen, &pWhere);
+    taosMemoryFree(whereCopy);
     if (code) {
       return code;
     }
@@ -3064,7 +3076,7 @@ int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray 
   if (code) {
     goto _exit;
   }
- 
+
   if (pSuper->type != TSDB_SUPER_TABLE) {
     code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
     goto _exit;
@@ -3094,7 +3106,14 @@ int32_t metaPreScanChildTableTagUpdate(SMeta *pMeta, SVAlterTbReq *pReq, SArray 
         code = TSDB_CODE_SUCCESS;
         continue;  // child may have been dropped concurrently
       }
+      // Preserve the ORIGINAL pre-txn version across repeated ALTERs of the same uid within one
+      // txn. If this child is already PRE_ALTER from the same txn, pChild->version is an
+      // intermediate in-txn version; capturing it would make outside readers redirect to (and
+      // rollback restore) an uncommitted value. Reuse the already-recorded original txnOrigVer.
       int64_t ver = pChild->version;
+      if (pChild->txnStatus == META_TXN_PRE_ALTER && pChild->txnId == pReq->txnId && pChild->txnOrigVer >= 0) {
+        ver = pChild->txnOrigVer;
+      }
       if (taosArrayPush(pUids, &uid) == NULL || taosArrayPush(pVersions, &ver) == NULL) {
         metaFetchEntryFree(&pChild);
         metaULock(pMeta);
@@ -4251,11 +4270,17 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
     entry.stbEntry.rsmaParam = pEntry->stbEntry.rsmaParam;
   }
 
-  // batch-meta-txn: mark STB as PRE_ALTER with prevVersion for rollback
+  // batch-meta-txn: mark STB as PRE_ALTER with the ORIGINAL pre-txn version for rollback.
+  // On a repeated ALTER of the same STB within one txn, pEntry->version is an intermediate
+  // in-txn version; reuse the already-recorded original txnOrigVer instead so rollback and
+  // outside readers see the pre-txn value.
   if (pReq->txnId != 0) {
     entry.txnId = pReq->txnId;
     entry.txnStatus = META_TXN_PRE_ALTER;
-    entry.txnPrevVer = pEntry->version;
+    entry.txnOrigVer = pEntry->version;
+    if (pEntry->txnStatus == META_TXN_PRE_ALTER && pEntry->txnId == pReq->txnId && pEntry->txnOrigVer >= 0) {
+      entry.txnOrigVer = pEntry->txnOrigVer;
+    }
   }
 
   // do handle the entry
@@ -4268,9 +4293,14 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
   } else {
     metaInfo("vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64 " txnId:%" PRIu64, TD_VID(pMeta->pVnode),
              pReq->name, pReq->suid, version, pReq->txnId);
-    // batch-meta-txn: add to txn.idx for COMMIT/ROLLBACK handling
+    // batch-meta-txn: add to txn.idx for COMMIT/ROLLBACK handling.
+    // Use the preserved pre-txn original version (entry.txnOrigVer), NOT pEntry->version:
+    // on a repeated ALTER of the same STB within one txn, pEntry->version is an intermediate
+    // in-txn version. txn.idx feeds pAlterPrevVers, which rollback prefers over the B+ tree
+    // entry's txnOrigVer, so passing the intermediate version would roll back to the wrong
+    // (in-txn) version. This mirrors the non-STB paths in vnodeSvr.c that pass prevVer/alterPrevVer.
     if (pReq->txnId != 0) {
-      code = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_ALTER, pEntry->version);
+      code = metaTxnIdxUpsert(pMeta, pReq->suid, pReq->txnId, META_TXN_PRE_ALTER, entry.txnOrigVer);
       if (code != TSDB_CODE_SUCCESS) {
         metaError("vgId:%d, failed to upsert txn.idx for ALTER stb:%s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode),
                   pReq->name, pReq->suid, tstrerror(code));

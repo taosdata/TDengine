@@ -1266,7 +1266,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TXN_COMMITTED                  TAOS_DEF_ERROR_CODE(0, 0x3315)  // txn already committed (MNode retained record)
 #define TSDB_CODE_TXN_ROLLEDBACK                 TAOS_DEF_ERROR_CODE(0, 0x3316)  // txn already rolled back (MNode retained record)
 
-// Transaction conflict error codes — for DDL-level conflict detection.
+// Transaction conflict error codes - for DDL-level conflict detection.
 // Conflict matrix:
 //   PREPARED_CREATE: table is being created (shadow state, invisible)
 //     - SELECT/INSERT/DELETE: Table does not exist (invisible)

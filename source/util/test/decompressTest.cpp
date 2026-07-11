@@ -517,25 +517,27 @@ struct DataTypeSupportAvx<double> {
 template <typename T, typename CompF, typename DecompF>
 static void decompressBasicTest(size_t dataSize, const CompF& compress, const DecompF& decompress, T min, T max) {
   auto              origData = utilTestRandomData(dataSize, min, max);
-  std::vector<char> compData(origData.size() * sizeof(origData[0]) + 1);
-  int32_t           cnt = compress(origData.data(), origData.size(), origData.size(), compData.data(), compData.size(),
-                                   ONE_STAGE_COMP, nullptr, 0);
-  ASSERT_LE(cnt, compData.size());
+  const int32_t     nEle = static_cast<int32_t>(origData.size());
+  const int32_t     nBytes = static_cast<int32_t>(origData.size() * sizeof(origData[0]));
+  std::vector<char> compData(nBytes + 1);
+  const int32_t     compressedSize =
+      compress(origData.data(), nBytes, nEle, compData.data(), nBytes + 1, ONE_STAGE_COMP, nullptr, 0);
+  ASSERT_GT(compressedSize, 0);
+  ASSERT_LE(compressedSize, nBytes + 1);
   decltype(origData) decompData(origData.size());
 
   // test simple implementation without SIMD instructions
   tsAVX2Supported = 0;
-  cnt = decompress(compData.data(), compData.size(), decompData.size(), decompData.data(), decompData.size(),
-                   ONE_STAGE_COMP, nullptr, 0);
-  ASSERT_EQ(cnt, compData.size() - 1);
+  int32_t cnt =
+      decompress(compData.data(), compressedSize, nEle, decompData.data(), nBytes, ONE_STAGE_COMP, nullptr, 0);
+  ASSERT_EQ(cnt, nBytes);
   EXPECT_EQ(origData, decompData);
 
   taosGetSystemInfo();
   if (DataTypeSupportAvx<T>::value && tsAVX2Supported) {
     // test AVX2 implementation
-    cnt = decompress(compData.data(), compData.size(), decompData.size(), decompData.data(), decompData.size(),
-                     ONE_STAGE_COMP, nullptr, 0);
-    ASSERT_EQ(cnt, compData.size() - 1);
+    cnt = decompress(compData.data(), compressedSize, nEle, decompData.data(), nBytes, ONE_STAGE_COMP, nullptr, 0);
+    ASSERT_EQ(cnt, nBytes);
     EXPECT_EQ(origData, decompData);
   }
 }
@@ -545,20 +547,25 @@ static void decompressPerfTest(const char* typname, const CompF& compress, const
   constexpr size_t  DATA_SIZE = 1 * 1024 * 1024;
   constexpr int32_t NROUND = 1000;
   auto              origData = utilTestRandomData(DATA_SIZE, min, max);
-  std::vector<char> compData(origData.size() * sizeof(origData[0]) + 1);
-  int32_t           cnt = compress(origData.data(), origData.size(), origData.size(), compData.data(), compData.size(),
-                                   ONE_STAGE_COMP, nullptr, 0);
-  ASSERT_LE(cnt, compData.size());
+  const int32_t     nEle = static_cast<int32_t>(origData.size());
+  const int32_t     nBytes = static_cast<int32_t>(origData.size() * sizeof(origData[0]));
+  std::vector<char> compData(nBytes + 1);
+  const int32_t     compressedSize =
+      compress(origData.data(), nBytes, nEle, compData.data(), nBytes + 1, ONE_STAGE_COMP, nullptr, 0);
+  ASSERT_GT(compressedSize, 0);
+  ASSERT_LE(compressedSize, nBytes + 1);
   if (compData[0] == 1) std::cout << "NOT COMPRESSED!\n";
-  std::cout << "Original size: " << compData.size() - 1 << "; Compressed size: " << cnt
-            << "; Compression ratio: " << 1.0 * (compData.size() - 1) / cnt << "\n";
+  std::cout << "Original size: " << nBytes << "; Compressed size: " << compressedSize
+            << "; Compression ratio: " << 1.0 * nBytes / compressedSize << "\n";
   decltype(origData) decompData(origData.size());
 
   tsAVX2Supported = 0;
+  ASSERT_EQ(decompress(compData.data(), compressedSize, nEle, decompData.data(), nBytes, ONE_STAGE_COMP, nullptr, 0),
+            nBytes);
+  ASSERT_EQ(origData, decompData);
   auto ms = measureRunTime(
       [&]() {
-        decompress(compData.data(), compData.size(), decompData.size(), decompData.data(), decompData.size(),
-                   ONE_STAGE_COMP, nullptr, 0);
+        decompress(compData.data(), compressedSize, nEle, decompData.data(), nBytes, ONE_STAGE_COMP, nullptr, 0);
       },
       NROUND);
   std::cout << "Decompression of " << NROUND * DATA_SIZE << " " << typname << " without SIMD costs " << ms
@@ -568,8 +575,7 @@ static void decompressPerfTest(const char* typname, const CompF& compress, const
   if (DataTypeSupportAvx<T>::value && tsAVX2Supported) {
     ms = measureRunTime(
         [&]() {
-          decompress(compData.data(), compData.size(), decompData.size(), decompData.data(), decompData.size(),
-                     ONE_STAGE_COMP, nullptr, 0);
+          decompress(compData.data(), compressedSize, nEle, decompData.data(), nBytes, ONE_STAGE_COMP, nullptr, 0);
         },
         NROUND);
     std::cout << "Decompression of " << NROUND * DATA_SIZE << " " << typname << " using AVX2 costs " << ms

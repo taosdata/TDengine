@@ -26,7 +26,57 @@
 
 #include <libs/transport/trpc.h>
 #include "../../inc/mndStream.h"
-#if 0
+
+namespace {
+
+STrans *createTestTrans() {
+  STrans *pTrans = (STrans *)taosMemoryCalloc(1, sizeof(STrans));
+  if (pTrans == nullptr) {
+    return nullptr;
+  }
+
+  (void)taosThreadMutexInit(&pTrans->mutex, nullptr);
+  pTrans->prepareActions = taosArrayInit(1, sizeof(STransAction));
+  pTrans->redoActions = taosArrayInit(1, sizeof(STransAction));
+  pTrans->undoActions = taosArrayInit(1, sizeof(STransAction));
+  pTrans->commitActions = taosArrayInit(1, sizeof(STransAction));
+  if (pTrans->prepareActions == nullptr || pTrans->redoActions == nullptr || pTrans->undoActions == nullptr ||
+      pTrans->commitActions == nullptr) {
+    mndTransDrop(pTrans);
+    return nullptr;
+  }
+
+  return pTrans;
+}
+
+}  // namespace
+
+TEST(MndStreamTransTest, AppendFailureDoesNotDropCallerOwnedTrans) {
+  STrans *pTrans = createTestTrans();
+  ASSERT_NE(pTrans, nullptr);
+
+  char streamName[] = "test.stream";
+  char streamDb[] = "test";
+  char outTblName[] = "out";
+
+  SCMCreateStreamReq createReq = {0};
+  createReq.name = streamName;
+  createReq.streamId = 1;
+  createReq.streamDB = streamDb;
+  createReq.outTblName = outTblName;
+
+  SStreamObj stream = {0};
+  tstrncpy(stream.name, "test.stream", sizeof(stream.name));
+  stream.pCreate = &createReq;
+
+  int32_t code = mndStreamTransAppend(&stream, pTrans, SDB_STATUS_INIT);
+  ASSERT_NE(code, TSDB_CODE_SUCCESS);
+
+  mndTransDrop(pTrans);
+}
+
+// clang-format off
+/*
 
 namespace {
 
@@ -171,7 +221,8 @@ Type\":{\"Type\":\"2\",\"Precision\":\"0\",\"Scale\":\"0\",\"Bytes\":\"1\"},\"Al
   if (pAst != NULL) nodesDestroyNode(pAst);
   nodesDestroyNode((SNode*)pPlan);
 }
-#endif
+*/
+// clang-format on
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
@@ -179,4 +230,3 @@ int main(int argc, char** argv) {
 
 
 #pragma GCC diagnostic pop
-

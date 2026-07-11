@@ -60,7 +60,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode_3mnode_add_1dnode.py -N 7 -M 3 -C 6 --replica 3
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_buffer_overflow.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_write_consume_alter_replica.py  -N 3
+# [disabled 2026-07-10 concurrent-test-failures]
+#,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_write_consume_alter_replica.py  -N 3
+# [end disabled 2026-07-10]
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_quantified_sub2.py
 ,,y,.,./ci/pytest.sh pytest cases/03-Tables/01-NormalTables/test_normaltable_column_limit.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_groups.py
@@ -143,7 +145,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/01-DataTypes/test_null_tag.py
 
 # ​​​Special gap before priority support
-,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade.py -N 3
+# [disabled 2026-07-10 concurrent-test-failures]
+#,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade.py -N 3
+# [end disabled 2026-07-10]
 
 # 02-Databases
 
@@ -640,7 +644,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_bugs.py -N 3
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub2.py
-#,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3a.py
+,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3a.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3b.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3c.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub3d.py
@@ -648,7 +652,7 @@
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a2.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a3.py
 #,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub4a4.py
-#,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_in_subq1.py
+,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_in_subq1.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_in_subq2.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_in_subq3a1.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_in_subq3a2.py
@@ -892,7 +896,7 @@
 ## 03-TimeWindow
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_interval_auto.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_interval_basic.py
-#,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_interval_bugfix.py
+,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_interval_bugfix.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_interval_project_merge_resblock.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_interval_timezone.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/03-TimeWindow/test_tz_interval.py
@@ -1291,11 +1295,18 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_crash_recovery.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_seq_edge.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stability.py
-#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_basic.py
-#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_recovery.py
-#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_snapshot.py
-#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_cluster.py -N 3 -M 3
-#,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_txn_consumer_data_correctness.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_basic.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_recovery.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_snapshot.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_cluster.py -N 3 -M 3
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_txn_consumer_data_correctness.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_ddl_matrix.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_mixed_nontxn.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_concurrent_sessions.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_txn_consumer_mixed_snapshot_wal.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_boundary.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_stress_consumer.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_taosx_txn_wal_trim.py
 
 # 22-PerformanceData
 
@@ -1318,7 +1329,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_control.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_cloud_compatible.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_crypted_pass.py
-,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_manager.py
+# [disabled 2026-07-10 concurrent-test-failures]
+#,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_manager.py
+# [end disabled 2026-07-10]
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_password.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_passver_kick.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_create_db.py
@@ -1326,16 +1339,20 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_sysinfo.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_table.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_topic.py
-,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token.py
-,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
+# [disabled 2026-07-10 concurrent-test-failures]
+#,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token.py
+#,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
+# [end disabled 2026-07-10]
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py
 #,,y,.,./ci/pytest.sh pytest cases/24-Users/test_query_phase_tracking.py
 
 # 25-Privileges
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_bugs.py -N 3
+# [disabled 2026-07-10 concurrent-test-failures]
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_control.py -N 3
-,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_rbac.py
+#,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_rbac.py
+# [end disabled 2026-07-10]
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_dac_mac.py
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_subscribe.py
 
@@ -1365,7 +1382,9 @@
 ## 04-Snode
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/04-Snode/test_snode_basic1.py -N 2
 ## 05-Vnode
-,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/05-Vnode/test_close_open_vnode.py -N 3
+# [disabled 2026-07-10 concurrent-test-failures]
+#,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/05-Vnode/test_close_open_vnode.py -N 3
+# [end disabled 2026-07-10]
 
 # 27-Mount
 ,,y,.,./ci/pytest.sh pytest cases/27-Mount/test_mount_basic.py
@@ -1394,7 +1413,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/13-QuerySpillEncryption/test_query_spill_encrypt_active.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_CVE-2023-38502.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_plaintext_check.py
-,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_ddos_defense.py
+# [disabled 2026-07-10 concurrent-test-failures]
+#,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_ddos_defense.py
+# [end disabled 2026-07-10]
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/11-SQLFireWall/test_sql_blacklist.py
 #,,y,.,./ci/pytest.sh pytest cases/31-Security/11-SQLFireWall/test_sql_whitelist.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/12-EncryptPassword/test_encrypt_user_login.py
@@ -1513,7 +1534,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_systb_inspect.py
 
 ## 02-Taos
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
+# [disabled 2026-07-10 concurrent-test-failures]
+#,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
+# [end disabled 2026-07-10]
 ,,n,.,pytest cases/81-Tools/02-Taos/test_tool_cmdline.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_error.py

@@ -54,7 +54,50 @@ SDmNotifyHandle dmNotifyHdl = {};
 static const char*    kWalPath  = TD_TMP_DIR_PATH "txnmgr_test_wal";
 static const char*    kWalPath2 = TD_TMP_DIR_PATH "txnmgr_test_wal2";
 static SWalSyncInfo   kSyncMeta = {0};
-static const char*    kBody     = "hello_txn_body";
+
+// A real, decodable CREATE_TABLE (SVCreateTbBatchReq) wire body, SMsgHead-prefixed.
+//
+// The txn manager runs txnMgrStripWireTxnId() on every cached meta msg, which DECODES the
+// body to clear the batch txnId. A fake string body fails that decode with INVALID_MSG and
+// makes every producer/reload put fail. So meta-msg tests must supply a genuine message.
+// Built once by MakeCreateTbBody() (one-time static allocation, reclaimed by the OS at
+// process exit); content is never asserted on, only that it decodes — a minimal normal
+// table (nCols==0) is enough.
+static void*   kMetaBody    = nullptr;
+static int32_t kMetaBodyLen = 0;
+
+static void MakeCreateTbBody() {
+  if (kMetaBody != nullptr) return;
+
+  SVCreateTbReq req = {0};
+  req.type = TSDB_NORMAL_TABLE;
+  req.name = (char*)"txnmgr_test_tb";
+  req.uid = 1;
+  req.ntb.schemaRow.nCols = 0;
+  req.ntb.schemaRow.version = 1;
+  req.ntb.schemaRow.pSchema = nullptr;
+
+  SVCreateTbBatchReq batch = {0};
+  batch.pArray = taosArrayInit(1, sizeof(SVCreateTbReq));
+  ASSERT_NE(batch.pArray, nullptr);
+  ASSERT_NE(taosArrayPush(batch.pArray, &req), nullptr);
+  batch.nReqs = 1;
+
+  int32_t payloadLen = 0, ret = 0;
+  tEncodeSize(tEncodeSVCreateTbBatchReq, &batch, payloadLen, ret);
+  ASSERT_GE(ret, 0);
+
+  kMetaBodyLen = payloadLen + (int32_t)sizeof(SMsgHead);
+  kMetaBody = taosMemoryCalloc(1, kMetaBodyLen);
+  ASSERT_NE(kMetaBody, nullptr);
+  ((SMsgHead*)kMetaBody)->contLen = htonl(kMetaBodyLen);
+
+  SEncoder coder = {0};
+  tEncoderInit(&coder, (uint8_t*)POINTER_SHIFT(kMetaBody, sizeof(SMsgHead)), payloadLen);
+  ASSERT_EQ(tEncodeSVCreateTbBatchReq(&coder, &batch), 0);
+  tEncoderClear(&coder);
+  taosArrayDestroy(batch.pArray);
+}
 
 static SWal* openTxnWal(const char* path) {
   SWalCfg cfg = {0};
@@ -84,7 +127,7 @@ static SWal* reopenWal(const char* path) {
 // Write one IS_META_MSG entry with the given txnId.
 static int32_t writeMeta(SWal* pWal, int64_t index, txn_id_t txnId) {
   return walAppendLog(pWal, index, TDMT_VND_CREATE_TABLE, kSyncMeta,
-                      kBody, (int32_t)strlen(kBody), txnId, NULL);
+                      kMetaBody, kMetaBodyLen, txnId, NULL);
 }
 
 // Write a COMMIT entry with the given txnId.
@@ -118,6 +161,7 @@ class TxnMgrUnit : public ::testing::Test {
   void SetUp() override {
     // Ensure cache is enabled
     gTxnWalTtlDays = 30;
+    MakeCreateTbBody();
     pMgr = txnMgrOpen(NULL, NULL, 0);
     ASSERT_NE(pMgr, nullptr);
   }
@@ -140,14 +184,14 @@ TEST_F(TxnMgrUnit, openClose) {
 TEST_F(TxnMgrUnit, producerPutNullMgr) {
   // NULL manager must not crash and return success (no-op)
   int32_t code = txnMgrProducerPut(nullptr, 1001, 5, TDMT_VND_CREATE_TABLE,
-                                   kBody, (int32_t)strlen(kBody));
+                                   kMetaBody, kMetaBodyLen);
   EXPECT_EQ(code, TSDB_CODE_SUCCESS);
 }
 
 TEST_F(TxnMgrUnit, reloadPutTxnIdZeroIgnored) {
   // txnId == 0 must be silently ignored by txnMgrReloadPut
   int32_t code = txnMgrReloadPut(pMgr, 0, 1, TDMT_VND_CREATE_TABLE,
-                                 kBody, (int32_t)strlen(kBody));
+                                 kMetaBody, kMetaBodyLen);
   EXPECT_EQ(code, TSDB_CODE_SUCCESS);
   EXPECT_EQ(taosHashGetSize(pMgr->pTxnHash), 0);
 }
@@ -166,7 +210,7 @@ TEST_F(TxnMgrUnit, consumerGetNullOutput) {
 TEST_F(TxnMgrUnit, cacheDisabledWhenTtlZero) {
   gTxnWalTtlDays = 0;
   int32_t code = txnMgrProducerPut(pMgr, 2001, 1, TDMT_VND_CREATE_TABLE,
-                                   kBody, (int32_t)strlen(kBody));
+                                   kMetaBody, kMetaBodyLen);
   EXPECT_EQ(code, TSDB_CODE_SUCCESS);
   EXPECT_EQ(taosHashGetSize(pMgr->pTxnHash), 0);
   gTxnWalTtlDays = 30;
@@ -179,7 +223,7 @@ TEST_F(TxnMgrUnit, produceThenCommitThenConsume) {
 
   // Producer: one meta message followed by COMMIT
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 10, TDMT_VND_CREATE_TABLE,
-                               kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                               kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 11, TDMT_VND_TXN_COMMIT, nullptr, 0),
             TSDB_CODE_SUCCESS);
 
@@ -194,7 +238,7 @@ TEST_F(TxnMgrUnit, produceThenRollbackConsumerSkips) {
   constexpr txn_id_t txnId = 3002;
 
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 20, TDMT_VND_ALTER_TABLE,
-                               kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                               kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 21, TDMT_VND_TXN_ROLLBACK, nullptr, 0),
             TSDB_CODE_SUCCESS);
 
@@ -210,7 +254,7 @@ TEST_F(TxnMgrUnit, multipleMetaMsgsInOneTxn) {
 
   for (int i = 0; i < 5; i++) {
     ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 30 + i, TDMT_VND_CREATE_TABLE,
-                                 kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                                 kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
   }
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 35, TDMT_VND_TXN_COMMIT, nullptr, 0),
             TSDB_CODE_SUCCESS);
@@ -225,9 +269,9 @@ TEST_F(TxnMgrUnit, twoConcurrentTxnsIsolated) {
   constexpr txn_id_t txnB = 4002;
 
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnA, 40, TDMT_VND_CREATE_TABLE,
-                               kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                               kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnB, 41, TDMT_VND_ALTER_TABLE,
-                               kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                               kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnA, 42, TDMT_VND_TXN_COMMIT, nullptr, 0),
             TSDB_CODE_SUCCESS);
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnB, 43, TDMT_VND_TXN_ROLLBACK, nullptr, 0),
@@ -279,9 +323,9 @@ TEST_F(TxnMgrUnit, rollbackWithoutBeginCreatesTombstone) {
 TEST_F(TxnMgrUnit, duplicateMetaPutsAccumulate) {
   constexpr txn_id_t txnId = 5003;
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 70, TDMT_VND_CREATE_TABLE,
-                               kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                               kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 71, TDMT_VND_CREATE_TABLE,
-                               kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                               kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 72, TDMT_VND_TXN_COMMIT, nullptr, 0),
             TSDB_CODE_SUCCESS);
 
@@ -294,7 +338,7 @@ TEST_F(TxnMgrUnit, nonMetaMsgTypeIgnored) {
   constexpr txn_id_t txnId = 5004;
   // INSERT is not IS_META_MSG — must be silently ignored
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 80, TDMT_VND_SUBMIT,
-                               kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                               kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
   ASSERT_EQ(taosHashGetSize(pMgr->pTxnHash), 0);
 }
 
@@ -309,7 +353,7 @@ TEST_F(TxnMgrUnit, getMinWalIndexEmptyReturnsMax) {
 TEST_F(TxnMgrUnit, getMinWalIndexAfterPut) {
   constexpr txn_id_t txnId = 6001;
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 100, TDMT_VND_CREATE_TABLE,
-                               kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                               kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
 
   int64_t minIdx = txnMgrGetMinWalIndex(pMgr, nullptr);
   EXPECT_EQ(minIdx, 100);
@@ -318,7 +362,7 @@ TEST_F(TxnMgrUnit, getMinWalIndexAfterPut) {
 TEST_F(TxnMgrUnit, getMinWalIndexAfterCommitAndConsume) {
   constexpr txn_id_t txnId = 6002;
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 200, TDMT_VND_CREATE_TABLE,
-                               kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                               kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 201, TDMT_VND_TXN_COMMIT, nullptr, 0),
             TSDB_CODE_SUCCESS);
 
@@ -344,9 +388,9 @@ TEST_F(TxnMgrUnit, evictionRemovesIdleCommittedSlots) {
   gTxnWalMaxMemBytes     = 1;   // 1 byte — any msg causes pressure
   gTxnWalEvictAfterIdleSec = 0; // always idle
 
-  int32_t bodyLen = (int32_t)strlen(kBody);
+  int32_t bodyLen = kMetaBodyLen;
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 300, TDMT_VND_CREATE_TABLE,
-                               kBody, bodyLen), TSDB_CODE_SUCCESS);
+                               kMetaBody, bodyLen), TSDB_CODE_SUCCESS);
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 301, TDMT_VND_TXN_COMMIT, nullptr, 0),
             TSDB_CODE_SUCCESS);
 
@@ -384,6 +428,7 @@ class TxnMgrWal : public ::testing::Test {
 
   void SetUp() override {
     gTxnWalTtlDays = 30;
+    MakeCreateTbBody();
     pWal = openTxnWal(kWalPath);
     ASSERT_NE(pWal, nullptr);
     pMgr = txnMgrOpen(pWal, nullptr, 0);
@@ -479,11 +524,11 @@ TEST_F(TxnMgrWal, followerReloadMirrorsLeaderConsumerOutput) {
 
   // Leader consumer: get msgs before restart
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 0, TDMT_VND_CREATE_TABLE,
-                               kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                               kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 1, TDMT_VND_CREATE_TABLE,
-                               kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                               kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 2, TDMT_VND_CREATE_TABLE,
-                               kBody, (int32_t)strlen(kBody)), TSDB_CODE_SUCCESS);
+                               kMetaBody, kMetaBodyLen), TSDB_CODE_SUCCESS);
   ASSERT_EQ(txnMgrProducerPut(pMgr, txnId, 3, TDMT_VND_TXN_COMMIT, nullptr, 0),
             TSDB_CODE_SUCCESS);
   SArray* leaderMsgs = nullptr;

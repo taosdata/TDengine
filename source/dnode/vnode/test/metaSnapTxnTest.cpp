@@ -212,7 +212,7 @@ TEST(MetaSnapTxn, PreCreate_VersionBelowSver_AdjustsSver) {
   resetSnapContext();
 
   // txn entry: uid=1001, PRE_CREATE, version in pUidIdx is 50
-  g_snapCtx.scanEntries.push_back({.uid = 1001, .txnId = 1, .txnStatus = META_TXN_PRE_CREATE, .txnPrevVer = -1});
+  g_snapCtx.scanEntries.push_back({.uid = 1001, .txnId = 1, .txnStatus = META_TXN_PRE_CREATE, .txnOrigVer = -1});
   g_snapCtx.uidVersions.push_back({1001, 50});
 
   SMeta  meta = {};
@@ -237,7 +237,7 @@ TEST(MetaSnapTxn, PreCreate_VersionBelowSver_AdjustsSver) {
 TEST(MetaSnapTxn, PreDrop_VersionBelowSver_AdjustsSver) {
   resetSnapContext();
 
-  g_snapCtx.scanEntries.push_back({.uid = 2001, .txnId = 2, .txnStatus = META_TXN_PRE_DROP, .txnPrevVer = -1});
+  g_snapCtx.scanEntries.push_back({.uid = 2001, .txnId = 2, .txnStatus = META_TXN_PRE_DROP, .txnOrigVer = -1});
   g_snapCtx.uidVersions.push_back({2001, 30});
 
   SMeta  meta = {};
@@ -256,13 +256,13 @@ TEST(MetaSnapTxn, PreDrop_VersionBelowSver_AdjustsSver) {
 }
 
 // ============================================================================
-// Test: PRE_ALTER with txnPrevVer < version < sver → sver uses prevVer
+// Test: PRE_ALTER with txnOrigVer < version < sver → sver uses prevVer
 // ============================================================================
 TEST(MetaSnapTxn, PreAlter_PrevVerBelowVersion_UsesPrevVer) {
   resetSnapContext();
 
-  // uid=3001: current version=80 (below sver=100), but txnPrevVer=20 is even lower
-  g_snapCtx.scanEntries.push_back({.uid = 3001, .txnId = 3, .txnStatus = META_TXN_PRE_ALTER, .txnPrevVer = 20});
+  // uid=3001: current version=80 (below sver=100), but txnOrigVer=20 is even lower
+  g_snapCtx.scanEntries.push_back({.uid = 3001, .txnId = 3, .txnStatus = META_TXN_PRE_ALTER, .txnOrigVer = 20});
   g_snapCtx.uidVersions.push_back({3001, 80});
 
   SMeta  meta = {};
@@ -287,8 +287,8 @@ TEST(MetaSnapTxn, PreAlter_PrevVerBelowVersion_UsesPrevVer) {
 TEST(MetaSnapTxn, AllVersionsAboveSver_NoAdjustment) {
   resetSnapContext();
 
-  g_snapCtx.scanEntries.push_back({.uid = 4001, .txnId = 4, .txnStatus = META_TXN_PRE_CREATE, .txnPrevVer = -1});
-  g_snapCtx.scanEntries.push_back({.uid = 4002, .txnId = 4, .txnStatus = META_TXN_PRE_DROP, .txnPrevVer = -1});
+  g_snapCtx.scanEntries.push_back({.uid = 4001, .txnId = 4, .txnStatus = META_TXN_PRE_CREATE, .txnOrigVer = -1});
+  g_snapCtx.scanEntries.push_back({.uid = 4002, .txnId = 4, .txnStatus = META_TXN_PRE_DROP, .txnOrigVer = -1});
   g_snapCtx.uidVersions.push_back({4001, 150});
   g_snapCtx.uidVersions.push_back({4002, 180});
 
@@ -313,9 +313,9 @@ TEST(MetaSnapTxn, AllVersionsAboveSver_NoAdjustment) {
 TEST(MetaSnapTxn, MultipleTxnEntries_MinVersionWins) {
   resetSnapContext();
 
-  g_snapCtx.scanEntries.push_back({.uid = 5001, .txnId = 5, .txnStatus = META_TXN_PRE_CREATE, .txnPrevVer = -1});
-  g_snapCtx.scanEntries.push_back({.uid = 5002, .txnId = 5, .txnStatus = META_TXN_PRE_DROP, .txnPrevVer = -1});
-  g_snapCtx.scanEntries.push_back({.uid = 5003, .txnId = 6, .txnStatus = META_TXN_PRE_ALTER, .txnPrevVer = 10});
+  g_snapCtx.scanEntries.push_back({.uid = 5001, .txnId = 5, .txnStatus = META_TXN_PRE_CREATE, .txnOrigVer = -1});
+  g_snapCtx.scanEntries.push_back({.uid = 5002, .txnId = 5, .txnStatus = META_TXN_PRE_DROP, .txnOrigVer = -1});
+  g_snapCtx.scanEntries.push_back({.uid = 5003, .txnId = 6, .txnStatus = META_TXN_PRE_ALTER, .txnOrigVer = 10});
   g_snapCtx.uidVersions.push_back({5001, 70});
   g_snapCtx.uidVersions.push_back({5002, 40});
   g_snapCtx.uidVersions.push_back({5003, 90});
@@ -366,8 +366,8 @@ TEST(MetaSnapTxn, GetInfoFailsForOneUid_SkipsIt) {
 
   // uid=6001 will fail lookup (not in uidVersions)
   // uid=6002 has version=60
-  g_snapCtx.scanEntries.push_back({.uid = 6001, .txnId = 7, .txnStatus = META_TXN_PRE_CREATE, .txnPrevVer = -1});
-  g_snapCtx.scanEntries.push_back({.uid = 6002, .txnId = 7, .txnStatus = META_TXN_PRE_CREATE, .txnPrevVer = -1});
+  g_snapCtx.scanEntries.push_back({.uid = 6001, .txnId = 7, .txnStatus = META_TXN_PRE_CREATE, .txnOrigVer = -1});
+  g_snapCtx.scanEntries.push_back({.uid = 6002, .txnId = 7, .txnStatus = META_TXN_PRE_CREATE, .txnOrigVer = -1});
   // Only uid=6002 has a version mapping
   g_snapCtx.uidVersions.push_back({6002, 60});
 
@@ -398,8 +398,8 @@ TEST(MetaSnapTxn, PreAlter_PrevVerBelowAdjustedSver_BuildsRescueMap) {
   // uid=7002: version=60, PRE_ALTER with prevVer=3
   // minTxnVer = min(50, 5, 60, 3) = 3
   // After adjustment: sver=3. prevVer=5 >= 3, not in map. prevVer=3 >= 3, not in map.
-  g_snapCtx.scanEntries.push_back({.uid = 7001, .txnId = 8, .txnStatus = META_TXN_PRE_ALTER, .txnPrevVer = 5});
-  g_snapCtx.scanEntries.push_back({.uid = 7002, .txnId = 8, .txnStatus = META_TXN_PRE_ALTER, .txnPrevVer = 3});
+  g_snapCtx.scanEntries.push_back({.uid = 7001, .txnId = 8, .txnStatus = META_TXN_PRE_ALTER, .txnOrigVer = 5});
+  g_snapCtx.scanEntries.push_back({.uid = 7002, .txnId = 8, .txnStatus = META_TXN_PRE_ALTER, .txnOrigVer = 3});
   g_snapCtx.uidVersions.push_back({7001, 50});
   g_snapCtx.uidVersions.push_back({7002, 60});
 
@@ -427,7 +427,7 @@ TEST(MetaSnapTxn, PreAlter_PrevVerBelowAdjustedSver_BuildsRescueMap) {
 TEST(MetaSnapTxn, FullSnapshot_SverZero_NoAdjustment) {
   resetSnapContext();
 
-  g_snapCtx.scanEntries.push_back({.uid = 8001, .txnId = 9, .txnStatus = META_TXN_PRE_CREATE, .txnPrevVer = -1});
+  g_snapCtx.scanEntries.push_back({.uid = 8001, .txnId = 9, .txnStatus = META_TXN_PRE_CREATE, .txnOrigVer = -1});
   g_snapCtx.uidVersions.push_back({8001, 50});
 
   SMeta  meta = {};

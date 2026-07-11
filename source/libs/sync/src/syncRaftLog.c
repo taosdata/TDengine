@@ -343,22 +343,18 @@ int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncR
     TAOS_RETURN(code);
   }
 
-  bool     isTxn = WAL_IS_TXN_MSG(&pWalHandle->pHead->head);
-  int32_t  rawBodyLen = pWalHandle->pHead->head.bodyLen;
-  char*    rawBody = pWalHandle->pHead->head.body;
-  txn_id_t entryTxnId = 0;
-  int32_t  dataLen = rawBodyLen;
-
-  if (isTxn) {
-    // Body on-disk layout for txn entries: [int64_t txnId][pCont...]
-    if (rawBodyLen < (int32_t)sizeof(txn_id_t)) {
-      (void)taosThreadMutexUnlock(&(pData->mutex));
-      TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
-    }
-    (void)memcpy(&entryTxnId, rawBody, sizeof(txn_id_t));
-    rawBody += sizeof(txn_id_t);
-    dataLen -= (int32_t)sizeof(txn_id_t);
+  // Body on-disk layout for txn entries is [txnExtFlags:8B][txnId:8B][pCont...] (WAL_TXN_HDR_SIZE).
+  // Use the shared accessors instead of hand-rolling the prefix size — a prior version of this
+  // code assumed an 8-byte [txnId] prefix, which is stale since WAL_TXN_HDR_SIZE grew to 16B to
+  // add txnExtFlags; that misread txnExtFlags as txnId and left 8 stray prefix bytes in the data.
+  SWalCont* pHead = &pWalHandle->pHead->head;
+  if (WAL_IS_TXN_MSG(pHead) && pHead->bodyLen < (int32_t)WAL_TXN_HDR_SIZE) {
+    (void)taosThreadMutexUnlock(&(pData->mutex));
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
   }
+  txn_id_t entryTxnId = walContTxnId(pHead);
+  char*    rawBody = (char*)walContBody(pHead);
+  int32_t  dataLen = walContBodyLen(pHead);
 
   *ppEntry = syncEntryBuild(dataLen);
   if (*ppEntry == NULL) return TSDB_CODE_SYN_INTERNAL_ERROR;

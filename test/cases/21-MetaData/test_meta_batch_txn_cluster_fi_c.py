@@ -62,7 +62,7 @@ class TestBatchMetaTxnClusterFIC:
     #      version row is BELOW the snapshot's sver window.
     #   4. Advance WAL with writes so WAL compacts, forcing snapshot sync.
     #   5. Restart follower: metaSnapRead detects PRE_ALTER uid whose
-    #      txnPrevVer < sver → emits old-version row FIRST (rescue), then
+    #      txnOrigVer < sver → emits old-version row FIRST (rescue), then
     #      the PRE_ALTER new-version row. Both land on follower's pTbDb.
     #   6. COMMIT → promotes PRE_ALTER entry, follower has new schema.
     #   7. Verify the new column is usable.
@@ -158,7 +158,7 @@ class TestBatchMetaTxnClusterFIC:
     # =========================================================================
     # s71: PRE_ALTER × snapshot rescue → ROLLBACK
     #   Same setup as s70, but the txn is ROLLED BACK after follower catches up.
-    #   On the leader, vnodeTxnRollbackShadowEntries needs txnPrevVer to exist
+    #   On the leader, vnodeTxnRollbackShadowEntries needs txnOrigVer to exist
     #   in pTbDb. On the follower (which received data via snapshot), the rescue
     #   logic ensures the old-version row was sent alongside the PRE_ALTER row,
     #   so ROLLBACK correctly reverts to the original schema.

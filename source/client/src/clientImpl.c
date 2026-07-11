@@ -3024,7 +3024,11 @@ _scram_reconnect:
     } else if (tsAuthMech == TSDB_AUTH_MECH_SCRAM) {
       // SCRAM explicitly required: do not fall back
       tscError("SCRAM handshake failed for user:%s (SCRAM required), code:%s", user, tstrerror(code));
-      destroyTscObj(*pTscObj);
+      // Destroy via the conn ref pool, not destroyTscObj() directly: an in-flight SASL request may
+      // still hold a ref on this TscObj (its response callback runs on a transport worker thread and
+      // calls doDestroyRequest, which dereferences pTscObj). Freeing pTscObj directly here races with
+      // that release -> heap-use-after-free. taos_close_internal() defers the free until refcount hits 0.
+      taos_close_internal(*pTscObj);
       *pTscObj = NULL;
       return code;
     } else if (code == TSDB_CODE_MSG_NOT_PROCESSED || code == TSDB_CODE_OPS_NOT_SUPPORT ||
@@ -3039,7 +3043,9 @@ _scram_reconnect:
     } else {
       // genuine authentication failure -> surface it, do not mask with a legacy retry
       tscError("SCRAM handshake failed for user:%s, code:%s", user, tstrerror(code));
-      destroyTscObj(*pTscObj);
+      // See note above: free through the conn ref pool to avoid racing an in-flight SASL request's
+      // response callback (this is the exact path ASAN caught at clientEnv.c:777 / clientImpl.c:3042).
+      taos_close_internal(*pTscObj);
       *pTscObj = NULL;
       return code;
     }
@@ -3047,7 +3053,9 @@ _scram_reconnect:
 #else
   if (tsAuthMech == TSDB_AUTH_MECH_SCRAM) {
     tscError("SCRAM auth required (authMech=1) but libgsasl is not built in");
-    destroyTscObj(*pTscObj);
+    // No SASL request was sent on this branch, so no in-flight ref exists; but use the conn ref pool
+    // path anyway for consistency with every other error exit (harmless when refcount is already 1).
+    taos_close_internal(*pTscObj);
     *pTscObj = NULL;
     return TSDB_CODE_OPS_NOT_SUPPORT;
   }
@@ -3056,7 +3064,10 @@ _scram_reconnect:
   pRequest = NULL;
   code = createRequest((*pTscObj)->id, TDMT_MND_CONNECT, 0, &pRequest);
   if (TSDB_CODE_SUCCESS != code) {
-    destroyTscObj(*pTscObj);
+    // createRequest failed -> no request registered; still free the conn via the ref pool (not
+    // destroyTscObj directly) so any prior in-flight SASL request ref is honored.
+    taos_close_internal(*pTscObj);
+    *pTscObj = NULL;
     return code;
   }
 
@@ -3064,13 +3075,23 @@ _scram_reconnect:
   if (pRequest->sqlstr) {
     pRequest->sqlLen = strlen(pRequest->sqlstr);
   } else {
-    return terrno;
+    // Same cleanup discipline as the other error exits: don't leak pRequest/pTscObj on strdup failure.
+    code = terrno;
+    destroyRequest(pRequest);
+    taos_close_internal(*pTscObj);
+    *pTscObj = NULL;
+    return code;
   }
 
   SMsgSendInfo* body = NULL;
   code = buildConnectMsg(pRequest, &body, totpCode, saslToken);
   if (TSDB_CODE_SUCCESS != code) {
-    destroyTscObj(*pTscObj);
+    // pRequest is registered here: destroy it and free the conn via the ref pool (matches the
+    // success-path error handling at the CONNECT-failed branch below). The old code both freed
+    // pTscObj directly (use-after-free risk) and leaked pRequest.
+    destroyRequest(pRequest);
+    taos_close_internal(*pTscObj);
+    *pTscObj = NULL;
     return code;
   }
 
@@ -3078,13 +3099,20 @@ _scram_reconnect:
   SEpSet epset = getEpSet_s(&(*pTscObj)->pAppInfo->mgmtEp);
   code = asyncSendMsgToServer((*pTscObj)->pAppInfo->pTransporter, &epset, NULL, body);
   if (TSDB_CODE_SUCCESS != code) {
-    destroyTscObj(*pTscObj);
     tscError("failed to send connect msg to server, code:%s", tstrerror(code));
+    destroyRequest(pRequest);
+    taos_close_internal(*pTscObj);
+    *pTscObj = NULL;
     return code;
   }
   if (TSDB_CODE_SUCCESS != tsem_wait(&pRequest->body.rspSem)) {
-    destroyTscObj(*pTscObj);
     tscError("failed to wait sem, code:%s", terrstr());
+    // Most dangerous path: the CONNECT msg is already in-flight, so a transport worker will run its
+    // response callback -> doDestroyRequest -> deref pTscObj. Freeing pTscObj directly here is the
+    // very race ASAN reported. Destroy the request and free the conn through the ref pool instead.
+    destroyRequest(pRequest);
+    taos_close_internal(*pTscObj);
+    *pTscObj = NULL;
     return terrno;
   }
   // The one-time SASL token is leader-local; a leadership change in the gap between the handshake and

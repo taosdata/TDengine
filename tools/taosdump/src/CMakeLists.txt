@@ -138,8 +138,10 @@ target_compile_features(taosdump PRIVATE cxx_std_17)
 # Arrow include directory (set by INIT_EXT in external.cmake)
 target_include_directories(taosdump PRIVATE "${ext_arrow_static_inc_dir}")
 
-# Declare build-time dependency so ext_arrow_static is compiled before taosdump links
-add_dependencies(taosdump ext_arrow_static)
+# Declare build-time dependency only when externals are built in this tree.
+if(NOT TD_EXTERNALS_USE_ONLY)
+    add_dependencies(taosdump ext_arrow_static)
+endif()
 
 if(TD_DARWIN)
     # Suppress ld64 duplicate static library noise caused by transitive links.
@@ -250,9 +252,13 @@ if(NOT ${TD_WINDOWS})
             continue()
         endif()
         set(_stripped_lib "${CMAKE_CURRENT_BINARY_DIR}/stripped_arrow/${_arrow_name}")
-        set(_arrow_strip_depends ext_arrow_static)
-        if(ext_arrow_static_install_byproducts_available)
-            list(APPEND _arrow_strip_depends "${_arrow_lib}")
+        if(TD_EXTERNALS_USE_ONLY)
+            set(_arrow_strip_depends "${_arrow_lib}")
+        else()
+            set(_arrow_strip_depends ext_arrow_static)
+            if(ext_arrow_static_install_byproducts_available)
+                list(APPEND _arrow_strip_depends "${_arrow_lib}")
+            endif()
         endif()
         add_custom_command(
             OUTPUT  "${_stripped_lib}"
@@ -264,7 +270,9 @@ if(NOT ${TD_WINDOWS})
         list(APPEND _stripped_arrow_libs "${_stripped_lib}")
     endforeach()
     add_custom_target(strip_arrow_libs ALL DEPENDS ${_stripped_arrow_libs})
-    add_dependencies(strip_arrow_libs ext_arrow_static)
+    if(NOT TD_EXTERNALS_USE_ONLY)
+        add_dependencies(strip_arrow_libs ext_arrow_static)
+    endif()
     add_dependencies(taosdump strip_arrow_libs)
 
     foreach(_stripped_lib ${_stripped_arrow_libs})

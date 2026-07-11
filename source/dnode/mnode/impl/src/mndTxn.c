@@ -2380,11 +2380,14 @@ static SHashObj *mndCollectTxnVgroupIds(SMnode *pMnode, STxnObj *pTxn) {
       int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
       for (int32_t i = 0; i < numOps; i++) {
         SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
-        // Include both CREATE_STB and DROP_STB ops so their DB vnodes receive
-        // COMMIT/ROLLBACK messages. DROP_STB vnodes now have a pTxnIdx entry
-        // (from the BEGIN-time PRE_DROP broadcast) and need TXN_COMMIT / TXN_ROLLBACK
-        // to clean up or restore state correctly.
-        if (pOp->opType != MND_SHADOW_OP_CREATE_STB && pOp->opType != MND_SHADOW_OP_DROP_STB) continue;
+        // Include CREATE_STB, DROP_STB and ALTER_STB ops so their DB vnodes receive
+        // COMMIT/ROLLBACK messages. DROP_STB/ALTER_STB vnodes now have a pTxnIdx entry
+        // (from the BEGIN-time PRE_DROP/PRE_ALTER broadcast) and need TXN_COMMIT / TXN_ROLLBACK
+        // to clean up or restore state correctly. Without ALTER_STB here, a VGroup that only
+        // holds the STB's schema replica (no child tables touched by this txn, so it's absent
+        // from pVgList) never receives TXN_COMMIT and stays stuck in PRE_ALTER forever.
+        if (pOp->opType != MND_SHADOW_OP_CREATE_STB && pOp->opType != MND_SHADOW_OP_DROP_STB &&
+            pOp->opType != MND_SHADOW_OP_ALTER_STB) continue;
 
         SDbObj *pDb = mndAcquireDbByStb(pMnode, pOp->name);
         if (pDb == NULL) continue;
@@ -2572,6 +2575,15 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
   mInfo("trans:%d, used to commit txn %" PRIi64, pTrans->id, pTxn->id);
 
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
+
+  // Make the commit STrans GROUP_PARALLEL so
+  // per-vgId redo actions run serially in append order (ALTER_STB appended before
+  // TXN_COMMIT) while different vgIds still run in parallel. Under the default
+  // TRN_EXEC_PARALLEL, ALTER_STB and TXN_COMMIT for the same vnode are dispatched
+  // concurrently and race in the vnode write queue, letting an ALTER_STB land in the WAL
+  // AFTER its own TXN_COMMIT — the STxnWalManager then drops it (committed guard) and the
+  // CDC consumer receives an incomplete txn. Grouping by vgId restores DDL→COMMIT order.
+  mndTransSetGroupParallel(pTrans);
 
   // Prepare log: update STxnObj stage → COMMITTING atomically with Raft proposal
   {
@@ -2944,11 +2956,25 @@ static int32_t mndProcessBeginTxnReq(SRpcMsg *pReq) {
     code = TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
     goto _exit;
   } else {
-    txnReq.txnId = mndGenTxnId(pMnode);
-    if (txnReq.txnId < 0) {
-      code = (int32_t)txnReq.txnId;
+    // Right after an MNode (re-)becomes sync leader, mndRestoreFinish's txnSeq
+    // (re)init (mndTxnSeqPrepare -> triggerAllocateTxnSeq) is asynchronous — it
+    // fires a self-message and returns, it does not wait for the SDB_TXN_SEQ row
+    // to actually become ready. A BEGIN landing in that short window sees
+    // TSDB_CODE_MND_TXN_SEQ_IN_CREATING. Retry here, server-side, so no client
+    // (regardless of language/driver) ever has to special-case this transient
+    // condition itself — it only surfaces if the allocator is still not ready
+    // after a real timeout, which would indicate a genuine problem.
+    int32_t  retry = 0;
+    txn_id_t genTxnId = -1;
+    do {
+      code = mndGenTxnId(pMnode, &genTxnId);
+      if (code != TSDB_CODE_MND_TXN_SEQ_IN_CREATING) break;
+      taosMsleep(200);
+    } while (++retry < 15);  // up to ~3s total, well above the normal alloc latency
+    if (code != 0) {
       goto _exit;
     }
+    txnReq.txnId = genTxnId;
   }
   mInfo("start to begin txn: %" PRIi64, txnReq.txnId);
   TAOS_CHECK_EXIT(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser));

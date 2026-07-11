@@ -17,8 +17,13 @@ pgrep taosd || taosd >> /dev/null 2>&1 &
 pgrep taosadapter || taosadapter >> /dev/null 2>&1 &
 cd ../../docs/examples/JDBC/JDBCDemo
 
-mvn clean test > jdbc-out.log 2>&1
+mvn_status=0
+mvn clean test > jdbc-out.log 2>&1 || mvn_status=$?
 tail -n 20 jdbc-out.log
+
+if [ "$mvn_status" -ne 0 ]; then
+  exit "$mvn_status"
+fi
 
 totalJDBCCases=`grep 'Tests run' jdbc-out.log | awk -F"[:,]" 'END{ print $2 }'`
 failed=`grep 'Tests run' jdbc-out.log | awk -F"[:,]" 'END{ print $4 }'`

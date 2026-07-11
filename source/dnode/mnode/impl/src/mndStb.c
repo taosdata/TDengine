@@ -833,7 +833,7 @@ static FORCE_INLINE int32_t schemaExColIdCompare(const void *colId, const void *
 }
 
 void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen, void *alterOriData,
-                            int32_t alterOriDataLen) {
+                            int32_t alterOriDataLen, txn_id_t wireTxnId) {
   SEncoder       encoder = {0};
   int32_t        contLen;
   SName          name = {0};
@@ -856,7 +856,7 @@ void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int3
   req.virtualStb = pStb->virtualStb;
   req.secureDelete = pStb->secureDelete;
   req.securityLevel = pStb->securityLevel;
-  req.txnId = pStb->txnId;  // batch-meta-txn: VNode marks STB as PRE_CREATE
+  req.txnId = wireTxnId;  // batch-meta-txn: VNode marks STB as PRE_CREATE/PRE_ALTER
 
   // todo
   req.schemaRow.nCols = pStb->numOfColumns;
@@ -1155,7 +1155,7 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
       continue;
     }
 
-    void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, NULL, 0);
+    void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, NULL, 0, pStb->txnId);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
@@ -1191,7 +1191,7 @@ int32_t mndSetForceDropCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SVgO
   SSdb   *pSdb = pMnode->pSdb;
   int32_t contLen;
 
-  void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, NULL, 0);
+  void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, NULL, 0, pStb->txnId);
   if (pReq == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -1832,7 +1832,7 @@ static int32_t mndSetCreateAuditStbRedoActions(SMnode *pMnode, STrans *pTrans, S
     TAOS_RETURN(code);
   }
 
-  void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, NULL, 0);
+  void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, NULL, 0, pStb->txnId);
   if (pReq == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -3082,13 +3082,12 @@ static int32_t mndSetAlterStbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *
 }
 
 static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb, void *alterOriData,
-                                         int32_t alterOriDataLen) {
+                                         int32_t alterOriDataLen, txn_id_t wireTxnId) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
   SVgObj *pVgroup = NULL;
   void   *pIter = NULL;
   int32_t contLen;
-  int32_t groupId = (pTrans->exec == TRN_EXEC_GROUP_PARALLEL) ? 2 : 0;
 
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
@@ -3098,7 +3097,7 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       continue;
     }
 
-    void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, alterOriData, alterOriDataLen);
+    void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, alterOriData, alterOriDataLen, wireTxnId);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
@@ -3111,10 +3110,13 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_VND_ALTER_STB;
-    // VST inheritance: for a GROUP_PARALLEL txn (ADD/DROP BASE ON), groupId==2 keeps
-    // these alter actions after the group-1 CHECK_HAS_CTB probes. Otherwise fall back to
-    // 3.0's per-VGroup serialization vs TXN_COMMIT (see mndSetDropStbRedoActions).
-    action.groupId = (groupId != 0) ? groupId : pVgroup->vgId;
+    // groupId=vgId: when this ALTER_STB is appended to the batch-txn commit STrans
+    // (GROUP_PARALLEL) alongside this vgId's TDMT_VND_TXN_COMMIT (also groupId=vgId),
+    // STrans serializes both in the same group — every ALTER_STB for the vnode is sent
+    // and acked before its TXN_COMMIT, so no ALTER_STB can land in the WAL after commit
+    // (see mndSetDropStbRedoActions for the matching DROP_STB rationale). The VST BASE-ON
+    // paths use SERIAL, so per-vgId grouping is a no-op there.
+    action.groupId = pVgroup->vgId;
     if ((code = mndTransAppendRedoAction(pTrans, &action)) != 0) {
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);
@@ -3143,7 +3145,7 @@ static int32_t mndSetAlterStbRedoActions2(SMnode *pMnode, STrans *pTrans, SDbObj
       continue;
     }
 
-    void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, alterOriData, alterOriDataLen);
+    void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen, alterOriData, alterOriDataLen, pStb->txnId);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
@@ -3573,7 +3575,7 @@ static int32_t mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbOb
 
   TAOS_CHECK_GOTO(mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, pStb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, pStb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen, pStb->txnId), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
   code = 0;
@@ -3613,7 +3615,7 @@ static int32_t mndAlterStbAddBaseOnImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pD
 
   TAOS_CHECK_GOTO(mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, pStb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, pStb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen, pStb->txnId), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
   code = 0;
@@ -3653,7 +3655,7 @@ static int32_t mndAlterStbDropBaseOnImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *p
 
   TAOS_CHECK_GOTO(mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, pStb), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, pStb), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen, pStb->txnId), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
   code = 0;
@@ -3700,7 +3702,7 @@ static int32_t mndAlterStbAndUpdateTagIdxImp(SMnode *pMnode, SRpcMsg *pReq, SDbO
       TAOS_CHECK_GOTO(mndSetDropIdxCommitLogs(pMnode, pTrans, &idxObj), NULL, _OVER);
     }
 
-    TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen, pStb->txnId), NULL, _OVER);
     TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
 
   } else if (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_TAG_NAME) {
@@ -3725,7 +3727,7 @@ static int32_t mndAlterStbAndUpdateTagIdxImp(SMnode *pMnode, SRpcMsg *pReq, SDbO
       TAOS_CHECK_GOTO(mndSetAlterIdxCommitLogs(pMnode, pTrans, &idxObj), NULL, _OVER);
     }
 
-    TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndSetAlterStbRedoActions(pMnode, pTrans, pDb, pStb, alterOriData, alterOriDataLen, pStb->txnId), NULL, _OVER);
     TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   }
   code = 0;
@@ -4244,6 +4246,11 @@ static int32_t mndAlterStb(SMnode *pMnode, SRpcMsg *pReq, const SMAlterStbReq *p
   stbObj.updateTime = taosGetTimestampMs();
   stbObj.lock = 0;
   stbObj.virtualStb = pOld->virtualStb;
+  // batch-meta-txn: propagate this ALTER's txnId so mndBuildVCreateStbReq (via
+  // stbObj.txnId) forwards it to the vnode; without this the memcpy'd pOld->txnId
+  // (typically 0, cleared once the prior CREATE txn committed) is used instead,
+  // and the vnode-level ALTER_STB request silently carries no txnId.
+  stbObj.txnId = pAlter->txnId;
   bool updateTagIndex = false;
   switch (pAlter->alterType) {
     case TSDB_ALTER_TABLE_ADD_TAG:
@@ -4835,15 +4842,15 @@ static int32_t mndMarkStbTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStbObj *pStb, S
   TAOS_CHECK_EXIT(sdbSetRawStatus(pRaw, SDB_STATUS_READY));
   TAOS_CHECK_EXIT(mndTransAppendPrepareLog(pTrans, pRaw));
 
-  // Broadcast PRE_DROP to all vnodes in the DB so that SHOW TABLES / SHOW VTABLES
-  // hides child tables of the dropping STB while the transaction is still open.
-  // This populates pTxnIdx on each vnode, making the metaTbCursorNext parent-STB
-  // PRE_DROP check effective.
-  // Skip for PRE_CREATE_DROP: the STB only exists in PRE_CREATE on vnodes and is
-  // already invisible; no broadcast needed.
-  if (markerStb.txnStatus == META_TXN_PRE_DROP) {
-    TAOS_CHECK_EXIT(mndSetDropStbRedoActions(pMnode, pTrans, pDb, &markerStb));
-  }
+  // Broadcast the DROP to all vnodes in the DB immediately, with the real txnId, same as
+  // CREATE/ALTER. vnodeProcessDropStbReq's txn path (metaDropSuperTable) handles both cases:
+  // - STB pre-existing (NORMAL/PRE_ALTER): marks PRE_DROP, deferred — hides child tables from
+  //   SHOW TABLES/VTABLES immediately, physically cascade-deletes when TXN_COMMIT arrives
+  //   (vnodeTxnPromoteShadowEntries already does this generically for any tracked PRE_DROP uid).
+  // - STB created in this same txn (PRE_CREATE_DROP): metaDropSuperTable recognizes the
+  //   same-txn CREATE→DROP and physically deletes it right away — no need to wait for COMMIT.
+  // Either way, no separate commit-time redo action is needed afterward.
+  TAOS_CHECK_EXIT(mndSetDropStbRedoActions(pMnode, pTrans, pDb, &markerStb));
 
   // Add memory shadow op (for live COMMIT path — DROP only needs name, no reqData)
   code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_DROP_STB, pStb->name, pStb->uid, pDb->name, NULL, 0);
@@ -5051,16 +5058,11 @@ int32_t mndAppendDropStbToTrans(SMnode *pMnode, STrans *pTrans, const char *stbN
   if (code == 0) {
     code = mndSetDropStbCommitLogs(pMnode, pTrans, pStb);
   }
-  if (code == 0) {
-    // At COMMIT/ROLLBACK time, the VNode must perform an immediate physical drop
-    // (not deferred PRE_DROP). Use a shallow copy with txnId=0 so VNode takes the
-    // non-transactional path in vnodeProcessDropStbReq, which cascade-deletes
-    // child tables synchronously before returning success.
-    SStbObj stbForRedo;
-    memcpy(&stbForRedo, pStb, sizeof(SStbObj));
-    stbForRedo.txnId = 0;
-    code = mndSetDropStbRedoActions(pMnode, pTrans, pDb, &stbForRedo);
-  }
+  // No VNode redo action needed here: the VNode already tracked this STB's PRE_DROP/PRE_CREATE
+  // marker when the DROP (or CREATE) was originally dispatched mid-txn (mndMarkStbTxnDrop /
+  // immediate CREATE dispatch), so vnodeProcessTxnCommitReq/vnodeProcessTxnRollbackReq's generic
+  // shadow-entry promotion/undo (vnodeTxnPromoteShadowEntries / vnodeTxnUndoShadowEntries)
+  // already performs the physical drop automatically once TXN_COMMIT/TXN_ROLLBACK arrives.
   if (code == 0) {
     code = mndDropIdxsByStb(pMnode, pTrans, pDb, pStb);
   }
@@ -5106,7 +5108,11 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
   if (tDeserializeSMAlterStbReq(pReqData, reqDataLen, &alterReq) != 0) {
     return TSDB_CODE_INVALID_MSG;
   }
-  alterReq.txnId = 0;
+  // batch-meta-txn: this ALTER's real txnId, forwarded explicitly to mndSetAlterStbRedoActions
+  // below so the vnode-alter-stb wire message is tagged for WAL/CDC atomic ordered delivery.
+  // Kept on alterReq/alterOriData too (only consumed downstream by the client-side JSON-meta
+  // builder in clientRawBlockJson.c, which ignores txnId — no need to clear it here).
+  txn_id_t txnId = (txn_id_t)alterReq.txnId;
 
   if (pAccumBase != NULL) {
     // Use accumulated schema from previous ALTER on this STB in the same COMMIT.
@@ -5227,7 +5233,12 @@ int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData,
   bool skipVnodeAlter = (oldTxnStatus == META_TXN_PRE_CREATE_DROP || oldTxnStatus == META_TXN_PRE_DROP);
   code = mndSetAlterStbPrepareLogs(pMnode, pTrans, pDb, &stbObj);
   if (code == 0) code = mndSetAlterStbCommitLogs(pMnode, pTrans, pDb, &stbObj);
-  if (code == 0 && !skipVnodeAlter) code = mndSetAlterStbRedoActions(pMnode, pTrans, pDb, &stbObj, pAlterCont, newLen);
+  // stbObj.txnId stays 0 throughout (needed above so the SDB prepare/commit logs make the
+  // STB visible on commit); the real batch txnId is passed explicitly here instead, so the
+  // vnode-alter-stb wire message is tagged for WAL/CDC atomic ordered delivery.
+  if (code == 0 && !skipVnodeAlter) {
+    code = mndSetAlterStbRedoActions(pMnode, pTrans, pDb, &stbObj, pAlterCont, newLen, txnId);
+  }
 
   // On success, hand the accumulated schema to the caller so subsequent ALTERs on the
   // same STB within the same COMMIT can build on top of it (avoiding lost-update).

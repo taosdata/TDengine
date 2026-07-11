@@ -120,7 +120,8 @@ TEST_F(ParserSelectTest, timelineFunc) {
 
   run("SELECT diff(c1) FROM t1");
 
-  run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d))", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  // timeline fallback: the subquery projects a TIMESTAMP column (ts), which diff uses as a degraded timeline
+  run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d))");
 
   run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d) order by ts)");
 
@@ -498,7 +499,8 @@ TEST_F(ParserSelectTest, subquery) {
 
   run("SELECT diff(a) FROM (SELECT _wstart, tag1, tag2, MAX(c1) a FROM st1 PARTITION BY tag1 INTERVAL(1m)) PARTITION BY tag1");
 
-  run("SELECT diff(a) FROM (SELECT _wstart, tag1, tag2, MAX(c1) a FROM st1 PARTITION BY tag1 INTERVAL(1m)) PARTITION BY tag2", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  // timeline fallback: the subquery projects a TIMESTAMP column (_wstart), which diff uses as a degraded timeline
+  run("SELECT diff(a) FROM (SELECT _wstart, tag1, tag2, MAX(c1) a FROM st1 PARTITION BY tag1 INTERVAL(1m)) PARTITION BY tag2");
 
   run("SELECT _C0 FROM (SELECT _ROWTS, ts FROM st1s1)");
 

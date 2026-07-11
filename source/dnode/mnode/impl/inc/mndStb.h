@@ -52,7 +52,7 @@ const char *mndGetStbStr(const char *src);
 
 int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew);
 void   *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen, void *alterOriData,
-                              int32_t alterOriDataLen);
+                              int32_t alterOriDataLen, txn_id_t wireTxnId);
 int32_t mndSetForceDropCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, SStbObj *pStb);
 
 int32_t mndCreateAuditStb(SMnode *pMnode, SDbObj *pDb, SUserObj *pOperUser, STrans *pTrans, SVgObj *pVgroup);

@@ -379,6 +379,19 @@ static bool scanPathOptIsSpecifiedFuncType(const SFunctionNode* pFunc, bool (*ty
   return true;
 }
 
+static const SWindowLogicNode* scanPathOptGetWindowParent(SScanLogicNode* pScan) {
+  SLogicNode* pParent = pScan->node.pParent;
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pParent) && pParent->pParent &&
+      QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent->pParent)) {
+    pParent = pParent->pParent;
+  }
+  return QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent) ? (SWindowLogicNode*)pParent : NULL;
+}
+
+static bool intervalWindowHasOverlappingWindows(const SWindowLogicNode* pWindow) {
+  return pWindow->interval != pWindow->sliding || pWindow->intervalUnit != pWindow->slidingUnit;
+}
+
 static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSdrFuncs, SNodeList** pDsoFuncs) {
   SNodeList* pAllFuncs = scanPathOptGetAllFuncs(pScan->node.pParent);
   SNodeList* pTmpSdrFuncs = NULL;
@@ -422,6 +435,11 @@ static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSd
   return TSDB_CODE_SUCCESS;
 }
 
+static bool scanPathOptLastNeedsAscScan(SScanLogicNode* pScan) {
+  const SWindowLogicNode* pWindow = scanPathOptGetWindowParent(pScan);
+  return NULL != pWindow && WINDOW_TYPE_INTERVAL == pWindow->winType && intervalWindowHasOverlappingWindows(pWindow);
+}
+
 static int32_t scanPathOptGetScanOrder(SScanLogicNode* pScan, EScanOrder* pScanOrder) {
   SNodeList* pAllFuncs = scanPathOptGetAllFuncs(pScan->node.pParent);
   SNode*     pNode = NULL;
@@ -440,7 +458,7 @@ static int32_t scanPathOptGetScanOrder(SScanLogicNode* pScan, EScanOrder* pScanO
   }
   if (hasFirst && hasLast && !otherFunc) {
     *pScanOrder = SCAN_ORDER_BOTH;
-  } else if (hasLast) {
+  } else if (hasLast && !scanPathOptLastNeedsAscScan(pScan)) {
     *pScanOrder = SCAN_ORDER_DESC;
   } else {
     *pScanOrder = SCAN_ORDER_ASC;
@@ -491,25 +509,21 @@ static int32_t scanPathOptGetDataRequired(SNodeList* pFuncs) {
 }
 
 static void scanPathOptSetScanWin(SOsdInfo* pInfo) {
-  SScanLogicNode* pScan = pInfo->pScan;
-  SLogicNode* pParent = pScan->node.pParent;
-  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pParent) && pParent->pParent &&
-      QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent->pParent)) {
-    pParent = pParent->pParent;
-  }
-  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent)) {
+  SScanLogicNode*         pScan = pInfo->pScan;
+  const SWindowLogicNode* pWindow = scanPathOptGetWindowParent(pScan);
+  if (NULL != pWindow) {
     if (pInfo->scanOrder == SCAN_ORDER_BOTH) {
       // for window, only keep asc order when both first and last exist
       pInfo->scanOrder = SCAN_ORDER_ASC;
     }
-    pScan->interval = ((SWindowLogicNode*)pParent)->interval;
-    pScan->offset = ((SWindowLogicNode*)pParent)->offset;
-    pScan->sliding = ((SWindowLogicNode*)pParent)->sliding;
-    pScan->intervalUnit = ((SWindowLogicNode*)pParent)->intervalUnit;
-    pScan->slidingUnit = ((SWindowLogicNode*)pParent)->slidingUnit;
-    pScan->firstDayOfWeek = ((SWindowLogicNode*)pParent)->firstDayOfWeek;
-    pScan->timezone = ((SWindowLogicNode*)pParent)->timezone;
-    tstrncpy(pScan->timezoneName, ((SWindowLogicNode*)pParent)->timezoneName, sizeof(pScan->timezoneName));
+    pScan->interval = pWindow->interval;
+    pScan->offset = pWindow->offset;
+    pScan->sliding = pWindow->sliding;
+    pScan->intervalUnit = pWindow->intervalUnit;
+    pScan->slidingUnit = pWindow->slidingUnit;
+    pScan->firstDayOfWeek = pWindow->firstDayOfWeek;
+    pScan->timezone = pWindow->timezone;
+    tstrncpy(pScan->timezoneName, pWindow->timezoneName, sizeof(pScan->timezoneName));
   }
 }
 

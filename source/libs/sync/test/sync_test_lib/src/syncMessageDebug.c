@@ -826,6 +826,8 @@ cJSON* syncClientRequest2Json(const SyncClientRequest* pMsg) {
     cJSON_AddNumberToObject(pRoot, "originalRpcType", pMsg->originalRpcType);
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->seqNum);
     cJSON_AddStringToObject(pRoot, "seqNum", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->txnId);
+    cJSON_AddStringToObject(pRoot, "txnId", u64buf);
     cJSON_AddNumberToObject(pRoot, "isWeak", pMsg->isWeak);
     cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
 

@@ -1138,7 +1138,7 @@ void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq *expect, SCMCreateStrea
   const char* const ignoredFields[] = {"NodeAddr",        "GroupId",         "SubplanId", "DataBlockId",
                                        "Level",           "RequireDataOrder", "ResultDataOrder",
                                        "IsDistinct",      "Flag",            "TableId",
-                                       "STableId",        "InterpFillMode"};
+                                       "STableId",        "InterpFillMode",  "UserAppId"};
   delete_all_specified_fields(j1, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
 
@@ -1162,7 +1162,7 @@ void checkCreateStreamCalcPlan(SCMCreateStreamReq *expect, SCMCreateStreamReq *r
 
   const char* const ignoredFields[] = {"Name",            "AliasName",       "ColName",  "RequireDataOrder",
                                        "ResultDataOrder", "IsDistinct",      "Flag",     "TableId",
-                                       "STableId",        "InterpFillMode"};
+                                       "STableId",        "InterpFillMode",  "UserAppId"};
   delete_all_specified_fields(j1, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   delete_all_specified_fields(j2, ignoredFields, sizeof(ignoredFields) / sizeof(ignoredFields[0]));
 
@@ -1340,7 +1340,7 @@ void checkCreateStreamReq(SCMCreateStreamReq *expect, SCMCreateStreamReq *req) {
     auto expectScan = (SStreamCalcScan *)taosArrayGet(expect->calcScanPlanList, i);
     ASSERT_EQ(pCalcScan->readFromCache, expectScan->readFromCache);
     const char* const ignoredFields[] = {"RequireDataOrder", "ResultDataOrder", "IsDistinct", "TableId",
-                                         "STableId", "InterpFillMode"};
+                                         "STableId", "InterpFillMode", "UserAppId"};
     checkJsonStringEqual((char*)expectScan->scanPlan, (char*)pCalcScan->scanPlan, ignoredFields,
                          sizeof(ignoredFields) / sizeof(ignoredFields[0]));
   }
@@ -2168,6 +2168,31 @@ TEST_F(ParserStreamTest, TestNotify) {
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 notify('ws://localhost:8080', 'ws://localhost:8080/notify') on (window_close) notify_options(notify_history) into stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2");
 
   clearCreateStreamReq();
+}
+
+TEST_F(ParserStreamTest, TestNotifyWhereFilterFlag) {
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) {
+      return;
+    }
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+    ASSERT_NE(pQuery->pCmdMsg, nullptr);
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_TRUE((req.addOptions & NOTIFY_HAS_FILTER) != 0);
+    ASSERT_EQ(req.notifyEventTypes, EVENT_WINDOW_CLOSE);
+    ASSERT_NE(req.outCols, nullptr);
+    ASSERT_EQ(taosArrayGetSize(req.outCols), 4);
+    tFreeSCMCreateStreamReq(&req);
+  });
+
+  run("create stream stream_streamdb.s_notify_where interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 "
+      "notify('ws://localhost:8080/notify_where') on (window_close) where max_v >= 20 "
+      "into stream_outdb.stream_out as "
+      "select _twstart, c1, count(*) as cnt, max(c1) as max_v from %%trows partition by c1");
 }
 
 TEST_F(ParserStreamTest, TestOutTable) {

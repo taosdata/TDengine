@@ -1603,7 +1603,10 @@ void calcIntervalAutoOffset(SInterval* interval) {
 
   interval->offset = 0;
 
-  if (interval->timeRange.skey == INT64_MIN) {
+  // No anchor to align to: an unbounded start (INT64_MIN, full range) or an
+  // empty time range (TSWINDOW_DESC_INITIALIZER, skey == INT64_MAX).
+  if (interval->timeRange.skey == INT64_MIN ||
+      interval->timeRange.skey == INT64_MAX) {
     return;
   }
 
@@ -1612,19 +1615,20 @@ void calcIntervalAutoOffset(SInterval* interval) {
   TSKEY news = start;
   while (news <= skey) {
     start = news;
-    news = taosTimeAdd(start, interval->sliding, interval->slidingUnit, interval->precision, interval->timezone);
+    news = taosTimeAdd(start, interval->sliding, interval->slidingUnit,
+                       interval->precision, interval->timezone);
     if (news <= start) {
-      /*
-       * sliding is strictly positive, so a successful taosTimeAdd always advances:
-       * even a DST spring-forward/fall-back only shifts a calendar day by +-1h, so a
-       * +1d step is still 23~25h (> 0) and never maps back to the same instant. Hence
-       * news <= start can only happen when taosTimeAdd returns its input unchanged on
-       * its own overflow/tz/mktime error guards (each already logged). It cannot misfire
-       * on a valid DST boundary; break here to avoid an infinite loop.
-       */
-      uError("%s failed and skip, skey [%" PRId64 "], inter[%" PRId64 "(%c)], slid[%" PRId64 "(%c)], precision[%d]",
-             __func__, skey, interval->interval, interval->intervalUnit, interval->sliding, interval->slidingUnit,
-             interval->precision);
+      // sliding is strictly positive, so a successful taosTimeAdd always
+      // advances: even a DST spring-forward/fall-back only shifts a calendar
+      // day by +-1h, so a +1d step is still 23~25h (> 0) and never maps back
+      // to the same instant. Hence news <= start can only happen when
+      // taosTimeAdd returns its input unchanged on its own overflow/tz/mktime
+      // error guards (each already logged). It cannot misfire on a valid DST
+      // boundary; break here to avoid an infinite loop.
+      uError("%s failed and skip, skey [%" PRId64 "], inter[%" PRId64 "(%c)], "
+             "slid[%" PRId64 "(%c)], precision[%d]", __func__, skey,
+             interval->interval, interval->intervalUnit, interval->sliding,
+             interval->slidingUnit, interval->precision);
       return;
     }
   }

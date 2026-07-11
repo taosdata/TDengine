@@ -63,8 +63,9 @@ taos> select 1 IN (select (select f1 from tb1) from tb1), 1 IN (select (select f
 ============================================================================================
  true                                        | true                                        |
 
-taos> select 1 IN (select diff(f1) from tb1), 1 IN (select diff(f1) from tb1) from tb1 where 1 IN (select diff(f1) from tb1) order by 1;
+taos> select 1 IN (select distinct * from tb1), 1 IN (select distinct * from tb1) from tb1 where 1 IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 1 IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), 1 IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where 1 IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
 
 taos> select 'a' IN (null), 'a' IN (null) from tb1 where 'a' IN (null) order by 1;
@@ -102,8 +103,9 @@ taos> select 'a' IN (select f1 from tb1 union all select f1 from tb1), 'a' IN (s
 
 taos> select 'a' IN (select (select f1 from tb1) from tb1), 'a' IN (select (select f1 from tb1) from tb1) from tb1 where 'a' IN (select (select f1 from tb1) from tb1) order by 1;
 
-taos> select 'a' IN (select diff(f1) from tb1), 'a' IN (select diff(f1) from tb1) from tb1 where 'a' IN (select diff(f1) from tb1) order by 1;
+taos> select 'a' IN (select distinct * from tb1), 'a' IN (select distinct * from tb1) from tb1 where 'a' IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'a' IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), 'a' IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where 'a' IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
 
 taos> select 'd' IN (null), 'd' IN (null) from tb1 where 'd' IN (null) order by 1;
@@ -141,8 +143,9 @@ taos> select 'd' IN (select f1 from tb1 union all select f1 from tb1), 'd' IN (s
 
 taos> select 'd' IN (select (select f1 from tb1) from tb1), 'd' IN (select (select f1 from tb1) from tb1) from tb1 where 'd' IN (select (select f1 from tb1) from tb1) order by 1;
 
-taos> select 'd' IN (select diff(f1) from tb1), 'd' IN (select diff(f1) from tb1) from tb1 where 'd' IN (select diff(f1) from tb1) order by 1;
+taos> select 'd' IN (select distinct * from tb1), 'd' IN (select distinct * from tb1) from tb1 where 'd' IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'd' IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), 'd' IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where 'd' IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
 
 taos> select f1 IN (null), f1 IN (null) from tb1 where f1 IN (null) order by 1;
@@ -206,8 +209,9 @@ taos> select f1 IN (select (select f1 from tb1) from tb1), f1 IN (select (select
 ==============================================================================================
  true                                         | true                                         |
 
-taos> select f1 IN (select diff(f1) from tb1), f1 IN (select diff(f1) from tb1) from tb1 where f1 IN (select diff(f1) from tb1) order by 1;
+taos> select f1 IN (select distinct * from tb1), f1 IN (select distinct * from tb1) from tb1 where f1 IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), f1 IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where f1 IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
 
 taos> select NULL IN (null), NULL IN (null) from tb1 where NULL IN (null) order by 1;
@@ -244,8 +248,9 @@ taos> select NULL IN (select f1 from tb1 union all select f1 from tb1), NULL IN 
 
 taos> select NULL IN (select (select f1 from tb1) from tb1), NULL IN (select (select f1 from tb1) from tb1) from tb1 where NULL IN (select (select f1 from tb1) from tb1) order by 1;
 
-taos> select NULL IN (select diff(f1) from tb1), NULL IN (select diff(f1) from tb1) from tb1 where NULL IN (select diff(f1) from tb1) order by 1;
+taos> select NULL IN (select distinct * from tb1), NULL IN (select distinct * from tb1) from tb1 where NULL IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select NULL IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), NULL IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where NULL IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
 
 taos> select 123.45 IN (null), 123.45 IN (null) from tb1 where 123.45 IN (null) order by 1;
@@ -282,8 +287,9 @@ taos> select 123.45 IN (select f1 from tb1 union all select f1 from tb1), 123.45
 
 taos> select 123.45 IN (select (select f1 from tb1) from tb1), 123.45 IN (select (select f1 from tb1) from tb1) from tb1 where 123.45 IN (select (select f1 from tb1) from tb1) order by 1;
 
-taos> select 123.45 IN (select diff(f1) from tb1), 123.45 IN (select diff(f1) from tb1) from tb1 where 123.45 IN (select diff(f1) from tb1) order by 1;
+taos> select 123.45 IN (select distinct * from tb1), 123.45 IN (select distinct * from tb1) from tb1 where 123.45 IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 123.45 IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), 123.45 IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where 123.45 IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
 
 taos> select abs(-2) IN (null), abs(-2) IN (null) from tb1 where abs(-2) IN (null) order by 1;
@@ -323,8 +329,9 @@ taos> select abs(-2) IN (select f1 from tb1 union all select f1 from tb1), abs(-
 
 taos> select abs(-2) IN (select (select f1 from tb1) from tb1), abs(-2) IN (select (select f1 from tb1) from tb1) from tb1 where abs(-2) IN (select (select f1 from tb1) from tb1) order by 1;
 
-taos> select abs(-2) IN (select diff(f1) from tb1), abs(-2) IN (select diff(f1) from tb1) from tb1 where abs(-2) IN (select diff(f1) from tb1) order by 1;
+taos> select abs(-2) IN (select distinct * from tb1), abs(-2) IN (select distinct * from tb1) from tb1 where abs(-2) IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select abs(-2) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), abs(-2) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where abs(-2) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
 
 taos> select f1 + 1 IN (null), f1 + 1 IN (null) from tb1 where f1 + 1 IN (null) order by 1;
@@ -364,8 +371,9 @@ taos> select f1 + 1 IN (select f1 from tb1 union all select f1 from tb1), f1 + 1
 
 taos> select f1 + 1 IN (select (select f1 from tb1) from tb1), f1 + 1 IN (select (select f1 from tb1) from tb1) from tb1 where f1 + 1 IN (select (select f1 from tb1) from tb1) order by 1;
 
-taos> select f1 + 1 IN (select diff(f1) from tb1), f1 + 1 IN (select diff(f1) from tb1) from tb1 where f1 + 1 IN (select diff(f1) from tb1) order by 1;
+taos> select f1 + 1 IN (select distinct * from tb1), f1 + 1 IN (select distinct * from tb1) from tb1 where f1 + 1 IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 + 1 IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), f1 + 1 IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where f1 + 1 IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
 
 taos> select sum(f1) IN (null), sum(f1) IN (null) from tb1 where sum(f1) IN (null) order by 1;
@@ -416,7 +424,7 @@ DB error: There mustn't be aggregation [0x80002608]
 taos> select sum(f1) IN (select (select f1 from tb1) from tb1), sum(f1) IN (select (select f1 from tb1) from tb1) from tb1 where sum(f1) IN (select (select f1 from tb1) from tb1) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
-taos> select sum(f1) IN (select diff(f1) from tb1), sum(f1) IN (select diff(f1) from tb1) from tb1 where sum(f1) IN (select diff(f1) from tb1) order by 1;
+taos> select sum(f1) IN (select distinct * from tb1), sum(f1) IN (select distinct * from tb1) from tb1 where sum(f1) IN (select distinct * from tb1) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
 taos> select sum(f1) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), sum(f1) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where sum(f1) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
@@ -483,8 +491,9 @@ taos> select (select 1) IN (select (select f1 from tb1) from tb1), (select 1) IN
 ==============================================================================================================
  true                                                 | true                                                 |
 
-taos> select (select 1) IN (select diff(f1) from tb1), (select 1) IN (select diff(f1) from tb1) from tb1 where (select 1) IN (select diff(f1) from tb1) order by 1;
+taos> select (select 1) IN (select distinct * from tb1), (select 1) IN (select distinct * from tb1) from tb1 where (select 1) IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 1) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), (select 1) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where (select 1) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
 
 taos> select (select f1 from tba limit 0) IN (null), (select f1 from tba limit 0) IN (null) from tb1 where (select f1 from tba limit 0) IN (null) order by 1;
@@ -521,8 +530,9 @@ taos> select (select f1 from tba limit 0) IN (select f1 from tb1 union all selec
 
 taos> select (select f1 from tba limit 0) IN (select (select f1 from tb1) from tb1), (select f1 from tba limit 0) IN (select (select f1 from tb1) from tb1) from tb1 where (select f1 from tba limit 0) IN (select (select f1 from tb1) from tb1) order by 1;
 
-taos> select (select f1 from tba limit 0) IN (select diff(f1) from tb1), (select f1 from tba limit 0) IN (select diff(f1) from tb1) from tb1 where (select f1 from tba limit 0) IN (select diff(f1) from tb1) order by 1;
+taos> select (select f1 from tba limit 0) IN (select distinct * from tb1), (select f1 from tba limit 0) IN (select distinct * from tb1) from tb1 where (select f1 from tba limit 0) IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select f1 from tba limit 0) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), (select f1 from tba limit 0) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where (select f1 from tba limit 0) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
 
 taos> select 1 NOT IN (null), 1 NOT IN (null) from tb1 where 1 NOT IN (null) order by 1;
@@ -568,11 +578,9 @@ taos> select 1 NOT IN (select f1 from tb1 union all select f1 from tb1), 1 NOT I
 
 taos> select 1 NOT IN (select (select f1 from tb1) from tb1), 1 NOT IN (select (select f1 from tb1) from tb1) from tb1 where 1 NOT IN (select (select f1 from tb1) from tb1) order by 1;
 
-taos> select 1 NOT IN (select diff(f1) from tb1), 1 NOT IN (select diff(f1) from tb1) from tb1 where 1 NOT IN (select diff(f1) from tb1) order by 1;
- 1 not in (select diff(f1) from tb1) | 1 not in (select diff(f1) from tb1) |
-============================================================================
- true                                | true                                |
+taos> select 1 NOT IN (select distinct * from tb1), 1 NOT IN (select distinct * from tb1) from tb1 where 1 NOT IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 1 NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), 1 NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where 1 NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
  1 not in (select * from (select f1 from tb1 where f1 > (select 1 | 1 not in (select * from (select f1 from tb1 where f1 > (select 1 |
 ======================================================================================================================================
@@ -646,11 +654,9 @@ taos> select 'a' NOT IN (select (select f1 from tb1) from tb1), 'a' NOT IN (sele
 ========================================================================================================
  true                                              | true                                              |
 
-taos> select 'a' NOT IN (select diff(f1) from tb1), 'a' NOT IN (select diff(f1) from tb1) from tb1 where 'a' NOT IN (select diff(f1) from tb1) order by 1;
- 'a' not in (select diff(f1) from tb1) | 'a' not in (select diff(f1) from tb1) |
-================================================================================
- true                                  | true                                  |
+taos> select 'a' NOT IN (select distinct * from tb1), 'a' NOT IN (select distinct * from tb1) from tb1 where 'a' NOT IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'a' NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), 'a' NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where 'a' NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
  'a' not in (select * from (select f1 from tb1 where f1 > (select | 'a' not in (select * from (select f1 from tb1 where f1 > (select |
 ======================================================================================================================================
@@ -724,11 +730,9 @@ taos> select 'd' NOT IN (select (select f1 from tb1) from tb1), 'd' NOT IN (sele
 ========================================================================================================
  true                                              | true                                              |
 
-taos> select 'd' NOT IN (select diff(f1) from tb1), 'd' NOT IN (select diff(f1) from tb1) from tb1 where 'd' NOT IN (select diff(f1) from tb1) order by 1;
- 'd' not in (select diff(f1) from tb1) | 'd' not in (select diff(f1) from tb1) |
-================================================================================
- true                                  | true                                  |
+taos> select 'd' NOT IN (select distinct * from tb1), 'd' NOT IN (select distinct * from tb1) from tb1 where 'd' NOT IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'd' NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), 'd' NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where 'd' NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
  'd' not in (select * from (select f1 from tb1 where f1 > (select | 'd' not in (select * from (select f1 from tb1 where f1 > (select |
 ======================================================================================================================================
@@ -777,11 +781,9 @@ taos> select f1 NOT IN (select f1 from tb1 union all select f1 from tb1), f1 NOT
 
 taos> select f1 NOT IN (select (select f1 from tb1) from tb1), f1 NOT IN (select (select f1 from tb1) from tb1) from tb1 where f1 NOT IN (select (select f1 from tb1) from tb1) order by 1;
 
-taos> select f1 NOT IN (select diff(f1) from tb1), f1 NOT IN (select diff(f1) from tb1) from tb1 where f1 NOT IN (select diff(f1) from tb1) order by 1;
- f1 not in (select diff(f1) from tb1) | f1 not in (select diff(f1) from tb1) |
-==============================================================================
- true                                 | true                                 |
+taos> select f1 NOT IN (select distinct * from tb1), f1 NOT IN (select distinct * from tb1) from tb1 where f1 NOT IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), f1 NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where f1 NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
  f1 not in (select * from (select f1 from tb1 where f1 > (select  | f1 not in (select * from (select f1 from tb1 where f1 > (select  |
 ======================================================================================================================================
@@ -824,11 +826,9 @@ taos> select NULL NOT IN (select f1 from tb1 union all select f1 from tb1), NULL
 
 taos> select NULL NOT IN (select (select f1 from tb1) from tb1), NULL NOT IN (select (select f1 from tb1) from tb1) from tb1 where NULL NOT IN (select (select f1 from tb1) from tb1) order by 1;
 
-taos> select NULL NOT IN (select diff(f1) from tb1), NULL NOT IN (select diff(f1) from tb1) from tb1 where NULL NOT IN (select diff(f1) from tb1) order by 1;
- null not in (select diff(f1) from tb1) | null not in (select diff(f1) from tb1) |
-==================================================================================
- true                                   | true                                   |
+taos> select NULL NOT IN (select distinct * from tb1), NULL NOT IN (select distinct * from tb1) from tb1 where NULL NOT IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select NULL NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), NULL NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where NULL NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
  null not in (select * from (select f1 from tb1 where f1 > (selec | null not in (select * from (select f1 from tb1 where f1 > (selec |
 ======================================================================================================================================
@@ -904,11 +904,9 @@ taos> select 123.45 NOT IN (select (select f1 from tb1) from tb1), 123.45 NOT IN
 ==============================================================================================================
  true                                                 | true                                                 |
 
-taos> select 123.45 NOT IN (select diff(f1) from tb1), 123.45 NOT IN (select diff(f1) from tb1) from tb1 where 123.45 NOT IN (select diff(f1) from tb1) order by 1;
- 123.45 not in (select diff(f1) from tb1) | 123.45 not in (select diff(f1) from tb1) |
-======================================================================================
- true                                     | true                                     |
+taos> select 123.45 NOT IN (select distinct * from tb1), 123.45 NOT IN (select distinct * from tb1) from tb1 where 123.45 NOT IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 123.45 NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), 123.45 NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where 123.45 NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
  123.45 not in (select * from (select f1 from tb1 where f1 > (sel | 123.45 not in (select * from (select f1 from tb1 where f1 > (sel |
 ======================================================================================================================================
@@ -981,11 +979,9 @@ taos> select abs(-2) NOT IN (select (select f1 from tb1) from tb1), abs(-2) NOT 
 ================================================================================================================
  true                                                  | true                                                  |
 
-taos> select abs(-2) NOT IN (select diff(f1) from tb1), abs(-2) NOT IN (select diff(f1) from tb1) from tb1 where abs(-2) NOT IN (select diff(f1) from tb1) order by 1;
- abs(-2) not in (select diff(f1) from tb1) | abs(-2) not in (select diff(f1) from tb1) |
-========================================================================================
- true                                      | true                                      |
+taos> select abs(-2) NOT IN (select distinct * from tb1), abs(-2) NOT IN (select distinct * from tb1) from tb1 where abs(-2) NOT IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select abs(-2) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), abs(-2) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where abs(-2) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
  abs(-2) not in (select * from (select f1 from tb1 where f1 > (se | abs(-2) not in (select * from (select f1 from tb1 where f1 > (se |
 ======================================================================================================================================
@@ -1058,11 +1054,9 @@ taos> select f1 + 1 NOT IN (select (select f1 from tb1) from tb1), f1 + 1 NOT IN
 ==============================================================================================================
  true                                                 | true                                                 |
 
-taos> select f1 + 1 NOT IN (select diff(f1) from tb1), f1 + 1 NOT IN (select diff(f1) from tb1) from tb1 where f1 + 1 NOT IN (select diff(f1) from tb1) order by 1;
- f1 + 1 not in (select diff(f1) from tb1) | f1 + 1 not in (select diff(f1) from tb1) |
-======================================================================================
- true                                     | true                                     |
+taos> select f1 + 1 NOT IN (select distinct * from tb1), f1 + 1 NOT IN (select distinct * from tb1) from tb1 where f1 + 1 NOT IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 + 1 NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), f1 + 1 NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where f1 + 1 NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
  f1 + 1 not in (select * from (select f1 from tb1 where f1 > (sel | f1 + 1 not in (select * from (select f1 from tb1 where f1 > (sel |
 ======================================================================================================================================
@@ -1116,7 +1110,7 @@ DB error: There mustn't be aggregation [0x80002608]
 taos> select sum(f1) NOT IN (select (select f1 from tb1) from tb1), sum(f1) NOT IN (select (select f1 from tb1) from tb1) from tb1 where sum(f1) NOT IN (select (select f1 from tb1) from tb1) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
-taos> select sum(f1) NOT IN (select diff(f1) from tb1), sum(f1) NOT IN (select diff(f1) from tb1) from tb1 where sum(f1) NOT IN (select diff(f1) from tb1) order by 1;
+taos> select sum(f1) NOT IN (select distinct * from tb1), sum(f1) NOT IN (select distinct * from tb1) from tb1 where sum(f1) NOT IN (select distinct * from tb1) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
 taos> select sum(f1) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), sum(f1) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where sum(f1) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
@@ -1165,11 +1159,9 @@ taos> select (select 1) NOT IN (select f1 from tb1 union all select f1 from tb1)
 
 taos> select (select 1) NOT IN (select (select f1 from tb1) from tb1), (select 1) NOT IN (select (select f1 from tb1) from tb1) from tb1 where (select 1) NOT IN (select (select f1 from tb1) from tb1) order by 1;
 
-taos> select (select 1) NOT IN (select diff(f1) from tb1), (select 1) NOT IN (select diff(f1) from tb1) from tb1 where (select 1) NOT IN (select diff(f1) from tb1) order by 1;
- (select 1) not in (select diff(f1) from tb1) | (select 1) not in (select diff(f1) from tb1) |
-==============================================================================================
- true                                         | true                                         |
+taos> select (select 1) NOT IN (select distinct * from tb1), (select 1) NOT IN (select distinct * from tb1) from tb1 where (select 1) NOT IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 1) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), (select 1) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where (select 1) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
  (select 1) not in (select * from (select f1 from tb1 where f1 >  | (select 1) not in (select * from (select f1 from tb1 where f1 >  |
 ======================================================================================================================================
@@ -1212,11 +1204,9 @@ taos> select (select f1 from tba limit 0) NOT IN (select f1 from tb1 union all s
 
 taos> select (select f1 from tba limit 0) NOT IN (select (select f1 from tb1) from tb1), (select f1 from tba limit 0) NOT IN (select (select f1 from tb1) from tb1) from tb1 where (select f1 from tba limit 0) NOT IN (select (select f1 from tb1) from tb1) order by 1;
 
-taos> select (select f1 from tba limit 0) NOT IN (select diff(f1) from tb1), (select f1 from tba limit 0) NOT IN (select diff(f1) from tb1) from tb1 where (select f1 from tba limit 0) NOT IN (select diff(f1) from tb1) order by 1;
- (select f1 from tba limit 0) not in (select diff(f1) from tb1) | (select f1 from tba limit 0) not in (select diff(f1) from tb1) |
-==================================================================================================================================
- true                                                           | true                                                           |
+taos> select (select f1 from tba limit 0) NOT IN (select distinct * from tb1), (select f1 from tba limit 0) NOT IN (select distinct * from tb1) from tb1 where (select f1 from tba limit 0) NOT IN (select distinct * from tb1) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select f1 from tba limit 0) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), (select f1 from tba limit 0) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where (select f1 from tba limit 0) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
  (select f1 from tba limit 0) not in (select * from (select f1 fr | (select f1 from tba limit 0) not in (select * from (select f1 fr |
 ======================================================================================================================================
@@ -1261,12 +1251,9 @@ taos> select 1 IN (select f1 from tb2 union all select f1 from tb2), 1 IN (selec
 taos> select 1 IN (select (select f1 from tb2) from tb2), 1 IN (select (select f1 from tb2) from tb2) from tb2 where 1 IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 1 IN (select diff(f1) from tb2), 1 IN (select diff(f1) from tb2) from tb2 where 1 IN (select diff(f1) from tb2) order by 1;
- 1 in (select diff(f1) from tb2) | 1 in (select diff(f1) from tb2) |
-====================================================================
- true                            | true                            |
- true                            | true                            |
+taos> select 1 IN (select distinct * from tb2), 1 IN (select distinct * from tb2) from tb2 where 1 IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 1 IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), 1 IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where 1 IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -1306,8 +1293,9 @@ taos> select 'a' IN (select f1 from tb2 union all select f1 from tb2), 'a' IN (s
 taos> select 'a' IN (select (select f1 from tb2) from tb2), 'a' IN (select (select f1 from tb2) from tb2) from tb2 where 'a' IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'a' IN (select diff(f1) from tb2), 'a' IN (select diff(f1) from tb2) from tb2 where 'a' IN (select diff(f1) from tb2) order by 1;
+taos> select 'a' IN (select distinct * from tb2), 'a' IN (select distinct * from tb2) from tb2 where 'a' IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'a' IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), 'a' IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where 'a' IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -1347,8 +1335,9 @@ taos> select 'd' IN (select f1 from tb2 union all select f1 from tb2), 'd' IN (s
 taos> select 'd' IN (select (select f1 from tb2) from tb2), 'd' IN (select (select f1 from tb2) from tb2) from tb2 where 'd' IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'd' IN (select diff(f1) from tb2), 'd' IN (select diff(f1) from tb2) from tb2 where 'd' IN (select diff(f1) from tb2) order by 1;
+taos> select 'd' IN (select distinct * from tb2), 'd' IN (select distinct * from tb2) from tb2 where 'd' IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'd' IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), 'd' IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where 'd' IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -1417,8 +1406,9 @@ taos> select f1 IN (select f1 from tb2 union all select f1 from tb2), f1 IN (sel
 taos> select f1 IN (select (select f1 from tb2) from tb2), f1 IN (select (select f1 from tb2) from tb2) from tb2 where f1 IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 IN (select diff(f1) from tb2), f1 IN (select diff(f1) from tb2) from tb2 where f1 IN (select diff(f1) from tb2) order by 1;
+taos> select f1 IN (select distinct * from tb2), f1 IN (select distinct * from tb2) from tb2 where f1 IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), f1 IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where f1 IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -1457,8 +1447,9 @@ taos> select NULL IN (select f1 from tb2 union all select f1 from tb2), NULL IN 
 taos> select NULL IN (select (select f1 from tb2) from tb2), NULL IN (select (select f1 from tb2) from tb2) from tb2 where NULL IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select NULL IN (select diff(f1) from tb2), NULL IN (select diff(f1) from tb2) from tb2 where NULL IN (select diff(f1) from tb2) order by 1;
+taos> select NULL IN (select distinct * from tb2), NULL IN (select distinct * from tb2) from tb2 where NULL IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select NULL IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), NULL IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where NULL IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -1497,8 +1488,9 @@ taos> select 123.45 IN (select f1 from tb2 union all select f1 from tb2), 123.45
 taos> select 123.45 IN (select (select f1 from tb2) from tb2), 123.45 IN (select (select f1 from tb2) from tb2) from tb2 where 123.45 IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 123.45 IN (select diff(f1) from tb2), 123.45 IN (select diff(f1) from tb2) from tb2 where 123.45 IN (select diff(f1) from tb2) order by 1;
+taos> select 123.45 IN (select distinct * from tb2), 123.45 IN (select distinct * from tb2) from tb2 where 123.45 IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 123.45 IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), 123.45 IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where 123.45 IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -1569,8 +1561,9 @@ taos> select abs(-2) IN (select f1 from tb2 union all select f1 from tb2), abs(-
 taos> select abs(-2) IN (select (select f1 from tb2) from tb2), abs(-2) IN (select (select f1 from tb2) from tb2) from tb2 where abs(-2) IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select abs(-2) IN (select diff(f1) from tb2), abs(-2) IN (select diff(f1) from tb2) from tb2 where abs(-2) IN (select diff(f1) from tb2) order by 1;
+taos> select abs(-2) IN (select distinct * from tb2), abs(-2) IN (select distinct * from tb2) from tb2 where abs(-2) IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select abs(-2) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), abs(-2) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where abs(-2) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -1627,8 +1620,9 @@ taos> select f1 + 1 IN (select f1 from tb2 union all select f1 from tb2), f1 + 1
 taos> select f1 + 1 IN (select (select f1 from tb2) from tb2), f1 + 1 IN (select (select f1 from tb2) from tb2) from tb2 where f1 + 1 IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 + 1 IN (select diff(f1) from tb2), f1 + 1 IN (select diff(f1) from tb2) from tb2 where f1 + 1 IN (select diff(f1) from tb2) order by 1;
+taos> select f1 + 1 IN (select distinct * from tb2), f1 + 1 IN (select distinct * from tb2) from tb2 where f1 + 1 IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 + 1 IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), f1 + 1 IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where f1 + 1 IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -1680,7 +1674,7 @@ DB error: There mustn't be aggregation [0x80002608]
 taos> select sum(f1) IN (select (select f1 from tb2) from tb2), sum(f1) IN (select (select f1 from tb2) from tb2) from tb2 where sum(f1) IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
-taos> select sum(f1) IN (select diff(f1) from tb2), sum(f1) IN (select diff(f1) from tb2) from tb2 where sum(f1) IN (select diff(f1) from tb2) order by 1;
+taos> select sum(f1) IN (select distinct * from tb2), sum(f1) IN (select distinct * from tb2) from tb2 where sum(f1) IN (select distinct * from tb2) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
 taos> select sum(f1) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), sum(f1) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where sum(f1) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
@@ -1725,12 +1719,9 @@ taos> select (select 1) IN (select f1 from tb2 union all select f1 from tb2), (s
 taos> select (select 1) IN (select (select f1 from tb2) from tb2), (select 1) IN (select (select f1 from tb2) from tb2) from tb2 where (select 1) IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select 1) IN (select diff(f1) from tb2), (select 1) IN (select diff(f1) from tb2) from tb2 where (select 1) IN (select diff(f1) from tb2) order by 1;
- (select 1) in (select diff(f1) from tb2) | (select 1) in (select diff(f1) from tb2) |
-======================================================================================
- true                                     | true                                     |
- true                                     | true                                     |
+taos> select (select 1) IN (select distinct * from tb2), (select 1) IN (select distinct * from tb2) from tb2 where (select 1) IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 1) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), (select 1) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where (select 1) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -1769,8 +1760,9 @@ taos> select (select f1 from tba limit 0) IN (select f1 from tb2 union all selec
 taos> select (select f1 from tba limit 0) IN (select (select f1 from tb2) from tb2), (select f1 from tba limit 0) IN (select (select f1 from tb2) from tb2) from tb2 where (select f1 from tba limit 0) IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select f1 from tba limit 0) IN (select diff(f1) from tb2), (select f1 from tba limit 0) IN (select diff(f1) from tb2) from tb2 where (select f1 from tba limit 0) IN (select diff(f1) from tb2) order by 1;
+taos> select (select f1 from tba limit 0) IN (select distinct * from tb2), (select f1 from tba limit 0) IN (select distinct * from tb2) from tb2 where (select f1 from tba limit 0) IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select f1 from tba limit 0) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), (select f1 from tba limit 0) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where (select f1 from tba limit 0) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -1849,8 +1841,9 @@ taos> select 1 NOT IN (select f1 from tb2 union all select f1 from tb2), 1 NOT I
 taos> select 1 NOT IN (select (select f1 from tb2) from tb2), 1 NOT IN (select (select f1 from tb2) from tb2) from tb2 where 1 NOT IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 1 NOT IN (select diff(f1) from tb2), 1 NOT IN (select diff(f1) from tb2) from tb2 where 1 NOT IN (select diff(f1) from tb2) order by 1;
+taos> select 1 NOT IN (select distinct * from tb2), 1 NOT IN (select distinct * from tb2) from tb2 where 1 NOT IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 1 NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), 1 NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where 1 NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -1930,12 +1923,9 @@ taos> select 'a' NOT IN (select f1 from tb2 union all select f1 from tb2), 'a' N
 taos> select 'a' NOT IN (select (select f1 from tb2) from tb2), 'a' NOT IN (select (select f1 from tb2) from tb2) from tb2 where 'a' NOT IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'a' NOT IN (select diff(f1) from tb2), 'a' NOT IN (select diff(f1) from tb2) from tb2 where 'a' NOT IN (select diff(f1) from tb2) order by 1;
- 'a' not in (select diff(f1) from tb2) | 'a' not in (select diff(f1) from tb2) |
-================================================================================
- true                                  | true                                  |
- true                                  | true                                  |
+taos> select 'a' NOT IN (select distinct * from tb2), 'a' NOT IN (select distinct * from tb2) from tb2 where 'a' NOT IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'a' NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), 'a' NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where 'a' NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2015,12 +2005,9 @@ taos> select 'd' NOT IN (select f1 from tb2 union all select f1 from tb2), 'd' N
 taos> select 'd' NOT IN (select (select f1 from tb2) from tb2), 'd' NOT IN (select (select f1 from tb2) from tb2) from tb2 where 'd' NOT IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'd' NOT IN (select diff(f1) from tb2), 'd' NOT IN (select diff(f1) from tb2) from tb2 where 'd' NOT IN (select diff(f1) from tb2) order by 1;
- 'd' not in (select diff(f1) from tb2) | 'd' not in (select diff(f1) from tb2) |
-================================================================================
- true                                  | true                                  |
- true                                  | true                                  |
+taos> select 'd' NOT IN (select distinct * from tb2), 'd' NOT IN (select distinct * from tb2) from tb2 where 'd' NOT IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'd' NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), 'd' NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where 'd' NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2077,12 +2064,9 @@ taos> select f1 NOT IN (select f1 from tb2 union all select f1 from tb2), f1 NOT
 taos> select f1 NOT IN (select (select f1 from tb2) from tb2), f1 NOT IN (select (select f1 from tb2) from tb2) from tb2 where f1 NOT IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 NOT IN (select diff(f1) from tb2), f1 NOT IN (select diff(f1) from tb2) from tb2 where f1 NOT IN (select diff(f1) from tb2) order by 1;
- f1 not in (select diff(f1) from tb2) | f1 not in (select diff(f1) from tb2) |
-==============================================================================
- true                                 | true                                 |
- true                                 | true                                 |
+taos> select f1 NOT IN (select distinct * from tb2), f1 NOT IN (select distinct * from tb2) from tb2 where f1 NOT IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), f1 NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where f1 NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2125,8 +2109,9 @@ taos> select NULL NOT IN (select f1 from tb2 union all select f1 from tb2), NULL
 taos> select NULL NOT IN (select (select f1 from tb2) from tb2), NULL NOT IN (select (select f1 from tb2) from tb2) from tb2 where NULL NOT IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select NULL NOT IN (select diff(f1) from tb2), NULL NOT IN (select diff(f1) from tb2) from tb2 where NULL NOT IN (select diff(f1) from tb2) order by 1;
+taos> select NULL NOT IN (select distinct * from tb2), NULL NOT IN (select distinct * from tb2) from tb2 where NULL NOT IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select NULL NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), NULL NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where NULL NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2209,12 +2194,9 @@ taos> select 123.45 NOT IN (select f1 from tb2 union all select f1 from tb2), 12
 taos> select 123.45 NOT IN (select (select f1 from tb2) from tb2), 123.45 NOT IN (select (select f1 from tb2) from tb2) from tb2 where 123.45 NOT IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 123.45 NOT IN (select diff(f1) from tb2), 123.45 NOT IN (select diff(f1) from tb2) from tb2 where 123.45 NOT IN (select diff(f1) from tb2) order by 1;
- 123.45 not in (select diff(f1) from tb2) | 123.45 not in (select diff(f1) from tb2) |
-======================================================================================
- true                                     | true                                     |
- true                                     | true                                     |
+taos> select 123.45 NOT IN (select distinct * from tb2), 123.45 NOT IN (select distinct * from tb2) from tb2 where 123.45 NOT IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 123.45 NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), 123.45 NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where 123.45 NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2265,12 +2247,9 @@ taos> select abs(-2) NOT IN (select f1 from tb2 union all select f1 from tb2), a
 taos> select abs(-2) NOT IN (select (select f1 from tb2) from tb2), abs(-2) NOT IN (select (select f1 from tb2) from tb2) from tb2 where abs(-2) NOT IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select abs(-2) NOT IN (select diff(f1) from tb2), abs(-2) NOT IN (select diff(f1) from tb2) from tb2 where abs(-2) NOT IN (select diff(f1) from tb2) order by 1;
- abs(-2) not in (select diff(f1) from tb2) | abs(-2) not in (select diff(f1) from tb2) |
-========================================================================================
- true                                      | true                                      |
- true                                      | true                                      |
+taos> select abs(-2) NOT IN (select distinct * from tb2), abs(-2) NOT IN (select distinct * from tb2) from tb2 where abs(-2) NOT IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select abs(-2) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), abs(-2) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where abs(-2) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2347,12 +2326,9 @@ taos> select f1 + 1 NOT IN (select f1 from tb2 union all select f1 from tb2), f1
 taos> select f1 + 1 NOT IN (select (select f1 from tb2) from tb2), f1 + 1 NOT IN (select (select f1 from tb2) from tb2) from tb2 where f1 + 1 NOT IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 + 1 NOT IN (select diff(f1) from tb2), f1 + 1 NOT IN (select diff(f1) from tb2) from tb2 where f1 + 1 NOT IN (select diff(f1) from tb2) order by 1;
- f1 + 1 not in (select diff(f1) from tb2) | f1 + 1 not in (select diff(f1) from tb2) |
-======================================================================================
- true                                     | true                                     |
- true                                     | true                                     |
+taos> select f1 + 1 NOT IN (select distinct * from tb2), f1 + 1 NOT IN (select distinct * from tb2) from tb2 where f1 + 1 NOT IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 + 1 NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), f1 + 1 NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where f1 + 1 NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2404,7 +2380,7 @@ DB error: There mustn't be aggregation [0x80002608]
 taos> select sum(f1) NOT IN (select (select f1 from tb2) from tb2), sum(f1) NOT IN (select (select f1 from tb2) from tb2) from tb2 where sum(f1) NOT IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
-taos> select sum(f1) NOT IN (select diff(f1) from tb2), sum(f1) NOT IN (select diff(f1) from tb2) from tb2 where sum(f1) NOT IN (select diff(f1) from tb2) order by 1;
+taos> select sum(f1) NOT IN (select distinct * from tb2), sum(f1) NOT IN (select distinct * from tb2) from tb2 where sum(f1) NOT IN (select distinct * from tb2) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
 taos> select sum(f1) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), sum(f1) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where sum(f1) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
@@ -2485,8 +2461,9 @@ taos> select (select 1) NOT IN (select f1 from tb2 union all select f1 from tb2)
 taos> select (select 1) NOT IN (select (select f1 from tb2) from tb2), (select 1) NOT IN (select (select f1 from tb2) from tb2) from tb2 where (select 1) NOT IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select 1) NOT IN (select diff(f1) from tb2), (select 1) NOT IN (select diff(f1) from tb2) from tb2 where (select 1) NOT IN (select diff(f1) from tb2) order by 1;
+taos> select (select 1) NOT IN (select distinct * from tb2), (select 1) NOT IN (select distinct * from tb2) from tb2 where (select 1) NOT IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 1) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), (select 1) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where (select 1) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2529,8 +2506,9 @@ taos> select (select f1 from tba limit 0) NOT IN (select f1 from tb2 union all s
 taos> select (select f1 from tba limit 0) NOT IN (select (select f1 from tb2) from tb2), (select f1 from tba limit 0) NOT IN (select (select f1 from tb2) from tb2) from tb2 where (select f1 from tba limit 0) NOT IN (select (select f1 from tb2) from tb2) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select f1 from tba limit 0) NOT IN (select diff(f1) from tb2), (select f1 from tba limit 0) NOT IN (select diff(f1) from tb2) from tb2 where (select f1 from tba limit 0) NOT IN (select diff(f1) from tb2) order by 1;
+taos> select (select f1 from tba limit 0) NOT IN (select distinct * from tb2), (select f1 from tba limit 0) NOT IN (select distinct * from tb2) from tb2 where (select f1 from tba limit 0) NOT IN (select distinct * from tb2) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select f1 from tba limit 0) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), (select f1 from tba limit 0) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where (select f1 from tba limit 0) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2574,13 +2552,9 @@ taos> select 1 IN (select f1 from tb3 union all select f1 from tb3), 1 IN (selec
 taos> select 1 IN (select (select f1 from tb3) from tb3), 1 IN (select (select f1 from tb3) from tb3) from tb3 where 1 IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 1 IN (select diff(f1) from tb3), 1 IN (select diff(f1) from tb3) from tb3 where 1 IN (select diff(f1) from tb3) order by 1;
- 1 in (select diff(f1) from tb3) | 1 in (select diff(f1) from tb3) |
-====================================================================
- true                            | true                            |
- true                            | true                            |
- true                            | true                            |
+taos> select 1 IN (select distinct * from tb3), 1 IN (select distinct * from tb3) from tb3 where 1 IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 1 IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), 1 IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where 1 IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2620,8 +2594,9 @@ taos> select 'a' IN (select f1 from tb3 union all select f1 from tb3), 'a' IN (s
 taos> select 'a' IN (select (select f1 from tb3) from tb3), 'a' IN (select (select f1 from tb3) from tb3) from tb3 where 'a' IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'a' IN (select diff(f1) from tb3), 'a' IN (select diff(f1) from tb3) from tb3 where 'a' IN (select diff(f1) from tb3) order by 1;
+taos> select 'a' IN (select distinct * from tb3), 'a' IN (select distinct * from tb3) from tb3 where 'a' IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'a' IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), 'a' IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where 'a' IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2661,8 +2636,9 @@ taos> select 'd' IN (select f1 from tb3 union all select f1 from tb3), 'd' IN (s
 taos> select 'd' IN (select (select f1 from tb3) from tb3), 'd' IN (select (select f1 from tb3) from tb3) from tb3 where 'd' IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'd' IN (select diff(f1) from tb3), 'd' IN (select diff(f1) from tb3) from tb3 where 'd' IN (select diff(f1) from tb3) order by 1;
+taos> select 'd' IN (select distinct * from tb3), 'd' IN (select distinct * from tb3) from tb3 where 'd' IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'd' IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), 'd' IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where 'd' IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2731,8 +2707,9 @@ taos> select f1 IN (select f1 from tb3 union all select f1 from tb3), f1 IN (sel
 taos> select f1 IN (select (select f1 from tb3) from tb3), f1 IN (select (select f1 from tb3) from tb3) from tb3 where f1 IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 IN (select diff(f1) from tb3), f1 IN (select diff(f1) from tb3) from tb3 where f1 IN (select diff(f1) from tb3) order by 1;
+taos> select f1 IN (select distinct * from tb3), f1 IN (select distinct * from tb3) from tb3 where f1 IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), f1 IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where f1 IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2771,8 +2748,9 @@ taos> select NULL IN (select f1 from tb3 union all select f1 from tb3), NULL IN 
 taos> select NULL IN (select (select f1 from tb3) from tb3), NULL IN (select (select f1 from tb3) from tb3) from tb3 where NULL IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select NULL IN (select diff(f1) from tb3), NULL IN (select diff(f1) from tb3) from tb3 where NULL IN (select diff(f1) from tb3) order by 1;
+taos> select NULL IN (select distinct * from tb3), NULL IN (select distinct * from tb3) from tb3 where NULL IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select NULL IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), NULL IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where NULL IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2811,8 +2789,9 @@ taos> select 123.45 IN (select f1 from tb3 union all select f1 from tb3), 123.45
 taos> select 123.45 IN (select (select f1 from tb3) from tb3), 123.45 IN (select (select f1 from tb3) from tb3) from tb3 where 123.45 IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 123.45 IN (select diff(f1) from tb3), 123.45 IN (select diff(f1) from tb3) from tb3 where 123.45 IN (select diff(f1) from tb3) order by 1;
+taos> select 123.45 IN (select distinct * from tb3), 123.45 IN (select distinct * from tb3) from tb3 where 123.45 IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 123.45 IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), 123.45 IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where 123.45 IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2856,8 +2835,9 @@ taos> select abs(-2) IN (select f1 from tb3 union all select f1 from tb3), abs(-
 taos> select abs(-2) IN (select (select f1 from tb3) from tb3), abs(-2) IN (select (select f1 from tb3) from tb3) from tb3 where abs(-2) IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select abs(-2) IN (select diff(f1) from tb3), abs(-2) IN (select diff(f1) from tb3) from tb3 where abs(-2) IN (select diff(f1) from tb3) order by 1;
+taos> select abs(-2) IN (select distinct * from tb3), abs(-2) IN (select distinct * from tb3) from tb3 where abs(-2) IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select abs(-2) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), abs(-2) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where abs(-2) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2920,8 +2900,9 @@ taos> select f1 + 1 IN (select f1 from tb3 union all select f1 from tb3), f1 + 1
 taos> select f1 + 1 IN (select (select f1 from tb3) from tb3), f1 + 1 IN (select (select f1 from tb3) from tb3) from tb3 where f1 + 1 IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 + 1 IN (select diff(f1) from tb3), f1 + 1 IN (select diff(f1) from tb3) from tb3 where f1 + 1 IN (select diff(f1) from tb3) order by 1;
+taos> select f1 + 1 IN (select distinct * from tb3), f1 + 1 IN (select distinct * from tb3) from tb3 where f1 + 1 IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 + 1 IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), f1 + 1 IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where f1 + 1 IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -2973,7 +2954,7 @@ DB error: There mustn't be aggregation [0x80002608]
 taos> select sum(f1) IN (select (select f1 from tb3) from tb3), sum(f1) IN (select (select f1 from tb3) from tb3) from tb3 where sum(f1) IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
-taos> select sum(f1) IN (select diff(f1) from tb3), sum(f1) IN (select diff(f1) from tb3) from tb3 where sum(f1) IN (select diff(f1) from tb3) order by 1;
+taos> select sum(f1) IN (select distinct * from tb3), sum(f1) IN (select distinct * from tb3) from tb3 where sum(f1) IN (select distinct * from tb3) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
 taos> select sum(f1) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), sum(f1) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where sum(f1) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
@@ -3019,13 +3000,9 @@ taos> select (select 1) IN (select f1 from tb3 union all select f1 from tb3), (s
 taos> select (select 1) IN (select (select f1 from tb3) from tb3), (select 1) IN (select (select f1 from tb3) from tb3) from tb3 where (select 1) IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select 1) IN (select diff(f1) from tb3), (select 1) IN (select diff(f1) from tb3) from tb3 where (select 1) IN (select diff(f1) from tb3) order by 1;
- (select 1) in (select diff(f1) from tb3) | (select 1) in (select diff(f1) from tb3) |
-======================================================================================
- true                                     | true                                     |
- true                                     | true                                     |
- true                                     | true                                     |
+taos> select (select 1) IN (select distinct * from tb3), (select 1) IN (select distinct * from tb3) from tb3 where (select 1) IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 1) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), (select 1) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where (select 1) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3064,8 +3041,9 @@ taos> select (select f1 from tba limit 0) IN (select f1 from tb3 union all selec
 taos> select (select f1 from tba limit 0) IN (select (select f1 from tb3) from tb3), (select f1 from tba limit 0) IN (select (select f1 from tb3) from tb3) from tb3 where (select f1 from tba limit 0) IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select f1 from tba limit 0) IN (select diff(f1) from tb3), (select f1 from tba limit 0) IN (select diff(f1) from tb3) from tb3 where (select f1 from tba limit 0) IN (select diff(f1) from tb3) order by 1;
+taos> select (select f1 from tba limit 0) IN (select distinct * from tb3), (select f1 from tba limit 0) IN (select distinct * from tb3) from tb3 where (select f1 from tba limit 0) IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select f1 from tba limit 0) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), (select f1 from tba limit 0) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where (select f1 from tba limit 0) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3154,8 +3132,9 @@ taos> select 1 NOT IN (select f1 from tb3 union all select f1 from tb3), 1 NOT I
 taos> select 1 NOT IN (select (select f1 from tb3) from tb3), 1 NOT IN (select (select f1 from tb3) from tb3) from tb3 where 1 NOT IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 1 NOT IN (select diff(f1) from tb3), 1 NOT IN (select diff(f1) from tb3) from tb3 where 1 NOT IN (select diff(f1) from tb3) order by 1;
+taos> select 1 NOT IN (select distinct * from tb3), 1 NOT IN (select distinct * from tb3) from tb3 where 1 NOT IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 1 NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), 1 NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where 1 NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3245,13 +3224,9 @@ taos> select 'a' NOT IN (select f1 from tb3 union all select f1 from tb3), 'a' N
 taos> select 'a' NOT IN (select (select f1 from tb3) from tb3), 'a' NOT IN (select (select f1 from tb3) from tb3) from tb3 where 'a' NOT IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'a' NOT IN (select diff(f1) from tb3), 'a' NOT IN (select diff(f1) from tb3) from tb3 where 'a' NOT IN (select diff(f1) from tb3) order by 1;
- 'a' not in (select diff(f1) from tb3) | 'a' not in (select diff(f1) from tb3) |
-================================================================================
- true                                  | true                                  |
- true                                  | true                                  |
- true                                  | true                                  |
+taos> select 'a' NOT IN (select distinct * from tb3), 'a' NOT IN (select distinct * from tb3) from tb3 where 'a' NOT IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'a' NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), 'a' NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where 'a' NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3341,13 +3316,9 @@ taos> select 'd' NOT IN (select f1 from tb3 union all select f1 from tb3), 'd' N
 taos> select 'd' NOT IN (select (select f1 from tb3) from tb3), 'd' NOT IN (select (select f1 from tb3) from tb3) from tb3 where 'd' NOT IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'd' NOT IN (select diff(f1) from tb3), 'd' NOT IN (select diff(f1) from tb3) from tb3 where 'd' NOT IN (select diff(f1) from tb3) order by 1;
- 'd' not in (select diff(f1) from tb3) | 'd' not in (select diff(f1) from tb3) |
-================================================================================
- true                                  | true                                  |
- true                                  | true                                  |
- true                                  | true                                  |
+taos> select 'd' NOT IN (select distinct * from tb3), 'd' NOT IN (select distinct * from tb3) from tb3 where 'd' NOT IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'd' NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), 'd' NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where 'd' NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3411,13 +3382,9 @@ taos> select f1 NOT IN (select f1 from tb3 union all select f1 from tb3), f1 NOT
 taos> select f1 NOT IN (select (select f1 from tb3) from tb3), f1 NOT IN (select (select f1 from tb3) from tb3) from tb3 where f1 NOT IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 NOT IN (select diff(f1) from tb3), f1 NOT IN (select diff(f1) from tb3) from tb3 where f1 NOT IN (select diff(f1) from tb3) order by 1;
- f1 not in (select diff(f1) from tb3) | f1 not in (select diff(f1) from tb3) |
-==============================================================================
- true                                 | true                                 |
- true                                 | true                                 |
- true                                 | true                                 |
+taos> select f1 NOT IN (select distinct * from tb3), f1 NOT IN (select distinct * from tb3) from tb3 where f1 NOT IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), f1 NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where f1 NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3461,8 +3428,9 @@ taos> select NULL NOT IN (select f1 from tb3 union all select f1 from tb3), NULL
 taos> select NULL NOT IN (select (select f1 from tb3) from tb3), NULL NOT IN (select (select f1 from tb3) from tb3) from tb3 where NULL NOT IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select NULL NOT IN (select diff(f1) from tb3), NULL NOT IN (select diff(f1) from tb3) from tb3 where NULL NOT IN (select diff(f1) from tb3) order by 1;
+taos> select NULL NOT IN (select distinct * from tb3), NULL NOT IN (select distinct * from tb3) from tb3 where NULL NOT IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select NULL NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), NULL NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where NULL NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3556,13 +3524,9 @@ taos> select 123.45 NOT IN (select f1 from tb3 union all select f1 from tb3), 12
 taos> select 123.45 NOT IN (select (select f1 from tb3) from tb3), 123.45 NOT IN (select (select f1 from tb3) from tb3) from tb3 where 123.45 NOT IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 123.45 NOT IN (select diff(f1) from tb3), 123.45 NOT IN (select diff(f1) from tb3) from tb3 where 123.45 NOT IN (select diff(f1) from tb3) order by 1;
- 123.45 not in (select diff(f1) from tb3) | 123.45 not in (select diff(f1) from tb3) |
-======================================================================================
- true                                     | true                                     |
- true                                     | true                                     |
- true                                     | true                                     |
+taos> select 123.45 NOT IN (select distinct * from tb3), 123.45 NOT IN (select distinct * from tb3) from tb3 where 123.45 NOT IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 123.45 NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), 123.45 NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where 123.45 NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3651,13 +3615,9 @@ taos> select abs(-2) NOT IN (select f1 from tb3 union all select f1 from tb3), a
 taos> select abs(-2) NOT IN (select (select f1 from tb3) from tb3), abs(-2) NOT IN (select (select f1 from tb3) from tb3) from tb3 where abs(-2) NOT IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select abs(-2) NOT IN (select diff(f1) from tb3), abs(-2) NOT IN (select diff(f1) from tb3) from tb3 where abs(-2) NOT IN (select diff(f1) from tb3) order by 1;
- abs(-2) not in (select diff(f1) from tb3) | abs(-2) not in (select diff(f1) from tb3) |
-========================================================================================
- true                                      | true                                      |
- true                                      | true                                      |
- true                                      | true                                      |
+taos> select abs(-2) NOT IN (select distinct * from tb3), abs(-2) NOT IN (select distinct * from tb3) from tb3 where abs(-2) NOT IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select abs(-2) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), abs(-2) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where abs(-2) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3739,13 +3699,9 @@ taos> select f1 + 1 NOT IN (select f1 from tb3 union all select f1 from tb3), f1
 taos> select f1 + 1 NOT IN (select (select f1 from tb3) from tb3), f1 + 1 NOT IN (select (select f1 from tb3) from tb3) from tb3 where f1 + 1 NOT IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 + 1 NOT IN (select diff(f1) from tb3), f1 + 1 NOT IN (select diff(f1) from tb3) from tb3 where f1 + 1 NOT IN (select diff(f1) from tb3) order by 1;
- f1 + 1 not in (select diff(f1) from tb3) | f1 + 1 not in (select diff(f1) from tb3) |
-======================================================================================
- true                                     | true                                     |
- true                                     | true                                     |
- true                                     | true                                     |
+taos> select f1 + 1 NOT IN (select distinct * from tb3), f1 + 1 NOT IN (select distinct * from tb3) from tb3 where f1 + 1 NOT IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 + 1 NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), f1 + 1 NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where f1 + 1 NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3797,7 +3753,7 @@ DB error: There mustn't be aggregation [0x80002608]
 taos> select sum(f1) NOT IN (select (select f1 from tb3) from tb3), sum(f1) NOT IN (select (select f1 from tb3) from tb3) from tb3 where sum(f1) NOT IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
-taos> select sum(f1) NOT IN (select diff(f1) from tb3), sum(f1) NOT IN (select diff(f1) from tb3) from tb3 where sum(f1) NOT IN (select diff(f1) from tb3) order by 1;
+taos> select sum(f1) NOT IN (select distinct * from tb3), sum(f1) NOT IN (select distinct * from tb3) from tb3 where sum(f1) NOT IN (select distinct * from tb3) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
 taos> select sum(f1) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), sum(f1) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where sum(f1) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
@@ -3888,8 +3844,9 @@ taos> select (select 1) NOT IN (select f1 from tb3 union all select f1 from tb3)
 taos> select (select 1) NOT IN (select (select f1 from tb3) from tb3), (select 1) NOT IN (select (select f1 from tb3) from tb3) from tb3 where (select 1) NOT IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select 1) NOT IN (select diff(f1) from tb3), (select 1) NOT IN (select diff(f1) from tb3) from tb3 where (select 1) NOT IN (select diff(f1) from tb3) order by 1;
+taos> select (select 1) NOT IN (select distinct * from tb3), (select 1) NOT IN (select distinct * from tb3) from tb3 where (select 1) NOT IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 1) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), (select 1) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where (select 1) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3933,8 +3890,9 @@ taos> select (select f1 from tba limit 0) NOT IN (select f1 from tb3 union all s
 taos> select (select f1 from tba limit 0) NOT IN (select (select f1 from tb3) from tb3), (select f1 from tba limit 0) NOT IN (select (select f1 from tb3) from tb3) from tb3 where (select f1 from tba limit 0) NOT IN (select (select f1 from tb3) from tb3) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select f1 from tba limit 0) NOT IN (select diff(f1) from tb3), (select f1 from tba limit 0) NOT IN (select diff(f1) from tb3) from tb3 where (select f1 from tba limit 0) NOT IN (select diff(f1) from tb3) order by 1;
+taos> select (select f1 from tba limit 0) NOT IN (select distinct * from tb3), (select f1 from tba limit 0) NOT IN (select distinct * from tb3) from tb3 where (select f1 from tba limit 0) NOT IN (select distinct * from tb3) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select f1 from tba limit 0) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), (select f1 from tba limit 0) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where (select f1 from tba limit 0) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -3979,9 +3937,9 @@ taos> select 1 IN (select f1 from tba union all select f1 from tba), 1 IN (selec
 taos> select 1 IN (select (select f1 from tba) from tba), 1 IN (select (select f1 from tba) from tba) from tba where 1 IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 1 IN (select diff(f1) from tba), 1 IN (select diff(f1) from tba) from tba where 1 IN (select diff(f1) from tba) order by 1;
+taos> select 1 IN (select distinct * from tba), 1 IN (select distinct * from tba) from tba where 1 IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 1 IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), 1 IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where 1 IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4047,9 +4005,9 @@ taos> select 'a' IN (select f1 from tba union all select f1 from tba), 'a' IN (s
 taos> select 'a' IN (select (select f1 from tba) from tba), 'a' IN (select (select f1 from tba) from tba) from tba where 'a' IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'a' IN (select diff(f1) from tba), 'a' IN (select diff(f1) from tba) from tba where 'a' IN (select diff(f1) from tba) order by 1;
+taos> select 'a' IN (select distinct * from tba), 'a' IN (select distinct * from tba) from tba where 'a' IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'a' IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), 'a' IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where 'a' IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4090,9 +4048,9 @@ taos> select 'd' IN (select f1 from tba union all select f1 from tba), 'd' IN (s
 taos> select 'd' IN (select (select f1 from tba) from tba), 'd' IN (select (select f1 from tba) from tba) from tba where 'd' IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'd' IN (select diff(f1) from tba), 'd' IN (select diff(f1) from tba) from tba where 'd' IN (select diff(f1) from tba) order by 1;
+taos> select 'd' IN (select distinct * from tba), 'd' IN (select distinct * from tba) from tba where 'd' IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'd' IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), 'd' IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where 'd' IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4157,9 +4115,9 @@ taos> select f1 IN (select f1 from tba union all select f1 from tba), f1 IN (sel
 taos> select f1 IN (select (select f1 from tba) from tba), f1 IN (select (select f1 from tba) from tba) from tba where f1 IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 IN (select diff(f1) from tba), f1 IN (select diff(f1) from tba) from tba where f1 IN (select diff(f1) from tba) order by 1;
+taos> select f1 IN (select distinct * from tba), f1 IN (select distinct * from tba) from tba where f1 IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), f1 IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where f1 IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4199,9 +4157,9 @@ taos> select NULL IN (select f1 from tba union all select f1 from tba), NULL IN 
 taos> select NULL IN (select (select f1 from tba) from tba), NULL IN (select (select f1 from tba) from tba) from tba where NULL IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select NULL IN (select diff(f1) from tba), NULL IN (select diff(f1) from tba) from tba where NULL IN (select diff(f1) from tba) order by 1;
+taos> select NULL IN (select distinct * from tba), NULL IN (select distinct * from tba) from tba where NULL IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select NULL IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), NULL IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where NULL IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4241,9 +4199,9 @@ taos> select 123.45 IN (select f1 from tba union all select f1 from tba), 123.45
 taos> select 123.45 IN (select (select f1 from tba) from tba), 123.45 IN (select (select f1 from tba) from tba) from tba where 123.45 IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 123.45 IN (select diff(f1) from tba), 123.45 IN (select diff(f1) from tba) from tba where 123.45 IN (select diff(f1) from tba) order by 1;
+taos> select 123.45 IN (select distinct * from tba), 123.45 IN (select distinct * from tba) from tba where 123.45 IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 123.45 IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), 123.45 IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where 123.45 IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4288,9 +4246,9 @@ taos> select abs(-2) IN (select f1 from tba union all select f1 from tba), abs(-
 taos> select abs(-2) IN (select (select f1 from tba) from tba), abs(-2) IN (select (select f1 from tba) from tba) from tba where abs(-2) IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select abs(-2) IN (select diff(f1) from tba), abs(-2) IN (select diff(f1) from tba) from tba where abs(-2) IN (select diff(f1) from tba) order by 1;
+taos> select abs(-2) IN (select distinct * from tba), abs(-2) IN (select distinct * from tba) from tba where abs(-2) IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select abs(-2) IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), abs(-2) IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where abs(-2) IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4335,9 +4293,9 @@ taos> select f1 + 1 IN (select f1 from tba union all select f1 from tba), f1 + 1
 taos> select f1 + 1 IN (select (select f1 from tba) from tba), f1 + 1 IN (select (select f1 from tba) from tba) from tba where f1 + 1 IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 + 1 IN (select diff(f1) from tba), f1 + 1 IN (select diff(f1) from tba) from tba where f1 + 1 IN (select diff(f1) from tba) order by 1;
+taos> select f1 + 1 IN (select distinct * from tba), f1 + 1 IN (select distinct * from tba) from tba where f1 + 1 IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 + 1 IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), f1 + 1 IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where f1 + 1 IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4389,7 +4347,7 @@ DB error: Invalid parameter data type : sum [0x80002802]
 taos> select sum(f1) IN (select (select f1 from tba) from tba), sum(f1) IN (select (select f1 from tba) from tba) from tba where sum(f1) IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: Invalid parameter data type : sum [0x80002802] 
-taos> select sum(f1) IN (select diff(f1) from tba), sum(f1) IN (select diff(f1) from tba) from tba where sum(f1) IN (select diff(f1) from tba) order by 1;
+taos> select sum(f1) IN (select distinct * from tba), sum(f1) IN (select distinct * from tba) from tba where sum(f1) IN (select distinct * from tba) order by 1;
 
 DB error: Invalid parameter data type : sum [0x80002802] 
 taos> select sum(f1) IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), sum(f1) IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where sum(f1) IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
@@ -4436,9 +4394,9 @@ taos> select (select 1) IN (select f1 from tba union all select f1 from tba), (s
 taos> select (select 1) IN (select (select f1 from tba) from tba), (select 1) IN (select (select f1 from tba) from tba) from tba where (select 1) IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select 1) IN (select diff(f1) from tba), (select 1) IN (select diff(f1) from tba) from tba where (select 1) IN (select diff(f1) from tba) order by 1;
+taos> select (select 1) IN (select distinct * from tba), (select 1) IN (select distinct * from tba) from tba where (select 1) IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 1) IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), (select 1) IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where (select 1) IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4478,9 +4436,9 @@ taos> select (select f1 from tba limit 0) IN (select f1 from tba union all selec
 taos> select (select f1 from tba limit 0) IN (select (select f1 from tba) from tba), (select f1 from tba limit 0) IN (select (select f1 from tba) from tba) from tba where (select f1 from tba limit 0) IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select f1 from tba limit 0) IN (select diff(f1) from tba), (select f1 from tba limit 0) IN (select diff(f1) from tba) from tba where (select f1 from tba limit 0) IN (select diff(f1) from tba) order by 1;
+taos> select (select f1 from tba limit 0) IN (select distinct * from tba), (select f1 from tba limit 0) IN (select distinct * from tba) from tba where (select f1 from tba limit 0) IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select f1 from tba limit 0) IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), (select f1 from tba limit 0) IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where (select f1 from tba limit 0) IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4565,9 +4523,9 @@ taos> select 1 NOT IN (select f1 from tba union all select f1 from tba), 1 NOT I
 taos> select 1 NOT IN (select (select f1 from tba) from tba), 1 NOT IN (select (select f1 from tba) from tba) from tba where 1 NOT IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 1 NOT IN (select diff(f1) from tba), 1 NOT IN (select diff(f1) from tba) from tba where 1 NOT IN (select diff(f1) from tba) order by 1;
+taos> select 1 NOT IN (select distinct * from tba), 1 NOT IN (select distinct * from tba) from tba where 1 NOT IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 1 NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), 1 NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where 1 NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4628,9 +4586,9 @@ taos> select 'a' NOT IN (select f1 from tba union all select f1 from tba), 'a' N
 taos> select 'a' NOT IN (select (select f1 from tba) from tba), 'a' NOT IN (select (select f1 from tba) from tba) from tba where 'a' NOT IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'a' NOT IN (select diff(f1) from tba), 'a' NOT IN (select diff(f1) from tba) from tba where 'a' NOT IN (select diff(f1) from tba) order by 1;
+taos> select 'a' NOT IN (select distinct * from tba), 'a' NOT IN (select distinct * from tba) from tba where 'a' NOT IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'a' NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), 'a' NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where 'a' NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4716,9 +4674,9 @@ taos> select 'd' NOT IN (select f1 from tba union all select f1 from tba), 'd' N
 taos> select 'd' NOT IN (select (select f1 from tba) from tba), 'd' NOT IN (select (select f1 from tba) from tba) from tba where 'd' NOT IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'd' NOT IN (select diff(f1) from tba), 'd' NOT IN (select diff(f1) from tba) from tba where 'd' NOT IN (select diff(f1) from tba) order by 1;
+taos> select 'd' NOT IN (select distinct * from tba), 'd' NOT IN (select distinct * from tba) from tba where 'd' NOT IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'd' NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), 'd' NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where 'd' NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4783,9 +4741,9 @@ taos> select f1 NOT IN (select f1 from tba union all select f1 from tba), f1 NOT
 taos> select f1 NOT IN (select (select f1 from tba) from tba), f1 NOT IN (select (select f1 from tba) from tba) from tba where f1 NOT IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 NOT IN (select diff(f1) from tba), f1 NOT IN (select diff(f1) from tba) from tba where f1 NOT IN (select diff(f1) from tba) order by 1;
+taos> select f1 NOT IN (select distinct * from tba), f1 NOT IN (select distinct * from tba) from tba where f1 NOT IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), f1 NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where f1 NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4830,9 +4788,9 @@ taos> select NULL NOT IN (select f1 from tba union all select f1 from tba), NULL
 taos> select NULL NOT IN (select (select f1 from tba) from tba), NULL NOT IN (select (select f1 from tba) from tba) from tba where NULL NOT IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select NULL NOT IN (select diff(f1) from tba), NULL NOT IN (select diff(f1) from tba) from tba where NULL NOT IN (select diff(f1) from tba) order by 1;
+taos> select NULL NOT IN (select distinct * from tba), NULL NOT IN (select distinct * from tba) from tba where NULL NOT IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select NULL NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), NULL NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where NULL NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -4922,9 +4880,9 @@ taos> select 123.45 NOT IN (select f1 from tba union all select f1 from tba), 12
 taos> select 123.45 NOT IN (select (select f1 from tba) from tba), 123.45 NOT IN (select (select f1 from tba) from tba) from tba where 123.45 NOT IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 123.45 NOT IN (select diff(f1) from tba), 123.45 NOT IN (select diff(f1) from tba) from tba where 123.45 NOT IN (select diff(f1) from tba) order by 1;
+taos> select 123.45 NOT IN (select distinct * from tba), 123.45 NOT IN (select distinct * from tba) from tba where 123.45 NOT IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 123.45 NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), 123.45 NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where 123.45 NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5009,9 +4967,9 @@ taos> select abs(-2) NOT IN (select f1 from tba union all select f1 from tba), a
 taos> select abs(-2) NOT IN (select (select f1 from tba) from tba), abs(-2) NOT IN (select (select f1 from tba) from tba) from tba where abs(-2) NOT IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select abs(-2) NOT IN (select diff(f1) from tba), abs(-2) NOT IN (select diff(f1) from tba) from tba where abs(-2) NOT IN (select diff(f1) from tba) order by 1;
+taos> select abs(-2) NOT IN (select distinct * from tba), abs(-2) NOT IN (select distinct * from tba) from tba where abs(-2) NOT IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select abs(-2) NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), abs(-2) NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where abs(-2) NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5096,9 +5054,9 @@ taos> select f1 + 1 NOT IN (select f1 from tba union all select f1 from tba), f1
 taos> select f1 + 1 NOT IN (select (select f1 from tba) from tba), f1 + 1 NOT IN (select (select f1 from tba) from tba) from tba where f1 + 1 NOT IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 + 1 NOT IN (select diff(f1) from tba), f1 + 1 NOT IN (select diff(f1) from tba) from tba where f1 + 1 NOT IN (select diff(f1) from tba) order by 1;
+taos> select f1 + 1 NOT IN (select distinct * from tba), f1 + 1 NOT IN (select distinct * from tba) from tba where f1 + 1 NOT IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 + 1 NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), f1 + 1 NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where f1 + 1 NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5150,7 +5108,7 @@ DB error: Invalid parameter data type : sum [0x80002802]
 taos> select sum(f1) NOT IN (select (select f1 from tba) from tba), sum(f1) NOT IN (select (select f1 from tba) from tba) from tba where sum(f1) NOT IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: Invalid parameter data type : sum [0x80002802] 
-taos> select sum(f1) NOT IN (select diff(f1) from tba), sum(f1) NOT IN (select diff(f1) from tba) from tba where sum(f1) NOT IN (select diff(f1) from tba) order by 1;
+taos> select sum(f1) NOT IN (select distinct * from tba), sum(f1) NOT IN (select distinct * from tba) from tba where sum(f1) NOT IN (select distinct * from tba) order by 1;
 
 DB error: Invalid parameter data type : sum [0x80002802] 
 taos> select sum(f1) NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), sum(f1) NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where sum(f1) NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
@@ -5237,9 +5195,9 @@ taos> select (select 1) NOT IN (select f1 from tba union all select f1 from tba)
 taos> select (select 1) NOT IN (select (select f1 from tba) from tba), (select 1) NOT IN (select (select f1 from tba) from tba) from tba where (select 1) NOT IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select 1) NOT IN (select diff(f1) from tba), (select 1) NOT IN (select diff(f1) from tba) from tba where (select 1) NOT IN (select diff(f1) from tba) order by 1;
+taos> select (select 1) NOT IN (select distinct * from tba), (select 1) NOT IN (select distinct * from tba) from tba where (select 1) NOT IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 1) NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), (select 1) NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where (select 1) NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5284,9 +5242,9 @@ taos> select (select f1 from tba limit 0) NOT IN (select f1 from tba union all s
 taos> select (select f1 from tba limit 0) NOT IN (select (select f1 from tba) from tba), (select f1 from tba limit 0) NOT IN (select (select f1 from tba) from tba) from tba where (select f1 from tba limit 0) NOT IN (select (select f1 from tba) from tba) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select f1 from tba limit 0) NOT IN (select diff(f1) from tba), (select f1 from tba limit 0) NOT IN (select diff(f1) from tba) from tba where (select f1 from tba limit 0) NOT IN (select diff(f1) from tba) order by 1;
+taos> select (select f1 from tba limit 0) NOT IN (select distinct * from tba), (select f1 from tba limit 0) NOT IN (select distinct * from tba) from tba where (select f1 from tba limit 0) NOT IN (select distinct * from tba) order by 1;
 
-DB error: Invalid parameter data type : diff [0x80002802] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select f1 from tba limit 0) NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq), (select f1 from tba limit 0) NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) from tba where (select f1 from tba limit 0) NOT IN (select * from (select f1 from tba where f1 > (select 1 from tba)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5360,8 +5318,9 @@ taos> select 1 IN (select f1 from tbb union all select f1 from tbb), 1 IN (selec
 taos> select 1 IN (select (select f1 from tbb) from tbb), 1 IN (select (select f1 from tbb) from tbb) from tbb where 1 IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 1 IN (select diff(f1) from tbb), 1 IN (select diff(f1) from tbb) from tbb where 1 IN (select diff(f1) from tbb) order by 1;
+taos> select 1 IN (select distinct * from tbb), 1 IN (select distinct * from tbb) from tbb where 1 IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 1 IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), 1 IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where 1 IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5401,8 +5360,9 @@ taos> select 'a' IN (select f1 from tbb union all select f1 from tbb), 'a' IN (s
 taos> select 'a' IN (select (select f1 from tbb) from tbb), 'a' IN (select (select f1 from tbb) from tbb) from tbb where 'a' IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'a' IN (select diff(f1) from tbb), 'a' IN (select diff(f1) from tbb) from tbb where 'a' IN (select diff(f1) from tbb) order by 1;
+taos> select 'a' IN (select distinct * from tbb), 'a' IN (select distinct * from tbb) from tbb where 'a' IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'a' IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), 'a' IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where 'a' IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5442,8 +5402,9 @@ taos> select 'd' IN (select f1 from tbb union all select f1 from tbb), 'd' IN (s
 taos> select 'd' IN (select (select f1 from tbb) from tbb), 'd' IN (select (select f1 from tbb) from tbb) from tbb where 'd' IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'd' IN (select diff(f1) from tbb), 'd' IN (select diff(f1) from tbb) from tbb where 'd' IN (select diff(f1) from tbb) order by 1;
+taos> select 'd' IN (select distinct * from tbb), 'd' IN (select distinct * from tbb) from tbb where 'd' IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'd' IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), 'd' IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where 'd' IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5512,8 +5473,9 @@ taos> select f1 IN (select f1 from tbb union all select f1 from tbb), f1 IN (sel
 taos> select f1 IN (select (select f1 from tbb) from tbb), f1 IN (select (select f1 from tbb) from tbb) from tbb where f1 IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 IN (select diff(f1) from tbb), f1 IN (select diff(f1) from tbb) from tbb where f1 IN (select diff(f1) from tbb) order by 1;
+taos> select f1 IN (select distinct * from tbb), f1 IN (select distinct * from tbb) from tbb where f1 IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), f1 IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where f1 IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5552,8 +5514,9 @@ taos> select NULL IN (select f1 from tbb union all select f1 from tbb), NULL IN 
 taos> select NULL IN (select (select f1 from tbb) from tbb), NULL IN (select (select f1 from tbb) from tbb) from tbb where NULL IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select NULL IN (select diff(f1) from tbb), NULL IN (select diff(f1) from tbb) from tbb where NULL IN (select diff(f1) from tbb) order by 1;
+taos> select NULL IN (select distinct * from tbb), NULL IN (select distinct * from tbb) from tbb where NULL IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select NULL IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), NULL IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where NULL IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5592,8 +5555,9 @@ taos> select 123.45 IN (select f1 from tbb union all select f1 from tbb), 123.45
 taos> select 123.45 IN (select (select f1 from tbb) from tbb), 123.45 IN (select (select f1 from tbb) from tbb) from tbb where 123.45 IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 123.45 IN (select diff(f1) from tbb), 123.45 IN (select diff(f1) from tbb) from tbb where 123.45 IN (select diff(f1) from tbb) order by 1;
+taos> select 123.45 IN (select distinct * from tbb), 123.45 IN (select distinct * from tbb) from tbb where 123.45 IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 123.45 IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), 123.45 IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where 123.45 IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5637,13 +5601,9 @@ taos> select abs(-2) IN (select f1 from tbb union all select f1 from tbb), abs(-
 taos> select abs(-2) IN (select (select f1 from tbb) from tbb), abs(-2) IN (select (select f1 from tbb) from tbb) from tbb where abs(-2) IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select abs(-2) IN (select diff(f1) from tbb), abs(-2) IN (select diff(f1) from tbb) from tbb where abs(-2) IN (select diff(f1) from tbb) order by 1;
- abs(-2) in (select diff(f1) from tbb) | abs(-2) in (select diff(f1) from tbb) |
-================================================================================
- true                                  | true                                  |
- true                                  | true                                  |
- true                                  | true                                  |
+taos> select abs(-2) IN (select distinct * from tbb), abs(-2) IN (select distinct * from tbb) from tbb where abs(-2) IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select abs(-2) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), abs(-2) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where abs(-2) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5685,11 +5645,9 @@ taos> select f1 + 1 IN (select f1 from tbb union all select f1 from tbb), f1 + 1
 taos> select f1 + 1 IN (select (select f1 from tbb) from tbb), f1 + 1 IN (select (select f1 from tbb) from tbb) from tbb where f1 + 1 IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 + 1 IN (select diff(f1) from tbb), f1 + 1 IN (select diff(f1) from tbb) from tbb where f1 + 1 IN (select diff(f1) from tbb) order by 1;
- f1 + 1 in (select diff(f1) from tbb) | f1 + 1 in (select diff(f1) from tbb) |
-==============================================================================
- true                                 | true                                 |
+taos> select f1 + 1 IN (select distinct * from tbb), f1 + 1 IN (select distinct * from tbb) from tbb where f1 + 1 IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 + 1 IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), f1 + 1 IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where f1 + 1 IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5741,7 +5699,7 @@ DB error: There mustn't be aggregation [0x80002608]
 taos> select sum(f1) IN (select (select f1 from tbb) from tbb), sum(f1) IN (select (select f1 from tbb) from tbb) from tbb where sum(f1) IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
-taos> select sum(f1) IN (select diff(f1) from tbb), sum(f1) IN (select diff(f1) from tbb) from tbb where sum(f1) IN (select diff(f1) from tbb) order by 1;
+taos> select sum(f1) IN (select distinct * from tbb), sum(f1) IN (select distinct * from tbb) from tbb where sum(f1) IN (select distinct * from tbb) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
 taos> select sum(f1) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), sum(f1) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where sum(f1) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
@@ -5817,8 +5775,9 @@ taos> select (select 1) IN (select f1 from tbb union all select f1 from tbb), (s
 taos> select (select 1) IN (select (select f1 from tbb) from tbb), (select 1) IN (select (select f1 from tbb) from tbb) from tbb where (select 1) IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select 1) IN (select diff(f1) from tbb), (select 1) IN (select diff(f1) from tbb) from tbb where (select 1) IN (select diff(f1) from tbb) order by 1;
+taos> select (select 1) IN (select distinct * from tbb), (select 1) IN (select distinct * from tbb) from tbb where (select 1) IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 1) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), (select 1) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where (select 1) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5857,8 +5816,9 @@ taos> select (select f1 from tba limit 0) IN (select f1 from tbb union all selec
 taos> select (select f1 from tba limit 0) IN (select (select f1 from tbb) from tbb), (select f1 from tba limit 0) IN (select (select f1 from tbb) from tbb) from tbb where (select f1 from tba limit 0) IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select f1 from tba limit 0) IN (select diff(f1) from tbb), (select f1 from tba limit 0) IN (select diff(f1) from tbb) from tbb where (select f1 from tba limit 0) IN (select diff(f1) from tbb) order by 1;
+taos> select (select f1 from tba limit 0) IN (select distinct * from tbb), (select f1 from tba limit 0) IN (select distinct * from tbb) from tbb where (select f1 from tba limit 0) IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select f1 from tba limit 0) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), (select f1 from tba limit 0) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where (select f1 from tba limit 0) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5917,8 +5877,9 @@ taos> select 1 NOT IN (select f1 from tbb union all select f1 from tbb), 1 NOT I
 taos> select 1 NOT IN (select (select f1 from tbb) from tbb), 1 NOT IN (select (select f1 from tbb) from tbb) from tbb where 1 NOT IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 1 NOT IN (select diff(f1) from tbb), 1 NOT IN (select diff(f1) from tbb) from tbb where 1 NOT IN (select diff(f1) from tbb) order by 1;
+taos> select 1 NOT IN (select distinct * from tbb), 1 NOT IN (select distinct * from tbb) from tbb where 1 NOT IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 1 NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), 1 NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where 1 NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -5978,8 +5939,9 @@ taos> select 'a' NOT IN (select f1 from tbb union all select f1 from tbb), 'a' N
 taos> select 'a' NOT IN (select (select f1 from tbb) from tbb), 'a' NOT IN (select (select f1 from tbb) from tbb) from tbb where 'a' NOT IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'a' NOT IN (select diff(f1) from tbb), 'a' NOT IN (select diff(f1) from tbb) from tbb where 'a' NOT IN (select diff(f1) from tbb) order by 1;
+taos> select 'a' NOT IN (select distinct * from tbb), 'a' NOT IN (select distinct * from tbb) from tbb where 'a' NOT IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'a' NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), 'a' NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where 'a' NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6039,8 +6001,9 @@ taos> select 'd' NOT IN (select f1 from tbb union all select f1 from tbb), 'd' N
 taos> select 'd' NOT IN (select (select f1 from tbb) from tbb), 'd' NOT IN (select (select f1 from tbb) from tbb) from tbb where 'd' NOT IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'd' NOT IN (select diff(f1) from tbb), 'd' NOT IN (select diff(f1) from tbb) from tbb where 'd' NOT IN (select diff(f1) from tbb) order by 1;
+taos> select 'd' NOT IN (select distinct * from tbb), 'd' NOT IN (select distinct * from tbb) from tbb where 'd' NOT IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'd' NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), 'd' NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where 'd' NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6098,8 +6061,9 @@ taos> select f1 NOT IN (select f1 from tbb union all select f1 from tbb), f1 NOT
 taos> select f1 NOT IN (select (select f1 from tbb) from tbb), f1 NOT IN (select (select f1 from tbb) from tbb) from tbb where f1 NOT IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 NOT IN (select diff(f1) from tbb), f1 NOT IN (select diff(f1) from tbb) from tbb where f1 NOT IN (select diff(f1) from tbb) order by 1;
+taos> select f1 NOT IN (select distinct * from tbb), f1 NOT IN (select distinct * from tbb) from tbb where f1 NOT IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), f1 NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where f1 NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6143,8 +6107,9 @@ taos> select NULL NOT IN (select f1 from tbb union all select f1 from tbb), NULL
 taos> select NULL NOT IN (select (select f1 from tbb) from tbb), NULL NOT IN (select (select f1 from tbb) from tbb) from tbb where NULL NOT IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select NULL NOT IN (select diff(f1) from tbb), NULL NOT IN (select diff(f1) from tbb) from tbb where NULL NOT IN (select diff(f1) from tbb) order by 1;
+taos> select NULL NOT IN (select distinct * from tbb), NULL NOT IN (select distinct * from tbb) from tbb where NULL NOT IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select NULL NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), NULL NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where NULL NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6208,8 +6173,9 @@ taos> select 123.45 NOT IN (select f1 from tbb union all select f1 from tbb), 12
 taos> select 123.45 NOT IN (select (select f1 from tbb) from tbb), 123.45 NOT IN (select (select f1 from tbb) from tbb) from tbb where 123.45 NOT IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 123.45 NOT IN (select diff(f1) from tbb), 123.45 NOT IN (select diff(f1) from tbb) from tbb where 123.45 NOT IN (select diff(f1) from tbb) order by 1;
+taos> select 123.45 NOT IN (select distinct * from tbb), 123.45 NOT IN (select distinct * from tbb) from tbb where 123.45 NOT IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 123.45 NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), 123.45 NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where 123.45 NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6268,8 +6234,9 @@ taos> select abs(-2) NOT IN (select f1 from tbb union all select f1 from tbb), a
 taos> select abs(-2) NOT IN (select (select f1 from tbb) from tbb), abs(-2) NOT IN (select (select f1 from tbb) from tbb) from tbb where abs(-2) NOT IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select abs(-2) NOT IN (select diff(f1) from tbb), abs(-2) NOT IN (select diff(f1) from tbb) from tbb where abs(-2) NOT IN (select diff(f1) from tbb) order by 1;
+taos> select abs(-2) NOT IN (select distinct * from tbb), abs(-2) NOT IN (select distinct * from tbb) from tbb where abs(-2) NOT IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select abs(-2) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), abs(-2) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where abs(-2) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6328,8 +6295,9 @@ taos> select f1 + 1 NOT IN (select f1 from tbb union all select f1 from tbb), f1
 taos> select f1 + 1 NOT IN (select (select f1 from tbb) from tbb), f1 + 1 NOT IN (select (select f1 from tbb) from tbb) from tbb where f1 + 1 NOT IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 + 1 NOT IN (select diff(f1) from tbb), f1 + 1 NOT IN (select diff(f1) from tbb) from tbb where f1 + 1 NOT IN (select diff(f1) from tbb) order by 1;
+taos> select f1 + 1 NOT IN (select distinct * from tbb), f1 + 1 NOT IN (select distinct * from tbb) from tbb where f1 + 1 NOT IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 + 1 NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), f1 + 1 NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where f1 + 1 NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6381,7 +6349,7 @@ DB error: There mustn't be aggregation [0x80002608]
 taos> select sum(f1) NOT IN (select (select f1 from tbb) from tbb), sum(f1) NOT IN (select (select f1 from tbb) from tbb) from tbb where sum(f1) NOT IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
-taos> select sum(f1) NOT IN (select diff(f1) from tbb), sum(f1) NOT IN (select diff(f1) from tbb) from tbb where sum(f1) NOT IN (select diff(f1) from tbb) order by 1;
+taos> select sum(f1) NOT IN (select distinct * from tbb), sum(f1) NOT IN (select distinct * from tbb) from tbb where sum(f1) NOT IN (select distinct * from tbb) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
 taos> select sum(f1) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), sum(f1) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where sum(f1) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
@@ -6442,8 +6410,9 @@ taos> select (select 1) NOT IN (select f1 from tbb union all select f1 from tbb)
 taos> select (select 1) NOT IN (select (select f1 from tbb) from tbb), (select 1) NOT IN (select (select f1 from tbb) from tbb) from tbb where (select 1) NOT IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select 1) NOT IN (select diff(f1) from tbb), (select 1) NOT IN (select diff(f1) from tbb) from tbb where (select 1) NOT IN (select diff(f1) from tbb) order by 1;
+taos> select (select 1) NOT IN (select distinct * from tbb), (select 1) NOT IN (select distinct * from tbb) from tbb where (select 1) NOT IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 1) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), (select 1) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where (select 1) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6487,8 +6456,9 @@ taos> select (select f1 from tba limit 0) NOT IN (select f1 from tbb union all s
 taos> select (select f1 from tba limit 0) NOT IN (select (select f1 from tbb) from tbb), (select f1 from tba limit 0) NOT IN (select (select f1 from tbb) from tbb) from tbb where (select f1 from tba limit 0) NOT IN (select (select f1 from tbb) from tbb) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select f1 from tba limit 0) NOT IN (select diff(f1) from tbb), (select f1 from tba limit 0) NOT IN (select diff(f1) from tbb) from tbb where (select f1 from tba limit 0) NOT IN (select diff(f1) from tbb) order by 1;
+taos> select (select f1 from tba limit 0) NOT IN (select distinct * from tbb), (select f1 from tba limit 0) NOT IN (select distinct * from tbb) from tbb where (select f1 from tba limit 0) NOT IN (select distinct * from tbb) order by 1;
 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select f1 from tba limit 0) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), (select f1 from tba limit 0) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where (select f1 from tba limit 0) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6575,9 +6545,9 @@ taos> select 1 IN (select f1 from st1 union all select f1 from st1), 1 IN (selec
 taos> select 1 IN (select (select f1 from st1) from st1), 1 IN (select (select f1 from st1) from st1) from st1 where 1 IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 1 IN (select diff(f1) from st1), 1 IN (select diff(f1) from st1) from st1 where 1 IN (select diff(f1) from st1) order by 1;
+taos> select 1 IN (select distinct * from st1), 1 IN (select distinct * from st1) from st1 where 1 IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 1 IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), 1 IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where 1 IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6617,9 +6587,9 @@ taos> select 'a' IN (select f1 from st1 union all select f1 from st1), 'a' IN (s
 taos> select 'a' IN (select (select f1 from st1) from st1), 'a' IN (select (select f1 from st1) from st1) from st1 where 'a' IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'a' IN (select diff(f1) from st1), 'a' IN (select diff(f1) from st1) from st1 where 'a' IN (select diff(f1) from st1) order by 1;
+taos> select 'a' IN (select distinct * from st1), 'a' IN (select distinct * from st1) from st1 where 'a' IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'a' IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), 'a' IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where 'a' IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6659,9 +6629,9 @@ taos> select 'd' IN (select f1 from st1 union all select f1 from st1), 'd' IN (s
 taos> select 'd' IN (select (select f1 from st1) from st1), 'd' IN (select (select f1 from st1) from st1) from st1 where 'd' IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'd' IN (select diff(f1) from st1), 'd' IN (select diff(f1) from st1) from st1 where 'd' IN (select diff(f1) from st1) order by 1;
+taos> select 'd' IN (select distinct * from st1), 'd' IN (select distinct * from st1) from st1 where 'd' IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'd' IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), 'd' IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where 'd' IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6752,9 +6722,9 @@ taos> select f1 IN (select f1 from st1 union all select f1 from st1), f1 IN (sel
 taos> select f1 IN (select (select f1 from st1) from st1), f1 IN (select (select f1 from st1) from st1) from st1 where f1 IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 IN (select diff(f1) from st1), f1 IN (select diff(f1) from st1) from st1 where f1 IN (select diff(f1) from st1) order by 1;
+taos> select f1 IN (select distinct * from st1), f1 IN (select distinct * from st1) from st1 where f1 IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), f1 IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where f1 IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6793,9 +6763,9 @@ taos> select NULL IN (select f1 from st1 union all select f1 from st1), NULL IN 
 taos> select NULL IN (select (select f1 from st1) from st1), NULL IN (select (select f1 from st1) from st1) from st1 where NULL IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select NULL IN (select diff(f1) from st1), NULL IN (select diff(f1) from st1) from st1 where NULL IN (select diff(f1) from st1) order by 1;
+taos> select NULL IN (select distinct * from st1), NULL IN (select distinct * from st1) from st1 where NULL IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select NULL IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), NULL IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where NULL IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6834,9 +6804,9 @@ taos> select 123.45 IN (select f1 from st1 union all select f1 from st1), 123.45
 taos> select 123.45 IN (select (select f1 from st1) from st1), 123.45 IN (select (select f1 from st1) from st1) from st1 where 123.45 IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 123.45 IN (select diff(f1) from st1), 123.45 IN (select diff(f1) from st1) from st1 where 123.45 IN (select diff(f1) from st1) order by 1;
+taos> select 123.45 IN (select distinct * from st1), 123.45 IN (select distinct * from st1) from st1 where 123.45 IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 123.45 IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), 123.45 IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where 123.45 IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -6923,9 +6893,9 @@ taos> select abs(-2) IN (select f1 from st1 union all select f1 from st1), abs(-
 taos> select abs(-2) IN (select (select f1 from st1) from st1), abs(-2) IN (select (select f1 from st1) from st1) from st1 where abs(-2) IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select abs(-2) IN (select diff(f1) from st1), abs(-2) IN (select diff(f1) from st1) from st1 where abs(-2) IN (select diff(f1) from st1) order by 1;
+taos> select abs(-2) IN (select distinct * from st1), abs(-2) IN (select distinct * from st1) from st1 where abs(-2) IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select abs(-2) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), abs(-2) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where abs(-2) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7009,9 +6979,9 @@ taos> select f1 + 1 IN (select f1 from st1 union all select f1 from st1), f1 + 1
 taos> select f1 + 1 IN (select (select f1 from st1) from st1), f1 + 1 IN (select (select f1 from st1) from st1) from st1 where f1 + 1 IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 + 1 IN (select diff(f1) from st1), f1 + 1 IN (select diff(f1) from st1) from st1 where f1 + 1 IN (select diff(f1) from st1) order by 1;
+taos> select f1 + 1 IN (select distinct * from st1), f1 + 1 IN (select distinct * from st1) from st1 where f1 + 1 IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 + 1 IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), f1 + 1 IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where f1 + 1 IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7063,7 +7033,7 @@ DB error: There mustn't be aggregation [0x80002608]
 taos> select sum(f1) IN (select (select f1 from st1) from st1), sum(f1) IN (select (select f1 from st1) from st1) from st1 where sum(f1) IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
-taos> select sum(f1) IN (select diff(f1) from st1), sum(f1) IN (select diff(f1) from st1) from st1 where sum(f1) IN (select diff(f1) from st1) order by 1;
+taos> select sum(f1) IN (select distinct * from st1), sum(f1) IN (select distinct * from st1) from st1 where sum(f1) IN (select distinct * from st1) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
 taos> select sum(f1) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), sum(f1) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where sum(f1) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
@@ -7152,9 +7122,9 @@ taos> select (select 1) IN (select f1 from st1 union all select f1 from st1), (s
 taos> select (select 1) IN (select (select f1 from st1) from st1), (select 1) IN (select (select f1 from st1) from st1) from st1 where (select 1) IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select 1) IN (select diff(f1) from st1), (select 1) IN (select diff(f1) from st1) from st1 where (select 1) IN (select diff(f1) from st1) order by 1;
+taos> select (select 1) IN (select distinct * from st1), (select 1) IN (select distinct * from st1) from st1 where (select 1) IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 1) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), (select 1) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where (select 1) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7193,9 +7163,9 @@ taos> select (select f1 from tba limit 0) IN (select f1 from st1 union all selec
 taos> select (select f1 from tba limit 0) IN (select (select f1 from st1) from st1), (select f1 from tba limit 0) IN (select (select f1 from st1) from st1) from st1 where (select f1 from tba limit 0) IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select f1 from tba limit 0) IN (select diff(f1) from st1), (select f1 from tba limit 0) IN (select diff(f1) from st1) from st1 where (select f1 from tba limit 0) IN (select diff(f1) from st1) order by 1;
+taos> select (select f1 from tba limit 0) IN (select distinct * from st1), (select f1 from tba limit 0) IN (select distinct * from st1) from st1 where (select f1 from tba limit 0) IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select f1 from tba limit 0) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), (select f1 from tba limit 0) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where (select f1 from tba limit 0) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7274,9 +7244,9 @@ taos> select 1 NOT IN (select f1 from st1 union all select f1 from st1), 1 NOT I
 taos> select 1 NOT IN (select (select f1 from st1) from st1), 1 NOT IN (select (select f1 from st1) from st1) from st1 where 1 NOT IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 1 NOT IN (select diff(f1) from st1), 1 NOT IN (select diff(f1) from st1) from st1 where 1 NOT IN (select diff(f1) from st1) order by 1;
+taos> select 1 NOT IN (select distinct * from st1), 1 NOT IN (select distinct * from st1) from st1 where 1 NOT IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 1 NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), 1 NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where 1 NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7396,9 +7366,9 @@ taos> select 'a' NOT IN (select f1 from st1 union all select f1 from st1), 'a' N
 taos> select 'a' NOT IN (select (select f1 from st1) from st1), 'a' NOT IN (select (select f1 from st1) from st1) from st1 where 'a' NOT IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'a' NOT IN (select diff(f1) from st1), 'a' NOT IN (select diff(f1) from st1) from st1 where 'a' NOT IN (select diff(f1) from st1) order by 1;
+taos> select 'a' NOT IN (select distinct * from st1), 'a' NOT IN (select distinct * from st1) from st1 where 'a' NOT IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'a' NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), 'a' NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where 'a' NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7518,9 +7488,9 @@ taos> select 'd' NOT IN (select f1 from st1 union all select f1 from st1), 'd' N
 taos> select 'd' NOT IN (select (select f1 from st1) from st1), 'd' NOT IN (select (select f1 from st1) from st1) from st1 where 'd' NOT IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 'd' NOT IN (select diff(f1) from st1), 'd' NOT IN (select diff(f1) from st1) from st1 where 'd' NOT IN (select diff(f1) from st1) order by 1;
+taos> select 'd' NOT IN (select distinct * from st1), 'd' NOT IN (select distinct * from st1) from st1 where 'd' NOT IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 'd' NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), 'd' NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where 'd' NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7603,9 +7573,9 @@ taos> select f1 NOT IN (select f1 from st1 union all select f1 from st1), f1 NOT
 taos> select f1 NOT IN (select (select f1 from st1) from st1), f1 NOT IN (select (select f1 from st1) from st1) from st1 where f1 NOT IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 NOT IN (select diff(f1) from st1), f1 NOT IN (select diff(f1) from st1) from st1 where f1 NOT IN (select diff(f1) from st1) order by 1;
+taos> select f1 NOT IN (select distinct * from st1), f1 NOT IN (select distinct * from st1) from st1 where f1 NOT IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), f1 NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where f1 NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7652,9 +7622,9 @@ taos> select NULL NOT IN (select f1 from st1 union all select f1 from st1), NULL
 taos> select NULL NOT IN (select (select f1 from st1) from st1), NULL NOT IN (select (select f1 from st1) from st1) from st1 where NULL NOT IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select NULL NOT IN (select diff(f1) from st1), NULL NOT IN (select diff(f1) from st1) from st1 where NULL NOT IN (select diff(f1) from st1) order by 1;
+taos> select NULL NOT IN (select distinct * from st1), NULL NOT IN (select distinct * from st1) from st1 where NULL NOT IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select NULL NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), NULL NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where NULL NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7781,9 +7751,9 @@ taos> select 123.45 NOT IN (select f1 from st1 union all select f1 from st1), 12
 taos> select 123.45 NOT IN (select (select f1 from st1) from st1), 123.45 NOT IN (select (select f1 from st1) from st1) from st1 where 123.45 NOT IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select 123.45 NOT IN (select diff(f1) from st1), 123.45 NOT IN (select diff(f1) from st1) from st1 where 123.45 NOT IN (select diff(f1) from st1) order by 1;
+taos> select 123.45 NOT IN (select distinct * from st1), 123.45 NOT IN (select distinct * from st1) from st1 where 123.45 NOT IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select 123.45 NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), 123.45 NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where 123.45 NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7862,9 +7832,9 @@ taos> select abs(-2) NOT IN (select f1 from st1 union all select f1 from st1), a
 taos> select abs(-2) NOT IN (select (select f1 from st1) from st1), abs(-2) NOT IN (select (select f1 from st1) from st1) from st1 where abs(-2) NOT IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select abs(-2) NOT IN (select diff(f1) from st1), abs(-2) NOT IN (select diff(f1) from st1) from st1 where abs(-2) NOT IN (select diff(f1) from st1) order by 1;
+taos> select abs(-2) NOT IN (select distinct * from st1), abs(-2) NOT IN (select distinct * from st1) from st1 where abs(-2) NOT IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select abs(-2) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), abs(-2) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where abs(-2) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -7962,9 +7932,9 @@ taos> select f1 + 1 NOT IN (select f1 from st1 union all select f1 from st1), f1
 taos> select f1 + 1 NOT IN (select (select f1 from st1) from st1), f1 + 1 NOT IN (select (select f1 from st1) from st1) from st1 where f1 + 1 NOT IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select f1 + 1 NOT IN (select diff(f1) from st1), f1 + 1 NOT IN (select diff(f1) from st1) from st1 where f1 + 1 NOT IN (select diff(f1) from st1) order by 1;
+taos> select f1 + 1 NOT IN (select distinct * from st1), f1 + 1 NOT IN (select distinct * from st1) from st1 where f1 + 1 NOT IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select f1 + 1 NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), f1 + 1 NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where f1 + 1 NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -8016,7 +7986,7 @@ DB error: There mustn't be aggregation [0x80002608]
 taos> select sum(f1) NOT IN (select (select f1 from st1) from st1), sum(f1) NOT IN (select (select f1 from st1) from st1) from st1 where sum(f1) NOT IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
-taos> select sum(f1) NOT IN (select diff(f1) from st1), sum(f1) NOT IN (select diff(f1) from st1) from st1 where sum(f1) NOT IN (select diff(f1) from st1) order by 1;
+taos> select sum(f1) NOT IN (select distinct * from st1), sum(f1) NOT IN (select distinct * from st1) from st1 where sum(f1) NOT IN (select distinct * from st1) order by 1;
 
 DB error: There mustn't be aggregation [0x80002608] 
 taos> select sum(f1) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), sum(f1) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where sum(f1) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
@@ -8097,9 +8067,9 @@ taos> select (select 1) NOT IN (select f1 from st1 union all select f1 from st1)
 taos> select (select 1) NOT IN (select (select f1 from st1) from st1), (select 1) NOT IN (select (select f1 from st1) from st1) from st1 where (select 1) NOT IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select 1) NOT IN (select diff(f1) from st1), (select 1) NOT IN (select diff(f1) from st1) from st1 where (select 1) NOT IN (select diff(f1) from st1) order by 1;
+taos> select (select 1) NOT IN (select distinct * from st1), (select 1) NOT IN (select distinct * from st1) from st1 where (select 1) NOT IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select 1) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), (select 1) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where (select 1) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
@@ -8146,9 +8116,9 @@ taos> select (select f1 from tba limit 0) NOT IN (select f1 from st1 union all s
 taos> select (select f1 from tba limit 0) NOT IN (select (select f1 from st1) from st1), (select f1 from tba limit 0) NOT IN (select (select f1 from st1) from st1) from st1 where (select f1 from tba limit 0) NOT IN (select (select f1 from st1) from st1) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
-taos> select (select f1 from tba limit 0) NOT IN (select diff(f1) from st1), (select f1 from tba limit 0) NOT IN (select diff(f1) from st1) from st1 where (select f1 from tba limit 0) NOT IN (select diff(f1) from st1) order by 1;
+taos> select (select f1 from tba limit 0) NOT IN (select distinct * from st1), (select f1 from tba limit 0) NOT IN (select distinct * from st1) from st1 where (select f1 from tba limit 0) NOT IN (select distinct * from st1) order by 1;
 
-DB error: Duplicate timestamps not allowed in function [0x80002805] 
+DB error: More than 1 column returned in subquery as expr [0x800026A4] 
 taos> select (select f1 from tba limit 0) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), (select f1 from tba limit 0) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where (select f1 from tba limit 0) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 

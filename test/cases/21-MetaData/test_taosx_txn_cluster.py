@@ -142,10 +142,33 @@ class TestTaosxTxnCluster:
     # ─────────────────────────────────────────────────────────────────────
 
     def _cleanup_taosx_dbs(self):
-        """Drop databases/topic left by previous taosx binary run."""
-        tdSql.execute("drop topic if exists topic_taosx_txn")
-        tdSql.execute("drop database if exists src_txn_db")
-        tdSql.execute("drop database if exists dst_txn_db")
+        """Drop databases/topic left by previous taosx binary run.
+
+        Waits for any in-flight mnode transaction to finish first — right after
+        cluster deployment/dnode restart/mnode leader switch there can briefly be
+        a bootstrap, recovery, or leader-transfer transaction still running, and
+        issuing a new transaction (DROP TOPIC/DATABASE) while one is in flight
+        fails with TSDB_CODE_MND_TRANS_CONFLICT ("Conflict transaction not
+        completed"). checkTransactions() alone isn't quite enough right after a
+        leader switch: a new transaction can start in the brief window between
+        checkTransactions() observing zero rows and the DROP statement actually
+        firing, so retry the whole check+drop sequence a few times as well.
+        """
+        last_err = None
+        for attempt in range(5):
+            try:
+                clusterComCheck.checkTransactions(timeout=60)
+                tdSql.execute("drop topic if exists topic_taosx_txn")
+                tdSql.execute("drop database if exists src_txn_db")
+                tdSql.execute("drop database if exists dst_txn_db")
+                return
+            except Exception as e:
+                last_err = e
+                tdLog.info(
+                    "_cleanup_taosx_dbs: attempt %d/5 hit %r, retrying" % (attempt + 1, e)
+                )
+                time.sleep(2)
+        raise last_err
 
     def _get_mnode_leader_id(self, timeout=30):
         """Return dnode ID of the current MNode leader."""
@@ -247,15 +270,27 @@ class TestTaosxTxnCluster:
             # Wait for new MNode leader
             new_leader = self._wait_mnode_leader(exclude_id=old_leader, timeout=60)
             tdLog.info("s21: New MNode leader is dnode %d" % new_leader)
-
-            # Post-switch: run another taosx scenario
-            self._cleanup_taosx_dbs()
-            _run_scenario(3)
-            tdLog.info("s21: scenario s3 post-MNode-switch PASSED")
-
         finally:
+            # Restart the old leader BEFORE issuing any further DDL. src_txn_db and
+            # topic_taosx_txn are single-replica (created with no explicit `replica`),
+            # so if the stopped dnode happens to hold their only vgroup replica (quite
+            # likely in this 3-node cluster), a DROP TOPIC/DATABASE issued while it's
+            # still down blocks forever waiting for a vnode-tmq-delete-sub response
+            # that can never arrive — not a bug, single-replica data is genuinely
+            # unavailable while its only host is down. MNode leadership has already
+            # switched and stays switched; restarting the old leader here just
+            # restores it as an ordinary cluster member so cleanup/DDL can proceed.
             sc.dnodeStart(old_leader)
             clusterComCheck.checkDnodes(3, timeout=60)
+
+        # Post-switch: run another taosx scenario. mndProcessBeginTxnReq retries
+        # internally on TSDB_CODE_MND_TXN_SEQ_IN_CREATING (server-side, transparent
+        # to any caller), so scenario 3's BEGIN doesn't need special handling here
+        # even though the new leader's txnSeq allocator may still be finishing its
+        # post-restore (re)init.
+        self._cleanup_taosx_dbs()
+        _run_scenario(3)
+        tdLog.info("s21: scenario s3 post-MNode-switch PASSED")
 
         tdLog.info("s21 PASSED — taosx consumer correct after MNode leader switch")
 

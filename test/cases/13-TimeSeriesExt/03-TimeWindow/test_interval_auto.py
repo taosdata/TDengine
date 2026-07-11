@@ -44,6 +44,75 @@ class TestIntervalMore:
             tdLog.info(f"i={i} wait for history data calculation finish ...")
             time.sleep(1)
 
+    def test_auto_offset_empty_ts_range(self):
+        """Interval auto offset: an empty ts range must not hang the client
+
+        Regression for a client-side infinite loop. When the WHERE clause
+        collapses the query time range to empty (skey=INT64_MAX,
+        ekey=INT64_MIN, i.e. TSWINDOW_DESC_INITIALIZER) and the interval uses
+        AUTO offset with a sub-day unit (computed on the client),
+        calcIntervalAutoOffset used to spin forever calling
+        taosTimeAdd(INT64_MAX, ...), flooding the log with "time overflow".
+        The query must instead translate normally and return an empty result.
+
+        Catalog:
+            - Timeseries:TimeWindow
+
+        Since: v3.3.0.0
+
+        Labels: interval
+
+        History:
+            - 2026-07-09 Tony Zhang Created
+        """
+        tdLog.info("test auto-offset with an empty ts range (must not hang).")
+        tdSql.execute("drop database if exists auto_off")
+        tdSql.execute("create database auto_off keep 3650")
+        tdSql.execute("use auto_off")
+        tdSql.execute(
+            "create stable stb (ts timestamp, col int) tags (t1 int)"
+        )
+        tdSql.execute("create table ct1 using stb tags (1)")
+        tdSql.execute("insert into ct1 values ('2026-07-08 08:00:00', 1)")
+        tdSql.execute("insert into ct1 values ('2026-07-08 12:00:00', 2)")
+
+        # Empty/contradictory ts range (upper bound earlier than lower bound)
+        # plus a sub-day-unit interval and auto offset. Before the fix each of
+        # these hung the client in an infinite loop; they must now return an
+        # empty result set.
+        empty_range_sqls = [
+            (
+                "select _wstart, avg(col) from stb "
+                "where ts > '2026-07-09 06:00:00' "
+                "and ts < '2026-07-08 06:00:00' interval(28800s, auto)"
+            ),
+            (
+                "select _wstart, avg(col) from ct1 "
+                "where ts > '2026-07-09 06:00:00' "
+                "and ts < '2026-07-08 06:00:00' "
+                "interval(28800s, auto) sliding(3600s)"
+            ),
+            (
+                "select _wstart, count(*) from stb "
+                "where ts >= 1678901803783 and ts <= 1678901803782 "
+                "interval(8h, auto)"
+            ),
+        ]
+        for sql in empty_range_sqls:
+            tdSql.query(sql)
+            tdSql.checkRows(0)
+
+        # Sanity: a normal (non-empty) range with auto offset still computes
+        # aligned windows and returns rows.
+        rows = tdSql.query(
+            "select _wstart, avg(col) from ct1 "
+            "where ts >= '2026-07-08 06:00:00' "
+            "and ts < '2026-07-09 06:00:00' interval(28800s, auto)"
+        )
+        assert rows > 0, "auto-offset over non-empty range must return windows"
+
+        tdSql.execute("drop database if exists auto_off")
+
     def test_query_interval(self):
         """Interval: auto
 

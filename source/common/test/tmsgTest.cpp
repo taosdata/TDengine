@@ -556,6 +556,133 @@ TEST(td_msg_test, destroy_sv_create_tb_req_frees_tag_ref) {
   ASSERT_EQ(req.colRef.pTagRef, nullptr);
 }
 
+static int32_t encodeOldSColRef(SEncoder* pEncoder, int16_t id, const char* db, const char* tb, const char* col) {
+  if (tEncodeI8(pEncoder, true) != 0) return -1;
+  if (tEncodeI16v(pEncoder, id) != 0) return -1;
+  if (tEncodeCStr(pEncoder, db) != 0) return -1;
+  if (tEncodeCStr(pEncoder, tb) != 0) return -1;
+  if (tEncodeCStr(pEncoder, col) != 0) return -1;
+  return 0;
+}
+
+static int32_t encodeOldSColRefWrapper(void* buf, int32_t bufLen) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, (uint8_t*)buf, bufLen);
+
+  if (tEncodeI32v(&encoder, 2) != 0) return -1;
+  if (tEncodeI32v(&encoder, 7) != 0) return -1;
+  if (encodeOldSColRef(&encoder, 10, "old_db0", "old_tb0", "old_col0") != 0) return -1;
+  if (encodeOldSColRef(&encoder, 11, "old_db1", "old_tb1", "old_col1") != 0) return -1;
+  if (tEncodeI32v(&encoder, 1) != 0) return -1;
+  if (encodeOldSColRef(&encoder, 12, "old_tag_db", "old_tag_tb", "old_tag") != 0) return -1;
+
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+  return len;
+}
+
+TEST(td_msg_test, decode_old_scol_ref_wrapper_defaults_federated_fields) {
+  int32_t size = encodeOldSColRefWrapper(NULL, 0);
+  ASSERT_GT(size, 0);
+
+  std::vector<char> buf(size, 0);
+  ASSERT_EQ(encodeOldSColRefWrapper(buf.data(), size), size);
+
+  SColRefWrapper out = {0};
+  SDecoder       decoder = {0};
+  tDecoderInit(&decoder, (uint8_t*)buf.data(), size);
+  ASSERT_EQ(tDecodeSColRefWrapperEx(&decoder, &out, false), 0);
+  tDecoderClear(&decoder);
+
+  ASSERT_EQ(out.nCols, 2);
+  ASSERT_EQ(out.version, 7);
+  ASSERT_NE(out.pColRef, nullptr);
+  ASSERT_EQ(out.pColRef[0].id, 10);
+  ASSERT_STREQ(out.pColRef[0].refDbName, "old_db0");
+  ASSERT_STREQ(out.pColRef[0].refTableName, "old_tb0");
+  ASSERT_STREQ(out.pColRef[0].refColName, "old_col0");
+  ASSERT_EQ(out.pColRef[0].refType, 0);
+  ASSERT_STREQ(out.pColRef[0].refSourceName, "");
+  ASSERT_STREQ(out.pColRef[0].refSchemaName, "");
+  ASSERT_EQ(out.pColRef[0].tagCondLen, 0);
+  ASSERT_EQ(out.pColRef[0].tagCondJson, nullptr);
+
+  ASSERT_EQ(out.pColRef[1].id, 11);
+  ASSERT_STREQ(out.pColRef[1].refDbName, "old_db1");
+  ASSERT_STREQ(out.pColRef[1].refTableName, "old_tb1");
+  ASSERT_STREQ(out.pColRef[1].refColName, "old_col1");
+  ASSERT_EQ(out.pColRef[1].refType, 0);
+  ASSERT_STREQ(out.pColRef[1].refSourceName, "");
+  ASSERT_STREQ(out.pColRef[1].refSchemaName, "");
+
+  ASSERT_EQ(out.nTagRefs, 1);
+  ASSERT_NE(out.pTagRef, nullptr);
+  ASSERT_EQ(out.pTagRef[0].id, 12);
+  ASSERT_STREQ(out.pTagRef[0].refDbName, "old_tag_db");
+  ASSERT_STREQ(out.pTagRef[0].refTableName, "old_tag_tb");
+  ASSERT_STREQ(out.pTagRef[0].refColName, "old_tag");
+  ASSERT_EQ(out.pTagRef[0].refType, 0);
+  ASSERT_STREQ(out.pTagRef[0].refSourceName, "");
+  ASSERT_STREQ(out.pTagRef[0].refSchemaName, "");
+
+  tFreeSColRefArray(out.pColRef, out.nCols);
+  tFreeSColRefArray(out.pTagRef, out.nTagRefs);
+  taosMemoryFree(out.pColRef);
+  taosMemoryFree(out.pTagRef);
+}
+
+TEST(td_msg_test, scol_ref_wrapper_roundtrips_federated_fields_at_tail) {
+  SColRefWrapper in = {0};
+  in.nCols = 1;
+  in.version = 9;
+  in.pColRef = (SColRef*)taosMemoryCalloc(1, sizeof(SColRef));
+  ASSERT_NE(in.pColRef, nullptr);
+  in.pColRef[0].hasRef = true;
+  in.pColRef[0].id = 20;
+  in.pColRef[0].refType = 1;
+  tstrncpy(in.pColRef[0].refSourceName, "src0", sizeof(in.pColRef[0].refSourceName));
+  tstrncpy(in.pColRef[0].refSchemaName, "schema0", sizeof(in.pColRef[0].refSchemaName));
+  tstrncpy(in.pColRef[0].refDbName, "db0", sizeof(in.pColRef[0].refDbName));
+  tstrncpy(in.pColRef[0].refTableName, "tb0", sizeof(in.pColRef[0].refTableName));
+  tstrncpy(in.pColRef[0].refColName, "col0", sizeof(in.pColRef[0].refColName));
+  in.pColRef[0].tagCondJson = (char*)"TAG_COND";
+  in.pColRef[0].tagCondLen = (int32_t)strlen(in.pColRef[0].tagCondJson);
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tEncodeSColRefWrapper(&encoder, &in), 0);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GT(size, 0);
+
+  std::vector<char> buf(size, 0);
+  tEncoderInit(&encoder, (uint8_t*)buf.data(), size);
+  ASSERT_EQ(tEncodeSColRefWrapper(&encoder, &in), 0);
+  tEncoderClear(&encoder);
+
+  SColRefWrapper out = {0};
+  SDecoder       decoder = {0};
+  tDecoderInit(&decoder, (uint8_t*)buf.data(), size);
+  ASSERT_EQ(tDecodeSColRefWrapperEx(&decoder, &out, false), 0);
+  tDecoderClear(&decoder);
+
+  ASSERT_EQ(out.nCols, 1);
+  ASSERT_EQ(out.version, 9);
+  ASSERT_EQ(out.pColRef[0].id, 20);
+  ASSERT_STREQ(out.pColRef[0].refDbName, "db0");
+  ASSERT_STREQ(out.pColRef[0].refTableName, "tb0");
+  ASSERT_STREQ(out.pColRef[0].refColName, "col0");
+  ASSERT_EQ(out.pColRef[0].refType, 1);
+  ASSERT_STREQ(out.pColRef[0].refSourceName, "src0");
+  ASSERT_STREQ(out.pColRef[0].refSchemaName, "schema0");
+  ASSERT_EQ(out.pColRef[0].tagCondLen, (int32_t)strlen("TAG_COND"));
+  ASSERT_STREQ(out.pColRef[0].tagCondJson, "TAG_COND");
+
+  tFreeSColRefArray(out.pColRef, out.nCols);
+  taosMemoryFree(out.pColRef);
+  taosMemoryFree(in.pColRef);
+}
+
 TEST(td_msg_test, destroy_sv_submit_create_tb_req_frees_tag_ref) {
   SVCreateTbReq req = {0};
   req.type = TSDB_VIRTUAL_CHILD_TABLE;

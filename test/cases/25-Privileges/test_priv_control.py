@@ -63,15 +63,32 @@ class TestPrivControl:
     #
     # --------------------------- base function ----------------------------
     #
-    def login(self, user=None, password=None):
-        # Login with specified user or root by default
-        if user is None:
-            if password is None:
-                tdSql.connect()
-            else:
-                tdSql.connect(password=password)
-        else:
-            tdSql.connect(user, password=password)
+    # Transport-layer error (libuv/socket) that can transiently occur at connect
+    # time under heavy parallel CI load; it is NOT an auth/permission error.
+    TSDB_CODE_THIRDPARTY_ERROR = 0x012F
+
+    def login(self, user=None, password=None, nRetry=10):
+        # Login with specified user or root by default.
+        # Retry ONLY on transient transport errors (0x012f); any other error
+        # (e.g. auth failure) is re-raised immediately so login_failed() and
+        # other expected-failure paths keep working unchanged.
+        for i in range(nRetry):
+            try:
+                if user is None:
+                    if password is None:
+                        tdSql.connect()
+                    else:
+                        tdSql.connect(password=password)
+                else:
+                    tdSql.connect(user, password=password)
+                return
+            except Exception as e:
+                actual = normalize_errno(errno_from_exception(e))
+                if actual == self.TSDB_CODE_THIRDPARTY_ERROR and i < nRetry - 1:
+                    tdLog.info(f"Login retry {i + 1}/{nRetry} on transient 0x012f for user={user}: {e}")
+                    time.sleep(1)
+                    continue
+                raise
     
     def login_failed(self, user, password):
         # Verify that login should fail
@@ -2553,7 +2570,12 @@ class TestPrivControl:
         tdLog.info("=== Testing Mount Management Privileges ===")
         self.login()  # Login as root
         test_user = "test_user"
-        sql_mount = f"CREATE MOUNT mnt1 ON dnode 1 FROM '/root/errorPath'"    
+        # Use a path under /tmp (traversable by any test runner, root or not) rather
+        # than /root: on non-root CI/dev boxes /root is 0700 and unreadable by taosd,
+        # so the mount-source check fails with EACCES ("permission denied") before it
+        # ever gets to check existence, instead of the ENOENT ("no such file") this
+        # test expects.
+        sql_mount = f"CREATE MOUNT mnt1 ON dnode 1 FROM '/tmp/priv_control_mount_errorPath_does_not_exist'"
         
         # Create users
         self.create_user(test_user, pwd)

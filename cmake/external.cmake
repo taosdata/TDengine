@@ -2,6 +2,14 @@ option(TD_EXTERNALS_USE_ONLY "external dependencies use only, otherwise download
 option(TD_ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main project" ON)
 option(EXTERNALS_USE_CCACHE "Use ccache for ExternalProject builds (set OFF if ccache corrupts .o files)" ON)
 
+include(ProcessorCount)
+ProcessorCount(_td_externals_default_jobs)
+if(NOT _td_externals_default_jobs)
+    set(_td_externals_default_jobs 4)
+endif()
+set(TD_EXTERNALS_BUILD_JOBS "${_td_externals_default_jobs}" CACHE STRING
+    "Maximum parallel build jobs for heavy ExternalProject dependencies")
+
 # When EXTERNALS_USE_CCACHE is OFF, prepend CCACHE_DISABLE=1 to external
 # build commands so ccache passes compilations through without caching.
 # Two forms: _EXT_ENV_PREFIX for direct COMMAND, _EXT_CCACHE_EXPORT for sh -c.
@@ -1976,10 +1984,12 @@ if(${BUILD_LIBGSASL} AND ${TD_LINUX})      # {
                     --without-libidn-prefix --without-libgcrypt-prefix --without-libntlm-prefix
                     --with-openssl=no --with-gssapi-impl=no
                     --disable-gssapi --disable-gs2 --disable-ntlm --disable-cram-md5 --disable-digest-md5
+        # TDengine only links libgsasl; the top-level target also builds docs
+        # and can require host tools such as help2man.
         BUILD_COMMAND
-            COMMAND ${_EXT_ENV_PREFIX} make
+            COMMAND ${_EXT_ENV_PREFIX} make -C lib
         INSTALL_COMMAND
-            COMMAND ${_EXT_ENV_PREFIX} make install
+            COMMAND ${_EXT_ENV_PREFIX} make -C lib install
             COMMAND bash "${CMAKE_CURRENT_LIST_DIR}/isolate_gsasl_syms.sh" "${_ins}/lib/libgsasl.a" "${CMAKE_NM}" "${CMAKE_OBJCOPY}"
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
@@ -2428,14 +2438,12 @@ function(td_prepare_arrow_external arrow_build_profile)
     endif()
 
     set(_arrow_generator_args "")
-    if(TD_WINDOWS)
-        list(APPEND _arrow_generator_args -G "${CMAKE_GENERATOR}")
-        if(CMAKE_GENERATOR_PLATFORM)
-            list(APPEND _arrow_generator_args -A "${CMAKE_GENERATOR_PLATFORM}")
-        endif()
-        if(CMAKE_GENERATOR_TOOLSET)
-            list(APPEND _arrow_generator_args -T "${CMAKE_GENERATOR_TOOLSET}")
-        endif()
+    list(APPEND _arrow_generator_args -G "${CMAKE_GENERATOR}")
+    if(CMAKE_GENERATOR_PLATFORM)
+        list(APPEND _arrow_generator_args -A "${CMAKE_GENERATOR_PLATFORM}")
+    endif()
+    if(CMAKE_GENERATOR_TOOLSET)
+        list(APPEND _arrow_generator_args -T "${CMAKE_GENERATOR_TOOLSET}")
     endif()
 
     if(_arrow_patch_commands)
@@ -2578,7 +2586,7 @@ if(${BUILD_WITH_ARROW})
         ${_arrow_patch_arg}
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
-                    --parallel $<IF:$<BOOL:${TD_WINDOWS}>,1,4>
+                    --parallel "${TD_EXTERNALS_BUILD_JOBS}"
         INSTALL_COMMAND
             COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
         EXCLUDE_FROM_ALL TRUE
@@ -2649,7 +2657,7 @@ set(_arrow_cmake_args
 
 set(ext_arrow_static_install_byproducts_available FALSE)
 set(_arrow_install_byproducts "")
-if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.26")
+if(NOT TD_EXTERNALS_USE_ONLY AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.26")
     set(ext_arrow_static_install_byproducts_available TRUE)
     set(_arrow_install_byproducts INSTALL_BYPRODUCTS ${ext_arrow_static_libs})
 endif()
@@ -2665,6 +2673,7 @@ ExternalProject_Add(ext_arrow_static
     ${_arrow_patch_arg}
     BUILD_COMMAND
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+                --parallel "${TD_EXTERNALS_BUILD_JOBS}"
     INSTALL_COMMAND
         COMMAND "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}" --prefix "${_ins}"
     ${_arrow_install_byproducts}

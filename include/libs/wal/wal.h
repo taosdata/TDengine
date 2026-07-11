@@ -31,16 +31,16 @@ extern "C" {
 #define WAL_NOSUFFIX_LEN  20
 
 // Accessors for SWalCont.flags -- use these instead of direct bit manipulation
-#define WAL_PROTO_VER_MASK      ((uint8_t)0xFEu)  // bit1-7: protocol version
-#define WAL_CONT_FLAG_TXN       ((uint8_t)0x01u)  // bit0:   transaction entry flag
+#define WAL_PROTO_VER_MASK      ((uint8_t)0x7Fu)  // bit0-6: protocol version
+#define WAL_CONT_FLAG_TXN       ((uint8_t)0x80u)  // bit7:   transaction entry flag
 #define WAL_IS_TXN_MSG(cont)    (((cont)->flags & WAL_CONT_FLAG_TXN) != 0)
 #define WAL_SET_TXN_MSG(cont)   ((cont)->flags |= WAL_CONT_FLAG_TXN)
 #define WAL_CLEAR_TXN_MSG(cont) ((cont)->flags &= (uint8_t)~WAL_CONT_FLAG_TXN)
-#define WAL_GET_PROTO_VER(cont) (((cont)->flags & WAL_PROTO_VER_MASK) >> 1)
+#define WAL_GET_PROTO_VER(cont) ((cont)->flags & WAL_PROTO_VER_MASK)
 // WAL_PROTO_VER_SUPPORTED: highest protoVer this build can read; reject anything above it
 #define WAL_PROTO_VER_SUPPORTED  WAL_PROTO_VER
 #define WAL_SET_PROTO_VER(cont, ver) \
-  ((cont)->flags = ((cont)->flags & WAL_CONT_FLAG_TXN) | (uint8_t)(((ver) & 0x7Fu) << 1))
+  ((cont)->flags = ((cont)->flags & WAL_CONT_FLAG_TXN) | (uint8_t)((ver) & WAL_PROTO_VER_MASK))
 
 #define WAL_SUFFIX_AT     (WAL_NOSUFFIX_LEN + 1)
 #define WAL_LOG_SUFFIX    "log"
@@ -98,8 +98,8 @@ typedef struct {
   int32_t bodyLen;
   int16_t msgType;
   // flags byte layout (bit-exact, do not use bit-fields for portability):
-  //   bit0   : isTxn    -- 1 if this is a transaction WAL entry
-  //   bit1-7 : protoVer -- WAL protocol version (0-127)
+  //   bit7   : isTxn    -- 1 if this is a transaction WAL entry
+  //   bit0-6 : protoVer -- WAL protocol version (0-127)
   uint8_t flags;
   // sync meta
   SWalSyncInfo syncMeta;

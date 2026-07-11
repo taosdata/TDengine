@@ -17,6 +17,10 @@ IF(NOT TD_DARWIN)
             parserTest
             PUBLIC "${TD_SOURCE_DIR}/include/libs/parser/"
             PRIVATE "${TD_SOURCE_DIR}/source/libs/parser/inc"
+            # catalogInt.h (for a correctly-sized dummy SCatalog) and its
+            # transitive extConnector.h come from these two dirs.
+            PRIVATE "${TD_SOURCE_DIR}/source/libs/catalog/inc"
+            PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
     )
 
     TARGET_LINK_LIBRARIES(

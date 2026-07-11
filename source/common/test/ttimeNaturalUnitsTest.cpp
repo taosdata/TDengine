@@ -419,6 +419,74 @@ TEST_F(TimeNaturalUnitsTest, GetDurationWeekUnit) {
 }
 
 /**
+ * Regression: an empty query time range (TSWINDOW_DESC_INITIALIZER, skey ==
+ * INT64_MAX) together with AUTO offset used to spin forever inside
+ * calcIntervalAutoOffset. Each iteration called taosTimeAdd(INT64_MAX, ...),
+ * which overflowed, logged "time overflow" and returned the input unchanged,
+ * so the loop never progressed and flooded the log. It must now return
+ * immediately with offset 0.
+ */
+TEST_F(TimeNaturalUnitsTest, AutoOffsetEmptyTimeRangeNoInfiniteLoop) {
+  SInterval interval = {};
+  interval.timezone = tz;
+  interval.intervalUnit = 's';
+  interval.slidingUnit = 's';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.interval = 8LL * 60 * 60 * 1000;  // 8h in ms
+  interval.sliding = 8LL * 60 * 60 * 1000;
+  interval.offset = AUTO_DURATION_VALUE;
+  interval.timeRange.skey = INT64_MAX;  // empty range, skey > ekey
+  interval.timeRange.ekey = INT64_MIN;
+
+  calcIntervalAutoOffset(&interval);
+  EXPECT_EQ(interval.offset, 0);
+}
+
+/**
+ * A full/unbounded range (skey == INT64_MIN) has no anchor and must yield
+ * offset 0.
+ */
+TEST_F(TimeNaturalUnitsTest, AutoOffsetUnboundedStart) {
+  SInterval interval = {};
+  interval.timezone = tz;
+  interval.intervalUnit = 's';
+  interval.slidingUnit = 's';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.interval = 8LL * 60 * 60 * 1000;
+  interval.sliding = 8LL * 60 * 60 * 1000;
+  interval.offset = AUTO_DURATION_VALUE;
+  interval.timeRange.skey = INT64_MIN;
+  interval.timeRange.ekey = INT64_MAX;
+
+  calcIntervalAutoOffset(&interval);
+  EXPECT_EQ(interval.offset, 0);
+}
+
+/**
+ * A normal bounded range still computes a valid offset in [0, sliding): the
+ * loop must keep working after the "no forward progress" guard was tightened
+ * to news <= start.
+ */
+TEST_F(TimeNaturalUnitsTest, AutoOffsetNormalRange) {
+  SInterval interval = {};
+  interval.timezone = tz;
+  interval.intervalUnit = 's';
+  interval.slidingUnit = 's';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.interval = 8LL * 60 * 60 * 1000;
+  interval.sliding = 8LL * 60 * 60 * 1000;
+  interval.offset = AUTO_DURATION_VALUE;
+  interval.timeRange.skey = makeTimestamp(2026, 3, 10, 15, 30, 0);
+  interval.timeRange.ekey = makeTimestamp(2026, 3, 20, 0, 0, 0);
+
+  calcIntervalAutoOffset(&interval);
+  EXPECT_GE(interval.offset, 0);
+  EXPECT_LT(interval.offset, interval.sliding);
+  // skey minus the offset must land on a sliding boundary aligned with skey.
+  EXPECT_LE(interval.timeRange.skey - interval.offset, interval.timeRange.skey);
+}
+
+/**
  * Performance test for alignToNaturalBoundary() function
  * Verify that the function executes in < 1ms on average (SC-006)
  */

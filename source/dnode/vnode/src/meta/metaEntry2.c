@@ -148,11 +148,11 @@ void metaFetchEntryFree(SMetaEntry **ppEntry) { metaCloneEntryFree(ppEntry); }
 
 // ============================================================================
 // txn.idx — small B+ tree tracking pending txn entries for O(k) startup rebuild
-// Key: uid (tb_uid_t).  Value: STxnIdxVal {txnId, txnStatus, txnPrevVer}.
+// Key: uid (tb_uid_t).  Value: STxnIdxVal {txnId, txnStatus, txnOrigVer}.
 // ============================================================================
 
-int32_t metaTxnIdxUpsert(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnPrevVer) {
-  STxnIdxVal val = {.txnId = txnId, .txnStatus = txnStatus, .txnPrevVer = txnPrevVer};
+int32_t metaTxnIdxUpsert(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer) {
+  STxnIdxVal val = {.txnId = txnId, .txnStatus = txnStatus, .txnOrigVer = txnOrigVer};
   // Serialize with concurrent vacuum-thread upsert/delete on pTxnIdx; without
   // this lock, btree corruption (e.g. invalid idx N, nCells N-1) can occur
   // when foreground CREATE and async vacuum-commit promote the same B+tree
@@ -302,7 +302,7 @@ int32_t metaScanTxnEntries(SMeta *pMeta, SArray **ppResult) {
         .uid = uid,
         .txnId = txnVal.txnId,
         .txnStatus = txnVal.txnStatus,
-        .txnPrevVer = txnVal.txnPrevVer,
+        .txnOrigVer = txnVal.txnOrigVer,
     };
     if (taosArrayPush(pResult, &scanEntry) == NULL) {
       tdbTbcClose(pCursor);

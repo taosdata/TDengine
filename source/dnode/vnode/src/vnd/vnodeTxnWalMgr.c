@@ -26,6 +26,7 @@
 //     producer put path, so no separate timer is needed.
 
 #include "tcommon.h"
+#include "tmsg.h"
 #include "vnd.h"
 #include "vnodeInt.h"
 #include "wal.h"
@@ -61,6 +62,178 @@ static void txnMgrFreeSlot(STxnCacheSlot *pSlot, STxnWalManager *pMgr) {
   taosMemoryFree(pSlot);
 }
 
+// Re-encode *pReq (already mutated in place) into a fresh SMsgHead-prefixed buffer, reusing
+// the original message's header bytes (vgId) and recomputing contLen. On success, stores the
+// buffer/length into ppNewBody/pNewBodyLen and sets *pCode = TSDB_CODE_SUCCESS; on failure
+// leaves ppNewBody untouched and sets *pCode to the real error (OOM, or the encoder's own
+// failure code). Shared by every case in txnMgrStripWireTxnId below — the encode function and
+// request type differ per msgType, so this stays a macro (like the codebase's own
+// tEncodeSize) rather than a function pointer.
+#define TXN_STRIP_FINISH(ENCODE_FUNC, PREQ, ORIG_BODY, PP_NEW_BODY, P_NEW_LEN, PCODE)                 \
+  do {                                                                                                \
+    int32_t newPayloadLen = 0, encRet = 0;                                                            \
+    tEncodeSize(ENCODE_FUNC, (PREQ), newPayloadLen, encRet);                                          \
+    if (encRet < 0) {                                                                                 \
+      *(PCODE) = TSDB_CODE_INVALID_MSG;                                                               \
+      break;                                                                                          \
+    }                                                                                                 \
+    int32_t newBodyLen = newPayloadLen + (int32_t)sizeof(SMsgHead);                                   \
+    void   *pNewBody = taosMemoryMalloc(newBodyLen);                                                  \
+    if (pNewBody == NULL) {                                                                           \
+      *(PCODE) = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;                                      \
+      break;                                                                                          \
+    }                                                                                                 \
+    memcpy(pNewBody, (ORIG_BODY), sizeof(SMsgHead));                                                  \
+    ((SMsgHead *)pNewBody)->contLen = htonl(newBodyLen);                                              \
+    SEncoder stripEncoder = {0};                                                                      \
+    tEncoderInit(&stripEncoder, (uint8_t *)POINTER_SHIFT(pNewBody, sizeof(SMsgHead)), newPayloadLen); \
+    int32_t encCode = ENCODE_FUNC(&stripEncoder, (PREQ));                                             \
+    tEncoderClear(&stripEncoder);                                                                     \
+    if (encCode == 0) {                                                                               \
+      *(PP_NEW_BODY) = pNewBody;                                                                      \
+      *(P_NEW_LEN) = newBodyLen;                                                                      \
+      *(PCODE) = TSDB_CODE_SUCCESS;                                                                   \
+    } else {                                                                                          \
+      taosMemoryFreeClear(pNewBody);                                                                  \
+      *(PCODE) = encCode;                                                                             \
+    }                                                                                                 \
+  } while (0)
+
+// CDC-cached DDL msgs are delivered to consumers as an already-atomic, already-committed
+// bundle (STxnWalManager only hands them out once TXN_COMMIT is seen). But the wire body
+// still carries the source vnode's batch txnId, which tells a receiving meta layer to mark
+// the entry PRE_CREATE/PRE_ALTER/PRE_DROP and defer the real effect until a matching
+// TXN_COMMIT arrives — a commit that, on a downstream consumer (taosX raw-write target,
+// tmq_write_raw, etc.), never comes. Strip the txnId here, once, at cache time, so replayed
+// DDL takes effect immediately wherever it lands.
+//
+// Returns TSDB_CODE_SUCCESS with *ppNewBody left NULL for msgTypes that don't carry this
+// field (nothing to strip, not an error). Returns TSDB_CODE_SUCCESS with *ppNewBody set to a
+// caller-owned buffer when stripping succeeded. Returns a non-zero TSDB error code — with
+// *ppNewBody left NULL — on decode/OOM/encode failure; the caller must not silently swallow
+// this, since falling back to the untouched (still txnId-tagged) body reproduces the very bug
+// this function exists to fix.
+static int32_t txnMgrStripWireTxnId(tmsg_t msgType, const void *body, int32_t bodyLen, void **ppNewBody,
+                                    int32_t *pNewBodyLen) {
+  *ppNewBody = NULL;
+
+  switch (msgType) {
+    case TDMT_VND_CREATE_STB:
+    case TDMT_VND_ALTER_STB:
+    case TDMT_VND_DROP_STB:
+    case TDMT_VND_ALTER_TABLE:
+    case TDMT_VND_CREATE_TABLE:
+    case TDMT_VND_DROP_TABLE:
+      break;
+    default:
+      return TSDB_CODE_SUCCESS;  // msgType doesn't carry a batch-txn txnId: nothing to do.
+  }
+
+  if (body == NULL || bodyLen < (int32_t)sizeof(SMsgHead)) return TSDB_CODE_INVALID_MSG;
+
+  const void *pPayload = POINTER_SHIFT(body, sizeof(SMsgHead));
+  int32_t     payloadLen = bodyLen - (int32_t)sizeof(SMsgHead);
+  SDecoder    decoder = {0};
+  int32_t     code = TSDB_CODE_SUCCESS;
+
+  switch (msgType) {
+    case TDMT_VND_CREATE_STB:
+    case TDMT_VND_ALTER_STB: {
+      SVCreateStbReq req = {0};
+      tDecoderInit(&decoder, (void *)pPayload, payloadLen);
+      code = tDecodeSVCreateStbReq(&decoder, &req);
+      if (code == 0) {
+        req.txnId = 0;
+        TXN_STRIP_FINISH(tEncodeSVCreateStbReq, &req, body, ppNewBody, pNewBodyLen, &code);
+      }
+      break;
+    }
+    case TDMT_VND_DROP_STB: {
+      SVDropStbReq req = {0};
+      tDecoderInit(&decoder, (void *)pPayload, payloadLen);
+      code = tDecodeSVDropStbReq(&decoder, &req);
+      if (code == 0) {
+        req.txnId = 0;
+        TXN_STRIP_FINISH(tEncodeSVDropStbReq, &req, body, ppNewBody, pNewBodyLen, &code);
+      }
+      break;
+    }
+    case TDMT_VND_ALTER_TABLE: {
+      SVAlterTbReq req = {0};
+      tDecoderInit(&decoder, (void *)pPayload, payloadLen);
+      code = tDecodeSVAlterTbReq(&decoder, &req);
+      if (code == 0) {
+        req.txnId = 0;
+        TXN_STRIP_FINISH(tEncodeSVAlterTbReq, &req, body, ppNewBody, pNewBodyLen, &code);
+        destroyAlterTbReq(&req);
+      }
+      break;
+    }
+    case TDMT_VND_CREATE_TABLE: {
+      // tDecodeSVCreateTbBatchReq fills the raw pReqs[] array, but tEncodeSVCreateTbBatchReq
+      // reads from the pArray union member (SArray*) — same pattern as tqAlterCreateTb()
+      // above: rebuild an SArray-backed request (shallow struct copies) before re-encoding.
+      SVCreateTbBatchReq req = {0}, reqNew = {0};
+      tDecoderInit(&decoder, (void *)pPayload, payloadLen);
+      code = tDecodeSVCreateTbBatchReq(&decoder, &req);
+      if (code == 0) {
+        reqNew.source = req.source;
+        reqNew.pArray = taosArrayInit(req.nReqs, sizeof(SVCreateTbReq));
+        if (reqNew.pArray == NULL) {
+          code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+        } else {
+          for (int32_t i = 0; i < req.nReqs; i++) {
+            req.pReqs[i].txnId = 0;
+            if (taosArrayPush(reqNew.pArray, &req.pReqs[i]) == NULL) {
+              code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+              break;
+            }
+            reqNew.nReqs++;
+          }
+          if (code == 0) {
+            TXN_STRIP_FINISH(tEncodeSVCreateTbBatchReq, &reqNew, body, ppNewBody, pNewBodyLen, &code);
+          }
+          taosArrayDestroy(reqNew.pArray);
+        }
+        tDeleteSVCreateTbBatchReq(&req);
+      }
+      break;
+    }
+    case TDMT_VND_DROP_TABLE: {
+      // Same pArray-vs-pReqs mismatch as the CREATE_TABLE batch case above.
+      SVDropTbBatchReq req = {0}, reqNew = {0};
+      tDecoderInit(&decoder, (void *)pPayload, payloadLen);
+      code = tDecodeSVDropTbBatchReq(&decoder, &req);
+      if (code == 0) {
+        reqNew.pArray = taosArrayInit(req.nReqs, sizeof(SVDropTbReq));
+        if (reqNew.pArray == NULL) {
+          code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+        } else {
+          for (int32_t i = 0; i < req.nReqs; i++) {
+            req.pReqs[i].txnId = 0;
+            if (taosArrayPush(reqNew.pArray, &req.pReqs[i]) == NULL) {
+              code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+              break;
+            }
+            reqNew.nReqs++;
+          }
+          if (code == 0) {
+            TXN_STRIP_FINISH(tEncodeSVDropTbBatchReq, &reqNew, body, ppNewBody, pNewBodyLen, &code);
+          }
+          taosArrayDestroy(reqNew.pArray);
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  tDecoderClear(&decoder);
+  return code;
+}
+#undef TXN_STRIP_FINISH
+
 // Core put implementation shared by producer and reload paths.
 // Returns TSDB_CODE_SUCCESS (0) on success, or a TSDB error code on failure.
 static int32_t txnMgrPutImpl(STxnWalManager *pMgr, txn_id_t txnId, int64_t walIndex, tmsg_t msgType, const void *body,
@@ -71,7 +244,7 @@ static int32_t txnMgrPutImpl(STxnWalManager *pMgr, txn_id_t txnId, int64_t walIn
   // Handle TXN_COMMIT / TXN_ROLLBACK first — no body to cache.
   if (msgType == TDMT_VND_TXN_COMMIT) {
     STxnCacheSlot **ppSlot = taosHashGet(pMgr->pTxnHash, &txnId, sizeof(txnId));
-    STxnCacheSlot  *pSlot  = ppSlot ? *ppSlot : NULL;
+    STxnCacheSlot  *pSlot = ppSlot ? *ppSlot : NULL;
     if (pSlot) {
       taosWLockLatch(&pSlot->slotLock);
       pSlot->committed = true;
@@ -85,10 +258,10 @@ static int32_t txnMgrPutImpl(STxnWalManager *pMgr, txn_id_t txnId, int64_t walIn
       pSlot = taosMemoryCalloc(1, sizeof(STxnCacheSlot));
       if (pSlot == NULL) return terrno;
       taosInitRWLatch(&pSlot->slotLock);
-      pSlot->txnId      = txnId;
-      pSlot->beginIndex  = -1;
+      pSlot->txnId = txnId;
+      pSlot->beginIndex = -1;
       pSlot->commitIndex = walIndex;
-      pSlot->committed   = true;
+      pSlot->committed = true;
       int32_t code = taosHashPut(pMgr->pTxnHash, &txnId, sizeof(txnId), &pSlot, sizeof(pSlot));
       if (code != 0) {
         taosMemoryFree(pSlot);
@@ -100,9 +273,9 @@ static int32_t txnMgrPutImpl(STxnWalManager *pMgr, txn_id_t txnId, int64_t walIn
   }
 
   if (msgType == TDMT_VND_TXN_ROLLBACK) {
-    int64_t        nowMs   = taosGetTimestampMs();
+    int64_t         nowMs = taosGetTimestampMs();
     STxnCacheSlot **ppSlot = taosHashGet(pMgr->pTxnHash, &txnId, sizeof(txnId));
-    STxnCacheSlot  *pSlot  = ppSlot ? *ppSlot : NULL;
+    STxnCacheSlot  *pSlot = ppSlot ? *ppSlot : NULL;
     if (pSlot) {
       taosWLockLatch(&pSlot->slotLock);
       txnMgrFreeSlotMsgs(pSlot, pMgr);  // free msgs immediately, keep slot as tombstone
@@ -119,9 +292,9 @@ static int32_t txnMgrPutImpl(STxnWalManager *pMgr, txn_id_t txnId, int64_t walIn
       pSlot = taosMemoryCalloc(1, sizeof(STxnCacheSlot));
       if (pSlot == NULL) return terrno;
       taosInitRWLatch(&pSlot->slotLock);
-      pSlot->txnId      = txnId;
-      pSlot->beginIndex  = -1;
-      pSlot->rolledBack  = true;
+      pSlot->txnId = txnId;
+      pSlot->beginIndex = -1;
+      pSlot->rolledBack = true;
       atomic_store_64(&pSlot->lastConsumeTs, nowMs);
       int32_t code = taosHashPut(pMgr->pTxnHash, &txnId, sizeof(txnId), &pSlot, sizeof(pSlot));
       if (code != 0) {
@@ -139,7 +312,7 @@ static int32_t txnMgrPutImpl(STxnWalManager *pMgr, txn_id_t txnId, int64_t walIn
   }
 
   STxnCacheSlot **ppSlot2 = taosHashGet(pMgr->pTxnHash, &txnId, sizeof(txnId));
-  STxnCacheSlot  *pSlot   = ppSlot2 ? *ppSlot2 : NULL;
+  STxnCacheSlot  *pSlot = ppSlot2 ? *ppSlot2 : NULL;
   if (pSlot == NULL) {
     // First message of this txn — create slot.
     pSlot = taosMemoryCalloc(1, sizeof(STxnCacheSlot));
@@ -159,22 +332,54 @@ static int32_t txnMgrPutImpl(STxnWalManager *pMgr, txn_id_t txnId, int64_t walIn
     }
   }
 
-  // If already rolled back, ignore further puts (can happen during reload).
+  // If already finalized (rolled back, or committed via the "incomplete tombstone"
+  // path above where pMsgs was never allocated), ignore further puts — can happen
+  // during reload, or when a stray/late meta msg for this txnId arrives after its
+  // own TXN_COMMIT was already processed. Without the `committed` check here, this
+  // falls through to taosArrayPush() below on a NULL pSlot->pMsgs and crashes.
   taosRLockLatch(&pSlot->slotLock);
   bool rolledBack = pSlot->rolledBack;
+  bool committed = pSlot->committed;
   taosRUnLockLatch(&pSlot->slotLock);
-  if (rolledBack) return TSDB_CODE_SUCCESS;
+  if (rolledBack || committed) return TSDB_CODE_SUCCESS;
+
+  // Strip the wire-embedded batch txnId before caching: consumers receive this msg only
+  // once the txn has already committed (see txnMgrConsumerGet), so it must take effect
+  // immediately wherever it's replayed, not wait for a PRE_ALTER/PRE_CREATE/PRE_DROP
+  // promotion that (outside this vnode) will never arrive.
+  //
+  // A non-zero return here is a real decode/OOM/encode failure, not "nothing to strip" (that
+  // case returns success with pStrippedBody left NULL). Do NOT fall back to caching the
+  // untouched body on error: that body still carries the batch txnId, which would silently
+  // reintroduce the exact stuck-PRE_ALTER bug this function exists to prevent. Fail the put
+  // instead so the error surfaces in the caller's log (vnodeSync.c already vErrors on a
+  // non-zero txnMgrProducerPut/txnMgrReloadPut return).
+  void   *pStrippedBody = NULL;
+  int32_t strippedLen = 0;
+  int32_t stripCode = txnMgrStripWireTxnId(msgType, body, bodyLen, &pStrippedBody, &strippedLen);
+  if (stripCode != TSDB_CODE_SUCCESS) {
+    vError("txnMgr: txnId=%" PRId64 " walIndex=%" PRId64 " msgType:%s failed to strip wire txnId: %s", txnId, walIndex,
+           TMSG_INFO(msgType), tstrerror(stripCode));
+    return stripCode;
+  }
+  bool        txnIdStripped = pStrippedBody != NULL;
+  const void *cacheBody = txnIdStripped ? pStrippedBody : body;
+  int32_t     cacheBodyLen = txnIdStripped ? strippedLen : bodyLen;
 
   // Allocate and copy: walIndex + msgType + txnId + raw RPC body.
-  SWalContCopy *pCopy = taosMemoryMalloc(sizeof(SWalContCopy) + bodyLen);
-  if (pCopy == NULL) return terrno;
+  SWalContCopy *pCopy = taosMemoryMalloc(sizeof(SWalContCopy) + cacheBodyLen);
+  if (pCopy == NULL) {
+    taosMemoryFreeClear(pStrippedBody);
+    return terrno;
+  }
   pCopy->walIndex = walIndex;
   pCopy->msgType = msgType;
   pCopy->txnId = txnId;
-  pCopy->bodyLen = bodyLen;
-  if (bodyLen > 0 && body != NULL) {
-    (void)memcpy(pCopy->body, body, bodyLen);
+  pCopy->bodyLen = cacheBodyLen;
+  if (cacheBodyLen > 0 && cacheBody != NULL) {
+    (void)memcpy(pCopy->body, cacheBody, cacheBodyLen);
   }
+  taosMemoryFreeClear(pStrippedBody);
 
   taosWLockLatch(&pSlot->slotLock);
   if (taosArrayPush(pSlot->pMsgs, &pCopy) == NULL) {
@@ -182,9 +387,9 @@ static int32_t txnMgrPutImpl(STxnWalManager *pMgr, txn_id_t txnId, int64_t walIn
     taosMemoryFree(pCopy);
     return terrno;
   }
-  pSlot->slotMemBytes += (int64_t)bodyLen;
+  pSlot->slotMemBytes += (int64_t)cacheBodyLen;
   taosWUnLockLatch(&pSlot->slotLock);
-  atomic_add_fetch_64(&pMgr->totalMemBytes, (int64_t)bodyLen);
+  atomic_add_fetch_64(&pMgr->totalMemBytes, (int64_t)cacheBodyLen);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -247,7 +452,7 @@ int32_t txnMgrConsumerGet(STxnWalManager *pMgr, txn_id_t txnId, int64_t nowMs, S
   if (pMgr == NULL || ppMsgs == NULL) return TSDB_CODE_VND_TXN_MSGS_NOT_READY;
 
   STxnCacheSlot **ppSlot = taosHashGet(pMgr->pTxnHash, &txnId, sizeof(txnId));
-  STxnCacheSlot  *pSlot  = ppSlot ? *ppSlot : NULL;
+  STxnCacheSlot  *pSlot = ppSlot ? *ppSlot : NULL;
   if (pSlot == NULL) {
     // Begin message was never cached (startup reload miss, eviction under memory pressure,
     // or post-snapshot state).  Consumer will retry up to TXN_NOT_READY_MAX_RETRIES times.
@@ -262,7 +467,7 @@ int32_t txnMgrConsumerGet(STxnWalManager *pMgr, txn_id_t txnId, int64_t nowMs, S
   // (set once at creation time), but rolledBack needs the slot lock for correctness.
   taosRLockLatch(&pSlot->slotLock);
   bool    isRolledBack = pSlot->rolledBack;
-  int64_t beginIndex   = pSlot->beginIndex;
+  int64_t beginIndex = pSlot->beginIndex;
   taosRUnLockLatch(&pSlot->slotLock);
 
   if (isRolledBack) {
@@ -275,9 +480,7 @@ int32_t txnMgrConsumerGet(STxnWalManager *pMgr, txn_id_t txnId, int64_t nowMs, S
   // beginIndex < 0: incomplete tombstone — COMMIT arrived before any meta msgs were cached.
   // WAL index 0 is valid; use -1 as the "not yet seen" sentinel.
   if (beginIndex < 0) {
-    vWarn("txnMgr: consumer TXN_COMMIT txnId=%" PRId64
-          " — incomplete tombstone (beginIndex=-1); slot unusable",
-          txnId);
+    vWarn("txnMgr: consumer TXN_COMMIT txnId=%" PRId64 " — incomplete tombstone (beginIndex=-1); slot unusable", txnId);
     return TSDB_CODE_VND_TXN_MSGS_NOT_READY;
   }
 
@@ -297,8 +500,8 @@ int32_t txnMgrConsumerGet(STxnWalManager *pMgr, txn_id_t txnId, int64_t nowMs, S
   ret = (*ppMsgs != NULL) ? (int32_t)taosArrayGetSize(*ppMsgs) : 0;
   taosRUnLockLatch(&pSlot->slotLock);
 
-  vDebug("txnMgr: consumer TXN_COMMIT txnId=%" PRId64
-         " — found in cache, beginIndex=%" PRId64 " cachedMsgs=%d rolledBack=%d",
+  vDebug("txnMgr: consumer TXN_COMMIT txnId=%" PRId64 " — found in cache, beginIndex=%" PRId64
+         " cachedMsgs=%d rolledBack=%d",
          txnId, pSlot->beginIndex, ret, (int)pSlot->rolledBack);
 
   return ret;
@@ -317,8 +520,8 @@ void txnMgrEvict(STxnWalManager *pMgr, int64_t nowMs) {
     STxnCacheSlot *pSlot = *(STxnCacheSlot **)pIter;
     // Snapshot slot state under read lock for the eviction eligibility check.
     taosRLockLatch(&pSlot->slotLock);
-    bool    committed   = pSlot->committed;
-    bool    rolledBack  = pSlot->rolledBack;
+    bool    committed = pSlot->committed;
+    bool    rolledBack = pSlot->rolledBack;
     int64_t lastConsume = atomic_load_64(&pSlot->lastConsumeTs);
     taosRUnLockLatch(&pSlot->slotLock);
     // Evict committed slots that have been idle long enough (consumer will lazy-load if needed).
@@ -334,9 +537,9 @@ void txnMgrEvict(STxnWalManager *pMgr, int64_t nowMs) {
 
   int32_t n = taosArrayGetSize(toDelete);
   for (int32_t i = 0; i < n; i++) {
-    txn_id_t      *pId = taosArrayGet(toDelete, i);
+    txn_id_t       *pId = taosArrayGet(toDelete, i);
     STxnCacheSlot **ppSlot = taosHashGet(pMgr->pTxnHash, pId, sizeof(*pId));
-    STxnCacheSlot  *pSlot  = ppSlot ? *ppSlot : NULL;
+    STxnCacheSlot  *pSlot = ppSlot ? *ppSlot : NULL;
     if (pSlot) {
       taosWLockLatch(&pSlot->slotLock);
       vDebug("txnMgr: evict txnId=%" PRId64 " slotMem=%" PRId64 " idle=%" PRId64 "ms", *pId, pSlot->slotMemBytes,
@@ -361,14 +564,14 @@ void txnMgrEvict(STxnWalManager *pMgr, int64_t nowMs) {
 // Callback for walTxnReadRange: feeds each .txn entry into the manager.
 // txnMgrReloadPut (via txnMgrPutImpl) already filters: handles IS_META_MSG,
 // TXN_COMMIT, TXN_ROLLBACK; silently ignores everything else.
-static int32_t txnMgrTxnReadCb(int64_t walIndex, tmsg_t msgType, txn_id_t txnId,
-                                const void *body, int32_t bodyLen, void *arg) {
+static int32_t txnMgrTxnReadCb(int64_t walIndex, tmsg_t msgType, txn_id_t txnId, const void *body, int32_t bodyLen,
+                               void *arg) {
   STxnWalManager *pMgr = (STxnWalManager *)arg;
   if (txnId == 0) return TSDB_CODE_SUCCESS;
   int32_t code = txnMgrReloadPut(pMgr, txnId, walIndex, msgType, body, bodyLen);
   if (code != 0) {
-    vError("txnMgr: txnMgrTxnReadCb failed walIndex:%" PRId64 " txnId:%" PRId64 " since %s",
-           walIndex, txnId, tstrerror(code));
+    vError("txnMgr: txnMgrTxnReadCb failed walIndex:%" PRId64 " txnId:%" PRId64 " since %s", walIndex, txnId,
+           tstrerror(code));
   }
   return code;
 }
@@ -492,4 +695,3 @@ void txnMgrRefreshWalKeepVersion(STxnWalManager *pMgr, SWal *pWal, SVnode *pVnod
     }
   }
 }
-

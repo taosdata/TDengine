@@ -56,6 +56,7 @@ int32_t syncBuildClientRequest(SRpcMsg* pMsg, const SRpcMsg* pOriginal, uint64_t
   pClientRequest->msgType = TDMT_SYNC_CLIENT_REQUEST;
   pClientRequest->originalRpcType = pOriginal->msgType;
   pClientRequest->seqNum = seqNum;
+  pClientRequest->txnId = pOriginal->info.txnId;  // propagate txnId into the raft proposal envelope
   pClientRequest->isWeak = isWeak;
   pClientRequest->dataLen = pOriginal->contLen;
   memcpy(pClientRequest->data, (char*)pOriginal->pCont, pOriginal->contLen);
@@ -77,6 +78,7 @@ int32_t syncBuildClientRequestFromNoopEntry(SRpcMsg* pMsg, const SSyncRaftEntry*
   pClientRequest->vgId = vgId;
   pClientRequest->msgType = TDMT_SYNC_CLIENT_REQUEST;
   pClientRequest->originalRpcType = TDMT_SYNC_NOOP;
+  pClientRequest->txnId = 0;  // NOOP entries never carry a user transaction
   pClientRequest->dataLen = pEntry->bytes;
   memcpy(pClientRequest->data, (char*)pEntry, pEntry->bytes);
 

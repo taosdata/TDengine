@@ -33,7 +33,8 @@ These tests go beyond "API can be called"; they validate the actual content
 of consumed messages and stream results against known expected values.
 """
 
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdCom, tdStream
+import ctypes
 import time
 import json
 
@@ -55,12 +56,43 @@ def _reset_db():
     tdSql.execute(f"use {DB}")
 
 
+def _get_json_meta_str(msg):
+    """Fetch the JSON meta description of a TMQ meta message (CREATE/ALTER/DROP
+    DDL) via the C API's tmq_get_json_meta().
+
+    The installed taos.tmq.Message class has no support for TMQ_RES_TABLE_META
+    results at all: Message.value()/__iter__ return None for them, and there is
+    no block.json() method anywhere in the module. Call the C function directly
+    (via the same libtaos handle the client already loaded) instead of relying
+    on a binding that doesn't exist. Returns None for data messages (or on any
+    failure), matching tmq_get_json_meta's own "null means not applicable/error"
+    contract.
+    """
+    try:
+        from taos.cinterface import _libtaos
+    except ImportError:
+        return None
+    try:
+        _libtaos.tmq_get_json_meta.restype = ctypes.c_void_p
+        _libtaos.tmq_get_json_meta.argtypes = [ctypes.c_void_p]
+        _libtaos.tmq_free_json_meta.argtypes = [ctypes.c_void_p]
+        ptr = _libtaos.tmq_get_json_meta(msg.msg)
+        if not ptr:
+            return None
+        try:
+            return ctypes.cast(ptr, ctypes.c_char_p).value.decode("utf-8", errors="replace")
+        finally:
+            _libtaos.tmq_free_json_meta(ptr)
+    except Exception:
+        return None
+
+
 def _poll_all(consumer, timeout_s=8):
     """Drain all available messages from the consumer within timeout_s seconds.
 
     Returns a list of dict with keys:
-      'repr'   – repr(block) string for name-based inspection
-      'json'   – JSON dict if block.json() is available, else None
+      'repr'   – repr(block)/JSON-meta text string for name-based inspection
+      'json'   – parsed JSON dict when available, else None
 
     Stops as soon as two consecutive 1-second polls return nothing.
     """
@@ -79,6 +111,19 @@ def _poll_all(consumer, timeout_s=8):
             empty_rounds += 1
             continue
         empty_rounds = 0
+
+        # TMQ meta messages (DDL) — value()/__iter__ don't work for these in
+        # this client, fetch the JSON meta description directly instead.
+        meta_text = _get_json_meta_str(msg)
+        if meta_text is not None:
+            entry = {"repr": meta_text, "json": None}
+            try:
+                entry["json"] = json.loads(meta_text)
+            except Exception:
+                pass
+            collected.append(entry)
+            continue
+
         try:
             for block in msg:
                 entry = {"repr": repr(block), "json": None}
@@ -156,6 +201,7 @@ class TestTxnConsumerDataCorrectness:
 
     def setup_class(cls):
         tdLog.debug("start to execute %s" % __file__)
+        tdStream.ensureSnode(1)
 
     # ─────────────────────────────────────────────────────────────────────
     # Part A: TMQ meta consumer
@@ -499,12 +545,13 @@ class TestTxnConsumerDataCorrectness:
         tdSql.execute(f"DROP STREAM IF EXISTS {STREAM}")
         tdSql.execute(f"DROP TABLE  IF EXISTS {STREAM_RESULT}")
         tdSql.execute(
-            f"CREATE STREAM {STREAM} TRIGGER AT_ONCE "
-            f"INTO {STREAM_RESULT} AS "
-            f"SELECT _wstart, tbname, first(score) AS first_score "
+            f"CREATE STREAM {STREAM} INTERVAL(1s) SLIDING(1s) "
             f"FROM {DB}.stb_b1 "
             f"PARTITION BY tbname "
-            f"INTERVAL(1s)"
+            f"STREAM_OPTIONS(FILL_HISTORY('2025-01-01 00:00:00')) "
+            f"INTO {STREAM_RESULT} AS "
+            f"SELECT _twstart, %%tbname AS src_tbname, first(score) AS first_score "
+            f"FROM %%trows"
         )
         tdLog.info("sB1: STREAM created")
 
@@ -528,12 +575,12 @@ class TestTxnConsumerDataCorrectness:
         tdSql.execute(f"INSERT INTO ct_b1_east  VALUES ('{t0}', 30)")
         tdLog.info("sB1: inserted score 10/20/30 into north/south/east")
 
-        # Step 5: Wait for stream to process (up to 20s)
+        # Step 5: Wait for stream to process (up to 20s).
         rows_ready = False
         for _ in range(20):
             time.sleep(1)
             try:
-                tdSql.query(f"SELECT tbname, first_score FROM {DB}.{STREAM_RESULT} ORDER BY tbname")
+                tdSql.query(f"SELECT src_tbname, first_score FROM {DB}.{STREAM_RESULT} ORDER BY src_tbname")
                 if tdSql.queryRows == 3:
                     rows_ready = True
                     break
@@ -544,7 +591,7 @@ class TestTxnConsumerDataCorrectness:
             f"sB1: stream result has {tdSql.queryRows} rows after 20s; "
             f"expected 3 (one per CTB created via batch txn)"
         )
-        tdLog.info(f"sB1: stream result has 3 rows — completeness OK")
+        tdLog.info(f"sB1: stream result has {tdSql.queryRows} rows — completeness OK")
 
         # Step 6: Verify exact score values
         result = {}
@@ -597,12 +644,13 @@ class TestTxnConsumerDataCorrectness:
         tdSql.execute(f"DROP STREAM IF EXISTS {STREAM}")
         tdSql.execute(f"DROP TABLE  IF EXISTS {STREAM_RESULT}")
         tdSql.execute(
-            f"CREATE STREAM {STREAM} TRIGGER AT_ONCE "
-            f"INTO {STREAM_RESULT} AS "
-            f"SELECT _wstart, tbname, first(v) AS first_v "
+            f"CREATE STREAM {STREAM} INTERVAL(1s) SLIDING(1s) "
             f"FROM {DB}.stb_b2 "
             f"PARTITION BY tbname "
-            f"INTERVAL(1s)"
+            f"STREAM_OPTIONS(FILL_HISTORY('2025-01-01 00:00:00')) "
+            f"INTO {STREAM_RESULT} AS "
+            f"SELECT _twstart, %%tbname AS src_tbname, first(v) AS first_v "
+            f"FROM %%trows"
         )
 
         # Commit 2 CTBs
@@ -645,7 +693,7 @@ class TestTxnConsumerDataCorrectness:
             time.sleep(1)
             try:
                 tdSql.query(
-                    f"SELECT tbname, first_v FROM {DB}.{STREAM_RESULT} ORDER BY tbname"
+                    f"SELECT src_tbname, first_v FROM {DB}.{STREAM_RESULT} ORDER BY src_tbname"
                 )
                 if tdSql.queryRows == 2:
                     rows_ready = True
@@ -700,12 +748,13 @@ class TestTxnConsumerDataCorrectness:
         tdSql.execute(f"DROP STREAM IF EXISTS {STREAM}")
         tdSql.execute(f"DROP TABLE  IF EXISTS {STREAM_RESULT}")
         tdSql.execute(
-            f"CREATE STREAM {STREAM} TRIGGER AT_ONCE "
-            f"INTO {STREAM_RESULT} AS "
-            f"SELECT _wstart, tbname, first(score) AS first_score "
+            f"CREATE STREAM {STREAM} INTERVAL(1s) SLIDING(1s) "
             f"FROM {DB}.stb_b3 "
             f"PARTITION BY tbname "
-            f"INTERVAL(1s)"
+            f"STREAM_OPTIONS(FILL_HISTORY('2025-01-01 00:00:00')) "
+            f"INTO {STREAM_RESULT} AS "
+            f"SELECT _twstart, %%tbname AS src_tbname, first(score) AS first_score "
+            f"FROM %%trows"
         )
 
         # Commit N CTBs in a single transaction
@@ -730,7 +779,7 @@ class TestTxnConsumerDataCorrectness:
             time.sleep(1)
             try:
                 tdSql.query(
-                    f"SELECT tbname, first_score FROM {DB}.{STREAM_RESULT} ORDER BY tbname"
+                    f"SELECT src_tbname, first_score FROM {DB}.{STREAM_RESULT} ORDER BY src_tbname"
                 )
                 if tdSql.queryRows == N:
                     rows_ready = True

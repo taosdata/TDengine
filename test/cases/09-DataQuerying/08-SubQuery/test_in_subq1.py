@@ -89,7 +89,7 @@ class TestInSubQuery1:
         "(select f1 from {tableName} union select f1 from {tableName})",
         "(select f1 from {tableName} union all select f1 from {tableName})",
         "(select (select f1 from {tableName}) from {tableName})",
-        "(select diff(f1) from {tableName})",
+        "(select distinct * from {tableName})",
         "(select * from (select f1 from {tableName} where f1 > (select 1 from {tableName})) as subq)",
     ]
 

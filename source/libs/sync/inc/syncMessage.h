@@ -45,6 +45,7 @@ typedef struct SyncClientRequest {
   uint32_t msgType;          // TDMT_SYNC_CLIENT_REQUEST
   uint32_t originalRpcType;  // origin RpcMsg msgType
   uint64_t seqNum;
+  int64_t  txnId;  // batch-meta-txn: copied from origin RpcMsg.info.txnId; 0 = non-transaction
   bool     isWeak;
   int16_t  reserved;
   uint32_t dataLen;  // origin RpcMsg.contLen
