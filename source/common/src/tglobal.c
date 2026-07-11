@@ -338,7 +338,7 @@ bool    tmqWriteCheckRef = false;
 
 // query
 int32_t tsQueryPolicy = 1;
-int32_t tsAuthMech = TSDB_AUTH_MECH_AUTO;  // client auth: 0 auto / 1 scram / 2 legacy
+int32_t tsAuthMech = TSDB_AUTH_MECH_LEGACY;  // client auth: 0 auto / 1 scram / 2 legacy
 bool    tsQueryTbNotExistAsEmpty = false;
 int32_t tsQueryRspPolicy = 0;
 int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
