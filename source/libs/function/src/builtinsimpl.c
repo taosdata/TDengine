@@ -17,6 +17,7 @@
 #include "cJSON.h"
 #include "decimal.h"
 #include "function.h"
+#include "functionMgt.h"
 #include "functionResInfoInt.h"
 #include "geosWrapper.h"
 #include "query.h"
@@ -358,7 +359,6 @@ bool funcInputGetNextRowAscPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow) {
       while (pIter->tsList[idx] == pIter->prevBlockTsEnd) {
         ++idx;
       }
-
       pIter->hasPrev = false;
       setInputRowInfo(pRow, pIter, idx, true);
       forwardToNextDiffTsRow(pIter, idx);
@@ -5157,12 +5157,12 @@ int32_t doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSD
       }
     }
 #ifdef BUF_PAGE_DEBUG
-    qDebug("page_saveTuple i:%d, item:%p,pageId:%d, offset:%d\n", pEntryInfo->numOfRes, pItem, pItem->tuplePos.pageId,
-           pItem->tuplePos.offset);
+    qDebug("page_saveTuple i:%" PRIu64 ", item:%p,pageId:%d, offset:%d\n", pEntryInfo->numOfRes, pItem,
+           pItem->tuplePos.pageId, pItem->tuplePos.offset);
 #endif
     // allocate the buffer and keep the data of this row into the new allocated buffer
     pEntryInfo->numOfRes++;
-    code = taosheapsort((void*)pItems, sizeof(STopBotResItem), pEntryInfo->numOfRes, (const void*)&type,
+    code = taosheapsort((void*)pItems, sizeof(STopBotResItem), (int32_t)pEntryInfo->numOfRes, (const void*)&type,
                         topBotResComparFn, !isTopQuery);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -5191,7 +5191,8 @@ int32_t doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSD
 #ifdef BUF_PAGE_DEBUG
       qDebug("page_copyTuple pageId:%d, offset:%d", pItem->tuplePos.pageId, pItem->tuplePos.offset);
 #endif
-      code = taosheapadjust((void*)pItems, sizeof(STopBotResItem), 0, pEntryInfo->numOfRes - 1, (const void*)&type,
+      code = taosheapadjust((void*)pItems, sizeof(STopBotResItem), 0, (int32_t)pEntryInfo->numOfRes - 1,
+                            (const void*)&type,
                             topBotResComparFn, NULL, !isTopQuery);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -5427,7 +5428,7 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     code = setSelectivityValue(pCtx, pBlock, &pRes->nullTuplePos, currentRow);
     return code;
   }
-  for (int32_t i = 0; i < pEntryInfo->numOfRes; ++i) {
+  for (uint64_t i = 0; i < pEntryInfo->numOfRes; ++i) {
     STopBotResItem* pItem = &pRes->pItems[i];
     code = colDataSetVal(pCol, currentRow, (const char*)&pItem->v.i, false);
     if (TSDB_CODE_SUCCESS != code) {
@@ -5461,7 +5462,7 @@ int32_t addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t typ
     pItem->tuplePos.pageId = -1;
     replaceTupleData(&pItem->tuplePos, &pSourceItem->tuplePos);
     pEntryInfo->numOfRes++;
-    code = taosheapsort((void*)pItems, sizeof(STopBotResItem), pEntryInfo->numOfRes, (const void*)&type,
+    code = taosheapsort((void*)pItems, sizeof(STopBotResItem), (int32_t)pEntryInfo->numOfRes, (const void*)&type,
                         topBotResComparFn, !isTopQuery);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
@@ -5482,7 +5483,8 @@ int32_t addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t typ
 
       // save the data of this tuple by over writing the old data
       replaceTupleData(&pItem->tuplePos, &pSourceItem->tuplePos);
-      code = taosheapadjust((void*)pItems, sizeof(STopBotResItem), 0, pEntryInfo->numOfRes - 1, (const void*)&type,
+      code = taosheapadjust((void*)pItems, sizeof(STopBotResItem), 0, (int32_t)pEntryInfo->numOfRes - 1,
+                            (const void*)&type,
                             topBotResComparFn, NULL, !isTopQuery);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
@@ -5497,7 +5499,7 @@ int32_t topCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   STopBotRes*          pSBuf = getTopBotOutputInfo(pSourceCtx);
   int16_t              type = pSBuf->type;
   int32_t              code = TSDB_CODE_SUCCESS;
-  for (int32_t i = 0; i < pSResInfo->numOfRes; i++) {
+  for (uint64_t i = 0; i < pSResInfo->numOfRes; ++i) {
     code = addResult(pDestCtx, pSBuf->pItems + i, type, true);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
@@ -5511,7 +5513,7 @@ int32_t bottomCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   STopBotRes*          pSBuf = getTopBotOutputInfo(pSourceCtx);
   int16_t              type = pSBuf->type;
   int32_t              code = TSDB_CODE_SUCCESS;
-  for (int32_t i = 0; i < pSResInfo->numOfRes; i++) {
+  for (uint64_t i = 0; i < pSResInfo->numOfRes; ++i) {
     code = addResult(pDestCtx, pSBuf->pItems + i, type, false);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
@@ -6230,7 +6232,7 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   if (pInfo->normalized) {
-    for (int32_t k = 0; k < pResInfo->numOfRes; ++k) {
+    for (uint64_t k = 0; k < pResInfo->numOfRes; ++k) {
       if (pInfo->totalCount != 0) {
         pInfo->bins[k].percentage = pInfo->bins[k].count / (double)pInfo->totalCount;
       } else {
@@ -6239,7 +6241,7 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     }
   }
 
-  for (int32_t i = 0; i < pResInfo->numOfRes; ++i) {
+  for (uint64_t i = 0; i < pResInfo->numOfRes; ++i) {
     int32_t len;
     char    buf[512] = {0};
     if (!pInfo->normalized) {
@@ -7230,7 +7232,7 @@ int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   // sort retained items by timestamp ascending for final output
   taosqsort(pInfo->pItems, pInfo->numAdded, POINTER_BYTES, NULL, tailCompFn);
 
-  for (int32_t i = 0; i < pEntryInfo->numOfRes; ++i) {
+  for (uint64_t i = 0; i < pEntryInfo->numOfRes; ++i) {
     STailItem* pItem = pInfo->pItems[i];
     code = colDataSetVal(pCol, currentRow, pItem->data, pItem->isNull);
     if (TSDB_CODE_SUCCESS != code) return code;
