@@ -125,12 +125,16 @@ int32_t mndInitProfile(SMnode *pMnode) {
   }
 
 #ifdef USE_LIBGSASL
-  TAOS_CHECK_RETURN(mndSaslInit(pMnode));
+  if (tsForceScram) {
+    TAOS_CHECK_RETURN(mndSaslInit(pMnode));
+  }
 #endif
 
   mndSetMsgHandle(pMnode, TDMT_MND_HEARTBEAT, mndProcessHeartBeatReq);
   mndSetMsgHandle(pMnode, TDMT_MND_CONNECT, mndProcessConnectReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_AUTH_SASL, mndProcessSaslStepReq);
+  if (tsForceScram) {
+    mndSetMsgHandle(pMnode, TDMT_MND_AUTH_SASL, mndProcessSaslStepReq);
+  }
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_QUERY, mndProcessKillQueryReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_CONN, mndProcessKillConnReq);
   mndSetMsgHandle(pMnode, TDMT_MND_SERVER_VERSION, mndProcessSvrVerReq);
@@ -148,7 +152,9 @@ int32_t mndInitProfile(SMnode *pMnode) {
 void mndCleanupProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 #ifdef USE_LIBGSASL
-  mndSaslCleanup(pMnode);
+  if (tsForceScram) {
+    mndSaslCleanup(pMnode);
+  }
 #endif
   if (pMgmt->connCache != NULL) {
     taosCacheCleanup(pMgmt->connCache);
@@ -664,9 +670,8 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
   SLoginInfo li = {0};
   mndGetUserLoginInfo(user, &li);
   TAOS_CHECK_GOTO(mndCheckConnectPrivilege(pMnode, pUser, token, &li), &lino, _OVER);
-
   bool saslAuthed = false;
-  if (connReq.saslToken[0] != 0) {
+  if (tsForceScram && connReq.saslToken[0] != 0) {
     int32_t saslCode = mndConsumeSaslToken(pMnode, user, connReq.saslToken);
     if (saslCode == 0) {
       saslAuthed = true;
