@@ -206,7 +206,7 @@ _return:
 
 int32_t ctgMetaRentGet(SCtgRentMgmt *mgmt, void **res, uint32_t *num, int32_t size) {
   while (true) {
-    int64_t msec = taosGetTimestampMs();
+    int64_t msec = taosGetMonoTimestampMs();
     int64_t lsec = atomic_load_64(&mgmt->lastReadMsec);
     if ((msec - lsec) < CTG_RENT_SLOT_SECOND * 1000) {
       *res = NULL;

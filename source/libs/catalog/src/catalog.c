@@ -790,6 +790,28 @@ _return:
 }
 
 
+static void ctgResetCacheTimerImpl(void) {
+  if (atomic_load_8((int8_t *)&gCtgMgmt.exit)) {
+    qDebug("catalog is exiting, skip reset cache monitor timer");
+    return;
+  }
+
+  if (NULL == gCtgMgmt.timer) {
+    qDebug("catalog timer is null, skip reset cache monitor timer");
+    return;
+  }
+
+  if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
+    qError("reset catalog cache monitor timer error, timer stoppped");
+  }
+}
+
+void ctgResetCacheTimer(void) {
+  CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
+  ctgResetCacheTimerImpl();
+  CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+}
+
 void ctgProcessTimerEvent(void *param, void *tmrId) {
   CTG_API_NENTER();
 
@@ -808,9 +830,7 @@ void ctgProcessTimerEvent(void *param, void *tmrId) {
       int32_t code = ctgClearCacheEnqueue(NULL, true, false, false, false);
       if (code) {
         qError("clear cache enqueue failed, error:%s", tstrerror(code));
-        if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
-          qError("reset catalog cache monitor timer error, timer stoppped");
-        }
+        ctgResetCacheTimerImpl();
       }
 
       goto _return;
@@ -818,9 +838,11 @@ void ctgProcessTimerEvent(void *param, void *tmrId) {
   }
 
   qTrace("reset catalog timer");
-  if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
-    qError("reset catalog cache monitor timer error, timer stoppped");
+  if (atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
+    goto _return;
   }
+
+  ctgResetCacheTimerImpl();
 
 _return:
 
@@ -2486,25 +2508,40 @@ void catalogDestroy(void) {
     return;
   }
 
+  atomic_store_8((int8_t*)&gCtgMgmt.exit, true);
+
+  /*
+   * Drain catalog readers that entered before exit was set.  In particular,
+   * ctgResetCacheTimer() may already have passed its exit check and be about
+   * to re-arm the timer; this barrier lets those old readers finish before we
+   * stop and clean up the timer handle.
+   */
+  CTG_LOCK(CTG_WRITE, &gCtgMgmt.lock);
+  CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.lock);
+
   if (gCtgMgmt.cacheTimer) {
-    if (!taosTmrStop(gCtgMgmt.cacheTimer)) {
-/*
-      qDebug("catalog cacheTimer %" PRIuPTR " not stopped", (uintptr_t)gCtgMgmt.cacheTimer);
-    
-      while (!taosTmrIsStopped(&gCtgMgmt.cacheTimer)) {
-        taosMsleep(1);
-      }
-*/
+    tmr_h cacheTimer = gCtgMgmt.cacheTimer;
+    gCtgMgmt.cacheTimer = NULL;
+    if (!taosTmrStop(cacheTimer)) {
+      qDebug("catalog cacheTimer %" PRIuPTR " already executing or stopped", (uintptr_t)cacheTimer);
     }
 
-    qDebug("catalog cacheTimer %" PRIuPTR " is stopped", (uintptr_t)gCtgMgmt.cacheTimer);
-    gCtgMgmt.cacheTimer = NULL;
-    
+    qDebug("catalog cacheTimer %" PRIuPTR " stop requested", (uintptr_t)cacheTimer);
+  }
+
+  /*
+   * taosTmrStop() does not wait for callbacks that have already been dispatched
+   * or are executing.  Take the catalog write lock once more so any such
+   * callback that entered ctgProcessTimerEvent() has left the catalog cache
+   * critical section before cache objects are freed below.
+   */
+  CTG_LOCK(CTG_WRITE, &gCtgMgmt.lock);
+  CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.lock);
+
+  if (gCtgMgmt.timer) {
     taosTmrCleanUp(gCtgMgmt.timer);
     gCtgMgmt.timer = NULL;
   }
-
-  atomic_store_8((int8_t*)&gCtgMgmt.exit, true);
 
   if (!taosCheckCurrentInDll()) {
     (void)ctgClearCacheEnqueue(NULL, false, true, true, true);
