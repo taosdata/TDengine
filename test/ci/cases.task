@@ -1329,7 +1329,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_cloud_compatible.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_crypted_pass.py
 # [disabled 2026-07-10 concurrent-test-failures]
-#,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_manager.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_manager.py
 # [end disabled 2026-07-10]
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_password.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_passver_kick.py
@@ -1339,8 +1339,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_table.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_topic.py
 # [disabled 2026-07-10 concurrent-test-failures]
-#,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token.py
-#,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
 # [end disabled 2026-07-10]
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py
 #,,y,.,./ci/pytest.sh pytest cases/24-Users/test_query_phase_tracking.py
@@ -1413,7 +1413,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_CVE-2023-38502.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_plaintext_check.py
 # [disabled 2026-07-10 concurrent-test-failures]
-#,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_ddos_defense.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/10-SecurityTest/test_ddos_defense.py
 # [end disabled 2026-07-10]
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/11-SQLFireWall/test_sql_blacklist.py
 #,,y,.,./ci/pytest.sh pytest cases/31-Security/11-SQLFireWall/test_sql_whitelist.py
@@ -1534,7 +1534,7 @@
 
 ## 02-Taos
 # [disabled 2026-07-10 concurrent-test-failures]
-#,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
 # [end disabled 2026-07-10]
 ,,n,.,pytest cases/81-Tools/02-Taos/test_tool_cmdline.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell.py

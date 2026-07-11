@@ -1064,7 +1064,9 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.passwords[0].pass);
   userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
   // derive SCRAM credentials from the hashed password before it is (optionally) encrypted at rest
-  mndGenScramCred(userObj.passwords[0].pass, &userObj.scram);
+  if (tsForceScram) {
+    mndGenScramCred(userObj.passwords[0].pass, &userObj.scram);
+  }
   if (strlen(tsDataKey) > 0) {
     generateSalt(userObj.salt, sizeof(userObj.salt));
     TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino,
@@ -3084,10 +3086,12 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     generateSalt(userObj.salt, sizeof(userObj.salt));
     memcpy(userObj.passwords[0].pass, pCreate->pass, sizeof(userObj.passwords[0].pass));
     userObj.passwords[0].pass[sizeof(userObj.passwords[0].pass) - 1] = 0;
-    if (pCreate->scram.algo == TSDB_SCRAM_ALGO_SHA256) {
-      userObj.scram = pCreate->scram;
-    } else {
-      mndGenScramCred(userObj.passwords[0].pass, &userObj.scram);
+    if (tsForceScram) {
+      if (pCreate->scram.algo == TSDB_SCRAM_ALGO_SHA256) {
+        userObj.scram = pCreate->scram;
+      } else {
+        mndGenScramCred(userObj.passwords[0].pass, &userObj.scram);
+      }
     }
     if (strlen(tsDataKey) > 0) {
       TAOS_CHECK_GOTO(mndEncryptPass(userObj.passwords[0].pass, userObj.salt, &userObj.passEncryptAlgorithm), &lino, _OVER);
@@ -4485,10 +4489,12 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
     char pass[TSDB_PASSWORD_LEN] = {0};
     memcpy(pass, pAlterReq->pass, sizeof(pass));
     pass[sizeof(pass) - 1] = 0;
-    if (pAlterReq->scram.algo == TSDB_SCRAM_ALGO_SHA256) {
-      newUser.scram = pAlterReq->scram;
-    } else {
-      mndGenScramCred(pass, &newUser.scram);
+    if (tsForceScram) {
+      if (pAlterReq->scram.algo == TSDB_SCRAM_ALGO_SHA256) {
+        newUser.scram = pAlterReq->scram;
+      } else {
+        mndGenScramCred(pass, &newUser.scram);
+      }
     }
     if (strlen(tsDataKey) > 0) {
       TAOS_CHECK_GOTO(mndEncryptPass(pass, newUser.salt, &newUser.passEncryptAlgorithm), &lino, _OVER);
