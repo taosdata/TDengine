@@ -9,6 +9,14 @@ Covers:
 - P4 Task 4.4: WEEK/WEEKOFYEAR respect firstDayOfWeek; DAYOFWEEK/WEEKDAY unchanged
 - DST edge cases: spring-forward gap, fall-back overlap, write-path regression
 - Timestamp arithmetic: ts + 1d/1w/1n/1q/1y preserves wall-clock time across DST
+- TO_TIMESTAMP: tz-less strings parse in connection timezone (L2); embedded
+  offset overrides
+- DATE: fixed instant formats in connection timezone (L2); tz-less string is
+  tz-independent
+- TO_UNIXTIMESTAMP: tz-less strings parse in connection timezone (L2); embedded
+  offset overrides
+- DAYOFWEEK/WEEKDAY/WEEK/WEEKOFYEAR: fixed instant resolves the local calendar
+  in the connection timezone (L2)
 """
 
 import pytest
@@ -1991,6 +1999,353 @@ class _ToIso8601SessionVsParamMixin:
         self.check_param_utc_prefix_zero()
 
 
+class _ToTimestampTzMixin:
+    """TO_TIMESTAMP parses timezone-less strings in the connection timezone.
+
+    A string literal without an embedded offset is parsed in the current
+    connection timezone (L2 SET TIMEZONE), so the same literal maps to
+    different UTC instants under different timezones. An offset embedded in
+    the string overrides the connection timezone.
+    """
+
+    def _setup_to_timestamp_tz_case(self):
+        tdLog.debug(f"start to execute {__file__}")
+
+    def _parsed_utc_wall_clock(self, ts_str, fmt):
+        """Parse ts_str and render the resulting instant as UTC wall-clock.
+
+        Rendering in UTC makes the timezone used for parsing observable,
+        independent of the current display timezone.
+        """
+        tdSql.query(
+            f"select to_char(to_timestamp('{ts_str}', '{fmt}'), "
+            f"'YYYY-MM-DD HH24:MI:SS', 'UTC')"
+        )
+        return tdSql.queryResult[0][0]
+
+    def check_to_timestamp_no_offset_uses_l2(self):
+        """A tz-less literal is parsed in the connection timezone (L2)."""
+        fmt = 'yyyy-mm-dd hh24:mi:ss'
+        # Only no-DST zones: parsing resolves the standard offset, so a DST
+        # zone like America/New_York would use its winter offset here.
+        cases = [
+            ('UTC',           '2023-10-10 10:10:10'),  # +00:00
+            ('Asia/Shanghai', '2023-10-10 02:10:10'),  # +08:00
+            ('Asia/Kolkata',  '2023-10-10 04:40:10'),  # +05:30
+        ]
+        for tz, expected_utc in cases:
+            tdSql.execute(f"SET TIMEZONE '{tz}'")
+            result = self._parsed_utc_wall_clock('2023-10-10 10:10:10', fmt)
+            assert expected_utc in result, (
+                f"tz={tz}: expected UTC {expected_utc}, got {result}"
+            )
+
+    def check_to_timestamp_different_l2_differs(self):
+        """Same tz-less literal maps to different instants under different L2."""
+        fmt = 'yyyy-mm-dd hh24:mi:ss'
+        tdSql.execute("SET TIMEZONE 'UTC'")
+        r_utc = self._parsed_utc_wall_clock('2023-10-10 10:10:10', fmt)
+        tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
+        r_sh = self._parsed_utc_wall_clock('2023-10-10 10:10:10', fmt)
+        assert r_utc != r_sh, \
+            f"UTC vs Shanghai parse should differ: {r_utc} vs {r_sh}"
+
+    def check_to_timestamp_embedded_offset_overrides_l2(self):
+        """An offset embedded in the string overrides the connection tz."""
+        fmt = 'yyyy-mm-dd hh24:mi:ssTZH'
+        results = []
+        for tz in ['UTC', 'Asia/Shanghai', 'Asia/Kolkata']:
+            tdSql.execute(f"SET TIMEZONE '{tz}'")
+            r = self._parsed_utc_wall_clock('2023-10-10 10:10:10+00', fmt)
+            results.append(r)
+            assert '2023-10-10 10:10:10' in r, \
+                f"tz={tz}: embedded +00 should force UTC, got {r}"
+        assert len(set(results)) == 1, \
+            f"embedded offset should be tz-independent: {results}"
+
+    def test_to_timestamp_connection_tz(self):
+        """summary: TO_TIMESTAMP parses tz-less strings in the connection timezone.
+
+        description: A string literal without an embedded offset is parsed in
+            the current connection timezone (L2 SET TIMEZONE), so the same
+            literal maps to different UTC instants under different timezones.
+            An offset embedded in the string overrides the connection timezone.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-07-10: Tony Zhang created
+
+        """
+        self._setup_to_timestamp_tz_case()
+        self.check_to_timestamp_no_offset_uses_l2()
+        self.check_to_timestamp_different_l2_differs()
+        self.check_to_timestamp_embedded_offset_overrides_l2()
+
+
+class _DateTzMixin:
+    """DATE renders a fixed instant's date in the connection timezone.
+
+    DATE(expr) formats its result in the current connection timezone (L2), so
+    a fixed instant near a day boundary yields different dates under different
+    SET TIMEZONE. A tz-less string input is both parsed and formatted in the
+    connection timezone, so the two cancel and the date is tz-independent.
+    """
+
+    def _setup_date_tz_case(self):
+        tdLog.debug(f"start to execute {__file__}")
+        self.dbname = 'db_tz_date'
+        self.ntbname = f'{self.dbname}.ntb'
+
+    def _prepare_date_tz_data(self):
+        tdSql.execute(f'create database if not exists {self.dbname}')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'drop table if exists {self.ntbname}')
+        tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
+        # 2023-10-10 22:00:00 UTC, written with an explicit offset so the
+        # stored instant is fixed regardless of the session timezone.
+        tdSql.execute(
+            f"insert into {self.ntbname} values "
+            f"('2023-10-10T22:00:00+00:00', 1)"
+        )
+
+    def check_date_fixed_instant_uses_l2_scalar(self):
+        """date() of a fixed instant (offset string) formats in connection tz."""
+        cases = [
+            ('UTC',           '2023-10-10'),
+            ('Asia/Shanghai', '2023-10-11'),  # 06:00 next local day
+        ]
+        for tz, expected in cases:
+            tdSql.execute(f"SET TIMEZONE '{tz}'")
+            tdSql.query("select date('2023-10-10T22:00:00+00:00')")
+            assert tdSql.queryResult[0][0] == expected, \
+                f"tz={tz}: expected {expected}, got {tdSql.queryResult[0][0]}"
+
+    def check_date_fixed_instant_uses_l2_column(self):
+        """date(ts) of a stored fixed instant formats in connection tz."""
+        self._prepare_date_tz_data()
+        tdSql.execute("SET TIMEZONE 'UTC'")
+        tdSql.query(f"select date(ts) from {self.ntbname}")
+        assert tdSql.queryResult[0][0] == '2023-10-10', tdSql.queryResult[0][0]
+        tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
+        tdSql.query(f"select date(ts) from {self.ntbname}")
+        assert tdSql.queryResult[0][0] == '2023-10-11', tdSql.queryResult[0][0]
+
+    def check_date_tzless_string_is_tz_independent(self):
+        """A tz-less string is parsed and formatted in the same tz -> stable."""
+        results = []
+        for tz in ['UTC', 'Asia/Shanghai', 'Asia/Kolkata']:
+            tdSql.execute(f"SET TIMEZONE '{tz}'")
+            tdSql.query("select date('2023-10-10 22:00:00')")
+            results.append(tdSql.queryResult[0][0])
+        assert all(r == '2023-10-10' for r in results), \
+            f"tz-less date() should be tz-independent: {results}"
+
+    def test_date_connection_tz(self):
+        """summary: DATE renders a fixed instant's date in the connection timezone.
+
+        description: DATE(expr) formats its result in the current connection
+            timezone (L2 SET TIMEZONE), so a fixed instant near a day boundary
+            yields different dates under different timezones. A tz-less string
+            input is both parsed and formatted in the connection timezone, so
+            the date is tz-independent.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-07-10: Tony Zhang created
+
+        """
+        self._setup_date_tz_case()
+        self.check_date_fixed_instant_uses_l2_scalar()
+        self.check_date_fixed_instant_uses_l2_column()
+        self.check_date_tzless_string_is_tz_independent()
+
+
+class _ToUnixTimestampTzMixin:
+    """TO_UNIXTIMESTAMP parses timezone-less strings in the connection timezone.
+
+    Like TO_TIMESTAMP, a datetime string without an embedded offset is parsed
+    in the current connection timezone (L2 SET TIMEZONE), so the same literal
+    maps to different epoch values under different timezones. An offset
+    embedded in the string overrides the connection timezone. Note that
+    TO_UNIXTIMESTAMP takes no format string; its optional second argument is a
+    return_timestamp 0/1 flag.
+    """
+
+    def _setup_to_unixtimestamp_tz_case(self):
+        tdLog.debug(f"start to execute {__file__}")
+
+    def check_to_unixtimestamp_no_offset_uses_l2(self):
+        """A tz-less literal is parsed in the connection timezone (L2).
+
+        No table is queried, so the epoch is in milliseconds. Only no-DST
+        zones are used so the standard offset applies unambiguously.
+        """
+        cases = [
+            ('UTC',           1696932610000),  # 2023-10-10 10:10:10 +00:00
+            ('Asia/Shanghai', 1696903810000),  # -08:00, UTC is 8 hours earlier
+            ('Asia/Kolkata',  1696912810000),  # -05:30
+        ]
+        for tz, expected in cases:
+            tdSql.execute(f"SET TIMEZONE '{tz}'")
+            tdSql.query("select to_unixtimestamp('2023-10-10 10:10:10')")
+            assert tdSql.queryResult[0][0] == expected, \
+                f"tz={tz}: expected {expected}, got {tdSql.queryResult[0][0]}"
+
+    def check_to_unixtimestamp_different_l2_differs(self):
+        """Same tz-less literal maps to different epochs under different L2."""
+        tdSql.execute("SET TIMEZONE 'UTC'")
+        tdSql.query("select to_unixtimestamp('2023-10-10 10:10:10')")
+        r_utc = tdSql.queryResult[0][0]
+        tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
+        tdSql.query("select to_unixtimestamp('2023-10-10 10:10:10')")
+        r_sh = tdSql.queryResult[0][0]
+        assert r_utc != r_sh, \
+            f"UTC vs Shanghai parse should differ: {r_utc} vs {r_sh}"
+
+    def check_to_unixtimestamp_embedded_offset_overrides_l2(self):
+        """An offset embedded in the string overrides the connection tz."""
+        results = []
+        for tz in ['UTC', 'Asia/Shanghai', 'Asia/Kolkata']:
+            tdSql.execute(f"SET TIMEZONE '{tz}'")
+            tdSql.query(
+                "select to_unixtimestamp('2023-10-10T10:10:10+00:00')"
+            )
+            r = tdSql.queryResult[0][0]
+            results.append(r)
+            assert r == 1696932610000, \
+                f"tz={tz}: embedded +00:00 should force UTC, got {r}"
+        assert len(set(results)) == 1, \
+            f"embedded offset should be tz-independent: {results}"
+
+    def test_to_unixtimestamp_connection_tz(self):
+        """summary: TO_UNIXTIMESTAMP parses tz-less strings in the connection timezone.
+
+        description: A datetime string without an embedded offset is parsed in
+            the current connection timezone (L2 SET TIMEZONE), so the same
+            literal maps to different epoch values under different timezones.
+            An offset embedded in the string overrides the connection timezone.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-07-10: Tony Zhang created
+
+        """
+        self._setup_to_unixtimestamp_tz_case()
+        self.check_to_unixtimestamp_no_offset_uses_l2()
+        self.check_to_unixtimestamp_different_l2_differs()
+        self.check_to_unixtimestamp_embedded_offset_overrides_l2()
+
+
+class _WeekFamilyTzMixin:
+    """DAYOFWEEK/WEEKDAY/WEEK/WEEKOFYEAR resolve the local calendar in L2.
+
+    For a fixed instant, these functions compute the weekday/week from the
+    local calendar date in the current connection timezone (L2 SET TIMEZONE),
+    so an instant near a day/week boundary yields different results under
+    different timezones. This is distinct from firstDayOfWeek dependence,
+    which is covered by _WeekFunctionsMixin.
+    """
+
+    def _setup_week_family_tz_case(self):
+        tdLog.debug(f"start to execute {__file__}")
+        self.dbname = 'db_tz_wkfam'
+        self.ntbname = f'{self.dbname}.ntb'
+
+    def _prepare_week_family_tz_data(self):
+        tdSql.execute(f'create database if not exists {self.dbname}')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.execute(f'drop table if exists {self.ntbname}')
+        tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
+        # 2023-10-08 22:00:00 UTC is Sunday; in Asia/Shanghai (+08:00) it is
+        # Monday 06:00, which flips dayofweek, weekday, week and weekofyear.
+        # Written with an explicit offset so the stored instant is fixed.
+        tdSql.execute(
+            f"insert into {self.ntbname} values "
+            f"('2023-10-08T22:00:00+00:00', 1)"
+        )
+
+    def check_dayofweek_weekday_fixed_instant_uses_l2(self):
+        """dayofweek/weekday of a fixed instant follow the connection tz."""
+        self._prepare_week_family_tz_data()
+        # UTC -> Sunday: dayofweek=1, weekday=6
+        tdSql.execute("SET TIMEZONE 'UTC'")
+        tdSql.query(f"select dayofweek(ts), weekday(ts) from {self.ntbname}")
+        assert tdSql.queryResult[0][0] == 1, tdSql.queryResult[0][0]
+        assert tdSql.queryResult[0][1] == 6, tdSql.queryResult[0][1]
+        # Asia/Shanghai -> Monday: dayofweek=2, weekday=0
+        tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
+        tdSql.query(f"select dayofweek(ts), weekday(ts) from {self.ntbname}")
+        assert tdSql.queryResult[0][0] == 2, tdSql.queryResult[0][0]
+        assert tdSql.queryResult[0][1] == 0, tdSql.queryResult[0][1]
+
+    def check_week_weekofyear_fixed_instant_uses_l2(self):
+        """week/weekofyear of a fixed instant follow the connection tz."""
+        self._prepare_week_family_tz_data()
+        # UTC -> Sunday, still ISO week 40
+        tdSql.execute("SET TIMEZONE 'UTC'")
+        tdSql.query(
+            f"select week(ts, 1), weekofyear(ts) from {self.ntbname}"
+        )
+        assert tdSql.queryResult[0][0] == 40, tdSql.queryResult[0][0]
+        assert tdSql.queryResult[0][1] == 40, tdSql.queryResult[0][1]
+        # Asia/Shanghai -> Monday, rolls into week 41
+        tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
+        tdSql.query(
+            f"select week(ts, 1), weekofyear(ts) from {self.ntbname}"
+        )
+        assert tdSql.queryResult[0][0] == 41, tdSql.queryResult[0][0]
+        assert tdSql.queryResult[0][1] == 41, tdSql.queryResult[0][1]
+
+    def test_week_family_connection_tz(self):
+        """summary: DAYOFWEEK/WEEKDAY/WEEK/WEEKOFYEAR resolve the local calendar in the connection timezone.
+
+        description: For a fixed instant, these functions compute the
+            weekday/week from the local calendar date in the current connection
+            timezone (L2 SET TIMEZONE), so an instant near a day/week boundary
+            yields different results under different timezones.
+
+        Since: v3.4.2.0
+
+        Labels: timezone
+
+        Jira: None
+
+        Catalog:
+            - Function:timezone
+
+        History:
+            - 2026-07-10: Tony Zhang created
+
+        """
+        self._setup_week_family_tz_case()
+        self.check_dayofweek_weekday_fixed_instant_uses_l2()
+        self.check_week_weekofyear_fixed_instant_uses_l2()
+
+
 @SKIP_WINDOWS_SET_TIMEZONE
 class TestTimezoneScalarFunctions(
     _ToIso8601IanaMixin,
@@ -2009,5 +2364,9 @@ class TestTimezoneScalarFunctions(
     _ToIso8601SuffixFormatMixin,
     _JoinDstMixin,
     _ToIso8601SessionVsParamMixin,
+    _ToTimestampTzMixin,
+    _DateTzMixin,
+    _ToUnixTimestampTzMixin,
+    _WeekFamilyTzMixin,
 ):
     pass
