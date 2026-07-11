@@ -3322,27 +3322,21 @@ void ctgClearMetaCache(SCtgCacheOperation *operation) {
   
   if (CTG_CACHE_LOW(remainSize, cacheMaxSize)) {
     qDebug("catalog finish meta clear, remainSize:%" PRId64 ", cacheMaxSize:%dMB", remainSize, cacheMaxSize);
-    if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
-      qError("reset catalog cache monitor timer error, timer stoppped");
-    }
+    ctgResetCacheTimer();
     return;
   }
 
   if (!roundDone) {
     qDebug("catalog all meta cleared, remainSize:%" PRId64 ", cacheMaxSize:%dMB, to clear handle", remainSize, cacheMaxSize);
     ctgClearFreeCache(operation);
-    if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
-      qError("reset catalog cache monitor timer error, timer stoppped");
-    }
+    ctgResetCacheTimer();
     return;
   }
   
   int32_t code = ctgClearCacheEnqueue(NULL, true, false, false, false);
   if (code) {
     qError("clear cache enqueue failed, error:%s", tstrerror(code));
-    if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
-      qError("reset catalog cache monitor timer error, timer stoppped");
-    }
+    ctgResetCacheTimer();
   }
 }
 
