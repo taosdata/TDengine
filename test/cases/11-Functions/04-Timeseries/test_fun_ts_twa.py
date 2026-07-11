@@ -1,6 +1,8 @@
 from new_test_framework.utils import tdLog, tdSql
 
+import os
 import platform
+import subprocess
 
 class TestTwa:
     updatecfgDict = {"maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
@@ -171,6 +173,46 @@ class TestTwa:
         tdSql.checkData(0,1,11111.000000000)
         tdSql.checkData(0,2,1)
 
+    def check_week_sliding_interval_across_blocks(self, dbname="twa_week_sliding_blocks"):
+        tdSql.execute("set first_day_of_week 0")
+        tdSql.execute(f"drop database if exists {dbname}")
+        tdSql.execute(f"create database {dbname}")
+        tdSql.execute(f"create table {dbname}.t(ts timestamp, v int)")
+
+        tdSql.execute(
+            f"insert into {dbname}.t values "
+            "('2021-08-15 01:00:00.000', 1) "
+            "('2021-08-27 01:46:40.000', 10) "
+            "('2021-08-28 01:46:40.000', 20) "
+            "('2021-08-29 01:46:40.000', 30) "
+            "('2021-08-30 01:46:40.000', 40) "
+            "('2021-08-31 01:46:40.000', 50)"
+        )
+        tdSql.execute(f"flush database {dbname}")
+        tdSql.execute(
+            f"insert into {dbname}.t values "
+            "('2021-08-31 09:56:40.000', 60) "
+            "('2021-09-01 01:46:40.000', 70) "
+            "('2021-09-05 01:46:40.000', 80) "
+            "('2021-09-11 20:56:40.000', 90) "
+            "('2021-09-13 06:16:40.000', 100)"
+        )
+
+        sql = f"select _wstart, _wend, twa(v) from {dbname}.t interval(3w) sliding(1w)"
+        tdLog.info(sql)
+        taos = os.path.join(self.taos_bin_path, "taos")
+        result = subprocess.run(
+            [taos, "-c", self.cfg_path, "-s", f"set first_day_of_week 0; {sql};"],
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+        output = result.stdout + result.stderr
+        if "DB error" in output or "Invalid timeline" in output:
+            raise Exception(output)
+        if result.returncode != 0:
+            raise Exception(output)
+
     #
     # ------------------ main ------------------
     #
@@ -199,8 +241,8 @@ class TestTwa:
 
         self.prepare_datas_of_distribute()
         self.check_distribute_datas()
+        self.check_week_sliding_interval_across_blocks()
         self.twa_support_types()
         self.distribute_twa_query()
 
         #tdSql.close()
-
