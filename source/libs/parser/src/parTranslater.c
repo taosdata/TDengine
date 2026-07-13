@@ -1931,6 +1931,31 @@ static int32_t isTimeLineAlignedQuery(SNode* pStmt, bool* pRes) {
   return code;
 }
 
+static bool projectionListHasTimestamp(SNodeList* pProjectionList) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pProjectionList) {
+    if (NULL != pNode && TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pNode)->resType.type) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool selectInputHasNoTimestamp(SSelectStmt* pSelect) {
+  if (NULL == pSelect || NULL == pSelect->pFromTable || QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable)) {
+    return false;
+  }
+
+  SNode* pSubquery = ((STempTableNode*)pSelect->pFromTable)->pSubquery;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
+    return !projectionListHasTimestamp(((SSelectStmt*)pSubquery)->pProjectionList);
+  }
+  if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
+    return !projectionListHasTimestamp(((SSetOperator*)pSubquery)->pProjectionList);
+  }
+  return false;
+}
+
 bool isPrimaryKeyImpl(SNode* pExpr) {
   if (!pExpr) {
     return false;
@@ -5001,7 +5026,7 @@ static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFu
     }
     int32_t code = isTimeLineAlignedQuery(pCxt->pCurrStmt, &isTimelineAlignedQuery);
     if (TSDB_CODE_SUCCESS != code) return code;
-    if (!isTimelineAlignedQuery)
+    if (!isTimelineAlignedQuery && !(fmSupportsNoTimelineRowOrder(pFunc->funcId) && selectInputHasNoTimestamp(pSelect)))
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                      "Function '%s' requires valid time series input", pFunc->functionName);
   }
@@ -5493,7 +5518,8 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
         fmIsAnalysisPseudoColumnFunc(pFunc->funcId) && (pFunc->funcType != FUNCTION_TYPE_ANOMALY_MARK);
     pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
     pSelect->hasLastFunc = pSelect->hasLastFunc ? true : (FUNCTION_TYPE_LAST == pFunc->funcType);
-    pSelect->hasTimeLineFunc = pSelect->hasTimeLineFunc ? true : fmIsTimelineFunc(pFunc->funcId);
+    bool noTimelineRowOrderFunc = fmSupportsNoTimelineRowOrder(pFunc->funcId) && selectInputHasNoTimestamp(pSelect);
+    pSelect->hasTimeLineFunc = pSelect->hasTimeLineFunc ? true : (fmIsTimelineFunc(pFunc->funcId) && !noTimelineRowOrderFunc);
     pSelect->hasUdaf =
         pSelect->hasUdaf ? true : !isSqlWindowFunc && fmIsUserDefinedFunc(pFunc->funcId) && fmIsAggFunc(pFunc->funcId);
     if (SQL_CLAUSE_SELECT == pCxt->currClause) {
@@ -15556,12 +15582,10 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
       pCxt->errCode = tranCreatePrimaryKeyCol(pCxt, tableAlias, &pPrimaryKey);
       tSimpleHashCleanup(pTableAlias);
     }
-    // When no primary timestamp is available, last/first can fall back to
-    // returning the last/first row in input order without timestamp comparison.
+    // When no primary timestamp is available, supported functions fall back to
+    // processing rows in the upstream input order without timestamp comparison.
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-      EFunctionType ftype = pFunc->funcType;
-      if (ftype == FUNCTION_TYPE_LAST || ftype == FUNCTION_TYPE_FIRST ||
-          ftype == FUNCTION_TYPE_LAST_ROW) {
+      if (fmSupportsNoTimelineRowOrder(pFunc->funcId)) {
         pCxt->errCode = TSDB_CODE_SUCCESS;
         return DEAL_RES_IGNORE_CHILD;
       }

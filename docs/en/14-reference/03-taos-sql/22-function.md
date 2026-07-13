@@ -3348,13 +3348,19 @@ UNIQUE(expr)
 
 **Function Classification**: Pipeline set function.
 
-**Function Description**: Returns the deduplicated values of the column. This function is similar to distinct. For the same data, it returns the one with the smallest timestamp. For queries on tables with composite primary keys, if there are multiple records with the smallest timestamp, only the data with the smallest composite primary key is returned.
+**Function Description**: Returns representative rows after deduplicating the expression. This function is similar to `DISTINCT`. When a valid timeline exists, for the same `expr` value, it returns the row with the smallest timestamp. For queries on tables with composite primary keys, if there are multiple records with the smallest timestamp, only the data with the smallest composite primary key is returned. See Usage Notes for representative-row selection in no-timeline mode.
 
 **Return Data Type**: Same as the field of the application.
 
 **Applicable Data Types**: All types of fields.
 
 **Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- For the same `expr` value, `UNIQUE` returns only one representative row. If the query also returns other regular columns or scalar expressions, those results all come from the same representative row.
+- When the input result set contains no `TIMESTAMP` column, that is, in no-timeline mode, `UNIQUE` deduplicates values in the upstream operator's input row order and uses the first row where each value appears as the representative row.
+- In no-timeline mode, `UNIQUE` does not introduce an additional sort. To make representative-row selection stable, use an explicit `ORDER BY` in the subquery to specify the input row order. To make the display order stable, use an explicit `ORDER BY` in the outer query.
 
 ### COLS
 
@@ -3384,6 +3390,8 @@ COLS (func(expr), output_expr1, [, output_expr2] ... )
 
 Sequential analysis functions are tailor-made by TDengine to meet the query scenarios of time-series data. In general databases, implementing similar functionalities usually requires complex query syntax and is inefficient. TDengine has built these functionalities into functions, greatly reducing the user's cost of use.
 
+When the input result set contains no `TIMESTAMP` column, `DIFF`, `CSUM`, `MAVG`, `STATECOUNT`, `LAG`, `LEAD`, and `FILL_FORWARD` can run on the upstream operator's input row order. To make the row order stable, use an explicit `ORDER BY` in the subquery; otherwise, the row order comes from the execution plan's natural output order and is not guaranteed to remain stable across executions, versions, or data distribution changes.
+
 ### CSUM
 
 ```sql
@@ -3405,8 +3413,9 @@ CSUM(expr)
 **Usage Instructions**:
 
 - Does not support +, -, *, / operations, such as csum(col1) + csum(col2).
-- Can only be used with aggregation functions. This function can be applied to both basic tables and supertables.
+- Cannot be used together with aggregation functions. This function can be applied to both basic tables and supertables.
 - With a degraded timeline, csum does not depend on time values and computes by row order. Still reports errors for real (non-NULL) duplicate timestamps; NULL time rows do not trigger duplicate timestamp checks.
+- When the input result set contains no `TIMESTAMP` column, `CSUM` accumulates values in input row order.
 
 ### DERIVATIVE
 
@@ -3476,6 +3485,7 @@ ignore_option: {
 - When there is no composite primary key, if different subtables have data with the same timestamp, a "Duplicate timestamps not allowed" message will be displayed
 - When using composite primary keys, the timestamp and composite primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
 - With a degraded timeline, duplicate timestamp rows output NULL without updating the previous value (the next non-duplicate row uses the last valid row for calculation); NULL time rows also output NULL. Output row count is always N-1.
+- When the input result set contains no `TIMESTAMP` column, `DIFF` computes adjacent-row differences in input row order. The output row count is still N-1.
 
 ### FILL_FORWARD
 
@@ -3496,6 +3506,7 @@ FILL_FORWARD(expr)
 **Usage Notes**:
 
 - Support +, -, *, / operations, such as fill_forward(col1) + fill_forward(col2);
+- When the input result set contains no `TIMESTAMP` column, `FILL_FORWARD` fills NULL values from the previous non-NULL value in input row order.
 
 **Example**:
 
@@ -3532,6 +3543,7 @@ MAVG(expr, k)
 
 - Does not support +, -, *, / operations, such as mavg(col1, k1) + mavg(col2, k1);
 - Can only be used with regular columns, selection, and projection functions, not with aggregation functions;
+- When the input result set contains no `TIMESTAMP` column, `MAVG` calculates the moving average over the input row order.
 - When used with a window clause, `MAVG` is calculated only from samples inside the current window and does not continue state across windows.
 
 ### STATECOUNT
@@ -3553,12 +3565,13 @@ STATECOUNT(expr, oper, val)
 
 **Applicable Data Types**: Numeric types.
 
-**Nested Subquery Support**: Not applicable to subqueries.
+**Nested Subquery Support**: Applicable to inner and outer queries.
 
 **Applicable to**: Tables and supertables.
 
 **Usage Notes**:
 
+- When the input result set contains no `TIMESTAMP` column, `STATECOUNT` counts consecutive states in input row order.
 - When used with a window clause, `STATECOUNT` counts consecutive records only inside the current window and does not accumulate across windows.
 
 ### STATEDURATION
@@ -3613,6 +3626,7 @@ LAG(expr, offset[, default_val])
 - `default_val` is optional. It is returned when the target row does not exist; if omitted, `NULL` is returned.
 - `default_val` must be type-compatible with `expr`.
 - `LAG` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
+- When the input result set contains no `TIMESTAMP` column, `LAG` still returns the value from the row that is `offset` rows before the current row in input row order.
 - It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
 - When used with a window clause, `LAG` is evaluated only within the current window in window-local row order and does not carry state across windows.
 - `LAG` can also be used as a SQL standard window function together with an `OVER` clause, in which case the parameter rules differ slightly (`offset` may be 0). See [Window Functions](./29-window-function.md#value-window-functions).
@@ -3639,6 +3653,7 @@ LEAD(expr, offset[, default_val])
 - `default_val` is optional. It is returned when the target row does not exist; if omitted, `NULL` is returned.
 - `default_val` must be type-compatible with `expr`.
 - `LEAD` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
+- When the input result set contains no `TIMESTAMP` column, `LEAD` still returns the value from the row that is `offset` rows after the current row in input row order.
 - It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
 - When used with a window clause, `LEAD` is evaluated only within the current window in window-local row order and does not read rows from the next window.
 - `LEAD` can also be used as a SQL standard window function together with an `OVER` clause, in which case the parameter rules differ slightly (`offset` may be 0). See [Window Functions](./29-window-function.md#value-window-functions).

@@ -6081,6 +6081,7 @@ static int32_t rewriteUniqueOptCreateAgg(SIndefRowsFuncLogicNode* pIndef, SLogic
   }
 
   bool   hasSelectPrimaryKey = false;
+  bool   needNoTimelineTupleSelector = false;
   SNode* pPrimaryKey = NULL;
   SNode* pNode = NULL;
   FOREACH(pNode, pIndef->pFuncs) {
@@ -6096,7 +6097,13 @@ static int32_t rewriteUniqueOptCreateAgg(SIndefRowsFuncLogicNode* pIndef, SLogic
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
     SNode*         pExpr = nodesListGetNode(pFunc->pParameterList, 0);
     if (FUNCTION_TYPE_UNIQUE == pFunc->funcType) {
-      pPrimaryKey = nodesListGetNode(pFunc->pParameterList, 1);
+      if (LIST_LENGTH(pFunc->pParameterList) > 1) {
+        pPrimaryKey = nodesListGetNode(pFunc->pParameterList, 1);
+      } else {
+        // Parser did not append an implicit timeline argument, so _select_value
+        // columns need a hidden selector to save the representative input tuple.
+        needNoTimelineTupleSelector = true;
+      }
       SNode* pNew = NULL;
       code = rewriteUniqueOptCreateGroupingSet(pExpr, &pNew);
       if (TSDB_CODE_SUCCESS == code) {
@@ -6128,9 +6135,21 @@ static int32_t rewriteUniqueOptCreateAgg(SIndefRowsFuncLogicNode* pIndef, SLogic
     code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
   }
 
-  if (TSDB_CODE_SUCCESS == code && !hasSelectPrimaryKey && NULL != pAgg->pAggFuncs) {
+  if (TSDB_CODE_SUCCESS == code && !hasSelectPrimaryKey && NULL != pPrimaryKey && NULL != pAgg->pAggFuncs) {
     SNode* pNew = NULL;
     code = rewriteUniqueOptCreateFirstFunc(NULL, pPrimaryKey, &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(&pAgg->pAggFuncs, pNew);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code && needNoTimelineTupleSelector && NULL == pPrimaryKey && NULL != pAgg->pAggFuncs) {
+    SNode* pConst = NULL;
+    code = nodesMakeValueNodeFromInt32(1, &pConst);
+    SNode* pNew = NULL;
+    if (TSDB_CODE_SUCCESS == code) {
+      code = rewriteUniqueOptCreateFirstFunc(NULL, pConst, &pNew);
+    }
+    nodesDestroyNode(pConst);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListMakeStrictAppend(&pAgg->pAggFuncs, pNew);
     }

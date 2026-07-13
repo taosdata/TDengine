@@ -6497,15 +6497,18 @@ class TestJoinFull:
             f"select diff(c1) from (select a.ts, a.col1 c1 from sta a join sta b on a.ts = b.ts);"
         )
         tdSql.checkRows(11)
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1);"
         )
-        tdSql.error(
+        tdSql.checkRows(7)
+        tdSql.query(
             f"select diff(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.checkRows(11)
+        tdSql.query(
             f"select diff(c1) from (select a.col1 c1 from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 order by a.ts);"
         )
+        tdSql.checkRows(7)
         tdSql.query(
             f"select diff(c1) from (select a.col1 c1, a.ts from sta a join sta b on a.ts = b.ts and a.t1 = b.t1 order by a.ts);"
         )
@@ -6526,9 +6529,13 @@ class TestJoinFull:
         tdSql.checkData(1, 0, 1)
         tdSql.checkData(2, 0, 1)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left join tba2 b on a.ts = b.ts);"
         )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, None)
         tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left join tba2 b on a.ts = b.ts);"
         )
@@ -6598,9 +6605,11 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 3)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left semi join tba2 b on a.ts = b.ts);"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 3)
         tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left semi join tba2 b on a.ts = b.ts);"
         )
@@ -6671,9 +6680,11 @@ class TestJoinFull:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)
 
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left anti join tba2 b on a.ts = b.ts);"
         )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
         tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left anti join tba2 b on a.ts = b.ts);"
         )
@@ -6744,9 +6755,13 @@ class TestJoinFull:
         tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a left asof join tba2 b on a.col1 = b.col1);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left asof join tba2 b on a.ts = b.ts);"
         )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 3)
+        tdSql.checkData(2, 0, None)
         tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left asof join tba2 b on a.ts = b.ts);"
         )
@@ -6862,9 +6877,13 @@ class TestJoinFull:
         tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a left window join tba2 b on a.col1 = b.col1 window_offset(1s,1s));"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.col1 c1 from tba1 a left window join tba2 b window_offset(1s,1s));"
         )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 2)
+        tdSql.checkData(1, 0, None)
+        tdSql.checkData(2, 0, 2)
         tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a left window join tba2 b window_offset(1s,1s));"
         )
@@ -6974,9 +6993,10 @@ class TestJoinFull:
         tdSql.query(
             f"select diff(c1) from (select a.ts, a.col1 c1 from tba1 a full join tba2 b on a.ts = b.ts);"
         )
-        tdSql.error(
+        tdSql.query(
             f"select diff(c1) from (select b.col1 c1 from tba1 a full join tba2 b on a.ts = b.ts);"
         )
+        tdSql.checkRows(5)
         tdSql.query(
             f"select diff(c1) from (select b.ts, b.col1 c1 from tba1 a full join tba2 b on a.ts = b.ts);"
         )
