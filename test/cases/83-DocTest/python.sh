@@ -28,6 +28,23 @@ reset_cache() {
   fi
 }
 
+# Robustly drop a database, retrying transient failures (e.g. a just-created
+# database whose vgroup is still electing a leader -> "VGroup is offline").
+# taos -s returns exit code 0 even on a DB error, so we verify via show databases.
+drop_database() {
+  local db=$1
+  for i in {1..60}; do
+    taos -s "drop database if exists $db" >/dev/null 2>&1
+    if ! taos -s "show databases;" 2>/dev/null | grep -qw "$db"; then
+      echo "Success: database $db dropped."
+      return 0
+    fi
+    echo "Retry dropping database $db ($i)..."
+    sleep 1
+  done
+  echo "Error: failed to drop database $db after retries."
+  return 1
+}
 
 
 taosd >>/dev/null 2>&1 &
@@ -44,19 +61,19 @@ reset_cache || exit 1
 python3 connect_example.py
 
 # 2
-taos -s "drop database if exists power"
+drop_database power || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 python3 native_insert_example.py
 
 # 3
-taos -s "drop database power"
+drop_database power || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 python3 bind_param_example.py
 
 # 4
-taos -s "drop database power"
+drop_database power || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 python3 multi_bind_example.py
@@ -68,19 +85,19 @@ python3 query_example.py
 python3 async_query_example.py
 
 # 7
-taos -s "drop database if exists test"
+drop_database test || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 python3 line_protocol_example.py
 
 # 8
-taos -s "drop database test"
+drop_database test || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 python3 telnet_line_protocol_example.py
 
 # 9
-taos -s "drop database test"
+drop_database test || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 python3 json_protocol_example.py
@@ -173,30 +190,30 @@ python3 reqid_rest.py
 
 python3 reqid_ws.py
 
-taos -s "drop database power"
+drop_database power || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 python3 schemaless_native.py
 
-taos -s "drop database power"
+drop_database power || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 python3 schemaless_ws.py
 
-taos -s "drop database power"
+drop_database power || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 python3 stmt_native.py
 
 python3 stmt_ws.py
 
-taos -s "drop database power"
+drop_database power || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 echo "stmt2_native.py"
 python3 stmt2_native.py
 
-taos -s "drop database power"
+drop_database power || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 echo "stmt2_ws.py"
@@ -205,7 +222,7 @@ python3 stmt2_ws.py
 taos -s "drop topic if exists topic_meters"
 check_transactions || exit 1
 reset_cache || exit 1
-taos -s "drop database if exists power"
+drop_database power || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 python3 tmq_native.py
@@ -213,7 +230,7 @@ python3 tmq_native.py
 taos -s "drop topic if exists topic_meters"
 check_transactions || exit 1
 reset_cache || exit 1
-taos -s "drop database if exists power"
+drop_database power || exit 1
 check_transactions || exit 1
 reset_cache || exit 1
 python3 tmq_websocket_example.py
