@@ -12,6 +12,13 @@ added_tables:
 - INS_SECURITY_POLICIES
 - INS_CPU_ALLOCATION
 - INS_TABLE_FIXED_DISTRIBUTED
+- INS_EXT_SOURCES
+- INS_SNAP_SEND_FILESETS
+- INS_SNAP_SEND_VNODES
+- INS_TRANSACTIONS
+- INS_TRANSACTION_LOGS
+- INS_TRANSACTION_ORPHANS
+- INS_VSTABLE_INHERITS
 modified_tables:
 - table: INS_DATABASES
   added_columns:
@@ -84,6 +91,9 @@ modified_tables:
 - table: INS_STABLES
   added_columns:
   - sec_level
+- table: INS_VIRTUAL_CHILD_COLUMNS
+  added_columns:
+  - col_type
 - table: INS_USERS
   added_columns:
   - sec_levels
