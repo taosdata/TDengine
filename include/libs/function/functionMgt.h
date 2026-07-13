@@ -334,6 +334,7 @@ bool fmIsStringFunc(int32_t funcId);
 bool fmIsDateTimeFunc(int32_t funcId);
 bool fmIsSelectFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
+bool fmSupportsNoTimelineRowOrder(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
 bool fmIsPseudoColumnFunc(int32_t funcId);
 bool fmIsScanPseudoColumnFunc(int32_t funcId);

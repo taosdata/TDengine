@@ -235,6 +235,25 @@ bool fmIsSelectFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC
 
 bool fmIsTimelineFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_TIMELINE_FUNC); }
 
+bool fmSupportsNoTimelineRowOrder(int32_t funcId) {
+  switch (fmGetFuncTypeFromId(funcId)) {
+    case FUNCTION_TYPE_FIRST:
+    case FUNCTION_TYPE_LAST:
+    case FUNCTION_TYPE_LAST_ROW:
+    case FUNCTION_TYPE_DIFF:
+    case FUNCTION_TYPE_CSUM:
+    case FUNCTION_TYPE_MAVG:
+    case FUNCTION_TYPE_STATE_COUNT:
+    case FUNCTION_TYPE_LAG:
+    case FUNCTION_TYPE_LEAD:
+    case FUNCTION_TYPE_FILL_FORWARD:
+    case FUNCTION_TYPE_UNIQUE:
+      return true;
+    default:
+      return false;
+  }
+}
+
 bool fmIsDateTimeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_DATETIME_FUNC); }
 
 bool fmIsPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PSEUDO_COLUMN_FUNC); }
