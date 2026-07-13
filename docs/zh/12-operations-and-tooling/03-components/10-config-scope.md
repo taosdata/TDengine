@@ -203,7 +203,7 @@ toc_max_heading_level: 4
 | checkpointBackupDir | taosd | 用于恢复 snode 数据 |
 | enableAuditDelete | taosd | 用于测试审计功能 |
 | slowLogThresholdTest | taosd | 用于测试慢日志 |
-| bypassFlag | both | 用于短路测试 |
+| bypassFlag | both | 内部参数，用于短路测试，仅用于写入性能定位调试，会导致被跳过阶段的数据被静默丢弃，请勿在生产环境使用 |
 | **CPU 亲和性** | | |
 | enableCpuAffinity | taosd | CPU 亲和性绑定主开关，0：禁用（默认），1：启用 |
 | managementCpuCores | taosd | 分配给管理线程的 CPU 核心数量，默认 1 |
