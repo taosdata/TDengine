@@ -43,7 +43,6 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
     return terrno;
   }
 
-  int8_t         flag = 1;
   SSubmitTbData* pNew = *pData;
 
   *pNew = *pDataBlock->pData;
@@ -54,25 +53,26 @@ int32_t qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData) {
     taosMemoryFreeClear(*pData);
     return code;
   }
-  pNew->aCol = taosArrayDup(pDataBlock->pData->aCol, NULL);
-  if (!pNew->aCol) {
-    code = terrno;
-    taosMemoryFreeClear(*pData);
-    return code;
-  }
 
-  int32_t colNum = taosArrayGetSize(pNew->aCol);
-  for (int32_t i = 0; i < colNum; ++i) {
-    if (pDataBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+  if (pDataBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    pNew->aCol = taosArrayDup(pDataBlock->pData->aCol, NULL);
+    if (!pNew->aCol) {
+      code = terrno;
+      taosMemoryFreeClear(*pData);
+      return code;
+    }
+
+    int32_t colNum = taosArrayGetSize(pNew->aCol);
+    for (int32_t i = 0; i < colNum; ++i) {
       SColData* pCol = (SColData*)taosArrayGet(pNew->aCol, i);
       tColDataDeepClear(pCol);
-    } else {
-      pNew->aCol = taosArrayInit(20, POINTER_BYTES);
-      if (pNew->aCol == NULL) {
-        code = terrno;
-        taosMemoryFreeClear(*pData);
-        return code;
-      }
+    }
+  } else {
+    pNew->aCol = taosArrayInit(20, POINTER_BYTES);
+    if (pNew->aCol == NULL) {
+      code = terrno;
+      taosMemoryFreeClear(*pData);
+      return code;
     }
   }
 
@@ -104,6 +104,8 @@ int32_t qBuildStmtFinOutput(SQuery* pQuery, SHashObj* pAllVgHash, SArray* pVgDat
   }
   return code;
 }
+
+void qDestroyStmtVgroupList(SArray* pVgroupList) { insDestroyVgroupDataCxtList(pVgroupList); }
 
 /*
 int32_t qBuildStmtOutputFromTbList(SQuery* pQuery, SHashObj* pVgHash, SArray* pBlockList, STableDataCxt* pTbCtx, int32_t
@@ -1639,12 +1641,10 @@ int32_t qResetStmtColumns(SArray* pCols, bool deepClear) {
 int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
   int32_t        code = 0;
   STableDataCxt* pBlock = (STableDataCxt*)block;
-  int32_t        colNum = taosArrayGetSize(pBlock->pData->aCol);
 
-  int8_t flag = 0;
-  for (int32_t i = 0; i < colNum; ++i) {
-    flag = pBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT;
-    if (pBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+  if (pBlock->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    int32_t colNum = taosArrayGetSize(pBlock->pData->aCol);
+    for (int32_t i = 0; i < colNum; ++i) {
       SColData* pCol = (SColData*)taosArrayGet(pBlock->pData->aCol, i);
       if (pCol == NULL) {
         parserError("qResetStmtDataBlock column:%d is NULL", i);
@@ -1652,13 +1652,9 @@ int32_t qResetStmtDataBlock(STableDataCxt* block, bool deepClear) {
       }
       if (deepClear) {
         tColDataDeepClear(pCol);
-
       } else {
         tColDataClear(pCol);
       }
-
-    } else {
-      pBlock->pData->aRowP = taosArrayInit(20, POINTER_BYTES);
     }
   }
 
@@ -1721,7 +1717,11 @@ int32_t qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool rese
     }
     pNewTb->pBlobSet = NULL;
 
-    pNewTb->aCol = taosArrayDup(pCxt->pData->aCol, NULL);
+    if (reset && !(pCxt->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT)) {
+      pNewTb->aCol = taosArrayInit(20, POINTER_BYTES);
+    } else {
+      pNewTb->aCol = taosArrayDup(pCxt->pData->aCol, NULL);
+    }
     if (NULL == pNewTb->aCol) {
       insDestroyTableDataCxt(*pDst);
       return terrno;

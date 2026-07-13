@@ -74,7 +74,7 @@ enum {
   CTGT_RSP_TBMETA_NOT_EXIST,
 };
 
-bool    ctgTestStop = false;
+int8_t  ctgTestStop = false;
 bool    ctgTestEnableSleep = false;
 bool    ctgTestEnableLog = true;
 bool    ctgTestDeadLoop = false;
@@ -108,6 +108,12 @@ char    *ctgTestCurrentSTableName = NULL;
 
 int32_t ctgTestRspFunc[100] = {0};
 int32_t ctgTestRspIdx = 0;
+
+void ctgTestResetStop() { atomic_store_8(&ctgTestStop, false); }
+
+void ctgTestRequestStop() { atomic_store_8(&ctgTestStop, true); }
+
+bool ctgTestShouldStop() { return atomic_load_8(&ctgTestStop); }
 
 void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
   SCreateDbReq createReq = {0};
@@ -174,11 +180,96 @@ void ctgTestInitLogFile() {
   }
 }
 
+void ctgTestWaitExpiredMeta(SCatalog *pCtg, uint32_t expectedDbNum, uint32_t expectedStbNum) {
+  uint32_t allDbNum = 0, allStbNum = 0;
+  uint32_t dbScanNum = 0, stbScanNum = 0;
+  uint32_t dbSlotNum = pCtg->dbRent.slotNum;
+  uint32_t stbSlotNum = pCtg->stbRent.slotNum;
+  uint32_t maxScanRetry = dbSlotNum > stbSlotNum ? dbSlotNum : stbSlotNum;
+  const int32_t rentReadyWaitStepMs = 50;
+  const int32_t maxRentReadyRetry = 1200;
+
+  for (int32_t i = 0; i < maxRentReadyRetry; ++i) {
+    uint32_t dbRentNum = ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM);
+    uint32_t stbRentNum = ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM);
+    if (dbRentNum >= expectedDbNum && stbRentNum >= expectedStbNum) {
+      break;
+    }
+
+    taosMsleep(rentReadyWaitStepMs);
+  }
+
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), expectedDbNum);
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM), expectedStbNum);
+
+  // This helper validates expired rent traversal, not the read throttle interval.
+  for (uint32_t i = 0; i < maxScanRetry; ++i) {
+    SDbCacheInfo   *dbs = NULL;
+    SSTableVersion *stb = NULL;
+    uint32_t        dbNum = 0, stbNum = 0;
+    int32_t         code = 0;
+
+    if (expectedDbNum > 0 && dbScanNum < dbSlotNum) {
+      atomic_store_64(&pCtg->dbRent.lastReadMsec, 0);
+      code = catalogGetExpiredDBs(pCtg, &dbs, &dbNum);
+      ASSERT_EQ(code, 0);
+      ++dbScanNum;
+    }
+
+    if (expectedStbNum > 0 && stbScanNum < stbSlotNum) {
+      atomic_store_64(&pCtg->stbRent.lastReadMsec, 0);
+      code = catalogGetExpiredSTables(pCtg, &stb, &stbNum);
+      ASSERT_EQ(code, 0);
+      ++stbScanNum;
+    }
+
+    if (dbNum) {
+      (void)printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
+      taosMemoryFree(dbs);
+    } else {
+      (void)printf("no expired db\n");
+    }
+
+    if (stbNum) {
+      (void)printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
+      taosMemoryFree(stb);
+    } else {
+      (void)printf("no expired stb\n");
+    }
+
+    if (allDbNum < expectedDbNum || expectedDbNum == 0) {
+      allDbNum += dbNum;
+    }
+    if (allStbNum < expectedStbNum || expectedStbNum == 0) {
+      allStbNum += stbNum;
+    }
+
+    if (allDbNum >= expectedDbNum && allStbNum >= expectedStbNum) {
+      break;
+    }
+  }
+
+  ASSERT_EQ(allDbNum, expectedDbNum);
+  ASSERT_EQ(allStbNum, expectedStbNum);
+}
+
+class CatalogCleanupListener : public testing::EmptyTestEventListener {
+ public:
+  void OnTestEnd(const testing::TestInfo &testInfo) override {
+    (void)testInfo;
+    if (gCtgMgmt.pCluster) {
+      catalogDestroy();
+    }
+  }
+};
+
 int32_t ctgTestGetVgNumFromVgVersion(int32_t vgVersion) {
   return ((vgVersion % 2) == 0) ? ctgTestVgNum - 2 : ctgTestVgNum;
 }
 
 void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
+  TAOS_MEMSET(output, 0, sizeof(STableMetaOutput));
+
   SName cn = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
   TAOS_STRCPY(cn.dbname, "db1");
   TAOS_STRCPY(cn.tname, ctgTestCTablename);
@@ -191,6 +282,7 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
   (void)tNameGetFullDbName(&cn, db);
 
   TAOS_STRCPY(output->dbFName, db);
+  output->dbId = ctgTestDbId;
   SET_META_TYPE_BOTH_TABLE(output->metaType);
 
   TAOS_STRCPY(output->ctbName, cn.tname);
@@ -1185,7 +1277,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
   SArray           *vgList = NULL;
   int32_t           n = 0;
 
-  while (!ctgTestStop) {
+  while (!ctgTestShouldStop()) {
     code = catalogGetDBVgList(pCtg, mockPointer, ctgTestDbname, &vgList);
     if (code) {
       (void)printf("code:%x\n", code);
@@ -1213,7 +1305,7 @@ void *ctgTestSetSameDbVgroupThread(void *param) {
   SDBVgInfo       *dbVgroup = NULL;
   int32_t          n = 0;
 
-  while (!ctgTestStop) {
+  while (!ctgTestShouldStop()) {
     ctgTestBuildDBVgroup(&dbVgroup);
     code = catalogUpdateDBVgInfo(pCtg, ctgTestDbname, ctgTestDbId, dbVgroup);
     if (code) {
@@ -1237,7 +1329,7 @@ void *ctgTestSetDiffDbVgroupThread(void *param) {
   SDBVgInfo       *dbVgroup = NULL;
   int32_t          n = 0;
 
-  while (!ctgTestStop) {
+  while (!ctgTestShouldStop()) {
     ctgTestBuildDBVgroup(&dbVgroup);
     code = catalogUpdateDBVgInfo(pCtg, ctgTestDbname, ctgTestDbId++, dbVgroup);
     if (code) {
@@ -1260,7 +1352,6 @@ void *ctgTestGetCtableMetaThread(void *param) {
   int32_t          code = 0;
   int32_t          n = 0;
   STableMeta      *tbMeta = NULL;
-  bool             inCache = false;
 
   SName cn = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
   TAOS_STRCPY(cn.dbname, "db1");
@@ -1270,7 +1361,7 @@ void *ctgTestGetCtableMetaThread(void *param) {
   ctx.pName = &cn;
   ctx.flag = CTG_FLAG_UNKNOWN_STB;
 
-  while (!ctgTestStop) {
+  while (!ctgTestShouldStop()) {
     code = ctgReadTbMetaFromCache(pCtg, &ctx, &tbMeta);
     if (code || NULL == tbMeta) {
       TD_ALWAYS_ASSERT(0);
@@ -1301,7 +1392,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
 
   operation.opId = CTG_OP_UPDATE_TB_META;
 
-  while (!ctgTestStop) {
+  while (!ctgTestShouldStop()) {
     output = (STableMetaOutput *)taosMemoryMalloc(sizeof(STableMetaOutput));
     ASSERT(NULL != output);
     ctgTestBuildCTableMetaOutput(output);
@@ -1455,40 +1546,7 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  SDbCacheInfo   *dbs = NULL;
-  SSTableVersion *stb = NULL;
-  uint32_t        dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
-  int32_t         i = 0;
-  while (i < 5) {
-    ++i;
-    code = catalogGetExpiredDBs(pCtg, &dbs, &dbNum);
-    ASSERT_EQ(code, 0);
-    code = catalogGetExpiredSTables(pCtg, &stb, &stbNum);
-    ASSERT_EQ(code, 0);
-
-    if (dbNum) {
-      (void)printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
-      taosMemoryFree(dbs);
-      dbs = NULL;
-    } else {
-      (void)printf("no expired db\n");
-    }
-
-    if (stbNum) {
-      (void)printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
-      taosMemoryFree(stb);
-      stb = NULL;
-    } else {
-      (void)printf("no expired stb\n");
-    }
-
-    allDbNum += dbNum;
-    allStbNum += stbNum;
-    taosSsleep(2);
-  }
-
-  ASSERT_EQ(allDbNum, 1);
-  ASSERT_EQ(allStbNum, 0);
+  ctgTestWaitExpiredMeta(pCtg, 1, 0);
 
   catalogDestroy();
 }
@@ -1567,40 +1625,7 @@ TEST(tableMeta, childTableCase) {
 
   taosMemoryFree(tableMeta);
 
-  SDbCacheInfo   *dbs = NULL;
-  SSTableVersion *stb = NULL;
-  uint32_t        dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
-  int32_t         i = 0;
-  while (i < 5) {
-    ++i;
-    code = catalogGetExpiredDBs(pCtg, &dbs, &dbNum);
-    ASSERT_EQ(code, 0);
-    code = catalogGetExpiredSTables(pCtg, &stb, &stbNum);
-    ASSERT_EQ(code, 0);
-
-    if (dbNum) {
-      (void)printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
-      taosMemoryFree(dbs);
-      dbs = NULL;
-    } else {
-      (void)printf("no expired db\n");
-    }
-
-    if (stbNum) {
-      (void)printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
-      taosMemoryFree(stb);
-      stb = NULL;
-    } else {
-      (void)printf("no expired stb\n");
-    }
-
-    allDbNum += dbNum;
-    allStbNum += stbNum;
-    taosSsleep(2);
-  }
-
-  ASSERT_EQ(allDbNum, 1);
-  ASSERT_EQ(allStbNum, 1);
+  ctgTestWaitExpiredMeta(pCtg, 1, 1);
 
   catalogDestroy();
 }
@@ -1708,41 +1733,7 @@ TEST(tableMeta, superTableCase) {
 
   taosMemoryFree(tableMeta);
 
-  SDbCacheInfo   *dbs = NULL;
-  SSTableVersion *stb = NULL;
-  uint32_t        dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
-  int32_t         i = 0;
-  while (i < 5) {
-    ++i;
-    code = catalogGetExpiredDBs(pCtg, &dbs, &dbNum);
-    ASSERT_EQ(code, 0);
-    code = catalogGetExpiredSTables(pCtg, &stb, &stbNum);
-    ASSERT_EQ(code, 0);
-
-    if (dbNum) {
-      (void)printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
-      taosMemoryFree(dbs);
-      dbs = NULL;
-    } else {
-      (void)printf("no expired db\n");
-    }
-
-    if (stbNum) {
-      (void)printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
-
-      taosMemoryFree(stb);
-      stb = NULL;
-    } else {
-      (void)printf("no expired stb\n");
-    }
-
-    allDbNum += dbNum;
-    allStbNum += stbNum;
-    taosSsleep(2);
-  }
-
-  ASSERT_EQ(allDbNum, 1);
-  ASSERT_EQ(allStbNum, 1);
+  ctgTestWaitExpiredMeta(pCtg, 1, 1);
 
   catalogDestroy();
 }
@@ -2650,7 +2641,7 @@ TEST(multiThread, getSetRmSameDbVgroup) {
   SVgroupInfo      *pvgInfo = NULL;
   SDBVgInfo         dbVgroup = {0};
   SArray           *vgList = NULL;
-  ctgTestStop = false;
+  ctgTestResetStop();
 
   ctgTestInitLogFile();
 
@@ -2688,8 +2679,10 @@ TEST(multiThread, getSetRmSameDbVgroup) {
     }
   }
 
-  ctgTestStop = true;
-  taosSsleep(1);
+  ctgTestRequestStop();
+  (void)taosThreadJoin(thread1, NULL);
+  (void)taosThreadJoin(thread2, NULL);
+  (void)taosThreadAttrDestroy(&thattr);
 
   catalogDestroy();
 }
@@ -2702,7 +2695,7 @@ TEST(multiThread, getSetRmDiffDbVgroup) {
   SVgroupInfo      *pvgInfo = NULL;
   SDBVgInfo         dbVgroup = {0};
   SArray           *vgList = NULL;
-  ctgTestStop = false;
+  ctgTestResetStop();
 
   ctgTestInitLogFile();
 
@@ -2740,8 +2733,10 @@ TEST(multiThread, getSetRmDiffDbVgroup) {
     }
   }
 
-  ctgTestStop = true;
-  taosSsleep(1);
+  ctgTestRequestStop();
+  (void)taosThreadJoin(thread1, NULL);
+  (void)taosThreadJoin(thread2, NULL);
+  (void)taosThreadAttrDestroy(&thattr);
 
   catalogDestroy();
 }
@@ -2754,7 +2749,7 @@ TEST(multiThread, ctableMeta) {
   SVgroupInfo      *pvgInfo = NULL;
   SDBVgInfo         dbVgroup = {0};
   SArray           *vgList = NULL;
-  ctgTestStop = false;
+  ctgTestResetStop();
 
   ctgTestInitLogFile();
 
@@ -2780,7 +2775,7 @@ TEST(multiThread, ctableMeta) {
   TdThread thread1, thread2;
   (void)taosThreadCreate(&(thread1), &thattr, ctgTestSetCtableMetaThread, pCtg);
   taosSsleep(1);
-  (void)taosThreadCreate(&(thread1), &thattr, ctgTestGetCtableMetaThread, pCtg);
+  (void)taosThreadCreate(&(thread2), &thattr, ctgTestGetCtableMetaThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {
@@ -2791,8 +2786,149 @@ TEST(multiThread, ctableMeta) {
     }
   }
 
-  ctgTestStop = true;
-  taosSsleep(2);
+  ctgTestRequestStop();
+  (void)taosThreadJoin(thread1, NULL);
+  (void)taosThreadJoin(thread2, NULL);
+  (void)taosThreadAttrDestroy(&thattr);
+
+  catalogDestroy();
+}
+
+uint64_t ctgTestRentDbIdForSlot(uint32_t slotNum, uint32_t slotIdx) {
+  return (uint64_t)slotNum + slotIdx;
+}
+
+bool ctgTestDbRentResultHasId(SDbCacheInfo *dbs, uint32_t num, uint64_t dbId) {
+  for (uint32_t i = 0; i < num; ++i) {
+    if (dbs[i].dbId == dbId) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+TEST(rentTest, slotRotation) {
+  struct SCatalog *pCtg = NULL;
+
+  ctgTestInitLogFile();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  uint32_t slotNum = pCtg->dbRent.slotNum;
+  ASSERT_GT(slotNum, 0);
+
+  bool *seen = (bool *)taosMemoryCalloc(slotNum, sizeof(bool));
+  ASSERT(NULL != seen);
+
+  for (uint32_t i = 0; i < slotNum; ++i) {
+    SDbCacheInfo db = {0};
+    db.dbId = (int64_t)ctgTestRentDbIdForSlot(slotNum, i);
+    db.vgVersion = (int32_t)i;
+    db.cfgVersion = -1;
+    db.tsmaVersion = -1;
+    (void)snprintf(db.dbFName, sizeof(db.dbFName), "1.rent_slot_%u", i);
+
+    code = ctgMetaRentAdd(&pCtg->dbRent, &db, db.dbId, sizeof(SDbCacheInfo));
+    ASSERT_EQ(code, 0);
+  }
+
+  ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), slotNum);
+
+  for (uint32_t i = 0; i < slotNum; ++i) {
+    SDbCacheInfo *dbs = NULL;
+    uint32_t      num = 0;
+
+    atomic_store_64(&pCtg->dbRent.lastReadMsec, 0);
+    code = catalogGetExpiredDBs(pCtg, &dbs, &num);
+    ASSERT_EQ(code, 0);
+
+    for (uint32_t n = 0; n < num; ++n) {
+      seen[dbs[n].dbId % slotNum] = true;
+    }
+
+    taosMemoryFree(dbs);
+  }
+
+  for (uint32_t i = 0; i < slotNum; ++i) {
+    ASSERT_EQ(seen[i], true);
+  }
+
+  taosMemoryFree(seen);
+  catalogDestroy();
+}
+
+TEST(rentTest, readThrottle) {
+  struct SCatalog *pCtg = NULL;
+
+  ctgTestInitLogFile();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  uint32_t slotNum = pCtg->dbRent.slotNum;
+  ASSERT_GT(slotNum, 1);
+
+  uint32_t firstSlot = 1 % slotNum;
+  uint32_t secondSlot = (firstSlot + 1) % slotNum;
+  uint64_t firstDbId = ctgTestRentDbIdForSlot(slotNum, firstSlot);
+  uint64_t secondDbId = ctgTestRentDbIdForSlot(slotNum, secondSlot);
+
+  SDbCacheInfo firstDb = {0};
+  firstDb.dbId = (int64_t)firstDbId;
+  firstDb.vgVersion = 1;
+  firstDb.cfgVersion = -1;
+  firstDb.tsmaVersion = -1;
+
+  SDbCacheInfo secondDb = {0};
+  secondDb.dbId = (int64_t)secondDbId;
+  secondDb.vgVersion = 2;
+  secondDb.cfgVersion = -1;
+  secondDb.tsmaVersion = -1;
+  (void)snprintf(firstDb.dbFName, sizeof(firstDb.dbFName), "1.throttle_%u", firstSlot);
+  (void)snprintf(secondDb.dbFName, sizeof(secondDb.dbFName), "1.throttle_%u", secondSlot);
+
+  code = ctgMetaRentAdd(&pCtg->dbRent, &firstDb, firstDb.dbId, sizeof(SDbCacheInfo));
+  ASSERT_EQ(code, 0);
+  code = ctgMetaRentAdd(&pCtg->dbRent, &secondDb, secondDb.dbId, sizeof(SDbCacheInfo));
+  ASSERT_EQ(code, 0);
+
+  SDbCacheInfo *dbs = NULL;
+  uint32_t      num = 0;
+  uint16_t      beforeRIdx = 0, afterRIdx = 0;
+
+  atomic_store_64(&pCtg->dbRent.lastReadMsec, 0);
+  beforeRIdx = (uint16_t)atomic_load_16((int16_t *)&pCtg->dbRent.slotRIdx);
+  code = catalogGetExpiredDBs(pCtg, &dbs, &num);
+  ASSERT_EQ(code, 0);
+  afterRIdx = (uint16_t)atomic_load_16((int16_t *)&pCtg->dbRent.slotRIdx);
+  ASSERT_NE(beforeRIdx, afterRIdx);
+  ASSERT_EQ(ctgTestDbRentResultHasId(dbs, num, firstDbId), true);
+  taosMemoryFreeClear(dbs);
+
+  beforeRIdx = (uint16_t)atomic_load_16((int16_t *)&pCtg->dbRent.slotRIdx);
+  code = catalogGetExpiredDBs(pCtg, &dbs, &num);
+  ASSERT_EQ(code, 0);
+  afterRIdx = (uint16_t)atomic_load_16((int16_t *)&pCtg->dbRent.slotRIdx);
+  ASSERT_EQ(beforeRIdx, afterRIdx);
+  ASSERT_EQ(num, 0);
+  ASSERT_EQ(dbs, nullptr);
+
+  taosMsleep((int32_t)(CTG_RENT_SLOT_SECOND * 1000) + 200);
+  beforeRIdx = (uint16_t)atomic_load_16((int16_t *)&pCtg->dbRent.slotRIdx);
+  code = catalogGetExpiredDBs(pCtg, &dbs, &num);
+  ASSERT_EQ(code, 0);
+  afterRIdx = (uint16_t)atomic_load_16((int16_t *)&pCtg->dbRent.slotRIdx);
+  ASSERT_NE(beforeRIdx, afterRIdx);
+  ASSERT_EQ(ctgTestDbRentResultHasId(dbs, num, secondDbId), true);
+  taosMemoryFree(dbs);
 
   catalogDestroy();
 }
@@ -2805,7 +2941,7 @@ TEST(rentTest, allRent) {
   SVgroupInfo      *pvgInfo = NULL;
   SDBVgInfo         dbVgroup = {0};
   SArray           *vgList = NULL;
-  ctgTestStop = false;
+  ctgTestResetStop();
   SDbCacheInfo   *dbs = NULL;
   SSTableVersion *stable = NULL;
   uint32_t        num = 0;
@@ -3351,6 +3487,7 @@ TEST(intTest, autoCreateTableTest) {
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
+  testing::UnitTest::GetInstance()->listeners().Append(new CatalogCleanupListener);
   return RUN_ALL_TESTS();
 }
 

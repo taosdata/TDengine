@@ -672,9 +672,7 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
         qDestroyStmtDataBlock(pStmt->exec.pCurrBlock);
         pStmt->exec.pCurrBlock = NULL;
       }
-      if (STMT_TYPE_QUERY != pStmt->sql.type) {
-        resetRequest(pStmt);
-      }
+      resetRequest(pStmt);
     } else {
       pStmt->sql.siInfo.pTableColsIdx = 0;
       stmtResetQueueTableBuf(&pStmt->sql.siInfo.tbBuf, &pStmt->queue);
@@ -1546,9 +1544,36 @@ static void stmtFreeTbBuf(void* buf) {
   taosMemoryFree(pBuf);
 }
 
+static void stmtDestroyTableColArray(SArray* pCols) {
+  if (pCols == NULL) {
+    return;
+  }
+  int32_t n = (int32_t)taosArrayGetSize(pCols);
+  for (int32_t i = 0; i < n; ++i) {
+    SRow* p = taosArrayGetP(pCols, i);
+    tRowDestroy(p);
+  }
+  taosArrayDestroy(pCols);
+}
+
 static void stmtFreeTbCols(void* buf) {
   SArray* pCols = *(SArray**)buf;
-  taosArrayDestroy(pCols);
+  stmtDestroyTableColArray(pCols);
+}
+
+static void stmtNullTransferredTableCol(STscStmt2* pStmt, SArray* pCol) {
+  if (NULL == pCol || NULL == pStmt->sql.siInfo.pTableCols) {
+    return;
+  }
+
+  int32_t size = (int32_t)taosArrayGetSize(pStmt->sql.siInfo.pTableCols);
+  for (int32_t i = 0; i < size; ++i) {
+    SArray** p = (SArray**)taosArrayGet(pStmt->sql.siInfo.pTableCols, i);
+    if (p != NULL && *p == pCol) {
+      *p = NULL;
+      break;
+    }
+  }
 }
 
 static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
@@ -1587,6 +1612,10 @@ static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   stmtFreeVgDataBlocksForRetry(pStmt);
 
   taos_free_result(pStmt->sql.siInfo.pRequest);
+  if (pStmt->sql.siInfo.pVgroupList != NULL) {
+    qDestroyStmtVgroupList(pStmt->sql.siInfo.pVgroupList);
+    pStmt->sql.siInfo.pVgroupList = NULL;
+  }
   taosHashCleanup(pStmt->sql.siInfo.pVgroupHash);
   tSimpleHashCleanup(pStmt->sql.siInfo.pTableHash);
   tSimpleHashCleanup(pStmt->sql.siInfo.pTableRowDataHash);
@@ -1844,11 +1873,15 @@ static void stmtAsyncOutput(STscStmt2* pStmt, void* param) {
   if (pParam->restoreTbCols) {
     for (int32_t i = 0; i < pStmt->sql.siInfo.pTableColsIdx; ++i) {
       SArray** p = (SArray**)TARRAY_GET_ELEM(pStmt->sql.siInfo.pTableCols, i);
+      if (*p != NULL) {
+        stmtDestroyTableColArray(*p);
+      }
       *p = taosArrayInit(20, POINTER_BYTES);
       if (*p == NULL) {
         pStmt->errCode = terrno;
       }
     }
+    pStmt->sql.siInfo.pTableColsIdx = 0;
     atomic_store_8((int8_t*)&pStmt->sql.siInfo.tableColsReady, true);
     STMT2_TLOG_E("restore pTableCols finished");
   } else {
@@ -1858,6 +1891,14 @@ static void stmtAsyncOutput(STscStmt2* pStmt, void* param) {
     if (code != TSDB_CODE_SUCCESS) {
       STMT2_ELOG("async append stmt output failed, tbname:%s, err:%s", pParam->tblData.tbName, tstrerror(code));
       pStmt->errCode = code;
+      if (pParam->tblData.aCol != NULL) {
+        SArray* pCol = pParam->tblData.aCol;
+        stmtDestroyTableColArray(pCol);
+        pParam->tblData.aCol = NULL;
+        stmtNullTransferredTableCol(pStmt, pCol);
+      }
+    } else {
+      stmtNullTransferredTableCol(pStmt, pParam->tblData.aCol);
     }
     (void)atomic_sub_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
   }
@@ -3093,12 +3134,8 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
       (void)memcpy(&pStmt->exec.pRequest->parseMeta, &metaData, sizeof(SMetaData));
       (void)memset(&metaData, 0, sizeof(SMetaData));  // Clear to avoid double free
     } else {
-      // Clean up metaData on failure - free all arrays
-      if (metaData.pVStbRefDbs) {
-        taosArrayDestroy(metaData.pVStbRefDbs);
-        metaData.pVStbRefDbs = NULL;
-      }
-      // Note: Other fields in metaData are managed by catalog module if ctgFree is true
+      catalogFreeMetaData(&metaData);
+      TAOS_MEMSET(&metaData, 0, sizeof(SMetaData));
       goto cleanup_root;
     }
 

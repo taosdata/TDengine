@@ -22,6 +22,7 @@
 
 static void ctgFreeExtTableMetaPRes(void* p);
 static void ctgFreeTableMeta(void* p);
+void        ctgFreeVStbRefDbs(void* p);
 
 void ctgFreeSViewMeta(SViewMeta* pMeta) {
   if (NULL == pMeta) {
@@ -210,7 +211,7 @@ void ctgFreeSMetaData(SMetaData* pData) {
   taosArrayDestroy(pData->pTsmas);
   pData->pTsmas = NULL;
 
-  taosArrayDestroy(pData->pVStbRefDbs);
+  taosArrayDestroyEx(pData->pVStbRefDbs, ctgFreeVStbRefDbs);
   pData->pVStbRefDbs = NULL;
 
   taosArrayDestroy(pData->pExtSourceInfo);
@@ -882,8 +883,7 @@ void ctgFreeTaskRes(CTG_TASK_TYPE type, void** pRes) {
       break;
     }
     case CTG_TASK_GET_V_STBREFDBS: {
-      SArray* pArray = (SArray*)*pRes;
-      taosArrayDestroyEx(pArray, tDestroySVStbRefDbsRsp);
+      *pRes = NULL;
       break;
     }
     case CTG_TASK_GET_EXT_SOURCE: {

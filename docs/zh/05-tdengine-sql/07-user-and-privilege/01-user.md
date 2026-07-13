@@ -166,6 +166,10 @@ taos> alter user test enable 0;
 Query OK, 0 of 0 rows affected (0.001160s)
 ```
 
+:::note
+自 TDengine TSDB 企业版 3.4.2.1 开始，`ALTER USER ... SYSINFO {0|1}` 会联动修改用户的 `SYSINFO_0`/`SYSINFO_1` 角色；此外，授予高阶系统角色也会联动提升 `SYSINFO` 属性。详见[权限管理](./02-grant.md)中的“SYSINFO 属性与角色的联动”。
+:::
+
 ## TOTP 双因认证
 
 TOTP 双因认证是 TDengine TSDB 企业版功能，从企业版 v3.4.0.1 开始支持。

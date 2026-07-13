@@ -641,6 +641,18 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
     }
 
     STimeWindow w = pr->win;
+    if (groupId == pBlock->info.id.groupId) {
+      TSKEY curTs = pBlock->info.window.skey;
+      if (tsCols != NULL) {
+        curTs = tsCols[startPos];
+      }
+
+      if ((pInfo->binfo.inputTsOrder == TSDB_ORDER_ASC && w.ekey >= curTs) ||
+          (pInfo->binfo.inputTsOrder == TSDB_ORDER_DESC && w.skey <= curTs)) {
+        break;
+      }
+    }
+
     int32_t     ret = setTimeWindowOutputBuf(pResultRowInfo, &w, (scanFlag == MAIN_SCAN), &pResult, groupId, pSup->pCtx,
                                              numOfOutput, pSup->rowEntryInfoOffset, &pInfo->aggSup, pTaskInfo);
     if (ret != TSDB_CODE_SUCCESS) {

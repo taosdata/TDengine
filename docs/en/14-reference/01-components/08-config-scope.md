@@ -202,7 +202,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | checkpointBackupDir | taosd | Internal parameter, used for restoring snode data |
 | enableAuditDelete | taosd | Internal parameter, used for testing audit functions |
 | slowLogThresholdTest | taosd | Internal parameter, used for testing slow logs |
-| bypassFlag | both | Internal parameter, used for short-circuit testing |
+| bypassFlag | both | Internal parameter, used for short-circuit testing. Only used for debugging write-performance issues only; skipped data is silently dropped, so never use it in production |
 | **CPU Affinity** | | |
 | enableCpuAffinity | taosd | Master switch for CPU affinity binding, 0: disabled (default), 1: enabled |
 | managementCpuCores | taosd | Number of CPU cores dedicated to management threads, default 1 |

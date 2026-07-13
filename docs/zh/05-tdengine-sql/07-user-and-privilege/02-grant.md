@@ -331,6 +331,18 @@ REVOKE ROLE role_name FROM user_name;
 | **SYSINFO_0** | 对应 SYSINFO=0 权限，查看基础系统信息 |
 | **SYSINFO_1** | 对应 SYSINFO=1 权限，查看更多系统信息，可修改自身密码 |
 
+#### SYSINFO 属性与角色的联动
+
+自 TDengine TSDB 企业版 3.4.2.1 开始，用户的 `SYSINFO` 属性（见[用户管理](./01-user.md)）与 `SYSINFO_0`/`SYSINFO_1` 及高阶系统角色之间存在联动，以简化操作，避免属性与角色需要分别设置。规则如下：
+
+1. 执行 `ALTER USER user_name SYSINFO {0|1}` 时，会联动修改 `SYSINFO_0`/`SYSINFO_1` 角色。
+2. 授予高阶系统角色（`SYSINFO_1`、`SYSDBA`、`SYSSEC`、`SYSAUDIT`、`SYSAUDIT_LOG`）时，会联动将用户的 `SYSINFO` 属性提升为 `1`。授予 `SYSINFO_0` 或用户自定义角色时，`SYSINFO` 属性不变。
+3. 回收（`REVOKE`）任何角色时，都不会联动修改 `SYSINFO` 属性。如需降低，请显式执行 `ALTER USER user_name SYSINFO 0`。
+
+:::note
+上述联动是为提升易用性而设计，并非完全可逆。例如：某用户 `SYSINFO` 为 `0`，授予 `SYSDBA` 角色后 `SYSINFO` 变为 `1`，之后回收 `SYSDBA` 角色，`SYSINFO` 仍保持 `1`，不会回退为 `0`。
+:::
+
 ### 系统权限管理
 
 3.4.0.0+ 新增细粒度系统权限：

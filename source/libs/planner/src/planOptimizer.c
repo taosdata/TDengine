@@ -12336,6 +12336,7 @@ static int32_t vstableAggOptimizeWithPartition(SOptimizeContext* pCxt, SLogicSub
     PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pAgg, (SLogicNode*)pNewAgg));
   }
 
+  nodesDestroyNode((SNode*)pVirtualScanNode);
   nodesDestroyNode((SNode*)pAgg);
   return code;
 

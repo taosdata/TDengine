@@ -399,6 +399,7 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
         }
       }
     }
+
   }
 
 _end:

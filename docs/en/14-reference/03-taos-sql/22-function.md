@@ -2119,6 +2119,7 @@ return_timestamp: {
 - The input datetime string must conform to the ISO8601/RFC3339 standards, and formats that cannot be converted will return NULL.
 - The precision of the returned timestamp is consistent with the time precision setting of the current DATABASE.
 - return_timestamp specifies whether the function's return value is of TIMESTAMP type; setting it to 1 returns TIMESTAMP type, setting it to 0 returns BIGINT type. If not specified, it defaults to BIGINT type.
+- An input string without a timezone is parsed in the current connection timezone. If a non-connection timezone is needed, timezone information can be carried in the input datetime string, in which case the timezone it carries takes precedence.
 
 ### TO_CHAR
 
@@ -2214,7 +2215,7 @@ TO_TIMESTAMP(ts_str_literal, format_str_literal)
 - If `ms`, `us`, `ns` are specified at the same time, then the resulting timestamp includes the sum of these three fields. For example, `to_timestamp('2023-10-10 10:10:10.123.000456.000000789', 'yyyy-mm-dd hh:mi:ss.ms.us.ns')` outputs the timestamp corresponding to `2023-10-10 10:10:10.123456789`.
 - `MONTH`, `MON`, `DAY`, `DY` and other formats that output numbers have the same meaning in uppercase and lowercase, such as `to_timestamp('2023-JANUARY-01', 'YYYY-month-dd')`, `month` can be replaced with `MONTH` or `Month`.
 - If the same field is specified multiple times, the earlier specification will be overridden. For example, `to_timestamp('2023-22-10-10', 'yyyy-yy-MM-dd')`, the output year is `2022`.
-- To avoid using an unintended timezone during conversion, it is recommended to carry timezone information in the time, for example, '2023-10-10 10:10:10+08'; if no timezone is specified, the default timezone is the one specified by the server or client.
+- If no timezone is specified, the connection-level timezone is used. If a non-connection timezone is needed, timezone information can be carried in the input datetime string, for example, '2023-10-10 10:10:10+08'.
 - If a complete time is not specified, then the default time value is `1970-01-01 00:00:00` in the specified or default timezone, and the unspecified parts use the corresponding parts of this default value. Formats that only specify the year and day without specifying the month and day, like 'yyyy-mm-DDD', are not supported, but 'yyyy-mm-DD' is supported.
 - If the format string contains `AM`, `PM`, etc., then the hour must be in 12-hour format, ranging from 01-12.
 - `to_timestamp` conversion has a certain tolerance mechanism; even when the format string and timestamp string do not completely correspond, conversion is sometimes possible, like: `to_timestamp('200101/2', 'yyyyMM1/dd')`, the extra 1 in the format string will be discarded. Extra whitespace characters (spaces, tabs, etc.) in the format string and timestamp string will also be automatically ignored. Although fields like `MM` require two digits (with a leading zero if only one digit), in `to_timestamp`, a single digit can also be successfully converted.
@@ -2411,6 +2412,7 @@ WEEK(expr [, mode])
   - In `mode=0`, the return value is `0` because the first Sunday of that year is `2000-01-02`, making `2000-01-02` the start of week 1, thus `2000-01-01` is week 0, returning 0.
   - In `mode=1`, the return value is `0` because the week containing `2000-01-01` only has two days, `2000-01-01 (Saturday)` and `2000-01-02 (Sunday)`, making `2000-01-03` the start of the first week, thus `2000-01-01` is week 0, returning 0.
   - In `mode=2`, the return value is `52` because `2000-01-02` starts week 1, and with the return value range being 1-53, `2000-01-01` is considered the last week of the previous year, i.e., the 52nd week of 1999, returning 52.
+- For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
 
 **Example**:
 
@@ -2461,6 +2463,7 @@ WEEKOFYEAR(expr)
 - Equivalent to `WEEK(expr, 3)`, where the first day of the week is Monday, and the return value ranges from 1 to 53, with the first week containing four or more days being week 1.
 - If `expr` is NULL, returns NULL.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
 
 **Example**:
 
@@ -2496,6 +2499,7 @@ WEEKDAY(expr)
 - Return value 0 represents Monday, 1 represents Tuesday ... 6 represents Sunday.
 - If `expr` is NULL, returns NULL.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
 
 **Example**:
 
@@ -2531,6 +2535,7 @@ DAYOFWEEK(expr)
 - Return value 1 represents Sunday, 2 represents Monday ... 7 represents Saturday.
 - If `expr` is NULL, returns NULL.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
 
 **Example**:
 
@@ -2567,7 +2572,7 @@ DATE(expr)
 - If `expr` is NULL, returns NULL.
 - If `expr` is of type VARCHAR or NCHAR but does not conform to the ISO8601/RFC3339 standard, returns NULL.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
-- If no timezone is specified, the default timezone of input and output time is consistent with the client. To avoid using an unintended timezone during conversion, it is recommended to carry timezone information in the input.
+- If the input string carries a timezone, that timezone determines the corresponding absolute instant; otherwise it is parsed in the connection-level timezone. Regardless of whether the input carries a timezone, the returned date is always computed using the connection-level timezone.
 
 **Example**:
 

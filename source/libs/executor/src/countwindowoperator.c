@@ -534,8 +534,9 @@ int32_t createCountwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
   setOptrBasicInfoOrder(&pInfo->binfo, physiNode);
   pInfo->windowCount = pCountWindowNode->windowCount;
   pInfo->windowSliding = pCountWindowNode->windowSliding;
-  // sizeof(SCountWindowResult)
-  int32_t itemSize = sizeof(SCountWindowResult) - sizeof(SResultRow) + pInfo->aggSup.resultRowSize;
+  // SResultRow is a flexible-array object, so the row payload must be
+  // accounted from its real offset inside SCountWindowResult.
+  int32_t itemSize = (int32_t)(offsetof(SCountWindowResult, row) + pInfo->aggSup.resultRowSize);
   int32_t numOfItem = 1;
   if (pInfo->windowCount != pInfo->windowSliding) {
     numOfItem = pInfo->windowCount / pInfo->windowSliding + 1;

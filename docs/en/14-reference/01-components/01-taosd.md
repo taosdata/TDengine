@@ -533,7 +533,7 @@ The effective value of charset is UTF-8.
 | enableAuditSelect    |                   | Not supported                    | Internal parameter, used for testing audit functions         |
 | enableAuditInsert    |                   | Not supported                    | Internal parameter, used for testing audit functions         |
 | slowLogThresholdTest |                   | Not supported                    | Internal parameter, used for testing slow logs               |
-| bypassFlag           | After 3.3.4.5     | Supported, effective immediately | Internal parameter, used for  short-circuit testing          |
+| bypassFlag           | After 3.3.4.5     | Supported, effective immediately | Internal parameter, used for short-circuit testing. Only used for debugging write-performance issues only; it short-circuits a write request so it returns early at a chosen stage of the write path, letting you locate the bottleneck stage by stage. `0` normal write; `1` return before the taos client sends the RPC message; `2` return after taosd receives the RPC message; `4` return before taosd writes the memory cache; `8` return before taosd persists data to disk. Default `0`. **Warning: any nonzero value makes the write return success before the data is actually persisted, so the skipped data is silently and unrecoverably dropped without the client noticing. Use it only temporarily in a test environment, never in production; reset it to `0` when done.** |
 
 ### CPU Affinity
 
