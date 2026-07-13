@@ -164,6 +164,10 @@ taos> alter user test enable 0;
 Query OK, 0 of 0 rows affected (0.001160s)
 ```
 
+:::note
+Since TDengine Enterprise Edition v3.4.2.1, `ALTER USER ... SYSINFO {0|1}` also updates the user's `SYSINFO_0`/`SYSINFO_1` roles; in addition, granting an elevated system role raises the `SYSINFO` attribute. See "Linkage Between the SYSINFO Attribute and Roles" in [Permission Management](./61-grant.md).
+:::
+
 ## TOTP Two-Factor Authentication
 
 TOTP Two-Factor Authentication is a feature of TDengine TSDB Enterprise Edition, support in version v3.4.0.1 and above.

@@ -334,6 +334,18 @@ In addition to the three major system management roles, TDengine provides the fo
 | **SYSINFO_0** | Corresponds to SYSINFO=0 permission, view basic system information |
 | **SYSINFO_1** | Corresponds to SYSINFO=1 permission, view more system information, can modify own password |
 
+#### Linkage Between the SYSINFO Attribute and Roles
+
+Since TDengine Enterprise Edition v3.4.2.1, a user's `SYSINFO` attribute (see [User Management](./60-user.md)) is linked with the `SYSINFO_0`/`SYSINFO_1` roles and elevated system roles, eliminating the need to configure them separately. The rules are as follows:
+
+1. When `ALTER USER user_name SYSINFO {0|1}` is executed, the corresponding roles are automatically updated: setting `1` grants the user the `SYSINFO_1` role and revokes `SYSINFO_0`; setting `0` grants the user the `SYSINFO_0` role and revokes `SYSINFO_1`.
+2. Granting any elevated system role (`SYSINFO_1`, `SYSDBA`, `SYSSEC`, `SYSAUDIT`, `SYSAUDIT_LOG`) automatically sets the user's `SYSINFO` attribute to `1`. Granting `SYSINFO_0` or a user-defined role does not alter the `SYSINFO` attribute.
+3. Explicitly revoking any role from a user never changes their `SYSINFO` attribute. To lower the attribute, you must explicitly execute `ALTER USER user_name SYSINFO 0`.
+
+:::note
+This linkage is designed for administrative convenience and is not fully reversible. For example: if a user with a `SYSINFO` attribute of `0` is granted the `SYSDBA` role, their `SYSINFO` transitions to `1`. Later, explicitly revoking the `SYSDBA` role will leave the `SYSINFO` attribute at `1` rather than reverting it to `0`.
+:::
+
 ### System Permission Management
 
 3.4.0.0+ introduces fine-grained system permissions:

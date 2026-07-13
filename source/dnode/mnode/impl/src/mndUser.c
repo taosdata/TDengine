@@ -3288,8 +3288,14 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     TAOS_CHECK_GOTO(terrno, &lino, _OVER);
   }
 
+  // Assign the baseline SYSINFO role to match the requested sysInfo, so that
+  // `create user ... sysinfo {0|1}` stays consistent with the sysInfo<->role linkage
+  // enforced on the alter/upgrade paths (sysInfo==1 -> SYSINFO_1, sysInfo==0 -> SYSINFO_0).
+  // Previously this hardcoded TSDB_ROLE_DEFAULT, so `create ... sysinfo 0` still got SYSINFO_1.
   uint8_t flag = 0x01;
-  if ((code = taosHashPut(userObj.roles, TSDB_ROLE_DEFAULT, sizeof(TSDB_ROLE_DEFAULT), &flag, sizeof(flag))) != 0) {
+  if ((code = taosHashPut(userObj.roles, userObj.sysInfo == 1 ? TSDB_ROLE_SYSINFO_1 : TSDB_ROLE_SYSINFO_0,
+                          userObj.sysInfo == 1 ? sizeof(TSDB_ROLE_SYSINFO_1) : sizeof(TSDB_ROLE_SYSINFO_0), &flag,
+                          sizeof(flag))) != 0) {
     TAOS_CHECK_GOTO(code, &lino, _OVER);
   }
 
@@ -4565,6 +4571,39 @@ static int32_t mndProcessAlterUserBasicInfoReq(SRpcMsg *pReq, SAlterUserReq *pAl
   if (pAlterReq->hasSysinfo) {
     auditLen += snprintf(auditLog + auditLen, sizeof(auditLog) - auditLen, "sysinfo:%d,", pAlterReq->sysinfo);
     newUser.sysInfo = pAlterReq->sysinfo;
+#ifdef TD_ENTERPRISE
+    // `alter user ... sysinfo N` is an explicit override: force the flag regardless of roles,
+    // and mirror the change into the paired SYSINFO_0/SYSINFO_1 roles so the user does not have
+    // to adjust the role separately. Super users carry no SYSINFO_x role, so they are skipped.
+    if (!newUser.superUser && newUser.roles != NULL) {
+      uint8_t roleFlag = 0x01;
+      if (newUser.sysInfo == 1) {
+        // raised: ensure SYSINFO_1, remove the baseline SYSINFO_0
+        int32_t rmCode = taosHashRemove(newUser.roles, TSDB_ROLE_SYSINFO_0, sizeof(TSDB_ROLE_SYSINFO_0));
+        if (rmCode != 0 && rmCode != TSDB_CODE_NOT_FOUND) {
+          mWarn("user:%s, failed to remove role:%s at line %d since %s", newUser.user, TSDB_ROLE_SYSINFO_0, lino,
+                tstrerror(rmCode));
+        }
+        if (taosHashGet(newUser.roles, TSDB_ROLE_SYSINFO_1, sizeof(TSDB_ROLE_SYSINFO_1)) == NULL) {
+          TAOS_CHECK_GOTO(
+              taosHashPut(newUser.roles, TSDB_ROLE_SYSINFO_1, sizeof(TSDB_ROLE_SYSINFO_1), &roleFlag, sizeof(roleFlag)),
+              &lino, _OVER);
+        }
+      } else {
+        // lowered: ensure SYSINFO_0, remove the elevated SYSINFO_1 (if any)
+        int32_t rmCode = taosHashRemove(newUser.roles, TSDB_ROLE_SYSINFO_1, sizeof(TSDB_ROLE_SYSINFO_1));
+        if (rmCode != 0 && rmCode != TSDB_CODE_NOT_FOUND) {
+          mWarn("user:%s, failed to remove role:%s at line %d since %s", newUser.user, TSDB_ROLE_SYSINFO_1, lino,
+                tstrerror(rmCode));
+        }
+        if (taosHashGet(newUser.roles, TSDB_ROLE_SYSINFO_0, sizeof(TSDB_ROLE_SYSINFO_0)) == NULL) {
+          TAOS_CHECK_GOTO(
+              taosHashPut(newUser.roles, TSDB_ROLE_SYSINFO_0, sizeof(TSDB_ROLE_SYSINFO_0), &roleFlag, sizeof(roleFlag)),
+              &lino, _OVER);
+        }
+      }
+    }
+#endif
   }
 
 #ifdef TD_ENTERPRISE
