@@ -18880,6 +18880,20 @@ void tDestroySubmitTbData(SSubmitTbData *pTbData, int32_t flag) {
         rows[i] = NULL;
       }
       taosArrayDestroy(pTbData->aRowP);
+      pTbData->aRowP = NULL;
+    }
+    if (!(pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) && pTbData->aCol) {
+      int32_t nRow = TARRAY_SIZE(pTbData->aCol);
+      SRow  **rows = (SRow **)TARRAY_DATA(pTbData->aCol);
+
+      for (int32_t i = 0; i < nRow; ++i) {
+        if (rows[i]) {
+          tRowDestroy(rows[i]);
+          rows[i] = NULL;
+        }
+      }
+      taosArrayDestroy(pTbData->aCol);
+      pTbData->aCol = NULL;
     }
   } else if (flag == TSDB_MSG_FLG_DECODE) {
     if (pTbData->pCreateTbReq) {

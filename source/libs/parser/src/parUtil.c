@@ -661,6 +661,7 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
 
   const char* valueStr = NULL;
   int32_t     valueLen = 0;
+  bool        needFree = false;
 
   if (((0 == strcmp(pCol->colName, "db_name") || 0 == strcmp(pCol->colName, "table_name")) ||
        0 == strcmp(pCol->colName, "virtual_db_name") || 0 == strcmp(pCol->colName, "virtual_table_name")) &&
@@ -684,6 +685,7 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
       }
       valueStr = tmp;
       valueLen = output;
+      needFree = true;
     } else if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
       valueStr = varDataVal(pVal->datum.p);
       valueLen = varDataLen(pVal->datum.p);
@@ -693,6 +695,9 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
       qError("getInsTagsTableTargetNameFromOp: unsupported data type %d for placeholder", pVal->node.resType.type);
       return TSDB_CODE_INVALID_PARA;
     }
+  } else if (pVal->placeholderNo != 0) {
+    // stmt2 ? placeholder on non-ins_tables columns (e.g. area = ?), not applicable here
+    return TSDB_CODE_SUCCESS;
   } else {
     if (NULL == pVal->literal || 0 == strcmp(pVal->literal, "")) {
       return TSDB_CODE_SUCCESS;
@@ -702,7 +707,6 @@ static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pO
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
-  bool    needFree = (pVal->placeholderNo != 0 && TSDB_DATA_TYPE_NCHAR == pVal->node.resType.type);
 
   if (0 == strcmp(pCol->colName, "db_name")) {
     code = tNameSetDbName(pName, acctId, valueStr, valueLen);

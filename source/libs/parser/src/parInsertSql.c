@@ -3491,6 +3491,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
                               STableDataCxt** ppTableDataCxt) {
   bool          bFirstTable = false;
   bool          setCtbName = false;
+  bool          ctbColsTransferred = false;
   SBoundColInfo ctbCols = {0};
   int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken, &bFirstTable, &setCtbName, &ctbCols);
 
@@ -3500,7 +3501,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
 
   if (code != TSDB_CODE_SUCCESS || !*pGotRow) {
-    return code;
+    goto _return;
   }
 
   if (code == TSDB_CODE_SUCCESS && bFirstTable) {
@@ -3511,7 +3512,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
       char ctbFName[TSDB_TABLE_FNAME_LEN];
       code = tNameExtractFullName(&pStbRowsCxt->ctbName, ctbFName);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _return;
       }
       code = insGetTableDataCxt(pStmt->pTableBlockHashObj, ctbFName, strlen(ctbFName), pStbRowsCxt->pCtbMeta,
                                 &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, true, true);
@@ -3525,6 +3526,9 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     if (pCxt->pComCxt->stmtBindVersion == 2) {
       int32_t tbnameIdx = getTbnameSchemaIndex(pStbRowsCxt->pStbMeta);
       code = initTableColSubmitDataWithBoundInfo(*ppTableDataCxt, ctbCols);
+      if (code == TSDB_CODE_SUCCESS) {
+        ctbColsTransferred = true;
+      }
     } else {
       code = initTableColSubmitData(*ppTableDataCxt);
     }
@@ -3535,7 +3539,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
       SRowBuildScanInfo sinfo = {.hasBlob = 1, .scanType = ROW_BUILD_UPDATE};
       if ((*ppTableDataCxt)->pData->pBlobSet == NULL) {
         code = tBlobSetCreate(1024, 0, &(*ppTableDataCxt)->pData->pBlobSet);
-        TAOS_CHECK_RETURN(code);
+        TAOS_CHECK_GOTO(code, NULL, _return);
       }
       code = tRowBuildWithBlob(pStbRowsCxt->aColVals, (*ppTableDataCxt)->pSchema, pRow,
                                (*ppTableDataCxt)->pData->pBlobSet, &sinfo);
@@ -3554,6 +3558,10 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     *pGotRow = true;
   }
 
+_return:
+  if (!ctbColsTransferred && ctbCols.pColIndex != NULL) {
+    qDestroyBoundColInfo(&ctbCols);
+  }
   clearStbRowsDataContext(pStbRowsCxt);
 
   return code;

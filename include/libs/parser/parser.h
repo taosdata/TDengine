@@ -227,6 +227,7 @@ int32_t     qCloneStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, bool 
 int32_t     qRebuildStmtDataBlock(STableDataCxt** pDst, STableDataCxt* pSrc, uint64_t uid, uint64_t suid, int32_t vgId,
                                   bool rebuildCreateTb);
 void        qDestroyStmtDataBlock(STableDataCxt* pBlock);
+void        qDestroyStmtVgroupList(SArray* pVgroupList);
 STableMeta* qGetTableMetaInDataBlock(STableDataCxt* pDataBlock);
 int32_t     qCloneCurrentTbData(STableDataCxt* pDataBlock, SSubmitTbData** pData);
 
