@@ -1,6 +1,6 @@
 # Auto-generated INFORMATION_SCHEMA whitelist
 # from_version : 3.4.0.0
-# to_version   : 3.4.0.10
+# to_version   : 3.4.x  (any 3.4.x.x target: 3.4.1, 3.4.2, ...)
 # generated_at : 2026-03-24 09:36:03
 #
 # All changes listed here are treated as expected for this upgrade path.

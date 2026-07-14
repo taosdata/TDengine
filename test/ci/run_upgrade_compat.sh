@@ -207,6 +207,24 @@ fi
 
 echo "Available versions on server: $(echo "$ALL_VERSIONS" | tr '\n' ' ')"
 
+# ── Prune stale local cache ───────────────────────────────────────────────────
+# Keep the local cache in sync with the server: if a version directory has been
+# removed on the server, remove it locally too so it is no longer validated.
+# Only runs after ALL_VERSIONS was successfully fetched and confirmed non-empty
+# above, to avoid wiping the cache on a transient server/listing failure.
+for local_ver_dir in "$GREEN_LOCAL_DIR"/*/; do
+    [ -d "$local_ver_dir" ] || continue
+    local_ver=$(basename "$local_ver_dir")
+    # Skip internal/bookkeeping directories (e.g. the lock dir)
+    case "$local_ver" in
+        .*) continue ;;
+    esac
+    if ! echo "$ALL_VERSIONS" | grep -qxF "$local_ver"; then
+        echo "[green_versions] pruning stale cache (removed on server): $local_ver"
+        rm -rf "$local_ver_dir"
+    fi
+done
+
 download_failed=0
 for ver in $ALL_VERSIONS; do
     download_version "$ver" || {
