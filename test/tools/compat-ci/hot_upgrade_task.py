@@ -30,7 +30,7 @@ class HotUpgradeTask:
         with open(cmakeFile, 'r') as f:
             content = f.read()
 
-        match = re.search(r'SET\s*\(\s*TD_VER_NUMBER\s+"([^"]+)"\s*\)', content)
+        match = re.search(r'SET\s*\(\s*BUILD_VER_NUMBER\s+"([^"]+)"\s*\)', content)
         if not match:
             raise ValueError(f"Cannot parse version from {cmakeFile}")
 
