@@ -319,7 +319,7 @@ class TestUserSecurity:
         # login with no root privilege
         user = "no_privilege_user"
         password = "abcd@1234"
-        self.create_user(user, password, options="CREATEDB 0 SYSINFO 0")
+        self.create_user(user, password, options="CREATEDB 0 SYSINFO 1")
         self.login(user, password)
         # can create
         token3 = self.create_token("login_token3", user)
