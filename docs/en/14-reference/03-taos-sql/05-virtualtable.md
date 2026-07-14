@@ -88,13 +88,15 @@ Refer to the `VIRTUAL` parameter in [Create Supertable](04-stable.md#create-a-su
 ### Create Virtual Basic Table
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name 
-    ts_col_name timestamp, 
-    (create_definition[ ,create_definition] ...) 
-     
+CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
+    (
+        ts_col_name timestamp,
+        create_definition[ ,create_definition] ...
+    )
+
   create_definition:
     vtb_col_name column_definition
-    
+
   column_definition:
     type_name [FROM [db_name.]table_name.col_name]
 ```
@@ -102,12 +104,12 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 ### Create Virtual Subtable
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name 
-    (create_definition[ ,create_definition] ...) 
-    USING [db_name.]stb_name 
-    [(tag_name [, tag_name] ...)] 
+CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
+    (create_definition[ ,create_definition] ...)
+    USING [db_name.]stb_name
+    [(tag_name [, tag_name] ...)]
     TAGS (tag_value [, tag_value] ...)
-     
+
   create_definition:
      [stb_col_name FROM] [db_name.]table_name.col_name
   tag_value:
@@ -159,9 +161,9 @@ Given tables t1, t2, t3 with data:
 <table>
     <tr>
         <th colspan="2" align="center">t1</th>
-        <th rowspan="7" align="center"></th>  
+        <th rowspan="7" align="center"></th>
         <th colspan="2" align="center">t2</th>
-        <th rowspan="7" align="center"></th>  
+        <th rowspan="7" align="center"></th>
         <th colspan="3" align="center">t3</th>
     </tr>
     <tr>
@@ -539,16 +541,16 @@ REVOKE privileges ON [db_name.]vtable_name FROM user_name
 4. Granting and revoking permissions for other users must be performed through `GRANT` and `REVOKE` statements, and only the root user can execute these operations.
 5. The detailed permission control rules are summarized below:
 
-| No. | Operation                | Permission Requirements                                                                                                                                                                                  |  
-|-----|--------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|  
+| No. | Operation                | Permission Requirements                                                                                                                                                                                  |
+|-----|--------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1   | CREATE VTABLE            | The user has **WRITE** permission on the database to which the virtual table belongs, and <br />the user has **READ** permission on the source tables or source virtual tables referenced by the virtual table. |
 | 2   | DROP/ALTER VTABLE        | The user has **WRITE** permission on the virtual table. If specifying a source for either a column reference or a tag reference, the user must also have **READ** permission on the referenced source table or source virtual table. |
-| 3   | SHOW VTABLES             | None                                                                                                                                                                                                     |  
-| 4   | SHOW CREATE VTABLE       | None                                                                                                                                                                                                     |  
-| 5   | DESCRIBE VTABLE          | None                                                                                                                                                                                                     |  
-| 6   | Query System Tables      | None                                                                                                                                                                                                     |  
-| 7   | SELECT FROM VTABLE       | The user has **READ** permission on the virtual table.                                                                                                                                                   |  
-| 8   | GRANT/REVOKE             | Only the **root user** has permission.                                                                                                                                                                   |  
+| 3   | SHOW VTABLES             | None                                                                                                                                                                                                     |
+| 4   | SHOW CREATE VTABLE       | None                                                                                                                                                                                                     |
+| 5   | DESCRIBE VTABLE          | None                                                                                                                                                                                                     |
+| 6   | Query System Tables      | None                                                                                                                                                                                                     |
+| 7   | SELECT FROM VTABLE       | The user has **READ** permission on the virtual table.                                                                                                                                                   |
+| 8   | GRANT/REVOKE             | Only the **root user** has permission.                                                                                                                                                                   |
 
 ## Use Cases
 
