@@ -27,7 +27,7 @@ COLD_VERSIONS_1="3.3.6.0,3.3.8.0"
 COLD_VERSIONS_OPTION_1="--no-tsma --no-user"
 
 # group2
-COLD_VERSIONS_2="3.4.0.0"
+COLD_VERSIONS_2="3.4.0.0,3.4.1.0"
 COLD_VERSIONS_OPTION_2="--check-sysinfo"
 
 
@@ -263,7 +263,7 @@ for ver in 3.3.6.0 3.3.8.0; do
         echo "  Cold ${ver} → current : UNKNOWN"
     fi
 done
-for ver in 3.4.0.0; do
+for ver in 3.4.0.0 3.4.1.0; do
     if grep -q "\[PASS\] Cold upgrade test passed.*${ver}" "$LOG_DIR/cold_upgrade_34x.log" 2>/dev/null; then
         echo "  Cold ${ver} → current : PASS"
     elif grep -q "\[FAIL\] Cold upgrade test FAILED.*${ver}" "$LOG_DIR/cold_upgrade_34x.log" 2>/dev/null; then
