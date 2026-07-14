@@ -329,6 +329,29 @@ def _parse_args():
     return args
 
 
+def _taosd_binary_version(version_dir):
+    """Return the version reported by ``<version_dir>/taosd -V``, or None on failure.
+
+    The install directory name is derived from the cmake-configured version and
+    can drift ahead of the binary it actually holds, so the version is read from
+    the binary itself.  Parses the ``taosd version: X.Y.Z.W`` token specifically
+    so the ``compatible_version:`` value on the same line is not mistaken for it.
+    """
+    import re
+    import subprocess as _subp
+    try:
+        taosd = get_taosd_path(version_dir)
+        out = _subp.run([taosd, "-V"], capture_output=True, text=True, timeout=15)
+    except Exception:
+        return None
+    text = (out.stdout or "") + "\n" + (out.stderr or "")
+    m = re.search(r'taosd\s+version:\s*(\d+(?:\.\d+)+)', text)
+    if not m:
+        # Fallback: first dotted 3- or 4-part version anywhere in the output.
+        m = re.search(r'(\d+\.\d+\.\d+(?:\.\d+)?)', text)
+    return m.group(1) if m else None
+
+
 def _resolve_paths(args):
     """Resolve and return all runtime paths derived from CLI args."""
     fqdn      = args.fqdn or socket.gethostname()
@@ -339,7 +362,10 @@ def _resolve_paths(args):
     _script_root  = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     whitelist_dir = args.whitelist_dir or os.path.join(_script_root, "whitelist")
     from_ver  = os.path.basename(from_dir)
-    to_ver    = os.path.basename(to_dir)
+    # Target version comes from the actual target binary (taosd -V), not the
+    # install directory name.  Fall back to the basename if the binary can't be
+    # queried (e.g. missing/unexecutable).
+    to_ver    = _taosd_binary_version(to_dir) or os.path.basename(to_dir)
     return fqdn, from_dir, to_dir, base_path, cfg_dir, whitelist_dir, from_ver, to_ver
 
 
@@ -715,8 +741,6 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
     )
 
     # ---- user / privilege / schema checks ----
-    _RPC_SIG_MISMATCH_MSG = f"[0x0141/0x0140] client {from_ver} incompatible with server"
-
     def _is_sig_error(e):
         s = str(e)
         return (
@@ -724,13 +748,43 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
             "0x0140" in s or "0x80000140" in s or "Edition not compatible" in s
         )
 
+    def _engine_error_detail(e):
+        """Return the engine's own error code + description carried by *e*.
+
+        Produces e.g. ``[0x0141] Invalid signature`` by preferring the taos
+        connector's errno/msg attributes and falling back to parsing the text.
+        The high TSDB flag bit (0x80000000) is masked off so the code matches
+        the engine's documented form.  Returns the raw text if no code is found.
+        """
+        import re
+        errno = getattr(e, "errno", None)
+        msg   = getattr(e, "msg", None)
+        s     = str(e)
+        code  = None
+        if isinstance(errno, int):
+            code = errno & 0xFFFF
+        else:
+            m = re.search(r'0x[0-9a-fA-F]{3,8}', s)
+            if m:
+                code = int(m.group(0), 16) & 0xFFFF
+        desc = (msg or "").strip()
+        if not desc:
+            # Strip a leading '[0x....]:' / '(0x....)' code wrapper, keep the rest.
+            desc = re.sub(r'^\s*[\[(]?\s*0x[0-9a-fA-F]{3,8}\s*[\])]?\s*:?\s*', '', s).strip()
+        if code is not None:
+            return f"[0x{code:04x}] {desc}".rstrip()
+        return desc or s
+
     def _safe_verify(label, fn, *a, **kw):
         try:
             ok, msg = fn(*a, **kw)
             _chk(label, ok, msg)
         except Exception as _e:
             if _is_sig_error(_e):
-                _chk("RPC backward compatibility", False, _RPC_SIG_MISMATCH_MSG)
+                # Report the engine's actual code + description (not a generic
+                # lumped reason); keep the label so the report still tells which
+                # check hit it.
+                _chk(label, False, _engine_error_detail(_e))
             else:
                 raise
 
@@ -740,7 +794,7 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
         uv = UserVerifier(fqdn=fqdn, cfg_dir=cfg_dir)
         auth_ok, auth_msg = uv.verify_auth()
         if not auth_ok and _is_sig_error(Exception(auth_msg)):
-            auth_msg = _RPC_SIG_MISMATCH_MSG
+            auth_msg = _engine_error_detail(auth_msg)
         _chk("test_user authentication after upgrade", auth_ok, auth_msg)
 
         if phase2_st.priv_before is not None:
