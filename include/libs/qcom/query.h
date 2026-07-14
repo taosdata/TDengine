@@ -553,7 +553,8 @@ void* getTaskPoolWorkerCb();
 #define NEED_CLIENT_REFRESH_EXT_SOURCE_ERROR(_code) \
   ((_code) == TSDB_CODE_EXT_SOURCE_CHANGED || \
    (_code) == TSDB_CODE_EXT_SCHEMA_CHANGED || \
-   (_code) == TSDB_CODE_EXT_TABLE_NOT_EXIST)
+   (_code) == TSDB_CODE_EXT_TABLE_NOT_EXIST || \
+   (_code) == TSDB_CODE_EXT_COLUMN_NOT_EXIST)
 #define NEED_CLIENT_RETURN_EXT_SOURCE_ERROR(_code) \
   ((_code) == TSDB_CODE_EXT_CONNECT_FAILED || \
    (_code) == TSDB_CODE_EXT_AUTH_FAILED || \
