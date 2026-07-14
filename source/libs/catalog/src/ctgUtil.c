@@ -1219,6 +1219,7 @@ void ctgFreeJob(void* job) {
 
   ctgFreeTasks(pJob->pTasks, pJob->jobRes.ctgFree);
   ctgFreeBatchs(pJob->pBatchs);
+  taosHashCleanup(pJob->pDbShortNameMap);
 
   ctgFreeSMetaData(&pJob->jobRes);
 

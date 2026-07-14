@@ -2465,6 +2465,34 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
       ((SSelectStmt*)pCxt->pCurrStmt)->mixSysTableAndActualTable = true;
     }
   }
+
+#ifdef TD_ENTERPRISE
+  if (!(*pFound)) {
+    SRealTableNode* pRealTable = (SRealTableNode*)pTable;
+    if (NULL != pRealTable->pExtTableNode) {
+      int32_t refreshCode = refreshExternalTableMetaDirect(pCxt, pRealTable, pCol->colName);
+      if (TSDB_CODE_SUCCESS == refreshCode) {
+        pMeta = pRealTable->pMeta;
+        nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
+        for (int32_t i = 0; i < nums; ++i) {
+          if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
+            if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
+              return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pCol->colName);
+            }
+            SSchemaExt* pSchemaExt =
+                pMeta->schemaExt ? (i >= pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
+            setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns),
+                                  pCol, pSchemaExt);
+            setColumnPrimTs(pCxt, pCol, pTable);
+            *pFound = true;
+            break;
+          }
+        }
+      }
+    }
+  }
+#endif
+
   return code;
 }
 
