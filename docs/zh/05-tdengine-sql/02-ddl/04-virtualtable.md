@@ -88,13 +88,15 @@ SHOW VTABLE INHERITS;
 ### 创建虚拟普通表
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name 
-    ts_col_name timestamp, 
-    (create_definition[ ,create_definition] ...) 
-     
+CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
+    (
+        ts_col_name timestamp,
+        create_definition[ ,create_definition] ...
+    )
+
   create_definition:
     vtb_col_name column_definition
-    
+
   column_definition:
     type_name [FROM [db_name.]table_name.col_name]
 
@@ -103,12 +105,12 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 ### 创建虚拟子表
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name 
-    (create_definition[ ,create_definition] ...) 
-    USING [db_name.]stb_name 
-    [(tag_name [, tag_name] ...)] 
+CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
+    (create_definition[ ,create_definition] ...)
+    USING [db_name.]stb_name
+    [(tag_name [, tag_name] ...)]
     TAGS (tag_value [, tag_value] ...)
-     
+
   create_definition:
      [stb_col_name FROM] [db_name.]table_name.col_name
   tag_value:
@@ -192,9 +194,9 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 <table>
     <tr>
         <th colspan="2" align="center">t1</th>
-        <th rowspan="7" align="center"></th>  
+        <th rowspan="7" align="center"></th>
         <th colspan="2" align="center">t2</th>
-        <th rowspan="7" align="center"></th>  
+        <th rowspan="7" align="center"></th>
         <th colspan="3" align="center">t3</th>
     </tr>
     <tr>
