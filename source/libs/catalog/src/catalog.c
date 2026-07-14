@@ -2292,6 +2292,9 @@ int32_t catalogIsExtSource(SCatalog* pCtg, const char* sourceName, bool* pIsExtS
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
   *pIsExtSource = false;
+  if (!tsFederatedQueryEnable) {
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  }
   SHashObj*              pHash = NULL;
   void*                  pHandle = NULL;
   SExtSourceCacheEntry*  pEntry = NULL;
@@ -2310,6 +2313,9 @@ int32_t catalogGetExtSourceInfo(SCatalog* pCtg, const char* sourceName, SExtSour
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
   *ppInfo = NULL;
+  if (!tsFederatedQueryEnable) {
+    CTG_API_LEAVE(TSDB_CODE_EXT_SOURCE_NOT_FOUND);
+  }
 
   SHashObj*             pHash   = NULL;
   void*                 pHandle = NULL;
@@ -2355,6 +2361,9 @@ int32_t catalogSyncGetExtSourceInfo(SCatalog* pCtg, SRequestConnInfo* pConn, con
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
   *ppInfo = NULL;
+  if (!tsFederatedQueryEnable) {
+    CTG_API_LEAVE(TSDB_CODE_EXT_SOURCE_NOT_FOUND);
+  }
 
   // Try local cache first.
   code = catalogGetExtSourceInfo(pCtg, sourceName, ppInfo);
@@ -2412,6 +2421,9 @@ int32_t catalogGetExtTableMetaFromCache(SCatalog* pCtg, const char* sourceName, 
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
   *ppMeta = NULL;
+  if (!tsFederatedQueryEnable) {
+    CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  }
 
   SHashObj*             pSrcHash   = NULL;
   void*                 pSrcHandle = NULL;

@@ -3797,6 +3797,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
                                int32_t *fetchIdx, int32_t baseResIdx, SArray *pList, bool autoCreate) {
   int32_t     tbNum = taosArrayGetSize(pList);
   char        dbFName[TSDB_DB_FNAME_LEN] = {0};
+  char        dbName[TSDB_DB_NAME_LEN] = {0};
   int32_t     flag = CTG_FLAG_UNKNOWN_STB;
   int32_t     code = TSDB_CODE_SUCCESS;
   uint64_t    lastSuid = 0;
@@ -3824,6 +3825,38 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
   if (NULL == dbCache) {
     ctgTrace("db:%s, db not in cache", dbFName);
+    if (tsFederatedQueryEnable) {
+      SName   db = {0};
+      int32_t rc = tNameFromString(&db, dbFName, T_NAME_ACCT | T_NAME_DB);
+      if (TSDB_CODE_SUCCESS == rc) {
+        CTG_ERR_JRET(tNameGetDbName(&db, dbName));
+      } else {
+        char* pSep = strchr(dbFName, '.');
+        if (NULL != pSep && '\0' != pSep[1]) {
+          tstrncpy(dbName, pSep + 1, sizeof(dbName));
+        } else {
+          tstrncpy(dbName, dbFName, sizeof(dbName));
+        }
+      }
+
+      SHashObj*             pSrcHash = NULL;
+      void*                 pSrcHandle = NULL;
+      SExtSourceCacheEntry* pEntry = NULL;
+      CTG_ERR_JRET(ctgAcquireExtSource(pCtg, dbName, &pSrcHash, &pSrcHandle, &pEntry));
+      if (NULL != pEntry) {
+        ctgReleaseExtSource(pCtg, pSrcHash, pSrcHandle);
+
+        for (int32_t i = 0; i < tbNum; ++i) {
+          SMetaRes res = {.code = CTG_ERR_CODE_TABLE_NOT_EXIST, .pRes = NULL};
+          if (NULL == taosArrayPush(ctx->pResList, &res)) {
+            CTG_ERR_JRET(terrno);
+          }
+        }
+
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+
     for (int32_t i = 0; i < tbNum; ++i) {
       CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
       if (NULL == taosArrayPush(ctx->pResList, &(SMetaData){0})) {
