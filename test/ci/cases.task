@@ -717,10 +717,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability26.py
 
 ## 19-FederatedQuery
-#100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_02_path_resolution.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_03_type_mapping.py
-#100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_04_timezone_precision.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_04_timezone_precision.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_08_system_observability.py
@@ -730,7 +730,7 @@
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_12_compatibility.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_13_explain.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py
-#100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_16_multi_table_parity.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_17_unsupported_ops.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_18_source_specific.py
