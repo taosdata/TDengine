@@ -28,6 +28,7 @@
 #include "ttime.h"
 #include "ttypes.h"
 #include "functionMgt.h"
+#include "joinUtil.h"
 #include "mergejoin.h"
 #include "ttime.h"
 // clang-format on
@@ -954,24 +955,8 @@ static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pT
   SValueNode* pFdow = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 5);
   pCtx->fdow = pFdow ? (int8_t)(pFdow->typeData & 0x07) : 0;
 
-  int64_t factor = TSDB_TICK_PER_SECOND(pFunc->node.resType.precision);
-
-  if ((NULL == pCurrTz || 1 == pCurrTz->typeData) &&
-      pCtx->truncateUnit >= (86400 * TSDB_TICK_PER_SECOND(pFunc->node.resType.precision))) {
-    char    *tzStr = varDataVal(pTimeZone->datum.p);
-
-    /* IANA names need a DST-aware handle; "UTC+N"/"UTC-N" and bare
-     * offset strings also need timezone library resolution. */
-    if (strchr(tzStr, '/') != NULL || strncmp(tzStr, "UTC", 3) == 0 ||
-        tzStr[0] == '+' || tzStr[0] == '-') {
-      timezone_t tz = NULL;
-      if (taosValidateTimezone(tzStr, &tz) == TSDB_CODE_SUCCESS) {
-        pCtx->tz = tz;
-      }
-    } else {
-      pCtx->timezoneUnit = offsetFromTz(tzStr, factor);
-    }
-  }
+  MJ_ERR_RET(joinResolveTruncateTimezone(pCurrTz, pTimeZone, pCtx->truncateUnit,
+                                         pCtx->precision, &pCtx->tz, &pCtx->timezoneUnit));
 
   qDebug("%s literal:%s, pCurrTz:%p", __func__, varDataVal(pTimeZone->datum.p), pCurrTz);
 

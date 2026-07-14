@@ -2803,6 +2803,11 @@ class TestJoinFull:
         tdSql.checkRows(0)
 
         tdSql.query(
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1d, '+0800') = timetruncate(b.ts, 1h, '+0800');"
+        )
+        tdSql.checkRows(0)
+
+        tdSql.query(
             f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on a.t1 = b.t1 where a.ts = b.ts;"
         )
         tdSql.checkRows(8)

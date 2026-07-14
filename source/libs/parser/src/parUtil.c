@@ -1381,6 +1381,10 @@ int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, c
 }
 
 int32_t buildTableMetaFromViewMeta(STableMeta** pMeta, SViewMeta* pViewMeta) {
+  if (NULL == pMeta || NULL == pViewMeta) {
+    return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
   *pMeta = taosMemoryCalloc(1, sizeof(STableMeta) + pViewMeta->numOfCols * sizeof(SSchema));
   if (NULL == *pMeta) {
     return terrno;
@@ -1411,6 +1415,12 @@ int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, ST
   SViewMeta* pViewMeta = NULL;
   code = getMetaDataFromHash(fullName, strlen(fullName), pMetaCache->pViews, (void**)&pViewMeta);
   if (TSDB_CODE_SUCCESS == code) {
+    // Async metadata collection may leave a reserved-yet-empty slot for a
+    // non-view name. Treat it as "view not found" instead of dereferencing
+    // a NULL view meta during auth/semantic fallback.
+    if (NULL == pViewMeta) {
+      return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
     code = buildTableMetaFromViewMeta(pMeta, pViewMeta);
   }
   return code;

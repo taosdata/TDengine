@@ -28,6 +28,7 @@
 #include "ttypes.h"
 #include "hashjoin.h"
 #include "functionMgt.h"
+#include "joinUtil.h"
 
 
 bool hJoinBlkReachThreshold(SHJoinOperatorInfo* pInfo, int64_t blkRows) {
@@ -323,23 +324,8 @@ static int32_t hJoinInitPrimExprCtx(SNode* pNode, SHJoinPrimExprCtx* pCtx, SHJoi
     SValueNode* pFdow = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 5);
     pCtx->fdow = pFdow ? (int8_t)(pFdow->typeData & 0x07) : 0;
   }
-  if ((NULL == pCurrTz || 1 == pCurrTz->typeData) && pCtx->truncateUnit >= (86400 * TSDB_TICK_PER_SECOND(pFunc->node.resType.precision))) {
-    char    *tzStr = varDataVal(pTimeZone->datum.p);
-    int64_t  factor = TSDB_TICK_PER_SECOND(pFunc->node.resType.precision);
-    /* offsetFromTz() can only parse fixed-offset strings like "+0800".
-     * IANA names ("Asia/Shanghai"), "UTC", "UTC+N"/"UTC-N", and bare
-     * offset strings ("+0800"/"-0100") must be resolved via the
-     * timezone library to get the correct UTC offset. */
-    if (strchr(tzStr, '/') != NULL || strncmp(tzStr, "UTC", 3) == 0 ||
-        tzStr[0] == '+' || tzStr[0] == '-') {
-      timezone_t tz = NULL;
-      if (taosValidateTimezone(tzStr, &tz) == TSDB_CODE_SUCCESS) {
-        pCtx->tz = tz;
-      }
-    } else {
-      pCtx->timezoneUnit = offsetFromTz(tzStr, factor);
-    }
-  }
+  HJ_ERR_RET(joinResolveTruncateTimezone(pCurrTz, pTimeZone, pCtx->truncateUnit,
+                                         pCtx->precision, &pCtx->tz, &pCtx->timezoneUnit));
 
   pCtx->targetSlotId = pTarget->slotId;
 
@@ -1318,5 +1304,4 @@ _return:
   pTaskInfo->code = code;
   return code;
 }
-
 

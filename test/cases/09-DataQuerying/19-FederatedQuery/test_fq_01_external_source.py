@@ -2379,6 +2379,84 @@ _CASES = [
             _clear_source_step(),
         ],
     ],
+
+    # Schema-change retry semantics: explicit stale-column lookup should retry via cache refresh,
+    # while SELECT * only reflects new columns after an explicit REFRESH.
+    ["081m", [_mysql], ["fq01_src081m"], "DROP COLUMN without explicit REFRESH: dropped-column query fails, then SELECT * succeeds without the removed column", [
+            "drop external source if exists fq01_src081m",
+            f"create external source fq01_src081m type='mysql' host='{_M_HOST}' port={_M_PORT} user='{_M_USER}' password='{_M_PASS}' database='{_M_DB}'",
+            _mysql_exec_step(_M_DB, [
+                f"alter table `{_FW_TABLE}` add column extra_note VARCHAR(32) NULL",
+                f"update `{_FW_TABLE}` set extra_note='after_refresh' where val=5",
+            ]),
+            "refresh external source fq01_src081m",
+            "select extra_note from fq01_src081m.src_t where val=5",
+            _mysql_exec_step(_M_DB, [
+                f"alter table `{_FW_TABLE}` drop column extra_note",
+            ]),
+            "select extra_note from fq01_src081m.src_t where val=5",
+            "select * from fq01_src081m.src_t where val=5",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ["081p", [_pg], ["fq01_src081p"], "DROP COLUMN without explicit REFRESH: dropped-column query fails, then SELECT * succeeds without the removed column", [
+            "drop external source if exists fq01_src081p",
+            f"create external source fq01_src081p type='postgresql' host='{_P_HOST}' port={_P_PORT} user='{_P_USER}' password='{_P_PASS}' database='{_P_DB}' schema='{_P_SCHEMA}'",
+            _pg_exec_step(_P_DB, [
+                f"alter table {_P_SCHEMA}.{_FW_TABLE} add column extra_note VARCHAR(32) NULL",
+                f"update {_P_SCHEMA}.{_FW_TABLE} set extra_note='after_refresh' where val=5",
+            ]),
+            "refresh external source fq01_src081p",
+            f"select extra_note from fq01_src081p.{_FW_TABLE} where val=5",
+            _pg_exec_step(_P_DB, [
+                f"alter table {_P_SCHEMA}.{_FW_TABLE} drop column extra_note",
+            ]),
+            f"select extra_note from fq01_src081p.{_FW_TABLE} where val=5",
+            f"select * from fq01_src081p.{_FW_TABLE} where val=5",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ["082m", [_mysql], ["fq01_src082m"], "ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column", [
+            "drop external source if exists fq01_src082m",
+            f"create external source fq01_src082m type='mysql' host='{_M_HOST}' port={_M_PORT} user='{_M_USER}' password='{_M_PASS}' database='{_M_DB}'",
+            "select * from fq01_src082m.src_t where val=5",
+            _mysql_exec_step(_M_DB, [
+                f"alter table `{_FW_TABLE}` add column extra_note VARCHAR(32) NULL",
+                f"update `{_FW_TABLE}` set extra_note='after_refresh' where val=5",
+            ]),
+            "select * from fq01_src082m.src_t where val=5",
+            "refresh external source fq01_src082m",
+            "select * from fq01_src082m.src_t where val=5",
+            _mysql_exec_step(_M_DB, [
+                f"alter table `{_FW_TABLE}` drop column extra_note",
+            ]),
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ["082p", [_pg], ["fq01_src082p"], "ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column", [
+            "drop external source if exists fq01_src082p",
+            f"create external source fq01_src082p type='postgresql' host='{_P_HOST}' port={_P_PORT} user='{_P_USER}' password='{_P_PASS}' database='{_P_DB}' schema='{_P_SCHEMA}'",
+            f"select * from fq01_src082p.{_FW_TABLE} where val=5",
+            _pg_exec_step(_P_DB, [
+                f"alter table {_P_SCHEMA}.{_FW_TABLE} add column extra_note VARCHAR(32) NULL",
+                f"update {_P_SCHEMA}.{_FW_TABLE} set extra_note='after_refresh' where val=5",
+            ]),
+            f"select * from fq01_src082p.{_FW_TABLE} where val=5",
+            "refresh external source fq01_src082p",
+            f"select * from fq01_src082p.{_FW_TABLE} where val=5",
+            _pg_exec_step(_P_DB, [
+                f"alter table {_P_SCHEMA}.{_FW_TABLE} drop column extra_note",
+            ]),
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
 ]
 
 

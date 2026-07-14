@@ -16,7 +16,11 @@
 #ifndef TDENGINE_JOIN_UTIL_H
 #define TDENGINE_JOIN_UTIL_H
 
+#include <ctype.h>
+
+#include "scalar.h"
 #include "querynodes.h"
+#include "ttime.h"
 
 /*
  * Resolve TIMETRUNCATE parameter layout.
@@ -35,6 +39,64 @@ static inline int32_t joinResolveTruncateParams(
   *ppUnit     = (SValueNode*)nodesListGetNode(pParamList, 1);
   *ppCurrTz   = (SValueNode*)nodesListGetNode(pParamList, 2);
   *ppTimeZone = (SValueNode*)nodesListGetNode(pParamList, 4);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static inline bool joinIsBareOffsetTimezone(const char* tzStr) {
+  if (tzStr == NULL) {
+    return false;
+  }
+
+  int32_t len = (int32_t)strlen(tzStr);
+  if (len != 5 || (tzStr[0] != '+' && tzStr[0] != '-')) {
+    return false;
+  }
+
+  return isdigit((unsigned char)tzStr[1]) && isdigit((unsigned char)tzStr[2]) &&
+         isdigit((unsigned char)tzStr[3]) && isdigit((unsigned char)tzStr[4]);
+}
+
+static inline int64_t joinOffsetFromTimezoneLiteral(const char* tzStr, int64_t factor) {
+  char buf[TD_TIMEZONE_LEN] = {0};
+  tstrncpy(buf, tzStr, sizeof(buf));
+  return offsetFromTz(buf, factor);
+}
+
+static inline int32_t joinResolveTruncateTimezone(SValueNode* pCurrTz, SValueNode* pTimeZone, int64_t truncateUnit,
+                                                  int32_t precision, timezone_t* pTz, int64_t* pTimezoneUnit) {
+  *pTz = NULL;
+  *pTimezoneUnit = 0;
+
+  if ((pCurrTz != NULL && pCurrTz->typeData != 1) ||
+      truncateUnit < (86400 * TSDB_TICK_PER_SECOND(precision))) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pTimeZone == NULL || pTimeZone->datum.p == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  char* tzStr = varDataVal(pTimeZone->datum.p);
+  int64_t factor = TSDB_TICK_PER_SECOND(precision);
+
+  if (joinIsBareOffsetTimezone(tzStr)) {
+    *pTimezoneUnit = joinOffsetFromTimezoneLiteral(tzStr, factor);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (strchr(tzStr, '/') != NULL || strncmp(tzStr, "UTC", 3) == 0 ||
+      strncmp(tzStr, "GMT", 3) == 0) {
+    timezone_t tz = NULL;
+    if (taosValidateTimezone(tzStr, &tz) == TSDB_CODE_SUCCESS) {
+      *pTz = tz;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  if (tzStr[0] == '+' || tzStr[0] == '-') {
+    *pTimezoneUnit = joinOffsetFromTimezoneLiteral(tzStr, factor);
+  }
 
   return TSDB_CODE_SUCCESS;
 }

@@ -487,6 +487,7 @@ typedef struct SCtgJob {
   int64_t   refId;
   int32_t   batchId;
   SHashObj* pBatchs;
+  SHashObj* pDbShortNameMap;  // key: short db name, value: full db name
   SArray*   pTasks;
   int32_t   subTaskNum;
   int32_t   taskDone;
@@ -1183,6 +1184,7 @@ int32_t ctgOpDropTbMeta(SCtgCacheOperation* action);
 int32_t ctgOpDropViewMeta(SCtgCacheOperation* action);
 int32_t ctgOpUpdateUser(SCtgCacheOperation* action);
 int32_t ctgOpUpdateEpset(SCtgCacheOperation* operation);
+int32_t ctgAcquireDBCache(SCatalog* pCtg, const char* dbFName, SCtgDBCache** pCache);
 int32_t ctgAcquireVgInfoFromCache(SCatalog* pCtg, const char* dbFName, SCtgDBCache** pCache);
 void    ctgReleaseDBCache(SCatalog* pCtg, SCtgDBCache* dbCache);
 void    ctgRUnlockVgInfo(SCtgDBCache* dbCache);

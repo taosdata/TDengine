@@ -19004,7 +19004,8 @@ int32_t tDecodeSSubmitRsp2(SDecoder *pCoder, SSubmitRsp2 *pRsp) {
 _exit:
   if (code) {
     if (pRsp->aCreateTbRsp) {
-      taosArrayDestroyEx(pRsp->aCreateTbRsp, NULL /* todo */);
+      taosArrayDestroyEx(pRsp->aCreateTbRsp, tFreeSVCreateTbRsp);
+      pRsp->aCreateTbRsp = NULL;
     }
   }
   return code;
