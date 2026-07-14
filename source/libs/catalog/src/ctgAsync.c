@@ -44,6 +44,272 @@ static int32_t ctgCollectVStbFinalExtSource(SHashObj** ppRefExtSources, const ch
 static SHashObj* ctgGetReqBatchs(SCtgTaskReq* pReq);
 static SCtgTaskReq ctgMakeTaskReq(SCtgTask* pTask, int32_t msgIdx);
 
+static int32_t ctgGetDbShortName(const char* dbFName, char* dbName) {
+  if (NULL == dbFName || NULL == dbName) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SName   name = {0};
+  int32_t code = tNameFromString(&name, dbFName, T_NAME_ACCT | T_NAME_DB);
+  if (TSDB_CODE_SUCCESS == code) {
+    CTG_ERR_RET(tNameGetDbName(&name, dbName));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const char* pSep = strchr(dbFName, '.');
+  if (NULL != pSep && '\0' != pSep[1]) {
+    tstrncpy(dbName, pSep + 1, TSDB_DB_NAME_LEN);
+  } else {
+    tstrncpy(dbName, dbFName, TSDB_DB_NAME_LEN);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t ctgPutJobDbShortName(SHashObj* pMap, const char* dbFName) {
+  char dbName[TSDB_DB_NAME_LEN] = {0};
+
+  if (NULL == pMap || NULL == dbFName || '\0' == dbFName[0]) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  CTG_ERR_RET(ctgGetDbShortName(dbFName, dbName));
+
+  if (NULL != taosHashGet(pMap, dbName, strlen(dbName))) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CTG_ERR_RET(taosHashPut(pMap, dbName, strlen(dbName), dbFName, TSDB_DB_FNAME_LEN));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t ctgCollectJobReqDbShortNames(SHashObj* pMap, SArray* pReqs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pReqs) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t reqNum = taosArrayGetSize(pReqs);
+  for (int32_t i = 0; i < reqNum; ++i) {
+    STablesReq* pReq = taosArrayGet(pReqs, i);
+    if (NULL == pReq) {
+      qError("taosArrayGet the %dth table req failed", i);
+      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
+
+    CTG_ERR_JRET(ctgPutJobDbShortName(pMap, pReq->dbFName));
+  }
+
+_return:
+
+  CTG_RET(code);
+}
+
+static int32_t ctgCollectJobSNameDbShortNames(SHashObj* pMap, SArray* pNames) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL == pNames) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t nameNum = taosArrayGetSize(pNames);
+  for (int32_t i = 0; i < nameNum; ++i) {
+    SName* pName = taosArrayGet(pNames, i);
+    if (NULL == pName) {
+      qError("taosArrayGet the %dth SName failed", i);
+      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
+
+    char dbFName[TSDB_DB_FNAME_LEN] = {0};
+    CTG_ERR_JRET(tNameGetFullDbName(pName, dbFName));
+    CTG_ERR_JRET(ctgPutJobDbShortName(pMap, dbFName));
+  }
+
+_return:
+
+  CTG_RET(code);
+}
+
+static int32_t ctgInitJobDbShortNameMap(SCtgJob* pJob, const SCatalogReq* pReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t mapCap = TMAX(1, pJob->dbVgNum + pJob->dbCfgNum + pJob->dbInfoNum + (int32_t)taosArrayGetSize(pReq->pTableMeta) +
+                           (int32_t)taosArrayGetSize(pReq->pTableHash) + (int32_t)taosArrayGetSize(pReq->pView) +
+                           (int32_t)taosArrayGetSize(pReq->pTableTSMAs) + (int32_t)taosArrayGetSize(pReq->pTSMAs) +
+                           (int32_t)taosArrayGetSize(pReq->pTableName) + (int32_t)taosArrayGetSize(pReq->pTableIndex) +
+                           (int32_t)taosArrayGetSize(pReq->pTableCfg) + (int32_t)taosArrayGetSize(pReq->pTableTag) +
+                           (int32_t)taosArrayGetSize(pReq->pVStbRefDbs));
+
+  pJob->pDbShortNameMap =
+      taosHashInit(mapCap, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (NULL == pJob->pDbShortNameMap) {
+    CTG_ERR_RET(terrno);
+  }
+
+  for (int32_t i = 0; i < pJob->dbVgNum; ++i) {
+    char* dbFName = taosArrayGet(pReq->pDbVgroup, i);
+    if (NULL == dbFName) {
+      qError("taosArrayGet the %dth db in pDbVgroup failed", i);
+      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
+
+    CTG_ERR_JRET(ctgPutJobDbShortName(pJob->pDbShortNameMap, dbFName));
+  }
+
+  for (int32_t i = 0; i < pJob->dbCfgNum; ++i) {
+    char* dbFName = taosArrayGet(pReq->pDbCfg, i);
+    if (NULL == dbFName) {
+      qError("taosArrayGet the %dth db in pDbCfg failed", i);
+      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
+
+    CTG_ERR_JRET(ctgPutJobDbShortName(pJob->pDbShortNameMap, dbFName));
+  }
+
+  for (int32_t i = 0; i < pJob->dbInfoNum; ++i) {
+    char* dbFName = taosArrayGet(pReq->pDbInfo, i);
+    if (NULL == dbFName) {
+      qError("taosArrayGet the %dth db in pDbInfo failed", i);
+      CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    }
+
+    CTG_ERR_JRET(ctgPutJobDbShortName(pJob->pDbShortNameMap, dbFName));
+  }
+
+  CTG_ERR_JRET(ctgCollectJobReqDbShortNames(pJob->pDbShortNameMap, pReq->pTableMeta));
+  CTG_ERR_JRET(ctgCollectJobReqDbShortNames(pJob->pDbShortNameMap, pReq->pTableHash));
+  CTG_ERR_JRET(ctgCollectJobReqDbShortNames(pJob->pDbShortNameMap, pReq->pView));
+  CTG_ERR_JRET(ctgCollectJobReqDbShortNames(pJob->pDbShortNameMap, pReq->pTableTSMAs));
+  CTG_ERR_JRET(ctgCollectJobReqDbShortNames(pJob->pDbShortNameMap, pReq->pTSMAs));
+  CTG_ERR_JRET(ctgCollectJobReqDbShortNames(pJob->pDbShortNameMap, pReq->pTableName));
+  CTG_ERR_JRET(ctgCollectJobSNameDbShortNames(pJob->pDbShortNameMap, pReq->pTableIndex));
+  CTG_ERR_JRET(ctgCollectJobSNameDbShortNames(pJob->pDbShortNameMap, pReq->pTableCfg));
+  CTG_ERR_JRET(ctgCollectJobSNameDbShortNames(pJob->pDbShortNameMap, pReq->pTableTag));
+  CTG_ERR_JRET(ctgCollectJobSNameDbShortNames(pJob->pDbShortNameMap, pReq->pVStbRefDbs));
+
+_return:
+
+  CTG_RET(code);
+}
+
+static const char* ctgGetJobDbFNameByShortName(const SCtgJob* pJob, const char* dbName) {
+  if (NULL == pJob || NULL == pJob->pDbShortNameMap || NULL == dbName || '\0' == dbName[0]) {
+    return NULL;
+  }
+
+  return taosHashGet(pJob->pDbShortNameMap, dbName, strlen(dbName));
+}
+
+static int32_t ctgCheckDbCacheExist(SCatalog* pCtg, const char* dbFName, bool* pExist) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  SCtgDBCache* pDbCache = NULL;
+
+  if (NULL == pExist) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  *pExist = false;
+  if (NULL == dbFName || '\0' == dbFName[0]) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CTG_ERR_RET(ctgAcquireDBCache(pCtg, dbFName, &pDbCache));
+  *pExist = (NULL != pDbCache);
+
+  if (NULL != pDbCache) {
+    ctgReleaseDBCache(pCtg, pDbCache);
+  }
+
+  CTG_RET(code);
+}
+
+static int32_t ctgCheckDbCacheExistBySourceName(const SCtgJob* pJob, const char* sourceName, bool* pExist) {
+  const char* dbFName = NULL;
+
+  if (NULL == pExist) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  *pExist = false;
+
+  dbFName = ctgGetJobDbFNameByShortName(pJob, sourceName);
+  if (NULL == dbFName) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CTG_ERR_RET(ctgCheckDbCacheExist(pJob->pCtg, dbFName, pExist));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t ctgCheckExtSourceCacheExist(SCatalog* pCtg, const char* sourceName, bool* pExist) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  SHashObj*             pHash = NULL;
+  void*                 pHandle = NULL;
+  SExtSourceCacheEntry* pEntry = NULL;
+
+  if (NULL == pExist) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  *pExist = false;
+  if (NULL == sourceName || '\0' == sourceName[0]) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!tsFederatedQueryEnable) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CTG_ERR_RET(ctgAcquireExtSource(pCtg, sourceName, &pHash, &pHandle, &pEntry));
+  *pExist = (NULL != pEntry);
+  if (NULL != pEntry) {
+    ctgReleaseExtSource(pCtg, pHash, pHandle);
+  }
+
+  CTG_RET(code);
+}
+
+static int32_t ctgCheckExtSourceCacheExistByDbFName(SCatalog* pCtg, const char* dbFName, bool* pExist) {
+  char dbName[TSDB_DB_NAME_LEN] = {0};
+
+  if (NULL == pExist) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  *pExist = false;
+  if (NULL == dbFName || '\0' == dbFName[0]) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CTG_ERR_RET(ctgGetDbShortName(dbFName, dbName));
+  CTG_ERR_RET(ctgCheckExtSourceCacheExist(pCtg, dbName, pExist));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static SCtgTask* ctgFindExtSourceTaskByName(SCtgJob* pJob, const char* sourceName) {
+  if (NULL == pJob || NULL == sourceName || '\0' == sourceName[0]) {
+    return NULL;
+  }
+
+  int32_t taskNum = taosArrayGetSize(pJob->pTasks);
+  for (int32_t i = 0; i < taskNum; ++i) {
+    SCtgTask* pTask = taosArrayGet(pJob->pTasks, i);
+    if (NULL == pTask || CTG_TASK_GET_EXT_SOURCE != pTask->type) {
+      continue;
+    }
+
+    SCtgExtSourceCtx* pCtx = (SCtgExtSourceCtx*)pTask->taskCtx;
+    if (NULL != pCtx && NULL != pCtx->sourceName &&
+        0 == strncmp(pCtx->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN)) {
+      return pTask;
+    }
+  }
+
+  return NULL;
+}
+
 /*
  * Build the full db name for a virtual-table reference.
  * pAcctId is the account id of the virtual super table query.
@@ -1899,6 +2165,8 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
     ctgError("taosArrayInit %d tasks failed", taskNum);
     CTG_ERR_JRET(terrno);
   }
+
+  CTG_ERR_JRET(ctgInitJobDbShortNameMap(pJob, pReq));
 
   if (pReq->forceUpdate && taskNum) {
     CTG_ERR_JRET(ctgHandleForceUpdate(pCtg, taskNum, pJob, pReq));
@@ -4433,6 +4701,8 @@ int32_t ctgAsyncRefreshTbMeta(SCtgTaskReq* tReq, int32_t flag, SName* pName, int
   SCatalog*         pCtg = pTask->pJob->pCtg;
   SRequestConnInfo* pConn = &pTask->pJob->conn;
   int32_t           code = 0;
+  bool              dbExist = false;
+  bool              extSourceExist = false;
 
   if (CTG_FLAG_IS_SYS_DB(flag)) {
     ctgDebug("will refresh sys db tbmeta, tbName:%s", tNameGetTableName(pName));
@@ -4461,6 +4731,16 @@ int32_t ctgAsyncRefreshTbMeta(SCtgTaskReq* tReq, int32_t flag, SName* pName, int
     *vgId = vgInfo.vgId;
     CTG_ERR_JRET(ctgGetTbMetaFromVnode(pCtg, pConn, pName, &vgInfo, NULL, tReq));
   } else {
+    CTG_ERR_JRET(ctgCheckDbCacheExist(pCtg, dbFName, &dbExist));
+    if (!dbExist) {
+      CTG_ERR_JRET(ctgCheckExtSourceCacheExistByDbFName(pCtg, dbFName, &extSourceExist));
+      if (extSourceExist) {
+        ctgDebug("tb:%s, skip local db fetch because ext source cache already exists, db:%s",
+                 tNameGetTableName(pName), dbFName);
+        CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
+      }
+    }
+
     SBuildUseDBInput input = {0};
 
     tstrncpy(input.db, dbFName, tListLen(input.db));
@@ -4479,6 +4759,7 @@ _return:
 }
 
 int32_t ctgLaunchGetTbMetaTask(SCtgTask* pTask) {
+  int32_t           code = TSDB_CODE_SUCCESS;
   SCatalog*         pCtg = pTask->pJob->pCtg;
   SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgJob*          pJob = pTask->pJob;
@@ -4500,7 +4781,12 @@ int32_t ctgLaunchGetTbMetaTask(SCtgTask* pTask) {
 
   SCtgTbMetaCtx* pCtx = (SCtgTbMetaCtx*)pTask->taskCtx;
   SCtgTaskReq    tReq = ctgMakeTaskReq(pTask, -1);
-  CTG_ERR_RET(ctgAsyncRefreshTbMeta(&tReq, pCtx->flag, pCtx->pName, &pCtx->vgId));
+  code = ctgAsyncRefreshTbMeta(&tReq, pCtx->flag, pCtx->pName, &pCtx->vgId);
+  if (CTG_ERR_CODE_TABLE_NOT_EXIST == code) {
+    CTG_ERR_RET(ctgHandleTaskEnd(pTask, code));
+    return TSDB_CODE_SUCCESS;
+  }
+  CTG_ERR_RET(code);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -4573,6 +4859,8 @@ int32_t ctgLaunchGetDbVgTask(SCtgTask* pTask) {
   SCatalog*         pCtg = pTask->pJob->pCtg;
   SRequestConnInfo* pConn = &pTask->pJob->conn;
   SCtgDBCache*      dbCache = NULL;
+  bool              dbExist = false;
+  bool              extSourceExist = false;
   SCtgDbVgCtx*      pCtx = (SCtgDbVgCtx*)pTask->taskCtx;
   SCtgJob*          pJob = pTask->pJob;
   SCtgMsgCtx*       pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
@@ -4599,6 +4887,16 @@ int32_t ctgLaunchGetDbVgTask(SCtgTask* pTask) {
 
     CTG_ERR_JRET(ctgHandleTaskEnd(pTask, 0));
   } else {
+    CTG_ERR_JRET(ctgCheckDbCacheExist(pCtg, pCtx->dbFName, &dbExist));
+    if (!dbExist) {
+      CTG_ERR_JRET(ctgCheckExtSourceCacheExistByDbFName(pCtg, pCtx->dbFName, &extSourceExist));
+      if (extSourceExist) {
+        ctgDebug("db:%s, skip db vgroup fetch because ext source cache already exists", pCtx->dbFName);
+        CTG_ERR_JRET(ctgHandleTaskEnd(pTask, TSDB_CODE_MND_DB_NOT_EXIST));
+        goto _return;
+      }
+    }
+
     SBuildUseDBInput input = {0};
 
     tstrncpy(input.db, pCtx->dbFName, tListLen(input.db));
@@ -4944,6 +5242,8 @@ int32_t ctgLaunchGetDbCfgTask(SCtgTask* pTask) {
   SCtgDbCfgCtx*     pCtx = (SCtgDbCfgCtx*)pTask->taskCtx;
   SCtgJob*          pJob = pTask->pJob;
   SCtgMsgCtx*       pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
+  bool              dbExist = false;
+  bool              extSourceExist = false;
   if (NULL == pMsgCtx) {
     ctgError("fail to get the %dth pMsgCtx", -1);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
@@ -4957,6 +5257,16 @@ int32_t ctgLaunchGetDbCfgTask(SCtgTask* pTask) {
   CTG_ERR_RET(ctgReadDBCfgFromCache(pCtg, pCtx->dbFName, &cfgInfo));
 
   if (cfgInfo.cfgVersion < 0) {
+    CTG_ERR_RET(ctgCheckDbCacheExist(pCtg, pCtx->dbFName, &dbExist));
+    if (!dbExist) {
+      CTG_ERR_RET(ctgCheckExtSourceCacheExistByDbFName(pCtg, pCtx->dbFName, &extSourceExist));
+      if (extSourceExist) {
+        ctgDebug("db:%s, skip db cfg fetch because ext source cache already exists", pCtx->dbFName);
+        CTG_ERR_RET(ctgHandleTaskEnd(pTask, TSDB_CODE_MND_DB_NOT_EXIST));
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+
     CTG_ERR_RET(ctgGetDBCfgFromMnode(pCtg, pConn, pCtx->dbFName, NULL, pTask));
   } else {
     pTask->res = taosMemoryCalloc(1, sizeof(SDbCfgInfo));
@@ -4975,6 +5285,8 @@ int32_t ctgLaunchGetDbInfoTask(SCtgTask* pTask) {
   int32_t        code = 0;
   SCatalog*      pCtg = pTask->pJob->pCtg;
   SCtgDBCache*   dbCache = NULL;
+  bool           dbExist = false;
+  bool           extSourceExist = false;
   SCtgDbInfoCtx* pCtx = (SCtgDbInfoCtx*)pTask->taskCtx;
   SCtgJob*       pJob = pTask->pJob;
   SCtgMsgCtx*    pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
@@ -5005,6 +5317,16 @@ int32_t ctgLaunchGetDbInfoTask(SCtgTask* pTask) {
     ctgReleaseVgInfoToCache(pCtg, dbCache);
     dbCache = NULL;
   } else {
+    CTG_ERR_JRET(ctgCheckDbCacheExist(pCtg, pCtx->dbFName, &dbExist));
+    if (!dbExist) {
+      CTG_ERR_JRET(ctgCheckExtSourceCacheExistByDbFName(pCtg, pCtx->dbFName, &extSourceExist));
+      if (extSourceExist) {
+        ctgDebug("db:%s, skip db info fetch because ext source cache already exists", pCtx->dbFName);
+        CTG_ERR_JRET(ctgHandleTaskEnd(pTask, TSDB_CODE_MND_DB_NOT_EXIST));
+        goto _return;
+      }
+    }
+
     pInfo->vgVer = CTG_DEFAULT_INVALID_VERSION;
 
     CTG_CACHE_NHIT_INC(CTG_CI_DB_INFO, 1);
@@ -5911,9 +6233,15 @@ int32_t ctgLaunchGetExtSourceTask(SCtgTask* pTask) {
   SCtgExtSourceCtx*  pCtx = (SCtgExtSourceCtx*)pTask->taskCtx;
   SCtgJob*           pJob = pTask->pJob;
   SCtgMsgCtx*        pMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
+  bool               dbExist = false;
   if (NULL == pMsgCtx) {
     ctgError("fail to get the %dth pMsgCtx", -1);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+  if (!tsFederatedQueryEnable) {
+    ctgDebug("source:%s, skip ext source fetch because federated query is disabled", pCtx->sourceName);
+    CTG_ERR_RET(ctgHandleTaskEnd(pTask, TSDB_CODE_EXT_SOURCE_NOT_FOUND));
+    return TSDB_CODE_SUCCESS;
   }
   if (NULL == pMsgCtx->pBatchs) {
     pMsgCtx->pBatchs = pJob->pBatchs;
@@ -5959,6 +6287,13 @@ int32_t ctgLaunchGetExtSourceTask(SCtgTask* pTask) {
     ctgReleaseExtSource(pCtg, pHash, pHandle);
     pTask->res = pInfo;
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CTG_ERR_RET(ctgCheckDbCacheExistBySourceName(pTask->pJob, pCtx->sourceName, &dbExist));
+  if (dbExist) {
+    ctgDebug("source:%s, skip ext source fetch because local db cache already exists", pCtx->sourceName);
+    CTG_ERR_RET(ctgHandleTaskEnd(pTask, TSDB_CODE_EXT_SOURCE_NOT_FOUND));
     return TSDB_CODE_SUCCESS;
   }
 
@@ -6055,6 +6390,15 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
     qError("ctgFetchExtTableMetas: taosArrayInit pExtTableMetaRsp failed, error:%s", tstrerror(terrno));
     CTG_ERR_RET(terrno);
   }
+  if (!tsFederatedQueryEnable) {
+    for (int32_t i = 0; i < nReqs; ++i) {
+      SMetaRes res = {.code = TSDB_CODE_EXT_SOURCE_NOT_FOUND, .pRes = NULL};
+      if (NULL == taosArrayPush(pJob->jobRes.pExtTableMetaRsp, &res)) {
+        CTG_ERR_RET(terrno);
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
 
   for (int32_t i = 0; i < nReqs; ++i) {
     SExtTableMetaReq* pReq = (SExtTableMetaReq*)taosArrayGet(pReqs, i);
@@ -6118,25 +6462,24 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
     }
     // ── End cache lookup ─────────────────────────────────────────────────
 
-    // Locate source info from Phase A results
+    // Locate source info from Phase A tasks/results
     SExtSourceInfo* pSrcInfo = NULL;
-    if (pJob->jobRes.pExtSourceInfo) {
-      int32_t nSrc = (int32_t)taosArrayGetSize(pJob->jobRes.pExtSourceInfo);
-      for (int32_t j = 0; j < nSrc; ++j) {
-        SMetaRes* pSrcRes = (SMetaRes*)taosArrayGet(pJob->jobRes.pExtSourceInfo, j);
-        if (pSrcRes && pSrcRes->pRes) {
-          SExtSourceInfo* pCandidate = (SExtSourceInfo*)pSrcRes->pRes;
-          if (0 == strncmp(pCandidate->source_name, pReq->sourceName, TSDB_EXT_SOURCE_NAME_LEN)) {
-            pSrcInfo = pCandidate;
-            break;
-          }
-        }
+    int32_t         srcCode = TSDB_CODE_CTG_INVALID_INPUT;
+    SCtgTask*       pSrcTask = ctgFindExtSourceTaskByName(pJob, pReq->sourceName);
+    if (NULL != pSrcTask) {
+      srcCode = pSrcTask->code;
+      if (TSDB_CODE_SUCCESS == pSrcTask->code) {
+        pSrcInfo = (SExtSourceInfo*)pSrcTask->res;
       }
     }
 
     if (NULL == pSrcInfo) {
-      qError("Phase B: ext source '%s' not found in Phase A results", pReq->sourceName);
-      res.code = TSDB_CODE_CTG_INVALID_INPUT;
+      if (TSDB_CODE_CTG_INVALID_INPUT == srcCode) {
+        qError("Phase B: ext source '%s' not found in Phase A tasks", pReq->sourceName);
+      } else {
+        ctgDebug("Phase B: reuse ext source task code for '%s', code:%s", pReq->sourceName, tstrerror(srcCode));
+      }
+      res.code = srcCode;
       if (NULL == taosArrayPush(pJob->jobRes.pExtTableMetaRsp, &res)) {
         code = terrno;
         break;

@@ -10969,3 +10969,305 @@ OK
 CASE END: CASE-080m[MYS]
 DESC: ALTER host immediately visible in ins_ext_sources — no stale cache delay (FS §3.4.5)
 ================================================================================================
+================================================================================================
+CASE START: CASE-081m[MYS]
+DESC: DROP COLUMN without explicit REFRESH: dropped-column query fails, then SELECT * succeeds without the removed column
+================================================================================================
+### CASE-081m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq01_src081m
+RESULT:
+OK
+---
+### CASE-081m[MYS] STEP-002 EXEC
+SQL: create external source fq01_src081m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database='fq01_fw_mdb'
+RESULT:
+OK
+---
+### CASE-081m[MYS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src081m|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+---
+### CASE-081m[MYS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src081m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src081m|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+---
+### CASE-081m[MYS] STEP-003 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-081m[MYS] STEP-004 EXEC
+SQL: refresh external source fq01_src081m
+RESULT:
+OK
+---
+### CASE-081m[MYS] STEP-005 QUERY
+SQL: select extra_note from fq01_src081m.src_t where val=5
+RESULT:
+extra_note
+after_refresh
+---
+### CASE-081m[MYS] STEP-006 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-081m[MYS] STEP-007 QUERY
+SQL: select extra_note from fq01_src081m.src_t where val=5
+RESULT:
+ERROR: query failed
+---
+### CASE-081m[MYS] STEP-008 QUERY
+SQL: select * from fq01_src081m.src_t where val=5
+RESULT:
+ts|val|score|name|flag
+2024-01-01 00:04:00|5|5.5|epsilon|True
+---
+### CASE-081m[MYS] STEP-009 COUNT
+SQL: select count(*) from fq01_src081m.fq01_fw_mdb.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-081m[MYS] STEP-010 CLEANUP
+SQL: drop external source if exists fq01_src081m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-081m[MYS]
+DESC: DROP COLUMN without explicit REFRESH: dropped-column query fails, then SELECT * succeeds without the removed column
+================================================================================================
+================================================================================================
+CASE START: CASE-081p[POS]
+DESC: DROP COLUMN without explicit REFRESH: dropped-column query fails, then SELECT * succeeds without the removed column
+================================================================================================
+### CASE-081p[POS] STEP-001 EXEC
+SQL: drop external source if exists fq01_src081p
+RESULT:
+OK
+---
+### CASE-081p[POS] STEP-002 EXEC
+SQL: create external source fq01_src081p type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='fq01_fw_pdb' schema='public'
+RESULT:
+OK
+---
+### CASE-081p[POS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src081p|postgresql|127.0.0.1|15434|postgres|******|fq01_fw_pdb|public|{}
+---
+### CASE-081p[POS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src081p
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src081p|postgresql|127.0.0.1|15434|postgres|******|fq01_fw_pdb|public|{}
+---
+### CASE-081p[POS] STEP-003 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-081p[POS] STEP-004 EXEC
+SQL: refresh external source fq01_src081p
+RESULT:
+OK
+---
+### CASE-081p[POS] STEP-005 QUERY
+SQL: select extra_note from fq01_src081p.src_t where val=5
+RESULT:
+extra_note
+after_refresh
+---
+### CASE-081p[POS] STEP-006 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-081p[POS] STEP-007 QUERY
+SQL: select extra_note from fq01_src081p.src_t where val=5
+RESULT:
+ERROR: query failed
+---
+### CASE-081p[POS] STEP-008 QUERY
+SQL: select * from fq01_src081p.src_t where val=5
+RESULT:
+ts|val|score|name|flag
+2024-01-01 00:04:00|5|5.5|epsilon|1
+---
+### CASE-081p[POS] STEP-009 COUNT
+SQL: select count(*) from fq01_src081p.public.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-081p[POS] STEP-010 CLEANUP
+SQL: drop external source if exists fq01_src081p
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-081p[POS]
+DESC: DROP COLUMN without explicit REFRESH: dropped-column query fails, then SELECT * succeeds without the removed column
+================================================================================================
+================================================================================================
+CASE START: CASE-082m[MYS]
+DESC: ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column
+================================================================================================
+### CASE-082m[MYS] STEP-001 EXEC
+SQL: drop external source if exists fq01_src082m
+RESULT:
+OK
+---
+### CASE-082m[MYS] STEP-002 EXEC
+SQL: create external source fq01_src082m type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database='fq01_fw_mdb'
+RESULT:
+OK
+---
+### CASE-082m[MYS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src082m|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+---
+### CASE-082m[MYS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src082m
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src082m|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+---
+### CASE-082m[MYS] STEP-003 QUERY
+SQL: select * from fq01_src082m.src_t where val=5
+RESULT:
+ts|val|score|name|flag
+2024-01-01 00:04:00|5|5.5|epsilon|True
+---
+### CASE-082m[MYS] STEP-004 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-082m[MYS] STEP-005 QUERY
+SQL: select * from fq01_src082m.src_t where val=5
+RESULT:
+ts|val|score|name|flag
+2024-01-01 00:04:00|5|5.5|epsilon|True
+---
+### CASE-082m[MYS] STEP-006 EXEC
+SQL: refresh external source fq01_src082m
+RESULT:
+OK
+---
+### CASE-082m[MYS] STEP-007 QUERY
+SQL: select * from fq01_src082m.src_t where val=5
+RESULT:
+ts|val|score|name|flag|extra_note
+2024-01-01 00:04:00|5|5.5|epsilon|True|after_refresh
+---
+### CASE-082m[MYS] STEP-008 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-082m[MYS] STEP-009 COUNT
+SQL: select count(*) from fq01_src082m.fq01_fw_mdb.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-082m[MYS] STEP-010 CLEANUP
+SQL: drop external source if exists fq01_src082m
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-082m[MYS]
+DESC: ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column
+================================================================================================
+================================================================================================
+CASE START: CASE-082p[POS]
+DESC: ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column
+================================================================================================
+### CASE-082p[POS] STEP-001 EXEC
+SQL: drop external source if exists fq01_src082p
+RESULT:
+OK
+---
+### CASE-082p[POS] STEP-002 EXEC
+SQL: create external source fq01_src082p type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='fq01_fw_pdb' schema='public'
+RESULT:
+OK
+---
+### CASE-082p[POS] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src082p|postgresql|127.0.0.1|15434|postgres|******|fq01_fw_pdb|public|{}
+---
+### CASE-082p[POS] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src082p
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src082p|postgresql|127.0.0.1|15434|postgres|******|fq01_fw_pdb|public|{}
+---
+### CASE-082p[POS] STEP-003 QUERY
+SQL: select * from fq01_src082p.src_t where val=5
+RESULT:
+ts|val|score|name|flag
+2024-01-01 00:04:00|5|5.5|epsilon|1
+---
+### CASE-082p[POS] STEP-004 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-082p[POS] STEP-005 QUERY
+SQL: select * from fq01_src082p.src_t where val=5
+RESULT:
+ts|val|score|name|flag
+2024-01-01 00:04:00|5|5.5|epsilon|1
+---
+### CASE-082p[POS] STEP-006 EXEC
+SQL: refresh external source fq01_src082p
+RESULT:
+OK
+---
+### CASE-082p[POS] STEP-007 QUERY
+SQL: select * from fq01_src082p.src_t where val=5
+RESULT:
+ts|val|score|name|flag|extra_note
+2024-01-01 00:04:00|5|5.5|epsilon|1|after_refresh
+---
+### CASE-082p[POS] STEP-008 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-082p[POS] STEP-009 COUNT
+SQL: select count(*) from fq01_src082p.public.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-082p[POS] STEP-010 CLEANUP
+SQL: drop external source if exists fq01_src082p
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-082p[POS]
+DESC: ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column
+================================================================================================

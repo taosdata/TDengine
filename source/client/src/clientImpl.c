@@ -1994,6 +1994,14 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
   if (NEED_CLIENT_REFRESH_EXT_SOURCE_ERROR(code)) {
     // EXT_SOURCE_CHANGED / EXT_SCHEMA_CHANGED / EXT_TABLE_NOT_EXIST:
     // remove cache and retry (re-resolve metadata)
+    if (code == TSDB_CODE_EXT_COLUMN_NOT_EXIST && pRequest->retry > 1) {
+      tscDebug("req:0x%" PRIx64
+               ", ext column still missing after one forced refresh for:%s, returning error, QID:0x%" PRIx64,
+               pRequest->self, sourceName, pRequest->requestId);
+      returnToUser(pRequest);
+      return;
+    }
+
     tscDebug("req:0x%" PRIx64 ", ext source meta stale, removing cache for:%s, retrying, QID:0x%" PRIx64,
              pRequest->self, sourceName, pRequest->requestId);
     int32_t rmCode = catalogRemoveExtSource(pCtg, sourceName);
@@ -4121,6 +4129,10 @@ void setConnectionExtSource(STscObj* pTscObj, const char* srcName,
                             const char* ns1, const char* ns2) {
   if (pTscObj == NULL || srcName == NULL) return;
   (void)taosThreadMutexLock(&pTscObj->mutex);
+  // Switching to an external source must drop the local DB context.
+  // Otherwise subsequent 1-seg table refs are expanded to local_db.table
+  // before parser-side external USE fallback gets a chance to run.
+  pTscObj->db[0] = '\0';
   tstrncpy(pTscObj->extSource, srcName, sizeof(pTscObj->extSource));
   if (ns1 && ns1[0]) tstrncpy(pTscObj->extNs1, ns1, sizeof(pTscObj->extNs1));
   else pTscObj->extNs1[0] = '\0';

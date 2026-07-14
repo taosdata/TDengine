@@ -494,10 +494,10 @@ int16_t taosAppNameToId(const char* appName) {
       {"taosAi", TD_APP_TAOS_AI},
       {"taosBenchmark", TD_APP_TAOS_BENCHMARK},
       {"taosExplorer", TD_APP_TAOS_EXPLORER},
-      {"taosKeeper", TD_APP_TAOS_KEEPER},
       {"taosX", TD_APP_TAOSX},
       {"taosdump", TD_APP_TAOS_DUMP},
       {"taosgen", TD_APP_TAOS_GEN},
+      {"taoskeeper", TD_APP_TAOS_KEEPER},
   };
   const int32_t appCnt = (int32_t)tListLen(knownApps);
 

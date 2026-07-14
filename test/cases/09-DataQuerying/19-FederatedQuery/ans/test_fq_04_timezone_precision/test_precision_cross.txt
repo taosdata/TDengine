@@ -270,10 +270,16 @@ RESULT
 ### cst-xprec-100 POS
 SQL: SELECT val FROM {L_us}.t WHERE ts IN (SELECT ts FROM {L_ms}.t) ORDER BY ts
 RESULT
+1
+2
+5
 ---
 ### cst-xprec-101 POS
 SQL: SELECT val FROM {L_ns}.t WHERE ts IN (SELECT ts FROM {L_us}.t) ORDER BY ts
 RESULT
+1
+2
+5
 ---
 ### cst-xprec-102 POS
 SQL: SELECT val FROM {L_ns}.t WHERE ts NOT IN (SELECT ts FROM {L_ms}.t WHERE val > 3) ORDER BY ts
@@ -282,7 +288,6 @@ RESULT
 2
 3
 4
-5
 ---
 ### cst-xprec-103 POS
 SQL: SELECT CAST(ts AS BIGINT), val FROM {L_ms}.t UNION ALL SELECT CAST(ts AS BIGINT), val FROM {L_us}.t ORDER BY 1
@@ -1134,10 +1139,16 @@ RESULT
 ### utc-xprec-100 POS
 SQL: SELECT val FROM {L_us}.t WHERE ts IN (SELECT ts FROM {L_ms}.t) ORDER BY ts
 RESULT
+1
+2
+5
 ---
 ### utc-xprec-101 POS
 SQL: SELECT val FROM {L_ns}.t WHERE ts IN (SELECT ts FROM {L_us}.t) ORDER BY ts
 RESULT
+1
+2
+5
 ---
 ### utc-xprec-102 POS
 SQL: SELECT val FROM {L_ns}.t WHERE ts NOT IN (SELECT ts FROM {L_ms}.t WHERE val > 3) ORDER BY ts
@@ -1146,7 +1157,6 @@ RESULT
 2
 3
 4
-5
 ---
 ### utc-xprec-103 POS
 SQL: SELECT CAST(ts AS BIGINT), val FROM {L_ms}.t UNION ALL SELECT CAST(ts AS BIGINT), val FROM {L_us}.t ORDER BY 1

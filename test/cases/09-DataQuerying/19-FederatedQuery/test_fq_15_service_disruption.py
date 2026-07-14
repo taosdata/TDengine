@@ -199,7 +199,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         try:
             r = requests.get(f"http://{influx_cfg.host}:{influx_cfg.port}/health",
                              timeout=3)
-            if r.status_code not in (200, 204):
+            # Auth-enabled InfluxDB can report 401 while still being reachable.
+            if r.status_code not in (200, 204, 401):
                 raise RuntimeError(f"InfluxDB health check returned {r.status_code}")
         except Exception:
             tdLog.info("[fq15 setup_method] InfluxDB is down — restarting ...")
@@ -1365,7 +1366,11 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         with _BlackHoleListener() as bh:
             try:
                 cfg = self._influx_cfg()
-                opts = f"'api_token'='{cfg.token}','protocol'='flight_sql'"
+                opts = (
+                    f"'api_token'='{cfg.token}','protocol'='flight_sql',"
+                    f"'connect_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}',"
+                    f"'read_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}'"
+                )
                 tdSql.execute(
                     f"create external source {src} type='influxdb' "
                     f"host='127.0.0.1' port={bh.port} "
