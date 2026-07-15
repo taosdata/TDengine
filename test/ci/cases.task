@@ -1339,6 +1339,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_sysinfo.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_table.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_topic.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token_mnode_cache.py -N 3 -M 3
+# [disabled 2026-07-10 concurrent-test-failures]
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py
