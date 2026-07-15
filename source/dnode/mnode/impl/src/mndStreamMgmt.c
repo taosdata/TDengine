@@ -1039,6 +1039,8 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan *plan, SStrea
     pMsg->addOptions |= CALC_SLIDING_OVERLAP;
   }
   pMsg->outCols = pInfo->pCreate->outCols;
+  pMsg->outStbFullCols = pInfo->pCreate->outStbFullCols;
+  pMsg->outStbFullColCids = pInfo->pCreate->outStbFullColCids;
   pMsg->outTags = pInfo->pCreate->outTags;
   pMsg->outStbUid = pStream->pCreate->outStbUid;
   pMsg->outStbSversion = pStream->pCreate->outStbSversion;

@@ -22957,10 +22957,68 @@ _return:
   return code;
 }
 
+static int32_t createStreamBuildOutStbFullCols(STableMeta* pMeta, SArray** ppFullCols, SArray** ppFullColCids) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t numOfCols = pMeta->tableInfo.numOfColumns;
+
+  *ppFullCols = taosArrayInit(numOfCols, sizeof(SFieldWithOptions));
+  if (NULL == *ppFullCols) {
+    PAR_ERR_RET(terrno);
+  }
+  if (ppFullColCids) {
+    *ppFullColCids = taosArrayInit(numOfCols, sizeof(col_id_t));
+    if (NULL == *ppFullColCids) {
+      taosArrayDestroy(*ppFullCols);
+      *ppFullCols = NULL;
+      PAR_ERR_RET(terrno);
+    }
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SSchema*          pSchema = &pMeta->schema[i];
+    SFieldWithOptions field = {.type = pSchema->type, .bytes = pSchema->bytes, .flags = pSchema->flags};
+
+    tstrncpy(field.name, pSchema->name, TSDB_COL_NAME_LEN);
+    if (pMeta->schemaExt) {
+      field.typeMod = pMeta->schemaExt[i].typeMod;
+    }
+    if (taosArrayPush(*ppFullCols, &field) == NULL) {
+      code = terrno;
+      goto _return;
+    }
+    if (ppFullColCids && taosArrayPush(*ppFullColCids, &pSchema->colId) == NULL) {
+      code = terrno;
+      goto _return;
+    }
+  }
+  return code;
+_return:
+  if (code) {
+    taosArrayDestroy(*ppFullCols);
+    *ppFullCols = NULL;
+    if (ppFullColCids) {
+      taosArrayDestroy(*ppFullColCids);
+      *ppFullColCids = NULL;
+    }
+  }
+  return code;
+}
+
+static int32_t createStreamFindOutSchemaIndex(STableMeta* pMeta, const char* name, bool isTag) {
+  int32_t start = isTag ? pMeta->tableInfo.numOfColumns : 0;
+  int32_t end = isTag ? (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) : pMeta->tableInfo.numOfColumns;
+
+  for (int32_t i = start; i < end; ++i) {
+    if (strcmp(name, pMeta->schema[i].name) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTags, STableMeta* pMeta,
                                         SArray** ptagCids) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t tagIndex = pMeta->tableInfo.numOfColumns;
   SNode*  pNode = NULL;
 
   *ptagCids = taosArrayInit(pMeta->tableInfo.numOfTags, sizeof(col_id_t));
@@ -22969,36 +23027,34 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
   }
 
   if (!pTags) {
+    for (int32_t i = 0; i < pMeta->tableInfo.numOfTags; ++i) {
+      col_id_t cid = pMeta->schema[pMeta->tableInfo.numOfColumns + i].colId;
+      if (taosArrayPush(*ptagCids, &cid) == NULL) {
+        PAR_ERR_RET(terrno);
+      }
+    }
     return code;
   }
 
-  if (LIST_LENGTH(pTags) != pMeta->tableInfo.numOfTags) {
+  if (LIST_LENGTH(pTags) > pMeta->tableInfo.numOfTags) {
     code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag count mismatch");
     goto _return;
   }
 
   FOREACH(pNode, pTags) {
     SStreamTagDefNode* pTagDef = (SStreamTagDefNode*)pNode;
-    int8_t             scale = 0;
-    int8_t             precision = 0;
-    int32_t            bytes = 0;
-    if (tagIndex >= pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) {
-      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag count mismatch");
+    int32_t            tagIndex = createStreamFindOutSchemaIndex(pMeta, pTagDef->tagName, true);
+    if (tagIndex < 0) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag name mismatch");
       goto _return;
     }
-    // tags not support decimal, so scale and precision are always 0
     if (pTagDef->dataType.type != pMeta->schema[tagIndex].type) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag type mismatch");
-      goto _return;
-    }
-    if (strcmp(pTagDef->tagName, pMeta->schema[tagIndex].name) != 0) {
-      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag name mismatch");
       goto _return;
     }
     if (taosArrayPush(*ptagCids, &pMeta->schema[tagIndex].colId) == NULL) {
       PAR_ERR_RET(terrno);
     }
-    tagIndex++;
   }
 _return:
   if (code) {
@@ -23013,7 +23069,6 @@ _return:
 static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCols, STableMeta* pMeta,
                                         SArray** pcolCids) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t colIndex = 0;
   SNode*  pNode = NULL;
 
   *pcolCids = taosArrayInit(pMeta->tableInfo.numOfColumns, sizeof(col_id_t));
@@ -23022,19 +23077,28 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
   }
 
   if (!pCols) {
+    for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+      if (taosArrayPush(*pcolCids, &pMeta->schema[i].colId) == NULL) {
+        PAR_ERR_RET(terrno);
+      }
+    }
     return code;
   }
 
-  if (LIST_LENGTH(pCols) != pMeta->tableInfo.numOfColumns) {
+  if (LIST_LENGTH(pCols) > pMeta->tableInfo.numOfColumns) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table cols count mismatch");
   }
 
   FOREACH(pNode, pCols) {
     SColumnDefNode* pColDef = (SColumnDefNode*)pNode;
-    SColumnOptions* pColOptions = (SColumnOptions*)pColDef->pOptions;
+    int32_t         colIndex = createStreamFindOutSchemaIndex(pMeta, pColDef->colName, false);
     int8_t          scale = 0;
     int8_t          precision = 0;
     int32_t         bytes = 0;
+    if (colIndex < 0) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table cols name mismatch");
+      goto _return;
+    }
     if (pMeta->schemaExt) {
       extractTypeFromTypeMod(pMeta->schema[colIndex].type, pMeta->schemaExt[colIndex].typeMod, &precision, &scale,
                              &bytes);
@@ -23050,18 +23114,28 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
     if (pColDef->dataType.type == TSDB_DATA_TYPE_TIMESTAMP &&
         pColDef->dataType.precision != pMeta->tableInfo.precision) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
-                                     "Out table cols timestamp precision mismatch");
+                                       "Out table cols timestamp precision mismatch");
       goto _return;
     }
 
-    if (strncmp(pColDef->colName, pMeta->schema[colIndex].name, strlen(pColDef->colName)) != 0) {
-      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table cols name mismatch");
+    col_id_t colId = pMeta->schema[colIndex].colId;
+    if (taosArrayGetSize(*pcolCids) == 0 && colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
+                                     "Out table first col must be primary timestamp column");
       goto _return;
     }
-    if (taosArrayPush(*pcolCids, &pMeta->schema[colIndex].colId) == NULL) {
+    if (taosArrayGetSize(*pcolCids) > 0) {
+      col_id_t* pPrevColId = (col_id_t*)taosArrayGetLast(*pcolCids);
+      if (pPrevColId != NULL && colId <= *pPrevColId) {
+        code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
+                                       "Out table cols must be specified in ascending column id order");
+        goto _return;
+      }
+    }
+
+    if (taosArrayPush(*pcolCids, &colId) == NULL) {
       PAR_ERR_RET(terrno);
     }
-    colIndex++;
   }
 _return:
   if (code) {
@@ -23139,6 +23213,9 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       pReq->outStbSversion = pMeta->sversion;
       PAR_ERR_JRET(createStreamCheckOutTags(pCxt, pStmt->pTags, pMeta, &pReq->tagCids));
       PAR_ERR_JRET(createStreamCheckOutCols(pCxt, pStmt->pCols, pMeta, &pReq->colCids));
+      if (pStmt->pCols != NULL && LIST_LENGTH(pStmt->pCols) < pMeta->tableInfo.numOfColumns) {
+        PAR_ERR_JRET(createStreamBuildOutStbFullCols(pMeta, &pReq->outStbFullCols, &pReq->outStbFullColCids));
+      }
     } else {
       if (pMeta->tableType != TSDB_NORMAL_TABLE) {
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
@@ -23150,6 +23227,9 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       pReq->outStbUid = 0;
       pReq->outStbSversion = 1;
       PAR_ERR_JRET(createStreamCheckOutCols(pCxt, pStmt->pCols, pMeta, &pReq->colCids));
+      if (pStmt->pCols != NULL && LIST_LENGTH(pStmt->pCols) < pMeta->tableInfo.numOfColumns) {
+        PAR_ERR_JRET(createStreamBuildOutStbFullCols(pMeta, &pReq->outStbFullCols, &pReq->outStbFullColCids));
+      }
     }
   } else {
     PAR_ERR_JRET(code);
