@@ -85,7 +85,7 @@ class TestMqttCases:
             'user': "root",
             'passwd': "taosdata",
             'host': "127.0.0.1",
-            'port': 6083,
+            'port': 6057,
             'qos': 2,
             'topic': "$share/g1/topic_meters",
             'loop_time': .1,
