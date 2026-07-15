@@ -154,6 +154,8 @@ static void stSetRunnerOutputInfo(SStreamRunnerTask* pTask, SStreamRunnerDeployM
     pTask->output.outDbFName[0] = '\0';
   }
   TSWAP(pTask->output.outCols, pMsg->outCols);
+  TSWAP(pTask->output.outStbFullCols, pMsg->outStbFullCols);
+  TSWAP(pTask->output.outStbFullColCids, pMsg->outStbFullColCids);
   pTask->output.outTblType = pMsg->outTblType;
   pTask->output.outStbUid = pMsg->outStbUid;
   TSWAP(pTask->output.outTags, pMsg->outTags);
@@ -218,6 +220,8 @@ int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndepl
   NODES_DESTORY_NODE(pTask->pSubTableExpr);
   NODES_DESTORY_LIST(pTask->output.pTagValExprs);
   taosArrayDestroy(pTask->output.outCols);
+  taosArrayDestroy(pTask->output.outStbFullCols);
+  taosArrayDestroy(pTask->output.outStbFullColCids);
   taosArrayDestroy(pTask->output.outTags);
   taosMemoryFreeClear(pTask->pPlan);
   taosArrayDestroyEx(pTask->forceOutCols, destroySStreamOutCols);
@@ -942,6 +946,8 @@ static int32_t stRunnerBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExec
     SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
                                    .tbname = pExec->tbname,
                                    .pFields = pTask->output.outCols,
+                                   .pFullFields = pTask->output.outStbFullCols,
+                                   .pFullColCids = pTask->output.outStbFullColCids,
                                    .pTagFields = pTask->output.outTags,
                                    .suid = pTask->output.outStbUid,
                                    .tbType = pTask->output.outTblType,
@@ -1139,6 +1145,8 @@ static int32_t streamBuildTask(SStreamRunnerTask* pTask, SStreamRunnerTaskExecut
     SStreamInserterParam params = {.dbFName = pTask->output.outDbFName,
                                    .tbname = pExec->tbname,
                                    .pFields = pTask->output.outCols,
+                                   .pFullFields = pTask->output.outStbFullCols,
+                                   .pFullColCids = pTask->output.outStbFullColCids,
                                    .pTagFields = pTask->output.outTags,
                                    .suid = pTask->output.outStbUid,
                                    .tbType = pTask->output.outTblType,

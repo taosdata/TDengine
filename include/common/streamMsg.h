@@ -224,6 +224,8 @@ typedef struct {
   void*          partitionCols;         // nodelist of SColumnNode
   void*          rollupTagCols;         // serialized SNodeList* of SColumnNode; NULL = not rollup
   SArray*        outCols;               // array of SFieldWithOptions
+  SArray*        outStbFullCols;        // full out stb columns when outStbExists
+  SArray*        outStbFullColCids;      // colIds for outStbFullCols
   SArray*        outTags;               // array of SFieldWithOptions
   int64_t        maxDelay;              // precision is ms
   int64_t        fillHistoryStartTime;  // precision same with triggerDB, INT64_MIN for no value specified
@@ -658,7 +660,9 @@ typedef struct SStreamRunnerDeployMsg {
   int32_t addOptions;
 
   SArray*  outCols;  // array of SFieldWithOptions
-  SArray*  outTags;  // array of SFieldWithOptions
+  SArray*  outStbFullCols;     // full out stb columns when outStbExists
+  SArray*  outStbFullColCids;  // colIds for outStbFullCols
+  SArray*  outTags;            // array of SFieldWithOptions
   uint64_t outStbUid;
   int64_t  outStbSversion;
 

@@ -917,6 +917,22 @@ int32_t tEncodeSStreamRunnerDeployMsg(SEncoder* pEncoder, const SStreamRunnerDep
     }
   }
 
+  int32_t outStbFullColNum = (int32_t)taosArrayGetSize(pMsg->outStbFullCols);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, outStbFullColNum));
+  for (int32_t i = 0; i < outStbFullColNum; ++i) {
+    SFieldWithOptions* pCol = taosArrayGet(pMsg->outStbFullCols, i);
+    TAOS_CHECK_EXIT(tSerializeSFieldWithOptions(pEncoder, pCol));
+  }
+
+  int32_t outStbFullColCidsSize = (int32_t)taosArrayGetSize(pMsg->outStbFullColCids);
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, outStbFullColCidsSize));
+  if (outStbFullColCidsSize > 0) {
+    for (int32_t i = 0; i < outStbFullColCidsSize; ++i) {
+      int16_t* pCid = (int16_t*)taosArrayGet(pMsg->outStbFullColCids, i);
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, *pCid));
+    }
+  }
+
 _exit:
 
   return code;
@@ -1614,7 +1630,10 @@ int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg
   if (!tDecodeIsEnd(pDecoder)) {
     int32_t colCidsSize = 0;
     TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &colCidsSize));
-    if (colCidsSize > 0 && colCidsSize <= TSDB_MAX_COLUMNS) {  // Sanity check
+    if (colCidsSize < 0 || colCidsSize > TSDB_MAX_COLUMNS) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    if (colCidsSize > 0) {
       pMsg->colCids = taosArrayInit(colCidsSize, sizeof(int16_t));
       TSDB_CHECK_NULL(pMsg->colCids, code, lino, _exit, terrno);
       for (int32_t i = 0; i < colCidsSize; ++i) {
@@ -1630,13 +1649,51 @@ int32_t tDecodeSStreamRunnerDeployMsg(SDecoder* pDecoder, SStreamRunnerDeployMsg
   if (!tDecodeIsEnd(pDecoder)) {
     int32_t tagCidsSize = 0;
     TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &tagCidsSize));
-    if (tagCidsSize > 0 && tagCidsSize <= TSDB_MAX_TAGS) {  // Sanity check
+    if (tagCidsSize < 0 || tagCidsSize > TSDB_MAX_TAGS) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    if (tagCidsSize > 0) {
       pMsg->tagCids = taosArrayInit(tagCidsSize, sizeof(int16_t));
       TSDB_CHECK_NULL(pMsg->tagCids, code, lino, _exit, terrno);
       for (int32_t i = 0; i < tagCidsSize; ++i) {
         int16_t cid = 0;
         TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &cid));
         if (taosArrayPush(pMsg->tagCids, &cid) == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+      }
+    }
+  }
+
+  if (!tDecodeIsEnd(pDecoder)) {
+    int32_t outStbFullColNum = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &outStbFullColNum));
+    if (outStbFullColNum < 0 || outStbFullColNum > TSDB_MAX_COLUMNS) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    if (outStbFullColNum > 0) {
+      pMsg->outStbFullCols = taosArrayInit_s(sizeof(SFieldWithOptions), outStbFullColNum);
+      TSDB_CHECK_NULL(pMsg->outStbFullCols, code, lino, _exit, terrno);
+      for (int32_t i = 0; i < outStbFullColNum; ++i) {
+        SFieldWithOptions* pCol = taosArrayGet(pMsg->outStbFullCols, i);
+        TAOS_CHECK_EXIT(tDeserializeSFieldWithOptions(pDecoder, pCol));
+      }
+    }
+  }
+
+  if (!tDecodeIsEnd(pDecoder)) {
+    int32_t outStbFullColCidsSize = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &outStbFullColCidsSize));
+    if (outStbFullColCidsSize < 0 || outStbFullColCidsSize > TSDB_MAX_COLUMNS) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    if (outStbFullColCidsSize > 0) {
+      pMsg->outStbFullColCids = taosArrayInit(outStbFullColCidsSize, sizeof(int16_t));
+      TSDB_CHECK_NULL(pMsg->outStbFullColCids, code, lino, _exit, terrno);
+      for (int32_t i = 0; i < outStbFullColCidsSize; ++i) {
+        int16_t cid = 0;
+        TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &cid));
+        if (taosArrayPush(pMsg->outStbFullColCids, &cid) == NULL) {
           TAOS_CHECK_EXIT(terrno);
         }
       }
@@ -2000,6 +2057,8 @@ void tFreeSStreamRunnerDeployMsg(SStreamRunnerDeployMsg* pRunner) {
 
   taosArrayDestroyEx(pRunner->pNotifyAddrUrls, tFreeStreamNotifyUrl);
   taosArrayDestroy(pRunner->outCols);
+  taosArrayDestroy(pRunner->outStbFullCols);
+  taosArrayDestroy(pRunner->outStbFullColCids);
   taosArrayDestroy(pRunner->outTags);
 
   taosMemoryFree(pRunner->subTblNameExpr);
@@ -2707,6 +2766,10 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   pReq->outTags = NULL;
   taosArrayDestroy(pReq->outCols);
   pReq->outCols = NULL;
+  taosArrayDestroy(pReq->outStbFullCols);
+  pReq->outStbFullCols = NULL;
+  taosArrayDestroy(pReq->outStbFullColCids);
+  pReq->outStbFullColCids = NULL;
 
   switch (pReq->triggerType) {
     case WINDOW_TYPE_STATE:
@@ -2835,6 +2898,16 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
   if (pSrc->outCols) {
     pDst->outCols = taosArrayDup(pSrc->outCols, NULL);
     TSDB_CHECK_NULL(pDst->outCols, code, lino, _exit, terrno);
+  }
+
+  if (pSrc->outStbFullCols) {
+    pDst->outStbFullCols = taosArrayDup(pSrc->outStbFullCols, NULL);
+    TSDB_CHECK_NULL(pDst->outStbFullCols, code, lino, _exit, terrno);
+  }
+
+  if (pSrc->outStbFullColCids) {
+    pDst->outStbFullColCids = taosArrayDup(pSrc->outStbFullColCids, NULL);
+    TSDB_CHECK_NULL(pDst->outStbFullColCids, code, lino, _exit, terrno);
   }
   
   if (pSrc->outTags) {

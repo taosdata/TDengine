@@ -2298,6 +2298,14 @@ void destroyStreamInserterParam(SStreamInserterParam* pParam) {
       taosArrayDestroy(pParam->pFields);
       pParam->pFields = NULL;
     }
+    if (pParam->pFullFields) {
+      taosArrayDestroy(pParam->pFullFields);
+      pParam->pFullFields = NULL;
+    }
+    if (pParam->pFullColCids) {
+      taosArrayDestroy(pParam->pFullColCids);
+      pParam->pFullColCids = NULL;
+    }
     if (pParam->pTagFields) {
       taosArrayDestroy(pParam->pTagFields);
       pParam->pTagFields = NULL;
@@ -2343,6 +2351,20 @@ int32_t cloneStreamInserterParam(SStreamInserterParam** ppDst, SStreamInserterPa
     TSDB_CHECK_NULL((*ppDst)->pFields, code, lino, _exit, terrno);
   } else {
     (*ppDst)->pFields = NULL;
+  }
+
+  if (pSrc->pFullFields && pSrc->pFullFields->size > 0) {
+    (*ppDst)->pFullFields = taosArrayDup(pSrc->pFullFields, NULL);
+    TSDB_CHECK_NULL((*ppDst)->pFullFields, code, lino, _exit, terrno);
+  } else {
+    (*ppDst)->pFullFields = NULL;
+  }
+
+  if (pSrc->pFullColCids && pSrc->pFullColCids->size > 0) {
+    (*ppDst)->pFullColCids = taosArrayDup(pSrc->pFullColCids, NULL);
+    TSDB_CHECK_NULL((*ppDst)->pFullColCids, code, lino, _exit, terrno);
+  } else {
+    (*ppDst)->pFullColCids = NULL;
   }
   
   if (pSrc->pTagFields && pSrc->pTagFields->size > 0) {

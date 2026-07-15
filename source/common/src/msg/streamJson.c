@@ -500,6 +500,8 @@ static const char* jkCreateStreamReqTriggerCols          = "triggerCols";
 static const char* jkCreateStreamReqPartitionCols        = "partitionCols";
 static const char* jkCreateStreamReqRollupTagCols        = "rollupTagCols";
 static const char* jkCreateStreamReqOutCols              = "outCols";
+static const char* jkCreateStreamReqOutStbFullCols       = "outStbFullCols";
+static const char* jkCreateStreamReqOutStbFullColCids    = "outStbFullColCids";
 static const char* jkCreateStreamReqOutTags              = "outTags";
 static const char* jkCreateStreamReqMaxDelay             = "maxDelay";
 static const char* jkCreateStreamReqFillHistoryStartTime = 
@@ -848,6 +850,16 @@ static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
     pReq->outCols ? TARRAY_GET_ELEM(pReq->outCols, 0) : NULL,
     pReq->outCols ? pReq->outCols->elemSize : 0,
     pReq->outCols ? pReq->outCols->size : 0));
+  TAOS_CHECK_RETURN(tjsonAddArray(
+    pJson, jkCreateStreamReqOutStbFullCols, sfieldWithOptionsToJson,
+    pReq->outStbFullCols ? TARRAY_GET_ELEM(pReq->outStbFullCols, 0) : NULL,
+    pReq->outStbFullCols ? pReq->outStbFullCols->elemSize : 0,
+    pReq->outStbFullCols ? pReq->outStbFullCols->size : 0));
+  TAOS_CHECK_RETURN(tjsonAddArray(
+    pJson, jkCreateStreamReqOutStbFullColCids, int16ToJson,
+    pReq->outStbFullColCids ? TARRAY_GET_ELEM(pReq->outStbFullColCids, 0) : NULL,
+    pReq->outStbFullColCids ? pReq->outStbFullColCids->elemSize : 0,
+    pReq->outStbFullColCids ? pReq->outStbFullColCids->size : 0));
   // out tags
   TAOS_CHECK_RETURN(tjsonAddArray(
     pJson, jkCreateStreamReqOutTags, stagFieldWithOptionsToJson,
@@ -1122,6 +1134,12 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
   TAOS_CHECK_RETURN(tjsonToTArray(
     pJson, jkCreateStreamReqOutCols, jsonToSFieldWithOptions,
     &pReq->outCols, sizeof(SFieldWithOptions)));
+  TAOS_CHECK_RETURN(tjsonToTArray(
+    pJson, jkCreateStreamReqOutStbFullCols, jsonToSFieldWithOptions,
+    &pReq->outStbFullCols, sizeof(SFieldWithOptions)));
+  TAOS_CHECK_RETURN(tjsonToTArray(
+    pJson, jkCreateStreamReqOutStbFullColCids, jsonToInt16,
+    &pReq->outStbFullColCids, sizeof(int16_t)));
   // out tags
   TAOS_CHECK_RETURN(tjsonToTArray(
     pJson, jkCreateStreamReqOutTags, jsonToSTagFieldWithOptions,

@@ -1768,7 +1768,25 @@ _end:
 static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSchema** ppTSchema) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  int32_t   numOfCols = pInsertParam->pFields->size;
+  SArray* pSchemaFields = pInsertParam->pFields;
+  bool    useFullSchema = false;
+  if (pInsertParam->colCids && pInsertParam->pFullFields &&
+      taosArrayGetSize(pInsertParam->pFullFields) > taosArrayGetSize(pInsertParam->pFields)) {
+    pSchemaFields = pInsertParam->pFullFields;
+    useFullSchema = true;
+  }
+
+  int32_t   numOfCols = pSchemaFields->size;
+  if (useFullSchema) {
+    int32_t fullColCidNum = pInsertParam->pFullColCids ? (int32_t)taosArrayGetSize(pInsertParam->pFullColCids) : 0;
+    if (fullColCidNum < numOfCols) {
+      stError("buildTSchmaFromInserter: invalid pFullColCids, tb:%s, stb:%s, expected:%d, got:%d",
+              pInsertParam->tbname ? pInsertParam->tbname : "", pInsertParam->stbname ? pInsertParam->stbname : "",
+              numOfCols, fullColCidNum);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+  }
+
   STSchema* pTSchema = taosMemoryCalloc(1, sizeof(STSchema) + sizeof(STColumn) * numOfCols);
   if (NULL == pTSchema) {
     return terrno;
@@ -1781,31 +1799,40 @@ static int32_t buildTSchmaFromInserter(SStreamInserterParam* pInsertParam, STSch
   }
   pTSchema->numOfCols = numOfCols;
 
-  SFieldWithOptions* pField = taosArrayGet(pInsertParam->pFields, 0);
+  SFieldWithOptions* pField = taosArrayGet(pSchemaFields, 0);
   if (NULL == pField) {
     code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     goto _end;
   }
-  pTSchema->columns[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  pTSchema->columns[0].type = pField->type;
-  pTSchema->columns[0].flags = pField->flags;
-  pTSchema->columns[0].bytes = TYPE_BYTES[pField->type];
-  pTSchema->columns[0].offset = -1;
 
   pTSchema->tlen = 0;
   pTSchema->flen = 0;
-  for (int32_t i = 1; i < numOfCols; ++i) {
-    SFieldWithOptions* pField = taosArrayGet(pInsertParam->pFields, i);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    pField = taosArrayGet(pSchemaFields, i);
     if (NULL == pField) {
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       goto _end;
     }
-    pTSchema->columns[i].colId = i + 1;
+
+    col_id_t colId;
+    if (useFullSchema) {
+      colId = *(col_id_t*)taosArrayGet(pInsertParam->pFullColCids, i);
+    } else if (pInsertParam->colCids && taosArrayGetSize(pInsertParam->colCids) > i) {
+      colId = *(col_id_t*)taosArrayGet(pInsertParam->colCids, i);
+    } else {
+      colId = (col_id_t)(i + 1);
+    }
+    pTSchema->columns[i].colId = colId;
     pTSchema->columns[i].type = pField->type;
     pTSchema->columns[i].flags = pField->flags;
-    pTSchema->columns[i].bytes = pField->bytes;
-    pTSchema->columns[i].offset = pTSchema->flen;
 
+    if (i == 0) {
+      pTSchema->columns[i].bytes = TYPE_BYTES[pField->type];
+      pTSchema->columns[i].offset = -1;
+      continue;
+    }
+
+    pTSchema->columns[i].offset = pTSchema->flen;
     if (IS_VAR_DATA_TYPE(pField->type)) {
       pTSchema->columns[i].bytes = pField->bytes;
       pTSchema->tlen += (TYPE_BYTES[pField->type] + pField->bytes);
@@ -1960,12 +1987,19 @@ static int32_t appendInsertData(SStreamInserterParam* pInsertParam, const SSData
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  SArray*   pColCidsArr = pInsertParam->colCids;
+  int32_t   numOfColCids = pColCidsArr ? (int32_t)TARRAY_SIZE(pColCidsArr) : 0;
+  col_id_t* pColCids = (numOfColCids > 0) ? (col_id_t*)TARRAY_DATA(pColCidsArr) : NULL;
+
   for (int32_t j = 0; j < rows; ++j) {  // iterate by row
     taosArrayClear(pVals);
 
     bool tsOrPrimaryKeyIsNull = false;
     for (int32_t k = 0; k < numOfCols; ++k) {  // iterate by column
       int16_t colIdx = k + 1;
+      if (pColCids != NULL && k < numOfColCids) {
+        colIdx = pColCids[k];
+      }
 
       SFieldWithOptions* pCol = taosArrayGet(pInsertParam->pFields, k);
       if (PRIMARYKEY_TIMESTAMP_COL_ID != colIdx && TSDB_DATA_TYPE_NULL == pCol->type) {

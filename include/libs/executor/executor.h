@@ -81,8 +81,10 @@ typedef struct STrueForInfo {
 } STrueForInfo;
 
 typedef struct SStreamInserterParam {
-  SArray*   pFields;     // SArray<SFieldWithOptions>
-  SArray*   pTagFields;  // SArray<SFieldWithOptions>
+  SArray*   pFields;       // SArray<SFieldWithOptions>
+  SArray*   pFullFields;   // full out stb columns for partial column writes
+  SArray*   pFullColCids;  // colIds for pFullFields
+  SArray*   pTagFields;    // SArray<SFieldWithOptions>
   int64_t   suid;
   int32_t   sver;
   char*     tbname;

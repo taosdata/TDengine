@@ -84,8 +84,10 @@ typedef struct SStreamRunnerTaskOutput {
   char                outDbFName[TSDB_DB_FNAME_LEN];
   char                outSTbName[TSDB_TABLE_NAME_LEN];
   int8_t              outTblType;
-  SArray             *outCols;  // array of SFieldWithOptions
-  SArray             *outTags;  // array of SFieldWithOptions
+  SArray             *outCols;         // array of SFieldWithOptions
+  SArray             *outStbFullCols;     // full out stb columns when outStbExists
+  SArray             *outStbFullColCids;  // colIds for outStbFullCols
+  SArray             *outTags;            // array of SFieldWithOptions
   uint64_t            outStbUid;
   int32_t             outStbVersion;
   SNodeList          *pTagValExprs;
