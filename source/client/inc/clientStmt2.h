@@ -125,6 +125,7 @@ typedef struct {
   bool              cachedIsInsert;
   bool              cachedHasTbnameColumn;
   int               cachedTbnameColIdx;
+  SSHashObj        *predicateCols;
 } SStmtSQLInfo2;
 /*
 typedef struct SStmtStatInfo {
