@@ -1044,6 +1044,96 @@ static int32_t convertStmtNcharCol2(SMsgBuf* pMsgBuf, SSchema* pSchema, TAOS_STM
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qBindUpdateStmtColsValue2(void* pBlock, SArray* pCols, TAOS_STMT2_BIND* bind, char* msgBuf, int32_t msgBufLen,
+                                  void* charsetCxt, SSHashObj* parsedCols) {
+  STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
+  SSchema*         pSchema = getTableColumnSchema(pDataBlock->pMeta);
+  SSchemaExt*      pExtSchema = getTableColumnExtSchema(pDataBlock->pMeta);
+  SBoundColInfo*   boundInfo = &pDataBlock->boundColsInfo;
+  SMsgBuf          pBuf = {.buf = msgBuf, .len = msgBufLen};
+  int32_t          rowNum = bind->num;
+  TAOS_STMT2_BIND  ncharBind = {0};
+  TAOS_STMT2_BIND* pBind = NULL;
+  int32_t          code = 0;
+  int32_t          actualIndex = 0;
+  int32_t          numOfBound = boundInfo->numOfBound + tSimpleHashGetSize(parsedCols);
+
+  for (int c = 0; c < numOfBound; ++c) {
+    if (tSimpleHashGet(parsedCols, &c, sizeof(c))) {
+      continue;
+    }
+    SSchema*  pColSchema = &pSchema[boundInfo->pColIndex[actualIndex]];
+    SColData* pCol = taosArrayGet(pCols, actualIndex);
+
+    if (bind[c].num != rowNum) {
+      code = buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
+      goto _return;
+    }
+
+    if ((!(rowNum == 1 && bind[c].is_null && *bind[c].is_null)) && bind[c].buffer_type != pColSchema->type) {
+      code = buildInvalidOperationMsg(&pBuf, "column type mis-match with buffer type");
+      goto _return;
+    }
+
+    if (TSDB_DATA_TYPE_NCHAR == pColSchema->type) {
+      code = convertStmtNcharCol2(&pBuf, pColSchema, bind + c, &ncharBind, charsetCxt);
+      if (code) {
+        goto _return;
+      }
+      pBind = &ncharBind;
+    } else {
+      pBind = bind + c;
+    }
+
+    int8_t  isBlob = 0;
+    int32_t bytes = -1;
+    if (IS_VAR_DATA_TYPE(pColSchema->type)) {
+      if (IS_STR_DATA_BLOB(pColSchema->type)) {
+        isBlob = 1;
+        bytes = TSDB_MAX_BLOB_LEN;
+      } else {
+        bytes = pColSchema->bytes - VARSTR_HEADER_SIZE;
+      }
+    }
+
+    if (pColSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
+      code = tColDataAddValueByBind2WithGeos(pCol, pBind, bytes, initCtxAsText, checkWKB);
+    } else if (isBlob == 1) {
+      if (pDataBlock->pData->pBlobSet == NULL) {
+        code = tBlobSetCreate(1024, 1, &pDataBlock->pData->pBlobSet);
+        if (code) {
+          goto _return;
+        }
+      }
+      code = tColDataAddValueByBind2WithBlob(pCol, pBind, bytes, pDataBlock->pData->pBlobSet);
+    } else if (IS_DECIMAL_TYPE(pColSchema->type)) {
+      if (pExtSchema == NULL) {
+        code = buildInvalidOperationMsg(&pBuf, "decimal column ext schema is null");
+        goto _return;
+      }
+      uint8_t precision = 0, scale = 0;
+      decimalFromTypeMod(pExtSchema[boundInfo->pColIndex[actualIndex]].typeMod, &precision, &scale);
+      code = tColDataAddValueByBind2WithDecimal(pCol, pBind, bytes, precision, scale);
+    } else {
+      code = tColDataAddValueByBind2(pCol, pBind, bytes);
+    }
+
+    if (code) {
+      goto _return;
+    }
+    actualIndex++;
+  }
+
+  parserDebug("stmt2 all %d columns bind %d rows data", boundInfo->numOfBound, rowNum);
+
+_return:
+
+  taosMemoryFree(ncharBind.buffer);
+  taosMemoryFree(ncharBind.length);
+
+  return code;
+}
+
 int32_t qBindStmtColsValue2(void* pBlock, SArray* pCols, SSHashObj* parsedCols, TAOS_STMT2_BIND* bind, char* msgBuf,
                             int32_t msgBufLen, void* charsetCxt) {
   STableDataCxt*   pDataBlock = (STableDataCxt*)pBlock;
