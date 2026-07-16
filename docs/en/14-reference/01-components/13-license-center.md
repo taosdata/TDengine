@@ -13,7 +13,7 @@ The License Center is a service used to manage TDengine TSDB / IDMP licensing. I
 Installation package:
 
 ```bash
-license-center-cls-0.1.3-linux-amd64.tar.gz
+license-center-cls-1.0.0-linux-amd64.tar.gz
 ```
 
 After extracting it, you can see the deployment-related scripts:
