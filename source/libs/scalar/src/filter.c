@@ -2149,6 +2149,48 @@ void filterFreePCtx(SFilterPCtx *pctx) {
   taosHashCleanup(pctx->unitHash);
 }
 
+static void fltFreeBlkNotNullGroup(void *data) {
+  SFltBlkNotNullGroup *pGroup = (SFltBlkNotNullGroup *)data;
+  if (NULL == pGroup) {
+    return;
+  }
+
+  taosArrayDestroy(pGroup->pItems);
+  pGroup->pItems = NULL;
+}
+
+static bool fltShouldSampleLastSmaDebug(void) {
+  static int64_t seq = 0;
+  int64_t        cur = __sync_add_and_fetch(&seq, 1);
+
+  return cur <= 64 || 0 == (cur % 10000);
+}
+
+static void fltFormatBlkNotNullGroup(const SFltBlkNotNullGroup *pGroup, char *buf, int32_t len) {
+  if (NULL == buf || len <= 0) {
+    return;
+  }
+
+  buf[0] = '\0';
+  if (NULL == pGroup || NULL == pGroup->pItems) {
+    return;
+  }
+
+  int32_t offset = 0;
+  for (int32_t i = 0; i < taosArrayGetSize(pGroup->pItems); ++i) {
+    const SFltBlkNotNullItem *pItem = taosArrayGet(pGroup->pItems, i);
+    if (NULL == pItem) {
+      continue;
+    }
+
+    int32_t written = snprintf(buf + offset, len - offset, "%s%d", (0 == i) ? "" : ",", pItem->colId);
+    if (written < 0 || written >= len - offset) {
+      break;
+    }
+    offset += written;
+  }
+}
+
 void filterFreeInfo(SFilterInfo *info) {
   if (info == NULL) {
     return;
@@ -2190,6 +2232,8 @@ void filterFreeInfo(SFilterInfo *info) {
   }
 
   taosMemoryFreeClear(info->colRange);
+  taosArrayDestroyEx(info->pBlkOrNotNullGroups, fltFreeBlkNotNullGroup);
+  info->pBlkOrNotNullGroups = NULL;
 
   filterFreePCtx(&info->pctx);
 
@@ -3019,6 +3063,8 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
   info->colRange = oinfo.colRange;
   oinfo.colRangeNum = 0;
   oinfo.colRange = NULL;
+  info->pBlkOrNotNullGroups = oinfo.pBlkOrNotNullGroups;
+  oinfo.pBlkOrNotNullGroups = NULL;
 
   FILTER_SET_FLAG(info->options, FLT_OPTION_NEED_UNIQE);
 
@@ -4480,8 +4526,75 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAg
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t fltFindDataStatisByColId(SColumnDataAgg *pDataStatis, int32_t numOfCols, col_id_t colId) {
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    if (pDataStatis[i].colId == colId) {
+      return i;
+    }
+  }
+
+  return -1;
+}
+
+static int32_t fltExecuteBlkOrNotNullGroups(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols,
+                                            int32_t numOfRows, bool *keep) {
+  if (NULL == info || NULL == keep || NULL == info->pBlkOrNotNullGroups) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(info->pBlkOrNotNullGroups); ++i) {
+    SFltBlkNotNullGroup *pGroup = taosArrayGet(info->pBlkOrNotNullGroups, i);
+    if (NULL == pGroup || NULL == pGroup->pItems || taosArrayGetSize(pGroup->pItems) <= 0) {
+      continue;
+    }
+
+    bool groupMatched = false;
+    bool allRowsNull = true;
+    for (int32_t j = 0; j < taosArrayGetSize(pGroup->pItems); ++j) {
+      SFltBlkNotNullItem *pItem = taosArrayGet(pGroup->pItems, j);
+      if (NULL == pItem) {
+        FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+      }
+
+      int32_t idx = fltFindDataStatisByColId(pDataStatis, numOfCols, pItem->colId);
+      if (idx < 0) {
+        allRowsNull = false;
+        continue;
+      }
+
+      if (pDataStatis[idx].numOfNull < numOfRows) {
+        groupMatched = true;
+        break;
+      }
+    }
+
+    if (!groupMatched && allRowsNull) {
+      char cols[128] = {0};
+      fltFormatBlkNotNullGroup(pGroup, cols, sizeof(cols));
+      qDebug("last-sma-debug block not-null group rejected block, cols:%s, rows:%d", cols, numOfRows);
+      *keep = false;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (fltShouldSampleLastSmaDebug()) {
+      char cols[128] = {0};
+      fltFormatBlkNotNullGroup(pGroup, cols, sizeof(cols));
+      qDebug("last-sma-debug block not-null group evaluated, cols:%s, rows:%d, matched:%d, all_rows_null:%d",
+             cols, numOfRows, groupMatched, allRowsNull);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows,
                            bool *keep) {
+  *keep = true;
+  FLT_ERR_RET(fltExecuteBlkOrNotNullGroups(info, pDataStatis, numOfCols, numOfRows, keep));
+  if (!(*keep)) {
+    FLT_RET(TSDB_CODE_SUCCESS);
+  }
+
   if (info->scalarMode) {
     SArray *colRanges = info->sclCtx.fltSclRange;
     for (int32_t i = 0; i < taosArrayGetSize(colRanges); ++i) {
@@ -5462,23 +5575,41 @@ static int32_t fltSclCollectOperatorFromNode(SNode *pNode, SArray *sclOpList) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t fltSclCollectOperatorsFromAndNode(SNode *pNode, SArray *sclOpList) {
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
+    return fltSclCollectOperatorFromNode(pNode, sclOpList);
+  }
+
+  if (nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pNode;
+  if (pLogicCond->condType != LOGIC_COND_TYPE_AND) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode *pExpr = NULL;
+  FOREACH(pExpr, pLogicCond->pParameterList) {
+    FLT_ERR_RET(fltSclCollectOperatorsFromAndNode(pExpr, sclOpList));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t fltSclCollectOperatorsFromLogicCond(SNode *pNode, SArray *sclOpList) {
   if (nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
     return TSDB_CODE_SUCCESS;
   }
   SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pNode;
-  // TODO: support LOGIC_COND_TYPE_OR
   if (pLogicCond->condType != LOGIC_COND_TYPE_AND) {
     return TSDB_CODE_SUCCESS;
   }
-  SNode *pExpr = NULL;
-  FOREACH(pExpr, pLogicCond->pParameterList) {
-    if (!fltSclIsCollectableNode(pExpr)) {
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-  FOREACH(pExpr, pLogicCond->pParameterList) { FLT_ERR_RET(fltSclCollectOperatorFromNode(pExpr, sclOpList)); }
-  return TSDB_CODE_SUCCESS;
+  return fltSclCollectOperatorsFromAndNode(pNode, sclOpList);
 }
 
 static int32_t fltSclCollectOperators(SNode *pNode, SArray *sclOpList) {
@@ -5523,6 +5654,210 @@ _return:
   }
   taosArrayDestroy(colRangeList);
   taosArrayDestroy(sclOpList);
+  return code;
+}
+
+static bool fltBlkNotNullIsTargetColumn(SNode *pNode, SColumnNode **ppColNode) {
+  if (NULL == pNode || nodeType(pNode) != QUERY_NODE_COLUMN) {
+    return false;
+  }
+
+  SColumnNode *pCol = (SColumnNode *)pNode;
+  if (pCol->colType != COLUMN_TYPE_COLUMN) {
+    return false;
+  }
+
+  if (NULL != ppColNode) {
+    *ppColNode = pCol;
+  }
+
+  return true;
+}
+
+static bool fltBlkNotNullIsNotNullCond(SNode *pNode, SColumnNode **ppColNode) {
+  if (NULL == pNode || nodeType(pNode) != QUERY_NODE_OPERATOR) {
+    return false;
+  }
+
+  SOperatorNode *pOper = (SOperatorNode *)pNode;
+  if (pOper->opType != OP_TYPE_IS_NOT_NULL || NULL != pOper->pRight) {
+    return false;
+  }
+
+  return fltBlkNotNullIsTargetColumn(pOper->pLeft, ppColNode);
+}
+
+static int32_t fltBlkNotNullGroupAddCol(SFltBlkNotNullGroup *pGroup, const SColumnNode *pColNode) {
+  if (NULL == pGroup || NULL == pColNode) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  if (NULL == pGroup->pItems) {
+    pGroup->pItems = taosArrayInit(4, sizeof(SFltBlkNotNullItem));
+    if (NULL == pGroup->pItems) {
+      FLT_ERR_RET(terrno);
+    }
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pGroup->pItems); ++i) {
+    SFltBlkNotNullItem *pItem = taosArrayGet(pGroup->pItems, i);
+    if (NULL == pItem) {
+      FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+    }
+    if (pItem->colId == pColNode->colId) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  SFltBlkNotNullItem item = {.colId = pColNode->colId};
+  if (NULL == taosArrayPush(pGroup->pItems, &item)) {
+    FLT_ERR_RET(terrno);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fltBlkNotNullCollectOrItems(SNode *pNode, SFltBlkNotNullGroup *pGroup, bool *pMatched) {
+  if (NULL == pMatched) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  *pMatched = false;
+
+  SColumnNode *pColNode = NULL;
+  if (fltBlkNotNullIsNotNullCond(pNode, &pColNode)) {
+    FLT_ERR_RET(fltBlkNotNullGroupAddCol(pGroup, pColNode));
+    *pMatched = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == pNode || nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pNode;
+  if (pLogicCond->condType != LOGIC_COND_TYPE_OR) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool allMatched = true;
+  SNode *pChild = NULL;
+  FOREACH(pChild, pLogicCond->pParameterList) {
+    bool childMatched = false;
+    FLT_ERR_RET(fltBlkNotNullCollectOrItems(pChild, pGroup, &childMatched));
+    if (!childMatched) {
+      allMatched = false;
+      break;
+    }
+  }
+
+  if (!allMatched || NULL == pGroup->pItems || taosArrayGetSize(pGroup->pItems) <= 0) {
+    fltFreeBlkNotNullGroup(pGroup);
+    *pMatched = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pMatched = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fltBlkNotNullAppendGroup(SArray **ppGroups, SFltBlkNotNullGroup *pGroup) {
+  if (NULL == pGroup || NULL == pGroup->pItems || taosArrayGetSize(pGroup->pItems) <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == *ppGroups) {
+    *ppGroups = taosArrayInit(4, sizeof(SFltBlkNotNullGroup));
+    if (NULL == *ppGroups) {
+      FLT_ERR_RET(terrno);
+    }
+  }
+
+  if (NULL == taosArrayPush(*ppGroups, pGroup)) {
+    FLT_ERR_RET(terrno);
+  }
+  pGroup->pItems = NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fltBlkNotNullExtractFromAnd(SNode *pNode, SArray **ppGroups) {
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnNode *pColNode = NULL;
+  if (fltBlkNotNullIsNotNullCond(pNode, &pColNode)) {
+    SFltBlkNotNullGroup group = {0};
+    FLT_ERR_RET(fltBlkNotNullGroupAddCol(&group, pColNode));
+    int32_t code = fltBlkNotNullAppendGroup(ppGroups, &group);
+    fltFreeBlkNotNullGroup(&group);
+    return code;
+  }
+
+  if (nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLogicConditionNode *pLogicCond = (SLogicConditionNode *)pNode;
+  if (pLogicCond->condType != LOGIC_COND_TYPE_AND) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode *pChild = NULL;
+  FOREACH(pChild, pLogicCond->pParameterList) {
+    SFltBlkNotNullGroup group = {0};
+    bool                matched = false;
+    FLT_ERR_RET(fltBlkNotNullCollectOrItems(pChild, &group, &matched));
+    if (matched) {
+      int32_t code = fltBlkNotNullAppendGroup(ppGroups, &group);
+      fltFreeBlkNotNullGroup(&group);
+      FLT_ERR_RET(code);
+      continue;
+    }
+
+    fltFreeBlkNotNullGroup(&group);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fltBuildBlkOrNotNullGroups(SNode *pNode, SArray **ppGroups) {
+  if (NULL == ppGroups || NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *ppGroups = NULL;
+
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_CONDITION &&
+      ((SLogicConditionNode *)pNode)->condType == LOGIC_COND_TYPE_OR) {
+    SFltBlkNotNullGroup group = {0};
+    bool                matched = false;
+    int32_t             code = fltBlkNotNullCollectOrItems(pNode, &group, &matched);
+    if (TSDB_CODE_SUCCESS == code && matched) {
+      code = fltBlkNotNullAppendGroup(ppGroups, &group);
+    }
+    fltFreeBlkNotNullGroup(&group);
+    if (TSDB_CODE_SUCCESS == code && NULL != *ppGroups) {
+      for (int32_t i = 0; i < taosArrayGetSize(*ppGroups); ++i) {
+        SFltBlkNotNullGroup *pGroup = taosArrayGet(*ppGroups, i);
+        char                 cols[128] = {0};
+        fltFormatBlkNotNullGroup(pGroup, cols, sizeof(cols));
+        qDebug("last-sma-debug initialized block not-null group, group_idx:%d, cols:%s", i, cols);
+      }
+    }
+    return code;
+  }
+
+  int32_t code = fltBlkNotNullExtractFromAnd(pNode, ppGroups);
+  if (TSDB_CODE_SUCCESS == code && NULL != *ppGroups) {
+    for (int32_t i = 0; i < taosArrayGetSize(*ppGroups); ++i) {
+      SFltBlkNotNullGroup *pGroup = taosArrayGet(*ppGroups, i);
+      char                 cols[128] = {0};
+      fltFormatBlkNotNullGroup(pGroup, cols, sizeof(cols));
+      qDebug("last-sma-debug initialized block not-null group, group_idx:%d, cols:%s", i, cols);
+    }
+  }
+
   return code;
 }
 
@@ -5586,6 +5921,63 @@ void filterSetExecContext(SFilterInfo *info, void* pTaskInfo, sclIsTaskKilled is
   info->isTaskKilled = isTaskKilledFn;
 }
 
+static bool fltBlockSmaNeedsDataColumnStats(const SColumnNode *pCol) {
+  if (NULL == pCol) {
+    return false;
+  }
+
+  return COLUMN_TYPE_COLUMN == pCol->colType && !pCol->isPrimTs && PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId;
+}
+
+bool filterBlockSmaOnlyUsesNumOfNull(const SFilterInfo *info) {
+  if (NULL == info) {
+    return false;
+  }
+
+  bool hasNumOfNullOnlyUsage = false;
+
+  if (info->scalarMode && NULL != info->sclCtx.fltSclRange) {
+    for (int32_t i = 0; i < taosArrayGetSize(info->sclCtx.fltSclRange); ++i) {
+      const SFltSclColumnRange *pColRange = taosArrayGet(info->sclCtx.fltSclRange, i);
+      if (NULL == pColRange || NULL == pColRange->colNode) {
+        return false;
+      }
+
+      if (!fltBlockSmaNeedsDataColumnStats(pColRange->colNode)) {
+        continue;
+      }
+
+      return false;
+    }
+  }
+
+  if (info->colRangeNum > 0 && NULL == info->colRange) {
+    return false;
+  }
+
+  for (uint32_t i = 0; i < info->colRangeNum; ++i) {
+    const SFilterRangeCtx *pCtx = info->colRange[i];
+    if (NULL == pCtx) {
+      return false;
+    }
+
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == pCtx->colId) {
+      continue;
+    }
+
+    hasNumOfNullOnlyUsage = true;
+    if (pCtx->isrange) {
+      return false;
+    }
+  }
+
+  if (NULL != info->pBlkOrNotNullGroups && taosArrayGetSize(info->pBlkOrNotNullGroups) > 0) {
+    hasNumOfNullOnlyUsage = true;
+  }
+
+  return hasNumOfNullOnlyUsage;
+}
+
 int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, void* pSclExtraParams) {
   SFilterInfo *info = NULL;
   if (pNode == NULL) {
@@ -5626,6 +6018,8 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, 
     }
     fltDebug("scalar mode: %d", info->scalarMode);
   }
+
+  FLT_ERR_JRET(fltBuildBlkOrNotNullGroups(pNode, &info->pBlkOrNotNullGroups));
 
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));

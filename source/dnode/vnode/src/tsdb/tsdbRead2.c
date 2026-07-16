@@ -97,6 +97,77 @@ static int32_t       buildFromPreFilesetBuffer(STsdbReader* pReader);
 static void resetPreFilesetMemTableListIndex(SReaderStatus* pStatus);
 int32_t     tsdbReaderSuspend2(STsdbReader* pReader);
 
+static void formatBlockSmaRequestCols(const SBlockLoadSuppInfo* pSup, char* pBuf, int32_t bufLen) {
+  if (NULL == pBuf || bufLen <= 0) {
+    return;
+  }
+
+  pBuf[0] = '\0';
+  if (NULL == pSup || NULL == pSup->colId || NULL == pSup->slotId) {
+    return;
+  }
+
+  int32_t offset = 0;
+  for (int32_t i = 0; i < pSup->numOfCols; ++i) {
+    int32_t written = snprintf(pBuf + offset, bufLen - offset, "%s%d@%d", (i == 0) ? "" : ",", pSup->colId[i],
+                               pSup->slotId[i]);
+    if (written < 0) {
+      pBuf[offset] = '\0';
+      return;
+    }
+
+    if (written >= bufLen - offset) {
+      pBuf[bufLen - 1] = '\0';
+      return;
+    }
+
+    offset += written;
+  }
+}
+
+static void formatBlockSmaAggCols(const TColumnDataAggArray* pAggArray, char* pBuf, int32_t bufLen) {
+  if (NULL == pBuf || bufLen <= 0) {
+    return;
+  }
+
+  pBuf[0] = '\0';
+  if (NULL == pAggArray) {
+    return;
+  }
+
+  int32_t offset = 0;
+  for (int32_t i = 0; i < pAggArray->size; ++i) {
+    const SColumnDataAgg* pAgg = &pAggArray->data[i];
+    int32_t written = snprintf(pBuf + offset, bufLen - offset, "%s%d[%d]", (i == 0) ? "" : ",", pAgg->colId,
+                               pAgg->numOfNull);
+    if (written < 0) {
+      pBuf[offset] = '\0';
+      return;
+    }
+
+    if (written >= bufLen - offset) {
+      pBuf[bufLen - 1] = '\0';
+      return;
+    }
+
+    offset += written;
+  }
+}
+
+static bool isBlockSmaRequestColsSorted(const SBlockLoadSuppInfo* pSup) {
+  if (NULL == pSup || NULL == pSup->colId) {
+    return true;
+  }
+
+  for (int32_t i = 1; i < pSup->numOfCols; ++i) {
+    if (pSup->colId[i - 1] > pSup->colId[i]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 FORCE_INLINE int32_t pkCompEx(SRowKey* p1, SRowKey* p2) {
   if (p2 == NULL) {
     return 1;
@@ -885,8 +956,16 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   // allocate buffer in order to load data blocks from file
   pSup = &pReader->suppInfo;
   pSup->tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  pSup->blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
   code = setColumnIdSlotList(pSup, pCond->colList, pCond->pSlotList, pCond->numOfCols);
   TSDB_CHECK_CODE(code, lino, _end);
+
+  {
+    char reqCols[128] = {0};
+    formatBlockSmaRequestCols(pSup, reqCols, sizeof(reqCols));
+    tsdbDebug("last-sma-debug reader block SMA request cols:%s, sorted:%d, %s", reqCols,
+              isBlockSmaRequestColsSorted(pSup), pReader->idStr);
+  }
 
   code = initResBlockInfo(&pReader->resBlockInfo, capacity, pResBlock, pCond, pSup);
   TSDB_CHECK_CODE(code, lino, _end);
@@ -6686,11 +6765,33 @@ _end:
   return code;
 }
 
+static int32_t doInsertPrimaryTsColSMA(SBlockLoadSuppInfo* pSup, SColumnDataAgg* pTsAgg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  TSDB_CHECK_NULL(pSup, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pTsAgg, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  code = TARRAY2_INSERT_PTR(&pSup->colAggArray, 0, pTsAgg);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock, bool* allHave, bool* hasNullSMA) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SColumnDataAgg**    pBlockSMA = NULL;
   SFileDataBlockInfo* pBlockInfo = NULL;
+  char                reqCols[128] = {0};
+  char                rawAggCols[256] = {0};
+  char                filledAggCols[256] = {0};
+  bool                reqColsSorted = true;
+  bool                synthesizeAllNullSma = false;
 
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pDataBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -6701,11 +6802,14 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
   *pBlockSMA = NULL;
 
   if (pReader->type == TIMEWINDOW_RANGE_EXTERNAL) {
+    tsdbDebug("last-sma-debug skip block SMA load due to external range, requested:%s, %s", reqCols, pReader->idStr);
     goto _end;
   }
 
   // there is no statistics data for composed block
   if (pReader->status.composedDataBlock || (!pReader->suppInfo.smaValid)) {
+    tsdbDebug("last-sma-debug skip block SMA load due to reader state, composed:%d, sma_valid:%d, requested:%s, %s",
+              pReader->status.composedDataBlock, pReader->suppInfo.smaValid, reqCols, pReader->idStr);
     goto _end;
   }
 
@@ -6713,9 +6817,14 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
   TSDB_CHECK_CODE(code, lino, _end);
 
   SBlockLoadSuppInfo* pSup = &pReader->suppInfo;
+  formatBlockSmaRequestCols(pSup, reqCols, sizeof(reqCols));
+  reqColsSorted = isBlockSmaRequestColsSorted(pSup);
 
   SSDataBlock* pResBlock = pReader->resBlockInfo.pResBlock;
   if (pResBlock->info.id.uid != pBlockInfo->uid) {
+    tsdbDebug("last-sma-debug skip block SMA load due to uid mismatch, block_uid:%" PRIu64 ", res_uid:%" PRIu64
+              ", requested:%s, %s",
+              pBlockInfo->uid, pResBlock->info.id.uid, reqCols, pReader->idStr);
     goto _end;
   }
 
@@ -6731,11 +6840,29 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pSup->colAggArray.size > 0) {
-    *allHave = true;
-  } else {
-    *pBlockSMA = NULL;
+  if (!reqColsSorted) {
+    formatBlockSmaAggCols(&pSup->colAggArray, rawAggCols, sizeof(rawAggCols));
+    tsdbDebug("last-sma-debug block SMA request order is not sorted, uid:%" PRIu64 ", brange:%" PRId64 "-%" PRId64
+              ", requested:%s, returned_raw:%s, %s",
+              pBlockInfo->uid, pBlockInfo->firstKey, pBlockInfo->lastKey, reqCols, rawAggCols, pReader->idStr);
+  }
+
+  *allHave = true;
+  synthesizeAllNullSma =
+      (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY && pSup->colAggArray.size <= 0);
+  if (pSup->colAggArray.size <= 0 && !synthesizeAllNullSma) {
+    *allHave = false;
+    tsdbDebug("last-sma-debug skip synthetic block SMA for empty agg list, mode:%d, uid:%" PRIu64
+              ", brange:%" PRId64 "-%" PRId64 ", requested:%s, %s",
+              pSup->blockSmaMode, pBlockInfo->uid, pBlockInfo->firstKey, pBlockInfo->lastKey, reqCols,
+              pReader->idStr);
     goto _end;
+  }
+
+  if (synthesizeAllNullSma) {
+    tsdbDebug("last-sma-debug block SMA file returned empty agg list, treat as all-null requested cols, uid:%" PRIu64
+              ", brange:%" PRId64 "-%" PRId64 ", requested:%s, %s",
+              pBlockInfo->uid, pBlockInfo->firstKey, pBlockInfo->lastKey, reqCols, pReader->idStr);
   }
 
   // always load the first primary timestamp column data
@@ -6758,9 +6885,14 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     }
   }
 
-  // do fill all null column value SMA info
-  code = doFillNullColSMA(pSup, pBlockInfo->numRow, numOfCols, pTsAgg);
+  if (synthesizeAllNullSma) {
+    code = doFillNullColSMA(pSup, pBlockInfo->numRow, numOfCols, pTsAgg);
+  } else {
+    code = doInsertPrimaryTsColSMA(pSup, pTsAgg);
+  }
   TSDB_CHECK_CODE(code, lino, _end);
+
+  formatBlockSmaAggCols(&pSup->colAggArray, filledAggCols, sizeof(filledAggCols));
 
   size_t size = pSup->colAggArray.size;
 
@@ -6776,8 +6908,22 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     } else if (pSup->colId[j] < pAgg->colId) {
       pResBlock->pBlockAgg[pSup->slotId[j]].colId = -1;
       *allHave = false;
+      if (rawAggCols[0] == '\0') {
+        formatBlockSmaAggCols(&pSup->colAggArray, rawAggCols, sizeof(rawAggCols));
+      }
+      tsdbDebug("last-sma-debug missing requested block SMA column, uid:%" PRIu64 ", brange:%" PRId64 "-%" PRId64
+                ", missing_col:%d, next_returned_col:%d, requested:%s, filled:%s, %s",
+                pBlockInfo->uid, pBlockInfo->firstKey, pBlockInfo->lastKey, pSup->colId[j], pAgg->colId, reqCols,
+                filledAggCols, pReader->idStr);
       j += 1;
     }
+  }
+
+  if (j < numOfCols) {
+    tsdbDebug("last-sma-debug merge finished with trailing requested block SMA columns, uid:%" PRIu64
+              ", brange:%" PRId64 "-%" PRId64 ", next_missing_col:%d, requested:%s, filled:%s, %s",
+              pBlockInfo->uid, pBlockInfo->firstKey, pBlockInfo->lastKey, pSup->colId[j], reqCols, filledAggCols,
+              pReader->idStr);
   }
 
   *pBlockSMA = pResBlock->pBlockAgg;
@@ -6933,6 +7079,7 @@ int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   memset(&pReader->suppInfo.tsColAgg, 0, sizeof(SColumnDataAgg));
 
   pReader->suppInfo.tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  pReader->suppInfo.blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
   tsdbDataFileReaderClose(&pReader->pFileReader);
 
   int32_t numOfTables = tSimpleHashGetSize(pStatus->pTableMap);
@@ -7404,6 +7551,24 @@ int32_t tsdbReaderSetId(void* p, const char* idstr) {
   TSDB_CHECK_NULL(pReader->idStr, code, lino, _end, terrno);
 
   pReader->status.fileIter.pSttBlockReader->mergeTree.idStr = pReader->idStr;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tsdbReaderSetBlockSmaMode(void* p, ETsdReaderBlockSmaMode mode) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  STsdbReader* pReader = (STsdbReader*)p;
+
+  TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_CONDITION(mode == TSD_READER_BLOCK_SMA_MODE_NORMAL || mode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY,
+                       code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  pReader->suppInfo.blockSmaMode = mode;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {

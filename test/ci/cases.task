@@ -42,6 +42,7 @@
 # long-running cases（优先调度，减少整体 pipeline 时长）
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop_follower_leader.py -N 5 -M 3
 100,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_last_sma_prefilter.py
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/02-Mnode/test_mnode_basic2.py -N 2
 ,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_basic.py
 ,,n,cases,bash 83-DocTest/python.sh
