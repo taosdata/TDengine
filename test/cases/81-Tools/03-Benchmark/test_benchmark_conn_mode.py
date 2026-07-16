@@ -109,7 +109,6 @@ class TestConnMode:
         # 
         self.benchmarkCmd("-h 127.0.0.1", 5, 100, 10, ["insert rows: 500"])
         user_opt = "-u root -p taosdata" if platform.system().lower() == "windows" else "-uroot -ptaosdata"
-
         self.benchmarkCmd(f"-h 127.0.0.1 {user_opt}", 5, 100, 10, ["insert rows: 500"])
         self.benchmarkCmd(f"-Z 0 -h 127.0.0.1 -P 6030 {user_opt}", 5, 100, 10, ["insert rows: 500"])
 
