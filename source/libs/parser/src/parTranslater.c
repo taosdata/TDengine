@@ -21332,6 +21332,9 @@ static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentN
   SRestoreDnodeReq restoreReq = {0};
   restoreReq.dnodeId = pStmt->dnodeId;
   restoreReq.vgId = pStmt->vgId;
+  // pass the parallel vnode restore upper limit through to the mnode request, 0 means no limit
+  restoreReq.parallel = pStmt->parallel;
+  parserDebug("translateRestoreDnode: dnodeId:%d vgId:%d parallel:%d", pStmt->dnodeId, pStmt->vgId, pStmt->parallel);
   switch (nodeType((SNode*)pStmt)) {
     case QUERY_NODE_RESTORE_DNODE_STMT:
       restoreReq.restoreType = RESTORE_TYPE__ALL;

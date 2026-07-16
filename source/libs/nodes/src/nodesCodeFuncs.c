@@ -10860,6 +10860,7 @@ static int32_t jsonToDropDnodeStmt(const SJson* pJson, void* pObj) {
 
 static const char* jkRestoreComponentNodeStmtDnodeId = "DnodeId";
 static const char* jkRestoreComponentNodeStmtVgId = "VgId";
+static const char* jkRestoreComponentNodeStmtParallel = "Parallel";
 
 static int32_t restoreComponentNodeStmtToJson(const void* pObj, SJson* pJson) {
   const SRestoreComponentNodeStmt* pNode = (const SRestoreComponentNodeStmt*)pObj;
@@ -10867,6 +10868,10 @@ static int32_t restoreComponentNodeStmtToJson(const void* pObj, SJson* pJson) {
   int32_t code = tjsonAddIntegerToObject(pJson, jkRestoreComponentNodeStmtDnodeId, pNode->dnodeId);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkRestoreComponentNodeStmtVgId, pNode->vgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    // parallel: upper limit on the number of vnodes restored in parallel, 0 means no limit
+    code = tjsonAddIntegerToObject(pJson, jkRestoreComponentNodeStmtParallel, pNode->parallel);
   }
   return code;
 }
@@ -10876,11 +10881,19 @@ static int32_t jsonToRestoreComponentNodeStmt(const SJson* pJson, void* pObj) {
 
   // vgId is an optional extension, default to 0 if not present in JSON
   pNode->vgId = 0;
+  // parallel is an optional extension, default to 0 if not present in JSON
+  pNode->parallel = 0;
   int32_t code = tjsonGetIntValue(pJson, jkRestoreComponentNodeStmtDnodeId, &pNode->dnodeId);
   if (TSDB_CODE_SUCCESS == code) {
     const SJson* pVgIdJson = tjsonGetObjectItem(pJson, jkRestoreComponentNodeStmtVgId);
     if (pVgIdJson != NULL) {
       code = tjsonGetIntValue(pJson, jkRestoreComponentNodeStmtVgId, &pNode->vgId);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    const SJson* pParallelJson = tjsonGetObjectItem(pJson, jkRestoreComponentNodeStmtParallel);
+    if (pParallelJson != NULL) {
+      code = tjsonGetIntValue(pJson, jkRestoreComponentNodeStmtParallel, &pNode->parallel);
     }
   }
   return code;

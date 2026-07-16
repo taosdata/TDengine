@@ -806,7 +806,13 @@ cmd ::= ALTER DNODE NK_INTEGER(A) NK_STRING(B) NK_STRING(C).                    
 cmd ::= ALTER DNODES RELOAD general_name(A).                                      { pCxt->pRootNode = createAlterAllDnodeTLSStmt(pCxt, &A);}
 cmd ::= ALTER ALL DNODES NK_STRING(A).                                            { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, NULL); }
 cmd ::= ALTER ALL DNODES NK_STRING(A) NK_STRING(B).                               { pCxt->pRootNode = createAlterDnodeStmt(pCxt, NULL, &A, &B); }
-cmd ::= RESTORE DNODE NK_INTEGER(A).                                              { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_DNODE_STMT, &A); }
+cmd ::= RESTORE DNODE NK_INTEGER(A) restore_parallel_opt(P).                     { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_DNODE_STMT, &A, P); }
+
+// restore_parallel_opt: optional PARALLEL <n> argument, controls the upper limit on the number of vnodes restored in parallel. 0 = no limit.
+%type restore_parallel_opt                                                        { int32_t }
+%destructor restore_parallel_opt                                                  { }
+restore_parallel_opt(A) ::= .                                                     { A = 0; }
+restore_parallel_opt(A) ::= PARALLEL NK_INTEGER(B).                               { A = taosStr2Int32(B.z, NULL, 10); }
 
 %type dnode_endpoint                                                              { SToken }
 %destructor dnode_endpoint                                                        { }
@@ -843,7 +849,7 @@ cmd ::= SET FIRST_DAY_OF_WEEK NK_MINUS(B) NK_INTEGER(C).                        
 /************************************************ create/drop/restore qnode ***************************************************/
 cmd ::= CREATE QNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_QNODE_STMT, &A); }
 cmd ::= DROP QNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropComponentNodeStmt(pCxt, QUERY_NODE_DROP_QNODE_STMT, &A); }
-cmd ::= RESTORE QNODE ON DNODE NK_INTEGER(A).                                     { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_QNODE_STMT, &A); }
+cmd ::= RESTORE QNODE ON DNODE NK_INTEGER(A).                                     { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_QNODE_STMT, &A, 0); }
 
 /************************************************ create/drop backup node ***************************************************/
 // cmd ::= CREATE BACKUPNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_BACKUP_NODE_STMT, &A); }
@@ -863,10 +869,10 @@ bnode_options(A) ::= bnode_options(B) NK_ID(C) NK_STRING(D).                    
 /************************************************ create/drop/restore mnode ***************************************************/
 cmd ::= CREATE MNODE ON DNODE NK_INTEGER(A).                                      { pCxt->pRootNode = createCreateComponentNodeStmt(pCxt, QUERY_NODE_CREATE_MNODE_STMT, &A); }
 cmd ::= DROP MNODE ON DNODE NK_INTEGER(A).                                        { pCxt->pRootNode = createDropComponentNodeStmt(pCxt, QUERY_NODE_DROP_MNODE_STMT, &A); }
-cmd ::= RESTORE MNODE ON DNODE NK_INTEGER(A).                                     { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_MNODE_STMT, &A); }
+cmd ::= RESTORE MNODE ON DNODE NK_INTEGER(A).                                     { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_MNODE_STMT, &A, 0); }
 
 /************************************************ restore vnode ***************************************************/
-cmd ::= RESTORE VNODE ON DNODE NK_INTEGER(A).                                     { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_VNODE_STMT, &A); }
+cmd ::= RESTORE VNODE ON DNODE NK_INTEGER(A) restore_parallel_opt(P).             { pCxt->pRootNode = createRestoreComponentNodeStmt(pCxt, QUERY_NODE_RESTORE_VNODE_STMT, &A, P); }
 cmd ::= RESTORE VNODE ON DNODE NK_INTEGER(A) ON VGROUP NK_INTEGER(B).                                     { pCxt->pRootNode = createRestoreComponentNodeStmtWithVgId(pCxt, QUERY_NODE_RESTORE_VNODE_STMT, &A, &B); }
 
 /************************************************ create/drop/use database ********************************************/
