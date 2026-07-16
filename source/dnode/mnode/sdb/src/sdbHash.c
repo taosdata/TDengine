@@ -302,6 +302,14 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   pSdb->tableVer[pOldRow->type]++;
   sdbUnLock(pSdb, type);
 
+  SdbDropFp dropFp = pSdb->dropFps[type];
+  if (dropFp != NULL) {
+    int32_t code = (*dropFp)(pSdb, pOldRow->pObj);
+    if (code != 0) {
+      mError("row:%p, failed to apply logical drop for type:%s since %s", pOldRow, sdbTableName(type), tstrerror(code));
+    }
+  }
+
   sdbFreeRow(pSdb, pRow, false);
 
   sdbCheckRow(pSdb, pOldRow);
@@ -612,4 +620,3 @@ bool sdbCheckExists(SSdb *pSdb, ESdbType type, const void *pKey) {
 
   return (NULL != p);
 }
-

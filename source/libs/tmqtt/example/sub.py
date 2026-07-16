@@ -23,7 +23,7 @@ else:
 
 client.on_connect = on_connect
 client.username_pw_set("root", "taosdata")
-client.connect("127.0.1.1", 6083)
+client.connect("127.0.1.1", 6057)
 
 client.on_subscribe = on_subscribe
 client.on_message = on_message

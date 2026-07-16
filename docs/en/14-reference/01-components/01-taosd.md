@@ -206,7 +206,7 @@ Additional Notes:
 | maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
 | shareConnLimit         | Added in 3.3.4.0        | Supported, effective after restart                           | Number of requests a connection can share, range 1-512, default value 10 |
 | readTimeout            | Added in 3.3.4.0        | Supported, effective after restart                           | Minimum timeout for a single request, range 64-604800, in seconds, default value 900 |
-| mqttPort               | After 3.3.6.23          | Not supported                                                | MQTT service listening port, range 1-65056, default value 6083 |
+| mqttPort               | After 3.3.6.23          | Not supported                                                | MQTT service listening port, range 1-65056, default value 6057 |
 | enableTLS              | After 3.3.8.4           | Supported, effective immediately                             | Whether to enable TLS connection; 0: disable, 1: enable; default value 0 |
 | enableSasl             | After 3.4.0.0           | Supported, effective immediately                             | Whether to enable SASL authentication; 0: disable, 1: enable; default value 0 |
 | rpcRecvLogThreshold    | After 3.3.8.4           | Supported, effective immediately                             | RPC receive log threshold, RPC requests exceeding this time will be logged, range 1-1048576, in seconds, default value 3 |

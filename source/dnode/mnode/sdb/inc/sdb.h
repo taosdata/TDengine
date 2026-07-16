@@ -117,6 +117,8 @@ typedef struct SSdbRaw SSdbRaw;
 typedef struct SSdbRow SSdbRow;
 typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
+// Called after a row is logically dropped from SDB, before its ref-counted storage is freed.
+typedef int32_t (*SdbDropFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj, bool callFunc);
 typedef int32_t (*SdbDeployFp)(SMnode *pMnode);
 typedef int32_t (*SdbAfterRestoredFp)(SMnode *pMnode);
@@ -237,6 +239,7 @@ typedef struct SSdb {
   TdThreadRwlock     locks[SDB_MAX];
   SdbInsertFp        insertFps[SDB_MAX];
   SdbUpdateFp        updateFps[SDB_MAX];
+  SdbDropFp          dropFps[SDB_MAX];
   SdbDeleteFp        deleteFps[SDB_MAX];
   SdbDeployFp        deployFps[SDB_MAX];
   SdbAfterRestoredFp afterRestoredFps[SDB_MAX];
@@ -264,6 +267,7 @@ typedef struct {
   SdbDecodeFp        decodeFp;
   SdbInsertFp        insertFp;
   SdbUpdateFp        updateFp;
+  SdbDropFp          dropFp;
   SdbDeleteFp        deleteFp;
   SdbValidateFp      validateFp;
   SdbUpgradeFp       upgradeFp;

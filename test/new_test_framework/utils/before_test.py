@@ -235,7 +235,7 @@ class BeforeTest:
         servers = []
         port_base = dnode_config_template["port"] if "port" in dnode_config_template else 6030
         yaml_data["settings"][0]["spec"]["config"]["firstEP"] = f"localhost:{port_base}"
-        mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6083
+        mqttport_base = dnode_config_template["mqttPort"] if "mqttPort" in dnode_config_template else 6057
         taosd_binary = "taosd.exe" if sys.platform == "win32" else "taosd"
         taosadapter_binary = "taosadapter.exe" if sys.platform == "win32" else "taosadapter"
         taoskeeper_binary = "taoskeeper.exe" if sys.platform == "win32" else "taoskeeper"

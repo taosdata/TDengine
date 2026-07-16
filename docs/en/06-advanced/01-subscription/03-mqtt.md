@@ -27,7 +27,7 @@ CREATE BNODE ON DNODE <dnode_id>;
 
 You can create only one bnode on each dnode. Once the bnode is successfully created, a bnode subprocess named `taosmqtt` is automatically started to provide MQTT subscription services.
 
-The `taosmqtt` service uses port 6083 by default. You can modify the `mqttPort` parameter in `taos.cfg` to provide MQTT subscription services on a different port.
+The `taosmqtt` service uses port 6057 by default. You can modify the `mqttPort` parameter in `taos.cfg` to provide MQTT subscription services on a different port.
 
 ### View Bnodes
 
@@ -43,7 +43,7 @@ Information similar to the following is displayed:
 taos> show bnodes;
      id    |   endpoint       |    protocol    |       create_time    | 
 ======================================================================
-     1     | 192.168.0.1:6083 | mqtt        | 2024-11-28 18:44:27.089 | 
+     1     | 192.168.0.1:6057 | mqtt        | 2024-11-28 18:44:27.089 | 
 Query OK, 1 row(s) in set (0.037205s)
 ```
 
@@ -105,7 +105,7 @@ else:
 
 client.on_connect = on_connect
 client.username_pw_set("root", "taosdata")
-client.connect("127.0.1.1", 6083)
+client.connect("127.0.1.1", 6057)
 
 client.on_subscribe = on_subscribe
 client.on_message = on_message
