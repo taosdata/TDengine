@@ -22,24 +22,26 @@ import (
 )
 
 var config struct {
-	BlockSize int64
-	DNode     uint
-	DataDirs  [3][]string
-	Endpoint  string
-	Secure    bool
-	AccessKey string
-	SecretKey string
-	Bucket    string
-	Region    string
+	BlockSize    int64
+	DNode        uint
+	DataDirs     [3][]string
+	Endpoint     string
+	Secure       bool
+	BucketLookup minio.BucketLookupType
+	AccessKey    string
+	SecretKey    string
+	Bucket       string
+	Region       string
 }
 
 var minioClient *minio.Client
 
 func createMinIOClient() {
 	client, err := minio.New(config.Endpoint, &minio.Options{
-		Creds:  credentials.NewStaticV4(config.AccessKey, config.SecretKey, ""),
-		Secure: config.Secure,
-		Region: config.Region,
+		Creds:        credentials.NewStaticV4(config.AccessKey, config.SecretKey, ""),
+		Secure:       config.Secure,
+		Region:       config.Region,
+		BucketLookup: config.BucketLookup,
 	})
 	if err != nil {
 		log.Fatalln(err)
@@ -667,6 +669,7 @@ func parseAccessString(as string) error {
 	config.Endpoint = ""
 	config.Bucket = ""
 	config.Secure = true
+	config.BucketLookup = minio.BucketLookupAuto
 	config.AccessKey = ""
 	config.SecretKey = ""
 	config.Region = ""
@@ -693,6 +696,15 @@ func parseAccessString(as string) error {
 			default:
 				return fmt.Errorf("invalid ssAccessString protocol %q: expected http or https", part[1])
 			}
+		case "uristyle":
+			switch strings.ToLower(part[1]) {
+			case "path":
+				config.BucketLookup = minio.BucketLookupPath
+			case "virtualhost":
+				config.BucketLookup = minio.BucketLookupDNS
+			default:
+				return fmt.Errorf("invalid ssAccessString uriStyle %q: expected path or virtualHost", part[1])
+			}
 		case "accesskeyid":
 			config.AccessKey = part[1]
 		case "secretaccesskey":
@@ -718,7 +730,6 @@ func parseTaosCfg(path string) error {
 	}
 	defer f.Close()
 
-	ssConfig := false
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -746,14 +757,13 @@ func parseTaosCfg(path string) error {
 
 		case "ssaccessstring":
 			if strings.HasPrefix(parts[1], "s3:") {
-				ssConfig = true
 				if err := parseAccessString(parts[1][3:]); err != nil {
 					return err
 				}
 			}
 
 		case "s3endpoint":
-			if ssConfig || config.Endpoint != "" {
+			if config.Endpoint != "" {
 				continue
 			}
 			endpoint := strings.ToLower(parts[1])
@@ -768,7 +778,7 @@ func parseTaosCfg(path string) error {
 			}
 
 		case "s3accesskey":
-			if ssConfig || config.AccessKey != "" {
+			if config.AccessKey != "" {
 				continue
 			}
 			if idx := strings.IndexByte(parts[1], ':'); idx == -1 {
@@ -779,7 +789,7 @@ func parseTaosCfg(path string) error {
 			}
 
 		case "s3bucketname":
-			if ssConfig || config.Bucket != "" {
+			if config.Bucket != "" {
 				continue
 			}
 			config.Bucket = parts[1]

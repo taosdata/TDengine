@@ -5,12 +5,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/minio/minio-go/v7"
 )
 
 func TestParseAccessStringAcceptsKnownAndUnknownOptions(t *testing.T) {
 	resetConfig()
 
-	if err := parseAccessString("endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=http;accessKeyId=AK;secretAccessKey=SK;region=us-east-2;"); err != nil {
+	if err := parseAccessString("endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=http;accessKeyId=AK;secretAccessKey=SK;region=us-east-2;maxRetry=3;"); err != nil {
 		t.Fatalf("parseAccessString returned error: %v", err)
 	}
 
@@ -22,6 +24,9 @@ func TestParseAccessStringAcceptsKnownAndUnknownOptions(t *testing.T) {
 	}
 	if config.Secure {
 		t.Fatal("Secure = true, want false for protocol=http")
+	}
+	if config.BucketLookup != minio.BucketLookupPath {
+		t.Fatalf("BucketLookup = %v, want BucketLookupPath", config.BucketLookup)
 	}
 	if config.AccessKey != "AK" || config.SecretKey != "SK" || config.Region != "us-east-2" {
 		t.Fatalf("unexpected credentials or region: access=%q secret=%q region=%q", config.AccessKey, config.SecretKey, config.Region)
@@ -52,6 +57,29 @@ func TestParseAccessStringRejectsInvalidProtocol(t *testing.T) {
 	}
 }
 
+func TestParseAccessStringRejectsInvalidURIStyle(t *testing.T) {
+	resetConfig()
+
+	err := parseAccessString("endpoint=s3.amazonaws.com;uriStyle=host")
+	if err == nil {
+		t.Fatal("parseAccessString succeeded for invalid uriStyle")
+	}
+	if !strings.Contains(err.Error(), "expected path or virtualHost") {
+		t.Fatalf("error = %q, want uriStyle error", err)
+	}
+}
+
+func TestParseAccessStringAcceptsVirtualHostURIStyle(t *testing.T) {
+	resetConfig()
+
+	if err := parseAccessString("endpoint=s3.amazonaws.com;uriStyle=virtualHost"); err != nil {
+		t.Fatalf("parseAccessString returned error: %v", err)
+	}
+	if config.BucketLookup != minio.BucketLookupDNS {
+		t.Fatalf("BucketLookup = %v, want BucketLookupDNS", config.BucketLookup)
+	}
+}
+
 func TestParseTaosCfgParsesSsAccessString(t *testing.T) {
 	resetConfig()
 
@@ -69,6 +97,9 @@ func TestParseTaosCfgParsesSsAccessString(t *testing.T) {
 	}
 	if config.Secure {
 		t.Fatal("Secure = true, want false for protocol=http")
+	}
+	if config.BucketLookup != minio.BucketLookupPath {
+		t.Fatalf("BucketLookup = %v, want BucketLookupPath", config.BucketLookup)
 	}
 }
 
@@ -97,6 +128,31 @@ func TestParseTaosCfgRejectsInvalidDataDirLevel(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "invalid dataDir level 3") {
 		t.Fatalf("error = %q, want invalid dataDir level 3", err)
+	}
+}
+
+func TestParseTaosCfgLetsLegacyFillMissingSsAccessStringFields(t *testing.T) {
+	resetConfig()
+
+	cfgPath := writeConfig(t, strings.Join([]string{
+		"dataDir /tmp/taos 0",
+		"ssAccessString s3:endpoint=s3.amazonaws.com;protocol=https",
+		"s3bucketname legacy-bucket",
+		"s3accesskey AK:SK",
+	}, "\n")+"\n")
+
+	if err := parseTaosCfg(cfgPath); err != nil {
+		t.Fatalf("parseTaosCfg returned error: %v", err)
+	}
+
+	if config.Endpoint != "s3.amazonaws.com" {
+		t.Fatalf("Endpoint = %q, want s3.amazonaws.com", config.Endpoint)
+	}
+	if config.Bucket != "legacy-bucket" || config.AccessKey != "AK" || config.SecretKey != "SK" {
+		t.Fatalf("legacy fields were not used as fallback: bucket=%q access=%q secret=%q", config.Bucket, config.AccessKey, config.SecretKey)
+	}
+	if !config.Secure {
+		t.Fatal("Secure = false, want true for protocol=https")
 	}
 }
 
@@ -161,6 +217,7 @@ func resetConfig() {
 	}
 	config.Endpoint = ""
 	config.Secure = false
+	config.BucketLookup = minio.BucketLookupAuto
 	config.AccessKey = ""
 	config.SecretKey = ""
 	config.Bucket = ""
