@@ -914,6 +914,9 @@ typedef struct {
   int64_t    bufferSegmentSize;
   int32_t    snapSeq;
   int64_t    syncTotalIndex;
+  // 运行时字段（不持久化到 SDB）：记录该 vnode 最近一次在 status 心跳中被上报的时间戳(ms)。
+  // 用于在 mnode 侧判断"未上报的 vnode"是否已离线足够久，避免因偶发单次心跳缺失就误判为 OFFLINE。
+  int64_t    lastSeenMs;
 } SVnodeGid;
 
 typedef struct {
