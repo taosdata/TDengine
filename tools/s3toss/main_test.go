@@ -113,15 +113,13 @@ func writeConfig(t *testing.T, contents string) string {
 }
 
 func resetConfig() {
-	config = struct {
-		BlockSize int64
-		DNode     uint
-		DataDirs  [3][]string
-		Endpoint  string
-		Secure    bool
-		AccessKey string
-		SecretKey string
-		Bucket    string
-		Region    string
-	}{}
+	config.BlockSize = 0
+	config.DNode = 0
+	config.DataDirs = [3][]string{}
+	config.Endpoint = ""
+	config.Secure = false
+	config.AccessKey = ""
+	config.SecretKey = ""
+	config.Bucket = ""
+	config.Region = ""
 }
