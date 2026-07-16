@@ -1445,6 +1445,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_restore_vnode.py -N 5 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_restore_mnode.py -N 5 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_restore_qnode.py -N 5 -M 3
+,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_restore_parallel.py -N 5 -M 3
 #,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_snapshot.py -N 3 -L 3 -D 2
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_split_vgroup_by_learner.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_cluster_threads.py

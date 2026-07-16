@@ -4030,6 +4030,8 @@ typedef struct {
   int32_t sqlLen;
   char*   sql;
   int32_t vgId;
+  // parallel: upper limit on the number of vnodes restored in parallel. 0 means no limit (backward compatible).
+  int32_t parallel;
 } SRestoreDnodeReq;
 
 int32_t tSerializeSRestoreDnodeReq(void* buf, int32_t bufLen, SRestoreDnodeReq* pReq);

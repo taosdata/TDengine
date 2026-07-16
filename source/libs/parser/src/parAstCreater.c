@@ -7632,20 +7632,26 @@ _err:
   return NULL;
 }
 
-SNode* createRestoreComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId) {
+SNode* createRestoreComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId,
+                                      int32_t parallel) {
   CHECK_PARSER_STATUS(pCxt);
   SRestoreComponentNodeStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
   pStmt->vgId = 0;
+  // parallel: upper limit on the number of vnodes restored in parallel, 0 means no limit (backward compatible)
+  pStmt->parallel = parallel;
+  parserDebug("createRestoreComponentNodeStmt: type:%d dnodeId:%d vgId:%d parallel:%d", type, pStmt->dnodeId,
+              pStmt->vgId, pStmt->parallel);
   return (SNode*)pStmt;
 _err:
   return NULL;
 }
 
 SNode* createRestoreComponentNodeStmtWithVgId(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId, const SToken* pVgId) {
-  SRestoreComponentNodeStmt* pStmt = (SRestoreComponentNodeStmt*)createRestoreComponentNodeStmt(pCxt, type, pDnodeId);
+  // The ON VGROUP variant does not support the parallel argument; pass 0 to keep backward compatibility
+  SRestoreComponentNodeStmt* pStmt = (SRestoreComponentNodeStmt*)createRestoreComponentNodeStmt(pCxt, type, pDnodeId, 0);
   if (pStmt == NULL) {
     return NULL;
   }

@@ -91,12 +91,24 @@ vgroup 选举本身带有随机性，所以通过选举的重新分布产生的�
 当集群中的某个数据节点（dnode）的数据全部丢失或被破坏，比如磁盘损坏或者目录被误删除，可以通过 `restore dnode` 命令来恢复该数据节点上的部分或全部逻辑节点，该功能依赖多副本中的其它副本进行数据复制，所以只在集群中 dnode 数量大于等于 3 且副本数为 3 的情况下能够工作。
 
 ```sql
-restore dnode <dnode_id>；# 恢复dnode上的mnode，所有vnode和qnode
-restore mnode on dnode <dnode_id>；# 恢复dnode上的mnode
-restore vnode on dnode <dnode_id> ；# 恢复dnode上的所有vnode
-restore vnode on dnode <dnode_id> on vgroup <vgroup_id> ；# 恢复 dnode 上指定 vgroup 的 vnode
-restore qnode on dnode <dnode_id>；# 恢复dnode上的qnode
+restore dnode <dnode_id>; # 恢复 dnode 上的 mnode，所有 vnode 和 qnode
+restore dnode <dnode_id> parallel <n>; # 指定并行恢复的 vnode 数量为 n，0 表示不限制
+restore mnode on dnode <dnode_id>; # 恢复 dnode 上的 mnode
+restore vnode on dnode <dnode_id>; # 恢复 dnode 上的所有 vnode
+restore vnode on dnode <dnode_id> parallel <n>; # 指定并行恢复的 vnode 数量为 n，0 表示不限制
+restore vnode on dnode <dnode_id> on vgroup <vgroup_id>; # 恢复 dnode 上指定 vgroup 的 vnode
+restore qnode on dnode <dnode_id>; # 恢复 dnode 上的 qnode
 ```
+
+### PARALLEL 参数
+
+`restore dnode` 和 `restore vnode on dnode` 命令支持 `PARALLEL` 参数，用于控制同时并行恢复的 vnode 数量。
+
+- `PARALLEL <n>`：指定同时恢复的 vnode 数量为 `n`，`n` 为正整数。
+- `PARALLEL 0`：表示不限制并行数量，所有 vnode 同时开始恢复。
+- 不指定 `PARALLEL` 参数时，使用默认行为（不限制并行数量）。
+
+该参数适用于 dnode 上 vnode 数量较多、希望控制恢复并发度的场景，避免恢复过程占用过多系统资源。
 
 ### 限制
 

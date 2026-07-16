@@ -1049,6 +1049,10 @@ typedef struct SRestoreComponentNodeStmt {
   ENodeType type;
   int32_t   dnodeId;
   int32_t   vgId;
+  // parallel: upper limit on the number of vnodes restored in parallel. 0 means no limit
+  // (fully parallel, backward compatible).
+  // Only RESTORE DNODE / RESTORE VNODE ON DNODE commands set a non-zero value.
+  int32_t   parallel;
 } SRestoreComponentNodeStmt;
 
 typedef struct SCreateTopicStmt {

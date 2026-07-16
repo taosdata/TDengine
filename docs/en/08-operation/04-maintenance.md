@@ -89,11 +89,23 @@ If the data on a data node (dnode) in the cluster is completely lost or damaged,
 
 ```sql
 restore dnode <dnode_id>; # Restore mnode, all vnodes, and qnode on dnode
+restore dnode <dnode_id> parallel <n>; # Restore with n concurrent vnodes, 0 for unlimited
 restore mnode on dnode <dnode_id>; # Restore mnode on dnode
 restore vnode on dnode <dnode_id>; # Restore all vnodes on dnode
+restore vnode on dnode <dnode_id> parallel <n>; # Restore vnodes with n concurrent, 0 for unlimited
 restore vnode on dnode <dnode_id> on vgroup <vgroup_id>; # Restore one vnode on dnode
 restore qnode on dnode <dnode_id>; # Restore qnode on dnode
 ```
+
+### PARALLEL Parameter
+
+The `restore dnode` and `restore vnode on dnode` commands support a `PARALLEL` parameter to control the number of vnodes restored concurrently.
+
+- `PARALLEL <n>`: Specifies that up to `n` vnodes are restored concurrently, where `n` is a positive integer.
+- `PARALLEL 0`: Indicates no limit on concurrency; all vnodes start restoring simultaneously.
+- When `PARALLEL` is not specified, the default behavior applies (no limit on concurrency).
+
+This parameter is useful when a dnode has many vnodes and you want to control the recovery concurrency to avoid excessive resource usage.
 
 ### Limitations
 
