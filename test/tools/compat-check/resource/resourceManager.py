@@ -522,7 +522,7 @@ class ResourceManager:
                 return False, "; ".join(errors)
 
             names = sorted(current.keys())
-            return True, f"all {len(names)} tag index(es) intact: {names}"
+            return True, f"all {len(names)} tag index(es) intact"
 
         finally:
             cursor.close()
@@ -645,7 +645,7 @@ class ResourceManager:
                 return False, "; ".join(errors)
 
             names = sorted(snapshot.keys())
-            return True, f"all {len(names)} TSMA(s) intact: {names}"
+            return True, f"all {len(names)} TSMA(s) intact"
 
         finally:
             cursor.close()
@@ -761,7 +761,7 @@ class ResourceManager:
                 return False, "; ".join(errors)
 
             names = sorted(snapshot.keys())
-            return True, f"all {len(names)} RSMA(s) intact: {names}"
+            return True, f"all {len(names)} RSMA(s) intact"
 
         finally:
             cursor.close()
@@ -887,7 +887,7 @@ class ResourceManager:
                 return False, "; ".join(errors)
 
             names = sorted(snapshot.keys())
-            return True, f"all {len(names)} stream(s) intact: {names}"
+            return True, f"all {len(names)} stream(s) intact"
 
         finally:
             cursor.close()

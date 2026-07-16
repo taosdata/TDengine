@@ -1105,7 +1105,10 @@ else()
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
-                    --without-librtmp #--enable-debug
+                    --without-librtmp --without-libgsasl #--enable-debug
+                    # --without-libgsasl: prevent curl's configure from auto-detecting a
+                    # system libgsasl-dev and baking an undeclared dependency into
+                    # libcurl.a (would break final link with undefined gsasl_* refs).
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make -j4
         INSTALL_COMMAND
