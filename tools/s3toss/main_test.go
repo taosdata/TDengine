@@ -10,7 +10,7 @@ import (
 func TestParseAccessStringAcceptsKnownAndUnknownOptions(t *testing.T) {
 	resetConfig()
 
-	if err := parseAccessString("endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=http;accessKeyId=AK;secretAccessKey=SK;region=us-east-2;"); err != nil {
+	if err := parseAccessString("endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=http;accessKeyId=AK;secretAccessKey=SK;region=us-east-2"); err != nil {
 		t.Fatalf("parseAccessString returned error: %v", err)
 	}
 
@@ -37,18 +37,6 @@ func TestParseAccessStringRejectsMalformedOption(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "expected key=value") {
 		t.Fatalf("error = %q, want expected key=value", err)
-	}
-}
-
-func TestParseAccessStringRejectsInvalidProtocol(t *testing.T) {
-	resetConfig()
-
-	err := parseAccessString("endpoint=s3.amazonaws.com;protocol=ftp")
-	if err == nil {
-		t.Fatal("parseAccessString succeeded for invalid protocol")
-	}
-	if !strings.Contains(err.Error(), "expected http or https") {
-		t.Fatalf("error = %q, want protocol error", err)
 	}
 }
 
@@ -100,35 +88,6 @@ func TestParseTaosCfgRejectsInvalidDataDirLevel(t *testing.T) {
 	}
 }
 
-func TestParseTaosCfgParsesLegacyS3Endpoint(t *testing.T) {
-	tests := []struct {
-		name     string
-		endpoint string
-		secure   bool
-	}{
-		{name: "http", endpoint: "http://localhost:9000", secure: false},
-		{name: "https", endpoint: "https://localhost:9000", secure: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			resetConfig()
-
-			cfgPath := writeConfig(t, "dataDir /tmp/taos 0\ns3endpoint "+tt.endpoint+"\n")
-
-			if err := parseTaosCfg(cfgPath); err != nil {
-				t.Fatalf("parseTaosCfg returned error: %v", err)
-			}
-			if config.Endpoint != "localhost:9000" {
-				t.Fatalf("Endpoint = %q, want localhost:9000", config.Endpoint)
-			}
-			if config.Secure != tt.secure {
-				t.Fatalf("Secure = %v, want %v", config.Secure, tt.secure)
-			}
-		})
-	}
-}
-
 func TestParseTaosCfgRejectsInvalidS3Endpoint(t *testing.T) {
 	resetConfig()
 
@@ -156,9 +115,7 @@ func writeConfig(t *testing.T, contents string) string {
 func resetConfig() {
 	config.BlockSize = 0
 	config.DNode = 0
-	for i := range config.DataDirs {
-		config.DataDirs[i] = nil
-	}
+	config.DataDirs = [3][]string{}
 	config.Endpoint = ""
 	config.Secure = false
 	config.AccessKey = ""

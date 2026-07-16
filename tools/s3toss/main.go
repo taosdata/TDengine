@@ -685,14 +685,7 @@ func parseAccessString(as string) error {
 		case "bucket":
 			config.Bucket = part[1]
 		case "protocol":
-			switch strings.ToLower(part[1]) {
-			case "http":
-				config.Secure = false
-			case "https":
-				config.Secure = true
-			default:
-				return fmt.Errorf("invalid ssAccessString protocol %q: expected http or https", part[1])
-			}
+			config.Secure = !strings.EqualFold(part[1], "http")
 		case "accesskeyid":
 			config.AccessKey = part[1]
 		case "secretaccesskey":
