@@ -661,7 +661,7 @@ func migrateVnodes(mode string, vid, fid uint) {
 	}
 }
 
-func parseAccessString(as string) {
+func parseAccessString(as string) error {
 	items := strings.Split(as, ";")
 
 	config.Endpoint = ""
@@ -672,7 +672,13 @@ func parseAccessString(as string) {
 	config.Region = ""
 
 	for _, item := range items {
+		if item == "" {
+			continue
+		}
 		part := strings.SplitN(item, "=", 2)
+		if len(part) != 2 {
+			return fmt.Errorf("invalid ssAccessString option %q: expected key=value", item)
+		}
 		switch strings.ToLower(part[0]) {
 		case "endpoint":
 			config.Endpoint = part[1]
@@ -688,6 +694,8 @@ func parseAccessString(as string) {
 			config.Region = part[1]
 		}
 	}
+
+	return nil
 }
 
 func parseTaosCfg(path string) error {
@@ -724,24 +732,32 @@ func parseTaosCfg(path string) error {
 					return err
 				}
 			}
+			if lvl < 0 || lvl >= len(config.DataDirs) {
+				return fmt.Errorf("invalid dataDir level %d: must be between 0 and %d", lvl, len(config.DataDirs)-1)
+			}
 			config.DataDirs[lvl] = append(config.DataDirs[lvl], parts[1])
 
-		case "ssAccessString":
+		case "ssaccessstring":
 			if strings.HasPrefix(parts[1], "s3:") {
 				ssConfig = true
-				parseAccessString(parts[1][3:])
+				if err := parseAccessString(parts[1][3:]); err != nil {
+					return err
+				}
 			}
 
 		case "s3endpoint":
 			if ssConfig || config.Endpoint != "" {
 				continue
 			}
-			if strings.HasPrefix(strings.ToLower(parts[1]), "http://") {
+			endpoint := strings.ToLower(parts[1])
+			if strings.HasPrefix(endpoint, "http://") {
 				config.Secure = false
 				config.Endpoint = parts[1][7:]
-			} else {
+			} else if strings.HasPrefix(endpoint, "https://") {
 				config.Secure = true
 				config.Endpoint = parts[1][8:]
+			} else {
+				return fmt.Errorf("invalid s3endpoint %q: expected http:// or https:// prefix", parts[1])
 			}
 
 		case "s3accesskey":
