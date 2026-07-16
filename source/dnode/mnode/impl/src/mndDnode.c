@@ -1098,6 +1098,8 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
           if (pVload->roleTimeMs == 0) {
             pVload->roleTimeMs = statusReq.rebootTime;
           }
+          // 记录该 vnode 最近一次被上报的时间，供后续"未上报 vnode"离线判断使用
+          pGid->lastSeenMs = curMs;
           stateChanged = mndUpdateVnodeState(pVgroup->vgId, pGid, pVload);
           break;
         }
@@ -1138,18 +1140,32 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
             }
           }
           if (!found) {
-            mInfo("vgId:%d, state changed to offline by status msg (not reported), dnode:%d, old state:%s",
-                  pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState));
-            pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
-            pGid->syncRestore = 0;
-            pGid->syncCanRead = 0;
-            pGid->startTimeMs = 0;
+            // 该 vnode 本次心跳未被上报。为避免偶发的单次心跳缺失导致误判为 OFFLINE，
+            // 只有当距离最近一次上报（lastSeenMs）已超过 3 秒时，才将其标记为 OFFLINE。
+            // 说明：lastSeenMs 为运行时字段，mnode 重启后默认为 0，此时 (curMs - 0) 远大于阈值，
+            // 与原有直接置为 OFFLINE 的行为一致，兼容安全。
+            int64_t offlineThresholdMs = 3000;
+            int64_t elapsedMs = curMs - pGid->lastSeenMs;
+            if (elapsedMs >= offlineThresholdMs) {
+              mInfo("vgId:%d, state changed to offline by status msg (not reported), dnode:%d, old state:%s, "
+                    "lastSeenMs:%" PRId64 " elapsedMs:%" PRId64,
+                    pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState), pGid->lastSeenMs, elapsedMs);
+              pGid->syncState = TAOS_SYNC_STATE_OFFLINE;
+              pGid->syncRestore = 0;
+              pGid->syncCanRead = 0;
+              pGid->startTimeMs = 0;
 
-            SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
-            if (pDb != NULL && pDb->stateTs != curMs) {
-              pDb->stateTs = curMs;
+              SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
+              if (pDb != NULL && pDb->stateTs != curMs) {
+                pDb->stateTs = curMs;
+              }
+              mndReleaseDb(pMnode, pDb);
+            } else {
+              // 未上报但距离上次上报还不足 3 秒，暂不置为离线，等待后续心跳确认
+              mDebug("vgId:%d, not reported by dnode:%d but within grace window, keep state:%s, "
+                     "lastSeenMs:%" PRId64 " elapsedMs:%" PRId64,
+                     pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState), pGid->lastSeenMs, elapsedMs);
             }
-            mndReleaseDb(pMnode, pDb);
           }
           break;
         }
