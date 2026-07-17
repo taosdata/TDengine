@@ -529,7 +529,6 @@ static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLay
                                           SRefColInfo** ppTagRefCols) {
   int32_t   code = TSDB_CODE_SUCCESS;
   SHashObj* pDedup = NULL;
-  bool      tagRefExtracted = false;
 
   if (NULL == pSubTablesList || taosArrayGetSize(pSubTablesList) <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -571,46 +570,53 @@ static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLay
                                         pRef->refColName, pRef->refSourceName, pDedup, ppRefDbs, ppRefExtSources, true));
       }
 
-      // Extract and merge tag ref info across all children.
-      // The first child seeds the array; subsequent children improve source diversity
-      // so that tags referencing different source tables get distinct entries.
+      // Extract and merge tag ref info across all children, keyed by colId.
+      // Children may have different LIVE tag-ref sets for the same STB (e.g.
+      // after ALTER VTABLE ... SET TAG converts one child's tag from a ref to
+      // a literal, that child's numOfTagRefs shrinks while others keep the
+      // full set) - the merge must not assume every child reports the same
+      // count, or a tag column's ref can be silently dropped depending on
+      // which child happens to be processed first.
       if (pTb->numOfTagRefs > 0 && pNumOfTagRefs && ppTagRefCols) {
-        if (!tagRefExtracted) {
-          *pNumOfTagRefs = pTb->numOfTagRefs;
-          *ppTagRefCols = taosMemoryCalloc(pTb->numOfTagRefs, sizeof(SRefColInfo));
-          if (*ppTagRefCols == NULL) {
-            CTG_ERR_JRET(terrno);
-          }
-          memcpy(*ppTagRefCols, pTb->tagRefCols, pTb->numOfTagRefs * sizeof(SRefColInfo));
-          tagRefExtracted = true;
-        } else if (pTb->numOfTagRefs == *pNumOfTagRefs) {
-          // Check each tag: if the current entry duplicates another tag's source,
-          // and this child offers a different source, replace it for diversity.
-          for (int32_t k = 0; k < *pNumOfTagRefs; k++) {
-            SRefColInfo* pExisting = &(*ppTagRefCols)[k];
-            SRefColInfo* pNew = &pTb->tagRefCols[k];
-            if (pNew->colId != pExisting->colId) continue;
+        for (int32_t k = 0; k < pTb->numOfTagRefs; ++k) {
+          SRefColInfo* pNew = &pTb->tagRefCols[k];
 
-            bool isDuplicate = false;
-            for (int32_t m = 0; m < *pNumOfTagRefs; m++) {
-              if (m == k) continue;
-              SRefColInfo* pOther = &(*ppTagRefCols)[m];
-              if (strcmp(pExisting->refDbName, pOther->refDbName) == 0 &&
-                  strcmp(pExisting->refTableName, pOther->refTableName) == 0 &&
-                  strcmp(pExisting->refColName, pOther->refColName) == 0) {
-                isDuplicate = true;
-                break;
-              }
+          int32_t existIdx = -1;
+          for (int32_t m = 0; m < *pNumOfTagRefs; ++m) {
+            if ((*ppTagRefCols)[m].colId == pNew->colId) {
+              existIdx = m;
+              break;
             }
+          }
 
-            if (isDuplicate) {
-              bool newIsDifferent =
-                  strcmp(pExisting->refDbName, pNew->refDbName) != 0 ||
-                  strcmp(pExisting->refTableName, pNew->refTableName) != 0 ||
-                  strcmp(pExisting->refColName, pNew->refColName) != 0;
-              if (newIsDifferent) {
-                memcpy(pExisting, pNew, sizeof(SRefColInfo));
-              }
+          if (existIdx < 0) {
+            CTG_ERR_JRET(ctgAppendUniqueRefColInfo(pNumOfTagRefs, ppTagRefCols, pNew));
+            continue;
+          }
+
+          // Tag column already has a representative ref: if it duplicates
+          // another tag column's source and this child offers a different
+          // source, replace it for diversity.
+          SRefColInfo* pExisting = &(*ppTagRefCols)[existIdx];
+
+          bool isDuplicate = false;
+          for (int32_t m = 0; m < *pNumOfTagRefs; ++m) {
+            if (m == existIdx) continue;
+            SRefColInfo* pOther = &(*ppTagRefCols)[m];
+            if (strcmp(pExisting->refDbName, pOther->refDbName) == 0 &&
+                strcmp(pExisting->refTableName, pOther->refTableName) == 0 &&
+                strcmp(pExisting->refColName, pOther->refColName) == 0) {
+              isDuplicate = true;
+              break;
+            }
+          }
+
+          if (isDuplicate) {
+            bool newIsDifferent = strcmp(pExisting->refDbName, pNew->refDbName) != 0 ||
+                                  strcmp(pExisting->refTableName, pNew->refTableName) != 0 ||
+                                  strcmp(pExisting->refColName, pNew->refColName) != 0;
+            if (newIsDifferent) {
+              memcpy(pExisting, pNew, sizeof(SRefColInfo));
             }
           }
         }
@@ -623,6 +629,25 @@ _return:
   taosHashCleanup(pDedup);
   CTG_RET(code);
 }
+
+#if defined(BUILD_TEST)
+// White-box test hooks: expose the otherwise-static tag-ref merge/resolve
+// functions so ctgVStbTagRefReproTest.cpp can drive them directly without a
+// live catalog/cluster. Regression coverage for TD-7050063599.
+int32_t ctgdTestBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLayerRefs, SHashObj** ppRefDbs,
+                                        SHashObj** ppRefExtSources, int32_t* pNumOfColRefs,
+                                        SRefColInfo** ppColRefCols, int32_t* pNumOfTagRefs,
+                                        SRefColInfo** ppTagRefCols) {
+  return ctgBuildVStbFirstLayerRefs(pSubTablesList, ppLayerRefs, ppRefDbs, ppRefExtSources, pNumOfColRefs,
+                                     ppColRefCols, pNumOfTagRefs, ppTagRefCols);
+}
+
+int32_t ctgdTestSetResolvedVStbTagRef(int32_t numOfTagRefs, SRefColInfo* pTagRefCols, col_id_t rootColId,
+                                      const char* pDbName, const char* pTbName, const char* pColName,
+                                      const char* pSourceName) {
+  return ctgSetResolvedVStbTagRef(numOfTagRefs, pTagRefCols, rootColId, pDbName, pTbName, pColName, pSourceName);
+}
+#endif
 
 static int32_t ctgBuildVTableFirstLayerRefs(const STableMeta* pMeta, SArray** ppLayerRefs, SHashObj** ppRefDbs,
                                             SHashObj** ppRefExtSources, int32_t* pNumOfColRefs,
