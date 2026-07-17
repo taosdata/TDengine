@@ -1585,6 +1585,8 @@ static int32_t gconcatHelper(const char* input, char* output, bool hasNchar, int
   if (input == NULL) {
     return TSDB_CODE_SUCCESS;
   }
+  // the result buffer is allocated with TSDB_MAX_FIELD_LEN bytes (varstr header included), and the
+  // declared result column holds at most TSDB_MAX_FIELD_LEN - 2 * VARSTR_HEADER_SIZE payload bytes
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
     TdUcs4* newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
     if (NULL == newBuf) {
@@ -1597,10 +1599,17 @@ static int32_t gconcatHelper(const char* input, char* output, bool hasNchar, int
       taosMemoryFree(newBuf);
       return TSDB_CODE_SCALAR_CONVERT_ERROR;
     }
+    if (*dataLen + len > TSDB_MAX_FIELD_LEN - 2 * VARSTR_HEADER_SIZE) {
+      taosMemoryFree(newBuf);
+      return TSDB_CODE_PAR_VALUE_TOO_LONG;
+    }
     (void)memcpy(varDataVal(output) + *dataLen, newBuf, len);
     *dataLen += len;
     taosMemoryFree(newBuf);
   } else {
+    if (*dataLen + varDataLen(input) > TSDB_MAX_FIELD_LEN - 2 * VARSTR_HEADER_SIZE) {
+      return TSDB_CODE_PAR_VALUE_TOO_LONG;
+    }
     (void)memcpy(varDataVal(output) + *dataLen, varDataVal(input), varDataLen(input));
     *dataLen += varDataLen(input);
   }
@@ -1626,6 +1635,7 @@ int32_t gconcatFunction(SqlFunctionCtx* pCtx) {
     if (!pRes->result) {
       return terrno;
     }
+    pCtx->needCleanup = true;
 
     varDataSetLen(pRes->result, 0);
 
@@ -1686,6 +1696,9 @@ int32_t gconcatFunction(SqlFunctionCtx* pCtx) {
   }
 
 _over:
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFreeClear(pRes->result);
+  }
   // data in the check operation are all null, not output
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
   return code;
@@ -1700,16 +1713,24 @@ int32_t gconcatFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData*      pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
   if (NULL == pCol) {
-    taosMemoryFree(pRes->result);
+    taosMemoryFreeClear(pRes->result);
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
   pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
   code = colDataSetVal(pCol, pBlock->info.rows, pRes->result, pResInfo->isNullRes);
 
-  taosMemoryFree(pRes->result);
+  taosMemoryFreeClear(pRes->result);
 
   return code;
+}
+
+void gconcatFunctionCleanupExt(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL || GET_RES_INFO(pCtx) == NULL || GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx)) == NULL) {
+    return;
+  }
+  SGconcatRes* pRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  taosMemoryFreeClear(pRes->result);
 }
 
 bool getLeastSQRFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
