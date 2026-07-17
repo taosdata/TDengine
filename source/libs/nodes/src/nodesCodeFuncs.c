@@ -2623,6 +2623,7 @@ static const char* jkScanPhysiPlanTableType = "TableType";
 static const char* jkScanPhysiPlanTableName = "TableName";
 static const char* jkScanPhysiPlanGroupOrderScan = "GroupOrderScan";
 static const char* jkScanPhysiPlanVirtualStableScan = "VirtualStableScan";
+static const char* jkScanPhysiPlanOutputTsPrecision = "OutputTsPrecision";
 
 static int32_t physiScanNodeToJson(const void* pObj, SJson* pJson) {
   const SScanPhysiNode* pNode = (const SScanPhysiNode*)pObj;
@@ -2652,12 +2653,16 @@ static int32_t physiScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkScanPhysiPlanVirtualStableScan, pNode->virtualStableScan);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkScanPhysiPlanOutputTsPrecision, pNode->outputTsPrecision);
+  }
 
   return code;
 }
 
 static int32_t jsonToPhysiScanNode(const SJson* pJson, void* pObj) {
   SScanPhysiNode* pNode = (SScanPhysiNode*)pObj;
+  pNode->outputTsPrecision = UINT8_MAX;  // default when absent (old/explain payloads)
 
   int32_t code = jsonToPhysicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
@@ -2683,6 +2688,13 @@ static int32_t jsonToPhysiScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkScanPhysiPlanVirtualStableScan, &pNode->virtualStableScan);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    // optional field; keep UINT8_MAX default when absent
+    uint64_t outPrec = UINT8_MAX;
+    if (tjsonGetUBigIntValue(pJson, jkScanPhysiPlanOutputTsPrecision, &outPrec) == TSDB_CODE_SUCCESS) {
+      pNode->outputTsPrecision = (uint8_t)outPrec;
+    }
   }
 
   return code;

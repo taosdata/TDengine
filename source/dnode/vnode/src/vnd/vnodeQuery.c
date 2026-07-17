@@ -1374,6 +1374,11 @@ int8_t vnodeGetSecurityLevel(void *pVnode) {
   return pVnodeObj->config.securityLevel;
 }
 
+int8_t vnodeGetTsdbPrecision(void *pVnode) {
+  SVnode *pVnodeObj = pVnode;
+  return pVnodeObj->config.tsdbCfg.precision;
+}
+
 bool vnodeHasPendingTxnEntries(void *pVnode) {
   SVnode *pVnodeObj = pVnode;
   return metaHasPendingTxnEntries(pVnodeObj->pMeta);

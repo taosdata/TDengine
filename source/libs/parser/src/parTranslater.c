@@ -33191,10 +33191,6 @@ static int32_t checkColRef(STranslateContext* pCxt, const char* pSrcDbName, cons
   code = refreshGetTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta);
   PAR_ERR_JRET(code);
 
-  if (pRefTableMeta->tableInfo.precision != precision) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
-                                         "timestamp precision of virtual table and its reference table do not match"));
-  }
 // org table cannot has composite primary key
   if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(

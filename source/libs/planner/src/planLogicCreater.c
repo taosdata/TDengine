@@ -562,6 +562,10 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   pScan->ratio = pRealTable->ratio;
   pScan->dataRequired = FUNC_DATA_REQUIRED_DATA_LOAD;
   pScan->cacheLastMode = pRealTable->cacheLastMode;
+  if (pRealTable->pMeta) {
+    pScan->node.precision = pRealTable->pMeta->tableInfo.precision;
+  }
+  pScan->outputTsPrecision = UINT8_MAX;  // default: no cross-precision conversion at scan output
 
   *pLogicNode = (SLogicNode*)pScan;
 
@@ -4051,7 +4055,8 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
       !hasUnrefCol &&
       pVirtualTable->pMeta->tableInfo.numOfColumns == LIST_LENGTH(pVtableScan->pScanCols) &&
       (NULL == pVtableScan->pScanPseudoCols || LIST_LENGTH(pVtableScan->pScanPseudoCols) == 0) &&
-      (NULL == pVtableScan->pRefTagCols || LIST_LENGTH(pVtableScan->pRefTagCols) == 0)) {
+      (NULL == pVtableScan->pRefTagCols || LIST_LENGTH(pVtableScan->pRefTagCols) == 0) &&
+      pOnlyRefScan->node.precision == pVtableScan->node.precision) {
     nodesDestroyList(pOnlyRefScan->node.pTargets);
     pOnlyRefScan->node.pTargets = NULL;
     PLAN_ERR_JRET(rewriteFlatVirtualChildScanCols(pOnlyRefScan, pVirtualTable));
@@ -4129,6 +4134,7 @@ static int32_t createVirtualTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   PLAN_ERR_JRET(nodesMakeList(&pVtableScan->node.pChildren));
 
   PLAN_ERR_JRET(makeVirtualScanLogicNode(pCxt, pVirtualTable, pVtableScan));
+  pVtableScan->node.precision = pSelect->precision;
 
   PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pVirtualTable->table.tableAlias, COLLECT_COL_TYPE_COL,
                                     &pVtableScan->pScanCols));

@@ -2659,6 +2659,7 @@ typedef struct {
   SArray* pVgroupInfos;  // Array of SVgroupInfo
   int32_t errCode;
   int64_t stateTs;  // ms
+  int8_t  precision;
 } SUseDbRsp;
 
 int32_t tSerializeSUseDbRsp(void* buf, int32_t bufLen, const SUseDbRsp* pRsp);
@@ -4914,7 +4915,9 @@ typedef struct SColIdSlotIdPair {
 typedef struct SOrgTbInfo {
   int32_t vgId;
   char    tbName[TSDB_TABLE_FNAME_LEN];
-  SArray* colMap;  // SArray<SColIdNameKV>
+  SArray* colMap;       // SArray<SColIdNameKV>
+  uint8_t srcPrecision; // source DB precision; UINT8_MAX = unknown (use getVnodePrecision at runtime)
+  uint8_t dstPrecision; // vtable precision; UINT8_MAX = unknown
 } SOrgTbInfo;
 
 typedef struct SForeignSourceInfo {

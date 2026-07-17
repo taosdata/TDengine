@@ -2471,6 +2471,7 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
   pRsp->hashPrefix = pDb->cfg.hashPrefix;
   pRsp->hashSuffix = pDb->cfg.hashSuffix;
   pRsp->flags = pDb->cfg.flags;
+  pRsp->precision = pDb->cfg.precision;
   TAOS_RETURN(code);
 }
 

@@ -3716,7 +3716,21 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
       PLAN_ERR_JRET(nodesMergeNode(&pOrgScan->pPrimaryCond, &pPushCond));
       pPushCond = NULL;
     }
-    pOrgScan->scanRange = timeRange;
+    if (pVScan->node.precision != pOrgScan->node.precision) {
+      // Skip sentinel values (TSKEY_MIN/TSKEY_MAX = unbounded) — convertTimePrecision
+      // only guards positive overflow, so TSKEY_MIN * 1000 would be signed-overflow UB.
+      // scanoperator.c applies the same guard for its time-window conversion.
+      pOrgScan->scanRange.skey =
+          (timeRange.skey == TSKEY_MIN || timeRange.skey == TSKEY_MAX)
+              ? timeRange.skey
+              : convertTimePrecision(timeRange.skey, pVScan->node.precision, pOrgScan->node.precision);
+      pOrgScan->scanRange.ekey =
+          (timeRange.ekey == TSKEY_MIN || timeRange.ekey == TSKEY_MAX)
+              ? timeRange.ekey
+              : convertTimePrecision(timeRange.ekey, pVScan->node.precision, pOrgScan->node.precision);
+    } else {
+      pOrgScan->scanRange = timeRange;
+    }
   }
 
   NODES_DESTORY_NODE(pRemotePrimaryKeyCond);
@@ -9863,6 +9877,10 @@ static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     if (TSDB_VIRTUAL_CHILD_TABLE == childTableType || TSDB_VIRTUAL_NORMAL_TABLE == childTableType) {
       return false;
     }
+    if (((SScanLogicNode*)pChild)->scanType != SCAN_TYPE_EXTERNAL &&
+        ((SScanLogicNode*)pChild)->node.precision != pNode->precision) {
+      return false;
+    }
   }
 
   SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode *)pNode;
@@ -12251,6 +12269,11 @@ static int32_t vstableAggOptimizeWithoutPartition(SOptimizeContext* pCxt, SLogic
   }
   PLAN_ERR_JRET(appendNewChild((SLogicNode*)pDynVstbScan, (SLogicNode*)pVirtualChildAgg));
 
+  // cross-precision: have the source Table Scan emit ts already converted to
+  // vtable precision, so the partial Aggregate below runs in vtable precision
+  // and the coordinator's cross-source first/last/min/max merge is correct.
+  pTableScan->outputTsPrecision = pVirtualScanNode->node.precision;
+
   OPTIMIZE_FLAG_CLEAR_MASK(pTableScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
 
   if (batchProcessChild) {
@@ -12345,6 +12368,11 @@ static int32_t vstableAggOptimizeWithPartition(SOptimizeContext* pCxt, SLogicSub
   PLAN_ERR_JRET(appendNewChild((SLogicNode*)pDynVstbScan, (SLogicNode*)pSysScan));
   PLAN_ERR_JRET(appendNewChild((SLogicNode*)pDynVstbScan, (SLogicNode*)pPartition));
   PLAN_ERR_JRET(appendNewChild((SLogicNode*)pDynVstbScan, (SLogicNode*)pVirtualAgg));
+
+  // cross-precision: have the source Table Scan emit ts already converted to
+  // vtable precision, so the partial Aggregate below runs in vtable precision
+  // and the coordinator's cross-source first/last/min/max merge is correct.
+  pTableScan->outputTsPrecision = pVirtualScanNode->node.precision;
 
   OPTIMIZE_FLAG_CLEAR_MASK(pTableScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
 

@@ -155,6 +155,7 @@ typedef struct SScanLogicNode {
   bool               noPseudoRefAfterGrp;  // no pseudo columns referenced ater group/partition clause
   bool               virtualStableScan;
   bool               phTbnameScan;
+  uint8_t            outputTsPrecision;  // cross-precision: convert TIMESTAMP cols to this precision at scan output (UINT8_MAX = no conversion). Set by vstableAggOptimize on source scans so partial aggregation runs in vtable precision.
   EStreamPlaceholder placeholderType;
   // --- external scan extension (valid only when scanType == SCAN_TYPE_EXTERNAL) ---
   uint32_t    fqPushdownFlags;                     // FQ_PUSHDOWN_* bitmask; Phase 1 = 0
@@ -654,6 +655,7 @@ typedef struct SScanPhysiNode {
   SName      tableName;
   bool       groupOrderScan;
   bool       virtualStableScan;
+  uint8_t    outputTsPrecision;  // cross-precision: convert TIMESTAMP cols to this precision at scan output (UINT8_MAX = no conversion)
 } SScanPhysiNode;
 
 typedef struct STagScanPhysiNode {

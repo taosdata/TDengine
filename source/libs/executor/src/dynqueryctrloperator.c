@@ -30,6 +30,7 @@
 #include "ttypes.h"
 #include "tdataformat.h"
 #include "dynqueryctrl.h"
+#include "ttime.h"
 
 #define DYN_COL_REF_NAME_LEN (TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 4)
 
@@ -440,6 +441,8 @@ static int32_t copyOrgTbInfo(SOrgTbInfo* pSrc, SOrgTbInfo** ppDst) {
 
   pTbInfo->vgId = pSrc->vgId;
   tstrncpy(pTbInfo->tbName, pSrc->tbName, TSDB_TABLE_FNAME_LEN);
+  pTbInfo->srcPrecision = pSrc->srcPrecision;
+  pTbInfo->dstPrecision = pSrc->dstPrecision;
 
   pTbInfo->colMap = taosArrayDup(pSrc->colMap, NULL);
   QUERY_CHECK_NULL(pTbInfo->colMap, code, lino, _return, terrno)
@@ -553,6 +556,8 @@ static int32_t buildBatchOrgTbInfoForExchangeBasicParam(SExchangeOperatorBasicPa
     QUERY_CHECK_NULL(pSrc, code, lino, _return, terrno)
     batchInfo.vgId = pSrc->vgId;
     tstrncpy(batchInfo.tbName, pSrc->tbName, TSDB_TABLE_FNAME_LEN);
+    batchInfo.srcPrecision = pSrc->srcPrecision;
+    batchInfo.dstPrecision = pSrc->dstPrecision;
     batchInfo.colMap = taosArrayDup(pSrc->colMap, NULL);
     QUERY_CHECK_NULL(batchInfo.colMap, code, lino, _return, terrno)
     QUERY_CHECK_NULL(taosArrayPush(pBasic->batchOrgTbInfo, &batchInfo), code, lino, _return, terrno)
@@ -3953,6 +3958,24 @@ _return:
   return code;
 }
 
+static int32_t getDbPrecision(SOperatorInfo* pOperator, const char* dbName, uint8_t* pPrecision) {
+  int32_t                    code = TSDB_CODE_SUCCESS;
+  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
+  SName                      name = {0};
+  SDBVgInfo*                 dbVgInfo = NULL;
+
+  tNameSetDbName(&name, pInfo->vtbScan.acctId, dbName, strlen(dbName));
+  code = getDbVgInfo(pOperator, &name, &dbVgInfo);
+  if (code != TSDB_CODE_SUCCESS) return code;  // catalog RPC failure → propagate (no fallback)
+
+  SUseDbOutput** find = (SUseDbOutput**)taosHashGet(pInfo->vtbScan.dbVgInfoMap, dbName, strlen(dbName));
+  if (find && *find) {
+    *pPrecision = (uint8_t)(*find)->precision;
+    return TSDB_CODE_SUCCESS;
+  }
+  return TSDB_CODE_FAILED;  // precision unavailable after a successful fetch → fail loudly
+}
+
 /*
  * Parse one full column-ref string into non-owning name slices.
  *
@@ -4675,6 +4698,13 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
         tstrncpy(orgTbInfo.tbName, orgTbFName, sizeof(orgTbInfo.tbName));
         orgTbInfo.colMap = taosArrayInit(10, sizeof(SColIdNameKV));
         QUERY_CHECK_NULL(orgTbInfo.colMap, code, line, _return, terrno)
+        orgTbInfo.srcPrecision = UINT8_MAX;
+        orgTbInfo.dstPrecision = UINT8_MAX;
+        code = getDbPrecision(pOperator, pResolved->dbName, &orgTbInfo.srcPrecision);
+        QUERY_CHECK_CODE(code, line, _return);  // catalog precision unavailable → fail query (no fallback)
+        if (pOperator->pPhyNode && ((SPhysiNode*)pOperator->pPhyNode)->pOutputDataBlockDesc) {
+          orgTbInfo.dstPrecision = ((SPhysiNode*)pOperator->pPhyNode)->pOutputDataBlockDesc->precision;
+        }
         SColIdNameKV colIdNameKV = {0};
         colIdNameKV.colId = pKV->colId;
         tstrncpy(colIdNameKV.colName, pResolved->colName, sizeof(colIdNameKV.colName));
@@ -6785,6 +6815,10 @@ int32_t virtualTableAggGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
     }
   }
 _return:
+  // cross-precision conversion for VSTB AGG happens at the source Table Scan
+  // (scan-level, via outputTsPrecision), so the partial Aggregate above runs in
+  // vtable precision and the merged result here is already correct. No post-agg
+  // conversion needed.
   if (code) {
     qError("%s failed since %s, line %d", __func__, tstrerror(code), line);
   }

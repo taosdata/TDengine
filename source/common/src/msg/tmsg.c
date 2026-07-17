@@ -9151,6 +9151,7 @@ int32_t tSerializeSUseDbRspImp(SEncoder *pEncoder, const SUseDbRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pRsp->errCode));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pRsp->stateTs));
   TAOS_CHECK_RETURN(tEncodeU8(pEncoder, pRsp->flags));
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRsp->precision));
   return 0;
 }
 
@@ -9261,6 +9262,9 @@ int32_t tDeserializeSUseDbRspImp(SDecoder *pDecoder, SUseDbRsp *pRsp) {
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pRsp->stateTs));
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeU8(pDecoder, &pRsp->flags));
+  }
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pRsp->precision));
   }
   return 0;
 }
@@ -14980,6 +14984,8 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
               TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pColKV->colId));
               TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColKV->colName));
             }
+            TAOS_CHECK_RETURN(tEncodeU8(pEncoder, pScan->pOrgTbInfo->srcPrecision));
+            TAOS_CHECK_RETURN(tEncodeU8(pEncoder, pScan->pOrgTbInfo->dstPrecision));
           } else {
             TAOS_CHECK_RETURN(tEncodeBool(pEncoder, false));
           }
@@ -15006,9 +15012,11 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
               if (pColKV == NULL) {
                 TAOS_CHECK_RETURN(terrno);
               }
-              TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pColKV->colId));
-              TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColKV->colName));
+            TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pColKV->colId));
+            TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pColKV->colName));
             }
+            TAOS_CHECK_RETURN(tEncodeU8(pEncoder, pInfo->srcPrecision));
+            TAOS_CHECK_RETURN(tEncodeU8(pEncoder, pInfo->dstPrecision));
           }
 
           // tag list
@@ -15185,6 +15193,10 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
                 TAOS_CHECK_RETURN(terrno);
               }
             }
+            TAOS_CHECK_RETURN(tDecodeU8(pDecoder, &pScan->pOrgTbInfo->srcPrecision));
+            if (!tDecodeIsEnd(pDecoder)) {
+              TAOS_CHECK_RETURN(tDecodeU8(pDecoder, &pScan->pOrgTbInfo->dstPrecision));
+            }
           } else {
             pScan->pOrgTbInfo = NULL;
           }
@@ -15219,6 +15231,10 @@ int32_t tDeserializeSOperatorParam(SDecoder *pDecoder, SOperatorParam *pOpParam)
                 if (taosArrayPush(info.colMap, &pColKV) == NULL) {
                   TAOS_CHECK_RETURN(terrno);
                 }
+              }
+              TAOS_CHECK_RETURN(tDecodeU8(pDecoder, &info.srcPrecision));
+              if (!tDecodeIsEnd(pDecoder)) {
+                TAOS_CHECK_RETURN(tDecodeU8(pDecoder, &info.dstPrecision));
               }
               if (taosArrayPush(pScan->pBatchTbInfo, &info) == NULL) {
                 TAOS_CHECK_RETURN(terrno);

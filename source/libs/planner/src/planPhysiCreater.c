@@ -906,6 +906,7 @@ static int32_t createScanPhysiNodeFinalize(SPhysiPlanContext* pCxt, SSubplan* pS
     pScanPhysiNode->tableType = pScanLogicNode->tableType;
     pScanPhysiNode->groupOrderScan = pScanLogicNode->groupOrderScan;
     pScanPhysiNode->virtualStableScan = pScanLogicNode->virtualStableScan;
+    pScanPhysiNode->outputTsPrecision = pScanLogicNode->outputTsPrecision;
     memcpy(&pScanPhysiNode->tableName, &pScanLogicNode->tableName, sizeof(SName));
     if (NULL != pScanLogicNode->pTagCond) {
       pSubplan->pTagCond = NULL;

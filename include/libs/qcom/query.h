@@ -280,6 +280,7 @@ typedef struct SUseDbOutput {
   char       db[TSDB_DB_FNAME_LEN];
   uint64_t   dbId;
   SDBVgInfo* dbVgroup;
+  int8_t     precision;
 } SUseDbOutput;
 typedef SUseDbOutput** SUseDbOutputPPter;
 

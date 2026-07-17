@@ -362,6 +362,7 @@ typedef struct SStoreMeta {
   tb_uid_t (*ctbCursorNext)(SMCtbCursor* pCur);
 
   bool (*hasPendingTxnEntries)(void* pVnode);  // batch meta txn: any active/finalized-un-vacuumed txns
+  int8_t (*getVnodePrecision)(void* pVnode);
 } SStoreMeta;
 
 typedef struct SStoreMetaReader {

@@ -3357,7 +3357,11 @@ TEST(apiTest, catalogGetDnodeList_test) {
 }
 
 TEST(apiTest, ctgEnqueueStopQueueDestroyOrder_test) {
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
+  // NOTE: Direct memset on global variable triggers ASAN global-buffer-overflow
+  // when sizeof differs between test and library compilation units.
+  // Only initialize the fields needed for this test.
+  gCtgMgmt.exit = false;
+  gCtgMgmt.queue.stopQueue = false;
   taosInitRWLatch(&gCtgMgmt.lock);
   taosInitRWLatch(&gCtgMgmt.queue.qlock);
   ASSERT_EQ(TSDB_CODE_SUCCESS, tsem_init(&gCtgMgmt.queue.reqSem, 0, 0));

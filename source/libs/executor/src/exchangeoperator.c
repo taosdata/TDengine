@@ -1015,6 +1015,8 @@ int32_t buildTableScanOperatorParamEx(SOperatorParam** ppRes, SArray* pUidList, 
 
     pScan->pOrgTbInfo->vgId = pMap->vgId;
     tstrncpy(pScan->pOrgTbInfo->tbName, pMap->tbName, TSDB_TABLE_FNAME_LEN);
+    pScan->pOrgTbInfo->srcPrecision = pMap->srcPrecision;
+    pScan->pOrgTbInfo->dstPrecision = pMap->dstPrecision;
 
     pScan->pOrgTbInfo->colMap = taosArrayDup(pMap->colMap, NULL);
     QUERY_CHECK_NULL(pScan->pOrgTbInfo->colMap, code, lino, _return, terrno);
@@ -1169,6 +1171,8 @@ int32_t buildTableScanOperatorParamBatchInfo(SOperatorParam** ppRes, uint64_t gr
       SOrgTbInfo batchInfo = {0};
       batchInfo.vgId = pSrcInfo->vgId;
       tstrncpy(batchInfo.tbName, pSrcInfo->tbName, TSDB_TABLE_FNAME_LEN);
+      batchInfo.srcPrecision = pSrcInfo->srcPrecision;
+      batchInfo.dstPrecision = pSrcInfo->dstPrecision;
       batchInfo.colMap = taosArrayDup(pSrcInfo->colMap, NULL);
       QUERY_CHECK_NULL(batchInfo.colMap, code, lino, _return, terrno);
       SOrgTbInfo *pDstInfo = taosArrayPush(pScan->pBatchTbInfo, &batchInfo);
@@ -2201,6 +2205,8 @@ int32_t loadBatchColMapFromBasicParam(SSourceDataInfo* pDataInfo, SExchangeOpera
       dstOrgTbInfo = (SOrgTbInfo){0};
       dstOrgTbInfo.vgId = pSrcOrgTbInfo->vgId;
       tstrncpy(dstOrgTbInfo.tbName, pSrcOrgTbInfo->tbName, TSDB_TABLE_FNAME_LEN);
+      dstOrgTbInfo.srcPrecision = pSrcOrgTbInfo->srcPrecision;
+      dstOrgTbInfo.dstPrecision = pSrcOrgTbInfo->dstPrecision;
 
       dstOrgTbInfo.colMap = taosArrayDup(pSrcOrgTbInfo->colMap, NULL);
       QUERY_CHECK_NULL(dstOrgTbInfo.colMap, code, lino, _return, terrno);
@@ -2376,6 +2382,8 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
       QUERY_CHECK_NULL(dataInfo.orgTbInfo, code, lino, _return, terrno);
       dataInfo.orgTbInfo->vgId = pBasicParam->orgTbInfo->vgId;
       tstrncpy(dataInfo.orgTbInfo->tbName, pBasicParam->orgTbInfo->tbName, TSDB_TABLE_FNAME_LEN);
+      dataInfo.orgTbInfo->srcPrecision = pBasicParam->orgTbInfo->srcPrecision;
+      dataInfo.orgTbInfo->dstPrecision = pBasicParam->orgTbInfo->dstPrecision;
       dataInfo.orgTbInfo->colMap = taosArrayDup(pBasicParam->orgTbInfo->colMap, NULL);
       QUERY_CHECK_NULL(dataInfo.orgTbInfo->colMap, code, lino, _return, terrno);
 

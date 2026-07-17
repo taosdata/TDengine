@@ -1046,6 +1046,32 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     pOperator->cost.inputRows = pTableScanInfo->base.readRecorder.checkRows;
     pBlock->info.scanFlag = (uint8_t)pTableScanInfo->base.scanFlag;
 
+    // cross-precision: when the planner flagged this scan for vtable-precision
+    // output (vstableAggOptimize source scans), convert TIMESTAMP columns here so
+    // the partial Aggregate above runs in vtable precision — this makes the
+    // coordinator's cross-source first/last/min/max merge correct. Only this
+    // path; VirtualTableScan's convertBlockTsPrecision handles the DYN_QTYPE_VTB_SCAN
+    // path separately, and these scans never overlap (outputTsPrecision defaults to
+    // UINT8_MAX elsewhere), so there is no double conversion.
+    if (pTableScanInfo->outputTsPrecision <= TSDB_TIME_PRECISION_NANO) {
+      uint8_t srcPrec = pTableScanInfo->srcPrecision;
+      uint8_t dstPrec = pTableScanInfo->outputTsPrecision;
+      if (srcPrec <= TSDB_TIME_PRECISION_NANO && srcPrec != dstPrec) {
+        for (int32_t c = 0; c < taosArrayGetSize(pBlock->pDataBlock); ++c) {
+          SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, c);
+          if (pCol && pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP && pCol->pData) {
+            int64_t* tsArr = (int64_t*)pCol->pData;
+            for (int32_t r = 0; r < pBlock->info.rows; ++r) {
+              if (!colDataIsNull_s(pCol, r) && tsArr[r] != TSKEY_MIN && tsArr[r] != TSKEY_MAX) {
+                tsArr[r] = convertTimePrecision(tsArr[r], srcPrec, dstPrec);
+              }
+            }
+            pCol->info.precision = dstPrec;
+          }
+        }
+      }
+    }
+
     (*ppRes) = pBlock;
     return code;
   }
@@ -1336,6 +1362,19 @@ static bool isNewScanParam(STableScanOperatorParam* pParam) {
   return pParam->isNewParam;
 }
 
+// Set srcPrecision/vtablePrecision on a virtual-table scan info directly from
+// the org table info — both ends are authoritative (src from catalog via
+// getDbPrecision, dst from the physical node output block desc). No fallback:
+// an unknown precision stays UINT8_MAX and the cross-precision guard skips
+// conversion rather than guessing.
+static void setVtableScanPrecisions(STableScanInfo* pInfo, const SOrgTbInfo* pOrgTbInfo, uint8_t srcPrec) {
+  pInfo->srcPrecision = srcPrec;
+  // dst (vtable) precision is authoritative from orgTbInfo (caller sets it from the
+  // physical node output block desc). No fallback: UINT8_MAX stays UINT8_MAX and the
+  // cross-precision guard (vtPrec <= NANO) simply skips conversion.
+  pInfo->vtablePrecision = pOrgTbInfo->dstPrecision;
+}
+
 static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
   int32_t                  code = 0;
   int32_t                  lino = 0;
@@ -1572,6 +1611,15 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
   pInfo->base.cond.suid = (orgTable.me.type == TSDB_CHILD_TABLE || orgTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
   pInfo->ignoreTag = true;
+
+  uint8_t srcPrec = pOrgTbInfo->srcPrecision;
+  setVtableScanPrecisions(pInfo, pOrgTbInfo, srcPrec);
+  uint8_t vtPrec = pInfo->vtablePrecision;
+  if (srcPrec <= TSDB_TIME_PRECISION_NANO && vtPrec <= TSDB_TIME_PRECISION_NANO && srcPrec != vtPrec) {
+    STimeWindow* w = &pInfo->base.cond.twindows;
+    if (w->skey != TSKEY_MIN && w->skey != TSKEY_MAX) w->skey = convertTimePrecision(w->skey, vtPrec, srcPrec);
+    if (w->ekey != TSKEY_MIN && w->ekey != TSKEY_MAX) w->ekey = convertTimePrecision(w->ekey, vtPrec, srcPrec);
+  }
 
   code = createOneDataBlockWithColArray(pInfo->pOrgBlock, pBlockColArray, &pInfo->pResBlock);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -1861,8 +1909,28 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       pInfo->base.cond.twindows.skey = pParam->window.skey;
       pInfo->base.cond.twindows.ekey = pParam->window.ekey;
     }
+    uint8_t srcPrec = pOrgTbInfo->srcPrecision;
+    setVtableScanPrecisions(pInfo, pOrgTbInfo, srcPrec);
+    uint8_t vtPrec = pInfo->vtablePrecision;
+    if (srcPrec <= TSDB_TIME_PRECISION_NANO && vtPrec <= TSDB_TIME_PRECISION_NANO && srcPrec != vtPrec) {
+      STimeWindow* w = &pInfo->base.cond.twindows;
+      // Symmetric sentinel guard (matches createVTableScanInfoFromBatchParam):
+      // skip both TSKEY_MIN and TSKEY_MAX so a sentinel never feeds
+      // convertTimePrecision, which only guards positive overflow (a sentinel *
+      // factor on a widening path is signed-overflow UB). Decouples this site's
+      // safety from the upstream {skey=MAX,ekey=MIN} interception.
+      if (w->skey != TSKEY_MIN && w->skey != TSKEY_MAX) w->skey = convertTimePrecision(w->skey, vtPrec, srcPrec);
+      if (w->ekey != TSKEY_MIN && w->ekey != TSKEY_MAX) w->ekey = convertTimePrecision(w->ekey, vtPrec, srcPrec);
+    }
   } else {
     pInfo->base.cond.twindows.skey = pParam->window.ekey + 1;
+    uint8_t srcPrec = pOrgTbInfo->srcPrecision;
+    setVtableScanPrecisions(pInfo, pOrgTbInfo, srcPrec);
+    uint8_t vtPrec = pInfo->vtablePrecision;
+    if (srcPrec <= TSDB_TIME_PRECISION_NANO && vtPrec <= TSDB_TIME_PRECISION_NANO && srcPrec != vtPrec &&
+        pInfo->base.cond.twindows.skey != TSKEY_MIN) {
+      pInfo->base.cond.twindows.skey = convertTimePrecision(pInfo->base.cond.twindows.skey, vtPrec, srcPrec);
+    }
   }
   pInfo->base.cond.suid = (orgTable.me.type == TSDB_CHILD_TABLE || orgTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) ? superTable.me.uid : 0;
   pInfo->currentGroupId = 0;
@@ -2739,6 +2807,18 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->virtualStableScan = pScanNode->virtualStableScan;
+  // Always set vtablePrecision for virtual table scans, regardless of dynamicOp
+  if (pScanNode->virtualStableScan) {
+    pInfo->vtablePrecision = pDescNode->precision;
+  }
+  // cross-precision scan-level conversion (vstableAggOptimize path): when the
+  // planner asks this scan to emit ts in a target precision, doTableScanImplNext
+  // converts each block. Resolve srcPrecision from the vnode config so the
+  // conversion has both ends.
+  pInfo->outputTsPrecision = pScanNode->outputTsPrecision;
+  if (pScanNode->outputTsPrecision <= TSDB_TIME_PRECISION_NANO && pTaskInfo->storageAPI.metaFn.getVnodePrecision) {
+    pInfo->srcPrecision = (uint8_t)pTaskInfo->storageAPI.metaFn.getVnodePrecision(pInfo->base.readHandle.vnode);
+  }
   if (pScanNode->node.dynamicOp && pScanNode->virtualStableScan) {
     TSWAP(pInfo->pOrgBlock, pInfo->pResBlock);
     pInfo->pResBlock = NULL;

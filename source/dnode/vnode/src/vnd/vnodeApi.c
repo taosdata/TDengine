@@ -88,6 +88,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
 
   pMeta->getBasicInfo = vnodeGetInfo;
   pMeta->getSecurityLevel = vnodeGetSecurityLevel;
+  pMeta->getVnodePrecision = vnodeGetTsdbPrecision;
   pMeta->getNumOfChildTables = metaGetStbStats;
 
   pMeta->getChildTableList = vnodeGetCtbIdList;

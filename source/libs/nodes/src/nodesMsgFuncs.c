@@ -2719,7 +2719,8 @@ enum {
   PHY_SCAN_CODE_BASE_TABLE_TYPE,
   PHY_SCAN_CODE_BASE_TABLE_NAME,
   PHY_SCAN_CODE_BASE_GROUP_ORDER_SCAN,
-  PHY_SCAN_CODE_BASE_VIRTUAL_STABLE_SCAN
+  PHY_SCAN_CODE_BASE_VIRTUAL_STABLE_SCAN,
+  PHY_SCAN_CODE_BASE_OUTPUT_TS_PRECISION
 };
 
 static int32_t physiScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2750,12 +2751,16 @@ static int32_t physiScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_SCAN_CODE_BASE_VIRTUAL_STABLE_SCAN, pNode->virtualStableScan);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeU8(pEncoder, PHY_SCAN_CODE_BASE_OUTPUT_TS_PRECISION, pNode->outputTsPrecision);
+  }
 
   return code;
 }
 
 static int32_t msgToPhysiScanNode(STlvDecoder* pDecoder, void* pObj) {
   SScanPhysiNode* pNode = (SScanPhysiNode*)pObj;
+  pNode->outputTsPrecision = UINT8_MAX;  // default when absent (old version payload)
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -2787,6 +2792,10 @@ static int32_t msgToPhysiScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SCAN_CODE_BASE_VIRTUAL_STABLE_SCAN:
         code = tlvDecodeBool(pTlv, &pNode->virtualStableScan);
+        break;
+      case PHY_SCAN_CODE_BASE_OUTPUT_TS_PRECISION:
+        code = tlvDecodeU8(pTlv, &pNode->outputTsPrecision);
+        break;
       default:
         break;
     }

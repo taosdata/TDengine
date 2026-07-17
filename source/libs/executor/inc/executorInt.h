@@ -381,6 +381,9 @@ typedef struct STableScanInfo {
   SSDataBlock*    pOrgBlock;
   bool            ignoreTag;
   bool            virtualStableScan;
+  uint8_t         vtablePrecision;
+  uint8_t         srcPrecision;        // source DB precision for virtual table scan; UINT8_MAX = unknown
+  uint8_t         outputTsPrecision;  // cross-precision: convert TIMESTAMP cols to this precision at scan output; UINT8_MAX = no conversion
   SHashObj*       readerCache;
   bool            newReader;
   SArray*         pBlockColMap;
