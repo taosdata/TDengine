@@ -115,7 +115,7 @@ You can update these YAML files to customize the deployment and test environment
 
 - **taos_config.yaml**:  
   - `port`: Base port for the first dnode (default: 6030, increments by 100 for each additional dnode)
-  - `mqttPort`: Base MQTT port (default: 6083, increments by 100 for each additional dnode)
+  - `mqttPort`: Base MQTT port (default: 6057, increments by 100 for each additional dnode)
 
 - **taosadapter_config.yaml**:  
   - Used to configure taosadapter service.  

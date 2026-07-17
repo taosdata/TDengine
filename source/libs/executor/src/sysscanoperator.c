@@ -672,7 +672,9 @@ static SSDataBlock* doOptimizeTableNameFilter(SOperatorInfo* pOperator, SSDataBl
     colRef = &smrTable.me.colRef;
     STR_TO_VARSTR(typeName, "VIRTUAL_NORMAL_TABLE");
   } else if (smrTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
-    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
+    // smrTable already holds the meta read lock; the meta rwlock is non-recursive + writer-priority,
+    // so smrSuperTable must NOT re-acquire META_READER_LOCK (would self-deadlock vs. a waiting writer).
+    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
     hasSuperTable = true;
     code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, smrTable.me.ctbEntry.suid);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1977,18 +1979,22 @@ static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SCo
   *ppTagData = NULL;
   *pTagLen = 0;
 
-  // Step 1: Try local vnode resolution
+  // Step 1: Try local vnode resolution.
+  // NOTE: this function is always invoked while the caller already holds the meta read lock
+  // (either the ins_tags table-meta cursor in sysTableScanUserTags, or the META_READER_LOCK
+  // child reader in the single-table path). The meta rwlock is PTHREAD_RWLOCK_PREFER_WRITER
+  // (non-recursive), so re-acquiring META_READER_LOCK here would self-deadlock whenever a
+  // concurrent writer (e.g. auto-create-table) is waiting. Use META_READER_NOLOCK and rely on
+  // the caller's held lock, mirroring the sibling smrSuperTable reader in sysTableScanUserTags.
   SMetaReader srcTable = {0};
-  pAPI->metaReaderFn.initReader(&srcTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
+  pAPI->metaReaderFn.initReader(&srcTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
   code = pAPI->metaReaderFn.getTableEntryByName(&srcTable, pRef->refTableName);
-  pAPI->metaReaderFn.readerReleaseLock(&srcTable);
 
   if (code == TSDB_CODE_SUCCESS && srcTable.me.type == TSDB_CHILD_TABLE &&
       srcTable.me.ctbEntry.pTags != NULL) {
     SMetaReader srcSuper = {0};
-    pAPI->metaReaderFn.initReader(&srcSuper, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
+    pAPI->metaReaderFn.initReader(&srcSuper, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
     code = pAPI->metaReaderFn.getTableEntryByUid(&srcSuper, srcTable.me.ctbEntry.suid);
-    pAPI->metaReaderFn.readerReleaseLock(&srcSuper);
 
     if (code == TSDB_CODE_SUCCESS) {
       const SSchema* pSrcSchema = NULL;
@@ -2071,9 +2077,9 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
   int32_t  nTagRefs = isVirtualChild ? smrChildTable->me.colRef.nTagRefs : 0;
 
   if (isVirtualChild) {
-    qError("sys-tags child:%s nTagRefs:%d", smrChildTable->me.name, nTagRefs);
+    qDebug("sys-tags child:%s nTagRefs:%d", smrChildTable->me.name, nTagRefs);
     for (int32_t r = 0; r < nTagRefs; ++r) {
-      qError("sys-tags child:%s tagRef[%d] hasRef:%d id:%d src:%s db:%s tb:%s col:%s", smrChildTable->me.name, r,
+      qDebug("sys-tags child:%s tagRef[%d] hasRef:%d id:%d src:%s db:%s tb:%s col:%s", smrChildTable->me.name, r,
              pTagRefs[r].hasRef, pTagRefs[r].id, pTagRefs[r].refSourceName, pTagRefs[r].refDbName,
              pTagRefs[r].refTableName, pTagRefs[r].refColName);
     }
@@ -2758,7 +2764,9 @@ static int32_t sysTableScanFillRequestedVirtualTableCol(SOperatorInfo* pOperator
     int64_t suid = smrTable.me.ctbEntry.suid;
 
     colRef = &smrTable.me.colRef;
-    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
+    // smrTable already holds the meta read lock; re-acquiring META_READER_LOCK here would self-deadlock
+    // (non-recursive writer-priority rwlock vs. a waiting writer). Rely on smrTable's held lock.
+    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
     smrSuperTableInited = true;
     code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
     QUERY_CHECK_CODE(code, lino, _return);
@@ -3994,7 +4002,7 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
       continue;
     }
 
-    qError("vtb-ref validate col idx:%d src:%s db:%s tb:%s col:%s", i, pColRef->pColRef[i].refSourceName,
+    qDebug("vtb-ref validate col idx:%d src:%s db:%s tb:%s col:%s", i, pColRef->pColRef[i].refSourceName,
            pColRef->pColRef[i].refDbName, pColRef->pColRef[i].refTableName, pColRef->pColRef[i].refColName);
 
     if (pColRef->pColRef[i].refSourceName[0] != 0) {
@@ -4031,7 +4039,7 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
       continue;
     }
 
-    qError("vtb-ref validate tag idx:%d src:%s db:%s tb:%s col:%s", i, pColRef->pTagRef[i].refSourceName,
+    qDebug("vtb-ref validate tag idx:%d src:%s db:%s tb:%s col:%s", i, pColRef->pTagRef[i].refSourceName,
            pColRef->pTagRef[i].refDbName, pColRef->pTagRef[i].refTableName, pColRef->pTagRef[i].refColName);
 
     if (pColRef->pTagRef[i].refSourceName[0] != 0) {

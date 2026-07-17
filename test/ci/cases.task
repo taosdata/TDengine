@@ -718,10 +718,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability26.py
 
 ## 19-FederatedQuery
-#100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_02_path_resolution.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_03_type_mapping.py
-#100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_04_timezone_precision.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_04_timezone_precision.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_08_system_observability.py
@@ -731,7 +731,7 @@
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_12_compatibility.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_13_explain.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py
-#100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_16_multi_table_parity.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_17_unsupported_ops.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_18_source_specific.py
@@ -1340,20 +1340,18 @@
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_sysinfo.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_table.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_privilege_topic.py
+,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token_mnode_cache.py -N 3 -M 3
 # [disabled 2026-07-10 concurrent-test-failures]
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_token.py
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_totp.py
-# [end disabled 2026-07-10]
 ,,y,.,./ci/pytest.sh pytest cases/24-Users/test_user_whitelist.py
 #,,y,.,./ci/pytest.sh pytest cases/24-Users/test_query_phase_tracking.py
 
 # 25-Privileges
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_bugs.py -N 3
-# [disabled 2026-07-10 concurrent-test-failures]
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_control.py -N 3
-#,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_rbac.py
-# [end disabled 2026-07-10]
+,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_rbac.py
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_dac_mac.py
 ,,y,.,./ci/pytest.sh pytest cases/25-Privileges/test_priv_subscribe.py
 
@@ -1383,9 +1381,7 @@
 ## 04-Snode
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/04-Snode/test_snode_basic1.py -N 2
 ## 05-Vnode
-# [disabled 2026-07-10 concurrent-test-failures]
-#,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/05-Vnode/test_close_open_vnode.py -N 3
-# [end disabled 2026-07-10]
+,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/05-Vnode/test_close_open_vnode.py -N 3
 
 # 27-Mount
 ,,y,.,./ci/pytest.sh pytest cases/27-Mount/test_mount_basic.py

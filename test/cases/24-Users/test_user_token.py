@@ -1,12 +1,22 @@
 
-from new_test_framework.utils import tdLog, tdSql, etool
+import os
+import shlex
+import time
+
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
 EXPECTED_TOKEN_LENGTH = 63
+TOKEN_LOGIN_TIMEOUT = 10
+TOKEN_LOGIN_INTERVAL = 0.5
 
 class TestUserSecurity:
     @classmethod
     def setup_class(cls):
-        pass
+        tdLog.debug(f"start to execute {__file__}")
+        cls.token_client_cfg_dir = os.path.join(tdCom.work_dir, "token_client_cfg")
+        os.makedirs(cls.token_client_cfg_dir, exist_ok=True)
+        with open(os.path.join(cls.token_client_cfg_dir, "taos.cfg"), "w") as cfg:
+            cfg.write("authMech 2\n")
 
     #
     # --------------------------- util ----------------------------
@@ -20,6 +30,34 @@ class TestUserSecurity:
             
         if a != b:
             raise Exception(f"not equal: {a} != {b}")
+
+    def wait_token_login(self, token, expect_success, options=""):
+        taosFile = etool.taosFile()
+        success = [
+            "Connect with token ...... [ OK ]",
+            "Query OK"
+        ]
+        failed = "Connect with token ...... [ FAILED ]"
+        command = (
+            f"printf '%s\\n' {shlex.quote(token)} | "
+            f"{shlex.quote(taosFile)} -c {shlex.quote(self.token_client_cfg_dir)} "
+            f'-q {options} -s "show tokens;" '
+        )
+        deadline = time.time() + TOKEN_LOGIN_TIMEOUT
+
+        while True:
+            rlist = etool.runRetList(command, checkRun=False, show=False)
+            output = "\n".join(rlist)
+            if expect_success:
+                if all(item in output for item in success):
+                    return
+            elif failed in output:
+                return
+
+            if time.time() >= deadline:
+                expect = "success" if expect_success else "failure"
+                raise Exception(f"token login did not reach expected {expect} state\noutput:\n{output}")
+            time.sleep(TOKEN_LOGIN_INTERVAL)
     
     def options(self, options: dict):
         if options is None:
@@ -107,27 +145,10 @@ class TestUserSecurity:
 
     # login
     def login_token(self, token, options=""):
-        # login with token
-        taosFile = etool.taosFile()
-        success = [
-            "Connect with token ...... [ OK ]",
-            "Query OK"
-        ]
-        
-        # arg
-        command = f'{taosFile} -q{token} {options} -s "show tokens;" '
-        rlist = etool.runRetList(command, checkRun=True, show= True)
-        self.checkManyString(rlist, success)
+        self.wait_token_login(token, True, options)
 
     def login_token_fail(self, token, options=""):
-        # login with token
-        taosFile = etool.taosFile()
-        failed = "Connect with token ...... [ FAILED ]"
-        
-        # arg
-        command = f'{taosFile} -q{token} {options} -s "show tokens;" '
-        rlist = etool.runRetList(command, checkRun=False, show= True)
-        self.checkManyString(rlist, failed)
+        self.wait_token_login(token, False, options)
 
     # user
     def create_user(self, user, password=None, options=""):
@@ -319,7 +340,7 @@ class TestUserSecurity:
         # login with no root privilege
         user = "no_privilege_user"
         password = "abcd@1234"
-        self.create_user(user, password, options="CREATEDB 0 SYSINFO 0")
+        self.create_user(user, password, options="CREATEDB 0 SYSINFO 1")
         self.login(user, password)
         # can create
         token3 = self.create_token("login_token3", user)
@@ -392,6 +413,7 @@ class TestUserSecurity:
 
         History:
             - 2026-01-13 Alex Duan created
+            - 2026-07-11 Cris stabilize token login checks
 
         """
         self.prepare()

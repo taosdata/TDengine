@@ -25,7 +25,7 @@ TDengine TSDB v3.3.7.0 版本开始提供 MQTT 订阅功能，通过 MQTT 客户
 CREATE BNODE ON DNODE {dnode_id}
 ```
 
-一个 Dnode 上只能创建一个 Bnode。Bnode 创建成功后，会自动启动 Bnode 子进程 `taosmqtt`，默认在 6083 端口对外提供 MQTT 订阅服务，端口可在文件 taos.cfg 中通过参数 `mqttPort` 配置。例如：`create bnode on dnode 1`。
+一个 Dnode 上只能创建一个 Bnode。Bnode 创建成功后，会自动启动 Bnode 子进程 `taosmqtt`，默认在 6057 端口对外提供 MQTT 订阅服务，端口可在文件 taos.cfg 中通过参数 `mqttPort` 配置。例如：`create bnode on dnode 1`。
 
 ### 查看 Bnode
 
@@ -37,7 +37,7 @@ SHOW BNODES;
 taos> show bnodes;
      id    |   endpoint       | protocol |          create_time    | 
 ====================================================================
-     1     | 192.168.0.1:6083 | mqtt     | 2024-11-28 18:44:27.089 | 
+     1     | 192.168.0.1:6057 | mqtt     | 2024-11-28 18:44:27.089 | 
 Query OK, 1 row(s) in set (0.037205s)
 ```
 
@@ -104,7 +104,7 @@ else:
 
 client.on_connect = on_connect
 client.username_pw_set("root", "taosdata")
-client.connect("127.0.1.1", 6083)
+client.connect("127.0.1.1", 6057)
 
 client.on_subscribe = on_subscribe
 client.on_message = on_message

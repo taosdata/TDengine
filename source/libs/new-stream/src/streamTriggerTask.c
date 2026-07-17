@@ -10959,6 +10959,9 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
   QUERY_CHECK_CODE(code, lino, _end);
   pGroup->oldThreshold = INT64_MIN;
   if (pTask->fillHistory) {
+    if (pTask->fillHistoryStartTime != INT64_MIN) {
+      pGroup->oldThreshold = pTask->fillHistoryStartTime - 1;
+    }
     void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &gid, sizeof(int64_t));
     if (px != NULL) {
       pGroup->oldThreshold = TMAX(pGroup->oldThreshold, *(int64_t *)px);

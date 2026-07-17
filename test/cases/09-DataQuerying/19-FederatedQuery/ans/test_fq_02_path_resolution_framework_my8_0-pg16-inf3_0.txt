@@ -3443,7 +3443,8 @@ OK
 ### DIM-05[MYS] STEP-004.044 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-05[MYS] STEP-004.045 COMMENT
 -- [2-seg USE] sql=use fq02_dim05.fq02_path_mdb
@@ -3459,7 +3460,8 @@ OK
 ### DIM-05[MYS] STEP-004.048 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-05[MYS] STEP-004.049 COMMENT
 -- [3-seg USE] sql=use fq02_dim05.fq02_path_mdb.extra
@@ -3733,7 +3735,8 @@ OK
 ### DIM-05[POS] STEP-004.044 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-05[POS] STEP-004.045 COMMENT
 -- [2-seg USE] sql=use fq02_dim05.public
@@ -3749,7 +3752,8 @@ OK
 ### DIM-05[POS] STEP-004.048 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-05[POS] STEP-004.049 COMMENT
 -- [3-seg USE] sql=use fq02_dim05.public.extra
@@ -4023,7 +4027,8 @@ OK
 ### DIM-05[INF] STEP-004.044 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+time|score|name|val
+1704067200000000000|1.5|alpha|1
 ---
 ### DIM-05[INF] STEP-004.045 COMMENT
 -- [2-seg USE] sql=use fq02_dim05.fq02_path_idb
@@ -4039,7 +4044,8 @@ OK
 ### DIM-05[INF] STEP-004.048 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+time|score|name|val
+1704067200000000000|1.5|alpha|1
 ---
 ### DIM-05[INF] STEP-004.049 COMMENT
 -- [3-seg USE] sql=use fq02_dim05.fq02_path_idb.extra
@@ -6507,7 +6513,10 @@ OK
 ### DIM-11[MYS] STEP-004.017 QUERY
 SQL: select * from path_t order by val limit 3
 RESULT:
-ERROR: [0x2603]: Table does not exist
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:01:00|2|2.5|beta
+2024-01-01 00:02:00|3|3.5|gamma
 ---
 ### DIM-11[MYS] STEP-004.018 COMMENT
 -- Switch to local again
@@ -6542,7 +6551,8 @@ OK
 ### DIM-11[MYS] STEP-004.025 QUERY
 SQL: select count(*) from path_t
 RESULT:
-ERROR: [0x2603]: Table does not exist
+count(*)
+3
 ---
 ### DIM-11[MYS] STEP-004.026 EXEC
 SQL: use fq02_switch_db
@@ -6571,7 +6581,8 @@ OK
 ### DIM-11[MYS] STEP-004.031 QUERY
 SQL: select count(*) from path_t
 RESULT:
-ERROR: [0x2603]: Table does not exist
+count(*)
+3
 ---
 ### DIM-11[MYS] STEP-004.032 COMMENT
 -- [Cross-ext switch] Create secondary source
@@ -6597,7 +6608,8 @@ OK
 ### DIM-11[MYS] STEP-004.037 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-11[MYS] STEP-004.038 COMMENT
 -- [Cross-ext switch] USE source_B → context switches to source_B
@@ -6610,7 +6622,8 @@ OK
 ### DIM-11[MYS] STEP-004.040 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-11[MYS] STEP-004.041 COMMENT
 -- [Cross-ext switch] USE source_A again → back to source_A context
@@ -6623,7 +6636,8 @@ OK
 ### DIM-11[MYS] STEP-004.043 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-11[MYS] STEP-004.044 COMMENT
 -- Cleanup secondary source
@@ -6761,7 +6775,10 @@ OK
 ### DIM-11[POS] STEP-004.017 QUERY
 SQL: select * from path_t order by val limit 3
 RESULT:
-ERROR: [0x2603]: Table does not exist
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:01:00|2|2.5|beta
+2024-01-01 00:02:00|3|3.5|gamma
 ---
 ### DIM-11[POS] STEP-004.018 COMMENT
 -- Switch to local again
@@ -6796,7 +6813,8 @@ OK
 ### DIM-11[POS] STEP-004.025 QUERY
 SQL: select count(*) from path_t
 RESULT:
-ERROR: [0x2603]: Table does not exist
+count(*)
+3
 ---
 ### DIM-11[POS] STEP-004.026 EXEC
 SQL: use fq02_switch_db
@@ -6825,7 +6843,8 @@ OK
 ### DIM-11[POS] STEP-004.031 QUERY
 SQL: select count(*) from path_t
 RESULT:
-ERROR: [0x2603]: Table does not exist
+count(*)
+3
 ---
 ### DIM-11[POS] STEP-004.032 COMMENT
 -- [Cross-ext switch] Create secondary source
@@ -6851,7 +6870,8 @@ OK
 ### DIM-11[POS] STEP-004.037 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-11[POS] STEP-004.038 COMMENT
 -- [Cross-ext switch] USE source_B → context switches to source_B
@@ -6864,7 +6884,8 @@ OK
 ### DIM-11[POS] STEP-004.040 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-11[POS] STEP-004.041 COMMENT
 -- [Cross-ext switch] USE source_A again → back to source_A context
@@ -6877,7 +6898,8 @@ OK
 ### DIM-11[POS] STEP-004.043 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-11[POS] STEP-004.044 COMMENT
 -- Cleanup secondary source
@@ -7015,7 +7037,10 @@ OK
 ### DIM-11[INF] STEP-004.017 QUERY
 SQL: select * from path_t order by val limit 3
 RESULT:
-ERROR: [0x2603]: Table does not exist
+time|score|name|val
+1704067200000000000|1.5|alpha|1
+1704067260000000000|2.5|beta|2
+1704067320000000000|3.5|gamma|3
 ---
 ### DIM-11[INF] STEP-004.018 COMMENT
 -- Switch to local again
@@ -7050,7 +7075,8 @@ OK
 ### DIM-11[INF] STEP-004.025 QUERY
 SQL: select count(*) from path_t
 RESULT:
-ERROR: [0x2603]: Table does not exist
+count(*)
+3
 ---
 ### DIM-11[INF] STEP-004.026 EXEC
 SQL: use fq02_switch_db
@@ -7079,7 +7105,8 @@ OK
 ### DIM-11[INF] STEP-004.031 QUERY
 SQL: select count(*) from path_t
 RESULT:
-ERROR: [0x2603]: Table does not exist
+count(*)
+3
 ---
 ### DIM-11[INF] STEP-004.032 COMMENT
 -- [Cross-ext switch] Create secondary source
@@ -7105,7 +7132,8 @@ OK
 ### DIM-11[INF] STEP-004.037 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+time|score|name|val
+1704067200000000000|1.5|alpha|1
 ---
 ### DIM-11[INF] STEP-004.038 COMMENT
 -- [Cross-ext switch] USE source_B → context switches to source_B
@@ -7118,7 +7146,8 @@ OK
 ### DIM-11[INF] STEP-004.040 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+time|score|name|val
+1704067200000000000|1.5|alpha|1
 ---
 ### DIM-11[INF] STEP-004.041 COMMENT
 -- [Cross-ext switch] USE source_A again → back to source_A context
@@ -7131,7 +7160,8 @@ OK
 ### DIM-11[INF] STEP-004.043 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
+time|score|name|val
+1704067200000000000|1.5|alpha|1
 ---
 ### DIM-11[INF] STEP-004.044 COMMENT
 -- Cleanup secondary source
@@ -8441,7 +8471,8 @@ OK
 ### DIM-14[MYS] STEP-004.035 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6407]: External source not found
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-14[MYS] STEP-004.036 COMMENT
 -- USE source.ns then 1-seg query
@@ -8454,7 +8485,8 @@ OK
 ### DIM-14[MYS] STEP-004.038 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6407]: External source not found
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-14[MYS] STEP-004.039 COMMENT
 -- [USE override/reset] USE source.ns2 overrides to alt namespace
@@ -8467,7 +8499,8 @@ OK
 ### DIM-14[MYS] STEP-004.041 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6407]: External source not found
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-14[MYS] STEP-004.042 COMMENT
 -- [USE override/reset] USE source (1-seg) resets to default ns
@@ -8480,7 +8513,8 @@ OK
 ### DIM-14[MYS] STEP-004.044 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6407]: External source not found
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-14[MYS] STEP-004.045 COMMENT
 -- [EXT-013] USE with leading dot → should fail
@@ -8686,7 +8720,8 @@ OK
 ### DIM-14[POS] STEP-004.035 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6407]: External source not found
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-14[POS] STEP-004.036 COMMENT
 -- USE source.ns then 1-seg query
@@ -8699,7 +8734,8 @@ OK
 ### DIM-14[POS] STEP-004.038 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6407]: External source not found
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-14[POS] STEP-004.039 COMMENT
 -- [USE override/reset] USE source.ns2 overrides to alt namespace
@@ -8712,7 +8748,8 @@ OK
 ### DIM-14[POS] STEP-004.041 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6407]: External source not found
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-14[POS] STEP-004.042 COMMENT
 -- [USE override/reset] USE source (1-seg) resets to default ns
@@ -8725,7 +8762,8 @@ OK
 ### DIM-14[POS] STEP-004.044 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6407]: External source not found
+ts|val|score|name
+2024-01-01 00:00:00|1|1.5|alpha
 ---
 ### DIM-14[POS] STEP-004.045 COMMENT
 -- [EXT-013] USE with leading dot → should fail
@@ -8872,7 +8910,7 @@ ERROR: [0x6407]: External source 'nonexist_source_xyz' not found
 ### DIM-14[INF] STEP-004.022 EXEC
 SQL: use fq02_dim14.nonexistent_ns_xyz
 RESULT:
-OK
+ERROR: [0x6417]: External source database or schema not found
 ---
 ### DIM-14[INF] STEP-004.023 COMMENT
 -- [Failed USE preserves context] previous ext context should be retained
@@ -8880,7 +8918,8 @@ OK
 ### DIM-14[INF] STEP-004.024 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6410]: External table not found on remote source
+time|score|name|val
+1704067200000000000|1.5|alpha|1
 ---
 ### DIM-14[INF] STEP-004.025 COMMENT
 -- USE local db (verify local USE still works)
@@ -8930,7 +8969,8 @@ OK
 ### DIM-14[INF] STEP-004.035 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6407]: External source not found
+time|score|name|val
+1704067200000000000|1.5|alpha|1
 ---
 ### DIM-14[INF] STEP-004.036 COMMENT
 -- USE source.ns then 1-seg query
@@ -8943,7 +8983,8 @@ OK
 ### DIM-14[INF] STEP-004.038 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6407]: External source not found
+time|score|name|val
+1704067200000000000|1.5|alpha|1
 ---
 ### DIM-14[INF] STEP-004.039 COMMENT
 -- [USE override/reset] USE source.ns2 overrides to alt namespace
@@ -8956,7 +8997,8 @@ OK
 ### DIM-14[INF] STEP-004.041 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6407]: External source not found
+time|score|name|val
+1704067200000000000|1.5|alpha|1
 ---
 ### DIM-14[INF] STEP-004.042 COMMENT
 -- [USE override/reset] USE source (1-seg) resets to default ns
@@ -8969,7 +9011,8 @@ OK
 ### DIM-14[INF] STEP-004.044 QUERY
 SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x6407]: External source not found
+time|score|name|val
+1704067200000000000|1.5|alpha|1
 ---
 ### DIM-14[INF] STEP-004.045 COMMENT
 -- [EXT-013] USE with leading dot → should fail
