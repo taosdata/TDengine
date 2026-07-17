@@ -2077,9 +2077,9 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
   int32_t  nTagRefs = isVirtualChild ? smrChildTable->me.colRef.nTagRefs : 0;
 
   if (isVirtualChild) {
-    qError("sys-tags child:%s nTagRefs:%d", smrChildTable->me.name, nTagRefs);
+    qDebug("sys-tags child:%s nTagRefs:%d", smrChildTable->me.name, nTagRefs);
     for (int32_t r = 0; r < nTagRefs; ++r) {
-      qError("sys-tags child:%s tagRef[%d] hasRef:%d id:%d src:%s db:%s tb:%s col:%s", smrChildTable->me.name, r,
+      qDebug("sys-tags child:%s tagRef[%d] hasRef:%d id:%d src:%s db:%s tb:%s col:%s", smrChildTable->me.name, r,
              pTagRefs[r].hasRef, pTagRefs[r].id, pTagRefs[r].refSourceName, pTagRefs[r].refDbName,
              pTagRefs[r].refTableName, pTagRefs[r].refColName);
     }
@@ -4002,7 +4002,7 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
       continue;
     }
 
-    qError("vtb-ref validate col idx:%d src:%s db:%s tb:%s col:%s", i, pColRef->pColRef[i].refSourceName,
+    qDebug("vtb-ref validate col idx:%d src:%s db:%s tb:%s col:%s", i, pColRef->pColRef[i].refSourceName,
            pColRef->pColRef[i].refDbName, pColRef->pColRef[i].refTableName, pColRef->pColRef[i].refColName);
 
     if (pColRef->pColRef[i].refSourceName[0] != 0) {
@@ -4039,7 +4039,7 @@ static int32_t validateSrcTableColRef(const SSysTableScanInfo* pInfo, SExecTaskI
       continue;
     }
 
-    qError("vtb-ref validate tag idx:%d src:%s db:%s tb:%s col:%s", i, pColRef->pTagRef[i].refSourceName,
+    qDebug("vtb-ref validate tag idx:%d src:%s db:%s tb:%s col:%s", i, pColRef->pTagRef[i].refSourceName,
            pColRef->pTagRef[i].refDbName, pColRef->pTagRef[i].refTableName, pColRef->pTagRef[i].refColName);
 
     if (pColRef->pTagRef[i].refSourceName[0] != 0) {
