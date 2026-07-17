@@ -4592,6 +4592,20 @@ int32_t tColDataAddValueByDataBlock(SColData *pColData, int8_t type, int32_t byt
             code = TSDB_CODE_PAR_VALUE_TOO_LONG;
             goto _exit;
           }
+          if (type == TSDB_DATA_TYPE_NCHAR && varDataLen(data + offset) > 0) {
+            int32_t ucs4Len = varDataLen(data + offset);
+            char   *mbsBuf = taosMemoryMalloc(ucs4Len + 1);
+            if (mbsBuf == NULL) {
+              code = terrno;
+              goto _exit;
+            }
+            int32_t mbsLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(data + offset), ucs4Len, mbsBuf, NULL);
+            taosMemoryFreeClear(mbsBuf);
+            if (mbsLen < 0) {
+              code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+              goto _exit;
+            }
+          }
           code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)varDataVal(data + offset),
                                                                         varDataLen(data + offset));
         }
