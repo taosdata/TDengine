@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, etool
+from new_test_framework.utils import tdLog, tdSql, tdCom, etool
 import subprocess
 
 
@@ -87,8 +87,6 @@ class TestFunctionNoFromAll:
         ("sha2", "select sha2('abc', 256);"),
         ("sign", "select sign(1);"),
         ("sin", "select sin(1);"),
-        ("sm4_decrypt", "select sm4_decrypt(sm4_encrypt('abc', 'key123456789012'), 'key123456789012');"),
-        ("sm4_encrypt", "select sm4_encrypt('abc', 'key123456789012');"),
         ("spread", "select spread(1);"),
         ("sqrt", "select sqrt(1);"),
         ("st_astext", "select st_astext(st_geomfromtext('POINT(1 2)'));"),
@@ -136,6 +134,11 @@ class TestFunctionNoFromAll:
         ("weekofyear", "select weekofyear('2024-01-01 00:00:00');"),
     ]
 
+    SM4_CASES = [
+        ("sm4_decrypt", "select sm4_decrypt(sm4_encrypt('abc', 'key123456789012'), 'key123456789012');"),
+        ("sm4_encrypt", "select sm4_encrypt('abc', 'key123456789012');"),
+    ]
+
     # Unsupported in query without FROM. These calls must fail.
     NEGATIVE_CASES = [
         # count(*) requires a table to resolve the '*' column; only count(1) is valid without FROM.
@@ -155,9 +158,8 @@ class TestFunctionNoFromAll:
 
     def _run_by_taos_cli(self, sql):
         taos_file = etool.taosFile()
-        escaped_sql = sql.replace('"', '\\"')
-        cmd = f'"{taos_file}" -s "{escaped_sql}"'
-        proc = subprocess.run(cmd, shell=True, text=True, capture_output=True)
+        cmd = [taos_file, "-c", tdCom.getClientCfgPath(), "-s", sql]
+        proc = subprocess.run(cmd, text=True, capture_output=True)
         return proc.returncode, (proc.stdout or "") + (proc.stderr or "")
 
     def _is_sql_failed(self, code, output):
@@ -194,8 +196,13 @@ class TestFunctionNoFromAll:
             - 2026-04-02 wpan Add full no-from function tests
 
         """
+        sm4_code, sm4_output = self._run_by_taos_cli(self.SM4_CASES[0][1])
+        sm4_supported = not self._is_sql_failed(sm4_code, sm4_output)
+        positive_cases = self.CASES + (self.SM4_CASES if sm4_supported else [])
+        negative_cases = self.NEGATIVE_CASES + ([] if sm4_supported else self.SM4_CASES)
+
         failed = []
-        for name, sql in self.CASES:
+        for name, sql in positive_cases:
             code, output = self._run_by_taos_cli(sql)
             if self._is_sql_failed(code, output):
                 tail = output.strip().splitlines()
@@ -212,7 +219,7 @@ class TestFunctionNoFromAll:
             )
 
         unexpected_success = []
-        for name, sql in self.NEGATIVE_CASES:
+        for name, sql in negative_cases:
             code, output = self._run_by_taos_cli(sql)
             if not self._is_sql_failed(code, output):
                 tail = output.strip().splitlines()

@@ -580,6 +580,13 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
   uint8_t** pData = &pVal->value.pData;
   uint32_t* nData = &pVal->value.nData;
 
+#if !defined(TD_ENTERPRISE) && !defined(TD_ASTRA)
+  if (pToken->type == TK_SM4_ENCRYPT || pToken->type == TK_SM4_DECRYPT) {
+    return generateSyntaxErrMsgExt(&pCxt->msg, TSDB_CODE_OPS_NOT_SUPPORT, "%s is only supported in Enterprise edition",
+                                   pToken->type == TK_SM4_ENCRYPT ? "SM4_ENCRYPT" : "SM4_DECRYPT");
+  }
+#endif
+
   if (pToken->type == TK_FROM_BASE64 || pToken->type == TK_TO_BASE64 || pToken->type == TK_MD5 ||
       pToken->type == TK_SHA || pToken->type == TK_SHA1 || pToken->type == TK_SHA2 || pToken->type == TK_AES_ENCRYPT ||
       pToken->type == TK_AES_DECRYPT || pToken->type == TK_SM4_ENCRYPT || pToken->type == TK_SM4_DECRYPT) {
