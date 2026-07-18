@@ -136,6 +136,17 @@ class TestMetaSysDb2:
         tdSql.checkData(2, 0, "stb_empty")
         tdSql.checkData(2, 1, 0)  # 0  table in empty_db_for_count_test.stb_empty
 
+        ### 2.5 check partition by stable_name result without order by
+        tdSql.query("select count(*) cnt, stable_name from information_schema.ins_tables \
+                    partition by stable_name", show=1)
+        tdSql.checkRows(3)
+        stable_name_counts = {}
+        for i in range(tdSql.getRows()):
+            stable_name_counts[tdSql.getData(i, 1)] = tdSql.getData(i, 0)
+        assert stable_name_counts.get(None) == info_tables + perf_tables
+        assert stable_name_counts.get("stb") == NUM_USER_DB_TABLES
+        assert stable_name_counts.get("stb_empty") == 0
+
         ## 3. check plan with where condition
         ### 3.1 check plan with where db_name
         tdSql.query("explain select count(*) cnt from information_schema.ins_tables \
