@@ -1533,6 +1533,92 @@ _end:
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
+// True when a (virtual) child table carries at least one tag ref with hasRef set,
+// i.e. filling its ins_tags rows will run sysTagsResolveRefTagVal.
+static bool sysTableChildHasRefTags(const SMetaEntry* pEntry) {
+  if (pEntry->type != TSDB_VIRTUAL_CHILD_TABLE) {
+    return false;
+  }
+  const SColRefWrapper* pRefWrap = &pEntry->colRef;
+  for (int32_t r = 0; pRefWrap->pTagRef != NULL && r < pRefWrap->nTagRefs; ++r) {
+    if (pRefWrap->pTagRef[r].hasRef) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Fill ins_tags rows for one virtual child whose tags carry refs.
+// The caller's table cursor holds the meta read lock, but ref-tag resolution
+// (sysTagsResolveRefTagVal) opens nested LOCK readers and may fire cross-vnode
+// RPCs — a nested rdlock deadlocks behind a queued writer on the meta rwlock,
+// and holding the lock across RPCs risks cross-vnode deadlock. So pause the
+// cursor, re-read the child entry on fresh readers with no lock held, fill from
+// that, then resume the scan. Rows concurrently dropped are skipped, mirroring
+// the inline path's tolerance.
+static int32_t sysTableUserTagsFillRefTagsRow(SOperatorInfo* pOperator, const char* dbname, const char* tableName,
+                                              int32_t* pNumOfRows, SSDataBlock* dataBlock) {
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  tb_uid_t           childUid = pInfo->pCur->mr.me.uid;
+  bool               skipFill = false;
+  SMetaReader        smrChildRef = {0};
+  SMetaReader        smrSuperTable = {0};
+
+  pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
+
+  pAPI->metaReaderFn.initReader(&smrChildRef, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn,
+                                pInfo->readHandle.txnId);
+  code = pAPI->metaReaderFn.getTableEntryByUid(&smrChildRef, childUid);
+  if (code != TSDB_CODE_SUCCESS) {
+    // Child dropped between cursor pause and re-read: skip the row.
+    qWarn("skip ref-tags fill for concurrently dropped child, uid:0x%" PRIx64 ", %s", childUid,
+          GET_TASKID(pTaskInfo));
+    skipFill = true;
+  } else {
+    pAPI->metaReaderFn.readerReleaseLock(&smrChildRef);
+    // LOCK (not NOLOCK) for the super fetch: no meta lock is held here (cursor
+    // paused, child reader released), and metaReaderGetTableEntryByUid reads the
+    // tdb B+trees without any internal locking — a NOLOCK reader would race
+    // with vacuum's WLock mutations. Data stays valid after releaseLock.
+    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn,
+                                  pInfo->readHandle.txnId);
+    smrSuperTable.txnId = pInfo->readHandle.txnId;
+    code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, smrChildRef.me.ctbEntry.suid);
+    pAPI->metaReaderFn.readerReleaseLock(&smrSuperTable);
+    if (code != TSDB_CODE_SUCCESS) {
+      if (pAPI->metaFn.hasPendingTxnEntries && pAPI->metaFn.hasPendingTxnEntries(pInfo->readHandle.vnode)) {
+        // Txn race: parent STB may be invisible during async rollback/vacuum.
+        // Skip row instead of aborting the whole scan.
+        qWarn("skip ref-tags fill for orphan child table, cname:%s, suid:0x%" PRIx64 ", code:%s, %s",
+              smrChildRef.me.name, smrChildRef.me.ctbEntry.suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
+        skipFill = true;
+      }
+      // else: genuine error, reported via code after resume below.
+    } else {
+      code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildRef, dbname, tableName, pNumOfRows,
+                                              dataBlock, pTaskInfo->id.queryId, pTaskInfo);
+    }
+  }
+  pAPI->metaReaderFn.clearReader(&smrSuperTable);
+  pAPI->metaReaderFn.clearReader(&smrChildRef);
+  if (skipFill) {
+    code = TSDB_CODE_SUCCESS;
+  }
+
+  // The current row has been filled (or deliberately skipped) at this point, so
+  // resume with move=1 to advance past its key: tdbBtreeNext decodes the CURRENT
+  // cell before moving on, and move=0 would make the next cursorNext return this
+  // same row again (infinite duplicate fill / hang).
+  int32_t resumeCode = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 1);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = resumeCode;
+  }
+  return code;
+}
+
 static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
@@ -1605,9 +1691,14 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       return NULL;
     }
 
+    // Release smrChildTable's meta read lock before the call: ref-tag resolution
+    // inside (sysTagsResolveRefTagVal) opens nested LOCK readers and may fire
+    // cross-vnode RPCs — both must not happen while this reader holds the meta
+    // rwlock (nested rdlock deadlocks behind a queued writer).
+    // smrChildTable.me stays valid until clearReader.
+    pAPI->metaReaderFn.readerReleaseLock(&smrChildTable);
     code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows,
                                             dataBlock, pTaskInfo->id.queryId, pTaskInfo);
-
     pAPI->metaReaderFn.clearReader(&smrSuperTable);
     pAPI->metaReaderFn.clearReader(&smrChildTable);
 
@@ -1676,19 +1767,26 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     }
 
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
-    code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
-                                            dataBlock, pTaskInfo->id.queryId, pTaskInfo);
+    // Rows whose tags carry refs must be filled without the cursor's meta read
+    // lock held (nested LOCK readers + cross-vnode RPCs inside ref resolution);
+    // sysTableUserTagsFillRefTagsRow pauses/resumes the cursor around the fill.
+    if (sysTableChildHasRefTags(&pInfo->pCur->mr.me)) {
+      pAPI->metaReaderFn.clearReader(&smrSuperTable);
+      code = sysTableUserTagsFillRefTagsRow(pOperator, dbname, tableName, &numOfRows, dataBlock);
+    } else {
+      code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
+                                              dataBlock, pTaskInfo->id.queryId, pTaskInfo);
+      pAPI->metaReaderFn.clearReader(&smrSuperTable);
+    }
 
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-      pAPI->metaReaderFn.clearReader(&smrSuperTable);
       pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
       pInfo->pCur = NULL;
       blockDataDestroy(dataBlock);
       dataBlock = NULL;
-      T_LONG_JMP(pTaskInfo->env, terrno);
+      T_LONG_JMP(pTaskInfo->env, code);
     }
-    pAPI->metaReaderFn.clearReader(&smrSuperTable);
   }
 
   if (numOfRows > 0) {
@@ -1969,6 +2067,15 @@ static int32_t sysTagsFetchRemoteCfg(const SSysTableScanInfo* pInfo, int32_t acc
   return TSDB_CODE_SUCCESS;
 }
 
+// LOCK CONTRACT: callers MUST NOT hold any meta read/write lock on this
+// thread. The local-resolution readers below are META_READER_LOCK (the tdb
+// B-tree read path has no internal latching — NOLOCK point lookups would race
+// with vacuum/rollback WLock mutations), but each lock is dropped via
+// readerReleaseLock right after its fetch, so no lock is ever held across the
+// blocking cross-vnode RPC below (sysTagsFetchRemoteCfg -> rpcSendRecv), and
+// with no outer lock held the rdlock cannot nest into the queued-writer
+// self-deadlock. The ref-tag fill path pauses the cursor / releases the child
+// reader before calling here precisely to preserve this contract.
 static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SColRef* pRef,
                                        int8_t dstTagType, char** ppTagData, uint32_t* pTagLen,
                                        bool* pResolved, uint64_t reqId, SExecTaskInfo* pTaskInfo) {
@@ -1979,22 +2086,22 @@ static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SCo
   *ppTagData = NULL;
   *pTagLen = 0;
 
-  // Step 1: Try local vnode resolution.
-  // NOTE: this function is always invoked while the caller already holds the meta read lock
-  // (either the ins_tags table-meta cursor in sysTableScanUserTags, or the META_READER_LOCK
-  // child reader in the single-table path). The meta rwlock is PTHREAD_RWLOCK_PREFER_WRITER
-  // (non-recursive), so re-acquiring META_READER_LOCK here would self-deadlock whenever a
-  // concurrent writer (e.g. auto-create-table) is waiting. Use META_READER_NOLOCK and rely on
-  // the caller's held lock, mirroring the sibling smrSuperTable reader in sysTableScanUserTags.
+  // Step 1: Try local vnode resolution. Short-lived LOCK readers: the meta
+  // rwlock is the only serialization against concurrent B-tree mutations
+  // (vacuum, rollback-alter); the lock is released immediately after each
+  // fetch — me stays valid until clearReader — so it is never held across
+  // Step 2's RPC.
   SMetaReader srcTable = {0};
-  pAPI->metaReaderFn.initReader(&srcTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
+  pAPI->metaReaderFn.initReader(&srcTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
   code = pAPI->metaReaderFn.getTableEntryByName(&srcTable, pRef->refTableName);
+  pAPI->metaReaderFn.readerReleaseLock(&srcTable);
 
   if (code == TSDB_CODE_SUCCESS && srcTable.me.type == TSDB_CHILD_TABLE &&
       srcTable.me.ctbEntry.pTags != NULL) {
     SMetaReader srcSuper = {0};
-    pAPI->metaReaderFn.initReader(&srcSuper, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
+    pAPI->metaReaderFn.initReader(&srcSuper, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
     code = pAPI->metaReaderFn.getTableEntryByUid(&srcSuper, srcTable.me.ctbEntry.suid);
+    pAPI->metaReaderFn.readerReleaseLock(&srcSuper);
 
     if (code == TSDB_CODE_SUCCESS) {
       const SSchema* pSrcSchema = NULL;
@@ -2061,6 +2168,11 @@ static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SCo
   return code;
 }
 
+// LOCK CONTRACT: callers MUST NOT hold any meta read/write lock on this
+// thread — smrSuperTable/smrChildTable must be NOLOCK readers or readers whose
+// lock was released via readerReleaseLock (their data stays valid). Rows with
+// ref tags route into sysTagsResolveRefTagVal, which acquires its own LOCK
+// readers and may fire cross-vnode RPCs; see its contract comment.
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
                                                 int32_t* pNumOfRows, const SSDataBlock* dataBlock,
