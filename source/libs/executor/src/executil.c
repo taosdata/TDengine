@@ -2512,6 +2512,8 @@ int32_t getGroupIdFromTagsVal(void* pVnode, uint64_t uid, SNodeList* pGroupNode,
         pStart += len;
       } else if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
         if (IS_STR_DATA_BLOB(pValue->node.resType.type)) {
+          nodesDestroyList(groupNew);
+          pAPI->metaReaderFn.clearReader(&mr);
           return TSDB_CODE_BLOB_NOT_SUPPORT_TAG;
         }
         memcpy(pStart, data, varDataTLen(data));
