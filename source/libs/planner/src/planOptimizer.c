@@ -5230,6 +5230,80 @@ static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t st
   return code;
 }
 
+static bool tbCntScanOptIsSameSysTableCol(SNode* pLeft, SNode* pRight) {
+  if (QUERY_NODE_COLUMN != nodeType(pLeft) || QUERY_NODE_COLUMN != nodeType(pRight)) {
+    return false;
+  }
+
+  SColumnNode* pLeftCol = (SColumnNode*)pLeft;
+  SColumnNode* pRightCol = (SColumnNode*)pRight;
+  return 0 == strcmp(pLeftCol->colName, pRightCol->colName) &&
+         0 == strcmp(pLeftCol->dbName, pRightCol->dbName) &&
+         0 == strcmp(pLeftCol->tableName, pRightCol->tableName);
+}
+
+static bool tbCntScanOptIsGroupTagFunc(SFunctionNode* pFunc) {
+  return 0 == strcmp(pFunc->functionName, "_group_key") || 0 == strcmp(pFunc->functionName, "_select_value");
+}
+
+static bool tbCntScanOptFuncContainsGroupTag(SFunctionNode* pFunc, SNode* pGroupTag) {
+  if (!tbCntScanOptIsGroupTagFunc(pFunc)) {
+    return false;
+  }
+
+  SNode* pParam = NULL;
+  FOREACH(pParam, pFunc->pParameterList) {
+    if (nodesEqualNode(pGroupTag, pParam) || tbCntScanOptIsSameSysTableCol(pGroupTag, pParam)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static SFunctionNode* tbCntScanOptFindGroupTagFunc(SNode* pGroupTag, SNodeList* pOrigAggFuncs) {
+  SNode* pFunc = NULL;
+  FOREACH(pFunc, pOrigAggFuncs) {
+    if (QUERY_NODE_FUNCTION == nodeType(pFunc) && tbCntScanOptFuncContainsGroupTag((SFunctionNode*)pFunc, pGroupTag)) {
+      return (SFunctionNode*)pFunc;
+    }
+  }
+  return NULL;
+}
+
+static bool tbCntScanOptNeedGroupTagOutput(SNode* pGroupTag, SAggLogicNode* pAgg, SNodeList* pOrigAggFuncs) {
+  if (partTagsNeedOutput(pGroupTag, pAgg->node.pTargets)) {
+    return true;
+  }
+
+  return NULL != tbCntScanOptFindGroupTagFunc(pGroupTag, pOrigAggFuncs);
+}
+
+static int32_t tbCntScanOptRewriteGroupTagsToFuncs(SNodeList* pGroupTags, SAggLogicNode* pAgg, SNodeList* pOrigAggFuncs) {
+  bool    hasIndefRowsSelectFunc = partTagsHasIndefRowsSelectFunc(pOrigAggFuncs);
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pGroupTags) {
+    if (!tbCntScanOptNeedGroupTagOutput(pNode, pAgg, pOrigAggFuncs)) {
+      continue;
+    }
+
+    SFunctionNode* pFunc = NULL;
+    SFunctionNode* pOrigFunc = tbCntScanOptFindGroupTagFunc(pNode, pOrigAggFuncs);
+    code = partTagsCreateWrapperFunc(hasIndefRowsSelectFunc ? "_select_value" : "_group_key", pNode, &pFunc);
+    if (TSDB_CODE_SUCCESS == code && NULL != pOrigFunc) {
+      tstrncpy(pFunc->node.aliasName, pOrigFunc->node.aliasName, TSDB_COL_NAME_LEN);
+      tstrncpy(pFunc->node.userAlias, pOrigFunc->node.userAlias, TSDB_COL_NAME_LEN);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListStrictAppend(pAgg->pAggFuncs, (SNode*)pFunc);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+  }
+  return code;
+}
+
 static EDealRes partTagsCollectColsNodes(SNode* pNode, void* pContext) {
   SCollectColsCxt* pCxt = pContext;
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
@@ -7812,16 +7886,18 @@ static int32_t tbCntScanOptCreateSumFunc(SFunctionNode* pCntFunc,
 */
 static int32_t tbCntScanOptRewriteAgg(SAggLogicNode* pAgg) {
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  SNodeList*      pOrigAggFuncs = pAgg->pAggFuncs;
   SNode*          pSum = NULL;
-  int32_t         code = tbCntScanOptCreateSumFunc((SFunctionNode*)nodesListGetNode(pAgg->pAggFuncs, 0),
+  int32_t         code = tbCntScanOptCreateSumFunc((SFunctionNode*)nodesListGetNode(pOrigAggFuncs, 0),
                                                    nodesListGetNode(pScan->pScanPseudoCols, 0), &pSum);
   if (TSDB_CODE_SUCCESS == code) {
-    NODES_DESTORY_LIST(pAgg->pAggFuncs);
+    pAgg->pAggFuncs = NULL;
     code = nodesListMakeStrictAppend(&pAgg->pAggFuncs, pSum);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, 0, pAgg);
+    code = tbCntScanOptRewriteGroupTagsToFuncs(pScan->pGroupTags, pAgg, pOrigAggFuncs);
   }
+  nodesDestroyList(pOrigAggFuncs);
   NODES_DESTORY_LIST(pAgg->pGroupKeys);
   return code;
 }
