@@ -264,6 +264,9 @@ static int32_t sysTableFillOneVirtualTableRefImpl(const SSysTableScanInfo* pInfo
 static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t numOfRows, SSDataBlock* dataBlock,
                                                SFilterInfo* pFilterInfo, SExecTaskInfo* pTaskInfo);
 
+static int32_t vtbRefCopyColRefWrapper(const SColRefWrapper* pSrc, SColRefWrapper* pDst);
+static void    vtbRefFreeColRefWrapper(SColRefWrapper* pColRef);
+
 static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisInfo* pStatisInfo);
 
 static int32_t vtbRefResolveSrcColumnChain(const SSysTableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, const char* refDbName,
@@ -1327,6 +1330,91 @@ _end:
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
+// True when a virtual table carries at least one col/tag ref with hasRef set,
+// i.e. filling its ins_virtual_tables_referencing rows will run
+// validateSrcTableColRef, which may fire blocking cross-vnode RPCs.
+static bool sysVtableHasRefCols(const SColRefWrapper* pColRef) {
+  if (pColRef == NULL) {
+    return false;
+  }
+  for (int32_t r = 0; pColRef->pColRef != NULL && r < pColRef->nCols; ++r) {
+    if (pColRef->pColRef[r].hasRef) {
+      return true;
+    }
+  }
+  for (int32_t r = 0; pColRef->pTagRef != NULL && r < pColRef->nTagRefs; ++r) {
+    if (pColRef->pTagRef[r].hasRef) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Fill ins_virtual_tables_referencing rows for one virtual table whose cols/tags
+// carry refs, WITHOUT holding the table-meta cursor's meta read lock: ref
+// validation (validateSrcTableColRef -> vtbRefValidateRemote) may fire blocking
+// cross-vnode RPCs, and holding the meta rwlock across them deadlocks once a
+// writer queues on it. schemaRow/colRef may point into the cursor's mr, so
+// deep-copy them, pause the cursor, fill from the copies, then resume with
+// move=1 to advance past the current key (tdbBtreeNext decodes the CURRENT cell
+// before moving on; move=0 would re-return this row).
+static int32_t sysTableVirtualTableRefFillPaused(SOperatorInfo* pOperator, const char* dbname, int32_t* pNumOfRows,
+                                                 SSDataBlock* pDataBlock, const SSchemaWrapper* schemaRow,
+                                                 const SColRefWrapper* pColRef, SVirtualTableRefInfo* pRef) {
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SSchemaWrapper*    pSchemaClone = NULL;
+  SColRefWrapper     colRefClone = {0};
+
+  if (schemaRow == NULL || schemaRow->pSchema == NULL) {
+    // Mirror sysTableFillOneVirtualTableRefImpl's guard; tCloneSSchemaWrapper
+    // returns NULL for a NULL pSchema, which must not be confused with OOM.
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pSchemaClone = tCloneSSchemaWrapper(schemaRow);
+  if (pSchemaClone == NULL) {
+    return terrno;
+  }
+  code = vtbRefCopyColRefWrapper(pColRef, &colRefClone);
+  if (code != TSDB_CODE_SUCCESS) {
+    tDeleteSchemaWrapper(pSchemaClone);
+    return code;
+  }
+
+  // Re-ensure capacity for the copies actually used for the fill: the caller's
+  // pre-check used the cursor entry read before the pause, and a concurrent
+  // ALTER in the pause window could have changed nCols/nTagRefs. colDataSetVal
+  // does not bounds-check rowIndex, so the block must be grown here rather
+  // than relying on the stale pre-check. Do NOT relocate into pInfo->pRes
+  // here: relocateAndFilterSysTagsScanResult overwrites pRes and may only run
+  // when pRes is empty, which is not guaranteed mid-scan.
+  int32_t totalOutputRows = pSchemaClone->nCols + colRefClone.nTagRefs;
+  if ((*pNumOfRows + totalOutputRows) > pOperator->resultInfo.capacity) {
+    code = blockDataEnsureCapacity(pDataBlock, *pNumOfRows + totalOutputRows);
+    if (code != TSDB_CODE_SUCCESS) {
+      vtbRefFreeColRefWrapper(&colRefClone);
+      tDeleteSchemaWrapper(pSchemaClone);
+      return code;
+    }
+  }
+
+  pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
+
+  code = sysTableFillOneVirtualTableRefImpl(pInfo, pTaskInfo, dbname, pNumOfRows, pDataBlock, pSchemaClone, NULL,
+                                            &colRefClone, pRef);
+
+  vtbRefFreeColRefWrapper(&colRefClone);
+  tDeleteSchemaWrapper(pSchemaClone);
+
+  int32_t resumeCode = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 1);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = resumeCode;
+  }
+  return code;
+}
+
 static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
@@ -1499,8 +1587,19 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
     }
 
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
-    code = sysTableFillOneVirtualTableRefImpl(pInfo, pTaskInfo, dbname, &numOfRows, pDataBlock, schemaRow, NULL, colRef,
-                                              pVtableRefInfo);
+    // Tables whose cols/tags carry refs must be filled without the cursor's
+    // meta read lock held: ref validation inside (validateSrcTableColRef ->
+    // vtbRefValidateRemote) may fire blocking cross-vnode RPCs, and a nested
+    // LOCK reader or a lock held across RPC deadlocks once a writer queues on
+    // the meta rwlock. The paused helper deep-copies the ref/schema data and
+    // pauses/resumes the cursor around the fill.
+    if (sysVtableHasRefCols(colRef)) {
+      code = sysTableVirtualTableRefFillPaused(pOperator, dbname, &numOfRows, pDataBlock, schemaRow, colRef,
+                                               pVtableRefInfo);
+    } else {
+      code = sysTableFillOneVirtualTableRefImpl(pInfo, pTaskInfo, dbname, &numOfRows, pDataBlock, schemaRow, NULL,
+                                                colRef, pVtableRefInfo);
+    }
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -1573,10 +1672,14 @@ static int32_t sysTableUserTagsFillRefTagsRow(SOperatorInfo* pOperator, const ch
                                 pInfo->readHandle.txnId);
   code = pAPI->metaReaderFn.getTableEntryByUid(&smrChildRef, childUid);
   if (code != TSDB_CODE_SUCCESS) {
-    // Child dropped between cursor pause and re-read: skip the row.
-    qWarn("skip ref-tags fill for concurrently dropped child, uid:0x%" PRIx64 ", %s", childUid,
-          GET_TASKID(pTaskInfo));
-    skipFill = true;
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      // Child dropped between cursor pause and re-read: skip the row.
+      qWarn("skip ref-tags fill for concurrently dropped child, uid:0x%" PRIx64 ", %s", childUid,
+            GET_TASKID(pTaskInfo));
+      skipFill = true;
+    }
+    // else: genuine error (OOM, IO, ...) — propagate via code instead of
+    // silently dropping the row.
   } else {
     pAPI->metaReaderFn.readerReleaseLock(&smrChildRef);
     // LOCK (not NOLOCK) for the super fetch: no meta lock is held here (cursor
@@ -1598,8 +1701,21 @@ static int32_t sysTableUserTagsFillRefTagsRow(SOperatorInfo* pOperator, const ch
       }
       // else: genuine error, reported via code after resume below.
     } else {
-      code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildRef, dbname, tableName, pNumOfRows,
-                                              dataBlock, pTaskInfo->id.queryId, pTaskInfo);
+      // Re-ensure capacity with the freshly read super entry: the caller's
+      // pre-check used the pre-pause entry, and a concurrent ALTER STB
+      // ADD/DROP TAG in the pause window could have changed nCols.
+      // colDataSetVal does not bounds-check rowIndex, so the block must be
+      // grown here rather than relying on the stale pre-check. Do NOT relocate
+      // into pInfo->pRes here: relocateAndFilterSysTagsScanResult overwrites
+      // pRes and may only run when pRes is empty, which mid-scan is not
+      // guaranteed.
+      if ((smrSuperTable.me.stbEntry.schemaTag.nCols + *pNumOfRows) > pOperator->resultInfo.capacity) {
+        code = blockDataEnsureCapacity(dataBlock, smrSuperTable.me.stbEntry.schemaTag.nCols + *pNumOfRows);
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildRef, dbname, tableName, pNumOfRows,
+                                                dataBlock, pTaskInfo->id.queryId, pTaskInfo);
+      }
     }
   }
   pAPI->metaReaderFn.clearReader(&smrSuperTable);
@@ -3701,9 +3817,15 @@ static int32_t vtbRefGetTableSchemaLocal(const SSysTableScanInfo* pInfo, SStorag
     return terrno;
   }
 
-  pAPI->metaReaderFn.initReader(&srcReader, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
+  // LOCK (not NOLOCK): callers hold no meta lock (the table-meta cursor is
+  // paused / the reader released before validateSrcTableColRef runs), and the
+  // tdb B-tree read path has no internal latching — a NOLOCK reader would race
+  // with vacuum/rollback WLock mutations. The lock is dropped right after each
+  // fetch; me stays valid until clearReader.
+  pAPI->metaReaderFn.initReader(&srcReader, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
   srcReader.txnId = pInfo->readHandle.txnId;
   code = pAPI->metaReaderFn.getTableEntryByName(&srcReader, refTableName);
+  pAPI->metaReaderFn.readerReleaseLock(&srcReader);
 
   if (code != TSDB_CODE_SUCCESS) {
     pAPI->metaReaderFn.clearReader(&srcReader);
@@ -3723,8 +3845,9 @@ static int32_t vtbRefGetTableSchemaLocal(const SSysTableScanInfo* pInfo, SStorag
         }
       }
       pAPI->metaReaderFn.clearReader(&srcReader);
-      pAPI->metaReaderFn.initReader(&srcReader, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
+      pAPI->metaReaderFn.initReader(&srcReader, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
       code = pAPI->metaReaderFn.getTableEntryByUid(&srcReader, suid);
+      pAPI->metaReaderFn.readerReleaseLock(&srcReader);
       if (code != TSDB_CODE_SUCCESS) {
         pAPI->metaReaderFn.clearReader(&srcReader);
         pEntry->errCode = TSDB_CODE_TDB_TABLE_NOT_EXIST;
