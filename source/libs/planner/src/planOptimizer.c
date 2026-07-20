@@ -6474,8 +6474,8 @@ static int32_t lastSmaNotNullOptInspectPlan(SLogicNode* pNode, SLastSmaNotNullOp
       PLAN_ERR_RET(lastSmaNotNullOptInspectFuncList(((SWindowLogicNode*)pNode)->pFuncs, pCxt));
       break;
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
-      PLAN_ERR_RET(lastSmaNotNullOptInspectFuncList(((SPartitionLogicNode*)pNode)->pAggFuncs, pCxt));
-      break;
+      pCxt->valid = false;
+      return TSDB_CODE_SUCCESS;
     case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
     case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC:
     case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
@@ -6569,7 +6569,7 @@ static int32_t lastSmaNotNullOptCreateOrCond(SNodeList* pLastCols, SNode** ppCon
   return TSDB_CODE_SUCCESS;
 }
 
-static bool lastSmaNotNullOptIsSubquery(const SPlanContext* pPlanCxt) {
+static bool lastSmaNotNullOptHasUnsupportedQueryShape(const SPlanContext* pPlanCxt) {
   if (NULL == pPlanCxt || NULL == pPlanCxt->pAstRoot) {
     return false;
   }
@@ -6577,7 +6577,8 @@ static bool lastSmaNotNullOptIsSubquery(const SPlanContext* pPlanCxt) {
   switch (nodeType(pPlanCxt->pAstRoot)) {
     case QUERY_NODE_SELECT_STMT: {
       const SSelectStmt* pSelect = (const SSelectStmt*)pPlanCxt->pAstRoot;
-      return pSelect->isSubquery || E_SUB_QUERY_NOT_SET != pSelect->subQType;
+      return pSelect->isSubquery || E_SUB_QUERY_NOT_SET != pSelect->subQType || NULL != pSelect->pPartitionByList ||
+             (NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable));
     }
     case QUERY_NODE_SET_OPERATOR:
       return E_SUB_QUERY_NOT_SET != ((const SSetOperator*)pPlanCxt->pAstRoot)->subQType;
@@ -6587,7 +6588,7 @@ static bool lastSmaNotNullOptIsSubquery(const SPlanContext* pPlanCxt) {
 }
 
 static int32_t lastSmaNotNullPrefilterOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (inStreamCalcClause(pCxt->pPlanCxt) || lastSmaNotNullOptIsSubquery(pCxt->pPlanCxt)) {
+  if (inStreamCalcClause(pCxt->pPlanCxt) || lastSmaNotNullOptHasUnsupportedQueryShape(pCxt->pPlanCxt)) {
     return TSDB_CODE_SUCCESS;
   }
 

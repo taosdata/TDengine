@@ -625,6 +625,17 @@ class TestLastSmaPrefilter:
         )
         self._assert_explain_analyze("inapp__partition_by", partition_sql, ("c_big",), applicable=False)
 
+        subquery_partition_sql = (
+            "select last(c_big) from ("
+            f"select ts, c_big, grp5 from {STB_NAME} where grp5 = '{grp5}' and c_big > 0"
+            ") partition by grp5"
+        )
+        self._assert_expected_row("inapp__subquery_partition_by", subquery_partition_sql, (20,))
+        self._assert_hidden_not_null_plan(
+            "inapp__subquery_partition_by", subquery_partition_sql, ("c_big",), applicable=False
+        )
+        self._assert_explain_analyze("inapp__subquery_partition_by", subquery_partition_sql, ("c_big",), applicable=False)
+
     def _run_block_sma_mode_regression(self):
         tb_name = "ct_block_sma_mode"
         grp5 = "grp5_block_sma_mode"

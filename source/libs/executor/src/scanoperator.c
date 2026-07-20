@@ -82,7 +82,7 @@ static void    clearCachedTagList(STableScanInfo* pInfo);
 
 static bool shouldSampleLastSmaDebug(void) {
   static int64_t seq = 0;
-  int64_t        cur = __sync_add_and_fetch(&seq, 1);
+  int64_t        cur = atomic_add_fetch_64(&seq, 1);
 
   return cur <= LAST_SMA_DEBUG_SAMPLE_LIMIT || 0 == (cur % LAST_SMA_DEBUG_SAMPLE_STRIDE);
 }

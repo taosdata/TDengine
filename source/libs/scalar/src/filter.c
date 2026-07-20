@@ -2161,7 +2161,7 @@ static void fltFreeBlkNotNullGroup(void *data) {
 
 static bool fltShouldSampleLastSmaDebug(void) {
   static int64_t seq = 0;
-  int64_t        cur = __sync_add_and_fetch(&seq, 1);
+  int64_t        cur = atomic_add_fetch_64(&seq, 1);
 
   return cur <= 64 || 0 == (cur % 10000);
 }
