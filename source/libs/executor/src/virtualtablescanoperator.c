@@ -19,6 +19,10 @@
 #include "querytask.h"
 #include "tdatablock.h"
 #include "tcompare.h"
+#include "tmsg.h"
+#include "tname.h"
+#include "trpc.h"
+#include "ttime.h"
 #include "virtualtablescan.h"
 
 typedef struct SVirtualTableScanInfo {
@@ -46,6 +50,8 @@ typedef struct SVirtualTableScanInfo {
   SNodeList*     pRefTagCols;
   tb_uid_t       vtableUid;  // virtual table uid, used to identify the vtable scan operator
   char           vtableName[TSDB_TABLE_NAME_LEN];
+  SArray*        pOwnedResolvedTags;  // owned-tag values for child scans without a DynQueryCtrl parent
+  bool           ownedTagsFetched;    // whether owned tags have been resolved already
 } SVirtualTableScanInfo;
 
 typedef struct SVirtualScanMergeOperatorInfo {
@@ -66,6 +72,8 @@ typedef struct SLoadNextCtx {
   SSDataBlock*    pIntermediateBlock;
   int32_t*        pFedOutputSlotIds;
   int32_t         numFedOutputSlotIds;
+  uint8_t         srcPrecision;
+  uint8_t         dstPrecision;
 } SLoadNextCtx;
 
 typedef struct {
@@ -126,23 +134,157 @@ static STagRefSavedBlock* findSavedTagRefBlock(const SVirtualTableScanInfo* pInf
 }
 
 static const STagVal* findResolvedTagVal(const SOperatorInfo* pOperator, col_id_t colId) {
-  if (pOperator == NULL || pOperator->pOperatorGetParam == NULL) {
-    return NULL;
-  }
-
-  SVTableScanOperatorParam* pParam = pOperator->pOperatorGetParam->value;
-  if (pParam == NULL || pParam->pResolvedTags == NULL) {
-    return NULL;
-  }
-
-  for (int32_t i = 0; i < taosArrayGetSize(pParam->pResolvedTags); ++i) {
-    const STagVal* pTagVal = taosArrayGet(pParam->pResolvedTags, i);
-    if (pTagVal != NULL && pTagVal->cid == colId) {
-      return pTagVal;
+  // 1) tags injected by the DynQueryCtrl parent (super-table / stream path)
+  if (pOperator != NULL && pOperator->pOperatorGetParam != NULL) {
+    const SVTableScanOperatorParam* pParam = pOperator->pOperatorGetParam->value;
+    if (pParam != NULL && pParam->pResolvedTags != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pParam->pResolvedTags); ++i) {
+        const STagVal* pTagVal = taosArrayGet(pParam->pResolvedTags, i);
+        if (pTagVal != NULL && pTagVal->cid == colId) {
+          return pTagVal;
+        }
+      }
     }
   }
-
+  // 2) owned tags resolved by this operator itself (child scan without DynQueryCtrl)
+  if (pOperator != NULL && pOperator->info != NULL) {
+    const SVirtualTableScanInfo* pVScan =
+        &((const SVirtualScanMergeOperatorInfo*)pOperator->info)->virtualScanInfo;
+    if (pVScan->pOwnedResolvedTags != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pVScan->pOwnedResolvedTags); ++i) {
+        const STagVal* pTagVal = taosArrayGet(pVScan->pOwnedResolvedTags, i);
+        if (pTagVal != NULL && pTagVal->cid == colId) {
+          return pTagVal;
+        }
+      }
+    }
+  }
   return NULL;
+}
+
+// For a virtual normal/child-table scan that runs WITHOUT a DynQueryCtrl parent (the static
+// createOperator path), pResolvedTags is never injected, so owned-tag values would be NULL.
+// Fetch the table config from the owning vnode once and cache the owned-tag values so that
+// findResolvedTagVal() can resolve them. Tag-refs are skipped (resolved from source blocks).
+static int32_t ensureOwnedTagsResolved(SOperatorInfo* pOperator) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
+  SVirtualTableScanInfo*         pVScan = &pInfo->virtualScanInfo;
+  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
+
+  if (pVScan->ownedTagsFetched) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Only the static path (no DynQueryCtrl param) needs self-resolution.
+  if (pOperator->pOperatorGetParam != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // pTaskInfo/pMsgCb/clientRpc are guaranteed non-NULL by the executor framework for a running
+  // scan operator; a NULL here is an internal bug, not a condition to silently degrade from.
+  if (pTaskInfo == NULL || pTaskInfo->pSubplan == NULL || pTaskInfo->pMsgCb == NULL ||
+      pTaskInfo->pMsgCb->clientRpc == NULL) {
+    qError("ensureOwnedTagsResolved: contract violated (pTaskInfo/pMsgCb/clientRpc NULL)");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SVirtualScanPhysiNode* pPhy = (SVirtualScanPhysiNode*)pOperator->pPhyNode;
+  if (pPhy == NULL) {
+    qError("ensureOwnedTagsResolved: pPhyNode NULL");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  // No owned local tags: a genuine no-op, not a degrade.
+  if (!pPhy->hasLocalTag) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SQueryNodeAddr* pExecNode = &pTaskInfo->pSubplan->execNode;
+  if (pExecNode->nodeId <= 0) {
+    qError("ensureOwnedTagsResolved: execNode nodeId<=0");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STableCfgReq req = {0};
+  char         dbFName[TSDB_DB_FNAME_LEN] = {0};
+  req.header.vgId = pExecNode->nodeId;
+  tNameGetFullDbName(&pPhy->scan.tableName, dbFName);
+  tstrncpy(req.dbFName, dbFName, sizeof(req.dbFName));
+  tstrncpy(req.tbName, pPhy->scan.tableName.tname, sizeof(req.tbName));
+  req.txnId = pTaskInfo->txnId;
+
+  int32_t contLen = tSerializeSTableCfgReq(NULL, 0, &req);
+  char*   buf = rpcMallocCont(contLen);
+  TSDB_CHECK_NULL(buf, code, lino, _return, terrno);
+  if (tSerializeSTableCfgReq(buf, contLen, &req) < 0) {
+    rpcFreeCont(buf);
+    TSDB_CHECK_CODE(terrno, lino, _return);
+  }
+
+  // ahandle is an opaque RPC sentinel; sync rpcSendRecv never uses the ahandle callback, but RPC
+  // requires a non-NULL pointer with notFreeAhandle=1. 0x9526 mirrors fetchRemoteTableCfg's
+  // convention for sync table-cfg fetches.
+  SRpcMsg rpcMsg = {.msgType = TDMT_VND_TABLE_CFG,
+                    .pCont = buf,
+                    .contLen = contLen,
+                    .info.ahandle = (void*)0x9526,
+                    .info.notFreeAhandle = 1};
+  SRpcMsg rpcRsp = {0};
+  code = rpcSendRecv(pTaskInfo->pMsgCb->clientRpc, &pExecNode->epSet, &rpcMsg, &rpcRsp);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("ensureOwnedTagsResolved: rpcSendRecv failed for %s.%s, code=%s", dbFName, req.tbName, tstrerror(code));
+    return code;
+  }
+  if (rpcRsp.code != TSDB_CODE_SUCCESS || rpcRsp.pCont == NULL || rpcRsp.contLen <= 0) {
+    rpcFreeCont(rpcRsp.pCont);
+    return rpcRsp.code != TSDB_CODE_SUCCESS ? rpcRsp.code : TSDB_CODE_FAILED;
+  }
+
+  STableCfgRsp cfgRsp = {0};
+  code = tDeserializeSTableCfgRsp(rpcRsp.pCont, rpcRsp.contLen, &cfgRsp);
+  rpcFreeCont(rpcRsp.pCont);
+  TSDB_CHECK_CODE(code, lino, _return);
+
+  // hasLocalTag gate above guarantees the table owns tags; a tag-less cfg here means the vnode's
+  // table config is inconsistent with the planner meta — surface it, don't hide it.
+  if (cfgRsp.pTags == NULL || cfgRsp.pSchemas == NULL || cfgRsp.numOfTags <= 0) {
+    tFreeSTableCfgRsp(&cfgRsp);
+    qError("ensureOwnedTagsResolved: cfg has no tags despite hasLocalTag (meta/cfg mismatch) for %s.%s",
+           dbFName, req.tbName);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  pVScan->pOwnedResolvedTags = taosArrayInit(cfgRsp.numOfTags, sizeof(STagVal));
+  TSDB_CHECK_NULL(pVScan->pOwnedResolvedTags, code, lino, _return, terrno);
+
+  for (int32_t tagIdx = 0; tagIdx < cfgRsp.numOfTags; ++tagIdx) {
+    SSchema* pSchema = &cfgRsp.pSchemas[cfgRsp.numOfColumns + tagIdx];
+    // skip tag-refs: their values come from source data blocks, not this table's cfg
+    bool hasRef = false;
+    if (cfgRsp.pTagRefs != NULL) {
+      for (int32_t r = 0; r < cfgRsp.numOfTagRefs; ++r) {
+        if (cfgRsp.pTagRefs[r].hasRef && cfgRsp.pTagRefs[r].id == pSchema->colId) {
+          hasRef = true;
+          break;
+        }
+      }
+    }
+    if (hasRef) {
+      continue;
+    }
+    code = appendResolvedTagVal(pVScan->pOwnedResolvedTags, pSchema->colId, pSchema, (const STag*)cfgRsp.pTags);
+    TSDB_CHECK_CODE(code, lino, _return);
+  }
+
+  tFreeSTableCfgRsp(&cfgRsp);
+  qDebug("ensureOwnedTagsResolved: fetched %d owned tag(s) for %s.%s",
+         pVScan->pOwnedResolvedTags ? (int32_t)taosArrayGetSize(pVScan->pOwnedResolvedTags) : 0, dbFName, req.tbName);
+  pVScan->ownedTagsFetched = true;  // only mark after a fully successful fetch (transient RPC errors stay retryable)
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  tFreeSTableCfgRsp(&cfgRsp);
+  return code;
 }
 
 static int32_t setTagValueToColumn(SColumnInfoData* pDstCol, const STagVal* pTagVal, int32_t rows) {
@@ -225,6 +367,34 @@ static bool isRefTagSourceBlockId(const SVirtualTableScanInfo* pInfo, int64_t bl
   return false;
 }
 
+static uint8_t getOperatorOutputPrecision(SOperatorInfo* pOp) {
+  // No MILLI fallback: return UINT8_MAX (unknown) when the physical node / output
+  // desc is unavailable. Callers gate conversion on dstPrec <= NANO, so UINT8_MAX
+  // cleanly means "no conversion" rather than a wrong MILLI guess.
+  if (pOp == NULL || pOp->pPhyNode == NULL) return UINT8_MAX;
+  const SPhysiNode* pPhyNode = (const SPhysiNode*)pOp->pPhyNode;
+  if (pPhyNode->pOutputDataBlockDesc == NULL) return UINT8_MAX;
+  return pPhyNode->pOutputDataBlockDesc->precision;
+}
+
+static void convertBlockTsPrecision(SSDataBlock* pBlock, uint8_t srcPrec, uint8_t dstPrec) {
+  if (pBlock == NULL || pBlock->info.rows == 0 || srcPrec == dstPrec) return;
+  if (dstPrec > TSDB_TIME_PRECISION_NANO) return;
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
+  if (pTsCol == NULL || pTsCol->info.type != TSDB_DATA_TYPE_TIMESTAMP) return;
+  // No block-precision fallback: if the caller did not supply a valid src precision
+  // we cannot convert correctly, so skip (no-op) rather than guess from the column.
+  if (srcPrec > TSDB_TIME_PRECISION_NANO) return;
+  if (srcPrec == dstPrec) return;
+  int64_t* tsArr = (int64_t*)pTsCol->pData;
+  for (int32_t r = 0; r < pBlock->info.rows; r++) {
+    if (!colDataIsNull_s(pTsCol, r) && tsArr[r] != TSKEY_MIN && tsArr[r] != TSKEY_MAX) {
+      tsArr[r] = convertTimePrecision(tsArr[r], srcPrec, dstPrec);
+    }
+  }
+  pTsCol->info.precision = dstPrec;
+}
+
 int32_t virtualScanloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SLoadNextCtx*  pCtx = (SLoadNextCtx*)param;
   SOperatorInfo* pOperator = pCtx->pOperator;
@@ -241,6 +411,7 @@ int32_t virtualScanloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   VTS_ERR_JRET(blockDataCheck(pRes));
   if (pRes) {
     VTS_ERR_JRET(createOneDataBlock(pRes, true, &pCtx->pIntermediateBlock));
+    convertBlockTsPrecision(pCtx->pIntermediateBlock, pCtx->srcPrecision, pCtx->dstPrecision);
     SColumnInfoData* p = taosArrayGet(pCtx->pIntermediateBlock->pDataBlock, 0);
     QUERY_CHECK_NULL(p, code, line, _return, terrno);
     if (p->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
@@ -317,13 +488,19 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
     pCtx->pIntermediateBlock = NULL;
   }
 
-  // Same source param is reused by sort callbacks; downstream must not free it.
   pOperatorGetParam->reUse = true;
   VTS_ERR_JRET(pOperator->fpSet.getNextExtFn(pOperator, pOperatorGetParam, &pRes));
 
+  // Only non-federated sources re-read srcPrecision from orgTbInfo after each fetch
+  // (handles precision staleness across re-fetches). Federated sources are excluded
+  // — cross-precision is unsupported for them (see createSortHandleFromParam, where
+  // src is forced == dst).
   if (!isFederated) {
     SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pOperatorGetParam->value;
     pParam->basic.isNewParam = false;
+    if (pParam->basic.orgTbInfo && pParam->basic.orgTbInfo->srcPrecision != UINT8_MAX) {
+      pCtx->srcPrecision = pParam->basic.orgTbInfo->srcPrecision;
+    }
   }
   if ((pRes)) {
     qDebug("%s load from downstream, blockId:%" PRId64, __func__, pCtx->blockId);
@@ -338,8 +515,9 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
       }
     }
 
-    VTS_ERR_JRET(getTimeWindowOfBlock(pRes, &pCtx->window.skey, &pCtx->window.ekey));
     VTS_ERR_JRET(createOneDataBlock(pRes, true, &pCtx->pIntermediateBlock));
+    convertBlockTsPrecision(pCtx->pIntermediateBlock, pCtx->srcPrecision, pCtx->dstPrecision);
+    VTS_ERR_JRET(getTimeWindowOfBlock(pCtx->pIntermediateBlock, &pCtx->window.skey, &pCtx->window.ekey));
     *ppBlock = pCtx->pIntermediateBlock;
   } else {
     pCtx->window.ekey = INT64_MAX;
@@ -580,6 +758,13 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
     pCtx->pIntermediateBlock = NULL;
     pCtx->pFedOutputSlotIds = NULL;
     pCtx->numFedOutputSlotIds = 0;
+    pCtx->dstPrecision = getOperatorOutputPrecision(pOperator);
+    {
+      SExchangeOperatorParam* pExcParam = (SExchangeOperatorParam*)pOpParam->value;
+      pCtx->srcPrecision = (pExcParam && pExcParam->basic.orgTbInfo)
+                            ? pExcParam->basic.orgTbInfo->srcPrecision
+                            : UINT8_MAX;
+    }
 
     ps = taosMemoryCalloc(1, sizeof(SSortSource));
     QUERY_CHECK_NULL(ps, code, lino, _return, terrno)
@@ -643,6 +828,12 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
       pCtx->pOperatorGetParam = pForeignOp;
       pCtx->window = pParam->window;
       pCtx->pIntermediateBlock = NULL;
+      pCtx->dstPrecision = getOperatorOutputPrecision(pOperator);
+      // Federated (remote) vtable sources do NOT support cross-precision yet: force
+      // src == dst so convertBlockTsPrecision() is a no-op and ts is emitted in the
+      // connector's own precision. Do NOT derive srcPrecision from orgTbInfo here
+      // unless cross-precision federated sources are explicitly added.
+      pCtx->srcPrecision = pCtx->dstPrecision;
 
       // Build output slotId mapping for this FederatedScan source.
       // FedScan VStb block columns are: [ts, colMap[0], colMap[1], ...].
@@ -772,6 +963,8 @@ int32_t createSortHandle(SOperatorInfo* pOperator) {
     pCtx->blockId = i;
     pCtx->window = (STimeWindow){0};
     pCtx->pIntermediateBlock = NULL;
+    pCtx->srcPrecision = getOperatorOutputPrecision(pDownstream);
+    pCtx->dstPrecision = getOperatorOutputPrecision(pOperator);
 
     QUERY_CHECK_NULL(taosArrayPush(pVirtualScanInfo->pSortCtxList, &pCtx), code, lino, _return, terrno)
     pCtx = NULL;
@@ -1418,6 +1611,9 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     }
   }
 
+  // Child scans without a DynQueryCtrl parent resolve owned-tag values themselves.
+  VTS_ERR_JRET(ensureOwnedTagsResolved(pOperator));
+
   while (1) {
     VTS_ERR_JRET(doVirtualTableMerge(pOperator, pResBlock));
     if (*pResBlock == NULL) {
@@ -1439,7 +1635,8 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     bool needMetadataFill =
         (pInfo->pSavedTagBlock != NULL && !tagAllNull) ||
         pVirtualScanInfo->pSavedTagRefBlocks != NULL ||
-        pOperator->pOperatorGetParam != NULL;
+        pOperator->pOperatorGetParam != NULL ||
+        pVirtualScanInfo->pOwnedResolvedTags != NULL;
     if (needMetadataFill) {
       VTS_ERR_JRET(doSetTagColumnData(pOperator, pVirtualScanInfo, pInfo->pSavedTagBlock, (*pResBlock),
                                       (*pResBlock)->info.rows));
@@ -1533,6 +1730,16 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
     }
     taosArrayDestroy(pInfo->pSortCtxList);
     pInfo->pSortCtxList = NULL;
+  }
+  if (pInfo->pOwnedResolvedTags != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->pOwnedResolvedTags); ++i) {
+      STagVal* pVal = taosArrayGet(pInfo->pOwnedResolvedTags, i);
+      if (IS_VAR_DATA_TYPE(pVal->type)) {
+        taosMemoryFreeClear(pVal->pData);
+      }
+    }
+    taosArrayDestroy(pInfo->pOwnedResolvedTags);
+    pInfo->pOwnedResolvedTags = NULL;
   }
   taosMemoryFreeClear(param);
 }

@@ -348,6 +348,8 @@ SNode*         createSeriesTagOperatorNode(SAstCreateContext* pCxt, const SToken
 SNode*         createSeriesTagListNode(SAstCreateContext* pCxt, SNode* pList, SNode* pOperator);
 SNode*         createSeriesDeclNode(SAstCreateContext* pCxt, const SToken* pAlias, STokenTriplet* pTarget, SNode* pTagCond);
 SNode*         createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pOptions);
+SNode*         createColumnDefNodeWithTagVal(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType,
+                                            SNode* pOptions, SNode* pTagVal);
 SNode*         setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal1, void* pVal2);
 SNode*         setColumnOptionsPK(SAstCreateContext* pCxt, SNode* pOptions);
 SNode*         setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SNode* pRef);
@@ -360,7 +362,7 @@ SNode*         createCreateInheritedStableStmt(SAstCreateContext* pCxt, bool ign
 SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNode* pUseRealTable,
                                   SNodeList* pSpecificTags, SNodeList* pValsOfTags, SNode* pOptions);
 SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
-                              SNodeList* pCols, SNodeList* pSeriesList);
+                              SNodeList* pCols, SNodeList* pSeriesList, SNodeList* pTags);
 SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
                                  SNodeList* pSpecificColRefs, SNodeList* pColRefs, SNode* pUseRealTable,
                                  SNodeList* pSpecificTags, SNodeList* pValsOfTags,
@@ -376,6 +378,8 @@ SNode* createDropVirtualTableStmt(SAstCreateContext* pCxt, bool withOpt, bool ig
 SNode* createAlterTableModifyOptions(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pOptions);
 SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
                                     SDataType dataType);
+SNode* createAlterTableAddTagRef(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
+                                 SDataType dataType, SNode* pRef);
 
 SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
                                             SToken* pColName, SDataType dataType, SNode* pOptions);

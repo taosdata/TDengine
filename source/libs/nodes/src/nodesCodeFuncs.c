@@ -8493,6 +8493,7 @@ static const char* jkColumnDefDataType = "DataType";
 static const char* jkColumnDefComments = "Comments";
 static const char* jkColumnDefSma = "Sma";
 static const char* jkColumnDefOptions = "ColumnOptions";
+static const char* jkColumnDefTagVal = "TagVal";
 
 static int32_t columnDefNodeToJson(const void* pObj, SJson* pJson) {
   const SColumnDefNode* pNode = (const SColumnDefNode*)pObj;
@@ -8506,6 +8507,9 @@ static int32_t columnDefNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkColumnDefOptions, nodeToJson, pNode->pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkColumnDefTagVal, nodeToJson, pNode->pTagVal);
   }
 
   return code;
@@ -8523,6 +8527,9 @@ static int32_t jsonToColumnDefNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkColumnDefOptions, (SNode**)&pNode->pOptions);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkColumnDefTagVal, (SNode**)&pNode->pTagVal);
   }
   return code;
 }
@@ -9900,6 +9907,7 @@ static const char* jkCreateVTableStmtDbName = "DbName";
 static const char* jkCreateVTableStmtTableName = "TableName";
 static const char* jkCreateVTableStmtIgnoreExists = "IgnoreExists";
 static const char* jkCreateVTableStmtCols = "Cols";
+static const char* jkCreateVTableStmtTags = "Tags";
 
 static int32_t createVTableStmtToJson(const void* pObj, SJson* pJson) {
   const SCreateVTableStmt* pNode = (const SCreateVTableStmt*)pObj;
@@ -9913,6 +9921,9 @@ static int32_t createVTableStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkCreateVTableStmtCols, pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkCreateVTableStmtTags, pNode->pTags);
   }
   return code;
 }
@@ -9929,6 +9940,9 @@ static int32_t jsonToCreateVTableStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkCreateTableStmtCols, &pNode->pCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkCreateVTableStmtTags, &pNode->pTags);
   }
   return code;
 }
