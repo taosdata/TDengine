@@ -16866,6 +16866,10 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     }
   } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow));
+    TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaTag));
+    if (pReq->ntb.schemaTag.nCols > 0) {
+      TAOS_CHECK_EXIT(tEncodeTag(pCoder, (const STag *)pReq->ntb.pTags));
+    }
   } else {
     return TSDB_CODE_INVALID_MSG;
   }
@@ -16956,6 +16960,10 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     }
   } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow));
+    TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schemaTag));
+    if (pReq->ntb.schemaTag.nCols > 0) {
+      TAOS_CHECK_EXIT(tDecodeTag(pCoder, (STag **)&pReq->ntb.pTags));
+    }
   } else {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
@@ -17040,6 +17048,8 @@ void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
     req->ctb.tagName = NULL;
   } else if (req->type == TSDB_NORMAL_TABLE || req->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
+    taosMemoryFreeClear(req->ntb.schemaTag.pSchema);
+    taosMemoryFreeClear(req->ntb.pTags);
   }
   taosMemoryFreeClear(req->colCmpr.pColCmpr);
   taosMemoryFreeClear(req->pExtSchemas);
@@ -17478,6 +17488,24 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
     case TSDB_ALTER_TABLE_REMOVE_SERIES:
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->seriesAlias));
       break;
+    case TSDB_ALTER_TABLE_ADD_TAG:
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->type));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->flags));
+      TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pReq->bytes));
+      break;
+    case TSDB_ALTER_TABLE_DROP_TAG:
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
+      break;
+    case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->colName));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->type));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pReq->flags));
+      TAOS_CHECK_EXIT(tEncodeI32v(pEncoder, pReq->bytes));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refDbName));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refTbName));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refColName));
+      break;
     default:
       break;
   }
@@ -17793,6 +17821,24 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       break;
     case TSDB_ALTER_TABLE_REMOVE_SERIES:
       TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesAlias));
+      break;
+    case TSDB_ALTER_TABLE_ADD_TAG:
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->type));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
+      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
+      break;
+    case TSDB_ALTER_TABLE_DROP_TAG:
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
+      break;
+    case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->type));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
+      TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refDbName));
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refTbName));
+      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refColName));
       break;
     default:
       break;

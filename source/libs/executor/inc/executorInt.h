@@ -859,6 +859,12 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
                                int32_t rows, SExecTaskInfo* pTask, STableMetaCacheInfo* pCache);
 
 int32_t appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
+
+// Append one tag value (looked up by cid from pTagData) into the resolved-tag array, replacing
+// any existing entry with the same cid. Shared by the DynQueryCtrl path and the static virtual
+// table scan path (ensureOwnedTagsResolved).
+int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, const SSchema* pSchema,
+                             const STag* pTagData);
 int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput,
                             int32_t* rowEntryInfoOffset);
 void    clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);

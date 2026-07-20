@@ -10337,9 +10337,13 @@ static int32_t findDepTableScanNode(SColumnNode* pCol, SVirtualScanLogicNode *pV
     }
   }
   *ppNode = NULL;
-  planError("column %s.%s's depend column not found in virtual scan node", pCol->tableAlias, pCol->colName);
-  // TODO(smj): make a proper error code.
-  return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  qDebug("findDepTableScanNode: column %s has no source-table scan (expected for COUNT(*)->COUNT(ts); PDA bails via size mismatch)",
+         pCol->colName);
+  // Not found is not an error. E.g. COUNT(*) unfolds to COUNT(ts) and the virtual table's own
+  // primary timestamp has no matching source-table scan. Return SUCCESS with *ppNode=NULL so the
+  // caller skips this aggregate func; PDA then bails naturally via the aggNodeMap != childrenSize
+  // check (the func contributes no entry, so the sizes won't match).
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mergeAggFuncToAggNode(SAggLogicNode* pAgg, SFunctionNode* pFunc) {
@@ -10372,6 +10376,11 @@ static int32_t rebuildPlanForPdaOptimize(SColumnNode* pCol, SFunctionNode* pAggF
   // pAggNodeMap is a hash map, the key is the vtable's origin table's name, the value is the SAggLogicNode ptr.
   // if 2 more agg func has the same origin table, we should merge them into one agg node.
   PLAN_ERR_JRET(findDepTableScanNode(pCol, pVScan, (SNode**)&pDepScan));
+  if (NULL == pDepScan) {
+    // column has no matching source-table scan (e.g. virtual table's own ts from COUNT(*));
+    // skip this func — PDA bails via the aggNodeMap != childrenSize check downstream.
+    return TSDB_CODE_SUCCESS;
+  }
   char tableFNameKey[TSDB_COL_FNAME_LEN + 1] = {0};
   TAOS_STRNCAT(tableFNameKey, pDepScan->tableName.tname, TSDB_TABLE_NAME_LEN);
   TAOS_STRNCAT(tableFNameKey, ".", 2);

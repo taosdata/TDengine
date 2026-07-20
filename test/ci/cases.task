@@ -511,6 +511,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/04-Inheritance/test_vst_show_commands.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/04-Inheritance/test_vst_schema_merge.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/04-Inheritance/test_vst_concurrent.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_normal_tags.py
 
 # 06-DataIngestion
 ## 01-SQL

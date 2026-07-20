@@ -362,6 +362,7 @@ typedef enum {
 #define TSDB_ALTER_TABLE_REMOVE_SERIES                   23
 #define TSDB_ALTER_TABLE_ADD_BASE_ON                     24
 #define TSDB_ALTER_TABLE_DROP_BASE_ON                    25
+#define TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF           26 // add a tag reference to a virtual normal table
 
 #define TSDB_FILL_NONE        0
 #define TSDB_FILL_NULL        1
@@ -5483,6 +5484,8 @@ typedef struct SVCreateTbReq {
     } ctb;
     struct {
       SSchemaWrapper schemaRow;
+      SSchemaWrapper schemaTag;  // owned tag schema (normal/virtual-normal table with tags); nCols==0 when no tags
+      uint8_t*       pTags;      // owned tag values, STag container (NULL when no tags)
       int64_t        userId;
     } ntb;
   };
