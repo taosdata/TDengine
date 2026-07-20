@@ -145,6 +145,41 @@ static void taosWinWriteStackTrace(HANDLE hFile, PEXCEPTION_POINTERS ep) {
   SymCleanup(hProcess);
 }
 
+// Split the running executable's full path into a directory (with trailing
+// backslash) and a base file name with its extension stripped, e.g.
+// "C:\TDengine\taosdump.exe" -> dir="C:\TDengine\", name="taosdump". This
+// mechanism is shared by every TDengine binary (taosd, taosdump, taos, ...),
+// so the dump/log file name must reflect the actual crashing process instead
+// of being hardcoded. Falls back to "taosd" only if the module path cannot
+// be resolved at all, so a dump/log is still produced.
+static void taosWinGetExeDirAndName(TdWchar* dir, size_t dirCap, TdWchar* name, size_t nameCap) {
+  TdWchar exePath[MAX_PATH];
+  DWORD   len = GetModuleFileNameW(NULL, exePath, MAX_PATH);
+
+  DWORD dirEnd = len;
+  while (dirEnd > 0 && exePath[dirEnd - 1] != L'\\') dirEnd--;
+
+  DWORD dirCopyLen = dirEnd < (DWORD)(dirCap - 1) ? dirEnd : (DWORD)(dirCap - 1);
+  wmemcpy(dir, exePath, dirCopyLen);
+  dir[dirCopyLen] = L'\0';
+
+  DWORD nameEnd = len;
+  for (DWORD i = len; i > dirEnd; i--) {
+    if (exePath[i - 1] == L'.') {
+      nameEnd = i - 1;
+      break;
+    }
+  }
+  DWORD nameLen     = (len > dirEnd && nameEnd > dirEnd) ? (nameEnd - dirEnd) : 0;
+  DWORD nameCopyLen = nameLen < (DWORD)(nameCap - 1) ? nameLen : (DWORD)(nameCap - 1);
+  if (nameCopyLen > 0) {
+    wmemcpy(name, exePath + dirEnd, nameCopyLen);
+    name[nameCopyLen] = L'\0';
+  } else {
+    wcsncpy_s(name, nameCap, L"taosd", _TRUNCATE);
+  }
+}
+
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
   // Only handle fatal exceptions, let others pass through for vectored handler
   DWORD code = ep->ExceptionRecord->ExceptionCode;
@@ -174,21 +209,19 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
   SYSTEMTIME st;
   GetLocalTime(&st);
 
-  TdWchar exePath[MAX_PATH];
-  DWORD   exeLen = GetModuleFileNameW(NULL, exePath, MAX_PATH);
-  /* strip the executable filename, keep the trailing backslash */
-  while (exeLen > 0 && exePath[exeLen - 1] != L'\\') exeLen--;
-  exePath[exeLen] = L'\0';  /* exePath is now the directory with trailing '\' */
+  TdWchar exeDir[MAX_PATH];
+  TdWchar exeName[MAX_PATH];
+  taosWinGetExeDirAndName(exeDir, MAX_PATH, exeName, MAX_PATH);
 
   TdWchar dmpPath[MAX_PATH];
   TdWchar logPath[MAX_PATH];
   _snwprintf_s(dmpPath, MAX_PATH, _TRUNCATE,
-               L"%staosd_%04d%02d%02d_%02d%02d%02d.dmp",
-               exePath, st.wYear, st.wMonth, st.wDay,
+               L"%s%s_%04d%02d%02d_%02d%02d%02d.dmp",
+               exeDir, exeName, st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
   _snwprintf_s(logPath, MAX_PATH, _TRUNCATE,
-               L"%staosd_%04d%02d%02d_%02d%02d%02d_stack.log",
-               exePath, st.wYear, st.wMonth, st.wDay,
+               L"%s%s_%04d%02d%02d_%02d%02d%02d_stack.log",
+               exeDir, exeName, st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
 
   // ── 3. write MiniDump with comprehensive type ─────────────────────────────
@@ -242,8 +275,9 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
   // in this process — it will still produce a valid dump even when
   // MiniDumpWriteDump above failed (e.g. due to stack overflow or heap
   // corruption that zeroed out our stack frame).
-  // Configure the WER dump directory via:
-  //   HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\taosd.exe
+  // Configure the WER dump directory via (per crashing executable name, e.g.
+  // taosd.exe / taosdump.exe / taos.exe):
+  //   HKLM\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\<exe name>
   //     DumpFolder  REG_EXPAND_SZ  <path>
   //     DumpType    REG_DWORD      2        (full user-mode dump)
   //     DumpCount   REG_DWORD      10
@@ -286,15 +320,14 @@ static void FlCrashDumpNoException(const char* reason) {
   SYSTEMTIME st;
   GetLocalTime(&st);
 
-  TdWchar exePath[MAX_PATH];
-  DWORD   exeLen = GetModuleFileNameW(NULL, exePath, MAX_PATH);
-  while (exeLen > 0 && exePath[exeLen - 1] != L'\\') exeLen--;
-  exePath[exeLen] = L'\0';
+  TdWchar exeDir[MAX_PATH];
+  TdWchar exeName[MAX_PATH];
+  taosWinGetExeDirAndName(exeDir, MAX_PATH, exeName, MAX_PATH);
 
   TdWchar dmpPath[MAX_PATH];
   _snwprintf_s(dmpPath, MAX_PATH, _TRUNCATE,
-               L"%staosd_%04d%02d%02d_%02d%02d%02d.dmp",
-               exePath, st.wYear, st.wMonth, st.wDay,
+               L"%s%s_%04d%02d%02d_%02d%02d%02d.dmp",
+               exeDir, exeName, st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
 
   HANDLE dmpFile = CreateFileW(dmpPath, GENERIC_WRITE, 0, NULL,
@@ -311,8 +344,8 @@ static void FlCrashDumpNoException(const char* reason) {
   // Write reason to log file
   TdWchar logPath[MAX_PATH];
   _snwprintf_s(logPath, MAX_PATH, _TRUNCATE,
-               L"%staosd_%04d%02d%02d_%02d%02d%02d_stack.log",
-               exePath, st.wYear, st.wMonth, st.wDay,
+               L"%s%s_%04d%02d%02d_%02d%02d%02d_stack.log",
+               exeDir, exeName, st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
   HANDLE logFile = CreateFileW(logPath, GENERIC_WRITE, 0, NULL,
                                CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);

@@ -1437,6 +1437,24 @@ if(TD_TAOS_TOOLS)
         "https://github.com/google/snappy/archive/32ded457c0b1fe78ceb8397632c416568d6714a0.tar.gz"
         "snappy-32ded457c0b1.tar.gz"
     )
+    # Snappy's CMakeLists.txt auto-detects SNAPPY_HAVE_BMI2/SNAPPY_HAVE_X86_CRC32
+    # via check_cxx_source_compiles() on <immintrin.h> intrinsics. Under MSVC
+    # these intrinsics compile successfully regardless of /arch:, unlike
+    # GCC/Clang which gate them behind target attributes — so on Windows the
+    # probe bakes BMI2 (BZHI) and SSE4.2 CRC32 instructions into snappy.lib
+    # even though SNAPPY_REQUIRE_AVX2 is OFF and no /arch:AVX2 was requested.
+    # Executing BZHI on a CPU without BMI2 (e.g. Intel Atom "Goldmont") raises
+    # STATUS_ILLEGAL_INSTRUCTION during taosdump avro/snappy decompression.
+    # Force both probes off on Windows so the build stays on the portable,
+    # CPU-baseline codepath; skip on Linux/macOS where the probe already
+    # correctly reports 0 without an explicit -mbmi2/-msse4.2 flag.
+    set(_ext_snappy_windows_args "")
+    if(TD_WINDOWS)
+        list(APPEND _ext_snappy_windows_args
+            -DSNAPPY_HAVE_BMI2:STRING=0
+            -DSNAPPY_HAVE_X86_CRC32:STRING=0
+        )
+    endif()
     ExternalProject_Add(ext_snappy
         URL ${_url}
         URL_HASH SHA256=677d1dd8172bac1862e6c8d7bbe1fe9fb2320cfd11ee04756b1ef8b3699c6135
@@ -1452,6 +1470,7 @@ if(TD_TAOS_TOOLS)
         # CMAKE_ARGS -DINSTALL_GTEST:BOOL=OFF
         CMAKE_ARGS -DSNAPPY_BUILD_BENCHMARKS:BOOL=OFF
         CMAKE_ARGS -DSNAPPY_BUILD_TESTS:BOOL=OFF
+        CMAKE_ARGS ${_ext_snappy_windows_args}
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
