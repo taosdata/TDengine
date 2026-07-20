@@ -121,12 +121,19 @@ typedef struct SStmtStatInfo {
   int64_t addBatchUs;
   int64_t execWaitUs;
   int64_t execUseUs;
+  int64_t asyncQueueWaitUs;
+  int64_t asyncBackpressureUs;
+  int64_t asyncAppendUs;
+  int64_t asyncTaskNum;
+  int64_t asyncQueueHighWater;
 } SStmtStatInfo;
 
 typedef struct SStmtQNode {
   bool                 restoreTbCols;
   STableColsData       tblData;
   SVCreateTbReq       *pCreateTbReq;
+  int32_t              tableColsIdx;
+  int64_t              enqueueUs;
   struct SStmtQNode*   next;
 } SStmtQNode;
 
