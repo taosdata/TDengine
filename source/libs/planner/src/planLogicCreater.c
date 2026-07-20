@@ -3709,6 +3709,19 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   bool      hasUnrefCol = false;
   SNodeList* pRemainPseudoCols = NULL;
 
+  bool tagOnlyScan = pSelect->tagScan && LIST_LENGTH(pVtableScan->pScanCols) == 0 &&
+                     LIST_LENGTH(pVtableScan->pScanPseudoCols) > 0;
+  if (tagOnlyScan && !hasVirtualTagRefPseudoCol(pVirtualTable, pVtableScan)) {
+    PLAN_ERR_JRET(createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan));
+    nodesDestroyNode((SNode*)pVtableScan);
+    *pLogicNode = (SLogicNode*)pTagScan;
+    return code;
+  }
+
+  // A pure TAGS query with tag-ref columns still needs the ref-source path to
+  // resolve current values, but it must not add data-column scans.
+  scanAllCols = !tagOnlyScan;
+
   pRefTablesMap = taosHashInit(LIST_LENGTH(pVtableScan->pScanCols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (NULL == pRefTablesMap) {
     PLAN_ERR_JRET(terrno);
@@ -3769,6 +3782,12 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
             pVtableScan->hasTagRef, pVtableScan->hasLocalTag,
             tagResult.pRefTagCols ? LIST_LENGTH(tagResult.pRefTagCols) : 0,
             tagResult.pLocalTags ? LIST_LENGTH(tagResult.pLocalTags) : 0);
+
+  // The existing merge path needs a data-row anchor when local and referenced
+  // tags are projected together. Keep that combination on its original path.
+  if (tagOnlyScan && pVtableScan->hasTagRef && pVtableScan->hasLocalTag) {
+    scanAllCols = true;
+  }
 
   // === Phase 1: Handle tagRef that need source table scan ===
   // RefSource nodes are needed when tagRef is used in WHERE clause (for filtering)
@@ -4007,23 +4026,6 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   }
 
   PLAN_ERR_JRET(replaceVtbTsWithSingleRefTs(pSelect, pVirtualTable, pVtableScan, pRefTablesMap));
-
-  // Add ts (primary key) column to every external scan child.
-  // The VTB sort/merge expects column 0 of every child block to be TIMESTAMP.
-  // External scans don't automatically include ts; we need to add the ext table's
-  // PK column so the remote SQL fetches it and the merge has a valid sort key.
-  {
-    void* pExtIter = NULL;
-    while ((pExtIter = taosHashIterate(pRefTablesMap, pExtIter))) {
-      SScanLogicNode** ppExtScan = (SScanLogicNode**)pExtIter;
-      SScanLogicNode*  pExtScan  = *ppExtScan;
-      if (pExtScan->scanType != SCAN_TYPE_EXTERNAL) {
-        continue;
-      }
-
-      PLAN_ERR_JRET(addExtPrimaryTsCol(pExtScan, &pExtScan->pScanCols));
-    }
-  }
 
   // Iterate the table map, build scan logic node for each origin table and add these node to vtable scan's child list.
   void* pIter = NULL;

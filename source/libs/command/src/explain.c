@@ -1001,7 +1001,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
         EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       }
-      EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, pVirtualTableScanNode->scan.pScanCols->length);
+      EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT, LIST_LENGTH(pVirtualTableScanNode->scan.pScanCols));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       if (pVirtualTableScanNode->scan.pScanPseudoCols) {
         EXPLAIN_ROW_APPEND(EXPLAIN_PSEUDO_COLUMNS_FORMAT, pVirtualTableScanNode->scan.pScanPseudoCols->length);

@@ -12,7 +12,9 @@
 # -*- coding: utf-8 -*-
 """SELECT TAGS coverage for virtual tables that use tag references."""
 
-from new_test_framework.utils import tdLog, tdSql
+import os
+
+from new_test_framework.utils import tdCom, tdLog, tdSql
 
 DB = "td_tagref_select_tags"
 
@@ -75,6 +77,36 @@ class TestVtableTagRefSelectTags:
 
     def teardown_class(cls):
         tdSql.execute(f"DROP DATABASE IF EXISTS {DB}")
+
+    def do_select_tags_from_virtual_child(self):
+        case_dir = os.path.dirname(__file__)
+        tdCom.compare_testcase_result(
+            os.path.join(case_dir, "in", "test_vtable_tag_ref_select_tags.in"),
+            os.path.join(case_dir, "ans", "test_vtable_tag_ref_select_tags.ans"),
+            "test_vtable_tag_ref_select_tags",
+        )
+        print("virtual child SELECT TAGS ......................... [ passed ]")
+
+    def test_select_tags_from_virtual_child(self):
+        """SELECT TAGS on a virtual child uses tag cardinality
+
+        1. A local tag returns exactly one row
+        2. A referenced tag resolves once and EXPLAIN remains stable
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.3.6.0
+
+        Labels: common,ci,virtual
+
+        Jira: None
+
+        History:
+            - 2026-07-18 Jing Sima Add virtual-child cardinality and EXPLAIN regression coverage
+
+        """
+        self.do_select_tags_from_virtual_child()
 
     def test_select_tags_ref_tag(self):
         """SELECT TAGS returns row-wise tag values for referenced tags.

@@ -3127,6 +3127,11 @@ taos> select int_tag, bool_tag, u_tinyint_col, u_smallint_col, u_int_col from te
            0 | false    |           191 | NULL           | NULL        |
            0 | false    | NULL          |          44419 |  1459219534 |
 
+taos> select tags int_tag from test_vtable_select.vtb_virtual_ctb_full;
+   int_tag   |
+==============
+           0 |
+
 taos> select tbname, int_tag from test_vtable_select.vtb_virtual_ctb_full limit 100;
              tbname             |   int_tag   |
 ===============================================
