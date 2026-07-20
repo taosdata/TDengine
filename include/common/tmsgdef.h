@@ -434,8 +434,15 @@
   
   TD_CLOSE_MSG_SEG(TDMT_STREAM_MSG)
 
-  TD_NEW_MSG_SEG(TDMT_MON_MSG)  //5 << 8
-  TD_CLOSE_MSG_SEG(TDMT_MON_MSG)
+  // Reserved EXCLUSIVELY for messages that must be defined
+  // identically — at the same in-segment offset — across legacy (3.3.6) and newer (3.4+)
+  // versions, so message numbers stay aligned and wire-compatible during rolling upgrades.
+  //
+  // CRITICAL: Do NOT add new-only feature messages here; append those to the tail of a new segment
+  // that legacy versions do not recognize.
+  TD_NEW_MSG_SEG(TDMT_COMPAT_MSG)  //5 << 8
+  TD_DEF_MSG_TYPE(TDMT_MND_ENSURE_DEFAULT, "ensure-default", NULL, NULL)
+  TD_CLOSE_MSG_SEG(TDMT_COMPAT_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SYNC_MSG) //6 << 8
   TD_DEF_MSG_TYPE(TDMT_SYNC_TIMEOUT, "sync-timer", NULL, NULL)
