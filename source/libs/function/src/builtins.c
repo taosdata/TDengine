@@ -317,6 +317,11 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
             memmove(buf + 3, buf, slen + 1);
             memcpy(buf, "UTC", 3);
           }
+        } else if (strncmp(buf, "UTC", 3) != 0 && strncmp(buf, "GMT", 3) != 0) {
+          char offsetBuf[8] = {0};
+          if (extractUtcOffsetFromTzDisplay(tzName, offsetBuf, sizeof(offsetBuf))) {
+            (void)memcpy(buf, offsetBuf, strlen(offsetBuf) + 1);
+          }
         }
       }
     }
