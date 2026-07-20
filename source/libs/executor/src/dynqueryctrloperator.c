@@ -497,7 +497,7 @@ _return:
   return code;
 }
 
-static int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, const SSchema* pSchema, const STag* pTagData) {
+int32_t appendResolvedTagVal(SArray* pResolvedTags, col_id_t dstColId, const SSchema* pSchema, const STag* pTagData) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   STagVal srcVal = {.cid = pSchema->colId};

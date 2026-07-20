@@ -324,6 +324,7 @@ typedef struct SColumnDefNode {
   SDataType dataType;
   SNode*    pOptions;
   bool      sma;
+  SNode*    pTagVal;  // inline tag value for `TAGS(name TYPE = value)` (NULL ⇒ tag is NULL/ref)
 } SColumnDefNode;
 
 typedef struct SCreateTableStmt {
@@ -344,6 +345,7 @@ typedef struct SCreateVTableStmt {
   bool       ignoreExists;
   SNodeList* pCols;
   SNodeList* pSeriesList;     // list of SSeriesDeclNode (nullable)
+  SNodeList* pTags;           // list of SColumnDefNode (virtual normal table tags, nullable)
 } SCreateVTableStmt;
 
 typedef struct SCreateVSubTableStmt {

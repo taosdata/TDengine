@@ -490,6 +490,9 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   // Batch meta txn: set bit 6 on type to signal txnId/txnStatus follow at the end.
   // For non-txn entries (txnId == 0), type is encoded as-is — zero disk overhead.
   int8_t encType = (pME->txnId != 0 && pME->type > 0) ? TABLE_TYPE_SET_TXN(pME->type) : pME->type;
+  bool hasNtbTag = (pME->type == TSDB_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_NORMAL_TABLE) &&
+                   pME->ntbEntry.schemaTag.nCols > 0;
+  if (hasNtbTag) encType = TABLE_TYPE_SET_NTB_TAG(encType);
   TAOS_CHECK_RETURN(tEncodeI8(pCoder, encType));
   TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->uid));
 
@@ -582,6 +585,13 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     TAOS_CHECK_RETURN(metaEncodeColRefEntryTail(pCoder, pME));
   }
 
+  // Normal/virtual-normal owned tags: trailing trailer, signaled by NTB_TAG bit (bit 5).
+  // Zero disk overhead for tables without tags and for old records.
+  if (hasNtbTag) {
+    TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pME->ntbEntry.schemaTag));
+    TAOS_CHECK_RETURN(tEncodeTag(pCoder, (const STag *)pME->ntbEntry.pTags));
+  }
+
   tEndEncode(pCoder);
   return 0;
 }
@@ -595,6 +605,11 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
   bool hasTxn = TABLE_TYPE_HAS_TXN(pME->type);
   if (hasTxn) {
     pME->type = TABLE_TYPE_CLR_TXN(pME->type);
+  }
+  // Normal/virtual-normal owned tags: check bit 5 — if set, schemaTag + pTags are appended.
+  bool hasNtbTag = TABLE_TYPE_HAS_NTB_TAG(pME->type);
+  if (hasNtbTag) {
+    pME->type = TABLE_TYPE_CLR_NTB_TAG(pME->type);
   }
 
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pME->uid));
@@ -736,6 +751,12 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     }
   }
 
+  // Normal/virtual-normal owned tags: decode schemaTag + pTags when bit 5 was set.
+  if (hasNtbTag) {
+    TAOS_CHECK_RETURN(tDecodeSSchemaWrapperEx(pCoder, &pME->ntbEntry.schemaTag));
+    TAOS_CHECK_RETURN(tDecodeTag(pCoder, (STag **)&pME->ntbEntry.pTags));
+  }
+
   tEndDecode(pCoder);
   return 0;
 }
@@ -830,6 +851,8 @@ void metaCloneEntryFree(SMetaEntry **ppEntry) {
     taosMemoryFreeClear((*ppEntry)->ctbEntry.pTags);
   } else if (TSDB_NORMAL_TABLE == (*ppEntry)->type || TSDB_VIRTUAL_NORMAL_TABLE == (*ppEntry)->type) {
     metaCloneSchemaFree(&(*ppEntry)->ntbEntry.schemaRow);
+    metaCloneSchemaFree(&(*ppEntry)->ntbEntry.schemaTag);
+    taosMemoryFreeClear((*ppEntry)->ntbEntry.pTags);
     taosMemoryFreeClear((*ppEntry)->ntbEntry.comment);
   } else {
     return;
@@ -944,6 +967,25 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
     if (code) {
       metaCloneEntryFree(ppEntry);
       return code;
+    }
+
+    // owned tags (normal/virtual-normal table with tags)
+    if (pEntry->ntbEntry.schemaTag.nCols > 0) {
+      code = metaCloneSchema(&pEntry->ntbEntry.schemaTag, &(*ppEntry)->ntbEntry.schemaTag);
+      if (code) {
+        metaCloneEntryFree(ppEntry);
+        return code;
+      }
+      STag *pTags = (STag *)pEntry->ntbEntry.pTags;
+      if (pTags != NULL) {
+        (*ppEntry)->ntbEntry.pTags = taosMemoryCalloc(1, pTags->len);
+        if (NULL == (*ppEntry)->ntbEntry.pTags) {
+          code = terrno;
+          metaCloneEntryFree(ppEntry);
+          return code;
+        }
+        memcpy((*ppEntry)->ntbEntry.pTags, pEntry->ntbEntry.pTags, pTags->len);
+      }
     }
 
     // comment

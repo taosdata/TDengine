@@ -944,6 +944,91 @@ _exit:
   return code;
 }
 
+// Virtual normal table tags for SHOW CREATE round-trip: emits `name TYPE`, plus
+// ` FROM db.tb.tag` for tag-refs and ` = value` for owned tags holding a non-NULL value
+// (NULL is the default and is omitted). Mirrors appendColumnFields' inline `FROM` handling.
+static int32_t appendVTableTagFields(char* buf, int32_t* len, STableCfg* pCfg, void* charsetCxt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pTagVals = NULL;
+  char    expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
+  char    expandRefTable[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+  char    expandRefCol[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
+
+  STag* pTag = (STag*)pCfg->pTags;
+  if (pTag != NULL && !tTagIsJson(pTag)) {
+    code = tTagToValArray((const STag*)pCfg->pTags, &pTagVals);
+    TAOS_CHECK_ERRNO(code);
+  }
+  int32_t valueNum = pTagVals ? taosArrayGetSize(pTagVals) : 0;
+  int32_t j = 0;
+
+  for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
+    SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
+
+    if (i > 0) {
+      *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                       ", ");
+    }
+
+    char type[64];
+    snprintf(type, sizeof(type), "%s", tDataTypes[pSchema->type].name);
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
+        TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
+      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
+               (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+    } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
+      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
+               (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    }
+
+    *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                     "`%s` %s", expandIdentifier(pSchema->name, expandName), type);
+
+    const SColRef* pTagRef = pCfg->pTagRefs
+                                 ? findTagRefByColId(pCfg->pTagRefs, pCfg->numOfTagRefs, pSchema->colId)
+                                 : NULL;
+    if (pTagRef && pTagRef->hasRef) {
+      *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                       " FROM `%s`.`%s`.`%s`", pTagRef->refDbName,
+                       expandIdentifier(pTagRef->refTableName, expandRefTable),
+                       expandIdentifier(pTagRef->refColName, expandRefCol));
+      continue;
+    }
+
+    // owned tag: append " = value" when a non-NULL value is present (pTagVals is sorted by cid)
+    while (j < valueNum) {
+      STagVal* v = (STagVal*)taosArrayGet(pTagVals, j);
+      if (v->cid < pSchema->colId) {
+        j++;
+        continue;
+      }
+      if (v->cid > pSchema->colId) break;  // no value for this tag (NULL) — omit
+      *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                       " = ");
+      int32_t tlen = 0;
+      int64_t leftSize = SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len);
+      if (leftSize <= 0) {
+        code = TSDB_CODE_APP_ERROR;
+        TAOS_CHECK_ERRNO(code);
+      }
+      if (IS_VAR_DATA_TYPE(v->type)) {
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, v->type, v->pData, v->nData, &tlen);
+      } else {
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, v->type, &v->i64, tDataTypes[v->type].bytes,
+                               &tlen);
+      }
+      TAOS_CHECK_ERRNO(code);
+      *len += tlen;
+      j++;
+      break;
+    }
+  }
+
+_exit:
+  taosArrayDestroy(pTagVals);
+  return code;
+}
+
 static void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* pCfg) {
   if (pCfg->commentLen > 0) {
     *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
@@ -1134,6 +1219,14 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
           }
         }
       }
+    }
+    if (pCfg->numOfTags > 0) {
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      " TAGS (");
+      code = appendVTableTagFields(buf2, &len, pCfg, charsetCxt);
+      TAOS_CHECK_ERRNO(code);
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ")");
     }
   } else if (TSDB_VIRTUAL_CHILD_TABLE == pCfg->tableType) {
     len += tsnprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
