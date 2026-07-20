@@ -17,3 +17,4 @@ explain verbose true select ts, u_tinyint_col from test_vtable_select.vtb_virtua
 select ts, u_tinyint_col from test_vtable_select.vtb_virtual_ntb_full limit 3;
 explain verbose true select ts, last(`current`) from test_vtable_select_ts_name.vtb_d0;
 select ts, last(`current`) from test_vtable_select_ts_name.vtb_d0;
+explain select tags int_tag from test_vtable_select.vtb_virtual_ctb_full;
