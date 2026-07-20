@@ -11,6 +11,9 @@
 #include "tname.h"
 #include "trow.h"
 
+#define STMT_ASYNC_BIND_QUEUE_CAPACITY 256
+#define STMT_DEQUEUE_SPIN_ROUNDS       10
+
 char* gStmt2StatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
                            "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
@@ -109,15 +112,15 @@ static FORCE_INLINE int32_t stmtAllocQNodeFromBuf(STableBufInfo* pTblBuf, void**
 static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
   int i = 0;
   while (0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
-    if (pStmt->queue.stopQueue) {
+    if (atomic_load_8((int8_t*)&pStmt->queue.stopQueue)) {
       return false;
     }
-    if (i < 10) {
+    if (i < STMT_DEQUEUE_SPIN_ROUNDS) {
       taosUsleep(1);
       i++;
     } else {
       (void)taosThreadMutexLock(&pStmt->queue.mutex);
-      if (pStmt->queue.stopQueue) {
+      if (atomic_load_8((int8_t*)&pStmt->queue.stopQueue)) {
         (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
         return false;
       }
@@ -128,13 +131,14 @@ static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
     }
   }
 
-  if (pStmt->queue.stopQueue && 0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
+  if (atomic_load_8((int8_t*)&pStmt->queue.stopQueue) &&
+      0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
     return false;
   }
 
   (void)taosThreadMutexLock(&pStmt->queue.mutex);
   if (pStmt->queue.head == pStmt->queue.tail) {
-    pStmt->queue.qRemainNum = 0;
+    atomic_store_64((int64_t*)&pStmt->queue.qRemainNum, 0);
     (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
     STMT2_ELOG_E("interlace queue is empty, cannot dequeue");
     return false;
@@ -148,35 +152,55 @@ static bool stmtDequeue(STscStmt2* pStmt, SStmtQNode** param) {
   node->next = NULL;
   *param = node;
 
-  (void)atomic_sub_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
+  int64_t remain = atomic_sub_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
+  if (remain == STMT_ASYNC_BIND_QUEUE_CAPACITY - 1) {
+    (void)taosThreadCondSignal(&pStmt->queue.waitCond);
+  }
   (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
-  STMT2_TLOG("dequeue success, node:%p, remainNum:%" PRId64, node, pStmt->queue.qRemainNum);
+  STMT2_TLOG("dequeue success, node:%p, remainNum:%" PRId64, node, remain);
 
   return true;
 }
 
-static void stmtEnqueue(STscStmt2* pStmt, SStmtQNode* param) {
+static int32_t stmtEnqueue(STscStmt2* pStmt, SStmtQNode* param) {
   if (param == NULL) {
     STMT2_ELOG_E("enqueue param is NULL");
-    return;
+    return TSDB_CODE_INVALID_PARA;
   }
 
   param->next = NULL;
 
+  int64_t waitStartUs = taosGetTimestampUs();
   (void)taosThreadMutexLock(&pStmt->queue.mutex);
+  while (!atomic_load_8((int8_t*)&pStmt->queue.stopQueue) &&
+         atomic_load_64((int64_t*)&pStmt->queue.qRemainNum) >= STMT_ASYNC_BIND_QUEUE_CAPACITY) {
+    (void)taosThreadCondWait(&pStmt->queue.waitCond, &pStmt->queue.mutex);
+  }
+  if (atomic_load_8((int8_t*)&pStmt->queue.stopQueue)) {
+    (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
+    STMT2_ELOG_E("stmt bind thread is stopped, cannot enqueue");
+    return TSDB_CODE_TSC_STMT_API_ERROR;
+  }
 
   pStmt->queue.tail->next = param;
   pStmt->queue.tail = param;
   pStmt->stat.bindDataNum++;
 
-  (void)atomic_add_fetch_64(&pStmt->queue.qRemainNum, 1);
-  (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
+  param->enqueueUs = taosGetTimestampUs();
+  pStmt->stat.asyncBackpressureUs += param->enqueueUs - waitStartUs;
+  int64_t remain = atomic_add_fetch_64((int64_t*)&pStmt->queue.qRemainNum, 1);
+  if (remain > pStmt->stat.asyncQueueHighWater) {
+    pStmt->stat.asyncQueueHighWater = remain;
+  }
+  if (remain == 1) {
+    (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
+  }
 
   (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
-  STMT2_TLOG("enqueue param:%p, remainNum:%" PRId64 ", restoreTbCols:%d", param, pStmt->queue.qRemainNum,
-             param->restoreTbCols);
+  STMT2_TLOG("enqueue param:%p, remainNum:%" PRId64 ", restoreTbCols:%d", param, remain, param->restoreTbCols);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t stmtCreateRequest(STscStmt2* pStmt) {
@@ -1218,7 +1242,9 @@ typedef struct SStmtRetryTbPatch {
 // After refreshMeta, drop cached tbName->uid from stmt2 interlace bind so insGetStmtTableVgUid refetches from catalog.
 static void stmtInvalidateStbInterlaceTableUidCache(STscStmt2* pStmt) {
   if (pStmt->sql.stbInterlaceMode && pStmt->sql.siInfo.pTableHash != NULL) {
+    (void)taosThreadMutexLock(&pStmt->queue.mutex);
     tSimpleHashClear(pStmt->sql.siInfo.pTableHash);
+    (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
   }
 }
 
@@ -1561,21 +1587,6 @@ static void stmtFreeTbCols(void* buf) {
   stmtDestroyTableColArray(pCols);
 }
 
-static void stmtNullTransferredTableCol(STscStmt2* pStmt, SArray* pCol) {
-  if (NULL == pCol || NULL == pStmt->sql.siInfo.pTableCols) {
-    return;
-  }
-
-  int32_t size = (int32_t)taosArrayGetSize(pStmt->sql.siInfo.pTableCols);
-  for (int32_t i = 0; i < size; ++i) {
-    SArray** p = (SArray**)taosArrayGet(pStmt->sql.siInfo.pTableCols, i);
-    if (p != NULL && *p == pCol) {
-      *p = NULL;
-      break;
-    }
-  }
-}
-
 static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
   STMT2_TLOG_E("start to free SQL info");
 
@@ -1878,27 +1889,26 @@ static void stmtAsyncOutput(STscStmt2* pStmt, void* param) {
       }
       *p = taosArrayInit(20, POINTER_BYTES);
       if (*p == NULL) {
-        pStmt->errCode = terrno;
+        atomic_store_32(&pStmt->errCode, terrno);
       }
     }
     pStmt->sql.siInfo.pTableColsIdx = 0;
     atomic_store_8((int8_t*)&pStmt->sql.siInfo.tableColsReady, true);
     STMT2_TLOG_E("restore pTableCols finished");
   } else {
+    int64_t startUs = taosGetTimestampUs();
+    pStmt->stat.asyncQueueWaitUs += startUs - pParam->enqueueUs;
     int code = qAppendStmt2TableOutput(pStmt->sql.pQuery, pStmt->sql.pVgHash, &pParam->tblData, pStmt->exec.pCurrBlock,
                                        &pStmt->sql.siInfo, pParam->pCreateTbReq);
-    // taosMemoryFree(pParam->pTbData);
+    pStmt->stat.asyncAppendUs += taosGetTimestampUs() - startUs;
+    pStmt->stat.asyncTaskNum++;
     if (code != TSDB_CODE_SUCCESS) {
       STMT2_ELOG("async append stmt output failed, tbname:%s, err:%s", pParam->tblData.tbName, tstrerror(code));
-      pStmt->errCode = code;
+      atomic_store_32(&pStmt->errCode, code);
       if (pParam->tblData.aCol != NULL) {
-        SArray* pCol = pParam->tblData.aCol;
-        stmtDestroyTableColArray(pCol);
+        stmtDestroyTableColArray(pParam->tblData.aCol);
         pParam->tblData.aCol = NULL;
-        stmtNullTransferredTableCol(pStmt, pCol);
       }
-    } else {
-      stmtNullTransferredTableCol(pStmt, pParam->tblData.aCol);
     }
     (void)atomic_sub_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
   }
@@ -1914,7 +1924,8 @@ static void* stmtBindThreadFunc(void* param) {
     SStmtQNode* asyncParam = NULL;
 
     if (!stmtDequeue(pStmt, &asyncParam)) {
-      if (pStmt->queue.stopQueue && 0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
+      if (atomic_load_8((int8_t*)&pStmt->queue.stopQueue) &&
+          0 == atomic_load_64((int64_t*)&pStmt->queue.qRemainNum)) {
         STMT2_DLOG_E("queue is empty and stopQueue is set, thread will exit");
         break;
       }
@@ -1951,6 +1962,7 @@ static int32_t stmtStartBindThread(STscStmt2* pStmt) {
 static int32_t stmtInitQueue(STscStmt2* pStmt) {
   (void)taosThreadCondInit(&pStmt->queue.waitCond, NULL);
   (void)taosThreadMutexInit(&pStmt->queue.mutex, NULL);
+  pStmt->sql.siInfo.pTableHashMutex = &pStmt->queue.mutex;
   STMT_ERR_RET(stmtAllocQNodeFromBuf(&pStmt->sql.siInfo.tbBuf, (void**)&pStmt->queue.head));
   pStmt->queue.tail = pStmt->queue.head;
 
@@ -2149,7 +2161,7 @@ static int32_t stmtResetStbInterlaceCache(STscStmt2* pStmt) {
 
   if (TSDB_CODE_SUCCESS == code) {
     code = stmtInitQueue(pStmt);
-    pStmt->queue.stopQueue = false;
+    atomic_store_8((int8_t*)&pStmt->queue.stopQueue, false);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = stmtStartBindThread(pStmt);
@@ -2184,8 +2196,8 @@ static int32_t stmtDeepReset(STscStmt2* pStmt) {
       taosUsleep(1);
     }
     (void)taosThreadMutexLock(&pStmt->queue.mutex);
-    pStmt->queue.stopQueue = true;
-    (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
+    atomic_store_8((int8_t*)&pStmt->queue.stopQueue, true);
+    (void)taosThreadCondBroadcast(&(pStmt->queue.waitCond));
     (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
     (void)taosThreadJoin(pStmt->bindThread, NULL);
@@ -2595,6 +2607,25 @@ int stmtSetTbTags2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* tags, SVCreateTbReq** pCre
   return TSDB_CODE_SUCCESS;
 }
 
+bool stmt2TableExistsInCache(TAOS_STMT2* stmt) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+  if (pStmt == NULL || !pStmt->sql.stbInterlaceMode || pStmt->sql.siInfo.pTableHash == NULL ||
+      pStmt->bInfo.tbName[0] == '\0') {
+    return false;
+  }
+
+  (void)taosThreadMutexLock(&pStmt->queue.mutex);
+  STableVgUid* pInfo = (STableVgUid*)tSimpleHashGet(pStmt->sql.siInfo.pTableHash, pStmt->bInfo.tbName,
+                                                   strlen(pStmt->bInfo.tbName));
+  bool exists = pInfo != NULL && pInfo->uid != 0;
+  (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
+
+  if (exists) {
+    STMT2_TLOG("skip tag parsing for cached table, tbname:%s", pStmt->bInfo.tbName);
+  }
+  return exists;
+}
+
 int stmtCheckTags2(TAOS_STMT2* stmt, SVCreateTbReq** pCreateTbReq) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
 
@@ -2812,21 +2843,33 @@ static int32_t stmtAppendTablePostHandle(STscStmt2* pStmt, SStmtQNode* param) {
   param->tblData.getFromHash = pStmt->sql.siInfo.tbFromHash;
   param->next = NULL;
 
+  SArray** pSlot = (SArray**)TARRAY_GET_ELEM(pStmt->sql.siInfo.pTableCols, param->tableColsIdx);
+  if (pSlot == NULL || *pSlot != param->tblData.aCol) {
+    STMT2_ELOG("invalid table cols slot, idx:%d, slot:%p, cols:%p", param->tableColsIdx,
+               pSlot != NULL ? *pSlot : NULL, param->tblData.aCol);
+    return TSDB_CODE_TSC_STMT_CACHE_ERROR;
+  }
+
+  // Transfer ownership before enqueueing. Only the producer mutates pTableCols,
+  // so the worker no longer needs to scan or access a possibly reallocating array.
+  *pSlot = NULL;
   (void)atomic_add_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
 
-  if (pStmt->queue.stopQueue) {
-    STMT2_ELOG_E("bind thread already stopped, cannot enqueue");
-    return TSDB_CODE_TSC_STMT_API_ERROR;
+  int32_t code = stmtEnqueue(pStmt, param);
+  if (code != TSDB_CODE_SUCCESS) {
+    (void)atomic_sub_fetch_64(&pStmt->sql.siInfo.tbRemainNum, 1);
+    *pSlot = param->tblData.aCol;
+    return code;
   }
-  stmtEnqueue(pStmt, param);
 
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE int32_t stmtGetTableColsFromCache(STscStmt2* pStmt, SArray** pTableCols) {
+static FORCE_INLINE int32_t stmtGetTableColsFromCache(STscStmt2* pStmt, SArray** pTableCols, int32_t* pTableColsIdx) {
   while (true) {
     if (pStmt->sql.siInfo.pTableColsIdx < taosArrayGetSize(pStmt->sql.siInfo.pTableCols)) {
-      *pTableCols = (SArray*)taosArrayGetP(pStmt->sql.siInfo.pTableCols, pStmt->sql.siInfo.pTableColsIdx++);
+      *pTableColsIdx = pStmt->sql.siInfo.pTableColsIdx++;
+      *pTableCols = (SArray*)taosArrayGetP(pStmt->sql.siInfo.pTableCols, *pTableColsIdx);
       break;
     } else {
       SArray* pTblCols = NULL;
@@ -2904,11 +2947,12 @@ static int stmtAddBatch2(TAOS_STMT2* stmt) {
     int64_t startUs2 = taosGetTimestampUs();
     pStmt->stat.addBatchUs += startUs2 - startUs;
 
-    pStmt->sql.siInfo.tableColsReady = false;
+    atomic_store_8((int8_t*)&pStmt->sql.siInfo.tableColsReady, false);
 
     SStmtQNode* param = NULL;
     STMT_ERR_RET(stmtAllocQNodeFromBuf(&pStmt->sql.siInfo.tbBuf, (void**)&param));
     param->restoreTbCols = true;
+    param->tableColsIdx = -1;
     param->next = NULL;
 
     if (pStmt->sql.autoCreateTbl) {
@@ -2916,12 +2960,7 @@ static int stmtAddBatch2(TAOS_STMT2* stmt) {
     }
     pStmt->bInfo.boundColsCached = true;
 
-    if (pStmt->queue.stopQueue) {
-      STMT2_ELOG_E("stmt bind thread is stopped,cannot enqueue bind request");
-      return TSDB_CODE_TSC_STMT_API_ERROR;
-    }
-
-    stmtEnqueue(pStmt, param);
+    STMT_ERR_RET(stmtEnqueue(pStmt, param));
 
     return TSDB_CODE_SUCCESS;
   }
@@ -3201,7 +3240,8 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
   SStmtQNode* param = NULL;
   if (pStmt->sql.stbInterlaceMode) {
     STMT_ERR_RET(stmtAllocQNodeFromBuf(&pStmt->sql.siInfo.tbBuf, (void**)&param));
-    STMT_ERR_RET(stmtGetTableColsFromCache(pStmt, &param->tblData.aCol));
+    param->tableColsIdx = -1;
+    STMT_ERR_RET(stmtGetTableColsFromCache(pStmt, &param->tblData.aCol, &param->tableColsIdx));
     taosArrayClear(param->tblData.aCol);
 
     // param->tblData.aCol = taosArrayInit(20, POINTER_BYTES);
@@ -3647,8 +3687,9 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
         taosUsleep(1);
       }
 
-      if (pStmt->errCode != TSDB_CODE_SUCCESS) {
-        return pStmt->errCode;
+      int32_t asyncCode = atomic_load_32(&pStmt->errCode);
+      if (asyncCode != TSDB_CODE_SUCCESS) {
+        return asyncCode;
       }
 
       pStmt->stat.execWaitUs += taosGetTimestampUs() - startTs;
@@ -3765,8 +3806,8 @@ int stmtClose2(TAOS_STMT2* stmt) {
     }
 
     (void)taosThreadMutexLock(&pStmt->queue.mutex);
-    pStmt->queue.stopQueue = true;
-    (void)taosThreadCondSignal(&(pStmt->queue.waitCond));
+    atomic_store_8((int8_t*)&pStmt->queue.stopQueue, true);
+    (void)taosThreadCondBroadcast(&(pStmt->queue.waitCond));
     (void)taosThreadMutexUnlock(&pStmt->queue.mutex);
 
     (void)taosThreadJoin(pStmt->bindThread, NULL);
@@ -3806,12 +3847,16 @@ int stmtClose2(TAOS_STMT2* stmt) {
              ", parseSqlNum=>%" PRId64 ", pStmt->stat.bindDataNum=>%" PRId64
              ", settbnameAPI:%u, bindAPI:%u, addbatchAPI:%u, execAPI:%u"
              ", setTbNameUs:%" PRId64 ", bindDataUs:%" PRId64 ",%" PRId64 ",%" PRId64 ",%" PRId64 " addBatchUs:%" PRId64
-             ", execWaitUs:%" PRId64 ", execUseUs:%" PRId64,
+             ", execWaitUs:%" PRId64 ", execUseUs:%" PRId64 ", asyncQueueWaitUs:%" PRId64
+             ", asyncBackpressureUs:%" PRId64 ", asyncAppendUs:%" PRId64 ", asyncTaskNum:%" PRId64
+             ", asyncQueueHighWater:%" PRId64,
              pStmt->sql.stbInterlaceMode, pStmt->stat.ctgGetTbMetaNum, pStmt->stat.getCacheTbInfo,
              pStmt->stat.parseSqlNum, pStmt->stat.bindDataNum, pStmt->seqIds[STMT_SETTBNAME], pStmt->seqIds[STMT_BIND],
              pStmt->seqIds[STMT_ADD_BATCH], pStmt->seqIds[STMT_EXECUTE], pStmt->stat.setTbNameUs,
              pStmt->stat.bindDataUs1, pStmt->stat.bindDataUs2, pStmt->stat.bindDataUs3, pStmt->stat.bindDataUs4,
-             pStmt->stat.addBatchUs, pStmt->stat.execWaitUs, pStmt->stat.execUseUs);
+             pStmt->stat.addBatchUs, pStmt->stat.execWaitUs, pStmt->stat.execUseUs, pStmt->stat.asyncQueueWaitUs,
+             pStmt->stat.asyncBackpressureUs, pStmt->stat.asyncAppendUs, pStmt->stat.asyncTaskNum,
+             pStmt->stat.asyncQueueHighWater);
   if (pStmt->sql.stbInterlaceMode) {
     pStmt->bInfo.tagsCached = false;
   }

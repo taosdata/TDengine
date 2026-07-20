@@ -391,6 +391,7 @@ typedef struct SStbInterlaceInfo {
   SHashObj*      pVgroupHash;        // key:vgId, value:SVgroupDataCxt
   SArray*        pVgroupList;        // SVgroupDataCxt
   SSHashObj*     pTableHash;         // key:tbname, value:STableVgUid
+  void*          pTableHashMutex;    // TdThreadMutex*, guards producer/worker access to pTableHash
   SSHashObj*     pTableRowDataHash;  // key:tbname, value:SSubmitTbData->aRowP
   int64_t        tbRemainNum;
   STableBufInfo  tbBuf;
