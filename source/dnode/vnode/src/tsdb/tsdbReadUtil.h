@@ -190,6 +190,7 @@ typedef struct SBlockLoadSuppInfo {
   int32_t             pkSrcSlot;
   int32_t             pkDstSlot;
   bool                smaValid;  // the sma on all queried columns are activated
+  ETsdReaderBlockSmaMode blockSmaMode;
 
   void* args;
 } SBlockLoadSuppInfo;
