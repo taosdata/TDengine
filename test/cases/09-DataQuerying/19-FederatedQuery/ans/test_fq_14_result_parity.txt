@@ -3416,12 +3416,12 @@ RESULT
 ### sysfn-01 POS
 SQL: SELECT CLIENT_VERSION() FROM {tbl} LIMIT 1
 RESULT
-3.4.1.13.alpha.enterprise
+<DYNAMIC>
 ---
 ### sysfn-02 POS
 SQL: SELECT SERVER_VERSION() FROM {tbl} LIMIT 1
 RESULT
-3.4.1.13.alpha.enterprise
+<DYNAMIC>
 ---
 ### sysfn-03 POS
 SQL: SELECT CURRENT_USER() FROM {tbl} LIMIT 1
