@@ -846,6 +846,24 @@ bool sdbIsUpgraded(SSdb *pSdb) {
   return true;
 }
 
+int32_t sdbEnsureDefaultData(SSdb *pSdb) {
+  int32_t code = 0;
+
+  for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
+    SdbDeployFp deployFp = pSdb->deployFps[i];
+    if (deployFp == NULL) continue;
+    if (pSdb->afterRestoredFps[i] != NULL) continue;  // self-heals via its own hook
+
+    code = (*deployFp)(pSdb->pMnode);
+    if (code != 0) {
+      mError("failed to ensure default data of sdb:%s since %s", sdbTableName(i), tstrerror(code));
+      return code;
+    }
+  }
+
+  return 0;
+}
+
 int32_t sdbAfterRestored(SSdb *pSdb) {
   int32_t code = 0;
   code = sdbAfterRestoredData(pSdb);
