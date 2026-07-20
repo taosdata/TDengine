@@ -1,7 +1,7 @@
 import os
 import time
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Optional, Tuple
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -103,7 +103,7 @@ class TestLastSmaPrefilter:
         Jira: None
 
         History:
-            - 2026-07-15 Codex created
+            - 2026-07-15 wpan created
         """
 
         self._prepare_db()
@@ -394,7 +394,7 @@ class TestLastSmaPrefilter:
         self,
         case_id: str,
         sql: str,
-        expected: tuple[object, ...] | None,
+        expected: Optional[Tuple[object, ...]],
         expect_hidden_not_null: bool,
         runtime_markers: tuple[str, ...] = (),
         forbidden_runtime_markers: tuple[str, ...] = (),
@@ -597,6 +597,33 @@ class TestLastSmaPrefilter:
         self._assert_expected_row("inapp__simple_no_filter", sql, (20,))
         self._assert_hidden_not_null_plan("inapp__simple_no_filter", sql, ("c_big",), applicable=False)
         self._assert_explain_analyze("inapp__simple_no_filter", sql, ("c_big",), applicable=False)
+
+        nested_sql = (
+            "select last(c_big) from ("
+            f"select * from {STB_NAME} where grp5 = '{grp5}' order by ts asc limit 1"
+            ")"
+        )
+        self._assert_expected_row("inapp__nested_limit", nested_sql, (10,))
+        self._assert_hidden_not_null_plan("inapp__nested_limit", nested_sql, ("c_big",), applicable=False)
+        self._assert_explain_analyze("inapp__nested_limit", nested_sql, ("c_big",), applicable=False)
+
+        scalar_subquery_sql = (
+            f"select c_big from {STB_NAME} where grp5 = '{grp5}' and c_big = ("
+            f"select last(c_big) from {STB_NAME} where grp5 = '{grp5}'"
+            ")"
+        )
+        self._assert_expected_row("inapp__scalar_subquery", scalar_subquery_sql, (20,))
+        self._assert_hidden_not_null_plan(
+            "inapp__scalar_subquery", scalar_subquery_sql, ("c_big",), applicable=False
+        )
+        self._assert_explain_analyze("inapp__scalar_subquery", scalar_subquery_sql, ("c_big",), applicable=False)
+
+        partition_sql = f"select last(c_big) from {STB_NAME} where grp5 = '{grp5}' partition by grp5"
+        self._assert_expected_row("inapp__partition_by", partition_sql, (20,))
+        self._assert_hidden_not_null_plan(
+            "inapp__partition_by", partition_sql, ("c_big",), applicable=False, must_have_last_row_scan=True
+        )
+        self._assert_explain_analyze("inapp__partition_by", partition_sql, ("c_big",), applicable=False)
 
     def _run_block_sma_mode_regression(self):
         tb_name = "ct_block_sma_mode"

@@ -6249,6 +6249,7 @@ static int32_t rewriteUniqueOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
 static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode, void* pCtx);
 
 typedef struct SLastSmaNotNullOptCxt {
+  SLogicNode*     pRoot;
   SScanLogicNode* pScan;
   SNodeList*      pLastCols;
   int32_t         code;
@@ -6444,6 +6445,11 @@ static int32_t lastSmaNotNullOptInspectPlan(SLogicNode* pNode, SLastSmaNotNullOp
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pNode != pCxt->pRoot && pNode->stmtRoot) {
+    pCxt->valid = false;
+    return TSDB_CODE_SUCCESS;
+  }
+
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pScan = (SScanLogicNode*)pNode;
@@ -6563,12 +6569,29 @@ static int32_t lastSmaNotNullOptCreateOrCond(SNodeList* pLastCols, SNode** ppCon
   return TSDB_CODE_SUCCESS;
 }
 
+static bool lastSmaNotNullOptIsSubquery(const SPlanContext* pPlanCxt) {
+  if (NULL == pPlanCxt || NULL == pPlanCxt->pAstRoot) {
+    return false;
+  }
+
+  switch (nodeType(pPlanCxt->pAstRoot)) {
+    case QUERY_NODE_SELECT_STMT: {
+      const SSelectStmt* pSelect = (const SSelectStmt*)pPlanCxt->pAstRoot;
+      return pSelect->isSubquery || E_SUB_QUERY_NOT_SET != pSelect->subQType;
+    }
+    case QUERY_NODE_SET_OPERATOR:
+      return E_SUB_QUERY_NOT_SET != ((const SSetOperator*)pPlanCxt->pAstRoot)->subQType;
+    default:
+      return false;
+  }
+}
+
 static int32_t lastSmaNotNullPrefilterOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  if (inStreamCalcClause(pCxt->pPlanCxt)) {
+  if (inStreamCalcClause(pCxt->pPlanCxt) || lastSmaNotNullOptIsSubquery(pCxt->pPlanCxt)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SLastSmaNotNullOptCxt cxt = {.valid = true};
+  SLastSmaNotNullOptCxt cxt = {.pRoot = pLogicSubplan->pNode, .valid = true};
   int32_t               code = lastSmaNotNullOptInspectPlan(pLogicSubplan->pNode, &cxt);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyList(cxt.pLastCols);

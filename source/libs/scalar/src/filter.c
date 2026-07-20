@@ -5601,7 +5601,7 @@ static int32_t fltSclCollectOperatorsFromAndNode(SNode *pNode, SArray *sclOpList
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t fltSclCollectOperatorsFromLogicCond(SNode *pNode, SArray *sclOpList) {
+static int32_t fltSclCollectOperatorsFromLogicCond(SNode *pNode, SArray *sclOpList, bool requireFullCondition) {
   if (nodeType(pNode) != QUERY_NODE_LOGIC_CONDITION) {
     return TSDB_CODE_SUCCESS;
   }
@@ -5609,14 +5609,27 @@ static int32_t fltSclCollectOperatorsFromLogicCond(SNode *pNode, SArray *sclOpLi
   if (pLogicCond->condType != LOGIC_COND_TYPE_AND) {
     return TSDB_CODE_SUCCESS;
   }
+
+  // A strict time range may replace the original condition, so it must cover every AND term.
+  if (requireFullCondition) {
+    SNode *pExpr = NULL;
+    FOREACH(pExpr, pLogicCond->pParameterList) {
+      if (!fltSclIsCollectableNode(pExpr)) {
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+    FOREACH(pExpr, pLogicCond->pParameterList) { FLT_ERR_RET(fltSclCollectOperatorFromNode(pExpr, sclOpList)); }
+    return TSDB_CODE_SUCCESS;
+  }
+
   return fltSclCollectOperatorsFromAndNode(pNode, sclOpList);
 }
 
-static int32_t fltSclCollectOperators(SNode *pNode, SArray *sclOpList) {
+static int32_t fltSclCollectOperators(SNode *pNode, SArray *sclOpList, bool requireFullCondition) {
   if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
     FLT_ERR_RET(fltSclCollectOperatorFromNode(pNode, sclOpList));
   } else if (nodeType(pNode) == QUERY_NODE_LOGIC_CONDITION) {
-    FLT_ERR_RET(fltSclCollectOperatorsFromLogicCond(pNode, sclOpList));
+    FLT_ERR_RET(fltSclCollectOperatorsFromLogicCond(pNode, sclOpList, requireFullCondition));
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -5627,7 +5640,8 @@ int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode) {
   if (NULL == sclOpList) {
     FLT_ERR_RET(terrno);
   }
-  FLT_ERR_JRET(fltSclCollectOperators(*pNode, sclOpList));
+  FLT_ERR_JRET(
+      fltSclCollectOperators(*pNode, sclOpList, FILTER_GET_FLAG(pInfo->options, FLT_OPTION_TIMESTAMP)));
   SArray *colRangeList = taosArrayInit(16, sizeof(SFltSclColumnRange));
   if (NULL == colRangeList) {
     FLT_ERR_JRET(terrno);
