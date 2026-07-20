@@ -2159,38 +2159,6 @@ static void fltFreeBlkNotNullGroup(void *data) {
   pGroup->pItems = NULL;
 }
 
-static bool fltShouldSampleLastSmaDebug(void) {
-  static int64_t seq = 0;
-  int64_t        cur = atomic_add_fetch_64(&seq, 1);
-
-  return cur <= 64 || 0 == (cur % 10000);
-}
-
-static void fltFormatBlkNotNullGroup(const SFltBlkNotNullGroup *pGroup, char *buf, int32_t len) {
-  if (NULL == buf || len <= 0) {
-    return;
-  }
-
-  buf[0] = '\0';
-  if (NULL == pGroup || NULL == pGroup->pItems) {
-    return;
-  }
-
-  int32_t offset = 0;
-  for (int32_t i = 0; i < taosArrayGetSize(pGroup->pItems); ++i) {
-    const SFltBlkNotNullItem *pItem = taosArrayGet(pGroup->pItems, i);
-    if (NULL == pItem) {
-      continue;
-    }
-
-    int32_t written = snprintf(buf + offset, len - offset, "%s%d", (0 == i) ? "" : ",", pItem->colId);
-    if (written < 0 || written >= len - offset) {
-      break;
-    }
-    offset += written;
-  }
-}
-
 void filterFreeInfo(SFilterInfo *info) {
   if (info == NULL) {
     return;
@@ -4569,18 +4537,8 @@ static int32_t fltExecuteBlkOrNotNullGroups(SFilterInfo *info, SColumnDataAgg *p
     }
 
     if (!groupMatched && allRowsNull) {
-      char cols[128] = {0};
-      fltFormatBlkNotNullGroup(pGroup, cols, sizeof(cols));
-      qDebug("last-sma-debug block not-null group rejected block, cols:%s, rows:%d", cols, numOfRows);
       *keep = false;
       return TSDB_CODE_SUCCESS;
-    }
-
-    if (fltShouldSampleLastSmaDebug()) {
-      char cols[128] = {0};
-      fltFormatBlkNotNullGroup(pGroup, cols, sizeof(cols));
-      qDebug("last-sma-debug block not-null group evaluated, cols:%s, rows:%d, matched:%d, all_rows_null:%d",
-             cols, numOfRows, groupMatched, allRowsNull);
     }
   }
 
@@ -5851,27 +5809,10 @@ static int32_t fltBuildBlkOrNotNullGroups(SNode *pNode, SArray **ppGroups) {
       code = fltBlkNotNullAppendGroup(ppGroups, &group);
     }
     fltFreeBlkNotNullGroup(&group);
-    if (TSDB_CODE_SUCCESS == code && NULL != *ppGroups) {
-      for (int32_t i = 0; i < taosArrayGetSize(*ppGroups); ++i) {
-        SFltBlkNotNullGroup *pGroup = taosArrayGet(*ppGroups, i);
-        char                 cols[128] = {0};
-        fltFormatBlkNotNullGroup(pGroup, cols, sizeof(cols));
-        qDebug("last-sma-debug initialized block not-null group, group_idx:%d, cols:%s", i, cols);
-      }
-    }
     return code;
   }
 
   int32_t code = fltBlkNotNullExtractFromAnd(pNode, ppGroups);
-  if (TSDB_CODE_SUCCESS == code && NULL != *ppGroups) {
-    for (int32_t i = 0; i < taosArrayGetSize(*ppGroups); ++i) {
-      SFltBlkNotNullGroup *pGroup = taosArrayGet(*ppGroups, i);
-      char                 cols[128] = {0};
-      fltFormatBlkNotNullGroup(pGroup, cols, sizeof(cols));
-      qDebug("last-sma-debug initialized block not-null group, group_idx:%d, cols:%s", i, cols);
-    }
-  }
-
   return code;
 }
 

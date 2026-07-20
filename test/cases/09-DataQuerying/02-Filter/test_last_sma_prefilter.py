@@ -1,5 +1,4 @@
 import os
-import time
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
@@ -308,40 +307,6 @@ class TestLastSmaPrefilter:
         tdSql.query(explain_sql, queryTimes=1)
         return [str(row[0]) for row in tdSql.queryResult]
 
-    def _get_taosd_log_file(self, dnode_idx: int = 1) -> str:
-        log_file = os.path.join(self.work_dir, f"dnode{dnode_idx}", "log", "taosdlog.0")
-        assert os.path.exists(log_file), f"taosd log file not found: {log_file}"
-        return log_file
-
-    def _read_log_delta(self, log_file: str, offset: int) -> str:
-        with open(log_file, "rb") as fp:
-            fp.seek(offset)
-            return fp.read().decode("utf-8", errors="ignore")
-
-    def _run_query_with_log_capture(
-        self,
-        sql: str,
-        expect_markers: tuple[str, ...] = (),
-        retries: int = 20,
-        interval: float = 0.2,
-    ) -> str:
-        log_file = self._get_taosd_log_file()
-        offset = os.path.getsize(log_file)
-
-        tdSql.query(sql, queryTimes=1)
-
-        if not expect_markers:
-            return self._read_log_delta(log_file, offset)
-
-        log_text = ""
-        for _ in range(retries):
-            log_text = self._read_log_delta(log_file, offset)
-            if all(marker in log_text for marker in expect_markers):
-                return log_text
-            time.sleep(interval)
-
-        return log_text
-
     def _extract_filter_lines(self, plan_lines: list[str]) -> list[str]:
         return [line for line in plan_lines if "Filter:" in line]
 
@@ -396,16 +361,8 @@ class TestLastSmaPrefilter:
         sql: str,
         expected: Optional[Tuple[object, ...]],
         expect_hidden_not_null: bool,
-        runtime_markers: tuple[str, ...] = (),
-        forbidden_runtime_markers: tuple[str, ...] = (),
     ):
-        log_text = self._run_query_with_log_capture(sql, expect_markers=runtime_markers)
-        for marker in runtime_markers:
-            assert marker in log_text, f"{case_id} missing runtime marker {marker}:\n{log_text}"
-        for marker in forbidden_runtime_markers:
-            assert marker not in log_text, (
-                f"{case_id} should not contain runtime marker {marker}:\n{log_text}"
-            )
+        tdSql.query(sql, queryTimes=1)
 
         if expected is None:
             tdSql.checkRows(0)
@@ -691,8 +648,6 @@ class TestLastSmaPrefilter:
                 f"where grp5 = '{grp5}' and ts >= {TIME_RANGE_START} and ts <= {TIME_RANGE_END}",
                 (30001,),
                 True,
-                (),
-                (),
             ),
             (
                 "block_sma_mode__tag_in_applicable",
@@ -701,8 +656,6 @@ class TestLastSmaPrefilter:
                 f"and ts >= {TIME_RANGE_START} and ts <= {TIME_RANGE_END}",
                 (30001,),
                 True,
-                (),
-                (),
             ),
             (
                 "block_sma_mode__data_predicate_inapplicable",
@@ -710,11 +663,6 @@ class TestLastSmaPrefilter:
                 f"where grp5 = '{grp5}' and c_pred = 7",
                 None,
                 True,
-                (
-                    "last-sma-debug block SMA rejected block in filter path",
-                    "data block filter out by block SMA",
-                ),
-                (),
             ),
             (
                 "block_sma_mode__scalar_predicate_inapplicable",
@@ -722,24 +670,13 @@ class TestLastSmaPrefilter:
                 f"where grp5 = '{grp5}' and abs(c_scalar) = 7",
                 None,
                 True,
-                ("last-sma-debug block not-null group evaluated",),
-                ("last-sma-debug block SMA rejected block in filter path",),
             ),
         ]
 
-        for (
-            case_id,
-            sql,
-            expected,
-            expect_hidden_not_null,
-            runtime_markers,
-            forbidden_runtime_markers,
-        ) in cases:
+        for case_id, sql, expected, expect_hidden_not_null in cases:
             self._assert_block_sma_mode_case(
                 case_id,
                 sql,
                 expected,
                 expect_hidden_not_null,
-                runtime_markers,
-                forbidden_runtime_markers,
             )

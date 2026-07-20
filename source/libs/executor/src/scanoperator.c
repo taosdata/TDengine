@@ -50,8 +50,6 @@ int32_t scanDebug = 0;
 #define STREAM_SCAN_OP_NAME            "StreamScanOperator"
 #define STREAM_SCAN_OP_STATE_NAME      "StreamScanFillHistoryState"
 #define STREAM_SCAN_OP_CHECKPOINT_NAME "StreamScanOperator_Checkpoint"
-#define LAST_SMA_DEBUG_SAMPLE_LIMIT    64
-#define LAST_SMA_DEBUG_SAMPLE_STRIDE   10000
 
 typedef struct STableMergeScanExecInfo {
   SFileBlockLoadRecorder blockRecorder;
@@ -79,13 +77,6 @@ static bool    processBlockWithProbability(const SSampleExecInfo* pInfo);
 static int32_t doTableCountScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes);
 static int32_t setTagValFromTagList(SOperatorInfo* pOperator, SSDataBlock* pRes);
 static void    clearCachedTagList(STableScanInfo* pInfo);
-
-static bool shouldSampleLastSmaDebug(void) {
-  static int64_t seq = 0;
-  int64_t        cur = atomic_add_fetch_64(&seq, 1);
-
-  return cur <= LAST_SMA_DEBUG_SAMPLE_LIMIT || 0 == (cur % LAST_SMA_DEBUG_SAMPLE_STRIDE);
-}
 
 bool processBlockWithProbability(const SSampleExecInfo* pInfo) {
 #if 0
@@ -224,7 +215,6 @@ static int32_t insertTableToScanIgnoreList(STableScanInfo* pTableScanInfo, uint6
 static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo* pBlockInfo, uint32_t* status) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   int32_t         code = TSDB_CODE_SUCCESS;
-  bool            sample = shouldSampleLastSmaDebug();
   int32_t         blockerExprIdx = -1;
   int32_t         blockerFuncId = -1;
   int32_t         blockerReqStatus = FUNC_DATA_REQUIRED_NOT_LOAD;
@@ -266,13 +256,6 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo*
     code = insertTableToScanIgnoreList(pTableScanInfo, pBlockInfo->id.uid);
   }
 
-  if (sample) {
-    qDebug("%s last-sma-debug dynamic prune evaluated block, uid:%" PRIu64
-           ", brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64 ", exprs:%d, not_load:%d, blocker_expr:%d, blocker_func:%d, blocker_status:%d",
-           GET_TASKID(pOperator->pTaskInfo), pBlockInfo->id.uid, pBlockInfo->window.skey, pBlockInfo->window.ekey,
-           pBlockInfo->rows, pSup1->numOfExprs, notLoadBlock, blockerExprIdx, blockerFuncId, blockerReqStatus);
-  }
-
   return code;
 }
 
@@ -291,7 +274,6 @@ static int32_t doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBloc
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
   bool         allColumnsHaveAgg = true;
   bool         hasNullSMA = false;
-  bool         sample = shouldSampleLastSmaDebug();
   int32_t      code = TSDB_CODE_SUCCESS;
   if (pLoad != NULL) {
     *pLoad = false;
@@ -325,13 +307,6 @@ static int32_t doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBloc
     *pLoad = false;
   } else {
     *pLoad = true;
-  }
-
-  if (sample) {
-    qDebug("%s last-sma-debug loaded block SMA metadata, uid:%" PRIu64 ", brange:%" PRId64 "-%" PRId64
-           ", rows:%" PRId64 ", mode:%d, all_columns_have_agg:%d, has_null_sma:%d, usable:%d",
-           GET_TASKID(pTaskInfo), pBlock->info.id.uid, pBlock->info.window.skey, pBlock->info.window.ekey,
-           pBlock->info.rows, mode, allColumnsHaveAgg, hasNullSMA, (NULL != pLoad) ? *pLoad : 0);
   }
 
   return code;
@@ -400,7 +375,6 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
   bool           loadSMA = false;
-  bool           sample = shouldSampleLastSmaDebug();
 
   SFileBlockLoadRecorder* pCost = &pTableScanInfo->readRecorder;
 
@@ -408,12 +382,6 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   *status = pTableScanInfo->dataBlockLoadFlag;
 
   if (pOperator->exprSupp.pFilterInfo != NULL) {
-    if (*status == FUNC_DATA_REQUIRED_SMA_LOAD && sample) {
-      qDebug("%s last-sma-debug filter path overrides initial SMA-load status, uid:%" PRIu64
-             ", brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64 ", initial_status:%u",
-             GET_TASKID(pTaskInfo), pBlock->info.id.uid, pBlock->info.window.skey, pBlock->info.window.ekey,
-             pBlock->info.rows, *status);
-    }
     (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
     bool overlap = false;
@@ -423,12 +391,6 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
       return ret;
     }
     if (overlap) {
-      if (*status == FUNC_DATA_REQUIRED_SMA_LOAD && sample) {
-        qDebug("%s last-sma-debug time-window overlap overrides initial SMA-load status, uid:%" PRIu64
-               ", brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64,
-               GET_TASKID(pTaskInfo), pBlock->info.id.uid, pBlock->info.window.skey, pBlock->info.window.ekey,
-               pBlock->info.rows);
-      }
       (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
     }
   }
@@ -464,12 +426,6 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     }
 
     if (success) {
-      if (sample) {
-        qDebug("%s last-sma-debug block SMA short-circuited data load, uid:%" PRIu64 ", brange:%" PRId64 "-%" PRId64
-               ", rows:%" PRId64 ", recorder_sma_load_blocks:%" PRId64,
-               GET_TASKID(pTaskInfo), pBlockInfo->id.uid, pBlockInfo->window.skey, pBlockInfo->window.ekey,
-               pBlockInfo->rows, pCost->smaLoadBlocks);
-      }
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64, GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
       if (!skipSetTagColumnData(pOperator)) {
@@ -506,13 +462,6 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    if (sample && blockSmaMode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY) {
-      qDebug("%s last-sma-debug enabled numOfNull-only block SMA mode for filter path, uid:%" PRIu64
-             ", brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64,
-             GET_TASKID(pTaskInfo), pBlockInfo->id.uid, pBlockInfo->window.skey, pBlockInfo->window.ekey,
-             pBlockInfo->rows);
-    }
-
     if (success) {
       size_t size = taosArrayGetSize(pBlock->pDataBlock);
       bool   keep = false;
@@ -524,10 +473,6 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
       }
 
       if (!keep) {
-        qDebug("%s last-sma-debug block SMA rejected block in filter path, uid:%" PRIu64 ", brange:%" PRId64 "-%" PRId64
-               ", rows:%" PRId64 ", cols:%zu, recorder_sma_load_blocks:%" PRId64,
-               GET_TASKID(pTaskInfo), pBlockInfo->id.uid, pBlockInfo->window.skey, pBlockInfo->window.ekey,
-               pBlockInfo->rows, size, pCost->smaLoadBlocks);
         qDebug("%s data block filter out by block SMA, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64,
                GET_TASKID(pTaskInfo), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
         pCost->filterOutBlocks += 1;
@@ -537,18 +482,6 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
         pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
         return TSDB_CODE_SUCCESS;
       }
-
-      if (sample) {
-        qDebug("%s last-sma-debug block SMA kept block in filter path, uid:%" PRIu64 ", brange:%" PRId64 "-%" PRId64
-               ", rows:%" PRId64 ", cols:%zu, recorder_sma_load_blocks:%" PRId64,
-               GET_TASKID(pTaskInfo), pBlockInfo->id.uid, pBlockInfo->window.skey, pBlockInfo->window.ekey,
-               pBlockInfo->rows, size, pCost->smaLoadBlocks);
-      }
-    } else if (sample) {
-      qDebug("%s last-sma-debug block SMA was unavailable in filter path, uid:%" PRIu64 ", brange:%" PRId64 "-%" PRId64
-             ", rows:%" PRId64,
-             GET_TASKID(pTaskInfo), pBlockInfo->id.uid, pBlockInfo->window.skey, pBlockInfo->window.ekey,
-             pBlockInfo->rows);
     }
   }
 
@@ -2644,13 +2577,7 @@ static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptr
   }
   const STableScanInfo* pTableScanInfo = pOptr->info;
   *pRecorder = pTableScanInfo->base.readRecorder;
-  qDebug("last-sma-debug explain scan stats before reader sync, total_blocks:%" PRId64 ", file_load_blocks:%" PRId64
-         ", sma_load_blocks:%" PRId64 ", check_rows:%" PRId64,
-         pRecorder->totalBlocks, pRecorder->fileLoadBlocks, pRecorder->smaLoadBlocks, pRecorder->checkRows);
   pTableScanInfo->base.readerAPI.tsdReaderSetExecInfo(pTableScanInfo->base.dataReader, pRecorder);
-  qDebug("last-sma-debug explain scan stats after reader sync, total_blocks:%" PRId64 ", file_load_blocks:%" PRId64
-         ", sma_load_blocks:%" PRId64 ", check_rows:%" PRId64,
-         pRecorder->totalBlocks, pRecorder->fileLoadBlocks, pRecorder->smaLoadBlocks, pRecorder->checkRows);
   *pOptrExplain = pRecorder;
   *len = sizeof(SFileBlockLoadRecorder);
   return 0;
