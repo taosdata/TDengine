@@ -800,8 +800,8 @@ _PARITY_GROUPS: dict[str, list] = {
     # ── sysfn: 系统信息函数（CLIENT_VERSION / SERVER_VERSION / CURRENT_USER / DATABASE）
     # 这些函数由 TDengine 本地计算，不推送到外部源，4库结果应一致
     "sysfn": [
-        ("SELECT CLIENT_VERSION() FROM {tbl} LIMIT 1",),
-        ("SELECT SERVER_VERSION() FROM {tbl} LIMIT 1",),
+        ("SELECT CLIENT_VERSION() FROM {tbl} LIMIT 1", dict(dynamic_cols={0})),
+        ("SELECT SERVER_VERSION() FROM {tbl} LIMIT 1", dict(dynamic_cols={0})),
         ("SELECT CURRENT_USER() FROM {tbl} LIMIT 1", dict(dynamic_cols={0})),
         ("SELECT DATABASE() FROM {tbl} LIMIT 1",),
         # SERVER_STATUS() — returns 1 if server is running
