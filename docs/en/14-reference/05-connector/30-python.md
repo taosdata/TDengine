@@ -64,6 +64,7 @@ Python Connector historical versions (it is recommended to use the latest versio
 
 |Python Connector Version | Major Changes                                                                           | TDengine Version|
 | --------- | ----------------------------------------------------------------------------------------------------- | ----------------- |
+|2.8.10 | Fix asynchronous query callback crashes | - |
 |2.8.9 | Data subscription supports token authentication | - |
 |2.8.8 | Support TOTP authentication and token authentication | - |
 |2.8.6 | Support for pandas' read_Sql_table, to_Sql, and read_Sql interface calls                                    | - |
