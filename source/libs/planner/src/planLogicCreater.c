@@ -6251,7 +6251,8 @@ static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt,
   if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
       !inStreamCalcClause(pCxt->pPlanCxt) || hasPlaceHolderCond || QUERY_NODE_TEMP_TABLE == fromType ||
       (QUERY_NODE_JOIN_TABLE == fromType && !safeExtJoin) || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
-      pSelect->hasInterpFunc || pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
+      pCxt->pPlanCxt->streamCxt.disableExtWindow || LIST_LENGTH(pSelect->pSubQueries) > 0 || pSelect->hasInterpFunc ||
+      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
       (pSelect->pOrderByList != NULL && pCxt->pPlanCxt->streamCxt.hasForceOutput) ||
       (!safeExtJoin && !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange))) {
     return TSDB_CODE_SUCCESS;
