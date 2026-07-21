@@ -36,17 +36,22 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 12)
 
         tdSql.query(
-            f"select count(*) from (select timetruncate(ts, 1d) ts from sta) a, (select timetruncate(ts, 1d, '+0800') ts from sta) b where a.ts = b.ts;"
+            f"select count(*) from (select timetruncate(ts, 1d) ts from sta) a, (select timetruncate(ts, 1d, '-0800') ts from sta) b where a.ts = b.ts;"
         )
         tdSql.checkData(0, 0, 64)
 
         tdSql.query(
-            f"select count(*) from (select timetruncate(ts, 1d, '+0700') ts from sta) a, (select timetruncate(ts, 1d, '+0800') ts from sta) b where a.ts = b.ts;"
+            f"select count(*) from (select timetruncate(ts, 1d) ts from sta) a, (select timetruncate(ts, 1d, '+0800') ts from sta) b where a.ts = b.ts;"
         )
         tdSql.checkData(0, 0, 0)
 
         tdSql.query(
-            f"select count(*) from (select timetruncate(ts, 1d, '+0000') ts from sta) a, (select timetruncate(ts, 1d, '+0800') ts from sta) b where a.ts = b.ts;"
+            f"select count(*) from (select timetruncate(ts, 1d, '-0700') ts from sta) a, (select timetruncate(ts, 1d, '-0800') ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(
+            f"select count(*) from (select timetruncate(ts, 1d, '+0000') ts from sta) a, (select timetruncate(ts, 1d, '-0800') ts from sta) b where a.ts = b.ts;"
         )
         tdSql.checkData(0, 0, 0)
 
@@ -56,7 +61,7 @@ class TestJoinFull:
         tdSql.checkData(0, 0, 64)
 
         tdSql.query(
-            f"select count(*) from (select timetruncate(ts, 1w) ts from sta) a, (select timetruncate(ts, 1w, '+0800') ts from sta) b where a.ts = b.ts;"
+            f"select count(*) from (select timetruncate(ts, 1w) ts from sta) a, (select timetruncate(ts, 1w, '-0800') ts from sta) b where a.ts = b.ts;"
         )
         tdSql.checkData(0, 0, 64)
 
@@ -66,27 +71,27 @@ class TestJoinFull:
             tdSql.execute(f"insert into dst values ('2023-01-01 12:00:00', 2);")
 
             tdSql.query(
-                f"select count(*) from (select timetruncate(ts, 1d, 'America/New_York') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '-0400') ts from dst where case_id = 1) b where a.ts = b.ts;"
+                f"select count(*) from (select timetruncate(ts, 1d, 'America/New_York') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '+0400') ts from dst where case_id = 1) b where a.ts = b.ts;"
             )
             tdSql.checkData(0, 0, 1)
 
             tdSql.query(
-                f"select count(*) from (select timetruncate(ts, 1d, 'America/New_York') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '-0500') ts from dst where case_id = 1) b where a.ts = b.ts;"
+                f"select count(*) from (select timetruncate(ts, 1d, 'America/New_York') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '+0500') ts from dst where case_id = 1) b where a.ts = b.ts;"
             )
             tdSql.checkData(0, 0, 0)
 
             tdSql.query(
-                f"select count(*) from (select timetruncate(ts, 1d, 'America/New_York') ts from dst where case_id = 2) a, (select timetruncate(ts, 1d, '-0500') ts from dst where case_id = 2) b where a.ts = b.ts;"
+                f"select count(*) from (select timetruncate(ts, 1d, 'America/New_York') ts from dst where case_id = 2) a, (select timetruncate(ts, 1d, '+0500') ts from dst where case_id = 2) b where a.ts = b.ts;"
             )
             tdSql.checkData(0, 0, 1)
 
             tdSql.query(
-                f"select count(*) from (select timetruncate(ts, 1d, 'America/Chicago') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '-0500') ts from dst where case_id = 1) b where a.ts = b.ts;"
+                f"select count(*) from (select timetruncate(ts, 1d, 'America/Chicago') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '+0500') ts from dst where case_id = 1) b where a.ts = b.ts;"
             )
             tdSql.checkData(0, 0, 1)
 
             tdSql.query(
-                f"select count(*) from (select timetruncate(ts, 1d, 'Europe/London') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '+0100') ts from dst where case_id = 1) b where a.ts = b.ts;"
+                f"select count(*) from (select timetruncate(ts, 1d, 'Europe/London') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '-0100') ts from dst where case_id = 1) b where a.ts = b.ts;"
             )
             tdSql.checkData(0, 0, 1)
 
@@ -96,12 +101,12 @@ class TestJoinFull:
             tdSql.checkData(0, 0, 1)
 
         tdSql.query(
-            f"select a.ts from sta a ,(select TIMETRUNCATE(ts,1d,'+0800') ts from sta) b where timetruncate(a.ts, 1d) = b.ts;"
+            f"select a.ts from sta a ,(select TIMETRUNCATE(ts,1d,'-0800') ts from sta) b where timetruncate(a.ts, 1d) = b.ts;"
         )
         tdSql.checkRows(64)
 
         tdSql.query(
-            f"select a.ts from sta a ,(select TIMETRUNCATE(ts,1w,'+0800') ts from sta) b where timetruncate(a.ts, 1w) = b.ts;"
+            f"select a.ts from sta a ,(select TIMETRUNCATE(ts,1w,'-0800') ts from sta) b where timetruncate(a.ts, 1w) = b.ts;"
         )
         tdSql.checkRows(64)
 
@@ -347,9 +352,10 @@ class TestJoinFull:
         """Nested join with TIMETRUNCATE timezone offset
 
         1. Verify raw timestamp self-join cardinality.
-        2. Verify session timezone Asia/Shanghai matches explicit +0800 for 1d TIMETRUNCATE.
-        3. Verify explicit +0700 and +0800 are different day boundaries.
-        4. Verify nested join keeps the same TIMETRUNCATE timezone semantics.
+        2. Verify session timezone Asia/Shanghai matches explicit -0800 for 1d TIMETRUNCATE.
+        3. Verify explicit +0800 follows POSIX west-of-UTC semantics and differs from Asia/Shanghai.
+        4. Verify explicit -0700 and -0800 are different day boundaries.
+        5. Verify nested join keeps the same TIMETRUNCATE timezone semantics.
 
         Catalog:
             - Query:Join
@@ -2924,7 +2930,7 @@ class TestJoinFull:
         tdSql.checkRows(0)
 
         tdSql.query(
-            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1d, '+0800') = timetruncate(b.ts, 1h, '+0800');"
+            f"select a.ts, a.col1, b.ts, b.col1 from sta a join sta b on timetruncate(a.ts, 1d, '-0800') = timetruncate(b.ts, 1h, '-0800');"
         )
         tdSql.checkRows(0)
 
