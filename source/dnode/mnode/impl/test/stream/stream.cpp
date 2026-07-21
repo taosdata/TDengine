@@ -13,8 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <iostream>
 #include <gtest/gtest.h>
+#include <atomic>
+#include <chrono>
+#include <iostream>
+#include <thread>
 #include "nodes.h"
 #include "planner.h"
 
@@ -26,6 +29,10 @@
 
 #include <libs/transport/trpc.h>
 #include "../../inc/mndStream.h"
+
+extern "C" int32_t msmBuildTriggerDeployInfo(SMnode *pMnode, SStmStatus *pInfo, SStmTaskDeploy *pDeploy,
+                                             SStreamObj *pStream);
+extern "C" int32_t msmNormalHandleHbMsg(SStmGrpCtx *pCtx);
 
 namespace {
 
@@ -48,6 +55,84 @@ STrans *createTestTrans() {
 
   return pTrans;
 }
+
+void destroyRecoveredRunnerLists(SStmStatus *pStatus) {
+  for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) {
+    taosArrayDestroy(pStatus->runners[i]);
+    pStatus->runners[i] = nullptr;
+  }
+}
+
+class MndStreamActionQueueTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    queue_.head = static_cast<SStmQNode *>(taosMemoryCalloc(1, sizeof(SStmQNode)));
+    ASSERT_NE(queue_.head, nullptr);
+    queue_.tail = queue_.head;
+  }
+
+  void TearDown() override {
+    SStmQNode *pNode = nullptr;
+    while (mndStreamActionDequeue(&queue_, &pNode)) {
+    }
+    taosMemoryFreeClear(queue_.head);
+    queue_.tail = nullptr;
+  }
+
+  SStmActionQ queue_ = {};
+};
+
+class MndStreamHeartbeatTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    savedActionQ_ = mStreamMgmt.actionQ;
+    savedStreamMap_ = mStreamMgmt.streamMap;
+    savedDnodeMap_ = mStreamMgmt.dnodeMap;
+    savedActionQLock_ = mStreamMgmt.actionQLock;
+    savedToDeployVgTaskNum_ = mStreamMgmt.toDeployVgTaskNum;
+    savedToDeploySnodeTaskNum_ = mStreamMgmt.toDeploySnodeTaskNum;
+
+    queue_.head = static_cast<SStmQNode *>(taosMemoryCalloc(1, sizeof(SStmQNode)));
+    ASSERT_NE(queue_.head, nullptr);
+    queue_.tail = queue_.head;
+
+    mStreamMgmt.actionQ = &queue_;
+    mStreamMgmt.actionQLock = 0;
+    mStreamMgmt.toDeployVgTaskNum = 0;
+    mStreamMgmt.toDeploySnodeTaskNum = 0;
+    mStreamMgmt.streamMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    ASSERT_NE(mStreamMgmt.streamMap, nullptr);
+    mStreamMgmt.dnodeMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    ASSERT_NE(mStreamMgmt.dnodeMap, nullptr);
+  }
+
+  void TearDown() override {
+    SStmQNode *pNode = nullptr;
+    while (mndStreamActionDequeue(&queue_, &pNode)) {
+    }
+    taosMemoryFreeClear(queue_.head);
+    queue_.tail = nullptr;
+
+    taosHashCleanup(mStreamMgmt.dnodeMap);
+    taosHashCleanup(mStreamMgmt.streamMap);
+    mStreamMgmt.actionQ = savedActionQ_;
+    mStreamMgmt.streamMap = savedStreamMap_;
+    mStreamMgmt.dnodeMap = savedDnodeMap_;
+    mStreamMgmt.actionQLock = savedActionQLock_;
+    mStreamMgmt.toDeployVgTaskNum = savedToDeployVgTaskNum_;
+    mStreamMgmt.toDeploySnodeTaskNum = savedToDeploySnodeTaskNum_;
+  }
+
+  SStmActionQ queue_ = {};
+
+ private:
+  SStmActionQ *savedActionQ_ = nullptr;
+  SHashObj    *savedStreamMap_ = nullptr;
+  SHashObj    *savedDnodeMap_ = nullptr;
+  SRWLatch     savedActionQLock_ = 0;
+  int32_t      savedToDeployVgTaskNum_ = 0;
+  int32_t      savedToDeploySnodeTaskNum_ = 0;
+};
 
 }  // namespace
 
@@ -73,6 +158,349 @@ TEST(MndStreamTransTest, AppendFailureDoesNotDropCallerOwnedTrans) {
   ASSERT_NE(code, TSDB_CODE_SUCCESS);
 
   mndTransDrop(pTrans);
+}
+
+TEST(MndStreamWatchTest, InfersRunnerDeploysFromObservedIds) {
+  SStmStatus status = {0};
+  status.runnerNum = 2;
+  status.runnerReplica = 20;
+
+  ASSERT_EQ(mstRestoreRunnerDeploy(&status, 2), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(status.runnerDeploys, 3);
+  EXPECT_EQ(status.runnerReplica, MND_STREAM_RUNNER_REPLICA_UNKNOWN);
+  EXPECT_EQ(status.runners[0], nullptr);
+  ASSERT_NE(status.runners[2], nullptr);
+  EXPECT_EQ(taosArrayGetSize(status.runners[2]), 0);
+
+  ASSERT_EQ(mstRestoreRunnerDeploy(&status, 0), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(status.runnerDeploys, 3);
+  ASSERT_NE(status.runners[0], nullptr);
+
+  ASSERT_EQ(mstRestoreRunnerDeploy(&status, 7), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(status.runnerDeploys, 8);
+  ASSERT_NE(status.runners[7], nullptr);
+
+  destroyRecoveredRunnerLists(&status);
+}
+
+TEST(MndStreamWatchTest, RejectsRunnerDeployIdsOutsideTheStaticCap) {
+  SStmStatus status = {0};
+  status.runnerNum = 1;
+
+  EXPECT_EQ(mstRestoreRunnerDeploy(&status, -1), TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  EXPECT_EQ(mstRestoreRunnerDeploy(&status, MND_STREAM_RUNNER_DEPLOY_NUM), TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  EXPECT_EQ(status.runnerDeploys, 0);
+}
+
+TEST(MndStreamWatchTest, TaskPolicyOnlyRefreshesSnapshotConsumers) {
+  SStmStatus status = {0};
+  status.runnerNum = 1;
+  status.runnerReplica = MND_STREAM_RUNNER_REPLICA_UNKNOWN;
+
+  SStmTaskAction action = {0};
+  action.type = STREAM_RUNNER_TASK;
+  EXPECT_TRUE(mstTaskDeployNeedsRunnerSnapshot(&status, &action));
+
+  action.type = STREAM_READER_TASK;
+  action.flag = 0;
+  EXPECT_TRUE(mstTaskDeployNeedsRunnerSnapshot(&status, &action));
+
+  action.flag = STREAM_FLAG_TRIGGER_READER;
+  EXPECT_FALSE(mstTaskDeployNeedsRunnerSnapshot(&status, &action));
+
+  status.runnerReplica = 5;
+  action.type = STREAM_RUNNER_TASK;
+  action.flag = 0;
+  EXPECT_FALSE(mstTaskDeployNeedsRunnerSnapshot(&status, &action));
+}
+
+TEST(MndStreamWatchTest, RunnerSnapshotClaimDistinguishesStates) {
+  SStmStatus status = {0};
+  status.runnerNum = 1;
+  atomic_store_32(&status.runnerReplica, MND_STREAM_RUNNER_REPLICA_UNKNOWN);
+
+  EXPECT_EQ(mstClaimRunnerSnapshotRedeploy(&status), MST_RUNNER_SNAPSHOT_CLAIM_ACQUIRED);
+  EXPECT_EQ(atomic_load_8(&status.runnerSnapshotRedeployPending), 1);
+
+  EXPECT_EQ(mstClaimRunnerSnapshotRedeploy(&status), MST_RUNNER_SNAPSHOT_CLAIM_ALREADY_PENDING);
+  EXPECT_EQ(atomic_load_8(&status.runnerSnapshotRedeployPending), 1);
+
+  atomic_store_8(&status.runnerSnapshotRedeployPending, 0);
+  atomic_store_32(&status.runnerReplica, 5);
+  EXPECT_EQ(mstClaimRunnerSnapshotRedeploy(&status), MST_RUNNER_SNAPSHOT_CLAIM_KNOWN);
+  EXPECT_EQ(atomic_load_8(&status.runnerSnapshotRedeployPending), 0);
+}
+
+TEST_F(MndStreamActionQueueTest, RepeatedUnknownConsumersPostOneOwnedFullDeploy) {
+  char       streamName[] = "test.runner_snapshot";
+  SStmStatus status = {0};
+  status.streamName = streamName;
+  status.runnerNum = 1;
+  status.runnerReplica = MND_STREAM_RUNNER_REPLICA_UNKNOWN;
+
+  ASSERT_EQ(mstPostRunnerSnapshotRedeploy(&queue_, 42, &status), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(mstPostRunnerSnapshotRedeploy(&queue_, 42, &status), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(atomic_load_64(reinterpret_cast<volatile int64_t *>(&queue_.qRemainNum)), 1);
+  EXPECT_EQ(atomic_load_8(&status.runnerSnapshotRedeployPending), 1);
+
+  SStmQNode *pNode = nullptr;
+  ASSERT_TRUE(mndStreamActionDequeue(&queue_, &pNode));
+  ASSERT_NE(pNode, nullptr);
+  EXPECT_EQ(pNode->type, STREAM_ACT_DEPLOY);
+  EXPECT_TRUE(pNode->streamAct);
+  EXPECT_EQ(pNode->action.stream.streamId, 42);
+  EXPECT_STREQ(pNode->action.stream.streamName, streamName);
+  EXPECT_TRUE(pNode->action.stream.runnerSnapshotRedeployOwner);
+  EXPECT_EQ(atomic_load_64(reinterpret_cast<volatile int64_t *>(&queue_.qRemainNum)), 0);
+}
+
+TEST_F(MndStreamActionQueueTest, KnownSnapshotDoesNotPostFullDeploy) {
+  char       streamName[] = "test.runner_snapshot";
+  SStmStatus status = {0};
+  status.streamName = streamName;
+  status.runnerNum = 1;
+  status.runnerReplica = 5;
+
+  EXPECT_EQ(mstPostRunnerSnapshotRedeploy(&queue_, 42, &status), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(atomic_load_64(reinterpret_cast<volatile int64_t *>(&queue_.qRemainNum)), 0);
+  EXPECT_EQ(atomic_load_8(&status.runnerSnapshotRedeployPending), 0);
+}
+
+TEST_F(MndStreamActionQueueTest, NormalStreamActionDoesNotOwnRunnerSnapshotLatch) {
+  char streamName[] = "test.normal_deploy";
+
+  ASSERT_EQ(mstPostStreamAction(&queue_, 42, streamName, nullptr, false, STREAM_ACT_DEPLOY), TSDB_CODE_SUCCESS);
+
+  SStmQNode *pNode = nullptr;
+  ASSERT_TRUE(mndStreamActionDequeue(&queue_, &pNode));
+  ASSERT_NE(pNode, nullptr);
+  EXPECT_FALSE(pNode->action.stream.runnerSnapshotRedeployOwner);
+}
+
+TEST(MndStreamWatchTest, CalcReaderBuilderRejectsUnknownReplica) {
+  SStmStatus status = {0};
+  status.runnerNum = 1;
+  status.runnerReplica = MND_STREAM_RUNNER_REPLICA_UNKNOWN;
+  SStmTaskDeploy deploy = {};
+
+  EXPECT_EQ(msmBuildReaderDeployInfo(&deploy, nullptr, &status, false), TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+
+  status.runnerDeploys = 3;
+  status.runnerReplica = 5;
+  ASSERT_EQ(msmBuildReaderDeployInfo(&deploy, nullptr, &status, false), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(deploy.msg.reader.msg.calc.execReplica, 15);
+}
+
+TEST(MndStreamWatchTest, TriggerTargetBuilderRejectsUnknownReplica) {
+  SStmStatus status = {0};
+  status.runnerNum = 1;
+  status.runnerReplica = MND_STREAM_RUNNER_REPLICA_UNKNOWN;
+  SArray *targets = nullptr;
+
+  EXPECT_EQ(msmBuildTriggerRunnerTargets(nullptr, &status, 42, &targets), TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  EXPECT_EQ(targets, nullptr);
+}
+
+TEST(MndStreamWatchTest, TriggerTargetBuilderClearsOutputOnFailure) {
+  SStmStatus status = {0};
+  status.runnerNum = 1;
+  status.runnerDeploys = 1;
+  status.runnerReplica = 5;
+  status.runners[0] = taosArrayInit(1, sizeof(SStmTaskStatus));
+  ASSERT_NE(status.runners[0], nullptr);
+
+  SArray *targets = nullptr;
+  EXPECT_EQ(msmBuildTriggerRunnerTargets(nullptr, &status, 42, &targets), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(targets, nullptr);
+
+  taosArrayDestroy(targets);
+  taosArrayDestroy(status.runners[0]);
+}
+
+TEST(MndStreamWatchTest, RunnerBuilderRejectsUnknownReplica) {
+  SStmStatus status = {0};
+  status.runnerNum = 1;
+  status.runnerReplica = MND_STREAM_RUNNER_REPLICA_UNKNOWN;
+  SStmTaskDeploy deploy = {};
+
+  EXPECT_EQ(msmBuildRunnerDeployInfo(&deploy, nullptr, nullptr, &status, false), TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+}
+
+TEST(MndStreamWatchTest, TriggerDeployBuilderPropagatesRunnerTargetError) {
+  SCMCreateStreamReq createReq = {0};
+  createReq.streamId = 42;
+
+  SSdb   sdb = {0};
+  SMnode mnode = {0};
+  mnode.pSdb = &sdb;
+
+  SStmStatus status = {0};
+  status.pCreate = &createReq;
+  status.runnerNum = 1;
+  atomic_store_32(&status.runnerReplica, MND_STREAM_RUNNER_REPLICA_UNKNOWN);
+  status.trigReaders = taosArrayInit(1, sizeof(SStmTaskStatus));
+  ASSERT_NE(status.trigReaders, nullptr);
+
+  SStmTaskStatus reader = {0};
+  reader.id.nodeId = 1;
+  ASSERT_NE(taosArrayPush(status.trigReaders, &reader), nullptr);
+
+  SStreamObj stream = {0};
+  stream.pCreate = &createReq;
+
+  SStmTaskDeploy deploy = {};
+  EXPECT_EQ(msmBuildTriggerDeployInfo(&mnode, &status, &deploy, &stream), TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  EXPECT_EQ(deploy.msg.trigger.readerList, nullptr);
+  EXPECT_EQ(deploy.msg.trigger.runnerList, nullptr);
+
+  taosArrayDestroy(deploy.msg.trigger.readerList);
+  taosArrayDestroy(deploy.msg.trigger.runnerList);
+  taosArrayDestroy(status.trigReaders);
+}
+
+TEST_F(MndStreamHeartbeatTest, SnapshotDeployWriterWaitsForPostingHeartbeatReader) {
+  constexpr int64_t streamId = 42;
+  char              streamName[] = "test.runner_snapshot";
+
+  SStmTaskStatus triggerTask = {0};
+  triggerTask.id.taskId = 100;
+  triggerTask.id.seriousId = 200;
+  triggerTask.id.nodeId = 1;
+  triggerTask.id.taskIdx = 0;
+
+  SStmStatus status = {0};
+  status.streamName = streamName;
+  status.runnerNum = 1;
+  status.triggerTask = &triggerTask;
+  atomic_store_8(&status.stopped, 2);
+  atomic_store_32(&status.runnerReplica, MND_STREAM_RUNNER_REPLICA_UNKNOWN);
+  ASSERT_EQ(taosHashPut(mStreamMgmt.streamMap, &streamId, sizeof(streamId), &status, sizeof(status)),
+            TSDB_CODE_SUCCESS);
+  SStmStatus *pStatus = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId)));
+  ASSERT_NE(pStatus, nullptr);
+
+  SStreamRecalcReq recalcReq = {0};
+  SStmAction       action = {0};
+  action.actions = STREAM_ACT_UPDATE_TRIGGER | STREAM_ACT_RECALC | STREAM_ACT_START;
+  action.recalc.recalcList = taosArrayInit(1, sizeof(SStreamRecalcReq));
+  ASSERT_NE(action.recalc.recalcList, nullptr);
+  ASSERT_NE(taosArrayPush(action.recalc.recalcList, &recalcReq), nullptr);
+  action.start.triggerId = triggerTask.id;
+
+  SHashObj *actionStm = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  ASSERT_NE(actionStm, nullptr);
+  taosHashSetFreeFp(actionStm, mstDestroySStmAction);
+  ASSERT_EQ(taosHashPut(actionStm, &streamId, sizeof(streamId), &action, sizeof(action)), TSDB_CODE_SUCCESS);
+
+  SHashObj *deployStm = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  ASSERT_NE(deployStm, nullptr);
+
+  constexpr int32_t dnodeId = 1;
+  int64_t           lastUpTs = 0;
+  ASSERT_EQ(taosHashPut(mStreamMgmt.dnodeMap, &dnodeId, sizeof(dnodeId), &lastUpTs, sizeof(lastUpTs)),
+            TSDB_CODE_SUCCESS);
+
+  SStreamHbMsg req = {0};
+  req.dnodeId = dnodeId;
+  SMStreamHbRspMsg rsp = {0};
+  SStmGrpCtx       ctx = {0};
+  ctx.currTs = 1;
+  ctx.pReq = &req;
+  ctx.pRsp = &rsp;
+  ctx.actionStm = actionStm;
+  ctx.deployStm = deployStm;
+
+  std::atomic<int32_t> heartbeatCode{TSDB_CODE_SUCCESS};
+  std::atomic<bool>    heartbeatFinished{false};
+
+  SStmQNode *pNoopAction = static_cast<SStmQNode *>(taosMemoryCalloc(1, sizeof(SStmQNode)));
+  ASSERT_NE(pNoopAction, nullptr);
+  SHashObj *consumerActionStm = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  ASSERT_NE(consumerActionStm, nullptr);
+  SHashObj *consumerDeployStm = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  ASSERT_NE(consumerDeployStm, nullptr);
+
+  taosWLockLatch(&queue_.lock);
+  std::thread heartbeat([&]() {
+    heartbeatCode.store(msmNormalHandleHbMsg(&ctx));
+    heartbeatFinished.store(true);
+  });
+
+  bool       posted = false;
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (std::chrono::steady_clock::now() < deadline) {
+    if (1 == atomic_load_8(&pStatus->runnerSnapshotRedeployPending)) {
+      posted = true;
+      break;
+    }
+    if (heartbeatFinished.load()) {
+      break;
+    }
+    std::this_thread::yield();
+  }
+
+  pNoopAction->next = nullptr;
+  queue_.tail->next = pNoopAction;
+  queue_.tail = pNoopAction;
+  (void)atomic_add_fetch_64(reinterpret_cast<volatile int64_t *>(&queue_.qRemainNum), 1);
+
+  SStreamHbMsg consumerReq = {0};
+  consumerReq.dnodeId = dnodeId;
+  SMStreamHbRspMsg consumerRsp = {0};
+  SStmGrpCtx       consumerCtx = {0};
+  consumerCtx.currTs = 2;
+  consumerCtx.pReq = &consumerReq;
+  consumerCtx.pRsp = &consumerRsp;
+  consumerCtx.actionStm = consumerActionStm;
+  consumerCtx.deployStm = consumerDeployStm;
+
+  std::atomic<int32_t> consumerCode{TSDB_CODE_SUCCESS};
+  std::atomic<bool>    consumerFinished{false};
+  std::thread          consumer([&]() {
+    consumerCode.store(msmNormalHandleHbMsg(&consumerCtx));
+    consumerFinished.store(true);
+  });
+
+  bool       writerWaitedForReader = false;
+  const auto writerDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (std::chrono::steady_clock::now() < writerDeadline) {
+    if (taosHasRWWFlag(&mStreamMgmt.actionQLock)) {
+      writerWaitedForReader = !taosIsOnlyWLocked(&mStreamMgmt.actionQLock) && !consumerFinished.load();
+      break;
+    }
+    if (consumerFinished.load()) {
+      break;
+    }
+    std::this_thread::yield();
+  }
+
+  taosWUnLockLatch(&queue_.lock);
+  heartbeat.join();
+  consumer.join();
+
+  EXPECT_TRUE(posted);
+  EXPECT_TRUE(writerWaitedForReader);
+  EXPECT_EQ(heartbeatCode.load(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(consumerCode.load(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(atomic_load_64(reinterpret_cast<volatile int64_t *>(&queue_.qRemainNum)), 0);
+  ASSERT_NE(rsp.rsps.rspList, nullptr);
+  ASSERT_EQ(taosArrayGetSize(rsp.rsps.rspList), 1);
+  SStreamMgmtRsp *pRecalcRsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(rsp.rsps.rspList, 0));
+  ASSERT_NE(pRecalcRsp, nullptr);
+  EXPECT_EQ(pRecalcRsp->header.msgType, STREAM_MSG_USER_RECALC);
+  EXPECT_EQ(taosArrayGetSize(pRecalcRsp->cont.recalcList), 1);
+  ASSERT_NE(rsp.start.taskList, nullptr);
+  ASSERT_EQ(taosArrayGetSize(rsp.start.taskList), 1);
+  SStreamTaskStart *pStart = static_cast<SStreamTaskStart *>(taosArrayGet(rsp.start.taskList, 0));
+  ASSERT_NE(pStart, nullptr);
+  EXPECT_EQ(pStart->task.taskId, triggerTask.id.taskId);
+
+  tFreeSMStreamHbRspMsg(&rsp);
+  tFreeSMStreamHbRspMsg(&consumerRsp);
+  taosHashCleanup(consumerDeployStm);
+  taosHashCleanup(consumerActionStm);
+  taosHashCleanup(deployStm);
+  taosHashCleanup(actionStm);
 }
 
 // clang-format off

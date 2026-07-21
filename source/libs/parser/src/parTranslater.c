@@ -23942,21 +23942,30 @@ _return:
 static int32_t createStreamReqBuildTriggerTranslateSelect(STranslateContext* pCxt, SStreamTriggerNode* pTrigger,
                                                           SSelectStmt* pTriggerSelect, SNode** pTriggerFilter) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pOwnedTriggerFilter = NULL;
+
+  SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
+  if (*pTriggerFilter != NULL && (pOptions == NULL || *pTriggerFilter != pOptions->pPreFilter)) {
+    pOwnedTriggerFilter = *pTriggerFilter;
+  }
 
   nodesDestroyNode(pTriggerSelect->pFromTable);
   pTriggerSelect->pFromTable = NULL;
   PAR_ERR_JRET(nodesCloneNode(pTrigger->pTrigerTable, &pTriggerSelect->pFromTable));
   PAR_ERR_JRET(nodesCloneNode(*pTriggerFilter, &pTriggerSelect->pWhere));
+  nodesDestroyNode(pOwnedTriggerFilter);
+  pOwnedTriggerFilter = NULL;
+  *pTriggerFilter = NULL;
 
   pCxt->pCurrStmt = (SNode*)pTriggerSelect;
   pCxt->streamInfo.triggerClause = true;
   pCxt->currClause = SQL_CLAUSE_SELECT;
   PAR_ERR_JRET(translateSelect(pCxt, pTriggerSelect));
   pCxt->streamInfo.triggerClause = false;
-  *pTriggerFilter = NULL;
 
   return code;
 _return:
+  nodesDestroyNode(pOwnedTriggerFilter);
   parserError("%s failed, code:%d", __func__, code);
   return code;
 }
@@ -23965,12 +23974,20 @@ static int32_t createStreamReqBulidTriggerExtractCondFromWindow(STranslateContex
                                                                 SNode** pTriggerFilter) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pLogicCond = NULL;
+  SNode*  pMergedFilter = NULL;
 
   switch (nodeType(pTriggerWindow)) {
     case QUERY_NODE_COUNT_WINDOW: {
       PAR_ERR_JRET(extractCondFromCountWindow(pCxt, (SCountWindowNode*)pTriggerWindow, &pLogicCond));
       if (pLogicCond) {
-        PAR_ERR_JRET(nodesMergeNode(pTriggerFilter, &pLogicCond));
+        if (*pTriggerFilter != NULL) {
+          PAR_ERR_JRET(nodesCloneNode(*pTriggerFilter, &pMergedFilter));
+          PAR_ERR_JRET(nodesMergeNode(&pMergedFilter, &pLogicCond));
+          *pTriggerFilter = pMergedFilter;
+          pMergedFilter = NULL;
+        } else {
+          PAR_ERR_JRET(nodesMergeNode(pTriggerFilter, &pLogicCond));
+        }
       }
       break;
     }
@@ -23983,6 +24000,7 @@ _return:
     parserError("%s failed, code:%d", __func__, code);
   }
   nodesDestroyNode((SNode*)pLogicCond);
+  nodesDestroyNode((SNode*)pMergedFilter);
   return code;
 }
 
@@ -24642,9 +24660,24 @@ static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan
     }
     cutoff = false;
     SSubplan* pScanSubPlan = (SSubplan*)pCalcScan->scanPlan;
+    if (NULL == pScanSubPlan) {
+      continue;
+    }
     SNode*    pTargetNode = (SNode*)pScanSubPlan->pNode;
     SNode*    pNode = NULL;
     int64_t   hashKey = (int64_t)pScanSubPlan->id.groupId << 32 | pScanSubPlan->id.subplanId;
+    bool      inCalcPlan = false;
+
+    FOREACH(pNode, calcPlan->pSubplans) {
+      SNodeListNode* pGroup = (SNodeListNode*)pNode;
+      if (findNodeInList((SNode*)pScanSubPlan, pGroup->pNodeList)) {
+        inCalcPlan = true;
+        break;
+      }
+    }
+    if (!inCalcPlan) {
+      continue;
+    }
 
     if (((SPhysiNode*)pTargetNode)->pParent) {
       eliminateNodeFromList(pTargetNode, ((SPhysiNode*)pTargetNode)->pParent->pChildren);
@@ -24704,6 +24737,8 @@ static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan
     }
     taosArrayDestroy(pCalcScan->vgList);
     nodesDestroyNode(pCalcScan->scanPlan);
+    pCalcScan->vgList = NULL;
+    pCalcScan->scanPlan = NULL;
     cutoff = false;
   }
 
@@ -24713,6 +24748,8 @@ _return:
   if (cutoff) {
     taosArrayDestroy(pCalcScan->vgList);
     nodesDestroyNode(pCalcScan->scanPlan);
+    pCalcScan->vgList = NULL;
+    pCalcScan->scanPlan = NULL;
   }
 
   parserError("streamSplitCalcPlan failed, code:%d", code);
@@ -24930,6 +24967,73 @@ _return:
   return code;
 }
 
+static bool streamNodeIsExprSubqueryRef(SNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_REMOTE_VALUE:
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+    case QUERY_NODE_REMOTE_ROW:
+    case QUERY_NODE_REMOTE_TABLE:
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static EDealRes streamExprSubqueryRefWalker(SNode* pNode, void* pContext) {
+  bool* pHasExprSubquery = (bool*)pContext;
+  if (streamNodeIsExprSubqueryRef(pNode)) {
+    *pHasExprSubquery = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool streamTableTreeHasExprSubqueryRef(SNode* pTable);
+
+static bool streamQueryHasExprSubqueryRef(SNode* pQuery) {
+  if (NULL == pQuery) {
+    return false;
+  }
+
+  switch (nodeType(pQuery)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pQuery;
+      if (LIST_LENGTH(pSelect->pSubQueries) > 0) {
+        return true;
+      }
+      bool hasExprSubquery = false;
+      nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, streamExprSubqueryRefWalker, &hasExprSubquery);
+      return hasExprSubquery || streamTableTreeHasExprSubqueryRef(pSelect->pFromTable);
+    }
+    case QUERY_NODE_SET_OPERATOR:
+      return LIST_LENGTH(((SSetOperator*)pQuery)->pSubQueries) > 0;
+    default:
+      return false;
+  }
+}
+
+static bool streamTableTreeHasExprSubqueryRef(SNode* pTable) {
+  if (NULL == pTable) {
+    return false;
+  }
+
+  switch (nodeType(pTable)) {
+    case QUERY_NODE_TEMP_TABLE:
+      return streamQueryHasExprSubqueryRef(((STempTableNode*)pTable)->pSubquery);
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+      return streamTableTreeHasExprSubqueryRef(pJoin->pLeft) || streamTableTreeHasExprSubqueryRef(pJoin->pRight);
+    }
+    default:
+      return false;
+  }
+}
+
 // Build calculate part in create stream request
 static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SNodeList* pTriggerPartition,
                                         SSelectStmt* pTriggerSelect, SNode* pTriggerWindow, SNode** ppNotifyCond,
@@ -25009,6 +25113,7 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .msgLen = pCxt->pParseCxt->msgLen,
                           .streamCxt.isCalc = true,
                           .streamCxt.hasExtWindow = false,
+                          .streamCxt.disableExtWindow = streamQueryHasExprSubqueryRef(pStmt->pQuery),
                           .streamCxt.triggerWinType = nodeType(pTriggerWindow),
                           .streamCxt.calcScanPlanArray = pScanPlanArray,
                           .streamCxt.triggerScanList = NULL,
@@ -30333,8 +30438,11 @@ static int32_t insertCondIntoSelectStmt(SSelectStmt* pSelect, SNode** pCond) {
     SNodeList* pLogicCondList2 = NULL;
     if (nodeType(pSelect->pWhere) == QUERY_NODE_LOGIC_CONDITION &&
         ((SLogicConditionNode*)pSelect->pWhere)->condType == LOGIC_COND_TYPE_AND) {
-      pLogicCondListWhere = ((SLogicConditionNode*)pSelect->pWhere)->pParameterList;
-      ((SLogicConditionNode*)pSelect->pWhere)->pParameterList = NULL;
+      SNode* pOldWhere = pSelect->pWhere;
+      pLogicCondListWhere = ((SLogicConditionNode*)pOldWhere)->pParameterList;
+      ((SLogicConditionNode*)pOldWhere)->pParameterList = NULL;
+      pSelect->pWhere = NULL;
+      nodesDestroyNode(pOldWhere);
     } else {
       code = nodesListMakeAppend(&pLogicCondListWhere, pSelect->pWhere);
       if (TSDB_CODE_SUCCESS == code) {

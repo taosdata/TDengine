@@ -65,6 +65,29 @@ class StrictAppendTbnameFailureGuard {
 
 }  // namespace
 
+static void setCreateStreamString(char** ppDst, const char* pSrc) {
+  taosMemoryFreeClear(*ppDst);
+  *ppDst = taosStrdup(pSrc);
+}
+
+static void resetCreateStreamTriggerPayload(SCMCreateStreamReq* expect) {
+  switch (expect->triggerType) {
+    case WINDOW_TYPE_STATE:
+      taosArrayDestroy(expect->trigger.stateWin.pSlotIds);
+      expect->trigger.stateWin.pSlotIds = nullptr;
+      taosMemoryFreeClear(expect->trigger.stateWin.zeroth);
+      taosMemoryFreeClear(expect->trigger.stateWin.expr);
+      break;
+    case WINDOW_TYPE_EVENT:
+      taosMemoryFreeClear(expect->trigger.event.startCond);
+      taosMemoryFreeClear(expect->trigger.event.endCond);
+      break;
+    default:
+      break;
+  }
+  memset(&expect->trigger, 0, sizeof(expect->trigger));
+}
+
 static const SExternalWindowPhysiNode* pstFindExternalWindowNode(const SPhysiNode* pNode) {
   if (nullptr == pNode) {
     return nullptr;
@@ -209,6 +232,37 @@ static void pstCheckCalcPlanExternalWindowCount(const SQuery* pQuery, ParserStag
   ASSERT_NE(pPlanNode, nullptr);
 
   int32_t count = pstCountExternalWindowNodes((const SQueryPlan*)pPlanNode);
+  EXPECT_EQ(count, expectedCount);
+}
+
+static void pstCheckCalcAndScanPlanExternalWindowCount(const SQuery* pQuery, ParserStage stage, int32_t expectedCount) {
+  ASSERT_EQ(stage, PARSER_STAGE_TRANSLATE);
+  ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
+
+  SCMCreateStreamReq req = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+  unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+  ASSERT_NE(req.calcPlan, nullptr);
+
+  SNode* pPlanNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)req.calcPlan, &pPlanNode));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlanNode, nodesDestroyNode);
+  ASSERT_NE(pPlanNode, nullptr);
+
+  int32_t count = pstCountExternalWindowNodes((const SQueryPlan*)pPlanNode);
+  for (int32_t i = 0; i < taosArrayGetSize(req.calcScanPlanList); ++i) {
+    SStreamCalcScan* pScan = (SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, i);
+    ASSERT_NE(pScan, nullptr);
+    ASSERT_NE(pScan->scanPlan, nullptr);
+
+    SNode* pScanPlanNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((char*)pScan->scanPlan, &pScanPlanNode));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> scanPlanGuard(pScanPlanNode, nodesDestroyNode);
+    ASSERT_NE(pScanPlanNode, nullptr);
+    ASSERT_EQ(nodeType(pScanPlanNode), QUERY_NODE_PHYSICAL_SUBPLAN);
+    count += pstCountExternalWindowNodes(((SSubplan*)pScanPlanNode)->pNode);
+  }
+
   EXPECT_EQ(count, expectedCount);
 }
 
@@ -577,12 +631,15 @@ static void pstCheckCreateStreamSelectTimeRange(const SQuery* pQuery, ParserStag
 */
 
 void setCreateStreamStreamName(SCMCreateStreamReq *expect, const char* pStream, const char* pStreamDb) {
-  expect->name = taosStrdup(pStream);
-  expect->streamDB = taosStrdup(pStreamDb);
+  setCreateStreamString(&expect->name, pStream);
+  setCreateStreamString(&expect->streamDB, pStreamDb);
 }
 
 // trigger part
 void setCreateStreamTriggerType(SCMCreateStreamReq *expect, int8_t triggerType) {
+  if (expect->triggerType != triggerType) {
+    resetCreateStreamTriggerPayload(expect);
+  }
   expect->triggerType = triggerType;
 }
 
@@ -603,8 +660,8 @@ void setCreateStreamTriggerTblVgid(SCMCreateStreamReq *expect, int8_t triggerTbl
 }
 
 void setCreateStreamTriggerName(SCMCreateStreamReq *expect, const char* pTriggerDb, const char* pTriggerTblName) {
-  expect->triggerDB = taosStrdup(pTriggerDb);
-  expect->triggerTblName = taosStrdup(pTriggerTblName);
+  setCreateStreamString(&expect->triggerDB, pTriggerDb);
+  setCreateStreamString(&expect->triggerTblName, pTriggerTblName);
 }
 
 void setCreateStreamTriggerTable(SCMCreateStreamReq *expect, const char* pTriggerDb, const char* pTriggerTblName,
@@ -619,8 +676,8 @@ void setCreateStreamTriggerTable(SCMCreateStreamReq *expect, const char* pTrigge
 
 // out table part
 void setCreateStreamOutName(SCMCreateStreamReq *expect, const char* pOutDb, const char* pOutTbleName) {
-   expect->outDB = taosStrdup(pOutDb);
-   expect->outTblName = taosStrdup(pOutTbleName);
+  setCreateStreamString(&expect->outDB, pOutDb);
+  setCreateStreamString(&expect->outTblName, pOutTbleName);
 }
 
 void setCreateStreamOutTblType(SCMCreateStreamReq *expect, int8_t outTblType) {
@@ -702,10 +759,11 @@ void setCreateStreamQueryCalcPlan(SCMCreateStreamReq *expect, const char* pStrea
 }
 
 void setCreateStreamSubTblNameExpr(SCMCreateStreamReq *expect, const char* pSubTblNameExpr) {
-  expect->subTblNameExpr = taosStrdup(pSubTblNameExpr);
+  setCreateStreamString((char**)&expect->subTblNameExpr, pSubTblNameExpr);
 }
 
 void resetCreateStreamSubTblNameExpr(SCMCreateStreamReq *expect) {
+  taosMemoryFreeClear(expect->subTblNameExpr);
   expect->subTblNameExpr = nullptr;
 }
 
@@ -717,6 +775,7 @@ void setCreateStreamTagValueExpr(SCMCreateStreamReq *expect, const char* pTagVal
 }
 
 void resetCreateStreamTagValueExpr(SCMCreateStreamReq *expect) {
+  taosMemoryFreeClear(expect->tagValueExpr);
   expect->tagValueExpr = nullptr;
 }
 
@@ -857,15 +916,10 @@ void resetCreateStreamOutTags(SCMCreateStreamReq *expect) {
 }
 
 void setCreateStreamTriggerCols(SCMCreateStreamReq *expect, const char* pCols) {
-  expect->triggerCols = taosStrdup(pCols);
+  setCreateStreamString((char**)&expect->triggerCols, pCols);
 }
 
-void resetCreateStreamTriggerCols(SCMCreateStreamReq *expect) {
-  if (expect->triggerCols) {
-    taosMemoryFree(expect->triggerCols);
-    expect->triggerCols = nullptr;
-  }
-}
+void resetCreateStreamTriggerCols(SCMCreateStreamReq* expect) { taosMemoryFreeClear(expect->triggerCols); }
 
 void resetCreateStreamPartitionCols(SCMCreateStreamReq *expect) {
   if (expect->partitionCols != nullptr) {
@@ -914,8 +968,8 @@ void setCreateStreamTriggerCount(SCMCreateStreamReq* expect, int64_t countVal, i
 }
 
 void setCreateStreamTriggerEvent(SCMCreateStreamReq *expect, const char* startCond, const char* endCond, int64_t trueForDuration) {
-  expect->trigger.event.startCond = taosStrdup(startCond);
-  expect->trigger.event.endCond = taosStrdup(endCond);
+  setCreateStreamString((char**)&expect->trigger.event.startCond, startCond);
+  setCreateStreamString((char**)&expect->trigger.event.endCond, endCond);
   expect->trigger.event.trueForDuration = trueForDuration;
 }
 
@@ -2572,6 +2626,44 @@ TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinAggSubqueries) {
       "join "
       "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
       "on a.ts = b.ts");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinExprSubqueryDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 "
+      "into stream_outdb.stream_out as select a.ts, a.cnt, b.minv from "
+      "(select _twstart ts, count(*) cnt from stream_querydb.stream_t1 "
+      "where ts >= _twstart and ts < _twend "
+      "and 0 <= (select count(*) from stream_querydb.stream_t1 where ts >= _twstart and ts < _twend)) a "
+      "join "
+      "(select _twstart ts, min(c1) minv from stream_querydb.stream_t2 where ts >= _twstart and ts < _twend) b "
+      "on a.ts = b.ts");
+}
+
+TEST_F(ParserStreamTest, TestStreamExternalWindowJoinWithNestedExprSubqueryDisabled) {
+  setAsyncFlag("-1");
+  useDb("root", "stream_streamdb");
+
+  setCheckDdlFunc(
+      [&](const SQuery* pQuery, ParserStage stage) { pstCheckCalcAndScanPlanExternalWindowCount(pQuery, stage, 0); });
+
+  run("create stream stream_streamdb.s1 count_window(2, 1) from stream_triggerdb.st1 "
+      "partition by tbname, tag1 into stream_outdb.stream_out as select a.ts, a.curr_c1, b.c2, c.c1 from "
+      "(select _twend ts, last(c1) curr_c1, first(c1) prev_c1 from %%tbname "
+      "where ts >= _twstart and ts <= _twend "
+      "and ts >= (select min(ts) from %%tbname where c1 <> 0 and ts <= _twstart "
+      "and c1 = (select last(c1) from %%tbname where ts >= _twstart and ts <= _twend))) a "
+      "join "
+      "(select _twend ts, tag1, c2 from stream_querydb.st1 where tag1 = %%2) b "
+      "on a.ts = b.ts "
+      "join "
+      "(select _twend ts, c1 from stream_querydb.stream_t2 where c1 >= 0) c "
+      "on b.ts = c.ts");
 }
 
 TEST_F(ParserStreamTest, TestStreamExternalWindowInnerJoinAggSubqueriesByTwend) {
