@@ -1719,8 +1719,8 @@ static int32_t buildResult(SSDataBlock *pBlock, int32_t *numOfRows, int64_t cons
     MND_TMQ_RETURN_CHECK(colDataSetVal(pColInfo, *numOfRows, (const char *)pVgId, false));
 
     // consumer id
-    char consumerIdHex[TSDB_CONSUMER_ID_LEN] = {0};
-    (void)snprintf(varDataVal(consumerIdHex), TSDB_CONSUMER_ID_LEN - VARSTR_HEADER_SIZE, "0x%" PRIx64, consumerId);
+    char consumerIdHex[TSDB_CONSUMER_ID_LEN + VARSTR_HEADER_SIZE] = {0};
+    (void)snprintf(varDataVal(consumerIdHex), TSDB_CONSUMER_ID_LEN, "0x%" PRIx64, consumerId);
     varDataSetLen(consumerIdHex, strlen(varDataVal(consumerIdHex)));
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -1796,9 +1796,6 @@ static int32_t retrieveSub(SRpcMsg *pReq, SMqSubscribeObj *pSub, SUserObj *pOper
   PRINT_LOG_START
 
   taosRLockLatch(&pSub->lock);
-  if (*numOfRows + pSub->vgNum > rowsCapacity) {
-    MND_TMQ_RETURN_CHECK(blockDataEnsureCapacity(pBlock, *numOfRows + pSub->vgNum));
-  }
 
   // topic and cgroup
   char topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -1842,10 +1839,18 @@ static int32_t retrieveSub(SRpcMsg *pReq, SMqSubscribeObj *pSub, SUserObj *pOper
     if (!showAll && !showTopic && !subscribeOwner) {
       continue;
     }
+    int32_t vgNum = taosArrayGetSize(pConsumerEp->vgs);
+    if (*numOfRows + vgNum > rowsCapacity) {
+       MND_TMQ_RETURN_CHECK(blockDataEnsureCapacity(pBlock, *numOfRows + vgNum));
+    }
     MND_TMQ_RETURN_CHECK(buildResult(pBlock, numOfRows, pConsumerEp->consumerId, user, fqdn, topic, cgroup,
                                      pConsumerEp->vgs, pConsumerEp->offsetRows));
   }
 
+  int32_t unassignedVgNum = taosArrayGetSize(pSub->unassignedVgs);
+  if (*numOfRows + unassignedVgNum > rowsCapacity) {
+     MND_TMQ_RETURN_CHECK(blockDataEnsureCapacity(pBlock, *numOfRows + unassignedVgNum));
+  }
   MND_TMQ_RETURN_CHECK(
       buildResult(pBlock, numOfRows, -1, NULL, NULL, topic, cgroup, pSub->unassignedVgs, pSub->offsetRows));
 
