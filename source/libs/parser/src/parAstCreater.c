@@ -1145,6 +1145,7 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
     // check format: ^[0-9]+[smwbauhdny]$'
     if (pLiteral->n < 4) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pLiteral->z);
+      nodesDestroyNode((SNode*)val);
       return NULL;
     }
     char unit = pLiteral->z[pLiteral->n - 2];
@@ -1162,11 +1163,13 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
         break;
       default:
         pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pLiteral->z);
+        nodesDestroyNode((SNode*)val);
         return NULL;
     }
     for (uint32_t i = 1; i < pLiteral->n - 2; ++i) {
       if (!isdigit(pLiteral->z[i])) {
         pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, pLiteral->z);
+        nodesDestroyNode((SNode*)val);
         return NULL;
       }
     }
@@ -4393,8 +4396,11 @@ SNode* createAlterTableAddModifyColOptions2(SAstCreateContext* pCxt, SNode* pRea
   }
   return createAlterTableStmtFinalize(pCxt, pRealTable, pStmt);
 _err:
-  nodesDestroyNode(pOptions);
-  nodesDestroyNode((SNode*)pStmt);
+  if (NULL == pStmt) {
+    nodesDestroyNode(pOptions);
+  } else {
+    nodesDestroyNode((SNode*)pStmt);
+  }
   nodesDestroyNode(pRealTable);
   return NULL;
 }

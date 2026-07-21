@@ -154,6 +154,8 @@ int32_t tsNumOfStreamMgmtThreads = 2;
 int32_t tsNumOfVnodeStreamReaderThreads = 16;
 int32_t tsNumOfStreamTriggerThreads = 4;
 int32_t tsNumOfStreamRunnerThreads = 4;
+int32_t tsNumOfStreamRunnerDeploys = 3;
+int32_t tsNumOfStreamRunnerReplicas = 5;
 
 int32_t tsNumOfCompactThreads = 2;
 int32_t tsNumOfRetentionThreads = 1;
@@ -1098,6 +1100,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfVnodeStreamReaderThreads", tsNumOfVnodeStreamReaderThreads, 2, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfStreamTriggerThreads", tsNumOfStreamTriggerThreads, 4, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfStreamRunnerThreads", tsNumOfStreamRunnerThreads, 4, INT32_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfStreamRunnerDeploys", tsNumOfStreamRunnerDeploys, 1, 64, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfStreamRunnerReplicas", tsNumOfStreamRunnerReplicas, 1, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "rpcQueueMemoryAllowed", tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * RPC_MEMORY_USAGE_RATIO * 10L, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncElectInterval", tsElectInterval, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncHeartbeatInterval", tsHeartbeatInterval, 10, 1000 * 60 * 24 * 2, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -2366,6 +2370,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfStreamRunnerThreads");
   tsNumOfStreamRunnerThreads = pItem->i32;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfStreamRunnerDeploys");
+  atomic_store_32(&tsNumOfStreamRunnerDeploys, pItem->i32);
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "numOfStreamRunnerReplicas");
+  atomic_store_32(&tsNumOfStreamRunnerReplicas, pItem->i32);
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "filterScalarMode");
   tsFilterScalarMode = pItem->bval;
 
@@ -3130,6 +3140,20 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
   if (!pItem || (pItem->dynScope == CFG_DYN_CLIENT)) {
     uError("failed to config:%s, not support", name);
     code = TSDB_CODE_INVALID_CFG;
+    goto _exit;
+  }
+
+  int32_t *pAtomicVar = NULL;
+  if (strcasecmp(name, "numOfStreamRunnerDeploys") == 0) {
+    pAtomicVar = &tsNumOfStreamRunnerDeploys;
+  } else if (strcasecmp(name, "numOfStreamRunnerReplicas") == 0) {
+    pAtomicVar = &tsNumOfStreamRunnerReplicas;
+  }
+
+  if (NULL != pAtomicVar) {
+    int32_t oldValue = atomic_load_32(pAtomicVar);
+    uInfo("%s set from %d to %d", name, oldValue, pItem->i32);
+    atomic_store_32(pAtomicVar, pItem->i32);
     goto _exit;
   }
 
