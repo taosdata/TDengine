@@ -64,6 +64,7 @@ extern void    filterSetExecContext(SFilterInfo *info, void* pTaskInfo, sclIsTas
 extern void    filterFreeInfo(SFilterInfo *info);
 extern int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows,
                                   bool *keep);
+extern bool    filterBlockSmaOnlyUsesNumOfNull(const SFilterInfo *info);
 
 /* condition split interface */
 int32_t filterPartitionCond(SNode **pCondition, SNode **pPrimaryKeyCond, SNode **pTagIndexCond, SNode **pTagCond,

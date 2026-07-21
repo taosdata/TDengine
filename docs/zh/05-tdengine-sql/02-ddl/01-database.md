@@ -151,7 +151,7 @@ Note：CacheModel 值来回切换有可能导致 last/last_row 的查询结果�
 - 仅企业版支持[多级存储](../../12-operations-and-tooling/02-operations/01-planning.md#多级存储)功能，因此，可以设置多个保存时间（多个以英文逗号分隔，最多 3 个，满足 keep 0 \<= keep 1 \<= keep 2，如 KEEP 100h,100d,3650d）；
 - 社区版不支持多级存储功能（即使配置了多个保存时间，也不会生效，KEEP 会取最大的保存时间）；
 
-了解更多，请点击 [关于主键时间戳 (../03-data-write/01-insert.md)。
+了解更多，请点击 [关于主键时间戳](../03-data-write/01-insert.md)。
 
 #### KEEP_TIME_OFFSET
 

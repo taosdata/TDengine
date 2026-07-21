@@ -137,6 +137,54 @@ void mstFreeTrigOReaderList(void* param) {
   taosArrayDestroyEx(*ppList, mstDestroySStmTaskStatus);
 }
 
+int32_t mstRestoreRunnerDeploy(SStmStatus* pStatus, int32_t deployId) {
+  if (NULL == pStatus || pStatus->runnerNum <= 0 || deployId < 0 || deployId >= MND_STREAM_RUNNER_DEPLOY_NUM) {
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+
+  if (NULL == pStatus->runners[deployId]) {
+    pStatus->runners[deployId] = taosArrayInit(pStatus->runnerNum, sizeof(SStmTaskStatus));
+    if (NULL == pStatus->runners[deployId]) {
+      return terrno;
+    }
+  }
+
+  pStatus->runnerDeploys = TMAX(pStatus->runnerDeploys, deployId + 1);
+  atomic_store_32(&pStatus->runnerReplica, MND_STREAM_RUNNER_REPLICA_UNKNOWN);
+  return TSDB_CODE_SUCCESS;
+}
+
+bool mstRunnerSnapshotUnknown(const SStmStatus* pStatus) {
+  return NULL != pStatus && pStatus->runnerNum > 0 &&
+         MND_STREAM_RUNNER_REPLICA_UNKNOWN == atomic_load_32((int32_t*)&pStatus->runnerReplica);
+}
+
+bool mstTaskDeployNeedsRunnerSnapshot(const SStmStatus* pStatus, const SStmTaskAction* pAction) {
+  if (!mstRunnerSnapshotUnknown(pStatus) || NULL == pAction) {
+    return false;
+  }
+
+  return STREAM_RUNNER_TASK == pAction->type ||
+         (STREAM_READER_TASK == pAction->type && !STREAM_IS_TRIGGER_READER(pAction->flag));
+}
+
+EStmRunnerSnapshotClaim mstClaimRunnerSnapshotRedeploy(SStmStatus* pStatus) {
+  if (!mstRunnerSnapshotUnknown(pStatus)) {
+    return MST_RUNNER_SNAPSHOT_CLAIM_KNOWN;
+  }
+
+  if (0 != atomic_val_compare_exchange_8(&pStatus->runnerSnapshotRedeployPending, 0, 1)) {
+    return MST_RUNNER_SNAPSHOT_CLAIM_ALREADY_PENDING;
+  }
+
+  if (!mstRunnerSnapshotUnknown(pStatus)) {
+    atomic_store_8(&pStatus->runnerSnapshotRedeployPending, 0);
+    return MST_RUNNER_SNAPSHOT_CLAIM_KNOWN;
+  }
+
+  return MST_RUNNER_SNAPSHOT_CLAIM_ACQUIRED;
+}
+
 void mstResetSStmStatus(SStmStatus* pStatus) {
   (void)mstWaitLock(&pStatus->resetLock, false);
 
@@ -358,12 +406,14 @@ char* mstGetStreamActionString(int32_t action) {
   return "UNKNOWN";
 }
 
-void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, void* param, bool userAction, int32_t action) {
-  SStmQNode *pNode = taosMemoryMalloc(sizeof(SStmQNode));
+static int32_t mstPostStreamActionImpl(SStmActionQ* actionQ, int64_t streamId, char* streamName, void* param,
+                                       bool userAction, int32_t action, bool runnerSnapshotRedeployOwner) {
+  SStmQNode* pNode = taosMemoryMalloc(sizeof(SStmQNode));
   if (NULL == pNode) {
+    int32_t code = terrno;
     taosMemoryFreeClear(param);
-    mstsError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(terrno));
-    return;
+    mstsError("%s failed at line %d, error:%s", __FUNCTION__, __LINE__, tstrerror(code));
+    return code;
   }
 
   pNode->type = action;
@@ -371,13 +421,36 @@ void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* str
   pNode->action.stream.streamId = streamId;
   tstrncpy(pNode->action.stream.streamName, streamName, sizeof(pNode->action.stream.streamName));
   pNode->action.stream.userAction = userAction;
+  pNode->action.stream.runnerSnapshotRedeployOwner = runnerSnapshotRedeployOwner;
   pNode->action.stream.actionParam = param;
-  
+
   pNode->next = NULL;
 
   mndStreamActionEnqueue(actionQ, pNode);
 
   mstsDebug("stream action %s posted enqueue", mstGetStreamActionString(action));
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mstPostStreamAction(SStmActionQ* actionQ, int64_t streamId, char* streamName, void* param, bool userAction,
+                            int32_t action) {
+  return mstPostStreamActionImpl(actionQ, streamId, streamName, param, userAction, action, false);
+}
+
+int32_t mstPostRunnerSnapshotRedeploy(SStmActionQ* actionQ, int64_t streamId, SStmStatus* pStatus) {
+  if (NULL == actionQ || NULL == pStatus || NULL == pStatus->streamName) {
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+
+  if (MST_RUNNER_SNAPSHOT_CLAIM_ACQUIRED != mstClaimRunnerSnapshotRedeploy(pStatus)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = mstPostStreamActionImpl(actionQ, streamId, pStatus->streamName, NULL, false, STREAM_ACT_DEPLOY, true);
+  if (code) {
+    atomic_store_8(&pStatus->runnerSnapshotRedeployPending, 0);
+  }
+  return code;
 }
 
 void mstPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action) {
@@ -720,9 +793,9 @@ void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
 
   mstsDebug("%s: stream status", tips);
   mstsDebug("name:%s runnerNum:%d runnerDeploys:%d runnerReplica:%d lastActionTs:%" PRId64
-           " trigReaders:%d trigOReaders:%d calcReaders:%d trigger:%d runners:%d",
-      p->streamName, p->runnerNum, p->runnerDeploys, p->runnerReplica, p->lastActionTs,
-      trigReaderNum, trigOReaderNum, calcReaderNum, triggerNum, runnerNum);
+            " trigReaders:%d trigOReaders:%d calcReaders:%d trigger:%d runners:%d",
+            p->streamName, p->runnerNum, p->runnerDeploys, atomic_load_32(&p->runnerReplica), p->lastActionTs,
+            trigReaderNum, trigOReaderNum, calcReaderNum, triggerNum, runnerNum);
 
   SStmTaskStatus* pTask = NULL;
   for (int32_t i = 0; i < trigReaderNum; ++i) {

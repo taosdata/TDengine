@@ -14,6 +14,10 @@ class TestMnodeBasic5:
         2. Create mnodes on a dnode that already has an mnode - expected to fail
         3. Use invalid mnode creation or deletion syntax
         4. Check the status of the dnode
+        5. Scale a 3-mnode cluster down to a single mnode on dnode 3 and restart
+           it: the cluster must still have exactly one mnode (id 3) and it stays
+           leader, i.e. no extra default mnode is re-created on restart
+           (ensure-default gate regression guard).
 
         Catalog:
             - ManageNodes:Mnode
@@ -131,3 +135,89 @@ class TestMnodeBasic5:
         tdSql.execute(f"create mnode on dnode 1")
         clusterComCheck.checkMnodeStatus(3)
         clusterComCheck.checkDnodes(4)
+
+        tdLog.info(f"=============== stepb: scale down to lone mnode on dnode 3")
+        # 3 mnodes now live on dnode 1/2/3. We want a lone mnode on dnode 3.
+        # The server refuses to drop the leader mnode outright (it never triggers
+        # re-election), and once only 2 mnodes remain one of them is always the
+        # leader with no quorum to re-elect the survivor alone. So first make
+        # dnode 3 the leader while all 3 mnodes are still up (quorum is preserved
+        # across a restart), then drop dnodes 1 and 2, which are followers and
+        # drop cleanly while dnode 3 keeps leadership.
+        self._make_mnode_leader(3)
+        for drop_dnode in (1, 2):
+            self._drop_mnode_until_gone(drop_dnode)
+        clusterComCheck.checkMnodeStatus(1)
+
+        tdSql.query(f"select id, `role` from information_schema.ins_mnodes")
+        tdSql.checkRows(1)
+        assert tdSql.queryResult[0][0] == 3, (
+            f"lone mnode id must be 3, got {tdSql.queryResult[0][0]}"
+        )
+
+        tdLog.info(f"=============== stepc: restart lone mnode, must stay 1 mnode")
+        # Regression guard for the ensure-default gate. After scaling down, the
+        # only mnode lives on dnode 3 and its metadata is already complete, so
+        # restarting it must leave the cluster with exactly one mnode (id 3),
+        # still the leader. The bug: ensure-default wrongly ran on restart and
+        # re-created the default mnode with the hard-coded id 1, so the cluster
+        # ended up with an extra, unexpected mnode and two nodes each believing
+        # they were leader. The gate now also requires selfDnodeId <= 1, which
+        # is false on dnode 3, so ensure-default no longer runs here.
+        sc.dnodeStop(3)
+        sc.dnodeStart(3)
+        clusterComCheck.checkDnodes(4)
+        clusterComCheck.checkClusterAlive(1)
+        clusterComCheck.checkMnodeStatus(1)
+
+        tdSql.query(f"select id, `role` from information_schema.ins_mnodes")
+        tdSql.checkRows(1)
+        assert tdSql.queryResult[0][0] == 3, (
+            "after restart there must still be exactly one mnode, on dnode 3. "
+            f"An unexpected mnode id {tdSql.queryResult[0][0]} means "
+            "ensure-default wrongly re-created a default mnode."
+        )
+        assert tdSql.queryResult[0][1] == "leader", (
+            f"the only mnode (dnode 3) must be leader, got '{tdSql.queryResult[0][1]}'"
+        )
+
+    def _mnode_leader(self):
+        """Return the dnode id of the current mnode leader, or None."""
+        tdSql.query(f"select id, `role` from information_schema.ins_mnodes")
+        for row in tdSql.queryResult:
+            if row[1] == "leader":
+                return row[0]
+        return None
+
+    def _make_mnode_leader(self, dnode_id, timeout=60):
+        """Force the mnode on dnode_id to become leader by restarting whichever
+        other node currently holds leadership. With 3 mnodes up, quorum survives
+        the restart and the group re-elects; repeat until dnode_id wins."""
+        for _ in range(timeout):
+            leader = self._mnode_leader()
+            if leader == dnode_id:
+                tdLog.info(f"mnode on dnode {dnode_id} is leader")
+                return
+            if leader is not None:
+                tdLog.info(f"leader is dnode {leader}, restart it to re-elect")
+                sc.dnodeStop(leader)
+                sc.dnodeStart(leader)
+                clusterComCheck.checkDnodes(4)
+                clusterComCheck.checkMnodeStatus(3)
+            time.sleep(1)
+        assert False, f"mnode on dnode {dnode_id} did not become leader in {timeout}s"
+
+    def _drop_mnode_until_gone(self, dnode_id, timeout=30):
+        """Drop the (follower) mnode on dnode_id, tolerating transient retries."""
+        for _ in range(timeout):
+            tdSql.query(f"select id from information_schema.ins_mnodes")
+            ids = [row[0] for row in tdSql.queryResult]
+            if dnode_id not in ids:
+                tdLog.info(f"mnode on dnode {dnode_id} dropped")
+                return
+            try:
+                tdSql.execute(f"drop mnode on dnode {dnode_id}")
+            except Exception as e:
+                tdLog.info(f"drop mnode on dnode {dnode_id} retry: {e}")
+            time.sleep(1)
+        assert False, f"failed to drop mnode on dnode {dnode_id} within {timeout}s"

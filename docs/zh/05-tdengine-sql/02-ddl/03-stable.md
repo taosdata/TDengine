@@ -36,8 +36,8 @@ table_option: {
     - TAGS 列名不能与其他列名相同。
     - TAGS 列名不能为预留关键字。
     - TAGS 最多允许 128 个，至少 1 个，总长度不超过 16 KB。
-5. 关于 `ENCODE` 和 `COMPRESS` 的使用，请参考 [按列压缩 (../03-data-write/03-compress.md)
-6. 关于 table_option 中的参数说明，请参考 [建表 SQL 说明 (./03-table.md)
+5. 关于 `ENCODE` 和 `COMPRESS` 的使用，请参考 [按列压缩](../03-data-write/03-compress.md)
+6. 关于 table_option 中的参数说明，请参考 [建表 SQL 说明](./02-table.md)
 7. 关于 table_option 中的 keep 参数，仅对超级表生效，keep 参数的详细说明可以参考 [数据库说明](01-database.md)，但是超级表的 keep 参数与 db 的 keep 参数有以下不同：
     - 超级表 keep 参数不会立即影响查询结果，只有在 compact 完成后，数据才会被清理，并对查询不可见。
     - 超级表的 keep 参数需小于数据库的 keep 参数。

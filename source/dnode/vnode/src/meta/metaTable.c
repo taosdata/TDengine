@@ -511,7 +511,11 @@ static int32_t metaDropTables(SMeta *pMeta, SArray *tbUids) {
     int8_t   sysTbl = 0;
     int      type;
     code = metaDropTableByUid(pMeta, uid, &type, &suid, &sysTbl);
-    if (code) return code;
+    if (code) {
+      metaULock(pMeta);
+      tSimpleHashCleanup(suidHash);
+      return code;
+    }
     if (!sysTbl && type == TSDB_CHILD_TABLE && suid != 0 && suidHash) {
       int64_t *pVal = tSimpleHashGet(suidHash, &suid, sizeof(tb_uid_t));
       if (pVal) {
@@ -520,7 +524,11 @@ static int32_t metaDropTables(SMeta *pMeta, SArray *tbUids) {
         nCtbDropped = 1;
       }
       code = tSimpleHashPut(suidHash, &suid, sizeof(tb_uid_t), &nCtbDropped, sizeof(int64_t));
-      if (code) return code;
+      if (code) {
+        metaULock(pMeta);
+        tSimpleHashCleanup(suidHash);
+        return code;
+      }
     }
     /*
     if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {

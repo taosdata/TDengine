@@ -37,8 +37,10 @@ class TestStreamParametersCheckDefault:
         3. numOfStreamTriggerThreads
         4. streamBufferSize
         5. numOfStreamRunnerThreads
-        6. streamNotifyMessageSize
-        7. streamNotifyFrameSize
+        6. numOfStreamRunnerDeploys
+        7. numOfStreamRunnerReplicas
+        8. streamNotifyMessageSize
+        9. streamNotifyFrameSize
 
         Catalog:
             - Streams:Snode
@@ -61,6 +63,7 @@ class TestStreamParametersCheckDefault:
         self.checknumOfVnodeStreamReaderThreads()
         self.checknumOfStreamTriggerThreads()
         self.checknumOfStreamRunnerThreads()
+        self.checkStreamRunnerParallelism(3, 5)
         self.checkstreamBufferSize()
         self.checkstreamNotifyMessageSize()
         self.checkstreamNotifyFrameSize()
@@ -149,6 +152,17 @@ class TestStreamParametersCheckDefault:
                     f"Error: numOfStreamRunnerThreads is {result}, expected at least 4 threads!"
                 )
         tdLog.info(f"numOfStreamRunnerThreads is {result}, test passed!")
+
+    def checkStreamRunnerParallelism(self, deploys, replicas):
+        for name, expected in (
+            ("numOfStreamRunnerDeploys", deploys),
+            ("numOfStreamRunnerReplicas", replicas),
+        ):
+            tdLog.info(f"check {name}")
+            tdSql.query(f"show dnode 1 variables like '{name}';")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, name)
+            tdSql.checkData(0, 2, str(expected))
 
     def checkstreamBufferSize(self):
         tdLog.info(f"check streamBufferSize")

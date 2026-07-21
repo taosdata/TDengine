@@ -4513,6 +4513,26 @@ int64_t offsetFromTz(char *timezoneStr, int64_t factor) {
   return seconds * factor;
 }
 
+static bool isBareOffsetTimezone(const char *timezoneStr) {
+  if (timezoneStr == NULL) {
+    return false;
+  }
+
+  int32_t len = (int32_t)strlen(timezoneStr);
+  if (len != 5 || (timezoneStr[0] != '+' && timezoneStr[0] != '-')) {
+    return false;
+  }
+
+  return isdigit((unsigned char)timezoneStr[1]) && isdigit((unsigned char)timezoneStr[2]) &&
+         isdigit((unsigned char)timezoneStr[3]) && isdigit((unsigned char)timezoneStr[4]);
+}
+
+static int64_t offsetFromTimezoneLiteral(const char *timezoneStr, int64_t factor) {
+  char buf[TD_TIMEZONE_LEN] = {0};
+  tstrncpy(buf, timezoneStr, sizeof(buf));
+  return offsetFromTz(buf, factor);
+}
+
 static int32_t offsetFromTimezoneHandle(timezone_t tz, int64_t timeVal, int32_t timePrec, int64_t *pOffset) {
   int64_t factor = TSDB_TICK_PER_SECOND(timePrec);
   int64_t tSec = timeVal / factor;
@@ -4644,6 +4664,8 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   bool       useCurrentTz = true;
   char       timezoneStr[TD_TIMEZONE_LEN] = {0};
   bool       hasStringTz = false;
+  bool       hasFixedOffsetTz = false;
+  int64_t    fixedOffset = 0;
   timezone_t explicitTz = NULL;
   timezone_t fallbackTz = NULL;
 
@@ -4680,17 +4702,19 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
   }
 
   /*
-   * If the timezone is an IANA name (contains '/'), 'UTC', or a
-   * fixed-offset string (+0800 / -0530), create a timezone handle so that
-   * calendar-aware truncation (week/day/month/year) uses taosLocalTime +
-   * taosMktime for correct local-midnight alignment.
+   * Resolve explicit timezone strings before row evaluation. IANA/UTC/GMT
+   * names use a timezone handle; bare offsets (+0800 / -0530) use fixed
+   * offset arithmetic.
    *
    * Skip when user explicitly set use_current_timezone=0,
    * which means truncate by UTC epoch.
    */
-  if (useCurrentTz && (strchr(timezoneStr, '/') != NULL ||
-                       strncmp(timezoneStr, "UTC", 3) == 0 ||
-                       timezoneStr[0] == '+' || timezoneStr[0] == '-')) {
+  if (useCurrentTz && isBareOffsetTimezone(timezoneStr)) {
+    hasFixedOffsetTz = true;
+    fixedOffset = offsetFromTimezoneLiteral(timezoneStr, TSDB_TICK_PER_SECOND(timePrec));
+  } else if (useCurrentTz && (strchr(timezoneStr, '/') != NULL ||
+                              strncmp(timezoneStr, "UTC", 3) == 0 ||
+                              strncmp(timezoneStr, "GMT", 3) == 0)) {
     int32_t tzCode = taosValidateTimezone(timezoneStr, &explicitTz);
     if (tzCode == TSDB_CODE_SUCCESS) {
       hasStringTz = true;
@@ -4736,6 +4760,19 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
         colDataSetNULL(pOutput->columnData, i);
         continue;
       }
+    } else if (hasFixedOffsetTz && seconds == 604800) {
+      int64_t weekShift = ((int64_t)fdow - 4) * 86400LL * TSDB_TICK_PER_SECOND(timePrec);
+      int64_t rem = (timeVal + fixedOffset - weekShift) % timeUnit;
+      if (rem < 0) {
+        rem += timeUnit;
+      }
+      timeVal -= rem;
+    } else if (hasFixedOffsetTz) {
+      int64_t rem = (timeVal + fixedOffset) % timeUnit;
+      if (rem < 0) {
+        rem += timeUnit;
+      }
+      timeVal -= rem;
     } else if (hasStringTz && seconds == 604800) {
       if (!truncateWeekUnit(&timeVal, timePrec, fdow, explicitTz)) {
         colDataSetNULL(pOutput->columnData, i);
@@ -4768,7 +4805,9 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
          * keep fixed-offset alignment but honor firstDayOfWeek instead of
          * implicit epoch-Thursday alignment.
          */
-        int64_t tzOffset = offsetFromTz(timezoneStr, TSDB_TICK_PER_SECOND(timePrec));
+        char tzOffsetStr[TD_TIMEZONE_LEN] = {0};
+        tstrncpy(tzOffsetStr, timezoneStr, sizeof(tzOffsetStr));
+        int64_t tzOffset = offsetFromTz(tzOffsetStr, TSDB_TICK_PER_SECOND(timePrec));
         int64_t weekShift = ((int64_t)fdow - 4) * 86400LL * TSDB_TICK_PER_SECOND(timePrec);
         int64_t rem = (timeVal + tzOffset - weekShift) % timeUnit;
         if (rem < 0) {
@@ -4777,7 +4816,17 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
         timeVal -= rem;
       }
     } else if (useCurrentTz && seconds == 86400) {
-      timeVal = timeVal - (timeVal + offsetFromTz(timezoneStr, TSDB_TICK_PER_SECOND(timePrec))) % timeUnit;
+      timezone_t dayTz = pInput->tz;
+      if (dayTz != NULL) {
+        if (!truncateDayUnit(&timeVal, timePrec, dayTz)) {
+          colDataSetNULL(pOutput->columnData, i);
+          continue;
+        }
+      } else {
+        char tzOffsetStr[TD_TIMEZONE_LEN] = {0};
+        tstrncpy(tzOffsetStr, timezoneStr, sizeof(tzOffsetStr));
+        timeVal = timeVal - (timeVal + offsetFromTz(tzOffsetStr, TSDB_TICK_PER_SECOND(timePrec))) % timeUnit;
+      }
     } else if (seconds == 604800) {
       /* Week truncation without timezone: align to UTC week boundary honoring firstDayOfWeek.
        * Epoch (1970-01-01) is Thursday (wday=4); shift so that FDOW becomes the boundary. */

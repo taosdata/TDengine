@@ -697,10 +697,11 @@ bool mndStbHasChildren(SMnode *pMnode, SStbObj *pParent) {
     }
   }
 
-  // atomic store: caller may hold pParent->lock as read (e.g. mndBuildStbSchemaImp),
-  // so we must not try to acquire a write lock here. The transition is one-way
-  // (-1 → 0/1) and both concurrent storers compute the same value, so a plain
-  // atomic store is correct without holding the write lock.
+  // atomic store: callers must NOT hold pParent->lock when calling this function
+  // (it takes the sdb table lock via sdbFetch/sdbRelease, while sdb update callbacks
+  // take pParent->lock under the table lock — holding the latch here deadlocks).
+  // The transition is one-way (-1 → 0/1) and both concurrent storers compute the
+  // same value, so a plain atomic store is correct without holding the write lock.
   atomic_store_8(&pParent->hasChildren, found ? 1 : 0);
   return found;
 }
@@ -3172,6 +3173,14 @@ static int32_t mndSetAlterStbRedoActions2(SMnode *pMnode, STrans *pTrans, SDbObj
 
 static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, const char *tbName, STableMetaRsp *pRsp, bool refByStm) {
   int32_t code = 0;
+
+  // Compute hasInheritors BEFORE acquiring pStb->lock: mndStbHasChildren may do a full
+  // SDB_STB scan (sdbFetch/sdbRelease), which needs the sdb table lock. sdb update
+  // callbacks (mndStbActionUpdate) take pStb->lock while holding that same table lock,
+  // so calling it with the latch held here deadlocks (ABBA). mndStbHasChildren only
+  // reads uid/virtualStb/hasChildren, none of which require the latch.
+  pRsp->hasInheritors = (pMnode != NULL && pStb->virtualStb && mndStbHasChildren(pMnode, pStb)) ? 1 : 0;
+
   taosRLockLatch(&pStb->lock);
 
   int32_t totalCols = pStb->numOfColumns + pStb->numOfTags;
@@ -3206,7 +3215,6 @@ static int32_t mndBuildStbSchemaImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, 
   pRsp->isAudit = pDb->cfg.isAudit ? 1 : 0;
   pRsp->secLvl = pStb->securityLevel;
   pRsp->secureDelete = pStb->secureDelete;
-  pRsp->hasInheritors = (pMnode != NULL && pStb->virtualStb && mndStbHasChildren(pMnode, pStb)) ? 1 : 0;
 
   for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
     SSchema *pSchema = &pRsp->pSchemas[i];
@@ -3319,16 +3327,29 @@ static int32_t mndBuildStbCfgImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, con
   pRsp->numParents = pStb->numParents;
   pRsp->ownColStart = pStb->ownColStart;
   pRsp->ownTagStart = pStb->ownTagStart;
-  if (pStb->numParents > 0) {
+
+  // Copy parent suids, then resolve parent names AFTER releasing the latch: the
+  // scan takes the sdb table lock (sdbFetch/sdbRelease), and sdb update callbacks
+  // (mndStbActionUpdate) take pStb->lock while holding that same table lock, so
+  // scanning with the latch held here deadlocks (ABBA).
+  int8_t  numParents = pStb->numParents;
+  int64_t parentSuids[TSDB_MAX_VST_PARENTS];
+  if (numParents > 0) {
+    memcpy(parentSuids, pStb->parentSuids, sizeof(parentSuids));
+  }
+
+  taosRUnLockLatch(&pStb->lock);
+
+  if (numParents > 0) {
     SSdb *pSdb = pMnode->pSdb;
-    for (int8_t i = 0; i < pStb->numParents; ++i) {
+    for (int8_t i = 0; i < numParents; ++i) {
       pRsp->parentStbNames[i][0] = '\0';
       void    *pIter2 = NULL;
       SStbObj *pParent = NULL;
       while (1) {
         pIter2 = sdbFetch(pSdb, SDB_STB, pIter2, (void **)&pParent);
         if (pIter2 == NULL) break;
-        if (pParent->uid == pStb->parentSuids[i]) {
+        if (pParent->uid == parentSuids[i]) {
           mndExtractTbNameFromStbFullName(pParent->name, pRsp->parentStbNames[i], TSDB_TABLE_NAME_LEN);
           sdbRelease(pSdb, pParent);
           sdbCancelFetch(pSdb, pIter2);
@@ -3339,7 +3360,6 @@ static int32_t mndBuildStbCfgImp(SMnode *pMnode, SDbObj *pDb, SStbObj *pStb, con
     }
   }
 
-  taosRUnLockLatch(&pStb->lock);
   TAOS_RETURN(code);
 }
 

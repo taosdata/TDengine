@@ -280,6 +280,7 @@ TEST_F(ParserShowToUseTest, trimDatabase) {
     ASSERT_EQ(tDeserializeSTrimDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(std::string(req.db), std::string(expect.db));
     ASSERT_EQ(req.maxSpeed, expect.maxSpeed);
+    tFreeSTrimDbReq(&req);
   });
 
   setTrimDbReq("wxy_db");

@@ -1,12 +1,111 @@
+import platform
+
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 
 
 class TestJoinFull:
     updatecfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 143, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
-    clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 143, 'cDebugFlag': 131, 'rpcDebugFlag': 131}
+    clientCfgDict = {'debugFlag': 131, 'asyncLog': 1, 'qDebugFlag': 143, 'cDebugFlag': 131, 'rpcDebugFlag': 131, 'timezone': 'Asia/Shanghai'}
     updatecfgDict["clientCfg"] = clientCfgDict
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
+
+    def join_nested_timetruncate_timezone(self):
+        tdSql.prepare(dbname="test_join_tz", vgroups=3)
+        tdSql.execute(f"use test_join_tz;")
+        tdSql.query("show local variables like 'timezone'")
+        assert "Asia/Shanghai" in tdSql.queryResult[0][1]
+
+        tdSql.execute(f"create stable sta (ts timestamp, col1 int) tags(t1 int);")
+        tdSql.execute(f"create table tba1 using sta tags(1);")
+        tdSql.execute(f"create table tba2 using sta tags(2);")
+
+        tdSql.execute(f"insert into tba1 values ('2023-11-17 16:29:00', 1);")
+        tdSql.execute(f"insert into tba1 values ('2023-11-17 16:29:02', 3);")
+        tdSql.execute(f"insert into tba1 values ('2023-11-17 16:29:03', 4);")
+        tdSql.execute(f"insert into tba1 values ('2023-11-17 16:29:04', 5);")
+
+        tdSql.execute(f"insert into tba2 values ('2023-11-17 16:29:00', 2);")
+        tdSql.execute(f"insert into tba2 values ('2023-11-17 16:29:01', 3);")
+        tdSql.execute(f"insert into tba2 values ('2023-11-17 16:29:03', 5);")
+        tdSql.execute(f"insert into tba2 values ('2023-11-17 16:29:05', 7);")
+
+        tdSql.query(
+            f"select count(*) from (select ts from sta) a, (select ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 12)
+
+        tdSql.query(
+            f"select count(*) from (select timetruncate(ts, 1d) ts from sta) a, (select timetruncate(ts, 1d, '+0800') ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 64)
+
+        tdSql.query(
+            f"select count(*) from (select timetruncate(ts, 1d, '+0700') ts from sta) a, (select timetruncate(ts, 1d, '+0800') ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(
+            f"select count(*) from (select timetruncate(ts, 1d, '+0000') ts from sta) a, (select timetruncate(ts, 1d, '+0800') ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query(
+            f"select count(*) from (select timetruncate(ts, 1d, 0) ts from sta) a, (select timetruncate(ts, 1d, '+0000') ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 64)
+
+        tdSql.query(
+            f"select count(*) from (select timetruncate(ts, 1w) ts from sta) a, (select timetruncate(ts, 1w, '+0800') ts from sta) b where a.ts = b.ts;"
+        )
+        tdSql.checkData(0, 0, 64)
+
+        if platform.system().lower() != "windows":
+            tdSql.execute(f"create table dst(ts timestamp, case_id int);")
+            tdSql.execute(f"insert into dst values ('2023-07-01 12:00:00', 1);")
+            tdSql.execute(f"insert into dst values ('2023-01-01 12:00:00', 2);")
+
+            tdSql.query(
+                f"select count(*) from (select timetruncate(ts, 1d, 'America/New_York') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '-0400') ts from dst where case_id = 1) b where a.ts = b.ts;"
+            )
+            tdSql.checkData(0, 0, 1)
+
+            tdSql.query(
+                f"select count(*) from (select timetruncate(ts, 1d, 'America/New_York') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '-0500') ts from dst where case_id = 1) b where a.ts = b.ts;"
+            )
+            tdSql.checkData(0, 0, 0)
+
+            tdSql.query(
+                f"select count(*) from (select timetruncate(ts, 1d, 'America/New_York') ts from dst where case_id = 2) a, (select timetruncate(ts, 1d, '-0500') ts from dst where case_id = 2) b where a.ts = b.ts;"
+            )
+            tdSql.checkData(0, 0, 1)
+
+            tdSql.query(
+                f"select count(*) from (select timetruncate(ts, 1d, 'America/Chicago') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '-0500') ts from dst where case_id = 1) b where a.ts = b.ts;"
+            )
+            tdSql.checkData(0, 0, 1)
+
+            tdSql.query(
+                f"select count(*) from (select timetruncate(ts, 1d, 'Europe/London') ts from dst where case_id = 1) a, (select timetruncate(ts, 1d, '+0100') ts from dst where case_id = 1) b where a.ts = b.ts;"
+            )
+            tdSql.checkData(0, 0, 1)
+
+            tdSql.query(
+                f"select count(*) from (select timetruncate(ts, 1d, 'Europe/London') ts from dst where case_id = 2) a, (select timetruncate(ts, 1d, '+0000') ts from dst where case_id = 2) b where a.ts = b.ts;"
+            )
+            tdSql.checkData(0, 0, 1)
+
+        tdSql.query(
+            f"select a.ts from sta a ,(select TIMETRUNCATE(ts,1d,'+0800') ts from sta) b where timetruncate(a.ts, 1d) = b.ts;"
+        )
+        tdSql.checkRows(64)
+
+        tdSql.query(
+            f"select a.ts from sta a ,(select TIMETRUNCATE(ts,1w,'+0800') ts from sta) b where timetruncate(a.ts, 1w) = b.ts;"
+        )
+        tdSql.checkRows(64)
+
+        print("join_nested_timetruncate_timezone ......................... [ passed ]")
 
     def test_join_full(self):
         """Join mode
@@ -243,6 +342,28 @@ class TestJoinFull:
         self.join_boundary()
         self.join_explain()
         self.join_json()
+
+    def test_join_nested_timetruncate_timezone(self):
+        """Nested join with TIMETRUNCATE timezone offset
+
+        1. Verify raw timestamp self-join cardinality.
+        2. Verify session timezone Asia/Shanghai matches explicit +0800 for 1d TIMETRUNCATE.
+        3. Verify explicit +0700 and +0800 are different day boundaries.
+        4. Verify nested join keeps the same TIMETRUNCATE timezone semantics.
+
+        Catalog:
+            - Query:Join
+
+        Since: v3.4.1.6
+
+        Labels: common,ci
+        Jira: None
+
+        History:
+            - 2026-07-16 Simon Guan added TIMETRUNCATE timezone regression coverage
+
+        """
+        self.join_nested_timetruncate_timezone()
 
     def inner_join(self):
         tdSql.execute(f"use test0;")

@@ -162,6 +162,12 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   SSdbRaw *pRaw = NULL;
   STrans  *pTrans = NULL;
 
+  SDnodeObj *pExist = mndAcquireDnode(pMnode, 1);
+  if (pExist != NULL) {
+    mndReleaseDnode(pMnode, pExist);
+    TAOS_RETURN(0);
+  }
+
   SDnodeObj dnodeObj = {0};
   dnodeObj.id = 1;
   dnodeObj.createdTime = taosGetTimestampMs();

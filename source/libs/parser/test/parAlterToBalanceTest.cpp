@@ -672,6 +672,7 @@ TEST_F(ParserInitialATest, alterTable) {
         }
       }
 
+      destroyAlterTbReq(&req);
       tDecoderClear(&coder);
     });
 

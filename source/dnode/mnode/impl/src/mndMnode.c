@@ -84,8 +84,17 @@ void mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj) {
 
 static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   int32_t   code = 0;
+
+  SMnodeObj *pExist = mndAcquireMnode(pMnode, 1);
+  if (pExist != NULL) {
+    pMnode->selfDnodeId = pExist->id;
+    mndReleaseMnode(pMnode, pExist);
+    TAOS_RETURN(0);
+  }
+
   SMnodeObj mnodeObj = {0};
   mnodeObj.id = 1;
+  pMnode->selfDnodeId = mnodeObj.id;
   mnodeObj.createdTime = taosGetTimestampMs();
   mnodeObj.updateTime = mnodeObj.createdTime;
 
