@@ -43,24 +43,32 @@ static inline int32_t joinResolveTruncateParams(
   return TSDB_CODE_SUCCESS;
 }
 
-static inline bool joinIsBareOffsetTimezone(const char* tzStr) {
+static inline bool joinIsFixedOffsetTimezoneLiteral(const char* tzStr) {
   if (tzStr == NULL) {
     return false;
   }
 
-  int32_t len = (int32_t)strlen(tzStr);
-  if (len != 5 || (tzStr[0] != '+' && tzStr[0] != '-')) {
+  char buf[TD_TIMEZONE_LEN] = {0};
+  tstrncpy(buf, tzStr, sizeof(buf));
+
+  int64_t offset = 0;
+  if (offsetOfTimezone(buf, &offset) != TSDB_CODE_SUCCESS) {
     return false;
   }
 
-  return isdigit((unsigned char)tzStr[1]) && isdigit((unsigned char)tzStr[2]) &&
-         isdigit((unsigned char)tzStr[3]) && isdigit((unsigned char)tzStr[4]);
+  return true;
 }
 
 static inline int64_t joinOffsetFromTimezoneLiteral(const char* tzStr, int64_t factor) {
   char buf[TD_TIMEZONE_LEN] = {0};
   tstrncpy(buf, tzStr, sizeof(buf));
-  return offsetFromTz(buf, factor);
+
+  int64_t offsetSeconds = 0;
+  if (offsetOfTimezone(buf, &offsetSeconds) != TSDB_CODE_SUCCESS) {
+    return 0;
+  }
+
+  return offsetSeconds * factor;
 }
 
 static inline int32_t joinResolveTruncateTimezone(SValueNode* pCurrTz, SValueNode* pTimeZone, int64_t truncateUnit,
@@ -80,7 +88,7 @@ static inline int32_t joinResolveTruncateTimezone(SValueNode* pCurrTz, SValueNod
   char* tzStr = varDataVal(pTimeZone->datum.p);
   int64_t factor = TSDB_TICK_PER_SECOND(precision);
 
-  if (joinIsBareOffsetTimezone(tzStr)) {
+  if (joinIsFixedOffsetTimezoneLiteral(tzStr)) {
     *pTimezoneUnit = joinOffsetFromTimezoneLiteral(tzStr, factor);
     return TSDB_CODE_SUCCESS;
   }

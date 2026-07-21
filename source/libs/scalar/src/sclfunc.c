@@ -4513,24 +4513,32 @@ int64_t offsetFromTz(char *timezoneStr, int64_t factor) {
   return seconds * factor;
 }
 
-static bool isBareOffsetTimezone(const char *timezoneStr) {
+static bool isFixedOffsetTimezoneLiteral(const char *timezoneStr) {
   if (timezoneStr == NULL) {
     return false;
   }
 
-  int32_t len = (int32_t)strlen(timezoneStr);
-  if (len != 5 || (timezoneStr[0] != '+' && timezoneStr[0] != '-')) {
+  char buf[TD_TIMEZONE_LEN] = {0};
+  tstrncpy(buf, timezoneStr, sizeof(buf));
+
+  int64_t offset = 0;
+  if (offsetOfTimezone(buf, &offset) != TSDB_CODE_SUCCESS) {
     return false;
   }
 
-  return isdigit((unsigned char)timezoneStr[1]) && isdigit((unsigned char)timezoneStr[2]) &&
-         isdigit((unsigned char)timezoneStr[3]) && isdigit((unsigned char)timezoneStr[4]);
+  return true;
 }
 
 static int64_t offsetFromTimezoneLiteral(const char *timezoneStr, int64_t factor) {
   char buf[TD_TIMEZONE_LEN] = {0};
   tstrncpy(buf, timezoneStr, sizeof(buf));
-  return offsetFromTz(buf, factor);
+
+  int64_t offsetSeconds = 0;
+  if (offsetOfTimezone(buf, &offsetSeconds) != TSDB_CODE_SUCCESS) {
+    return 0;
+  }
+
+  return offsetSeconds * factor;
 }
 
 static int32_t offsetFromTimezoneHandle(timezone_t tz, int64_t timeVal, int32_t timePrec, int64_t *pOffset) {
@@ -4709,7 +4717,7 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
    * Skip when user explicitly set use_current_timezone=0,
    * which means truncate by UTC epoch.
    */
-  if (useCurrentTz && isBareOffsetTimezone(timezoneStr)) {
+  if (useCurrentTz && isFixedOffsetTimezoneLiteral(timezoneStr)) {
     hasFixedOffsetTz = true;
     fixedOffset = offsetFromTimezoneLiteral(timezoneStr, TSDB_TICK_PER_SECOND(timePrec));
   } else if (useCurrentTz && (strchr(timezoneStr, '/') != NULL ||
