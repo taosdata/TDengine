@@ -230,7 +230,7 @@ static int32_t stRealtimeContextSendGroupColValuePull(SSTriggerRealtimeContext *
 // Process the pull responses from readers.
 static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, SRpcMsg *pRsp);
 // Process the calc responses from runners.
-static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, SRpcMsg *pRsp);
+static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, SRpcMsg *pRsp, bool completed);
 static int32_t stTriggerCalcExpr(SStreamTriggerTask *pTask, SSDataBlock *pDataBlock, SNode *pExpr,
                                  SColumnInfoData *pResCol);
 
@@ -252,7 +252,7 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
 static void    stHistoryContextDestroy(void *ptr);
 static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext);
 static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SRpcMsg *pRsp);
-static int32_t stHistoryContextProcCalcRsp(SSTriggerHistoryContext *pContext, SRpcMsg *pRsp);
+static int32_t stHistoryContextProcCalcRsp(SSTriggerHistoryContext *pContext, SRpcMsg *pRsp, bool completed);
 
 static FORCE_INLINE bool stRealtimeGroupNeedCheck(SSTriggerRealtimeGroup *pGroup) {
   if (pGroup->oldThreshold < pGroup->newThreshold) {
@@ -2265,18 +2265,16 @@ _end:
   return code;
 }
 
-int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequest **ppRequest) {
+int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequest **ppRequest, bool completed) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   SSTriggerCalcRequest *pReq = NULL;
   SSTriggerCalcNode    *pNode = NULL;
   bool                 *pRunningFlag = NULL;
   bool                  needUnlock = false;
-  bool                  hasSent = false;
 
   pReq = *ppRequest;
   *ppRequest = NULL;
-  hasSent = taosArrayGetSize(pReq->params) > 0;
   taosArrayClearEx(pReq->params, tDestroySSTriggerCalcParam);
   taosArrayClearEx(pReq->groupColVals, tDestroySStreamGroupValue);
   tSimpleHashClear(pReq->pGroupCalcInfos);
@@ -2301,7 +2299,7 @@ int32_t stTriggerTaskReleaseRequest(SStreamTriggerTask *pTask, SSTriggerCalcRequ
   pRunningFlag = tSimpleHashGet(pTask->pGroupRunning, p, sizeof(p));
   QUERY_CHECK_NULL(pRunningFlag, code, lino, _end, TSDB_CODE_INVALID_PARA);
   pRunningFlag[0] = false;
-  pRunningFlag[idx + 1] = hasSent;
+  pRunningFlag[idx + 1] = completed;
 
   int64_t *pRunningCnt = tSimpleHashGet(pTask->pSessionRunning, &pReq->sessionId, sizeof(int64_t));
   QUERY_CHECK_NULL(pRunningCnt, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -4707,6 +4705,9 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     SMsgSendInfo         *ahandle = pRsp->info.ahandle;
     SSTriggerAHandle     *pAhandle = ahandle->param;
     SSTriggerCalcRequest *pReq = pAhandle->param;
+    // Capture TABLE_NOT_CREATE before remapping it to success; completed=false
+    // makes the next request retry output-table creation.
+    bool completed = (pRsp->code == TSDB_CODE_SUCCESS);
     if (pRsp->code == TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE) {
       taosArrayClearEx(pReq->params, tDestroySSTriggerCalcParam);
       pRsp->code = TSDB_CODE_SUCCESS;
@@ -4722,10 +4723,10 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
           code = pRsp->code;
           QUERY_CHECK_CODE(code, lino, _end);
         } else if (pReq->sessionId == STREAM_TRIGGER_REALTIME_SESSIONID) {
-          code = stRealtimeContextProcCalcRsp(pTask->pRealtimeContext, pRsp);
+          code = stRealtimeContextProcCalcRsp(pTask->pRealtimeContext, pRsp, completed);
           QUERY_CHECK_CODE(code, lino, _end);
         } else if (pReq->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID) {
-          code = stHistoryContextProcCalcRsp(pTask->pHistoryContext, pRsp);
+          code = stHistoryContextProcCalcRsp(pTask->pHistoryContext, pRsp, completed);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         break;
@@ -6036,20 +6037,12 @@ static int32_t stTriggerTaskSendCreateTableReq(SStreamTriggerTask *pTask, SSTrig
     return TSDB_CODE_NEED_RETRY;  // no slot or busy, keep in queue and retry later
   }
   pCalcReq->createTable = 1;
-  SSTriggerCalcParam param = {0};
-  param.triggerTime = taosGetTimestampNs();
-  param.wstart = 0;
-  param.wend = 0;
-  param.notifyType = STRIGGER_EVENT_WINDOW_NONE;
-  if (taosArrayPush(pCalcReq->params, &param) == NULL) {
-    code = terrno;
-    lino = __LINE__;
-    goto _end;
-  }
+  // An empty params array tells the runner to create the output table without a calculation window.
   if (stTriggerTaskNeedGroupColVals(pTask, true)) {
     needTagValue = true;
   }
-  if (needTagValue && pContext != NULL && pContext->pGroupColVals != NULL && taosArrayGetSize(pCalcReq->groupColVals) == 0) {
+  if (needTagValue && pContext != NULL && pContext->pGroupColVals != NULL &&
+      taosArrayGetSize(pCalcReq->groupColVals) == 0) {
     void *px = tSimpleHashGet(pContext->pGroupColVals, &gid, sizeof(int64_t));
     if (px != NULL) {
       SArray *pGroupColVals = *(SArray **)px;
@@ -6148,10 +6141,12 @@ _end:
     destroyAhandle(msg.info.ahandle);
   }
   if (pCalcReq != NULL) {
-    code = stTriggerTaskReleaseRequest(pTask, &pCalcReq);
-    if (code != TSDB_CODE_SUCCESS) {
-      ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-      return code;
+    int32_t releaseCode = stTriggerTaskReleaseRequest(pTask, &pCalcReq, false);
+    if (releaseCode != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("%s failed to release request since %s", __func__, tstrerror(releaseCode));
+      if (code == TSDB_CODE_SUCCESS) {
+        code = releaseCode;
+      }
     }
   }
   return code;
@@ -6202,7 +6197,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
       SArray *pGroupColVals = *(SArray **)px;
       if (pGroupColVals == NULL) {
         ST_TASK_WLOG("skip calc since group %" PRId64 " may have been dropped", pGroup->gid);
-        code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+        code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false);
         QUERY_CHECK_CODE(code, lino, _end);
         goto _end;
       }
@@ -6423,7 +6418,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
   }
 
 #ifdef SKIP_SEND_CALC_REQUEST
-  code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+  code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false);
   QUERY_CHECK_CODE(code, lino, _end);
   goto _end;
 #endif
@@ -7442,7 +7437,7 @@ _check:
           code = stTriggerTaskReadyRecalcRequest(pTask, pGroup);
           QUERY_CHECK_CODE(code, lino, _end);
         } else if (!pTask->multiGroupBatch) {
-          code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+          code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         break;
@@ -7473,7 +7468,7 @@ _check:
         code = stRealtimeContextSendCalcReq(pContext, true);
         QUERY_CHECK_CODE(code, lino, _end);
       } else {
-        code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+        code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false);
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
@@ -8935,7 +8930,7 @@ _end:
   return code;
 }
 
-static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, SRpcMsg *pRsp) {
+static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, SRpcMsg *pRsp, bool completed) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   SStreamTriggerTask   *pTask = pContext->pTask;
@@ -8948,7 +8943,7 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
   ST_TASK_DLOG("receive calc response from task:%" PRIx64 ", code:%d", pReq->runnerTaskId, pRsp->code);
 
   if (pRsp->code == TSDB_CODE_SUCCESS) {
-    code = stTriggerTaskReleaseRequest(pTask, &pReq);
+    code = stTriggerTaskReleaseRequest(pTask, &pReq, completed);
     QUERY_CHECK_CODE(code, lino, _end);
 
     // retry pending create-table when slot freed (previous attempt may have failed due to no slot)
@@ -9644,7 +9639,7 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
       SArray *pGroupColVals = *(SArray **)px;
       if (pGroupColVals == NULL) {
         ST_TASK_WLOG("skip hist calc since group %" PRId64 " may have been dropped", pGroup->gid);
-        code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+        code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false);
         QUERY_CHECK_CODE(code, lino, _end);
         goto _end;
       }
@@ -10119,7 +10114,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
           }
           stHistoryGroupClearTempState(pGroup);
         } else {
-          code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+          code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         break;
@@ -10298,7 +10293,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
           }
           stHistoryGroupClearTempState(pGroup);
         } else {
-          code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq);
+          code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         break;
@@ -10883,7 +10878,7 @@ _end:
   return code;
 }
 
-static int32_t stHistoryContextProcCalcRsp(SSTriggerHistoryContext *pContext, SRpcMsg *pRsp) {
+static int32_t stHistoryContextProcCalcRsp(SSTriggerHistoryContext *pContext, SRpcMsg *pRsp, bool completed) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
   SStreamTriggerTask   *pTask = pContext->pTask;
@@ -10896,7 +10891,7 @@ static int32_t stHistoryContextProcCalcRsp(SSTriggerHistoryContext *pContext, SR
   ST_TASK_DLOG("receive calc response from task:%" PRIx64 ", code:%d", pReq->runnerTaskId, pRsp->code);
 
   if (pRsp->code == TSDB_CODE_SUCCESS) {
-    code = stTriggerTaskReleaseRequest(pTask, &pReq);
+    code = stTriggerTaskReleaseRequest(pTask, &pReq, completed);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pContext->pendingToFinish) {

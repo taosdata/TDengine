@@ -16,6 +16,9 @@
 #include <gtest/gtest.h>
 #include <time.h>
 
+#include "stub.h"
+#include "trpc.h"
+
 extern "C" {
 #include "streamTriggerTask.h"
 #include "taosdef.h"
@@ -637,3 +640,134 @@ TEST_F(StreamTriggerTaskTest, MultiPeriodYearAlignment) {
 
   freeMockTriggerTask(pTask);
 }
+
+namespace {
+
+constexpr int64_t kRealtimeSessionId = 1;
+constexpr int64_t kCreateTableGroupId = 42;
+constexpr int64_t kRunnerTaskId = 0x200;
+
+struct CreateTableRequestState {
+  int32_t              acquireCalls = 0;
+  int32_t              sendCalls = 0;
+  int32_t              msgType = 0;
+  int32_t              decodeCode = TSDB_CODE_SUCCESS;
+  SSTriggerCalcRequest request = {};
+  SSTriggerCalcRequest decodedRequest = {};
+};
+
+CreateTableRequestState gCreateTableRequestState;
+
+int32_t acquireCreateTableRequest(SStreamTriggerTask* pTask, int64_t sessionId, int64_t gid,
+                                  SSTriggerCalcRequest** ppRequest) {
+  ++gCreateTableRequestState.acquireCalls;
+  gCreateTableRequestState.request.streamId = pTask->task.streamId;
+  gCreateTableRequestState.request.runnerTaskId = kRunnerTaskId;
+  gCreateTableRequestState.request.sessionId = sessionId;
+  gCreateTableRequestState.request.gid = gid;
+  *ppRequest = &gCreateTableRequestState.request;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t captureCreateTableRequest(const SEpSet*, SRpcMsg* pMsg) {
+  ++gCreateTableRequestState.sendCalls;
+  gCreateTableRequestState.msgType = pMsg->msgType;
+
+  if (pMsg->msgType == TDMT_STREAM_TRIGGER_CALC) {
+    if (pMsg->pCont != nullptr && pMsg->contLen > static_cast<int32_t>(sizeof(SMsgHead))) {
+      gCreateTableRequestState.decodeCode =
+          tDeserializeSTriggerCalcRequest(static_cast<char*>(pMsg->pCont) + sizeof(SMsgHead),
+                                          pMsg->contLen - sizeof(SMsgHead), &gCreateTableRequestState.decodedRequest);
+    } else {
+      gCreateTableRequestState.decodeCode = TSDB_CODE_INVALID_MSG;
+    }
+  }
+
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = nullptr;
+  destroyAhandle(pMsg->info.ahandle);
+  pMsg->info.ahandle = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+class StreamTriggerCreateTableRequestTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    gCreateTableRequestState = {};
+    gCreateTableRequestState.request.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+    gCreateTableRequestState.request.groupColVals = taosArrayInit(1, sizeof(SStreamGroupValue));
+    ASSERT_NE(gCreateTableRequestState.request.params, nullptr);
+    ASSERT_NE(gCreateTableRequestState.request.groupColVals, nullptr);
+
+    stub_.set(stTriggerTaskAcquireRequest, acquireCreateTableRequest);
+    stub_.set(tmsgSendReq, captureCreateTableRequest);
+
+    task_.task.streamId = 0x100;
+    task_.task.taskId = 0x101;
+    task_.triggerType = STREAM_TRIGGER_COUNT;
+    task_.nodelayCreateSubtable = 1;
+    task_.hasPartitionBy = true;
+
+    task_.runnerList = taosArrayInit_s(sizeof(SStreamRunnerTarget), 1);
+    ASSERT_NE(task_.runnerList, nullptr);
+    auto* pRunner = static_cast<SStreamRunnerTarget*>(taosArrayGet(task_.runnerList, 0));
+    ASSERT_NE(pRunner, nullptr);
+    pRunner->addr.taskId = kRunnerTaskId;
+
+    context_.pTask = &task_;
+    context_.sessionId = kRealtimeSessionId;
+    context_.status = STRIGGER_CONTEXT_DETERMINE_BOUND;
+    context_.curReaderIdx = 2;
+    context_.pGroupColVals = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    ASSERT_NE(context_.pGroupColVals, nullptr);
+    context_.pPendingCreateTableGids = taosArrayInit(1, sizeof(SSTriggerPendingCreateTableEntry));
+    ASSERT_NE(context_.pPendingCreateTableGids, nullptr);
+    SSTriggerPendingCreateTableEntry pending = {};
+    pending.gid = kCreateTableGroupId;
+    ASSERT_NE(taosArrayPush(context_.pPendingCreateTableGids, &pending), nullptr);
+    task_.pRealtimeContext = &context_;
+  }
+
+  void TearDown() override {
+    tDestroySTriggerCalcRequest(&gCreateTableRequestState.request);
+    tDestroySTriggerCalcRequest(&gCreateTableRequestState.decodedRequest);
+
+    taosArrayDestroy(context_.pPendingCreateTableGids);
+    tSimpleHashCleanup(context_.pGroupColVals);
+    taosArrayDestroy(task_.runnerList);
+  }
+
+  Stub                     stub_;
+  SStreamTriggerTask       task_ = {};
+  SSTriggerRealtimeContext context_ = {};
+};
+
+TEST_F(StreamTriggerCreateTableRequestTest, NodelayCreateRequestContainsNoCalculationWindow) {
+  SSTriggerGroupColValueRequest pullRequest = {};
+  pullRequest.base.type = STRIGGER_PULL_GROUP_COL_VALUE;
+  pullRequest.base.sessionId = kRealtimeSessionId;
+  pullRequest.gid = kCreateTableGroupId;
+
+  SSTriggerAHandle responseAhandle = {};
+  responseAhandle.param = &pullRequest;
+  SMsgSendInfo responseSendInfo = {};
+  responseSendInfo.param = &responseAhandle;
+  SRpcMsg response = {};
+  response.msgType = TDMT_STREAM_TRIGGER_PULL_RSP;
+  response.code = TSDB_CODE_SUCCESS;
+  response.info.ahandle = &responseSendInfo;
+
+  int64_t errorTaskId = 0;
+  ASSERT_EQ(stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(gCreateTableRequestState.acquireCalls, 1);
+  ASSERT_EQ(gCreateTableRequestState.sendCalls, 1);
+  EXPECT_EQ(gCreateTableRequestState.msgType, TDMT_STREAM_TRIGGER_CALC);
+  EXPECT_EQ(taosArrayGetSize(gCreateTableRequestState.request.params), 0);
+  ASSERT_EQ(gCreateTableRequestState.decodeCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCreateTableRequestState.decodedRequest.params, nullptr);
+  EXPECT_EQ(gCreateTableRequestState.decodedRequest.createTable, 1);
+  EXPECT_EQ(gCreateTableRequestState.decodedRequest.gid, kCreateTableGroupId);
+}
+
+}  // namespace

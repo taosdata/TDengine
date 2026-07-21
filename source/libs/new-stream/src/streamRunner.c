@@ -994,10 +994,11 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   }
   pTask->task.status = STREAM_STATUS_RUNNING;
   pTask->task.sessionId = pReq->sessionId;
-  if (pReq->groupColVals) {
+  // Empty arrays decode as NULL. A new request must still replace state left by a reused exec.
+  if (pReq->groupColVals || pReq->brandNew) {
     TSWAP(pExec->runtimeInfo.funcInfo.pStreamPartColVals, pReq->groupColVals);
   }
-  if (pReq->params) {
+  if (pReq->params || pReq->brandNew) {
     TSWAP(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pReq->params);
   }
   pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
@@ -1023,7 +1024,22 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   createTable = (pReq->createTable != 0);
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
 
-  ST_TASK_DLOG("[runner calc]start to loop, winNum:%d, extWindow:%d, nextOutIdx:%d, gid:%" PRId64, winNum, pExec->runtimeInfo.funcInfo.withExternalWindow, nextOutIdx, pReq->gid);
+  ST_TASK_DLOG("[runner calc]start to loop, winNum:%d, extWindow:%d, nextOutIdx:%d, gid:%" PRId64, winNum,
+               pExec->runtimeInfo.funcInfo.withExternalWindow, nextOutIdx, pReq->gid);
+
+  // A zero-window request only initializes the output table; it must not calculate or notify.
+  if (winNum == 0) {
+    if (pTask->topTask && createTable) {
+      code = stRunnerOutputBlock(pTask, pExec, NULL, &createTable);
+      if (code != TSDB_CODE_SUCCESS) {
+        lino = __LINE__;
+      } else if (createTable) {
+        code = TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE;
+        lino = __LINE__;
+      }
+    }
+    goto _cleanup;
+  }
 
   while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
     if (stRunnerTaskWaitQuit(pTask)) {
@@ -1104,10 +1120,11 @@ end:
     }
   }
 
-  ST_TASK_DLOG("execId %d stop to run, gid:%" PRId64, pExec->runtimeInfo.execId, pReq->gid);
-  
-  stRunnerTaskReleaseExec(pTask, pExec);
+_cleanup:
 
+  ST_TASK_DLOG("execId %d stop to run, gid:%" PRId64, pExec->runtimeInfo.execId, pReq->gid);
+
+  stRunnerTaskReleaseExec(pTask, pExec);
 
   if (pForceOutBlock != NULL) blockDataDestroy(pForceOutBlock);
   if (code) {
@@ -1115,7 +1132,9 @@ end:
     if (code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
       return TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY;
     }
-    pTask->task.status = STREAM_STATUS_FAILED;
+    if (code != TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE) {
+      pTask->task.status = STREAM_STATUS_FAILED;
+    }
   } else {
     ST_TASK_DLOG("[runner calc]success, gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
   }
