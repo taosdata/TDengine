@@ -1148,11 +1148,9 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
           if (!found) {
             // 该 vnode 本次心跳未被上报。为避免偶发的单次心跳缺失导致误判为 OFFLINE，
             // 只有当距离最近一次上报（lastSeenMs）已超过 3 秒时，才将其标记为 OFFLINE。
-            // 说明：lastSeenMs 为运行时字段，mnode 重启后默认为 0，此时 (curMs - 0) 远大于阈值，
-            // 与原有直接置为 OFFLINE 的行为一致，兼容安全。
             int64_t offlineThresholdMs = 3000;
             int64_t elapsedMs = curMs - pGid->lastSeenMs;
-            if (elapsedMs >= offlineThresholdMs) {
+            if (pGid->lastSeenMs > 0 && elapsedMs >= offlineThresholdMs) {
               mInfo("vgId:%d, state changed to offline by status msg (not reported), dnode:%d, old state:%s, "
                     "lastSeenMs:%" PRId64 " elapsedMs:%" PRId64,
                     pVgroup->vgId, statusReq.dnodeId, syncStr(pGid->syncState), pGid->lastSeenMs, elapsedMs);
