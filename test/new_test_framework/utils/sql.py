@@ -250,7 +250,7 @@ class TDSql:
             tdLog.notice("'reset query cache' is not supported")
         if drop:
             s = f"drop database if exists {dbname}"
-            self.cursor.execute(s)
+            self.execute(s)
         s = f"create database {dbname}"
         for k, v in kwargs.items():
             if isinstance(v, str):
@@ -263,10 +263,10 @@ class TDSql:
         if "replica" not in kwargs:
             s += f" replica {self.replica}"
         tdLog.debug(f"create database cmd: {s}")
-        self.cursor.execute(s)
+        self.execute(s)
 
         s = f"use {dbname}"
-        self.cursor.execute(s)
+        self.execute(s)
         time.sleep(2)
 
     def queryAndCheckResult(self, sql_list, expect_result_list, dbPrecision=""):
