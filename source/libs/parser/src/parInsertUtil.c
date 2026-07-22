@@ -642,27 +642,14 @@ int32_t insTryAddTableVgroupInfo(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuild
 
 int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo, STableColsData* pTbData,
                              uint64_t* uid, int32_t* vgId, uint64_t* suid) {
-  STableVgUid tbInfo = {0};
-  bool        cacheHit = false;
-  int32_t     code = 0;
+  STableVgUid* pTbInfo = NULL;
+  int32_t      code = 0;
 
   if (pTbData->getFromHash) {
-    TdThreadMutex* pMutex = (TdThreadMutex*)pBuildInfo->pTableHashMutex;
-    if (pMutex != NULL) {
-      (void)taosThreadMutexLock(pMutex);
-    }
-    STableVgUid* pCached =
-        (STableVgUid*)tSimpleHashGet(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName));
-    if (pCached != NULL) {
-      tbInfo = *pCached;
-      cacheHit = true;
-    }
-    if (pMutex != NULL) {
-      (void)taosThreadMutexUnlock(pMutex);
-    }
+    pTbInfo = (STableVgUid*)tSimpleHashGet(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName));
   }
 
-  if (!cacheHit) {
+  if (NULL == pTbInfo) {
     SName sname;
     code = qCreateSName2(&sname, pTbData->tbName, pBuildInfo->acctId, pBuildInfo->dbname, NULL, 0);
     if (TSDB_CODE_SUCCESS != code) {
@@ -690,25 +677,17 @@ int32_t insGetStmtTableVgUid(SHashObj* pAllVgHash, SStbInterlaceInfo* pBuildInfo
     *vgId = pTableMeta->vgId;
     *suid = pTableMeta->suid;
 
-    tbInfo = (STableVgUid){.uid = *uid, .vgid = *vgId, .suid = *suid};
-    TdThreadMutex* pMutex = (TdThreadMutex*)pBuildInfo->pTableHashMutex;
-    if (pMutex != NULL) {
-      (void)taosThreadMutexLock(pMutex);
-    }
-    code =
-        tSimpleHashPut(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName), &tbInfo, sizeof(tbInfo));
-    if (pMutex != NULL) {
-      (void)taosThreadMutexUnlock(pMutex);
-    }
+    STableVgUid tbInfo = {.uid = *uid, .vgid = *vgId, .suid = *suid};
+    code = tSimpleHashPut(pBuildInfo->pTableHash, pTbData->tbName, strlen(pTbData->tbName), &tbInfo, sizeof(tbInfo));
     if (TSDB_CODE_SUCCESS == code) {
       code = insTryAddTableVgroupInfo(pAllVgHash, pBuildInfo, vgId, pTbData, &sname);
     }
 
     taosMemoryFree(pTableMeta);
   } else {
-    *uid = tbInfo.uid;
-    *vgId = tbInfo.vgid;
-    *suid = tbInfo.suid;
+    *uid = pTbInfo->uid;
+    *vgId = pTbInfo->vgid;
+    *suid = pTbInfo->suid;
   }
 
   return code;

@@ -3780,7 +3780,6 @@ static SArray *vnodePrepareSubmitTb(SVnode *pVnode, SAuditRecord *record, STSche
 
     if (tbData.pCreateTbReq == NULL) {
       code = terrno;
-      metaReaderClear(&merTb);
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }
 

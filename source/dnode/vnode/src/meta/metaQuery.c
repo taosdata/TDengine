@@ -510,7 +510,6 @@ int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
   int32_t code = 0;
   int32_t lino;
   int8_t  locked = 0;
-  bool    dbcOpened = false;
   if (pTbCur->paused) {
     metaReaderDoInit(&pTbCur->mr, pTbCur->pMeta, META_READER_LOCK, 0);
     locked = 1;
@@ -518,7 +517,6 @@ int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
     if (code != 0) {
       TSDB_CHECK_CODE(code, lino, _exit);
     }
-    dbcOpened = true;
 
     if (first) {
       code = tdbTbcMoveToFirst((TBC *)pTbCur->pDbc);
@@ -542,18 +540,8 @@ int32_t metaResumeTbCursor(SMTbCursor *pTbCur, int8_t first, int8_t move) {
   }
 
 _exit:
-  if (code != 0) {
-    // tdbTbcOpen succeeded but a later positioning step failed: close the dbc
-    // opened above. pDbc is NULLed and paused stays 1, so a subsequent
-    // metaCloseTbCursor (which skips tdbTbcClose when paused) will not
-    // double-free; a retry re-opens a fresh dbc via tdbTbcOpen.
-    if (dbcOpened && pTbCur->pDbc) {
-      tdbTbcClose((TBC *)pTbCur->pDbc);
-      pTbCur->pDbc = NULL;
-    }
-    if (locked) {
-      metaReaderReleaseLock(&pTbCur->mr);
-    }
+  if (code != 0 && locked) {
+    metaReaderReleaseLock(&pTbCur->mr);
   }
   return code;
 }
@@ -1647,7 +1635,6 @@ tb_uid_t metaSmaCursorNext(SMSmaCursor *pSmaCur) {
 STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
   STSmaWrapper *pSW = NULL;
   SArray       *pSmaIds = NULL;
-  SMetaReader   mr = {0};
 
   if (!(pSmaIds = metaGetSmaIdsByTable(pMeta, uid))) {
     return NULL;
@@ -1667,6 +1654,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
     goto _err;
   }
 
+  SMetaReader mr = {0};
   metaReaderDoInit(&mr, pMeta, META_READER_LOCK, 0);
   int64_t smaId;
   int     smaIdx = 0;
@@ -2409,13 +2397,11 @@ int32_t metaFlagCache(SVnode *pVnode) {
     if (!suids) {
       suids = taosArrayInit(8, sizeof(tb_uid_t));
       if (!suids) {
-        metaCloseStbCursor(pCur);
         return terrno;
       }
     }
 
     if (taosArrayPush(suids, &id) == NULL) {
-      metaCloseStbCursor(pCur);
       taosArrayDestroy(suids);
       return terrno;
     }

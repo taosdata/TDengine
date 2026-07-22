@@ -2087,7 +2087,6 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT: {
       SAlterTableStmt* pStmt = (SAlterTableStmt*)pNode;
       nodesDestroyNode((SNode*)pStmt->pOptions);
-      nodesDestroyNode((SNode*)pStmt->pColOptions);
       nodesDestroyNode((SNode*)pStmt->pVal);
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyList(pStmt->pList);

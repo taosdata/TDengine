@@ -215,9 +215,6 @@ static int32_t insertTableToScanIgnoreList(STableScanInfo* pTableScanInfo, uint6
 static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo* pBlockInfo, uint32_t* status) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   int32_t         code = TSDB_CODE_SUCCESS;
-  int32_t         blockerExprIdx = -1;
-  int32_t         blockerFuncId = -1;
-  int32_t         blockerReqStatus = FUNC_DATA_REQUIRED_NOT_LOAD;
 
   if (pTableScanInfo->base.pdInfo.pExprSup == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -240,9 +237,6 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SDataBlockInfo*
 
     EFuncDataRequired reqStatus = fmFuncDynDataRequired(functionId, pEntry, pBlockInfo);
     if (reqStatus != FUNC_DATA_REQUIRED_NOT_LOAD && !pSup1->pCtx[i].skipDynDataCheck) {
-      blockerExprIdx = i;
-      blockerFuncId = functionId;
-      blockerReqStatus = reqStatus;
       notLoadBlock = false;
       break;
     }
@@ -270,35 +264,16 @@ static int32_t doFilterByBlockSMA(SFilterInfo* pFilterInfo, SColumnDataAgg* pCol
 }
 
 static int32_t doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
-                              ETsdReaderBlockSmaMode mode, bool* pLoad) {
+                              bool* pLoad) {
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
   bool         allColumnsHaveAgg = true;
   bool         hasNullSMA = false;
-  int32_t      code = TSDB_CODE_SUCCESS;
   if (pLoad != NULL) {
     *pLoad = false;
   }
 
-  if (pAPI->tsdReader.tsdReaderSetBlockSmaMode != NULL) {
-    code = pAPI->tsdReader.tsdReaderSetBlockSmaMode(pTableScanInfo->dataReader, mode);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-  }
-
-  code = pAPI->tsdReader.tsdReaderRetrieveBlockSMAInfo(pTableScanInfo->dataReader, pBlock, &allColumnsHaveAgg,
-                                                       &hasNullSMA);
-  if (pAPI->tsdReader.tsdReaderSetBlockSmaMode != NULL && mode != TSD_READER_BLOCK_SMA_MODE_NORMAL) {
-    int32_t resetCode =
-        pAPI->tsdReader.tsdReaderSetBlockSmaMode(pTableScanInfo->dataReader, TSD_READER_BLOCK_SMA_MODE_NORMAL);
-    if (resetCode != TSDB_CODE_SUCCESS) {
-      qError("%s failed to reset block SMA mode, code:%s", GET_TASKID(pTaskInfo), tstrerror(resetCode));
-      if (code == TSDB_CODE_SUCCESS) {
-        code = resetCode;
-      }
-    }
-  }
-
+  int32_t code = pAPI->tsdReader.tsdReaderRetrieveBlockSMAInfo(pTableScanInfo->dataReader, pBlock, &allColumnsHaveAgg,
+                                                               &hasNullSMA);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -418,7 +393,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     pCost->smaLoadBlocks += 1;
     loadSMA = true;  // mark the operation of load sma;
     bool success = true;
-    code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, TSD_READER_BLOCK_SMA_MODE_NORMAL, &success);
+    code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, &success);
     if (code) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
       qError("%s failed to retrieve sma info", GET_TASKID(pTaskInfo));
@@ -449,13 +424,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   // try to filter data block according to sma info
   if (pOperator->exprSupp.pFilterInfo != NULL && (!loadSMA)) {
-    ETsdReaderBlockSmaMode blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
-    if (filterBlockSmaOnlyUsesNumOfNull(pOperator->exprSupp.pFilterInfo)) {
-      blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY;
-    }
-
     bool success = true;
-    code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, blockSmaMode, &success);
+    code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, &success);
     if (code) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
       qError("%s failed to retrieve sma info", GET_TASKID(pTaskInfo));

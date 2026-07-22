@@ -885,7 +885,6 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   // allocate buffer in order to load data blocks from file
   pSup = &pReader->suppInfo;
   pSup->tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  pSup->blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
   code = setColumnIdSlotList(pSup, pCond->colList, pCond->pSlotList, pCond->numOfCols);
   TSDB_CHECK_CODE(code, lino, _end);
 
@@ -6687,29 +6686,11 @@ _end:
   return code;
 }
 
-static int32_t doInsertPrimaryTsColSMA(SBlockLoadSuppInfo* pSup, SColumnDataAgg* pTsAgg) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  TSDB_CHECK_NULL(pSup, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  TSDB_CHECK_NULL(pTsAgg, code, lino, _end, TSDB_CODE_INVALID_PARA);
-
-  code = TARRAY2_INSERT_PTR(&pSup->colAggArray, 0, pTsAgg);
-  TSDB_CHECK_CODE(code, lino, _end);
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
 int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock, bool* allHave, bool* hasNullSMA) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SColumnDataAgg**    pBlockSMA = NULL;
   SFileDataBlockInfo* pBlockInfo = NULL;
-  bool                synthesizeAllNullSma = false;
 
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pDataBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -6750,11 +6731,10 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  *allHave = true;
-  synthesizeAllNullSma =
-      (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY && pSup->colAggArray.size <= 0);
-  if (pSup->colAggArray.size <= 0 && !synthesizeAllNullSma) {
-    *allHave = false;
+  if (pSup->colAggArray.size > 0) {
+    *allHave = true;
+  } else {
+    *pBlockSMA = NULL;
     goto _end;
   }
 
@@ -6778,11 +6758,8 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     }
   }
 
-  if (synthesizeAllNullSma) {
-    code = doFillNullColSMA(pSup, pBlockInfo->numRow, numOfCols, pTsAgg);
-  } else {
-    code = doInsertPrimaryTsColSMA(pSup, pTsAgg);
-  }
+  // do fill all null column value SMA info
+  code = doFillNullColSMA(pSup, pBlockInfo->numRow, numOfCols, pTsAgg);
   TSDB_CHECK_CODE(code, lino, _end);
 
   size_t size = pSup->colAggArray.size;
@@ -6956,7 +6933,6 @@ int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   memset(&pReader->suppInfo.tsColAgg, 0, sizeof(SColumnDataAgg));
 
   pReader->suppInfo.tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  pReader->suppInfo.blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
   tsdbDataFileReaderClose(&pReader->pFileReader);
 
   int32_t numOfTables = tSimpleHashGetSize(pStatus->pTableMap);
@@ -7428,24 +7404,6 @@ int32_t tsdbReaderSetId(void* p, const char* idstr) {
   TSDB_CHECK_NULL(pReader->idStr, code, lino, _end, terrno);
 
   pReader->status.fileIter.pSttBlockReader->mergeTree.idStr = pReader->idStr;
-
-_end:
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  }
-  return code;
-}
-
-int32_t tsdbReaderSetBlockSmaMode(void* p, ETsdReaderBlockSmaMode mode) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      lino = 0;
-  STsdbReader* pReader = (STsdbReader*)p;
-
-  TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  TSDB_CHECK_CONDITION(mode == TSD_READER_BLOCK_SMA_MODE_NORMAL || mode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY,
-                       code, lino, _end, TSDB_CODE_INVALID_PARA);
-
-  pReader->suppInfo.blockSmaMode = mode;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
