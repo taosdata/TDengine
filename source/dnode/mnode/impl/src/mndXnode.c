@@ -58,6 +58,7 @@ typedef struct {
 } SCurlResp;
 
 const int32_t defaultTimeout = 1000;
+const int32_t migrationTimeout = 60000;
 
 /** xnodes systable actions */
 SSdbRaw *mndXnodeActionEncode(SXnodeObj *pObj);
@@ -934,6 +935,34 @@ static int32_t mndSetDropXnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SXnode
   return 0;
 }
 
+static int32_t mndCheckXnodedResponse(SRpcMsg *pReq, SJson *pJson) {
+  if (pJson == NULL) {
+    return terrno == TSDB_CODE_SUCCESS ? TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR : terrno;
+  }
+
+  SJson *errorJson = tjsonGetObjectItem(pJson, "__inner_error");
+  if (errorJson == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const char *error = ((cJSON *)errorJson)->valuestring;
+  if (error != NULL) {
+    mError("xnoded request failed, reason:%s", error);
+    if (pReq != NULL) {
+      int32_t contLen = strlen(error) + strlen(tstrerror(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR)) + 32;
+      void   *pRsp = rpcMallocCont(contLen);
+      if (pRsp == NULL) {
+        return terrno;
+      }
+      pReq->info.rspLen = contLen;
+      pReq->info.rsp = pRsp;
+      snprintf(pReq->info.rsp, contLen, "%s, since: %s", tstrerror(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR),
+               error);
+    }
+  }
+  return TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
+}
+
 static int32_t mndDropXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -1020,7 +1049,15 @@ static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq) {
   char xnodeUrl[TSDB_XNODE_URL_LEN] = {0};
   snprintf(xnodeUrl, TSDB_XNODE_URL_LEN, "%s/xnode/%d?force=%s", XNODED_PIPE_SOCKET_URL, pObj->id,
            dropReq.force ? "true" : "false");
-  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_DELETE, defaultTimeout, NULL, 0);
+  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_DELETE, migrationTimeout, NULL, 0);
+  code = mndCheckXnodedResponse(dropReq.force ? NULL : pReq, pJson);
+  if (code != TSDB_CODE_SUCCESS) {
+    if (!dropReq.force) goto _OVER;
+    mWarn("xnode:%d, force drop continues after xnoded request failed, code:0x%x:%s", pObj->id, code,
+          tstrerror(code));
+    code = TSDB_CODE_SUCCESS;
+    terrno = TSDB_CODE_SUCCESS;
+  }
 
   code = mndDropXnode(pMnode, pReq, pObj);
   if (code == 0) {
@@ -1084,7 +1121,8 @@ static int32_t mndProcessDrainXnodeReq(SRpcMsg *pReq) {
     code = terrno;
     goto _OVER;
   }
-  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, defaultTimeout, pContStr, strlen(pContStr));
+  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, migrationTimeout, pContStr, strlen(pContStr));
+  TAOS_CHECK_GOTO(mndCheckXnodedResponse(pReq, pJson), NULL, _OVER);
 
   code = mndDrainXnode(pMnode, pReq, pObj);
   if (code == 0) {
