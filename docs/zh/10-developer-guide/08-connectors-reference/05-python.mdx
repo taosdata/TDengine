@@ -88,7 +88,7 @@ WebSocket Connector 历史版本：
 
 | WebSocket Connector 版本 | 主要变化                                                                              |   TDengine TSDB 版本    |
 | ----------------------- | ------------------------------------------------------------------------------------ | ----------------- |
-|          0.7.0          | 支持 taosAdapter 高可用                                                               | - |
+|          0.7.0           | 1. 支持 taosAdapter 高可用 <br/> 2. 支持设置应用程序名称                                 | - |
 |          0.6.9           | 新增对 riscv64 架构的支持                                                              | - |
 |          0.6.8           | 支持 DECIMAL 数据类型                                                                 | - |
 |          0.6.7           | 将 SQLAlchemy dialect 迁移至 `taos-ws-py`，使用 SQLAlchemy 时不再依赖 `taospy`          | - |
@@ -215,6 +215,7 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Pytho
 - **params**：
   - `token`：用于 TDengine TSDB 云服务的身份验证。
   - `timezone`：时区，IANA 格式（如 `Asia/Shanghai`），默认为本地时区。
+  - `user_app`：应用程序名称。
   - `compression`：是否启用数据压缩，默认为 `false`。
   - `conn_retries`：连接失败时的最大重试次数，默认为 5。
   - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。此值会随着连续失败而指数增长，直到达到最大等待时间。
@@ -235,6 +236,7 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Pytho
       - `port`：端口号
       - `database`：数据库名称
       - `timezone`：时区，IANA 格式（如 `Asia/Shanghai`），默认为本地时区。
+      - `user_app`：应用程序名称。
       - `compression`：是否启用数据压缩，默认为 `false`。
       - `conn_retries`：连接失败时的最大重试次数，默认为 5。
       - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。此值会随着连续失败而指数增长，直到达到最大等待时间。
@@ -391,17 +393,18 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
 #### 数据订阅
 
 - **创建消费者支持属性列表**：
-  - host：主机地址。
-  - port：端口号。
-  - group.id：所在的 group。
-  - client.id：客户端 id。
-  - td.connect.user：数据库用户名。
-  - td.connect.pass：数据库密码。
-  - td.connect.token：云服务认证 token。
-  - td.connect.bearer_token：数据库认证 token，认证优先级高于用户名密码。
-  - auto.offset.reset：来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
-  - enable.auto.commit：是否允许自动提交。
-  - auto.commit.interval.ms：自动提交间隔
+  - `host`：主机地址。
+  - `port`：端口号。
+  - `group.id`：所在的 group。
+  - `client.id`：客户端 id。
+  - `td.connect.user`：数据库用户名。
+  - `td.connect.pass`：数据库密码。
+  - `td.connect.token`：云服务认证 token。
+  - `td.connect.bearer_token`：数据库认证 token，认证优先级高于用户名密码。
+  - `user_app`：应用程序名称。
+  - `auto.offset.reset`：来确定消费位置为最新数据（latest）还是包含旧数据（earliest）。
+  - `enable.auto.commit`：是否允许自动提交。
+  - `auto.commit.interval.ms`：自动提交间隔
   - `adapter_ha`：是否启用 taosAdapter 高可用。启用后，连接器会向 taosAdapter 请求当前可用的实例列表，并将发现的节点加入地址池，用于负载均衡和故障转移。默认值为 `false`。
 
 - `fn Consumer(conf: Option<&PyDict>, dsn: Option<&str>) -> PyResult<Self>`
