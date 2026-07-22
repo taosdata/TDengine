@@ -323,12 +323,52 @@ static int32_t transHeapMayBalance(SHeap* heap, SCliConn* p);
 
 static FORCE_INLINE void logConnMissHit(SCliConn* pConn);
 
+// On Windows, a handle's uv_close() can (rarely, under a Windows/IOCP-level race on
+// heavy connect/disconnect churn) never complete because the completion packet for a
+// cancelled overlapped I/O is never delivered, leaving uv_run(UV_RUN_DEFAULT) blocked
+// in GetQueuedCompletionStatusEx forever. Bound the wait on Windows only so process
+// exit can't hang forever on this; see taos_hang_analysis_report.md. Linux/Darwin's
+// uv_close() (epoll_ctl/close()) is synchronous, so this race cannot occur there.
+#if defined(WINDOWS)
+#define CLI_RELEASE_UV_MAX_WAIT_MS 3000
+#define CLI_RELEASE_UV(loop)                                                                            \
+  do {                                                                                                  \
+    uv_walk(loop, cliWalkCb, NULL);                                                                     \
+    int64_t cliReleaseUvStart = taosGetTimestampMs();                                                   \
+    int32_t cliReleaseUvIter = 0;                                                                       \
+    tDebug("cli uv loop:%p start bounded close on exit, max wait:%dms", loop, CLI_RELEASE_UV_MAX_WAIT_MS); \
+    while (uv_loop_alive(loop) && taosGetTimestampMs() - cliReleaseUvStart < CLI_RELEASE_UV_MAX_WAIT_MS) { \
+      (TAOS_UNUSED(uv_run(loop, UV_RUN_NOWAIT)));                                                       \
+      cliReleaseUvIter++;                                                                               \
+      taosMsleep(1);                                                                                    \
+    }                                                                                                    \
+    int64_t cliReleaseUvElapse = taosGetTimestampMs() - cliReleaseUvStart;                              \
+    if (uv_loop_alive(loop)) {                                                                          \
+      tError(                                                                                           \
+          "cli uv loop:%p still alive after %" PRId64 "ms(cap:%dms,iter:%d,active_handles:%u) on exit, "  \
+          "skip uv_loop_close to avoid hang forever, likely hit the Windows/libuv close race described " \
+          "in taos_hang_analysis_report.md; process exit may be delayed by up to %dms because of this",  \
+          loop, cliReleaseUvElapse, CLI_RELEASE_UV_MAX_WAIT_MS, cliReleaseUvIter, loop->active_handles,   \
+          CLI_RELEASE_UV_MAX_WAIT_MS);                                                                  \
+    } else if (cliReleaseUvElapse >= 1000) {                                                             \
+      tWarn("cli uv loop:%p closed slowly on exit, took %" PRId64 "ms(iter:%d), see CLI_RELEASE_UV in "  \
+            "transCli.c if this becomes frequent",                                                      \
+            loop, cliReleaseUvElapse, cliReleaseUvIter);                                                \
+      (TAOS_UNUSED(uv_loop_close(loop)));                                                               \
+    } else {                                                                                            \
+      tDebug("cli uv loop:%p closed normally on exit, took %" PRId64 "ms(iter:%d)", loop, cliReleaseUvElapse, \
+             cliReleaseUvIter);                                                                         \
+      (TAOS_UNUSED(uv_loop_close(loop)));                                                               \
+    }                                                                                                    \
+  } while (0);
+#else
 #define CLI_RELEASE_UV(loop)                     \
   do {                                           \
     uv_walk(loop, cliWalkCb, NULL);              \
     (TAOS_UNUSED(uv_run(loop, UV_RUN_DEFAULT))); \
     (TAOS_UNUSED(uv_loop_close(loop)));          \
   } while (0);
+#endif
 
 // snprintf may cause performance problem
 #define CONN_CONSTRUCT_HASH_KEY(key, ip, port) \
