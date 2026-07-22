@@ -91,7 +91,7 @@ WebSocket Connector Historical Versions:
 
 |WebSocket Connector Version | Major Changes                                                                                    | TDengine Version|
 | ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------- |
-|0.7.0 | Support taosAdapter HA | - |
+|0.7.0 | 1. Support taosAdapter HA <br/> 2. Support setting the application name | - |
 |0.6.9 | Added support for the riscv64 architecture | - |
 |0.6.8 | Support DECIMAL data type | - |
 |0.6.7 | Migrate the SQLAlchemy dialect to `taos-ws-py`, so that using SQLAlchemy no longer depends on `taospy`. | - |
@@ -214,6 +214,7 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
 - **params**:
   - `token`: Authentication for the TDengine TSDB cloud service.
   - `timezone`: Time zone, IANA format (e.g., `Asia/Shanghai`), defaults to the local time zone.
+  - `user_app`: Application name.
   - `compression`: Whether to enable data compression, defaults to `false`.
   - `conn_retries`: Maximum number of retries when a connection fails, defaults to 5.
   - `retry_backoff_ms`: Initial wait time (milliseconds) when a connection fails, defaults to 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.
@@ -234,6 +235,7 @@ Feel free to [ask questions or report issues](https://github.com/taosdata/taos-c
       - `port`: Port number
       - `database`: Database name
       - `timezone`: Time zone, IANA format (e.g., `Asia/Shanghai`), defaults to the local time zone.
+      - `user_app`: Application name.
       - `compression`: Whether to enable data compression, defaults to `false`.
       - `conn_retries`: Maximum number of retries when a connection fails, defaults to 5.
       - `retry_backoff_ms`: Initial wait time (milliseconds) when a connection fails, defaults to 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.
@@ -390,18 +392,19 @@ The interface for binding parameters of the standard Stmt.
 #### Data Subscription
 
 - **Supported properties list for creating consumers**:
-  - host: Host address.
-  - port: Port number.
-  - group.id: The group it belongs to.
-  - client.id: Client ID.
-  - td.connect.user: Database username.
-  - td.connect.pass: Database password.
-  - td.connect.token: Cloud service authentication token.
-  - td.connect.bearer_token: Database authentication token, with higher authentication priority than username and password.
+  - `host`: Host address.
+  - `port`: Port number.
+  - `group.id`: The group it belongs to.
+  - `client.id`: Client ID.
+  - `td.connect.user`: Database username.
+  - `td.connect.pass`: Database password.
+  - `td.connect.token`: Cloud service authentication token.
+  - `td.connect.bearer_token`: Database authentication token, with higher authentication priority than username and password.
+  - `user_app`: Application name.
+  - `auto.offset.reset`: Determines the consumption position as either the latest data (latest) or including old data (earliest).
+  - `enable.auto.commit`: Whether to allow automatic commit.
+  - `auto.commit.interval.ms`: Automatic commit interval.
   - `adapter_ha`: Whether to enable high availability for taosAdapter. When enabled, the connector will request a list of currently available instances from taosAdapter and add the discovered nodes to the address pool for load balancing and failover. The default value is `false`.
-  - auto.offset.reset: Determines the consumption position as either the latest data (latest) or including old data (earliest).
-  - enable.auto.commit: Whether to allow automatic commit.
-  - auto.commit.interval.ms: Automatic commit interval.
 
 - `fn Consumer(conf: Option<&PyDict>, dsn: Option<&str>) -> PyResult<Self>`
   - **Interface Description** Consumer constructor.
