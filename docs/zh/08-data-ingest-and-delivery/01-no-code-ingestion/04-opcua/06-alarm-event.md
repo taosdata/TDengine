@@ -170,7 +170,7 @@ taosX 依据订阅到的事件**自动建表并写入**，规则如下。了解�
 | 结构体 / 其他未知类型                                            | NCHAR(255)     |
 
 :::note
-`EventId` 虽然是 ByteString，但因用作复合主键的第二列（TDengine 复合主键仅支持整型 / VARCHAR），会**例外地存为 `VARCHAR(64)` 的十六进制字符串**，是上表的唯一例外。
+`EventId` 虽然是 ByteString，但因用作复合主键的第二列（TDengine 复合主键支持 TIMESTAMP、整型和 VARCHAR），会**例外地存为 `VARCHAR(64)` 的十六进制字符串**，是上表的唯一例外。
 :::
 
 ### 状态机字段拆列（仅告警）

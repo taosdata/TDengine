@@ -230,7 +230,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_SECOND_COL_PK:
       return "composite primary key column must be second column";
     case TSDB_CODE_PAR_COL_PK_TYPE:
-      return "composite primary key column must be of type int, uint, bigint, ubigint, and varchar";
+      return "composite primary key column must be of type timestamp, int, uint, bigint, ubigint, and varchar";
     case TSDB_CODE_PAR_INVALID_PK_OP:
       return "composite primary key column can not be added, modified, and dropped";
     case TSDB_CODE_TSMA_NAME_TOO_LONG:

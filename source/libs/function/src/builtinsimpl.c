@@ -2504,6 +2504,8 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
 // TODO: change this function when block data info pks changed
 static int32_t comparePkDataWithSValue(int8_t pkType, char* pkData, SValue* pVal, int32_t order) {
   char numVal[8] = {0};
+  bool isScalarPk = IS_NUMERIC_TYPE(pkType) || pkType == TSDB_DATA_TYPE_TIMESTAMP;
+
   switch (pkType) {
     case TSDB_DATA_TYPE_INT:
       *(int32_t*)numVal = (int32_t)VALUE_GET_TRIVIAL_DATUM(pVal);
@@ -2512,6 +2514,7 @@ static int32_t comparePkDataWithSValue(int8_t pkType, char* pkData, SValue* pVal
       *(uint32_t*)numVal = (uint32_t)VALUE_GET_TRIVIAL_DATUM(pVal);
       break;
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
       *(int64_t*)numVal = (int64_t)VALUE_GET_TRIVIAL_DATUM(pVal);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
@@ -2520,7 +2523,7 @@ static int32_t comparePkDataWithSValue(int8_t pkType, char* pkData, SValue* pVal
     default:
       break;
   }
-  char*         blockData = (IS_NUMERIC_TYPE(pkType)) ? (char*)numVal : (char*)pVal->pData;
+  char*         blockData = isScalarPk ? (char*)numVal : (char*)pVal->pData;
   __compar_fn_t fn = getKeyComparFunc(pkType, order);
   return fn(pkData, blockData);
 }

@@ -217,10 +217,14 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
   if (numOfPks > 0) {
     pKey->pks[0].type = type;
 
-    if (IS_NUMERIC_TYPE(type)) {
+    if (IS_SCALAR_PRIMARY_KEY_TYPE(type)) {
       if (asc) {
         switch (type) {
           case TSDB_DATA_TYPE_BIGINT: {
+            VALUE_SET_TRIVIAL_DATUM(pKey->pks, INT64_MIN);
+            break;
+          }
+          case TSDB_DATA_TYPE_TIMESTAMP: {
             VALUE_SET_TRIVIAL_DATUM(pKey->pks, INT64_MIN);
             break;
           }
@@ -253,6 +257,7 @@ int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, in
       } else {
         switch (type) {
           case TSDB_DATA_TYPE_BIGINT:
+          case TSDB_DATA_TYPE_TIMESTAMP:
             VALUE_SET_TRIVIAL_DATUM(pKey->pks, INT64_MAX);
             break;
           case TSDB_DATA_TYPE_INT:
@@ -739,7 +744,7 @@ int32_t recordToBlockInfo(SFileDataBlockInfo* pBlockInfo, SBrinRecord* record) {
   pLastKey = &record->lastKey.key;
   TSDB_CHECK_CONDITION((pFirstKey->numOfPKs == pLastKey->numOfPKs), code, lino, _end, TSDB_CODE_INVALID_PARA);
   if (pFirstKey->numOfPKs > 0) {
-    if (IS_NUMERIC_TYPE(pFirstKey->pks[0].type)) {
+    if (IS_SCALAR_PRIMARY_KEY_TYPE(pFirstKey->pks[0].type)) {
       pBlockInfo->firstPk.val = VALUE_GET_TRIVIAL_DATUM(pFirstKey->pks);
       pBlockInfo->lastPk.val = VALUE_GET_TRIVIAL_DATUM(pLastKey->pks);
     } else {

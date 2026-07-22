@@ -136,7 +136,7 @@ static int32_t tColRowGetPriamyKeyDeepCopy(SBlockData* pBlock, int32_t irow, int
   pKey->numOfPKs = 1;
   pKey->pks[0].type = cv.value.type;
 
-  if (IS_NUMERIC_TYPE(cv.value.type)) {
+  if (IS_SCALAR_PRIMARY_KEY_TYPE(cv.value.type)) {
     valueCloneDatum(pKey->pks, &cv.value, cv.value.type);
   } else {
     pKey->pks[0].nData = cv.value.nData;
@@ -1230,7 +1230,7 @@ static int32_t updateLastKeyInfo(SRowKey* pKey, SFileDataBlockInfo* pBlockInfo, 
   }
 
   TSDB_CHECK_NULL(pBlockInfo, code, lino, _end, TSDB_CODE_INVALID_PARA);
-  if (IS_NUMERIC_TYPE(pKey->pks[0].type)) {
+  if (IS_SCALAR_PRIMARY_KEY_TYPE(pKey->pks[0].type)) {
     VALUE_SET_TRIVIAL_DATUM(pKey->pks, asc ? pBlockInfo->lastPk.val : pBlockInfo->firstPk.val);
   } else {
     uint8_t* p = asc ? pBlockInfo->lastPk.pData : pBlockInfo->firstPk.pData;
@@ -2481,7 +2481,7 @@ static int32_t nextRowFromSttBlocks(SSttBlockReader* pSttBlockReader, STableBloc
       // next file, the timestamps in the next file must be greater than those in current
       pNextProc->ts += step;
       if (pSttBlockReader->numOfPks > 0) {
-        if (IS_NUMERIC_TYPE(pNextProc->pks[0].type)) {
+        if (IS_SCALAR_PRIMARY_KEY_TYPE(pNextProc->pks[0].type)) {
           VALUE_SET_TRIVIAL_DATUM(pNextProc->pks, INT64_MAX);
         } else {
           memset(pNextProc->pks[0].pData, 0, pNextProc->pks[0].nData);
@@ -2610,7 +2610,7 @@ _end:
 // deep copy the primary key, to avoid ref invalid buffer if the primary key is varchar or something.
 static int32_t primaryKeyDup(SRowKey* pKey) {
   if (pKey->numOfPKs > 0) {
-    if (!IS_NUMERIC_TYPE(pKey->pks[0].type)) {
+    if (!IS_SCALAR_PRIMARY_KEY_TYPE(pKey->pks[0].type)) {
       void* p = taosMemoryMalloc(pKey->pks[0].nData);
       if (p == NULL)  {
         tsdbError("%s failed at %s:%d since %s", __func__, __FILE__, __LINE__, tstrerror(terrno));
@@ -4090,7 +4090,7 @@ static int32_t buildCleanBlockFromDataFiles(STsdbReader* pReader, STableBlockSca
   pInfo->window = (STimeWindow){.skey = pBlockInfo->firstKey, .ekey = pBlockInfo->lastKey};
 
   if (pReader->suppInfo.numOfPks > 0) {
-    if (IS_NUMERIC_TYPE(pReader->suppInfo.pk.type)) {
+    if (IS_SCALAR_PRIMARY_KEY_TYPE(pReader->suppInfo.pk.type)) {
       VALUE_SET_TRIVIAL_DATUM(pInfo->pks, pBlockInfo->firstPk.val);
       VALUE_SET_TRIVIAL_DATUM(pInfo->pks + 1, pBlockInfo->lastPk.val);
     } else {

@@ -170,7 +170,7 @@ Columns are determined by the `SelectClauses` of the EventFilter (by default, al
 | Structure / other unknown types                                  | NCHAR(255)     |
 
 :::note
-Although `EventId` is a ByteString, because it is used as the second column of the composite primary key (TDengine composite primary keys only support integer / VARCHAR types), it is **stored exceptionally as a `VARCHAR(64)` hexadecimal string** — the only exception to the table above.
+Although `EventId` is a ByteString, because it is used as the second column of the composite primary key (TDengine composite primary keys support `TIMESTAMP`, integer, and `VARCHAR` types), it is **stored exceptionally as a `VARCHAR(64)` hexadecimal string** — the only exception to the table above.
 :::
 
 ### State-Machine Field Splitting (Alarms only)
