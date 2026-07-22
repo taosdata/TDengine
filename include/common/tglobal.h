@@ -142,6 +142,8 @@ extern int32_t tsNumOfStreamMgmtThreads;
 extern int32_t tsNumOfVnodeStreamReaderThreads;
 extern int32_t tsNumOfStreamTriggerThreads;
 extern int32_t tsNumOfStreamRunnerThreads;
+extern int32_t tsNumOfStreamRunnerDeploys;
+extern int32_t tsNumOfStreamRunnerReplicas;
 
 extern int32_t tsNumOfCompactThreads;
 extern int32_t tsNumOfRetentionThreads;

@@ -38,6 +38,7 @@ typedef struct SPlanStreamContext {
   bool        hasForceOutput;
   bool        hasNotify;
   bool        hasExtWindow;
+  bool        disableExtWindow;
   SArray*     calcScanPlanArray;
   SNode*      triggerScanSubplan;
   ENodeType   triggerWinType;

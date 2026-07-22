@@ -84,6 +84,8 @@ def check_list_result(result_list,detaild_list):
             f"{TD_project_path}/community/include/util/types.h:assert(sizeof(float) == sizeof(uint32_t));",
             f"{TD_project_path}/community/include/util/types.h:assert(sizeof(double) == sizeof(uint64_t));",
             f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(pgno > 0 && pgno <= pBt->pPager->dbFileSize, \"invalid page number %u, db file size %u\", pgno, pBt->pPager->dbFileSize);",
+            f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(*pgno > 0 && *pgno <= pBt->pPager->dbFileSize, \"corrupted free pgno:%u, db file size:%u.\", *pgno, pBt->pPager->dbFileSize);",
+            f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(next == 0 || (next <= pBt->pPager->dbFileSize && next != *pgno), \"corrupted next pgno:%u, self:%u, db file size:%u.\", next, *pgno, pBt->pPager->dbFileSize);",
             f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(pgno != 0 && pgno <= pBt->pPager->dbFileSize, \"invalid page number %u, db file size %u\", pgno, pBt->pPager->dbFileSize);",
             f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE((vLeft == 0) || (pgno > 0 && pgno <= pBt->pPager->dbFileSize), \"invalid page number %u, db file size %u\", pgno, pBt->pPager->dbFileSize);",
             f"{TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:ASSERT_CORE(pgno > 0 && pgno <= pBtc->pBt->pPager->dbFileSize, \"invalid page number %u, db file size %u\", pgno, pBtc->pBt->pPager->dbFileSize);",
@@ -95,7 +97,7 @@ def check_list_result(result_list,detaild_list):
     expected_strings = [
         f"Total matches in {TD_project_path}/community/source/dnode/vnode/src/tsdb/tsdbCommit2.c:1",
         f"Total matches in {TD_project_path}/community/include/util/types.h:2",
-        f"Total matches in {TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:12",
+        f"Total matches in {TD_project_path}/community/source/libs/tdb/src/db/tdbBtree.c:14",
         f"Total matches in {TD_project_path}/community/source/libs/tdb/src/db/tdbPage.c:2",
         f"Total matches in {TD_project_path}/community/source/libs/tdb/src/db/tdbPager.c:4"
         ]

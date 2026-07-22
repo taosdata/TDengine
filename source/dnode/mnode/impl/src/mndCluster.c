@@ -238,6 +238,14 @@ static int32_t mndClusterActionUpdate(SSdb *pSdb, SClusterObj *pOld, SClusterObj
 }
 
 static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
+  void        *pIter = NULL;
+  SClusterObj *pExist = mndAcquireCluster(pMnode, &pIter);
+  if (pExist != NULL) {
+    pMnode->clusterId = pExist->id;
+    mndReleaseCluster(pMnode, pExist, pIter);
+    TAOS_RETURN(0);
+  }
+
   SClusterObj clusterObj = {0};
   clusterObj.createdTime = taosGetTimestampMs();
   clusterObj.updateTime = clusterObj.createdTime;

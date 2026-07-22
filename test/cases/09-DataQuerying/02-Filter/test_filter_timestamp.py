@@ -44,6 +44,53 @@ class TestFilterTimestamp:
         self.do_union_all_ts_pushdown()
         self.do_union_all_ts_pushdown_advanced()
 
+    def test_timestamp_arithmetic_filter_regression(self):
+        """Timestamp arithmetic filter regression
+
+        1. Timestamp range extraction preserves every AND term when one term contains arithmetic
+
+        Catalog:
+            - Query
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,regression
+
+        Jira: None
+
+        History:
+            - 2026-07-20 wpan Added timestamp arithmetic filter regression
+
+        """
+
+        self.do_timestamp_arithmetic_filter_regression()
+
+    def do_timestamp_arithmetic_filter_regression(self):
+
+        db = "timestamp_arithmetic_filter"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} precision 'ms'")
+        tdSql.execute(f"use {db}")
+        tdSql.execute("create table t (ts timestamp, v int)")
+
+        values = " ".join(
+            f"('2020-10-10 10:00:{second:02d}.000', {second})" for second in range(20)
+        )
+        tdSql.execute(f"insert into t values {values}")
+
+        tdSql.query(
+            "select v from t "
+            "where ts + 1000 <= '2020-10-10 10:00:03' "
+            "and '2020-10-10 10:00:00' <= ts order by ts"
+        )
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(2, 0, 2)
+
+        tdSql.execute(f"drop database if exists {db}")
+        print("timestamp arithmetic filter regression .... [ passed ]")
+
     def TableTime(self):
         dbPrefix = "m_tt_db"
         tbPrefix = "m_tt_tb"

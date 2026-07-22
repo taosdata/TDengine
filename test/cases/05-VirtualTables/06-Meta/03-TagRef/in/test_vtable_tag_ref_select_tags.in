@@ -1,0 +1,5 @@
+set max_binary_display_width 300;
+select tags local_group from td_tagref_select_tags.v0;
+select tags ref_city from td_tagref_select_tags.v2;
+explain select tags local_group from td_tagref_select_tags.v0;
+explain select tags ref_city from td_tagref_select_tags.v2;

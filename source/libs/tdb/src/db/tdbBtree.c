@@ -593,6 +593,12 @@ int tdbBtreePopFreePage(SBTree *pBt, SPgno *pgno, TXN* pTxn) {
 
   *pgno = *((SPgno*)tdbPageGetCell(pRoot, 0));
 
+  // Defensive check: the stack head page number is stored in a root cell and can be corrupted by
+  // double-free / overflow-page-free bugs. A valid page number must fall within [1, dbFileSize].
+  // Crash here so the root cause (a bogus pgno already sitting in the free page table) can be
+  // located, instead of propagating it to tdbPagerAllocPage and aborting far from the source.
+  ASSERT_CORE(*pgno > 0 && *pgno <= pBt->pPager->dbFileSize, "corrupted free pgno:%u, db file size:%u.", *pgno, pBt->pPager->dbFileSize);
+
   SPgno next = 0;
   // use the same rounded cell size as tdbBtreePushFreePage()/tdbPageDropCell() so that the
   // "is the root page full" threshold below and the insert size stay symmetric with push.
@@ -610,6 +616,13 @@ int tdbBtreePopFreePage(SBTree *pBt, SPgno *pgno, TXN* pTxn) {
     }
     next = *((SPgno*)pPage->pData);
     tdbPagerReturnPage(pBt->pPager, pPage, pTxn);
+
+    // Defensive check: the next free page number is read from the page content, which can be
+    // corrupted by double-free or overflow-page-free bugs (e.g. reading a normal leaf page header
+    // such as 02 00 00 FC as a page number). A valid next pointer is either 0 (end of list) or a
+    // page number within [1, dbFileSize] that differs from the page we just popped. Crash here so
+    // the root cause can be located at the point of corruption.
+    ASSERT_CORE(next == 0 || (next <= pBt->pPager->dbFileSize && next != *pgno), "corrupted next pgno:%u, self:%u, db file size:%u.", next, *pgno, pBt->pPager->dbFileSize);
   }
 
   // drop the first cell
@@ -766,6 +779,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
   int ret;
 
   if (TDB_BTREE_PAGE_IS_LEAF(pParent)) {
+    tdbError("tdb/btree-balance: parent page is a leaf page, idx: %d, pgno: %" PRIu32 ".", idx,
+             TDB_PAGE_PGNO(pParent));
     return TSDB_CODE_INTERNAL_ERROR;
   }
 
@@ -837,6 +852,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           } else {
             divCells[i].pKey = tdbRealloc(NULL, cd.kLen);
             if (divCells[i].pKey == NULL) {
+              tdbError("tdb/btree-balance: realloc divcell key failed, kLen: %d, i: %d.", cd.kLen, i);
               return terrno;
             }
             memcpy(divCells[i].pKey, cd.pKey, cd.kLen);
@@ -850,6 +866,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           SPgno sinkPgno = ((SIntHdr *)pOlds[i]->pData)->pgno;
           SCell* pDivCell = tdbOsMalloc(divCells[i].kLen + sizeof(SPgno) + sizeof(SIntHdr));
           if(pDivCell == NULL) {
+            tdbError("tdb/btree-balance: malloc divcell failed, kLen: %d, i: %d.", divCells[i].kLen, i);
             return terrno;
           }
 
@@ -965,6 +982,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
         }
 
         if (infoNews[iNew - 1].cnt <= 0) {
+          tdbError("tdb/btree-balance: invalid cell count during redistribution, iNew: %d, cnt: %d.", iNew,
+                   infoNews[iNew - 1].cnt);
           return TSDB_CODE_FAILED;
         }
 
@@ -1071,9 +1090,13 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
         szCell = tdbBtreeCellSize(pPage, pCell, NULL);
 
         if (nNewCells > infoNews[iNew].cnt) {
+          tdbError("tdb/btree-balance: too many new cells, iNew: %d, nNewCells: %d, cnt: %d, iOld: %d, oIdx: %d.", iNew,
+                   nNewCells, infoNews[iNew].cnt, iOld, oIdx);
           return TSDB_CODE_FAILED;
         }
         if (iNew >= nNews) {
+          tdbError("tdb/btree-balance: new page index out of range, iNew: %d, nNews: %d, iOld: %d, oIdx: %d.", iNew,
+                   nNews, iOld, oIdx);
           return TSDB_CODE_FAILED;
         }
 
@@ -1101,6 +1124,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
               // TODO: pCell here may be inserted as an overflow cell, handle it
               SCell *pNewCell = tdbOsMalloc(cd.kLen + 9);
               if (pNewCell == NULL) {
+                tdbError("tdb/btree-balance: malloc new cell failed, kLen: %d, iNew: %d.", cd.kLen, iNew);
                 return terrno;
               }
               int   szNewCell;
@@ -1138,9 +1162,12 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
           }
         } else {
           if (childIsLeaf) {
+            tdbError("tdb/btree-balance: unexpected divider cell on leaf child, iNew: %d, nNews: %d, iOld: %d.", iNew,
+                     nNews, iOld);
             return TSDB_CODE_FAILED;
           }
           if (iNew >= nNews - 1) {
+            tdbError("tdb/btree-balance: new page index out of range for divider, iNew: %d, nNews: %d.", iNew, nNews);
             return TSDB_CODE_FAILED;
           }
 
@@ -1149,6 +1176,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
           // insert to parent as divider cell
           if (iNew >= nNews - 1) {
+            tdbError("tdb/btree-balance: new page index out of range before divider insert, iNew: %d, nNews: %d.", iNew,
+                     nNews);
             return TSDB_CODE_FAILED;
           }
           ((SPgno *)pCell)[0] = TDB_PAGE_PGNO(pNews[iNew]);
@@ -1174,6 +1203,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
     if (!childIsLeaf) {
       if (TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]) != infoNews[nNews - 1].cnt) {
+        tdbError("tdb/btree-balance: last new page cell count mismatch, nNews: %d, total: %d, cnt: %d.", nNews,
+                 TDB_PAGE_TOTAL_CELLS(pNews[nNews - 1]), infoNews[nNews - 1].cnt);
         return TSDB_CODE_FAILED;
       }
       ((SIntHdr *)(pNews[nNews - 1]->pData))->pgno = rPgno;
@@ -1187,6 +1218,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
         SPgno newsPgno = TDB_PAGE_PGNO(pNews[nNews - 1]);
         SCell* pDivCell = tdbOsMalloc(pdc->kLen + sizeof(SPgno) + sizeof(SIntHdr));
         if(pDivCell == NULL) {
+          tdbError("tdb/btree-balance: malloc last divcell failed, kLen: %d, nOlds: %d.", pdc->kLen, nOlds);
           return terrno;
         }
 
@@ -1216,10 +1248,12 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     // copy content to the parent page
     ret = tdbBtreeInitPage(pParent, &(SBtreeInitPageArg){.flags = flags, .pBt = pBt}, 0);
     if (ret < 0) {
+      tdbError("tdb/btree-balance: init root page failed with ret: %d.", ret);
       return ret;
     }
     ret = tdbPageCopy(pNews[0], pParent, 0);
     if (ret < 0) {
+      tdbError("tdb/btree-balance: copy to root page failed with ret: %d.", ret);
       return ret;
     }
     pNews[0]->nOverflow = 0;
@@ -1230,6 +1264,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
     ret = tdbPagerInsertFreePage(pBt->pPager, pNews[0], pTxn);
     if (ret < 0) {
+      tdbError("tdb/btree-balance: insert free page failed for root collapse with ret: %d, pgno: %" PRIu32 ".", ret,
+               TDB_PAGE_PGNO(pNews[0]));
       return ret;
     }
   }
@@ -1244,6 +1280,8 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     if (pageIdx >= nNews) {
       ret = tdbPagerInsertFreePage(pBt->pPager, pOlds[pageIdx], pTxn);
       if (ret < 0) {
+        tdbError("tdb/btree-balance: insert free page failed with ret: %d, pageIdx: %d, pgno: %" PRIu32 ".", ret,
+                 pageIdx, TDB_PAGE_PGNO(pOlds[pageIdx]));
         return ret;
       }
     }

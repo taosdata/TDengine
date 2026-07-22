@@ -437,7 +437,7 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
   }
 
   if (nParam == 2 && node->pRight != NULL && (nodeType(node->pRight)) != QUERY_NODE_VALUE) {
-    indexError("right node should be value, node:%p, type:%d", node->pRight, nodeType(node->pRight));
+    indexDebug("right node should be value, node:%p, type:%d", node->pRight, nodeType(node->pRight));
     SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 

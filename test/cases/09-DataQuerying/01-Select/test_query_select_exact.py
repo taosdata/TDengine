@@ -10,6 +10,8 @@
 ###################################################################
 
 # -*- coding: utf-8 -*-
+import time
+
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
 
@@ -21,6 +23,27 @@ class TestQueryBasic:
         "querySmaOptimize" : "1",
         "slowLogScope"     : "none"
     }
+
+
+    def waitDbVgroupsReady(self, dbname, seconds=60, interval=1):
+        for count in range(seconds):
+            tdSql.query(f"show {dbname}.vgroups")
+            leader_num = 0
+            for row in tdSql.queryResult:
+                if "leader" in (row[4], row[7], row[10]):
+                    leader_num += 1
+
+            if leader_num == tdSql.queryRows:
+                tdLog.info(f"{dbname} vgroups are ready after {count}s.")
+                return
+
+            tdLog.info(
+                f"waiting for {dbname} vgroups leader election: "
+                f"{leader_num}/{tdSql.queryRows} ready after {count}s."
+            )
+            time.sleep(interval)
+
+        tdLog.exit(f"{dbname} vgroups are not ready within {seconds}s.")
 
 
     def insertData(self):
@@ -39,6 +62,9 @@ class TestQueryBasic:
 
         # write again disorder
         self.flushDb()
+        if not self.waitTransactionZero(seconds=120):
+            tdLog.exit("transactions did not drain after flush before disorder write")
+        self.waitDbVgroupsReady(self.db)
         jfile = etool.curFile(__file__, "cselect_exact.json")
         etool.benchMark(json = jfile)
 
@@ -454,6 +480,5 @@ class TestQueryBasic:
 
         # check null
         self.checkNull()
-
 
 

@@ -323,6 +323,18 @@ bool    sdbIsUpgraded(SSdb *pSdb);
 int32_t sdbAfterRestored(SSdb *pSdb);
 
 /**
+ * @brief Re-create default metadata objects missing after an interrupted first
+ *        deploy, by re-running each table's deployFp (skipping tables with their
+ *        own afterRestoredFp, which self-heal via that hook). Only meaningful on
+ *        a single-node deploy; a formed multi-replica cluster already has
+ *        complete data. deployFp MUST be idempotent per object, since it may
+ *        re-run against already-populated tables.
+ * @param pSdb The sdb object.
+ * @return int32_t 0 for success, non-zero for failure.
+ */
+int32_t sdbEnsureDefaultData(SSdb *pSdb);
+
+/**
  * @brief Load sdb from file.
  *
  * @param pSdb The sdb object.

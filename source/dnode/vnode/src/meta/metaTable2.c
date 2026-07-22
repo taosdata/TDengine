@@ -1224,6 +1224,21 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
     }
   }
 
+  // Fetch ctbNum BEFORE taking WLock below: metaGetStbStats acquires metaRLock
+  // internally, calling it while holding metaWLock self-deadlocks (glibc rwlock
+  // does not allow a wrlock owner to re-enter rdlock).
+  bool    needStbCtbStats = (statsType == TSDB_SUPER_TABLE && !metaTbInFilterCache(pMeta, stbName, 1));
+  int64_t stbCtbNum = 0;
+  if (needStbCtbStats) {
+    int32_t stRet = metaGetStbStats(pMeta->pVnode, uid, &stbCtbNum, 0, 0);
+    if (stRet != 0) {
+      metaWarn("vgId:%d, rollback alter: metaGetStbStats failed uid %" PRId64
+               ", numOfTimeSeries may be inaccurate",
+               TD_VID(pMeta->pVnode), uid);
+      stbCtbNum = 0;
+    }
+  }
+
   // Delete the new-version entry from pTbDb, read old entry, restore pUidIdx,
   // and drop cache — all under WLock to serialize with async vacuum.
   STbDbKey newKey = {.version = newVersion, .uid = uid};
@@ -1262,15 +1277,8 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
             (statsType == TSDB_SUPER_TABLE) ? mr2.me.stbEntry.schemaRow.nCols : mr2.me.ntbEntry.schemaRow.nCols;
         int32_t undoDelta = oldNcols - newNcols;
         if (undoDelta != 0) {
-          if (statsType == TSDB_SUPER_TABLE && !metaTbInFilterCache(pMeta, stbName, 1)) {
-            int64_t ctbNum = 0;
-            int32_t stRet = metaGetStbStats(pMeta->pVnode, uid, &ctbNum, 0, 0);
-            if (stRet != 0) {
-              metaWarn("vgId:%d, rollback alter: metaGetStbStats failed uid %" PRId64
-                       ", numOfTimeSeries may be inaccurate",
-                       TD_VID(pMeta->pVnode), uid);
-            }
-            pMeta->pVnode->config.vndStats.numOfTimeSeries += (int64_t)ctbNum * undoDelta;
+          if (statsType == TSDB_SUPER_TABLE && needStbCtbStats) {
+            pMeta->pVnode->config.vndStats.numOfTimeSeries += stbCtbNum * undoDelta;
           } else if (statsType == TSDB_NORMAL_TABLE) {
             pMeta->pVnode->config.vndStats.numOfNTimeSeries += undoDelta;
           }

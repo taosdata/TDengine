@@ -1057,6 +1057,12 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   int32_t  lino = 0;
   SUserObj userObj = {0};
 
+  SUserObj *pExist = NULL;
+  if (mndAcquireUser(pMnode, user, &pExist) == 0 && pExist != NULL) {
+    mndReleaseUser(pMnode, pExist);
+    TAOS_RETURN(0);
+  }
+
   userObj.passwords = taosMemCalloc(1, sizeof(SUserPassword));
   if (userObj.passwords == NULL) {
     TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _ERROR);

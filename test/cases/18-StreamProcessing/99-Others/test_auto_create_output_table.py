@@ -1,6 +1,5 @@
 import time
 from new_test_framework.utils import tdSql, tdLog, tdStream, StreamItem
-from new_test_framework.utils.eutil import findTaosdLog
 
 class TestStreamAutoCreateOutputTable:
 
@@ -79,6 +78,94 @@ class TestStreamAutoCreateOutputTable:
             and tdSql.compareData(1, 0, "out_vt_d9_q5ox8n_period"),
             retry=60,
         )
+
+    def test_nodelay_create_subtable_without_window(self):
+        """summary: skip calculation for nodelay create-only requests without windows
+
+        description:
+            - create a partitioned virtual-stable count-window stream
+            - verify nodelay creates an empty output subtable before any real
+              window closes
+            - verify later real windows still produce the expected diff results
+
+        Since: v3.4.2.0
+
+        Catalog:
+            - StreamProcessing:Others
+
+        Labels: common,ci,regression
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7026933541
+
+        History:
+            - 2026-07-20 Created by regression
+
+        """
+
+        tdStream.ensureSnode()
+        tdSql.executes(
+            [
+                "drop database if exists nodelay_calc;",
+                "drop database if exists nodelay_src;",
+                "create database nodelay_src vgroups 2;",
+                "create table nodelay_src.t (ts timestamp, voltage int);",
+                "create database nodelay_calc vgroups 2;",
+                "create stable nodelay_calc.vst (ts timestamp, voltage int) "
+                "tags (element varchar(64)) virtual 1;",
+                "create vtable nodelay_calc.vt "
+                "(voltage from nodelay_src.t.voltage) "
+                "using nodelay_calc.vst tags ('voltage');",
+                "insert into nodelay_src.t values ('2025-12-31 23:59:59', 101);",
+            ]
+        )
+        tdSql.execute(
+            "create stream nodelay_calc.s "
+            "count_window(6, 1) "
+            "from nodelay_calc.vst partition by tbname "
+            "stream_options(ignore_disorder) "
+            "into nodelay_calc.out nodelay_create_subtable "
+            "output_subtable(concat('out_', tbname)) "
+            "as select _twstart as start_time, _twend as end_time, sum_v "
+            "from (select sum(case when dif > 0 then 1 when dif < 0 then -1 else 0 end) as sum_v "
+            "from (select diff(voltage) as dif from nodelay_calc.vt "
+            "where _c0 >= _twstart and _c0 <= _twend)) "
+            "where abs(sum_v) >= 5;"
+        )
+
+        tdStream.checkStreamStatus("s")
+        tdSql.checkResultsByFunc(
+            sql=(
+                "select table_name from information_schema.ins_tables "
+                "where db_name = 'nodelay_calc' and table_name = 'out_vt'"
+            ),
+            func=lambda: tdSql.getRows() == 1,
+            retry=60,
+        )
+        tdSql.query("select count(*) from nodelay_calc.out_vt")
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.execute(
+            "insert into nodelay_src.t values "
+            "('2026-01-01 00:00:00', 100) "
+            "('2026-01-01 00:00:01', 99) "
+            "('2026-01-01 00:00:02', 98) "
+            "('2026-01-01 00:00:03', 97) "
+            "('2026-01-01 00:00:04', 96) "
+            "('2026-01-01 00:00:05', 95) "
+            "('2026-01-01 00:00:06', 94)"
+        )
+        tdSql.checkResultsByFunc(
+            sql="select start_time, end_time, sum_v from nodelay_calc.out order by start_time",
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2026-01-01 00:00:00")
+            and tdSql.compareData(0, 1, "2026-01-01 00:00:05")
+            and tdSql.compareData(0, 2, -5)
+            and tdSql.compareData(1, 0, "2026-01-01 00:00:01")
+            and tdSql.compareData(1, 1, "2026-01-01 00:00:06")
+            and tdSql.compareData(1, 2, -5),
+            retry=60,
+        )
+        tdStream.checkStreamStatus("s")
 
     def prepareData(self):
         tdLog.info(f"prepare data")

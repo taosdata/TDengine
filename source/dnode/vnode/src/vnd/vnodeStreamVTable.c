@@ -859,6 +859,13 @@ static int32_t vnodeResolveTableGroup(SVnode *pVnode, const char *dbName, const 
 
   bool isVtable = (mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_CHILD_TABLE);
 
+  // Release mr's meta read lock before opening any further LOCK readers below
+  // (stbReader, and the per-column tag-value readers inside vnodeFillResolveRspFromColRef):
+  // a nested META_READER_LOCK rdlock deadlocks once a writer is queued on the
+  // meta rwlock (glibc blocks new readers behind a pending writer).
+  // mr.me stays valid until metaReaderClear.
+  metaReaderReleaseLock(&mr);
+
   // Pre-read parent stable info for virtual child table (shared across all columns)
   SMetaReader stbReader      = {0};
   bool        stbReaderInited = false;
@@ -876,6 +883,10 @@ static int32_t vnodeResolveTableGroup(SVnode *pVnode, const char *dbName, const 
       return code;
     }
     stbReaderInited = true;
+    // Same as above: drop the lock before the per-column loop, which opens
+    // further LOCK readers via vnodeFillResolveRspFromColRef. stbReader.me
+    // stays valid until metaReaderClear.
+    metaReaderReleaseLock(&stbReader);
   }
 
   for (int32_t ci = 0; ci < nCols; ++ci) {
@@ -921,6 +932,12 @@ static int32_t vnodeResolveOneHop(SVnode *pVnode, const SVTableRefResolveItem *q
   bool isVtable = (mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_CHILD_TABLE);
   vDebug("vgId:%d %s table found: name=%s type=%d isVtable=%d", TD_VID(pVnode), __func__,
          q->refTableName, mr.me.type, isVtable);
+
+  // Release mr's meta read lock before the nested LOCK readers opened by
+  // vnodeFindVTableColRef (tmpStb) and vnodeFillResolveRspFromColRef
+  // (streamReadChildTagConstValueImpl): a nested rdlock deadlocks once a writer
+  // is queued on the meta rwlock. mr.me stays valid until metaReaderClear.
+  metaReaderReleaseLock(&mr);
 
   if (isVtable) {
     // Lookup the SColRef via shared helper. Pass NULL for pStbEntry — for
@@ -1106,6 +1123,11 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
            TD_VID(pVnode), __func__, uid, mr.me.type);
     goto _end;
   }
+
+  // Release mr's meta read lock: the tag loop below opens a nested LOCK reader
+  // via streamReadChildTagConstValueByCid, and a nested rdlock deadlocks once a
+  // writer is queued on the meta rwlock. mr.me stays valid until metaReaderClear.
+  metaReaderReleaseLock(&mr);
 
   SVTableResolveResult *pRes = streamGetOrCreateUidResult(uid2Result, uid);
   if (pRes == NULL) {

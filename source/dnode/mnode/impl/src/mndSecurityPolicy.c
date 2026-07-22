@@ -32,6 +32,7 @@ static int32_t  mndSecPolicyActionInsert(SSdb *pSdb, SSecurityPolicyObj *pObj);
 static int32_t  mndSecPolicyActionDelete(SSdb *pSdb, SSecurityPolicyObj *pObj);
 static int32_t  mndSecPolicyActionUpdate(SSdb *pSdb, SSecurityPolicyObj *pOld, SSecurityPolicyObj *pNew);
 static int32_t  mndCreateDefaultSecurityPolicy(SMnode *pMnode);
+static SSecurityPolicyObj *mndAcquireSecPolicy(SMnode *pMnode, int32_t policyType);
 static int32_t  mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextSecurityPolicy(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessEnforceSodImpl(SMnode *pMnode);
@@ -195,6 +196,15 @@ static int32_t mndAppendPolicyToTrans(STrans *pTrans, int32_t policyType) {
 }
 
 static int32_t mndCreateDefaultSecurityPolicy(SMnode *pMnode) {
+  // Idempotent: SOD and MAC are created together in one transaction, so either
+  // both exist or neither does. Use SOD as the anchor: if it already exists,
+  // the default policies are present — skip (matches mnode/cluster deploy).
+  SSecurityPolicyObj *pExist = mndAcquireSecPolicy(pMnode, TSDB_SECURITY_POLICY_SOD);
+  if (pExist != NULL) {
+    sdbRelease(pMnode->pSdb, pExist);
+    TAOS_RETURN(0);
+  }
+
   // One transaction creates both SOD and MAC rows.
   // key = int32 policyType, no dependency on clusterId → deploy order safe.
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-security-policy");

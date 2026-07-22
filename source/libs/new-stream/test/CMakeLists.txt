@@ -7,17 +7,19 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 if(NOT ${TD_WINDOWS})
 ADD_EXECUTABLE(streamRunnerTest streamRunnerTest.cpp)
 DEP_ext_gtest(streamRunnerTest)
+DEP_ext_cppstub(streamRunnerTest)
 
 TARGET_INCLUDE_DIRECTORIES(
   streamRunnerTest
   PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
   PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
   PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 
 TARGET_LINK_LIBRARIES(
   streamRunnerTest
-  PUBLIC taos os common executor function index
+  PUBLIC taos os common executor function index new-stream
 )
 
 add_test(
@@ -51,6 +53,7 @@ add_test(
 
 ADD_EXECUTABLE(streamTriggerTaskTest streamTriggerTaskTest.cpp)
 DEP_ext_gtest(streamTriggerTaskTest)
+DEP_ext_cppstub(streamTriggerTaskTest)
 TARGET_INCLUDE_DIRECTORIES(
   streamTriggerTaskTest
   PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"

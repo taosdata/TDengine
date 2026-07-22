@@ -209,6 +209,11 @@ typedef union {
 
 typedef void (*TsdReaderNotifyCbFn)(ETsdReaderNotifyType type, STsdReaderNotifyInfo* info, void* param);
 
+typedef enum {
+  TSD_READER_BLOCK_SMA_MODE_NORMAL = 0,
+  TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY = 1,
+} ETsdReaderBlockSmaMode;
+
 struct SFileSetReader;
 
 typedef struct TsdReader {
@@ -221,6 +226,7 @@ typedef struct TsdReader {
 
   int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
   int32_t      (*tsdReaderRetrieveDataBlock)(void* p, SSDataBlock** pBlock);
+  int32_t      (*tsdReaderSetBlockSmaMode)(void* pReader, ETsdReaderBlockSmaMode mode);
 
   void         (*tsdReaderReleaseDataBlock)(void* pReader);
 
