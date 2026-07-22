@@ -32,7 +32,7 @@ Notes:
 
 - A supertable must have at least three columns: one timestamp column (the primary key column), one metric column, and one tag column.
 
-- `COMPOSITE KEY`: You can specify a second column for the primary key by using the `COMPOSITE KEY` keyword. The second primary key column must be of integer or `VARCHAR` type. This column, together with the timestamp column, forms a composite key.
+- `COMPOSITE KEY`: You can specify a second column for the primary key by using the `COMPOSITE KEY` keyword. The second primary key column must be of `TIMESTAMP`, integer, or `VARCHAR` type. This column, together with the timestamp column, forms a composite key.
 
   If a supertable has a composite key, two records in the supertable are considered duplicates only when both the timestamp column and the second primary key column are identical. In such cases, the database keeps only the most recent record; otherwise, both records are retained.
 

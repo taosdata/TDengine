@@ -876,6 +876,250 @@ class TestCompositePrimaryKeyInsert:
             tdSql.execute(f"delete from dest_table", show=SHOW_LOG)
             self._check_select('dest_table')
 
+    def check_timestamp_pk_insert(self):
+        tdSql.execute(f"drop table if exists s_timestamp_pk", show=SHOW_LOG)
+        tdSql.execute(f"drop table if exists n_timestamp_pk", show=SHOW_LOG)
+
+        tdSql.execute(
+            "create table s_timestamp_pk "
+            "(ts timestamp, pk timestamp primary key, v int) tags (engine int)",
+            show=SHOW_LOG,
+        )
+        tdSql.query("describe s_timestamp_pk", show=SHOW_LOG)
+        tdSql.checkData(1, 3, "COMPOSITE KEY")
+        tdSql.query("show create table s_timestamp_pk", show=SHOW_LOG)
+        tdSql.checkEqual("`pk` TIMESTAMP" in tdSql.queryResult[0][1], True)
+        tdSql.checkEqual("COMPOSITE KEY" in tdSql.queryResult[0][1], True)
+
+        tdSql.execute(
+            "insert into s_timestamp_pk (tbname, engine, ts, pk, v) values"
+            "('c_timestamp_pk', 1, '2026-03-15 11:21:20.620', '2026-03-15 12:21:20.620', 1)"
+            "('c_timestamp_pk', 1, '2026-03-15 11:21:20.620', '2026-03-15 13:21:20.620', 2)",
+            show=SHOW_LOG,
+        )
+        tdSql.execute(
+            "insert into c_timestamp_pk using s_timestamp_pk tags(1) values"
+            "('2026-03-15 11:21:20.620', '2026-03-15 13:21:20.620', 22)"
+            "('2026-03-15 11:21:21.620', '2026-03-15 13:21:20.620', 5)",
+            show=SHOW_LOG,
+        )
+        tdSql.execute(
+            "insert into c_timestamp_pk using s_timestamp_pk tags(1) "
+            "values(now, now+1h, 3) (now+1s, now-1h, 4)",
+            show=SHOW_LOG,
+        )
+        tdSql.query(
+            "select * from s_timestamp_pk "
+            "where ts='2026-03-15 11:21:20.620' order by pk",
+            show=SHOW_LOG,
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(1, 2, 22)
+        tdSql.query(
+            "select count(*) from s_timestamp_pk "
+            "where pk='2026-03-15 13:21:20.620'",
+            show=SHOW_LOG,
+        )
+        tdSql.checkData(0, 0, 2)
+        tdSql.query(
+            "select * from s_timestamp_pk where pk='2026-03-15 13:21:20.620'",
+            show=SHOW_LOG,
+        )
+        tdSql.checkRows(2)
+
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
+        tdSql.query("select count(*) from s_timestamp_pk", show=SHOW_LOG)
+        tdSql.checkData(0, 0, 5)
+        tdSql.query(
+            "select v from s_timestamp_pk "
+            "where ts='2026-03-15 11:21:20.620' and pk='2026-03-15 13:21:20.620'",
+            show=SHOW_LOG,
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 22)
+        self._check_select("s_timestamp_pk")
+
+        tdSql.execute(
+            "create table n_timestamp_pk "
+            "(ts timestamp, pk timestamp primary key, v int)",
+            show=SHOW_LOG,
+        )
+        tdSql.query("describe n_timestamp_pk", show=SHOW_LOG)
+        tdSql.checkData(1, 3, "COMPOSITE KEY")
+        tdSql.execute(
+            "insert into n_timestamp_pk values"
+            "('2026-03-15 11:21:20.620', '2026-03-15 12:21:20.620', 10)"
+            "('2026-03-15 11:21:20.620', '2026-03-15 13:21:20.620', 20)"
+            "(now, now+1h, 30)",
+            show=SHOW_LOG,
+        )
+        tdSql.execute(
+            "insert into n_timestamp_pk values"
+            "('2026-03-15 11:21:20.620', '2026-03-15 13:21:20.620', 200)"
+            "('2026-03-15 11:21:21.620', '2026-03-15 13:21:20.620', 50)",
+            show=SHOW_LOG,
+        )
+        tdSql.query(
+            "select * from n_timestamp_pk "
+            "where ts='2026-03-15 11:21:20.620' order by pk",
+            show=SHOW_LOG,
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 2, 10)
+        tdSql.checkData(1, 2, 200)
+        tdSql.query(
+            "select count(*) from n_timestamp_pk "
+            "where pk='2026-03-15 13:21:20.620'",
+            show=SHOW_LOG,
+        )
+        tdSql.checkData(0, 0, 2)
+        tdSql.query("select count(*) from n_timestamp_pk", show=SHOW_LOG)
+        tdSql.checkData(0, 0, 4)
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
+        tdSql.query(
+            "select v from n_timestamp_pk "
+            "where ts='2026-03-15 11:21:20.620' and pk='2026-03-15 13:21:20.620'",
+            show=SHOW_LOG,
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 200)
+        self._check_select("n_timestamp_pk")
+        self.check_timestamp_pk_stmt()
+        self.check_timestamp_pk_block_query()
+
+    def check_timestamp_pk_stmt(self):
+        tdSql.execute(f"drop table if exists s_timestamp_stmt_pk", show=SHOW_LOG)
+        tdSql.execute(
+            "create table s_timestamp_stmt_pk "
+            "(ts timestamp, pk timestamp primary key, v int) tags (engine int)",
+            show=SHOW_LOG,
+        )
+
+        sql = "INSERT INTO ? USING s_timestamp_stmt_pk TAGS(?) VALUES (?,?,?)"
+        conn = taos.connect()
+        conn.select_db(self.database)
+        stmt = conn.statement(sql)
+
+        tbname = "d_timestamp_stmt_pk"
+        tags = taos.new_bind_params(1)
+        tags[0].int([2])
+        stmt.set_tbname_tags(tbname, tags)
+
+        params = taos.new_bind_params(3)
+        params[0].timestamp((1626861392589, 1626861392589, 1626861393590))
+        params[1].timestamp((1626861392589, 1626861393591, 1626861392589))
+        params[2].int([10, 20, 30])
+        stmt.bind_param_batch(params)
+        stmt.execute()
+
+        tdSql.execute(f"flush database {self.database}", show=SHOW_LOG)
+        tdSql.query("select count(*) from s_timestamp_stmt_pk", show=SHOW_LOG)
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(
+            "select count(*) from s_timestamp_stmt_pk where pk=1626861392589",
+            show=SHOW_LOG,
+        )
+        tdSql.checkData(0, 0, 2)
+
+        params = taos.new_bind_params(3)
+        params[0].timestamp((1626861392589))
+        params[1].timestamp((1626861392589))
+        params[2].int([110])
+        stmt.bind_param(params)
+        stmt.execute()
+
+        tdSql.query(
+            "select * from s_timestamp_stmt_pk "
+            "where ts=1626861392589 and pk=1626861392589",
+            show=SHOW_LOG,
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 2, 110)
+
+        params = taos.new_bind_params(3)
+        params[0].timestamp((1626861392592))
+        params[1].timestamp((1626861392589))
+        params[2].int([120])
+        stmt.bind_param(params)
+        stmt.execute()
+
+        tdSql.query(
+            "select count(*) from s_timestamp_stmt_pk where pk=1626861392589",
+            show=SHOW_LOG,
+        )
+        tdSql.checkData(0, 0, 3)
+
+        params = taos.new_bind_params(3)
+        params[0].timestamp((1626861392593))
+        params[1].timestamp(None)
+        params[2].int([130])
+        try:
+            stmt.bind_param(params)
+            tdSql.checkEqual(False, True)
+        except Exception:
+            pass
+
+        stmt.close()
+        self._check_select("s_timestamp_stmt_pk")
+
+    def check_timestamp_pk_block_query(self):
+        block_db = f"{self.database}_timestamp_pk_block"
+        block_table = "timestamp_pk_block"
+        row_count = 10000
+        max_rows_per_block = 4096
+
+        tdSql.execute(f"drop database if exists {block_db}", show=SHOW_LOG)
+        tdSql.execute(
+            f"create database {block_db} vgroups 1 maxrows {max_rows_per_block}",
+            show=SHOW_LOG,
+        )
+        tdSql.execute(f"use {block_db}", show=SHOW_LOG)
+        tdSql.execute(
+            f"create table {block_table} "
+            "(ts timestamp, pk timestamp primary key, v int)",
+            show=SHOW_LOG,
+        )
+        for start in range(1, row_count + 1, 1000):
+            end = min(start + 1000, row_count + 1)
+            values = "".join(
+                f"('2026-03-15 11:21:20.620', {1773544880620 + i}, {i})"
+                for i in range(start, end)
+            )
+            tdSql.execute(f"insert into {block_table} values{values}", show=SHOW_LOG)
+        tdSql.execute(f"flush database {block_db}", show=SHOW_LOG)
+
+        tdSql.query(f"select count(*) from {block_table}", show=SHOW_LOG)
+        tdSql.checkData(0, 0, row_count)
+
+        tdSql.query(f"select first(v), last(v) from {block_table}", show=SHOW_LOG)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, row_count)
+
+        tdSql.query(
+            f"select first(v), last(v) from {block_table} group by tbname",
+            show=SHOW_LOG,
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, row_count)
+
+        tdSql.query(f"select * from {block_table} order by pk asc limit 1", show=SHOW_LOG)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 2, 1)
+        tdSql.query(f"select * from {block_table} order by pk desc limit 1", show=SHOW_LOG)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 2, row_count)
+        tdSql.query(f"select * from {block_table} order by ts asc, pk desc limit 1", show=SHOW_LOG)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 2, row_count)
+        tdSql.query(f"select * from {block_table} order by ts desc, pk asc limit 1", show=SHOW_LOG)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 2, 1)
+
+        tdSql.execute(f"use {self.database}", show=SHOW_LOG)
+
     def _compare_table_data(self, result1, result2, row = 0, col = 0):
         for i in range(row):
             for j in range(col):
@@ -965,7 +1209,9 @@ class TestCompositePrimaryKeyInsert:
         # 9. insert data by schemaless model is not allowed - pass
         tdLog.info('[9. insert data by schemaless model is not allowed]')
         self.check_schemaless_error()
+
+        # 10. timestamp composite primary key - pass
+        tdLog.info('[10. timestamp composite primary key]')
+        self.check_timestamp_pk_insert()
         # while(True):
         #     self.test_stmt(LegalDataType.VARCHAR) 
-
-

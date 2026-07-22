@@ -915,7 +915,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ORDERBY_UNKNOWN_EXPR,       "Invalid expr in ord
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_NOT_WIN_FUNC,               "Column exists for window join with aggregation functions")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TAG_IS_PRIMARY_KEY,         "tag can not be composite primary key")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SECOND_COL_PK,              "composite primary key must be second column")
-TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_PK_TYPE,                "composite primary key column must be of type int, uint, bigint, ubigint, and varchar")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_COL_PK_TYPE,                "composite primary key column must be of type timestamp, int, uint, bigint, ubigint, and varchar")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_PK_OP,              "composite primary key column can not be added, modified, and dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIMARY_KEY_IS_NULL,        "Primary key column should not be null")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PRIMARY_KEY_IS_NONE,        "Primary key column should not be none")

@@ -757,7 +757,10 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
     return terrno;
   }
 
-  if (!IS_NUMERIC_TYPE(pColInfoData->info.type) && (pColInfoData->info.type != TSDB_DATA_TYPE_VARCHAR)) {
+  int8_t pkType = pColInfoData->info.type;
+  bool   isScalarPk = IS_NUMERIC_TYPE(pkType) || pkType == TSDB_DATA_TYPE_TIMESTAMP;
+
+  if (!isScalarPk && (pkType != TSDB_DATA_TYPE_VARCHAR)) {
     return 0;
   }
 
@@ -766,10 +769,10 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
 
   int64_t val = 0;
   if (asc) {
-    if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, skey, typeGetTypeModFromColInfo(&pColInfoData->info));
+    if (isScalarPk) {
+      GET_TYPED_DATA(val, int64_t, pkType, skey, typeGetTypeModFromColInfo(&pColInfoData->info));
       VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[0], val);
-      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, ekey, typeGetTypeModFromColInfo(&pColInfoData->info));
+      GET_TYPED_DATA(val, int64_t, pkType, ekey, typeGetTypeModFromColInfo(&pColInfoData->info));
       VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[1], val);
     } else {  // todo refactor
       memcpy(pInfo->pks[0].pData, varDataVal(skey), varDataLen(skey));
@@ -779,10 +782,10 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
       pInfo->pks[1].nData = varDataLen(ekey);
     }
   } else {
-    if (IS_NUMERIC_TYPE(pColInfoData->info.type)) {
-      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, ekey, typeGetTypeModFromColInfo(&pColInfoData->info));
+    if (isScalarPk) {
+      GET_TYPED_DATA(val, int64_t, pkType, ekey, typeGetTypeModFromColInfo(&pColInfoData->info));
       VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[0], val);
-      GET_TYPED_DATA(val, int64_t, pColInfoData->info.type, skey, typeGetTypeModFromColInfo(&pColInfoData->info));
+      GET_TYPED_DATA(val, int64_t, pkType, skey, typeGetTypeModFromColInfo(&pColInfoData->info));
       VALUE_SET_TRIVIAL_DATUM(&pInfo->pks[1], val);
     } else {  // todo refactor
       memcpy(pInfo->pks[0].pData, varDataVal(ekey), varDataLen(ekey));

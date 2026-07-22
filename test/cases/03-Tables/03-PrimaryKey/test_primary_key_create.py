@@ -13,7 +13,6 @@ class IllegalDataType(Enum):
     SMALLINT   = 'smallint'   
     FLOAT      = 'float'
     DOUBLE     = 'double'
-    TIMESTAMP  = 'timestamp'
     NCHAR      = 'nchar(100)'
     UTINYINT   = 'tinyint unsigned'
     USMALLINT  = 'smallint unsigned'  
@@ -34,6 +33,7 @@ class LegalDataType(Enum):
     UBIGINT    = 'BIGINT UNSIGNED'  
     VARCHAR    = 'VARCHAR(100)' 
     BINARY     = 'BINARY(100)'   
+    TIMESTAMP  = 'TIMESTAMP'
 
 class LegalSpell(Enum):  
     CASE1      = 'primary key'

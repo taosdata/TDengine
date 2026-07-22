@@ -18915,7 +18915,7 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     if (TSDB_CODE_SUCCESS == code && pCol->pOptions && ((SColumnOptions*)pCol->pOptions)->bPrimaryKey &&
         !(TSDB_DATA_TYPE_INT == pCol->dataType.type || TSDB_DATA_TYPE_UINT == pCol->dataType.type ||
           TSDB_DATA_TYPE_BIGINT == pCol->dataType.type || TSDB_DATA_TYPE_UBIGINT == pCol->dataType.type ||
-          TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type)) {
+          TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type || TSDB_DATA_TYPE_TIMESTAMP == pCol->dataType.type)) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PK_TYPE);
     }
     if (TSDB_CODE_SUCCESS == code && pCol->dataType.type == TSDB_DATA_TYPE_JSON) {

@@ -25,6 +25,7 @@ extern "C" {
 #include "tsdbUtil2.h"
 
 #define ASCENDING_TRAVERSE(o) (o == TSDB_ORDER_ASC)
+#define IS_SCALAR_PRIMARY_KEY_TYPE(t) (IS_NUMERIC_TYPE(t) || (t) == TSDB_DATA_TYPE_TIMESTAMP)
 
 #define INIT_TIMEWINDOW(_w) \
   do {                      \
