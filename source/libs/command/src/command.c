@@ -898,6 +898,14 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
       continue;
     }
 
+    while (j < valueNum) {
+      STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
+      if (pTagVal->cid >= pSchema->colId) {
+        break;
+      }
+      j++;
+    }
+
     if (j >= valueNum) {
       *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                        "NULL");
@@ -905,11 +913,7 @@ static int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg, void* c
     }
 
     STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
-    if (pSchema->colId > pTagVal->cid) {
-      qError("tag value and column mismatch, schemaId:%d, valId:%d", pSchema->colId, pTagVal->cid);
-      code = TSDB_CODE_APP_ERROR;
-      TAOS_CHECK_ERRNO(code);
-    } else if (pSchema->colId == pTagVal->cid) {
+    if (pSchema->colId == pTagVal->cid) {
       char    type = pTagVal->type;
       int32_t tlen = 0;
 
