@@ -5534,6 +5534,12 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
     pSelect->hasInterpFunc = pSelect->hasInterpFunc ? true : (FUNCTION_TYPE_INTERP == pFunc->funcType);
     pSelect->hasTwaOrElapsedFunc = pSelect->hasTwaOrElapsedFunc ? true
                                                                 : (FUNCTION_TYPE_TWA == pFunc->funcType ||
+                                                                   FUNCTION_TYPE_TWAVG_LINEAR == pFunc->funcType ||
+                                                                   FUNCTION_TYPE_TWAVG_LOCF == pFunc->funcType ||
+                                                                   FUNCTION_TYPE_TWSUM_LINEAR == pFunc->funcType ||
+                                                                   FUNCTION_TYPE_TWSUM_LOCF == pFunc->funcType ||
+                                                                   FUNCTION_TYPE_TWVAR_LINEAR == pFunc->funcType ||
+                                                                   FUNCTION_TYPE_TWVAR_LOCF == pFunc->funcType ||
                                                                    FUNCTION_TYPE_ELAPSED == pFunc->funcType);
     pSelect->hasInterpPseudoColFunc = pSelect->hasInterpPseudoColFunc || fmIsInterpPseudoColumnFunc(pFunc->funcId);
     pSelect->hasForecastFunc = pSelect->hasForecastFunc || (FUNCTION_TYPE_FORECAST == pFunc->funcType);

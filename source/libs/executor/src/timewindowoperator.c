@@ -304,7 +304,13 @@ void doTimeWindowInterpolation(SArray* pPrevValues, SArray* pDataBlock, TSKEY pr
     SPoint point2 = (SPoint){.key = curTs, .val = &v2};
     SPoint point = (SPoint){.key = windowKey, .val = &v};
 
-    if (!fmIsElapsedFunc(pCtx[k].functionId)) {
+    if (fmIsElapsedFunc(pCtx[k].functionId)) {
+      // elapsed only needs the boundary key, not an interpolated value.
+    } else if (fmIsTwLocfFunc(pCtx[k].functionId)) {
+      // LOCF (last observation carried forward): hold the previous point's value at the
+      // window boundary instead of linearly interpolating between the two neighbors.
+      v = v1;
+    } else {
       taosGetLinearInterpolationVal(&point, TSDB_DATA_TYPE_DOUBLE, &point1, &point2, TSDB_DATA_TYPE_DOUBLE, 0);
     }
 

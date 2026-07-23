@@ -252,6 +252,20 @@ int32_t twaFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo)
 int32_t twaFunction(SqlFunctionCtx* pCtx);
 int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+// Time-weighted aggregates: {avg, sum, var} x {linear, locf} interpolation.
+// twaFunction/twaFinalize above serve twavg_linear (== twa).
+int32_t twavgLocfFunction(SqlFunctionCtx* pCtx);
+
+bool    getTwsumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t twsumFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t twsumFunction(SqlFunctionCtx* pCtx);
+int32_t twsumFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool    getTwvarFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t twvarFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t twvarFunction(SqlFunctionCtx* pCtx);
+int32_t twvarFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool getHasNullFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 
