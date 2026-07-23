@@ -1840,17 +1840,13 @@ static int32_t retrieveSub(SRpcMsg *pReq, SMqSubscribeObj *pSub, SUserObj *pOper
       continue;
     }
     int32_t vgNum = taosArrayGetSize(pConsumerEp->vgs);
-    if (*numOfRows + vgNum > rowsCapacity) {
-       MND_TMQ_RETURN_CHECK(blockDataEnsureCapacity(pBlock, *numOfRows + vgNum));
-    }
+    MND_TMQ_RETURN_CHECK(blockDataEnsureCapacity(pBlock, *numOfRows + vgNum));
     MND_TMQ_RETURN_CHECK(buildResult(pBlock, numOfRows, pConsumerEp->consumerId, user, fqdn, topic, cgroup,
                                      pConsumerEp->vgs, pConsumerEp->offsetRows));
   }
 
   int32_t unassignedVgNum = taosArrayGetSize(pSub->unassignedVgs);
-  if (*numOfRows + unassignedVgNum > rowsCapacity) {
-     MND_TMQ_RETURN_CHECK(blockDataEnsureCapacity(pBlock, *numOfRows + unassignedVgNum));
-  }
+  MND_TMQ_RETURN_CHECK(blockDataEnsureCapacity(pBlock, *numOfRows + unassignedVgNum));
   MND_TMQ_RETURN_CHECK(
       buildResult(pBlock, numOfRows, -1, NULL, NULL, topic, cgroup, pSub->unassignedVgs, pSub->offsetRows));
 
