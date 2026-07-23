@@ -3733,6 +3733,81 @@ TWA(expr)
 - With a degraded timeline, duplicate timestamp points are skipped (zero area contribution); NULL time rows are skipped for weighting calculation.
 - With a disordered degraded timeline, twa can still execute but negative time differences produce negative weights, causing the weighted average to deviate from the true mean. Use `ORDER BY` in the subquery to ensure ordering.
 
+### TWAVG_LINEAR/TWAVG_LOCF
+
+```sql
+TWAVG_LINEAR(expr)
+TWAVG_LOCF(expr)
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**: Time-weighted average over the query time range, i.e. the integral of `expr` over time divided by the covered time span. The two variants differ only in how the value between two consecutive points is weighted: `TWAVG_LINEAR` assumes the value changes linearly (trapezoidal area) and `TWAVG_LOCF` holds the previous value constant until the next point (last observation carried forward, rectangular area). `TWAVG_LINEAR` is equivalent to `TWA`.
+
+**Version**: ver-3.4.3.0
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types (including DECIMAL).
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- At an INTERVAL window boundary, `TWAVG_LINEAR` linearly interpolates the boundary value while `TWAVG_LOCF` carries the previous point forward.
+- Duplicate timestamps and NULL value rows are skipped. Use `ORDER BY` in a subquery to guarantee timeline ordering.
+- DECIMAL input is computed as DOUBLE and the return type is still DOUBLE (unlike `AVG`, which preserves a DECIMAL output).
+
+### TWSUM_LINEAR/TWSUM_LOCF
+
+```sql
+TWSUM_LINEAR(expr [, time_unit])
+TWSUM_LOCF(expr [, time_unit])
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**: Time-weighted sum, i.e. the time-integral of `expr` (the area under the curve). `TWSUM_LINEAR` uses linear (trapezoidal) weighting between points; `TWSUM_LOCF` uses last-observation-carried-forward (rectangular) weighting. Unlike the average and variance functions, the result carries a time unit; `time_unit` sets that unit (e.g. `1s`, `1m`, `1h`) and defaults to seconds (`1s`) when omitted. The `time_unit` follows the same rules as `ELAPSED` and must not be smaller than the database time precision.
+
+**Version**: ver-3.4.3.0
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types including DECIMAL (`expr`); the optional `time_unit` is a time-duration literal.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- A single-point window has zero span and returns 0.
+- Boundary handling and timeline requirements match `TWAVG_LINEAR`/`TWAVG_LOCF`.
+- DECIMAL input is computed as DOUBLE and the return type is still DOUBLE.
+
+### TWVAR_LINEAR/TWVAR_LOCF
+
+```sql
+TWVAR_LINEAR(expr)
+TWVAR_LOCF(expr)
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**: Time-weighted population variance over the query time range: the time-weighted mean of the squared deviation from the time-weighted average, i.e. `(1/T)·∫(v−μ)² dt` where `μ` is the time-weighted average. `TWVAR_LINEAR` uses linear (trapezoidal) weighting between points; `TWVAR_LOCF` uses last-observation-carried-forward (rectangular) weighting. The result is unit-free.
+
+**Version**: ver-3.4.3.0
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types (including DECIMAL).
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- A single-point window has zero spread and returns 0.
+- Boundary handling and timeline requirements match `TWAVG_LINEAR`/`TWAVG_LOCF`.
+- DECIMAL input is computed as DOUBLE and the return type is still DOUBLE.
+
 ## Interpolation Functions
 
 Interpolation functions are used to return interpolated values at specified time slices.
