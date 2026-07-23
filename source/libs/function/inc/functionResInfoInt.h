@@ -394,6 +394,28 @@ typedef struct STwaInfo {
   int8_t      tsOrder;
 } STwaInfo;
 
+// Time-weighted sum: raw time-integral (INT v dt) accumulated in native ticks. The output
+// unit divisor is derived from the params at finalize (see twsumResolveTimeUnit), not stored.
+typedef struct STwsumInfo {
+  double      dTwsumRes;  // finalize output slot (must be first)
+  double      dOutput;    // accumulated integral (value * ticks)
+  int64_t     numOfElems;
+  SPoint1     p;
+  STimeWindow win;
+  int8_t      tsOrder;
+} STwsumInfo;
+
+// Time-weighted population variance: (1/T)*INT v^2 dt - mu^2, mu = twa.
+typedef struct STwvarInfo {
+  double      dTwvarRes;  // finalize output slot (must be first)
+  double      dOutput;    // accumulated INT v dt
+  double      d2Output;   // accumulated INT v^2 dt
+  int64_t     numOfElems;
+  SPoint1     p;
+  STimeWindow win;
+  int8_t      tsOrder;
+} STwvarInfo;
+
 typedef struct SHistoFuncBin {
   double  lower;
   double  upper;

@@ -415,6 +415,18 @@ bool fmIsElapsedFunc(int32_t funcId) {
   return FUNCTION_TYPE_ELAPSED == funcMgtBuiltins[funcId].type;
 }
 
+// True for the three last-observation-carried-forward (locf/step) time-weighted variants.
+// Used to select rectangle (hold last value) integration and carry-forward window-boundary
+// interpolation, as opposed to the default linear (trapezoid) behavior.
+bool fmIsTwLocfFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  int32_t type = funcMgtBuiltins[funcId].type;
+  return FUNCTION_TYPE_TWAVG_LOCF == type || FUNCTION_TYPE_TWSUM_LOCF == type ||
+         FUNCTION_TYPE_TWVAR_LOCF == type;
+}
+
 bool fmIsBlockDistFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;

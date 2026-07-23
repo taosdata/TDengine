@@ -740,6 +740,12 @@ static bool funcNotSupportStringSma(SFunctionNode* pFunc) {
     case FUNCTION_TYPE_SPREAD_PARTIAL:
     case FUNCTION_TYPE_SPREAD_MERGE:
     case FUNCTION_TYPE_TWA:
+    case FUNCTION_TYPE_TWAVG_LINEAR:
+    case FUNCTION_TYPE_TWAVG_LOCF:
+    case FUNCTION_TYPE_TWSUM_LINEAR:
+    case FUNCTION_TYPE_TWSUM_LOCF:
+    case FUNCTION_TYPE_TWVAR_LINEAR:
+    case FUNCTION_TYPE_TWVAR_LOCF:
     case FUNCTION_TYPE_ELAPSED:
       pParam = nodesListGetNode(pFunc->pParameterList, 0);
       if (pParam && nodesIsExprNode(pParam) && (IS_VAR_DATA_TYPE(((SExprNode*)pParam)->resType.type))) {
@@ -7589,6 +7595,32 @@ static double twa_get_area(SPoint1 s, SPoint1 e) {
   return val;
 }
 
+// Generalized time-weighted area of the segment [s, e]. When locf is true the value is
+// held constant at s.val over the whole segment (rectangle); otherwise the value varies
+// linearly from s.val to e.val (trapezoid, == twa_get_area).
+static double tw_get_area(SPoint1 s, SPoint1 e, bool locf) {
+  if (e.key == INT64_MAX || s.key == INT64_MIN) {
+    return 0;
+  }
+  if (locf) {
+    return s.val * (double)(e.key - s.key);
+  }
+  return twa_get_area(s, e);
+}
+
+// Time-weighted area of v(t)^2 over the segment [s, e]. locf: rectangle s.val^2*dt;
+// linear: INT (v0 + (v1-v0)*u)^2 dt = dt*(v0^2 + v0*v1 + v1^2)/3.
+static double tw_get_area_sq(SPoint1 s, SPoint1 e, bool locf) {
+  if (e.key == INT64_MAX || s.key == INT64_MIN) {
+    return 0;
+  }
+  double dt = (double)(e.key - s.key);
+  if (locf) {
+    return s.val * s.val * dt;
+  }
+  return dt * (s.val * s.val + s.val * e.val + e.val * e.val) / 3.0;
+}
+
 int32_t twaFunction(SqlFunctionCtx* pCtx) {
   int32_t               code = TSDB_CODE_SUCCESS;
   SInputColumnInfoData* pInput = &pCtx->input;
@@ -7602,6 +7634,14 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
   if (IS_NULL_TYPE(pInputCol->info.type)) {
     pInfo->numOfElems = 0;
     goto _twa_over;
+  }
+
+  // Defense-in-depth type whitelist. Upstream param validation should already reject
+  // non-numeric input, but the value reads below use GET_TYPED_DATA, whose default branch
+  // silently reinterprets unexpected types (e.g. varchar length, timestamp as bigint) instead
+  // of failing. Guard here so any validation bypass surfaces as an error, not garbage output.
+  if (!IS_NUMERIC_TYPE(pInputCol->info.type)) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
 
   funcInputUpdate(pCtx);
@@ -7678,51 +7718,11 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       return TSDB_CODE_FUNC_INVALID_TIMELINE;
     }
     pInfo->numOfElems++;
-    switch (pInputCol->info.type) {
-      case TSDB_DATA_TYPE_TINYINT: {
-        INIT_INTP_POINT(st, row.ts, *(int8_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_SMALLINT: {
-        INIT_INTP_POINT(st, row.ts, *(int16_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_INT: {
-        INIT_INTP_POINT(st, row.ts, *(int32_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_BIGINT: {
-        INIT_INTP_POINT(st, row.ts, *(int64_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_FLOAT: {
-        INIT_INTP_POINT(st, row.ts, *(float_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_DOUBLE: {
-        INIT_INTP_POINT(st, row.ts, *(double*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_UTINYINT: {
-        INIT_INTP_POINT(st, row.ts, *(uint8_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_USMALLINT: {
-        INIT_INTP_POINT(st, row.ts, *(uint16_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_UINT: {
-        INIT_INTP_POINT(st, row.ts, *(uint32_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_UBIGINT: {
-        INIT_INTP_POINT(st, row.ts, *(uint64_t*)row.pData);
-        break;
-      }
-      default: {
-        return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
-      }
-    }
+    // GET_TYPED_DATA covers every integer/float/double type and additionally converts
+    // DECIMAL64/DECIMAL128 to double (via the column's typeMod). twa itself still rejects
+    // decimal at param validation; twavg_linear (which reuses this path) allows it.
+    st.key = row.ts;
+    GET_TYPED_DATA(st.val, double, pInputCol->info.type, row.pData, typeGetTypeModFromColInfo(&pInputCol->info));
     if (hasPrevTs && pInfo->p.key == st.key) {
       return TSDB_CODE_FUNC_DUP_TIMESTAMP;
     }
@@ -7785,6 +7785,254 @@ int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     pResInfo->numOfRes = 1;
   }
 
+  return functionFinalize(pCtx, pBlock);
+}
+
+// Generic time-weighted accumulation core, factored from twaFunction. Accumulates the
+// time-integral INT v dt into *pOutput (using linear trapezoid or locf rectangle per `locf`),
+// and, when wantSq is true, INT v^2 dt into *pd2Output. All timeline/dedup/order checks and
+// the window-boundary interpolation handling are identical to twaFunction. This is used by
+// every time-weighted variant except twavg_linear, which keeps calling twaFunction verbatim.
+static int32_t doTwGenericFunction(SqlFunctionCtx* pCtx, bool locf, bool wantSq, double* pOutput,
+                                   double* pd2Output, int64_t* pNumOfElems, SPoint1* pLast,
+                                   STimeWindow* pWin, int8_t* pTsOrder) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+  SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
+  SPoint1*              last = pLast;
+  bool                  hasPrevTs = (last->key != INT64_MIN);
+
+  if (IS_NULL_TYPE(pInputCol->info.type)) {
+    *pNumOfElems = 0;
+    goto _tw_over;
+  }
+
+  // Defense-in-depth type whitelist. Upstream param validation should already reject
+  // non-numeric input, but the value reads below use GET_TYPED_DATA, whose default branch
+  // silently reinterprets unexpected types (e.g. varchar length, timestamp as bigint) instead
+  // of failing. Guard here so any validation bypass surfaces as an error, not garbage output.
+  if (!IS_NUMERIC_TYPE(pInputCol->info.type)) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  funcInputUpdate(pCtx);
+  SFuncInputRow row = {0};
+  bool          result = false;
+  if (pCtx->start.key != INT64_MIN && last->key == INT64_MIN) {
+    while (1) {
+      code = funcInputGetNextRow(pCtx, &row, &result);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (!result) break;
+      if (row.isDataNull) continue;
+      if (pInput->pPTS->hasNull && colDataIsNull_f(pInput->pPTS, row.rowIndex)) {
+        return TSDB_CODE_FUNC_INVALID_TIMELINE;
+      }
+      last->key = row.ts;
+      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData, typeGetTypeModFromColInfo(&pInputCol->info));
+      *pOutput += tw_get_area(pCtx->start, *last, locf);
+      if (wantSq) *pd2Output += tw_get_area_sq(pCtx->start, *last, locf);
+      pWin->skey = pCtx->start.key;
+      (*pNumOfElems)++;
+      hasPrevTs = true;
+      break;
+    }
+  } else if (last->key == INT64_MIN) {
+    while (1) {
+      code = funcInputGetNextRow(pCtx, &row, &result);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (!result) break;
+      if (row.isDataNull) continue;
+      if (pInput->pPTS->hasNull && colDataIsNull_f(pInput->pPTS, row.rowIndex)) {
+        return TSDB_CODE_FUNC_INVALID_TIMELINE;
+      }
+      last->key = row.ts;
+      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData, typeGetTypeModFromColInfo(&pInputCol->info));
+      pWin->skey = last->key;
+      (*pNumOfElems)++;
+      hasPrevTs = true;
+      break;
+    }
+  }
+  SPoint1 st = {0};
+  while (1) {
+    code = funcInputGetNextRow(pCtx, &row, &result);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (!result) break;
+    if (row.isDataNull) continue;
+    if (pInput->pPTS->hasNull && colDataIsNull_f(pInput->pPTS, row.rowIndex)) {
+      return TSDB_CODE_FUNC_INVALID_TIMELINE;
+    }
+    (*pNumOfElems)++;
+    // GET_TYPED_DATA covers every integer/float/double type and additionally converts
+    // DECIMAL64/DECIMAL128 to double (via the column's typeMod). The value param is validated
+    // to NUMERIC|DECIMAL upstream, so no default/error case is needed here.
+    st.key = row.ts;
+    GET_TYPED_DATA(st.val, double, pInputCol->info.type, row.pData, typeGetTypeModFromColInfo(&pInputCol->info));
+    if (hasPrevTs && last->key == st.key) {
+      return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+    }
+    if (hasPrevTs) {
+      if (*pTsOrder == 0) {
+        *pTsOrder = (st.key > last->key) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
+      } else if ((*pTsOrder == TSDB_ORDER_DESC && st.key > last->key) ||
+                 (*pTsOrder != TSDB_ORDER_DESC && st.key < last->key)) {
+        return TSDB_CODE_FUNC_INVALID_TIMELINE;
+      }
+    }
+    *pOutput += tw_get_area(*last, st, locf);
+    if (wantSq) *pd2Output += tw_get_area_sq(*last, st, locf);
+    *last = st;
+    hasPrevTs = true;
+  }
+
+  // the last interpolated time window value
+  if (pCtx->end.key != INT64_MIN) {
+    *pOutput += tw_get_area(*last, pCtx->end, locf);
+    if (wantSq) *pd2Output += tw_get_area_sq(*last, pCtx->end, locf);
+    *last = pCtx->end;
+    (*pNumOfElems)++;
+  }
+  pWin->ekey = last->key;
+
+_tw_over:
+  SET_VAL(pResInfo, 1, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+// ---- twavg_locf: time-weighted average, last-observation-carried-forward ----
+// Reuses getTwaFuncEnv / twaFunctionSetup / twaFinalize (STwaInfo layout); only the
+// accumulation differs (rectangle vs trapezoid), driven by locf=true.
+int32_t twavgLocfFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  STwaInfo*            pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  return doTwGenericFunction(pCtx, true, false, &pInfo->dOutput, NULL, &pInfo->numOfElems, &pInfo->p,
+                             &pInfo->win, &pInfo->tsOrder);
+}
+
+// ---- twsum: time-weighted sum (INT v dt), linear or locf ----
+bool getTwsumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(STwsumInfo);
+  return true;
+}
+
+int32_t twsumFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (pResultInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResultInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+  STwsumInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  pInfo->dTwsumRes = 0;
+  pInfo->dOutput = 0;
+  pInfo->numOfElems = 0;
+  pInfo->p.key = INT64_MIN;
+  pInfo->win = TSWINDOW_INITIALIZER;
+  pInfo->tsOrder = 0;
+  // Output-unit divisor is not cached here; it is derived from the params at finalize
+  // (twsumResolveTimeUnit), which also needs hasPrimaryKey (set per-block, not at setup).
+  return TSDB_CODE_SUCCESS;
+}
+
+// Resolve the divisor (native ticks per output unit) from the param list. twsum caries
+// FUNC_MGT_IMPLICIT_TS_FUNC, so the executor appends an implicit ts column (and a pk column
+// on composite-key tables) AFTER the hidden db-precision param added by translateAddPrecOutDouble.
+// Layout: [value, (time_unit?), precision, ts, (pk?)]. Precision sits just before ts, so its
+// index is numOfParams-2-(hasPrimaryKey?1:0); that index also equals the user-arg count, so a
+// user time_unit (already converted to native ticks by the parser) is present at param[1] when
+// the index is >= 2.
+static int64_t twsumResolveTimeUnit(SqlFunctionCtx* pCtx) {
+  int32_t precIdx = pCtx->numOfParams - 2 - (pCtx->hasPrimaryKey ? 1 : 0);
+  int64_t timeUnit;
+  if (precIdx >= 2) {
+    timeUnit = pCtx->param[1].param.i;  // explicit time_unit, in native ticks
+  } else if (precIdx >= 0) {
+    timeUnit = TSDB_TICK_PER_SECOND((uint8_t)pCtx->param[precIdx].param.i);  // default = 1 second
+  } else {
+    timeUnit = 1;
+  }
+  return (timeUnit > 0) ? timeUnit : 1;
+}
+
+int32_t twsumFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  STwsumInfo*          pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  bool                 locf = fmIsTwLocfFunc(pCtx->functionId);
+  return doTwGenericFunction(pCtx, locf, false, &pInfo->dOutput, NULL, &pInfo->numOfElems, &pInfo->p,
+                             &pInfo->win, &pInfo->tsOrder);
+}
+
+int32_t twsumFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  STwsumInfo*          pInfo = (STwsumInfo*)GET_ROWCELL_INTERBUF(pResInfo);
+  if (pInfo->numOfElems == 0) {
+    pResInfo->numOfRes = 0;
+  } else {
+    // A single point (or unbounded window) covers zero time span => integral is 0.
+    if (pInfo->win.ekey == pInfo->win.skey || pInfo->win.ekey == INT64_MAX ||
+        pInfo->win.skey == INT64_MIN) {
+      pInfo->dTwsumRes = 0;
+    } else {
+      int64_t timeUnit = twsumResolveTimeUnit(pCtx);
+      pInfo->dTwsumRes = pInfo->dOutput / (double)timeUnit;
+    }
+    pResInfo->numOfRes = 1;
+  }
+  return functionFinalize(pCtx, pBlock);
+}
+
+// ---- twvar: time-weighted population variance, linear or locf ----
+// Var = (1/T)*INT (v-mu)^2 dt = (1/T)*INT v^2 dt - mu^2, where mu = (1/T)*INT v dt (== twa).
+bool getTwvarFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(STwvarInfo);
+  return true;
+}
+
+int32_t twvarFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (pResultInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResultInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+  STwvarInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  pInfo->dTwvarRes = 0;
+  pInfo->dOutput = 0;
+  pInfo->d2Output = 0;
+  pInfo->numOfElems = 0;
+  pInfo->p.key = INT64_MIN;
+  pInfo->win = TSWINDOW_INITIALIZER;
+  pInfo->tsOrder = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t twvarFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  STwvarInfo*          pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  bool                 locf = fmIsTwLocfFunc(pCtx->functionId);
+  return doTwGenericFunction(pCtx, locf, true, &pInfo->dOutput, &pInfo->d2Output, &pInfo->numOfElems,
+                             &pInfo->p, &pInfo->win, &pInfo->tsOrder);
+}
+
+int32_t twvarFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  STwvarInfo*          pInfo = (STwvarInfo*)GET_ROWCELL_INTERBUF(pResInfo);
+  if (pInfo->numOfElems == 0) {
+    pResInfo->numOfRes = 0;
+  } else {
+    // A single point (or unbounded window) has zero spread.
+    if (pInfo->win.ekey == pInfo->win.skey || pInfo->win.ekey == INT64_MAX ||
+        pInfo->win.skey == INT64_MIN) {
+      pInfo->dTwvarRes = 0;
+    } else {
+      double   T = (double)(pInfo->win.ekey - pInfo->win.skey);
+      double   mu = pInfo->dOutput / T;
+      double   var = pInfo->d2Output / T - mu * mu;
+      pInfo->dTwvarRes = (var > 0) ? var : 0;  // guard tiny negative from rounding
+    }
+    pResInfo->numOfRes = 1;
+  }
   return functionFinalize(pCtx, pBlock);
 }
 

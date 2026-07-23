@@ -51,6 +51,12 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STDDEV_SAMP,
   FUNCTION_TYPE_STDVAR_SAMP,
   FUNCTION_TYPE_GROUP_CONCAT,
+  FUNCTION_TYPE_TWAVG_LINEAR,
+  FUNCTION_TYPE_TWAVG_LOCF,
+  FUNCTION_TYPE_TWSUM_LINEAR,
+  FUNCTION_TYPE_TWSUM_LOCF,
+  FUNCTION_TYPE_TWVAR_LINEAR,
+  FUNCTION_TYPE_TWVAR_LOCF,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -378,6 +384,7 @@ bool fmIsVolatileFunc(int32_t funcId);
 bool fmIsNoPushdownFunc(int32_t funcId);
 bool fmisSelectGroupConstValueFunc(int32_t funcId);
 bool fmIsElapsedFunc(int32_t funcId);
+bool fmIsTwLocfFunc(int32_t funcId);
 bool fmIsDBUsageFunc(int32_t funcId);
 bool fmIsRowTsOriginFunc(int32_t funcId);
 bool fmIsSelectColsFunc(int32_t funcId);

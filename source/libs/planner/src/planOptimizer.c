@@ -4149,7 +4149,10 @@ static bool sortPriKeyOptHasUnsupportedPkFunc(SLogicNode* pLogicNode, EOrder sor
     SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
     if (pFuncNode->hasPk &&
         (pFuncNode->funcType == FUNCTION_TYPE_DIFF || pFuncNode->funcType == FUNCTION_TYPE_DERIVATIVE ||
-         pFuncNode->funcType == FUNCTION_TYPE_IRATE || pFuncNode->funcType == FUNCTION_TYPE_TWA)) {
+         pFuncNode->funcType == FUNCTION_TYPE_IRATE || pFuncNode->funcType == FUNCTION_TYPE_TWA ||
+         pFuncNode->funcType == FUNCTION_TYPE_TWAVG_LINEAR || pFuncNode->funcType == FUNCTION_TYPE_TWAVG_LOCF ||
+         pFuncNode->funcType == FUNCTION_TYPE_TWSUM_LINEAR || pFuncNode->funcType == FUNCTION_TYPE_TWSUM_LOCF ||
+         pFuncNode->funcType == FUNCTION_TYPE_TWVAR_LINEAR || pFuncNode->funcType == FUNCTION_TYPE_TWVAR_LOCF)) {
       return true;
     }
   }
