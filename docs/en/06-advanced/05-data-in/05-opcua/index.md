@@ -1,6 +1,5 @@
 ---
 title: OPC UA
-slug: /advanced/data-in/opcua/
 toc_max_heading_level: 4
 ---
 

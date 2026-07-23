@@ -259,7 +259,7 @@ tdengine:
   props: precision 'ms' vgroups 32 cachemodel 'last_row'  # 启用 last_row 缓存
 ```
 
-> **详细文档**：[TDengine 数据库参数配置](https://docs.taosdata.com/reference/taos-sql/database/)
+> **详细文档**：[TDengine 数据库参数配置](https://docs.taosdata.com/tdengine-sql/ddl/database/)
 
 ---
 
