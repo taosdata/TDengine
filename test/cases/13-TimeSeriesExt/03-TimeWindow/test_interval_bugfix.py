@@ -1,18 +1,13 @@
-import taos
 import random
-from new_test_framework.utils import tdLog, tdSql, TDSql, tdDnodes
+from new_test_framework.utils import tdLog, tdSql
 
 
 class TestIntervalBugFix:
-    updatecfgDict = {"timezone": "UTC"}
+    updatecfgDict = {"timezone": "UTC", "clientCfg": {"timezone": "UTC"}}
 
     def setup_class(cls):
-        con = taos.connect(
-            host="localhost", config=tdDnodes.getSimCfgPath(), timezone="UTC"
-        )
         tdLog.debug("start to execute %s" % __file__)
-        cls.testSql = TDSql()
-        cls.testSql.init(con.cursor())
+        cls.testSql = tdSql
 
     def ts_5400_prepare_data(self):
         tdLog.info("prepare data for TS-5400")
@@ -138,7 +133,7 @@ class TestIntervalBugFix:
             "2021-12-22",
         ]
 
-        self.testSql.execute(f"drop database if exists {db}")
+        self.testSql.execute(f"drop database if exists {db} force")
         self.testSql.execute(f"create database {db} vgroups 4 keep 365000d")
         self.testSql.execute(f"use {db}")
         self.testSql.execute("create stable st(ts timestamp, v int) tags(g int)")
@@ -169,6 +164,141 @@ class TestIntervalBugFix:
 
             self.testSql.checkEqual(len(subquery_rows), 55)
             self.testSql.checkEqual(direct_rows, subquery_rows)
+
+    def test_multi_week_tumbling_offset_matches_subquery(self):
+        """Interval: multi-week tumbling windows keep one fixed phase.
+
+        Catalog:
+            - TimeSeries:TimeWindow
+
+        Since: v3.4.2.1
+        Labels: common,ci
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7043509904
+
+        History:
+            - 2026-07-22 Codex Created
+        """
+
+        db = "db_interval_multi_week_offset"
+        self.testSql.execute(f"drop database if exists {db} force")
+        self.testSql.execute(f"create database {db} vgroups 2 keep 365000d")
+        self.testSql.execute(f"use {db}")
+        self.testSql.execute("create stable st(ts timestamp, v bigint) tags(g int)")
+        self.testSql.execute("create table t1 using st tags(1)")
+        self.testSql.execute(
+            "insert into t1 values "
+            "('2021-09-04 22:16:40.001', -1591543056712849320) "
+            "('2021-09-13 06:16:40.001', -9074711936305748162) "
+            "('2021-12-21 02:58:50.001', -7336830604222743803)"
+        )
+
+        self.testSql.query("select first_day_of_week()")
+        original_fdow = self.testSql.queryResult[0][0]
+        try:
+            self.testSql.execute("set first_day_of_week 0")
+            for func in ("last_row", "last"):
+                queries = (
+                    f"select cast(_wstart as bigint), {func}(v) from st interval(14w,2w) order by _wstart",
+                    f"select cast(_wstart as bigint), {func}(v) from (select * from st) "
+                    "interval(14w,2w) order by _wstart",
+                )
+                for sql in queries:
+                    self.testSql.query(sql)
+                    self.testSql.checkRows(2)
+                    self.testSql.checkData(0, 0, 1627171200000)
+                    self.testSql.checkData(0, 1, -9074711936305748162)
+                    self.testSql.checkData(1, 0, 1635638400000)
+                    self.testSql.checkData(1, 1, -7336830604222743803)
+        finally:
+            self.testSql.execute(f"set first_day_of_week {original_fdow}")
+
+    def test_multi_week_sliding_uses_fixed_phase(self):
+        """Interval: block order cannot change multi-week sliding windows.
+
+        Catalog:
+            - TimeSeries:TimeWindow
+
+        Since: v3.4.2.1
+        Labels: common,ci
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7043509904
+
+        History:
+            - 2026-07-22 Codex Created
+        """
+
+        db = "db_interval_multi_week_sliding"
+        self.testSql.execute(f"drop database if exists {db} force")
+        self.testSql.execute(f"create database {db} vgroups 2 keep 365000d")
+        self.testSql.execute(f"use {db}")
+        self.testSql.execute("create stable st(ts timestamp, v nchar(16)) tags(g int)")
+        for index in range(8):
+            self.testSql.execute(f"create table t{index} using st tags({index})")
+
+        self.testSql.query(
+            "select table_name, vgroup_id from information_schema.ins_tables "
+            f"where db_name = '{db}' and stable_name = 'st' order by table_name"
+        )
+        tables_by_vgroup = {}
+        for table_name, vgroup_id in self.testSql.queryResult:
+            tables_by_vgroup.setdefault(vgroup_id, table_name)
+        self.testSql.checkEqual(len(tables_by_vgroup) >= 2, True)
+        early_table, late_table = list(tables_by_vgroup.values())[:2]
+
+        self.testSql.execute(
+            f"insert into {early_table} values "
+            "('2021-08-27 01:00:00.000', 'early')"
+        )
+        self.testSql.execute(f"flush database {db}")
+        self.testSql.execute(
+            f"insert into {late_table} values "
+            "('2021-12-25 23:33:20.000', 'before') "
+            "('2021-12-26 03:25:50.000', 'after')"
+        )
+
+        self.testSql.query("select first_day_of_week()")
+        original_fdow = self.testSql.queryResult[0][0]
+        try:
+            self.testSql.execute("set first_day_of_week 0")
+            last_queries = (
+                "select cast(_wstart as bigint), cast(last(ts) as bigint), last(v) from st "
+                "interval(13w,5w) sliding(6w) order by _wstart",
+                "select cast(_wstart as bigint), cast(last(ts) as bigint), last(v) from (select * from st) "
+                "interval(13w,5w) sliding(6w) order by _wstart",
+                "select cast(_wstart as bigint), cast(last(ts) as bigint), last(v) "
+                "from (select * from st order by ts) "
+                "interval(13w,5w) sliding(6w) order by _wstart",
+            )
+            expected = (
+                (1625356800000, 1630026000000, "early"),
+                (1628985600000, 1630026000000, "early"),
+                (1632614400000, 1640475200000, "before"),
+                (1636243200000, 1640489150000, "after"),
+                (1639872000000, 1640489150000, "after"),
+            )
+            for sql in last_queries:
+                self.testSql.query(sql)
+                self.testSql.checkRows(5)
+                for row, values in enumerate(expected):
+                    for col, value in enumerate(values):
+                        self.testSql.checkData(row, col, value)
+
+            count_queries = (
+                "select cast(_wstart as bigint), count(*) from st "
+                "interval(13w,5w) sliding(6w) order by _wstart",
+                "select cast(_wstart as bigint), count(*) from (select * from st) "
+                "interval(13w,5w) sliding(6w) order by _wstart",
+                "select cast(_wstart as bigint), count(*) from (select * from st order by ts) "
+                "interval(13w,5w) sliding(6w) order by _wstart",
+            )
+            expected_counts = (1, 1, 1, 2, 2)
+            for sql in count_queries:
+                self.testSql.query(sql)
+                self.testSql.checkRows(5)
+                for row, count in enumerate(expected_counts):
+                    self.testSql.checkData(row, 0, expected[row][0])
+                    self.testSql.checkData(row, 1, count)
+        finally:
+            self.testSql.execute(f"set first_day_of_week {original_fdow}")
 
     def sliding_month_february(self):
         """Validate interval(1n) monthly windows over February with various sliding values.

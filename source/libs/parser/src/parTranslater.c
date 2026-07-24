@@ -13213,20 +13213,32 @@ static int64_t getPrecisionMultiple(uint8_t precision) {
   return 1;
 }
 
-static void convertVarDuration(SValueNode* pOffset, uint8_t precision) {
+static int32_t convertVarDuration(SValueNode* pOffset, uint8_t precision) {
   const int64_t factors[3] = {NANOSECOND_PER_MSEC, NANOSECOND_PER_USEC, 1};
   const int8_t  units[3] = {TIME_UNIT_MILLISECOND, TIME_UNIT_MICROSECOND, TIME_UNIT_NANOSECOND};
+  int64_t       days = (pOffset->unit == 'n') ? 31 : 365;
+  int64_t       ticksPerUnit = days * (NANOSECOND_PER_DAY / factors[precision]);
 
-  if (pOffset->unit == 'n') {
-    pOffset->datum.i = pOffset->datum.i * 31 * (NANOSECOND_PER_DAY / factors[precision]);
-  } else {
-    pOffset->datum.i = pOffset->datum.i * 365 * (NANOSECOND_PER_DAY / factors[precision]);
+  if (pOffset->datum.i > INT64_MAX / ticksPerUnit || pOffset->datum.i < INT64_MIN / ticksPerUnit) {
+    return TSDB_CODE_INVALID_PARA;
   }
 
+  pOffset->datum.i *= ticksPerUnit;
   pOffset->unit = units[precision];
+  return TSDB_CODE_SUCCESS;
 }
 
 static const int64_t tsdbMaxKeepMS = (int64_t)60 * 1000 * TSDB_MAX_KEEP;
+
+static bool isIntervalSlidingTooSmall(int64_t interval, int64_t sliding) {
+  const int64_t intervalSlidingFactor = 100;
+  if (sliding <= 0) {
+    return true;
+  }
+
+  int64_t quotient = interval / sliding;
+  return quotient > intervalSlidingFactor || (quotient == intervalSlidingFactor && interval % sliding != 0);
+}
 
 static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -13236,10 +13248,16 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
 
   SValueNode* pInter = (SValueNode*)pInterval->pInterval;
   bool        valInter = IS_CALENDAR_TIME_DURATION(pInter->unit);
+  int64_t     intervalForPrecision = pInter->datum.i;
   if (pInter->datum.i <= 0 || (!valInter && pInter->datum.i < tsMinIntervalTime)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime,
                                 getPrecisionStr(precision));
-  } else if (pInter->datum.i / getPrecisionMultiple(precision) > tsdbMaxKeepMS) {
+  }
+  if (valInter && convertCalendarTimeFromUnitToPrecision(pInter->datum.i, pInter->unit, precision,
+                                                         &intervalForPrecision) != TSDB_CODE_SUCCESS) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG, 1000, "years");
+  }
+  if (intervalForPrecision / getPrecisionMultiple(precision) > tsdbMaxKeepMS) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG, 1000, "years");
   }
 
@@ -13274,20 +13292,22 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
     }
 
     if (pOffset->unit == 'n' || pOffset->unit == 'y') {
-      convertVarDuration(pOffset, precision);
+      if (convertVarDuration(pOffset, precision) != TSDB_CODE_SUCCESS) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG,
+                                       "interval offset is too large for %s precision", getPrecisionStr(precision));
+      }
     }
   }
 
   if (NULL != pInterval->pSliding) {
-    const static int32_t INTERVAL_SLIDING_FACTOR = 100;
-
     SValueNode* pSliding = (SValueNode*)pInterval->pSliding;
     if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT);
     }
+
     if ((pSliding->datum.i <
          convertTimePrecision(tsMinSlidingTime, TSDB_TIME_PRECISION_MILLI, pSliding->node.resType.precision)) ||
-        (pInter->datum.i / pSliding->datum.i > INTERVAL_SLIDING_FACTOR)) {
+        isIntervalSlidingTooSmall(intervalForPrecision, pSliding->datum.i)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL);
     }
     if (valInter) {
@@ -13303,14 +13323,8 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG);
         }
       } else {
-        int64_t interverNano = 0, slidingNano = 0;
-        code = convertCalendarTimeFromUnitToPrecision(pInter->datum.i, pInter->unit, precision, &interverNano);
-        TAOS_CHECK_GOTO(code, &lino, _exit);
-
         // pSliding->datum.i is already in precision unit
-        slidingNano = pSliding->datum.i;
-
-        if (slidingNano > interverNano) {
+        if (pSliding->datum.i > intervalForPrecision) {
           return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_TOO_BIG);
         }
       }
@@ -13387,11 +13401,17 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
   SValueNode* pSOffset = (SValueNode*)pInterval->pSOffset;
 
   if (pInter) {
-    bool valInter = IS_CALENDAR_TIME_DURATION(pInter->unit);
+    bool    valInter = IS_CALENDAR_TIME_DURATION(pInter->unit);
+    int64_t intervalForPrecision = pInter->datum.i;
     if (pInter->datum.i <= 0 || (!valInter && pInter->datum.i < tsMinIntervalTime)) {
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, tsMinIntervalTime,
                                        getPrecisionStr(precision)));
-    } else if (pInter->datum.i / getPrecisionMultiple(precision) > tsdbMaxKeepMS) {
+    }
+    if (valInter && convertCalendarTimeFromUnitToPrecision(pInter->datum.i, pInter->unit, precision,
+                                                           &intervalForPrecision) != TSDB_CODE_SUCCESS) {
+      PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG, 1000, "years"));
+    }
+    if (intervalForPrecision / getPrecisionMultiple(precision) > tsdbMaxKeepMS) {
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_BIG, 1000, "years"));
     }
   }
@@ -13420,13 +13440,15 @@ static int32_t checkStreamIntervalWindow(STranslateContext* pCxt, SIntervalWindo
   }
 
   if (pSliding) {
-    const static int32_t INTERVAL_SLIDING_FACTOR = 100;
     if (IS_CALENDAR_TIME_DURATION(pSliding->unit)) {
       PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SLIDING_UNIT));
     }
-    if (pInter == NULL && pSliding->datum.i == 0) {
-      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL, "sliding value must be greater than 0"));
+
+    if (pSliding->datum.i <= 0) {
+      PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL,
+                                          "sliding value must be greater than 0"));
     }
+    // Stream interval triggers support dense overlap and do not use the query-only 1% sliding limit.
   } else {
     PAR_ERR_RET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
                                         "Sliding window is required for stream query"));
