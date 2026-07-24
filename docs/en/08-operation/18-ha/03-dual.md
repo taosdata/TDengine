@@ -10,6 +10,8 @@ import { Enterprise } from '../../assets/resources/_resources.mdx';
 
 You can deploy TDengine in active-active mode to achieve high availability and reliability with limited resources. Active-active mode is also used in disaster recovery strategies to maintain offsite replicas of the database.
 
+**Active-active mode is not currently supported in TDengine 3.4.x.**
+
 In active-active mode, you create two separate TDengine deployments, one acting as the primary node and the other as the secondary node. Data is replicated in real time between the primary and secondary nodes via taosX. Note that each node in an active-active deployment can be a single TDengine instance or a cluster.
 
 In the event that the primary node cannot provide service, the client driver fails over to the secondary node. This failover is automatic and transparent to the business layer.
