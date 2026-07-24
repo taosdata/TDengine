@@ -2891,6 +2891,9 @@ TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
   // invalid sliding unit
   run("create stream stream_streamdb.s1 sliding(1n) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_SLIDING_UNIT);
   run("create stream stream_streamdb.s1 sliding(1y) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_SLIDING_UNIT);
+  run("create stream stream_streamdb.s1 sliding(0) from stream_triggerdb.stream_t1 into "
+      "stream_outdb.stream_out as select _tlocaltime, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL);
 
   // invalid sliding offset unit
   run("create stream stream_streamdb.s1 sliding(1s, 1n) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
@@ -2905,6 +2908,21 @@ TEST_F(ParserStreamTest, TestErrorTriggerWindow) {
 
   // invalid interval val
   run("create stream stream_streamdb.s1 interval(0) sliding(3s, 2s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL);
+  run("create stream stream_streamdb.s1 interval(1d) sliding(0) from stream_triggerdb.stream_t1 into "
+      "stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2",
+      TSDB_CODE_PAR_INTER_VALUE_TOO_SMALL);
+
+  // small sliding values are valid for stream interval triggers
+  run("create stream stream_streamdb.s1 interval(1d) sliding(60s) from stream_triggerdb.stream_t1 into "
+      "stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 interval(1w) sliding(1s) from stream_triggerdb.stream_t1 into "
+      "stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 interval(1n) sliding(1s) from stream_triggerdb.stream_t1 into "
+      "stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 interval(100s) sliding(1s) from stream_triggerdb.stream_t1 into "
+      "stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
+  run("create stream stream_streamdb.s1 interval(100001a) sliding(1s) from stream_triggerdb.stream_t1 into "
+      "stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2");
 
   // invalid interval offset unit
   run("create stream stream_streamdb.s1 interval(20n, 1y) sliding(3s) from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_PAR_INTER_OFFSET_UNIT);
