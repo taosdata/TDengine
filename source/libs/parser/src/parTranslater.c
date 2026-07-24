@@ -35278,9 +35278,10 @@ static int32_t buildAlterTableRemoveSeries(STranslateContext* pCxt, SAlterTableS
 
 static int32_t buildAddTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                               SVAlterTbReq* pReq) {
-  // Owned tags are added only on normal / virtual-normal tables via the vnode-alter path.
-  // Super tables add tags through mnd (TDMT_MND_ALTER_STB); child tables inherit tags from their super table.
-  if (TSDB_NORMAL_TABLE != pTableMeta->tableType && TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType) {
+  // Owned tags are added only on virtual normal tables via the vnode-alter path.
+  // Super tables add tags through mnd (TDMT_MND_ALTER_STB); child tables inherit tags from
+  // their super table; plain normal tables do not support tags.
+  if (TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
 
@@ -35392,7 +35393,8 @@ static int32_t buildAddTagRefReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
 
 static int32_t buildDropTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, const STableMeta* pTableMeta,
                                SVAlterTbReq* pReq) {
-  if (TSDB_NORMAL_TABLE != pTableMeta->tableType && TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType) {
+  // Only virtual normal tables own tags; plain normal tables do not support tags.
+  if (TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
 
@@ -35717,9 +35719,9 @@ static int32_t doRewriteAlterMultiTableTagVal(STranslateContext* pCxt, SQuery* p
     }
 
     if (pTableMeta->tableType != TSDB_CHILD_TABLE && pTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE &&
-        pTableMeta->tableType != TSDB_NORMAL_TABLE && pTableMeta->tableType != TSDB_VIRTUAL_NORMAL_TABLE) {
+        pTableMeta->tableType != TSDB_VIRTUAL_NORMAL_TABLE) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
-                                     "Cannot alter non-child/normal table: `%s`.`%s`", pClause->dbName, pClause->tableName);
+                                     "Cannot alter non-child/virtual table: `%s`.`%s`", pClause->dbName, pClause->tableName);
       goto _error;
     }
 

@@ -162,6 +162,20 @@ static const STagVal* findResolvedTagVal(const SOperatorInfo* pOperator, col_id_
   return NULL;
 }
 
+// Free the owned-tag value array, including any deep-copied var-data payloads.
+static void destroyOwnedResolvedTags(SVirtualTableScanInfo* pVScan) {
+  if (pVScan->pOwnedResolvedTags != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pVScan->pOwnedResolvedTags); ++i) {
+      STagVal* pVal = taosArrayGet(pVScan->pOwnedResolvedTags, i);
+      if (IS_VAR_DATA_TYPE(pVal->type)) {
+        taosMemoryFreeClear(pVal->pData);
+      }
+    }
+    taosArrayDestroy(pVScan->pOwnedResolvedTags);
+    pVScan->pOwnedResolvedTags = NULL;
+  }
+}
+
 // For a virtual normal/child-table scan that runs WITHOUT a DynQueryCtrl parent (the static
 // createOperator path), pResolvedTags is never injected, so owned-tag values would be NULL.
 // Fetch the table config from the owning vnode once and cache the owned-tag values so that
@@ -284,6 +298,9 @@ static int32_t ensureOwnedTagsResolved(SOperatorInfo* pOperator) {
 _return:
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   tFreeSTableCfgRsp(&cfgRsp);
+  // fetch stays retryable (ownedTagsFetched is only set on full success), so drop any partially
+  // filled array here — the next attempt must not leak it by overwriting the pointer.
+  destroyOwnedResolvedTags(pVScan);
   return code;
 }
 
@@ -1731,16 +1748,7 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
     taosArrayDestroy(pInfo->pSortCtxList);
     pInfo->pSortCtxList = NULL;
   }
-  if (pInfo->pOwnedResolvedTags != NULL) {
-    for (int32_t i = 0; i < taosArrayGetSize(pInfo->pOwnedResolvedTags); ++i) {
-      STagVal* pVal = taosArrayGet(pInfo->pOwnedResolvedTags, i);
-      if (IS_VAR_DATA_TYPE(pVal->type)) {
-        taosMemoryFreeClear(pVal->pData);
-      }
-    }
-    taosArrayDestroy(pInfo->pOwnedResolvedTags);
-    pInfo->pOwnedResolvedTags = NULL;
-  }
+  destroyOwnedResolvedTags(pInfo);
   taosMemoryFreeClear(param);
 }
 

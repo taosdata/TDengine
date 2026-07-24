@@ -260,7 +260,7 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, const SSchemaWrap
   }
 
   tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
-  if (tableType == TSDB_VIRTUAL_NORMAL_TABLE) {
+  if (tableType == TSDB_VIRTUAL_NORMAL_TABLE || tableType == TSDB_NORMAL_TABLE) {
     pMetaRsp->tuid = pEntry->uid;
   } else if (tableType == TSDB_VIRTUAL_CHILD_TABLE) {
     pMetaRsp->tuid = pEntry->uid;

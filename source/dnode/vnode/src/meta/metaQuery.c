@@ -2235,13 +2235,23 @@ static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t u
 
     ret = metaGetTableEntryByVersion(&mr, version, uid);
     if (ret == 0) {
-      val = mr.me.ctbEntry.pTags;
-      len = ((STag *)(mr.me.ctbEntry.pTags))->len;
-      *tag = taosMemoryMalloc(len);
-      if (*tag) {
-        memcpy(*tag, val, len);
+      // ctbEntry/ntbEntry share a union: child tables carry tags in ctbEntry.pTags, normal and
+      // virtual-normal tables carry owned tags in ntbEntry.pTags (NULL when tag-less).
+      const STag *pTags = NULL;
+      if (mr.me.type == TSDB_NORMAL_TABLE || mr.me.type == TSDB_VIRTUAL_NORMAL_TABLE) {
+        pTags = (const STag *)mr.me.ntbEntry.pTags;
       } else {
-        ret = terrno;
+        pTags = (const STag *)mr.me.ctbEntry.pTags;
+      }
+      if (pTags != NULL) {
+        val = (void *)pTags;
+        len = pTags->len;
+        *tag = taosMemoryMalloc(len);
+        if (*tag) {
+          memcpy(*tag, val, len);
+        } else {
+          ret = terrno;
+        }
       }
     }
     metaReaderClear(&mr);
@@ -2256,6 +2266,24 @@ static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t u
         ret = terrno;
       }
       tdbFree(val);
+    } else {
+      // normal / virtual-normal tables are not indexed in pCtbIdx; fetch the entry directly and
+      // copy the owned tags so tag-cond pruning sees them (NULL when tag-less).
+      SMetaEntry *pEntry = NULL;
+      ret = 0;
+      if (metaFetchEntryByUid(pMeta, uid, &pEntry) == 0 && pEntry != NULL) {
+        if ((pEntry->type == TSDB_NORMAL_TABLE || pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE) &&
+            pEntry->ntbEntry.pTags != NULL) {
+          const STag *pTags = (const STag *)pEntry->ntbEntry.pTags;
+          *tag = taosMemoryMalloc(pTags->len);
+          if (*tag) {
+            memcpy(*tag, pTags, pTags->len);
+          } else {
+            ret = terrno;
+          }
+        }
+        metaFetchEntryFree(&pEntry);
+      }
     }
   }
 
