@@ -10337,12 +10337,13 @@ static int32_t findDepTableScanNode(SColumnNode* pCol, SVirtualScanLogicNode *pV
     }
   }
   *ppNode = NULL;
-  qDebug("findDepTableScanNode: column %s has no source-table scan (expected for COUNT(*)->COUNT(ts); PDA bails via size mismatch)",
-         pCol->colName);
   // Not found is not an error. E.g. COUNT(*) unfolds to COUNT(ts) and the virtual table's own
   // primary timestamp has no matching source-table scan. Return SUCCESS with *ppNode=NULL so the
-  // caller skips this aggregate func; PDA then bails naturally via the aggNodeMap != childrenSize
-  // check (the func contributes no entry, so the sizes won't match).
+  // caller can skip this aggregate func — but a skipped func means PDA must be abandoned
+  // (the caller bails via pSkipped), otherwise the rewritten plan would silently lose that
+  // func's output slot.
+  qDebug("findDepTableScanNode: column %s has no source-table scan (e.g. COUNT(*)->COUNT(ts)); PDA must bail",
+         pCol->colName);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -10366,7 +10367,7 @@ _return:
 }
 
 static int32_t rebuildPlanForPdaOptimize(SColumnNode* pCol, SFunctionNode* pAggFunc, SVirtualScanLogicNode* pVScan,
-                                         SHashObj* pAggNodeMap) {
+                                         SHashObj* pAggNodeMap, bool* pSkipped) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SScanLogicNode* pDepScan = NULL;
   SAggLogicNode*  pAggNode = NULL;
@@ -10378,7 +10379,8 @@ static int32_t rebuildPlanForPdaOptimize(SColumnNode* pCol, SFunctionNode* pAggF
   PLAN_ERR_JRET(findDepTableScanNode(pCol, pVScan, (SNode**)&pDepScan));
   if (NULL == pDepScan) {
     // column has no matching source-table scan (e.g. virtual table's own ts from COUNT(*));
-    // skip this func — PDA bails via the aggNodeMap != childrenSize check downstream.
+    // signal the caller to abandon PDA — proceeding would rewrite the plan without this func.
+    *pSkipped = true;
     return TSDB_CODE_SUCCESS;
   }
   char tableFNameKey[TSDB_COL_FNAME_LEN + 1] = {0};
@@ -10435,6 +10437,7 @@ static int32_t pdaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
 
   SVirtualScanLogicNode *pVScan = (SVirtualScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
   SNode                 *pAggFunc = NULL;
+  bool                   skipped = false;
   SHashObj              *pAggNodeMap = taosHashInit(LIST_LENGTH(pAgg->pAggFuncs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   if (NULL == pAggNodeMap) {
     PLAN_ERR_JRET(terrno);
@@ -10451,7 +10454,12 @@ static int32_t pdaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
           // virtual tablescan operator.
           goto _return;
         }
-        PLAN_ERR_JRET(rebuildPlanForPdaOptimize(pCol, pFunc, pVScan, pAggNodeMap));
+        PLAN_ERR_JRET(rebuildPlanForPdaOptimize(pCol, pFunc, pVScan, pAggNodeMap, &skipped));
+        if (skipped) {
+          // An agg func has no source-table scan (e.g. COUNT(*) -> COUNT(ts)); rewriting without it
+          // would produce a plan with fewer outputs than the original agg. Bail out entirely.
+          goto _return;
+        }
       }
     }
   }

@@ -16866,10 +16866,6 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     }
   } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow));
-    TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaTag));
-    if (pReq->ntb.schemaTag.nCols > 0) {
-      TAOS_CHECK_EXIT(tEncodeTag(pCoder, (const STag *)pReq->ntb.pTags));
-    }
   } else {
     return TSDB_CODE_INVALID_MSG;
   }
@@ -16910,6 +16906,15 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
   if (pReq->type == TSDB_VIRTUAL_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
     TAOS_CHECK_EXIT(tEncodeSSeriesWrapper(pCoder, &pReq->series));
     TAOS_CHECK_EXIT(tEncodeSColRefWrapperTail(pCoder, &pReq->colRef));
+  }
+  // owned tag schema/values: trailing field so old peers can still decode the prefix (they stop at
+  // tDecodeIsEnd before this point); ntb.schemaTag.nCols==0 for tag-less tables (encoded as an
+  // empty wrapper, matching the decode side).
+  if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    TAOS_CHECK_EXIT(tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaTag));
+    if (pReq->ntb.schemaTag.nCols > 0) {
+      TAOS_CHECK_EXIT(tEncodeTag(pCoder, (const STag *)pReq->ntb.pTags));
+    }
   }
 
   tEndEncode(pCoder);
@@ -17022,6 +17027,16 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     }
     if (!tDecodeIsEnd(pCoder)) {
       TAOS_CHECK_EXIT(tDecodeSColRefWrapperTail(pCoder, &pReq->colRef));
+    }
+  }
+  // owned tag schema/values: trailing field gated by tDecodeIsEnd, so messages from peers built
+  // before this field existed still decode (ntb.schemaTag stays zeroed -> tag-less).
+  if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+    if (!tDecodeIsEnd(pCoder)) {
+      TAOS_CHECK_EXIT(tDecodeSSchemaWrapperEx(pCoder, &pReq->ntb.schemaTag));
+      if (pReq->ntb.schemaTag.nCols > 0) {
+        TAOS_CHECK_EXIT(tDecodeTag(pCoder, (STag **)&pReq->ntb.pTags));
+      }
     }
   }
 

@@ -723,6 +723,8 @@ _grant:
   return code;
 }
 
+static int32_t metaAppendNtbTagSchemaToRsp(SMetaEntry *pEntry, STableMetaRsp *pRsp);
+
 static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, STableMetaRsp **ppRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -750,7 +752,27 @@ static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, S
     }
   }
 
+  // owned tags (CREATE TABLE ... TAGS on a plain normal table): append the tag schema so the
+  // client catalog does not cache a tag-less meta — same fix as the virtual-normal-table path.
+  code = metaAppendNtbTagSchemaToRsp(pEntry, *ppRsp);
+  if (code) {
+    taosMemoryFreeClear(*ppRsp);
+    return code;
+  }
+
   return code;
+}
+
+// ncid is the shared counter for both columns and tags (metaAddTableTag bumps it).
+// When tags are declared at create time, ncid must continue past the last tag cid,
+// otherwise a subsequent ADD TAG would reuse an already-assigned tag cid.
+static int16_t metaNtbNextCid(const SVCreateTbReq *pReq) {
+  int16_t nextCid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1;
+  if (pReq->ntb.schemaTag.nCols > 0 && pReq->ntb.schemaTag.pSchema != NULL) {
+    int16_t lastTagCid = pReq->ntb.schemaTag.pSchema[pReq->ntb.schemaTag.nCols - 1].colId + 1;
+    if (lastTagCid > nextCid) nextCid = lastTagCid;
+  }
+  return nextCid;
 }
 
 static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **ppRsp) {
@@ -789,14 +811,7 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
     }
   }
 
-  // ncid is the shared counter for both columns and tags (metaAddTableTag bumps it).
-  // When tags are declared at create time, ncid must continue past the last tag cid,
-  // otherwise a subsequent ADD TAG would reuse an already-assigned tag cid.
-  int16_t nextCid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1;
-  if (pReq->ntb.schemaTag.nCols > 0 && pReq->ntb.schemaTag.pSchema != NULL) {
-    int16_t lastTagCid = pReq->ntb.schemaTag.pSchema[pReq->ntb.schemaTag.nCols - 1].colId + 1;
-    if (lastTagCid > nextCid) nextCid = lastTagCid;
-  }
+  int16_t nextCid = metaNtbNextCid(pReq);
 
   SMetaEntry entry = {
       .version = version,
@@ -841,14 +856,11 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
   TAOS_RETURN(code);
 }
 
-// Fill pRsp with a complete virtual-normal-table meta: columns + colRef + owned-tag schema.
-// Shared by create / alter-add-tag / alter-drop-tag responses. A tag-less response lets the
-// client catalog cache stale meta, so same-connection tag reads (WHERE <tag> / DROP TAG) fail
-// with Invalid column/tag name until a fresh RPC refreshes it.
-static int32_t metaFillVNormalTableMetaRsp(SMetaEntry *pEntry, const char *tbName, STableMetaRsp *pRsp) {
-  int32_t code = metaUpdateVtbMetaRsp(pEntry, (char *)tbName, &pEntry->ntbEntry.schemaRow, &pEntry->colRef,
-                                      pEntry->pExtSchemas, pEntry->ntbEntry.ownerId, pRsp, TSDB_VIRTUAL_NORMAL_TABLE);
-  if (code) return code;
+// Append the owned-tag schema to a meta response (columns first, tags right after them), so the
+// client catalog caches a complete meta. A tag-less response lets the client catalog cache stale
+// meta, so same-connection tag reads (WHERE <tag> / DROP TAG) fail with Invalid column/tag name
+// until a fresh RPC refreshes it.
+static int32_t metaAppendNtbTagSchemaToRsp(SMetaEntry *pEntry, STableMetaRsp *pRsp) {
   if (pEntry->ntbEntry.schemaTag.nCols > 0 && pEntry->ntbEntry.schemaTag.pSchema != NULL) {
     int32_t nCols = pRsp->numOfColumns;
     int32_t nTags = pEntry->ntbEntry.schemaTag.nCols;
@@ -861,13 +873,31 @@ static int32_t metaFillVNormalTableMetaRsp(SMetaEntry *pEntry, const char *tbNam
   return TSDB_CODE_SUCCESS;
 }
 
+// Fill pRsp with a complete normal/virtual-normal-table meta: columns + colRef + owned-tag schema.
+// Shared by create / alter-add-tag / alter-drop-tag responses.
+static int32_t metaFillNtbTableMetaRsp(SMetaEntry *pEntry, const char *tbName, STableMetaRsp *pRsp) {
+  int32_t code = metaUpdateVtbMetaRsp(pEntry, (char *)tbName, &pEntry->ntbEntry.schemaRow, &pEntry->colRef,
+                                      pEntry->pExtSchemas, pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
+  if (code) return code;
+  // plain normal tables carry column compress options in colCmpr (mirrors the metaUpdateMetaRsp
+  // response paths, e.g. metaAddTableColumn); metaFillRspSchemaExt only fills colId/typeMod.
+  if (pEntry->type == TSDB_NORMAL_TABLE) {
+    for (int32_t i = 0; i < pEntry->colCmpr.nCols; i++) {
+      SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
+      pRsp->pSchemaExt[i].colId = p->id;
+      pRsp->pSchemaExt[i].compress = p->alg;
+    }
+  }
+  return metaAppendNtbTagSchemaToRsp(pEntry, pRsp);
+}
+
 static int32_t metaBuildCreateVirtualNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, STableMetaRsp **ppRsp) {
   if (NULL == ppRsp) return TSDB_CODE_SUCCESS;
 
   *ppRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
   if (NULL == *ppRsp) return terrno;
 
-  int32_t code = metaFillVNormalTableMetaRsp(pEntry, pEntry->name, *ppRsp);
+  int32_t code = metaFillNtbTableMetaRsp(pEntry, pEntry->name, *ppRsp);
   if (code) {
     tFreeSTableMetaRsp(*ppRsp);
     taosMemoryFreeClear(*ppRsp);
@@ -889,12 +919,7 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
     TAOS_RETURN(code);
   }
 
-  // ncid is the shared counter for both columns and tags; continue past create-time tags.
-  int16_t nextCid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1;
-  if (pReq->ntb.schemaTag.nCols > 0 && pReq->ntb.schemaTag.pSchema != NULL) {
-    int16_t lastTagCid = pReq->ntb.schemaTag.pSchema[pReq->ntb.schemaTag.nCols - 1].colId + 1;
-    if (lastTagCid > nextCid) nextCid = lastTagCid;
-  }
+  int16_t nextCid = metaNtbNextCid(pReq);
 
   SMetaEntry entry = {.version = version,
                       .type = TSDB_VIRTUAL_NORMAL_TABLE,
@@ -1805,8 +1830,9 @@ int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  // only normal / virtual-normal tables own tags (super tables use mnd; child tables inherit)
-  if (pEntry->type != TSDB_NORMAL_TABLE && pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE) {
+  // only virtual normal tables own tags (super tables use mnd; child tables inherit; plain
+  // normal tables do not support tags)
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE) {
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
   }
@@ -1921,7 +1947,7 @@ int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
 
   // response: full meta (columns + colRef + owned-tag schema) so the client catalog does not
   // cache a tag-less/stale meta after ALTER ADD TAG.
-  int32_t rspCode = metaFillVNormalTableMetaRsp(pEntry, pReq->tbName, pRsp);
+  int32_t rspCode = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
   if (rspCode) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName, version);
@@ -1952,7 +1978,8 @@ int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STab
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  if (pEntry->type != TSDB_NORMAL_TABLE && pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE) {
+  // only virtual normal tables own tags; plain normal tables do not support tags
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE) {
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
   }
@@ -2056,7 +2083,7 @@ int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STab
 
   // response: full meta (columns + colRef + owned-tag schema) so the client catalog does not
   // cache a stale meta after ALTER DROP TAG.
-  int32_t rspCode = metaFillVNormalTableMetaRsp(pEntry, pReq->tbName, pRsp);
+  int32_t rspCode = metaFillNtbTableMetaRsp(pEntry, pReq->tbName, pRsp);
   if (rspCode) {
     metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
               __func__, __FILE__, __LINE__, tstrerror(rspCode), pEntry->uid, pReq->tbName, version);
@@ -3026,15 +3053,16 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
   }
 
   if (pChild->type != TSDB_CHILD_TABLE && pChild->type != TSDB_VIRTUAL_CHILD_TABLE &&
-      pChild->type != TSDB_NORMAL_TABLE && pChild->type != TSDB_VIRTUAL_NORMAL_TABLE) {
-    const char* msgFmt = "vgId:%d, %s failed at %s:%d since table %s is not a child/normal table, version:%" PRId64;
+      pChild->type != TSDB_VIRTUAL_NORMAL_TABLE) {
+    const char* msgFmt = "vgId:%d, %s failed at %s:%d since table %s is not a child/virtual table, version:%" PRId64;
     metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tbName, version);
     code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
     goto _exit;
   }
 
-  // normal / virtual-normal tables own their tags in ntbEntry (no super table to fetch)
-  if (pChild->type == TSDB_NORMAL_TABLE || pChild->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+  // virtual normal tables own their tags in ntbEntry (no super table to fetch); plain normal
+  // tables do not support tags
+  if (pChild->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     SSchemaWrapper *pTagSchema = &pChild->ntbEntry.schemaTag;
     code = updatedTagValueArrayToHashMap(pTagSchema, tags, &pUpdatedTagVals);
     if (code) {

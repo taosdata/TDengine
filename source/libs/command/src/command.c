@@ -1193,6 +1193,14 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     appendColumnFields(buf2, &len, pCfg);
     len +=
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
+    if (pCfg->numOfTags > 0) {
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      " TAGS (");
+      code = appendVTableTagFields(buf2, &len, pCfg, charsetCxt);
+      TAOS_CHECK_ERRNO(code);
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ")");
+    }
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else if (TSDB_VIRTUAL_NORMAL_TABLE == pCfg->tableType) {
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,

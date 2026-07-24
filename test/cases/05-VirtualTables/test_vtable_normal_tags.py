@@ -126,6 +126,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, data
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -142,6 +147,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, data
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -157,6 +167,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, data
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -171,6 +186,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, data, filter
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         self._check_values("SELECT val FROM v_own WHERE val = 2;", [(2,)], "data eq filter")
@@ -185,6 +205,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, data, filter
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -204,6 +229,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, data, filter, time
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -222,6 +252,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, data, order
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -237,6 +272,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, data, order
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -252,6 +292,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, data, limit
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         # LIMIT caps returned rows (COUNT(*) is a single-row aggregate unaffected by LIMIT)
@@ -268,6 +313,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, data, aggregate
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -284,6 +334,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, data, aggregate, group
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -299,6 +354,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, data, filter
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -319,6 +379,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, metadata, desc
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.query("DESC v_mixed;")
@@ -342,6 +407,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, metadata, desc, tag_ref
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.query("DESC v_ref;")
@@ -362,6 +432,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, metadata, show_create, owned_tag
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.query("SHOW CREATE TABLE v_own;")
@@ -378,6 +453,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, metadata, show_create, tag_ref
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.query("SHOW CREATE TABLE v_ref;")
@@ -395,6 +475,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, metadata, show_create, owned_tag, tag_ref
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.query("SHOW CREATE TABLE v_mixed;")
@@ -412,6 +497,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, metadata, show_create, owned_tag, tag_ref
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.execute("CREATE VTABLE vctb_rt (ts TIMESTAMP, val INT FROM src0.val) "
@@ -438,6 +528,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, owned_tag
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -452,6 +547,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, owned_tag
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -467,6 +567,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, owned_tag
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -482,6 +587,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, tag_ref
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         self._check_values("SELECT DISTINCT rcity, rcode FROM v_ref;",
@@ -496,6 +606,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, tag_ref
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.execute("ALTER TABLE src0 SET TAG city = 'nanjing';")
@@ -514,6 +629,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, owned_tag, tag_ref, mixed
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -529,6 +649,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, tag_ref, multi_source
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         self._check_values("SELECT DISTINCT c0, c1, c2 FROM v_mref;",
@@ -543,6 +668,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, owned_tag, projection
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -558,6 +688,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, owned_tag, filter
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -573,6 +708,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, owned_tag, filter
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -588,6 +728,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, owned_tag, filter
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -603,6 +748,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, tag_ref, filter
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -620,6 +770,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, owned_tag, aggregate, group
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -635,6 +790,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, tag_ref, aggregate, group
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -650,6 +810,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, owned_tag, distinct
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         self._check_values("SELECT DISTINCT loc FROM v_own;", [(5,)], "distinct owned tag")
@@ -663,6 +828,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, tag_ref, distinct
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         self._check_values("SELECT DISTINCT rcity, rcode FROM v_ref;", [('beijing', 100)],
@@ -677,6 +847,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, query, owned_tag, aggregate, filter
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         d = SRC['src0']['data']
@@ -696,6 +871,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, alter, owned_tag
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.execute("CREATE VTABLE vctb_add (ts TIMESTAMP, val INT FROM src0.val);")
@@ -714,6 +894,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, alter, owned_tag
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.execute("CREATE VTABLE vctb_sameconn (ts TIMESTAMP, val INT FROM src0.val);")
@@ -733,6 +918,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, alter, owned_tag
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.execute("CREATE VTABLE vctb_set (ts TIMESTAMP, val INT FROM src0.val) "
@@ -749,6 +939,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, alter, owned_tag
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.execute("CREATE VTABLE vctb_drop (ts TIMESTAMP, val INT FROM src0.val) "
@@ -767,6 +962,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, alter, tag_ref
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.execute("CREATE VTABLE vctb_addref (ts TIMESTAMP, val INT FROM src0.val);")
@@ -783,6 +983,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, drop, recreate
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.execute("CREATE VTABLE vctb_dr (ts TIMESTAMP, val INT FROM src0.val) TAGS (x INT = 1);")
@@ -804,6 +1009,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, create, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.error("CREATE VTABLE vctb_e0 (ts TIMESTAMP, val INT FROM src0.val) "
@@ -818,6 +1028,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, create, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.error("CREATE VTABLE vctb_e1 (ts TIMESTAMP, val INT FROM src0.val) "
@@ -832,6 +1047,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, create, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.error("CREATE VTABLE vctb_e2 (ts TIMESTAMP, dup INT) TAGS (dup INT);")
@@ -845,6 +1065,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, alter, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.execute("CREATE VTABLE vctb_e_altercol (ts TIMESTAMP, val INT FROM src0.val);")
@@ -860,6 +1085,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, create, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.error("CREATE VTABLE vctb_e_jsonmix (ts TIMESTAMP, val INT FROM src0.val) "
@@ -874,6 +1104,11 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, create, tag_ref, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.error("CREATE VTABLE vctb_e3 (ts TIMESTAMP, val INT FROM src0.val) "
@@ -888,7 +1123,67 @@ class TestVtableNormalTags:
         Since: v3.4.1.0
 
         Labels: virtual, create, tag_ref, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.error("CREATE VTABLE vctb_e4 (ts TIMESTAMP, val INT FROM src0.val) "
                     "TAGS (r INT FROM src0.val);")
+
+    # ==================================================================
+    # 5. PLAIN NORMAL TABLE tags are NOT supported (only virtual normal
+    #    tables own tags) — tag DDL must be rejected
+    # ==================================================================
+
+    def test_ntb_add_tag_rejected(self):
+        """Normal table: ALTER ADD TAG is rejected (tags only on virtual normal tables).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, tag, alter, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_e1 (ts TIMESTAMP, val INT);")
+        tdSql.error("ALTER TABLE ntb_e1 ADD TAG loc INT;")
+        tdSql.error("ALTER TABLE ntb_e1 ADD TAG r NCHAR(20) FROM src0.city;")
+
+    def test_ntb_set_drop_tag_rejected(self):
+        """Normal table: SET TAG / DROP TAG are rejected (tags only on virtual normal tables).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, tag, alter, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-20 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_e2 (ts TIMESTAMP, val INT);")
+        tdSql.error("ALTER TABLE ntb_e2 SET TAG loc = 5;")
+        tdSql.error("ALTER TABLE ntb_e2 DROP TAG loc;")
+        # plain normal table stays tag-less: DESC shows only the columns
+        rows = self._rows("DESC ntb_e2;")
+        names = sorted(r[0] for r in rows)
+        assert names == sorted(['ts', 'val']), f"DESC ntb_e2 fields: {names}"
+        tdLog.info("  PASS: ntb stays tag-less")
+
+    @classmethod
+    def teardown_class(cls):
+        tdLog.info("=== teardown: dropping database ===")
+        tdSql.execute(f"DROP DATABASE IF EXISTS {DB};")
