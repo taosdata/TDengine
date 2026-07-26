@@ -1,189 +1,164 @@
 ---
-sidebar_label: '数据写入'
-title: 数据写入
-description: 写入数据的详细语法
+sidebar_label: 数据写入
+title: 数据写入与更新
+toc_max_heading_level: 4
 ---
 
-## 写入语法
+本章以智能电表的数据模型为例介绍如何在 TDengine TSDB 中使用 SQL 来写入、更新、删除时序数据。
 
-写入记录支持两种语法，正常语法和超级表语法。正常语法下，紧跟 INSERT INTO 后名的表名是子表名或者普通表名。超级表语法下，紧跟 INSERT INTO 后名的表名是超级表名。
+## 写入
 
-### 正常语法
+在 TDengine TSDB 中，用户可以使用 SQL 的 insert 语句写入时序数据。
 
-```sql
-INSERT INTO
-    tb_name
-        [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)]
-        [(field1_name, ...)]
-        VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
-    [tb2_name
-        [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...)]
-        [(field1_name, ...)]
-        VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
-    ...];
+### 一次写入一条
 
-INSERT INTO tb_name [(field1_name, ...)] subquery
-```
+假设设备 ID 为 d1001 的智能电表在 2018 年 10 月 3 日 14:38:05 采集到数据：电流 10.3A，电压 219V，相位 0.31。在 power 数据库中创建了属于超级表 meters 的子表 d1001 后，可以通过下面的 insert 语句在子表 d1001 中写入时序数据。
 
-### 超级表语法
+1. 可以通过下面的 INSERT 语句向子表 d1001 中写入时序数据。
 
 ```sql
-INSERT INTO
-    stb1_name [(field1_name, ...)]
-        VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
-    [stb2_name [(field1_name, ...)]
-        VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
-    ...];
-
-INSERT INTO stb_name (tbname, field1_name, ...) subquery
+insert into d1001 (ts, current, voltage, phase) values ( "2018-10-03 14:38:05", 10.3, 219, 0.31)
 ```
 
-#### 关于主键时间戳
+上面的 SQL 向子表 `d1001` 的 `ts`, `current`, `voltage`, `phase` 这 4 列分别写入 `2018-10-03 14:38:05`, `10.3`, `219`, `0.31`。
 
-TDengine TSDB 要求插入的数据必须要有时间戳，插入数据的时间戳要注意以下几点：
-
-1. 不同的时间戳格式有不同的精度影响。字符串格式的时间戳写法不受所在 DATABASE 的时间精度影响；而长整形格式的时间戳写法会受到所在 DATABASE 的时间精度影响。例如，时间戳 "2021-07-13 16:16:48" 的 UNIX 秒数为 1626164208。其在毫秒精度下需要写作 1626164208000，微秒精度下需要写为 1626164208000000，纳秒精度下需要写为 1626164208000000000。
-
-2. 一次插入多行数据时，不要把首列的时间戳的值都写 NOW。否则会导致语句中的多条记录使用相同的时间戳，可能出现相互覆盖以致这些数据行无法全部被正确保存。其原因在于，NOW 函数在执行中会被解析为所在 SQL 语句的客户端执行时间，在同一语句中的多个 NOW 标记会被替换为完全相同的时间戳。
-
-3. 允许插入的最大时间戳为当前时间加上 100 年，比如当前时间为 `2024-11-11 12:00:00`，允许插入的最大时间戳为`2124-11-11 12:00:00`。允许插入的最小时间戳取决于数据库的 KEEP 设置。企业版支持三级存储，可以设置多个 KEEP 时间，如下图所示，如果数据库的 KEEP 配置为 `100h,100d,3650d`，允许的最小时间戳为当前时间减去 3650 天。那么，时间戳在 `[Now - 100h, Now + 100y)` 内的会保存在一级存储，时间戳在 `[Now - 100d, Now - 100h)` 内的会保存在二级存储，时间戳在 `[Now - 3650d, Now - 100d)` 内的会保存在三级存储。社区版不支持多级存储功能，只能配置一个 KEEP 值，如果配置多个，则取其最大者。如果时间戳不在有效时间范围内，TDengine TSDB 将返回错误 "Timestamp out of range"。
-![Keep timerange 示意图](assets/database-keep.jpg)
-
-#### 语法说明
-
-1. 可以指定要插入值的列，未指定的列将自动填充为 NULL。
-
-2. VALUES 语法表示了要插入的一行或多行数据。
-
-3. FILE 语法表示数据来自于 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。如仅需创建子表，请参考 [表](../05-tdengine-sql/02-ddl/02-table.md#批量创建子表) 章节。
-
-4. `INSERT ... VALUES` 语句和 `INSERT ... FILE` 语句均可以在一条 INSERT 语句中同时向多个表插入数据。
-
-5. INSERT 语句是完整解析后再执行的，对如下语句，不会再出现数据错误但建表成功的情况：
+2. 当 `INSERT` 语句中的 `VALUES` 部分包含了表的所有列时，可以省略 `VALUES` 前的字段列表，如下面的 SQL 语句所示，其与前面指定列的 INSERT 语句，效果完全一样。
 
 ```sql
-INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2) VALUES('a');
+insert into d1001 values("2018-10-03 14:38:05", 10.3, 219, 0.31)
 ```
 
-6. 向多个子表插入数据时，会有部分数据写入失败，部分数据写入成功的情况。这是因为多个子表可能分布在不同的 VNODE 上，客户端将 INSERT 语句完整解析后，将数据发往各个涉及的 VNODE 上，每个 VNODE 独立进行写入操作。如果某个 VNODE 因为某些原因（比如网络问题或磁盘故障）导致写入失败，并不会影响其他 VNODE 节点的写入。
-
-7. 主键列值必须指定且不能为 NULL。
-
-#### 正常语法说明
-
-1. USING 子句是自动建表语法。用户在写数据时如不确定表是否存在，可以在写入数据时使用自动建表语法来创建不存在的表。若该表已存在，不会建立新表，也不会触发标签值的修改。自动建表时，必须以超级表为模板，写明数据表的 TAGS 取值。可以指定部分 TAGS 列的取值，未被指定的 TAGS 列将置为 NULL。
-
-2. 可以使用 `INSERT ... subquery` 语句将 TDengine TSDB 中的数据插入到指定表中。subquery 可以是任意的查询语句。
-
-#### 超级表语法说明
-
-1. 在 field_name 列表中必须指定 tbname 列，否则报错。tbname 列是子表名，类型是字符串。字符不用转义，不能包含点‘.‘。
-
-2. 在 field_name 列表中支持标签列，当子表已经存在时，指定标签值不会触发标签值的修改；当子表不存在时，会使用所指定的标签值建立子表；如果没有指定任何标签列，则把所有标签列的值设置为 NULL。
-
-3. 不支持参数绑定写入。
-
-4. 使用`INSERT ... subquery` 语句将 TDengine TSDB 中的数据插入到指定超级表中。field_name 必须指定，并且的第一个 field_name 必须是 tbname，否则报错。支持自动建表。
-
-## 插入一条记录
-
-指定已经创建好的数据子表的表名，并通过 VALUES 关键字提供一行或多行数据，即可向数据库写入这些数据。例如，执行如下语句可以写入一行记录：
+3. 对于表的时间戳列（第一列），也可以直接使用数据库精度的时间戳。
 
 ```sql
-INSERT INTO d1001 VALUES (NOW, 10.2, 219, 0.32);
+INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
 ```
 
-## 插入多条记录
+以上三种 SQL 的效果完全相同。
 
-或者，可以通过如下语句写入两行记录：
+### 一次写入多条
+
+假设设备 ID 为 d1001 的智能电表每 10s 采集一次数据，每 30s 上报一次数据，即每 30s 需要写入 3 条数据。用户可以在一条 insert 语句中写入多条记录。如下 SQL 一共写入了 3 条数据。
 
 ```sql
-INSERT INTO d1001 VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32) (1626164208000, 10.15, 217, 0.33);
+insert into d1001 values
+ ( "2018-10-03 14:38:05", 10.2, 220, 0.23),
+ ( "2018-10-03 14:38:15", 12.6, 218, 0.33),
+ ( "2018-10-03 14:38:25", 12.3, 221, 0.31)
 ```
 
-## 指定列插入
+上面的 SQL 一共写入了三条数据。
 
-向数据子表中插入记录时，无论插入一行还是多行，都可以让数据对应到指定的列。对于 SQL 语句中没有出现的列，数据库将自动填充为 NULL。主键（时间戳）不能为 NULL。例如：
+### 一次写入多表
+
+假设设备 ID 为 d1001、d1002、d1003 的 3 台智能电表，都是每 30 秒需要写入 3 条数据。对于这种情况，TDengine TSDB 支持一次向多个表写入多条数据。
 
 ```sql
-INSERT INTO d1001 (ts, current, phase) VALUES ('2021-07-13 14:06:33.196', 10.27, 0.31);
+INSERT INTO d1001 VALUES 
+    ("2018-10-03 14:38:05", 10.2, 220, 0.23),
+    ("2018-10-03 14:38:15", 12.6, 218, 0.33),
+    ("2018-10-03 14:38:25", 12.3, 221, 0.31) 
+d1002 VALUES 
+    ("2018-10-03 14:38:04", 10.2, 220, 0.23),
+    ("2018-10-03 14:38:14", 10.3, 218, 0.25),
+    ("2018-10-03 14:38:24", 10.1, 220, 0.22)
+d1003 VALUES
+    ("2018-10-03 14:38:06", 11.5, 221, 0.35),
+    ("2018-10-03 14:38:16", 10.4, 220, 0.36),
+    ("2018-10-03 14:38:26", 10.3, 220, 0.33)
+;
 ```
 
-## 向多个表插入记录
+上面的 SQL 一共写入了九条数据。
 
-可以在一条语句中，分别向多个表插入一条或多条记录，也可以在插入过程中指定列。例如：
+### 指定列写入
+
+可以通过指定列向表的部分列写入数据。SQL 中没有出现的列，数据库将自动填充为空值（NULL）。注意，时间戳列必须存在，且值不能为空。如下 SQL 向子表 d1004 写入了一条数据。这条数据只包含电压和相位，电流值为 NULL。
 
 ```sql
-INSERT INTO d1001 VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
-            d1002 (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
+insert into d1004 (ts, voltage, phase) values("2018-10-04 14:38:06", 223, 0.29)
 ```
 
-## 插入记录时自动建表
+### 写入时自动建表
 
-如果用户在写数据时并不确定某个表是否存在，可以在写入数据时使用自动建表语法来创建不存在的表；若该表已存在，不会建立新表，也不会触发标签值的修改。自动建表时，要求必须以超级表为模板，并写明数据表的 TAGS 取值。例如：
+用户可以使用带有 using 关键字的自动建表语句进行写入。当子表不存在时，先触发自动建表，再写入数据；当子表已经存在时，则直接写入。使用自动建表的 insert 语句，也可以通过指定部分标签列进行写入，未被指定的标签列的值为空值（NULL）。如下 SQL 写入一条数据。当子表 d1005 不存在时，先自动建表，标签 group_id 的值为 NULL，再写入数据
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32);
+insert into d1005
+using meters (location)
+tags ( "beijing.chaoyang")
+values ( "2018-10-04 14:38:07", 10.15, 217, 0.33)
 ```
 
-可以在自动建表时，只指定部分 TAGS 列的取值，未被指定的 TAGS 列将置为 NULL。例如：
+自动建表的 insert 语句也支持在一条语句中向多张表写入数据。如下 SQL 使用自动建表的 insert 语句共写入 9 条数据。
 
 ```sql
-INSERT INTO d21001 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:33.196', 10.15, 217, 0.33);
+INSERT INTO d1001 USING meters TAGS ("California.SanFrancisco", 2) VALUES 
+    ("2018-10-03 14:38:05", 10.2, 220, 0.23),
+    ("2018-10-03 14:38:15", 12.6, 218, 0.33),
+    ("2018-10-03 14:38:25", 12.3, 221, 0.31) 
+d1002 USING meters TAGS ("California.SanFrancisco", 3) VALUES 
+    ("2018-10-03 14:38:04", 10.2, 220, 0.23),
+    ("2018-10-03 14:38:14", 10.3, 218, 0.25),
+    ("2018-10-03 14:38:24", 10.1, 220, 0.22)
+d1003 USING meters TAGS ("California.LosAngeles", 2) VALUES
+    ("2018-10-03 14:38:06", 11.5, 221, 0.35),
+    ("2018-10-03 14:38:16", 10.4, 220, 0.36),
+    ("2018-10-03 14:38:26", 10.3, 220, 0.33)
+;
 ```
 
-自动建表语法支持在一条语句中向多个表插入记录。例如：
+### 通过超级表写入
+
+TDengine TSDB 还支持直接向超级表写入数据。需要注意的是，超级表是一个模板，本身不存储数据，写入的数据是存储在对应的子表中。如下 SQL 通过指定 tbname 列向子表 d1001 写入一条数据。
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
-            d21002 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:34.255', 10.15, 217, 0.33)
-            d21003 USING meters (groupId) TAGS (2) (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
+insert into meters (tbname, ts, current, voltage, phase, location, group_id)
+values("d1001", "2018-10-03 14:38:05", 10.2, 220, 0.23, "California.SanFrancisco", 2)
 ```
 
-## 插入来自文件的数据记录
+### 通过虚拟表写入
 
-除了使用 VALUES 关键字插入一行或多行数据外，可以把要写入的数据放在 CSV 文件中（英文逗号分隔、时间戳和字符串类型的值需要用英文单引号括住），供 SQL 指令读取。其中 CSV 文件无需表头。例如，如果 /tmp/csvfile.csv 文件的内容为：
+TDengine TSDB 不支持向虚拟表或虚拟超级表写入，因为虚拟表或虚拟超级表是动态生成的，本身不存储数据。
 
-```csv
-'2021-07-13 14:07:34.630', 10.2, 219, 0.32
-'2021-07-13 14:07:35.779', 10.15, 217, 0.33
-```
+### 零代码写入
 
-通过如下指令可以把该文件中的数据写入子表中：
+为了方便用户轻松写入数据，TDengine TSDB 已与众多知名第三方工具实现无缝集成，包括 Telegraf、Prometheus、EMQX、StatsD、collectd 和 HiveMQ 等。用户只须对这些工具进行简单的配置，便可轻松将数据导入 TDengine。此外，TDengine TSDB Enterprise 还提供了丰富的连接器，如 MQTT、OPC、AVEVA PI System、Wonderware、Kafka、MySQL、Oracle 等。通过在 TDengine TSDB 端配置相应的连接信息，用户无须编写任何代码，即可高效地将来自不同数据源的数据写入 TDengine。
+
+## 更新
+
+可以通过写入重复时间戳的一条数据来更新时序数据，新写入的数据会替换旧值。下面的 SQL，通过指定列的方式，向子表 `d1001` 中写入 1 行数据；当子表 `d1001` 中已经存在日期时间为 `2018-10-03 14:38:05` 的数据时，`current`（电流）的新值 22，会替换旧值。
 
 ```sql
-INSERT INTO d1001 FILE '/tmp/csvfile.csv';
+INSERT INTO d1001 (ts, current) VALUES ("2018-10-03 14:38:05", 22);
 ```
 
-## 插入来自文件的数据记录，并自动建表
+## 删除
+
+为方便用户清理由于设备故障等原因产生的异常数据，TDengine TSDB 支持根据时间戳删除时序数据。下面的 SQL，将超级表 `meters` 中所有时间戳早于 `2021-10-01 10:40:00.100` 的数据删除。数据删除后不可恢复，请慎重使用。为了确保删除的数据确实是自己要删除的，建议可以先使用 select 语句加 where 后的删除条件查看要删除的数据内容，确认无误后再执行 delete。
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile.csv';
+delete from meters where ts < '2021-10-01 10:40:00.100' ;
 ```
 
-可以在一条语句中向多个表以自动建表的方式插入记录（表已经存在时，不会触发标签值的修改）。例如：
+## 查看压缩率
+
+通过查询系统表 `INS_DISK_USAGE`，可以查看数据库的压缩率和磁盘空间，参见 [文档](../05-tdengine-sql/02-ddl/01-database.md#查看数据库的磁盘空间占用)。
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
-            d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
+select * from INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name';
 ```
 
-## 向超级表插入数据并自动创建子表
-
-自动建表，表名通过 tbname 列指定
+通过如下命令，可以查看表的表的压缩率及具体分布情况，参见 [文档](../05-tdengine-sql/09-system-info/03-show.md#show-table-distributed)。
 
 ```sql
-INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase)
-                VALUES ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32)
-                ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:35.779', 10.15, 217, 0.33)
-                ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33)
+show table distributed table_name;
 ```
 
-## 通过 CSV 文件向超级表插入数据并自动创建子表
+上面的 `show` 命令是按照数据块可能的数据条数动态计算的等分区间显示的分布情况，也可使用下面的语句查询系统表 `INS_TABLE_FIXED_DISTRIBUTED` 按照固定区间查看分布情况，后者更适合多表低频等单个数据块中数据条数较少的场景。
 
-根据 csv 文件内容，为超级表创建子表，并填充相应 column 与 tag
+注意：目前，下面的 SQL 语句仅支持使用 `SELECT *`，不支持指定具体的查询字段，且 `WHERE` 条件中也只能包含 `与` 关系的 `db_name` 和 `table_name` 条件。
 
 ```sql
-INSERT INTO meters(tbname, location, groupId, ts, current, voltage, phase)
-                FILE '/tmp/csvfile_21002.csv'
+select * from INFORMATION_SCHEMA.INS_TABLE_FIXED_DISTRIBUTED where db_name = 'db_name' and table_name = 'table_name';
 ```
