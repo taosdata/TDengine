@@ -1,88 +1,800 @@
 ---
-sidebar_label: 查询
-title: 数据查询
-toc_max_heading_level: 4
+sidebar_label: '查询语法'
+title: 查询语法
+description: 查询数据的详细语法
 ---
 
-import win from './assets/window.png';
-import swin from './assets/session_window.png';
-import ewin from './assets/event_window.png';
-
-相较于其他众多时序数据库和实时数据库，TDengine TSDB 的一个独特优势在于，自其首个版本发布之初便支持标准的 SQL 查询功能。这一特性极大地降低了用户在使用过程中的学习难度。本章将以智能电表的数据模型为例介绍如何在 TDengine TSDB 中运用 SQL 查询来处理时序数据。如果需要进一步了解 SQL 语法的细节和功能，建议参阅 TDengine TSDB 的官方文档。通过本章的学习，你将能够熟练掌握 TDengine TSDB 的 SQL 查询技巧，进而高效地对时序数据进行操作和分析。
-
-## 基本查询
-
-为了更好的介绍 TDengine TSDB 数据查询，使用如下 taosBenchmark 命令，生成本章内容需要的时序数据。
-
-```shell
-taosBenchmark --start-timestamp=1600000000000 --tables=100 --records=10000000 --time-step=10000
-```
-
-上面的命令，taosBenchmark 工具在 TDengine TSDB 中生成了一个用于测试的数据库，产生共 10 亿条时序数据。时序数据的时间戳从 `1600000000000`（2020-09-13T20:26:40+08:00）开始，包含 `100` 个设备（子表），每个设备有 `10000000` 条数据，时序数据的采集频率是 10 秒/条。
-
-在 TDengine TSDB 中，用户可以通过 WHERE 语句指定条件，查询时序数据。以智能电表的数据为例
+## 查询语法
 
 ```sql
-SELECT * FROM meters 
-WHERE voltage > 230 
-ORDER BY ts DESC
-LIMIT 5;
+SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
+
+SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
+    from_clause
+    [WHERE condition]
+    [partition_by_clause]
+    [interp_clause]
+    [window_clause]
+    [group_by_clause]
+    [order_by_clasue]
+    [SLIMIT limit_val [SOFFSET offset_val]]
+    [LIMIT limit_val [OFFSET offset_val]]
+    [>> export_file]
+
+hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
+
+hint:
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
+
+select_list:
+    select_expr [, select_expr] ...
+
+select_expr: {
+    *
+  | query_name.*
+  | [schema_name.] {table_name | view_name} .*
+  | t_alias.*
+  | expr [[AS] c_alias]
+}
+
+from_clause: {
+    table_reference [, table_reference] ...
+  | table_reference join_clause [, join_clause] ...
+}
+
+table_reference:
+    table_expr t_alias
+
+table_expr: {
+    table_name
+  | view_name
+  | ( subquery )
+  | TEXT(column_list) VALUES (val [, ...]) [(...)] ...
+  | FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
+}
+
+column_list:
+    col_name type_name [, col_name type_name] ...
+
+join_clause:
+    [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
+
+window_clause: {
+    SESSION(ts_col, tol_val)
+    | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
+  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
+  | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
+}
+
+interp_clause:
+    RANGE(ts_val [, ts_val]) EVERY(every_val) fill_clause
+
+fill_clause:
+    FILL(fill_mode_and_val) [SURROUND(surrounding_time_val [, fill_vals])]
+
+fill_mode_and_val:
+    NONE
+  | NULL|NULL_F
+  | VALUE|VALUE_F [, fill_vals]
+  | PREV|NEXT|NEAR
+  | LINEAR
+ 
+group_by_clause:
+    GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
+                                                    
+group_by_expr:
+    {expr | position | c_alias}
+
+partition_by_clause:
+    PARTITION BY partition_by_expr [, partition_by_expr] ...
+
+partition_by_expr:
+    {expr | position | c_alias}
+
+order_by_clasue:
+    ORDER BY order_expr [, order_expr] ...
+
+order_expr:
+    {expr | position | c_alias} [DESC | ASC] [NULLS FIRST | NULLS LAST]
+
+true_for_expr:
+    true_for_arg [, true_for_arg [, true_for_arg]]
+
+true_for_arg: {
+    limit_expr
+  | start(limit_expr)
+  | end(limit_expr)
+}
+
+limit_expr: {
+    duration_time
+  | COUNT count_val
+  | duration_time AND COUNT count_val
+  | duration_time OR COUNT count_val
+}
 ```
 
-上面的 SQL，从超级表 `meters` 中查询出电压 `voltage` 大于 230V 的记录，按时间降序排列，且仅输出前 5 行。查询结果如下：
+### 部分字段语法说明
 
-```text
-          ts            |  current   | voltage |    phase    | groupid |          location        |
-===================================================================================================
-2023-11-15 06:13:10.000 | 14.0601978 |     232 | 146.5000000 |      10 | California.Sunnyvale     |
-2023-11-15 06:13:10.000 | 14.0601978 |     232 | 146.5000000 |       1 | California.LosAngles     |
-2023-11-15 06:13:10.000 | 14.0601978 |     232 | 146.5000000 |      10 | California.Sunnyvale     |
-2023-11-15 06:13:10.000 | 14.0601978 |     232 | 146.5000000 |       5 | California.Cupertino     |
-2023-11-15 06:13:10.000 | 14.0601978 |     232 | 146.5000000 |       4 | California.SanFrancisco  |
-Query OK, 5 row(s) in set (0.145403s)
+- select_expr: 选择列表达式，可以为常量、列、运算、函数以及它们的混合运算，不支持聚合函数的嵌套。
+- from_clause: 指定查询的数据源，可以是单个表（超级表、子表、普通表、虚拟表），也可以是视图，也支持多表关联查询。
+- table_reference: 指定单个表（含视图）的名称，可选指定表的别名。
+- table_expr: 指定查询数据源，可以为表名、视图名、子查询，或内联数据源（`TEXT` 或 `FILE`）。详见 [TEXT 内联数据源](#text-内联数据源) 和 [FILE CSV 文件数据源](#file-csv-文件数据源)。
+- column_list: `TEXT` 和 `FILE` 共用的列定义语法，每项为 `col_name type_name`。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
+- join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度参见[时间单位](../01-datatype.md#时间单位)（不支持月/季/年），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参阅关联查询章节 [TDengine TSDB 关联查询](07-join.md)。
+- window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详细信息可参阅特色查询章节 [TDengine TSDB 特色查询](06-distinguished.md)。
+  - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间单位参见[时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周），如 SESSION(ts, 12s)。
+  - STATE_WINDOW: 状态窗口，使用一个或多个状态键划分窗口（从 3.4.2.0 版本开始支持多个状态键）。可以配置 `EXTEND` 参数指定窗口边界扩展策略，配置 `ZEROTH_STATE` 参数指定零状态过滤，配置 `TRUE_FOR` 参数指定窗口过滤条件。
+  - INTERVAL: 时间窗口，interval_val 指定窗口大小，sliding_val 指定窗口滑动时间，大小限制在 interval_val 范围内，interval_val 和 sliding_val 时间范围为正值，精度参见[时间单位](../01-datatype.md#时间单位)，如 interval_val(2d)、SLIDING(1d)。
+  - EVENT_WINDOW: 事件窗口，使用 start_trigger_condition、end_trigger_condition 指定开始结束条件，支持任意表达式，可以指定不同的列。可以配置 `TRUE_FOR` 参数指定窗口过滤条件，以及 `start(...)` / `end(...)` 指定开窗/关窗连续满足门限。
+  - COUNT_WINDOW: 计数窗口，指定按行数划分窗口，count_val 窗口包含最大行数，范围为[2,2147483647]。sliding_val 窗口滑动数量，范围为[1,count_val]。col_name 在 v3.3.7.0 之后开始支持，指定一列或者多列，在 count_window 窗口计数时，窗口中的每行数据，指定列中至少有一列非空，否则该行数据不包含在计数窗口内。如果没有指定 col_name，表示没有限制。
+    - EXTERNAL_WINDOW: 外部窗口，窗口的时间范围由子查询显式给出，而非由内建规则自动划分。subquery 的前两列必须为 timestamp 类型，分别表示窗口开始时间和结束时间；第 3 列及之后的列为窗口属性列，可通过 window_alias.column_name 引用。外部查询在每个窗口范围内独立计算聚合结果。支持 PARTITION BY 分组对齐、HAVING 过滤、嵌套调用，以及对空窗口使用 `FILL`。详细说明参见 [TDengine TSDB 特色查询](06-distinguished.md#外部窗口)。
+- interp_clause: interp 子句，与 interp 函数搭配使用，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。
+  - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，时间单位参见[时间单位](../01-datatype.md#时间单位)（不支持月/季/年）。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```。
+  - EVERY: 时间间隔范围，every_val 为正值，时间单位参见[时间单位](../01-datatype.md#时间单位)（不支持月/季/年），如 EVERY(1s)。
+- SCALAR | AGG：窗口查询模式关键字（3.4.2.0 版本开始支持）。当窗口查询的 SELECT 列表中包含列表达式或不定行函数时，自动进入**窗口投影模式**，每个窗口输出其全部原始行；当 SELECT 列表只包含聚合函数时，进入**窗口聚合模式**，每个窗口输出一行聚合结果。当 SELECT 列表仅包含伪列、标签列、tbname、常量、分组键（group key）和状态键（state key）时，INTERVAL、SESSION、STATE_WINDOW、EVENT_WINDOW、COUNT_WINDOW 默认选择聚合模式，而 EXTERNAL_WINDOW 默认选择投影模式。此时可使用 `SCALAR` 或 `AGG` 关键字显式指定模式。详见 [TDengine TSDB 特色查询](06-distinguished.md#窗口投影模式)。
+- fill_clause: fill 子句，可以与 interp 函数、INTERVAL 窗口或 EXTERNAL_WINDOW 搭配使用，用于指定数据缺失时的数据填充方法。不同上下文支持的模式有所区别。
+- group_by_expr: 指定数据分组聚合规则，支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select ts, current from meters order by ts desc,2```，2 对应 current 列。
+- partition_by_expr: 指定数据切片条件，切片内的数据独立进行计算。支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select current from meters partition by 1```，1 对应 current 列。
+- order_expr: 指定输出数据排序规则，默认不排序。支持表达式、函数、位置、列、别名，可以在单列或者多列中每列使用不同的排序规则，可以指定空值排序在前或者在后。
+- SLIMIT: 指定输出分片数量，limit_val 指定输出数量，offset_val 指定偏移开始位置，offset_val 可选，limit_val 和 offset_val 均为正值，在 PARTITION BY、GROUP BY 子句中使用。使用 ORDER BY 子句时只输出一个分片。
+- LIMIT: 指定输出数据数量，limit_val 指定输出数量，offset_val 指定偏移开始位置，offset_val 可选，limit_val 和 offset_val 均为正值。使用 PARTITION BY 子句时控制的是每个分片的数量。
+
+## Hints
+
+Hints 是用户控制单个语句查询优化的一种手段，当 Hint 不适用于当前的查询语句时会被自动忽略，具体说明如下：
+
+- Hints 语法以`/*+`开始，终于`*/`，前后可有空格。
+- Hints 语法只能跟随在 SELECT 关键字后。
+- 每个 Hints 可以包含多个 Hint，Hint 间以空格分开，当多个 Hint 冲突或相同时以先出现的为准。
+- 当 Hints 中某个 Hint 出现错误时，错误出现之前的有效 Hint 仍然有效，当前及之后的 Hint 被忽略。
+- hint_param_list 是每个 Hint 的参数，根据每个 Hint 的不同而不同。
+
+目前支持的 Hints 列表如下：
+
+|      **Hint**       | **参数** | **说明**                                                           | **适用范围**             |
+|:-------------------:|--------|:-----------------------------------------------------------------|----------------------|
+|     BATCH_SCAN      | 无      | 采用批量读表的方式                                                        | 超级表 JOIN 语句          |
+|    NO_BATCH_SCAN    | 无      | 采用顺序读表的方式                                                        | 超级表 JOIN 语句          |
+|   SORT_FOR_GROUP    | 无      | 采用 sort 方式进行分组，与 PARTITION_FIRST 冲突                              | partition by 列表有普通列时 |
+|   PARTITION_FIRST   | 无      | 在聚合之前使用 PARTITION 计算分组，与 SORT_FOR_GROUP 冲突                       | partition by 列表有普通列时 |
+|  PARA_TABLES_SORT   | 无      | 超级表的数据按时间戳排序时，不使用临时磁盘空间，只使用内存。当子表数量多，行长比较大时候，会使用大量内存，可能发生 OOM    | 超级表的数据按时间戳排序时        |
+|  SMALLDATA_TS_SORT  | 无      | 超级表的数据按时间戳排序时，查询列长度大于等于 256，但是行数不多，使用这个提示，可以提高性能                 | 超级表的数据按时间戳排序时        |
+| SMALLDATA_SCAN_SORT | 无      | 超级表查询需要按时间戳有序的扫描输出时，用普通表扫描加排序代替表合并扫描；每 vnode 数据量较小时性能更优。凡引擎会用表合并扫描产生时间戳有序输出的场景均适用，包括 ORDER BY ts，以及会话窗口 SESSION、状态窗口 STATE_WINDOW（无需显式 ORDER BY）；对时间窗口 INTERVAL（本就不使用表合并扫描）以及按非时间戳列的 ORDER BY 均无效 | 小数据量超级表需要时间戳有序时 |
+|      SKIP_TSMA      | 无      | 用于显示的禁用 TSMA 查询优化                                                | 带 Agg 函数的查询语句        |
+
+举例：
+
+```sql
+SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
+SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
+SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
+SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
 ```
 
-## 查询时区
+## 列表
 
-在时序查询中，时间戳是否能够被稳定、准确地解释，往往和 SQL 本身同样重要。尤其是在跨地域部署、客户端与服务端分离、报表需要按本地时间展示，或查询条件包含日/周等自然时间边界时，时区配置会直接影响时间字符串的解析、结果集中的时间显示，以及部分时间函数和窗口计算的语义。
+查询语句可以指定部分或全部列作为返回结果。数据列和标签列都可以出现在列表中。
 
-TDengine TSDB 的时间查询遵循一套清晰的时区管理机制：底层保存的是 UTC 时间戳，查询时由客户端或当前连接负责把时间字符串解析成 UTC，并在返回结果时再按当前时区转换为本地时间显示。这样做的好处是，存储层保持统一，查询层又能贴近业务使用场景，既方便不同地区的应用直接读取本地时间，也能避免把时区逻辑分散到每张表或每条记录里。
+### 通配符
 
-这套机制同时兼顾了易用性与严谨性：
+通配符 \* 可以用于代指全部列。对于普通表和子表，结果中只有普通列。对于超级表，还包含了 TAG 列。
 
-1. 易用性上，如果没有额外配置，客户端会直接采用操作系统当前时区，常见查询可以“开箱即用”。
-2. 可控性上，可以通过客户端默认配置、连接参数或当前会话来覆盖时区，满足多租户、多地区、多应用并发访问同一份数据的需求。
-3. 严谨性上，若在 SQL 中直接使用 Unix 时间戳，或使用带时区偏移量的 RFC 3339 / ISO-8601 时间字符串，那么时间含义将不再依赖当前时区设置，能够显著降低歧义，尤其适合跨时区协作和夏令时场景。
+```sql
+SELECT * FROM d1001;
+```
 
-如果你需要进一步查看具体配置方式，可继续阅读以下内容：
+通配符支持表名前缀，以下两个 SQL 语句均为返回全部的列：
 
-- [修改服务端默认时区配置](../../12-operations-and-tooling/03-components/01-taosd.md#timezone)
-- [修改客户端默认时区配置](../../12-operations-and-tooling/03-components/02-taosc.md#timezone)
-- [设置当前会话时区](../10-time/01-timezone.md#设置时区)
-- [了解夏令时（DST）对写入与查询的影响](../10-time/02-dst.md)
+```sql
+SELECT * FROM d1001;
+SELECT d1001.* FROM d1001;
+```
+
+在 JOIN 查询中，带表名前缀的\*和不带前缀\*返回的结果有差别， \*返回全部表的所有列数据（不包含标签），而带表名前缀的通配符，则只返回该表的列数据。
+
+```sql
+SELECT * FROM d1001, d1003 WHERE d1001.ts=d1003.ts;
+SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
+```
+
+上面的查询语句中，前者返回 d1001 和 d1003 的全部列，而后者仅返回 d1001 的全部列。
+
+在使用 SQL 函数来进行查询的过程中，部分 SQL 函数支持通配符操作。其中的区别在于：
+`count(*)`函数只返回一列。`first`、`last`、`last_row`函数则是返回全部列。
+
+### 标签列
+
+在超级表和子表的查询中可以指定 _标签列_，且标签列的值会与普通列的数据一起返回。
+
+```sql
+SELECT location, groupid, current FROM d1001 LIMIT 2;
+```
+
+### 别名
+
+别名的命名规则与列相同，支持直接指定 UTF-8 编码格式的中文别名。
+
+### 结果去重
+
+`DISTINCT` 关键字可以对结果集中的一列或多列进行去重，去除的列既可以是标签列也可以是数据列。
+
+对标签列去重：
+
+```sql
+SELECT DISTINCT tag_name [, tag_name ...] FROM stb_name;
+```
+
+对数据列去重：
+
+```sql
+SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
+```
+
+:::info
+
+1. cfg 文件中的配置参数 maxNumOfDistinctRes 将对 DISTINCT 能够输出的数据行数进行限制。其最小值是 100000，最大值是 100000000，默认值是 10000000。如果实际计算结果超出了这个限制，那么会仅输出这个数量范围内的部分。
+2. 由于浮点数天然的精度机制原因，在特定情况下，对 FLOAT 和 DOUBLE 列使用 DISTINCT 并不能保证输出值的完全唯一性。
+
+:::
+
+### 标签查询
+
+当查询的列只有标签列时，`TAGS` 关键字可以指定返回所有子表的标签列。每个子表只返回一行标签列。
+
+返回所有子表的标签列：
+
+```sql
+SELECT TAGS tag_name [, tag_name ...] FROM stb_name
+```
+
+### 结果集列名
+
+`SELECT`子句中，如果不指定返回结果集合的列名，结果集列名称默认使用`SELECT`子句中的表达式名称作为列名称。此外，用户可使用`AS`来重命名返回结果集合中列的名称。例如：
+
+```sql
+taos> SELECT ts, ts AS primary_key_ts FROM d1001;
+```
+
+但是针对`first(*)`、`last(*)`、`last_row(*)`不支持针对单列的重命名。
+
+### 伪列
+
+**伪列**: 伪列的行为表现与普通数据列相似但其并不实际存储在表中。可以查询伪列，但不能对其做插入、更新和删除的操作。伪列有点像没有参数的函数。下面介绍是可用的伪列：
+
+**TBNAME**
+`TBNAME` 可以视为超级表中一个特殊的标签，代表子表的表名。
+
+获取一个超级表所有的子表名及相关的标签信息：
+
+```mysql
+SELECT TAGS TBNAME, location FROM meters;
+```
+
+建议用户使用 INFORMATION_SCHEMA 下的 INS_TAGS 系统表来查询超级表的子表标签信息，例如获取超级表 meters 所有的子表名和标签值：
+
+```mysql
+SELECT table_name, tag_name, tag_type, tag_value FROM information_schema.ins_tags WHERE stable_name='meters';
+```
+
+统计超级表下辖子表数量：
+
+```mysql
+SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
+```
+
+以上两个查询均只支持在 WHERE 条件子句中添加针对标签（TAGS）的过滤条件。
+
+**\_QSTART/\_QEND**
+
+\_qstart 和\_qend 表示用户输入的查询时间范围，即 WHERE 子句中主键时间戳条件所限定的时间范围。如果 WHERE 子句中没有有效的主键时间戳条件，则时间范围为[-2^63, 2^63-1]。
+
+\_qstart 和\_qend 不能用于 WHERE 子句中。
+
+**\_WSTART/\_WEND/\_WDURATION**
+\_wstart 伪列、\_wend 伪列和\_wduration 伪列
+\_wstart 表示窗口起始时间戳，\_wend 表示窗口结束时间戳，\_wduration 表示窗口持续时长。
+
+这三个伪列只能用于时间窗口的窗口切分查询之中，且要在窗口切分子句之后出现。
+
+**\_c0/\_ROWTS**
+
+TDengine TSDB 中，所有表的第一列都必须是时间戳类型，且为其主键，\_rowts 伪列和\_c0 伪列均代表了此列的值。相比实际的主键时间戳列，使用伪列更加灵活，语义也更加标准。例如，可以和 max\min 等函数一起使用。
+
+```sql
+select _rowts, max(current) from meters;
+```
+
+**\_IROWTS**
+
+\_irowts 伪列只能与 interp 函数一起使用，用于返回 interp 函数插值结果对应的时间戳列。
+
+```sql
+select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
+```
+
+**\_IROWTS\_ORIGIN**
+`_irowts_origin` 伪列只能与 interp 函数一起使用，仅适用于 FILL 类型为 PREV/NEXT/NEAR, 用于返回 interp 函数所使用的原始数据的时间戳列。若范围内无值，则返回 NULL。
+
+```sql
+select _iorwts_origin, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(NEXT);
+```
+
+## 查询对象
+
+FROM 关键字后面可以是若干个表（超级表）列表，也可以是子查询的结果，也可以是 TEXT 或 FILE 内联数据源（见下文）。
+如果没有指定用户的当前数据库，可以在表名称之前使用数据库的名称来指定表所属的数据库。例如：`power.d1001` 方式来跨库使用表。
+
+TDengine TSDB 支持基于时间戳主键的 INNER JOIN，规则如下：
+
+1. 支持 FROM 表列表和显式的 JOIN 子句两种语法。
+2. 对于普通表和子表，ON 条件必须有且只有时间戳主键的等值条件。
+3. 对于超级表，ON 条件在时间戳主键的等值条件之外，还要求有可以一一对应的标签列等值条件，不支持 OR 条件。
+4. 参与 JOIN 计算的表只能是同一种类型，即只能都是超级表，或都是子表，或都是普通表。
+5. JOIN 两侧均支持子查询。
+6. 不支持与 FILL 子句混合使用。
+
+## TEXT 内联数据源
+
+`TEXT` 允许将行数据直接内嵌在 SQL 语句中，作为临时表源使用，无需预先建表。
+
+### 语法
+
+```sql
+TEXT(column_list)
+    VALUES (val [, val] ...) [(val [, val] ...)] ...
+    [alias]
+```
+
+### 说明
+
+- 列 Schema 必须显式声明，不支持类型推断。
+- 每个 `VALUES` 组代表一行数据，所有行必须与 Schema 列数一致。
+- 支持 NULL 值，使用关键字 `NULL` 表示。
+- 可选 alias 为该数据源指定表别名，便于 JOIN 或子查询中引用。
+- `TEXT` 数据源可用于 `FROM` 子句、子查询、JOIN、窗口查询、`INSERT INTO … SELECT` 以及 EXTERNAL_WINDOW 子查询定义。
+- 支持 JSON、GEOMETRY、BLOB 之外的其他类型。
+- 首列必须为 `TIMESTAMP` 类型（作为主键），不要求输入有序。
+
+### 数据量限制
+
+| 限制项 | 上限 |
+|---|---|
+| 最大行数 | 10,000 行 |
+| 最大列数 | 4,096 列 |
+| 最大单元格数（rows × cols） | 1,000,000 个 |
+| 单次内联文本大小 | 8 MB |
+
+### 示例
+
+```sql
+-- 基本查询：查询内联电表读数
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221) t1;
+
+-- 带条件过滤：筛选电压超标的读数
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219) t2
+WHERE voltage > 220;
+
+-- 作为子查询：对内联读数进行二次过滤
+SELECT * FROM (
+    SELECT ts, current, voltage
+    FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+        VALUES ('2024-01-01 08:00:00', 10.2, 220)
+               ('2024-01-01 09:00:00', 10.8, 221) readings
+) sub WHERE current > 10.5;
+
+-- 窗口聚合：按 6 小时统计平均电流和最大电压
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219)
+           ('2024-01-01 14:00:00', 9.8,  218) t3
+INTERVAL(6h);
+
+-- JOIN：用内联校准数据关联真实电表
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN TEXT(ts TIMESTAMP, factor FLOAT)
+    VALUES ('2024-01-01 08:00:00', 1.02)
+           ('2024-01-01 09:00:00', 0.98) cal
+ON m.ts = cal.ts;
+```
+
+## FILE CSV 文件数据源
+
+`FILE` 将本地 CSV 文件作为查询表源，无需导入数据库即可直接查询。
+
+### 语法
+
+```sql
+FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
+    [alias]
+```
+
+### 说明
+
+- 当前仅支持 CSV 文本格式。
+- `file_path`：CSV 文件路径，由**执行查询规划的进程**（通常为客户端进程，如 `taos` 命令行或客户端驱动）读取。支持相对路径（相对于该进程的工作目录）和绝对路径。
+- 第二个参数为 Schema 声明字符串，列定义以逗号分隔；列顺序与 CSV 列顺序对应。
+- CSV 中超出 Schema 声明列数的列会被忽略，可通过 Schema 只读取文件中的部分列。
+- `header=true`：CSV 首行为列名头部，读取时跳过。启用后按列名匹配（而非按位置），Schema 可以任意顺序声明文件列的子集。默认为 `false`。
+- `delimiter`：字段分隔符，单个字符，默认为 `,`。
+- 支持 NULL 值（CSV 中的空字段解析为 NULL）。
+- 文件路径和 Schema 必须为字面量字符串，不支持运行时表达式。
+- `FILE` 可用于与 `TEXT` 相同的场景：`FROM` 子句、子查询、JOIN、窗口查询、UNION、`INSERT INTO … SELECT` 以及 EXTERNAL_WINDOW 子查询定义。
+- 支持的列类型：与 `TEXT` 相同。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
+- Schema 声明的首列必须为 `TIMESTAMP` 类型（作为主键），不要求输入有序。
+
+### 数据量限制
+
+与 `TEXT` 相同：最大 10,000 行、4,096 列、1,000,000 单元格、单次读取不超过 8 MB。
+
+### 示例
+
+```sql
+-- 读取 CSV 文件中的全部列（电表四列读数）
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV 有 4 列，只读取其中 2 列（电流和电压）
+SELECT ts, current
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV 带列名头部，跳过首行
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings_with_header.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT',
+          header=true) f;
+
+-- 作为子查询：对 CSV 读数进行过滤聚合
+SELECT AVG(current), MAX(voltage)
+FROM (
+    SELECT ts, current, voltage
+    FROM FILE('./meter_readings.csv',
+              'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
+) sub WHERE voltage BETWEEN 200 AND 250;
+
+-- JOIN：用 CSV 校准数据关联真实电表
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN FILE('./calibration.csv',
+          'ts TIMESTAMP, factor FLOAT') cal
+ON m.ts = cal.ts;
+
+-- 窗口聚合：按小时统计 CSV 电表数据
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
+INTERVAL(1h);
+```
+
+## INTERP
+
+interp 子句是 [INTERP 函数](03-function.md#interp) 的专用语法，当 SQL 语句中存在 interp 子句时，只能查询 INTERP 函数而不能与其他函数一起查询，同时 interp 子句与窗口子句 (window_clause)、分组子句 (group_by_clause) 也不能同时使用。INTERP 函数在使用时需要与 RANGE、EVERY 和 FILL 子句一起使用。
+
+- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
+- INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 参见[时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周，不支持月/季/年）。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。
+- INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](#fill-子句)。注意：插值时所使用的采样数据并非限制于 RANGE 字段的约束，而是满足 WHERE 子句条件的全部数据，如果没有指定 WHERE 子句，则为全表数据；FILL 子句的参数为 PREV/NEXT/NEAR 时，会使用相邻的有效数据进行插值，NULL 数据能否被认定为有效数据，取决于 INTERP 函数的 ignore_null_values 参数。若想限制采样数据的范围，可以使用 SURROUND 子句。
+- INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)`。
+- INTERP 查询支持 NEAR FILL 模式，即当需要 FILL 时，使用距离当前时间点最近的有效数据进行插值，当前后时间戳与当前时间断面一样近时，FILL 前一行的值。此模式在窗口查询中不支持。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (v3.3.4.9 及以后支持)。
+
+## FILL 子句
+
+FILL 语句指定 INTERVAL 窗口、EXTERNAL_WINDOW 或 INTERP 查询结果中数据缺失时的填充模式。填充模式包括以下几种：
+
+1. 不进行填充：NONE（默认填充模式）。
+2. VALUE 填充：固定值填充，此时需要指定填充的数值。例如 `FILL(VALUE, 1.23)`。这里需要注意，最终填充的值受由相应列的类型决定，如 `FILL(VALUE, 1.23)`，相应列为 INT 类型，则填充值为 1，若查询列表中有多列需要 FILL，则需要给每一个 FILL 列指定 VALUE，如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`，注意，SELECT 表达式中只有包含普通列时才需要指定 FILL VALUE，如 `_wstart`、`_wstart+1a`、`now`、`1+1` 以及使用 `partition by` 时的 `partition key` (如 tbname) 都不需要指定 VALUE，如 `timediff(last(ts), _wstart)` 则需要指定 VALUE。
+3. NULL 填充：使用 NULL 填充数据。例如 `FILL(NULL)`。
+4. PREV 填充：使用前一个有效数据填充。例如 `FILL(PREV)`。
+5. NEXT 填充：使用下一个有效数据填充。例如 `FILL(NEXT)`。
+6. NEAR 填充：使用距离当前时间点最近的有效数据填充。例如 `FILL(NEAR)`。在窗口查询中不支持。
+7. LINEAR 填充：根据前后距离最近的有效数据做线性插值填充。例如 `FILL(LINEAR)`。
+
+以上所有填充模式中，除了 NONE 模式默认不填充值外，其他模式若在查询的整个时间范围内没有数据，则 FILL 子句不会生效，不会产生填充值，查询结果为空。对于 PREV、NEXT、LINEAR 等模式，这是合理的，因为在这些模式下，没有有效数据就无法进行填充。
+
+“有效数据”的定义在 INTERVAL 子句和 INTERP 子句中有所不同：在 INTERVAL 子句中，扫描出的数据均为有效数据，例如 FILL(PREV) 即使用相邻前一窗口的数据进行填充；在 INTERP 子句中，NULL 值是否有效取决于 INTERP 函数的 ignore_null_values 参数，例如 FILL(PREV) 且 NULL 值无效，则略过所有 NULL，不断向前寻找 non-NULL 数据，若所有数据均为 NULL，则不进行填充。在 INTERP 子句中，PREV、NEXT 和 NEAR 模式下，会在 WHERE 条件范围内持续向前/向后/前后寻找有效数据，若所有数据均为 NULL，则不进行填充。
+
+对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，从 v3.0.3.0 开始，增加了两种新的填充模式：
+
+1. NULL_F：强制填充 NULL 值
+1. VALUE_F：强制填充 VALUE 值
+
+NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如下：
+
+- INTERVAL 子句：NULL_F、VALUE_F 为强制填充模式；NULL、VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
+- 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
+- INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
+
+对于 EXTERNAL_WINDOW 查询，支持的模式为 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`、`PREV`、`NEXT`，暂不支持 `LINEAR`、`NEAR` 和 `SURROUND`。
+
+对于窗口投影模式（SELECT 列表包含列表达式或不定行函数），FILL 仅支持 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`，不支持 `PREV`、`NEXT`、`LINEAR` 和 `NEAR`。
+
+:::info
+
+1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
+2. FILL 具有连续性，例如一列数据中仅第一条不为 NULL，则 FILL(PREV) 会为后续所有行填充该值。
+3. 当不定行函数（如 CSUM、DIFF、DERIVATIVE、MAVG、STATECOUNT、STATEDURATION、LAG、LEAD、FILL_FORWARD）与 INTERVAL 查询一起使用时，仅支持 FILL(NONE)、FILL(NULL)、FILL(NULL_F)、FILL(VALUE) 和 FILL(VALUE_F)。不支持 FILL(PREV)、FILL(NEXT)、FILL(LINEAR) 和 FILL(NEAR)。
+
+:::
+
+### SURROUND 子句
+
+用于限制 FILL 子句的填充范围，只能在 PREV、NEXT、NEAR（仅 INTERP 查询支持）模式下使用。
+
+SURROUNDING_TIME_VAL 参数指定有效数据需要满足的时间范围，取值为正数，单位可选除月（n）、季度（q）、年（y）外的时间单位。
+在 INTERVAL 窗口查询中，其值必须大于等于 INTERVAL 窗口的时间长度。
+
+在 INTERP 查询中，当有效数据行与当前行的时间差超过该参数值时，不使用该行数据，转而使用 FILL_VALS 进行填充。
+在 INTERVAL 窗口查询中，当有效数据窗口与当前窗口的时间差（窗口起始时间戳差值）超过该参数值时，不使用该窗口数据，转而使用 FILL_VALS 填充。
+
+FILL_VALS 参数用于指定填充的值，数目和格式均与 FILL 子句的 VALUE 填充模式相同，可以为常量或常量表达式，不支持子查询。
+
+### 示例
+
+```sql
+taos> select * from fill_example;
+           ts            |   c1        |
+========================================
+ 2026-01-01 00:00:00.000 | 2026        |
+ 2026-01-01 00:00:01.000 | NULL        |
+ 2026-01-01 00:00:02.000 | NULL        |
+ 2026-01-01 00:00:03.000 | NULL        |
+ 2026-01-01 00:00:04.000 | NULL        |
+ 2026-01-01 00:00:05.000 | NULL        |
+ 2026-01-01 00:00:06.000 | 6202        |
+
+taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near);
+           ts            |   c1        |
+========================================
+ 2026-01-01 00:00:01.000 | 2026        |
+ 2026-01-01 00:00:02.000 | 2026        |
+ 2026-01-01 00:00:03.000 | 2026        |
+ 2026-01-01 00:00:04.000 | 6202        |
+ 2026-01-01 00:00:05.000 | 6202        |
+
+taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near) surround(2s, 0);
+           ts            |   c1        |
+========================================
+ 2026-01-01 00:00:01.000 | 2026        |
+ 2026-01-01 00:00:02.000 | 2026        |
+ 2026-01-01 00:00:03.000 | 0           |
+ 2026-01-01 00:00:04.000 | 6202        |
+ 2026-01-01 00:00:05.000 | 6202        |
+
+taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts between "2026-01-01 00:00:00" and "2026-01-01 00:00:06" interval(1s) fill(prev) surround(5s, 0, 0);
+         _wstart         |          _wend          |  avg(c1)   |  last(c1)   |
+===============================================================================
+ 2026-01-01 00:00:00.000 | 2026-01-01 00:00:01.000 |       2026 |        2026 |
+ 2026-01-01 00:00:01.000 | 2026-01-01 00:00:02.000 |       2026 |        2026 |
+ 2026-01-01 00:00:02.000 | 2026-01-01 00:00:03.000 |       2026 |        2026 |
+ 2026-01-01 00:00:03.000 | 2026-01-01 00:00:04.000 |       2026 |        2026 |
+ 2026-01-01 00:00:04.000 | 2026-01-01 00:00:05.000 |       2026 |        2026 |
+ 2026-01-01 00:00:05.000 | 2026-01-01 00:00:06.000 |       2026 |        2026 |
+ 2026-01-01 00:00:06.000 | 2026-01-01 00:00:07.000 |       6202 |        6202 |
+
+taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts between "2026-01-01 00:00:00" and "2026-01-01 00:00:06" interval(1s) fill(next) surround(2s, 0, 0);
+         _wstart         |          _wend          |  avg(c1)   |  last(c1)   |
+===============================================================================
+ 2026-01-01 00:00:00.000 | 2026-01-01 00:00:01.000 |       2026 |        2026 |
+ 2026-01-01 00:00:01.000 | 2026-01-01 00:00:02.000 |          0 |           0 |
+ 2026-01-01 00:00:02.000 | 2026-01-01 00:00:03.000 |          0 |           0 |
+ 2026-01-01 00:00:03.000 | 2026-01-01 00:00:04.000 |          0 |           0 |
+ 2026-01-01 00:00:04.000 | 2026-01-01 00:00:05.000 |       6202 |        6202 |
+ 2026-01-01 00:00:05.000 | 2026-01-01 00:00:06.000 |       6202 |        6202 |
+ 2026-01-01 00:00:06.000 | 2026-01-01 00:00:07.000 |       6202 |        6202 |
+```
+
+## GROUP BY
+
+如果在语句中同时指定了 GROUP BY 子句，那么 SELECT 列表只能包含如下表达式：
+
+1. 常量
+2. 聚集函数
+3. 与 GROUP BY 后表达式相同的表达式。
+4. 包含前面表达式的表达式
+
+GROUP BY 子句对每行数据按 GROUP BY 后的表达式的值进行分组，并为每个组返回一行汇总信息。
+
+GROUP BY 子句中可以通过指定表或视图的列名来按照表或视图中的任何列分组，这些列不需要出现在 SELECT 列表中。
+
+GROUP BY 子句中可以使用位置语法，位置标识为正整数，从 1 开始，表示使用 SELECT 列表的第几个表达式进行分组。
+
+GROUP BY 子句中可以使用结果集列名，表示使用 SELECT 列表的指定表达式进行分组。
+
+GROUP BY 子句中在使用位置语法和结果集列名进行分组时，其对应的 SELECT 列表中的表达式不能是聚集函数。
+
+该子句对行进行分组，但不保证结果集的顺序。若要对分组进行排序，请使用 ORDER BY 子句
+
+## PARTITION BY
+
+PARTITION BY 子句是 TDengine TSDB 3.0 版本引入的特色语法，用于根据 part_list 对数据进行切分，在每个切分的分片中可以进行各种计算。
+
+PARTITION BY 与 GROUP BY 基本含义相似，都是按照指定列表进行数据分组然后进行计算，不同点在于 PARTITION BY 没有 GROUP BY 子句的 SELECT 列表的各种限制，组内可以进行任意运算（常量、聚合、标量、表达式等），因此在使用上 PARTITION BY 完全兼容 GROUP BY，所有使用 GROUP BY 子句的地方都可以替换为 PARTITION BY, 需要注意的是在没有聚合查询时两者的查询结果可能存在差异。
+
+因为 PARTITION BY 没有返回一行聚合数据的要求，因此还可以支持在分组切片后的各种窗口运算，所有需要分组进行的窗口运算都只能使用 PARTITION BY 子句。
+
+详见 [TDengine TSDB 特色查询](06-distinguished.md)
+
+## ORDER BY
+
+ORDER BY 子句对结果集排序。如果没有指定 ORDER BY，无法保证同一语句多次查询的结果集返回顺序一致。
+
+ORDER BY 后可以使用位置语法，位置标识为正整数，从 1 开始，表示使用 SELECT 列表的第几个表达式进行排序。
+
+ASC 表示升序，DESC 表示降序。
+
+NULLS 语法用来指定 NULL 值在排序中输出的位置。NULLS LAST 是升序的默认值，NULLS FIRST 是降序的默认值。
+
+## LIMIT
+
+LIMIT 控制输出条数，OFFSET 指定从第几条之后开始输出。LIMIT/OFFSET 对结果集的执行顺序在 ORDER BY 之后。`LIMIT 5 OFFSET 2` 可以简写为 `LIMIT 2, 5`，都输出第 3 行到第 7 行数据。
+
+在有 PARTITION BY/GROUP BY 子句时，LIMIT 控制的是每个切分的分片中的输出，而不是总的结果集输出。
+
+## SLIMIT
+
+SLIMIT 和 PARTITION BY/GROUP BY 子句一起使用，用来控制输出的分片的数量。`SLIMIT 5 SOFFSET 2` 可以简写为 SLIMIT `2, 5`，都表示输出第 3 个到第 7 个分片。
+
+需要注意，如果有 ORDER BY 子句，则输出只有一个分片。
+
+## 特殊功能
+
+部分特殊的查询功能可以不使用 FROM 子句执行。
+
+### 获取当前数据库
+
+下面的命令可以获取当前所在的数据库 database()，如果登录的时候没有指定默认数据库，且没有使用`USE`命令切换数据，则返回 NULL。
+
+```sql
+SELECT DATABASE();
+```
+
+### 获取服务器和客户端版本号
+
+```sql
+SELECT CLIENT_VERSION();
+SELECT SERVER_VERSION();
+```
+
+### 获取服务器状态
+
+服务器状态检测语句。如果服务器正常，返回一个数字（例如 1）。如果服务器异常，返回 error code。该 SQL 语法能兼容连接池对于 TDengine TSDB 状态的检查及第三方工具对于数据库服务器状态的检查。并可以避免出现使用了错误的心跳检测 SQL 语句导致的连接池连接丢失的问题。
+
+```sql
+SELECT SERVER_STATUS();
+```
+
+### 获取当前时间
+
+```sql
+SELECT NOW();
+```
+
+### 获取当前日期
+
+```sql
+SELECT TODAY();
+```
+
+### 获取当前时区
+
+```sql
+SELECT TIMEZONE();
+```
+
+### 获取当前用户
+
+```sql
+SELECT CURRENT_USER();
+```
+
+## 正则表达式过滤
+
+### 语法
+
+```txt
+WHERE (column|tbname) match/MATCH/nmatch/NMATCH _regex_
+```
+
+### 正则表达式规范
+
+确保使用的正则表达式符合 POSIX 的规范，具体规范内容可参见[Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)
+
+### 使用限制
+
+只能针对表名（即 tbname 筛选）、binary/nchar 类型值进行正则表达式过滤。
+
+正则匹配字符串长度不能超过 128 字节。可以通过参数 _maxRegexStringLen_ 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启才能生效。
+
+## CASE 表达式
+
+### 语法
+
+```txt
+CASE value WHEN compare_value THEN result [WHEN compare_value THEN result ...] [ELSE result] END
+CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] END
+```
+
+### 说明
+
+TDengine TSDB 通过 CASE 表达式让用户可以在 SQL 语句中使用 IF ... THEN ... ELSE 逻辑。
+
+第一种 CASE 语法返回第一个 value 等于 compare_value 的 result，如果没有 compare_value 符合，则返回 ELSE 之后的 result，如果没有 ELSE 部分，则返回 NULL。
+
+第二种语法返回第一个 condition 为真的 result。如果没有 condition 符合，则返回 ELSE 之后的 result，如果没有 ELSE 部分，则返回 NULL。
+
+CASE 表达式的返回类型为第一个 WHEN THEN 部分的 result 类型，其余 WHEN THEN 部分和 ELSE 部分，result 类型都需要可以向其转换，否则 TDengine TSDB 会报错。
+
+### 示例
+
+某设备有三个状态码，显示其状态，语句如下：
+
+```sql
+SELECT CASE dev_status WHEN 1 THEN 'Running' WHEN 2 THEN 'Warning' WHEN 3 THEN 'Downtime' ELSE 'Unknown' END FROM dev_table;
+```
+
+统计智能电表的电压平均值，当电压小于 200 或大于 250 时认为是统计有误，修正其值为 220，语句如下：
+
+```sql
+SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) FROM meters;
+```
+
+## JOIN 子句
+
+在 3.3.0.0 版本之前 TDengine TSDB 只支持内连接，自 3.3.0.0 版本起 TDengine TSDB 支持了更为广泛的 JOIN 类型，这其中既包括传统数据库中的 LEFT JOIN、RIGHT JOIN、FULL JOIN、SEMI JOIN、ANTI-SEMI JOIN，也包括时序库中特色的 ASOF JOIN、WINDOW JOIN。JOIN 操作支持在子表、普通表、超级表以及子查询间进行。
+
+### 示例
+
+普通表与普通表之间的 JOIN 操作：
+
+```sql
+SELECT *
+FROM temp_tb_1 t1, pressure_tb_1 t2
+WHERE t1.ts = t2.ts
+```
+
+超级表与超级表之间的 LEFT JOIN 操作：
+
+```sql
+SELECT *
+FROM temp_stable t1 LEFT JOIN temp_stable t2
+ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
+```
+
+子表与超级表之间的 LEFT ASOF JOIN 操作：
+
+```sql
+SELECT *
+FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
+ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
+```
+
+更多 JOIN 操作相关介绍参见页面 [TDengine TSDB 关联查询](07-join.md)
 
 ## 时间线
 
 TDengine 的时间线函数（如 `diff`、`derivative`、`twa`、`elapsed` 等）和窗口算子（如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）需要一条有效时间线才能执行。
 
-### 主键时间线
+直接查询物理表或虚拟表时，系统时间列（主键列 `ts`/`_rowts`，以及窗口伪列 `_wstart` 等派生列）自动作为有效时间线，用户无需额外操作。
 
-主键时间线是 TDengine 在查询输入中识别出的、保留主键时间语义的时间序列，用于支撑依赖时间顺序的函数和窗口算子。直接查询物理表或虚拟表时，建表定义的 TIMESTAMP 主键列构成主键时间线；该列可以使用建表时定义的列名引用，也可以通过 `_rowts` 或 `_c0` 引用。
-
-当查询输入来自子查询、窗口或 Join 结果时，如果输出中仍保留有序的主键时间列、基于主键时间列的表达式，或具有同等时间语义的窗口伪列（如 `_wstart`、`_wend`），该输出也可以继续携带主键时间线。主键时间线不同于普通 `TIMESTAMP` 列：普通 `TIMESTAMP` 列只表示时间值，只有被系统判定为保留主键时间语义并满足顺序要求的列，才会作为主键时间线继续用于后续时间线计算。
-
-### 有效时间线选择
-
-直接查询物理表或虚拟表时，主键时间线自动作为有效时间线使用。这是最常见的使用场景，用户无需额外操作。
-
-当外层查询的输入来自子查询时，如果子查询结果不能提供可直接使用的主键时间线，系统按以下规则选择有效时间线：
-
-1. **存在可直接使用的主键时间线**：使用主键时间线。
-2. **不存在可直接使用的主键时间线**：取输出列中第一个 `TIMESTAMP` 类型列作为退化时间线。
-3. **不存在任何 TIMESTAMP 列**：仅 `first`、`last`、`last_row` 可按输入行顺序返回结果，其他函数和窗口算子报错。
+当外层查询的输入来自子查询，且子查询结果中不存在系统时间列、或系统时间列不有序时，系统会自动选择输出列中第一个 `TIMESTAMP` 类型列作为退化时间线。如果不存在任何 `TIMESTAMP` 列，仅 `first`、`last`、`last_row` 可按输入行顺序返回结果，其他时间线函数和窗口算子报错。
 
 ```sql
--- 子查询未输出主键时间列 ts，event_time 成为退化时间线
+-- 子查询未输出系统时间列 ts，event_time 成为退化时间线
 SELECT diff(val)
 FROM (
   SELECT event_time, val
@@ -91,698 +803,176 @@ FROM (
 );
 ```
 
-### 退化时间线的处理
-
-退化时间线来自查询结果列中的 `TIMESTAMP` 列，系统不假设它一定有序、唯一或非 NULL。处理原则如下：
-
-1. 强时间连续性函数会在执行阶段检查退化时间线。如果发现乱序、非 NULL 重复时间戳或 NULL 时间戳，系统会报错，以避免返回容易误解的结果。包含函数有：`derivative`、`stateduration`、`twa`、`interp`。
-2. 不因退化时间线脏值拒绝执行、按输入行顺序处理相关行的函数，会正常处理重复时间戳和 NULL 时间戳；例如 `diff` 按相邻输入行计算差值，`unique` 对相同值保留首次出现的行。包含函数有：`diff`、`unique`、`csum`、`mavg`、`statecount`、`lag`、`lead`、`fill_forward`。
-3. 按时间值计算、选行或分窗的函数和窗口，会使用退化时间线的时间值决定结果。NULL 时间戳不参与时间值比较、时间差计算或窗口归属。包含函数和窗口有：`first`、`last`、`last_row`、`tail`、`elapsed`、`irate`、`INTERVAL`、`SESSION`、`STATE_WINDOW`、`EVENT_WINDOW`、`COUNT_WINDOW`。
-
-补充说明：
-
-- 对允许退化时间线执行的函数和窗口，乱序、重复时间戳或 NULL 时间戳会按各自规则处理；其中依赖时间值的结果在乱序场景下可能缺少物理意义。
-- 用户如果需要结果具有明确的时间含义，应在子查询中使用 `ORDER BY` 保证退化时间线有序。
-
-### elapsed 和 SESSION 的独立时间列
-
-`elapsed(time_col, unit)` 和 `SESSION(time_col, gap)` 可以显式指定与有效时间线不同的 TIMESTAMP 列。此时 elapsed/SESSION 按指定列计算，同一查询中的其他函数仍使用有效时间线。
-
-```sql
--- twa 按 ts（有效时间线）加权，elapsed 按 event_time 计算跨度
-SELECT twa(power), elapsed(event_time, 1s)
-FROM (
-  SELECT ts, event_time, power
-  FROM meter
-  ORDER BY ts
-);
-```
-
-两者使用不同时间列时系统不报错，但组合运算的物理含义需用户自行确认。
-
-## 聚合查询
-
-TDengine TSDB 支持通过 GROUP BY 子句，对数据进行聚合查询。SQL 语句包含 GROUP BY 子句时，SELECT 列表只能包含如下表达式：
-
-1. 常量
-2. 聚合函数
-3. 与 GROUP BY 后表达式相同的表达式
-4. 包含前面表达式的表达式
-
-group by 子句用于对数据进行分组，并为每个分组返回一行汇总信息。在 group by 子句中，可以使用表或视图中的任何列作为分组依据，这些列不需要出现在 select 列表中。此外，用户可以直接在超级表上执行聚合查询，无须预先创建子表。以智能电表的数据模型为例，使用 group by 子句的 SQL 如下：
-
-```sql
-SELECT groupid, avg(voltage) 
-FROM meters 
-WHERE ts >= "2022-01-01T00:00:00+08:00" 
-AND ts < "2023-01-01T00:00:00+08:00" 
-GROUP BY groupid;
-```
-
-上面的 SQL，查询超级表 `meters` 中，时间戳大于等于 `2022-01-01T00:00:00+08:00`，且时间戳小于 `2023-01-01T00:00:00+08:00` 的数据，按照 `groupid` 进行分组，求每组的平均电压。查询结果如下：
-
-```text
- groupid   |   avg(voltage)        |
-======================================
-         8 |   243.961981544901079 |
-         5 |   243.961981544901079 |
-         1 |   243.961981544901079 |
-         7 |   243.961981544901079 |
-         9 |   243.961981544901079 |
-         6 |   243.961981544901079 |
-         4 |   243.961981544901079 |
-        10 |   243.961981544901079 |
-         2 |   243.961981544901079 |
-         3 |   243.961981544901079 |
-Query OK, 10 row(s) in set (0.042446s)
-```
-
-**注意**：group by 子句在聚合数据时，并不保证结果集按照特定顺序排列。为了获得有序的结果集，可以使用 order by 子句对结果进行排序。这样，可以根据需要调整输出结果的顺序，以满足特定的业务需求或报告要求。
-
-TDengine TSDB 提供了多种内置的聚合函数。如下表所示：
-
-| 聚合函数                | 功能说明                                                       |
-|:----------------------:|:--------------------------------------------------------------:|
-|APERCENTILE | 统计表/超级表中指定列的值的近似百分比分位数，与 PERCENTILE 函数相似，但是返回近似结果。|
-|AVG | 统计指定字段的平均值。|
-|COUNT | 统计指定字段的记录行数。|
-|ELAPSED|elapsed 函数表达了统计周期内连续的时间长度，和 twa 函数配合使用可以计算统计曲线下的面积。在通过 INTERVAL 子句指定窗口的情况下，统计在给定时间范围内的每个窗口内有数据覆盖的时间范围；如果没有 INTERVAL 子句，则返回整个给定时间范围内的有数据覆盖的时间范围。注意，ELAPSED 返回的并不是时间范围的绝对值，而是绝对值除以 time_unit 所得到的单位个数。|
-|LEASTSQUARES | 统计表中某列的值的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。|
-|SPREAD | 统计表中某列的最大值和最小值之差。|
-|STDDEV | 统计表中某列的均方差。|
-|SUM | 统计表/超级表中某列的和。|
-|HYPERLOGLOG | 采用 hyperloglog 算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为 0.81%。在数据量较少的时候该算法不是很准确，可以使用 select count(data) from (select unique(col) as data from table) 的方法。|
-|HISTOGRAM | 统计数据按照用户指定区间的分布。|
-|PERCENTILE | 统计表中某列的值百分比分位数。|
-
-## 数据切分查询
-
-TDengine TSDB 支持 PARTITION BY 子句。当需要按一定的维度对数据进行切分，然后在切分出的数据空间内再进行一系列的计算时，可以使用 PARTITION BY 子句进行查询，语法如下：
-
-```sql
-PARTITION BY part_list
-```
-
-`part_list` 可以是任意的标量表达式，包括列、常量、标量函数和它们的组合。
-
-TDengine TSDB 按如下方式处理数据切分子句：
-
-1. 数据切分子句位于 WHERE 子句之后；
-2. 数据切分子句将表数据按指定的维度进行切分，每个切分的分片进行指定的计算。计算由之后的子句定义（窗口子句、GROUP BY 子句或 SELECT 子句）；
-3. 数据切分子句可以和窗口切分子句（或 GROUP BY 子句）一起使用，此时后面的子句作用在每个切分的分片上。
-
-数据切分的 SQL 如下：
-
-```sql
-SELECT location, avg(voltage) 
-FROM meters 
-PARTITION BY location;
-```
-
-上面的示例 SQL 查询超级表 `meters`，将数据按标签 `location` 进行分组，每个分组计算电压的平均值。查询结果如下：
-
-```text
-          location          |     avg(voltage)      |
-======================================================
- California.SantaClara      |   243.962050000000005 |
- California.SanFrancisco    |   243.962050000000005 |
- California.SanJose         |   243.962050000000005 |
- California.LosAngles       |   243.962050000000005 |
- California.SanDiego        |   243.962050000000005 |
- California.Sunnyvale       |   243.962050000000005 |
- California.PaloAlto        |   243.962050000000005 |
- California.Cupertino       |   243.962050000000005 |
- California.MountainView    |   243.962050000000005 |
- California.Campbell        |   243.962050000000005 |
-Query OK, 10 row(s) in set (2.415961s)
-```
-
-## 窗口切分查询
-
-在 TDengine TSDB 中，你可以使用窗口子句来实现按时间窗口切分方式进行聚合结果查询，这种查询方式特别适用于需要对大量时间序列数据进行分析的场景，例如智能电表每 10s 采集一次数据，但需要查询每隔 1min 的温度平均值。
-
-窗口子句允许你针对查询的数据集合按照窗口进行切分，并对每个窗口内的数据进行聚合。窗口划分逻辑如下图所示。
-
-<img src={win} width="500" alt="常用窗口划分逻辑" />
-
-- 时间窗口（time window）：根据时间间隔划分数据，支持滑动时间窗口和翻转时间窗口，适用于按固定时间周期进行数据聚合。
-- 状态窗口（state window）：基于一个或多个状态键的变化划分窗口，状态键保持不变时数据归为同一个窗口，任一状态键变化时窗口关闭。
-- 会话窗口（session window）：根据记录的时间戳差异划分会话，时间戳间隔小于预设值的记录属于同一会话。
-- 事件窗口（event window）：基于事件的开始条件和结束条件动态划分窗口，满足开始条件时窗口开启，满足结束条件时窗口关闭。
-- 计数窗口（count window）：根据数据行数划分窗口，每达到指定行数即为一个窗口，并进行聚合计算。
-- 外部窗口（external window）：窗口的时间范围由子查询显式给出，适合做跨事件关联、窗口复用、分层过滤等复杂分析。
-
-窗口子句语法如下：
-
-```sql
-window_clause: {
-    SESSION(ts_col, tol_val)
-    | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
-  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [fill_clause]
-  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
-  | COUNT_WINDOW(count_val[, sliding_val])
-    | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
-}
-```
-
-**注意** 在使用窗口子句时应注意以下规则（以下规则适用于 SESSION、STATE_WINDOW、INTERVAL、EVENT_WINDOW、COUNT_WINDOW 五种窗口，EXTERNAL_WINDOW 的规则有所不同，详见[外部窗口](#外部窗口)章节）：
-
-1. 窗口子句位于数据切分子句之后，不可以和 GROUP BY 子句一起使用。
-2. 窗口子句将数据按窗口进行切分，对每个窗口进行 SELECT 列表中的表达式的计算，SELECT 列表中的表达式只能包含：常量；伪列：_wstart、_wend 和 _wduration；聚合函数：包括选择函数、可以由参数确定输出行数的时序特有函数，以及时序函数中的窗口计算和时间加权统计函数。从 3.4.2.0 版本开始，SELECT 列表还支持列表达式和不定行函数，此时查询将进入窗口投影模式，每个窗口输出全部原始行而非一行聚合结果。
-3. WHERE 语句可以指定查询的起止时间和其他过滤条件。
-
-### 时间戳伪列
-
-在窗口聚合查询结果中，如果 SQL 中没有指定输出查询结果中的时间戳列，那么最终结果中将不会自动包含窗口的时间列信息。然而，如果你需要在结果中输出聚合查询结果所对应的时间窗口信息，可以在 select 子句中使用与时间戳相关的伪列，如时间窗口起始时间（_wstart）、时间窗口结束时间（_wend）、时间窗口持续时间（_wduration），以及与查询整体窗口相关的伪列，如查询窗口起始时间（_qstart）和查询窗口结束时间（_qend）。需要注意的是，除 INTERVAL 窗口的结束时间为开区间外，其他时间窗口起始时间和结束时间均是闭区间，时间窗口持续时间是数据当前时间分辨率下的数值。例如，如果当前数据库的时间精度是毫秒（ms），那么结果中的 500 表示当前时间窗口的持续时间是 500ms。
-
-### 时间窗口
-
-时间窗口可分为：滑动时间窗口、翻转时间窗口。时间窗口子句的语法如下：
-
-```sql
-INTERVAL(interval_val [, interval_offset]) 
-[SLIDING (sliding_val)] 
-[fill_clause]
-```
-
-时间窗口子句包括 3 个子句：
-
-- INTERVAL 子句：用于产生相等时间周期的窗口，interval_val 指定每个时间窗口的大小，interval_offset 指定窗口偏移量；默认情况下，窗口是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分的；如果设置了 interval_offset，那么窗口的划分将从 "Unix time 0 + interval_offset" 开始；
-- SLIDING 子句：用于指定窗口向前滑动的时间；
-- FILL：用于指定窗口区间数据缺失的情况下，数据的填充模式。
-
-对于时间窗口，interval_val 和 sliding_val 都表示时间段，语法上支持三种方式。例如：
-
-1. INTERVAL(1s, 500a) SLIDING(1s)，带时间单位的形式，其中的时间单位是单字符表示，分别为：a（毫秒）、b（纳秒），d（天）、h（小时）、m（分钟）、n（月）、s（秒）、u（微秒）、w（周）、y（年）；
-2. INTERVAL(1000, 500) SLIDING(1000)，不带时间单位的形式，将使用查询库的时间精度作为默认时间单位，当存在多个库时默认采用精度更高的库；
-3. INTERVAL('1s', '500a') SLIDING('1s')，带时间单位的字符串形式，字符串内部不能有任何空格等其它字符。
-
-示例 SQL 如下：
-
-```sql
-SELECT tbname, _wstart, _wend, avg(voltage) 
-FROM meters 
-WHERE ts >= "2022-01-01T00:00:00+08:00" 
-AND ts < "2022-01-01T00:05:00+08:00" 
-PARTITION BY tbname 
-INTERVAL(1m, 5s) 
-SLIMIT 2;
-```
-
-上面的 SQL，查询超级表 `meters` 中，时间戳大于等于 `2022-01-01T00:00:00+08:00`，且时间戳小于 `2022-01-01T00:05:00+08:00` 的数据；数据首先按照子表名 `tbname` 进行数据切分，再按照每 1 分钟的时间窗口进行切分，且每个时间窗口向后偏移 5 秒；最后，仅取前 2 个分片的数据作为结果。查询结果如下：
-
-```text
- tbname |         _wstart         |          _wend          |     avg(voltage)      |
-======================================================================================
- d2     | 2021-12-31 23:59:05.000 | 2022-01-01 00:00:05.000 |   253.000000000000000 |
- d2     | 2022-01-01 00:00:05.000 | 2022-01-01 00:01:05.000 |   244.166666666666657 |
- d2     | 2022-01-01 00:01:05.000 | 2022-01-01 00:02:05.000 |   241.833333333333343 |
- d2     | 2022-01-01 00:02:05.000 | 2022-01-01 00:03:05.000 |   243.166666666666657 |
- d2     | 2022-01-01 00:03:05.000 | 2022-01-01 00:04:05.000 |   240.833333333333343 |
- d2     | 2022-01-01 00:04:05.000 | 2022-01-01 00:05:05.000 |   244.800000000000011 |
- d26    | 2021-12-31 23:59:05.000 | 2022-01-01 00:00:05.000 |   253.000000000000000 |
- d26    | 2022-01-01 00:00:05.000 | 2022-01-01 00:01:05.000 |   244.166666666666657 |
- d26    | 2022-01-01 00:01:05.000 | 2022-01-01 00:02:05.000 |   241.833333333333343 |
- d26    | 2022-01-01 00:02:05.000 | 2022-01-01 00:03:05.000 |   243.166666666666657 |
- d26    | 2022-01-01 00:03:05.000 | 2022-01-01 00:04:05.000 |   240.833333333333343 |
- d26    | 2022-01-01 00:04:05.000 | 2022-01-01 00:05:05.000 |   244.800000000000011 |
-Query OK, 12 row(s) in set (0.021265s)
-```
-
-#### 滑动窗口
-
-每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window）大小和每次前向增量时间（forward sliding times）。如下图，[t0s, t0e]、[t1s, t1e]、[t2s, t2e] 是分别是执行三次连续查询的时间窗口范围，窗口的前向滑动的时间范围 sliding time 标识。查询过滤、聚合等操作按照每个时间窗口为独立的单位执行。
-
-![时间窗口示意图](assets/time_window.webp)
-
-**注意** ：
-
-1. INTERVAL 和 SLIDING 子句需要配合聚合和选择函数来使用，因此，下面的 SQL 语句是非法的：
-
-```sql
-SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
-```
-
-2. SLIDING 的向前滑动的时间不能超过一个窗口的时间范围，因此，下面的 SQL 语句也是非法的：
-
-```sql
-SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
-```
-
-**使用时间窗口需要注意** ：
-
-1. 聚合时间段的窗口宽度由关键词 INTERVAL 指定，最短时间间隔 10 毫秒（10a）；并且支持偏移 offset（偏移必须小于间隔），也即时间窗口划分与“UTC 时刻 0”相比的偏移量。SLIDING 语句用于指定聚合时间段的前向增量，也即每次窗口向前滑动的时长。
-2. 使用 INTERVAL 语句时，除非极特殊的情况，都要求把客户端和服务端的 timezone 参数配置为相同的取值，以避免时间处理函数频繁进行跨时区转换而导致的严重性能影响。
-3. 返回的结果中时间序列严格单调递增。
-
-示例：
-
-```sql
-SELECT tbname, _wstart, avg(voltage)
-FROM meters
-WHERE ts >= "2022-01-01T00:00:00+08:00" 
-AND ts < "2022-01-01T00:05:00+08:00" 
-PARTITION BY tbname
-INTERVAL(1m) SLIDING(30s)
-SLIMIT 1;
-```
-
-上面的 SQL，查询超级表 `meters` 中，时间戳大于等于 `2022-01-01T00:00:00+08:00`，且时间戳小于 `2022-01-01T00:05:00+08:00` 的数据，数据首先按照子表名 `tbname` 进行数据切分，再按照每 1 分钟的时间窗口进行切分，且时间窗口按照 30 秒进行滑动；最后，仅取前 1 个分片的数据作为结果。查询结果如下：
-
-```text
- tbname |         _wstart         |     avg(voltage)      |
-=============================================================
- d2     | 2021-12-31 23:59:30.000 |   248.333333333333343 |
- d2     | 2022-01-01 00:00:00.000 |   246.000000000000000 |
- d2     | 2022-01-01 00:00:30.000 |   244.666666666666657 |
- d2     | 2022-01-01 00:01:00.000 |   240.833333333333343 |
- d2     | 2022-01-01 00:01:30.000 |   239.500000000000000 |
- d2     | 2022-01-01 00:02:00.000 |   243.833333333333343 |
- d2     | 2022-01-01 00:02:30.000 |   243.833333333333343 |
- d2     | 2022-01-01 00:03:00.000 |   241.333333333333343 |
- d2     | 2022-01-01 00:03:30.000 |   241.666666666666657 |
- d2     | 2022-01-01 00:04:00.000 |   244.166666666666657 |
- d2     | 2022-01-01 00:04:30.000 |   244.666666666666657 |
-Query OK, 11 row(s) in set (0.013153s)
-```
-
-#### 翻转窗口
-
-当 SLIDING 与 INTERVAL 相等的时候，滑动窗口即为翻转窗口。翻转窗口和滑动窗口的区别在于，滑动窗口因为 interval_val 和 sliding_val 不同，不同时间窗口之间，会存在数据重叠，翻转窗口则没有数据重叠。本质上，翻转窗口就是按照 interval_val 进行了时间窗口划分，INTERVAL(1m) 和 INTERVAL(1m) SLIDING(1m) 是等效的。
-
-示例：
-
-```sql
-SELECT tbname, _wstart, _wend, avg(voltage)
-FROM meters
-WHERE ts >= "2022-01-01T00:00:00+08:00" 
-AND ts < "2022-01-01T00:05:00+08:00" 
-PARTITION BY tbname
-INTERVAL(1m) SLIDING(1m)
-SLIMIT 1;
-```
-
-上面的 SQL，查询超级表 `meters` 中，时间戳大于等于 `2022-01-01T00:00:00+08:00`，且时间戳小于 `2022-01-01T00:05:00+08:00` 的数据，数据首先按照子表名 `tbname` 进行数据切分，再按照每 1 分钟的时间窗口进行切分，且时间窗口按照 1 分钟进行滑动；最后，仅取前 1 个分片的数据作为结果。查询结果如下：
-
-```text
- tbname |         _wstart         |          _wend          |     avg(voltage)      |
-======================================================================================
- d2     | 2022-01-01 00:00:00.000 | 2022-01-01 00:01:00.000 |   246.000000000000000 |
- d2     | 2022-01-01 00:01:00.000 | 2022-01-01 00:02:00.000 |   240.833333333333343 |
- d2     | 2022-01-01 00:02:00.000 | 2022-01-01 00:03:00.000 |   243.833333333333343 |
- d2     | 2022-01-01 00:03:00.000 | 2022-01-01 00:04:00.000 |   241.333333333333343 |
- d2     | 2022-01-01 00:04:00.000 | 2022-01-01 00:05:00.000 |   244.166666666666657 |
-Query OK, 5 row(s) in set (0.016812s)
-```
-
-#### FILL 子句
-
-INTERVAL 子句支持使用 FILL 子句来指定数据缺失时的数据填充方法。关于 FILL 子句如何使用请参考 [FILL 子句](../../04-quick-start/04-query-and-aggregate.md#fill-子句)。
-
-#### 示例
-
-```sql
-SELECT tbname, _wstart, _wend, avg(voltage)
-FROM meters
-WHERE ts >= "2022-01-01T00:00:00+08:00"
-AND ts < "2022-01-01T00:05:00+08:00"
-PARTITION BY tbname
-INTERVAL(1m) FILL(prev)
-SLIMIT 2;
-```
-
-上面的 SQL，查询超级表 `meters` 中，时间戳大于等于 `2022-01-01T00:00:00+08:00`，且时间戳小于 `2022-01-01T00:05:00+08:00` 的数据；数据首先按照子表名 `tbname` 进行数据切分，再按照每 1 分钟的时间窗口进行切分，如果窗口内的数据出现缺失，则使用使用前一个非 NULL 值填充数据；最后，仅取前 2 个分片的数据作为结果。查询结果如下：
-
-```text
- tbname |         _wstart         |          _wend          |     avg(voltage)      |
-=======================================================================================
- d2     | 2022-01-01 00:00:00.000 | 2022-01-01 00:01:00.000 |   246.000000000000000 |
- d2     | 2022-01-01 00:01:00.000 | 2022-01-01 00:02:00.000 |   240.833333333333343 |
- d2     | 2022-01-01 00:02:00.000 | 2022-01-01 00:03:00.000 |   243.833333333333343 |
- d2     | 2022-01-01 00:03:00.000 | 2022-01-01 00:04:00.000 |   241.333333333333343 |
- d2     | 2022-01-01 00:04:00.000 | 2022-01-01 00:05:00.000 |   244.166666666666657 |
- d26    | 2022-01-01 00:00:00.000 | 2022-01-01 00:01:00.000 |   246.000000000000000 |
- d26    | 2022-01-01 00:01:00.000 | 2022-01-01 00:02:00.000 |   240.833333333333343 |
- d26    | 2022-01-01 00:02:00.000 | 2022-01-01 00:03:00.000 |   243.833333333333343 |
- d26    | 2022-01-01 00:03:00.000 | 2022-01-01 00:04:00.000 |   241.333333333333343 |
- d26    | 2022-01-01 00:04:00.000 | 2022-01-01 00:05:00.000 |   244.166666666666657 |
-Query OK, 10 row(s) in set (0.022866s)
-```
-
-### 状态窗口
-
-状态窗口根据一个或多个状态键（从 3.4.2.0 版本开始支持多个状态键）的连续性划分窗口。状态键支持整数、布尔值和字符串类型，也支持返回这些类型的 `CASE WHEN` 表达式。相邻记录的状态键按 SQL 中的书写顺序逐项比较，只要任意一项发生变化，就会关闭当前窗口并开启新窗口。以智能电表为例，电压正常范围是 225V 到 235V，那么可以通过监控电压来判断电路是否正常；如果设备状态由多个字段共同决定，也可以直接把多个状态键写入 `STATE_WINDOW(...)`。
-
-```sql
-STATE_WINDOW(state_expr [, state_expr ...])
-    [EXTEND(extend_val)]
-    [ZEROTH_STATE(zeroth_val [, zeroth_val ...])]
-    [TRUE_FOR(true_for_expr)]
-```
-
-其中：
-
-- `state_expr` 可以是列引用、`CASE WHEN` 表达式、`IF` 表达式或函数调用。返回类型必须是整数（TINYINT、SMALLINT、INT、BIGINT 及对应的无符号类型）、布尔值（BOOL）或字符串（VARCHAR、NCHAR），不支持浮点数（FLOAT、DOUBLE）、TIMESTAMP 和 tag 列。不支持算术运算表达式（如 `col1 + col2`）、比较/逻辑表达式（如 `col1 > 0`）和常量。
-- `EXTEND(0|1|2)` 指定窗口边界扩展策略。
-- `ZEROTH_STATE(...)` 指定零状态过滤，参数个数需与状态键个数一致；非 `NO_ZEROTH` 的参数必须是常量，并且可以转换为对应状态键的数据类型；`NO_ZEROTH` 可用于跳过某个位置。
-- `TRUE_FOR(...)` 指定窗口过滤条件，以及（仅事件窗口）开窗/关窗连续满足门限。支持基于持续时间、记录条数或两者组合过滤，也可用 `start(...)` 指定开窗连续满足条件、`end(...)` 指定关窗连续满足条件。详见 [事件窗口 TRUE_FOR 参数](./06-distinguished.md#事件窗口)。
-
-详细说明参见 [TDengine TSDB 特色查询](./06-distinguished.md#状态窗口)。
-
-#### 示例
-
-```sql
-SELECT tbname, _wstart, _wend,_wduration, CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END status
-FROM meters
-WHERE ts >= "2022-01-01T00:00:00+08:00" 
-AND ts < "2022-01-01T00:05:00+08:00" 
-PARTITION BY tbname 
-STATE_WINDOW(
-    CASE WHEN voltage >= 225 and voltage <= 235 THEN 1 ELSE 0 END
-)
-SLIMIT 2;
-```
-
-以上 SQL，查询超级表 meters 中，时间戳大于等于 2022-01-01T00:00:00+08:00，且时间戳小于 2022-01-01T00:05:00+08:00 的数据；数据首先按照子表名 tbname 进行数据切分；根据电压是否在正常范围内进行状态窗口的划分；最后，取前 2 个分片的数据作为结果。查询结果如下：（由于数据是随机生成，结果集包含的数据条数会有不同）
-
-```text
- tbname |         _wstart         |          _wend          |  _wduration   |    status     |
-===============================================================================================
- d2     | 2022-01-01 00:00:00.000 | 2022-01-01 00:01:20.000 |         80000 |             0 |
- d2     | 2022-01-01 00:01:30.000 | 2022-01-01 00:01:30.000 |             0 |             1 |
- d2     | 2022-01-01 00:01:40.000 | 2022-01-01 00:01:40.000 |             0 |             0 |
- d2     | 2022-01-01 00:01:50.000 | 2022-01-01 00:01:50.000 |             0 |             1 |
- d2     | 2022-01-01 00:02:00.000 | 2022-01-01 00:02:20.000 |         20000 |             0 |
- d2     | 2022-01-01 00:02:30.000 | 2022-01-01 00:02:30.000 |             0 |             1 |
- d2     | 2022-01-01 00:02:40.000 | 2022-01-01 00:03:00.000 |         20000 |             0 |
- d2     | 2022-01-01 00:03:10.000 | 2022-01-01 00:03:10.000 |             0 |             1 |
- d2     | 2022-01-01 00:03:20.000 | 2022-01-01 00:03:40.000 |         20000 |             0 |
- d2     | 2022-01-01 00:03:50.000 | 2022-01-01 00:03:50.000 |             0 |             1 |
- d2     | 2022-01-01 00:04:00.000 | 2022-01-01 00:04:50.000 |         50000 |             0 |
- d26    | 2022-01-01 00:00:00.000 | 2022-01-01 00:01:20.000 |         80000 |             0 |
- d26    | 2022-01-01 00:01:30.000 | 2022-01-01 00:01:30.000 |             0 |             1 |
- d26    | 2022-01-01 00:01:40.000 | 2022-01-01 00:01:40.000 |             0 |             0 |
- d26    | 2022-01-01 00:01:50.000 | 2022-01-01 00:01:50.000 |             0 |             1 |
- d26    | 2022-01-01 00:02:00.000 | 2022-01-01 00:02:20.000 |         20000 |             0 |
- d26    | 2022-01-01 00:02:30.000 | 2022-01-01 00:02:30.000 |             0 |             1 |
- d26    | 2022-01-01 00:02:40.000 | 2022-01-01 00:03:00.000 |         20000 |             0 |
- d26    | 2022-01-01 00:03:10.000 | 2022-01-01 00:03:10.000 |             0 |             1 |
- d26    | 2022-01-01 00:03:20.000 | 2022-01-01 00:03:40.000 |         20000 |             0 |
- d26    | 2022-01-01 00:03:50.000 | 2022-01-01 00:03:50.000 |             0 |             1 |
- d26    | 2022-01-01 00:04:00.000 | 2022-01-01 00:04:50.000 |         50000 |             0 |
-Query OK, 22 row(s) in set (0.153403s)
-```
-
-多列状态窗口示例：
-
-```sql
-SELECT _wstart, _wend, count(*),
-    CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END AS v_status,
-    CASE WHEN current > 12 THEN 1 ELSE 0 END AS c_status
-FROM meters
-WHERE ts >= "2022-01-01T00:00:00+08:00"
-  AND ts <  "2022-01-01T00:05:00+08:00"
-PARTITION BY tbname 
-STATE_WINDOW(
-    CASE WHEN voltage >= 225 AND voltage <= 235 THEN 1 ELSE 0 END,
-    CASE WHEN current > 12 THEN 1 ELSE 0 END
-)
-SLIMIT 2;
-```
-
-上面的 SQL 用电压是否在正常范围（225V～235V）和电流是否超过 12A 共同定义状态键。只要任一状态发生变化，就会关闭当前窗口并开启新窗口。查询结果如下：
-
-```text
-         _wstart         |          _wend          |       count(*)        |       v_status        |       c_status        |
-============================================================================================================================
- 2022-01-01 00:00:00.000 | 2022-01-01 00:00:10.000 |                     2 |                     0 |                     0 |
- 2022-01-01 00:00:20.000 | 2022-01-01 00:00:20.000 |                     1 |                     0 |                     1 |
- 2022-01-01 00:00:30.000 | 2022-01-01 00:00:50.000 |                     3 |                     0 |                     0 |
- 2022-01-01 00:01:00.000 | 2022-01-01 00:01:10.000 |                     2 |                     0 |                     1 |
- 2022-01-01 00:01:20.000 | 2022-01-01 00:01:20.000 |                     1 |                     0 |                     0 |
- 2022-01-01 00:01:30.000 | 2022-01-01 00:01:30.000 |                     1 |                     1 |                     0 |
- 2022-01-01 00:01:40.000 | 2022-01-01 00:01:40.000 |                     1 |                     0 |                     0 |
- 2022-01-01 00:01:50.000 | 2022-01-01 00:01:50.000 |                     1 |                     0 |                     1 |
- 2022-01-01 00:02:00.000 | 2022-01-01 00:02:00.000 |                     1 |                     0 |                     0 |
- 2022-01-01 00:02:10.000 | 2022-01-01 00:02:10.000 |                     1 |                     1 |                     0 |
-……
-Query OK, 42 row(s) in set (2.012420s)
-```
-
-关于 FILL 子句的通用语法请参考 [FILL 子句](../../04-quick-start/04-query-and-aggregate.md#fill-子句)。
-
-### 会话窗口
-
-会话窗口根据记录的时间戳主键的值来确定是否属于同一个会话。如下图所示，如果设置时间戳的连续的间隔小于等于 12 秒，则以下 6 条记录构成 2 个会话窗口，分别是：[2019-04-28 14:22:10，2019-04-28 14:22:30] 和 [2019-04-28 14:23:10，2019-04-28 14:23:30]。因为 2019-04-28 14:22:30 与 2019-04-28 14:23:10 之间的时间间隔是 40 秒，超过了连续时间间隔（12 秒）。
-
-<img src={swin} width="320" alt="会话窗口示意图" />
-
-在 tol_value 时间间隔范围内的结果都认为归属于同一个窗口，如果连续的两条记录的时间超过 tol_val，则自动开启下一个窗口。
-
-```sql
-SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
-```
-
-示例：
-
-```sql
-SELECT tbname, _wstart, _wend, _wduration, count(*)
-FROM meters 
-WHERE ts >= "2022-01-01T00:00:00+08:00" 
-AND ts < "2022-01-01T00:10:00+08:00" 
-PARTITION BY tbname
-SESSION(ts, 10m)
-SLIMIT 10;
-```
-
-上面的 SQL，查询超级表 meters 中，时间戳大于等于 2022-01-01T00:00:00+08:00，且时间戳小于 2022-01-01T00:10:00+08:00 的数据；数据先按照子表名 tbname 进行数据切分，再根据 10 分钟的会话窗口进行切分；最后，取前 10 个分片的数据作为结果，返回子表名、窗口开始时间、窗口结束时间、窗口宽度、窗口内数据条数。查询结果如下：
-
-```text
- tbname |         _wstart         |          _wend          |  _wduration   |   count(*)    |
-===============================================================================================
- d2     | 2022-01-01 00:00:00.000 | 2022-01-01 00:09:50.000 |        590000 |            60 |
- d26    | 2022-01-01 00:00:00.000 | 2022-01-01 00:09:50.000 |        590000 |            60 |
- d52    | 2022-01-01 00:00:00.000 | 2022-01-01 00:09:50.000 |        590000 |            60 |
- d64    | 2022-01-01 00:00:00.000 | 2022-01-01 00:09:50.000 |        590000 |            60 |
- d76    | 2022-01-01 00:00:00.000 | 2022-01-01 00:09:50.000 |        590000 |            60 |
- d28    | 2022-01-01 00:00:00.000 | 2022-01-01 00:09:50.000 |        590000 |            60 |
- d4     | 2022-01-01 00:00:00.000 | 2022-01-01 00:09:50.000 |        590000 |            60 |
- d88    | 2022-01-01 00:00:00.000 | 2022-01-01 00:09:50.000 |        590000 |            60 |
- d77    | 2022-01-01 00:00:00.000 | 2022-01-01 00:09:50.000 |        590000 |            60 |
- d54    | 2022-01-01 00:00:00.000 | 2022-01-01 00:09:50.000 |        590000 |            60 |
-Query OK, 10 row(s) in set (0.043489s)
-```
-
-### 事件窗口
-
-事件窗口根据开始条件和结束条件来划定窗口，当 start_trigger_condition 满足时则窗口开始，直到 end_trigger_condition 满足时窗口关闭。start_trigger_condition 和 end_trigger_condition 可以是任意 TDengine TSDB 支持的条件表达式，且可以包含不同的列。
-
-在超级表查询或包含 tag 列的子查询中，开始/结束条件表达式也可以引用 tag 列，例如 `EVENT_WINDOW START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupId`。
-
-事件窗口可以仅包含一条数据。即当一条数据同时满足 start_trigger_condition 和 end_trigger_condition，且当前不在一个窗口内时，这条数据自己构成了一个窗口。
-
-事件窗口无法关闭时，不构成一个窗口，不会被输出。即有数据满足 start_trigger_condition，此时窗口打开，但后续数据都不能满足 end_trigger_condition，这个窗口无法被关闭，这部分数据不构成一个窗口，不会被输出。
-
-如果直接在超级表上进行事件窗口查询，TDengine TSDB 会将超级表的数据汇总成一条时间线，然后进行事件窗口的计算。如果需要对子查询的结果集进行事件窗口查询，那么子查询的结果集需要满足按时间线输出的要求，且可以输出有效的时间戳列。
-
-以下面的 SQL 语句为例，事件窗口切分如下图所示。
-
-```sql
-select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
-```
-
-<img src={ewin} width="350" alt="事件窗口示意图" />
-
-示例 SQL:
-
-```sql
-SELECT tbname, _wstart, _wend, _wduration, count(*)
-FROM meters 
-WHERE ts >= "2022-01-01T00:00:00+08:00" 
-AND ts < "2022-01-01T00:10:00+08:00" 
-PARTITION BY tbname
-EVENT_WINDOW START WITH voltage >= 225 END WITH voltage < 235
-LIMIT 5;
-```
-
-上面的 SQL，查询超级表 meters 中，时间戳大于等于 2022-01-01T00:00:00+08:00，且时间戳小于 2022-01-01T00:10:00+08:00 的数据；数据先按照子表名 tbname 进行数据切分，再根据事件窗口条件：电压大于等于 225V，且小于 235V 进行切分；最后，取每个分片的前 5 行的数据作为结果，返回子表名、窗口开始时间、窗口结束时间、窗口宽度、窗口内数据条数。查询结果如下：
-
-```text
- tbname |         _wstart         |          _wend          |  _wduration   |   count(*)    |
-==============================================================================================
- d0     | 2022-01-01 00:00:00.000 | 2022-01-01 00:01:30.000 |         90000 |            10 |
- d0     | 2022-01-01 00:01:40.000 | 2022-01-01 00:02:30.000 |         50000 |             6 |
- d0     | 2022-01-01 00:02:40.000 | 2022-01-01 00:03:10.000 |         30000 |             4 |
- d0     | 2022-01-01 00:03:20.000 | 2022-01-01 00:07:10.000 |        230000 |            24 |
- d0     | 2022-01-01 00:07:20.000 | 2022-01-01 00:07:50.000 |         30000 |             4 |
- d1     | 2022-01-01 00:00:00.000 | 2022-01-01 00:01:30.000 |         90000 |            10 |
- d1     | 2022-01-01 00:01:40.000 | 2022-01-01 00:02:30.000 |         50000 |             6 |
- d1     | 2022-01-01 00:02:40.000 | 2022-01-01 00:03:10.000 |         30000 |             4 |
- d1     | 2022-01-01 00:03:20.000 | 2022-01-01 00:07:10.000 |        230000 |            24 |
-……
-Query OK, 500 row(s) in set (0.328557s)
-```
-
-### 计数窗口
-
-计数窗口是一种基于固定数据行数来划分窗口的方法。默认情况下，计数窗口首先将数据按照时间戳进行排序，然后根据 count_val 的值将数据划分为多个窗口，最后进行聚合计算。
-
-count_val 表示每个计数窗口包含的最大数据行数。当总数据行数不能被 count_val 整除时，最后一个窗口的行数将小于 count_val。
-sliding_val 是一个常量，表示窗口滑动的数量，类似于 interval 的滑动功能。通过调整 sliding_val，你可以控制窗口之间重叠的程度，从而实现对数据的细致分析。
-以智能电表的数据模型为例，使用的查询 SQL 如下。
-
-```sql
-select _wstart, _wend, count(*)
-from meters
-where ts >= "2022-01-01T00:00:00+08:00" and ts < "2022-01-01T00:30:00+08:00"
-count_window(1000);
-```
-
-上面的 SQL 查询超级表 meters 中时间戳大于等于 2022-01-01T00:00:00+08:00 且时间戳小于 2022-01-01T00:10:00+08:00 的数据。以每 1000 条数据为一组，返回每组的开始时间、结束时间和分组条数。查询结果如下：
-
-```text
-         _wstart         |          _wend          |   count(*)    |
-=====================================================================
- 2022-01-01 00:00:00.000 | 2022-01-01 00:01:30.000 |          1000 |
- 2022-01-01 00:01:40.000 | 2022-01-01 00:03:10.000 |          1000 |
- 2022-01-01 00:03:20.000 | 2022-01-01 00:04:50.000 |          1000 |
- 2022-01-01 00:05:00.000 | 2022-01-01 00:06:30.000 |          1000 |
- 2022-01-01 00:06:40.000 | 2022-01-01 00:08:10.000 |          1000 |
- 2022-01-01 00:08:20.000 | 2022-01-01 00:09:50.000 |          1000 |
- 2022-01-01 00:10:00.000 | 2022-01-01 00:11:30.000 |          1000 |
- 2022-01-01 00:11:40.000 | 2022-01-01 00:13:10.000 |          1000 |
- 2022-01-01 00:13:20.000 | 2022-01-01 00:14:50.000 |          1000 |
- 2022-01-01 00:15:00.000 | 2022-01-01 00:16:30.000 |          1000 |
-Query OK, 10 row(s) in set (0.062794s)
-```
-
-### 外部窗口
-
-外部窗口（External Window）用于"先定义窗口，再在窗口内计算"。与 INTERVAL、EVENT_WINDOW 等内建窗口不同，外部窗口的时间范围由子查询显式给出，适合做跨事件关联、窗口复用、分层过滤等复杂分析。
-
-**语法：**
-
-```sql
-SELECT ... 
-FROM table_name
-[PARTITION BY expr_list]
-EXTERNAL_WINDOW (
-    (subquery_that_defines_windows) window_alias
-)
-[FILL_CLAUSE]
-[HAVING condition]
-[ORDER BY ...]
-```
-
-其中，子查询的前两列必须是 timestamp 类型，分别表示窗口开始时间和窗口结束时间；第 3 列及之后的列会成为"窗口属性列"，可通过 `window_alias.column_name` 引用。外部查询会在每个窗口范围内独立计算。
-
-示例：`grid_events` 表记录了电网事件（如停电、维护）的起止时间，以该表的事件区间作为窗口，统计每次事件期间 `meters` 中的电压情况，并过滤掉窗口内无数据的事件：
-
-```sql
-SELECT _wstart, _wend, COUNT(*), AVG(voltage)
-FROM meters
-EXTERNAL_WINDOW (
-    (SELECT start_time, end_time FROM grid_events) w
-)
-HAVING COUNT(*) > 0;
-```
-
-查询结果如下：
-
-```text
-         _wstart         |          _wend          |   count(*)    |     avg(voltage)      |
-=============================================================================================
- 2022-03-01 02:00:00.000 | 2022-03-01 02:35:00.000 |           210 |   231.480000000000000 |
- 2022-06-15 14:10:00.000 | 2022-06-15 14:52:00.000 |           252 |   248.920000000000000 |
- ...
-```
-
-上面的 SQL 中，窗口边界来自独立的 `grid_events` 表，而非从 `meters` 自身数据派生。这正是外部窗口的核心价值：**窗口定义与数据来源解耦**，可以将任意外部事件（告警记录、排班表、维护计划等）的时间范围直接用于聚合分析，无需预先对测量数据做窗口划分。
-
-EXTERNAL_WINDOW 也支持在空窗口上使用 `FILL` 子句。默认情况下，空窗口不会产出结果行；使用 `FILL` 后，可以决定是否保留该窗口以及如何填充聚合列。在 EXTERNAL_WINDOW 查询中，支持的模式为 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`、`PREV`、`NEXT`；暂不支持 `LINEAR`、`NEAR`、`SURROUND`。FILL 产生的填充行会参与 `HAVING` 判断，因此执行顺序是"先填充，再过滤"。关于 FILL 子句的通用语法请参考 [FILL 子句](../../04-quick-start/04-query-and-aggregate.md#fill-子句)。
-
-#### 约束与限制
-
-关于外部窗口的核心特性（分组对齐、窗口属性列引用规则、嵌套调用等）和约束限制的详细说明，请参考 [TDengine TSDB 特色查询 - 外部窗口](./06-distinguished.md#外部窗口)。
-
-## 时间范围表达式
-
-在时序数据库的查询中，经常需要根据主键列的时间范围进行查询，TDengine 提供了一系列函数和表达式来方便用户进行时间范围的表达，这里列出了常见的时间范围表达式及其与 MySQL 和 PostgreSQL 的区别：
-
-| 时间范围          |   MySQL 表达式                                                    |  PostgreSQL 表达式   |   TDengine 表达式   |
-|:------------:|:--------------------------------------------------------------------:|:-----------------------------------:|:--------------------------------:|
-| 昨天​ | CURDATE() - INTERVAL 1 DAY,<br/> CURDATE() | CURRENT_DATE - INTERVAL '1 day',<br/> CURRENT_DATE | TODAY() - 1d,<br/> TODAY() |
-| 今天 |​ CURDATE(),<br/> CURDATE() + INTERVAL 1 DAY | CURRENT_DATE,<br/> CURRENT_DATE + INTERVAL '1 day' | TODAY(),<br/> TODAY() + 1d |
-| 上周​ | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) + 7 DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) | DATE_TRUNC('week', CURRENT_DATE - INTERVAL '1 week'),<br/> DATE_TRUNC('week', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1w) - 1w,<br/> TIMETRUNCATE(NOW(), 1w) |
-| 本周 | DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY),<br/> DATE_SUB(CURDATE(), INTERVAL WEEKDAY(CURDATE()) DAY) + INTERVAL 7 DAY | DATE_TRUNC('week', CURRENT_DATE),<br/> DATE_TRUNC('week', CURRENT_DATE + INTERVAL '1 week') | TIMETRUNCATE(NOW(), 1w),<br/> TIMETRUNCATE(NOW(), 1w) + 1w |
-| 上月​ | DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE(), '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month'),<br/> DATE_TRUNC('month', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1n) - 1n,<br/> TIMETRUNCATE(NOW(), 1n) |
-| 本月​ | DATE_FORMAT(CURDATE(), '%Y-%m-01'),<br/> DATE_FORMAT(CURDATE() + INTERVAL 1 MONTH, '%Y-%m-01') | DATE_TRUNC('month', CURRENT_DATE),<br/> DATE_TRUNC('month', CURRENT_DATE + INTERVAL '1 month') | TIMETRUNCATE(NOW(), 1n),<br/> TIMETRUNCATE(NOW(), 1n) + 1n |
-| 上季度​ | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 2) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE - INTERVAL '3 months'),<br/> DATE_TRUNC('quarter', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1q) - 1q,<br/> TIMETRUNCATE(NOW(), 1q) |
-| 本季度 | MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL (QUARTER(CURDATE()) - 1) &ast; 3 MONTH,<br/> MAKEDATE(YEAR(CURDATE()), 1) + INTERVAL QUARTER(CURDATE()) &ast; 3 MONTH | DATE_TRUNC('quarter', CURRENT_DATE),<br/> DATE_TRUNC('quarter', CURRENT_DATE + INTERVAL '3 months') | TIMETRUNCATE(NOW(), 1q),<br/> TIMETRUNCATE(NOW(), 1q) + 1q |
-| 去年 | MAKEDATE(YEAR(CURDATE()) - 1, 1),<br/> MAKEDATE(YEAR(CURDATE()), 1) | DATE_TRUNC('year', CURRENT_DATE - INTERVAL '1 year'),<br/> DATE_TRUNC('year', CURRENT_DATE) | TIMETRUNCATE(NOW(), 1y) - 1y,<br/> TIMETRUNCATE(NOW(), 1y) |
-| 今年 | MAKEDATE(YEAR(CURDATE()), 1),<br/> MAKEDATE(YEAR(CURDATE()) + 1, 1) | DATE_TRUNC('year', CURRENT_DATE), <br/> DATE_TRUNC('year', CURRENT_DATE + INTERVAL '1 year') | TIMETRUNCATE(NOW(), 1y),<br/> TIMETRUNCATE(NOW(), 1y) + 1y |
-
-### 说明
-
-1. 每个时间范围区间都是左闭右开。
-2. 写法不唯一，这里作为示例仅供参考使用。
-3. 这里的周相关范围没有关注周起始日；TDengine 支持配置周起始日，具体请参考 [firstDayOfWeek](../../12-operations-and-tooling/03-components/02-taosc.md#firstdayofweek)。
-4. 这里 TDengine 示例的时间戳是以毫秒为时间单位。
-
-## 时序数据特有函数
-
-时序数据特有函数是 TDengine TSDB 针对时序数据查询场景专门设计的一组函数。在通用数据库中，要实现类似的功能通常需要编写复杂的查询语句，而且效率较低。为了降低用户的使用成本和简化查询过程，TDengine TSDB 将这些功能以内置函数的形式提供，从而实现了高效且易于使用的时序数据处理能力。时序数据特有函数如下表所示。
-
-| 函数          |   功能说明                                                            |
-|:------------:|:--------------------------------------------------------------------:|
-|CSUM          | 累加和（Cumulative sum），忽略 NULL 值。|
-|DERIVATIVE    | 统计表中某列数值的单位变化率。其中单位时间区间的长度可以通过 time_interval 参数指定，最小可以是 1 秒（1s）；ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。|
-|DIFF          | 统计表中某列的值与前一行对应值的差。ignore_negative 取值为 0\|1，可以不填，默认值为 0。不忽略负值。ignore_negative 为 1 时表示忽略负数。|
-|IRATE         | 计算瞬时增长率。使用时间区间中最后两个样本数据来计算瞬时增长速率；如果这两个值呈递减关系，那么只取最后一个数用于计算，而不是使用二者差值。|
-|MAVG          | 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。|
-|STATECOUNT    | 返回满足某个条件的连续记录的个数，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加 1，条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据。|
-|STATEDURATION | 返回满足某个条件的连续记录的时间长度，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加上两个记录之间的时间长度（第一个满足条件的记录时间长度记为 0），条件为 false 则重置为 -1，如果数据为 NULL，跳过该条数据 |
-|TWA           | 时间加权平均函数。统计表中某列在一段时间内的时间加权平均。|
-
-### 积分计算
-
-在 TDengine 支持上了上述时序数据特有函数之后，时序数据的积分计算变得非常简单，只需要使用时间加权平均值与时间段乘积即可，这里以智能电表场景计算每天消耗的电能为例进行说明，SQL 如下
-
-```sql
-SELECT twa(voltage * current) * _wduration
-FROM meters
-PARTITION BY tbname
-INTERVAL(1d);
-```
+**注意**：退化时间线的数据质量由用户负责。如果退化时间线乱序，依赖时间差的函数（`derivative`、`twa`、`elapsed`、`stateduration`、`interp`）结果可能无物理意义。用户应在子查询中通过 `ORDER BY` 保证退化时间线有序。
 
 ## 嵌套查询
 
-嵌套查询，也称为 subquery（子查询），是指在一个 SQL 中，内层查询的计算结果可以作为外层查询的计算对象来使用。TDengine TSDB 支持在 from 子句中使用非关联 subquery。非关联是指 subquery 不会用到父查询中的参数。在 select 查询的 from 子句之后，可以接一个独立的 select 语句，这个 select 语句被包含在英文圆括号内。通过使用嵌套查询，你可以在一个查询中引用另一个查询的结果，从而实现更复杂的数据处理和分析。以智能电表为例进行说明，SQL 如下
+“嵌套查询”又称为“子查询”，也即在一条 SQL 语句中，”内层查询”的计算结果可以作为”外层查询”的计算对象来使用。
+
+从 2.2.0.0 版本开始，TDengine TSDB 的查询引擎开始支持在 FROM 子句中使用非关联子查询（“非关联”的意思是，子查询不会用到父查询中的参数）。也即在普通 SELECT 语句的 tb_name_list 位置，用一个独立的 SELECT 语句来代替（这一 SELECT 语句被包含在英文圆括号内），于是完整的嵌套查询 SQL 语句形如：
 
 ```sql
-SELECT max(voltage), * 
-FROM (
-    SELECT tbname, last_row(ts), voltage, current, phase, groupid, location 
-    FROM meters 
-    PARTITION BY tbname
-) 
-GROUP BY groupid;
+SELECT ... FROM (SELECT ... FROM ...) ...;
 ```
 
-上面的 SQL 在内层查询中查询超级表 meters，按照子表名进行分组，每个子表查询最新一条数据；外层查询将内层查询的结果作为输入，按照 groupid 进行聚合，查询每组中的最大电压。
+:::info
 
-TDengine TSDB 的嵌套查询遵循以下规则：
+- 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表建议起别名，以便于外层查询中方便引用。
+- 外层查询支持直接通过列名或\`列名\`的形式引用内层查询的列或伪列。
+- 在内层和外层查询中，都支持普通的表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
+- 内层查询支持的功能特性与非嵌套的查询语句能力是一致的。
+  - 内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。
+- 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
+  - 计算函数部分：
+    - 如果内层查询的结果数据未提供任何 TIMESTAMP 类型列，那么依赖时间线的函数在外层无法使用（仅 FIRST、LAST、LAST_ROW 可按输入行顺序返回结果）。如果内层查询输出了普通 TIMESTAMP 列但未输出主键列，系统会自动选择第一个 TIMESTAMP 列作为退化时间线。
+    - 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES、ELAPSED、INTERP、DERIVATIVE、IRATE、TWA、DIFF、STATECOUNT、STATEDURATION、CSUM、MAVG、TAIL、UNIQUE。
+    - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：PERCENTILE。
 
-1. 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表建议起别名，以便于外层查询中方便引用。
-2. 外层查询支持直接通过列名或列名的形式引用内层查询的列或伪列。
-3. 在内层和外层查询中，都支持普通表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
-4. 内层查询支持的功能特性与非嵌套的查询语句能力是一致的。内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。
-5. 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
-6. 如果内层查询的结果数据未提供时间戳，那么计算过程隐式依赖时间戳的函数在外层会无法正常工作。例如：INTERP、DERIVATIVE、IRATE、LAST_ROW、FIRST、LAST、TWA、STATEDURATION、TAIL、UNIQUE。
-7. 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES、ELAPSED、INTERP、DERIVATIVE、IRATE、TWA、DIFF、STATECOUNT、STATEDURATION、CSUM、MAVG、TAIL、UNIQUE。
-8. 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：PERCENTILE。
+:::
+
+## 非相关标量子查询
+
+非相关标量子查询是 SQL 中一种独立可执行的子查询类型，其核心特征为仅返回单个值（一行一列），且执行过程完全不依赖外层查询的任何字段，任何符合这一特征的查询语句都可以作为非相关标量子查询，也可以在查询语句的任意子句、函数、表达式中使用非相关标量子查询，只要语法定义为表达式的部分均可以使用非相关标量子查询，非相关标量子查询也可以嵌套使用。
+非相关标量子查询可以先独立计算出结果，再将该结果代入外层查询作为筛选条件或参考值，常用于基于聚合值（如平均值、最大值）的过滤或多表查询结果结合的场景，执行效率高于相关子查询。
+
+从 3.4.0.0 版本开始，TDengine TSDB 在查询语句中支持非相关标量子查询。从 3.4.1.0 版本开始，流计算中也支持非相关标量子查询。订阅、DDL 以及除 INSERT INTO ... SELECT 外的 DML 等其他语句暂不支持。
+
+以出现在 SELECT、WHERE 子句中的非相关标量子查询示例如下：
+
+```sql
+SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
+SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
+```
+
+## 子查询表达式
+
+从 3.4.1.0 版本开始，TDengine TSDB 支持下列子查询表达式。其中的子查询仅限非相关子查询，目前支持在查询和流计算语句中使用，订阅、DDL（数据定义语言）以及除 INSERT INTO ... SELECT 外的 DML（数据操纵语言）语句中暂不支持。
+
+### IN 子查询
+
+ IN 运算符与子查询组合使用，子查询结果作为 IN 运算符的匹配列表，实现灵活的多值查询逻辑，满足复杂数据筛选场景需求。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- WHERE 子句基础用法
+select col1 from tb2 where col1 in (select col1 from tb1 where f2 > 10);
+
+-- JOIN 关联条件中使用
+select a.ts from tb1 a 
+join tb2 b on a.ts = b.ts and a.f1 in (select col1 from tb1 union select col1 from tb2);
+
+-- CASE 表达式中使用
+select case when f1 in (select f2 from tb1) then 0 else 1 end from tb1;
+```
+
+### NOT IN 子查询
+
+NOT IN 运算符与子查询的组合使用，判断表达式的值是否与子查询返回的所有结果都不相等，实现反向多值筛选逻辑，满足复杂数据过滤场景需求。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- WHERE 子句基础用法
+select col1 from tb2 where col1 not in (select col1 from tb1 where f2 < 100);
+
+-- HAVING 子句中使用
+select avg(f1) from tb1 
+group by f1 having f1 not in (select f1 from tb2 interval(10s));
+
+-- JOIN 关联条件中使用
+select a.ts, b.val from tb1 a
+join tb2 b on a.ts = b.ts and a.f2 not in (select col2 from tb3 where ts > '2026-01-01');
+```
+
+### ALL 子查询
+
+ALL 运算符与子查询的组合使用，ALL 需与比较运算符（`=`, `>`, `<`, `>=`, `<=`, `<>`）结合，判断表达式是否满足子查询返回的所有结果。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- 大于子查询所有结果
+select col1, col2 from tb1 where col1 > ALL (select f1 from tb2 where f2 > 10);
+
+-- 不等于子查询所有结果
+select col1 from tb1 where col1 <> ALL (select avg(f1) from tb2 group by f2);
+
+-- HAVING 子句中使用
+select sum(f1) from tb1 
+group by f1 having max(f2) <= ALL (select col3 from tb3 interval(1s));
+```
+
+### ANY 子查询
+
+ANY 运算符与子查询的组合使用，ANY 需与比较运算符（`=`, `>`, `<`, `>=`, `<=`, `<>`）结合，判断表达式是否满足子查询返回的任意一个结果，实现多值条件匹配。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- 小于子查询任意一个结果
+select a.ts, b.val from tb1 a 
+join tb2 b on a.ts = b.ts and a.f1 < ANY (select col1 from tb3 union select col1 from tb4);
+
+-- INSERT INTO SELECT 中使用
+insert into tb6 (ts, val) 
+select ts, f1 from tb1 where f1 = ANY (select col1 from tb7 where ts > '2026-01-01 00:00:00');
+
+-- CASE 表达式中使用
+select case when f2 >= ANY (select f3 from tb8) then 'high' else 'low' end from tb1;
+```
+
+### SOME 子查询
+
+SOME 运算符与子查询的组合使用，SOME 与 ANY 功能完全等价，需与比较运算符（`=`, `>`, `<`, `>=`, `<=`, `<>`）结合，判断表达式是否满足子查询返回的任意一个结果。其中的子查询只能输出单列数据，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- HAVING 子句中使用
+select avg(f1) from tb1 
+group by f1 having sum(f2) >= SOME (select f3 from tb2 interval(1s));
+
+-- SELECT 列表中使用
+select col1, f2 > SOME (select f1 from tb3) as flag from tb1;
+
+-- WHERE 子句基础用法
+select col1 from tb1 where f3 = SOME (select col2 from tb4 where f4 < 50);
+```
+
+### EXISTS 子查询
+
+EXISTS 运算符与子查询的组合使用，EXISTS 仅判断子查询是否返回至少一行数据，不关注返回数据具体内容。其中的子查询无列数限制，可支持任意满足逻辑要求的查询语句（含嵌套查询）。
+
+```sql
+-- CASE 表达式中使用
+select case when exists (select 1 from tb2 where tb2.col1 = 1) 
+           then 'exist' else 'not exist' end as status from tb1;
+
+-- UNION 中组合使用
+select col1 from tb1 where exists (select 1 from tb4) 
+union 
+select col2 from tb2 where exists (select 1 from tb5 where f2 > 0);
+
+-- WHERE 子句基础用法
+select col1 from tb1 where exists (select * from tb3 where f3 = 1);
+```
+
+### NOT EXISTS 子查询
+
+NOT EXISTS 运算符与子查询的组合使用，NOT EXISTS 与 EXISTS 逻辑相反，判断子查询是否无数据返回。其中的子查询无列数限制，可支持任意满足逻辑要求的查询语句（含嵌套查询）。
+
+```sql
+-- SELECT 列表中使用
+select col1, not exists (select f1 from tb3 where f1 = 1) as flag from tb1;
+
+-- WHERE 子句中使用
+select col1 from tb1 
+where not exists (select 1 from tb2 where f2 between 10 and 20);
+
+-- JOIN 关联条件中使用
+select a.ts from tb1 a
+left join tb2 b on a.ts = b.ts 
+where not exists (select 1 from tb3 where tb3.col1 = 1);
+```
 
 ## UNION 子句
+
+```txt title=语法
+SELECT ...
+UNION [ALL] SELECT ...
+[UNION [ALL] SELECT ...]
+```
 
 TDengine 支持 UNION [ALL] 操作符，用于合并多个 SELECT 子句的查询结果。使用该操作符时，多个 SELECT 子句需满足以下两个条件：
 
@@ -791,150 +981,34 @@ TDengine 支持 UNION [ALL] 操作符，用于合并多个 SELECT 子句的查�
 
 合并后，结果集的列名由第一个 SELECT 子句所定义的列名决定。
 
-示例：
+## SQL 示例
+
+对于下面的例子，表 tb1 用以下语句创建：
 
 ```sql
-(SELECT tbname, * FROM d1 limit 1) 
-UNION ALL 
-(SELECT tbname, * FROM d11 limit 2) 
-UNION ALL 
-(SELECT tbname, * FROM d21 limit 3);
+CREATE TABLE tb1 (ts TIMESTAMP, col1 INT, col2 FLOAT, col3 BINARY(50));
 ```
 
-上面的 SQL，分别查询：子表 d1 的 1 条数据，子表 d11 的 2 条数据，子表 d21 的 3 条数据，并将结果合并。返回的结果如下：
-
-```text
- tbname |           ts            |    current     |   voltage   |    phase       |
-====================================================================================
- d11    | 2020-09-13 20:26:40.000 |     11.5680809 |         247 |    146.5000000 |
- d11    | 2020-09-13 20:26:50.000 |     14.2392311 |         234 |    148.0000000 |
- d1     | 2020-09-13 20:26:40.000 |     11.5680809 |         247 |    146.5000000 |
- d21    | 2020-09-13 20:26:40.000 |     11.5680809 |         247 |    146.5000000 |
- d21    | 2020-09-13 20:26:50.000 |     14.2392311 |         234 |    148.0000000 |
- d21    | 2020-09-13 20:27:00.000 |     10.0999422 |         251 |    146.0000000 |
-Query OK, 6 row(s) in set (0.006438s)
-```
-
-在同一个 SQL 语句中，最多支持 100 个 UNION 子句。
-
-## 关联查询
-
-### Join 概念
-
-1. 驱动表
-
-在关联查询中，驱动表的角色取决于所使用的连接类型：在 Left Join 系列中，左表作为驱动表；而在 Right Join 系列中，右表作为驱动表。
-
-2. 连接条件
-
-在 TDengine TSDB 中，连接条件是指进行表关联所指定的条件。对于所有关联查询（除了 ASOF Join 和 Window Join 以外），都需要指定连接条件，通常出现在 on 之后。在 ASOF Join 中，出现在 where 之后的条件也可以视作连接条件，而 Window Join 是通过 window_offset 来指定连接条件。
-
-除了 ASOF Join 以外，TDengine TSDB 支持的所有 Join 类型都必须显式指定连接条件。ASOF Join 因为默认定义了隐式的连接条件，所以在默认条件可以满足需求的情况下，可以不必显式指定连接条件。
-
-对于除了 ASOF Join 和 Window Join 以外的其他类型的连接，连接条件中除了包含主连接条件以外，还可以包含任意多个其他连接条件。主连接条件与其他连接条件之间必须是 and 关系，而其他连接条件之间则没有这个限制。其他连接条件中可以包含主键列、标签列、普通列、常量及其标量函数或运算的任意逻辑运算组合。
-
-以智能电表为例，下面这几条 SQL 都包含合法的连接条件。
+查询 tb1 刚过去的一个小时的所有记录：
 
 ```sql
-select a.* from meters a left join meters b on a.ts = b.ts and a.ts > '2023-10-18 10:00:00.000'；
-select a.* from meters a left join meters b on a.ts = b.ts and (a.ts > '2023-10-18 10:00:00.000' or a.ts < '2023-10-17 10:00:00.000')；
-select a.* from meters a left join meters b on timetruncate(a.ts, 1s) = timetruncate(b.ts, 1s) and (a.ts + 1s > '2023-10-18 10:00:00.000' or a.groupId > 0)；
-select a.* from meters a left asof join meters b on timetruncate(a.ts, 1s) < timetruncate(b.ts, 1s) and a.groupId = b.groupId;
+SELECT * FROM tb1 WHERE ts >= NOW - 1h;
 ```
 
-3. 主连接条件
-
-作为一个时序数据库，TDengine TSDB 的所有关联查询都围绕主键列进行。因此，对于除了 ASOF Join 和 Window Join 以外的所有关联查询，都必须包含主键列的等值连接条件。在连接条件中首次出现的主键列等值连接条件将被视为主连接条件。ASOF Join 的主连接条件可以包含非等值的连接条件，而 Window Join 的主连接条件则是通过 window_offset 来指定的。
-
-除了 Window Join 以外，TDengine TSDB 支持在主连接条件中进行 timetruncate 函数操作，如 on timetruncate(a.ts, 1s) = timetruncate(b.ts, 1s)。除此以外，目前暂不支持其他函数及标量运算。
-
-4. 分组条件
-
-具有时序数据库特色的 ASOF Join、Window Join 支持先对关联查询的输入数据进行分组，然后每个分组进行关联操作。分组只对关联查询的输入进行，输出结果将不包含分组信息。ASOF Join、Window Join 中出现在 on 之后的等值条件（ASOF Join 的主连接条件除外）将被作为分组条件。
-
-5. 主键时间线
-
-作为时序数据库 ,TDengine TSDB 要求每张表（子表）中必须有主键时间戳列，它将作为该表的主键时间线进行很多跟时间相关的运算，而在 subquery 的结果或者 Join 运算的结果中也需要明确哪一列将被视作主键时间线参与后续的与时间相关的运算。在 subquery 中，查询结果中存在的有序的第 1 个出现的主键列（或其运算）或等同主键列的伪列（_wstart、_wend）将被视作该输出表的主键时间线。Join 输出结果中主键时间线的选择遵从以下规则。
-
-- Left Join、Right Join 系列中驱动表（subquery）的主键列将被作为后续查询的主键时间线。此外，在 Window Join 窗口内，因为左右表同时有序，所以在窗口内可以把任意一张表的主键列作为主键时间线，优先选择本表的主键列为主键时间线。
-- Inner Join 可以把任意一张表的主键列作为主键时间线，当存在类似分组条件（标签列的等值条件且与主连接条件是 and 关系）时将无法产生主键时间线。
-- Full Join 因为无法产生任何一个有效的主键时间序列，所以没有主键时间线，这也就意味着 Full Join 中无法进行与时间线相关的运算。
-
-### 语法说明
-
-在接下来的内容中，我们将通过统一的方式并行介绍 Left Join 和 Right Join 系列。因此，在后续关于 Outer、Semi、Anti-Semi、ASOF、Window 等系列内容的介绍中，我们采用了“Left/Right”这种表述方式来同时涵盖 Left Join 和 Right Join 的相关知识。这里的“/”符号前的描述专指应用于 Left Join，而“/”符号后的描述则专指应用于 Right Join。通过这种表述方式，我们可以更加清晰地展示这两种 Join 操作的特点和用法。
-
-例如，当我们提及“左/右表”时，对于 Left Join，它特指左表，而对于 Right Join，它则特指右表。同理，当我们提及“右/左表”时，对于 Left Join，它特指右表，而对于 Right Join，它则特指左表。
-
-### Join 功能
-
-下表列举了 TDengine TSDB 中所支持的 Join 类型和它们的定义。
-
-| Join 类型                 | 定义                                                     |
-|:------------------------:|:--------------------------------------------------------:|
-|Inner Join                | 内连接，只有左右表中同时符合连接条件的数据才会被返回，可以视为两张表符合连接条件的数据的交集 |
-|Left/Right Outer Join     | 左 / 右（外）连接，既包含左右表中同时符合连接条件的数据集合，也包括左 / 右表中不符合连接条件的数据集合 |
-|Left/Right Semi Join      | 左 / 右半连接，通常表达的是 in、exists 的含义，即对左 / 右表任意一条数据来说，只有当右 / 左表中存在任一符合连接条件的数据时才返回左 / 右表行数据 |
-|Left/Right Anti-Semi Join | 左 / 右反连接，同左 / 右半连接的逻辑正好相反，通常表达的是 not in、not exists 的含义，即对左 / 右表任意一条数据来说，只有当右 / 左表中不存在任何符合连接条件的数据时才返回左 / 右表行数据 |
-|left/Right ASOF Join      | 左 / 右不完全匹配连接，不同于其他传统 Join 操作的完全匹配模式，ASOF Join 允许以指定的匹配模式进行不完全匹配，即按照主键时间戳最接近的方式进行匹配 |
-|Left/Right Window Join    | 左 / 右窗口连接，根据左 / 右表中每一行的主键时间戳和窗口边界构造窗口并据此进行窗口连接，支持在窗口内进行投影、标量和聚合操作 |
-|Full Outer Join           | 全（外）连接，既包含左右表中同时符合连接条件的数据集合，也包括左右表中不符合连接条件的数据集合 |
-
-### 约束和限制
-
-1. 输入时间线限制
-
-目前，TDengine TSDB 中所有的 Join 操作都要求输入数据包含有效的主键时间线。对于所有表查询，这个要求通常可以满足。然而，对于 subquery，则需要注意输出数据是否包
-含有效的主键时间线。
-
-2. 连接条件限制
-
-连接条件的限制包括如下这些。
-
-- 除了 ASOF Join 和 Window Join 以外，其他 Join 操作的连接条件中必须含主键列的主连接条件。
-- 主连接条件与其他连接条件之间只支持 and 运算。
-- 作为主连接条件的主键列只支持 timetruncate 函数运算，不支持其他函数和标量运算，作为其他连接条件时则无限制。
-
-3. 分组条件限制
-
-分组条件的限制包括如下这些。
-
-- 只支持除了主键列以外的标签列、普通列的等值条件。
-- 不支持标量运算。
-- 支持多个分组条件，条件间只支持 and 运算。
-
-4. 查询结果顺序限制
-
-查询结果顺序的限制包括如下这些。
-
-- 普通表、子表、subquery 且无分组条件无排序的场景下，查询结果会按照驱动表的主键列顺序输出。
-- 由于超级表查询、Full Join 或有分组条件无排序的场景下，查询结果没有固定的输出顺序，因此，在有排序需求且输出无固定顺序的场景下，需要进行排序操作。部分依赖时间线的函数可能会因为没有有效的时间线输出而无法执行。
-
-## 窗口函数
-
-从 v3.4.2.0 开始，TDengine TSDB 支持 SQL 标准的 `OVER` 子句和窗口函数。窗口函数为结果集中的每一行计算一个值，计算时可以参考同一窗口内的其他行，但保留原始的每一行而不做合并。这与上文[窗口切分查询](#窗口切分查询)中的时间窗口不同：时间窗口把窗口内多行聚合成一行，而窗口函数逐行输出。
-
-窗口函数调用的基本形式如下：
+查询表 tb1 从 2018-06-01 08:00:00.000 到 2018-06-02 08:00:00.000 时间范围，并且 col3 的字符串是'nny'结尾的记录，结果按照时间戳降序：
 
 ```sql
-function_name ( [ arguments ] ) OVER (
-    [ PARTITION BY expr [, ...] ]
-    [ ORDER BY expr [ ASC | DESC ] [, ...] ]
-    [ { ROWS | RANGE } frame_extent ]
-)
+SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
 ```
 
-- `PARTITION BY` 把结果集切分成互不影响的分区，每个分区独立计算。
-- `ORDER BY` 在分区内排序，决定序号、前后值、累计区间等与顺序相关的语义。
-- `ROWS`/`RANGE` 窗口帧进一步界定当前行参与计算的行范围。
-
-窗口函数既支持既有聚合/选择函数（如 `avg`、`sum`、`first`）加 `OVER` 子句使用，也提供 `row_number`、`rank`、`dense_rank`、`percent_rank`、`cume_dist`、`lag`、`lead`、`first_value`、`last_value`、`nth_value` 等专用窗口函数。例如，计算每个电表最近 10 次采样的平均电压：
+查询 col1 与 col2 的和，并取名 complex，时间大于 2018-06-01 08:00:00.000，col2 大于 1.2，结果输出仅仅 10 条记录，从第 5 条开始：
 
 ```sql
-SELECT tbname, ts, voltage,
-       avg(voltage) OVER (PARTITION BY tbname ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma
-FROM meters
-ORDER BY tbname, ts;
+SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
 ```
 
-窗口函数只能出现在 `SELECT` 列表和 `ORDER BY` 中，如需基于窗口结果再做过滤或聚合，请把窗口查询写成子查询。完整的语法、窗口帧规则、命名窗口和函数列表见[窗口函数](./09-window-function.md)。
+查询过去 10 分钟的记录，col2 的值大于 3.14，并且将结果输出到文件 `/home/testoutput.csv`：
+
+```sql
+SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutput.csv;
+```

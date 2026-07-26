@@ -4,120 +4,143 @@ title: 数据订阅
 description: TDengine TSDB 消息队列提供的数据订阅功能
 ---
 
-TDengine TSDB 3.0.0.0 开始对消息队列做了大幅的优化和增强以简化用户的解决方案。
+数据订阅可以把 TDengine TSDB 中持续写入的数据实时推送给下游程序。本章继续使用前几章的智能电表模型，通过两个 `taos shell` 快速体验一次完整流程：先创建主题，再打开一个 shell 订阅主题，最后回到另一个 shell 写入数据并观察订阅结果。
 
-## 创建 topic
+## 前提条件
 
-TDengine TSDB 创建 topic 的个数上限通过参数 tmqMaxTopicNum 控制，默认 20 个。
+请先确认已经完成前几章的操作：
 
-TDengine TSDB 使用 SQL 创建一个 topic，共有三种类型的 topic。
+1. TDengine TSDB 服务已经启动，可以通过 shell 连接。
+2. 已经了解 `power` 数据库、`meters` 超级表和 `d1001`、`d1002` 等子表的基本模型。
 
-### 查询 topic
-
-语法：
-
-```sql
-CREATE TOPIC [IF NOT EXISTS] topic_name as subquery
-```
-
-通过 `SELECT` 语句订阅（包括 `SELECT *` 或 `SELECT ts, c1` 等指定查询订阅，可以带条件过滤、标量函数计算，但不支持聚合函数、不支持时间窗口聚合）。需要注意的是：
-
-- 该类型 TOPIC 一旦创建则订阅数据的结构确定。
-- 被订阅或用于计算的列或标签不可被删除（`ALTER table DROP`）、修改（`ALTER table MODIFY`）。（从 3.4.0.0 开始，可以修改，删除，增加，但是需要重新 reload topic）。
-- 对于 select \*，则订阅展开为创建时所有的列（子表、普通表为数据列，超级表为数据列加标签列）。
-- 不支持虚拟表的查询订阅。
-- subquery 里的超级表，子表，普通表可以被删除，删除后，订阅的数据为空。如果删除后重新建，订阅的数据仍然为空，因为表的 id 变了。如果想订阅到新的表数据，可以通过 reload topic 语法重新加载 topic 即可。
-
-### 超级表 topic
-
-语法：
+如果你还没有创建这些对象，可以直接在第一个 shell 中执行下面的 SQL。
 
 ```sql
-CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS STABLE stb_name [where_condition]
+CREATE DATABASE IF NOT EXISTS power PRECISION 'ms' KEEP 3650 DURATION 10 BUFFER 16;
+
+USE power;
+
+CREATE STABLE IF NOT EXISTS meters (
+    ts timestamp,
+    current float,
+    voltage int,
+    phase float
+) TAGS (
+    location varchar(64),
+    group_id int
+);
+
+CREATE TABLE IF NOT EXISTS d1001
+USING meters TAGS ("California.SanFrancisco", 2);
+
+CREATE TABLE IF NOT EXISTS d1002
+USING meters TAGS ("California.SanFrancisco", 3);
 ```
 
-与 `SELECT * from stbName` 订阅的区别是：
+## 创建订阅主题
 
-- 不会限制用户的表结构变更。
-- 返回的是非结构化的数据：返回数据的结构会随之超级表的表结构变化而变化。
-- with meta 参数可选，选择时将返回创建超级表，子表等语句，主要用于 taosX 做超级表迁移。
-- where_condition 参数可选，选择时将用来过滤符合条件的子表，订阅这些子表。where 条件里不能有普通列，只能是 tag 或 tbname，where 条件里可以用函数，用来过滤 tag，但是不能是聚合函数，因为子表 tag 值无法做聚合。也可以是常量表达式，比如 2 > 1（订阅全部子表），或者 false（订阅 0 个子表）。
-- 返回数据不包含标签。
-- 支持虚拟超级表的订阅，仅能订阅出虚拟超级表的 meta 信息，所以虚拟超级表订阅需要带上 with meta 参数，否则订阅不到内容。
-
-### 数据库 topic
-
-语法：
+在第一个 shell 中创建一个名为 `topic_meters` 的主题。主题定义了订阅者可以收到哪些数据。下面的主题订阅 `meters` 超级表中新写入的数据，并额外输出 `tbname`，方便你看到数据来自哪张子表。
 
 ```sql
-CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS DATABASE db_name;
+CREATE TOPIC IF NOT EXISTS topic_meters AS
+SELECT tbname, ts, current, voltage, phase FROM meters;
 ```
 
-通过该语句可创建一个包含数据库所有表数据的订阅
-
-- with meta 参数可选，选择时将返回创建数据库里所有超级表，子表的语句，主要用于 taosX 做数据库迁移。
-- with meta 的情况下可订阅出虚拟表的信息，并且仅能订阅出虚拟表的 meta 信息。
-
-说明：超级表订阅和库订阅属于高级订阅模式，容易出错，如确实要使用，请咨询 TDengine TSDB 运维团队。
-
-## 删除 topic
-
-如果不再需要订阅数据，可以删除 topic，如果当前 topic 被消费者订阅，通过 FORCE 语法可强制删除，强制删除后订阅的消费者会消费数据会出错（FORCE 语法 3.3.6.0 版本开始支持）。
-
-```sql
-/* 删除 topic */
-DROP TOPIC [IF EXISTS] [FORCE] topic_name;
-```
-
-此时如果该订阅主题上存在 consumer，则此 consumer 会收到一个错误。
-
-## 查看 topic
+执行下面的命令可以查看主题是否创建成功。
 
 ```sql
 SHOW TOPICS;
 ```
 
-## 加载主题
+## 打开第二个 shell 订阅主题
+
+新开一个终端窗口，进入 shell，然后执行订阅命令。
 
 ```sql
-RELOAD TOPIC IF EXISTS topic_name as subquery;
+subscribe topic_meters -g quickstart_cg;
 ```
 
-1. 该语法从 3.4.0 版本开始支持，用于重新加载主题，主要解决查询主题里变更列或 tag 长度，以及 select * 查询订阅时，删除增加列和 tag 后，输出结果不生效问题。
-2. 需要变更订阅表结构的 schema 时，先停止消费，然后变更，然后执行 reload topic，接着重新开始订阅即可。
+其中：
 
-显示当前数据库下的所有主题的信息。
+- `topic_meters` 是要订阅的主题名称。
+- `-g quickstart_cg` 指定消费组。消费组会保存消费进度，同一个消费组再次订阅时会从已提交的位置继续消费。
 
-## 创建消费组
+执行后，shell 会进入等待状态，看到类似下面的提示：
 
-消费组的创建只能通过 TDengine TSDB 客户端驱动或者连接器所提供的 API 创建。
-
-## 删除消费组
-
-消费者创建的时候，会给消费者指定一个消费者组，消费者不能显式的删除，但是可以删除消费者组。如果当前消费者组里有消费者在消费，通过 FORCE 语法可强制删除，强制删除后订阅的消费者会消费数据会出错（FORCE 语法 3.3.6.0 版本开始支持）。
-
-```sql
-DROP CONSUMER GROUP [IF EXISTS] [FORCE] cgroup_name ON topic_name;
+```text
+Subscribing to topic [topic_meters], group [quickstart_cg], offset [latest] ...
+Press Ctrl+C to stop.
 ```
 
-删除主题 topic_name 上的消费组 cgroup_name。
+默认情况下，订阅从最新位置开始读取。因此请保持这个 shell 不要关闭，然后回到第一个 shell 写入新数据。
 
-## 查看消费组
+## 写入数据并查看订阅结果
+
+在第一个 shell 中写入两条新的电表数据。
 
 ```sql
+INSERT INTO d1001 VALUES (NOW, 10.3, 219, 0.31);
+INSERT INTO d1002 VALUES (NOW, 10.2, 220, 0.23);
+```
+
+回到第二个 shell，可以看到订阅命令实时输出了刚写入的数据。输出格式会随终端宽度略有变化，内容类似如下：
+
+```text
+tbname |           ts            | current | voltage | phase |
+================================================================
+d1001  | 2026-07-24 18:20:01.000 | 10.3000 |     219 | 0.310 |
+d1002  | 2026-07-24 18:20:02.000 | 10.2000 |     220 | 0.230 |
+```
+
+按 `Ctrl+C` 可以停止订阅。停止后，shell 会输出本次收到的总行数。
+
+```text
+Unsubscribed. Total rows received: 2
+```
+
+## 常用订阅选项
+
+shell 的订阅命令格式如下：
+
+```sql
+subscribe <topic> -g <group_id> [options];
+```
+
+常用选项包括：
+
+- `-o earliest`：从最早可消费的位置开始读取。适合希望读取主题中已有数据的场景。
+- `-o latest`：从最新位置开始读取。这是默认值，适合实时等待新数据。
+- `-n <count>`：收到指定行数后自动退出。演示和测试时很方便。
+- `-t <timeout_ms>`：设置每次轮询的超时时间，单位为毫秒。
+
+例如，下面的命令会从最早位置读取，收到 5 行后自动退出。
+
+```sql
+subscribe topic_meters -g quickstart_cg_earliest -o earliest -n 5;
+```
+
+如果想查看帮助，可以执行：
+
+```sql
+subscribe -h;
+```
+
+## 查看和清理订阅资源
+
+在 shell 中可以查看当前 topic、消费者和订阅分配信息。
+
+```sql
+SHOW TOPICS;
 SHOW CONSUMERS;
-```
-
-显示当前数据库下所有活跃的消费者的信息。
-
-## 查看订阅信息
-
-```sql
 SHOW SUBSCRIPTIONS;
 ```
 
-显示 consumer 与 vgroup 之间的分配关系和消费信息
+如果不再需要这个快速上手示例，可以先停止订阅 shell，再执行下面的 SQL 清理资源。
 
-## MQTT 数据订阅
+```sql
+DROP CONSUMER GROUP IF EXISTS FORCE quickstart_cg ON topic_meters;
+DROP CONSUMER GROUP IF EXISTS FORCE quickstart_cg_earliest ON topic_meters;
+DROP TOPIC IF EXISTS topic_meters;
+```
 
-TDengine TSDB v3.3.7.0 版本提供了 MQTT 订阅功能，可以通过 MQTT 客户端直接订阅数据，具体内容请参考 MQTT 数据订阅部分。
+更多 topic 类型、消费组管理和编程接口用法，请继续阅读[数据订阅](../07-data-subscription/01-topic.md)章节。
