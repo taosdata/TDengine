@@ -151,27 +151,38 @@ TDengine TSDB 的多级存储功能在使用上还具备以下优点。
 
 ## 网络端口要求
 
-下表列出了 TDengine TSDB 的一些接口或组件的常用端口，这些端口均可以通过配置文件中的参数进行修改。
+下表按产品与组件列出 TDengine 相关默认端口（含 TSDB、IDMP、TDgpt、CLS）。这些端口均可通过配置文件中的参数修改。
 
-|               接口或组件名称                 |     端口   |   协议    |
-|:-----------------------------------------:|:----------:|:--------:|
-|             原生接口（taosc）               |    6030    |   TCP   |
-|             TDgpt 服务接口                 |    6035    |   TCP   |
-|             TDgpt TDtsfm 模型服务          |    6061    |   TCP   |
-|             TDgpt Time-MoE 模型服务        |    6062    |   TCP   |
-|             TDgpt Chronos 模型服务         |    6063    |   TCP   |
-|             TDgpt Moirai 模型服务          |    6064    |   TCP   |
-|             TDgpt TimesFM 模型服务         |    6065    |   TCP   |
-|             TDgpt Moment 模型服务          |    6066    |   TCP   |
-|             TDgpt 预留模型服务端口         | 6067-6070  |   TCP   |
-|              RESTful 接口                  |    6041    |   TCP   |
-|             WebSocket 接口                 |    6041    |   TCP   |
-|              taosKeeper                   |    6043    |   TCP   |
-|            statsd 格式写入接口              |    6044    | TCP/UDP |
-|           collectd 格式写入接口             |    6045    | TCP/UDP |
-|        openTSDB TELNET 格式写入接口         |    6046    |   TCP   |
-|  collectd 使用 openTSDB TELNET 格式写入接口  |    6047    |   TCP   |
-|  icinga2 使用 openTSDB TELNET 格式写入接口   |    6048    |   TCP   |
-| tcollector 使用 openTSDB TELNET 格式写入接口 |    6049    |   TCP   |
-|                taosX                      | 6050, 6055 |   TCP   |
-|             taosExplorer                  |    6060    |   TCP   |
+为简化防火墙与安全组配置，**推荐一次性开放端口段 `6030–6070`**（TCP；其中 StatsD / collectd 相关端口同时需要 UDP），即可覆盖下表所列默认端口，避免逐个放行。若仅部署核心 TSDB（不含 IDMP、TDgpt、CLS），可收窄为 **`6030–6060`**。
+
+| 产品  | 组件         | 端口       | 协议    | 说明 |
+|:------|:-------------|:----------|:--------|:-----|
+| TSDB  | taosd        | 6030      | TCP     | 原生接口（taosc） |
+|       | taosKeeper   | 6043      | TCP     | 监控服务 |
+|       | taosExplorer | 6060      | TCP     | Web 管理界面 |
+|       | taosMqtt     | 6057      | TCP     | MQTT 订阅服务（Bnode） |
+|       | taosX        | 6055      | TCP     | gRPC（Agent / Xnode） |
+|       |              | 6050      | TCP     | REST API |
+|       | taosAdapter  | 6041      | TCP     | WebSocket 接口 |
+|       |              | 6041      | TCP     | RESTful 接口 |
+|       |              | 6044      | TCP/UDP | StatsD 格式写入 |
+|       |              | 6045      | TCP/UDP | collectd 格式写入 |
+|       |              | 6046      | TCP     | OpenTSDB TELNET 格式写入 |
+|       |              | 6047      | TCP     | collectd 使用 OpenTSDB TELNET 写入 |
+|       |              | 6048      | TCP     | icinga2 使用 OpenTSDB TELNET 写入 |
+|       |              | 6049      | TCP     | tcollector 使用 OpenTSDB TELNET 写入 |
+| IDMP  | IDMP         | 6034      | HTTPS   | HTTPS 访问（生产推荐） |
+|       |              | 6037      | MCP     | MCP / AI Agent |
+|       |              | 6038      | HTTP    | 内嵌 H2 Web 控制台 |
+|       |              | 6039      | TCP     | 内嵌 H2 数据库监听 |
+|       |              | 6040      | HTTP    | 内部聊天服务 API |
+|       |              | 6042      | HTTP    | Web UI / REST API |
+| TDgpt | Anode        | 6035      | TCP     | TDgpt 服务接口 |
+|       | TDtsfm       | 6061      | TCP     | 时序基础模型服务 |
+|       | Time-MoE     | 6062      | TCP     | 模型服务 |
+|       | Chronos      | 6063      | TCP     | 模型服务 |
+|       | Moirai       | 6064      | TCP     | 模型服务 |
+|       | TimesFM      | 6065      | TCP     | 模型服务 |
+|       | Moment       | 6066      | TCP     | 模型服务 |
+|       | Reserved     | 6067-6070 | TCP     | 预留模型服务端口 |
+| CLS   | CLS          | 6059      | HTTP    | Web UI / 许可证服务 |

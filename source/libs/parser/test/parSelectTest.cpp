@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "mockCatalogService.h"
 #include "parTestUtil.h"
 
 using namespace std;
@@ -81,6 +82,19 @@ TEST_F(ParserSelectTest, pseudoColumn) {
   useDb("root", "test");
 
   run("SELECT _WSTART, _WEND, COUNT(*) FROM t1 INTERVAL(10s)");
+}
+
+TEST_F(ParserSelectTest, intervalNaturalOffsetOverflow) {
+  useDb("root", "testus");
+
+  g_mockCatalogService->createTableBuilder("testus", "t_nano_interval", TSDB_NORMAL_TABLE, 2)
+      .setPrecision(TSDB_TIME_PRECISION_NANO)
+      .setVgid(1)
+      .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("c1", TSDB_DATA_TYPE_INT)
+      .done();
+
+  run("SELECT COUNT(*) FROM t_nano_interval INTERVAL(3504n, 3503n)", TSDB_CODE_PAR_INTER_VALUE_TOO_BIG);
 }
 
 TEST_F(ParserSelectTest, pseudoColumnSemanticCheck) {
@@ -466,6 +480,9 @@ TEST_F(ParserSelectTest, interval) {
 
 TEST_F(ParserSelectTest, intervalSemanticCheck) {
   useDb("root", "test");
+
+  run("SELECT COUNT(*) FROM t1 INTERVAL(100s) SLIDING(1s)");
+  run("SELECT COUNT(*) FROM t1 INTERVAL(100001a) SLIDING(1s)", TSDB_CODE_PAR_INTER_SLIDING_TOO_SMALL);
 
   // "SELECT c1 FROM t1 INTERVAL(10s)" is now valid in window projection (SCALAR) mode, negative test removed.
   run("SELECT DISTINCT c1, c2 FROM t1 WHERE c1 > 3 INTERVAL(1d) FILL(NEXT)",

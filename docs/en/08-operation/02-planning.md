@@ -148,20 +148,38 @@ Thanks to TDengine's excellent horizontal scaling capabilities, we can easily ca
 
 ## Network Port Requirements
 
-The table below lists some common ports for TDengine interfaces or components, which can be modified through parameters in the configuration file.
+The table below lists the default ports for TDengine products and components (including TSDB, IDMP, TDgpt, and CLS). These ports can be changed through parameters in the configuration file.
 
-|               Interface or Component Name                 |     Port   |   Protocol    |
-|:---------------------------------------------------------:|:----------:|:-------------:|
-|             Native Interface (taosc)                      |    6030    |   TCP         |
-|             TDgpt                                         |    6035    |   TCP         |
-|              RESTful Interface                            |    6041    |   TCP         |
-|             WebSocket Interface                           |    6041    |   TCP         |
-|              taosKeeper                                   |    6043    |   TCP         |
-|            StatsD Format Write Interface                  |    6044    | TCP/UDP       |
-|           Collectd Format Write Interface                 |    6045    | TCP/UDP       |
-|        OpenTSDB Telnet Format Write Interface             |    6046    |   TCP         |
-|  Collectd using OpenTSDB Telnet Format Write Interface    |    6047    |   TCP         |
-|  Icinga2 using OpenTSDB Telnet Format Write Interface     |    6048    |   TCP         |
-| tcollector using OpenTSDB Telnet Format Write Interface   |    6049    |   TCP         |
-|                taosX                                      | 6050, 6055 |   TCP         |
-|             taosExplorer                                  |    6060    |   TCP         |
+To simplify firewall and security-group configuration, **open the port range `6030–6070` in one step** (TCP; StatsD / collectd related ports also require UDP). This covers all default ports listed below and avoids opening them one by one. If you deploy only core TSDB (without IDMP, TDgpt, or CLS), you can narrow the range to **`6030–6060`**.
+
+| Product | Component    | Port      | Protocol | Description |
+|:--------|:-------------|:----------|:---------|:------------|
+| TSDB    | taosd        | 6030      | TCP      | Native interface (taosc) |
+|         | taosKeeper   | 6043      | TCP      | Monitoring service |
+|         | taosExplorer | 6060      | TCP      | Web management UI |
+|         | taosMqtt     | 6057      | TCP      | MQTT subscription service (Bnode) |
+|         | taosX        | 6055      | TCP      | gRPC (Agent / Xnode) |
+|         |              | 6050      | TCP      | REST API |
+|         | taosAdapter  | 6041      | TCP      | WebSocket interface |
+|         |              | 6041      | TCP      | RESTful interface |
+|         |              | 6044      | TCP/UDP  | StatsD format write |
+|         |              | 6045      | TCP/UDP  | collectd format write |
+|         |              | 6046      | TCP      | OpenTSDB TELNET format write |
+|         |              | 6047      | TCP      | collectd via OpenTSDB TELNET write |
+|         |              | 6048      | TCP      | icinga2 via OpenTSDB TELNET write |
+|         |              | 6049      | TCP      | tcollector via OpenTSDB TELNET write |
+| IDMP    | IDMP         | 6034      | HTTPS    | HTTPS access (recommended for production) |
+|         |              | 6037      | MCP      | MCP / AI Agent |
+|         |              | 6038      | HTTP     | Embedded H2 web console |
+|         |              | 6039      | TCP      | Embedded H2 database listener |
+|         |              | 6040      | HTTP     | Internal chat service API |
+|         |              | 6042      | HTTP     | Web UI / REST API |
+| TDgpt   | Anode        | 6035      | TCP      | TDgpt service interface |
+|         | TDtsfm       | 6061      | TCP      | Time-series foundation model service |
+|         | Time-MoE     | 6062      | TCP      | Model service |
+|         | Chronos      | 6063      | TCP      | Model service |
+|         | Moirai       | 6064      | TCP      | Model service |
+|         | TimesFM      | 6065      | TCP      | Model service |
+|         | Moment       | 6066      | TCP      | Model service |
+|         | Reserved     | 6067-6070 | TCP      | Reserved model service ports |
+| CLS     | CLS          | 6059      | HTTP     | Web UI / license service |

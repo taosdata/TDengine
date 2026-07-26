@@ -4790,9 +4790,26 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   int64_t this = pRequest->self;
   SRequestObj* pThis = acquireRequest(this);
   if (pThis != pRequest) {
-    // NOTE: internal logic error, not recoverable!!!
-    tscError("internal logic error: SRequestObj lifecycle management");
-    abort();
+    if (pThis != NULL) {
+      (void)releaseRequest(this);  // balance the (wrong-object) acquire above
+    }
+
+    if (pThis != NULL || !pRequest->killed) {
+      // A different live object occupies this id, or the id vanished for a request that was
+      // never killed -- genuine, unexplained corruption. Keep the hard stop.
+      // NOTE: internal logic error, not recoverable!!!
+      tscError("internal logic error: SRequestObj lifecycle management");
+      abort();
+    }
+
+    // Expected shutdown race: the owning connection/app instance was torn down concurrently
+    // (taos_close / process exit -> destroyAllRequests) and already reclaimed this request's id
+    // from clientReqRefPool before this in-flight completion could run. pRequest is still the
+    // exact object we were asked to complete (ref-counting guarantees it can't be freed out from
+    // under us), so deliver the callback instead of leaving the original caller blocked forever.
+    tscWarn("QID:0x%" PRIx64 ", req:0x%" PRIx64 ", request id reclaimed by a concurrent close "
+            "while delivering its completion; request was killed, continuing safely",
+            pRequest->requestId, pRequest->self);
   }
 
   if (tsQueryTbNotExistAsEmpty && TD_RES_QUERY(&pRequest->resType) && pRequest->isQuery &&
@@ -4815,7 +4832,9 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   }
 
   pRequest->inCallback = false;
-  (void)releaseRequest(this); // NOTE: pairing `pThis = acquireRequest(this);`
+  if (pThis == pRequest) {
+    (void)releaseRequest(this);  // NOTE: pairing `pThis = acquireRequest(this);`
+  }
 }
 
 int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser,

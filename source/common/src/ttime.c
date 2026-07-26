@@ -850,6 +850,9 @@ int32_t convertCalendarTimeFromUnitToPrecision(
             int64_t years = time / 12;
             int32_t rem   = (int32_t)(time % 12);
 
+            if (years > (INT64_MAX - MIN_DAYS_IN_N_MONTHS[rem]) / 365) {
+              return TSDB_CODE_INVALID_PARA;
+            }
             totalDays = years * 365 + MIN_DAYS_IN_N_MONTHS[rem];
             break;
         }
@@ -860,6 +863,9 @@ int32_t convertCalendarTimeFromUnitToPrecision(
                 return TSDB_CODE_INVALID_PARA;
             }
 
+            if (time > INT64_MAX / 365) {
+              return TSDB_CODE_INVALID_PARA;
+            }
             // 连续 time 年的最少天数（忽略闰年）
             totalDays = time * 365;
             break;
@@ -869,7 +875,11 @@ int32_t convertCalendarTimeFromUnitToPrecision(
             return TSDB_CODE_INVALID_PARA;
     }
 
-    *pRes = totalDays * (NANOSECOND_PER_DAY / factors[toPrecision]);
+    int64_t ticksPerDay = NANOSECOND_PER_DAY / factors[toPrecision];
+    if (totalDays > INT64_MAX / ticksPerDay) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    *pRes = totalDays * ticksPerDay;
 
     return TSDB_CODE_SUCCESS;
 }
@@ -1150,6 +1160,20 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
 
 static bool taosIsLeapYear(int32_t year) { return (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)); }
 
+static bool convertSecondsToTicks(int64_t seconds, int64_t fraction, int64_t factor, int64_t* ticks) {
+  if (seconds > INT64_MAX / factor || seconds < INT64_MIN / factor) {
+    return false;
+  }
+
+  int64_t value = seconds * factor;
+  if ((fraction > 0 && value > INT64_MAX - fraction) || (fraction < 0 && value < INT64_MIN - fraction)) {
+    return false;
+  }
+
+  *ticks = value + fraction;
+  return true;
+}
+
 /*
  * Days since 1970-01-01 for a proleptic Gregorian civil date (Howard Hinnant's
  * algorithm).  Counts whole local calendar days between two instants in a
@@ -1209,7 +1233,12 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
       uError("failed to convert local time to time, code:%d", ERRNO);
       return t;
     }
-    return (int64_t)(tt * TSDB_TICK_PER_SECOND(precision) + fraction);
+    int64_t result = 0;
+    if (!convertSecondsToTicks((int64_t)tt, fraction, TSDB_TICK_PER_SECOND(precision), &result)) {
+      uError("time overflow, t:%" PRId64 ", duration:%" PRId64 ", unit:%c, precision:%d", t, duration, unit, precision);
+      return t;
+    }
+    return result;
   }
 
   if (!IS_CALENDAR_TIME_DURATION(unit)) {
@@ -1255,7 +1284,12 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
     uError("failed to convert gm time to time, code:%d", ERRNO);
     return t;
   }
-  return (int64_t)(tt * TSDB_TICK_PER_SECOND(precision) + fraction);
+  int64_t result = 0;
+  if (!convertSecondsToTicks((int64_t)tt, fraction, TSDB_TICK_PER_SECOND(precision), &result)) {
+    uError("time overflow, t:%" PRId64 ", duration:%" PRId64 ", unit:%c, precision:%d", t, duration, unit, precision);
+    return t;
+  }
+  return result;
 }
 
 /**
@@ -1448,11 +1482,124 @@ static int64_t getTZOffsetAtTicks(int64_t ticks, int32_t precision, timezone_t t
   return offsetSec * factor;
 }
 
+static int64_t floorMod(int64_t value, int64_t divisor) {
+  int64_t remainder = value % divisor;
+  return (remainder < 0) ? remainder + divisor : remainder;
+}
+
+static int64_t floorModDiff(int64_t value, int64_t anchor, int64_t divisor) {
+  int64_t valueMod = floorMod(value, divisor);
+  int64_t anchorMod = floorMod(anchor, divisor);
+  return (valueMod >= anchorMod) ? valueMod - anchorMod : divisor - (anchorMod - valueMod);
+}
+
+static int64_t truncateWeekSliding(int64_t ts, const SInterval* pInterval) {
+  int64_t factor = TSDB_TICK_PER_SECOND(pInterval->precision);
+  int32_t firstDayOfWeek = pInterval->firstDayOfWeek;
+  if (firstDayOfWeek < 0 || firstDayOfWeek > 6) {
+    firstDayOfWeek = UNIX_EPOCH_WDAY;
+  }
+
+  int32_t   epochAnchorDay = (firstDayOfWeek - UNIX_EPOCH_WDAY + 7) % 7;
+  struct tm anchorTm = {.tm_year = 70, .tm_mon = 0, .tm_mday = 1 + epochAnchorDay, .tm_isdst = -1};
+  int64_t   slidingDays = 0;
+  bool      calendarSliding =
+      taosIsCalendarDayDuration(pInterval->sliding, pInterval->slidingUnit, pInterval->precision, &slidingDays);
+  int64_t anchor = 0;
+  if (!calendarSliding || pInterval->offset > 0) {
+    time_t anchorTime = taosMktime(&anchorTm, pInterval->timezone);
+    if (TAOS_MKTIME_FAILED(anchorTime) || !convertSecondsToTicks((int64_t)anchorTime, 0, factor, &anchor)) {
+      return ts;
+    }
+
+    if (pInterval->offset > 0) {
+      int64_t shifted =
+          taosTimeAdd(anchor, pInterval->offset, pInterval->offsetUnit, pInterval->precision, pInterval->timezone);
+      if (shifted == anchor) {
+        return ts;
+      }
+      anchor = shifted;
+    }
+  }
+
+  int64_t start = ts;
+  if (calendarSliding) {
+    int64_t seconds = ts / factor;
+    if (ts < 0 && ts % factor != 0) {
+      --seconds;
+    }
+
+    time_t    time = (time_t)seconds;
+    struct tm tm;
+    if ((int64_t)time != seconds || taosLocalTime(&time, &tm, NULL, 0, pInterval->timezone) == NULL) {
+      return ts;
+    }
+
+    int64_t anchorFraction = 0;
+    if (pInterval->offset > 0) {
+      int64_t anchorSeconds = anchor / factor;
+      if (anchor < 0 && anchor % factor != 0) {
+        --anchorSeconds;
+      }
+      anchorFraction = anchor - anchorSeconds * factor;
+      time_t anchorTime = (time_t)anchorSeconds;
+      if ((int64_t)anchorTime != anchorSeconds ||
+          taosLocalTime(&anchorTime, &anchorTm, NULL, 0, pInterval->timezone) == NULL) {
+        return ts;
+      }
+    }
+
+    int64_t currentDay = taosDaysFromCivil(tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+    int64_t anchorDay = taosDaysFromCivil(anchorTm.tm_year + 1900, anchorTm.tm_mon + 1, anchorTm.tm_mday);
+    int64_t daysBack = floorMod(currentDay - anchorDay, slidingDays);
+    if (daysBack > INT32_MAX) {
+      return ts;
+    }
+
+    tm.tm_mday -= (int32_t)daysBack;
+    tm.tm_hour = anchorTm.tm_hour;
+    tm.tm_min = anchorTm.tm_min;
+    tm.tm_sec = anchorTm.tm_sec;
+    tm.tm_isdst = -1;
+    time_t truncated = taosMktime(&tm, pInterval->timezone);
+    if (TAOS_MKTIME_FAILED(truncated) || !convertSecondsToTicks((int64_t)truncated, anchorFraction, factor, &start)) {
+      return ts;
+    }
+
+    if (start > ts) {
+      int64_t prev = getNextTimeWindowStart(pInterval, start, TSDB_ORDER_DESC);
+      if (prev >= start) {
+        return ts;
+      }
+      start = prev;
+    }
+  } else {
+    int64_t remainder = floorModDiff(ts, anchor, pInterval->sliding);
+    if (ts < INT64_MIN + remainder) {
+      return ts;
+    }
+    start = ts - remainder;
+  }
+
+  while (true) {
+    int64_t prev = getNextTimeWindowStart(pInterval, start, TSDB_ORDER_DESC);
+    if (prev >= start) {
+      break;
+    }
+    if (start <= ts && taosTimeGetIntervalEnd(prev, pInterval) < ts) {
+      break;
+    }
+    start = prev;
+  }
+
+  return start;
+}
+
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
   if (ts <= INT64_MIN || ts >= INT64_MAX) {
     return ts;
   }
-  if (pInterval->sliding == 0) {
+  if (pInterval->sliding <= 0) {
     return ts;
   }
 
@@ -1461,9 +1608,9 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
   if (IS_CALENDAR_TIME_DURATION(pInterval->slidingUnit)) {
     start /= (int64_t)(TSDB_TICK_PER_SECOND(precision));
-    struct tm  tm;
-    time_t     tt = (time_t)start;
-    if (taosLocalTime(&tt, &tm, NULL, 0, pInterval->timezone) == NULL){
+    struct tm tm;
+    time_t    tt = (time_t)start;
+    if (taosLocalTime(&tt, &tm, NULL, 0, pInterval->timezone) == NULL) {
       uError("%s failed to convert time to local time, code:%d", __FUNCTION__, ERRNO);
       return ts;
     }
@@ -1499,7 +1646,8 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       start = news;
       if (news <= ts) {
         int64_t prev = news;
-        int64_t newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
+        int64_t newe =
+            taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
 
         if (newe < ts) {  // move towards the greater endpoint
           while (newe < ts && news < ts) {
@@ -1523,23 +1671,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       }
     } else {
       if (pInterval->intervalUnit == 'w') {
-        /* Week interval: align to local week boundary using firstDayOfWeek (0-6).
-         * The default keeps Unix epoch alignment and is shared via tsDefaultFirstDayOfWeek. */
-        time_t    t = (time_t)(ts / (int64_t)TSDB_TICK_PER_SECOND(precision));
-        struct tm tm;
-        if (taosLocalTime(&t, &tm, NULL, 0, pInterval->timezone) != NULL) {
-          int32_t daysBack = (tm.tm_wday - pInterval->firstDayOfWeek + 7) % 7;
-          /* tm_mday may go negative; POSIX mktime normalizes this. */
-          tm.tm_mday -= daysBack;
-          tm.tm_hour = 0;
-          tm.tm_min = 0;
-          tm.tm_sec = 0;
-          tm.tm_isdst = -1;
-          time_t truncated = taosMktime(&tm, pInterval->timezone);
-          if (!TAOS_MKTIME_FAILED(truncated)) {
-            start = (int64_t)truncated * (int64_t)TSDB_TICK_PER_SECOND(precision);
-          }
-        }
+        return truncateWeekSliding(ts, pInterval);
       } else {
         int64_t delta = ts - pInterval->interval;
         start = (delta / pInterval->sliding) * pInterval->sliding;
@@ -1559,7 +1691,8 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
             if (start == prevStart) break;  // taosTimeAdd made no progress (tz/mktime error); avoid infinite loop
 
             if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-              end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
+              end =
+                  taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
             } else {
               end = INT64_MAX;
               break;

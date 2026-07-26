@@ -51,8 +51,8 @@ class TimeNaturalUnitsTest : public ::testing::Test {
    * @param precision Time precision (TSDB_TIME_PRECISION_MILLI/MICRO/NANO)
    * @return Timestamp in specified precision
    */
-  int64_t makeTimestamp(int year, int month, int day, int hour, int minute, int second,
-                        int8_t precision = TSDB_TIME_PRECISION_MILLI) {
+  int64_t makeTimestampAt(int year, int month, int day, int hour, int minute, int second, timezone_t timezone,
+                          int8_t precision = TSDB_TIME_PRECISION_MILLI) {
     struct tm tm = {0};
     tm.tm_year = year - 1900;
     tm.tm_mon = month - 1;
@@ -62,7 +62,7 @@ class TimeNaturalUnitsTest : public ::testing::Test {
     tm.tm_sec = second;
     tm.tm_isdst = -1;
 
-    time_t  t = taosMktime(&tm, tz);
+    time_t  t = taosMktime(&tm, timezone);
     int64_t ts = (int64_t)t;
 
     switch (precision) {
@@ -75,6 +75,11 @@ class TimeNaturalUnitsTest : public ::testing::Test {
       default:
         return ts * 1000LL;
     }
+  }
+
+  int64_t makeTimestamp(int year, int month, int day, int hour, int minute, int second,
+                        int8_t precision = TSDB_TIME_PRECISION_MILLI) {
+    return makeTimestampAt(year, month, day, hour, minute, second, tz, precision);
   }
 
   timezone_t tz;
@@ -126,6 +131,244 @@ TEST_F(TimeNaturalUnitsTest, MultiPeriodWeekAlignmentExactBoundary) {
    */
   int64_t expected = makeTimestamp(2026, 4, 27, 0, 0, 0);
   EXPECT_EQ(result, expected);
+}
+
+TEST_F(TimeNaturalUnitsTest, TruncateMultiWeekSlidingKeepsEpochPhase) {
+  const int64_t week = 7LL * 24 * 60 * 60 * 1000;
+  SInterval     interval = {};
+  interval.timezone = tz;
+  interval.intervalUnit = 'w';
+  interval.slidingUnit = 'w';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.firstDayOfWeek = 0;
+  interval.interval = 13 * week;
+  interval.sliding = 6 * week;
+  interval.offset = 5 * week;
+
+  EXPECT_EQ(taosTimeTruncate(makeTimestamp(2021, 12, 25, 23, 33, 20), &interval), makeTimestamp(2021, 9, 26, 0, 0, 0));
+  EXPECT_EQ(taosTimeTruncate(makeTimestamp(2021, 12, 26, 3, 25, 50), &interval), makeTimestamp(2021, 11, 7, 0, 0, 0));
+
+  int64_t firstWindowEnd = makeTimestamp(2021, 12, 25, 23, 59, 59) + 999;
+  EXPECT_EQ(taosTimeTruncate(firstWindowEnd, &interval), makeTimestamp(2021, 9, 26, 0, 0, 0));
+  EXPECT_EQ(taosTimeTruncate(firstWindowEnd + 1, &interval), makeTimestamp(2021, 11, 7, 0, 0, 0));
+}
+
+TEST_F(TimeNaturalUnitsTest, TruncateMultiWeekSlidingRespectsEveryFirstDayOfWeek) {
+  const int64_t week = 7LL * 24 * 60 * 60 * 1000;
+  SInterval     interval = {};
+  interval.timezone = tz;
+  interval.intervalUnit = 'w';
+  interval.slidingUnit = 'w';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.interval = 13 * week;
+  interval.sliding = 6 * week;
+  interval.offset = 5 * week;
+
+  struct TestCase {
+    int8_t  firstDayOfWeek;
+    int32_t expectedMonth;
+    int32_t expectedDay;
+  };
+  const TestCase testCases[] = {
+      {1, 9, 27}, {2, 9, 28}, {3, 9, 29}, {4, 11, 4}, {5, 11, 5}, {6, 11, 6},
+  };
+
+  for (const TestCase& testCase : testCases) {
+    SCOPED_TRACE(testCase.firstDayOfWeek);
+    interval.firstDayOfWeek = testCase.firstDayOfWeek;
+    EXPECT_EQ(taosTimeTruncate(makeTimestamp(2021, 12, 25, 23, 33, 20), &interval),
+              makeTimestamp(2021, testCase.expectedMonth, testCase.expectedDay, 0, 0, 0));
+  }
+}
+
+TEST_F(TimeNaturalUnitsTest, TruncateWeekFixedSlidingStopsAtDstFoldGap) {
+#ifndef WINDOWS
+  timezone_t ny = tzalloc("America/New_York");
+  ASSERT_NE(ny, nullptr);
+
+  const int64_t second = 1000;
+  const int64_t week = 7LL * 24 * 60 * 60 * second;
+  SInterval     interval = {};
+  interval.timezone = ny;
+  interval.intervalUnit = 'w';
+  interval.slidingUnit = 's';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.firstDayOfWeek = 0;
+  interval.interval = week;
+  interval.sliding = second;
+
+  const int64_t repeatedHourTs = 1731218401000LL;                           // 2024-11-10 01:00:01 EST
+  EXPECT_EQ(taosTimeTruncate(repeatedHourTs, &interval), 1730613602000LL);  // 2024-11-03 01:00:02 EST
+
+  tzfree(ny);
+#endif
+}
+
+TEST_F(TimeNaturalUnitsTest, TruncateWeekCalendarSlidingStopsAtDstGap) {
+#ifndef WINDOWS
+  timezone_t ny = tzalloc("America/New_York");
+  ASSERT_NE(ny, nullptr);
+
+  const int64_t minute = 60LL * 1000;
+  const int64_t week = 7LL * 24 * 60 * minute;
+  SInterval     interval = {};
+  interval.timezone = ny;
+  interval.intervalUnit = 'w';
+  interval.slidingUnit = 'w';
+  interval.offsetUnit = 'm';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.firstDayOfWeek = 0;
+  interval.interval = 6 * week;
+  interval.sliding = week;
+  interval.offset = 150 * minute;
+
+  EXPECT_EQ(taosTimeTruncate(makeTimestampAt(2024, 3, 31, 3, 0, 0, ny), &interval),
+            makeTimestampAt(2024, 3, 17, 2, 30, 0, ny));
+
+  tzfree(ny);
+#endif
+}
+
+TEST_F(TimeNaturalUnitsTest, TruncateWeekChecksPreviousWindowAfterDstGap) {
+#ifndef WINDOWS
+  timezone_t ny = tzalloc("America/New_York");
+  ASSERT_NE(ny, nullptr);
+
+  const int64_t minute = 60LL * 1000;
+  const int64_t week = 7LL * 24 * 60 * minute;
+  SInterval     interval = {};
+  interval.timezone = ny;
+  interval.intervalUnit = 'w';
+  interval.slidingUnit = 'w';
+  interval.offsetUnit = 'm';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.firstDayOfWeek = 0;
+  interval.interval = 6 * week;
+  interval.sliding = week;
+  interval.offset = 150 * minute;
+
+  EXPECT_EQ(taosTimeTruncate(makeTimestampAt(2024, 1, 28, 3, 0, 0, ny), &interval),
+            makeTimestampAt(2023, 12, 24, 2, 30, 0, ny));
+
+  tzfree(ny);
+#endif
+}
+
+TEST_F(TimeNaturalUnitsTest, TruncateMultiWeekSlidingWithoutOffsetFindsEarliestWindow) {
+  const int64_t week = 7LL * 24 * 60 * 60 * 1000;
+  SInterval     interval = {};
+  interval.timezone = tz;
+  interval.intervalUnit = 'w';
+  interval.slidingUnit = 'w';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.firstDayOfWeek = 0;
+  interval.interval = 13 * week;
+  interval.sliding = 6 * week;
+
+  EXPECT_EQ(taosTimeTruncate(makeTimestamp(2021, 12, 25, 23, 33, 20), &interval), makeTimestamp(2021, 10, 3, 0, 0, 0));
+}
+
+TEST_F(TimeNaturalUnitsTest, TruncateWeekIntervalKeepsCalendarDaySlidingPhase) {
+  const int64_t day = 24LL * 60 * 60 * 1000;
+  SInterval     interval = {};
+  interval.timezone = tz;
+  interval.intervalUnit = 'w';
+  interval.slidingUnit = 'd';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.firstDayOfWeek = 0;
+  interval.interval = 14 * day;
+  interval.sliding = 14 * day;
+
+  EXPECT_EQ(taosTimeTruncate(makeTimestamp(2021, 12, 25, 23, 33, 20), &interval), makeTimestamp(2021, 12, 12, 0, 0, 0));
+}
+
+TEST_F(TimeNaturalUnitsTest, TruncateWeekIntervalKeepsFixedHourSlidingAcrossDst) {
+#ifndef WINDOWS
+  timezone_t ny = tzalloc("America/New_York");
+  ASSERT_NE(ny, nullptr);
+
+  const int64_t hour = 60LL * 60 * 1000;
+  SInterval     interval = {};
+  interval.timezone = ny;
+  interval.intervalUnit = 'w';
+  interval.slidingUnit = 'h';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.firstDayOfWeek = 0;
+  interval.interval = 7 * 24 * hour;
+  interval.sliding = 168 * hour;
+
+  EXPECT_EQ(taosTimeTruncate(makeTimestampAt(2024, 11, 9, 12, 0, 0, ny), &interval), 1730610000000LL);
+  tzfree(ny);
+#endif
+}
+
+TEST_F(TimeNaturalUnitsTest, TruncateWeekOffsetKeepsCalendarSlidingPhaseAcrossDst) {
+#ifndef WINDOWS
+  timezone_t ny = tzalloc("America/New_York");
+  ASSERT_NE(ny, nullptr);
+
+  const int64_t day = 24LL * 60 * 60 * 1000;
+  SInterval     interval = {};
+  interval.timezone = ny;
+  interval.intervalUnit = 'w';
+  interval.slidingUnit = 'w';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.firstDayOfWeek = 0;
+  interval.interval = 7 * day;
+  interval.sliding = 7 * day;
+  interval.offset = day;
+
+  int64_t first = taosTimeTruncate(makeTimestampAt(2024, 3, 16, 12, 0, 0, ny), &interval);
+  int64_t second = taosTimeTruncate(makeTimestampAt(2024, 3, 23, 12, 0, 0, ny), &interval);
+  EXPECT_EQ(first, makeTimestampAt(2024, 3, 11, 0, 0, 0, ny));
+  EXPECT_EQ(second, makeTimestampAt(2024, 3, 18, 0, 0, 0, ny));
+  EXPECT_EQ(getNextTimeWindowStart(&interval, first, TSDB_ORDER_ASC), second);
+  tzfree(ny);
+#endif
+}
+
+TEST_F(TimeNaturalUnitsTest, TruncateWeekBeforeEpochUsesFloorPhase) {
+#ifndef WINDOWS
+  timezone_t utc = tzalloc("UTC");
+  ASSERT_NE(utc, nullptr);
+
+  const int64_t week = 7LL * 24 * 60 * 60 * 1000;
+  SInterval     interval = {};
+  interval.timezone = utc;
+  interval.intervalUnit = 'w';
+  interval.slidingUnit = 'w';
+  interval.precision = TSDB_TIME_PRECISION_MILLI;
+  interval.firstDayOfWeek = UNIX_EPOCH_WDAY;
+  interval.interval = week;
+  interval.sliding = week;
+
+  EXPECT_EQ(taosTimeTruncate(-1, &interval), makeTimestampAt(1969, 12, 25, 0, 0, 0, utc));
+  tzfree(utc);
+#endif
+}
+
+TEST_F(TimeNaturalUnitsTest, CalendarDayAddRejectsNanosecondOverflow) {
+#ifndef WINDOWS
+  timezone_t utc = tzalloc("UTC");
+  ASSERT_NE(utc, nullptr);
+
+  const int64_t day = 24LL * 60 * 60 * 1000000000;
+  int64_t       nearMax = INT64_MAX - day / 2;
+  int64_t       nearMin = INT64_MIN + day / 2;
+  EXPECT_EQ(taosTimeAdd(nearMax, day, 'd', TSDB_TIME_PRECISION_NANO, utc), nearMax);
+  EXPECT_EQ(taosTimeAdd(nearMin, -day, 'd', TSDB_TIME_PRECISION_NANO, utc), nearMin);
+
+  tzfree(utc);
+#endif
+}
+
+TEST_F(TimeNaturalUnitsTest, CalendarDurationConversionRejectsNanosecondOverflow) {
+  int64_t ticks = 0;
+  EXPECT_EQ(convertCalendarTimeFromUnitToPrecision(292, 'y', TSDB_TIME_PRECISION_NANO, &ticks), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(ticks, 9208512000000000000LL);
+  EXPECT_EQ(convertCalendarTimeFromUnitToPrecision(293, 'y', TSDB_TIME_PRECISION_NANO, &ticks), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(convertCalendarTimeFromUnitToPrecision(INT64_MAX, 'n', TSDB_TIME_PRECISION_MILLI, &ticks),
+            TSDB_CODE_INVALID_PARA);
 }
 
 /**
