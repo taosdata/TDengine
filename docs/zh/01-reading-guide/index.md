@@ -5,15 +5,15 @@ description: TDengine TSDB 用户手册
 slug: /
 ---
 
-TDengine TSDB 是一款 [开源](https://www.taosdata.com/tdengine/open_source_time-series_database)、[高性能](https://www.taosdata.com/fast)、[云原生](https://www.taosdata.com/tdengine/cloud_native_time-series_database) 的 [时序数据库](https://www.taosdata.com/)（[Time Series Database](https://www.taosdata.com/time-series-database)，[TSDB](https://www.taosdata.com/tsdb)），专为物联网、车联网、工业互联网、金融、IT 运维等场景优化设计。同时内建缓存、流式计算、数据订阅等系统功能，能大幅降低系统设计复杂度以及研发与运营成本，是一款极简的时序数据处理平台。本文档是其用户手册，介绍基本概念、安装、使用、功能、开发接口、运营维护、内核设计等内容，面向架构师、开发工程师与系统管理员。若对时序数据的基本概念、价值及其业务意义尚不熟悉，请参考 [时序数据基础](../03-core-concepts/index.md)。
+TDengine TSDB（下文简称 TDengine）是一款 [开源](https://www.taosdata.com/tdengine/open_source_time-series_database)、[高性能](https://www.taosdata.com/fast)、[云原生](https://www.taosdata.com/tdengine/cloud_native_time-series_database) 的 [时序数据库](https://www.taosdata.com/)（[Time Series Database](https://www.taosdata.com/time-series-database)，[TSDB](https://www.taosdata.com/tsdb)），专为物联网、车联网、工业互联网、金融、IT 运维等场景优化设计。同时内建缓存、流式计算、数据订阅等系统功能，能大幅降低系统设计复杂度以及研发与运营成本，是一款极简的时序数据处理平台。本文档是其用户手册，介绍基本概念、安装、使用、功能、开发接口、运营维护、内核设计等内容，面向架构师、开发工程师与系统管理员。若对时序数据的基本概念、价值及其业务意义尚不熟悉，请参考 [时序数据基础](../03-core-concepts/index.md)。
 
-TDengine TSDB 充分利用时序数据的特点，提出了“一个数据采集点一张表”与“超级表”的概念，并设计了创新的存储引擎，显著提升写入、查询与存储效率。为正确理解并使用它，无论你担任何种角色，请仔细阅读 [数据建模](../04-quick-start/02-data-modeling.md) 一章。
+TDengine 充分利用时序数据的特点，提出了“一个数据采集点一张表”与“超级表”的概念，并设计了创新的存储引擎，显著提升写入、查询与存储效率。为正确理解并使用它，无论你担任何种角色，请仔细阅读 [基本概念](../04-quick-start/02-basic-concepts.md) 一章。
 
 若你是开发工程师，请仔细阅读 [开发指南](../10-developer-guide/index.md) 一章。该章详细介绍数据库连接、建模、写入、查询、流式计算、缓存、数据订阅、用户自定义函数等功能，并提供多种编程语言的示例代码。多数情况下，复制示例代码并按自身应用稍作修改即可运行。如需进一步了解 REST API 与各语言连接器，请参阅 [连接器参考](../10-developer-guide/08-connectors-reference/index.md) 一章。
 
-在大数据时代，纵向扩展已难以满足持续增长的业务需求，系统普遍需要具备水平扩展能力，集群已成为大数据与数据库系统不可或缺的能力。TDengine 团队不仅实现了集群功能，还将这一核心能力开源。关于如何部署、管理与维护 TDengine TSDB 集群，请仔细参阅 [运维指南](../12-operations-and-tooling/02-operations/index.md) 一章。
+在大数据时代，纵向扩展已难以满足持续增长的业务需求，系统普遍需要具备水平扩展能力，集群已成为大数据与数据库系统不可或缺的能力。TDengine 团队不仅实现了集群功能，还将这一核心能力开源。关于如何部署、管理与维护 TDengine 集群，请仔细参阅 [运维指南](../12-operations-and-tooling/02-operations/index.md) 一章。
 
-TDengine TSDB 采用 SQL 作为查询语言，可显著降低学习与迁移成本；同时针对时序数据场景进行了扩展，以支持插值、降采样、时间加权平均等操作。[TDengine SQL](../05-tdengine-sql/index.md) 一章详细说明 SQL 语法，并列出支持的命令与函数。
+TDengine 采用 SQL 作为查询语言，可显著降低学习与迁移成本；同时针对时序数据场景进行了扩展，以支持插值、降采样、时间加权平均等操作。[TDengine SQL](../05-tdengine-sql/index.md) 一章详细说明 SQL 语法，并列出支持的命令与函数。
 
 若你是系统管理员，需要了解安装、升级、容错灾备，以及数据导入导出、配置参数、健康监测与性能优化等内容，请仔细参阅 [运维指南](../12-operations-and-tooling/02-operations/index.md) 一章。
 
