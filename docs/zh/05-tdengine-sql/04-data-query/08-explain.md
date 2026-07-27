@@ -804,7 +804,7 @@ QUERY_PLAN: Execution Time: 8.138 ms
 
 ## 相关文档
 
-- [数据查询](../../04-quick-start/04-query-and-aggregate.md)
+- [数据查询](./01-query.md)
 - [特色查询](./06-distinguished.md)
 - [关联查询](./07-join.md)
 - [标签索引](../06-index-and-view/01-tagindex.md)

@@ -80,10 +80,10 @@ fill_mode_and_val:
   | VALUE|VALUE_F [, fill_vals]
   | PREV|NEXT|NEAR
   | LINEAR
- 
+
 group_by_clause:
     GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
-                                                    
+
 group_by_expr:
     {expr | position | c_alias}
 
@@ -651,6 +651,43 @@ SLIMIT 和 PARTITION BY/GROUP BY 子句一起使用，用来控制输出的分�
 
 需要注意，如果有 ORDER BY 子句，则输出只有一个分片。
 
+## 常用时间范围表达式
+
+时序查询通常会在 `WHERE` 子句中限定主键时间戳列的范围。建议优先使用左闭右开的时间区间（`ts >= start AND ts < end`），避免相邻区间之间重复统计边界数据。
+
+常见写法如下：
+
+```sql
+-- 最近 1 小时
+SELECT * FROM meters
+WHERE ts >= NOW() - 1h;
+
+-- 今天
+SELECT * FROM meters
+WHERE ts >= TODAY() AND ts < TODAY() + 1d;
+
+-- 昨天
+SELECT * FROM meters
+WHERE ts >= TODAY() - 1d AND ts < TODAY();
+
+-- 本周以来
+SELECT * FROM meters
+WHERE ts >= TIMETRUNCATE(NOW(), 1w);
+
+-- 本月以来
+SELECT * FROM meters
+WHERE ts >= TIMETRUNCATE(NOW(), 1n);
+
+-- 指定时间范围
+SELECT * FROM meters
+WHERE ts >= '2024-01-01 00:00:00'
+  AND ts < '2024-02-01 00:00:00';
+```
+
+其中，[NOW()](03-function.md#now) 返回当前时间，[TODAY()](03-function.md#today) 返回当前日期零点，
+[TIMETRUNCATE()](03-function.md#timetruncate) 用于按指定时间单位截断时间戳。
+时间字符串的解析和显示受当前连接时区影响，详见[时区](../10-time/01-timezone.md)。
+
 ## 特殊功能
 
 部分特殊的查询功能可以不使用 FROM 子句执行。
@@ -857,7 +894,7 @@ SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 select col1 from tb2 where col1 in (select col1 from tb1 where f2 > 10);
 
 -- JOIN 关联条件中使用
-select a.ts from tb1 a 
+select a.ts from tb1 a
 join tb2 b on a.ts = b.ts and a.f1 in (select col1 from tb1 union select col1 from tb2);
 
 -- CASE 表达式中使用
@@ -873,7 +910,7 @@ NOT IN 运算符与子查询的组合使用，判断表达式的值是否与子�
 select col1 from tb2 where col1 not in (select col1 from tb1 where f2 < 100);
 
 -- HAVING 子句中使用
-select avg(f1) from tb1 
+select avg(f1) from tb1
 group by f1 having f1 not in (select f1 from tb2 interval(10s));
 
 -- JOIN 关联条件中使用
@@ -893,7 +930,7 @@ select col1, col2 from tb1 where col1 > ALL (select f1 from tb2 where f2 > 10);
 select col1 from tb1 where col1 <> ALL (select avg(f1) from tb2 group by f2);
 
 -- HAVING 子句中使用
-select sum(f1) from tb1 
+select sum(f1) from tb1
 group by f1 having max(f2) <= ALL (select col3 from tb3 interval(1s));
 ```
 
@@ -903,11 +940,11 @@ ANY 运算符与子查询的组合使用，ANY 需与比较运算符（`=`, `>`,
 
 ```sql
 -- 小于子查询任意一个结果
-select a.ts, b.val from tb1 a 
+select a.ts, b.val from tb1 a
 join tb2 b on a.ts = b.ts and a.f1 < ANY (select col1 from tb3 union select col1 from tb4);
 
 -- INSERT INTO SELECT 中使用
-insert into tb6 (ts, val) 
+insert into tb6 (ts, val)
 select ts, f1 from tb1 where f1 = ANY (select col1 from tb7 where ts > '2026-01-01 00:00:00');
 
 -- CASE 表达式中使用
@@ -920,7 +957,7 @@ SOME 运算符与子查询的组合使用，SOME 与 ANY 功能完全等价，�
 
 ```sql
 -- HAVING 子句中使用
-select avg(f1) from tb1 
+select avg(f1) from tb1
 group by f1 having sum(f2) >= SOME (select f3 from tb2 interval(1s));
 
 -- SELECT 列表中使用
@@ -936,12 +973,12 @@ EXISTS 运算符与子查询的组合使用，EXISTS 仅判断子查询是否返
 
 ```sql
 -- CASE 表达式中使用
-select case when exists (select 1 from tb2 where tb2.col1 = 1) 
+select case when exists (select 1 from tb2 where tb2.col1 = 1)
            then 'exist' else 'not exist' end as status from tb1;
 
 -- UNION 中组合使用
-select col1 from tb1 where exists (select 1 from tb4) 
-union 
+select col1 from tb1 where exists (select 1 from tb4)
+union
 select col2 from tb2 where exists (select 1 from tb5 where f2 > 0);
 
 -- WHERE 子句基础用法
@@ -957,12 +994,12 @@ NOT EXISTS 运算符与子查询的组合使用，NOT EXISTS 与 EXISTS 逻辑�
 select col1, not exists (select f1 from tb3 where f1 = 1) as flag from tb1;
 
 -- WHERE 子句中使用
-select col1 from tb1 
+select col1 from tb1
 where not exists (select 1 from tb2 where f2 between 10 and 20);
 
 -- JOIN 关联条件中使用
 select a.ts from tb1 a
-left join tb2 b on a.ts = b.ts 
+left join tb2 b on a.ts = b.ts
 where not exists (select 1 from tb3 where tb3.col1 = 1);
 ```
 
