@@ -490,8 +490,12 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   // Batch meta txn: set bit 6 on type to signal txnId/txnStatus follow at the end.
   // For non-txn entries (txnId == 0), type is encoded as-is — zero disk overhead.
   int8_t encType = (pME->txnId != 0 && pME->type > 0) ? TABLE_TYPE_SET_TXN(pME->type) : pME->type;
+  // The trailer is written whenever the table owns tags OR ever owned them: after the last tag is
+  // dropped the schema is empty but schemaTag.version must survive restarts (it stays monotonic so
+  // alter responses never look stale to the client catalog cache). Never-tagged tables (version==0)
+  // keep zero disk overhead.
   bool hasNtbTag = (pME->type == TSDB_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_NORMAL_TABLE) &&
-                   pME->ntbEntry.schemaTag.nCols > 0;
+                   (pME->ntbEntry.schemaTag.nCols > 0 || pME->ntbEntry.schemaTag.version > 0);
   if (hasNtbTag) encType = TABLE_TYPE_SET_NTB_TAG(encType);
   TAOS_CHECK_RETURN(tEncodeI8(pCoder, encType));
   TAOS_CHECK_RETURN(tEncodeI64(pCoder, pME->uid));
@@ -586,8 +590,14 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   }
 
   // Normal/virtual-normal owned tags: trailing trailer, signaled by NTB_TAG bit (bit 5).
-  // Zero disk overhead for tables without tags and for old records.
+  // Written whenever tags are owned or were ever owned (version > 0), so the monotonic tag
+  // schema version survives restarts. Never-tagged tables and old records have no trailer.
   if (hasNtbTag) {
+    // invariant: the trailer always carries a valid (possibly empty) STag — a NULL pTags here
+    // means a malformed entry (e.g. crafted create req); reject instead of dereferencing NULL.
+    if (pME->ntbEntry.pTags == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     TAOS_CHECK_RETURN(tEncodeSSchemaWrapper(pCoder, &pME->ntbEntry.schemaTag));
     TAOS_CHECK_RETURN(tEncodeTag(pCoder, (const STag *)pME->ntbEntry.pTags));
   }
@@ -969,23 +979,27 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
       return code;
     }
 
-    // owned tags (normal/virtual-normal table with tags)
+    // owned tags (normal/virtual-normal table with tags). The tag schema version is copied even
+    // when the schema is empty (all tags dropped): it stays monotonic so alter responses never
+    // look stale to the client catalog. pTags may hold an empty STag in that state (kept so the
+    // entry's tag trailer stays encodable) — clone it whenever present.
+    (*ppEntry)->ntbEntry.schemaTag.version = pEntry->ntbEntry.schemaTag.version;
     if (pEntry->ntbEntry.schemaTag.nCols > 0) {
       code = metaCloneSchema(&pEntry->ntbEntry.schemaTag, &(*ppEntry)->ntbEntry.schemaTag);
       if (code) {
         metaCloneEntryFree(ppEntry);
         return code;
       }
-      STag *pTags = (STag *)pEntry->ntbEntry.pTags;
-      if (pTags != NULL) {
-        (*ppEntry)->ntbEntry.pTags = taosMemoryCalloc(1, pTags->len);
-        if (NULL == (*ppEntry)->ntbEntry.pTags) {
-          code = terrno;
-          metaCloneEntryFree(ppEntry);
-          return code;
-        }
-        memcpy((*ppEntry)->ntbEntry.pTags, pEntry->ntbEntry.pTags, pTags->len);
+    }
+    STag *pNtbTags = (STag *)pEntry->ntbEntry.pTags;
+    if (pNtbTags != NULL) {
+      (*ppEntry)->ntbEntry.pTags = taosMemoryCalloc(1, pNtbTags->len);
+      if (NULL == (*ppEntry)->ntbEntry.pTags) {
+        code = terrno;
+        metaCloneEntryFree(ppEntry);
+        return code;
       }
+      memcpy((*ppEntry)->ntbEntry.pTags, pEntry->ntbEntry.pTags, pNtbTags->len);
     }
 
     // comment
