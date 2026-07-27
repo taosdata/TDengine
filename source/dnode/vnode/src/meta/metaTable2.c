@@ -756,6 +756,9 @@ static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, S
   // client catalog does not cache a tag-less meta — same fix as the virtual-normal-table path.
   code = metaAppendNtbTagSchemaToRsp(pEntry, *ppRsp);
   if (code) {
+    // pSchemas/pSchemaExt are already populated by metaUpdateMetaRsp above — deep-free them
+    // (mirrors metaBuildCreateVirtualNormalTableRsp), else the shallow free leaks both buffers.
+    tFreeSTableMetaRsp(*ppRsp);
     taosMemoryFreeClear(*ppRsp);
     return code;
   }
@@ -879,6 +882,12 @@ static int32_t metaFillNtbTableMetaRsp(SMetaEntry *pEntry, const char *tbName, S
   int32_t code = metaUpdateVtbMetaRsp(pEntry, (char *)tbName, &pEntry->ntbEntry.schemaRow, &pEntry->colRef,
                                       pEntry->pExtSchemas, pEntry->ntbEntry.ownerId, pRsp, pEntry->type);
   if (code) return code;
+  // tversion must track the owned-tag schema version. Without it an ADD/DROP TAG response carries
+  // tversion=0 with unchanged sversion/rversion (plain normal tables bump neither), so the client
+  // catalog's version comparison (ctgWriteTbMetaToCache) discards the update as stale and the
+  // connection keeps a tagless/tagged-outdated cached meta. Mirrors vnodeGetTableMeta, which
+  // already reports schemaTag.version as tversion.
+  pRsp->tversion = pEntry->ntbEntry.schemaTag.version;
   // plain normal tables carry column compress options in colCmpr (mirrors the metaUpdateMetaRsp
   // response paths, e.g. metaAddTableColumn); metaFillRspSchemaExt only fills colId/typeMod.
   if (pEntry->type == TSDB_NORMAL_TABLE) {
@@ -1830,9 +1839,9 @@ int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  // only virtual normal tables own tags (super tables use mnd; child tables inherit; plain
-  // normal tables do not support tags)
-  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE) {
+  // only normal and virtual normal tables own tags (super tables use mnd; child tables inherit
+  // tags from the super table)
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE && pEntry->type != TSDB_NORMAL_TABLE) {
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
   }
@@ -1978,8 +1987,8 @@ int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STab
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
-  // only virtual normal tables own tags; plain normal tables do not support tags
-  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE) {
+  // only normal and virtual normal tables own tags; child tables inherit tags from the super table
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE && pEntry->type != TSDB_NORMAL_TABLE) {
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
   }
@@ -2014,9 +2023,11 @@ int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STab
     SSchema *pShrunk = taosMemoryRealloc(pTagSchema->pSchema, sizeof(SSchema) * pTagSchema->nCols);
     if (pShrunk != NULL) pTagSchema->pSchema = pShrunk;  // on failure keep the (over-sized) buffer
   } else {
-    // last tag dropped: table reverts to tagless
+    // last tag dropped: the schema goes empty but version stays monotonic — a reset to 0 would
+    // make the alter response look stale to the client catalog cache (ctgWriteTbMetaToCache
+    // ignores updates whose sversion/tversion/rversion do not advance) and would be lost on
+    // restart anyway, breaking every later tag alter on the same connection.
     taosMemoryFreeClear(pTagSchema->pSchema);
-    pTagSchema->version = 0;
   }
 
   // For virtual normal tables, keep colRef.pTagRef in sync with schemaTag: remove the dropped
@@ -2068,7 +2079,22 @@ int32_t metaDropTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STab
     taosMemoryFree(pEntry->ntbEntry.pTags);
     pEntry->ntbEntry.pTags = (uint8_t *)pNewTagVal;
   } else {
-    taosMemoryFreeClear(pEntry->ntbEntry.pTags);
+    // last tag dropped: keep a valid (empty) STag instead of NULL — the entry's tag trailer is
+    // still written (schemaTag.version stays monotonic) and must stay encodable.
+    SArray *pTagArray = taosArrayInit(1, sizeof(STagVal));
+    if (pTagArray == NULL) {
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
+    }
+    STag *pNewTagVal = NULL;
+    code = tTagNew(pTagArray, pTagSchema->version, false, &pNewTagVal);
+    taosArrayDestroy(pTagArray);
+    if (code) {
+      metaFetchEntryFree(&pEntry);
+      TAOS_RETURN(code);
+    }
+    taosMemoryFree(pEntry->ntbEntry.pTags);
+    pEntry->ntbEntry.pTags = (uint8_t *)pNewTagVal;
   }
 
   // persist
@@ -3053,16 +3079,15 @@ static int32_t metaUpdateTableTagValue(SMeta *pMeta, int64_t version, const char
   }
 
   if (pChild->type != TSDB_CHILD_TABLE && pChild->type != TSDB_VIRTUAL_CHILD_TABLE &&
-      pChild->type != TSDB_VIRTUAL_NORMAL_TABLE) {
-    const char* msgFmt = "vgId:%d, %s failed at %s:%d since table %s is not a child/virtual table, version:%" PRId64;
+      pChild->type != TSDB_VIRTUAL_NORMAL_TABLE && pChild->type != TSDB_NORMAL_TABLE) {
+    const char* msgFmt = "vgId:%d, %s failed at %s:%d since table %s is not a child/virtual/normal table, version:%" PRId64;
     metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, tbName, version);
     code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
     goto _exit;
   }
 
-  // virtual normal tables own their tags in ntbEntry (no super table to fetch); plain normal
-  // tables do not support tags
-  if (pChild->type == TSDB_VIRTUAL_NORMAL_TABLE) {
+  // normal and virtual normal tables own their tags in ntbEntry (no super table to fetch)
+  if (pChild->type == TSDB_VIRTUAL_NORMAL_TABLE || pChild->type == TSDB_NORMAL_TABLE) {
     SSchemaWrapper *pTagSchema = &pChild->ntbEntry.schemaTag;
     code = updatedTagValueArrayToHashMap(pTagSchema, tags, &pUpdatedTagVals);
     if (code) {

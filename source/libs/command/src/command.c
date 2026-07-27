@@ -1029,6 +1029,75 @@ _exit:
   return code;
 }
 
+// Normal table tags for SHOW CREATE round-trip: a normal table cannot declare tags inline —
+// `CREATE TABLE ... TAGS (...)` would create a super table — so emit replayable ALTER statements
+// after the CREATE: one ADD TAG per tag, plus SET TAG for each tag holding a non-NULL value
+// (NULL is the default and is omitted).
+static int32_t appendNtbTagAlterStmts(char* buf, int32_t* len, const char* tbName, STableCfg* pCfg,
+                                      void* charsetCxt) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pTagVals = NULL;
+  char    expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
+
+  STag* pTag = (STag*)pCfg->pTags;
+  if (pTag != NULL && !tTagIsJson(pTag)) {
+    code = tTagToValArray((const STag*)pCfg->pTags, &pTagVals);
+    TAOS_CHECK_ERRNO(code);
+  }
+  int32_t valueNum = pTagVals ? taosArrayGetSize(pTagVals) : 0;
+  int32_t j = 0;
+
+  for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
+    SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
+
+    char type[64];
+    snprintf(type, sizeof(type), "%s", tDataTypes[pSchema->type].name);
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
+        TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
+      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
+               (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+    } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
+      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
+               (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    }
+
+    *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                     "; ALTER TABLE `%s` ADD TAG `%s` %s", tbName, expandIdentifier(pSchema->name, expandName), type);
+
+    // SET TAG for a non-NULL value (pTagVals is sorted by cid)
+    while (j < valueNum) {
+      STagVal* v = (STagVal*)taosArrayGet(pTagVals, j);
+      if (v->cid < pSchema->colId) {
+        j++;
+        continue;
+      }
+      if (v->cid > pSchema->colId) break;  // no value for this tag (NULL) — omit
+      *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
+                       "; ALTER TABLE `%s` SET TAG `%s` = ", tbName, expandIdentifier(pSchema->name, expandName));
+      int32_t tlen = 0;
+      int64_t leftSize = SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len);
+      if (leftSize <= 0) {
+        code = TSDB_CODE_APP_ERROR;
+        TAOS_CHECK_ERRNO(code);
+      }
+      if (IS_VAR_DATA_TYPE(v->type)) {
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, v->type, v->pData, v->nData, &tlen);
+      } else {
+        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, v->type, &v->i64, tDataTypes[v->type].bytes,
+                               &tlen);
+      }
+      TAOS_CHECK_ERRNO(code);
+      *len += tlen;
+      j++;
+      break;
+    }
+  }
+
+_exit:
+  taosArrayDestroy(pTagVals);
+  return code;
+}
+
 static void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* pCfg) {
   if (pCfg->commentLen > 0) {
     *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
@@ -1193,15 +1262,13 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     appendColumnFields(buf2, &len, pCfg);
     len +=
         snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
-    if (pCfg->numOfTags > 0) {
-      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                      " TAGS (");
-      code = appendVTableTagFields(buf2, &len, pCfg, charsetCxt);
-      TAOS_CHECK_ERRNO(code);
-      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
-                      ")");
-    }
     appendTableOptions(buf2, &len, pDbCfg, pCfg);
+    // normal-table tags cannot be declared inline (a TAGS clause on CREATE TABLE would create a
+    // super table); emit replayable ALTER statements after the CREATE instead.
+    if (pCfg->numOfTags > 0) {
+      code = appendNtbTagAlterStmts(buf2, &len, expandIdentifier(tbName, buf1), pCfg, charsetCxt);
+      TAOS_CHECK_ERRNO(code);
+    }
   } else if (TSDB_VIRTUAL_NORMAL_TABLE == pCfg->tableType) {
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                     "CREATE VTABLE `%s` (", expandIdentifier(tbName, buf1));
