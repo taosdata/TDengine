@@ -24,7 +24,9 @@ Coverage across four dimensions:
 
 Two tag mechanisms:
   - owned tags: inline `= value` at CREATE or set via SET TAG
-  - tag-refs:   `FROM src.tag` references, read-only, value follows the source
+  - tag-refs:   `FROM src.tag` references, value follows the source; SET TAG converts
+                between the two forms (ref -> literal clears the ref, owned -> ref via
+                SET TAG x = db.tb.tag)
 
 Section 5 covers owned tags on PLAIN NORMAL tables (TSDB_NORMAL_TABLE):
 ADD/SET/DROP TAG via ALTER, projection/filter/GROUP BY, DESC, SHOW CREATE,
@@ -1558,21 +1560,162 @@ class TestVtableNormalTags:
         tdLog.info("  PASS: max tags cap")
 
     # ==================================================================
-    # ERROR MATRIX — parser / meta guards not previously exercised
+    # 7. VIRTUAL NORMAL TABLE tag-ref <-> tag-literal conversion via
+    #    SET TAG — ref->other-ref, ref->literal, literal->ref, cycles
     # ==================================================================
 
-    def test_error_set_on_tag_ref_rejected(self):
-        """Error: SET TAG on a tag-ref is rejected — tag-refs are read-only (value follows
-        the source table). The runtime guard lives in metaUpdateNtbTagValueImpl and returns
-        TSDB_CODE_OPS_NOT_SUPPORT. A positive control (SET on an owned tag) proves the reject
-        is specific to tag-refs, not a general SET-TAG failure.
+    def test_vtag_conv_ref_to_ref(self):
+        """Virtual normal table: SET TAG re-points a tag-ref to another source tag.
 
         Catalog:
             - VirtualTable
 
         Since: v3.4.1.0
 
-        Labels: virtual, alter, tag_ref, negative
+        Labels: virtual, tag_ref, alter, convert
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE VTABLE vc1 (ts TIMESTAMP, val INT FROM src0.val) "
+                      "TAGS (rc INT FROM src0.code);")
+        self._check_values("SELECT DISTINCT rc FROM vc1;", [(100,)],
+                           "conv: initial ref follows src0.code")
+        tdSql.execute("ALTER TABLE vc1 SET TAG rc = src1.code;")
+        self._check_values("SELECT DISTINCT rc FROM vc1;", [(200,)],
+                           "conv: ref re-pointed to src1.code")
+        # same connection sees the change; SHOW CREATE reflects the new ref
+        tdSql.query("SHOW CREATE TABLE vc1;")
+        sql = str(tdSql.getData(0, 1))
+        assert "FROM" in sql.upper() and "src1" in sql and "code" in sql, \
+            f"SHOW CREATE vc1 after re-point: {sql}"
+        tdLog.info("  PASS: ref -> other ref")
+
+    def test_vtag_conv_ref_to_literal(self):
+        """Virtual normal table: SET TAG <ref> = value clears the ref (ref -> literal).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, tag_ref, alter, convert
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE VTABLE vc2 (ts TIMESTAMP, val INT FROM src0.val) "
+                      "TAGS (rc INT FROM src0.code);")
+        self._check_values("SELECT DISTINCT rc FROM vc2;", [(100,)],
+                           "conv: initial ref value")
+        tdSql.execute("ALTER TABLE vc2 SET TAG rc = 555;")
+        self._check_values("SELECT DISTINCT rc FROM vc2;", [(555,)],
+                           "conv: ref converted to literal, same conn")
+        tdSql.query("SHOW CREATE TABLE vc2;")
+        sql = str(tdSql.getData(0, 1))
+        assert "`rc` INT = 555" in sql and "FROM" not in sql.split("TAGS")[1], \
+            f"SHOW CREATE vc2 after ref->literal: {sql}"
+        tdLog.info("  PASS: ref -> literal, ref cleared in SHOW CREATE")
+        # SET NULL on a ref also clears the ref; value becomes NULL
+        tdSql.execute("ALTER TABLE vc2 SET TAG rc = src0.code;")
+        tdSql.execute("ALTER TABLE vc2 SET TAG rc = NULL;")
+        self._check_values("SELECT DISTINCT rc FROM vc2;", [(None,)],
+                           "conv: SET NULL on ref clears ref, value NULL")
+        tdSql.query("SHOW CREATE TABLE vc2;")
+        sql = str(tdSql.getData(0, 1))
+        assert "FROM" not in sql.split("TAGS")[1], f"SHOW CREATE vc2 after SET NULL: {sql}"
+        tdLog.info("  PASS: SET NULL on ref clears the ref")
+
+    def test_vtag_conv_literal_to_ref(self):
+        """Virtual normal table: SET TAG <owned> = db.tb.tag turns an owned tag into a ref.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, tag_ref, alter, convert
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE VTABLE vc3 (ts TIMESTAMP, val INT FROM src0.val) TAGS (lit INT);")
+        tdSql.execute("ALTER TABLE vc3 SET TAG lit = 42;")
+        self._check_values("SELECT DISTINCT lit FROM vc3;", [(42,)],
+                           "conv: owned literal value")
+        tdSql.execute("ALTER TABLE vc3 SET TAG lit = src1.code;")
+        self._check_values("SELECT DISTINCT lit FROM vc3;", [(200,)],
+                           "conv: literal converted to ref, follows src1.code")
+        # the static value must not resurrect after converting back and forth
+        tdSql.query("SHOW CREATE TABLE vc3;")
+        sql = str(tdSql.getData(0, 1))
+        assert "FROM" in sql.upper() and "src1" in sql, f"SHOW CREATE vc3 literal->ref: {sql}"
+        tdLog.info("  PASS: literal -> ref")
+        # negative: ref must point at a tag, not a data column
+        tdSql.error("ALTER TABLE vc3 SET TAG lit = src0.val;")
+        # negative: type mismatch (INT tag vs NCHAR source tag)
+        tdSql.error("ALTER TABLE vc3 SET TAG lit = src0.city;")
+        # negative: physical normal table has no refs
+        tdSql.execute("CREATE TABLE vc3_ntb (ts TIMESTAMP, val INT);")
+        tdSql.execute("ALTER TABLE vc3_ntb ADD TAG x INT;")
+        tdSql.error("ALTER TABLE vc3_ntb SET TAG x = src0.code;")
+        tdLog.info("  PASS: ref target validation + ntb ref rejected")
+
+    def test_vtag_conv_cycles(self):
+        """Virtual normal table: literal -> ref -> literal -> ref cycles stay consistent.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, tag_ref, alter, convert
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE VTABLE vc4 (ts TIMESTAMP, val INT FROM src0.val) TAGS (t INT);")
+        for i in range(2):
+            tdSql.execute("ALTER TABLE vc4 SET TAG t = 42;")
+            self._check_values("SELECT DISTINCT t FROM vc4;", [(42,)],
+                               f"conv cycle {i}: literal 42")
+            tdSql.execute("ALTER TABLE vc4 SET TAG t = src1.code;")
+            self._check_values("SELECT DISTINCT t FROM vc4;", [(200,)],
+                               f"conv cycle {i}: ref src1.code")
+            tdSql.execute("ALTER TABLE vc4 SET TAG t = 7;")
+            self._check_values("SELECT DISTINCT t FROM vc4;", [(7,)],
+                               f"conv cycle {i}: back to literal 7")
+            tdSql.execute("ALTER TABLE vc4 SET TAG t = src2.code;")
+            self._check_values("SELECT DISTINCT t FROM vc4;", [(300,)],
+                               f"conv cycle {i}: ref src2.code")
+        tdLog.info("  PASS: literal/ref conversion cycles")
+
+    # ==================================================================
+    # ERROR MATRIX — parser / meta guards not previously exercised
+    # ==================================================================
+
+    def test_set_on_tag_ref_converts_to_owned(self):
+        """SET TAG on a tag-ref converts it to an owned tag (ref -> literal): the reference
+        is cleared and the static value takes over, mirroring the virtual-child-table behavior.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, alter, tag_ref, convert
 
         Jira: None
 
@@ -1582,13 +1725,17 @@ class TestVtableNormalTags:
         tdSql.execute(f"USE {DB};")
         tdSql.execute("CREATE VTABLE vctb_setref (ts TIMESTAMP, val INT FROM src0.val) "
                       "TAGS (rcity NCHAR(20) FROM src0.city);")
-        # tag-ref: SET must be rejected (read-only)
-        tdSql.error("ALTER TABLE vctb_setref SET TAG rcity = 'x';")
-        # positive control: an owned tag on the same table is settable
+        self._check_values("SELECT DISTINCT rcity FROM vctb_setref;", [('beijing',)],
+                           "initial ref value")
+        # SET on a tag-ref: converts to owned (ref cleared), value visible on the same conn
+        tdSql.execute("ALTER TABLE vctb_setref SET TAG rcity = 'x';")
+        self._check_values("SELECT DISTINCT rcity FROM vctb_setref;", [('x',)],
+                           "ref converted to literal")
+        # positive control: an owned tag on the same table is settable too
         tdSql.execute("ALTER TABLE vctb_setref ADD TAG own INT;")
         tdSql.execute("ALTER TABLE vctb_setref SET TAG own = 9;")
         self._check_values("SELECT DISTINCT own FROM vctb_setref;", [(9,)], "owned tag settable (positive control)")
-        tdLog.info("  PASS: SET TAG on tag-ref rejected, owned tag settable")
+        tdLog.info("  PASS: SET TAG on tag-ref converts to owned")
 
     def test_error_tag_bytes_exceed_max_tags_len(self):
         """Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE
