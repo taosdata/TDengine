@@ -111,7 +111,7 @@ SELECT COUNT(*) FROM meters WHERE _rowts < '2018-10-03 15:00:00' INTERVAL (1m, A
 SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 ```
 
-INTERVAL 子句支持使用 FILL 子句来指定数据缺失时的数据填充方法，支持除 NEAR 填充模式外的所有填充模式。关于 FILL 子句如何使用请参考 [FILL 子句](../../04-quick-start/04-query-and-aggregate.md#fill-子句)。
+INTERVAL 子句支持使用 FILL 子句来指定数据缺失时的数据填充方法，支持除 NEAR 填充模式外的所有填充模式。关于 FILL 子句如何使用请参考 [FILL 子句](01-query.md#fill-子句)。
 
 使用时间窗口需要注意：
 
@@ -566,7 +566,7 @@ EXTERNAL_WINDOW 暂不支持 `LINEAR`、`NEAR`、`SURROUND`。
 
 `FILL` 的执行先于 `HAVING`，因此填充生成的结果行也会参与 `HAVING` 过滤。
 
-关于 FILL 子句的通用语法请参考 [FILL 子句](../../04-quick-start/04-query-and-aggregate.md#fill-子句)。
+关于 FILL 子句的通用语法请参考 [FILL 子句](01-query.md#fill-子句)。
 
 示例：
 
