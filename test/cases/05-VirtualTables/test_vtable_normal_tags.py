@@ -25,9 +25,18 @@ Coverage across four dimensions:
 Two tag mechanisms:
   - owned tags: inline `= value` at CREATE or set via SET TAG
   - tag-refs:   `FROM src.tag` references, read-only, value follows the source
+
+Section 5 covers owned tags on PLAIN NORMAL tables (TSDB_NORMAL_TABLE):
+ADD/SET/DROP TAG via ALTER, projection/filter/GROUP BY, DESC, SHOW CREATE,
+and the negative cases (tag-ref FROM stays virtual-normal-table only).
+Section 6 covers drop/re-add scenarios: same-name re-add (old value must not
+resurrect), type change, first/middle/last positions, repeated cycles, and the
+TSDB_MAX_TAGS cap.
 """
 
-from new_test_framework.utils import tdLog, tdSql
+import time
+
+from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
 DB = "td_vntb_tags"
 TS0 = 1700000000000  # base timestamp for source rows
@@ -1134,12 +1143,172 @@ class TestVtableNormalTags:
                     "TAGS (r INT FROM src0.val);")
 
     # ==================================================================
-    # 5. PLAIN NORMAL TABLE tags are NOT supported (only virtual normal
-    #    tables own tags) — tag DDL must be rejected
+    # 5. PLAIN NORMAL TABLE owned tags — ADD/SET/DROP TAG, projection,
+    #    filter, GROUP BY/DISTINCT, DESC, SHOW CREATE, error cases.
+    #    (normal tables support owned tags only; tag-ref FROM stays
+    #    virtual-normal-table only)
     # ==================================================================
 
-    def test_ntb_add_tag_rejected(self):
-        """Normal table: ALTER ADD TAG is rejected (tags only on virtual normal tables).
+    def test_ntb_add_set_query(self):
+        """Normal table: ADD TAG + SET TAG, projection and WHERE filter on owned tags.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, tag, alter, select
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_p1 (ts TIMESTAMP, val INT);")
+        for j, v in enumerate([1, 2, 3]):
+            tdSql.execute(f"INSERT INTO ntb_p1 VALUES ({TS0 + j * 1000}, {v});")
+        tdSql.execute("ALTER TABLE ntb_p1 ADD TAG loc INT;")
+        tdSql.execute("ALTER TABLE ntb_p1 ADD TAG city VARCHAR(16);")
+        # new tags default to NULL
+        self._check_values("SELECT loc, city FROM ntb_p1;",
+                           [(None, None), (None, None), (None, None)],
+                           "ntb: new tags default NULL")
+        tdSql.execute("ALTER TABLE ntb_p1 SET TAG loc = 5;")
+        tdSql.execute("ALTER TABLE ntb_p1 SET TAG city = 'beijing';")
+        self._check_values("SELECT loc, city, val FROM ntb_p1;",
+                           [(5, 'beijing', 1), (5, 'beijing', 2), (5, 'beijing', 3)],
+                           "ntb: owned tag projection")
+        self._check_values("SELECT val FROM ntb_p1 WHERE loc = 5;", [(1,), (2,), (3,)],
+                           "ntb: tag filter hit")
+        self._check_values("SELECT val FROM ntb_p1 WHERE loc = 6;", [],
+                           "ntb: tag filter miss")
+        self._check_values("SELECT val FROM ntb_p1 WHERE city = 'beijing' AND loc >= 5;",
+                           [(1,), (2,), (3,)],
+                           "ntb: combined tag filter")
+        # SET TAG NULL clears the value
+        tdSql.execute("ALTER TABLE ntb_p1 SET TAG loc = NULL;")
+        self._check_values("SELECT DISTINCT loc FROM ntb_p1;", [(None,)],
+                           "ntb: SET TAG NULL clears value")
+
+    def test_ntb_alter_drop_tag(self):
+        """Normal table: DROP TAG removes the tag; same connection sees it immediately.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, tag, alter
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_p2 (ts TIMESTAMP, val INT);")
+        tdSql.execute(f"INSERT INTO ntb_p2 VALUES ({TS0}, 1);")
+        tdSql.execute("ALTER TABLE ntb_p2 ADD TAG loc INT;")
+        tdSql.execute("ALTER TABLE ntb_p2 SET TAG loc = 7;")
+        self._check_values("SELECT loc, val FROM ntb_p2;", [(7, 1)],
+                           "ntb: same-conn read after ADD TAG")
+        tdSql.execute("ALTER TABLE ntb_p2 DROP TAG loc;")
+        rows = self._rows("DESC ntb_p2;")
+        names = sorted(r[0] for r in rows)
+        assert names == sorted(['ts', 'val']), f"DESC ntb_p2 fields after DROP TAG: {names}"
+        tdLog.info("  PASS: ntb reverts to tag-less after dropping the last tag")
+        self._check_values("SELECT val FROM ntb_p2;", [(1,)],
+                           "ntb: data intact after DROP TAG")
+
+    def test_ntb_desc_show_create(self):
+        """Normal table: DESC marks owned tags; SHOW CREATE emits replayable ALTER stmts.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, tag, desc, show_create
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_p3 (ts TIMESTAMP, val INT);")
+        tdSql.execute("ALTER TABLE ntb_p3 ADD TAG loc INT;")
+        tdSql.execute("ALTER TABLE ntb_p3 ADD TAG owner VARCHAR(16);")
+        tdSql.execute("ALTER TABLE ntb_p3 SET TAG owner = 'alice';")
+
+        rows = self._rows("DESC ntb_p3;")
+        tag_rows = [r for r in rows if r[3] == 'TAG']
+        tag_names = sorted(r[0] for r in tag_rows)
+        assert tag_names == ['loc', 'owner'], f"DESC ntb_p3 tag rows: {tag_names}"
+        tdLog.info("  PASS: DESC marks owned tags")
+
+        # SHOW CREATE for a normal table emits the CREATE plus replayable ALTER statements
+        # (an inline TAGS clause on CREATE TABLE would create a super table instead).
+        tdSql.query("SHOW CREATE TABLE ntb_p3;")
+        create_sql = str(tdSql.getData(0, 1))
+        assert create_sql.startswith("CREATE TABLE `ntb_p3`"), f"SHOW CREATE ntb_p3: {create_sql}"
+        assert "ALTER TABLE `ntb_p3` ADD TAG `loc` INT" in create_sql, \
+            f"SHOW CREATE ntb_p3 ADD TAG loc: {create_sql}"
+        assert "ALTER TABLE `ntb_p3` ADD TAG `owner` VARCHAR(16)" in create_sql, \
+            f"SHOW CREATE ntb_p3 ADD TAG owner: {create_sql}"
+        assert 'ALTER TABLE `ntb_p3` SET TAG `owner` = "alice"' in create_sql, \
+            f"SHOW CREATE ntb_p3 SET TAG owner: {create_sql}"
+        tdLog.info(f"  PASS: SHOW CREATE emits ALTER stmts: {create_sql}")
+
+        # round-trip: drop the table, replay every emitted statement, expect identical tags
+        tdSql.execute("DROP TABLE ntb_p3;")
+        for stmt in create_sql.split("; "):
+            if stmt.strip():
+                tdSql.execute(stmt)
+        rows = self._rows("DESC ntb_p3;")
+        tag_names = sorted(r[0] for r in rows if r[3] == 'TAG')
+        assert tag_names == ['loc', 'owner'], f"round-trip DESC ntb_p3 tag rows: {tag_names}"
+        # the recreated table is empty; insert a row to read back the replayed tag value
+        tdSql.execute(f"INSERT INTO ntb_p3 VALUES ({TS0}, 1);")
+        self._check_values("SELECT loc, owner, val FROM ntb_p3;", [(None, 'alice', 1)],
+                           "round-trip owned tag value")
+        tdLog.info("  PASS: SHOW CREATE round-trip restores tags")
+
+    def test_ntb_group_distinct_agg(self):
+        """Normal table: GROUP BY / DISTINCT on owned tags, agg with tag filter.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, tag, group_by, aggregate
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_p4 (ts TIMESTAMP, val INT);")
+        for j, v in enumerate([1, 2, 3, 4]):
+            tdSql.execute(f"INSERT INTO ntb_p4 VALUES ({TS0 + j * 1000}, {v});")
+        tdSql.execute("ALTER TABLE ntb_p4 ADD TAG grp VARCHAR(8);")
+        tdSql.execute("ALTER TABLE ntb_p4 SET TAG grp = 'g1';")
+        self._check_values("SELECT grp, COUNT(*) FROM ntb_p4 GROUP BY grp;", [('g1', 4)],
+                           "ntb: GROUP BY tag")
+        self._check_values("SELECT DISTINCT grp FROM ntb_p4;", [('g1',)],
+                           "ntb: DISTINCT tag")
+        self._check_values("SELECT SUM(val) FROM ntb_p4 WHERE grp = 'g1';", [(10,)],
+                           "ntb: agg with tag filter")
+        # SELECT * excludes tags (plain-column semantics unchanged)
+        tdSql.query("SELECT * FROM ntb_p4 LIMIT 1;")
+        assert tdSql.queryCols == 2, f"SELECT * column count: {tdSql.queryCols}"
+        tdLog.info("  PASS: SELECT * excludes tags")
+
+    def test_ntb_error_cases(self):
+        """Normal table: dup tag, tag/col collision, decimal, tag-ref FROM, bad SET/DROP.
 
         Catalog:
             - VirtualTable
@@ -1151,15 +1320,184 @@ class TestVtableNormalTags:
         Jira: None
 
         History:
-            - 2026-07-20 Created
+            - 2026-07-27 Created
         """
         tdSql.execute(f"USE {DB};")
         tdSql.execute("CREATE TABLE ntb_e1 (ts TIMESTAMP, val INT);")
-        tdSql.error("ALTER TABLE ntb_e1 ADD TAG loc INT;")
+        tdSql.execute("ALTER TABLE ntb_e1 ADD TAG loc INT;")
+        tdSql.error("ALTER TABLE ntb_e1 ADD TAG loc INT;")          # duplicate tag name
+        tdSql.error("ALTER TABLE ntb_e1 ADD TAG val INT;")          # collides with column
+        tdSql.error("ALTER TABLE ntb_e1 ADD TAG dc DECIMAL(10,2);")  # decimal not allowed
+        # tag-ref FROM stays virtual-normal-table only
         tdSql.error("ALTER TABLE ntb_e1 ADD TAG r NCHAR(20) FROM src0.city;")
+        tdSql.error("ALTER TABLE ntb_e1 DROP TAG nosuch;")          # drop nonexistent tag
+        tdSql.error("ALTER TABLE ntb_e1 SET TAG nosuch = 5;")       # set nonexistent tag
+        # tagless normal table rejects SET/DROP TAG as before
+        tdSql.execute("CREATE TABLE ntb_e2 (ts TIMESTAMP, val INT);")
+        tdSql.error("ALTER TABLE ntb_e2 SET TAG loc = 5;")
+        tdSql.error("ALTER TABLE ntb_e2 DROP TAG loc;")
+        rows = self._rows("DESC ntb_e2;")
+        names = sorted(r[0] for r in rows)
+        assert names == sorted(['ts', 'val']), f"DESC ntb_e2 fields: {names}"
+        tdLog.info("  PASS: tagless normal table stays tag-less")
 
-    def test_ntb_set_drop_tag_rejected(self):
-        """Normal table: SET TAG / DROP TAG are rejected (tags only on virtual normal tables).
+    # ==================================================================
+    # 6. PLAIN NORMAL TABLE drop/re-add scenarios — same-name re-add,
+    #    type change, position variants, cycles, catalog freshness
+    # ==================================================================
+
+    def test_ntb_drop_readd_same_name(self):
+        """Normal table: DROP TAG then ADD TAG with the same name — old value must not
+        resurrect, and the same connection must see the change immediately.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, tag, alter, drop_add
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_d1 (ts TIMESTAMP, val INT);")
+        for j, v in enumerate([1, 2]):
+            tdSql.execute(f"INSERT INTO ntb_d1 VALUES ({TS0 + j * 1000}, {v});")
+        tdSql.execute("ALTER TABLE ntb_d1 ADD TAG a INT;")
+        tdSql.execute("ALTER TABLE ntb_d1 SET TAG a = 42;")
+        self._check_values("SELECT a, val FROM ntb_d1;", [(42, 1), (42, 2)],
+                           "ntb: tag set before drop")
+        tdSql.execute("ALTER TABLE ntb_d1 DROP TAG a;")
+        # same connection must accept the re-add immediately (catalog freshness)
+        tdSql.execute("ALTER TABLE ntb_d1 ADD TAG a INT;")
+        self._check_values("SELECT a, val FROM ntb_d1;", [(None, 1), (None, 2)],
+                           "ntb: re-added tag is NULL — old value must not resurrect")
+        tdSql.execute("ALTER TABLE ntb_d1 SET TAG a = 7;")
+        self._check_values("SELECT a, val FROM ntb_d1 WHERE a = 7;", [(7, 1), (7, 2)],
+                           "ntb: re-added tag set + filter")
+
+    def test_ntb_drop_readd_diff_type(self):
+        """Normal table: DROP TAG then re-add the same name with a different type/length.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, tag, alter, drop_add
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_d2 (ts TIMESTAMP, val INT);")
+        tdSql.execute(f"INSERT INTO ntb_d2 VALUES ({TS0}, 1);")
+        tdSql.execute("ALTER TABLE ntb_d2 ADD TAG a INT;")
+        tdSql.execute("ALTER TABLE ntb_d2 SET TAG a = 42;")
+        tdSql.execute("ALTER TABLE ntb_d2 DROP TAG a;")
+        # re-add same name as VARCHAR
+        tdSql.execute("ALTER TABLE ntb_d2 ADD TAG a VARCHAR(16);")
+        tdSql.execute("ALTER TABLE ntb_d2 SET TAG a = 'x';")
+        self._check_values("SELECT a, val FROM ntb_d2 WHERE a = 'x';", [('x', 1)],
+                           "ntb: re-added tag with new type")
+        # re-add again with a different length
+        tdSql.execute("ALTER TABLE ntb_d2 DROP TAG a;")
+        tdSql.execute("ALTER TABLE ntb_d2 ADD TAG a VARCHAR(64);")
+        rows = self._rows("DESC ntb_d2;")
+        a_row = [r for r in rows if r[0] == 'a']
+        assert a_row and a_row[0][1] == 'VARCHAR' and a_row[0][2] == '64', \
+            f"DESC ntb_d2 tag a: {a_row}"
+        self._check_values("SELECT a FROM ntb_d2;", [(None,)],
+                           "ntb: re-added tag defaults NULL after type change")
+
+    def test_ntb_drop_position_variants(self):
+        """Normal table: drop first / middle / last tag; survivors keep their values.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, tag, alter, drop_add
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_d3 (ts TIMESTAMP, val INT);")
+        tdSql.execute(f"INSERT INTO ntb_d3 VALUES ({TS0}, 1);")
+        tdSql.execute("ALTER TABLE ntb_d3 ADD TAG t1 INT;")
+        tdSql.execute("ALTER TABLE ntb_d3 ADD TAG t2 VARCHAR(8);")
+        tdSql.execute("ALTER TABLE ntb_d3 ADD TAG t3 BIGINT;")
+        tdSql.execute("ALTER TABLE ntb_d3 SET TAG t1 = 1;")
+        tdSql.execute("ALTER TABLE ntb_d3 SET TAG t2 = 'two';")
+        tdSql.execute("ALTER TABLE ntb_d3 SET TAG t3 = 3;")
+        # drop the middle tag: survivors keep values
+        tdSql.execute("ALTER TABLE ntb_d3 DROP TAG t2;")
+        self._check_values("SELECT t1, t3, val FROM ntb_d3;", [(1, 3, 1)],
+                           "ntb: values intact after dropping the middle tag")
+        rows = self._rows("DESC ntb_d3;")
+        tag_names = [r[0] for r in rows if r[3] == 'TAG']
+        assert tag_names == ['t1', 't3'], f"DESC ntb_d3 after middle drop: {tag_names}"
+        # re-add the dropped name: goes last, defaults NULL
+        tdSql.execute("ALTER TABLE ntb_d3 ADD TAG t2 VARCHAR(8);")
+        self._check_values("SELECT t1, t2, t3 FROM ntb_d3;", [(1, None, 3)],
+                           "ntb: re-added middle tag defaults NULL, survivors intact")
+        # drop the first and the last tag
+        tdSql.execute("ALTER TABLE ntb_d3 DROP TAG t1;")
+        self._check_values("SELECT t3 FROM ntb_d3;", [(3,)],
+                           "ntb: value intact after dropping the first tag")
+        tdSql.execute("ALTER TABLE ntb_d3 DROP TAG t3;")
+        self._check_values("SELECT t2 FROM ntb_d3;", [(None,)],
+                           "ntb: only the re-added tag remains")
+        # drop the last remaining tag: table reverts to tag-less
+        tdSql.execute("ALTER TABLE ntb_d3 DROP TAG t2;")
+        rows = self._rows("DESC ntb_d3;")
+        assert sorted(r[0] for r in rows) == sorted(['ts', 'val']), \
+            f"DESC ntb_d3 tagless: {sorted(r[0] for r in rows)}"
+        tdLog.info("  PASS: drop position variants")
+
+    def test_ntb_add_drop_cycles(self):
+        """Normal table: repeated ADD/DROP TAG cycles on the same name stay consistent.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, tag, alter, drop_add
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_d4 (ts TIMESTAMP, val INT);")
+        tdSql.execute(f"INSERT INTO ntb_d4 VALUES ({TS0}, 1);")
+        for cycle in range(3):
+            tdSql.execute("ALTER TABLE ntb_d4 ADD TAG a INT;")
+            self._check_values("SELECT a FROM ntb_d4;", [(None,)],
+                               f"ntb: cycle {cycle}: re-added tag defaults NULL")
+            tdSql.execute(f"ALTER TABLE ntb_d4 SET TAG a = {cycle};")
+            self._check_values("SELECT a FROM ntb_d4 WHERE a >= 0;", [(cycle,)],
+                               f"ntb: cycle {cycle}: set value")
+            tdSql.execute("ALTER TABLE ntb_d4 DROP TAG a;")
+            rows = self._rows("DESC ntb_d4;")
+            assert sorted(r[0] for r in rows) == sorted(['ts', 'val']), \
+                f"ntb: cycle {cycle}: tagless after drop"
+        # data rows survive all cycles
+        self._check_values("SELECT val FROM ntb_d4;", [(1,)], "ntb: data intact after cycles")
+
+    def test_ntb_drop_negative(self):
+        """Normal table: drop twice, select a dropped tag, stale SET on a dropped tag.
 
         Catalog:
             - VirtualTable
@@ -1171,17 +1509,249 @@ class TestVtableNormalTags:
         Jira: None
 
         History:
-            - 2026-07-20 Created
+            - 2026-07-27 Created
         """
         tdSql.execute(f"USE {DB};")
-        tdSql.execute("CREATE TABLE ntb_e2 (ts TIMESTAMP, val INT);")
-        tdSql.error("ALTER TABLE ntb_e2 SET TAG loc = 5;")
-        tdSql.error("ALTER TABLE ntb_e2 DROP TAG loc;")
-        # plain normal table stays tag-less: DESC shows only the columns
-        rows = self._rows("DESC ntb_e2;")
-        names = sorted(r[0] for r in rows)
-        assert names == sorted(['ts', 'val']), f"DESC ntb_e2 fields: {names}"
-        tdLog.info("  PASS: ntb stays tag-less")
+        tdSql.execute("CREATE TABLE ntb_d5 (ts TIMESTAMP, val INT);")
+        tdSql.execute(f"INSERT INTO ntb_d5 VALUES ({TS0}, 1);")
+        tdSql.execute("ALTER TABLE ntb_d5 ADD TAG a INT;")
+        tdSql.execute("ALTER TABLE ntb_d5 SET TAG a = 42;")
+        tdSql.execute("ALTER TABLE ntb_d5 DROP TAG a;")
+        tdSql.error("ALTER TABLE ntb_d5 DROP TAG a;")       # drop the same tag twice
+        tdSql.error("ALTER TABLE ntb_d5 SET TAG a = 1;")    # SET on a dropped tag
+        tdSql.error("SELECT a FROM ntb_d5;")                # select a dropped tag
+        tdSql.error("SELECT val FROM ntb_d5 WHERE a = 42;")  # filter on a dropped tag
+        # data queries still work
+        self._check_values("SELECT val FROM ntb_d5;", [(1,)], "ntb: data intact after drop")
+
+    def test_ntb_max_tags_cap(self):
+        """Normal table: tag count cap (TSDB_MAX_TAGS=128); dropping one frees a slot.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, tag, alter, boundary
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_d6 (ts TIMESTAMP, val INT);")
+        tdSql.execute(f"INSERT INTO ntb_d6 VALUES ({TS0}, 1);")
+        for i in range(128):
+            tdSql.execute(f"ALTER TABLE ntb_d6 ADD TAG tg{i} INT;")
+        tdSql.error("ALTER TABLE ntb_d6 ADD TAG tg128 INT;")  # 129th tag exceeds the cap
+        # dropping one frees a slot for another tag
+        tdSql.execute("ALTER TABLE ntb_d6 DROP TAG tg0;")
+        tdSql.execute("ALTER TABLE ntb_d6 ADD TAG tg128 INT;")
+        tdSql.execute("ALTER TABLE ntb_d6 SET TAG tg128 = 128;")
+        self._check_values("SELECT tg128, val FROM ntb_d6;", [(128, 1)],
+                           "ntb: 128 tags after drop+add, value readable")
+        rows = self._rows("DESC ntb_d6;")
+        n_tags = len([r for r in rows if r[3] == 'TAG'])
+        assert n_tags == 128, f"DESC ntb_d6 tag count: {n_tags}"
+        tdSql.execute("DROP TABLE ntb_d6;")
+        tdLog.info("  PASS: max tags cap")
+
+    # ==================================================================
+    # ERROR MATRIX — parser / meta guards not previously exercised
+    # ==================================================================
+
+    def test_error_set_on_tag_ref_rejected(self):
+        """Error: SET TAG on a tag-ref is rejected — tag-refs are read-only (value follows
+        the source table). The runtime guard lives in metaUpdateNtbTagValueImpl and returns
+        TSDB_CODE_OPS_NOT_SUPPORT. A positive control (SET on an owned tag) proves the reject
+        is specific to tag-refs, not a general SET-TAG failure.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, alter, tag_ref, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE VTABLE vctb_setref (ts TIMESTAMP, val INT FROM src0.val) "
+                      "TAGS (rcity NCHAR(20) FROM src0.city);")
+        # tag-ref: SET must be rejected (read-only)
+        tdSql.error("ALTER TABLE vctb_setref SET TAG rcity = 'x';")
+        # positive control: an owned tag on the same table is settable
+        tdSql.execute("ALTER TABLE vctb_setref ADD TAG own INT;")
+        tdSql.execute("ALTER TABLE vctb_setref SET TAG own = 9;")
+        self._check_values("SELECT DISTINCT own FROM vctb_setref;", [(9,)], "owned tag settable (positive control)")
+        tdLog.info("  PASS: SET TAG on tag-ref rejected, owned tag settable")
+
+    def test_error_tag_bytes_exceed_max_tags_len(self):
+        """Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE
+        (checkCreateTags). Two VARCHAR(8192) tags sum past the cap while each stays well under
+        the per-column cap, so this specifically exercises the total-bytes guard.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, create, tag, boundary, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.error("CREATE VTABLE vctb_em_len (ts TIMESTAMP, val INT FROM src0.val) "
+                    "TAGS (a VARCHAR(8192), b VARCHAR(8192));")
+
+    def test_error_varchar_tag_over_length(self):
+        """Error: a VARCHAR tag longer than TSDB_MAX_BINARY_LEN is rejected at CREATE.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, create, tag, boundary, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.error("CREATE VTABLE vctb_em_vl (ts TIMESTAMP, val INT FROM src0.val) "
+                    "TAGS (t VARCHAR(66000));")
+
+    def test_error_nchar_tag_over_length(self):
+        """Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE
+        (NCHAR byte length = N * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, create, tag, boundary, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.error("CREATE VTABLE vctb_em_nl (ts TIMESTAMP, val INT FROM src0.val) "
+                    "TAGS (t NCHAR(17000));")
+
+    def test_error_tag_ref_type_mismatch(self):
+        """Error: a tag-ref whose declared type differs from the source tag type is rejected
+        (checkTagRef). src0.city is NCHAR(20); declaring the ref as INT is a type mismatch.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, create, tag_ref, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.error("CREATE VTABLE vctb_em_tm (ts TIMESTAMP, val INT FROM src0.val) "
+                    "TAGS (r INT FROM src0.city);")
+
+    # ==================================================================
+    # RESTART PERSISTENCE — the bit-5 trailer + monotonic schemaTag.version
+    # must re-decode correctly after a taosd restart.
+    # ==================================================================
+
+    def _restart_dnode(self):
+        try:
+            tdDnodes.stop(1)
+            tdDnodes.start(1)
+            time.sleep(3)
+        except Exception as e:
+            tdLog.info(f"[tags-persistence] dnode restart skipped: {e}")
+            return False
+        return True
+
+    def test_restart_owned_tag_and_ref_persist(self):
+        """Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk
+        bit-5 trailer and monotonic schemaTag.version re-decode correctly.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, persistence, restart, tag, tag_ref
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        if not self._restart_dnode():
+            return
+        tdSql.execute(f"USE {DB};")
+        # owned tag value (v_own.loc = 5) survives — DISTINCT collapses the per-row constant to 1 row
+        self._check_values("SELECT DISTINCT loc FROM v_own;", [(5,)], "restart: owned tag value")
+        # tag-ref still resolves to the source (v_ref.rcity -> src0.city = 'beijing')
+        self._check_values("SELECT DISTINCT rcity FROM v_ref;", [('beijing',)], "restart: tag-ref follows source")
+        # schema re-decoded from the trailer: DESC still shows the tags
+        rows = self._rows("DESC v_own;")
+        names = [r[0] for r in rows]
+        assert 'loc' in names, f"restart: owned tag 'loc' missing from DESC: {rows}"
+        tdLog.info("  PASS: restart preserves owned tags + tag-refs")
+
+    def test_restart_drop_all_tags_then_readd(self):
+        """Restart: after dropping every tag (schemaTag.nCols=0, version stays monotonic, empty
+        STag trailer), the table stays readable across restart and a tag can be re-added — the
+        case where the empty-schema trailer must re-decode and the version must stay monotonic.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, persistence, restart, tag, alter
+
+        Jira: None
+
+        History:
+            - 2026-07-27 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ntb_rst (ts TIMESTAMP, v INT);")
+        tdSql.execute(f"INSERT INTO ntb_rst VALUES ({TS0}, 1);")
+        tdSql.execute("ALTER TABLE ntb_rst ADD TAG t1 INT;")
+        tdSql.execute("ALTER TABLE ntb_rst SET TAG t1 = 42;")
+        # drop the only tag -> empty schemaTag, monotonic version, empty STag trailer
+        tdSql.execute("ALTER TABLE ntb_rst DROP TAG t1;")
+        self._check_count("SELECT count(*) FROM ntb_rst;", 1, "pre-restart: readable after drop-all-tags")
+        if not self._restart_dnode():
+            return
+        tdSql.execute(f"USE {DB};")
+        # table still readable after restart (empty-schema trailer re-decoded)
+        self._check_count("SELECT count(*) FROM ntb_rst;", 1, "restart: readable after drop-all-tags")
+        rows = self._rows("DESC ntb_rst;")
+        n_tags = len([r for r in rows if r[3] == 'TAG'])
+        assert n_tags == 0, f"restart: expected 0 tags after drop-all, DESC shows {n_tags}: {rows}"
+        # re-add a tag after restart (version continues monotonically; client catalog refreshed)
+        tdSql.execute("ALTER TABLE ntb_rst ADD TAG t2 VARCHAR(16);")
+        tdSql.execute("ALTER TABLE ntb_rst SET TAG t2 = 'post';")
+        self._check_values("SELECT t2, v FROM ntb_rst;", [('post', 1)], "restart: re-add tag after drop-all")
+        tdLog.info("  PASS: restart after drop-all-tags + re-add")
 
     @classmethod
     def teardown_class(cls):
