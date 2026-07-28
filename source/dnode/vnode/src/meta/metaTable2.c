@@ -769,10 +769,13 @@ static int32_t metaBuildCreateNormalTableRsp(SMeta *pMeta, SMetaEntry *pEntry, S
 // ncid is the shared counter for both columns and tags (metaAddTableTag bumps it).
 // When tags are declared at create time, ncid must continue past the last tag cid,
 // otherwise a subsequent ADD TAG would reuse an already-assigned tag cid.
-static int16_t metaNtbNextCid(const SVCreateTbReq *pReq) {
-  int16_t nextCid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1;
+// ncid is int32_t in SMetaEntry; keep nextCid int32_t too. With 32767 columns the next
+// cid is 32768, which overflows int16_t to a negative value and would silently bypass the
+// INT16_MAX upper-bound checks in metaAddTableColumn/metaAddTableTag.
+static int32_t metaNtbNextCid(const SVCreateTbReq *pReq) {
+  int32_t nextCid = pReq->ntb.schemaRow.pSchema[pReq->ntb.schemaRow.nCols - 1].colId + 1;
   if (pReq->ntb.schemaTag.nCols > 0 && pReq->ntb.schemaTag.pSchema != NULL) {
-    int16_t lastTagCid = pReq->ntb.schemaTag.pSchema[pReq->ntb.schemaTag.nCols - 1].colId + 1;
+    int32_t lastTagCid = pReq->ntb.schemaTag.pSchema[pReq->ntb.schemaTag.nCols - 1].colId + 1;
     if (lastTagCid > nextCid) nextCid = lastTagCid;
   }
   return nextCid;
@@ -814,7 +817,7 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
     }
   }
 
-  int16_t nextCid = metaNtbNextCid(pReq);
+  int32_t nextCid = metaNtbNextCid(pReq);
 
   SMetaEntry entry = {
       .version = version,
@@ -930,7 +933,7 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
     TAOS_RETURN(code);
   }
 
-  int16_t nextCid = metaNtbNextCid(pReq);
+  int32_t nextCid = metaNtbNextCid(pReq);
 
   SMetaEntry entry = {.version = version,
                       .type = TSDB_VIRTUAL_NORMAL_TABLE,
