@@ -1,10 +1,10 @@
 ---
 title: 用户管理
 sidebar_label: 用户管理
-description: 本节讲述基本的用户管理功能
+description: 创建、查看、修改与删除用户，以及 TOTP 与令牌管理
 ---
 
-用户管理语法在所有版本中可用，但在 TDengine TSDB 社区版中仅基础功能实际可用，使用高级功能需要 TDengine TSDB 企业版。要想全面了解和使用的用户管理功能，请联系 TDengine TSDB 销售团队。
+用户管理语法在所有版本中可用，但在 TDengine 社区版中仅基础功能实际可用。
 
 ## 创建用户
 
@@ -35,86 +35,84 @@ CREATE USER user_name PASS 'password'
 
 用户名最长不超过 23 个字节。
 
-密码长度必须为 8 到 255 位，并且至少包含大写字母、小写字母、数字、特殊字符中的三类。特殊字符包括 `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`。可以通过在 taos.cfg 中添加参数 `enableStrongPassword 0` 关闭此强制要求，或者通过如下 SQL 关闭。
+密码长度必须为 8 到 255，且至少包含大写字母、小写字母、数字、特殊字符中的三类。特殊字符包括 `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`。可在 `taos.cfg` 中设置 `enableStrongPassword 0` 关闭此强制要求，或通过如下 SQL 关闭：
 
 ```sql
-alter all dnodes 'EnableStrongPassword' '0'
+ALTER ALL DNODES 'EnableStrongPassword' '0';
 ```
 
-`FAILED_LOGIN_ATTEMPTS` 等选项的默认值与配置参数 `enableAdvancedSecurity` 相关，具体见下文。可以通过如下 SQL 设置 `enableAdvancedSecurity` 的状态。
+`FAILED_LOGIN_ATTEMPTS` 等选项的默认值与配置参数 `enableAdvancedSecurity` 相关，见下文。可通过如下 SQL 设置其状态：
 
 ```sql
 -- 默认关闭高级安全功能
-alter all dnodes 'EnableAdvancedSecurity' '0'
+ALTER ALL DNODES 'EnableAdvancedSecurity' '0';
 -- 默认打开高级安全功能
-alter all dnodes 'EnableAdvancedSecurity' '1'
+ALTER ALL DNODES 'EnableAdvancedSecurity' '1';
 ```
 
-- `SYSINFO` 表示该用户是否能够查看系统信息。`1` 表示可以查看，`0` 表示无权查看。系统信息包括服务配置、dnode、vnode、存储等信息。缺省值为 `1`。
-- `ENABLE` 表示是否启用该用户。`1` 表示启用，`0` 表示未启用，未启用的用户不能登录系统。缺省值为 `1`。
-- `CREATEDB` 表示该用户是否能够创建数据库。`1` 表示可以创建，`0` 表示无权创建。缺省值为 `0`。从企业版 v3.3.2.0 开始支持。
-- `CHANGEPASS` 表示用户是否能够或必须修改密码。`2` 表示可以修改，`1`表示必须修改，`0`表示不能修改。缺省值为`2`。从企业版 v3.4.0.0 开始支持。
-- `SESSION_PER_USER` 限制用户同时建立的数据库连接数量，`enableAdvancedSecurity` 打开时默认 32，否则默认 -1（UNLIMITED，不限制）。最小 1，设置为 -1 或 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `CONNECT_TIME` 限制单次会话最大持续时间，单位为分钟，`enableAdvancedSecurity` 打开时默认 480，否则默认 -1（UNLIMITED，不限制）。最小 1，设置为 -1 或 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `CONNECT_IDLE_TIME` 允许的会话最大空闲时间，单位为分钟，`enableAdvancedSecurity` 打开时默认 30，否则默认 -1（UNLIMITED，不限制）。最小 1，设置为 -1 或 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `CALL_PER_SESSION` 单会话最大并发子调用数量，`enableAdvancedSecurity` 打开时默认 128，否则默认 -1（UNLIMITED，不限制）。最小 1，设置为 -1 或 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `VNODE_PER_CALL` 单调用可以涉及的最大 vnode 数量。默认 -1，代表无限制。从企业版 v3.4.0.0 开始支持。
-- `FAILED_LOGIN_ATTEMPTS` 允许的连续失败登录次数，超过次数后账户将被锁定，`enableAdvancedSecurity` 打开时默认 3，否则默认 UNLIMITED。最小 1，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_LOCK_TIME` 账户因登录失败被锁定后的解锁等待时间，单位分钟，`enableAdvancedSecurity` 打开时默认 1440，否则默认 1。最小 1，设置为 UNLIMITED 则永久锁定。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_LIFE_TIME` 密码有效期，单位天，`enableAdvancedSecurity` 打开时默认 90，否则默认 UNLIMITED。最小 1，设置为 UNLIMITED 则永不过期。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_GRACE_TIME` 密码过期后的宽限期，密码过期后允许修改的缓冲时间，宽限期内禁止执行除修改密码以外的其他操作，宽限期内如未修改密码则锁定账户，单位天，`enableAdvancedSecurity` 打开时默认 7，否则默认 UNLIMITED。最小 0，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_REUSE_TIME` 密码重用时间，旧密码失效后不能在此期限内重复使用，单位天，`enableAdvancedSecurity` 打开时默认 30，否则默认 0。最小 0，最大 365。新密码需同时满足 `PASSWORD_REUSE_TIME` 和 `PASSWORD_REUSE_MAX` 两项限制。从企业版 v3.4.0.0 开始支持。
-- `PASSWORD_REUSE_MAX` 密码历史记录次数，需要多少次密码更改后才能重复使用旧密码。`enableAdvancedSecurity` 打开时默认 5，否则默认 0。最小 0，最大 100。新密码需同时满足 `PASSWORD_REUSE_TIME` 和 `PASSWORD_REUSE_MAX` 两项限制。从企业版 v3.4.0.0 开始支持。
-- `INACTIVE_ACCOUNT_TIME` 账户不活动锁定时间，长期未使用的账户自动锁定，单位天，`enableAdvancedSecurity` 打开时默认 90，否则默认 UNLIMITED。最小 1，设置为 UNLIMITED 则永不锁定。从企业版 v3.4.0.0 开始支持。
-- `ALLOW_TOKEN_NUM` 支持的令牌个数，默认 3，最小 0，设置为 UNLIMITED 则不限制。从企业版 v3.4.0.0 开始支持。
-- `HOST` 和 `NOT_ALLOW_HOST` IP 地址白名单和黑名单，可以是单个 IP 地址，如 `192.168.1.1`，也可以是一个 [CIDR 格式](https://www.rfc-editor.org/rfc/rfc4632) 的地址段，如 `192.168.1.1/24`。从企业版 v3.4.0.0 开始支持。
-  - 在系统配置中将 `enableWhiteList` 设置为 `1`，黑白名单才会生效。
-  - 如果既未设置 `HOST` 也未设置 `NOT_ALLOW_HOST`，则允许用户在任何地址登录。 **注意**：为保证安全和方便使用，创建用户时，如果设置了 `HOST` 或既未设置 `HOST` 也未设置 `NOT_ALLOW_HOST`，系统会自动将 `127.0.0.1` 和 `::1` 加入 `HOST`，故本项所述的情形，需要通过 `ALTER USER` 删除所有 `HOST` 和 `NOT_ALLOW_HOST` 才会出现。
-  - 如果只设置了 `HOST`，则允许用户从该地址或地址段登录，其他地址不允许登录。
-  - 如果只设置了 `NOT_ALLOW_HOST`，则不允许用户从该地址或地址段登录，其他地址允许登录。
-  - 如果同时设置了 `HOST` 和 `NOT_ALLOW_HOST`，则用户只能在属于 `HOST` 且不属于 `NOT_ALLOW_HOST` 的地址登录，其他地址都不允许登录。
-- `ALLOW_DATETIME` 和 `NOT_ALLOW_DATETIME` 允许和不允许登录的时间范围（以服务端所在时区为准），包括日期、起始时间（精确到分钟）、时长（以分钟为单位）三部分，其中日期可以是具体的日期，也可以是 MON、TUE、WED、THU、FRI、SAT、SUN 代表的日期，例如：`2025-12-25 08:00 120`、`TUE 08:00 120`。从企业版 v3.4.0.0 开始支持。
-  - 如果既未设置 `ALLOW_DATETIME` 也未设置 `NOT_ALLOW_DATETIME`，则允许用户在任何时间登录。
-  - 如果只设置了 `ALLOW_DATETIME`，则该时间段允许用户登录，其他时间不允许登录。
-  - 如果只设置了 `NOT_ALLOW_DATETIME`，则该时间段不允许用户登录，其他时间允许登录。
-  - 如果同时设置了 `ALLOW_DATETIME` 和 `NOT_ALLOW_DATETIME`，则用户只能在属于 `ALLOW_DATETIME` 且不属于 `NOT_ALLOW_DATETIME` 的时间段内登录，其他时间都不允许登录。
+- `SYSINFO`：该用户是否可查看系统信息。`1` 表示可以，`0` 表示无权。系统信息包括服务配置、dnode、vnode、存储等。缺省值为 `1`。
+- `ENABLE`：是否启用该用户。`1` 表示启用，`0` 表示未启用；未启用的用户不能登录。缺省值为 `1`。
+- `CREATEDB`：是否可创建数据库。`1` 表示可以，`0` 表示无权。缺省值为 `0`。企业版自 `v3.3.2.0` 起支持。
+- `CHANGEPASS`：用户是否能够或必须修改密码。`2` 表示可以修改，`1` 表示必须修改，`0` 表示不能修改。缺省值为 `2`。企业版自 `v3.4.0.0` 起支持。
+- `SESSION_PER_USER`：限制用户同时建立的数据库连接数量。`enableAdvancedSecurity` 打开时默认 `32`，否则默认 `-1`（`UNLIMITED`）。最小 `1`；设为 `-1` 或 `UNLIMITED` 则不限制。企业版自 `v3.4.0.0` 起支持。
+- `CONNECT_TIME`：单次会话最大持续时间，单位为分钟。`enableAdvancedSecurity` 打开时默认 `480`，否则默认 `-1`（`UNLIMITED`）。最小 `1`；设为 `-1` 或 `UNLIMITED` 则不限制。企业版自 `v3.4.0.0` 起支持。
+- `CONNECT_IDLE_TIME`：允许的会话最大空闲时间，单位为分钟。`enableAdvancedSecurity` 打开时默认 `30`，否则默认 `-1`（`UNLIMITED`）。最小 `1`；设为 `-1` 或 `UNLIMITED` 则不限制。企业版自 `v3.4.0.0` 起支持。
+- `CALL_PER_SESSION`：单会话最大并发子调用数量。`enableAdvancedSecurity` 打开时默认 `128`，否则默认 `-1`（`UNLIMITED`）。最小 `1`；设为 `-1` 或 `UNLIMITED` 则不限制。企业版自 `v3.4.0.0` 起支持。
+- `VNODE_PER_CALL`：单次调用可涉及的最大 vnode 数量。默认 `-1`（无限制）。企业版自 `v3.4.0.0` 起支持。
+- `FAILED_LOGIN_ATTEMPTS`：允许的连续失败登录次数，超过后账户将被锁定。`enableAdvancedSecurity` 打开时默认 `3`，否则默认 `UNLIMITED`。最小 `1`；设为 `UNLIMITED` 则不限制。企业版自 `v3.4.0.0` 起支持。
+- `PASSWORD_LOCK_TIME`：因登录失败被锁定后的解锁等待时间，单位为分钟。`enableAdvancedSecurity` 打开时默认 `1440`，否则默认 `1`。最小 `1`；设为 `UNLIMITED` 则永久锁定。企业版自 `v3.4.0.0` 起支持。
+- `PASSWORD_LIFE_TIME`：密码有效期，单位为天。`enableAdvancedSecurity` 打开时默认 `90`，否则默认 `UNLIMITED`。最小 `1`；设为 `UNLIMITED` 则永不过期。企业版自 `v3.4.0.0` 起支持。
+- `PASSWORD_GRACE_TIME`：密码过期后的宽限期（单位天）。宽限期内禁止执行除修改密码以外的操作；宽限期内未改密则锁定账户。`enableAdvancedSecurity` 打开时默认 `7`，否则默认 `UNLIMITED`。最小 `0`；设为 `UNLIMITED` 则永不因宽限期锁定。企业版自 `v3.4.0.0` 起支持。
+- `PASSWORD_REUSE_TIME`：密码重用时间，旧密码失效后不能在此期限内重复使用，单位为天。`enableAdvancedSecurity` 打开时默认 `30`，否则默认 `0`。最小 `0`，最大 `365`。新密码需同时满足 `PASSWORD_REUSE_TIME` 与 `PASSWORD_REUSE_MAX`。企业版自 `v3.4.0.0` 起支持。
+- `PASSWORD_REUSE_MAX`：密码历史记录次数，需经过多少次更改后才能重复使用旧密码。`enableAdvancedSecurity` 打开时默认 `5`，否则默认 `0`。最小 `0`，最大 `100`。新密码需同时满足 `PASSWORD_REUSE_TIME` 与 `PASSWORD_REUSE_MAX`。企业版自 `v3.4.0.0` 起支持。
+- `INACTIVE_ACCOUNT_TIME`：账户不活动锁定时间，长期未使用的账户自动锁定，单位为天。`enableAdvancedSecurity` 打开时默认 `90`，否则默认 `UNLIMITED`。最小 `1`；设为 `UNLIMITED` 则永不锁定。企业版自 `v3.4.0.0` 起支持。
+- `ALLOW_TOKEN_NUM`：支持的令牌个数。默认 `3`，最小 `0`；设为 `UNLIMITED` 则不限制。企业版自 `v3.4.0.0` 起支持。
+- `HOST` / `NOT_ALLOW_HOST`：IP 地址白名单与黑名单。可为单个 IP（如 `192.168.1.1`），或 [CIDR](https://www.rfc-editor.org/rfc/rfc4632) 地址段（如 `192.168.1.1/24`）。企业版自 `v3.4.0.0` 起支持。
+  - 需将系统配置 `enableWhiteList` 设为 `1`，黑白名单才会生效。
+  - 若既未设置 `HOST` 也未设置 `NOT_ALLOW_HOST`，则允许用户在任何地址登录。**注意**：为保证安全和便于使用，创建用户时若设置了 `HOST`，或两者均未设置，系统会自动将 `127.0.0.1` 和 `::1` 加入 `HOST`。因此上述“任何地址”情形，需通过 `ALTER USER` 删除全部 `HOST` 与 `NOT_ALLOW_HOST` 后才会出现。
+  - 若只设置 `HOST`，则仅允许从该地址或地址段登录。
+  - 若只设置 `NOT_ALLOW_HOST`，则不允许从该地址或地址段登录，其它地址允许。
+  - 若同时设置二者，则只能从属于 `HOST` 且不属于 `NOT_ALLOW_HOST` 的地址登录。
+- `ALLOW_DATETIME` / `NOT_ALLOW_DATETIME`：允许与不允许登录的时间范围（以服务端时区为准），包含日期、起始时间（精确到分钟）、时长（分钟）三部分。日期可为具体日期，或 `MON`、`TUE`、`WED`、`THU`、`FRI`、`SAT`、`SUN`；例如 `2025-12-25 08:00 120`、`TUE 08:00 120`。企业版自 `v3.4.0.0` 起支持。
+  - 若两者均未设置，允许在任何时间登录。
+  - 若只设置 `ALLOW_DATETIME`，仅该时间段允许登录。
+  - 若只设置 `NOT_ALLOW_DATETIME`，该时间段不允许登录，其它时间允许。
+  - 若同时设置，则只能在属于 `ALLOW_DATETIME` 且不属于 `NOT_ALLOW_DATETIME` 的时间段内登录。
 
-在下面的示例中，我们创建一个密码为 `abc123!@#` 且可以查看系统信息的用户。
+以下示例创建一个密码为 `abc123!@#`、可查看系统信息的用户：
 
 ```sql
-taos> create user test pass 'abc123!@#' sysinfo 1;
+taos> CREATE USER test PASS 'abc123!@#' SYSINFO 1;
 Query OK, 0 of 0 rows affected (0.001254s)
 ```
 
 ## 查看用户
 
-可以使用如下命令查看系统中的用户。
-
 ```sql
 SHOW USERS;
 ```
 
-以下是示例：
+**示例**
 
 ```sql
-taos> show users;
-       name        | super | enable | sysinfo | createdb |       create_time       | totp |      allowed_host       |   allowed_datetime   |
-============================================================================================================================================
- test              |     0 |      1 |       1 |        0 | 2025-12-24 18:56:20.709 |    0 | +127.0.0.1/32, +::1/128 | +ALL                 |
- root              |     1 |      1 |       1 |        1 | 2025-12-24 18:00:43.197 |    0 | +127.0.0.1/32, +::1/128 | +ALL                 |
+taos> SHOW USERS;
+ name | super | enable | sysinfo | createdb |       create_time       | totp |      allowed_host       | allowed_datetime |
+===========================================================================================================================
+ test |     0 |      1 |       1 |        0 | 2025-12-24 18:56:20.709 |    0 | +127.0.0.1/32, +::1/128 | +ALL             |
+ root |     1 |      1 |       1 |        1 | 2025-12-24 18:00:43.197 |    0 | +127.0.0.1/32, +::1/128 | +ALL             |
 Query OK, 2 rows in set (0.001657s)
 ```
 
-注意，在 `allowed_host` 中，如地址或地址段带有前缀 `+` 则为白名单，允许从该地址登录；带有前缀 `-` 则为黑名单，不允许从该地址登录。 `allowed_datetime` 同理。
+在 `allowed_host` 中，地址或地址段前缀为 `+` 表示白名单（允许登录），前缀为 `-` 表示黑名单（不允许登录）。`allowed_datetime` 同理。
 
-也可以查询内置系统表 INFORMATION_SCHEMA.INS_USERS 来获取用户信息。
+也可查询内置系统表 `information_schema.ins_users`：
 
 ```sql
-taos> select * from information_schema.ins_users;
-       name        | super | enable | sysinfo | createdb |       create_time       | totp |      allowed_host       |   allowed_datetime   |
-============================================================================================================================================
- test              |     0 |      1 |       1 |        0 | 2025-12-24 18:56:20.709 |    0 | +127.0.0.1/32, +::1/128 | +ALL                 |
- root              |     1 |      1 |       1 |        1 | 2025-12-24 18:00:43.197 |    0 | +127.0.0.1/32, +::1/128 | +ALL                 |
+taos> SELECT * FROM information_schema.ins_users;
+ name | super | enable | sysinfo | createdb |       create_time       | totp |      allowed_host       | allowed_datetime |
+===========================================================================================================================
+ test |     0 |      1 |       1 |        0 | 2025-12-24 18:56:20.709 |    0 | +127.0.0.1/32, +::1/128 | +ALL             |
+ root |     1 |      1 |       1 |        1 | 2025-12-24 18:00:43.197 |    0 | +127.0.0.1/32, +::1/128 | +ALL             |
 Query OK, 2 row(s) in set (0.007383s)
 ```
 
@@ -128,7 +126,7 @@ DROP USER [IF EXISTS] user_name;
 
 ```sql
 ALTER USER user_name alter_user_clause
- 
+
 alter_user_clause: {
   [PASS 'password']
   [SYSINFO {1|0}]
@@ -159,35 +157,35 @@ alter_user_clause: {
 }
 ```
 
-下面的示例禁用了名为 `test` 的用户。
+以下示例禁用名为 `test` 的用户：
 
 ```sql
-taos> alter user test enable 0;
+taos> ALTER USER test ENABLE 0;
 Query OK, 0 of 0 rows affected (0.001160s)
 ```
 
 :::note
-自 TDengine TSDB 企业版 3.4.2.1 开始，`ALTER USER ... SYSINFO {0|1}` 会联动修改用户的 `SYSINFO_0`/`SYSINFO_1` 角色；此外，授予高阶系统角色也会联动提升 `SYSINFO` 属性。详见[权限管理](./02-grant.md)中的“SYSINFO 属性与角色的联动”。
+自企业版 `v3.4.2.1` 起，`ALTER USER ... SYSINFO {0|1}` 会联动修改用户的 `SYSINFO_0` / `SYSINFO_1` 角色；授予高阶系统角色也会联动提升 `SYSINFO` 属性。详见 [权限管理](./02-grant.md#sysinfo-属性与角色的联动)。
 :::
 
-## TOTP 双因认证
+## TOTP 双因素认证
 
-TOTP 双因认证是 TDengine TSDB 企业版功能，从企业版 v3.4.0.1 开始支持。
+TOTP 双因素认证为企业版功能，自企业版 `v3.4.0.1` 起支持。
 
-### 创建/更新 TOTP 密钥
+### 创建 / 更新 TOTP 密钥
 
 ```sql
-CREATE TOTP_SECRET FOR USER user_name
+CREATE TOTP_SECRET FOR USER user_name;
 ```
 
-如果用户还未创建 TOTP 密钥，此命令将为该用户创建 TOTP 密钥。如果用户已经创建了 TOTP 密钥，此命令为用户更新该密钥。不论哪种情况，此命令会返回新创建的密钥，此密钥仅展示一次，请及时保存。系统会为创建了 TOTP 密钥的用户自动启用 TOTP 双因认证。
+若用户尚未创建 TOTP 密钥，本命令为其创建；若已创建，则更新密钥。无论哪种情况，都会返回新密钥，且仅展示一次，请及时保存。系统会为已创建 TOTP 密钥的用户自动启用 TOTP 双因素认证。
 
-启用 TOTP 双因认证后，TDengine TSDB 要求 TOTP 验证码长度为 6 位，且每 30 秒更新一次，请务必按此参数配置 TOTP 验证码生成器，否则会导致客户端无法登录。
+启用后，TDengine 要求 TOTP 验证码长度为 6 位，且每 30 秒更新一次；请按此参数配置验证码生成器，否则客户端可能无法登录。
 
-例如，可以使用下面的命令为用户 test 创建 TOTP 密钥。
+为用户 `test` 创建 TOTP 密钥的示例：
 
 ```sql
-taos> create totp_secret for user test;
+taos> CREATE TOTP_SECRET FOR USER test;
                      totp_secret                      |
 =======================================================
  ERIRPLZL4ZBFTPT5BNXMVFPR4Z3PTHUWTBTCNZPOHYPYQGTD25XA |
@@ -197,39 +195,39 @@ Query OK, 1 row(s) in set (0.002314s)
 ### 删除 TOTP 密钥
 
 ```sql
-DROP TOTP_SECRET FROM USER user_name
+DROP TOTP_SECRET FROM USER user_name;
 ```
 
-此命令删除用户的 TOTP 密钥，密钥删除后，用户的 TOTP 双因认证功能将被禁用。
+删除用户的 TOTP 密钥后，该用户的 TOTP 双因素认证将被禁用。
 
-例如，可以使用下面的命令删除用户 test 的 TOTP 密钥。
+示例：
 
 ```sql
-taos> drop totp_secret from user test;
+taos> DROP TOTP_SECRET FROM USER test;
 Drop OK, 0 row(s) affected (0.002295s)
 ```
 
 ## 令牌管理
 
-令牌管理是 TDengine TSDB 企业版功能，从企业版 v3.4.0.0 开始支持。
+令牌管理为企业版功能，自企业版 `v3.4.0.0` 起支持。
 
 ### 创建令牌
 
 ```sql
-CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value]
+CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value];
 ```
 
 令牌名称最长 31 个字节。
 
-- `ENABLE` 表示是否启用该令牌。`1` 表示启用，`0` 表示未启用，未启用的令牌不能用于登录系统。缺省值为 `1`。
-- `TTL` 令牌的有效时长，以天为单位，从创建时起算，默认 `0`，表示永远有效。
-- `PROVIDER` 令牌提供者的名称，最长 63 个字节。
-- `EXTRA_INFO` 由应用管理的附加信息，最长 1023 字节。
+- `ENABLE`：是否启用该令牌。`1` 表示启用，`0` 表示未启用；未启用的令牌不能用于登录。缺省值为 `1`。
+- `TTL`：令牌有效时长，单位为天，从创建时起算。默认 `0`，表示永久有效。
+- `PROVIDER`：令牌提供者名称，最长 63 个字节。
+- `EXTRA_INFO`：由应用管理的附加信息，最长 1023 字节。
 
-在下面的示例中，我们为用户 test 创建了一个名为 `test_token` 的令牌。注意，令牌值仅在创建时展示一次，后续无法查询，请及时保存。
+以下为用户 `test` 创建名为 `test_token` 的令牌。注意：令牌值仅在创建时展示一次，后续无法查询，请及时保存。
 
 ```sql
-taos> create token test_token from user test;
+taos> CREATE TOKEN test_token FROM USER test;
                              token                               |
 ==================================================================
  BsyjYKxhCMntZ3pHgweCd2uV2C8HoGKn8Mvd49dRRCtzusX0P1mgqRMrG7SzUca |
@@ -238,16 +236,16 @@ Query OK, 1 row(s) in set (0.003018s)
 
 ### 查看令牌
 
-可以使用如下命令查看已经创建的令牌，但普通用户仅能查看自己的令牌。
+普通用户仅能查看自己的令牌：
 
 ```sql
 SHOW TOKENS;
 ```
 
-以下是示例：
+**示例**
 
 ```sql
-taos> show tokens;
+taos> SHOW TOKENS;
     name    | user | provider | enable |       create_time       |       expire_time       | extra_info |
 =========================================================================================================
  root_token | root |          |      1 | 2025-12-25 10:02:28.000 | 1970-01-01 08:00:00.000 |            |
@@ -255,10 +253,10 @@ taos> show tokens;
 Query OK, 2 row(s) in set (0.003313s)
 ```
 
-或者，可以查询内置系统表 INFORMATION_SCHEMA.INS_TOKENS 来获取令牌信息。
+也可查询 `information_schema.ins_tokens`：
 
 ```sql
-taos> select * from information_schema.ins_tokens;
+taos> SELECT * FROM information_schema.ins_tokens;
     name    | user | provider | enable |       create_time       |       expire_time       | extra_info |
 =========================================================================================================
  root_token | root |          |      1 | 2025-12-25 10:02:28.000 | 1970-01-01 08:00:00.000 |            |
@@ -269,10 +267,10 @@ Query OK, 2 row(s) in set (0.007438s)
 ### 修改令牌
 
 ```sql
-ALTER TOKEN token_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value]
+ALTER TOKEN token_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value];
 ```
 
-当修改令牌的有效时长（TTL）时，新的有效时长从修改时起算。
+修改 `TTL` 时，新的有效时长从修改时刻起算。
 
 ### 删除令牌
 
@@ -280,4 +278,4 @@ ALTER TOKEN token_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO v
 DROP TOKEN [IF EXISTS] token_name;
 ```
 
-另外，删除用户时，其令牌会被同时级联删除。
+删除用户时，其令牌会一并级联删除。

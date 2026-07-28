@@ -1,4 +1,5 @@
 -f https://download.pytorch.org/whl/torch_stable.html
 torch==2.3.1+cpu
-chronos-forecasting
+transformers==4.55
+chronos-forecasting==1.5.3
 flask

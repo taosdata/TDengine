@@ -1,10 +1,10 @@
 ---
-title: "OPC UA"
-sidebar_label: "OPC UA"
+title: OPC UA
+sidebar_label: OPC UA
 toc_max_heading_level: 4
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移任务，从 OPC UA 服务器同步数据到当前 TDengine TSDB 集群。
+本节讲述如何通过 taosExplorer 界面创建数据写入任务，从 OPC UA 服务器同步数据到当前 TDengine 集群。
 
 ## 功能概述
 
@@ -12,7 +12,7 @@ OPC 是工业自动化领域和其他行业中安全可靠地交换数据的互�
 
 OPC UA 是经典 OPC 规范的下一代标准，是一个平台无关的面向服务的架构规范，集成了现有 OPC Classic 规范的所有功能，提供了一条迁移到更安全和可扩展解决方案的路径。
 
-TDengine TSDB 可以高效地从 OPC UA 服务器读取数据并将其写入 TDengine TSDB，以实现实时数据入库。
+TDengine 可以高效地从 OPC UA 服务器读取数据并将其写入 TDengine，以实现实时数据入库。
 
 ## 数据接入
 
@@ -100,7 +100,7 @@ TDengine TSDB 可以高效地从 OPC UA 服务器读取数据并将其写入 TDe
 
 ##### 超级表名
 
-通过 **超级表名** 指定数据要写入的超级表。表达式中可使用占位符 `{type}`，替换为该点位值列的 TDengine TSDB 数据类型。
+通过 **超级表名** 指定数据要写入的超级表。表达式中可使用占位符 `{type}`，替换为该点位值列的 TDengine 数据类型。
 
 :::tip
 表达式中的 `.` 会被自动替换为 `_`，以避免在超级表名中产生非法字符。例如 `opc.{type}` 实际生成的超级表名为 `opc_double`（点位为 `Float64` 时）。
@@ -144,11 +144,11 @@ TDengine TSDB 可以高效地从 OPC UA 服务器读取数据并将其写入 TDe
 ##### 时间戳列
 
 - **时间戳列**：可选 `origin_ts`、`request_ts`、`received_ts`。
-  - `origin_ts`：使用 OPC 点位数据的原始时间戳作为 TDengine TSDB 中的时间戳列。
-  - `request_ts`：使用数据的请求时间戳作为 TDengine TSDB 中的时间戳列。
-  - `received_ts`：使用数据的接收时间戳作为 TDengine TSDB 中的时间戳列。
+  - `origin_ts`：使用 OPC 点位数据的原始时间戳作为 TDengine 中的时间戳列。
+  - `request_ts`：使用数据的请求时间戳作为 TDengine 中的时间戳列。
+  - `received_ts`：使用数据的接收时间戳作为 TDengine 中的时间戳列。
 
-- **时间戳列名**：指定 TDengine TSDB 时间戳列的名称，默认 `ts`。
+- **时间戳列名**：指定 TDengine 时间戳列的名称，默认 `ts`。
 
 ##### 自定义标签
 
@@ -225,7 +225,7 @@ VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::browse::{BrowseName};VARCHAR(200)::l
 
 #### 5.2. 上传 CSV 配置文件
 
-您可以下载 CSV 空模板并按模板配置点位信息，然后上传 CSV 配置文件来配置点位；或者根据所配置的筛选条件下载数据点位，并以 CSV 模板所制定的格式下载。
+你可以下载 CSV 空模板并按模板配置点位信息，然后上传 CSV 配置文件来配置点位；或者根据所配置的筛选条件下载数据点位，并以 CSV 模板所制定的格式下载。
 
 ![上传 CSV 配置文件](../assets/opcua-05-csv.png)
 
@@ -261,8 +261,8 @@ A&E 采集的数据入库规则（超级表 / 子表命名、字段类型映射�
 如上图所示，其中：
 
 - **采集模式**：可选 `subscribe`、`observe`、`event` 三种模式。
-  - `subscribe`：订阅模式，数据有变化时主动上报并写入 TDengine TSDB。用于普通点位采集。
-  - `observe`：根据 **采集间隔** 轮询数据点的最新值并写入 TDengine TSDB。用于普通点位采集。
+  - `subscribe`：订阅模式，数据有变化时主动上报并写入 TDengine。用于普通点位采集。
+  - `observe`：根据 **采集间隔** 轮询数据点的最新值并写入 TDengine。用于普通点位采集。
   - `event`：告警与事件（A&E）采集模式。当**点位集**选择「告警与事件」tab 时自动锁定为此模式且不可修改，详见 [OPC UA 告警与事件采集](./06-alarm-event.md)。
 - **采集间隔**：当 **采集模式** 为 `observe` 时，默认为 10 秒。
 - **采集超时**：向 OPC 服务器读取点位数据时如果超过设定时间未返回数据，则读取失败，默认为 10 秒。仅在 **采集模式** 为 `observe` 时可配置。
@@ -306,7 +306,7 @@ A&E 采集的数据入库规则（超级表 / 子表命名、字段类型映射�
 
 ### 8. 提交任务
 
-点击 **提交** 按钮，完成创建 OPC UA 到 TDengine TSDB 的数据同步任务，回到 **数据源列表** 页面可查看任务执行情况。
+点击 **提交** 按钮，完成创建 OPC UA 到 TDengine 的数据同步任务，回到 **数据源列表** 页面可查看任务执行情况。
 
 ## 增加数据点位
 

@@ -1,6 +1,6 @@
 ---
-title: "OPC UA CSV 映射文件参考"
-sidebar_label: "CSV 映射参考"
+title: OPC UA CSV 映射文件参考
+sidebar_label: CSV 映射参考
 ---
 
 本页详细说明 taosX **OPC UA Data In** 任务所使用的 CSV 映射文件，重点回答两个高频问题：
@@ -16,7 +16,7 @@ sidebar_label: "CSV 映射参考"
 
 ### OPC 服务器地址空间（浏览得到）
 
-- 通过浏览 OPC UA 服务器获取（Explorer 中的"选择数据点"面板，或 `points` 命令）。
+- 通过浏览 OPC UA 服务器获取（taosExplorer 中的"选择数据点"面板，或 `points` 命令）。
 - 每个浏览到的数据点包含：`id`、`name`、`description`、`display_name`、`node_type`、`path`。
 - `id` 是规范化的 OPC UA 节点 ID，例如 `ns=3;i=1005` 或 `ns=2;s=Channel1.Device1.Tag1`。
 - `display_name` 和 `path` 是服务器提供的 **可读标识**，用于帮助工程师定位节点，但 **不是** 协议订阅时使用的标识。
@@ -36,7 +36,7 @@ sidebar_label: "CSV 映射参考"
 
 ## 2. CSV 列说明
 
-当你在 Explorer 中选择数据点并下载 CSV 模板时，taosX 会按照 OPC UA 服务器返回的浏览信息自动生成完整的表头：
+当你在 taosExplorer 中选择数据点并下载 CSV 模板时，taosX 会按照 OPC UA 服务器返回的浏览信息自动生成完整的表头：
 
 ```text
 No.,point_id,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts_col,ts_transform,request_ts_col,request_ts_transform,received_ts_col,received_ts_transform,tag::VARCHAR(1024)::name,tag::VARCHAR(1024)::BrowseName,tag::VARCHAR(1024)::DisplayName,tag::VARCHAR(1024)::Description,tag::VARCHAR(1024)::Path
@@ -155,7 +155,7 @@ point_id,enabled,stable,tbname,value_col,type,quality_col,ts_col,received_ts_col
 
 ## 4. 快速检查清单
 
-- 在 Explorer 的"选择数据点"面板（或使用 `points` 命令）浏览 OPC 服务器，勾选要采集的数据点。
+- 在 taosExplorer 的"选择数据点"面板（或使用 `points` 命令）浏览 OPC 服务器，勾选要采集的数据点。
 - 下载 CSV 模板。模板已经包含正确的表头，并把每个点的 `BrowseName`、`DisplayName`、`Path` 等浏览信息自动写入对应的 Tag 列；通常只需要按需调整：
   - `enabled`（不需要的点改为 `0`）
   - `stable`：默认 `opc_{type}` / `opc_object` 已能覆盖大多数场景
@@ -164,4 +164,4 @@ point_id,enabled,stable,tbname,value_col,type,quality_col,ts_col,received_ts_col
   - 如有业务维度需要入库，按 `tag::TYPE::name` 的格式追加列即可
 - 凡是字符串型节点 ID（`"ns=2;s=..."`）一律用双引号包裹，特别是可能含逗号时。
 - 文件保存为 **UTF-8** 编码（带或不带 BOM 均可），其他编码（如 GBK）会被拒绝。
-- 在 Explorer 中上传后，先点击 **检查连接（Check Connection）** 并查看解析后的表头，确认行结构是否正确。
+- 在 taosExplorer 中上传后，先点击 **检查连接（Check Connection）** 并查看解析后的表头，确认行结构是否正确。

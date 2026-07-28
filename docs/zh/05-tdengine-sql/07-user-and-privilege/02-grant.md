@@ -1,15 +1,17 @@
 ---
-toc_max_heading_level: 4
 title: 权限管理
+sidebar_label: 权限管理
+description: 数据库与对象授权、RBAC 角色、三权分立及高级安全策略
+toc_max_heading_level: 4
 ---
 
-TDengine TSDB 中的权限管理分为 [用户管理](./01-user.md)、数据库授权管理以及消息订阅授权管理，本节重点说明数据库授权和订阅授权。
-授权管理仅在 TDengine TSDB 企业版中可用，请联系 TDengine TSDB 销售团队。授权语法在 3.3.x.y 及之前的社区版可用，但不起作用，在 3.4.0.0 及后续版本，授权语法执行报错。
-3.4.0.0 开始，TDengine 企业版通过基于角色的访问控制（RBAC）实现了三权分立机制。权限部分改动较大，3.4.0.0 至 3.4.0.10 之间的版本，3.3.x.y 版本的部分语法不兼容，自 3.4.0.11 版本开始，3.3.x.y 版本的语法也开始兼容。为了更精细化的权限管理，推荐使用 3.4.0.0 版本的新语法。本文后续部分，会分别说明。
+TDengine 的权限管理包括 [用户管理](./01-user.md)、数据库授权以及消息订阅授权。本节说明数据库授权与订阅授权。权限管理仅在 TDengine 企业版中可用，社区版在 `3.3.x.y` 及更早版本中可解析授权语法但不生效；自 `v3.4.0.0` 起，社区版执行授权语法会报错。
+
+自 `v3.4.0.0` 起，企业版通过基于角色的访问控制（RBAC）实现三权分立。`v3.4.0.0` 至 `v3.4.0.10` 与 `3.3.x.y` 的部分授权语法不兼容；自 `v3.4.0.11` 起逐步兼容旧语法。精细化权限管理建议使用 `v3.4.0.0` 及之后的新语法。下文按版本分别说明。
 
 ## 版本对比
 
-| 特性 | 3.3.x.y- | 3.4.0.0+ |
+| 特性 | `3.3.x.y` 及更早 | `v3.4.0.0` 及之后 |
 |------|---------|----------|
 | 基础用户管理 | ✓ | ✓ |
 | RBAC 角色管理 | ✗ | ✓ |
@@ -22,11 +24,11 @@ TDengine TSDB 中的权限管理分为 [用户管理](./01-user.md)、数据库�
 
 ---
 
-## 权限管理 - 3.3.x.y 及之前版本
+## 权限管理 - `3.3.x.y` 及之前版本
 
-## 数据库访问授权
+### 数据库访问授权
 
-系统管理员可以根据业务需要对系统中的每个用户针对每个数据库进行特定的授权，以防止业务数据被不恰当的用户读取或修改。对某个用户进行数据库访问授权的语法如下：
+系统管理员可以根据业务需要对系统中的每个用户针对每个数据库进行特定的授权，以防止业务数据被不当用户读取或修改。对某个用户进行数据库访问授权的语法如下：
 
 ```sql
 GRANT privileges ON priv_level TO user_name
@@ -50,22 +52,22 @@ priv_level : {
 
 对数据库的访问权限包含读和写两种权限，它们可以被分别授予，也可以被同时授予。
 
-说明
+**说明**
 
-- priv_level 格式中 "." 之前为数据库名称，"." 之后为表名称，意思为表级别的授权控制。如果 "." 之后为 "\*"，意为 "." 前所指定的数据库中的所有表
-- "dbname.\*" 意思是名为 "dbname" 的数据库中的所有表
-- "\*.\*" 意思是所有数据库名中的所有表
+- `priv_level` 格式中 `.` 之前为数据库名称，`.` 之后为表名称，表示表级授权。若 `.` 之后为 `*`，表示指定数据库中的所有表
+- `dbname.*`：名为 `dbname` 的数据库中的所有表
+- `*.*`：所有数据库中的所有表
 
-### 数据库权限说明
+#### 数据库权限说明
 
 对 root 用户和普通用户的权限的说明如下表
 
 | 用户     | 描述                               | 权限说明                        |
 | -------- | --------------------------------- | -- |
-| 超级用户 | 只有 root 是超级用户               |<br/>DB 外部：所有操作权限，例如 user、dnode、udf、qnode 等的 CRUD <br/>DB 权限：包括创建、删除、修改 Option、移动 Vgruop、读、写、Enable/Disable 用户  |
+| 超级用户 | 只有 root 是超级用户               |<br/>DB 外部：所有操作权限，例如 user、dnode、udf、qnode 等的 CRUD <br/>DB 权限：包括创建、删除、修改 Option、移动 Vgroup、读、写、Enable/Disable 用户  |
 | 普通用户 | 除 root 以外的其它用户均为普通用户 | <br/>在可读的 DB 中：普通用户可以进行读操作 select、describe、show、subscribe <br/>在可写 DB 的内部，用户可以进行写操作，创建、删除、修改超级表，创建、删除、修改子表，创建、删除、修改 topic。写入数据 <br/>被限制系统信息时，不可进行如下操作 show dnode、mnode、vgroups、qnode、snode、修改用户包括自身密码、`show db` 时只能看到自己的 db，并且不能看到 vgroups、副本、cache 等信息 <br/>无论是否被限制系统信息，都可以管理 udf，可以创建 DB、自己创建的 DB 具备所有权限、非自己创建的 DB，参照读、写列表中的权限 |
 
-## 消息订阅授权
+### 消息订阅授权
 
 任意用户都可以在自己拥有读权限的数据库上创建 topic。超级用户 root 可以在任意数据库上创建 topic。每个 topic 的订阅权限都可以被独立授权给任何用户，不管该用户是否拥有该数据库的访问权限。删除 topic 只能由 root 用户或者该 topic 的创建者进行。topic 只能由超级用户、topic 的创建者或者被显式授予 subscribe 权限的用户订阅。
 
@@ -77,9 +79,9 @@ GRANT SUBSCRIBE ON topic_name TO user_name
 REVOKE SUBSCRIBE ON topic_name FROM user_name
 ```
 
-## 基于标签的授权（表级授权）
+### 基于标签的授权（表级授权）
 
-从 v3.0.5.0 开始，我们支持按标签授权某个超级表中部分特定的子表。具体的 SQL 语法如下。
+从 `v3.0.5.0` 开始，支持按标签授权某个超级表中部分特定的子表。具体的 SQL 语法如下。
 
 ```sql
 GRANT privileges ON priv_level [WITH tag_condition] TO user_name
@@ -124,25 +126,25 @@ priv_level : {
 - 用户可以通过 dbname.tbname 来为指定的表（包括超级表和普通表）授予或回收其读写权限，不支持直接对子表授予或回收权限。
 - 用户可以通过 dbname.tbname 和 WITH 子句来为符合条件的所有子表授予或回收其读写权限。使用 WITH 子句时，权限级别必须为超级表。
 
-## 表级权限和数据库权限的关系
+### 表级权限和数据库权限的关系
 
 下表列出了在不同的数据库授权和表级授权的组合下产生的实际权限。
 
-|                | **表无授权**   | **表读授权**                        | **表读授权有标签条件**                              | **表写授权**                        | **表写授权有标签条件**   |
+|                | **表无授权** | **表读授权** | **表读授权有标签条件** | **表写授权** | **表写授权有标签条件** |
 | -------------- | ------------- | --------------------------------- | ------------------------------------------------- | ---------------------------------- | -------------------- |
 | **数据库无授权** | 无授权         | 对此表有读权限，对数据库下的其他表无权限 | 对此表符合标签权限的子表有读权限，对数据库下的其他表无权限  | 对此表有写权限，对数据库下的其他表无权限 | 对此表符合标签权限的子表有写权限，对数据库下的其他表无权限 |
 | **数据库读授权** | 对所有表有读权限 | 对所有表有读权限                    | 对此表符合标签权限的子表有读权限，对数据库下的其他表有读权限 | 对此表有写权限，对所有表有读权限        | 对此表符合标签权限的子表有写权限，所有表有读权限           |
 | **数据库写授权** | 对所有表有写权限 | 对此表有读权限，对所有表有写权限       | 对此表符合标签权限的子表有读权限，对所有表有写权限         | 对所有表有写权限                      | 对此表符合标签权限的子表有写权限，数据库下的其他表有写权限 |
 
-## 查看用户授权
+### 查看用户授权
 
 使用下面的命令可以显示一个用户所拥有的授权：
 
 ```sql
-show user privileges 
+SHOW USER PRIVILEGES
 ```
 
-## 撤销授权
+### 撤销授权
 
 1. 撤销数据库访问的授权
 
@@ -187,11 +189,11 @@ priv_level : {
 
 ---
 
-## 权限管理 - 3.4.0.0 及后续版本
+## 权限管理 - `v3.4.0.0` 及后续版本
 
 ### 三权分立概述
 
-从 3.4.0.0 开始，TDengine 企业版通过基于角色的访问控制（RBAC）实现了三权分立机制，将 root 用户的管理权限拆分为 SYSDBA、SYSSEC 和 SYSAUDIT 三种系统管理权限，从而实现权限的有效隔离和制衡。
+从 `v3.4.0.0` 开始，TDengine 企业版通过基于角色的访问控制（RBAC）实现了三权分立机制，将 root 用户的管理权限拆分为 SYSDBA、SYSSEC 和 SYSAUDIT 三种系统管理权限，从而实现权限的有效隔离和制衡。
 
 | 角色 | 全称 | 职责 |
 |------|------|------|
@@ -199,7 +201,7 @@ priv_level : {
 | **SYSSEC** | 数据库安全员 | 用户角色权限授予/撤销、安全策略制定 |
 | **SYSAUDIT** | 数据库审计员 | 独立审计监督、审计数据库管理、审计日志查看。不能查看业务数据 |
 
-**关键约束：**
+**关键约束**
 
 ```text
 ❌ 不允许将 SYSDBA/SYSSEC/SYSAUDIT 中任意两个同时授予同一用户
@@ -209,9 +211,9 @@ priv_level : {
 
 ### root 用户与系统角色
 
-**初始状态：** root 用户默认拥有 SYSDBA、SYSSEC、SYSAUDIT 的全部权限
+**初始状态** root 用户默认拥有 SYSDBA、SYSSEC、SYSAUDIT 的全部权限
 
-**推荐做法：** 在系统初始配置后，立即分离角色，之后停用 root 进行日常操作
+**推荐做法** 在系统初始配置后，立即分离角色，之后停用 root 进行日常操作
 
 ```sql
 -- 创建专用管理员
@@ -227,14 +229,14 @@ GRANT ROLE `SYSAUDIT` TO audit_user;
 
 ### 数据库管理员（SYSDBA）
 
-**职责：**
+**职责**
 
 - 数据库的日常运维、系统管理
 - 创建和管理用户、角色
 - 管理数据库、表、索引等对象
-- 管理节点、流计算、订阅等系统资源
+- 管理节点、流式计算、订阅等系统资源
 
-**限制：**
+**限制**
 
 - 不能授予 SYSSEC/SYSAUDIT 权限
 - 不能执行与审计数据库相关的操作
@@ -242,14 +244,14 @@ GRANT ROLE `SYSAUDIT` TO audit_user;
 
 ### 数据库安全员（SYSSEC）
 
-**职责：**
+**职责**
 
 - 用户与角色权限管理（除 SYSDBA/SYSAUDIT 外）
 - 安全参数配置
 - TOTP 密钥管理
 - 用户安全信息设置
 
-**权限示例：**
+**权限示例**
 
 ```sql
 GRANT/REVOKE SYSSEC PRIVILEGE
@@ -261,14 +263,14 @@ READ INFORMATION_SCHEMA SECURITY
 
 ### 数据库审计员（SYSAUDIT）
 
-**职责：**
+**职责**
 
 - 独立审计监督
 - 审计数据库管理
 - 审计日志查看
 - 审计相关参数配置
 
-**权限示例：**
+**权限示例**
 
 ```sql
 GRANT/REVOKE SYSAUDIT PRIVILEGE
@@ -286,7 +288,7 @@ READ INFORMATION_SCHEMA AUDIT
 CREATE ROLE [IF NOT EXISTS] role_name;
 ```
 
-**约束：**
+**约束**
 
 - 创建者需具有 CREATE ROLE 权限
 - 角色名长度 1-63 字符
@@ -326,14 +328,14 @@ REVOKE ROLE role_name FROM user_name;
 除三大系统管理角色外，TDengine 还提供下述系统内置角色：
 
 | 角色 | 说明 |
-|------|------|
+|------------------|------|
 | **SYSAUDIT_LOG** | 可在审计库建表、写入数据，但不能删表/改表/删数据。不能与 SYSDBA/SYSSEC/SYSAUDIT 同时授予某一用户 |
-| **SYSINFO_0** | 对应 SYSINFO=0 权限，查看基础系统信息 |
-| **SYSINFO_1** | 对应 SYSINFO=1 权限，查看更多系统信息，可修改自身密码 |
+| **SYSINFO_0**    | 对应 SYSINFO=0 权限，查看基础系统信息 |
+| **SYSINFO_1**    | 对应 SYSINFO=1 权限，查看更多系统信息，可修改自身密码 |
 
 #### SYSINFO 属性与角色的联动
 
-自 TDengine TSDB 企业版 3.4.2.1 开始，用户的 `SYSINFO` 属性（见[用户管理](./01-user.md)）与 `SYSINFO_0`/`SYSINFO_1` 及高阶系统角色之间存在联动，以简化操作，避免属性与角色需要分别设置。规则如下：
+自 TDengine 企业版 `v3.4.2.1` 开始，用户的 `SYSINFO` 属性（见 [用户管理](./01-user.md)）与 `SYSINFO_0`/`SYSINFO_1` 及高阶系统角色之间存在联动，以简化操作，避免属性与角色需要分别设置。规则如下：
 
 1. 执行 `ALTER USER user_name SYSINFO {0|1}` 时，会联动修改 `SYSINFO_0`/`SYSINFO_1` 角色。
 2. 授予高阶系统角色（`SYSINFO_1`、`SYSDBA`、`SYSSEC`、`SYSAUDIT`、`SYSAUDIT_LOG`）时，会联动将用户的 `SYSINFO` 属性提升为 `1`。授予 `SYSINFO_0` 或用户自定义角色时，`SYSINFO` 属性不变。
@@ -345,7 +347,7 @@ REVOKE ROLE role_name FROM user_name;
 
 ### 系统权限管理
 
-3.4.0.0+ 新增细粒度系统权限：
+自 `v3.4.0.0` 起新增细粒度系统权限：
 
 ```sql
 -- 授予系统权限
@@ -414,7 +416,7 @@ priv_type: {
 
 ### 对象权限管理
 
-3.4.0.0+ 支持更细粒度的对象权限：
+自 `v3.4.0.0` 起支持更细粒度的对象权限：
 
 ```sql
 -- 授予对象权限
@@ -432,12 +434,12 @@ priv_obj: {
   | tsma               -- 窗口预聚集
   | rsma               -- 降采样存储
   | topic              -- 主题
-  | stream             -- 流计算
+  | stream             -- 流式计算
   | xnode task         -- xnode 任务
 }
-说明：
--- 不指定 priv_obj 时：1）在 3.4.0.0 至 3.4.0.10 版本，priv_obj 默认为 table。2）自 3.4.0.11 版本起，如果 enableGrantLegacySyntax 为 1，兼容 3.3.x.y 版本语法的功能，根据 privileges 中的权限类型 和 priv_level，自适应的扩展为 database/table/view/index/tsma/rsma/topic/stream/xnode task 对应的权限；如果 enableGrantLegacySyntax 为 0 (默认值)，不兼容 3.3.x.y 版本语法的功能，仅自适应的扩展为 table/view 对应的权限。
--- 为了更精细的控制权限对象，推荐明确的指定 priv_obj。
+-- 说明：
+-- 不指定 priv_obj 时：1）在 `v3.4.0.0` 至 `v3.4.0.10` 版本，priv_obj 默认为 table。2）自 `v3.4.0.11` 版本起，如果 enableGrantLegacySyntax 为 1，兼容 `3.3.x.y` 版本语法的功能，根据 privileges 中的权限类型 和 priv_level，自适应地扩展为 database/table/view/index/tsma/rsma/topic/stream/xnode task 对应的权限；如果 enableGrantLegacySyntax 为 0 (默认值)，不兼容 `3.3.x.y` 版本语法的功能，仅自适应地扩展为 table/view 对应的权限。
+-- 为了更精细地控制权限对象，推荐明确指定 priv_obj。
 
 priv_level: {
     *                  -- 所有库或所有 xnode 任务
@@ -450,7 +452,7 @@ priv_level: {
 
 privileges: {
     ALL [PRIVILEGES]
-  | read | write       -- 为兼容 3.3.x.y 版本的语法，自 3.4.0.11 版本开始支持 read/write
+  | read | write       -- 为兼容 `3.3.x.y` 版本的语法，自 `v3.4.0.11` 版本开始支持 read/write
   | priv_type [, priv_type] ...
 }
 
@@ -469,46 +471,46 @@ priv_type: {
 }
 ```
 
-> **说明（省略 priv_obj 时的行为）：**
+> **说明（省略 priv_obj 时的行为）**
 >
-> - **3.4.0.0 至 3.4.0.10**：省略 `priv_obj` 时，默认视为 `table`。
-> - **3.4.0.11+**：省略 `priv_obj` 时的扩展行为由参数 [`enableGrantLegacySyntax`](../../12-operations-and-tooling/03-components/01-taosd.md#enablegrantlegacysyntax) 控制（默认 `0`）。为避免歧义，推荐始终明确指定 `priv_obj`。
+> - **`v3.4.0.0` 至 `v3.4.0.10`**：省略 `priv_obj` 时，默认视为 `table`。
+> - **`v3.4.0.11` 及之后**：省略 `priv_obj` 时的扩展行为由参数 [`enableGrantLegacySyntax`](../../12-operations-and-tooling/03-components/01-taosd.md#enablegrantlegacysyntax) 控制（默认 `0`）。为避免歧义，推荐始终明确指定 `priv_obj`。
 
 #### 对象类型与权限类型对应关系
 
 不同的对象类型支持的权限类型不同，具体对应关系如下：
 
-| 权限类型 | database | table | view | index | tsma | rsma | topic | stream | xnode task|
-|---------|:--------:|:-----:|:----:|:-----:|:----:|:----:|:-----:|:------:|:------:|
-| ALTER | ✓ | ✓ | ✓ | | | ✓ | | | ✓ |
-| DROP | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SELECT [(column_list)] | | ✓ | ✓ | | | | | | |
-| INSERT [(column_list)] | | ✓ | | | | | | | |
-| DELETE | | ✓ | | | | | | | |
-| CREATE TABLE | ✓ | | | | | | | | |
-| CREATE VIEW | ✓ | | | | | | | | |
-| CREATE INDEX | | ✓ | | | | | | | |
-| CREATE TSMA | | ✓ | | | | | | | |
-| CREATE RSMA | | ✓ | | | | | | | |
-| CREATE TOPIC | ✓ | | | | | | | | |
-| CREATE STREAM | ✓ | | | | | | | | |
-| USE | ✓ | | | | | | | | |
-| SHOW | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| SHOW CREATE | ✓ | ✓ | ✓ | | | ✓ | | | |
-| FLUSH | ✓ | | | | | | | | |
-| COMPACT | ✓ | | | | | | | | |
-| TRIM | ✓ | | | | | | | | |
-| ROLLUP | ✓ | | | | | | | | |
-| SCAN | ✓ | | | | | | | | |
-| SSMIGRATE | ✓ | | | | | | | | |
-| SUBSCRIBE | | | | | | | ✓ | | |
-| SHOW CONSUMERS | | | | | | | ✓ | | |
-| SHOW SUBSCRIPTIONS | | | | | | | ✓ | | |
-| START | | | | | | | | ✓ | |
-| STOP | | | | | | | | ✓ | |
-| RECALCULATE | | | | | | | | ✓ | |
+| 权限类型               | database | table | view | index | tsma | rsma | topic | stream | xnode task |
+| ---------------------- | :------: | :---: | :--: | :---: | :--: | :--: | :---: | :----: | :--------: |
+| ALTER                  |    ✓     |   ✓   |  ✓   |       |      |  ✓   |       |        |     ✓      |
+| DROP                   |    ✓     |   ✓   |  ✓   |   ✓   |  ✓   |  ✓   |   ✓   |   ✓    |     ✓      |
+| SELECT [(column_list)] |          |   ✓   |  ✓   |       |      |      |       |        |            |
+| INSERT [(column_list)] |          |   ✓   |      |       |      |      |       |        |            |
+| DELETE                 |          |   ✓   |      |       |      |      |       |        |            |
+| CREATE TABLE           |    ✓     |       |      |       |      |      |       |        |            |
+| CREATE VIEW            |    ✓     |       |      |       |      |      |       |        |            |
+| CREATE INDEX           |          |   ✓   |      |       |      |      |       |        |            |
+| CREATE TSMA            |          |   ✓   |      |       |      |      |       |        |            |
+| CREATE RSMA            |          |   ✓   |      |       |      |      |       |        |            |
+| CREATE TOPIC           |    ✓     |       |      |       |      |      |       |        |            |
+| CREATE STREAM          |    ✓     |       |      |       |      |      |       |        |            |
+| USE                    |    ✓     |       |      |       |      |      |       |        |            |
+| SHOW                   |    ✓     |   ✓   |  ✓   |   ✓   |  ✓  |  ✓   |   ✓   |   ✓    |     ✓      |
+| SHOW CREATE            |    ✓     |   ✓   |  ✓   |       |      |  ✓   |       |        |            |
+| FLUSH                  |    ✓     |       |      |       |      |      |       |        |            |
+| COMPACT                |    ✓     |       |      |       |      |      |       |        |            |
+| TRIM                   |    ✓     |       |      |       |      |      |       |        |            |
+| ROLLUP                 |    ✓     |       |      |       |      |      |       |        |            |
+| SCAN                   |    ✓     |       |      |       |      |      |       |        |            |
+| SSMIGRATE              |    ✓     |       |      |       |      |      |       |        |            |
+| SUBSCRIBE              |          |       |      |       |      |      |   ✓   |        |            |
+| SHOW CONSUMERS         |          |       |      |       |      |      |   ✓   |        |            |
+| SHOW SUBSCRIPTIONS     |          |       |      |       |      |      |   ✓   |        |            |
+| START                  |          |       |      |       |      |      |       |   ✓    |            |
+| STOP                   |          |       |      |       |      |      |       |   ✓    |            |
+| RECALCULATE            |          |       |      |       |      |      |       |   ✓    |            |
 
-**说明：**
+**说明**
 
 - 使用 `GRANT` 授权时，需要通过 `ON [priv_obj]` 指定对象类型，系统会自动校验该权限是否适用于指定的对象类型。
 - `[(column_list)]` 表示可选的列名列表，用于实现列级权限控制。`view` 只支持 `SELECT`，不支持指定列名列表。
@@ -524,27 +526,27 @@ priv_type: {
 
 数据库权限用于控制用户对数据库的访问和操作。数据库权限可以在不同级别应用。
 
-**权限应用级别：**
+**权限应用级别**
 
 - `*`：所有数据库
 - `dbname`：指定数据库
 
-**常用权限组合：**
+**常用权限组合**
 
-| 权限组合 | 说明 | 使用场景 |
-|---------|------|---------|
-| USE | 使用（访问）数据库 | 数据库基本访问 |
-| ALTER | 修改数据库参数 | 数据库配置调整 |
-| DROP | 删除数据库 | 数据库清理、卸载 |
-| CREATE TABLE | 创建表 | 表结构创建 |
-| CREATE VIEW | 创建视图 | 视图创建 |
-| CREATE TOPIC | 创建主题 | 主题创建 |
-| CREATE STREAM | 创建流 | 流计算创建 |
-| SHOW | 查看数据库信息 | 列出数据库中的对象 |
-| FLUSH | 刷新数据库 | 强制持久化数据 |
-| COMPACT | 压缩数据库 | 数据库维护、优化 |
+| 权限组合      | 说明        | 使用场景      |
+| ------------- | --------- | --------- |
+| USE           | 使用（访问）数据库 | 数据库基本访问   |
+| ALTER         | 修改数据库参数   | 数据库配置调整   |
+| DROP          | 删除数据库     | 数据库清理、卸载  |
+| CREATE TABLE  | 创建表       | 表结构创建     |
+| CREATE VIEW   | 创建视图      | 视图创建      |
+| CREATE TOPIC  | 创建主题      | 主题创建      |
+| CREATE STREAM | 创建流       | 流式计算创建    |
+| SHOW          | 查看数据库信息   | 列出数据库中的对象 |
+| FLUSH         | 刷新数据库     | 强制持久化数据   |
+| COMPACT       | 压缩数据库     | 数据库维护、优化  |
 
-**示例 - 数据库权限授权：**
+**示例 - 数据库权限授权**
 
 ```sql
 -- 用户 developer 可以使用 power 数据库
@@ -569,7 +571,7 @@ GRANT ALL ON DATABASE power TO admin_user;
 REVOKE ALL ON DATABASE power FROM developer;
 ```
 
-**数据库权限特殊说明：**
+**数据库权限特殊说明**
 
 - **所有者概念**：数据库创建者默认拥有该数据库的全部权限
 
@@ -577,23 +579,23 @@ REVOKE ALL ON DATABASE power FROM developer;
 
 表权限用于控制用户对表的访问和操作。表权限可以在不同级别应用：
 
-**权限应用级别：**
+**权限应用级别**
 
 - `*.*`：所有数据库的所有表
 - `dbname.*`：指定数据库的所有表
 - `dbname.tbname`：指定数据库的指定表
 
-**常用权限组合：**
+**常用权限组合**
 
-| 权限组合 | 说明 | 使用场景 |
-|---------|------|---------|
-| SELECT | 查询表数据 | 数据分析、报表查询 |
-| INSERT | 写入表数据 | 数据采集、实时写入 |
-| SELECT, INSERT | 读写数据 | 数据处理、ETL 操作 |
-| SELECT, INSERT, DELETE | 完整操作 | 数据维护、数据清理 |
-| ALTER, DROP | 修改表结构 | 表结构管理、维护 |
+| 权限组合                | 说明    | 使用场景        |
+| ---------------------- | ----- | ----------- |
+| SELECT                 | 查询表数据 | 数据分析、报表查询   |
+| INSERT                 | 写入表数据 | 数据采集、实时写入   |
+| SELECT, INSERT         | 读写数据  | 数据处理、ETL 操作 |
+| SELECT, INSERT, DELETE | 完整操作  | 数据维护、数据清理   |
+| ALTER, DROP            | 修改表结构 | 表结构管理、维护    |
 
-**示例 - 表权限授权：**
+**示例 - 表权限授权**
 
 ```sql
 -- 用户只能查询 power 库的 meters 表
@@ -613,7 +615,7 @@ GRANT ALTER ON power.* TO dba_user;
 
 ```
 
-**表权限策略及优先级：**
+**表权限策略及优先级**
 
 - 子表权限 > 超级表权限。如果没有子表权限，子表继承超级表的权限。
 - 显式指定表名的权限 > 隐含的通配符 * 权限。
@@ -623,7 +625,7 @@ GRANT ALTER ON power.* TO dba_user;
 
 行权限用于限制用户只能访问表中满足特定条件的行数据。通过 `WITH` 子句指定行过滤条件。
 
-**语法：**
+**语法**
 
 ```sql
 GRANT SELECT ON table_name WITH condition TO user_name;
@@ -631,7 +633,7 @@ REVOKE SELECT ON table_name FROM user_name; // revoke 时无论是否指定 cond
 REVOKE ALL ON table_name FROM user_name;
 ```
 
-**条件规则：**
+**条件规则**
 
 - 条件适用于超级表或普通表
 - 不能指定子表的条件
@@ -640,7 +642,7 @@ REVOKE ALL ON table_name FROM user_name;
 - 可以与 tag 子表条件组合使用
 - 可以与列权限组合使用
 
-**示例 - 按数据源分行权限：**
+**示例 - 按数据源分行权限**
 
 ```sql
 -- 用户 u1 只能查看来自传感器 sensor_001 的数据
@@ -657,7 +659,7 @@ GRANT SELECT, INSERT, DELETE ON power.meters WITH ts >= '2024-01-01' AND ts < '2
 
 列权限用于限制用户只能访问表中的特定列，只支持在 `SELECT` 或 `INSERT` 权限中指定列。对于 `SELECT` 权限，还支持使用 `mask(col)` 对敏感列进行数据脱敏，查询时返回 `'*'` 代替真实值。
 
-**语法：**
+**语法**
 
 ```sql
 GRANT SELECT (col1, col2, ...) ON table_name TO user_name;
@@ -667,7 +669,7 @@ REVOKE SELECT,INSERT ON table_name FROM user_name;
 REVOKE ALL ON table_name FROM user_name;
 ```
 
-**列权限规则：**
+**列权限规则**
 
 - 只适用于 `SELECT` 和 `INSERT` 操作
 - 只能指定超级表或普通表，不能指定子表
@@ -686,7 +688,7 @@ REVOKE ALL ON table_name FROM user_name;
   - 使用行权限（`WITH` 子句）限定可访问的数据范围，缩小探测面
   - 启用审计日志，监控对脱敏列的高频条件查询行为
 
-**示例 - 按列分权限：**
+**示例 - 按列分权限**
 
 ```sql
 -- 用户 analyst 只能查看功率和时间戳列
@@ -699,7 +701,7 @@ GRANT INSERT (ts, temperature) ON power.meters TO writer;
 GRANT SELECT (device_id, status) ON power.meters TO limited_user;
 ```
 
-**示例 - 列级数据脱敏：**
+**示例 - 列级数据脱敏**
 
 ```sql
 -- 用户可以查看时间戳和设备 ID，但姓名和地址列被脱敏为 '*'
@@ -709,7 +711,7 @@ GRANT SELECT (ts, device_id, mask(name), mask(address)) ON power.meters TO analy
 GRANT SELECT (ts, mask(phone), mask(email)) ON power.users WITH region='cn' TO support;
 ```
 
-**示例 - 结合行权限和列权限：**
+**示例 - 结合行权限和列权限**
 
 ```sql
 -- 用户只能查看特定时间范围内的功率和状态列
@@ -719,7 +721,7 @@ GRANT SELECT (ts, power, status) ON power.meters WITH ts >= '2024-01-01' TO anal
 GRANT SELECT, INSERT (ts, temperature), DELETE ON power.meters WITH source='sensor_001' TO collector;
 ```
 
-**行/列权限优先级：**
+**行/列权限优先级**
 
 - 更新时间靠后的规则生效
 - 相同更新时间，用户权限优先于角色权限
@@ -729,17 +731,17 @@ GRANT SELECT, INSERT (ts, temperature), DELETE ON power.meters WITH source='sens
 
 视图权限用于控制用户对视图的访问和操作。视图权限需要单独授权，数据库权限不包含视图权限。
 
-**常用权限组合：**
+**常用权限组合**
 
-| 权限 | 说明 | 使用场景 |
-|------|------|---------|
-| SELECT [VIEW] | 查询视图数据 | 数据分析、报表查询 |
-| DROP [VIEW] | 删除视图 | 视图清理和维护 |
-| ALTER [VIEW] | 修改视图定义 | 视图结构调整 |
-| SHOW [VIEWS] | 查看视图列表 | 查看系统中已有的视图 |
-| SHOW CREATE [VIEW] | 查看视图定义 | 了解视图的创建语句 |
+| 权限               | 说明     | 使用场景       |
+| ------------------ | ------ | ---------- |
+| SELECT [VIEW]      | 查询视图数据 | 数据分析、报表查询  |
+| DROP [VIEW]        | 删除视图   | 视图清理和维护    |
+| ALTER [VIEW]       | 修改视图定义 | 视图结构调整     |
+| SHOW [VIEWS]       | 查看视图列表 | 查看系统中已有的视图 |
+| SHOW CREATE [VIEW] | 查看视图定义 | 了解视图的创建语句  |
 
-**示例 - 视图权限授权：**
+**示例 - 视图权限授权**
 
 ```sql
 -- 用户 analyst 可以查询 power 库中的视图 meter_stats
@@ -758,14 +760,14 @@ GRANT ALL ON VIEW power.meter_stats TO admin_user;
 REVOKE ALL ON VIEW power.meter_stats FROM analyst;
 ```
 
-**视图权限特殊说明：**
+**视图权限特殊说明**
 
 - **创建权限**：视图创建权通过 `CREATE VIEW` 数据库权限控制
 - **所有者权限**：视图创建者默认拥有该视图的全部权限，可使用嵌套视图（视图有效用户概念）
 - **嵌套视图**：被授权用户可使用视图有效用户的库、表及嵌套视图的读写权限
 - **权限继承**：视图权限需单独授权，通过 `dbname.*` 进行的授权不包含视图权限
 
-**权限优先级：**
+**权限优先级**
 
 - 显式指定视图名的权限 > 通配符权限
 
@@ -773,23 +775,23 @@ REVOKE ALL ON VIEW power.meter_stats FROM analyst;
 
 主题权限用于控制用户对消息主题的访问和操作。TDengine 支持对主题进行细粒度权限控制。
 
-**权限应用级别：**
+**权限应用级别**
 
 - `*.*`：所有主题
 - `dbname.topicname`：指定数据库的指定主题
 
-**常用权限组合：**
+**常用权限组合**
 
-| 权限 | 说明 | 使用场景 |
-|------|------|---------|
-| SUBSCRIBE | 订阅主题 | 数据消费者订阅消息流 |
-| SHOW TOPICS | 查看主题列表 | 查看系统中已有的主题 |
-| SHOW CREATE TOPIC | 查看主题定义 | 了解主题的创建语句 |
-| DROP TOPIC | 删除主题 | 主题清理和维护 |
-| SHOW CONSUMERS | 查看消费者 | 监控订阅状态 |
-| SHOW SUBSCRIPTIONS | 查看订阅信息 | 了解订阅关系 |
+| 权限               | 说明     | 使用场景       |
+| ------------------ | ------ | ---------- |
+| SUBSCRIBE          | 订阅主题   | 数据消费者订阅消息流 |
+| SHOW TOPICS        | 查看主题列表 | 查看系统中已有的主题 |
+| SHOW CREATE TOPIC  | 查看主题定义 | 了解主题的创建语句  |
+| DROP TOPIC         | 删除主题   | 主题清理和维护    |
+| SHOW CONSUMERS     | 查看消费者  | 监控订阅状态     |
+| SHOW SUBSCRIPTIONS | 查看订阅信息 | 了解订阅关系     |
 
-**示例 - 主题权限授权：**
+**示例 - 主题权限授权**
 
 ```sql
 -- 用户 consumer1 可以订阅 power 数据库中的 device_events 主题
@@ -811,38 +813,38 @@ GRANT ALL ON TOPIC power.device_events TO admin_user;
 REVOKE ALL ON TOPIC power.device_events FROM inspector;
 ```
 
-**主题权限特殊说明：**
+**主题权限特殊说明**
 
 - **创建权限**：主题创建权通过 `CREATE TOPIC` 数据库权限控制，任意用户在拥有 `CREATE TOPIC` 权限的数据库上都可以创建主题
 - **删除权限**：仅主题创建者和拥有 `DROP TOPIC` 权限的用户可以删除主题
 - **消费者管理**：拥有 `SHOW CONSUMERS` 权限可查看订阅该主题的消费者信息
 
-**权限优先级：**
+**权限优先级**
 
 - 显式指定主题名的权限 > 通配符 `*` 权限
 
-### 流计算权限
+### 流式计算权限
 
-流计算权限用于控制用户对流（Stream）的访问和操作。
+流式计算权限用于控制用户对流（Stream）的访问和操作。
 
-**权限应用级别：**
+**权限应用级别**
 
 - `*.*`：所有流
 - `dbname.*`：指定数据库的所有流
 - `dbname.stream_name`：指定数据库的指定流
 
-**常用权限组合：**
+**常用权限组合**
 
-| 权限 | 说明 | 使用场景 |
-|------|------|---------|
-| SHOW [STREAMS] | 查看流列表 | 查看系统中已有的流 |
+| 权限                 | 说明    | 使用场景        |
+| -------------------- | ----- | ----------- |
+| SHOW [STREAMS]       | 查看流列表 | 查看系统中已有的流   |
 | SHOW CREATE [STREAM] | 查看流定义 | 了解流的创建语句和配置 |
-| DROP [STREAM] | 删除流 | 流清理和维护 |
-| START [STREAM] | 启动流 | 启动数据处理 |
-| STOP [STREAM] | 停止流 | 暂停数据处理 |
-| RECALCULATE [STREAM] | 重新计算流 | 流数据重新处理 |
+| DROP [STREAM]        | 删除流   | 流清理和维护      |
+| START [STREAM]       | 启动流   | 启动数据处理      |
+| STOP [STREAM]        | 停止流   | 暂停数据处理      |
+| RECALCULATE [STREAM] | 重新计算流 | 流数据重新处理     |
 
-**示例 - 流计算权限授权：**
+**示例 - 流式计算权限授权**
 
 ```sql
 -- 用户 processor 可以查看 power 库中的所有流
@@ -866,9 +868,9 @@ REVOKE ALL ON STREAM power.realtime_agg FROM operator;
 
 ### 审计数据库
 
-3.4.0.0+ 专门支持审计数据库：
+自 `v3.4.0.0` 起专门支持审计数据库：
 
-**特性：**
+**特性**
 
 - 系统仅允许一个审计库
 - 审计库通过 `is_audit` 属性标识（非固定名称）
@@ -876,19 +878,19 @@ REVOKE ALL ON STREAM power.realtime_agg FROM operator;
 - 为防止误删库，新增了 allow_drop 属性。审计库默认为 0，普通库默认为 1。删除审计库时，需要将 allow_drop 属性修改为 1。
 - 审计库的时间精度默认为纳秒（ns），不允许指定为其他精度
 
-**权限限制：**
+**权限限制**
 
 ```text
 ❌ 任何人不允许删除审计表
 ❌ 任何人不允许修改审计表
 ❌ 任何人不允许删除审计表中的数据
 ✓ 仅 SYSAUDIT_LOG 角色可向审计库写入数据
-✓ 仅 SYSAUDIT 角色可向查看审计库中的表数据
+✓ 仅 SYSAUDIT 角色可以查看审计库中的表数据
 ```
 
 ### 所有者（Owner）概念
 
-3.4.0.0+ 明确了对象所有者的权限：
+自 `v3.4.0.0` 起明确了对象所有者的权限：
 
 - **所有者**：数据库对象的创建者或被转移所有权的接收者
 - **隐含权限**：所有者对该对象拥有无需授权的全量权限
@@ -899,40 +901,40 @@ REVOKE ALL ON STREAM power.realtime_agg FROM operator;
 ## 权限查看
 
 ```sql
--- 查看用户权限（3.4.0.0+）
+-- 查看用户权限（`v3.4.0.0` 及之后）
 SHOW USER PRIVILEGES
 SELECT * FROM information_schema.ins_user_privileges
 
 taos> show user privileges;
- user_name |    priv_type        |  priv_scope | db_name | table_name | condition |  notes | columns |        update_time         |
-===================================================================================================================================
- u1        | CREATE DATABASE     | CLUSTER     |         |            |           |        |         |                            |
- u1        | SUBSCRIBE           | TOPIC       | d0      | topic1     |           |        |         |                            |
- u1        | USE DATABASE        | DATABASE    | d0      |            |           |        |         |                            |
- u1        | CREATE TABLE        | DATABASE    | d0      |            |           |        |         |                            |
- u1        | ALTER               | VIEW        | d0      | v1         |           |        |         |                            |
- u1        | SELECT VIEW         | VIEW        | d0      | v1         |           |        |         |                            |
- u1        | SELECT              | TABLE       | d0      | stb0       |           |        | ts,c0   | 2026-01-28 14:39:56.960258 |
- u1        | INSERT              | TABLE       | d0      | stb0       |           |        | ts,c0   | 2026-01-28 14:39:56.977788 |
- u2        | CREATE DATABASE     | CLUSTER     |         |            |           |        |         |                            |
+ user_name |    priv_type    |  priv_scope | db_name | table_name | condition |  notes | columns |        update_time         |
+===============================================================================================================================
+ u1        | CREATE DATABASE | CLUSTER     |         |            |           |        |         |                            |
+ u1        | SUBSCRIBE       | TOPIC       | d0      | topic1     |           |        |         |                            |
+ u1        | USE DATABASE    | DATABASE    | d0      |            |           |        |         |                            |
+ u1        | CREATE TABLE    | DATABASE    | d0      |            |           |        |         |                            |
+ u1        | ALTER           | VIEW        | d0      | v1         |           |        |         |                            |
+ u1        | SELECT VIEW     | VIEW        | d0      | v1         |           |        |         |                            |
+ u1        | SELECT          | TABLE       | d0      | stb0       |           |        | ts,c0   | 2026-01-28 14:39:56.960258 |
+ u1        | INSERT          | TABLE       | d0      | stb0       |           |        | ts,c0   | 2026-01-28 14:39:56.977788 |
+ u2        | CREATE DATABASE | CLUSTER     |         |            |           |        |         |                            |
 
--- 查看角色权限（3.4.0.0+）
+-- 查看角色权限（`v3.4.0.0` 及之后）
 SHOW ROLE PRIVILEGES
 SELECT * FROM information_schema.ins_role_privileges
 ```
 
 ```text
 taos> show role privileges;
- role_name      |    priv_type        |  priv_scope | db_name | table_name | condition |  notes | columns |     update_time       |
- ===================================================================================================================================
- SYSSEC         | SHOW CREATE         | TABLE       |  *      |  *         |           |        |         |                       |
- SYSSEC         | SHOW                | VIEW        |  *      |  *         |           |        |         |                       |
- SYSSEC         | SHOW CREATE         | VIEW        |  *      |  *         |           |        |         |                       |
- SYSSEC         | SHOW                | TSMA        |  *      |  *         |           |        |         |                       |
- SYSSEC         | SHOW CREATE         | TSMA        |  *      |  *         |           |        |         |                       |
- SYSAUDIT_LOG   | USE AUDIT DATABASE  | CLUSTER     |         |            |           |        |         |                       |
- SYSAUDIT_LOG   | CREATE AUDIT TABLE  | CLUSTER     |         |            |           |        |         |                       |
- SYSAUDIT_LOG   | INSERT AUDIT TABLE  | CLUSTER     |         |            |           |        |         |                       |
+ role_name    |    priv_type        |  priv_scope | db_name | table_name | condition |  notes | columns | update_time |
+ ======================================================================================================================
+ SYSSEC       | SHOW CREATE         | TABLE       |  *      |  *         |           |        |         |             |
+ SYSSEC       | SHOW                | VIEW        |  *      |  *         |           |        |         |             |
+ SYSSEC       | SHOW CREATE         | VIEW        |  *      |  *         |           |        |         |             |
+ SYSSEC       | SHOW                | TSMA        |  *      |  *         |           |        |         |             |
+ SYSSEC       | SHOW CREATE         | TSMA        |  *      |  *         |           |        |         |             |
+ SYSAUDIT_LOG | USE AUDIT DATABASE  | CLUSTER     |         |            |           |        |         |             |
+ SYSAUDIT_LOG | CREATE AUDIT TABLE  | CLUSTER     |         |            |           |        |         |             |
+ SYSAUDIT_LOG | INSERT AUDIT TABLE  | CLUSTER     |         |            |           |        |         |             |
 ```
 
 ---
@@ -943,7 +945,7 @@ taos> show role privileges;
 
 #### 可用性
 
-从 3.4.1.6 起可用（企业版）。
+从 `v3.4.1.6` 起可用（企业版）。
 
 强制三权分立（Mandatory Separation of Duties，简称 SoD mandatory）在"三权分立"基础上进一步强制执行：一旦启用，系统将持续验证三位安全角色均有在线并启用的持有者，禁止将三个角色中的任意两个同时授予同一用户，并自动禁用 root 账户。
 
@@ -956,7 +958,7 @@ ALTER CLUSTER 'sod' 'mandatory';
 ALTER CLUSTER 'separation_of_duties' 'mandatory';
 ```
 
-**前置条件：** 执行前系统必须已存在：
+**前置条件** 执行前系统必须已存在：
 
 - 至少一个持有 SYSDBA 角色、状态为启用的非 root 用户
 - 至少一个持有 SYSSEC 角色、状态为启用的非 root 用户
@@ -977,7 +979,7 @@ No enabled non-root user with SYSDBA role found to satisfy SoD policy
 | 不可停用 | SoD mandatory 一旦激活不可撤销 |
 | 重复激活幂等 | 已激活状态下再次执行无副作用 |
 
-**查看 SoD 状态：**
+**查看 SoD 状态**
 
 ```sql
 SELECT name, mode FROM information_schema.ins_security_policies WHERE name='SoD';
@@ -989,7 +991,7 @@ SHOW SECURITY_POLICIES;
 
 #### 可用性
 
-从 3.4.1.6 起可用（企业版）。
+从 `v3.4.1.6` 起可用（企业版）。
 
 强制访问控制（Mandatory Access Control，简称 MAC）通过对用户和数据库对象分配**安全等级**（Security Level），强制执行"禁止上读（No-Read-Up，NRU）"和"禁止下写（No-Write-Down，NWD）"规则，防止高密级数据流向低密级用户。
 
@@ -997,13 +999,13 @@ SHOW SECURITY_POLICIES;
 
 安全等级取值范围为 0～4（integers，递增为敏感级别递增）。用户定义为区间 `[min_level, max_level]`，数据库对象定义为单一级别。
 
-| 等级 | 含义 |
-|------|------|
-| 0 | 公开（Public） |
-| 1 | 内部（Internal）|
-| 2 | 保密（Confidential）|
-| 3 | 机密（Secret）|
-| 4 | 绝密（Top Secret）|
+| 等级 | 含义             |
+| --- | ---------------- |
+| 0  | 公开（Public）       |
+| 1  | 内部（Internal）     |
+| 2  | 保密（Confidential） |
+| 3  | 机密（Secret）       |
+| 4  | 绝密（Top Secret）   |
 
 #### 设置安全等级
 
@@ -1019,7 +1021,7 @@ ALTER DATABASE db_name SECURITY_LEVEL level;
 ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 ```
 
-**默认值：**
+**默认值**
 
 | 对象 | MAC 未激活 | MAC 已激活 |
 |------|-----------|-----------|
@@ -1031,7 +1033,7 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 | child table | 继承所属 stb | 继承所属 stb |
 | normal table | 继承所属 db | 继承所属 db |
 
-**角色等级下限（Role Floor Constraint）：**
+**角色等级下限（Role Floor Constraint）**
 
 | 角色 | minSecLevel 最低要求 | maxSecLevel 最低要求 |
 |------|----------------------|----------------------|
@@ -1064,7 +1066,7 @@ Cannot enable MAC: user 'u_sec1' maxSecLevel(1) < required maxFloor(4) (role con
 
 > **注意**：若存在多个阻塞用户，每次激活只报告第一个。修复后重试可能仍报新的阻塞用户名。
 
-**排查方式：**
+**排查方式**
 
 ```sql
 -- 查看当前系统角色持有者及其安全等级
@@ -1094,7 +1096,7 @@ MAC 激活后，所有数据访问均额外受到以下规则约束（在 DAC �
 - 子表继承父超级表的 secLevel；普通表继承所在数据库的 secLevel。
 - 用户 security_level 为 `[0, 4]`（即 minSecLevel=0, maxSecLevel=4）时命中**快速路径**（无需查询元数据），对性能无任何影响。
 
-**查看 MAC 状态：**
+**查看 MAC 状态**
 
 ```sql
 SELECT name, mode, operator, activate_time
@@ -1104,27 +1106,27 @@ WHERE name='MAC';
 
 #### MAC 相关错误码
 
-| 错误码（内部宏名） | 用户可见错误信息 | 触发场景 |
-|------------------|----------------|----------|
-| `TSDB_CODE_MAC_INSUFFICIENT_LEVEL` | `Insufficient user security level for the operation` | SELECT 时用户 maxSecLevel 低于对象 secLevel（NRU 读拒绝）；或 CREATE/ALTER USER SECURITY_LEVEL 时目标 maxSecLevel 超过操作者自身 maxSecLevel（MAC 激活且操作者非受信主体时） |
-| `TSDB_CODE_MAC_NO_WRITE_DOWN` | `User security level is too high to write (No-Write-Down)` | INSERT 时用户 minSecLevel 高于对象 secLevel（NWD 写拒绝） |
+| 错误码（内部宏名）                        | 用户可见错误信息 | 触发场景 |
+| ---------------------------------------- | --- | --- |
+| `TSDB_CODE_MAC_INSUFFICIENT_LEVEL`       | `Insufficient user security level for the operation` | SELECT 时用户 maxSecLevel 低于对象 secLevel（NRU 读拒绝）；或 CREATE/ALTER USER SECURITY_LEVEL 时目标 maxSecLevel 超过操作者自身 maxSecLevel（MAC 激活且操作者非受信主体时） |
+| `TSDB_CODE_MAC_NO_WRITE_DOWN`            | `User security level is too high to write (No-Write-Down)` | INSERT 时用户 minSecLevel 高于对象 secLevel（NWD 写拒绝） |
 | `TSDB_CODE_MAC_SEC_LEVEL_CONFLICTS_ROLE` | `Security level is below the minimum required by user's current roles` | MAC 激活时：GRANT 角色给 minSecLevel/maxSecLevel 不满足该角色等级下限的用户；或 ALTER USER SECURITY_LEVEL 使 minSecLevel/maxSecLevel 低于用户已持有角色的等级下限 |
-| `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB` | `Object level below database security level` | 设置超级表 secLevel 低于所在 DB 的 secLevel（DB 作为容器，对象等级不得低于 DB 等级） |
-| `TSDB_CODE_MAC_PRECHECK_FAILED` | `Cannot enable MAC: user with security policy privilege has insufficient security level; upgrade user level first` | MAC 激活预检查失败：系统角色持有者不满足角色下限，或直接持有 `ALTER SECURITY POLICY` 权限的用户 `maxSecLevel < 4` |
-| `TSDB_CODE_MAC_INVALID_LEVEL` | `Security level out of valid range [0-4]` | secLevel 超出有效范围 [0,4] |
+| `TSDB_CODE_MAC_OBJ_LEVEL_BELOW_DB`       | `Object level below database security level` | 设置超级表 secLevel 低于所在 DB 的 secLevel（DB 作为容器，对象等级不得低于 DB 等级） |
+| `TSDB_CODE_MAC_PRECHECK_FAILED`          | `Cannot enable MAC: user with security policy privilege has insufficient security level; upgrade user level first` | MAC 激活预检查失败：系统角色持有者不满足角色下限，或直接持有 `ALTER SECURITY POLICY` 权限的用户 `maxSecLevel < 4` |
+| `TSDB_CODE_MAC_INVALID_LEVEL`            | `Security level out of valid range [0-4]` | secLevel 超出有效范围 [0,4] |
 
 ---
 
 ## 最佳实践
 
-### 3.3.x.y- 版本
+### `3.3.x.y` 及更早版本
 
 1. 使用 root 创建业务用户，按最小权限原则授权
 2. 只读应用仅授予 READ 权限
 3. 写入应用仅授予 WRITE 权限
 4. 利用标签过滤限制用户访问特定子表
 
-### 3.4.0.0+ 版本
+### `v3.4.0.0` 及之后版本
 
 1. **立即分离三权限**：初始化后，将 SYSDBA/SYSSEC/SYSAUDIT 分配给不同用户
 2. **禁用 root 日常操作**：配置完成后，不再使用 root 进行日常运维
@@ -1132,7 +1134,7 @@ WHERE name='MAC';
 4. **启用 SoD Mandatory**：分离三权后，执行 `ALTER CLUSTER 'sod' 'mandatory'` 强制执行三权分立；激活后 root 自动禁用，系统持续验证三权存续
 5. **启用 MAC**（可选）：先执行 `ALTER CLUSTER 'MAC' 'mandatory'`，如果报错，则根据提示信息调整相关用户的 security_level；激活后不可停用
 
-**示例 - 创建只读分析角色：**
+**示例 - 创建只读分析角色**
 
 ```sql
 CREATE ROLE analyst_role;
@@ -1141,7 +1143,7 @@ GRANT SHOW,USE on database power TO analyst_role;
 GRANT ROLE analyst_role TO analyst_user;
 ```
 
-**示例 - 创建数据写入角色：**
+**示例 - 创建数据写入角色**
 
 ```sql
 CREATE ROLE writer_role;
@@ -1150,7 +1152,7 @@ GRANT SHOW,USE,CREATE TABLE ON database power TO writer_role;
 GRANT ROLE writer_role TO writer_user;
 ```
 
-**示例 - 安全审计配置：**
+**示例 - 安全审计配置**
 
 ```sql
 -- 创建审计库
@@ -1169,7 +1171,7 @@ GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 
 ## 兼容性与升级
 
-| 特性 | 3.3.x.y- | 3.4.0.0+ | 3.4.0.11+ | 3.4.1.6+ |
+| 特性 | `3.3.x.y` 及更早 | `v3.4.0.0` 及之后 | `v3.4.0.11` 及之后 | `v3.4.1.6` 及之后 |
 |------|---------|----------|-----------|----------|
 | CREATE/ALTER/DROP USER | ✓ | ✓ | ✓ | ✓ |
 | GRANT/REVOKE READ/WRITE | ✓ | ✗ | ✓ | ✓ |
@@ -1183,11 +1185,11 @@ GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 
 ### 升级说明
 
-从 3.3.x.y 或更早版本升级到 3.4.0.0+ 时，系统会自动完成以下迁移操作：
+从 `3.3.x.y` 或更早版本升级到 `v3.4.0.0` 及之后时，系统会自动完成以下迁移操作：
 
 #### 1. 权限自动转换
 
-低版本中已设置的权限会自动转换为 3.4.0.0+ 版本的权限格式：
+低版本中已设置的权限会自动转换为 `v3.4.0.0` 及之后版本的权限格式：
 
 - 升级前后可通过 `SHOW USER PRIVILEGES` 命令查看和验证权限转换结果
 
@@ -1208,7 +1210,7 @@ GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 
 #### 4. 升级后权限配置
 
-升级至 3.4.0.0+ 版本后，如需为用户或角色设置权限，请参照新的权限管理模型：
+升级至 `v3.4.0.0` 及之后版本后，如需为用户或角色设置权限，请参照新的权限管理模型：
 
 - 系统权限配置请参考[系统权限管理](#系统权限管理)章节
 - 对象权限配置请参考[对象权限管理](#对象权限管理)章节
@@ -1219,7 +1221,7 @@ GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 
 | 项目 | 说明 |
 |------|------|
-| ✓ 自动升级 | 支持从低版本停机后自动升级到 3.4.0.0+ |
+| ✓ 自动升级 | 支持从低版本停机后自动升级到 `v3.4.0.0` 及之后 |
 | ✗ 滚动升级 | 不支持滚动升级，必须停机升级 |
 | ✗ 版本回退 | 升级后无法降级到低版本 |
 | ⚠️ 升级前备份 | 建议执行 `SHOW USER PRIVILEGES` 并保存输出结果 |

@@ -1,9 +1,9 @@
 ---
 title: 分析与调试
-description: TDengine TSDB 分析调试与性能优化
+description: TDengine 分析调试与性能优化
 ---
 
-本节介绍 TDengine TSDB 的分析调试工具和性能优化方法。
+本节介绍 TDengine 的分析调试工具和性能优化方法。
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

@@ -1,6 +1,6 @@
 ---
-title: "OPC UA Property 到 TAG 示例（以 limit 为例）"
-sidebar_label: "Property 到 TAG 示例"
+title: OPC UA Property 到 TAG 示例（以 limit 为例）
+sidebar_label: Property 到 TAG 示例
 ---
 
 本文说明如何让 OPC UA 点位上的 Property（属性）随采集任务写入 TDengine 子表对应的超级表 TAG。
@@ -14,7 +14,7 @@ sidebar_label: "Property 到 TAG 示例"
 ## 关键原则
 
 1. 属性必须是目标 Variable 的 **Property**（`HasProperty` 关系），而不是独立数据点位。
-2. Explorer 任务建议使用：
+2. taosExplorer 任务建议使用：
    - **节点类型**：`all`
    - **根节点 ID（可选）**：可设置到包含目标 Variable 的父层级（用于收敛扫描范围）；不填写时通常从服务端默认根开始浏览
 3. 不要让 `custom_tags` 中的标签名与 Property 名重名（重名会冲突）。
@@ -33,7 +33,7 @@ Objects
                 └── EngineeringUnits = "degree Celsius"  (Property)
 ```
 
-### Explorer 任务配置建议
+### taosExplorer 任务配置建议
 
 在“选择数据点位”模式下，建议：
 

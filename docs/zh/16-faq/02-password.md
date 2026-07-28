@@ -1,21 +1,21 @@
 ---
 title: 密码中特殊字符的使用
-description: TDengine TSDB 用户密码中特殊字符的使用
+description: TDengine 用户密码中特殊字符的使用
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine TSDB 用户密码需满足以下规则：
+TDengine 用户密码需满足以下规则：
 
 1. 用户名最长不超过 23 个字节。
-2. 密码长度必须为 8 到 255 位。
-3. 密码字符的取值范围
+2. 密码长度必须为 8 到 255。
+3. 密码字符的取值范围：
     1. 大写字母：`A-Z`
     2. 小写字母：`a-z`
     3. 数字：`0-9`
-    4. 特殊字符： `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`
-4. 强密码启用（EnableStrongPassword 1，默认开启）时，至少包含大写字母、小写字母、数字、特殊字符中的三类，不启用时，字符种类不做约束。
+    4. 特殊字符：`! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`
+4. 强密码启用（`enableStrongPassword` / SQL `EnableStrongPassword`，默认开启）时，至少包含大写字母、小写字母、数字、特殊字符中的三类；关闭后字符种类不做强制约束。详见 [用户管理](../05-tdengine-sql/07-user-and-privilege/01-user.md)。
 
 ## 各组件特殊字符使用指南
 
@@ -28,7 +28,7 @@ CREATE USER user1 PASS 'Ab1!@#$%^&*()-_+=[]{}';
 <Tabs defaultValue="shell" groupId="component">
 <TabItem label="CLI" value="shell">
 
-在 [TDengine TSDB 命令行客户端（CLI）](../12-operations-and-tooling/04-tools/01-taos-cli.md) 中使用需要注意以下几点：
+在 [TDengine 命令行客户端（`taos` shell）](../12-operations-and-tooling/04-tools/01-taos-cli.md) 中使用需要注意以下几点：
 
 - 使用参数 `-p` 后不带密码，会提示输入密码，可输入任意可接收字符。
 - 使用参数 `-p` 后带密码，如果密码中包含特殊字符，需使用单引号。
@@ -74,7 +74,7 @@ taosBenchmark -u user1 -p'Ab1!@#$%^&*()-_+=[]{}' -d test -y
 </TabItem>
 <TabItem label="taosX" value="taosx">
 
-[taosX](../12-operations-and-tooling/03-components/06-taosx.md) 使用 DSN 表示 TDengine TSDB 连接，使用如下格式：`(taos|tmq)[+ws]://<user>:<pass>@<ip>:<port>`，其中 `<pass>` 可以包含特殊字符，如：`taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@192.168.10.10:6041`。
+[taosX](../12-operations-and-tooling/03-components/06-taosx.md) 使用 DSN 表示 TDengine 连接，使用如下格式：`(taos|tmq)[+ws]://<user>:<pass>@<ip>:<port>`，其中 `<pass>` 可以包含特殊字符，如：`taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@192.168.10.10:6041`。
 
 使用用户 `user1` 导出数据示例如下：
 
@@ -85,7 +85,7 @@ taosx -f 'taos://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6030?query=select * from 
 
 需要注意的是，如果密码可被 URL decode，则会使用 URL decoded 结果作为密码。如：`taos+ws://user1:Ab1%21%40%23%24%25%5E%26%2A%28%29-_%2B%3D%5B%5D%7B%7D@localhost:6041` 与 `taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6041` 是等价的。
 
-在 [Explorer](../12-operations-and-tooling/03-components/04-explorer.md) 中无需特殊处理，直接使用即可。
+在 [taosExplorer](../12-operations-and-tooling/03-components/04-explorer.md) 中无需特殊处理，直接使用即可。
 
 </TabItem>
 
@@ -220,7 +220,7 @@ func main() {
 
 <TabItem label="Rust" value="rust">
 
-Rust 中使用 DSN 表示 TDengine TSDB 连接，使用如下格式：`(taos|tmq)[+ws]://<user>:<pass>@<ip>:<port>`，其中 `<pass>` 可以包含特殊字符，如：`taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@192.168.10.10:6041`。
+Rust 中使用 DSN 表示 TDengine 连接，使用如下格式：`(taos|tmq)[+ws]://<user>:<pass>@<ip>:<port>`，其中 `<pass>` 可以包含特殊字符，如：`taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@192.168.10.10:6041`。
 
 ```rust
 let dsn = "taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6041";

@@ -15,7 +15,7 @@ TDengine 支持 IPv6 网络环境。该功能允许用户在现代网络基础�
 - 支持组件：
 
   - taosd：TDengine 数据库服务端
-  - taos：TDengine 命令行客户端 (CLI)
+  - taos：`taos` shell
   - 各种连接器：如 JDBC, Go, Python, C#, Rust 等（需使用支持 IPv6 的版本）
 
 - 网络环境：纯 IPv6 环境或 IPv4/IPv6 双栈环境均支持

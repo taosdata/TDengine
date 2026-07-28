@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 ## 目的
 
-本文提供 Windows 下调试定位 TDengine TSDB 崩溃问题指引手册，以下内容提供了两种分析方法。
+本文提供 Windows 下调试定位 TDengine 崩溃问题指引手册，以下内容提供了两种分析方法。
 
 ## dmp 文件
 
@@ -178,7 +178,7 @@ SUMMARY: AddressSanitizer: stack-buffer-overflow in test() (taosd.exe+0x00000000
 
 ## 服务崩溃跟踪
 
-TDengine TSDB 服务进程 `taosd.exe` 遇到崩溃后会退出，Windows 系统检测到服务退出，会尝试重新启动服务，为避免反复启动崩溃，只启动三次，启动日志可在 `控制面板`->`Windows 事件查看器` 中找到，另外服务被停止日志也记录在此。
+TDengine 服务进程 `taosd.exe` 遇到崩溃后会退出，Windows 系统检测到服务退出，会尝试重新启动服务，为避免反复启动崩溃，只启动三次，启动日志可在 `控制面板`->`Windows 事件查看器` 中找到，另外服务被停止日志也记录在此。
 
 ## 总结
 

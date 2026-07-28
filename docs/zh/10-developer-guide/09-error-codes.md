@@ -2,10 +2,12 @@
 toc_max_heading_level: 4
 sidebar_label: 错误码
 title: 错误码
-description: TDengine TSDB 客户端和服务端的错误码列表和详细说明
+description: TDengine 客户端和服务端的错误码列表和详细说明
 ---
 
-本文中详细列举了在使用 TDengine TSDB 时可能得到的来自客户端和服务端的错误码以及所要采取的相应动作。
+本文中详细列举了在使用 TDengine 时可能得到的来自客户端和服务端的错误码以及所要采取的相应动作。
+
+排查连接、写入与订阅类问题时，也可结合 [常见问题](../16-faq/01-faq.md)、[流式计算](../06-stream-processing/index.md) 与 [数据订阅](../07-data-subscription/index.md) 章节。
 
 ## TSDB
 
@@ -21,7 +23,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 
 | 错误类型                      | 前缀    | 说明                                                  |
 | ---------------------------- | ------- | ---------------------------------------------------- |
-| TDengine TSDB 业务错误        | 0x8000  | TDengine TSDB 引擎自定义的业务逻辑错误码，详见下文各模块错误码说明 |
+| TDengine 业务错误        | 0x8000  | TDengine 引擎自定义的业务逻辑错误码，详见下文各模块错误码说明 |
 | Linux 系统调用错误            | 0x80FF  | 后 4 位对应 Linux 系统 API 返回的 errno，可参考 [Linux Error Codes](https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/errnos/) |
 | Windows API 系统错误          | 0x81FF  | 后 4 位对应 Windows API 返回的错误码，可参考 [Windows Error Codes](https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes#system-error-codes) |
 | Windows Socket 系统错误       | 0x82FF  | 后 4 位对应 Windows Socket API 返回的错误码，可参考 [Windows Sockets 错误码](https://learn.microsoft.com/en-us/windows/win32/winsock/windows-sockets-error-codes-2) |
@@ -553,7 +555,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80002657 | Fill now allowed                                                                                       | 函数不允许 FILL 功能                                    | 检查并修正 SQL 语句                    |
 | 0x80002658 | Invalid windows pc                                                                                     | 非法使用窗口伪列                                        | 检查并修正 SQL 语句                    |
 | 0x80002659 | Window not allowed                                                                                     | 函数不能在窗口中使用                                    | 检查并修正 SQL 语句                    |
-| 0x8000265A | Stream not allowed                                                                                     | 函数不能在流计算中使用                                  | 检查并修正 SQL 语句                    |
+| 0x8000265A | Stream not allowed                                                                                     | 函数不能在流式计算中使用                                  | 检查并修正 SQL 语句                    |
 | 0x8000265B | Group by not allowed                                                                                   | 函数不能在分组中使用                                    | 检查并修正 SQL 语句                    |
 | 0x8000265D | Invalid interp clause                                                                                  | 非法 INTERP 或相关语句                                  | 检查并修正 SQL 语句                    |
 | 0x8000265E | Not valid function ion window                                                                          | 非法窗口语句                                            | 检查并修正 SQL 语句                    |
@@ -662,13 +664,13 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80003100 | Tsma init failed                                               | TSMA 环境初始化失败                                          | 检查错误日志，联系开发处理                         |
 | 0x80003101 | Tsma already exists                                            | TSMA 重复创建                                                | 避免重复创建                                       |
 | 0x80003102 | Invalid tsma env                                               | TSMA 运行环境异常                                            | 检查错误日志，联系开发处理                         |
-| 0x80003103 | Invalid tsma state                                             | 流计算下发结果的 vgroup 与创建 TSMA index 的 vgroup 不一致   | 检查错误日志，联系开发处理                         |
-| 0x80003104 | Invalid tsma pointer                                           | 在处理写入流计算下发的结果，消息体为空指针。                 | 检查错误日志，联系开发处理                         |
-| 0x80003105 | Invalid tsma parameters                                        | 在处理写入流计算下发的结果，结果数量为 0。                   | 检查错误日志，联系开发处理                         |
+| 0x80003103 | Invalid tsma state                                             | 流式计算下发结果的 vgroup 与创建 TSMA index 的 vgroup 不一致   | 检查错误日志，联系开发处理                         |
+| 0x80003104 | Invalid tsma pointer                                           | 在处理写入流式计算下发的结果，消息体为空指针。                 | 检查错误日志，联系开发处理                         |
+| 0x80003105 | Invalid tsma parameters                                        | 在处理写入流式计算下发的结果，结果数量为 0。                   | 检查错误日志，联系开发处理                         |
 | 0x80003113 | Tsma optimization cannot be applied with INTERVAL AUTO offset. | 当前查询条件下使用 INTERVAL AUTO OFFSET 无法启用 tsma 优化。 | 使用 SKIP_TSMA Hint 或者手动指定 INTERVAL OFFSET。 |
 | 0x80003150 | Invalid rsma env                                               | Rsma 执行环境异常。                                          | 检查错误日志，联系开发处理                         |
 | 0x80003151 | Invalid rsma state                                             | Rsma 执行状态异常。                                          | 检查错误日志，联系开发处理                         |
-| 0x80003152 | Rsma qtaskinfo creation error                                  | 创建流计算环境异常。                                         | 检查错误日志，联系开发处理                         |
+| 0x80003152 | Rsma qtaskinfo creation error                                  | 创建流式计算环境异常。                                         | 检查错误日志，联系开发处理                         |
 | 0x80003153 | Rsma invalid schema                                            | 启动恢复时元数据信息错误                                     | 检查错误日志，联系开发处理                         |
 | 0x80003154 | Rsma stream state open                                         | 打开流算子状态存储失败                                       | 检查错误日志，联系开发处理                         |
 | 0x80003155 | Rsma stream state commit                                       | 提交流算子状态存储失败                                       | 检查错误日志，联系开发处理                         |
@@ -791,9 +793,9 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000700E | Db used by stream                     | DB 正被某个流使用，不能删除              | 检查流对 DB 的使用情况                                 |
 | 0x80007014 | Stream output table name too long     | 输出表名超长                             | 检查建流语句中输出表名规则是否正确，是否结果超长       |
 | 0x80007016 | Stream output table name calc failed  | 输出表名计算失败                         | 检查建流语句中输出表名规则是否正确，是否有 NULL 值存在 |
-| 0x80007017 | Stream vtable calculate need redeploy | 流计算语句中的虚拟表的原始表分布发生变更 | 流会自动处理该错误，无需处理                           |
-| 0x80007018 | Stream info contains invalid JSON format messages | 流计算内部编码兼容性问题 | 保留现场和日志，github 上报         |
-| 0x80004100 | Stream task not exist                 | 流计算任务不存在                    | 具体查看 server 端的错误日志       |
+| 0x80007017 | Stream vtable calculate need redeploy | 流式计算语句中的虚拟表的原始表分布发生变更 | 流会自动处理该错误，无需处理                           |
+| 0x80007018 | Stream info contains invalid JSON format messages | 流式计算内部编码兼容性问题 | 保留现场和日志，github 上报         |
+| 0x80004100 | Stream task not exist                 | 流式计算任务不存在                    | 具体查看 server 端的错误日志       |
 | 0x80004118 | Stream rollup tag path is illegal     | ROLLUP BY 标签路径非法              | 检查并修正 rollup 标签路径         |
 | 0x80004119 | Invalid ROLLUP BY clause              | 流的 ROLLUP BY 子句非法             | 检查并修正建流语句                 |
 | 0x8000411A | Federated query is disabled for stream (federatedQueryEnable=false) | 流引用了 EXTERNAL SOURCE 表，但联邦查询未开启 | 开启 federatedQueryEnable，或移除流中的外部源引用 |
@@ -870,7 +872,7 @@ Java 连接器可能报错的错误码包括 4 种：
 - JDBC driver 本身的报错（错误码在 0x2301 到 0x2350 之间）
 - 原生连接方法的报错（错误码在 0x2351 到 0x2360 之间）
 - 数据订阅的报错（错误码在 0x2371 到 0x2380 之间）
-- TDengine TSDB 其他功能模块的报错，请参考本页面 TSDB 错误码。
+- TDengine 其他功能模块的报错，请参考本页面 TSDB 错误码。
 
 具体的错误码请参考：
 
@@ -886,23 +888,23 @@ Java 连接器可能报错的错误码包括 4 种：
 | 0x2308 | Can not issue SELECT via executeUpdate()                        | api 调用错误                                   | 查询操作应该使用 executeQuery()，而不是 executeUpdate()                                  |
 | 0x230D | parameter index out of range                                    | 参数越界                                       | 请检查参数的合理范围                                                                     |
 | 0x230E | connection already closed                                       | 连接已经关闭                                   | 请检查 Connection 是否关闭后再次使用，或是连接是否正常                                   |
-| 0x230F | unknown sql type in tdengine                                    | 不支持的数据类型                               | 请检查 TDengine TSDB 支持的 Data Type 类型                                               |
+| 0x230F | unknown sql type in tdengine                                    | 不支持的数据类型                               | 请检查 TDengine 支持的 Data Type 类型                                               |
 | 0x2310 | can't register JDBC-JNI driver                                  | 不能注册 JNI 驱动                              | 请检查 url 是否填写正确                                                                  |
 | 0x2314 | numeric value out of range                                      | 数字类型超出范围                               | 请检查获取结果集中数值类型是否使用了正确的接口                                           |
-| 0x2315 | unknown taos type in tdengine                                   | 参数传递错误                                   | 在 TDengine TSDB 数据类型与 JDBC 数据类型转换时，是否指定了正确的 TDengine TSDB 数据类型 |
+| 0x2315 | unknown taos type in tdengine                                   | 参数传递错误                                   | 在 TDengine 数据类型与 JDBC 数据类型转换时，是否指定了正确的 TDengine 数据类型 |
 | 0x2319 | user is required                                                | 参数缺少用户名                                 | 创建连接时缺少用户名信息                                                                 |
 | 0x231A | password is required                                            | 参数缺少密码                                   | 创建连接时缺少密码信息                                                                   |
 | 0x231D | can't create connection with server within                      | 连接失败                                       | 请检查与 taosAdapter 之间的连接情况                                                      |
 | 0x231E | failed to complete the task within the specified time           | 请求处理超时                                   | 通过增加参数 messageWaitTimeout 增加执行耗时，或是请检查与 taosAdapter 之间的连接情况    |
 | 0x2320 | type convert exception                                          | 类型转换错误                                   | 检查是否没有使用正确的类型                                                               |
-| 0x2321 | TDengine TSDB version incompatible                              | 使用了原生连接，且客户端驱动版本与服务端不一致 | TDengine TSDB 版本不匹配，请升级至对应版本。或者采用 WebSocket 连接方式                 |
+| 0x2321 | TDengine version incompatible                              | 使用了原生连接，且客户端驱动版本与服务端不一致 | TDengine 版本不匹配，请升级至对应版本。或者采用 WebSocket 连接方式                 |
 | 0x2322 | resource has been freed                                         | 资源已经释放                                   | 资源已经释放，请确认操作正确                                                             |
 | 0x2323 | BLOB is unsupported on the server                               | 服务端版本低                                   | 服务端不支持 BLOB 类型，需要升级                                                         |
 | 0x2324 | line bind mode is unsupported on the server                     | 服务端版本低                                   | 服务端不支持行绑定模式，需要升级                                                         |
 | 0x2350 | unknown error                                                   | 未知异常                                       | 未知异常，请在 github 反馈给开发人员                                                     |
 | 0x2352 | Unsupported encoding                                            | 不支持的字符集                                 | 本地连接下指定了不支持的字符编码集                                                       |
 | 0x2353 | internal error of database, please see taoslog for more details | 本地连接执行 prepareStatement 时出现错误       | 请检查 taos log 进行问题定位                   |
-| 0x2354 | JNI connection is NULL                                          | 连接已经关闭                                   | 本地连接执行命令时，Connection 已经关闭。请检查与 TDengine TSDB 的连接情况               |
+| 0x2354 | JNI connection is NULL                                          | 连接已经关闭                                   | 本地连接执行命令时，Connection 已经关闭。请检查与 TDengine 的连接情况               |
 | 0x2355 | JNI result set is NULL                                          | 结果集已经关闭                                 | 本地连接获取结果集，结果集异常，请检查连接情况，并重试                                   |
 | 0x2356 | invalid num of fields                                           | 结果集列不匹配                                 | 本地连接获取结果集的 meta 信息不匹配                                                     |
 | 0x2357 | empty sql string                                                | sql 为空                                       | 填写正确的 SQL 进行执行                                                                  |
@@ -910,15 +912,15 @@ Java 连接器可能报错的错误码包括 4 种：
 | 0x2371 | consumer properties must not be null!                           | 订阅参数为空                                   | 创建订阅时参数为空，请填写正确的参数                                                     |
 | 0x2372 | configs contain empty key, failed to set consumer property      | 订阅参数 key 中包含空值                        | 参数 key 中包含空值，请填写正确的参数                                                    |
 | 0x2373 | failed to set consumer property,                                | 订阅参数 value 中包含空值                      | 参数 value 中包含空值，请填写正确的参数                                                  |
-| 0x2375 | topic reference has been destroyed                              | topic 引用失效                                 | 创建数据订阅过程中，topic 引用被释放，请检查与 TDengine TSDB 的连接情况                  |
+| 0x2375 | topic reference has been destroyed                              | topic 引用失效                                 | 创建数据订阅过程中，topic 引用被释放，请检查与 TDengine 的连接情况                  |
 | 0x2376 | failed to set consumer topic, topic name is empty               | topic 为空                                     | 创建数据订阅过程中，订阅 topic 名称为空，请检查指定的 topic 名称是否填写正确             |
-| 0x2377 | consumer reference has been destroyed                           | 消费者引用已失效                               | 订阅数据传输通道已经关闭，请检查与 TDengine TSDB 的连接情况                              |
+| 0x2377 | consumer reference has been destroyed                           | 消费者引用已失效                               | 订阅数据传输通道已经关闭，请检查与 TDengine 的连接情况                              |
 | 0x2378 | consumer create error                                           | 创建数据订阅失败                               | 请根据错误信息检查 taos log 进行问题定位                                                 |
 | 0x2379 | seek offset must not be a negative number                       | 参数错误                                       | seek 接口参数不能为负值，请使用正确的参数                                                |
 | 0x237A | vGroup not found in result set                                  | vGroup 没有分配给当前 consumer                 | 由于 Rebalance 机制导致 consumer 与 vGroup 不是绑定的关系                                |
 | 0x2390 | background thread write error in Efficient Writing              | 高效写入后台线程写入错误                       | 可以停止写入，重建连接                                                                   |
 
-- [TDengine TSDB Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
+- [TDengine Java Connector Error Code](https://github.com/taosdata/taos-connector-jdbc/blob/main/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 
 ### Rust
 
@@ -938,7 +940,7 @@ Java 连接器可能报错的错误码包括 4 种：
 
 在调用连接器 api 报错后，通过 try catch 可以获取到错误的信息和错误码。
 
-错误说明：Node.js 连接器错误码在 100 到 120 之间，之外的错误为 TDengine TSDB 其他功能模块的报错。
+错误说明：Node.js 连接器错误码在 100 到 120 之间，之外的错误为 TDengine 其他功能模块的报错。
 
 具体的连接器错误码请参考：
 
@@ -951,14 +953,14 @@ Java 连接器可能报错的错误码包括 4 种：
 | 104    | connection creation failed                                              | 连接创建失败                                   | 请检查网络是否正常。                                                             |
 | 105    | websocket request timeout                                               | 请求超时                                       | 请检查网络和 taosAdapter 服务是否正常。                                          |
 | 106    | authentication fail                                                     | 认证参数不正确                                       | 请检查用户名，密码是否正确。                                                     |
-| 107    | unknown sql type in tdengine                                            | 不支持的数据类型                               | 请检查 TDengine TSDB 支持的 Data Type 类型。                                     |
+| 107    | unknown sql type in tdengine                                            | 不支持的数据类型                               | 请检查 TDengine 支持的 Data Type 类型。                                     |
 | 108    | connection has been closed                                              | 连接已经关闭                                   | 请检查 Connection 是否关闭后再次使用，或是连接是否正常。                         |
 | 109    | fetch block data parse fail                                             | 数据解析异常                                   | 获取到的查询数据，解析失败，请确认连接器跟 TDengine 服务端版本匹配。             |
 | 110    | websocket connection has reached its maximum limit                      | 连接数达到上限                                 | WebSocket 连接达到上限，请上报 github issue                                                         |
 | 111    | topic partitions and positions are not equal in length                  | 获取给定分区当前的偏移量的数据与主题分区不匹配 |   重新订阅                                                                               |
-| 112    | version mismatch. The minimum required TDengine TSDB version is 3.3.2.0 | 版本不匹配                                     | TDengine TSDB 的版本低于 3.3.2.0 连接器不支持，用户需要升级到 3.3.2.0 以上版本。 |
+| 112    | version mismatch. The minimum required TDengine version is `v3.3.2.0` | 版本不匹配                                     | TDengine 的版本低于 `v3.3.2.0` 时连接器不支持，需要升级到 `v3.3.2.0` 及以上版本。 |
 
-- [TDengine TSDB Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
+- [TDengine Node.js Connector Error Code](https://github.com/taosdata/taos-connector-node/blob/main/nodejs/src/common/wsError.ts)
 
 ### C\#
 

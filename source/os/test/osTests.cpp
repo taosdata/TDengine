@@ -367,6 +367,61 @@ TEST(osTest, system) {
 #endif
 }
 
+TEST(osTest, cmdValidate) {
+  EXPECT_FALSE(taosCmdIsValid(NULL));
+  EXPECT_FALSE(taosCmdIsValid(""));
+
+  // allowlisted commands, with and without a null-device redirection
+  EXPECT_TRUE(taosCmdIsValid("taos"));
+  EXPECT_TRUE(taosCmdIsValid("taosd -C"));
+  EXPECT_TRUE(taosCmdIsValid("taosdump"));
+  EXPECT_TRUE(taosCmdIsValid("taosBenchmark"));
+  EXPECT_TRUE(taosCmdIsValid("taosAdapter"));
+  EXPECT_TRUE(taosCmdIsValid("taosKeeper"));
+#if defined(WINDOWS)
+  EXPECT_TRUE(taosCmdIsValid("wmic diskdrive get serialnumber 2>nul"));
+  EXPECT_TRUE(taosCmdIsValid("wmic csproduct get UUID 2>nul"));
+#elif defined(_TD_DARWIN_64)
+  EXPECT_TRUE(taosCmdIsValid("scutil --get LocalHostName"));
+  EXPECT_TRUE(taosCmdIsValid("sysctl -n machdep.cpu.brand_string 2>/dev/null"));
+#else
+  EXPECT_TRUE(taosCmdIsValid("dmidecode 2>/dev/null"));
+  EXPECT_TRUE(taosCmdIsValid("uname -a 2>/dev/null"));
+  EXPECT_TRUE(taosCmdIsValid("uname -a >/dev/null"));
+  EXPECT_TRUE(taosCmdIsValid("uname -a 1>/dev/null"));
+  EXPECT_TRUE(taosCmdIsValid("uname -a"));
+#endif
+
+  // commands outside the allowlist
+  EXPECT_FALSE(taosCmdIsValid("rm -rf /"));
+  EXPECT_FALSE(taosCmdIsValid("cat /etc/passwd"));
+  EXPECT_FALSE(taosCmdIsValid("ls -l"));
+  // prefix match must stop at a token boundary
+  EXPECT_FALSE(taosCmdIsValid("taosdXXX"));
+  EXPECT_FALSE(taosCmdIsValid("taosXXX"));
+
+#if !defined(WINDOWS)
+  // only a trailing redirection to the null device is tolerated
+  EXPECT_FALSE(taosCmdIsValid("uname -a > /etc/passwd"));
+  EXPECT_FALSE(taosCmdIsValid("uname -a >/tmp/x"));
+  EXPECT_FALSE(taosCmdIsValid("uname -a </dev/null"));
+  EXPECT_FALSE(taosCmdIsValid("uname -a 2>>/dev/null"));
+  EXPECT_FALSE(taosCmdIsValid("uname -a 2>/dev/null 2>/dev/null"));
+  EXPECT_FALSE(taosCmdIsValid("uname -a 2>/dev/null; rm -rf /"));
+
+  // injection attempts
+  EXPECT_FALSE(taosCmdIsValid("uname; rm -rf /"));
+  EXPECT_FALSE(taosCmdIsValid("uname && rm -rf /"));
+  EXPECT_FALSE(taosCmdIsValid("uname | tee /tmp/x"));
+  EXPECT_FALSE(taosCmdIsValid("uname `id`"));
+  EXPECT_FALSE(taosCmdIsValid("uname $(id)"));
+  EXPECT_FALSE(taosCmdIsValid("uname ${HOME}"));
+  EXPECT_FALSE(taosCmdIsValid("uname -a &"));
+  EXPECT_FALSE(taosCmdIsValid("uname ~/x"));
+  EXPECT_FALSE(taosCmdIsValid("uname *"));
+#endif
+}
+
 TEST(osTest, sysinfo) {
 #if defined(LINUX)
 

@@ -1,6 +1,6 @@
 ---
-title: "统计学算法"
-sidebar_label: "统计学算法"
+title: 统计学算法
+sidebar_label: 统计学算法
 ---
 
 - k-sigma<sup>[1]</sup>: 即 ***68–95–99.7 rule*** 。***k***值默认为 3，即序列均值的 3 倍标准差范围为边界，超过边界的是异常值。KSigma 要求数据整体上服从正态分布，如果一个点偏离均值 K 倍标准差，则该点被视为异常点。
@@ -46,7 +46,7 @@ ANOMALY_WINDOW(foo.i32, "algo=grubbs")
 --- 指定调用的算法为 shesd，参数 direction 为 both，异常值比例 5%
 SELECT _WSTART, COUNT(*)
 FROM foo
-ANOMALY_WINDOW(foo.i32, "algo=shesd,direction=both,anoms=0.05")
+ANOMALY_WINDOW(foo.i32, "algo=shesd,direction=both,max_anoms=0.05")
 ```
 
 后续待添加异常检测算法

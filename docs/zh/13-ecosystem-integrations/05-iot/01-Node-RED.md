@@ -1,27 +1,28 @@
 ---
 sidebar_label: Node-RED
 title: 与 Node-RED 集成
+description: 使用 node-red-node-tdengine 插件在 Node-RED 中写入与订阅 TDengine
 toc_max_heading_level: 5
 ---
 
-[Node-RED](https://nodered.org/) 是由 IBM 开发的基于 Node.js 的开源可视化编程工具，通过图形化界面组装连接各种节点，实现物联网设备、API 及在线服务的连接。同时支持多协议、跨平台，社区活跃，适用于智能家居、工业自动化等场景的事件驱动应用开发，其主要特点是低代码、可视化。
+[Node-RED](https://nodered.org/) 是基于 Node.js 的开源可视化编程工具，通过图形化节点连接物联网设备、API 与在线服务，适用于智能家居、工业自动化等事件驱动场景。
 
-TDengine TSDB 与 Node-RED 深度融合为工业 IoT 场景提供全栈式解决方案。通过 Node-RED 的 MQTT/OPC UA/Modbus 等协议节点，实现 PLC、传感器等设备毫秒级数据采集。同时 Node-RED 中基于 TDengine TSDB 的毫秒级实时查询结果，触发继电器动作、阀门开合等物理控制，实现更实时的联动控制。
+通过 Node-RED 的 MQTT、OPC UA、Modbus 等协议节点，可将设备数据写入 TDengine；也可基于查询结果或订阅消息驱动下游控制逻辑。工业协议零代码接入还可参阅 [零代码数据写入](../../08-data-ingest-and-delivery/01-no-code-ingestion/index.md)。
 
-node-red-node-tdengine 是 TDengine TSDB 为 Node-RED 开发的官方插件，由两个节点组成：
+`node-red-node-tdengine` 是官方 Node-RED 插件，包含两个节点：
 
-- **tdengine-operator**：提供 SQL 语句执行能力，可实现数据写入/查询/元数据管理等功能。
-- **tdengine-consumer**：提供数据订阅消费能力，可实现从指定订阅服务器消费指定 TOPIC 的功能。
+- **tdengine-operator**：执行 SQL，支持写入、查询与元数据管理。
+- **tdengine-consumer**：消费指定主题的数据，语义可对照 [数据订阅](../../07-data-subscription/index.md)。
 
 ## 前置条件
 
 准备以下环境：
 
-- TDengine TSDB 3.3.2.0 及以上版本集群已部署并正常运行（企业/社区/云服务版均可）。
+- TDengine `v3.3.2.0` 及以上版本集群已部署并正常运行（企业/社区/云服务版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)。
-- Node-RED 3.0.0 及以上版本，[Node-RED 安装](https://nodered.org/docs/getting-started/)。
-- Node.js 语言连接器 3.1.8 及以上版本，可从 [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket) 下载。
-- node-red-node-tdengine 插件最新版本，可从 [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine) 下载。
+- Node-RED 3.0.0 及以上版本，见 [Node-RED 安装](https://nodered.org/docs/getting-started/)。
+- Node.js 连接器 `@tdengine/websocket` 建议使用较新版本（文档示例基于 3.1.8 及以上），可从 [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket) 安装；能力说明见 [Node.js 连接器](../../10-developer-guide/08-connectors-reference/06-node.mdx)。
+- `node-red-node-tdengine` 插件最新版本，可从 [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine) 安装。
 
 以上各安装组件调用关系如下图：
 
@@ -49,9 +50,9 @@ node-red-node-tdengine 是 TDengine TSDB 为 Node-RED 开发的官方插件，�
 
 #### 场景介绍
 
-某生产车间有多台智能电表，电表每一秒产生一条数据，数据准备存储在 TDengine TSDB 数据库中，要求实时输出每分钟各智能电表平均电流、电压及用电量，同时要对电流 > 25A 或电压 > 230V 负载过大设备进行报警。
+某生产车间有多台智能电表，电表每一秒产生一条数据，数据准备存储在 TDengine 数据库中，要求实时输出每分钟各智能电表平均电流、电压及用电量，同时要对电流 > 25A 或电压 > 230V 负载过大设备进行报警。
 
-我们使用 Node-RED + TDengine TSDB 来实现需求：
+我们使用 Node-RED + TDengine 来实现需求：
 
 - 使用 Inject + function 节点模拟设备产生数据。
 - tdengine-operator 节点负责写入数据。
@@ -60,14 +61,14 @@ node-red-node-tdengine 是 TDengine TSDB 为 Node-RED 开发的官方插件，�
 
 假设：
 
-- TDengine TSDB 服务器：`www.example.com`。
+- TDengine 服务器：`www.example.com`。
 - WEBSOCKET 端口：6041。
 - 用户名/密码：默认。
 - 模拟设备：三台（d0，d1，d2）。
 
 #### 数据建模
 
-使用数据库管理工具 taos-CLI，为采集数据进行手工建模，采用一张设备一张表建模思路：
+使用数据库管理工具 `taos` shell，为采集数据进行手工建模，采用一张设备一张表建模思路：
 
 - 创建超级表：meters。
 - 创建子表：d0，d1，d2。
@@ -88,7 +89,7 @@ create table test.d2 using test.meters tags(2, 'workshop2');
 
 #### 数据采集
 
-示例使用生成随机数方式模拟真实设备生产数据，tdengine-operator 节点配置 TDengine TSDB 数据源连接信息，并把数据写入 TDengine TSDB，同时使用 debug 节点监控写入成功数据量并展示于界面。
+示例使用生成随机数方式模拟真实设备生产数据，tdengine-operator 节点配置 TDengine 数据源连接信息，并把数据写入 TDengine，同时使用 debug 节点监控写入成功数据量并展示于界面。
 
 操作步骤如下：
 
@@ -215,7 +216,7 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
 
 操作步骤如下：
 
-  1. 使用 taos-CLI 手工创建订阅主题”topic_overload“,  SQL 如下：
+  1. 使用 `taos` shell 手工创建订阅主题”topic_overload“,  SQL 如下：
 
    ``` sql
    create topic topic_overload as 
@@ -286,7 +287,7 @@ debug 节点展示向下游节点推送数据次数，生产中可把 debug 节�
 
 本文通过工业监控场景展示了：
 
-1. Node-RED 与 TDengine TSDB 的三种集成模式：
+1. Node-RED 与 TDengine 的三种集成模式：
    - 数据采集（tdengine-operator 写入）
    - 实时查询（tdengine-operator 查询）
    - 事件驱动（tdengine-consumer 订阅）

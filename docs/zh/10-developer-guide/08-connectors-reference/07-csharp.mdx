@@ -1,20 +1,20 @@
 ---
 toc_max_heading_level: 4
 sidebar_label: C#
-title: TDengine TSDB C# Connector
+title: TDengine C# Connector
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import RequestId from "./resources/_request_id.mdx";
 
-`TDengine.Connector` 是 TDengine TSDB 提供的 C# 语言连接器。C# 开发人员可以通过它开发存取 TDengine TSDB 集群数据的 C# 应用软件。
+`TDengine.Connector` 是 TDengine 提供的 C# 语言连接器。C# 开发人员可以通过它开发存取 TDengine 集群数据的 C# 应用软件。
 
 :::warning 原生连接即将废弃
 
 <font color="red">C# 的原生连接将于 2027-01-01 下线</font>，请迁移到 WebSocket 连接。
 
-详细的迁移指引请参考：[连接方式说明](../#连接方式)
+详细的迁移指引请参考：[连接方式说明](./index.md#连接方式)
 
 :::
 
@@ -25,36 +25,36 @@ import RequestId from "./resources/_request_id.mdx";
 
 ## 支持的平台
 
-- 原生连接支持的平台和 TDengine TSDB 客户端驱动支持的平台一致。
+- 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
 - WebSocket 连接支持所有能运行 .NET 运行时的平台。
 
 ## 版本历史
 
-| Connector 版本 | 主要变化                             | TDengine TSDB 版本 |
+| Connector 版本 | 主要变化                             | TDengine 版本 |
 |:-------------|:---------------------------------|:-----------------|
-| 3.2.2        | 支持 taosAdapter 高可用。              | 3.4.1.14 及更高版本 |
-| 3.2.1        | 支持 BLOB 类型 SQL/STMT2 写入和查询；支持 DECIMAL 类型 SQL/STMT2 写入和查询。 | 3.4.1.8 及更高版本 |
+| 3.2.2        | 支持 taosAdapter 高可用。              | `v3.4.1.14` 及更高版本 |
+| 3.2.1        | 支持 BLOB 类型 SQL/STMT2 写入和查询；支持 DECIMAL 类型 SQL/STMT2 写入和查询。 | `v3.4.1.8` 及更高版本 |
 | 3.2.0        | 支持 WebSocket 多地址故障转移。              | -                |
-| 3.1.10       | 支持 TDengine TSDB Token 验证。       | -                |
+| 3.1.10       | 支持 TDengine Token 验证。       | -                |
 | 3.1.9        | stmt 对外接口不变，内部重构为 stmt2 实现。      | -                |
 | 3.1.8        | 支持连接级别时区设置，严格校验 stmt 绑定类型与数据库类型。 | -                |
-| 3.1.7        | 支持 IPv6 连接，支持 DECIMAL 类型。        | 3.3.6.0 及更高版本    |
+| 3.1.7        | 支持 IPv6 连接，支持 DECIMAL 类型。        | `v3.3.6.0` 及更高版本    |
 | 3.1.6        | 优化 WebSocket 连接接收消息处理。           | -                |
 | 3.1.5        | 修复 WebSocket 协议编码中文时长度错误。        | -                |
-| 3.1.4        | 提升 WebSocket 查询和写入性能。            | 3.3.2.0 及更高版本    |
+| 3.1.4        | 提升 WebSocket 查询和写入性能。            | `v3.3.2.0` 及更高版本    |
 | 3.1.3        | 支持 WebSocket 自动重连。               | -                |
 | 3.1.2        | 修复 schemaless 资源释放。              | -                |
 | 3.1.1        | 支持 varbinary 和 geometry 类型。      | -                |
-| 3.1.0        | WebSocket 使用原生实现。                | 3.2.1.0 及更高版本    |
+| 3.1.0        | WebSocket 使用原生实现。                | `v3.2.1.0` 及更高版本    |
 
 ## 处理异常
 
 `TDengine.Connector` 会抛出异常，应用程序需要处理异常。taosc 异常类型 `TDengineError`，包含错误码和错误信息，应用程序可以根据错误码和错误信息进行处理。
-TDengine TSDB 其他功能模块的报错，请参考 [错误码](../09-error-codes.md)
+TDengine 其他功能模块的报错，请参考 [错误码](../09-error-codes.md)
 
 ## 数据类型映射
 
-| TDengine TSDB DataType | C# Type  |
+| TDengine DataType | C# Type  |
 |------------------------|----------|
 | TIMESTAMP              | DateTime |
 | TINYINT                | sbyte    |
@@ -82,8 +82,8 @@ TDengine TSDB 其他功能模块的报错，请参考 [错误码](../09-error-co
 - BLOB 类型不支持作为 tag 列，不支持 stmt 参数化查询绑定。
 - GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../05-tdengine-sql/01-datatype.md)。
 WKB 规范请参考 [Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)。
-- DECIMAL 类型不支持作为 tag 列。在 C# 中使用 `decimal` 类型表示，支持高精度的十进制数值。因为 C# 的 `decimal` 类型与 TDengine TSDB 的 DECIMAL 类型在精度和范围上有所不同，
-  C# `decimal` 精度最大 29 位，TDengine TSDB DECIMAL 类型精度最大 38 位，所以在使用时需要注意：
+- DECIMAL 类型不支持作为 tag 列。在 C# 中使用 `decimal` 类型表示，支持高精度的十进制数值。因为 C# 的 `decimal` 类型与 TDengine 的 DECIMAL 类型在精度和范围上有所不同，
+  C# `decimal` 精度最大 29 位，TDengine DECIMAL 类型精度最大 38 位，所以在使用时需要注意：
   - 未超出 C# `decimal` 类型范围时可以使用 `GetDecimal` 或 `GetValue` 获取。
   - 当超出 C# `decimal` 类型范围时 `GetDecimal` 和 `GetValue` 方法会抛出 `OverflowException`，此时可以使用 `GetString` 方法获取字符串表示形式。
   - stmt 参数绑定写入 DECIMAL 列时，支持 `string` 和 C# `decimal` 两种类型。C# `decimal` 会自动转换为字符串后发送给服务端。如果数值精度超过 29 位，建议使用 `string` 类型以避免精度损失。
@@ -96,7 +96,7 @@ WKB 规范请参考 [Well-Known Binary (WKB)](https://libgeos.org/specifications
 
 ### ADO.NET 驱动
 
-`TDengine.Data.Client` 接口实现了 ADO.NET 驱动，支持连接 TDengine TSDB 数据库，进行数据操作。
+`TDengine.Data.Client` 接口实现了 ADO.NET 驱动，支持连接 TDengine 数据库，进行数据操作。
 
 #### 参数规范
 
@@ -117,14 +117,14 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 支持的参数如下：
 
 - `host`：只能填写单个 TDengine 地址。单地址格式支持 `host`、`host:port`、裸 IPv6 `2001:db8::1`、`[2001:db8::1]` 和 `[2001:db8::1]:6030`。Native 连接不支持多地址故障转移。
-- `port`：TDengine TSDB 运行实例的端口。如果 `host` 中已经显式写了端口，则以地址中的端口为准。
+- `port`：TDengine 运行实例的端口。如果 `host` 中已经显式写了端口，则以地址中的端口为准。
 - `username`：连接的用户名。
 - `password`：连接的密码。
 - `protocol`：连接协议，可选值为 `Native` 或 `WebSocket`，默认是 `Native`。
 - `db`：连接的数据库。
-- `timezone`：查询结果集解析时间类型使用的时区，默认为本地时区，详情见[时区说明](#时区说明)。
-- `connectionTimezone`：连接级别的时区设置（`3.1.8` 及以上版本支持），仅支持 .NET 6 及以上版本，只支持 IANA 时区格式，与 `timezone` 不可同时设置，详情见[时区说明](#时区说明)。
-- `bearerToken`：连接 TDengine TSDB 的 token 验证信息（`3.1.10` 及以上版本支持）。
+- `timezone`：查询结果集解析时间类型使用的时区，默认为本地时区，详情见 [时区说明](#时区说明)。
+- `connectionTimezone`：连接级别的时区设置（`3.1.8` 及以上版本支持），仅支持 .NET 6 及以上版本，只支持 IANA 时区格式，与 `timezone` 不可同时设置，详情见 [时区说明](#时区说明)。
+- `bearerToken`：连接 TDengine 的 token 验证信息（`3.1.10` 及以上版本支持）。
 
 如果 `protocol=Native` 且 `host` 中配置了多个地址，打开连接时会抛出 `ArgumentException`。
 
@@ -142,18 +142,18 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 - `password`：连接的密码。
 - `protocol`：连接协议，可选值为 `Native` 或 `WebSocket`，默认是 `Native`。
 - `db`：连接的数据库。
-- `timezone`：查询结果集解析时间类型使用的时区，默认为本地时区，详情见[时区说明](#时区说明)。
-- `connectionTimezone`：连接级别的时区设置（`3.1.8` 及以上版本支持），仅支持 .NET 6 及以上版本，只支持 IANA 时区格式，与 `timezone` 不可同时设置，详情见[时区说明](#时区说明)。
+- `timezone`：查询结果集解析时间类型使用的时区，默认为本地时区，详情见 [时区说明](#时区说明)。
+- `connectionTimezone`：连接级别的时区设置（`3.1.8` 及以上版本支持），仅支持 .NET 6 及以上版本，只支持 IANA 时区格式，与 `timezone` 不可同时设置，详情见 [时区说明](#时区说明)。
 - `connTimeout`：连接超时时间，默认为 1 分钟。
 - `readTimeout`：读取超时时间，默认为 5 分钟。
 - `writeTimeout`：发送超时时间，默认为 10 秒。
-- `token`：连接 TDengine TSDB cloud 的 token。
+- `token`：连接 TDengine cloud 的 token。
 - `useSSL`：是否使用 SSL 连接，默认为 false。
 - `enableCompression`：是否启用 WebSocket 压缩，默认为 false。
 - `autoReconnect`：是否自动重连，默认为 false。当在 `3.2.0` 及以上版本中配置了多个 WebSocket 地址时，该参数控制当前连接不可用后的运行时故障转移。
 - `reconnectRetryCount`：重连轮数，默认为 3。
 - `reconnectIntervalMs`：重连轮之间的间隔毫秒数，默认为 2000。
-- `bearerToken`：连接 TDengine TSDB 的 token 验证信息（`3.1.10` 及以上版本支持）。
+- `bearerToken`：连接 TDengine 的 token 验证信息（`3.1.10` 及以上版本支持）。
 - `adapterHA`：是否启用 taosAdapter 高可用，默认为 false（`3.2.2` 及以上版本支持）。启用后，连接器在建立连接和订阅时会向 taosAdapter 请求当前可用的 adapter 实例列表，并自动将新发现的节点加入故障转移地址池。当某节点下线时，后续响应中将不再包含该节点，连接器会自动从地址池中移除。该功能需要配合 taosAdapter 的服务注册机制使用。
 
 ###### 故障转移说明
@@ -170,21 +170,21 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
 
 支持的参数如下：
 
-- `host`：TDengine TSDB 运行实例的地址。
-- `port`：TDengine TSDB 运行实例的端口。
+- `host`：TDengine 运行实例的地址。
+- `port`：TDengine 运行实例的端口。
 - `username`：连接的用户名。
 - `password`：连接的密码。
 - `protocol`：连接的协议，可选值为 Native 或 WebSocket，默认为 Native。
 - `db`：连接的数据库。
-- `timezone`：查询结果集解析时间类型使用的时区，默认为本地时区，详情见[时区说明](#时区说明)。
-- `connectionTimezone`：连接级别的时区设置（3.1.8 及以上版本支持），仅支持 .NET 6 及以上版本，只支持 IANA 时区格式，与 `timezone` 不可同时设置，详情见[时区说明](#时区说明)。
-- `bearerToken`：连接 TDengine TSDB 的 token 验证信息（3.1.10 及以上版本支持）。
+- `timezone`：查询结果集解析时间类型使用的时区，默认为本地时区，详情见 [时区说明](#时区说明)。
+- `connectionTimezone`：连接级别的时区设置（`3.1.8` 及以上版本支持），仅支持 .NET 6 及以上版本，只支持 IANA 时区格式，与 `timezone` 不可同时设置，详情见 [时区说明](#时区说明)。
+- `bearerToken`：连接 TDengine 的 token 验证信息（`3.1.10` 及以上版本支持）。
 
 #### 时区说明
 
 ##### 连接级别时区设置
 
-从 3.1.8 版本开始，C# 驱动支持连接级别的时区设置。可以通过设置 `connectionTimezone` 参数来指定连接级别的时区。
+从 `3.1.8` 版本开始，C# 驱动支持连接级别的时区设置。可以通过设置 `connectionTimezone` 参数来指定连接级别的时区。
 
 ###### 特性说明
 
@@ -230,8 +230,8 @@ TDengine 所在服务器为 UTC 时区，设置 `connectionTimezone=America/New_
 ##### 参数绑定注意事项
 
 - 由于 DateTime 不包含偏移信息此时获取到的 DateTime 的 Kind 属性为 `Unspecified` 使用 `ToUniversalTime()` 方法会当做本地时区来获取 utc 时间，此时获取到的 utc 时间是错误的，因此**禁止所有 Kind 属性为 `Unspecified` 的 DateTime 用于参数绑定**。
-- 3.1.8 版本开始绑定支持使用 DateTimeOffset 类型来写入 TDengine `TIMESTAMP` 类型，使用 `UtcTicks` 获取 tick 后转化为时间戳进行写入。
-- 3.1.8 版本开始绑定支持使用 long 类型来写入 TDengine `TIMESTAMP` 类型，时间精度需要与数据库相同。
+- `3.1.8` 版本开始绑定支持使用 DateTimeOffset 类型来写入 TDengine `TIMESTAMP` 类型，使用 `UtcTicks` 获取 tick 后转化为时间戳进行写入。
+- `3.1.8` 版本开始绑定支持使用 long 类型来写入 TDengine `TIMESTAMP` 类型，时间精度需要与数据库相同。
 
 #### 接口说明
 
@@ -659,7 +659,7 @@ C# 驱动提供了符合 ADO.NET 标准的 `DbDataReader` 接口，提供了用�
   - **接口说明**：TDengineParameter 构造函数。
   - **参数说明**：
     - `name`：参数名，需要以 @ 开头，如 @0、@1、@2 等。
-    - `value`：参数值，需要 C# 列类型与 TDengine TSDB 列类型一一对应。
+    - `value`：参数值，需要 C# 列类型与 TDengine 列类型一一对应。
 
 - `public string ParameterName`
   - **接口说明**：获取或设置参数名。
@@ -748,7 +748,7 @@ C# 驱动提供了符合 ADO.NET 标准的 `DbDataReader` 接口，提供了用�
 
 ### 数据订阅
 
-`ConsumerBuilder` 类提供了消费者构建相关接口，`ConsumeResult` 类提供了消费结果相关接口，`TopicPartitionOffset` 类提供了分区偏移量相关接口。`ReferenceDeserializer` 和 `DictionaryDeserializer` 提供了反序列化的支持。
+主题概念见 [数据订阅](../../07-data-subscription/index.md) 与 [主题语法](../../07-data-subscription/01-topic.md)；多语言用法见 [数据订阅编程接口](../07-subscription-api.md)。`ConsumerBuilder` 类提供了消费者构建相关接口，`ConsumeResult` 类提供了消费结果相关接口，`TopicPartitionOffset` 类提供了分区偏移量相关接口。`ReferenceDeserializer` 和 `DictionaryDeserializer` 提供了反序列化的支持。
 
 #### 消费者
 
@@ -762,15 +762,15 @@ C# 驱动提供了符合 ADO.NET 标准的 `DbDataReader` 接口，提供了用�
 - `td.connect.ip`：TMQ 使用的 TDengine WebSocket 地址。从 `3.2.0` 开始，也支持逗号分隔的多地址列表来实现故障转移。多地址列表中的 IPv6 必须使用方括号，例如 `td.connect.ip=[::1]:6041,[::1]:6042`。
 - `td.connect.port`：共享兜底端口，会补给 `td.connect.ip` 中未显式写端口的地址。
 - `useSSL`：是否使用 SSL 连接，默认为 false。
-- `token`：连接 TDengine TSDB cloud 的 token。
+- `token`：连接 TDengine cloud 的 token。
 - `ws.message.enableCompression`：是否启用 WebSocket 压缩，默认为 false。
 - `ws.autoReconnect`：是否自动重连，默认为 false。当 `3.2.0` 及以上版本在 `td.connect.ip` 中配置了多地址时，该参数控制当前连接不可用后的运行时故障转移。
 - `ws.reconnect.retry.count`：重连轮数，默认为 3。
 - `ws.reconnect.interval.ms`：重连轮之间的间隔毫秒数，默认为 2000。
-- `connectionTimezone`：连接级别的时区设置（3.1.8 及以上版本支持，目前只有解析结果集使用的时区功能），仅支持 .NET 6 及以上版本，只支持 IANA 时区格式，详情见[时区说明](#时区说明)。
+- `connectionTimezone`：连接级别的时区设置（`3.1.8` 及以上版本支持，目前只有解析结果集使用的时区功能），仅支持 .NET 6 及以上版本，只支持 IANA 时区格式，详情见 [时区说明](#时区说明)。
 - `adapterHA`：是否启用 taosAdapter 高可用，默认为 false（`3.2.2` 及以上版本支持）。启用后，消费者在订阅时会向 taosAdapter 请求可用实例列表，并自动扩展或收缩故障转移地址池。
 
-其他参数请参考：[Consumer 参数列表](../07-subscription-api.md#创建参数)，注意 TDengine TSDB 服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
+其他参数请参考：[创建参数](../07-subscription-api.md#创建参数)，注意：TDengine 服务端自 `v3.2.0.0` 起，消息订阅中 `auto.offset.reset` 的默认值变为 `latest`。
 
 启用 TMQ 故障转移后，消费者会自动重连并重新订阅。业务侧仍应保证消费处理具备幂等性，因为故障转移后仍可能出现重复消费。
 

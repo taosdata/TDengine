@@ -49,7 +49,7 @@ Syntax Notes:
 
 1. You can specify the columns for which values are to be inserted; for columns not specified, the database will automatically fill them with NULL.
 
-1. The VALUES syntax indicates the row or rows of data to be inserted.
+1. The VALUES syntax indicates the row or rows of data to be inserted. An English comma between multiple rows is allowed (standard SQL style), for example `VALUES (...), (...)`. Omitting the comma and writing `VALUES (...) (...)` is also valid. When inserting into multiple tables, commas between table clauses are likewise optional.
 
 1. The FILE syntax indicates that the data comes from a CSV file (comma-separated, with each value enclosed in single quotes), which does not require a header. For creating subtables only, refer to the 'Table' section.
 

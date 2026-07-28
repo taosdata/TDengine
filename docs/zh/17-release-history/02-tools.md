@@ -1,10 +1,10 @@
 ---
 sidebar_label: 工具发布历史
 title: 工具发布历史及下载链接
-description: taosTools 的发布历史、Release Notes 和下载链接
+description: taosTools 的发布历史、版本说明与下载链接
 ---
 
-从 3.0.6.0 开始，taosTools 集成到 TSDB 的安装包中，不再单独提供。taosTools（对应 TSDB 3.0.5.2 及以下）各版本安装包下载链接如下：
+从 `v3.0.6.0` 开始，taosTools 集成到 TDengine 的安装包中，不再单独提供。taosTools（对应 TDengine `v3.0.5.2` 及以下）各版本安装包下载链接如下：
 
 2.6 的历史版本安装包请访问 [这里](https://www.taosdata.com/all-downloads)
 

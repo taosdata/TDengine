@@ -1,6 +1,6 @@
 ---
-title: "安装部署"
-sidebar_label: "安装部署"
+title: 安装部署
+sidebar_label: 安装部署
 description: 使用 docker、云服务、安装包体验 TDgpt
 ---
 
@@ -8,7 +8,7 @@ import PkgList from "/src/components/PkgList";
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-本节介绍如何通过 Docker，云服务或安装包来部署 TDgpt
+本节介绍如何通过 Docker、云服务或安装包部署 TDgpt。
 
 ## Docker 快速体验
 
@@ -21,7 +21,7 @@ import TabItem from '@theme/TabItem';
 
 ### 快速启动指南
 
-您需要先安装 Docker，然后通过如下方式获取镜像并启动容器。
+你需要先安装 Docker，然后通过如下方式获取镜像并启动容器。
 
 #### 标准版镜像
 
@@ -43,12 +43,12 @@ docker pull tdengine/tdgpt:{{VERSION}}
 docker run -d \
   -p 6035:6035 \
   -p 6061:6061 \
-  tdengine/tdgpt:3.4.0.9
+  tdengine/tdgpt:{{VERSION}}
 ```
 
 :::note
 
-从 3.3.7.5 版本开始，TDgpt 的端口号由 6090 变更为 6035.
+自 `v3.3.7.5` 起，TDgpt 的端口号由 `6090` 变更为 `6035`。
 
 :::
 
@@ -74,7 +74,7 @@ docker run -d \
   -p 6035:6035 \
   -p 6061:6061 \
   -p 6062:6062 \
-  tdengine/tdgpt-full:3.4.0.9
+  tdengine/tdgpt-full:{{VERSION}}
 ```
 
 **注意**：TDgpt 服务端使用 6035 TCP 端口。6061 和 6062 端口分别是时序基础模型 TDtsfm 的服务端口和 Time-MoE 的服务端口；从当前版本开始，Chronos、Moirai、TimesFM、Moment 等模型服务默认使用 6063-6066 端口，6067-6070 为预留模型服务端口。
@@ -92,11 +92,11 @@ docker ps
 docker exec -it <container name> bash
 ```
 
-然后就可以执行相关的 Linux 命令操作和访问 TDengine TSDB。
+然后就可以执行相关的 Linux 命令操作和访问 TDengine。
 
 ## 注册云服务使用 TDgpt
 
-TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服务账号，请在数据库集市里面找到 **时序数据预测分析数据集** 数据库，点击启用就可以进入这个数据库。然后按照 TDgpt 的 SQL 操作手册来执行语句，比如 `select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand;`。
+TDgpt 可以在 TDengine Cloud 上快速体验。若已有云服务账号，请在数据库集市中找到 **时序数据预测分析数据集**，启用后进入该数据库，再按本章及 [高级分析](../02-advanced-analytics/index.md) 中的 SQL 示例执行，例如：`select forecast(val, 'algo=tdtsfm_1') from forecast.electricity_demand;`。
 
 ## 安装包部署
 
@@ -105,13 +105,13 @@ TDgpt 可以在 TDengine Cloud 上进行快速体验。如果您已经有云服�
 
 ### 环境准备
 
-使用 TDgpt 的高级时序数据分析功能需要在 TDengine TSDB 集群中安装部署 Taos AI node（anode）。anode 运行在 Linux 平台上，对部署 anode 的有一定的环境要求：
+使用 TDgpt 的高级时序数据分析功能需要在 TDengine 集群中安装部署 Taos AI node（anode）。anode 运行在 Linux 平台上，对部署 anode 的有一定的环境要求：
 
-- Python: 3.10、3.11、3.12 版本。由于部分依赖库与 Python 3.12 及以上版本存在冲突，因此暂不支持。
-- TDengine TSDB：v3.3.6.0 及以上版本。
-- C 编译器：因依赖 uWSGI，部署环境需包含 C 编译器（注：3.4.1 版本不再使用 uWSGI）。但是，PyTorch 进行深度学习推理的时候会动态生成 C++ 代码，优化模型执行效率，该过程需要调用 cc1x，因此运行环境需具备完整编译运行能力。
+- Python：`3.10`、`3.11`、`3.12`。由于部分依赖库与 `3.12` 及以上版本存在冲突，因此暂不支持。
+- TDengine：`v3.3.6.0` 及以上版本。
+- C 编译器：`v3.4.1.0` 之前因依赖 uWSGI，部署环境需包含 C 编译器；自 `v3.4.1.0` 起不再使用 uWSGI。但 PyTorch 进行深度学习推理时会动态生成 C++ 代码以优化执行效率，该过程需要调用 `cc1plus` 等编译器组件，因此运行环境仍需具备完整编译能力。
 
-使用如下命令在 Ubuntu Linux 上安装 Python 3.10 环境。如果您的系统环境中已经有 Python 3.10，请跳过本节，直接查看 [获取安装包](#获取安装包) 部分。
+使用如下命令在 Ubuntu Linux 上安装 Python 3.10 环境。如果你的系统环境中已经有 Python 3.10，请跳过本节，直接查看 [获取安装包](#获取安装包) 部分。
 
 #### 安装 Python
 
@@ -171,7 +171,7 @@ cd tdengine-tdgpt-oss-{{VERSION}}
 ```
 
 为了避免影响系统已有的 Python 环境，anode 使用虚拟环境运行。安装 anode 会在目录 `/var/lib/taos/taosanode/venv/` 中创建默认的 Python 虚拟环境，anode 运行所需要的库均安装在该目录下。
-> 为了避免反复安装虚拟环境带来的开销，卸载命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果您确认不再需要该 Python 虚拟环境，手动删除该目录即可。
+> 为了避免反复安装虚拟环境带来的开销，卸载命令 `rmtaosanode` 并不会自动删除该虚拟环境，如果你确认不再需要该 Python 虚拟环境，手动删除该目录即可。
 
 ### 激活虚拟环境
 
@@ -179,9 +179,9 @@ cd tdengine-tdgpt-oss-{{VERSION}}
 
 - 创建完成该虚拟环境，该虚拟环境通过 `pip` 安装支持 TDgpt 运行所必须的 Python 依赖库。
 
-- 该虚拟环境不会被卸载脚本 `rmtaosanode` 删除，当您确认不再需要该虚拟环境的时候，需要手动删除该虚拟环境。
+- 该虚拟环境不会被卸载脚本 `rmtaosanode` 删除，当你确认不再需要该虚拟环境的时候，需要手动删除该虚拟环境。
 
-- 后续如果您需要开发自己的算法模型并整合到 TDgpt 中，可通过虚拟环境中的 `pip` 安装新依赖库。
+- 后续如果你需要开发自己的算法模型并整合到 TDgpt 中，可通过虚拟环境中的 `pip` 安装新依赖库。
 
 ### 卸载
 
@@ -194,7 +194,7 @@ cd tdengine-tdgpt-oss-{{VERSION}}
 
 ### 适用版本与交付形态
 
-从 3.4.1 开始，Windows 安装链路提供标准安装包。
+自 `v3.4.1.0` 起，Windows 安装链路提供标准安装包。
 
 当前 Windows 交付只保留两种路径：
 

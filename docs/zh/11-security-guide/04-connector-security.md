@@ -1,14 +1,13 @@
 ---
 title: 连接器安全
 sidebar_label: 连接器安全
+description: TDengine 连接器 SSL/TLS、Token 认证与动态轮换实践
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-# 连接器安全最佳实践
-
-本指南介绍 TDengine 连接器的安全最佳实践，包括 Token 认证、SSL/TLS 客户端配置、动态 Token 轮换以及各语言连接器的实现示例。
+本页介绍 TDengine 连接器的安全实践：Token 认证、客户端 SSL/TLS、动态 Token 轮换及多语言示例。服务端证书与 taosAdapter SSL 见 [传输安全](./02-transport-security.md)。
 
 ---
 
@@ -27,7 +26,7 @@ import TabItem from "@theme/TabItem";
 
 #### 设计目标
 
-TDengine 连接器安全架构的设计目标：
+连接器安全架构的设计目标：
 
 - **机密性**：所有数据传输加密，防止窃听
 - **完整性**：防止数据在传输中被篡改
@@ -37,13 +36,13 @@ TDengine 连接器安全架构的设计目标：
 
 ### 1.2 三层组件架构
 
-TDengine 连接器安全架构由以下三层组成：
+连接器安全架构由以下三层组成：
 
 1. **应用层**：业务应用管理连接池和 Token 生命周期，包括业务应用（执行 SQL、参数绑定、无模式写入、数据订阅）、连接池（HikariCP 等管理物理连接）、Token 轮换器（监听配置中心变更，更新 Token）。
 
 2. **配置中心**：集中存储和分发 Token，支持 Nacos、Vault、K8s Secret，动态推送 Token 更新，多实例共享配置。
 
-3. **服务端**：TDengine 企业版，验证 Token 有效性，处理加密请求，可选 Nginx/HAProxy 负载均衡。
+3. **服务端**：TDengine TSDB Enterprise，验证 Token 有效性，处理加密请求，可选 Nginx/HAProxy 负载均衡。
 
 ### 1.3 整体架构图
 
@@ -60,7 +59,7 @@ graph TB
     end
 
     subgraph SERVER["服务端 Server"]
-        TD[TDengine Enterprise]
+        TD[TDengine TSDB Enterprise]
         NGINX[Nginx/HAProxy 可选]
     end
 
@@ -86,11 +85,11 @@ graph TB
 
 #### 1. WebSocket + Token + SSL
 
-TDengine 连接器安全架构基于：
+推荐组合：
 
-- **WebSocket 连接**：跨平台支持；高性能、稳定；支持 SSL/TLS 加密
-- **Token 认证**：替代用户名/密码；有 TTL（24 小时），过期自动失效；可主动撤销，安全性高；支持动态轮换，避免服务中断
-- **SSL/TLS 加密**：客户端验证服务端证书，防止中间人攻击；所有数据加密传输
+- **WebSocket 连接**：跨平台；性能与稳定性较好；支持 SSL/TLS
+- **Token 认证**：替代长期用户名/密码；有 TTL（常见为 24 小时），过期失效；可主动撤销；支持动态轮换
+- **SSL/TLS 加密**：客户端验证服务端证书，降低中间人风险；传输加密
 
 #### 2. 连接器直连优于 Nginx 转发
 
@@ -128,8 +127,8 @@ Token 有 TTL（通常 24 小时），过期后连接将失败。动态 Token �
 
 :::info 配置分工
 
-- **服务端配置**：证书生成、taosAdapter SSL 配置（`taosadapter.toml`），请参考 [SSL 配置指南](./02-transport-security.md)
-- **客户端配置**：TrustStore 配置、SSL 连接参数，在本章说明
+- **服务端配置**：证书生成、taosAdapter SSL（`taosadapter.toml`），见 [传输安全](./02-transport-security.md)
+- **客户端配置**：TrustStore 与 SSL 连接参数，见下文
 :::
 
 ### 2.1 证书验证原理
@@ -342,17 +341,19 @@ curl -L -H "Authorization: Bearer your_token_here"  --cacert /etc/taos/server.cr
 
 ### 3.1 为什么使用 Token
 
-Token 认证是 TDengine Enterprise 提供的一种轻量级身份验证机制，相比传统的用户名/密码方式具有以下优势：
+Token 认证是 TDengine TSDB Enterprise 的轻量级身份验证机制，相对长期用户名/密码更利于轮换与撤销：
 
-- **限时有效性**：Token 有 TTL（生存时间），过期自动失效
-- **可撤销性**：可以主动撤销 Token，立即停止访问权限
+- **限时有效性**：Token 有 TTL，过期自动失效
+- **可撤销性**：可主动撤销，立即停止访问
 - **最小权限**：可为不同应用创建不同权限的 Token
-- **审计友好**：每个 Token 可独立追踪使用情况
+- **审计友好**：每个 Token 可独立追踪
+
+完整语法与字段说明见 [用户管理](../05-tdengine-sql/07-user-and-privilege/01-user.md) 中的令牌管理。
 
 ### 3.2 创建 Token
 
 ```sql
--- 创建 Token，有效期 1 天
+-- 创建 Token，有效期 1 天（TTL 单位与手册说明见用户管理）
 CREATE TOKEN my_app_token FROM USER root ENABLE 1 PROVIDER 'root' TTL 1;
 
 -- 查询当前用户创建的 Token
@@ -361,9 +362,7 @@ SHOW TOKENS;
 
 ### 3.3 使用 Token 连接
 
-**Token 认证是推荐的方式**，相比用户名/密码认证具有更高的安全性。
-
-使用 Token 认证时，只需要设置 Token 参数，**无需设置用户名和密码**。
+生产环境推荐 Token 认证。使用 Token 时只需设置 Token 相关参数，**无需再设置用户名和密码**。
 
 ---
 
@@ -679,7 +678,7 @@ conn.close()
 
 ##### TLS Session Resumption
 
-启用会话恢复可减少完整握手次数：
+会话恢复可减少完整握手次数。taosAdapter / 入口代理（如 Nginx）若由底层 TLS 库或网关自动支持 session resumption，通常无需额外 TDengine 专用配置项；具体以所用网关或 OpenSSL 行为为准。
 
 ```ini
 # TDengine 服务端配置（如支持）
@@ -693,16 +692,13 @@ sslSessionTimeout   3600
 - 首次握手：~100ms
 - 会话恢复：~10ms（**减少 90%**）
 
-##### 密码套件优化
+##### 密码套件
 
-禁用弱密码套件，优先使用高性能算法：
+在终止 TLS 的入口（taosAdapter 企业版 SSL、Nginx、API 网关等）优先使用 TLS 1.2+，并禁用 RC4、DES 等弱套件。常见优先顺序示例（以网关实际支持为准）：
 
-```ini
-# 推荐优先级
-1. TLS_AES_128_GCM_SHA256       (TLS 1.3，最快)
-2. TLS_CHACHA20_POLY1305_SHA256 (ARM 优化)
-3. TLS_AES_256_GCM_SHA384       (兼容性好)
-```
+1. `TLS_AES_128_GCM_SHA256`（TLS 1.3）
+2. `TLS_CHACHA20_POLY1305_SHA256`
+3. `TLS_AES_256_GCM_SHA384`
 
 #### 连接池优化
 
@@ -735,8 +731,8 @@ cfssl gencert -ca ca.crt -ca-key ca.key \
 # 2. 自动部署到 TDengine 服务器
 ansible-playbook deploy-ssl.yml --extra-vars "host=td1.example.com"
 
-# 3. 自动重启服务
-systemctl restart taosd
+# 3. 自动重启服务（WebSocket/REST SSL 在 taosAdapter 上生效时，应重启 taosAdapter）
+systemctl restart taosadapter
 ```
 
 #### 3. 证书监控
@@ -838,7 +834,9 @@ String url = "jdbc:TAOS-WS://host:6041/db?bearerToken=xxx";
 
 ## 10. 参考文档
 
-- [SSL 配置指南](./02-transport-security.md) — 服务端 SSL 证书生成和配置
-- [Java 连接器文档](../10-developer-guide/08-connectors-reference/02-java.mdx) — JDBC 驱动完整参数说明
-- [TMQ 订阅文档](../10-developer-guide/07-subscription-api.md) — 消息订阅详细说明
-- [REST API 文档](../10-developer-guide/08-connectors-reference/10-rest-api.mdx) — RESTful 接口 Token 认证说明
+- [传输安全](./02-transport-security.md) — 服务端 SSL 证书生成与配置
+- [用户管理](../05-tdengine-sql/07-user-and-privilege/01-user.md) — Token SQL 与用户安全选项
+- [Java 连接器](../10-developer-guide/08-connectors-reference/02-java.mdx) — JDBC 参数说明
+- [数据订阅 API](../10-developer-guide/07-subscription-api.md) — 消息订阅说明
+- [REST API](../10-developer-guide/08-connectors-reference/10-rest-api.mdx) — RESTful Token 认证
+- [安全公告](./07-security-advisories.md) — 漏洞与修复版本

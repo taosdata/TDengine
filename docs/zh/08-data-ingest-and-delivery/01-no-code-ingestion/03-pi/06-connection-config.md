@@ -1,13 +1,13 @@
 ---
-title: "PI 连接配置与认证"
-sidebar_label: "连接配置与认证"
+title: PI 连接配置与认证
+sidebar_label: 连接配置与认证
 ---
 
 本页详细说明 PI 数据接入任务中"连接信息"部分各字段的含义，重点解释 Windows 认证机制、taosx-agent 的访问身份，以及如何在 PI 侧配置相应权限。
 
 ## 1. 连接信息字段说明
 
-在 Explorer 中创建 PI 或 PI backfill 任务时，"连接信息"包含以下字段：
+在 taosExplorer 中创建 PI 或 PI backfill 任务时，"连接信息"包含以下字段：
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
@@ -119,7 +119,7 @@ PI 采用**两层访问控制**：**认证层（Mapping）** 决定"是谁"，**
 
 完成认证与权限配置后：
 
-1. 在 Explorer 的 PI 任务创建页面，填写连接信息（**Username/Password/Domain 留空**）
+1. 在 taosExplorer 的 PI 任务创建页面，填写连接信息（**Username/Password/Domain 留空**）
 2. 点击 **连通性检查** 按钮
 3. 检查通过即表示连接器可以正常访问 PI
 

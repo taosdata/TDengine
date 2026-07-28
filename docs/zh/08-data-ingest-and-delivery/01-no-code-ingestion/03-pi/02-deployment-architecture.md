@@ -1,6 +1,6 @@
 ---
-title: "PI 连接器部署架构"
-sidebar_label: "部署架构"
+title: PI 连接器部署架构
+sidebar_label: 部署架构
 ---
 
 本页介绍 PI 连接器的部署架构选型，帮助你根据实际的网络环境选择合适的部署方案。
@@ -27,7 +27,7 @@ graph LR
         TX["taosX 主机 (Windows)<br/>含 PI 连接器子进程"]
     end
     subgraph IT["IT 网络 / 数据中心"]
-        TD["TDengine TSDB"]
+        TD["TDengine"]
     end
     TX -- "PI SDK 协议（端口 5450/5457）<br/>由 PI 连接器子进程发起" --> PI
     TX -- "原生连接写入" --> TD
@@ -55,7 +55,7 @@ graph LR
     end
     subgraph IT["IT 网络 / 云端"]
         TX["taosX<br/>(Linux / Windows)"]
-        TD["TDengine TSDB"]
+        TD["TDengine"]
     end
     AG -- "PI SDK 协议（端口 5450/5457）<br/>由 PI 连接器子进程发起" --> PI
     AG -- "跨网段 gRPC" --> TX
@@ -97,7 +97,7 @@ graph LR
     end
     subgraph DC["数据中心 / 云端"]
         TX["taosX"]
-        TD["TDengine TSDB"]
+        TD["TDengine"]
     end
     AG1 -- "PI SDK 协议" --> PI1
     AG2 -- "PI SDK 协议" --> PI2
@@ -130,7 +130,7 @@ graph LR
 | 服务账户 | agent 服务的 Windows 运行身份（默认 Local System）即为连接器访问 PI 时呈现的身份，需在 PI 侧配置对应权限 |
 | 网络 - PI 侧 | agent 主机 → PI Data Archive（端口 5450）、agent 主机 → PI AF Server（端口 5457） |
 | 网络 - taosX 侧 | agent ↔ taosX 之间的网络连通（gRPC/HTTPS） |
-| 安装方式 | 在 Explorer 中点击 **+创建新的代理** 可获取 agent 的安装指引 |
+| 安装方式 | 在 taosExplorer 中点击 **+创建新的代理** 可获取 agent 的安装指引 |
 
 ## 6. 架构选型决策表
 

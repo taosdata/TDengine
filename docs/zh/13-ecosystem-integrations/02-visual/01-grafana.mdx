@@ -1,6 +1,7 @@
 ---
 sidebar_label: Grafana
 title: 与 Grafana 集成
+description: 安装 TDengine 数据源插件并在 Grafana 中查询与展示时序数据
 toc_max_heading_level: 4
 ---
 
@@ -9,28 +10,30 @@ import TabItem from "@theme/TabItem";
 
 ## 概述
 
-本文档介绍如何将 TDengine TSDB 数据源与开源数据可视化系统 [Grafana](https://www.grafana.com/) 集成，以实现数据的可视化和监测报警系统的搭建。通过 TDengine TSDB 插件，您可以轻松地将 TDengine TSDB 数据表的数据展示在 Grafana 仪表盘上，且无需进行复杂的开发工作。
+本文介绍如何将 TDengine 与开源可视化系统 [Grafana](https://www.grafana.com/) 集成，用于时序数据展示与监测告警。通过 TDengine 数据源插件，即可把库表数据展示在 Grafana 仪表盘上，而无需额外开发。
+
+最小可用流程也可先参阅快速上手中的 [Grafana 集成](../../04-quick-start/09-grafana-integration.md)。
 
 ## 前置条件
 
-要让 Grafana 能正常添加 TDengine TSDB 数据源，需要以下几方面的准备工作。
+要让 Grafana 能正常添加 TDengine 数据源，需要以下几方面的准备工作。
 
-- Grafana 服务已经部署并正常运行。当前 TDengine TSDB 支持 Grafana 8.0 及以上版本，建议使用最新版本。  
-    **注意**：要确保启动 Grafana 的账号有其安装目录的写权限，否则可能后面无法安装插件。
-- TDengine TSDB 集群已经部署并正常运行。
+- Grafana 服务已经部署并正常运行。当前 TDengine 支持 Grafana 8.0 及以上版本，建议使用最新版本。  
+    **注意**：要确保启动 Grafana 的账号有该安装目录的写权限，否则可能后面无法安装插件。
+- TDengine 集群已经部署并正常运行。
 - taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)
 
 记录以下信息：
 
-- TDengine TSDB 集群 REST API 地址，如：`http://tdengine.local:6041`。
-- TDengine TSDB 集群认证信息，可使用用户名及密码。
+- TDengine 集群 REST API 地址，如：`http://tdengine.local:6041`。
+- TDengine 集群认证信息，可使用用户名及密码。
 
-## 安装 Grafana Plugin 并配置数据源
+## 安装 Grafana 插件并配置数据源
 
 <Tabs defaultValue="script">
 <TabItem value="script" label="安装脚本">
 
-对于使用 Grafana 8.x 及以上版本或使用 [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) 配置的用户，可以在 Grafana 服务器上使用安装脚本自动安装插件即添加数据源 Provisioning 配置文件。
+对于使用 Grafana 8.x 及以上版本或使用 [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) 配置的用户，可以在 Grafana 服务器上使用安装脚本自动安装插件并添加数据源 Provisioning 配置文件。
 
 ```sh
 bash -c "$(curl -fsSL \
@@ -60,7 +63,7 @@ sudo -u grafana grafana-cli --pluginUrl \
       plugins install tdengine-datasource
 ```
 
-对于 Windows，首先请确保插件安装目录存在（默认是 Grafana 安装目录下 data/plugins）, 然后在 Grafana 安装目录的 bin 目录下以管理员账号执行下面的命令：
+对于 Windows，首先请确保插件安装目录存在（默认是 Grafana 安装目录下 `data/plugins`），然后在 Grafana 安装目录的 bin 目录下以管理员账号执行下面的命令：
 
 ```bash
 ./grafana-cli.exe --pluginUrl https://downloads.taosdata.com/tdengine-tsdb-datasource/tdengine-datasource.zip plugins install tdengine-datasource
@@ -70,9 +73,9 @@ sudo -u grafana grafana-cli --pluginUrl \
 
 点击 `Add data source` 可进入新增数据源页面，在查询框中输入 `TDengine`，然后点击 `select` 选择添加后会进入数据源配置页面，按照默认提示修改相应配置：
 
-- Host：TDengine TSDB 集群中提供 REST 服务的 IP 地址与端口号，默认 `http://localhost:6041`
-- User：TDengine TSDB 用户名。
-- Password：TDengine TSDB 用户密码。
+- Host：TDengine 集群中提供 REST 服务的 IP 地址与端口号，默认 `http://localhost:6041`
+- User：TDengine 用户名。
+- Password：TDengine 用户密码。
 
 点击 `Save & Test` 进行测试，成功会提示：`TDengine Data source is working`
 
@@ -94,16 +97,16 @@ sudo unzip tdengine-datasource.zip -d /var/lib/grafana/plugins/
 
 点击 `Add data source` 可进入新增数据源页面，在查询框中输入 `TDengine`，然后点击 `select` 选择添加后会进入数据源配置页面，按照默认提示修改相应配置：
 
-- Host：TDengine TSDB 集群中提供 REST 服务的 IP 地址与端口号，默认 `http://localhost:6041`
-- User：TDengine TSDB 用户名。
-- Password：TDengine TSDB 用户密码。
+- Host：TDengine 集群中提供 REST 服务的 IP 地址与端口号，默认 `http://localhost:6041`
+- User：TDengine 用户名。
+- Password：TDengine 用户密码。
 
 点击 `Save & Test` 进行测试，成功会提示：`TDengine Data source is working`
 
 </TabItem>
 <TabItem value="container" label="K8s/Docker 容器">
 
-参考 [Grafana 容器化安装说明](https://grafana.com/docs/grafana/next/setup-grafana/installation/docker/#install-plugins-in-the-docker-container)。使用如下命令启动一个容器，并自动安装 TDengine TSDB 插件：
+参考 [Grafana 容器化安装说明](https://grafana.com/docs/grafana/next/setup-grafana/installation/docker/#install-plugins-in-the-docker-container)。使用如下命令启动一个容器，并自动安装 TDengine 插件：
 
 ```bash
 docker run -d \
@@ -113,7 +116,7 @@ docker run -d \
   grafana/grafana
 ```
 
-使用 docker-compose，配置 Grafana Provisioning 自动化配置，体验 TDengine TSDB + Grafana 组合的零配置启动：
+使用 docker-compose，配置 Grafana Provisioning 自动化配置，体验 TDengine + Grafana 组合的零配置启动：
 
 1. 保存该文件为 `tdengine.yml`。
 
@@ -170,7 +173,7 @@ docker run -d \
       tdengine-data:
     ```
 
-3. 使用 docker-compose 命令启动 TDengine TSDB + Grafana：`docker-compose up -d`。
+3. 使用 docker-compose 命令启动 TDengine + Grafana：`docker-compose up -d`。
 
 打开 Grafana [http://localhost:3000](http://localhost:3000)，现在可以添加 Dashboard 了。
 
@@ -187,10 +190,10 @@ docker run -d \
 
 本节内容按如下方式组织：  
 
-1. 介绍基础知识，包括 Grafana 的内置变量和自定义变量，TDengine TSDB 对与时序查询的特色语法支持。
-2. 介绍如何使用 TDengine TSDB 数据源在 Grafana 中创建 Dashboard，然后给出使用时序查询的特色语法和如何分组展示数据。
-3. 由于配置的 Dashboard 在页面显示时会定时查询 TDengine TSDB 来刷新显示，如果 SQL 编写不当会导致严重的性能问题，我们给出了性能优化建议。
-4. 最后我们以 TDengine TSDB 监控面板 TDinsight 为例介绍了如何导入我们提供的 DashBoard。
+1. 介绍基础知识，包括 Grafana 的内置变量和自定义变量，以及 TDengine 对时序查询的特色语法支持。
+2. 介绍如何使用 TDengine 数据源在 Grafana 中创建 Dashboard，并说明时序查询特色语法与分组展示方式。
+3. 由于配置的 Dashboard 在页面显示时会定时查询 TDengine 来刷新显示，如果 SQL 编写不当会导致严重的性能问题，下文给出性能优化建议。
+4. 最后以 TDengine 监控面板 TDinsight 为例，说明如何导入提供的 Dashboard。
 
 ### Grafana 内置变量和自定义变量
 
@@ -204,7 +207,7 @@ Grafana 中的 Variable（变量）功能非常强大，可以在 Dashboard 的�
 
 - 灵活的配置选项：变量提供了多种配置选项，如预定义的静态值列表、从数据源动态查询值、正则表达式过滤等，使得变量的应用更加灵活和强大。
 
-Grafana 提供了内置变量和自定义变量，它们都可以可以在编写 SQL 时引用，引用的方式是 `$variableName`，`variableName` 是变量的名字，其他引用方式请参考 [引用方式](https://grafana.com/docs/grafana/latest/dashboards/variables/variable-syntax/)。
+Grafana 提供了内置变量和自定义变量，它们都可以在编写 SQL 时引用，引用的方式是 `$variableName`，`variableName` 是变量的名字，其他引用方式请参考 [引用方式](https://grafana.com/docs/grafana/latest/dashboards/variables/variable-syntax/)。
 
 #### 内置变量
 
@@ -214,9 +217,9 @@ Grafana 内置了 `from`、`to` 和 `interval` 等变量，都取自于 Grafana 
 - `to` 查询范围的结束时间
 - `interval` 窗口切分间隔
 
-对于每个查询都建议设置查询范围的起始时间和结束时间，可以有效的减少 TDengine TSDB 服务端执行查询扫描的数据量。`interval` 是窗口切分的大小，在 Grafana 11 版本中，其大小为时间间隔和返回点数计算而得。
+对于每个查询都建议设置查询范围的起始时间和结束时间，可以有效地减少 TDengine 服务端执行查询扫描的数据量。`interval` 是窗口切分的大小，在 Grafana 11 版本中，其大小为时间间隔和返回点数计算而得。
 
-除了上述三个常用变量，Grafana 还提供了如 `__timezone`, `__org`, `__user` 等变量，详情请参考 [内置变量](https://grafana.com/docs/grafana/latest/dashboards/variables/add-template-variables/#global-variables)。
+除了上述三个常用变量，Grafana 还提供了如 `__timezone`、`__org`、`__user` 等变量，详情请参考 [内置变量](https://grafana.com/docs/grafana/latest/dashboards/variables/add-template-variables/#global-variables)。
 
 #### 自定义变量
 
@@ -255,9 +258,9 @@ Grafana 内置了 `from`、`to` 和 `interval` 等变量，都取自于 Grafana 
 
 :::
 
-### TDengine TSDB 时序查询支持
+### TDengine 时序查询支持
 
-TDengine TSDB 在支持标准 SQL 的基础之上，还提供了一系列满足时序业务场景需求的特色查询语法，这些语法能够为时序场景的应用的开发带来极大的便利。
+TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序业务场景需求的特色查询语法，这些语法能够为时序场景的应用的开发带来极大的便利。
 
 - `partition by` 子句可以按一定的维度对数据进行切分，然后在切分出的数据空间内再进行一系列的计算。绝大多数情况可以替代 `group by`。
 - `interval` 子句用于产生相等时间周期的窗口
@@ -268,10 +271,10 @@ TDengine TSDB 在支持标准 SQL 的基础之上，还提供了一系列满足�
 
 ### 创建 Dashboard
 
-有了前面的基础知识，我们可以配置基于 TDengine TSDB 数据源的时间序列数据展示 Dashboard。  
+有了前面的基础知识，我们可以配置基于 TDengine 数据源的时间序列数据展示 Dashboard。  
 在 Grafana 主界面创建 Dashboard，点击【Add Query】进入面板查询页面：
 
-![TDengine TSDB Database Grafana plugin create dashboard](assets/create_dashboard1.webp)
+![TDengine Database Grafana plugin create dashboard](assets/create_dashboard1.webp)
 
 如上图所示，在“Query”中选中 `TDengine` 数据源，在下方查询框可输入相应 SQL 进行查询。我们继续用智能电表来举例，为了展示曲线美观，此处**用了虚拟数据**。
 
@@ -285,7 +288,7 @@ TDengine TSDB 在支持标准 SQL 的基础之上，还提供了一系列满足�
 
 在顶部的自定义变量中，若选择 `selected_groups` 的值为 1，则查询 `meters` 超级表中 `groupid` 为 1 的所有设备电流平均值变化如下图：
 
-![TDengine TSDB Database Grafana plugin create dashboard](assets/create_dashboard2.webp)
+![TDengine Database Grafana plugin create dashboard](assets/create_dashboard2.webp)
 
 :::note
 
@@ -302,7 +305,7 @@ TDengine TSDB 在支持标准 SQL 的基础之上，还提供了一系列满足�
 
 完成设置后，按照 `groupid` 分组展示如下图：
 
-![TDengine TSDB Database Grafana plugin create dashboard](assets/create_dashboard3.webp)
+![TDengine Database Grafana plugin create dashboard](assets/create_dashboard3.webp)
 
 > 关于如何使用 Grafana 创建相应的监测界面以及更多有关使用 Grafana 的信息，请参考 Grafana 官方的[文档](https://grafana.com/docs/)。
 
@@ -313,22 +316,22 @@ TDengine TSDB 在支持标准 SQL 的基础之上，还提供了一系列满足�
 
 ### 导入 Dashboard
 
-在数据源配置页面，您可以为该数据源导入 TDinsight 面板，作为 TDengine TSDB 集群的监控可视化工具。如果 TDengine TSDB 服务端为 3.0 版本请选择 `TDinsight for 3.x` 导入。注意 TDinsight for 3.x 需要运行和配置 taoskeeper。
+在数据源配置页面，你可以为该数据源导入 TDinsight 面板，作为 TDengine 集群的监控可视化工具。如果服务端为 3.x，请选择 `TDinsight for 3.x` 导入。注意 TDinsight for 3.x 需要运行并配置 taoskeeper，详见 [taosKeeper](../../12-operations-and-tooling/03-components/05-taoskeeper.md)。
 
-![TDengine TSDB Database Grafana plugine import dashboard](assets/import_dashboard.webp)
+![TDengine Database Grafana plugin import dashboard](assets/import_dashboard.webp)
 
-其中适配 TDengine TSDB 2.* 的 Dashboard 已发布在 Grafana：[Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)) 。
+其中适配 TDengine 2.* 的 Dashboard 已发布在 Grafana：[Dashboard 15167 - TDinsight](https://grafana.com/grafana/dashboards/15167)。
 
-使用 TDengine TSDB 作为数据源的其他面板，可以[在此搜索](https://grafana.com/grafana/dashboards/?dataSource=tdengine-datasource)。以下是一份不完全列表：
+使用 TDengine 作为数据源的其他面板，可以[在此搜索](https://grafana.com/grafana/dashboards/?dataSource=tdengine-datasource)。以下是一份不完全列表：
 
-- [15146](https://grafana.com/grafana/dashboards/15146)：监控多个 TDengine TSDB 集群
-- [15155](https://grafana.com/grafana/dashboards/15155)：TDengine TSDB 告警示例
+- [15146](https://grafana.com/grafana/dashboards/15146)：监控多个 TDengine 集群
+- [15155](https://grafana.com/grafana/dashboards/15155)：TDengine 告警示例
 - [15167](https://grafana.com/grafana/dashboards/15167)：TDinsight
 - [16388](https://grafana.com/grafana/dashboards/16388)：Telegraf 采集节点信息的数据展示
 
 ## 告警配置
 
-TDengine TSDB Grafana 插件支持告警，如果要配置告警，需要以下几个步骤：
+TDengine Grafana 插件支持告警，如果要配置告警，需要以下几个步骤：
 
 1. 配置联络点（“Contact points”）：配置通知渠道，包括 DingDing、Email、Slack、WebHook、Prometheus Alertmanager 等
 2. 配置告警通知策略（“Notification policies”）：配置告警发送到哪个通道的路由，以及发送通知的时间和重复频率
@@ -377,7 +380,7 @@ from_address = sender@foxmail.com
 “Name”：Email Contact Point  
 “Integration”：选择联络类型，这里选择 Email，填写邮件接收地址，完成后保存联络点  
 
-![TDengine TSDB Database Grafana plugin alert email](assets/alert-email.webp)
+![TDengine Database Grafana plugin alert email](assets/alert-email.webp)
 
 #### 配置飞书联络点  
 
@@ -387,23 +390,23 @@ from_address = sender@foxmail.com
 2. 选择触发器：Grafana
 3. 选择操作：通过官方机器人发送消息，填写发送对象和发送内容
 
-![TDengine TSDB Database Grafana plugin feishu robot](assets/alert-feishu1.webp)
+![TDengine Database Grafana plugin feishu robot](assets/alert-feishu1.webp)
 
 在 Grafana 页面找到“Home” -> “Alerting” -> “Contact points”创建新联络点  
 “Name”：Feishu Contact Point  
 “Integration”：选择联络类型，这里选择 Webhook，并填写 URL (在飞书机器人助手的 Grafana 触发器 Webhook 地址)，完成后保存联络点  
 
-![TDengine TSDB Database Grafana plugin feishu contact point](assets/alert-feishu2.webp)
+![TDengine Database Grafana plugin feishu contact point](assets/alert-feishu2.webp)
 
 ### 配置告警通知策略
 
 配置好联络点后，可以看到已有一个 Default Policy
 
-![TDengine TSDB Database Grafana plugin Notification default policy](assets/alert-notification1.webp)
+![TDengine Database Grafana plugin Notification default policy](assets/alert-notification1.webp)
 
 点击右侧“...” -> ”Edit”，然后编辑默认通知策略，弹出配置窗口：
 
-![TDengine TSDB Database Grafana plugin Notification](assets/alert-notification2.webp)
+![TDengine Database Grafana plugin Notification](assets/alert-notification2.webp)
 
 然后配置下列参数：
 
@@ -438,7 +441,7 @@ from_address = sender@foxmail.com
 
 完成设置后可以看到下面图片展示：
 
-![TDengine TSDB Database Grafana plugin Alert Rules](assets/alert-rules1.webp)
+![TDengine Database Grafana plugin Alert Rules](assets/alert-rules1.webp)
 
 Grafana 的“Expression”（表达式）支持对数据做各种操作和计算，其类型分为：
 
@@ -461,7 +464,7 @@ Grafana 的“Expression”（表达式）支持对数据做各种操作和计�
 
 #### 配置规则评估策略
 
-![TDengine TSDB Database Grafana plugin Alert Evaluation Behavior](assets/alert-evaluation.webp)
+![TDengine Database Grafana plugin Alert Evaluation Behavior](assets/alert-evaluation.webp)
 
 完成下面配置：  
 
@@ -471,7 +474,7 @@ Grafana 的“Expression”（表达式）支持对数据做各种操作和计�
 
 #### 配置标签和告警通道
 
-![TDengine TSDB Database Grafana plugin Alert Labels and Notifications](assets/alert-labels.webp)
+![TDengine Database Grafana plugin Alert Labels and Notifications](assets/alert-labels.webp)
 
 完成下面配置：  
 
@@ -480,6 +483,6 @@ Grafana 的“Expression”（表达式）支持对数据做各种操作和计�
 
 #### 配置通知文案
 
-![TDengine TSDB Database Grafana plugin Alert Labels and Notifications](assets/alert-annotations.webp)
+![TDengine Database Grafana plugin Alert Labels and Notifications](assets/alert-annotations.webp)
 
 设置“Summary”和“Description”后，若告警触发，将会收到告警通知。

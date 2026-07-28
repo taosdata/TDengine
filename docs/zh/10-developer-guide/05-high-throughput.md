@@ -1,15 +1,14 @@
 ---
-title: 高效写入
 sidebar_label: 高效写入
+title: 高效写入
+description: TDengine 连接器高效写入特性与写入性能关键要素
 toc_max_heading_level: 4
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-# 高效写入
-
-为帮助用户轻松构建百万级吞吐量的数据写入管道，TDengine TSDB 连接器提供高效写入的特性。启动高效写入特性后，TDengine TSDB 连接器将自动创建写入线程与专属队列，将数据按子表切分缓存，在达到数据量阈值或超时条件时批量发送，以此减少网络请求、提升吞吐量，让用户无需掌握多线程编程知识和数据切分技巧即可实现高性能写入。
+为帮助用户轻松构建百万级吞吐量的数据写入管道，TDengine 连接器提供高效写入的特性。启动高效写入特性后，TDengine 连接器将自动创建写入线程与专属队列，将数据按子表切分缓存，在达到数据量阈值或超时条件时批量发送，以此减少网络请求、提升吞吐量，让用户无需掌握多线程编程知识和数据切分技巧即可实现高性能写入。
 
 ## 高效写入使用方法 {#usage}
 
@@ -20,7 +19,7 @@ import TabItem from "@theme/TabItem";
 
 ##### JDBC 高效写入特性概述
 
-JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写入特性。JDBC 驱动高效写入特性有如下特点：
+JDBC 驱动从 `3.6.0` 起，在 WebSocket 连接上提供高效写入特性。JDBC 驱动高效写入特性有如下特点：
 
 - 支持 JDBC 标准参数绑定接口。
 - 在资源充分条件下，写入能力跟写入线程数配置线性相关。
@@ -50,7 +49,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS：自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 
-其他配置参数请参考 [高效写入配置](08-connectors-reference/02-java.mdx#properties)。
+其他配置参数请参考 [Properties](./08-connectors-reference/02-java.mdx#properties)。
 
 ##### JDBC 高效写入使用说明
 
@@ -72,8 +71,8 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 
 下面的示例程序展示了如何高效写入数据，场景设计如下：
 
-- TDengine TSDB 客户端程序从其它数据源不断读入数据，在示例程序中采用生成模拟数据的方式来模拟读取数据源，同时提供了从 Kafka 拉取数据写入 TDengine TSDB 的示例。
-- 为了提高 TDengine TSDB 客户端程序读取数据速度，使用多线程读取。为了避免乱序，多个读取线程读取数据对应的表集合应该不重叠。
+- TDengine 客户端程序从其它数据源不断读入数据，在示例程序中采用生成模拟数据的方式来模拟读取数据源，同时提供了从 Kafka 拉取数据写入 TDengine 的示例。
+- 为了提高 TDengine 客户端程序读取数据速度，使用多线程读取。为了避免乱序，多个读取线程读取数据对应的表集合应该不重叠。
 - 为了与每个数据读取线程读取数据的速度相匹配，后台启用一组写入线程与之对应，每个写入线程都有一个独占的固定大小的消息队列。
 
 ### 示例代码 {#code}
@@ -96,7 +95,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 | CreateSubTableTask | 根据子表范围创建子表，供主程序调用                                                        |
 | Meters             | 提供了 `meters` 表单条数据的序列化和反序列化，供发送消息给 Kafka 和 从 Kafka 接收消息使用 |
 | ProducerTask       | 生产者，向 Kafka 发送消息                                                                 |
-| ConsumerTask       | 消费者，从 Kafka 接收消息，调用 JDBC 高效写入接口写入 TDengine TSDB，并按进度提交 offset       |
+| ConsumerTask       | 消费者，从 Kafka 接收消息，调用 JDBC 高效写入接口写入 TDengine，并按进度提交 offset       |
 | Util               | 提供一些基础功能，包括创建连接，创建 Kafka topic，统计写入条数等                          |
 
 以下是各类的完整代码和更详细的功能说明。
@@ -111,7 +110,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
    -c,--cacheSizeByRow <arg>             指定高效写入的 cacheSizeByRow 参数，默认 10000  
    -d,--dbName <arg>                     指定数据库名, 默认 `test`  
       --help                             打印帮助信息  
-   -K,--useKafka                         使用 Kafka，采用创建生产者发送消息，消费者接收消息写入 TDengine TSDB 方式。否则采用工作线程订阅模拟器生成数据写入 TDengine TSDB 方式  
+   -K,--useKafka                         使用 Kafka，采用创建生产者发送消息，消费者接收消息写入 TDengine 方式。否则采用工作线程订阅模拟器生成数据写入 TDengine 方式  
    -r,--readThreadCount <arg>            指定工作线程数，默认 5，当 Kafka 模式，此参数同时决定生产者和消费者线程数  
    -R,--rowsPerSubTable <arg>            指定每子表写入行数，默认 100  
    -s,--subTableNum <arg>                指定子表总数，默认 1000000  
@@ -170,7 +169,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 <details>
 <summary>CreateSubTableTask</summary>
 
-根据子表范围创建子表，采用批量拼 sql 创建方式。
+根据子表范围创建子表，采用批量拼接 SQL 创建方式。
 
 ```java
 {{#include docs/examples/JDBC/highvolume/src/main/java/com/taos/example/highvolume/CreateSubTableTask.java}}
@@ -203,7 +202,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 <details>
 <summary>ConsumerTask</summary>
 
-消息消费者，从 Kafka 接收消息，写入 TDengine TSDB。
+消息消费者，从 Kafka 接收消息，写入 TDengine。
 
 ```java
 {{#include docs/examples/JDBC/highvolume/src/main/java/com/taos/example/highvolume/ConsumerTask.java}}
@@ -271,13 +270,13 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
    ```
 
    以上使用的是本地部署 TDengine TSDB Server 时默认的 JDBC URL。你需要根据自己的实际情况更改。  
-   如果想使用 Kafka 订阅模式，请再增加 Kafaka 集群环境变量配置：
+   如果想使用 Kafka 订阅模式，请再增加 Kafka 集群环境变量配置：
 
    ```shell
    export KAFKA_BOOTSTRAP_SERVERS=localhost:9092
    ```
 
-4. 用 Java 命令启动示例程序，命令模板（如果用 Kafaka 订阅模式，最后可以加上 `-K`）：
+4. 用 Java 命令启动示例程序，命令模板（如果用 Kafka 订阅模式，最后可以加上 `-K`）：
 
    ```java
    java -jar highVolume.jar -r 5 -w 5 -b 10000 -c 100000 -s 1000000 -R 1000
@@ -315,7 +314,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 
 从客户端程序的角度来说，高效写入数据要考虑以下几个因素：
 
-1. **批量写入**：通常情况下，每批次写入的数据量越大越高效（但超过一定阈值其优势会消失）。使用 SQL 写入 TDengine 时，尽量在单条 SQL 中拼接更多数据。当前，TDengine 支持的单条 SQL 最大长度为 **1MB**（1,048,576 字符）。
+1. **批量写入**：通常情况下，每批次写入的数据量越大越高效（但超过一定阈值其优势会消失）。使用 SQL 写入 TDengine 时，尽量在单条 SQL 中拼接更多数据。当前，单条 SQL 最大长度默认约为 **4MB**（`4194304` 字符），可通过客户端参数 `maxSQLLength` 配置，上限为 64MB。
 2. **多线程写入**：在系统资源未达瓶颈前，写入线程数增加可提升吞吐量（超过阈值后性能可能因服务端处理能力限制而下降）。推荐为每个写入线程分配独立连接，以减少连接资源的竞争。
 3. **写入相邻性**：数据在不同表（或子表）之间的分布，即要写入数据的相邻性。一般来说，每批次只向同一张表（或子表）写入数据比向多张表（或子表）写入数据要更高效。
 4. **提前建表**：提前建表可以提高写入性能，因为后续不需要检查表是否存在，且写入时可以不传标签列的数据，提高性能。
@@ -330,7 +329,7 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 
 ### 数据源方面 {#datasource-view}
 
-客户端程序通常需要从数据源读取数据再写入 TDengine TSDB。从数据源角度来说，以下几种情况需要在读线程和写线程之间增加队列：
+客户端程序通常需要从数据源读取数据再写入 TDengine。从数据源角度来说，以下几种情况需要在读线程和写线程之间增加队列：
 
 1. 有多个数据源，单个数据源生成数据的速度远小于单线程写入的速度，但数据量整体比较大。此时队列的作用是把多个数据源的数据汇聚到一起，增加单次写入的数据量。
 2. 单个数据源生成数据的速度远大于单线程写入的速度。此时队列的作用是增加写入的并发度。
@@ -349,10 +348,10 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 
 1. **vgroups**：在服务端配置层面，创建数据库时，需综合考虑系统内磁盘数量、磁盘 I/O 能力以及处理器能力，合理设置 vgroups 数量，从而充分挖掘系统性能潜力。若 vgroups 数量过少，系统性能将难以充分释放；若数量过多，则会引发不必要的资源竞争。建议将每个 vgroup 中的表数量控制在 100 万以内，在硬件资源充足的情况下，控制在 1 万以内效果更佳。
 1. **buffer**：buffer 指的是为一个 vnode 分配的写入内存大小，默认值为 256 MB。当 vnode 中实际写入的数据量达到 buffer 大小的约 1/3 时，会触发数据落盘操作。适当调大该参数，能够尽可能多地缓存数据，实现一次性落盘，提高写入效率。然而，若参数配置过大，在系统宕机恢复时，恢复时间会相应变长。
-2. **cachemodel**：用于控制是否在内存中缓存子表的最近数据。开启此功能会对写入性能产生一定影响，因为在数据写入过程中，系统会同步检查并更新每张表的 last_row 和每列的 last 值。可通过将原选项 'both' 调整为‘last_row’或‘last_value’，来减轻其对写入性能的影响。
-3. **stt_trigger**：用于控制 TSDB 数据落盘策略以及触发后台合并文件的文件个数。企业版的默认配置为 2，而开源版仅能配置为 1。当 stt_trigger = 1 时，适用于表数量少但写入频率高的场景；当 stt_trigger > 1 时，则更适合表数量多但写入频率低的场景。  
+2. **cachemodel**：用于控制是否在内存中缓存子表的最近数据。开启此功能会对写入性能产生一定影响，因为在数据写入过程中，系统会同步检查并更新每张表的 last_row 和每列的 last 值。可将原选项 `both` 调整为 `last_row` 或 `last_value`，以减轻对写入性能的影响。
+3. **stt_trigger**：用于控制 TSDB 数据落盘策略以及触发后台合并文件的文件个数。默认值为 `2`。当 `stt_trigger = 1` 时，适用于表数量少但写入频率高的场景；当 `stt_trigger > 1` 时，更适合表数量多但写入频率低的场景。  
 
-其他参数请参考 [数据库管理](../05-tdengine-sql/02-ddl/01-database.md)。
+其他参数请参考 [数据库](../05-tdengine-sql/02-ddl/01-database.md)。
 
 然后看 `taosd` 配置中的几个性能相关参数：
 
@@ -360,11 +359,11 @@ JDBC 驱动从 `3.6.0` 版本开始，在 WebSocket 连接上提供了高效写�
 2. **numOfCommitThreads**：服务端后台落盘线程个数，默认为 4。落盘线程数并非越多越好。线程越多，硬盘写入争抢越严重，写入性能反而可能下降。配置了多块盘的服务器可以考虑将此参数放大，从而利用多块硬盘的并发 IO 能力。
 3. **日志级别**：以 `debugFlag` 为代表的一批参数，控制相关日志输出级别。日志级别决定日志输出压力，开的日志级别越高，对写入性能的影响越大，一般建议默认配置。  
 
-其他参数请参考 [服务端配置](../12-operations-and-tooling/03-components/01-taosd.md)。
+其他参数请参考 [taosd](../12-operations-and-tooling/03-components/01-taosd.md)。
 
 ## 高效写入实现原理 {#implement-principle}
 
-通过上文的写入性能影响因素可知，开发高性能数据写入程序需掌握多线程编程与数据切分技术，存在一定技术门槛。为降低用户开发成本，TDengine TSDB 连接器提供**高效写入特性**，支持用户在不涉及底层线程管理与数据分片逻辑的前提下，充分利用 TDengine TSDB 强大的写入能力。
+通过上文的写入性能影响因素可知，开发高性能数据写入程序需掌握多线程编程与数据切分技术，存在一定技术门槛。为降低用户开发成本，TDengine 连接器提供**高效写入特性**，支持用户在不涉及底层线程管理与数据分片逻辑的前提下，充分利用 TDengine 强大的写入能力。
 
 下面是连接器实现高效写入特性的原理图：
 ![TDengine 高效写入示例场景的线程模型](assets/highvolume.png)

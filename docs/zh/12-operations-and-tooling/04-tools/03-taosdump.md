@@ -4,23 +4,23 @@ sidebar_label: taosdump
 toc_max_heading_level: 4
 ---
 
-taosdump 是 TDengine TSDB 提供的高性能数据备份/恢复工具。备份数据采用高压缩率的列式存储，支持全量备份、按库备份、按表备份、按时间范围备份及仅元数据备份等多种场景，并提供断点续传能力。
+taosdump 是 TDengine 提供的高性能数据备份/恢复工具。备份数据采用高压缩率的列式存储，支持全量备份、按库备份、按表备份、按时间范围备份及仅元数据备份等多种场景，并提供断点续传能力。
 
 ## taosdump 全新升级版本
 
-从 v3.4.2.0 开始，taosdump 进行了全新升级，升级后的版本提供了更高性能、更小备份数据大小及增加了更多实用功能。
+从 `v3.4.2.0` 开始，taosdump 进行了全新升级，升级后的版本提供了更高性能、更小备份数据大小及增加了更多实用功能。
 新版本支持老版本生成的 avro 格式数据导入，但不再支持生成 avro 格式备份数据。
 
 ## 工具获取
 
-taosdump 在 TDengine TSDB 服务器或客户端安装包中均提供，安装请参考 [TDengine TSDB 安装](../../04-quick-start/index.md)
+taosdump 在 TDengine 服务器或客户端安装包中均提供，安装请参考 [TDengine 安装](../../04-quick-start/index.md)
 
 ## 运行
 
 taosdump 支持 Windows/MacOS/Linux 平台，在命令行终端中运行，运行时必须带参数，指明备份操作（`-o`）或恢复操作（`-i`）。
 
 :::tip
-在运行 taosdump 之前要确保目标 TDengine TSDB 集群已经正确运行。
+在运行 taosdump 之前要确保目标 TDengine 集群已经正确运行。
 :::
 
 ### 备份示例

@@ -1,11 +1,11 @@
 ---
 title: 支持平台列表
-description: "TDengine TSDB 服务端、客户端和连接器支持的平台列表"
+description: "TDengine 服务端、客户端和连接器支持的平台列表"
 ---
 
 import PlatformSupported from "../10-developer-guide/08-connectors-reference/resources/_platform_supported.mdx";
 
-3.0.7.1 之后的社区版所支持的操作系统范围，可参考本文档。如果使用国产操作系统，请使用企业版本，或者使用 Docker 方式安装。
+`v3.0.7.1` 之后的社区版所支持的操作系统范围，可参考本文档。如果使用国产操作系统，请使用企业版本，或者使用 Docker 方式安装。
 
 ## 服务端支持的平台列表
 
@@ -40,4 +40,4 @@ import PlatformSupported from "../10-developer-guide/08-connectors-reference/res
 
 ## 支持的网络环境
 
-TDengine TSDB 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见 [IPv6 配置](./02-operations/08-network.md)。
+TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见 [IPv6 配置](./02-operations/08-network.md)。

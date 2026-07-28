@@ -70,7 +70,7 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 ### 依赖服务
 
 - **taosX**：taosX-Agent 必须连接到一个正在运行的 taosX 实例。
-- **taosExplorer**：需要通过 Explorer 界面创建 Agent 并获取 Token。
+- **taosExplorer**：需要通过 taosExplorer 界面创建 Agent 并获取 Token。
 
 ## 安装
 
@@ -87,7 +87,7 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 
 ## 使用
 
-### 第 1 步：在 Explorer 中创建 Agent
+### 第 1 步：在 taosExplorer 中创建 Agent
 
 1. 登录 taosExplorer 界面。
 2. 在左侧导航栏点击 **数据写入**。
@@ -106,13 +106,13 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 
 ### 第 2 步：修改配置文件
 
-编辑配置文件，填入从 Explorer 获取的信息：
+编辑配置文件，填入从 taosExplorer 获取的信息：
 
 ```toml
 # taosX 的 gRPC 服务地址（必填）
 endpoint = "http://<taosX_host>:6055"
 
-# 在 Explorer 中创建 Agent 时生成的 Token（必填）
+# 在 taosExplorer 中创建 Agent 时生成的 Token（必填）
 token = "<your_token>"
 ```
 
@@ -149,7 +149,7 @@ sc start taosx-agent
 
 ### 第 4 步：验证 Agent 状态
 
-启动后，回到 Explorer 创建代理的向导页面，点击 **检查代理是否连接正常** 按钮，状态显示为 **正常** 即表示 Agent 已成功上线。
+启动后，回到 taosExplorer 创建代理的向导页面，点击 **检查代理是否连接正常** 按钮，状态显示为 **正常** 即表示 Agent 已成功上线。
 
 ![验证 Agent 状态](./assets/agent-status.png)
 
@@ -178,7 +178,7 @@ tail -f /var/log/taos/taosx-agent.log
 
 ### 第 5 步：创建数据接入任务
 
-Agent 上线后，回到 Explorer 的 **数据写入** 页面，在创建数据源任务时，从 **代理** 下拉框中选择已上线的 Agent，即可通过该 Agent 代理采集数据。
+Agent 上线后，回到 taosExplorer 的 **数据写入** 页面，在创建数据源任务时，从 **代理** 下拉框中选择已上线的 Agent，即可通过该 Agent 代理采集数据。
 
 ## 问题排查
 
@@ -208,7 +208,7 @@ tail -f /var/log/taos/taosx-agent.log
 | 现象               | 可能原因                      | 解决方法                                                  |
 | ------------------ | ----------------------------- | --------------------------------------------------------- |
 | Agent 无法上线     | `endpoint` 配置错误或网络不通 | 检查 taosX 地址和端口，验证网络连通性                     |
-| Agent 无法上线     | `token` 配置错误              | 在 Explorer 中重新创建 Agent 获取新 Token                 |
+| Agent 无法上线     | `token` 配置错误              | 在 taosExplorer 中重新创建 Agent 获取新 Token                 |
 | Agent 频繁断线重连 | 网络不稳定                    | 检查 Agent 到 taosX 的网络质量；确认 `keep_online = true` |
 | 数据采集失败       | Agent 无法访问数据源          | 检查 Agent 到数据源的网络连通性和权限                     |
 

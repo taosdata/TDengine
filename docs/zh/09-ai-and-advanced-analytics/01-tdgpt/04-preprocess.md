@@ -1,6 +1,6 @@
 ---
-title: "数据分析预处理"
-sidebar_label: "数据分析预处理"
+title: 数据分析预处理
+sidebar_label: 数据分析预处理
 description: 数据预处理流程
 ---
 

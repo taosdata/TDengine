@@ -5,24 +5,24 @@ title: 与 FineBI 集成
 
 帆软是一家专注于商业智能与数据分析领域的科技企业，凭借自主研发的 FineBI 和 FineReport 两款核心产品在行业内占据重要地位。帆软的 BI 工具广泛应用于各类企业，帮助用户实现数据的可视化分析、报表生成和数据决策支持。
 
-通过使用 `TDengine Java connector` 连接器，FineBI 可以快速访问 TDengine TSDB 的数据。用户可以在 FineBI 中直接连接 TDengine TSDB 数据库，获取时序数据进行分析并制作可视化报表，整个过程不需要任何代码编写过程。
+通过使用 `TDengine Java connector` 连接器，FineBI 可以快速访问 TDengine 的数据。用户可以在 FineBI 中直接连接 TDengine 数据库，获取时序数据进行分析并制作可视化报表，整个过程不需要任何代码编写过程。
 
 ## 前置条件
 
 准备以下环境：
 
-- TDengine TSDB 3.3.4.0 以上版本集群已部署并正常运行（企业及社区版均可）。
+- TDengine `v3.3.4.0` 以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)。
 - FineBI 安装（如未安装，请下载并安装 [FineBI 下载](https://www.finebi.com/product/download)）。
 - 下载 `fine_conf_entity` 插件用于支持允许添加 JDBC 驱动，[下载地址](https://market.fanruan.com/plugin/1052a471-0239-4cd8-b832-045d53182c5d)。
-- 安装 JDBC 驱动。从 `maven.org` 下载 `TDengine JDBC` 连接器文件 `taos-jdbcdriver-3.4.0-dist.jar` 或以上版本。
+- 安装 JDBC 驱动。从 `maven.org` 下载较新的 TDengine JDBC 连接器（文档示例基于 `taos-jdbcdriver-3.4.0-dist.jar`）。
 
 ## 配置数据源
 
 **第 1 步**，在 FineBI 服务端 `db.script` 配置文件中，找到 `SystemConfig.driverUpload` 配置项并将其修改为 `true`。
 
 - Windows 系统：配置文件路径是安装目录下 `webapps/webroot/WEB-INF/embed/finedb/db.script`。
-- Liunx/Mac 系统：配置文件路径是 `/usr/local/FineBI6.1/webapps/webroot/WEB-INF/embed/finedb/db.script`。
+- Linux/Mac 系统：配置文件路径是 `/usr/local/FineBI6.1/webapps/webroot/WEB-INF/embed/finedb/db.script`。
 
 **第 2 步**，启动 FineBI 服务，在浏览器中输入 `http://ip:37799/webroot/decision`, 其中 ip 是 FineBI 服务端 ip 地址。
 
@@ -70,7 +70,7 @@ title: 与 FineBI 集成
 
 ### 智能电表样例
 
-**第 1 步**，点击【我的分析】在右侧页面中点击【新建文件夹】即可创建一个文件夹（比如 `TDengine），` 接着在文件夹的右侧点击【+】按钮，可创建“分析主题”。
+**第 1 步**，点击【我的分析】在右侧页面中点击【新建文件夹】即可创建一个文件夹（比如 `TDengine`），接着在文件夹的右侧点击【+】按钮，可创建“分析主题”。
 
 ![finebi-workbook](finebi/assets/analysis-object.webp)
 

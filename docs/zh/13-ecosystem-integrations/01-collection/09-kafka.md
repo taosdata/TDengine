@@ -1,20 +1,22 @@
 ---
 sidebar_label: Kafka
-title: TDengine TSDB Kafka Connector
-description: 使用 TDengine TSDB Kafka Connector 的详细指南
+title: TDengine Kafka Connector
+description: 使用 Kafka Connect 插件在 Kafka 与 TDengine 之间双向同步数据
 ---
 
-TDengine TSDB Kafka Connector 包含 TDengine TSDB Source Connector 和 TDengine TSDB Sink Connector 两个插件。用户只需提供简单的配置文件，就可以将 Kafka 中指定 topic 的数据（批量或实时）同步到 TDengine TSDB，或将 TDengine TSDB 中指定数据库的数据（批量或实时）同步到 Kafka。
+TDengine Kafka Connector 包含 Source Connector 与 Sink Connector 两个 Kafka Connect 插件。配置后即可将 Kafka 中指定 topic 的数据同步到 TDengine，或将 TDengine 中指定数据库的数据同步到 Kafka。
+
+企业版也可在 taosExplorer 中配置零代码 Kafka 写入与数据发布，详见 [零代码数据写入 · Kafka](../../08-data-ingest-and-delivery/01-no-code-ingestion/07-kafka.mdx) 与 [数据发布 · Kafka](../../08-data-ingest-and-delivery/02-no-code-delivery/03-Kafka.md)。基于主题的消费语义还可对照 [数据订阅](../../07-data-subscription/index.md)。
 
 ## 什么是 Kafka Connect？
 
-Kafka Connect 是 [Apache Kafka](https://kafka.apache.org/) 的一个组件，用于使其它系统，比如数据库、云服务、文件系统等能方便地连接到 Kafka。数据既可以通过 Kafka Connect 从其它系统流向 Kafka, 也可以通过 Kafka Connect 从 Kafka 流向其它系统。从其它系统读数据的插件称为 Source Connector, 写数据到其它系统的插件称为 Sink Connector。Source Connector 和 Sink Connector 都不会直接连接 Kafka Broker，Source Connector 把数据转交给 Kafka Connect。Sink Connector 从 Kafka Connect 接收数据。
+Kafka Connect 是 [Apache Kafka](https://kafka.apache.org/) 的一个组件，用于使其它系统（如数据库、云服务、文件系统等）方便地连接到 Kafka。数据既可以通过 Kafka Connect 从其它系统流向 Kafka，也可以通过 Kafka Connect 从 Kafka 流向其它系统。从其它系统读数据的插件称为 Source Connector，写数据到其它系统的插件称为 Sink Connector。Source Connector 和 Sink Connector 都不会直接连接 Kafka Broker：Source Connector 把数据转交给 Kafka Connect，Sink Connector 从 Kafka Connect 接收数据。
 
-![TDengine TSDB Database Kafka Connector -- Kafka Connect structure](kafka/assets/Kafka_Connect.webp)
+![TDengine Database Kafka Connector -- Kafka Connect structure](kafka/assets/Kafka_Connect.webp)
 
-TDengine TSDB Source Connector 用于把数据实时地从 TDengine TSDB 读出来发送给 Kafka Connect。TDengine TSDB Sink Connector 用于 从 Kafka Connect 接收数据并写入 TDengine TSDB。
+TDengine Source Connector 用于把数据实时地从 TDengine 读出来发送给 Kafka Connect。TDengine Sink Connector 用于从 Kafka Connect 接收数据并写入 TDengine。
 
-![TDengine TSDB Database Kafka Connector -- streaming integration with kafka connect](kafka/assets/streaming-integration-with-kafka-connect.webp)
+![TDengine Database Kafka Connector -- streaming integration with kafka connect](kafka/assets/streaming-integration-with-kafka-connect.webp)
 
 ## 前置条件
 
@@ -23,7 +25,7 @@ TDengine TSDB Source Connector 用于把数据实时地从 TDengine TSDB 读出�
 1. Linux 操作系统
 2. 已安装 Java 8 和 Maven
 3. 已安装 Git、curl、vi
-4. 已安装并启动 TDengine TSDB。如果还没有可参考 [安装和卸载](../../04-quick-start/index.md)
+4. 已安装并启动 TDengine。如果还没有，可参考 [用安装包快速体验](../../04-quick-start/01-download-and-install/02-package.md)
 
 ## 安装 Kafka
 
@@ -45,7 +47,7 @@ TDengine TSDB Source Connector 用于把数据实时地从 TDengine TSDB 读出�
 
     以上脚本可以追加到当前用户的 profile 文件（~/.profile 或 ~/.bash_profile）
 
-## 安装 TDengine TSDB Connector 插件
+## 安装 TDengine Connector 插件
 
 ### 编译插件
 
@@ -90,11 +92,11 @@ curl http://localhost:8083/connectors
 []
 ```
 
-## TDengine TSDB Sink Connector 的使用
+## TDengine Sink Connector 的使用
 
-TDengine TSDB Sink Connector 的作用是同步指定 topic 的数据到 TDengine TSDB。用户无需提前创建数据库和超级表。可手动指定目标数据库的名字（见配置参数 connection.database），也可按一定规则生成 (见配置参数 connection.database.prefix)。
+TDengine Sink Connector 的作用是同步指定 topic 的数据到 TDengine。用户无需提前创建数据库和超级表。可手动指定目标数据库的名字（见配置参数 connection.database），也可按一定规则生成 (见配置参数 connection.database.prefix)。
 
-TDengine TSDB Sink Connector 内部使用 TDengine TSDB [无模式写入接口](../../10-developer-guide/04-schemaless.md) 写数据到 TDengine TSDB，目前支持三种格式的数据：InfluxDB 行协议格式，OpenTSDB Telnet 协议格式，和 OpenTSDB JSON 协议格式。
+TDengine Sink Connector 内部使用 TDengine [无模式写入接口](../../10-developer-guide/04-schemaless.md) 写数据到 TDengine，目前支持三种格式的数据：InfluxDB 行协议格式，OpenTSDB Telnet 协议格式，和 OpenTSDB JSON 协议格式。
 
 下面的示例将主题 meters 的数据，同步到目标数据库 power。数据格式为 InfluxDB Line 协议格式。
 
@@ -186,12 +188,12 @@ cat test-data.txt | kafka-console-producer.sh --broker-list localhost:9092 --top
 ```
 
 :::note
-如果目标数据库 power 不存在，那么 TDengine TSDB Sink Connector 会自动创建数据库。自动创建数据库使用的时间精度为纳秒，这就要求写入数据的时间戳精度也是纳秒。如果写入数据的时间戳精度不是纳秒，将会抛异常。
+如果目标数据库 power 不存在，那么 TDengine Sink Connector 会自动创建数据库。自动创建数据库使用的时间精度为纳秒，这就要求写入数据的时间戳精度也是纳秒。如果写入数据的时间戳精度不是纳秒，将会抛异常。
 :::
 
 ### 验证同步是否成功
 
-使用 TDengine TSDB CLI 验证同步是否成功。
+使用 `taos` shell 验证同步是否成功。
 
 ```sql
 taos> use power;
@@ -209,11 +211,11 @@ Query OK, 4 row(s) in set (0.004208s)
 
 若看到了以上数据，则说明同步成功。若没有，请检查 Kafka Connect 的日志。配置参数的详细说明见 [配置参考](#配置参考)。
 
-## TDengine TSDB Source Connector 的使用
+## TDengine Source Connector 的使用
 
-TDengine TSDB Source Connector 的作用是将 TDengine TSDB 某个数据库某一时刻之后的数据全部推送到 Kafka。TDengine TSDB Source Connector 的实现原理是，先分批拉取历史数据，再用定时查询的策略同步增量数据。同时会监控表的变化，可以自动同步新增的表。如果重启 Kafka Connect, 会从上次中断的位置继续同步。
+TDengine Source Connector 的作用是将 TDengine 某个数据库某一时刻之后的数据推送到 Kafka。其实现原理是：先分批拉取历史数据，再用定时查询的策略同步增量数据；同时会监控表的变化，可以自动同步新增的表。如果重启 Kafka Connect，一般会从上次中断的位置继续同步。
 
-TDengine TSDB Source Connector 会将 TDengine TSDB 数据表中的数据转换成 InfluxDB Line 协议格式 或 OpenTSDB JSON 协议格式然后写入 Kafka。
+TDengine Source Connector 会将 TDengine 数据表中的数据转换成 InfluxDB Line 协议格式或 OpenTSDB JSON 协议格式，然后写入 Kafka。
 
 下面的示例程序同步数据库 test 中的数据到主题 tdengine-test-meters。
 
@@ -272,7 +274,7 @@ INSERT INTO d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-1
             d1004 USING meters TAGS('California.LosAngeles', 3)   VALUES('2018-10-03 14:38:06.500',11.50000,221,0.35000);
 ```
 
-使用 TDengine TSDB CLI, 执行 SQL 文件。
+使用 `taos` shell 执行 SQL 文件。
 
 ```bash
 taos -f prepare-source-data.sql
@@ -286,7 +288,7 @@ curl -X POST -d @source-demo.json http://localhost:8083/connectors -H "Content-T
 
 ### 查看 topic 数据
 
-使用 kafka-console-consumer 命令行工具监控主题 tdengine-test-meters 中的数据。一开始会输出所有历史数据，往 TDengine TSDB 插入两条新的数据之后，kafka-console-consumer 也立即输出了新增的两条数据。输出数据 InfluxDB line protocol 的格式。
+使用 kafka-console-consumer 命令行工具监控主题 tdengine-test-meters 中的数据。一开始会输出所有历史数据，往 TDengine 插入两条新的数据之后，kafka-console-consumer 也立即输出了新增的两条数据。输出数据 InfluxDB line protocol 的格式。
 
 ```bash
 kafka-console-consumer.sh --bootstrap-server localhost:9092 --from-beginning --topic tdengine-test-meters
@@ -301,7 +303,7 @@ meters,location="California.SanFrancisco",groupid=2i32 current=12.6f32,voltage=2
 ......
 ```
 
-此时会显示所有历史数据。切换到 TDengine TSDB CLI，插入两条新的数据：
+此时会显示所有历史数据。切换到 `taos` shell，插入两条新的数据：
 
 ```sql
 USE test;
@@ -330,7 +332,7 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 
 ### 性能调优
 
-如果在从 TDengine TSDB 同步数据到 Kafka 的过程中发现性能不达预期，可以尝试使用如下参数提升 Kafka 的写入吞吐量。
+如果在从 TDengine 同步数据到 Kafka 的过程中发现性能不达预期，可以尝试使用如下参数提升 Kafka 的写入吞吐量。
 
 1. 打开 KAFKA_HOME/config/producer.properties 配置文件。
 2. 参数说明及配置建议如下：
@@ -347,23 +349,23 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
 
 ### 通用配置
 
-以下配置项对 TDengine TSDB Sink Connector 和 TDengine TSDB Source Connector 均适用。
+以下配置项对 TDengine Sink Connector 和 TDengine Source Connector 均适用。
 
 1. `name`：connector 名称。
-1. `connector.class`：connector 的完整类名，例如如 com.taosdata.kafka.connect.sink.TDengineSinkConnector。
+1. `connector.class`：connector 的完整类名，例如 `com.taosdata.kafka.connect.sink.TDengineSinkConnector`。
 1. `tasks.max`：最大任务数，默认 1。
 1. `topics`：需要同步的 topic 列表，多个用逗号分隔，如 `topic1,topic2`。
-1. `connection.url`：TDengine TSDB JDBC 连接字符串，如 `jdbc:TAOS://127.0.0.1:6030`。
-1. `connection.user`：TDengine TSDB 用户名，默认 root。
-1. `connection.password`：TDengine TSDB 用户密码，默认 taosdata。
+1. `connection.url`：TDengine JDBC 连接字符串，如 `jdbc:TAOS://127.0.0.1:6030`。
+1. `connection.user`：TDengine 用户名，默认 root。
+1. `connection.password`：TDengine 用户密码，默认 taosdata。
 1. `connection.attempts`：最大尝试连接次数。默认 3。
-1. `connection.backoff.ms`：创建连接失败重试时间隔时间，单位为 ms。默认 5000。
+1. `connection.backoff.ms`：创建连接失败后的重试间隔时间，单位为 ms。默认 5000。
 1. `data.precision`：使用 InfluxDB 行协议格式时，时间戳的精度。可选值为：
    1. ms：表示毫秒
    1. us：表示微秒
    1. ns：表示纳秒
 
-### TDengine TSDB Sink Connector 特有的配置
+### TDengine Sink Connector 特有的配置
 
 1. `connection.database`：目标数据库名。如果指定的数据库不存在会则自动创建。自动建库使用的时间精度为纳秒。默认值为 null。为 null 时目标数据库命名规则参考 `connection.database.prefix` 参数的说明
 2. `connection.database.prefix`：当 connection.database 为 null 时，目标数据库的前缀。可以包含占位符 '$\{topic}'。比如 kafka_$\{topic}, 对于主题 'orders' 将写入数据库 'kafka_orders'。默认 null。当为 null 时，目标数据库的名字和主题的名字是一致的。
@@ -375,21 +377,21 @@ curl -X DELETE http://localhost:8083/connectors/TDengineSourceConnector
    2. json：代表 OpenTSDB JSON 格式
    3. telnet：代表 OpenTSDB Telnet 行协议格式
 
-### TDengine TSDB Source Connector 特有的配置
+### TDengine Source Connector 特有的配置
 
 1. `connection.database`：源数据库名称，无缺省值。
 1. `topic.prefix`：数据导入 kafka 时使用的 topic 名称的前缀。默认为空字符串 ""。
 1. `timestamp.initial`：数据同步起始时间。格式为'yyyy-MM-dd HH:mm:ss'，若未指定则从指定 DB 中最早的一条记录开始。
 1. `poll.interval.ms`：检查是否有新建或删除的表的时间间隔，单位为 ms。默认为 1000。
 1. `fetch.max.rows`：检索数据库时最大检索条数。默认为 100。
-1. `query.interval.ms`：从 TDengine TSDB 一次读取数据的时间跨度，需要根据表中的数据特征合理配置，避免一次查询的数据量过大或过小；在具体的环境中建议通过测试设置一个较优值，默认值为 0，即获取到当前最新时间的所有数据。
+1. `query.interval.ms`：从 TDengine 一次读取数据的时间跨度，需要根据表中的数据特征合理配置，避免一次查询的数据量过大或过小；在具体的环境中建议通过测试设置一个较优值，默认值为 0，即获取到当前最新时间的所有数据。
 1. `out.format`：结果集输出格式。`line` 表示输出格式为 InfluxDB Line 协议格式，`json` 表示输出格式是 json。默认为 line。
 1. `topic.per.stable`：如果设置为 true，表示一个超级表对应一个 Kafka topic，topic 的命名规则 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`；如果设置为 false，则指定的 DB 中的所有数据进入一个 Kafka topic，topic 的命名规则为 `<topic.prefix><topic.delimiter><connection.database>`
 1. `topic.ignore.db`：topic 命名规则是否包含 database 名称，true 表示规则为 `<topic.prefix><topic.delimiter><stable.name>`，false 表示规则为 `<topic.prefix><topic.delimiter><connection.database><topic.delimiter><stable.name>`，默认 false。此配置项在 `topic.per.stable` 设置为 false 时不生效。
 1. `topic.delimiter`：topic 名称分割符，默认为 `-`。
-1. `read.method`：从 TDengine TSDB 读取数据方式，query 或是 subscription。默认为 subscription。
-1. `subscription.group.id`：指定 TDengine TSDB 数据订阅的组 id，当 `read.method` 为 subscription 时，此项为必填项。
-1. `subscription.from`：指定 TDengine TSDB 数据订阅起始位置，latest 或是 earliest。默认为 latest。
+1. `read.method`：从 TDengine 读取数据方式，query 或是 subscription。默认为 subscription。
+1. `subscription.group.id`：指定 TDengine 数据订阅的组 id，当 `read.method` 为 subscription 时，此项为必填项。
+1. `subscription.from`：指定 TDengine 数据订阅起始位置，latest 或是 earliest。默认为 latest。
 
 ## 其他说明
 

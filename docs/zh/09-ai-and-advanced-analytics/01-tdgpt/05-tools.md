@@ -1,23 +1,23 @@
 ---
-title: "模型评估工具"
-sidebar_label: "模型评估工具"
+title: 模型评估工具
+sidebar_label: 模型评估工具
 description: 模型评估工具
 ---
 
 import fc_result from './assets/fc-result.png';
 import ad_result from './assets/ad-result.png';
 
-TDgpt 在企业版中提供预测分析模型和异常检测模型有效性评估工具 `analytics_compare`，该工具能够使用 TDengine TSDB 中的时序数据作为
+TDgpt 在企业版中提供预测分析模型和异常检测模型有效性评估工具 `analytics_compare`，该工具能够使用 TDengine 中的时序数据作为
 回测依据，评估不同预测模型或训练模型的有效性。
 
 > 该工具在开源版本中不可用
 
-使用评估工具，需要在其相关的配置文件 `taosanode.ini` 中设置正确的参数，包括选取评估的数据范围、结果输出时间、参与评估的模型、模型的参数、是否生成预测结果图等配置。
+使用评估工具，需要在相关配置文件 `analytics.ini` 中设置正确的参数，包括选取评估的数据范围、结果输出时间、参与评估的模型、模型的参数、是否生成预测结果图等配置。
 
-在具备完备的 Python 库的运行环境中，通过 `shell` 调用 TDgpt 安装路径下的 misc 中 `analytics_compare` 的命令即可。
+在具备完备的 Python 库的运行环境中，通过 shell 调用 TDgpt 安装路径下 misc 中 `analytics_compare` 的命令即可。
 可按照如下方式体验模型有效性评估工具：
 
-在配置文件 `analytics.ini` 配置文件中设置 `taosd` 服务的连接信息，包括 主机地址、配置文件路径、用户名、登录密码等信息。
+在配置文件 `analytics.ini` 中设置 `taosd` 服务的连接信息，包括主机地址、配置文件路径、用户名、登录密码等信息。
 
 ```ini
 [taosd]
@@ -109,7 +109,7 @@ python3 ./analytics_compare.py forecast
 ### 评估异常检测模型
 
 针对异常检测模型提供查全率（recall）和查准率（precision）两个指标衡量模型有效性。
-通过在配置文件中`analysis.ini`设置以下的选项可以调用需要使用的异常检测模型，异常检测模型测试用数据的时间范围、是否生成标注结果的图片、调用的异常检测模型以及相应的参数。
+通过在配置文件 `analytics.ini` 中设置以下选项可以调用需要使用的异常检测模型，以及异常检测模型测试用数据的时间范围、是否生成标注结果的图片、调用的异常检测模型以及相应的参数。
 
 1. 准备数据
 
@@ -140,7 +140,7 @@ anno_res = [9]
 ksigma={"k": 2}
 iqr={}
 grubbs={}
-lof={"algorithm":"auto", "n_neighbor": 3}
+lof={"algorithm":"auto", "neighbors": 3}
 ```
 
 3. 标注异常检测结果
@@ -158,12 +158,12 @@ python3 ./analytics_compare.py anomaly-detection
 
 对比程序执行完成以后，会自动生成名称为 `ad_result.xlsx` 的文件，第一个卡片是模型运行结果（如下表所示），分别是模型名称、执行调用参数、查全率、查准率、执行时间 5 个指标。
 
-| algorithm | params                                 | precision(%) | recall(%) | elapsed_time(ms.) |
-| --------- | -------------------------------------- |-------------:|----------:|------------------:|
-| ksigma    | `{"k":2}`                              |          100 |       100 |             0.453 |
-| iqr       | `{}`                                   |          100 |       100 |             2.727 |
-| grubbs    | `{}`                                   |          100 |       100 |             2.811 |
-| lof       | `{"algorithm":"auto", "n_neighbor":3}` |            0 |         0 |             4.660 |
+| algorithm | params                                | precision(%) | recall(%) | elapsed_time(ms.) |
+| --------- | ------------------------------------- |-------------:|----------:|------------------:|
+| ksigma    | `{"k":2}`                             |          100 |       100 |             0.453 |
+| iqr       | `{}`                                  |          100 |       100 |             2.727 |
+| grubbs    | `{}`                                  |          100 |       100 |             2.811 |
+| lof       | `{"algorithm":"auto", "neighbors":3}` |            0 |         0 |             4.660 |
 
 如果设置了 `gen_figure` 为 `true`，比较程序会自动将每个参与比较的模型分析结果采用图片方式呈现出来（如下图所示为 ksigma 的异常检测结果标注）。
 

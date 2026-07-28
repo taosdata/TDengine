@@ -1,6 +1,7 @@
 ---
 sidebar_label: Flink
 title: Flink
+description: TDengine 企业版 Flink 连接器：Source/CDC 与 Sink
 toc_max_heading_level: 4
 ---
 
@@ -8,7 +9,7 @@ import FlinkCommonInfo from '../../13-ecosystem-integrations/01-collection/flink
 
 Apache Flink 是一款由 Apache 软件基金会支持的开源分布式流批一体化处理框架，可用于流处理、批处理、复杂事件处理、实时数据仓库构建及为机器学习提供实时数据支持等诸多大数据处理场景。与此同时，Flink 拥有丰富的连接器与各类工具，可对接众多不同类型的数据源实现数据的读取与写入。在数据处理的过程中，Flink 还提供了一系列可靠的容错机制，有力保障任务即便遭遇意外状况，依然能稳定、持续运行。
 
-借助 TDengine 的 Flink 连接器，Apache Flink 得以与 TDengine 数据库无缝对接，可以从 TDengine 数据库中快速、稳定地读取海量数据，并在此基础上进行全面、深入的分析处理，充分挖掘数据的潜在价值，为企业的决策制定提供有力的数据支持和科学依据，极大地提升数据处理的效率和质量，增强企业在数字化时代的竞争力和创新能力。
+借助 TDengine 企业版 Flink 连接器，Apache Flink 可从 TDengine 读取数据（Source/CDC），也可将处理结果写回 TDengine（Sink），用于流批一体分析与实时链路集成。
 
 > **注意：本功能仅适用于 TDengine 企业版。**
 
@@ -40,13 +41,13 @@ URL 规范格式为：`jdbc:TAOS-WS://[host_name]:[port]/[database_name]?[user={
 
 ### 数据准备
 
-通过命令行工具 `taos` 或管理界面 Explorer 执行 SQL 语句，创建数据库，超级表，主题，并写入数据，供下一步订阅使用。以下为简单示例：
+通过命令行工具 `taos` 或管理界面 taosExplorer 执行 SQL 语句，创建数据库，超级表，主题，并写入数据，供下一步订阅使用。以下为简单示例：
 
 ```sql
-create database db vgroups 1;
-create table db.meters (ts timestamp, f1 int) tags(t1 int);
-create topic topic_meters as select ts, tbname, f1, t1 from db.meters;
-insert into db.tb using db.meters tags(1) values(now, 1);
+CREATE DATABASE db VGROUPS 1;
+CREATE TABLE db.meters (ts TIMESTAMP, f1 INT) TAGS (t1 INT);
+CREATE TOPIC topic_meters AS SELECT ts, tbname, f1, t1 FROM db.meters;
+INSERT INTO db.tb USING db.meters TAGS (1) VALUES (now, 1);
 ```
 
 ### Source
@@ -146,7 +147,7 @@ Properties 中配置参数如下：
 - TDengineConfigParams.PROPERTY_KEY_ENABLE_AUTO_RECONNECT：是否启用自动重连。true: 启用，false: 不启用。默认为 false
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_INTERVAL_MS：自动重连重试间隔，单位毫秒，默认值 2000。仅在 `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` 为 true 时生效
 - TDengineConfigParams.PROPERTY_KEY_RECONNECT_RETRY_COUNT：自动重连重试次数，默认值 3，仅在 `PROPERTY_KEY_ENABLE_AUTO_RECONNECT` 为 true 时生效
-- TDengineCdcParams.TMQ_SESSION_TIMEOUT_MS：`consumer` 心跳丢失后超时时间，超时后会触发 `rebalance` 逻辑，成功后该 `consumer` 会被删除（从 3.3.3.0 版本开始支持），默认值为 12000，取值范围 [6000， 1800000]
+- TDengineCdcParams.TMQ_SESSION_TIMEOUT_MS：`consumer` 心跳丢失后超时时间，超时后会触发 `rebalance` 逻辑，成功后该 `consumer` 会被删除（从 `v3.3.3.0` 开始支持），默认值为 12000，取值范围 [6000， 1800000]
 - TDengineCdcParams.TMQ_MAX_POLL_INTERVAL_MS：`consumer poll` 拉取数据间隔的最长时间，超过该时间，会认为该 `consumer` 离线，触发 `rebalance` 逻辑，成功后该 `consumer` 会被删除。默认值为 300000，[1000，INT32_MAX]
 
 #### 使用 CDC 连接器

@@ -1620,7 +1620,7 @@ static int32_t  decodeRawData(SDecoder* decoder, void* data, uint32_t dataLen, _
 
 static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj* pMetaHash,
                                 SVCreateTbReq* pCreateReqDst, SCatalog* pCatalog, SRequestConnInfo* conn, SName* pName,
-                                STableMeta** pMeta, SSchemaWrapper* pSW, void* rawData, int32_t retry) {
+                                STableMeta** pMeta, SSchemaWrapper* pSW, void* rawData, int32_t retry, SArray* pTagList) {
   if (pVgHash == NULL || pNameHash == NULL || pMetaHash == NULL || pCatalog == NULL || conn == NULL || pName == NULL ||
       pMeta == NULL) {
     uError("invalid parameter in %s", __func__);
@@ -1656,7 +1656,7 @@ static int32_t processCacheMeta(SHashObj* pVgHash, SHashObj* pNameHash, SHashObj
       pTableMeta->vgId = info.vgInfo.vgId;
       pTableMeta->uid = pCreateReqDst->uid;
       pCreateReqDst->ctb.suid = pTableMeta->suid;
-      RAW_RETURN_CHECK(reBuildTag(pCreateReqDst, pTableMeta, NULL));
+      RAW_RETURN_CHECK(reBuildTag(pCreateReqDst, pTableMeta, pTagList));
     }
 
     RAW_RETURN_CHECK(taosHashPut(pNameHash, pName->tname, strlen(pName->tname), &info, sizeof(tbInfo)));
@@ -1704,6 +1704,10 @@ static int32_t tmqWriteRawCommon(TAOS* taos, void* data, uint32_t dataLen,
   SRequestObj*     pRequest = NULL;
   SCatalog*        pCatalog = NULL;
   SRequestConnInfo conn = {0};
+
+  SArray* pTagList = taosArrayInit(0, POINTER_BYTES);
+  RAW_NULL_CHECK(pTagList);
+
   RAW_RETURN_CHECK(buildRawRequest(taos, &pRequest, &pCatalog, &conn));
   uDebug(LOG_ID_TAG " write raw %s, data:%p, dataLen:%d", LOG_ID_VALUE, withMeta ? "metadata" : "data", data, dataLen);
   RAW_RETURN_CHECK(decodeRawData(&decoder, data, dataLen, decodeFunc, &rspObj));
@@ -1745,7 +1749,7 @@ static int32_t tmqWriteRawCommon(TAOS* taos, void* data, uint32_t dataLen,
       }
       STableMeta* pTableMeta = NULL;
       code = processCacheMeta(pVgHash, pNameHash, pMetaHash, pCreateReqDst, pCatalog, &conn, &pName,
-                              &pTableMeta, pSW, rawData, retry);
+                              &pTableMeta, pSW, rawData, retry, withMeta ? pTagList : NULL);
       PROCESS_TABLE_NOT_EXIST(code, tbName)
       char err[ERR_MSG_LEN] = {0};
       code = rawBlockBindData(pQuery, pTableMeta, rawData, pCreateReqDst, pSW, pSW->nCols, true, err, ERR_MSG_LEN, true);
@@ -1788,6 +1792,7 @@ end:
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
+  taosArrayDestroyP(pTagList, NULL);
   RAW_LOG_END
   return code;
 }
@@ -1850,7 +1855,7 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
       // find schema data info
       STableMeta* pTableMeta = NULL;
       code = processCacheMeta(pVgHash, pNameHash, pMetaHash, NULL, pCatalog, &conn, &pName, &pTableMeta, NULL,
-                                        NULL, retry);
+                                        NULL, retry, NULL);
       PROCESS_TABLE_NOT_EXIST(code, tbName)
       char err[ERR_MSG_LEN] = {0};
       code = rawBlockBindRawData(pVgroupHash, pStmt->pVgDataBlocks, pTableMeta, rawData);

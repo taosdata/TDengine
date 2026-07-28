@@ -1,11 +1,12 @@
 ---
 title: TDengine SQL
 sidebar_label: TDengine SQL
+description: TDengine SQL 语法、数据类型、写入、查询、函数和常用限制说明
 ---
 
-本文档说明 TDengine SQL 支持的语法规则、主要查询功能、支持的 SQL 查询函数，以及常用技巧等内容。阅读本文档需要读者具有基本的 SQL 语言的基础。TDengine TSDB 3.0 版本相比 2.x 版本做了大量改进和优化，特别是查询引擎进行了彻底的重构，因此 SQL 语法相比 2.x 版本有很多变更。详细的变更内容请见 [3.0 版本语法变更](11-appendix/04-changes.md) 章节
+本文档说明 TDengine SQL 支持的语法规则、数据类型、数据定义、数据写入、数据查询、函数和常用限制等内容。阅读本文档需要具备基本的 SQL 语言基础。如果你需要从 2.x 迁移到 3.x，请参见 [3.0 版本语法变更](11-appendix/04-changes.md) 了解废弃语法和替代写法。
 
-TDengine SQL 是用户对 TDengine TSDB 进行数据写入和查询的主要工具。TDengine SQL 提供标准的 SQL 语法，并针对时序数据和业务的特点优化和新增了许多语法和功能。TDengine SQL 语句的最大长度为 1M。TDengine SQL 不支持关键字的缩写，例如 DELETE 不能缩写为 DEL。
+TDengine SQL 是用户对 TDengine 进行数据写入和查询的主要工具。TDengine SQL 以标准 SQL 为基础，并针对时序数据和业务特点扩展了许多语法和功能。TDengine SQL 语句的最大长度默认是 4 MB，可通过客户端参数 `maxSQLLength` 配置，取值范围为 1 MB 到 64 MB。TDengine SQL 不支持关键字的缩写，例如 `DELETE` 不能缩写为 `DEL`。
 
 本章节 SQL 语法遵循如下约定：
 
@@ -19,14 +20,14 @@ TDengine SQL 是用户对 TDengine TSDB 进行数据写入和查询的主要工�
 
 ```sql
 taos> DESCRIBE meters;
-             Field              |        Type        |   Length    |    Note    |
-=================================================================================
- ts                             | TIMESTAMP          |           8 |            |
- current                        | FLOAT              |           4 |            |
- voltage                        | INT                |           4 |            |
- phase                          | FLOAT              |           4 |            |
- location                       | BINARY             |          64 | TAG        |
- groupid                        | INT                |           4 | TAG        |
+  Field    | Type      | Length | Note |
+=========================================
+  ts       | TIMESTAMP |      8 |      |
+  current  | FLOAT     |      4 |      |
+  voltage  | INT       |      4 |      |
+  phase    | FLOAT     |      4 |      |
+  location | BINARY    |     64 | TAG  |
+  groupid  | INT       |      4 | TAG  |
 ```
 
-数据集包含 4 个智能电表的数据，按照 TDengine TSDB 的建模规则，对应 4 个子表，其名称分别是 d1001、d1002、d1003、d1004。
+数据集包含 4 个智能电表的数据，按照 TDengine 的建模规则，对应 4 个子表，其名称分别是 `d1001`、`d1002`、`d1003`、`d1004`。本章示例统一使用 `groupid` 作为分组标签名。

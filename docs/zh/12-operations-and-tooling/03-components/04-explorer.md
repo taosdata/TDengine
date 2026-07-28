@@ -4,18 +4,18 @@ sidebar_label: taosExplorer
 toc_max_heading_level: 4
 ---
 
-taosExplorer 是一个为用户提供 TDengine TSDB 实例的可视化管理交互工具的 web 服务，虽然它没有开源，但随开源版安装包免费提供。本节主要讲述其安装和部署。它的各项功能都是基于简单易上手的图形界面，可以直接尝试，如果有需要也可以参考高级功能和运维指南中的相关内容。为了确保访问 taosExplorer 的最佳体验，请使用 Chrome 79 及以上版本，或 Edge 79 及以上版本。
+taosExplorer 是一个为用户提供 TDengine 实例的可视化管理交互工具的 Web 服务，虽然它没有开源，但随开源版安装包免费提供。本节主要讲述其安装和部署。它的各项功能都是基于简单易上手的图形界面，可以直接尝试，如果有需要也可以参考高级功能和运维指南中的相关内容。为了确保访问 taosExplorer 的最佳体验，请使用 Chrome 79 及以上版本，或 Edge 79 及以上版本。
 
 ## 安装
 
-taosExplorer 无需单独安装，从 TDengine TSDB 3.3.0.0 版本开始，它随着 TDengine TSDB 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。如果按照 GitHub 里步骤自己编译 TDengine TSDB 源代码生成的安装包不包含 taosExplorer。
+taosExplorer 无需单独安装，从 TDengine `v3.3.0.0` 开始，它随着 TDengine 安装包一起发布，安装完成后，就可以看到 `taos-explorer` 服务。如果按照 GitHub 里步骤自己编译 TDengine 源代码生成的安装包不包含 taosExplorer。
 
 ## 配置
 
 在启动 taosExplorer 之前，请确保配置文件中的内容正确。
 
 ```TOML
-# This is a automacically generated configuration file for Explorer in [TOML](https://toml.io/) format.
+# This is a automatically generated configuration file for Explorer in [TOML](https://toml.io/) format.
 #
 # Here is a full list of available options.
 
@@ -201,8 +201,8 @@ cors = true
 - `ipv6`：taosExplorer 服务绑定的 IPv6 地址，默认不绑定 IPv6 地址。
 - `instanceId`：当前 explorer 服务的实例 ID，如果同一台机器上启动了多个 explorer 实例，必须保证各个实例的实例 ID 互不相同。
 - `log_level`：日志级别，可选值为 "error"、"warn"、"info"、"debug"、"trace"。此参数已弃用，请使用 `log.level` 代替。
-- `cluster`：TDengine TSDB 集群的 taosAdapter 地址。
-- `cluster_native`：TDengine TSDB 集群的原生连接地址，默认关闭。
+- `cluster`：TDengine 集群的 taosAdapter 地址。
+- `cluster_native`：TDengine 集群的原生连接地址，默认关闭。
 - `x_api`：taosX 的 gRPC 地址。
 - `grpc`：taosX 代理向 taosX 建立连接的 gRPC 地址。
 - `cors`：CORS 配置开关，默认为 `false`。当为 `true` 时，允许跨域访问。
@@ -235,7 +235,7 @@ cors = true
 
 taosExplorer 支持通过 OAuth 2.0 协议与第三方身份认证系统集成，实现单点登录（SSO）功能。支持的 OAuth 2.0 提供商类型包括 OpenID Connect (OIDC) 和普通 OAuth 2.0。
 
-**OAuth 2.0 从 3.3.8.11 版本开始支持**。
+**OAuth 2.0 从 `v3.3.8.11` 开始支持**。
 
 - 对于 OIDC 提供商，需要配置 `client_id`、`client_secret`、`issuer_url`、`scopes` 和 `redirect_uri` 等参数。
 
@@ -315,7 +315,7 @@ sc.exe stop taos-explorer # Windows
 
 ## 问题排查
 
-1. 当通过浏览器打开 Explorer 站点遇到“无法访问此网站”的错误信息时，请通过命令行登录 taosExplorer 所在机器，并使用命令 `systemctl status taos-explorer` 检查服务的状态，如果返回的状态是 `inactive`，请使用命令`systemctl start taos-explorer` 启动服务。
+1. 当通过浏览器打开 taosExplorer 站点遇到“无法访问此网站”的错误信息时，请通过命令行登录 taosExplorer 所在机器，并使用命令 `systemctl status taos-explorer` 检查服务的状态，如果返回的状态是 `inactive`，请使用命令 `systemctl start taos-explorer` 启动服务。
 2. 如果需要获取 taosExplorer 的详细日志，可通过命令 `journalctl -u taos-explorer`。
 3. 当使用 Nginx 或其他工具进行转发时，注意进行 CORS 设置或在配置文件中使用 `cors = true`。
 
@@ -377,18 +377,18 @@ sc.exe stop taos-explorer # Windows
 
 安装好，打开浏览器，默认访问 `http://ip:6060` 来访问 taos-explorer 服务。如果还没有注册过，则首先进入注册界面。输入手机号获取验证码，输入正确的验证码后，即可注册成功。
 
-登录时，请使用数据库用户名和密码登录。首次使用，默认的用户名为 `root`，密码为 `taosdata`。登录成功后即可进入`数据浏览器`页面，您可以使用查看数据库、创建数据库、创建超级表/子表等管理功能。
+登录时，请使用数据库用户名和密码登录。首次使用，默认的用户名为 `root`，密码为 `taosdata`。登录成功后即可进入`数据浏览器`页面，你可以使用查看数据库、创建数据库、创建超级表/子表等管理功能。
 
-其他功能页面，如 `数据写入-数据源` 等页面，为企业版特有功能，您可以点击查看和简单体验，并不能实际使用。
+其他功能页面，如 `数据写入-数据源` 等页面，为企业版特有功能，你可以点击查看和简单体验，并不能实际使用。
 
 如果由于网络原因无法完成注册环节，则需要在有外网的环境注册完毕，然后把注册好的 `/etc/taos/explorer-register.cfg` 替换到内网环境。
 
 3.3.7.1 版本后，可以使用环境变量 `EXPLORER_SKIP_REGISTER=true` 跳过注册环节，直接使用用户名登录。
 
-在采用 systemd 的 Linux 系统中，您可以通过环境变量文件 `/etc/default/taos-explorer` 添加如下环境变量：
+在采用 systemd 的 Linux 系统中，你可以通过环境变量文件 `/etc/default/taos-explorer` 添加如下环境变量：
 
 ```shell
 EXPLORER_SKIP_REGISTER=true
 ```
 
-在 Windows 系统中，您可以通过系统环境变量设置界面添加该环境变量。
+在 Windows 系统中，你可以通过系统环境变量设置界面添加该环境变量。

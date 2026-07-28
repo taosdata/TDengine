@@ -1,6 +1,6 @@
 ---
-title: "添加机器学习模型"
-sidebar_label: "添加机器学习模型"
+title: 添加机器学习模型
+sidebar_label: 添加机器学习模型
 ---
 
 机器/深度学习模型一般要求训练集样本量足够大，才能取得不错的预测效果。训练过程要消耗一定量的时间和计算资源，并需要根据输入的数据进行定期的训练以及更新模型。TDgpt 内置了 PyTorch 和 Keras 机器学习库。所有使用 PyTorch 或 Keras 开发的模型均可以驱动运行。
@@ -11,10 +11,10 @@ sidebar_label: "添加机器学习模型"
 
 推荐将模型保存在默认的保存目录 `/usr/local/taos/taosanode/model/` 中，也可以在目录中建立下一级目录，用以保存模型。下面使用 Keras 开发的基于自编码器 `auto encoder` 的异常检测模型添加到 TDgpt 为例讲解整个流程。
 
-该模型在 TDgpt 系统中名称为 'sample_ad_model'。
-训练该模型的代码见：[training_ad_model.py](https://github.com/taosdata/TDengine/tree/main/tools/tdgpt/taosanalytics/misc/training_ad_model.py)。
+该模型在 TDgpt 系统中名称为 `sample_ad_model`。
+训练该模型的代码见：[train_ad_model.py](https://github.com/taosdata/TDengine/tree/main/tools/tdgpt/taosanalytics/misc/train_ad_model.py)。
 该模型训练使用了 NAB 的 [art_daily_small_noise 数据集](https://raw.githubusercontent.com/numenta/NAB/master/data/artificialNoAnomaly/art_daily_small_noise.csv)。
-训练完成得到的模型保存成为了两个文件，点击 [此处](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/model/sample-ad-autoencoder/) 下载该模型文件，模型文件说明如下。
+训练完成得到的模型保存成为了两个文件，点击 [此处](https://github.com/taosdata/TDengine/tree/main/tools/tdgpt/model/sample-ad-autoencoder/) 下载该模型文件，模型文件说明如下。
 
 ```bash
 sample-ad-autoencoder.keras  模型文件，默认 keras 模型文件格式
@@ -35,8 +35,7 @@ sample-ad-autoencoder.info   模型附加参数文件，采用了 joblib 格式�
 
 ## 添加模型适配代码
 
-需要在 taosanalytics 目录下添加加载该模型并进行适配的 Python 代码。适配并行运行的代码见 [autoencoder.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/ad/autoencoder.py)。
-为了方便使用，我们已经将该文件保存在该目录，所以您在执行 `show anodes full` 命令时候，能够看见该算法模型。
+需要在 `taosanalytics/algo/ad/` 目录下添加加载该模型并进行适配的 Python 代码。可参考仓库中的示例实现 [misc/autoencoder.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/misc/autoencoder.py)，将其复制到 `algo/ad/` 后重启 Anode，Anode 才会扫描并加载该算法类。完成加载后，执行 `SHOW ANODES FULL` 可以看到该算法模型。
 
 下面详细说明该代码的逻辑。
 
@@ -55,7 +54,7 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         self.time_interval = None
         self.model = None
 
-        # 模型文件保存的文件夹名称，如果您更改了文件夹名称，在此处需要同步修改，以确保代码可以正确加载模型文件
+        # 模型文件保存的文件夹名称，如果你更改了文件夹名称，在此处需要同步修改，以确保代码可以正确加载模型文件
         self.dir = 'sample-ad-autoencoder'  
 
         self.root_path = conf.get_model_directory()
@@ -152,13 +151,13 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 
 ## 使用 SQL 调用模型
 
-该模型已经预置在系统中，您可通过 `show anodes full` 直接查看。一个新的算法适配完成以后，需要重新启动 taosanode，并执行命令 `update all anodes` 更新 mnode 的算法列表。
+将适配代码放入 `algo/ad/`、模型文件放入指定目录后，重新启动 taosanode，并执行 `UPDATE ALL ANODES` 更新算法列表；之后可通过 `SHOW ANODES FULL` 确认已加载。
 
-- 通过设置参数 `algo=sample_ad_model`，告诉 TDgpt 调用自编码器算法训练的模型（该算法模型在可用算法列表中）。
+- 通过设置参数 `algo=sample_ad_model`，告诉 TDgpt 调用自编码器算法训练的模型。
 - 通过设置参数 `model=sample-ad-autoencoder`，告诉自编码器加载特定的模型。
 
-```SQL
---- 在 options 中增加 model 参数 sample-ad-autoencoder， 针对 foo 数据集（表）训练的采用自编码器的异常检测模型进行异常检测
-SELECT _wstart, count(*) 
-FROM foo anomaly_window(val, 'algo=sample_ad_model,model=sample-ad-autoencoder');
+```sql
+-- 在 options 中增加 model 参数 sample-ad-autoencoder，针对 foo 数据集（表）训练的采用自编码器的异常检测模型进行异常检测
+SELECT _wstart, count(*)
+FROM foo ANOMALY_WINDOW(val, 'algo=sample_ad_model,model=sample-ad-autoencoder');
 ```

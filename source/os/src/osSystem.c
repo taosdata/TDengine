@@ -209,9 +209,20 @@ int32_t taosResetTerminalMode() {
   return 0;
 }
 
+// Platform-specific system commands
+#if defined(WINDOWS)
+#define PLATFORM_SYS_CMDS "wmic"
+#elif defined(_TD_DARWIN_64)
+#define PLATFORM_SYS_CMDS "scutil", "sysctl"
+#else
+#define PLATFORM_SYS_CMDS "dmidecode", "uname"
+#endif
+
 // Command allowlist to prevent command injection
 static bool isCommandAllowed(const char* cmd) {
-  const char* allowedCmds[] = {"taos", "taosd", "taosdump", "taosBenchmark", "taosAdapter", "taosKeeper", NULL};
+  static const char* allowedCmds[] = {"taos",        "taosd",      "taosdump",        "taosBenchmark",
+                                      "taosAdapter", "taosKeeper", PLATFORM_SYS_CMDS, NULL};
+
   const char** p = allowedCmds;
   while (*p != NULL) {
     size_t cmdLen = strlen(*p);
@@ -226,12 +237,43 @@ static bool isCommandAllowed(const char* cmd) {
   return false;
 }
 
+#if defined(WINDOWS)
+#define NULL_DEV_REDIRECT ">nul"
+#else
+#define NULL_DEV_REDIRECT ">/dev/null"
+#endif
+
+// Strip one trailing redirection to the null device, e.g. "dmidecode 2>/dev/null",
+// and return the length of the remaining command
+static size_t stripNullRedirect(const char* cmd) {
+  size_t       len = strlen(cmd);
+  const size_t sufLen = sizeof(NULL_DEV_REDIRECT) - 1;
+
+  if (len < sufLen || strcmp(cmd + len - sufLen, NULL_DEV_REDIRECT) != 0) {
+    return len;
+  }
+  len -= sufLen;
+
+  // an optional file descriptor may precede the '>', e.g. "2>/dev/null"
+  if (len > 0 && cmd[len - 1] >= '0' && cmd[len - 1] <= '9') {
+    len--;
+  }
+
+  // the redirection must be a separate token, not glued to an argument
+  while (len > 0 && (cmd[len - 1] == ' ' || cmd[len - 1] == '\t')) {
+    len--;
+  }
+  return len;
+}
+
 // Reject dangerous characters to prevent command injection
 static bool sanitizeCommand(const char* cmd) {
+  size_t len = stripNullRedirect(cmd);
+
   const char* dangerousChars = ";|&`$()<>{}[]!*?~";
   const char* p = dangerousChars;
   while (*p) {
-    if (strchr(cmd, *p) != NULL) {
+    if (memchr(cmd, *p, len) != NULL) {
       return false;
     }
     p++;
@@ -239,18 +281,16 @@ static bool sanitizeCommand(const char* cmd) {
   return true;
 }
 
-TdCmdPtr taosOpenCmd(const char* cmd) {
+// Exposed for unit tests: a command is valid only if it is allowlisted and free of injection characters
+bool taosCmdIsValid(const char* cmd) {
   if (cmd == NULL) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return NULL;
+    return false;
   }
+  return isCommandAllowed(cmd) && sanitizeCommand(cmd);
+}
 
-  if (!isCommandAllowed(cmd)) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return NULL;
-  }
-
-  if (!sanitizeCommand(cmd)) {
+TdCmdPtr taosOpenCmd(const char* cmd) {
+  if (!taosCmdIsValid(cmd)) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }

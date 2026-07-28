@@ -1,10 +1,10 @@
 ---
-title: "TDengine 配置参数作用范围对比"
-sidebar_label: "configScope"
+title: TDengine 配置参数作用范围对比
+sidebar_label: configScope
 toc_max_heading_level: 4
 ---
 
-本文档对比了 TDengine TSDB 中 taosd（服务端）和 taosc（客户端）的配置参数，明确标识每个参数的作用范围。
+本文档对比了 TDengine 中 taosd（服务端）和 taosc（客户端）的配置参数，明确标识每个参数的作用范围。
 
 ## 配置参数作用范围对比表
 
@@ -115,6 +115,7 @@ toc_max_heading_level: 4
 | encryptScope | taosd | 加密范围 |
 | encryptPassAlgorithm | taosd | 加密存储用户密码功能开关 |
 | enableWhiteList | taosd | 白名单功能开关 |
+| secureEraseMode | taosd | 安全删除物理覆写填充方式（0 零填充 / 1 随机填充） |
 | syncLogBufferMemoryAllowed | taosd | 一个 dnode 允许的 sync 日志缓存消息占用的内存最大值 |
 | syncApplyQueueSize | taosd | sync 日志 apply 队列的大小 |
 | syncNegotiationWin | taosd | sync 协商窗口的大小，用于控制日志同步时的协商缓冲区 |

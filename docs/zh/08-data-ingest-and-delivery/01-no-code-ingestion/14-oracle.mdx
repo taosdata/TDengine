@@ -1,21 +1,21 @@
 ---
-title: "Oracle"
-sidebar_label: "Oracle"
+title: Oracle
+sidebar_label: Oracle
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移任务，从 Oracle 迁移数据到当前 TDengine TSDB 集群。
+本节讲述如何通过 taosExplorer 界面创建数据写入任务，从 Oracle 将数据接入当前 TDengine 集群。
 
 ## 功能概述
 
 Oracle 数据库系统是世界上流行的关系数据库管理系统，系统可移植性好、使用方便、功能强，适用于各类大、中、小微机环境。它是一种高效率的、可靠性好的、适应高吞吐量的数据库方案。
 
-TDengine TSDB 可以高效地从 Oracle 读取数据并将其写入 TDengine TSDB，以实现历史数据迁移或实时数据同步。
+TDengine 可以高效地从 Oracle 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
 
 ## 创建任务
 
 ### 1. 新增数据源
 
-在数据写入页面中点击左上角的 **+新增数据源** 按钮进入新增数据源页面，如下图所示：
+在数据写入页面中点击 **+新增数据源** 按钮进入新增数据源页面，如下图所示：
 
 ![Common-zh00-EnterDataSourcePage.png](./assets/Common-zh00-EnterDataSourcePage.png "进入新增数据源页面")
 
@@ -41,7 +41,7 @@ TDengine TSDB 可以高效地从 Oracle 读取数据并将其写入 TDengine TSD
 
 **用户** 输入源 Oracle 数据库的用户，该用户必须在该组织中拥有读取权限。  
 
-**密码** 输入源 Oracle 数据库中上方用户的登陆密码。
+**密码** 输入源 Oracle 数据库中上方用户的登录密码。
 
 ![ oracle-03.png](./assets/oracle-03.png "配置认证信息")
 
@@ -83,9 +83,9 @@ TDengine TSDB 可以高效地从 Oracle 读取数据并将其写入 TDengine TSD
 
 在 **从列中提取或拆分** 中填写从消息体中提取或拆分的字段，例如：将 vValue 字段拆分成 `vValue_0` 和 `vValue_1` 这 2 个字段，选择 split 提取器，separator 填写分割符 `,`, number 填写 2。
 
-在 **过滤** 中，填写过滤条件，例如：填写`Value > 0`，则只有 Value 大于 0 的数据才会被写入 TDengine TSDB。
+在 **过滤** 中，填写过滤条件，例如：填写`Value > 0`，则只有 Value 大于 0 的数据才会被写入 TDengine。
 
-在 **映射** 中，选择要映射到 TDengine TSDB 的超级表，以及映射到超级表的列。
+在 **映射** 中，选择要映射到 TDengine 的超级表，以及映射到超级表的列。
 
 点击 **预览**，可以查看映射的结果。
 
@@ -99,10 +99,10 @@ import AdvancedOptions from './resources/_02-advanced_options.mdx'
 
 ### 8. 异常处理策略
 
-import Contributing from './resources/_03-exception-handling-strategy.mdx'
+import ExceptionHandling from './resources/_03-exception-handling-strategy.mdx'
 
-<Contributing />
+<ExceptionHandling />
 
 ### 9. 创建完成
 
-点击 **提交** 按钮，完成创建 Oracle 到 TDengine TSDB 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。
+点击 **提交** 按钮，完成创建 Oracle 到 TDengine 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。

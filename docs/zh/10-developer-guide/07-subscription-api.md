@@ -1,32 +1,49 @@
 ---
-title: 数据订阅编程接口
 sidebar_label: 数据订阅编程接口
+title: 数据订阅编程接口
+description: 各语言连接器 TMQ 消费者 API、参数与示例
 toc_max_heading_level: 4
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine TSDB 提供了类似于消息队列产品的数据订阅和消费接口。在许多场景中，采用 TDengine TSDB 的时序大数据平台，无须再集成消息队列产品，从而简化应用程序设计并降低运维成本。本章介绍各语言连接器数据订阅的相关 API 以及使用方法。数据订阅的基础知识请参考 [数据订阅](../07-data-subscription/index.md) 。
+TDengine 提供类似消息队列的数据订阅与消费接口。在许多场景中，采用 TDengine 作为时序大数据平台即可，无须再集成消息队列产品，从而简化应用设计并降低运维成本。本章介绍各语言连接器的数据订阅 API 与用法。主题与消费组等基础知识请参阅 [数据订阅](../07-data-subscription/index.md)；创建主题的 SQL 语法见 [主题语法](../07-data-subscription/01-topic.md)；Native 订阅概念说明见 [Native 订阅](../07-data-subscription/02-native.md)。
 
 ## 创建主题
 
-请用 TDengine TSDB CLI 或者参考 [执行 SQL](./02-execute-sql.md) 章节用程序执行创建主题的 SQL：`CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`  
+请用 `taos` shell，或参考 [执行 SQL](./02-execute-sql.md) 用程序执行创建主题的 SQL：
 
-上述 SQL 将创建一个名为 topic_meters 的订阅。使用该订阅所获取的消息中的每条记录都由此查询语句 `SELECT ts, current, voltage, phase, groupid, location FROM meters` 所选择的列组成。
+```sql
+CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters;
+```  
+
+上述 SQL 将创建一个名为 `topic_meters` 的主题。使用该订阅所获取的消息中的每条记录都由此查询语句 `SELECT ts, current, voltage, phase, groupid, location FROM meters` 所选择的列组成。
 
 **注意**
-在 TDengine TSDB 连接器实现中，对于订阅查询，有以下限制。
+在 TDengine 连接器实现中，对于订阅查询，有以下限制。
 
-- 只支持订阅数据，不支持 `with meta` 的订阅。
-  - Java（WebSocket 连接）、Go 和 Rust 连接器支持订阅数据库，超级表，以及 select 查询语句。
-  - Java（原生连接）、C# 、Python 和 Nodejs 连接器只支持订阅 select 语句，并不支持其他类型的 SQL，如订阅库、订阅超级表。
-- 原始始数据查询：订阅查询只能查询原始数据，而不能查询聚合或计算结果。
+- 主题类型与 `WITH META` / `ONLY META` 语义见 [主题语法](../07-data-subscription/01-topic.md)。`WITH META` / `ONLY META` 主要用于数据迁移与 schema 同步（如 taosX）；多数应用以 `SELECT` 或库/超级表时序数据主题为主。
+- **各连接器能力对照**（依据 monorepo 连接器代码与测试核对；未单独验证的组合从宽表述）：
+
+| 连接器 | `SELECT` 主题 | 数据库 / 超级表主题（时序数据） | `WITH META` / `ONLY META` 消费 |
+| --- | --- | --- | --- |
+| C/C++ | 支持 | 支持 | 支持（`tmq_get_res_type` / `tmq_get_json_meta`，见 [C/C++ Connector](./08-connectors-reference/01-cpp.mdx#数据订阅)） |
+| Java（WebSocket） | 支持 | 支持（JDBC `3.6.2` 起，常用 `MapEnhanceDeserializer`） | 支持（`ConsumerRecord.getMeta()`；JDBC `3.6.0` CHANGELOG 起含 ONLY META；测试常设 `enable_batch_meta`） |
+| Java（Native） | 支持 | 支持时序数据 | 当前 Native 路径未按 meta 类型解析（一律按数据消息处理） |
+| Go | 支持 | 支持 | 支持（`MetaMessage` / `MetaDataMessage`；`WITH META` 有测试；`ONLY META` 未见专门用例） |
+| Rust | 支持 | 支持 | 支持（`MessageSet::Meta` / `MetaData`；`WITH META` 有测试；`ONLY META` 未见专门用例） |
+| Python（Native） | 支持 | 可订阅 | 纯 meta 消息 `value()` 返回 `None`，未暴露 meta 载荷 |
+| Python（WebSocket） | 支持 | 测试覆盖含数据库主题 | 内部持有 `MessageSet`，公开 API 以数据迭代为主；`ONLY META` 未见专门用例 |
+| C# | 支持 | 支持（有 `as database` 测试） | 纯 `TABLE_META` 会被跳过；`METADATA`（含数据）可取数据部分 |
+| Node.js | 支持 | 测试覆盖含数据库主题（数据） | poll 仅处理数据类型消息，meta 不解析 |
+
+- 原始数据查询：订阅查询只能查询原始数据，而不能查询聚合或计算结果。
 - 时间顺序限制：订阅查询只能按照时间正序查询数据。
 
 ## 创建消费者
 
-TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接收数据流。消费者可以配置多种参数，如连接方式、服务器地址、自动提交 Offset 等以适应不同的数据处理需求。有的语言连接器的消费者还支持自动重连和数据传输压缩等高级功能，以确保数据的高效和稳定接收。
+TDengine 消费者的概念跟 Kafka 类似，消费者通过订阅主题来接收数据流。消费者可以配置多种参数，如连接方式、服务器地址、自动提交 Offset 等以适应不同的数据处理需求。有的语言连接器的消费者还支持自动重连和数据传输压缩等高级功能，以确保数据的高效和稳定接收。
 
 ### 创建参数
 
@@ -77,7 +94,7 @@ TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题�
 
 - 说明：消费组订阅的初始位置
 - 类型：enum
-- 备注：<br />`earliest`：default(version < 3.2.0.0)，从头开始订阅；<br/>`latest`：default(version >= 3.2.0.0)，仅从最新数据开始订阅；<br/>`none`：没有提交的 offset 无法订阅。
+- 备注：<br />`earliest`：默认值（`v3.2.0.0` 之前），从头开始订阅；<br/>`latest`：默认值（`v3.2.0.0` 及之后），仅从最新数据开始订阅；<br/>`none`：没有已提交 offset 时无法订阅。
 
 #### enable.auto.commit
 
@@ -95,7 +112,7 @@ TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题�
 
 - 说明：是否允许从消息中解析表名
 - 类型：boolean
-- 备注：不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句），默认关闭。v3.2.0.0 该参数废弃。
+- 备注：不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句），默认关闭。自 `v3.2.0.0` 起该参数废弃。
 
 #### enable.replay
 
@@ -107,36 +124,48 @@ TDengine TSDB 消费者的概念跟 Kafka 类似，消费者通过订阅主题�
 
 - 说明：consumer 心跳丢失后超时时间
 - 类型：integer
-- 备注：超时后会触发 rebalance 逻辑，成功后该 consumer 会被删除。默认值为 12000，取值范围 [6000，1800000]。v3.3.3.0 开始支持）
+- 备注：超时后会触发 rebalance 逻辑，成功后该 consumer 会被删除。默认值为 `12000`，取值范围 `[6000, 1800000]`。自 `v3.3.3.0` 起支持。
 
 #### max.poll.interval.ms
 
 - 说明：consumer poll 拉取数据间隔的最长时间
 - 类型：integer
-- 备注：超过该时间，会认为该 consumer 离线，触发 rebalance 逻辑，成功后该 consumer 会被删除。默认值为 300000，[1000，INT32_MAX]。v3.3.3.0 开始支持。
+- 备注：超过该时间，会认为该 consumer 离线，触发 rebalance 逻辑，成功后该 consumer 会被删除。默认值为 `300000`，取值范围 `[1000, INT32_MAX]`。自 `v3.3.3.0` 起支持。
 
 #### fetch.max.wait.ms
 
 - 说明：服务端单次返回数据的最大耗时
 - 类型：integer
-- 备注：默认值为 1000，[1，INT32_MAX]。v3.3.6.0 开始支持。
+- 备注：默认值为 `1000`，取值范围 `[1, INT32_MAX]`。自 `v3.3.6.0` 起支持。
 
 #### min.poll.rows
 
 - 说明：服务端单次返回数据的最小条数
 - 类型：integer
-- 备注：默认值为 4096，[1，INT32_MAX]。v3.3.6.0 开始支持。
+- 备注：默认值为 `4096`，取值范围 `[1, INT32_MAX]`。自 `v3.3.6.0` 起支持。
 
 #### msg.consume.rawdata
 
 - 说明：消费数据时拉取数据类型为二进制类型，不可做解析操作 `内部参数，只用于 taosX 数据迁移`
 - 类型：integer
-- 备注：默认值为 0 表示不起效，非 0 为起效。v3.3.6.0 开始支持。
+- 备注：默认值为 `0` 表示不起效，非 `0` 为起效。自 `v3.3.6.0` 起支持。
+
+#### enable.wal.marker（高级）
+
+- 说明：提交消费位点时，是否额外向 mnode 发送 WAL marker
+- 类型：boolean（`true` / `false`）
+- 备注：`tmq_conf_new` 默认 `false`。仅当提交的 offset 类型为 WAL log 时生效。高级/未在正式参数表长期文档化的内部向参数，一般用于迁移类工具。
+
+#### msg.enable.batchmeta（高级）
+
+- 说明：是否启用服务端批量元数据返回（多条 meta 可合并为 batch meta 响应）
+- 类型：integer（C API：非 `0` 开启）
+- 备注：`tmq_conf_new` 默认 `false`。高级参数。Java WebSocket 消费者对应属性名为 `enable_batch_meta`（见 JDBC `TMQConstants`）；ONLY META 相关测试中常设为非 `0`。
 
 下面是各语言连接器创建参数：
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
-Java 连接器创建消费者的参数为 Properties，可以设置的参数列表请参考 [消费者参数](./08-connectors-reference/02-java.mdx#消费者)  
+Java 连接器创建消费者的参数为 Properties，可以设置的参数列表请参考 [消费者](./08-connectors-reference/02-java.mdx#消费者)  
 其他参数请参考上文通用基础配置项。
 
 </TabItem>
@@ -147,16 +176,16 @@ Java 连接器创建消费者的参数为 Properties，可以设置的参数列�
 
 创建消费者支持属性列表：
 
-- `ws.url`：WebSocket 连接地址。自 `v3.8.0` 起支持多节点故障切换，例如：`ws://node1:6041,ws://node2:6041`。
+- `ws.url`：WebSocket 连接地址。自 Go 连接器 `3.8.0` 起支持多节点故障切换，例如：`ws://node1:6041,ws://node2:6041`。
 - `ws.message.channelLen`：WebSocket 消息通道缓存长度，默认 0。
 - `ws.message.timeout`：WebSocket 消息超时时间，默认 5m。
 - `ws.message.writeWait`：WebSocket 写入消息超时时间，默认 10s。
 - `ws.message.enableCompression`：WebSocket 是否启用压缩，默认 false。
-- `ws.skipVerify`：WebSocket Secure（`wss`）TMQ 连接是否跳过 TLS 证书校验，默认 false（`v3.8.1` 版本开始支持，生产环境不建议使用）。
+- `ws.skipVerify`：WebSocket Secure（`wss`）TMQ 连接是否跳过 TLS 证书校验，默认 false（Go 连接器 `3.8.1` 起支持，生产环境不建议使用）。
 - `ws.autoReconnect`：WebSocket 是否自动重连，默认 false。
 - `ws.reconnectIntervalMs`：WebSocket 重连间隔时间毫秒，默认 2000。
 - `ws.reconnectRetryCount`：WebSocket 重连重试次数，默认 3。
-- `timezone`：订阅结果时间类型解析使用的时区，使用 IANA 时区格式，例如：`Asia/Shanghai`（v3.7.4 及以上版本支持）。
+- `timezone`：订阅结果时间类型解析使用的时区，使用 IANA 时区格式，例如：`Asia/Shanghai`（Go 连接器 `3.7.4` 及以上支持）。
 
 其他参数见上表。
 
@@ -173,7 +202,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 创建消费者支持属性列表：
 
 - `useSSL`：是否使用 SSL 连接，默认为 false。
-- `token`：连接 TDengine TSDB cloud 的 token。
+- `token`：连接 TDengine cloud 的 token。
 - `ws.message.enableCompression`：是否启用 WebSocket 压缩，默认为 false。
 - `ws.autoReconnect`：是否自动重连，默认为 false。
 - `ws.reconnect.retry.count`：重连次数，默认为 3。
@@ -338,7 +367,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 
 - `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。
 - `poll` 每次调用获取一个消息，一个消息中可能包含多个记录。
-- `ResultBean` 是我们自定义的一个内部类，其字段名和数据类型与列的名称和数据类型一一对应，这样根据 `value.deserializer` 属性对应的反序列化类可以反序列化出 `ResultBean` 类型的对象。
+- `ResultBean` 为 Java 示例中的自定义内部类，字段名和数据类型与主题列一一对应，配合 `value.deserializer` 反序列化；其他语言请使用各自连接器约定的结果类型。
 - 如果订阅数据库，需要在创建消费者时设置 `value.deserializer` 为 `com.taosdata.jdbc.tmq.MapEnhanceDeserializer`，然后创建 `TaosConsumer<TMQEnhMap>` 类型的消费者。这样每行数据就可以反序列化为表名和一个 `Map`。
 
 </TabItem>
@@ -375,8 +404,10 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 <TabItem label="Node.js" value="node">
 
 ```js
-    {{#include docs/examples/node/websocketexample/tmq_seek_example.js}}
+{{#include docs/examples/node/websocketexample/tmq_example.js:commit}}
 ```
+
+示例片段包含 `subscribe`、`poll` 与手动 `commit`；仅提交 Offset 的说明见下文。
 
 </TabItem>
 
@@ -422,12 +453,12 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:poll_data_code_piece}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/ConsumerLoopFull.java:poll_data_code_piece}}
 ```
 
 - `subscribe` 方法的参数含义为：订阅的主题列表（即名称），支持同时订阅多个主题。
 - `poll` 每次调用获取一个消息，一个消息中可能包含多个记录。
-- `ResultBean` 是我们自定义的一个内部类，其字段名和数据类型与列的名称和数据类型一一对应，这样根据 `value.deserializer` 属性对应的反序列化类可以反序列化出 `ResultBean` 类型的对象。
+- `ResultBean` 为 Java 示例中的自定义内部类，字段名和数据类型与主题列一一对应，配合 `value.deserializer` 反序列化；其他语言请使用各自连接器约定的结果类型。
 
 </TabItem>
 
@@ -451,7 +482,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 <TabItem label="Rust" value="rust">
 
 ```rust
-{{#include docs/examples/rust/restexample/examples/tmq.rs:consume}}
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:consume}}
 ```
 
 - 消费者可订阅一个或多个 `TOPIC`，一般建议一个消费者只订阅一个 `TOPIC`。  
@@ -536,7 +567,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 <TabItem label="Rust" value="rust">
 
 ```rust
-{{#include docs/examples/rust/nativeexample/examples/tmq.rs:seek_offset}}
+{{#include docs/examples/rust/restexample/examples/tmq.rs:seek_offset}}
 ```
 
 1. 通过调用 consumer.assignments() 方法获取消费者当前的分区分配信息，并记录初始分配状态。  
@@ -585,7 +616,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:consumer_seek}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/ConsumerLoopFull.java:consumer_seek}}
 ```
 
 1. 使用 consumer.poll 方法轮询数据，直到获取到数据为止。
@@ -722,7 +753,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:commit_code_piece}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/ConsumerLoopFull.java:commit_code_piece}}
 ```
 
 </TabItem>
@@ -743,7 +774,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 
 <TabItem label="Rust" value="rust">
 ```rust
-{{#include docs/examples/rust/restexample/examples/tmq.rs:consumer_commit_manually}}
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:consumer_commit_manually}}
 ```
 
 可以通过 `consumer.commit` 方法来手工提交消费进度。
@@ -774,7 +805,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 
 ## 取消订阅和关闭消费
 
-消费者可以取消对主题的订阅，停止接收消息。当消费者不再需要时，应该关闭消费者实例，以释放资源和断开与 TDengine TSDB 服务器的连接。  
+消费者可以取消对主题的订阅，停止接收消息。当消费者不再需要时，应该关闭消费者实例，以释放资源和断开与 TDengine 服务器的连接。  
 
 ### WebSocket 连接
 
@@ -838,7 +869,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:unsubscribe_data_code_piece}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/ConsumerLoopFull.java:unsubscribe_data_code_piece}}
 ```
 
 </TabItem>
@@ -859,7 +890,7 @@ Rust 连接器创建消费者的参数为 DSN，可以设置的参数列表请�
 
 <TabItem label="Rust" value="rust">
 ```rust
-{{#include docs/examples/rust/restexample/examples/tmq.rs:unsubscribe}}
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:unsubscribe}}
 ```
 
 **注意**：消费者取消订阅后已经关闭，无法重用，如果想订阅新的 `topic`，请重新创建消费者。

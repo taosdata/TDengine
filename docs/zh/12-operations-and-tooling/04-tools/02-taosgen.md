@@ -38,7 +38,7 @@ ln -sf `pwd`/taosgen /usr/bin/taosgen
 taosgen 支持通过命令行、配置文件指定参数配置，相同的参数配置，命令行优先级要高于配置文件。
 
 :::tip
-在运行 taosgen 之前，要确保所有待写入的目标 TDengine TSDB 集群已经在正常运行。
+在运行 taosgen 之前，要确保所有待写入的目标 TDengine 集群已经在正常运行。
 :::
 
 启动示例：
@@ -293,7 +293,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 每个行动在调用时可通过 with 字段传入参数，具体参数内容因行动类型而异。
 
 :::note
-`tdengine/insert-data` 为 v0.7.x 及更早版本的旧名称，v0.8.0 起继续使用会收到提示："Action 'tdengine/insert-data' is deprecated and will be removed in future versions. Please use 'tdengine/insert' instead"。该名称自 v0.8.3 起不再支持（对应 TDengine TSDB 3.3.6.39/3.3.8.16/3.4.0.2）。
+`tdengine/insert-data` 为 v0.7.x 及更早版本的旧名称，v0.8.0 起继续使用会收到提示："Action 'tdengine/insert-data' is deprecated and will be removed in future versions. Please use 'tdengine/insert' instead"。该名称自 v0.8.3 起不再支持（对应 TDengine 3.3.6.39/3.3.8.16/3.4.0.2）。
 :::
 
 ### 创建 TDengine 数据库行动的格式
@@ -414,7 +414,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 
 ### 生成器方式生成数据 STMT 方式写入 TDengine 示例
 
-该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位三个物理量，它们每隔 5 分钟产生一条记录，电流的数据用随机数，电压用正弦波模拟，产生的这些数据采用 WebSocket 的方式写入 TDengine TSDB 的 tsbench 数据库的超级表 meters。
+该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位三个物理量，它们每隔 5 分钟产生一条记录，电流的数据用随机数，电压用正弦波模拟，产生的这些数据采用 WebSocket 的方式写入 TDengine 的 tsbench 数据库的超级表 meters。
 
 配置详解：
 
@@ -452,7 +452,7 @@ taosgen -h 127.0.0.1 -c config.yaml
 
 ### CSV 文件方式生成数据 STMT 方式写入 TDengine 实例
 
-该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位三个物理量，它们每隔 5 分钟产生一条记录，测点数据读取自 CSV 文件，采用 WebSocket 的方式写入 TDengine TSDB 的 tsbench 数据库的超级表 meters。
+该示例展示了如何使用 taosgen 工具模拟一万台智能电表，每台智能电表采集电流、电压、相位三个物理量，它们每隔 5 分钟产生一条记录，测点数据读取自 CSV 文件，采用 WebSocket 的方式写入 TDengine 的 tsbench 数据库的超级表 meters。
 
 配置详解：
 
