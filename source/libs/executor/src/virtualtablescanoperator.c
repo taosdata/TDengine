@@ -186,6 +186,9 @@ static int32_t ensureOwnedTagsResolved(SOperatorInfo* pOperator) {
   SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
   SVirtualTableScanInfo*         pVScan = &pInfo->virtualScanInfo;
   SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
+  // Declared upfront: the early error exits below jump to _return, which frees cfgRsp —
+  // declaring it after a goto target would leave it uninitialized on those paths.
+  STableCfgRsp                   cfgRsp = {0};
 
   if (pVScan->ownedTagsFetched) {
     return TSDB_CODE_SUCCESS;
@@ -253,7 +256,6 @@ static int32_t ensureOwnedTagsResolved(SOperatorInfo* pOperator) {
     return rpcRsp.code != TSDB_CODE_SUCCESS ? rpcRsp.code : TSDB_CODE_FAILED;
   }
 
-  STableCfgRsp cfgRsp = {0};
   code = tDeserializeSTableCfgRsp(rpcRsp.pCont, rpcRsp.contLen, &cfgRsp);
   rpcFreeCont(rpcRsp.pCont);
   TSDB_CHECK_CODE(code, lino, _return);
