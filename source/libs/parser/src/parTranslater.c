@@ -20587,14 +20587,16 @@ static int32_t buildAlterSuperTableReq(STranslateContext* pCxt, SAlterTableStmt*
   STypeMod typeMod = calcTypeMod(&pStmt->dataType);
 
   switch (pStmt->alterType) {
+    case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
+      // tag-ref is virtual-normal-table only (buildAddTagRefReq gates it); reject on super tables.
+      // MUST sit before TSDB_ALTER_TABLE_ADD_COLUMN: ADD_COLUMN falls through (see "// fall through"
+      // below) into the ADD_TAG/DROP_COLUMN SField block. A reject case placed between them
+      // intercepted that fall-through and broke ADD COLUMN on super tables.
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       if (NULL == taosArrayPush(pAlterReq->pTypeMods, &typeMod)) {
         return terrno;
       }  // fall through
-    case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
-      // tag-ref is virtual-normal-table only (buildAddTagRefReq gates it); reject on super tables
-      // instead of falling through and silently dropping the FROM reference.
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
     case TSDB_ALTER_TABLE_ADD_TAG:
     case TSDB_ALTER_TABLE_DROP_TAG:
     case TSDB_ALTER_TABLE_DROP_COLUMN:
