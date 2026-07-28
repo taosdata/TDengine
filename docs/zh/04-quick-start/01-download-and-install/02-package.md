@@ -23,7 +23,7 @@ import PkgList from "/src/components/PkgList";
 <TabItem label="Linux 系统" value="tarinst">
 
 1. 从列表中下载 tar.gz 安装包：
-    <PkgList productName="TDengine TSDB-Enterprise" platform="Linux-Generic" />
+    <PkgList productName="TDengine TSDB-Enterprise" platform="Linux-Generic" excludeSbom />
 2. 进入到安装包所在目录，使用 `tar` 解压安装包，以 x64 架构为例：
 
     ```bash tsdb-ee
@@ -40,7 +40,7 @@ import PkgList from "/src/components/PkgList";
 <TabItem label="Windows 系统" value="windows">
 
 1. 从列表中下载最新 Windows 安装程序：
-    <PkgList productName="TDengine TSDB-Enterprise" platform="Windows" />
+    <PkgList productName="TDengine TSDB-Enterprise" platform="Windows" excludeSbom />
 2. 运行安装程序，根据提示完成 TDengine 的安装。
 
 </TabItem>
