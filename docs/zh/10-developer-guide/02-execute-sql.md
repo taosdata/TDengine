@@ -105,7 +105,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
 ```
 
 **说明**
-`NOW` 为系统函数，默认为客户端当前时间。`NOW + 1s` 表示客户端当前时间加 1 秒；数字后的时间单位为：`a`（毫秒）、`s`（秒）、`m`（分）、`h`（小时）、`d`（天）、`w`（周）、`n`（月）、`y`（年）。
+`NOW` 为系统函数，默认为客户端当前时间。`NOW + 1s` 表示客户端当前时间加 1 秒；数字后的时间单位为：`a`（毫秒）、`s`（秒）、`m`（分）、`h`（小时）、`d`（天）、`w`（周）。自然月/季/年（`n`/`q`/`y`）不可用于 `NOW` 的时间加减，详见 [时间单位](../05-tdengine-sql/01-datatype.md#时间单位)。
 
 </TabItem>
 <TabItem label="Python" value="python">
@@ -152,7 +152,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
 ```
 
 **说明**
-`NOW` 为系统函数，默认为客户端当前时间。`NOW + 1s` 表示客户端当前时间加 1 秒；数字后的时间单位为：`a`（毫秒）、`s`（秒）、`m`（分）、`h`（小时）、`d`（天）、`w`（周）、`n`（月）、`y`（年）。
+`NOW` 为系统函数，默认为客户端当前时间。`NOW + 1s` 表示客户端当前时间加 1 秒；数字后的时间单位为：`a`（毫秒）、`s`（秒）、`m`（分）、`h`（小时）、`d`（天）、`w`（周）。自然月/季/年（`n`/`q`/`y`）不可用于 `NOW` 的时间加减，详见 [时间单位](../05-tdengine-sql/01-datatype.md#时间单位)。
 </TabItem>
 <TabItem label="REST API" value="rest">
 
