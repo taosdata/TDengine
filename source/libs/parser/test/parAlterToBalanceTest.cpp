@@ -887,21 +887,45 @@ TEST_F(ParserInitialATest, balanceVgroup) {
 }
 
 /*
- * BALANCE VGROUP LEADER
+ * BALANCE VGROUP LEADER [ ON vgroup_id | DATABASE db_name ] [ FORCE ]
+ *
+ * The command was split into two behaviors selected by the optional FORCE keyword.
+ * The parser encodes that keyword into SBalanceVgroupLeaderReq.reserved:
+ *   - reserved == 0 -> non-forced (default, random rebalance, what old clients send)
+ *   - reserved == 1 -> forced (deterministic, bias elect baseline)
+ * We assert the round-tripped reserved value for every syntactic variant. Note the
+ * DATABASE variant produces a different node type
+ * (QUERY_NODE_BALANCE_VGROUP_LEADER_DATABASE_STMT), so we do NOT assert a single
+ * unified node type here; validating the message-layer reserved flag is the goal.
  */
 TEST_F(ParserInitialATest, balanceVgroupLeader) {
   useDb("root", "test");
 
+  // Expected value of req.reserved for the statement currently under test. The check
+  // lambda captures this by reference; set it before each run() call.
+  int32_t expectedReserved = 0;
+
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_BALANCE_VGROUP_LEADER_STMT);
     ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_BALANCE_VGROUP_LEADER);
     SBalanceVgroupLeaderReq req = {0};
     ASSERT_EQ(tDeserializeSBalanceVgroupLeaderReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req),
               TSDB_CODE_SUCCESS);
+    // reserved carries the FORCE flag (0 = non-forced, 1 = forced).
+    ASSERT_EQ(req.reserved, expectedReserved);
     tFreeSBalanceVgroupLeaderReq(&req);
   });
 
+  // Non-forced variants: FORCE keyword absent -> reserved == 0.
+  expectedReserved = 0;
   run("BALANCE VGROUP LEADER");
+  run("BALANCE VGROUP LEADER ON 1");
+  run("BALANCE VGROUP LEADER DATABASE test");
+
+  // Forced variants: FORCE keyword present -> reserved == 1.
+  expectedReserved = 1;
+  run("BALANCE VGROUP LEADER FORCE");
+  run("BALANCE VGROUP LEADER ON 1 FORCE");
+  run("BALANCE VGROUP LEADER DATABASE test FORCE");
 }
 
 }  // namespace ParserTest

@@ -8484,7 +8484,7 @@ _err:
   return NULL;
 }
 
-SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgId) {
+SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgId, bool force) {
   CHECK_PARSER_STATUS(pCxt);
   SBalanceVgroupLeaderStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_BALANCE_VGROUP_LEADER_STMT, (SNode**)&pStmt);
@@ -8492,12 +8492,16 @@ SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgI
   if (NULL != pVgId && NULL != pVgId->z) {
     pStmt->vgId = taosStr2Int32(pVgId->z, NULL, 10);
   }
+  // Carry the FORCE flag parsed from the grammar (force_opt) into the AST node so that later
+  // translation stages can decide whether to bias the elect baseline (forced) or not (non-forced).
+  pStmt->force = force;
+  parserDebug("create balance vgroup leader stmt, vgId:%d, force:%d", pStmt->vgId, force);
   return (SNode*)pStmt;
 _err:
   return NULL;
 }
 
-SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, SToken* pDbName) {
+SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, SToken* pDbName, bool force) {
   CHECK_PARSER_STATUS(pCxt);
   CHECK_NAME(checkDbName(pCxt, pDbName, false));
   SBalanceVgroupLeaderStmt* pStmt = NULL;
@@ -8506,6 +8510,9 @@ SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, SToken* pDbN
   if (NULL != pDbName) {
     COPY_STRING_FORM_ID_TOKEN(pStmt->dbName, pDbName);
   }
+  // Carry the FORCE flag parsed from the grammar (force_opt) into the AST node (per-database variant).
+  pStmt->force = force;
+  parserDebug("create balance vgroup leader (database) stmt, db:%s, force:%d", pStmt->dbName, force);
   return (SNode*)pStmt;
 _err:
   return NULL;

@@ -3101,7 +3101,24 @@ static int32_t mndAddAlterVgroupElectionBaselineActionToTrans(SMnode *pMnode, SV
   return code; 
 }
 
-int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans, int32_t index) {
+// Build the sub-transaction actions that rebalance the leader of a single vgroup.
+//
+// Two modes are supported, selected by the `force` flag:
+//   - Forced mode (force == true): in addition to stepping the current leader down,
+//     we bias the Raft elect baseline toward the target replica (index % replica).
+//     The target gets a short 1500ms election timeout while every other replica gets
+//     a long 5000ms timeout, so the target is (almost) guaranteed to win the next
+//     election. This makes the resulting leader distribution deterministic. The
+//     downside: if the target replica is lagging behind, it cannot gather a majority
+//     of up-to-date votes and the vgroup can stall until the user retries.
+//   - Non-forced mode (force == false, the default and what old clients always send):
+//     we ONLY step the current leader down and let all replicas compete equally in the
+//     same election window. The elected leader is random, but a lagging replica can
+//     never be forced into leadership, so the vgroup never stalls (no deadlock).
+//
+// `index` selects which replica should be biased in forced mode; it is ignored in
+// non-forced mode.
+int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTrans, int32_t index, bool force) {
   int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
 
@@ -3133,8 +3150,18 @@ int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTra
   }
 
   if (exist && online) {
-    mInfo("trans:%d, vgid:%d force drop leader from dnode:%d", pTrans->id, vgid, dnodeId);    
-    TAOS_CHECK_RETURN(mndAddAlterVgroupElectionBaselineActionToTrans(pMnode, pVgroup, pTrans, index));
+    // In both modes we step the current leader down so a rebalance actually happens.
+    // In forced mode we additionally bias the Raft elect baseline toward the target
+    // replica (short 1500ms timeout for target, 5000ms for others) to make the
+    // distribution deterministic. In non-forced mode we skip the biasing entirely so
+    // all replicas compete in the same election window: the result is random, but a
+    // lagging replica can never be forced into leadership and the vgroup won't stall.
+    mInfo("trans:%d, vgid:%d drop leader from dnode:%d, force:%d", pTrans->id, vgid, dnodeId, (int32_t)force);
+
+    // Forced mode only: bias the elect baseline toward the target replica (index%replica).
+    if (force) {
+      TAOS_CHECK_RETURN(mndAddAlterVgroupElectionBaselineActionToTrans(pMnode, pVgroup, pTrans, index));
+    }
 
     if ((code = mndAddBalanceVgroupLeaderAction(pMnode, pTrans, pVgroup, dnodeId)) != 0) {
       mError("trans:%d, vgid:%d failed to be balanced to dnode:%d", pTrans->id, vgid, dnodeId);
@@ -3143,7 +3170,10 @@ int32_t mndAddVgroupBalanceToTrans(SMnode *pMnode, SVgObj *pVgroup, STrans *pTra
 
     TAOS_CHECK_RETURN(mndAddAlterVnodeConfirmAction(pMnode, pTrans, NULL, pVgroup));
 
-    TAOS_CHECK_RETURN(mndAddAlterVgroupElectionBaselineActionToTrans(pMnode, pVgroup, pTrans, -1));
+    // Forced mode only: reset the elect baseline back to normal for all replicas.
+    if (force) {
+      TAOS_CHECK_RETURN(mndAddAlterVgroupElectionBaselineActionToTrans(pMnode, pVgroup, pTrans, -1));
+    }
 
     SDbObj *pDb = mndAcquireDb(pMnode, pVgroup->dbName);
     if (pDb == NULL) {

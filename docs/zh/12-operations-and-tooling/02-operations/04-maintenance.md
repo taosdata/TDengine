@@ -73,18 +73,27 @@ kill scan <scan_id>;
 当多副本集群中的一个或多个节点因为升级或其它原因而重启后，有可能出现集群中各个 dnode 负载不均衡的现象，极端情况下会出现所有 vgroup 的 leader 都位于同一个 dnode 的情况。为了解决这个问题，可以使用下面的命令，该命令在 3.0.4.0 版本中首次发布，建议尽可能使用最新版本。
 
 ```SQL
-balance vgroup leader; # 再平衡所有 vgroup 的 leader
-balance vgroup leader on <vgroup_id>; # 再平衡一个 vgroup 的 leader
-balance vgroup leader database <database_name>; # 再平衡一个 database 内所有 vgroup 的 leader
+balance vgroup leader; # 再平衡所有 vgroup 的 leader（随机方式）
+balance vgroup leader on <vgroup_id>; # 再平衡一个 vgroup 的 leader（随机方式）
+balance vgroup leader database <database_name>; # 再平衡一个 database 内所有 vgroup 的 leader（随机方式）
+
+balance vgroup leader force; # 强制均衡所有 vgroup 的 leader（强制方式）
+balance vgroup leader on <vgroup_id> force; # 强制均衡一个 vgroup 的 leader（强制方式）
+balance vgroup leader database <database_name> force; # 强制均衡一个 database 内所有 vgroup 的 leader（强制方式）
 ```
 
 ### 功能
 
-尝试让一个或所有 vgroup 的 leader 在各自的 replica 节点上均匀分布。这个命令会让 vgroup 强制重新选举，通过重新选举，在选举的过程中，改变 vgroup 的 leader，通过这个方式，最终让 leader 均匀分布。
+leader 再平衡有两种方式：
+
+- **随机方式**（不带 `force` 关键字）：触发 vgroup 重新选举，当前 leader 主动让出，所有副本平等地参与新一轮选举。由于选举本身带有随机性，最终产生的 leader 分布是概率性的，不保证完全均匀。这种方式不会导致 vgroup 选不出 leader。
+- **强制方式**（带 `force` 关键字）：通过对选举施加偏置，将 leader 强制指定到特定副本上，从而在各副本节点间实现均匀分布。这是旧版本的行为。
 
 ### 注意
 
-vgroup 选举本身带有随机性，所以通过选举的重新分布产生的均匀分布也是带有一定的概率，不会完全的均匀。该命令的副作用是影响查询和写入，在 vgroup 重新选举时，从开始选举到选举出新的 leader 这段时间，这 个 vgroup 无法写入和查询。选举过程一般在秒级完成。所有的 vgroup 会依次逐个重新选举。
+- 在**随机方式**下，由于 vgroup 选举本身带有随机性，通过重新选举产生的均匀分布是概率性的，不会完全均匀。
+- 在**强制方式**下，如果被指定的目标副本数据落后其它副本过多，它在带偏置的选举中可能无法获得多数票，从而导致该 vgroup 暂时无法选出 leader。如果出现这种情况，只需再次执行 `balance vgroup leader ... force` 命令重试即可。
+- 两种方式的副作用都是影响查询和写入，在 vgroup 重新选举时，从开始选举到选举出新的 leader 这段时间，这个 vgroup 无法写入和查询。选举过程一般在秒级完成。所有的 vgroup 会依次逐个重新选举。
 
 ## 恢复数据节点
 

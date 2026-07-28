@@ -27102,7 +27102,12 @@ static int32_t translateAssignLeader(STranslateContext* pCxt, SAssignLeaderStmt*
 static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
   SBalanceVgroupLeaderReq req = {0};
   req.vgId = pStmt->vgId;
+  // Reuse the pre-existing `reserved` field to carry the force flag for full
+  // wire compatibility: 1 = forced (bias elect baseline), 0 = non-forced (random).
+  // Old clients always send 0, so they default to the safe non-forced path.
+  req.reserved = pStmt->force ? 1 : 0;
   tstrncpy(req.db, pStmt->dbName, TSDB_DB_FNAME_LEN);
+  parserDebug("translate balance vgroup leader, vgId:%d, db:%s, force:%d", req.vgId, req.db, (int32_t)pStmt->force);
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
   tFreeSBalanceVgroupLeaderReq(&req);

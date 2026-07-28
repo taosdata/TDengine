@@ -431,10 +431,13 @@ REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3
 ### 自动调整 VGROUP 中 LEADER 的分布
 
 ```sql
-BALANCE VGROUP LEADER;
+BALANCE VGROUP LEADER;         -- 随机方式：触发重新选举，结果是随机的
+BALANCE VGROUP LEADER FORCE;   -- 强制方式：强制均衡分布
 ```
 
 触发集群所有 vgroup 中的 leader 重新选主，对集群各节点进行负载均衡操作。（**仅企业版支持**）
+
+支持两种方式：不带 `FORCE` 为随机方式，让出当前 leader 后各副本平等参与选举，结果是随机的，不会导致选不出 leader；带 `FORCE` 为强制方式，强制将 leader 均匀分布，但当目标副本数据落后过多时可能无法选出 leader，此时再次执行该命令即可。详见运维指南中的“vgroup leader 再平衡”章节。
 
 ### 查看数据库工作状态
 

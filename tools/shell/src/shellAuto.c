@@ -86,6 +86,8 @@ SWords shellCommands[] = {
 #ifdef TD_ENTERPRISE
     {"balance vgroup ;", 0, 0, NULL},
     {"balance vgroup leader on <vgroup_id>", 0, 0, NULL},
+    // Forced variant: appends the FORCE keyword to trigger deterministic (biased) leader balancing.
+    {"balance vgroup leader on <vgroup_id> force", 0, 0, NULL},
     {"alter token <token_name> <token_opt> <anyword> ;", 0, 0, NULL},
     {"alter user <user_name> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword> <alter_uopt> <anyword>", 0, 0, NULL},
 #else
@@ -818,6 +820,7 @@ void showHelp() {
     alter token <token_name> [token options];\n\
     balance vgroup ;\n\
     balance vgroup leader on <vgroup_id> \n\
+    balance vgroup leader on <vgroup_id> force \n\
     compact database <db_name>; \n\
     compact vgroups in (vgroupId,vgroupId, ...); \n\
     create view <view_name> as select ...\n\

@@ -556,8 +556,8 @@ SNode* createKillCompactStmt(SAstCreateContext* pCxt, const SToken* pId, bool fo
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);
 SNode* createBalanceVgroupStmt(SAstCreateContext* pCxt);
 SNode* createAssignLeaderStmt(SAstCreateContext* pCxt);
-SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgId);
-SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, SToken* pDbName);
+SNode* createBalanceVgroupLeaderStmt(SAstCreateContext* pCxt, const SToken* pVgId, bool force);
+SNode* createBalanceVgroupLeaderDBNameStmt(SAstCreateContext* pCxt, SToken* pDbName, bool force);
 SNode* createSetVgroupKeepVersionStmt(SAstCreateContext* pCxt, const SToken* pVgId, const SToken* pKeepVersion);
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2);
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);

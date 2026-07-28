@@ -70,18 +70,27 @@ KILL SCAN <scan_id>;
 When one or more nodes in a multi-replica cluster restart due to upgrades or other reasons, it may lead to an imbalance in the load among the various dnodes in the cluster. In extreme cases, all vgroup leaders may be located on the same dnode. To solve this problem, you can use the following commands, which were first released in version 3.0.4.0. It is recommended to use the latest version as much as possible.
 
 ```sql
-balance vgroup leader; # Rebalance all vgroup leaders
-balance vgroup leader on <vgroup_id>; # Rebalance a vgroup leader
-balance vgroup leader database <database_name>; # Rebalance all vgroup leaders within a database
+balance vgroup leader; # Rebalance all vgroup leaders (random mode)
+balance vgroup leader on <vgroup_id>; # Rebalance a vgroup leader (random mode)
+balance vgroup leader database <database_name>; # Rebalance all vgroup leaders within a database (random mode)
+
+balance vgroup leader force; # Force-rebalance all vgroup leaders (forced mode)
+balance vgroup leader on <vgroup_id> force; # Force-rebalance a vgroup leader (forced mode)
+balance vgroup leader database <database_name> force; # Force-rebalance all vgroup leaders within a database (forced mode)
 ```
 
 ### Functionality
 
-Attempts to evenly distribute one or all vgroup leaders across their respective replica nodes. This command forces a re-election of the vgroup, changing the vgroup's leader during the election process, thereby eventually achieving an even distribution of leaders.
+There are two modes of leader rebalancing:
+
+- **Random mode** (without the `force` keyword): Triggers a re-election of the vgroup. The current leader steps down, and all replicas compete equally in the new election. Because the election is inherently random, the resulting leader distribution is probabilistic and may not be perfectly even. This mode never leaves a vgroup without a leader.
+- **Forced mode** (with the `force` keyword): Deterministically biases the election so that the leader is placed on a specific replica, achieving an even distribution across replica nodes. This is the behavior of earlier versions.
 
 ### Note
 
-Vgroup elections are inherently random, so the even distribution produced by the re-election is also probabilistic and not perfectly even. The side effect of this command is that it affects queries and writing; during the vgroup re-election, from the start of the election to the election of a new leader, this vgroup cannot be written to or queried. The election process generally completes within seconds. All vgroups will be re-elected one by one sequentially.
+- In **random mode**, the even distribution produced by re-election is probabilistic and not perfectly even, because vgroup elections are inherently random.
+- In **forced mode**, if the target replica lags too far behind the others, it may be unable to win a majority during the biased election, and the vgroup may temporarily fail to elect a leader. If this happens, simply run the `balance vgroup leader ... force` command again to retry.
+- The side effect of both modes is that they affect queries and writing; during the vgroup re-election, from the start of the election to the election of a new leader, this vgroup cannot be written to or queried. The election process generally completes within seconds. All vgroups will be re-elected one by one sequentially.
 
 ## Restore Data Node
 

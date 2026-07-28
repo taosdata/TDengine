@@ -1268,6 +1268,8 @@ typedef struct SBalanceVgroupLeaderStmt {
   ENodeType type;
   int32_t   vgId;
   char      dbName[TSDB_DB_NAME_LEN];
+  // true when the statement carried the FORCE keyword; consumed by the balance-leader mnode handler.
+  bool force;
 } SBalanceVgroupLeaderStmt;
 
 typedef struct SSetVgroupKeepVersionStmt {

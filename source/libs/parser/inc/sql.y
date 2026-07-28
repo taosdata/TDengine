@@ -1868,8 +1868,8 @@ cmd ::= BALANCE VGROUP.                                                         
 
 cmd ::= ASSIGN LEADER FORCE.                                                      { pCxt->pRootNode = createAssignLeaderStmt(pCxt); }
 
-cmd ::= BALANCE VGROUP LEADER on_vgroup_id(A).                                    { pCxt->pRootNode = createBalanceVgroupLeaderStmt(pCxt, &A); }
-cmd ::= BALANCE VGROUP LEADER DATABASE db_name(A).                                { pCxt->pRootNode = createBalanceVgroupLeaderDBNameStmt(pCxt, &A); }
+cmd ::= BALANCE VGROUP LEADER on_vgroup_id(A) force_opt(B).                       { pCxt->pRootNode = createBalanceVgroupLeaderStmt(pCxt, &A, B); }
+cmd ::= BALANCE VGROUP LEADER DATABASE db_name(A) force_opt(B).                   { pCxt->pRootNode = createBalanceVgroupLeaderDBNameStmt(pCxt, &A, B); }
 cmd ::= ALTER VGROUP NK_INTEGER(A) SET KEEP NK_INTEGER(B).                { pCxt->pRootNode = createSetVgroupKeepVersionStmt(pCxt, &A, &B); }
 cmd ::= MERGE VGROUP NK_INTEGER(A) NK_INTEGER(B).                                 { pCxt->pRootNode = createMergeVgroupStmt(pCxt, &A, &B); }
 cmd ::= REDISTRIBUTE VGROUP NK_INTEGER(A) dnode_list(B).                          { pCxt->pRootNode = createRedistributeVgroupStmt(pCxt, &A, B); }
