@@ -1,7 +1,7 @@
 ---
 sidebar_label: 执行计划
 title: 执行计划
-description: 查看查询执行计划与运行期分析信息
+description: 使用 EXPLAIN / EXPLAIN ANALYZE 查看查询执行计划与运行期指标
 ---
 
 `EXPLAIN` 用于查看查询语句的执行计划。它适合在 SQL 调优、慢查询诊断、标签索引命中分析、过滤下推确认、跨节点数据交换排查等场景中使用。
@@ -26,11 +26,11 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 - 跨节点数据交换代价
 - 计划时间与执行时间
 
-说明：
+**说明**
 
 - `ANALYZE` 需要实际执行目标查询语句
 
-诊断价值：
+**诊断价值**
 
 - 用于判断慢 SQL 是“计划不好”还是“执行慢”
 - 用于识别热点 vgroup、慢节点和数据倾斜
@@ -53,7 +53,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 - `Exec cost`
 - `I/O cost`
 
-诊断价值：
+**诊断价值**
 
 - 适合确认优化器是否做了谓词下推、标签索引下推、主键过滤下推
 - 适合定位排序键、合并键、网络交换模式、窗口参数等细节
@@ -97,7 +97,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
       -> Table Scan on meters (...)
 ```
 
-阅读建议：
+**阅读建议**
 
 - 从最上往下看，先判断结果是如何生成的
 - 从最下往上看，判断底层扫描、过滤、聚合、排序、交换是如何逐步叠加的
@@ -124,7 +124,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `Inner/Left/Right/Full ... Join` | 关联算子 | 重点关注连接算法、连接条件、主键条件和时间范围 |
 | `Interp` | 插值算子 | 用于 `INTERP` 插值 |
 | `Interval on Column ...` | 时间窗口算子 | 适用于 `INTERVAL` 查询 |
-| `Last Row Scan on ...` | Last Row 缓存扫描 | 用于 `last_row`、`last`查询等场景，适合确认是否进行缓存扫描 |
+| `Last Row Scan on ...` | Last Row 缓存扫描 | 用于 `LAST_ROW`、`LAST` 等查询场景，适合确认是否进行缓存扫描 |
 | `Merge` | 归并 | 用于多个输入流的合并 |
 | `Merge Aligned Interval on Column ...` | 对齐窗口归并 | 常见于窗口结果对齐场景 |
 | `Merge Interval on Column ...` | 窗口归并算子 | 用于分布式窗口聚合合并 |
@@ -173,7 +173,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `mode=ts_order` | 按时间序组织扫描 | 常见于普通时间序扫描 |
 | `offset=` | 当前算子承接到的 `OFFSET` | 用于判断偏移是否参与了当前层裁剪 |
 | `order=[asc\|x desc\|y]` | 扫描时顺序读取与逆序读取的计数 | 用于判断扫描是否主要按升序还是降序进行 |
-| `origin_vgroup_num=` | 原始 vgroup 数量 | 用于观察虚拟稳定表查询的并行规模 |
+| `origin_vgroup_num=` | 原始 vgroup 数量 | 用于观察虚拟超级表查询的并行规模 |
 | `output_order=` | 输出数据按**主键时间戳列**的有序性（asc/desc/unknown） | 用于判断当前算子是否改变了时间序，进而推断后续是否还能避免排序 |
 | `partitions=` | 分片键数量 | 用于判断 `PARTITION BY` 的维度规模 |
 | `pseudo_columns=` | 伪列数量，例如 `_wstart`、`_wend`、`tbname` 等 | 可用于确认窗口列、表名列等是否被引入执行链路 |
@@ -187,7 +187,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `width=` | 单行宽度，单位为字节 | 宽行会放大扫描、排序、网络交换和内存占用；如果标题行与 `Output` 行的 `width` 不同，通常说明算子内部还有中间列或辅助列 |
 | `window_offset=(x, y)` | 窗口连接偏移范围 | 用于确认时间窗连接的左右边界 |
 
-说明：
+**说明**
 
 - 在多 vgroup 聚合输出中，`a(b)` 形式表示“平均值（最大值）”
 - 对 `rows=` 来说，`b` 可用于快速定位最重的单个执行节点
@@ -247,7 +247,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `start=` | 算子从创建到第一次被调用的耗时，单位毫秒 | 值大说明算子虽已创建，但较晚才真正进入执行 |
 | `times=` | 算子被调用的次数 | 调用次数异常偏多，常意味着上游按很小批次拉取 |
 
-说明：
+**说明**
 
 - 单节点显示为单值，多节点显示为 `平均值(最大值)`
 - `create=` 在多节点时也会显示为 `平均时间戳(最晚时间戳)`
@@ -275,7 +275,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `stt_load_elapsed=` | STT 加载耗时 | 判断 STT 路径代价 |
 | `total_blocks=` | 总处理块数 | 反映扫描总体工作量 |
 
-诊断建议：
+**诊断建议**
 
 - `file_load_*` 高：优先检查时间范围、标签过滤和索引命中
 - `mem_load_*` 高但仍慢：重点检查结果行宽、排序和聚合复杂度
@@ -314,8 +314,8 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 ```sql
 SELECT * FROM meters
 WHERE
-current > (SELECT avg(current) FROM meters WHERE location = 'Beijing')
-and voltage < (SELECT avg(voltage) FROM meters WHERE location = 'Beijing');
+current > (SELECT AVG(current) FROM meters WHERE location = 'Beijing')
+AND voltage < (SELECT AVG(voltage) FROM meters WHERE location = 'Beijing');
 ```
 
 对应的 `EXPLAIN ANALYZE VERBOSE true` 结果通常会先给出主计划，再给出子查询的 `InitPlan`，例如：
@@ -336,9 +336,9 @@ and voltage < (SELECT avg(voltage) FROM meters WHERE location = 'Beijing');
 
 - 最前面的 `Projection -> Table Scan` 是外层主查询
 - `InitPlan 1` 下面的 `Aggregate -> Table Scan` 是子查询自己的执行计划
-- 子查询先执行，结果再供主查询中的过滤条件引用
+- 子查询先执行，结果再供主查询中的过滤条件引用。
 
-因此，在分析含子查询语句时，不能只看主计划最上面的几行，也要继续查看后续是否存在 `InitPlan n` 段，以确认子查询本身是否发生全表扫描、聚合、排序或其他高成本操作
+因此，在分析含子查询语句时，不能只看主计划最上面的几行，也要继续查看后续是否存在 `InitPlan n` 段，以确认子查询本身是否发生全表扫描、聚合、排序或其他高成本操作。
 
 ## 使用示例
 
@@ -427,7 +427,7 @@ QUERY_PLAN: Execution Time: 24.992 ms
 ### 4. 子查询
 
 ```sql
-taos> EXPLAIN ANALYZE VERBOSE true SELECT * FROM meters WHERE voltage > (SELECT avg(voltage) FROM meters WHERE location = 'Beijing') \G;
+taos> EXPLAIN ANALYZE VERBOSE true SELECT * FROM meters WHERE voltage > (SELECT AVG(voltage) FROM meters WHERE location = 'Beijing') \G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 4:1 (cost=3.021..24.317 rows=149340 width=39)
 *************************** 2.row ***************************
@@ -511,7 +511,7 @@ QUERY_PLAN: Execution Time: 64.835 ms
 ### 5. 聚合查询
 
 ```sql
-taos> EXPLAIN ANALYZE VERBOSE true SELECT tbname, count(*), avg(current) FROM meters PARTITION BY tbname \G;
+taos> EXPLAIN ANALYZE VERBOSE true SELECT tbname, COUNT(*), AVG(current) FROM meters PARTITION BY tbname \G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 4:1 (cost=0.357..0.563 rows=30 width=288)
 *************************** 2.row ***************************
@@ -553,7 +553,7 @@ QUERY_PLAN: Execution Time: 10.767 ms
 ### 6. 时间窗口查询
 
 ```sql
-taos> EXPLAIN ANALYZE VERBOSE true SELECT _wstart, _wend, count(*), avg(current) FROM meters INTERVAL(10s) \G;
+taos> EXPLAIN ANALYZE VERBOSE true SELECT _wstart, _wend, COUNT(*), AVG(current) FROM meters INTERVAL(10s) \G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Merge Aligned Interval on Column  (cost=0.626..0.626 rows=10 functions=4 width=32 input_order=asc output_order=asc)
 *************************** 2.row ***************************
@@ -729,14 +729,14 @@ QUERY_PLAN: Execution Time: 8.138 ms
       Primary Filter: ts >= 2026-01-01 00:00:00 and ts < 2026-02-01 00:00:00
 ```
 
-重要：
+**重要**
 
 - 在扫描诊断中，`Tag Index Filter` 是否出现应优先检查；它直接决定是否能在扫描前缩小子表/分片范围，需手动创建
 - 若没有 `Tag Index Filter`，即使写了标签条件，也可能退化为更大范围扫描，导致 `check_rows`、`file_load_blocks` 和整体耗时显著上升
 
 ### 查询慢，但扫描不重
 
-重点看：
+**重点看**
 
 - `Sort`
 - `Group Sort`
@@ -748,7 +748,7 @@ QUERY_PLAN: Execution Time: 8.138 ms
 
 ### 查询慢，而且扫描量大
 
-重点看：
+**重点看**
 
 - `Time Range`
 - `Primary Filter`
@@ -760,7 +760,7 @@ QUERY_PLAN: Execution Time: 8.138 ms
 
 ### 计划里出现很多 `Data Exchange`
 
-重点看：
+**重点看**
 
 - `Network: fetch_cost`
 - `fetch_times`
@@ -771,21 +771,21 @@ QUERY_PLAN: Execution Time: 8.138 ms
 
 ### 某些节点特别慢
 
-重点看：
+**重点看**
 
 - `slowest_vgroup_id`
 - `slow_deviation`
 - `cost_ratio`
 - `data_deviation`
 
-判断方法：
+**判断方法**
 
 - `data_deviation` 高：更可能是数据倾斜
 - `data_deviation` 不高但 `cost_ratio` 高：更可能是某个节点资源异常或热点竞争
 
 ### 过滤条件写了很多，但性能没有改善
 
-重点看：
+**重点看**
 
 - `Filter`
 - `Primary Filter`
@@ -804,7 +804,7 @@ QUERY_PLAN: Execution Time: 8.138 ms
 
 ## 相关文档
 
-- [数据查询](./01-query.md)
+- [基础查询](./01-query.md)
 - [特色查询](./06-distinguished.md)
 - [关联查询](./07-join.md)
 - [标签索引](../06-index-and-view/01-tagindex.md)

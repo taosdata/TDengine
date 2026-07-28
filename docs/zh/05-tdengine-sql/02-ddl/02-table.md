@@ -6,7 +6,7 @@ description: 对表的各种管理操作
 
 ## 创建表
 
-`CREATE TABLE` 语句用于创建普通表和以超级表为模板创建子表（也可以通过指定 TAGS 字段创建超级表）。
+`CREATE TABLE` 语句用于创建普通表和以超级表为模板创建子表。也可以通过指定 `TAGS` 子句创建超级表。
 
 ```sql
 CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definition] ...) [table_options]
@@ -39,21 +39,21 @@ table_option: {
 
 ```
 
-**使用说明** ：
+**使用说明**
 
 1. 表（列）名命名规则参见 [名称命名规则](../11-appendix/02-limit.md#名称命名规则)。
-2. 表名最大长度为 192。
-3. 表的第一个字段必须是 TIMESTAMP，并且系统自动将其设为主键。
-4. 除时间戳主键列之外，还可以通过 COMPOSITE KEY 关键字指定第二列为额外的主键列，该列与时间戳列共同组成复合主键。当设置了复合主键时，两条记录的时间戳列与 COMPOSITE KEY 列都相同，才会被认为是重复记录，数据库只保留最新的一条；否则视为两条记录，全部保留。注意：被指定为主键列的第二列必须为整型 (INT32、INT64、UINT32、UINT64) 或字符串类型（VARCHAR、BINARY）。
-5. 表的每行长度不能超过 64KB;（注意：每个 VARCHAR/NCHAR/GEOMETRY 类型的列还会额外占用 2 个字节的存储位置）。
-6. 使用数据类型 VARCHAR/NCHAR/GEOMETRY，需指定其最长的字节数，如 VARCHAR(20)，表示 20 字节。
-7. 关于 `ENCODE` 和 `COMPRESS` 的使用，请参考 [按列压缩](../03-data-write/03-compress.md)
+2. 表名最大长度为 192 字节，不包括数据库名前缀和分隔符。
+3. 表的第一个字段必须是 `TIMESTAMP`，系统会自动将其设为主键。
+4. 除时间戳主键列之外，还可以通过 `COMPOSITE KEY` 关键字指定第二列为额外的主键列，该列与时间戳列共同组成复合主键。当设置了复合主键时，两条记录的时间戳列与 `COMPOSITE KEY` 列都相同，才会被认为是重复记录，数据库只保留最新的一条；否则视为两条记录，全部保留。被指定为主键列的第二列必须为整型或字符串类型，如 `INT`、`BIGINT`、`INT UNSIGNED`、`BIGINT UNSIGNED`、`VARCHAR`、`BINARY`。
+5. 表的每行长度不能超过 64 KB。每个 `BINARY`、`VARCHAR`、`NCHAR`、`GEOMETRY`、`VARBINARY` 类型的列还会额外占用 2 个字节的存储位置。
+6. 使用 `BINARY`、`VARCHAR`、`VARBINARY`、`GEOMETRY` 类型时，需要指定最长字节数，如 `VARCHAR(20)` 表示最多存储 20 个单字节字符；使用 `NCHAR` 时，需要指定字符长度，如 `NCHAR(10)` 表示最多存储 10 个 `NCHAR` 字符。
+7. 关于 `ENCODE` 和 `COMPRESS` 的使用，参见 [按列压缩](../03-data-write/03-compress.md)。
 
-###### 参数说明
+**参数说明**
 
-1. COMMENT：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
-2. SMA：Small Materialized Aggregates，提供基于数据块的预计算以加速聚合查询。预计算类型包括 MAX、MIN 和 SUM。默认情况下系统会为大多数列创建块级 SMA（部分类型如 BINARY/NCHAR 等默认不创建）；当在建表时显式指定 `SMA(col_name, ...)` 时，仅对指定列创建块级 SMA；可通过列定义 `NOSMA` 禁用某列的块级 SMA。可用于超级表/普通表。
-3. TTL：Time to Live，是用户用来指定表的生命周期的参数。如果创建表时指定了这个参数，当该表的存在时间超过 TTL 指定的时间后，TDengine TSDB 自动删除该表。这个 TTL 的时间只是一个大概时间，系统不保证到了时间一定会将其删除，而只保证存在这样一个机制且最终一定会删除。TTL 单位是天，取值范围为 [0, 2147483647]，默认为 0，表示不限制，到期时间为表创建时间加上 TTL 时间。TTL 与数据库 KEEP 参数没有关联，如果 KEEP 比 TTL 小，在表被删除之前数据也可能已经被删除。
+1. `COMMENT`：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
+2. `SMA`：Small Materialized Aggregates，提供基于数据块的预计算以加速聚合查询。预计算类型包括 `MAX`、`MIN` 和 `SUM`。默认情况下，系统会为大多数列创建块级 `SMA`，部分类型如 `BINARY`、`NCHAR` 等默认不创建；当建表时显式指定 `SMA(col_name, ...)` 时，仅对指定列创建块级 `SMA`。可用于超级表和普通表。
+3. `TTL`：Time to Live，用于指定表的生命周期。指定 `TTL` 后，当该表的存在时间超过 `TTL` 指定的时间后，TDengine 会自动删除该表。这个删除时间只是大致时间，系统不保证到期后立即删除，但会保证最终删除。`TTL` 单位是天，取值范围为 `[0, 2147483647]`，默认为 `0`，表示不限制，到期时间为表创建时间加上 `TTL` 时间。`TTL` 与数据库 `KEEP` 参数没有关联，如果 `KEEP` 比 `TTL` 小，在表被删除之前数据也可能已经被删除。
 
 ### 创建普通表
 
@@ -86,14 +86,14 @@ CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) [IF 
 ### 使用 CSV 批量创建子表
 
 ```sql
-CREATE TABLE [IF NOT EXISTS] USING [db_name.]stb_name (field1_name [, field2_name] ....) FILE csv_file_path;
+CREATE TABLE [IF NOT EXISTS] USING [db_name.]stb_name (tbname [, tag_name] ...) FILE 'csv_file_path';
 ```
 
-###### 参数说明
+**参数说明**
 
-1. FILE 语法表示数据来自于 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。CSV 文件中应仅包含 table name 与 tag 值。如需插入数据，请参考'数据写入'章节。
-2. 为指定的 stb_name 创建子表，该超级表必须已经存在。
-3. field_name 列表顺序与 CSV 文件各列内容顺序一致。列表中不允许出现重复项，且必须包含 `tbname`，可包含零个或多个超级表中已定义的标签列。未包含在列表中的标签值将被设置为 NULL。
+1. `FILE` 语法表示数据来自 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。CSV 文件中应仅包含 `tbname` 与标签值。如需插入数据，参见 [数据写入](../03-data-write/01-insert.md)。
+2. 为指定的 `stb_name` 创建子表，该超级表必须已经存在。
+3. 字段列表顺序与 CSV 文件各列内容顺序一致。列表中不允许出现重复项，且必须包含 `tbname`，可包含零个或多个超级表中已定义的标签列。未包含在列表中的标签值将被设置为 `NULL`。
 
 ## 修改表
 
@@ -120,20 +120,21 @@ alter_table_option: {
 
 ```
 
-###### 使用说明
+**使用说明**
 
-对普通表可以进行如下修改操作
+对普通表可以进行如下修改操作：
 
-1. ADD COLUMN：添加列。
-2. DROP COLUMN：删除列。
-3. MODIFY COLUMN：修改列定义，如果数据列的类型是可变长类型，那么可以使用此指令修改其宽度，只能改大，不能改小。
-4. RENAME COLUMN：修改列名称。
-5. 普通表的主键列不能被修改，也不能通过 ADD/DROP COLUMN 来添加/删除主键列。
+1. `ADD COLUMN`：添加列。
+2. `DROP COLUMN`：删除列。
+3. `MODIFY COLUMN`：修改列定义。如果数据列的类型是可变长类型，可以使用此指令修改其宽度，只能改大，不能改小。
+4. `MODIFY COLUMN` 后也可指定 `ENCODE`、`COMPRESS`、`LEVEL` 等列压缩选项，参见 [按列压缩](../03-data-write/03-compress.md)。
+5. `RENAME COLUMN`：修改列名称。
+6. 普通表的主键列不能被修改，也不能通过 `ADD COLUMN`/`DROP COLUMN` 来添加或删除主键列。
 
-###### 参数说明
+**参数说明**
 
-1. COMMENT：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
-2. TTL：Time to Live，是用户用来指定表的生命周期的参数。如果创建表时指定了这个参数，当该表的存在时间超过 TTL 指定的时间后，TDengine TSDB 自动删除该表。这个 TTL 的时间只是一个大概时间，系统不保证到了时间一定会将其删除，而只保证存在这样一个机制且最终一定会删除。TTL 单位是天，取值范围为[0, 2147483647]，默认为 0，表示不限制，到期时间为表创建时间加上 TTL 时间。TTL 与数据库 KEEP 参数没有关联，如果 KEEP 比 TTL 小，在表被删除之前数据也可能已经被删除。
+1. `COMMENT`：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
+2. `TTL`：表的生命周期（单位：天）。取值为 `[0, 2147483647]`，`0` 表示不限制。超过该天数后，系统会最终自动删除该表（不保证到期立即删除）。到期时间按表创建时间起算；与数据库 `KEEP` 无关。
 
 #### 增加列
 
@@ -178,7 +179,7 @@ ALTER TABLE [db_name.]tb_name alter_table_clause;
 
 alter_table_clause: {
     alter_table_options
-  | SET TAG tag_name = new_tag_value, tag_name2=new_tag2_value ...
+  | SET TAG tag_name = new_tag_value, tag_name2 = new_tag2_value ...
 }
 
 alter_table_options:
@@ -190,25 +191,25 @@ alter_table_option: {
 }
 ```
 
-**使用说明** ：
+**使用说明**
 
 1. 对子表的列和标签的修改，除了更改标签值以外，都要通过超级表才能进行。
 
-###### 参数说明
+**参数说明**
 
-1. COMMENT：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
-2. TTL：Time to Live，是用户用来指定表的生命周期的参数。如果创建表时指定了这个参数，当该表的存在时间超过 TTL 指定的时间后，TDengine TSDB 自动删除该表。这个 TTL 的时间只是一个大概时间，系统不保证到了时间一定会将其删除，而只保证存在这样一个机制且最终一定会删除。TTL 单位是天，取值范围为[0, 2147483647]，默认为 0，表示不限制，到期时间为表创建时间加上 TTL 时间。TTL 与数据库 KEEP 参数没有关联，如果 KEEP 比 TTL 小，在表被删除之前数据也可能已经被删除。
+1. `COMMENT`：表注释。可用于超级表、子表和普通表。最大长度为 1024 个字节。
+2. `TTL`：表的生命周期（单位：天）。取值为 `[0, 2147483647]`，`0` 表示不限制。超过该天数后，系统会最终自动删除该表（不保证到期立即删除）。到期时间按表创建时间起算；与数据库 `KEEP` 无关。
 
 #### 修改标签值
 
 ```sql
-ALTER TABLE tb_name SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 ...;
+ALTER TABLE tb_name SET TAG tag_name1 = new_tag_value1, tag_name2 = new_tag_value2 ...;
 ```
 
 #### 批量修改标签值
 
 ```sql
-ALTER TABLE tb_name1 SET TAG tag_name1=new_tag_value1, tag_name2=new_tag_value2 tb_name2 SET TAG tag_name3=new_tag_value3 ...;
+ALTER TABLE tb_name1 SET TAG tag_name1 = new_tag_value1, tag_name2 = new_tag_value2 tb_name2 SET TAG tag_name3 = new_tag_value3 ...;
 ```
 
 #### 修改生命周期
@@ -220,7 +221,7 @@ ALTER TABLE tb_name TTL value;
 #### 修改注释
 
 ```sql
-ALTER TABLE tb_name COMMENT 'string_value'
+ALTER TABLE tb_name COMMENT 'string_value';
 ```
 
 ## 删除表
@@ -231,25 +232,25 @@ ALTER TABLE tb_name COMMENT 'string_value'
 DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...;
 ```
 
-**注意**：删除表并不会立即释放该表所占用的磁盘空间，而是把该表的数据标记为已删除，在查询时这些数据将不会再出现，但释放磁盘空间会延迟到系统自动（建库参数 keep 生效）或用户手动进行数据重整时（企业版功能 compact）。
+**注意**：删除表并不会立即释放该表所占用的磁盘空间，而是把该表的数据标记为已删除，在查询时这些数据将不会再出现，但释放磁盘空间会延迟到系统自动（建库参数 `KEEP` 生效）或用户手动进行数据重整时（企业版功能 `COMPACT`）。
 
 ## 查看表的信息
 
 ### 显示所有表
 
-如下 SQL 语句可以列出当前数据库中的所有表名。
+如下 SQL 语句可以列出当前数据库中的所有普通表和子表信息。`NORMAL` 指定只显示普通表信息，`CHILD` 指定只显示子表信息。
 
 ```sql
-SHOW TABLES [LIKE tb_name_wildcard];
+SHOW [NORMAL | CHILD] [db_name.]TABLES [LIKE 'pattern'];
 ```
 
 ### 显示表创建语句
 
 ```sql
-SHOW CREATE TABLE tb_name;
+SHOW CREATE TABLE [db_name.]tb_name;
 ```
 
-常用于数据库迁移。对一个已经存在的数据表，返回其创建语句；在另一个集群中执行该语句，就能得到一个结构完全相同的数据表。
+常用于数据库迁移。对一个已经存在的数据表，返回其创建语句；在另一个集群中执行该语句，即可得到一个结构完全相同的数据表。
 
 ### 获取表结构信息
 

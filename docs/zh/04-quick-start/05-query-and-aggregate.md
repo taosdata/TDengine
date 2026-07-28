@@ -5,8 +5,6 @@ description: 使用 SQL 快速体验时序数据查询、聚合和时间窗口�
 toc_max_heading_level: 4
 ---
 
-import win from '../05-tdengine-sql/04-data-query/assets/window.png';
-
 相较于许多时序数据库和实时数据库，TDengine TSDB 自首个版本起就支持标准 SQL 查询。这一能力降低了时序数据查询和分析的学习成本。
 
 本章以智能电表数据模型为例，通过 `taosBenchmark` 生成一批示例数据，然后在 shell 中快速体验常用查询：按条件过滤、排序、限制返回行数，按标签或子表聚合，以及按时间窗口统计数据。每类查询都会给出 SQL 和代表性返回结果，帮助你理解查询输出的形态。完整语法和高级查询能力请参见文末“继续阅读”。
@@ -172,7 +170,7 @@ Query OK, 10 row(s) in set
 
 窗口查询用于把时序数据按时间、状态、事件或行数切分，再在每个窗口内计算。快速上手阶段可以先理解下面几类窗口：
 
-<img src={win} width="500" alt="常用窗口划分逻辑" />
+![常用窗口划分逻辑](../05-tdengine-sql/04-data-query/assets/window.png)
 
 - 时间窗口：按固定时间间隔切分，使用 `INTERVAL`。
 - 滑动窗口：在时间窗口基础上设置滑动步长，使用 `SLIDING`。
@@ -426,7 +424,7 @@ WHERE ts >= "2020-09-13 20:26:40" AND ts < "2020-09-13 20:36:40";
 
 本章只覆盖快速上手阶段最常用的查询方式。更多高级查询能力，请继续阅读以下文档：
 
-- [数据查询](../05-tdengine-sql/04-data-query/01-query.md)：完整查询语法、过滤、排序、分组、嵌套查询和 `UNION`。
+- [基础查询](../05-tdengine-sql/04-data-query/01-query.md)：完整 `SELECT` 语法、过滤、排序、分组、子查询和 `UNION`。
 - [函数](../05-tdengine-sql/04-data-query/03-function.md)：聚合函数、选择函数和时序数据特有函数。
 - [特色查询](../05-tdengine-sql/04-data-query/06-distinguished.md)：时间窗口、状态窗口、会话窗口、事件窗口、计数窗口和外部窗口。
 - [关联查询](../05-tdengine-sql/04-data-query/07-join.md)：普通 Join、ASOF Join 和 Window Join。

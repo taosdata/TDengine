@@ -1,10 +1,10 @@
 ---
 sidebar_label: 异常恢复
 title: 异常恢复
-description: 如何终止出现问题的连接、查询和事务以使系统恢复正常
+description: 终止异常连接、查询与事务，以及重置客户端缓存
 ---
 
-在一个复杂的应用场景中，连接和查询任务等有可能进入一种错误状态或者耗时过长迟迟无法结束，此时需要有能够终止这些连接或任务的方法。
+在复杂应用场景中，连接或查询任务可能进入错误状态，或耗时过长无法结束。此时可用下列语句终止对应连接或任务，使系统恢复正常。
 
 ## 终止连接
 
@@ -12,7 +12,7 @@ description: 如何终止出现问题的连接、查询和事务以使系统恢�
 KILL CONNECTION conn_id;
 ```
 
-conn_id 可以通过 `SHOW CONNECTIONS` 获取。
+`conn_id` 可通过 [`SHOW CONNECTIONS`](../09-system-info/03-show.md#show-connections) 获取。
 
 ## 终止查询
 
@@ -20,15 +20,15 @@ conn_id 可以通过 `SHOW CONNECTIONS` 获取。
 KILL QUERY 'kill_id';
 ```
 
-kill_id 可以通过 `SHOW QUERIES` 获取。
+`kill_id` 可通过 [`SHOW QUERIES`](../09-system-info/03-show.md#show-queries) 获取。
 
 ## 终止事务
 
 ```sql
-KILL TRANSACTION trans_id
+KILL TRANSACTION trans_id;
 ```
 
-trans_id 可以通过 `SHOW TRANSACTIONS` 获取。
+`trans_id` 可通过 [`SHOW TRANSACTIONS`](../09-system-info/03-show.md#show-transactions) 获取。
 
 ## 重置客户端缓存
 
@@ -36,4 +36,4 @@ trans_id 可以通过 `SHOW TRANSACTIONS` 获取。
 RESET QUERY CACHE;
 ```
 
-如果在多客户端情况下出现元数据不同步的情况，可以用这条命令强制清空客户端缓存，随后客户端会从服务端拉取最新的元数据。
+多客户端环境下若出现元数据不同步，可用本命令强制清空客户端缓存；之后客户端会从服务端拉取最新元数据。

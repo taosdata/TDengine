@@ -1,16 +1,15 @@
 ---
-sidebar_label: XNode 管理
-title: XNode 管理
-description: "Xnode 分布式节点管理和任务管理说明"
+sidebar_label: 数据接入（Xnode）
+title: 数据接入（Xnode）
+description: Xnode 节点、数据接入任务、Job 分片与 Agent 的 SQL 管理
+toc_max_heading_level: 4
 ---
 
-# 数据接入
+Xnode 是 TDengine 数据接入服务的分布式执行节点，负责运行数据同步任务，将外部数据源的数据实时或批量写入 TDengine。本文介绍管理数据接入功能的 SQL 命令，包括 Xnode 节点、数据接入任务、Job 分片以及 Agent。
 
-Xnode 是 TDengine 数据接入服务的分布式执行节点，负责运行数据同步任务，将外部数据源的数据实时或批量写入 TDengine。本文档介绍用于管理数据接入功能的 SQL 命令，包括 Xnode 节点、数据接入任务、Job 分片以及 Agents 的管理。
+## Xnode 节点管理
 
-## XNODE 节点管理
-
-XNODE 节点是数据同步服务的基本执行单元，负责具体的数据传输工作。
+Xnode 节点是数据同步服务的基本执行单元，负责具体的数据传输工作。
 
 ### 创建节点
 
@@ -24,26 +23,23 @@ CREATE XNODE 'url' TOKEN 'token'
 
 #### 参数说明
 
-- **url**: Xnode 节点的地址，格式为 `host:port`，端口号为 taosx GRPC 端口（默认 6055）
-- **name** and **password**: 首次创建建议指定 token 或者用户名和密码，用于守护进程 xnoded 连接 taosd。如果未指定 token 或者用户名密码，则创建默认 token
-- **token**: 用于链接 taosd 认证
+- **url**：Xnode 节点地址，格式为 `host:port`；端口为 taosX gRPC 端口（默认 `6055`）
+- **name** / **password**：首次创建建议指定 `TOKEN`，或用户名与密码，供守护进程 `xnoded` 连接 `taosd`。未指定时将创建默认 token
+- **token**：用于连接 `taosd` 的认证凭据
 
 #### 示例
 
 ```sql
-taos> CREATE XNODE "h1:6055";
-Create OK, 0 row(s) affected (0.050798s)
+CREATE XNODE 'h1:6055';
 
-taos> CREATE XNODE 'x1:6055' USER root PASS 'taosdata';
-Create OK, 0 row(s) affected (0.050798s)
+CREATE XNODE 'x1:6055' USER root PASS 'taosdata';
 
-taos> CREATE XNODE 'x2:6055' TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
-Create OK, 0 row(s) affected (0.050798s)
+CREATE XNODE 'x2:6055' TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
 ```
 
 ### 修改认证
 
-修改认证会重启守护进程 xnoded。
+修改认证会重启守护进程 `xnoded`。
 
 ```sql
 ALTER XNODE SET USER name PASS 'password'
@@ -52,16 +48,14 @@ ALTER XNODE SET TOKEN 'token'
 
 #### 参数说明
 
-- **token**: 用于连接 taosd 认证
+- **token**：用于连接 `taosd` 的认证凭据
 
 #### 示例
 
 ```sql
-taos> ALTER XNODE SET TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
-Query OK, 0 row(s) affected (0.024293s)
+ALTER XNODE SET TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
 
-taos> ALTER XNODE SET USER root PASS 'taosdata';
-Query OK, 0 row(s) affected (0.025161s)
+ALTER XNODE SET USER root PASS 'taosdata';
 ```
 
 ### 查看节点
@@ -75,21 +69,20 @@ SHOW XNODES [WHERE condition]
 #### 示例
 
 ```sql
-taos> SHOW XNODES;
+SHOW XNODES;
 ```
 
-输出结果：
+示例输出：
 
-```sql
-id | url     | status | create_time                 | update_time             |
-===============================================================================
-1  | h1:6050 | online | 2025-12-14 01:01:34.655     | 2025-12-14 01:01:34.655 |
-Query OK, 1 row(s) in set (0.005518s)
+```text
+id | url     | status | create_time             | update_time             |
+===========================================================================
+1  | h1:6055 | online | 2025-12-14 01:01:34.655 | 2025-12-14 01:01:34.655 |
 ```
 
 ### 排空节点
 
-将一个节点已有任务重新分配到其他节点中执行。
+将某节点上已有任务重新分配到其他节点执行。
 
 #### 语法
 
@@ -99,13 +92,12 @@ DRAIN XNODE id
 
 #### 参数说明
 
-- **id**: Xnode 节点的 ID
+- **id**：Xnode 节点 ID
 
 #### 示例
 
 ```sql
-taos> DRAIN XNODE 4;
-Query OK, 0 row(s) affected (0.014246s)
+DRAIN XNODE 4;
 ```
 
 ### 删除节点
@@ -113,28 +105,27 @@ Query OK, 0 row(s) affected (0.014246s)
 #### 语法
 
 ```sql
-DROP XNODE [FORCE] id | 'url'
+DROP XNODE {id | 'url'} [FORCE]
+DROP XNODE FORCE {id | 'url'}
 ```
 
 #### 参数说明
 
-- **id**: Xnode 节点的 ID
-- **url**: Xnode 节点的地址
-- **FORCE**: 强制删除节点
+- **id**：Xnode 节点 ID
+- **url**：Xnode 节点地址
+- **FORCE**：强制删除节点
 
 #### 示例
 
 ```sql
-taos> DROP XNODE 1;
-Drop OK, 0 row(s) affected (0.038173s)
+DROP XNODE 1;
 
-taos> DROP XNODE "h2:6050";
-Drop OK, 0 row(s) affected (0.038593s)
+DROP XNODE 'h2:6055';
 ```
 
-## TASK 任务管理
+## 任务管理
 
-TASK 任务定义了数据同步的源端、目标端以及数据解析规则。
+任务（Task）定义了数据同步的源端、目标端以及数据解析规则。
 
 ### 创建任务
 
@@ -155,29 +146,33 @@ task_options:
   [ LABELS 'labels' ]
 ```
 
-语法说明：task_options 各选项可同时使用，空格分隔，顺序无关
+**说明**
+
+`task_options` 各选项可同时使用，以空格分隔，顺序无关。
 
 #### 参数说明
 
-| 参数         | 说明                                |
-| :----------- | :---------------------------------- |
-| **name**     | 任务名称                            |
-| **from_dns** | 源端连接字符串（如 `mqtt://...`）   |
-| **dbname**   | 数据库名称                          |
-| **topic**    | Topic 名称                          |
-| **to_dns**   | 目标端连接字符串（如 `taos://...`） |
-| **parser**   | 数据解析配置（JSON 格式）           |
-| **status**   | 任务状态                            |
-| **xnodeId**  | 任务所在的 xnode 节点 ID            |
-| **viaId**    | 任务所在的 agent 的 ID              |
-| **reason**   | 任务最近执行失败原因                |
-| **labels**   | 任务标签，使用 JSON 字符串          |
+| 参数 | 说明 |
+| ---------- | --- |
+| `name`     | 任务名称 |
+| `from_dns` | 源端连接字符串（如 `mqtt://...`） |
+| `dbname`   | 数据库名称 |
+| `topic`    | Topic 名称 |
+| `to_dns`   | 目标端连接字符串（如 `taos://...`） |
+| `parser`   | 数据解析配置（JSON 格式） |
+| `status`   | 任务状态 |
+| `xnodeId`  | 任务所在的 Xnode 节点 ID |
+| `viaId`    | 任务所在的 Agent ID |
+| `reason`   | 任务最近执行失败原因 |
+| `labels`   | 任务标签，JSON 字符串 |
 
 #### 示例
 
 ```sql
-taos> CREATE XNODE TASK "t4" FROM 'kafka://localhost:9092?topics=abc&group=abcgroup' TO 'taos+ws://localhost:6041/test' WITH parser '{"model":{"name":"cc_abc","using":"cc","tags":["g"],"columns":["ts","b"]},"mutate":[{"map":{"ts":{"cast":"ts","as":"TIMESTAMP(ms)"},"b":{"cast":"a","as":"VARCHAR"},"g":{"value":"1","as":"INT"}}}]}';
-Create OK, 0 row(s) affected (0.038959s)
+CREATE XNODE TASK 't4'
+  FROM 'kafka://localhost:9092?topics=abc&group=abcgroup'
+  TO 'taos+ws://localhost:6041/test'
+  WITH PARSER '{"model":{"name":"cc_abc","using":"cc","tags":["g"],"columns":["ts","b"]},"mutate":[{"map":{"ts":{"cast":"ts","as":"TIMESTAMP(ms)"},"b":{"cast":"a","as":"VARCHAR"},"g":{"value":"1","as":"INT"}}}]}';
 ```
 
 ### 查看任务
@@ -191,14 +186,13 @@ SHOW XNODE TASKS [WHERE condition]
 #### 示例
 
 ```sql
-taos> SHOW XNODE TASKS;
+SHOW XNODE TASKS\G;
 ```
 
-输出结果：
+示例输出：
 
-```sql
-taos> SHOW XNODE TASKS \G;
-#### ************************* 1.row *************************
+```text
+*************************** 1.row ***************************
          id: 3
        name: t4
        from: kafka://localhost:9092?topics=abc&group=abcgroup
@@ -212,7 +206,6 @@ taos> SHOW XNODE TASKS \G;
      labels: NULL
 create_time: 2026-01-13 07:56:18.076
 update_time: 2026-01-13 07:56:18.076
-Query OK, 2 row(s) in set (0.019692s)
 ```
 
 ### 启动任务
@@ -220,14 +213,15 @@ Query OK, 2 row(s) in set (0.019692s)
 #### 语法
 
 ```sql
-START XNODE TASK id | 'name'
+START XNODE TASK {id | 'name'}
 ```
+
+执行前需确保对应 Xnode 在线且可达。
 
 #### 示例
 
 ```sql
-taos> START XNODE TASK 1;
-DB error: Xnode url response http code not 200 error [0x8000800C] (0.002160s)
+START XNODE TASK 1;
 ```
 
 ### 停止任务
@@ -235,14 +229,13 @@ DB error: Xnode url response http code not 200 error [0x8000800C] (0.002160s)
 #### 语法
 
 ```sql
-STOP XNODE TASK id | 'name'
+STOP XNODE TASK {id | 'name'}
 ```
 
 #### 示例
 
 ```sql
-taos> STOP XNODE TASK 1;
-DB error: Xnode url response http code not 200 error [0x8000800C] (0.002047s)
+STOP XNODE TASK 1;
 ```
 
 ### 修改任务
@@ -250,11 +243,11 @@ DB error: Xnode url response http code not 200 error [0x8000800C] (0.002047s)
 #### 语法
 
 ```sql
-ALTER XNODE TASK { id | 'name' }
+ALTER XNODE TASK {id | 'name'}
   [ FROM { 'from_dns' | DATABASE 'dbname' | TOPIC 'topic' } ]
   [ TO { 'to_dns' | DATABASE 'dbname' } ]
   [ WITH alter_options ]
-  
+
 alter_options:
   [ PARSER 'parser' ]
   [ NAME 'name' ]
@@ -265,13 +258,17 @@ alter_options:
   [ LABELS 'labels' ]
 ```
 
-语法说明：task_options 各选项含义与创建任务相同
+**说明**
+
+`alter_options` 各选项含义与创建任务时相同。
 
 #### 示例
 
 ```sql
-taos> ALTER XNODE TASK 3 FROM 'pulsar://zgc...' TO 'testdb' WITH xnode_id 33 via 333 reason 'zgc_test';
-Query OK, 0 row(s) affected (0.036077s)
+ALTER XNODE TASK 3
+  FROM 'pulsar://zgc...'
+  TO 'testdb'
+  WITH XNODE_ID 33 VIA 333 REASON 'zgc_test';
 ```
 
 ### 删除任务
@@ -279,21 +276,20 @@ Query OK, 0 row(s) affected (0.036077s)
 #### 语法
 
 ```sql
-DROP XNODE TASK id | 'name'
+DROP XNODE TASK {id | 'name'}
 ```
 
 #### 示例
 
 ```sql
-taos> DROP XNODE TASK 3;
-Drop OK, 0 row(s) affected (0.038191s)
+DROP XNODE TASK 3;
 ```
 
-## JOB 任务分片管理
+## Job 分片管理
 
-JOB 是 TASK 任务的执行分片，支持手动和自动负载均衡。
+Job 是任务（Task）的执行分片，支持手动与自动负载均衡。
 
-### 查看 JOB 分片
+### 查看 Job 分片
 
 #### 语法
 
@@ -304,18 +300,22 @@ SHOW XNODE JOBS [WHERE condition]
 #### 示例
 
 ```sql
-taos> SHOW XNODE JOBS\G;
-#### ************************* 1.row *************************
-       id: 1
-  task_id: 3
-   config: config_json
-      via: -1
- xnode_id: 11
-   status: running
-   reason: NULL
+SHOW XNODE JOBS\G;
+```
+
+示例输出：
+
+```text
+*************************** 1.row ***************************
+         id: 1
+    task_id: 3
+     config: config_json
+        via: -1
+   xnode_id: 11
+     status: running
+     reason: NULL
 create_time: 2025-12-14 02:52:31.281
 update_time: 2025-12-14 02:52:31.281
-Query OK, 1 row(s) in set (0.004714s)
 ```
 
 ### 手动负载均衡
@@ -326,13 +326,14 @@ Query OK, 1 row(s) in set (0.004714s)
 REBALANCE XNODE JOB jid WITH XNODE_ID xnodeId;
 ```
 
-语法说明：手动负载均衡当前只支持 xnode_id 参数，必须附带 xnode id 信息。
+**说明**
+
+手动负载均衡当前仅支持 `XNODE_ID` 参数，必须指定目标 Xnode ID。
 
 #### 示例
 
 ```sql
-taos> REBALANCE XNODE JOB 1 WITH xnode_id 1;
-Query OK, 0 row(s) affected (0.011808s)
+REBALANCE XNODE JOB 1 WITH XNODE_ID 1;
 ```
 
 ### 自动负载均衡
@@ -340,27 +341,26 @@ Query OK, 0 row(s) affected (0.011808s)
 #### 语法
 
 ```sql
-REBALANCE XNODE JOBS [ WHERE job_conditions ]
+REBALANCE XNODE JOBS [WHERE job_conditions]
 ```
 
-语法说明：WHERE job_conditions 可选，是用来过滤符合条件的 job 数据。不支持函数，支持 SHOW XNODE JOBS 命令中出现的所有字段。没有 WHERE 条件语句时表示所有 job 均进行自动负载均衡。
+**说明**
+
+`WHERE job_conditions` 可选，用于过滤待均衡的 Job。不支持函数；支持 `SHOW XNODE JOBS` 中出现的所有字段。未指定 `WHERE` 时，对全部 Job 做自动负载均衡。
 
 #### 示例
 
 ```sql
-taos> REBALANCE XNODE JOBS WHERE id>1;
-Query OK, 0 row(s) affected (0.014246s)
+REBALANCE XNODE JOBS WHERE id > 1;
 
-taos> REBALANCE XNODE JOBS WHERE task_id=1 and (xnode_id=3 or xnode_id=4);
-Query OK, 0 row(s) affected (0.007237s)
+REBALANCE XNODE JOBS WHERE task_id = 1 AND (xnode_id = 3 OR xnode_id = 4);
 
-taos> REBALANCE XNODE JOBS;
-Query OK, 0 row(s) affected (0.023245s)
+REBALANCE XNODE JOBS;
 ```
 
 ## Agent 管理
 
-Agent 节点是数据同步服务中的采集与转发单元，负责采集数据，并将采集到的数据转发至 Xnode 节点。
+Agent 是数据同步服务中的采集与转发单元，负责采集数据并转发至 Xnode 节点。
 
 ### 创建 Agent
 
@@ -375,17 +375,15 @@ agent_options:
 
 #### 参数说明
 
-- **name**: Agent 节点的名称
-- **status**: 使用 with 语句指定创建时的状态
+- **name**：Agent 名称
+- **status**：创建时的状态（通过 `WITH` 指定）
 
 #### 示例
 
 ```sql
-taos> create xnode agent 'a1';
-Create OK, 0 row(s) affected (0.013910s)
+CREATE XNODE AGENT 'a1';
 
-taos> create xnode agent 'a2' with status 'running';
-Create OK, 0 row(s) affected (0.013414s)
+CREATE XNODE AGENT 'a2' WITH STATUS 'running';
 ```
 
 ### 查询 Agent
@@ -399,7 +397,12 @@ SHOW XNODE AGENTS [WHERE condition]
 #### 示例
 
 ```sql
-taos> show xnode agents\G;
+SHOW XNODE AGENTS\G;
+```
+
+示例输出：
+
+```text
 *************************** 1.row ***************************
          id: 1
        name: a1
@@ -414,27 +417,24 @@ update_time: 2026-01-12 09:51:41.364
 #### 语法
 
 ```sql
-ALTER XNODE AGENT agent_id WITH alter_options
+ALTER XNODE AGENT {agent_id | 'name'} WITH alter_options
 
-alter_options {
+alter_options:
   STATUS 'status'
   | NAME 'name'
-}
 ```
 
 #### 参数说明
 
-- **name**: Agent 节点的名称
-- **status**: 可以使用 with 语句指定创建时的状态
+- **name**：Agent 名称
+- **status**：更新后的状态
 
 #### 示例
 
 ```sql
-taos> alter xnode agent 1 with name 'test1';
-Query OK, 0 row(s) affected (0.008387s)
+ALTER XNODE AGENT 1 WITH NAME 'test1';
 
-taos> alter xnode agent 'a2' with name 'test2' status 'online';
-Query OK, 0 row(s) affected (0.008685s)
+ALTER XNODE AGENT 'a2' WITH NAME 'test2' STATUS 'online';
 ```
 
 ### 删除 Agent
@@ -442,16 +442,15 @@ Query OK, 0 row(s) affected (0.008685s)
 #### 语法
 
 ```sql
-DROP XNODE AGENT agent_id
+DROP XNODE AGENT {agent_id | 'name'}
 ```
 
 #### 参数说明
 
-- **agent_id**: Agent 节点的 ID
+- **agent_id** / **name**：Agent 的 ID 或名称
 
 #### 示例
 
 ```sql
-taos> drop xnode agent 1;
-Drop OK, 0 row(s) affected (0.012281s)
+DROP XNODE AGENT 1;
 ```
