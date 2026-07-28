@@ -4435,6 +4435,8 @@ SNode* createAlterTableAddTagRef(SAstCreateContext* pCxt, SNode* pRealTable, int
   COPY_STRING_FORM_ID_TOKEN(pStmt->colName, pColName);
   pStmt->dataType = dataType;
   SColumnRefNode* pColRef = (SColumnRefNode*)pRef;
+  pStmt->refType = pColRef->refType;  // external source refs (refType==1) must carry their source name
+  tstrncpy(pStmt->refSourceName, pColRef->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
   tstrncpy(pStmt->refDbName, pColRef->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->refTableName, pColRef->refTableName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pStmt->refColName, pColRef->refColName, TSDB_COL_NAME_LEN);
