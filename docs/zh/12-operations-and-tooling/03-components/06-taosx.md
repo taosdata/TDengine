@@ -42,8 +42,8 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 
 1. 不同的驱动 (driver) 拥有不同的参数。driver 包含如下选项：
 
-- taos：使用查询接口从 TDengine TSDB 获取数据
-- tmq：启用数据订阅从 TDengine TSDB 获取数据
+- taos：使用查询接口从 TDengine 获取数据
+- tmq：启用数据订阅从 TDengine 获取数据
 - local：数据备份或恢复
 - pi：启用 pi-connector 从 pi 数据库中获取数据
 - opc：启用 opc-connector 从 opc-server 中获取数据
@@ -60,7 +60,7 @@ tmq+ws://root:taosdata@localhost:6030/db1?timeout=never
 - +da：当 driver 取值为 opc 时使用，表示采集的数据的 opc-server 为 opc-da
 
 3. host:port 表示数据源的地址和端口。
-4. object 表示具体的数据源，可以是 TDengine TSDB 的数据库、超级表、表，也可以是本地备份文件的路径，也可以是对应数据源服务器中的数据库。
+4. object 表示具体的数据源，可以是 TDengine 的数据库、超级表、表，也可以是本地备份文件的路径，也可以是对应数据源服务器中的数据库。
 5. username 和 password 表示该数据源的用户名和密码。
 6. params 代表了 dsn 的参数。
 
@@ -151,7 +151,7 @@ taosx run \
 taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
 ```
 
-5. 通过 --transform 或 -T 配置数据同步（仅支持 2.6 到 3.0 以及 3.0 之间同步）过程中对于表名及表字段的一些操作。暂无法通过 Explorer 进行设置。配置说明如下：
+5. 通过 --transform 或 -T 配置数据同步（仅支持 2.6 到 3.0 以及 3.0 之间同步）过程中对于表名及表字段的一些操作。暂无法通过 taosExplorer 进行设置。配置说明如下：
 
   ```shell
   1.AddTag，为表添加 TAG。设置示例：-T add-tag:<tag1>=<value1>。
@@ -274,7 +274,7 @@ TMQ DSN 参数：
 - `auto.offset.reset`: TMQ 订阅参数，订阅的起始位置。
 - `experimental.snapshot.enable`: TMQ 订阅参数，如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。
 
-更多 TMQ 订阅时的所有参数，详见 [数据订阅](../../10-developer-guide/07-subscription-api.md)
+更多 TMQ 订阅时的所有参数，详见 [数据订阅](../../07-data-subscription/index.md) 与 [开发指南 · 数据订阅](../../10-developer-guide/07-subscription-api.md)。
 
 MQTT DSN 参数：
 
@@ -437,8 +437,8 @@ taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from te
 
 :::tip
 
-1. 从 3.4.0.0 版本开始，taosX 使用 TSDB 作为元数据存储介质，不再使用 sqlite 存储元数据。不与旧版本兼容。
-2. 3.4.0.0 版本开始，taosX 需要先创建 XNODE，然后才能创建任务。参考 [创建 XNODE 节点](../../05-tdengine-sql/08-cluster-management/02-xnode.md#创建节点)。
+1. 从 `v3.4.0.0` 开始，taosX 使用 TSDB 作为元数据存储介质，不再使用 sqlite 存储元数据。不与旧版本兼容。
+2. 从 `v3.4.0.0` 开始，taosX 需要先创建 XNODE，然后才能创建任务。参考 [创建 XNODE 节点](../../05-tdengine-sql/08-cluster-management/02-xnode.md#创建节点)。
 
 :::
 
@@ -617,7 +617,7 @@ sc.exe start taosx
 
 2. 查看 `taosX` 日志
 
-您可以查看日志文件或使用 `journalctl` 命令来查看 `taosX` 的日志。
+你可以查看日志文件或使用 `journalctl` 命令来查看 `taosX` 的日志。
 
 Linux 下 `journalctl` 查看日志的命令如下：
 
@@ -689,18 +689,18 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | 字段                 | 描述                                                            |
 | -------------------- | --------------------------------------------------------------- |
 | total_execute_time   | 任务累计运行时间，单位毫秒                                      |
-| total_written_rowsls | 成功写入 TDengine TSDB 的总行数（包括重复记录）                      |
+| total_written_rowsls | 成功写入 TDengine 的总行数（包括重复记录）                      |
 | total_written_points | 累计写入成功点数 (等于数据块包含的行数乘以数据块包含的列数)     |
 | start_time           | 任务启动时间 (每次重启任务会被重置)                             |
-| written_rows         | 本次运行此任务成功写入 TDengine TSDB 的总行数（包括重复记录）        |
+| written_rows         | 本次运行此任务成功写入 TDengine 的总行数（包括重复记录）        |
 | written_points       | 本次运行写入成功点数 (等于数据块包含的行数乘以数据块包含的列数) |
 | execute_time         | 任务本次运行时间，单位秒                                        |
 
-### taosX TDengine TSDB V2 任务
+### taosX TDengine V2 任务
 
 | 字段                  | 描述                                                                 |
 | --------------------- | -------------------------------------------------------------------- |
-| read_concurrency      | 并发读取数据源的数据 worker 数，也等于并发写入 TDengine TSDB 的 worker 数 |
+| read_concurrency      | 并发读取数据源的数据 worker 数，也等于并发写入 TDengine 的 worker 数 |
 | total_stables         | 需要迁移的超级表数据数量                                             |
 | total_updated_tags    | 累计更新 tag 数                                                      |
 | total_created_tables  | 累计创建子表数                                                       |
@@ -712,7 +712,7 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | created_tables        | 本次运行创建子表数                                                   |
 | updated_tags          | 本次运行更新 tag 数                                                  |
 
-### taosX TDengine TSDB V3 任务
+### taosX TDengine V3 任务
 
 | 字段                   | 描述                                                    |
 | ---------------------- | ------------------------------------------------------- |
@@ -789,7 +789,7 @@ taosX Parser 插件是一个要求用 C/Rust 语言开发的 C ABI 兼容动态�
 
 :::warning
 
-本节描述的当前插件 ABI 约定从 3.4.1.15 版本开始支持，不支持更早版本的 taos-explorer 和 taosX。若需要为旧版本开发或维护插件，请使用 [TDengine 3.4.0 taosX 数据解析插件文档](https://docs.taosdata.com/3.4.0/reference/components/taosx/#taosx-%E6%95%B0%E6%8D%AE%E8%A7%A3%E6%9E%90%E6%8F%92%E4%BB%B6) 中的 ABI 约定。
+本节描述的当前插件 ABI 约定从 `v3.4.1.15` 开始支持，不支持更早版本的 taosExplorer 和 taosX。若需要为旧版本开发或维护插件，请使用 [TDengine 3.4.0 taosX 数据解析插件文档](https://docs.taosdata.com/3.4.0/reference/components/taosx/#taosx-%E6%95%B0%E6%8D%AE%E8%A7%A3%E6%9E%90%E6%8F%92%E4%BB%B6) 中的 ABI 约定。
 
 :::
 

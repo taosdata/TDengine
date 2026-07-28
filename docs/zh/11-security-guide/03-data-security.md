@@ -1,219 +1,85 @@
 ---
 sidebar_label: 数据安全
 title: 数据安全
+description: TDengine TSDB Enterprise IP 白名单、安全删除与透明数据加密（TDE）
 toc_max_heading_level: 4
 ---
 
-除了传统的用户和权限管理之外，TDengine TSDB 还有其他的安全策略，例如 IP 白名单、审计日志、数据加密等，这些都是 TDengine TSDB Enterprise 特有功能，其中白名单功能在 3.2.0.0 版本首次发布，审计日志在 3.1.1.0 版本中首次发布，数据库加密在 3.3.0.0 中首次发布，建议使用最新版本。
+除了传统的用户和权限管理之外，TDengine 还有其他的安全策略，例如 IP 白名单、审计日志、数据加密等，这些都是 TDengine TSDB Enterprise 特有功能。白名单功能在 `v3.2.0.0` 首次发布，审计日志在 `v3.1.1.0` 首次发布，数据库加密在 `v3.3.0.0` 首次发布，建议使用最新版本。另可通过数据库 / 语句选项启用安全删除（`SECURE_DELETE`）。审计能力见 [审计与合规](./05-audit-and-compliance.md)；本节说明 IP 白名单、安全删除与存储加密。
+
+数据库 DDL 中的 `ENCRYPT_ALGORITHM`、`IS_AUDIT`、`SECURE_DELETE`、`SECURITY_LEVEL` 等选项，语法入口见 [数据库](../05-tdengine-sql/02-ddl/01-database.md)。其中 `SECURITY_LEVEL`（MAC）详见 [权限管理](../05-tdengine-sql/07-user-and-privilege/02-grant.md#强制访问控制mac)；`IS_AUDIT` 约束见 [审计与合规](./05-audit-and-compliance.md)；`SECURE_DELETE` 见下文 [安全删除](#安全删除)。
 
 ## IP 白名单
 
-IP 白名单是一种网络安全技术，它使 IT 管理员能够控制“谁”可以访问系统和资源，提升数据库的访问安全性，避免外部的恶意攻击。IP 白名单通过创建可信的 IP 地址列表，将它们作为唯一标识符分配给用户，并且只允许这些 IP 地址访问目标服务器。请注意，用户权限与 IP 白名单是不相关的，两者分开管理。下面是配置 IP 白名单的具体方法。
+IP 白名单是一种网络安全技术，它使 IT 管理员能够控制“谁”可以访问系统和资源，提升数据库的访问安全性，避免外部的恶意攻击。IP 白名单通过创建可信的 IP 地址列表，将它们作为唯一标识符分配给用户，并且只允许这些 IP 地址访问目标服务器。请注意，用户权限与 IP 白名单是不相关的，两者分开管理。完整 `HOST` / `NOT_ALLOW_HOST` 语法与行为见 [用户管理](../05-tdengine-sql/07-user-and-privilege/01-user.md)。须将 `enableWhiteList` 设为 `1` 后黑白名单才会生效（参数说明见 [taosd](../12-operations-and-tooling/03-components/01-taosd.md)）。下面是配置 IP 白名单的具体方法。
 
-增加 IP 白名单的 SQL 如下。
+增加 IP 白名单的 SQL 如下：
 
 ```sql
-create user test pass password [sysinfo value] [host host_name1[,host_name2]] 
-alter user test add host host_name1
+CREATE USER test PASS 'taosdata1' HOST '192.168.1.0/24', '10.0.0.1';
+ALTER USER test ADD HOST '192.168.2.0/24';
 ```
 
-查询 IP 白名单的 SQL 如下。
+查询 IP 白名单的 SQL 如下：
 
 ```sql
-SELECT TEST, ALLOWED_HOST FROM INS_USERS;
+SELECT name, allowed_host FROM information_schema.ins_users;
 SHOW USERS;
 ```
 
-删除 IP 白名单的命令如下。
+删除 IP 白名单的命令如下：
 
 ```sql
-ALTER USER TEST DROP HOST HOST_NAME1
+ALTER USER test DROP HOST '192.168.2.0/24';
 ```
 
-说明
+说明：
 
-- 开源版和企业版本都能添加成功，且可以查询到，但是开源版本不会对 IP 做任何限制。
-- `create user u_write pass 'taosdata1' host 'iprange1','iprange2'`，可以一次添加多个 ip range，服务端会做去重，去重的逻辑是需要 ip range 完全一样
-- 默认会把 `127.0.0.1` 添加到白名单列表，且在白名单列表可以查询
+- 开源版和企业版都能添加成功，且可以查询到，但是开源版不会对 IP 做任何限制。
+- 一次可以添加多个 IP range，服务端会做去重，去重的逻辑是需要 IP range 完全一样。例如：`CREATE USER u_write PASS 'taosdata1' HOST 'iprange1','iprange2'`。
+- 默认会把 `127.0.0.1` 添加到白名单列表，且在白名单列表可以查询（用户手册所述场景下亦可能包含 `::1`）。
 - 集群的节点 IP 集合会自动添加到白名单列表，但是查询不到。
-- taosadaper 和 taosd 不在一个机器的时候，需要把 taosadaper IP 手动添加到 taosd 白名单列表中
-- 集群情况下，各个节点 enableWhiteList 成一样，或者全为 false，或者全为 true，要不然集群无法启动
-- 白名单变更生效时间 1s，不超过 2s，每次变更对收发性能有些微影响（多一次判断，可以忽略），变更完之后、影响忽略不计，变更过程中对集群没有影响，对正在访问客户端也没有影响（假设这些客户端的 IP 包含在 white list 内）
-- 如果添加两个 ip range，192.168.1.1/16(假设为 A)，192.168.1.1/24(假设为 B)，严格来说，A 包含了 B，但是考虑情况太复杂，并不会对 A 和 B 做合并
-- 要删除的时候，必须严格匹配。也就是如果添加的是 192.168.1.1/24，要删除也是 192.168.1.1/24
-- 只有 root 才有权限对其他用户增删 ip white list
-- 兼容之前的版本，但是不支持从当前版本回退到之前版本
-- x.x.x.x/32 和 x.x.x.x 属于同一个 iprange，显示为 x.x.x.x
-- 如果客户端拿到的 0.0.0.0/0，说明没有开启白名单
+- `taosAdapter` 和 `taosd` 不在一个机器的时候，需要把 `taosAdapter` 的 IP 手动添加到 `taosd` 白名单列表中。
+- 集群情况下，各个节点的 `enableWhiteList` 须一致，或者全为 `false`，或者全为 `true`，要不然集群无法启动。
+- 白名单变更生效时间约 1s，不超过 2s。每次变更对收发性能有些微影响（多一次判断，可以忽略），变更完之后影响忽略不计；变更过程中对集群没有影响，对正在访问且 IP 已包含在白名单内的客户端也没有影响。
+- 如果添加两个 IP range，例如 `192.168.1.1/16`（假设为 A）与 `192.168.1.1/24`（假设为 B），严格来说 A 包含了 B，但考虑情况太复杂，并不会对 A 和 B 做合并。
+- 要删除的时候，必须严格匹配。也就是如果添加的是 `192.168.1.1/24`，要删除也是 `192.168.1.1/24`。
+- 只有 `root` 才有权限对其他用户增删 IP 白名单。
+- 兼容之前的版本，但是不支持从当前版本回退到之前版本。
+- `x.x.x.x/32` 和 `x.x.x.x` 属于同一个 IP range，显示为 `x.x.x.x`。
+- 如果客户端拿到的是 `0.0.0.0/0`，说明没有开启白名单。
 - 如果白名单发生了改变，客户端会在 heartbeat 里检测到。
-- 针对一个 user，添加的 IP 个数上限是 2048
+- 针对一个 user，添加的 IP 个数上限是 2048。
 
-## 审计日志
+## 安全删除
 
-TDengine TSDB 先对用户操作进行记录和管理，然后将这些作为审计日志发送给 taosKeeper，再由 taosKeeper 保存至任意 TDengine TSDB 集群。管理员可通过审计日志进行安全监控、历史追溯。TDengine TSDB 的审计日志功能开启和关闭操作非常简单，只须修改 TDengine TSDB 的配置文件后重启服务。审计日志的配置说明如下。
+数据库选项 `SECURE_DELETE`（取值 `0` / `1`，默认 `0`）控制删除路径是否在写入删除标记之外，对落盘数据块做物理覆写。DDL 语法见 [数据库 · SECURE_DELETE](../05-tdengine-sql/02-ddl/01-database.md#secure_delete)；单次删除也可在语句末尾加 `SECURE_DELETE` 关键字，见 [数据删除](../05-tdengine-sql/03-data-write/02-delete.md)。
 
-### taosd 配置
+- **关闭（`0`）**：仅写入删除标记；查询不再返回已删数据，但对应文件块在后续压缩/回收前仍可能残留在磁盘上。
+- **开启（`1`）**：在删除标记之外，对 DATA / STT 等落盘文件中命中 `(表, 时间区间)` 的数据块执行文件级覆写（secure erase），降低通过文件系统直接读取已删内容的风险。
 
-审计日志由数据库服务 taosd 产生，其相应参数要配置在 taos.cfg 配置文件中，详细参数如下表。
+行为要点：
 
-| 参数名称       | 参数含义                                                  |
-|:-------------:|:--------------------------------------------------------:|
-|audit       | 是否打开审计日志，1 为开启，0 为关闭，默认值为 0。 |
-|monitorFqdn | 接收审计日志的 taosKeeper 所在服务器的 FQDN |
-|monitorPort | 接收审计日志的 taosKeeper 服务所用端口 |
-|monitorCompaction | 上报数据时是否进行压缩 |
-|auditLevel | 审计级别，不同级别记录不同的审计操作，具体参看操作列表 |
-|auditHttps | 发送审计记录给 taosKeeper 时是否使用 https 协议 |
+- 生效条件为库级 `SECURE_DELETE=1`、表/超级表元数据中的安全删除标志，或语句级 `DELETE ... SECURE_DELETE` 三者之一（实现上按位或合并）。
+- 物理覆写在删除标记写入之后执行；覆写失败会记服务端日志，查询语义仍以删除标记为准（已删数据不会因覆写失败而重新可见）。
+- 当前实现面向新版 TSDB 文件格式；旧格式文件会跳过文件级覆写，依赖后续压缩等路径回收。
+- 多副本场景下，文件级覆写在 Raft leader 上执行；follower 通过 WAL 重放逻辑删除，不会自动复现同一套物理覆写操作。
+- WAL 中仍可能保留删除前的原始写入记录，直至检查点后的 WAL 裁剪；OS 页缓存、SSD 磨损均衡等也可能使物理介质上短期仍可见旧内容。本能力不是硬件级 Secure Erase / Sanitize，也不等同于“静态加密 + 销毁密钥”。
+- 开启后删除路径 I/O 与耗时会增加，请按业务对残留数据清除的要求与性能开销权衡。
+- 与 TDE 互补：TDE 降低静态文件被直接解读的风险；安全删除侧重删除后对残留块的覆写。二者均不构成特定法规或认证符合性声明。
+- 全局参数 `secureEraseMode`（默认 `0`）控制整块可直接覆写时的填充方式：`0` 为零填充，`1` 为随机字节；部分重叠块为保证就地写回始终零填充。详见 [taosd · secureEraseMode](../12-operations-and-tooling/03-components/01-taosd.md#secureerasemode)。
 
-### 创建审计库
-
-在打开审计开关后，需要创建审计库，在创建时需要指定 is_audit 参数。
-
-```sql
-CREATE DATABASE [IF NOT EXISTS] db_name [database_options] IS_AUDIT 1;
-
-database_options:
-    database_option ...
-
-database_option: {
-  DURATION value
-}
-
-database_option: {
-  WAL_LEVEL value
-}
-
-database_option: {
-  ENCRYPT_ALGORITHM value
-}
-```
-
-另外，作为审计库，keep 默认为 1825d，如果用户指定 keep，要求大于 1825d；WAL_LEVEL 默认为 2，用户不能更改；ENCRYPT_ALGORITHM 用户不能指定为 None，可以选择任意一种 CBC 模式的对称加密算法；PRECISION 默认为纳秒（ns），用户不能更改为其他精度。
-
-在 3.4.0.0 之前版本创建的审计库，与 3.4.0.0 及之后版本的审计库不兼容。3.4.0.0 之前版本的审计库无法开启 is_audit 参数，因此不会对 DURATION、WAL_LEVEL、ENCRYPT_ALGORITHM 做强制要求。对于 3.4.0.0 之前创建的审计库，如需使用新版本的审计能力，建议先 drop 该审计库后再重新创建。如果要在 3.4.0.0 之后的版本中继续使用由 3.4.0.0 之前版本创建的审计库，则需要将 auditUseToken 关闭（设置为 0）。
-
-在 3.4.1.0 之后的版本可以将审计信息保存在自身，而不发送给 taoskeeper，若要使用该功能，需要将参数 auditSaveInSelf 设置为 1，并且在使用该功能时，创建的审计库的 vgroups 的数量只能为 1。
-
-### taosKeeper 配置
-
-在 taosKeeper 的配置文件 keeper.toml 中配置与审计日志有关的配置参数，如下表所示
-
-| 参数名称       | 参数含义                                                  |
-|:-------------:|:--------------------------------------------------------:|
-|auditDB | 用于存放审计日志的数据库的名字，默认值为 "audit"，taosKeeper 在收到上报的审计日志后会判断该数据库是否存在，如果不存在会自动创建 |
-
-### 数据格式
-
-上报的审计日志格式如下
-
-```json
-{
-    "ts": timestamp,
-    "cluster_id": string,
-    "user": string,
-    "operation": string,
-    "db": string,
-    "resource": string,
-    "client_add": string,
-    "details": string,
-    "affected_rows": integer,
-    "duration": double
-}
-```
-
-### 表结构
-
-taosKeeper 会依据上报的审计数据在相应的数据库中自动建立超级表用于存储数据。该超级表的定义如下：
+示例：
 
 ```sql
-create stable operations (ts timestamp, user_name varchar(25), operation varchar(20), db varchar(65), resource varchar(193), client_address varchar(64), details varchar(50000)) tags (cluster_id varchar(64))
+CREATE DATABASE db SECURE_DELETE 1;
+ALTER DATABASE db SECURE_DELETE 1;
+DELETE FROM meters WHERE ts < '2021-10-01 10:40:00.100' SECURE_DELETE;
 ```
-
-其中：
-
-1. db 为操作涉及的 database，resource 为操作涉及的资源。
-2. user_name 和 operation 为数据列，表示哪个用户在该对象上进行了什么操作。
-3. ts 为时间戳列，表示操作发生时的时间。
-4. details 为该操作的一些补充细节，在大多数操作下是所执行的操作的 SQL 语句。
-5. client_address 为客户端地址，包括 ip 和端口。
-
-### 操作列表
-
-目前审计日志中所记录的操作列表以及每个操作中各字段的含义（因为每个操作的施加者，即 user、client_add、时间戳字段在所有操作中的含义相同，下表不再描述）
-
-auditLevel = 1 // AUDIT_LEVEL_SYSTEM
-
-| 操作        | Operation | DB | Resource | Details |
-| ----------------| ----------| ---------| ---------| --------|
-| create dnode    | createDnode | NULL | IP:Port 或 FQDN:Port | SQL |
-| drop dnode      | dropDnode | NULL | dnodeId | SQL |
-| alter dnode     | alterDnode | NULL | dnodeId | SQL |
-| create mnode    | createMnode | NULL | dnodeId | SQL |
-| drop mnode      | dropMnode | NULL | dnodeId | SQL |
-| create qnode    | createQnode | NULL | dnodeId | SQL |
-| drop qnode      | dropQnode | NULL | dnodeId | SQL |
-| restore dnode | restoreDnode | NULL | dnodeId | SQL |
-
-auditLevel = 2 // AUDIT_LEVEL_CLUSTER
-
-| 操作        | Operation | DB | Resource | Details |
-| ----------------| ----------| ---------| ---------| --------|
-| alter cluster   | alterCluster| NULL | NULL  | SQL |
-| balance vgroup leader | balanceVgroupLead | NULL | NULL | SQL |
-| redistribute vgroup | redistributeVgroup | NULL | vgroupId | SQL |
-| balance vgroup | balanceVgroup | NULL | vgroupId | SQL |
-| assign leader | assignLeader | NULL | NULL | SQL |
-| grant privileges| grantPrivileges | NULL | 所授予的用户 | SQL |
-| revoke privileges | revokePrivileges | NULL | 被收回权限的用户 | SQL |
-| login           | login  | NULL | NULL | appName |
-| create user     | createUser | NULL |  被创建的用户名 | 用户属性参数， (password 除外) |
-| alter user      | alterUser | NULL | 被修改的用户名 | 修改密码记录被修改的参数和新值 (password 除外)，其他操作记录 SQL |
-| drop user       | dropUser | NULL | 被删除的用户名 | SQL |
-| create mount       | createMount | mountName | NULL | SQL |
-| drop mount       | dropMount | mountName | NULL | SQL |
-| kill retention       | killRetention | db name | NULL | SQL |
-| auto trimDB       | autoTrimDB | db name | NULL | SQL |
-| create encrypt algr       | createEncryptAlgr | NULL | algorithmId | SQL |
-| drop encrypt algr       | dropEncryptAlgr | NULL | algorithmId | SQL |
-
-auditLevel = 3 // AUDIT_LEVEL_DATABASE
-
-| 操作        | Operation | DB | Resource | Details |
-| ----------------| ----------| ---------| ---------| --------|
-| create database | createDB  | db name  | NULL     | SQL |
-| alter database  | alterDB   | db name  | NULL     | SQL |
-| drop database   | dropDB    | db name  | NULL     | SQL |
-| compact database| compact | database name  | NULL | SQL |
-| kill compact   | killCompact    | db name  | NULL     | SQL |
-| create stable   | createStb | db name  | stable name | SQL |
-| alter stable    | alterStb  | db name  | stable name | SQL |
-| drop stable     | dropStb   | db name  | stable name | SQL |
-| create stream   | createStream | NULL | 所创建的 stream 名 | SQL |
-| drop stream     | dropStream | NULL | 所删除的 stream 名 | SQL |
-| recalc stream     | recalcStream | streamName | recalcName | SQL |
-| create topic    | createTopic | topic 所在 DB | 创建的 topic 名字 | SQL |
-| drop topic      | dropTopic | topic 所在 DB | 删除的 topic 名字 | SQL |
-| reload topic      | reloadTopic | topic 所在 DB | topic 名字 | SQL |
-| create Rsma      | createRsma | Rsma name | NULL | SQL |
-| alter Rsma      | alterRsma | Rsma name | Table name | SQL |
-| drop Rsma      | dropRsma | Rsma name | NULL | SQL |
-| create View      | createView | Db name | NULL | SQL |
-| drop View      | dropView | Db name | view name | SQL |
-
-auditLevel = 4 // AUDIT_LEVEL_CHILDTABLE
-
-| 操作        | Operation | DB | Resource | Details |
-| ----------------| ----------| ---------| ---------| --------|
-| create table | createTable | db name | table name | SQL |
-| drop table | dropTable | db name | table name | SQL |
-
-### 查看审计日志
-
-在 taosd 和 taosKeeper 都正确配置并启动之后，随着系统的不断运行，系统中的各种操作（如上表所示）会被实时记录并上报，用户可以登录 taosExplorer，点击**系统管理**→**审计**页面，即可查看审计日志; 也可以在 TDengine TSDB CLI 中直接查询相应的库和表。
 
 ## 存储安全
 
-TDengine TSDB 支持透明数据加密（Transparent Data Encryption，TDE），通过对静态数据文件进行加密，阻止可能的攻击者绕过数据库直接从文件系统读取敏感信息。数据库的访问程序是完全无感知的，应用程序不需要做任何修改和编译，就能够直接应用到加密后的数据库，支持国标 SM4 等加密算法。在透明加密中，数据库密钥管理、数据库加密范围是两个最重要的话题。TDengine TSDB 采用机器码对数据库密钥进行加密处理，保存在本地而不是第三方管理器中。当数据文件被拷贝到其他机器后，由于机器码发生变化，无法获得数据库密钥，自然无法访问数据文件。TDengine TSDB 对所有数据文件进行加密，包括预写日志文件、元数据文件和时序数据文件。加密后，数据压缩率不变，写入性能和查询性能仅有轻微下降。
+TDengine 支持透明数据加密（Transparent Data Encryption，TDE），通过对静态数据文件进行加密，阻止可能的攻击者绕过数据库直接从文件系统读取敏感信息。数据库的访问程序是完全无感知的，应用程序不需要做任何修改和编译，就能够直接应用到加密后的数据库，支持国标 SM4 等加密算法。在透明加密中，数据库密钥管理、数据库加密范围是两个最重要的话题。TDengine 采用机器码对数据库密钥进行加密处理，保存在本地而不是第三方管理器中。当数据文件被拷贝到其他机器后，由于机器码发生变化，无法获得数据库密钥，自然无法访问数据文件。TDengine 对所有数据文件进行加密，包括预写日志文件、元数据文件和时序数据文件。加密后，数据压缩率不变，写入性能和查询性能仅有轻微下降。
 
 ### 生成密钥
 
@@ -233,14 +99,14 @@ taosk -c /etc/taos \
 主要参数说明：
 
 - `-c`：指定配置文件路径，默认 `/etc/taos`
-- `-d`：指定数据目录（dataDir），默认从配置文件读取
-- `--set-cfg-algorithm`：设置配置文件加密算法（sm4 或 aes），默认 sm4
-- `--set-meta-algorithm`：设置元数据加密算法（sm4 或 aes），默认 sm4
-- `--encrypt-server`：启用服务器加密，可选择性指定 SVR_KEY，不指定则自动生成
-- `--encrypt-database`：启用数据库加密，可选择性指定 DB_KEY，不指定则自动生成
-- `--encrypt-config`：启用配置文件加密，自动生成 CFG_KEY
-- `--encrypt-metadata`：启用元数据加密，自动生成 META_KEY
-- `--encrypt-data`：启用数据文件加密，可选择性指定 DATA_KEY，不指定则自动生成
+- `-d`：指定数据目录（`dataDir`），默认从配置文件读取
+- `--set-cfg-algorithm`：设置配置文件加密算法（`sm4` 或 `aes`），默认 `sm4`
+- `--set-meta-algorithm`：设置元数据加密算法（`sm4` 或 `aes`），默认 `sm4`
+- `--encrypt-server`：启用服务器加密，可选择性指定 `SVR_KEY`，不指定则自动生成
+- `--encrypt-database`：启用数据库加密，可选择性指定 `DB_KEY`，不指定则自动生成
+- `--encrypt-config`：启用配置文件加密，自动生成 `CFG_KEY`
+- `--encrypt-metadata`：启用元数据加密，自动生成 `META_KEY`
+- `--encrypt-data`：启用数据文件加密，可选择性指定 `DATA_KEY`，不指定则自动生成
 
 示例：
 
@@ -266,12 +132,12 @@ taosk -c /etc/taos \
 
 密钥生成后会保存在以下位置：
 
-- `{dataDir}/dnode/config/master.bin`：存储 SVR_KEY 和 DB_KEY
-- `{dataDir}/dnode/config/derived.bin`：存储 CFG_KEY、META_KEY 和 DATA_KEY
+- `{dataDir}/dnode/config/master.bin`：存储 `SVR_KEY` 和 `DB_KEY`
+- `{dataDir}/dnode/config/derived.bin`：存储 `CFG_KEY`、`META_KEY` 和 `DATA_KEY`
 
 ### 查看加密配置文件
 
-使用 `taosk` 工具可以查看加密的配置文件内容：
+使用 `taosk` 工具可以查看加密的配置文件内容。
 
 其中 `-d` 用于指定 TDengine 的数据目录（即 `dataDir`，例如 `/var/lib/taos`），工具会从该目录加载解密所需的密钥。如果已经通过 `-c` 指定了配置目录，且对应配置文件中包含正确的 `dataDir`，则可以省略 `-d`。
 
@@ -291,17 +157,17 @@ taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json
 
 该命令会：
 
-1. 从数据目录加载 CFG_KEY
-2. 解密配置文件到临时文件（权限 0600）
-3. 使用系统编辑器（$EDITOR 或 vi）打开文件
+1. 从数据目录加载 `CFG_KEY`
+2. 解密配置文件到临时文件（权限 `0600`）
+3. 使用系统编辑器（`$EDITOR` 或 `vi`）打开文件
 4. 通过 SHA-256 哈希检测文件变化
 5. 如有修改，自动重新加密并写回原文件
 6. 清理临时文件
 
 **注意**：
 
-- 编辑前必须先生成包含 CFG_KEY 的密钥（使用 `--encrypt-config` 选项）
-- 可通过 EDITOR 环境变量指定编辑器，如 `EDITOR=nano taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json`
+- 编辑前必须先生成包含 `CFG_KEY` 的密钥（使用 `--encrypt-config` 选项）
+- 可通过 `EDITOR` 环境变量指定编辑器，如 `EDITOR=nano taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json`
 - 如果退出编辑器时未保存，文件不会被修改
 
 ### 查看加密状态
@@ -312,6 +178,11 @@ taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json
 
 ```sql
 SELECT * FROM information_schema.ins_encrypt_status;
+```
+
+示例输出：
+
+```text
          encrypt_scope          |           algorithm            |       status       |
 =======================================================================================
  config                         | AES-128-CBC                    | enabled            |
@@ -321,13 +192,13 @@ SELECT * FROM information_schema.ins_encrypt_status;
 
 字段说明：
 
-- `encrypt_scope`：加密范围（config、metadata、data）
+- `encrypt_scope`：加密范围（`config`、`metadata`、`data`）
 - `algorithm`：使用的加密算法
-- `status`：加密状态（enabled 或 disabled）
+- `status`：加密状态（`enabled` 或 `disabled`）
 
 ### 更新密钥
 
-可以通过 taosk 工具或 SQL 命令更新 SVR_KEY 和 DB_KEY（其他密钥一旦生成不可更改）。
+可以通过 `taosk` 工具或 SQL 命令更新 `SVR_KEY` 和 `DB_KEY`（其他密钥一旦生成不可更改）。
 
 #### 使用 taosk 更新
 
@@ -344,7 +215,7 @@ systemctl start taosd
 
 #### 使用 SQL 更新
 
-在 taosd 运行时，可通过 SQL 更新密钥（需要管理员权限）：
+在 `taosd` 运行时，可通过 SQL 更新密钥（需要管理员权限）：
 
 ```sql
 -- 更新 SVR_KEY
@@ -358,7 +229,7 @@ ALTER SYSTEM SET DB_KEY 'new_db_key';
 
 #### 备份密钥
 
-使用 taosk 创建便携式备份（不包含机器码绑定，可在其他机器恢复）：
+使用 `taosk` 创建便携式备份（不包含机器码绑定，可在其他机器恢复）：
 
 ```shell
 taosk -c /etc/taos --backup --svr-key your_svr_key
@@ -366,7 +237,7 @@ taosk -c /etc/taos --backup --svr-key your_svr_key
 
 备份文件会生成在 `{dataDir}/dnode/config/` 目录下，文件名格式为 `master.bin.backup.{timestamp}`。
 
-**注意**：备份时需要提供正确的 SVR_KEY 进行验证。
+**注意**：备份时需要提供正确的 `SVR_KEY` 进行验证。
 
 #### 恢复密钥
 
@@ -395,10 +266,10 @@ ALTER SYSTEM SET KEY_EXPIRATION 90 DAYS STRATEGY 'ALARM';
 
 ### 配置文件行为变更
 
-启用存储安全后，TDengine TSDB 的配置管理方式发生以下变化：
+启用存储安全后，TDengine 的配置管理方式发生以下变化：
 
-1. **配置仅首次启动有效**：系统初次启动后，后续修改 taos.cfg 文件不会生效
-2. **通过 SQL 修改配置**：所有配置修改必须通过 SQL 命令执行，需要管理员权限
+1. **配置仅首次启动有效**：系统初次启动后，后续修改 `taos.cfg` 文件不会生效。
+2. **通过 SQL 修改配置**：所有配置修改必须通过 SQL 命令执行，需要管理员权限。
 
 修改配置示例：
 
@@ -408,97 +279,110 @@ ALTER DNODE 1 'debugFlag' '143';
 
 ### 透明加密范围
 
-启用存储安全后，TDengine TSDB 会对以下文件进行透明加密：
+启用存储安全后，TDengine 会对以下文件进行透明加密：
 
-1. **配置文件加密**（需要 CFG_KEY）：
-   - dnode.info、dnode.json
-   - mnode.json、raft_config.json、raft_store.json
-   - vnodes.json、vnode.json 等
+1. **配置文件加密**（需要 `CFG_KEY`）：
+   - `dnode.info`、`dnode.json`
+   - `mnode.json`、`raft_config.json`、`raft_store.json`
+   - `vnodes.json`、`vnode.json` 等
 
-2. **元数据文件加密**（需要 META_KEY）：
+2. **元数据文件加密**（需要 `META_KEY`）：
    - mnode 的 SDB
    - snode 的 checkpoint 文件
 
-3. **数据文件加密**（需要 DATA_KEY）：
+3. **数据文件加密**（需要 `DATA_KEY`）：
    - TSDB 数据文件
    - WAL 预写日志文件
    - STT 文件
    - TDB、BSE 等索引文件
 
-所有配置文件加密后会在开头包含明文标识头（"tdEncrypt"），用于标记文件已加密，避免重复加密。
+所有配置文件加密后会在开头包含明文标识头（`tdEncrypt`），用于标记文件已加密，避免重复加密。
 
 ### 版本兼容性
 
-- 从不支持存储安全的版本升级到新版本，可以正常运行
-- 历史版本的加密数据库可以通过指定 DATA_KEY 进行兼容
-- 启用存储安全后，不能回退到不支持存储安全的历史版本
+- 从不支持存储安全的版本升级到新版本，可以正常运行。
+- 历史版本的加密数据库可以通过指定 `DATA_KEY` 进行兼容。
+- 启用存储安全后，不能回退到不支持存储安全的历史版本。
 
 ### 查看加密算法
 
-用户可以查看所有内置可用加密算法。
+你可以查看所有内置可用加密算法：
 
 ```sql
-show encrypt_algorithms;
+SHOW ENCRYPT_ALGORITHMS;
+```
+
+示例输出：
+
+```text
 id      |          algorithm_id          |              name              |              desc              |              type              |             source             |         ossl_algr_name         |
 1 | SM4-CBC                        | SM4                            | SM4 symmetric encryption       | Symmetric Ciphers CBC mode     | build-in                       | SM4-CBC:SM4                    |
 2 | AES-128-CBC                    | AES                            | AES symmetric encryption       | Symmetric Ciphers CBC mode     | build-in                       | AES-128-CBC                    |
 ```
 
-1. id：算法的数字标识，内置算法从 1 开始，自定义算法从 101 开始
-2. algorithm_id：算法的全局唯一标识
-3. name：算法名称
-4. desc：算法的描述
-5. type：算法类型，包括：Symmetric Ciphers CBC mode - 对称加密算法 CBC 模式，用于数据库加密; Asymmetric Ciphers - 非对称加密算法;  Digests：散列算法
-6. source：算法来源，包括：built-in - 内置算法; customized - 用户自定义算法
-7. ossl_algr_name：算法在 OpenSSL 中的名称，如果是内置算法则是在 default provider 中的名称，可以参考 [OSSL_PROVIDER-default](https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/ "OSSL_PROVIDER-default") , 如果自定义算法，则是用户在程序中自定义
+字段说明：
+
+1. `id`：算法的数字标识，内置算法从 1 开始，自定义算法从 101 开始。
+2. `algorithm_id`：算法的全局唯一标识。
+3. `name`：算法名称。
+4. `desc`：算法的描述。
+5. `type`：算法类型，包括：Symmetric Ciphers CBC mode（对称加密算法 CBC 模式，用于数据库加密）、Asymmetric Ciphers（非对称加密算法）、Digests（散列算法）。
+6. `source`：算法来源，包括：`built-in`（内置算法）、`customized`（用户自定义算法）。示例输出中内置算法可能显示为 `build-in`，与 `built-in` 同义，以实际查询结果为准。
+7. `ossl_algr_name`：算法在 OpenSSL 中的名称。如果是内置算法则是在 default provider 中的名称，可以参考 [OSSL_PROVIDER-default](https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/)；如果是自定义算法，则是你在程序中自定义的名称。
 
 ### 添加自定义算法
 
-用户可以添加自己的自定义算法。
+你可以添加自己的自定义算法：
 
 ```sql
-create encrypt_algr 'vigenere' algr_name 'vigenere' desc 'my custom algr' algr_type 'Symmetric_Ciphers_CBC_mode' ossl_algr_name 'vigenere';
-
+CREATE ENCRYPT_ALGR 'vigenere' ALGR_NAME 'vigenere' DESC 'my custom algr'
+  ALGR_TYPE 'Symmetric_Ciphers_CBC_mode' OSSL_ALGR_NAME 'vigenere';
 ```
 
-用户自定义算法，用户需按照接口开发一个 so 库，taosd 启动时会加载这个 so 库，so 库被加载后，用户自定义算法即可被使用。在这个 so 库中，用户可以包含多个算法，算法有自己的命名，通过 create encrypt_algr 中的 ossl_algr_name 字段指定。
-自定义算法接口采用 OpenSSL 的实现，遵循 OpenSSL 的接口定义。OpenSSL 的接口定义参考 [OpenSSL provider](https://docs.openssl.org/master/man7/provider/ "OpenSSL provider") 。参数 encryptExtDir，指定自定义算法库 so 文件的路径。目前只支持加载单个文件。
+用户自定义算法需按接口开发一个 so 库，`taosd` 启动时会加载这个 so 库，加载后即可使用自定义算法。在这个 so 库中可以包含多个算法，算法有自己的命名，通过 `CREATE ENCRYPT_ALGR` 中的 `ossl_algr_name` 字段指定。自定义算法接口采用 OpenSSL 的实现，遵循 OpenSSL 的接口定义，参考 [OpenSSL provider](https://docs.openssl.org/master/man7/provider/)。参数 `encryptExtDir` 指定自定义算法库 so 文件的路径，目前只支持加载单个文件。
 
 ### 删除自定义算法
 
-用户可以删除自己的自定义算法。
+你可以删除自己的自定义算法：
 
 ```sql
-drop encrypt_algr 'vigenere';
+DROP ENCRYPT_ALGR 'vigenere';
 ```
 
 删除一个自定义算法前，必须保证这个算法没有被使用，比如必须提前删除使用该算法的 database。
 
-内置算法（source 为 build-in，如 SM4-CBC、AES-128-CBC 等）不允许删除，执行删除会返回错误。
+内置算法（`source` 为 `build-in`，如 `SM4-CBC`、`AES-128-CBC` 等）不允许删除，执行删除会返回错误。
 
 ### 创建加密数据库
 
-TDengine TSDB 支持通过 SQL 创建加密数据库，SQL 如下。
+TDengine 支持通过 SQL 创建加密数据库，SQL 如下：
 
 ```sql
-create database [if not exists] db_name [database_options]
+CREATE DATABASE [IF NOT EXISTS] db_name [database_options]
+
 database_options:
- database_option ...
+  database_option ...
+
 database_option: {
- encrypt_algorithm {'none' |'sm4'}
+  ENCRYPT_ALGORITHM {'none' | 'sm4' | ...}
 }
 ```
 
-主要参数说明如下。
+主要参数说明如下：
 
-- encrypt_algorithm：指定数据采用的加密算法。默认是 none，即不采用加密。如果要设置加密数据，则需指定 `show encrypt_algorithms` 中 algorithm_id，并且类型为 Symmetric Ciphers CBC mode。
+- `ENCRYPT_ALGORITHM`：指定数据采用的加密算法。默认是 `none`，即不采用加密。如果要设置加密数据，则需指定 `SHOW ENCRYPT_ALGORITHMS` 中类型为 Symmetric Ciphers CBC mode 的 `algorithm_id`。更多 DDL 说明见 [数据库](../05-tdengine-sql/02-ddl/01-database.md)。
 
 ### 查看加密配置
 
-用户可通过查询系统数据库 ins_databases 获取数据库当前加密配置，SQL 如下。
+你可通过查询系统库 `information_schema.ins_databases` 获取数据库当前加密配置：
 
 ```sql
-select name, `encrypt_algorithm` from ins_databases;
+SELECT name, `encrypt_algorithm` FROM information_schema.ins_databases;
+```
+
+示例输出：
+
+```text
               name              | encrypt_algorithm |
 =====================================================
  power1                         | none              |
@@ -507,4 +391,4 @@ select name, `encrypt_algorithm` from ins_databases;
 
 ### 加密用户密码
 
-默认的情况下，用户的密码会以 MD5 的形式进行存储。可以通过参数 encryptPassAlgorithm 将用户密码进行加密储存。encryptPassAlgorithm 默认是未设置的状态，在未设置时，不对用户密码进行加密，也即只以 MD5 的形式存储。当 encryptPassAlgorithm 设置为 sm4 时（目前只支持 sm4 加密算法），对用户密码进行加密存储。设置 encryptPassAlgorithm 参数前，同样按照前面的步骤配置密钥。
+默认情况下，用户的密码会以 MD5 的形式进行存储。可以通过参数 `encryptPassAlgorithm` 将用户密码进行加密储存。`encryptPassAlgorithm` 默认是未设置的状态，在未设置时，不对用户密码进行加密，也即只以 MD5 的形式存储。当 `encryptPassAlgorithm` 设置为 `sm4` 时（目前只支持 `sm4` 加密算法），对用户密码进行加密存储。设置 `encryptPassAlgorithm` 参数前，同样按照前面的步骤配置密钥。

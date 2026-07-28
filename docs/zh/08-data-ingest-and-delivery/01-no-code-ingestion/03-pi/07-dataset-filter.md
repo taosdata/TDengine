@@ -1,13 +1,13 @@
 ---
-title: "Dataset Filter 配置"
-sidebar_label: "Dataset Filter 配置"
+title: Dataset Filter 配置
+sidebar_label: Dataset Filter 配置
 ---
 
 本页说明 PI 数据接入任务中 **Dataset Filter** 的用法，包括三种过滤单位（point / element / template）的适用场景、通配符语法和常见示例。
 
 ## 1. 什么是 Dataset Filter
 
-在 Explorer 中创建 PI 或 PI backfill 任务时，**数据模型配置**区域可以填写 Dataset Filter，用于在生成模型配置文件前筛选要同步的 PI Point 或 AF Element。
+在 taosExplorer 中创建 PI 或 PI backfill 任务时，**数据模型配置**区域可以填写 Dataset Filter，用于在生成模型配置文件前筛选要同步的 PI Point 或 AF Element。
 
 - 若希望同步全部点位或全部模板元素，使用默认配置即可。
 - 若只需要同步命名符合特定规则的点位、元素或模板，可在点击 **下载默认配置** 前先填写 Dataset Filter。

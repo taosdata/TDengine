@@ -1,7 +1,7 @@
 ---
 sidebar_label: 基本概念
 title: 基本概念
-description: 以智能电表为例介绍 TDengine TSDB 时序数据的基本概念
+description: 以智能电表为例介绍 TDengine 时序数据的基本概念
 toc_max_heading_level: 4
 ---
 

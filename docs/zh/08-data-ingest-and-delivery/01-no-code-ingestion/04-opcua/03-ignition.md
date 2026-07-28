@@ -1,9 +1,9 @@
 ---
-title: "Ignition OPC UA Server 集成指南"
-sidebar_label: "Ignition"
+title: Ignition OPC UA Server 集成指南
+sidebar_label: Ignition
 ---
 
-本页介绍如何让 TDengine TSDB 通过 OPC UA 协议接入 Ignition Gateway，覆盖两类典型场景：
+本页介绍如何让 TDengine 通过 OPC UA 协议接入 Ignition Gateway，覆盖两类典型场景：
 
 - **跨服务器匿名连接**（仅在内网做联调时使用）
 - **跨服务器证书加密 + 用户名认证**（推荐用于生产）
@@ -38,7 +38,7 @@ OPC UA 的安全体系分为两层，理解这一点有助于排查问题：
 | 配置项 | 推荐值 | 说明 |
 | --- | --- | --- |
 | Bind Port | `62541` | OPC UA 服务监听端口 |
-| Bind Addresses | `0.0.0.0` | 如果 TDengine TSDB 与 Ignition 不在同一台服务器，必须改为 `0.0.0.0` |
+| Bind Addresses | `0.0.0.0` | 如果 TDengine 与 Ignition 不在同一台服务器，必须改为 `0.0.0.0` |
 | Endpoint Addresses | 添加服务器 IP | 例如 `192.168.2.149`，确保客户端可通过此地址访问 |
 | Security Policies | [x] `Basic256Sha256` | 勾选所需的安全策略 |
 | Security Mode | [x] `SignAndEncrypt` | 勾选签名并加密模式 |
@@ -71,7 +71,7 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 
 ![Ignition 默认 endpoint](../assets/opcua-ignition-01-endpoint-default.png)
 
-在这种状态下，如果 TDengine TSDB 与 Ignition 位于不同的服务器，会因为 Ignition 只在本地端口 `62541` 监听而连接失败。需要把 Bind Addresses 改为 `0.0.0.0`，并把 Ignition 服务器的 IP 添加到 Endpoint Addresses：
+在这种状态下，如果 TDengine 与 Ignition 位于不同的服务器，会因为 Ignition 只在本地端口 `62541` 监听而连接失败。需要把 Bind Addresses 改为 `0.0.0.0`，并把 Ignition 服务器的 IP 添加到 Endpoint Addresses：
 
 ![Ignition 重新绑定到 0.0.0.0](../assets/opcua-ignition-02-endpoint-bind-all.png)
 
@@ -79,9 +79,9 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 
 ![netstat 验证监听地址](../assets/opcua-ignition-03-netstat.png)
 
-完成上述配置后，在 TDengine TSDB Explorer 中以匿名模式即可与 Ignition OPC UA Server 建立连接：
+完成上述配置后，在 taosExplorer 中以匿名模式即可与 Ignition OPC UA Server 建立连接：
 
-![Explorer 匿名连接 Ignition](../assets/opcua-ignition-04-explorer-anonymous.png)
+![taosExplorer 匿名连接 Ignition](../assets/opcua-ignition-04-explorer-anonymous.png)
 
 :::warning
 匿名模式不进行任何身份与传输层加密，**只建议在内网联调时短时间使用**，正式部署请使用证书加密方式。
@@ -107,15 +107,15 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 
 生成证书后，需要让 Ignition 信任该客户端证书：
 
-1. 在 Explorer 中先用该证书进行一次连通性检查（**会失败，这是正常的**）。
+1. 在 taosExplorer 中先用该证书进行一次连通性检查（**会失败，这是正常的**）。
 2. 进入 Ignition Gateway → **Config** → **Connections** → **OPC** → **Security** → **Server** 标签页。
 3. 在 **Quarantined Certificates** 中找到 `taosx-opc-client` 证书。
 4. 点击右侧 **⋮** → **Trust**。
 5. 确认证书已移至 **Trusted Certificates** 列表。
 
-### 3.4 在 Explorer 中配置连接
+### 3.4 在 taosExplorer 中配置连接
 
-进入 TDengine TSDB Explorer → **Data In** → **Create New Data In Task**，数据源类型选择 **OPC UA**。
+进入 taosExplorer → **数据写入** → **+新增数据源**（英文界面为 Data In → Create New Data In Task），数据源类型选择 **OPC UA**。
 
 #### 连接配置
 
@@ -133,7 +133,7 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 
 完成后再次点击 **Check Connection** 验证连通性：
 
-![Explorer 证书连接 Ignition](../assets/opcua-ignition-06-explorer-cert.png)
+![taosExplorer 证书连接 Ignition](../assets/opcua-ignition-06-explorer-cert.png)
 
 ## 4. 常见错误排查
 

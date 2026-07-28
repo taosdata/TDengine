@@ -292,7 +292,7 @@ database_option: {
 
 #### IS_AUDIT
 
-指定是否创建审计库。审计库有额外的参数约束，详见 [数据安全](../../11-security-guide/03-data-security.md)。
+指定是否创建审计库。审计库有额外的参数约束，详见 [审计与合规](../../11-security-guide/05-audit-and-compliance.md)。
 
 #### ALLOW_DROP
 
@@ -300,11 +300,16 @@ database_option: {
 
 #### SECURE_DELETE
 
-指定是否启用安全删除。该选项与数据安全能力相关，详见 [数据安全](../../11-security-guide/03-data-security.md)。
+指定是否启用安全删除。取值 `0`（默认）或 `1`。
+
+- `0`：删除操作写入删除标记；磁盘上的数据块不会被立即物理覆写。
+- `1`：在写入删除标记之外，对落盘 DATA / STT 文件中对应区间的数据块做物理覆写（secure erase），降低通过文件系统直接读取已删数据的风险。
+
+可通过 `CREATE DATABASE` / `ALTER DATABASE` 设置；单次 `DELETE` 也可在语句末尾加 `SECURE_DELETE` 关键字。行为、局限与示例见 [数据安全 · 安全删除](../../11-security-guide/03-data-security.md#安全删除)。
 
 #### SECURITY_LEVEL
 
-指定数据库安全级别。该选项与数据安全能力相关，详见 [数据安全](../../11-security-guide/03-data-security.md)。
+指定数据库安全级别（MAC）。语法与规则详见 [权限管理](../07-user-and-privilege/02-grant.md#强制访问控制mac)。
 
 ### 创建示例
 

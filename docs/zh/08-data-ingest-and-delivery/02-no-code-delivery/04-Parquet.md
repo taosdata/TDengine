@@ -1,24 +1,25 @@
 ---
 sidebar_label: Parquet
 title: Parquet
+description: 将只读 SQL 查询结果导出为 Parquet 文件
 toc_max_heading_level: 4
 ---
 
-Parquet Data Out 可以将一条只读 TDengine SQL 查询的结果导出为 taosX server 节点上的单个本地 Parquet 文件。输出路径由 taosX server 解释，不是浏览器本机路径。
+Parquet 数据发布可将一条只读 TDengine SQL 查询的结果导出为 taosX server 节点上的单个本地 Parquet 文件。输出路径由 taosX server 解释，不是浏览器本机路径。
 
 > **注意：本功能仅适用于 TDengine 企业版。**
 
 ## 创建 Parquet 数据发布任务
 
-在 Explorer 中进入“数据发布”页面，选择 Parquet 作为目标类型，并配置：
+在 taosExplorer 中进入“数据发布”页面，选择 Parquet 作为目标类型，并配置：
 
-- `TDengine DSN`：TDengine 连接地址，例如 `taos+ws://root:taosdata@localhost:6041/db`。
-- `SQL Query`：单条只读 `SELECT` 查询，支持 `WITH ... SELECT` 查询。
-- `Output File`：taosX server 节点上的输出文件路径，必须以 `.parquet` 结尾。
-- `Overwrite Existing File`：新的临时文件成功关闭后，是否允许替换已有最终文件。
-- `Compression`：`uncompressed`、`zstd`、`snappy`、`gzip`、`brotli` 或 `lz4_raw`。
-- `Compression Level`：仅 `zstd`、`gzip`、`brotli` 支持，可留空使用默认等级。
-- `Row Group Size`：单个 Parquet row group 的最大行数，默认 131072。Parquet writer 只在 row group 满或文件 close 时落盘，调小该值可让 `.part` 文件更频繁地增长，但会降低压缩率并增加文件元数据开销。取值范围 1024 ~ 10000000。
+- **TDengine DSN**：TDengine 连接地址，例如 `taos+ws://root:taosdata@localhost:6041/db`。
+- **SQL 查询（SQL Query）**：单条只读 `SELECT` 查询，支持 `WITH ... SELECT` 查询。
+- **输出文件（Output File）**：taosX server 节点上的输出文件路径，必须以 `.parquet` 结尾。
+- **覆盖已有文件（Overwrite Existing File）**：新的临时文件成功关闭后，是否允许替换已有最终文件。
+- **压缩（Compression）**：`uncompressed`、`zstd`、`snappy`、`gzip`、`brotli` 或 `lz4_raw`。
+- **压缩级别（Compression Level）**：仅 `zstd`、`gzip`、`brotli` 支持，可留空使用默认等级。
+- **Row Group 大小（Row Group Size）**：单个 Parquet row group 的最大行数，默认 131072。Parquet writer 只在 row group 满或文件 close 时落盘，调小该值可让 `.part` 文件更频繁地增长，但会降低压缩率并增加文件元数据开销。取值范围 1024 ~ 10000000。
 
 ## 输出路径
 
@@ -28,7 +29,7 @@ Parquet Data Out 可以将一条只读 TDengine SQL 查询的结果导出为 tao
 - 绝对路径按 taosX server 节点上的绝对路径使用。
 - writer 会先在同目录创建 `<final_name>.part`，成功关闭 Parquet writer 并读取 metadata 后，再将临时文件重命名为最终路径。
 
-Parquet Data Out 第一版不支持 agent 或 via 执行。
+当前版本不支持通过 agent 或 via 执行。
 
 ## DSN 示例
 
@@ -44,7 +45,7 @@ TO 'parquet:/tmp/meters.parquet?overwrite=false&compression=zstd&row_group_size=
 - 不支持目录输出和多文件切分。
 - 导出失败后会从头开始。
 - 不支持向已有 Parquet 文件追加写入。
-- 第一版任务页面不提供 Parquet 文件下载动作。
+- 当前任务页面不提供 Parquet 文件下载动作。
 - 任务配置页不预估行数、文件大小或剩余时间。
 
 ## 性能和可观测性

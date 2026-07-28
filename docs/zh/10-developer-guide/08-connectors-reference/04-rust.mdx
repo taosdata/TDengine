@@ -1,7 +1,7 @@
 ---
 toc_max_heading_level: 4
 sidebar_label: Rust
-title: TDengine TSDB Rust Connector
+title: TDengine Rust Connector
 ---
 
 import Tabs from "@theme/Tabs";
@@ -14,7 +14,7 @@ import RequestId from "./resources/_request_id.mdx";
 [![Crates.io](https://img.shields.io/crates/v/taos)](https://crates.io/crates/taos) ![Crates.io](https://img.shields.io/crates/d/taos) [![docs.rs](https://img.shields.io/docsrs/taos)](https://docs.rs/taos)
 </figure>
 
-`taos` 是 TDengine TSDB 的官方 Rust 语言连接器，Rust 开发人员可以通过它开发存取 TDengine TSDB 数据库的应用软件。
+`taos` 是 TDengine 的官方 Rust 语言连接器，Rust 开发人员可以通过它开发存取 TDengine 数据库的应用软件。
 
 该 Rust 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-rust)。
 
@@ -24,22 +24,22 @@ import RequestId from "./resources/_request_id.mdx";
 
 ## 支持的平台
 
-- 原生连接支持的平台和 TDengine TSDB 客户端驱动支持的平台一致。
+- 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
 - WebSocket 连接支持所有能运行 Rust 的平台。
 
 ## 版本历史
 
-| Rust 连接器版本 | 主要变化                                                                      | TDengine TSDB 版本      |
+| Rust 连接器版本 | 主要变化                                                                      | TDengine 版本      |
 | --------------- | ----------------------------------------------------------------------------- | ------------------ |
-| v0.12.3         | 1. 优化了 WebSocket 查询和插入性能 <br/> 2. 支持了 VARBINARY 和 GEOMETRY 类型 | 3.3.0.0 及更高版本 |
-| v0.12.0         | WebSocket 支持压缩                                                            | 3.2.3.0 及更高版本 |
-| v0.11.0         | TMQ 功能优化                                                                  | 3.2.0.0 及更高版本 |
-| v0.10.0         | WebSocket endpoint 变更                                                       | 3.1.0.0 及更高版本 |
-| v0.9.2          | STMT：WebSocket 下获取 tag_fields、col_fields                                 | 3.0.7.0 及更高版本 |
-| v0.8.12         | 消息订阅：获取消费进度及按照指定进度开始消费                                  | 3.0.5.0 及更高版本 |
-| v0.8.0          | 支持无模式写入                                                                | 3.0.4.0 及更高版本 |
-| v0.7.6          | 支持在请求中使用 req_id                                                       | 3.0.3.0 及更高版本 |
-| v0.6.0          | 基础功能                                                                      | 3.0.0.0 及更高版本 |
+| v0.12.3         | 1. 优化了 WebSocket 查询和插入性能 <br/> 2. 支持了 VARBINARY 和 GEOMETRY 类型 | `v3.3.0.0` 及更高版本 |
+| v0.12.0         | WebSocket 支持压缩                                                            | `v3.2.3.0` 及更高版本 |
+| v0.11.0         | TMQ 功能优化                                                                  | `v3.2.0.0` 及更高版本 |
+| v0.10.0         | WebSocket endpoint 变更                                                       | `v3.1.0.0` 及更高版本 |
+| v0.9.2          | STMT：WebSocket 下获取 tag_fields、col_fields                                 | `v3.0.7.0` 及更高版本 |
+| v0.8.12         | 消息订阅：获取消费进度及按照指定进度开始消费                                  | `v3.0.5.0` 及更高版本 |
+| v0.8.0          | 支持无模式写入                                                                | `v3.0.4.0` 及更高版本 |
+| v0.7.6          | 支持在请求中使用 req_id                                                       | `v3.0.3.0` 及更高版本 |
+| v0.6.0          | 基础功能                                                                      | `v3.0.0.0` 及更高版本 |
 
 ## 异常和错误码
 
@@ -61,9 +61,9 @@ match conn.exec(sql) {
 
 ## 数据类型映射
 
-TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Rust 对应类型转换如下：
+TDengine 目前支持时间戳、数字、字符、布尔类型，与 Rust 对应类型转换如下：
 
-| TDengine TSDB DataType | Rust DataType     |
+| TDengine DataType | Rust DataType     |
 | ----------------- | ----------------- |
 | TIMESTAMP         | Timestamp         |
 | INT               | i32               |
@@ -110,7 +110,7 @@ DSN 描述字符串基本结构如下：
 各部分意义见下表：
 
 - **driver**：必须指定驱动名以便连接器选择何种方式创建连接，支持如下驱动名：
-  - **taos**：使用 TDengine TSDB 连接器驱动，默认是使用 taos 驱动。
+  - **taos**：使用 TDengine 连接器驱动，默认是使用 taos 驱动。
   - **tmq**：使用 TMQ 订阅数据。
 - **protocol**：显示指定以何种方式建立连接，例如：`taos+ws://localhost:6041` 指定以 WebSocket 方式建立连接。
   - **http/ws**：使用 WebSocket 创建连接。
@@ -123,7 +123,7 @@ DSN 描述字符串基本结构如下：
     - 示例：`ws://host1:6041,host2:6041` 或 `ws://`（等同于 `ws://localhost:6041`）。
 - **database**：指定默认连接的数据库名，可选参数。
 - **params**：
-  - `token`：用于 TDengine TSDB 云服务的身份验证。
+  - `token`：用于 TDengine 云服务的身份验证。
   - `timezone`：时区设置，格式为 IANA 时区名称（如 `Asia/Shanghai`），默认为本地时区。
   - `compression`：是否启用数据压缩，默认为 `false`。
   - `conn_retries`：连接失败时的最大重试次数，默认为 5 次。
@@ -478,7 +478,7 @@ Stmt 结构体提供了参数绑定相关功能，用于实现高效写入。
 
 ### 数据订阅
 
-数据订阅主要涉及三个结构体，提供连接建立的 TmqBuilder，消费数据和提交偏移量的 Consumer，以及偏移量 Offset。
+主题概念见 [数据订阅](../../07-data-subscription/index.md) 与 [主题语法](../../07-data-subscription/01-topic.md)；多语言用法见 [数据订阅编程接口](../07-subscription-api.md)。数据订阅主要涉及三个结构体，提供连接建立的 TmqBuilder，消费数据和提交偏移量的 Consumer，以及偏移量 Offset。
 
 #### TmqBuilder
 

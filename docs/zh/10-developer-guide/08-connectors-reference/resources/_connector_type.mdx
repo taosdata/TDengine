@@ -1,15 +1,15 @@
 import ConnectionDeprecation from "./_connection_deprecation.mdx";
 
-TDengine TSDB 提供了丰富的应用程序开发接口。为便于用户快速开发应用，它支持多种编程语言的连接器，其中官方连接器包括 C/C++、Java、Python、Go、Node.js、C# 和 Rust；社区开发者也贡献了多个非官方连接器，例如 ADO.NET、Lua 和 PHP 连接器。这些连接器支持通过原生接口和 WebSocket 接口连接 TDengine TSDB 集群。另外，用户还可以直接调用 taosAdapter 提供的 REST API 接口访问 TDengine TSDB，进行数据写入和查询操作。
+TDengine 提供了丰富的应用程序开发接口。为便于用户快速开发应用，它支持多种编程语言的连接器，其中官方连接器包括 C/C++、Java、Python、Go、Node.js、C# 和 Rust；社区开发者也贡献了多个非官方连接器，例如 ADO.NET、Lua 和 PHP 连接器。这些连接器支持通过原生接口和 WebSocket 接口连接 TDengine 集群。另外，用户还可以直接调用 taosAdapter 提供的 REST API 接口访问 TDengine，进行数据写入和查询操作。
 
 ## 连接方式
 
-下图为 TDengine TSDB 客户端和服务端连接方式的架构图：
-![TDengine TSDB connection architecture](../assets/connector-architecture.webp)
+下图为 TDengine 客户端和服务端连接方式的架构图：
+![TDengine connection architecture](../assets/connector-architecture.webp)
 
-如上面的架构图所示，我们有三种方式来访问 TDengine TSDB：
+如上图所示，可通过以下三种方式访问 TDengine：
 
-1. WebSocket 连接：通过连接器使用 taosAdapter 组件提供的 WebSocket API 建立与 taosd 的连接，这种连接方式下文中简称"WebSocket 连接"。该方式提供**兼容性保证**——所有支持该连接方式的连接器均兼容 TDengine TSDB 3.3.6.0 及以上服务端。各连接器需满足以下最低版本要求即可享受该保障：Rust 无特殊要求、Java ≥3.6.0、Go ≥3.7.0、Python taos-ws-py ≥0.6.1、Node.js ≥3.2.2、C# ≥3.1.7、C/C++/ODBC ≥3.3.6.0。**推荐使用 WebSocket 连接**。
+1. WebSocket 连接：通过连接器使用 taosAdapter 组件提供的 WebSocket API 建立与 taosd 的连接，这种连接方式下文中简称"WebSocket 连接"。该方式提供**兼容性保证**——所有支持该连接方式的连接器均兼容 TDengine `v3.3.6.0` 及以上服务端。各连接器需满足以下最低版本要求即可享受该保障：Rust 无特殊要求、Java ≥3.6.0、Go ≥3.7.0、Python taos-ws-py ≥0.6.1、Node.js ≥3.2.2、C# ≥3.1.7、C/C++/ODBC ≥`v3.3.6.0`。**推荐使用 WebSocket 连接**。
 2. 原生连接：通过连接器使用客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接，这种连接方式下文中简称"原生连接"。
 
    <ConnectionDeprecation />

@@ -100,7 +100,7 @@ jdbc:TAOS-WS://192.168.1.100:6041,192.168.1.101:6041,192.168.1.102:6041/test?use
 | Swap 状态 | 关闭 | `swapon --show` 或 `free -h` |
 | Swappiness 值 | 1-10（服务器） | `sysctl vm.swappiness` |
 
-> **说明**：具体的系统配置优化方法请参考各操作系统的官方文档。TDengine 服务端配置请参考 [taosd 配置](https://docs.taosdata.com/reference/components/taosd/)。
+> **说明**：具体的系统配置优化方法请参考各操作系统的官方文档。TDengine 服务端配置请参考 [taosd 参考手册](../../03-components/01-taosd.md)。
 
 ---
 

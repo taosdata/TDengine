@@ -7,7 +7,7 @@ toc_max_heading_level: 4
 
 在实际业务中，设备数据可能来自 MQTT、Kafka、OPC、PI System、CSV 文件或关系型数据库。手写采集程序虽然灵活，但需要处理连接、解析、字段映射、断点续传和错误恢复等细节。
 
-TDengine TSDB 可以通过 taosX 和 taosExplorer 提供零代码数据写入能力。你只需要在 Web 页面中配置数据源、解析规则和目标表映射，就可以把外部数据持续写入 TDengine。
+TDengine 可以通过 taosX 和 taosExplorer 提供零代码数据写入能力。你只需要在 Web 页面中配置数据源、解析规则和目标表映射，就可以把外部数据持续写入 TDengine。
 
 本章以 MQTT 为例，使用公共 MQTT Broker 和一条 JSON 电表消息，快速体验从“配置任务”到“查询入库数据”的完整流程。
 
@@ -157,8 +157,10 @@ LIMIT 5;
 
 本章只演示最小 MQTT 写入流程。更多数据源和高级配置，请继续阅读以下文档：
 
+- [数据接入与发布](../08-data-ingest-and-delivery/index.md)：零代码写入、数据发布与边云协同总览。
+- [零代码数据写入](../08-data-ingest-and-delivery/01-no-code-ingestion/index.md)：支持的数据源、ETL 规则、健康状态与断点恢复。
 - [MQTT](../08-data-ingest-and-delivery/01-no-code-ingestion/06-mqtt.mdx)：MQTT 数据接入完整配置说明。
-- [Kafka](../08-data-ingest-and-delivery/01-no-code-ingestion/07-kafka.mdx)：从 Kafka 迁移或同步数据。
+- [Kafka](../08-data-ingest-and-delivery/01-no-code-ingestion/07-kafka.mdx)：Kafka 数据接入完整配置说明。
 - [CSV](../08-data-ingest-and-delivery/01-no-code-ingestion/10-csv.mdx)：通过 CSV 文件导入数据。
 - [OPC UA](../08-data-ingest-and-delivery/01-no-code-ingestion/04-opcua/index.md)：工业 OPC UA 数据接入。
 - [可视化管理](./08-visual-management.md)：使用 taosExplorer 浏览数据、执行 SQL 和查看工具入口。

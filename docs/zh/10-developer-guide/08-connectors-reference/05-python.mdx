@@ -1,15 +1,15 @@
 ---
 toc_max_heading_level: 4
 sidebar_label: Python
-title: TDengine TSDB Python Connector
-description: "TDengine TSDB 数据库面向 Python 语言提供的连接器"
+title: TDengine Python Connector
+description: "TDengine 数据库面向 Python 语言提供的连接器"
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import RequestId from "./resources/_request_id.mdx";
 
-`taospy` 是 TDengine TSDB 数据库面向 Python 语言提供的官方连接器，连接器对外提供对数据库写入、查询、订阅等多种访问接口。  
+`taospy` 是 TDengine 数据库面向 Python 语言提供的官方连接器，连接器对外提供对数据库写入、查询、订阅等多种访问接口。  
 
 安装连接器命令如下：
 
@@ -27,10 +27,10 @@ pip3 install taos-ws-py
 
 `taospy`提供两种连接方式，我们推荐使用 **WebSocket 连接**。
 
-- **原生连接**，Python 连接器加载 TDengine TSDB 客户端驱动程序 (libtaos.so/taos.dll)，直接连接 TDengine TSDB 实例，特点性能高，速度快。功能上支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。对应 `taospy` 包的 `taos` 模块。
-- **WebSocket 连接**，Python 连接器通过 `taosAdapter` 提供的 WebSocket 接口连接 TDengine TSDB 实例，特点是兼具前两种连接的优势，即性能高又依赖小。功能上 WebSocket 连接实现功能集合和原生连接有少量不同。对应 `taos-ws-py` 包，可以选装。
+- **原生连接**，Python 连接器加载 TDengine 客户端驱动程序 (libtaos.so/taos.dll)，直接连接 TDengine 实例，特点性能高，速度快。功能上支持数据写入、查询、数据订阅、schemaless 接口和参数绑定接口等功能。对应 `taospy` 包的 `taos` 模块。
+- **WebSocket 连接**，Python 连接器通过 `taosAdapter` 提供的 WebSocket 接口连接 TDengine 实例，特点是兼具前两种连接的优势，即性能高又依赖小。功能上 WebSocket 连接实现功能集合和原生连接有少量不同。对应 `taos-ws-py` 包，可以选装。
 
-连接方式的详细介绍请参考：[连接方式](../01-connect/index.md#连接方式)
+连接方式的详细介绍请参考：[连接方式](./index.md#连接方式)
 
 除了对原生接口的封装，`taospy` 还提供了符合 [Python 数据访问规范 (PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
 
@@ -52,14 +52,14 @@ pip3 install taos-ws-py
 
 ## 支持的平台
 
-- 原生连接支持的平台和 TDengine TSDB 客户端驱动支持的平台一致。
+- 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
 - WebSocket 连接支持所有能运行 Python 的平台。
 
 ## 历史版本
 
 Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 
-| Python Connector 版本 | 主要变化                                                                                                                                                         |   TDengine TSDB 版本    |
+| Python Connector 版本 | 主要变化                                                                                                                                                         |   TDengine 版本    |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
 |         2.8.10        | 修复异步查询回调崩溃问题                                                                                                                                    | - |
 |         2.8.9         | 数据订阅支持令牌身份验证                                                                                                                                    | - |
@@ -75,18 +75,18 @@ Python Connector 历史版本（建议使用最新版本的 `taospy`）：
 |        2.7.22         | 支持 Python 3.12 及以上版本                                                                                                                                            | - |
 |        2.7.21         | Native 支持 STMT2 写入                                                                                                                                            | - |
 |        2.7.19         | 支持 Apache Superset 连接 TDengine TSDB Cloud 数据源                                                                                                                    | - |
-|        2.7.18         | 支持 Apache Superset 产品连接本地 TDengine TSDB 数据源                                                                                                                   | - |
+|        2.7.18         | 支持 Apache Superset 产品连接本地 TDengine 数据源                                                                                                                   | - |
 |        2.7.16         | 新增订阅配置 (session.timeout.ms, max.poll.interval.ms)                                                                                                            | - |
 |        2.7.15         | 新增 VARBINARY 和 GEOMETRY 类型支持                                                                                                                                | - |
 |        2.7.14         | 修复已知问题                                                                                                                                                       | -  |
 |        2.7.13         | 新增 tmq 同步提交 offset 接口                                                                                                                                       | - |
-|        2.7.12         | 1. 新增 varbinary 类型支持（STMT 暂不支持 varbinary）<br/> 2. query 性能提升（感谢贡献者[hadrianl](https://github.com/taosdata/taos-connector-python/pull/209)）         | 3.1.1.2 及更高版本 |
-|         2.7.9         | 数据订阅支持获取消费进度和重置消费进度                                                                                                                                 | 3.0.2.6 及更高版本 |
-|         2.7.8         | 新增 `execute_many`                                                                                                                                              | 3.0.0.0 及更高版本 |
+|        2.7.12         | 1. 新增 varbinary 类型支持（STMT 暂不支持 varbinary）<br/> 2. query 性能提升（感谢贡献者[hadrianl](https://github.com/taosdata/taos-connector-python/pull/209)）         | `v3.1.1.2` 及更高版本 |
+|         2.7.9         | 数据订阅支持获取消费进度和重置消费进度                                                                                                                                 | `v3.0.2.6` 及更高版本 |
+|         2.7.8         | 新增 `execute_many`                                                                                                                                              | `v3.0.0.0` 及更高版本 |
 
 WebSocket Connector 历史版本：
 
-| WebSocket Connector 版本 | 主要变化                                                                              |   TDengine TSDB 版本    |
+| WebSocket Connector 版本 | 主要变化                                                                              |   TDengine 版本    |
 | ----------------------- | ------------------------------------------------------------------------------------ | ----------------- |
 |          0.7.0           | 1. 支持 taosAdapter 高可用 <br/> 2. 支持设置应用程序名称                                 | - |
 |          0.6.9           | 新增对 riscv64 架构的支持                                                              | - |
@@ -103,13 +103,13 @@ WebSocket Connector 历史版本：
 |          0.5.1           | 支持 stmt2 参数绑定写入和查询                                                           | - |
 |          0.4.0           | 支持订阅新增参数动态扩展                                                                | - |
 |          0.3.9           | 修复 fetchmany 自定义行数时获取不完全的问题                                               | - |
-|          0.3.8           | 支持 SuperSet 连接到 TDengine TSDB 云服务实例                                           | - |
+|          0.3.8           | 支持 SuperSet 连接到 TDengine 云服务实例                                           | - |
 |          0.3.5           | 修复 crypto provider 中的问题                                                          | - |
-|          0.3.4           | 支持 VARBINARY 和 GEOMETRY 数据类型                                                    | 3.3.0.0 及更高版本 |
-|          0.3.2           | 优化 WebSocket sql 查询和插入性能，修改 readme 和 文档，修复已知问题                        | 3.2.3.0 及更高版本 |
+|          0.3.4           | 支持 VARBINARY 和 GEOMETRY 数据类型                                                    | `v3.3.0.0` 及更高版本 |
+|          0.3.2           | 优化 WebSocket sql 查询和插入性能，修改 readme 和 文档，修复已知问题                        | `v3.2.3.0` 及更高版本 |
 |          0.2.9           | 已知问题修复                                                                           | - |
 |          0.2.5           | 1. 数据订阅支持获取消费进度和重置消费进度 <br/> 2. 支持 schemaless <br/> 3. 支持 STMT        | - |
-|          0.2.4           | 数据订阅新增取消订阅方法                                                                 | 3.0.5.0 及更高版本 |
+|          0.2.4           | 数据订阅新增取消订阅方法                                                                 | `v3.0.5.0` 及更高版本 |
 
 ## 处理异常
 
@@ -119,13 +119,13 @@ Python 连接器可能会产生 4 种异常：
 - 原生连接方式的异常
 - websocket 连接方式异常
 - 数据订阅异常
-- TDengine TSDB 其他功能模块的报错，请参考 [错误码](../09-error-codes.md)
+- TDengine 其他功能模块的报错，请参考 [错误码](../09-error-codes.md)
 
 |    Error Type    |            Description             |                     Suggested Actions                      |
 | :--------------- | :--------------------------------- | :--------------------------------------------------------- |
-|  InterfaceError  | taosc 版本太低，不支持所使用的接口      |                 请检查 TDengine TSDB 客户端版本                    |
-| ConnectionError  |           数据库链接错误              |            请检查 TDengine TSDB 服务端状态和连接参数                |
-|  DatabaseError   |             数据库错误               | 请检查 TDengine TSDB 服务端版本，并将 Python 连接器升级到最新版        |
+|  InterfaceError  | taosc 版本太低，不支持所使用的接口      |                 请检查 TDengine 客户端版本                    |
+| ConnectionError  |           数据库链接错误              |            请检查 TDengine 服务端状态和连接参数                |
+|  DatabaseError   |             数据库错误               | 请检查 TDengine 服务端版本，并将 Python 连接器升级到最新版        |
 | OperationalError |              操作错误                |                  API 使用错误，请检查代码                      |
 | ProgrammingError |            接口调用错误               |                  请检查提交的数据是否正确                      |
 |  StatementError  |           stmt 相关异常              |               请检查绑定参数与 sql 是否匹配                    |
@@ -134,7 +134,7 @@ Python 连接器可能会产生 4 种异常：
 |     TmqError     |            tmq 相关异常              |           请检查 Topic 及 consumer 配置是否正确                |
 
 Python 中通常通过 try-expect 处理异常，异常处理相关请参考 [Python 错误和异常文档](https://docs.python.org/3/tutorial/errors.html)。  
-TDengine TSDB 其他功能模块的报错，请参考 [错误码](../09-error-codes.md)
+TDengine 其他功能模块的报错，请参考 [错误码](../09-error-codes.md)
 
 Python Connector 的所有数据库操作如果出现异常，都会直接抛出来。由应用程序负责异常处理。比如：
 
@@ -144,9 +144,9 @@ Python Connector 的所有数据库操作如果出现异常，都会直接抛出
 
 ## 数据类型映射
 
-TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Python 对应类型转换如下：
+TDengine 目前支持时间戳、数字、字符、布尔类型，与 Python 对应类型转换如下：
 
-| TDengine TSDB DataType | Python DataType |
+| TDengine DataType | Python DataType |
 | :---------------- | :-------------- |
 |     TIMESTAMP     |    datetime     |
 |        INT        |       int       |
@@ -213,7 +213,7 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Pytho
   - 示例：`ws://host1:6041,host2:6041` 或 `ws://`（等同于 `ws://localhost:6041`）。
 - **database**：数据库名称。
 - **params**：
-  - `token`：用于 TDengine TSDB 云服务的身份验证。
+  - `token`：用于 TDengine 云服务的身份验证。
   - `timezone`：时区，IANA 格式（如 `Asia/Shanghai`），默认为本地时区。
   - `user_app`：应用程序名称。
   - `compression`：是否启用数据压缩，默认为 `false`。
@@ -391,6 +391,8 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
   - **接口说明**：关闭 stmt 对象。
 
 #### 数据订阅
+
+主题概念见 [数据订阅](../../07-data-subscription/index.md) 与 [主题语法](../../07-data-subscription/01-topic.md)；多语言用法见 [数据订阅编程接口](../07-subscription-api.md)。
 
 - **创建消费者支持属性列表**：
   - `host`：主机地址。
@@ -579,6 +581,8 @@ TaosResult 对象可以通过循环遍历获取查询到的数据。
   - **接口说明**：关闭 stmt2 对象
 
 #### 数据订阅
+
+主题概念见 [数据订阅](../../07-data-subscription/index.md) 与 [主题语法](../../07-data-subscription/01-topic.md)；多语言用法见 [数据订阅编程接口](../07-subscription-api.md)。
 
 - **创建消费者支持属性列表**：
   - td.connect.ip：主机地址。

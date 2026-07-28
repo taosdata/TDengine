@@ -6,7 +6,7 @@ toc_max_heading_level: 4
 
 ## 背景
 
-TDengine TSDB 的订阅服务在使用过程中经常遇到消费者读取订阅消息报错的情况，该工具可协助验证已创建的订阅服务是否工作正常。
+TDengine 的订阅服务在使用过程中经常遇到消费者读取订阅消息报错的情况，该工具可协助验证已创建的订阅服务是否工作正常。
 
 ## 工具使用方法
 
@@ -33,10 +33,10 @@ optional arguments:
 
 - `config`：工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。参数时配置文件默认路径为工具运行当前目录。
 - `backend`：后台运行安装工具，默认前台运行。
-- `ip`：TDengine TSDB 所在机器的对应 IP 地址。
+- `ip`：TDengine 所在机器的对应 IP 地址。
 - `show-data`：是否在 console 中打印订阅消息内容，默认打印。
 - `log-level`：输出日志级别，目前支持 debug 和 info，模式为 info。
-- `port`：TDengine TSDB 的 taosAdapter 服务对外开放端口，默认是 6041。
+- `port`：TDengine 的 taosAdapter 服务对外开放端口，默认是 6041。
 
 ### TSDB 云部署模式
 
@@ -62,7 +62,7 @@ optional arguments:
 
 - `config`：工具加载的配置文件，其具体配置方式详见 **配置文件使用说明** 章节。参数时配置文件默认路径为工具运行当前目录。
 - `backend`：后台运行安装工具，默认前台运行。
-- `ip`：TDengine TSDB 云服务的对应 IP 地址。
+- `ip`：TDengine 云服务的对应 IP 地址。
 - `show-data`：是否在 console 中打印订阅消息内容，默认打印。
 - `log-level`：输出日志级别，目前支持 debug 和 info，模式为 info。
 - `token`：连接 TSDB 云服务的 token 认证信息。

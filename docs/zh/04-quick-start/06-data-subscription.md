@@ -1,10 +1,10 @@
 ---
 sidebar_label: 数据订阅
 title: 数据订阅
-description: TDengine TSDB 消息队列提供的数据订阅功能
+description:  体验消息队列提供的数据订阅功能
 ---
 
-在监控、告警、实时分析和数据同步等场景中，下游程序通常需要第一时间获取新写入的数据。如果通过定时查询拉取数据，不仅延迟更高，也会增加数据库查询压力。TDengine TSDB 提供内置数据订阅能力，可以把持续写入的数据按主题推送给下游程序，减少轮询逻辑和额外消息队列组件带来的复杂度。
+在监控、告警、实时分析和数据同步等场景中，下游程序通常需要第一时间获取新写入的数据。如果通过定时查询拉取数据，不仅延迟更高，也会增加数据库查询压力。TDengine 提供内置数据订阅能力，可以把持续写入的数据按主题推送给下游程序，减少轮询逻辑和额外消息队列组件带来的复杂度。
 
 本章继续使用前几章的智能电表模型，通过两个 `taos shell` 快速体验一次完整流程：先创建主题，再打开一个 shell 订阅主题，最后回到另一个 shell 写入数据并观察订阅结果。
 
@@ -145,4 +145,4 @@ DROP CONSUMER GROUP IF EXISTS FORCE quickstart_cg_earliest ON topic_meters;
 DROP TOPIC IF EXISTS topic_meters;
 ```
 
-更多 topic 类型、消费组管理和编程接口用法，请继续阅读[数据订阅](../07-data-subscription/01-topic.md)章节。
+更多 topic 类型、消费组管理和编程接口用法，请继续阅读 [数据订阅](../07-data-subscription/index.md) 与 [主题语法](../07-data-subscription/01-topic.md)。

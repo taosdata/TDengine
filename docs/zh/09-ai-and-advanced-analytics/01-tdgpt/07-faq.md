@@ -1,13 +1,22 @@
 ---
-title: "常见问题"
-sidebar_label: "常见问题"
-description: 常见问题
+title: 常见问题
+sidebar_label: 常见问题
+description: TDgpt 安装与调用常见问题
 ---
 
 ### 1. 安装过程中编译 uWSGI 失败，如何处理
 
-TDgpt 安装过程中需要在本地编译 uWSGI，某些环境的 Python（例如：anaconda）安装 uWSGI 会出现冲突导致编译失败，安装流程因此无法继续下去。这种情况下可以尝试在安装过程中忽略 uWSGI 的安装。
-由于忽略了 uWSGI 安装，后续启动 taosasnode 服务的时候，需要手动输入命令进行启动 `python3.10 /usr/local/taos/taosanode/lib/taosanalytics/app.py`。执行该命令的时候请确保使用了虚拟环境中的 Python 程序才能加载依赖库。
+`v3.4.1.0` 之前的安装包在本地编译 uWSGI 时，某些 Python 环境（例如 Anaconda）可能冲突导致编译失败，安装流程因此无法继续。可尝试在安装过程中忽略 uWSGI 的安装。
+
+由于忽略了 uWSGI 安装，后续启动 taosanode 服务时，需要手动执行：
+
+```bash
+python3.10 /usr/local/taos/taosanode/lib/taosanalytics/app.py
+```
+
+执行该命令时请确保使用虚拟环境中的 Python，才能正确加载依赖库。
+
+自 `v3.4.1.0` 起，Linux 环境改用 Gunicorn（Windows 使用 Waitress），不再依赖 uWSGI 编译安装。若升级后仍看到与 uWSGI / `uwsgi` 相关的报错，说明进程或包装脚本仍指向旧入口，应确认 `taosanoded` 使用的是当前安装目录下的 Gunicorn / Waitress 配置（`/etc/taos/taosanode.config.py` 或安装目录 `cfg/taosanode.config.py`），并重启服务。
 
 ### 2. 创建 anode 失败，返回指定服务无法访问
 
@@ -29,41 +38,37 @@ TDgpt - TDengine© Time Series Data Analytics Platform (ver x.x.x)
 curl: (7) Failed to connect to 127.0.0.1 port 6035: Connection refused
 ```
 
-如果 anode 服务启动/运行不正常，请检查 Gunicorn 的运行日志 `/var/log/taos/taosanode/error.log`，检查其中的错误信息，根据错误信息解决响应的问题。
+如果 anode 服务启动或运行不正常，请检查服务日志 `/var/log/taos/taosanode/error.log`，根据错误信息排查问题。
 
-> 请勿使用 systemctl status taosanode 检查 taosanode 是否正常
+> 请勿仅使用 `systemctl status taosanoded` 判断 taosanode 是否可用；应以 `curl` 探测与业务日志为准。
 
 ### 3. 服务正常，查询过程返回服务不可用
 
 ```bash
-taos> select _frowts,forecast(current, 'algo=arima, alpha=95, wncheck=0, rows=20') from d1 where ts<='2017-07-14 10:40:09.999';
+taos> select _frowts,forecast(current, 'algo=arima, conf=0.95, wncheck=0, rows=20') from d1 where ts<='2017-07-14 10:40:09.999';
 
 DB error: Analysis service can't access[0x80000441] (60.195613s)
 ```
 
-出现这个问题的原因是输入数据分析过程超过默认的最长等待时间。如果您使用 `uWSGI` 驱动 TDgpt 运行，`uWSGI` 默认单个请求最长等待时间 60s。调整最长等待时间请在配置文件 `taosanode.ini` 中添加配置项：
+常见原因是分析过程超过默认最长等待时间。可在 SQL 中通过 `timeout` 参数延长单次请求等待时间；`timeout` 最大值为 `1200`（秒），即单次请求最长约 20 分钟。
 
-```ini
-# 工作进程在没有请求的情况下自动退出的时间，设置为 0 表示无限等待
-harakiri = 0
+自 `v3.4.1.0` 起，Gunicorn 的超时相关配置在 `/etc/taos/taosanode.config.py`（例如 `timeout`、`keepalive`，默认均为 `1200`）。更早版本若仍使用 uWSGI，则需在当时的 `taosanode.ini` 中调整 `harakiri`、`http-timeout` 等项。
 
-# 接收到请求后，等待响应的超时时间，默认为 60s。这里修改为 20 分钟
-http-timeout = 1200
-```
+排障时建议同时核对：
 
-然后在查询 SQL 语句中使用 timeout 参数设置单次请求最大等待时间即可。需要注意 `timeout` 参数最大值为 1200，即单次请求最大执行时间不能够超过 20 分钟。
-
-如果您使用 Python 驱动 TDgpt 运行，在请求的 SQL 语句中调整 timeout 参数即可。
+- SQL 侧 `timeout` 与 Gunicorn / Waitress 的 `timeout`（或 `channel_timeout`）是否匹配；任一侧过小都会表现为“服务不可用”。
+- `bind` 地址与端口是否与 `CREATE ANODE` 注册的 URL 一致（默认 `0.0.0.0:6035`）。
+- `/var/log/taos/taosanode/error.log`（Gunicorn）与 `taosanode.app.log`（应用）中是否有 worker 超时、OOM 或模型加载失败记录。
 
 ### 4. 返回结果出现非法 JSON 格式错误 (Invalid json format)
 
-从 anode 返回到 TDengine TSDB 的分析结果有误，请检查 anode 运行日志 `/var/log/taos/taosanode/taosanode.app.log` 获得具体的错误信息。
+从 anode 返回到 TDengine 的分析结果有误，请检查 anode 运行日志 `/var/log/taos/taosanode/taosanode.app.log` 获得具体的错误信息。
 
 ### 5. 如何调整 TDgpt 日志级别以及获得其详细的错误信息
 
 TDgpt 默认日志级别是 DEBUG。调整其日志级别需要更改 TDgpt 配置文件 `/etc/taos/taosanode.config.py` 中的 `log_level` 配置项。
 
-```pythyon
+```python
 # default TDgpt log level
 log_level = 'DEBUG'
 ```
@@ -73,8 +78,8 @@ log_level = 'DEBUG'
 对于某些无法直接使用错误码返回的错误信息，请检查日志文件获得准确的错误信息。日志文件位于 `/var/log/taos/taosanode/` 目录。
 
 - `taosanode.app.log` 是 TDgpt 产生的日志
-- `access.log` 和 `error.log` 是 Gunicorn 产生的 web 服务日志
+- `access.log` 和 `error.log` 是 Gunicorn 产生的 Web 服务日志（Windows 上对应 Waitress 相关日志）
 
 ### 6. TDgpt 会返回哪些错误码
 
-参见 [TDgpt 错误码](../../10-developer-guide/09-error-codes.md)
+参见 [错误码](../../10-developer-guide/09-error-codes.md#tdgpt)。

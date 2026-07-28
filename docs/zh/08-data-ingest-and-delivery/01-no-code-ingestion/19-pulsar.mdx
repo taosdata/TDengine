@@ -1,15 +1,15 @@
 ---
-title: "Pulsar"
-sidebar_label: "Pulsar"
+title: Pulsar
+sidebar_label: Pulsar
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移任务，从 Pulsar 迁移数据到当前 TDengine TSDB 集群。
+本节讲述如何通过 taosExplorer 界面创建数据写入任务，从 Pulsar 将数据接入当前 TDengine 集群。
 
 ## 功能概述
 
 Apache Pulsar 是一个云原生的开源分布式消息与流处理平台。
 
-TDengine TSDB 可以高效地从 Pulsar 读取数据并将其写入 TDengine TSDB，以实现历史数据迁移或实时数据流入库。
+TDengine 可以高效地从 Pulsar 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据流入库。
 
 ## 创建任务
 
@@ -143,7 +143,7 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 #### 6.3 数据过滤
 
-在 **过滤** 中，填写过滤条件，例如：填写 `id != 1`，则只有 id 不为 1 的数据才会被写入 TDengine TSDB。
+在 **过滤** 中，填写过滤条件，例如：填写 `id != 1`，则只有 id 不为 1 的数据才会被写入 TDengine。
 
 点击 **新增**，可以添加更多过滤规则。
 
@@ -169,16 +169,16 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 ### 7. 配置高级选项
 
-import AdvancedOptions from './resources/_02-advanced_options.mdx'
+import AdvancedOptions from './resources/_02-advanced-options-mq.mdx'
 
 <AdvancedOptions/>
 
 ### 8. 异常处理策略
 
-import Contributing from './resources/_03-exception-handling-strategy.mdx'
+import ExceptionHandling from './resources/_03-exception-handling-strategy.mdx'
 
-<Contributing />
+<ExceptionHandling />
 
 ### 9. 创建完成
 
-点击 **提交** 按钮，完成创建 Pulsar 到 TDengine TSDB 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。
+点击 **提交** 按钮，完成创建 Pulsar 到 TDengine 的数据同步任务，回到**数据源列表**页面可查看任务执行情况。

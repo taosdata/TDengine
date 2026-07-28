@@ -1,9 +1,10 @@
 ---
-title: "TDengine 数据订阅数据源"
-sidebar_label: "TDengine 数据订阅数据源"
+title: TDengine 数据订阅数据源
+sidebar_label: TDengine 数据订阅数据源
+description: 通过 TMQ 将另一集群数据订阅写入本集群
 ---
 
-本文讲述如何使用 Explorer 订阅另一个集群的数据到本集群。
+本文讲述如何使用 taosExplorer 订阅另一个集群的数据到本集群。
 
 ## 准备工作
 
@@ -11,7 +12,7 @@ sidebar_label: "TDengine 数据订阅数据源"
 
 ### 第一步：进入“数据订阅”页面
 
-打开源集群的 Explorer 界面，点击左侧“数据订阅”菜单，然后点击“添加新主题”。
+打开源集群的 taosExplorer 界面，点击左侧“数据订阅”菜单，然后点击“添加新主题”。
 
 ![准备一](assets/tmq-pre1.png)
 
@@ -23,7 +24,7 @@ sidebar_label: "TDengine 数据订阅数据源"
 
 对于 `数据库` 或 `超级表` 类型，如果需要同步表的增/删/改操作，则需要开启 `同步 Meta` 选项用于数据库/超级表的迁移，否则此主题只会进行数据同步。
 
-关于主题的创建，详情请参考 [数据订阅](../../07-data-subscription/01-topic.md) 章节。
+关于主题的创建，详情请参考 [主题语法](../../07-data-subscription/01-topic.md)。
 
 ### 第三步：复制主题的 DSN
 
@@ -58,7 +59,7 @@ sidebar_label: "TDengine 数据订阅数据源"
 6. 同步删表操作。如启用则会同步删表操作到目标数据库。
 7. 同步删数据操作。如启用则会同步删数据操作到目标数据库。
 8. 压缩。启用 WebSocket 压缩支持，以降低网络带宽占用。
-9. 点击“提交按钮”，提交任务
+9. 点击“提交”按钮，提交任务
 ![步骤三](assets/tmq-step3.png)
 
 ## 监控任务运行情况

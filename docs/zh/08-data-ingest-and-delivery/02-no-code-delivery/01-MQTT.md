@@ -1,12 +1,11 @@
 ---
 sidebar_label: MQTT
 title: MQTT
+description: 通过 taosX 将 TMQ 数据发布到 MQTT Broker
 toc_max_heading_level: 4
 ---
 
-MQTT（Message Queuing Telemetry Transport）是一种轻量级的、基于发布/订阅模式的消息传输协议，广泛应用于物联网设备之间的通信。TDengine 支持将采集到的数据实时推送到 MQTT 服务器，实现高效的数据共享与联动。
-
-通过配置 TDengine 的 MQTT 发布功能，用户可以方便地将传感器数据、设备状态等信息分发到各类终端。
+MQTT（Message Queuing Telemetry Transport）是一种基于发布/订阅的轻量级消息协议。TDengine 可将 TMQ 订阅到的数据实时推送到 MQTT Broker。
 
 > **注意：本功能仅适用于 TDengine 企业版。**
 
@@ -23,13 +22,13 @@ MQTT（Message Queuing Telemetry Transport）是一种轻量级的、基于发�
 
 ## 数据准备
 
-通过命令行工具 `taos` 或管理界面 Explorer 执行 SQL 语句，创建数据库，超级表，主题，并写入数据，供下一步订阅使用。以下为简单示例：
+通过命令行工具 `taos` 或管理界面 taosExplorer 执行 SQL 语句，创建数据库，超级表，主题，并写入数据，供下一步订阅使用。以下为简单示例：
 
 ```sql
-create database db vgroups 1;
-create table db.meters (ts timestamp, f1 int) tags(t1 int);
-create topic topic_meters as select ts, tbname, f1, t1 from db.meters;
-insert into db.tb using db.meters tags(1) values(now, 1);
+CREATE DATABASE db VGROUPS 1;
+CREATE TABLE db.meters (ts TIMESTAMP, f1 INT) TAGS (t1 INT);
+CREATE TOPIC topic_meters AS SELECT ts, tbname, f1, t1 FROM db.meters;
+INSERT INTO db.tb USING db.meters TAGS (1) VALUES (now, 1);
 ```
 
 ## 创建 MQTT 数据发布任务
@@ -40,7 +39,7 @@ insert into db.tb using db.meters tags(1) values(now, 1);
 taosx run -f "tmq+ws://username:password@ip:port/topic?param=value..." -t "mqtt://ip:port?param=value..."
 ```
 
-其中 `-f` 指定 TMQ 订阅的 DSN，`-t` 指定 MQTT broker 的 DSN。关于 taosx 和 DSN 的用法请参考 [taosX 组件文档](../../12-operations-and-tooling/03-components/06-taosx.md).
+其中 `-f` 指定 TMQ 订阅的 DSN，`-t` 指定 MQTT broker 的 DSN。关于 taosx 和 DSN 的用法请参考 [taosX 组件文档](../../12-operations-and-tooling/03-components/06-taosx.md)。
 
 TMQ DSN 参数：
 
@@ -56,7 +55,7 @@ TMQ DSN 参数：
 - `auto.offset.reset`: TMQ 订阅参数，订阅的起始位置。
 - `experimental.snapshot.enable`: TMQ 订阅参数，如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。
 
-更多 TMQ 订阅时的所有参数，详见 [数据订阅](../../10-developer-guide/07-subscription-api.md)
+主题与消费概念详见 [数据订阅](../../07-data-subscription/index.md)；连接器消费参数详见 [开发指南 · 数据订阅](../../10-developer-guide/07-subscription-api.md)
 
 MQTT DSN 参数：
 

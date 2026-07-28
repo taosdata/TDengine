@@ -1,6 +1,6 @@
 ---
-title: "预测分析"
-sidebar_label: "预测分析"
+title: 预测分析
+sidebar_label: 预测分析
 ---
 
 ### 输入约定
@@ -23,18 +23,18 @@ return {
 | 属性名称        | 说明                                          | 默认值 |
 |-------------|---------------------------------------------|-----|
 | period      | 输入时间序列的周期性，多少个数据点表示一个完整的周期。如果没有周期性，设置为 0 即可 |  0  |
-| start_ts    | 预测结果的开始时间                                   |  0  |
-| time_step   | 预测结果的两个数据点之间时间间隔                            | 0   |
-| rows        | 预测结果的数量                                     |  0  |
-| return_conf | 预测结果中是否包含置信区间范围，如果不包含置信区间，那么上界和下界与自身相同      |  1  |
-| conf        | 置信区间分位数                                     | 95  |
+| start_ts    | 预测结果的开始时间 |  0  |
+| time_step   | 预测结果的两个数据点之间时间间隔 | 0   |
+| rows        | 预测结果的数量 |  0  |
+| return_conf | 预测结果中是否包含置信区间；为 `0` 时上界和下界与预测值相同 | 1 |
+| conf        | 置信水平，取值须满足 `0 <= conf < 1.0`（与 SQL 侧 `conf` 一致，常用 `0.95`） | 0.95 |
 
 ### 示例代码
 
-下面我们开发一个示例预测算法，对于任何输入的时间序列数据，固定返回值 1 作为预测结果。
+下面开发一个示例预测算法：对任意输入时间序列，固定返回预测值 `1`。
 
 ```python
-from taosanalytics.service import AbstractForecastService
+from taosanalytics.base import AbstractForecastService
 
 # 算法实现类名称 需要以下划线 "_" 开始，并以 Service 结束
 class _MyForecastService(AbstractForecastService):
@@ -78,7 +78,7 @@ class _MyForecastService(AbstractForecastService):
 
 ```
 
-将该文件保存在 `./lib/taosanalytics/algo/fc/` 目录下，然后重启 taosanode 服务。在 TDengine TSDB 命令行接口中执行 `SHOW ANODES FULL` 能够看到新加入的算法。应用就可以通过 SQL 语句调用该预测算法。
+将该文件保存在 `./lib/taosanalytics/algo/fc/` 目录下，然后重启 taosanode 服务。在 TDengine 命令行接口中执行 `SHOW ANODES FULL` 能够看到新加入的算法。应用就可以通过 SQL 语句调用该预测算法。
 
 ```SQL
 --- 对 col 列进行异常检测，通过指定 algo 参数为 myfc 来调用新添加的预测类
@@ -86,7 +86,7 @@ SELECT  _flow, _fhigh, _frowts, FORECAST(col_name, "algo=myfc")
 FROM foo;
 ```
 
-如果是第一次启动 Anode, 请按照 [运维管理指南](../../../management) 里的步骤先将该 Anode 添加到 TDengine TSDB 系统中。
+如果是第一次启动 Anode, 请按照 [Anode 管理](../../03-management.md) 中的步骤先将该 Anode 添加到 TDengine 系统中。
 
 ### 单元测试
 

@@ -1,6 +1,7 @@
 ---
-title: 参数绑定写入
 sidebar_label: 参数绑定
+title: 参数绑定
+description: 使用 STMT / STMT2 参数绑定高效写入 TDengine
 toc_max_heading_level: 4
 ---
 
@@ -14,7 +15,7 @@ import TabItem from "@theme/TabItem";
 - 预编译：当使用参数绑定时，SQL 语句可以被预编译并缓存，后续使用不同的参数值执行时，可以直接使用预编译的版本，提高执行效率。  
 - 减少网络开销：参数绑定还可以减少发送到数据库的数据量，因为只需要发送参数值而不是完整的 SQL 语句，特别是在执行大量相似的插入或更新操作时，这种差异尤为明显。
 
-参数绑定支持多种语言 API [连接器](08-connectors-reference/index.md)，
+参数绑定支持多种语言，详见 [连接器参考手册](./08-connectors-reference/index.md)。
 
 ## 推荐写入方式
 
@@ -22,7 +23,7 @@ import TabItem from "@theme/TabItem";
 
 ##### 子表存在
 
-确定子表存在，不带标签可以提升写入性能，如果子表不存在，该行为和 taos shell 不一致，taos shell 会以 tag 为 NULL 自动建表，stmt 会 报错，防止因错误设置表名而意外建表。
+确定子表存在时，不带标签可提升写入性能。若子表不存在，行为与 `taos` shell 不一致：`taos` shell 会以 tag 为 `NULL` 自动建表，而 STMT 会报错，以避免因错误表名意外建表。
 
 ```sql
    1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?) 
@@ -37,7 +38,7 @@ import TabItem from "@theme/TabItem";
 
 ## 示例
 
-下面我们继续以智能电表为例，展示各语言连接器使用参数绑定高效写入的功能：
+下面继续以智能电表为例，展示各语言连接器使用参数绑定高效写入：
 
 1. 准备一个参数化的 SQL 插入语句，用于向超级表 `meters` 中插入数据。这个语句允许动态地指定子表名、标签和列值。
 2. 循环生成多个子表及其对应的数据行。对于每个子表：
@@ -66,13 +67,13 @@ import TabItem from "@theme/TabItem";
 </TabItem>
 <TabItem label="Python" value="python">
 
-推荐使用 stmt2 绑定参数的示例代码如下（适用于 python 连接器 0.5.1 及以上、TDengine TSDB v3.3.5.0 及以上版本）：
+推荐使用 STMT2 绑定参数的示例（适用于 Python 连接器 `0.5.1` 及以上、TDengine `v3.3.5.0` 及以上）：
 
 ```python
 {{#include docs/examples/python/stmt2_ws.py}}
 ```
 
-stmt 绑定参数的示例代码如下（TDengine TSDB v3.3.5.0 已停止维护）：
+STMT 绑定参数的示例（TDengine `v3.3.5.0` 起旧版 STMT 接口已停止维护）：
 
 ```python
 {{#include docs/examples/python/stmt_ws.py}}
@@ -80,7 +81,7 @@ stmt 绑定参数的示例代码如下（TDengine TSDB v3.3.5.0 已停止维护�
 
 </TabItem>
 <TabItem label="Go" value="go">
-推荐使用 `ws/unified` 的 stmt2 参数绑定接口（`v3.8.0` 版本开始）：
+推荐使用 `ws/unified` 的 STMT2 参数绑定接口（Go 连接器 `v3.8.0` 起）：
 
 ```go
 {{#include docs/examples/go/stmt/unified/main.go}}
@@ -113,7 +114,7 @@ stmt 绑定参数的示例代码如下（TDengine TSDB v3.3.5.0 已停止维护�
 ```
 </TabItem>
 <TabItem label="C" value="c">
-stmt2 绑定参数的示例代码如下（需要 TDengine TSDB v3.3.5.0 及以上）：
+STMT2 绑定参数的示例（需要 TDengine `v3.3.5.0` 及以上）：
 
 ```c
 {{#include docs/examples/c-ws-new/stmt2_insert_demo.c}}
@@ -146,13 +147,13 @@ stmt2 绑定参数的示例代码如下（需要 TDengine TSDB v3.3.5.0 及以�
 </TabItem>
 <TabItem label="Go" value="go">
 
-stmt2 绑定参数的示例代码如下（go 连接器 v3.6.0 及以上，TDengine TSDB v3.3.5.0 及以上）：
+STMT2 绑定参数的示例（Go 连接器 `v3.6.0` 及以上，TDengine `v3.3.5.0` 及以上）：
 
 ```go
 {{#include docs/examples/go/stmt2/native/main.go}}
 ```
 
-stmt 绑定参数的示例代码如下（TDengine TSDB v3.3.5.0 已停止维护）：
+STMT 绑定参数的示例（TDengine `v3.3.5.0` 起旧版 STMT 接口已停止维护）：
 
 ```go
 {{#include docs/examples/go/stmt/native/main.go}}
@@ -176,13 +177,13 @@ stmt 绑定参数的示例代码如下（TDengine TSDB v3.3.5.0 已停止维护�
 </TabItem>
 <TabItem label="C" value="c">
 
-stmt2 绑定参数的示例代码如下（需要 TDengine TSDB v3.3.5.0 及以上）：
+STMT2 绑定参数的示例（需要 TDengine `v3.3.5.0` 及以上）：
 
 ```c
 {{#include docs/examples/c/stmt2_insert_demo.c}}
 ```
 
-stmt 绑定参数的示例代码如下（TDengine TSDB v3.3.5.0 已停止维护）：
+STMT 绑定参数的示例（TDengine `v3.3.5.0` 起旧版 STMT 接口已停止维护）：
 
 <details>
 <summary>点击查看 stmt 示例代码</summary>

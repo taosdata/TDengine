@@ -7,13 +7,13 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-taosKeeper 是 TDengine TSDB 3.0 版本监控指标的导出工具，通过简单的几项配置即可获取 TDengine TSDB 的运行状态。taosKeeper 使用 TDengine TSDB RESTful 接口，所以不需要安装 TDengine TSDB 客户端即可使用。
+taosKeeper 是 TDengine `v3.0` 起提供的监控指标导出工具，通过简单的几项配置即可获取 TDengine 的运行状态。taosKeeper 使用 TDengine RESTful 接口，所以不需要安装 TDengine 客户端即可使用。
 
 ## 安装
 
 taosKeeper 有两种安装方式：
 
-- 安装 TDengine TSDB 官方安装包的同时会自动安装 taosKeeper，详情请参考 [TDengine TSDB 安装](../../04-quick-start/index.md)。
+- 安装 TDengine 官方安装包的同时会自动安装 taosKeeper，详情请参考 [TDengine 安装](../../04-quick-start/index.md)。
 
 - 单独编译 taosKeeper 并安装，详情请参考 [taosKeeper](https://github.com/taosdata/taoskeeper) 仓库。
 
@@ -148,14 +148,14 @@ reservedDiskSize = "1GB"
 
 ## 启动
 
-**在运行 taosKeeper 之前要确保 TDengine TSDB 集群与 taosAdapter 已经在正确运行。** 并且 TDengine TSDB 已经开启监控服务，TDengine TSDB 配置文件 `taos.cfg` 中至少需要配置 `monitor` 和 `monitorFqdn`。
+**在运行 taosKeeper 之前要确保 TDengine 集群与 taosAdapter 已经在正确运行。** 并且 TDengine 已经开启监控服务，TDengine 配置文件 `taos.cfg` 中至少需要配置 `monitor` 和 `monitorFqdn`。
 
 ```shell
 monitor 1
 monitorFqdn localhost # taoskeeper 服务的 FQDN
 ```
 
-TDengine TSDB 监控配置相关，具体请参考：[TDengine TSDB 监控配置](../02-operations/05-monitor.md)。
+TDengine 监控配置相关，具体请参考：[TDengine 监控配置](../02-operations/05-monitor.md)。
 
 <Tabs>
 <TabItem label="Linux" value="linux">
@@ -196,7 +196,7 @@ Active: inactive (dead)
 
 :::info
 
-- `systemctl` 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 `sudo`。
+- `systemctl` 命令需要 _root_ 权限来运行，如果你非 _root_ 用户，请在命令前添加 `sudo`。
 - 如果系统中不支持 `systemd`，也可以用手动运行 `/usr/local/taos/bin/taoskeeper` 方式启动 taoskeeper 服务。
 - 故障排查：如果服务异常请查看日志获取更多信息。日志文件默认放在 `/var/log/taos` 下。
 
@@ -247,7 +247,7 @@ Content-Length: 21
 
 ## 数据收集与监控
 
-taosKeeper 作为 TDengine TSDB 监控指标的导出工具，可以将 TDengine TSDB 产生的监控数据记录在指定数据库中（默认的监控数据是 `log`），这些监控数据可以用来配置 TDengine TSDB 监控。
+taosKeeper 作为 TDengine 监控指标的导出工具，可以将 TDengine 产生的监控数据记录在指定数据库中（默认的监控数据是 `log`），这些监控数据可以用来配置 TDengine 监控。
 
 ### 查看监控数据
 
@@ -288,13 +288,13 @@ taos> select last_row(*) from taosd_dnodes_info;
 Query OK, 1 row(s) in set (0.003168s)
 ```
 
-### 使用 TDInsight 配置监控
+### 使用 TDinsight 配置监控
 
-收集到监控数据以后，就可以使用 TDInsight 来配置 TDengine TSDB 的监控，具体请参考 [TDinsight 参考手册](../tdinsight/)。
+收集到监控数据以后，就可以使用 TDinsight 来配置 TDengine 的监控，具体请参考 [TDinsight 参考手册](./08-tdinsight/index.mdx)。
 
 ## 集成 Prometheus
 
-taoskeeper 提供了 `/metrics/v2` 和 `/metrics` 接口，返回了 Prometheus 格式的监控数据，Prometheus 可以从 taoskeeper 抽取监控数据，实现通过 Prometheus 监控 TDengine TSDB 的目的。  
+taoskeeper 提供了 `/metrics/v2` 和 `/metrics` 接口，返回了 Prometheus 格式的监控数据，Prometheus 可以从 taoskeeper 抽取监控数据，实现通过 Prometheus 监控 TDengine 的目的。  
 两个接口的区别如下，建议使用 `/metrics/v2` 接口：  
 
 | 特性 | /metrics | /metrics/v2 |
