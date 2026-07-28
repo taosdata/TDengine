@@ -258,13 +258,16 @@ static int32_t ensureOwnedTagsResolved(SOperatorInfo* pOperator) {
   rpcFreeCont(rpcRsp.pCont);
   TSDB_CHECK_CODE(code, lino, _return);
 
-  // hasLocalTag gate above guarantees the table owns tags; a tag-less cfg here means the vnode's
-  // table config is inconsistent with the planner meta — surface it, don't hide it.
+  // hasLocalTag can be true for non-tag pseudo-columns (e.g. TBNAME) projected from a tag-less
+  // table — those are resolved by their own paths, not by this owned-tag fetch. A tag-less cfg
+  // therefore means there are simply no owned-tag values to resolve, NOT a meta/cfg mismatch.
+  // Erroring here broke `SELECT tbname FROM <vntb>` (and partition-by-tbname) on tag-less virtual
+  // normal tables. Succeed with an empty resolved set instead.
   if (cfgRsp.pTags == NULL || cfgRsp.pSchemas == NULL || cfgRsp.numOfTags <= 0) {
     tFreeSTableCfgRsp(&cfgRsp);
-    qError("ensureOwnedTagsResolved: cfg has no tags despite hasLocalTag (meta/cfg mismatch) for %s.%s",
-           dbFName, req.tbName);
-    return TSDB_CODE_INVALID_PARA;
+    pVScan->ownedTagsFetched = true;  // nothing to fetch; don't retry the RPC on every GetNext
+    qDebug("ensureOwnedTagsResolved: %s.%s has no owned tags (pseudo-col/tbname scan)", dbFName, req.tbName);
+    return TSDB_CODE_SUCCESS;
   }
 
   pVScan->pOwnedResolvedTags = taosArrayInit(cfgRsp.numOfTags, sizeof(STagVal));
