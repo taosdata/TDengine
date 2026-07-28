@@ -104,7 +104,7 @@ Below, using smart meters as an example, demonstrates how to use connectors to e
 ```
 
 **Note**
-NOW is an internal system function, defaulting to the current time of the client's computer. NOW + 1s represents the client's current time plus 1 second, with the number following representing the time unit: a (millisecond), s (second), m (minute), h (hour), d (day), w (week), n (month), y (year).
+NOW is an internal system function, defaulting to the current time of the client's computer. NOW + 1s represents the client's current time plus 1 second, with the number following representing the time unit: a (millisecond), s (second), m (minute), h (hour), d (day), w (week). Calendar units n/q/y cannot be used in NOW time arithmetic; see [Time Units](../14-reference/03-taos-sql/01-datatype.md#time-units).
 
 </TabItem>
 <TabItem label="Python" value="python">
@@ -151,7 +151,7 @@ NOW is an internal system function, defaulting to the current time of the client
 ```
 
 **Note**
-NOW is an internal system function, defaulting to the current time of the client's computer. NOW + 1s represents the client's current time plus 1 second, where the number is followed by a time unit: a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks), n (months), y (years).
+NOW is an internal system function, defaulting to the current time of the client's computer. NOW + 1s represents the client's current time plus 1 second, where the number is followed by a time unit: a (milliseconds), s (seconds), m (minutes), h (hours), d (days), w (weeks). Calendar units n/q/y cannot be used in NOW time arithmetic; see [Time Units](../14-reference/03-taos-sql/01-datatype.md#time-units).
 </TabItem>
 <TabItem label="REST API" value="rest">
 
