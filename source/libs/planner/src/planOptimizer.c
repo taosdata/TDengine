@@ -10577,6 +10577,11 @@ static int32_t checkAllStateExprsSameOriginTable(SNodeList* pStateExprs, SVirtua
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
   PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pFirstExpr, pVScan, &pFirstScan));
+  if (NULL == pFirstScan) {
+    // the state column has no source-table scan (e.g. vtable's own ts) — cannot prove same origin
+    *pSameOrigin = false;
+    goto _return;
+  }
   const char* firstTable = ((SScanLogicNode*)pFirstScan)->tableName.tname;
 
   SNode* pExpr = NULL;
@@ -10592,6 +10597,11 @@ static int32_t checkAllStateExprsSameOriginTable(SNodeList* pStateExprs, SVirtua
       goto _return;
     }
     PLAN_ERR_JRET(findDepTableScanNode((SColumnNode*)pExpr, pVScan, &pOtherScan));
+    if (NULL == pOtherScan) {
+      // no matching source-table scan for this state column — treat as not-same-origin
+      *pSameOrigin = false;
+      goto _return;
+    }
     if (strcmp(((SScanLogicNode*)pOtherScan)->tableName.tname, firstTable) != 0) {
       *pSameOrigin = false;
     }
@@ -10753,6 +10763,12 @@ static int32_t rebuildPlanForVtableWindowOptimize(SColumnNode* pCol, SFunctionNo
   // pAggNodeMap is a hash map, the key is the vtable's origin table's name, the value is the SAggLogicNode ptr.
   // if 2 more agg func has the same origin table, we should merge them into one agg node.
   PLAN_ERR_JRET(findDepTableScanNode(pCol, pVScan, (SNode**)&pDepScan));
+  if (NULL == pDepScan) {
+    // the func's column has no source-table scan (e.g. vtable's own ts); bail out instead of
+    // dereferencing NULL — caller must skip this rewrite.
+    planError("rebuildPlanForVtableWindowOptimize: column %s has no source-table scan", pCol->colName);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
   char tableFNameKey[TSDB_TABLE_FNAME_LEN + 1] = {0};
   TAOS_STRNCAT(tableFNameKey, pDepScan->tableName.dbname, TSDB_DB_NAME_LEN);
   TAOS_STRNCAT(tableFNameKey, ".", 2);

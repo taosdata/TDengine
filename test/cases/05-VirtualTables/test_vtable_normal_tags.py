@@ -1737,6 +1737,42 @@ class TestVtableNormalTags:
         self._check_values("SELECT DISTINCT own FROM vctb_setref;", [(9,)], "owned tag settable (positive control)")
         tdLog.info("  PASS: SET TAG on tag-ref converts to owned")
 
+    def test_error_ext_json_option_rules(self):
+        """Error: external-source tag-ref, ALTER-time JSON tags, and column options on tags
+        are explicitly rejected (review-driven rules).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, tag, alter, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-28 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        # external source (4-segment) tag-ref is rejected at CREATE and at ALTER
+        tdSql.error("CREATE VTABLE vctb_ext1 (ts TIMESTAMP, val INT FROM src0.val) "
+                    "TAGS (r NCHAR(20) FROM s.db.src0.city);")
+        tdSql.execute("CREATE VTABLE vctb_ext2 (ts TIMESTAMP, val INT FROM src0.val) TAGS (a INT);")
+        tdSql.error("ALTER TABLE vctb_ext2 ADD TAG r NCHAR(20) FROM s.db.src0.city;")
+        tdSql.error("ALTER TABLE vctb_ext2 SET TAG a = s.db.src0.code;")
+        # column options other than FROM are rejected on tags
+        tdSql.error("CREATE VTABLE vctb_opt (ts TIMESTAMP, val INT FROM src0.val) "
+                    "TAGS (t INT PRIMARY KEY);")
+        tdSql.error("CREATE VTABLE vctb_opt2 (ts TIMESTAMP, val INT FROM src0.val) "
+                    "TAGS (t INT COMMENT 'x');")
+        # JSON tag is allowed only as the single tag at CREATE; ALTER cannot add a JSON tag,
+        # and no tag can be added to a table that already has a JSON tag
+        tdSql.execute("CREATE VTABLE vctb_json (ts TIMESTAMP, val INT FROM src0.val) TAGS (j JSON);")
+        tdSql.error("ALTER TABLE vctb_json ADD TAG k INT;")
+        tdSql.execute("CREATE VTABLE vctb_json2 (ts TIMESTAMP, val INT FROM src0.val) TAGS (a INT);")
+        tdSql.error("ALTER TABLE vctb_json2 ADD TAG j JSON;")
+        tdLog.info("  PASS: ext/json/option tag rules enforced")
+
     def test_error_tag_bytes_exceed_max_tags_len(self):
         """Error: total tag bytes exceeding TSDB_MAX_TAGS_LEN (16384) is rejected at CREATE
         (checkCreateTags). Two VARCHAR(8192) tags sum past the cap while each stays well under

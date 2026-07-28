@@ -32350,6 +32350,16 @@ static int32_t checkCreateTags(const SNodeList* pTags, const SNodeList* pCols, S
   SNode*  pTagCheck = NULL;
   FOREACH(pTagCheck, pTags) {
     SColumnDefNode* pTagDef = (SColumnDefNode*)pTagCheck;
+    // only `FROM db.tb.tag` (hasRef) is a valid tag option; everything else that column_options
+    // accepts (PRIMARY KEY / ENCODE / COMPRESS / COMMENT) is meaningless on a tag — reject it
+    // explicitly instead of silently dropping it
+    SColumnOptions* pTagOptions = (SColumnOptions*)pTagDef->pOptions;
+    if (pTagOptions != NULL &&
+        (!pTagOptions->commentNull || pTagOptions->bPrimaryKey || 0 != strcmp(pTagOptions->compress, "") ||
+         0 != strcmp(pTagOptions->encode, "") || 0 != strcmp(pTagOptions->compressLevel, ""))) {
+      return generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                     "Tag '%s' only supports the FROM reference option", pTagDef->colName);
+    }
     if (IS_DECIMAL_TYPE(pTagDef->dataType.type)) {
       return generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Decimal type is not allowed for tag");
     }
@@ -32464,7 +32474,7 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
   // columns all live in schemaRow and ref columns additionally in colRef.pColRef. Tags share the
   // column cid space; their cids continue right after the columns (matches metaAddTableTag's ncid).
   if (pStmt->pTags != NULL) {
-    PAR_ERR_RET(checkCreateTags(pStmt->pTags, pStmt->pCols, &pCxt->msgBuf));
+    PAR_ERR_JRET(checkCreateTags(pStmt->pTags, pStmt->pCols, &pCxt->msgBuf));
     int32_t nTags = LIST_LENGTH(pStmt->pTags);
     req.ntb.schemaTag.nCols = nTags;
     req.ntb.schemaTag.version = 1;
@@ -35221,6 +35231,12 @@ static int32_t buildAlterTableTagRef(STranslateContext* pCxt, SAlterTableStmt* p
   if (!isVirtualTable(pTableMeta)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
+  // external source tag references are not supported (tag-ref resolution requires a TDengine
+  // source table); reject the 4-segment form explicitly instead of treating it as internal
+  if (pStmt->refType == 1) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_TAG_REF_NOT_ALLOWED,
+                                   "external source tag reference is not supported for tag '%s'", pStmt->colName);
+  }
   int32_t        code = TSDB_CODE_SUCCESS;
   const SSchema* pSchema = getTagSchema(pTableMeta, pStmt->colName);
   if (NULL == pSchema) {
@@ -35290,6 +35306,18 @@ static int32_t buildAddTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
   int32_t  numOfTags = getNumOfTags(pTableMeta);
   SSchema* pTagSchema = getTableTagSchema(pTableMeta);
 
+  // JSON tags must stand alone (mirrors checkCreateTags / the super-table alter path): a JSON
+  // tag cannot be added via ALTER, and no further tag may be added to a table that already has
+  // a JSON tag.
+  if (TSDB_DATA_TYPE_JSON == pStmt->dataType.type) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+  }
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    if (TSDB_DATA_TYPE_JSON == pTagSchema[i].type) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+    }
+  }
+
   // duplicate tag name
   for (int32_t i = 0; i < numOfTags; ++i) {
     if (0 == strcmp(pTagSchema[i].name, pStmt->colName)) {
@@ -35349,6 +35377,17 @@ static int32_t buildAddTagRefReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
   int32_t  numOfTags = getNumOfTags(pTableMeta);
   SSchema* pTagSchema = getTableTagSchema(pTableMeta);
 
+  // JSON tags must stand alone: a JSON tag-ref is not allowed, and no further tag may be added
+  // to a table that already has a JSON tag (mirrors buildAddTagReq / checkCreateTags).
+  if (TSDB_DATA_TYPE_JSON == pStmt->dataType.type) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+  }
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    if (TSDB_DATA_TYPE_JSON == pTagSchema[i].type) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+    }
+  }
+
   for (int32_t i = 0; i < numOfTags; ++i) {
     if (0 == strcmp(pTagSchema[i].name, pStmt->colName)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
@@ -35372,6 +35411,22 @@ static int32_t buildAddTagRefReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
   }
   if (TSDB_MAX_TAGS == numOfTags) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM);
+  }
+
+  // tag-refs occupy a schemaTag entry too — enforce the total tag length cap like buildAddTagReq
+  int32_t tagsLen = 0;
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    tagsLen += pTagSchema[i].bytes;
+  }
+  if (tagsLen + calcTypeBytes(pStmt->dataType) > TSDB_MAX_TAGS_LEN) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
+  }
+
+  // external source tag references are not supported (tag-ref resolution requires a TDengine
+  // source table); reject the 4-segment form explicitly instead of treating it as internal
+  if (pStmt->refType == 1) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_TAG_REF_NOT_ALLOWED,
+                                   "external source tag reference is not supported for tag '%s'", pStmt->colName);
   }
 
   SDataType tagType = pStmt->dataType;
@@ -36701,6 +36756,14 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
       SColumnDefNode* pTagNode = (SColumnDefNode*)pNode;
       SColumnOptions* pTagOptions = (SColumnOptions*)pTagNode->pOptions;
       if (pTagOptions != NULL && pTagOptions->hasRef) {
+        // external source tag references are not supported (tag-ref resolution requires a
+        // TDengine source table; reject the 4-segment form explicitly instead of misrouting it
+        // to the internal path)
+        if (pTagOptions->refType == 1) {
+          PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_TAG_REF_NOT_ALLOWED,
+                                               "external source tag reference is not supported for tag '%s'",
+                                               pTagNode->colName));
+        }
         SDataType tagType = pTagNode->dataType;
         tagType.bytes = calcTypeBytes(tagType);
         PAR_ERR_JRET(checkTagRef(pCxt, pStmt->dbName, pStmt->tableName, pTagNode->colName, pTagOptions->refDb,

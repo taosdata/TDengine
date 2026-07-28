@@ -862,7 +862,8 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
 // Append the owned-tag schema to a meta response (columns first, tags right after them), so the
 // client catalog caches a complete meta. A tag-less response lets the client catalog cache stale
 // meta, so same-connection tag reads (WHERE <tag> / DROP TAG) fail with Invalid column/tag name
-// until a fresh RPC refreshes it.
+// until a fresh RPC refreshes it. Also stamps tversion so every response path (create and alter
+// alike) reports the same tag schema version vnodeGetTableMeta would.
 static int32_t metaAppendNtbTagSchemaToRsp(SMetaEntry *pEntry, STableMetaRsp *pRsp) {
   if (pEntry->ntbEntry.schemaTag.nCols > 0 && pEntry->ntbEntry.schemaTag.pSchema != NULL) {
     int32_t nCols = pRsp->numOfColumns;
@@ -872,6 +873,7 @@ static int32_t metaAppendNtbTagSchemaToRsp(SMetaEntry *pEntry, STableMetaRsp *pR
     pRsp->pSchemas = pNew;
     memcpy(pRsp->pSchemas + nCols, pEntry->ntbEntry.schemaTag.pSchema, nTags * sizeof(SSchema));
     pRsp->numOfTags = nTags;
+    pRsp->tversion = pEntry->ntbEntry.schemaTag.version;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1846,6 +1848,16 @@ int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
   }
 
+  // tag-refs are virtual-normal-table only; a ref request on a plain normal table must be
+  // rejected here, not silently degraded to an owned tag (parser already gates this — this is
+  // the vnode-side backstop, mirroring metaAlterTagRef's type gate)
+  if (pEntry->type == TSDB_NORMAL_TABLE && pReq->refDbName != NULL) {
+    metaError("vgId:%d, %s failed at %s:%d since tag-ref on normal table %s is not supported, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->tbName, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
   pEntry->version = version;
   SSchemaWrapper *pTagSchema = &pEntry->ntbEntry.schemaTag;
 
@@ -1882,6 +1894,12 @@ int32_t metaAddTableTag(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
   pNewTag->bytes = pReq->bytes;
   pNewTag->type = pReq->type;
   pNewTag->flags = pReq->flags;
+  if (pEntry->ntbEntry.ncid > INT16_MAX) {
+    metaError("vgId:%d, %s failed at %s:%d since column id %d exceeds max column id %d, version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pEntry->ntbEntry.ncid, INT16_MAX, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_VND_EXCEED_MAX_COL_ID);
+  }
   pNewTag->colId = pEntry->ntbEntry.ncid++;
   tstrncpy(pNewTag->name, pReq->colName, TSDB_COL_NAME_LEN);
 
@@ -4363,6 +4381,7 @@ int32_t metaAlterTagRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STabl
   // set tag-ref
   pEntry->version = version;
   pTagRef->hasRef = true;
+  tstrncpy(pTagRef->colName, pReq->colName, TSDB_COL_NAME_LEN);  // tmq json meta reads colName
   tstrncpy(pTagRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
   tstrncpy(pTagRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
   tstrncpy(pTagRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
