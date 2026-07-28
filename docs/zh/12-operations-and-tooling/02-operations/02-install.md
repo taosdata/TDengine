@@ -8,9 +8,9 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import PkgList from "/src/components/PkgList";
 
-TDengine TSDB 完整的软件包包括服务端（taosd）、应用驱动（taosc）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、命令行程序（TDengine CLI）和一些工具软件。目前 TDinsight 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../03-components/03-taosadapter.md) 提供 [RESTful 接口](../../10-developer-guide/08-connectors-reference/10-rest-api.mdx)。
+TDengine 完整的软件包包括服务端（`taosd`）、应用驱动（`taosc`）、用于与第三方系统对接并提供 RESTful 接口的 `taosAdapter`、命令行程序 `taos` 和一些工具软件。目前 TDinsight 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../03-components/03-taosadapter.md) 提供 [RESTful 接口](../../10-developer-guide/08-connectors-reference/10-rest-api.mdx)。
 
-为方便使用，标准的服务端安装包包含了 taosd、taosAdapter、taosc、taos、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 Lite 版本的安装包。
+为方便使用，标准的服务端安装包包含了 taosd、taosAdapter、taosc、taos、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码；如果你只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 Lite 版本的安装包。
 
 在 Linux 系统上，TDengine 社区版提供 Deb 和 RPM 格式安装包，其中 Deb 支持 Debian/Ubuntu 及其衍生系统，RPM 支持 CentOS/RHEL/SUSE 及其衍生系统，用户可以根据自己的运行环境自行选择。同时我们也提供了 tar.gz 格式安装包，以及 `apt-get` 工具从线上进行安装。
 
@@ -32,7 +32,7 @@ TDengine TSDB 完整的软件包包括服务端（taosd）、应用驱动（taos
 
 :::note
 
-1. 从 TDengine TSDB 3.0.6.0 开始，不再提供单独的 taosTools 安装包，原 taosTools 安装包中包含的工具都在 TDengine TSDB 服务端安装包中，如果需要请直接下载 TDengine TSDB 服务端安装包。
+1. 从 TDengine 3.0.6.0 开始，不再提供单独的 taosTools 安装包，原 taosTools 安装包中包含的工具都在 TDengine 服务端安装包中，如果需要请直接下载 TDengine 服务端安装包。
 2. 当安装第一个节点时，出现 `Enter FQDN:` 提示的时候，不需要输入任何内容。只有当安装第二个或以后更多的节点时，才需要输入已有集群中任何一个可用节点的 FQDN，支持该新节点加入集群。当然也可以不输入，而是在新节点启动前，配置到新节点的配置文件中。
 
 :::
@@ -120,9 +120,9 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 
 :::note
 
-- 从 TDengine TSDB 3.1.0.0 开始，只提供 Windows 客户端安装包。如果需要 Windows 服务端安装包，请联系 TDengine TSDB 销售团队升级为企业版。
+- 从 TDengine 3.1.0.0 开始，只提供 Windows 客户端安装包。如果需要 Windows 服务端安装包，请联系 TDengine 销售团队升级为企业版。
 
-- 目前 TDengine TSDB 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
+- 目前 TDengine 在 Windows 平台上只支持 Windows Server 2016/2019 和 Windows 10/11。
 
 - Windows 上需要安装 VC 运行时库，可在此下载安装 [VC 运行时库](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170)，如果已经安装此运行库可忽略。
 
@@ -143,7 +143,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 <Tabs>
 <TabItem label="Linux 系统" value="linux">
 
-安装后，请使用 `systemctl` 命令来启动 TDengine TSDB 的服务进程。
+安装后，请使用 `systemctl` 命令来启动 TDengine 的服务进程。
 
 ```bash
 systemctl start taosd
@@ -169,22 +169,22 @@ systemctl status taosd
 
 :::info
 
-- `systemctl` 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 `sudo`。
-- `systemctl stop taosd` 指令在执行后并不会马上停止 TDengine TSDB 服务，而是会等待系统中必要的落盘工作正常完成。在数据量很大的情况下，这可能会消耗较长时间。
-- 如果系统中不支持 `systemd`，也可以用手动运行 `/usr/local/taos/bin/taosd` 方式启动 TDengine TSDB 服务。
-- 如果希望自定义 TDengine TSDB 服务参数，则参考 [使用 Systemd drop-in 文件自定义 taosd 启动参数](#使用-systemd-drop-in-文件自定义-taosd-启动参数)。
+- `systemctl` 命令需要 _root_ 权限来运行，如果你非 _root_ 用户，请在命令前添加 `sudo`。
+- `systemctl stop taosd` 指令在执行后并不会马上停止 TDengine 服务，而是会等待系统中必要的落盘工作正常完成。在数据量很大的情况下，这可能会消耗较长时间。
+- 如果系统中不支持 `systemd`，也可以用手动运行 `/usr/local/taos/bin/taosd` 方式启动 TDengine 服务。
+- 如果希望自定义 TDengine 服务参数，则参考 [使用 Systemd drop-in 文件自定义 taosd 启动参数](#使用-systemd-drop-in-文件自定义-taosd-启动参数)。
 
 :::
 
 </TabItem>
 <TabItem label="Windows 系统" value="windows">
 
-安装后，可以在拥有管理员权限的 cmd 窗口执行 `sc start taosd` 或在 `C:\TDengine TSDB` 目录下，运行 `taosd.exe` 来启动 TDengine TSDB 服务进程。如需使用 http/REST 服务，请执行 `sc start taosadapter` 或运行 `taosadapter.exe` 来启动 taosAdapter 服务进程。
+安装后，可以在拥有管理员权限的 cmd 窗口执行 `sc start taosd` 或在 `C:\TDengine` 目录下，运行 `taosd.exe` 来启动 TDengine 服务进程。如需使用 http/REST 服务，请执行 `sc start taosadapter` 或运行 `taosadapter.exe` 来启动 taosAdapter 服务进程。
 
 </TabItem>
 <TabItem label="macOS 系统" value="macos">
 
-安装后，在应用程序目录下，双击 TDengine TSDB 图标来启动程序，也可以运行 `sudo launchctl start` 来启动 TDengine TSDB 服务进程。
+安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `sudo launchctl start` 来启动 TDengine 服务进程。
 
 ```bash
 sudo launchctl start com.tdengine.taosd
@@ -199,7 +199,7 @@ sudo launchctl start com.tdengine.taos-explorer
 start-all.sh
 ```
 
-可以使用 `launchctl` 命令管理上面提到的每个 TDengine TSDB 服务，以下示例使用 `taosd`：
+可以使用 `launchctl` 命令管理上面提到的每个 TDengine 服务，以下示例使用 `taosd`：
 
 ```bash
 sudo launchctl start com.tdengine.taosd
@@ -211,7 +211,7 @@ sudo launchctl print system/com.tdengine.taosd
 :::info
 
 - `launchctl` 命令管理 `com.tdengine.taosd` 需要管理员权限，务必在前面加 `sudo` 来增强安全性。
-- `sudo launchctl list | grep taosd` 指令返回的第一列是 `taosd` 程序的 PID，若为 `-` 则说明 TDengine TSDB 服务未运行。
+- `sudo launchctl list | grep taosd` 指令返回的第一列是 `taosd` 程序的 PID，若为 `-` 则说明 TDengine 服务未运行。
 - 故障排查：
 - 如果服务异常请查看系统日志 `launchd.log` 或者 `/var/log/taos` 目录下 `taosdlog` 日志获取更多信息。
 
@@ -222,7 +222,7 @@ sudo launchctl print system/com.tdengine.taosd
 
 ## 使用 Systemd drop-in 文件自定义 taosd 启动参数
 
-如果您希望调整 Linux 下 TDengine TSDB 服务的启动重试窗口等参数，我们推荐使用 Systemd drop-in 机制来定制服务启动参数，以避免在软件升级时被覆盖。
+如果你希望调整 Linux 下 TDengine 服务的启动重试窗口等参数，我们推荐使用 Systemd drop-in 机制来定制服务启动参数，以避免在软件升级时被覆盖。
 下面以将 taosd 服务的启动重试统计窗口改为 60 秒为例，说明如何使用 drop-in 文件。
 
 1. 创建 drop-in 目录
@@ -258,30 +258,30 @@ override 文件仅需写入要改/新增的字段，其余沿用主服务文件�
 
 ## 目录结构
 
-以 Linux 为例，安装 TDengine TSDB 后，默认会在操作系统中生成下列目录或文件：
+以 Linux 为例，安装 TDengine 后，默认会在操作系统中生成下列目录或文件：
 
 | 目录/文件                 | 说明                                                                 |
 | ------------------------- | -------------------------------------------------------------------- |
-| /usr/local/taos/bin       | TDengine TSDB 可执行文件目录。其中的执行文件都会软链接到/usr/bin 目录下。 |
-| /usr/local/taos/driver    | TDengine TSDB 动态链接库目录。会软链接到/usr/lib 目录下。                 |
-| /usr/local/taos/examples  | TDengine TSDB 各种语言应用示例目录。                                      |
-| /usr/local/taos/include   | TDengine TSDB 对外提供的 C 语言接口的头文件。                             |
-| /etc/taos/taos.cfg        | TDengine TSDB 默认`配置文件`                                             |
-| /var/lib/taos             | TDengine TSDB 默认数据文件目录。可通过`配置文件`修改位置。                |
-| /var/log/taos             | TDengine TSDB 默认日志文件目录。可通过`配置文件`修改位置。                |
+| /usr/local/taos/bin       | TDengine 可执行文件目录。其中的执行文件都会软链接到/usr/bin 目录下。 |
+| /usr/local/taos/driver    | TDengine 动态链接库目录。会软链接到/usr/lib 目录下。                 |
+| /usr/local/taos/examples  | TDengine 各种语言应用示例目录。                                      |
+| /usr/local/taos/include   | TDengine 对外提供的 C 语言接口的头文件。                             |
+| /etc/taos/taos.cfg        | TDengine 默认`配置文件`                                             |
+| /var/lib/taos             | TDengine 默认数据文件目录。可通过`配置文件`修改位置。                |
+| /var/log/taos             | TDengine 默认日志文件目录。可通过`配置文件`修改位置。                |
 
 ## 可执行程序
 
-TDengine TSDB 的所有可执行文件默认存放在 `/usr/local/taos/bin` 目录下。其中包括：
+TDengine 的所有可执行文件默认存放在 `/usr/local/taos/bin` 目录下。其中包括：
 
 - `taosd`：TDengine 服务端可执行文件
-- `taos`：TDengine Shell 可执行文件
+- `taos`：`taos` shell 可执行文件
 - `taosdump`：数据导入导出工具
-- `taosBenchmark`: TDengine TSDB 测试工具
-- `remove.sh`: 卸载 TDengine TSDB 的脚本，请谨慎执行，链接到`/usr/bin` 目录下的`rmtaos`命令。会删除 TDengine TSDB 的安装目录`/usr/local/taos`，但会保留`/etc/taos`、`/var/lib/taos`、`/var/log/taos`
+- `taosBenchmark`: TDengine 测试工具
+- `remove.sh`: 卸载 TDengine 的脚本，请谨慎执行，链接到`/usr/bin` 目录下的`rmtaos`命令。会删除 TDengine 的安装目录`/usr/local/taos`，但会保留`/etc/taos`、`/var/lib/taos`、`/var/log/taos`
 - `taosadapter`: 提供 RESTful 服务和接受其他多种软件写入请求的服务端可执行文件
 - `TDinsight.sh`: 用于下载 TDinsight 并安装的脚本
 - `set_core.sh`: 用于方便调试设置系统生成 core dump 文件的脚本
 - `taosd-dump-cfg.gdb`: 用于方便调试 taosd 的 gdb 执行脚本。
 
-TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见[网络配置](../network)
+TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见 [网络与 FQDN 配置](./08-network.md)

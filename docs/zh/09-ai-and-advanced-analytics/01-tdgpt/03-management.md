@@ -1,6 +1,6 @@
 ---
-title: "Anode 管理"
-sidebar_label: "Anode 管理"
+title: Anode 管理
+sidebar_label: Anode 管理
 description: 介绍 Anode 管理指令
 ---
 
@@ -45,7 +45,7 @@ Windows 安装完成后会自动注册 `Taosanode` 服务，推荐优先通过 W
 <Tabs>
 <TabItem label="Linux 系统" value="linux-model">
 
-提供时序基础模型服务需要占用较大的内存资源。避免启动过程中资源不足导致失败，暂不提供自动启动时间序列基础模型的功能。如果您需要体验时序基础模型服务，需要手动执行如下命令。
+提供时序基础模型服务需要占用较大的内存资源。为避免启动过程中资源不足导致失败，暂不提供自动启动时间序列基础模型的功能。若需要体验时序基础模型服务，请手动执行如下命令。
 
 ```bash
 # 启动涛思时序数据基础模型
@@ -61,7 +61,7 @@ stop-model tdtsfm
 stop-model timemoe
 ```
 
-> 上述命令只在安装版本中可用，使用 Docker 镜像和云服务，该命令不可用。更多信息请参考[时序模型服务启动和停止脚本](../dev/tsfm/#时序模型服务启动和停止脚本)。
+> 上述命令只在安装版本中可用，使用 Docker 镜像和云服务，该命令不可用。更多信息请参考 [时序模型服务启动和停止脚本](./06-dev/03-tsfm/index.md#时序模型服务启动和停止脚本)。
 >
 > 当前安装版 `start-model` / `stop-model` 脚本会直接使用安装目录下主虚拟环境的 Python：
 > Linux 为 `<install_dir>/venv/bin/python3` 或 `<install_dir>/venv/bin/python`。如果主虚拟环境缺失，脚本会直接报错，不再回退到系统 PATH 中的 Python。
@@ -134,7 +134,7 @@ Windows 关键日志如下：
 
 配置文件 `taosanode.config.py` 默认位于 `/etc/taos/` 目录下。Anode 的服务使用 Gunicorn 驱动运行，在配置文件中同时具有 Anode 和 Gunicorn 的配置信息。
 
-3.4.1 版本配置文件
+`v3.4.1.0` 及之后版本的配置文件示例：
 
 具体内容及配置项说明如下：
 
@@ -153,7 +153,7 @@ workers = 2
 worker_class = 'sync'
 
 # Number of threads per process (recommended for model deployment)
-threads = max(multiprocessing.cpu_count() / 4 + 1, 2)
+threads = max(multiprocessing.cpu_count() // 4 + 1, 2)
 
 # Maximum number of requests, worker will restart after reaching limit, helps release memory
 max_requests = 1000
@@ -172,7 +172,7 @@ accesslog = '/var/log/taos/taosanode/access.log'
 errorlog = '/var/log/taos/taosanode/error.log'
 
 # log level: debug, info, warning, error, critical
-loglevel = 'info'
+loglevel = 'debug'
 
 # Set process name
 proc_name = 'tdgpt_taosanode_app'
@@ -188,7 +188,7 @@ app_log = '/var/log/taos/taosanode/taosanode.app.log'
 model_dir = '/usr/local/taos/taosanode/model/'
 
 # default log level
-log_level = 'INFO'
+log_level = 'DEBUG'
 
 # draw the query results
 draw_result = False
@@ -204,9 +204,9 @@ timemoe_fc = 'http://127.0.0.1:6062/ds_predict'
 
 Anode 运行配置主要是以下：
 
-- app_log: Anode 服务运行产生的日志，用户可以调整其到需要的位置
-- model_dir: 采用算法针对已经存在的数据集的运行完成生成的模型存储位置
-- log_level: app-log 文件的日志级别。可选的配置选项：DEBUG，INFO，CRITICAL，ERROR，WARN
+- `app_log`：Anode 服务运行产生的日志，用户可以调整其到需要的位置
+- `model_dir`：针对已有数据集运行完成生成的模型存储位置
+- `log_level`：`app_log` 文件的日志级别。可选的配置选项：`DEBUG`，`INFO`，`CRITICAL`，`ERROR`，`WARN`；当前默认值为 `DEBUG`
 
 </TabItem>
 <TabItem label="Windows 系统" value="windows-config">
@@ -237,7 +237,7 @@ waitress_config = {
 
 ### Anode 基本操作
 
-用户可通过 TDengine TSDB 的命令行工具 taos 进行 Anode 的管理。执行下述命令都需要确保命令行工具 taos 工作正常。
+用户可通过 TDengine 的命令行工具 `taos` 进行 Anode 的管理。执行下述命令都需要确保 `taos` shell 工作正常。相关系统信息也可参见 [SHOW ANODES](../../05-tdengine-sql/09-system-info/03-show.md#show-anodes)。
 
 #### 创建 Anode
 
@@ -245,25 +245,25 @@ waitress_config = {
 CREATE ANODE {node_url}
 ```
 
-node_url 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：`create anode '127.0.0.1:6035'`。Anode 启动后需要注册到 TDengine TSDB 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
+`node_url` 是提供服务的 Anode 的 IP 和 PORT 组成的字符串，例如：`CREATE ANODE '127.0.0.1:6035'`。Anode 启动后需要注册到 TDengine 集群中才能提供服务。不建议将 Anode 同时注册到两个集群中。
 
 #### 查看 Anode
 
-列出集群中所有的数据分析节点，包括其 `FQDN`, `PORT`, `STATUS` 等属性。
+列出集群中所有的数据分析节点，包括其 `id`、`url`、`status`、创建与更新时间等属性。
 
 ```sql
 SHOW ANODES;
 
 taos> show anodes;
-     id      |              url               |    status    |       create_time       |       update_time       |
-==================================================================================================================
-           1 | 192.168.0.1:6035               | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
+  id |     url          | status |       create_time       |       update_time       |
+=======================================================================================
+  1  | 192.168.0.1:6035 | ready  | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
 Query OK, 1 row(s) in set (0.037205s)
 ```
 
 #### 查看可用分析模型
 
-```SQL
+```sql
 SHOW ANODES FULL;
 
 taos> show anodes full;
@@ -274,30 +274,28 @@ taos> show anodes full;
            1 | anomaly-detection          | shesd                          |
            1 | anomaly-detection          | ksigma                         |
            1 | anomaly-detection          | iqr                            |
-           1 | anomaly-detection          | sample_ad_model                |
            1 | forecast                   | arima                          |
            1 | forecast                   | holtwinters                    |
            1 | forecast                   | tdtsfm_1                       |
            1 | forecast                   | timemoe-fc                     |
-Query OK, 10 row(s) in set (0.028750s)
+Query OK, 9 row(s) in set (0.028750s)
 ```
 
-列表中的算法分为两个部分，分别是异常检测算法集合，包含六个算法模型，四个预测算法集。算法模型如下：
+列表中的算法分为异常检测与预测分析两类；具体条目以当前节点实际加载结果为准。常见内置模型如下：
 
 | 类型 | 模型名称 | 说明 |
 | --- | --- | --- |
-| 异常检测 | grubbs | 基于数学统计学检测模型 |
-| 异常检测 | lof | 基于密度的检测模型 |
-| 异常检测 | shesd | 季节性 ESD 算法模型 |
-| 异常检测 | ksigma | 数学统计学检测模型 |
-| 异常检测 | iqr | 数学统计学检测模型 |
-| 异常检测 | sample_ad_model | 基于自编码器的异常检测示例模型 |
-| 预测分析 | arima | 移动平均自回归预测算法 |
-| 预测分析 | holtwinters | 多次指数平滑预测算法 |
-| 预测分析 | tdtsfm_1 | 涛思时序数据基础模型 v1.0 版本 |
-| 预测分析 | timemoe-fc | Time-MoE 时序基础模型的预测能力 |
+| 异常检测 | `grubbs`      | 基于数学统计学检测模型 |
+| 异常检测 | `lof`         | 基于密度的检测模型 |
+| 异常检测 | `shesd`       | 季节性 ESD 算法模型 |
+| 异常检测 | `ksigma`      | 数学统计学检测模型 |
+| 异常检测 | `iqr`         | 数学统计学检测模型 |
+| 预测分析 | `arima`       | 移动平均自回归预测算法 |
+| 预测分析 | `holtwinters` | 多次指数平滑预测算法 |
+| 预测分析 | `tdtsfm_1`    | 涛思时序数据基础模型 v1.0 版本 |
+| 预测分析 | `timemoe-fc`  | Time-MoE 时序基础模型的预测能力 |
 
-相关算法的具体介绍和使用说明见后续章节。
+相关算法的具体介绍和使用说明见后续章节。若部署了预训练示例模型或其他自定义模型，也可能出现在 `SHOW ANODES FULL` 结果中。
 
 #### 刷新分析算法列表缓存
 
@@ -312,4 +310,4 @@ UPDATE ALL ANODES
 DROP ANODE {anode_id}
 ```
 
-删除 Anode 只是将 Anode 从 TDengine TSDB 集群中移除。Linux 环境下，管理 Anode 的启停仍然需要使用 `systemctl` 来操作，卸载 Anode 需要使用 `rmtaosanode` 命令。Windows 环境下，删除 Anode 不会停止本机 `Taosanode` 服务，也不会卸载本机安装；服务启停请使用安装目录下脚本或 Windows 服务命令，卸载请使用安装包卸载程序。
+删除 Anode 只是将 Anode 从 TDengine 集群中移除。Linux 环境下，管理 Anode 的启停仍然需要使用 `systemctl` 来操作，卸载 Anode 需要使用 `rmtaosanode` 命令。Windows 环境下，删除 Anode 不会停止本机 `Taosanode` 服务，也不会卸载本机安装；服务启停请使用安装目录下脚本或 Windows 服务命令，卸载请使用安装包卸载程序。

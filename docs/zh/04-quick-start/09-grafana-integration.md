@@ -1,12 +1,12 @@
 ---
 sidebar_label: Grafana 集成
 title: Grafana 集成
-description: 使用 Grafana 快速展示 TDengine TSDB 中的时序数据
+description: 使用 Grafana 快速展示 TDengine 中的时序数据
 toc_max_heading_level: 4
 ---
 
 [Grafana](https://grafana.com/grafana/) 是常用的开源可视化和监控平台。
-TDengine TSDB 可以通过 Grafana 数据源插件接入 Grafana，把数据库中的时序数据展示为折线图、仪表盘和告警面板。
+TDengine 可以通过 Grafana 数据源插件接入 Grafana，把数据库中的时序数据展示为折线图、仪表盘和告警面板。
 
 本章使用 `taosBenchmark` 生成的智能电表数据，带你完成一次最小可用的集成流程：准备数据、安装 TDengine 数据源插件、配置 Grafana 数据源，并创建一个展示平均电流变化的面板。
 

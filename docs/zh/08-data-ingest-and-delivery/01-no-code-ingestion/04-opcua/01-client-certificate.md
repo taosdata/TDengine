@@ -1,6 +1,6 @@
 ---
-title: "生成 taosX OPC UA 客户端证书"
-sidebar_label: "客户端证书"
+title: 生成 taosX OPC UA 客户端证书
+sidebar_label: 客户端证书
 ---
 
 当 OPC UA 服务端的 **Security Mode** 设置为 `Sign` 或 `SignAndEncrypt` 时，taosX 必须以客户端证书与私钥的方式与之建立安全通道。本页给出在 Windows 与 Linux/macOS 上生成证书与私钥的标准步骤，**Ignition、GE CSS OPC UA Server 等所有需要证书加密的场景都按本页执行一次即可**。
@@ -11,7 +11,7 @@ taosX OPC UA 插件使用 `tls.LoadX509KeyPair()` 加载证书，因此对证书
 
 - **格式**：PEM；不接受 DER、PKCS#12 等其他格式。
 - **客户端 Application URI**：固定为 `urn:taosx-opc:client`。证书的 Subject Alternative Name (SAN) 中**必须包含** `URI:urn:taosx-opc:client`，否则服务端会拒绝并报 `StatusBadCertificateUriInvalid`。
-- 证书可以在任意机器上生成，只需把最终的 `client_cert.pem` 与 `client_key.pem` 上传到 Explorer 即可。
+- 证书可以在任意机器上生成，只需把最终的 `client_cert.pem` 与 `client_key.pem` 上传到 taosExplorer 即可。
 
 :::tip
 从 Ignition、GE 等服务器下载到的证书（例如 `ignition-server.der`）是**服务器自身的证书**，不能直接用作客户端证书。请按本页方法**自行生成客户端证书与私钥**。
@@ -180,11 +180,11 @@ X509v3 Subject Alternative Name:
 openssl x509 -in client_cert.pem -noout -fingerprint -sha1
 ```
 
-## 5. 在 Explorer 中使用
+## 5. 在 taosExplorer 中使用
 
-生成的两个文件分别对应 Explorer **Connection Configuration** 区域的两个字段：
+生成的两个文件分别对应 taosExplorer **Connection Configuration** 区域的两个字段：
 
-| 文件              | Explorer 字段              |
+| 文件              | taosExplorer 字段              |
 | ----------------- | -------------------------- |
 | `client_cert.pem` | Secure Channel Certificate |
 | `client_key.pem`  | Certificate's Private Key  |

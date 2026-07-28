@@ -1,6 +1,6 @@
 ---
-title: "taosAdapter 参考手册"
-sidebar_label: "taosAdapter"
+title: taosAdapter 参考手册
+sidebar_label: taosAdapter
 toc_max_heading_level: 4
 ---
 
@@ -10,8 +10,8 @@ import StatsD from "./resources/_statsd.mdx"
 import Icinga2 from "./resources/_icinga2.mdx"
 import TCollector from "./resources/_tcollector.mdx"
 
-taosAdapter 是一个 TDengine TSDB 的配套工具，是 TDengine TSDB 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine TSDB。
-TDengine TSDB 的各语言连接器通过 WebSocket 接口与 TDengine TSDB 进行通信，因此必须安装 taosAdapter。
+taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。
+TDengine 的各语言连接器通过 WebSocket 接口与 TDengine 进行通信，因此必须安装 taosAdapter。
 
 架构图如下：
 
@@ -43,7 +43,7 @@ taosAdapter 提供了以下功能：
 - node_exporter 采集写入：
   node_export 是一个机器指标的导出器。请访问 [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) 了解更多信息。
 - JSON 数据写入：
-  支持通过 RESTful 接口写入 JSON 格式的数据到 TDengine TSDB。
+  支持通过 RESTful 接口写入 JSON 格式的数据到 TDengine。
 - RESTful 接口：
   [RESTful API](../../10-developer-guide/08-connectors-reference/10-rest-api.mdx)
 
@@ -53,14 +53,14 @@ taosAdapter 提供了以下功能：
 
 ### InfluxDB v1 数据写入
 
-您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine TSDB。
+你可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/influxdb/v1/write` 来写入 InfluxDB 兼容格式的数据到 TDengine。
 
 支持 InfluxDB 参数如下：
 
-- `db` 指定 TDengine TSDB 使用的数据库名
-- `precision` TDengine TSDB 使用的时间精度
-- `u` TDengine TSDB 用户名
-- `p` TDengine TSDB 密码
+- `db` 指定 TDengine 使用的数据库名
+- `precision` TDengine 使用的时间精度
+- `u` TDengine 用户名
+- `p` TDengine 密码
 - `ttl` 自动创建的子表生命周期，以子表的第一条数据的 TTL 参数为准，不可更新。更多信息请参考 [创建表文档](../../05-tdengine-sql/02-ddl/02-table.md#创建表)的 TTL 参数。
 - `table_name_key` 自定义子表名使用的标签名，如果设置了该参数，则子表名将使用该标签对应的值。
 
@@ -73,7 +73,7 @@ curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root
 
 ### OpenTSDB JSON 和 telnet 格式写入
 
-您可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine TSDB。EndPoint 如下：
+你可以使用任何支持 HTTP 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine。EndPoint 如下：
 
 ```text
 /opentsdb/v1/put/json/<db>
@@ -124,7 +124,7 @@ Prometheus 使用的由 \*NIX 内核暴露的硬件和操作系统指标的输�
 
 ### JSON 数据写入
 
-taosAdapter 从 **3.4.0.0** 版本开始支持通过 RESTful 接口写入 JSON 格式的数据到 TDengine TSDB。您可以使用任何支持 HTTP 协议的客户端通过 POST RESTful 接口地址 `http://<fqdn>:6041/input_json/v1/{endpoint}` 来写入 JSON 格式的数据到 TDengine TSDB。
+taosAdapter 从 **3.4.0.0** 版本开始支持通过 RESTful 接口写入 JSON 格式的数据到 TDengine。你可以使用任何支持 HTTP 协议的客户端通过 POST RESTful 接口地址 `http://<fqdn>:6041/input_json/v1/{endpoint}` 来写入 JSON 格式的数据到 TDengine。
 
 JSON 格式要求为一个包含多行数据的数组，每行数据为一个 JSON 对象。每个 JSON 对象对应一条数据记录，数据提取可通过配置文件进行定义，如果输入 JSON 格式与要求不符，可以通过 [JSONata](https://jsonata.org/) 表达式进行转换（支持 JSONata 1.5.4 版本）。
 
@@ -195,7 +195,7 @@ fields = [
   - `timeKey`：指定 JSON 对象中用于表示时间戳的键名，如果不设置则默认 `ts`。
   - `timeFormat`：指定时间解析的格式，当 timeKey 设置时有效，具体支持格式见[时间解析格式说明](#时间解析格式说明)。
   - `timezone`：指定时间戳的时区，当 timeKey 设置时有效，IANA 时区格式，默认值 taosAdapter 所在机器时区。
-  - `transformation`：使用 JSONata 表达式对输入的 JSON 数据进行转换，以符合 TDengine TSDB 的数据写入要求，具体语法见 [JSONata 文档](https://jsonata.org/)。
+  - `transformation`：使用 JSONata 表达式对输入的 JSON 数据进行转换，以符合 TDengine 的数据写入要求，具体语法见 [JSONata 文档](https://jsonata.org/)。
   - `fields`：定义要写入的字段列表，每个字段包含以下属性：
     - `key`：指定 JSON 对象中用于表示字段值的键名，需要与数据库字段名相同，禁止包含反引号 `` ` ``。
     - `optional`：指定该字段是否为可选字段，默认值为 `false`，表示该字段为必填字段，如果 `key` 不存在时会报错。如果设置为 `true`，则表示该字段为可选字段，如果 `key` 不存在则不会报错，生成 SQL 时将不会包含该列。
@@ -247,7 +247,7 @@ taos> select tbname,* from test_input_json.meters order by tbname asc;
  d_009                          | 2025-11-04 17:24:13.123 |                  7.9 |         220 |                   80 | New York                       |           2 |
 ```
 
-TDengine TSDB 中的数据已经成功写入，TDengine TSDB 配置为 UTC+8 时区，因此时间显示为 `2025-11-04 17:24:13.123`。
+TDengine 中的数据已经成功写入，TDengine 配置为 UTC+8 时区，因此时间显示为 `2025-11-04 17:24:13.123`。
 
 #### 时间解析格式说明
 
@@ -271,7 +271,7 @@ TDengine TSDB 中的数据已经成功写入，TDengine TSDB 配置为 UTC+8 时
 
 #### transformation 示例说明
 
-对于复杂的 JSON 数据格式，可以通过配置 `transformation` 使用 JSONata 表达式对输入的 JSON 数据进行转换，以符合 TDengine TSDB 的数据写入要求。可以通过 [JSONata 在线编辑器](https://try.jsonata.org/) 来调试和验证 JSONata 表达式。
+对于复杂的 JSON 数据格式，可以通过配置 `transformation` 使用 JSONata 表达式对输入的 JSON 数据进行转换，以符合 TDengine 的数据写入要求。可以通过 [JSONata 在线编辑器](https://try.jsonata.org/) 来调试和验证 JSONata 表达式。
 
 假设输入的 JSON 数据如下：
 
@@ -472,7 +472,7 @@ insert into `test_input_json`.`meters`(`tbname`,`ts`,`current`,`voltage`,`phase`
 
 #### dry run 模式
 
-为了方便调试和验证 JSON 配置规则的正确性，taosAdapter 提供了 dry run 模式，可以通过在写入请求中添加查询参数 `dry_run=true` 来启用该模式。在 dry-run 模式下，taosAdapter 不会将数据写入 TDengine TSDB，而是返回转换后的 JSON 和生成的 SQL 语句供用户查看和验证。
+为了方便调试和验证 JSON 配置规则的正确性，taosAdapter 提供了 dry run 模式，可以通过在写入请求中添加查询参数 `dry_run=true` 来启用该模式。在 dry-run 模式下，taosAdapter 不会将数据写入 TDengine，而是返回转换后的 JSON 和生成的 SQL 语句供用户查看和验证。
 
 示例请求：
 
@@ -502,11 +502,11 @@ curl -L 'http://localhost:6041/input_json/v1/rule1?dry_run=true' \
 
 ### RESTful 接口
 
-您可以使用任何支持 HTTP 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine TSDB 或从 TDengine TSDB 中查询数据。细节请参考 [REST API 文档](../../10-developer-guide/08-connectors-reference/10-rest-api.mdx)。
+你可以使用任何支持 HTTP 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考 [REST API 文档](../../10-developer-guide/08-connectors-reference/10-rest-api.mdx)。
 
 ## 安装
 
-taosAdapter 是 TDengine TSDB 服务端软件 的一部分，如果您使用 TDengine TSDB server 您不需要任何额外的步骤来安装 taosAdapter。您可以从 [涛思数据官方网站](https://docs.taosdata.com/releases/tdengine/) 下载 TDengine TSDB server 安装包。如果需要将 taosAdapter 分离部署在 TDengine TSDB server 之外的服务器上，则应该在该服务器上安装完整的 TDengine TSDB 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考 [构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md) 文档。
+taosAdapter 是 TDengine 服务端软件的一部分，如果你使用 TDengine server 你不需要任何额外的步骤来安装 taosAdapter。你可以从 [涛思数据官方网站](https://docs.taosdata.com/releases/tdengine/) 下载 TDengine server 安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果你需要使用源代码编译生成 taosAdapter，你可以参考 [构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md) 文档。
 
 安装完成后使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。
 
@@ -527,7 +527,7 @@ taosAdapter 的基础配置参数如下：
   - **设置为 `false` 时**：关闭调试模式，不允许访问调试信息。
 - **`instanceId`**：taosAdapter 实例 id，用于区分不同 taosAdapter 的日志，默认值：32。
 - **`port`**：taosAdapter 对外提供 HTTP/WebSocket 服务的端口，默认值：6041。
-- **`taosConfigDir`**：TDengine TSDB 的配置文件目录，默认值：`/etc/taos`。该目录下的 `taos.cfg` 文件将被加载。
+- **`taosConfigDir`**：TDengine 的配置文件目录，默认值：`/etc/taos`。该目录下的 `taos.cfg` 文件将被加载。
 
 从 **3.3.4.0 版本** 开始，taosAdapter 支持设置调用 C 方法并发调用数：
 
@@ -541,7 +541,7 @@ taosAdapter 的基础配置参数如下：
 
 ### 注册配置
 
-从 **3.4.0.0** 版本开始，taosAdapter 将注册到 TDengine TSDB 中，可以通过 SQL 语句 `select * from performance_schema.perf_instances where type = 'taosadapter'` 进行查询。
+从 **3.4.0.0** 版本开始，taosAdapter 将注册到 TDengine 中，可以通过 SQL 语句 `select * from performance_schema.perf_instances where type = 'taosadapter'` 进行查询。
 
 注册配置参数如下：
 
@@ -574,7 +574,7 @@ taosAdapter 的基础配置参数如下：
 
 ### 连接池配置
 
-taosAdapter 使用连接池管理与 TDengine TSDB 的连接，以提高并发性能和资源利用率。连接池配置对以下接口生效，且以下接口共享一个连接池：
+taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能和资源利用率。连接池配置对以下接口生效，且以下接口共享一个连接池：
 
 - RESTful 接口请求
 - InfluxDB v1 写接口
@@ -592,8 +592,8 @@ taosAdapter 使用连接池管理与 TDengine TSDB 的连接，以提高并发�
 - **`pool.maxConnect`**：连接池允许的最大连接数，默认值为 2 倍 CPU 核心数。建议保持默认设置。
 - **`pool.maxIdle`**：连接池中允许的最大空闲连接数，默认与 `pool.maxConnect` 相同。建议保持默认设置。
 - **`pool.idleTimeout`**：连接空闲超时时间，默认永不超时。建议保持默认设置。
-- **`pool.waitTimeout`**：从连接池获取连接的超时时间，默认设置为 60 秒。如果在超时时间内未能获取连接，将返回 HTTP 状态码 503。该参数从版本 3.3.3.0 开始提供。
-- **`pool.maxWait`**：连接池中等待获取连接的请求数上限，默认值为 0，表示不限制。当排队请求数超过此值时，新的请求将返回 HTTP 状态码 503。该参数从版本 3.3.3.0 开始提供。
+- **`pool.waitTimeout`**：从连接池获取连接的超时时间，默认设置为 60 秒。如果在超时时间内未能获取连接，将返回 HTTP 状态码 503。该参数从 `v3.3.3.0` 开始提供。
+- **`pool.maxWait`**：连接池中等待获取连接的请求数上限，默认值为 0，表示不限制。当排队请求数超过此值时，新的请求将返回 HTTP 状态码 503。该参数从 `v3.3.3.0` 开始提供。
 
 ### HTTP 返回码配置
 
@@ -654,7 +654,7 @@ taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值�
 - **`monitor.pauseQueryMemoryThreshold`**：查询请求暂停的内存阈值（百分比），默认值为 `70`，环境变量为 `TAOS_MONITOR_PAUSE_QUERY_MEMORY_THRESHOLD`。
 - **`monitor.pauseAllMemoryThreshold`**：查询和写入请求暂停的内存阈值（百分比），默认值为 `80`，环境变量为 `TAOS_MONITOR_PAUSE_ALL_MEMORY_THRESHOLD`。
 
-您可以根据具体项目应用场景和运营策略进行相应调整，并建议使用运营监控软件及时进行系统内存状态监控。负载均衡器也可以通过这个接口检查 taosAdapter 运行状态。
+你可以根据具体项目应用场景和运营策略进行相应调整，并建议使用运营监控软件及时进行系统内存状态监控。负载均衡器也可以通过这个接口检查 taosAdapter 运行状态。
 
 ### 无模式写入创建 DB 配置
 
@@ -787,7 +787,7 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 
 - **`collectd.token`**
 
-  设置连接数据库使用的token（默认值：`""`），TDengine TSDB 3.4.0.0 及以上企业版生效。
+  设置连接数据库使用的token（默认值：`""`），TDengine TSDB Enterprise `v3.4.0.0` 及以上生效。
 
 - **`collectd.ttl`**
 
@@ -831,7 +831,7 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 
 - **`opentsdb_telnet.token`**
 
-  设置连接数据库使用的token（默认值：`""`），TDengine TSDB 3.4.0.0 及以上企业版生效。
+  设置连接数据库使用的token（默认值：`""`），TDengine TSDB Enterprise `v3.4.0.0` 及以上生效。
 
 - **`opentsdb_telnet.ttl`**
 
@@ -881,7 +881,7 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 
 - **`statsd.token`**
 
-  设置连接数据库使用的token（默认值：`""`），TDengine TSDB 3.4.0.0 及以上企业版生效。
+  设置连接数据库使用的token（默认值：`""`），TDengine TSDB Enterprise `v3.4.0.0` 及以上生效。
 
 - **`statsd.ttl`**
 
@@ -937,15 +937,15 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 
 - **`open_metrics.user`**
 
-  配置连接 TDengine TSDB 的用户名（默认值：`"root"`）。
+  配置连接 TDengine 的用户名（默认值：`"root"`）。
 
 - **`open_metrics.password`**
 
-  设置连接 TDengine TSDB 的密码（默认值：`"taosdata"`）。
+  设置连接 TDengine 的密码（默认值：`"taosdata"`）。
 
 - **`open_metrics.token`**
 
-  设置连接数据库使用的token（默认值：`""`），TDengine TSDB 3.4.0.0 及以上企业版生效。
+  设置连接数据库使用的token（默认值：`""`），TDengine TSDB Enterprise `v3.4.0.0` 及以上生效。
 
 - **`open_metrics.urls`**
 
@@ -1031,7 +1031,7 @@ taosAdapter 提供了参数 `restfulRowLimit`，用于控制 HTTP 接口返回�
 
 - **`node_exporter.token`**
 
-  设置连接数据库使用的token（默认值：`""`），TDengine TSDB 3.4.0.0 及以上企业版生效。
+  设置连接数据库使用的token（默认值：`""`），TDengine TSDB Enterprise `v3.4.0.0` 及以上生效。
 
 - **`node_exporter.ttl`**
 
@@ -1341,12 +1341,12 @@ rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i
 
 ### 升级 taosAdapter
 
-taosAdapter 和 TDengine TSDB server 需要使用相同版本。请通过升级 TDengine TSDB server 来升级 taosAdapter。
-与 taosd 分离部署的 taosAdapter 必须通过升级其所在服务器的 TDengine TSDB server 才能得到升级。
+taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDengine server 来升级 taosAdapter。
+与 taosd 分离部署的 taosAdapter 必须通过升级其所在服务器的 TDengine server 才能得到升级。
 
 ### 移除 taosAdapter
 
-使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine TSDB server 软件。
+使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
 
 ## 动态配置
 
@@ -1536,7 +1536,7 @@ curl --location 'http://127.0.0.1:6041/record_sql' \
 
 ## 记录 STMT 到 CSV 文件
 
-taosAdapter 从 v3.4.0.1 版本开始支持将 STMT 请求记录到 CSV 文件中。用户可以通过配置参数 `log.enableStmtToCsvLogging` 来启用此功能，或使用 HTTP 请求动态开启和关闭。
+taosAdapter 从 `v3.4.0.1` 版本开始支持将 STMT 请求记录到 CSV 文件中。用户可以通过配置参数 `log.enableStmtToCsvLogging` 来启用此功能，或使用 HTTP 请求动态开启和关闭。
 
 :::warning
 启用此功能会导致性能严重下降。
@@ -2242,13 +2242,13 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 
 ## httpd 升级为 taosAdapter 的变化
 
-在 TDengine TSDB server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务（httpd）。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
+在 TDengine server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务（httpd）。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
 
 | **#** | **embedded httpd**  | **taosAdapter**               | **comment**                                                                                    |
 |-------|---------------------|-------------------------------|------------------------------------------------------------------------------------------------|
 | 1     | httpEnableRecordSql | --logLevel=debug              |                                                                                                |
 | 2     | httpMaxThreads      | n/a                           | taosAdapter 自动管理线程池，无需此参数                                                                      |
 | 3     | telegrafUseFieldNum | 请参考 taosAdapter telegraf 配置方法 |                                                                                                |
-| 4     | restfulRowLimit     | restfulRowLimit               | 内嵌 httpd 默认输出 10240 行数据，最大允许值为 102400。taosAdapter 也提供 restfulRowLimit 但是默认不做限制。您可以根据实际场景需求进行配置 |
+| 4     | restfulRowLimit     | restfulRowLimit               | 内嵌 httpd 默认输出 10240 行数据，最大允许值为 102400。taosAdapter 也提供 restfulRowLimit 但是默认不做限制。你可以根据实际场景需求进行配置 |
 | 5     | httpDebugFlag       | 不适用                           | httpdDebugFlag 对 taosAdapter 不起作用                                                              |
 | 6     | httpDBNameMandatory | 不适用                           | taosAdapter 要求 URL 中必须指定数据库名                                                                   |

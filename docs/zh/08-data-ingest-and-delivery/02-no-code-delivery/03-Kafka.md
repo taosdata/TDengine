@@ -1,12 +1,13 @@
 ---
 sidebar_label: Kafka
 title: Kafka
+description: 通过 taosExplorer 将 TMQ 数据发布到 Kafka
 toc_max_heading_level: 4
 ---
 
 Apache Kafka 是一个高吞吐、可扩展的分布式消息队列系统，常用于实时数据采集、日志传输、流式处理和事件驱动架构。TDengine 支持将 TMQ 订阅到的数据和元数据发布到 Kafka，便于将时序数据进一步对接到数据平台、实时计算引擎或下游业务系统。
 
-通过 TDengine Explorer 创建 Kafka 数据发布任务后，系统会从指定的 TMQ 主题读取消息，并根据配置写入一个或多个 Kafka Topic。用户可以分别控制数据消息与元数据消息是否发布，也可以在保存前执行连通性检查和消息预览。
+通过 taosExplorer 创建 Kafka 数据发布任务后，系统会从指定的 TMQ 主题读取消息，并根据配置写入一个或多个 Kafka Topic。用户可以分别控制数据消息与元数据消息是否发布，也可以在保存前执行连通性检查和消息预览。
 
 > **注意：本功能仅适用于 TDengine 企业版。**
 
@@ -27,20 +28,20 @@ Apache Kafka 是一个高吞吐、可扩展的分布式消息队列系统，常�
 
 ## 数据准备
 
-通过命令行工具 `taos` 或管理界面 Explorer 执行 SQL 语句，创建数据库、超级表、主题，并写入数据，供后续发布任务使用。以下为简单示例：
+通过命令行工具 `taos` 或管理界面 taosExplorer 执行 SQL 语句，创建数据库、超级表、主题，并写入数据，供后续发布任务使用。以下为简单示例：
 
 ```sql
-create database db vgroups 1;
-create table db.meters (ts timestamp, f1 int) tags(t1 int);
-create topic topic_meters as select ts, tbname, f1, t1 from db.meters;
-insert into db.tb using db.meters tags(1) values(now, 1);
+CREATE DATABASE db VGROUPS 1;
+CREATE TABLE db.meters (ts TIMESTAMP, f1 INT) TAGS (t1 INT);
+CREATE TOPIC topic_meters AS SELECT ts, tbname, f1, t1 FROM db.meters;
+INSERT INTO db.tb USING db.meters TAGS (1) VALUES (now, 1);
 ```
 
 关于主题定义、消费位点和订阅参数的更多说明，请参考 [数据订阅](../../07-data-subscription/index.md)。
 
 ## 创建 Kafka 数据发布任务
 
-用户可以在 Explorer 中进入“数据发布”页面，选择 Kafka 作为目标类型，并按顺序完成以下配置：
+用户可以在 taosExplorer 中进入“数据发布”页面，选择 Kafka 作为目标类型，并按顺序完成以下配置：
 
 1. 填写任务名称；
 2. 配置 TDengine TMQ 订阅参数；
@@ -96,7 +97,7 @@ tmq+ws://root:taosdata@localhost:6041/topic_meters
 常用订阅参数包括：
 
 - `group.id`：消费组 ID。建议在生产环境显式指定。
-- `auto.offset.reset`：消费起始位置。在 Explorer 中由单独的“起始位置”必填字段控制，底层会对应到 `earliest` 或 `latest`。
+- `auto.offset.reset`：消费起始位置。在 taosExplorer 中由单独的“起始位置”必填字段控制，底层会对应到 `earliest` 或 `latest`。
 - `with.meta`：是否同步元数据。
 - `with.meta.delete`：是否同步元数据中的删除数据事件。
 - `with.meta.drop`：是否同步元数据中的删表事件。

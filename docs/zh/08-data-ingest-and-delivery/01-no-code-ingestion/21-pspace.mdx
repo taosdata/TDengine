@@ -1,13 +1,13 @@
 ---
-title: "pSpace"
-sidebar_label: "pSpace"
+title: pSpace
+sidebar_label: pSpace
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移/数据同步任务，从 pSpace 迁移/同步数据到当前 TDengine TSDB 集群。
+本节讲述如何通过 taosExplorer 界面创建数据迁移/数据同步任务，从 pSpace 迁移/同步数据到当前 TDengine 集群。
 
 ## 功能概述
 
-TDengine TSDB 可以高效地从 pSpace 读取数据并将其写入 TDengine TSDB，以实现历史数据迁移或实时数据同步。
+TDengine 可以高效地从 pSpace 读取数据并将其写入 TDengine，以实现历史数据迁移或实时数据同步。
 
 ## 创建任务
 
@@ -102,4 +102,4 @@ pSpace 支持三种采集模式：历史查询、实时订阅、查询同步。
 
 ## 使用限制
 
-- 任务运行过程中，若 pSpace 侧发生点位变更（新增或删除点位），需要手动重启本数据写入任务，否则新增点位的数据可能无法正确同步到 TDengine TSDB。
+- 任务运行过程中，若 pSpace 侧发生点位变更（新增或删除点位），需要手动重启本数据写入任务，否则新增点位的数据可能无法正确同步到 TDengine。

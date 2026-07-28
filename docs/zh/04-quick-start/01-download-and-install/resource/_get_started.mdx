@@ -2,7 +2,7 @@
 
 ### 打开命令行
 
-TDengine TSDB 提供命令行工具 `taos shell`，可用于检查服务状态、执行 SQL、管理数据库和表。进入 shell 后，你可以直接体验写入和查询功能。
+TDengine 提供命令行工具 `taos shell`，可用于检查服务状态、执行 SQL、管理数据库和表。进入 shell 后，你可以直接体验写入和查询功能。
 
 在 Linux 或 macOS 终端中执行：
 
@@ -40,13 +40,13 @@ SELECT * FROM t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-除执行 SQL 外，你还可以通过 shell 检查系统运行状态、管理用户账号等。shell 和应用驱动也可以独立安装在其他机器上运行，详情请参考 [TDengine TSDB 命令行](../../../12-operations-and-tooling/04-tools/01-taos-cli.md)。
+除执行 SQL 外，你还可以通过 shell 检查系统运行状态、管理用户账号等。shell 和应用驱动也可以独立安装在其他机器上运行，详情请参考 [TDengine 命令行](../../../12-operations-and-tooling/04-tools/01-taos-cli.md)。
 
 ### 写入测试数据
 
-`taosBenchmark` 是 TDengine TSDB 提供的测试工具，可用于快速生成测试数据，并体验写入、查询和订阅等功能。它可以模拟大量设备产生的数据，并支持配置数据库、超级表、标签列、数据列、子表数量、每张子表的数据量、写入间隔、工作线程数量以及是否写入乱序数据等参数。
+`taosBenchmark` 是 TDengine 提供的测试工具，可用于快速生成测试数据，并体验写入、查询和订阅等功能。它可以模拟大量设备产生的数据，并支持配置数据库、超级表、标签列、数据列、子表数量、每张子表的数据量、写入间隔、工作线程数量以及是否写入乱序数据等参数。
 
-确认 TDengine TSDB 服务已经启动后，在终端中执行下面的命令：
+确认 TDengine 服务已经启动后，在终端中执行下面的命令：
 
 ```shell
 taosBenchmark -y
@@ -116,4 +116,4 @@ SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(
 
 ## 下一步
 
-完成上述快速体验后，你可以继续阅读后续章节，进一步了解 TDengine TSDB 的数据建模、写入、查询、数据订阅和流式计算等能力。
+完成上述快速体验后，你可以继续阅读后续章节，进一步了解 TDengine 的数据建模、写入、查询、数据订阅和流式计算等能力。

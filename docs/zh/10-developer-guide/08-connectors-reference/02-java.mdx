@@ -1,28 +1,28 @@
 ---
 toc_max_heading_level: 4
 sidebar_label: Java
-title: TDengine TSDB Java Connector
-description: TDengine TSDB Java 连接器基于标准 JDBC API 实现，并提供原生连接与 WebSocket 连接两种连接器。
+title: TDengine Java Connector
+description: TDengine Java 连接器基于标准 JDBC API 实现，并提供原生连接与 WebSocket 连接两种连接器。
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import RequestId from "./resources/_request_id.mdx";
 
-`taos-jdbcdriver` 是 TDengine TSDB 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine TSDB 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口。
+`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口。
 
 :::warning 原生连接和 REST 连接即将废弃
 
 <font color="red">Java 的原生连接和 REST 连接将于 2027-01-01 下线</font>，请迁移到 WebSocket 连接。
 
-详细的迁移指引请参考：[连接方式说明](../#连接方式)
+详细的迁移指引请参考：[连接方式说明](./index.md#连接方式)
 
 :::
 
 :::info
-TDengine TSDB 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine TSDB 与关系对象型数据库的使用场景和技术特征存在差异，所以`taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
+TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine 与关系对象型数据库的使用场景和技术特征存在差异，所以`taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
 
-- TDengine TSDB 目前不支持针对单条数据记录的删除操作。
+- TDengine 目前不支持针对单条数据记录的删除操作。
 - 目前不支持事务操作。
 
 :::
@@ -34,14 +34,14 @@ TDengine TSDB 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一
 
 ## 支持的平台
 
-- 原生连接支持的平台和 TDengine TSDB 客户端驱动支持的平台一致。
+- 原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
 - WebSocket 连接支持所有能运行 Java 的平台。
 
 ## 版本历史
 
-| taos-jdbcdriver 版本 | 主要变化                                                                                                                                                                                                                                                                               | TDengine TSDB 版本 |
+| taos-jdbcdriver 版本 | 主要变化                                                                                                                                                                                                                                                                               | TDengine 版本 |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| 3.9.0                | 优化参数绑定缓存和序列化，以提升 TDengine TSDB Enterprise 3.4.1.16 及更高版本的写入性能                                                                                                                                                                                                                              | -                  |
+| 3.9.0                | 优化参数绑定缓存和序列化，以提升 TDengine TSDB Enterprise `v3.4.1.16` 及更高版本的写入性能                                                                                                                                                                                                                              | -                  |
 | 3.8.4                | 1. 支持 taosadapter 的高可用（HA）端点发现。<br/>2. 连接前对端点进行乱序。<br/>3. 修复 WebSocket 连接属性初始化 Catalog。                                                                                                                                                                                                                           | -                  |
 | 3.8.3                | 修复数据订阅令牌认证错误地要求用户名的 bug                                                                                                                                                                                                                               | -                  |
 | 3.8.2                | 数据订阅支持令牌                                                                                                                                                                                                                               | -                  |
@@ -57,30 +57,30 @@ TDengine TSDB 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一
 | 3.6.3                | 解决了订阅数据库和超级表时的数据类型转换 bug                                                                                                                                                                                                                                           | -                  |
 | 3.6.2                | 1. 支持订阅数据库和超级表（不支持订阅元数据） <br/> 2. 解决了云服务订阅 bug <br/> 3. 优化了 setQueryTimeout 参数为 0 的实现                                                                                                                                                            | -                  |
 | 3.6.1                | 解决 WebSocket 连接在小查询上的性能 bug                                                                                                                                                                                                                                                | -                  |
-| 3.6.0                | 在 WebSocket 连接上支持高效写入和 Decimal 数据类型                                                                                                                                                                                                                                     | 3.3.6.0 及更高版本 |
+| 3.6.0                | 在 WebSocket 连接上支持高效写入和 Decimal 数据类型                                                                                                                                                                                                                                     | `v3.3.6.0` 及更高版本 |
 | 3.5.3                | 在 WebSocket 连接上支持无符号数据类型                                                                                                                                                                                                                                                  | -                  |
 | 3.5.2                | 解决了 WebSocket 查询结果集释放 bug                                                                                                                                                                                                                                                    | -                  |
 | 3.5.1                | 解决了数据订阅获取时间戳对象类型问题                                                                                                                                                                                                                                                   | -                  |
-| 3.5.0                | 1. 优化了 WebSocket 连接参数绑定性能，支持参数绑定查询使用二进制数据 <br/> 2. 优化了 WebSocket 连接在小查询上的性能 <br/> 3. WebSocket 连接上支持设置时区和应用信息                                                                                                                    | 3.3.5.0 及更高版本 |
+| 3.5.0                | 1. 优化了 WebSocket 连接参数绑定性能，支持参数绑定查询使用二进制数据 <br/> 2. 优化了 WebSocket 连接在小查询上的性能 <br/> 3. WebSocket 连接上支持设置时区和应用信息                                                                                                                    | `v3.3.5.0` 及更高版本 |
 | 3.4.0                | 1. 使用 jackson 库替换 fastjson 库 <br/> 2. WebSocket 采用独立协议标识 <br/> 3. 优化后台拉取线程使用，避免用户误用导致超时                                                                                                                                                             | -                  |
 | 3.3.4                | 解决了 getInt 在数据类型为 float 报错                                                                                                                                                                                                                                                  | -                  |
 | 3.3.3                | 解决了 WebSocket statement 关闭导致的内存泄漏                                                                                                                                                                                                                                          | -                  |
 | 3.3.2                | 1. 优化 WebSocket 连接下的参数绑定性能 <br/> 2. 优化了对 mybatis 的支持                                                                                                                                                                                                                | -                  |
-| 3.3.0                | 1. 优化 WebSocket 连接下的数据传输性能 <br/> 2. 支持跳过 SSL 验证，默认关闭                                                                                                                                                                                                            | 3.3.2.0 及更高版本 |
+| 3.3.0                | 1. 优化 WebSocket 连接下的数据传输性能 <br/> 2. 支持跳过 SSL 验证，默认关闭                                                                                                                                                                                                            | `v3.3.2.0` 及更高版本 |
 | 3.2.11               | 解决了 Native 连接关闭结果集 bug                                                                                                                                                                                                                                                       | -                  |
 | 3.2.10               | 1. REST/WebSocket 连接支持传输中的数据压缩 <br/> 2. WebSocket 自动重连机制，默认关闭 <br/> 3. Connection 类提供无模式写入的方法 <br/> 4. 优化了原生连接的数据拉取性能 <br/> 5. 修复了一些已知问题 <br/> 6.元数据获取函数可以返回支持的函数列表                                         | -                  |
 | 3.2.9                | 解决了 WebSocket prepareStatement 关闭 bug                                                                                                                                                                                                                                             | -                  |
 | 3.2.8                | 1. 优化了自动提交 <br/> 2. 解决了 WebSocket 手动提交 bug <br/> 3.优化 WebSocket prepareStatement 使用一个连接 <br/> 4.元数据支持视图                                                                                                                                                   | -                  |
-| 3.2.7                | 1. 支持 VARBINARY 和 GEOMETRY 类型 <br/> 2. 增加 native 连接的时区设置支持 <br/> 3. 增加 WebSocket 自动重连功能                                                                                                                                                                        | 3.2.0.0 及更高版本 |
-| 3.2.5                | 数据订阅增加 committed()、assignment() 方法                                                                                                                                                                                                                                            | 3.1.0.3 及更高版本 |
+| 3.2.7                | 1. 支持 VARBINARY 和 GEOMETRY 类型 <br/> 2. 增加 native 连接的时区设置支持 <br/> 3. 增加 WebSocket 自动重连功能                                                                                                                                                                        | `v3.2.0.0` 及更高版本 |
+| 3.2.5                | 数据订阅增加 committed()、assignment() 方法                                                                                                                                                                                                                                            | `v3.1.0.3` 及更高版本 |
 | 3.2.4                | 数据订阅在 WebSocket 连接下增加 enable.auto.commit 参数，以及 unsubscribe 方法                                                                                                                                                                                                         | -                  |
 | 3.2.3                | 修复 ResultSet 在一些情况数据解析失败                                                                                                                                                                                                                                                  | -                  |
-| 3.2.2                | 数据订阅支持 seek 功能                                                                                                                                                                                                                                                                 | 3.0.5.0 及更高版本 |
-| 3.2.1                | 1. WebSocket 连接支持 schemaless 与 prepareStatement 写入 <br/> 2. consumer poll 返回结果集为 ConsumerRecord，可通过 value() 获取指定结果集数据                                                                                                                                        | 3.0.3.0 及更高版本 |
+| 3.2.2                | 数据订阅支持 seek 功能                                                                                                                                                                                                                                                                 | `v3.0.5.0` 及更高版本 |
+| 3.2.1                | 1. WebSocket 连接支持 schemaless 与 prepareStatement 写入 <br/> 2. consumer poll 返回结果集为 ConsumerRecord，可通过 value() 获取指定结果集数据                                                                                                                                        | `v3.0.3.0` 及更高版本 |
 | 3.2.0                | 存在连接问题，不推荐使用                                                                                                                                                                                                                                                               | -                  |
 | 3.1.0                | WebSocket 连接支持订阅功能                                                                                                                                                                                                                                                             | -                  |
 | 3.0.1 - 3.0.4        | 修复一些情况下结果集数据解析错误的问题。3.0.1 在 JDK 11 环境编译，JDK 8 环境下建议使用其他版本                                                                                                                                                                                         | -                  |
-| 3.0.0                | 支持 TDengine TSDB 3.0                                                                                                                                                                                                                                                                 | 3.0.0.0 及更高版本 |
+| 3.0.0                | 支持 TDengine `v3.0`                                                                                                                                                                                                                                                                 | `v3.0.0.0` 及更高版本 |
 | 2.0.42               | 修复 WebSocket 连接中 wasNull 接口返回值                                                                                                                                                                                                                                               | -                  |
 | 2.0.41               | 修复 REST 连接中用户名和密码转码方式                                                                                                                                                                                                                                                   | -                  |
 | 2.0.39 - 2.0.40      | 增加 REST 连接/请求 超时设置                                                                                                                                                                                                                                                           | -                  |
@@ -100,9 +100,9 @@ TDengine TSDB 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一
 
 ## 数据类型映射
 
-TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
+TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
-| TDengine TSDB DataType | JDBCType             | 备注                                                                           |
+| TDengine DataType | JDBCType             | 备注                                                                           |
 | ---------------------- | -------------------- | ------------------------------------------------------------------------------ |
 | TIMESTAMP              | java.sql.Timestamp   |                                                                                |
 | BOOL                   | java.lang.Boolean    |                                                                                |
@@ -127,7 +127,7 @@ TDengine TSDB 目前支持时间戳、数字、字符、布尔类型，与 Java 
 **注意**：由于历史原因，TDengine 中的 BINARY 底层不是真正的二进制数据，已不建议使用，请用 VARBINARY 类型代替。  
 GEOMETRY 类型是 little endian 字节序的二进制数据，符合 WKB 规范。详细信息请参考 [数据类型](../../05-tdengine-sql/01-datatype.md)  
 WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/wkb/)  
-对于 java 连接器，可以使用 jts 库来方便的创建 GEOMETRY 类型对象，序列化后写入 TDengine TSDB，这里有一个样例[Geometry 示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/GeometryDemo.java)  
+对于 java 连接器，可以使用 jts 库来方便的创建 GEOMETRY 类型对象，序列化后写入 TDengine，这里有一个样例[Geometry 示例](https://github.com/taosdata/TDengine/blob/main/docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/GeometryDemo.java)  
 
 ## 示例程序汇总
 
@@ -138,7 +138,7 @@ WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/
 - SpringJdbcTemplate：Spring JdbcTemplate 中使用 taos-jdbcdriver。
 - mybatisplus-demo：Springboot + Mybatis 中使用 taos-jdbcdriver。
 - springbootdemo：Springboot 中使用 taos-jdbcdriver。
-- consumer-demo：Consumer 消费 TDengine TSDB 数据示例，可通过参数控制消费速度。
+- consumer-demo：Consumer 消费 TDengine 数据示例，可通过参数控制消费速度。
 
 请参考：
 
@@ -149,7 +149,7 @@ WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/
 
 1. 使用 Statement 的 `addBatch()` 和 `executeBatch()` 来执行“批量写入/更新”，为什么没有带来性能上的提升？
 
-**原因**：TDengine TSDB 的 JDBC 实现中，通过 `addBatch` 方法提交的 SQL 语句，会按照添加的顺序，依次执行，这种方式没有减少与服务端的交互次数，不会带来性能上的提升。
+**原因**：TDengine 的 JDBC 实现中，通过 `addBatch` 方法提交的 SQL 语句，会按照添加的顺序，依次执行，这种方式没有减少与服务端的交互次数，不会带来性能上的提升。
 
 **解决方法**：1. 在一条 insert 语句中拼接多个 values 值；2. 使用多线程的方式并发插入；3. 使用参数绑定的写入方式
 
@@ -161,15 +161,15 @@ WKB 规范请参考[Well-Known Binary (WKB)](https://libgeos.org/specifications/
 
 3. java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
 
-**原因**：目前 TDengine TSDB 只支持 64 位 JDK。
+**原因**：目前 TDengine 只支持 64 位 JDK。
 
 **解决方法**：重新安装 64 位 JDK。
 
 4. java.lang.NoSuchMethodError: setByteArray
 
-**原因**：taos-jdbcdriver 3.\* 版本仅支持 TDengine TSDB 3.0 及以上版本。
+**原因**：taos-jdbcdriver 3.\* 版本仅支持 TDengine `v3.0` 及以上版本。
 
-**解决方法**：使用 taos-jdbcdriver 2.\* 版本连接 TDengine TSDB 2.\* 版本。
+**解决方法**：使用 taos-jdbcdriver 2.\* 版本连接 TDengine 2.\* 版本。
 
 5. java.lang.NoSuchMethodError: java.nio.ByteBuffer.position(I)Ljava/nio/ByteBuffer; ... taos-jdbcdriver-3.0.1.jar
 
@@ -202,7 +202,7 @@ taos-jdbcdriver 实现了 JDBC 标准的 Driver 接口，提供了 2 个实现�
 
 #### URL 规范
 
-TDengine TSDB 的 JDBC URL 规范格式为：
+TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-WS]://[host1:port1,host2:port2,...,hostN:portN]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}|&batchfetch={batchfetch}]`
 
 - `host` 参数支持合法的域名或 IP 地址。taos-jdbcdriver 同时支持 IPv4 和 IPv6 格式。对于 IPv6 地址，必须使用中括号括起来（例如 `[::1]` 或 `[2001:db8:1234:5678::1]`），以避免端口号解析冲突。  
@@ -219,7 +219,7 @@ TDengine TSDB 的 JDBC URL 规范格式为：
 
 对于 WebSocket 连接，url 中的常见配置参数如下（所有参数请参考 Properties 一节）：
 
-- user：登录 TDengine TSDB 用户名，默认值 'root'。
+- user：登录 TDengine 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - batchErrorIgnore：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL 了。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 - httpConnectTimeout：连接超时时间，单位 ms，默认值为 60000。
@@ -233,14 +233,14 @@ TDengine TSDB 的 JDBC URL 规范格式为：
 
 **<font color="red">原生连接，已废弃，将于 2027-01-01 下线</font>**
 
-`jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`，使用了 JDBC 原生连接的 TSDBDriver，建立了到 host 为 taosdemo.com，端口为 6030（TDengine TSDB 的默认端口），数据库名为 power 的连接。这个 URL
+`jdbc:TAOS://taosdemo.com:6030/power?user=root&password=taosdata`，使用了 JDBC 原生连接的 TSDBDriver，建立了到 host 为 taosdemo.com，端口为 6030（TDengine 的默认端口），数据库名为 power 的连接。这个 URL
 中指定用户名（user）为 root，密码（password）为 taosdata。
 
 **注意**：使用 JDBC 原生连接，taos-jdbcdriver 需要依赖客户端驱动（Linux 下是 libtaos.so；Windows 下是 taos.dll；macOS 下是 libtaos.dylib）。
 
 对于原生连接 url 中支持的常见配置参数如下（所有参数请参考 Properties 一节）：
 
-- user：登录 TDengine TSDB 用户名，默认值 'root'。
+- user：登录 TDengine 用户名，默认值 'root'。
 - password：用户登录密码，默认值 'taosdata'。
 - cfgdir：客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
 - charset：客户端使用的字符集，默认值为系统字符集。
@@ -250,12 +250,12 @@ TDengine TSDB 的 JDBC URL 规范格式为：
 
 JDBC 原生连接的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。  
 
-**使用 TDengine TSDB 客户端驱动配置文件建立连接**  
+**使用 TDengine 客户端驱动配置文件建立连接**  
 
-当使用 JDBC 原生连接连接 TDengine TSDB 集群时，可以使用 TDengine TSDB 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。此时在 JDBC url 中不指定 `host` 和 `port`。
+当使用 JDBC 原生连接连接 TDengine 集群时，可以使用 TDengine 客户端驱动配置文件，在配置文件中指定集群的 firstEp、secondEp 等参数。此时在 JDBC url 中不指定 `host` 和 `port`。
 配置如 `jdbc:TAOS://:/power?user=root&password=taosdata`。  
-在 TDengine TSDB 客户端驱动配置文件中指定 firstEp 和 secondEp，jdbc 会使用客户端的配置文件，建立连接。当集群中 firstEp 节点失效时，JDBC 会尝试使用 secondEp 连接集群。
-TDengine TSDB 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可以正常建立到集群的连接。
+在 TDengine 客户端驱动配置文件中指定 firstEp 和 secondEp，jdbc 会使用客户端的配置文件，建立连接。当集群中 firstEp 节点失效时，JDBC 会尝试使用 secondEp 连接集群。
+TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可以正常建立到集群的连接。
 
 > **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
 
@@ -274,7 +274,7 @@ properties 中的配置参数如下：
 
 **配置描述**：用于配置基础信息。
 
-- TSDBDriver.PROPERTY_KEY_USER [`user`]：登录 TDengine TSDB 用户名，默认值 'root'。
+- TSDBDriver.PROPERTY_KEY_USER [`user`]：登录 TDengine 用户名，默认值 'root'。
 - TSDBDriver.PROPERTY_KEY_PASSWORD [`password`]：用户登录密码，默认值 'taosdata'。
 - TSDBDriver.PROPERTY_KEY_BEARER_TOKEN [`bearerToken`]：仅在使用 JDBC WebSocket 连接时生效，令牌信息。其认证优先级高于用户名密码。详见 [连接器安全最佳实践](../../11-security-guide/04-connector-security.md#3-token-认证)。
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR [`cfgdir`]：仅在使用 JDBC 原生连接时生效。客户端配置文件目录路径，Linux OS 上默认值 `/etc/taos`，Windows OS 上默认值 `C:/TDengine/cfg`。
@@ -300,7 +300,7 @@ properties 中的配置参数如下：
     > **注意**：启用自动重连对获取结果集无效。自动重连仅对连接建立时通过参数指定数据库有效，对后面的 `use db` 语句切换数据库无效。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_INTERVAL_MS [`reconnectIntervalMs`]：自动重连重试间隔，单位毫秒，默认值 2000。仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
 - TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT [`reconnectRetryCount`]：自动重连重试次数，默认值 3，仅在 PROPERTY_KEY_ENABLE_AUTO_RECONNECT 为 true 时生效。
-- TSDBDriver.PROPERTY_KEY_ADAPTER_HA [`adapterHA`]：是否启用 `adapter` 高可用。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。启用后连接成功即可获取集群所有 `adapter` 端点列表用于负载均衡，需要 TDengine 版本大于等于 `3.4.2.0` 才能支持此特性。
+- TSDBDriver.PROPERTY_KEY_ADAPTER_HA [`adapterHA`]：是否启用 `adapter` 高可用。仅在使用 WebSocket 连接时生效。true：启用，false：不启用。默认为 false。启用后连接成功即可获取集群所有 `adapter` 端点列表用于负载均衡，需要 TDengine 版本大于等于 `v3.4.2.0` 才能支持此特性。
 
 ---
 
@@ -334,7 +334,7 @@ properties 中的配置参数如下：
 **配置描述**：实验性的参数绑定序列化模式配置，仅对 WebSocket 连接生效且不支持高效写入模式，用于优化特定场景下的参数绑定性能。
 
 - TSDBDriver.PROPERTY_KEY_PBS_MODE [`pbsMode`]：**已废弃**。
-- TSDBDriver.PROPERTY_KEY_STMT_BIND_MODE [`stmtBindMode`]：参数绑定序列化模式，支持 `column` （列模式，TDengine 3.4.1.13 版本后支持，序列化效率高且字节数少）、`traditional` （之前的按表分组绑定模式）和 `auto` (根据版本自动选择)。仅在使用 WebSocket 连接时生效，支持高效写入模式。默认值为 `auto`。
+- TSDBDriver.PROPERTY_KEY_STMT_BIND_MODE [`stmtBindMode`]：参数绑定序列化模式，支持 `column` （列模式，TDengine `v3.4.1.13` 及之后支持，序列化效率高且字节数少）、`traditional` （之前的按表分组绑定模式）和 `auto` (根据版本自动选择)。仅在使用 WebSocket 连接时生效，支持高效写入模式。默认值为 `auto`。
 
 ---
 
@@ -357,14 +357,14 @@ properties 中的配置参数如下：
 
 1. JDBC URL 参数，如上所述，可以在 JDBC URL 的参数中指定。
 2. Properties connProps
-3. 使用原生连接时，TDengine TSDB 客户端驱动的配置文件 taos.cfg
+3. 使用原生连接时，TDengine 客户端驱动的配置文件 taos.cfg
 
 例如：在 url 中指定了 password 为 taosdata，在 Properties 中指定了 password 为 taosdemo，那么，JDBC 会使用 url 中的 password 建立连接。
 
 #### 接口说明  
 
 - `Connection connect(String url, java.util.Properties info) throws SQLException`
-  - **接口说明**：连接 TDengine TSDB 数据库。
+  - **接口说明**：连接 TDengine 数据库。
   - **参数说明**：
     - `url`：连接地址 url，详见上文 URL 规范。
     - `info`：连接属性，详见上文 Properties 章节。
@@ -785,7 +785,7 @@ JDBC 驱动提供了符合 JDBC 标准的 `Statement` 接口，支持以下功�
 
 - `int getFetchDirection() throws SQLException`
   - **接口说明**：获取 `Statement` 对象从数据库中获取行的方向。
-  - **返回值**：获取行的方向，TDengine TSDB 只支持 `FETCH_FORWARD` 方向。
+  - **返回值**：获取行的方向，TDengine 只支持 `FETCH_FORWARD` 方向。
   - **异常**：获取过程中发生数据库访问错误或其他错误，将抛出 `SQLException` 异常。
 
 - `void setFetchSize(int rows) throws SQLException`
@@ -1390,7 +1390,7 @@ ParameterMetaData 提供了参数元数据接口：
 
 ### 数据订阅
 
-JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。TaosConsumer 类提供了消费者相关接口，ConsumerRecord 提供了消费记录相关接口，TopicPartition 和 OffsetAndMetadata 提供了分区信息以及偏移量元数据接口。最后 ReferenceDeserializer 和 MapDeserializer 提供了反序列化的支持。
+JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。主题与 `WITH META` 等概念见 [数据订阅](../../07-data-subscription/index.md) 与 [主题语法](../../07-data-subscription/01-topic.md)；多语言用法见 [数据订阅编程接口](../07-subscription-api.md)。TaosConsumer 类提供了消费者相关接口，ConsumerRecord 提供了消费记录相关接口，TopicPartition 和 OffsetAndMetadata 提供了分区信息以及偏移量元数据接口。最后 ReferenceDeserializer 和 MapDeserializer 提供了反序列化的支持。
 
 #### 消费者
 
@@ -1406,7 +1406,7 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
 - td.connect.type：连接方式。jni：表示使用动态库连接的方式，ws/WebSocket：表示使用 WebSocket 进行数据通信。默认为 jni 方式。
 - bootstrap.servers：
   1. 如果使用 WebSocket 连接，则为 taosAdapter 所在的`ip:port`。支持多个端点，逗号分割，如 `ip1:port1,ip2:port2`，若 poll 过程中连接断开可以切换到其他节点（需设置自动重连参数 `TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT` 为 `true`）。
-  2. 如果使用 Native 连接，则为 TDengine TSDB 服务端所在的`ip:port`，Native 连接不支持多个端点。
+  2. 如果使用 Native 连接，则为 TDengine 服务端所在的`ip:port`，Native 连接不支持多个端点。
 - enable.auto.commit：是否允许自动提交。
 - group.id：consumer：所在的 group。
 - value.deserializer：结果集反序列化方法，可以继承 `com.taosdata.jdbc.tmq.ReferenceDeserializer`，并指定结果集 bean，实现反序列化。也可以继承 `com.taosdata.jdbc.tmq.Deserializer`，根据 SQL 的 resultSet 自定义反序列化方式。如果订阅数据库，需要在创建消费者时设置 `value.deserializer` 为 `com.taosdata.jdbc.tmq.MapEnhanceDeserializer`，然后创建 `TaosConsumer<TMQEnhMap>` 类型的消费者。这样每行数据就可以反序列化为表名和一个 `Map`。
@@ -1423,7 +1423,7 @@ JDBC 标准不支持数据订阅，因此本章所有接口都是扩展接口。
 - `td.connect.token`：TMQ 订阅的 Bearer Token。
 - `td.connect.user` + `td.connect.pass`：用户名密码认证（不使用 Token 时需要）。
 
-其他参数请参考：[Consumer 参数列表](../07-subscription-api.md#创建参数)，注意 TDengine TSDB 服务端自 3.2.0.0 版本开始消息订阅中的 auto.offset.reset 默认值发生变化。
+其他参数请参考：[创建参数](../07-subscription-api.md#创建参数)，注意：TDengine 服务端自 `v3.2.0.0` 起，消息订阅中 `auto.offset.reset` 的默认值变为 `latest`。
 
 - `void subscribe(Collection<String> topics) throws SQLException`
   - **接口说明**：订阅一组主题。

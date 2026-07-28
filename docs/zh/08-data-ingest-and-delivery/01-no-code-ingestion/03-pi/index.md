@@ -1,22 +1,22 @@
 ---
-title: "PI"
-sidebar_label: "PI"
+title: PI
+sidebar_label: PI
 toc_max_heading_level: 4
 ---
 
-本节讲述如何通过 Explorer 界面创建数据迁移任务，从 PI 系统迁移数据到当前 TDengine TSDB 集群。
+本节讲述如何通过 taosExplorer 界面创建数据写入任务，从 PI 系统同步数据到当前 TDengine 集群。
 
 ## 功能概述
 
 PI 系统（OSIsoft PI System）是一套用于数据收集、查找、分析、传递和可视化的软件产品，广泛应用于电力、石化、制造等行业，可作为管理实时数据和事件的企业级系统基础架构。
 
-taosX 通过 PI 连接器插件从 PI 系统中提取实时数据或历史数据，并写入 TDengine TSDB。
+taosX 通过 PI 连接器插件从 PI 系统中提取实时数据或历史数据，并写入 TDengine。
 
 ### 任务类型
 
 从数据的实时性角度来看，PI 数据源任务分为两类：
 
-| 任务类型 | Explorer 中的名称 | 说明                                          |
+| 任务类型 | taosExplorer 中的名称 | 说明                                          |
 | -------- | ----------------- | --------------------------------------------- |
 | 实时任务 | **PI**            | 持续订阅 PI 系统的实时数据变化，写入 TDengine |
 | 回填任务 | **PI backfill**   | 按指定时间范围提取历史数据，写入 TDengine     |

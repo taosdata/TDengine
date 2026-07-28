@@ -1,18 +1,19 @@
 ---
-title: 执行 SQL
 sidebar_label: 执行 SQL
+title: 执行 SQL
+description: 使用各语言连接器执行 SQL 建库建表、写入与查询
 toc_max_heading_level: 4
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine TSDB 对 SQL 语言提供了全面的支持，允许用户以熟悉的 SQL 语法进行数据的查询、插入和删除操作。TDengine TSDB 的 SQL 还支持对数据库和数据表的管理操作，如创建、修改和删除数据库及数据表。TDengine TSDB 扩展了标准 SQL，引入了时序数据处理特有的功能，如时间序列数据的聚合查询、降采样、插值查询等，以适应时序数据的特点。这些扩展使得用户可以更高效地处理时间序列数据，进行复杂的数据分析和处理。具体支持的 SQL 语法请参考 [TDengine TSDB SQL](../05-tdengine-sql/index.md)  
+TDengine 对 SQL 提供全面支持，可用熟悉的 SQL 语法进行查询、插入和删除，以及对库表的创建、修改与删除。相对标准 SQL，TDengine 扩展了时序场景常用能力，如聚合、降采样、插值查询等。具体语法请参考 [TDengine SQL](../05-tdengine-sql/index.md)。
 
-下面介绍使用各语言连接器通过执行 SQL 完成建库、建表、写入数据和查询数据。
+下面介绍各语言连接器通过执行 SQL 完成建库、建表、写入和查询。
 
 :::note
-REST API：直接调用 `taosadapter` 提供的 REST API 接口，进行数据写入和查询操作。代码示例使用 `curl` 命令来演示。
+REST API：直接调用 `taosAdapter` 提供的 REST API 接口，进行数据写入和查询操作。代码示例使用 `curl` 命令来演示。
 
 :::
 
@@ -95,7 +96,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
 
 ## 插入数据
 
-下面以智能电表为例，展示如何使用连接器执行 SQL 来插入数据到 `power` 数据库的 `meters` 超级表。样例使用 TDengine TSDB 自动建表 SQL 语法，写入 d1001 子表中 3 条数据，写入 d1002 子表中 1 条数据，然后打印出实际插入数据条数。
+下面以智能电表为例，展示如何使用连接器执行 SQL 来插入数据到 `power` 数据库的 `meters` 超级表。样例使用 TDengine 自动建表 SQL 语法，写入 d1001 子表中 3 条数据，写入 d1002 子表中 1 条数据，然后打印出实际插入数据条数。
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem value="java" label="Java">
@@ -103,8 +104,8 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql/power' \
 {{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/JdbcInsertDataDemo.java:insert_data}}
 ```
 
-**Note**
-NOW 为系统内部函数，默认为客户端所在计算机当前时间。NOW + 1s 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a（毫秒），s（秒），m（分），h（小时），d（天），w（周），n（月），y（年）。
+**说明**
+`NOW` 为系统函数，默认为客户端当前时间。`NOW + 1s` 表示客户端当前时间加 1 秒；数字后的时间单位为：`a`（毫秒）、`s`（秒）、`m`（分）、`h`（小时）、`d`（天）、`w`（周）、`n`（月）、`y`（年）。
 
 </TabItem>
 <TabItem label="Python" value="python">
@@ -150,8 +151,8 @@ NOW 为系统内部函数，默认为客户端所在计算机当前时间。NOW 
 {{#include docs/examples/c/insert_data_demo.c:insert_data}}
 ```
 
-**Note**
-NOW 为系统内部函数，默认为客户端所在计算机当前时间。NOW + 1s 代表客户端当前时间往后加 1 秒，数字后面代表时间单位：a（毫秒），s（秒），m（分），h（小时），d（天），w（周），n（月），y（年）。
+**说明**
+`NOW` 为系统函数，默认为客户端当前时间。`NOW + 1s` 表示客户端当前时间加 1 秒；数字后的时间单位为：`a`（毫秒）、`s`（秒）、`m`（分）、`h`（小时）、`d`（天）、`w`（周）、`n`（月）、`y`（年）。
 </TabItem>
 <TabItem label="REST API" value="rest">
 
@@ -176,7 +177,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 {{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/JdbcQueryDemo.java:query_data}}
 ```
 
-**Note** 查询和操作关系型数据库一致，使用下标获取返回字段内容时从 1 开始，建议使用字段名称获取。
+**说明**：与关系型数据库一致，使用下标获取返回字段时从 1 开始，建议使用字段名获取。
 
 </TabItem>
 <TabItem label="Python" value="python">
@@ -201,7 +202,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 {{#include docs/examples/rust/nativeexample/examples/query.rs:query_data}}
 ```
 
-rust 连接器还支持使用 **serde** 进行反序列化行为结构体的结果获取方式：
+Rust 连接器还支持使用 **serde** 将结果反序列化为结构体：
 
 ```rust
 {{#include docs/examples/rust/nativeexample/examples/query.rs:query_data_2}}
@@ -243,7 +244,7 @@ curl --location -uroot:taosdata 'http://127.0.0.1:6041/rest/sql' \
 
 ## 执行带有 reqId 的 SQL
 
-reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId 作用一样。一个请求可能需要经过多个服务或者模块才能完成。reqId 用于标识和关联这个请求的所有相关操作，以便于我们可以追踪和分析请求的完整路径。
+`reqId` 可用于请求链路追踪，作用类似分布式系统中的 `traceId`：一个请求可能经过多个服务或模块，`reqId` 用于标识并关联相关操作，便于追踪完整路径。
 
 使用 reqId 有下面好处：
 
@@ -251,7 +252,7 @@ reqId 可用于请求链路追踪，reqId 就像分布式系统中的 traceId �
 - 性能分析：通过分析一个请求的 reqId，可以了解请求在各个服务和模块中的处理时间，从而找出性能瓶颈
 - 故障诊断：当一个请求失败时，可以通过查看与该请求关联的 reqId 来找出问题发生的位置
 
-如果用户不设置 reqId，连接器会在内部随机生成一个，但建议由显式用户设置以以更好地跟用户请求关联起来。
+如果用户不设置 `reqId`，连接器会在内部随机生成一个；建议由应用显式设置，以便与业务请求关联。
 
 下面是各语言连接器设置 reqId 执行 SQL 的代码样例。
 

@@ -1,11 +1,11 @@
 ---
 sidebar_label: 流式计算
 title: 流式计算
-description: 使用 SQL 快速体验 TDengine TSDB 流式计算
+description: 使用 SQL 快速体验流式计算
 toc_max_heading_level: 4
 ---
 
-在时序数据处理中，实时聚合、降采样、告警前置等需求通常需要持续处理新写入的数据。传统方案常额外部署 Kafka、Flink 等流处理系统，开发和运维链路较长。TDengine TSDB 内置流式计算能力，可以直接用 SQL 定义实时处理逻辑，在数据写入后自动触发计算，并把结果写入目标表或发送通知。典型场景包括：
+在时序数据处理中，实时聚合、降采样、告警前置等需求通常需要持续处理新写入的数据。传统方案常额外部署 Kafka、Flink 等流处理系统，开发和运维链路较长。TDengine 内置流式计算能力，可以直接用 SQL 定义实时处理逻辑，在数据写入后自动触发计算，并把结果写入目标表或发送通知。典型场景包括：
 
 - 实时聚合与降采样：持续计算分钟级、小时级指标，减少后续查询扫描的数据量。
 - 报表和大屏预计算：提前生成常用统计结果，降低大范围查询带来的响应延迟。
@@ -36,7 +36,7 @@ SHOW DNODES;
 CREATE SNODE ON DNODE 1;
 ```
 
-更多 snode 部署建议，请参见[使用说明](../06-stream-processing/02-instructions.md#部署-snode)。
+更多 snode 部署建议，请参见 [运维与限制](../06-stream-processing/02-instructions.md#部署-snode)。
 
 ## 准备示例数据
 
@@ -209,8 +209,8 @@ DROP STABLE IF EXISTS avg_current_stb;
 
 本章只覆盖一个最小可运行的流式计算示例。更多语法、选项和生产环境建议，请继续阅读以下文档：
 
-- [流计算](../06-stream-processing/index.md)：流式计算能力概览。
-- [语法定义](../06-stream-processing/01-syntax.md)：`CREATE STREAM`、触发方式、控制选项和通知语法。
-- [使用说明](../06-stream-processing/02-instructions.md)：snode、权限、重算、乱序写入和配置参数。
-- [最佳实践](../06-stream-processing/03-best-practices.md)：部署、配置、建流前设计和典型示例。
+- [流式计算](../06-stream-processing/index.md)：流式计算能力概览。
+- [建流语法](../06-stream-processing/01-syntax.md)：`CREATE STREAM`、触发方式、控制选项和通知语法。
+- [运维与限制](../06-stream-processing/02-instructions.md)：snode、权限、重算、乱序写入和配置参数。
+- [部署与设计](../06-stream-processing/03-best-practices.md)：部署、配置、建流前设计和典型示例。
 - [数据查询](./05-query-and-aggregate.md)：窗口查询、聚合查询和查询结果解释。

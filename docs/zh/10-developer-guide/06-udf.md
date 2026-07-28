@@ -1,14 +1,15 @@
 ---
 sidebar_label: UDF 编程接口
 title: UDF 编程接口
+description: 使用 C / Python 编写并管理 TDengine 用户自定义函数
 toc_max_heading_level: 4
 ---
 
 ## UDF 简介
 
-在某些应用场景中，应用逻辑需要的查询功能无法直接使用内置函数来实现，TDengine TSDB 允许编写用户自定义函数（UDF），以便解决特殊应用场景中的使用需求。UDF 在集群中注册成功后，可以像系统内置函数一样在 SQL 中调用，就使用角度而言没有任何区别。UDF 分为标量函数和聚合函数。标量函数对每行数据输出一个值，如求绝对值（abs）、正弦函数（sin）、字符串拼接函数（concat）等。聚合函数对多行数据输出一个值，如求平均数（avg）、取最大值（max）等。
+在某些应用场景中，应用逻辑需要的查询功能无法直接使用内置函数来实现，TDengine 允许编写用户自定义函数（UDF），以便解决特殊应用场景中的使用需求。UDF 在集群中注册成功后，可以像系统内置函数一样在 SQL 中调用，就使用角度而言没有任何区别。UDF 分为标量函数和聚合函数。标量函数对每行数据输出一个值，如求绝对值（abs）、正弦函数（sin）、字符串拼接函数（concat）等。聚合函数对多行数据输出一个值，如求平均数（avg）、取最大值（max）等。
 
-TDengine TSDB 支持用 C 和 Python 两种编程语言编写 UDF。C 语言编写的 UDF 与内置函数的性能几乎相同，Python 语言编写的 UDF 可以利用丰富的 Python 运算库。为了避免 UDF 执行中发生异常影响数据库服务，TDengine TSDB 使用了进程分离技术，把 UDF 的执行放到另一个进程中完成，即使用户编写的 UDF 崩溃，也不会影响 TDengine TSDB 的正常运行。
+TDengine 支持用 C 和 Python 两种编程语言编写 UDF。C 语言编写的 UDF 与内置函数的性能几乎相同，Python 语言编写的 UDF 可以利用丰富的 Python 运算库。为了避免 UDF 执行中发生异常影响数据库服务，TDengine 使用了进程分离技术，把 UDF 的执行放到另一个进程中完成，即使用户编写的 UDF 崩溃，也不会影响 TDengine 的正常运行。
 
 ## 用 C 语言开发 UDF
 
@@ -174,7 +175,7 @@ int32_t aggfn_destroy() {
 
 ### 编译
 
-在 TDengine TSDB 中，为了实现 UDF，需要编写 C 语言源代码，并按照 TDengine TSDB 的规范编译为动态链接库文件。
+在 TDengine 中，为了实现 UDF，需要编写 C 语言源代码，并按照 TDengine 的规范编译为动态链接库文件。
 按照前面描述的规则，准备 UDF 的源代码 bit_and.c。以 Linux 操作系统为例，执行如下指令，编译得到动态链接库文件。
 
 ```shell
@@ -419,7 +420,7 @@ SELECT perm_entropy(val) FROM vibration_stb PARTITION BY tbname;
 
 ### 准备环境
 
-从 v3.4.1.12 起，Python UDF 插件 `libtaospyudf.so`（Linux）或 `taospyudf.dll`（Windows）已随 TDengine TSDB 安装包内置，无需额外安装。只需确保系统中已安装 Python 3 运行环境即可。
+从 `v3.4.1.12` 起，Python UDF 插件 `libtaospyudf.so`（Linux）或 `taospyudf.dll`（Windows）已随 TDengine 安装包内置，无需额外安装。只需确保系统中已安装 Python 3 运行环境即可。
 
 `taosudf` 进程会在运行时自动检测并加载系统中安装的 Python，无需手动配置环境变量。
 
@@ -440,7 +441,7 @@ SELECT perm_entropy(val) FROM vibration_stb PARTITION BY tbname;
 
 - 第 2 步，启动 taosd 服务。
 
-安装 TDengine TSDB 后，可以检查 `libtaospyudf.so` 是否已正确安装：
+安装 TDengine 后，可以检查 `libtaospyudf.so` 是否已正确安装：
 
 ```shell
 ls -l /usr/lib/libtaospyudf.so
@@ -476,7 +477,7 @@ $env:PYTHONHOME = "C:\Python315"
 :::
 
 :::note
-在 v3.4.1.12 之前的版本中，需要通过 `pip3 install taospyudf` 手动安装 Python UDF 插件。从 v3.4.1.12 起，该步骤不再需要。
+在 `v3.4.1.12` 之前的版本中，需要通过 `pip3 install taospyudf` 手动安装 Python UDF 插件。从 `v3.4.1.12` 起，该步骤不再需要。
 :::
 
 ### 手动编译 taospyudf（可选）
@@ -650,9 +651,9 @@ def finish(buf: bytes) -> output_type:
 
 ### 数据类型映射
 
-下表描述了 TDengine TSDB SQL 数据类型和 Python 数据类型的映射。任何类型的 NULL 值都映射成 Python 的 None 值。
+下表描述了 TDengine SQL 数据类型和 Python 数据类型的映射。任何类型的 NULL 值都映射成 Python 的 None 值。
 
-|  **TDengine TSDB SQL 数据类型**   | **Python 数据类型** |
+|  **TDengine SQL 数据类型**   | **Python 数据类型** |
 | :-----------------------: | ------------ |
 | TINYINT / SMALLINT / INT / BIGINT | int |
 | TINYINT UNSIGNED / SMALLINT UNSIGNED / INT UNSIGNED / BIGINT UNSIGNED | int |
@@ -694,7 +695,7 @@ def process(block):
 
 标量函数的 process 方法传入的数据块有多少行，就需要返回多少行数据。上述代码忽略列数，因为只需对每行的第一列做计算。
 
-接下来创建对应的 UDF 函数，在 TDengine TSDB CLI 中执行下面语句。
+接下来创建对应的 UDF 函数，在 `taos` shell 中执行下面语句。
 
 ```sql
 create function myfun as '/root/udf/myfun.py' outputtype double language 'Python'
@@ -717,7 +718,7 @@ taos> show functions;
 Query OK, 1 row(s) in set (0.005767s)
 ```
 
-生成测试数据，可以在 TDengine TSDB CLI 中执行下述命令。
+生成测试数据，可以在 `taos` shell 中执行下述命令。
 
 ```sql
 create database test;
@@ -748,7 +749,7 @@ tail -10 /var/log/taos/taosudf.log
 05/24 22:46:28.733561 01665799 UDF ERROR can not load python plugin. lib path libtaospyudf.so
 ```
 
-错误很明确：没有加载到 Python 插件 libtaospyudf.so。从 v3.4.1.12 起，该插件随 TDengine TSDB 安装包内置。如果遇到此错误，请确认 TDengine TSDB 已正确安装，并执行 `ldconfig` 刷新动态链接库缓存。对于 v3.4.1.12 之前的版本，请通过 `pip3 install taospyudf` 手动安装。
+错误很明确：没有加载到 Python 插件 libtaospyudf.so。从 `v3.4.1.12` 起，该插件随 TDengine 安装包内置。如果遇到此错误，请确认 TDengine 已正确安装，并执行 `ldconfig` 刷新动态链接库缓存。对于 v3.4.1.12 之前的版本，请通过 `pip3 install taospyudf` 手动安装。
 
 修复环境错误后再次执行，如下。
 
@@ -813,7 +814,7 @@ At:
 ```
 
 至此，我们学会了如何更新 UDF，并查看 UDF 输出的错误日志。
-（注：如果 UDF 更新后未生效，在 TDengine TSDB 3.0.5.0 以前（不含）的版本中需要重启 taosd，在 3.0.5.0 及之后的版本中不需要重启 taosd 即可生效。）
+（注：如果 UDF 更新后未生效，在 TDengine `v3.0.5.0` 以前的版本中需要重启 `taosd`；`v3.0.5.0` 及之后版本无需重启即可生效。）
 
 #### 示例三
 
@@ -896,7 +897,7 @@ def process(block):
             for i in range(rows)]
 ```
 
-UDF 框架会将 TDengine TSDB 的 timestamp 类型映射为 Python 的 int 类型，所以这个函数只接受一个表示毫秒数的整数。process 方法先做参数检查，然后用 moment 包替换时间的星期为星期日，最后格式化输出。输出的字符串长度是固定的 10 个字符长，因此可以这样创建 UDF 函数。
+UDF 框架会将 TDengine 的 timestamp 类型映射为 Python 的 int 类型，所以这个函数只接受一个表示毫秒数的整数。process 方法先做参数检查，然后用 moment 包替换时间的星期为星期日，最后格式化输出。输出的字符串长度是固定的 10 个字符长，因此可以这样创建 UDF 函数。
 
 ```sql
 create function nextsunday as '/root/udf/nextsunday.py' outputtype binary(10) language 'Python';
@@ -958,7 +959,7 @@ Query OK, 4 row(s) in set (1.011474s)
 #### 示例五
 
 编写一个聚合函数，计算某一列最大值和最小值的差。
-聚合函数与标量函数的区别是：标量函数是多行输入对应多个输出，聚合函数是多行输入对应一个输出。聚合函数的执行过程有点像经典的 map-reduce 框架的执行过程，框架把数据分成若干块，每个 mapper 处理一个块，reducer 再把 mapper 的结果做聚合。不一样的地方在于，对于 TDengine TSDB Python UDF 中的 reduce 函数既有 map 的功能又有 reduce 的功能。reduce 函数接受两个参数：一个是自己要处理的数据，一个是别的任务执行 reduce 函数的处理结果。如下面的示例 /root/udf/myspread.py。
+聚合函数与标量函数的区别是：标量函数是多行输入对应多个输出，聚合函数是多行输入对应一个输出。聚合函数的执行过程有点像经典的 map-reduce 框架的执行过程，框架把数据分成若干块，每个 mapper 处理一个块，reducer 再把 mapper 的结果做聚合。不一样的地方在于，对于 TDengine Python UDF 中的 reduce 函数既有 map 的功能又有 reduce 的功能。reduce 函数接受两个参数：一个是自己要处理的数据，一个是别的任务执行 reduce 函数的处理结果。如下面的示例 /root/udf/myspread.py。
 
 ```python
 import io

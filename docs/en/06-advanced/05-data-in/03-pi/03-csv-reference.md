@@ -210,7 +210,7 @@ For scenarios requiring data transformation, you can use backticks to wrap inlin
 element_paths,TAG,VARCHAR(512),`$element_paths.replace("\\", ".")`
 ```
 
-For more information about mapping rules and data transformation expression syntax, see the "Data Extraction, Filtering and Transformation" section in [Zero-Code Third-Party Data Ingestion](../).
+For more information about mapping rules and data transformation expression syntax, see the "Data Extraction, Filtering and Transformation" section in [Zero-Code Third-Party Data Ingestion](../index.md).
 
 ### 4.3 Subtable Name Placeholders
 

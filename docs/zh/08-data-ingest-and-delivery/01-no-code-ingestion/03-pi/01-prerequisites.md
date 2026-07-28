@@ -1,6 +1,6 @@
 ---
-title: "PI 数据接入前置条件"
-sidebar_label: "前置条件"
+title: PI 数据接入前置条件
+sidebar_label: 前置条件
 ---
 
 本页列出从 PI 系统接入数据到 TDengine 之前需要确认的所有前置条件，包括网络连通性、端口与协议、认证与权限、软件依赖等。建议在创建 PI 数据接入任务之前，由 PI 管理员和网络管理员共同完成检查。
@@ -131,7 +131,7 @@ PI AF SDK **仅支持 Windows**。如果 taosX 部署在 Linux 环境，则必�
 - [ ] 从 taosX/agent 主机可以访问 PI Data Archive（端口 5450）
 - [ ] 从 taosX/agent 主机可以访问 PI AF Server（端口 5457，如使用 AF 模式）
 - [ ] 在 taosx-agent 主机上，已通过 PI System Management Tools (SMT) 或 PI System Explorer (PSE) **手动验证**可连接 PI（先排除环境问题，再测试 taosX）
-- [ ] 如使用 Agent 代理模式，taosx-agent 服务已启动，taosX ↔ agent 网络已连通，Explorer 中 agent 状态显示在线
+- [ ] 如使用 Agent 代理模式，taosx-agent 服务已启动，taosX ↔ agent 网络已连通，taosExplorer 中 agent 状态显示在线
 
 ### 认证与权限
 
@@ -149,8 +149,8 @@ PI AF SDK **仅支持 Windows**。如果 taosX 部署在 Linux 环境，则必�
 ### TDengine 侧
 
 - [ ] TDengine 集群已部署并正常运行
-- [ ] 目标数据库已创建（或准备在 Explorer 中创建）
-- [ ] taosX 已安装并可通过 Explorer 访问
+- [ ] 目标数据库已创建（或准备在 taosExplorer 中创建）
+- [ ] taosX 已安装并可通过 taosExplorer 访问
 
 ### 任务配置
 
