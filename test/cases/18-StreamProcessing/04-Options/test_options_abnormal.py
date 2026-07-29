@@ -59,7 +59,9 @@ class TestStreamOptionsAbnormal:
             tdSql.execute(f"create table ct102 using {self.stbName2} tags(2)")
             
             # must not create stb/ctb/ntb using create vtable
-            tdSql.error(f"create vtable if not exists err_stb1  (cts timestamp, cint int) tags (tint int)")
+            # virtual normal table with owned tags is legal since v3.4.3 (feat: vtable tags)
+            tdSql.execute(f"create vtable if not exists err_stb1  (cts timestamp, cint int) tags (tint int)")
+            tdSql.execute(f"drop table err_stb1")
             tdSql.error(f"create vtable if not exists err_ct1 using {self.stbName2} tags(100)")
             
             tdSql.execute(f"create vtable if not exists null_vntb1 (cts timestamp, cint int)")
