@@ -3174,6 +3174,14 @@ _verify_and_recover_once() {
     local _services="$1"
     local ver
 
+    # OVERALL_OK may already be 1 from a transient failure in the first
+    # ensure_* pass in main() (e.g. an initdb timeout under CI load) that
+    # this recovery pass goes on to fix.  Reset it here so the outcome of
+    # THIS function — the actual post-recovery probe results below — is
+    # what decides success, instead of a stale flag from a problem that
+    # no longer exists.
+    OVERALL_OK=0
+
     if [[ "$_services" == *pg* ]]; then
         for ver in "${PG_VERSIONS[@]}"; do
             if ! _probe_pg_ready "$ver"; then
