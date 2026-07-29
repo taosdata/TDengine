@@ -16,7 +16,7 @@ taosExplorer 是 TDengine 提供的 Web 可视化管理工具。
 
 1. TDengine 服务已经启动。
 2. taosExplorer 服务已经启动，并且浏览器可以访问其端口。
-3. 已经创建过 `power` 数据库、`meters` 超级表和 `d1001`、`d1002` 等子表，或已经通过 `taosBenchmark` 生成过示例数据。
+3. 已经创建过 `power` 数据库、`meters` 超级表和 `d1001`、`d1002` 等子表，或已经在快速体验中通过 `taosBenchmark -y` 生成过 `test` 库数据。
 
 如果你使用本快速上手中的 Docker 启动方式，容器已经映射 taosExplorer 默认端口 `6060`。
 
@@ -47,7 +47,7 @@ http://localhost:6060
 
 如果你使用前几章的智能电表示例，可以依次展开：
 
-1. `power` 数据库。
+1. `test` 数据库。
 2. `meters` 超级表。
 3. `d1001`、`d1002` 等子表。
 
@@ -59,21 +59,13 @@ taosExplorer 也提供 SQL 查询入口。你可以复制下面的 SQL，在页�
 
 ```sql
 SELECT tbname, ts, current, voltage, phase
-FROM power.meters
+FROM test.meters
+WHERE tbname = 'd1'
 ORDER BY ts DESC
 LIMIT 10;
 ```
 
 返回结果会以表格形式展示。相比 shell，表格界面更适合临时筛选、查看列值和复制查询结果。
-
-如果你使用的是 `taosBenchmark` 生成的默认数据，可以查询 `test.meters`：
-
-```sql
-SELECT tbname, ts, current, voltage
-FROM test.meters
-ORDER BY ts DESC
-LIMIT 10;
-```
 
 ## 查看连接示例和工具入口
 
@@ -91,7 +83,7 @@ taosExplorer 不只用于浏览数据，也提供了一些上手入口：
 
 - taosExplorer 服务是否已经启动。
 - 访问地址和端口是否正确，默认端口为 `6060`。
-- Docker、云主机安全组或本机防火墙是否放通 `6060` 端口。
+- Docker、云主机安全组或本机**防火墙**是否放通 `6060` 端口。
 - taosExplorer 配置中的 `cluster` 是否指向可访问的 taosAdapter 地址，默认是 `http://localhost:6041`。
 
 如果登录后看不到前几章创建的数据，请确认当前连接的是同一个 TDengine 实例，并检查数据库名是否为 `power` 或 `test`。

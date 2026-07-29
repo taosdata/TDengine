@@ -112,7 +112,7 @@ TAGS (
 创建不带任何标签的普通表的 SQL 如下：
 
 ```sql
-CREATE TABLE d1003(
+CREATE TABLE meter_n (
     ts timestamp,
     current float,
     voltage int,
@@ -122,7 +122,7 @@ CREATE TABLE d1003(
 );
 ```
 
-上面的 SQL 表示创建普通表 `d1003`。表结构包括 `ts`、`current`、`voltage`、`phase`、`location`、`group_id`，共 6 列。这样的数据模型与关系型数据库一致。
+上面的 SQL 表示创建普通表 `meter_n`。表结构包括 `ts`、`current`、`voltage`、`phase`、`location`、`group_id`，共 6 列。这样的数据模型与关系型数据库一致。
 
 采用普通表作为数据模型意味着静态标签数据（如 `location` 和 `group_id`）会重复存储在表的每一行中。这种做法不仅增加了存储空间消耗，而且在查询时无法直接利用标签数据进行过滤，查询性能会低于使用超级表的数据模型。
 
@@ -149,7 +149,6 @@ TDengine 支持灵活的数据模型设计，包括多列模型和单列模型�
 创建单列模型的超级表的 SQL 如下：
 
 ```sql
-
 CREATE STABLE current_stb (
     ts timestamp,
     current float
@@ -178,23 +177,23 @@ CREATE STABLE phase_stb (
 );
 ```
 
-假设有 d1001、d1002、d1003、d1004 四个设备，为四个设备的电流、电压、相位采集量分别创建子表，SQL 如下：
+假设有 `d1001`、`d1002`、`d1003`、`d1004` 这 4 个设备，为它们的电流、电压、相位采集量分别创建子表，SQL 如下：
 
 ```sql
-create table current_d1001 using current_stb(device_id, location, group_id) tags("d1001", "California.SanFrancisco", 2);
-create table current_d1002 using current_stb(device_id, location, group_id) tags("d1002", "California.SanFrancisco", 3);
-create table current_d1003 using current_stb(device_id, location, group_id) tags("d1003", "California.LosAngeles", 3);
-create table current_d1004 using current_stb(device_id, location, group_id) tags("d1004", "California.LosAngeles", 2);
+CREATE TABLE current_d1001 USING current_stb (device_id, location, group_id) TAGS ("d1001", "California.SanFrancisco", 2);
+CREATE TABLE current_d1002 USING current_stb (device_id, location, group_id) TAGS ("d1002", "California.SanFrancisco", 3);
+CREATE TABLE current_d1003 USING current_stb (device_id, location, group_id) TAGS ("d1003", "California.LosAngeles", 3);
+CREATE TABLE current_d1004 USING current_stb (device_id, location, group_id) TAGS ("d1004", "California.LosAngeles", 2);
 
-create table voltage_d1001 using voltage_stb(device_id, location, group_id) tags("d1001", "California.SanFrancisco", 2);
-create table voltage_d1002 using voltage_stb(device_id, location, group_id) tags("d1002", "California.SanFrancisco", 3);
-create table voltage_d1003 using voltage_stb(device_id, location, group_id) tags("d1003", "California.LosAngeles", 3);
-create table voltage_d1004 using voltage_stb(device_id, location, group_id) tags("d1004", "California.LosAngeles", 2);
+CREATE TABLE voltage_d1001 USING voltage_stb (device_id, location, group_id) TAGS ("d1001", "California.SanFrancisco", 2);
+CREATE TABLE voltage_d1002 USING voltage_stb (device_id, location, group_id) TAGS ("d1002", "California.SanFrancisco", 3);
+CREATE TABLE voltage_d1003 USING voltage_stb (device_id, location, group_id) TAGS ("d1003", "California.LosAngeles", 3);
+CREATE TABLE voltage_d1004 USING voltage_stb (device_id, location, group_id) TAGS ("d1004", "California.LosAngeles", 2);
 
-create table phase_d1001 using phase_stb(device_id, location, group_id) tags("d1001", "California.SanFrancisco", 2);
-create table phase_d1002 using phase_stb(device_id, location, group_id) tags("d1002", "California.SanFrancisco", 3);
-create table phase_d1003 using phase_stb(device_id, location, group_id) tags("d1003", "California.LosAngeles", 3);
-create table phase_d1004 using phase_stb(device_id, location, group_id) tags("d1004", "California.LosAngeles", 2);
+CREATE TABLE phase_d1001 USING phase_stb (device_id, location, group_id) TAGS ("d1001", "California.SanFrancisco", 2);
+CREATE TABLE phase_d1002 USING phase_stb (device_id, location, group_id) TAGS ("d1002", "California.SanFrancisco", 3);
+CREATE TABLE phase_d1003 USING phase_stb (device_id, location, group_id) TAGS ("d1003", "California.LosAngeles", 3);
+CREATE TABLE phase_d1004 USING phase_stb (device_id, location, group_id) TAGS ("d1004", "California.LosAngeles", 2);
 ```
 
 可以通过一张虚拟超级表将这 3 种采集量聚合到一张表中。创建虚拟超级表的 SQL 如下：
@@ -215,9 +214,9 @@ CREATE STABLE meters_v (
 
 ```sql
 CREATE VTABLE d1001_v (
-    current from current_d1001.current,
-    voltage from voltage_d1001.voltage,
-    phase from phase_d1001.phase
+    current FROM current_d1001.current,
+    voltage FROM voltage_d1001.voltage,
+    phase FROM phase_d1001.phase
 )
 USING meters_v
 TAGS (
@@ -226,9 +225,9 @@ TAGS (
 );
 
 CREATE VTABLE d1002_v (
-    current from current_d1002.current,
-    voltage from voltage_d1002.voltage,
-    phase from phase_d1002.phase
+    current FROM current_d1002.current,
+    voltage FROM voltage_d1002.voltage,
+    phase FROM phase_d1002.phase
 )
 USING meters_v
 TAGS (
@@ -237,9 +236,9 @@ TAGS (
 );
 
 CREATE VTABLE d1003_v (
-    current from current_d1003.current,
-    voltage from voltage_d1003.voltage,
-    phase from phase_d1003.phase
+    current FROM current_d1003.current,
+    voltage FROM voltage_d1003.voltage,
+    phase FROM phase_d1003.phase
 )
 USING meters_v
 TAGS (
@@ -248,9 +247,9 @@ TAGS (
 );
 
 CREATE VTABLE d1004_v (
-    current from current_d1004.current,
-    voltage from voltage_d1004.voltage,
-    phase from phase_d1004.phase
+    current FROM current_d1004.current,
+    voltage FROM voltage_d1004.voltage,
+    phase FROM phase_d1004.phase
 )
 USING meters_v
 TAGS (
@@ -259,7 +258,7 @@ TAGS (
 );
 ```
 
-以设备 d1001 为例，假设 d1001 设备的电流、电压、相位数据如下：
+以设备 `d1001` 为例，假设该设备的电流、电压、相位数据如下：
 
 <table>
     <tr>
@@ -319,9 +318,38 @@ TAGS (
     </tr>
 </table>
 
-虚拟表 `d1001_v` 中的数据如下：
+写入上述数据的 SQL 如下：
 
-|   Timestamp   | Current | Voltage | Phase |
+```sql
+INSERT INTO current_d1001 VALUES
+    (1538548685000, 10.3),
+    (1538548695000, 12.6),
+    (1538548696800, 12.3),
+    (1538548697100, 12.1),
+    (1538548697700, 11.8)
+voltage_d1001 VALUES
+    (1538548685000, 219),
+    (1538548695000, 218),
+    (1538548696800, 221),
+    (1538548697100, 220),
+    (1538548697800, 222)
+phase_d1001 VALUES
+    (1538548685000, 0.31),
+    (1538548695000, 0.33),
+    (1538548696800, 0.31),
+    (1538548697200, 0.32),
+    (1538548697800, 0.33);
+```
+
+查询虚拟表 `d1001_v` 的 SQL 如下：
+
+```sql
+SELECT * FROM d1001_v;
+```
+
+查询结果如下：
+
+|      ts       | current | voltage | phase |
 | :-----------: | :-----: | :-----: | :---: |
 | 1538548685000 |  10.3   |   219   | 0.31  |
 | 1538548695000 |  12.6   |   218   | 0.33  |
@@ -336,29 +364,29 @@ TAGS (
 在跨源采集量对比分析中，“跨源”指数据来自**不同数据采集点**。从不同数据采集点中提取具有可比语义的采集量后，可以通过虚拟表将这些采集量按照时间戳进行对齐和合并，并进行对比分析。
 例如，用户可以将来自不同设备的电流数据聚合到一张虚拟表中，以便进行电流数据的对比分析。
 
-以分析 d1001、d1002、d1003、d1004 四个设备的电流数据为例，创建虚拟表的 SQL 如下：
+以分析 `d1001`、`d1002`、`d1003`、`d1004` 这 4 个设备的电流数据为例，创建虚拟表的 SQL 如下：
 
 ```sql
 CREATE VTABLE current_v (
     ts timestamp,
-    d1001_current float from current_d1001.current,
-    d1002_current float from current_d1002.current,
-    d1003_current float from current_d1003.current,
-    d1004_current float from current_d1004.current
+    d1001_current float FROM current_d1001.current,
+    d1002_current float FROM current_d1002.current,
+    d1003_current float FROM current_d1003.current,
+    d1004_current float FROM current_d1004.current
 );
 ```
 
-假设 `d1001`、`d1002`、`d1003`、`d1004` 这 4 个设备的电流数据如下：
+假设这 4 个设备的电流数据如下：
 
 <table>
     <tr>
-        <th colspan="2" align="center">d1001</th>
+        <th colspan="2" align="center">current_d1001</th>
         <th rowspan="7" align="center"></th>
-        <th colspan="2" align="center">d1002</th>
+        <th colspan="2" align="center">current_d1002</th>
         <th rowspan="7" align="center"></th>
-        <th colspan="2" align="center">d1003</th>
+        <th colspan="2" align="center">current_d1003</th>
         <th rowspan="7" align="center"></th>
-        <th colspan="2" align="center">d1004</th>
+        <th colspan="2" align="center">current_d1004</th>
     </tr>
     <tr>
         <td align="center">Timestamp</td>
@@ -422,9 +450,44 @@ CREATE VTABLE current_v (
     </tr>
 </table>
 
-虚拟表 `current_v` 中的数据如下：
+写入上述电流数据的 SQL 如下：
 
-|   Timestamp   | d1001_current | d1002_current | d1003_current | d1004_current |
+```sql
+INSERT INTO current_d1001 VALUES
+    (1538548685000, 10.3),
+    (1538548695000, 12.6),
+    (1538548696800, 12.3),
+    (1538548697100, 12.1),
+    (1538548697700, 11.8)
+current_d1002 VALUES
+    (1538548685000, 11.7),
+    (1538548695000, 11.9),
+    (1538548696800, 12.4),
+    (1538548697200, 12.2),
+    (1538548697700, 11.4)
+current_d1003 VALUES
+    (1538548685000, 11.2),
+    (1538548695000, 10.8),
+    (1538548696800, 12.3),
+    (1538548697100, 11.1),
+    (1538548697800, 12.1)
+current_d1004 VALUES
+    (1538548685000, 12.4),
+    (1538548695000, 11.3),
+    (1538548696800, 10.1),
+    (1538548697200, 11.7),
+    (1538548697800, 12.6);
+```
+
+查询虚拟表 `current_v` 的 SQL 如下：
+
+```sql
+SELECT * FROM current_v;
+```
+
+查询结果如下：
+
+|      ts       | d1001_current | d1002_current | d1003_current | d1004_current |
 | :-----------: | :-----------: | :-----------: | :-----------: | :-----------: |
 | 1538548685000 |     10.3      |     11.7      |     11.2      |     12.4      |
 | 1538548695000 |     12.6      |     11.9      |     10.8      |     11.3      |
