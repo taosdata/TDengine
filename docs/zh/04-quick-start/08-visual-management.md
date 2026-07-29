@@ -5,8 +5,7 @@ description: 使用 taosExplorer 快速体验 TDengine 可视化管理
 toc_max_heading_level: 4
 ---
 
-taosExplorer 是 TDengine 提供的 Web 可视化管理工具。
-相比只在 shell 中执行命令，taosExplorer 更适合用来浏览数据库对象、执行 SQL、查看连接示例，并快速了解可与 TDengine 集成的外部工具。
+taosExplorer 是 TDengine 提供的 Web 可视化管理工具。相比只在 shell 中执行命令，taosExplorer 更适合用来浏览数据库对象、执行 SQL、查看连接示例，并快速了解可与 TDengine 集成的外部工具。
 
 本章继续使用前几章创建的智能电表数据，带你通过浏览器完成一次最基本的可视化体验：登录 taosExplorer、浏览数据库和表、执行查询，并找到编程语言和可视化工具入口。
 
