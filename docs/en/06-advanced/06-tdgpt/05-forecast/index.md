@@ -38,6 +38,7 @@ algo=expr1
 [,every=every_val]
 [,rows=rows_val]
 [,start=start_ts_val]
+[,timeout=timeout_val]
 [,expr2]
 "}
 ```
@@ -55,6 +56,7 @@ algo=expr1
 |every|Sampling period.|The sampling period of the input data|
 |start|Starting timestamp for forecast data.|One sampling period after the final timestamp in the input data|
 |rows|Number of forecast rows to return.|10|
+|timeout|Maximum time to wait for the forecast request. The supported range is 1 to 1200 seconds.|60 seconds|
 
 - Three pseudocolumns are used in forecasting:
   - `_FROWTS`: the timestamp of the forecast data
@@ -65,6 +67,16 @@ algo=expr1
 - If you specify a confidence interval for an algorithm that does not use it, the upper and lower thresholds of the confidence interval regress to a single point.
 - The maximum value of rows is 1024. If you specify a higher value, only 1024 rows are returned.
 - The maximum size of the input historical data is 40,000 rows. Note that some models may have stricter limitations.
+
+### Selecting CES, Theta, or ETS
+
+|Data characteristics|Recommended algorithm|Reason|
+|---|---|---|
+|The seasonal pattern is complex or does not fit a conventional additive or multiplicative pattern.|CES|CES can represent seasonal behavior with complex-valued states and can automatically select its model form.|
+|The series has a clear long-term trend and relatively regular seasonality.|Theta|Theta is a compact trend-focused method; choose additive decomposition for stable seasonal amplitude and multiplicative decomposition for proportional seasonal amplitude.|
+|You want an interpretable combination of error, trend, and seasonal components.|ETS|ETS can automatically select or explicitly configure additive and multiplicative components, with optional damped trend behavior.|
+
+Start with automatic selection (`model=Z` for CES or `model=ZZZ` for ETS) when the component structure is unknown. Theta multiplicative decomposition and any explicitly multiplicative ETS component require strictly positive input. For seasonal forecasts, set `period` and provide at least two complete periods of historical data.
 
 ### Example
 
@@ -144,13 +156,13 @@ select _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4, d
 
 - [ARIMA](02-arima.md)
 - [HoltWinters](03-holtwinters.md)
-- Complex exponential smoothing (CES)
-- Theta
+- [Complex exponential smoothing (CES)](05-ces.md)
+- [Theta](06-theta.md)
 - Prophet
 - XGBoost
 - LightGBM
 - Multiple Seasonal-Trend decomposition using LOESS (MSTL)
-- ETS (Error, Trend, Seasonal)
+- [ETS (Error, Trend, Seasonal)](07-ets.md)
 - Long Short-Term Memory (LSTM)
 - Multilayer Perceptron (MLP)
 - DeepAR
