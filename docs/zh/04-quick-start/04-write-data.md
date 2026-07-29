@@ -151,7 +151,7 @@ VALUES ("d1001", "2018-10-03 14:38:05", 10.2, 220, 0.23, "California.SanFrancisc
 
 ### 零代码写入
 
-除了在 shell 中手写 SQL，你还可以通过 Telegraf、Prometheus、EMQX、StatsD、collectd、HiveMQ 等第三方工具导入数据。TDengine TSDB Enterprise 还提供 MQTT、OPC、AVEVA PI System、Wonderware、Kafka、MySQL、Oracle 等连接器，配置后无须编写代码即可写入。
+除了在 shell 中手写 SQL，你还可以通过 Telegraf、Prometheus、EMQX、StatsD、collectd、HiveMQ 等第三方工具导入数据。TDengine TSDB Enterprise 还提供 MQTT、OPC、AVEVA PI System、Wonderware、Kafka、MySQL、Oracle 等连接器，配置后无须编写代码即可写入。快速体验请参见 [零代码数据写入](./10-no-code-ingestion.md)。
 
 ## 更新
 
