@@ -5,6 +5,8 @@
 import datetime
 from abc import abstractmethod, ABC
 
+import numpy as np
+
 
 class AnalyticsService(ABC):
     """Analytics root class with only one method"""
@@ -192,6 +194,74 @@ class AbstractForecastService(AbstractAnalyticsService, ABC):
             "conf": self.conf,
             "tz": str(self.tz),
             "precision": self.precision,
+        }
+
+
+class AbstractStatsForecastService(AbstractForecastService, ABC):
+    """Base service for forecasting models provided by StatsForecast."""
+
+    model_info = ""
+
+    def _validate_input_values(self, values: np.ndarray) -> None:
+        """Validate model-specific input constraints."""
+
+    @abstractmethod
+    def _fit_model(self, values: np.ndarray):
+        """Fit and return a StatsForecast model."""
+
+    def _format_forecast_result(
+        self, fitted_model, values: np.ndarray
+    ) -> tuple:
+        """Build forecasts, confidence intervals, and fitted MSE."""
+        level = self.conf * 100 if self.return_conf else None
+        if level is not None and float(level).is_integer():
+            level = int(level)
+
+        forecast_res = fitted_model.predict(
+            h=self.rows,
+            level=[level] if level is not None else None
+        )
+
+        forecast = forecast_res["mean"].tolist()
+        if self.return_conf:
+            result = [
+                forecast,
+                forecast_res[f"lo-{level}"].tolist(),
+                forecast_res[f"hi-{level}"].tolist()
+            ]
+        else:
+            result = [forecast]
+
+        fitted = fitted_model.predict_in_sample()["fitted"]
+        mse = float(np.nanmean((values - fitted) ** 2))
+        return result, mse
+
+    def execute(self) -> dict:
+        """Forecast the configured number of time-series values."""
+        min_rows = max(2, self.period * 2)
+        if self.list is None or len(self.list) < min_rows:
+            raise ValueError("number of input data is less than the required periods")
+
+        if self.rows <= 0:
+            raise ValueError("fc rows is not specified yet")
+
+        values = np.asarray(self.list, dtype=float).copy()
+        if not np.isfinite(values).all():
+            raise ValueError("input data contains NaN or infinite values")
+
+        self._validate_input_values(values)
+        fitted_model = self._fit_model(values)
+        result, mse = self._format_forecast_result(fitted_model, values)
+
+        timestamps = [
+            self.start_ts + index * self.time_step for index in range(self.rows)
+        ]
+        result.insert(0, timestamps)
+
+        return {
+            "mse": mse,
+            "model_info": self.model_info,
+            "res": result
         }
 
 
