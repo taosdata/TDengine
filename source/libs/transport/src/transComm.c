@@ -16,6 +16,7 @@
 #include "transComm.h"
 #include "osTime.h"
 #include "tchecksum.h"
+#include "tglobal.h"
 #include "tqueue.h"
 #include "transLog.h"
 #include "transSasl.h"
@@ -732,6 +733,10 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType) {
 
 int32_t transDoCrc(char* buf, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)buf;
+  if (!tsRpcCrcEnable) {
+    pHead->magicNum = 0;  // CRC disabled on this side: leave magicNum at 0, skip computation
+    return 0;
+  }
   pHead->magicNum = 0;
   uint32_t chechSum = taosCalcChecksum(0, (const uint8_t*)buf, len);
   pHead->magicNum = htonl(chechSum);
@@ -740,10 +745,14 @@ int32_t transDoCrc(char* buf, int32_t len) {
 }
 int32_t transDoCrcCheck(char* buf, int32_t len) {
   STransMsgHead* pHead = (STransMsgHead*)buf;
+  if (!tsRpcCrcEnable) {
+    pHead->magicNum = 0;  // CRC disabled on this side: skip verification
+    return 0;
+  }
   uint32_t       checkSum = ntohl(pHead->magicNum);
   pHead->magicNum = 0;
   if (taosCheckChecksum((const uint8_t*)buf, len, checkSum)) {
-    return TSDB_CODE_INVALID_MSG;
+    return TSDB_CODE_INVALID_MSG;  // mismatch -> reject (strict; no bypass)
   } else {
     return 0;
   }
@@ -1037,6 +1046,10 @@ bool transCompareReqAndUserEpset(SReqEpSet* a, SEpSet* b) {
 #endif
 
 static void transInitEnv() {
+  // resolve crc32c (pick the hardware impl when SSE4.2 is available) once here so that
+  // client-side RPC also uses hardware crc, not only the server (which resolves it in dmInit)
+  taosResolveCRC();
+
   refMgt = transOpenRefMgt(50000, transDestroyExHandle);
   svrRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);
@@ -1621,6 +1634,10 @@ void* procClientMsg(void* arg) {
   return NULL;
 }
 static void transInitEnv() {
+  // resolve crc32c (pick the hardware impl when SSE4.2 is available) once here so that
+  // client-side RPC also uses hardware crc, not only the server (which resolves it in dmInit)
+  taosResolveCRC();
+
   refMgt = transOpenRefMgt(50000, transDestroyExHandle);
   svrRefMgt = transOpenRefMgt(50000, transDestroyExHandle);
   instMgt = taosOpenRef(50, rpcCloseImpl);
