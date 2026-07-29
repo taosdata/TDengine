@@ -76,15 +76,24 @@ class TestWalKeepVersionTrim:
         # duplicate exec trim database test wal to test the core from feishu project 6686737748
         tdSql.execute("trim database test wal")
 
-        # check wal vgId 2 firstVer is greater than 0 after trim
+        # check wal vgId 2 firstVer is greater than 0 after trim.
+        # Each replica computes its own trim point from its own applied/committed
+        # index at the moment it processes the trim request (see walEndSnapshot).
+        # A replica that is momentarily lagging on raft apply when the two trims
+        # above are processed will legitimately compute a no-op trim, so re-issue
+        # trim periodically here to catch it once it has caught up, instead of
+        # relying solely on the two calls above.
+        trim_retry_period = 5
         for dnode_id in [1,2,3]:
             check_ver = False
-            for _ in range(max_retry):
+            for i in range(max_retry):
                 ver = self.get_wal_file_first_version(dnode_id, 2)
                 tdLog.info(f"dnode{dnode_id} vg2 firstVer: {ver}")
                 if ver > 0:
                     check_ver = True
                     break
+                if i > 0 and i % trim_retry_period == 0:
+                    tdSql.execute("trim database test wal")
                 time.sleep(1)
             assert check_ver, f"dnode{dnode_id} vg2 firstVer is not greater than 0 after {max_retry} seconds after trim"
 
