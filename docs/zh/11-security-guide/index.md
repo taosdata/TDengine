@@ -17,3 +17,5 @@ TDengine 提供面向生产环境的多层安全能力，覆盖身份认证与�
 - [安全公告](./07-security-advisories.md)：已知漏洞、受影响版本与修复版本。
 
 配置与加固见前几节；漏洞披露与修复版本见 [安全公告](./07-security-advisories.md)。
+
+<!-- CI cache validation trigger. -->
