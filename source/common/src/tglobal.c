@@ -346,6 +346,7 @@ int32_t tsQueryRspPolicy = 0;
 int64_t tsQueryMaxConcurrentTables = 200;  // unit is TSDB_TABLE_NUM_UNIT
 bool    tsEnableQueryHb = true;
 bool    tsEnableScience = false;  // on taos-cli show float and doulbe with scientific notation if true
+bool    tsRpcCrcEnable = true;    // CRC32C verification on RPC messages (CFG_DYN_BOTH_LAZY: alterable, effective after restart)
 bool    tsSqlSecurityEnabled = false;
 int32_t tsSqlSecurityWhitelistMode = 0;
 bool    tsSqlSecurityStringCheck = true;
@@ -767,6 +768,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableScience", tsEnableScience, CFG_SCOPE_CLIENT, CFG_DYN_NONE,
                                CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "rpcCrcEnable", tsRpcCrcEnable, CFG_SCOPE_BOTH, CFG_DYN_BOTH_LAZY,
+                               CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "querySmaOptimize", tsQuerySmaOptimize, 0, 1, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
                                 CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "queryPlannerTrace", tsQueryPlannerTrace, CFG_SCOPE_CLIENT, CFG_DYN_CLIENT,
@@ -1684,6 +1687,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableScience");
   tsEnableScience = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "rpcCrcEnable");
+  tsRpcCrcEnable = pItem->bval;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "querySmaOptimize");
   tsQuerySmaOptimize = pItem->i32;
