@@ -8,7 +8,7 @@ toc_max_heading_level: 4
 [Grafana](https://grafana.com/grafana/) 是常用的开源可视化和监控平台。
 TDengine 可以通过 Grafana 数据源插件接入 Grafana，把数据库中的时序数据展示为折线图、仪表盘和告警面板。
 
-本章使用 `taosBenchmark` 生成的智能电表数据，带你完成一次最小可用的集成流程：准备数据、安装 TDengine 数据源插件、配置 Grafana 数据源，并创建一个展示平均电流变化的面板。
+本章使用快速体验中 `taosBenchmark -y` 写入的 `test` 库电表数据，带你完成一次最小可用的集成流程：确认数据、安装 TDengine 数据源插件、配置 Grafana 数据源，并创建一个展示平均电流变化的面板。
 
 ## 前提条件
 
@@ -17,28 +17,39 @@ TDengine 可以通过 Grafana 数据源插件接入 Grafana，把数据库中的
 1. TDengine 服务已经启动。
 2. taosAdapter 已经启动，Grafana 可以访问其 WebSocket/REST 端口，默认是 `6041`。
 3. Grafana 已经安装并启动。TDengine 当前支持 Grafana 8.0 及以上版本。
-4. 已经安装 `taosBenchmark`。如果你使用安装包或 Docker 快速体验，通常已经包含该工具。
+4. 已经在下载与安装章节的快速体验中执行过 `taosBenchmark -y`，生成了 `test` 数据库和 `meters` 超级表。若尚未生成，可先在终端执行 `taosBenchmark -y`。
 
 如果你使用本快速上手中的 Docker 启动方式，容器已经映射 `6041` 端口，可以直接使用 `http://localhost:6041` 作为 TDengine 数据源地址。
 
 ## 准备示例数据
 
-在终端中执行下面的命令，向默认数据库 `test` 写入一批电表示例数据。这里把起始时间设置为 1 小时前，方便在 Grafana 中直接选择“最近 1 小时”查看曲线。
-
-```shell
-taosBenchmark --start-timestamp=$(date --date="1 hours ago" +%s%3N)   --time-step=1000   --records=1000   --tables=100   --answer-yes
-```
-
-写入完成后，可以在 shell 中确认数据已经存在。
+进入 shell 后，确认 `test.meters` 中已经有数据。
 
 ```sql
 USE test;
 
 SELECT tbname, ts, current, voltage
 FROM meters
+WHERE voltage > 250 and tbname = 'd1'
 ORDER BY ts DESC
 LIMIT 5;
 ```
+
+返回结果类似如下。
+
+```text
+ tbname |           ts            | current  | voltage |
+========================================================
+ d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
+ d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
+ d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
+ d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
+ d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
+
+Query OK, 5 row(s) in set
+```
+
+该数据集的时间戳范围为 `2017-07-14 10:40:00.000` 到 `2017-07-14 10:40:09.999`。在 Grafana 中查看曲线时，需要把时间范围调整到覆盖该区间，而不是默认的“最近 1 小时”。
 
 ## 安装 Grafana 插件
 
@@ -91,7 +102,7 @@ http://localhost:3000
 ```sql
 SELECT _wstart AS time, AVG(current) AS avg_current
 FROM test.meters
-WHERE groupid = 1 AND ts >= $from AND ts < $to
+WHERE groupId = 1 AND ts >= $from AND ts < $to
 INTERVAL($interval)
 FILL(NULL);
 ```
@@ -101,12 +112,18 @@ FILL(NULL);
 - `$from` 和 `$to` 是 Grafana 当前时间范围的起止时间。
 - `$interval` 是 Grafana 根据当前时间范围自动计算的窗口大小。
 - `INTERVAL($interval)` 表示按 Grafana 的窗口大小聚合数据点。
+- 快速体验数据中的分组标签列为 `groupId`。
 
-点击 **Run query** 或 **Apply** 后，Grafana 会展示平均电流随时间变化的曲线。
+点击 **Run query** 或 **Apply** 前，先把 Grafana 右上角的时间范围设为绝对时间，例如：
+
+- **From**：`2017-07-14 10:40:00`
+- **To**：`2017-07-14 10:40:10`
+
+然后再运行查询，Grafana 会展示该时间段内平均电流随时间变化的曲线。
 
 ![Grafana Dashboard](./assets/grafana.png)
 
-如果图表为空，可以把 Grafana 右上角的时间范围调整为 **Last 1 hour**，并确认 `taosBenchmark` 数据已经写入 `test.meters`。
+如果图表为空，请确认时间范围已覆盖 `2017-07-14 10:40:00` 到 `2017-07-14 10:40:10`，并确认 `test.meters` 中已有快速体验写入的数据。
 
 ## 常见问题
 
@@ -119,9 +136,9 @@ FILL(NULL);
 
 如果 Dashboard 没有数据，请检查：
 
-- Grafana 时间范围是否覆盖 `taosBenchmark` 写入的数据时间段。
-- SQL 中的数据库、超级表和标签列是否与实际数据一致。
-- `groupid = 1` 是否能匹配到数据；也可以先去掉该条件验证整体曲线。
+- Grafana 时间范围是否覆盖 `2017-07-14 10:40:00` 到 `2017-07-14 10:40:10`。
+- SQL 中的数据库、超级表和标签列是否与实际数据一致（标签列为 `groupId`）。
+- `groupId = 1` 是否能匹配到数据；也可以先去掉该条件验证整体曲线。
 
 ## 继续阅读
 

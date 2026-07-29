@@ -30,11 +30,9 @@ CREATE XNODE 'url' TOKEN 'token'
 #### 示例
 
 ```sql
-CREATE XNODE 'h1:6055';
-
-CREATE XNODE 'x1:6055' USER root PASS 'taosdata';
-
-CREATE XNODE 'x2:6055' TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
+CREATE XNODE 'localhost:6055';
+CREATE XNODE 'localhost:6055' USER root PASS 'taosdata';
+CREATE XNODE 'localhost:6055' TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
 ```
 
 ### 修改认证
@@ -54,7 +52,6 @@ ALTER XNODE SET TOKEN 'token'
 
 ```sql
 ALTER XNODE SET TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
-
 ALTER XNODE SET USER root PASS 'taosdata';
 ```
 
@@ -75,9 +72,9 @@ SHOW XNODES;
 示例输出：
 
 ```text
-id | url     | status | create_time             | update_time             |
-===========================================================================
-1  | h1:6055 | online | 2025-12-14 01:01:34.655 | 2025-12-14 01:01:34.655 |
+id | url             | status | create_time             | update_time             |
+===================================================================================
+1  | localhost:6055  | online | 2025-12-14 01:01:34.655 | 2025-12-14 01:01:34.655 |
 ```
 
 ### 排空节点
@@ -119,8 +116,7 @@ DROP XNODE FORCE {id | 'url'}
 
 ```sql
 DROP XNODE 1;
-
-DROP XNODE 'h2:6055';
+DROP XNODE 'localhost:6055';
 ```
 
 ## 任务管理
@@ -266,7 +262,7 @@ alter_options:
 
 ```sql
 ALTER XNODE TASK 3
-  FROM 'pulsar://zgc...'
+  FROM 'pulsar://localhost:6650'
   TO 'testdb'
   WITH XNODE_ID 33 VIA 333 REASON 'zgc_test';
 ```
@@ -352,9 +348,7 @@ REBALANCE XNODE JOBS [WHERE job_conditions]
 
 ```sql
 REBALANCE XNODE JOBS WHERE id > 1;
-
 REBALANCE XNODE JOBS WHERE task_id = 1 AND (xnode_id = 3 OR xnode_id = 4);
-
 REBALANCE XNODE JOBS;
 ```
 
@@ -382,7 +376,6 @@ agent_options:
 
 ```sql
 CREATE XNODE AGENT 'a1';
-
 CREATE XNODE AGENT 'a2' WITH STATUS 'running';
 ```
 
@@ -433,7 +426,6 @@ alter_options:
 
 ```sql
 ALTER XNODE AGENT 1 WITH NAME 'test1';
-
 ALTER XNODE AGENT 'a2' WITH NAME 'test2' STATUS 'online';
 ```
 

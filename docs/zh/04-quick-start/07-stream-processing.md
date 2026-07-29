@@ -13,7 +13,7 @@ toc_max_heading_level: 4
 
 一个流任务通常由“触发”和“计算”两部分组成：触发决定什么时候计算，计算决定使用哪些数据以及结果写到哪里。两者可以来自同一张表，也可以按业务需要分离。
 
-本章继续使用智能电表示例数据，创建一个“每 1 分钟统计每个电表平均电流”的流任务。你将体验完整流程：准备数据、创建流、查看输出表、写入新数据并观察结果更新。
+本章继续使用快速体验中 `taosBenchmark -y` 写入的 `test` 库电表数据，创建一个“每 1 分钟统计每个电表平均电流”的流任务。你将体验完整流程：确认数据、创建流、查看输出表、写入新数据并观察结果更新。
 
 ## 前提条件
 
@@ -21,7 +21,7 @@ toc_max_heading_level: 4
 
 1. TDengine 服务已经启动，可以通过 shell 连接。
 2. 集群中已经部署 snode。流式计算任务在 snode 上运行。
-3. 已经安装 `taosBenchmark`。如果你使用安装包或 Docker 快速体验，通常已经包含该工具。
+3. 已经在下载与安装章节的快速体验中执行过 `taosBenchmark -y`，生成了 `test` 数据库和 `meters` 超级表。若尚未生成，可先在终端执行 `taosBenchmark -y`。
 
 可以在 shell 中查看 snode：
 
@@ -40,13 +40,7 @@ CREATE SNODE ON DNODE 1;
 
 ## 准备示例数据
 
-如果你已经在前一章生成过 `taosBenchmark` 数据，可以直接进入下一节。否则，在终端中执行下面的命令生成电表示例数据。
-
-```shell
-taosBenchmark --start-timestamp=1600000000000 --tables=10 --records=1000 --time-step=10000
-```
-
-进入 shell 后，切换到 `taosBenchmark` 默认创建的数据库。
+进入 shell 后，切换到 `test` 数据库。
 
 ```sql
 USE test;
@@ -57,22 +51,26 @@ USE test;
 ```sql
 SELECT tbname, ts, current, voltage
 FROM meters
+WHERE voltage > 250 and tbname = 'd1'
 ORDER BY ts DESC
 LIMIT 5;
 ```
 
-返回结果类似如下，具体数值可能因 `taosBenchmark` 版本或随机数据不同而略有差异。
+返回结果类似如下，具体子表名和数值可能因 `taosBenchmark` 版本或随机数据不同而略有差异。
 
 ```text
- tbname |           ts            |  current   | voltage |
-==========================================================
- d9     | 2020-09-14 23:13:10.000 | 14.060198  |     232 |
- d8     | 2020-09-14 23:13:10.000 | 14.060198  |     232 |
- d7     | 2020-09-14 23:13:10.000 | 14.060198  |     232 |
- d6     | 2020-09-14 23:13:10.000 | 14.060198  |     232 |
- d5     | 2020-09-14 23:13:10.000 | 14.060198  |     232 |
+ tbname |           ts            | current  | voltage |
+========================================================
+ d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
+ d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
+ d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
+ d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
+ d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
+
 Query OK, 5 row(s) in set
 ```
+
+`test.meters` 的时间戳集中在 `2017-07-14 10:40:00.000` 到 `2017-07-14 10:40:09.999`。下文流任务使用 1 分钟窗口时，历史数据会落在同一个窗口中；写入示例会插入下一分钟的数据，便于观察新窗口生成。
 
 ## 创建流任务
 
@@ -83,14 +81,18 @@ DROP STREAM IF EXISTS avg_current_stream;
 DROP STABLE IF EXISTS avg_current_stb;
 ```
 
-执行下面的 SQL，创建一个流任务：每 1 分钟为一个窗口，按子表分别计算平均电流，并把结果写入输出超级表 `avg_current_stb`。
+执行下面的 SQL，创建一个流任务：每 1 分钟为一个窗口，按子表分别计算平均电流，并把结果写入输出超级表 `avg_current_stb`。输出子表名与源子表对应（如 `d0` → `avg_d0`），并保留源表的 `groupId` 标签。
 
 ```sql
 CREATE STREAM avg_current_stream
   INTERVAL(1m) SLIDING(1m)
-  FROM meters PARTITION BY tbname
-  STREAM_OPTIONS(FILL_HISTORY_FIRST)
+  FROM meters PARTITION BY tbname, groupId
+  STREAM_OPTIONS(FILL_HISTORY_FIRST | MAX_DELAY(3s))
   INTO avg_current_stb
+  OUTPUT_SUBTABLE(CONCAT("avg_", tbname))
+  TAGS (
+      groupId INT AS groupId
+  )
   AS
     SELECT _twstart AS ts,
            _twend AS window_end,
@@ -101,9 +103,11 @@ CREATE STREAM avg_current_stream
 其中：
 
 - `INTERVAL(1m) SLIDING(1m)` 表示按 1 分钟窗口触发计算。
-- `FROM meters PARTITION BY tbname` 表示每个子表独立触发和计算。
-- `STREAM_OPTIONS(FILL_HISTORY_FIRST)` 表示先计算已经写入的历史数据，再处理实时写入的数据。
+- `FROM meters PARTITION BY tbname, groupId` 表示按子表分组触发；同时把 `groupId` 列入分组列，便于写入输出表标签。
+- `STREAM_OPTIONS(FILL_HISTORY_FIRST | MAX_DELAY(3s))` 表示先计算已经写入的历史数据；未关闭的窗口在开启后最多等待约 3 秒也会触发一次计算，便于快速体验。
 - `INTO avg_current_stb` 表示把结果写入输出超级表。
+- `OUTPUT_SUBTABLE(CONCAT("avg_", tbname))` 表示输出子表名由源子表名生成，例如 `d0` 对应 `avg_d0`。
+- `TAGS (groupId INT AS groupId)` 把源表分组标签写入输出超级表，便于按分组查询结果。
 - `%%trows` 表示本次触发窗口内的数据集合。
 
 ## 查看流任务
@@ -117,9 +121,11 @@ SHOW STREAMS;
 返回结果类似如下：
 
 ```text
-       stream_name  |      create_time        | status  |
-=========================================================
- avg_current_stream | 2026-07-27 13:40:00.000 | running |
+      stream_name     | status |         message         | db_name |
+====================================================================
+ avg_current_stream   | Idle   | Current deploy times: 0 | test    |
+
+Query OK, 1 row(s) in set
 ```
 
 如果需要更详细的状态，可以查询系统表：
@@ -130,59 +136,66 @@ FROM information_schema.ins_streams
 WHERE stream_name = 'avg_current_stream';
 ```
 
-流任务需要异步调度。创建后可以等待几秒，再查询输出表。
+流任务需要异步调度。创建后可以等待几秒，再查询输出表。由于 `FILL_HISTORY_FIRST` 会对约 10,000 张子表回放历史窗口，首次计算可能需要稍长时间。
 
 ## 查看计算结果
 
 查询输出超级表 `avg_current_stb`。
 
 ```sql
-SELECT tbname, ts, window_end, avg_current
+SELECT tbname, groupId, ts, window_end, avg_current
 FROM avg_current_stb
-ORDER BY ts
+ORDER BY ts, tbname
 LIMIT 5;
 ```
 
-返回结果中，每一行表示某个电表在一个 1 分钟窗口内的平均电流。
+返回结果中，每一行表示某个电表在一个 1 分钟窗口内的平均电流。`tbname` 为输出子表名（如 `avg_d0`）。历史数据落在 `10:40:00` 到 `10:41:00` 窗口内，示意如下。
 
 ```text
- tbname |           ts            |       window_end        | avg_current |
-===========================================================================
- d0     | 2020-09-13 20:26:00.000 | 2020-09-13 20:27:00.000 | 10.400000   |
- d1     | 2020-09-13 20:26:00.000 | 2020-09-13 20:27:00.000 | 10.400000   |
- d2     | 2020-09-13 20:26:00.000 | 2020-09-13 20:27:00.000 | 10.400000   |
- d3     | 2020-09-13 20:26:00.000 | 2020-09-13 20:27:00.000 | 10.400000   |
- d4     | 2020-09-13 20:26:00.000 | 2020-09-13 20:27:00.000 | 10.400000   |
+ tbname | groupId |           ts            |       window_end        | avg_current |
+=======================================================================================
+ avg_d0 |       1 | 2017-07-14 10:40:00.000 | 2017-07-14 10:41:00.000 |   10.208475 |
+ avg_d1 |       7 | 2017-07-14 10:40:00.000 | 2017-07-14 10:41:00.000 |   10.208475 |
+ avg_d2 |       2 | 2017-07-14 10:40:00.000 | 2017-07-14 10:41:00.000 |   10.208475 |
+ avg_d3 |       4 | 2017-07-14 10:40:00.000 | 2017-07-14 10:41:00.000 |   10.208475 |
+ avg_d4 |       3 | 2017-07-14 10:40:00.000 | 2017-07-14 10:41:00.000 |   10.208475 |
 ```
 
-这里的 `tbname` 是输出超级表中的子表名。由于流任务按 `meters` 的子表分组，每个电表都会有独立的输出结果。
+`groupId` 的具体取值取决于 `taosBenchmark` 为各子表分配的标签，可能与上表略有差异。
 
 ## 写入新数据并观察更新
 
-向 `d0` 写入一条新的电表数据。
+时间窗口默认在关窗时触发。只写入落在 `10:41:00` 到 `10:42:00` 窗口内的数据时，窗口尚未关闭；本示例建流时配置了 `MAX_DELAY(3s)`，因此窗口开启后最多等待约 3 秒也会产出结果。
+
+向 `d0` 写入一条落在该窗口内的电表数据。
 
 ```sql
-INSERT INTO d0 VALUES ("2020-09-14 23:13:20", 12.4, 221, 0.31);
+INSERT INTO d0 VALUES ("2017-07-14 10:41:30", 12.4, 221, 147);
 ```
 
-等待几秒后，查询 `d0` 最近的流计算结果。
+也可以再写入一条下一窗口起点的数据，用事件时间直接关窗（即使未配置 `MAX_DELAY` 也会触发）：
 
 ```sql
-SELECT tbname, ts, window_end, avg_current
+INSERT INTO d0 VALUES ("2017-07-14 10:42:00", 12.5, 220, 147);
+```
+
+等待几秒后，查询 `d0` 对应输出子表 `avg_d0` 最近的流计算结果。
+
+```sql
+SELECT tbname, groupId, ts, window_end, avg_current
 FROM avg_current_stb
-WHERE tbname = "d0"
+WHERE tbname = "avg_d0"
 ORDER BY ts DESC
 LIMIT 3;
 ```
 
-返回结果类似如下。可以看到最新窗口已经出现在输出表中。
+返回结果类似如下。可以看到 `10:41:00` 窗口已经出现在输出表中。
 
 ```text
- tbname |           ts            |       window_end        | avg_current |
-===========================================================================
- d0     | 2020-09-14 23:13:00.000 | 2020-09-14 23:14:00.000 | 13.230099   |
- d0     | 2020-09-14 23:12:00.000 | 2020-09-14 23:13:00.000 | 12.980000   |
- d0     | 2020-09-14 23:11:00.000 | 2020-09-14 23:12:00.000 | 12.750000   |
+ tbname | groupId |           ts            |       window_end        | avg_current |
+=======================================================================================
+ avg_d0 |       1 | 2017-07-14 10:41:00.000 | 2017-07-14 10:42:00.000 |   12.400000 |
+ avg_d0 |       1 | 2017-07-14 10:40:00.000 | 2017-07-14 10:41:00.000 |   10.208475 |
 ```
 
 流任务会持续运行。后续只要 `meters` 中有新数据写入，符合触发条件的窗口就会继续计算并写入输出表。
@@ -200,8 +213,8 @@ DROP STABLE IF EXISTS avg_current_stb;
 
 快速上手阶段可以先记住下面几个常见调整方向：
 
-- 如果只想处理新写入的数据，可以去掉 `STREAM_OPTIONS(FILL_HISTORY_FIRST)`。
-- 如果需要更低延迟，可以了解 `LOW_LATENCY_CALC` 和 `MAX_DELAY`。
+- 如果只想处理新写入的数据，可以去掉 `STREAM_OPTIONS` 中的 `FILL_HISTORY_FIRST`。
+- 如果希望未关窗时也能尽快出结果，可以保留或调整 `MAX_DELAY`；也可以写入下一窗口的数据，用事件时间推动关窗。
 - 如果存在乱序写入、更新或删除，需要结合 `WATERMARK`、重算和最佳实践设计流任务。
 - 如果需要把结果发送给外部应用，可以使用 `NOTIFY` 创建通知型流任务。
 

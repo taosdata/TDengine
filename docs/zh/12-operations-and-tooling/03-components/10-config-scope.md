@@ -16,6 +16,7 @@ toc_max_heading_level: 4
 | fqdn | taosd | taosd 监听的服务地址 |
 | serverPort | both | taosd 监听的端口 |
 | compressMsgSize | both | 是否对 RPC 消息进行压缩 |
+| rpcCrcEnable | both | 是否对 RPC 消息进行 CRC32C 校验（可通过 ALTER 修改，重启后生效，全集群需一致） |
 | shellActivityTimer | both | 客户端向 mnode 发送心跳的时长 |
 | numOfRpcSessions | both | RPC 支持的最大连接数 |
 | numOfRpcThreads | both | RPC 收发数据的线程数目 |

@@ -294,6 +294,7 @@ extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
 extern bool    tsEnableScience;
+extern bool    tsRpcCrcEnable;
 extern bool    tsSqlSecurityEnabled;
 extern int32_t tsSqlSecurityWhitelistMode;  // 0:disable,1:whitelist,2:blacklist,3:both
 extern bool    tsSqlSecurityStringCheck;

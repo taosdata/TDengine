@@ -208,6 +208,30 @@ static bool extractUtcOffsetFromTzDisplay(const char* display, char* out, int32_
 }
 
 /*
+ * extractUtcOffsetFromTzDisplay() returns an ISO 8601-direction offset
+ * (east-positive, e.g. "+0800" for Asia/Shanghai). TIMETRUNCATE / TO_CHAR
+ * inject this into a parameter later parsed by offsetOfTimezone()/
+ * parseTimezone(), which use the POSIX convention (west-positive). Flip the
+ * sign in place so the two conventions agree; zero offset is a no-op.
+ */
+static void flipIsoOffsetToPosix(char *buf) {
+  if (buf[0] != '+' && buf[0] != '-') {
+    return;
+  }
+  bool allZero = true;
+  for (const char *p = buf + 1; *p != '\0'; ++p) {
+    if (*p != '0') {
+      allZero = false;
+      break;
+    }
+  }
+  if (allZero) {
+    return;
+  }
+  buf[0] = (buf[0] == '+') ? '-' : '+';
+}
+
+/*
  * Heuristic: treat a timezone name as an IANA region-based name iff it
  * contains '/'.  Examples: "Asia/Shanghai", "America/New_York", "Europe/London".
  * Everything else — "+0800", "UTC-2", "GMT+5", "CST", etc. — is treated as
@@ -320,6 +344,7 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
         } else if (strncmp(buf, "UTC", 3) != 0 && strncmp(buf, "GMT", 3) != 0) {
           char offsetBuf[8] = {0};
           if (extractUtcOffsetFromTzDisplay(tzName, offsetBuf, sizeof(offsetBuf))) {
+            flipIsoOffsetToPosix(offsetBuf);
             (void)memcpy(buf, offsetBuf, strlen(offsetBuf) + 1);
           }
         }
@@ -343,7 +368,11 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
      * Prefer fixed offset extracted from "...(UTC, +0800)" so scalar
      * offsetFromTz() can parse it on platforms where session tz handle is NULL.
      */
-    if (!extractUtcOffsetFromTzDisplay(tsTimezoneStr, buf, sizeof(buf))) {
+    if (extractUtcOffsetFromTzDisplay(tsTimezoneStr, buf, sizeof(buf))) {
+      if (!useISOOffset) {
+        flipIsoOffsetToPosix(buf);
+      }
+    } else {
       const char *paren = strchr(tsTimezoneStr, ' ');
       int32_t nameLen = paren ? (int32_t)(paren - tsTimezoneStr) : (int32_t)strlen(tsTimezoneStr);
       int32_t cpLen = TMIN(nameLen, TD_TIMEZONE_LEN - 1);

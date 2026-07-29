@@ -15,6 +15,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | fqdn | taosd | The service address that taosd listens on |
 | serverPort | both | The port that taosd listens on |
 | compressMsgSize | both | Whether to compress RPC messages |
+| rpcCrcEnable | both | Whether to verify CRC32C on RPC messages (alterable via ALTER, effective after restart; must match across cluster) |
 | shellActivityTimer | both | Duration in seconds for the client to send heartbeat to mnode |
 | numOfRpcSessions | both | Maximum number of connections supported by RPC |
 | numOfRpcThreads | both | Number of threads for receiving and sending RPC data |

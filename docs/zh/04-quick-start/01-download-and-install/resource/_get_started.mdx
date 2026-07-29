@@ -72,30 +72,61 @@ taosBenchmark --help
 
 ```sql
 SELECT COUNT(*) FROM test.meters;
+
+     count(*)     |
+===================
+        100000000 |
+
+Query OK, 1 row(s) in set (0.075247s)
 ```
 
 2. 查询 1 亿条记录的平均值、最大值和最小值：
 
 ```sql
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
+
+   avg(current)   | max(voltage) | min(phase) |
+===============================================
+ 10.2084751316071 |          258 |        145 |
+
+Query OK, 1 row(s) in set (0.094037s)
 ```
 
 3. 查询 `location = "California.SanFrancisco"` 的记录总条数：
 
 ```sql
 SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
+
+     count(*)     |
+===================
+         10340000 |
+
+Query OK, 1 row(s) in set (0.050540s)
 ```
 
 4. 查询 `groupId = 10` 的所有记录的平均值、最大值和最小值：
 
 ```sql
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
+
+   avg(current)   | max(voltage) | min(phase) |
+===============================================
+ 10.2084751316071 |          258 |        145 |
+
+Query OK, 1 row(s) in set (0.033754s)
 ```
 
 5. 对表 `d1001` 按每 10 秒进行平均值、最大值和最小值聚合统计：
 
 ```sql
-SELECT _wstart, AVG(current), MAX(voltage), MIN(phase) FROM test.d1001 INTERVAL(10s);
+SELECT _wstart, AVG(current), MAX(voltage), MIN(phase)
+FROM test.d1001 INTERVAL(10s);
+
+         _wstart         |   avg(current)   | max(voltage) | min(phase) |
+=========================================================================
+ 2017-07-14 10:40:00.000 | 10.2084751316071 |          258 |        145 |
+
+Query OK, 1 row(s) in set (0.004716s)
 ```
 
 在上面的查询中，系统伪列 `_wstart` 表示每个窗口的开始时间。
