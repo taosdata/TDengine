@@ -2278,7 +2278,7 @@ static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInf
   }
 
 end:
-  tDestroySVSubmitCreateTbReq(submitTbData.pCreateTbReq, TSDB_MSG_FLG_DECODE);
+  tdDestroySVCreateTbReq(submitTbData.pCreateTbReq);
   taosMemoryFreeClear(submitTbData.pCreateTbReq);
   tEndDecode(pCoder);
   return code;
@@ -3286,7 +3286,7 @@ static int32_t scanSubmitTbDataPre(SDecoder *pCoder, SStreamTriggerReaderInfo* s
   
 end:
   taosArrayDestroy(targets);
-  tDestroySVSubmitCreateTbReq(submitTbData.pCreateTbReq, TSDB_MSG_FLG_DECODE);
+  tdDestroySVCreateTbReq(submitTbData.pCreateTbReq);
   taosMemoryFreeClear(submitTbData.pCreateTbReq);
   tEndDecode(pCoder);
   return code;

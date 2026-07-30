@@ -264,24 +264,30 @@ void generateConfigFile(const string& filePath) {
 static int32_t serializeOldSVDeleteReq(void* buf, int32_t bufLen, SVDeleteReq* pReq) {
   const int32_t headLen = sizeof(SMsgHead);
   SEncoder      encoder = {0};
+  SMsgHead*     pHead = (SMsgHead*)buf;
+  int32_t       code = 0;
+  int32_t       tlen = -1;
   tEncoderInit(&encoder, (uint8_t*)buf + headLen, bufLen - headLen);
 
-  if (tStartEncode(&encoder) != 0) return -1;
-  if (tEncodeU64(&encoder, pReq->sId) != 0) return -1;
-  if (tEncodeU64(&encoder, pReq->queryId) != 0) return -1;
-  if (tEncodeU64(&encoder, pReq->taskId) != 0) return -1;
-  if (tEncodeU32(&encoder, pReq->sqlLen) != 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->sql) != 0) return -1;
-  if (tEncodeBinary(&encoder, (const uint8_t*)pReq->msg, pReq->phyLen) != 0) return -1;
-  if (tEncodeI8(&encoder, pReq->source) != 0) return -1;
-  if (tEncodeU64(&encoder, pReq->clientId) != 0) return -1;
+  if ((code = tStartEncode(&encoder)) != 0) goto _exit;
+  if ((code = tEncodeU64(&encoder, pReq->sId)) != 0) goto _exit;
+  if ((code = tEncodeU64(&encoder, pReq->queryId)) != 0) goto _exit;
+  if ((code = tEncodeU64(&encoder, pReq->taskId)) != 0) goto _exit;
+  if ((code = tEncodeU32(&encoder, pReq->sqlLen)) != 0) goto _exit;
+  if ((code = tEncodeCStr(&encoder, pReq->sql)) != 0) goto _exit;
+  if ((code = tEncodeBinary(&encoder, (const uint8_t*)pReq->msg, pReq->phyLen)) != 0) goto _exit;
+  if ((code = tEncodeI8(&encoder, pReq->source)) != 0) goto _exit;
+  if ((code = tEncodeU64(&encoder, pReq->clientId)) != 0) goto _exit;
   tEndEncode(&encoder);
 
-  int32_t  tlen = encoder.pos;
-  SMsgHead* pHead = (SMsgHead*)buf;
+  tlen = encoder.pos;
   pHead->vgId = htonl(pReq->header.vgId);
   pHead->contLen = htonl(tlen + headLen);
-  return tlen + headLen;
+  tlen += headLen;
+
+_exit:
+  tEncoderClear(&encoder);
+  return code == 0 ? tlen : -1;
 }
 
 TEST(td_msg_test, delete_req_codec_secure_delete) {
@@ -550,10 +556,107 @@ TEST(td_msg_test, destroy_sv_create_tb_req_frees_tag_ref) {
   req.colRef.pTagRef[0].hasRef = true;
   req.colRef.pTagRef[0].id = 1;
 
-  tDestroySVCreateTbReq(&req, TSDB_MSG_FLG_DECODE);
+  tdDestroySVCreateTbReq(&req);
 
   ASSERT_EQ(req.colRef.pColRef, nullptr);
   ASSERT_EQ(req.colRef.pTagRef, nullptr);
+}
+
+static int32_t encodeCreateTbBatchWithMissingSecondReq(void* buf, int32_t bufLen) {
+  SSchema schema = {0};
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.bytes = sizeof(int64_t);
+
+  SVCreateTbReq req = {0};
+  req.name = (char*)"t0";
+  req.type = TSDB_NORMAL_TABLE;
+  req.ntb.schemaRow.nCols = 1;
+  req.ntb.schemaRow.pSchema = &schema;
+
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  len = -1;
+  tEncoderInit(&encoder, (uint8_t*)buf, bufLen);
+
+  if ((code = tStartEncode(&encoder)) != 0) goto _exit;
+  if ((code = tEncodeI32v(&encoder, 2)) != 0) goto _exit;
+  if ((code = tEncodeSVCreateTbReq(&encoder, &req)) != 0) goto _exit;
+
+  tEndEncode(&encoder);
+  len = encoder.pos;
+
+_exit:
+  tEncoderClear(&encoder);
+  return code == 0 ? len : -1;
+}
+
+TEST(td_msg_test, decode_sv_create_tb_batch_req_cleans_partial_requests) {
+  int32_t capacity = encodeCreateTbBatchWithMissingSecondReq(NULL, 0);
+  ASSERT_GT(capacity, 0);
+
+  std::vector<char> buf(capacity, 0);
+  int32_t           size = encodeCreateTbBatchWithMissingSecondReq(buf.data(), capacity);
+  ASSERT_GT(size, 0);
+
+  SVCreateTbBatchReq req = {0};
+  SDecoder            decoder = {0};
+  tDecoderInit(&decoder, (uint8_t*)buf.data(), size);
+  ASSERT_NE(tDecodeSVCreateTbBatchReq(&decoder, &req), 0);
+  tDecoderClear(&decoder);
+}
+
+static int32_t encodeCreateTbReqWithMissingSecondColCmpr(void* buf, int32_t bufLen) {
+  SSchema schema[2] = {};
+  schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema[0].bytes = sizeof(int64_t);
+  schema[1].type = TSDB_DATA_TYPE_INT;
+  schema[1].bytes = sizeof(int32_t);
+
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  len = -1;
+  tEncoderInit(&encoder, (uint8_t*)buf, bufLen);
+
+  if ((code = tStartEncode(&encoder)) != 0) goto _exit;
+  if ((code = tEncodeI32v(&encoder, 0)) != 0) goto _exit;
+  if ((code = tEncodeCStr(&encoder, "t0")) != 0) goto _exit;
+  if ((code = tEncodeI64(&encoder, 1)) != 0) goto _exit;
+  if ((code = tEncodeI64(&encoder, 0)) != 0) goto _exit;
+  if ((code = tEncodeI32(&encoder, 0)) != 0) goto _exit;
+  if ((code = tEncodeI8(&encoder, TSDB_NORMAL_TABLE)) != 0) goto _exit;
+  if ((code = tEncodeI32(&encoder, 0)) != 0) goto _exit;
+  if ((code = tEncodeI32v(&encoder, 2)) != 0) goto _exit;
+  if ((code = tEncodeI32v(&encoder, 7)) != 0) goto _exit;
+  if ((code = tEncodeSSchema(&encoder, schema)) != 0) goto _exit;
+  if ((code = tEncodeSSchema(&encoder, schema + 1)) != 0) goto _exit;
+  if ((code = tEncodeI32(&encoder, 0)) != 0) goto _exit;
+  if ((code = tEncodeI32v(&encoder, 2)) != 0) goto _exit;
+  if ((code = tEncodeI32v(&encoder, 1)) != 0) goto _exit;
+  if ((code = tEncodeI16v(&encoder, 0)) != 0) goto _exit;
+  if ((code = tEncodeU32(&encoder, 1)) != 0) goto _exit;
+
+  tEndEncode(&encoder);
+  len = encoder.pos;
+
+_exit:
+  tEncoderClear(&encoder);
+  return code == 0 ? len : -1;
+}
+
+TEST(td_msg_test, decode_sv_create_tb_req_cleans_incomplete_col_cmpr) {
+  int32_t capacity = encodeCreateTbReqWithMissingSecondColCmpr(NULL, 0);
+  ASSERT_GT(capacity, 0);
+
+  std::vector<char> buf(capacity, 0);
+  int32_t           size = encodeCreateTbReqWithMissingSecondColCmpr(buf.data(), capacity);
+  ASSERT_GT(size, 0);
+
+  SVCreateTbReq req = {0};
+  SDecoder      decoder = {0};
+  tDecoderInit(&decoder, (uint8_t*)buf.data(), size);
+  ASSERT_NE(tDecodeSVCreateTbReq(&decoder, &req), 0);
+  ASSERT_EQ(req.colCmpr.pColCmpr, nullptr);
+  tDecoderClear(&decoder);
 }
 
 static int32_t encodeOldSColRef(SEncoder* pEncoder, int16_t id, const char* db, const char* tb, const char* col) {
@@ -591,7 +694,7 @@ TEST(td_msg_test, decode_old_scol_ref_wrapper_defaults_federated_fields) {
   SColRefWrapper out = {0};
   SDecoder       decoder = {0};
   tDecoderInit(&decoder, (uint8_t*)buf.data(), size);
-  ASSERT_EQ(tDecodeSColRefWrapperEx(&decoder, &out, false), 0);
+  ASSERT_EQ(tDecodeSColRefWrapperEx(&decoder, &out), 0);
   tDecoderClear(&decoder);
 
   ASSERT_EQ(out.nCols, 2);
@@ -663,7 +766,7 @@ TEST(td_msg_test, scol_ref_wrapper_roundtrips_federated_fields_at_tail) {
   SColRefWrapper out = {0};
   SDecoder       decoder = {0};
   tDecoderInit(&decoder, (uint8_t*)buf.data(), size);
-  ASSERT_EQ(tDecodeSColRefWrapperEx(&decoder, &out, false), 0);
+  ASSERT_EQ(tDecodeSColRefWrapperEx(&decoder, &out), 0);
   tDecoderClear(&decoder);
 
   ASSERT_EQ(out.nCols, 1);
@@ -692,7 +795,7 @@ TEST(td_msg_test, destroy_sv_submit_create_tb_req_frees_tag_ref) {
   req.colRef.pTagRef = (SColRef*)taosMemoryCalloc(1, sizeof(SColRef));
   ASSERT_NE(req.colRef.pTagRef, nullptr);
 
-  tDestroySVSubmitCreateTbReq(&req, TSDB_MSG_FLG_DECODE);
+  tdDestroySVCreateTbReq(&req);
 
   ASSERT_EQ(req.colRef.pTagRef, nullptr);
 }

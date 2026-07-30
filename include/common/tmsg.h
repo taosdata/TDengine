@@ -963,7 +963,7 @@ typedef struct {
 } SColRefWrapper;
 
 int32_t tEncodeSColRefWrapper(SEncoder* pCoder, const SColRefWrapper* pWrapper);
-int32_t tDecodeSColRefWrapperEx(SDecoder* pDecoder, SColRefWrapper* pWrapper, bool decoderMalloc);
+int32_t tDecodeSColRefWrapperEx(SDecoder* pDecoder, SColRefWrapper* pWrapper);
 void    tFreeSColRefArray(SColRef* pColRef, int32_t nCols);
 
 typedef struct SSeriesEntry {
@@ -1478,14 +1478,15 @@ static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SEncoder* pEncoder, const SSch
   return 0;
 }
 
-static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SDecoder* pDecoder, SSchemaWrapper* pSW) {
+static FORCE_INLINE int32_t tDecodeSSchemaWrapperImpl(SDecoder* pDecoder, SSchemaWrapper* pSW, bool decoderMalloc) {
   if (pSW == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->nCols));
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->version));
 
-  pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
+  pSW->pSchema = decoderMalloc ? (SSchema*)tDecoderMalloc(pDecoder, pSW->nCols * sizeof(SSchema))
+                               : (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
   }
@@ -1496,19 +1497,12 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SDecoder* pDecoder, SSchemaWra
   return 0;
 }
 
+static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SDecoder* pDecoder, SSchemaWrapper* pSW) {
+  return tDecodeSSchemaWrapperImpl(pDecoder, pSW, false);
+}
+
 static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaWrapper* pSW) {
-  TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->nCols));
-  TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSW->version));
-
-  pSW->pSchema = (SSchema*)tDecoderMalloc(pDecoder, pSW->nCols * sizeof(SSchema));
-  if (pSW->pSchema == NULL) {
-    TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
-  }
-  for (int32_t i = 0; i < pSW->nCols; i++) {
-    TAOS_CHECK_RETURN(tDecodeSSchema(pDecoder, &pSW->pSchema[i]));
-  }
-
-  return 0;
+  return tDecodeSSchemaWrapperImpl(pDecoder, pSW, true);
 }
 
 typedef struct {
@@ -5484,31 +5478,7 @@ typedef struct SVCreateTbReq {
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
 int  tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
-void tDestroySVCreateTbReq(SVCreateTbReq* pReq, int32_t flags);
-void tDestroySVSubmitCreateTbReq(SVCreateTbReq* pReq, int32_t flags);
-
-static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
-  if (NULL == req) {
-    return;
-  }
-
-  taosMemoryFreeClear(req->sql);
-  taosMemoryFreeClear(req->name);
-  taosMemoryFreeClear(req->comment);
-  if (req->type == TSDB_CHILD_TABLE || req->type == TSDB_VIRTUAL_CHILD_TABLE) {
-    taosMemoryFreeClear(req->ctb.pTag);
-    taosMemoryFreeClear(req->ctb.stbName);
-    taosArrayDestroy(req->ctb.tagName);
-    req->ctb.tagName = NULL;
-  } else if (req->type == TSDB_NORMAL_TABLE || req->type == TSDB_VIRTUAL_NORMAL_TABLE) {
-    taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
-  }
-  taosMemoryFreeClear(req->colCmpr.pColCmpr);
-  taosMemoryFreeClear(req->pExtSchemas);
-  taosMemoryFreeClear(req->colRef.pColRef);
-  taosMemoryFreeClear(req->colRef.pTagRef);
-  tFreeSSeriesWrapper(&req->series);
-}
+void tdDestroySVCreateTbReq(SVCreateTbReq* pReq);
 
 typedef struct {
   int32_t nReqs;

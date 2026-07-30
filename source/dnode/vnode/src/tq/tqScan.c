@@ -2178,7 +2178,7 @@ static void tqPreProcessSubmitMsg(STqHandle* pHandle, const SMqPollReq* pRequest
       }
     }
     if (pSubmitTbData->ctimeMs > createTime){
-      tDestroySVSubmitCreateTbReq(pSubmitTbData->pCreateTbReq, TSDB_MSG_FLG_DECODE);
+      tdDestroySVCreateTbReq(pSubmitTbData->pCreateTbReq);
       taosMemoryFreeClear(pSubmitTbData->pCreateTbReq);
     } else if (pHandle->fetchMeta != ONLY_DATA){
       taosArrayDestroy(*rawList);
@@ -2674,9 +2674,7 @@ static int32_t tqExtractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle
         taosMemoryFree(pBuf);
         for (int i = 0; i < taosArrayGetSize(taosxRsp.createTableReq); i++) {
           void* pCreateTbReq = taosArrayGetP(taosxRsp.createTableReq, i);
-          if (pCreateTbReq != NULL) {
-            tDestroySVSubmitCreateTbReq(pCreateTbReq, TSDB_MSG_FLG_DECODE);
-          }
+          tdDestroySVCreateTbReq(pCreateTbReq);
           taosMemoryFree(pCreateTbReq);
         }
         taosArrayDestroy(taosxRsp.createTableReq);
@@ -2840,5 +2838,4 @@ static int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const 
 
   return 0;
 }
-
 

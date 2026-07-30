@@ -569,7 +569,7 @@ class TestTmqBugs:
 
         return
     
-    def do_ts5466(self):
+    def do_ts5466(self, snapshot_enable="true"):
         tdSql.execute(f'alter dnode 1 "debugflag 135"')
         tdSql.execute(f'create database if not exists db_taosx')
         tdSql.execute(f'create database if not exists db_5466')
@@ -585,7 +585,7 @@ class TestTmqBugs:
 
         tdSql.execute("create topic db_5466_topic with meta as database db_5466")
         buildPath = tdCom.getBuildPath()
-        cmdStr = '%s/build/bin/tmq_ts5466'%(buildPath)
+        cmdStr = '%s/build/bin/tmq_ts5466 %s'%(buildPath, snapshot_enable)
         tdLog.info(cmdStr)
 
         pThread = threading.Thread(target=self.insert)
@@ -601,7 +601,7 @@ class TestTmqBugs:
             retry=1,
         )
         print("bug TS-5466 ................ [passed]")
-    
+
     #
     # ------------------- 13 ----------------
     #
@@ -1093,7 +1093,6 @@ class TestTmqBugs:
          - Test tmq consumption with meta topic created on stable with where clause.
         19. Jira TS-4674:
          - Test tmq consumption behavior during vgroup leader rebalance in multi-replica environment.
-
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
@@ -1134,7 +1133,7 @@ class TestTmqBugs:
         self.do_td37436()
         self.do_td38404()
         self.do_ts4563()
-        self.do_ts5466()
+        self.do_ts5466("true")
         self.do_ts5906()
         self.do_ts6115()
         self.do_ts6392()

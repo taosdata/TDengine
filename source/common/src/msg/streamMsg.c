@@ -4839,7 +4839,7 @@ int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVT
     }
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->gId));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &info->uid));
-    TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(&decoder, &info->cols, false));
+    TAOS_CHECK_EXIT(tDecodeSColRefWrapperEx(&decoder, &info->cols));
   }
 
   tEndDecode(&decoder);
