@@ -19980,6 +19980,21 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkColumnType(pStmt->pCols, 0);
   }
 
+  if (TSDB_CODE_SUCCESS == code && createStable) {
+    // A tag carrying an inline `= literal` value means normal-table creation; the rewrite
+    // gate routes those away from the super-table path. Reject defensively whatever still
+    // reaches here (e.g. inline tag values combined with BASE ON).
+    SNode* pTag = NULL;
+    FOREACH(pTag, pStmt->pTags) {
+      if (((SColumnDefNode*)pTag)->pTagVal != NULL) {
+        code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                       "Tag '%s' cannot carry an inline value on super table creation",
+                                       ((SColumnDefNode*)pTag)->colName);
+        break;
+      }
+    }
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = checkTableKeepOption(pCxt, pStmt->pOptions, createStable, dbCfg.daysToKeep2);
   }
@@ -32360,6 +32375,13 @@ static int32_t checkCreateTags(const SNodeList* pTags, const SNodeList* pCols, S
       return generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
                                      "Tag '%s' only supports the FROM reference option", pTagDef->colName);
     }
+    // A CREATE-time tag must carry an explicit value: `= literal` for an owned tag or
+    // `FROM db.tb.tag` for a tag-ref. Bare `name TYPE` stays valid only on ALTER ... ADD TAG.
+    if (pTagDef->pTagVal == NULL && (pTagOptions == NULL || !pTagOptions->hasRef)) {
+      return generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                     "Tag '%s' needs an explicit value (= literal) or a FROM reference",
+                                     pTagDef->colName);
+    }
     if (IS_DECIMAL_TYPE(pTagDef->dataType.type)) {
       return generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "Decimal type is not allowed for tag");
     }
@@ -32389,6 +32411,82 @@ static int32_t checkCreateTags(const SNodeList* pTags, const SNodeList* pCols, S
     return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
   }
   return TSDB_CODE_SUCCESS;
+}
+
+// CREATE TABLE ... TAGS distinguishes super-table creation from normal-table creation with
+// owned tags: no tag carries an inline value -> super table (historical semantics); every tag
+// carries `= literal` -> normal table with owned tags; a mix of the two is rejected.
+#define CREATE_TAGS_VAL_NONE  0
+#define CREATE_TAGS_VAL_ALL   1
+#define CREATE_TAGS_VAL_MIXED 2
+static int32_t createTagsValState(const SNodeList* pTags) {
+  int32_t nValued = 0;
+  SNode*  pTag = NULL;
+  FOREACH(pTag, pTags) {
+    if (((SColumnDefNode*)pTag)->pTagVal != NULL) {
+      ++nValued;
+    }
+  }
+  if (0 == nValued) {
+    return CREATE_TAGS_VAL_NONE;
+  }
+  return (nValued == LIST_LENGTH(pTags)) ? CREATE_TAGS_VAL_ALL : CREATE_TAGS_VAL_MIXED;
+}
+
+// Parse CREATE-time inline tag values (`= literal`) into an STag. Tags without a value
+// (tag-refs, whose value follows the source table) stay absent; valueless owned tags never
+// reach here (checkCreateTags rejects them). The result is always a valid STag so the
+// entry's tag trailer stays encodable. Shared by the virtual-normal and normal table paths.
+static int32_t buildCreateTagsSTag(STranslateContext* pCxt, const SNodeList* pTags, SSchemaWrapper* pSchemaTag,
+                                   uint8_t precision, STag** ppTag) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pTagArray = taosArrayInit(LIST_LENGTH(pTags), sizeof(STagVal));
+  if (NULL == pTagArray) {
+    return terrno;
+  }
+  bool    isJson = false;
+  int32_t vIdx = 0;
+  SNode*  pTag = NULL;
+  FOREACH(pTag, pTags) {
+    SColumnDefNode* pTagDef = (SColumnDefNode*)pTag;
+    if (pTagDef->pTagVal == NULL) {
+      ++vIdx;
+      continue;
+    }
+    SSchema*    pS = pSchemaTag->pSchema + vIdx;
+    const char* tagStr = ((SValueNode*)pTagDef->pTagVal)->literal;
+    SToken      token = {0};
+    char        tokenBuf[TSDB_MAX_TAGS_LEN];
+    NEXT_TOKEN_WITH_PREV(tagStr, token);
+    code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pS->type);
+    if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
+      code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      if (pS->type == TSDB_DATA_TYPE_JSON) isJson = true;
+      code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pS, &token, NULL, pTagArray, ppTag,
+                           pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      NEXT_VALID_TOKEN(tagStr, token);
+      if (token.n != 0) {
+        code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
+      }
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    ++vIdx;
+  }
+  if (TSDB_CODE_SUCCESS == code && !isJson) {
+    code = tTagNew(pTagArray, 1, false, ppTag);
+  }
+  for (int32_t k = 0; k < taosArrayGetSize(pTagArray); ++k) {
+    STagVal* p = (STagVal*)taosArrayGet(pTagArray, k);
+    if (IS_VAR_DATA_TYPE(p->type)) taosMemoryFreeClear(p->pData);
+  }
+  taosArrayDestroy(pTagArray);
+  return code;
 }
 
 static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateVTableStmt* pStmt,
@@ -32500,57 +32598,10 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
       }
       ++tIdx;
     }
-    // owned tags: parse inline values (`= value`) into the STag; tags without a value (owned NULL
-    // or tag-ref) stay absent. tag-refs carry no value here — their value follows the source table.
-    // The result is always a valid STag so the entry's tag trailer stays encodable.
-    SArray* pTagArray = taosArrayInit(nTags, sizeof(STagVal));
-    if (NULL == pTagArray) {
-      PAR_ERR_JRET(terrno);
-    }
-    bool     isJson = false;
-    int32_t  vIdx = 0;
-    FOREACH(pTag, pStmt->pTags) {
-      SColumnDefNode* pTagDef = (SColumnDefNode*)pTag;
-      if (pTagDef->pTagVal == NULL) {
-        ++vIdx;
-        continue;
-      }
-      SSchema*    pS = req.ntb.schemaTag.pSchema + vIdx;
-      const char* tagStr = ((SValueNode*)pTagDef->pTagVal)->literal;
-      SToken      token = {0};
-      char        tokenBuf[TSDB_MAX_TAGS_LEN];
-      NEXT_TOKEN_WITH_PREV(tagStr, token);
-      code = checkAndTrimValue(&token, tokenBuf, &pCxt->msgBuf, pS->type);
-      if (TSDB_CODE_SUCCESS == code && TK_NK_VARIABLE == token.type) {
-        code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        if (pS->type == TSDB_DATA_TYPE_JSON) isJson = true;
-        code = parseTagValue(&pCxt->msgBuf, &tagStr, precision, pS, &token, NULL, pTagArray,
-                             (STag**)&req.ntb.pTags, pCxt->pParseCxt->timezone, pCxt->pParseCxt->charsetCxt);
-      }
-      if (TSDB_CODE_SUCCESS == code) {
-        NEXT_VALID_TOKEN(tagStr, token);
-        if (token.n != 0) {
-          code = buildSyntaxErrMsg(&pCxt->msgBuf, "not expected tags values", token.z);
-        }
-      }
-      if (TSDB_CODE_SUCCESS != code) {
-        break;
-      }
-      ++vIdx;
-    }
-    if (TSDB_CODE_SUCCESS == code && !isJson) {
-      code = tTagNew(pTagArray, 1, false, (STag**)&req.ntb.pTags);
-    }
-    for (int32_t k = 0; k < taosArrayGetSize(pTagArray); ++k) {
-      STagVal* p = (STagVal*)taosArrayGet(pTagArray, k);
-      if (IS_VAR_DATA_TYPE(p->type)) taosMemoryFreeClear(p->pData);
-    }
-    taosArrayDestroy(pTagArray);
-    if (TSDB_CODE_SUCCESS != code) {
-      PAR_ERR_JRET(code);
-    }
+    // owned tags: parse inline values (`= literal`) into the STag; tag-refs carry no value
+    // here — their value follows the source table. Valueless owned tags were already rejected
+    // by checkCreateTags above.
+    PAR_ERR_JRET(buildCreateTagsSTag(pCxt, pStmt->pTags, &req.ntb.schemaTag, precision, (STag**)&req.ntb.pTags));
   }
 
   pBatch->info = *pVgroupInfo;
@@ -32822,10 +32873,11 @@ static int32_t buildNormalTableBatchReq(STranslateContext* pCxt, const SCreateTa
     }
     ++index;
   }
-  // Normal-table owned tags: CREATE TABLE ntb (...) TAGS(name TYPE ...). Tags share the
-  // column cid space, so their cids continue right after the columns (matching metaAddTableTag,
-  // which bumps the same ncid counter). All tags start NULL — they are absent from the STag,
-  // but an empty STag is emitted so the entry's tag trailer remains a valid, encodable STag.
+  // Normal-table owned tags: CREATE TABLE ntb (...) TAGS(name TYPE = literal, ...). Tags share
+  // the column cid space, so their cids continue right after the columns (matching
+  // metaAddTableTag, which bumps the same ncid counter). Only reached when every tag carries
+  // an inline `= literal` value — the rewrite gate keeps valueless TAGS on the historical
+  // super-table path and rejects a mix of valued/valueless tags.
   if (pStmt->pTags != NULL) {
     int32_t vcode = checkCreateTags(pStmt->pTags, pStmt->pCols, &pCxt->msgBuf);
     if (TSDB_CODE_SUCCESS != vcode) {
@@ -32847,13 +32899,11 @@ static int32_t buildNormalTableBatchReq(STranslateContext* pCxt, const SCreateTa
       toSchema((SColumnDefNode*)pTag, baseCid + tIdx + 1, req.ntb.schemaTag.pSchema + tIdx);
       ++tIdx;
     }
-    SArray* pTagArray = taosArrayInit(nTags, sizeof(STagVal));
-    if (NULL == pTagArray) {
-      tdDestroySVCreateTbReq(&req);
-      return terrno;
+    SDbCfgInfo dbCfg = {0};
+    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = buildCreateTagsSTag(pCxt, pStmt->pTags, &req.ntb.schemaTag, dbCfg.precision, (STag**)&req.ntb.pTags);
     }
-    code = tTagNew(pTagArray, 1, false, (STag**)&req.ntb.pTags);
-    taosArrayDestroy(pTagArray);
     if (TSDB_CODE_SUCCESS != code) {
       tdDestroySVCreateTbReq(&req);
       return code;
@@ -38094,8 +38144,23 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       SCreateTableStmt* pCreate = (SCreateTableStmt*)pQuery->pRoot;
       // Skip NTB rewrite when BASE ON is present: inherited VSTB with no own tags
       // must go through translateCreateSuperTable (mnode STB path), not vnode NTB path.
-      if (NULL == pCreate->pTags && NULL == pCreate->pBaseOnList) {
-        code = rewriteCreateTable(pCxt, pQuery);
+      // TAGS without inline values keeps the historical super-table semantics; TAGS where
+      // every tag carries `= literal` creates a normal table with owned tags instead.
+      if (NULL == pCreate->pBaseOnList && !pCreate->stableKeyword) {
+        if (NULL == pCreate->pTags) {
+          code = rewriteCreateTable(pCxt, pQuery);
+        } else {
+          // Evaluate the tag-value state once: ALL -> normal table with owned tags,
+          // MIXED -> reject, NONE (valueless) falls through to the historical super-table path.
+          int32_t tagValState = createTagsValState(pCreate->pTags);
+          if (CREATE_TAGS_VAL_ALL == tagValState) {
+            code = rewriteCreateTable(pCxt, pQuery);
+          } else if (CREATE_TAGS_VAL_MIXED == tagValState) {
+            code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                        "tags must all carry explicit values (= literal) to create a normal table "
+                                        "with tags; valueless tags create a super table");
+          }
+        }
       }
       break;
     }

@@ -354,8 +354,8 @@ SNode*         setColumnOptions(SAstCreateContext* pCxt, SNode* pOptions, const 
 SNode*         setColumnOptionsPK(SAstCreateContext* pCxt, SNode* pOptions);
 SNode*         setColumnReference(SAstCreateContext* pCxt, SNode* pOptions, SNode* pRef);
 SNode*         createDefaultColumnOptions(SAstCreateContext* pCxt);
-SNode*         createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
-                                     SNodeList* pTags, SNode* pOptions);
+SNode*         createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, bool stableKeyword, SNode* pRealTable,
+                                     SNodeList* pCols, SNodeList* pTags, SNode* pOptions);
 SNode*         createCreateInheritedStableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
                                                SNodeList* pCols, SNodeList* pTags, SNodeList* pBaseOnList,
                                                SNode* pOptions);

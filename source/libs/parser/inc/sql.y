@@ -1058,12 +1058,12 @@ end_opt(A) ::= END WITH TIMESTAMP NK_STRING(B).                                 
 
 /************************************************ create/drop table/stable ********************************************/
 cmd ::= CREATE TABLE not_exists_opt(A) full_table_name(B)
-  NK_LP column_def_list(C) NK_RP tags_def_opt(D) table_options(E).                { pCxt->pRootNode = createCreateTableStmt(pCxt, A, B, C, D, E); }
+  NK_LP column_def_list(C) NK_RP tags_def_opt(D) table_options(E).                { pCxt->pRootNode = createCreateTableStmt(pCxt, A, false, B, C, D, E); }
 cmd ::= CREATE TABLE multi_create_clause(A).                                      { pCxt->pRootNode = createCreateMultiTableStmt(pCxt, A); }
 cmd ::= CREATE TABLE not_exists_opt(B) USING full_table_name(C)
   NK_LP tag_list_opt(D) NK_RP FILE NK_STRING(E).                                  { pCxt->pRootNode = createCreateSubTableFromFileClause(pCxt, B, C, D, &E); }
 cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
-  NK_LP column_def_list(C) NK_RP tags_def(D) table_options(E).                    { pCxt->pRootNode = createCreateTableStmt(pCxt, A, B, C, D, E); }
+  NK_LP column_def_list(C) NK_RP tags_def(D) table_options(E).                    { pCxt->pRootNode = createCreateTableStmt(pCxt, A, true, B, C, D, E); }
 cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP tags_def(D) BASE ON base_on_list(F) table_options(E).
                                                                                    { pCxt->pRootNode = createCreateInheritedStableStmt(pCxt, A, B, C, D, F, E); }
@@ -1209,6 +1209,9 @@ full_table_name(A) ::= db_name(B) NK_DOT db_name(C) NK_DOT table_name(D).
 tag_def_list(A) ::= tag_def(B).                                                   { A = createNodeList(pCxt, B); }
 tag_def_list(A) ::= tag_def_list(B) NK_COMMA tag_def(C).                          { A = addNodeToList(pCxt, B, C); }
 tag_def(A) ::= column_name(B) type_name(C).                                       { A = createColumnDefNode(pCxt, &B, C, NULL); }
+// `name TYPE = literal` marks CREATE TABLE as normal-table creation with owned tags
+// (valueless TAGS keeps the historical super-table semantics).
+tag_def(A) ::= column_name(B) type_name(C) NK_EQ tags_literal(E).                 { A = createColumnDefNodeWithTagVal(pCxt, &B, C, NULL, E); }
 
 // Virtual normal table tags: owned tag and tag-ref. Reuses column_options so that
 // `name TYPE FROM db.tb.tag` yields a tag-ref (hasRef) exactly like a column reference.

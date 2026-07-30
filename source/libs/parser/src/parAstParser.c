@@ -620,8 +620,24 @@ static int32_t collectMetaKeyFromCreateTable(SCollectMetaKeyCxt* pCxt, SCreateTa
     reserveExtSourceInCache(pStmt->dbName, pCxt->pMetaCache);
   }
 #endif
+  // CREATE TABLE with TAGS goes down the vnode normal-table path when every tag carries an
+  // inline `= literal` value (valueless TAGS keeps the mnode super-table path) — mirror the
+  // rewrite gate in parTranslater.c so the table vgroup is pre-fetched for the normal-table
+  // path; otherwise the async meta cache misses and translate yields PAR_INTERNAL_ERROR.
+  // CREATE STABLE never takes the normal-table path, whatever the tag values are.
+  bool vnodePath = (NULL == pStmt->pTags) && !pStmt->stableKeyword;
+  if (!vnodePath && !pStmt->stableKeyword && pStmt->pTags != NULL) {
+    vnodePath = true;
+    SNode* pTag = NULL;
+    FOREACH(pTag, pStmt->pTags) {
+      if (((SColumnDefNode*)pTag)->pTagVal == NULL) {
+        vnodePath = false;
+        break;
+      }
+    }
+  }
   int32_t code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
-  if (TSDB_CODE_SUCCESS == code && NULL == pStmt->pTags) {
+  if (TSDB_CODE_SUCCESS == code && vnodePath) {
     code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
