@@ -17,6 +17,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 BUILD_BINARIES = ("taosd.exe", "taos.exe", "taosBenchmark.exe", "taosadapter.exe", "taoskeeper.exe")
 SERIAL_CTEST_PATTERN = "timerTest|cunit_test|pcre.*|example.*|clientTest|connectOptionsTest|tmqTest|taoscTest|cosTest|tcs_test|osFileTests|idxFstTest"
 CTEST_READY_TIMEOUT_SECONDS = 300
+GIT_LOCK_WAIT_SECONDS = 60
 
 
 def run(command, *, cwd=None, env=None, stdout=None, stderr=None):
@@ -41,7 +42,7 @@ def stop_processes():
 
 
 def stop_build_processes():
-    for name in ("cargo", "rustc", "git", "go", "jom", "cmake", "nmake"):
+    for name in ("cargo", "rustc", "git", "go", "jom", "cmake", "nmake", "cl", "link", "lib"):
         subprocess.run(["taskkill", "/f", "/t", "/im", f"{name}.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
 
@@ -64,8 +65,45 @@ def remove_build_directory(debug_dir):
     fail(f"unable to remove previous build directory after retries: {last_error}")
 
 
+def is_git_process_running():
+    try:
+        result = subprocess.run(
+            ["tasklist", "/fi", "imagename eq git.exe", "/nh"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return False
+    return "git.exe" in result.stdout.lower()
+
+
+def remove_stale_git_index_lock(source_dir):
+    lock = source_dir / ".git" / "index.lock"
+    if not lock.exists():
+        return
+    print(f"[windows-ci] detected git index lock: {lock}")
+    deadline = time.monotonic() + GIT_LOCK_WAIT_SECONDS
+    while lock.exists() and time.monotonic() < deadline:
+        if is_git_process_running():
+            print("[windows-ci] waiting for active git.exe before removing index lock")
+            time.sleep(2)
+            continue
+        try:
+            lock.unlink()
+            print("[windows-ci] removed stale git index lock")
+            return
+        except OSError as error:
+            print(f"[windows-ci] unable to remove git index lock: {error}")
+            time.sleep(2)
+    if lock.exists():
+        fail(f"git index lock remains after {GIT_LOCK_WAIT_SECONDS} seconds: {lock}")
+
+
 def sync_source(source_dir):
     run(["git", "fetch", "origin", "--prune", "--force"], cwd=source_dir)
+    remove_stale_git_index_lock(source_dir)
     for command in (("git", "reset", "--hard"), ("git", "clean", "-ffd")):
         if run(command, cwd=source_dir).returncode:
             fail(f"{' '.join(command)} failed")
@@ -475,6 +513,7 @@ def main():
         print(f"[windows-ci] failed: {error}")
     finally:
         stop_processes()
+        stop_build_processes()
         collect_artifacts(arguments.debug_dir, arguments.log_dir, arguments.artifact_dir)
     return result
 
