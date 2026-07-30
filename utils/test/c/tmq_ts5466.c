@@ -64,7 +64,7 @@ void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
   printf("commit %d tmq %p param %p\n", code, tmq, param);
 }
 
-tmq_t* build_consumer() {
+tmq_t* build_consumer(const char* snapshotEnable) {
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "group.id", "tg2");
   tmq_conf_set(conf, "client.id", "my app 1");
@@ -74,7 +74,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "auto.offset.reset", "earliest");
   tmq_conf_set(conf, "msg.consume.excluded", "1");
-  tmq_conf_set(conf, "experimental.snapshot.enable", "true");
+  tmq_conf_set(conf, "experimental.snapshot.enable", snapshotEnable);
 
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
@@ -117,7 +117,8 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
 }
 
 int main(int argc, char* argv[]) {
-  tmq_t*      tmq = build_consumer();
+  const char* snapshotEnable = (argc > 1) ? argv[1] : "true";
+  tmq_t*      tmq = build_consumer(snapshotEnable);
   tmq_list_t* topic_list = build_topic_list();
   basic_consume_loop(tmq, topic_list);
   tmq_list_destroy(topic_list);

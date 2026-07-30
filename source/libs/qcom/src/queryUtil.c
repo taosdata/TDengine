@@ -936,6 +936,17 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
     (*pDst)->comment = taosStrdup(pSrc->comment);
     if (NULL == (*pDst)->comment) goto _exit;
   }
+  (*pDst)->sqlLen = pSrc->sqlLen;
+  if (pSrc->sqlLen > 0) {
+    if (pSrc->sql == NULL) {
+      // not an allocation failure, so terrno may still be 0 here
+      terrno = TSDB_CODE_INVALID_PARA;
+      goto _exit;
+    }
+    (*pDst)->sql = taosMemoryMalloc(pSrc->sqlLen);
+    if ((*pDst)->sql == NULL) goto _exit;
+    memcpy((*pDst)->sql, pSrc->sql, pSrc->sqlLen);
+  }
   (*pDst)->type = pSrc->type;
 
   if (pSrc->type == TSDB_CHILD_TABLE) {
@@ -957,13 +968,30 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
     }
   } else {
     (*pDst)->ntb.schemaRow.nCols = pSrc->ntb.schemaRow.nCols;
-    (*pDst)->ntb.schemaRow.version = pSrc->ntb.schemaRow.nCols;
+    (*pDst)->ntb.schemaRow.version = pSrc->ntb.schemaRow.version;
     if (pSrc->ntb.schemaRow.nCols > 0 && pSrc->ntb.schemaRow.pSchema) {
       (*pDst)->ntb.schemaRow.pSchema = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
       if (NULL == (*pDst)->ntb.schemaRow.pSchema) goto _exit;
       memcpy((*pDst)->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.pSchema, pSrc->ntb.schemaRow.nCols * sizeof(SSchema));
     }
+    if (pSrc->type == TSDB_NORMAL_TABLE) {
+      (*pDst)->colCmpr.nCols = pSrc->colCmpr.nCols;
+      (*pDst)->colCmpr.version = pSrc->colCmpr.version;
+      if (pSrc->colCmpr.nCols > 0 && pSrc->colCmpr.pColCmpr) {
+        (*pDst)->colCmpr.pColCmpr = taosMemoryMalloc(pSrc->colCmpr.nCols * sizeof(SColCmpr));
+        if ((*pDst)->colCmpr.pColCmpr == NULL) goto _exit;
+        memcpy((*pDst)->colCmpr.pColCmpr, pSrc->colCmpr.pColCmpr, pSrc->colCmpr.nCols * sizeof(SColCmpr));
+      }
+      if (pSrc->pExtSchemas) {
+        (*pDst)->pExtSchemas = taosMemoryMalloc(pSrc->ntb.schemaRow.nCols * sizeof(SExtSchema));
+        if ((*pDst)->pExtSchemas == NULL) goto _exit;
+        memcpy((*pDst)->pExtSchemas, pSrc->pExtSchemas, pSrc->ntb.schemaRow.nCols * sizeof(SExtSchema));
+      }
+      (*pDst)->ntb.userId = pSrc->ntb.userId;
+    }
   }
+  (*pDst)->txnId = pSrc->txnId;
+  (*pDst)->txnStatus = pSrc->txnStatus;
 
   return TSDB_CODE_SUCCESS;
 
