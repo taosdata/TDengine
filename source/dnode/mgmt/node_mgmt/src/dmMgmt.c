@@ -307,7 +307,8 @@ void dmClearVars(SDnode *pDnode) {
     return;
   }
   if (tsVinfo.pVloads != NULL) {
-    taosArrayDestroy(tsVinfo.pVloads);
+    // Use the shared helper so each SVnodeLoad's embedded pSnapProgress array is freed as well (avoid leak).
+    tFreeSVnodeLoadArray(tsVinfo.pVloads);
     tsVinfo.pVloads = NULL;
   }
   if (taosThreadMutexUnlock(&pData->statusInfolock) != 0) {

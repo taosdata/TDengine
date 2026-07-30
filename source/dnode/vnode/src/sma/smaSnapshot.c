@@ -47,7 +47,8 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapRead
   // open rsma1/rsma2
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
-      code = tsdbSnapReaderOpen(pSma->pRSmaTsdb[i], sver, ever, (i == 0 ? SNAP_DATA_RSMA1 : SNAP_DATA_RSMA2), NULL,
+      // RSMA snapshot currently does not distinguish the send target; pass destDnodeId 0 (unknown target bucket)
+      code = tsdbSnapReaderOpen(pSma->pRSmaTsdb[i], sver, ever, (i == 0 ? SNAP_DATA_RSMA1 : SNAP_DATA_RSMA2), 0, NULL,
                                 &pReader->pDataReader[i]);
       TAOS_CHECK_GOTO(code, &lino, _exit);
     }

@@ -700,6 +700,67 @@ double calcAppliedRate(int64_t currentCount, int64_t lastCount, int64_t currentT
   return rate;
 }
 
+// Apply one snapshot-send progress entry to the given follower's gid: store the progress and
+// compute the instantaneous rate by sampling across adjacent heartbeats.
+// This logic was formerly in mndUpdateVnodeState (mistakenly written to the reporter/leader's own
+// gid); it is now placed on the correct target gid.
+static void mndApplyOneSnapProgress(int32_t vgId, SVnodeGid *pGid, int64_t snapTotalSize, int64_t snapTransferredSize) {
+  pGid->snapTotalSize = snapTotalSize;
+  pGid->snapTransferredSize = snapTransferredSize;
+  if (snapTotalSize > 0) {
+    int64_t nowMs = taosGetTimestampMs();
+    // Requires: a previous sample time exists, time moved forward, and transferred bytes did not
+    // go backwards, before computing the rate
+    if (pGid->prevSampleMs > 0 && nowMs > pGid->prevSampleMs && snapTransferredSize >= pGid->prevTransferredSize) {
+      // rate = Δbytes * 1000 / Δms (bytes/second)
+      pGid->snapRate =
+          (double)(snapTransferredSize - pGid->prevTransferredSize) * 1000.0 / (double)(nowMs - pGid->prevSampleMs);
+    } else {
+      // Transferred bytes did not advance or went backwards (snapshot restart); zero the rate to avoid showing stale values
+      pGid->snapRate = 0;
+    }
+    // Update the sampling baseline for the next heartbeat's delta computation
+    pGid->prevTransferredSize = snapTransferredSize;
+    pGid->prevSampleMs = nowMs;
+    mDebug("vgId:%d, snap transfer %" PRId64 "/%" PRId64 " rate:%.1f B/s, target dnode:%d", vgId, snapTransferredSize,
+           snapTotalSize, pGid->snapRate, pGid->dnodeId);
+  } else {
+    // Snapshot finished: reset sampling and rate so the next display carries no suffix
+    pGid->snapRate = 0;
+    pGid->prevTransferredSize = 0;
+    pGid->prevSampleMs = 0;
+  }
+}
+
+// Iterate the reported per-target snapshot progress pSnapProgress, match each by destDnodeId to the
+// corresponding follower gid within the vgroup, and apply it.
+// If a follower reported no progress this time (absent from pSnapProgress), zero its progress to
+// avoid showing stale values.
+static void mndApplySnapProgress(SVgObj *pVgroup, SVnodeLoad *pVload) {
+  if (pVgroup == NULL || pVload == NULL) return;
+  int32_t nProg = (int32_t)taosArrayGetSize(pVload->pSnapProgress);
+
+  // Iterate each replica gid of this vgroup and look for progress matching destDnodeId
+  for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
+    SVnodeGid *pGid = &pVgroup->vnodeGid[vg];
+    bool       matched = false;
+    for (int32_t p = 0; p < nProg; ++p) {
+      SVnodeSnapProgress *pProg = taosArrayGet(pVload->pSnapProgress, p);
+      if (pProg == NULL) continue;
+      if (pProg->destDnodeId == pGid->dnodeId) {
+        // Hit the target follower: write this target's progress to its own column
+        mndApplyOneSnapProgress(pVgroup->vgId, pGid, pProg->snapTotalSize, pProg->snapTransferredSize);
+        matched = true;
+        break;
+      }
+    }
+    // No match: this follower reported no progress this time; zero its progress (including rate and sampling baseline)
+    if (!matched && pGid->snapTotalSize != 0) {
+      mndApplyOneSnapProgress(pVgroup->vgId, pGid, 0, 0);
+    }
+  }
+}
+
 static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVload) {
   bool stateChanged = false;
   bool roleChanged = pGid->syncState != pVload->syncState ||
@@ -725,6 +786,9 @@ static bool mndUpdateVnodeState(int32_t vgId, SVnodeGid *pGid, SVnodeLoad *pVloa
   pGid->learnerProgress = pVload->learnerProgress;
   pGid->snapSeq = pVload->snapSeq;
   pGid->syncTotalIndex = pVload->syncTotalIndex;
+  // Note: snapshot-send progress is no longer stored here against the reporter's (leader's) own gid.
+  // Instead, mndApplySnapProgress matches each progress entry by its destDnodeId to the "target
+  // follower's gid", fixing the bug where progress was misaligned onto the leader column.
   if (pVload->snapSeq > 0 && pVload->snapSeq < SYNC_SNAPSHOT_SEQ_END || pVload->syncState == TAOS_SYNC_STATE_LEARNER) {
     mInfo("vgId:%d, update vnode state:%s from dnode:%d, syncAppliedIndex:%" PRId64 " , syncCommitIndex:%" PRId64
           " , syncTotalIndex:%" PRId64 " ,learnerProgress:%d, snapSeq:%d",
@@ -1093,6 +1157,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         pVgroup->compStorage = pVload->compStorage;
         pVgroup->pointsWritten = pVload->pointsWritten;
         pVgroup->snapRestoring = pVload->snapshotSending;
+        // Snapshot-send progress is only reported by and meaningful for the leader (sender). Only when
+        // the reporter is the leader do we place each progress entry by its destDnodeId onto the
+        // corresponding follower's gid, avoiding accidental zeroing from a follower's (empty) report.
+        mndApplySnapProgress(pVgroup, pVload);
       }
       bool stateChanged = false;
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {

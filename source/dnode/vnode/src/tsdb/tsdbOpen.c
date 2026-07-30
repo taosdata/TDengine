@@ -140,10 +140,19 @@ void tsdbClose(STsdb **pTsdb) {
     tsdbCloseSsMigrateMonitor(*pTsdb);
     tsdbCloseRetentionMonitor(*pTsdb);
     tsdbScanMonitorClose(*pTsdb);
+    // Free all snapshot-send progress buckets: free each bucket's pStat->pFileSetStats and pStat, then destroy the array itself
     (void)taosThreadRwlockWrlock(&(*pTsdb)->snapStatLock);
-    if ((*pTsdb)->pSnapStat) {
-      taosMemoryFree((*pTsdb)->pSnapStat->pFileSetStats);
-      taosMemoryFreeClear((*pTsdb)->pSnapStat);
+    if ((*pTsdb)->pSnapBuckets != NULL) {
+      int32_t numBuckets = (int32_t)taosArrayGetSize((*pTsdb)->pSnapBuckets);
+      for (int32_t b = 0; b < numBuckets; b++) {
+        SSnapSendTargetBucket *pBucket = (SSnapSendTargetBucket *)taosArrayGet((*pTsdb)->pSnapBuckets, b);
+        if (pBucket != NULL && pBucket->pStat != NULL) {
+          taosMemoryFree(pBucket->pStat->pFileSetStats);
+          taosMemoryFreeClear(pBucket->pStat);
+        }
+      }
+      taosArrayDestroy((*pTsdb)->pSnapBuckets);
+      (*pTsdb)->pSnapBuckets = NULL;
     }
     (void)taosThreadRwlockUnlock(&(*pTsdb)->snapStatLock);
     (void)taosThreadRwlockDestroy(&(*pTsdb)->snapStatLock);

@@ -196,7 +196,9 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   if (tfsGetMonitorInfo(pMgmt->pTfs, &pInfo->tfs) != 0) {
     dError("failed to get tfs monitor info");
   }
-  taosArrayDestroy(pVloads);
+  // pVloads comes from vmGetVnodeLoads()->vnodeGetLoad(), whose SVnodeLoad entries may embed a pSnapProgress array.
+  // Use the shared helper so those inner arrays are freed too (avoid leak).
+  tFreeSVnodeLoadArray(pVloads);
 }
 
 void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {

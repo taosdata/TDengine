@@ -374,6 +374,12 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
           pGid->startTimeMs = 0;
           pGid->learnerProgress = 0;
           pGid->snapSeq = -1;
+          // Zero the snapshot stat fields to clean up residual stats when the node goes offline
+          pGid->snapTotalSize = 0;
+          pGid->snapTransferredSize = 0;
+          pGid->prevTransferredSize = 0;
+          pGid->prevSampleMs = 0;
+          pGid->snapRate = 0;
           stateChanged = true;
         }
         break;

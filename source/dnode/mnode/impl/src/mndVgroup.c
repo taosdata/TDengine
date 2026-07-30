@@ -103,6 +103,29 @@ int32_t mndInitVgroup(SMnode *pMnode) {
 
 void mndCleanupVgroup(SMnode *pMnode) {}
 
+// Format a byte count into a human-readable string.
+// Steps up by 1024 at each level, picks a suitable unit, then keeps 1 decimal place; 0 is special-cased to "0B".
+// Note: this function is non-static so unit tests can link against it, and the show vgroups status column reuses it later.
+int32_t mndBytesToHuman(int64_t bytes, char *buf, int32_t bufLen) {
+  // Argument guard: return 0 without any write when the buffer is invalid
+  if (buf == NULL || bufLen <= 0) return 0;
+  // Unit table: starting at bytes (B), each level steps up by 1024
+  static const char *units[] = {"B", "KB", "MB", "GB", "TB"};
+  // 0 or negative values are uniformly formatted as "0B"
+  if (bytes <= 0) {
+    return snprintf(buf, bufLen, "0B");
+  }
+  double  val = (double)bytes;  // use double to keep decimal precision
+  int32_t u = 0;                // current unit index
+  // Step up level by level until the value is below 1024 or the largest unit (TB) is reached
+  while (val >= 1024.0 && u < 4) {
+    val /= 1024.0;
+    u++;
+  }
+  // Keep 1 decimal place and append the unit, e.g. "1.5KB"
+  return snprintf(buf, bufLen, "%.1f%s", val, units[u]);
+}
+
 SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -186,6 +209,12 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
       pVgid->syncState = TAOS_SYNC_STATE_LEADER;
     }
     pVgid->snapSeq = -1;
+    // Zero the snapshot stat fields to avoid residual dirty values when deserializing old data
+    pVgid->snapTotalSize = 0;
+    pVgid->snapTransferredSize = 0;
+    pVgid->prevTransferredSize = 0;
+    pVgid->prevSampleMs = 0;
+    pVgid->snapRate = 0;
   }
   if (dataPos + 2 * sizeof(int32_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT32(pRaw, dataPos, &pVgroup->syncConfChangeVer, _OVER)
@@ -299,6 +328,14 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
         pNewGid->learnerProgress = pOldGid->learnerProgress;
         pNewGid->snapSeq = pOldGid->snapSeq;
         pNewGid->syncTotalIndex = pOldGid->syncTotalIndex;
+        // Snapshot transfer stats are in-memory transient fields (not persisted); they must be
+        // preserved from the old record on SDB update, otherwise every vgroup record update would
+        // zero them and cause the progress/rate in show vgroups to flicker and be lost
+        pNewGid->snapTotalSize = pOldGid->snapTotalSize;
+        pNewGid->snapTransferredSize = pOldGid->snapTransferredSize;
+        pNewGid->prevTransferredSize = pOldGid->prevTransferredSize;
+        pNewGid->prevSampleMs = pOldGid->prevSampleMs;
+        pNewGid->snapRate = pOldGid->snapRate;
       }
     }
   }
@@ -1325,6 +1362,22 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         } else {
           snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64, pVgroup->vnodeGid[i].syncAppliedIndex,
                    pVgroup->vnodeGid[i].syncCommitIndex);
+        }
+
+        // Append the snapshot transfer/rate suffix: (transferred/total,rate/s), shown only when a
+        // snapshot is in progress (snapTotalSize>0).
+        // Data volumes and rate are converted to human-readable units (B/KB/MB/GB/TB) so show vgroups
+        // can directly observe RAW/MEDIUM snapshot progress.
+        if (pVgroup->vnodeGid[i].snapTotalSize > 0) {
+          char transBuf[32] = {0};  // transferred amount (human-readable)
+          char totalBuf[32] = {0};  // snapshot total (human-readable)
+          char rateBuf[32] = {0};   // transfer rate (human-readable)/s
+          (void)mndBytesToHuman(pVgroup->vnodeGid[i].snapTransferredSize, transBuf, sizeof(transBuf));
+          (void)mndBytesToHuman(pVgroup->vnodeGid[i].snapTotalSize, totalBuf, sizeof(totalBuf));
+          (void)mndBytesToHuman((int64_t)pVgroup->vnodeGid[i].snapRate, rateBuf, sizeof(rateBuf));
+          int32_t curLen = (int32_t)strlen(applyStr);
+          // snprintf auto-truncates when remaining space is insufficient, avoiding overflow; applyStr was expanded to 160 in Task2
+          snprintf(applyStr + curLen, sizeof(applyStr) - curLen, "(%s/%s,%s/s)", transBuf, totalBuf, rateBuf);
         }
 
         STR_WITH_MAXSIZE_TO_VARSTR(buf, applyStr, pShow->pMeta->pSchemas[cols].bytes);

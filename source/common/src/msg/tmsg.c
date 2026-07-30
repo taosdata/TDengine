@@ -2235,6 +2235,22 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     TAOS_CHECK_EXIT(tEncodeI32v(&encoder, pQuery->vgId));
   }
 
+  // Encode per-target snapshot-send progress per vnode (appended for backward compat).
+  // Appended at the very end: for each vnode, first encode the group count n, then encode n
+  // {destDnodeId, total, transferred} entries.
+  // An old mnode that cannot decode this does not affect the other fields.
+  for (int32_t i = 0; i < vlen; ++i) {
+    SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
+    int32_t     plen = (int32_t)taosArrayGetSize(pload->pSnapProgress);
+    TAOS_CHECK_EXIT(tEncodeI32v(&encoder, plen));
+    for (int32_t j = 0; j < plen; ++j) {
+      SVnodeSnapProgress *pProg = taosArrayGet(pload->pSnapProgress, j);
+      TAOS_CHECK_EXIT(tEncodeI32(&encoder, pProg->destDnodeId));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pProg->snapTotalSize));
+      TAOS_CHECK_EXIT(tEncodeI64(&encoder, pProg->snapTransferredSize));
+    }
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -2448,6 +2464,33 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     }
   }
 
+  // Decode per-target snapshot-send progress per vnode (backward compat guard).
+  // An old dnode does not send this segment; if tDecodeIsEnd is true, skip it and leave pSnapProgress NULL.
+  // For each vnode, first decode the group count n, then decode n {destDnodeId, total, transferred}
+  // entries and append them to pSnapProgress.
+  if (!tDecodeIsEnd(&decoder)) {
+    for (int32_t i = 0; i < vlen; ++i) {
+      SVnodeLoad *pLoad = taosArrayGet(pReq->pVloads, i);
+      int32_t     plen = 0;
+      TAOS_CHECK_EXIT(tDecodeI32v(&decoder, &plen));
+      if (plen > 0) {
+        pLoad->pSnapProgress = taosArrayInit(plen, sizeof(SVnodeSnapProgress));
+        if (pLoad->pSnapProgress == NULL) {
+          TAOS_CHECK_EXIT(terrno);
+        }
+        for (int32_t j = 0; j < plen; ++j) {
+          SVnodeSnapProgress prog = {0};
+          TAOS_CHECK_EXIT(tDecodeI32(&decoder, &prog.destDnodeId));
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &prog.snapTotalSize));
+          TAOS_CHECK_EXIT(tDecodeI64(&decoder, &prog.snapTransferredSize));
+          if (taosArrayPush(pLoad->pSnapProgress, &prog) == NULL) {
+            TAOS_CHECK_EXIT(terrno);
+          }
+        }
+      }
+    }
+  }
+
   tEndDecode(&decoder);
 
 _exit:
@@ -2455,8 +2498,25 @@ _exit:
   return code;
 }
 
+void tFreeSVnodeLoadArray(SArray *pVloads) {
+  // First free each SVnodeLoad's embedded per-target progress array pSnapProgress to avoid a memory leak, then destroy the outer array.
+  // pSnapProgress is allocated in vnodeGetLoad(); every place that destroys an SVnodeLoad array must go through this helper.
+  if (pVloads != NULL) {
+    int32_t vlen = (int32_t)taosArrayGetSize(pVloads);
+    for (int32_t i = 0; i < vlen; ++i) {
+      SVnodeLoad *pLoad = taosArrayGet(pVloads, i);
+      if (pLoad != NULL) {
+        taosArrayDestroy(pLoad->pSnapProgress);
+        pLoad->pSnapProgress = NULL;
+      }
+    }
+  }
+  taosArrayDestroy(pVloads);
+}
+
 void tFreeSStatusReq(SStatusReq *pReq) {
-  taosArrayDestroy(pReq->pVloads);
+  // Reuse the shared helper so the embedded pSnapProgress arrays are freed together with the outer pVloads array.
+  tFreeSVnodeLoadArray(pReq->pVloads);
   taosArrayDestroy(pReq->pTxnActiveQueries);
 }
 

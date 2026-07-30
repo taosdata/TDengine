@@ -43,6 +43,7 @@ struct SVSnapReader {
   int64_t sver;
   int64_t ever;
   int64_t index;
+  int32_t destDnodeId;  // target follower dnodeId of this snapshot send, passed through to the tsdb reader for per-target bucketed stats
   // config
   int8_t cfgDone;
   // wal txn files
@@ -151,7 +152,7 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
           }
           code = tsdbSnapMediumReaderOpen(pReader->pVnode->pTsdb, pReader->ever,
                                           SNAP_DATA_MEDIUM, &fileList,
-                                          pReader->sver, &pReader->pTsdbMEDIUMReader);
+                                          pReader->sver, pReader->destDnodeId, &pReader->pTsdbMEDIUMReader);
           taosMemoryFreeClear(fileList.aFiles);
           if (code) goto _out;
         } break;
@@ -198,6 +199,10 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
   pReader->pVnode = pVnode;
   pReader->sver = sver;
   pReader->ever = ever;
+  // Record the target dnodeId for use by all subsequent tsdb reader opens.
+  // [Timing constraint] This assignment must precede vnodeSnapReaderDealWithSnapInfo: the MEDIUM reader is created inside that function
+  // and reads pReader->destDnodeId; if this line is mistakenly reordered after it, the MEDIUM reader silently gets 0 (neither compilation nor the RAW path errors out).
+  pReader->destDnodeId = pParam->destDnodeId;
 
   // snapshot info
   code = vnodeSnapReaderDealWithSnapInfo(pReader, pParam);
@@ -205,7 +210,7 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
 
   // open tsdb snapshot raw reader
   if (!pReader->tsdbRAWDone) {
-    code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
+    code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, pReader->destDnodeId, &pReader->pTsdbRAWReader);
     if (code) goto _exit;
   }
 
@@ -411,8 +416,9 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbDone) {
     // open if not
     if (pReader->pTsdbReader == NULL) {
-      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB, pReader->pRanges,
-                                &pReader->pTsdbReader);
+      // Pass in destDnodeId so the tsdb reader bucketizes send progress per target follower
+      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB,
+                                pReader->destDnodeId, pReader->pRanges, &pReader->pTsdbReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -429,7 +435,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbRAWDone) {
     // open if not
     if (pReader->pTsdbRAWReader == NULL) {
-      code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
+      code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, pReader->destDnodeId, &pReader->pTsdbRAWReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -1017,41 +1023,78 @@ int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnode
   if (pTsdb == NULL) return -1;
 
   (void)taosThreadRwlockRdlock(&pTsdb->snapStatLock);
-  SSnapSendVnodeStat *pStat = pTsdb->pSnapStat;
-  if (pStat == NULL) {
+
+  // Progress is already bucketed by target follower dnodeId in pSnapBuckets; here we aggregate all buckets and return to the upper-layer RPC.
+  // If there are no buckets (no snapshot send in progress), return -1 to indicate there is no progress to report.
+  if (pTsdb->pSnapBuckets == NULL || taosArrayGetSize(pTsdb->pSnapBuckets) == 0) {
     (void)taosThreadRwlockUnlock(&pTsdb->snapStatLock);
     return -1;
   }
 
+  int32_t numBuckets      = (int32_t)taosArrayGetSize(pTsdb->pSnapBuckets);
+  int32_t sumTotal        = 0;  // sum of totalFileSets across all buckets
+  int32_t sumFinished     = 0;  // sum of finishedFileSets across all buckets
+  int32_t sumFileSetCount = 0;  // sum of fileSetCount across all buckets (used to allocate the concatenated array)
+  int64_t earliestStart   = 0;  // minimum of all non-zero startTime values; stays 0 if all are 0
+
+  // First pass: aggregate scalars and count the total number of filesets to concatenate
+  for (int32_t b = 0; b < numBuckets; b++) {
+    SSnapSendTargetBucket *pBucket = (SSnapSendTargetBucket *)taosArrayGet(pTsdb->pSnapBuckets, b);
+    if (pBucket == NULL || pBucket->pStat == NULL) continue;  // skip empty buckets
+    SSnapSendVnodeStat *pStat = pBucket->pStat;
+    sumTotal    += pStat->totalFileSets;
+    sumFinished += pStat->finishedFileSets;
+    sumFileSetCount += pStat->fileSetCount;
+    if (pStat->startTime != 0 && (earliestStart == 0 || pStat->startTime < earliestStart)) {
+      earliestStart = pStat->startTime;  // take the earliest non-zero start time
+    }
+  }
+
   pInfo->vgId             = TD_VID(pVnode);
   pInfo->dnodeId          = dnodeId;
-  pInfo->totalFileSets    = pStat->totalFileSets;
-  pInfo->finishedFileSets = pStat->finishedFileSets;
-  pInfo->startTime        = pStat->startTime;
+  pInfo->totalFileSets    = sumTotal;
+  pInfo->finishedFileSets = sumFinished;
+  pInfo->startTime        = earliestStart;
 
-  pInfo->fileSetCount = 0;
+  pInfo->fileSetCount  = 0;
   pInfo->pFileSetInfos = NULL;
 
-  if (pStat->fileSetCount > 0 && pStat->pFileSetStats != NULL) {
-    pInfo->pFileSetInfos = taosMemoryCalloc(pStat->fileSetCount, sizeof(SSnapSendFileSetInfo));
+  // Second pass: concatenate every bucket's fileset details into one contiguous array so the upper layer can show each fileset's transfer progress
+  if (sumFileSetCount > 0) {
+    pInfo->pFileSetInfos = taosMemoryCalloc(sumFileSetCount, sizeof(SSnapSendFileSetInfo));
     if (pInfo->pFileSetInfos != NULL) {
-      pInfo->fileSetCount = pStat->fileSetCount;
-      for (int32_t i = 0; i < pStat->fileSetCount; i++) {
-        SSnapSendFileSetStat *pFs   = &pStat->pFileSetStats[i];
-        SSnapSendFileSetInfo *pDest = &pInfo->pFileSetInfos[i];
-        pDest->fid                = pFs->fid;
-        pDest->fileCount          = pFs->fileCount;
-        pDest->finishedFileCount  = pFs->finishedFileCount;
-        pDest->totalSize          = pFs->totalSize;
-        pDest->readSize           = pFs->readSize;
-        pDest->startTime          = pFs->startTime;
-        pDest->sver               = pFs->sver;
-        pDest->ever               = pFs->ever;
-        pDest->transferType       = pFs->transferType;
+      pInfo->fileSetCount = sumFileSetCount;
+      int32_t w = 0;  // write cursor for the destination array
+      for (int32_t b = 0; b < numBuckets; b++) {
+        SSnapSendTargetBucket *pBucket = (SSnapSendTargetBucket *)taosArrayGet(pTsdb->pSnapBuckets, b);
+        if (pBucket == NULL || pBucket->pStat == NULL) continue;  // skip empty buckets
+        SSnapSendVnodeStat *pStat = pBucket->pStat;
+        if (pStat->pFileSetStats == NULL) continue;  // skip if there are no details
+        for (int32_t i = 0; i < pStat->fileSetCount && w < sumFileSetCount; i++) {
+          SSnapSendFileSetStat *pFs   = &pStat->pFileSetStats[i];
+          SSnapSendFileSetInfo *pDest = &pInfo->pFileSetInfos[w++];
+          pDest->fid               = pFs->fid;
+          pDest->fileCount         = pFs->fileCount;
+          pDest->finishedFileCount = pFs->finishedFileCount;
+          pDest->totalSize         = pFs->totalSize;
+          pDest->readSize          = pFs->readSize;
+          pDest->startTime         = pFs->startTime;
+          pDest->sver              = pFs->sver;
+          pDest->ever              = pFs->ever;
+          pDest->transferType      = pFs->transferType;
+        }
       }
+    } else {
+      // Allocation failed: best-effort, return only scalar progress and leave details empty
+      pInfo->fileSetCount  = 0;
+      pInfo->pFileSetInfos = NULL;
     }
   }
 
   (void)taosThreadRwlockUnlock(&pTsdb->snapStatLock);
+
+  // This RPC is on-demand / low-frequency, so an info-level log helps investigate "which target the progress is shown on" issues
+  vInfo("vgId:%d, get snap send progress: numBuckets:%d totalFileSets:%d finishedFileSets:%d", TD_VID(pVnode),
+        numBuckets, sumTotal, sumFinished);
   return 0;
 }

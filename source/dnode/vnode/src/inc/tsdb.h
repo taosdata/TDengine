@@ -384,6 +384,22 @@ typedef struct {
   SSnapSendFileSetStat *pFileSetStats;
 } SSnapSendVnodeStat;
 
+// Progress bucket for a single "send target": one SSnapSendVnodeStat per destDnodeId.
+// Uses a small array + linear scan (replica count is very small, usually 2~3), avoiding a hash
+// table for so few elements.
+typedef struct {
+  int32_t             destDnodeId;  // target follower dnodeId served by this bucket
+  SSnapSendVnodeStat *pStat;        // send-progress stats for this target (heap-allocated, freed on bucket destroy)
+} SSnapSendTargetBucket;
+
+// Byte-level progress summary for a single send target, reported per target to the mnode by vnodeGetLoad.
+// One entry per destDnodeId: total=total bytes to send to this target, transferred=bytes already sent.
+typedef struct {
+  int32_t destDnodeId;  // target follower dnodeId
+  int64_t total;        // sum of totalSize across all filesets for this target
+  int64_t transferred;  // sum of readSize across all filesets for this target
+} STsdbSnapSendGroup;
+
 struct STsdb {
   char                *path;
   SVnode              *pVnode;
@@ -407,7 +423,7 @@ struct STsdb {
   SCompMonitor        *pCompMonitor;
   SRetentionMonitor   *pRetentionMonitor;
   SSsMigrateMonitor   *pSsMigrateMonitor;
-  SSnapSendVnodeStat  *pSnapStat;
+  SArray              *pSnapBuckets;  // SArray<SSnapSendTargetBucket>: send progress bucketed by target dnodeId; access guarded by snapStatLock
   TdThreadRwlock       snapStatLock;
   struct {
     SVHashTable *ht;
@@ -798,7 +814,21 @@ int32_t tDeserializeSMediumSnapFileHdr(void *buf, int32_t bufLen, SMediumSnapFil
 typedef struct STsdbSnapMediumReader STsdbSnapMediumReader;
 int32_t tsdbSnapMediumReaderOpen(STsdb *tsdb, int64_t ever, int8_t type,
                                  SMediumSnapFileList *pFollowerFileList, int64_t beginIndex,
-                                 STsdbSnapMediumReader **reader);
+                                 int32_t destDnodeId, STsdbSnapMediumReader **reader);
+
+// Snapshot-send progress bucket operations (implemented in tsdbSnapshot.c; each holds the snapStatLock write lock internally):
+void tsdbSnapPutTargetStat(STsdb *tsdb, int32_t destDnodeId, SSnapSendVnodeStat *pStat);
+void tsdbSnapRemoveTargetStat(STsdb *tsdb, int32_t destDnodeId);
+void tsdbSnapMarkFileSetStart(STsdb *tsdb, int32_t destDnodeId, int32_t idx);
+void tsdbSnapAddReadSize(STsdb *tsdb, int32_t destDnodeId, int32_t idx, int64_t size);
+void tsdbSnapMarkFileSetEnd(STsdb *tsdb, int32_t destDnodeId, int32_t idx);
+
+// Aggregate this tsdb's current snapshot-send total and transferred bytes per target, appending
+// the result grouped by target dnodeId to pGroups.
+// pGroups elements are of type STsdbSnapSendGroup, created/freed by the caller; when no snapshot
+// is in progress no elements are appended.
+// Thread-safe: holds the snapStatLock read lock internally.
+void tsdbGetSnapSendSummary(STsdb *tsdb, SArray *pGroups);
 int32_t tsdbSnapMediumReaderClose(STsdbSnapMediumReader **reader);
 int32_t tsdbSnapMediumRead(STsdbSnapMediumReader *reader, uint8_t **data);
 

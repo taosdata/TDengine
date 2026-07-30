@@ -41,6 +41,8 @@ struct STsdbSnapMediumReader {
   int64_t fileOffset;
   int64_t actualFileSize;  // actual file size on disk (from taosStatFile)
   TdFilePtr pFD;
+
+  int32_t destDnodeId;  // target follower dnodeId served by this reader, used for per-target bucketed progress stats
 };
 
 // ==================== Writer ====================
@@ -518,7 +520,7 @@ _exit:
 
 int32_t tsdbSnapMediumReaderOpen(STsdb *tsdb, int64_t ever, int8_t type,
                                  SMediumSnapFileList *pFollowerFileList, int64_t beginIndex,
-                                 STsdbSnapMediumReader **reader) {
+                                 int32_t destDnodeId, STsdbSnapMediumReader **reader) {
   int32_t code = 0;
   int32_t lino = 0;
 
@@ -528,6 +530,7 @@ int32_t tsdbSnapMediumReaderOpen(STsdb *tsdb, int64_t ever, int8_t type,
   reader[0]->tsdb = tsdb;
   reader[0]->ever = ever;
   reader[0]->type = type;
+  reader[0]->destDnodeId = destDnodeId;  // record target dnodeId, used for per-bucket stats and bucket cleanup on close
   reader[0]->diffIdx = 0;
   reader[0]->fileOffset = 0;
   reader[0]->pFD = NULL;
@@ -553,6 +556,53 @@ int32_t tsdbSnapMediumReaderOpen(STsdb *tsdb, int64_t ever, int8_t type,
            " (create:%d modify:%d remove:%d)",
            TD_VID(tsdb->pVnode), ever, type, nDiffTotal, nCreate, nModify, nRemove);
 
+  // Build the snapshot-send progress stat (attach it to the progress bucket for destDnodeId in pSnapBuckets).
+  // MEDIUM snapshot total = sum of file sizes for "files that need transferring" (opType != REMOVE) in the diff result;
+  // REMOVE operations only send the header and do not transfer file content, so they are not counted in the total.
+  // MEDIUM has no per-fileset concept, so a single summary slot (fileSetCount=1) carries total/read.
+  {
+    // Iterate the diff, accumulating file sizes of all non-REMOVE entries to get the total bytes this MEDIUM snapshot needs to transfer
+    int64_t mediumTotal = 0;
+    for (int32_t i = 0; i < nDiffTotal; i++) {
+      SMediumDiffEntry *e = &TARRAY2_GET(reader[0]->diffArr, i);
+      if (e->opType != TSDB_FOP_REMOVE) {
+        mediumTotal += e->fileInfo.size;
+      }
+    }
+
+    // Allocate the vnode-level stat struct + a single-element fileset stat array
+    SSnapSendVnodeStat *pStat = (SSnapSendVnodeStat *)taosMemoryCalloc(1, sizeof(*pStat));
+    if (pStat != NULL) {
+      pStat->vgId = TD_VID(tsdb->pVnode);
+      pStat->totalFileSets = 1;  // MEDIUM uses a single summary slot
+      pStat->startTime = taosGetTimestampMs();
+      pStat->pFileSetStats = (SSnapSendFileSetStat *)taosMemoryCalloc(1, sizeof(SSnapSendFileSetStat));
+      if (pStat->pFileSetStats != NULL) {
+        pStat->fileSetCount = 1;
+        SSnapSendFileSetStat *s = &pStat->pFileSetStats[0];
+        s->fid = 0;                 // MEDIUM has no single fid, fill the summary slot with 0
+        s->sver = 0;
+        s->ever = ever;
+        s->transferType = type;
+        s->totalSize = mediumTotal;  // total bytes to transfer
+        s->readSize = 0;             // bytes already read (already sent), initially 0
+        s->startTime = pStat->startTime;
+      } else {
+        // Fileset stat array allocation failed; pStat is still attached but lacks per-fileset progress. Log for troubleshooting
+        tsdbError("vgId:%d, failed to alloc medium snap fileset stat since %s", TD_VID(tsdb->pVnode),
+                  tstrerror(terrno));
+      }
+
+      // Hand off the built progress stats to the bucket of the corresponding destDnodeId (the helper holds the write lock internally and takes ownership of pStat)
+      tsdbSnapPutTargetStat(tsdb, reader[0]->destDnodeId, pStat);
+
+      tsdbInfo("vgId:%d, medium snap progress stat built. totalSize:%" PRId64, TD_VID(tsdb->pVnode), mediumTotal);
+    } else {
+      // Allocation failure does not affect snapshot sending; only this snapshot lacks progress stats. Log for troubleshooting
+      tsdbError("vgId:%d, failed to alloc medium snap stat since %s", TD_VID(tsdb->pVnode), tstrerror(terrno));
+    }
+  }
+
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(tsdb->pVnode), __func__, lino, tstrerror(code));
@@ -576,6 +626,12 @@ int32_t tsdbSnapMediumReaderClose(STsdbSnapMediumReader **reader) {
   if (reader[0]->pFD) {
     taosCloseFile(&reader[0]->pFD);
   }
+
+  // Clean up this target's progress bucket before freeing the reader, to avoid leaving stale progress behind (the helper holds the write lock internally)
+  STsdb *tsdb = reader[0]->tsdb;
+  tsdbSnapRemoveTargetStat(tsdb, reader[0]->destDnodeId);
+  tsdbInfo("vgId:%d, medium snap progress stat cleared on reader close", TD_VID(tsdb->pVnode));
+
   TARRAY2_DESTROY(reader[0]->diffArr, NULL);
   tsdbFSDestroyRefSnapshot(&reader[0]->fsetArr);
   taosMemoryFree(reader[0]);
@@ -764,6 +820,16 @@ int32_t tsdbSnapMediumRead(STsdbSnapMediumReader *reader, uint8_t **data) {
 _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(reader->tsdb->pVnode), __func__, lino, tstrerror(code));
+  } else if (data[0] != NULL) {
+    // On success with data produced, accumulate this data block's size into the summary slot's readSize.
+    // MEDIUM uses a single summary slot (index 0) to record bytes already sent.
+    // Note: readSize accumulates the data block size including header pDataHdr->size (hdrLen + blockSize + SSnapDataHdr),
+    // while totalSize only counts the net size of non-REMOVE files, so the progress percentage may slightly exceed 100%. It is only for monitoring display,
+    // consistent with the RAW snapshot reference behavior; no extra correction is made to avoid introducing bias.
+    // The local pointer is named pDataHdr to avoid shadowing the SMediumSnapFileHdr hdr earlier in the function.
+    // MEDIUM uses a single summary slot (idx 0) to record bytes already sent (bucketed per target; the helper holds the write lock internally with bounds checking)
+    SSnapDataHdr *pDataHdr = (SSnapDataHdr *)data[0];
+    tsdbSnapAddReadSize(reader->tsdb, reader->destDnodeId, 0, pDataHdr->size);
   }
   return code;
 }
