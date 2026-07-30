@@ -4172,8 +4172,8 @@ _err:
   return NULL;
 }
 
-SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNodeList* pCols,
-                             SNodeList* pTags, SNode* pOptions) {
+SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, bool stableKeyword, SNode* pRealTable,
+                             SNodeList* pCols, SNodeList* pTags, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
 #ifdef TD_ENTERPRISE
   if (((SRealTableNode*)pRealTable)->numPathSegments >= 3) {
@@ -4191,6 +4191,7 @@ SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* 
   tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   pStmt->ignoreExists = ignoreExists;
+  pStmt->stableKeyword = stableKeyword;
   pStmt->pCols = pCols;
   pStmt->pTags = pTags;
   pStmt->pOptions = (STableOptions*)pOptions;
@@ -4214,6 +4215,7 @@ SNode* createCreateInheritedStableStmt(SAstCreateContext* pCxt, bool ignoreExist
   tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, TSDB_TABLE_NAME_LEN);
   pStmt->ignoreExists = ignoreExists;
+  pStmt->stableKeyword = true;  // CREATE STABLE ... BASE ON
   pStmt->pCols = pCols;
   pStmt->pTags = pTags;
   pStmt->pOptions = (STableOptions*)pOptions;

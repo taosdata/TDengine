@@ -332,6 +332,7 @@ typedef struct SCreateTableStmt {
   char           dbName[TSDB_DB_NAME_LEN];
   char           tableName[TSDB_TABLE_NAME_LEN];
   bool           ignoreExists;
+  bool           stableKeyword;  // true only for CREATE STABLE syntax (never a normal table)
   SNodeList*     pCols;
   SNodeList*     pTags;
   STableOptions* pOptions;
