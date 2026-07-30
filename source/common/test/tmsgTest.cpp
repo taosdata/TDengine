@@ -861,6 +861,84 @@ TEST(td_msg_test, stream_rollup_group_leaf_extracts_last_nchar_segment) {
 }
 
 #include "SClientHbBatchReq.cpp"
+// Verify the encode/decode roundtrip of each vnode's per-target snapshot progress array pSnapProgress in a status req.
+// Build 2 SVnodeSnapProgress entries, serialize then deserialize, and assert the group count and each field match.
+TEST(td_msg_test, status_req_snap_progress_roundtrip) {
+  SStatusReq req = {0};
+  req.dnodeId = 1;
+  req.pVloads = taosArrayInit(1, sizeof(SVnodeLoad));
+  ASSERT_NE(req.pVloads, nullptr);
+
+  SVnodeLoad load = {0};
+  load.vgId = 2;
+  load.syncState = 2;  // leader (this test only cares about pSnapProgress encode/decode; the exact syncState value is irrelevant)
+  // Two per-target progress entries: target dnode 2 and 3
+  load.pSnapProgress = taosArrayInit(2, sizeof(SVnodeSnapProgress));
+  ASSERT_NE(load.pSnapProgress, nullptr);
+  SVnodeSnapProgress p1 = {0};
+  p1.destDnodeId = 2;
+  p1.snapTotalSize = 1000;
+  p1.snapTransferredSize = 400;
+  ASSERT_NE(taosArrayPush(load.pSnapProgress, &p1), nullptr);
+  SVnodeSnapProgress p2 = {0};
+  p2.destDnodeId = 3;
+  p2.snapTotalSize = 2000;
+  p2.snapTransferredSize = 500;
+  ASSERT_NE(taosArrayPush(load.pSnapProgress, &p2), nullptr);
+  ASSERT_NE(taosArrayPush(req.pVloads, &load), nullptr);
+
+  int32_t size = tSerializeSStatusReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+  std::vector<char> buf(size, 0);
+  ASSERT_EQ(tSerializeSStatusReq(buf.data(), size, &req), size);
+
+  SStatusReq out = {0};
+  ASSERT_EQ(tDeserializeSStatusReq(buf.data(), size, &out), 0);
+  ASSERT_EQ((int32_t)taosArrayGetSize(out.pVloads), 1);
+  SVnodeLoad* pOutLoad = (SVnodeLoad*)taosArrayGet(out.pVloads, 0);
+  ASSERT_EQ(pOutLoad->vgId, 2);
+  ASSERT_EQ((int32_t)taosArrayGetSize(pOutLoad->pSnapProgress), 2);
+  SVnodeSnapProgress* op1 = (SVnodeSnapProgress*)taosArrayGet(pOutLoad->pSnapProgress, 0);
+  SVnodeSnapProgress* op2 = (SVnodeSnapProgress*)taosArrayGet(pOutLoad->pSnapProgress, 1);
+  ASSERT_EQ(op1->destDnodeId, 2);
+  ASSERT_EQ(op1->snapTotalSize, 1000);
+  ASSERT_EQ(op1->snapTransferredSize, 400);
+  ASSERT_EQ(op2->destDnodeId, 3);
+  ASSERT_EQ(op2->snapTotalSize, 2000);
+  ASSERT_EQ(op2->snapTransferredSize, 500);
+
+  tFreeSStatusReq(&req);
+  tFreeSStatusReq(&out);
+}
+
+// Verify the legacy case with no progress group (pSnapProgress=NULL): after decode it should be empty and not crash.
+TEST(td_msg_test, status_req_snap_progress_empty) {
+  SStatusReq req = {0};
+  req.dnodeId = 1;
+  req.pVloads = taosArrayInit(1, sizeof(SVnodeLoad));
+  ASSERT_NE(req.pVloads, nullptr);
+  SVnodeLoad load = {0};
+  load.vgId = 5;
+  load.pSnapProgress = NULL;  // no progress reported
+  ASSERT_NE(taosArrayPush(req.pVloads, &load), nullptr);
+
+  int32_t size = tSerializeSStatusReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+  std::vector<char> buf(size, 0);
+  ASSERT_EQ(tSerializeSStatusReq(buf.data(), size, &req), size);
+
+  SStatusReq out = {0};
+  ASSERT_EQ(tDeserializeSStatusReq(buf.data(), size, &out), 0);
+  ASSERT_EQ((int32_t)taosArrayGetSize(out.pVloads), 1);
+  SVnodeLoad* pOutLoad = (SVnodeLoad*)taosArrayGet(out.pVloads, 0);
+  ASSERT_EQ(pOutLoad->vgId, 5);
+  // No progress: plen encodes as 0, and after decode pSnapProgress stays NULL (size treated as 0)
+  ASSERT_EQ((int32_t)taosArrayGetSize(pOutLoad->pSnapProgress), 0);
+
+  tFreeSStatusReq(&req);
+  tFreeSStatusReq(&out);
+}
+
 int main(int argc, char **argv) {
   processCommandArgs(argc, argv);
 

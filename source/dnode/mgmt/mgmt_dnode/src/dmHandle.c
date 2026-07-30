@@ -686,7 +686,8 @@ void dmUpdateStatusInfo(SDnodeMgmt *pMgmt) {
     tsVinfo.pVloads = vinfo.pVloads;
     vinfo.pVloads = NULL;
   } else {
-    taosArrayDestroy(vinfo.pVloads);
+    // Discard the freshly fetched loads; use the shared helper so each SVnodeLoad's embedded pSnapProgress array is freed too (avoid leak).
+    tFreeSVnodeLoadArray(vinfo.pVloads);
     vinfo.pVloads = NULL;
   }
 
@@ -1620,7 +1621,8 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
     }
   }
 
-  taosArrayDestroy(vinfo.pVloads);
+  // Use the shared helper so each SVnodeLoad's embedded pSnapProgress array is freed as well (avoid leak).
+  tFreeSVnodeLoadArray(vinfo.pVloads);
 }
 
 int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {

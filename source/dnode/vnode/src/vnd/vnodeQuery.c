@@ -1320,6 +1320,35 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->snapSeq = state.snapSeq;
   pLoad->syncTotalIndex = state.totalIndex;
   pLoad->snapshotSending = syncSnapshotSending(pVnode->sync) ? 1 : 0;
+  // Report per-target snapshot-send progress, so the mnode can display progress and compute the rate per target follower dnodeId.
+  // Fetch the byte summary grouped by destDnodeId from tsdb, and convert each entry into an SVnodeSnapProgress filled into pLoad->pSnapProgress.
+  pLoad->pSnapProgress = NULL;
+  SArray *pSnapGroups = taosArrayInit(4, sizeof(STsdbSnapSendGroup));
+  if (pSnapGroups != NULL) {
+    tsdbGetSnapSendSummary(pVnode->pTsdb, pSnapGroups);
+    int32_t numGroups = (int32_t)taosArrayGetSize(pSnapGroups);
+    if (numGroups > 0) {
+      pLoad->pSnapProgress = taosArrayInit(numGroups, sizeof(SVnodeSnapProgress));
+      if (pLoad->pSnapProgress != NULL) {
+        for (int32_t g = 0; g < numGroups; g++) {
+          STsdbSnapSendGroup *pGroup = (STsdbSnapSendGroup *)taosArrayGet(pSnapGroups, g);
+          if (pGroup == NULL) continue;
+          SVnodeSnapProgress prog = {.destDnodeId = pGroup->destDnodeId,
+                                     .snapTotalSize = pGroup->total,
+                                     .snapTransferredSize = pGroup->transferred};
+          if (taosArrayPush(pLoad->pSnapProgress, &prog) == NULL) {
+            vError("vgId:%d, failed to push snap progress for destDnodeId:%d", TD_VID(pVnode), pGroup->destDnodeId);
+          }
+        }
+        vDebug("vgId:%d, report snap send progress, numGroups:%d", TD_VID(pVnode), numGroups);
+      } else {
+        vError("vgId:%d, failed to alloc pSnapProgress array for vnode load", TD_VID(pVnode));
+      }
+    }
+    taosArrayDestroy(pSnapGroups);
+  } else {
+    vError("vgId:%d, failed to alloc snap send groups array for vnode load", TD_VID(pVnode));
+  }
   return 0;
 }
 
