@@ -13,7 +13,7 @@ You can install TDengine TSDB on Linux and Windows. To install TDengine TSDB in 
 ## Before You Begin
 
 - Verify that your machine meets the minimum system requirements for TDengine TSDB. For more information, see [Supported Platforms](../14-reference/07-supported.md) and [System Requirements](../08-operation/02-planning.md).
-- **(Windows only)** Verify that the latest version of the Microsoft Visual C++ Redistributable is installed on your machine. To download the redistributable package, see [Microsoft Visual C++ Redistributable latest supported downloads](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+- **(Windows only)** The installer checks for Microsoft Visual C++ Redistributable 2015-2022 x64 version 14.44 or later. If it is missing or outdated, the installer can install the bundled 14.50.35719.0 redistributable after you confirm the prompt. If the installation fails, download the latest supported package from [Microsoft Visual C++ Redistributable latest supported downloads](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
 
 ## Procedure
 
