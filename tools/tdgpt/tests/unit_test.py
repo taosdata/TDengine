@@ -211,7 +211,9 @@ class ServiceTest(unittest.TestCase):
 
             elif item["type"] == "forecast":
                 builtins = [i for i in item["algo"] if i.get('builtins') == True]
-                self.assertEqual(len(builtins), 8)
+                builtin_names = {i["name"] for i in builtins}
+                self.assertTrue({"ces", "theta", "ets"}.issubset(builtin_names))
+                self.assertEqual(len(builtins), 11)
 
             elif item["type"] == 'correlation':
                 self.assertEqual(len(item['algo']), 2)

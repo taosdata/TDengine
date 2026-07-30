@@ -73,6 +73,16 @@ algo=expr1
 - `rows` 的最大输出值是 1024，即最多预测 1024 个值。超过上限将返回错误。
 - 预测分析需要至少 10 行数据作为预测依据，最多允许 40000 行数据作为预测依据；部分分析模型接受的输入数据行数更少。
 
+### CES、Theta 和 ETS 选型建议
+
+| 数据特征 | 推荐算法 | 原因 |
+| --- | --- | --- |
+| 季节模式较复杂，难以用常规加法或乘法模式描述 | CES | CES 使用复数状态描述季节变化，并支持自动选择模型形式 |
+| 序列具有明显的长期趋势和相对规律的季节性 | Theta | Theta 侧重趋势预测；季节振幅稳定时使用加法分解，季节振幅随序列水平成比例变化时使用乘法分解 |
+| 希望明确解释误差、趋势和季节成分 | ETS | ETS 可以自动选择或显式配置加法、乘法成分，并支持阻尼趋势 |
+
+不确定模型结构时，可以先使用 CES 的 `model=Z` 或 ETS 的 `model=ZZZ` 自动选择。Theta 的乘法分解以及 ETS 中显式指定的乘法成分都要求输入数据严格为正数。进行季节性预测时，需要设置 `period`，并提供至少两个完整周期的历史数据。
+
 ### 示例
 
 ```sql
@@ -145,12 +155,12 @@ SELECT _frowts, forecast(val, past_co_val, future_co_val, "algo=moirai,rows=4, d
 - [HoltWinters](./holtwinters)
 - [Prophet](./prophet)
 - [Time Series Foundation Model](./tsfm)
-- CES (Complex Exponential Smoothing)
-- Theta
+- [CES](./ces)
+- [Theta](./theta)
 - XGBoost
 - LightGBM
 - Multiple Seasonal-Trend decomposition using LOESS (MSTL)
-- ETS (Error, Trend, Seasonal)
+- [ETS](./ets)
 - Long Short-Term Memory (LSTM)
 - Multilayer Perceptron (MLP)
 - DeepAR

@@ -652,12 +652,9 @@ static int32_t processAutoCreateTable(SMqDataRsp* rsp, char** string) {
 
 end:
   RAW_LOG_END
-  for (int i = 0; decoder && pCreateReq && i < rsp->createTableNum; i++) {
-    tDecoderClear(&decoder[i]);
-    taosMemoryFreeClear(pCreateReq[i].comment);
-    if (pCreateReq[i].type == TSDB_CHILD_TABLE) {
-      taosArrayDestroy(pCreateReq[i].ctb.tagName);
-    }
+  for (int32_t i = 0; decoder && pCreateReq && i < rsp->createTableNum; i++) {
+    tdDestroySVCreateTbReq(pCreateReq + i);
+    tDecoderClear(decoder + i);
   }
   taosMemoryFree(decoder);
   taosMemoryFree(pCreateReq);

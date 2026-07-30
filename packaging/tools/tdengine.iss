@@ -47,6 +47,11 @@ Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 ;Name: "english"; MessagesFile: "compiler:Languages\English.isl"
 
 [Files]
+#ifexist "..\..\..\taos-internal\packaging\vc_redist_files.issinc"
+#include "..\..\..\taos-internal\packaging\vc_redist_files.issinc"
+#else
+#include "..\..\..\enterprise\packaging\vc_redist_files.issinc"
+#endif
 ;Source: {#MyAppSourceDir}{#MyAppAllFile}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs 
 Source: taos.bat; DestDir: "{app}\include"; Flags: igNoreversion;
 ;Source: taosdemo.png; DestDir: "{app}\include"; Flags: igNoreversion;
@@ -87,6 +92,16 @@ Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environmen
     Check: NeedsAddPath('{#MyAppInstallDir}')
 
 [Code]
+#ifexist "..\..\..\taos-internal\packaging\vc_redist_code.issinc"
+#include "..\..\..\taos-internal\packaging\vc_redist_code.issinc"
+#else
+#include "..\..\..\enterprise\packaging\vc_redist_code.issinc"
+#endif
+
+function InitializeSetup(): Boolean;
+begin
+  Result := EnsureVCRuntime();
+end;
 function NeedsAddPath(Param: string): boolean;
 var
   OrigPath: string;

@@ -85,4 +85,80 @@ TEST(testCase, error_in_async_test) {
   printf("Error code:%d after asynchronously exec function\n", code);
 }
 
+TEST(testCase, clone_normal_create_table_req_preserves_metadata) {
+  SSchema schema[2] = {};
+  schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema[0].bytes = sizeof(int64_t);
+  schema[1].type = TSDB_DATA_TYPE_DECIMAL;
+  schema[1].bytes = 16;
+
+  SColCmpr colCmpr[2] = {};
+  colCmpr[0].id = 0;
+  colCmpr[0].alg = 1;
+  colCmpr[1].id = 1;
+  colCmpr[1].alg = 2;
+
+  SExtSchema extSchemas[2] = {};
+  extSchemas[1].typeMod = 4;
+  char       sql[] = "create table t0 (ts timestamp, v decimal(10, 2))";
+
+  SVCreateTbReq src = {};
+  src.name = (char*)"t0";
+  src.type = TSDB_NORMAL_TABLE;
+  src.sql = sql;
+  src.sqlLen = strlen(sql);
+  src.txnId = 9;
+  src.txnStatus = 1;
+  src.ntb.schemaRow.nCols = 2;
+  src.ntb.schemaRow.version = 7;
+  src.ntb.schemaRow.pSchema = schema;
+  src.ntb.userId = 42;
+  src.colCmpr.nCols = 2;
+  src.colCmpr.version = 3;
+  src.colCmpr.pColCmpr = colCmpr;
+  src.pExtSchemas = extSchemas;
+
+  SVCreateTbReq* dst = nullptr;
+  ASSERT_EQ(cloneSVreateTbReq(&src, &dst), TSDB_CODE_SUCCESS);
+  ASSERT_NE(dst, nullptr);
+  ASSERT_EQ(dst->ntb.schemaRow.version, src.ntb.schemaRow.version);
+  ASSERT_NE(dst->ntb.schemaRow.pSchema, src.ntb.schemaRow.pSchema);
+  ASSERT_EQ(memcmp(dst->ntb.schemaRow.pSchema, src.ntb.schemaRow.pSchema, sizeof(schema)), 0);
+  ASSERT_EQ(dst->colCmpr.nCols, src.colCmpr.nCols);
+  ASSERT_EQ(dst->colCmpr.version, src.colCmpr.version);
+  ASSERT_NE(dst->colCmpr.pColCmpr, src.colCmpr.pColCmpr);
+  ASSERT_EQ(memcmp(dst->colCmpr.pColCmpr, src.colCmpr.pColCmpr, sizeof(colCmpr)), 0);
+  ASSERT_NE(dst->pExtSchemas, src.pExtSchemas);
+  ASSERT_EQ(memcmp(dst->pExtSchemas, src.pExtSchemas, sizeof(extSchemas)), 0);
+  ASSERT_EQ(dst->ntb.userId, src.ntb.userId);
+  ASSERT_EQ(dst->sqlLen, src.sqlLen);
+  ASSERT_NE(dst->sql, src.sql);
+  ASSERT_EQ(memcmp(dst->sql, src.sql, src.sqlLen), 0);
+  ASSERT_EQ(dst->txnId, src.txnId);
+  ASSERT_EQ(dst->txnStatus, src.txnStatus);
+
+  tdDestroySVCreateTbReq(dst);
+  taosMemoryFree(dst);
+}
+
+TEST(testCase, clone_create_table_req_rejects_inconsistent_sql) {
+  SSchema schema = {};
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.bytes = sizeof(int64_t);
+
+  SVCreateTbReq src = {};
+  src.name = (char*)"t0";
+  src.type = TSDB_NORMAL_TABLE;
+  src.ntb.schemaRow.nCols = 1;
+  src.ntb.schemaRow.pSchema = &schema;
+  // sqlLen claims content while sql is absent
+  src.sqlLen = 16;
+  src.sql = nullptr;
+
+  terrno = TSDB_CODE_SUCCESS;
+  SVCreateTbReq* dst = nullptr;
+  ASSERT_NE(cloneSVreateTbReq(&src, &dst), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(dst, nullptr);
+}
+
 #pragma GCC diagnostic pop
