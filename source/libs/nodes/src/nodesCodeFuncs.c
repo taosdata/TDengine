@@ -9766,6 +9766,7 @@ static int32_t jsonToDropMountStmt(const SJson* pJson, void* pObj) {
 static const char* jkCreateTableStmtDbName = "DbName";
 static const char* jkCreateTableStmtTableName = "TableName";
 static const char* jkCreateTableStmtIgnoreExists = "IgnoreExists";
+static const char* jkCreateTableStmtStableKeyword = "StableKeyword";
 static const char* jkCreateTableStmtCols = "Cols";
 static const char* jkCreateTableStmtTags = "Tags";
 static const char* jkCreateTableStmtOptions = "Options";
@@ -9780,6 +9781,9 @@ static int32_t createTableStmtToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkCreateTableStmtIgnoreExists, pNode->ignoreExists);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkCreateTableStmtStableKeyword, pNode->stableKeyword);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkCreateTableStmtCols, pNode->pCols);
@@ -9806,6 +9810,9 @@ static int32_t jsonToCreateTableStmt(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkCreateTableStmtIgnoreExists, &pNode->ignoreExists);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkCreateTableStmtStableKeyword, &pNode->stableKeyword);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkCreateTableStmtCols, &pNode->pCols);

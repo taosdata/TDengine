@@ -937,7 +937,7 @@ class TestVtableNormalTags:
         """
         tdSql.execute(f"USE {DB};")
         tdSql.execute("CREATE VTABLE vctb_set (ts TIMESTAMP, val INT FROM src0.val) "
-                      "TAGS (own INT);")
+                      "TAGS (own INT = 0);")
         tdSql.execute("ALTER TABLE vctb_set SET TAG own = 42;")
         self._check_values("SELECT DISTINCT own FROM vctb_set;", [(42,)], "SET TAG value")
 
@@ -1028,7 +1028,7 @@ class TestVtableNormalTags:
         """
         tdSql.execute(f"USE {DB};")
         tdSql.error("CREATE VTABLE vctb_e0 (ts TIMESTAMP, val INT FROM src0.val) "
-                    "TAGS (d DECIMAL(10,2));")
+                    "TAGS (d DECIMAL(10,2) = 1);")
 
     def test_error_dup_tag_name(self):
         """Error: duplicate tag names within TAGS(...) are rejected.
@@ -1047,7 +1047,7 @@ class TestVtableNormalTags:
         """
         tdSql.execute(f"USE {DB};")
         tdSql.error("CREATE VTABLE vctb_e1 (ts TIMESTAMP, val INT FROM src0.val) "
-                    "TAGS (a INT, a BIGINT);")
+                    "TAGS (a INT = 1, a BIGINT = 2);")
 
     def test_error_tag_col_collision(self):
         """Error: a tag name colliding with a column name is rejected.
@@ -1065,7 +1065,7 @@ class TestVtableNormalTags:
             - 2026-07-20 Created
         """
         tdSql.execute(f"USE {DB};")
-        tdSql.error("CREATE VTABLE vctb_e2 (ts TIMESTAMP, dup INT) TAGS (dup INT);")
+        tdSql.error("CREATE VTABLE vctb_e2 (ts TIMESTAMP, dup INT) TAGS (dup INT = 1);")
 
     def test_error_alter_tag_col_collision(self):
         """Error: ALTER ADD TAG whose name collides with a column is rejected (tags/columns share name space).
@@ -1648,7 +1648,7 @@ class TestVtableNormalTags:
             - 2026-07-27 Created
         """
         tdSql.execute(f"USE {DB};")
-        tdSql.execute("CREATE VTABLE vc3 (ts TIMESTAMP, val INT FROM src0.val) TAGS (lit INT);")
+        tdSql.execute("CREATE VTABLE vc3 (ts TIMESTAMP, val INT FROM src0.val) TAGS (lit INT = 0);")
         tdSql.execute("ALTER TABLE vc3 SET TAG lit = 42;")
         self._check_values("SELECT DISTINCT lit FROM vc3;", [(42,)],
                            "conv: owned literal value")
@@ -1686,7 +1686,7 @@ class TestVtableNormalTags:
             - 2026-07-27 Created
         """
         tdSql.execute(f"USE {DB};")
-        tdSql.execute("CREATE VTABLE vc4 (ts TIMESTAMP, val INT FROM src0.val) TAGS (t INT);")
+        tdSql.execute("CREATE VTABLE vc4 (ts TIMESTAMP, val INT FROM src0.val) TAGS (t INT = 0);")
         for i in range(2):
             tdSql.execute("ALTER TABLE vc4 SET TAG t = 42;")
             self._check_values("SELECT DISTINCT t FROM vc4;", [(42,)],
@@ -1701,6 +1701,103 @@ class TestVtableNormalTags:
             self._check_values("SELECT DISTINCT t FROM vc4;", [(300,)],
                                f"conv cycle {i}: ref src2.code")
         tdLog.info("  PASS: literal/ref conversion cycles")
+
+    def test_create_tag_value_required(self):
+        """Create rules: CREATE VTABLE tags must carry an explicit value — `= literal`
+        (owned) or `FROM db.tb.tag` (tag-ref). A bare `name TYPE` tag is rejected, as is a
+        mix of FROM and valueless tags; literal + FROM mixed stays legal.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, create, tag, negative
+
+        Jira: None
+
+        History:
+            - 2026-07-29 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        # valueless owned tag rejected
+        tdSql.error("CREATE VTABLE vctb_noval (ts TIMESTAMP, val INT FROM src0.val) "
+                    "TAGS (t INT);")
+        # mix of FROM and valueless rejected
+        tdSql.error("CREATE VTABLE vctb_noval2 (ts TIMESTAMP, val INT FROM src0.val) "
+                    "TAGS (r NCHAR(20) FROM src0.city, t INT);")
+        # literal + FROM mixed is legal
+        tdSql.execute("CREATE VTABLE vctb_ok (ts TIMESTAMP, val INT FROM src0.val) "
+                      "TAGS (t INT = 1, r NCHAR(20) FROM src0.city);")
+        self._check_values("SELECT DISTINCT t FROM vctb_ok;", [(1,)], "mixed literal+FROM owned value")
+        # literal value must fit the tag type definition
+        tdSql.error("CREATE VTABLE vctb_toolong (ts TIMESTAMP, val INT FROM src0.val) "
+                    "TAGS (a VARCHAR(4) = 'abcdefgh');")
+        tdSql.error("CREATE VTABLE vctb_overflow (ts TIMESTAMP, val INT FROM src0.val) "
+                    "TAGS (a TINYINT = 1000);")
+        tdSql.error("CREATE VTABLE vctb_badtype (ts TIMESTAMP, val INT FROM src0.val) "
+                    "TAGS (a INT = 'xyz');")
+        tdLog.info("  PASS: CREATE VTABLE requires explicit tag values")
+
+    def test_ntb_create_with_literal_tags(self):
+        """Normal table: CREATE TABLE ... TAGS where every tag carries `= literal` creates a
+        normal table with owned tags, while valueless TAGS keeps the historical super-table
+        semantics — the inline values are how CREATE TABLE tells the two apart.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: normal_table, create, tag
+
+        Jira: None
+
+        History:
+            - 2026-07-29 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        # all tags valued -> normal table with owned tags
+        tdSql.execute("CREATE TABLE ntb_tags (ts TIMESTAMP, val INT) "
+                      "TAGS (a INT = 1, b VARCHAR(8) = 'x');")
+        tdSql.execute("INSERT INTO ntb_tags VALUES (1700000000000, 10);")
+        self._check_values("SELECT a, b FROM ntb_tags;", [(1, 'x')],
+                           "ntb create-time owned tag values")
+        # SHOW CREATE stays replayable (ALTER-statement form for normal tables)
+        tdSql.query("SHOW CREATE TABLE ntb_tags;")
+        sql = str(tdSql.getData(0, 1))
+        assert "ADD TAG" in sql.upper(), f"ntb SHOW CREATE replay: {sql}"
+        # it is a normal table: cannot act as a super table
+        tdSql.error("CREATE TABLE ntb_tags_child (ts TIMESTAMP, val INT) USING ntb_tags TAGS (2, 'y');")
+        # valueless TAGS -> super table (historical semantics)
+        tdSql.execute("CREATE TABLE stb_tags (ts TIMESTAMP, val INT) TAGS (a INT);")
+        tdSql.execute("CREATE TABLE stb_tags_child USING stb_tags TAGS (1);")
+        # mixed valued/valueless -> rejected
+        tdSql.error("CREATE TABLE ntb_mixed (ts TIMESTAMP, val INT) TAGS (a INT = 1, b INT);")
+        # tag-ref (FROM) stays virtual-normal-table only
+        tdSql.error("CREATE TABLE ntb_ref (ts TIMESTAMP, val INT) TAGS (a INT FROM src0.code);")
+        # CREATE STABLE never becomes a normal table, even with valued tags
+        tdSql.error("CREATE STABLE stb_val (ts TIMESTAMP, val INT) TAGS (a INT = 1);")
+        # the inline-value guard also fires on the BASE ON (inherited super-table) path,
+        # ahead of BASE ON parent resolution — a valued tag never slips into the STB path
+        tdSql.error("CREATE STABLE stb_inh (ts TIMESTAMP, val INT) TAGS (a INT = 1) BASE ON stb_tags;")
+        # literal value must fit the tag type definition
+        tdSql.error("CREATE TABLE ntb_toolong (ts TIMESTAMP, val INT) TAGS (a VARCHAR(4) = 'abcdefgh');")
+        tdSql.error("CREATE TABLE ntb_nctoolong (ts TIMESTAMP, val INT) TAGS (a NCHAR(2) = '汉字汉');")
+        tdSql.error("CREATE TABLE ntb_overflow (ts TIMESTAMP, val INT) TAGS (a TINYINT = 1000);")
+        tdSql.error("CREATE TABLE ntb_badtype (ts TIMESTAMP, val INT) TAGS (a INT = 'xyz');")
+        # type/value validation matches child-table tag semantics (shared parseTagValue):
+        # compatible literals convert, out-of-range/invalid literals are rejected
+        tdSql.execute("CREATE TABLE ntb_conv (ts TIMESTAMP, val INT) TAGS (a INT = 1.5, b VARCHAR(8) = 123);")
+        tdSql.execute("INSERT INTO ntb_conv VALUES (1700000000000, 1);")
+        self._check_values("SELECT a, b FROM ntb_conv;", [(2, '123')],
+                           "create-time literal conversion per tag semantics")
+        tdSql.execute("CREATE STABLE stb_conv (ts TIMESTAMP, val INT) TAGS (a INT, b VARCHAR(8));")
+        tdSql.execute("CREATE TABLE stb_conv_c1 USING stb_conv TAGS (1.5, 123);")
+        tdSql.execute("INSERT INTO stb_conv_c1 VALUES (1700000000000, 1);")
+        self._check_values("SELECT a, b FROM stb_conv_c1;", [(2, '123')],
+                           "child-table tag conversion (control, same semantics)")
+        tdLog.info("  PASS: CREATE TABLE tag value rules")
 
     # ==================================================================
     # ERROR MATRIX — parser / meta guards not previously exercised
@@ -1757,7 +1854,7 @@ class TestVtableNormalTags:
         # external source (4-segment) tag-ref is rejected at CREATE and at ALTER
         tdSql.error("CREATE VTABLE vctb_ext1 (ts TIMESTAMP, val INT FROM src0.val) "
                     "TAGS (r NCHAR(20) FROM s.db.src0.city);")
-        tdSql.execute("CREATE VTABLE vctb_ext2 (ts TIMESTAMP, val INT FROM src0.val) TAGS (a INT);")
+        tdSql.execute("CREATE VTABLE vctb_ext2 (ts TIMESTAMP, val INT FROM src0.val) TAGS (a INT = 0);")
         tdSql.error("ALTER TABLE vctb_ext2 ADD TAG r NCHAR(20) FROM s.db.src0.city;")
         tdSql.error("ALTER TABLE vctb_ext2 SET TAG a = s.db.src0.code;")
         # column options other than FROM are rejected on tags
@@ -1767,9 +1864,9 @@ class TestVtableNormalTags:
                     "TAGS (t INT COMMENT 'x');")
         # JSON tag is allowed only as the single tag at CREATE; ALTER cannot add a JSON tag,
         # and no tag can be added to a table that already has a JSON tag
-        tdSql.execute("CREATE VTABLE vctb_json (ts TIMESTAMP, val INT FROM src0.val) TAGS (j JSON);")
+        tdSql.execute("CREATE VTABLE vctb_json (ts TIMESTAMP, val INT FROM src0.val) TAGS (j JSON = '{\"k\":1}');")
         tdSql.error("ALTER TABLE vctb_json ADD TAG k INT;")
-        tdSql.execute("CREATE VTABLE vctb_json2 (ts TIMESTAMP, val INT FROM src0.val) TAGS (a INT);")
+        tdSql.execute("CREATE VTABLE vctb_json2 (ts TIMESTAMP, val INT FROM src0.val) TAGS (a INT = 0);")
         tdSql.error("ALTER TABLE vctb_json2 ADD TAG j JSON;")
         tdLog.info("  PASS: ext/json/option tag rules enforced")
 
@@ -1792,7 +1889,7 @@ class TestVtableNormalTags:
         """
         tdSql.execute(f"USE {DB};")
         tdSql.error("CREATE VTABLE vctb_em_len (ts TIMESTAMP, val INT FROM src0.val) "
-                    "TAGS (a VARCHAR(8192), b VARCHAR(8192));")
+                    "TAGS (a VARCHAR(8192) = 'x', b VARCHAR(8192) = 'y');")
 
     def test_error_varchar_tag_over_length(self):
         """Error: a VARCHAR tag longer than TSDB_MAX_BINARY_LEN is rejected at CREATE.
@@ -1811,7 +1908,7 @@ class TestVtableNormalTags:
         """
         tdSql.execute(f"USE {DB};")
         tdSql.error("CREATE VTABLE vctb_em_vl (ts TIMESTAMP, val INT FROM src0.val) "
-                    "TAGS (t VARCHAR(66000));")
+                    "TAGS (t VARCHAR(66000) = 'x');")
 
     def test_error_nchar_tag_over_length(self):
         """Error: an NCHAR tag longer than TSDB_MAX_NCHAR_LEN is rejected at CREATE
@@ -1831,7 +1928,7 @@ class TestVtableNormalTags:
         """
         tdSql.execute(f"USE {DB};")
         tdSql.error("CREATE VTABLE vctb_em_nl (ts TIMESTAMP, val INT FROM src0.val) "
-                    "TAGS (t NCHAR(17000));")
+                    "TAGS (t NCHAR(17000) = 'x');")
 
     def test_error_tag_ref_type_mismatch(self):
         """Error: a tag-ref whose declared type differs from the source tag type is rejected
