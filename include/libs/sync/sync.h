@@ -153,6 +153,7 @@ typedef struct SSnapshotParam {
   SyncIndex start;
   SyncIndex end;
   SSyncTLV* data;
+  int32_t   destDnodeId;  // target follower dnodeId of this snapshot send; 0 means unknown/non-send
 } SSnapshotParam;
 
 typedef struct SSnapshot {
