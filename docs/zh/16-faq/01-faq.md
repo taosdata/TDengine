@@ -147,7 +147,7 @@ mvn dependency:copy-dependencies -DoutputDirectory=./lib -DincludeScope=compile
 
 默认情况，启动 taos 服务会使用系统默认的用户名（root）和密码尝试连接 taosd，在 root 密码修改后，启用 taos 连接就需要指明用户名和密码，例如 `taos -h xxx.xxx.xxx.xxx -u root -p`，然后输入新密码进行连接。修改密码后，你还需要相应地修改 taosKeeper 组件的配置文件（默认位于 /etc/taos/taoskeeper.toml），修改其访问 TDengine 的密码后重启服务。
 
-如果是容器化部署，请参考部署文档中 Docker 部署章节的“[自定义密码、升级与健康检查](../12-operations-and-tooling/02-operations/03-deployment.md#custom-passwords-upgrades-and-health-checks)”说明。
+如果是容器化部署，请参考部署文档中 Docker 部署章节的“[自定义密码、升级与健康检查](../12-operations-and-tooling/02-operations/03-deployment/02-docker.md#custom-passwords-upgrades-and-health-checks)”说明。
 
 其中，`3.3.6.6` 版本开始支持 `TAOS_ROOT_PASSWORD`，`3.3.8.8` 及以上版本支持 `TAOS_ROOT_PASSWORD_FILE` 并可直接升级，`3.4.1.0` 及以上版本支持 `taos-check startup` 和 `taos-check service`。
 

@@ -17,7 +17,7 @@ InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量�
 
 在数据写入页面中点击 **+新增数据源** 按钮进入新增数据源页面，如下图所示：
 
-![Common-zh00-EnterDataSourcePage.png](./assets/Common-zh00-EnterDataSourcePage.png "进入新增数据源页面")
+![Common-zh00-EnterDataSourcePage.png](../../assets/kinghist-01.png "进入新增数据源页面")
 
 ### 2. 配置基本信息
 
@@ -29,13 +29,13 @@ InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量�
 
 **目标数据库** 是必填项，由于 InfluxDB 存储数据的时间精度可以同时存在秒、毫秒、微秒与纳秒等，所以这里需要选择一个 *`纳秒精度的数据库`* ，也可以先点击右侧的 **+创建数据库** 按钮
 
-![InfluxDB-02zh-SelectTheTypeAsInfluxDB.png](./assets/InfluxDB-02zh-SelectTheTypeAsInfluxDB.png "选择数据源类型为InfluxDB")
+![InfluxDB-02zh-SelectTheTypeAsInfluxDB.png](../../assets/InfluxDB-02zh-SelectTheTypeAsInfluxDB.png "选择数据源类型为InfluxDB")
 
 ### 3. 配置连接信息
 
 在 **连接配置** 区域填写 *`源 InfluxDB 数据库的连接信息`*，如下图所示：
 
-![InfluxDB-03zh-FillInTheConnectionInformation.png](./assets/InfluxDB-03zh-FillInTheConnectionInformation.png "填写源InfluxDB数据库的连接信息")
+![InfluxDB-03zh-FillInTheConnectionInformation.png](../../assets/InfluxDB-03zh-FillInTheConnectionInformation.png "填写源InfluxDB数据库的连接信息")
 
 ### 4. 配置认证信息
 
@@ -44,24 +44,24 @@ InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量�
   **版本** 在下拉框中选择源 InfluxDB 数据库的版本。  
   **用户** 输入源 InfluxDB 数据库的用户，该用户必须在该组织中拥有读取权限。  
   **密码** 输入源 InfluxDB 数据库中上方用户的登录密码。  
-  ![InfluxDB-04zh-SelectVersion1.x.png](./assets/InfluxDB-04zh-SelectVersion1.x.png "选择1.x版本")  
+  ![InfluxDB-04zh-SelectVersion1.x.png](../../assets/InfluxDB-04zh-SelectVersion1.x.png "选择1.x版本")  
   *`2.x 版本`*  
   **版本** 在下拉框中选择源 InfluxDB 数据库的版本。  
   **组织 ID** 输入源 InfluxDB 数据库的组织 ID，它是一个由十六进制字符组成的字符串，而不是组织名称，可以从 InfluxDB 控制台的 Organization->About 页面获取。  
   **令牌 Token**：输入源 InfluxDB 数据库的访问令牌，该令牌必须在该组织中拥有读取权限。  
   **添加数据库保留策略** 这是一个 *`是/否`* 的开关项，InfluxQL 需要数据库与保留策略（DBRP）的组合才能查询数据，InfluxDB 的 Cloud 版本及某些 2.x 版本需要人工添加这个映射关系，打开这个开关，连接器可以在执行任务时自动添加。  
-  ![InfluxDB-05zh-SelectVersion2.x.png](./assets/InfluxDB-05zh-SelectVersion2.x.png "选择2.x版本")
+  ![InfluxDB-05zh-SelectVersion2.x.png](../../assets/InfluxDB-05zh-SelectVersion2.x.png "选择2.x版本")
 
 在 **认证** 区域的下方有一个 **连通性检查** 按钮，用户可以点击此按钮检查上方填写的信息是否可以正常获取源 InfluxDB 数据库的数据，检查结果如下图所示：  
   **失败**  
-  ![InfluxDB-06zh-ConnectivityCheckFailed.png](./assets/InfluxDB-06zh-ConnectivityCheckFailed.png "连通性检查失败")  
+  ![InfluxDB-06zh-ConnectivityCheckFailed.png](../../assets/InfluxDB-06zh-ConnectivityCheckFailed.png "连通性检查失败")  
   **成功**  
-  ![InfluxDB-07zh-ConnectivityCheckSuccessful.png](./assets/InfluxDB-07zh-ConnectivityCheckSuccessful.png "连通性检查成功")
+  ![InfluxDB-07zh-ConnectivityCheckSuccessful.png](../../assets/InfluxDB-07zh-ConnectivityCheckSuccessful.png "连通性检查成功")
 
 ### 5. 配置任务信息
 
 **桶 Bucket** 是 InfluxDB 数据库中存储数据的一个命名空间，每个任务需要指定一个 Bucket，用户需要先点击右侧的 **获取 Schema** 按钮获取当前源 InfluxDB 数据库的数据结构信息，然后在下拉框中进行选择，如下图所示：
-![InfluxDB-08zh-GetSchemaAndSelectOneBucket.png](./assets/InfluxDB-08zh-GetSchemaAndSelectOneBucket.png "获取数据结构信息并选择一个Bucket")
+![InfluxDB-08zh-GetSchemaAndSelectOneBucket.png](../../assets/InfluxDB-08zh-GetSchemaAndSelectOneBucket.png "获取数据结构信息并选择一个Bucket")
 
 **测量值 Measurements** 是非必填项，用户可以在下拉框中选择一个或多个需要同步的 Measurements，未指定则同步全部。
 

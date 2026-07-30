@@ -17,21 +17,21 @@ DBeaver 是一款流行的跨平台数据库管理工具，方便开发者、数
 
 1. 启动 DBeaver 应用，点击按钮或菜单项选择“新建数据库连接”，然后在时间序列分类栏中选择 TDengine。
 
- ![DBeaver 连接 TDengine](dbeaver/assets/dbeaver-connect-tdengine-zh.webp)
+ ![DBeaver 连接 TDengine](../../assets/dbeaver-01.webp)
 
 2. 配置 TDengine 连接，填入主机地址、端口号（6041）、用户名和密码。示例 TDengine 服务器主机地址 `www.taosdemo.com`，端口号 `6041`，建议选择 URL 连接，增加连接参数 `varcharAsString=true&conmode=1` ，参数意义参考 [JDBC 文档](../../10-developer-guide/08-connectors-reference/02-java.mdx#properties) 。点击“测试连接”可以对连接是否可用进行测试。如果本机没有安装 TDengine Java
  连接器，DBeaver 会提示下载安装。
 
- ![配置 TDengine 连接](dbeaver/assets/dbeaver-config-tdengine-zh.webp)
+ ![配置 TDengine 连接](../../assets/dbeaver-02.webp)
 
 3. 连接成功将显示如下图所示。如果显示连接失败，请检查 TDengine 服务和 taosAdapter 是否正确运行，主机地址、端口号、用户名和密码是否正确。
 
- ![连接成功](dbeaver/assets/dbeaver-connect-tdengine-test-zh.webp)
+ ![连接成功](../../assets/dbeaver-03.webp)
 
 4. 使用 DBeaver 选择数据库和表可以浏览 TDengine 服务的数据。
 
- ![DBeaver 浏览 TDengine 数据](dbeaver/assets/dbeaver-browse-data-zh.webp)
+ ![DBeaver 浏览 TDengine 数据](../../assets/dbeaver-04.webp)
 
 5. 也可以通过执行 SQL 命令的方式对 TDengine 数据进行操作。
 
- ![DBeaver SQL 命令](dbeaver/assets/dbeaver-sql-execution-zh.webp)
+ ![DBeaver SQL 命令](../../assets/dbeaver-05.webp)

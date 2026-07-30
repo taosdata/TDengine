@@ -74,7 +74,7 @@ graph LR
 
 将 **缓存实时数据** 开关打开即可启用存储转发功能。
 
-![OPC UA 高级选项 - 缓存实时数据](./assets/cache-realtime-data.png)
+![OPC UA 高级选项 - 缓存实时数据](../../../assets/store-and-forward-01.png)
 
 ## 工作原理
 

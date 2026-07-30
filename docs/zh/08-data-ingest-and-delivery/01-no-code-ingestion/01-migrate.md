@@ -25,12 +25,12 @@ taosX 支持三种迁移模式：
 ## 具体步骤
 
 首先，点击左侧“数据写入”菜单，然后点击右侧“+ 新增数据源”按钮。
-![步骤 1：创建数据源](assets/migrate-step1.png)
+![步骤 1：创建数据源](../../assets/migrate-01.png)
 
 然后输入任务名称，比如“migrate-test”, 最后选择类型“TDengine 查询”。此时，表单切换为从 "TDengine 查询" 迁移数据专用的表单，包含了大量选项，每种选项都有详细的说明，如下图所示。
 
-![步骤 2：选择任务类型](assets/migrate-step2.png)
-![步骤 3：配置迁移参数](assets/migrate-step3.png)
-![步骤 4：配置高级选项](assets/migrate-step4.png)
+![步骤 2：选择任务类型](../../assets/migrate-02.png)
+![步骤 3：配置迁移参数](../../assets/migrate-03.png)
+![步骤 4：配置高级选项](../../assets/migrate-04.png)
 
 点击“提交”按钮提交任务后，回到“数据源”任务列表页面，可以监控任务的运行情况。

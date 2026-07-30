@@ -149,7 +149,7 @@ jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver
    [SPARQL 语法参考](https://www.w3.org/TR/sparql11-query/)
 2. 在 SPARQL 查询界面输入上述语句，点击“运行”按钮，查询结果如下：
 
-   ![ontop-query](img/assets/ontop-query.webp)
+   ![ontop-query](../../assets/ontop-01.webp)
 
 3. 结果以 SPARQL JSON 格式返回，包含了电表采集时间戳、采集电压、相位、分组 ID 及设备位置等信息。
 

@@ -16,7 +16,7 @@ TDengine 双活系统的部署架构图如下，其中涉及到三个关键点�
 
 注：下图中仅以一个单机版 TDengine 作为示例，但在实际部署中图中的一个 Host 也可以被任意节点数量的 TDengine 集群代替。
 
-![Active-Standby.png](../assets/Active-Standby.png)
+![Active-Standby.png](../../../assets/dual-01.png)
 
 ## 集群配置
 

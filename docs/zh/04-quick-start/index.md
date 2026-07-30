@@ -5,9 +5,9 @@ description: TDengine TSDB 快速上手
 toc_max_heading_level: 4
 ---
 
-import xiaot_new from './assets/xiaot-20231007.png'
-import channel from './assets/channel.webp'
-import official_account from './assets/official-account.webp'
+import xiaot_new from '../assets/xiaot-20231007.png'
+import channel from '../assets/channel.webp'
+import official_account from '../assets/official-account.webp'
 
 TDengine TSDB 完整软件包包括服务端 `taosd`、用于与第三方系统对接并提供 RESTful 接口的 `taosAdapter`、应用驱动 `taosc`、命令行程序 `taos shell`，以及一些工具软件。除多语言连接器外，TDengine 还通过 [taosAdapter](../12-operations-and-tooling/03-components/03-taosadapter.md) 提供 [RESTful 接口](../10-developer-guide/08-connectors-reference/10-rest-api.mdx)。
 

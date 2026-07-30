@@ -8,7 +8,7 @@ toc_max_heading_level: 4
 
 至于如何获取和使用这些监控数据，用户可以使用第三方的监测工具比如 Zabbix 来获取这些保存的系统监测数据，进而将 TDengine 的运行状况无缝集成到现有的 IT 监控系统中。也可以使用 TDengine 提供的 TDinsight 插件，使用该插件用户可以通过 Grafana 平台直观地展示和管理这些监控信息，如下图所示。这为用户提供了灵活的监控选项，以满足不同场景下的运维需求。
 
-![通过监控组件管理监控信息](assets/grafana.png)
+![通过监控组件管理监控信息](../../assets/monitor-01.png)
 
 ## 配置 taosKeeper
 
@@ -51,7 +51,7 @@ TDengine 数据源插件已提交至 Grafana 官网，如何安装 TDengine 数�
 
 填写以上 Dashboard ID 或 Dashboard URL 以后，点击“Load”按钮，按照向导操作，即可完成导入。导入成功后，Dashboards 列表页面会出现“TDinsight for 3.x”仪表盘，点击进入后，就可以看到 TDinsight 中已创建的各个指标的面板，如下图所示：
 
-![TDinsight 界面示例](assets/TDinsight-1-cluster-status.webp)
+![TDinsight 界面示例](../../assets/monitor-02.webp)
 
 **注意** 在 TDinsight 界面左上角的“Log from”下拉列表中可以选择 `log` 数据库。
 
@@ -110,7 +110,7 @@ taosX 的配置文件（默认 `/etc/taos/taosx.toml`）中与 monitor 相关的
 1. 在 Grafana 界面菜单中点击“Data sources”，然后选择已经配置好的 TDengine 数据源。
 2. 在数据源配置界面选择“Dashboard”Tab, 然后导入“TDinsight for taosX”面板（第一次使用需要先导入）。下面是一个示例图：
 
-   ![monitor rows](assets/monitor-04.jpg)
+   ![monitor rows](../../assets/monitor-03.jpg)
 
    该面板每一行代表一个或一类监控对象。最上面是 taosX 监控行，然后是 Agent 监控行，最后是各类数据写入任务的监控。
    :::note
@@ -122,15 +122,15 @@ taosX 的配置文件（默认 `/etc/taos/taosx.toml`）中与 monitor 相关的
 
 1. taosX 监控示例图
 
-   ![monitor taosx](assets/monitor-03.png)
+   ![monitor taosx](../../assets/monitor-04.png)
 
 2. Agent 监控示例图
 
-   ![monitor agent](assets/monitor-09.jpg)
+   ![monitor agent](../../assets/monitor-05.jpg)
 
 3. TDengine2 数据源监控示例图
 
-   ![monitor tdengine2](assets/monitor-05.png)
+   ![monitor tdengine2](../../assets/monitor-06.png)
 
    :::info
    监控面板只展示了数据写入任务的部分监控指标，在 taosExplorer 页面上有更全面的监控指标，且有每个指标的具体说明。
@@ -139,10 +139,10 @@ taosX 的配置文件（默认 `/etc/taos/taosx.toml`）中与 monitor 相关的
 
 4. TDengine3 数据源监控示例图
 
-   ![monitor tdengine3](assets/monitor-06.jpg)
+   ![monitor tdengine3](../../assets/monitor-07.jpg)
 
 5. 其他数据源监控示例图
-   ![monitor task](assets/monitor-10.jpg)
+   ![monitor task](../../assets/monitor-08.jpg)
 
 #### 限制
 
@@ -186,14 +186,14 @@ taosX = "http://ip:3000/d/000000002/taosx?theme=light&kiosk=tv"
 
 如下图（Grafana v8.5.27），获取 API key；请注意添加只读权限的 API key，否则有安全风险。
 
-![获取 grafana apikey](assets/grafana-apikey.png)
+![获取 grafana apikey](../../assets/monitor-09.png)
 
 如下图（Grafana v8.5.27），获取 dashboard URL；获取的 URL 请额外加上参数：`theme=light&kiosk=tv`。
 
-![获取 grafana dashboard](assets/grafana-dashboard.png)
+![获取 grafana dashboard](../../assets/monitor-10.png)
 
 ## 监控集群
 
 登录 taosExplorer 后，切换到「概览」页面，即可查看集群状态。如下图所示，包括集群中 taosd / taosAdapter / taosX / taosKeeper 的服务数量，以及 dnode 主机信息和各个服务组件状态。
 
-![cluster monitor](assets/cluster-monitor.jpg)
+![cluster monitor](../../assets/monitor-11.jpg)

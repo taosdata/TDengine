@@ -4,8 +4,8 @@ sidebar_label: 数据分析预处理
 description: 数据预处理流程
 ---
 
-import activity from './assets/activity.png';
-import wndata from './assets/white-noise-data.png'
+import activity from '../../assets/activity.png';
+import wndata from '../../assets/white-noise-data.png'
 
 ### 分析流程
 

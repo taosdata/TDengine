@@ -4,7 +4,7 @@ title: 简介
 description: 简要介绍 TDgpt 时序数据分析智能体
 ---
 
-import TDgpt from './assets/data-analysis.png';
+import TDgpt from '../../assets/data-analysis.png';
 
 # 背景介绍
 

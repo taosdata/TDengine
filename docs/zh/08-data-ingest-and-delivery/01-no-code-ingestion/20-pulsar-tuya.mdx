@@ -17,7 +17,7 @@ TDengine 可以高效地从 Pulsar-Tuya 读取数据并将其写入 TDengine，�
 
 在数据写入页面中，点击 **+新增数据源** 按钮，进入新增数据源页面。
 
-![image-20260103095152670](assets/pulsar-01.png)
+![image-20260103095152670](../../assets/pulsar-01.png)
 
 ### 2. 配置基本信息
 
@@ -29,7 +29,7 @@ TDengine 可以高效地从 Pulsar-Tuya 读取数据并将其写入 TDengine，�
 
 在 **目标数据库** 下拉列表中选择一个目标数据库，也可以先点击右侧的 **+创建数据库** 按钮
 
-![image-20260103123538920](assets/tuya-02.png)
+![image-20260103123538920](../../assets/pulsar-tuya-01.png)
 
 ### 3. 配置连接信息
 
@@ -37,13 +37,13 @@ TDengine 可以高效地从 Pulsar-Tuya 读取数据并将其写入 TDengine，�
 
 只需要填写一个有效的 broker server 地址。
 
-![image-20260103123929570](assets/tuya-03.png)
+![image-20260103123929570](../../assets/pulsar-tuya-02.png)
 
 ### 4. 认证机制
 
 此处需要涂鸦平台专有的认证信息，填写平台提供的 Access Id 和 Access Key，并选择对应的执行环境。
 
-![image-20260103123653400](assets/tuya-04.png)
+![image-20260103123653400](../../assets/pulsar-tuya-03.png)
 
 ### 5. 配置采集信息
 
@@ -60,7 +60,7 @@ TDengine 可以高效地从 Pulsar-Tuya 读取数据并将其写入 TDengine，�
 
 点击 **连通性检查** 按钮，检查数据源是否可用。
 
-![image-20260103120055362](assets/tuya-05.png)
+![image-20260103120055362](../../assets/pulsar-tuya-04.png)
 
 ### 6. 配置 Payload 解析
 
@@ -91,11 +91,11 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 解析结果如下所示：
 
-![kafka-07.png](assets/kafka-07.png)
+![kafka-07.png](../../assets/no-code-ingestion-kafka-10.png)
 
 点击 **放大镜图标**  可查看预览解析结果。
 
-![kafka-08.png](assets/kafka-08.png)
+![kafka-08.png](../../assets/no-code-ingestion-kafka-11.png)
 
 #### 6.2 字段拆分
 
@@ -105,11 +105,11 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 点击 **删除**，可以删除当前提取规则。
 
-![kafka-09.png](assets/kafka-09.png)
+![kafka-09.png](../../assets/no-code-ingestion-kafka-12.png)
 
 点击 **放大镜图标** 可查看预览提取/拆分结果。
 
-![kafka-10.png](assets/kafka-10.png)
+![kafka-10.png](../../assets/no-code-ingestion-kafka-13.png)
 
 #### 6.3 数据过滤
 
@@ -119,11 +119,11 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 点击 **删除**，可以删除当前过滤规则。
 
-![kafka-11.png](assets/kafka-11.png)
+![kafka-11.png](../../assets/no-code-ingestion-kafka-14.png)
 
 点击 **放大镜图标** 可查看预览过滤结果。
 
-![kafka-12.png](assets/kafka-12.png)
+![kafka-12.png](../../assets/no-code-ingestion-kafka-15.png)
 
 #### 6.4 表映射
 
@@ -131,11 +131,11 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 在 **映射** 中，填写目标超级表中的子表名称，例如：`t_{id}`。根据需求填写映射规则，其中 mapping 支持设置缺省值。
 
-![kafka-13.png](assets/kafka-13.png)
+![kafka-13.png](../../assets/no-code-ingestion-kafka-16.png)
 
 点击 **预览**，可以查看映射的结果。
 
-![kafka-14.png](assets/kafka-14.png)
+![kafka-14.png](../../assets/no-code-ingestion-kafka-17.png)
 
 ### 7. 配置高级选项
 

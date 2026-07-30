@@ -433,7 +433,7 @@ summary =   1500 in 00:00:03 =  500.0/s Avg:    2 Min:     1 Max:     6 Err:    
 
 **查看 HTML 报告**
 打开 `baseline_report/index.html`，查看完整的测试报告。下面是一个样例。
- ![HTML 报告](assets/html-report.webp)
+ ![HTML 报告](../../../assets/jmeter-01.webp)
 
 **关键指标说明：**
 

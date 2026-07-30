@@ -17,7 +17,7 @@ TDengine 可以通过 SparkplugB 连接器从 MQTT 代理订阅数据并将其�
 
 在数据写入页面中，点击 **+新增数据源** 按钮，进入新增数据源页面。
 
-![spb-01.png](assets/spb-01.png)
+![spb-01.png](../../assets/sparkplugb-01.png)
 
 ### 2. 配置基本信息
 
@@ -29,7 +29,7 @@ TDengine 可以通过 SparkplugB 连接器从 MQTT 代理订阅数据并将其�
 
 在 **目标数据库** 下拉列表中选择一个目标数据库，也可以先点击右侧的 **+创建数据库** 按钮
 
-![spb-02.png](assets/spb-02.png)
+![spb-02.png](../../assets/sparkplugb-02.png)
 
 ### 3. 配置连接和认证信息
 
@@ -56,7 +56,7 @@ TDengine 可以通过 SparkplugB 连接器从 MQTT 代理订阅数据并将其�
 
 点击 **检查连通性** 按钮，检查数据源是否可用。
 
-![spb-03.png](assets/spb-03.png)
+![spb-03.png](../../assets/sparkplugb-03.png)
 
 ## 4. 订阅配置
 
@@ -68,7 +68,7 @@ TDengine 可以通过 SparkplugB 连接器从 MQTT 代理订阅数据并将其�
 
 当 **下发 REBIRTH 命令** 开启后，taosX 会自动下发 NCMD 中的 "Node Control/Rebirth" 命令，获取节点和设备的所有 metric 信息，从而可以获取 metric name 和 metric alias 的对应关系。如果节点/设备在上报数据时不使用 alias 别名机制，可以不开启此选项。
 
-![spb-04.png](assets/spb-04.png)
+![spb-04.png](../../assets/sparkplugb-04.png)
 
 ### 5. 配置 Payload 转换
 
@@ -86,11 +86,11 @@ TDengine 可以通过 SparkplugB 连接器从 MQTT 代理订阅数据并将其�
 
 json 数据支持 JSONObject 或者 JSONArray，可以用于解析 SparkplugB 中的 metadata 和 properties 等 json 格式的字段。
 
-![spb-05.png](assets/spb-05.png)
+![spb-05.png](../../assets/sparkplugb-05.png)
 
 点击 **放大镜图标**  可查看预览解析结果。
 
-![spb-06.png](assets/spb-06.png)
+![spb-06.png](../../assets/sparkplugb-06.png)
 
 #### 5.2 字段拆分
 
@@ -116,7 +116,7 @@ json 数据支持 JSONObject 或者 JSONArray，可以用于解析 SparkplugB �
 
 会将 `datatype_str` 列的字段的值如 "Int8" 转换为对应的 "TINYINT"，新的列命名为 `td_datatype`
 
-![spb-07.png](assets/spb-07.png)
+![spb-07.png](../../assets/sparkplugb-07.png)
 
 点击 **删除**，可以删除当前提取规则。
 
@@ -124,19 +124,19 @@ json 数据支持 JSONObject 或者 JSONArray，可以用于解析 SparkplugB �
 
 点击 **放大镜图标** 可查看预览提取/拆分结果。
 
-![spb-08.png](assets/spb-08.png)
+![spb-08.png](../../assets/sparkplugb-08.png)
 
 #### 5.3 数据过滤
 
 在 **过滤** 中，填写过滤条件，例如：填写`datatype_str != "Int8"`，则只有 datatype_str 不为 `Int8` 的数据才会被写入 TDengine。
 
-![spb-9.png](assets/spb-09.png)
+![spb-9.png](../../assets/sparkplugb-09.png)
 
 点击 **删除**，可以删除当前过滤规则。
 
 点击 **放大镜图标** 可查看预览过滤结果。
 
-![spb-10.png](assets/spb-10.png)
+![spb-10.png](../../assets/sparkplugb-10.png)
 
 #### 5.4 表映射
 
@@ -144,15 +144,15 @@ json 数据支持 JSONObject 或者 JSONArray，可以用于解析 SparkplugB �
 
 当超级表需要根据消息动态生成时，可以选择 **创建模板**。其中，超级表名称，列名，列类型等均可以使用模板变量，当接收到数据后，程序会自动计算模板变量并生成对应的超级表模板，当数据库中超级表不存在时，会使用此模板创建超级表；对于已创建的超级表，如果缺少通过模板变量计算得到的列，也会自动创建对应列。
 
-![spb-11.png](assets/spb-11.png)
+![spb-11.png](../../assets/sparkplugb-11.png)
 
 在 **映射** 中，填写目标超级表中的子表名称，例如：`t_{id}`。根据需求填写映射规则，其中 mapping 支持设置缺省值。
 
-![spb-12.png](assets/spb-12.png)
+![spb-12.png](../../assets/sparkplugb-12.png)
 
 点击 **预览**，可以查看映射的结果。
 
-![spb-13.png](assets/spb-13.png)
+![spb-13.png](../../assets/sparkplugb-13.png)
 
 ### 6. 高级选项
 
@@ -160,7 +160,7 @@ import AdvancedOptionsMqtt from './resources/_02-advanced-options-mqtt.mdx'
 
 <AdvancedOptionsMqtt />
 
-![spb-14](assets/spb-14.png)
+![spb-14](../../assets/sparkplugb-14.png)
 
 ### 7. 异常处理策略
 

@@ -72,14 +72,14 @@ Windows Registry Editor Version 5.00
 2. 加载 PDB
    启动 WinDbg，打开菜单 File -> Symbol File Path，弹出窗口中点击 `browse...` 按钮选择 pdb 文件所在文件夹，点击 `OK` 按钮保存并关闭。
 
-   ![dmp-step-1.webp](./assets/dmp-step-1.webp)
+   ![dmp-step-1.webp](../../../assets/debug-windows-01.webp)
 
 3. 分析 dmp
    选择菜单 File -> Open Crash Dump，弹出窗口中选择 dmp 文件，打开所要分析的 dmp 文件进行分析。
 
    dmp 文件打开后，在底部命令行输入 `k` 命令显示崩溃栈，成功加载 PDB 时可以看到函数名及源码文件名和行号信息，如下：
 
-   ![dmp-step-2.webp](./assets/dmp-step-2.webp)
+   ![dmp-step-2.webp](../../../assets/debug-windows-02.webp)
 
    此时调用 WinDbg 工具提供的命令行，详细分析崩溃原因。
 

@@ -58,4 +58,4 @@ TDengine 在数据传输过程中提供了压缩功能，以减少网络带宽�
 
 下图展示了 TDengine 引擎在时序数据的整个传输及存储过程中的压缩及解压过程，以更好地理解整个处理过程。
 
-![TDengine 针对时序数据的压缩及解压过程](assets/compression.png)
+![TDengine 针对时序数据的压缩及解压过程](../assets/compress-01.png)

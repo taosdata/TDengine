@@ -13,7 +13,7 @@ TDengine 的设计是基于单个硬件、软件系统不可靠，基于任何�
 
 TDengine 分布式架构的逻辑结构图如下：
 
-![TDengine Database 架构示意图](assets/structure.webp)
+![TDengine Database 架构示意图](../assets/arch-01.webp)
 
 <center> 图 1 TDengine 架构示意图  </center>
 
@@ -159,7 +159,7 @@ TDengine 集群可以容纳单个、多个甚至几千个数据节点。应用�
 
 为解释 vnode、mnode、taosc 和应用之间的关系以及各自扮演的角色，下面对写入数据这个典型操作的流程进行剖析。
 
-![TDengine Database 典型的操作流程](assets/message.webp)
+![TDengine Database 典型的操作流程](../assets/arch-02.webp)
 
 <center> 图 2 TDengine 典型的操作流程 </center>
 
@@ -235,7 +235,7 @@ TDengine 3.0 采用一致性哈希算法来确定每张数据表所在的 vnode�
 
 Leader Vnode 遵循下面的写入流程：
 
-![TDengine Database Leader 写入流程](assets/write_leader.webp)
+![TDengine Database Leader 写入流程](../assets/arch-03.webp)
 
 <center> 图 3 TDengine Leader 写入流程  </center>
 
@@ -250,7 +250,7 @@ Leader Vnode 遵循下面的写入流程：
 
 对于 follower vnode，写入流程是：
 
-![TDengine Database Follower 写入流程](assets/write_follower.webp)
+![TDengine Database Follower 写入流程](../assets/arch-04.webp)
 
 <center> 图 4 TDengine Follower 写入流程  </center>
 

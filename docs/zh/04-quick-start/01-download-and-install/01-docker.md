@@ -71,7 +71,7 @@ docker exec -it tdengine-tsdb bash
 
 进入容器后，就可以执行 Linux 命令，并通过 `taos`、`taosBenchmark` 等工具体验 TDengine。
 
-关于使用 Docker 部署 TDengine 的更多详情，请参考运维指南中的 [Docker 部署](../../12-operations-and-tooling/02-operations/03-deployment.md#docker-部署) 章节。
+关于使用 Docker 部署 TDengine 的更多详情，请参考运维指南中的 [Docker 部署](../../12-operations-and-tooling/02-operations/03-deployment/02-docker.md) 章节。
 
 import Getstarted from './resource/_get_started.mdx'
 

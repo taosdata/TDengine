@@ -69,19 +69,19 @@ User Source 建议使用 `default`。默认的 `opcua-module` 是一个独立的
 
 Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 和 `localhost`：
 
-![Ignition 默认 endpoint](../assets/opcua-ignition-01-endpoint-default.png)
+![Ignition 默认 endpoint](../../../assets/opcua-ignition-01.png)
 
 在这种状态下，如果 TDengine 与 Ignition 位于不同的服务器，会因为 Ignition 只在本地端口 `62541` 监听而连接失败。需要把 Bind Addresses 改为 `0.0.0.0`，并把 Ignition 服务器的 IP 添加到 Endpoint Addresses：
 
-![Ignition 重新绑定到 0.0.0.0](../assets/opcua-ignition-02-endpoint-bind-all.png)
+![Ignition 重新绑定到 0.0.0.0](../../../assets/opcua-ignition-02.png)
 
 可以通过 `cmd` 命令 `netstat -ano | findstr 62541` 验证 Ignition 是否已监听在 `0.0.0.0:62541`：
 
-![netstat 验证监听地址](../assets/opcua-ignition-03-netstat.png)
+![netstat 验证监听地址](../../../assets/opcua-ignition-03.png)
 
 完成上述配置后，在 taosExplorer 中以匿名模式即可与 Ignition OPC UA Server 建立连接：
 
-![taosExplorer 匿名连接 Ignition](../assets/opcua-ignition-04-explorer-anonymous.png)
+![taosExplorer 匿名连接 Ignition](../../../assets/opcua-ignition-04.png)
 
 :::warning
 匿名模式不进行任何身份与传输层加密，**只建议在内网联调时短时间使用**，正式部署请使用证书加密方式。
@@ -97,7 +97,7 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 - **Security Mode** 设为 `SignAndEncrypt`
 - **User Source** 设为 `default`
 
-![Ignition 安全配置](../assets/opcua-ignition-05-security-config.png)
+![Ignition 安全配置](../../../assets/opcua-ignition-05.png)
 
 ### 3.2 生成客户端证书
 
@@ -133,7 +133,7 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 
 完成后再次点击 **Check Connection** 验证连通性：
 
-![taosExplorer 证书连接 Ignition](../assets/opcua-ignition-06-explorer-cert.png)
+![taosExplorer 证书连接 Ignition](../../../assets/opcua-ignition-06.png)
 
 ## 4. 常见错误排查
 

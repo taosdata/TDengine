@@ -18,7 +18,7 @@ TDengine 可以高效地从 OPC UA 服务器读取数据并将其写入 TDengine
 
 在数据写入页面中，点击 **+新增数据源** 按钮，进入新增数据源页面。
 
-![add.png](../assets/opcua-01-add.png)
+![add.png](../../../assets/opcua-01.png)
 
 ### 2. 配置基本信息
 
@@ -30,7 +30,7 @@ TDengine 可以高效地从 OPC UA 服务器读取数据并将其写入 TDengine
 
 在 **目标数据库** 下拉列表中选择一个目标数据库，也可以先点击右侧的 **+创建数据库** 按钮。
 
-![basic.png](../assets/opcua-01-basic.png)
+![basic.png](../../../assets/opcua-02.png)
 
 ### 3. 配置连接信息
 
@@ -49,7 +49,7 @@ TDengine 可以高效地从 OPC UA 服务器读取数据并将其写入 TDengine
 - Aes128Sha256RsaOaep：使用 AES-128 算法进行通信数据的加解密，并使用 SHA-256 算法对数字签名进行加密，并使用 RSA 算法和 OAEP 模式用于加解密对称通信密钥。
 - Aes256Sha256RsaPss：使用 AES-256 算法进行通信数据的加解密，并使用 SHA-256 算法对数字签名进行加密，并使用 RSA 算法和 PSS 模式用于加解密对称通信密钥。
 
-![endpoint.png](../assets/opcua-02-endpoint.png)
+![endpoint.png](../../../assets/opcua-03.png)
 
 :::tip
 当**安全模式**选择 `Sign` 或 `SignAndEncrypt` 时，**安全通信证书** 与 **安全通信私钥** 两个配置项都必须填写。证书与私钥的生成方法见 [生成 taosX OPC UA 客户端证书](./01-client-certificate.md)。
@@ -72,7 +72,7 @@ TDengine 可以高效地从 OPC UA 服务器读取数据并将其写入 TDengine
 2. 用户名和密码
 3. 证书访问：可以和安全通信证书相同，也可以用不同的证书。
 
-![auth](../assets/opcua-04-auth.png)
+![auth](../../../assets/opcua-04.png)
 
 配置好连接属性和认证方式后，点击 **连通性检查** 按钮，检查数据源是否可用。如果使用安全通信证书或认证证书，则证书必须在 OPC UA 服务端被信任，否则依然无法通过。
 
@@ -88,7 +88,7 @@ TDengine 可以高效地从 OPC UA 服务器读取数据并将其写入 TDengine
 
 #### 5.1. 选择数据点位
 
-![point.png](../assets/opcua-06-point.png)
+![point.png](../../../assets/opcua-05.png)
 
 ##### 筛选点位
 
@@ -225,7 +225,7 @@ VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::browse::{BrowseName};VARCHAR(200)::l
 
 你可以下载 CSV 空模板并按模板配置点位信息，然后上传 CSV 配置文件来配置点位；或者根据所配置的筛选条件下载数据点位，并以 CSV 模板所制定的格式下载。
 
-![上传 CSV 配置文件](../assets/opcua-05-csv.png)
+![上传 CSV 配置文件](../../../assets/opcua-06.png)
 
 CSV 文件的核心规则：
 
@@ -254,7 +254,7 @@ A&E 采集的数据入库规则（超级表 / 子表命名、字段类型映射�
 
 在采集配置中，配置当前任务的采集模式、采集间隔、采集超时等选项。
 
-![connect](../assets/opcua-07-collect.png)
+![connect](../../../assets/opcua-07.png)
 
 如上图所示，其中：
 
@@ -275,7 +275,7 @@ A&E 采集的数据入库规则（超级表 / 子表命名、字段类型映射�
 
 ### 7. 高级选项
 
-![advance options](../assets/opcua-07-advance.png)
+![advance options](../../../assets/opcua-08.png)
 
 如上图所示，配置高级选项对性能、日志等进行更加详尽的优化。
 
@@ -310,10 +310,10 @@ A&E 采集的数据入库规则（超级表 / 子表命名、字段类型映射�
 
 在任务运行中，点击 **编辑**，点击 **增加数据点位** 按钮，可以手动在 CSV 配置文件中，追加一个 OPC UA 数据点位的规则。增加数据点位不需要任务重启，不会产生数据丢失。
 
-![增加数据点位](../assets/opc-08-add-point.png)
+![增加数据点位](../../../assets/opcua-09.png)
 
 在弹出的表单中，填写数据点位的信息。
 
-![数据点位表单](../assets/opc-09-add-point.png)
+![数据点位表单](../../../assets/opcua-10.png)
 
 点击 **确定** 按钮，完成数据点位的追加。

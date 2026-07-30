@@ -17,7 +17,7 @@ OpenTSDB 是一个架构在 HBase 系统之上的实时监控信息收集和展�
 
 在数据写入页面中点击 **+新增数据源** 按钮进入新增数据源页面，如下图所示：
 
-![Common-zh00-EnterDataSourcePage.png](./assets/Common-zh00-EnterDataSourcePage.png "进入新增数据源页面")
+![Common-zh00-EnterDataSourcePage.png](../../assets/kinghist-01.png "进入新增数据源页面")
 
 ### 2. 配置基本信息
 
@@ -29,24 +29,24 @@ OpenTSDB 是一个架构在 HBase 系统之上的实时监控信息收集和展�
 
 **目标数据库** 是必填项，由于 OpenTSDB 存储数据的时间精度是毫秒，所以这里需要选择一个 *`毫秒精度的数据库`* ，也可以先点击右侧的 **+创建数据库** 按钮
 
-![OpenTSDB-02zh-SelectTheTypeAsOpenTSDB.png](./assets/OpenTSDB-02zh-SelectTheTypeAsOpenTSDB.png "选择数据源类型为OpenTSDB")
+![OpenTSDB-02zh-SelectTheTypeAsOpenTSDB.png](../../assets/OpenTSDB-02zh-SelectTheTypeAsOpenTSDB.png "选择数据源类型为OpenTSDB")
 
 ### 3. 配置连接信息
 
 在 **连接配置** 区域填写 *`源 OpenTSDB 数据库的连接信息`*，如下图所示：
 
-![OpenTSDB-03zh-FillInTheConnectionInformation.png](./assets/OpenTSDB-03zh-FillInTheConnectionInformation.png "填写源OpenTSDB数据库的连接信息")
+![OpenTSDB-03zh-FillInTheConnectionInformation.png](../../assets/OpenTSDB-03zh-FillInTheConnectionInformation.png "填写源OpenTSDB数据库的连接信息")
 
 在 **连接配置** 区域的下方有一个 **连通性检查** 按钮，用户可以点击此按钮检查上方填写的信息是否可以正常获取源 OpenTSDB 数据库的数据，检查结果如下图所示：  
   **失败**  
-  ![OpenTSDB-04zh-ConnectivityCheckFailed.png](./assets/OpenTSDB-04zh-ConnectivityCheckFailed.png "连通性检查失败")  
+  ![OpenTSDB-04zh-ConnectivityCheckFailed.png](../../assets/OpenTSDB-04zh-ConnectivityCheckFailed.png "连通性检查失败")  
   **成功**  
-  ![OpenTSDB-05zh-ConnectivityCheckSuccessful.png](./assets/OpenTSDB-05zh-ConnectivityCheckSuccessful.png "连通性检查成功")
+  ![OpenTSDB-05zh-ConnectivityCheckSuccessful.png](../../assets/OpenTSDB-05zh-ConnectivityCheckSuccessful.png "连通性检查成功")
 
 ### 4. 配置任务信息
 
 **物理量 Metrics** 是 OpenTSDB 数据库中存储数据的物理量，用户可以指定多个需要同步的物理量，未指定则同步数据库中的全部数据。如果用户指定物理量，需要先点击右侧的 **获取 Metrics** 按钮获取当前源 OpenTSDB 数据库的所有物理量信息，然后在下拉框中进行选择，如下图所示：
-![OpenTSDB-06zh-GetAndSelectMetrics.png](./assets/OpenTSDB-06zh-GetAndSelectMetrics.png "获取并选择物理量")
+![OpenTSDB-06zh-GetAndSelectMetrics.png](../../assets/OpenTSDB-06zh-GetAndSelectMetrics.png "获取并选择物理量")
 
 **起始时间** 是指源 OpenTSDB 数据库中数据的起始时间，起始时间的时区使用 explorer 所选时区，此项为必填字段。
 

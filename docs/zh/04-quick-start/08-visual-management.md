@@ -42,7 +42,7 @@ http://localhost:6060
 
 进入“数据浏览器”页面，可以查看当前实例中的数据库、超级表、子表和普通表。
 
-![taosExplorer 数据浏览器](./assets/explorer.png)
+![taosExplorer 数据浏览器](../assets/visual-management-01.png)
 
 如果你使用前几章的智能电表示例，可以依次展开：
 

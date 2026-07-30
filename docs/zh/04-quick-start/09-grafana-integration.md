@@ -121,7 +121,7 @@ FILL(NULL);
 
 然后再运行查询，Grafana 会展示该时间段内平均电流随时间变化的曲线。
 
-![Grafana Dashboard](./assets/grafana.png)
+![Grafana Dashboard](../assets/grafana-integration-01.png)
 
 如果图表为空，请确认时间范围已覆盖 `2017-07-14 10:40:00` 到 `2017-07-14 10:40:10`，并确认 `test.meters` 中已有快速体验写入的数据。
 

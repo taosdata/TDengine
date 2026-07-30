@@ -7,7 +7,7 @@ toc_max_heading_level: 4
 
 在 TDengine 的安装包中，除了 TDengine 数据库引擎 `taosd` 以外，还提供了一些附加组件，以方便你的使用。`taosAdapter` 是应用和 TDengine 之间的桥梁；`taosKeeper` 是 TDengine 监控指标的导出工具；`taosX` 是数据管道（data pipeline）工具；`taosExplorer` 是可视化图形管理工具；`taosc` 是 TDengine 客户端驱动。下图展示了整个 TDengine 产品生态的拓扑架构（组件 `taosX`、`taosX Agent` 仅 TDengine TSDB Enterprise 提供）。
 
-![TDengine 产品生态拓扑架构](02-operations/assets/tdengine-topology.png)
+![TDengine 产品生态拓扑架构](../assets/security-suggestions-01.png)
 
 本章内容导航：
 
