@@ -43,7 +43,7 @@ TDengine 既不依赖任何第三方软件，也不是对既有开源数据库�
 
 <figure>
 
-![TDengine 技术生态图](assets/introduction-01.png)
+![TDengine 技术生态图](../assets/product-intro-01.png)
 
 <figcaption>技术生态图</figcaption>
 </figure>

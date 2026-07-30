@@ -58,7 +58,7 @@ taosX 通过 PI 连接器插件从 PI 系统中提取实时数据或历史数据
 
 在数据写入页面中，点击 **+新增数据源** 按钮，进入新增数据源页面。
 
-![新增数据源](../assets/pi-01-new.png)
+![新增数据源](../../../assets/pi-01.png)
 
 ### 3. 配置基本信息
 
@@ -73,7 +73,7 @@ taosX 通过 PI 连接器插件从 PI 系统中提取实时数据或历史数据
 
 在 **目标数据库** 下拉列表中选择一个目标数据库，也可以先点击右侧的 **+创建数据库** 按钮创建一个新的数据库。
 
-![基本配置](../assets/pi-01-agent.png)
+![基本配置](../../../assets/pi-02.png)
 
 :::tip
 关于代理部署的详细架构选型，请参阅 [部署架构](./02-deployment-architecture.md)。
@@ -87,7 +87,7 @@ PI 连接器支持两种连接方式：
 
 不使用 AF 模式，直接连接 PI Data Archive。填写 **PI 服务名**（服务器地址，通常使用主机名）。
 
-![PI Data Archive Only](../assets/pi-02-connect-archive-only.png)
+![PI Data Archive Only](../../../assets/pi-03.png)
 
 #### 4.2 PI Data Archive + AF Server
 
@@ -96,7 +96,7 @@ PI 连接器支持两种连接方式：
 - **PI 系统 (AF Server) 名称**：AF Server 的主机名
 - **AF 数据库名**：要连接的 AF 数据库名称
 
-![PI Data Archive + AF Server](../assets/pi-03-connect-af.png)
+![PI Data Archive + AF Server](../../../assets/pi-04.png)
 
 配置完成后，点击 **连通性检查** 按钮，验证数据源是否可用。
 
@@ -118,7 +118,7 @@ PI 连接器支持两种连接方式：
 Dataset Filter 的语法、可用单位及注意事项，请参阅 [Dataset Filter 配置](./07-dataset-filter.md)。
 :::
 
-![数据模型配置](../assets/pi-04-data-model.png)
+![数据模型配置](../../../assets/pi-05.png)
 
 关于模型配置文件的完整格式说明，请参阅 [模型配置文件参考](./03-csv-reference.md)。
 
@@ -133,11 +133,11 @@ Dataset Filter 的语法、可用单位及注意事项，请参阅 [Dataset Filt
 
 **PI 实时任务 — 重启补偿时间：**
 
-![实时任务自动回填配置](../assets/pi-05-backfill-realtime.png)
+![实时任务自动回填配置](../../../assets/realtime-guide-01.png)
 
 **PI backfill 任务 — 回填时间范围：**
 
-![回填任务时间范围配置](../assets/pi-06-backfill-history.png)
+![回填任务时间范围配置](../../../assets/backfill-guide-01.png)
 
 :::tip
 关于回填任务的详细最佳实践，请参阅 [历史数据回填指南](./04-backfill-guide.md)。关于实时任务的高级功能说明，请参阅 [实时数据同步指南](./05-realtime-guide.md)。
@@ -169,7 +169,7 @@ Dataset Filter 的语法、可用单位及注意事项，请参阅 [Dataset Filt
 | 同步删除历史数据 | 打开后，PI 中被删除的时序数据对应的 TDengine 列值会被置空                      |
 | 同步修改历史数据 | 打开后，PI 中修改的历史数据会同步更新到 TDengine                               |
 
-![高级选项](../assets/pi-07-advanced-options.png)
+![高级选项](../../../assets/pi-06.png)
 
 ### 8. 提交任务
 

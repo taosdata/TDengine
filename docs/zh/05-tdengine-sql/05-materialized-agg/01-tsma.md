@@ -8,7 +8,7 @@ description: 使用 TSMA 按时间窗口预计算聚合结果以加速查询
 
 块内 SMA 粒度较小；若查询时间范围为日、月甚至年，涉及的数据块会很多。TSMA（Time-Range Small Materialized Aggregates）支持按用户指定的时间窗口做预聚集：对固定时间窗口内的数据预计算并落盘，查询时优先使用预计算结果以提升性能。
 
-![TSMA 示意](assets/TSMA_intro.png)
+![TSMA 示意](../../assets/tsma-01.png)
 
 ## 创建 TSMA
 

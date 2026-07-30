@@ -42,7 +42,7 @@ TDengine 在不同组件中均支持使用 IANA 时区（除 Windows taos.cfg �
 
 夏令时（Daylight Saving Time，DST）是一种通过将时间提前一小时，以充分利用日光、节约能源的制度。通常在春季开始，秋季结束。夏令时的具体开始和结束时间因地区而异。以下均以柏林时间为例，对夏令时和夏令时的影响做说明。
 
-![DST Berlin](02-dst/assets/dst-berlin.png)
+![DST Berlin](../../assets/dst-01.png)
 
 按该规则可见：
 
@@ -93,7 +93,7 @@ SELECT * from t1 where ts >= '2024-10-27T01:59:59.000Z';
 
 下表展示夏令时对写入与查询的影响。
 
-![DST Table](02-dst/assets/dst-table.png)
+![DST Table](../../assets/dst-02.png)
 
 ### 表格说明
 
@@ -284,7 +284,7 @@ SELECT * from t1 where ts >= '2024-10-27T01:59:59.000Z';
 
   - Explorer：使用 Explorer 页面进行 SQL 查询时，用户可配置客户端时区，以 RFC3339 格式显示。
 
-    ![Explorer DST](02-dst/assets/explorer-with-tz.png)
+    ![Explorer DST](../../assets/dst-03.png)
 
 ## 参考文档
 

@@ -17,7 +17,7 @@ TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实�
 
 在数据写入页面中，点击 **+新增数据源** 按钮，进入新增数据源页面。
 
-![kafka-01.png](assets/kafka-01.png)
+![kafka-01.png](../../assets/no-code-ingestion-kafka-01.png)
 
 ### 2. 配置基本信息
 
@@ -29,7 +29,7 @@ TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实�
 
 在 **目标数据库** 下拉列表中选择一个目标数据库，也可以先点击右侧的 **+创建数据库** 按钮
 
-![kafka-02.png](assets/kafka-02.png)
+![kafka-02.png](../../assets/no-code-ingestion-kafka-02.png)
 
 ### 3. 配置连接信息
 
@@ -39,7 +39,7 @@ TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实�
 
 多个 broker 地址时，在连接配置右下增加 **新增 Broker** 按钮，成对增加 bootstrap-server 和服务端口。
 
-![kafka-03.png](assets/kafka-03.png)
+![kafka-03.png](../../assets/no-code-ingestion-kafka-03.png)
 
 ### 4. 配置 SASL 认证机制
 
@@ -49,19 +49,19 @@ TDengine 可以高效地从 Kafka 读取数据并将其写入 TDengine，以实�
 
 选择 `PLAIN` 认证机制，输入用户名和密码：
 
-![kafka-04-sasl-plain.png](assets/kafka-04-sasl-plain.png)
+![kafka-04-sasl-plain.png](../../assets/no-code-ingestion-kafka-04.png)
 
 #### 4.2. SCRAM(SCRAM-SHA-256) 认证
 
 选择 `SCRAM-SHA-256` 认证机制，输入用户名和密码：
 
-![kafka-04.png](assets/kafka-04.png)
+![kafka-04.png](../../assets/no-code-ingestion-kafka-05.png)
 
 #### 4.3. GSSAPI 认证
 
 选择 `GSSAPI` ，将通过 [RDkafka 客户端](https://github.com/confluentinc/librdkafka) 调用 GSSAPI 应用 Kerberos 认证机制：
 
-![kafka-04-sasl-gssapi.png](assets/kafka-04-sasl-gssapi.png)
+![kafka-04-sasl-gssapi.png](../../assets/no-code-ingestion-kafka-06.png)
 
 需要输入的信息有：
 
@@ -93,7 +93,7 @@ kcat <topic> \
 
 如果服务端开启了 SSL 加密认证，此处需要启用 SSL 并配置相关内容。
 
-![kafka-05.png](assets/kafka-05.png)
+![kafka-05.png](../../assets/no-code-ingestion-kafka-07.png)
 
 ### 6. 配置采集信息
 
@@ -118,7 +118,7 @@ kcat <topic> \
 
 点击 **连通性检查** 按钮，检查数据源是否可用。
 
-![kafka-06.png](assets/kafka-06.png)
+![kafka-06.png](../../assets/no-code-ingestion-kafka-08.png)
 
 ### 7. 配置 Payload 解析
 
@@ -130,7 +130,7 @@ Kafka 支持针对不同的数据结构使用不同的解析规则，在对 payl
 2. 从列中提取或拆分 / 过滤 / 映射 块的填写规则保持不变
 3. 规则块可以添加/删除，但受限于表字段大小限制，不可无限添加
 
-![kafka-multi-datastructures](assets/kafka-multi-datastructures.png)
+![kafka-multi-datastructures](../../assets/no-code-ingestion-kafka-09.png)
 
 #### 7.1 解析
 
@@ -157,11 +157,11 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 解析结果如下所示：
 
-![kafka-07.png](assets/kafka-07.png)
+![kafka-07.png](../../assets/no-code-ingestion-kafka-10.png)
 
 点击 **放大镜图标**  可查看预览解析结果。
 
-![kafka-08.png](assets/kafka-08.png)
+![kafka-08.png](../../assets/no-code-ingestion-kafka-11.png)
 
 #### 7.2 字段拆分
 
@@ -171,11 +171,11 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 点击 **删除**，可以删除当前提取规则。
 
-![kafka-09.png](assets/kafka-09.png)
+![kafka-09.png](../../assets/no-code-ingestion-kafka-12.png)
 
 点击 **放大镜图标** 可查看预览提取/拆分结果。
 
-![kafka-10.png](assets/kafka-10.png)
+![kafka-10.png](../../assets/no-code-ingestion-kafka-13.png)
 
 #### 7.3 数据过滤
 
@@ -185,11 +185,11 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 点击 **删除**，可以删除当前过滤规则。
 
-![kafka-11.png](assets/kafka-11.png)
+![kafka-11.png](../../assets/no-code-ingestion-kafka-14.png)
 
 点击 **放大镜图标** 可查看预览过滤结果。
 
-![kafka-12.png](assets/kafka-12.png)
+![kafka-12.png](../../assets/no-code-ingestion-kafka-15.png)
 
 #### 7.4 表映射
 
@@ -197,11 +197,11 @@ json 数据支持 JSONObject 或者 JSONArray，使用 json 解析器可以解�
 
 在 **映射** 中，填写目标超级表中的子表名称，例如：`t_{id}`。根据需求填写映射规则，其中 mapping 支持设置缺省值。
 
-![kafka-13.png](assets/kafka-13.png)
+![kafka-13.png](../../assets/no-code-ingestion-kafka-16.png)
 
 点击 **预览**，可以查看映射的结果。
 
-![kafka-14.png](assets/kafka-14.png)
+![kafka-14.png](../../assets/no-code-ingestion-kafka-17.png)
 
 ### 8. 配置高级选项
 

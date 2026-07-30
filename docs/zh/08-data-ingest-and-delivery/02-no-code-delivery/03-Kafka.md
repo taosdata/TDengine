@@ -62,7 +62,7 @@ INSERT INTO db.tb USING db.meters TAGS (1) VALUES (now, 1);
 
 ## 基本配置说明
 
-![基本信息配置区块](./pic/kafka-01-basic-info.webp)
+![基本信息配置区块](../../assets/no-code-delivery-kafka-01.webp)
 
 上图展示了创建 Kafka 数据发布任务时的“基本信息”配置区块。
 
@@ -78,7 +78,7 @@ INSERT INTO db.tb USING db.meters TAGS (1) VALUES (now, 1);
 - `prod-device-data-to-kafka`
 - `tmq_order_meta_to_kafka`
 
-![TDengine 数据订阅配置区块](./pic/kafka-02-tdengine-subscription.webp)
+![TDengine 数据订阅配置区块](../../assets/no-code-delivery-kafka-02.webp)
 
 上图展示了 TDengine TMQ 订阅参数和订阅控制项配置区块。
 
@@ -165,7 +165,7 @@ tmq+ws://root:taosdata@localhost:6041/topic_meters?group.id=pub-kafka-demo&auto.
 
 ## Kafka 连接配置
 
-![Kafka 连接配置区块](./pic/kafka-03-kafka-connection.webp)
+![Kafka 连接配置区块](../../assets/no-code-delivery-kafka-03.webp)
 
 上图展示了 Kafka Broker 连接与认证参数配置区块。
 
@@ -242,7 +242,7 @@ kinit -R -t '%{sasl.kerberos.keytab}' -k %{sasl.kerberos.principal}
 
 ## Kafka 发布配置
 
-![Kafka 发布配置区块](./pic/kafka-04-kafka-publish.webp)
+![Kafka 发布配置区块](../../assets/no-code-delivery-kafka-04.webp)
 
 上图展示了 Kafka Topic、消息 Key 和 Topic 管理相关配置区块。
 
@@ -336,7 +336,7 @@ kinit -R -t '%{sasl.kerberos.keytab}' -k %{sasl.kerberos.principal}
 
 ## 高级选项
 
-![高级选项配置区块](./pic/kafka-05-advanced-options.webp)
+![高级选项配置区块](../../assets/no-code-delivery-kafka-05.webp)
 
 上图展示了 Kafka Producer 的并发、批处理和扩展参数配置区块。
 
@@ -411,7 +411,7 @@ linger.ms=100
 
 ### 连通性检查
 
-![连通性检查区块](./pic/kafka-06-connectivity-check.webp)
+![连通性检查区块](../../assets/no-code-delivery-kafka-06.webp)
 
 上图展示了任务保存前的连通性检查入口。
 
@@ -426,7 +426,7 @@ linger.ms=100
 
 ### 预览
 
-![预览参数区块](./pic/kafka-07-preview.webp)
+![预览参数区块](../../assets/no-code-delivery-kafka-07.webp)
 
 上图展示了预览数据条数和等待时间配置区块。
 
@@ -445,7 +445,7 @@ linger.ms=100
 
 如果在等待时间内未获取到数据，系统会提示当前条件下没有可预览的消息。
 
-![Kafka 发布预览区块](./pic/kafka-08-preview-result.webp)
+![Kafka 发布预览区块](../../assets/no-code-delivery-kafka-08.webp)
 
 上图展示了 Kafka 发布预览结果区域。
 

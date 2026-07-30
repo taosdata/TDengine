@@ -83,7 +83,7 @@ window_clause: {
 
 查询对象是超级表时，聚合函数会作用于该超级表下满足过滤条件的所有表数据，返回结果按窗口起始时间严格单调递增；若使用 `PARTITION BY` 分组，则每个分组内按窗口起始时间严格单调递增。
 
-![时间窗口示意图](assets/time_window.webp)
+![时间窗口示意图](../../assets/distinguished-01.webp)
 
 `INTERVAL` 与 `SLIDING` 通常配合聚合函数和选择函数使用；在 [窗口投影模式](#窗口投影模式) 下，也可以输出原始列。
 
@@ -120,7 +120,7 @@ SELECT COUNT(*) FROM meters WHERE _rowts - voltage > 1000000;
 
 状态窗口根据一个或多个状态键的连续性划分窗口（从 `v3.4.2.0` 版本开始支持多个状态键）。状态键支持整数、布尔值和字符串类型，也支持返回这些类型的表达式，例如 `CASE WHEN`、`IF`、比较表达式、`IN`、`BETWEEN`、`IS NULL` / `IS NOT NULL` 以及由 `AND`、`OR`、`NOT` 组合的逻辑表达式。相邻记录的状态键会按 SQL 中的书写顺序逐项比较，只要任意一项发生变化，就会关闭当前窗口并开启新窗口。如下图展示的是单状态键场景，对应的两个窗口分别是 [2019-04-28 14:22:07，2019-04-28 14:22:10] 和 [2019-04-28 14:22:11，2019-04-28 14:22:12]。
 
-![状态窗口示意图](assets/state_window.png)
+![状态窗口示意图](../../assets/distinguished-02.png)
 
 状态窗口语法如下：
 
@@ -336,7 +336,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR 
 
 会话窗口根据记录时间戳主键的值判断是否属于同一会话。如下图所示，若连续时间戳间隔小于等于 12 秒，则以下 6 条记录构成 2 个会话窗口，分别是 `[2019-04-28 14:22:10，2019-04-28 14:22:30]` 和 `[2019-04-28 14:23:10，2019-04-28 14:23:30]`。因为 `2019-04-28 14:22:30` 与 `2019-04-28 14:23:10` 的时间间隔为 40 秒，超过了连续时间间隔（12 秒）。
 
-![会话窗口示意图](assets/session_window.png)
+![会话窗口示意图](../../assets/distinguished-03.png)
 
 在 `tol_val` 时间间隔范围内的记录归属于同一窗口；若连续两条记录的时间间隔超过 `tol_val`，则自动开启下一个窗口。
 
@@ -369,7 +369,7 @@ EVENT_WINDOW START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupI
 SELECT _wstart, _wend, COUNT(*) FROM t EVENT_WINDOW START WITH c1 > 0 END WITH c2 < 10;
 ```
 
-![事件窗口示意图](assets/event_window.png)
+![事件窗口示意图](../../assets/distinguished-04.png)
 
 事件窗口支持使用 `TRUE_FOR` 参数来设定窗口整体过滤条件，以及开窗/关窗连续满足门限。三种参数均可选，顺序任意，最多各出现一次：
 
@@ -430,7 +430,7 @@ SELECT _wstart, _wend, COUNT(*) FROM t EVENT_WINDOW START WITH c1 > 0 END WITH c
 SELECT _wstart, _wend, COUNT(*) FROM t COUNT_WINDOW(4);
 ```
 
-![计数窗口示意图](assets/count_window.png)
+![计数窗口示意图](../../assets/distinguished-05.png)
 
 ### 外部窗口
 

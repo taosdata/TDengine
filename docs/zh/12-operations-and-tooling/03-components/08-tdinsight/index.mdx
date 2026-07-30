@@ -38,7 +38,7 @@ TDengine 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、带宽�
 ## 导入 TDinsightV3 仪表盘
 
 - **推荐方式**：在配置好数据源后，点击“Settings”右侧的“Dashboards”，会显示数据源自带的仪表盘，然后选择“TDengine for 3.x”右侧的“Import”进行导入。  
-![TDinsight V3 import](./assets/import-tdinsightv3.webp)  
+![TDinsight V3 import](../../../assets/tdinsight-01.webp)  
 
 - 使用 Dashboard ID 导入：在 Grafana 主界面左侧，依次点击“Dashboards”Tab、右上角“New”选项下的“Import”，输入“TDengine for 3.x”仪表盘的 Dashboard ID `18180`，进行导入。
 - 使用 JSON 配置导入：
@@ -57,7 +57,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 这部分指标包括集群当前信息和状态。
 
-![TDengine Database TDinsight mnodes overview](./assets/TDinsight-1-cluster-status.webp)
+![TDengine Database TDinsight mnodes overview](../../../assets/tdinsight-02.webp)
 
 指标详情（从上到下，从左到右）：
 
@@ -76,7 +76,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 这部分指标包括集群 dnode 基本信息。
 
-![TDengine Database TDinsight mnodes overview](./assets/TDinsight-2-dnodes.webp)
+![TDengine Database TDinsight mnodes overview](../../../assets/tdinsight-03.webp)
 
 指标详情：
 
@@ -87,7 +87,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 这部分指标包括集群 mnode 基本信息。
 
-![TDengine Database TDinsight mnodes overview](./assets/TDinsight-3-mnodes.webp)
+![TDengine Database TDinsight mnodes overview](../../../assets/tdinsight-04.webp)
 
 指标详情：
 
@@ -98,7 +98,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 这部分指标包括集群执行 sql 的统计指标。
 
-![TDengine Database TDinsight requests](./assets/TDinsight-4-requests.webp)
+![TDengine Database TDinsight requests](../../../assets/tdinsight-05.webp)
 
 指标详情：
 
@@ -112,7 +112,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 这部分指标包括集群中表的统计指标。
 
-![TDengine Database TDinsight database](./assets/TDinsight-5-database.webp)
+![TDengine Database TDinsight database](../../../assets/tdinsight-06.webp)
 
 指标详情：
 
@@ -125,7 +125,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 这部分指标包括集群所有数据节点资源使用情况展示，每个数据节点为一个 Row 进行展示。。
 
-![TDengine Database TDinsight dnode-usage](./assets/TDinsight-6-dnode-usage.webp)
+![TDengine Database TDinsight dnode-usage](../../../assets/tdinsight-07.webp)
 
 指标详情（从上到下，从左到右）：
 
@@ -147,7 +147,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 
 这部分指标包括 taosAdapter rest 和 websocket 请求统计详情。
 
-![TDengine Database TDinsight monitor taosadapter](./assets/TDinsight-8-taosadapter.webp)
+![TDengine Database TDinsight monitor taosadapter](../../../assets/tdinsight-08.webp)
 
 指标详情：
 
@@ -166,12 +166,12 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源的使用情况和状态，
 从 TDengine server 3.3.4.3 版本（tdengine-datasource 3.6.3）开始，TDengine Datasource 支持预配置告警规则自动导入功能，用户可将 14 个告警规则一键导入 Grafana（**11 及以上版本**），直接使用。  
 预配置告警规则导入方法如下图所示，在 tdengine-datasource setting 界面，打开“Load TDengine Alert”开关，点击“Save & test”按钮后，插件会自动加载上述告警规则，规则会放入以数据源名称 + “-alert”的 grafana 告警目录中。如不需要，关闭“Load TDengine Alert”开关，点击“Clear TDengine Alert”旁边的按钮则会清除此数据源已导入的所有告警规则。
 
-![TDengine Alert](./assets/TDengine-Alert.webp)  
+![TDengine Alert](../../../assets/tdinsight-09.webp)  
 
 导入后，点击 Grafana 左侧“Alert rules” ，可查看当前所有告警规则。
 用户只需配置联络点（Contact points），即可获取告警通知。联络点配置方法见[告警配置](https://docs.taosdata.com/third-party/visual/grafana/#%E5%91%8A%E8%AD%A6%E9%85%8D%E7%BD%AE)。
 
-![Alert-rules](./assets/Alert-rules.webp)
+![Alert-rules](../../../assets/tdinsight-10.webp)
 
 14 个告警规则具体配置如下：  
 

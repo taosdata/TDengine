@@ -11,7 +11,7 @@ toc_max_heading_level: 4
 1. Arbitrator：仲裁服务，不存储数据，VGroup 因某一 Vnode 故障而无法提供服务时，Arbitrator 可根据数据同步情况指定 VGroup 内另一 Vnode 成为 Assigned Leader
 2. AssignedLeader：被强制设置为 Leader 的 Vnode，无论其他副本 Vnode 是否存活，均可一直响应用户请求
 
-![replica2.png](../assets/replica2.png)
+![replica2.png](../../../assets/replica2-01.png)
 
 ## 集群配置
 

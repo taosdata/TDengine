@@ -173,7 +173,7 @@ Query OK, 3 row(s) in set
 
 窗口查询用于把时序数据按时间、状态、事件或行数切分，再在每个窗口内计算。快速上手阶段可以先理解下面几类窗口：
 
-![常用窗口划分逻辑](../05-tdengine-sql/04-data-query/assets/window.png)
+![常用窗口划分逻辑](../assets/query-and-aggregate-01.png)
 
 - 时间窗口：按固定时间间隔切分，使用 `INTERVAL`。
 - 滑动窗口：在时间窗口基础上设置滑动步长，使用 `SLIDING`。

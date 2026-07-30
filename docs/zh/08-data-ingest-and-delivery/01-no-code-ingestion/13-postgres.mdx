@@ -17,7 +17,7 @@ TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，�
 
 在数据写入页面中点击 **+新增数据源** 按钮进入新增数据源页面，如下图所示：
 
-![Common-zh00-EnterDataSourcePage.png](./assets/Common-zh00-EnterDataSourcePage.png "进入新增数据源页面")
+![Common-zh00-EnterDataSourcePage.png](../../assets/kinghist-01.png "进入新增数据源页面")
 
 ### 2. 配置基本信息
 
@@ -29,13 +29,13 @@ TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，�
 
 **目标数据库** 是必填项，可以先点击右侧的 **+创建数据库** 按钮创建一个新的数据库。
 
-![postgres-01.png](./assets/postgres-01.png "选择数据源类型为 PostgreSQL")
+![postgres-01.png](../../assets/postgres-01.png "选择数据源类型为 PostgreSQL")
 
 ### 3. 配置连接信息
 
 在 **连接配置** 区域填写 *`源 PostgreSQL 数据库的连接信息`*，如下图所示：
 
-![postgres-02.png](./assets/postgres-02.png "填写源 PostgreSQL 数据库的连接信息")
+![postgres-02.png](../../assets/postgres-02.png "填写源 PostgreSQL 数据库的连接信息")
 
 ### 4. 配置认证信息
 
@@ -43,7 +43,7 @@ TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，�
 
 **密码** 输入源 PostgreSQL 数据库中上方用户的登录密码。
 
-![ postgres-03.png](./assets/postgres-03.png "配置认证信息")  
+![ postgres-03.png](../../assets/postgres-03.png "配置认证信息")  
 
 ### 5. 配置连接选项
 
@@ -51,7 +51,7 @@ TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，�
 
 **SSL 模式** 设置是否与服务器协商安全 SSL TCP/IP 连接或以何种优先级进行协商。默认值是 PREFER。可选项有 DISABLE、ALLOW、PREFER、REQUIRE。
 
-![ postgres-04.png](./assets/postgres-04.png "配置连接选项")  
+![ postgres-04.png](../../assets/postgres-04.png "配置连接选项")  
 
 然后点击 **检查连通性** 按钮，用户可以点击此按钮检查上方填写的信息是否可以正常获取源 PostgreSQL 数据库的数据。
 
@@ -81,7 +81,7 @@ TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，�
 
 **延迟时长** 与 **查询间隔** 配合使用。在实时同步数据场景中，为了避免延迟写入的数据丢失，每次同步任务会在时间间隔 + 延迟时长的时间点触发查询。例如：时间间隔为 3600s，延迟时长为 60 秒，那么查询任务会在 09:01 时触发查询源数据库中 08:00 - 09:00 时间段的数据。
 
-![ postgres-05.png](./assets/postgres-05.png "配置数据采集")
+![ postgres-05.png](../../assets/postgres-05.png "配置数据采集")
 
 ### 7. 配置数据映射
 
@@ -97,7 +97,7 @@ TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，�
 
 点击 **预览**，可以查看映射的结果。
 
-![postgres-06.png](assets/postgres-06.png)
+![postgres-06.png](../../assets/postgres-01.png)
 
 ### 8. 配置高级选项
 

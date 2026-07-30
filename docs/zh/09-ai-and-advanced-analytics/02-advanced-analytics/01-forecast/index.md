@@ -4,7 +4,7 @@ description: 介绍 TDgpt 内置时序数据预测模型
 sidebar_label: 预测分析
 ---
 
-import covariate from '../assets/fc-covariate.png';
+import covariate from '../../../assets/fc-covariate.png';
 
 时序数据预测分析以持续一个时间段的时序数据作为输入，预测接下来一个连续时间区间内的时间序列数据趋势，并且用户可以指定（预测）输出的时间序列数据点数量。TDengine 引入 SQL 函数 `FORECAST` 提供预测分析功能。用于预测的历史时间序列是该函数的输入，输出即为预测结果。用户可以通过 `FORECAST` 函数调用 TDgpt 提供的预测算法服务。预测分析通常只能针对超级表的子表或者不同表中同一个时间序列。
 
