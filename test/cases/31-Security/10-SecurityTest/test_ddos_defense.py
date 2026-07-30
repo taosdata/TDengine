@@ -67,7 +67,10 @@ class TestDdosDefense:
     def do_failed_login_lockout(self):
         """Verify that repeated failed logins trigger account lockout"""
         tdLog.info("=== step1: create test user with FAILED_LOGIN_ATTEMPTS 3")
-        tdSql.execute("create user ddos_user1 pass 'Taos@12345' FAILED_LOGIN_ATTEMPTS 3")
+        # PASSWORD_LOCK_TIME is explicit (unit: minutes) so the lockout window doesn't
+        # fall back to the 1-second default used when advanced security is disabled,
+        # which made the lockout check flaky around second boundaries.
+        tdSql.execute("create user ddos_user1 pass 'Taos@12345' FAILED_LOGIN_ATTEMPTS 3 PASSWORD_LOCK_TIME 5")
 
         tdLog.info("=== step2: attempt 3 wrong password logins")
         for i in range(3):
@@ -339,7 +342,10 @@ class TestDdosDefense:
     def do_auth_brute_force_timing(self):
         """Verify failed auth attempts don't leak timing info and get rate-limited"""
         tdLog.info("=== step1: create test user")
-        tdSql.execute("create user ddos_user4 pass 'Taos@12345' FAILED_LOGIN_ATTEMPTS 5")
+        # PASSWORD_LOCK_TIME is explicit (unit: minutes) so the lockout window doesn't
+        # fall back to the 1-second default used when advanced security is disabled,
+        # which made the lockout check flaky around second boundaries.
+        tdSql.execute("create user ddos_user4 pass 'Taos@12345' FAILED_LOGIN_ATTEMPTS 5 PASSWORD_LOCK_TIME 1")
 
         tdLog.info("=== step2: measure timing of multiple failed logins")
         timings = []
