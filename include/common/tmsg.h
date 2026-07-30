@@ -3101,6 +3101,15 @@ typedef struct {
   int64_t errors;
 } SVnodesStat;
 
+// Progress (byte-level) of a single snapshot-send target. One entry per destDnodeId, reported to
+// the mnode via SVnodeLoad, so the mnode can display progress on the column matching the target
+// follower's dnodeId, fixing the "misaligned display" problem.
+typedef struct {
+  int32_t destDnodeId;          // target follower dnodeId
+  int64_t snapTotalSize;        // total snapshot bytes being sent to this target
+  int64_t snapTransferredSize;  // snapshot bytes already sent to this target
+} SVnodeSnapProgress;
+
 typedef struct {
   int32_t vgId;
   int8_t  syncState;
@@ -3129,6 +3138,10 @@ typedef struct {
   int32_t snapSeq;
   int64_t syncTotalIndex;
   int8_t  snapshotSending;  // 1 if this vnode is currently sending a snapshot
+  // Per-target snapshot-send progress: SArray<SVnodeSnapProgress>, grouped by target follower dnodeId.
+  // Replaces the former single scalar snapTotalSize/snapTransferredSize so the mnode can display
+  // progress per target.
+  SArray* pSnapProgress;
 } SVnodeLoad;
 
 typedef struct {
@@ -3226,6 +3239,11 @@ typedef struct {
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 void    tFreeSStatusReq(SStatusReq* pReq);
+// Free an SArray of SVnodeLoad. Each SVnodeLoad may embed a per-target snapshot
+// progress array (pSnapProgress) allocated in vnodeGetLoad(); it must be freed
+// before destroying the outer array, otherwise pSnapProgress leaks. Use this
+// helper anywhere an SVnodeLoad array is destroyed to avoid such leaks.
+void    tFreeSVnodeLoadArray(SArray* pVloads);
 
 typedef struct {
   int32_t forceReadConfig;
