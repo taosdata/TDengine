@@ -41,10 +41,10 @@ def writer_main(fqdn: str, cfg_dir: str, metrics, stop_event):
     # no rows are written before TMQ offset is established (avoids leading gap).
     _wait_start = time.time()
     while not metrics.get("subscribe_ready", False):
-        if time.time() - _wait_start > 30:
+        if time.time() - _wait_start > 180:
             sys.stderr.write("[writer] subscribe_ready timeout, starting anyway\n")
             break
-        time.sleep(0.1)
+        time.sleep(1)
     sys.stderr.write("   [writer] subscriber ready, starting writes\n")
 
     def _connect() -> taos.TaosConnection:
