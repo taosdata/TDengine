@@ -151,6 +151,8 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
   int32_t code = 0;
   int32_t msgSize = pMsg->len;
   int32_t msgType = pMsg->msgType;
+  SQueryTableRsp queryRsp = {0};
+  bool           hasQueryRsp = false;
 
   switch (msgType) {
     case TDMT_VND_COMMIT_RSP: {
@@ -386,21 +388,26 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
         }
       }
 
-      SQueryTableRsp rsp = {0};
-      if (tDeserializeSQueryTableRsp(pMsg->pData, msgSize, &rsp) < 0) {
+      if (tDeserializeSQueryTableRsp(pMsg->pData, msgSize, &queryRsp) < 0) {
         SCH_TASK_ELOG("tDeserializeSQueryTableRsp failed, msgSize:%d", msgSize);
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_MSG);
       }
-      
-      SCH_ERR_JRET(rsp.code);
+      hasQueryRsp = true;
 
-      SCH_ERR_JRET(schSaveJobExecRes(pJob, &rsp));
+      SCH_ERR_JRET(schSaveJobExecRes(pJob, &queryRsp));
 
-      (void)atomic_add_fetch_64(&pJob->resNumOfRows, rsp.affectedRows);
+      SCH_ERR_JRET(queryRsp.code);
+
+      (void)atomic_add_fetch_64(&pJob->resNumOfRows, queryRsp.affectedRows);
 
       taosMemoryFreeClear(pMsg->pData);
 
       SCH_ERR_JRET(schProcessOnTaskSuccess(pJob, pTask));
+
+      hasQueryRsp = false;
+      taosArrayDestroy(queryRsp.tbVerInfo);
+      taosMemoryFreeClear(queryRsp.extErrMsg);
+      taosMemoryFreeClear(queryRsp.extPushdownDiag);
 
       break;
     }
@@ -468,6 +475,12 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
   return TSDB_CODE_SUCCESS;
 
 _return:
+
+  if (hasQueryRsp) {
+    taosArrayDestroy(queryRsp.tbVerInfo);
+    taosMemoryFreeClear(queryRsp.extErrMsg);
+    taosMemoryFreeClear(queryRsp.extPushdownDiag);
+  }
 
   taosMemoryFreeClear(pMsg->pData);
 

@@ -75,6 +75,16 @@ void mstDestroyVgroupStatus(SStmVgroupStatus* pVgStatus) {
 
 void mstDestroySStmTaskToDeployExt(void* param) {
   SStmTaskToDeployExt* pExt = (SStmTaskToDeployExt*)param;
+  if (pExt->ownsExtSpec) {
+    SStreamExtTriggerSpec* pSpec = pExt->deploy.msg.reader.pExtSpec;
+    taosMemoryFree(pSpec->prefilter);
+    taosMemoryFree(pSpec->triggerPrefilter);
+    taosArrayDestroy(pSpec->partitionTagCols);
+    taosMemoryFree(pSpec);
+    pExt->deploy.msg.reader.pExtSpec = NULL;
+    pExt->ownsExtSpec = false;
+  }
+
   if (pExt->deployed) {
     return;
   }

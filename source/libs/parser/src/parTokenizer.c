@@ -702,7 +702,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId, char* dupQuoteChar) {
         *tokenId = TK_NK_ILLEGAL;
         return 2;
       } else {
-        *tokenId = TK_NK_NE;
+        *tokenId = TK_NK_BANG_NE;
         return 2;
       }
     }

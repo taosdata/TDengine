@@ -59,6 +59,17 @@ def run_with_timeout(cmd: str, timeout_secs: float):
         return proc.returncode, True
 
 
+def drop_database_and_wait(db_name: str, timeout_secs: int = 60):
+    """Drop a database and wait for an interrupted restore transaction to finish."""
+    tdSql.execute(f"drop database if exists {db_name} force")
+    for _ in range(timeout_secs):
+        tdSql.query("show databases")
+        if not any(row[0] == db_name for row in tdSql.queryResult):
+            return
+        time.sleep(1)
+    tdLog.exit(f"database {db_name} still exists after {timeout_secs}s")
+
+
 # ---------------------------------------------------------------------------
 # test class
 # ---------------------------------------------------------------------------
@@ -433,7 +444,10 @@ class TestTaosBackupCheckpoint:
 
         # -- step 5: restore attempt 2 (with -C, run to completion) ---
         tdLog.info("=== step 5: restore attempt 2/2 (with -C) ===")
-        tdSql.execute(f"drop database if exists {DB_DST_L}")
+        if ckpt_entries == 0:
+            drop_database_and_wait(DB_DST_L)
+        else:
+            tdLog.info("checkpoint data exists; keep partial target database for -C resume")
         ret = os.system(restore_cmd + " -C")
         if ret != 0:
             tdLog.exit(f"restore attempt 2 FAILED (ret={ret})")

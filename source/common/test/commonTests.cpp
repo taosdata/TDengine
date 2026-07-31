@@ -56,6 +56,36 @@ int main(int argc, char** argv) {
   return RUN_ALL_TESTS();
 }
 
+TEST(testCase, colDataAssign_zero_rows_without_source) {
+  SColumnInfoData dst = {0};
+  dst.info.type = TSDB_DATA_TYPE_INT;
+  dst.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+
+  // Empty scalar results intentionally have no source column to copy.
+  EXPECT_EQ(colDataAssign(&dst, NULL, 0, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(colDataAssign(&dst, NULL, 1, NULL), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(testCase, colDataAssignNRows_clears_stale_null_bitmap) {
+  SColumnInfoData src = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  SColumnInfoData dst = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&src, 1, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&dst, 1, true), TSDB_CODE_SUCCESS);
+
+  int32_t value = 42;
+  ASSERT_EQ(colDataSetVal(&src, 0, (const char*)&value, false), TSDB_CODE_SUCCESS);
+  src.hasNull = false;
+  colDataSetNItemsNull(&dst, 0, 1);
+  ASSERT_TRUE(colDataIsNull_s(&dst, 0));
+
+  ASSERT_EQ(colDataAssignNRows(&dst, 0, &src, 0, 1), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(colDataIsNull_s(&dst, 0));
+  EXPECT_EQ(*(int32_t*)dst.pData, value);
+
+  colDataDestroy(&src);
+  colDataDestroy(&dst);
+}
+
 TEST(testCase, toUIntegerEx_test) {
   uint64_t val = 0;
 
@@ -1413,7 +1443,6 @@ TEST(testCase, taosTimeCountIntervalForFill_DST_calendar_days) {
 
   tzfree(ny);
 }
-
 TEST(testCase, formatTimestampTz_negative_fraction) {
   TzRestoreGuard tzGuard;
 

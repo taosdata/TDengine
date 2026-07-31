@@ -524,7 +524,8 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
       return terrno;
     }
 
-    int32_t size = blockDataGetSize(p) + sizeof(int32_t) + taosArrayGetSize(p->pDataBlock) * sizeof(int32_t);
+    int32_t size = blockDataGetSize(p) + sizeof(int32_t) +
+                   taosArrayGetSize(p->pDataBlock) * (sizeof(int32_t) + 2 * sizeof(uint8_t));
     if (size > getBufPageSize(pHandle->pBuf)) {
       qError("sort failed at: %s:%d", __func__, __LINE__);
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -1045,7 +1046,8 @@ static int32_t doSortForEachGroup(SSortHandle* pHandle, int32_t sortTimes, int32
       QUERY_CHECK_NULL(px, code, lino, _err, terrno);
 
       int32_t size =
-          blockDataGetSize(pDataBlock) + sizeof(int32_t) + taosArrayGetSize(pDataBlock->pDataBlock) * sizeof(int32_t);
+          blockDataGetSize(pDataBlock) + sizeof(int32_t) +
+          taosArrayGetSize(pDataBlock->pDataBlock) * (sizeof(int32_t) + 2 * sizeof(uint8_t));
       if (size > getBufPageSize(pHandle->pBuf)) {
         code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         goto _err;
@@ -1899,7 +1901,8 @@ static int32_t appendDataBlockToPageBuf(SSortHandle* pHandle, SSDataBlock* blk, 
     return terrno;
   }
 
-  int32_t size = blockDataGetSize(blk) + sizeof(int32_t) + taosArrayGetSize(blk->pDataBlock) * sizeof(int32_t);
+  int32_t size = blockDataGetSize(blk) + sizeof(int32_t) +
+                 taosArrayGetSize(blk->pDataBlock) * (sizeof(int32_t) + 2 * sizeof(uint8_t));
   if (size > getBufPageSize(pHandle->pBuf)) {
     qError("sort failed at: %s:%d", __func__, __LINE__);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -2072,7 +2075,8 @@ static int32_t getTotalRows(SArray* pBlockList) {
 
 static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray* aExtSrc) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t pageHeaderSize = sizeof(int32_t) + sizeof(int32_t) * blockDataGetNumOfCols(pHandle->pDataBlock);
+  int32_t pageHeaderSize =
+      sizeof(int32_t) + (sizeof(int32_t) + 2 * sizeof(uint8_t)) * blockDataGetNumOfCols(pHandle->pDataBlock);
   int32_t rowCap = blockDataGetCapacityInRow(pHandle->pDataBlock, pHandle->pageSize, pageHeaderSize);
   if (rowCap < 0) {
     return terrno;

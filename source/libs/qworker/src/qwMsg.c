@@ -236,6 +236,10 @@ int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t c
     if (extMsg && extMsg[0] != '\0') {
       rsp.extErrMsg = (char*)extMsg;  // serializer only reads; task outlives this function
     }
+    const SExtPushdownDiagnostic* extDiag = qGetExtPushdownDiagnostic(ctx->taskHandle);
+    if (extDiag != NULL) {
+      rsp.extPushdownDiag = (SExtPushdownDiagnostic*)extDiag;  // serializer only reads
+    }
   }
 
   int32_t msgSize = tSerializeSQueryTableRsp(NULL, 0, &rsp);

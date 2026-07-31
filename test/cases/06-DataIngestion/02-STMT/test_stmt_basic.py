@@ -148,9 +148,9 @@ class TestStmtBasic:
             rows1=result1.fetch_all()
             print(rows1)
             if asc == True:
-                assert str(rows1[0][0]) == "2021-07-21 17:56:32.589000"
+                assert rows1[0][0].strftime("%Y-%m-%d %H:%M:%S.%f") == "2021-07-21 17:56:32.589000"
             else:
-                assert str(rows1[0][0]) == "2021-07-21 17:56:32.592000"
+                assert rows1[0][0].strftime("%Y-%m-%d %H:%M:%S.%f") == "2021-07-21 17:56:32.592000"
             assert rows1[0][10] == 3
             tdLog.debug("close start")
 
@@ -251,7 +251,7 @@ class TestStmtBasic:
             queryparam[0].int(10)
             rows=self.stmtExe(conn,"select * from log where bu < ?",queryparam)
             tdLog.debug("assert 1st case %s"%rows)
-            assert str(rows[0][0]) == "2021-07-21 17:56:32.589111"
+            assert rows[0][0].strftime("%Y-%m-%d %H:%M:%S.%f") == "2021-07-21 17:56:32.589111"
             assert rows[0][10] == 3 , '1st case is failed'
             assert rows[1][10] == 4 , '1st case is failed'
 

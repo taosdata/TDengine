@@ -20,6 +20,7 @@
 #include <map>
 #include <set>
 
+#include "extDialect.h"
 #include "systable.h"
 #include "tdatablock.h"
 #include "tmisce.h"
@@ -883,13 +884,9 @@ class MockCatalogServiceImpl {
     tstrncpy(info->schema_name, schemaName.c_str(), TSDB_EXT_SOURCE_SCHEMA_LEN);
     info->meta_version = 1;
     info->create_time = 0;
-    // Mock-friendly capabilities — enable everything so translator picks the EXT branch.
-    info->capability.ext_can_pushdown_filter        = true;
-    info->capability.ext_can_pushdown_projection    = true;
-    info->capability.ext_can_pushdown_limit         = true;
-    info->capability.ext_can_pushdown_agg           = true;
-    info->capability.ext_can_pushdown_order         = true;
-    info->capability.ext_can_pushdown_in_const_list = true;
+    // Keep parser-test ext capabilities aligned with production defaults.
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == extCapInit(&info->capability));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == extLoadDialectDefaults(sourceType, &info->capability));
     extSources_[sourceName] = info;
   }
 
@@ -984,9 +981,12 @@ class MockCatalogServiceImpl {
             const auto& src = entry->cols[c];
             SExtColumnDef& dst = p->pCols[c];
             tstrncpy(dst.colName, src.colName.c_str(), TSDB_COL_NAME_LEN);
-            tstrncpy(dst.remoteColName, src.colName.c_str(), TSDB_COL_NAME_LEN);
+            tstrncpy(dst.remoteColName, src.remoteColName.empty() ? src.colName.c_str() : src.remoteColName.c_str(),
+                     TSDB_COL_NAME_LEN);
             // Pick a reasonable extTypeName for the mocked source.
-            if (src.type == TSDB_DATA_TYPE_TIMESTAMP) {
+            if (!src.extTypeName.empty()) {
+              tstrncpy(dst.extTypeName, src.extTypeName.c_str(), sizeof(dst.extTypeName));
+            } else if (src.type == TSDB_DATA_TYPE_TIMESTAMP) {
               tstrncpy(dst.extTypeName, "timestamp", sizeof(dst.extTypeName));
             } else if (src.type == TSDB_DATA_TYPE_DOUBLE || src.type == TSDB_DATA_TYPE_FLOAT) {
               tstrncpy(dst.extTypeName, "double precision", sizeof(dst.extTypeName));
@@ -997,7 +997,7 @@ class MockCatalogServiceImpl {
             }
             dst.extCharsetName[0] = '\0';
             dst.nullable = src.nullable;
-            dst.isTag = false;
+            dst.isTag = src.isTag;
             dst.isPrimaryKey = src.isPrimaryKey;
           }
         }

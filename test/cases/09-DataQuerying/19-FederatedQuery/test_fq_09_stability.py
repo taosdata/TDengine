@@ -35,7 +35,6 @@ from federated_query_common import (
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
     ExtSrcEnv,
-    TSDB_CODE_PAR_INVALID_COLUMN,
     TSDB_CODE_PAR_TABLE_NOT_EXIST,
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,

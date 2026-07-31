@@ -284,6 +284,8 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
   }
 
   switch (nodeType(a)) {
+    case QUERY_NODE_LEFT_VALUE:
+      return true;
     case QUERY_NODE_COLUMN:
       return columnNodeEqual((const SColumnNode*)a, (const SColumnNode*)b);
     case QUERY_NODE_VALUE:

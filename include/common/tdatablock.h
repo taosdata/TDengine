@@ -237,6 +237,8 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
                            int32_t pageSize);
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
+// Decode numOfCols blockDataToBuf columns while verifying that every read stays within capacity.
+int32_t blockDataFromBufWithCapacity(SSDataBlock* pBlock, const char* buf, size_t capacity, int32_t numOfCols);
 int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity);
 int32_t blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount, SSDataBlock** pResBlock);
 

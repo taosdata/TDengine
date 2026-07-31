@@ -34,13 +34,13 @@ typedef struct SPhysiPlanContext {
   bool          hasFederatedScan;  // set when SCAN_TYPE_EXTERNAL subplan is built
 } SPhysiPlanContext;
 
-#define planFatal(param, ...)  qFatal ("plan " param, ##__VA_ARGS__)
-#define planError(param, ...)  qError ("plan " param, ##__VA_ARGS__)
-#define planWarn(param, ...)   qWarn  ("plan " param, ##__VA_ARGS__)
-#define planInfo(param, ...)   qInfo  ("plan " param, ##__VA_ARGS__)
-#define planDebug(param, ...)  qDebug ("plan " param, ##__VA_ARGS__)
-#define planDebugL(param, ...) qDebugL("plan " param, ##__VA_ARGS__)
-#define planTrace(param, ...)  qTrace ("plan " param, ##__VA_ARGS__)
+#define planFatal(...)  qFatal ("plan " __VA_ARGS__)
+#define planError(...)  qError ("plan " __VA_ARGS__)
+#define planWarn(...)   qWarn  ("plan " __VA_ARGS__)
+#define planInfo(...)   qInfo  ("plan " __VA_ARGS__)
+#define planDebug(...)  qDebug ("plan " __VA_ARGS__)
+#define planDebugL(...) qDebugL("plan " __VA_ARGS__)
+#define planTrace(...)  qTrace ("plan " __VA_ARGS__)
 
 #define PLAN_ERR_RET(c)                \
   do {                                 \
@@ -71,8 +71,14 @@ typedef struct SPhysiPlanContext {
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...);
 int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList);
 int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList);
+int32_t createColumnByRemoteOutputExprs(SNodeList* pExprs, SNodeList** pList);
+int32_t replaceProjectLogicProjections(SLogicNode* pNode, const SNodeList* pExprs);
 int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* pNew);
 int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requirement);
+SLogicNode*    planGetSubqueryRenderLogic(const SPlanContext* pCxt, int32_t subQIdx, ENodeType remoteNodeType);
+bool           planIsSubqueryPushedDown(const SPlanContext* pCxt, int32_t subQIdx);
+bool           planIsExternalWindowSubquery(const SPlanContext* pCxt, int32_t subQIdx);
+int32_t        planMarkSubqueryPushedDown(SPlanContext* pCxt, int32_t subQIdx);
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan);
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
@@ -81,6 +87,7 @@ int32_t postSplitOptimize(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan);
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList);
 int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan);
+int32_t planCheckRequiredExtColumns(const SExtTableNode* pExtNode, const SNodeList* pScanCols);
 
 bool        getBatchScanOptionFromHint(SNodeList* pList);
 bool        getSortForGroupOptHint(SNodeList* pList);

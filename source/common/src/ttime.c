@@ -1646,15 +1646,14 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
       start = news;
       if (news <= ts) {
         int64_t prev = news;
-        int64_t newe =
-            taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
+        int64_t newe = taosTimeGetIntervalEnd(news, pInterval);
 
         if (newe < ts) {  // move towards the greater endpoint
           while (newe < ts && news < ts) {
             int64_t prevNews = news;
             news = taosTimeAdd(news, pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
             if (news == prevNews) break;  // taosTimeAdd made no progress (tz/mktime error); avoid infinite loop
-            newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
+            newe = taosTimeGetIntervalEnd(news, pInterval);
           }
 
           prev = news;
@@ -1663,7 +1662,7 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
             prev = news;
             news = taosTimeAdd(news, -pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
             if (news == prev) break;  // taosTimeAdd made no progress (tz/mktime error); avoid infinite loop
-            newe = taosTimeAdd(news, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
+            newe = taosTimeGetIntervalEnd(news, pInterval);
           }
         }
 
@@ -1684,15 +1683,14 @@ int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval) {
 
         // not enough time range
         if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-          end = taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
+          end = taosTimeGetIntervalEnd(start, pInterval);
           while (end < ts) {  // move forward to the correct time window
             int64_t prevStart = start;
             start = taosTimeAdd(start, pInterval->sliding, pInterval->slidingUnit, precision, pInterval->timezone);
             if (start == prevStart) break;  // taosTimeAdd made no progress (tz/mktime error); avoid infinite loop
 
             if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
-              end =
-                  taosTimeAdd(start, pInterval->interval, pInterval->intervalUnit, precision, pInterval->timezone) - 1;
+              end = taosTimeGetIntervalEnd(start, pInterval);
             } else {
               end = INT64_MAX;
               break;

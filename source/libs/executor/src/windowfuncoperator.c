@@ -405,7 +405,8 @@ int32_t winInputStoreAppendBlock(SWindowInputStore *pStore, SSDataBlock *pBlock)
     }
 
     int32_t size =
-        blockDataGetSize(pPageBlock) + sizeof(int32_t) + taosArrayGetSize(pPageBlock->pDataBlock) * sizeof(int32_t);
+        blockDataGetSize(pPageBlock) + sizeof(int32_t) +
+        taosArrayGetSize(pPageBlock->pDataBlock) * (sizeof(int32_t) + 2 * sizeof(uint8_t));
     if (size > getBufPageSize(pStore->pBuf)) {
       releaseBufPage(pStore->pBuf, pPage);
       blockDataDestroy(pPageBlock);

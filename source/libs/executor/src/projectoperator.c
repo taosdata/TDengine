@@ -1168,15 +1168,20 @@ _exit:
 
 int32_t projectApplyOperator(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
                              int64_t* numOfRows, bool createNewColModel, const void* pExtraParams) {
-  int32_t code = 0, lino = 0;
-  SArray* pBlockList = NULL;
-  if (NULL != pSrcBlock) {
-    pBlockList = taosArrayInit(4, POINTER_BYTES);
-    TSDB_CHECK_NULL(pBlockList, code, lino, _exit, terrno);
+  int32_t     code = 0, lino = 0;
+  SSDataBlock scalarBlock = {0};
+  SArray*     pBlockList = taosArrayInit(4, POINTER_BYTES);
+  TSDB_CHECK_NULL(pBlockList, code, lino, _exit, terrno);
 
-    void* px = taosArrayPush(pBlockList, &pSrcBlock);
-    TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
+  if (NULL == pSrcBlock) {
+    // Source-less SELECT still emits one row, so scalar expressions must not
+    // be evaluated against an empty input range.
+    scalarBlock.info.rows = 1;
+    pSrcBlock = &scalarBlock;
   }
+
+  void* px = taosArrayPush(pBlockList, &pSrcBlock);
+  TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
   
   SColumnInfoData* pResColData = taosArrayGet(pResult->pDataBlock, outputSlotId);
   TSDB_CHECK_NULL(pResColData, code, lino, _exit, terrno);
@@ -1301,7 +1306,7 @@ int32_t projectApplyFunction(SqlFunctionCtx* pCtx, SqlFunctionCtx* pfCtx, SExprI
     }
 
     *numOfRows = pResInfo->numOfRes;
-    
+
     if (fmIsProcessByRowFunc(pfCtx->functionId)) {
       if (NULL == *processByRowFunctionCtx) {
         *processByRowFunctionCtx = taosArrayInit(1, sizeof(SqlFunctionCtx*));

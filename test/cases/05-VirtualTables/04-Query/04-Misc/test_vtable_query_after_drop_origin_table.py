@@ -17,6 +17,7 @@ class TestVtableQueryAfterDropOriginTable:
     def setup_class(cls):
         tdLog.info(f"prepare org tables.")
 
+        tdSql.execute("drop database if exists test_vtable_query_after_drop_origin_table;")
         tdSql.execute("create database test_vtable_query_after_drop_origin_table;")
         tdSql.execute("use test_vtable_query_after_drop_origin_table;")
 
@@ -498,5 +499,4 @@ class TestVtableQueryAfterDropOriginTable:
         oldTdSql.query("select * from vtb_virtual_ntb;")
         oldTdSql.checkCols(20)
         oldTdSql.checkRows(0)
-
 

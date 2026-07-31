@@ -291,7 +291,7 @@ _CASES = [
      ],
 
     ["opt017i", [_influxdb], ["fq08_o017_i"],
-     "InfluxDB OPTIONS: api_token masked; protocol='flight_sql' visible; options is valid JSON (covers SYS-017)",
+     "InfluxDB OPTIONS: api_token masked; protocol value visible; options is valid JSON (covers SYS-017)",
      [
          "drop external source if exists fq08_o017_i",
          f"create external source fq08_o017_i type='influxdb' host='{_I_HOST}' port={_I_PORT} user='u' password='' database='telegraf' options('api_token'='secret_token','protocol'='flight_sql')",
@@ -665,12 +665,6 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             tdSql.execute("drop database if exists fq08_local016")
         except Exception:
             pass
-        # Restore federatedQueryConnectTimeoutMs to default (5000 ms) so that
-        # subsequent test files (e.g. fq_05) see the expected default value.
-        try:
-            tdSql.execute("ALTER ALL DNODES 'federatedQueryConnectTimeoutMs' '5000'", queryTimes=1)
-        except Exception:
-            pass
         # Ensure qnode is present for subsequent test files
         ExtSrcEnv.ensure_qnode()
 
@@ -740,6 +734,12 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
     def _fw_query_once(sql: str, exit: bool = False):
         return tdSql.query(sql, exit=exit, queryTimes=1)
 
+    def _fw_runtime_sql(self, sql: str, src_type: str) -> str:
+        """Patch generic import-time Influx source SQL to runtime protocol."""
+        if src_type != _influxdb:
+            return sql
+        return self._rewrite_influx_source_runtime_sql(sql)
+
     @staticmethod
     def _fw_quote_src_name(src_name: str) -> str:
         name = str(src_name)
@@ -797,30 +797,15 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
         # ── SQL string ──────────────────────────────────────────────────────
         if isinstance(step, str):
-            sql      = step
+            sql      = self._fw_runtime_sql(step, src_type)
             stripped = sql.strip()
             is_create = bool(re.match(r"create\s+external\s+source", stripped, re.IGNORECASE))
             is_query  = bool(re.match(r"(select|show|describe|explain)\b", stripped, re.IGNORECASE))
 
             if is_query:
                 ok = self._fw_query_once(sql, exit=False)
-                if ok is not False:
-                    rows_all = tdSql.queryResult or []
-                    # "SHOW EXTERNAL SOURCES" returns ALL sources across the whole
-                    # server, making baseline comparison environment-dependent when
-                    # other tests leave sources behind.  Always filter to only the
-                    # sources declared for this case (source_names) so the result
-                    # is deterministic regardless of server state.
-                    # When source_names is empty (e.g. local016), the filter yields
-                    # 0 rows — which is still deterministic and sufficient to prove
-                    # the command executed without error.
-                    if stripped.lower() == "show external sources":
-                        norm = {self._fw_norm_src_name(n) for n in source_names}
-                        rows_all = [r for r in rows_all
-                                    if self._fw_norm_src_name(r[_COL_NAME]) in norm]
-                    rows = self._fw_fmt_result(tdSql.cursor.description, rows_all)
-                else:
-                    rows = ["ERROR: query failed"]
+                rows = (self._fw_fmt_result(tdSql.cursor.description, tdSql.queryResult or [])
+                        if ok is not False else ["ERROR: query failed"])
                 self._fw_append_step_block(blocks, label, step_tag, "QUERY", sql, rows)
             else:
                 tdSql.sql = sql
@@ -839,7 +824,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
         # ── _ErrorStep: execute SQL expecting failure ───────────────────────
         if isinstance(step, _ErrorStep):
-            sql = step.sql
+            sql = self._fw_runtime_sql(step.sql, src_type)
             try:
                 tdSql.cursor.execute(sql)
                 result = "UNEXPECTED_OK (expected error)"
@@ -1021,6 +1006,22 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
     def _fw_compare_baseline(self, blocks: List[str]):
         actual   = "\n".join(blocks) + "\n"
+        import re as _re
+        _PROTOCOL_SQL_NORM = _re.compile(
+            r"('protocol'\s*=\s*')(?:flight_sql|http)(')",
+            _re.IGNORECASE,
+        )
+        _PROTOCOL_JSON_NORM = _re.compile(
+            r'("protocol"\s*:\s*")(?:flight_sql|http)(")',
+            _re.IGNORECASE,
+        )
+        def _norm_protocol(text: str) -> str:
+            text = _PROTOCOL_SQL_NORM.sub(r"\1<PROTO>\2", text)
+            text = _PROTOCOL_JSON_NORM.sub(r'\1<PROTO>\2', text)
+            text = text.replace("protocol value visible", "protocol visible")
+            return _re.sub(r"protocol='(?:flight_sql|http)' visible",
+                           "protocol visible", text, flags=_re.IGNORECASE)
+        actual = _norm_protocol(actual)
         baseline = self._fw_baseline_file()
         tmp_file = os.path.join(
             tempfile.gettempdir(),
@@ -1039,6 +1040,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
         with open(baseline, "r", encoding="utf-8") as f:
             expected = f.read()
+        expected = _norm_protocol(expected)
 
         if expected == actual:
             os.remove(tmp_file)

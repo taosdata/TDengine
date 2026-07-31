@@ -199,7 +199,6 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         try:
             r = requests.get(f"http://{influx_cfg.host}:{influx_cfg.port}/health",
                              timeout=3)
-            # Auth-enabled InfluxDB can report 401 while still being reachable.
             if r.status_code not in (200, 204, 401):
                 raise RuntimeError(f"InfluxDB health check returned {r.status_code}")
         except Exception:
@@ -264,18 +263,24 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         tdSql.execute(sql)
 
     def _mk_influx_src(self, name, database, extra_options=None):
-        """Create InfluxDB external source with optional extra options."""
-        cfg = self._influx_cfg()
-        opts = f"'api_token'='{cfg.token}','protocol'='flight_sql'"
-        if extra_options:
-            opts += f",{extra_options}"
-        sql = (f"create external source {name} "
-               f"type='influxdb' host='{cfg.host}' "
-               f"port={cfg.port} "
-               f"user='u' password='' "
-               f"database={database} "
-               f"options({opts})")
-        tdSql.execute(sql)
+        """Create InfluxDB external source with optional extra options.
+
+        Generic service-disruption coverage follows the common Influx protocol
+        resolver so this file can run against HTTP as well as Flight SQL.  The
+        normal disruption cases must also set short deadlines; otherwise they
+        exercise the connector's production default timeout instead of the
+        bounded-failure contract asserted by this suite.
+        """
+        if extra_options is None:
+            extra_options = (
+                f"'connect_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}',"
+                f"'read_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}'"
+            )
+        self._mk_influx_real(
+            name,
+            database=database,
+            extra_options=extra_options,
+        )
 
     def _setup_mysql_data(self, db):
         cfg = self._mysql_cfg()
@@ -1240,6 +1245,11 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
                     self._record_timing(f"S07-Influx cycle-{cycle+1} error", elapsed)
                 finally:
                     ExtSrcEnv.start_influx_instance(ver)
+                    # start_influx_instance() may fall back to a hard reset, which
+                    # recreates the admin token. Refresh the external source after
+                    # restart so it never keeps a stale token from the previous cycle.
+                    self._cleanup_src(src)
+                    self._mk_influx_src(src, database=_INFLUX_BUCKET)
                     # ensure_ext_env.sh resets InfluxDB buckets on bare-metal restart;
                     # re-create bucket and data so the next cycle's healthy check works.
                     self._setup_influx_data()
@@ -1372,11 +1382,14 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
                     f"'read_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}'"
                 )
                 tdSql.execute(
-                    f"create external source {src} type='influxdb' "
-                    f"host='127.0.0.1' port={bh.port} "
-                    f"user='u' password='' "
-                    f"database='test' "
-                    f"options({opts})"
+                    self._mk_influx_source_sql(
+                        src,
+                        "127.0.0.1",
+                        bh.port,
+                        cfg.token,
+                        database="test",
+                        extra_options=opts,
+                    )
                 )
                 elapsed = self._assert_query_bounded(
                     f"select * from {src}.svc_t limit 1",

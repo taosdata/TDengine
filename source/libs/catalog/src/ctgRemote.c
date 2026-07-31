@@ -2146,9 +2146,11 @@ int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)sourceName));
 
 #if CTG_BATCH_FETCH
+    SCtgMsgCtx* pExtMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
     SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
+    tReq.pBatchs = pExtMsgCtx ? pExtMsgCtx->pBatchs : pTask->pJob->pBatchs;
     CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));
 #else
     SArray* pTaskId = taosArrayInit(1, sizeof(int32_t));

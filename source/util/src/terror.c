@@ -1233,8 +1233,18 @@ TAOS_DEFINE_ERROR(TSDB_CODE_EXT_DB_NOT_EXIST,       "External source database or
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SOURCE_INTERNAL,    "Connector internal logic error")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED, "Write operation not supported on external source table")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SOURCE_NAME_CONFLICT, "Database name conflicts with an existing external source")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC, "External pushdown demoted at function level")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP, "External pushdown demoted at operator level")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE, "External pushdown demoted at clause level")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE, "External pushdown demoted at type level")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY, "External pushdown demoted with session overlay")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_PUSHDOWN_BASELINE, "External pushdown switched to baseline path")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_PUSHDOWN_BAILOUT_BROKEN, "External pushdown baseline bailout invariant broken")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_COLUMN_NOT_EXIST,   "External column not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_TAG_REF_NOT_ALLOWED,       "InfluxDB tag columns cannot be used as virtual table column source")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,        "External object identifier is too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_REQUIRED_COLUMNS_TOO_MANY,  "Too many external columns required by query")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_REQUIRED_TAGS_TOO_MANY,     "Too many external tags required by query")
 
 // NEW-STREAM
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "Mnode stream internal error")

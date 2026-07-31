@@ -22,6 +22,7 @@
 #include "osMemPool.h"
 #include "osMemory.h"
 #include "osSemaphore.h"
+#include "osString.h"
 #include "query.h"
 #include "scalar.h"
 #include "stream.h"
@@ -45,7 +46,6 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 #include "vnodeStreamVTable.h"
-#include "executor.h"
 
 int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr, SStorageAPI* api, uint64_t uid, col_id_t colId, SRWLatch* lock);
 
@@ -1351,7 +1351,6 @@ static int32_t buildRollupTableListFromSource(SStreamTriggerReaderInfo* sStreamR
       goto end;
     }
   }
-
   int32_t totalSize = taosArrayGetSize(pSourceTableList);
   for (int32_t i = 0; i < totalSize; ++i) {
     STableKeyInfo* info = taosArrayGet(pSourceTableList, i);

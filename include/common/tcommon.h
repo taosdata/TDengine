@@ -420,6 +420,7 @@ typedef struct SFederatedScanExplainInfo {
   int64_t fetchedRows;
   int64_t fetchBlockCount;
   int64_t elapsedTimeUs;
+  char    remoteSql[TSDB_SHOW_SQL_LEN];
 } SFederatedScanExplainInfo;
 
 typedef struct STUidTagInfo {

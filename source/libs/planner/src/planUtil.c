@@ -92,6 +92,7 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
       if (NULL == pCol) {
         return DEAL_RES_ERROR;
       }
+
       pCol->node.resType = pExpr->resType;
       tstrncpy(pCol->colName, pExpr->aliasName, TSDB_COL_NAME_LEN);
       if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
@@ -153,6 +154,200 @@ int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList) {
     *pList = cxt.pList;
   }
   return cxt.errCode;
+}
+
+static const SNode* planUnwrapRemoteOutputExpr(const SNode* pExprNode) {
+  const SNode* pExpr = pExprNode;
+  if (NULL == pExpr) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_TARGET == nodeType((SNode*)pExpr)) {
+    pExpr = ((const STargetNode*)pExpr)->pExpr;
+  }
+
+  if (NULL != pExpr && QUERY_NODE_GROUPING_SET == nodeType((SNode*)pExpr)) {
+    pExpr = nodesListGetNode(((const SGroupingSetNode*)pExpr)->pParameterList, 0);
+  }
+
+  return pExpr;
+}
+
+static const char* planResolveRemoteOutputVisibleName(const SExprNode* pExpr) {
+  if (NULL == pExpr) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType((SNode*)pExpr)) {
+    const SColumnNode* pCol = (const SColumnNode*)pExpr;
+    bool isCurrentScopeOutputRef = ('\0' == pCol->tableAlias[0] && '\0' == pCol->tableName[0]);
+    if (isCurrentScopeOutputRef) {
+      if ('\0' != pExpr->userAlias[0]) {
+        return pExpr->userAlias;
+      }
+      if ('\0' != pCol->colName[0]) {
+        return pCol->colName;
+      }
+      return NULL;
+    }
+
+    if ('\0' != pCol->colName[0]) {
+      return pCol->colName;
+    }
+  } else if ('\0' != pExpr->userAlias[0]) {
+    return pExpr->userAlias;
+  }
+
+  if ('\0' != pExpr->aliasName[0]) {
+    return pExpr->aliasName;
+  }
+  return NULL;
+}
+
+static const char* planResolveRemoteOutputInternalAlias(const SExprNode* pExpr) {
+  if (NULL == pExpr) {
+    return NULL;
+  }
+
+  if ('\0' != pExpr->aliasName[0]) {
+    return pExpr->aliasName;
+  }
+
+  if (QUERY_NODE_COLUMN == nodeType((SNode*)pExpr)) {
+    const SColumnNode* pCol = (const SColumnNode*)pExpr;
+    if ('\0' != pCol->colName[0]) {
+      return pCol->colName;
+    }
+  }
+
+  if ('\0' != pExpr->userAlias[0]) {
+    return pExpr->userAlias;
+  }
+  return NULL;
+}
+
+static int32_t planCreateRemoteOutputColumn(const SExprNode* pResExpr,
+                                            const char*      pVisibleName,
+                                            const char*      pInternalAlias,
+                                            SColumnNode**    ppCol) {
+  if (NULL == pResExpr || NULL == ppCol) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SColumnNode* pCol = NULL;
+  if (QUERY_NODE_COLUMN == nodeType((SNode*)pResExpr)) {
+    // Keep the original column semantics, especially primary-ts / colId metadata,
+    // but rewrite its naming to the current remote-output scope.
+    code = nodesCloneNode((SNode*)pResExpr, (SNode**)&pCol);
+  } else {
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  }
+
+  if (TSDB_CODE_SUCCESS != code || NULL == pCol) {
+    return (TSDB_CODE_SUCCESS == code) ? terrno : code;
+  }
+
+  pCol->node.resType = pResExpr->resType;
+  pCol->node.relatedTo = pResExpr->relatedTo;
+  pCol->dbName[0] = '\0';
+  pCol->tableName[0] = '\0';
+  pCol->tableAlias[0] = '\0';
+  tstrncpy(pCol->colName, pInternalAlias, sizeof(pCol->colName));
+  tstrncpy(pCol->node.aliasName, pInternalAlias, sizeof(pCol->node.aliasName));
+  tstrncpy(pCol->node.userAlias, pVisibleName, sizeof(pCol->node.userAlias));
+
+  *ppCol = pCol;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t createColumnByRemoteOutputExprs(SNodeList* pExprs, SNodeList** pList) {
+  if (NULL == pList) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SNodeList* pCols = *pList;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (NULL == pCols) {
+    code = nodesMakeList(&pCols);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  SNode* pExprNode = NULL;
+  FOREACH(pExprNode, pExprs) {
+    const SNode* pExpr = planUnwrapRemoteOutputExpr(pExprNode);
+    if (NULL == pExpr || !nodesIsExprNode((SNode*)pExpr)) {
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      break;
+    }
+
+    const SExprNode* pResExpr = (const SExprNode*)pExpr;
+    const char* pVisibleName = planResolveRemoteOutputVisibleName(pResExpr);
+    const char* pInternalAlias = planResolveRemoteOutputInternalAlias(pResExpr);
+    if ((NULL == pVisibleName || '\0' == pVisibleName[0]) &&
+        (NULL == pInternalAlias || '\0' == pInternalAlias[0])) {
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      break;
+    }
+
+    if (NULL == pVisibleName || '\0' == pVisibleName[0]) {
+      pVisibleName = pInternalAlias;
+    }
+    if (NULL == pInternalAlias || '\0' == pInternalAlias[0]) {
+      pInternalAlias = pVisibleName;
+    }
+
+    SColumnNode* pCol = NULL;
+    code = planCreateRemoteOutputColumn(pResExpr, pVisibleName, pInternalAlias, &pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+
+    code = nodesListMakeStrictAppend(&pCols, (SNode*)pCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pCol);
+      break;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    if (NULL == *pList) {
+      nodesDestroyList(pCols);
+    }
+    return code;
+  }
+
+  if (NULL == *pList) {
+    *pList = pCols;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t replaceProjectLogicProjections(SLogicNode* pNode, const SNodeList* pExprs) {
+  if (NULL == pNode || NULL == pExprs || QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType((SNode*)pNode)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SProjectLogicNode* pProject = (SProjectLogicNode*)pNode;
+  // Remote-output alignment rebuilds pTargets from the final remote SELECT list,
+  // but a Project's pProjections still carry the real SELECT semantics. When
+  // they already exist, keep them intact so later remote SQL rendering does not
+  // collapse expressions like CAST(time ...) into current-scope output refs.
+  if (pProject->pProjections != NULL && LIST_LENGTH(pProject->pProjections) > 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeList* pCloned = NULL;
+  int32_t    code = nodesCloneList((SNodeList*)pExprs, &pCloned);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  nodesDestroyList(pProject->pProjections);
+  pProject->pProjections = pCloned;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* pNew) {
@@ -474,11 +669,16 @@ static int32_t adjustIntervalDataRequirement(SWindowLogicNode* pWindow, EDataOrd
 }
 
 static int32_t adjustExternalDataRequirement(SWindowLogicNode* pWindow, EDataOrderLevel requirement) {
-  // The lowest sort level of interval output data is DATA_ORDER_LEVEL_IN_GROUP
+  // External window output is at least ordered within each group, and can
+  // already be globally ordered when there is no outer partition/group sort.
+  // Keep that stronger guarantee instead of downgrading it to the parent's
+  // weaker requirement.
   if (requirement < DATA_ORDER_LEVEL_IN_GROUP) {
     requirement = DATA_ORDER_LEVEL_IN_GROUP;
   }
-  // The sort level of interval input data is always DATA_ORDER_LEVEL_IN_BLOCK
+  if (requirement <= pWindow->node.resultDataOrder) {
+    return TSDB_CODE_SUCCESS;
+  }
   pWindow->node.resultDataOrder = requirement;
   return TSDB_CODE_SUCCESS;
 }

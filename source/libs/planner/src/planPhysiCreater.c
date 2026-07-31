@@ -13,6 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "extConnector.h"
 #include "nodes.h"
 #include "planInt.h"
@@ -30,6 +33,45 @@ typedef struct SSlotIdInfo {
   bool    set;
 } SSlotIdInfo;
 
+static bool fqDiagEnabled(void) {
+  return NULL != getenv("FQ_DIAG");
+}
+
+static void fqDiagDumpExprList(const char* pTag, const SNodeList* pExprs) {
+  if (!fqDiagEnabled()) {
+    return;
+  }
+
+  fprintf(stderr, "[FQ-DIAG] %s count=%d\n", pTag ? pTag : "(null)",
+          pExprs ? LIST_LENGTH((SNodeList*)pExprs) : 0);
+  if (NULL == pExprs) {
+    return;
+  }
+
+  int32_t idx = 0;
+  SNode* pExpr = NULL;
+  FOREACH(pExpr, pExprs) {
+    const SNode* pInner = pExpr;
+    if (QUERY_NODE_TARGET == nodeType((SNode*)pInner)) {
+      pInner = ((const STargetNode*)pInner)->pExpr;
+    }
+
+    const char* pAlias = nodesIsExprNode((SNode*)pInner) ? ((const SExprNode*)pInner)->aliasName : "";
+    const char* pUserAlias = nodesIsExprNode((SNode*)pInner) ? ((const SExprNode*)pInner)->userAlias : "";
+    const char* pColName = (NULL != pInner && QUERY_NODE_COLUMN == nodeType((SNode*)pInner))
+                               ? ((const SColumnNode*)pInner)->colName
+                               : "";
+    const char* pFuncName = (NULL != pInner && QUERY_NODE_FUNCTION == nodeType((SNode*)pInner))
+                                ? ((const SFunctionNode*)pInner)->functionName
+                                : "";
+    fprintf(stderr,
+            "[FQ-DIAG]   [%d] rawType=%d innerType=%d alias=%s userAlias=%s col=%s func=%s\n",
+            idx, pExpr ? (int)nodeType(pExpr) : -1, pInner ? (int)nodeType((SNode*)pInner) : -1,
+            pAlias, pUserAlias, pColName, pFuncName);
+    ++idx;
+  }
+}
+
 typedef struct SSlotIndex {
   int64_t dataBlockId;
   SArray*  pSlotIdsInfo;  // duplicate name slot
@@ -40,6 +82,185 @@ enum {
   SLOT_KEY_TYPE_COLNAME = 2,
   SLOT_KEY_TYPE_REF = 3,
 };
+
+static bool fqRemotePlanHasRepeatScanAgg(const SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
+    const SAggLogicNode* pAgg = (const SAggLogicNode*)pNode;
+    const SNode*         pFunc = NULL;
+    FOREACH(pFunc, pAgg->pAggFuncs) {
+      if (QUERY_NODE_FUNCTION == nodeType(pFunc) &&
+          fmIsRepeatScanFunc(((const SFunctionNode*)pFunc)->funcId)) {
+        return true;
+      }
+    }
+  }
+
+  if (NULL == pNode->pChildren) {
+    return false;
+  }
+
+  const SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (fqRemotePlanHasRepeatScanAgg((const SLogicNode*)pChild)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool fqExprHasAnalyzeInfluxScalarAgg(const SNode* pNode, bool underAgg) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_TARGET:
+      return fqExprHasAnalyzeInfluxScalarAgg((const SNode*)((const STargetNode*)pNode)->pExpr, underAgg);
+    case QUERY_NODE_REMOTE_VALUE:
+      return underAgg;
+    case QUERY_NODE_OPERATOR: {
+      const SOperatorNode* pOp = (const SOperatorNode*)pNode;
+      return fqExprHasAnalyzeInfluxScalarAgg(pOp->pLeft, underAgg) ||
+             fqExprHasAnalyzeInfluxScalarAgg(pOp->pRight, underAgg);
+    }
+    case QUERY_NODE_LOGIC_CONDITION: {
+      const SLogicConditionNode* pCond = (const SLogicConditionNode*)pNode;
+      const SNode*               pChild = NULL;
+      FOREACH(pChild, pCond->pParameterList) {
+        if (fqExprHasAnalyzeInfluxScalarAgg(pChild, underAgg)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case QUERY_NODE_CASE_WHEN: {
+      const SCaseWhenNode* pCase = (const SCaseWhenNode*)pNode;
+      if (fqExprHasAnalyzeInfluxScalarAgg(pCase->pCase, underAgg) ||
+          fqExprHasAnalyzeInfluxScalarAgg(pCase->pElse, underAgg)) {
+        return true;
+      }
+
+      const SNode* pWhenThen = NULL;
+      FOREACH(pWhenThen, pCase->pWhenThenList) {
+        const SWhenThenNode* pItem = (const SWhenThenNode*)pWhenThen;
+        if (fqExprHasAnalyzeInfluxScalarAgg(pItem->pWhen, underAgg) ||
+            fqExprHasAnalyzeInfluxScalarAgg(pItem->pThen, underAgg)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case QUERY_NODE_FUNCTION: {
+      const SFunctionNode* pFunc = (const SFunctionNode*)pNode;
+      bool                 nextUnderAgg = underAgg || fmIsAggFunc(pFunc->funcId);
+      const SNode*         pArg = NULL;
+      FOREACH(pArg, pFunc->pParameterList) {
+        if (fqExprHasAnalyzeInfluxScalarAgg(pArg, nextUnderAgg)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case QUERY_NODE_NODE_LIST: {
+      const SNodeListNode* pList = (const SNodeListNode*)pNode;
+      const SNode*         pItem = NULL;
+      FOREACH(pItem, pList->pNodeList) {
+        if (fqExprHasAnalyzeInfluxScalarAgg(pItem, underAgg)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    default:
+      return false;
+  }
+}
+
+static bool fqRemoteLogicNeedsAnalyzeInfluxScalarAggFallback(const SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return false;
+  }
+
+  if (fqExprHasAnalyzeInfluxScalarAgg((const SNode*)pNode->pConditions, false)) {
+    return true;
+  }
+
+  const SNode* pTarget = NULL;
+  FOREACH(pTarget, pNode->pTargets) {
+    if (fqExprHasAnalyzeInfluxScalarAgg(pTarget, false)) {
+      return true;
+    }
+  }
+
+  switch (nodeType((const SNode*)pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_AGG: {
+      const SAggLogicNode* pAgg = (const SAggLogicNode*)pNode;
+      const SNode*         pExpr = NULL;
+      FOREACH(pExpr, pAgg->pAggFuncs) {
+        if (fqExprHasAnalyzeInfluxScalarAgg(pExpr, false)) {
+          return true;
+        }
+      }
+      FOREACH(pExpr, pAgg->pGroupKeys) {
+        if (fqExprHasAnalyzeInfluxScalarAgg(pExpr, false)) {
+          return true;
+        }
+      }
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_PROJECT: {
+      const SProjectLogicNode* pProj = (const SProjectLogicNode*)pNode;
+      const SNode*             pExpr = NULL;
+      FOREACH(pExpr, pProj->pProjections) {
+        if (fqExprHasAnalyzeInfluxScalarAgg(pExpr, false)) {
+          return true;
+        }
+      }
+      break;
+    }
+    default:
+      break;
+  }
+
+  const SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (fqRemoteLogicNeedsAnalyzeInfluxScalarAggFallback((const SLogicNode*)pChild)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool fqShouldUseAnalyzeInfluxScalarAggFallback(const SPhysiPlanContext* pCxt,
+                                                      const SScanLogicNode* pScanLogicNode) {
+  if (NULL == pCxt || NULL == pCxt->pPlanCxt || NULL == pScanLogicNode ||
+      NULL == pScanLogicNode->pExtTableNode || NULL == pScanLogicNode->pRemoteLogicPlan) {
+    return false;
+  }
+
+  if (((const SExtTableNode*)pScanLogicNode->pExtTableNode)->sourceType != EXT_SOURCE_INFLUXDB) {
+    return false;
+  }
+
+  if (QUERY_NODE_EXPLAIN_STMT != nodeType(pCxt->pPlanCxt->pAstRoot)) {
+    return false;
+  }
+
+  if (!((const SExplainStmt*)pCxt->pPlanCxt->pAstRoot)->analyze) {
+    return false;
+  }
+
+  return fqRemoteLogicNeedsAnalyzeInfluxScalarAggFallback((const SLogicNode*)pScanLogicNode->pRemoteLogicPlan);
+}
+
+static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc,
+                                     const char* pStmtName, bool output, bool reserve);
 
 static int32_t getSlotKeyHelper(SNode* pNode, const char* pPreName, const char* name, char** ppKey, int32_t callocLen,
                                 int32_t* pLen, uint16_t extraBufLen, int8_t slotKeyType) {
@@ -154,8 +375,18 @@ static int32_t getSlotKey(SNode* pNode, const char* pStmtName, char** ppKey, int
 
   callocLen = TSDB_COL_NAME_LEN + 1 + extraBufLen;
   *cap = callocLen;
-  return getSlotKeyHelper(pNode, pStmtName, ((SExprNode*)pNode)->aliasName, ppKey, callocLen, pLen, extraBufLen,
+  code = getSlotKeyHelper(pNode, pStmtName, ((SExprNode*)pNode)->aliasName, ppKey, callocLen, pLen, extraBufLen,
                           SLOT_KEY_TYPE_COLNAME);
+  if (TSDB_CODE_SUCCESS == code) {
+    qDebug("FQ-Slots: getSlotKey exprType=%d stmtName=%s aliasName=%s key=%s len=%d cap=%d",
+           (int)nodeType(pNode), (NULL != pStmtName ? pStmtName : "(null)"),
+           ((SExprNode*)pNode)->aliasName, (NULL != *ppKey ? *ppKey : "(null)"), *pLen, *cap);
+  } else {
+    planError("FQ-Slots: getSlotKey failed exprType=%d stmtName=%s aliasName=%s code=0x%x",
+              (int)nodeType(pNode), (NULL != pStmtName ? pStmtName : "(null)"),
+              ((SExprNode*)pNode)->aliasName, code);
+  }
+  return code;
   return code;
 }
 
@@ -243,6 +474,26 @@ static int32_t createDataBlockDescHash(SPhysiPlanContext* pCxt, int32_t capacity
   return TSDB_CODE_SUCCESS;
 }
 
+static void fqResetLocationHashSlotSet(SHashObj* pHash) {
+  if (NULL == pHash) {
+    return;
+  }
+
+  SSlotIndex* pIndex = taosHashIterate(pHash, NULL);
+  while (NULL != pIndex) {
+    if (NULL != pIndex->pSlotIdsInfo) {
+      int32_t size = taosArrayGetSize(pIndex->pSlotIdsInfo);
+      for (int32_t i = 0; i < size; ++i) {
+        SSlotIdInfo* pInfo = taosArrayGet(pIndex->pSlotIdsInfo, i);
+        if (NULL != pInfo) {
+          pInfo->set = false;
+        }
+      }
+    }
+    pIndex = taosHashIterate(pHash, pIndex);
+  }
+}
+
 static int32_t buildDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SDataBlockDescNode* pDataBlockDesc,
                                    SHashObj* pHash, SHashObj* pProjIdxDescHash) {
   pDataBlockDesc->pSlots = NULL;
@@ -258,6 +509,9 @@ static int32_t buildDataBlockSlots(SPhysiPlanContext* pCxt, SNodeList* pList, SD
     int32_t len = 0;
     int32_t cap = 0;
     code = getSlotKey(pNode, NULL, &name, &len, 16, &cap);
+    planDebug("FQ-Slots: buildDataBlockSlots dataBlockId=%" PRId64 " slotId=%d exprNodeType=%d key=%s len=%d code=0x%x",
+              pDataBlockDesc->dataBlockId, slotId, (int)nodeType(pNode),
+              (NULL != name ? name : "(null)"), len, code);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListStrictAppend(pDataBlockDesc->pSlots, createSlotDesc(pCxt, name, pNode, slotId, true, false));
     }
@@ -287,6 +541,8 @@ static int32_t createDataBlockDesc(SPhysiPlanContext* pCxt, SNodeList* pList, SD
     return code;
   }
   pDesc->dataBlockId = pCxt->nextDataBlockId++;
+  planDebug("FQ-Slots: createDataBlockDesc start dataBlockId=%" PRId64 " targets=%d",
+            pDesc->dataBlockId, pList ? LIST_LENGTH(pList) : 0);
 
   SHashObj* pHash = NULL;
   SHashObj* pProjIdxHash = NULL;
@@ -297,11 +553,104 @@ static int32_t createDataBlockDesc(SPhysiPlanContext* pCxt, SNodeList* pList, SD
 
   if (TSDB_CODE_SUCCESS == code) {
     *pDataBlockDesc = pDesc;
+    planDebug("FQ-Slots: createDataBlockDesc done dataBlockId=%" PRId64 " slots=%d totalRowSize=%d outputRowSize=%d",
+              pDesc->dataBlockId, pDesc->pSlots ? LIST_LENGTH(pDesc->pSlots) : 0,
+              pDesc->totalRowSize, pDesc->outputRowSize);
   } else {
+    planError("FQ-Slots: createDataBlockDesc failed dataBlockId=%" PRId64 " targets=%d code=0x%x",
+              pDesc->dataBlockId, pList ? LIST_LENGTH(pList) : 0, code);
     nodesDestroyNode((SNode*)pDesc);
   }
 
   return code;
+}
+
+static void fqClearDataBlockDescHashes(SPhysiPlanContext* pCxt, int64_t dataBlockId) {
+  if (NULL == pCxt) {
+    return;
+  }
+
+  if (NULL != pCxt->pLocationHelper && dataBlockId < taosArrayGetSize(pCxt->pLocationHelper)) {
+    SHashObj* pHash = taosArrayGetP(pCxt->pLocationHelper, (size_t)dataBlockId);
+    if (NULL != pHash) {
+      SHashObj* pNull = NULL;
+      taosHashCleanup(pHash);
+      taosArraySet(pCxt->pLocationHelper, (size_t)dataBlockId, &pNull);
+    }
+  }
+
+  if (NULL != pCxt->pProjIdxLocHelper && dataBlockId < taosArrayGetSize(pCxt->pProjIdxLocHelper)) {
+    SHashObj* pHash = taosArrayGetP(pCxt->pProjIdxLocHelper, (size_t)dataBlockId);
+    if (NULL != pHash) {
+      SHashObj* pNull = NULL;
+      taosHashCleanup(pHash);
+      taosArraySet(pCxt->pProjIdxLocHelper, (size_t)dataBlockId, &pNull);
+    }
+  }
+}
+
+static int32_t fqRebuildDataBlockDesc(SPhysiPlanContext* pCxt, SDataBlockDescNode* pDesc, SNodeList* pOutputCols,
+                                      SNodeList* pReserveCols) {
+  if (NULL == pCxt || NULL == pDesc) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t dataBlockId = pDesc->dataBlockId;
+  planDebug("FQ-Slots: fqRebuildDataBlockDesc start dataBlockId=%" PRId64 " outputCols=%d reserveCols=%d",
+            dataBlockId, pOutputCols ? LIST_LENGTH(pOutputCols) : 0,
+            pReserveCols ? LIST_LENGTH(pReserveCols) : 0);
+  int32_t cap = 0;
+  if (pOutputCols != NULL) {
+    cap += LIST_LENGTH(pOutputCols);
+  }
+  if (pReserveCols != NULL) {
+    cap += LIST_LENGTH(pReserveCols);
+  }
+  if (cap <= 0) {
+    cap = 1;
+  }
+
+  nodesDestroyList(pDesc->pSlots);
+  pDesc->pSlots = NULL;
+  pDesc->totalRowSize = 0;
+  pDesc->outputRowSize = 0;
+
+  fqClearDataBlockDescHashes(pCxt, dataBlockId);
+
+  SHashObj* pHash = NULL;
+  SHashObj* pProjIdxHash = NULL;
+  int32_t code = createDataBlockDescHash(pCxt, cap, dataBlockId, &pHash, &pProjIdxHash);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  code = nodesMakeList(&pDesc->pSlots);
+  if (TSDB_CODE_SUCCESS != code) {
+    fqClearDataBlockDescHashes(pCxt, dataBlockId);
+    return code;
+  }
+
+  if (pOutputCols != NULL) {
+    code = addDataBlockSlotsImpl(pCxt, pOutputCols, pDesc, NULL, true, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  if (pReserveCols != NULL) {
+    code = addDataBlockSlotsImpl(pCxt, pReserveCols, pDesc, NULL, false, true);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  planDebug("FQ-Slots: rebuilt dataBlockDesc=%" PRId64 " outputCols=%d reserveCols=%d totalSlots=%d totalRowSize=%d outputRowSize=%d",
+            dataBlockId,
+            pOutputCols ? LIST_LENGTH(pOutputCols) : 0,
+            pReserveCols ? LIST_LENGTH(pReserveCols) : 0,
+            pDesc->pSlots ? LIST_LENGTH(pDesc->pSlots) : 0,
+            pDesc->totalRowSize, pDesc->outputRowSize);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int16_t getUnsetSlotId(const SArray* pSlotIdsInfo) {
@@ -332,6 +681,10 @@ static int32_t addDataBlockSlotsImpl(SPhysiPlanContext* pCxt, SNodeList* pList, 
     int32_t len = 0;
     int32_t cap = 0;
     code = getSlotKey(pExpr, pStmtName, &name, &len, 0, &cap);
+    planDebug("FQ-Slots: addDataBlockSlots dataBlockId=%" PRId64 " nextSlotId=%d output=%d reserve=%d exprNodeType=%d exprAlias=%s key=%s len=%d code=0x%x",
+              pDataBlockDesc->dataBlockId, nextSlotId, (int)output, (int)reserve,
+              (int)nodeType(pExpr), ((SExprNode*)pExpr)->aliasName,
+              (NULL != name ? name : "(null)"), len, code);
     if (TSDB_CODE_SUCCESS == code) {
       SSlotIndex* pIndex = taosHashGet(pHash, name, len);
       if (NULL == pIndex) {
@@ -415,19 +768,269 @@ typedef struct SMultiTableSetSlotIdCxt {
   bool       isVtb;
 } SMultiTableSetSlotIdCxt;
 
+static int32_t fqBuildUnqualifiedSlotKey(const char* pName, uint16_t extraBufLen, char** ppKey,
+                                         int32_t* pLen, int32_t* pCap) {
+  if (NULL == pName || '\0' == pName[0] || NULL == ppKey || NULL == pLen || NULL == pCap) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *ppKey = NULL;
+  *pLen = 0;
+  *pCap = TSDB_COL_NAME_LEN + 1 + extraBufLen;
+  return getSlotKeyHelper(NULL, "", pName, ppKey, *pCap, pLen, extraBufLen, SLOT_KEY_TYPE_COLNAME);
+}
+
+static int32_t fqBuildQualifiedSlotKey(const char* pTableName, const char* pColName, uint16_t extraBufLen,
+                                       char** ppKey, int32_t* pLen, int32_t* pCap) {
+  if (NULL == pTableName || '\0' == pTableName[0] || NULL == pColName || '\0' == pColName[0] ||
+      NULL == ppKey || NULL == pLen || NULL == pCap) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *ppKey = NULL;
+  *pLen = 0;
+  *pCap = TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + extraBufLen;
+  return getSlotKeyHelper(NULL, pTableName, pColName, ppKey, *pCap, pLen, extraBufLen, SLOT_KEY_TYPE_ALL);
+}
+
+static int32_t fqBuildRefSlotKey(const SColumnNode* pCol, uint16_t extraBufLen, char** ppKey, int32_t* pLen,
+                                 int32_t* pCap) {
+  if (NULL == pCol || NULL == ppKey || NULL == pLen || NULL == pCap || !pCol->hasRef ||
+      '\0' == pCol->refDbName[0] || '\0' == pCol->refTableName[0] || '\0' == pCol->refColName[0]) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t allocLen = TSDB_TABLE_FNAME_LEN + 1 + TSDB_COL_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 2 + extraBufLen;
+  *ppKey = taosMemoryCalloc(1, allocLen);
+  if (NULL == *ppKey) {
+    return terrno;
+  }
+
+  if (COLUMN_TYPE_TAG == pCol->colType) {
+    TAOS_STRNCAT(*ppKey, pCol->colName, TSDB_COL_NAME_LEN);
+    TAOS_STRNCAT(*ppKey, ":", 2);
+  }
+  TAOS_STRNCAT(*ppKey, pCol->refDbName, TSDB_DB_NAME_LEN);
+  TAOS_STRNCAT(*ppKey, ".", 2);
+  TAOS_STRNCAT(*ppKey, pCol->refTableName, TSDB_TABLE_NAME_LEN);
+  TAOS_STRNCAT(*ppKey, ".", 2);
+  TAOS_STRNCAT(*ppKey, pCol->refColName, TSDB_COL_NAME_LEN);
+  *pLen = taosHashBinary(*ppKey, strlen(*ppKey), allocLen);
+  *pCap = allocLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool fqSlotLookupHasHit(SHashObj* pHash, const char* pKey, int32_t keyLen) {
+  return (NULL != pHash && NULL != pKey && keyLen > 0 && NULL != taosHashGet(pHash, pKey, keyLen));
+}
+
+static void fqAppendSlotDiagItem(char* pBuf, int32_t bufLen, int32_t* pPos, const char* pItem) {
+  if (NULL == pBuf || bufLen <= 0 || NULL == pPos || NULL == pItem || *pPos >= bufLen - 1) {
+    return;
+  }
+
+  int32_t remain = bufLen - *pPos;
+  int32_t written = snprintf(pBuf + *pPos, remain, "%s%s", (*pPos > 0 ? "; " : ""), pItem);
+  if (written < 0) {
+    return;
+  }
+
+  if (written >= remain) {
+    *pPos = bufLen - 1;
+    pBuf[bufLen - 1] = '\0';
+    return;
+  }
+
+  *pPos += written;
+}
+
+static void fqAppendSlotKeyAttempt(char* pBuf, int32_t bufLen, int32_t* pPos, const char* pLabel, const char* pKey,
+                                   bool hit1, bool hit2, const char* pHash1Label, const char* pHash2Label) {
+  if (NULL == pLabel || NULL == pKey || '\0' == pKey[0]) {
+    return;
+  }
+
+  char item[256] = {0};
+  if (NULL != pHash2Label) {
+    (void)snprintf(item, sizeof(item), "%s=%s[%s=%d,%s=%d]", pLabel, pKey, pHash1Label, (int)hit1, pHash2Label,
+                   (int)hit2);
+  } else {
+    (void)snprintf(item, sizeof(item), "%s=%s[%s=%d]", pLabel, pKey, pHash1Label, (int)hit1);
+  }
+  fqAppendSlotDiagItem(pBuf, bufLen, pPos, item);
+}
+
+static bool fqSlotKeyMatchesFocus(const char* pKey, const char* pFocus) {
+  return (NULL != pKey && NULL != pFocus && '\0' != pFocus[0] && NULL != strstr(pKey, pFocus));
+}
+
+static void fqBuildSlotHashSummary(SHashObj* pHash, const char* pFocus1, const char* pFocus2, const char* pFocus3,
+                                   char* pBuf, int32_t bufLen) {
+  if (NULL == pBuf || bufLen <= 0) {
+    return;
+  }
+
+  pBuf[0] = '\0';
+  if (NULL == pHash) {
+    (void)snprintf(pBuf, bufLen, "size=0 hash=(nil)");
+    return;
+  }
+
+  char    focusBuf[512] = {0};
+  char    sampleBuf[512] = {0};
+  int32_t focusPos = 0;
+  int32_t samplePos = 0;
+  int32_t focusCnt = 0;
+  int32_t sampleCnt = 0;
+  int32_t iterCnt = 0;
+  void*   pIter = taosHashIterate(pHash, NULL);
+  while (NULL != pIter && iterCnt < 64) {
+    size_t      keyLen = 0;
+    const char* pKey = taosHashGetKey(pIter, &keyLen);
+    if (NULL != pKey && '\0' != pKey[0]) {
+      if (sampleCnt < 8) {
+        fqAppendSlotDiagItem(sampleBuf, sizeof(sampleBuf), &samplePos, pKey);
+        ++sampleCnt;
+      }
+      if (focusCnt < 6 &&
+          (fqSlotKeyMatchesFocus(pKey, pFocus1) || fqSlotKeyMatchesFocus(pKey, pFocus2) ||
+           fqSlotKeyMatchesFocus(pKey, pFocus3))) {
+        fqAppendSlotDiagItem(focusBuf, sizeof(focusBuf), &focusPos, pKey);
+        ++focusCnt;
+      }
+    }
+    ++iterCnt;
+    pIter = taosHashIterate(pHash, pIter);
+  }
+
+  (void)snprintf(pBuf, bufLen, "size=%d iter=%d focus=[%s] sample=[%s]", (int32_t)taosHashGetSize(pHash), iterCnt,
+                 ('\0' != focusBuf[0] ? focusBuf : "-"), ('\0' != sampleBuf[0] ? sampleBuf : "-"));
+}
+
+static void fqLogSlotLookupMiss(const char* pTag, const SColumnNode* pCol, const char* pRawKey, const char* pProjKey,
+                                SHashObj* pHash1, const char* pHash1Label, SHashObj* pHash2,
+                                const char* pHash2Label, SHashObj* pProjHash1, const char* pProjHash1Label,
+                                SHashObj* pProjHash2, const char* pProjHash2Label) {
+  if (NULL == pTag || NULL == pCol) {
+    return;
+  }
+
+  char attempts[1024] = {0};
+  int32_t attemptsPos = 0;
+
+  fqAppendSlotKeyAttempt(attempts, sizeof(attempts), &attemptsPos, "raw", pRawKey,
+                         fqSlotLookupHasHit(pHash1, pRawKey, strlen(pRawKey)),
+                         fqSlotLookupHasHit(pHash2, pRawKey, strlen(pRawKey)), pHash1Label, pHash2Label);
+
+  if (NULL != pProjKey && '\0' != pProjKey[0]) {
+    fqAppendSlotKeyAttempt(attempts, sizeof(attempts), &attemptsPos, "projRef", pProjKey,
+                           fqSlotLookupHasHit(pProjHash1, pProjKey, strlen(pProjKey)),
+                           fqSlotLookupHasHit(pProjHash2, pProjKey, strlen(pProjKey)), pProjHash1Label,
+                           pProjHash2Label);
+  }
+
+  char*   pKey = NULL;
+  int32_t keyLen = 0;
+  int32_t keyCap = 0;
+  int32_t code = fqBuildUnqualifiedSlotKey(pCol->colName, 64, &pKey, &keyLen, &keyCap);
+  if (TSDB_CODE_SUCCESS == code) {
+    fqAppendSlotKeyAttempt(attempts, sizeof(attempts), &attemptsPos, "plainCol", pKey,
+                           fqSlotLookupHasHit(pHash1, pKey, keyLen), fqSlotLookupHasHit(pHash2, pKey, keyLen),
+                           pHash1Label, pHash2Label);
+  }
+  taosMemoryFree(pKey);
+
+  pKey = NULL;
+  keyLen = 0;
+  keyCap = 0;
+  if ('\0' != pCol->node.aliasName[0]) {
+    code = fqBuildUnqualifiedSlotKey(pCol->node.aliasName, 64, &pKey, &keyLen, &keyCap);
+    if (TSDB_CODE_SUCCESS == code) {
+      fqAppendSlotKeyAttempt(attempts, sizeof(attempts), &attemptsPos, "alias", pKey,
+                             fqSlotLookupHasHit(pHash1, pKey, keyLen), fqSlotLookupHasHit(pHash2, pKey, keyLen),
+                             pHash1Label, pHash2Label);
+    }
+    taosMemoryFree(pKey);
+  }
+
+  pKey = NULL;
+  keyLen = 0;
+  keyCap = 0;
+  if ('\0' != pCol->node.userAlias[0]) {
+    code = fqBuildUnqualifiedSlotKey(pCol->node.userAlias, 64, &pKey, &keyLen, &keyCap);
+    if (TSDB_CODE_SUCCESS == code) {
+      fqAppendSlotKeyAttempt(attempts, sizeof(attempts), &attemptsPos, "userAlias", pKey,
+                             fqSlotLookupHasHit(pHash1, pKey, keyLen), fqSlotLookupHasHit(pHash2, pKey, keyLen),
+                             pHash1Label, pHash2Label);
+    }
+    taosMemoryFree(pKey);
+  }
+
+  pKey = NULL;
+  keyLen = 0;
+  keyCap = 0;
+  if ('\0' != pCol->tableAlias[0]) {
+    code = fqBuildQualifiedSlotKey(pCol->tableAlias, pCol->colName, 64, &pKey, &keyLen, &keyCap);
+    if (TSDB_CODE_SUCCESS == code) {
+      fqAppendSlotKeyAttempt(attempts, sizeof(attempts), &attemptsPos, "tableAlias.col", pKey,
+                             fqSlotLookupHasHit(pHash1, pKey, keyLen), fqSlotLookupHasHit(pHash2, pKey, keyLen),
+                             pHash1Label, pHash2Label);
+    }
+    taosMemoryFree(pKey);
+  }
+
+  pKey = NULL;
+  keyLen = 0;
+  keyCap = 0;
+  if (pCol->hasRef) {
+    code = fqBuildRefSlotKey(pCol, 64, &pKey, &keyLen, &keyCap);
+    if (TSDB_CODE_SUCCESS == code) {
+      fqAppendSlotKeyAttempt(attempts, sizeof(attempts), &attemptsPos, "refKey", pKey,
+                             fqSlotLookupHasHit(pHash1, pKey, keyLen), fqSlotLookupHasHit(pHash2, pKey, keyLen),
+                             pHash1Label, pHash2Label);
+    }
+    taosMemoryFree(pKey);
+  }
+
+  char hash1Summary[640] = {0};
+  char hash2Summary[640] = {0};
+  char projHash1Summary[640] = {0};
+  char projHash2Summary[640] = {0};
+  fqBuildSlotHashSummary(pHash1, pCol->colName, pCol->node.aliasName, pCol->node.userAlias, hash1Summary,
+                         sizeof(hash1Summary));
+  fqBuildSlotHashSummary(pHash2, pCol->colName, pCol->node.aliasName, pCol->node.userAlias, hash2Summary,
+                         sizeof(hash2Summary));
+  fqBuildSlotHashSummary(pProjHash1, pCol->colName, pCol->node.aliasName, pCol->node.userAlias, projHash1Summary,
+                         sizeof(projHash1Summary));
+  fqBuildSlotHashSummary(pProjHash2, pCol->colName, pCol->node.aliasName, pCol->node.userAlias, projHash2Summary,
+                         sizeof(projHash2Summary));
+
+  planDebug("%s: attempts=%s", pTag, attempts);
+  planDebug("%s: normalHash %s={%s} %s={%s}", pTag, pHash1Label, hash1Summary,
+            (NULL != pHash2Label ? pHash2Label : "hash2"), hash2Summary);
+  planDebug("%s: projHash %s={%s} %s={%s}", pTag, pProjHash1Label, projHash1Summary,
+            (NULL != pProjHash2Label ? pProjHash2Label : "projHash2"), projHash2Summary);
+}
+
 static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 != strcmp(((SColumnNode*)pNode)->colName, "*")) {
     SSetSlotIdCxt* pCxt = (SSetSlotIdCxt*)pContext;
     char*          name = NULL;
+    char           rawLookupKey[TSDB_TABLE_FNAME_LEN + TSDB_COL_NAME_LEN + 96] = {0};
+    char           projLookupKey[TSDB_TABLE_FNAME_LEN + TSDB_COL_NAME_LEN + 96] = {0};
     int32_t        len = 0;
     int32_t        cap = 0;
     pCxt->errCode = getSlotKey(pNode, NULL, &name, &len, 64, &cap);
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
     }
+    if (NULL != name) {
+      tstrncpy(rawLookupKey, name, sizeof(rawLookupKey));
+    }
     SSlotIndex* pIndex = NULL;
     if (((SColumnNode*)pNode)->projRefIdx > 0) {
       snprintf(name + strlen(name), cap, "_%d", ((SColumnNode*)pNode)->projRefIdx);
+      tstrncpy(projLookupKey, name, sizeof(projLookupKey));
       pIndex = taosHashGet(pCxt->pLeftProjIdxHash, name, strlen(name));
       if (!pIndex) {
         pIndex = taosHashGet(pCxt->pRightProdIdxHash, name, strlen(name));
@@ -435,23 +1038,16 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     }
     if (NULL == pIndex) {
       SColumnNode* pCol = (SColumnNode*)pNode;
-      // Try the full key first (table-qualified hash key). This avoids false
-      // positives when two tables share the same column name (e.g. both have
-      // "ts") and the userAlias patch has added plain colName keys to the hash
-      // for both tables. For FedScan ASOF/WINDOW JOIN conditions, the full key
-      // (hash of "tableAlias.colName") correctly identifies which table's block.
-      {
-        SSlotIndex* pFullIdx = taosHashGet(pCxt->pLeftHash, name, len);
-        if (NULL == pFullIdx) {
-          pFullIdx = taosHashGet(pCxt->pRightHash, name, len);
-        }
-        if (pFullIdx) {
-          pIndex = pFullIdx;
-        }
+      SSlotIndex*  pFullIdx = taosHashGet(pCxt->pLeftHash, name, len);
+      if (NULL == pFullIdx) {
+        pFullIdx = taosHashGet(pCxt->pRightHash, name, len);
+      }
+      if (NULL != pFullIdx) {
+        pIndex = pFullIdx;
       }
       if (NULL == pIndex && false == pCol->hasRef && false == pCol->hasDep) {
         int32_t colLen = (int32_t)strlen(pCol->colName);
-        if (NULL == pIndex && colLen > 0) {
+        if (colLen > 0) {
           pIndex = taosHashGet(pCxt->pLeftHash, pCol->colName, colLen);
           if (NULL == pIndex) {
             pIndex = taosHashGet(pCxt->pRightHash, pCol->colName, colLen);
@@ -467,7 +1063,6 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
         }
       }
     }
-
     if (NULL == pIndex) {
       name[len] = 0;
       pIndex = taosHashGet(pCxt->pLeftHash, name, len);
@@ -478,10 +1073,20 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     // pIndex is definitely not NULL, otherwise it is a bug
     if (NULL == pIndex) {
       planError("doSetSlotId failed, invalid slot name %s (colId=%d, tableAlias=%s, tableName=%s)",
-               name,
-               (QUERY_NODE_COLUMN == nodeType(pNode)) ? ((SColumnNode*)pNode)->colId : -1,
-               (QUERY_NODE_COLUMN == nodeType(pNode)) ? ((SColumnNode*)pNode)->tableAlias : "?",
-               (QUERY_NODE_COLUMN == nodeType(pNode)) ? ((SColumnNode*)pNode)->tableName : "?");
+                name,
+                (QUERY_NODE_COLUMN == nodeType(pNode)) ? ((SColumnNode*)pNode)->colId : -1,
+                (QUERY_NODE_COLUMN == nodeType(pNode)) ? ((SColumnNode*)pNode)->tableAlias : "?",
+                (QUERY_NODE_COLUMN == nodeType(pNode)) ? ((SColumnNode*)pNode)->tableName : "?");
+      if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+        SColumnNode* pDbgCol = (SColumnNode*)pNode;
+        planError("FQ-slotMiss: colName=%s aliasName=%s userAlias=%s hasRef=%d hasDep=%d projRefIdx=%d projIdx=%d relatedTo=%d leftHash=%p rightHash=%p",
+                  pDbgCol->colName, pDbgCol->node.aliasName, pDbgCol->node.userAlias, (int)pDbgCol->hasRef,
+                  (int)pDbgCol->hasDep, (int)pDbgCol->projRefIdx, (int)pDbgCol->projIdx,
+                  (int)pDbgCol->node.relatedTo, pCxt->pLeftHash, pCxt->pRightHash);
+        fqLogSlotLookupMiss("FQ-slotMissDiag", pDbgCol, rawLookupKey, projLookupKey, pCxt->pLeftHash, "leftHash",
+                            pCxt->pRightHash, "rightHash", pCxt->pLeftProjIdxHash, "leftProjIdxHash",
+                            pCxt->pRightProdIdxHash, "rightProjIdxHash");
+      }
       pCxt->errCode = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
       taosMemoryFree(name);
       return DEAL_RES_ERROR;
@@ -505,6 +1110,8 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 != strcmp(((SColumnNode*)pNode)->colName, "*")) {
     SMultiTableSetSlotIdCxt* pCxt = (SMultiTableSetSlotIdCxt*)pContext;
     char*                    name = NULL;
+    char                     rawLookupKey[TSDB_TABLE_FNAME_LEN + TSDB_COL_NAME_LEN + 96] = {0};
+    char                     projLookupKey[TSDB_TABLE_FNAME_LEN + TSDB_COL_NAME_LEN + 96] = {0};
     int32_t                  len = 0;
     int32_t cap = 0;
     SColumnNode*             pCol = (SColumnNode*)pNode;
@@ -522,9 +1129,13 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
       return DEAL_RES_ERROR;
     }
+    if (NULL != name) {
+      tstrncpy(rawLookupKey, name, sizeof(rawLookupKey));
+    }
     SSlotIndex* pIndex = NULL;
     if (pCol->projRefIdx > 0) {
-      sprintf(name + strlen(name), "_%d", pCol->projRefIdx);
+      snprintf(name + strlen(name), cap, "_%d", pCol->projRefIdx);
+      tstrncpy(projLookupKey, name, sizeof(projLookupKey));
       SSlotIndex** ppIndex = (SSlotIndex**)taosHashGet(pCxt->mergedProjIdxHash, name, strlen(name));
       if (ppIndex) {
         pIndex = *ppIndex;
@@ -541,6 +1152,8 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
                 name, pCol->colName, pCol->dbName, pCol->tableName, pCol->tableAlias,
                 pCol->hasRef, pCol->refDbName, pCol->refTableName, pCol->refColName,
                 pCol->colType, len);
+      fqLogSlotLookupMiss("FQ-multiSlotMissDiag", pCol, rawLookupKey, projLookupKey, pCxt->mergedHash, "mergedHash",
+                          NULL, NULL, pCxt->mergedProjIdxHash, "mergedProjIdxHash", NULL, NULL);
       pCxt->errCode = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
       taosMemoryFree(name);
       return DEAL_RES_ERROR;
@@ -717,6 +1330,9 @@ static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
 
   code = createDataBlockDesc(pCxt, pLogicNode->pTargets, &pPhysiNode->pOutputDataBlockDesc);
   if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-Slots: makePhysiNode failed type=%d logicType=%d targets=%d code=0x%x",
+              (int)type, (int)nodeType((SNode*)pLogicNode),
+              pLogicNode->pTargets ? LIST_LENGTH(pLogicNode->pTargets) : 0, code);
     nodesDestroyNode((SNode*)pPhysiNode);
     terrno = code;
     return NULL;
@@ -727,6 +1343,10 @@ static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
 
 static int32_t setConditionsSlotId(SPhysiPlanContext* pCxt, const SLogicNode* pLogicNode, SPhysiNode* pPhysiNode) {
   if (NULL != pLogicNode->pConditions) {
+    planDebug("FQ-slotCond: logicType=%d physiType=%d dataBlockId=%" PRId64 " conditions=%p",
+              (int)nodeType((SNode*)pLogicNode), (int)nodeType((SNode*)pPhysiNode),
+              pPhysiNode->pOutputDataBlockDesc ? pPhysiNode->pOutputDataBlockDesc->dataBlockId : -1,
+              pLogicNode->pConditions);
     return setNodeSlotId(pCxt, pPhysiNode->pOutputDataBlockDesc->dataBlockId, -1, pLogicNode->pConditions,
                          &pPhysiNode->pConditions);
   }
@@ -1241,7 +1861,6 @@ static int32_t remoteLogicNodeToPhysi(SLogicNode* pLogicNode, SPhysiNode* pChild
   *pOut = pPhys;
   return TSDB_CODE_SUCCESS;
 }
-
 static bool fqPhysiExprListAllColumns(const SNodeList* pExprList) {
   if (NULL == pExprList) {
     return true;
@@ -1338,6 +1957,93 @@ static SNodeList* fqFindRemoteProjectOutputs(SLogicNode* pRoot) {
       break;
     }
     pCur = (SLogicNode*)nodesListGetNode(pCur->pChildren, 0);
+  }
+
+  return NULL;
+}
+
+static void fqFormatLogicColList(const SNodeList* pCols, char* pBuf, int32_t bufLen) {
+  if (NULL == pBuf || bufLen <= 0) {
+    return;
+  }
+
+  pBuf[0] = '\0';
+  if (NULL == pCols) {
+    tstrncpy(pBuf, "(NULL)", (size_t)bufLen);
+    return;
+  }
+
+  int32_t off = 0;
+  SNode* pCol = NULL;
+  FOREACH(pCol, pCols) {
+    const char* name = "?";
+    if (QUERY_NODE_COLUMN == nodeType(pCol)) {
+      name = ((const SColumnNode*)pCol)->colName;
+    } else if (QUERY_NODE_TARGET == nodeType(pCol)) {
+      const SNode* pExpr = ((const STargetNode*)pCol)->pExpr;
+      if (pExpr != NULL && QUERY_NODE_COLUMN == nodeType(pExpr)) {
+        name = ((const SColumnNode*)pExpr)->colName;
+      }
+    }
+
+    off += snprintf(pBuf + off, (size_t)(bufLen - off), "%s%s", off > 0 ? "," : "", name);
+    if (off >= bufLen - 1) {
+      break;
+    }
+  }
+
+  if ('\0' == pBuf[0]) {
+    tstrncpy(pBuf, "(EMPTY)", (size_t)bufLen);
+  }
+}
+
+static int32_t fqReplaceLogicTargets(SLogicNode* pNode, const SNodeList* pAlignedCols, const char* pTag) {
+  if (NULL == pNode || NULL == pAlignedCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char beforeBuf[512] = {0};
+  char afterBuf[512] = {0};
+  fqFormatLogicColList(pNode->pTargets, beforeBuf, sizeof(beforeBuf));
+  fqFormatLogicColList(pAlignedCols, afterBuf, sizeof(afterBuf));
+
+  SNodeList* pCloned = NULL;
+  int32_t code = nodesCloneList((SNodeList*)pAlignedCols, &pCloned);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-RemoteCols: clone aligned targets failed, tag=%s rootType=%d code:0x%x",
+              NULL != pTag ? pTag : "(null)", (int)nodeType((SNode*)pNode), code);
+    return code;
+  }
+
+  nodesDestroyList(pNode->pTargets);
+  pNode->pTargets = pCloned;
+  planDebug("FQ-RemoteCols: aligned %s targets, nodeType=%d targetsBefore=[%s] targetsAfter=[%s]",
+            NULL != pTag ? pTag : "(null)", (int)nodeType((SNode*)pNode), beforeBuf, afterBuf);
+  return TSDB_CODE_SUCCESS;
+}
+
+static SScanLogicNode* fqFindExternalLogicLeafScan(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SNode*)pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (SCAN_TYPE_EXTERNAL == pScan->scanType) {
+      return pScan;
+    }
+  }
+
+  if (NULL == pNode->pChildren) {
+    return NULL;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    SScanLogicNode* pFound = fqFindExternalLogicLeafScan((SLogicNode*)pChild);
+    if (pFound != NULL) {
+      return pFound;
+    }
   }
 
   return NULL;
@@ -1533,6 +2239,213 @@ _done:
   taosArrayDestroy(pArr);
   return code;
 }
+static int32_t fqAlignRemotePassthroughOutputsImpl(SLogicNode* pNode, const SNodeList* pAlignedCols,
+                                                   bool* pPassthrough) {
+  if (NULL != pPassthrough) {
+    *pPassthrough = false;
+  }
+  if (NULL == pNode || NULL == pAlignedCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SNode*)pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (SCAN_TYPE_EXTERNAL != pScan->scanType) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    char beforeBuf[512] = {0};
+    char afterBuf[512] = {0};
+    fqFormatLogicColList(pScan->pScanCols, beforeBuf, sizeof(beforeBuf));
+    fqFormatLogicColList(pAlignedCols, afterBuf, sizeof(afterBuf));
+
+    SNodeList* pCloned = NULL;
+    int32_t code = nodesCloneList((SNodeList*)pAlignedCols, &pCloned);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-RemoteCols: clone aligned scan cols failed, remoteRootType=%d code:0x%x",
+                (int)nodeType((SNode*)pNode), code);
+      return code;
+    }
+
+    nodesDestroyList(pScan->pScanCols);
+    pScan->pScanCols = pCloned;
+    planDebug("FQ-RemoteCols: aligned remote leaf scan cols, remoteRootType=%d leafBefore=[%s] leafAfter=[%s]",
+              (int)nodeType((SNode*)pNode), beforeBuf, afterBuf);
+
+    code = fqReplaceLogicTargets((SLogicNode*)pScan, pAlignedCols, "leaf-scan");
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+
+    if (NULL != pPassthrough) {
+      *pPassthrough = true;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SORT == nodeType((SNode*)pNode) &&
+      NULL != pNode->pChildren && 1 == LIST_LENGTH(pNode->pChildren)) {
+    bool childPassthrough = false;
+    int32_t code =
+        fqAlignRemotePassthroughOutputsImpl((SLogicNode*)nodesListGetNode(pNode->pChildren, 0),
+                                            pAlignedCols, &childPassthrough);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (childPassthrough) {
+      code = fqReplaceLogicTargets(pNode, pAlignedCols, "sort-passthrough");
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      if (NULL != pPassthrough) {
+        *pPassthrough = true;
+      }
+    } else {
+      planDebug("FQ-RemoteCols: skip sort target alignment, child is not passthrough, rootType=%d",
+                (int)nodeType((SNode*)pNode));
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  planDebug("FQ-RemoteCols: skip passthrough alignment for remoteRootType=%d", (int)nodeType((SNode*)pNode));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fqAlignRemotePassthroughOutputs(SNode* pRemoteRoot, const SNodeList* pAlignedCols) {
+  if (NULL == pRemoteRoot || NULL == pAlignedCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  bool passthrough = false;
+  int32_t code = fqAlignRemotePassthroughOutputsImpl((SLogicNode*)pRemoteRoot, pAlignedCols, &passthrough);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (!passthrough) {
+    SScanLogicNode* pLeaf = fqFindExternalLogicLeafScan((SLogicNode*)pRemoteRoot);
+    if (NULL == pLeaf) {
+      planDebug("FQ-RemoteCols: no external logic leaf found for remoteRootType=%d", (int)nodeType(pRemoteRoot));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static SNodeList* fqGetRemoteOutputTargets(SNode* pRemoteRoot) {
+  if (NULL == pRemoteRoot) {
+    return NULL;
+  }
+
+  return ((SLogicNode*)pRemoteRoot)->pTargets;
+}
+
+static int32_t fqRefreshRemoteOutputTargets(SNode* pRemoteRoot) {
+  if (NULL == pRemoteRoot) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodesRemoteSelectOutputs outputs = {0};
+  int32_t code = nodesCollectRemoteQuerySelectOutputs((SLogicNode*)pRemoteRoot, &outputs);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-RemoteCols: collect remote select outputs failed, rootType=%d code:0x%x",
+              (int)nodeType(pRemoteRoot), code);
+    return code;
+  }
+
+  SNodeList* pNewTargets = NULL;
+  code = createColumnByRemoteOutputExprs(outputs.pSelectExprs, &pNewTargets);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyRemoteSelectOutputs(&outputs);
+    return code;
+  }
+
+  code = fqReplaceLogicTargets((SLogicNode*)pRemoteRoot, pNewTargets, "remote-select-outputs");
+  nodesDestroyList(pNewTargets);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyRemoteSelectOutputs(&outputs);
+    return code;
+  }
+
+  code = replaceProjectLogicProjections((SLogicNode*)pRemoteRoot, outputs.pSelectExprs);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyRemoteSelectOutputs(&outputs);
+    return code;
+  }
+
+  planDebug("FQ-RemoteCols: refreshed remote output targets, rootType=%d source=%d keyExprs=%d outputs=%d",
+            (int)nodeType(pRemoteRoot), (int)outputs.source, outputs.keyExprCount,
+            outputs.pSelectExprs ? LIST_LENGTH(outputs.pSelectExprs) : 0);
+  nodesDestroyRemoteSelectOutputs(&outputs);
+  return TSDB_CODE_SUCCESS;
+}
+
+static SNode* fqResolveRemoteMappingExpr(SNode* pExprNode) {
+  SNode* pExpr = pExprNode;
+  if (NULL == pExpr) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_TARGET == nodeType(pExpr)) {
+    pExpr = ((STargetNode*)pExpr)->pExpr;
+  }
+
+  if (NULL != pExpr && QUERY_NODE_GROUPING_SET == nodeType(pExpr)) {
+    pExpr = nodesListGetNode(((SGroupingSetNode*)pExpr)->pParameterList, 0);
+  }
+
+  // Mapping cardinality and order always follow the final remote output target
+  // list exactly.  This helper only unwraps planner-internal wrappers so we can
+  // read the concrete result type for that SAME output slot.
+  return pExpr;
+}
+
+// The physi federated scan only consumes the TOP-LEVEL remote SELECT output.
+// Its column-name mappings therefore must follow the same output-name policy as
+// the top-level remote renderer:
+//   - current-scope output refs expose userAlias when present, otherwise colName
+//   - leaf/external columns keep colName
+//   - computed expressions expose userAlias
+static const char* fqResolveRemoteOutputName(const SNode* pExprNode) {
+  const SNode* pExpr = pExprNode;
+  if (NULL == pExpr) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_TARGET == nodeType(pExpr)) {
+    pExpr = ((const STargetNode*)pExpr)->pExpr;
+  }
+
+  if (NULL != pExpr && QUERY_NODE_GROUPING_SET == nodeType(pExpr)) {
+    pExpr = nodesListGetNode(((const SGroupingSetNode*)pExpr)->pParameterList, 0);
+  }
+
+  if (NULL == pExpr || !nodesIsExprNode((SNode*)pExpr)) {
+    return NULL;
+  }
+
+  const SExprNode* pResExpr = (const SExprNode*)pExpr;
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    const SColumnNode* pCol = (const SColumnNode*)pExpr;
+    bool isCurrentScopeOutputRef = ('\0' == pCol->tableAlias[0] && '\0' == pCol->tableName[0]);
+    if (isCurrentScopeOutputRef) {
+      if ('\0' != pResExpr->userAlias[0]) {
+        return pResExpr->userAlias;
+      }
+      if ('\0' != pCol->colName[0]) {
+        return pCol->colName;
+      }
+      return NULL;
+    }
+    if ('\0' != pCol->colName[0]) {
+      return pCol->colName;
+    }
+  } else {
+    if ('\0' != pResExpr->userAlias[0]) {
+      return pResExpr->userAlias;
+    }
+  }
+
+  return NULL;
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1576,57 +2489,312 @@ static void translateExtColInExpr(SNode* pExpr, const SExtTableMeta* pExtMeta) {
   }
 }
 
-static void translateExtColNamesInRemotePlan(SPhysiNode* pNode, const SExtTableMeta* pExtMeta) {
+// Walks the pRemotePlan LOGIC tree, rewriting SColumnNode.colName from the
+// TDengine-side name to the remote source name (SExtColumnDef.remoteColName).
+static void translateExtColNamesInRemotePlan(SLogicNode* pNode, const SExtTableMeta* pExtMeta) {
   if (!pNode || !pExtMeta) return;
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
-      SFederatedScanPhysiNode* pScan = (SFederatedScanPhysiNode*)pNode;
+  switch (nodeType((SNode*)pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_SCAN: {
+      SScanLogicNode* pScan = (SScanLogicNode*)pNode;
       SNode* pCol = NULL;
       FOREACH(pCol, pScan->pScanCols) { translateExtColInExpr(pCol, pExtMeta); }
       translateExtColInExpr(pScan->node.pConditions, pExtMeta);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_SORT: {
+    case QUERY_NODE_LOGIC_PLAN_SORT: {
       SNode* pKey = NULL;
-      FOREACH(pKey, ((SSortPhysiNode*)pNode)->pSortKeys) { translateExtColInExpr(pKey, pExtMeta); }
+      FOREACH(pKey, ((SSortLogicNode*)pNode)->pSortKeys) { translateExtColInExpr(pKey, pExtMeta); }
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
+    case QUERY_NODE_LOGIC_PLAN_PROJECT: {
       SNode* pProj = NULL;
-      FOREACH(pProj, ((SProjectPhysiNode*)pNode)->pProjections) { translateExtColInExpr(pProj, pExtMeta); }
+      FOREACH(pProj, ((SProjectLogicNode*)pNode)->pProjections) { translateExtColInExpr(pProj, pExtMeta); }
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_AGG: {
+      SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+      SNode* pN = NULL;
+      FOREACH(pN, pAgg->pGroupKeys) { translateExtColInExpr(pN, pExtMeta); }
+      FOREACH(pN, pAgg->pAggFuncs)  { translateExtColInExpr(pN, pExtMeta); }
+      translateExtColInExpr(pAgg->node.pConditions, pExtMeta);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC: {
+      SNode* pN = NULL;
+      FOREACH(pN, ((SIndefRowsFuncLogicNode*)pNode)->pFuncs) { translateExtColInExpr(pN, pExtMeta); }
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_PARTITION: {
+      SPartitionLogicNode* pPart = (SPartitionLogicNode*)pNode;
+      SNode* pN = NULL;
+      FOREACH(pN, pPart->pPartitionKeys) { translateExtColInExpr(pN, pExtMeta); }
+      FOREACH(pN, pPart->pAggFuncs)       { translateExtColInExpr(pN, pExtMeta); }
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_JOIN: {
+      SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+      translateExtColInExpr(pJoin->pFullOnCond, pExtMeta);
+      translateExtColInExpr(pJoin->pColEqCond, pExtMeta);
       break;
     }
     default:
       break;
   }
-  // Recurse into children
+  // Recurse into children.
   if (pNode->pChildren) {
     SNode* pChild = NULL;
     FOREACH(pChild, pNode->pChildren) {
-      translateExtColNamesInRemotePlan((SPhysiNode*)pChild, pExtMeta);
+      translateExtColNamesInRemotePlan((SLogicNode*)pChild, pExtMeta);
     }
   }
 }
 
+// fqLogFedScanPhysi — logs the result of createFederatedScanPhysiNode at DEBUG
+// level.  Gated by qDebugFlag so no string-building overhead when debug logging
+// is off.  Output example:
+//   FQ-PHY createFedScan: pScanCols=[time,val] pLeaf.pScanCols=[time,val] pRemoteRoot=Sort numColTypeMappings=2
+static void fqLogFedScanPhysi(const SFederatedScanPhysiNode* pScan,
+                               const SFederatedScanPhysiNode* pLeaf,
+                               const SPhysiNode*              pRemoteRoot) {
+  if (!(qDebugFlag & DEBUG_DEBUG)) return;
+
+  // pScanCols (outer Mode-1 node)
+  char scanColsBuf[512] = {0};
+  int  off = 0;
+  if (pScan->pScanCols) {
+    SNode* pSc = NULL;
+    FOREACH(pSc, pScan->pScanCols) {
+      const char* cn = "?";
+      if (nodeType(pSc) == QUERY_NODE_COLUMN) cn = ((const SColumnNode*)pSc)->colName;
+      else if (nodeType(pSc) == QUERY_NODE_TARGET) {
+        const SNode* pi = ((const STargetNode*)pSc)->pExpr;
+        if (pi && nodeType(pi) == QUERY_NODE_COLUMN) cn = ((const SColumnNode*)pi)->colName;
+      }
+      off += snprintf(scanColsBuf + off, sizeof(scanColsBuf) - (size_t)off - 1, "%s,", cn);
+      if (off >= (int)sizeof(scanColsBuf) - 2) break;
+    }
+    if (off > 0 && scanColsBuf[off - 1] == ',') scanColsBuf[off - 1] = '\0';
+  } else {
+    tstrncpy(scanColsBuf, "(NULL)", sizeof(scanColsBuf));
+  }
+
+  // pScanCols (inner Mode-2 leaf — what remote SQL SELECT is built from)
+  char leafColsBuf[512] = {0};
+  off = 0;
+  if (pLeaf->pScanCols) {
+    SNode* pSc = NULL;
+    FOREACH(pSc, pLeaf->pScanCols) {
+      const char* cn = "?";
+      if (nodeType(pSc) == QUERY_NODE_COLUMN) cn = ((const SColumnNode*)pSc)->colName;
+      off += snprintf(leafColsBuf + off, sizeof(leafColsBuf) - (size_t)off - 1, "%s,", cn);
+      if (off >= (int)sizeof(leafColsBuf) - 2) break;
+    }
+    if (off > 0 && leafColsBuf[off - 1] == ',') leafColsBuf[off - 1] = '\0';
+  } else {
+    tstrncpy(leafColsBuf, "(NULL)", sizeof(leafColsBuf));
+  }
+
+  // pRemoteRoot node type
+  const char* rootTypeName = "(null)";
+  if (pRemoteRoot) {
+    ENodeType rnt = nodeType(pRemoteRoot);
+    rootTypeName = (rnt == QUERY_NODE_PHYSICAL_PLAN_SORT)         ? "Sort" :
+                   (rnt == QUERY_NODE_PHYSICAL_PLAN_HASH_AGG)     ? "HashAgg" :
+                   (rnt == QUERY_NODE_PHYSICAL_PLAN_PROJECT)      ? "Project" :
+                   (rnt == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) ? "FedScan(leaf)" : "?";
+  }
+
+  planDebug("FQ-PHY createFedScan: pScanCols=[%s] pLeaf.pScanCols=[%s] "
+            "pRemoteRoot=%s numColTypeMappings=%d",
+            scanColsBuf, leafColsBuf, rootTypeName,
+            pScan->numColTypeMappings);
+}
+
+static bool fqTypeStartsWithIgnoreCase(const char* pTypeName, const char* pPrefix) {
+  if (pTypeName == NULL || pPrefix == NULL) {
+    return false;
+  }
+
+  size_t prefixLen = strlen(pPrefix);
+  return prefixLen > 0 && 0 == strncasecmp(pTypeName, pPrefix, prefixLen);
+}
+
+static bool fqTypeContainsIgnoreCase(const char* pTypeName, const char* pNeedle) {
+  if (pTypeName == NULL || pNeedle == NULL || pNeedle[0] == '\0') {
+    return false;
+  }
+
+  size_t hayLen = strlen(pTypeName);
+  size_t needleLen = strlen(pNeedle);
+  if (needleLen > hayLen) {
+    return false;
+  }
+
+  for (size_t i = 0; i + needleLen <= hayLen; ++i) {
+    if (0 == strncasecmp(pTypeName + i, pNeedle, needleLen)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static EExtTimestampTzClass fqPlanClassifyTimestampType(int8_t sourceType, const char* pExtTypeName) {
+  if (pExtTypeName == NULL || pExtTypeName[0] == '\0') {
+    return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+  }
+
+  switch ((EExtSourceType)sourceType) {
+    case EXT_SOURCE_MYSQL:
+      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "timestamp")) {
+        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+      }
+      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "datetime") ||
+          fqTypeStartsWithIgnoreCase(pExtTypeName, "date")) {
+        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+      }
+      break;
+    case EXT_SOURCE_POSTGRESQL:
+      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "timestamptz") ||
+          fqTypeContainsIgnoreCase(pExtTypeName, "with time zone")) {
+        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+      }
+      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "timestamp") ||
+          fqTypeStartsWithIgnoreCase(pExtTypeName, "date")) {
+        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+      }
+      break;
+    case EXT_SOURCE_INFLUXDB:
+      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "timestamp")) {
+        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+      }
+      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "date32") ||
+          fqTypeStartsWithIgnoreCase(pExtTypeName, "date64")) {
+        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+      }
+      break;
+    default:
+      break;
+  }
+
+  return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+}
+
+static int32_t fqBuildTimestampTypeHints(SFederatedScanPhysiNode* pScan, const SExtTableNode* pExtNode) {
+  if (pScan == NULL || pExtNode == NULL || pExtNode->pExtMeta == NULL || pExtNode->pExtMeta->pCols == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t hintCount = 0;
+  for (int32_t i = 0; i < pExtNode->pExtMeta->numOfCols; ++i) {
+    if (fqPlanClassifyTimestampType(pExtNode->sourceType, pExtNode->pExtMeta->pCols[i].extTypeName) !=
+        EXT_TIMESTAMP_TZ_CLASS_UNKNOWN) {
+      ++hintCount;
+    }
+  }
+
+  if (hintCount == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pScan->pTimestampTypeHints =
+      (SExtTimestampTypeHint*)taosMemoryCalloc(hintCount, sizeof(SExtTimestampTypeHint));
+  if (pScan->pTimestampTypeHints == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t hintIdx = 0;
+  for (int32_t i = 0; i < pExtNode->pExtMeta->numOfCols; ++i) {
+    const SExtColumnDef* pCol = &pExtNode->pExtMeta->pCols[i];
+    EExtTimestampTzClass tzClass = fqPlanClassifyTimestampType(pExtNode->sourceType, pCol->extTypeName);
+    if (tzClass == EXT_TIMESTAMP_TZ_CLASS_UNKNOWN) {
+      continue;
+    }
+
+    const char* pRemoteColName = (pCol->remoteColName[0] != '\0') ? pCol->remoteColName : pCol->colName;
+    tstrncpy(pScan->pTimestampTypeHints[hintIdx].colName, pRemoteColName,
+             sizeof(pScan->pTimestampTypeHints[hintIdx].colName));
+    tstrncpy(pScan->pTimestampTypeHints[hintIdx].extTypeName, pCol->extTypeName,
+             sizeof(pScan->pTimestampTypeHints[hintIdx].extTypeName));
+    pScan->pTimestampTypeHints[hintIdx].tzClass = (int8_t)tzClass;
+    planDebug("FQ-TsTypeHints[%d]: source=%s col=%s extType=%s tzClass=%d",
+              hintIdx, pExtNode->sourceName, pRemoteColName, pCol->extTypeName, (int)tzClass);
+    ++hintIdx;
+  }
+
+  pScan->numTimestampTypeHints = hintIdx;
+  planDebug("FQ-TsTypeHints: source=%s builtHints=%d",
+            pExtNode->sourceName, pScan->numTimestampTypeHints);
+  return TSDB_CODE_SUCCESS;
+}
+
+// PostgreSQL federated scans require an explicit schema at both the planner
+// node and connector-config levels. Keep them aligned before executor handoff.
+static int32_t fqEnsurePgExtSchemaNode(SExtTableNode* pExtNode) {
+  if (NULL == pExtNode || EXT_SOURCE_POSTGRESQL != pExtNode->sourceType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if ('\0' == pExtNode->schemaName[0] && '\0' != pExtNode->srcSchema[0]) {
+    tstrncpy(pExtNode->schemaName, pExtNode->srcSchema, sizeof(pExtNode->schemaName));
+  } else if ('\0' == pExtNode->srcSchema[0] && '\0' != pExtNode->schemaName[0]) {
+    tstrncpy(pExtNode->srcSchema, pExtNode->schemaName, sizeof(pExtNode->srcSchema));
+  }
+
+  if ('\0' == pExtNode->schemaName[0] || '\0' == pExtNode->srcSchema[0]) {
+    planError("FQ-PHY: PostgreSQL schema missing source=%s table=%s schemaName=%s srcSchema=%s",
+              pExtNode->sourceName,
+              pExtNode->table.tableName,
+              '\0' != pExtNode->schemaName[0] ? pExtNode->schemaName : "(empty)",
+              '\0' != pExtNode->srcSchema[0] ? pExtNode->srcSchema : "(empty)");
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 // createFederatedScanPhysiNode: builds SFederatedScanPhysiNode from a logic
 // node whose scanType == SCAN_TYPE_EXTERNAL.
 // ---------------------------------------------------------------------------
 static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan,
                                             SScanLogicNode* pScanLogicNode, SPhysiNode** pPhyNode) {
   if (NULL == pScanLogicNode->pExtTableNode) {
-    planError("%s", "createFederatedScanPhysiNode: pExtTableNode is NULL");
+    planError("createFederatedScanPhysiNode: pExtTableNode is NULL");
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  if (NULL == pScanLogicNode->pScanCols || LIST_LENGTH(pScanLogicNode->pScanCols) == 0) {
+    planError("FQ-PHY: logic scan invariant violated, pScanCols empty source=%s table=%s remotePlan=%p",
+              ((SExtTableNode*)pScanLogicNode->pExtTableNode)->sourceName,
+              pScanLogicNode->tableName.tname,
+              pScanLogicNode->pRemoteLogicPlan);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  if (NULL == pScanLogicNode->node.pTargets || LIST_LENGTH(pScanLogicNode->node.pTargets) == 0) {
+    planError("FQ-PHY: logic scan invariant violated, node targets empty source=%s table=%s scanCols=%d",
+              ((SExtTableNode*)pScanLogicNode->pExtTableNode)->sourceName,
+              pScanLogicNode->tableName.tname,
+              (int)LIST_LENGTH(pScanLogicNode->pScanCols));
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
   SExtTableNode* pExtNode = (SExtTableNode*)pScanLogicNode->pExtTableNode;
+  int32_t code = fqEnsurePgExtSchemaNode(pExtNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  bool useRemoteLogicPlan =
+      (NULL != pScanLogicNode->pRemoteLogicPlan) &&
+      !fqShouldUseAnalyzeInfluxScalarAggFallback(pCxt, pScanLogicNode);
+  // Stream %%trows readers materialize source rows and run their calc plan locally.
+  bool useRemoteResultSchema = useRemoteLogicPlan && !inStreamCalcClause(pCxt->pPlanCxt);
 
   SFederatedScanPhysiNode* pScan =
       (SFederatedScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode,
                                               QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
   if (NULL == pScan) {
+    planError("createFederatedScanPhysiNode: makePhysiNode OOM");
     return terrno;
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  code = TSDB_CODE_SUCCESS;
 
   // dynamicOp external scan nodes (VStb path) have NULL pTargets/pScanCols;
   // DynQueryCtrl fills them at runtime. Only clone pExtTable and connection info.
@@ -1639,12 +2807,12 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     }
     pScan->sourceType = pExtNode->sourceType;
     tstrncpy(pScan->srcHost,     pExtNode->srcHost,     sizeof(pScan->srcHost));
-    pScan->srcPort = pExtNode->srcPort;
     tstrncpy(pScan->srcUser,     pExtNode->srcUser,     TSDB_USER_LEN);
     tstrncpy(pScan->srcPassword, pExtNode->srcPassword, TSDB_PASSWORD_LEN);
     tstrncpy(pScan->srcDatabase, pExtNode->srcDatabase, TSDB_DB_NAME_LEN);
     tstrncpy(pScan->srcSchema,   pExtNode->srcSchema,   TSDB_DB_NAME_LEN);
     tstrncpy(pScan->srcOptions,  pExtNode->srcOptions,  sizeof(pScan->srcOptions));
+    pScan->srcPort = pExtNode->srcPort;
     pScan->metaVersion = pExtNode->metaVersion;
     pScan->scanRange = pScanLogicNode->scanRange;
     fqSetFederatedScanTimezone(pCxt, pScan);
@@ -1761,23 +2929,66 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     }
   }
 
-  // Build pColTypeMappings from the same output list used by remote SQL rendering:
-  // prefer pushed Project outputs; otherwise use scan columns.
+  // Build pColTypeMappings from the same single source used by remote SQL
+  // rendering: the top-level remote plan's pTargets.  Only when there is no
+  // remote plan at all do we fall back to the local scan columns.  If a remote
+  // plan exists but its top-level outputs are still empty, that is a real plan
+  // inconsistency and must fail loudly; otherwise the descriptor, pTargets and
+  // remote SQL output order will diverge.
   {
-    SNodeList* pOutputCols = pScan->pScanCols;  // default: no pushed project
-    if (pScanLogicNode->pRemoteLogicPlan != NULL) {
-      SNodeList* pProjOutputs = fqFindRemoteProjectOutputs((SLogicNode*)pScanLogicNode->pRemoteLogicPlan);
-      if (pProjOutputs != NULL && LIST_LENGTH(pProjOutputs) > 0) {
-        pOutputCols = pProjOutputs;
+    SNodeList* pOutputCols = pScan->pScanCols;  // default: no pushed plan
+    const char* pOutputColsSource = "pScanCols";
+    if (useRemoteResultSchema) {
+      code = fqAlignRemotePassthroughOutputs(pScanLogicNode->pRemoteLogicPlan, pScan->pScanCols);
+      if (TSDB_CODE_SUCCESS != code) {
+        planError("FQ-ColMappings: align original remote passthrough outputs failed, remoteRootType=%d code:0x%x",
+                  (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan), code);
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
+
+      code = fqRefreshRemoteOutputTargets(pScanLogicNode->pRemoteLogicPlan);
+      if (TSDB_CODE_SUCCESS != code) {
+        planError("FQ-ColMappings: refresh original remote output targets failed, remoteRootType=%d code:0x%x",
+                  (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan), code);
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
+
+      SNodeList* pRemoteTargets = fqGetRemoteOutputTargets(pScanLogicNode->pRemoteLogicPlan);
+      planDebug("FQ-ColMappings: inspect top remote targets, remoteRootType=%d targets=%p len=%d",
+                (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan), pRemoteTargets,
+                pRemoteTargets ? LIST_LENGTH(pRemoteTargets) : 0);
+      if (pRemoteTargets != NULL && LIST_LENGTH(pRemoteTargets) > 0) {
+        pOutputCols = pRemoteTargets;
+        pOutputColsSource = "pRemotePlan->pTargets";
+      } else {
+        planError("FQ-ColMappings: remote plan exists but top remote targets are empty, rootType=%d scanCols=%d",
+                  (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan),
+                  pScan->pScanCols ? LIST_LENGTH(pScan->pScanCols) : 0);
+        nodesDestroyNode((SNode*)pScan);
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
       }
     }
-    int32_t numCols = 0;
+
+    int32_t numCols = pOutputCols ? LIST_LENGTH(pOutputCols) : 0;
+    int32_t outputIdx = 0;
     SNode* pExprNode = NULL;
     FOREACH(pExprNode, pOutputCols) {
-      if (fqPhysiOutputNeedsRemoteMapping(pExprNode)) {
-        ++numCols;
+      SNode* pExpr = fqResolveRemoteMappingExpr(pExprNode);
+      if (NULL == pExpr) {
+        planError("FQ-ColMappings: outputIdx=%d has NULL mapping expr, source=%s exprNodeType=%d",
+                  outputIdx, pOutputColsSource, (int)nodeType(pExprNode));
+        nodesDestroyNode((SNode*)pScan);
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
       }
+      planDebug("FQ-ColMappings: count outputIdx=%d exprNodeType=%d exprType=%d includeInMappings=1",
+                outputIdx, (int)nodeType(pExprNode), (int)nodeType(pExpr));
+      ++outputIdx;
     }
+
+    planDebug("FQ-ColMappings: source=%s outputLen=%d mappingCols=%d",
+              pOutputColsSource, pOutputCols ? LIST_LENGTH(pOutputCols) : 0, numCols);
     if (numCols > 0) {
       pScan->pColTypeMappings =
           (SExtColTypeMapping*)taosMemoryCalloc(numCols, sizeof(SExtColTypeMapping));
@@ -1786,16 +2997,41 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
         return TSDB_CODE_OUT_OF_MEMORY;
       }
       pScan->numColTypeMappings = numCols;
-      int32_t colIdx  = 0;
+
+      int32_t colIdx = 0;
+      outputIdx = 0;
       FOREACH(pExprNode, pOutputCols) {
-        SNode* pExpr = pExprNode;
-        if (QUERY_NODE_TARGET == nodeType(pExprNode)) {
-          pExpr = ((STargetNode*)pExprNode)->pExpr;
+        SNode* pExpr = fqResolveRemoteMappingExpr(pExprNode);
+        if (NULL == pExpr) {
+          planError("FQ-ColMappings: outputIdx=%d resolved NULL expr during fill, source=%s exprNodeType=%d",
+                    outputIdx, pOutputColsSource, (int)nodeType(pExprNode));
+          nodesDestroyNode((SNode*)pScan);
+          return TSDB_CODE_PLAN_INTERNAL_ERROR;
         }
-        if (pExpr != NULL && nodeType(pExpr) != QUERY_NODE_VALUE) {
-          pScan->pColTypeMappings[colIdx].tdType = ((SExprNode*)pExpr)->resType;
-          ++colIdx;
+
+        planDebug("FQ-ColMappings[%d]: outputIdx=%d exprNodeType=%d exprType=%d type=%d precision=%d scale=%d bytes=%d",
+                  colIdx, outputIdx, (int)nodeType(pExprNode), (int)nodeType(pExpr),
+                  (int)((SExprNode*)pExpr)->resType.type, (int)((SExprNode*)pExpr)->resType.precision,
+                  (int)((SExprNode*)pExpr)->resType.scale, (int)((SExprNode*)pExpr)->resType.bytes);
+        pScan->pColTypeMappings[colIdx].tdType = ((SExprNode*)pExpr)->resType;
+        const char* pOutputName = fqResolveRemoteOutputName(pExprNode);
+        if (NULL != pOutputName && '\0' != pOutputName[0]) {
+          tstrncpy(pScan->pColTypeMappings[colIdx].colName, pOutputName,
+                   sizeof(pScan->pColTypeMappings[colIdx].colName));
         }
+        planDebug("FQ-ColMappings[%d]: outputIdx=%d outputName=%s source=%s",
+                  colIdx, outputIdx,
+                  pScan->pColTypeMappings[colIdx].colName[0] != '\0' ? pScan->pColTypeMappings[colIdx].colName : "(empty)",
+                  pOutputColsSource);
+        ++colIdx;
+        ++outputIdx;
+      }
+
+      if (colIdx != numCols) {
+        planError("FQ-ColMappings: filled mapping count mismatch, source=%s expected=%d actual=%d",
+                  pOutputColsSource, numCols, colIdx);
+        nodesDestroyNode((SNode*)pScan);
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
       }
     }
   }
@@ -1810,16 +3046,77 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   tstrncpy(pScan->srcSchema,   pExtNode->srcSchema,   TSDB_DB_NAME_LEN);
   tstrncpy(pScan->srcOptions,  pExtNode->srcOptions,  sizeof(pScan->srcOptions));
   pScan->metaVersion = pExtNode->metaVersion;
-  // Propagate two-pass mode: set when the parent AGG has PERCENTILE or other REPEAT_SCAN_FUNC.
-  pScan->twoPassMode = (pScanLogicNode->scanSeq[0] > 1);
+  code = fqBuildTimestampTypeHints(pScan, pExtNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-TsTypeHints: build failed source=%s code:0x%x",
+              pExtNode->sourceName, code);
+    nodesDestroyNode((SNode*)pScan);
+    return code;
+  }
+  // Propagate two-pass mode only when the repeat-scan aggregate still runs locally.
+  // If the remote subtree already contains the repeat-scan AGG, FederatedScan must
+  // return the final remote rows once, not PRE_SCAN + MAIN_SCAN duplicates.
+  bool requestTwoPass = (pScanLogicNode->scanSeq[0] > 1);
+  bool remoteOwnsRepeatScan =
+      useRemoteLogicPlan && fqRemotePlanHasRepeatScanAgg((const SLogicNode*)pScanLogicNode->pRemoteLogicPlan);
+  pScan->twoPassMode = requestTwoPass && !remoteOwnsRepeatScan;
+  planDebug("FQ-PhysiFedScan: source=%s scanSeq0=%d requestTwoPass=%d remoteOwnsRepeatScan=%d finalTwoPass=%d"
+            " useRemoteLogicPlan=%d remoteRootType=%d",
+            pExtNode->sourceName, (int)pScanLogicNode->scanSeq[0], (int)requestTwoPass,
+            (int)remoteOwnsRepeatScan, (int)pScan->twoPassMode, (int)useRemoteLogicPlan,
+            pScanLogicNode->pRemoteLogicPlan ? (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan) : -1);
   // Copy client timezone name so the Executor can reconstruct the timezone_t via tzalloc().
   // Used by the Connector to convert timezone-naive source timestamps (MySQL DATETIME,
   // PG timestamp without time zone, etc.) using the correct client timezone.
   fqSetFederatedScanTimezone(pCxt, pScan);
 
   // Add output data block slots.
+  // When pRemoteLogicPlan exists, FedScan executes the remote plan and returns its
+  // top-level output.  The output descriptor must reflect what the remote plan actually
+  // produces, not the original scan columns.  Only when pRemoteLogicPlan is NULL (pure
+  // scan, no pushdown) do we fall back to pScanCols.  A non-NULL remote plan with an
+  // empty output list is a real inconsistency and must fail loudly.
+  SNodeList* pSlotCols = pScan->pScanCols;  // default: no remote plan
+  SNodeList* pReserveSlotCols = NULL;
   {
-    code = addDataBlockSlots(pCxt, pScan->pScanCols, pScan->node.pOutputDataBlockDesc);
+    if (useRemoteResultSchema) {
+      code = fqRefreshRemoteOutputTargets(pScanLogicNode->pRemoteLogicPlan);
+      if (TSDB_CODE_SUCCESS != code) {
+        planError("FQ-Slots: refresh original remote output targets failed, remoteRootType=%d code:0x%x",
+                  (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan), code);
+        nodesDestroyNode((SNode*)pScan);
+        return code;
+      }
+
+      SNodeList* pRemoteTargets = fqGetRemoteOutputTargets(pScanLogicNode->pRemoteLogicPlan);
+      planDebug("FQ-Slots: inspect top remote targets for FedScan output descriptor, type=%d len=%d",
+                (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan),
+                pRemoteTargets ? LIST_LENGTH(pRemoteTargets) : 0);
+      if (pRemoteTargets != NULL && LIST_LENGTH(pRemoteTargets) > 0) {
+        pSlotCols = pRemoteTargets;
+      } else {
+        planError("FQ-Slots: remote plan exists but top remote targets are empty, rootType=%d scanCols=%d",
+                  (int)nodeType((SNode*)pScanLogicNode->pRemoteLogicPlan),
+                  pScan->pScanCols ? LIST_LENGTH(pScan->pScanCols) : 0);
+        nodesDestroyNode((SNode*)pScan);
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }
+    }
+    // When pRemoteLogicPlan is non-NULL, the FedScan output descriptor must be
+    // rebuilt from scratch in remote-result order, then local-only dependency
+    // columns are appended as reserve slots. Reusing makePhysiNode's initial
+    // descriptor leaks the local scan-target order into output slots and can
+    // swap visible/hidden columns for partial-project pushdown.
+    if (useRemoteLogicPlan && pSlotCols != pScan->pScanCols && pScan->pScanCols != NULL) {
+      code = nodesCloneList(pScan->pScanCols, &pReserveSlotCols);
+      if (TSDB_CODE_SUCCESS == code) {
+        planDebug("FQ-Slots: rebuilt FedScan descriptor from remote targets (len=%d) plus reserve scanCols (len=%d)",
+                  (int)LIST_LENGTH(pSlotCols), (int)LIST_LENGTH(pReserveSlotCols));
+        code = fqRebuildDataBlockDesc(pCxt, pScan->node.pOutputDataBlockDesc, pSlotCols, pReserveSlotCols);
+      }
+    } else {
+      code = addDataBlockSlots(pCxt, pSlotCols, pScan->node.pOutputDataBlockDesc);
+    }
   }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode((SNode*)pScan);
@@ -1839,73 +3136,30 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     }
   }
 
-  // Patch the slot-ID hash so that setNodeSlotId can find external-scan
-  // condition columns by their original (user-visible) names.
-  //
-  // External scan columns use internal placeholder names like "expr_1",
-  // "expr_2" as colName, with the user-visible name stored in userAlias.
-  // addDataBlockSlots keys the hash by colName ("expr_1"), so the condition's
-  // column "val" (original name) is not found and setNodeSlotId would fail.
-  // We add a supplementary "userAlias → slotId" entry to the hash so
-  // setNodeSlotId (doSetSlotId) can resolve the condition column by colName.
-  //
-  // We also add a table-qualified hash key (hash of "tableAlias.userAlias",
-  // e.g. "b.ts") so that doSetSlotId's full-key lookup correctly maps
-  // each table's column to the right block when two tables share column names.
-  {
-    int64_t   dataBlockId = pScan->node.pOutputDataBlockDesc->dataBlockId;
-    SHashObj* pHash = (SHashObj*)taosArrayGetP(pCxt->pLocationHelper, (size_t)dataBlockId);
-    if (pHash != NULL) {
-      SNode* pTgtNode;
-      FOREACH(pTgtNode, pScan->pScanCols) {
-        if (QUERY_NODE_TARGET != nodeType(pTgtNode)) continue;
-        STargetNode* pTgt = (STargetNode*)pTgtNode;
-        if (NULL == pTgt->pExpr) continue;
-        const char* alias = ((SExprNode*)pTgt->pExpr)->userAlias;
-        if ('\0' == alias[0]) continue;
-        int32_t len = (int32_t)strlen(alias);
-        if (NULL == taosHashGet(pHash, alias, len)) {
-          (void)putSlotToHashImpl(dataBlockId, pTgt->slotId, alias, len, pHash);
-        }
-        // Also add a table-qualified hash key ("tableAlias.userAlias") so
-        // that the full-key lookup in doSetSlotId can distinguish columns
-        // with the same name from different tables (e.g. both having "ts").
-        if (QUERY_NODE_COLUMN == nodeType(pTgt->pExpr)) {
-          const SColumnNode* pColNode = (const SColumnNode*)pTgt->pExpr;
-          if (pColNode->tableAlias[0] != '\0') {
-            char   qualBuf[TSDB_TABLE_NAME_LEN + 1 + TSDB_COL_NAME_LEN + 16 + 4];
-            int32_t qualCap = (int32_t)sizeof(qualBuf);
-            qualBuf[0] = '\0';
-            TAOS_STRNCAT(qualBuf, pColNode->tableAlias, TSDB_TABLE_NAME_LEN);
-            TAOS_STRNCAT(qualBuf, ".", 2);
-            TAOS_STRNCAT(qualBuf, alias, TSDB_COL_NAME_LEN);
-            int32_t qualLen = taosHashBinary(qualBuf, strlen(qualBuf), qualCap);
-            if (NULL == taosHashGet(pHash, qualBuf, qualLen)) {
-              (void)putSlotToHashImpl(dataBlockId, pTgt->slotId, qualBuf, qualLen, pHash);
-            }
-          }
-        }
-      }
-    }
+  if (pReserveSlotCols != NULL) {
+    nodesDestroyList(pReserveSlotCols);
+    pReserveSlotCols = NULL;
   }
-
   // Set correct slot IDs in the cloned conditions using setNodeSlotId.
-  // The hash now has both placeholder names ("expr_2") and original user-visible
-  // names ("val") so doSetSlotId can resolve every condition column correctly.
-  // This ensures the local filter (for like_in_set, REMOTE_VALUE_LIST, etc.)
-  // references the right column in the output data block.
+  // Only columns that are present in the output/reserve slot descriptor can be
+  // resolved here; conditions pushed to the remote side are handled remotely.
   if (pScanLogicNode->node.pConditions != NULL) {
     code = setNodeSlotId(pCxt, pScan->node.pOutputDataBlockDesc->dataBlockId, -1,
                          pScanLogicNode->node.pConditions, &pScan->node.pConditions);
+    planDebug("FQ-PHY FedScan pConditions: setNodeSlotId code=0x%x pConditions=%p",
+              code, pScan->node.pConditions);
     if (TSDB_CODE_SUCCESS != code) {
       // setNodeSlotId fails when condition columns are not in the output hash
       // (e.g. conditions already pushed to remote SQL, referencing columns not
       // in SELECT).  Clear pConditions — the remote source handles filtering.
       // Only conditions whose columns ARE in the output (setNodeSlotId succeeds)
       // will be kept for local doFilter evaluation in the executor.
+      planDebug("FQ-PHY FedScan pConditions: setNodeSlotId failed code=0x%x, clearing pConditions", code);
       pScan->node.pConditions = NULL;
       code = TSDB_CODE_SUCCESS;
     }
+  } else {
+    planDebug("FQ-PHY FedScan pConditions: logic pConditions is NULL (already pushed or none)");
   }
 
   // Force MERGE subplan type to avoid DATA_SRC_EP_MISS (external has no vnode)
@@ -1915,275 +3169,174 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   // ★ Mark the physical plan as containing a federated scan
   pCxt->hasFederatedScan = true;
 
-  // ── Build pRemotePlan: the mini physi-plan tree used for remote SQL gen ──
-  //
-  // nodesRemotePlanToSQL() walks this tree (not the outer Mode-1 node) to
-  // produce the SQL sent to the external database.  Expressions are cloned
-  // directly from the logic tree so they carry original column names rather
-  // than TDengine slot IDs.
-  //
-  // Tree layout (top → bottom):
-  //   [SProjectPhysiNode]?   ← from pRemoteLogicPlan (set by FqPushdown optimizer)
-  //     [SSortPhysiNode]?    ← from pRemoteLogicPlan
-  //       SFederatedScanPhysiNode  (Mode 2 leaf, pRemotePlan == NULL)
-  //         .pExtTable    → FROM clause
-  //         .pScanCols    → SELECT * fallback
+  // ── Build the remote plan as a LOGIC tree (pure clone — no physi conversion) ──
+  //         .pScanCols    → flat leaf SELECT list (must already be non-empty)
   //         .pConditions  → WHERE clause
   //         .node.pLimit  → LIMIT / OFFSET
 
-  SFederatedScanPhysiNode* pLeaf = NULL;
-  code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN, (SNode**)&pLeaf);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pScan);
-    return code;
-  }
-
-  // FROM clause: clone SExtTableNode (table identity for SQL generation)
-  code = nodesCloneNode(pScanLogicNode->pExtTableNode, &pLeaf->pExtTable);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pLeaf);
-    nodesDestroyNode((SNode*)pScan);
-    return code;
-  }
-
-  // SELECT fallback for SQL generation: when pRemoteLogicPlan exists, use its
-  // topmost node's pTargets (the actual output columns, e.g. [val, info]) instead
-  // of pScanCols (which may include ORDER-BY-only columns like [val, info, id]).
-  // If Project was eliminated by projectOptimize, Sort's pTargets already equals
-  // the original Project output.  assembleRemoteSQL falls back to pScanCols when
-  // no SProjectPhysiNode is present, so this ensures the correct SELECT clause.
-  {
-    SNodeList* pLeafCols = pScanLogicNode->pScanCols;  // default
-    if (pScanLogicNode->pRemoteLogicPlan != NULL) {
-      SNodeList* pTargets = ((SLogicNode*)pScanLogicNode->pRemoteLogicPlan)->pTargets;
-      if (pTargets != NULL && LIST_LENGTH(pTargets) > 0 && fqPhysiExprListAllColumns(pTargets)) {
-        pLeafCols = pTargets;
-      }
-    }
-    code = nodesCloneList(pLeafCols, &pLeaf->pScanCols);
-  }
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pLeaf);
-    nodesDestroyNode((SNode*)pScan);
-    return code;
-  }
-
-  // Copy pColTypeMappings from Mode 1 pScan to Mode 2 pLeaf so that
-  // nodesRemotePlanToSQL (executor side) can detect column source types
-  // (e.g. PG JSONB) even after pExtMeta has been freed.
-  if (pScan->numColTypeMappings > 0 && pScan->pColTypeMappings) {
-    pLeaf->pColTypeMappings = (SExtColTypeMapping*)taosMemoryCalloc(
-        pScan->numColTypeMappings, sizeof(SExtColTypeMapping));
-    if (pLeaf->pColTypeMappings) {
-      (void)memcpy(pLeaf->pColTypeMappings, pScan->pColTypeMappings,
-                   pScan->numColTypeMappings * sizeof(SExtColTypeMapping));
-      pLeaf->numColTypeMappings = pScan->numColTypeMappings;
-    }
-  }
-
-  // WHERE clause: clone conditions with original column names (not slot IDs).
-  // Only pPushedConditions are sent to the remote DB (they are fully-pushdownable,
-  // e.g. EXISTS with RAW_SQL_FRAG).  node.pConditions (e.g. LIKE on JSONB) are
-  // executed locally by the FederatedScan operator and must NOT appear in the
-  // leaf's remote SQL.
-  {
-    SNode* pLeafCond = pScanLogicNode->pPushedConditions;
-    if (pLeafCond != NULL) {
-      code = nodesCloneNode(pLeafCond, &pLeaf->node.pConditions);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pLeaf);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-    }
-  }
-
-  // LIMIT / OFFSET: makePhysiNode already transferred pScanLogicNode->pLimit to
-  // pScan->node.pLimit via TSWAP.  Clone it onto the leaf so the remote SQL
-  // includes a LIMIT clause when the scan-level limit was set.
-  if (pScan->node.pLimit != NULL) {
-    code = nodesCloneNode(pScan->node.pLimit, &pLeaf->node.pLimit);
+  // pRemotePlan is a logic-node subtree: nodesRemotePlanToSQL renders it directly
+  // (it reads only column names / expressions / functions — never physi slot ids),
+  // and TLV ships it to the server which re-renders.  Two cases:
+  //   (a) pRemoteLogicPlan set (FqPushdown collected a chain): clone it verbatim —
+  //       it already carries its own logic SCAN leaf (cloned by fqCommitPushChain).
+  //   (b) pRemoteLogicPlan NULL: build a bare logic SCAN leaf carrying the remote
+  //       FROM/SELECT/WHERE/LIMIT so the connector runs a flat "SELECT … FROM …".
+  SNode* pRemoteRoot = NULL;
+  planDebug("FQ-PHY: pScanLogicNode=%p pRemoteLogicPlan=%p type=%d useRemoteLogicPlan=%d", pScanLogicNode,
+            pScanLogicNode->pRemoteLogicPlan,
+            pScanLogicNode->pRemoteLogicPlan ? (int)nodeType(pScanLogicNode->pRemoteLogicPlan) : -1,
+            (int)useRemoteLogicPlan);
+  if (useRemoteLogicPlan) {
+    code = nodesCloneNode(pScanLogicNode->pRemoteLogicPlan, &pRemoteRoot);
+    planDebug("FQ-PHY: after clone pRemoteRoot=%p type=%d code=0x%x",
+              pRemoteRoot, pRemoteRoot ? (int)nodeType(pRemoteRoot) : -1, code);
     if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pLeaf);
       nodesDestroyNode((SNode*)pScan);
       return code;
     }
-  }
-
-  // Convert pRemoteLogicPlan (set by FqPushdown optimizer) into physical nodes,
-  // wrapping pLeaf at the bottom.  If pRemoteLogicPlan is NULL, pRemoteRoot == pLeaf.
-  SPhysiNode* pRemoteRoot = NULL;
-  code = buildRemotePlanFromLogicPlan(pScanLogicNode, pLeaf, &pRemoteRoot);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode((SNode*)pRemoteRoot);  // destroys chain including pLeaf
-    nodesDestroyNode((SNode*)pScan);
-    return code;
-  }
-
-  // Ensure topmost remote physical node carries output column info (pTargets)
-  // so the executor can reconstruct pColTypeMappings after deserialization.
-  // fqInjectPkOrderBy creates Sort logic nodes without pTargets; fix up here.
-  if (pRemoteRoot != NULL && nodeType(pRemoteRoot) == QUERY_NODE_PHYSICAL_PLAN_SORT) {
-    SSortPhysiNode* pSortPhys = (SSortPhysiNode*)pRemoteRoot;
-    if (pSortPhys->pTargets == NULL && pScanLogicNode->pRemoteLogicPlan != NULL) {
-      SNodeList* pLogicTargets = ((SLogicNode*)pScanLogicNode->pRemoteLogicPlan)->pTargets;
-      if (pLogicTargets != NULL) {
-        code = nodesCloneList(pLogicTargets, &pSortPhys->pTargets);
-        if (TSDB_CODE_SUCCESS != code) {
-          nodesDestroyNode((SNode*)pRemoteRoot);
-          nodesDestroyNode((SNode*)pScan);
-          return code;
-        }
-      }
+    if (pRemoteRoot != NULL) {
+      SLogicNode* pRemoteLogicRoot = (SLogicNode*)pRemoteRoot;
+      planDebug("FQ-PHY: cloned remote root detail type=%d nChildren=%d targets=%d limit=%p",
+                (int)nodeType(pRemoteRoot),
+                pRemoteLogicRoot->pChildren ? LIST_LENGTH(pRemoteLogicRoot->pChildren) : 0,
+                pRemoteLogicRoot->pTargets ? LIST_LENGTH(pRemoteLogicRoot->pTargets) : 0,
+                pRemoteLogicRoot->pLimit);
+      SScanLogicNode* pRemoteLeaf = fqFindExternalLogicLeafScan((SLogicNode*)pRemoteRoot);
+      planDebug("FQ-PHY: cloned remote leaf detail leaf=%p hasCond=%d scanCols=%d targets=%d remotePlan=%p source=%s table=%s",
+                pRemoteLeaf, (NULL != pRemoteLeaf && NULL != pRemoteLeaf->node.pConditions),
+                (NULL != pRemoteLeaf && NULL != pRemoteLeaf->pScanCols) ? LIST_LENGTH(pRemoteLeaf->pScanCols) : 0,
+                (NULL != pRemoteLeaf && NULL != pRemoteLeaf->node.pTargets) ? LIST_LENGTH(pRemoteLeaf->node.pTargets) : 0,
+                NULL != pRemoteLeaf ? pRemoteLeaf->pRemoteLogicPlan : NULL,
+                (NULL != pRemoteLeaf && NULL != pRemoteLeaf->pExtTableNode)
+                    ? ((SExtTableNode*)pRemoteLeaf->pExtTableNode)->sourceName
+                    : "(null)",
+                (NULL != pRemoteLeaf && NULL != pRemoteLeaf->pExtTableNode)
+                    ? ((SExtTableNode*)pRemoteLeaf->pExtTableNode)->table.tableName
+                    : "(null)");
     }
-  }
-
-  // VTB child scans: inject ORDER BY <ts> ASC when fqInjectPkOrderBy could not
-  // (because pExtMeta is NULL at optimizer time — metadata is fetched at runtime).
-  // The VTB sort-merge requires each source to return rows sorted by timestamp.
-  if (pRemoteRoot == (SPhysiNode*)pLeaf && pScanLogicNode->virtualStableScan &&
-      pLeaf->pScanCols != NULL && LIST_LENGTH(pLeaf->pScanCols) > 0) {
-    // First column in pScanCols is the ts primary key for VTB children.
-    SNode* pFirstCol = nodesListGetNode(pLeaf->pScanCols, 0);
-    if (pFirstCol != NULL && nodeType(pFirstCol) == QUERY_NODE_COLUMN) {
-      SColumnNode* pTsCol = (SColumnNode*)pFirstCol;
-
-      // Build ORDER BY ASC on the ts column
-      SColumnNode* pOrdCol = NULL;
-      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pOrdCol);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-      tstrncpy(pOrdCol->colName, pTsCol->colName, TSDB_COL_NAME_LEN);
-      pOrdCol->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
-      pOrdCol->node.resType.bytes = (int32_t)sizeof(int64_t);
-
-      SOrderByExprNode* pOrdExpr = NULL;
-      code = nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pOrdExpr);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pOrdCol);
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-      pOrdExpr->pExpr     = (SNode*)pOrdCol;
-      pOrdExpr->order     = ORDER_ASC;
-      pOrdExpr->nullOrder = NULL_ORDER_FIRST;
-
-      SSortPhysiNode* pSort = NULL;
-      code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, (SNode**)&pSort);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pOrdExpr);
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-      code = nodesMakeList(&pSort->pSortKeys);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pSort);
-        nodesDestroyNode((SNode*)pOrdExpr);
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-      code = nodesListStrictAppend(pSort->pSortKeys, (SNode*)pOrdExpr);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pSort);
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-
-      // Wire pLeaf as child of pSort
-      code = nodesMakeList(&pSort->node.pChildren);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pSort);
-        nodesDestroyNode((SNode*)pRemoteRoot);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-      code = nodesListStrictAppend(pSort->node.pChildren, (SNode*)pLeaf);
-      if (TSDB_CODE_SUCCESS != code) {
-        nodesDestroyNode((SNode*)pSort);
-        nodesDestroyNode((SNode*)pScan);
-        return code;
-      }
-      pLeaf->node.pParent = (SPhysiNode*)pSort;
-      pRemoteRoot = (SPhysiNode*)pSort;
+    code = fqAlignRemotePassthroughOutputs(pRemoteRoot, pScan->pScanCols);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pRemoteRoot);
+      nodesDestroyNode((SNode*)pScan);
+      return code;
     }
+    if (pRemoteRoot != NULL) {
+      SLogicNode* pRemoteLogicRoot = (SLogicNode*)pRemoteRoot;
+      planDebug("FQ-PHY: aligned remote root detail type=%d nChildren=%d targets=%d limit=%p",
+                (int)nodeType(pRemoteRoot),
+                pRemoteLogicRoot->pChildren ? LIST_LENGTH(pRemoteLogicRoot->pChildren) : 0,
+                pRemoteLogicRoot->pTargets ? LIST_LENGTH(pRemoteLogicRoot->pTargets) : 0,
+                pRemoteLogicRoot->pLimit);
+    }
+    code = fqRefreshRemoteOutputTargets(pRemoteRoot);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pRemoteRoot);
+      nodesDestroyNode((SNode*)pScan);
+      return code;
+    }
+    if (pRemoteRoot != NULL) {
+      SLogicNode* pRemoteLogicRoot = (SLogicNode*)pRemoteRoot;
+      planDebug("FQ-PHY: refreshed remote output targets detail type=%d nChildren=%d targets=%d limit=%p",
+                (int)nodeType(pRemoteRoot),
+                pRemoteLogicRoot->pChildren ? LIST_LENGTH(pRemoteLogicRoot->pChildren) : 0,
+                pRemoteLogicRoot->pTargets ? LIST_LENGTH(pRemoteLogicRoot->pTargets) : 0,
+                pRemoteLogicRoot->pLimit);
+      SScanLogicNode* pRemoteLeaf = fqFindExternalLogicLeafScan((SLogicNode*)pRemoteRoot);
+      planDebug("FQ-PHY: refreshed remote leaf detail leaf=%p hasCond=%d scanCols=%d targets=%d remotePlan=%p source=%s table=%s",
+                pRemoteLeaf, (NULL != pRemoteLeaf && NULL != pRemoteLeaf->node.pConditions),
+                (NULL != pRemoteLeaf && NULL != pRemoteLeaf->pScanCols) ? LIST_LENGTH(pRemoteLeaf->pScanCols) : 0,
+                (NULL != pRemoteLeaf && NULL != pRemoteLeaf->node.pTargets) ? LIST_LENGTH(pRemoteLeaf->node.pTargets) : 0,
+                NULL != pRemoteLeaf ? pRemoteLeaf->pRemoteLogicPlan : NULL,
+                (NULL != pRemoteLeaf && NULL != pRemoteLeaf->pExtTableNode)
+                    ? ((SExtTableNode*)pRemoteLeaf->pExtTableNode)->sourceName
+                    : "(null)",
+                (NULL != pRemoteLeaf && NULL != pRemoteLeaf->pExtTableNode)
+                    ? ((SExtTableNode*)pRemoteLeaf->pExtTableNode)->table.tableName
+                    : "(null)");
+    }
+  } else {
+    SScanLogicNode* pLeaf = NULL;
+    code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, (SNode**)&pLeaf);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pScan);
+      return code;
+    }
+    pLeaf->scanType = SCAN_TYPE_EXTERNAL;
+    // FROM: clone the external table node (table identity for SQL generation).
+    code = nodesCloneNode(pScanLogicNode->pExtTableNode, &pLeaf->pExtTableNode);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pLeaf); nodesDestroyNode((SNode*)pScan); return code; }
+    // SELECT: clone the de-duplicated column set the optimizer collected.
+    // Use pScan->pScanCols (already reordered to pTargets order above), NOT the
+    // raw pScanLogicNode->pScanCols.  The remote SQL SELECT list rendered from
+    // this leaf MUST match the column order of pColTypeMappings (built from
+    // pScan->pScanCols below); otherwise the connector decodes result column N
+    // with mapping[N] of a different column → 0x6418 (e.g. "unexpected OID 701
+    // for TIMESTAMP column 0").  nodesCollectColumns visits WHERE-subquery /
+    // ORDER BY columns before the projection, so the raw order diverges from
+    // pTargets only when a WHERE subquery (REMOTE_*) is present — exactly the
+    // failing case.
+    code = nodesCloneList(pScan->pScanCols, &pLeaf->pScanCols);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pLeaf); nodesDestroyNode((SNode*)pScan); return code; }
+    // WHERE: the fallback flat leaf is built only when NOTHING was pushed into a
+    // remote plan (pRemoteLogicPlan == NULL).  In that case the scan's WHERE is
+    // non-pushable and stays local on the outer FedScan (node.pConditions), so the
+    // remote leaf gets no WHERE.  Pushable WHERE always flows through a commit-built
+    // remote SCAN leaf (a separate node owning its node.pConditions), never here.
+    // LIMIT: makePhysiNode moved pScanLogicNode->pLimit to pScan->node.pLimit.
+    if (pScan->node.pLimit != NULL) {
+      code = nodesCloneNode(pScan->node.pLimit, &pLeaf->node.pLimit);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pLeaf); nodesDestroyNode((SNode*)pScan); return code; }
+    }
+    planDebug("FQ-PHY: built fallback bare remote scan leaf=%p scanCols=%d targets=%d hasCond=%d hasLimit=%d",
+              pLeaf, pLeaf->pScanCols ? LIST_LENGTH(pLeaf->pScanCols) : 0,
+              pLeaf->node.pTargets ? LIST_LENGTH(pLeaf->node.pTargets) : 0,
+              NULL != pLeaf->node.pConditions, NULL != pLeaf->node.pLimit);
+    pRemoteRoot = (SNode*)pLeaf;
   }
 
-  // Attach the inner pRemotePlan tree to the outer Mode-1 wrapper.
+  if (pRemoteRoot != NULL) {
+    code = fqRefreshRemoteOutputTargets(pRemoteRoot);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-PHY: refresh remote output targets failed after remote root build, rootType=%d code:0x%x",
+                (int)nodeType(pRemoteRoot), code);
+      nodesDestroyNode(pRemoteRoot);
+      nodesDestroyNode((SNode*)pScan);
+      return code;
+    }
+
+    SLogicNode* pRemoteLogicRoot = (SLogicNode*)pRemoteRoot;
+    planDebug("FQ-PHY: finalized remote root detail type=%d nChildren=%d targets=%d hasCond=%d limit=%p",
+              (int)nodeType(pRemoteRoot),
+              pRemoteLogicRoot->pChildren ? LIST_LENGTH(pRemoteLogicRoot->pChildren) : 0,
+              pRemoteLogicRoot->pTargets ? LIST_LENGTH(pRemoteLogicRoot->pTargets) : 0,
+              NULL != pRemoteLogicRoot->pConditions, pRemoteLogicRoot->pLimit);
+    SScanLogicNode* pRemoteLeaf = fqFindExternalLogicLeafScan((SLogicNode*)pRemoteRoot);
+    planDebug("FQ-PHY: finalized remote leaf detail leaf=%p hasCond=%d scanCols=%d targets=%d remotePlan=%p source=%s table=%s",
+              pRemoteLeaf, (NULL != pRemoteLeaf && NULL != pRemoteLeaf->node.pConditions),
+              (NULL != pRemoteLeaf && NULL != pRemoteLeaf->pScanCols) ? LIST_LENGTH(pRemoteLeaf->pScanCols) : 0,
+              (NULL != pRemoteLeaf && NULL != pRemoteLeaf->node.pTargets) ? LIST_LENGTH(pRemoteLeaf->node.pTargets) : 0,
+              NULL != pRemoteLeaf ? pRemoteLeaf->pRemoteLogicPlan : NULL,
+              (NULL != pRemoteLeaf && NULL != pRemoteLeaf->pExtTableNode)
+                  ? ((SExtTableNode*)pRemoteLeaf->pExtTableNode)->sourceName
+                  : "(null)",
+              (NULL != pRemoteLeaf && NULL != pRemoteLeaf->pExtTableNode)
+                  ? ((SExtTableNode*)pRemoteLeaf->pExtTableNode)->table.tableName
+                  : "(null)");
+  }
+
+  // Attach the inner pRemotePlan (logic) tree to the outer Mode-1 wrapper.
   pScan->pRemotePlan   = (SNode*)pRemoteRoot;
-  pScan->pushdownFlags = 0;  // Phase 1: no advanced pushdown flags
-
-  // When pRemoteLogicPlan is set, the remote connector executes the full
-  // pushed-down plan and returns only the topmost node's output columns
-  // (e.g. [val, info]), which may be fewer than pScanCols (e.g. [id, val, info]).
-  // Rebuild pOutputDataBlockDesc so that the data dispatcher's schema validation
-  // (totalRowSize, slot count) matches the actual SSDataBlock returned by the
-  // connector.  The dataBlockId is preserved; FedScan is the root operator so
-  // no upstream slot references are affected.
-  if (pScanLogicNode->pRemoteLogicPlan != NULL) {
-    SNodeList* pRemoteTargets = ((SLogicNode*)pScanLogicNode->pRemoteLogicPlan)->pTargets;
-    if (pRemoteTargets != NULL && LIST_LENGTH(pRemoteTargets) > 0) {
-      SDataBlockDescNode* pDesc = pScan->node.pOutputDataBlockDesc;
-      int32_t curSlots = LIST_LENGTH(pDesc->pSlots);
-      int32_t newSlots = LIST_LENGTH(pRemoteTargets);
-      if (newSlots < curSlots) {
-        nodesDestroyList(pDesc->pSlots);
-        pDesc->pSlots = NULL;
-        pDesc->totalRowSize = 0;
-        pDesc->outputRowSize = 0;
-        code = nodesMakeList(&pDesc->pSlots);
-        if (TSDB_CODE_SUCCESS != code) {
-          nodesDestroyNode((SNode*)pScan);
-          return code;
-        }
-        int16_t slotId = 0;
-        SNode*  pTgtNode = NULL;
-        FOREACH(pTgtNode, pRemoteTargets) {
-          SNode* pExpr = pTgtNode;
-          if (QUERY_NODE_TARGET == nodeType(pTgtNode)) {
-            pExpr = ((STargetNode*)pTgtNode)->pExpr;
-          }
-          SSlotDescNode* pSlot = NULL;
-          code = nodesMakeNode(QUERY_NODE_SLOT_DESC, (SNode**)&pSlot);
-          if (TSDB_CODE_SUCCESS != code) {
-            nodesDestroyNode((SNode*)pScan);
-            return code;
-          }
-          if (pExpr != NULL) {
-            snprintf(pSlot->name, sizeof(pSlot->name), "%s", ((SExprNode*)pExpr)->aliasName);
-            pSlot->dataType = ((SExprNode*)pExpr)->resType;
-          }
-          pSlot->slotId = slotId;
-          pSlot->output = true;
-          pSlot->reserve = false;
-          code = nodesListStrictAppend(pDesc->pSlots, (SNode*)pSlot);
-          if (TSDB_CODE_SUCCESS != code) {
-            nodesDestroyNode((SNode*)pScan);
-            return code;
-          }
-          pDesc->totalRowSize += pSlot->dataType.bytes;
-          pDesc->outputRowSize += pSlot->dataType.bytes;
-          ++slotId;
-        }
-      }
-    }
-  }
 
   // Translate column names from TDengine schema names to remote source names.
   // This must run client-side (during planning) because pExtMeta is not serialized
-  // to taosd.  After this step, all SColumnNode.colName values in pRemotePlan
-  // already carry the remote name (e.g. "time" instead of "ts" for InfluxDB),
-  // so nodesRemotePlanToSQL emits the correct column names on the server side.
+  // to taosd.  pRemoteRoot is a LOGIC tree, so the translator walks logic nodes.
   if (pExtNode->pExtMeta) {
-    translateExtColNamesInRemotePlan((SPhysiNode*)pRemoteRoot, pExtNode->pExtMeta);
+    translateExtColNamesInRemotePlan((SLogicNode*)pRemoteRoot, pExtNode->pExtMeta);
   }
 
+  planDebug("FQ-PHY: FedScan=%p pRemotePlan=%p type=%d",
+            pScan, pScan->pRemotePlan,
+            pScan->pRemotePlan ? (int)nodeType(pScan->pRemotePlan) : -1);
   *pPhyNode = (SPhysiNode*)pScan;
   return TSDB_CODE_SUCCESS;
 }
@@ -2620,6 +3773,154 @@ static int32_t ensureCondColSlotsInJoinDescs(SPhysiPlanContext* pCxt, SNode* pCo
   return code;
 }
 
+static bool fqJoinTargetExprExistsBySlotKey(const SNodeList* pTargets, SNode* pExpr) {
+  if (NULL == pTargets || NULL == pExpr) {
+    return false;
+  }
+
+  char*   pExprKey = NULL;
+  int32_t exprKeyLen = 0;
+  int32_t exprKeyCap = 0;
+  int32_t code = getSlotKey(pExpr, NULL, &pExprKey, &exprKeyLen, 0, &exprKeyCap);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-joinCondTargets: build expr slot key failed exprType=%d code=0x%x",
+              (int)nodeType(pExpr), code);
+    return false;
+  }
+
+  bool exists = false;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pTargets) {
+    char*   pTargetKey = NULL;
+    int32_t targetKeyLen = 0;
+    int32_t targetKeyCap = 0;
+    code = getSlotKey(pNode, NULL, &pTargetKey, &targetKeyLen, 0, &targetKeyCap);
+    if (TSDB_CODE_SUCCESS == code &&
+        exprKeyLen == targetKeyLen &&
+        0 == memcmp(pExprKey, pTargetKey, exprKeyLen)) {
+      exists = true;
+    }
+    taosMemoryFree(pTargetKey);
+    if (exists || TSDB_CODE_SUCCESS != code) {
+      if (TSDB_CODE_SUCCESS != code) {
+        planError("FQ-joinCondTargets: build target slot key failed exprType=%d code=0x%x",
+                  (int)nodeType(pNode), code);
+      }
+      break;
+    }
+  }
+
+  taosMemoryFree(pExprKey);
+  return exists;
+}
+
+static int32_t fqAppendJoinConditionTargetsFromNode(SPhysiPlanContext* pCxt, SNode* pCond,
+                                                    int64_t leftDataBlockId, int64_t rightDataBlockId,
+                                                    SNodeList* pTargets, int32_t* pAppended) {
+  if (NULL == pCxt || NULL == pCond || NULL == pTargets) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeList* pCondCols = NULL;
+  int32_t code = nodesCollectColumnsFromNode(pCond, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+  if (TSDB_CODE_SUCCESS != code || NULL == pCondCols) {
+    nodesDestroyList(pCondCols);
+    return code;
+  }
+
+  SNodeList* pBoundCondCols = NULL;
+  code = setListSlotId(pCxt, leftDataBlockId, rightDataBlockId, pCondCols, &pBoundCondCols);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-joinCondTargets: bind condition columns failed leftBlockId=%" PRId64
+              " rightBlockId=%" PRId64 " code=0x%x cond=%p",
+              leftDataBlockId, rightDataBlockId, code, pCond);
+    nodesDestroyList(pCondCols);
+    nodesDestroyList(pBoundCondCols);
+    return code;
+  }
+
+  int32_t appended = 0;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pBoundCondCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+      continue;
+    }
+
+    if (fqJoinTargetExprExistsBySlotKey(pTargets, pNode)) {
+      continue;
+    }
+
+    SNode* pCloned = NULL;
+    code = nodesCloneNode(pNode, &pCloned);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-joinCondTargets: clone hidden target failed col=%s tableAlias=%s code=0x%x",
+                ((SColumnNode*)pNode)->colName, ((SColumnNode*)pNode)->tableAlias, code);
+      break;
+    }
+
+    code = nodesListStrictAppend(pTargets, pCloned);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-joinCondTargets: append hidden target failed col=%s tableAlias=%s code=0x%x",
+                ((SColumnNode*)pNode)->colName, ((SColumnNode*)pNode)->tableAlias, code);
+      nodesDestroyNode(pCloned);
+      break;
+    }
+
+    ++appended;
+    planDebug("FQ-joinCondTargets: appended hidden condition column col=%s alias=%s tableAlias=%s"
+              " dataBlockId=%" PRId64 " slotId=%d",
+              ((SColumnNode*)pNode)->colName, ((SColumnNode*)pNode)->node.aliasName,
+              ((SColumnNode*)pNode)->tableAlias, ((SColumnNode*)pNode)->dataBlockId,
+              ((SColumnNode*)pNode)->slotId);
+  }
+
+  if (NULL != pAppended) {
+    *pAppended += appended;
+  }
+
+  planDebug("FQ-joinCondTargets: leftBlockId=%" PRId64 " rightBlockId=%" PRId64
+            " appended=%d condCols=%d finalTargets=%d cond=%p",
+            leftDataBlockId, rightDataBlockId, appended, pBoundCondCols ? LIST_LENGTH(pBoundCondCols) : 0,
+            LIST_LENGTH(pTargets), pCond);
+
+  nodesDestroyList(pCondCols);
+  nodesDestroyList(pBoundCondCols);
+  return code;
+}
+
+static int32_t fqAppendJoinConditionTargets(SPhysiPlanContext* pCxt, SJoinLogicNode* pJoinLogicNode,
+                                            int64_t leftDataBlockId, int64_t rightDataBlockId,
+                                            SNodeList* pTargets) {
+  if (NULL == pCxt || NULL == pJoinLogicNode || NULL == pTargets) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t appended = 0;
+
+  // Join predicates can be executed on the join output block (final filter or
+  // pre-filter on midBlk). Make sure every referenced column has a hidden slot
+  // in the join output descriptor, not only the post-join WHERE conditions.
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pFullOnCond) {
+    code = fqAppendJoinConditionTargetsFromNode(pCxt, pJoinLogicNode->pFullOnCond, leftDataBlockId,
+                                                rightDataBlockId, pTargets, &appended);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColOnCond) {
+    code = fqAppendJoinConditionTargetsFromNode(pCxt, pJoinLogicNode->pColOnCond, leftDataBlockId,
+                                                rightDataBlockId, pTargets, &appended);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->node.pConditions) {
+    code = fqAppendJoinConditionTargetsFromNode(pCxt, pJoinLogicNode->node.pConditions, leftDataBlockId,
+                                                rightDataBlockId, pTargets, &appended);
+  }
+
+  planDebug("FQ-joinCondTargets: joinType=%d leftBlockId=%" PRId64 " rightBlockId=%" PRId64
+            " totalAppended=%d finalTargets=%d fullOn=%p colOn=%p where=%p",
+            (int)pJoinLogicNode->joinType, leftDataBlockId, rightDataBlockId, appended,
+            LIST_LENGTH(pTargets), pJoinLogicNode->pFullOnCond, pJoinLogicNode->pColOnCond,
+            pJoinLogicNode->node.pConditions);
+  return code;
+}
 static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SJoinLogicNode* pJoinLogicNode,
                                         SPhysiNode** pPhyNode) {
   SSortMergeJoinPhysiNode* pJoin =
@@ -2713,8 +4014,11 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pFullOnCond) {
-    code = setNodeSlotId(pCxt, ((SPhysiNode*)pJoin)->pOutputDataBlockDesc->dataBlockId, -1, pJoinLogicNode->pFullOnCond,
-                         &pJoin->pFullOnCond);
+    code = ensureCondColSlotsInJoinDescs(pCxt, pJoinLogicNode->pFullOnCond, pJoinLogicNode, pLeftDesc, pRightDesc);
+    planDebug("FQ-joinSlots: mergeJoin prepare fullOnCond code=0x%x leftBlockId=%" PRId64 " rightBlockId=%" PRId64
+              " cond=%p",
+              code, pLeftDesc ? pLeftDesc->dataBlockId : -1, pRightDesc ? pRightDesc->dataBlockId : -1,
+              pJoinLogicNode->pFullOnCond);
   }
 
   if (TSDB_CODE_SUCCESS == code && ((NULL != pJoinLogicNode->pColEqCond) || (NULL != pJoinLogicNode->pTagEqCond))) {
@@ -2747,16 +4051,38 @@ static int32_t createMergeJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChi
     }
   */
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColOnCond) {
-    code = setNodeSlotId(pCxt, ((SPhysiNode*)pJoin)->pOutputDataBlockDesc->dataBlockId, -1, pJoinLogicNode->pColOnCond,
-                         &pJoin->pColOnCond);
+    code = ensureCondColSlotsInJoinDescs(pCxt, pJoinLogicNode->pColOnCond, pJoinLogicNode, pLeftDesc, pRightDesc);
+    planDebug("FQ-joinSlots: mergeJoin prepare colOnCond code=0x%x leftBlockId=%" PRId64 " rightBlockId=%" PRId64
+              " cond=%p",
+              code, pLeftDesc ? pLeftDesc->dataBlockId : -1, pRightDesc ? pRightDesc->dataBlockId : -1,
+              pJoinLogicNode->pColOnCond);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = setConditionsSlotId(pCxt, (const SLogicNode*)pJoinLogicNode, (SPhysiNode*)pJoin);
+    code = fqAppendJoinConditionTargets(pCxt, pJoinLogicNode, pLeftDesc->dataBlockId, pRightDesc->dataBlockId,
+                                        pJoin->pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = addDataBlockSlots(pCxt, pJoin->pTargets, pJoin->node.pOutputDataBlockDesc);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pFullOnCond) {
+    code = setNodeSlotId(pCxt, pJoin->node.pOutputDataBlockDesc->dataBlockId, -1, pJoinLogicNode->pFullOnCond,
+                         &pJoin->pFullOnCond);
+    planDebug("FQ-joinSlots: mergeJoin bind fullOnCond code=0x%x outputBlockId=%" PRId64 " cond=%p bound=%p",
+              code, pJoin->node.pOutputDataBlockDesc->dataBlockId, pJoinLogicNode->pFullOnCond, pJoin->pFullOnCond);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pColOnCond) {
+    code = setNodeSlotId(pCxt, pJoin->node.pOutputDataBlockDesc->dataBlockId, -1, pJoinLogicNode->pColOnCond,
+                         &pJoin->pColOnCond);
+    planDebug("FQ-joinSlots: mergeJoin bind colOnCond code=0x%x outputBlockId=%" PRId64 " cond=%p bound=%p",
+              code, pJoin->node.pOutputDataBlockDesc->dataBlockId, pJoinLogicNode->pColOnCond, pJoin->pColOnCond);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setConditionsSlotId(pCxt, (const SLogicNode*)pJoinLogicNode, (SPhysiNode*)pJoin);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -3243,16 +4569,9 @@ static int32_t createHashJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
     code = mergeJoinConds(&pJoinLogicNode->pColOnCond, &pJoinLogicNode->pTagOnCond);
   }
   SNode* pOnCond = (NULL != pJoinLogicNode->pColOnCond) ? pJoinLogicNode->pColOnCond : pJoinLogicNode->pTagOnCond;
-  if (TSDB_CODE_SUCCESS == code && NULL != pOnCond) {
-    code =
-        setNodeSlotId(pCxt, ((SPhysiNode*)pJoin)->pOutputDataBlockDesc->dataBlockId, -1, pOnCond, &pJoin->pFullOnCond);
-  }
   if (TSDB_CODE_SUCCESS == code) {
     code = setListSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->node.pTargets,
                          &pJoin->pTargets);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = setConditionsSlotId(pCxt, (const SLogicNode*)pJoinLogicNode, (SPhysiNode*)pJoin);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createHashJoinColList(pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoin->pPrimKeyCond,
@@ -3262,7 +4581,19 @@ static int32_t createHashJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
     code = sortHashJoinTargets(pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoin);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = fqAppendJoinConditionTargets(pCxt, pJoinLogicNode, pLeftDesc->dataBlockId, pRightDesc->dataBlockId,
+                                        pJoin->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = addDataBlockSlots(pCxt, pJoin->pTargets, pJoin->node.pOutputDataBlockDesc);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pOnCond) {
+    code = setNodeSlotId(pCxt, pJoin->node.pOutputDataBlockDesc->dataBlockId, -1, pOnCond, &pJoin->pFullOnCond);
+    planDebug("FQ-joinSlots: hashJoin bind fullOnCond code=0x%x outputBlockId=%" PRId64 " cond=%p bound=%p",
+              code, pJoin->node.pOutputDataBlockDesc->dataBlockId, pOnCond, pJoin->pFullOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setConditionsSlotId(pCxt, (const SLogicNode*)pJoinLogicNode, (SPhysiNode*)pJoin);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -3394,7 +4725,6 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
       }
     }
   }
-
   *pPhyNode = (SPhysiNode*)pScanPhysiNode;
   nodesDestroyList(pCondCols);
   nodesDestroyList(pCondScanCols);
@@ -3712,6 +5042,7 @@ typedef struct SRewritePrecalcExprsCxt {
   int32_t    planNodeId;
   int32_t    rewriteId;
   SNodeList* pPrecalcExprs;
+  SHashObj*  pSeenNames;  // tracks aliasNames already used as slot keys
 } SRewritePrecalcExprsCxt;
 
 static EDealRes collectAndRewrite(SRewritePrecalcExprsCxt* pCxt, SNode** pNode) {
@@ -3732,13 +5063,27 @@ static EDealRes collectAndRewrite(SRewritePrecalcExprsCxt* pCxt, SNode** pNode) 
   }
   SExprNode* pRewrittenExpr = (SExprNode*)pExpr;
   pCol->node.resType = pRewrittenExpr->resType;
-  if ('\0' != pRewrittenExpr->aliasName[0]) {
-    tstrncpy(pCol->colName, pRewrittenExpr->aliasName, TSDB_COL_NAME_LEN);
-  } else {
+  if ('\0' == pRewrittenExpr->aliasName[0]) {
     snprintf(pRewrittenExpr->aliasName, sizeof(pRewrittenExpr->aliasName), "#expr_%d_%d", pCxt->planNodeId,
-             pCxt->rewriteId);
-    tstrncpy(pCol->colName, pRewrittenExpr->aliasName, TSDB_COL_NAME_LEN);
+             pCxt->rewriteId++);
+  } else if (pCxt->pSeenNames != NULL) {
+    int32_t nameLen = (int32_t)strlen(pRewrittenExpr->aliasName);
+    SNode** ppSeenExpr = taosHashGet(pCxt->pSeenNames, pRewrittenExpr->aliasName, nameLen);
+    if (NULL != ppSeenExpr && !nodesEqualNode(*ppSeenExpr, pExpr)) {
+      snprintf(pRewrittenExpr->aliasName, sizeof(pRewrittenExpr->aliasName), "#expr_%d_%d", pCxt->planNodeId,
+               pCxt->rewriteId++);
+    }
   }
+  int32_t nameLen = (int32_t)strlen(pRewrittenExpr->aliasName);
+  if (pCxt->pSeenNames != NULL && nameLen > 0 &&
+      NULL == taosHashGet(pCxt->pSeenNames, pRewrittenExpr->aliasName, nameLen)) {
+    pCxt->errCode = taosHashPut(pCxt->pSeenNames, pRewrittenExpr->aliasName, nameLen, &pExpr, POINTER_BYTES);
+    if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+      nodesDestroyNode((SNode*)pCol);
+      return DEAL_RES_ERROR;
+    }
+  }
+  tstrncpy(pCol->colName, pRewrittenExpr->aliasName, TSDB_COL_NAME_LEN);
   tstrncpy(pCol->node.userAlias, pRewrittenExpr->userAlias, TSDB_COL_NAME_LEN);
   nodesDestroyNode(*pNode);
   *pNode = (SNode*)pCol;
@@ -3835,8 +5180,12 @@ static int32_t rewritePrecalcExprs(SPhysiPlanContext* pCxt, SNodeList* pList, SN
       return code;
     }
   }
-  SRewritePrecalcExprsCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pPrecalcExprs = *pPrecalcExprs};
+  SHashObj* pSeenNames =
+      taosHashInit(LIST_LENGTH(pList), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  SRewritePrecalcExprsCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pPrecalcExprs = *pPrecalcExprs,
+                                 .pSeenNames = pSeenNames};
   nodesRewriteExprs(*pRewrittenList, doRewritePrecalcExprs, &cxt);
+  taosHashCleanup(pSeenNames);
   if (0 == LIST_LENGTH(cxt.pPrecalcExprs) || TSDB_CODE_SUCCESS != cxt.errCode) {
     NODES_DESTORY_LIST(*pPrecalcExprs);
   }
@@ -3947,6 +5296,17 @@ static bool forceNoMergeDataBlock(const SPhysiPlanContext* pCxt) {
 
 static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SAggLogicNode* pAggLogicNode,
                                   SPhysiNode** pPhyNode, SSubplan* pSubPlan) {
+  if (fqDiagEnabled()) {
+    fprintf(stderr,
+            "[FQ-DIAG] createAggPhysiNode logic=%p targets=%d groupKeys=%d aggFuncs=%d cond=%p childCnt=%d\n",
+            pAggLogicNode, pAggLogicNode->node.pTargets ? LIST_LENGTH(pAggLogicNode->node.pTargets) : 0,
+            pAggLogicNode->pGroupKeys ? LIST_LENGTH(pAggLogicNode->pGroupKeys) : 0,
+            pAggLogicNode->pAggFuncs ? LIST_LENGTH(pAggLogicNode->pAggFuncs) : 0,
+            pAggLogicNode->node.pConditions, pChildren ? LIST_LENGTH(pChildren) : 0);
+    fqDiagDumpExprList("agg.logic.targets", pAggLogicNode->node.pTargets);
+    fqDiagDumpExprList("agg.logic.groupKeys", pAggLogicNode->pGroupKeys);
+    fqDiagDumpExprList("agg.logic.aggFuncs", pAggLogicNode->pAggFuncs);
+  }
   SAggPhysiNode* pAgg =
       (SAggPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pAggLogicNode, QUERY_NODE_PHYSICAL_PLAN_HASH_AGG);
   if (NULL == pAgg) {
@@ -4309,6 +5669,7 @@ static int32_t createRowsetSourcePhysiNode(SPhysiPlanContext* pCxt, SRowsetSourc
     return terrno;
   }
 
+  pRowset->colCount      = pLogicNode->colCount;
   pRowset->numBlocks     = pLogicNode->numBlocks;
   pRowset->totalRows     = pLogicNode->totalRows;
   pRowset->hasPrimaryTs  = pLogicNode->hasPrimaryTs;
@@ -4549,7 +5910,6 @@ static int32_t createIntervalPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   pInterval->firstDayOfWeek = pWindowLogicNode->firstDayOfWeek;
   pInterval->timezone = pWindowLogicNode->timezone;
   tstrncpy(pInterval->timezoneName, pWindowLogicNode->timezoneName, sizeof(pInterval->timezoneName));
-
   int32_t code = createWindowPhysiNodeFinalize(pCxt, pChildren, &pInterval->window, pWindowLogicNode);
   if (TSDB_CODE_SUCCESS == code) {
     *pPhyNode = (SPhysiNode*)pInterval;
@@ -4892,6 +6252,10 @@ static int32_t createExternalWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList*
   pExternal->needGroupSort = pWindowLogicNode->needGroupSort;
   pExternal->extWinSplit = pWindowLogicNode->extWinSplit;
   pExternal->calcWithPartition = pWindowLogicNode->calcWithPartition;
+  pExternal->matchPartitionBy = pWindowLogicNode->pSubquery != NULL &&
+                                nodeType(pWindowLogicNode->pSubquery) == QUERY_NODE_REMOTE_TABLE &&
+                                ((((SRemoteTableNode*)pWindowLogicNode->pSubquery)->flag &
+                                  REMOTE_TABLE_FLAG_EXT_PART_KEYS_MATCH) != 0);
   pExternal->extFill.mode = pWindowLogicNode->extFill.mode;
   pExternal->orgTableUid = pWindowLogicNode->orgTableUid;
   pExternal->orgTableVgId = pWindowLogicNode->orgTableVgId;
@@ -5356,6 +6720,15 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
 
   pFill->mode = pFillNode->mode;
   pFill->indefRowsMode = pFillNode->indefRowsMode;
+  pFill->interval = pFillNode->interval;
+  pFill->offset = pFillNode->offset;
+  pFill->sliding = pFillNode->sliding;
+  pFill->intervalUnit = pFillNode->intervalUnit;
+  pFill->slidingUnit = pFillNode->slidingUnit;
+  pFill->firstDayOfWeek = pFillNode->firstDayOfWeek;
+  pFill->timezone = pFillNode->timezone;
+  pFill->ownsTimezone = false;
+  tstrncpy(pFill->timezoneName, pFillNode->timezoneName, sizeof(pFill->timezoneName));
   pFill->timeRange = pFillNode->timeRange;
   TSWAP(pFill->pTimeRange, pFillNode->pTimeRange);
   pFill->node.inputTsOrder = pFillNode->node.inputTsOrder;

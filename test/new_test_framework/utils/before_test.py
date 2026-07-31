@@ -256,6 +256,7 @@ class BeforeTest:
                 data_path = [os.path.join(work_dir, f"dnode{i+1}", "data")]
             dnode_config = copy.deepcopy(dnode_config_template)
             dnode_config.pop("port", None)
+            dnode_config["serverPort"] = str(port_base + i * 100)
             dnode_config["mqttPort"] = mqttport_base + i * 100
             dnode_config["dataDir"] = data_path
             dnode_config["logDir"] = log_path

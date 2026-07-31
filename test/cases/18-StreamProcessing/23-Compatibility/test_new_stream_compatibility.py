@@ -1,11 +1,10 @@
-import os, platform, subprocess, time, re, importlib
+import os, platform, subprocess, time, re, importlib, shlex
 from new_test_framework.utils import (
     tdLog,
     tdSql,
     tdStream,
     StreamItem,
     tdCb,
-    tdCom
 )
 
 # Import enterprise package downloader
@@ -30,9 +29,6 @@ downloader = EnterprisePackageDownloader()
 # Define the list of base versions to test
 BASE_VERSIONS = ["3.3.7.9", "3.3.8.5", "3.3.8.6", "3.4.1.0"]
 
-# Default taos command prefix for the currently-installed (new) version
-_SYS_TAOS_PREFIX = "LD_LIBRARY_PATH=/usr/lib /usr/bin/taos"
-
 class TestNewStreamCompatibility:
 
     def setup_class(cls):
@@ -45,7 +41,23 @@ class TestNewStreamCompatibility:
         """Taos command prefix pointing to the extracted old-version binaries."""
         if not self.old_bin_dir or not self.old_lib_dir:
             raise RuntimeError("old_bin_dir / old_lib_dir not set; call installTaosd first")
-        return f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taos"
+        libtaos = os.path.join(self.old_lib_dir, "libtaos.so")
+        if not os.path.isfile(libtaos):
+            raise RuntimeError(f"libtaos.so not found in extracted package: {libtaos}")
+        return (
+            f"LD_PRELOAD={shlex.quote(libtaos)} "
+            f"LD_LIBRARY_PATH={shlex.quote(self.old_lib_dir)} "
+            f"{shlex.quote(os.path.join(self.old_bin_dir, 'taos'))}"
+        )
+
+    @property
+    def _current_taos_prefix(self):
+        """Taos command prefix for the current test framework build."""
+        lib_dir = os.path.join(os.path.dirname(self.taos_bin_path), "lib")
+        return (
+            f"LD_LIBRARY_PATH={shlex.quote(lib_dir)} "
+            f"{shlex.quote(os.path.join(self.taos_bin_path, 'taos'))}"
+        )
 
     def test_stream_compatibility(self):
         """Comp: stream backward and forward
@@ -96,7 +108,7 @@ class TestNewStreamCompatibility:
             tdLog.info(f"Windows skip compatibility test")
             return True
 
-        bPath = tdCom.getBuildPath()
+        bPath = os.path.dirname(os.path.dirname(self.taos_bin_path))
         cPath = self.getCfgPath()
         tdLog.info(f"bPath:{bPath}, cPath:{cPath}")
 
@@ -125,12 +137,7 @@ class TestNewStreamCompatibility:
             tdCb.stopTaosdCompletely()
 
     def getCfgPath(self):
-        buildPath = tdCom.getBuildPath()
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        cfgPath = buildPath + "/../sim/dnode1/cfg/"
-
-        return cfgPath
+        return self.cfg_path.rstrip("/") + "/"
 
     def prepareDataOnOldVersion(self, base_version):
         """
@@ -194,7 +201,7 @@ class TestNewStreamCompatibility:
         self.stopStream(taos_prefix=tp)
 
     def stopStream(self, taos_prefix=None):
-        tp = taos_prefix or _SYS_TAOS_PREFIX
+        tp = taos_prefix or self._current_taos_prefix
         tdLog.info("stop stream:")
         result = subprocess.run(
             f"{tp} -s 'select stream_name from information_schema.ins_streams;'",
@@ -313,7 +320,7 @@ class TestNewStreamCompatibility:
         os.system(f"rm -rf {dataPath}/* && LD_LIBRARY_PATH={lib_dir} nohup {taosd_bin} -c {cPath} &")
 
     def checkStreamStatus(self, retry_times=300, taos_prefix=None):
-        tp = taos_prefix or _SYS_TAOS_PREFIX
+        tp = taos_prefix or self._current_taos_prefix
         command = f"{tp} -s 'select status from information_schema.ins_streams'"
         for i in range(retry_times):
             result = subprocess.run(command, shell=True, text=True, capture_output=True, timeout=10)
@@ -332,7 +339,7 @@ class TestNewStreamCompatibility:
         return False
 
     def checkStreamResults(self, res_table, expect_row_num, retry_times=300, taos_prefix=None):
-        tp = taos_prefix or _SYS_TAOS_PREFIX
+        tp = taos_prefix or self._current_taos_prefix
 
         def get_row_count(command_output) -> int:
             match = re.search(r"Query OK, (\d+) row\(s\) in set", command_output)

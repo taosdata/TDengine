@@ -11,6 +11,7 @@ from new_test_framework.utils import (
 )
 # Define the list of base versions to test
 BASE_VERSIONS = ["3.3.4.3","3.3.5.0"]  # Part 2: Test versions 3.3.4.3 and 3.3.5.0
+UPGRADE_READY_RETRY_TIMES = 300
 
 class TestStreamCompatibility:
 
@@ -108,7 +109,7 @@ class TestStreamCompatibility:
 
             tdCb.stopTaosdCompletely()
 
-            tdCb.updateNewVersion(bPath,cPaths=[cPath],upgrade=2)
+            tdCb.updateNewVersion(bPath, cPaths=[cPath], upgrade=2, retry_times=UPGRADE_READY_RETRY_TIMES)
 
             tdCb.verifyData(corss_major_version)
 
@@ -119,10 +120,5 @@ class TestStreamCompatibility:
     
 
     def getCfgPath(self):
-        buildPath = tdCom.getBuildPath()
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        cfgPath = buildPath + "/../sim/dnode1/cfg/"
-
-        return cfgPath
+        return self.cfg_path.rstrip("/") + "/"
     

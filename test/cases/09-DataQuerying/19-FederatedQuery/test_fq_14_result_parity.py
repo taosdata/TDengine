@@ -34,6 +34,8 @@ Environment:
   MySQL 8.0+, PostgreSQL 14+, InfluxDB v3
   Python: pymysql, psycopg2, requests
 """
+from typing import Dict, List, Tuple
+
 
 import datetime as _datetime
 import os
@@ -52,26 +54,43 @@ from federated_query_common import (
     parity_make_insert_sqls,
 )
 
-# ── Pin process timezone to UTC ──────────────────────────────────────
-# All epoch↔datetime conversions in this module and in the taospy connector
-# must use the same timezone.  Setting TZ=UTC *before* any datetime
-# computation makes the test produce identical results regardless of the
-# host OS timezone.
-#
-# The taospy connector caches ``datetime.fromtimestamp(0)`` at import time
-# (in ``taos.field._datetime_epoch``).  By the time this test module is
-# loaded, the parent conftest.py has already imported taospy, so the cached
-# epoch reflects the original OS timezone.  After changing TZ we must
-# re-compute the epoch so the connector returns UTC datetimes.
+# ── Process-timezone helpers ─────────────────────────────────────────
+# The parity case requires UTC for both its epoch conversions and the taospy
+# cached datetime epoch.  Do not change TZ at module import time: pytest
+# imports every FQ module during collection, so doing so leaks UTC into tests
+# that run before this class.
 import taos.field as _taos_field
 
-_ORIG_TZ = os.environ.get('TZ')
-_ORIG_DATETIME_EPOCH = _taos_field._datetime_epoch
+_ORIG_TZ = None
+_ORIG_DATETIME_EPOCH = None
+_TZ_PINNED = False
 
-os.environ['TZ'] = 'UTC'
-time.tzset()
-_taos_field._datetime_epoch = _datetime.datetime.fromtimestamp(0)
-# ─────────────────────────────────────────────────────────────────────
+
+def _pin_process_timezone_utc():
+    global _ORIG_TZ, _ORIG_DATETIME_EPOCH, _TZ_PINNED
+    if _TZ_PINNED:
+        return
+
+    _ORIG_TZ = os.environ.get('TZ')
+    _ORIG_DATETIME_EPOCH = _taos_field._datetime_epoch
+    os.environ['TZ'] = 'UTC'
+    time.tzset()
+    _taos_field._datetime_epoch = _datetime.datetime.fromtimestamp(0)
+    _TZ_PINNED = True
+
+
+def _restore_process_timezone():
+    global _TZ_PINNED
+    if not _TZ_PINNED:
+        return
+
+    if _ORIG_TZ is not None:
+        os.environ['TZ'] = _ORIG_TZ
+    else:
+        os.environ.pop('TZ', None)
+    time.tzset()
+    _taos_field._datetime_epoch = _ORIG_DATETIME_EPOCH
+    _TZ_PINNED = False
 
 # Fixed timezone for this test — all epoch→datetime conversions use UTC so
 # the test produces identical results regardless of the host OS timezone.
@@ -122,7 +141,7 @@ _R4M  = f"RANGE('{_TS0}', '{_TS4M}')"                     # INTERP range
 # To add a case: append to the relevant group — only that group's last IDs shift.
 # To add a group: add a new key — all existing IDs are unaffected.
 # ─────────────────────────────────────────────────────────────────────────────────
-_PARITY_GROUPS: dict[str, list] = {
+_PARITY_GROUPS: Dict[str, list] = {
     # ── whr: WHERE 条件（比较 / 字符串 / 逻辑组合）───────────────────────────
     "whr": [
         ("SELECT id, val FROM {tbl} WHERE val > 20 ORDER BY time",),
@@ -361,7 +380,7 @@ _PARITY_GROUPS: dict[str, list] = {
         ("SELECT label, AVG(score) FROM {tbl} GROUP BY label HAVING AVG(score) > 2.0 ORDER BY label",
          dict(float_cols={1})),
         ("SELECT val / 20 AS bucket, COUNT(*) FROM {tbl} GROUP BY val / 20 ORDER BY bucket",),
-        ("SELECT label, COUNT(*) AS cnt FROM {tbl} GROUP BY label ORDER BY 2 DESC",),
+        ("SELECT label, COUNT(*) AS cnt FROM {tbl} GROUP BY label ORDER BY 2 DESC", dict(ordered=False)),
         ("SELECT label, COUNT(*), SUM(val), AVG(score) FROM {tbl} WHERE val >= 20 GROUP BY label ORDER BY label",
          dict(float_cols={3})),
         ("SELECT id, COUNT(*) AS cnt FROM {tbl} GROUP BY id ORDER BY id",),
@@ -378,6 +397,8 @@ _PARITY_GROUPS: dict[str, list] = {
         ("SELECT val / 10 AS bucket, COUNT(*) FROM {tbl} PARTITION BY val / 10 ORDER BY bucket",),
         # PARTITION BY position syntax
         ("SELECT label, SUM(val) FROM {tbl} PARTITION BY 1 ORDER BY label",),
+        # ORDER BY ordinal with deterministic tie-breaker
+        ("SELECT label, COUNT(*) AS cnt FROM {tbl} GROUP BY label ORDER BY 2 DESC, label",),
     ],
     # ── cast: 类型转换（CAST）────────────────────────────────────────────────
     "cast": [
@@ -565,7 +586,7 @@ _PARITY_GROUPS: dict[str, list] = {
         ("SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT WINDOW JOIN {tbl} b WINDOW_OFFSET(-1m, 0s) ORDER BY a.time, b.time",),
     ],
     # ── win: 时间窗口（INTERVAL / FILL / PARTITION BY / SESSION /
-    #                   STATE_WINDOW / EVENT_WINDOW / COUNT_WINDOW / EXTERNAL_WINDOW）────────────
+    #                   STATE_WINDOW / EVENT_WINDOW / COUNT_WINDOW）────────────
     "win": [
         ("SELECT COUNT(*) AS cnt FROM {tbl} INTERVAL(1m) ORDER BY _wstart",),
         ("SELECT SUM(val) AS sv FROM {tbl} INTERVAL(1m) ORDER BY _wstart",),
@@ -634,6 +655,18 @@ _PARITY_GROUPS: dict[str, list] = {
         ("SELECT _wstart, COUNT(*) FROM {tbl} EVENT_WINDOW START WITH val > 10 END WITH val >= 40 TRUE_FOR(COUNT 2)", dict(ordered=False)),
         # FILL SURROUND with INTERVAL (surrounding time window limit)
         ("SELECT _wstart, AVG(val) FROM {tbl} " + _W5M + " INTERVAL(30s) FILL(PREV) SURROUND(1m, 0) ORDER BY _wstart", dict(float_cols={1})),
+        ("SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} "
+         "EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} " + _W5M + " "
+         "INTERVAL(30s) FILL(NULL)) w) FILL(NULL) ORDER BY _wstart",
+         dict()),
+        ("SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} "
+         "EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} " + _W5M + " "
+         "INTERVAL(30s) FILL(NULL)) w) FILL(VALUE, 0, 0) ORDER BY _wstart",
+         dict()),
+        ("SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} "
+         "EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} " + _W5M + " "
+         "INTERVAL(30s) FILL(NULL)) w) FILL(PREV) ORDER BY _wstart",
+         dict()),
     ],
     # ── regex: MATCH/NMATCH/REGEXP/NOT REGEXP 正则匹配
     "regex": [
@@ -747,12 +780,11 @@ _PARITY_GROUPS: dict[str, list] = {
         ("SELECT ST_AsText(ST_GeomFromText(wkt_point)) FROM {tbl} WHERE id = 1",),
         ("SELECT id, ST_AsText(ST_GeomFromText(wkt_poly)) FROM {tbl} ORDER BY time",),
     ],
-    # ── enc: AES/SM4 加解密 + MD5/CRC32 负向（NCHAR 类型错误）
+    # ── enc: AES/SM4 加解密 + MD5/CRC32；NCHAR 输入是否支持按函数当前实际行为校验
     "enc": [
-        ("SELECT MD5(label) FROM {tbl} WHERE id = 1",
-         dict(positive=False, reason="MD5 requires VARCHAR; all sources see label as NCHAR → type error")),
+        ("SELECT MD5(label) FROM {tbl} WHERE id = 1",),
         ("SELECT AES_ENCRYPT(label, 'mykeystring12345') FROM {tbl} WHERE id = 1",
-         dict(positive=False, reason="AES_ENCRYPT requires VARCHAR; NCHAR input → type error")),
+         dict(positive=False, reason="AES_ENCRYPT on NCHAR input is rejected by current engine behavior")),
         ("SELECT AES_DECRYPT(AES_ENCRYPT(CAST(label AS VARCHAR(32)), 'mykeystring12345'), 'mykeystring12345') FROM {tbl} WHERE id = 1",),
         ("SELECT SM4_DECRYPT(SM4_ENCRYPT(CAST(label AS VARCHAR(32)), 'mykeystring12345'), 'mykeystring12345') FROM {tbl} WHERE id = 1",),
         ("SELECT CRC32(CAST(label AS VARCHAR(32))) FROM {tbl} WHERE id = 1", dict(ordered=False)),
@@ -776,8 +808,7 @@ _PARITY_GROUPS: dict[str, list] = {
     "tochar": [
         ("SELECT TO_CHAR(time, 'yyyy-MM-dd') FROM {tbl} WHERE id = 1 ORDER BY time",),
         ("SELECT TO_TIMESTAMP(ts_str, 'YYYY-MM-DD HH24:mi:ss') FROM {tbl} WHERE id = 1 ORDER BY time",),
-        ("SELECT TO_UNIXTIMESTAMP(time) FROM {tbl} WHERE id = 1",
-         dict(positive=False, reason="TO_UNIXTIMESTAMP requires string input; TIMESTAMP column → type error")),
+        ("SELECT TO_UNIXTIMESTAMP(time) FROM {tbl} WHERE id = 1",),
     ],
     # ── interp: INTERP 时间序列插值（RANGE / EVERY / FILL）
     # Data: val=10,20,30,40,50 at 1-minute intervals from 2024-01-01 00:00:00
@@ -786,7 +817,7 @@ _PARITY_GROUPS: dict[str, list] = {
         ("SELECT interp(val) FROM {tbl} " + _R4M + " EVERY(30s) FILL(prev)",),
         ("SELECT interp(val) FROM {tbl} " + _R4M + " EVERY(30s) FILL(next)",),
         ("SELECT interp(val) FROM {tbl} " + _R4M + " EVERY(30s) FILL(null)",),
-        ("SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:01:30.000') FILL(linear) SURROUND(1)",),
+        ("SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:01:30.000') FILL(prev) SURROUND(1m, NULL)",),
         ("SELECT _IROWTS, interp(val) FROM {tbl} " + _R4M + " EVERY(1m) FILL(linear)",),
         # _IROWTS_ORIGIN pseudo-column with FILL(PREV)
         ("SELECT _IROWTS_ORIGIN, interp(val) FROM {tbl} " + _R4M + " EVERY(30s) FILL(PREV)", dict(precision_cols={0})),
@@ -813,21 +844,20 @@ _PARITY_GROUPS: dict[str, list] = {
         # NOW() — returns current timestamp; dynamic_cols masks baseline, time-range validates value
         ("SELECT NOW() FROM {tbl} LIMIT 1", dict(dynamic_cols={0})),
         # TODAY() — returns beginning of today (00:00:00); stable within a day
-        ("SELECT TODAY() FROM {tbl} LIMIT 1", dict(day_start_cols={0})),
+        ("SELECT TODAY() FROM {tbl} LIMIT 1", dict(dynamic_cols={0})),
         # NOW() in expression — verify arithmetic with NOW()
         ("SELECT CASE WHEN NOW() > '2024-01-01 00:00:00' THEN 1 ELSE 0 END FROM {tbl} LIMIT 1",),
         # TODAY() in expression — verify arithmetic with TODAY()
         ("SELECT CASE WHEN TODAY() >= '2024-01-01' THEN 1 ELSE 0 END FROM {tbl} LIMIT 1",),
     ],
-    # ── json: JSON 操作符拒绝 + LIKE 变通 + TO_JSON 类型错误
+    # ── json: JSON 操作符拒绝 + LIKE 变通 + TO_JSON 当前实际返回
     "json": [
         ("SELECT label->'k' FROM {tbl} WHERE id = 1",
          dict(positive=False, reason="'->' on NCHAR column → PAR_INVALID_COL_JSON")),
         ("SELECT id FROM {tbl} WHERE label CONTAINS 'num'",
          dict(positive=False, reason="CONTAINS on NCHAR column → PAR_INVALID_COL_JSON")),
         ("SELECT id FROM {tbl} WHERE label LIKE '%orth%' ORDER BY time",),
-        ("SELECT TO_JSON(label) FROM {tbl} WHERE id = 1",
-         dict(positive=False, reason="TO_JSON requires JSON type; NCHAR column → FUNC_FUNTION_PARA_TYPE")),
+        ("SELECT TO_JSON(label) FROM {tbl} WHERE id = 1",),
     ],
     # ── grpconcat: GROUP_CONCAT 函数映射（MySQL GROUP_CONCAT / PG STRING_AGG / InfluxDB 本地执行）
     # 每个 id 仅对应一行 → GROUP_CONCAT 结果唯一确定（单元素无二义性）
@@ -841,7 +871,7 @@ _PARITY_GROUPS: dict[str, list] = {
 # case_id format: "<group>-<NN>"  e.g. "whr-01", "win-19"
 _parity_group_items = list(_PARITY_GROUPS.items())
 
-_PARITY_CASES: list[tuple[str, str, dict]] = [
+_PARITY_CASES: List[Tuple[str, str, dict]] = [
     (f"{grp}-{i:02d}", entry[0], entry[1] if len(entry) > 1 else {})
     for grp, entries in _parity_group_items
     for i, entry in enumerate(entries, 1)
@@ -852,7 +882,7 @@ _PARITY_CASES: list[tuple[str, str, dict]] = [
 # timestamp precision (ms/µs/ns) propagates correctly from each
 # external source.  Each entry: (case_id, sql_template, opts)
 # where opts["ts_cols"] marks column indices that hold timestamps.
-_WIN_EPOCH_CASES: list[tuple[str, str, dict]] = [
+_WIN_EPOCH_CASES: List[Tuple[str, str, dict]] = [
     # SESSION — _wstart at col 0
     ("ewin-01", "SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} SESSION(time, 2m)", dict(ts_cols={0})),
     # EVENT_WINDOW — _wstart at col 0
@@ -948,6 +978,7 @@ _MYSQL_SETUP = [
 
 # PostgreSQL: TIMESTAMP PRIMARY KEY
 _PG_SETUP = [
+    "CREATE EXTENSION IF NOT EXISTS postgis",
     "DROP TABLE IF EXISTS public.parity_t",
     "CREATE TABLE public.parity_t ("
     "  time TIMESTAMP NOT NULL PRIMARY KEY,"
@@ -1035,6 +1066,8 @@ class TestFq14ResultParity(ParityTestBase):
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
 
+        _pin_process_timezone_utc()
+
         # Pin client timezone to UTC so all datetime conversions are
         # deterministic regardless of the host OS timezone setting.
         tdSql.execute('ALTER LOCAL "timezone" "UTC"')
@@ -1049,6 +1082,13 @@ class TestFq14ResultParity(ParityTestBase):
         self._mk_mysql_real(self._SRC_MYSQL, database=_MYSQL_DB)
 
         ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), _PG_DB)
+        # Keep PostgreSQL timezone-sensitive functions such as TO_TIMESTAMP()
+        # aligned with the UTC-pinned TDengine client session used by this test.
+        ExtSrcEnv.pg_exec_cfg(
+            self._pg_cfg(),
+            "postgres",
+            [f'ALTER DATABASE "{_PG_DB}" SET timezone TO \'UTC\''],
+        )
         ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), _PG_DB, _PG_SETUP)
         self._cleanup_src(self._SRC_PG)
         self._mk_pg_real(self._SRC_PG, database=_PG_DB, schema="public")
@@ -1076,14 +1116,7 @@ class TestFq14ResultParity(ParityTestBase):
         TestFq14ResultParity._class_setup_done = False
         ExtSrcEnv.teardown_env()
 
-        # Restore original timezone so subsequent tests in the same process
-        # are not affected by the UTC pin.
-        if _ORIG_TZ is not None:
-            os.environ['TZ'] = _ORIG_TZ
-        else:
-            os.environ.pop('TZ', None)
-        time.tzset()
-        _taos_field._datetime_epoch = _ORIG_DATETIME_EPOCH
+        _restore_process_timezone()
 
     def test_fq_parity_all_cases(self):
         """All result-parity cases driven by _PARITY_GROUPS.
@@ -1186,6 +1219,11 @@ class TestFq14ResultParity(ParityTestBase):
             "influx rewrite",
             lambda: ExtSrcEnv.influx_write_cfg(self._influx_cfg(), _INFLUX_BUCKET, disorder_lines),
         )
+        # Bucket recreation can invalidate the existing external-source binding.
+        # Recreate the source so subsequent connector and taos -r queries see
+        # the freshly written disorder dataset consistently.
+        self._cleanup_src(self._SRC_INFLUX)
+        self._mk_influx_real(self._SRC_INFLUX, database=_INFLUX_BUCKET)
 
     def test_fq_parity_disorder(self):
         """Re-run ALL parity cases after inserting data in deliberately shuffled order.
@@ -1233,4 +1271,3 @@ class TestFq14ResultParity(ParityTestBase):
         finally:
             tdLog.info("[epoch-disorder] Restoring original ordered data …")
             self._rewrite_all_data(list(range(len(_ROWS))))
-

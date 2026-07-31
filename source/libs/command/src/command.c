@@ -223,7 +223,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
   SColumnInfoData* pCol7 = NULL;
   // colref
   SColumnInfoData* pCol8 = NULL;
-  if (withColCompress(pMeta->tableType)) {
+  if (tableMetaShowCompressOptions(pMeta)) {
     pCol5 = taosArrayGet(pBlock->pDataBlock, 4);
     pCol6 = taosArrayGet(pBlock->pDataBlock, 5);
     pCol7 = taosArrayGet(pBlock->pDataBlock, 6);
@@ -267,7 +267,7 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
       STR_TO_VARSTR(buf, "VIEW COL");
     }
     COL_DATA_SET_VAL_AND_CHECK(pCol4, pBlock->info.rows, buf, false);
-    if (withColCompress(pMeta->tableType) && pMeta->schemaExt) {
+    if (tableMetaShowCompressOptions(pMeta)) {
       if (i < pMeta->tableInfo.numOfColumns) {
         STR_TO_VARSTR(buf, columnEncodeStr(COMPRESS_L1_TYPE_U32(pMeta->schemaExt[i].compress)));
         COL_DATA_SET_VAL_AND_CHECK(pCol5, pBlock->info.rows, buf, false);
@@ -365,7 +365,7 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
     if (pDesc->pMeta) {
       if (hasColRef(pDesc->pMeta->tableType)) {
         code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_REF, pRsp);
-      } else if (withColCompress(pDesc->pMeta->tableType) && pDesc->pMeta->schemaExt) {
+      } else if (tableMetaShowCompressOptions(pDesc->pMeta)) {
         code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS_COMPRESS, pRsp);
       } else {
         code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
@@ -378,7 +378,12 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
   return code;
 }
 
-static int32_t execResetQueryCache() { return catalogClearCache(); }
+static int32_t execResetQueryCache(SResetQueryCacheStmt* pStmt) {
+  if (NULL != pStmt && pStmt->forExtSource) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return catalogClearCache();
+}
 
 static int32_t buildCreateDBResultDataBlock(SSDataBlock** pOutput) {
   QRY_PARAM_CHECK(pOutput);
@@ -1546,71 +1551,6 @@ static int32_t execShowCreateRsma(SShowCreateRsmaStmt* pStmt, SRetrieveTableRsp*
   return code;
 }
 
-static int32_t buildCreateStreamResultDataBlock(SSDataBlock** pOutput) {
-  QRY_PARAM_CHECK(pOutput);
-
-  SSDataBlock* pBlock = NULL;
-  int32_t      code = createDataBlock(&pBlock);
-  if (code) {
-    return code;
-  }
-
-  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_STREAM_RESULT_FIELD1_LEN, 1);
-  code = blockDataAppendColInfo(pBlock, &infoData);
-  if (TSDB_CODE_SUCCESS == code) {
-    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_STREAM_RESULT_FIELD2_LEN, 2);
-    code = blockDataAppendColInfo(pBlock, &infoData);
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    *pOutput = pBlock;
-  } else {
-    (void)blockDataDestroy(pBlock);
-  }
-  return code;
-}
-
-static int32_t setCreateStreamResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateStreamStmt* pStmt) {
-  int32_t code = 0;
-  QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
-  pBlock->info.rows = 1;
-
-  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
-  char             buf1[SHOW_CREATE_STREAM_RESULT_FIELD1_LEN + 1] = {0};
-  snprintf(varDataVal(buf1), SHOW_CREATE_STREAM_RESULT_FIELD1_LEN - VARSTR_HEADER_SIZE, "`%s`.`%s`", pStmt->dbName,
-           pStmt->streamName);
-  varDataSetLen(buf1, strlen(varDataVal(buf1)));
-  QRY_ERR_RET(colDataSetVal(pCol1, 0, buf1, false));
-
-  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
-  const char*      sql = pStmt->sql ? pStmt->sql : "";
-  int32_t          sqlLen = (int32_t)strlen(sql);
-  int32_t          bufLen = sqlLen + VARSTR_HEADER_SIZE + 1;
-  char*            buf2 = taosMemoryMalloc(bufLen);
-  if (NULL == buf2) {
-    return terrno;
-  }
-  (void)memcpy(varDataVal(buf2), sql, sqlLen);
-  ((char*)varDataVal(buf2))[sqlLen] = '\0';
-  varDataSetLen(buf2, sqlLen);
-  code = colDataSetVal(pCol2, 0, buf2, false);
-  taosMemoryFree(buf2);
-  return code;
-}
-
-static int32_t execShowCreateStream(SShowCreateStreamStmt* pStmt, SRetrieveTableRsp** pRsp) {
-  SSDataBlock* pBlock = NULL;
-  int32_t      code = buildCreateStreamResultDataBlock(&pBlock);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = setCreateStreamResultIntoDataBlock(pBlock, pStmt);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_STREAM_RESULT_COLS, pRsp);
-  }
-  (void)blockDataDestroy(pBlock);
-  return code;
-}
-
 // ============================================================
 // DESCRIBE EXTERNAL SOURCE — LOCAL execution
 // Returns one row with all ins_ext_sources columns for the named source.
@@ -1719,15 +1659,35 @@ static int32_t buildExtSrcResultDataBlock(SSDataBlock** pOutput) {
   return TSDB_CODE_SUCCESS;
 }
 
-// Helper macro: set a VARCHAR column value from a C-string.
-#define SET_STR_COL(pBlock, colIdx, row, cstr, maxBytes)                         \
-  do {                                                                            \
-    SColumnInfoData* _col = taosArrayGet((pBlock)->pDataBlock, (colIdx));         \
-    char _buf[(maxBytes) + VARSTR_HEADER_SIZE];                                   \
-    STR_WITH_MAXSIZE_TO_VARSTR(_buf, (cstr), (maxBytes) + VARSTR_HEADER_SIZE);   \
-    code = colDataSetVal(_col, (row), _buf, false);                               \
-    if (code) { (void)blockDataDestroy(pBlock); return code; }                    \
-  } while (0)
+static int32_t setResultColVal(SSDataBlock* pBlock, int32_t colIdx, int32_t row, const char* pVal, bool isNull) {
+  if (NULL == pBlock || NULL == pBlock->pDataBlock) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
+  if (NULL == pCol) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  return colDataSetVal(pCol, row, pVal, isNull);
+}
+
+static int32_t setResultStrCol(SSDataBlock* pBlock, int32_t colIdx, int32_t row, const char* cstr, int32_t maxBytes) {
+  if (maxBytes <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t totalBytes = maxBytes + VARSTR_HEADER_SIZE;
+  char*   buf = taosMemoryMalloc(totalBytes);
+  if (NULL == buf) {
+    return terrno;
+  }
+
+  STR_WITH_MAXSIZE_TO_VARSTR(buf, (NULL != cstr ? cstr : ""), totalBytes);
+  int32_t code = setResultColVal(pBlock, colIdx, row, buf, false);
+  taosMemoryFree(buf);
+  return code;
+}
 
 static int32_t execDescribeExtSource(SNode* pStmt, SRetrieveTableRsp** pRsp) {
   SDescribeExtSourceStmt* pDesc = (SDescribeExtSourceStmt*)pStmt;
@@ -1744,49 +1704,563 @@ static int32_t execDescribeExtSource(SNode* pStmt, SRetrieveTableRsp** pRsp) {
   if (code) { (void)blockDataDestroy(pBlock); return code; }
 
   // col 0: source_name
-  SET_STR_COL(pBlock, 0, 0, pDesc->sourceName, TSDB_EXT_SOURCE_NAME_LEN - 1);
+  code = setResultStrCol(pBlock, 0, 0, pDesc->sourceName, TSDB_EXT_SOURCE_NAME_LEN - 1);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
 
   // col 1: type (string)
-  SET_STR_COL(pBlock, 1, 0, extSrcTypeToStr(pSrc->type), 16);
+  code = setResultStrCol(pBlock, 1, 0, extSrcTypeToStr(pSrc->type), 16);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
 
   // col 2: host
-  SET_STR_COL(pBlock, 2, 0, pSrc->host, TSDB_EXT_SOURCE_HOST_LEN - 1);
+  code = setResultStrCol(pBlock, 2, 0, pSrc->host, TSDB_EXT_SOURCE_HOST_LEN - 1);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
 
   // col 3: port (INT)
-  {
-    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 3);
-    code = colDataSetVal(pCol, 0, (const char*)&pSrc->port, false);
-    if (code) { (void)blockDataDestroy(pBlock); return code; }
-  }
+  code = setResultColVal(pBlock, 3, 0, (const char*)&pSrc->port, false);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
 
   // col 4: user
-  SET_STR_COL(pBlock, 4, 0, pSrc->user, TSDB_EXT_SOURCE_USER_LEN - 1);
+  code = setResultStrCol(pBlock, 4, 0, pSrc->user, TSDB_EXT_SOURCE_USER_LEN - 1);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
 
   // col 5: password — always "******"
-  SET_STR_COL(pBlock, 5, 0, "******", 8);
+  code = setResultStrCol(pBlock, 5, 0, "******", 8);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
 
   // col 6: database
-  SET_STR_COL(pBlock, 6, 0, pSrc->database, TSDB_EXT_SOURCE_DATABASE_LEN - 1);
+  code = setResultStrCol(pBlock, 6, 0, pSrc->database, TSDB_EXT_SOURCE_DATABASE_LEN - 1);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
 
   // col 7: schema
-  SET_STR_COL(pBlock, 7, 0, pSrc->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
+  code = setResultStrCol(pBlock, 7, 0, pSrc->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
 
   // col 8: options (sensitive values masked)
   {
     char maskedOpts[TSDB_EXT_SOURCE_OPTIONS_LEN] = {0};
     maskExtSrcSensitiveOpts(pSrc->options, maskedOpts, sizeof(maskedOpts));
-    SET_STR_COL(pBlock, 8, 0, maskedOpts, TSDB_EXT_SOURCE_OPTIONS_LEN - 1);
+    code = setResultStrCol(pBlock, 8, 0, maskedOpts, TSDB_EXT_SOURCE_OPTIONS_LEN - 1);
+    if (TSDB_CODE_SUCCESS != code) goto _exit;
   }
 
   // col 9: create_time (TIMESTAMP)
-  {
-    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, 9);
-    code = colDataSetVal(pCol, 0, (const char*)&pSrc->create_time, false);
-    if (code) { (void)blockDataDestroy(pBlock); return code; }
-  }
+  code = setResultColVal(pBlock, 9, 0, (const char*)&pSrc->create_time, false);
+  if (TSDB_CODE_SUCCESS != code) goto _exit;
 
   pBlock->info.rows = 1;
   code = buildRetrieveTableRsp(pBlock, EXT_SOURCE_RESULT_COLS, pRsp);
+
+_exit:
+  (void)blockDataDestroy(pBlock);
+  return code;
+}
+
+#define EXT_SOURCE_CAPABILITY_RESULT_COLS 5
+
+static const char* extCapKindToText(EExtCapDemoteKind kind) {
+  switch (kind) {
+    case EXT_DEMOTE_KIND_FUNC:
+      return "FUNCTION";
+    case EXT_DEMOTE_KIND_OP:
+      return "OPERATOR";
+    case EXT_DEMOTE_KIND_CLAUSE:
+      return "CLAUSE";
+    case EXT_DEMOTE_KIND_TYPE:
+      return "TYPE";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+static void extCapClauseToText(EExtClauseKind clauseKind, char* buf, int32_t bufLen) {
+  if (NULL == buf || bufLen <= 0) {
+    return;
+  }
+
+  const char* name = NULL;
+  switch (clauseKind) {
+    case EXT_CLAUSE_FILTER:
+      name = "FILTER";
+      break;
+    case EXT_CLAUSE_PROJECTION:
+      name = "PROJECTION";
+      break;
+    case EXT_CLAUSE_AGG:
+      name = "AGG";
+      break;
+    case EXT_CLAUSE_ORDER:
+      name = "ORDER";
+      break;
+    case EXT_CLAUSE_LIMIT:
+      name = "LIMIT";
+      break;
+    case EXT_CLAUSE_JOIN:
+      name = "JOIN";
+      break;
+    case EXT_CLAUSE_GROUP_ROLLUP:
+      name = "GROUP_ROLLUP";
+      break;
+    case EXT_CLAUSE_HAVING:
+      name = "HAVING";
+      break;
+    case EXT_CLAUSE_ORDER_NULLS_FIRST:
+      name = "ORDER_NULLS_FIRST";
+      break;
+    case EXT_CLAUSE_ORDER_NULLS_LAST:
+      name = "ORDER_NULLS_LAST";
+      break;
+    case EXT_CLAUSE_OFFSET:
+      name = "OFFSET";
+      break;
+    case EXT_CLAUSE_DISTINCT:
+      name = "DISTINCT";
+      break;
+    case EXT_CLAUSE_INNER_JOIN:
+      name = "INNER_JOIN";
+      break;
+    case EXT_CLAUSE_LEFT_JOIN:
+      name = "LEFT_JOIN";
+      break;
+    case EXT_CLAUSE_RIGHT_JOIN:
+      name = "RIGHT_JOIN";
+      break;
+    case EXT_CLAUSE_FULL_OUTER_JOIN:
+      name = "FULL_OUTER_JOIN";
+      break;
+    case EXT_CLAUSE_SEMI_JOIN:
+      name = "SEMI_JOIN";
+      break;
+    case EXT_CLAUSE_ANTI_JOIN:
+      name = "ANTI_JOIN";
+      break;
+    case EXT_CLAUSE_FROM_SUBQUERY:
+      name = "FROM_SUBQUERY";
+      break;
+    case EXT_CLAUSE_SCALAR_SUBQUERY:
+      name = "SCALAR_SUBQUERY";
+      break;
+    case EXT_CLAUSE_INTERVAL_TUMBLING:
+      name = "INTERVAL_TUMBLING";
+      break;
+    case EXT_CLAUSE_INTERVAL_SLIDING:
+      name = "INTERVAL_SLIDING";
+      break;
+    case EXT_CLAUSE_PARTITION_TBNAME:
+      name = "PARTITION_TBNAME";
+      break;
+    case EXT_CLAUSE_PARTITION_COLUMN:
+      name = "PARTITION_COLUMN";
+      break;
+    case EXT_CLAUSE_FEAT_CTE:
+      name = "FEAT_CTE";
+      break;
+    case EXT_CLAUSE_FEAT_WINDOW_FUNCTIONS:
+      name = "FEAT_WINDOW_FUNCTIONS";
+      break;
+    case EXT_CLAUSE_FEAT_LARGE_IN_LIST:
+      name = "FEAT_LARGE_IN_LIST";
+      break;
+    case EXT_CLAUSE_IN_SUBQUERY:
+      name = "IN_SUBQUERY";
+      break;
+    case EXT_CLAUSE_ALL_ANY_SUBQUERY:
+      name = "ALL_ANY_SUBQUERY";
+      break;
+    case EXT_CLAUSE_ASOF_JOIN:
+      name = "ASOF_JOIN";
+      break;
+    case EXT_CLAUSE_WINDOW_JOIN:
+      name = "WINDOW_JOIN";
+      break;
+    case EXT_CLAUSE_STATE_WINDOW:
+      name = "STATE_WINDOW";
+      break;
+    case EXT_CLAUSE_SESSION_WINDOW:
+      name = "SESSION_WINDOW";
+      break;
+    case EXT_CLAUSE_EVENT_WINDOW:
+      name = "EVENT_WINDOW";
+      break;
+    case EXT_CLAUSE_COUNT_WINDOW:
+      name = "COUNT_WINDOW";
+      break;
+    case EXT_CLAUSE_FILL:
+      name = "FILL";
+      break;
+    case EXT_CLAUSE_INTERP:
+      name = "INTERP";
+      break;
+    case EXT_CLAUSE_SLIMIT:
+      name = "SLIMIT";
+      break;
+    default:
+      break;
+  }
+
+  if (NULL != name) {
+    (void)snprintf(buf, bufLen, "%s", name);
+  } else {
+    (void)snprintf(buf, bufLen, "CLAUSE_%d", (int32_t)clauseKind);
+  }
+}
+
+static void extCapOperatorToText(EOperatorType opType, char* buf, int32_t bufLen) {
+  if (NULL == buf || bufLen <= 0) {
+    return;
+  }
+
+  const char* name = NULL;
+  switch (opType) {
+    case OP_TYPE_ADD:
+      name = "ADD";
+      break;
+    case OP_TYPE_SUB:
+      name = "SUB";
+      break;
+    case OP_TYPE_MULTI:
+      name = "MULTI";
+      break;
+    case OP_TYPE_DIV:
+      name = "DIV";
+      break;
+    case OP_TYPE_REM:
+      name = "REM";
+      break;
+    case OP_TYPE_MINUS:
+      name = "MINUS";
+      break;
+    case OP_TYPE_BIT_AND:
+      name = "BIT_AND";
+      break;
+    case OP_TYPE_BIT_OR:
+      name = "BIT_OR";
+      break;
+    case OP_TYPE_GREATER_THAN:
+      name = "GREATER_THAN";
+      break;
+    case OP_TYPE_GREATER_EQUAL:
+      name = "GREATER_EQUAL";
+      break;
+    case OP_TYPE_LOWER_THAN:
+      name = "LOWER_THAN";
+      break;
+    case OP_TYPE_LOWER_EQUAL:
+      name = "LOWER_EQUAL";
+      break;
+    case OP_TYPE_EQUAL:
+      name = "EQUAL";
+      break;
+    case OP_TYPE_NOT_EQUAL:
+      name = "NOT_EQUAL";
+      break;
+    case OP_TYPE_IN:
+      name = "IN";
+      break;
+    case OP_TYPE_NOT_IN:
+      name = "NOT_IN";
+      break;
+    case OP_TYPE_LIKE:
+      name = "LIKE";
+      break;
+    case OP_TYPE_NOT_LIKE:
+      name = "NOT_LIKE";
+      break;
+    case OP_TYPE_MATCH:
+      name = "MATCH";
+      break;
+    case OP_TYPE_NMATCH:
+      name = "NMATCH";
+      break;
+    case OP_TYPE_IS_NULL:
+      name = "IS_NULL";
+      break;
+    case OP_TYPE_IS_NOT_NULL:
+      name = "IS_NOT_NULL";
+      break;
+    case OP_TYPE_IS_TRUE:
+      name = "IS_TRUE";
+      break;
+    case OP_TYPE_IS_FALSE:
+      name = "IS_FALSE";
+      break;
+    case OP_TYPE_IS_UNKNOWN:
+      name = "IS_UNKNOWN";
+      break;
+    case OP_TYPE_IS_NOT_TRUE:
+      name = "IS_NOT_TRUE";
+      break;
+    case OP_TYPE_IS_NOT_FALSE:
+      name = "IS_NOT_FALSE";
+      break;
+    case OP_TYPE_IS_NOT_UNKNOWN:
+      name = "IS_NOT_UNKNOWN";
+      break;
+    case OP_TYPE_EXISTS:
+      name = "EXISTS";
+      break;
+    case OP_TYPE_NOT_EXISTS:
+      name = "NOT_EXISTS";
+      break;
+    case OP_TYPE_JSON_GET_VALUE:
+      name = "JSON_GET_VALUE";
+      break;
+    case OP_TYPE_JSON_CONTAINS:
+      name = "JSON_CONTAINS";
+      break;
+    case OP_TYPE_ASSIGN:
+      name = "ASSIGN";
+      break;
+    default:
+      break;
+  }
+
+  if (NULL != name) {
+    (void)snprintf(buf, bufLen, "%s", name);
+  } else {
+    (void)snprintf(buf, bufLen, "OP_%d", (int32_t)opType);
+  }
+}
+
+static void extCapTypeToText(int8_t typeCode, char* buf, int32_t bufLen) {
+  if (NULL == buf || bufLen <= 0) {
+    return;
+  }
+
+  if (typeCode > TSDB_DATA_TYPE_NULL && typeCode < TSDB_DATA_TYPE_MAX) {
+    (void)snprintf(buf, bufLen, "%s", tDataTypes[typeCode].name);
+  } else {
+    (void)snprintf(buf, bufLen, "TYPE_%d", (int32_t)typeCode);
+  }
+}
+
+static int32_t buildExtSourceCapabilityResultDataBlock(SSDataBlock** pOutput) {
+  QRY_PARAM_CHECK(pOutput);
+
+  SSDataBlock* pBlock = NULL;
+  TAOS_CHECK_RETURN(createDataBlock(&pBlock));
+
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SColumnInfoData col;
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 16 + VARSTR_HEADER_SIZE, 1);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) {
+    (void)blockDataDestroy(pBlock);
+    return code;
+  }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 128 + VARSTR_HEADER_SIZE, 2);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) {
+    (void)blockDataDestroy(pBlock);
+    return code;
+  }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_TINYINT, tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes, 3);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) {
+    (void)blockDataDestroy(pBlock);
+    return code;
+  }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_INT, tDataTypes[TSDB_DATA_TYPE_INT].bytes, 4);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) {
+    (void)blockDataDestroy(pBlock);
+    return code;
+  }
+
+  col = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 5);
+  code = blockDataAppendColInfo(pBlock, &col);
+  if (code) {
+    (void)blockDataDestroy(pBlock);
+    return code;
+  }
+
+  *pOutput = pBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t appendExtCapabilityRows(SSDataBlock* pBlock, SHashObj* pHash, EExtCapDemoteKind kind, int32_t* pRow) {
+  if (NULL == pBlock || NULL == pRow || NULL == pHash) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  void* pIter = taosHashIterate(pHash, NULL);
+  while (NULL != pIter) {
+    size_t                 keyLen = 0;
+    const void*            pKey = taosHashGetKey(pIter, &keyLen);
+    SExtCapDisabledEntry*  pEntry = (SExtCapDisabledEntry*)pIter;
+    if (NULL == pKey || NULL == pEntry) {
+      pIter = taosHashIterate(pHash, pIter);
+      continue;
+    }
+
+    char item[128] = {0};
+    switch (kind) {
+      case EXT_DEMOTE_KIND_FUNC:
+        tstrncpy(item, (const char*)pKey, sizeof(item));
+        break;
+      case EXT_DEMOTE_KIND_OP:
+        if (keyLen == sizeof(EOperatorType)) {
+          extCapOperatorToText(*(const EOperatorType*)pKey, item, sizeof(item));
+        }
+        break;
+      case EXT_DEMOTE_KIND_CLAUSE:
+        if (keyLen == sizeof(EExtClauseKind)) {
+          extCapClauseToText(*(const EExtClauseKind*)pKey, item, sizeof(item));
+        }
+        break;
+      case EXT_DEMOTE_KIND_TYPE:
+        if (keyLen == sizeof(int8_t)) {
+          extCapTypeToText(*(const int8_t*)pKey, item, sizeof(item));
+        }
+        break;
+      default:
+        break;
+    }
+    if (item[0] == '\0') {
+      (void)snprintf(item, sizeof(item), "N/A");
+    }
+
+    int32_t code = setResultStrCol(pBlock, 0, *pRow, extCapKindToText(kind), 16);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    code = setResultStrCol(pBlock, 1, *pRow, item, 128);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+
+    int8_t reason = (int8_t)pEntry->reasonCode;
+    code = setResultColVal(pBlock, 2, *pRow, (const char*)&reason, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+
+    int32_t hitCount = (int32_t)pEntry->hitCount;
+    code = setResultColVal(pBlock, 3, *pRow, (const char*)&hitCount, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+
+    int64_t firstHitMs = pEntry->firstHitMs;
+    code = setResultColVal(pBlock, 4, *pRow, (const char*)&firstHitMs, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+
+    ++(*pRow);
+    pIter = taosHashIterate(pHash, pIter);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t execShowExtSourceCapability(SNode* pStmt, SRetrieveTableRsp** pRsp) {
+  SShowExtSourceCapabilityStmt* pCapStmt = (SShowExtSourceCapabilityStmt*)pStmt;
+  SExtSourceCapability*         pCap = (SExtSourceCapability*)pCapStmt->pExtCapability;
+  if (NULL == pCap) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildExtSourceCapabilityResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  int32_t totalRows = 0;
+  totalRows += (NULL != pCap->disabledFuncs) ? (int32_t)taosHashGetSize(pCap->disabledFuncs) : 0;
+  totalRows += (NULL != pCap->disabledOps) ? (int32_t)taosHashGetSize(pCap->disabledOps) : 0;
+  totalRows += (NULL != pCap->disabledClauses) ? (int32_t)taosHashGetSize(pCap->disabledClauses) : 0;
+  totalRows += (NULL != pCap->disabledTypes) ? (int32_t)taosHashGetSize(pCap->disabledTypes) : 0;
+
+  if (totalRows > 0) {
+    code = blockDataEnsureCapacity(pBlock, totalRows);
+    if (TSDB_CODE_SUCCESS != code) {
+      (void)blockDataDestroy(pBlock);
+      return code;
+    }
+
+    int32_t row = 0;
+    TAOS_CHECK_GOTO(appendExtCapabilityRows(pBlock, pCap->disabledFuncs, EXT_DEMOTE_KIND_FUNC, &row), NULL, _exit);
+    TAOS_CHECK_GOTO(appendExtCapabilityRows(pBlock, pCap->disabledOps, EXT_DEMOTE_KIND_OP, &row), NULL, _exit);
+    TAOS_CHECK_GOTO(appendExtCapabilityRows(pBlock, pCap->disabledClauses, EXT_DEMOTE_KIND_CLAUSE, &row), NULL, _exit);
+    TAOS_CHECK_GOTO(appendExtCapabilityRows(pBlock, pCap->disabledTypes, EXT_DEMOTE_KIND_TYPE, &row), NULL, _exit);
+    pBlock->info.rows = row;
+  } else {
+    pBlock->info.rows = 0;
+  }
+
+  code = buildRetrieveTableRsp(pBlock, EXT_SOURCE_CAPABILITY_RESULT_COLS, pRsp);
+
+_exit:
+  (void)blockDataDestroy(pBlock);
+  return code;
+}
+
+static int32_t buildCreateStreamResultDataBlock(SSDataBlock** pOutput) {
+  QRY_PARAM_CHECK(pOutput);
+
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = createDataBlock(&pBlock);
+  if (code) {
+    return code;
+  }
+
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_STREAM_RESULT_FIELD1_LEN, 1);
+  code = blockDataAppendColInfo(pBlock, &infoData);
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_STREAM_RESULT_FIELD2_LEN, 2);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    (void)blockDataDestroy(pBlock);
+  }
+  return code;
+}
+
+static int32_t setCreateStreamResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateStreamStmt* pStmt) {
+  int32_t code = 0;
+  QRY_ERR_RET(blockDataEnsureCapacity(pBlock, 1));
+  pBlock->info.rows = 1;
+
+  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+  char             buf1[SHOW_CREATE_STREAM_RESULT_FIELD1_LEN + 1] = {0};
+  snprintf(varDataVal(buf1), SHOW_CREATE_STREAM_RESULT_FIELD1_LEN - VARSTR_HEADER_SIZE, "`%s`.`%s`", pStmt->dbName,
+           pStmt->streamName);
+  varDataSetLen(buf1, strlen(varDataVal(buf1)));
+  QRY_ERR_RET(colDataSetVal(pCol1, 0, buf1, false));
+
+  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
+  const char*      sql = pStmt->sql ? pStmt->sql : "";
+  int32_t          sqlLen = (int32_t)strlen(sql);
+  int32_t          bufLen = sqlLen + VARSTR_HEADER_SIZE + 1;
+  char*            buf2 = taosMemoryMalloc(bufLen);
+  if (NULL == buf2) {
+    return terrno;
+  }
+  (void)memcpy(varDataVal(buf2), sql, sqlLen);
+  ((char*)varDataVal(buf2))[sqlLen] = '\0';
+  varDataSetLen(buf2, sqlLen);
+  code = colDataSetVal(pCol2, 0, buf2, false);
+  taosMemoryFree(buf2);
+  return code;
+}
+
+static int32_t execShowCreateStream(SShowCreateStreamStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateStreamResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setCreateStreamResultIntoDataBlock(pBlock, pStmt);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_STREAM_RESULT_COLS, pRsp);
+  }
   (void)blockDataDestroy(pBlock);
   return code;
 }
@@ -1798,8 +2272,10 @@ int32_t qExecCommand(int64_t* pConnId, bool sysInfoUser, uint8_t showVarPrivMask
       return execDescribe(sysInfoUser, pStmt, pRsp, biMode);
     case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
       return execDescribeExtSource(pStmt, pRsp);
+    case QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT:
+      return execShowExtSourceCapability(pStmt, pRsp);
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
-      return execResetQueryCache();
+      return execResetQueryCache((SResetQueryCacheStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return execShowCreateDatabase((SShowCreateDatabaseStmt*)pStmt, pRsp);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:

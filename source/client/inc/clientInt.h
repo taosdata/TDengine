@@ -195,7 +195,7 @@ typedef struct {
 
 typedef struct {
   timezone_t    timezone;
-  char          timezoneName[TD_TIMEZONE_LEN]; /* original IANA name from SET TIMEZONE */
+  char          timezoneName[TD_TIMEZONE_LEN]; /* original IANA/POSIX name used to create timezone */
   bool          timezoneExplicit;
   void         *charsetCxt;
   char          userApp[TSDB_APP_NAME_LEN];
@@ -384,9 +384,10 @@ typedef struct SRequestObj {
   int32_t              execPhase;       // EQueryExecPhase
   int64_t              phaseStartTime;  // when current phase started, ms
   int8_t               secureDelete;
-
   TAOS_STMT2          *literal_by_stmt2; // reference only
   char                 extSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // ext source for this request (FH-10)
+  int32_t              extPushdownAttemptCount;
+  SExtCapSessionOverlay extSessionOverlay;
   uint32_t             extPoolRetry;  // pool-exhaustion retry count (client-side delayed retry)
 } SRequestObj;
 

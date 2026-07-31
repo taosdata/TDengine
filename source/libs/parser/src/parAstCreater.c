@@ -69,7 +69,7 @@
 #define TRIM_STRING_FORM_ID_TOKEN(buf, pToken)                      \
   do {                                                              \
     if (pToken->z[0] == '`') {                                      \
-      (void)trimString(pToken->z, pToken->n, buf, sizeof(buf) - 1); \
+      (void)trimString(pToken->z, pToken->n, buf, sizeof(buf));     \
     } else {                                                        \
       COPY_STRING_FORM_ID_TOKEN(buf, pToken);                       \
     }                                                               \
@@ -1392,6 +1392,50 @@ _err:
   return NULL;
 }
 
+// FQ: capture the inner subquery's ORIGINAL SQL text (without the outer
+// parentheses) onto the inner query statement, so that when the subquery
+// expression is later rewritten into a REMOTE_* node, the original SQL can be
+// inlined for same-source pushdown rendering.
+// pLp / pRp are the surrounding '(' and ')' tokens; the inner text is the span
+// strictly between them.
+SNode* setSubquerySql(SAstCreateContext* pCxt, SNode* pNode, const SToken* pLp, const SToken* pRp) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pNode || NULL == pLp || NULL == pRp) {
+    return pNode;
+  }
+  const char* pInnerStart = pLp->z + pLp->n;          // first char after '('
+  const char* pInnerEnd = pRp->z;                     // the ')' position
+  if (pInnerEnd <= pInnerStart) {
+    return pNode;
+  }
+  int32_t len = (int32_t)(pInnerEnd - pInnerStart);
+  char**  ppSql = NULL;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pNode)) {
+    ppSql = &((SSelectStmt*)pNode)->pOrigSubquerySql;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pNode)) {
+    ppSql = &((SSetOperator*)pNode)->pOrigSubquerySql;
+  } else {
+    return pNode;
+  }
+  // Capture only once (innermost subquery rule fires first); do not overwrite.
+  if (NULL != *ppSql) {
+    return pNode;
+  }
+  char* pCopy = taosMemoryMalloc((size_t)len + 1);
+  if (NULL == pCopy) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    CHECK_PARSER_STATUS(pCxt);
+    return pNode;
+  }
+  memcpy(pCopy, pInnerStart, (size_t)len);
+  pCopy[len] = '\0';
+  *ppSql = pCopy;
+  return pNode;
+
+_err:
+  return NULL;
+}
+
 SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight) {
   CHECK_PARSER_STATUS(pCxt);
   if (OP_TYPE_MINUS == type && QUERY_NODE_VALUE == nodeType(pLeft)) {
@@ -1451,6 +1495,12 @@ _err:
   nodesDestroyNode(pLeft);
   nodesDestroyNode(pRight);
   return NULL;
+}
+
+SNode* createBangNeOperatorNode(SAstCreateContext* pCxt, SNode* pLeft, SNode* pRight) {
+  SNode* pNode = createOperatorNode(pCxt, OP_TYPE_NOT_EQUAL, pLeft, pRight);
+  if (pNode) ((SOperatorNode*)pNode)->flag |= OPERATOR_FLAG_BANG_NE;
+  return pNode;
 }
 
 SNode* createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight) {
@@ -1574,6 +1624,7 @@ SNode* createPHRollupTagFunctionNode(SAstCreateContext* pCxt, const SToken* pFun
   func->pParameterList = pParameterList;
   func->tz = pCxt->pQueryCxt->timezone;
   func->charsetCxt = pCxt->pQueryCxt->charsetCxt;
+  func->firstDayOfWeek = pCxt->pQueryCxt->firstDayOfWeek;
   return (SNode*)func;
 _err:
   nodesDestroyList(pParameterList);
@@ -2134,7 +2185,7 @@ _err:
   return NULL;
 }
 
-SNode* createTrueForFullNode (SAstCreateContext* pCxt, SNode* pWindowLimit, SNode* pStartLimit, SNode* pEndLimit) {
+SNode* createTrueForFullNode(SAstCreateContext* pCxt, SNode* pWindowLimit, SNode* pStartLimit, SNode* pEndLimit) {
   STrueForNode* pNode = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pNode);
@@ -2158,6 +2209,27 @@ _err:
   nodesDestroyNode(pStartLimit);
   nodesDestroyNode(pEndLimit);
   nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+SNode* createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken,
+                             SNodeList* pColList) {
+  SCountWindowNode* pCount = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COUNT_WINDOW, (SNode**)&pCount);
+  CHECK_MAKE_NODE(pCount);
+  pCount->pCol = createPrimaryKeyCol(pCxt, NULL);
+  CHECK_MAKE_NODE(pCount->pCol);
+  pCount->windowCount = taosStr2Int64(pCountToken->z, NULL, 10);
+  if (pSlidingToken && pSlidingToken->type == TK_NK_INTEGER) {
+    pCount->windowSliding = taosStr2Int64(pSlidingToken->z, NULL, 10);
+  } else {
+    pCount->windowSliding = taosStr2Int64(pCountToken->z, NULL, 10);
+  }
+  pCount->pColList = pColList;
+  return (SNode*)pCount;
+_err:
+  nodesDestroyNode((SNode*)pCount);
   return NULL;
 }
 
@@ -2761,6 +2833,9 @@ _err:
 
 SNode* addWindowClauseClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWindow) {
   CHECK_PARSER_STATUS(pCxt);
+  parserDebug("FQ-ADDWIN: pStmt=%p stmtType=%d pWindow=%p winType=%d",
+              pStmt, pStmt ? (int)nodeType(pStmt) : -1,
+              pWindow, pWindow ? (int)nodeType(pWindow) : -1);
   if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
     ((SSelectStmt*)pStmt)->pWindow = pWindow;
   }
@@ -4115,6 +4190,35 @@ _err:
   nodesDestroyList(pSpecificTagRefs);
   nodesDestroyList(pTagRefs);
   nodesDestroyList(pSeriesList);
+  return NULL;
+}
+
+// Create CREATE VTABLE ... (col_def_list) USING stb TAGS(...) from a column_def_list.
+// Used when columns carry explicit types and FROM external-source references.
+SNode* createCreateVSubTableStmtFromColDefs(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                                            SNodeList* pColDefs, SNode* pUseRealTable,
+                                            SNodeList* pSpecificTags, SNodeList* pValsOfTags) {
+  CHECK_PARSER_STATUS(pCxt);
+  SCreateVSubTableStmt* pStmt = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pStmt->dbName));
+  tstrncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pStmt->tableName));
+  tstrncpy(pStmt->useDbName, ((SRealTableNode*)pUseRealTable)->table.dbName, sizeof(pStmt->useDbName));
+  tstrncpy(pStmt->useTableName, ((SRealTableNode*)pUseRealTable)->table.tableName, sizeof(pStmt->useTableName));
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pSpecificTags = pSpecificTags;
+  pStmt->pValsOfTags = pValsOfTags;
+  pStmt->pColDefs = pColDefs;
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pUseRealTable);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode(pRealTable);
+  nodesDestroyNode(pUseRealTable);
+  nodesDestroyList(pSpecificTags);
+  nodesDestroyList(pValsOfTags);
+  nodesDestroyList(pColDefs);
   return NULL;
 }
 
@@ -7870,12 +7974,20 @@ _err:
   return NULL;
 }
 
-SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt) {
+SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt, const SToken* pExtSourceName) {
   CHECK_PARSER_STATUS(pCxt);
-  SNode* pStmt = NULL;
+  SResetQueryCacheStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_RESET_QUERY_CACHE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
-  return pStmt;
+
+  pStmt->forExtSource = false;
+  pStmt->sourceName[0] = '\0';
+  if (NULL != pExtSourceName && pExtSourceName->n > 0) {
+    pStmt->forExtSource = true;
+    COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pExtSourceName);
+  }
+
+  return (SNode*)pStmt;
 _err:
   return NULL;
 }
@@ -9118,6 +9230,474 @@ _err:
   return NULL;
 }
 
+// ===================== Federated query: External Source DDL =====================
+
+// Helper: parse TYPE string → EExtSourceType (case-insensitive)
+static int8_t parseExtSourceType(const SToken* pToken) {
+  // pToken is a NK_STRING, e.g. 'mysql'; strip surrounding quotes
+  if (pToken == NULL || pToken->n < 2) return -1;
+  char buf[32] = {0};
+  size_t len = (size_t)(pToken->n - 2);
+  if (len == 0 || len >= sizeof(buf)) return -1;
+  memcpy(buf, pToken->z + 1, len);
+  for (size_t i = 0; i < len; i++) buf[i] = (char)tolower((unsigned char)buf[i]);
+  if (strcmp(buf, "mysql") == 0)      return EXT_SOURCE_MYSQL;
+  if (strcmp(buf, "postgresql") == 0) return EXT_SOURCE_POSTGRESQL;
+  if (strcmp(buf, "influxdb") == 0)   return EXT_SOURCE_INFLUXDB;
+  if (strcmp(buf, "tdengine") == 0)   return EXT_SOURCE_TDENGINE;
+  return -1;
+}
+
+static uint32_t getExtSourceIdLen(const SToken* pToken) {
+  if (pToken == NULL || pToken->z == NULL || pToken->n == 0) {
+    return 0;
+  }
+
+  if (pToken->z[0] == '`') {
+    uint32_t logicalLen = 0;
+    uint32_t i = 1;
+    while (pToken->z[i] != '\0') {
+      if (pToken->z[i] == '`') {
+        if (pToken->z[i + 1] == '`') {
+          ++logicalLen;
+          i += 2;
+          continue;
+        }
+        break;
+      }
+      ++logicalLen;
+      ++i;
+    }
+    if (logicalLen > 0) {
+      return logicalLen;
+    }
+    return (pToken->n >= 2 ? pToken->n - 2 : 0);
+  }
+
+  uint32_t scannedLen = 0;
+  while (pToken->z[scannedLen] != '\0') {
+    char c = pToken->z[scannedLen];
+    if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_')) {
+      break;
+    }
+    ++scannedLen;
+  }
+  return (scannedLen > pToken->n ? scannedLen : pToken->n);
+}
+
+static uint32_t getExtSourceTokenLogicalLen(const SToken* pToken) {
+  if (pToken == NULL || pToken->z == NULL || pToken->n == 0) {
+    return 0;
+  }
+
+  char quote = pToken->z[0];
+  if (pToken->n >= 2 && (quote == '\'' || quote == '"' || quote == '`')) {
+    uint32_t logicalLen = 0;
+    for (uint32_t i = 1; i < pToken->n; ++i) {
+      char c = pToken->z[i];
+      if (c == quote) {
+        if (i + 1 < pToken->n && pToken->z[i + 1] == quote) {
+          ++logicalLen;
+          ++i;
+          continue;
+        }
+        break;
+      }
+      ++logicalLen;
+    }
+    return logicalLen;
+  }
+
+  return pToken->n;
+}
+
+static bool validateExtSourceNameToken(SAstCreateContext* pCxt, const SToken* pName) {
+  if (getExtSourceIdLen(pName) >= TSDB_EXT_SOURCE_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
+                                            "External source name is too long");
+    return false;
+  }
+  return true;
+}
+
+SNode* createCreateExtSourceStmt(SAstCreateContext* pCxt, bool ignoreExists,
+    const SToken* pName, const SToken* pType, const SToken* pHost,
+    const SToken* pPort, const SToken* pUser, const SToken* pPassword,
+    const SToken* pDb, const SToken* pSchema, SNodeList* pOptions) {
+  SCreateExtSourceStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  pStmt->ignoreExists = ignoreExists;
+  uint32_t sourceNameLen = getExtSourceIdLen(pName);
+  if (sourceNameLen == 0) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
+  if (sourceNameLen >= TSDB_EXT_SOURCE_NAME_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
+                                            "External source name is too long");
+    goto _err;
+  }
+  if (getExtSourceTokenLogicalLen(pHost) >= TSDB_EXT_SOURCE_HOST_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                            "HOST is too long");
+    goto _err;
+  }
+  if (pUser != NULL && pUser->n > 0 && pUser->z != NULL &&
+      getExtSourceTokenLogicalLen(pUser) >= TSDB_EXT_SOURCE_USER_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                            "USER is too long");
+    goto _err;
+  }
+  if (pPassword != NULL && pPassword->n > 0 && pPassword->z != NULL &&
+      getExtSourceTokenLogicalLen(pPassword) >= TSDB_EXT_SOURCE_PASSWORD_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                            "PASSWORD is too long");
+    goto _err;
+  }
+  if (pDb != NULL && pDb->n > 0 && pDb->z != NULL &&
+      getExtSourceTokenLogicalLen(pDb) >= TSDB_EXT_SOURCE_DATABASE_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
+                                            "DATABASE is too long");
+    goto _err;
+  }
+  if (pSchema != NULL && pSchema->n > 0 && pSchema->z != NULL &&
+      getExtSourceTokenLogicalLen(pSchema) >= TSDB_EXT_SOURCE_SCHEMA_LEN) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
+                                            "SCHEMA is too long");
+    goto _err;
+  }
+  TRIM_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  if (strlen(pStmt->sourceName) < sourceNameLen) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
+                                            "External source name is too long");
+    goto _err;
+  }
+  pStmt->sourceType = parseExtSourceType(pType);
+  (void)trimString(pHost->z, pHost->n, pStmt->host, sizeof(pStmt->host));
+  pStmt->port = taosStr2Int32(pPort->z, NULL, 10);
+  if (pUser != NULL && pUser->n > 0 && pUser->z != NULL) {
+    (void)trimString(pUser->z, pUser->n, pStmt->user, sizeof(pStmt->user));
+  }
+  if (pPassword != NULL && pPassword->n > 0 && pPassword->z != NULL) {
+    (void)trimString(pPassword->z, pPassword->n, pStmt->password, sizeof(pStmt->password));
+  }
+  if (pDb != NULL && pDb->n > 0 && pDb->z != NULL) {
+    if (pDb->n > 2 && (pDb->z[0] == '\'' || pDb->z[0] == '"')) {
+      (void)trimString(pDb->z, pDb->n, pStmt->database, sizeof(pStmt->database));
+    } else {
+      COPY_STRING_FORM_ID_TOKEN(pStmt->database, pDb);
+    }
+  }
+  if (pSchema != NULL && pSchema->n > 0 && pSchema->z != NULL) {
+    if (pSchema->n > 2 && (pSchema->z[0] == '\'' || pSchema->z[0] == '"')) {
+      (void)trimString(pSchema->z, pSchema->n, pStmt->schemaName, sizeof(pStmt->schemaName));
+    } else {
+      COPY_STRING_FORM_ID_TOKEN(pStmt->schemaName, pSchema);
+    }
+  }
+  pStmt->pOptions = pOptions;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+/* InfluxDB-style CREATE where api_token replaces user+password.
+ * The api_token is injected into the options list as a key-value pair. */
+SNode* createCreateExtSourceStmtInflux(SAstCreateContext* pCxt, bool ignoreExists,
+    const SToken* pName, const SToken* pType, const SToken* pHost,
+    const SToken* pPort, const SToken* pApiToken,
+    const SToken* pDb, const SToken* pSchema, SNodeList* pOptions) {
+  /* Convert api_token value into an options node and prepend to pOptions */
+  SExtOptionNode* pOptNode = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pOptNode);
+  CHECK_MAKE_NODE(pOptNode);
+  tstrncpy(pOptNode->key, "api_token", TSDB_EXT_SOURCE_OPTION_KEY_LEN);
+  /* pApiToken is a NK_STRING — strip surrounding quotes for the value */
+  if (pApiToken->n > 2 && (pApiToken->z[0] == '\'' || pApiToken->z[0] == '"')) {
+    uint32_t vlen = pApiToken->n - 2;
+    if (vlen >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) vlen = TSDB_EXT_SOURCE_OPTION_VALUE_LEN - 1;
+    (void)memcpy(pOptNode->value, pApiToken->z + 1, vlen);
+    pOptNode->value[vlen] = '\0';
+  } else {
+    COPY_STRING_FORM_ID_TOKEN(pOptNode->value, pApiToken);
+  }
+  /* Prepend the api_token option to the existing options list */
+  SNodeList* pAllOpts = pOptions;
+  if (pAllOpts == NULL) {
+    pCxt->errCode = nodesMakeList(&pAllOpts);
+    if (pCxt->errCode != TSDB_CODE_SUCCESS || pAllOpts == NULL) {
+      nodesDestroyNode((SNode*)pOptNode);
+      goto _err;
+    }
+  }
+  pCxt->errCode = nodesListPushFront(pAllOpts, (SNode*)pOptNode);
+  if (pCxt->errCode != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pOptNode);
+    nodesDestroyList(pAllOpts);
+    goto _err;
+  }
+  /* Empty user and password tokens for InfluxDB (password check is skipped for influxdb) */
+  SToken emptyUser = {.type = TK_NK_STRING, .z = "", .n = 2};
+  SToken emptyPwd  = {.type = TK_NK_STRING, .z = "''", .n = 2};
+  SNode* pResult = createCreateExtSourceStmt(pCxt, ignoreExists, pName, pType, pHost, pPort,
+                                              &emptyUser, &emptyPwd, pDb, pSchema, pAllOpts);
+  return pResult;
+_err:
+  return NULL;
+}
+
+SNode* createAlterExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName, SNodeList* pAlterClauses) {
+  SAlterExtSourceStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (!validateExtSourceNameToken(pCxt, pName)) {
+    goto _err;
+  }
+  pStmt->ignoreNotExists = ignoreNotExists;
+  TRIM_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  pStmt->pAlterItems = pAlterClauses;
+  pStmt->capAction = EXT_CAP_ACTION_NONE;
+  pStmt->capKind = EXT_DEMOTE_KIND_NONE;
+  pStmt->capValue[0] = '\0';
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+static bool extTokenEqualNoCase(const SToken* pToken, const char* pLit) {
+  if (NULL == pToken || NULL == pLit || NULL == pToken->z || pToken->n <= 0) {
+    return false;
+  }
+
+  int32_t litLen = (int32_t)strlen(pLit);
+  if (litLen != pToken->n) {
+    return false;
+  }
+
+  return taosStrncasecmp(pToken->z, pLit, litLen) == 0;
+}
+
+SNode* createAlterExtSourceCapStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName,
+                                   const SToken* pAction, const SToken* pKind, const SToken* pValue) {
+  SAlterExtSourceStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (!validateExtSourceNameToken(pCxt, pName)) {
+    goto _err;
+  }
+
+  pStmt->ignoreNotExists = ignoreNotExists;
+  TRIM_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  pStmt->pAlterItems = NULL;
+
+  if (extTokenEqualNoCase(pAction, "enable")) {
+    pStmt->capAction = EXT_CAP_ACTION_ENABLE;
+  } else if (extTokenEqualNoCase(pAction, "disable")) {
+    pStmt->capAction = EXT_CAP_ACTION_DISABLE;
+  } else {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
+
+  if (extTokenEqualNoCase(pKind, "function")) {
+    pStmt->capKind = EXT_DEMOTE_KIND_FUNC;
+  } else if (extTokenEqualNoCase(pKind, "clause")) {
+    pStmt->capKind = EXT_DEMOTE_KIND_CLAUSE;
+  } else if (extTokenEqualNoCase(pKind, "type")) {
+    pStmt->capKind = EXT_DEMOTE_KIND_TYPE;
+  } else if (extTokenEqualNoCase(pKind, "operator")) {
+    pStmt->capKind = EXT_DEMOTE_KIND_OP;
+  } else {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
+
+  if (NULL == pValue || pValue->n <= 0 || NULL == pValue->z) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
+
+  if (pValue->z[0] == '\'' || pValue->z[0] == '"') {
+    (void)trimString(pValue->z, pValue->n, pStmt->capValue, sizeof(pStmt->capValue));
+  } else {
+    COPY_STRING_FORM_ID_TOKEN(pStmt->capValue, pValue);
+  }
+
+  if (pStmt->capValue[0] == '\0') {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    goto _err;
+  }
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createDropExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName) {
+  SDropExtSourceStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (!validateExtSourceNameToken(pCxt, pName)) {
+    goto _err;
+  }
+  pStmt->ignoreNotExists = ignoreNotExists;
+  TRIM_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createShowExtSourcesStmt(SAstCreateContext* pCxt) {
+  SShowExtSourcesStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_EXT_SOURCES_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createDescribeExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName) {
+  SDescribeExtSourceStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (!validateExtSourceNameToken(pCxt, pName)) {
+    goto _err;
+  }
+  TRIM_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createShowExtSourceCapabilityStmt(SAstCreateContext* pCxt, const SToken* pName, const SToken* pKeyword) {
+  SShowExtSourceCapabilityStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  if (NULL == pKeyword || NULL == pKeyword->z || pKeyword->n <= 0 ||
+      taosStrncasecmp(pKeyword->z, "capability", pKeyword->n) != 0 || pKeyword->n != (int32_t)strlen("capability")) {
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
+    return NULL;
+  }
+
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (!validateExtSourceNameToken(pCxt, pName)) {
+    goto _err;
+  }
+  TRIM_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  pStmt->pExtCapability = NULL;
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+SNode* createRefreshExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName) {
+  SRefreshExtSourceStmt* pStmt = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_REFRESH_EXT_SOURCE_STMT, (SNode**)&pStmt);
+  CHECK_MAKE_NODE(pStmt);
+  if (!validateExtSourceNameToken(pCxt, pName)) {
+    goto _err;
+  }
+  TRIM_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
+  return (SNode*)pStmt;
+_err:
+  nodesDestroyNode((SNode*)pStmt);
+  return NULL;
+}
+
+SNode* createExtOptionNode(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue) {
+  SExtOptionNode* pNode = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  if (getExtSourceTokenLogicalLen(pKey) >= TSDB_EXT_SOURCE_OPTION_KEY_LEN ||
+      getExtSourceTokenLogicalLen(pValue) >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) {
+    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _err;
+  }
+  // key is NK_STRING — strip quotes
+  COPY_STRING_FORM_STR_TOKEN(pNode->key, pKey);
+  COPY_STRING_FORM_STR_TOKEN(pNode->value, pValue);
+  if (0 == strcmp(pNode->value, "''") || 0 == strcmp(pNode->value, "\"\"")) {
+    pNode->value[0] = '\0';
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+// Same as createExtOptionNode but the key is an unquoted NK_ID token.
+SNode* createExtOptionNodeFromId(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue) {
+  SExtOptionNode* pNode = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  if (getExtSourceTokenLogicalLen(pKey) >= TSDB_EXT_SOURCE_OPTION_KEY_LEN ||
+      getExtSourceTokenLogicalLen(pValue) >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) {
+    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+    goto _err;
+  }
+  // key is NK_ID — copy as raw identifier (no quote stripping)
+  COPY_STRING_FORM_ID_TOKEN(pNode->key, pKey);
+  COPY_STRING_FORM_STR_TOKEN(pNode->value, pValue);
+  if (0 == strcmp(pNode->value, "''") || 0 == strcmp(pNode->value, "\"\"")) {
+    pNode->value[0] = '\0';
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
+SNode* createAlterExtClause(SAstCreateContext* pCxt, EExtAlterType alterType,
+                             SNodeList* pOpts, const SToken* pVal) {
+  SExtAlterClauseNode* pNode = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_ALTER_CLAUSE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+  pNode->alterType = alterType;
+  if (alterType == EXT_ALTER_OPTIONS) {
+    pNode->pOptions = pOpts;
+  } else if (pVal != NULL) {
+    if ((alterType == EXT_ALTER_DATABASE &&
+         getExtSourceTokenLogicalLen(pVal) >= TSDB_EXT_SOURCE_DATABASE_LEN) ||
+        (alterType == EXT_ALTER_SCHEMA &&
+         getExtSourceTokenLogicalLen(pVal) >= TSDB_EXT_SOURCE_SCHEMA_LEN)) {
+      pCxt->errCode = TSDB_CODE_EXT_IDENTIFIER_TOO_LONG;
+      goto _err;
+    }
+    // NK_STRING token — strip quotes/unescape; NK_INTEGER token — copy as-is.
+    if (pVal->z[0] == '\'' || pVal->z[0] == '"') {
+      (void)trimString(pVal->z, pVal->n, pNode->value, sizeof(pNode->value));
+    } else {
+      COPY_STRING_FORM_ID_TOKEN(pNode->value, pVal);
+    }
+
+    if ((alterType == EXT_ALTER_DATABASE || alterType == EXT_ALTER_SCHEMA) &&
+        (0 == strcmp(pNode->value, "''") || 0 == strcmp(pNode->value, "\"\""))) {
+      pNode->value[0] = '\0';
+    }
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
 /* ---- FILE table source ---- */
 
 SFileOptions parseFileOption(SAstCreateContext* pCxt, const SToken* pName, const SToken* pVal) {
@@ -9203,345 +9783,6 @@ SNode* createFileTableNode(SAstCreateContext* pCxt, const SToken* pPath, const S
     COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableAlias);
   } else {
     taosRandStr(pNode->table.tableAlias, 32);
-  }
-  return (SNode*)pNode;
-_err:
-  nodesDestroyNode((SNode*)pNode);
-  return NULL;
-}
-
-// ===================== Federated query: External Source DDL =====================
-
-// Helper: parse TYPE string → EExtSourceType (case-insensitive)
-static int8_t parseExtSourceType(const SToken* pToken) {
-  // pToken is a NK_STRING, e.g. 'mysql'; strip surrounding quotes
-  if (pToken == NULL || pToken->n < 2) return -1;
-  char buf[32] = {0};
-  size_t len = (size_t)(pToken->n - 2);
-  if (len == 0 || len >= sizeof(buf)) return -1;
-  memcpy(buf, pToken->z + 1, len);
-  for (size_t i = 0; i < len; i++) buf[i] = (char)tolower((unsigned char)buf[i]);
-  if (strcmp(buf, "mysql") == 0)      return EXT_SOURCE_MYSQL;
-  if (strcmp(buf, "postgresql") == 0) return EXT_SOURCE_POSTGRESQL;
-  if (strcmp(buf, "influxdb") == 0)   return EXT_SOURCE_INFLUXDB;
-  if (strcmp(buf, "tdengine") == 0)   return EXT_SOURCE_TDENGINE;
-  return -1;
-}
-
-static uint32_t getExtSourceIdLen(const SToken* pToken) {
-  if (pToken == NULL || pToken->z == NULL || pToken->n == 0) {
-    return 0;
-  }
-
-  if (pToken->z[0] == '`') {
-    uint32_t logicalLen = 0;
-    uint32_t i = 1;
-    while (pToken->z[i] != '\0') {
-      if (pToken->z[i] == '`') {
-        if (pToken->z[i + 1] == '`') {
-          ++logicalLen;
-          i += 2;
-          continue;
-        }
-        break;
-      }
-      ++logicalLen;
-      ++i;
-    }
-    if (logicalLen > 0) {
-      return logicalLen;
-    }
-    return (pToken->n >= 2 ? pToken->n - 2 : 0);
-  }
-
-  uint32_t scannedLen = 0;
-  while (pToken->z[scannedLen] != '\0') {
-    char c = pToken->z[scannedLen];
-    if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_')) {
-      break;
-    }
-    ++scannedLen;
-  }
-  return (scannedLen > pToken->n ? scannedLen : pToken->n);
-}
-
-static uint32_t getExtSourceTokenLogicalLen(const SToken* pToken) {
-  if (pToken == NULL || pToken->z == NULL || pToken->n == 0) {
-    return 0;
-  }
-
-  char quote = pToken->z[0];
-  if (pToken->n >= 2 && (quote == '\'' || quote == '"' || quote == '`')) {
-    uint32_t logicalLen = 0;
-    for (uint32_t i = 1; i < pToken->n; ++i) {
-      char c = pToken->z[i];
-      if (c == quote) {
-        if (i + 1 < pToken->n && pToken->z[i + 1] == quote) {
-          ++logicalLen;
-          ++i;
-          continue;
-        }
-        break;
-      }
-      ++logicalLen;
-    }
-    return logicalLen;
-  }
-
-  return pToken->n;
-}
-
-SNode* createCreateExtSourceStmt(SAstCreateContext* pCxt, bool ignoreExists,
-    const SToken* pName, const SToken* pType, const SToken* pHost,
-    const SToken* pPort, const SToken* pUser, const SToken* pPassword,
-    const SToken* pDb, const SToken* pSchema, SNodeList* pOptions) {
-  CHECK_PARSER_STATUS(pCxt);
-  SCreateExtSourceStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_EXT_SOURCE_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  pStmt->ignoreExists = ignoreExists;
-  uint32_t sourceNameLen = getExtSourceIdLen(pName);
-  if (sourceNameLen == 0) {
-    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-    goto _err;
-  }
-  if (sourceNameLen >= TSDB_EXT_SOURCE_NAME_LEN) {
-    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
-    goto _err;
-  }
-  if (getExtSourceTokenLogicalLen(pHost) >= TSDB_EXT_SOURCE_HOST_LEN) {
-    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
-    goto _err;
-  }
-  if (pUser != NULL && pUser->n > 0 && pUser->z != NULL &&
-      getExtSourceTokenLogicalLen(pUser) >= TSDB_EXT_SOURCE_USER_LEN) {
-    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
-    goto _err;
-  }
-  if (pPassword != NULL && pPassword->n > 0 && pPassword->z != NULL &&
-      getExtSourceTokenLogicalLen(pPassword) >= TSDB_EXT_SOURCE_PASSWORD_LEN) {
-    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
-    goto _err;
-  }
-  if (pDb != NULL && pDb->n > 0 && pDb->z != NULL &&
-      getExtSourceTokenLogicalLen(pDb) >= TSDB_EXT_SOURCE_DATABASE_LEN) {
-    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
-    goto _err;
-  }
-  if (pSchema != NULL && pSchema->n > 0 && pSchema->z != NULL &&
-      getExtSourceTokenLogicalLen(pSchema) >= TSDB_EXT_SOURCE_SCHEMA_LEN) {
-    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
-    goto _err;
-  }
-  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
-  if (strlen(pStmt->sourceName) < sourceNameLen) {
-    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
-    goto _err;
-  }
-  pStmt->sourceType = parseExtSourceType(pType);
-  (void)trimString(pHost->z, pHost->n, pStmt->host, sizeof(pStmt->host));
-  pStmt->port = taosStr2Int32(pPort->z, NULL, 10);
-  if (pUser != NULL && pUser->n > 0 && pUser->z != NULL) {
-    (void)trimString(pUser->z, pUser->n, pStmt->user, sizeof(pStmt->user));
-  }
-  if (pPassword != NULL && pPassword->n > 0 && pPassword->z != NULL) {
-    (void)trimString(pPassword->z, pPassword->n, pStmt->password, sizeof(pStmt->password));
-  }
-  if (pDb != NULL && pDb->n > 0 && pDb->z != NULL) {
-    if (pDb->n > 2 && (pDb->z[0] == '\'' || pDb->z[0] == '"')) {
-      (void)trimString(pDb->z, pDb->n, pStmt->database, sizeof(pStmt->database));
-    } else {
-      COPY_STRING_FORM_ID_TOKEN(pStmt->database, pDb);
-    }
-  }
-  if (pSchema != NULL && pSchema->n > 0 && pSchema->z != NULL) {
-    if (pSchema->n > 2 && (pSchema->z[0] == '\'' || pSchema->z[0] == '"')) {
-      (void)trimString(pSchema->z, pSchema->n, pStmt->schemaName, sizeof(pStmt->schemaName));
-    } else {
-      COPY_STRING_FORM_ID_TOKEN(pStmt->schemaName, pSchema);
-    }
-  }
-  pStmt->pOptions = pOptions;
-  return (SNode*)pStmt;
-_err:
-  nodesDestroyNode((SNode*)pStmt);
-  return NULL;
-}
-
-/* InfluxDB-style CREATE where api_token replaces user+password.
- * The api_token is injected into the options list as a key-value pair. */
-SNode* createCreateExtSourceStmtInflux(SAstCreateContext* pCxt, bool ignoreExists,
-    const SToken* pName, const SToken* pType, const SToken* pHost,
-    const SToken* pPort, const SToken* pApiToken,
-    const SToken* pDb, const SToken* pSchema, SNodeList* pOptions) {
-  CHECK_PARSER_STATUS(pCxt);
-  /* Convert api_token value into an options node and prepend to pOptions */
-  SExtOptionNode* pOptNode = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pOptNode);
-  CHECK_MAKE_NODE(pOptNode);
-  tstrncpy(pOptNode->key, "api_token", TSDB_EXT_SOURCE_OPTION_KEY_LEN);
-  /* pApiToken is a NK_STRING — strip surrounding quotes for the value */
-  if (pApiToken->n > 2 && (pApiToken->z[0] == '\'' || pApiToken->z[0] == '"')) {
-    uint32_t vlen = pApiToken->n - 2;
-    if (vlen >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) vlen = TSDB_EXT_SOURCE_OPTION_VALUE_LEN - 1;
-    (void)memcpy(pOptNode->value, pApiToken->z + 1, vlen);
-    pOptNode->value[vlen] = '\0';
-  } else {
-    COPY_STRING_FORM_ID_TOKEN(pOptNode->value, pApiToken);
-  }
-  /* Prepend the api_token option to the existing options list */
-  SNodeList* pAllOpts = pOptions;
-  if (pAllOpts == NULL) {
-    pCxt->errCode = nodesMakeList(&pAllOpts);
-    if (pCxt->errCode != TSDB_CODE_SUCCESS || pAllOpts == NULL) {
-      nodesDestroyNode((SNode*)pOptNode);
-      goto _err;
-    }
-  }
-  pCxt->errCode = nodesListPushFront(pAllOpts, (SNode*)pOptNode);
-  if (pCxt->errCode != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode((SNode*)pOptNode);
-    nodesDestroyList(pAllOpts);
-    goto _err;
-  }
-  /* Empty user and password tokens for InfluxDB (password check is skipped for influxdb) */
-  SToken emptyUser = {.type = TK_NK_STRING, .z = "", .n = 2};
-  SToken emptyPwd  = {.type = TK_NK_STRING, .z = "''", .n = 2};
-  SNode* pResult = createCreateExtSourceStmt(pCxt, ignoreExists, pName, pType, pHost, pPort,
-                                              &emptyUser, &emptyPwd, pDb, pSchema, pAllOpts);
-  return pResult;
-_err:
-  return NULL;
-}
-
-SNode* createAlterExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName, SNodeList* pAlterClauses) {
-  CHECK_PARSER_STATUS(pCxt);
-  SAlterExtSourceStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_ALTER_EXT_SOURCE_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  pStmt->ignoreNotExists = ignoreNotExists;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
-  pStmt->pAlterItems = pAlterClauses;
-  return (SNode*)pStmt;
-_err:
-  nodesDestroyNode((SNode*)pStmt);
-  return NULL;
-}
-
-SNode* createDropExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName) {
-  CHECK_PARSER_STATUS(pCxt);
-  SDropExtSourceStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_DROP_EXT_SOURCE_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  pStmt->ignoreNotExists = ignoreNotExists;
-  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
-  return (SNode*)pStmt;
-_err:
-  nodesDestroyNode((SNode*)pStmt);
-  return NULL;
-}
-
-SNode* createShowExtSourcesStmt(SAstCreateContext* pCxt) {
-  CHECK_PARSER_STATUS(pCxt);
-  SShowExtSourcesStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_SHOW_EXT_SOURCES_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  return (SNode*)pStmt;
-_err:
-  nodesDestroyNode((SNode*)pStmt);
-  return NULL;
-}
-
-SNode* createDescribeExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName) {
-  CHECK_PARSER_STATUS(pCxt);
-  SDescribeExtSourceStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
-  return (SNode*)pStmt;
-_err:
-  nodesDestroyNode((SNode*)pStmt);
-  return NULL;
-}
-
-SNode* createRefreshExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName) {
-  CHECK_PARSER_STATUS(pCxt);
-  SRefreshExtSourceStmt* pStmt = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_REFRESH_EXT_SOURCE_STMT, (SNode**)&pStmt);
-  CHECK_MAKE_NODE(pStmt);
-  COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pName);
-  return (SNode*)pStmt;
-_err:
-  nodesDestroyNode((SNode*)pStmt);
-  return NULL;
-}
-
-SNode* createExtOptionNode(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue) {
-  CHECK_PARSER_STATUS(pCxt);
-  SExtOptionNode* pNode = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pNode);
-  CHECK_MAKE_NODE(pNode);
-  if (getExtSourceTokenLogicalLen(pKey) >= TSDB_EXT_SOURCE_OPTION_KEY_LEN ||
-      getExtSourceTokenLogicalLen(pValue) >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) {
-    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
-    goto _err;
-  }
-  // key is NK_STRING — strip quotes
-  COPY_STRING_FORM_STR_TOKEN(pNode->key, pKey);
-  COPY_STRING_FORM_STR_TOKEN(pNode->value, pValue);
-  if (0 == strcmp(pNode->value, "''") || 0 == strcmp(pNode->value, "\"\"")) {
-    pNode->value[0] = '\0';
-  }
-  return (SNode*)pNode;
-_err:
-  nodesDestroyNode((SNode*)pNode);
-  return NULL;
-}
-
-// Same as createExtOptionNode but the key is an unquoted NK_ID token.
-SNode* createExtOptionNodeFromId(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue) {
-  CHECK_PARSER_STATUS(pCxt);
-  SExtOptionNode* pNode = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_OPTION, (SNode**)&pNode);
-  CHECK_MAKE_NODE(pNode);
-  if (getExtSourceTokenLogicalLen(pKey) >= TSDB_EXT_SOURCE_OPTION_KEY_LEN ||
-      getExtSourceTokenLogicalLen(pValue) >= TSDB_EXT_SOURCE_OPTION_VALUE_LEN) {
-    pCxt->errCode = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
-    goto _err;
-  }
-  // key is NK_ID — copy as raw identifier (no quote stripping)
-  COPY_STRING_FORM_ID_TOKEN(pNode->key, pKey);
-  COPY_STRING_FORM_STR_TOKEN(pNode->value, pValue);
-  if (0 == strcmp(pNode->value, "''") || 0 == strcmp(pNode->value, "\"\"")) {
-    pNode->value[0] = '\0';
-  }
-  return (SNode*)pNode;
-_err:
-  nodesDestroyNode((SNode*)pNode);
-  return NULL;
-}
-
-SNode* createAlterExtClause(SAstCreateContext* pCxt, EExtAlterType alterType,
-                             SNodeList* pOpts, const SToken* pVal) {
-  CHECK_PARSER_STATUS(pCxt);
-  SExtAlterClauseNode* pNode = NULL;
-  pCxt->errCode = nodesMakeNode(QUERY_NODE_EXT_ALTER_CLAUSE, (SNode**)&pNode);
-  CHECK_MAKE_NODE(pNode);
-  pNode->alterType = alterType;
-  if (alterType == EXT_ALTER_OPTIONS) {
-    pNode->pOptions = pOpts;
-  } else if (pVal != NULL) {
-    // NK_STRING token — strip quotes/unescape; NK_INTEGER token — copy as-is.
-    if (pVal->z[0] == '\'' || pVal->z[0] == '"') {
-      (void)trimString(pVal->z, pVal->n, pNode->value, sizeof(pNode->value));
-    } else {
-      COPY_STRING_FORM_ID_TOKEN(pNode->value, pVal);
-    }
-
-    if ((alterType == EXT_ALTER_DATABASE || alterType == EXT_ALTER_SCHEMA) &&
-        (0 == strcmp(pNode->value, "''") || 0 == strcmp(pNode->value, "\"\""))) {
-      pNode->value[0] = '\0';
-    }
   }
   return (SNode*)pNode;
 _err:

@@ -666,6 +666,18 @@ static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, SParseMetaCa
   return code;
 }
 
+static uint8_t inferTimestampPrecision(int64_t tsVal) {
+  // Preserve the timestamp precision convention used by statement bindings.
+  int64_t absVal = (tsVal >= 0) ? tsVal : (tsVal > INT64_MIN ? -tsVal : INT64_MAX);
+  if (absVal < 10000000000000LL) {
+    return TSDB_TIME_PRECISION_MILLI;
+  }
+  if (absVal < 10000000000000000LL) {
+    return TSDB_TIME_PRECISION_MICRO;
+  }
+  return TSDB_TIME_PRECISION_NANO;
+}
+
 static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, void *charsetCxt) {
   if (!pParam || IS_NULL_TYPE(pParam->buffer_type)) {
     return TSDB_CODE_APP_ERROR;
@@ -718,6 +730,13 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam, vo
       }
       varDataSetLen(pVal->datum.p, output);
       pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
+      break;
+    }
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      int64_t tsVal = *(int64_t*)pParam->buffer;
+      pVal->node.resType.precision = inferTimestampPrecision(tsVal);
+      pVal->datum.i = tsVal;
+      *(int64_t*)&pVal->typeData = tsVal;
       break;
     }
     default: {
@@ -1090,30 +1109,16 @@ static int32_t setValueByBindParam2(SValueNode* pVal, TAOS_STMT2_BIND* pParam, v
     case TSDB_DATA_TYPE_TIMESTAMP: {
       // Auto-detect source precision from the magnitude of the int64 value.
       //
-      // Thresholds (absolute value):
-      //   < 10^13 → milliseconds
-      //   < 10^16 → microseconds
-      //   otherwise → nanoseconds
-      //
       // The raw (unconverted) value is stored together with the detected source
       // precision in pVal->node.resType.precision.  The actual conversion to the
       // DB's target precision is deferred to translateValueImpl(), which runs
       // after the statement is fully translated and SSelectStmt::precision is set.
       int64_t tsVal = *(int64_t*)pParam->buffer;
-      int64_t absVal = (tsVal >= 0) ? tsVal : (tsVal > INT64_MIN ? -tsVal : INT64_MAX);
-      uint8_t srcPrecision;
-      if (absVal < 10000000000000LL) {  // < 10^13
-        srcPrecision = TSDB_TIME_PRECISION_MILLI;
-      } else if (absVal < 10000000000000000LL) {  // < 10^16
-        srcPrecision = TSDB_TIME_PRECISION_MICRO;
-      } else {  // >= 10^16
-        srcPrecision = TSDB_TIME_PRECISION_NANO;
-      }
       pVal->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
       pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
       // deferred; normalized to statement precision during translateWhere(),
       // before getQueryTimeRange derives pSelect->timeRange
-      pVal->node.resType.precision = srcPrecision;
+      pVal->node.resType.precision = inferTimestampPrecision(tsVal);
       pVal->datum.i = tsVal;
       *(int64_t*)&pVal->typeData = tsVal;
       break;

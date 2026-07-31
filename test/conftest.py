@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import random
 import shutil
+import sys
 import tempfile
 import time
 import uuid
@@ -13,6 +14,7 @@ import pytest
 
 
 _WINDOWS_DLL_DIR = None
+_POSIX_TAOS_LIB_SENTINEL = "_TAOS_TEST_LIB_DIR"
 
 
 def _setup_windows_taos_dll_dir():
@@ -90,8 +92,77 @@ def _raise_open_files_limit(target=1048576):
         pass
 
 
+def _is_federated_query_pytest_invocation():
+    if os.getenv("FQ_FORCE_LOCAL_LIBTAOS") == "1":
+        return True
+
+    hints = (
+        "19-FederatedQuery",
+        "FederatedQuery",
+        "federated_query",
+        "test_fq_",
+    )
+    return any(any(hint in arg for hint in hints) for arg in sys.argv[1:])
+
+
+def _iter_local_taos_lib_dirs():
+    candidates = []
+    env_bin = os.getenv("TAOS_BIN_PATH")
+    if env_bin:
+        bin_path = Path(env_bin)
+        if bin_path.is_file():
+            bin_path = bin_path.parent
+        if bin_path.name == "bin":
+            candidates.append(bin_path.parent / "lib")
+        else:
+            candidates.append(bin_path / "lib")
+
+    taosd_name = "taosd.exe" if os.name == "nt" else "taosd"
+    libtaos_name = "taos.dll" if os.name == "nt" else "libtaos.so"
+    for parent in Path(__file__).resolve().parents:
+        build_dir = parent / "debug" / "build"
+        bin_dir = build_dir / "bin"
+        lib_dir = build_dir / "lib"
+        if (bin_dir / taosd_name).exists() and (lib_dir / libtaos_name).exists():
+            candidates.append(lib_dir)
+
+    seen = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+        key = os.path.normcase(str(resolved))
+        if key in seen or not resolved.is_dir():
+            continue
+        seen.add(key)
+        yield resolved
+
+
+def _setup_posix_taos_lib_dir():
+    if os.name == "nt" or not _is_federated_query_pytest_invocation():
+        return
+
+    lib_env = "DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"
+    current_marker = os.getenv(_POSIX_TAOS_LIB_SENTINEL, "")
+    current_paths = [p for p in os.environ.get(lib_env, "").split(os.pathsep) if p]
+
+    for lib_dir in _iter_local_taos_lib_dirs():
+        lib_dir_str = str(lib_dir)
+        if current_marker == lib_dir_str:
+            return
+
+        if current_paths and os.path.realpath(current_paths[0]) == lib_dir_str:
+            os.environ[_POSIX_TAOS_LIB_SENTINEL] = lib_dir_str
+            return
+
+        pruned = [p for p in current_paths if os.path.realpath(p) != lib_dir_str]
+        os.environ[lib_env] = os.pathsep.join([lib_dir_str] + pruned)
+        os.environ[_POSIX_TAOS_LIB_SENTINEL] = lib_dir_str
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 _raise_open_files_limit()
 _setup_windows_taos_dll_dir()
+_setup_posix_taos_lib_dir()
 
 from new_test_framework.utils import (
     BeforeTest,

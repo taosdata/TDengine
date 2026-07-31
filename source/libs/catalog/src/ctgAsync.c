@@ -15,6 +15,7 @@
 
 #include "catalogInt.h"
 #include "extConnector.h"
+#include "extDialect.h"
 #include "query.h"
 #include "querynodes.h"
 #include "systable.h"
@@ -379,7 +380,6 @@ static int32_t ctgAddVStbLayerRef(SArray** ppRefs, col_id_t rootColId, const cha
     CTG_ERR_RET(ctgCollectVStbFinalExtSource(ppRefExtSources, pRefSourceName));
     return TSDB_CODE_SUCCESS;
   }
-
   CTG_ERR_RET(ctgCollectVStbFinalDb(ppRefDbs, pDbName));
 
   if (NULL == *ppRefs) {
@@ -515,7 +515,6 @@ static int32_t ctgAppendUniqueRefColInfo(int32_t* pNumOfRefs, SRefColInfo** ppRe
 
   return TSDB_CODE_SUCCESS;
 }
-
 /*
  * Build the first resolving layer from vnode vsubtables responses.
  * pSubTablesList is SArray<SVSubTablesRsp> collected from every vstb vnode.
@@ -948,7 +947,6 @@ static int32_t ctgCollectVStbFinalExtSource(SHashObj** ppRefExtSources, const ch
 
   return TSDB_CODE_SUCCESS;
 }
-
 /*
  * Resolve one layer of referenced tables into either referenced dbs or next-hop refs.
  * curLayer is the current layer number, starting from 1 for the first-hop table metas.
@@ -1148,7 +1146,6 @@ static int32_t ctgBuildVStbFinalRes(SHashObj* pFinalDbs, SHashObj* pFinalExtSour
       CTG_ERR_JRET(terrno);
     }
   }
-
   if (numOfColRefs > 0 && pColRefCols) {
     rsp.numOfColRefs = numOfColRefs;
     rsp.pColRefCols = taosMemoryCalloc(numOfColRefs, sizeof(SRefColInfo));
@@ -6163,69 +6160,6 @@ int32_t ctgCloneDbVg(SCtgTask* pTask, void** pRes) {
   CTG_RET(cloneDbVgInfo(pOut->dbVgroup, (SDBVgInfo**)pRes));
 }
 
-/*
- * Disable task reuse for layered batch-meta subtasks created by vstb ref resolution.
- * pTask/param are ignored because every layer request should keep an independent lifecycle.
- * equal is always set to false.
- * Return success on success, otherwise an error code.
- */
-int32_t ctgCompTbMetasTasks(SCtgTask* pTask, void* param, bool* equal) {
-  (void)pTask;
-  (void)param;
-  *equal = false;
-  return TSDB_CODE_SUCCESS;
-}
-
-/*
- * Clone the result array of a CTG_TASK_GET_TB_META_BATCH subtask for its parent task.
- * pTask->res is SArray<SMetaRes> whose pRes payload is STableMeta*.
- * pRes receives a deep-cloned SArray<SMetaRes>.
- * Return success on success, otherwise an error code.
- */
-int32_t ctgCloneTbMetas(SCtgTask* pTask, void** pRes) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SArray* pSrc = (SArray*)pTask->res;
-  SArray* pDst = NULL;
-
-  if (NULL == pSrc) {
-    *pRes = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  pDst = taosArrayInit(TMAX(taosArrayGetSize(pSrc), 1), sizeof(SMetaRes));
-  if (NULL == pDst) {
-    CTG_ERR_RET(terrno);
-  }
-
-  int32_t resNum = taosArrayGetSize(pSrc);
-  for (int32_t i = 0; i < resNum; ++i) {
-    SMetaRes* pSrcRes = taosArrayGet(pSrc, i);
-    SMetaRes  dstRes = {0};
-
-    if (NULL == pSrcRes) {
-      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
-    }
-
-    dstRes.code = pSrcRes->code;
-    if (NULL != pSrcRes->pRes) {
-      CTG_ERR_JRET(cloneTableMeta((STableMeta*)pSrcRes->pRes, (STableMeta**)&dstRes.pRes));
-    }
-
-    if (NULL == taosArrayPush(pDst, &dstRes)) {
-      taosMemoryFreeClear(dstRes.pRes);
-      CTG_ERR_JRET(terrno);
-    }
-  }
-
-  *pRes = pDst;
-  return TSDB_CODE_SUCCESS;
-
-_return:
-
-  taosArrayDestroyEx(pDst, ctgFreeBatchMeta);
-  CTG_RET(code);
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Federated query Phase A: CTG_TASK_GET_EXT_SOURCE task
 // ─────────────────────────────────────────────────────────────────────────────
@@ -6304,8 +6238,21 @@ int32_t ctgLaunchGetExtSourceTask(SCtgTask* pTask) {
     tstrncpy(pInfo->options, pEntry->source.options, sizeof(pInfo->options));
     pInfo->meta_version = pEntry->source.meta_version;
     pInfo->create_time  = pEntry->source.create_time;
-    pInfo->capability   = pEntry->capability;
+    int32_t cloneCode = extCapClone(&pEntry->capability, &pInfo->capability);
+    if (TSDB_CODE_SUCCESS != cloneCode) {
+      CTG_UNLOCK(CTG_READ, &pEntry->entryLock);
+      ctgReleaseExtSource(pCtg, pHash, pHandle);
+      taosMemoryFree(pInfo);
+      CTG_ERR_RET(cloneCode);
+    }
     CTG_UNLOCK(CTG_READ, &pEntry->entryLock);
+    cloneCode = extLoadDialectDefaults(pInfo->type, &pInfo->capability);
+    if (TSDB_CODE_SUCCESS != cloneCode) {
+      extCapDestroy(&pInfo->capability);
+      ctgReleaseExtSource(pCtg, pHash, pHandle);
+      taosMemoryFree(pInfo);
+      CTG_ERR_RET(cloneCode);
+    }
     // Release ref + READ lock.  When this is the last reference and a drop is
     // pending, ctgExtSourceHashFreeFp frees the entry here — entryLock is already
     // released above so no double-lock issue.
@@ -6367,7 +6314,17 @@ int32_t ctgHandleGetExtSourceRsp(SCtgTaskReq* tReq, int32_t reqType, const SData
   tstrncpy(pInfo->options, pRsp->options, sizeof(pInfo->options));
   pInfo->meta_version = pRsp->meta_version;
   pInfo->create_time  = pRsp->create_time;
-  // capability stays zero — will be probed by Phase B or planner on demand
+  code = extLoadDialectDefaults(pInfo->type, &pInfo->capability);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(pInfo);
+    goto _return;
+  }
+
+  int32_t capCode = ctgUpdateExtCapEnqueue(pCtg, pCtx->sourceName, &pInfo->capability, 0, false);
+  if (TSDB_CODE_SUCCESS != capCode) {
+    ctgWarn("ctgHandleGetExtSourceRsp: ctgUpdateExtCapEnqueue failed for source:'%s', error:%s",
+            pCtx->sourceName, tstrerror(capCode));
+  }
   pTask->res = pInfo;
 
 _return:
@@ -6449,7 +6406,7 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
       }
       if (pSrc) {
         // taosHashAcquire on pDbHash — HASH_ENTRY_LOCK, no external lock needed.
-        size_t dbKeyLen = strlen(dbKey);
+        size_t dbKeyLen = TSDB_DB_NAME_LEN * 2 + 2;
         if (dbKeyLen == 0) {
           dbKeyLen = 1;
         }
@@ -6648,11 +6605,73 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
       code = terrno;
       break;
     }
-}
+  }
 
   CTG_RET(code);
 }
 
+/*
+ * Disable task reuse for layered batch-meta subtasks created by vstb ref resolution.
+ * pTask/param are ignored because every layer request should keep an independent lifecycle.
+ * equal is always set to false.
+ * Return success on success, otherwise an error code.
+ */
+int32_t ctgCompTbMetasTasks(SCtgTask* pTask, void* param, bool* equal) {
+  (void)pTask;
+  (void)param;
+  *equal = false;
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Clone the result array of a CTG_TASK_GET_TB_META_BATCH subtask for its parent task.
+ * pTask->res is SArray<SMetaRes> whose pRes payload is STableMeta*.
+ * pRes receives a deep-cloned SArray<SMetaRes>.
+ * Return success on success, otherwise an error code.
+ */
+int32_t ctgCloneTbMetas(SCtgTask* pTask, void** pRes) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pSrc = (SArray*)pTask->res;
+  SArray* pDst = NULL;
+
+  if (NULL == pSrc) {
+    *pRes = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pDst = taosArrayInit(TMAX(taosArrayGetSize(pSrc), 1), sizeof(SMetaRes));
+  if (NULL == pDst) {
+    CTG_ERR_RET(terrno);
+  }
+
+  int32_t resNum = taosArrayGetSize(pSrc);
+  for (int32_t i = 0; i < resNum; ++i) {
+    SMetaRes* pSrcRes = taosArrayGet(pSrc, i);
+    SMetaRes  dstRes = {0};
+
+    if (NULL == pSrcRes) {
+      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
+    dstRes.code = pSrcRes->code;
+    if (NULL != pSrcRes->pRes) {
+      CTG_ERR_JRET(cloneTableMeta((STableMeta*)pSrcRes->pRes, (STableMeta**)&dstRes.pRes));
+    }
+
+    if (NULL == taosArrayPush(pDst, &dstRes)) {
+      taosMemoryFreeClear(dstRes.pRes);
+      CTG_ERR_JRET(terrno);
+    }
+  }
+
+  *pRes = pDst;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  taosArrayDestroyEx(pDst, ctgFreeBatchMeta);
+  CTG_RET(code);
+}
 SCtgAsyncFps gCtgAsyncFps[] = {
     {ctgInitGetQnodeTask, ctgLaunchGetQnodeTask, ctgHandleGetQnodeRsp, ctgDumpQnodeRes, NULL, NULL, 1},
     {ctgInitGetDnodeTask, ctgLaunchGetDnodeTask, ctgHandleGetDnodeRsp, ctgDumpDnodeRes, NULL, NULL, 1},

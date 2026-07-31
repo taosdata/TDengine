@@ -33,11 +33,7 @@ import time as _time
 
 import pytz as _pytz
 import taos.field as _taos_field
-
-try:
-    from zoneinfo import ZoneInfo as _ZoneInfo
-except ImportError:
-    from backports.zoneinfo import ZoneInfo as _ZoneInfo
+from taos.constants import FieldType
 
 from new_test_framework.utils import tdLog, tdSql
 from federated_query_common import (
@@ -83,6 +79,41 @@ _E_TRUE = [[True]]
 _E_COUNT5 = [[5]]
 _E_COUNT0 = [[0]]
 _E_VALS = [[r[3]] for r in _ROWS]  # [[1], [2], [3], [4], [5]]
+_E_CROSS_PREC_ALIGNED_PAIRS = [[1, 1], [2, 2], [5, 5]]
+_E_CROSS_PREC_LEFT_JOIN_PAIRS = [[1, 1], [2, 2], [3, None], [4, None], [5, 5]]
+_E_CROSS_PREC_AFTER_MIN = [[2], [3], [4], [5]]
+_E_CROSS_PREC_ZERO_DIFF = [[0], [0], [0]]
+_E_CROSS_PREC_NOW_PAIRS = [[True, 1], [True, 2], [True, 5]]
+
+
+def _local_timestamp_rows(timezone):
+    """Return locally rendered aligned timestamps for an explicit timezone."""
+    aligned = [row for row in _ROWS if row[3] in (1, 2, 5)]
+    return [[
+        _dt_mod.datetime.fromtimestamp(row[0] / 1_000, timezone),
+        _dt_mod.datetime.fromtimestamp(row[0] / 1_000, timezone),
+    ] for row in aligned]
+
+
+def _timestamp_rows(epochs):
+    """Pair timestamp epochs with their source row values."""
+    return [[epoch, row[3]] for epoch, row in zip(epochs, _ROWS)]
+
+
+_E_INS_MS = _timestamp_rows([row[0] for row in _ROWS])
+_E_INS_US = _timestamp_rows([row[1] for row in _ROWS])
+_E_INS_NS = _timestamp_rows([row[2] for row in _ROWS])
+_E_INS_MYSQL_MS_CST = _timestamp_rows([row[0] - 8 * 60 * 60 * 1_000 for row in _ROWS])
+_E_INS_MYSQL_NS_CST = _timestamp_rows([(row[0] - 8 * 60 * 60 * 1_000) * 1_000_000 for row in _ROWS])
+_E_INS_MYSQL_NS_UTC = _timestamp_rows([row[0] * 1_000_000 for row in _ROWS])
+_E_INS_PG_MS_CST = _timestamp_rows([(row[1] - 8 * 60 * 60 * 1_000_000) // 1_000 for row in _ROWS])
+_E_INS_US_FROM_MS = _timestamp_rows([row[0] * 1_000 for row in _ROWS])
+_E_INS_NS_FROM_MS = _timestamp_rows([row[0] * 1_000_000 for row in _ROWS])
+_E_INS_NS_FROM_US = _timestamp_rows([row[1] * 1_000 for row in _ROWS])
+_E_LOCAL_UNION_MS_US = sorted(
+    [[row[0] * 1_000, row[3]] for row in _ROWS] +
+    [[row[1], row[3]] for row in _ROWS]
+)
 
 # Sentinel — use in expect cells to skip matching for that column.
 # Enables verifying deterministic columns while ignoring non-deterministic ones
@@ -112,7 +143,6 @@ _MULTI_TS_DATA = [
     (1704067260000000, 1704096060000000, 1704067260000000, 1704067260000, 2),
     (1704067320000000, 1704096120000000, 1704067320000000, 1704067320000, 3),
 ]  # (ts_pk, ts_aware, ts_naive, ts_date_epoch, val)
-
 
 def _ms_to_dt_str(ms):
     """Convert ms epoch to 'YYYY-MM-DD HH:MM:SS.mmm' in UTC.
@@ -145,7 +175,7 @@ def _us_to_tz_local_str(us, tz_name):
     """
     dt_utc = _dt_mod.datetime(1970, 1, 1, tzinfo=_dt_mod.timezone.utc) + \
              _dt_mod.timedelta(microseconds=us)
-    dt_local = dt_utc.astimezone(_ZoneInfo(tz_name))
+    dt_local = dt_utc.astimezone(_pytz.timezone(tz_name))
     frac = us % 1_000_000
     return dt_local.strftime('%Y-%m-%d %H:%M:%S.') + f"{frac:06d}"
 
@@ -510,6 +540,17 @@ _PREC_CASES = [
     ("prec-87", "SELECT TODAY() > MAX(ts) FROM {L_ms}.t", {"expect": _E_TRUE}),
     ("prec-88", "SELECT TODAY() > MAX(ts) FROM {L_us}.t", {"expect": _E_TRUE}),
     ("prec-89", "SELECT TODAY() > MAX(ts) FROM {L_ns}.t", {"expect": _E_TRUE}),
+    ("prec-90d1", "SELECT CAST(NOW() AS BIGINT) FROM {I}.sensor LIMIT 1",
+        {"non_deterministic": True, "expect": [[_ANY]]}),
+    ("prec-90d2", "SELECT CAST(MAX(time) AS BIGINT) FROM {I}.sensor",
+        {"expect": [[_ROWS[-1][2]]]}),
+    ("prec-90d3", "SELECT MAX(time) FROM {I}.sensor",
+        {"expect_by_tz": {
+            "cst": [[_dt_mod.datetime(2024, 1, 1, 8, 4, 0, tzinfo=_dt_mod.timezone(_dt_mod.timedelta(hours=8)))]],
+            "utc": [[_dt_mod.datetime(2024, 1, 1, 0, 4, 0, tzinfo=_dt_mod.timezone.utc)]],
+        }}),
+    ("prec-90d4", "SELECT NOW() FROM {I}.sensor LIMIT 1",
+        {"non_deterministic": True, "expect": [[_ANY]]}),
     ("prec-90", "SELECT NOW() > MAX(time) FROM {I}.sensor", {"expect": _E_TRUE}),
     ("prec-91", "SELECT NOW() > MAX(ts) FROM {P}.pk_tstz", {"expect": _E_TRUE}),
     ("prec-92", "SELECT TODAY() > MAX(time) FROM {I}.sensor", {"expect": _E_TRUE}),
@@ -758,22 +799,30 @@ _XPREC_CASES = [
     ("xprec-83", "SELECT TO_ISO8601(ts) FROM (SELECT ts FROM (SELECT ts, val FROM {M}.pk_dt) WHERE val <= 3 ORDER BY ts)"),
     # ── Local cross-precision JOINs ──
     # ms/µs: rows 3,4 have sub-ms fractions → only aligned rows match
-    ("xprec-90", "SELECT a.val, b.val FROM {L_ms}.t a INNER JOIN {L_us}.t b ON a.ts = b.ts ORDER BY a.val"),
+    ("xprec-90", "SELECT a.val, b.val FROM {L_ms}.t a INNER JOIN {L_us}.t b ON a.ts = b.ts ORDER BY a.val",
+        {"expect": _E_CROSS_PREC_ALIGNED_PAIRS}),
     # ms/ns: rows 3,4 have sub-ms fractions → only aligned rows match
-    ("xprec-91", "SELECT a.val, b.val FROM {L_ms}.t a INNER JOIN {L_ns}.t b ON a.ts = b.ts ORDER BY a.val"),
+    ("xprec-91", "SELECT a.val, b.val FROM {L_ms}.t a INNER JOIN {L_ns}.t b ON a.ts = b.ts ORDER BY a.val",
+        {"expect": _E_CROSS_PREC_ALIGNED_PAIRS}),
     # µs/ns: rows 3,4 have sub-µs fractions → only aligned rows match
-    ("xprec-92", "SELECT a.val, b.val FROM {L_us}.t a INNER JOIN {L_ns}.t b ON a.ts = b.ts ORDER BY a.val"),
+    ("xprec-92", "SELECT a.val, b.val FROM {L_us}.t a INNER JOIN {L_ns}.t b ON a.ts = b.ts ORDER BY a.val",
+        {"expect": _E_CROSS_PREC_ALIGNED_PAIRS}),
     # µs vs InfluxDB ns
     ("xprec-93", "SELECT a.val, b.val FROM {L_us}.t a INNER JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.val"),
     # ns vs InfluxDB ns — all rows should match
     ("xprec-94", "SELECT a.val, b.val FROM {L_ns}.t a INNER JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.val"),
     # ── LEFT JOIN — show NULL for precision-mismatched rows ──
-    ("xprec-95", "SELECT a.val, b.val FROM {L_ms}.t a LEFT JOIN {L_us}.t b ON a.ts = b.ts ORDER BY a.val"),
-    ("xprec-96", "SELECT a.val, b.val FROM {L_us}.t a LEFT JOIN {L_ns}.t b ON a.ts = b.ts ORDER BY a.val"),
+    ("xprec-95", "SELECT a.val, b.val FROM {L_ms}.t a LEFT JOIN {L_us}.t b ON a.ts = b.ts ORDER BY a.val",
+        {"expect": _E_CROSS_PREC_LEFT_JOIN_PAIRS}),
+    ("xprec-96", "SELECT a.val, b.val FROM {L_us}.t a LEFT JOIN {L_ns}.t b ON a.ts = b.ts ORDER BY a.val",
+        {"expect": _E_CROSS_PREC_LEFT_JOIN_PAIRS}),
     # ── Cross-precision comparison operators ──
-    ("xprec-97", "SELECT val FROM {L_us}.t WHERE ts > (SELECT MIN(ts) FROM {L_ms}.t) ORDER BY ts"),
-    ("xprec-98", "SELECT val FROM {L_ns}.t WHERE ts <= (SELECT MAX(ts) FROM {L_us}.t) ORDER BY ts"),
-    ("xprec-99", "SELECT val FROM {L_us}.t WHERE ts BETWEEN (SELECT MIN(ts) FROM {L_ms}.t) AND (SELECT MAX(ts) FROM {L_ns}.t) ORDER BY ts"),
+    ("xprec-97", "SELECT val FROM {L_us}.t WHERE ts > (SELECT MIN(ts) FROM {L_ms}.t) ORDER BY ts",
+        {"expect": _E_CROSS_PREC_AFTER_MIN}),
+    ("xprec-98", "SELECT val FROM {L_ns}.t WHERE ts <= (SELECT MAX(ts) FROM {L_us}.t) ORDER BY ts",
+        {"expect": _E_VALS}),
+    ("xprec-99", "SELECT val FROM {L_us}.t WHERE ts BETWEEN (SELECT MIN(ts) FROM {L_ms}.t) AND (SELECT MAX(ts) FROM {L_ns}.t) ORDER BY ts",
+        {"expect": _E_VALS}),
     # ── Cross-precision IN/NOT IN ──
     ("xprec-100", "SELECT val FROM {L_us}.t WHERE ts IN (SELECT ts FROM {L_ms}.t) ORDER BY ts"),
     ("xprec-101", "SELECT val FROM {L_ns}.t WHERE ts IN (SELECT ts FROM {L_us}.t) ORDER BY ts"),
@@ -786,27 +835,39 @@ _XPREC_CASES = [
     ("xprec-110", "SELECT CAST(ts AS BIGINT) FROM (SELECT ts FROM {L_ms}.t UNION ALL SELECT ts FROM {L_us}.t) ORDER BY 1"),
     ("xprec-111", "SELECT CAST(ts AS BIGINT) FROM (SELECT ts FROM {L_us}.t UNION ALL SELECT ts FROM {L_ns}.t) ORDER BY 1"),
     # ── Cross-precision aggregate comparison ──
-    ("xprec-112", "SELECT (SELECT CAST(MIN(ts) AS BIGINT) FROM {L_ms}.t), (SELECT CAST(MIN(ts) AS BIGINT) FROM {L_us}.t), (SELECT CAST(MIN(time) AS BIGINT) FROM {I}.sensor)",
-     {"expect_error": "Current sql does not support subquery as expr"}),
-    ("xprec-113", "SELECT (SELECT CAST(MAX(ts) AS BIGINT) FROM {L_us}.t), (SELECT CAST(MAX(ts) AS BIGINT) FROM {L_ns}.t)",
-     {"expect_error": "Current sql does not support subquery as expr"}),
+    ("xprec-112", "SELECT (SELECT CAST(MIN(ts) AS BIGINT) FROM {L_ms}.t), (SELECT CAST(MIN(ts) AS BIGINT) FROM {L_us}.t), (SELECT CAST(MIN(time) AS BIGINT) FROM {I}.sensor)"),
+    ("xprec-113", "SELECT (SELECT CAST(MAX(ts) AS BIGINT) FROM {L_us}.t), (SELECT CAST(MAX(ts) AS BIGINT) FROM {L_ns}.t)"),
     # ── Cross-precision TO_ISO8601 from JOIN — visible precision alignment ──
-    ("xprec-120", "SELECT TO_ISO8601(a.ts, '+00:00'), TO_ISO8601(b.ts, '+00:00') FROM {L_ms}.t a INNER JOIN {L_us}.t b ON a.ts = b.ts ORDER BY a.ts"),
-    ("xprec-121", "SELECT TO_ISO8601(a.ts, '+00:00'), TO_ISO8601(b.ts, '+00:00') FROM {L_us}.t a INNER JOIN {L_ns}.t b ON a.ts = b.ts ORDER BY a.ts"),
+    ("xprec-120", "SELECT TO_ISO8601(a.ts, '+00:00'), TO_ISO8601(b.ts, '+00:00') FROM {L_ms}.t a INNER JOIN {L_us}.t b ON a.ts = b.ts ORDER BY a.ts",
+        {"expect": [["2024-01-01T00:00:00.000+00:00", "2024-01-01T00:00:00.000000+00:00"],
+                    ["2024-01-01T00:01:00.000+00:00", "2024-01-01T00:01:00.000000+00:00"],
+                    ["2024-01-01T00:04:00.000+00:00", "2024-01-01T00:04:00.000000+00:00"]]}),
+    ("xprec-121", "SELECT TO_ISO8601(a.ts, '+00:00'), TO_ISO8601(b.ts, '+00:00') FROM {L_us}.t a INNER JOIN {L_ns}.t b ON a.ts = b.ts ORDER BY a.ts",
+        {"expect": [["2024-01-01T00:00:00.000000+00:00", "2024-01-01T00:00:00.000000000+00:00"],
+                    ["2024-01-01T00:01:00.000000+00:00", "2024-01-01T00:01:00.000000000+00:00"],
+                    ["2024-01-01T00:04:00.000000+00:00", "2024-01-01T00:04:00.000000000+00:00"]]}),
     ("xprec-122", "SELECT TO_ISO8601(a.ts, '+00:00'), TO_ISO8601(b.time, '+00:00') FROM {L_ms}.t a INNER JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.ts"),
     # ── Cross-precision TIMEDIFF — verifies alignment in computation path ──
-    ("xprec-123", "SELECT TIMEDIFF(a.ts, b.ts, 1s) FROM {L_ms}.t a INNER JOIN {L_us}.t b ON a.ts = b.ts ORDER BY a.ts"),
-    ("xprec-124", "SELECT TIMEDIFF(a.ts, b.ts, 1s) FROM {L_us}.t a INNER JOIN {L_ns}.t b ON a.ts = b.ts ORDER BY a.ts"),
-    ("xprec-125", "SELECT TIMEDIFF(a.ts, b.time, 1s) FROM {L_ms}.t a INNER JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.ts"),
+    ("xprec-123", "SELECT TIMEDIFF(a.ts, b.ts, 1s) FROM {L_ms}.t a INNER JOIN {L_us}.t b ON a.ts = b.ts ORDER BY a.ts",
+        {"expect": _E_CROSS_PREC_ZERO_DIFF}),
+    ("xprec-124", "SELECT TIMEDIFF(a.ts, b.ts, 1s) FROM {L_us}.t a INNER JOIN {L_ns}.t b ON a.ts = b.ts ORDER BY a.ts",
+        {"expect": _E_CROSS_PREC_ZERO_DIFF}),
+    ("xprec-125", "SELECT TIMEDIFF(a.ts, b.time, 1s) FROM {L_ms}.t a INNER JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.ts",
+        {"expect": _E_CROSS_PREC_ZERO_DIFF}),
     # ── NOW()/TODAY() in cross-precision context ──
-    ("xprec-126", "SELECT a.val FROM {L_ms}.t a, {L_us}.t b WHERE a.ts = b.ts AND a.ts < NOW() ORDER BY a.val"),
-    ("xprec-127", "SELECT COUNT(*) FROM {L_ms}.t a INNER JOIN {L_us}.t b ON a.ts = b.ts WHERE a.ts < NOW()"),
-    ("xprec-128", "SELECT COUNT(*) FROM {L_us}.t WHERE ts < NOW() AND ts > (SELECT MIN(ts) FROM {L_ns}.t)"),
+    ("xprec-126", "SELECT a.val FROM {L_ms}.t a, {L_us}.t b WHERE a.ts = b.ts AND a.ts < NOW() ORDER BY a.val",
+        {"expect": [[1], [2], [5]]}),
+    ("xprec-127", "SELECT COUNT(*) FROM {L_ms}.t a INNER JOIN {L_us}.t b ON a.ts = b.ts WHERE a.ts < NOW()",
+        {"expect": [[3]]}),
+    ("xprec-128", "SELECT COUNT(*) FROM {L_us}.t WHERE ts < NOW() AND ts > (SELECT MIN(ts) FROM {L_ns}.t)",
+        {"expect": [[4]]}),
     ("xprec-129", "SELECT COUNT(*) FROM {L_ms}.t WHERE ts < TODAY() AND ts IN (SELECT ts FROM {L_us}.t)",
         {"expect": [[3]]}),
     # ── NOW()/TODAY() in cross-precision JOIN — comparison result is deterministic ──
-    ("xprec-133", "SELECT NOW() > a.ts, a.val FROM {L_ms}.t a INNER JOIN {L_us}.t b ON a.ts = b.ts ORDER BY a.val"),
-    ("xprec-134", "SELECT NOW() > a.ts, a.val FROM {L_us}.t a INNER JOIN {L_ns}.t b ON a.ts = b.ts ORDER BY a.val"),
+    ("xprec-133", "SELECT NOW() > a.ts, a.val FROM {L_ms}.t a INNER JOIN {L_us}.t b ON a.ts = b.ts ORDER BY a.val",
+        {"expect": _E_CROSS_PREC_NOW_PAIRS}),
+    ("xprec-134", "SELECT NOW() > a.ts, a.val FROM {L_us}.t a INNER JOIN {L_ns}.t b ON a.ts = b.ts ORDER BY a.val",
+        {"expect": _E_CROSS_PREC_NOW_PAIRS}),
     ("xprec-135", "SELECT TODAY() > a.ts FROM {L_ms}.t a INNER JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.val"),
     # ── Cross-precision UNION via TO_ISO8601 ──
     ("xprec-130", "SELECT TO_ISO8601(ts, '+00:00'), val FROM {L_ms}.t UNION ALL SELECT TO_ISO8601(ts, '+00:00'), val FROM {L_us}.t ORDER BY 1"),
@@ -989,45 +1050,56 @@ _TMULTI_TZ_CASES = [
     ("tmulti-11", "SELECT a.ts, b.ts FROM {M}.pk_dt a INNER JOIN {P}.pk_ts b ON a.ts = b.ts ORDER BY a.ts"),
     ("tmulti-12", "SELECT a.ts, b.time FROM {M}.pk_dt a INNER JOIN {I}.sensor b ON a.ts = b.time ORDER BY a.ts"),
     ("tmulti-13", "SELECT ts FROM {M}.pk_dt UNION ALL SELECT ts FROM {P}.pk_ts UNION ALL SELECT time FROM {I}.sensor ORDER BY 1"),
+    # TO_UNIXTIMESTAMP must distinguish tz-aware vs tz-naive source timestamp types.
+    ("tmulti-16", "SELECT TO_UNIXTIMESTAMP(ts), TO_UNIXTIMESTAMP(ts_aware), TO_UNIXTIMESTAMP(ts_naive), TO_UNIXTIMESTAMP(ts_date) FROM {M}.multi_ts ORDER BY ts"),
+    ("tmulti-17", "SELECT TO_UNIXTIMESTAMP(ts), TO_UNIXTIMESTAMP(ts_aware), TO_UNIXTIMESTAMP(ts_naive), TO_UNIXTIMESTAMP(ts_date) FROM {P}.multi_ts ORDER BY ts"),
+    # Same result row returns mixed timestamp precisions (ms/us/ns).
+    ("tmulti-18", "SELECT (SELECT ts FROM {L_ms}.t WHERE val = 3) AS ts_ms, (SELECT ts FROM {L_us}.t WHERE val = 3) AS ts_us, (SELECT ts FROM {L_ns}.t WHERE val = 3) AS ts_ns"),
+    ("tmulti-19", "SELECT (SELECT CAST(ts AS BIGINT) FROM {L_ms}.t WHERE val = 3) AS ms_epoch, (SELECT CAST(ts AS BIGINT) FROM {L_us}.t WHERE val = 3) AS us_epoch, (SELECT CAST(ts AS BIGINT) FROM {L_ns}.t WHERE val = 3) AS ns_epoch",
+        {"expect": [[1704067320123, 1704067320123456, 1704067320123456789]]}),
 ]
 
 # ── TMULTI group (multi-timestamp columns — TZ-insensitive only) ──
 # TZ-sensitive cases (tmulti-01–13) moved to _TMULTI_TZ_CASES.
 _TMULTI_CASES = [
-    ("tmulti-14", "SELECT a.ts, b.ts FROM {L_ms}.t a, {L_us}.t b WHERE a.ts = b.ts ORDER BY a.ts"),
+    ("tmulti-14", "SELECT a.ts, b.ts FROM {L_ms}.t a, {L_us}.t b WHERE a.ts = b.ts ORDER BY a.ts",
+        {"expect_by_tz": {
+            "cst": _local_timestamp_rows(_dt_mod.timezone(_dt_mod.timedelta(hours=8))),
+            "utc": _local_timestamp_rows(_dt_mod.timezone.utc),
+        }}),
     ("tmulti-15", "SELECT ts FROM {L_ms}.t UNION ALL SELECT ts FROM {L_us}.t UNION ALL SELECT ts FROM {L_ns}.t ORDER BY 1"),
 ]
 
 # ── INS group (INSERT SELECT cross-precision) ──
 _INS_CASES = [
-    # (case_id, insert_sql, verify_sql, description)
+    # (case_id, insert_sql, verify_sql, description, expected rows by client timezone)
     ("ins-01", "INSERT INTO {L_ms}.ins_target SELECT ts, val FROM {M}.pk_dt",
      "SELECT CAST(ts AS BIGINT), val FROM {L_ms}.ins_target ORDER BY ts",
-     "MySQL(µs) → Local(ms) truncate"),
+     "MySQL(µs) → Local(ms) truncate", {"cst": _E_INS_MYSQL_MS_CST, "utc": _E_INS_MS}),
     ("ins-02", "INSERT INTO {L_ns}.ins_target SELECT ts, val FROM {M}.pk_dt",
      "SELECT CAST(ts AS BIGINT), val FROM {L_ns}.ins_target ORDER BY ts",
-     "MySQL(µs) → Local(ns) expand"),
+     "MySQL(µs) → Local(ns) expand", {"cst": _E_INS_MYSQL_NS_CST, "utc": _E_INS_MYSQL_NS_UTC}),
     ("ins-03", "INSERT INTO {L_ms}.ins_target SELECT time, val FROM {I}.sensor",
      "SELECT CAST(ts AS BIGINT), val FROM {L_ms}.ins_target ORDER BY ts",
-     "InfluxDB(ns) → Local(ms) truncate"),
+     "InfluxDB(ns) → Local(ms) truncate", {"cst": _E_INS_MS, "utc": _E_INS_MS}),
     ("ins-04", "INSERT INTO {L_us}.ins_target SELECT time, val FROM {I}.sensor",
      "SELECT CAST(ts AS BIGINT), val FROM {L_us}.ins_target ORDER BY ts",
-     "InfluxDB(ns) → Local(µs) truncate"),
+     "InfluxDB(ns) → Local(µs) truncate", {"cst": _E_INS_US, "utc": _E_INS_US}),
     ("ins-05", "INSERT INTO {L_us}.ins_target SELECT ts, val FROM {L_ms}.t",
      "SELECT CAST(ts AS BIGINT), val FROM {L_us}.ins_target ORDER BY ts",
-     "Local(ms) → Local(µs) expand"),
+     "Local(ms) → Local(µs) expand", {"cst": _E_INS_US_FROM_MS, "utc": _E_INS_US_FROM_MS}),
     ("ins-06", "INSERT INTO {L_ns}.ins_target SELECT ts, val FROM {L_ms}.t",
      "SELECT CAST(ts AS BIGINT), val FROM {L_ns}.ins_target ORDER BY ts",
-     "Local(ms) → Local(ns) expand"),
+     "Local(ms) → Local(ns) expand", {"cst": _E_INS_NS_FROM_MS, "utc": _E_INS_NS_FROM_MS}),
     ("ins-07", "INSERT INTO {L_ms}.ins_target SELECT ts, val FROM {L_ns}.t",
      "SELECT CAST(ts AS BIGINT), val FROM {L_ms}.ins_target ORDER BY ts",
-     "Local(ns) → Local(ms) truncate"),
+     "Local(ns) → Local(ms) truncate", {"cst": _E_INS_MS, "utc": _E_INS_MS}),
     ("ins-08", "INSERT INTO {L_ns}.ins_target SELECT ts, val FROM {L_us}.t",
      "SELECT CAST(ts AS BIGINT), val FROM {L_ns}.ins_target ORDER BY ts",
-     "Local(µs) → Local(ns) expand"),
+     "Local(µs) → Local(ns) expand", {"cst": _E_INS_NS_FROM_US, "utc": _E_INS_NS_FROM_US}),
     ("ins-09", "INSERT INTO {L_ms}.ins_target SELECT ts, val FROM {P}.pk_ts",
      "SELECT CAST(ts AS BIGINT), val FROM {L_ms}.ins_target ORDER BY ts",
-     "PG(µs) → Local(ms) truncate"),
+     "PG(µs) → Local(ms) truncate", {"cst": _E_INS_PG_MS_CST, "utc": _E_INS_MS}),
 ]
 
 # ── NEG group (time-parsing negative cases) ──
@@ -1072,7 +1144,11 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
 
     updatecfgDict = {
         "federatedQueryEnable": 1,
-        "clientCfg": {"federatedQueryEnable": 1},
+        "timezone": "Asia/Shanghai",
+        "clientCfg": {
+            "federatedQueryEnable": 1,
+            "timezone": "Asia/Shanghai",
+        },
     }
 
     _class_setup_done = False
@@ -1089,16 +1165,17 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
             L_ms=_LOCAL_DB_MS, L_us=_LOCAL_DB_US, L_ns=_LOCAL_DB_NS,
         )
 
+    @staticmethod
+    def _reset_td_session(timezone_value):
+        """Reconnect tdSql so federated planning sees the latest session timezone."""
+        tdSql.connect("root", "taosdata")
+        tdSql.execute('ALTER LOCAL "federatedQueryEnable" "1"')
+        tdSql.execute(f'ALTER LOCAL "timezone" "{timezone_value}"')
+        _taos_field.set_tz(_pytz.timezone(timezone_value))
+
     # ── Setup ──
 
     def setup_method(self, method):
-        # Force the taos Python connector to format all naive timestamps in UTC
-        # so that baseline comparisons are independent of the OS local timezone.
-        # The taos.field module derives its epoch base from datetime.fromtimestamp(0),
-        # which depends on OS TZ.  set_tz(UTC) switches to a fixed UTC epoch base,
-        # making serialised datetime strings match the UTC-machine-generated baselines.
-        _taos_field.set_tz(_pytz.UTC)
-
         if TestFq04TimezonePrecision._class_setup_done:
             return
         self.helper = FederatedQueryCaseHelper(__file__)
@@ -1109,6 +1186,15 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
 
     def _setup_data(self):
         tdLog.info("[fq04] Setting up test data ...")
+        # fq04 data loading must be independent from the previous test file's
+        # client session timezone. Several local-table cases intentionally rely
+        # on the insert-time interpretation used when writing TIMESTAMP values.
+        # If fq03 leaves clientCfg.timezone=UTC in the shared session, the same
+        # INSERT statements produce a different local epoch mapping and break
+        # the parity catalog in test_timezone. Force the canonical setup TZ
+        # before creating any local or external fixture data.
+        self._reset_td_session("Asia/Shanghai")
+        tdLog.info('[fq04] Setup timezone forced to Asia/Shanghai before fixture loading.')
 
         # Local TDengine databases
         for sql in _LOCAL_SETUP:
@@ -1207,8 +1293,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
 
         try:
             tdSql.query(sql, queryTimes=1)
-            rows = tdSql.queryResult or []
-
+            rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
             if not ordered:
                 rows = sorted(
                     rows,
@@ -1245,6 +1330,40 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
 
     def _baseline_path(self, name):
         return os.path.join(self._ANS_DIR, f"{name}.txt")
+
+    @staticmethod
+    def _is_timestamp_column(field):
+        field_type = getattr(field, "type", None)
+        if field_type is None:
+            try:
+                field_type = field[1]
+            except (IndexError, KeyError, TypeError):
+                return False
+        return field_type == FieldType.C_TIMESTAMP
+
+    def _normalize_timestamp_rows(self, rows, description):
+        """Restore ns TIMESTAMP cells that the Python connector returns as integers."""
+        timestamp_cols = {
+            index for index, field in enumerate(description or []) if self._is_timestamp_column(field)
+        }
+        if not timestamp_cols:
+            return rows
+
+        timezone = _taos_field.get_tz() or _dt_mod.timezone.utc
+        normalized_rows = []
+        for row in rows:
+            normalized_rows.append(tuple(
+                self._normalize_timestamp_cell(value, index in timestamp_cols, timezone)
+                for index, value in enumerate(row)
+            ))
+        return normalized_rows
+
+    @staticmethod
+    def _normalize_timestamp_cell(value, is_timestamp, timezone):
+        if not is_timestamp or not isinstance(value, int) or abs(value) < 10**17:
+            return value
+        seconds, nanoseconds = divmod(value, 1_000_000_000)
+        return _dt_mod.datetime.fromtimestamp(seconds, timezone).replace(microsecond=nanoseconds // 1000)
 
     def _run_baseline_group(self, cases, baseline_name, *, use_parity=False,
                             local_tbl=None, ext_sources=None):
@@ -1291,7 +1410,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
                 sql = self._fmt(sql_template)
                 try:
                     tdSql.query(sql, queryTimes=1)
-                    rows = tdSql.queryResult or []
+                    rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
                     if not ordered:
                         rows = sorted(
                             rows,
@@ -1326,7 +1445,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         failed = []
 
         for tz_label, tz_value in [("cst", "Asia/Shanghai"), ("utc", "UTC")]:
-            tdSql.execute(f'ALTER LOCAL "timezone" "{tz_value}"')
+            self._reset_td_session(tz_value)
             tdLog.info(f"[{baseline_name}] timezone → {tz_value}")
             _time.sleep(0.5)
 
@@ -1336,23 +1455,14 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
                 opts = entry[2] if len(entry) > 2 else {}
                 non_deterministic = opts.get("non_deterministic", False)
                 ordered = opts.get("ordered", True)
-                expect = opts.get("expect")
-                expect_error = opts.get("expect_error")
+                expect = opts.get("expect_by_tz", {}).get(tz_label, opts.get("expect"))
                 tagged_id = f"{tz_label}-{case_id}"
 
                 t0 = _time.monotonic()
                 sql = self._fmt(sql_template)
                 try:
                     tdSql.query(sql, queryTimes=1)
-                    rows = tdSql.queryResult or []
-                    if expect_error is not None:
-                        elapsed = _time.monotonic() - t0
-                        msg = f"expected error containing '{expect_error}', but query succeeded"
-                        tdLog.info(f"[{tagged_id:<20s} NEG] FAIL  {sql_template[:70]}  [{elapsed:.2f}s]  {msg}")
-                        blocks.append(self._serialize_pos(tagged_id, sql_template, rows,
-                                                          non_deterministic=non_deterministic))
-                        failed.append((tagged_id, sql_template, msg))
-                        continue
+                    rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
                     if not ordered:
                         rows = sorted(
                             rows,
@@ -1366,13 +1476,9 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
                     tdLog.info(f"[{tagged_id:<20s} POS] PASS  {sql_template[:70]}  [{elapsed:.2f}s]")
                 except Exception as e:
                     elapsed = _time.monotonic() - t0
-                    err = str(e)
-                    blocks.append(self._serialize_err(tagged_id, sql_template, err))
-                    if expect_error is not None and expect_error in err:
-                        tdLog.info(f"[{tagged_id:<20s} NEG] PASS  {sql_template[:70]}  [{elapsed:.2f}s]  {e}")
-                    else:
-                        tdLog.info(f"[{tagged_id:<20s} POS] FAIL  {sql_template[:70]}  [{elapsed:.2f}s]  {e}")
-                        failed.append((tagged_id, sql_template, err))
+                    tdLog.info(f"[{tagged_id:<20s} POS] FAIL  {sql_template[:70]}  [{elapsed:.2f}s]  {e}")
+                    blocks.append(self._serialize_err(tagged_id, sql_template, str(e)))
+                    failed.append((tagged_id, sql_template, str(e)))
 
         output = "\n".join(blocks) + "\n"
         self._compare_baseline(output, baseline_file, failed)
@@ -1390,12 +1496,20 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         """
         if expect is None:
             return  # no independent expectation — rely on baseline only
+
+        def display(value):
+            if value is None:
+                return "NULL"
+            if isinstance(value, _dt_mod.datetime) and value.tzinfo is not None:
+                return str(value.replace(tzinfo=None))
+            return str(value)
+
         actual = [
-            [str(v) if v is not None else "NULL" for v in row]
+            [display(v) for v in row]
             for row in rows
         ]
         expected = [
-            ["<ANY>" if v is _ANY else (str(v) if v is not None else "NULL") for v in row]
+            ["<ANY>" if v is _ANY else display(v) for v in row]
             for row in expect
         ]
         if len(actual) != len(expected):
@@ -1417,12 +1531,12 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
 
     def _serialize_pos(self, case_id, sql_template, rows, non_deterministic=False):
         lines = [f"### {case_id} POS", f"SQL: {sql_template}", "RESULT"]
-        for row in rows:
+        for r_idx, row in enumerate(rows):
             if non_deterministic:
                 lines.append("<NON_DETERMINISTIC>")
             else:
                 cells = []
-                for v in row:
+                for c_idx, v in enumerate(row):
                     if v is None:
                         cells.append("NULL")
                     elif isinstance(v, _dt_mod.datetime) and v.tzinfo is not None:
@@ -1505,6 +1619,41 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
             # Clear individual case errors so only regressions cause failure.
             failed.clear()
 
+    def _verify_local_cross_precision_without_fq(self):
+        """Verify local cross-precision operations without the FQ client switch."""
+        tdSql.execute('ALTER LOCAL "federatedQueryEnable" "0"')
+        try:
+            local_cases = [
+                ("local-fq-off-join",
+                 "SELECT a.val, b.val FROM {L_ms}.t a INNER JOIN {L_us}.t b ON a.ts = b.ts ORDER BY a.val",
+                 _E_CROSS_PREC_ALIGNED_PAIRS),
+                ("local-fq-off-subquery",
+                 "SELECT val FROM {L_us}.t WHERE ts BETWEEN (SELECT MIN(ts) FROM {L_ms}.t) AND (SELECT MAX(ts) FROM {L_ns}.t) ORDER BY ts",
+                 _E_VALS),
+                ("local-fq-off-in",
+                 "SELECT val FROM {L_us}.t WHERE ts IN (SELECT ts FROM {L_ms}.t) ORDER BY ts",
+                 [[1], [2], [5]]),
+                ("local-fq-off-union",
+                 "SELECT CAST(ts AS BIGINT), val FROM (SELECT ts, val FROM {L_ms}.t UNION ALL SELECT ts, val FROM {L_us}.t) ORDER BY 1, 2",
+                 _E_LOCAL_UNION_MS_US),
+            ]
+            for case_id, sql_template, expect in local_cases:
+                tdSql.query(self._fmt(sql_template), queryTimes=1)
+                self._check_expect(case_id, tdSql.queryResult or [], expect)
+        finally:
+            tdSql.execute('ALTER LOCAL "federatedQueryEnable" "1"')
+
+    def _verify_local_insert_without_fq(self):
+        """Verify local INSERT SELECT scales TIMESTAMP without the FQ client switch."""
+        tdSql.execute('ALTER LOCAL "federatedQueryEnable" "0"')
+        try:
+            tdSql.execute(f"DELETE FROM {_LOCAL_DB_US}.ins_target")
+            tdSql.execute(self._fmt("INSERT INTO {L_us}.ins_target SELECT ts, val FROM {L_ms}.t"))
+            tdSql.query(self._fmt("SELECT CAST(ts AS BIGINT), val FROM {L_us}.ins_target ORDER BY ts"))
+            self._check_expect("local-fq-off-insert", tdSql.queryResult or [], _E_INS_US_FROM_MS)
+        finally:
+            tdSql.execute('ALTER LOCAL "federatedQueryEnable" "1"')
+
     # ── Test methods ──
 
     def test_timezone(self):
@@ -1527,7 +1676,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         parity_local_tbl = f"{_LOCAL_DB_US}.t"
 
         for tz_label, tz_value in [("cst", "Asia/Shanghai"), ("utc", "UTC")]:
-            tdSql.execute(f'ALTER LOCAL "timezone" "{tz_value}"')
+            self._reset_td_session(tz_value)
             tdLog.info(f"[tz] Switched to timezone: {tz_value}")
             _time.sleep(0.5)
 
@@ -1545,7 +1694,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
                 t0 = _time.monotonic()
                 try:
                     tdSql.query(sql, queryTimes=1)
-                    rows = tdSql.queryResult or []
+                    rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
                     blocks.append(self._serialize_pos(tagged_id, sql_template, rows))
                     elapsed = _time.monotonic() - t0
                     tdLog.info(f"[{tagged_id:<16s} POS] PASS  [{elapsed:.2f}s]")
@@ -1621,6 +1770,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         """
         all_cases = _XPREC_CASES + _XPREC_TZ_CASES + _XPCOND_CASES + _XPCOND_TZ_CASES
         failed = self._run_dual_tz_baseline_group(all_cases, "test_precision_cross")
+        self._verify_local_cross_precision_without_fq()
         if failed:
             raise AssertionError(
                 f"{len(failed)} xprec/xpcond case(s) failed:\n" +
@@ -1656,11 +1806,11 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         failed = []
 
         for tz_label, tz_value in [("cst", "Asia/Shanghai"), ("utc", "UTC")]:
-            tdSql.execute(f'ALTER LOCAL "timezone" "{tz_value}"')
+            self._reset_td_session(tz_value)
             tdLog.info(f"[ins] timezone → {tz_value}")
             _time.sleep(0.5)
 
-            for case_id, insert_sql, verify_sql, desc in _INS_CASES:
+            for case_id, insert_sql, verify_sql, desc, expect_by_tz in _INS_CASES:
                 tagged_id = f"{tz_label}-{case_id}"
                 t0 = _time.monotonic()
                 ins = self._fmt(insert_sql)
@@ -1680,12 +1830,15 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
                         raise AssertionError(
                             f"Expected {len(_ROWS)} rows, got {len(rows)}"
                         )
+                    self._check_expect(tagged_id, rows, expect_by_tz[tz_label])
                     elapsed = _time.monotonic() - t0
                     tdLog.info(f"[{tagged_id:<12s} POS] PASS  {desc}  ({len(rows)} rows)  [{elapsed:.2f}s]")
                 except Exception as e:
                     elapsed = _time.monotonic() - t0
                     tdLog.info(f"[{tagged_id:<12s} POS] FAIL  {desc}  [{elapsed:.2f}s]  {e}")
                     failed.append((tagged_id, insert_sql, str(e)))
+
+        self._verify_local_insert_without_fq()
 
         if failed:
             raise AssertionError(
@@ -1705,7 +1858,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         failed = []
 
         for tz_label, tz_value in [("cst", "Asia/Shanghai"), ("utc", "UTC")]:
-            tdSql.execute(f'ALTER LOCAL "timezone" "{tz_value}"')
+            self._reset_td_session(tz_value)
             tdLog.info(f"[neg] timezone → {tz_value}")
             _time.sleep(0.5)
 

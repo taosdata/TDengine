@@ -14,6 +14,8 @@
  */
 
 #include "catalogInt.h"
+#include <ctype.h>
+#include "extDialect.h"
 #include "query.h"
 #include "systable.h"
 #include "tname.h"
@@ -2286,6 +2288,138 @@ int32_t catalogClearCache(void) {
 // Federated query: ext-source catalog public APIs
 // ─────────────────────────────────────────────────────────────────────────────
 
+static void ctgNormalizeExtFuncName(const char* pIn, char* pOut, int32_t outLen) {
+  if (NULL == pOut || outLen <= 0) {
+    return;
+  }
+
+  pOut[0] = '\0';
+  if (NULL == pIn) {
+    return;
+  }
+
+  int32_t i = 0;
+  for (; i < outLen - 1 && pIn[i] != '\0'; ++i) {
+    pOut[i] = (char)tolower((unsigned char)pIn[i]);
+  }
+  pOut[i] = '\0';
+}
+
+static int32_t ctgCloneExtCapabilityFromCache(SCatalog* pCtg, const char* sourceName,
+                                              SExtSourceCapability* pCap, int64_t* pCapFetchedAt,
+                                              bool* pFound) {
+  if (NULL == pCtg || NULL == sourceName || NULL == pCap) {
+    return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+
+  if (NULL != pFound) {
+    *pFound = false;
+  }
+  if (NULL != pCapFetchedAt) {
+    *pCapFetchedAt = 0;
+  }
+
+  SHashObj*             pHash = NULL;
+  void*                 pHandle = NULL;
+  SExtSourceCacheEntry* pEntry = NULL;
+  int32_t               code = ctgAcquireExtSource(pCtg, sourceName, &pHash, &pHandle, &pEntry);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (NULL == pEntry) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CTG_LOCK(CTG_READ, &pEntry->entryLock);
+  code = extCapClone(&pEntry->capability, pCap);
+  if (TSDB_CODE_SUCCESS == code && NULL != pCapFetchedAt) {
+    *pCapFetchedAt = pEntry->capFetchedAt;
+  }
+  CTG_UNLOCK(CTG_READ, &pEntry->entryLock);
+  ctgReleaseExtSource(pCtg, pHash, pHandle);
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pFound) {
+    *pFound = true;
+  }
+
+  return code;
+}
+
+static void ctgClearExtCapabilityDemotions(SExtSourceCapability* pCap) {
+  if (NULL == pCap) {
+    return;
+  }
+
+  if (NULL != pCap->disabledFuncs) {
+    taosHashClear(pCap->disabledFuncs);
+  }
+  if (NULL != pCap->disabledOps) {
+    taosHashClear(pCap->disabledOps);
+  }
+  if (NULL != pCap->disabledTypes) {
+    taosHashClear(pCap->disabledTypes);
+  }
+  if (NULL != pCap->disabledClauses) {
+    taosHashClear(pCap->disabledClauses);
+  }
+}
+
+static int32_t ctgClearExtCapabilityDemoteEntry(SExtSourceCapability* pCap, const SExtCapDemoteSpec* pSpec) {
+  if (NULL == pCap || NULL == pSpec || EXT_DEMOTE_KIND_NONE == pSpec->kind) {
+    return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+
+  SHashObj*     pHash = NULL;
+  const void*   pKey = NULL;
+  int32_t       keyLen = 0;
+  char          funcName[TSDB_FUNC_NAME_LEN] = {0};
+
+  switch (pSpec->kind) {
+    case EXT_DEMOTE_KIND_FUNC:
+      if ('\0' == pSpec->detail.funcName[0]) {
+        return TSDB_CODE_CTG_INVALID_INPUT;
+      }
+      pHash = pCap->disabledFuncs;
+      ctgNormalizeExtFuncName(pSpec->detail.funcName, funcName, sizeof(funcName));
+      if ('\0' == funcName[0]) {
+        return TSDB_CODE_CTG_INVALID_INPUT;
+      }
+      pKey = funcName;
+      keyLen = (int32_t)strlen(funcName) + 1;
+      break;
+    case EXT_DEMOTE_KIND_OP:
+      pHash = pCap->disabledOps;
+      pKey = &pSpec->detail.opType;
+      keyLen = (int32_t)sizeof(EOperatorType);
+      break;
+    case EXT_DEMOTE_KIND_CLAUSE:
+      pHash = pCap->disabledClauses;
+      pKey = &pSpec->detail.clauseKind;
+      keyLen = (int32_t)sizeof(EExtClauseKind);
+      break;
+    case EXT_DEMOTE_KIND_TYPE:
+      pHash = pCap->disabledTypes;
+      pKey = &pSpec->detail.tsdbTypeCode;
+      keyLen = (int32_t)sizeof(int8_t);
+      break;
+    default:
+      return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+
+  if (NULL == pHash || NULL == pKey || keyLen <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == taosHashGet(pHash, pKey, keyLen)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 != taosHashRemove(pHash, pKey, keyLen)) {
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 int32_t catalogIsExtSource(SCatalog* pCtg, const char* sourceName, bool* pIsExtSource) {
   CTG_API_ENTER();
   if (NULL == pCtg || NULL == sourceName || NULL == pIsExtSource) {
@@ -2399,12 +2533,15 @@ int32_t catalogSyncGetExtSourceInfo(SCatalog* pCtg, SRequestConnInfo* pConn, con
   tstrncpy(pInfo->options, rsp.options, sizeof(pInfo->options));
   pInfo->meta_version = rsp.meta_version;
   pInfo->create_time  = rsp.create_time;
-  pInfo->capability   = (SExtSourceCapability){0};
+  code = extLoadDialectDefaults(pInfo->type, &pInfo->capability);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(pInfo);
+    CTG_API_LEAVE(code);
+  }
 
   *ppInfo = pInfo;
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
-
 int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName) {
   CTG_API_ENTER();
   if (NULL == pCtg || NULL == sourceName) {
@@ -2456,7 +2593,6 @@ int32_t catalogGetExtTableMetaFromCache(SCatalog* pCtg, const char* sourceName, 
 _return:
   CTG_API_LEAVE(code);
 }
-
 int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
                                           const SExtSourceCapability* pCap, int64_t capFetchedAt) {
   CTG_API_ENTER();
@@ -2466,6 +2602,109 @@ int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
   CTG_API_LEAVE(ctgUpdateExtCapEnqueue(pCtg, sourceName, pCap, capFetchedAt, true));
 }
 
+int32_t catalogDemoteExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                         const SExtCapDemoteSpec* pSpec) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pSpec || EXT_DEMOTE_KIND_NONE == pSpec->kind) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SExtSourceCapability cap = {0};
+  bool                 found = false;
+  int64_t              capFetchedAt = 0;
+  int32_t              code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, &cap, &capFetchedAt, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  if (!found) {
+    goto _return;
+  }
+
+  code = extCapDemoteApply(&cap, pSpec);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+
+  code = ctgUpdateExtCapEnqueue(pCtg, sourceName, &cap, capFetchedAt, true);
+
+_return:
+  extCapDestroy(&cap);
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogGetExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                      SExtSourceCapability* pCap, bool* pFound) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pCap) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  bool    found = false;
+  int32_t code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, pCap, NULL, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    extCapDestroy(pCap);
+    CTG_API_LEAVE(code);
+  }
+
+  if (NULL != pFound) {
+    *pFound = found;
+  }
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+int32_t catalogClearExtSourceDemotions(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SExtSourceCapability cap = {0};
+  bool                 found = false;
+  int64_t              capFetchedAt = 0;
+  int32_t              code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, &cap, &capFetchedAt, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  if (!found) {
+    goto _return;
+  }
+
+  ctgClearExtCapabilityDemotions(&cap);
+  code = ctgUpdateExtCapEnqueue(pCtg, sourceName, &cap, capFetchedAt, true);
+
+_return:
+  extCapDestroy(&cap);
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogClearExtSourceDemoteEntry(SCatalog* pCtg, const char* sourceName,
+                                         const SExtCapDemoteSpec* pSpec) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pSpec || EXT_DEMOTE_KIND_NONE == pSpec->kind) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SExtSourceCapability cap = {0};
+  bool                 found = false;
+  int64_t              capFetchedAt = 0;
+  int32_t              code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, &cap, &capFetchedAt, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  if (!found) {
+    goto _return;
+  }
+
+  code = ctgClearExtCapabilityDemoteEntry(&cap, pSpec);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  code = ctgUpdateExtCapEnqueue(pCtg, sourceName, &cap, capFetchedAt, true);
+
+_return:
+  extCapDestroy(&cap);
+  CTG_API_LEAVE(code);
+}
 int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer) {
   CTG_API_ENTER();
   if (NULL == pCtg || NULL == pGlobalVer) {
@@ -2496,21 +2735,56 @@ int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pS
   CTG_API_LEAVE(code);
 }
 
-// Phase 1 stubs: pushdown capability disable/restore are not triggered because
-// capability bits are initialised to 0 (no pushdown).  The framework is wired
-// so the logic compiles and is ready for Phase 2.
 int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName) {
   CTG_API_ENTER();
-  (void)pCtg;
-  (void)sourceName;
-  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SExtSourceCapability cap = {0};
+  bool                 found = false;
+  int64_t              capFetchedAt = 0;
+  int32_t              code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, &cap, &capFetchedAt, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  if (!found) {
+    goto _return;
+  }
+
+  SExtCapDemoteSpec spec = {.kind = EXT_DEMOTE_KIND_CLAUSE, .reasonCode = EXT_DEMOTE_REASON_USER_FORCED};
+  spec.detail.clauseKind = EXT_CLAUSE_FILTER;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_PROJECTION;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_AGG;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_ORDER;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_LIMIT;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_JOIN;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+
+  code = ctgUpdateExtCapEnqueue(pCtg, sourceName, &cap, capFetchedAt, true);
+
+_return:
+  extCapDestroy(&cap);
+  CTG_API_LEAVE(code);
 }
 
 int32_t catalogRestoreExtSourceCapabilities(SCatalog* pCtg, const char* sourceName) {
   CTG_API_ENTER();
-  (void)pCtg;
-  (void)sourceName;
-  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  CTG_API_LEAVE(catalogClearExtSourceDemotions(pCtg, sourceName));
 }
 
 void catalogDestroy(void) {

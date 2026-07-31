@@ -894,4 +894,3 @@ class TestTimezoneConfigDisplay(
     _IntervalTimezoneMixin,
 ):
     pass
-

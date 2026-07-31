@@ -15,6 +15,7 @@
 
 #include "catalogInt.h"
 #include "extConnector.h"
+#include "extDialect.h"
 #include "query.h"
 #include "systable.h"
 #include "tname.h"
@@ -675,7 +676,6 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
       seriesNum = 0;
     }
   }
-
   // PROCESS FOR CHILD TABLE (both normal and virtual)
   ctgDebug("ctgCopyTbMeta ctb:%s tbType=%d", ctx->pName->tname, tbMeta->tableType);
   int32_t metaSize = sizeof(SCTableMeta);
@@ -783,7 +783,6 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     (*pTableMeta)->numOfSeries = 0;
     (*pTableMeta)->seriesEntries = NULL;
   }
-
   ctgDebug("ctgCopyTbMeta result:%s tagRef=%p numOfTagRefs=%d colRef=%p numOfColRefs=%d metaSize=%d schemaExt=%d colRef=%d tagRef=%d",
            ctx->pName->tname, (*pTableMeta)->tagRef, (*pTableMeta)->numOfTagRefs,
            (*pTableMeta)->colRef, (*pTableMeta)->numOfColRefs,
@@ -4792,6 +4791,7 @@ static void ctgFreeExtDbCache(SExtDbCache* pDb) {
 // all readers have already released (freeFp path).
 static void ctgFreeExtSourceCacheEntry(SExtSourceCacheEntry* pEntry) {
   if (NULL == pEntry) return;
+  extCapDestroy(&pEntry->capability);
   if (pEntry->pDbHash) {
     void* p = taosHashIterate(pEntry->pDbHash, NULL);
     while (p) {
@@ -4989,6 +4989,11 @@ int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation) {
     pEntry = *ppExist;
     CTG_LOCK(CTG_WRITE, &pEntry->entryLock);
     TAOS_MEMCPY(&pEntry->source, &msg->sourceRsp, sizeof(pEntry->source));
+    code = extLoadDialectDefaults(msg->sourceRsp.type, &pEntry->capability);
+    if (TSDB_CODE_SUCCESS != code) {
+      CTG_UNLOCK(CTG_WRITE, &pEntry->entryLock);
+      goto _return;
+    }
     CTG_UNLOCK(CTG_WRITE, &pEntry->entryLock);
     ctgDebug("ext source '%s' cache updated, ctg:%p", msg->sourceName, pCtg);
   } else {
@@ -4999,11 +5004,19 @@ int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation) {
     }
     // entryLock is zero-initialised by calloc; no explicit init needed.
     TAOS_MEMCPY(&pEntry->source, &msg->sourceRsp, sizeof(pEntry->source));
+    code = extLoadDialectDefaults(msg->sourceRsp.type, &pEntry->capability);
+    if (TSDB_CODE_SUCCESS != code) {
+      ctgError("ctgOpUpdateExtSource: extLoadDialectDefaults failed for source '%s', error:%s",
+               msg->sourceName, tstrerror(code));
+      ctgFreeExtSourceCacheEntry(pEntry);
+      CTG_ERR_JRET(code);
+    }
     pEntry->pDbHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
     if (NULL == pEntry->pDbHash) {
       ctgError("ctgOpUpdateExtSource: taosHashInit pDbHash failed, error:%s", tstrerror(terrno));
-      // Error path: pEntry was never put in hash; free directly.
-      taosMemoryFree(pEntry);
+      // Error path: pEntry was never put in hash, but capability defaults may
+      // already be allocated and must be released with the normal helper.
+      ctgFreeExtSourceCacheEntry(pEntry);
       CTG_ERR_JRET(terrno);
     }
     if (taosHashPut(pCtg->pExtSourceHash, msg->sourceName, strlen(msg->sourceName), &pEntry, POINTER_BYTES)) {
@@ -5067,7 +5080,7 @@ int32_t ctgOpUpdateExtTableMeta(SCtgCacheOperation* operation) {
   // Readers use taosHashAcquire (HASH_ENTRY_LOCK, fine-grained bucket locks) — no entryLock here.
   // entryLock is only for source/capability scalar fields.
 
-  size_t dbKeyLen = strnlen(msg->dbKey, sizeof(msg->dbKey));
+  size_t dbKeyLen = sizeof(msg->dbKey);
   if (dbKeyLen == 0) {
     // Empty dbKey is a valid bucket (source-level default DB/schema).
     dbKeyLen = 1;  // include leading '\0' as key payload
@@ -5146,13 +5159,19 @@ int32_t ctgOpUpdateExtCap(SCtgCacheOperation* operation) {
   if (ppEntry && *ppEntry) {
     SExtSourceCacheEntry* pEntry = *ppEntry;
     CTG_LOCK(CTG_WRITE, &pEntry->entryLock);
-    pEntry->capability   = msg->capability;
+    extCapDestroy(&pEntry->capability);
+    code = extCapClone(&msg->capability, &pEntry->capability);
+    if (TSDB_CODE_SUCCESS != code) {
+      CTG_UNLOCK(CTG_WRITE, &pEntry->entryLock);
+      goto _return;
+    }
     pEntry->capFetchedAt = msg->capFetchedAt;
     CTG_UNLOCK(CTG_WRITE, &pEntry->entryLock);
     ctgDebug("ext source '%s' capability updated, ctg:%p", msg->sourceName, pCtg);
   }
 
 _return:
+  extCapDestroy(&msg->capability);
   taosMemoryFreeClear(operation->data);
   CTG_RET(code);
 }
@@ -5372,7 +5391,13 @@ int32_t ctgUpdateExtCapEnqueue(SCatalog* pCtg, const char* sourceName, const SEx
     CTG_ERR_RET(terrno);
   }
   msg->pCtg          = pCtg;
-  msg->capability    = *pCap;
+  code = extCapClone(pCap, &msg->capability);
+  if (TSDB_CODE_SUCCESS != code) {
+    ctgError("ctgUpdateExtCapEnqueue: extCapClone failed for source:'%s', error:%s", sourceName, tstrerror(code));
+    taosMemoryFree(msg);
+    taosMemoryFree(op);
+    CTG_ERR_RET(code);
+  }
   msg->capFetchedAt  = capFetchedAt;
   tstrncpy(msg->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   op->data = msg;
@@ -5384,5 +5409,6 @@ int32_t ctgUpdateExtCapEnqueue(SCatalog* pCtg, const char* sourceName, const SEx
   }
   return TSDB_CODE_SUCCESS;
 _return:
+  extCapDestroy(&msg->capability);
   CTG_RET(code);
 }

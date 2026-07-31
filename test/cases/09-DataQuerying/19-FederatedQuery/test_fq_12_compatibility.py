@@ -657,7 +657,55 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
     def test_fq_comp_s01_influx_http_protocol_query(self):
         """InfluxDB HTTP protocol end-to-end data query and parity with flight_sql.
 
-        NOTE: InfluxDB HTTP protocol does not support data queries in this version.
-        Skipped until the connector adds HTTP query support.
+        Verifies the HTTP query path returns the same rows as the Flight SQL
+        path for the configured InfluxDB version(s).
         """
-        pytest.skip("InfluxDB HTTP protocol query not yet supported by the connector")
+        for ver_cfg in ExtSrcEnv.influx_version_configs():
+            tag = ver_cfg.version.replace(".", "")
+            bucket = f"comp_s01_influx_http_{tag}"
+            src_http = f"comp_s01_http_v{tag}"
+            src_flight = f"comp_s01_flight_v{tag}"
+            self._cleanup(src_http, src_flight)
+            try:
+                ExtSrcEnv.influx_create_db_cfg(ver_cfg, bucket)
+                ExtSrcEnv.influx_write_cfg(ver_cfg, bucket, [
+                    "meas,region=north val=1.5,score=10i 1704067200000",
+                    "meas,region=south val=2.5,score=20i 1704067260000",
+                    "meas,region=east val=3.5,score=30i 1704067320000",
+                ])
+
+                self._mk_influx_real_ver(
+                    src_http,
+                    ver_cfg,
+                    bucket,
+                    protocol="http",
+                )
+                self._mk_influx_real_ver(
+                    src_flight,
+                    ver_cfg,
+                    bucket,
+                    protocol="flight_sql",
+                )
+
+                query_sql = "select region, val, score from {}.{}.meas order by time"
+
+                tdSql.query(query_sql.format(src_http, bucket))
+                tdSql.checkRows(3)
+                http_result = list(tdSql.queryResult)
+
+                tdSql.query(query_sql.format(src_flight, bucket))
+                tdSql.checkRows(3)
+                flight_result = list(tdSql.queryResult)
+
+                assert http_result == flight_result, (
+                    f"Influx HTTP query result differs from Flight SQL for {ver_cfg.version}: "
+                    f"http={http_result}, flight={flight_result}"
+                )
+                tdLog.debug(
+                    f"COMP-s01 InfluxDB {ver_cfg.version}: HTTP query path parity OK")
+            finally:
+                self._cleanup(src_http, src_flight)
+                try:
+                    ExtSrcEnv.influx_drop_db_cfg(ver_cfg, bucket)
+                except Exception:
+                    pass

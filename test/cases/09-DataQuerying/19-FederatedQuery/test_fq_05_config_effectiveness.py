@@ -98,31 +98,9 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
-        # Restore federatedQueryConnectTimeoutMs to default (5000 ms) in case a
-        # previous pytest session's fq_08 left it at a different value.  This
-        # test file's test_001_defaults asserts the value equals 5000.
-        try:
-            tdSql.execute("ALTER ALL DNODES 'federatedQueryConnectTimeoutMs' '5000'", queryTimes=1)
-        except Exception:
-            pass
 
     def teardown_class(self):
-        # Drop all external sources created by this test file (prefix fq05_)
-        # so they do not pollute subsequent test files via SHOW EXTERNAL SOURCES.
-        try:
-            tdSql.query("show external sources", queryTimes=1)
-            own = [
-                row[0] for row in (tdSql.queryResult or [])
-                if str(row[0]).startswith("fq05_")
-            ]
-            for _src in own:
-                try:
-                    tdSql.execute(f"drop database if exists {_src}", queryTimes=1)
-                    tdSql.execute(f"drop external source if exists {_src}", queryTimes=1)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        pass
 
     # ==================================================================
     # Recording infrastructure — serialize test SQL + results to temp

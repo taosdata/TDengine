@@ -10,6 +10,9 @@
 #      cold upgrade     (default):      lib_dir = to_dir    (new client, back-compat with old server)
 # 4. Everything else (taos, clusterSetup, ...)
 
+# `spawn` workers import this module before unpickling Manager proxies. Load
+# hashlib now so its OpenSSL extension never initializes after libtaos.
+import hashlib
 import sys
 import os
 import socket
@@ -149,6 +152,17 @@ _COLD_PHASE2_ENV = "_TAOS_COLD_PHASE2"
 # subprocess that starts with the new (to_dir) library (detected below).
 _lib_dir = _args.to_dir if os.environ.get(_COLD_PHASE2_ENV) else _args.from_dir
 prepare_native_lib(_lib_dir)
+
+# Start the manager before importing modules that load the target libtaos.
+# multiprocessing lazily imports _hashlib through hmac and secrets; importing it
+# after libtaos has loaded its OpenSSL dependency can crash the cold-upgrade CI.
+_cold_phase2_manager = None
+if (os.environ.get(_COLD_PHASE2_ENV)
+        and multiprocessing.current_process().name == "MainProcess"):
+    _manager_start_method = (
+        "fork" if "fork" in multiprocessing.get_all_start_methods() else "spawn"
+    )
+    _cold_phase2_manager = multiprocessing.get_context(_manager_start_method).Manager()
 
 # -- Now safe to import taos-dependent modules ---------------------------------
 
@@ -955,6 +969,10 @@ def _run_cold_phase2(state_file: str):
     no_user          = st.get("no_user", False)
     no_index         = st.get("no_index", False)
 
+    manager = _cold_phase2_manager
+    if manager is None:
+        raise RuntimeError("cold-upgrade manager was not initialized")
+
     if st.get("quick"):
         config.SUBTABLE_COUNT         = 100
         config.INIT_ROWS_PER_SUBTABLE = 1_000
@@ -1019,7 +1037,6 @@ def _run_cold_phase2(state_file: str):
             rp.error("SysInfo: snapshot unavailable, whitelist not written")
         sys.exit(0)
 
-    manager         = multiprocessing.Manager()
     metrics         = _init_metrics(manager)
     stop_evt        = manager.Event()
     writer_stop_evt = manager.Event()

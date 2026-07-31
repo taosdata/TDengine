@@ -3582,7 +3582,7 @@ void getInitialStartTimeWindow(SInterval* pInterval, TSKEY ts, STimeWindow* w, b
 
       w->skey = key;
     }
-    w->ekey = taosTimeAdd(w->skey, pInterval->interval, pInterval->intervalUnit, pInterval->precision, pInterval->timezone) - 1;
+    w->ekey = taosTimeGetIntervalEnd(w->skey, pInterval);
   }
 }
 
@@ -4103,7 +4103,8 @@ int32_t createNonStreamScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* p
     return TSDB_CODE_SUCCESS;
   }
 
-  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, digest, &pTaskInfo->storageAPI, groupIdMap, false);
+  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, digest,
+                                     &pTaskInfo->storageAPI, groupIdMap, false);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -4244,7 +4245,12 @@ int32_t createStreamMultiGrpTableListInfo(SScanPhysiNode* pScanNode, SNodeList* 
     return TSDB_CODE_SUCCESS;
   }
 
-  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, NULL, &pTaskInfo->storageAPI, groupIdMap, true);
+  // Batch external_window matches outer partitions to trigger groups by their
+  // original group id. Stream readers keep the trigger id in the hash key so
+  // independent trigger executions cannot collide.
+  bool gIdFromBaseId = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
+  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pScanNode, pGroupTags, groupSort, NULL,
+                                     &pTaskInfo->storageAPI, groupIdMap, gIdFromBaseId);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -4727,6 +4733,7 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
 
   if (0 == pRsp->numOfRows) {
     pRemote->val.node.type = QUERY_NODE_VALUE;
+    pRemote->val.flag |= VALUE_FLAG_REMOTE_PLAN;
     pRemote->val.isNull = true;
     pRemote->val.translate = true;
     pRemote->val.flag &= (~VALUE_FLAG_VAL_UNSET);
@@ -4747,6 +4754,7 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
   }
   if (TSDB_CODE_SUCCESS == ctx->code) {
     pRemote->val.node.type = QUERY_NODE_VALUE;
+    pRemote->val.flag |= VALUE_FLAG_REMOTE_PLAN;
     taosArraySet(ctx->subResNodes, pParam->subQIdx, &pParam->pRes);
   }
 
@@ -5493,23 +5501,51 @@ _end:
   return code;
 }
 
+static int32_t replaceValueNode(const SValueNode* pSrc, SValueNode* pDst) {
+  SValueNode copied = {0};
+  int32_t    code = valueNodeCopy(pSrc, &copied);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesClearValueNode(&copied);
+    return code;
+  }
+
+  nodesClearValueNode(pDst);
+  *pDst = copied;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst) {
   int32_t code = 0, lino = 0;
   
   switch (nodeType(pSrc)) {
-    case QUERY_NODE_VALUE:
-      TAOS_CHECK_EXIT(valueNodeCopy((SValueNode*)pSrc, &((SRemoteValueNode*)pDst)->val));
-      ((SRemoteValueNode*)pDst)->val.node.type = QUERY_NODE_VALUE;
+    case QUERY_NODE_VALUE: {
+      SRemoteValueNode* pRemote = (SRemoteValueNode*)pDst;
+      TAOS_CHECK_EXIT(replaceValueNode((SValueNode*)pSrc, &pRemote->val));
+      pRemote->val.node.type = QUERY_NODE_VALUE;
+      pRemote->val.flag |= VALUE_FLAG_REMOTE_PLAN;
       break;
+    }
     case QUERY_NODE_REMOTE_VALUE_LIST: {
+      SRemoteValueListNode* pSrcNode = (SRemoteValueListNode*)pSrc;
       SRemoteValueListNode* pDstNode = (SRemoteValueListNode*)pDst;
-      memcpy(pDst, pSrc, sizeof(SRemoteValueListNode));
-      pDstNode->hashAllocated = false;      
+
+      // The two AST nodes share a resolved hash for the same subquery, but each
+      // keeps ownership of its expression metadata and remote SQL/plan.
+      pDstNode->flag                 = pSrcNode->flag;
+      pDstNode->hasValue             = pSrcNode->hasValue;
+      pDstNode->hasNull              = pSrcNode->hasNull;
+      pDstNode->hasNotNull           = pSrcNode->hasNotNull;
+      pDstNode->pHashFilter          = pSrcNode->pHashFilter;
+      pDstNode->pHashFilterOthers    = pSrcNode->pHashFilterOthers;
+      pDstNode->filterValueType      = pSrcNode->filterValueType;
+      pDstNode->filterValueTypeMod   = pSrcNode->filterValueTypeMod;
+      pDstNode->streamGen            = pSrcNode->streamGen;
+      pDstNode->hashAllocated        = false;
       break;
     } 
     case QUERY_NODE_REMOTE_ROW: {
       SRemoteRowNode* pRemote = (SRemoteRowNode*)pDst;
-      TAOS_CHECK_EXIT(valueNodeCopy((SValueNode*)pSrc, &pRemote->val));
+      TAOS_CHECK_EXIT(replaceValueNode((SValueNode*)pSrc, &pRemote->val));
       pRemote->valSet = true;
       pRemote->hasValue = ((SRemoteRowNode*)pSrc)->hasValue;
       pRemote->hasNull = ((SRemoteRowNode*)pSrc)->hasNull;
@@ -5524,8 +5560,9 @@ int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst) {
     }
     case QUERY_NODE_REMOTE_ZERO_ROWS: {
       SRemoteZeroRowsNode* pRemote = (SRemoteZeroRowsNode*)pDst;
-      TAOS_CHECK_EXIT(valueNodeCopy((SValueNode*)pSrc, &pRemote->val));
+      TAOS_CHECK_EXIT(replaceValueNode((SValueNode*)pSrc, &pRemote->val));
       pRemote->val.node.type = QUERY_NODE_VALUE;
+      pRemote->val.flag |= VALUE_FLAG_REMOTE_PLAN;
       break;
     }
     default:

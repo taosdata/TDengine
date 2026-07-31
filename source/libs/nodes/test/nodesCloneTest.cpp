@@ -36,6 +36,72 @@ class NodesCloneTest : public testing::Test {
   std::function<void(const SNode*, const SNode*)> checkFunc_;
 };
 
+TEST(NodesCodeTest, queryPlanJsonRoundTripPreservesAllSubplanLevels) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, &pNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> planGuard(pNode, nodesDestroyNode);
+
+  SQueryPlan* pPlan = (SQueryPlan*)pNode;
+  SSubplan* subplans[3] = {nullptr};
+  pPlan->queryId = 1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeList(&pPlan->pSubplans));
+
+  for (int32_t level = 0; level < 2; ++level) {
+    SNode* pLevelNode = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_NODE_LIST, &pLevelNode));
+    SNodeListNode* pLevel = (SNodeListNode*)pLevelNode;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeList(&pLevel->pNodeList));
+
+    const int32_t subplanNum = (0 == level) ? 1 : 2;
+    for (int32_t i = 0; i < subplanNum; ++i) {
+      SNode* pSubplanNode = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &pSubplanNode));
+      SSubplan* pSubplan = (SSubplan*)pSubplanNode;
+      pSubplan->id.queryId = pPlan->queryId;
+      pSubplan->id.groupId = 1;
+      pSubplan->id.subplanId = pPlan->numOfSubplans + 1;
+      pSubplan->level = level;
+      subplans[pPlan->numOfSubplans] = pSubplan;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListStrictAppend(pLevel->pNodeList, pSubplanNode));
+      ++pPlan->numOfSubplans;
+    }
+
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListStrictAppend(pPlan->pSubplans, pLevelNode));
+  }
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&subplans[0]->pChildren, (SNode*)subplans[1]));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&subplans[0]->pChildren, (SNode*)subplans[2]));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&subplans[1]->pParents, (SNode*)subplans[0]));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeAppend(&subplans[2]->pParents, (SNode*)subplans[0]));
+
+  char* pJson = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString((SNode*)pPlan, false, &pJson, nullptr));
+  ASSERT_NE(nullptr, pJson);
+
+  SNode* pRoundTripNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(pJson, &pRoundTripNode));
+  taosMemoryFreeClear(pJson);
+  std::unique_ptr<SNode, void (*)(SNode*)> roundTripGuard(pRoundTripNode, nodesDestroyNode);
+
+  ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(pRoundTripNode));
+  SQueryPlan* pRoundTrip = (SQueryPlan*)pRoundTripNode;
+  ASSERT_EQ(3, pRoundTrip->numOfSubplans);
+  ASSERT_EQ(2, LIST_LENGTH(pRoundTrip->pSubplans));
+  ASSERT_EQ(1, LIST_LENGTH(((SNodeListNode*)nodesListGetNode(pRoundTrip->pSubplans, 0))->pNodeList));
+  ASSERT_EQ(2, LIST_LENGTH(((SNodeListNode*)nodesListGetNode(pRoundTrip->pSubplans, 1))->pNodeList));
+
+  SSubplan* pRoundTripParent = (SSubplan*)nodesListGetNode(
+      ((SNodeListNode*)nodesListGetNode(pRoundTrip->pSubplans, 0))->pNodeList, 0);
+  SSubplan* pRoundTripChild1 = (SSubplan*)nodesListGetNode(
+      ((SNodeListNode*)nodesListGetNode(pRoundTrip->pSubplans, 1))->pNodeList, 0);
+  SSubplan* pRoundTripChild2 = (SSubplan*)nodesListGetNode(
+      ((SNodeListNode*)nodesListGetNode(pRoundTrip->pSubplans, 1))->pNodeList, 1);
+  ASSERT_EQ((SNode*)pRoundTripChild1, nodesListGetNode(pRoundTripParent->pChildren, 0));
+  ASSERT_EQ((SNode*)pRoundTripChild2, nodesListGetNode(pRoundTripParent->pChildren, 1));
+  ASSERT_EQ((SNode*)pRoundTripParent, nodesListGetNode(pRoundTripChild1->pParents, 0));
+  ASSERT_EQ((SNode*)pRoundTripParent, nodesListGetNode(pRoundTripChild2->pParents, 0));
+}
+
 TEST_F(NodesCloneTest, tempTable) {
   registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
     ASSERT_EQ(nodeType(pSrc), nodeType(pDst));

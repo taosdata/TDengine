@@ -21,6 +21,7 @@
 // predicate and the EExtSQLDialect helper used by both editions.
 
 #include "extConnector.h"
+#include "extError.h"
 #include "taoserror.h"
 
 // extConnectorIsRetryable — DS §5.3.9 retryability rules
@@ -29,12 +30,5 @@
 // retried by the caller.  Authentication / access-denied errors are permanent
 // and must NOT be retried (retrying leaks credentials and wastes resources).
 bool extConnectorIsRetryable(int32_t errCode) {
-  switch (errCode) {
-    case TSDB_CODE_EXT_CONNECT_FAILED:
-    case TSDB_CODE_EXT_QUERY_TIMEOUT:
-    case TSDB_CODE_EXT_RESOURCE_EXHAUSTED:
-      return true;
-    default:
-      return false;
-  }
+  return extIsRetryableCode(errCode);
 }

@@ -5961,7 +5961,7 @@ static int32_t getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8
   if (cJSON_IsObject(binDesc)) { /* linaer/log bins */
     int32_t numOfParams = cJSON_GetArraySize(binDesc);
     int32_t startIndex;
-    if (numOfParams != 4) {
+    if (numOfParams < 3 || numOfParams > 4) {
       cJSON_Delete(binDesc);
       return TSDB_CODE_FAILED;
     }
@@ -5971,8 +5971,11 @@ static int32_t getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8
     cJSON* width = cJSON_GetObjectItem(binDesc, "width");
     cJSON* count = cJSON_GetObjectItem(binDesc, "count");
     cJSON* infinity = cJSON_GetObjectItem(binDesc, "infinity");
+    /* infinity is optional — treat absent as false */
+    bool infinityVal = (cJSON_IsBool(infinity) && infinity->valueint != 0);
 
-    if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
+    if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) ||
+        (infinity != NULL && !cJSON_IsBool(infinity))) {
       cJSON_Delete(binDesc);
       return TSDB_CODE_FAILED;
     }
@@ -5989,7 +5992,7 @@ static int32_t getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8
     }
 
     int32_t counter = (int32_t)count->valueint;
-    if (infinity->valueint == false) {
+    if (infinityVal == false) {
       startIndex = 0;
       numOfBins = counter + 1;
     } else {
@@ -6046,7 +6049,7 @@ static int32_t getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8
       return TSDB_CODE_FAILED;
     }
 
-    if (infinity->valueint == true) {
+    if (infinityVal == true) {
       intervals[0] = -INFINITY;
       intervals[numOfBins - 1] = INFINITY;
       // in case of desc bin orders, -inf/inf should be swapped

@@ -94,8 +94,16 @@ static SLogicSubplan* splCreateScanSubplan(SSplitContext* pCxt, SLogicNode* pNod
   }
   pSubplan->id.queryId = pCxt->queryId;
   pSubplan->id.groupId = pCxt->groupId;
-  // TODO(smj):refact here.
-  pSubplan->subplanType = nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN ? SUBPLAN_TYPE_MERGE : SUBPLAN_TYPE_SCAN;
+  // External scans and virtual-table scans do not bind directly to vnode
+  // endpoints, so they must enter the scheduler as MERGE subplans.
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN ||
+      (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_SCAN &&
+       ((SScanLogicNode*)pNode)->scanType == SCAN_TYPE_EXTERNAL)) {
+    pSubplan->subplanType = SUBPLAN_TYPE_MERGE;
+  } else {
+    // TODO(smj):refact here.
+    pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
+  }
   pSubplan->pNode = pNode;
   pSubplan->pNode->pParent = NULL;
   splSetSubplanVgroups(pSubplan, pNode);
@@ -115,9 +123,14 @@ static bool splHasScan(SLogicNode* pNode) {
   SNode* pChild = NULL;
   FOREACH(pChild, pNode->pChildren) {
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
+      if (((SScanLogicNode*)pChild)->scanType != SCAN_TYPE_EXTERNAL) {
+        return true;
+      }
+      continue;
+    }
+    if (splHasScan((SLogicNode*)pChild)) {
       return true;
     }
-    return splHasScan((SLogicNode*)pChild);
   }
 
   return false;
@@ -354,8 +367,27 @@ static bool stbSplNeedSplitWindow(SLogicNode* pNode) {
   return false;
 }
 
+static bool joinChildrenAreAllExternalScan(const SJoinLogicNode* pJoin) {
+  if (NULL == pJoin || NULL == pJoin->node.pChildren || LIST_LENGTH(pJoin->node.pChildren) != 2) {
+    return false;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pJoin->node.pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild) ||
+        ((SScanLogicNode*)pChild)->scanType != SCAN_TYPE_EXTERNAL) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 static bool stbSplNeedSplitJoin(SJoinLogicNode* pJoin) {
   if (pJoin->isSingleTableJoin || JOIN_ALGO_HASH == pJoin->joinAlgo) {
+    return false;
+  }
+  if (joinChildrenAreAllExternalScan(pJoin)) {
     return false;
   }
   SNode* pChild = NULL;
@@ -405,7 +437,6 @@ static bool stbSplIsSqlWindowSort(SLogicNode* pNode) {
   return QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pNode) && NULL != pNode->pParent &&
          QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC == nodeType(pNode->pParent);
 }
-
 static bool stbSplNeedSplit(SFindSplitNodeCtx* pCtx, SLogicNode* pNode) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
@@ -731,7 +762,13 @@ _return:
 
 static int32_t stbSplGetNumOfVgroups(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
-    return ((SScanLogicNode*)pNode)->pVgroupList->numOfVgroups;
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    // Federated scans are already merge-style inputs; they do not own vnode
+    // fanout metadata and must not be treated as multi-vgroup stable scans.
+    if (pScan->scanType == SCAN_TYPE_EXTERNAL || NULL == pScan->pVgroupList) {
+      return 1;
+    }
+    return pScan->pVgroupList->numOfVgroups;
   } else {
     if (1 == LIST_LENGTH(pNode->pChildren)) {
       return stbSplGetNumOfVgroups((SLogicNode*)nodesListGetNode(pNode->pChildren, 0));
@@ -1657,8 +1694,30 @@ static int32_t stbSplSplitMergeScanNode(SSplitContext* pCxt, SLogicSubplan* pSub
       pInfo->pSplitNode = NULL;
     }
     nodesDestroyNode((SNode*)pScan);
+    // The split replaced the original scan in the parent subplan with a
+    // merge/exchange structure. Re-evaluate the parent subplan type now so
+    // scheduler binding follows the remaining real scan leaves.
+    splSetSubplanType(pSubplan);
     code = nodesListMakeStrictAppend(&pSubplan->pChildren,
                                      (SNode*)splCreateScanSubplan(pCxt, pMergeScan, SPLIT_FLAG_STABLE_SPLIT));
+  }
+  ++(pCxt->groupId);
+  return code;
+}
+
+static int32_t stbSplSplitExternalScanNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SScanLogicNode* pScan,
+                                           SStableSplitInfo* pInfo) {
+  int32_t code = splCreateExchangeNodeForSubplan(pCxt, pSubplan, (SLogicNode*)pScan, pSubplan->subplanType, false);
+  if (TSDB_CODE_SUCCESS == code) {
+    if ((void*)pInfo->pSplitNode == (void*)pScan) {
+      pInfo->pSplitNode = NULL;
+    }
+    // Keep the external scan as an external-scan child subplan. Rewriting it
+    // to TABLE_MERGE would switch it onto vnode execution semantics and lose
+    // the federated scheduling path.
+    splSetSubplanType(pSubplan);
+    code = nodesListMakeStrictAppend(&pSubplan->pChildren,
+                                     (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)pScan, SPLIT_FLAG_STABLE_SPLIT));
   }
   ++(pCxt->groupId);
   return code;
@@ -1726,11 +1785,11 @@ static int32_t stbSplSplitJoinNodeImpl(SSplitContext* pCxt, SLogicSubplan* pSubp
   SNode*  pChild = NULL;
   FOREACH(pChild, pJoin->node.pChildren) {
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
-      //if (pJoin->node.dynamicOp) {
-      //  code = TSDB_CODE_SUCCESS;
-      //} else {
+      if (((SScanLogicNode*)pChild)->scanType == SCAN_TYPE_EXTERNAL) {
+        code = stbSplSplitExternalScanNode(pCxt, pSubplan, (SScanLogicNode*)pChild, pInfo);
+      } else {
         code = stbSplSplitMergeScanNode(pCxt, pSubplan, (SScanLogicNode*)pChild, pJoin->grpJoin ? true : false, pInfo);
-      //}
+      }
     } else if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
       code = stbSplSplitJoinNodeImpl(pCxt, pSubplan, (SJoinLogicNode*)pChild, pInfo);
     } else {
@@ -1850,6 +1909,9 @@ static bool sigTbJoinSplNeedSplit(SLogicNode* pNode) {
   }
 
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+  if (joinChildrenAreAllExternalScan(pJoin)) {
+    return false;
+  }
   if (!pJoin->isSingleTableJoin) {
     return false;
   }

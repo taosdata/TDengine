@@ -783,6 +783,9 @@ Below are the business error codes for each module.
 | 0x8000641A | Database name conflicts with an existing external source | The database name conflicts with an existing external source name | Choose another database name or external source name                |
 | 0x8000641B | External column not found                        | The referenced column does not exist in the external table              | Check the external column name and case, and confirm the remote table structure |
 | 0x8000641C | InfluxDB tag columns cannot be used as virtual table column source | An InfluxDB tag column is referenced as a regular virtual table column source | Reference the InfluxDB tag column as a tag, or adjust the virtual table definition |
+| 0x8000641D | External object identifier is too long | An external source, database, schema, table, or column identifier exceeds its TDengine limit | Use an identifier within the limit; the system never truncates or prefix-matches it |
+| 0x8000641E | Too many external columns required by query | The current SQL statement references more external columns than TDengine permits | Reduce the columns referenced by this query; an oversized external table alone does not cause this error |
+| 0x8000641F | Too many external tags required by query | The current SQL statement references more external tags than TDengine permits | Reduce the tags referenced by this query; an oversized external measurement alone does not cause this error |
 
 #### stream
 

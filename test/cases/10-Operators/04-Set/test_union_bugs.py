@@ -26,6 +26,9 @@ def get_sys_table_count(db_name):
     )
     return tdSql.getRows()
 
+NUM_INFO_DB_TABLES = 61  # number of system tables in information_schema
+NUM_PERF_DB_TABLES = 6  # number of system tables in performance_schema
+
 class TestUnionBugs:
 
     def setup_class(cls):

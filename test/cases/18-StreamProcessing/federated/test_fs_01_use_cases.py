@@ -21,6 +21,7 @@ Cases:
 
 import datetime
 import sys
+import time
 
 from new_test_framework.utils import tdLog, tdSql, tdStream
 
@@ -50,6 +51,8 @@ class TestFsUseCases(FederatedQueryTestMixin):
     """FS §9 — Use cases (FS-UC-001..004)."""
 
     DB = "fs_uc"
+    _STREAM_DROP_SETTLE_SECONDS = 135
+    _last_stream_drop_at = None
 
     # ------------------------------------------------------------------
     # Shared test data for FS-UC-001
@@ -79,6 +82,7 @@ class TestFsUseCases(FederatedQueryTestMixin):
 
     @classmethod
     def setup_class(cls):
+        cls._last_stream_drop_at = None
         cls.env = ExtSrcEnv()
         cls.env.ensure_env()
         ensure_snode()
@@ -100,7 +104,43 @@ class TestFsUseCases(FederatedQueryTestMixin):
 
     @staticmethod
     def _ms_to_dt(ms: int) -> datetime.datetime:
-        return datetime.datetime.fromtimestamp(ms / 1000.0)
+        return datetime.datetime.fromtimestamp(ms / 1000.0, datetime.timezone.utc).astimezone()
+
+    @staticmethod
+    def _normalize_datetime_rows(rows: list) -> list:
+        """Compare wall-clock timestamps independently of connector tzinfo."""
+        return [
+            tuple(
+                value.replace(tzinfo=None)
+                if isinstance(value, datetime.datetime) else value
+                for value in row
+            )
+            for row in rows
+        ]
+
+    def _check_rows(self, actual: list, expected: list):
+        tdSql.checkEqual(
+            self._normalize_datetime_rows(actual),
+            self._normalize_datetime_rows(expected),
+        )
+
+    def _wait_for_prior_stream_drop(self):
+        """Allow asynchronous mnode streamMap cleanup after DROP STREAM."""
+        dropped_at = type(self)._last_stream_drop_at
+        if dropped_at is None:
+            return
+
+        remaining = self._STREAM_DROP_SETTLE_SECONDS - (time.monotonic() - dropped_at)
+        if remaining > 0:
+            tdLog.info(f"waiting {remaining:.1f}s for prior stream drop to settle")
+            time.sleep(remaining)
+        type(self)._last_stream_drop_at = None
+
+    def _drop_stream_and_sink(self, stream: str, sink: str, *, stable: bool = False):
+        tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
+        object_type = "STABLE" if stable else "TABLE"
+        tdSql.execute(f"DROP {object_type} IF EXISTS {self.DB}.{sink}")
+        type(self)._last_stream_drop_at = time.monotonic()
 
     @staticmethod
     def _dt_str(ms: int) -> str:
@@ -145,7 +185,7 @@ class TestFsUseCases(FederatedQueryTestMixin):
         res = tdSql.getResult(
             f"SELECT ts, cnt, avg_val FROM {self.DB}.{sink} ORDER BY ts"
         )
-        tdSql.checkEqual(res, expected)
+        self._check_rows(res, expected)
         tdLog.info(f"[{label}] verified {len(expected)} sink rows OK")
 
     def _create_uc001_stream(self, stream: str, sink: str,
@@ -158,6 +198,7 @@ class TestFsUseCases(FederatedQueryTestMixin):
         """
         # src_name ends with '_m' (MySQL), '_p' (PG), or '_i' (InfluxDB)
         twstart_divisor = 1_000_000 if src_name.endswith("_i") else 1_000
+        self._wait_for_prior_stream_drop()
         tdSql.execute(f"USE {self.DB}")
         tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
         tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
@@ -182,6 +223,7 @@ class TestFsUseCases(FederatedQueryTestMixin):
         """
         # src_name ends with '_m' (MySQL), '_p' (PG), or '_i' (InfluxDB)
         twstart_divisor = 1_000_000 if src_name.endswith("_i") else 1_000
+        self._wait_for_prior_stream_drop()
         tdSql.execute(f"USE {self.DB}")
         tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
         tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
@@ -207,6 +249,7 @@ class TestFsUseCases(FederatedQueryTestMixin):
         # src_name ends with '_m' (MySQL), '_p' (PG), or '_i' (InfluxDB)
         twstart_divisor = 1_000_000 if src_name.endswith("_i") else 1_000
         ts_col = "time" if src_name.endswith("_i") else "ts"
+        self._wait_for_prior_stream_drop()
         tdSql.execute(f"USE {self.DB}")
         tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
         tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
@@ -232,6 +275,7 @@ class TestFsUseCases(FederatedQueryTestMixin):
         # src_name ends with '_m' (MySQL), '_p' (PG), or '_i' (InfluxDB)
         twstart_divisor = 1_000_000 if src_name.endswith("_i") else 1_000
         ts_col = "time" if src_name.endswith("_i") else "ts"
+        self._wait_for_prior_stream_drop()
         tdSql.execute(f"USE {self.DB}")
         tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
         tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
@@ -381,6 +425,7 @@ class TestFsUseCases(FederatedQueryTestMixin):
             ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, pre_lines)
             self._mk_influx_real(src, database=i_db)
 
+            self._wait_for_prior_stream_drop()
             tdSql.execute(f"USE {self.DB}")
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
             tdSql.execute(f"DROP STABLE IF EXISTS {self.DB}.{sink_stb}")
@@ -441,14 +486,13 @@ class TestFsUseCases(FederatedQueryTestMixin):
                 expected = [
                     (self._ms_to_dt(ts_ms), 2, avg_val) for ts_ms in window_starts_ms
                 ]
-                tdSql.checkEqual(res, expected)
+                self._check_rows(res, expected)
 
             tdLog.info("[uc001sp] verified subset PARTITION BY host: "
                        "4 uids collapsed into 2 groups, "
                        "row-by-row match on h_a/h_b subtables")
-            tdSql.execute(f"DROP STREAM {stream}")
-            tdSql.execute(f"DROP STABLE IF EXISTS {self.DB}.{sink_stb}")
         finally:
+            self._drop_stream_and_sink(stream, sink_stb, stable=True)
             self._cleanup_src(src)
             try:
                 ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
@@ -485,13 +529,13 @@ class TestFsUseCases(FederatedQueryTestMixin):
             suffix = src_name[-1]
             db_or_bucket = f"{prefix}_{suffix}db"
 
-            self._create_uc001_stream(stream, sink, src_name, mid)
-            self._insert_rows(suffix, db_or_bucket, self._BATCH1, src_name)
-            self._insert_rows(suffix, db_or_bucket, self._BATCH2, src_name)
-            self._verify(stream, sink, EXPECTED, src_name)
-
-            tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
-            tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
+            try:
+                self._create_uc001_stream(stream, sink, src_name, mid)
+                self._insert_rows(suffix, db_or_bucket, self._BATCH1, src_name)
+                self._insert_rows(suffix, db_or_bucket, self._BATCH2, src_name)
+                self._verify(stream, sink, EXPECTED, src_name)
+            finally:
+                self._drop_stream_and_sink(stream, sink)
 
         self._with_std_sources(prefix, body, skip_mysql=False,
                                skip_pg=False, skip_influx=False)
@@ -534,18 +578,18 @@ class TestFsUseCases(FederatedQueryTestMixin):
             suffix = src_name[-1]
             db_or_bucket = f"{prefix}_{suffix}db"
 
-            self._create_uc001_stream(stream, sink, src_name, mid)
+            try:
+                self._create_uc001_stream(stream, sink, src_name, mid)
 
-            # Phase 1: batch1 closes windows 08:00 and 08:01.
-            self._insert_rows(suffix, db_or_bucket, self._BATCH1, src_name)
-            self._verify(stream, sink, EXPECTED1, src_name)
+                # Phase 1: batch1 closes windows 08:00 and 08:01.
+                self._insert_rows(suffix, db_or_bucket, self._BATCH1, src_name)
+                self._verify(stream, sink, EXPECTED1, src_name)
 
-            # Phase 2: batch2 closes windows 08:02 and 08:03.
-            self._insert_rows(suffix, db_or_bucket, self._BATCH2, src_name)
-            self._verify(stream, sink, EXPECTED2, src_name)
-
-            tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
-            tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
+                # Phase 2: batch2 closes windows 08:02 and 08:03.
+                self._insert_rows(suffix, db_or_bucket, self._BATCH2, src_name)
+                self._verify(stream, sink, EXPECTED2, src_name)
+            finally:
+                self._drop_stream_and_sink(stream, sink)
 
         self._with_std_sources(prefix, body, skip_mysql=False,
                                skip_pg=False, skip_influx=False)
@@ -578,12 +622,12 @@ class TestFsUseCases(FederatedQueryTestMixin):
             suffix = src_name[-1]
             db_or_bucket = f"{prefix}_{suffix}db"
 
-            self._create_uc001_stream_no_trows(stream, sink, src_name, mid)
-            self._insert_rows(suffix, db_or_bucket, self._BATCH1, src_name)
-            self._verify(stream, sink, EXPECTED_NO_TROWS, src_name)
-
-            tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
-            tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
+            try:
+                self._create_uc001_stream_no_trows(stream, sink, src_name, mid)
+                self._insert_rows(suffix, db_or_bucket, self._BATCH1, src_name)
+                self._verify(stream, sink, EXPECTED_NO_TROWS, src_name)
+            finally:
+                self._drop_stream_and_sink(stream, sink)
 
         self._with_std_sources(prefix, body, skip_mysql=False,
                                skip_pg=False, skip_influx=False)
@@ -616,12 +660,12 @@ class TestFsUseCases(FederatedQueryTestMixin):
             suffix = src_name[-1]
             db_or_bucket = f"{prefix}_{suffix}db"
 
-            self._create_uc001_stream_no_trows_with_wstart(stream, sink, src_name, mid)
-            self._insert_rows(suffix, db_or_bucket, self._BATCH1_MORE, src_name)
-            self._verify(stream, sink, EXPECTED, src_name)
-
-            tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
-            tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
+            try:
+                self._create_uc001_stream_no_trows_with_wstart(stream, sink, src_name, mid)
+                self._insert_rows(suffix, db_or_bucket, self._BATCH1_MORE, src_name)
+                self._verify(stream, sink, EXPECTED, src_name)
+            finally:
+                self._drop_stream_and_sink(stream, sink)
 
         self._with_std_sources(prefix, body, skip_mysql=False,
                                skip_pg=False, skip_influx=False)
@@ -654,12 +698,12 @@ class TestFsUseCases(FederatedQueryTestMixin):
             suffix = src_name[-1]
             db_or_bucket = f"{prefix}_{suffix}db"
 
-            self._create_uc001_stream_no_trows_with_range(stream, sink, src_name, mid)
-            self._insert_rows(suffix, db_or_bucket, self._BATCH1_MORE, src_name)
-            self._verify(stream, sink, EXPECTED, src_name)
-
-            tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
-            tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
+            try:
+                self._create_uc001_stream_no_trows_with_range(stream, sink, src_name, mid)
+                self._insert_rows(suffix, db_or_bucket, self._BATCH1_MORE, src_name)
+                self._verify(stream, sink, EXPECTED, src_name)
+            finally:
+                self._drop_stream_and_sink(stream, sink)
 
         self._with_std_sources(prefix, body, skip_mysql=False,
                                skip_pg=False, skip_influx=False)
@@ -724,6 +768,8 @@ class TestFsUseCases(FederatedQueryTestMixin):
         prefix_a, prefix_b = "uc003a", "uc003b"
         src_a, src_b = f"{prefix_a}_m", f"{prefix_b}_m"
         db_a, db_b = f"{prefix_a}_mdb", f"{prefix_b}_mdb"
+        stream = "s_uc003"
+        sink = "sink_uc003"
         self._cleanup_src(src_a, src_b)
         try:
             # Two MySQL sources with identical schema; data is inserted after the
@@ -738,8 +784,7 @@ class TestFsUseCases(FederatedQueryTestMixin):
                 ])
                 self._mk_mysql_real(f"{prefix}_m", database=db)
 
-            stream = "s_uc003"
-            sink = "sink_uc003"
+            self._wait_for_prior_stream_drop()
             tdSql.execute(f"USE {self.DB}")
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
@@ -780,12 +825,11 @@ class TestFsUseCases(FederatedQueryTestMixin):
             wait_stream_window_closed(stream, self.DB, sink,
                                       expected_rows=len(EXPECTED), timeout=120)
             res = tdSql.getResult(f"SELECT ts, s FROM {self.DB}.{sink} ORDER BY ts")
-            tdSql.checkEqual(res, EXPECTED)
+            self._check_rows(res, EXPECTED)
             tdLog.info(f"[uc003] verified {len(EXPECTED)} joined sink rows OK")
 
-            tdSql.execute(f"DROP STREAM {stream}")
-            tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
         finally:
+            self._drop_stream_and_sink(stream, sink)
             self._cleanup_src(src_a, src_b)
             for db in (db_a, db_b):
                 try:

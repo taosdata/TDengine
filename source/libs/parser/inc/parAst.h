@@ -211,6 +211,7 @@ SNode*     createDurationPlaceholderValueNode(SAstCreateContext* pCxt, const STo
 SNode*     setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, SToken* pAlias);
 SNode*     createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType type, SNode* pParam1, SNode* pParam2);
 SNode*     createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight);
+SNode*     createBangNeOperatorNode(SAstCreateContext* pCxt, SNode* pLeft, SNode* pRight);
 SNode*     createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
 SNode*     createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
 SNode*     createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList);
@@ -253,6 +254,8 @@ SNode* createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const STo
 SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount);
 SNode*     createTrueForDurationNode(SAstCreateContext* pCxt, SNode* pDuration);
 SNode*     createTrueForFullNode(SAstCreateContext* pCxt, SNode* pWindowLimit, SNode* pStartLimit, SNode* pEndLimit);
+SNode*     createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken,
+                                 SNodeList* pColList);
 SNode*     createCountWindowNodeFromArgs(SAstCreateContext* pCxt, SNode* args);
 SNode*     createAnomalyWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList);
 SNode*     createIntervalWindowNodeExt(SAstCreateContext* pCxt, SNode* pInter, SNode* pSliding);
@@ -366,6 +369,9 @@ SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNo
                                  SNodeList* pSpecificTags, SNodeList* pValsOfTags,
                                  SNodeList* pSpecificTagRefs, SNodeList* pTagRefs,
                                  SNodeList* pSeriesList);
+SNode* createCreateVSubTableStmtFromColDefs(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable,
+                                            SNodeList* pColDefs, SNode* pUseRealTable,
+                                            SNodeList* pSpecificTags, SNodeList* pValsOfTags);
 SNode* createCreateSubTableFromFileClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pUseRealTable,
                                           SNodeList* pSpecificTags, const SToken* pFilePath);
 SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables);
@@ -528,7 +534,7 @@ SNode* setExplainVerbose(SAstCreateContext* pCxt, SNode* pOptions, const SToken*
 SNode* setExplainRatio(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal);
 SNode* createExplainStmt(SAstCreateContext* pCxt, bool analyze, SNode* pOptions, SNode* pQuery);
 SNode* createDescribeStmt(SAstCreateContext* pCxt, SNode* pRealTable);
-SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt);
+SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt, const SToken* pExtSourceName);
 SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool aggFunc, const SToken* pFuncName,
                                 const SToken* pLibPath, SDataType dataType, int32_t bufSize, const SToken* pLanguage,
                                 bool orReplace);
@@ -613,6 +619,7 @@ SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName);
 
 SNode* setNodeQuantifyType(SAstCreateContext* pCxt, SNode* pNode, EQuantifyType type);
 SNode* createTransStmt(SAstCreateContext* pCxt, ENodeType type);
+SNode* setSubquerySql(SAstCreateContext* pCxt, SNode* pNode, const SToken* pLp, const SToken* pRp);
 // =================== Federated query: external source DDL ===================
 SNode* createCreateExtSourceStmt(SAstCreateContext* pCxt, bool ignoreExists,
     const SToken* pName, const SToken* pType, const SToken* pHost,
@@ -623,6 +630,8 @@ SNode* createCreateExtSourceStmtInflux(SAstCreateContext* pCxt, bool ignoreExist
     const SToken* pPort, const SToken* pApiToken,
     const SToken* pDb, const SToken* pSchema, SNodeList* pOptions);
 SNode* createAlterExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName, SNodeList* pAlterClauses);
+SNode* createAlterExtSourceCapStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName,
+                   const SToken* pAction, const SToken* pKind, const SToken* pValue);
 SNode* createDropExtSourceStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pName);
 SNode* createShowExtSourcesStmt(SAstCreateContext* pCxt);
 SNode* createDescribeExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName);
@@ -630,6 +639,7 @@ SNode* createRefreshExtSourceStmt(SAstCreateContext* pCxt, const SToken* pName);
 SNode* createExtOptionNode(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue);
 SNode* createExtOptionNodeFromId(SAstCreateContext* pCxt, const SToken* pKey, const SToken* pValue);
 SNode* createAlterExtClause(SAstCreateContext* pCxt, EExtAlterType alterType, SNodeList* pOpts, const SToken* pVal);
+SNode* createShowExtSourceCapabilityStmt(SAstCreateContext* pCxt, const SToken* pName, const SToken* pKeyword);
 SNode* createRealTableNodeExt3(SAstCreateContext* pCxt, SToken* pSeg1, SToken* pSeg2, SToken* pTableName, SToken* pAlias);
 
 #ifdef __cplusplus

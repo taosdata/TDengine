@@ -487,70 +487,74 @@ void ctgdShowDBCache(SCatalog *pCtg, SHashObj *dbHash) {
 
     CTG_LOCK(CTG_READ, &dbCache->dbLock);
 
-    dbFName = taosHashGetKey(pIter, &len);
+    if (!dbCache->deleted) {
+      dbFName = taosHashGetKey(pIter, &len);
 
-    int32_t metaNum = dbCache->tbCache ? taosHashGetSize(dbCache->tbCache) : 0;
-    int32_t viewNum = dbCache->viewCache ? taosHashGetSize(dbCache->viewCache) : 0;
-    int32_t stbNum = dbCache->stbCache ? taosHashGetSize(dbCache->stbCache) : 0;
-    int32_t vgVersion = CTG_DEFAULT_INVALID_VERSION;
-    int32_t hashMethod = -1;
-    int16_t hashPrefix = 0;
-    int16_t hashSuffix = 0;
-    int64_t stateTs = 0;
-    int32_t vgNum = 0;
+      int32_t metaNum = dbCache->tbCache ? taosHashGetSize(dbCache->tbCache) : 0;
+      int32_t viewNum = dbCache->viewCache ? taosHashGetSize(dbCache->viewCache) : 0;
+      int32_t stbNum = dbCache->stbCache ? taosHashGetSize(dbCache->stbCache) : 0;
+      int32_t vgVersion = CTG_DEFAULT_INVALID_VERSION;
+      int32_t hashMethod = -1;
+      int16_t hashPrefix = 0;
+      int16_t hashSuffix = 0;
+      int64_t stateTs = 0;
+      int32_t vgNum = 0;
 
-    if (dbCache->vgCache.vgInfo) {
-      vgVersion = dbCache->vgCache.vgInfo->vgVersion;
-      hashMethod = dbCache->vgCache.vgInfo->hashMethod;
-      hashPrefix = dbCache->vgCache.vgInfo->hashPrefix;
-      hashSuffix = dbCache->vgCache.vgInfo->hashSuffix;
-      stateTs = dbCache->vgCache.vgInfo->stateTs;
-      if (dbCache->vgCache.vgInfo->vgHash) {
-        vgNum = taosHashGetSize(dbCache->vgCache.vgInfo->vgHash);
-      }
-    }
-
-    ctgDebug("[%d] db [%.*s][0x%" PRIx64
-             "] %s: metaNum:%d, viewNum:%d, stbNum:%d, vgVersion:%d, stateTs:%" PRId64 ", hashMethod:%d, prefix:%d, suffix:%d, vgNum:%d",
-             i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", metaNum, viewNum, stbNum, vgVersion, stateTs, 
-             hashMethod, hashPrefix, hashSuffix, vgNum);
-
-    CTG_LOCK(CTG_READ, &dbCache->vgCache.vgLock);
-    if (dbCache->vgCache.vgInfo) {
-      int32_t i = 0;
-      void *pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, NULL);
-      while (pVgIter) {
-        SVgroupInfo * pVg = (SVgroupInfo *)pVgIter;
-
-        ctgDebug("The %04dth VG [id:%d, hashBegin:%u, hashEnd:%u, numOfTable:%d, epNum:%d, inUse:%d]",
-                 i++, pVg->vgId, pVg->hashBegin, pVg->hashEnd, pVg->numOfTable, pVg->epSet.numOfEps, pVg->epSet.inUse);
-
-        for (int32_t n = 0; n < pVg->epSet.numOfEps; ++n) {
-          SEp *pEp = &pVg->epSet.eps[n];
-          ctgDebug("\tEp %d [fqdn:%s, port:%d]", n, pEp->fqdn, pEp->port);
+      CTG_LOCK(CTG_READ, &dbCache->vgCache.vgLock);
+      if (dbCache->vgCache.vgInfo) {
+        vgVersion = dbCache->vgCache.vgInfo->vgVersion;
+        hashMethod = dbCache->vgCache.vgInfo->hashMethod;
+        hashPrefix = dbCache->vgCache.vgInfo->hashPrefix;
+        hashSuffix = dbCache->vgCache.vgInfo->hashSuffix;
+        stateTs = dbCache->vgCache.vgInfo->stateTs;
+        if (dbCache->vgCache.vgInfo->vgHash) {
+          vgNum = taosHashGetSize(dbCache->vgCache.vgInfo->vgHash);
         }
-        
-        pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, pVgIter);      
       }
-    }
-    CTG_UNLOCK(CTG_READ, &dbCache->vgCache.vgLock);
-    
-    if (dbCache->cfgCache.cfgInfo) {
-      SDbCfgInfo *pCfg = dbCache->cfgCache.cfgInfo;
+
       ctgDebug("[%d] db [%.*s][0x%" PRIx64
-               "] %s: cfgVersion:%d, numOfVgroups:%d, numOfStables:%d, buffer:%d, cacheSize:%d, pageSize:%d, pages:%d"
-               ", daysPerFile:%d, daysToKeep0:%d, daysToKeep1:%d, daysToKeep2:%d, minRows:%d, maxRows:%d, walFsyncPeriod:%d"
-               ", hashPrefix:%d, hashSuffix:%d, walLevel:%d, precision:%d, compression:%d, replications:%d, strict:%d"
-               ", cacheLast:%d, tsdbPageSize:%d, walRetentionPeriod:%d, walRollPeriod:%d, walRetentionSize:%" PRId64
-               ", walSegmentSize:%" PRId64 ", numOfRetensions:%d, schemaless:%d, sstTrigger:%d",
-               i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", 
-               pCfg->cfgVersion, pCfg->numOfVgroups, pCfg->numOfStables, pCfg->buffer,
-               pCfg->cacheSize, pCfg->pageSize, pCfg->pages, pCfg->daysPerFile, pCfg->daysToKeep0,
-               pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->minRows, pCfg->maxRows, pCfg->walFsyncPeriod,
-               pCfg->hashPrefix, pCfg->hashSuffix, pCfg->walLevel, pCfg->precision, pCfg->compression,
-               pCfg->replications, pCfg->strict, pCfg->cacheLast, pCfg->tsdbPageSize, pCfg->walRetentionPeriod,
-               pCfg->walRollPeriod, pCfg->walRetentionSize, pCfg->walSegmentSize, pCfg->numOfRetensions,
-               pCfg->schemaless, pCfg->sstTrigger);
+               "] %s: metaNum:%d, viewNum:%d, stbNum:%d, vgVersion:%d, stateTs:%" PRId64 ", hashMethod:%d, prefix:%d, suffix:%d, vgNum:%d",
+               i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "", metaNum, viewNum, stbNum, vgVersion, stateTs,
+               hashMethod, hashPrefix, hashSuffix, vgNum);
+
+      if (dbCache->vgCache.vgInfo) {
+        int32_t i = 0;
+        void *pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, NULL);
+        while (pVgIter) {
+          SVgroupInfo *pVg = (SVgroupInfo *)pVgIter;
+
+          ctgDebug("The %04dth VG [id:%d, hashBegin:%u, hashEnd:%u, numOfTable:%d, epNum:%d, inUse:%d]",
+                   i++, pVg->vgId, pVg->hashBegin, pVg->hashEnd, pVg->numOfTable, pVg->epSet.numOfEps, pVg->epSet.inUse);
+
+          for (int32_t n = 0; n < pVg->epSet.numOfEps; ++n) {
+            SEp *pEp = &pVg->epSet.eps[n];
+            ctgDebug("\tEp %d [fqdn:%s, port:%d]", n, pEp->fqdn, pEp->port);
+          }
+
+          pVgIter = taosHashIterate(dbCache->vgCache.vgInfo->vgHash, pVgIter);
+        }
+      }
+      CTG_UNLOCK(CTG_READ, &dbCache->vgCache.vgLock);
+
+      CTG_LOCK(CTG_READ, &dbCache->cfgCache.cfgLock);
+      if (dbCache->cfgCache.cfgInfo) {
+        SDbCfgInfo *pCfg = dbCache->cfgCache.cfgInfo;
+        ctgDebug("[%d] db [%.*s][0x%" PRIx64
+                 "] %s: cfgVersion:%d, numOfVgroups:%d, numOfStables:%d, buffer:%d, cacheSize:%d, pageSize:%d, pages:%d"
+                 ", daysPerFile:%d, daysToKeep0:%d, daysToKeep1:%d, daysToKeep2:%d, minRows:%d, maxRows:%d, walFsyncPeriod:%d"
+                 ", hashPrefix:%d, hashSuffix:%d, walLevel:%d, precision:%d, compression:%d, replications:%d, strict:%d"
+                 ", cacheLast:%d, tsdbPageSize:%d, walRetentionPeriod:%d, walRollPeriod:%d, walRetentionSize:%" PRId64
+                 ", walSegmentSize:%" PRId64 ", numOfRetensions:%d, schemaless:%d, sstTrigger:%d",
+                 i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted ? "deleted" : "",
+                 pCfg->cfgVersion, pCfg->numOfVgroups, pCfg->numOfStables, pCfg->buffer,
+                 pCfg->cacheSize, pCfg->pageSize, pCfg->pages, pCfg->daysPerFile, pCfg->daysToKeep0,
+                 pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->minRows, pCfg->maxRows, pCfg->walFsyncPeriod,
+                 pCfg->hashPrefix, pCfg->hashSuffix, pCfg->walLevel, pCfg->precision, pCfg->compression,
+                 pCfg->replications, pCfg->strict, pCfg->cacheLast, pCfg->tsdbPageSize, pCfg->walRetentionPeriod,
+                 pCfg->walRollPeriod, pCfg->walRetentionSize, pCfg->walSegmentSize, pCfg->numOfRetensions,
+                 pCfg->schemaless, pCfg->sstTrigger);
+      }
+      CTG_UNLOCK(CTG_READ, &dbCache->cfgCache.cfgLock);
     }
 
     CTG_UNLOCK(CTG_READ, &dbCache->dbLock);

@@ -12,7 +12,10 @@ import os
 import re
 import tempfile
 import time
+from datetime import datetime, timezone
 from typing import Any, List, Optional, Sequence, Tuple, Union
+
+from taos.constants import FieldType
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -2465,13 +2468,8 @@ _CASES = [
 class TestFq01ExternalSource(FederatedQueryVersionedMixin):
     _fw_data_prepared = False
 
-    # Override parent updatecfgDict to also reset the client-side timezone to
-    # Asia/Shanghai (CST).  When the full suite is run, a preceding test class
-    # (e.g. fq_03 / fq_04) may have issued ALTER LOCAL "timezone" "UTC" which
-    # persists in the C library for the whole Python process.  Declaring
-    # clientCfg.timezone here causes before_test.get_taos_conn() to apply
-    # ALTER LOCAL "timezone" "Asia/Shanghai" at connection time, restoring the
-    # expected timezone so that taospy datetime values match the CST baseline.
+    # Reset the client-side timezone to Asia/Shanghai so datetime rendering
+    # stays aligned with the federated-query baselines.
     updatecfgDict = {
         "federatedQueryEnable": 1,
         "timezone": "Asia/Shanghai",
@@ -2490,10 +2488,6 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
-        # Drop any external sources left by other test files from a previous
-        # pytest session (external sources persist across taosd restarts via
-        # metadata).  Keep only sources whose names start with our own prefix
-        # so that SHOW EXTERNAL SOURCES results are not polluted.
         try:
             tdSql.query("show external sources", queryTimes=1)
             foreign = [
@@ -2606,15 +2600,36 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         return name.lower()
 
     @staticmethod
-    def _fw_fmt_cell(value: Any) -> str:
+    def _fw_fmt_cell(value: Any, is_timestamp: bool = False) -> str:
         if value is None:
             return "NULL"
+        if is_timestamp and isinstance(value, datetime) and value.tzinfo is None:
+            # The Python connector returns millisecond timestamps as local naive
+            # datetimes, while nanosecond values are converted below. Render both
+            # forms with the client-local offset so framework answers are stable.
+            return str(value.astimezone())
+        if is_timestamp and isinstance(value, int) and abs(value) >= 10**17:
+            seconds, nanos = divmod(value, 1_000_000_000)
+            return str(datetime.fromtimestamp(seconds, timezone.utc).astimezone().replace(microsecond=nanos // 1000))
         if isinstance(value, float):
             return f"{value:.12g}"
         return str(value)
 
-    def _fw_fmt_rows(self, rows: Sequence) -> List[str]:
-        return ["|".join(self._fw_fmt_cell(v) for v in row) for row in rows]
+    @staticmethod
+    def _fw_is_timestamp_column(field: Any) -> bool:
+        field_type = getattr(field, "type", None)
+        if field_type is None:
+            try:
+                field_type = field[1]
+            except (IndexError, KeyError, TypeError):
+                return False
+        return field_type == FieldType.C_TIMESTAMP
+
+    def _fw_fmt_rows(self, rows: Sequence, timestamp_cols: set[int]) -> List[str]:
+        return [
+            "|".join(self._fw_fmt_cell(value, index in timestamp_cols) for index, value in enumerate(row))
+            for row in rows
+        ]
 
     @staticmethod
     def _fw_drop_dynamic_columns(description, rows: Sequence):
@@ -2640,7 +2655,10 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         lines = []
         if description:
             lines.append("|".join(col[0] for col in description))
-        lines.extend(self._fw_fmt_rows(rows))
+        timestamp_cols = {
+            index for index, field in enumerate(description or []) if self._fw_is_timestamp_column(field)
+        }
+        lines.extend(self._fw_fmt_rows(rows, timestamp_cols))
         return lines
 
     @staticmethod

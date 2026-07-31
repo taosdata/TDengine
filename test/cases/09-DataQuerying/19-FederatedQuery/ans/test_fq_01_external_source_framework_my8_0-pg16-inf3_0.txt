@@ -1888,7 +1888,7 @@ OK
 ### CASE-024[MYS] STEP-005 EXEC
 SQL: create external source xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database='fq01_fw_mdb'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x641d]: External source name is too long
 ---
 ### CASE-024[MYS] STEP-005 AUTO-SHOW
 SQL: show external sources
@@ -1946,7 +1946,7 @@ OK
 ### CASE-025[MYS] STEP-002 EXEC
 SQL: create external source fq01_src025 type='mysql' host='hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh' port=13306 user='root' password='taosdata' database='fq01_fw_mdb'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: HOST is too long
 ---
 ### CASE-025[MYS] STEP-002 AUTO-SHOW
 SQL: show external sources
@@ -1961,7 +1961,7 @@ ERROR: describe external source failed
 ### CASE-025[MYS] STEP-003 EXEC
 SQL: create external source fq01_src025 type='mysql' host='127.0.0.1' port=13306 user='uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu' password='taosdata' database='fq01_fw_mdb'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: USER is too long
 ---
 ### CASE-025[MYS] STEP-003 AUTO-SHOW
 SQL: show external sources
@@ -1976,7 +1976,7 @@ ERROR: describe external source failed
 ### CASE-025[MYS] STEP-004 EXEC
 SQL: create external source fq01_src025 type='mysql' host='127.0.0.1' port=13306 user='root' password='ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp' database='fq01_fw_mdb'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: PASSWORD is too long
 ---
 ### CASE-025[MYS] STEP-004 AUTO-SHOW
 SQL: show external sources
@@ -1991,7 +1991,7 @@ ERROR: describe external source failed
 ### CASE-025[MYS] STEP-005 EXEC
 SQL: create external source fq01_src025 type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata' database='ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x641d]: DATABASE is too long
 ---
 ### CASE-025[MYS] STEP-005 AUTO-SHOW
 SQL: show external sources
@@ -3155,13 +3155,13 @@ OK
 SQL: show external sources
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-`fq01-fw-039-hyp`|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+fq01-fw-039-hyp|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 ---
 ### CASE-039[MYS] STEP-005 AUTO-DESCRIBE
 SQL: describe external source `fq01-fw-039-hyp`
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-`fq01-fw-039-hyp`|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+fq01-fw-039-hyp|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 ---
 ### CASE-039[MYS] STEP-006 EXEC
 SQL: drop external source if exists `fq01-fw-039-hyp`
@@ -3182,13 +3182,13 @@ OK
 SQL: show external sources
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-`fq01 fw 039 sp`|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+fq01 fw 039 sp|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 ---
 ### CASE-039[MYS] STEP-008 AUTO-DESCRIBE
 SQL: describe external source `fq01 fw 039 sp`
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-`fq01 fw 039 sp`|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+fq01 fw 039 sp|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 ---
 ### CASE-039[MYS] STEP-009 EXEC
 SQL: drop external source if exists `fq01 fw 039 sp`
@@ -3209,13 +3209,13 @@ OK
 SQL: show external sources
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-`select`|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+select|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 ---
 ### CASE-039[MYS] STEP-011 AUTO-DESCRIBE
 SQL: describe external source `select`
 RESULT:
 source_name|type|host|port|user|password|database|schema|options
-`select`|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
+select|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 ---
 ### CASE-039[MYS] STEP-012 EXEC
 SQL: drop external source if exists `select`
@@ -5577,7 +5577,7 @@ OK
 ### CASE-025i[INF] STEP-002 EXEC
 SQL: create external source fq01_src025i type='influxdb' host='hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh' port=18086 user='admin' database='fq01_fw_idb' options('api_token'='test-token')
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: HOST is too long
 ---
 ### CASE-025i[INF] STEP-002 AUTO-SHOW
 SQL: show external sources
@@ -5592,7 +5592,7 @@ ERROR: describe external source failed
 ### CASE-025i[INF] STEP-003 EXEC
 SQL: create external source fq01_src025i type='influxdb' host='127.0.0.1' port=18086 user='uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu' database='fq01_fw_idb' options('api_token'='test-token')
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: USER is too long
 ---
 ### CASE-025i[INF] STEP-003 AUTO-SHOW
 SQL: show external sources
@@ -5607,7 +5607,7 @@ ERROR: describe external source failed
 ### CASE-025i[INF] STEP-004 EXEC
 SQL: create external source fq01_src025i type='influxdb' host='127.0.0.1' port=18086 user='admin' password='ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp' database='fq01_fw_idb' options('api_token'='test-token')
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: PASSWORD is too long
 ---
 ### CASE-025i[INF] STEP-004 AUTO-SHOW
 SQL: show external sources
@@ -5622,7 +5622,7 @@ ERROR: describe external source failed
 ### CASE-025i[INF] STEP-005 EXEC
 SQL: create external source fq01_src025i type='influxdb' host='127.0.0.1' port=18086 user='admin' database='ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' options('api_token'='test-token')
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x641d]: DATABASE is too long
 ---
 ### CASE-025i[INF] STEP-005 AUTO-SHOW
 SQL: show external sources
@@ -6874,13 +6874,13 @@ count(*)
 SQL: select time, val, score, name, flag from fq01_src055i.src_t order by time limit 1
 RESULT:
 time|val|score|name|flag
-1704067200000000000|1|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-055i[INF] STEP-006 QUERY
 SQL: select time, val, score, name, flag from fq01_src055i.fq01_fw_idb.src_t order by time limit 1
 RESULT:
 time|val|score|name|flag
-1704067200000000000|1|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-055i[INF] STEP-007 EXEC
 SQL: alter external source fq01_src055i set database=''
@@ -7881,7 +7881,7 @@ OK
 ### CASE-025p[POS] STEP-002 EXEC
 SQL: create external source fq01_src025p type='postgresql' host='hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh' port=15434 user='postgres' password='taosdata' database='fq01_fw_pdb' schema='public'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: HOST is too long
 ---
 ### CASE-025p[POS] STEP-002 AUTO-SHOW
 SQL: show external sources
@@ -7896,7 +7896,7 @@ ERROR: describe external source failed
 ### CASE-025p[POS] STEP-003 EXEC
 SQL: create external source fq01_src025p type='postgresql' host='127.0.0.1' port=15434 user='uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu' password='taosdata' database='fq01_fw_pdb' schema='public'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: USER is too long
 ---
 ### CASE-025p[POS] STEP-003 AUTO-SHOW
 SQL: show external sources
@@ -7911,7 +7911,7 @@ ERROR: describe external source failed
 ### CASE-025p[POS] STEP-004 EXEC
 SQL: create external source fq01_src025p type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp' database='fq01_fw_pdb' schema='public'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x2610]: PASSWORD is too long
 ---
 ### CASE-025p[POS] STEP-004 AUTO-SHOW
 SQL: show external sources
@@ -7926,7 +7926,7 @@ ERROR: describe external source failed
 ### CASE-025p[POS] STEP-005 EXEC
 SQL: create external source fq01_src025p type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' schema='public'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x641d]: DATABASE is too long
 ---
 ### CASE-025p[POS] STEP-005 AUTO-SHOW
 SQL: show external sources
@@ -7941,7 +7941,7 @@ ERROR: describe external source failed
 ### CASE-025p[POS] STEP-006 EXEC
 SQL: create external source fq01_src025p type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='fq01_fw_pdb' schema='sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss'
 RESULT:
-ERROR: [0x2610]: Name or password too long
+ERROR: [0x641d]: SCHEMA is too long
 ---
 ### CASE-025p[POS] STEP-006 AUTO-SHOW
 SQL: show external sources
@@ -9276,13 +9276,13 @@ count(*)
 SQL: select ts, val, score, name, flag from fq01_src055p.src_t order by ts limit 1
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:00:00|1|1.5|alpha|1
+2024-01-01 00:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-055p[POS] STEP-006 QUERY
 SQL: select ts, val, score, name, flag from fq01_src055p.public.src_t order by ts limit 1
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:00:00|1|1.5|alpha|1
+2024-01-01 00:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-055p[POS] STEP-007 EXEC
 SQL: alter external source fq01_src055p set schema=''
@@ -11027,7 +11027,7 @@ ERROR: query failed
 SQL: select * from fq01_src081m.src_t where val=5
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:04:00|5|5.5|epsilon|True
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|True
 ---
 ### CASE-081m[MYS] STEP-009 COUNT
 SQL: select count(*) from fq01_src081m.fq01_fw_mdb.src_t
@@ -11102,7 +11102,7 @@ ERROR: query failed
 SQL: select * from fq01_src081p.src_t where val=5
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:04:00|5|5.5|epsilon|1
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|1
 ---
 ### CASE-081p[POS] STEP-009 COUNT
 SQL: select count(*) from fq01_src081p.public.src_t
@@ -11149,7 +11149,7 @@ fq01_src082m|mysql|127.0.0.1|13306|root|******|fq01_fw_mdb||{}
 SQL: select * from fq01_src082m.src_t where val=5
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:04:00|5|5.5|epsilon|True
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|True
 ---
 ### CASE-082m[MYS] STEP-004 QUERY
 SQL: select 1
@@ -11161,7 +11161,7 @@ RESULT:
 SQL: select * from fq01_src082m.src_t where val=5
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:04:00|5|5.5|epsilon|True
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|True
 ---
 ### CASE-082m[MYS] STEP-006 EXEC
 SQL: refresh external source fq01_src082m
@@ -11172,7 +11172,7 @@ OK
 SQL: select * from fq01_src082m.src_t where val=5
 RESULT:
 ts|val|score|name|flag|extra_note
-2024-01-01 00:04:00|5|5.5|epsilon|True|after_refresh
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|True|after_refresh
 ---
 ### CASE-082m[MYS] STEP-008 QUERY
 SQL: select 1
@@ -11225,7 +11225,7 @@ fq01_src082p|postgresql|127.0.0.1|15434|postgres|******|fq01_fw_pdb|public|{}
 SQL: select * from fq01_src082p.src_t where val=5
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:04:00|5|5.5|epsilon|1
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|1
 ---
 ### CASE-082p[POS] STEP-004 QUERY
 SQL: select 1
@@ -11237,7 +11237,7 @@ RESULT:
 SQL: select * from fq01_src082p.src_t where val=5
 RESULT:
 ts|val|score|name|flag
-2024-01-01 00:04:00|5|5.5|epsilon|1
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|1
 ---
 ### CASE-082p[POS] STEP-006 EXEC
 SQL: refresh external source fq01_src082p
@@ -11248,7 +11248,7 @@ OK
 SQL: select * from fq01_src082p.src_t where val=5
 RESULT:
 ts|val|score|name|flag|extra_note
-2024-01-01 00:04:00|5|5.5|epsilon|1|after_refresh
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|1|after_refresh
 ---
 ### CASE-082p[POS] STEP-008 QUERY
 SQL: select 1

@@ -559,6 +559,8 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
 
       pCond->colList[i].type = pColNode->node.resType.type;
       pCond->colList[i].bytes = pColNode->node.resType.bytes;
+      pCond->colList[i].precision = pColNode->node.resType.precision;
+      pCond->colList[i].scale = pColNode->node.resType.scale;
       pCond->colList[i].colId = pColNode->colId;
       pCond->colList[i].pk = pColNode->isPk;
 

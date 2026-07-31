@@ -433,7 +433,7 @@ class CompatibilityBase:
             if os.system(cmd) == 0:
                 raise Exception("failed to execute system command. cmd: %s" % cmd)
         
-    def updateNewVersion(self, bPath, cPaths, upgrade):
+    def updateNewVersion(self, bPath, cPaths, upgrade, retry_times=30):
         tdLog.printNoPrefix("==========step2:update new version ")
         # upgrade only one dnode
         if upgrade == 0:
@@ -493,7 +493,7 @@ class CompatibilityBase:
             self.buildTaosd(bPath)
             tdLog.info(f"nohup {bPath}/build/bin/taosd -c {cPaths[0]} > /dev/null 2>&1 &")
             os.system(f"nohup {bPath}/build/bin/taosd -c {cPaths[0]} > /dev/null 2>&1 &")
-        self.checkstatus()
+        self.checkstatus(retry_times=retry_times)
 
     def checkTagSizeAndAlterStb(self,tdsql):
         tdsql.query("select * from information_schema.ins_tags where db_name = 'db_all_insert_mode'")

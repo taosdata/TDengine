@@ -66,7 +66,14 @@ echo "======================================================"
 
 echo ""
 echo "=== Installing Python dependencies ==="
-pip3 install taospy pyyaml -q --disable-pip-version-check 2>/dev/null
+if ! python3 -m pip install --disable-pip-version-check \
+    "taospy==2.8.9" "PyYAML==6.0.2"; then
+    echo "ERROR: failed to install compatibility-test Python dependencies" >&2
+    exit 1
+fi
+export PYTHONFAULTHANDLER=1
+python3 --version
+python3 -m pip show taospy PyYAML
 echo "=== Python dependencies installed successfully ==="
 
 # ── Step 0.5: Clear the "requires executable stack" ELF flag on libtaos.so ───

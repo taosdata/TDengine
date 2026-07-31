@@ -3679,6 +3679,14 @@ int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJ
     MJ_ERR_RET(terrno);
   }
 
+  qDebug("mJoinInitMergeCtx: outputDescSlots=%d finBlkCols=%d joinType=%d subType=%d hasFinFilter=%d hasFPreFilter=%d hasPreFilter=%d",
+         pJoinNode->node.pOutputDataBlockDesc && pJoinNode->node.pOutputDataBlockDesc->pSlots
+             ? LIST_LENGTH(pJoinNode->node.pOutputDataBlockDesc->pSlots)
+             : -1,
+         (int32_t)taosArrayGetSize(pCtx->finBlk->pDataBlock), (int32_t)pJoin->joinType,
+         (int32_t)pJoin->subType, NULL != pJoin->pFinFilter, NULL != pJoin->pFPreFilter,
+         NULL != pJoin->pPreFilter);
+
   //A S S E R T(pJoinNode->node.pOutputDataBlockDesc->totalRowSize > 0);
 
   MJ_ERR_RET(blockDataEnsureCapacity(pCtx->finBlk, mJoinGetFinBlkCapacity(pJoin, pJoinNode)));
@@ -3689,6 +3697,9 @@ int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJ
     if (code) {
       MJ_ERR_RET(code);
     }
+    qDebug("mJoinInitMergeCtx: midBlkCols=%d copiedFromFinBlkCols=%d",
+           (int32_t)taosArrayGetSize(pCtx->midBlk->pDataBlock),
+           (int32_t)taosArrayGetSize(pCtx->finBlk->pDataBlock));
     MJ_ERR_RET(blockDataEnsureCapacity(pCtx->midBlk, pCtx->finBlk->info.capacity));
   }
 
@@ -3729,5 +3740,4 @@ int32_t mJoinInitMergeCtx(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJ
   
   return TSDB_CODE_SUCCESS;
 }
-
 

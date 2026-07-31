@@ -32,6 +32,14 @@ static int32_t setSubplanVgroup(SLogicSubplan* pSubplan, const SVgroupInfo* pVgr
 }
 
 static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubplan* pSrc, int32_t level) {
+  // Log pRemoteLogicPlan on external scans before cloning.
+  if (pSrc->pNode != NULL && nodeType(pSrc->pNode) == QUERY_NODE_LOGIC_PLAN_SCAN &&
+      ((SScanLogicNode*)pSrc->pNode)->scanType == SCAN_TYPE_EXTERNAL) {
+    SScanLogicNode* pS = (SScanLogicNode*)pSrc->pNode;
+    planDebug("FQ-SCALEOUT: before clone scan=%p pRemoteLogicPlan=%p type=%d",
+              pS, pS->pRemoteLogicPlan,
+              pS->pRemoteLogicPlan ? (int)nodeType(pS->pRemoteLogicPlan) : -1);
+  }
   SLogicSubplan* pDst = NULL;
   int32_t        code = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN, (SNode**)&pDst);
   if (NULL == pDst) {
@@ -52,6 +60,14 @@ static SLogicSubplan* singleCloneSubLogicPlan(SScaleOutContext* pCxt, SLogicSubp
   pDst->id.subplanId = pCxt->subplanId++;
   pDst->processOneBlock = pSrc->processOneBlock;
   pDst->dynTbname = pSrc->dynTbname;
+  // Log pRemoteLogicPlan on external scans after cloning.
+  if (pDst->pNode != NULL && nodeType(pDst->pNode) == QUERY_NODE_LOGIC_PLAN_SCAN &&
+      ((SScanLogicNode*)pDst->pNode)->scanType == SCAN_TYPE_EXTERNAL) {
+    SScanLogicNode* pS = (SScanLogicNode*)pDst->pNode;
+    planDebug("FQ-SCALEOUT: after  clone scan=%p pRemoteLogicPlan=%p type=%d",
+              pS, pS->pRemoteLogicPlan,
+              pS->pRemoteLogicPlan ? (int)nodeType(pS->pRemoteLogicPlan) : -1);
+  }
   return pDst;
 }
 

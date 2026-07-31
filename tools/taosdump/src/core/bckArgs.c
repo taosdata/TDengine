@@ -208,7 +208,6 @@ static int readPasswordFromTerminal(void) {
     (void)printf("\n");
     return 0;
 }
-
 //
 // ---------------- DSN parsing ----------------
 //

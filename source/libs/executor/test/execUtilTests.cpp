@@ -489,3 +489,29 @@ TEST(execUtilTest, handleRemoteRowResNoDoubleFreeOnExtractFailure) {
   execUtilTestResetHandleRemoteRowResState();
   taosArrayDestroy(ctx.subResNodes);
 }
+
+TEST(execUtilTest, remoteScalarCopyRetainsRemotePlanOwnershipAfterValueRewrite) {
+  SValueNode* pCached = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode**>(&pCached)), TSDB_CODE_SUCCESS);
+  pCached->node.resType.type = TSDB_DATA_TYPE_INT;
+  pCached->node.resType.bytes = sizeof(int32_t);
+  pCached->literal = taosStrdup("cached value");
+  ASSERT_NE(pCached->literal, nullptr);
+
+  const ENodeType remoteTypes[] = {QUERY_NODE_REMOTE_VALUE, QUERY_NODE_REMOTE_ZERO_ROWS};
+  for (ENodeType type : remoteTypes) {
+    SRemoteValueNode* pRemote = nullptr;
+    ASSERT_EQ(nodesMakeNode(type, reinterpret_cast<SNode**>(&pRemote)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pRemote->pRemotePlan), TSDB_CODE_SUCCESS);
+    pRemote->val.literal = taosStrdup("serialized remote subquery");
+    ASSERT_NE(pRemote->val.literal, nullptr);
+
+    ASSERT_EQ(remoteNodeCopy(reinterpret_cast<SNode*>(pCached), reinterpret_cast<SNode*>(pRemote)), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(nodeType(reinterpret_cast<SNode*>(pRemote)), QUERY_NODE_VALUE);
+    EXPECT_NE(pRemote->val.flag & VALUE_FLAG_REMOTE_PLAN, 0);
+
+    nodesDestroyNode(reinterpret_cast<SNode*>(pRemote));
+  }
+
+  nodesDestroyNode(reinterpret_cast<SNode*>(pCached));
+}

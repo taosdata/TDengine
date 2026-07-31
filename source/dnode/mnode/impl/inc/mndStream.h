@@ -334,6 +334,7 @@ typedef struct SStmVgroupStatus {
 
 typedef struct SStmTaskToDeployExt {
   volatile bool   deployed;
+  bool            ownsExtSpec;
   int32_t         deployId;     // only for runner task
   SStmTaskDeploy  deploy;
 } SStmTaskToDeployExt;

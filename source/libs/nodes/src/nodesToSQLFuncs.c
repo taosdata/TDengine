@@ -302,6 +302,10 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
 
       *len += snprintf(buf + *len, bufSize - *len, "(");
 
+      if (pLogicNode->condType == LOGIC_COND_TYPE_NOT) {
+        *len += snprintf(buf + *len, bufSize - *len, "NOT ");
+      }
+
       FOREACH(node, pLogicNode->pParameterList) {
         if (!first) {
           *len += snprintf(buf + *len, bufSize - *len, " %s ", logicConditionTypeStr(pLogicNode->condType));

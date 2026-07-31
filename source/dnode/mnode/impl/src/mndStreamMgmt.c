@@ -486,6 +486,62 @@ _exit:
   return code;
 }
 
+static void msmFreeCopiedExtSpec(SStreamExtTriggerSpec* pSpec) {
+  if (pSpec == NULL) {
+    return;
+  }
+
+  taosMemoryFree(pSpec->prefilter);
+  taosMemoryFree(pSpec->triggerPrefilter);
+  taosArrayDestroy(pSpec->partitionTagCols);
+  taosMemoryFree(pSpec);
+}
+
+static int32_t msmCopyExtSpecForDeploy(SStmTaskDeploy* pDeploy, SStmTaskToDeployExt* pExt) {
+  SStreamExtTriggerSpec* pSrc = pDeploy->msg.reader.pExtSpec;
+  SStreamExtTriggerSpec* pDst = taosMemoryCalloc(1, sizeof(SStreamExtTriggerSpec));
+  if (pDst == NULL) {
+    return terrno;
+  }
+
+  memcpy(pDst, pSrc, sizeof(SStreamExtTriggerSpec));
+  pDst->triggerColumns = NULL;
+  pDst->pColMappings = NULL;
+  pDst->calcColumns = NULL;
+  pDst->pCalcMappings = NULL;
+  pDst->prefilter = NULL;
+  pDst->triggerPrefilter = NULL;
+  pDst->partitionTagCols = NULL;
+
+  if (pSrc->prefilter != NULL) {
+    pDst->prefilter = taosStrdup(pSrc->prefilter);
+    if (pDst->prefilter == NULL) {
+      msmFreeCopiedExtSpec(pDst);
+      return terrno;
+    }
+  }
+
+  if (pSrc->triggerPrefilter != NULL) {
+    pDst->triggerPrefilter = taosStrdup(pSrc->triggerPrefilter);
+    if (pDst->triggerPrefilter == NULL) {
+      msmFreeCopiedExtSpec(pDst);
+      return terrno;
+    }
+  }
+
+  if (pSrc->partitionTagCols != NULL) {
+    pDst->partitionTagCols = taosArrayDup(pSrc->partitionTagCols, NULL);
+    if (pDst->partitionTagCols == NULL) {
+      msmFreeCopiedExtSpec(pDst);
+      return terrno;
+    }
+  }
+
+  pExt->deploy.msg.reader.pExtSpec = pDst;
+  pExt->ownsExtSpec = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 
 
 static int32_t msmTDAddTriggerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pStream) {
@@ -493,8 +549,17 @@ static int32_t msmTDAddTriggerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pS
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   SStmSnodeTasksDeploy snode = {0};
-  SStmTaskToDeployExt ext;
+  SStmTaskToDeployExt ext = {0};
   SStreamTask* pTask = &pDeploy->task;
+
+  ext.deploy = *pDeploy;
+  ext.deployed = false;
+  if (pDeploy->task.type == STREAM_READER_TASK && pDeploy->msg.reader.pExtSpec != NULL) {
+    code = msmCopyExtSpecForDeploy(pDeploy, &ext);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _return;
+    }
+  }
 
   while (true) {
     SStmSnodeTasksDeploy* pSnode = taosHashAcquire(mStreamMgmt.toDeploySnodeMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId));
@@ -502,8 +567,6 @@ static int32_t msmTDAddTriggerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pS
       snode.triggerList = taosArrayInit(10, sizeof(SStmTaskToDeployExt));
       TSDB_CHECK_NULL(snode.triggerList, code, lino, _return, terrno);
 
-      ext.deploy = *pDeploy;
-      ext.deployed = false;
       TSDB_CHECK_NULL(taosArrayPush(snode.triggerList, &ext), code, lino, _return, terrno);
 
       code = taosHashPut(mStreamMgmt.toDeploySnodeMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId), &snode, sizeof(snode));
@@ -528,9 +591,6 @@ static int32_t msmTDAddTriggerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pS
       }
     }
     
-    ext.deploy = *pDeploy;
-    ext.deployed = false;
-    
     if (NULL == taosArrayPush(pSnode->triggerList, &ext)) {
       taosWUnLockLatch(&pSnode->lock);
       TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
@@ -544,6 +604,9 @@ static int32_t msmTDAddTriggerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pS
 _return:
 
   if (code) {
+    if (ext.ownsExtSpec) {
+      msmFreeCopiedExtSpec(ext.deploy.msg.reader.pExtSpec);
+    }
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
     msttDebug("trigger task added to toDeploySnodeMap, tidx:%d", pTask->taskIdx);
@@ -557,7 +620,7 @@ static int32_t msmTDAddRunnerToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj* pSt
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   SStmSnodeTasksDeploy snode = {0};
-  SStmTaskToDeployExt ext;
+  SStmTaskToDeployExt ext = {0};
   SStreamTask* pTask = &pDeploy->task;
 
   while (true) {
@@ -623,8 +686,17 @@ static int32_t msmTDAddCalcReaderToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj*
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SStmSnodeTasksDeploy snode = {0};
-  SStmTaskToDeployExt ext;
+  SStmTaskToDeployExt ext = {0};
   SStreamTask* pTask = &pDeploy->task;
+
+  ext.deploy = *pDeploy;
+  ext.deployed = false;
+  if (pDeploy->msg.reader.pExtSpec != NULL) {
+    code = msmCopyExtSpecForDeploy(pDeploy, &ext);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _return;
+    }
+  }
 
   while (true) {
     SStmSnodeTasksDeploy* pSnode =
@@ -633,8 +705,6 @@ static int32_t msmTDAddCalcReaderToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj*
       snode.calcReaderList = taosArrayInit(10, sizeof(SStmTaskToDeployExt));
       TSDB_CHECK_NULL(snode.calcReaderList, code, lino, _return, terrno);
 
-      ext.deploy = *pDeploy;
-      ext.deployed = false;
       TSDB_CHECK_NULL(taosArrayPush(snode.calcReaderList, &ext), code, lino, _return, terrno);
 
       code = taosHashPut(mStreamMgmt.toDeploySnodeMap, &pDeploy->task.nodeId, sizeof(pDeploy->task.nodeId), &snode,
@@ -658,8 +728,6 @@ static int32_t msmTDAddCalcReaderToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj*
       }
     }
 
-    ext.deploy = *pDeploy;
-    ext.deployed = false;
     if (NULL == taosArrayPush(pSnode->calcReaderList, &ext)) {
       taosWUnLockLatch(&pSnode->lock);
       TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
@@ -672,6 +740,9 @@ static int32_t msmTDAddCalcReaderToSnodeMap(SStmTaskDeploy* pDeploy, SStreamObj*
 
 _return:
   if (code) {
+    if (ext.ownsExtSpec) {
+      msmFreeCopiedExtSpec(ext.deploy.msg.reader.pExtSpec);
+    }
     mstError("msmTDAddCalcReaderToSnodeMap failed at line %d, error:%s", lino, tstrerror(code));
   } else {
     msttDebug("EXT calc reader task added to toDeploySnodeMap, snodeId:%d tidx:%d", pTask->nodeId, pTask->taskIdx);
@@ -1456,6 +1527,7 @@ static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState
 #ifdef TD_ENTERPRISE
   if (pExtSpec != NULL && pStream != NULL) {
     TAOS_CHECK_EXIT(msmTDAddTriggerToSnodeMap(&info, pStream));
+    (void)atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
   } else {
     TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
   }
@@ -2655,6 +2727,7 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
 
       mstDestroySStmTaskToDeployExt(pExt);
       pExt->deployed = true;
+      (void)atomic_add_fetch_32(&pVg->deployed, 1);
     }
     
     taosWUnLockLatch(&pVg->lock);
@@ -2674,6 +2747,7 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
         
         mstDestroySStmTaskToDeployExt(pExt);
         pExt->deployed = true;
+        (void)atomic_add_fetch_32(&pSnode->triggerDeployed, 1);
       }
     }
 
@@ -2687,6 +2761,7 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
 
         mstDestroySStmTaskToDeployExt(pExt);
         pExt->deployed = true;
+        (void)atomic_add_fetch_32(&pSnode->runnerDeployed, 1);
       }
     }
 
@@ -2701,6 +2776,7 @@ static int32_t msmSTRemoveStream(int64_t streamId, bool fromStreamMap) {
           }
           mstDestroySStmTaskToDeployExt(pExt);
           pExt->deployed = true;
+          (void)atomic_add_fetch_32(&pSnode->calcReaderDeployed, 1);
         }
       }
     }
@@ -3121,6 +3197,7 @@ static int32_t msmTDRemoveStream(int64_t streamId) {
         SStmTaskToDeployExt* pExt = taosArrayGet(pVg->taskList, i);
         if (pExt->deploy.task.streamId == streamId && !pExt->deployed) {
           pExt->deployed = true;
+          (void)atomic_add_fetch_32(&pVg->deployed, 1);
         }
       }
     }
@@ -3135,6 +3212,7 @@ static int32_t msmTDRemoveStream(int64_t streamId) {
           SStmTaskToDeployExt* pExt = taosArrayGet(pSnode->triggerList, i);
           if (pExt->deploy.task.streamId == streamId && !pExt->deployed) {
             pExt->deployed = true;
+            (void)atomic_add_fetch_32(&pSnode->triggerDeployed, 1);
           }
         }
       }
@@ -3145,6 +3223,18 @@ static int32_t msmTDRemoveStream(int64_t streamId) {
           SStmTaskToDeployExt* pExt = taosArrayGet(pSnode->runnerList, i);
           if (pExt->deploy.task.streamId == streamId && !pExt->deployed) {
             pExt->deployed = true;
+            (void)atomic_add_fetch_32(&pSnode->runnerDeployed, 1);
+          }
+        }
+      }
+
+      taskNum = taosArrayGetSize(pSnode->calcReaderList);
+      if (atomic_load_32(&pSnode->calcReaderDeployed) != taskNum) {
+        for (int32_t i = 0; i < taskNum; ++i) {
+          SStmTaskToDeployExt* pExt = taosArrayGet(pSnode->calcReaderList, i);
+          if (pExt->deploy.task.streamId == streamId && !pExt->deployed) {
+            pExt->deployed = true;
+            (void)atomic_add_fetch_32(&pSnode->calcReaderDeployed, 1);
           }
         }
       }
@@ -3650,8 +3740,10 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
 
   int32_t triggerNum = taosArrayGetSize(pSnode->triggerList);
   int32_t runnerNum = taosArrayGetSize(pSnode->runnerList);
+  int32_t calcReaderNum = taosArrayGetSize(pSnode->calcReaderList);
   
-  if (atomic_load_32(&pSnode->triggerDeployed) <= 0 && atomic_load_32(&pSnode->runnerDeployed) <= 0) {
+  if (atomic_load_32(&pSnode->triggerDeployed) <= 0 && atomic_load_32(&pSnode->runnerDeployed) <= 0 &&
+      atomic_load_32(&pSnode->calcReaderDeployed) <= 0) {
     taosWUnLockLatch(&pSnode->lock);
     taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
     return;
@@ -3669,7 +3761,13 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
     pSnode->runnerList = NULL;
   }
 
-  if (NULL == pSnode->triggerList && NULL == pSnode->runnerList) {
+  if (atomic_load_32(&pSnode->calcReaderDeployed) == calcReaderNum) {
+    (void)atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, calcReaderNum);
+    taosArrayDestroyEx(pSnode->calcReaderList, mstDestroySStmTaskToDeployExt);
+    pSnode->calcReaderList = NULL;
+  }
+
+  if (NULL == pSnode->triggerList && NULL == pSnode->runnerList && NULL == pSnode->calcReaderList) {
     TAOS_UNUSED(taosHashRemove(mStreamMgmt.toDeploySnodeMap, &snodeId, sizeof(snodeId)));
     taosWUnLockLatch(&pSnode->lock);
     taosHashRelease(mStreamMgmt.toDeploySnodeMap, pSnode);
@@ -3704,6 +3802,21 @@ void msmCleanDeployedSnodeTasks (int32_t snodeId) {
     }
     
     pSnode->runnerDeployed = 0;
+  }
+
+  if (atomic_load_32(&pSnode->calcReaderDeployed) > 0 && pSnode->calcReaderList) {
+    for (int32_t m = calcReaderNum - 1; m >= 0; --m) {
+      SStmTaskToDeployExt* pExt = taosArrayGet(pSnode->calcReaderList, m);
+      if (!pExt->deployed) {
+        continue;
+      }
+
+      mstDestroySStmTaskToDeployExt(pExt);
+      (void)atomic_sub_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
+      taosArrayRemove(pSnode->calcReaderList, m);
+    }
+
+    pSnode->calcReaderDeployed = 0;
   }
   
   taosWUnLockLatch(&pSnode->lock);

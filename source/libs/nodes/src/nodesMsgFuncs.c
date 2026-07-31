@@ -677,7 +677,14 @@ static int32_t msgToDataType(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { EXPR_CODE_RES_TYPE = 1, EXPR_CODE_BIND_TUPLE_FUNC_IDX, EXPR_CODE_TUPLE_FUNC_IDX, EXPR_CODE_HAS_NULL };
+enum {
+  EXPR_CODE_RES_TYPE = 1,
+  EXPR_CODE_BIND_TUPLE_FUNC_IDX,
+  EXPR_CODE_TUPLE_FUNC_IDX,
+  EXPR_CODE_HAS_NULL,
+  EXPR_CODE_ALIAS_NAME,
+  EXPR_CODE_USER_ALIAS
+};
 
 static int32_t exprNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SExprNode* pNode = (const SExprNode*)pObj;
@@ -690,6 +697,14 @@ static int32_t exprNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, EXPR_CODE_TUPLE_FUNC_IDX, pNode->bindExprID);
+  }
+  // aliasName / userAlias are needed by FQ remote-plan SQL rendering on the
+  // server side (a logic-node sub-tree is shipped via TLV, not slot-bound).
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXPR_CODE_ALIAS_NAME, pNode->aliasName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, EXPR_CODE_USER_ALIAS, pNode->userAlias);
   }
   return code;
 }
@@ -713,6 +728,12 @@ static int32_t msgToExprNode(STlvDecoder* pDecoder, void* pObj) {
       case EXPR_CODE_HAS_NULL:
         code = tlvDecodeBool(pTlv, &pNode->hasNull);
         break;
+      case EXPR_CODE_ALIAS_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->aliasName, sizeof(pNode->aliasName));
+        break;
+      case EXPR_CODE_USER_ALIAS:
+        code = tlvDecodeCStr(pTlv, pNode->userAlias, sizeof(pNode->userAlias));
+        break;
       default:
         break;
     }
@@ -721,7 +742,12 @@ static int32_t msgToExprNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { COLUMN_CODE_INLINE_ATTRS = 1 };
+enum {
+  COLUMN_CODE_INLINE_ATTRS = 1,
+  COLUMN_CODE_ALIAS_NAME,
+  COLUMN_CODE_USER_ALIAS,
+  COLUMN_CODE_HAS_NULL,
+};
 
 static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SColumnNode* pNode = (const SColumnNode*)pObj;
@@ -794,7 +820,20 @@ static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
 }
 
 static int32_t columnNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
-  return tlvEncodeObj(pEncoder, COLUMN_CODE_INLINE_ATTRS, columnNodeInlineToMsg, pObj);
+  const SColumnNode* pNode = (const SColumnNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, COLUMN_CODE_INLINE_ATTRS, columnNodeInlineToMsg, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, COLUMN_CODE_ALIAS_NAME, pNode->node.aliasName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, COLUMN_CODE_USER_ALIAS, pNode->node.userAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, COLUMN_CODE_HAS_NULL, pNode->node.hasNull);
+  }
+
+  return code;
 }
 
 static int32_t msgToColumnNodeInline(STlvDecoder* pDecoder, void* pObj) {
@@ -877,9 +916,24 @@ static int32_t msgToColumnNode(STlvDecoder* pDecoder, void* pObj) {
       case COLUMN_CODE_INLINE_ATTRS:
         code = tlvDecodeObjFromTlv(pTlv, msgToColumnNodeInline, pNode);
         break;
+      case COLUMN_CODE_ALIAS_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->node.aliasName, sizeof(pNode->node.aliasName));
+        break;
+      case COLUMN_CODE_USER_ALIAS:
+        code = tlvDecodeCStr(pTlv, pNode->node.userAlias, sizeof(pNode->node.userAlias));
+        break;
+      case COLUMN_CODE_HAS_NULL:
+        code = tlvDecodeBool(pTlv, &pNode->node.hasNull);
+        break;
       default:
         break;
     }
+  }
+
+  if ((qDebugFlag & DEBUG_DEBUG) &&
+      ('\0' != pNode->node.aliasName[0] || '\0' != pNode->node.userAlias[0])) {
+    qDebug("FQ-MSG: decoded column col=%s alias=%s userAlias=%s hasNull=%d",
+           pNode->colName, pNode->node.aliasName, pNode->node.userAlias, (int)pNode->node.hasNull);
   }
 
   return code;
@@ -1145,7 +1199,9 @@ static int32_t msgToValueNode(STlvDecoder* pDecoder, void* pObj) {
 enum {
   REMOTE_VALUE_CODE_VAL = 1,
   REMOTE_VALUE_CODE_VAL_SET,
-  REMOTE_VALUE_CODE_SUBQ_IDX
+  REMOTE_VALUE_CODE_SUBQ_IDX,
+  REMOTE_VALUE_CODE_RENDER_MODE,
+  REMOTE_VALUE_CODE_REMOTE_PLAN
 };
 
 static int32_t remoteValueNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1159,6 +1215,12 @@ static int32_t remoteValueNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
 */
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, REMOTE_VALUE_CODE_SUBQ_IDX, pNode->subQIdx);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, REMOTE_VALUE_CODE_RENDER_MODE, (int32_t)pNode->renderMode);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pRemotePlan) {
+    code = tlvEncodeObj(pEncoder, REMOTE_VALUE_CODE_REMOTE_PLAN, nodeToMsg, pNode->pRemotePlan);
   }
 
   return code;
@@ -1183,6 +1245,12 @@ static int32_t msgToRemoteValueNode(STlvDecoder* pDecoder, void* pObj) {
       case REMOTE_VALUE_CODE_SUBQ_IDX:
         code = tlvDecodeI32(pTlv, &pNode->subQIdx);
         break;
+      case REMOTE_VALUE_CODE_RENDER_MODE:
+        code = tlvDecodeI32(pTlv, (int32_t*)&pNode->renderMode);
+        break;
+      case REMOTE_VALUE_CODE_REMOTE_PLAN:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pRemotePlan);
+        break;
       default:
         break;
     }
@@ -1194,7 +1262,10 @@ static int32_t msgToRemoteValueNode(STlvDecoder* pDecoder, void* pObj) {
 enum {
   REMOTE_VALUELIST_CODE_EXPR = 1,
   REMOTE_VALUELIST_CODE_FLAG,
-  REMOTE_VALUELIST_CODE_SUBQ_IDX
+  REMOTE_VALUELIST_CODE_SUBQ_IDX,
+  REMOTE_VALUELIST_CODE_IN_SUBQUERY_SQL,
+  REMOTE_VALUELIST_CODE_RENDER_MODE,
+  REMOTE_VALUELIST_CODE_REMOTE_PLAN
 };
 
 static int32_t remoteValueListNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1206,6 +1277,15 @@ static int32_t remoteValueListNodeToMsg(const void* pObj, STlvEncoder* pEncoder)
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, REMOTE_VALUELIST_CODE_SUBQ_IDX, pNode->subQIdx);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->inSubquerySql) {
+    code = tlvEncodeCStr(pEncoder, REMOTE_VALUELIST_CODE_IN_SUBQUERY_SQL, pNode->inSubquerySql);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, REMOTE_VALUELIST_CODE_RENDER_MODE, (int32_t)pNode->renderMode);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pRemotePlan) {
+    code = tlvEncodeObj(pEncoder, REMOTE_VALUELIST_CODE_REMOTE_PLAN, nodeToMsg, pNode->pRemotePlan);
   }
 
   return code;
@@ -1228,6 +1308,15 @@ static int32_t msgToRemoteValueListNode(STlvDecoder* pDecoder, void* pObj) {
       case REMOTE_VALUELIST_CODE_SUBQ_IDX:
         code = tlvDecodeI32(pTlv, &pNode->subQIdx);
         break;
+      case REMOTE_VALUELIST_CODE_IN_SUBQUERY_SQL:
+        code = tlvDecodeCStrP(pTlv, &pNode->inSubquerySql);
+        break;
+      case REMOTE_VALUELIST_CODE_RENDER_MODE:
+        code = tlvDecodeI32(pTlv, (int32_t*)&pNode->renderMode);
+        break;
+      case REMOTE_VALUELIST_CODE_REMOTE_PLAN:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pRemotePlan);
+        break;
       default:
         break;
     }
@@ -1242,7 +1331,10 @@ enum {
   REMOTE_ROW_CODE_VAL_SET,
   REMOTE_ROW_CODE_HAS_VALUE,
   REMOTE_ROW_CODE_HAS_NULL,
-  REMOTE_ROW_CODE_SUBQ_IDX
+  REMOTE_ROW_CODE_SUBQ_IDX,
+  REMOTE_ROW_CODE_SUBQUERY_SQL,
+  REMOTE_ROW_CODE_RENDER_MODE,
+  REMOTE_ROW_CODE_REMOTE_PLAN
 };
 
 static int32_t remoteRowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1263,6 +1355,15 @@ static int32_t remoteRowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, REMOTE_ROW_CODE_SUBQ_IDX, pNode->subQIdx);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pSubquerySql) {
+    code = tlvEncodeCStr(pEncoder, REMOTE_ROW_CODE_SUBQUERY_SQL, pNode->pSubquerySql);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, REMOTE_ROW_CODE_RENDER_MODE, (int32_t)pNode->renderMode);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pRemotePlan) {
+    code = tlvEncodeObj(pEncoder, REMOTE_ROW_CODE_REMOTE_PLAN, nodeToMsg, pNode->pRemotePlan);
   }
 
   return code;
@@ -1293,6 +1394,15 @@ static int32_t msgToRemoteRowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case REMOTE_ROW_CODE_SUBQ_IDX:
         code = tlvDecodeI32(pTlv, &pNode->subQIdx);
+        break;
+      case REMOTE_ROW_CODE_SUBQUERY_SQL:
+        code = tlvDecodeCStrP(pTlv, &pNode->pSubquerySql);
+        break;
+      case REMOTE_ROW_CODE_RENDER_MODE:
+        code = tlvDecodeI32(pTlv, (int32_t*)&pNode->renderMode);
+        break;
+      case REMOTE_ROW_CODE_REMOTE_PLAN:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pRemotePlan);
         break;
       default:
         break;
@@ -1624,6 +1734,40 @@ static int32_t msgToOrderByExprNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case ORDER_BY_EXPR_CODE_NULL_ORDER:
         code = tlvDecodeEnum(pTlv, &pNode->nullOrder, sizeof(pNode->nullOrder));
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+enum { GROUPING_SET_CODE_TYPE = 1, GROUPING_SET_CODE_PARAM_LIST };
+
+static int32_t groupingSetNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SGroupingSetNode* pNode = (const SGroupingSetNode*)pObj;
+
+  int32_t code = tlvEncodeEnum(pEncoder, GROUPING_SET_CODE_TYPE, pNode->groupingSetType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, GROUPING_SET_CODE_PARAM_LIST, nodeListToMsg, pNode->pParameterList);
+  }
+
+  return code;
+}
+
+static int32_t msgToGroupingSetNode(STlvDecoder* pDecoder, void* pObj) {
+  SGroupingSetNode* pNode = (SGroupingSetNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case GROUPING_SET_CODE_TYPE:
+        code = tlvDecodeEnum(pTlv, &pNode->groupingSetType, sizeof(pNode->groupingSetType));
+        break;
+      case GROUPING_SET_CODE_PARAM_LIST:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pParameterList);
         break;
       default:
         break;
@@ -2958,6 +3102,7 @@ enum {
   PHY_FEDERATED_SCAN_CODE_SRC_SCHEMA,
   PHY_FEDERATED_SCAN_CODE_SRC_OPTIONS,
   PHY_FEDERATED_SCAN_CODE_COL_TYPE_MAPPINGS,  // SExtColTypeMapping[] blob
+  PHY_FEDERATED_SCAN_CODE_TS_TYPE_HINTS,      // SExtTimestampTypeHint[] blob
   PHY_FEDERATED_SCAN_CODE_TWO_PASS_MODE,
   PHY_FEDERATED_SCAN_CODE_TIMEZONE,
   PHY_FEDERATED_SCAN_CODE_SCAN_RANGE_SKEY,
@@ -3008,6 +3153,11 @@ static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncod
     code = tlvEncodeBinary(pEncoder, PHY_FEDERATED_SCAN_CODE_COL_TYPE_MAPPINGS,
                            pNode->pColTypeMappings,
                            (int32_t)(pNode->numColTypeMappings * sizeof(SExtColTypeMapping)));
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->numTimestampTypeHints > 0 && pNode->pTimestampTypeHints) {
+    code = tlvEncodeBinary(pEncoder, PHY_FEDERATED_SCAN_CODE_TS_TYPE_HINTS,
+                           pNode->pTimestampTypeHints,
+                           (int32_t)(pNode->numTimestampTypeHints * sizeof(SExtTimestampTypeHint)));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_FEDERATED_SCAN_CODE_TWO_PASS_MODE, pNode->twoPassMode);
@@ -3093,6 +3243,20 @@ static int32_t msgToFederatedScanPhysiNode(STlvDecoder* pDecoder, void* pObj) {
         }
         break;
       }
+      case PHY_FEDERATED_SCAN_CODE_TS_TYPE_HINTS: {
+        int32_t nBytes = (int32_t)pTlv->len;
+        if (nBytes > 0 && (int32_t)sizeof(SExtTimestampTypeHint) > 0 &&
+            nBytes % (int32_t)sizeof(SExtTimestampTypeHint) == 0) {
+          pNode->numTimestampTypeHints = nBytes / (int32_t)sizeof(SExtTimestampTypeHint);
+          pNode->pTimestampTypeHints   = (SExtTimestampTypeHint*)taosMemoryMalloc(nBytes);
+          if (!pNode->pTimestampTypeHints) {
+            code = terrno;
+          } else {
+            code = tlvDecodeBinary(pTlv, pNode->pTimestampTypeHints);
+          }
+        }
+        break;
+      }
       case PHY_FEDERATED_SCAN_CODE_TWO_PASS_MODE:
         code = tlvDecodeBool(pTlv, &pNode->twoPassMode);
         break;
@@ -3132,6 +3296,8 @@ enum {
   EXT_TABLE_CODE_SRC_SCHEMA,
   EXT_TABLE_CODE_SRC_OPTIONS,
   EXT_TABLE_CODE_REMOTE_TABLE_NAME,
+  EXT_TABLE_CODE_TABLE_ALIAS,
+  EXT_TABLE_CODE_SRC_NAME_FROM_PATH,
 };
 
 static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3139,6 +3305,11 @@ static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   int32_t code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_DB_NAME, pNode->table.dbName);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_TABLE_NAME, pNode->table.tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    // tableAlias is needed by JOIN remote-SQL rendering to qualify columns
+    // (s.col / r.col); without it same-named columns from both legs are ambiguous.
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_TABLE_ALIAS, pNode->table.tableAlias);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_SOURCE_NAME, pNode->sourceName);
@@ -3173,6 +3344,9 @@ static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_REMOTE_TABLE_NAME, pNode->remoteTableName);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, EXT_TABLE_CODE_SRC_NAME_FROM_PATH, pNode->srcNameFromPath);
+  }
   return code;
 }
 
@@ -3187,6 +3361,9 @@ static int32_t msgToExtTableNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case EXT_TABLE_CODE_TABLE_NAME:
         code = tlvDecodeCStr(pTlv, pNode->table.tableName, sizeof(pNode->table.tableName));
+        break;
+      case EXT_TABLE_CODE_TABLE_ALIAS:
+        code = tlvDecodeCStr(pTlv, pNode->table.tableAlias, sizeof(pNode->table.tableAlias));
         break;
       case EXT_TABLE_CODE_SOURCE_NAME:
         code = tlvDecodeCStr(pTlv, pNode->sourceName, sizeof(pNode->sourceName));
@@ -3220,6 +3397,9 @@ static int32_t msgToExtTableNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case EXT_TABLE_CODE_REMOTE_TABLE_NAME:
         code = tlvDecodeCStr(pTlv, pNode->remoteTableName, sizeof(pNode->remoteTableName));
+        break;
+      case EXT_TABLE_CODE_SRC_NAME_FROM_PATH:
+        code = tlvDecodeBool(pTlv, &pNode->srcNameFromPath);
         break;
       default:
         break;
@@ -4452,6 +4632,7 @@ static int32_t msgToPhysiSortNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SORT_CODE_EXCLUDE_PK_COL:
         code = tlvDecodeBool(pTlv, &pNode->excludePkCol);
+        break;
       default:
         break;
     }
@@ -4790,7 +4971,6 @@ static int32_t physiIntervalNodeInlineToMsg(const void* pObj, STlvEncoder* pEnco
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueI8(pEncoder, pNode->firstDayOfWeek);
   }
-
   return code;
 }
 
@@ -4832,7 +5012,6 @@ static int32_t msgToPhysiIntervalNodeInline(STlvDecoder* pDecoder, void* pObj) {
   } else {
     pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
   }
-
   return code;
 }
 
@@ -4876,13 +5055,38 @@ enum {
   PHY_FILL_CODE_NOT_FILL_EXPRS,
   PHY_FILL_CODE_WSTART,
   PHY_FILL_CODE_VALUES,
+  PHY_FILL_CODE_INLINE_ATTRS,
   PHY_FILL_CODE_TIME_RANGE,
+  PHY_FILL_CODE_TIMEZONE_NAME,
   PHY_FILL_CODE_INPUT_TS_ORDER,
   PHY_FILL_CODE_FILL_NULL_EXPRS,
   PHY_FILL_CODE_TIME_RANGE_EXPR,
   PHY_FILL_CODE_SURROUNDING_TIME,
   PHY_FILL_CODE_INDEF_ROWS_MODE,
 };
+
+static int32_t physiFillNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SFillPhysiNode* pNode = (const SFillPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeValueI64(pEncoder, pNode->interval);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI64(pEncoder, pNode->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI64(pEncoder, pNode->sliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->intervalUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->slidingUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->firstDayOfWeek);
+  }
+
+  return code;
+}
 
 static int32_t physiFillNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SFillPhysiNode* pNode = (const SFillPhysiNode*)pObj;
@@ -4904,7 +5108,13 @@ static int32_t physiFillNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeObj(pEncoder, PHY_FILL_CODE_VALUES, nodeToMsg, pNode->pValues);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_FILL_CODE_INLINE_ATTRS, physiFillNodeInlineToMsg, pNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_FILL_CODE_TIME_RANGE, timeWindowToMsg, &pNode->timeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+    code = tlvEncodeCStr(pEncoder, PHY_FILL_CODE_TIMEZONE_NAME, pNode->timezoneName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_FILL_CODE_FILL_NULL_EXPRS, nodeListToMsg, pNode->pFillNullExprs);
@@ -4922,8 +5132,34 @@ static int32_t physiFillNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   return code;
 }
 
+static int32_t msgToPhysiFillNodeInline(STlvDecoder* pDecoder, void* pObj) {
+  SFillPhysiNode* pNode = (SFillPhysiNode*)pObj;
+
+  int32_t code = tlvDecodeValueI64(pDecoder, &pNode->interval);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI64(pDecoder, &pNode->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI64(pDecoder, &pNode->sliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI8(pDecoder, &pNode->intervalUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI8(pDecoder, &pNode->slidingUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code && !tlvDecodeEnd(pDecoder)) {
+    code = tlvDecodeValueI8(pDecoder, &pNode->firstDayOfWeek);
+  } else {
+    pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
+  }
+
+  return code;
+}
+
 static int32_t msgToPhysiFillNode(STlvDecoder* pDecoder, void* pObj) {
   SFillPhysiNode* pNode = (SFillPhysiNode*)pObj;
+  pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -4947,8 +5183,19 @@ static int32_t msgToPhysiFillNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_FILL_CODE_VALUES:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pValues);
         break;
+      case PHY_FILL_CODE_INLINE_ATTRS:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiFillNodeInline, pNode);
+        break;
       case PHY_FILL_CODE_TIME_RANGE:
         code = tlvDecodeObjFromTlv(pTlv, msgToTimeWindow, (void**)&pNode->timeRange);
+        break;
+      case PHY_FILL_CODE_TIMEZONE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->timezoneName, sizeof(pNode->timezoneName));
+        if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+          code = nodesDecodeTimezoneNameInPlace(pNode->timezoneName,
+                                                &pNode->timezone,
+                                                &pNode->ownsTimezone);
+        }
         break;
       case PHY_FILL_CODE_FILL_NULL_EXPRS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pFillNullExprs);
@@ -5015,6 +5262,7 @@ enum {
   PHY_EXT_CODE_ORG_TABLE_VGID,
   PHY_EXT_CODE_NEED_GROUP_SORT,
   PHY_EXT_CODE_CALC_WITH_PARTITION,
+  PHY_EXT_CODE_MATCH_PARTITION_BY,
   PHY_EXT_CODE_EXT_WIN_SPLIT,
   PHY_EXT_CODE_FILL_MODE,
   PHY_EXT_CODE_FILL_EXPRS,
@@ -5051,6 +5299,9 @@ static int32_t physiExternalWindowNodeToMsg(const void* pObj, STlvEncoder* pEnco
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_CALC_WITH_PARTITION, pNode->calcWithPartition);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_MATCH_PARTITION_BY, pNode->matchPartitionBy);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXT_CODE_EXT_WIN_SPLIT, pNode->extWinSplit);
@@ -5107,6 +5358,9 @@ static int32_t msgToPhysiExternalWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_EXT_CODE_CALC_WITH_PARTITION:
         code = tlvDecodeBool(pTlv, &pNode->calcWithPartition);
+        break;
+      case PHY_EXT_CODE_MATCH_PARTITION_BY:
+        code = tlvDecodeBool(pTlv, &pNode->matchPartitionBy);
         break;
       case PHY_EXT_CODE_EXT_WIN_SPLIT:
         code = tlvDecodeBool(pTlv, &pNode->extWinSplit);
@@ -5325,7 +5579,7 @@ static int32_t msgToPhysiCountWindowNode(STlvDecoder* pDecoder, void* pObj) {
 
 enum {
   PHY_ROWSET_SOURCE_CODE_BASE_NODE = 1,
-  PHY_ROWSET_SOURCE_CODE_RESERVED_2,  // formerly pOutputs — kept as placeholder to preserve wire numbering
+  PHY_ROWSET_SOURCE_CODE_COL_COUNT,
   PHY_ROWSET_SOURCE_CODE_NUM_BLOCKS,
   PHY_ROWSET_SOURCE_CODE_TOTAL_ROWS,
   PHY_ROWSET_SOURCE_CODE_HAS_PRIMARY_TS,
@@ -5339,6 +5593,9 @@ static int32_t physiRowsetSourceNodeToMsg(const void* pObj, STlvEncoder* pEncode
   const SRowsetSourcePhysiNode* pNode = (const SRowsetSourcePhysiNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_ROWSET_SOURCE_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_ROWSET_SOURCE_CODE_COL_COUNT, pNode->colCount);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_ROWSET_SOURCE_CODE_NUM_BLOCKS, pNode->numBlocks);
   }
@@ -5372,6 +5629,9 @@ static int32_t msgToPhysiRowsetSourceNode(STlvDecoder* pDecoder, void* pObj) {
     switch (pTlv->type) {
       case PHY_ROWSET_SOURCE_CODE_BASE_NODE:
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
+        break;
+      case PHY_ROWSET_SOURCE_CODE_COL_COUNT:
+        code = tlvDecodeI32(pTlv, &pNode->colCount);
         break;
       case PHY_ROWSET_SOURCE_CODE_NUM_BLOCKS:
         code = tlvDecodeI32(pTlv, &pNode->numBlocks);
@@ -6531,7 +6791,7 @@ static int32_t msgToSubplan(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { QUERY_PLAN_CODE_INLINE_ATTRS = 1, QUERY_PLAN_CODE_SUBPLANS };
+enum { QUERY_PLAN_CODE_INLINE_ATTRS = 1, QUERY_PLAN_CODE_SUBPLANS, QUERY_PLAN_CODE_CHILDREN };
 
 static int32_t queryPlanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SQueryPlan* pNode = (const SQueryPlan*)pObj;
@@ -6550,6 +6810,14 @@ static int32_t queryPlanToMsg(const void* pObj, STlvEncoder* pEncoder) {
   int32_t code = tlvEncodeObj(pEncoder, QUERY_PLAN_CODE_INLINE_ATTRS, queryPlanInlineToMsg, pNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, QUERY_PLAN_CODE_SUBPLANS, nodeListToMsg, pNode->pSubplans);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pNode->pChildren) {
+    code = tlvEncodeObj(pEncoder, QUERY_PLAN_CODE_CHILDREN, nodeListToMsg, pNode->pChildren);
+  }
+  if ((qDebugFlag & DEBUG_DEBUG) && TSDB_CODE_SUCCESS == code) {
+    qDebug("FQ-MSG: encoded query plan qid=0x%" PRIx64 " numOfSubplans=%d levels=%d subqueries=%d",
+           pNode->queryId, pNode->numOfSubplans, pNode->pSubplans ? LIST_LENGTH(pNode->pSubplans) : 0,
+           pNode->pChildren ? LIST_LENGTH(pNode->pChildren) : 0);
   }
 
   return code;
@@ -6579,11 +6847,400 @@ static int32_t msgToQueryPlan(STlvDecoder* pDecoder, void* pObj) {
       case QUERY_PLAN_CODE_SUBPLANS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pSubplans);
         break;
+      case QUERY_PLAN_CODE_CHILDREN:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pChildren);
+        break;
       default:
         break;
     }
   }
+  if ((qDebugFlag & DEBUG_DEBUG) && TSDB_CODE_SUCCESS == code) {
+    qDebug("FQ-MSG: decoded query plan qid=0x%" PRIx64 " numOfSubplans=%d levels=%d subqueries=%d",
+           pNode->queryId, pNode->numOfSubplans, pNode->pSubplans ? LIST_LENGTH(pNode->pSubplans) : 0,
+           pNode->pChildren ? LIST_LENGTH(pNode->pChildren) : 0);
+  }
 
+  return code;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Logic-plan node TLV (de)serialization — FQ remotePlan support.
+//
+// SFederatedScanPhysiNode.pRemotePlan carries a *logic* sub-tree (SCAN/PROJECT/
+// SORT/AGG/INDEF) that is serialized over the wire (TLV) to the executor, which
+// reconstructs it and calls nodesRemotePlanToSQL().  Before this, only physical
+// plan nodes had TLV codecs; logic-plan operators fell through specificNodeToMsg's
+// default branch and were silently dropped on the wire (the JSON path used by
+// EXPLAIN does have full logic codecs, so this gap was invisible there).
+//
+// Only the fields the remote-SQL renderer actually consumes are encoded
+// (minimal field set), keeping the message small and the failure surface narrow.
+// The logic-node base codec intentionally omits planner-only fields (pHint,
+// optimize flags, stmtRoot, data-order, etc.) that the renderer never reads.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum {
+  LOGIC_NODE_CODE_CONDITIONS = 1,
+  LOGIC_NODE_CODE_CHILDREN = 2,
+  LOGIC_NODE_CODE_LIMIT = 3,
+  LOGIC_NODE_CODE_TARGETS = 4,
+};
+
+static int32_t logicNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SLogicNode* pNode = (const SLogicNode*)pObj;
+  int32_t           code = tlvEncodeObj(pEncoder, LOGIC_NODE_CODE_CONDITIONS, nodeToMsg, pNode->pConditions);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, LOGIC_NODE_CODE_TARGETS, nodeListToMsg, pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, LOGIC_NODE_CODE_CHILDREN, nodeListToMsg, pNode->pChildren);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, LOGIC_NODE_CODE_LIMIT, nodeToMsg, pNode->pLimit);
+  }
+  if ((qDebugFlag & DEBUG_DEBUG) && TSDB_CODE_SUCCESS == code) {
+    qDebug("FQ-MSG: encoded logic node type=%d targets=%d children=%d hasCond=%d hasLimit=%d",
+           (int)nodeType((SNode*)pNode), pNode->pTargets ? LIST_LENGTH(pNode->pTargets) : 0,
+           pNode->pChildren ? LIST_LENGTH(pNode->pChildren) : 0, NULL != pNode->pConditions, NULL != pNode->pLimit);
+  }
+  return code;
+}
+
+static int32_t msgToLogicNode(STlvDecoder* pDecoder, void* pObj) {
+  SLogicNode* pNode = (SLogicNode*)pObj;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  STlv*       pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case LOGIC_NODE_CODE_CONDITIONS:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pConditions);
+        break;
+      case LOGIC_NODE_CODE_TARGETS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTargets);
+        break;
+      case LOGIC_NODE_CODE_CHILDREN:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pChildren);
+        break;
+      case LOGIC_NODE_CODE_LIMIT:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pLimit);
+        break;
+      default:
+        break;
+    }
+  }
+  if ((qDebugFlag & DEBUG_DEBUG) && TSDB_CODE_SUCCESS == code) {
+    qDebug("FQ-MSG: decoded logic node type=%d targets=%d children=%d hasCond=%d hasLimit=%d",
+           (int)nodeType((SNode*)pNode), pNode->pTargets ? LIST_LENGTH(pNode->pTargets) : 0,
+           pNode->pChildren ? LIST_LENGTH(pNode->pChildren) : 0, NULL != pNode->pConditions, NULL != pNode->pLimit);
+  }
+  return code;
+}
+
+enum {
+  LOGIC_SCAN_CODE_BASE_NODE = 1,
+  LOGIC_SCAN_CODE_SCAN_COLS,
+  LOGIC_SCAN_CODE_SCAN_TYPE,
+  LOGIC_SCAN_CODE_EXT_TABLE,
+  LOGIC_SCAN_CODE_PUSHED_CONDITIONS,  // reserved (was pPushedConditions; field removed)
+  LOGIC_SCAN_CODE_PUSHDOWN_FLAGS,     // reserved
+};
+
+static int32_t logicScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SScanLogicNode* pNode = (const SScanLogicNode*)pObj;
+  int32_t               code = tlvEncodeObj(pEncoder, LOGIC_SCAN_CODE_BASE_NODE, logicNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, LOGIC_SCAN_CODE_SCAN_COLS, nodeListToMsg, pNode->pScanCols);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeEnum(pEncoder, LOGIC_SCAN_CODE_SCAN_TYPE, pNode->scanType);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pExtTableNode != NULL) {
+    code = tlvEncodeObj(pEncoder, LOGIC_SCAN_CODE_EXT_TABLE, nodeToMsg, pNode->pExtTableNode);
+  }
+  return code;
+}
+
+static int32_t msgToLogicScanNode(STlvDecoder* pDecoder, void* pObj) {
+  SScanLogicNode* pNode = (SScanLogicNode*)pObj;
+  int32_t         code = TSDB_CODE_SUCCESS;
+  STlv*           pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case LOGIC_SCAN_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToLogicNode, &pNode->node);
+        break;
+      case LOGIC_SCAN_CODE_SCAN_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pScanCols);
+        break;
+      case LOGIC_SCAN_CODE_SCAN_TYPE:
+        code = tlvDecodeEnum(pTlv, &pNode->scanType, sizeof(pNode->scanType));
+        break;
+      case LOGIC_SCAN_CODE_EXT_TABLE:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pExtTableNode);
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
+enum {
+  LOGIC_PROJECT_CODE_BASE_NODE = 1,
+  LOGIC_PROJECT_CODE_PROJECTIONS,
+  LOGIC_PROJECT_CODE_IGNORE_GROUP_ID,
+  LOGIC_PROJECT_CODE_IS_SET_OP_PROJ,
+  LOGIC_PROJECT_CODE_IS_UNION_DEDUP,
+};
+
+static int32_t logicProjectNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SProjectLogicNode* pNode = (const SProjectLogicNode*)pObj;
+  int32_t                  code = tlvEncodeObj(pEncoder, LOGIC_PROJECT_CODE_BASE_NODE, logicNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, LOGIC_PROJECT_CODE_PROJECTIONS, nodeListToMsg, pNode->pProjections);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, LOGIC_PROJECT_CODE_IGNORE_GROUP_ID, pNode->ignoreGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, LOGIC_PROJECT_CODE_IS_SET_OP_PROJ, pNode->isSetOpProj);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, LOGIC_PROJECT_CODE_IS_UNION_DEDUP, pNode->isUnionDedup);
+  }
+  return code;
+}
+
+static int32_t msgToLogicProjectNode(STlvDecoder* pDecoder, void* pObj) {
+  SProjectLogicNode* pNode = (SProjectLogicNode*)pObj;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  STlv*              pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case LOGIC_PROJECT_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToLogicNode, &pNode->node);
+        break;
+      case LOGIC_PROJECT_CODE_PROJECTIONS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pProjections);
+        break;
+      case LOGIC_PROJECT_CODE_IGNORE_GROUP_ID:
+        code = tlvDecodeBool(pTlv, &pNode->ignoreGroupId);
+        break;
+      case LOGIC_PROJECT_CODE_IS_SET_OP_PROJ:
+        code = tlvDecodeBool(pTlv, &pNode->isSetOpProj);
+        break;
+      case LOGIC_PROJECT_CODE_IS_UNION_DEDUP:
+        code = tlvDecodeBool(pTlv, &pNode->isUnionDedup);
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
+enum {
+  LOGIC_SORT_CODE_BASE_NODE = 1,
+  LOGIC_SORT_CODE_SORT_KEYS,
+};
+
+static int32_t logicSortNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SSortLogicNode* pNode = (const SSortLogicNode*)pObj;
+  int32_t               code = tlvEncodeObj(pEncoder, LOGIC_SORT_CODE_BASE_NODE, logicNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, LOGIC_SORT_CODE_SORT_KEYS, nodeListToMsg, pNode->pSortKeys);
+  }
+  return code;
+}
+
+static int32_t msgToLogicSortNode(STlvDecoder* pDecoder, void* pObj) {
+  SSortLogicNode* pNode = (SSortLogicNode*)pObj;
+  int32_t         code = TSDB_CODE_SUCCESS;
+  STlv*           pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case LOGIC_SORT_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToLogicNode, &pNode->node);
+        break;
+      case LOGIC_SORT_CODE_SORT_KEYS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pSortKeys);
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
+enum {
+  LOGIC_AGG_CODE_BASE_NODE = 1,
+  LOGIC_AGG_CODE_GROUP_KEYS,
+  LOGIC_AGG_CODE_AGG_FUNCS,
+};
+
+static int32_t logicAggNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SAggLogicNode* pNode = (const SAggLogicNode*)pObj;
+  int32_t              code = tlvEncodeObj(pEncoder, LOGIC_AGG_CODE_BASE_NODE, logicNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code && pNode->pGroupKeys != NULL) {
+    code = tlvEncodeObj(pEncoder, LOGIC_AGG_CODE_GROUP_KEYS, nodeListToMsg, pNode->pGroupKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pAggFuncs != NULL) {
+    code = tlvEncodeObj(pEncoder, LOGIC_AGG_CODE_AGG_FUNCS, nodeListToMsg, pNode->pAggFuncs);
+  }
+  return code;
+}
+
+static int32_t msgToLogicAggNode(STlvDecoder* pDecoder, void* pObj) {
+  SAggLogicNode* pNode = (SAggLogicNode*)pObj;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  STlv*          pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case LOGIC_AGG_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToLogicNode, &pNode->node);
+        break;
+      case LOGIC_AGG_CODE_GROUP_KEYS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pGroupKeys);
+        break;
+      case LOGIC_AGG_CODE_AGG_FUNCS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pAggFuncs);
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
+enum {
+  LOGIC_INDEF_CODE_BASE_NODE = 1,
+  LOGIC_INDEF_CODE_FUNCS,
+};
+
+static int32_t logicIndefRowsFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SIndefRowsFuncLogicNode* pNode = (const SIndefRowsFuncLogicNode*)pObj;
+  int32_t                        code = tlvEncodeObj(pEncoder, LOGIC_INDEF_CODE_BASE_NODE, logicNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, LOGIC_INDEF_CODE_FUNCS, nodeListToMsg, pNode->pFuncs);
+  }
+  return code;
+}
+
+static int32_t msgToLogicIndefRowsFuncNode(STlvDecoder* pDecoder, void* pObj) {
+  SIndefRowsFuncLogicNode* pNode = (SIndefRowsFuncLogicNode*)pObj;
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  STlv*                    pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case LOGIC_INDEF_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToLogicNode, &pNode->node);
+        break;
+      case LOGIC_INDEF_CODE_FUNCS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pFuncs);
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
+// Remote JOIN: only the fields the SQL renderer reads (join/sub type + ON
+// conditions).  The two child SCAN nodes ride in the base node's pChildren.
+enum {
+  LOGIC_JOIN_CODE_BASE_NODE = 1,
+  LOGIC_JOIN_CODE_JOIN_TYPE,
+  LOGIC_JOIN_CODE_SUB_TYPE,
+  LOGIC_JOIN_CODE_FULL_ON_COND,
+  LOGIC_JOIN_CODE_COL_EQ_COND,
+};
+
+static int32_t logicJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SJoinLogicNode* pNode = (const SJoinLogicNode*)pObj;
+  int32_t               code = tlvEncodeObj(pEncoder, LOGIC_JOIN_CODE_BASE_NODE, logicNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeEnum(pEncoder, LOGIC_JOIN_CODE_JOIN_TYPE, pNode->joinType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeEnum(pEncoder, LOGIC_JOIN_CODE_SUB_TYPE, pNode->subType);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pFullOnCond != NULL) {
+    code = tlvEncodeObj(pEncoder, LOGIC_JOIN_CODE_FULL_ON_COND, nodeToMsg, pNode->pFullOnCond);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pColEqCond != NULL) {
+    code = tlvEncodeObj(pEncoder, LOGIC_JOIN_CODE_COL_EQ_COND, nodeToMsg, pNode->pColEqCond);
+  }
+  return code;
+}
+
+static int32_t msgToLogicJoinNode(STlvDecoder* pDecoder, void* pObj) {
+  SJoinLogicNode* pNode = (SJoinLogicNode*)pObj;
+  int32_t         code = TSDB_CODE_SUCCESS;
+  STlv*           pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case LOGIC_JOIN_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToLogicNode, &pNode->node);
+        break;
+      case LOGIC_JOIN_CODE_JOIN_TYPE:
+        code = tlvDecodeEnum(pTlv, &pNode->joinType, sizeof(pNode->joinType));
+        break;
+      case LOGIC_JOIN_CODE_SUB_TYPE:
+        code = tlvDecodeEnum(pTlv, &pNode->subType, sizeof(pNode->subType));
+        break;
+      case LOGIC_JOIN_CODE_FULL_ON_COND:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pFullOnCond);
+        break;
+      case LOGIC_JOIN_CODE_COL_EQ_COND:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pColEqCond);
+        break;
+      default:
+        break;
+    }
+  }
+  return code;
+}
+
+// Remote PARTITION (FQ pushdown): the SQL renderer reads pPartitionKeys (GROUP
+// BY) and pAggFuncs (when the partition node carries its own aggregates).  The
+// child SCAN rides in the base node's pChildren.
+enum {
+  LOGIC_PARTITION_CODE_BASE_NODE = 1,
+  LOGIC_PARTITION_CODE_PARTITION_KEYS,
+  LOGIC_PARTITION_CODE_AGG_FUNCS,
+};
+
+static int32_t logicPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SPartitionLogicNode* pNode = (const SPartitionLogicNode*)pObj;
+  int32_t code = tlvEncodeObj(pEncoder, LOGIC_PARTITION_CODE_BASE_NODE, logicNodeToMsg, &pNode->node);
+  if (TSDB_CODE_SUCCESS == code && pNode->pPartitionKeys != NULL) {
+    code = tlvEncodeObj(pEncoder, LOGIC_PARTITION_CODE_PARTITION_KEYS, nodeListToMsg, pNode->pPartitionKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pAggFuncs != NULL) {
+    code = tlvEncodeObj(pEncoder, LOGIC_PARTITION_CODE_AGG_FUNCS, nodeListToMsg, pNode->pAggFuncs);
+  }
+  return code;
+}
+
+static int32_t msgToLogicPartitionNode(STlvDecoder* pDecoder, void* pObj) {
+  SPartitionLogicNode* pNode = (SPartitionLogicNode*)pObj;
+  int32_t              code = TSDB_CODE_SUCCESS;
+  STlv*                pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case LOGIC_PARTITION_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToLogicNode, &pNode->node);
+        break;
+      case LOGIC_PARTITION_CODE_PARTITION_KEYS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pPartitionKeys);
+        break;
+      case LOGIC_PARTITION_CODE_AGG_FUNCS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pAggFuncs);
+        break;
+      default:
+        break;
+    }
+  }
   return code;
 }
 
@@ -6608,6 +7265,9 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
       break;
     case QUERY_NODE_ORDER_BY_EXPR:
       code = orderByExprNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_GROUPING_SET:
+      code = groupingSetNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_LIMIT:
       code = limitNodeToMsg(pObj, pEncoder);
@@ -6784,6 +7444,28 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_EXTERNAL_TABLE:
       code = extTableNodeToMsg(pObj, pEncoder);
       break;
+    // FQ remotePlan logic-plan operators (serialized as the FedScan pRemotePlan sub-tree).
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      code = logicScanNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      code = logicProjectNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      code = logicSortNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+      code = logicAggNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      code = logicIndefRowsFuncNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      code = logicJoinNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      code = logicPartitionNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       code = subplanToMsg(pObj, pEncoder);
       break;
@@ -6820,6 +7502,9 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_ORDER_BY_EXPR:
       code = msgToOrderByExprNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_GROUPING_SET:
+      code = msgToGroupingSetNode(pDecoder, pObj);
       break;
     case QUERY_NODE_LIMIT:
       code = msgToLimitNode(pDecoder, pObj);
@@ -6995,6 +7680,28 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       break;
     case QUERY_NODE_EXTERNAL_TABLE:
       code = msgToExtTableNode(pDecoder, pObj);
+      break;
+    // FQ remotePlan logic-plan operators (serialized as the FedScan pRemotePlan sub-tree).
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      code = msgToLogicScanNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      code = msgToLogicProjectNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      code = msgToLogicSortNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+      code = msgToLogicAggNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      code = msgToLogicIndefRowsFuncNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      code = msgToLogicJoinNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      code = msgToLogicPartitionNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       code = msgToSubplan(pDecoder, pObj);

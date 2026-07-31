@@ -235,7 +235,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TSC_FAIL_GENERATE_JSON        TAOS_DEF_ERROR_CODE(0, 0x0235)
 #define TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR    TAOS_DEF_ERROR_CODE(0, 0x0236)
 #define TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS      TAOS_DEF_ERROR_CODE(0, 0x0237)
-#define TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS     TAOS_DEF_ERROR_CODE(0, 0x0237)  // same as TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS
+#define TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS    TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS
 
 #define TSDB_CODE_TSC_INVALID_TOTP_CODE         TAOS_DEF_ERROR_CODE(0, 0x0238)
 #define TSDB_CODE_TSC_SESS_PER_USER_LIMIT        TAOS_DEF_ERROR_CODE(0, 0x0239)
@@ -966,7 +966,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT    TAOS_DEF_ERROR_CODE(0, 0x2609)
 #define TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION   TAOS_DEF_ERROR_CODE(0, 0x260A)
 #define TSDB_CODE_PAR_NOT_SELECT_EXPRESSION     TAOS_DEF_ERROR_CODE(0, 0x260B)
-#define TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION   TAOS_DEF_ERROR_CODE(0, 0x260B)  // same as TSDB_CODE_PAR_NOT_SELECT_EXPRESSION
+#define TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION  TSDB_CODE_PAR_NOT_SELECT_EXPRESSION
 #define TSDB_CODE_PAR_NOT_SINGLE_GROUP          TAOS_DEF_ERROR_CODE(0, 0x260C)
 #define TSDB_CODE_PAR_TAGS_NOT_MATCHED          TAOS_DEF_ERROR_CODE(0, 0x260D)
 #define TSDB_CODE_PAR_INVALID_TAG_NAME          TAOS_DEF_ERROR_CODE(0, 0x260E)
@@ -1427,7 +1427,18 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_EXT_SOURCE_NAME_CONFLICT       TAOS_DEF_ERROR_CODE(0, 0x641A)  // Mnode: CREATE DATABASE conflicts with existing external source name
 #define TSDB_CODE_EXT_COLUMN_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x641B)  // Parser: external column not found in remote table
 #define TSDB_CODE_EXT_TAG_REF_NOT_ALLOWED        TAOS_DEF_ERROR_CODE(0, 0x641C)  // Parser: InfluxDB tag columns cannot be referenced as virtual table column sources
-// 0x641D-0x64FF reserved for extension
+#define TSDB_CODE_EXT_IDENTIFIER_TOO_LONG         TAOS_DEF_ERROR_CODE(0, 0x641D)  // Parser/Connector: external object identifier exceeds TDengine limit
+#define TSDB_CODE_EXT_REQUIRED_COLUMNS_TOO_MANY   TAOS_DEF_ERROR_CODE(0, 0x641E)  // Parser: current external query needs too many columns
+#define TSDB_CODE_EXT_REQUIRED_TAGS_TOO_MANY      TAOS_DEF_ERROR_CODE(0, 0x641F)  // Parser: current external query needs too many tags
+#define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC       TAOS_DEF_ERROR_CODE(0, 0x6425)  // Internal: demote function-level pushdown and retry
+#define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP         TAOS_DEF_ERROR_CODE(0, 0x6426)  // Internal: demote operator-level pushdown and retry
+#define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE     TAOS_DEF_ERROR_CODE(0, 0x6427)  // Internal: demote clause-level pushdown and retry
+#define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE       TAOS_DEF_ERROR_CODE(0, 0x6428)  // Internal: demote type-level pushdown and retry
+#define TSDB_CODE_EXT_SQL_RENDER_ERROR           TAOS_DEF_ERROR_CODE(0, 0x6429)  // Nodes: federated query SQL rendering encountered unexpected internal state
+#define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY    TAOS_DEF_ERROR_CODE(0, 0x642A)  // Internal: apply session overlay demotion and retry
+#define TSDB_CODE_EXT_PUSHDOWN_BASELINE          TAOS_DEF_ERROR_CODE(0, 0x642B)  // Internal: force baseline path
+#define TSDB_CODE_EXT_PUSHDOWN_BAILOUT_BROKEN    TAOS_DEF_ERROR_CODE(0, 0x642C)  // Internal: baseline path still triggered pushdown demotion
+// 0x642D-0x64FF reserved for extension
 
 // NEW-STREAM
 #define TSDB_CODE_MND_STREAM_INTERNAL_ERROR      TAOS_DEF_ERROR_CODE(0, 0x7000)

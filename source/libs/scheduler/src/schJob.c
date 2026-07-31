@@ -504,6 +504,14 @@ void schDumpSubJobsExecRes(SSchJob *pParent, SExecResult *pRes) {
         SCH_JOB_DLOG("move sub job %p execRes %p to output", pJob, pRes->res);
       }
     }
+
+    if (NULL == pRes->extErrMsg && NULL != pJob->execRes.extErrMsg) {
+      TSWAP(pRes->extErrMsg, pJob->execRes.extErrMsg);
+    }
+    if (NULL == pRes->extPushdownDiag && NULL != pJob->execRes.extPushdownDiag) {
+      TSWAP(pRes->extPushdownDiag, pJob->execRes.extPushdownDiag);
+    }
+
     SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
   }
 }
@@ -516,7 +524,11 @@ void schDumpJobExecRes(SSchJob *pJob, SExecResult *pRes) {
   pRes->res = pJob->execRes.res;
   pRes->msgType = pJob->execRes.msgType;
   pRes->numOfBytes = pJob->execRes.numOfBytes;
+  pRes->extErrMsg = pJob->execRes.extErrMsg;
+  pRes->extPushdownDiag = pJob->execRes.extPushdownDiag;
   pJob->execRes.res = NULL;
+  pJob->execRes.extErrMsg = NULL;
+  pJob->execRes.extPushdownDiag = NULL;
   
   SCH_JOB_DLOG("move job %p execRes %p to output", pJob, pRes->res);
   
@@ -756,9 +768,13 @@ int32_t schLaunchJobLowerLevel(SSchJob *pJob, SSchTask *pTask) {
 }
 
 int32_t schSaveJobExecRes(SSchJob *pJob, SQueryTableRsp *rsp) {
-  if (rsp->tbVerInfo) {
-    SCH_LOCK(SCH_WRITE, &pJob->resLock);
+  if (NULL == rsp->tbVerInfo && NULL == rsp->extErrMsg && NULL == rsp->extPushdownDiag) {
+    return TSDB_CODE_SUCCESS;
+  }
 
+  SCH_LOCK(SCH_WRITE, &pJob->resLock);
+
+  if (rsp->tbVerInfo) {
     if (NULL == pJob->execRes.res) {
       pJob->execRes.res = taosArrayInit(pJob->taskNum, sizeof(STbVerInfo));
       if (NULL == pJob->execRes.res) {
@@ -777,9 +793,26 @@ int32_t schSaveJobExecRes(SSchJob *pJob, SQueryTableRsp *rsp) {
     }
 
     taosArrayDestroy(rsp->tbVerInfo);
-
-    SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+    rsp->tbVerInfo = NULL;
   }
+
+  if (NULL != rsp->extErrMsg) {
+    if (NULL == pJob->execRes.extErrMsg) {
+      TSWAP(pJob->execRes.extErrMsg, rsp->extErrMsg);
+    } else {
+      taosMemoryFreeClear(rsp->extErrMsg);
+    }
+  }
+
+  if (NULL != rsp->extPushdownDiag) {
+    if (NULL == pJob->execRes.extPushdownDiag) {
+      TSWAP(pJob->execRes.extPushdownDiag, rsp->extPushdownDiag);
+    } else {
+      taosMemoryFreeClear(rsp->extPushdownDiag);
+    }
+  }
+
+  SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
 
   return TSDB_CODE_SUCCESS;
 }

@@ -81,8 +81,13 @@ typedef struct SPlanContext {
   };
   int64_t            allocatorId;
   int64_t            userId;
+  SExtSourceCapability* pExtCapability;
+  SExtCapSessionOverlay* pExtSessionOverlay;
+  int32_t*              pExtPushdownAttempt;
+  void*              pSubqueryState;  // shared planner-only subquery registry for one qCreateQueryPlan run
+  int32_t            subqueryIndex;   // -1 for root query, otherwise original global subQIdx
   void*              timezone;
-  char               timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
+  char               timezoneName[TD_TIMEZONE_LEN]; /* IANA/POSIX name of client timezone for serialization and federated scan */
   bool               timezoneExplicit;              /* set by SET TIMEZONE / connection option */
   int8_t             firstDayOfWeek;  /* resolved: 0-6 */
   SPlanStreamContext streamCxt;

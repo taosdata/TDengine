@@ -818,6 +818,7 @@ void doDestroyRequest(void *p) {
   // when the request object is destroyed, otherwise LeakSanitizer will report
   // catalog async response result leaks.
   catalogFreeMetaData(&pRequest->parseMeta);
+  extCapSessionOverlayDestroy(&pRequest->extSessionOverlay);
   TAOS_MEMSET(&pRequest->parseMeta, 0, sizeof(pRequest->parseMeta));
   nodesDestroyAllocator(pRequest->allocatorRefId);
 

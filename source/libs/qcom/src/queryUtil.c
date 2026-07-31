@@ -63,8 +63,9 @@ bool hasDecimalBytesTypeInfo(int32_t bytes) { return (((uint32_t)bytes >> 24) !=
 /*
  * Build a comparable ref-column type from schema metadata.
  *
- * typeMod carries decimal precision/scale when schemaExt is present. When it is
- * absent, fall back to the legacy decimal metadata encoded in schema bytes.
+ * typeMod carries decimal precision/scale and timestamp precision when schemaExt
+ * is present. When it is absent, fall back to the legacy decimal metadata encoded
+ * in schema bytes.
  */
 void schemaToRefDataType(const SSchema* pSchema, STypeMod typeMod, SDataType* pType) {
   if (NULL == pSchema || NULL == pType) {
@@ -74,7 +75,9 @@ void schemaToRefDataType(const SSchema* pSchema, STypeMod typeMod, SDataType* pT
   memset(pType, 0, sizeof(*pType));
   pType->type = pSchema->type;
   pType->bytes = pSchema->bytes;
-  if (IS_DECIMAL_TYPE(pSchema->type)) {
+  if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+    fillTypeFromTypeMod(pType, typeMod);
+  } else if (IS_DECIMAL_TYPE(pSchema->type)) {
     if (typeMod != 0) {
       fillTypeFromTypeMod(pType, typeMod);
     } else if ((((uint32_t)pSchema->bytes) >> 24) != 0) {
@@ -443,7 +446,14 @@ void freeSTableMetaRspPointer(void *p) {
 }
 
 void destroyQueryExecRes(SExecResult* pRes) {
-  if (NULL == pRes || NULL == pRes->res) {
+  if (NULL == pRes) {
+    return;
+  }
+
+  taosMemoryFreeClear(pRes->extErrMsg);
+  taosMemoryFreeClear(pRes->extPushdownDiag);
+
+  if (NULL == pRes->res) {
     return;
   }
 
@@ -473,6 +483,8 @@ void destroyQueryExecRes(SExecResult* pRes) {
     default:
       qError("invalid exec result for request type:%d", pRes->msgType);
   }
+
+  pRes->res = NULL;
 }
 // clang-format on
 int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len) {

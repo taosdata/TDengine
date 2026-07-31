@@ -10,6 +10,14 @@ RESULT
 40
 15
 ---
+### itag-03 POS
+SQL: SELECT _TAGS, usage FROM {I_TAG}.{I_TAG_DB}.cpu ORDER BY usage
+RESULT
+h2|eu|10
+h2|eu|20
+h1|us|30
+h1|us|50
+---
 ### i04-01 POS
 SQL: SELECT COUNT(*) FROM {I_CPU}.cpu PARTITION BY tbname
 RESULT

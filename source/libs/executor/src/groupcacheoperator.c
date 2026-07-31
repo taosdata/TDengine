@@ -491,7 +491,8 @@ static FORCE_INLINE void groupCacheSwitchNewFile(SGcFileCacheCtx* pFileCtx, int3
 
 static int32_t addBlkToBufCache(struct SOperatorInfo* pOperator, SSDataBlock* pBlock, SGcDownstreamCtx* pCtx, SGroupCacheData* pGroup, SGcBlkBufInfo* pBufInfo) {
   SGroupCacheOperatorInfo* pGCache = pOperator->info;
-  int64_t bufSize = blockDataGetSize(pBlock) + sizeof(int32_t) + taosArrayGetSize(pBlock->pDataBlock) * sizeof(int32_t);
+  int64_t bufSize = blockDataGetSize(pBlock) + sizeof(int32_t) +
+                    taosArrayGetSize(pBlock->pDataBlock) * (sizeof(int32_t) + 2 * sizeof(uint8_t));
   pBufInfo->pBuf = taosMemoryMalloc(bufSize);
   if (NULL == pBufInfo->pBuf) {
     qError("group cache add block to cache failed, size:%" PRId64, bufSize);
@@ -1529,7 +1530,8 @@ static int32_t groupCacheTwoPassGetNext(SOperatorInfo* pOperator, SSDataBlock** 
       }
       // Serialize block for Phase 2 replay.
       int64_t bufSize = blockDataGetSize(pBlock) + sizeof(int32_t) +
-                        (int64_t)taosArrayGetSize(pBlock->pDataBlock) * (int64_t)sizeof(int32_t);
+                        (int64_t)taosArrayGetSize(pBlock->pDataBlock) *
+                            (int64_t)(sizeof(int32_t) + 2 * sizeof(uint8_t));
       SGcTwoPassBlkBuf entry = {.pBuf = taosMemoryMalloc(bufSize), .bufSize = bufSize};
       if (NULL == entry.pBuf) return terrno;
       code = blockDataToBuf(entry.pBuf, pBlock);

@@ -911,6 +911,10 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
     }
   }
 
+  qDebug("%s explain exec collected, opType=%d(%s) blockId=%" PRId64 " rows=%" PRIu64 " verboseLen=%u phyNode=%p",
+         GET_TASKID(operatorInfo->pTaskInfo), operatorInfo->operatorType, nodesNodeName(operatorInfo->operatorType),
+         operatorInfo->resultDataBlockId, pExplainInfo->numOfRows, pExplainInfo->verboseLen, operatorInfo->pPhyNode);
+
   int32_t code = 0;
   for (int32_t i = 0; i < operatorInfo->numOfDownstream; ++i) {
     code = getOperatorExplainExecInfo(operatorInfo->pDownstream[i], pExecInfoList);

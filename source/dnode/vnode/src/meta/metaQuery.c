@@ -2311,7 +2311,6 @@ static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLe
   tdbFree(pOldBuf);
   return result;
 }
-
 int32_t metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version) {
   SMeta        *pMeta = ((SVnode *)pVnode)->pMeta;
   const int32_t LIMIT = 128;

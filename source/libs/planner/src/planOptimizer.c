@@ -14,6 +14,8 @@
  */
 
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "extConnector.h"
 #include "filter.h"
@@ -41,14 +43,18 @@
 #define OPTIMIZE_FLAG_ELIMINATE_VSCAN OPTIMIZE_FLAG_MASK(5)
 #define OPTIMIZE_FLAG_FQ_PUSHDOWN     OPTIMIZE_FLAG_MASK(7)
 #define OPTIMIZE_FLAG_LAST_SMA_NOTNULL OPTIMIZE_FLAG_MASK(8)
+#define OPTIMIZE_FLAG_FQ_UNIQUE_LOCAL OPTIMIZE_FLAG_MASK(10)
 
 #define OPTIMIZE_FLAG_SET_MASK(val, mask)   (val) |= (mask)
 #define OPTIMIZE_FLAG_CLEAR_MASK(val, mask) (val) &= (~(mask))
 #define OPTIMIZE_FLAG_TEST_MASK(val, mask)  (((val) & (mask)) != 0)
 
 typedef struct SOptimizeContext {
-  SPlanContext* pPlanCxt;
-  bool          optimized;
+  SPlanContext*         pPlanCxt;
+  SExtSourceCapability* pExtCapability;
+  SExtCapSessionOverlay* pSessionOverlay;
+  int32_t*              pPushdownAttempt;
+  bool                  optimized;
 } SOptimizeContext;
 
 typedef int32_t (*FOptimize)(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan);
@@ -62,6 +68,52 @@ typedef struct SOptimizeRule {
 static bool    nodeHasExternalScan(const SLogicNode* pNode);
 static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan);
 static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan);
+static int32_t fqUnionAllOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan);
+static int32_t fqUnionDeduplicateOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan);
+static SLogicNode* fqFirstChild(const SLogicNode* pNode);
+static SScanLogicNode* fqFindExternalLogicLeafScan(SLogicNode* pNode);
+static void fqPlanDebugLogExprList(const char* pTag, const SNodeList* pExprs);
+static void fqPlanDebugLogNodeOutputs(const char* pTag, const SLogicNode* pNode);
+
+static bool fqDiagEnabled(void) {
+  return NULL != getenv("FQ_DIAG");
+}
+
+static void fqDiagDumpExprList(const char* pTag, const SNodeList* pExprs) {
+  if (!fqDiagEnabled()) {
+    return;
+  }
+
+  fprintf(stderr, "[FQ-DIAG] %s count=%d\n", pTag ? pTag : "(null)",
+          pExprs ? LIST_LENGTH((SNodeList*)pExprs) : 0);
+
+  if (NULL == pExprs) {
+    return;
+  }
+
+  int32_t idx = 0;
+  SNode* pExpr = NULL;
+  FOREACH(pExpr, pExprs) {
+    const SNode* pInner = pExpr;
+    if (QUERY_NODE_TARGET == nodeType((SNode*)pInner)) {
+      pInner = ((const STargetNode*)pInner)->pExpr;
+    }
+
+    const char* pAlias = nodesIsExprNode((SNode*)pInner) ? ((const SExprNode*)pInner)->aliasName : "";
+    const char* pUserAlias = nodesIsExprNode((SNode*)pInner) ? ((const SExprNode*)pInner)->userAlias : "";
+    const char* pColName = (NULL != pInner && QUERY_NODE_COLUMN == nodeType((SNode*)pInner))
+                               ? ((const SColumnNode*)pInner)->colName
+                               : "";
+    const char* pFuncName = (NULL != pInner && QUERY_NODE_FUNCTION == nodeType((SNode*)pInner))
+                                ? ((const SFunctionNode*)pInner)->functionName
+                                : "";
+    fprintf(stderr,
+            "[FQ-DIAG]   [%d] rawType=%d innerType=%d alias=%s userAlias=%s col=%s func=%s\n",
+            idx, pExpr ? (int)nodeType(pExpr) : -1, pInner ? (int)nodeType((SNode*)pInner) : -1,
+            pAlias, pUserAlias, pColName, pFuncName);
+    ++idx;
+  }
+}
 
 typedef struct SOptimizePKCtx {
   SNodeList* pList;
@@ -153,7 +205,6 @@ static bool          joinCondHasValidPrimKeyCond(SJoinLogicNode* pJoin);
 static const char*   getJoinCondPKTable(SNode* pNode);
 static EOperatorType asofJoinGetReverseOp(EOperatorType opType);
 static bool          asofJoinGetMatchedCmpOp(SJoinLogicNode* pJoin, EOperatorType* pMatchedOpType);
-
 #if 0
 static SJoinOptimizeOpt gJoinOpt[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
            /* NONE                OUTER                  SEMI                  ANTI                   ANY                    ASOF                   WINDOW */
@@ -809,6 +860,10 @@ static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
   // FQ guard: external scan conditions must stay intact for fqPushdownOptimize to harvest.
   // Splitting into primaryKeyCond/tagCond/otherCond would destroy the WHERE clause.
   if (SCAN_TYPE_EXTERNAL == pScan->scanType) {
+    planDebug("FQ-PDC: keep scan conditions on external scan=%p table=%s source=%s for fq collect",
+              pScan, pScan->tableName.tname,
+              (NULL != pScan->pExtTableNode) ? ((SExtTableNode*)pScan->pExtTableNode)->sourceName : "(null)");
+    OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
     return TSDB_CODE_SUCCESS;
   }
   if (NULL == pScan->node.pConditions ||
@@ -852,6 +907,19 @@ static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
   return code;
 }
 
+static bool pdcShouldKeepNodeConditionsForExternalSubtree(SLogicNode* pNode, const char* ownerName) {
+  if (NULL == pNode || NULL == pNode->pConditions) {
+    return false;
+  }
+
+  if (!nodeHasExternalScan(pNode)) {
+    return false;
+  }
+
+  planDebug("FQ-PDC: keep node conditions on %s node=%p type=%d for external subtree; fq collect must judge this layer before generic pushdown",
+            ownerName ? ownerName : "(unknown)", pNode, (int)nodeType(pNode));
+  return true;
+}
 // Check if a condition involves any tag column (COLUMN_TYPE_TAG).
 // Used when the virtual super table has tag refs — since we cannot determine
 // at the super table level which specific tag columns have refs, any tag
@@ -1702,7 +1770,6 @@ static bool pdcJoinIsSafeAsofCopyCond(SJoinLogicNode* pJoin, SNode* pCond, SSHas
   }
   return asofJoinCanDeriveMatchedLowerBound(pJoin);
 }
-
 static bool pdcJoinIsPrimEqualCond(SJoinLogicNode* pJoin, SNode* pCond, bool constAsPrim) {
   if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
     return false;
@@ -2918,6 +2985,22 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (OPTIMIZE_FLAG_TEST_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
   }
+  if (pdcShouldKeepNodeConditionsForExternalSubtree((SLogicNode*)pJoin, "join")) {
+    // Preserve the parent WHERE condition for federated pushdown, but still
+    // split the primary time-key condition from the JOIN ON clause.  The
+    // physical merge join consumes pPrimKeyEqCond to build its timestamp
+    // scale expression; skipping this split makes a cross-precision external
+    // join compare the provider-native timestamp directly with the local one.
+    if (NULL != pJoin->pFullOnCond && !IS_WINDOW_JOIN(pJoin->subType) && NULL == pJoin->addPrimEqCond &&
+        NULL == pJoin->pPrimKeyEqCond) {
+      int32_t code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+    }
+    OPTIMIZE_FLAG_SET_MASK(pJoin->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return TSDB_CODE_SUCCESS;
+  }
   if (pJoin->joinAlgo != JOIN_ALGO_UNKNOWN) {
     return TSDB_CODE_SUCCESS;
   }
@@ -2932,7 +3015,6 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
       NULL == pJoin->addPrimEqCond && NULL == pJoin->pPrimKeyEqCond) {
     code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
   }
-
   while (true) {
     if (TSDB_CODE_SUCCESS == code && NULL != pJoin->node.pConditions) {
       if (0 != gJoinWhereOpt[t][s].pushDownFlag) {
@@ -3040,10 +3122,22 @@ typedef struct SPartAggCondContext {
 
 static EDealRes partAggCondHasAggFuncImpl(SNode* pNode, void* pContext) {
   SPartAggCondContext* pCxt = pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (fmIsAggFunc(pFunc->funcId) && !fmIsGroupKeyFunc(pFunc->funcId)) {
+      planDebug("PDC-agg: HAVING condition contains aggregate func name=%s funcId=%d alias=%s",
+                pFunc->functionName, pFunc->funcId, pFunc->node.aliasName);
+      pCxt->hasAggFunc = true;
+      return DEAL_RES_END;
+    }
+  }
+
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SNode* pAggFunc = NULL;
     FOREACH(pAggFunc, pCxt->pAgg->pAggFuncs) {
       if (strcmp(((SColumnNode*)pNode)->colName, ((SFunctionNode*)pAggFunc)->node.aliasName) == 0) {
+        planDebug("PDC-agg: HAVING condition references aggregate alias col=%s aggAlias=%s",
+                  ((SColumnNode*)pNode)->colName, ((SFunctionNode*)pAggFunc)->node.aliasName);
         pCxt->hasAggFunc = true;
         return DEAL_RES_END;
       }
@@ -3161,6 +3255,10 @@ static int32_t rewriteAggGroupKeyCondForPushDown(SOptimizeContext* pCxt, SAggLog
 static int32_t pdcDealAgg(SOptimizeContext* pCxt, SAggLogicNode* pAgg) {
   if (NULL == pAgg->node.pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pAgg->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pdcShouldKeepNodeConditionsForExternalSubtree((SLogicNode*)pAgg, "agg")) {
+    OPTIMIZE_FLAG_SET_MASK(pAgg->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
     return TSDB_CODE_SUCCESS;
   }
   // TODO: remove it after full implementation of pushing down to child
@@ -3481,7 +3579,6 @@ static int32_t pdcSetOpRewritePkCondForChild(SNode** ppCond, SLogicNode* pChild,
   *pRewritten = cxt.rewritten;
   return cxt.errCode;
 }
-
 static int32_t pdcDealSetOpProject(SOptimizeContext* pCxt, SProjectLogicNode* pSetOpProj) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -3578,6 +3675,10 @@ static int32_t pdcDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProjec
       OPTIMIZE_FLAG_TEST_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
   }
+  if (pdcShouldKeepNodeConditionsForExternalSubtree((SLogicNode*)pProject, "project")) {
+    OPTIMIZE_FLAG_SET_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return TSDB_CODE_SUCCESS;
+  }
 
   /* UNION ALL merge-point: distribute ts conditions to branch children. */
   if (pProject->isSetOpProj) {
@@ -3618,6 +3719,11 @@ static int32_t pdcDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProjec
 static int32_t pdcTrivialPushDown(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   if (NULL == pLogicNode->pConditions ||
       OPTIMIZE_FLAG_TEST_MASK(pLogicNode->optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pdcShouldKeepNodeConditionsForExternalSubtree(pLogicNode,
+                                                    QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pLogicNode) ? "sort" : "partition")) {
+    OPTIMIZE_FLAG_SET_MASK(pLogicNode->optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
     return TSDB_CODE_SUCCESS;
   }
   /* Do not push a condition past a LIMIT/SLIMIT boundary on the current node.
@@ -3979,13 +4085,89 @@ static bool sortPriKeyOptHasAscPriKeyPrefix(SNodeList* pSortKeys) {
   return (QUERY_NODE_COLUMN == nodeType(pNode) ? isPrimaryKeyImpl(pNode) : false);
 }
 
+static const SLogicNode* fqScanGetPkOrderProofNode(const SLogicNode* pNode) {
+  const SLogicNode* pCurr = pNode;
+
+  while (NULL != pCurr && QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pCurr) && 1 == LIST_LENGTH(pCurr->pChildren)) {
+    pCurr = (const SLogicNode*)nodesListGetNode(pCurr->pChildren, 0);
+  }
+
+  return pCurr;
+}
+
+static bool fqScanHasProvenPkOrder(const SScanLogicNode* pScan, EOrder* pOrder) {
+  if (NULL == pScan || SCAN_TYPE_EXTERNAL != pScan->scanType || NULL == pScan->pRemoteLogicPlan) {
+    return false;
+  }
+
+  const SLogicNode* pProofNode = fqScanGetPkOrderProofNode((const SLogicNode*)pScan->pRemoteLogicPlan);
+  if (NULL == pProofNode || QUERY_NODE_LOGIC_PLAN_SORT != nodeType(pProofNode)) {
+    return false;
+  }
+
+  const SSortLogicNode* pSort = (const SSortLogicNode*)pProofNode;
+  if (!sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys)) {
+    return false;
+  }
+
+  if (NULL != pOrder) {
+    *pOrder = ((SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0))->order;
+  }
+  return true;
+}
+
+static bool sortPriKeyOptExternalScanProofReady(const SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return true;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    const SScanLogicNode* pScan = (const SScanLogicNode*)pNode;
+    return (SCAN_TYPE_EXTERNAL == pScan->scanType) ? fqScanHasProvenPkOrder(pScan, NULL) : true;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (!sortPriKeyOptExternalScanProofReady((const SLogicNode*)pChild)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static void fqSyncScanOrderFromRemotePkSort(SScanLogicNode* pScan) {
+  EOrder order = TSDB_ORDER_NONE;
+
+  if (!fqScanHasProvenPkOrder(pScan, &order)) {
+    return;
+  }
+
+  pScan->node.outputTsOrder = order;
+  pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+}
+
+static bool sortPriKeyOptExternalWindowReady(const SWindowLogicNode* pWindow, EOrder sortOrder) {
+  if (NULL == pWindow || WINDOW_TYPE_EXTERNAL != pWindow->winType) {
+    return false;
+  }
+
+  // External window can substitute a top-level primary-key Sort only when it
+  // already promises global timestamp order on its own output path.
+  if (pWindow->needGroupSort || pWindow->node.resultDataOrder < DATA_ORDER_LEVEL_GLOBAL) {
+    return false;
+  }
+
+  return pWindow->node.outputTsOrder == sortOrder;
+}
+
 static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (QUERY_NODE_LOGIC_PLAN_SORT != nodeType(pNode)) {
     return false;
   }
-  // FQ guard: external data is not guaranteed to be ordered by primary key.
-  // Eliminating the Sort would produce incorrect unordered results.
-  if (nodeHasExternalScan(pNode)) {
+  // External scans can participate only after FQ has materialized a remote
+  // primary-key Sort and synced that ordering fact back to the docking scan.
+  if (nodeHasExternalScan(pNode) && !sortPriKeyOptExternalScanProofReady(pNode)) {
     return false;
   }
   SSortLogicNode* pSort = (SSortLogicNode*)pNode;
@@ -3999,10 +4181,6 @@ static bool sortPriKeyOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     if (JOIN_TYPE_FULL == pJoin->joinType) {
       return false;
     }
-  }
-
-  if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pChild) && ((SWindowLogicNode*)pChild)->winType == WINDOW_TYPE_EXTERNAL) {
-    return false;
   }
 
   FOREACH(pChild, pSort->node.pChildren) {
@@ -4186,6 +4364,14 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
         *pNotOptimize = true;
         return TSDB_CODE_SUCCESS;
       }
+      if (SCAN_TYPE_EXTERNAL == pScan->scanType) {
+        EOrder extOrder = TSDB_ORDER_NONE;
+        if (!fqScanHasProvenPkOrder(pScan, &extOrder) || pScan->node.outputTsOrder != extOrder ||
+            pScan->node.resultDataOrder < DATA_ORDER_LEVEL_GLOBAL || extOrder != sortOrder) {
+          *pNotOptimize = true;
+          return TSDB_CODE_SUCCESS;
+        }
+      }
       return nodesListMakeAppend(pSequencingNodes, (SNode*)pNode);
     }
     case QUERY_NODE_LOGIC_PLAN_SORT: {
@@ -4198,6 +4384,13 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
     }
     case QUERY_NODE_LOGIC_PLAN_WINDOW: {
       SWindowLogicNode* pWindowLogicNode = (SWindowLogicNode*)pNode;
+      if (pWindowLogicNode->winType == WINDOW_TYPE_EXTERNAL) {
+        if (!sortPriKeyOptExternalWindowReady(pWindowLogicNode, sortOrder)) {
+          *pNotOptimize = true;
+          return TSDB_CODE_SUCCESS;
+        }
+        return nodesListMakeAppend(pSequencingNodes, (SNode*)pNode);
+      }
       // For interval window, we always apply sortPriKey optimization.
       // For session/event/state window, the output ts order will always be ASC.
       // If sort order is also asc, we apply optimization, otherwise we keep sort node to get correct output order.
@@ -4255,11 +4448,12 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   FOREACH(pSequencingNode, pSequencingNodes) {
     if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pSequencingNode)) {
       SScanLogicNode* pScan = (SScanLogicNode*)pSequencingNode;
-      if ((ORDER_DESC == order && pScan->scanSeq[0] > 0) || (ORDER_ASC == order && pScan->scanSeq[1] > 0)) {
+      if (SCAN_TYPE_EXTERNAL != pScan->scanType &&
+          ((ORDER_DESC == order && pScan->scanSeq[0] > 0) || (ORDER_ASC == order && pScan->scanSeq[1] > 0))) {
         TSWAP(pScan->scanSeq[0], pScan->scanSeq[1]);
       }
       pScan->node.outputTsOrder = order;
-      if (TSDB_SUPER_TABLE == pScan->tableType && !pScan->phTbnameScan) {
+      if (SCAN_TYPE_EXTERNAL != pScan->scanType && TSDB_SUPER_TABLE == pScan->tableType && !pScan->phTbnameScan) {
         planPromoteScanToTableMerge(pScan, DATA_ORDER_LEVEL_GLOBAL, DATA_ORDER_LEVEL_GLOBAL);
       }
       pScan->sortPrimaryKey = true;
@@ -4584,12 +4778,13 @@ static bool joinCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
-  if (pNode->pChildren->length != 2 || JOIN_STYPE_WIN == pJoin->subType || JOIN_TYPE_FULL == pJoin->joinType) {
-    OPTIMIZE_FLAG_SET_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
+  if (JOIN_STYPE_ASOF == pJoin->subType) {
+    // ASOF joins are handled by AsofJoinCondOptimize, which shares this flag.
     return false;
   }
 
-  if (JOIN_STYPE_ASOF == pJoin->subType) {
+  if (pNode->pChildren->length != 2 || JOIN_STYPE_WIN == pJoin->subType || JOIN_TYPE_FULL == pJoin->joinType) {
+    OPTIMIZE_FLAG_SET_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
     return false;
   }
 
@@ -4634,7 +4829,43 @@ static bool joinCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   if (!joinCondHasValidPrimKeyCond(pJoin)) {
+    OPTIMIZE_FLAG_SET_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
     return false;
+  }
+  // FQ guard (defensive): if any participating SCAN is an ExternalScan, skip this
+  // rule. FqPushdown runs earlier in optimizeRuleSet[] and will normally have
+  // stripped the FQ subplan before joinCondOptimize executes, but a mixed
+  // local+external JOIN that survives FqPushdown must not have its scanRange
+  // overwritten here (ExternalScan pushes time filters via pRemoteLogicPlan,
+  // not via SScanLogicNode::scanRange).
+  if (SCAN_TYPE_EXTERNAL == pLScan->scanType || SCAN_TYPE_EXTERNAL == pRScan->scanType) {
+    OPTIMIZE_FLAG_SET_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
+    return false;
+  }
+  if (JOIN_TYPE_INNER == pJoin->joinType) {
+    SNodeList* pAllScans = NULL;
+    if (TSDB_CODE_SUCCESS == joinCondGetAllScanNodes((SLogicNode*)pJoin, &pAllScans)) {
+      bool   hasExt = false;
+      SNode* pSc = NULL;
+      FOREACH(pSc, pAllScans) {
+        if (SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pSc)->scanType) {
+          hasExt = true;
+          break;
+        }
+      }
+      nodesClearList(pAllScans);
+      if (hasExt) {
+        OPTIMIZE_FLAG_SET_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_JOIN_COND);
+        return false;
+      }
+    }
+  }
+
+  if (pJoin->pPrimKeyEqCond && QUERY_NODE_OPERATOR == nodeType(pJoin->pPrimKeyEqCond)) {
+    SOperatorNode* pOp = (SOperatorNode*)pJoin->pPrimKeyEqCond;
+    if ((pOp->pLeft && QUERY_NODE_COLUMN != nodeType(pOp->pLeft)) || (pOp->pRight && QUERY_NODE_COLUMN != nodeType(pOp->pRight))) {
+      return false;
+    }
   }
 
   return true;
@@ -4723,7 +4954,6 @@ static int32_t joinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 
   return TSDB_CODE_SUCCESS;
 }
-
 static bool asofJoinCondMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(pNode) ||
       OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_JOIN_COND)) {
@@ -4833,7 +5063,6 @@ static int32_t asofJoinCondOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
 
   return TSDB_CODE_SUCCESS;
 }
-
 static bool smaIndexOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode) || NULL == pNode->pParent ||
       QUERY_NODE_LOGIC_PLAN_WINDOW != nodeType(pNode->pParent) ||
@@ -5220,13 +5449,113 @@ static bool partTagsNeedOutput(SNode* pExpr, SNodeList* pTargets) {
   return false;
 }
 
-static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t start, SAggLogicNode* pAgg) {
+typedef struct SPartTagsExprConsumerCxt {
+  const SNode* pExpr;
+  bool         found;
+} SPartTagsExprConsumerCxt;
+
+static void partTagsDebugLogConsumerChain(const SAggLogicNode* pAgg);
+
+static EDealRes partTagsFindExprConsumer(SNode* pNode, void* pContext) {
+  SPartTagsExprConsumerCxt* pCxt = pContext;
+  if (NULL == pNode || NULL == pCxt || NULL == pCxt->pExpr) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (nodesEqualNode((SNode*)pCxt->pExpr, pNode)) {
+    pCxt->found = true;
+    return DEAL_RES_END;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static bool partTagsExprReferencedInExpr(SNode* pExpr, SNode* pRoot) {
+  if (NULL == pExpr || NULL == pRoot) {
+    return false;
+  }
+
+  SPartTagsExprConsumerCxt cxt = {.pExpr = pExpr, .found = false};
+  nodesWalkExpr(pRoot, partTagsFindExprConsumer, &cxt);
+  return cxt.found;
+}
+
+static bool partTagsExprReferencedInExprs(SNode* pExpr, SNodeList* pExprs) {
+  if (NULL == pExpr || NULL == pExprs) {
+    return false;
+  }
+
+  SPartTagsExprConsumerCxt cxt = {.pExpr = pExpr, .found = false};
+  nodesWalkExprs(pExprs, partTagsFindExprConsumer, &cxt);
+  return cxt.found;
+}
+
+static bool partTagsNodeConsumesExpr(SNode* pExpr, const SLogicNode* pNode, bool* pStop) {
+  if (NULL != pStop) {
+    *pStop = false;
+  }
+
+  if (NULL == pExpr || NULL == pNode) {
+    return false;
+  }
+
+  if (partTagsExprReferencedInExpr(pExpr, pNode->pConditions)) {
+    return true;
+  }
+
+  switch (nodeType((SNode*)pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      if (NULL != pStop) {
+        *pStop = true;
+      }
+      return partTagsExprReferencedInExprs(pExpr, ((const SProjectLogicNode*)pNode)->pProjections);
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      return partTagsExprReferencedInExprs(pExpr, ((const SSortLogicNode*)pNode)->pSortKeys);
+    default:
+      return false;
+  }
+}
+
+static bool partTagsHasRealConsumer(const SAggLogicNode* pAgg, SNode* pExpr) {
+  if (NULL == pAgg || NULL == pExpr) {
+    return false;
+  }
+
+  if (partTagsNeedOutput(pExpr, pAgg->node.pTargets)) {
+    return true;
+  }
+
+  if (partTagsExprReferencedInExpr(pExpr, pAgg->node.pConditions)) {
+    return true;
+  }
+
+  const SLogicNode* pCurr = pAgg->node.pParent;
+  while (NULL != pCurr) {
+    bool stop = false;
+    if (partTagsNodeConsumesExpr(pExpr, pCurr, &stop)) {
+      return true;
+    }
+    if (stop) {
+      return false;
+    }
+    pCurr = pCurr->pParent;
+  }
+
+  return false;
+}
+
+static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t start, SAggLogicNode* pAgg,
+                                               bool appendWrapperTarget) {
   bool    hasIndefRowsSelectFunc = partTagsHasIndefRowsSelectFunc(pAgg->pAggFuncs);
+  partTagsDebugLogConsumerChain(pAgg);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t index = 0;
   SNode*  pNode = NULL;
   FOREACH(pNode, pGroupTags) {
-    if (index++ < start || !partTagsNeedOutput(pNode, pAgg->node.pTargets)) {
+    int32_t currIndex = index++;
+    bool    needOutput = partTagsHasRealConsumer(pAgg, pNode);
+    planDebug("FQ-partTags: groupTag[%d] nodeType=%d needOutput=%d", currIndex, (int)nodeType(pNode), needOutput);
+    if (currIndex < start || !needOutput) {
       continue;
     }
     SFunctionNode* pFunc = NULL;
@@ -5240,6 +5569,9 @@ static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t st
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesListStrictAppend(pAgg->pAggFuncs, (SNode*)pFunc);
       }
+    }
+    if (TSDB_CODE_SUCCESS == code && appendWrapperTarget) {
+      code = createColumnByRewriteExpr((SNode*)pFunc, &pAgg->node.pTargets);
     }
     if (TSDB_CODE_SUCCESS != code) {
       break;
@@ -5449,7 +5781,10 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 
     NODES_DESTORY_LIST(pAgg->pGroupKeys);
     if (TSDB_CODE_SUCCESS == code && start >= 0) {
-      code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg);
+      // The external connector needs the wrapper in the declared remote output.
+      // Local scans materialize it through pAggFuncs, as in 3.0; adding both
+      // representations makes the aggregate descriptor count the tag twice.
+      code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg, pScan->scanType == SCAN_TYPE_EXTERNAL);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -5487,10 +5822,14 @@ static int32_t eliminateProjOptCheckProjColumnNames(SProjectLogicNode* pProjectN
 }
 
 static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
-  // Super table scan requires project operator to merge packets to improve performance.
+  // Local super-table scans keep the root Project so the top-level project
+  // operator can merge result blocks efficiently. External scans may reuse
+  // the super-table model for semantic checks, but should still participate
+  // in normal Project elimination.
   if (NULL == pNode->pParent &&
       (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
        (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0)) &&
+        SCAN_TYPE_EXTERNAL != ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->scanType &&
         TSDB_SUPER_TABLE == ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->tableType))) {
     return false;
   }
@@ -5664,6 +6003,76 @@ static void eliminateProjPushdownProjIdx(SNodeList* pParentProjects, SNodeList* 
   }
 }
 
+static int32_t eliminateProjOptAlignExtScanOutputs(SProjectLogicNode* pProjectNode, SLogicNode* pChild,
+                                                   bool* pAligned, bool* pBlocked) {
+  if (NULL != pAligned) {
+    *pAligned = false;
+  }
+  if (NULL != pBlocked) {
+    *pBlocked = false;
+  }
+
+  if (NULL == pProjectNode || NULL == pChild || QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  if (SCAN_TYPE_EXTERNAL != pScan->scanType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t projCnt = (NULL != pProjectNode->pProjections) ? LIST_LENGTH(pProjectNode->pProjections) : 0;
+  planDebug("FQ-eliminateProject: inspect external scan child for project alignment project=%p scan=%p projCnt=%d scanCols=%d targets=%d pseudoCols=%d hasCond=%d",
+            pProjectNode, pScan, projCnt,
+            pScan->pScanCols ? LIST_LENGTH(pScan->pScanCols) : 0,
+            pScan->node.pTargets ? LIST_LENGTH(pScan->node.pTargets) : 0,
+            pScan->pScanPseudoCols ? LIST_LENGTH(pScan->pScanPseudoCols) : 0,
+            NULL != pScan->node.pConditions);
+  fqPlanDebugLogExprList("eliminateProj.project.projections", pProjectNode->pProjections);
+  fqPlanDebugLogNodeOutputs("eliminateProj.scan.before", (SLogicNode*)pScan);
+
+  if (NULL != pScan->pScanPseudoCols && LIST_LENGTH(pScan->pScanPseudoCols) > 0) {
+    if (NULL != pBlocked) {
+      *pBlocked = true;
+    }
+    planDebug("FQ-eliminateProject: keep project=%p over external scan=%p because scan has pseudo cols=%d",
+              pProjectNode, pScan, LIST_LENGTH(pScan->pScanPseudoCols));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeList* pNewScanCols = NULL;
+  int32_t code = nodesCloneList(pProjectNode->pProjections, &pNewScanCols);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-eliminateProject: clone project projections for external scan failed project=%p scan=%p code=0x%x",
+              pProjectNode, pScan, code);
+    return code;
+  }
+
+  SNodeList* pNewTargets = NULL;
+  code = createColumnByRewriteExprs(pNewScanCols, &pNewTargets);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-eliminateProject: rebuild external scan targets from project projections failed project=%p scan=%p projCnt=%d code=0x%x",
+              pProjectNode, pScan, projCnt, code);
+    nodesDestroyList(pNewScanCols);
+    return code;
+  }
+
+  nodesDestroyList(pScan->pScanCols);
+  pScan->pScanCols = pNewScanCols;
+  nodesDestroyList(pScan->node.pTargets);
+  pScan->node.pTargets = pNewTargets;
+
+  if (NULL != pAligned) {
+    *pAligned = true;
+  }
+  planDebug("FQ-eliminateProject: aligned external scan outputs to project project=%p scan=%p scanCols=%d targets=%d",
+            pProjectNode, pScan,
+            pScan->pScanCols ? LIST_LENGTH(pScan->pScanCols) : 0,
+            pScan->node.pTargets ? LIST_LENGTH(pScan->node.pTargets) : 0);
+  fqPlanDebugLogNodeOutputs("eliminateProj.scan.after", (SLogicNode*)pScan);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t eliminateProjOptFindProjPrefixWithOrderCheck(SProjectLogicNode* pProj, SProjectLogicNode* pChild,
                                                             SNodeList** pNewChildTargets, bool* orderMatch) {
   int32_t code = 0;
@@ -5725,6 +6134,8 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   SSHashObj*  pTargetHash = NULL;
   SNodeList*  pNewChildTargets = NULL;
   SNode*      pNew = NULL;
+  bool        extScanAligned = false;
+  bool        extScanBlocked = false;
 
   if (NULL == pProjectNode->node.pParent) {
     SNode*    pProjection = NULL, *pChildTarget = NULL;
@@ -5793,6 +6204,16 @@ static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
     eliminateProjPushdownProjIdx(pProjectNode->pProjections, pChild->pTargets);
   }
 
+  PLAN_ERR_JRET(eliminateProjOptAlignExtScanOutputs(pProjectNode, pChild, &extScanAligned, &extScanBlocked));
+  if (extScanBlocked) {
+    planDebug("FQ-eliminateProject: skip eliminating project=%p because external scan child=%p cannot be aligned to project outputs safely",
+              pProjectNode, pChild);
+    OPTIMIZE_FLAG_SET_MASK(pProjectNode->node.optimizedFlag, OPTIMIZE_FLAG_ELIMINATE_PROJ);
+    pCxt->optimized = true;
+    tSimpleHashCleanup(pTargetHash);
+    return code;
+  }
+
   PLAN_ERR_JRET(replaceLogicNode(pLogicSubplan, (SLogicNode*)pProjectNode, pChild));
   if (pProjectNode->node.pHint && !pChild->pHint) {
     TSWAP(pProjectNode->node.pHint, pChild->pHint);
@@ -5839,7 +6260,15 @@ static int32_t eliminateProjOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
 }
 
 static bool rewriteTailOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
-  return QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC == nodeType(pNode) && ((SIndefRowsFuncLogicNode*)pNode)->isTailFunc;
+  if (QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC != nodeType(pNode) ||
+      !((SIndefRowsFuncLogicNode*)pNode)->isTailFunc) {
+    return false;
+  }
+  if (nodeHasExternalScan(pNode)) {
+    planDebug("FQ-rewriteTail: allow rewrite for external subtree indef=%p to keep operator-based TAIL semantics",
+              pNode);
+  }
+  return true;
 }
 
 static int32_t rewriteTailOptCreateOrderByExpr(SNode* pSortKey, SNode** ppNode) {
@@ -6000,7 +6429,6 @@ static int32_t rewriteTailOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pL
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListMakeAppend(&pProject->pChildren, (SNode*)pSort);
     pSort->pParent = pProject;
-    pSort = NULL;
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pIndef, pProject);
@@ -6068,7 +6496,15 @@ static int32_t eliminateSetOpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLo
 }
 
 static bool rewriteUniqueOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
-  return QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC == nodeType(pNode) && ((SIndefRowsFuncLogicNode*)pNode)->isUniqueFunc;
+  if (QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC != nodeType(pNode) ||
+      !((SIndefRowsFuncLogicNode*)pNode)->isUniqueFunc) {
+    return false;
+  }
+  if (nodeHasExternalScan(pNode)) {
+    planDebug("FQ-rewriteUnique: allow rewrite for external subtree indef=%p to keep operator-based UNIQUE semantics",
+              pNode);
+  }
+  return true;
 }
 
 static int32_t rewriteUniqueOptCreateGroupingSet(SNode* pExpr, SNode** ppNode) {
@@ -6327,6 +6763,10 @@ static int32_t rewriteUniqueOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* 
   }
   if (TSDB_CODE_SUCCESS == code) {
     pAgg->pParent = pProject;
+    OPTIMIZE_FLAG_SET_MASK(pAgg->optimizedFlag, OPTIMIZE_FLAG_FQ_UNIQUE_LOCAL);
+    OPTIMIZE_FLAG_SET_MASK(pProject->optimizedFlag, OPTIMIZE_FLAG_FQ_UNIQUE_LOCAL);
+    planDebug("FQ-rewriteUnique: mark rewritten UNIQUE subtree local-only project=%p agg=%p indef=%p",
+              pProject, pAgg, pIndef);
     pAgg = NULL;
     code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pIndef, pProject);
   }
@@ -8637,6 +9077,15 @@ static bool stbJoinOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  // FQ guard (defensive): ExternalScan must never have its scanType rewritten
+  // to SCAN_TYPE_TAG. FqPushdown runs earlier in optimizeRuleSet[] and the
+  // parser does not synthesize pTagEqCond for external tables, so this branch
+  // is unreachable today, but the guard keeps the invariant explicit.
+  if (SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pLeft)->scanType ||
+      SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pRight)->scanType) {
+    return false;
+  }
+
   return true;
 }
 
@@ -10314,7 +10763,6 @@ static bool pdaMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   // TagRefSource children cannot participate in PDA restructuring.
   SNode* pChild;
   FOREACH(pChild, pVScan->node.pChildren) {
-    
     if (nodeType(pChild) != QUERY_NODE_LOGIC_PLAN_SCAN) {
       return false;
     }
@@ -11120,7 +11568,36 @@ static int32_t vtableWindowOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogi
     pTrimmedVScan->node.pParent = (SLogicNode*)pNewWindow;
     pTrimmedVScan = NULL;  // ownership transferred
   }
-
+  if (sameOrigin) {
+    // same origin table: attach StateWindow directly to the single origin TableScan
+    pMatchedTspk = findWindowTspkFromScanCols(((SScanLogicNode*)pStateColScan)->pScanCols, pNewWindow->pTspk);
+    QUERY_CHECK_NULL(pMatchedTspk, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR)
+    nodesDestroyNode(pNewWindow->pTspk);
+    pNewWindow->pTspk = NULL;
+    PLAN_ERR_JRET(nodesCloneNode(pMatchedTspk, (SNode**)&pNewWindow->pTspk));
+    PLAN_ERR_JRET(nodesListMakeAppend(&pNewWindow->node.pChildren, pStateColScan));
+    ((SLogicNode*)pStateColScan)->pParent = (SLogicNode*)pNewWindow;
+    PLAN_ERR_JRET(rewriteAndPushVtableWindowConditions(pVirtualScan, (SScanLogicNode*)pStateColScan, &canOptimize));
+    if (!canOptimize) {
+      nodesDestroyNode((SNode*)pNewWindow);
+      pNewWindow = NULL;
+      nodesDestroyNode((SNode*)pVirtualScan);
+      pVirtualScan = NULL;
+      goto _return;
+    }
+  } else {
+    // cross origin tables: keep a trimmed VirtualScan under StateWindow
+    PLAN_ERR_JRET(nodesCloneNode((SNode*)pVirtualScan, (SNode**)&pTrimmedVScan));
+    trimVirtualScanForStateCols(pTrimmedVScan, pNewWindow->pStateExprs);
+    pMatchedTspk = findWindowTspkFromScanCols(pTrimmedVScan->pScanCols, pNewWindow->pTspk);
+    QUERY_CHECK_NULL(pMatchedTspk, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR)
+    nodesDestroyNode(pNewWindow->pTspk);
+    pNewWindow->pTspk = NULL;
+    PLAN_ERR_JRET(nodesCloneNode(pMatchedTspk, (SNode**)&pNewWindow->pTspk));
+    PLAN_ERR_JRET(nodesListMakeAppend(&pNewWindow->node.pChildren, (SNode*)pTrimmedVScan));
+    pTrimmedVScan->node.pParent = (SLogicNode*)pNewWindow;
+    pTrimmedVScan = NULL;  // ownership transferred
+  }
   pExtWinMap = taosHashInit(LIST_LENGTH(pNewWindow->pFuncs), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true,
                             HASH_ENTRY_LOCK);
   QUERY_CHECK_NULL(pExtWinMap, code, lino, _return, terrno)
@@ -12224,7 +12701,7 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
         return false;
       }
       SNode* pGroupExpr = nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0);
-      if (!pGroupExpr || partTagsNeedOutput(pGroupExpr, pAgg->node.pTargets)) {
+      if (!pGroupExpr || partTagsHasRealConsumer(pAgg, pGroupExpr)) {
         return false;
       }
     }
@@ -13172,18 +13649,34 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
   {.pName = "PushDownCondition",          .optimizeFunc = pdcOptimize},
   {.pName = "EliminateNotNullCond",       .optimizeFunc = eliminateNotNullCondOptimize},
-  // FqPushdown must run BEFORE Sort/Limit/Project optimizations.  Once it
-  // extracts the Sort+Project chain into pRemoteLogicPlan, later rules
-  // (PushDownLimit, EliminateProject, etc.) see no Sort/Project above the
-  // ExternalScan and naturally become no-ops for that subtree.
-  // Rules above (RewriteTail, RewriteUnique, ScanPath, PushDownCondition,
-  // EliminateNotNullCond) have been audited:
+  // FqPushdown is registered here (mid-pipeline, NOT at the end as the DS
+  // suggests).  By stripping the Sort/Project/Limit/Agg chain into
+  // pRemoteLogicPlan early, all downstream rules that walk those operators
+  // (PushDownLimit, EliminateProject, MergeProjects, sortNonPriKey,
+  // SortForJoin, etc.) become natural no-ops for the FQ subtree -- which
+  // avoids retrofitting an ExternalScan guard into every one of them.
+  //
+  // Rules ABOVE FqPushdown are audited and have explicit guards:
   //   - RewriteTail/RewriteUnique: only match IndefRowsFunc nodes (N/A)
-  //   - ScanPath: explicit SCAN_TYPE_EXTERNAL guard
-  //   - PushDownCondition: pdcDealScan has SCAN_TYPE_EXTERNAL guard
-  //   - EliminateNotNullCond: explicit SCAN_TYPE_EXTERNAL guard
+  //   - ScanPath:               explicit SCAN_TYPE_EXTERNAL guard
+  //   - PushDownCondition:      all generic pushdown entry points keep node/scan
+  //                             conditions in-place when the subtree contains
+  //                             an external scan, so FQ collect sees the
+  //                             original per-layer predicates
+  //   - EliminateNotNullCond:   explicit SCAN_TYPE_EXTERNAL guard
+  //
+  // Rules BELOW FqPushdown that touch SCAN nodes directly (and therefore
+  // need explicit guards rather than relying on the strip-side-effect):
+  //   - JoinCondOptimize:       guard in joinCondMayBeOptimized
+  //   - StableJoin:             guard in stbJoinOptShouldBeOptimized
+  //   - SortPrimaryKey / PushDownLimit / PartitionTags: explicit guards
+  // All other downstream rules either operate above SCAN level (and thus
+  // see nothing after FqPushdown strips the chain) or target unrelated
+  // node types (vtable / SMA / TSMA / cache-last).
   {.pName = "FqPushdown",                 .optimizeFunc = fqPushdownOptimize},
   {.pName = "FqInterp",                   .optimizeFunc = fqInterpOptimize},
+  {.pName = "FqUnionAll",                 .optimizeFunc = fqUnionAllOptimize},
+  {.pName = "FqUnionDedup",               .optimizeFunc = fqUnionDeduplicateOptimize},
   {.pName = "JoinCondOptimize",           .optimizeFunc = joinCondOptimize},
   {.pName = "AsofJoinCondOptimize",       .optimizeFunc = asofJoinCondOptimize},
   {.pName = "HashJoin",                   .optimizeFunc = hashJoinOptimize},
@@ -13237,7 +13730,13 @@ static int32_t dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) 
 }
 
 static int32_t applyOptimizeRule(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  SOptimizeContext cxt = {.pPlanCxt = pCxt, .optimized = false};
+  SOptimizeContext cxt = {
+      .pPlanCxt = pCxt,
+      .pExtCapability = (NULL != pCxt) ? pCxt->pExtCapability : NULL,
+      .pSessionOverlay = (NULL != pCxt) ? pCxt->pExtSessionOverlay : NULL,
+      .pPushdownAttempt = (NULL != pCxt) ? pCxt->pExtPushdownAttempt : NULL,
+      .optimized = false,
+  };
   bool             optimized = false;
   int32_t          code = dumpLogicSubplan(NULL, pLogicSubplan);
   if (TSDB_CODE_SUCCESS != code) {
@@ -13282,16 +13781,19 @@ static bool subplanHasExternalScan(SLogicSubplan* pSubplan) {
 }
 
 // ─── Federated Query Pushdown Optimizer ────────────────────────────────────
-// Identifies consecutive pushdownable parent nodes (Sort, Project) of an
-// ExternalScan and moves them into SScanLogicNode.pRemoteLogicPlan, removing
-// them from the main logical tree.
+// Walks each external scan bottom-up, finds the highest contiguous pushable
+// logic subtree, and clones that subtree into SScanLogicNode.pRemoteLogicPlan.
+// The main tree keeps only the docking external scan plus whatever non-pushable
+// layers remain above it.
 //
-// This eliminates the bug where the physical plan walker would also visit those
-// parent nodes and produce duplicate physical plan nodes.  Physical plan
-// generation converts pRemoteLogicPlan → pRemotePlan without parent-chain logic.
+// This avoids duplicate local/remote plan generation and preserves a single
+// source of truth for the final pushdown shape before physical planning.
 // ─────────────────────────────────────────────────────────────────────────────
 
 static SScanLogicNode* fqFindExternalScan(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return NULL;
+  }
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) &&
       ((SScanLogicNode*)pNode)->scanType == SCAN_TYPE_EXTERNAL &&
       !OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN)) {
@@ -13305,55 +13807,526 @@ static SScanLogicNode* fqFindExternalScan(SLogicNode* pNode) {
   return NULL;
 }
 
+// FqInterp runs AFTER FqPushdown.  At that point the docking external scan has
+// already been marked OPTIMIZE_FLAG_FQ_PUSHDOWN, so the generic
+// fqFindExternalScan() intentionally skips it.  INTERP still needs to revisit
+// that docking scan to replace the bare remote scan with its branch-aware
+// remote plan.  Therefore this finder ignores the FQ_PUSHDOWN flag and returns
+// only an external scan that still has a local INTERP ancestor above it.
+static SScanLogicNode* fqFindInterpExternalScan(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (pScan->scanType == SCAN_TYPE_EXTERNAL) {
+      SLogicNode* pCur = pScan->node.pParent;
+      SInterpFuncLogicNode* pInterp = NULL;
+      while (NULL != pCur) {
+        if (QUERY_NODE_LOGIC_PLAN_INTERP_FUNC == nodeType(pCur)) {
+          pInterp = (SInterpFuncLogicNode*)pCur;
+          break;
+        }
+        pCur = pCur->pParent;
+      }
+      planDebug("FqInterp: probe scan=%p optimizedFlag=%d hasInterpAncestor=%d remotePlan=%p",
+                pScan, (int)pScan->node.optimizedFlag, (int)(NULL != pInterp), pScan->pRemoteLogicPlan);
+      if (NULL != pInterp) {
+        return pScan;
+      }
+    }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    SScanLogicNode* pFound = fqFindInterpExternalScan((SLogicNode*)pChild);
+    if (NULL != pFound) {
+      return pFound;
+    }
+  }
+
+  return NULL;
+}
+
 static bool fqNodeIsPushdownable(ENodeType type) {
-  // Phase 1: only Sort and Project are pushed down.
-  // Phase 2 can extend this (Filter, Agg, Join …).
-  return type == QUERY_NODE_LOGIC_PLAN_SORT || type == QUERY_NODE_LOGIC_PLAN_PROJECT;
+  // Sort, Project, Agg, and IndefRowsFunc (LAG/LEAD) can be pushed into
+  // pRemoteLogicPlan.  Other operators (Window/Join/Filter) execute locally.
+  return type == QUERY_NODE_LOGIC_PLAN_SORT ||
+         type == QUERY_NODE_LOGIC_PLAN_PROJECT ||
+         type == QUERY_NODE_LOGIC_PLAN_AGG ||
+         type == QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC;
 }
 
 // Phase 1: keep Project pushdown conservative.  Only pure column projections
 // are pushed down; expression projections stay local to avoid remote type
 // mapping instability in mixed-source parity paths.
-static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan);
+static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSourceCapability* pCap,
+                             const SExtCapSessionOverlay* pOverlay, const SPlanContext* pPlanCxt);
 static bool fqTargetsAllColumns(const SNodeList* pTargets);
-static bool fqExprListHasColumnRef(const SNodeList* pExprList);
-static bool fqProjectIsPushdownable(const SLogicNode* pNode) {
+static int32_t fqAlignRemoteRootTargetsForRender(SLogicNode* pRemoteRoot);
+static SScanLogicNode* fqFindExternalLogicLeafScan(SLogicNode* pNode);
+
+static bool fqNodeIsSingleChildSetOpPassthrough(const SLogicNode* pNode) {
+  if (NULL == pNode || NULL == pNode->pChildren || LIST_LENGTH(pNode->pChildren) != 1) {
+    return false;
+  }
+
+  ENodeType type = nodeType((const SNode*)pNode);
+  return QUERY_NODE_LOGIC_PLAN_PROJECT == type || QUERY_NODE_LOGIC_PLAN_SORT == type;
+}
+
+static bool fqProjectIsCrossSourceSetOpBranch(const SProjectLogicNode* pProj, const SScanLogicNode* pScan) {
+  if (NULL == pProj || NULL == pScan || NULL == pScan->pExtTableNode) {
+    return false;
+  }
+
+  const SProjectLogicNode* pSetOpProj = NULL;
+  for (const SLogicNode* pUp = pProj->node.pParent; NULL != pUp; pUp = pUp->pParent) {
+    if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType((const SNode*)pUp)) {
+      const SProjectLogicNode* pAncestorProj = (const SProjectLogicNode*)pUp;
+      if (pAncestorProj->isSetOpProj &&
+          NULL != pAncestorProj->node.pChildren &&
+          LIST_LENGTH(pAncestorProj->node.pChildren) >= 2) {
+        pSetOpProj = pAncestorProj;
+        break;
+      }
+    }
+
+    if (!fqNodeIsSingleChildSetOpPassthrough(pUp)) {
+      break;
+    }
+  }
+
+  if (NULL == pSetOpProj) {
+    return false;
+  }
+
+  const SExtTableNode* pRefExt = (const SExtTableNode*)pScan->pExtTableNode;
+  SNode*               pBranch = NULL;
+  FOREACH(pBranch, pSetOpProj->node.pChildren) {
+    SScanLogicNode* pBranchScan = fqFindExternalLogicLeafScan((SLogicNode*)pBranch);
+    if (NULL == pBranchScan || NULL == pBranchScan->pExtTableNode) {
+      continue;
+    }
+
+    const SExtTableNode* pBranchExt = (const SExtTableNode*)pBranchScan->pExtTableNode;
+    if (pBranchExt->sourceType != pRefExt->sourceType ||
+        0 != strncmp(pBranchExt->sourceName, pRefExt->sourceName, TSDB_EXT_SOURCE_NAME_LEN)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool fqProjectIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
+                                     const SExtSourceCapability* pCap,
+                                     const SExtCapSessionOverlay* pOverlay,
+                                     const SPlanContext* pPlanCxt) {
   if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_PROJECT) return true;
   const SProjectLogicNode* pProj = (const SProjectLogicNode*)pNode;
-  // In some optimizer paths, expression projections can be rewritten into
-  // node.pTargets while pProjections becomes NULL/columnized.  Guard both
-  // containers to prevent accidental expression pushdown.
-  if (pProj->pProjections != NULL && !fqTargetsAllColumns(pProj->pProjections)) {
+  if (fqDiagEnabled()) {
+    fprintf(stderr,
+            "[FQ-DIAG] project-pushable-enter project=%p isSetOpProj=%d parentType=%d childCnt=%d scan=%p table=%s\n",
+            pProj, (int)pProj->isSetOpProj, pNode->pParent ? (int)nodeType((SNode*)pNode->pParent) : -1,
+            pNode->pChildren ? LIST_LENGTH(pNode->pChildren) : 0, pScan,
+            pScan ? pScan->tableName.tname : "(null)");
+    fqDiagDumpExprList("project.projections", pProj->pProjections);
+    fqDiagDumpExprList("project.targets", pProj->node.pTargets);
+  }
+  if (OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_UNIQUE_LOCAL)) {
+    planDebug("FQ-push: Project NOT pushable — rewritten UNIQUE must keep local semantics project=%p",
+              pProj);
     return false;
   }
-  if (pProj->node.pTargets != NULL && !fqTargetsAllColumns(pProj->node.pTargets)) {
+  if (!pProj->isSetOpProj && fqProjectIsCrossSourceSetOpBranch(pProj, pScan)) {
+    // UNION/UNION ALL branch-normalization projects carry set-op aligned types
+    // via current-scope refs such as `time` with BIGINT/VARCHAR result types.
+    // Local execution can honor that metadata, but remote SQL rendering would
+    // collapse them back to bare source columns and lose CAST/TO_ISO8601
+    // semantics. Keep these branch wrappers local for cross-source merges.
+    planDebug("FQ-push: Project NOT pushable — cross-source set-op branch normalization must stay local project=%p",
+              pProj);
     return false;
   }
+  if (pProj->isSetOpProj && pNode->pChildren != NULL && LIST_LENGTH(pNode->pChildren) > 1) {
+    const SExtTableNode* pRefExt = (const SExtTableNode*)pScan->pExtTableNode;
+    if (NULL == pRefExt) {
+      planDebug("FQ-push: SetOp Project NOT pushable — reference ext table missing");
+      return false;
+    }
+
+    int32_t branchIdx = 0;
+    SNode*  pBranch = NULL;
+    FOREACH(pBranch, pNode->pChildren) {
+      SScanLogicNode* pBranchScan = fqFindExternalLogicLeafScan((SLogicNode*)pBranch);
+      if (NULL == pBranchScan || NULL == pBranchScan->pExtTableNode) {
+        planDebug("FQ-push: SetOp Project NOT pushable — branch[%d] missing external scan", branchIdx);
+        return false;
+      }
+
+      const SExtTableNode* pBranchExt = (const SExtTableNode*)pBranchScan->pExtTableNode;
+      if (pBranchExt->sourceType != pRefExt->sourceType ||
+          0 != strncmp(pBranchExt->sourceName, pRefExt->sourceName, TSDB_EXT_SOURCE_NAME_LEN)) {
+        planDebug("FQ-push: SetOp Project NOT pushable — branch[%d] cross-source ref=(%d,%s) branch=(%d,%s)",
+                  branchIdx, (int)pRefExt->sourceType, pRefExt->sourceName,
+                  (int)pBranchExt->sourceType, pBranchExt->sourceName);
+        return false;
+      }
+
+      ++branchIdx;
+    }
+
+    planDebug("FQ-push: SetOp Project same-source check passed, branches=%d refSource=(%d,%s)",
+              branchIdx, (int)pRefExt->sourceType, pRefExt->sourceName);
+  }
+
+  int32_t idx = 0;
+  SNode* pExpr = NULL;
+  FOREACH(pExpr, pProj->pProjections) {
+    SNode* pInner = pExpr;
+    if (nodeType(pInner) == QUERY_NODE_TARGET) pInner = ((STargetNode*)pInner)->pExpr;
+    if (pInner == NULL) { idx++; continue; }
+    bool ok = fqExprIsPushable(pInner, pScan, pCap, pOverlay, pPlanCxt);
+    if (fqDiagEnabled()) {
+      fprintf(stderr,
+              "[FQ-DIAG] project-expr-result project=%p idx=%d exprType=%d pushable=%d scan=%p table=%s\n",
+              pProj, idx, (int)nodeType(pInner), (int)ok, pScan,
+              pScan ? pScan->tableName.tname : "(null)");
+    }
+    planDebug("FQ-push: Project expr[%d] nodeType=%d pushable=%d", idx, (int)nodeType(pInner), (int)ok);
+    if (!ok) {
+      planDebug("FQ-push: Project NOT pushable — expr[%d] blocked (nodeType=%d)", idx, (int)nodeType(pInner));
+      return false;
+    }
+    idx++;
+  }
+  if (pProj->pProjections == NULL) {
+    FOREACH(pExpr, pProj->node.pTargets) {
+      SNode* pInner = pExpr;
+      if (nodeType(pInner) == QUERY_NODE_TARGET) pInner = ((STargetNode*)pInner)->pExpr;
+      if (pInner == NULL) { idx++; continue; }
+      bool ok = fqExprIsPushable(pInner, pScan, pCap, pOverlay, pPlanCxt);
+      planDebug("FQ-push: Project target[%d] nodeType=%d pushable=%d", idx, (int)nodeType(pInner), (int)ok);
+      if (!ok) {
+        planDebug("FQ-push: Project NOT pushable — target[%d] blocked (nodeType=%d)", idx, (int)nodeType(pInner));
+        return false;
+      }
+      idx++;
+    }
+  }
+  planDebug("FQ-push: Project pushable OK (%d exprs)", idx);
   return true;
 }
 
-// Check if all sort keys in a Sort node are simple column references.
-// Non-renderable expressions (e.g. length(name), abs(val)) cannot be pushed
-// to the remote DB, so the entire Sort must stay in the local plan.
-static bool fqSortAllKeysPushdownable(const SLogicNode* pNode) {
+static bool fqProjectCanPartiallyPushdown(const SProjectLogicNode* pProj, SScanLogicNode* pScan,
+                                          const SExtSourceCapability* pCap,
+                                          const SExtCapSessionOverlay* pOverlay,
+                                          const SPlanContext* pPlanCxt, int32_t* pPushableCnt,
+                                          int32_t* pLocalCnt) {
+  if (NULL != pPushableCnt) {
+    *pPushableCnt = 0;
+  }
+  if (NULL != pLocalCnt) {
+    *pLocalCnt = 0;
+  }
+  if (NULL == pProj || pProj->isSetOpProj || NULL == pProj->pProjections) {
+    return false;
+  }
+  if (fqProjectIsCrossSourceSetOpBranch(pProj, pScan)) {
+    planDebug("FQ-partialProject: skip — cross-source set-op branch normalization must stay local project=%p",
+              pProj);
+    return false;
+  }
+
+  int32_t pushableCnt = 0;
+  int32_t localCnt = 0;
+  int32_t idx = 0;
+  SNode* pExpr = NULL;
+  FOREACH(pExpr, pProj->pProjections) {
+    SNode* pInner = pExpr;
+    if (QUERY_NODE_TARGET == nodeType(pInner)) {
+      pInner = ((STargetNode*)pInner)->pExpr;
+    }
+    if (NULL == pInner) {
+      ++localCnt;
+      planDebug("FQ-partialProject: expr[%d] is NULL, keep local", idx);
+      ++idx;
+      continue;
+    }
+
+    bool pushable = fqExprIsPushable(pInner, pScan, pCap, pOverlay, pPlanCxt);
+    bool partialPushable = pushable && QUERY_NODE_COLUMN == nodeType(pInner);
+    planDebug("FQ-partialProject: expr[%d] nodeType=%d pushable=%d partialPushable=%d",
+              idx, (int)nodeType(pInner), (int)pushable, (int)partialPushable);
+    if (pushable && !partialPushable) {
+      planDebug("FQ-partialProject: expr[%d] renderable but not a plain column, keep local in mixed project",
+                idx);
+    }
+    if (partialPushable) {
+      ++pushableCnt;
+    } else {
+      ++localCnt;
+    }
+    ++idx;
+  }
+
+  if (NULL != pPushableCnt) {
+    *pPushableCnt = pushableCnt;
+  }
+  if (NULL != pLocalCnt) {
+    *pLocalCnt = localCnt;
+  }
+
+  bool partial = (pushableCnt > 0 && localCnt > 0);
+  planDebug("FQ-partialProject: project=%p partial=%d pushableCnt=%d localCnt=%d total=%d",
+            pProj, (int)partial, pushableCnt, localCnt, idx);
+  return partial;
+}
+
+// Forward declaration for fqAggIsPushdownable (uses fqExprIsPushable)
+static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
+                                 const SExtSourceCapability* pCap,
+                                 const SExtCapSessionOverlay* pOverlay,
+                                 const SPlanContext* pPlanCxt);
+static bool fqLayerIsPushable(SLogicNode* pNode, SScanLogicNode* pScan, const SExtSourceCapability* pCap,
+                              const SExtCapSessionOverlay* pOverlay, const SPlanContext* pPlanCxt);
+
+// Check if all sort keys in a Sort node are pushable expressions.
+// Allows simple column references and renderable function expressions.
+// When aboveAgg=true, colId==0 column references are permitted (they are
+// AGG output aliases such as "cnt" from ORDER BY cnt).
+static bool fqSortAllKeysPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
+                                      const SExtSourceCapability* pCap,
+                                      const SExtCapSessionOverlay* pOverlay,
+                                      bool aboveAgg, const SPlanContext* pPlanCxt) {
   if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_SORT) return true;
+  EExtClauseKind orderClause = EXT_CLAUSE_ORDER;
+  if (!fqClauseIsPushable(orderClause, pCap ? pCap->dialect : -1, pOverlay) ||
+      capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &orderClause)) {
+    planDebug("FQ-push: Sort NOT pushable — ORDER clause disabled by capability");
+    return false;
+  }
+
   const SSortLogicNode* pSort = (const SSortLogicNode*)pNode;
   SNode*                pKey  = NULL;
+  int32_t               kidx  = 0;
   FOREACH(pKey, pSort->pSortKeys) {
     const SNode* pInner = pKey;
     if (nodeType(pInner) == QUERY_NODE_ORDER_BY_EXPR) {
       pInner = ((const SOrderByExprNode*)pInner)->pExpr;
     }
-    if (pInner == NULL || nodeType(pInner) != QUERY_NODE_COLUMN) {
+    if (pInner == NULL) {
+      planDebug("FQ-push: Sort NOT pushable — key[%d] expr is NULL", kidx);
       return false;
     }
-    // colId==0 indicates a synthetic/precalculated column (e.g. _length_name_
-    // from ORDER BY length(name)).  These don't exist in the remote table schema
-    // and must NOT be pushed down.
-    if (((const SColumnNode*)pInner)->colId == 0) {
+    // colId==0 indicates a synthetic/precalculated column — not pushable
+    // UNLESS Sort is above a pushed AGG, in which case colId==0 cols are
+    // valid AGG output aliases (e.g. ORDER BY cnt where cnt = COUNT(*)).
+    if (nodeType(pInner) == QUERY_NODE_COLUMN) {
+      const SColumnNode* pCol = (const SColumnNode*)pInner;
+      planDebug("FQ-push: Sort key[%d] col=%s colId=%d aboveAgg=%d type=%d",
+             kidx, pCol->colName, (int)pCol->colId, (int)aboveAgg,
+             (int)((const SExprNode*)pInner)->resType.type);
+      if (pCol->colId == 0 && !aboveAgg) {
+        planDebug("FQ-push: Sort NOT pushable — key[%d] col=%s colId==0 (synthetic, not above AGG)", kidx, pCol->colName);
+        return false;
+      }
+      int8_t keyType = (int8_t)((const SExprNode*)pInner)->resType.type;
+      if (keyType > 0 && capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_TYPE, &keyType)) {
+        planDebug("FQ-push: Sort NOT pushable — key[%d] col=%s type=%d disabled by capability", kidx, pCol->colName, (int)keyType);
+        return false;
+      }
+    } else {
+      bool ok = fqExprIsPushable((SNode*)pInner, pScan, pCap, pOverlay, pPlanCxt);
+      planDebug("FQ-push: Sort key[%d] non-col nodeType=%d pushable=%d", kidx, (int)nodeType(pInner), (int)ok);
+      if (!ok) {
+        planDebug("FQ-push: Sort NOT pushable — key[%d] non-col expr (nodeType=%d) not pushable", kidx, (int)nodeType(pInner));
+        return false;
+      }
+    }
+    kidx++;
+  }
+  planDebug("FQ-push: Sort keys pushable OK (%d keys)", kidx);
+  return true;
+}
+
+static bool fqSortAboveAggInChain(const SLogicNode* pChildInChain) {
+  for (const SLogicNode* pNode = pChildInChain; pNode != NULL; pNode = fqFirstChild(pNode)) {
+    if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_AGG) {
+      return true;
+    }
+
+    if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
+      const SPartitionLogicNode* pPart = (const SPartitionLogicNode*)pNode;
+      if (pPart->pAggFuncs != NULL && LIST_LENGTH(pPart->pAggFuncs) > 0) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+// Check if an AGG (GROUP BY / aggregate) node can be pushed to the remote source.
+static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
+                                 const SExtSourceCapability* pCap,
+                                 const SExtCapSessionOverlay* pOverlay,
+                                 const SPlanContext* pPlanCxt) {
+  if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_AGG) return true;
+  const SAggLogicNode* pAgg = (const SAggLogicNode*)pNode;
+  if (OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_UNIQUE_LOCAL)) {
+    planDebug("FQ-push: AGG NOT pushable — rewritten UNIQUE must keep local semantics agg=%p",
+              pAgg);
+    return false;
+  }
+
+  // A multi-branch AGG is the logical dedup container of UNION/INTERSECT-like
+  // set-op shapes. The generic fqPushdown collect/commit path is single-docking-
+  // scan oriented: if it accepts this AGG it only preserves one branch and marks
+  // the sibling scans as already processed, which collapses UNION DISTINCT into a
+  // single-branch DISTINCT/GROUP BY remote SQL. Keep these containers for the
+  // dedicated FqUnionDedup rule, which builds a multi-child remote set-op plan.
+  if (pNode->pChildren != NULL && LIST_LENGTH(pNode->pChildren) > 1) {
+    planDebug("FQ-push: AGG NOT pushable — multi-branch dedup/set-op container children=%d handled by FqUnionDedup",
+              (int)LIST_LENGTH(pNode->pChildren));
+    return false;
+  }
+
+  // Check AGG clause capability
+  EExtClauseKind aggClause = EXT_CLAUSE_AGG;
+  if (!fqClauseIsPushable(aggClause, pCap ? pCap->dialect : -1, pOverlay) ||
+      capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &aggClause)) {
+    planDebug("FQ-push: AGG NOT pushable — AGG clause disabled by capability");
+    return false;
+  }
+
+  // Check DISTINCT capability when there are no agg funcs (SELECT DISTINCT)
+  bool isDistinct = (pAgg->pAggFuncs == NULL || LIST_LENGTH(pAgg->pAggFuncs) == 0);
+  if (isDistinct) {
+    EExtClauseKind distClause = EXT_CLAUSE_DISTINCT;
+    if (!fqClauseIsPushable(distClause, pCap ? pCap->dialect : -1, pOverlay) ||
+        capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &distClause)) {
+      planDebug("FQ-push: AGG NOT pushable — DISTINCT clause disabled by capability");
       return false;
     }
   }
+
+  // Check group key expressions
+  int32_t kidx = 0;
+  SNode* pGS = NULL;
+  FOREACH(pGS, pAgg->pGroupKeys) {
+    SNode* pExpr = pGS;
+    if (nodeType(pExpr) == QUERY_NODE_GROUPING_SET) {
+      pExpr = nodesListGetNode(((SGroupingSetNode*)pExpr)->pParameterList, 0);
+    }
+    if (pExpr == NULL) { kidx++; continue; }
+    bool ok = fqExprIsPushable(pExpr, pScan, pCap, pOverlay, pPlanCxt);
+    planDebug("FQ-push: AGG groupKey[%d] nodeType=%d pushable=%d", kidx, (int)nodeType(pExpr), (int)ok);
+    if (!ok) {
+      planDebug("FQ-push: AGG NOT pushable — groupKey[%d] blocked (nodeType=%d)", kidx, (int)nodeType(pExpr));
+      return false;
+    }
+    kidx++;
+  }
+
+  // Check aggregate function expressions
+  int32_t fidx = 0;
+  SNode* pFunc = NULL;
+  FOREACH(pFunc, pAgg->pAggFuncs) {
+    // _group_key(expr) is a TDengine internal pass-through for a GROUP BY key
+    // (it re-emits the grouping column), not a real aggregate.  It is rendered
+    // via the GROUP BY clause, not pushed as an aggregate function — skip it
+    // when judging pushability (same treatment as window pseudo-columns).
+    if (nodeType(pFunc) == QUERY_NODE_FUNCTION &&
+        fmIsGroupKeyFunc(((SFunctionNode*)pFunc)->funcId)) {
+      fidx++;
+      continue;
+    }
+    bool ok = fqExprIsPushable(pFunc, pScan, pCap, pOverlay, pPlanCxt);
+    if (nodeType(pFunc) == QUERY_NODE_FUNCTION) {
+      planDebug("FQ-push: AGG func[%d] name=%s nodeType=%d pushable=%d",
+             fidx, ((SFunctionNode*)pFunc)->functionName, (int)nodeType(pFunc), (int)ok);
+    } else {
+      planDebug("FQ-push: AGG func[%d] nodeType=%d pushable=%d", fidx, (int)nodeType(pFunc), (int)ok);
+    }
+    if (!ok) {
+      planDebug("FQ-push: AGG NOT pushable — func[%d] blocked (nodeType=%d)", fidx, (int)nodeType(pFunc));
+      return false;
+    }
+    fidx++;
+  }
+
+  // Check HAVING condition (pConditions on the AGG node)
+  if (pAgg->node.pConditions) {
+    EExtClauseKind havingClause = EXT_CLAUSE_HAVING;
+    if (!fqClauseIsPushable(havingClause, pCap ? pCap->dialect : -1, pOverlay) ||
+        capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &havingClause)) {
+      planDebug("FQ-push: AGG NOT pushable — HAVING clause disabled by capability");
+      return false;
+    }
+    bool ok = fqExprIsPushable(pAgg->node.pConditions, pScan, pCap, pOverlay, pPlanCxt);
+    planDebug("FQ-push: AGG HAVING nodeType=%d pushable=%d", (int)nodeType(pAgg->node.pConditions), (int)ok);
+    if (!ok) {
+      planDebug("FQ-push: AGG NOT pushable — HAVING expr blocked");
+      return false;
+    }
+  }
+
+  // Guard: if the scan's current WHERE cannot be harvested into the remote
+  // leaf, do NOT push the AGG. Under the collect→commit model the scan still
+  // owns its WHERE while AGG pushability is being judged, so pScan->node
+  // .pConditions != NULL by itself does not mean the filter will remain local.
+  // We must re-judge the WHERE against the remote capability matrix and the
+  // expression pushability rules. Only a truly local-only WHERE blocks AGG
+  // pushdown; a fully pushable WHERE will be moved onto the remote leaf by
+  // fqCommitPushChain and is safe to combine with remote AGG/DISTINCT.
+  if (pScan->node.pConditions != NULL) {
+    EExtClauseKind whereClause = EXT_CLAUSE_FILTER;
+    bool whereClauseEnabled = fqClauseIsPushable(whereClause, pCap ? pCap->dialect : -1, pOverlay) &&
+                              !capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &whereClause);
+    bool whereExprPushable = whereClauseEnabled &&
+                             fqExprIsPushable(pScan->node.pConditions, pScan, pCap, pOverlay, pPlanCxt);
+    planDebug("FQ-push: AGG guard scanWhere nodeType=%d whereClauseEnabled=%d whereExprPushable=%d",
+              (int)nodeType(pScan->node.pConditions), (int)whereClauseEnabled, (int)whereExprPushable);
+    if (!whereExprPushable) {
+      planDebug("FQ-push: AGG NOT pushable — scan WHERE must stay local");
+      return false;
+    }
+  }
+
+  planDebug("FQ-push: AGG pushable OK (groupKeys=%d aggFuncs=%d)", kidx, fidx);
+  return true;
+}
+
+// Check if an INDEF_ROWS_FUNC node (LAG/LEAD/etc.) can be pushed to the remote source.
+// Pushability is determined solely by the fqPushCap capability matrix of each function.
+// IndefRowsFunc is treated the same as AGG for FQ pushdown purposes.
+static bool fqIndefIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
+                                   const SExtSourceCapability* pCap,
+                                   const SExtCapSessionOverlay* pOverlay,
+                                   const SPlanContext* pPlanCxt) {
+  if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC) return true;
+  const SIndefRowsFuncLogicNode* pIndef = (const SIndefRowsFuncLogicNode*)pNode;
+
+  // All functions must pass fqPushCap check
+  SNode* pFunc = NULL;
+  int32_t fidx = 0;
+  FOREACH(pFunc, pIndef->pFuncs) {
+    bool ok = fqExprIsPushable(pFunc, pScan, pCap, pOverlay, pPlanCxt);
+    if (nodeType(pFunc) == QUERY_NODE_FUNCTION) {
+      planDebug("FQ-push: INDEF func[%d] name=%s pushable=%d",
+             fidx, ((SFunctionNode*)pFunc)->functionName, (int)ok);
+    }
+    if (!ok) {
+      planDebug("FQ-push: INDEF NOT pushable — func[%d] blocked", fidx);
+      return false;
+    }
+    fidx++;
+  }
+
+  planDebug("FQ-push: INDEF pushable OK (funcs=%d)", fidx);
   return true;
 }
 
@@ -13377,31 +14350,11 @@ static bool fqTargetsAllColumns(const SNodeList* pTargets) {
   return true;
 }
 
-// Return true when any expression in the list references at least one table
-// column. This is used to detect zero-column-dependency projections such as
-// NOW()/TODAY(), which must be evaluated locally in fallback mode.
-static bool fqExprListHasColumnRef(const SNodeList* pExprList) {
-  if (pExprList == NULL || LIST_LENGTH(pExprList) == 0) return false;
-
-  SNodeListNode* pListNode = NULL;
-  int32_t code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&pListNode);
-  if (TSDB_CODE_SUCCESS != code || pListNode == NULL) return false;
-
-  pListNode->pNodeList = (SNodeList*)pExprList;
-
-  SNodeList* pCols = NULL;
-  code = nodesCollectColumnsFromNode((SNode*)pListNode, NULL, COLLECT_COL_TYPE_ALL, &pCols);
-  bool hasRef = (TSDB_CODE_SUCCESS == code && pCols != NULL && LIST_LENGTH(pCols) > 0);
-
-  nodesDestroyList(pCols);
-  nodesFree((void*)pListNode);
-  return hasRef;
-}
-
-// ─── Phase 2 sub-function stubs ────────────────────────────────────────────
-// Each sub-function handles one category of pushdown for federated queries.
-// Phase 1 only implements fqHarvestSort + fqHarvestProject (inline below).
-// The remaining stubs are no-ops until Phase 2 implementation.
+// ─── FQ pushdown sub-function helpers ──────────────────────────────────────
+// Each helper handles one category of pushdown for federated queries.
+// Constructs not handled here (Window/JOIN/Subquery) execute locally over
+// rows returned by the ExternalScan — the local executor is the correct
+// fallback path, not a missing feature.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Returns true if pExpr is an EXISTS/NOT_EXISTS with a RAW_SQL_FRAG operand.
@@ -13480,97 +14433,697 @@ static bool fqIsInfluxTimeInOp(SNode* pCond, SScanLogicNode* pScan) {
   return false;
 }
 
-// Check if an operator type is in the allowlist for pushdown to remote DB.
-// Only operators that nodesRemotePlanToSQL can translate are allowed.
-static bool fqOpTypeIsPushable(EOperatorType opType) {
-  switch (opType) {
-    // Comparison
-    case OP_TYPE_EQUAL:
-    case OP_TYPE_NOT_EQUAL:
-    case OP_TYPE_GREATER_THAN:
-    case OP_TYPE_GREATER_EQUAL:
-    case OP_TYPE_LOWER_THAN:
-    case OP_TYPE_LOWER_EQUAL:
-    // Pattern matching
-    case OP_TYPE_LIKE:
-    case OP_TYPE_NOT_LIKE:
-    case OP_TYPE_MATCH:
-    case OP_TYPE_NMATCH:
-    // Set
-    case OP_TYPE_IN:
-    case OP_TYPE_NOT_IN:
-    // Null check
-    case OP_TYPE_IS_NULL:
-    case OP_TYPE_IS_NOT_NULL:
-    // Existence (correlated subquery)
-    case OP_TYPE_EXISTS:
-    case OP_TYPE_NOT_EXISTS:
-    // Arithmetic (standard SQL, supported by all dialects)
-    case OP_TYPE_ADD:
-    case OP_TYPE_SUB:
-    case OP_TYPE_MULTI:
-    case OP_TYPE_DIV:
-    case OP_TYPE_REM:
-    case OP_TYPE_MINUS:
+// REMOTE_* descendant judgement must follow logic plans rather than AST so the
+// collect phase sees the exact expression/operator tree that optimizer rules are
+// mutating.  Stage 1 has already created every subquery logic plan, so collect
+// can recurse through the shared planner registry by subQIdx and decide both:
+//   1. whether the referenced subquery is pushable, and
+//   2. which render mode the REMOTE_* node should carry into stage 3 rewiring.
+typedef struct SFqLogicExprCtx {
+  bool                      hasFunction;
+  bool                      pushable;
+  SScanLogicNode*           pScan;
+  const SExtSourceCapability* pCap;
+  const SExtCapSessionOverlay* pOverlay;
+  const SPlanContext*       pPlanCxt;
+  int32_t                   ownerSubQIdx;
+} SFqLogicExprCtx;
+
+static EDealRes fqExprHasFunctionWalker(SNode* pNode, void* pContext) {
+  SFqLogicExprCtx* pCtx = (SFqLogicExprCtx*)pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    pCtx->hasFunction = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes fqExprPushableWalker(SNode* pNode, void* pContext) {
+  SFqLogicExprCtx* pCtx = (SFqLogicExprCtx*)pContext;
+  SNode*           pRoot = pNode;
+  if (QUERY_NODE_TARGET == nodeType(pRoot)) {
+    pRoot = ((STargetNode*)pRoot)->pExpr;
+  } else if (QUERY_NODE_ORDER_BY_EXPR == nodeType(pRoot)) {
+    pRoot = ((SOrderByExprNode*)pRoot)->pExpr;
+  } else if (QUERY_NODE_GROUPING_SET == nodeType(pRoot)) {
+    pRoot = nodesListGetNode(((SGroupingSetNode*)pRoot)->pParameterList, 0);
+  }
+  if (NULL == pRoot) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  bool ok = fqExprIsPushable(pRoot, pCtx->pScan, pCtx->pCap, pCtx->pOverlay, pCtx->pPlanCxt);
+  planDebug("FQ-subq: ownerSubQIdx:%d logicExprRootType:%d pushable:%d", pCtx->ownerSubQIdx, (int)nodeType(pRoot),
+            (int)ok);
+  if (!ok) {
+    pCtx->pushable = false;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static void fqWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker, void* pContext) {
+  if (NULL == pNode) {
+    return;
+  }
+
+  nodesWalkExprs(pNode->pTargets, walker, pContext);
+  nodesWalkExpr(pNode->pConditions, walker, pContext);
+  nodesWalkExpr(pNode->pLimit, walker, pContext);
+  nodesWalkExpr(pNode->pSlimit, walker, pContext);
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_SCAN: {
+      SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+      nodesWalkExprs(pScan->pScanCols, walker, pContext);
+      nodesWalkExprs(pScan->pScanPseudoCols, walker, pContext);
+      nodesWalkExpr(pScan->pTimeRange, walker, pContext);
+      nodesWalkExpr(pScan->pExtTimeRange, walker, pContext);
+      nodesWalkExpr(pScan->pPrimaryCond, walker, pContext);
+      nodesWalkExpr(pScan->pTagCond, walker, pContext);
+      nodesWalkExpr(pScan->pTagIndexCond, walker, pContext);
+      nodesWalkExprs(pScan->pDynamicScanFuncs, walker, pContext);
+      nodesWalkExprs(pScan->pGroupTags, walker, pContext);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_JOIN: {
+      SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+      nodesWalkExpr(pJoin->pWindowOffset, walker, pContext);
+      nodesWalkExpr(pJoin->pJLimit, walker, pContext);
+      nodesWalkExpr(pJoin->addPrimEqCond, walker, pContext);
+      nodesWalkExpr(pJoin->pPrimKeyEqCond, walker, pContext);
+      nodesWalkExpr(pJoin->pColEqCond, walker, pContext);
+      nodesWalkExpr(pJoin->pColOnCond, walker, pContext);
+      nodesWalkExpr(pJoin->pTagEqCond, walker, pContext);
+      nodesWalkExpr(pJoin->pTagOnCond, walker, pContext);
+      nodesWalkExpr(pJoin->pFullOnCond, walker, pContext);
+      nodesWalkExprs(pJoin->pLeftEqNodes, walker, pContext);
+      nodesWalkExprs(pJoin->pRightEqNodes, walker, pContext);
+      nodesWalkExpr(pJoin->pLeftOnCond, walker, pContext);
+      nodesWalkExpr(pJoin->pRightOnCond, walker, pContext);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_AGG: {
+      SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+      nodesWalkExprs(pAgg->pGroupKeys, walker, pContext);
+      nodesWalkExprs(pAgg->pAggFuncs, walker, pContext);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      nodesWalkExprs(((SProjectLogicNode*)pNode)->pProjections, walker, pContext);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC:
+      nodesWalkExprs(((SIndefRowsFuncLogicNode*)pNode)->pFuncs, walker, pContext);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_INTERP_FUNC: {
+      SInterpFuncLogicNode* pInterp = (SInterpFuncLogicNode*)pNode;
+      nodesWalkExprs(pInterp->pFuncs, walker, pContext);
+      nodesWalkExpr(pInterp->pTimeRange, walker, pContext);
+      nodesWalkExpr(pInterp->pFillValues, walker, pContext);
+      nodesWalkExpr(pInterp->pTimeSeries, walker, pContext);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC:
+    case QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC:
+      nodesWalkExprs(((SForecastFuncLogicNode*)pNode)->pFuncs, walker, pContext);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_GROUP_CACHE:
+      nodesWalkExprs(((SGroupCacheLogicNode*)pNode)->pGroupCols, walker, pContext);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_WINDOW: {
+      SWindowLogicNode* pWin = (SWindowLogicNode*)pNode;
+      nodesWalkExprs(pWin->pFuncs, walker, pContext);
+      nodesWalkExpr(pWin->pTimeRange, walker, pContext);
+      nodesWalkExpr(pWin->pTspk, walker, pContext);
+      nodesWalkExpr(pWin->pTsEnd, walker, pContext);
+      nodesWalkExprs(pWin->pStateExprs, walker, pContext);
+      nodesWalkExpr(pWin->pStartCond, walker, pContext);
+      nodesWalkExpr(pWin->pEndCond, walker, pContext);
+      nodesWalkExprs(pWin->pColList, walker, pContext);
+      nodesWalkExprs(pWin->pProjs, walker, pContext);
+      nodesWalkExprs(pWin->extFill.pFillExprs, walker, pContext);
+      nodesWalkExpr(pWin->extFill.pFillValues, walker, pContext);
+      nodesWalkExprs(pWin->pAnomalyExpr, walker, pContext);
+      nodesWalkExpr(pWin->pSubquery, walker, pContext);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_FILL: {
+      SFillLogicNode* pFill = (SFillLogicNode*)pNode;
+      nodesWalkExprs(pFill->pFillExprs, walker, pContext);
+      nodesWalkExprs(pFill->pNotFillExprs, walker, pContext);
+      nodesWalkExpr(pFill->pWStartTs, walker, pContext);
+      nodesWalkExpr(pFill->pValues, walker, pContext);
+      nodesWalkExpr(pFill->pTimeRange, walker, pContext);
+      nodesWalkExprs(pFill->pFillNullExprs, walker, pContext);
+      nodesWalkExpr(pFill->pSurroundingTime, walker, pContext);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      nodesWalkExprs(((SSortLogicNode*)pNode)->pSortKeys, walker, pContext);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PARTITION: {
+      SPartitionLogicNode* pPart = (SPartitionLogicNode*)pNode;
+      nodesWalkExprs(pPart->pPartitionKeys, walker, pContext);
+      nodesWalkExprs(pPart->pTags, walker, pContext);
+      nodesWalkExpr(pPart->pSubtable, walker, pContext);
+      nodesWalkExprs(pPart->pAggFuncs, walker, pContext);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN: {
+      SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode*)pNode;
+      nodesWalkExprs(pVScan->pScanCols, walker, pContext);
+      nodesWalkExprs(pVScan->pScanPseudoCols, walker, pContext);
+      nodesWalkExprs(pVScan->pLocalTags, walker, pContext);
+      nodesWalkExprs(pVScan->pRefTagCols, walker, pContext);
+      nodesWalkExpr(pVScan->pTagFilterCond, walker, pContext);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
+      nodesWalkExprs(((SDynQueryCtrlLogicNode*)pNode)->vtbScan.pScanCols, walker, pContext);
+      break;
+    default:
+      break;
+  }
+}
+
+// Returns true when the inner FROM external table requires re-rendering (2b)
+// rather than inlining the raw user SQL (DIRECT_SQL).
+//
+// DIRECT_SQL is valid ONLY when the raw subquery text carries NO TDengine
+// source-name qualifier — i.e. the user wrote a bare table (or db.tbl) under an
+// active USE <source> context, so the source name was injected from context and
+// the raw text (e.g. "region_info" / "mydb.region_info") is already a valid
+// remote identifier.  This is recorded at parse time as
+// SExtTableNode.srcNameFromPath == false.
+//
+// When srcNameFromPath == true the user wrote "src.tbl" / "src.schema.tbl"; the
+// raw text carries the source name that the remote DB cannot resolve, so the
+// inner SELECT MUST be re-rendered (dynAppendTablePath strips the source name
+// and emits the real remote db/schema/table).  The predicate FORM is preserved
+// in either render mode — 2b only re-renders the inner SELECT body, never the
+// surrounding IN/ALL/ANY/EXISTS shape.
+static bool fqExtTableNeedsNameXlate(const SExtTableNode* pExt) {
+  if (pExt == NULL) return false;
+  bool needXlate = pExt->srcNameFromPath;
+  planDebug("FQ-xlate: ext table fedDb=%s fedTbl=%s schema=%s srcDb=%s remoteTbl=%s srcNameFromPath=%d -> needXlate=%d",
+            pExt->table.dbName, pExt->table.tableName, pExt->schemaName,
+            pExt->srcDatabase, pExt->remoteTableName, (int)pExt->srcNameFromPath, (int)needXlate);
+  return needXlate;
+}
+
+static bool fqLogicPlanNeedsTransform(const SLogicNode* pNode) {
+  if (pNode == NULL) {
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    const SScanLogicNode* pScan = (const SScanLogicNode*)pNode;
+    if (pScan->pExtTableNode != NULL && QUERY_NODE_EXTERNAL_TABLE == nodeType(pScan->pExtTableNode) &&
+        fqExtTableNeedsNameXlate((const SExtTableNode*)pScan->pExtTableNode)) {
+      planDebug("FQ-xlate: logic scan needs name translate, logicRootType:%d", (int)nodeType(pNode));
       return true;
+    }
+  }
+
+  SFqLogicExprCtx ctx = {.hasFunction = false};
+  fqWalkLogicExprFields((SLogicNode*)pNode, fqExprHasFunctionWalker, &ctx);
+  if (ctx.hasFunction) {
+    planDebug("FQ-xlate: logic plan needs transform because function exists, logicRootType:%d", (int)nodeType(pNode));
+    return true;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    const SScanLogicNode* pScan = (const SScanLogicNode*)pNode;
+    if (pScan->pRemoteLogicPlan != NULL && fqLogicPlanNeedsTransform((const SLogicNode*)pScan->pRemoteLogicPlan)) {
+      return true;
+    }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (fqLogicPlanNeedsTransform((const SLogicNode*)pChild)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool fqLogicTreeUsesOnlySourceRecursive(const SLogicNode* pNode, int32_t ownerSubQIdx,
+                                               int8_t sourceType, const char* pSourceName) {
+  if (NULL == pNode) {
+    return true;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SNode*)pNode)) {
+    const SScanLogicNode* pScan = (const SScanLogicNode*)pNode;
+    if (SCAN_TYPE_EXTERNAL != pScan->scanType) {
+      planDebug("FQ-subq: subQIdx:%d same-source failed — non-external scan node=%p scanType=%d",
+                ownerSubQIdx, pScan, (int)pScan->scanType);
+      return false;
+    }
+
+    const SExtTableNode* pExt = (const SExtTableNode*)pScan->pExtTableNode;
+    if (NULL == pExt) {
+      planDebug("FQ-subq: subQIdx:%d same-source failed — external scan missing ext node=%p",
+                ownerSubQIdx, pScan);
+      return false;
+    }
+
+    if (pExt->sourceType != sourceType ||
+        0 != strncmp(pExt->sourceName, pSourceName, TSDB_EXT_SOURCE_NAME_LEN)) {
+      planDebug("FQ-subq: subQIdx:%d same-source failed — scan=%p source=(%d,%s) expected=(%d,%s)",
+                ownerSubQIdx, pScan, (int)pExt->sourceType, pExt->sourceName,
+                (int)sourceType, NULL != pSourceName ? pSourceName : "(null)");
+      return false;
+    }
+
+    if (NULL != pScan->pRemoteLogicPlan &&
+        !fqLogicTreeUsesOnlySourceRecursive((const SLogicNode*)pScan->pRemoteLogicPlan, ownerSubQIdx,
+                                            sourceType, pSourceName)) {
+      planDebug("FQ-subq: subQIdx:%d same-source failed — nested remote logic on scan=%p",
+                ownerSubQIdx, pScan);
+      return false;
+    }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (!fqLogicTreeUsesOnlySourceRecursive((const SLogicNode*)pChild, ownerSubQIdx, sourceType, pSourceName)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static bool fqLogicTreeIsPushableRecursive(const SLogicNode* pNode, int32_t ownerSubQIdx, SScanLogicNode* pScan,
+                                           const SExtSourceCapability* pCap,
+                                           const SExtCapSessionOverlay* pOverlay,
+                                           const SPlanContext* pPlanCxt) {
+  if (pNode == NULL) {
+    return true;
+  }
+
+  SScanLogicNode* pEvalScan = (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode))
+                                  ? (SScanLogicNode*)pNode
+                                  : fqFindExternalLogicLeafScan((SLogicNode*)pNode);
+  bool usedFallbackScan = false;
+  if (NULL == pEvalScan) {
+    pEvalScan = pScan;
+    usedFallbackScan = true;
+  }
+
+  planDebug("FQ-subq: subQIdx:%d inspect logic nodeType:%d evalScan:%p evalScanType:%d fallbackOuterScan:%d outerScan:%p",
+            ownerSubQIdx, (int)nodeType(pNode), pEvalScan,
+            (NULL != pEvalScan) ? (int)pEvalScan->scanType : -1, (int)usedFallbackScan, pScan);
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    const SScanLogicNode* pLogicScan = (const SScanLogicNode*)pNode;
+    if (pLogicScan->scanType != SCAN_TYPE_EXTERNAL) {
+      planDebug("FQ-subq: subQIdx:%d logic scanType:%d not external, keep local", ownerSubQIdx,
+                (int)pLogicScan->scanType);
+      return false;
+    }
+  } else {
+    bool layerOk = fqLayerIsPushable((SLogicNode*)pNode, pEvalScan, pCap, pOverlay, pPlanCxt);
+    planDebug("FQ-subq: subQIdx:%d logic layerType:%d layerPushable:%d evalScan:%p fallbackOuterScan:%d",
+              ownerSubQIdx, (int)nodeType(pNode), (int)layerOk, pEvalScan, (int)usedFallbackScan);
+    if (!layerOk) {
+      return false;
+    }
+  }
+
+  SFqLogicExprCtx ctx = {
+      .hasFunction = false,
+      .pushable = true,
+      .pScan = pEvalScan,
+      .pCap = pCap,
+      .pOverlay = pOverlay,
+      .pPlanCxt = pPlanCxt,
+      .ownerSubQIdx = ownerSubQIdx,
+  };
+  fqWalkLogicExprFields((SLogicNode*)pNode, fqExprPushableWalker, &ctx);
+  if (!ctx.pushable) {
+    planDebug("FQ-subq: subQIdx:%d logic node blocked, nodeType:%d", ownerSubQIdx, (int)nodeType(pNode));
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SScanLogicNode* pLogicScan = (SScanLogicNode*)pNode;
+    if (pLogicScan->pRemoteLogicPlan != NULL &&
+        !fqLogicTreeIsPushableRecursive((SLogicNode*)pLogicScan->pRemoteLogicPlan, ownerSubQIdx, pEvalScan, pCap,
+                                        pOverlay, pPlanCxt)) {
+      return false;
+    }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (!fqLogicTreeIsPushableRecursive((SLogicNode*)pChild, ownerSubQIdx, pEvalScan, pCap, pOverlay, pPlanCxt)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool fqSubqueryLogicIsPushable(const SPlanContext* pPlanCxt, int32_t subQIdx, ENodeType remoteNodeType,
+                                      SScanLogicNode* pScan, const SExtSourceCapability* pCap,
+                                      const SExtCapSessionOverlay* pOverlay) {
+  if (NULL == pPlanCxt) {
+    planDebug("FQ-subq: missing plan context for subQIdx:%d remoteNodeType:%d", subQIdx, (int)remoteNodeType);
+    return false;
+  }
+  if (planIsSubqueryPushedDown(pPlanCxt, subQIdx)) {
+    planDebug("FQ-subq: subQIdx:%d already marked pushedDown, treat as absorbed", subQIdx);
+    return true;
+  }
+
+  SLogicNode* pLogicRoot = planGetSubqueryRenderLogic(pPlanCxt, subQIdx, remoteNodeType);
+  if (NULL == pLogicRoot) {
+    planDebug("FQ-subq: subQIdx:%d logic root missing for remoteNodeType:%d", subQIdx, (int)remoteNodeType);
+    return false;
+  }
+
+  SScanLogicNode* pSubqScan = fqFindExternalLogicLeafScan(pLogicRoot);
+  planDebug("FQ-subq: subQIdx:%d logic rootType:%d rootEvalScan:%p rootEvalScanType:%d outerScan:%p outerScanType:%d remoteNodeType:%d",
+            subQIdx, (int)nodeType(pLogicRoot), pSubqScan, (NULL != pSubqScan) ? (int)pSubqScan->scanType : -1,
+            pScan, (NULL != pScan) ? (int)pScan->scanType : -1, (int)remoteNodeType);
+
+  const SExtTableNode* pOuterExt = (NULL != pScan) ? (const SExtTableNode*)pScan->pExtTableNode : NULL;
+  if (NULL == pOuterExt) {
+    planDebug("FQ-subq: subQIdx:%d not pushable — outer scan missing external source info outerScan=%p",
+              subQIdx, pScan);
+    return false;
+  }
+
+  if (!fqLogicTreeUsesOnlySourceRecursive(pLogicRoot, subQIdx, pOuterExt->sourceType, pOuterExt->sourceName)) {
+    planDebug("FQ-subq: subQIdx:%d not pushable — subquery source differs from outer source=(%d,%s)",
+              subQIdx, (int)pOuterExt->sourceType, pOuterExt->sourceName);
+    return false;
+  }
+
+  bool pushable = fqLogicTreeIsPushableRecursive(pLogicRoot, subQIdx, pSubqScan ? pSubqScan : pScan, pCap,
+                                                 pOverlay, pPlanCxt);
+  planDebug("FQ-subq: subQIdx:%d logic rootType:%d pushable:%d evalScan:%p", subQIdx, (int)nodeType(pLogicRoot),
+            (int)pushable, pSubqScan ? pSubqScan : pScan);
+  return pushable;
+}
+
+static bool fqAssignNodeRenderMode(SNode* pNode, EExtClauseKind clause, int32_t dialect,
+                                   const SPlanContext* pPlanCxt, int32_t subQIdx,
+                                   EFqSubqRenderMode* pModeOut);
+
+// Decide the two-state render mode for a subquery REMOTE_* node by combining
+// native-form clause pushability with inner-logic content analysis.
+//   needXlate= inner SELECT needs 2b transform (function/table-name)
+// Result:
+//   !needXlate  → DIRECT_SQL   (inline original SQL)
+//    needXlate  → ORIG_TYPE_2B (keep predicate form, 2b inner)
+// ─────────────────────────────────────────────────────────────────────────────
+// v2 two-state pushdown — render-mode assignment (POST-COMMIT, single pass).
+//
+// Runs AFTER fqCommitPushChain has committed the pushable WHERE into
+// pRemoteLogicPlan (WHERE subquery predicates flow through the SAME commit path
+// as ordinary WHERE — fqCloneScanAsLeaf deep-clones node.pConditions).  This
+// pass walks the committed remote subtree's conditions, and for each REMOTE_*
+// subquery node decides its render mode by combining direct clause pushability
+// with inner-logic content analysis (needs 2b transform).  Collect stores only
+// renderMode; stage 3 later clones the referenced logic subtree onto pRemotePlan after final
+// pushedDown/remap decisions are complete.
+//
+// Assigning here (not as a side-effect of the pushability predicate) keeps
+// fqExprIsPushable pure and avoids mutating nodes mid-probe.
+// ─────────────────────────────────────────────────────────────────────────────
+static bool fqSubqueryBodyTranslateIsSupported(int32_t dialect) {
+  return dialect == EXT_SQL_DIALECT_MYSQL ||
+         dialect == EXT_SQL_DIALECT_POSTGRES ||
+         dialect == EXT_SQL_DIALECT_INFLUXQL;
+}
+
+static bool fqAssignNodeRenderMode(SNode* pNode, EExtClauseKind clause, int32_t dialect,
+                                   const SPlanContext* pPlanCxt, int32_t subQIdx,
+                                   EFqSubqRenderMode* pModeOut) {
+  SLogicNode* pRenderRoot = planGetSubqueryRenderLogic(pPlanCxt, subQIdx, nodeType(pNode));
+  bool needXlate = (NULL != pRenderRoot) ? fqLogicPlanNeedsTransform(pRenderRoot) : false;
+  if (needXlate && !fqSubqueryBodyTranslateIsSupported(dialect)) {
+    planDebug("FQ-render: subq node type=%d clause=%d subQIdx=%d needTransform=1 but dialect=%d has no 2b body translation support",
+              (int)nodeType(pNode), (int)clause, subQIdx, dialect);
+    return false;
+  }
+
+  EFqSubqRenderMode mode = needXlate ? FQ_SUBQ_RENDER_ORIG_TYPE_2B : FQ_SUBQ_RENDER_DIRECT_SQL;
+  *pModeOut = mode;
+  planDebug("FQ-render: subq node type=%d clause=%d renderMode=%d subQIdx=%d renderRootType=%d needTransform=%d",
+            (int)nodeType(pNode), (int)clause, (int)mode, subQIdx,
+            pRenderRoot ? (int)nodeType(pRenderRoot) : -1, (int)needXlate);
+  return true;
+}
+
+// Render-mode decision happens in-place inside fqExprIsPushable's REMOTE_*
+// branches during the collect probe, but collect no longer clones any plan onto
+// pRemotePlan.  The node only carries renderMode here; stage 3 rewiring later
+// clones the referenced logic subtree after all pushedDown decisions are fixed.
+
+static bool fqFuncArgIsType(const SFunctionNode* pFunc, int32_t argIdx, int8_t tdType) {
+  if (NULL == pFunc || NULL == pFunc->pParameterList || argIdx < 0 ||
+      argIdx >= LIST_LENGTH(pFunc->pParameterList)) {
+    return false;
+  }
+
+  SNode* pArg = nodesListGetNode(pFunc->pParameterList, argIdx);
+  return NULL != pArg && ((SExprNode*)pArg)->resType.type == tdType;
+}
+
+static bool fqFuncArgInt64Equals(const SFunctionNode* pFunc, int32_t argIdx, int64_t expected) {
+  if (NULL == pFunc || NULL == pFunc->pParameterList || argIdx < 0 ||
+      argIdx >= LIST_LENGTH(pFunc->pParameterList)) {
+    return false;
+  }
+
+  SNode* pArg = nodesListGetNode(pFunc->pParameterList, argIdx);
+  if (NULL == pArg || nodeType(pArg) != QUERY_NODE_VALUE) {
+    return false;
+  }
+
+  SValueNode* pVal = (SValueNode*)pArg;
+  if (!IS_INTEGER_TYPE(pVal->node.resType.type)) {
+    return false;
+  }
+
+  return pVal->datum.i == expected;
+}
+
+static bool fqWeekFuncIsPushable(const SFunctionNode* pFunc, int32_t dialect) {
+  if (NULL == pFunc || pFunc->funcType != FUNCTION_TYPE_WEEK) {
+    return true;
+  }
+
+  // After translateAddPrecOutBigint():
+  //   WEEK(ts)         -> [ts, precision]
+  //   WEEK(ts, mode)   -> [ts, mode, precision]
+  //
+  // PG / InfluxDB only have ISO-week semantics (EXTRACT(WEEK ...)), which are
+  // equivalent to TDengine WEEK(..., 3) / WEEKOFYEAR(). Default WEEK(ts) and
+  // non-3 modes must stay local to preserve TDengine semantics.
+  if (dialect != EXT_SQL_DIALECT_POSTGRES && dialect != EXT_SQL_DIALECT_INFLUXQL) {
+    return true;
+  }
+
+  int32_t argc = LIST_LENGTH(pFunc->pParameterList);
+  bool    isoWeek = (argc >= 3) && fqFuncArgInt64Equals(pFunc, 1, 3);
+  planDebug("FQ-push: WEEK dialect=%d argc=%d isoWeekMode=%d",
+            dialect, argc, (int)isoWeek);
+  return isoWeek;
+}
+
+static bool fqExprTreeHasRemoteScalarValue(const SNode* pExpr) {
+  if (NULL == pExpr) {
+    return false;
+  }
+
+  switch (nodeType(pExpr)) {
+    case QUERY_NODE_REMOTE_VALUE:
+      return true;
+    case QUERY_NODE_TARGET:
+      return fqExprTreeHasRemoteScalarValue(((const STargetNode*)pExpr)->pExpr);
+    case QUERY_NODE_OPERATOR: {
+      const SOperatorNode* pOp = (const SOperatorNode*)pExpr;
+      return fqExprTreeHasRemoteScalarValue(pOp->pLeft) ||
+             fqExprTreeHasRemoteScalarValue(pOp->pRight);
+    }
+    case QUERY_NODE_LOGIC_CONDITION: {
+      const SLogicConditionNode* pCond = (const SLogicConditionNode*)pExpr;
+      const SNode*               pChild = NULL;
+      FOREACH(pChild, pCond->pParameterList) {
+        if (fqExprTreeHasRemoteScalarValue(pChild)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case QUERY_NODE_CASE_WHEN: {
+      const SCaseWhenNode* pCW = (const SCaseWhenNode*)pExpr;
+      if (fqExprTreeHasRemoteScalarValue(pCW->pCase) ||
+          fqExprTreeHasRemoteScalarValue(pCW->pElse)) {
+        return true;
+      }
+
+      const SNode* pItem = NULL;
+      FOREACH(pItem, pCW->pWhenThenList) {
+        const SWhenThenNode* pWT = (const SWhenThenNode*)pItem;
+        if (fqExprTreeHasRemoteScalarValue(pWT->pWhen) ||
+            fqExprTreeHasRemoteScalarValue(pWT->pThen)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case QUERY_NODE_FUNCTION: {
+      const SFunctionNode* pFunc = (const SFunctionNode*)pExpr;
+      const SNode*         pArg = NULL;
+      FOREACH(pArg, pFunc->pParameterList) {
+        if (fqExprTreeHasRemoteScalarValue(pArg)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    case QUERY_NODE_NODE_LIST: {
+      const SNodeListNode* pList = (const SNodeListNode*)pExpr;
+      const SNode*         pItem = NULL;
+      FOREACH(pItem, pList->pNodeList) {
+        if (fqExprTreeHasRemoteScalarValue(pItem)) {
+          return true;
+        }
+      }
+      return false;
+    }
     default:
       return false;
   }
+}
+
+static bool fqShouldKeepAnalyzeInfluxScalarAggLocal(const SFunctionNode* pFunc, int32_t dialect,
+                                                    const SPlanContext* pPlanCxt) {
+  if (NULL == pFunc || NULL == pPlanCxt || NULL == pPlanCxt->pAstRoot ||
+      dialect != EXT_SQL_DIALECT_INFLUXQL || !fmIsAggFunc(pFunc->funcId)) {
+    return false;
+  }
+
+  if (QUERY_NODE_EXPLAIN_STMT != nodeType(pPlanCxt->pAstRoot) ||
+      !((const SExplainStmt*)pPlanCxt->pAstRoot)->analyze) {
+    return false;
+  }
+
+  const SNode* pArg = NULL;
+  FOREACH(pArg, pFunc->pParameterList) {
+    if (fqExprTreeHasRemoteScalarValue(pArg)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // Returns true if the expression tree is fully pushable to the remote DB.
 // Uses an allowlist: only explicitly allowed node types and operator types
 // are considered pushable.  Everything else (FUNCTION, BIT_AND, JSON ops,
 // unknown node types) stays in local execution (node.pConditions).
-static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan) {
+static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSourceCapability* pCap,
+                             const SExtCapSessionOverlay* pOverlay, const SPlanContext* pPlanCxt) {
   if (pExpr == NULL) return true;
 
   switch (nodeType(pExpr)) {
     case QUERY_NODE_COLUMN:
-    case QUERY_NODE_VALUE:
+    case QUERY_NODE_VALUE: {
+      int8_t exprType = (int8_t)((SExprNode*)pExpr)->resType.type;
+      if (exprType > 0 && capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_TYPE, &exprType)) {
+        return false;
+      }
       return true;
+    }
 
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOp = (SOperatorNode*)pExpr;
-      if (!fqOpTypeIsPushable(pOp->opType)) return false;
-      // EXISTS/NOT_EXISTS: pushable when operand is RAW_SQL_FRAG (correlated
-      // same-source subquery pre-rendered by nodesRenderCorrelatedExistsBody)
-      // or REMOTE_ZERO_ROWS (non-correlated subquery resolved TDengine-side,
-      // emitted as a literal integer in the remote SQL).
-      if (pOp->opType == OP_TYPE_EXISTS || pOp->opType == OP_TYPE_NOT_EXISTS) {
-        if (pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_VALUE &&
-            (((const SValueNode*)pOp->pLeft)->flag & VALUE_FLAG_RAW_SQL_FRAG))
-          return true;
-        if (pOp->pLeft && nodeType(pOp->pLeft) == QUERY_NODE_REMOTE_ZERO_ROWS)
-          return true;
+      // Use the bitmap capability matrix to check operator pushability.
+      bool opPushable = fqOpIsPushable(pOp->opType, pCap ? pCap->dialect : -1, pOverlay);
+      int32_t leftResType = (NULL != pOp->pLeft) ? ((SExprNode*)pOp->pLeft)->resType.type : -1;
+      int32_t rightResType = (NULL != pOp->pRight) ? ((SExprNode*)pOp->pRight)->resType.type : -1;
+      int32_t compareConvertType = -1;
+      if (pOp->opType == OP_TYPE_EQUAL || pOp->opType == OP_TYPE_NOT_EQUAL ||
+          pOp->opType == OP_TYPE_GREATER_THAN || pOp->opType == OP_TYPE_GREATER_EQUAL ||
+          pOp->opType == OP_TYPE_LOWER_THAN || pOp->opType == OP_TYPE_LOWER_EQUAL) {
+        compareConvertType = vectorGetConvertType(leftResType, rightResType);
+      }
+      planDebug("FQ-expr: operator node=%p opType=%d dialect=%d pushable=%d leftType=%d rightType=%d",
+                pOp, (int)pOp->opType, pCap ? (int)pCap->dialect : -1, (int)opPushable,
+                pOp->pLeft ? (int)nodeType(pOp->pLeft) : -1,
+                pOp->pRight ? (int)nodeType(pOp->pRight) : -1);
+      if (compareConvertType >= 0) {
+        planDebug("FQ-expr: comparison opType=%d dialect=%d leftResType=%d rightResType=%d convertType=%d",
+                  (int)pOp->opType, pCap ? (int)pCap->dialect : -1,
+                  leftResType, rightResType, compareConvertType);
+      }
+      if (!opPushable) {
+        if (fqDiagEnabled()) {
+          fprintf(stderr,
+                  "[FQ-DIAG] expr-operator node=%p opType=%d blocked=op-pushable leftType=%d rightType=%d\n",
+                  pOp, (int)pOp->opType, pOp->pLeft ? (int)nodeType(pOp->pLeft) : -1,
+                  pOp->pRight ? (int)nodeType(pOp->pRight) : -1);
+        }
         return false;
       }
+      // EXISTS/NOT EXISTS are rewritten by the parser into REMOTE_ZERO_ROWS
+      // compared with 0, so the comparison operands carry the subquery node;
+      // pushability is decided when the recursion reaches QUERY_NODE_REMOTE_ZERO_ROWS
+      // (capability matrix EXT_CLAUSE_EXISTS_SUBQUERY + inner SELECT pushable).
       // LIKE/NOT LIKE on JSONB column cannot be pushed (PG rejects LIKE on JSONB)
-      if (fqIsJsonbLikeOp(pExpr, pScan)) return false;
+      if (fqIsJsonbLikeOp(pExpr, pScan)) {
+        if (fqDiagEnabled()) {
+          fprintf(stderr, "[FQ-DIAG] expr-operator node=%p opType=%d blocked=jsonb-like\n",
+                  pOp, (int)pOp->opType);
+        }
+        return false;
+      }
       // IN/NOT IN on InfluxDB time column cannot be pushed (DataFusion limitation)
-      if (fqIsInfluxTimeInOp(pExpr, pScan)) return false;
-      return fqExprIsPushable(pOp->pLeft, pScan) && fqExprIsPushable(pOp->pRight, pScan);
+      if (fqIsInfluxTimeInOp(pExpr, pScan)) {
+        if (fqDiagEnabled()) {
+          fprintf(stderr, "[FQ-DIAG] expr-operator node=%p opType=%d blocked=influx-time-in\n",
+                  pOp, (int)pOp->opType);
+        }
+        return false;
+      }
+      bool leftOk = fqExprIsPushable(pOp->pLeft, pScan, pCap, pOverlay, pPlanCxt);
+      bool rightOk = fqExprIsPushable(pOp->pRight, pScan, pCap, pOverlay, pPlanCxt);
+      if (fqDiagEnabled()) {
+        fprintf(stderr,
+                "[FQ-DIAG] expr-operator node=%p opType=%d leftOk=%d rightOk=%d leftType=%d rightType=%d\n",
+                pOp, (int)pOp->opType, (int)leftOk, (int)rightOk,
+                pOp->pLeft ? (int)nodeType(pOp->pLeft) : -1,
+                pOp->pRight ? (int)nodeType(pOp->pRight) : -1);
+      }
+      return leftOk && rightOk;
     }
 
     case QUERY_NODE_LOGIC_CONDITION: {
       SLogicConditionNode* pLogic = (SLogicConditionNode*)pExpr;
       SNode* pChild = NULL;
       FOREACH(pChild, pLogic->pParameterList) {
-        if (!fqExprIsPushable(pChild, pScan)) return false;
+        if (!fqExprIsPushable(pChild, pScan, pCap, pOverlay, pPlanCxt)) return false;
       }
       return true;
     }
 
     case QUERY_NODE_CASE_WHEN: {
       SCaseWhenNode* pCW = (SCaseWhenNode*)pExpr;
-      if (pCW->pCase && !fqExprIsPushable(pCW->pCase, pScan)) return false;
+      if (pCW->pCase && !fqExprIsPushable(pCW->pCase, pScan, pCap, pOverlay, pPlanCxt)) return false;
       SNode* pItem = NULL;
       FOREACH(pItem, pCW->pWhenThenList) {
         SWhenThenNode* pWT = (SWhenThenNode*)pItem;
-        if (!fqExprIsPushable(pWT->pWhen, pScan)) return false;
-        if (!fqExprIsPushable(pWT->pThen, pScan)) return false;
+        if (!fqExprIsPushable(pWT->pWhen, pScan, pCap, pOverlay, pPlanCxt)) return false;
+        if (!fqExprIsPushable(pWT->pThen, pScan, pCap, pOverlay, pPlanCxt)) return false;
       }
-      if (pCW->pElse && !fqExprIsPushable(pCW->pElse, pScan)) return false;
+      if (pCW->pElse && !fqExprIsPushable(pCW->pElse, pScan, pCap, pOverlay, pPlanCxt)) return false;
       return true;
     }
 
@@ -13578,20 +15131,206 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan) {
       SNodeListNode* pList = (SNodeListNode*)pExpr;
       SNode* pItem = NULL;
       FOREACH(pItem, pList->pNodeList) {
-        if (!fqExprIsPushable(pItem, pScan)) return false;
+        if (!fqExprIsPushable(pItem, pScan, pCap, pOverlay, pPlanCxt)) return false;
       }
       return true;
     }
 
-    // Executor-resolved nodes for subquery correlation
-    case QUERY_NODE_REMOTE_VALUE_LIST:
-    case QUERY_NODE_REMOTE_VALUE:
-    case QUERY_NODE_REMOTE_ROW:
-    case QUERY_NODE_REMOTE_ZERO_ROWS:
+    // Executor-resolved nodes for subquery correlation.
+    // Pushability requires two conditions:
+    //   1. capability matrix allows the subquery clause type
+    //   2. the subquery SELECT's expression nodes are all pushable
+    case QUERY_NODE_REMOTE_VALUE_LIST: {
+      // IN/NOT IN (subquery)
+      EExtClauseKind inClause = EXT_CLAUSE_IN_SUBQUERY;
+      int32_t dialect = pCap ? pCap->dialect : -1;
+      bool directOk = fqClauseIsPushable(inClause, dialect, pOverlay) &&
+                      !capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &inClause);
+      if (fqDiagEnabled()) {
+        fprintf(stderr,
+                "[FQ-DIAG] expr-remote-value-list-enter node=%p subQIdx=%d dialect=%d directOk=%d scan=%p table=%s\n",
+                pExpr, ((SRemoteValueListNode*)pExpr)->subQIdx, dialect, (int)directOk, pScan,
+                pScan ? pScan->tableName.tname : "(null)");
+      }
+      planDebug("FQ-push: REMOTE_VALUE_LIST dialect=%d directOk=%d", dialect, (int)directOk);
+      if (!directOk) {
+        planDebug("FQ-push: REMOTE_VALUE_LIST not pushable — IN_SUBQUERY disabled by capability");
+        return false;
+      }
+      SRemoteValueListNode* pRVL = (SRemoteValueListNode*)pExpr;
+      int32_t subQIdx = pRVL->subQIdx;
+      planDebug("FQ-push: REMOTE_VALUE_LIST collect subQIdx:%d ownerSubQIdx:%d", subQIdx,
+                pPlanCxt ? pPlanCxt->subqueryIndex : -2);
+      bool subqueryPushable =
+          fqSubqueryLogicIsPushable(pPlanCxt, subQIdx, QUERY_NODE_REMOTE_VALUE_LIST, pScan, pCap, pOverlay);
+      if (fqDiagEnabled()) {
+        fprintf(stderr,
+                "[FQ-DIAG] expr-remote-value-list node=%p subQIdx=%d directOk=%d subqueryPushable=%d scan=%p table=%s\n",
+                pRVL, subQIdx, (int)directOk, (int)subqueryPushable, pScan,
+                pScan ? pScan->tableName.tname : "(null)");
+      }
+      if (!subqueryPushable) {
+        planDebug("FQ-push: REMOTE_VALUE_LIST not pushable — descendant logic plan blocked (subQIdx=%d)", subQIdx);
+        return false;
+      }
+      bool renderModeOk =
+          fqAssignNodeRenderMode((SNode*)pRVL, inClause, dialect, pPlanCxt, subQIdx, &pRVL->renderMode);
+      if (fqDiagEnabled()) {
+        fprintf(stderr,
+                "[FQ-DIAG] expr-remote-value-list node=%p subQIdx=%d renderModeOk=%d renderMode=%d\n",
+                pRVL, subQIdx, (int)renderModeOk, (int)pRVL->renderMode);
+      }
+      if (!renderModeOk) {
+        planDebug("FQ-push: REMOTE_VALUE_LIST not pushable — translated inner body unsupported for dialect=%d (subQIdx=%d)",
+                  dialect, subQIdx);
+        return false;
+      }
       return true;
+    }
+
+    case QUERY_NODE_REMOTE_VALUE: {
+      // scalar subquery
+      EExtClauseKind scalarClause = EXT_CLAUSE_SCALAR_SUBQUERY;
+      int32_t dialect = pCap ? pCap->dialect : -1;
+      bool directOk = fqClauseIsPushable(scalarClause, dialect, pOverlay) &&
+                      !capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &scalarClause);
+      if (!directOk) {
+        planDebug("FQ-push: REMOTE_VALUE not pushable — SCALAR_SUBQUERY disabled by capability");
+        return false;
+      }
+      SRemoteValueNode* pRV = (SRemoteValueNode*)pExpr;
+      int32_t subQIdx = pRV->subQIdx;
+      planDebug("FQ-push: REMOTE_VALUE collect subQIdx:%d ownerSubQIdx:%d", subQIdx,
+                pPlanCxt ? pPlanCxt->subqueryIndex : -2);
+      if (!fqSubqueryLogicIsPushable(pPlanCxt, subQIdx, QUERY_NODE_REMOTE_VALUE, pScan, pCap, pOverlay)) {
+        planDebug("FQ-push: REMOTE_VALUE not pushable — descendant logic plan blocked (subQIdx=%d)", subQIdx);
+        return false;
+      }
+      if (!fqAssignNodeRenderMode((SNode*)pRV, scalarClause, dialect, pPlanCxt, subQIdx, &pRV->renderMode)) {
+        planDebug("FQ-push: REMOTE_VALUE not pushable — translated inner body unsupported for dialect=%d (subQIdx=%d)",
+                  dialect, subQIdx);
+        return false;
+      }
+      return true;
+    }
+
+// ALL/ANY/SOME are parser-rewritten into a MIN/MAX scalar wrapper:
+//   SELECT MIN|MAX(col), _has_null(col) FROM ( <original inner SELECT> )
+// The wrapper's projections (MIN/MAX/_has_null) are NOT what gets pushed — the
+// renderer inlines the ORIGINAL inner SQL directly as  op ALL|ANY (subq).  So
+// pushability must be judged on the ORIGINAL inner SELECT, not the wrapper.
+// This unwraps one TempTable layer to reach it; returns the wrapper itself when
+// the structure is not the expected MIN/MAX wrapper.
+    case QUERY_NODE_REMOTE_ROW: {
+      // ANY/ALL/SOME subquery
+      EExtClauseKind allAnyClause = EXT_CLAUSE_ALL_ANY_SUBQUERY;
+      int32_t dialect = pCap ? pCap->dialect : -1;
+      bool directOk = fqClauseIsPushable(allAnyClause, dialect, pOverlay) &&
+                      !capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &allAnyClause);
+      if (!directOk) {
+        planDebug("FQ-push: REMOTE_ROW not pushable — ALL_ANY_SUBQUERY disabled by capability");
+        return false;
+      }
+      SRemoteRowNode* pRR = (SRemoteRowNode*)pExpr;
+      int32_t subQIdx = pRR->subQIdx;
+      planDebug("FQ-push: REMOTE_ROW collect subQIdx:%d ownerSubQIdx:%d", subQIdx,
+                pPlanCxt ? pPlanCxt->subqueryIndex : -2);
+      if (!fqSubqueryLogicIsPushable(pPlanCxt, subQIdx, QUERY_NODE_REMOTE_ROW, pScan, pCap, pOverlay)) {
+        planDebug("FQ-push: REMOTE_ROW not pushable — descendant logic plan blocked (subQIdx=%d)", subQIdx);
+        return false;
+      }
+      if (!fqAssignNodeRenderMode((SNode*)pRR, allAnyClause, dialect, pPlanCxt, subQIdx, &pRR->renderMode)) {
+        planDebug("FQ-push: REMOTE_ROW not pushable — translated inner body unsupported for dialect=%d (subQIdx=%d)",
+                  dialect, subQIdx);
+        return false;
+      }
+      return true;
+    }
+
+    case QUERY_NODE_REMOTE_ZERO_ROWS: {
+      // EXISTS/NOT EXISTS (subquery).  Pushable iff the capability matrix allows
+      // EXISTS subquery for this dialect AND the inner SELECT is itself pushable.
+      // Otherwise the whole predicate stays local (collect-phase split).
+      EExtClauseKind existsClause = EXT_CLAUSE_EXISTS_SUBQUERY;
+      int32_t dialect = pCap ? pCap->dialect : -1;
+      bool directOk = fqClauseIsPushable(existsClause, dialect, pOverlay) &&
+                      !capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &existsClause);
+      if (!directOk) {
+        planDebug("FQ-push: REMOTE_ZERO_ROWS not pushable — EXISTS_SUBQUERY disabled by capability");
+        return false;
+      }
+      SRemoteZeroRowsNode* pRZ = (SRemoteZeroRowsNode*)pExpr;
+      int32_t subQIdx = pRZ->subQIdx;
+      planDebug("FQ-push: REMOTE_ZERO_ROWS collect subQIdx:%d ownerSubQIdx:%d", subQIdx,
+                pPlanCxt ? pPlanCxt->subqueryIndex : -2);
+      if (!fqSubqueryLogicIsPushable(pPlanCxt, subQIdx, QUERY_NODE_REMOTE_ZERO_ROWS, pScan, pCap, pOverlay)) {
+        planDebug("FQ-push: REMOTE_ZERO_ROWS not pushable — descendant logic plan blocked (subQIdx=%d)", subQIdx);
+        return false;
+      }
+      if (!fqAssignNodeRenderMode((SNode*)pRZ, existsClause, dialect, pPlanCxt, subQIdx, &pRZ->renderMode)) {
+        planDebug("FQ-push: REMOTE_ZERO_ROWS not pushable — translated inner body unsupported for dialect=%d (subQIdx=%d)",
+                  dialect, subQIdx);
+        return false;
+      }
+      return true;
+    }
+
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+      int32_t dialect = pCap ? pCap->dialect : -1;
+      if (fqShouldKeepAnalyzeInfluxScalarAggLocal(pFunc, dialect, pPlanCxt)) {
+        planDebug("FQ-push: func=%s funcId=%d dialect=%d keep local — explain analyze keeps aggregate with scalar subquery local",
+                  pFunc->functionName, pFunc->funcId, dialect);
+        return false;
+      }
+      // Bitmap capability matrix: checks static per-dialect push-down support.
+      // fqFuncIsPushable uses funcMgtBuiltins[funcId].fqPushCap; returns false
+      // for UDFs, out-of-range funcIds, and functions with FQ_CAP_NONE.
+      if (!fqFuncIsPushable(pFunc->funcId, dialect, pOverlay)) return false;
+      // Dynamic catalog-level demote: connector may have disabled specific
+      // functions at runtime via ALTER EXTERNAL SOURCE ... DISABLE FUNC ...
+      if (capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_FUNC, pFunc->functionName)) return false;
+      if (fqFuncArgIsType(pFunc, 0, TSDB_DATA_TYPE_NCHAR) &&
+          !fqFuncArg0NcharIsPushable(pFunc->funcId, dialect, pOverlay)) {
+        planDebug("FQ-push: func=%s funcId=%d dialect=%d keep local — arg0 NCHAR disabled by function capability matrix to preserve TDengine UCS4 byte semantics",
+                  pFunc->functionName, pFunc->funcId, dialect);
+        return false;
+      }
+      if (!fqWeekFuncIsPushable(pFunc, dialect)) {
+        planDebug("FQ-push: func=%s funcId=%d dialect=%d keep local — non-ISO WEEK semantics are not equivalent on this dialect",
+                  pFunc->functionName, pFunc->funcId, dialect);
+        return false;
+      }
+      // CAST(timestamp AS integer/bigint/uint/ubigint) sub-capability check.
+      // Only PostgreSQL supports pushing this down (see FQ_CAP_CAST_TS_INT_PG in builtins.c).
+      // MySQL: binary protocol returns MYSQL_TIME for TIMESTAMP columns; the connector
+      //   cannot safely reinterpret that as an integer epoch, so local conversion is required.
+      // InfluxDB 3 (DataFusion): does not support CAST(timestamp AS BIGINT).
+      if ((EFunctionType)pFunc->funcType == FUNCTION_TYPE_CAST) {
+        bool resIsInt = (pFunc->node.resType.type == TSDB_DATA_TYPE_BIGINT ||
+                        pFunc->node.resType.type == TSDB_DATA_TYPE_UBIGINT ||
+                        pFunc->node.resType.type == TSDB_DATA_TYPE_INT    ||
+                        pFunc->node.resType.type == TSDB_DATA_TYPE_UINT);
+        if (resIsInt && pFunc->pParameterList != NULL && LIST_LENGTH(pFunc->pParameterList) >= 1) {
+          SNode* pArg0 = nodesListGetNode(pFunc->pParameterList, 0);
+          if (pArg0 && ((SExprNode*)pArg0)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+            // Requires CAST(ts→int) sub-capability support for this dialect.
+            if (!fqFuncSubCapIsPushable(pFunc->funcId, FQ_CAP_CAST_TS_INT_SHIFT, dialect, pOverlay)) {
+              return false;
+            }
+          }
+        }
+      }
+      // Check all arguments are pushable
+      SNode* pArg = NULL;
+      FOREACH(pArg, pFunc->pParameterList) {
+        if (!fqExprIsPushable(pArg, pScan, pCap, pOverlay, pPlanCxt)) return false;
+      }
+      return true;
+    }
 
     default:
-      // FUNCTION, and any other unknown node type — not pushable
+      // Any unknown or unhandled node type — not pushable
       return false;
   }
 }
@@ -13608,28 +15347,102 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan) {
 // in node.pConditions for local execution by FederatedScan.  This is conservative
 // for mixed AND conditions (the whole AND stays local) but always correct.
 // fqEnsureLocalFilterColsInScanCols ensures all referenced columns are fetched.
-static int32_t fqHarvestConditions(SScanLogicNode* pScan) {
-  if (pScan->node.pConditions == NULL) return TSDB_CODE_SUCCESS;
 
-  // Special case: EXISTS/RAW_SQL_FRAG — always pushed.
-  if (fqIsFullyPushedCondition(pScan->node.pConditions)) {
-    pScan->pPushedConditions = pScan->node.pConditions;
-    pScan->node.pConditions = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
+// ---------------------------------------------------------------------------
+// fqFoldNowTodayInExpr / fqFoldNowTodayForInflux
+//
+// For InfluxDB (EXT_SQL_DIALECT_INFLUXQL), NOW() and TODAY() cannot be
+// rendered as InfluxQL syntax.  Instead, we constant-fold them into a
+// TSDB_DATA_TYPE_TIMESTAMP literal using the external source's time
+// precision (pExtMeta->tsPrecision) before the pushdown harvest step.
+//
+// After folding, fqExprIsPushable sees a plain QUERY_NODE_VALUE node, which
+// is always pushable, so the condition can be pushed to remote SQL as a
+// numeric literal (e.g.  "time < 1749999999000000000").
+//
+// The walk is recursive: we handle OPERATOR (pLeft/pRight), LOGIC_CONDITION
+// (parameter list), CASE_WHEN, and FUNCTION argument lists.  For non-InfluxDB
+// dialects the function is a no-op.
+// ---------------------------------------------------------------------------
+static int32_t fqFoldNowTodayInExpr(SNode** ppNode, int32_t prec, timezone_t tz) {
+  if (ppNode == NULL || *ppNode == NULL) return TSDB_CODE_SUCCESS;
 
-  // If any sub-expression is non-pushable (FUNCTION, BIT ops, JSONB LIKE,
-  // unknown operator types, etc.), keep the entire condition in
-  // node.pConditions for local execution.
-  if (!fqExprIsPushable(pScan->node.pConditions, pScan)) {
-    // node.pConditions stays as-is; pPushedConditions remains NULL.
-    return TSDB_CODE_SUCCESS;
+  SNode* pNode = *ppNode;
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      EFunctionType  ft    = (EFunctionType)pFunc->funcType;
+      if (ft == FUNCTION_TYPE_NOW || ft == FUNCTION_TYPE_TODAY) {
+        int64_t ts = (ft == FUNCTION_TYPE_NOW)
+                       ? taosGetTimestamp(prec)
+                       : taosGetTimestampToday(prec, tz);
+        SNode* pVal = NULL;
+        int32_t code = nodesMakeValueNodeFromTimestamp(ts, &pVal);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        nodesDestroyNode(pNode);
+        *ppNode = pVal;
+        planDebug("FQ-fold: folded %s() → %" PRId64 " (prec=%d)",
+                  ft == FUNCTION_TYPE_NOW ? "NOW" : "TODAY", ts, prec);
+        return TSDB_CODE_SUCCESS;
+      }
+      /* Recurse into function arguments */
+      if (pFunc->pParameterList != NULL) {
+        SNode* pArg = NULL;
+        WHERE_EACH(pArg, pFunc->pParameterList) {
+          int32_t code = fqFoldNowTodayInExpr(&cell->pNode, prec, tz);
+          if (TSDB_CODE_SUCCESS != code) return code;
+          WHERE_NEXT;
+        }
+      }
+      break;
+    }
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOp = (SOperatorNode*)pNode;
+      int32_t code = fqFoldNowTodayInExpr(&pOp->pLeft, prec, tz);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      code = fqFoldNowTodayInExpr(&pOp->pRight, prec, tz);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      break;
+    }
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SLogicConditionNode* pLogic = (SLogicConditionNode*)pNode;
+      SNode* pChild = NULL;
+      WHERE_EACH(pChild, pLogic->pParameterList) {
+        int32_t code = fqFoldNowTodayInExpr(&cell->pNode, prec, tz);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        WHERE_NEXT;
+      }
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode* pCW = (SCaseWhenNode*)pNode;
+      int32_t code = fqFoldNowTodayInExpr(&pCW->pCase, prec, tz);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      SNode* pItem = NULL;
+      WHERE_EACH(pItem, pCW->pWhenThenList) {
+        SWhenThenNode* pWT = (SWhenThenNode*)cell->pNode;
+        code = fqFoldNowTodayInExpr((SNode**)&pWT->pWhen, prec, tz);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        code = fqFoldNowTodayInExpr((SNode**)&pWT->pThen, prec, tz);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        WHERE_NEXT;
+      }
+      code = fqFoldNowTodayInExpr(&pCW->pElse, prec, tz);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      break;
+    }
+    default:
+      break;
   }
-  // All sub-conditions are safe to push to the remote DB.
-  pScan->pPushedConditions = pScan->node.pConditions;
-  pScan->node.pConditions = NULL;
   return TSDB_CODE_SUCCESS;
 }
+
+// Fold NOW()/TODAY() in the scan's WHERE condition for InfluxDB.
+// Precision is taken from pExtMeta->tsPrecision; if 0 (unknown) defaults to
+// TSDB_TIME_PRECISION_NANO since InfluxDB always uses nanoseconds.
+
+
 
 // ---------------------------------------------------------------------------
 // fqEnsureLocalFilterColsInScanCols
@@ -13755,6 +15568,347 @@ _done:
   return code;
 }
 
+static int32_t fqAppendUniqueScanColFromExpr(SScanLogicNode* pScan, SNode* pExpr) {
+  SNodeList* pCols = NULL;
+  int32_t    code = nodesCollectColumnsFromNode(pExpr, NULL, COLLECT_COL_TYPE_ALL, &pCols);
+  if (TSDB_CODE_SUCCESS != code || NULL == pCols) {
+    nodesDestroyList(pCols);
+    return code;
+  }
+
+  SNode* pColNode = NULL;
+  FOREACH(pColNode, pCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pColNode)) {
+      continue;
+    }
+
+    SColumnNode* pNeedCol = (SColumnNode*)pColNode;
+    bool found = false;
+    SNode* pScanCol = NULL;
+    FOREACH(pScanCol, pScan->pScanCols) {
+      if (QUERY_NODE_COLUMN != nodeType(pScanCol)) {
+        continue;
+      }
+      SColumnNode* pExistCol = (SColumnNode*)pScanCol;
+      if ((pExistCol->colId != 0 && pNeedCol->colId != 0 && pExistCol->colId == pNeedCol->colId) ||
+          (0 == strcmp(pExistCol->colName, pNeedCol->colName) &&
+           0 == strcmp(pExistCol->tableAlias, pNeedCol->tableAlias))) {
+        found = true;
+        break;
+      }
+    }
+
+    if (found) {
+      continue;
+    }
+
+    SNode* pClone = NULL;
+    code = nodesCloneNode(pColNode, &pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    code = nodesListMakeStrictAppend(&pScan->pScanCols, pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pClone);
+      break;
+    }
+    planDebug("FQ-partialProject: append local dependency col=%s tableAlias=%s colId=%d into scanCols",
+              pNeedCol->colName, pNeedCol->tableAlias, (int)pNeedCol->colId);
+  }
+
+  nodesDestroyList(pCols);
+  return code;
+}
+
+static bool fqColumnRefMatches(const SColumnNode* pExistCol, const SColumnNode* pNeedCol) {
+  if (NULL == pExistCol || NULL == pNeedCol) {
+    return false;
+  }
+
+  return (pExistCol->colId != 0 && pNeedCol->colId != 0 && pExistCol->colId == pNeedCol->colId) ||
+         (0 == strcmp(pExistCol->colName, pNeedCol->colName) &&
+          0 == strcmp(pExistCol->tableAlias, pNeedCol->tableAlias));
+}
+
+static bool fqProjectHasColumnExpr(const SNodeList* pExprs, const SColumnNode* pNeedCol) {
+  if (NULL == pExprs || NULL == pNeedCol) {
+    return false;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pExprs) {
+    const SNode* pInner = pNode;
+    if (QUERY_NODE_TARGET == nodeType(pInner)) {
+      pInner = ((const STargetNode*)pInner)->pExpr;
+    }
+    if (NULL == pInner || QUERY_NODE_COLUMN != nodeType(pInner)) {
+      continue;
+    }
+
+    const SColumnNode* pExistCol = (const SColumnNode*)pInner;
+    if (fqColumnRefMatches(pExistCol, pNeedCol)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static int32_t fqAppendRemoteProjectDeps(SProjectLogicNode* pRemoteProj, SNode* pExpr) {
+  SNodeList* pCols = NULL;
+  int32_t    code = nodesCollectColumnsFromNode(pExpr, NULL, COLLECT_COL_TYPE_ALL, &pCols);
+  if (TSDB_CODE_SUCCESS != code || NULL == pCols) {
+    nodesDestroyList(pCols);
+    return code;
+  }
+
+  SNode* pColNode = NULL;
+  FOREACH(pColNode, pCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pColNode)) {
+      continue;
+    }
+
+    SColumnNode* pNeedCol = (SColumnNode*)pColNode;
+    if (fqProjectHasColumnExpr(pRemoteProj->pProjections, pNeedCol)) {
+      continue;
+    }
+
+    SNode* pProjClone = NULL;
+    code = nodesCloneNode(pColNode, &pProjClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    code = nodesListMakeStrictAppend(&pRemoteProj->pProjections, pProjClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pProjClone);
+      break;
+    }
+
+    SNode* pTargetClone = NULL;
+    code = nodesCloneNode(pColNode, &pTargetClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    code = nodesListMakeStrictAppend(&pRemoteProj->node.pTargets, pTargetClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pTargetClone);
+      break;
+    }
+
+    planDebug("FQ-partialProject: append remote dependency col=%s tableAlias=%s colId=%d",
+              pNeedCol->colName, pNeedCol->tableAlias, (int)pNeedCol->colId);
+  }
+
+  nodesDestroyList(pCols);
+  return code;
+}
+
+static int32_t fqAppendRemoteProjectScanCols(SProjectLogicNode* pRemoteProj, const SNodeList* pScanCols) {
+  if (NULL == pRemoteProj || NULL == pScanCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pScanCol = NULL;
+  FOREACH(pScanCol, pScanCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pScanCol)) {
+      continue;
+    }
+
+    if (fqProjectHasColumnExpr(pRemoteProj->pProjections, (const SColumnNode*)pScanCol)) {
+      continue;
+    }
+
+    SNode* pProjClone = NULL;
+    code = nodesCloneNode(pScanCol, &pProjClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    code = nodesListMakeStrictAppend(&pRemoteProj->pProjections, pProjClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pProjClone);
+      break;
+    }
+
+    SNode* pTargetClone = NULL;
+    code = nodesCloneNode(pScanCol, &pTargetClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
+    code = nodesListMakeStrictAppend(&pRemoteProj->node.pTargets, pTargetClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pTargetClone);
+      break;
+    }
+
+    planDebug("FQ-partialProject: append scan col to remote project col=%s tableAlias=%s colId=%d",
+              ((SColumnNode*)pScanCol)->colName, ((SColumnNode*)pScanCol)->tableAlias,
+              (int)((SColumnNode*)pScanCol)->colId);
+  }
+
+  return code;
+}
+
+static int32_t fqBuildPartialRemoteProject(SScanLogicNode* pScan, SProjectLogicNode* pProj,
+                                           const SExtSourceCapability* pCap,
+                                           const SExtCapSessionOverlay* pOverlay,
+                                           const SPlanContext* pPlanCxt) {
+  if (NULL == pScan || NULL == pProj || NULL == pProj->pProjections) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t pushableCnt = 0;
+  int32_t localCnt = 0;
+  if (!fqProjectCanPartiallyPushdown(pProj, pScan, pCap, pOverlay, pPlanCxt, &pushableCnt, &localCnt)) {
+    planDebug("FQ-partialProject: skip build, project=%p pushableCnt=%d localCnt=%d",
+              pProj, pushableCnt, localCnt);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  fqPlanDebugLogNodeOutputs("partialProject.local.project", (SLogicNode*)pProj);
+  fqPlanDebugLogNodeOutputs("partialProject.local.scan", (SLogicNode*)pScan);
+
+  SProjectLogicNode* pRemoteProj = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pRemoteProj);
+  if (TSDB_CODE_SUCCESS != code || NULL == pRemoteProj) {
+    planError("FQ-partialProject: create remote project failed, code=0x%x", code);
+    return (TSDB_CODE_SUCCESS == code) ? terrno : code;
+  }
+
+  pRemoteProj->ignoreGroupId = true;
+  pRemoteProj->inputIgnoreGroup = pProj->inputIgnoreGroup;
+  pRemoteProj->node.precision = pProj->node.precision;
+  pRemoteProj->node.stmtRoot = pProj->node.stmtRoot;
+
+  int32_t idx = 0;
+  SNode* pExpr = NULL;
+  FOREACH(pExpr, pProj->pProjections) {
+    SNode* pInner = pExpr;
+    if (QUERY_NODE_TARGET == nodeType(pInner)) {
+      pInner = ((STargetNode*)pInner)->pExpr;
+    }
+    if (NULL == pInner) {
+      ++idx;
+      continue;
+    }
+
+    bool pushable = fqExprIsPushable(pInner, pScan, pCap, pOverlay, pPlanCxt);
+    bool partialPushable = pushable && QUERY_NODE_COLUMN == nodeType(pInner);
+    if (partialPushable) {
+      SNode* pRemoteExpr = NULL;
+      code = nodesCloneNode(pInner, &pRemoteExpr);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+      code = nodesListMakeStrictAppend(&pRemoteProj->pProjections, pRemoteExpr);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pRemoteExpr);
+        break;
+      }
+
+      SNode* pRemoteTargetExpr = NULL;
+      code = nodesCloneNode(pInner, &pRemoteTargetExpr);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+      code = nodesListMakeStrictAppend(&pRemoteProj->node.pTargets, pRemoteTargetExpr);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pRemoteTargetExpr);
+        break;
+      }
+
+      SColumnNode* pRewriteCol = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pRewriteCol);
+      if (TSDB_CODE_SUCCESS != code || NULL == pRewriteCol) {
+        code = (TSDB_CODE_SUCCESS == code) ? terrno : code;
+        break;
+      }
+      pRewriteCol->node.resType = ((SExprNode*)pInner)->resType;
+      tstrncpy(pRewriteCol->colName, ((SExprNode*)pInner)->aliasName, TSDB_COL_NAME_LEN);
+      tstrncpy(pRewriteCol->node.aliasName, ((SExprNode*)pInner)->aliasName, TSDB_COL_NAME_LEN);
+      tstrncpy(pRewriteCol->node.userAlias, ((SExprNode*)pInner)->userAlias, TSDB_COL_NAME_LEN);
+      nodesDestroyNode(pExpr);
+      cell->pNode = (SNode*)pRewriteCol;
+      planDebug("FQ-partialProject: expr[%d] pushed remote alias=%s userAlias=%s",
+                idx, pRewriteCol->colName, pRewriteCol->node.userAlias);
+    } else {
+      code = fqAppendUniqueScanColFromExpr(pScan, pInner);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+      code = fqAppendRemoteProjectDeps(pRemoteProj, pInner);
+      if (TSDB_CODE_SUCCESS != code) {
+        break;
+      }
+      planDebug("FQ-partialProject: expr[%d] stays local nodeType=%d",
+                idx, (int)nodeType(pInner));
+    }
+    ++idx;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = fqAppendRemoteProjectScanCols(pRemoteProj, pScan->pScanCols);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pScan->pRemoteLogicPlan != NULL) {
+      code = nodesMakeList(&pRemoteProj->node.pChildren);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = nodesListStrictAppend(pRemoteProj->node.pChildren, pScan->pRemoteLogicPlan);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        ((SLogicNode*)pScan->pRemoteLogicPlan)->pParent = (SLogicNode*)pRemoteProj;
+        pScan->pRemoteLogicPlan = (SNode*)pRemoteProj;
+      }
+    } else {
+      pScan->pRemoteLogicPlan = (SNode*)pRemoteProj;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-partialProject: build failed project=%p code=0x%x", pProj, code);
+    if ((SNode*)pRemoteProj != pScan->pRemoteLogicPlan) {
+      nodesDestroyNode((SNode*)pRemoteProj);
+    }
+    return code;
+  }
+
+  code = fqAlignRemoteRootTargetsForRender((SLogicNode*)pScan->pRemoteLogicPlan);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-partialProject: align remote root targets failed, code=0x%x", code);
+    return code;
+  }
+
+  fqPlanDebugLogNodeOutputs("partialProject.remote.afterAlign", (SLogicNode*)pScan->pRemoteLogicPlan);
+
+  code = fqEnsureLocalFilterColsInScanCols(pScan);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-partialProject: ensure local filter cols failed, code=0x%x", code);
+    return code;
+  }
+
+  SNodeList* pScanTargets = NULL;
+  code = nodesCloneList(((SLogicNode*)pScan->pRemoteLogicPlan)->pTargets, &pScanTargets);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-partialProject: clone remote root targets for scan failed, code=0x%x", code);
+    return code;
+  }
+  nodesDestroyList(pScan->node.pTargets);
+  pScan->node.pTargets = pScanTargets;
+  planDebug("FQ-partialProject: scan targets cloned from remote root targets=%d",
+            pScanTargets ? LIST_LENGTH(pScanTargets) : 0);
+
+  planDebug("FQ-partialProject: done scan=%p project=%p remoteRootType=%d pushableCnt=%d localCnt=%d scanCols=%d remoteTargets=%d",
+            pScan, pProj, pScan->pRemoteLogicPlan ? (int)nodeType(pScan->pRemoteLogicPlan) : -1,
+            pushableCnt, localCnt,
+            pScan->pScanCols ? LIST_LENGTH(pScan->pScanCols) : 0,
+            (pScan->pRemoteLogicPlan && ((SLogicNode*)pScan->pRemoteLogicPlan)->pTargets)
+                ? LIST_LENGTH(((SLogicNode*)pScan->pRemoteLogicPlan)->pTargets)
+                : 0);
+  return TSDB_CODE_SUCCESS;
+}
+
 
 // Convert TDengine PARTITION BY semantics into standard SQL GROUP BY for remote.
 //
@@ -13794,19 +15948,32 @@ static SPartitionLogicNode* fqFindPartitionTbname(SLogicNode* pNode) {
   return NULL;
 }
 
-static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSubplan) {
-  // Find the nearest ancestor PARTITION BY TBNAME logic node.
-  // First: walk up through pParent chain (within the same subplan).
-  // Second: if not found, search parent subplans (PARTITION and FedScan may be
-  //         in different subplans after plan splitting).
+// REWRITE half of PARTITION BY TBNAME pushdown (defined just below
+// fqConvertPartition).  PARTITION BY column needs no rewrite here — under the
+// current collect→commit flow it is cloned verbatim into pRemoteLogicPlan and
+// the SQL renderer handles GROUP BY (using the partition node's own pAggFuncs,
+// or the parent plan when it has none).  Only PARTITION BY TBNAME needs the
+// tag-column substitution performed by the rewrite half.
+static int32_t fqCommitPartition(SScanLogicNode* pScan, SPartitionLogicNode* pPart,
+                                 SLogicSubplan* pLogicSubplan,
+                                 const SExtSourceCapability* pCap,
+                                 const SExtCapSessionOverlay* pOverlay);
+
+static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSubplan,
+                                   const SExtSourceCapability* pCap,
+                                   const SExtCapSessionOverlay* pOverlay) {
+  planDebug("FQ-convertPartition: enter scan=%p (locate PARTITION BY TBNAME for tag rewrite)", pScan);
+  // Judgment half: find the nearest ancestor PARTITION BY TBNAME logic node.
+  // PARTITION BY column is NOT handled here — it rides the generic collect/commit
+  // path (cloned verbatim into the remote plan); only TBNAME needs rewriting.
+  // First walk the local pParent chain; if not found, search parent subplans
+  // (PARTITION and FedScan may land in different subplans after plan splitting).
   SLogicNode* pParentNode = pScan->node.pParent;
   SPartitionLogicNode* pPart = NULL;
   while (pParentNode != NULL) {
     ENodeType pt = nodeType(pParentNode);
     if (pt == QUERY_NODE_LOGIC_PLAN_PARTITION) {
-      // Only handle PARTITION BY TBNAME here.  Plain PARTITION BY col (e.g.
-      // PARTITION BY host INTERVAL(1m)) is executed locally by TDengine and
-      // must NOT be rejected for MySQL/PG.
+      // Only handle PARTITION BY TBNAME here.
       SPartitionLogicNode* pPartCandidate = (SPartitionLogicNode*)pParentNode;
       bool hasTbname = false;
       SNode* pKey = NULL;
@@ -13823,9 +15990,8 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
         pPart = pPartCandidate;
         break;
       }
-      // Non-TBNAME PARTITION: continue walking up the chain.
-      pParentNode = pParentNode->pParent;
-      continue;
+      // PARTITION BY column: not handled here; stop the TBNAME search.
+      break;
     }
     // Only walk through single-child "passthrough" nodes
     if (pt == QUERY_NODE_LOGIC_PLAN_AGG ||
@@ -13854,18 +16020,37 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
     }
   }
   if (pPart == NULL) {
+    planDebug("FQ-convertPartition: no PARTITION BY TBNAME found → nothing to do (column partition rides collect/commit)");
     return TSDB_CODE_SUCCESS;
   }
 
-  // pPartitionKeys were already checked in fqFindPartitionTbname or directly.
-  // Resolve the external table node.
-  if (pScan->pExtTableNode == NULL) return TSDB_CODE_SUCCESS;
-  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
-  EExtSourceType srcType  = (EExtSourceType)pExtNode->sourceType;
+  // Judgment half done (found a PARTITION BY TBNAME node).  Delegate to the
+  // rewrite half (split out so the three-step commit can invoke it directly).
+  planDebug("FQ-convertPartition: found PARTITION BY TBNAME pPart=%p → fqCommitPartition (tag rewrite)", pPart);
+  return fqCommitPartition(pScan, pPart, pLogicSubplan, pCap, pOverlay);
+}
 
-  // MySQL and PostgreSQL do not support PARTITION BY TBNAME.
-  if (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_POSTGRESQL) {
-    planError("FQ: PARTITION BY TBNAME unsupported for srcType=%d at line %d", srcType, __LINE__);
+// fqCommitPartition — REWRITE half of PARTITION BY TBNAME pushdown.  Substitutes
+// the real tag columns for TBNAME in the partition keys and adds those tag
+// columns to pScanCols so the physical planner can resolve their slot ids.
+static int32_t fqCommitPartition(SScanLogicNode* pScan, SPartitionLogicNode* pPart,
+                                 SLogicSubplan* pLogicSubplan,
+                                 const SExtSourceCapability* pCap,
+                                 const SExtCapSessionOverlay* pOverlay) {
+  planDebug("FQ-commitPartition: enter scan=%p pPart=%p", pScan, pPart);
+  // Resolve the external table node.
+  if (pScan->pExtTableNode == NULL) {
+    planDebug("FQ-commitPartition: no pExtTableNode → skip");
+    return TSDB_CODE_SUCCESS;
+  }
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+
+  // Check PARTITION BY TBNAME capability via matrix.
+  EExtClauseKind partTbnameClause = EXT_CLAUSE_PARTITION_TBNAME;
+  if (!fqClauseIsPushable(partTbnameClause, pCap ? pCap->dialect : -1, pOverlay) ||
+      capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &partTbnameClause)) {
+    planError("FQ: PARTITION BY TBNAME not pushable for dialect=%d",
+              pCap ? (int)pCap->dialect : -1);
     return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
 
@@ -13894,6 +16079,7 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
   // PARTITION node from the logic plan so the AGG operates on all rows
   // directly (producing a single group — the correct result).
   if (!hasTags) {
+    planDebug("FQ-commitPartition: tagless measurement → remove PARTITION node (single-group, no-op)");
     SLogicNode* pPartChild = (SLogicNode*)nodesListGetNode(pPart->node.pChildren, 0);
     if (pPartChild != NULL) {
       if (NULL == pPart->node.pParent) {
@@ -14015,8 +16201,15 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
   // sees the correct column set when assigning slot descriptors.
   nodesDestroyList(pScan->node.pTargets);
   pScan->node.pTargets = NULL;
-  return createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
+  code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
+  planDebug("FQ-commitPartition: tagged source — TBNAME→tag-cols rewritten in partition keys, pScanCols/pTargets rebuilt (code=0x%x)", code);
+  return code;
 }
+
+// REWRITE half of GROUP BY TBNAME pushdown (defined just below fqConvertGroupBy).
+static int32_t fqCommitGroupBy(SScanLogicNode* pScan, SAggLogicNode* pAgg,
+                               const SExtSourceCapability* pCap,
+                               const SExtCapSessionOverlay* pOverlay);
 
 // ---------------------------------------------------------------------------
 // fqConvertGroupBy: handle GROUP BY TBNAME on federated (external) scans.
@@ -14028,7 +16221,10 @@ static int32_t fqConvertPartition(SScanLogicNode* pScan, SLogicSubplan* pLogicSu
 //     nodes and add those tag columns to pScanCols so the physi creator can
 //     resolve slot IDs correctly.
 // ---------------------------------------------------------------------------
-static int32_t fqConvertGroupBy(SScanLogicNode* pScan, SLogicSubplan* pLogicSubplan) {
+static int32_t fqConvertGroupBy(SScanLogicNode* pScan, SLogicSubplan* pLogicSubplan,
+                                 const SExtSourceCapability* pCap,
+                                 const SExtCapSessionOverlay* pOverlay) {
+  planDebug("FQ-convertGroupBy: enter scan=%p (locate GROUP BY TBNAME for tag rewrite)", pScan);
   // Walk up from the external scan to find the nearest AGG node whose
   // pGroupKeys contains TBNAME.
   SLogicNode*    pParentNode = pScan->node.pParent;
@@ -14057,17 +16253,38 @@ static int32_t fqConvertGroupBy(SScanLogicNode* pScan, SLogicSubplan* pLogicSubp
   }
 
   if (pAgg == NULL) {
+    planDebug("FQ-convertGroupBy: no GROUP BY TBNAME found → nothing to do");
     return TSDB_CODE_SUCCESS;
   }
 
+  // Judgment half done (found the GROUP BY TBNAME AGG).  Delegate to the
+  // rewrite half (split out so the three-step commit can invoke it directly).
+  planDebug("FQ-convertGroupBy: found GROUP BY TBNAME pAgg=%p → fqCommitGroupBy (tag rewrite)", pAgg);
+  return fqCommitGroupBy(pScan, pAgg, pCap, pOverlay);
+}
 
+// fqCommitGroupBy — REWRITE half of GROUP BY TBNAME pushdown, split out from
+// fqConvertGroupBy so step-3 commit can invoke it after the AGG-with-TBNAME has
+// already been located.  Rewrites the AGG's pGroupKeys (TBNAME → real tag cols)
+// and adds the tag columns to pScanCols.  raise-error path retained ONLY for the
+// capability gate (the judgment half does not pre-check the TBNAME gate yet).
+static int32_t fqCommitGroupBy(SScanLogicNode* pScan, SAggLogicNode* pAgg,
+                               const SExtSourceCapability* pCap,
+                               const SExtCapSessionOverlay* pOverlay) {
+  planDebug("FQ-commitGroupBy: enter scan=%p pAgg=%p", pScan, pAgg);
   // Resolve external table info.
-  if (pScan->pExtTableNode == NULL) return TSDB_CODE_SUCCESS;
+  if (pScan->pExtTableNode == NULL) {
+    planDebug("FQ-commitGroupBy: no pExtTableNode → skip");
+    return TSDB_CODE_SUCCESS;
+  }
   SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
-  EExtSourceType srcType  = (EExtSourceType)pExtNode->sourceType;
 
-  if (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_POSTGRESQL) {
-    planError("FQ: GROUP BY TBNAME unsupported for srcType=%d at line %d", srcType, __LINE__);
+  // Check PARTITION BY TBNAME capability via matrix (GROUP BY TBNAME shares same gate).
+  EExtClauseKind partTbnameClause = EXT_CLAUSE_PARTITION_TBNAME;
+  if (!fqClauseIsPushable(partTbnameClause, pCap ? pCap->dialect : -1, pOverlay) ||
+      capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &partTbnameClause)) {
+    planError("FQ: GROUP BY TBNAME not pushable for dialect=%d",
+              pCap ? (int)pCap->dialect : -1);
     return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
 
@@ -14091,6 +16308,7 @@ static int32_t fqConvertGroupBy(SScanLogicNode* pScan, SLogicSubplan* pLogicSubp
   // to the same measurement.  Remove TBNAME from pGroupKeys so the AGG
   // operates on all rows directly (producing a single group).
   if (!hasTags) {
+    planDebug("FQ-commitGroupBy: tagless measurement → strip TBNAME from GROUP BY keys (single group)");
     SNodeList* pNewKeys = NULL;
     SNode* pKey = NULL;
     FOREACH(pKey, pAgg->pGroupKeys) {
@@ -14222,25 +16440,965 @@ static int32_t fqConvertGroupBy(SScanLogicNode* pScan, SLogicSubplan* pLogicSubp
   code = createColumnByRewriteExprs(pScan->pScanCols, &pScan->node.pTargets);
   if (TSDB_CODE_SUCCESS != code) return code;
 
-  // 4. Rebuild AGG node targets: aggregate functions + group keys.
+  // 4. Rebuild AGG node targets: group keys then aggregate functions.
+  // Order must match the SQL SELECT column order emitted by renderAggSelectList
+  // (groupKeys first, aggFuncs second), so that addDataBlockSlots assigns slot
+  // IDs in the same order as the connector fills the result block columns.
   nodesDestroyList(pAgg->node.pTargets);
   pAgg->node.pTargets = NULL;
-  if (pAgg->pAggFuncs != NULL) {
-    code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
-    if (TSDB_CODE_SUCCESS != code) return code;
-  }
   if (pAgg->pGroupKeys != NULL) {
     code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
     if (TSDB_CODE_SUCCESS != code) return code;
   }
+  if (pAgg->pAggFuncs != NULL) {
+    code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
 
+  planDebug("FQ-commitGroupBy: tagged source — TBNAME→tag-cols rewritten in GROUP BY keys, pScanCols/targets rebuilt (code=0x%x)", code);
   return code;
 }
 
-// Convert TDengine window functions (INTERVAL/SESSION/STATE) into standard SQL
-// window expressions or GROUP BY + aggregation for remote execution.
-static int32_t fqConvertWindow(SScanLogicNode* pScan) {
-  // Phase 2: transform TDengine window → standard SQL
+// NOTE: SESSION/STATE/EVENT/COUNT window operators above an ExternalScan are
+// NOT pushed to remote SQL and remain in the main plan for local execution.
+// INTERVAL windows are handled separately by fqConvertInterval (below), which
+// converts them to a remote GROUP BY time-bucket query.
+// INTERP windows are handled by the dedicated `FqInterp` rule.
+
+// ---------------------------------------------------------------------------
+// fqConvertInterval — push INTERVAL window down as remote GROUP BY
+// ---------------------------------------------------------------------------
+// For a query like:
+//   SELECT _wstart, COUNT(*) FROM ext.sensor INTERVAL(1m)
+//
+// TDengine creates: Scan → Window(INTERVAL) → Agg(count) → Project
+//
+// This function converts the INTERVAL+Agg pair into a remote AGG node with:
+//   GROUP BY  FUNCTION_TYPE_FQ_TIME_BUCKET(ts_col, bucket_ms)
+//   aggFuncs  cloned from Window->pFuncs
+//
+// nodesRemotePlanToSQL then emits per-dialect:
+//   MySQL:    SELECT COUNT(*) ... GROUP BY FROM_UNIXTIME(FLOOR(...))
+//   PG:       SELECT COUNT(*) ... GROUP BY to_timestamp(FLOOR(...))
+//   InfluxDB: SELECT COUNT(*) ... GROUP BY time(60000ms)
+//
+// Constraints (any violation → skip, leave INTERVAL local):
+//   1. winType == WINDOW_TYPE_INTERVAL
+//   2. pWindow->sliding == 0 (no SLIDING — non-tumbling stays local)
+//   3. No PARTITION BY between Scan and Window (handled by fqConvertPartition;
+//      two-stage partition+interval stays local)
+//   4. All aggregate functions in pFuncs are pushable (fqFuncTypeIsPushable)
+//   5. Source capability has EXT_CLAUSE_AGG and EXT_CLAUSE_GROUP_BY
+// ---------------------------------------------------------------------------
+// fqCloneScanAsLeaf — clone a SCAN logic node into a pure remote-plan leaf
+// (no children, no parent, no nested remote plan).  Carries FROM/pScanCols/
+// pPushedConditions for SQL rendering.  Shared by commit and JOIN builder.
+static int32_t fqCloneScanAsLeaf(SScanLogicNode* pSrc, SScanLogicNode** ppLeaf) {
+  SScanLogicNode* pLeaf = NULL;
+  int32_t code = nodesCloneNode((SNode*)pSrc, (SNode**)&pLeaf);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  if (pLeaf->node.pChildren != NULL) {
+    nodesDestroyList(pLeaf->node.pChildren);
+    pLeaf->node.pChildren = NULL;
+  }
+  pLeaf->node.pParent = NULL;
+  if (pLeaf->pRemoteLogicPlan != NULL) {
+    nodesDestroyNode(pLeaf->pRemoteLogicPlan);
+    pLeaf->pRemoteLogicPlan = NULL;
+  }
+  planDebug("FQ-cloneLeaf: src=%p table=%s hasCond=%d scanCols=%d targets=%d",
+            pSrc,
+            pSrc->tableName.tname,
+            NULL != pSrc->node.pConditions,
+            pSrc->pScanCols ? LIST_LENGTH(pSrc->pScanCols) : 0,
+            pSrc->node.pTargets ? LIST_LENGTH(pSrc->node.pTargets) : 0);
+  *ppLeaf = pLeaf;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fqBuildRemoteSubtree(SLogicNode* pNode, SScanLogicNode* pScanForMeta,
+                                    SLogicNode** ppRemote);
+static int32_t fqRewriteRemoteTbnameTags(SLogicNode* pRemoteNode, SNode* pRemoteBase,
+                                         const SExtTableMeta* pMeta);
+
+static int32_t fqHarvestParentJoinWhereForRemoteSubtree(SLogicNode* pBoundaryRoot, SLogicNode* pRemoteSubtree,
+                                                        const SExtSourceCapability* pCap,
+                                                        const SExtCapSessionOverlay* pOverlay,
+                                                        const SPlanContext* pPlanCxt) {
+  if (NULL == pBoundaryRoot || NULL == pRemoteSubtree || NULL == pBoundaryRoot->pParent ||
+      QUERY_NODE_LOGIC_PLAN_JOIN != nodeType((SNode*)pBoundaryRoot->pParent)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)pBoundaryRoot->pParent;
+  if (NULL == pJoin->node.pConditions) {
+    planDebug("FQ-joinWhereHarvest: boundary=%p parentJoin=%p has no join-level WHERE",
+              pBoundaryRoot, pJoin);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLogicNode* pDirectChild = pBoundaryRoot;
+  while (NULL != pDirectChild->pParent && pDirectChild->pParent != (SLogicNode*)pJoin) {
+    pDirectChild = pDirectChild->pParent;
+  }
+  if (NULL == pDirectChild->pParent) {
+    planDebug("FQ-joinWhereHarvest: boundary=%p is not under expected parentJoin=%p",
+              pBoundaryRoot, pJoin);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLogicNode* pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+  SLogicNode* pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+  bool isLeftLeg = (pDirectChild == pLeft);
+  bool isRightLeg = (pDirectChild == pRight);
+  if (!isLeftLeg && !isRightLeg) {
+    planError("FQ-joinWhereHarvest: direct child=%p not found in parentJoin=%p",
+              pDirectChild, pJoin);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SScanLogicNode* pBoundaryScan = fqFindExternalLogicLeafScan(pBoundaryRoot);
+  if (NULL == pBoundaryScan) {
+    planDebug("FQ-joinWhereHarvest: boundary=%p parentJoin=%p has no external leaf scan",
+              pBoundaryRoot, pJoin);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode* pJoinWhere = NULL;
+  SNode* pOnCond = NULL;
+  SNode* pLeftChildCond = NULL;
+  SNode* pRightChildCond = NULL;
+  code = nodesCloneNode(pJoin->node.pConditions, &pJoinWhere);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-joinWhereHarvest: clone join-level WHERE failed join=%p boundary=%p code=0x%x",
+              pJoin, pBoundaryRoot, code);
+    return code;
+  }
+
+  code = pdcJoinSplitCond(pJoin, &pJoinWhere, &pOnCond, &pLeftChildCond, &pRightChildCond, true);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-joinWhereHarvest: split join-level WHERE failed join=%p boundary=%p code=0x%x",
+              pJoin, pBoundaryRoot, code);
+    nodesDestroyNode(pJoinWhere);
+    nodesDestroyNode(pOnCond);
+    nodesDestroyNode(pLeftChildCond);
+    nodesDestroyNode(pRightChildCond);
+    return code;
+  }
+
+  SNode** ppChosen = isLeftLeg ? &pLeftChildCond : &pRightChildCond;
+  SNode* pChosen = *ppChosen;
+  planDebug("FQ-joinWhereHarvest: parentJoin=%p boundary=%p directChild=%p leg=%s chosen=%d other=%d remain=%d on=%d remoteRootType=%d",
+            pJoin, pBoundaryRoot, pDirectChild, isLeftLeg ? "left" : "right",
+            NULL != pChosen, isLeftLeg ? (NULL != pRightChildCond) : (NULL != pLeftChildCond),
+            NULL != pJoinWhere, NULL != pOnCond, (int)nodeType((SNode*)pRemoteSubtree));
+
+  if (NULL != pChosen) {
+    bool pushable = fqExprIsPushable(pChosen, pBoundaryScan, pCap, pOverlay, pPlanCxt);
+    planDebug("FQ-joinWhereHarvest: parentJoin=%p boundary=%p leg=%s chosenPushable=%d remoteRootHasCondBefore=%d",
+              pJoin, pBoundaryRoot, isLeftLeg ? "left" : "right", (int)pushable,
+              NULL != pRemoteSubtree->pConditions);
+    if (pushable) {
+      code = nodesMergeNode(&pRemoteSubtree->pConditions, ppChosen);
+      if (TSDB_CODE_SUCCESS != code) {
+        planError("FQ-joinWhereHarvest: merge chosen WHERE into remote subtree failed join=%p boundary=%p code=0x%x",
+                  pJoin, pBoundaryRoot, code);
+      } else {
+        planDebug("FQ-joinWhereHarvest: merged chosen WHERE into remote subtree parentJoin=%p boundary=%p remoteRootHasCondAfter=%d",
+                  pJoin, pBoundaryRoot, NULL != pRemoteSubtree->pConditions);
+      }
+    } else {
+      planDebug("FQ-joinWhereHarvest: chosen WHERE stays local parentJoin=%p boundary=%p",
+                pJoin, pBoundaryRoot);
+    }
+  }
+
+  nodesDestroyNode(pJoinWhere);
+  nodesDestroyNode(pOnCond);
+  nodesDestroyNode(pLeftChildCond);
+  nodesDestroyNode(pRightChildCond);
+  return code;
+}
+
+// fqBuildRemoteJoin — pure builder: constructs the remote JOIN node (joinType,
+// subType, ON conditions) with recursively-built remote children, returned via
+// *ppJoin.  NO main-tree surgery.  Child legs may be bare external scans or a
+// previously-built remote subtree hanging off a docking scan (nested join push).
+static int32_t fqBuildRemoteJoin(SJoinLogicNode* pJoin, SScanLogicNode* pScanForMeta,
+                                 SJoinLogicNode** ppJoin) {
+  *ppJoin = NULL;
+  SLogicNode* pLeft  = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+  SLogicNode* pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+  planDebug("FQ-buildRemoteJoin: joinType=%d subType=%d leftType=%d rightType=%d",
+            (int)pJoin->joinType, (int)pJoin->subType,
+            pLeft ? (int)nodeType((SNode*)pLeft) : -1,
+            pRight ? (int)nodeType((SNode*)pRight) : -1);
+
+  SJoinLogicNode* pRemoteJoin = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_JOIN, (SNode**)&pRemoteJoin);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  pRemoteJoin->joinType = pJoin->joinType;
+  pRemoteJoin->subType  = pJoin->subType;
+
+  // ON clause: combine pPrimKeyEqCond + pFullOnCond into pRemoteJoin->pFullOnCond.
+  if (pJoin->pPrimKeyEqCond != NULL && pJoin->pFullOnCond != NULL) {
+    SLogicConditionNode* pAndCond = NULL;
+    code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pAndCond);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); return code; }
+    pAndCond->condType = LOGIC_COND_TYPE_AND;
+    code = nodesMakeList(&pAndCond->pParameterList);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); nodesDestroyNode((SNode*)pAndCond); return code; }
+    SNode* pPrimClone = NULL; SNode* pFullClone = NULL;
+    code = nodesCloneNode(pJoin->pPrimKeyEqCond, &pPrimClone);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); nodesDestroyNode((SNode*)pAndCond); return code; }
+    code = nodesCloneNode(pJoin->pFullOnCond, &pFullClone);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); nodesDestroyNode((SNode*)pAndCond); nodesDestroyNode(pPrimClone); return code; }
+    (void)nodesListStrictAppend(pAndCond->pParameterList, pPrimClone);
+    (void)nodesListStrictAppend(pAndCond->pParameterList, pFullClone);
+    pRemoteJoin->pFullOnCond = (SNode*)pAndCond;
+  } else if (pJoin->pPrimKeyEqCond != NULL) {
+    code = nodesCloneNode(pJoin->pPrimKeyEqCond, &pRemoteJoin->pFullOnCond);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); return code; }
+  } else if (pJoin->pFullOnCond != NULL) {
+    code = nodesCloneNode(pJoin->pFullOnCond, &pRemoteJoin->pFullOnCond);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); return code; }
+  }
+  if (pJoin->pColEqCond != NULL) {
+    code = nodesCloneNode(pJoin->pColEqCond, &pRemoteJoin->pColEqCond);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); return code; }
+  }
+  if (pJoin->pColOnCond != NULL) {
+    code = nodesCloneNode(pJoin->pColOnCond, &pRemoteJoin->pColOnCond);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); return code; }
+  }
+  if (pJoin->node.pConditions != NULL) {
+    code = nodesCloneNode(pJoin->node.pConditions, &pRemoteJoin->node.pConditions);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-buildRemoteJoin: clone join WHERE failed join=%p code=0x%x", pJoin, code);
+      nodesDestroyNode((SNode*)pRemoteJoin);
+      return code;
+    }
+    planDebug("FQ-buildRemoteJoin: cloned join WHERE join=%p condType=%d",
+              pJoin, (int)nodeType(pJoin->node.pConditions));
+  } else {
+    planDebug("FQ-buildRemoteJoin: join=%p has no join-level WHERE", pJoin);
+  }
+
+  SLogicNode* pLeftRemote = NULL;
+  SLogicNode* pRightRemote = NULL;
+  code = fqBuildRemoteSubtree(pLeft, pScanForMeta, &pLeftRemote);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-buildRemoteJoin: build left child failed join=%p code=0x%x childType=%d",
+              pJoin, code, pLeft ? (int)nodeType((SNode*)pLeft) : -1);
+    nodesDestroyNode((SNode*)pRemoteJoin);
+    return code;
+  }
+  code = fqBuildRemoteSubtree(pRight, pScanForMeta, &pRightRemote);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-buildRemoteJoin: build right child failed join=%p code=0x%x childType=%d",
+              pJoin, code, pRight ? (int)nodeType((SNode*)pRight) : -1);
+    nodesDestroyNode((SNode*)pRemoteJoin);
+    nodesDestroyNode((SNode*)pLeftRemote);
+    return code;
+  }
+
+  code = nodesMakeList(&pRemoteJoin->node.pChildren);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRemoteJoin);
+    nodesDestroyNode((SNode*)pLeftRemote);
+    nodesDestroyNode((SNode*)pRightRemote);
+    return code;
+  }
+  code = nodesListStrictAppend(pRemoteJoin->node.pChildren, (SNode*)pLeftRemote);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRemoteJoin);
+    nodesDestroyNode((SNode*)pLeftRemote);
+    nodesDestroyNode((SNode*)pRightRemote);
+    return code;
+  }
+  code = nodesListStrictAppend(pRemoteJoin->node.pChildren, (SNode*)pRightRemote);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRemoteJoin);
+    nodesDestroyNode((SNode*)pRightRemote);
+    return code;
+  }
+  pLeftRemote->pParent  = (SLogicNode*)pRemoteJoin;
+  pRightRemote->pParent = (SLogicNode*)pRemoteJoin;
+
+  // Output schema = JOIN's targets (both legs' columns).
+  if (pJoin->node.pTargets != NULL) {
+    code = nodesCloneList(pJoin->node.pTargets, &pRemoteJoin->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); return code; }
+  }
+  *ppJoin = pRemoteJoin;
+  planDebug("FQ-buildRemoteJoin: built remote JOIN with recursive children leftRemoteType=%d rightRemoteType=%d hasJoinWhere=%d hasFullOn=%d hasColEq=%d hasColOn=%d",
+            (int)nodeType((SNode*)pLeftRemote), (int)nodeType((SNode*)pRightRemote),
+            NULL != pRemoteJoin->node.pConditions, NULL != pRemoteJoin->pFullOnCond,
+            NULL != pRemoteJoin->pColEqCond, NULL != pRemoteJoin->pColOnCond);
+  return TSDB_CODE_SUCCESS;
+}
+
+// fqBuildIntervalAgg — pure builder: constructs the remote GROUP BY time_bucket
+// AGG node for an INTERVAL window and returns it via *ppAgg.  NO main-tree
+// surgery, NO mutation of pScan fields.  The caller (three-step commit) wires
+// the returned AGG into the remote logic plan and performs the main-tree
+// relocation generically.  Assumes preconditions (ts pk present, interval>0)
+// already checked by fqWindowIntervalIsPushable.
+static int32_t fqBuildIntervalAgg(SScanLogicNode* pScan, SWindowLogicNode* pWin,
+                                  SAggLogicNode** ppAgg) {
+  *ppAgg = NULL;
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  const char* pkColName = pExtNode->pExtMeta->pCols[pExtNode->tsPrimaryColIdx].colName;
+  int8_t srcPrecision = pExtNode->pExtMeta->tsPrecision;
+  if (srcPrecision == 0) srcPrecision = TSDB_TIME_PRECISION_MICRO;
+  int64_t intervalTicks = pWin->interval;
+  int64_t ticksPerSec = TSDB_TICK_PER_SECOND(srcPrecision);
+  (void)ticksPerSec;
+  planDebug("FQ-buildIntervalAgg: pk=%s interval=%" PRId64 " ticks prec=%d nWinFuncs=%d",
+            pkColName, intervalTicks, (int)srcPrecision,
+            pWin->pFuncs ? (int)LIST_LENGTH(pWin->pFuncs) : 0);
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // ── 7. Build FUNCTION_TYPE_FQ_TIME_BUCKET node ──
+  // pParameterList[0] = SColumnNode (ts pk)
+  // pParameterList[1] = SValueNode  (bucket_ticks, int64 — ticks in srcPrecision)
+  // pParameterList[2] = SValueNode  (precision, int8  — TSDB_TIME_PRECISION_*)
+  SFunctionNode* pBucketFunc = NULL;
+  code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pBucketFunc);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  pBucketFunc->funcType = FUNCTION_TYPE_FQ_TIME_BUCKET;
+  // funcId 0 is safe here: this is an internal FQ node that never goes through
+  // the normal function registry.  nodesRemotePlanToSQL dispatches on funcType.
+  pBucketFunc->funcId   = 0;
+  tstrncpy(pBucketFunc->functionName, "_fq_time_bucket", TSDB_FUNC_NAME_LEN);
+  // Set aliasName to the WSTART pseudo-column's INTERNAL slot name so the remote
+  // SELECT emits "FLOOR(...) AS `expr_N`" — the enclosing outer query references
+  // the bucket column by that slot name (its colName), not the user-facing
+  // "_wstart".  Prefer the WSTART func's aliasName (slot name); fall back to its
+  // userAlias, then to "_wstart".  (Consistent with fqSelectAlias: remote-SELECT
+  // output columns are always aliased by internal slot name.)
+  {
+    const char* wstartAlias = "_wstart";
+    if (pWin->pFuncs) {
+      SNode* pWF = NULL;
+      FOREACH(pWF, pWin->pFuncs) {
+        if (nodeType(pWF) != QUERY_NODE_FUNCTION) continue;
+        const SFunctionNode* pF2 = (const SFunctionNode*)pWF;
+        if (fmIsPlaceHolderFuncForExternalWin(pF2->funcId) && pF2->funcType == FUNCTION_TYPE_WSTART) {
+          const char* aa = pF2->node.aliasName;
+          const char* ua = pF2->node.userAlias;
+          if (aa && aa[0] != '\0') { wstartAlias = aa; break; }
+          if (ua && ua[0] != '\0') { wstartAlias = ua; break; }
+        }
+      }
+  }
+  tstrncpy(pBucketFunc->node.aliasName, wstartAlias, TSDB_COL_NAME_LEN);
+  }
+  pBucketFunc->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
+  pBucketFunc->node.resType.bytes = (int32_t)sizeof(int64_t);
+
+  code = nodesMakeList(&pBucketFunc->pParameterList);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBucketFunc); return code; }
+
+  // param[0]: ts column node
+  SColumnNode* pTsCol = NULL;
+  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTsCol);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBucketFunc); return code; }
+  tstrncpy(pTsCol->colName, pkColName, TSDB_COL_NAME_LEN);
+  pTsCol->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
+  pTsCol->node.resType.bytes = (int32_t)sizeof(int64_t);
+
+  code = nodesListStrictAppend(pBucketFunc->pParameterList, (SNode*)pTsCol);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pBucketFunc);
+    return code;
+  }
+
+  // param[1]: bucket size in ticks (unit = srcPrecision)
+  SValueNode* pMsVal = NULL;
+  code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pMsVal);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBucketFunc); return code; }
+  pMsVal->node.resType.type  = TSDB_DATA_TYPE_BIGINT;
+  pMsVal->node.resType.bytes = (int32_t)sizeof(int64_t);
+  pMsVal->datum.i   = intervalTicks;
+  pMsVal->typeData  = TSDB_DATA_TYPE_BIGINT;
+  pMsVal->translate = true;  // mark datum as valid so serialization/clone preserves the value
+
+  code = nodesListStrictAppend(pBucketFunc->pParameterList, (SNode*)pMsVal);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pBucketFunc);
+    return code;
+  }
+
+  // param[2]: source timestamp precision (TSDB_TIME_PRECISION_MILLI/MICRO/NANO)
+  // Carried through the plan so nodesRemotePlanToSQL can compute the correct
+  // dialect-specific time-bucket expression without knowing the precision at
+  // SQL-render time.
+  SValueNode* pPrecVal = NULL;
+  code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pPrecVal);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBucketFunc); return code; }
+  pPrecVal->node.resType.type  = TSDB_DATA_TYPE_TINYINT;
+  pPrecVal->node.resType.bytes = 1;
+  pPrecVal->datum.i   = srcPrecision;
+  pPrecVal->typeData  = TSDB_DATA_TYPE_TINYINT;
+  pPrecVal->translate = true;
+
+  code = nodesListStrictAppend(pBucketFunc->pParameterList, (SNode*)pPrecVal);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pBucketFunc);
+    return code;
+  }
+
+  // param[3]: interval origin offset in source precision ticks. This keeps
+  // INTERVAL(step, offset) bucket anchors identical after remote DATE_BIN/FLOOR
+  // rendering.
+  SValueNode* pOffsetVal = NULL;
+  code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pOffsetVal);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBucketFunc); return code; }
+  pOffsetVal->node.resType.type  = TSDB_DATA_TYPE_BIGINT;
+  pOffsetVal->node.resType.bytes = (int32_t)sizeof(int64_t);
+  pOffsetVal->datum.i   = pWin->offset;
+  pOffsetVal->typeData  = TSDB_DATA_TYPE_BIGINT;
+  pOffsetVal->translate = true;
+
+  code = nodesListStrictAppend(pBucketFunc->pParameterList, (SNode*)pOffsetVal);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pBucketFunc);
+    return code;
+  }
+
+  // ── 8. Build SAggLogicNode: GROUP BY bucket + aggregate functions ──
+  SAggLogicNode* pAgg = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG, (SNode**)&pAgg);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBucketFunc); return code; }
+
+  // pGroupKeys = [pBucketFunc]
+  code = nodesMakeList(&pAgg->pGroupKeys);
+  if (TSDB_CODE_SUCCESS != code) goto _cleanup_agg;
+  code = nodesListStrictAppend(pAgg->pGroupKeys, (SNode*)pBucketFunc);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pBucketFunc);
+    goto _cleanup_agg;
+  }
+  pBucketFunc = NULL;  // owned by pGroupKeys
+
+  // pAggFuncs = clone of pWin->pFuncs, excluding window pseudo-column functions.
+  // _wstart/_wend/_wduration are computed locally from the time-bucket result,
+  // not pushed to the remote source.
+  if (pWin->pFuncs != NULL && LIST_LENGTH(pWin->pFuncs) > 0) {
+    SNode* pWinFunc = NULL;
+    FOREACH(pWinFunc, pWin->pFuncs) {
+      if (nodeType(pWinFunc) != QUERY_NODE_FUNCTION) continue;
+      const SFunctionNode* pF = (const SFunctionNode*)pWinFunc;
+      if (fmIsWindowPseudoColumnFunc(pF->funcId) || fmIsPseudoColumnFunc(pF->funcId)) continue;
+      if (fmIsGroupKeyFunc(pF->funcId)) {
+        planDebug("FQ-buildIntervalAgg: skip window group-key func name=%s alias=%s",
+                  pF->functionName, pF->node.aliasName);
+        continue;
+      }
+      SNode* pCloned = NULL;
+      code = nodesCloneNode(pWinFunc, &pCloned);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup_agg;
+      if (pAgg->pAggFuncs == NULL) {
+        code = nodesMakeList(&pAgg->pAggFuncs);
+        if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pCloned); goto _cleanup_agg; }
+      }
+      code = nodesListStrictAppend(pAgg->pAggFuncs, pCloned);
+      if (TSDB_CODE_SUCCESS != code) goto _cleanup_agg;
+    }
+  }
+
+  // pTargets = group keys + agg funcs (order must match renderAggSelectList SQL output)
+  if (pAgg->pGroupKeys != NULL) {
+    code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup_agg;
+  }
+  if (pAgg->pAggFuncs != NULL) {
+    code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup_agg;
+  }
+
+  if (pWin->node.pConditions != NULL) {
+    code = nodesCloneNode(pWin->node.pConditions, &pAgg->node.pConditions);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup_agg;
+    planDebug("FQ-buildIntervalAgg: cloned window conditions into remote agg win=%p agg=%p condType=%d",
+              pWin, pAgg, (int)nodeType(pWin->node.pConditions));
+  } else {
+    planDebug("FQ-buildIntervalAgg: window has no conditions to clone win=%p agg=%p", pWin, pAgg);
+  }
+
+  // Builder done: return the fully-constructed remote AGG.  Main-tree surgery
+  // and pScan target/pseudo-col handling are performed generically by the
+  // three-step commit (fqCommitPushChain), not here.
+  *ppAgg = pAgg;
+  planDebug("FQ-buildIntervalAgg: built remote AGG=%p pGroupKeys=%d pAggFuncs=%d hasCond=%d (time_bucket GROUP BY)",
+            pAgg, pAgg->pGroupKeys ? (int)LIST_LENGTH(pAgg->pGroupKeys) : 0,
+            pAgg->pAggFuncs ? (int)LIST_LENGTH(pAgg->pAggFuncs) : 0,
+            pAgg->node.pConditions != NULL);
+  return TSDB_CODE_SUCCESS;
+
+_cleanup_agg:
+  nodesDestroyNode((SNode*)pAgg);
+  return code;
+}
+
+static SExprNode* fqGetAliasCarrierFromGroupKey(SNode* pKey) {
+  SNode* pActual = pKey;
+  if (NULL == pActual) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_GROUPING_SET == nodeType(pActual)) {
+    SGroupingSetNode* pGrouping = (SGroupingSetNode*)pActual;
+    pActual = nodesListGetNode(pGrouping->pParameterList, 0);
+  }
+
+  if (NULL != pActual && QUERY_NODE_FUNCTION == nodeType(pActual)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pActual;
+    if (fmIsGroupKeyFunc(pFunc->funcId) && pFunc->pParameterList != NULL &&
+        LIST_LENGTH(pFunc->pParameterList) > 0) {
+      pActual = nodesListGetNode(pFunc->pParameterList, 0);
+    }
+  }
+
+  return (NULL != pActual && nodesIsExprNode(pActual)) ? (SExprNode*)pActual : NULL;
+}
+
+static bool fqIsGroupKeyFuncNode(const SNode* pNode) {
+  const SNode* pActual = pNode;
+  if (NULL == pActual) {
+    return false;
+  }
+
+  if (QUERY_NODE_TARGET == nodeType(pActual)) {
+    pActual = ((const STargetNode*)pActual)->pExpr;
+  }
+
+  return (NULL != pActual && QUERY_NODE_FUNCTION == nodeType(pActual) &&
+          fmIsGroupKeyFunc(((const SFunctionNode*)pActual)->funcId));
+}
+
+static bool fqAggHasPartitionGroupKey(const SAggLogicNode* pAgg, const SNode* pPartKey) {
+  if (NULL == pAgg || NULL == pPartKey) {
+    return false;
+  }
+
+  SExprNode* pPartExpr = fqGetAliasCarrierFromGroupKey((SNode*)pPartKey);
+  if (NULL == pPartExpr) {
+    return false;
+  }
+
+  bool partIsCol = (QUERY_NODE_COLUMN == nodeType((SNode*)pPartExpr));
+  const SColumnNode* pPartCol = partIsCol ? (const SColumnNode*)pPartExpr : NULL;
+
+  SNode* pAggKey = NULL;
+  FOREACH(pAggKey, pAgg->pGroupKeys) {
+    SExprNode* pAggExpr = fqGetAliasCarrierFromGroupKey(pAggKey);
+    bool matched = (NULL != pAggExpr && nodesEqualNode((SNode*)pAggExpr, (SNode*)pPartExpr));
+    if (!matched && NULL != pAggExpr && partIsCol && QUERY_NODE_COLUMN == nodeType((SNode*)pAggExpr)) {
+      const SColumnNode* pAggCol = (const SColumnNode*)pAggExpr;
+      matched = (0 == strcmp(pAggCol->colName, pPartCol->colName));
+    }
+    if (matched) {
+      return true;
+    }
+  }
+
+  SNode* pAggFunc = NULL;
+  FOREACH(pAggFunc, pAgg->pAggFuncs) {
+    if (!fqIsGroupKeyFuncNode(pAggFunc)) {
+      continue;
+    }
+
+    SExprNode* pAggExpr = fqGetAliasCarrierFromGroupKey(pAggFunc);
+    bool matched = (NULL != pAggExpr && nodesEqualNode((SNode*)pAggExpr, (SNode*)pPartExpr));
+    if (!matched && NULL != pAggExpr && partIsCol && QUERY_NODE_COLUMN == nodeType((SNode*)pAggExpr)) {
+      const SColumnNode* pAggCol = (const SColumnNode*)pAggExpr;
+      matched = (0 == strcmp(pAggCol->colName, pPartCol->colName));
+    }
+    if (matched) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool fqAggCoversPartitionKeys(const SAggLogicNode* pAgg, const SPartitionLogicNode* pPart) {
+  if (NULL == pAgg || NULL == pPart || NULL == pPart->pPartitionKeys) {
+    return false;
+  }
+
+  if (NULL == pAgg->pGroupKeys && NULL == pAgg->pAggFuncs) {
+    return false;
+  }
+
+  SNode* pPartKey = NULL;
+  FOREACH(pPartKey, pPart->pPartitionKeys) {
+    if (!fqAggHasPartitionGroupKey(pAgg, pPartKey)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static int32_t fqSyncMergedPartitionKeyAliases(SNodeList* pGroupKeys, int32_t groupKeyStartIdx,
+                                               const SNodeList* pWinFuncs) {
+  if (NULL == pGroupKeys || NULL == pWinFuncs || LIST_LENGTH(pWinFuncs) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t groupKeyCount = LIST_LENGTH(pGroupKeys);
+  if (groupKeyStartIdx < 0 || groupKeyStartIdx >= groupKeyCount) {
+    planDebug("FQ-buildIntervalAgg: skip alias sync, invalid groupKeyStartIdx=%d groupKeyCount=%d winFuncCount=%d",
+              groupKeyStartIdx, groupKeyCount, LIST_LENGTH((SNodeList*)pWinFuncs));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t appendedCount = groupKeyCount - groupKeyStartIdx;
+  int32_t aliasIdx = 0;
+  SNode*  pWinFuncNode = NULL;
+  FOREACH(pWinFuncNode, pWinFuncs) {
+    if (aliasIdx >= appendedCount) {
+      break;
+    }
+    if (QUERY_NODE_FUNCTION != nodeType(pWinFuncNode)) {
+      continue;
+    }
+
+    SFunctionNode* pWinFunc = (SFunctionNode*)pWinFuncNode;
+    if (!fmIsGroupKeyFunc(pWinFunc->funcId)) {
+      continue;
+    }
+
+    SNode* pKey = nodesListGetNode(pGroupKeys, groupKeyStartIdx + aliasIdx);
+    SExprNode* pAliasCarrier = fqGetAliasCarrierFromGroupKey(pKey);
+    if (NULL == pAliasCarrier) {
+      planDebug("FQ-buildIntervalAgg: alias sync skip idx=%d keyType=%d (no expr carrier)",
+                aliasIdx, NULL != pKey ? (int)nodeType(pKey) : -1);
+      ++aliasIdx;
+      continue;
+    }
+
+    const char* pInternalAlias = pWinFunc->node.aliasName;
+    if (NULL == pInternalAlias || '\0' == pInternalAlias[0]) {
+      planDebug("FQ-buildIntervalAgg: alias sync skip idx=%d group-key func has empty alias", aliasIdx);
+      ++aliasIdx;
+      continue;
+    }
+
+    char oldAlias[TSDB_COL_NAME_LEN] = {0};
+    char oldUserAlias[TSDB_COL_NAME_LEN] = {0};
+    tstrncpy(oldAlias, pAliasCarrier->aliasName, sizeof(oldAlias));
+    tstrncpy(oldUserAlias, pAliasCarrier->userAlias, sizeof(oldUserAlias));
+
+    tstrncpy(pAliasCarrier->aliasName, pInternalAlias, sizeof(pAliasCarrier->aliasName));
+    if ('\0' == pAliasCarrier->userAlias[0] && '\0' != oldAlias[0]) {
+      tstrncpy(pAliasCarrier->userAlias, oldAlias, sizeof(pAliasCarrier->userAlias));
+    }
+
+    if ('\0' == pAliasCarrier->userAlias[0] && '\0' != pWinFunc->node.userAlias[0]) {
+      tstrncpy(pAliasCarrier->userAlias, pWinFunc->node.userAlias, sizeof(pAliasCarrier->userAlias));
+    }
+
+    planDebug("FQ-buildIntervalAgg: alias sync idx=%d groupKeyFunc=%s funcAlias=%s funcUserAlias=%s oldAlias=%s oldUserAlias=%s newAlias=%s newUserAlias=%s",
+              aliasIdx, pWinFunc->functionName, pWinFunc->node.aliasName, pWinFunc->node.userAlias, oldAlias, oldUserAlias,
+              pAliasCarrier->aliasName, pAliasCarrier->userAlias);
+    ++aliasIdx;
+  }
+
+  if (aliasIdx != appendedCount) {
+    planDebug("FQ-buildIntervalAgg: alias sync count mismatch, appended=%d synced=%d winFuncCount=%d",
+              appendedCount, aliasIdx, LIST_LENGTH((SNodeList*)pWinFuncs));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fqAppendPartitionKeysToIntervalAgg(SAggLogicNode* pAgg, const SPartitionLogicNode* pPart) {
+  if (NULL == pAgg || NULL == pPart || NULL == pPart->pPartitionKeys || LIST_LENGTH(pPart->pPartitionKeys) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t groupKeyStartIdx = pAgg->pGroupKeys ? LIST_LENGTH(pAgg->pGroupKeys) : 0;
+  SNode*  pKey = NULL;
+  FOREACH(pKey, pPart->pPartitionKeys) {
+    SNode* pClone = NULL;
+    code = nodesCloneNode(pKey, &pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    code = nodesListStrictAppend(pAgg->pGroupKeys, pClone);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pClone);
+      return code;
+    }
+    planDebug("FQ-buildIntervalAgg: append partition key nodeType=%d into interval agg group keys",
+              (int)nodeType(pKey));
+  }
+
+  code = fqSyncMergedPartitionKeyAliases(pAgg->pGroupKeys, groupKeyStartIdx, pPart->node.pParent != NULL &&
+                                                                           QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pPart->node.pParent)
+                                                                       ? ((SWindowLogicNode*)pPart->node.pParent)->pFuncs
+                                                                       : NULL);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  nodesDestroyList(pAgg->node.pTargets);
+  pAgg->node.pTargets = NULL;
+  if (pAgg->pGroupKeys != NULL) {
+    code = createColumnByRewriteExprs(pAgg->pGroupKeys, &pAgg->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  if (pAgg->pAggFuncs != NULL) {
+    code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pAgg->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  planDebug("FQ-buildIntervalAgg: merged partition keys into interval agg groupKeys=%d aggFuncs=%d targets=%d",
+            pAgg->pGroupKeys ? (int)LIST_LENGTH(pAgg->pGroupKeys) : 0,
+            pAgg->pAggFuncs ? (int)LIST_LENGTH(pAgg->pAggFuncs) : 0,
+            pAgg->node.pTargets ? (int)LIST_LENGTH(pAgg->node.pTargets) : 0);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fqConvertInterval(SScanLogicNode* pScan, SLogicSubplan* pLogicSubplan,
+                                  const SExtSourceCapability* pCap,
+                                  const SExtCapSessionOverlay* pOverlay) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // ── 1. Find nearest WINDOW(INTERVAL) ancestor ──
+  SLogicNode* pParentNode = pScan->node.pParent;
+  SWindowLogicNode* pWin  = NULL;
+
+  planDebug("FqConvertInterval: enter, pScan=%p pParent=%p pParentType=%d pCap=%p",
+            pScan, pParentNode, pParentNode ? (int)nodeType(pParentNode) : -1, pCap);
+  // DIAG: log pScanCols at fqConvertInterval entry
+  {
+    char _scBuf[512] = {0}; int _scOff = 0;
+    if (pScan->pScanCols) {
+      SNode* _sc = NULL;
+      FOREACH(_sc, pScan->pScanCols) {
+        const char* _cn = (nodeType(_sc) == QUERY_NODE_COLUMN) ? ((SColumnNode*)_sc)->colName : "?";
+        _scOff += snprintf(_scBuf + _scOff, sizeof(_scBuf) - (size_t)_scOff - 1, "%s,", _cn);
+      }
+    }
+    planDebug("FqConvertInterval: pScanCols at entry=[%s]", _scBuf);
+  }
+
+  // Walk up the parent chain looking for WINDOW(INTERVAL).
+  // For INTERVAL queries TDengine inserts a PROJECT node between Scan and Window,
+  // so we must walk through PROJECT (and SORT) unconditionally, regardless of
+  // their child count.  PARTITION signals a two-stage plan → skip pushdown.
+  while (pParentNode != NULL) {
+    ENodeType pt = nodeType(pParentNode);
+    planDebug("FqConvertInterval: traversal: pt=%d pParent->pParent=%p", (int)pt, pParentNode->pParent);
+    if (pt == QUERY_NODE_LOGIC_PLAN_WINDOW) {
+      SWindowLogicNode* pWinCand = (SWindowLogicNode*)pParentNode;
+      if (pWinCand->winType == WINDOW_TYPE_INTERVAL) {
+        // FILL sits above WINDOW (FILL → WINDOW → SCAN).  When FILL is present,
+        // skip INTERVAL pushdown: FILL depends on the local WINDOW operator
+        // to provide continuous time buckets and gap metadata.  The Fill
+        // executor is not designed to receive pre-aggregated rows from a
+        // remote FedScan directly — doing so causes Fill to hang waiting for
+        // window data it never receives.  Keep the full local plan.
+        SLogicNode* pAbove = pParentNode->pParent;
+        while (pAbove != NULL &&
+               (nodeType(pAbove) == QUERY_NODE_LOGIC_PLAN_PROJECT ||
+                nodeType(pAbove) == QUERY_NODE_LOGIC_PLAN_SORT)) {
+          pAbove = pAbove->pParent;
+        }
+        bool hasFillAbove = (pAbove != NULL &&
+                             nodeType(pAbove) == QUERY_NODE_LOGIC_PLAN_FILL);
+        if (!hasFillAbove) {
+          pWin = pWinCand;
+        } else {
+          // FILL clause: verify via capability matrix
+          EExtClauseKind fillClause = EXT_CLAUSE_FILL;
+          (void)fqClauseIsPushable(fillClause, pCap ? pCap->dialect : -1, pOverlay);
+          planDebug("FqConvertInterval: skip — FILL above WINDOW, keep local");
+        }
+      } else {
+        // Non-INTERVAL window types: check capability matrix for the specific window type
+        EExtClauseKind winClause = EXT_CLAUSE_STATE_WINDOW;
+        switch (pWinCand->winType) {
+          case WINDOW_TYPE_STATE:   winClause = EXT_CLAUSE_STATE_WINDOW;   break;
+          case WINDOW_TYPE_SESSION: winClause = EXT_CLAUSE_SESSION_WINDOW; break;
+          case WINDOW_TYPE_EVENT:   winClause = EXT_CLAUSE_EVENT_WINDOW;   break;
+          case WINDOW_TYPE_COUNT:   winClause = EXT_CLAUSE_COUNT_WINDOW;   break;
+          default: break;
+        }
+        if (!fqClauseIsPushable(winClause, pCap ? pCap->dialect : -1, pOverlay)) {
+          planDebug("FqConvertInterval: skip — non-INTERVAL window type=%d not pushable", (int)pWinCand->winType);
+        }
+      }
+      break;  // stop at first window node regardless
+    }
+    // Walk through intermediate PROJECT / SORT / AGG nodes (parent chain goes upward,
+    // not into siblings, so child-count check is unnecessary here).
+    // AGG may appear between SCAN and WINDOW when the planner inserts a grouping
+    // node before the interval window — we must look past it to find WINDOW(INTERVAL).
+    if (pt == QUERY_NODE_LOGIC_PLAN_PROJECT || pt == QUERY_NODE_LOGIC_PLAN_SORT ||
+        pt == QUERY_NODE_LOGIC_PLAN_AGG) {
+      pParentNode = pParentNode->pParent;
+      continue;
+    }
+    // PARTITION between Scan and Window: two-stage plan, keep local.
+    if (pt == QUERY_NODE_LOGIC_PLAN_PARTITION) break;
+    // Any other operator (AGG, JOIN, …) terminates the search.
+    break;
+  }
+
+  planDebug("FqConvertInterval: pWin=%p (after traversal)", pWin);
+  if (pWin == NULL) return TSDB_CODE_SUCCESS;
+
+  // ── 2. Constraint: no SLIDING (sliding window → keep local) ──
+  planDebug("FqConvertInterval: step2 sliding=%" PRId64 " interval=%" PRId64, pWin->sliding, pWin->interval);
+  if (pWin->sliding != 0 && pWin->sliding != pWin->interval) {
+    EExtClauseKind slidingClause = EXT_CLAUSE_INTERVAL_SLIDING;
+    if (!fqClauseIsPushable(slidingClause, pCap ? pCap->dialect : -1, pOverlay) ||
+        capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &slidingClause)) {
+      planDebug("FqConvertInterval: skip — SLIDING detected and not pushable");
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  // ── 3. Source capability check ──
+  EExtClauseKind aggClause      = EXT_CLAUSE_AGG;
+  EExtClauseKind intervalClause = EXT_CLAUSE_INTERVAL_TUMBLING;
+  bool aggDisabled = !fqClauseIsPushable(aggClause, pCap ? pCap->dialect : -1, pOverlay) ||
+                     capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &aggClause);
+  bool intDisabled = !fqClauseIsPushable(intervalClause, pCap ? pCap->dialect : -1, pOverlay) ||
+                     capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &intervalClause);
+  planDebug("FqConvertInterval: step3 pCap=%p dialect=%d aggDisabled=%d intDisabled=%d",
+            pCap, pCap ? (int)pCap->dialect : -1, (int)aggDisabled, (int)intDisabled);
+  if (aggDisabled) {
+    planDebug("FqConvertInterval: skip — AGG clause disabled");
+    return TSDB_CODE_SUCCESS;
+  }
+  if (intDisabled) {
+    planDebug("FqConvertInterval: skip — INTERVAL_TUMBLING clause disabled");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // ── 4. Check all aggregate functions are pushable ──
+  // Window pseudo-column functions (_wstart, _wend, _wduration, etc.) are
+  // NOT pushed to the remote source — they are computed locally from the
+  // time-bucket GROUP BY result.  Skip them here and only verify real
+  // aggregate functions (count, sum, avg, …).
+  SNode* pFuncNode = NULL;
+  FOREACH(pFuncNode, pWin->pFuncs) {
+    if (nodeType(pFuncNode) != QUERY_NODE_FUNCTION) continue;
+    const SFunctionNode* pFunc = (const SFunctionNode*)pFuncNode;
+    if (fmIsWindowPseudoColumnFunc(pFunc->funcId) || fmIsPseudoColumnFunc(pFunc->funcId)) {
+      planDebug("FqConvertInterval: step4 func type=%d is pseudo-col, skip check", (int)pFunc->funcType);
+      continue;
+    }
+    bool pushable = fqFuncIsPushable(pFunc->funcId, pCap ? pCap->dialect : -1, pOverlay);
+    planDebug("FqConvertInterval: step4 func type=%d pushable=%d", (int)pFunc->funcType, (int)pushable);
+    if (!pushable) {
+      planDebug("FqConvertInterval: skip — func type %d not pushable", (int)pFunc->funcType);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  // ── 5. Find the timestamp primary key column ──
+  planDebug("FqConvertInterval: step5 pExtTableNode=%p", pScan->pExtTableNode);
+  if (pScan->pExtTableNode == NULL) { planDebug("FqConvertInterval: skip — no pExtTableNode"); return TSDB_CODE_SUCCESS; }
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  planDebug("FqConvertInterval: step5b pExtMeta=%p tsPrimaryColIdx=%d numOfCols=%d",
+            pExtNode->pExtMeta, pExtNode->tsPrimaryColIdx,
+            pExtNode->pExtMeta ? pExtNode->pExtMeta->numOfCols : -1);
+  if (pExtNode->pExtMeta == NULL || pExtNode->tsPrimaryColIdx < 0 ||
+      pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
+    planDebug("FqConvertInterval: skip — no ts primary key in ext meta");
+    return TSDB_CODE_SUCCESS;
+  }
+  const char* pkColName = pExtNode->pExtMeta->pCols[pExtNode->tsPrimaryColIdx].colName;
+
+  // ── 6. Get source precision and validate interval ──
+  // pWin->interval is stored as ticks in the source-side timestamp precision.
+  // We keep the raw tick value and pass the precision alongside so that
+  // nodesRemotePlanToSQL can emit the correct unit per dialect.
+  int8_t srcPrecision = pExtNode->pExtMeta->tsPrecision;
+  // Fall back to microsecond (typical MySQL/PG) when precision is unknown.
+  if (srcPrecision == 0) srcPrecision = TSDB_TIME_PRECISION_MICRO;
+  int64_t intervalTicks = pWin->interval;
+  int64_t ticksPerSec = TSDB_TICK_PER_SECOND(srcPrecision);
+  planDebug("FqConvertInterval: step6 interval=%" PRId64 " intervalUnit=%d srcPrecision=%d ticksPerSec=%" PRId64,
+            intervalTicks, (int)pWin->intervalUnit, (int)srcPrecision, ticksPerSec);
+  if (intervalTicks <= 0) {
+    planDebug("FqConvertInterval: skip — intervalTicks<=0");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Step 1 judged pushable above; build the remote AGG and perform the WINDOW→
+  // SCAN main-tree surgery.  The collect→commit path now uses fqBuildIntervalAgg
+  // under the generic remote-subtree builder, so this helper remains as the
+  // interval-specific construction primitive.
+  SAggLogicNode* pAgg = NULL;
+  code = fqBuildIntervalAgg(pScan, pWin, &pAgg);
+  if (TSDB_CODE_SUCCESS != code || pAgg == NULL) return code;
+
+  // Attach AGG as remote plan (wrap at bottom if a remote plan already exists).
+  if (pScan->pRemoteLogicPlan == NULL) {
+    pScan->pRemoteLogicPlan = (SNode*)pAgg;
+  } else {
+    SLogicNode* pBottom = (SLogicNode*)pScan->pRemoteLogicPlan;
+    while (pBottom->pChildren != NULL && LIST_LENGTH(pBottom->pChildren) > 0)
+      pBottom = (SLogicNode*)nodesListGetNode(pBottom->pChildren, 0);
+    code = nodesMakeList(&pBottom->pChildren);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pAgg); return code; }
+    code = nodesListStrictAppend(pBottom->pChildren, (SNode*)pAgg);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pBottom->pChildren); pBottom->pChildren = NULL; nodesDestroyNode((SNode*)pAgg); return code; }
+    pAgg->node.pParent = pBottom;
+  }
+
+  // pScan->node.pTargets = AGG output columns (bucket col + agg aliases).
+  {
+    SNodeList* pNewTargets = NULL;
+    code = nodesCloneList(pAgg->node.pTargets, &pNewTargets);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    nodesDestroyList(pScan->node.pTargets);
+    pScan->node.pTargets = pNewTargets;
+  }
+
+  // Expose _wstart/_wend/_wduration pseudo-cols via SCAN targets.
+  {
+    SNode* pWinFuncNode = NULL;
+    FOREACH(pWinFuncNode, pWin->pFuncs) {
+      if (nodeType(pWinFuncNode) != QUERY_NODE_FUNCTION) continue;
+      const SFunctionNode* pF = (const SFunctionNode*)pWinFuncNode;
+      if (!fmIsWindowPseudoColumnFunc(pF->funcId) && !fmIsPseudoColumnFunc(pF->funcId)) continue;
+      if (!fmIsPlaceHolderFuncForExternalWin(pF->funcId)) continue;
+      SColumnNode* pAlias = NULL;
+      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pAlias);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      tstrncpy(pAlias->colName, pF->node.aliasName, TSDB_COL_NAME_LEN);
+      tstrncpy(pAlias->node.aliasName, pF->node.aliasName, TSDB_COL_NAME_LEN);
+      pAlias->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
+      pAlias->node.resType.bytes = (int32_t)sizeof(int64_t);
+      code = nodesListStrictAppend(pScan->node.pTargets, (SNode*)pAlias);
+      if (TSDB_CODE_SUCCESS != code) return code;
+    }
+  }
+
+  // Remove the WINDOW node from the main plan tree (replace with SCAN).
+  code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pWin, (SLogicNode*)pScan);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  nodesClearList(pWin->node.pChildren);
+  pWin->node.pChildren = NULL;
+  nodesDestroyNode((SNode*)pWin);
+
+  planDebug("FqConvertInterval: pushed INTERVAL → remote GROUP BY time_bucket");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -14307,7 +17465,7 @@ static int32_t fqInjectTwoPassGroupCache(SLogicSubplan* pLogicSubplan, SScanLogi
   code = nodesListStrictAppend(pGrpCache->node.pChildren, (SNode*)pScan);
   if (TSDB_CODE_SUCCESS != code) return code;
 
-  planDebug("%s", "FqInjectTwoPassGroupCache: inserted GroupCache(twoPassMode) between AGG and FedScan for PERCENTILE");
+  planDebug("FqInjectTwoPassGroupCache: inserted GroupCache(twoPassMode) between AGG and FedScan for PERCENTILE");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -14318,105 +17476,750 @@ static int32_t fqHarvestAgg(SLogicSubplan* pLogicSubplan, SScanLogicNode* pScan)
   // the parent chain is fully built and fqNodeHasRepeatScanFunc can check pAgg->pAggFuncs.
   if (fqNodeHasRepeatScanFunc(pScan->node.pParent)) {
     pScan->scanSeq[0] = 2;
-    planDebug("%s", "FqHarvestAgg: set scanSeq[0]=2 (twoPassMode) for REPEAT_SCAN_FUNC (PERCENTILE)");
+    planDebug("FqHarvestAgg: set scanSeq[0]=2 (twoPassMode) for REPEAT_SCAN_FUNC (PERCENTILE)");
   }
   (void)pLogicSubplan;
   return TSDB_CODE_SUCCESS;
 }
 
-// Harvest LIMIT/OFFSET from the main plan and push into remote plan.
+// NOTE: JOIN nodes above an ExternalScan are intentionally NOT split into
+// per-leg remote subqueries.  Any JOIN remains in the main plan and the
+// local executor joins rows returned by each ExternalScan.  This is correct
+// and complete — split-leg remote execution is a future performance
+// optimization, not a missing feature.  Cross-source semantics are enforced
+// by the JOIN clause capability gate during condition harvest.
+
+// NOTE: Subqueries that reference external tables are intentionally NOT
+// pushed into pRemoteLogicPlan.  Inner SELECTs in WHERE/FROM execute
+// locally over the rows returned by their ExternalScan(s).  EXISTS / NOT
+// EXISTS predicates that can be expressed verbatim are already emitted
+// through the RAW_SQL_FRAG path in fqHarvestConditions.  Generalized
+// subquery pushdown is a future performance optimization.
+
+// ─── fqConvertJoin ──────────────────────────────────────────────────────────
+// When an ExternalScan is the direct child of a same-source JOIN, push the
+// entire JOIN down as pRemoteLogicPlan on the left scan.  The right scan is
+// marked OPTIMIZE_FLAG_FQ_PUSHDOWN so fqPushdownOptimize skips it.
 //
-// PushDownLimit's cloneLimit adjusts Sort->pLimit to {limit+offset, 0} for
-// cascaded local execution, but keeps the Project->pLimit at the original
-// {limit, offset}.  Because fqPushdownOptimize moves both Sort and Project
-// into pRemoteLogicPlan (removing them from the main plan), no local operator
-// remains to apply the precise LIMIT/OFFSET.  We must push the exact values
-// to the external source.
+// Supported JOIN types per DS §5.3.6.1:
+//   Inner, Left Outer, Right Outer — all three dialects
+//   Full Outer                     — PG and InfluxDB only (MySQL: local)
+//   Semi / Anti / ASOF / Window    — local only
 //
-// Since FqPushdown now runs BEFORE PushDownLimit/EliminateProject in the
-// optimization rule order, pRemoteLogicPlan nodes still carry the original
-// unadjusted pLimit from the parser (PushDownLimit's cloneLimit has not yet
-// modified them).
-//
-// Strategy:
-//  1. Walk pRemoteLogicPlan top-down to find the first node with pLimit.
-//  2. Clone that limit onto pScan->node.pLimit (the SScanLogicNode).
-//  3. Clear pLimit from all nodes in pRemoteLogicPlan.
-//  4. createFederatedScanPhysiNode's makePhysiNode TSwaps pScan->node.pLimit
-//     onto the physical Mode-1 scan, and then clones it to the Mode-2 pLeaf.
-//  5. nodesRemotePlanToSQL reads pLeaf->pLimit and emits "LIMIT n OFFSET m".
-static int32_t fqHarvestLimit(SScanLogicNode* pScan) {
-  if (NULL == pScan->pRemoteLogicPlan) {
+// After this function, pScan->pRemoteLogicPlan = SJoinLogicNode with
+// left/right SScanLogicNode children.  fqPushdownOptimize then skips
+// phase-1..chain-harvest for this scan and injects no pk ORDER BY.
+// ─────────────────────────────────────────────────────────────────────────────
+static int32_t fqConvertJoin(SScanLogicNode* pLeftScan, SLogicSubplan* pLogicSubplan,
+                             const SExtSourceCapability* pCap,
+                             const SExtCapSessionOverlay* pOverlay, bool* pConverted) {
+  *pConverted = false;
+
+  // pLeftScan must have a JOIN as direct parent
+  SLogicNode* pParent = (SLogicNode*)pLeftScan->node.pParent;
+  if (NULL == pParent || nodeType(pParent) != QUERY_NODE_LOGIC_PLAN_JOIN) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)pParent;
+
+  // Check JOIN main gate capability
+  EExtClauseKind joinGate = EXT_CLAUSE_JOIN;
+  if (!fqClauseIsPushable(joinGate, pCap ? pCap->dialect : -1, pOverlay) ||
+      capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &joinGate)) {
+    planDebug("FQ-JOIN: skip — JOIN main gate disabled for dialect=%d",
+              pCap ? (int)pCap->dialect : -1);
     return TSDB_CODE_SUCCESS;
   }
 
-  // FqPushdown now runs BEFORE PushDownLimit, so every node in
-  // pRemoteLogicPlan still carries the original, unadjusted pLimit from the
-  // parser.  Walk top-down and take the first pLimit we find (typically on the
-  // Project node for "… LIMIT n OFFSET m" queries).
-  SNode*      pCurr   = pScan->pRemoteLogicPlan;
-  SLimitNode* pSource = NULL;
+  // Check JOIN subtype capability via matrix
+  if (pJoin->subType == JOIN_STYPE_SEMI) {
+    EExtClauseKind semiClause = EXT_CLAUSE_SEMI_JOIN;
+    if (!fqClauseIsPushable(semiClause, pCap ? pCap->dialect : -1, pOverlay) ||
+        capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &semiClause)) {
+      planDebug("FQ-JOIN: skip — SEMI JOIN not pushable");
+      return TSDB_CODE_SUCCESS;
+    }
+  } else if (pJoin->subType == JOIN_STYPE_ANTI) {
+    EExtClauseKind antiClause = EXT_CLAUSE_ANTI_JOIN;
+    if (!fqClauseIsPushable(antiClause, pCap ? pCap->dialect : -1, pOverlay) ||
+        capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &antiClause)) {
+      planDebug("FQ-JOIN: skip — ANTI JOIN not pushable");
+      return TSDB_CODE_SUCCESS;
+    }
+  } else if (pJoin->subType == JOIN_STYPE_ASOF) {
+    EExtClauseKind asofClause = EXT_CLAUSE_ASOF_JOIN;
+    if (!fqClauseIsPushable(asofClause, pCap ? pCap->dialect : -1, pOverlay) ||
+        capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &asofClause)) {
+      planDebug("FQ-JOIN: skip — ASOF JOIN not pushable");
+      return TSDB_CODE_SUCCESS;
+    }
+  } else if (pJoin->subType == JOIN_STYPE_WIN) {
+    EExtClauseKind winClause = EXT_CLAUSE_WINDOW_JOIN;
+    if (!fqClauseIsPushable(winClause, pCap ? pCap->dialect : -1, pOverlay) ||
+        capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &winClause)) {
+      planDebug("FQ-JOIN: skip — WINDOW JOIN not pushable");
+      return TSDB_CODE_SUCCESS;
+    }
+  }
 
-  while (pCurr != NULL) {
-    SLogicNode* pLogic = (SLogicNode*)pCurr;
-    if (pLogic->pLimit != NULL) {
-      pSource = (SLimitNode*)pLogic->pLimit;
+  // Check specific JOIN type capability
+  EExtClauseKind joinSubClause;
+  switch (pJoin->joinType) {
+    case JOIN_TYPE_INNER: joinSubClause = EXT_CLAUSE_INNER_JOIN; break;
+    case JOIN_TYPE_LEFT:  joinSubClause = EXT_CLAUSE_LEFT_JOIN;  break;
+    case JOIN_TYPE_RIGHT: joinSubClause = EXT_CLAUSE_RIGHT_JOIN; break;
+    case JOIN_TYPE_FULL:  joinSubClause = EXT_CLAUSE_FULL_OUTER_JOIN; break;
+    default:
+      planDebug("FQ-JOIN: skip — unknown joinType=%d", (int)pJoin->joinType);
+      return TSDB_CODE_SUCCESS;
+  }
+  if (!fqClauseIsPushable(joinSubClause, pCap ? pCap->dialect : -1, pOverlay) ||
+      capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &joinSubClause)) {
+    planDebug("FQ-JOIN: skip %s JOIN — not pushable for dialect=%d",
+              (pJoin->joinType == JOIN_TYPE_FULL) ? "FULL" :
+              (pJoin->joinType == JOIN_TYPE_LEFT) ? "LEFT" :
+              (pJoin->joinType == JOIN_TYPE_RIGHT) ? "RIGHT" : "INNER",
+              pCap ? (int)pCap->dialect : -1);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // JOIN must have exactly 2 children
+  if (pParent->pChildren == NULL || LIST_LENGTH(pParent->pChildren) != 2) {
+    planDebug("FQ-JOIN: skip — nChildren=%d",
+              pParent->pChildren ? (int)LIST_LENGTH(pParent->pChildren) : 0);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Both children must be external SCAN nodes
+  SLogicNode* pLeftChild  = (SLogicNode*)nodesListGetNode(pParent->pChildren, 0);
+  SLogicNode* pRightChild = (SLogicNode*)nodesListGetNode(pParent->pChildren, 1);
+  if (nodeType(pLeftChild)  != QUERY_NODE_LOGIC_PLAN_SCAN ||
+      nodeType(pRightChild) != QUERY_NODE_LOGIC_PLAN_SCAN) {
+    planDebug("FQ-JOIN: skip — children not both SCAN (left=%d right=%d)",
+              (int)nodeType(pLeftChild), (int)nodeType(pRightChild));
+    return TSDB_CODE_SUCCESS;
+  }
+  SScanLogicNode* pLeft  = (SScanLogicNode*)pLeftChild;
+  SScanLogicNode* pRight = (SScanLogicNode*)pRightChild;
+  const bool useRightDock = (pJoin->joinType == JOIN_TYPE_RIGHT) &&
+                            (pJoin->subType == JOIN_STYPE_SEMI || pJoin->subType == JOIN_STYPE_ANTI);
+  SScanLogicNode* pDockScan = useRightDock ? pRight : pLeft;
+  SScanLogicNode* pOtherScan = useRightDock ? pLeft : pRight;
+  const char* pDockSide = useRightDock ? "right" : "left";
+
+  if (pLeft->scanType  != SCAN_TYPE_EXTERNAL ||
+      pRight->scanType != SCAN_TYPE_EXTERNAL) {
+    planDebug("FQ-JOIN: skip — not both EXTERNAL scan");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Same-source check: sourceName + sourceType must match
+  SExtTableNode* pLeftExt  = (SExtTableNode*)pLeft->pExtTableNode;
+  SExtTableNode* pRightExt = (SExtTableNode*)pRight->pExtTableNode;
+  if (NULL == pLeftExt || NULL == pRightExt) {
+    planDebug("FQ-JOIN: skip — pExtTableNode NULL");
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pLeftExt->sourceType != pRightExt->sourceType ||
+      strncmp(pLeftExt->sourceName, pRightExt->sourceName,
+              TSDB_EXT_SOURCE_NAME_LEN) != 0) {
+    planDebug("FQ-JOIN: skip — cross-source (left=%s right=%s)",
+              pLeftExt->sourceName, pRightExt->sourceName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // All checks passed — build JOIN logic node for pRemoteLogicPlan.
+  // Clone the JOIN node (carries joinType, subType, ON conditions).
+  SJoinLogicNode* pRemoteJoin = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_JOIN, (SNode**)&pRemoteJoin);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  pRemoteJoin->joinType = pJoin->joinType;
+  pRemoteJoin->subType  = pJoin->subType;
+
+  // Clone ON conditions: pPrimKeyEqCond + pFullOnCond → pRemoteJoin->pFullOnCond
+  // We combine both into pFullOnCond for the renderer; the renderer emits
+  // everything in pFullOnCond as the ON clause.
+  if (pJoin->pPrimKeyEqCond != NULL && pJoin->pFullOnCond != NULL) {
+    // Both present: AND them into SLogicConditionNode
+    SLogicConditionNode* pAndCond = NULL;
+    code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pAndCond);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); return code; }
+    pAndCond->condType = LOGIC_COND_TYPE_AND;
+    code = nodesMakeList(&pAndCond->pParameterList);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); nodesDestroyNode((SNode*)pAndCond); return code; }
+    SNode* pPrimClone = NULL;
+    SNode* pFullClone = NULL;
+    code = nodesCloneNode(pJoin->pPrimKeyEqCond, &pPrimClone);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); nodesDestroyNode((SNode*)pAndCond); return code; }
+    code = nodesCloneNode(pJoin->pFullOnCond, &pFullClone);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); nodesDestroyNode((SNode*)pAndCond); nodesDestroyNode(pPrimClone); return code; }
+    (void)nodesListStrictAppend(pAndCond->pParameterList, pPrimClone);
+    (void)nodesListStrictAppend(pAndCond->pParameterList, pFullClone);
+    pRemoteJoin->pFullOnCond = (SNode*)pAndCond;
+  } else if (pJoin->pPrimKeyEqCond != NULL) {
+    code = nodesCloneNode(pJoin->pPrimKeyEqCond, &pRemoteJoin->pFullOnCond);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); return code; }
+  } else if (pJoin->pFullOnCond != NULL) {
+    code = nodesCloneNode(pJoin->pFullOnCond, &pRemoteJoin->pFullOnCond);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); return code; }
+  }
+  // Also clone pColEqCond and pColOnCond for extra equality conditions
+  if (pJoin->pColEqCond != NULL) {
+    code = nodesCloneNode(pJoin->pColEqCond, &pRemoteJoin->pColEqCond);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); return code; }
+  }
+  if (pJoin->pColOnCond != NULL) {
+    code = nodesCloneNode(pJoin->pColOnCond, &pRemoteJoin->pColOnCond);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); return code; }
+  }
+
+  // Clone both scan nodes for use in pRemoteJoin->node.pChildren.
+  // The clones are owned by pRemoteJoin; the originals remain in (or are removed
+  // from) the main logic plan tree.
+  SScanLogicNode* pLeftClone  = NULL;
+  SScanLogicNode* pRightClone = NULL;
+  code = nodesCloneNode((SNode*)pLeft,  (SNode**)&pLeftClone);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteJoin); return code; }
+  code = nodesCloneNode((SNode*)pRight, (SNode**)&pRightClone);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRemoteJoin);
+    nodesDestroyNode((SNode*)pLeftClone);
+    return code;
+  }
+
+  // Wire clone scans as children of pRemoteJoin.
+  code = nodesMakeList(&pRemoteJoin->node.pChildren);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRemoteJoin);
+    nodesDestroyNode((SNode*)pLeftClone);
+    nodesDestroyNode((SNode*)pRightClone);
+    return code;
+  }
+  code = nodesListStrictAppend(pRemoteJoin->node.pChildren, (SNode*)pLeftClone);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRemoteJoin);
+    nodesDestroyNode((SNode*)pLeftClone);
+    nodesDestroyNode((SNode*)pRightClone);
+    return code;
+  }
+  code = nodesListStrictAppend(pRemoteJoin->node.pChildren, (SNode*)pRightClone);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRemoteJoin);
+    nodesDestroyNode((SNode*)pRightClone);
+    return code;
+  }
+  pLeftClone->node.pParent  = (SLogicNode*)pRemoteJoin;
+  pRightClone->node.pParent = (SLogicNode*)pRemoteJoin;
+
+  // Attach JOIN remote plan to the scan that remains in the main tree.
+  pDockScan->pRemoteLogicPlan = (SNode*)pRemoteJoin;
+  // ── Update dock scan's output to match the JOIN's output schema ──
+  // After replacing JOIN with the docking scan in the local plan tree, operators above
+  // (e.g. PROJECT) expect the JOIN's output columns.  We update the docking scan's pTargets
+  // to the JOIN's pTargets so that makePhysiNode() builds the right
+  // pOutputDataBlockDesc.  The remote SQL renderer uses the clone scans'
+  // pScanCols, which remain unchanged (all columns from each table).
+  if (pJoin->node.pTargets != NULL) {
+    SNodeList* pNewTargets = NULL;
+    code = nodesCloneList(pJoin->node.pTargets, &pNewTargets);
+    if (TSDB_CODE_SUCCESS != code) {
+      pDockScan->pRemoteLogicPlan = NULL;
+      nodesDestroyNode((SNode*)pRemoteJoin);
+      return code;
+    }
+    planDebug("FQ-JOIN: replacing dock scan targets dockSide=%s nOld=%d nNew=%d",
+              pDockSide, pDockScan->node.pTargets ? LIST_LENGTH(pDockScan->node.pTargets) : 0,
+              LIST_LENGTH(pNewTargets));
+    nodesDestroyList(pDockScan->node.pTargets);
+    pDockScan->node.pTargets = pNewTargets;
+  } else {
+    planDebug("FQ-JOIN: pJoin->node.pTargets is NULL, keeping dock scan targets dockSide=%s", pDockSide);
+  }
+
+  // ── Replace JOIN in main plan tree with the docking scan ──
+  // The plan tree before:  PARENT → JOIN → [pLeft, pRight]
+  // The plan tree after:   PARENT → pDockScan
+  //
+  // We detach pLeft and pRight from pJoin before calling replaceLogicNode, then
+  // destroy pJoin (which no longer owns the children).
+  // pOtherScan is removed from the tree and destroyed here.
+
+  // Clear pJoin's children list so destroying pJoin does not free pLeft/pRight.
+  // nodesClearList frees the list cells and list struct, but NOT the node data.
+  // We MUST set pJoin->node.pChildren = NULL after clearing to avoid a
+  // use-after-free in nodesDestroyNode(pJoin) which calls nodesDestroyList.
+  nodesClearList(pJoin->node.pChildren);
+  pJoin->node.pChildren = NULL;
+  pLeft->node.pParent  = NULL;
+  pRight->node.pParent = NULL;
+
+  // Replace JOIN with docking scan in the logic plan/subplan.
+  planDebug("FQ-JOIN: calling replaceLogicNode pJoin=%p dockScan=%p dockSide=%s pJoin->pParent=%p",
+            (void*)pJoin, (void*)pDockScan, pDockSide, (void*)pJoin->node.pParent);
+  code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pJoin, (SLogicNode*)pDockScan);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-JOIN: replaceLogicNode failed code=0x%x", code);
+    pDockScan->pRemoteLogicPlan = NULL;
+    // Restore the children list so pJoin cleanup is safe
+    (void)nodesListMakeStrictAppend(&pJoin->node.pChildren, (SNode*)pLeft);
+    (void)nodesListMakeStrictAppend(&pJoin->node.pChildren, (SNode*)pRight);
+    nodesDestroyNode((SNode*)pRemoteJoin);
+    return code;
+  }
+  planDebug("FQ-JOIN: replaceLogicNode OK dockScan=%p dockSide=%s parent=%p",
+            (void*)pDockScan, pDockSide, (void*)pDockScan->node.pParent);
+
+  // Destroy pJoin (children already cleared) and the removed scan.
+  nodesDestroyNode((SNode*)pJoin);
+  nodesDestroyNode((SNode*)pOtherScan);
+
+  // Mark the docking scan as fully processed so that subsequent optimizer passes
+  // (triggered by other rules setting cxt.optimized=true) do not overwrite
+  // pDockScan->pRemoteLogicPlan via the chain harvest.
+  OPTIMIZE_FLAG_SET_MASK(pDockScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
+
+  planDebug("FQ-JOIN: pushed joinType=%d subType=%d source=%s dockSide=%s left=%s right=%s",
+            (int)pRemoteJoin->joinType, (int)pRemoteJoin->subType,
+            pLeftExt->sourceName, pDockSide,
+            pLeftExt->pExtMeta ? pLeftExt->pExtMeta->remoteTableName : "?",
+            pRightExt->pExtMeta ? pRightExt->pExtMeta->remoteTableName : "?");
+
+  // ── Optional: push ORDER BY + LIMIT above the JOIN to remote ──────────────
+  // If the docking scan's new parent is a Sort node, incorporate its ORDER BY (and
+  // optional LIMIT) into pRemoteLogicPlan and remove the local Sort.
+  {
+    SLogicNode* pAbove = (SLogicNode*)pDockScan->node.pParent;
+    if (pAbove != NULL && nodeType(pAbove) == QUERY_NODE_LOGIC_PLAN_SORT) {
+      SSortLogicNode* pLocalSort = (SSortLogicNode*)pAbove;
+      SSortLogicNode* pRemSort   = NULL;
+      int32_t scode = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&pRemSort);
+      if (TSDB_CODE_SUCCESS == scode) {
+        // Clone sort keys
+        scode = nodesCloneList(pLocalSort->pSortKeys, &pRemSort->pSortKeys);
+        if (TSDB_CODE_SUCCESS != scode) {
+          nodesDestroyNode((SNode*)pRemSort);
+          goto join_sort_skip;
+        }
+        // Clone LIMIT if present
+        SNode* pLimitSrc = pLocalSort->node.pLimit;
+        if (pLimitSrc == NULL) {
+          // Check parent Projection for LIMIT
+          SLogicNode* pAboveSort = pLocalSort->node.pParent;
+          if (pAboveSort != NULL && nodeType(pAboveSort) == QUERY_NODE_LOGIC_PLAN_PROJECT)
+            pLimitSrc = pAboveSort->pLimit;
+        }
+        if (pLimitSrc != NULL) {
+          scode = nodesCloneNode(pLimitSrc, &pRemSort->node.pLimit);
+          if (TSDB_CODE_SUCCESS != scode) {
+            nodesDestroyNode((SNode*)pRemSort);
+            goto join_sort_skip;
+          }
+        }
+        // Wire: pRemSort → pRemoteJoin
+        scode = nodesMakeList(&pRemSort->node.pChildren);
+        if (TSDB_CODE_SUCCESS == scode)
+          scode = nodesListStrictAppend(pRemSort->node.pChildren,
+                                        pDockScan->pRemoteLogicPlan);
+        if (TSDB_CODE_SUCCESS != scode) {
+          nodesDestroyNode((SNode*)pRemSort);
+          goto join_sort_skip;
+        }
+        ((SLogicNode*)pDockScan->pRemoteLogicPlan)->pParent = (SLogicNode*)pRemSort;
+        pDockScan->pRemoteLogicPlan = (SNode*)pRemSort;
+        // Remove local Sort from plan tree: replace Sort with the docking scan.
+        nodesClearList(pLocalSort->node.pChildren);
+        pLocalSort->node.pChildren = NULL;
+        pDockScan->node.pParent   = NULL;
+        int32_t rcode = replaceLogicNode(pLogicSubplan, (SLogicNode*)pLocalSort, (SLogicNode*)pDockScan);
+        if (TSDB_CODE_SUCCESS == rcode) {
+          nodesDestroyNode(pLocalSort->node.pLimit);
+          pLocalSort->node.pLimit = NULL;
+          nodesDestroyNode((SNode*)pLocalSort);
+          planDebug("FQ-JOIN: pushed Sort+Limit to remote plan dockSide=%s", pDockSide);
+        } else {
+          // Restore on failure — don't leak
+          pDockScan->node.pParent = (SLogicNode*)pLocalSort;
+          planError("FQ-JOIN: replaceLogicNode(Sort) failed code=0x%x", rcode);
+        }
+      }
+    }
+  }
+  join_sort_skip:;
+
+  *pConverted = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool fqAggFuncNeedsOrderedInput(const SFunctionNode* pFunc) {
+  if (NULL == pFunc) {
+    return false;
+  }
+
+  // Skip TDengine internal pass-through wrappers for GROUP BY keys. They do
+  // not consume row order and must not trigger synthetic remote ORDER BY.
+  if (fmIsGroupKeyFunc(pFunc->funcId)) {
+    return false;
+  }
+
+  // IMPORTANT: FUNC_MGT_KEEP_ORDER_FUNC is broader than "needs ordered input".
+  // Many ordinary aggs (for example MIN/MAX) are tagged keep-order for planner
+  // result-order propagation, but they do not consume timestamp row order and
+  // must not trigger synthetic remote ORDER BY pk injection.  Restrict this
+  // helper to functions that truly require time-ordered raw rows when they stay
+  // local above an external scan.
+  if (fmIsTimelineFunc(pFunc->funcId)) {
+    return true;
+  }
+
+  switch (pFunc->funcType) {
+    case FUNCTION_TYPE_FIRST:
+    case FUNCTION_TYPE_FIRST_PARTIAL:
+    case FUNCTION_TYPE_FIRST_MERGE:
+    case FUNCTION_TYPE_LAST:
+    case FUNCTION_TYPE_LAST_PARTIAL:
+    case FUNCTION_TYPE_LAST_MERGE:
+    case FUNCTION_TYPE_LAST_ROW:
+    case FUNCTION_TYPE_CACHE_LAST:
+    case FUNCTION_TYPE_GROUP_CONCAT:
+    case FUNCTION_TYPE_LEASTSQUARES:
+      return true;
+    case FUNCTION_TYPE_TOP:
+    case FUNCTION_TYPE_BOTTOM:
+    case FUNCTION_TYPE_SAMPLE:
+      return fmIsKeepOrderFunc((SFunctionNode*)pFunc);
+    default:
+      return false;
+  }
+}
+
+static bool fqAggNodeNeedsOrderedInput(const SAggLogicNode* pAgg) {
+  if (NULL == pAgg || NULL == pAgg->pAggFuncs) {
+    return false;
+  }
+
+  int32_t funcIdx = 0;
+  SNode*  pFuncNode = NULL;
+  FOREACH(pFuncNode, pAgg->pAggFuncs) {
+    if (nodeType(pFuncNode) != QUERY_NODE_FUNCTION) {
+      planDebug("FQ-DBG: local AGG func[%d] nodeType=%d skipped for ordered-input probe",
+                funcIdx, (int)nodeType(pFuncNode));
+      ++funcIdx;
+      continue;
+    }
+
+    SFunctionNode* pFunc = (SFunctionNode*)pFuncNode;
+    bool keepOrder = fmIsKeepOrderFunc(pFunc);
+    bool timeline  = fmIsTimelineFunc(pFunc->funcId);
+    planDebug("FQ-DBG: local AGG func[%d] name=%s keepOrder=%d timeline=%d",
+              funcIdx, pFunc->functionName, (int)keepOrder, (int)timeline);
+    if (fqAggFuncNeedsOrderedInput(pFunc)) {
+      return true;
+    }
+    ++funcIdx;
+  }
+
+  return false;
+}
+
+typedef struct {
+  const SColumnNode* pPkCol;
+  int32_t            code;
+  bool               foundGroupConcat;
+  bool               injectedOrderParam;
+} SFqRemoteGroupConcatOrderCtx;
+
+static bool fqOrderKeyColumnMatches(const SColumnNode* pCol, const SColumnNode* pPkCol) {
+  if (NULL == pCol || NULL == pPkCol) {
+    return false;
+  }
+
+  return pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID ||
+         (pPkCol->colName[0] != '\0' && 0 == strcmp(pCol->colName, pPkCol->colName));
+}
+
+static int32_t fqCloneRemotePkColRef(const SScanLogicNode* pDockScan, SColumnNode** ppPkCol) {
+  if (NULL == pDockScan || NULL == ppPkCol || NULL == pDockScan->pExtTableNode) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SExtTableNode* pExtNode = (SExtTableNode*)pDockScan->pExtTableNode;
+  if (NULL == pExtNode->pExtMeta || pExtNode->tsPrimaryColIdx < 0 ||
+      pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
+    planDebug("FQ-gc-order: skip clone pk col — no ext primary key metadata dockScan=%p", pDockScan);
+    *ppPkCol = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const char* pkColName = pExtNode->pExtMeta->pCols[pExtNode->tsPrimaryColIdx].colName;
+  SNode*      pColNode = NULL;
+  FOREACH(pColNode, pDockScan->pScanCols) {
+    if (nodeType(pColNode) == QUERY_NODE_COLUMN &&
+        fqOrderKeyColumnMatches((SColumnNode*)pColNode, (const SColumnNode*)pColNode) &&
+        (0 == strcmp(((SColumnNode*)pColNode)->colName, pkColName) ||
+         ((SColumnNode*)pColNode)->isPrimTs ||
+         ((SColumnNode*)pColNode)->colId == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+      int32_t code = nodesCloneNode(pColNode, (SNode**)ppPkCol);
+      if (TSDB_CODE_SUCCESS == code) {
+        (*ppPkCol)->isPrimTs = true;
+        (*ppPkCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+        (*ppPkCol)->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+        (*ppPkCol)->node.resType.bytes = (int32_t)sizeof(int64_t);
+      }
+      return code;
+    }
+  }
+
+  SColumnNode* pPkCol = NULL;
+  int32_t      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pPkCol);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  SColumnNode* pTemplate = NULL;
+  if (pDockScan->pScanCols && LIST_LENGTH(pDockScan->pScanCols) > 0) {
+    SNode* pFirst = nodesListGetNode(pDockScan->pScanCols, 0);
+    if (pFirst && nodeType(pFirst) == QUERY_NODE_COLUMN) {
+      pTemplate = (SColumnNode*)pFirst;
+    }
+  }
+
+  if (pTemplate != NULL) {
+    tstrncpy(pPkCol->dbName, pTemplate->dbName, sizeof(pPkCol->dbName));
+    tstrncpy(pPkCol->tableName, pTemplate->tableName, sizeof(pPkCol->tableName));
+    tstrncpy(pPkCol->tableAlias, pTemplate->tableAlias, sizeof(pPkCol->tableAlias));
+    pPkCol->tableType = pTemplate->tableType;
+    pPkCol->tableId = pTemplate->tableId;
+    pPkCol->colType = pTemplate->colType;
+  } else {
+    tstrncpy(pPkCol->dbName, pDockScan->tableName.dbname, sizeof(pPkCol->dbName));
+    tstrncpy(pPkCol->tableName, pDockScan->tableName.tname, sizeof(pPkCol->tableName));
+    tstrncpy(pPkCol->tableAlias, pDockScan->tableName.tname, sizeof(pPkCol->tableAlias));
+    pPkCol->tableType = TSDB_NORMAL_TABLE;
+    pPkCol->colType = COLUMN_TYPE_COLUMN;
+  }
+
+  tstrncpy(pPkCol->colName, pkColName, sizeof(pPkCol->colName));
+  tstrncpy(pPkCol->node.aliasName, pkColName, sizeof(pPkCol->node.aliasName));
+  tstrncpy(pPkCol->node.userAlias, pkColName, sizeof(pPkCol->node.userAlias));
+  pPkCol->isPrimTs = true;
+  pPkCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  pPkCol->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  pPkCol->node.resType.bytes = (int32_t)sizeof(int64_t);
+
+  *ppPkCol = pPkCol;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool fqNodeListHasOrderKeyCol(SNodeList* pList, const SColumnNode* pPkCol) {
+  if (NULL == pList || NULL == pPkCol) {
+    return false;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pList) {
+    if (nodeType(pNode) == QUERY_NODE_COLUMN &&
+        fqOrderKeyColumnMatches((SColumnNode*)pNode, pPkCol)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static int32_t fqAppendOrderKeyColToList(SNodeList** ppList, const SColumnNode* pPkCol) {
+  if (NULL == ppList || NULL == pPkCol) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (NULL == *ppList) {
+    int32_t code = nodesMakeList(ppList);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  if (fqNodeListHasOrderKeyCol(*ppList, pPkCol)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pClone = NULL;
+  int32_t code = nodesCloneNode((SNode*)pPkCol, &pClone);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  code = nodesListStrictAppend(*ppList, pClone);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pClone);
+    return code;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static EDealRes fqRemoteGroupConcatOrderWalker(SNode* pNode, void* pContext) {
+  SFqRemoteGroupConcatOrderCtx* pCtx = (SFqRemoteGroupConcatOrderCtx*)pContext;
+  if (NULL == pCtx || TSDB_CODE_SUCCESS != pCtx->code) {
+    return DEAL_RES_ERROR;
+  }
+
+  if (QUERY_NODE_FUNCTION != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SFunctionNode* pFunc = (SFunctionNode*)pNode;
+  if (pFunc->funcType != FUNCTION_TYPE_GROUP_CONCAT) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  pCtx->foundGroupConcat = true;
+  if (NULL != pFunc->pParameterList) {
+    int32_t paramNum = LIST_LENGTH(pFunc->pParameterList);
+    if (paramNum >= 3) {
+      SNode* pLast = nodesListGetNode(pFunc->pParameterList, paramNum - 1);
+      if (pLast != NULL && QUERY_NODE_COLUMN == nodeType(pLast) &&
+          fqOrderKeyColumnMatches((SColumnNode*)pLast, pCtx->pPkCol)) {
+        planDebug("FQ-gc-order: skip duplicate order param func=%p paramNum=%d col=%s",
+                  pFunc, paramNum, ((SColumnNode*)pLast)->colName);
+        return DEAL_RES_CONTINUE;
+      }
+    }
+  }
+
+  if (NULL == pFunc->pParameterList) {
+    pCtx->code = nodesMakeList(&pFunc->pParameterList);
+    if (TSDB_CODE_SUCCESS != pCtx->code) {
+      planError("FQ-gc-order: create param list failed func=%p code=0x%x", pFunc, pCtx->code);
+      return DEAL_RES_ERROR;
+    }
+  }
+
+  SNode* pClone = NULL;
+  pCtx->code = nodesCloneNode((SNode*)pCtx->pPkCol, &pClone);
+  if (TSDB_CODE_SUCCESS != pCtx->code) {
+    planError("FQ-gc-order: clone pk col failed func=%p code=0x%x", pFunc, pCtx->code);
+    return DEAL_RES_ERROR;
+  }
+
+  pCtx->code = nodesListStrictAppend(pFunc->pParameterList, pClone);
+  if (TSDB_CODE_SUCCESS != pCtx->code) {
+    nodesDestroyNode(pClone);
+    planError("FQ-gc-order: append order param failed func=%p code=0x%x", pFunc, pCtx->code);
+    return DEAL_RES_ERROR;
+  }
+
+  pCtx->injectedOrderParam = true;
+  planDebug("FQ-gc-order: appended hidden order param func=%p funcName=%s col=%s newParamNum=%d",
+            pFunc, pFunc->functionName, pCtx->pPkCol->colName,
+            LIST_LENGTH(pFunc->pParameterList));
+  return DEAL_RES_CONTINUE;
+}
+
+static void fqWalkLogicExprFieldsForGcOrder(SLogicNode* pNode, SFqRemoteGroupConcatOrderCtx* pCtx) {
+  if (NULL == pNode || NULL == pCtx || TSDB_CODE_SUCCESS != pCtx->code) {
+    return;
+  }
+
+  nodesWalkExprs(pNode->pTargets, fqRemoteGroupConcatOrderWalker, pCtx);
+  nodesWalkExpr(pNode->pConditions, fqRemoteGroupConcatOrderWalker, pCtx);
+  nodesWalkExpr(pNode->pLimit, fqRemoteGroupConcatOrderWalker, pCtx);
+  nodesWalkExpr(pNode->pSlimit, fqRemoteGroupConcatOrderWalker, pCtx);
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_SCAN: {
+      SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+      nodesWalkExprs(pScan->pScanCols, fqRemoteGroupConcatOrderWalker, pCtx);
       break;
     }
-    SNodeList* pChildren = pLogic->pChildren;
-    pCurr = (pChildren != NULL && LIST_LENGTH(pChildren) > 0)
-                ? nodesListGetNode(pChildren, 0)
-                : NULL;
+    case QUERY_NODE_LOGIC_PLAN_AGG: {
+      SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+      nodesWalkExprs(pAgg->pGroupKeys, fqRemoteGroupConcatOrderWalker, pCtx);
+      nodesWalkExprs(pAgg->pAggFuncs, fqRemoteGroupConcatOrderWalker, pCtx);
+      break;
+    }
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      nodesWalkExprs(((SProjectLogicNode*)pNode)->pProjections, fqRemoteGroupConcatOrderWalker, pCtx);
+      break;
+    default:
+      break;
+  }
+}
+
+static int32_t fqPrepareRemoteGroupConcatOrderRecursive(SLogicNode* pNode, const SColumnNode* pPkCol,
+                                                        SFqRemoteGroupConcatOrderCtx* pCtx) {
+  if (NULL == pNode || NULL == pPkCol || NULL == pCtx) {
+    return TSDB_CODE_SUCCESS;
   }
 
-  if (NULL == pSource) {
-    return TSDB_CODE_SUCCESS;  // no LIMIT in chain
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    int32_t code = fqAppendOrderKeyColToList(&pScan->pScanCols, pPkCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-gc-order: append pk to remote scanCols failed scan=%p code=0x%x", pScan, code);
+      return code;
+    }
+    code = fqAppendOrderKeyColToList(&pScan->node.pTargets, pPkCol);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-gc-order: append pk to remote targets failed scan=%p code=0x%x", pScan, code);
+      return code;
+    }
+    planDebug("FQ-gc-order: ensured remote scan order col scan=%p source=%s col=%s scanCols=%d targets=%d",
+              pScan,
+              pScan->pExtTableNode ? ((SExtTableNode*)pScan->pExtTableNode)->sourceName : "(null)",
+              pPkCol->colName,
+              pScan->pScanCols ? LIST_LENGTH(pScan->pScanCols) : 0,
+              pScan->node.pTargets ? LIST_LENGTH(pScan->node.pTargets) : 0);
   }
 
-  // Clone the correct LIMIT onto pScan->node.pLimit.
-  // makePhysiNode() TSwaps this to physi-scan->node.pLimit, and
-  // createFederatedScanPhysiNode subsequently clones it to pLeaf->node.pLimit,
-  // which nodesRemotePlanToSQL reads to emit the LIMIT / OFFSET clause.
-  SNode*  pCloned = NULL;
-  int32_t code    = nodesCloneNode((SNode*)pSource, &pCloned);
-  if (TSDB_CODE_SUCCESS != code) return code;
-  nodesDestroyNode(pScan->node.pLimit);
-  pScan->node.pLimit = pCloned;
-
-  // Clear pLimit from all nodes in pRemoteLogicPlan so that
-  // remoteLogicNodeToPhysi does not propagate a stale/adjusted value to
-  // pLeaf before it gets overwritten by pScan->node.pLimit above.
-  pCurr = pScan->pRemoteLogicPlan;
-  while (pCurr != NULL) {
-    SLogicNode* pLogic = (SLogicNode*)pCurr;
-    nodesDestroyNode(pLogic->pLimit);
-    pLogic->pLimit = NULL;
-    SNodeList* pChildren = pLogic->pChildren;
-    pCurr = (pChildren != NULL && LIST_LENGTH(pChildren) > 0)
-                ? nodesListGetNode(pChildren, 0)
-                : NULL;
+  fqWalkLogicExprFieldsForGcOrder(pNode, pCtx);
+  if (TSDB_CODE_SUCCESS != pCtx->code) {
+    return pCtx->code;
   }
 
-  planDebug("FqHarvestLimit: pushed LIMIT %" PRId64 " OFFSET %" PRId64 " to external scan",
-            pSource->limit ? ((SValueNode*)pSource->limit)->datum.i : (int64_t)-1,
-            pSource->offset ? ((SValueNode*)pSource->offset)->datum.i : (int64_t)0);
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    int32_t code = fqPrepareRemoteGroupConcatOrderRecursive((SLogicNode*)pChild, pPkCol, pCtx);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
-// Merge local JOIN with remote tables: restructure JOIN so that each remote
-// leg becomes a separate subquery with its own pRemoteLogicPlan.
-static int32_t fqMergeJoin(SScanLogicNode* pScan) {
-  // Phase 2: split JOIN legs for federated execution
-  return TSDB_CODE_SUCCESS;
+static int32_t fqPrepareRemoteGroupConcatOrder(SScanLogicNode* pScan) {
+  if (NULL == pScan || NULL == pScan->pRemoteLogicPlan) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnNode* pPkCol = NULL;
+  int32_t code = fqCloneRemotePkColRef(pScan, &pPkCol);
+  if (TSDB_CODE_SUCCESS != code || NULL == pPkCol) {
+    if (TSDB_CODE_SUCCESS == code) {
+      planDebug("FQ-gc-order: skip remote group_concat order prep scan=%p — no pk col cloned", pScan);
+    }
+    return code;
+  }
+
+  SFqRemoteGroupConcatOrderCtx cxt = {
+      .pPkCol = pPkCol,
+      .code = TSDB_CODE_SUCCESS,
+      .foundGroupConcat = false,
+      .injectedOrderParam = false,
+  };
+
+  code = fqPrepareRemoteGroupConcatOrderRecursive((SLogicNode*)pScan->pRemoteLogicPlan, pPkCol, &cxt);
+  if (TSDB_CODE_SUCCESS == code) {
+    planDebug("FQ-gc-order: remote plan prepared scan=%p foundGroupConcat=%d injectedOrderParam=%d pkCol=%s remoteRootType=%d",
+              pScan, (int)cxt.foundGroupConcat, (int)cxt.injectedOrderParam, pPkCol->colName,
+              pScan->pRemoteLogicPlan ? (int)nodeType(pScan->pRemoteLogicPlan) : -1);
+  }
+
+  nodesDestroyNode((SNode*)pPkCol);
+  return code;
 }
 
-// Push correlated/uncorrelated subqueries down to remote for execution.
-static int32_t fqPushdownSubquery(SScanLogicNode* pScan) {
-  // Phase 2: push subquery into pRemoteLogicPlan
-  return TSDB_CODE_SUCCESS;
-}
-
-// ─── fqInjectPkOrderBy ─────────────────────────────────────────────────────
 // Append a SSortLogicNode (ORDER BY <pk_col> ASC) at the bottom of
 // pScan->pRemoteLogicPlan so that nodesRemotePlanToSQL emits:
 //
@@ -14431,7 +18234,10 @@ static int32_t fqPushdownSubquery(SScanLogicNode* pScan) {
 //   (b) the outer query is projection-only — no AGG or WINDOW above the scan
 //       in the main logical plan (verified by the caller).
 // ─────────────────────────────────────────────────────────────────────────────
-static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
+static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan, bool preserveScanWhere) {
+  planDebug("FQ-DBG: fqInjectPkOrderBy called pRemoteLogicPlan=%p type=%d",
+            pScan->pRemoteLogicPlan,
+            pScan->pRemoteLogicPlan ? (int)nodeType(pScan->pRemoteLogicPlan) : -1);
   SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
   if (NULL == pExtNode || NULL == pExtNode->pExtMeta ||
       pExtNode->tsPrimaryColIdx < 0 ||
@@ -14444,12 +18250,31 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   // ── SColumnNode for the pk column ──
+  // Do NOT fabricate a bare column (colName only): in a JOIN remote plan both legs
+  // expose a pk column of the same name, so a prefix-less ORDER BY "<pk>" is
+  // ambiguous (e.g. MySQL error 1052).  Clone the real pk column from pScanCols
+  // (which carries tableAlias/tableName/colId), so JOIN rendering emits a
+  // leg-qualified "alias"."<pk>".  Fall back to a fabricated column only when no
+  // matching pk column is found in pScanCols.
   SColumnNode* pPkCol = NULL;
-  code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pPkCol);
-  if (TSDB_CODE_SUCCESS != code) return code;
-  tstrncpy(pPkCol->colName, pkColName, TSDB_COL_NAME_LEN);
-  pPkCol->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
-  pPkCol->node.resType.bytes = (int32_t)sizeof(int64_t);  // TIMESTAMP is always 8 bytes
+  if (pScan->pScanCols != NULL) {
+    SNode* pColNode = NULL;
+    FOREACH(pColNode, pScan->pScanCols) {
+      if (nodeType(pColNode) == QUERY_NODE_COLUMN &&
+          0 == strcmp(((SColumnNode*)pColNode)->colName, pkColName)) {
+        code = nodesCloneNode(pColNode, (SNode**)&pPkCol);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        break;
+      }
+    }
+  }
+  if (NULL == pPkCol) {
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pPkCol);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    tstrncpy(pPkCol->colName, pkColName, TSDB_COL_NAME_LEN);
+    pPkCol->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
+    pPkCol->node.resType.bytes = (int32_t)sizeof(int64_t);  // TIMESTAMP is always 8 bytes
+  }
 
   // ── SOrderByExprNode wrapping the column ──
   SOrderByExprNode* pOrdExpr = NULL;
@@ -14460,7 +18285,7 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
   }
   pOrdExpr->pExpr      = (SNode*)pPkCol;
   pOrdExpr->order      = ORDER_ASC;
-  pOrdExpr->nullOrder  = NULL_ORDER_FIRST;  // ts pk cannot be NULL; NULLS FIRST is harmless
+  pOrdExpr->nullOrder  = NULL_ORDER_DEFAULT;  // ts pk cannot be NULL; use dialect default ordering
 
   // ── SSortLogicNode with pSortKeys = [pOrdExpr] ──
   SSortLogicNode* pSortLogic = NULL;
@@ -14484,30 +18309,98 @@ static int32_t fqInjectPkOrderBy(SScanLogicNode* pScan) {
 
   // ── Wire pSortLogic into pRemoteLogicPlan ──
   // If pRemoteLogicPlan is NULL: sort becomes the sole remote plan node.
-  // Otherwise: append at the bottom of the existing chain (the chain's
-  // bottommost node has pChildren == NULL; set it to [pSortLogic]).
+  // Otherwise: insert Sort at the TOP of the chain as the new root.
+  // This ensures renderNode(Sort) calls renderNode(child=Project/FedScan)
+  // first, then appends ORDER BY — producing flat SQL:
+  //   SELECT expr FROM table [WHERE] ORDER BY pk
+  // instead of a subquery wrapping.
   if (NULL == pScan->pRemoteLogicPlan) {
+    // No remote plan yet: the injected Sort becomes the root, but it must carry
+    // a SCAN leaf so the remote plan is a self-contained tree (Sort → SCAN).
+    // Clone pScan as a pure raw-row leaf (FROM + pScanCols only).  Any local
+    // scan WHERE that blocked collect must stay on the docking scan; pk-order
+    // injection here is only for deterministic row order, never for filter push.
+    // Virtual-table direct-child scans are the exception: when their scan WHERE
+    // itself is pushable, the raw leaf must preserve that condition so the
+    // shared external source table is constrained before the vtable merge.
+    SScanLogicNode* pLeafScan = NULL;
+    code = nodesCloneNode((SNode*)pScan, (SNode**)&pLeafScan);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pSortLogic); return code; }
+    if (pLeafScan->node.pChildren != NULL) {
+      nodesDestroyList(pLeafScan->node.pChildren);
+      pLeafScan->node.pChildren = NULL;
+    }
+    pLeafScan->node.pParent = NULL;
+    if (pLeafScan->pRemoteLogicPlan != NULL) {
+      nodesDestroyNode(pLeafScan->pRemoteLogicPlan);
+      pLeafScan->pRemoteLogicPlan = NULL;
+    }
+    if (preserveScanWhere && pLeafScan->node.pConditions == NULL && pLeafScan->pPushedConditions != NULL) {
+      code = nodesCloneNode(pLeafScan->pPushedConditions, &pLeafScan->node.pConditions);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pLeafScan);
+        nodesDestroyNode((SNode*)pSortLogic);
+        return code;
+      }
+    }
+    if (!preserveScanWhere && pLeafScan->node.pConditions != NULL) {
+      planDebug("FQ-injectPkOrderBy: clear local-only scan WHERE from injected raw leaf scan=%p", pLeafScan);
+      nodesDestroyNode(pLeafScan->node.pConditions);
+      pLeafScan->node.pConditions = NULL;
+    }
+    code = nodesMakeList(&pSortLogic->node.pChildren);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pLeafScan); nodesDestroyNode((SNode*)pSortLogic); return code; }
+    code = nodesListStrictAppend(pSortLogic->node.pChildren, (SNode*)pLeafScan);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pLeafScan); nodesDestroyNode((SNode*)pSortLogic); return code; }
+    pLeafScan->node.pParent = (SLogicNode*)pSortLogic;
     pScan->pRemoteLogicPlan = (SNode*)pSortLogic;
   } else {
-    SLogicNode* pBottom = (SLogicNode*)pScan->pRemoteLogicPlan;
-    while (pBottom->pChildren != NULL && LIST_LENGTH(pBottom->pChildren) > 0) {
-      pBottom = (SLogicNode*)nodesListGetNode(pBottom->pChildren, 0);
-    }
-    code = nodesMakeList(&pBottom->pChildren);
+    SLogicNode* pOldRoot = (SLogicNode*)pScan->pRemoteLogicPlan;
+    code = nodesMakeList(&pSortLogic->node.pChildren);
     if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyNode((SNode*)pSortLogic);
       return code;
     }
-    code = nodesListStrictAppend(pBottom->pChildren, (SNode*)pSortLogic);
+    code = nodesListStrictAppend(pSortLogic->node.pChildren, (SNode*)pOldRoot);
     if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyList(pBottom->pChildren);
-      pBottom->pChildren = NULL;
+      nodesDestroyList(pSortLogic->node.pChildren);
+      pSortLogic->node.pChildren = NULL;
       nodesDestroyNode((SNode*)pSortLogic);
       return code;
     }
-    pSortLogic->node.pParent = pBottom;
+    pOldRoot->pParent = (SLogicNode*)pSortLogic;
+    pScan->pRemoteLogicPlan = (SNode*)pSortLogic;
+    // Move LIMIT from the old root to the new Sort so ORDER BY appears before
+    // LIMIT in the generated SQL.  SQL execution order: ORDER BY (rank 6) before
+    // LIMIT (rank 7), so Sort must own pLimit when it wraps a LIMIT-bearing child.
+    if (pOldRoot->pLimit != NULL) {
+      pSortLogic->node.pLimit = pOldRoot->pLimit;
+      pOldRoot->pLimit = NULL;
+    }
   }
 
+  // ── Set pTargets on Sort to match its child's output ──
+  // planPhysiCreater expects every logic node to have pTargets set so it can
+  // build pOutputDataBlockDesc correctly.  Inherit pTargets from the child
+  // (the original pRemoteLogicPlan root, or the scan's current pTargets if
+  // Sort is the sole node).
+  {
+    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pSortLogic->node.pChildren, 0);
+    SNodeList*  pSrcTargets = (pChild && pChild->pTargets) ? pChild->pTargets
+                                                            : pScan->node.pTargets;
+    if (pSrcTargets != NULL) {
+      SNodeList* pNewTargets = NULL;
+      code = nodesCloneList(pSrcTargets, &pNewTargets);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pSortLogic);
+        return code;
+      }
+      pSortLogic->node.pTargets = pNewTargets;
+    }
+  }
+
+  planDebug("FQ-injectPkOrderBy: injected remote ORDER BY %s ASC (remotePlan root type=%d)",
+            pkColName, pScan->pRemoteLogicPlan ? (int)nodeType(pScan->pRemoteLogicPlan) : -1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -14683,13 +18576,30 @@ static int32_t fqInterpCreateAndCond(SNode* pLeft, SNode* pRight, SNode** ppCond
 }
 
 static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  // Find external scan node
-  SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
-  if (NULL == pScan) return TSDB_CODE_SUCCESS;
+  int32_t dialect = pCxt->pExtCapability ? (int32_t)pCxt->pExtCapability->dialect : -1;
+  EExtClauseKind interpClause = EXT_CLAUSE_INTERP;
+  if (!fqClauseIsPushable(interpClause, dialect, pCxt->pSessionOverlay) ||
+      capDisabled(pCxt->pExtCapability, pCxt->pSessionOverlay, EXT_DEMOTE_KIND_CLAUSE, &interpClause)) {
+    planDebug("FqInterp: skip — INTERP clause disabled by capability matrix dialect=%d subQIdx=%d",
+              dialect, pCxt->pPlanCxt ? pCxt->pPlanCxt->subqueryIndex : -2);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Find the docking external scan below the local INTERP node.  This must
+  // ignore OPTIMIZE_FLAG_FQ_PUSHDOWN because FqPushdown has already processed
+  // the scan in an earlier rule round.
+  SScanLogicNode* pScan = fqFindInterpExternalScan(pLogicSubplan->pNode);
+  if (NULL == pScan) {
+    planDebug("FqInterp: skip — no external scan found under local INTERP subtree");
+    return TSDB_CODE_SUCCESS;
+  }
 
   // Find INTERP ancestor above the scan
   SInterpFuncLogicNode* pInterp = fqFindInterpAboveScan(pScan);
-  if (NULL == pInterp) return TSDB_CODE_SUCCESS;
+  if (NULL == pInterp) {
+    planDebug("FqInterp: skip — matched external scan=%p but no INTERP ancestor remains", pScan);
+    return TSDB_CODE_SUCCESS;
+  }
 
   // Get pk column name
   SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
@@ -14814,16 +18724,1816 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   return TSDB_CODE_SUCCESS;
 }
 
-// ─── Phase 1 core: harvest Sort + Project, inject default pk ORDER BY ───────
+// ─── FQ pushdown result logger ───────────────────────────────────────────────
+// Logs the final optimizer decision for one ExternalScan node at DEBUG level.
+// Gated by qDebugFlag so no string-building overhead when debug logging is off.
+// Call once per fqPushdownOptimize invocation, after all decisions are made.
+// Output example:
+//   FQ-OPT result: dialect=2 pScanCols=[time,val] remoteChain=[Sort] localWHERE=none remoteWHERE=YES pLimit=none
+static void fqLogPushdownResult(const SScanLogicNode* pScan, int32_t dialect) {
+  if (!(qDebugFlag & DEBUG_DEBUG)) return;
+
+  // Build pScanCols string
+  char scanColsBuf[512] = {0};
+  int  off = 0;
+  if (pScan->pScanCols != NULL) {
+    SNode* pSCol = NULL;
+    FOREACH(pSCol, pScan->pScanCols) {
+      const char* colName = "?";
+      if (nodeType(pSCol) == QUERY_NODE_COLUMN) {
+        colName = ((const SColumnNode*)pSCol)->colName;
+      } else if (nodeType(pSCol) == QUERY_NODE_TARGET) {
+        const SNode* pInner = ((const STargetNode*)pSCol)->pExpr;
+        if (pInner && nodeType(pInner) == QUERY_NODE_COLUMN)
+          colName = ((const SColumnNode*)pInner)->colName;
+      }
+      off += snprintf(scanColsBuf + off, sizeof(scanColsBuf) - (size_t)off - 1, "%s,", colName);
+      if (off >= (int)sizeof(scanColsBuf) - 2) break;
+    }
+    if (off > 0 && scanColsBuf[off - 1] == ',') scanColsBuf[off - 1] = '\0';
+  } else {
+    tstrncpy(scanColsBuf, "(EMPTY - BUG)", sizeof(scanColsBuf));
+  }
+
+  // Build pRemoteLogicPlan chain string
+  char chainBuf[256] = {0};
+  int  chainOff = 0;
+  const SNode* pRLP = pScan->pRemoteLogicPlan;
+  while (pRLP != NULL) {
+    ENodeType rtype = nodeType(pRLP);
+    const char* name = (rtype == QUERY_NODE_LOGIC_PLAN_SORT)    ? "Sort" :
+                       (rtype == QUERY_NODE_LOGIC_PLAN_PROJECT)  ? "Project" :
+                       (rtype == QUERY_NODE_LOGIC_PLAN_AGG)      ? "Agg" : "?";
+    chainOff += snprintf(chainBuf + chainOff, sizeof(chainBuf) - (size_t)chainOff - 1, "%s→", name);
+    if (chainOff >= (int)sizeof(chainBuf) - 2) break;
+    const SNodeList* pCh = ((const SLogicNode*)pRLP)->pChildren;
+    pRLP = (pCh && LIST_LENGTH(pCh) > 0) ? nodesListGetNode((SNodeList*)pCh, 0) : NULL;
+  }
+  if (chainOff > 1 && chainBuf[chainOff - 1] == '>') chainBuf[chainOff - 1] = '\0';
+  if (chainOff == 0) tstrncpy(chainBuf, "(none)", sizeof(chainBuf));
+
+  planDebug("FQ-OPT result: dialect=%d pScanCols=[%s] remoteChain=[%s] "
+            "localWHERE=%s remotePlan=%s pLimit=%s",
+            dialect, scanColsBuf, chainBuf,
+            pScan->node.pConditions    ? "YES" : "none",
+            pScan->pRemoteLogicPlan    ? "YES" : "none",
+            pScan->node.pLimit         ? "YES" : "none");
+}
+
+// ─── Unified FQ pipeline notes: pk ORDER BY injection fallback ───────────────
 //
 // Rules for pk ORDER BY injection (DS §5.2.x — "fallback flow ordering"):
 //   Inject when ALL of the following hold:
 //   1. No Sort node was pushed down (user did not specify ORDER BY).
 //   2. The outer query is projection-only: no AGG or WINDOW node sits above
 //      the external scan in the main logical plan.
-//   3. We are in the Phase 1 "fallback" flow (external DB is raw data source,
-//      TDengine performs all computation).  This is always true in Phase 1.
+//   3. The remote subtree remains raw-row passthrough, so local upstream
+//      operators still depend on deterministic timestamp order.
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// fqPushLimit — Step 4 of the unified FQ pushdown pipeline.
+//
+// Called after collect+commit.  At this point every local operator that could
+// be pushed or eliminated has already been processed.
+// If pScan->node.pParent == NULL the entire statement has been pushed to the
+// remote plan and LIMIT can follow.
+//
+// LIMIT always sits at the top of the logical plan (it controls the final
+// output of the entire statement).  We clone it onto pRemoteLogicPlan's top
+// node so renderNode emits it at the outermost SQL level.
+//
+// OFFSET is only included when the capability gate permits it; otherwise the
+// entire LIMIT+OFFSET is kept local (they must stay together for correctness).
+static int32_t fqPushLimit(SScanLogicNode* pScan, int32_t dialect,
+                            SOptimizeContext* pCxt) {
+  if (pScan->pRemoteLogicPlan == NULL) return TSDB_CODE_SUCCESS;
+  // Only push LIMIT when the whole statement is pushed down.
+  if (pScan->node.pParent != NULL) return TSDB_CODE_SUCCESS;
+
+  EExtClauseKind limitClause  = EXT_CLAUSE_LIMIT;
+  EExtClauseKind offsetClause = EXT_CLAUSE_OFFSET;
+  if (!fqClauseIsPushable(limitClause, dialect, pCxt->pSessionOverlay) ||
+      capDisabled(pCxt->pExtCapability, pCxt->pSessionOverlay, EXT_DEMOTE_KIND_CLAUSE, &limitClause)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Walk main-plan parent chain to find LIMIT.
+  // FqPushdown runs before PushDownLimit, so LIMIT is still on its original
+  // parser-assigned node (PROJECT or the outermost operator above SCAN).
+  // After steps 2+3 the chain has been consumed and pScan->node.pParent == NULL,
+  // so we must look at the pRemoteLogicPlan top node instead — all operators
+  // that were in the main-plan parent chain have been moved there.
+  // The LIMIT node travels with its operator into pRemoteLogicPlan.
+  // Walk the remote plan top-down and find the first node carrying pLimit.
+  SNode*      pLimitSrc = NULL;
+  SLogicNode* pLimitOwner = NULL;
+  {
+    SNode* pCurr = pScan->pRemoteLogicPlan;
+    while (pCurr != NULL) {
+      SLogicNode* pL = (SLogicNode*)pCurr;
+      if (pL->pLimit != NULL) {
+        pLimitSrc = pL->pLimit;
+        pLimitOwner = pL;
+        break;
+      }
+      SNodeList* pCh = pL->pChildren;
+      pCurr = (pCh != NULL && LIST_LENGTH(pCh) > 0) ? nodesListGetNode(pCh, 0) : NULL;
+    }
+  }
+  if (pLimitSrc == NULL) return TSDB_CODE_SUCCESS;
+
+  SLimitNode* pLim = (SLimitNode*)pLimitSrc;
+  bool hasOffset = (pLim->offset != NULL && pLim->offset->datum.i > 0);
+  if (hasOffset && (!fqClauseIsPushable(offsetClause, dialect, pCxt->pSessionOverlay) ||
+      capDisabled(pCxt->pExtCapability, pCxt->pSessionOverlay, EXT_DEMOTE_KIND_CLAUSE, &offsetClause))) {
+    planDebug("FqPushLimit: OFFSET disabled — keeping LIMIT+OFFSET local");
+    // Clear pLimit from pRemoteLogicPlan so it is not rendered there.
+    SNode* pCurr = pScan->pRemoteLogicPlan;
+    while (pCurr != NULL) {
+      SLogicNode* pL = (SLogicNode*)pCurr;
+      if (pL->pLimit != NULL) { nodesDestroyNode(pL->pLimit); pL->pLimit = NULL; break; }
+      SNodeList* pCh = pL->pChildren;
+      pCurr = (pCh != NULL && LIST_LENGTH(pCh) > 0) ? nodesListGetNode(pCh, 0) : NULL;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Keep ORDER-sensitive LIMIT attached to the SORT node. Rewriting TAIL to
+  // ordinary ORDER BY + LIMIT relies on the two clauses staying in the same
+  // remote SELECT layer; hoisting LIMIT above wrapper projects changes
+  // semantics for connectors such as Influx/DataFusion.
+  SLogicNode* pTop = (SLogicNode*)pScan->pRemoteLogicPlan;
+  if (pLimitOwner != NULL && nodeType((SNode*)pLimitOwner) == QUERY_NODE_LOGIC_PLAN_SORT) {
+    planDebug("FqPushLimit: keep LIMIT on remote sort owner=%p top=%p to preserve ORDER BY + LIMIT semantics",
+              pLimitOwner, pTop);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Move pLimit to the top of pRemoteLogicPlan.
+  if ((SNode*)pTop->pLimit != pLimitSrc) {
+    // Detach from current position.
+    SNode* pCurr = pScan->pRemoteLogicPlan;
+    while (pCurr != NULL) {
+      SLogicNode* pL = (SLogicNode*)pCurr;
+      if (pL->pLimit != NULL) { pL->pLimit = NULL; break; }
+      SNodeList* pCh = pL->pChildren;
+      pCurr = (pCh != NULL && LIST_LENGTH(pCh) > 0) ? nodesListGetNode(pCh, 0) : NULL;
+    }
+    nodesDestroyNode(pTop->pLimit);
+    pTop->pLimit = pLimitSrc;
+  }
+  planDebug("FqPushLimit: pushed LIMIT to top of pRemoteLogicPlan (nodeType=%d)",
+            (int)nodeType((SNode*)pTop));
+  return TSDB_CODE_SUCCESS;
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FQ pushdown now runs as a collect→commit pipeline:
+//
+// Step 1 (collect, READ-ONLY): fqCollectPushChain walks scan->parent bottom-up,
+//   judging each layer purely via capability matrices (clause/operator-function/
+//   type) + node-local expression pushability.  It records the highest
+//   contiguous pushable boundary WITHOUT mutating the main tree.
+// Step 2 (commit, MUTATE): fqCommitPushChain clones the final pushable subtree
+//   into pRemoteLogicPlan and docks the original scan back into the local tree.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Read-only pushability judge for a WINDOW(INTERVAL) node — extracted from
+// fqConvertInterval steps 2-6 (sliding / agg+interval clause / agg funcs / ts pk
+// / interval>0).  No FILL-above check here: the caller's bottom-up walk reaches
+// WINDOW only when nothing non-pushable sits below it, and FILL sits ABOVE the
+// window so it is handled as its own (non-pushable) layer.  No mutation.
+static bool fqWindowIntervalIsPushable(const SWindowLogicNode* pWin, SScanLogicNode* pScan,
+                                       const SExtSourceCapability* pCap,
+                                       const SExtCapSessionOverlay* pOverlay,
+                                       const SPlanContext* pPlanCxt) {
+  if (pWin == NULL || pWin->winType != WINDOW_TYPE_INTERVAL) return false;
+
+  if (pPlanCxt != NULL && pPlanCxt->subqueryIndex >= 0 &&
+      planIsExternalWindowSubquery(pPlanCxt, pPlanCxt->subqueryIndex)) {
+    planDebug("FqWindowIntervalIsPushable: no — subQIdx=%d is EXTERNAL_WINDOW subquery, keep INTERVAL local",
+              pPlanCxt->subqueryIndex);
+    return false;
+  }
+
+  // 1. No FILL above the WINDOW.  FILL (FILL → [PROJECT/SORT…] → WINDOW → SCAN)
+  // depends on the LOCAL window operator to emit continuous time buckets + gap
+  // metadata; if the INTERVAL is converted to a remote GROUP BY, the Fill
+  // executor receives pre-aggregated rows and hangs waiting for window data it
+  // never gets.  So when a FILL sits above, the INTERVAL window stays local.
+  {
+    const SLogicNode* pAbove = pWin->node.pParent;
+    while (pAbove != NULL &&
+           (nodeType(pAbove) == QUERY_NODE_LOGIC_PLAN_PROJECT ||
+            nodeType(pAbove) == QUERY_NODE_LOGIC_PLAN_SORT)) {
+      pAbove = pAbove->pParent;
+    }
+    if (pAbove != NULL && nodeType(pAbove) == QUERY_NODE_LOGIC_PLAN_FILL) {
+      planDebug("FqWindowIntervalIsPushable: no — FILL above WINDOW (keep INTERVAL local)");
+      return false;
+    }
+  }
+
+  // 2. No SLIDING (unless sliding == interval, i.e. tumbling) unless pushable.
+  if (pWin->sliding != 0 && pWin->sliding != pWin->interval) {
+    EExtClauseKind slidingClause = EXT_CLAUSE_INTERVAL_SLIDING;
+    if (!fqClauseIsPushable(slidingClause, pCap ? pCap->dialect : -1, pOverlay) ||
+        capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &slidingClause)) {
+      planDebug("FqWindowIntervalIsPushable: no — SLIDING not pushable");
+      return false;
+    }
+  }
+
+  // 3. AGG + INTERVAL_TUMBLING clauses must be enabled.
+  EExtClauseKind aggClause      = EXT_CLAUSE_AGG;
+  EExtClauseKind intervalClause = EXT_CLAUSE_INTERVAL_TUMBLING;
+  if (!fqClauseIsPushable(aggClause, pCap ? pCap->dialect : -1, pOverlay) ||
+      capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &aggClause)) {
+    planDebug("FqWindowIntervalIsPushable: no — AGG clause disabled");
+    return false;
+  }
+  if (!fqClauseIsPushable(intervalClause, pCap ? pCap->dialect : -1, pOverlay) ||
+      capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &intervalClause)) {
+    planDebug("FqWindowIntervalIsPushable: no — INTERVAL_TUMBLING clause disabled");
+    return false;
+  }
+
+  // 4. All real aggregate functions must be pushable (skip window pseudo-cols).
+  SNode* pFuncNode = NULL;
+  FOREACH(pFuncNode, pWin->pFuncs) {
+    if (nodeType(pFuncNode) != QUERY_NODE_FUNCTION) continue;
+    const SFunctionNode* pFunc = (const SFunctionNode*)pFuncNode;
+    if (fmIsWindowPseudoColumnFunc(pFunc->funcId) || fmIsPseudoColumnFunc(pFunc->funcId)) continue;
+    if (fmIsGroupKeyFunc(pFunc->funcId)) {
+      planDebug("FqWindowIntervalIsPushable: skip group-key func name=%s alias=%s",
+                pFunc->functionName, pFunc->node.aliasName);
+      continue;
+    }
+    if (!fqFuncIsPushable(pFunc->funcId, pCap ? pCap->dialect : -1, pOverlay)) {
+      planDebug("FqWindowIntervalIsPushable: no — func type %d not pushable", (int)pFunc->funcType);
+      return false;
+    }
+  }
+
+  // 5. Source must expose a timestamp primary key.
+  if (pScan->pExtTableNode == NULL) return false;
+  SExtTableNode* pExtNode = (SExtTableNode*)pScan->pExtTableNode;
+  if (pExtNode->pExtMeta == NULL || pExtNode->tsPrimaryColIdx < 0 ||
+      pExtNode->tsPrimaryColIdx >= pExtNode->pExtMeta->numOfCols) {
+    planDebug("FqWindowIntervalIsPushable: no — no ts primary key in ext meta");
+    return false;
+  }
+
+  // 6. interval must be positive.
+  if (pWin->interval <= 0) {
+    planDebug("FqWindowIntervalIsPushable: no — interval<=0");
+    return false;
+  }
+  return true;
+}
+
+// Clause-matrix gate: clause enabled for this dialect and not session-demoted.
+static bool fqClauseGateOpen(EExtClauseKind clause, const SExtSourceCapability* pCap,
+                             const SExtCapSessionOverlay* pOverlay) {
+  if (!fqClauseIsPushable(clause, pCap ? pCap->dialect : -1, pOverlay) ||
+      capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &clause)) {
+    planDebug("FQ-layer: clause %d gated off by capability matrix", (int)clause);
+    return false;
+  }
+  return true;
+}
+
+static bool fqJoinNodeClausePushable(const SJoinLogicNode* pJoin, const SExtSourceCapability* pCap,
+                                     const SExtCapSessionOverlay* pOverlay) {
+  if (!fqClauseGateOpen(EXT_CLAUSE_JOIN, pCap, pOverlay)) {
+    planDebug("FqJoinNodeClausePushable: no — main JOIN gate closed join=%p", pJoin);
+    return false;
+  }
+
+  switch (pJoin->subType) {
+    case JOIN_STYPE_SEMI:
+      if (!fqClauseGateOpen(EXT_CLAUSE_SEMI_JOIN, pCap, pOverlay)) return false;
+      break;
+    case JOIN_STYPE_ANTI:
+      if (!fqClauseGateOpen(EXT_CLAUSE_ANTI_JOIN, pCap, pOverlay)) return false;
+      break;
+    case JOIN_STYPE_ASOF:
+      if (!fqClauseGateOpen(EXT_CLAUSE_ASOF_JOIN, pCap, pOverlay)) return false;
+      break;
+    case JOIN_STYPE_WIN:
+      if (!fqClauseGateOpen(EXT_CLAUSE_WINDOW_JOIN, pCap, pOverlay)) return false;
+      break;
+    default:
+      break;
+  }
+
+  EExtClauseKind joinSubClause = EXT_CLAUSE_MAX;
+  switch (pJoin->joinType) {
+    case JOIN_TYPE_INNER: joinSubClause = EXT_CLAUSE_INNER_JOIN;      break;
+    case JOIN_TYPE_LEFT:  joinSubClause = EXT_CLAUSE_LEFT_JOIN;       break;
+    case JOIN_TYPE_RIGHT: joinSubClause = EXT_CLAUSE_RIGHT_JOIN;      break;
+    case JOIN_TYPE_FULL:  joinSubClause = EXT_CLAUSE_FULL_OUTER_JOIN; break;
+    default:
+      planDebug("FqJoinNodeClausePushable: no — unknown joinType=%d join=%p", (int)pJoin->joinType, pJoin);
+      return false;
+  }
+
+  if (!fqClauseGateOpen(joinSubClause, pCap, pOverlay)) {
+    planDebug("FqJoinNodeClausePushable: no — joinSubClause=%d gated off join=%p", (int)joinSubClause, pJoin);
+    return false;
+  }
+
+  return true;
+}
+
+static bool fqJoinLegSubtreePushable(SLogicNode* pNode, const SExtSourceCapability* pCap,
+                                     const SExtCapSessionOverlay* pOverlay,
+                                     int8_t sourceType, const char* pSourceName) {
+  if (NULL == pNode) {
+    planDebug("FqJoinLegSubtreePushable: no — NULL subtree");
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SNode*)pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (SCAN_TYPE_EXTERNAL != pScan->scanType) {
+      planDebug("FqJoinLegSubtreePushable: no — non-external scan=%p", pScan);
+      return false;
+    }
+    SExtTableNode* pExt = (SExtTableNode*)pScan->pExtTableNode;
+    if (NULL == pExt) {
+      planDebug("FqJoinLegSubtreePushable: no — scan ext table missing scan=%p", pScan);
+      return false;
+    }
+    if (pExt->sourceType != sourceType ||
+        0 != strncmp(pExt->sourceName, pSourceName, TSDB_EXT_SOURCE_NAME_LEN)) {
+      planDebug("FqJoinLegSubtreePushable: no — cross-source scan=%p source=%s expected=%s type=%d expectedType=%d",
+                pScan, pExt->sourceName, pSourceName, (int)pExt->sourceType, (int)sourceType);
+      return false;
+    }
+    return true;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType((SNode*)pNode)) {
+    SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+    if (!fqJoinNodeClausePushable(pJoin, pCap, pOverlay)) {
+      planDebug("FqJoinLegSubtreePushable: no — nested join clause gate failed join=%p", pJoin);
+      return false;
+    }
+    if (NULL == pJoin->node.pChildren || LIST_LENGTH(pJoin->node.pChildren) != 2) {
+      planDebug("FqJoinLegSubtreePushable: no — nested join child count=%d join=%p",
+                pJoin->node.pChildren ? (int)LIST_LENGTH(pJoin->node.pChildren) : 0, pJoin);
+      return false;
+    }
+    SLogicNode* pLeft = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+    SLogicNode* pRight = (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+    return fqJoinLegSubtreePushable(pLeft, pCap, pOverlay, sourceType, pSourceName) &&
+           fqJoinLegSubtreePushable(pRight, pCap, pOverlay, sourceType, pSourceName);
+  }
+
+  planDebug("FqJoinLegSubtreePushable: no — unsupported nodeType=%d node=%p", (int)nodeType((SNode*)pNode), pNode);
+  return false;
+}
+
+// Read-only pushability judge for a JOIN node — extracted from fqConvertJoin's
+// judgment half (JOIN main gate + subtype + jointype clause matrices, same-source
+// external leg subtrees).  No mutation, no error.
+static bool fqJoinIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
+                             const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay,
+                             const SPlanContext* pPlanCxt) {
+  (void)pScan;
+  (void)pPlanCxt;
+  const SJoinLogicNode* pJoin = (const SJoinLogicNode*)pNode;
+
+  if (!fqJoinNodeClausePushable(pJoin, pCap, pOverlay)) return false;
+
+  // Structural precondition: exactly two same-source external leg subtrees.
+  if (pNode->pChildren == NULL || LIST_LENGTH(pNode->pChildren) != 2) return false;
+  SLogicNode* pL = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  SLogicNode* pR = (SLogicNode*)nodesListGetNode(pNode->pChildren, 1);
+  SScanLogicNode* pFirstLeaf = fqFindExternalLogicLeafScan(pL);
+  if (NULL == pFirstLeaf || NULL == pFirstLeaf->pExtTableNode) {
+    planDebug("FqJoinIsPushable: no — left subtree has no external leaf");
+    return false;
+  }
+  SExtTableNode* pBaseExt = (SExtTableNode*)pFirstLeaf->pExtTableNode;
+  if (!fqJoinLegSubtreePushable(pL, pCap, pOverlay, pBaseExt->sourceType, pBaseExt->sourceName) ||
+      !fqJoinLegSubtreePushable(pR, pCap, pOverlay, pBaseExt->sourceType, pBaseExt->sourceName)) {
+    planDebug("FqJoinIsPushable: no — child subtree not pushable/same-source join=%p", pJoin);
+    return false;
+  }
+  return true;
+}
+
+// Read-only pushability judge for a PARTITION node (DS §5.3.6 行839-855:
+// "转换下推(有条件)").  PARTITION BY expr is pushable as a remote GROUP BY only
+// when the partition key is a plain column / scalar expression.  PARTITION BY
+// TBNAME (or a TDengine tag column) is pushable ONLY for sources that expose the
+// PARTITION_TBNAME capability (InfluxDB: GROUP BY tag1,tag2,…); MySQL/PG have no
+// super-table concept so TBNAME stays local.  The "followed only by aggregation,
+// no window" condition is enforced structurally by the bottom-up walk: a window
+// between SCAN and PARTITION is its own (separately judged) layer, and a remote
+// GROUP BY is rendered only when an AGG sits above (renderer uses the parent
+// plan's agg funcs when the partition node has none).
+static bool fqPartitionIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
+                                  const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay,
+                                  const SPlanContext* pPlanCxt) {
+  const SPartitionLogicNode* pPart = (const SPartitionLogicNode*)pNode;
+  if (pPart->pPartitionKeys == NULL || LIST_LENGTH(pPart->pPartitionKeys) == 0) return false;
+
+  const SWindowLogicNode* pIntervalWinAbove = NULL;
+  for (const SLogicNode* pUp = pPart->node.pParent; pUp != NULL; pUp = pUp->pParent) {
+    if (nodeType(pUp) == QUERY_NODE_LOGIC_PLAN_WINDOW) {
+      const SWindowLogicNode* pWin = (const SWindowLogicNode*)pUp;
+      if (pWin->winType != WINDOW_TYPE_INTERVAL) {
+        planDebug("FqPartitionIsPushable: no — non-INTERVAL WINDOW above PARTITION (winType=%d)",
+                  (int)pWin->winType);
+        return false;
+      }
+      if (!fqWindowIntervalIsPushable(pWin, pScan, pCap, pOverlay, pPlanCxt)) {
+        planDebug("FqPartitionIsPushable: no — INTERVAL WINDOW above PARTITION is not pushable");
+        return false;
+      }
+      pIntervalWinAbove = pWin;
+      break;
+    }
+
+    if (nodeType(pUp) != QUERY_NODE_LOGIC_PLAN_AGG &&
+        nodeType(pUp) != QUERY_NODE_LOGIC_PLAN_PARTITION &&
+        nodeType(pUp) != QUERY_NODE_LOGIC_PLAN_PROJECT &&
+        nodeType(pUp) != QUERY_NODE_LOGIC_PLAN_SORT) {
+      break;
+    }
+  }
+
+  // PARTITION BY is pushable as a remote GROUP BY when it is followed by
+  // aggregation: either the partition node carries its own pAggFuncs, or an AGG
+  // sits directly above it.  A bare PARTITION (e.g. "partition by region limit 1")
+  // has per-partition semantics no single remote SQL can express → stays local.
+  bool followedByAgg = (pPart->pAggFuncs != NULL && LIST_LENGTH(pPart->pAggFuncs) > 0) ||
+                       (pPart->node.pParent != NULL &&
+                        nodeType(pPart->node.pParent) == QUERY_NODE_LOGIC_PLAN_AGG) ||
+                       (pIntervalWinAbove != NULL);
+  if (!followedByAgg) {
+    planDebug("FqPartitionIsPushable: no — PARTITION not followed by aggregation (per-partition semantics, local)");
+    return false;
+  }
+
+  if (pIntervalWinAbove != NULL) {
+    planDebug("FqPartitionIsPushable: yes — INTERVAL WINDOW above PARTITION can be merged into one remote GROUP BY");
+  }
+
+  bool hasTbname = keysHasTbname(pPart->pPartitionKeys);
+  if (hasTbname) {
+    // TBNAME / tag-based partition: requires PARTITION_TBNAME (Influx only).
+    return fqClauseGateOpen(EXT_CLAUSE_PARTITION_TBNAME, pCap, pOverlay);
+  }
+
+  // Plain column / scalar-expression partition keys: gate on PARTITION_COLUMN,
+  // then every key expression must itself be renderable to the remote dialect.
+  if (!fqClauseGateOpen(EXT_CLAUSE_PARTITION_COLUMN, pCap, pOverlay)) return false;
+  SNode* pKey = NULL;
+  FOREACH(pKey, pPart->pPartitionKeys) {
+    SNode* pExpr = pKey;
+    if (nodeType(pExpr) == QUERY_NODE_GROUPING_SET) {
+      pExpr = nodesListGetNode(((SGroupingSetNode*)pExpr)->pParameterList, 0);
+    }
+    // Unwrap the _group_key(col) internal wrapper the planner inserts.
+    if (pExpr != NULL && nodeType(pExpr) == QUERY_NODE_FUNCTION) {
+      SFunctionNode* pFn = (SFunctionNode*)pExpr;
+      if ((pFn->funcType == FUNCTION_TYPE_GROUP_KEY || strcmp(pFn->functionName, "_group_key") == 0) &&
+          pFn->pParameterList != NULL && LIST_LENGTH(pFn->pParameterList) > 0) {
+        pExpr = nodesListGetNode(pFn->pParameterList, 0);
+      }
+    }
+    if (pExpr == NULL) return false;
+    if (!fqExprIsPushable(pExpr, (SScanLogicNode*)pScan, pCap, pOverlay, pPlanCxt)) {
+      planDebug("FqPartitionIsPushable: no — partition key not renderable (nodeType=%d)", (int)nodeType(pExpr));
+      return false;
+    }
+  }
+  return true;
+}
+
+// ── Step-1 layer-pushability: table-driven (node type → clause + judge) ──────
+//
+// kFqNodePushTable maps each logic-plan node type (indexed by nodeType minus
+// QUERY_NODE_LOGIC_PLAN_SCAN) to:
+//   .clause  — the governing clause-matrix kind (the single knob for dynamic
+//              capability control).  EXT_CLAUSE_MAX = "no governing clause" →
+//              the clause gate is skipped (used when the judge does its own
+//              per-subtype clause check, e.g. WINDOW).
+//   .judge   — optional finer judgment (operator/function/type matrices,
+//              structural preconditions, window-subtype clause).  NULL = the
+//              clause gate alone decides.
+// A node type NOT present in the table (zero-initialized → clause==0==FILTER
+// but markedAbsent handled via the `mapped` flag) is treated as NOT pushable.
+// Pure capability-matrix driven; no hard-coded pushability outside the matrices.
+typedef bool (*FFqLayerJudge)(SLogicNode* pNode, SScanLogicNode* pScan,
+                              const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay,
+                              const SPlanContext* pPlanCxt);
+
+#define FQ_RULE_MAX_CLAUSES 3  // max governing clauses a node maps to (AND)
+
+typedef struct SFqNodePushRule {
+  bool           mapped;                          // false → no pushdown mapping (local)
+  EExtClauseKind clauses[FQ_RULE_MAX_CLAUSES];    // governing clauses, AND'd; EXT_CLAUSE_MAX terminates/none
+  FFqLayerJudge  judge;                           // optional finer judge; NULL → clause gates decide
+} SFqNodePushRule;
+
+// Judge wrappers — uniform signature for the table.  pPlanCxt threads the
+// planner's shared subquery registry so REMOTE_* descendants in any clause use
+// the already-built child logic plans instead of falling back to AST lookup.
+static bool fqJudgeProject(SLogicNode* p, SScanLogicNode* s, const SExtSourceCapability* c,
+                           const SExtCapSessionOverlay* o, const SPlanContext* q) {
+  return fqProjectIsPushdownable(p, s, c, o, q);
+}
+static bool fqJudgeSort(SLogicNode* p, SScanLogicNode* s, const SExtSourceCapability* c,
+                        const SExtCapSessionOverlay* o, const SPlanContext* q) {
+  return fqSortAllKeysPushdownable(p, s, c, o, /*aboveAgg=*/false, q);
+}
+static bool fqJudgeAgg(SLogicNode* p, SScanLogicNode* s, const SExtSourceCapability* c,
+                       const SExtCapSessionOverlay* o, const SPlanContext* q) {
+  return fqAggIsPushdownable(p, s, c, o, q);
+}
+static bool fqJudgeIndef(SLogicNode* p, SScanLogicNode* s, const SExtSourceCapability* c,
+                         const SExtCapSessionOverlay* o, const SPlanContext* q) {
+  return fqIndefIsPushdownable(p, s, c, o, q);
+}
+// WINDOW: clause depends on winType; INTERVAL has its own full judge, the rest
+// gate on their per-subtype window clause.  (clause column is EXT_CLAUSE_MAX.)
+static bool fqJudgeWindow(SLogicNode* p, SScanLogicNode* s, const SExtSourceCapability* c,
+                          const SExtCapSessionOverlay* o, const SPlanContext* q) {
+  (void)q;
+  const SWindowLogicNode* pWin = (const SWindowLogicNode*)p;
+  switch (pWin->winType) {
+    case WINDOW_TYPE_INTERVAL: return fqWindowIntervalIsPushable(pWin, s, c, o, q);
+    case WINDOW_TYPE_STATE:    return fqClauseGateOpen(EXT_CLAUSE_STATE_WINDOW,   c, o);
+    case WINDOW_TYPE_SESSION:  return fqClauseGateOpen(EXT_CLAUSE_SESSION_WINDOW, c, o);
+    case WINDOW_TYPE_EVENT:    return fqClauseGateOpen(EXT_CLAUSE_EVENT_WINDOW,   c, o);
+    case WINDOW_TYPE_COUNT:    return fqClauseGateOpen(EXT_CLAUSE_COUNT_WINDOW,   c, o);
+    default: return false;
+  }
+}
+
+#define FQ_NODE_RULE_IDX(nt) ((int)(nt) - (int)QUERY_NODE_LOGIC_PLAN_SCAN)
+#define FQ_NODE_RULE_NUM     (FQ_NODE_RULE_IDX(QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE) + 1)
+
+// The single source of truth: logic node type → pushdown rule.  Any node type
+// not given an entry here defaults to {mapped=false} → not pushable.
+// clauses[] lists ALL target capabilities the node's remote form requires (AND);
+// EXT_CLAUSE_MAX terminates the list (or means "no outer gate, judge decides").
+static const SFqNodePushRule kFqNodePushTable[FQ_NODE_RULE_NUM] = {
+  [FQ_NODE_RULE_IDX(QUERY_NODE_LOGIC_PLAN_PROJECT)]         = {true, {EXT_CLAUSE_PROJECTION, EXT_CLAUSE_MAX}, fqJudgeProject},
+  [FQ_NODE_RULE_IDX(QUERY_NODE_LOGIC_PLAN_SORT)]            = {true, {EXT_CLAUSE_ORDER,      EXT_CLAUSE_MAX}, fqJudgeSort},
+  [FQ_NODE_RULE_IDX(QUERY_NODE_LOGIC_PLAN_AGG)]             = {true, {EXT_CLAUSE_AGG,        EXT_CLAUSE_MAX}, fqJudgeAgg},
+  // INDEF (lag/lead/csum/…) → remote SQL is an OVER() window function over an
+  // aggregate-capable engine: requires BOTH AGG and FEAT_WINDOW_FUNCTIONS.
+  [FQ_NODE_RULE_IDX(QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC)] = {true, {EXT_CLAUSE_AGG, EXT_CLAUSE_FEAT_WINDOW_FUNCTIONS, EXT_CLAUSE_MAX}, fqJudgeIndef},
+  [FQ_NODE_RULE_IDX(QUERY_NODE_LOGIC_PLAN_WINDOW)]          = {true, {EXT_CLAUSE_MAX},                fqJudgeWindow},
+  [FQ_NODE_RULE_IDX(QUERY_NODE_LOGIC_PLAN_FILL)]            = {true, {EXT_CLAUSE_FILL,   EXT_CLAUSE_MAX}, NULL},
+  [FQ_NODE_RULE_IDX(QUERY_NODE_LOGIC_PLAN_INTERP_FUNC)]     = {true, {EXT_CLAUSE_INTERP, EXT_CLAUSE_MAX}, NULL},
+  [FQ_NODE_RULE_IDX(QUERY_NODE_LOGIC_PLAN_PARTITION)]       = {true, {EXT_CLAUSE_MAX}, fqPartitionIsPushable},
+  [FQ_NODE_RULE_IDX(QUERY_NODE_LOGIC_PLAN_JOIN)]            = {true, {EXT_CLAUSE_JOIN,   EXT_CLAUSE_MAX}, fqJoinIsPushable},
+  // All other logic node types (SCAN/EXCHANGE/MERGE/VNODE_MODIFY/GROUP_CACHE/
+  // DYN_QUERY_CTRL/FORECAST/ANALYSIS/VIRTUAL_TABLE_SCAN/…) are left zero →
+  // {mapped=false} → not pushable (execute locally).
+};
+
+// Step-1 single-layer judgment (READ-ONLY).  Looks up the node type in
+// kFqNodePushTable: unmapped → not pushable; else require ALL governing clauses
+// (AND) and the optional finer judge.  No mutation, no error.
+static bool fqLayerIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
+                              const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay,
+                              const SPlanContext* pPlanCxt) {
+  int idx = FQ_NODE_RULE_IDX(nodeType(pNode));
+  if (idx < 0 || idx >= FQ_NODE_RULE_NUM) {
+    planDebug("FQ-layer: node type=%d out of rule-table range → not pushable", (int)nodeType(pNode));
+    return false;
+  }
+  const SFqNodePushRule* pRule = &kFqNodePushTable[idx];
+  if (!pRule->mapped) {
+    planDebug("FQ-layer: node type=%d not mapped → local", (int)nodeType(pNode));
+    return false;
+  }
+  for (int i = 0; i < FQ_RULE_MAX_CLAUSES; ++i) {
+    if (pRule->clauses[i] == EXT_CLAUSE_MAX) break;  // end of list
+    if (!fqClauseGateOpen(pRule->clauses[i], pCap, pOverlay)) {
+      planDebug("FQ-layer: node type=%d → NOT pushable (clause %d gated off)", (int)nodeType(pNode), (int)pRule->clauses[i]);
+      return false;
+    }
+  }
+  if (pRule->judge != NULL) {
+    bool ok = pRule->judge(pNode, pScan, pCap, pOverlay, pPlanCxt);
+    planDebug("FQ-layer: node type=%d clause-gates passed, judge=%d → %s",
+              (int)nodeType(pNode), (int)ok, ok ? "PUSHABLE" : "not pushable");
+    return ok;
+  }
+  planDebug("FQ-layer: node type=%d → PUSHABLE (clause gates only, no finer judge)", (int)nodeType(pNode));
+  return true;
+}
+
+// Step 1 (COLLECT, READ-ONLY): find the contiguous pushable subtree above pScan
+// and return its ROOT (the highest contiguously-pushable node) via *ppBoundary.
+//
+// The pushable region is a connected bottom subtree of the logic plan (the walk
+// stops at the first non-pushable node, so there are no holes).  Returning its
+// root lets commit recursively clone the WHOLE subtree — JOIN's two legs and any
+// future subquery legs are handled naturally by the recursion, with no linear
+// chain / chain[0] / startIdx / JOIN-base special cases.
+//
+// Pushability is decided SOLELY by the capability matrix (fqLayerIsPushable →
+// kFqNodePushTable + per-node judge) plus a per-node WHERE-pushability check
+// (fqExprIsPushable on node.pConditions): a node whose own WHERE is not pushable
+// to the remote dialect cannot be pushed (its filter would be lost), so it and
+// everything above it stays local.  AGG is exempt (its pConditions is HAVING,
+// judged by fqAggIsPushdownable).
+//
+// *ppBoundary is NULL when nothing (not even the scan) is pushable.
+static int32_t fqCollectPushChain(SScanLogicNode* pScan, const SExtSourceCapability* pCap,
+                                  const SExtCapSessionOverlay* pOverlay, const SPlanContext* pPlanCxt,
+                                  SLogicNode** ppBoundary) {
+  *ppBoundary = NULL;
+  // The scan itself is the bottom of the pushable subtree.  Its own WHERE
+  // (node.pConditions) must be pushable, else nothing pushes.
+  if (pScan->node.pConditions != NULL &&
+      !fqExprIsPushable(pScan->node.pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
+    planDebug("FQ-collect: scan WHERE not pushable — nothing pushes");
+    return TSDB_CODE_SUCCESS;
+  }
+  SLogicNode* pBoundary = (SLogicNode*)pScan;  // scan always in the subtree
+  planDebug("FQ-collect: start scan=%p (scan is subtree leaf)", pScan);
+
+  SLogicNode* pChildInChain = (SLogicNode*)pScan;  // lowest node already in the subtree
+  SLogicNode* pParent = pScan->node.pParent;
+  while (pParent != NULL) {
+    if (fqDiagEnabled()) {
+      fprintf(stderr,
+              "[FQ-DIAG] collect-loop scan=%p childType=%d parentType=%d parent=%p cond=%p\n",
+              pScan, (int)nodeType((SNode*)pChildInChain), (int)nodeType((SNode*)pParent), pParent,
+              pParent->pConditions);
+    }
+    if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_JOIN) {
+      if (!fqLayerIsPushable(pParent, pScan, pCap, pOverlay, pPlanCxt)) {
+        planDebug("FQ-collect: stop — JOIN not pushable (capability/structure)");
+        break;
+      }
+      SLogicNode* pOther = NULL;
+      SNode* pCh = NULL;
+      FOREACH(pCh, pParent->pChildren) {
+        if ((SLogicNode*)pCh != pChildInChain) { pOther = (SLogicNode*)pCh; break; }
+      }
+      if (pOther == NULL) {
+        planDebug("FQ-collect: stop — JOIN missing other leg");
+        break;
+      }
+      // JOIN's own post-join WHERE must be pushable (renderJoinLegWhere emits it
+      // into the JOIN's combined WHERE); else the filter would be lost.
+      if (pParent->pConditions != NULL &&
+          !fqExprIsPushable(pParent->pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
+        planDebug("FQ-collect: stop — JOIN own WHERE not pushable");
+        break;
+      }
+      pBoundary = pParent;
+      planDebug("FQ-collect: pushed JOIN layer (both legs pushable)");
+      pChildInChain = pParent;
+      pParent = pParent->pParent;
+      continue;
+    }
+    // Single-child layers (SORT/PROJECT/AGG/INDEF/WINDOW/PARTITION).
+    bool layerPushable = false;
+    if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_SORT) {
+      bool aboveAgg = fqSortAboveAggInChain(pChildInChain);
+      planDebug("FQ-collect: evaluate SORT layer=%p child=%p aboveAgg=%d childType=%d",
+                pParent, pChildInChain, (int)aboveAgg, (int)nodeType(pChildInChain));
+      layerPushable = fqSortAllKeysPushdownable(pParent, pScan, pCap, pOverlay, aboveAgg, pPlanCxt);
+      planDebug("FQ-layer: SORT special-judge aboveAgg=%d result=%d", (int)aboveAgg, (int)layerPushable);
+    } else {
+      layerPushable = fqLayerIsPushable(pParent, pScan, pCap, pOverlay, pPlanCxt);
+    }
+    if (!layerPushable) {
+      planDebug("FQ-collect: stop — layer type=%d not pushable", (int)nodeType(pParent));
+      break;
+    }
+    // A node's own WHERE must be pushable to push the node.  AGG's pConditions is
+    // HAVING (judged by fqAggIsPushdownable), so exempt it here.
+    if (pParent->pConditions != NULL && nodeType(pParent) != QUERY_NODE_LOGIC_PLAN_AGG &&
+        !fqExprIsPushable(pParent->pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
+      planDebug("FQ-collect: stop — layer type=%d WHERE not pushable", (int)nodeType(pParent));
+      break;
+    }
+    pBoundary = pParent;
+    planDebug("FQ-collect: pushed layer type=%d", (int)nodeType(pParent));
+    pChildInChain = pParent;
+    pParent = pParent->pParent;
+  }
+  *ppBoundary = pBoundary;
+  planDebug("FQ-collect: done, boundary type=%d", (int)nodeType(pBoundary));
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SFqMarkSubqueryCtx {
+  SPlanContext* pPlanCxt;
+  int32_t       ownerSubQIdx;
+  int32_t       code;
+} SFqMarkSubqueryCtx;
+
+static bool fqGetRemoteSubQIdx(SNode* pNode, int32_t* pSubQIdx) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_REMOTE_VALUE:
+      *pSubQIdx = ((SRemoteValueNode*)pNode)->subQIdx;
+      return true;
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      *pSubQIdx = ((SRemoteValueListNode*)pNode)->subQIdx;
+      return true;
+    case QUERY_NODE_REMOTE_ROW:
+      *pSubQIdx = ((SRemoteRowNode*)pNode)->subQIdx;
+      return true;
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      *pSubQIdx = ((SRemoteZeroRowsNode*)pNode)->subQIdx;
+      return true;
+    default:
+      return false;
+  }
+}
+
+static EDealRes fqMarkCommittedRemoteSubqueryWalker(SNode* pNode, void* pContext) {
+  SFqMarkSubqueryCtx* pCtx = (SFqMarkSubqueryCtx*)pContext;
+  int32_t             subQIdx = -1;
+  if (!fqGetRemoteSubQIdx(pNode, &subQIdx)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  planDebug("FQ-mark: ownerSubQIdx:%d absorbed childSubQIdx:%d remoteNodeType:%d", pCtx->ownerSubQIdx, subQIdx,
+            (int)nodeType(pNode));
+  pCtx->code = planMarkSubqueryPushedDown(pCtx->pPlanCxt, subQIdx);
+  return (TSDB_CODE_SUCCESS == pCtx->code) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_END;
+}
+
+static void fqWalkLogicTreeForMark(SLogicNode* pNode, SFqMarkSubqueryCtx* pCtx) {
+  if (NULL == pNode || TSDB_CODE_SUCCESS != pCtx->code) {
+    return;
+  }
+
+  fqWalkLogicExprFields(pNode, fqMarkCommittedRemoteSubqueryWalker, pCtx);
+  if (TSDB_CODE_SUCCESS != pCtx->code) {
+    return;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (pScan->pRemoteLogicPlan != NULL) {
+      fqWalkLogicTreeForMark((SLogicNode*)pScan->pRemoteLogicPlan, pCtx);
+      if (TSDB_CODE_SUCCESS != pCtx->code) {
+        return;
+      }
+    }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    fqWalkLogicTreeForMark((SLogicNode*)pChild, pCtx);
+    if (TSDB_CODE_SUCCESS != pCtx->code) {
+      return;
+    }
+  }
+}
+
+static int32_t fqMarkCommittedRemoteSubqueries(SPlanContext* pPlanCxt, SScanLogicNode* pScan) {
+  if (NULL == pPlanCxt || NULL == pScan || NULL == pScan->pRemoteLogicPlan) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SFqMarkSubqueryCtx ctx = {
+      .pPlanCxt = pPlanCxt,
+      .ownerSubQIdx = pPlanCxt->subqueryIndex,
+      .code = TSDB_CODE_SUCCESS,
+  };
+  planDebug("FQ-mark: start ownerSubQIdx:%d remoteRootType:%d", ctx.ownerSubQIdx,
+            (int)nodeType(pScan->pRemoteLogicPlan));
+  fqWalkLogicTreeForMark((SLogicNode*)pScan->pRemoteLogicPlan, &ctx);
+  if (TSDB_CODE_SUCCESS == ctx.code) {
+    planDebug("FQ-mark: done ownerSubQIdx:%d", ctx.ownerSubQIdx);
+  }
+  return ctx.code;
+}
+
+// Step 3 (COMMIT, mutates main tree): graft the collected pushable chain into
+// pScan->pRemoteLogicPlan, with a CLONED logic SCAN as the remote leaf (the
+// permanent base — this is the fix for the legacy headless-chain bug where the
+// real SCAN was severed via nodesClearList and a physical leaf re-grafted).
+//
+// pChain holds the pushable nodes bottom-up: pChain[0] is the lowest (its child
+// is the main-tree SCAN), pChain[n-1] is the topmost.  After commit:
+//   - main tree: the SCAN replaces pTopmost's slot; pScan->node.pTargets is set
+//     to pTopmost's output columns (local docking for the executor).
+//   - pRemoteLogicPlan = pTopmost → … → pBottommost → clonedScanLeaf.
+//
+// This generic relocation covers SORT/PROJECT/AGG/INDEF chain nodes.  Nodes that
+// require transformation (WINDOW→remote AGG, PARTITION→GROUP BY) keep their own
+// convert helpers, invoked before this step; their product already sits in
+// pRemoteLogicPlan and the chain here only carries the wrappers above them.
+//
+// fqRewriteRemoteTbnameTags — for a remote PARTITION/AGG node whose grouping
+// keys contain TBNAME on a tag-aware source (InfluxDB), substitute the real tag
+// columns for TBNAME and add those tag columns to the remote leaf SCAN's
+// pScanCols (so the remote SELECT fetches them).  Operates on the CLONED remote
+// node + remote base subtree — no main-tree mutation.  No-op for sources without
+// tag columns (the partition collapses to a single group) or non-TBNAME keys.
+static int32_t fqRewriteRemoteTbnameTags(SLogicNode* pRemoteNode, SNode* pRemoteBase,
+                                         const SExtTableMeta* pMeta) {
+  if (pMeta == NULL || pMeta->pCols == NULL || pMeta->numOfCols <= 0) return TSDB_CODE_SUCCESS;
+
+  // The grouping keys live in pPartitionKeys (PARTITION) or pGroupKeys (AGG).
+  SNodeList** ppKeys = NULL;
+  if (nodeType(pRemoteNode) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
+    ppKeys = &((SPartitionLogicNode*)pRemoteNode)->pPartitionKeys;
+  } else if (nodeType(pRemoteNode) == QUERY_NODE_LOGIC_PLAN_AGG) {
+    ppKeys = &((SAggLogicNode*)pRemoteNode)->pGroupKeys;
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!keysHasTbname(*ppKeys)) return TSDB_CODE_SUCCESS;
+
+  // Locate the remote leaf SCAN (bottom of the remote base subtree).
+  SLogicNode* pLeaf = (SLogicNode*)pRemoteBase;
+  while (pLeaf != NULL && nodeType(pLeaf) != QUERY_NODE_LOGIC_PLAN_SCAN) {
+    SNodeList* pCh = pLeaf->pChildren;
+    pLeaf = (pCh && LIST_LENGTH(pCh) > 0) ? (SLogicNode*)nodesListGetNode(pCh, 0) : NULL;
+  }
+  if (pLeaf == NULL) return TSDB_CODE_SUCCESS;
+  SScanLogicNode* pLeafScan = (SScanLogicNode*)pLeaf;
+
+  bool hasTags = false;
+  for (int32_t i = 0; i < pMeta->numOfCols; i++) {
+    if (pMeta->pCols[i].isTag) { hasTags = true; break; }
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (!hasTags) {
+    // Tagless: drop TBNAME keys entirely (single-group semantics).
+    SNodeList* pNewKeys = NULL;
+    SNode* pKey = NULL;
+    FOREACH(pKey, *ppKeys) {
+      SNode* pActual = pKey;
+      if (QUERY_NODE_GROUPING_SET == nodeType(pActual))
+        pActual = nodesListGetNode(((SGroupingSetNode*)pActual)->pParameterList, 0);
+      bool isTb = (pActual && ((nodeType(pActual) == QUERY_NODE_FUNCTION && ((SFunctionNode*)pActual)->funcType == FUNCTION_TYPE_TBNAME) ||
+                   (nodeType(pActual) == QUERY_NODE_COLUMN && ((SColumnNode*)pActual)->colType == COLUMN_TYPE_TBNAME)));
+      if (isTb) continue;
+      SNode* pClone = NULL;
+      code = nodesCloneNode(pKey, &pClone);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+      code = nodesListMakeStrictAppend(&pNewKeys, pClone);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pClone); nodesDestroyList(pNewKeys); return code; }
+    }
+    nodesDestroyList(*ppKeys);
+    *ppKeys = pNewKeys;
+    planDebug("FQ-tagRewrite: tagless source — dropped TBNAME from remote grouping keys");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Tag-aware: add tag columns to the leaf pScanCols (skip dups), then rebuild
+  // grouping keys: keep non-TBNAME keys, append tag-column keys for TBNAME.
+  for (int32_t i = pMeta->numOfCols - 1; i >= 0; i--) {
+    if (!pMeta->pCols[i].isTag) continue;
+    const char* tagColName = pMeta->pCols[i].colName;
+    bool found = false;
+    SNode* pE = NULL;
+    FOREACH(pE, pLeafScan->pScanCols) {
+      if (nodeType(pE) == QUERY_NODE_COLUMN && strcmp(((SColumnNode*)pE)->colName, tagColName) == 0) { found = true; break; }
+    }
+    if (found) continue;
+    SColumnNode* pTagCol = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagCol);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    tstrncpy(pTagCol->colName, tagColName, TSDB_COL_NAME_LEN);
+    tstrncpy(pTagCol->node.aliasName, tagColName, TSDB_COL_NAME_LEN);
+    pTagCol->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
+    pTagCol->node.resType.bytes = TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE;
+    code = nodesListMakePushFront(&pLeafScan->pScanCols, (SNode*)pTagCol);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pTagCol); return code; }
+  }
+
+  SNodeList* pNewKeys = NULL;
+  SNode* pKey = NULL;
+  FOREACH(pKey, *ppKeys) {
+    SNode* pActual = pKey;
+    if (QUERY_NODE_GROUPING_SET == nodeType(pActual))
+      pActual = nodesListGetNode(((SGroupingSetNode*)pActual)->pParameterList, 0);
+    bool isTb = (pActual && ((nodeType(pActual) == QUERY_NODE_FUNCTION && ((SFunctionNode*)pActual)->funcType == FUNCTION_TYPE_TBNAME) ||
+                 (nodeType(pActual) == QUERY_NODE_COLUMN && ((SColumnNode*)pActual)->colType == COLUMN_TYPE_TBNAME)));
+    if (isTb) continue;
+    SNode* pClone = NULL;
+    code = nodesCloneNode(pKey, &pClone);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+    code = nodesListMakeStrictAppend(&pNewKeys, pClone);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode(pClone); nodesDestroyList(pNewKeys); return code; }
+  }
+  for (int32_t i = 0; i < pMeta->numOfCols; i++) {
+    if (!pMeta->pCols[i].isTag) continue;
+    SColumnNode* pTagKey = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTagKey);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyList(pNewKeys); return code; }
+    tstrncpy(pTagKey->colName, pMeta->pCols[i].colName, TSDB_COL_NAME_LEN);
+    tstrncpy(pTagKey->node.aliasName, pMeta->pCols[i].colName, TSDB_COL_NAME_LEN);
+    pTagKey->node.resType.type  = TSDB_DATA_TYPE_VARCHAR;
+    pTagKey->node.resType.bytes = TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE;
+    code = nodesListMakeStrictAppend(&pNewKeys, (SNode*)pTagKey);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pTagKey); nodesDestroyList(pNewKeys); return code; }
+  }
+  nodesDestroyList(*ppKeys);
+  *ppKeys = pNewKeys;
+  planDebug("FQ-tagRewrite: tag-aware source — TBNAME→tag-cols in remote grouping keys + leaf pScanCols");
+  return TSDB_CODE_SUCCESS;
+}
+
+// Count SCAN leaves in a subtree (used to detect multi-leg JOIN shapes).
+static SScanLogicNode* fqFindExternalLogicLeafScan(SLogicNode* pNode) {
+  if (NULL == pNode) {
+    return NULL;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SNode*)pNode)) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (SCAN_TYPE_EXTERNAL == pScan->scanType) {
+      return pScan;
+    }
+  }
+
+  if (NULL == pNode->pChildren) {
+    return NULL;
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    SScanLogicNode* pFound = fqFindExternalLogicLeafScan((SLogicNode*)pChild);
+    if (pFound != NULL) {
+      return pFound;
+    }
+  }
+
+  return NULL;
+}
+
+static SLogicNode* fqFirstChild(const SLogicNode* pNode) {
+  if (pNode == NULL || pNode->pChildren == NULL || LIST_LENGTH(pNode->pChildren) == 0) return NULL;
+  return (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+}
+
+static void fqPlanDebugAppendIfPresent(char* pBuf, int32_t bufLen, int32_t* pPos,
+                                       const char* pLabel, const char* pValue) {
+  if (NULL == pBuf || NULL == pPos || NULL == pLabel || NULL == pValue || '\0' == pValue[0]) {
+    return;
+  }
+
+  int32_t pos = *pPos;
+  if (pos < 0 || pos >= bufLen - 1) {
+    return;
+  }
+
+  int32_t written = snprintf(pBuf + pos, (size_t)(bufLen - pos), " %s=%s", pLabel, pValue);
+  if (written > 0) {
+    *pPos += written;
+  }
+}
+
+static void fqPlanDebugDescribeExprNode(const SNode* pExpr, char* pBuf, int32_t bufLen) {
+  if (NULL == pBuf || bufLen <= 0) {
+    return;
+  }
+
+  pBuf[0] = '\0';
+  if (NULL == pExpr) {
+    tstrncpy(pBuf, "expr=(null)", bufLen);
+    return;
+  }
+
+  int32_t pos = snprintf(pBuf, (size_t)bufLen, "nodeType=%s(%d)",
+                         nodesNodeName(nodeType((SNode*)pExpr)), (int)nodeType((SNode*)pExpr));
+  if (pos < 0 || pos >= bufLen - 1) {
+    return;
+  }
+
+  if (nodesIsExprNode((SNode*)pExpr)) {
+    const SExprNode* pExprNode = (const SExprNode*)pExpr;
+    fqPlanDebugAppendIfPresent(pBuf, bufLen, &pos, "alias", pExprNode->aliasName);
+    fqPlanDebugAppendIfPresent(pBuf, bufLen, &pos, "userAlias", pExprNode->userAlias);
+  }
+
+  switch (nodeType((SNode*)pExpr)) {
+    case QUERY_NODE_COLUMN: {
+      const SColumnNode* pCol = (const SColumnNode*)pExpr;
+      fqPlanDebugAppendIfPresent(pBuf, bufLen, &pos, "col", pCol->colName);
+      fqPlanDebugAppendIfPresent(pBuf, bufLen, &pos, "tblAlias", pCol->tableAlias);
+      char colIdBuf[64] = {0};
+      snprintf(colIdBuf, sizeof(colIdBuf), "%d", (int)pCol->colId);
+      fqPlanDebugAppendIfPresent(pBuf, bufLen, &pos, "colId", colIdBuf);
+      break;
+    }
+    case QUERY_NODE_FUNCTION: {
+      const SFunctionNode* pFunc = (const SFunctionNode*)pExpr;
+      fqPlanDebugAppendIfPresent(pBuf, bufLen, &pos, "func", pFunc->functionName);
+      char argcBuf[64] = {0};
+      snprintf(argcBuf, sizeof(argcBuf), "%d",
+               pFunc->pParameterList ? LIST_LENGTH(pFunc->pParameterList) : 0);
+      fqPlanDebugAppendIfPresent(pBuf, bufLen, &pos, "argc", argcBuf);
+      break;
+    }
+    case QUERY_NODE_TARGET: {
+      const STargetNode* pTarget = (const STargetNode*)pExpr;
+      if (NULL != pTarget->pExpr) {
+        char inner[512] = {0};
+        fqPlanDebugDescribeExprNode(pTarget->pExpr, inner, sizeof(inner));
+        fqPlanDebugAppendIfPresent(pBuf, bufLen, &pos, "targetExpr", inner);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+static void fqPlanDebugLogExprList(const char* pTag, const SNodeList* pExprs) {
+  int32_t exprCnt = pExprs ? LIST_LENGTH((SNodeList*)pExprs) : 0;
+  planDebug("FQ-DIAG: %s exprCount=%d", pTag ? pTag : "(null)", exprCnt);
+  if (NULL == pExprs) {
+    return;
+  }
+
+  int32_t idx = 0;
+  SNode*  pExpr = NULL;
+  FOREACH(pExpr, pExprs) {
+    char desc[512] = {0};
+    fqPlanDebugDescribeExprNode(pExpr, desc, sizeof(desc));
+    planDebug("FQ-DIAG: %s[%d] %s", pTag ? pTag : "(null)", idx, desc);
+    ++idx;
+  }
+}
+
+static void fqPlanDebugLogNodeOutputs(const char* pTag, const SLogicNode* pNode) {
+  if (NULL == pNode) {
+    planDebug("FQ-DIAG: %s node=(null)", pTag ? pTag : "(null)");
+    return;
+  }
+
+  planDebug("FQ-DIAG: %s node=%p type=%s(%d) children=%d targets=%d cond=%p limit=%p",
+            pTag ? pTag : "(null)", pNode, nodesNodeName(nodeType((SNode*)pNode)),
+            (int)nodeType((SNode*)pNode), pNode->pChildren ? LIST_LENGTH(pNode->pChildren) : 0,
+            pNode->pTargets ? LIST_LENGTH(pNode->pTargets) : 0, pNode->pConditions, pNode->pLimit);
+  fqPlanDebugLogExprList("node.targets", pNode->pTargets);
+
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType((SNode*)pNode)) {
+    fqPlanDebugLogExprList("node.project.projections", ((const SProjectLogicNode*)pNode)->pProjections);
+  } else if (QUERY_NODE_LOGIC_PLAN_SORT == nodeType((SNode*)pNode)) {
+    fqPlanDebugLogExprList("node.sort.sortKeys", ((const SSortLogicNode*)pNode)->pSortKeys);
+  } else if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType((SNode*)pNode)) {
+    const SAggLogicNode* pAgg = (const SAggLogicNode*)pNode;
+    fqPlanDebugLogExprList("node.agg.groupKeys", pAgg->pGroupKeys);
+    fqPlanDebugLogExprList("node.agg.aggFuncs", pAgg->pAggFuncs);
+  } else if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType((SNode*)pNode)) {
+    const SScanLogicNode* pScan = (const SScanLogicNode*)pNode;
+    fqPlanDebugLogExprList("node.scan.scanCols", pScan->pScanCols);
+    fqPlanDebugLogExprList("node.scan.groupTags", pScan->pGroupTags);
+    fqPlanDebugLogExprList("node.scan.pseudoCols", pScan->pScanPseudoCols);
+  }
+}
+
+static void partTagsDebugLogConsumerChain(const SAggLogicNode* pAgg) {
+  if (NULL == pAgg) {
+    return;
+  }
+
+  const SLogicNode* pCurr = &pAgg->node;
+  int32_t           depth = 0;
+  while (NULL != pCurr && depth < 4) {
+    char tag[64] = {0};
+    snprintf(tag, sizeof(tag), "partTags.chain[%d]", depth);
+    fqPlanDebugLogNodeOutputs(tag, pCurr);
+    pCurr = pCurr->pParent;
+    ++depth;
+  }
+}
+
+static bool fqNonEmptyNameEquals(const char* pLeft, const char* pRight) {
+  return NULL != pLeft && NULL != pRight && '\0' != pLeft[0] && '\0' != pRight[0] && 0 == strcmp(pLeft, pRight);
+}
+
+static bool fqIsParserStmtAlias(const char* pTableAlias) {
+  return NULL != pTableAlias && pTableAlias[0] == '0' && pTableAlias[1] == 'x' && pTableAlias[2] != '\0';
+}
+
+static bool fqIsQuantifyWrapperAgg(const SAggLogicNode* pAgg) {
+  if (NULL == pAgg || (pAgg->pGroupKeys != NULL && LIST_LENGTH(pAgg->pGroupKeys) > 0) ||
+      NULL == pAgg->pAggFuncs || LIST_LENGTH(pAgg->pAggFuncs) != 2 || NULL == pAgg->node.pChildren ||
+      LIST_LENGTH(pAgg->node.pChildren) != 1) {
+    return false;
+  }
+
+  bool   hasHasNull = false;
+  bool   hasMinOrMax = false;
+  SNode* pFuncNode = NULL;
+  FOREACH(pFuncNode, pAgg->pAggFuncs) {
+    if (QUERY_NODE_FUNCTION != nodeType(pFuncNode)) {
+      return false;
+    }
+
+    const SFunctionNode* pFunc = (const SFunctionNode*)pFuncNode;
+    if (0 == strcmp(pFunc->functionName, "_has_null")) {
+      hasHasNull = true;
+    } else if (0 == strcasecmp(pFunc->functionName, "min") || 0 == strcasecmp(pFunc->functionName, "max")) {
+      hasMinOrMax = true;
+    } else {
+      return false;
+    }
+  }
+
+  return hasHasNull && hasMinOrMax;
+}
+
+static bool fqQuantifyWrapperConsumesFedScan(const SAggLogicNode* pAgg, const SScanLogicNode* pScan) {
+  if (NULL == pAgg || NULL == pScan) {
+    return false;
+  }
+
+  SLogicNode* pCurr = fqFirstChild(&pAgg->node);
+  while (NULL != pCurr && pCurr != (const SLogicNode*)pScan) {
+    if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pCurr) || NULL == pCurr->pChildren ||
+        1 != LIST_LENGTH(pCurr->pChildren)) {
+      return false;
+    }
+    pCurr = fqFirstChild(pCurr);
+  }
+
+  return pCurr == (const SLogicNode*)pScan;
+}
+
+static bool fqQuantifyWrapperColMatchesTarget(const SColumnNode* pCol, const SColumnNode* pTarget) {
+  if (NULL == pCol || NULL == pTarget) {
+    return false;
+  }
+
+  return fqNonEmptyNameEquals(pCol->colName, pTarget->colName) ||
+         fqNonEmptyNameEquals(pCol->colName, pTarget->node.aliasName) ||
+         fqNonEmptyNameEquals(pCol->node.aliasName, pTarget->colName) ||
+         fqNonEmptyNameEquals(pCol->node.aliasName, pTarget->node.aliasName) ||
+         fqNonEmptyNameEquals(pCol->node.userAlias, pTarget->node.userAlias) ||
+         fqNonEmptyNameEquals(pCol->node.userAlias, pTarget->colName) ||
+         fqNonEmptyNameEquals(pCol->node.userAlias, pTarget->node.aliasName);
+}
+
+static const SColumnNode* fqFindQuantifyWrapperTarget(const SNodeList* pTargets, const SColumnNode* pCol) {
+  if (NULL == pTargets || NULL == pCol) {
+    return NULL;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pTargets) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+      continue;
+    }
+
+    const SColumnNode* pTarget = (const SColumnNode*)pNode;
+    if (('\0' != pTarget->tableAlias[0] || '\0' != pTarget->tableName[0]) ||
+        !fqQuantifyWrapperColMatchesTarget(pCol, pTarget)) {
+      continue;
+    }
+
+    return pTarget;
+  }
+
+  return NULL;
+}
+
+typedef struct SFqNormalizeQuantifyWrapperCtx {
+  const SNodeList* pTargets;
+  int32_t          rewriteCount;
+} SFqNormalizeQuantifyWrapperCtx;
+
+static EDealRes fqNormalizeQuantifyWrapperAggParam(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SFqNormalizeQuantifyWrapperCtx* pCtx = (SFqNormalizeQuantifyWrapperCtx*)pContext;
+  SColumnNode*                    pCol = (SColumnNode*)pNode;
+  if (!fqIsParserStmtAlias(pCol->tableAlias) || '\0' != pCol->tableName[0] || pCol->hasRef || pCol->hasDep) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+
+  const SColumnNode* pTarget = fqFindQuantifyWrapperTarget(pCtx->pTargets, pCol);
+  if (NULL == pTarget) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+
+  pCol->dbName[0] = '\0';
+  pCol->tableName[0] = '\0';
+  pCol->tableAlias[0] = '\0';
+  tstrncpy(pCol->colName, pTarget->colName, sizeof(pCol->colName));
+  tstrncpy(pCol->node.aliasName, pTarget->node.aliasName, sizeof(pCol->node.aliasName));
+  tstrncpy(pCol->node.userAlias, pTarget->node.userAlias, sizeof(pCol->node.userAlias));
+  ++pCtx->rewriteCount;
+
+  planDebug("FQ-quantifyWrapper: normalized local agg param to current scope col=%s alias=%s userAlias=%s",
+            pCol->colName, pCol->node.aliasName, pCol->node.userAlias);
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static int32_t fqNormalizeLocalQuantifyWrapperAggs(SScanLogicNode* pScan) {
+  if (NULL == pScan) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (SLogicNode* pUp = pScan->node.pParent; pUp != NULL; pUp = pUp->pParent) {
+    if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pUp)) {
+      continue;
+    }
+
+    SAggLogicNode* pAgg = (SAggLogicNode*)pUp;
+    if (!fqIsQuantifyWrapperAgg(pAgg) || !fqQuantifyWrapperConsumesFedScan(pAgg, pScan)) {
+      continue;
+    }
+
+    SLogicNode* pChild = fqFirstChild(pUp);
+    const SNodeList* pTargets = (NULL != pChild && NULL != pChild->pTargets) ? pChild->pTargets : pScan->node.pTargets;
+    if (NULL == pTargets || LIST_LENGTH(pTargets) == 0) {
+      continue;
+    }
+
+    SFqNormalizeQuantifyWrapperCtx cxt = {.pTargets = pTargets, .rewriteCount = 0};
+    nodesWalkExprs(pAgg->pAggFuncs, fqNormalizeQuantifyWrapperAggParam, &cxt);
+    if (cxt.rewriteCount > 0) {
+      planDebug("FQ-quantifyWrapper: normalized %d local agg param refs agg=%p childType=%d",
+                cxt.rewriteCount, pAgg, pChild ? (int)nodeType(pChild) : -1);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static SScanLogicNode* fqGetWholePushBranchScan(SLogicNode* pNode);
+
+static int32_t fqBuildUnionBranchRemoteSubtree(const SLogicNode* pBranchNode,
+                                               SLogicNode** ppRemoteBranch) {
+  if (NULL == pBranchNode || NULL == ppRemoteBranch) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *ppRemoteBranch = NULL;
+
+  SLogicNode* pBranchClone = NULL;
+  int32_t code = nodesCloneNode((SNode*)pBranchNode, (SNode**)&pBranchClone);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  fqPlanDebugLogNodeOutputs("unionBranch.local.orig", pBranchNode);
+  fqPlanDebugLogNodeOutputs("unionBranch.clone.beforeRemoteBase", pBranchClone);
+
+  SScanLogicNode* pOrigScan = fqGetWholePushBranchScan((SLogicNode*)pBranchNode);
+  if (NULL == pOrigScan) {
+    planError("FQ-UNION: build branch remote subtree failed, branchType=%d is not a whole-push scan branch",
+              (int)nodeType((SNode*)pBranchNode));
+    nodesDestroyNode((SNode*)pBranchClone);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  if (pOrigScan->pRemoteLogicPlan != NULL) {
+    SScanLogicNode* pCloneLeafScan = fqFindExternalLogicLeafScan(pBranchClone);
+    if (NULL == pCloneLeafScan) {
+      planError("FQ-UNION: cloned branch missing external scan leaf, branchType=%d cloneType=%d remoteRootType=%d",
+                (int)nodeType((SNode*)pBranchNode), (int)nodeType((SNode*)pBranchClone),
+                (int)nodeType(pOrigScan->pRemoteLogicPlan));
+      nodesDestroyNode((SNode*)pBranchClone);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+
+    SLogicNode* pRemoteBase = NULL;
+    code = nodesCloneNode(pOrigScan->pRemoteLogicPlan, (SNode**)&pRemoteBase);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-UNION: clone branch remote base failed, branchType=%d remoteRootType=%d code=0x%x",
+                (int)nodeType((SNode*)pBranchNode), (int)nodeType(pOrigScan->pRemoteLogicPlan), code);
+      nodesDestroyNode((SNode*)pBranchClone);
+      return code;
+    }
+    pRemoteBase->pParent = NULL;
+
+    SLogicNode* pLeafParent = pCloneLeafScan->node.pParent;
+    if (NULL == pLeafParent) {
+      nodesDestroyNode((SNode*)pBranchClone);
+      pBranchClone = pRemoteBase;
+    } else {
+      SNode* pChildNode = NULL;
+      bool replaced = false;
+      FOREACH(pChildNode, pLeafParent->pChildren) {
+        if (pChildNode == (SNode*)pCloneLeafScan) {
+          cell->pNode = (SNode*)pRemoteBase;
+          pRemoteBase->pParent = pLeafParent;
+          replaced = true;
+          break;
+        }
+      }
+      if (!replaced) {
+        planError("FQ-UNION: cannot replace cloned leaf scan in branch subtree, branchType=%d parentType=%d",
+                  (int)nodeType((SNode*)pBranchNode), (int)nodeType((SNode*)pLeafParent));
+        nodesDestroyNode((SNode*)pRemoteBase);
+        nodesDestroyNode((SNode*)pBranchClone);
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }
+
+      pCloneLeafScan->node.pParent = NULL;
+      nodesDestroyNode((SNode*)pCloneLeafScan);
+    }
+  }
+
+  fqPlanDebugLogNodeOutputs("unionBranch.clone.afterRemoteBase", pBranchClone);
+
+  code = fqAlignRemoteRootTargetsForRender(pBranchClone);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-UNION: align branch remote subtree targets failed, branchType=%d cloneType=%d code=0x%x",
+              (int)nodeType((SNode*)pBranchNode), (int)nodeType((SNode*)pBranchClone), code);
+    nodesDestroyNode((SNode*)pBranchClone);
+    return code;
+  }
+
+  fqPlanDebugLogNodeOutputs("unionBranch.clone.afterAlign", pBranchClone);
+
+  *ppRemoteBranch = pBranchClone;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fqAlignRemoteRootTargetsForRender(SLogicNode* pRemoteRoot) {
+  if (pRemoteRoot == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  fqPlanDebugLogNodeOutputs("alignRemoteRoot.before", pRemoteRoot);
+
+  SNodesRemoteSelectOutputs outputs = {0};
+  int32_t code = nodesCollectRemoteQuerySelectOutputs(pRemoteRoot, &outputs);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-remoteTargets: collect shared outputs failed rootType=%d code=0x%x",
+              (int)nodeType(pRemoteRoot), code);
+    return code;
+  }
+
+  if (outputs.pSelectExprs == NULL || LIST_LENGTH(outputs.pSelectExprs) == 0) {
+    planError("FQ-remoteTargets: collector returned success but outputs are empty rootType=%d source=%d oldTargets=%d",
+              (int)nodeType(pRemoteRoot), (int)outputs.source,
+              pRemoteRoot->pTargets ? LIST_LENGTH(pRemoteRoot->pTargets) : 0);
+    nodesDestroyRemoteSelectOutputs(&outputs);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  {
+    int32_t idx = 0;
+    SNode* pOut = NULL;
+    FOREACH(pOut, outputs.pSelectExprs) {
+      const SNode* pExpr = pOut;
+      if (QUERY_NODE_TARGET == nodeType(pExpr)) {
+        pExpr = ((const STargetNode*)pExpr)->pExpr;
+      }
+      planDebug("FQ-remoteTargets: collected output idx=%d rootType=%d exprType=%d alias=%s userAlias=%s",
+                idx, (int)nodeType(pRemoteRoot), pExpr ? (int)nodeType(pExpr) : -1,
+                (pExpr != NULL && nodesIsExprNode((SNode*)pExpr)) ? ((SExprNode*)pExpr)->aliasName : "",
+                (pExpr != NULL && nodesIsExprNode((SNode*)pExpr)) ? ((SExprNode*)pExpr)->userAlias : "");
+      ++idx;
+    }
+  }
+
+  SNodeList* pNewTargets = NULL;
+  code = createColumnByRemoteOutputExprs(outputs.pSelectExprs, &pNewTargets);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-remoteTargets: rebuild from shared outputs failed rootType=%d source=%d selectExprs=%d code=0x%x",
+              (int)nodeType(pRemoteRoot), (int)outputs.source,
+              outputs.pSelectExprs ? LIST_LENGTH(outputs.pSelectExprs) : 0, code);
+    nodesDestroyRemoteSelectOutputs(&outputs);
+    return code;
+  }
+
+  if (pNewTargets != NULL) {
+    nodesDestroyList(pRemoteRoot->pTargets);
+    pRemoteRoot->pTargets = pNewTargets;
+  }
+
+  code = replaceProjectLogicProjections(pRemoteRoot, outputs.pSelectExprs);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-remoteTargets: replace project projections failed rootType=%d source=%d selectExprs=%d code=0x%x",
+              (int)nodeType(pRemoteRoot), (int)outputs.source,
+              outputs.pSelectExprs ? LIST_LENGTH(outputs.pSelectExprs) : 0, code);
+    nodesDestroyRemoteSelectOutputs(&outputs);
+    return code;
+  }
+
+  planDebug("FQ-remoteTargets: rootType=%d source=%d keyExprs=%d targets=%d",
+            (int)nodeType(pRemoteRoot), (int)outputs.source, outputs.keyExprCount,
+            pRemoteRoot->pTargets ? LIST_LENGTH(pRemoteRoot->pTargets) : 0);
+  fqPlanDebugLogNodeOutputs("alignRemoteRoot.after", pRemoteRoot);
+  nodesDestroyRemoteSelectOutputs(&outputs);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t findLeafScanCount(SLogicNode* pNode) {
+  if (pNode == NULL) return 0;
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_SCAN) return 1;
+  int32_t n = 0;
+  SNode*  pCh = NULL;
+  FOREACH(pCh, pNode->pChildren) n += findLeafScanCount((SLogicNode*)pCh);
+  return n;
+}
+
+// Mark every SCAN leaf in pBoundary's subtree EXCEPT pKeep with FQ_PUSHDOWN, so
+// later optimizer rounds (fqFindExternalScan) skip them — their remote SQL is
+// already captured inside pBoundary's remote plan.
+static void fqMarkOtherLegsPushdown(SLogicNode* pNode, SScanLogicNode* pKeep) {
+  if (pNode == NULL) return;
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+    if ((SScanLogicNode*)pNode != pKeep) {
+      OPTIMIZE_FLAG_SET_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
+      planDebug("FQ-commit: marked other leg scan=%p as FQ_PUSHDOWN", pNode);
+    }
+    return;
+  }
+  SNode* pCh = NULL;
+  FOREACH(pCh, pNode->pChildren) fqMarkOtherLegsPushdown((SLogicNode*)pCh, pKeep);
+}
+
+// Detach pKeep (the docking scan) from pBoundary's subtree so nodesDestroyNode on
+// the boundary does not free pKeep, which lives on in the main tree.  Finds the
+// list cell holding pKeep and NULLs it out (subtree destroy then skips it).
+static void fqDetachScanFromSubtree(SLogicNode* pNode, SScanLogicNode* pKeep) {
+  if (pNode == NULL || pNode->pChildren == NULL) return;
+  SNode* pCh = NULL;
+  FOREACH(pCh, pNode->pChildren) {
+    if ((SScanLogicNode*)pCh == pKeep) {
+      cell->pNode = NULL;  // detach without freeing; pKeep lives on in main tree
+      return;
+    }
+  }
+  FOREACH(pCh, pNode->pChildren) fqDetachScanFromSubtree((SLogicNode*)pCh, pKeep);
+}
+
+// fqBuildRemoteSubtree — recursively clone the pushable subtree rooted at pNode
+// into a remote logic subtree, applying per-node transforms.  The recursion
+// terminates at SCAN leaves (and JOIN, whose two leg scans are cloned by
+// fqBuildRemoteJoin).  Mirrors the original tree shape, so JOIN's two legs and
+// any future subquery legs are handled with no linear-chain special cases.
+//
+// pScanForMeta: the originating external scan, used by transforms that need ext
+// table meta (INTERVAL time_bucket, TBNAME tag rewrite, two-pass scanSeq).
+static int32_t fqBuildRemoteSubtree(SLogicNode* pNode, SScanLogicNode* pScanForMeta,
+                                    SLogicNode** ppRemote) {
+  *ppRemote = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    foldRemoteAggChildPartition = false;
+  const SPartitionLogicNode* pFoldedPartition = NULL;
+
+  fqPlanDebugLogNodeOutputs("commit.remoteSubtree.src", pNode);
+
+  // SCAN leaf → pure remote leaf (FROM + SELECT + own WHERE in node.pConditions).
+  // If the docking scan already carries a lower-level remote subtree (for
+  // example, a previously-pushed join leg that is now being wrapped by an outer
+  // join/project/sort), clone that subtree instead of collapsing back to a bare
+  // scan.  This preserves the full remote join shape across iterative pushdown.
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    if (pScan->pRemoteLogicPlan != NULL) {
+      SLogicNode* pRemoteClone = NULL;
+      code = nodesCloneNode(pScan->pRemoteLogicPlan, (SNode**)&pRemoteClone);
+      if (TSDB_CODE_SUCCESS != code) {
+        planError("FQ-commit: clone existing remote subtree failed scan=%p remoteRootType=%d code=0x%x",
+                  pScan, (int)nodeType(pScan->pRemoteLogicPlan), code);
+        return code;
+      }
+      if (pRemoteClone != NULL) {
+        pRemoteClone->pParent = NULL;
+      }
+      *ppRemote = pRemoteClone;
+      planDebug("FQ-commit: reuse existing remote subtree from docking scan=%p remoteRootType=%d",
+                pScan, (int)nodeType(pScan->pRemoteLogicPlan));
+      return TSDB_CODE_SUCCESS;
+    }
+
+    SScanLogicNode* pLeaf = NULL;
+    code = fqCloneScanAsLeaf(pScan, &pLeaf);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    *ppRemote = (SLogicNode*)pLeaf;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // JOIN → remote JOIN with recursively-built child subtrees.  Child legs may be
+  // bare scans, nested joins, or docking scans that already carry a remote
+  // subtree from an earlier optimizer round.
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_JOIN) {
+    SJoinLogicNode* pRemoteJoin = NULL;
+    code = fqBuildRemoteJoin((SJoinLogicNode*)pNode, pScanForMeta, &pRemoteJoin);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    *ppRemote = (SLogicNode*)pRemoteJoin;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Multi-child set-op PROJECT (UNION/UNION ALL) → recursively clone every
+  // branch subtree.  The generic whole-push path can reach this shape directly
+  // for a fully-pushable set-op query, so we must preserve all children here
+  // instead of following only the first-child linear chain.
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_PROJECT &&
+      pNode->pChildren != NULL && LIST_LENGTH(pNode->pChildren) > 1) {
+    SProjectLogicNode* pRemoteProj = NULL;
+    code = nodesCloneNode((SNode*)pNode, (SNode**)&pRemoteProj);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (pRemoteProj->node.pChildren != NULL) {
+      nodesDestroyList(pRemoteProj->node.pChildren);
+      pRemoteProj->node.pChildren = NULL;
+    }
+    pRemoteProj->node.pParent = NULL;
+
+    code = nodesMakeList(&pRemoteProj->node.pChildren);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pRemoteProj);
+      return code;
+    }
+
+    int32_t branchIdx = 0;
+    SNode* pBranch = NULL;
+    FOREACH(pBranch, pNode->pChildren) {
+      SLogicNode* pRemoteBranch = NULL;
+      code = fqBuildRemoteSubtree((SLogicNode*)pBranch, pScanForMeta, &pRemoteBranch);
+      if (TSDB_CODE_SUCCESS != code) {
+        planError("FQ-commit: build set-op branch failed, rootType=%d branchIdx=%d branchType=%d code=0x%x",
+                  (int)nodeType(pNode), branchIdx, (int)nodeType(pBranch), code);
+        nodesDestroyNode((SNode*)pRemoteProj);
+        return code;
+      }
+
+      code = nodesListStrictAppend(pRemoteProj->node.pChildren, (SNode*)pRemoteBranch);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pRemoteBranch);
+        nodesDestroyNode((SNode*)pRemoteProj);
+        return code;
+      }
+      pRemoteBranch->pParent = (SLogicNode*)pRemoteProj;
+      planDebug("FQ-commit: built remote set-op branch idx=%d rootType=%d branchType=%d remoteBranchType=%d",
+                branchIdx, (int)nodeType(pNode), (int)nodeType(pBranch), (int)nodeType((SNode*)pRemoteBranch));
+      ++branchIdx;
+    }
+
+    *ppRemote = (SLogicNode*)pRemoteProj;
+    planDebug("FQ-commit: built remote multi-child project type=%d nChildren=%d isSetOpProj=%d isUnionDedup=%d",
+              (int)nodeType(pNode), LIST_LENGTH(pRemoteProj->node.pChildren),
+              (int)pRemoteProj->isSetOpProj, (int)pRemoteProj->isUnionDedup);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Single-child nodes: recurse into the (sole) child first, then build this node.
+  SLogicNode* pChild = fqFirstChild(pNode);
+  const SPartitionLogicNode* pIntervalPart = NULL;
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_WINDOW && pChild != NULL &&
+      nodeType(pChild) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
+    const SWindowLogicNode* pWin = (const SWindowLogicNode*)pNode;
+    if (pWin->winType == WINDOW_TYPE_INTERVAL) {
+      pIntervalPart = (const SPartitionLogicNode*)pChild;
+      pChild = fqFirstChild((SLogicNode*)pIntervalPart);
+      planDebug("FQ-commit: WINDOW(INTERVAL) over PARTITION detected, fold partition keys into remote interval agg");
+    }
+  }
+  if (pChild == NULL) {
+    planError("FQ-commit: node type=%d has no child in pushable subtree", (int)nodeType(pNode));
+    return TSDB_CODE_EXT_SQL_RENDER_ERROR;
+  }
+  SLogicNode* pRemoteChild = NULL;
+  code = fqBuildRemoteSubtree(pChild, pScanForMeta, &pRemoteChild);
+  if (TSDB_CODE_SUCCESS != code) return code;
+
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_AGG &&
+      pChild != NULL &&
+      nodeType((SNode*)pChild) == QUERY_NODE_LOGIC_PLAN_PARTITION &&
+      pRemoteChild != NULL &&
+      nodeType((SNode*)pRemoteChild) == QUERY_NODE_LOGIC_PLAN_PARTITION) {
+    const SPartitionLogicNode* pPart = (const SPartitionLogicNode*)pChild;
+    bool partKeysCovered = fqAggCoversPartitionKeys((const SAggLogicNode*)pNode, pPart);
+    planDebug("FQ-commit: remote AGG child PARTITION probe agg=%p part=%p coversKeys=%d hasTbname=%d hasPartCond=%d aggFuncs=%d groupKeys=%d",
+              pNode, pPart, partKeysCovered ? 1 : 0,
+              keysHasTbname(pPart->pPartitionKeys) ? 1 : 0,
+              pPart->node.pConditions ? 1 : 0,
+              ((const SAggLogicNode*)pNode)->pAggFuncs ? (int32_t)LIST_LENGTH(((const SAggLogicNode*)pNode)->pAggFuncs) : 0,
+              ((const SAggLogicNode*)pNode)->pGroupKeys ? (int32_t)LIST_LENGTH(((const SAggLogicNode*)pNode)->pGroupKeys) : 0);
+    if (!keysHasTbname(pPart->pPartitionKeys) &&
+        NULL == pPart->node.pConditions &&
+        partKeysCovered) {
+      SLogicNode* pRemoteGrandChild = fqFirstChild(pRemoteChild);
+      if (NULL == pRemoteGrandChild) {
+        nodesDestroyNode((SNode*)pRemoteChild);
+        return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }
+
+      NODES_CLEAR_LIST(pRemoteChild->pChildren);
+      pRemoteGrandChild->pParent = NULL;
+      nodesDestroyNode((SNode*)pRemoteChild);
+      pRemoteChild = pRemoteGrandChild;
+      foldRemoteAggChildPartition = true;
+      pFoldedPartition = pPart;
+      planDebug("FQ-commit: drop remote PARTITION under AGG agg=%p part=%p childType=%d",
+                pNode, pPart, (int)nodeType((SNode*)pRemoteChild));
+    }
+  }
+
+  SLogicNode* pRemoteNode = NULL;
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_WINDOW) {
+    // INTERVAL window → remote GROUP BY time_bucket AGG.
+    SAggLogicNode* pAgg = NULL;
+    code = fqBuildIntervalAgg(pScanForMeta, (SWindowLogicNode*)pNode, &pAgg);
+    if (TSDB_CODE_SUCCESS != code || pAgg == NULL) { nodesDestroyNode((SNode*)pRemoteChild); return code ? code : TSDB_CODE_FAILED; }
+    if (pIntervalPart != NULL) {
+      code = fqAppendPartitionKeysToIntervalAgg(pAgg, pIntervalPart);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pAgg);
+        nodesDestroyNode((SNode*)pRemoteChild);
+        return code;
+      }
+    }
+    pRemoteNode = (SLogicNode*)pAgg;
+  } else {
+    // PARTITION / AGG / INDEF / SORT / PROJECT → clone as a pure single-child node.
+    code = nodesCloneNode((SNode*)pNode, (SNode**)&pRemoteNode);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteChild); return code; }
+    if (pRemoteNode->pChildren != NULL) {
+      nodesDestroyList(pRemoteNode->pChildren);
+      pRemoteNode->pChildren = NULL;
+    }
+    pRemoteNode->pParent = NULL;
+    if (foldRemoteAggChildPartition && QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pRemoteNode)) {
+      SAggLogicNode* pRemoteAgg = (SAggLogicNode*)pRemoteNode;
+      if ((NULL == pRemoteAgg->pGroupKeys || 0 == LIST_LENGTH(pRemoteAgg->pGroupKeys)) &&
+          NULL != pFoldedPartition && NULL != pFoldedPartition->pPartitionKeys) {
+        code = nodesCloneList(pFoldedPartition->pPartitionKeys, &pRemoteAgg->pGroupKeys);
+        if (TSDB_CODE_SUCCESS != code) {
+          nodesDestroyNode((SNode*)pRemoteNode);
+          nodesDestroyNode((SNode*)pRemoteChild);
+          return code;
+        }
+        planDebug("FQ-commit: cloned PARTITION keys into remote AGG groupKeys=%d agg=%p",
+                  pRemoteAgg->pGroupKeys ? (int32_t)LIST_LENGTH(pRemoteAgg->pGroupKeys) : 0,
+                  pRemoteAgg);
+      }
+    }
+    // PARTITION/AGG with TBNAME grouping (InfluxDB) → substitute real tag cols
+    // and add them to the remote leaf SCAN's pScanCols.
+    if ((nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_PARTITION ||
+         nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_AGG) &&
+        pScanForMeta->pExtTableNode != NULL) {
+      const SExtTableMeta* pMeta = ((SExtTableNode*)pScanForMeta->pExtTableNode)->pExtMeta;
+      code = fqRewriteRemoteTbnameTags(pRemoteNode, (SNode*)pRemoteChild, pMeta);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteNode); nodesDestroyNode((SNode*)pRemoteChild); return code; }
+    }
+    // PERCENTILE / REPEAT_SCAN_FUNC AGG → two-pass scan flag on the FederatedScan.
+    if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_AGG && fqNodeHasRepeatScanFunc(pNode)) {
+      pScanForMeta->scanSeq[0] = 2;
+      planDebug("FQ-commit: set scanSeq[0]=2 (two-pass) for REPEAT_SCAN_FUNC AGG");
+    }
+  }
+
+  // Wire the recursively-built child under this remote node.
+  code = nodesMakeList(&pRemoteNode->pChildren);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteNode); nodesDestroyNode((SNode*)pRemoteChild); return code; }
+  code = nodesListStrictAppend(pRemoteNode->pChildren, (SNode*)pRemoteChild);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteNode); return code; }
+  pRemoteChild->pParent = pRemoteNode;
+  *ppRemote = pRemoteNode;
+  planDebug("FQ-commit: built remote node type=%d", (int)nodeType(pNode));
+  return TSDB_CODE_SUCCESS;
+}
+
+// Step 3 (COMMIT): clone the pushable subtree (root = pBoundary) into
+// pScan->pRemoteLogicPlan, then dock the main tree — pScan replaces pBoundary as
+// the local FederatedScan, carrying pBoundary's output targets.  The old pBoundary
+// subtree (minus pScan, which lives on as the docking node) is destroyed.
+static int32_t fqCommitPushChain(SOptimizeContext* pCxt, SScanLogicNode* pScan,
+                                 SLogicSubplan* pLogicSubplan, SLogicNode* pBoundary) {
+  if (pBoundary == NULL) {
+    planDebug("FQ-commit: nothing pushable — scan stays fully local");
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  planDebug("FQ-commit: enter scan=%p boundary type=%d", pScan, (int)nodeType(pBoundary));
+  fqPlanDebugLogNodeOutputs("commit.boundary", pBoundary);
+  for (SLogicNode* pDbg = pBoundary; pDbg != NULL; pDbg = fqFirstChild(pDbg)) {
+    fqPlanDebugLogNodeOutputs("commit.boundary.chain", pDbg);
+  }
+
+  // Build the remote subtree.
+  SNode* pRemoteBase = NULL;
+  if (pScan->pRemoteLogicPlan != NULL) {
+    // Outer re-push over an existing remote root (UNION container): the boundary
+    // subtree wraps ON TOP of it.  Recursion would re-clone the scan leaf, so for
+    // this case we keep the existing remote root and recurse only the chain above.
+    // (Currently only the UNION container path sets pRemoteLogicPlan pre-commit.)
+    pRemoteBase = pScan->pRemoteLogicPlan;
+    pScan->pRemoteLogicPlan = NULL;
+    planDebug("FQ-commit: base = existing remote root type=%d (outer re-push)", (int)nodeType(pRemoteBase));
+    // Build the boundary subtree but graft the existing root at the bottom.
+    // For simplicity the existing-root path keeps prior behaviour: wrap the
+    // boundary chain above pRemoteBase by recursing with a sentinel leaf swap.
+    // (Handled below by treating pBoundary's subtree as single-child down to scan.)
+  }
+
+  SLogicNode* pRemoteSubtree = NULL;
+  code = fqBuildRemoteSubtree(pBoundary, pScan, &pRemoteSubtree);
+  if (TSDB_CODE_SUCCESS != code) { if (pRemoteBase) nodesDestroyNode(pRemoteBase); return code; }
+
+  code = fqHarvestParentJoinWhereForRemoteSubtree(pBoundary, pRemoteSubtree,
+                                                  pCxt->pExtCapability, pCxt->pSessionOverlay,
+                                                  pCxt->pPlanCxt);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRemoteSubtree);
+    if (pRemoteBase) {
+      nodesDestroyNode(pRemoteBase);
+    }
+    return code;
+  }
+
+  if (pRemoteBase != NULL) {
+    // Splice the existing remote root in as the deepest child of the new subtree,
+    // replacing the freshly-cloned scan leaf.
+    SLogicNode* pDeepest = pRemoteSubtree;
+    while (fqFirstChild(pDeepest) != NULL) pDeepest = fqFirstChild(pDeepest);
+    SLogicNode* pLeafParent = pDeepest->pParent;
+    if (pLeafParent != NULL) {
+      // Replace the leaf scan with pRemoteBase under pLeafParent.
+      nodesDestroyList(pLeafParent->pChildren);
+      pLeafParent->pChildren = NULL;
+      code = nodesMakeList(&pLeafParent->pChildren);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteSubtree); nodesDestroyNode(pRemoteBase); return code; }
+      code = nodesListStrictAppend(pLeafParent->pChildren, pRemoteBase);
+      if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteSubtree); return code; }
+      ((SLogicNode*)pRemoteBase)->pParent = pLeafParent;
+    } else {
+      // pBoundary was the scan itself; the existing root replaces the subtree.
+      nodesDestroyNode((SNode*)pRemoteSubtree);
+      pRemoteSubtree = (SLogicNode*)pRemoteBase;
+    }
+  }
+
+  code = fqAlignRemoteRootTargetsForRender(pRemoteSubtree);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRemoteSubtree);
+    return code;
+  }
+
+  // Mark a JOIN's other leg(s) FQ_PUSHDOWN so fqFindExternalScan skips them.
+  if (nodeType(pBoundary) == QUERY_NODE_LOGIC_PLAN_JOIN ||
+      findLeafScanCount(pBoundary) > 1) {
+    fqMarkOtherLegsPushdown(pBoundary, pScan);
+  }
+
+  // Main tree: pScan replaces pBoundary as the local docking FederatedScan.
+  pScan->node.stmtRoot = pBoundary->stmtRoot;
+  if (pBoundary->pParent == NULL) {
+    pLogicSubplan->pNode = (SLogicNode*)pScan;
+    pScan->node.pParent  = NULL;
+  } else {
+    SNode* pIterNode = NULL;
+    FOREACH(pIterNode, pBoundary->pParent->pChildren) {
+      if (pIterNode == (SNode*)pBoundary) {
+        REPLACE_NODE(pScan);
+        pScan->node.pParent = pBoundary->pParent;
+        break;
+      }
+    }
+  }
+  if (pRemoteSubtree->pTargets != NULL && pBoundary != (SLogicNode*)pScan) {
+    SNodeList* pNewTargets = NULL;
+    code = nodesCloneList(pRemoteSubtree->pTargets, &pNewTargets);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pRemoteSubtree); return code; }
+    nodesDestroyList(pScan->node.pTargets);
+    pScan->node.pTargets = pNewTargets;
+    planDebug("FQ-commit: docking scan targets cloned from remote root type=%d len=%d",
+              (int)nodeType(pRemoteSubtree), LIST_LENGTH(pNewTargets));
+  }
+
+  // Destroy the old boundary subtree, preserving pScan (it lives on as docking).
+  if (pBoundary != (SLogicNode*)pScan) {
+    fqDetachScanFromSubtree(pBoundary, pScan);
+    nodesDestroyNode((SNode*)pBoundary);
+  }
+
+  // The docking pScan's WHERE was cloned into the remote leaf (it is pushable —
+  // collect verified this before including the scan).  Clear it on the local
+  // docking node so the same predicate is not also applied locally.
+  if (pScan->node.pConditions != NULL) {
+    nodesDestroyNode(pScan->node.pConditions);
+    pScan->node.pConditions = NULL;
+  }
+
+  pScan->pRemoteLogicPlan = (SNode*)pRemoteSubtree;
+  pRemoteSubtree->pParent = NULL;
+  planDebug("FQ-commit: done — pScan=%p pRemoteLogicPlan=%p type=%d",
+            pScan, pRemoteSubtree, (int)nodeType(pRemoteSubtree));
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
@@ -14831,409 +20541,732 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     return TSDB_CODE_SUCCESS;
   }
 
-  // Skip external scans that are children of a VirtualTableScan.
-  // The VTB scan manages its children's output columns; applying fqPushdown
-  // here would overwrite pScanCols/pTargets with the wrong ancestor's columns.
-  // However, we still inject ORDER BY <pk> ASC so the VTableScan sort-merge
-  // receives sorted input from each source (required for correct ts-merge).
+  // EXT stream calc readers fetch source rows into the stream cache, then the
+  // runner evaluates the original calc subtree locally.  FQ collect/commit
+  // replaces that subtree with remote aggregate/project outputs, while the
+  // reader still materializes pScanCols.  Keep both sides on the raw-row
+  // contract for stream calc; normal FQ and stream trigger plans still push.
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
+    planDebug("FQ-push: skip remote rewrite for stream calc scan=%p", pScan);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // PARTITION→AGG collapse must happen BEFORE we build the remote plan.  The
+  // generic PartitionCols rule (partitionColsOpt) runs LATER in optimizeRuleSet[]
+  // than FqPushdown, so without this the remote plan would still carry a separate
+  // AGG-over-PARTITION pair (rendered as broken nested subqueries).  Reuse the
+  // exact same rule here so an external `... partition by k` with aggregation
+  // collapses into one AGG(GROUP BY k) before FQ collects it.  Idempotent: when
+  // PartitionCols runs again later the PARTITION is already gone (no-op).
+  {
+    int32_t mergeCode = partitionColsOpt(pCxt, pLogicSubplan);
+    if (TSDB_CODE_SUCCESS != mergeCode) return mergeCode;
+    // Do NOT pre-run the generic eliminateProjOptimize() in the FQ path.
+    // The remote renderer natively supports PROJECT and must preserve it as the
+    // single source of truth for final remote output order.  Using the generic
+    // main-plan Project elimination here mutates the logic tree before collect,
+    // which can drop the only explicit final-output owner and force later FQ
+    // helpers to infer outputs from child nodes (e.g. Sort/Scan), causing hidden
+    // ORDER/WHERE dependency columns to leak into remote SELECT results.
+    //
+    // Pass-through PROJECT folding for flat remote SQL is handled inside the FQ
+    // renderer/collector path itself, but ONLY when the Project is semantically
+    // pure column pruning/reordering over the child outputs.
+    //
+    // pScan is unaffected by partition collapse (it removes PARTITION above the
+    // scan), but re-find in case tree pointers shifted.
+    pScan = fqFindExternalScan(pLogicSubplan->pNode);
+    if (NULL == pScan) return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == pCxt->pExtCapability && NULL != pScan->pExtTableNode &&
+      QUERY_NODE_EXTERNAL_TABLE == nodeType(pScan->pExtTableNode)) {
+    pCxt->pExtCapability = &((SExtTableNode*)pScan->pExtTableNode)->capability;
+  }
+
+  // Restore 3.0 virtual-table semantics for direct external children under a
+  // VirtualTableScan.  This path must not enter the generic FQ collect/commit
+  // flow, otherwise local column routing and dynamic child resolution can drift
+  // away from the vtable-specific execution contract.
   if (pScan->node.pParent != NULL &&
       nodeType(pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
-    int32_t code = fqInjectPkOrderBy(pScan);
-    if (TSDB_CODE_SUCCESS != code) return code;
+    bool keepPushableScanWhere =
+        (pScan->node.pConditions != NULL) &&
+        fqExprIsPushable(pScan->node.pConditions, pScan, pCxt->pExtCapability,
+                         pCxt->pSessionOverlay, pCxt->pPlanCxt);
+    int32_t code = fqInjectPkOrderBy(pScan, keepPushableScanWhere);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+
+    fqSyncScanOrderFromRemotePkSort(pScan);
     OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
     pCxt->optimized = true;
     return TSDB_CODE_SUCCESS;
   }
 
-  // ── Phase 2 stubs (no-ops until implemented) ──
-  int32_t code = TSDB_CODE_SUCCESS;
-  code = fqHarvestConditions(pScan);
-  if (TSDB_CODE_SUCCESS != code) return code;
-  code = fqConvertPartition(pScan, pLogicSubplan);
-  if (TSDB_CODE_SUCCESS != code) return code;
-  code = fqConvertGroupBy(pScan, pLogicSubplan);
-  if (TSDB_CODE_SUCCESS != code) return code;
-  code = fqConvertWindow(pScan);
-  if (TSDB_CODE_SUCCESS != code) return code;
-  code = fqHarvestAgg(pLogicSubplan, pScan);
-  if (TSDB_CODE_SUCCESS != code) return code;
+  int32_t dialect = pCxt->pExtCapability ? (int32_t)pCxt->pExtCapability->dialect : -1;
+  bool    skipCollectCommit = false;
 
-  // ── Phase 1: harvest Sort + Project chain ──
-  // Collect consecutive pushdownable single-child ancestors, bottom → top.
-  // Also track whether a Sort node appears in the chain (= user specified ORDER BY).
-  SArray* pChain = taosArrayInit(4, POINTER_BYTES);
-  if (NULL == pChain) return terrno;
-
-  bool        hasSortInChain    = false;
-  bool        hasProjectInChain = false;  // stop at second consecutive Project
-  SLogicNode* pParent           = pScan->node.pParent;
-  while (pParent != NULL && fqNodeIsPushdownable(nodeType(pParent)) &&
-      fqProjectIsPushdownable(pParent) &&
-       (nodeType(pParent) != QUERY_NODE_LOGIC_PLAN_SORT ||
-        fqTargetsAllColumns(pParent->pTargets)) &&
-         fqSortAllKeysPushdownable(pParent) &&
-         LIST_LENGTH(pParent->pChildren) == 1) {
-    if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_SORT) {
-      hasSortInChain = true;
-      // Extra safety: verify sort keys are all simple column refs
-      SSortLogicNode* _pS = (SSortLogicNode*)pParent;
-      SNode* _pK = NULL;
-      FOREACH(_pK, _pS->pSortKeys) {
-        const SNode* _pI = _pK;
-        if (nodeType(_pI) == QUERY_NODE_ORDER_BY_EXPR)
-          _pI = ((const SOrderByExprNode*)_pI)->pExpr;
-        if (_pI == NULL || nodeType(_pI) != QUERY_NODE_COLUMN ||
-            ((const SColumnNode*)_pI)->colId == 0) {
-          // Non-renderable sort key — bail out of while loop entirely
-          goto _chain_done;
-        }
+  // Idempotency guard: fqPushdownOptimize may be called multiple times for the
+  // same logical plan (e.g. different sub-tasks with LIMIT).  If
+  planDebug("FQ-push: optimize start — scan=%p dialect=%d", pScan, dialect);
+  // DIAG: log pScanCols at entry to fqOptimizeScan
+  {
+    char _scBuf[512] = {0}; int _scOff = 0;
+    if (pScan->pScanCols) {
+      SNode* _sc = NULL;
+      FOREACH(_sc, pScan->pScanCols) {
+        const char* _cn = (nodeType(_sc) == QUERY_NODE_COLUMN) ? ((SColumnNode*)_sc)->colName : "?";
+        _scOff += snprintf(_scBuf + _scOff, sizeof(_scBuf) - (size_t)_scOff - 1, "%s,", _cn);
       }
     }
-    // Stop pushing when a second Project is encountered.  TAIL rewrite
-    // inserts an inner Project (rewrite output) below the outer Project
-    // (SELECT clause wrapper).  Pushing both creates a nested-subquery
-    // chain in renderNode that breaks SQL for all external sources:
-    //   SELECT expr_1 FROM (SELECT val FROM ...) _sq
-    // The outer SELECT references "expr_1" but the inner only exposes "val".
-    // Keeping the outer Project in the local plan avoids the subquery and
-    // lets the executor fill the slot by position instead of by name.
-    if (nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_PROJECT) {
-      if (hasProjectInChain) break;
-      hasProjectInChain = true;
+    planDebug("FQ-push: pScanCols at entry=[%s]", _scBuf);
+  }
+
+  if (NULL == pScan->pScanCols || LIST_LENGTH(pScan->pScanCols) == 0) {
+    planError("FQ-push: external scan invariant violated at optimize entry, source=%s table=%s scan=%p remotePlan=%p",
+              (pScan->pExtTableNode != NULL) ? ((SExtTableNode*)pScan->pExtTableNode)->sourceName : "(null)",
+              pScan->tableName.tname,
+              pScan,
+              pScan->pRemoteLogicPlan);
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  if (NULL != pCxt->pSessionOverlay && NULL != pCxt->pPushdownAttempt &&
+      *pCxt->pPushdownAttempt > pCxt->pSessionOverlay->attemptCount) {
+    pCxt->pSessionOverlay->attemptCount = *pCxt->pPushdownAttempt;
+  }
+
+  if (NULL != pCxt->pExtCapability &&
+      extCapShouldUseBaseline(pCxt->pExtCapability, pCxt->pSessionOverlay)) {
+    skipCollectCommit = true;
+    planDebug("FQ-push: skip collect/commit — baseline mode enabled (dialect=%d)", dialect);
+  }
+
+  if (!skipCollectCommit) {
+    for (SLogicNode* pUp = pScan->node.pParent; pUp != NULL; pUp = pUp->pParent) {
+      if (pUp->pSlimit != NULL) {
+        skipCollectCommit = true;
+        planDebug("FQ-push: skip collect/commit — ancestor carries SLIMIT/SOFFSET and remote render has no slimit clause support ancestor=%p type=%s",
+                  pUp, nodesNodeName(nodeType((SNode*)pUp)));
+        break;
+      }
     }
-    if (NULL == taosArrayPush(pChain, &pParent)) {
-      code = terrno;
+  }
+
+  // DS §5.3.10.3.1: each rule checks its own clause capability independently.
+  // Do NOT do a global OR-check here — InfluxDB has EXT_CLAUSE_JOIN in its
+  // default negative table (no JOIN support), and an OR-check would cause ALL
+  // pushdown to be skipped for InfluxDB even though filter/projection/order/limit
+  // are all available.  extCapShouldUseBaseline() already handles the
+  // "everything in the session overlay is demoted" baseline path above.
+
+  // Unified pushdown: harvest the scan-node WHERE (the condition lives on the
+  // logic node that carries it), then collect the contiguous pushable chain
+  // bottom-up and commit it into pRemoteLogicPlan.  No phase-ordered prefix —
+  // INTERVAL/PARTITION/JOIN/AGG are all handled inside collect (judge) + commit
+  // (transform), each node minding only itself.
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    ranCollectCommit = false;
+  bool    hasSortInChain = false;
+
+  // ── collect → commit (recursive subtree model) ────────────────────────────
+  // collect (READ-ONLY): walk scan->parent bottom-up, judging each node via
+  // fqLayerIsPushable (capability matrix + per-type judge) and fqExprIsPushable
+  // (the node's own WHERE).  Returns the highest contiguously-pushable node
+  // (pBoundary) — the root of the connected pushable bottom subtree.  No tree
+  // mutation, no pre-collect WHERE rewrite.
+  // commit: recursively clone pBoundary's subtree into pScan->pRemoteLogicPlan
+  // (each node owns its WHERE in node.pConditions; renderer renders it), then
+  // dock pScan into pBoundary's slot for local execution.
+  if (!skipCollectCommit) {
+    SLogicNode* pBoundary = NULL;
+    code = fqCollectPushChain(pScan, pCxt->pExtCapability, pCxt->pSessionOverlay, pCxt->pPlanCxt, &pBoundary);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+
+    // Track whether a Sort is in the pushable subtree (controls pk ORDER BY below).
+    for (SLogicNode* pNd = pBoundary; pNd != NULL && pNd != (SLogicNode*)pScan;
+         pNd = fqFirstChild(pNd)) {
+      if (nodeType(pNd) == QUERY_NODE_LOGIC_PLAN_SORT) {
+        hasSortInChain = true;
+        break;
+      }
+    }
+
+    code = fqCommitPushChain(pCxt, pScan, pLogicSubplan, pBoundary);
+    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    ranCollectCommit = true;
+  }
+
+  if (ranCollectCommit &&
+      pScan->node.pParent != NULL && nodeType(pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_PROJECT &&
+      (pScan->pRemoteLogicPlan == NULL || nodeType(pScan->pRemoteLogicPlan) != QUERY_NODE_LOGIC_PLAN_PROJECT)) {
+    SProjectLogicNode* pParentProj = (SProjectLogicNode*)pScan->node.pParent;
+    int32_t pushableCnt = 0;
+    int32_t localCnt = 0;
+    bool partialProj = fqProjectCanPartiallyPushdown(pParentProj, pScan, pCxt->pExtCapability,
+                                                     pCxt->pSessionOverlay, pCxt->pPlanCxt,
+                                                     &pushableCnt, &localCnt);
+    planDebug("FQ-partialProject: probe parent project=%p partial=%d pushableCnt=%d localCnt=%d",
+              pParentProj, (int)partialProj, pushableCnt, localCnt);
+    if (partialProj) {
+      code = fqBuildPartialRemoteProject(pScan, pParentProj, pCxt->pExtCapability,
+                                         pCxt->pSessionOverlay, pCxt->pPlanCxt);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _cleanup;
+      }
+    }
+  }
+
+  if (ranCollectCommit) {
+    code = fqNormalizeLocalQuantifyWrapperAggs(pScan);
+    if (TSDB_CODE_SUCCESS != code) {
       goto _cleanup;
     }
-    pParent = pParent->pParent;
-  }
-_chain_done:
-  // ── Extract chain into pRemoteLogicPlan (only when chain is non-empty) ──
-  if (taosArrayGetSize(pChain) > 0) {
-    int32_t     n           = (int32_t)taosArrayGetSize(pChain);
-    SLogicNode* pTopmost    = *(SLogicNode**)taosArrayGet(pChain, n - 1);
-    SLogicNode* pBottommost = *(SLogicNode**)taosArrayGet(pChain, 0);
 
-    // Rewire main tree: replace topmost pushed-down node with the scan.
-    // replaceLogicNode also sets pScan->node.pParent = pTopmost->pParent (= pParent).
-    code = replaceLogicNode(pLogicSubplan, pTopmost, (SLogicNode*)pScan);
-    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
-
-    // ── Update pScan->pTargets to match pTopmost's output column order ──
-    // The topmost pushed-down node's pTargets defines the column order the
-    // parent plan expects.  eliminateProjOptimize may have already updated
-    // pTopmost's pTargets to match the user's SELECT list.  After removing
-    // pTopmost from the main plan, the scan node must produce the same
-    // column order that pTopmost would have.
-    //
-    // Note: do NOT guard this update with a count equality check.  When the
-    // user writes `SELECT a, b FROM t ORDER BY ts` (ts not in SELECT), the
-    // Sort node's pTargets = {a, b} (2 items) while the scan's original
-    // pTargets = {ts, a, b} (3 items) because the scan feeds ts to Sort.
-    // After Sort is pushed into pRemoteLogicPlan the scan no longer needs
-    // to output ts, so its pTargets must be reduced to {a, b}.  Requiring
-    // the counts to match prevents this necessary reduction and causes the
-    // remote SQL SELECT to include ts, producing a column count mismatch
-    // between the returned block (N+1 cols) and the query metadata (N cols),
-    // which triggers TSDB_CODE_TSC_INTERNAL_ERROR in setResultDataPtr.
-    if (pTopmost->pTargets != NULL) {
-      SNodeList* pNewTargets = NULL;
-      code = nodesCloneList(pTopmost->pTargets, &pNewTargets);
-      if (TSDB_CODE_SUCCESS == code && pNewTargets != NULL) {
-        nodesDestroyList(pScan->node.pTargets);
-        pScan->node.pTargets = pNewTargets;
-      }
-      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
-    }
-
-    // Disconnect pBottommost from the scan without destroying the scan node.
-    nodesClearList(pBottommost->pChildren);
-    pBottommost->pChildren = NULL;
-
-    // pTopmost is now the root of pRemoteLogicPlan — detach from main tree.
-    pTopmost->pParent = NULL;
-
-    // Hand the pushed-down chain over to the scan node.
-    pScan->pRemoteLogicPlan = (SNode*)pTopmost;
-
-    // ── Update pScan output columns to match pushed-down topmost node ──
-    // After pushing Sort (and Project) into pRemoteLogicPlan, the outer
-    // FederatedScan sits where pTopmost was.  Its pTargets must reflect what
-    // pTopmost outputs (= SELECT columns in SELECT order, WITHOUT sort-key-only
-    // columns now handled remotely).  This ensures:
-    //   1. makePhysiNode builds OutputDataBlockDesc with only output=true slots.
-    //   2. pScanCols / pColTypeMappings have the correct column count and order.
-    //   3. nodesRemotePlanToSQL SELECT list matches the actual remote DB response.
-    // Without this fix the outer FederatedScan would include ts (ORDER BY key)
-    // in its output, causing a col-count mismatch on the client side.
-    if (pTopmost->pTargets != NULL && LIST_LENGTH(pTopmost->pTargets) > 0) {
-      SNodeList* pNewTargets = NULL;
-      code = nodesCloneList(pTopmost->pTargets, &pNewTargets);
-      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
-      nodesDestroyList(pScan->node.pTargets);
-      pScan->node.pTargets = pNewTargets;
-
-      // Keep pScanCols in sync (= SELECT columns in SELECT order)
-      SNodeList* pNewScanCols = NULL;
-      code = nodesCloneList(pTopmost->pTargets, &pNewScanCols);
-      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
-      nodesDestroyList(pScan->pScanCols);
-      pScan->pScanCols = pNewScanCols;
-
-      // Re-add any columns that appear only in local WHERE conditions
-      // (node.pConditions) but were dropped from pScanCols during reduction.
-      // Without these columns the remote DB won't return them and local
-      // filter evaluation (e.g. LIKE on PG JSONB) will silently fail.
-      code = fqEnsureLocalFilterColsInScanCols(pScan);
-      if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    code = fqMarkCommittedRemoteSubqueries(pCxt->pPlanCxt, pScan);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-mark: commit succeeded but absorbed subquery marking failed, ownerSubQIdx:%d code:0x%x",
+                pCxt->pPlanCxt ? pCxt->pPlanCxt->subqueryIndex : -2, code);
+      goto _cleanup;
     }
   }
-  // If chain is empty, pScan->pRemoteLogicPlan stays NULL and
-  // pScan->node.pParent is unchanged (== pParent from the loop).
+
+  // v2 render mode: decided + assigned IN-PLACE during the collect
+  // probe (fqExprIsPushable's REMOTE_* branches), then carried into
+  // pRemoteLogicPlan by fqCommitPushChain's whole-node clone.  No separate
+  // post-commit walk — render mode is the direct product of the pushability
+  // judgement that already consulted the capability matrix.
 
   // ── Default pk ORDER BY injection (DS §5.2.x — fallback flow ordering) ──
-  // Inject ORDER BY <pk> ASC into the remote plan whenever no Sort was pushed
-  // down.  Injecting even when a complex operator (csum, partition, agg) sits
-  // above ensures the external source returns rows in ascending timestamp order
-  // for correct local processing (e.g. csum depends on input row order).
-  // Phase 2 aggregate-pushdown will need to revisit this logic.
+  // Inject ORDER BY <pk> ASC into the remote plan ONLY when ALL hold:
+  //   (1) no Sort was pushed into the chain (!hasSortInChain), AND
+  //   (2) the remote plan contains ONLY PROJECT and SCAN nodes — i.e. a plain
+  //       row-passthrough SELECT (no remote AGG/INDEF/PARTITION/WINDOW/JOIN that
+  //       would make raw-row ordering irrelevant), AND
+  //   (3) a row-order-sensitive operator (AGG/INDEF/PARTITION/WINDOW/JOIN) stays
+  //       LOCAL above the scan and needs the remote source to return rows in
+  //       ascending timestamp order (e.g. csum/diff/partition rely on input order).
+  // When any of these fails, the remote plan either already orders/aggregates the
+  // rows, or no local consumer cares about raw-row order — so no pk ORDER BY.
   if (!hasSortInChain) {
-    // Do not inject a remote pk ORDER BY when the immediate parent is a
-    // (non-pushdownable) Sort: that Sort will re-sort all output locally,
-    // making a remote ORDER BY redundant.  Injecting it also adds ts to
-    // pScanCols, conflicting with the slot reserved for the Sort's precalc
-    // expressions (e.g. ORDER BY length(name)) in the FedScan output block,
-    // causing TIMESTAMP data to be written to an INT-typed precalc slot.
-    bool parentIsLocalSort = (pScan->node.pParent != NULL &&
-                              nodeType(pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_SORT);
-    if (!parentIsLocalSort) {
-      code = fqInjectPkOrderBy(pScan);
+    // (2) remote plan is PROJECT/SCAN only.
+    bool remoteIsProjScanOnly = true;
+    if (pScan->pRemoteLogicPlan != NULL) {
+      SNode* pWalk = pScan->pRemoteLogicPlan;
+      while (pWalk != NULL) {
+        ENodeType wt = nodeType(pWalk);
+        if (wt != QUERY_NODE_LOGIC_PLAN_PROJECT && wt != QUERY_NODE_LOGIC_PLAN_SCAN) {
+          remoteIsProjScanOnly = false;
+          break;
+        }
+        SNodeList* pCh = ((SLogicNode*)pWalk)->pChildren;
+        pWalk = (pCh && LIST_LENGTH(pCh) > 0) ? nodesListGetNode(pCh, 0) : NULL;
+      }
+    }
+    // (3) a row-order-sensitive operator stays LOCAL above the scan.
+    // INTERP is intentionally local per current capability matrix, but it still
+    // requires the remote source rows to arrive in ascending timestamp order.
+    // Without this gate, bare-scan pushdown on unordered sources (for example
+    // InfluxDB) can feed local INTERP with reversed / arbitrary row order and
+    // produce wrong PREV/NEXT/LINEAR results even though no remote INTERP
+    // clause was pushed.
+    //
+    // IMPORTANT: generic AGG is still order-insensitive by default. Only AGG
+    // nodes that actually contain keep-order / timeline functions should
+    // request synthetic pk ordering from the remote scan. This keeps ordinary
+    // COUNT/SUM/MIN/MAX fallback queries from carrying an unnecessary
+    // ORDER BY <pk>, while preserving correctness for functions such as
+    // GROUP_CONCAT / LEASTSQUARES / TWA / ELAPSED that consume row order.
+    bool localHasOrderSensitive = false;
+    for (SLogicNode* pUp = pScan->node.pParent; pUp != NULL; pUp = pUp->pParent) {
+      ENodeType ut = nodeType(pUp);
+      planDebug("FQ-DBG: pk-inject ancestor scan=%p source=%s table=%s ancestor=%p type=%s",
+                pScan,
+                (pScan->pExtTableNode != NULL) ? ((SExtTableNode*)pScan->pExtTableNode)->sourceName : "(null)",
+                pScan->tableName.tname,
+                pUp,
+                nodesNodeName(ut));
+      if (ut == QUERY_NODE_LOGIC_PLAN_AGG) {
+        SAggLogicNode* pAgg = (SAggLogicNode*)pUp;
+        bool aggNeedsOrder = fqAggNodeNeedsOrderedInput(pAgg);
+        planDebug("FQ-DBG: local AGG ancestor=%p aggNeedsOrder=%d hasTimeLine=%d onlyHasKeepOrder=%d groupKeys=%d",
+                  pAgg, (int)aggNeedsOrder, (int)pAgg->hasTimeLineFunc,
+                  (int)pAgg->onlyHasKeepOrderFunc, LIST_LENGTH(pAgg->pGroupKeys));
+        if (aggNeedsOrder) {
+          localHasOrderSensitive = true;
+          break;
+        }
+        continue;
+      }
+      if (ut == QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC ||
+          ut == QUERY_NODE_LOGIC_PLAN_PARTITION || ut == QUERY_NODE_LOGIC_PLAN_WINDOW ||
+          ut == QUERY_NODE_LOGIC_PLAN_INTERP_FUNC ||
+          ut == QUERY_NODE_LOGIC_PLAN_JOIN) {
+        planDebug("FQ-DBG: local order-sensitive ancestor=%p type=%s keeps default pk ORDER BY injection",
+                  pUp, nodesNodeName(ut));
+        localHasOrderSensitive = true;
+        break;
+      }
+    }
+    planDebug("FQ-DBG: pk-inject gate scan=%p source=%s table=%s remoteIsProjScanOnly=%d localHasOrderSensitive=%d remoteRootType=%s",
+              pScan,
+              (pScan->pExtTableNode != NULL) ? ((SExtTableNode*)pScan->pExtTableNode)->sourceName : "(null)",
+              pScan->tableName.tname,
+              (int)remoteIsProjScanOnly,
+              (int)localHasOrderSensitive,
+              pScan->pRemoteLogicPlan ? nodesNodeName(nodeType(pScan->pRemoteLogicPlan)) : "(null)");
+    if (remoteIsProjScanOnly && localHasOrderSensitive) {
+      code = fqInjectPkOrderBy(pScan, false);
       if (TSDB_CODE_SUCCESS != code) goto _cleanup;
     }
 
-    // ── Fix pScan output columns for the empty-chain case ──
-    // When a non-pushdownable node (e.g. DYN_QUERY_CTRL for IN subquery) sits
-    // between ExternalScan and the Sort, the chain is empty and the Sort stays
-    // in the local plan.  We still need to:
-    //   1. Set pScan->node.pTargets = SELECT cols only (host, val) — so that
-    //      OutputDataBlockDesc marks only those as output=true.
-    //   2. Set pScan->pScanCols = SELECT cols + ORDER BY-only cols (host, val, ts)
-    //      in that order — so the remote SQL SELECT produces columns in the right
-    //      position for the block, and ts can be a reserve slot for the local Sort.
-    // Find the SELECT column list from the nearest ancestor Sort or Project.
-    //
-    // IMPORTANT: Skip this adjustment when parentIsLocalSort=true.  In that
-    // case the local Sort computes scalar expressions (e.g. length(name)) on
-    // FedScan output columns, and the original pScanCols already includes the
-    // necessary slots for those scalar results.  Overwriting pScanCols here
-    // would strip those slots, causing the Sort's scalar function to silently
-    // write to a non-existent column (resulting in wrong sort order).
-    if (taosArrayGetSize(pChain) == 0 && !parentIsLocalSort) {
-      SLogicNode* pOutputSpec = NULL;
-      bool        hasAggBetween  = false;
-      bool        hasJoinBetween = false;
-      for (SLogicNode* pAnc = (SLogicNode*)pScan->node.pParent;
-           pAnc != NULL; pAnc = pAnc->pParent) {
-        ENodeType at = nodeType(pAnc);
-        // Stop at JOIN: a Sort/Project above a JOIN has pTargets that include
-        // columns from BOTH join legs.  Using those targets to overwrite this
-        // scan's pScanCols/pTargets would (a) include columns from the other
-        // table, breaking remote SQL, and (b) drop the JOIN-key column (ts),
-        // causing TSDB_CODE_PLAN_SLOT_NOT_FOUND when the JOIN physi node tries
-        // to resolve the primary-key equality condition slot.
-        if (at == QUERY_NODE_LOGIC_PLAN_JOIN) break;
-        // Track whether a complex node sits between Scan and the candidate.
-        // If so, the candidate's pTargets contain derived column names
-        // (e.g. "count(*)", "avg(val)", "lag(val,1)") instead of real table columns.
-        if (at == QUERY_NODE_LOGIC_PLAN_AGG || at == QUERY_NODE_LOGIC_PLAN_WINDOW ||
-            at == QUERY_NODE_LOGIC_PLAN_INDEF_ROWS_FUNC || at == QUERY_NODE_LOGIC_PLAN_INTERP_FUNC ||
-            at == QUERY_NODE_LOGIC_PLAN_FILL || at == QUERY_NODE_LOGIC_PLAN_PARTITION ||
-            at == QUERY_NODE_LOGIC_PLAN_FORECAST_FUNC || at == QUERY_NODE_LOGIC_PLAN_ANALYSIS_FUNC) {
-          hasAggBetween = true;
-        }
-        // Track whether a JOIN sits between the scan and the candidate Sort/Project.
-        // A JOIN's pTargets contain columns from BOTH tables; using them to
-        // overwrite pScanCols for one scan leg would include the other table's
-        // columns, causing 0x2704 slot-key-not-found in createMergeJoinPhysiNode.
-        if (at == QUERY_NODE_LOGIC_PLAN_JOIN) {
-          hasJoinBetween = true;
-        }
-        if ((at == QUERY_NODE_LOGIC_PLAN_SORT || at == QUERY_NODE_LOGIC_PLAN_PROJECT) &&
-            pAnc->pTargets != NULL && LIST_LENGTH(pAnc->pTargets) > 0) {
-          // Stop at a Project whose pTargets contain non-column entries (e.g.
-          // function aliases like "val*2 AS doubled").  Any ancestor above such
-          // a Project references DERIVED columns, not real table columns.  Using
-          // those derived column names to overwrite pScanCols would produce names
-          // absent from the external table schema, causing 0x2704 slot-key-not-found
-          // in the InnerProject's slot-id resolution step.
-          if (at == QUERY_NODE_LOGIC_PLAN_PROJECT && !fqProjectIsPushdownable(pAnc)) {
-            planDebug("%s", "FqPushdown empty-chain: stopping at non-pushdownable Project (has expressions), "
-                            "pOutputSpec stays NULL, pScan->pTargets unchanged");
-            break;
-          }
-          // Skip if an Agg/Window node was found between Scan and this ancestor;
-          // its pTargets carry derived column names, not real table columns.
-          if (hasAggBetween) {
-            continue;
-          }
-          // Skip if a JOIN node was found between Scan and this ancestor;
-          // a JOIN's pTargets combine columns from all legs — using them to
-          // overwrite one scan's pScanCols/pTargets causes slot-key-not-found.
-          if (hasJoinBetween) {
-            continue;
-          }
-          // Only use pure-column output specs here.  If Sort/Project targets
-          // contain expressions, copying them into pScan->pTargets/pScanCols
-          // will make remote SQL project expressions directly, which breaks
-          // federated parity type mapping in fallback mode.
-          if (!fqTargetsAllColumns(pAnc->pTargets)) {
-            continue;
-          }
-          pOutputSpec = pAnc;
-          break;
-        }
-      }
-
-      if (pOutputSpec != NULL) {
-        // Build pScanCols = SELECT cols first, then any ORDER BY-only cols.
-        // ORDER BY cols come from pScan->pRemoteLogicPlan (the injected Sort).
-        SNodeList* pNewScanCols = NULL;
-        code = nodesCloneList(pOutputSpec->pTargets, &pNewScanCols);
-        if (TSDB_CODE_SUCCESS != code) goto _cleanup;
-
-        // Append ORDER BY cols not already in the SELECT list.
-        if (pScan->pRemoteLogicPlan != NULL &&
-            nodeType(pScan->pRemoteLogicPlan) == QUERY_NODE_LOGIC_PLAN_SORT) {
-          SSortLogicNode* pRemSort = (SSortLogicNode*)pScan->pRemoteLogicPlan;
-          SNode* pKey = NULL;
-          FOREACH(pKey, pRemSort->pSortKeys) {
-            if (nodeType(pKey) != QUERY_NODE_ORDER_BY_EXPR) continue;
-            SNode* pKeyExpr = ((SOrderByExprNode*)pKey)->pExpr;
-            if (nodeType(pKeyExpr) != QUERY_NODE_COLUMN) continue;
-            SColumnNode* pSortCol = (SColumnNode*)pKeyExpr;
-            // Check if this sort col is already in pNewScanCols (by colName).
-            bool found = false;
-            SNode* pExisting = NULL;
-            FOREACH(pExisting, pNewScanCols) {
-              if (nodeType(pExisting) == QUERY_NODE_COLUMN &&
-                  strcmp(((SColumnNode*)pExisting)->colName, pSortCol->colName) == 0) {
-                found = true;
-                break;
-              }
-            }
-            if (!found) {
-              // Clone the sort col (has correct colName and resType for pScanCols).
-              SNode* pNewCol = NULL;
-              code = nodesCloneNode((SNode*)pSortCol, &pNewCol);
-              if (TSDB_CODE_SUCCESS != code) {
-                nodesDestroyList(pNewScanCols);
-                goto _cleanup;
-              }
-              code = nodesListMakeStrictAppend(&pNewScanCols, pNewCol);
-              if (TSDB_CODE_SUCCESS != code) {
-                nodesDestroyNode(pNewCol);
-                nodesDestroyList(pNewScanCols);
-                goto _cleanup;
-              }
-            }
-          }
-        }
-
-        nodesDestroyList(pScan->pScanCols);
-        pScan->pScanCols = pNewScanCols;
-
-        // Set pTargets = SELECT cols only (no ORDER BY-only cols in output).
-        SNodeList* pNewTargets = NULL;
-        code = nodesCloneList(pOutputSpec->pTargets, &pNewTargets);
-        if (TSDB_CODE_SUCCESS != code) goto _cleanup;
-        nodesDestroyList(pScan->node.pTargets);
-        pScan->node.pTargets = pNewTargets;
-      }
-    }
   }
 
-  // ── Fallback: ensure pScan->pScanCols has at least one column ──
-  // For queries like `SELECT timezone() FROM ext_t` or `SELECT client_version()
-  // FROM ext_t` where the SELECT list has no remote column dependencies,
-  // pScanCols is still NULL at this point.  An empty pScanCols causes
-  // nodesRemotePlanToSQL to emit `SELECT *` and pColTypeMappings to be empty;
-  // the remote connector then fails with a column-count mismatch.
-  // Inject the pk column (from the fqInjectPkOrderBy Sort already in
-  // pRemoteLogicPlan) as a minimal anchor so the remote SQL becomes
-  //   SELECT <pk> FROM … ORDER BY <pk> [LIMIT …]
-  // and the remote connector returns exactly 1 column.
-  // The local Project (timezone()/client_version()/…) ignores the pk column
-  // and computes its zero-argument function per returned row.
-  bool noRemoteColDependency = !fqExprListHasColumnRef(pScan->pScanCols);
-  if (TSDB_CODE_SUCCESS == code && noRemoteColDependency) {
-    // For zero-column-dependency projections (NOW/TODAY/constant expressions),
-    // never emit expression SELECT items to remote DB; fetch only a pk anchor.
-    nodesDestroyList(pScan->pScanCols);
-    pScan->pScanCols = NULL;
-    if (!fqExprListHasColumnRef(pScan->node.pTargets)) {
-      nodesDestroyList(pScan->node.pTargets);
-      pScan->node.pTargets = NULL;
-    }
-
-    // If pk ORDER BY was injected, use its pk column as a stable anchor.
-    if (pScan->pRemoteLogicPlan != NULL &&
-        nodeType(pScan->pRemoteLogicPlan) == QUERY_NODE_LOGIC_PLAN_SORT) {
-      SSortLogicNode* pInjSort = (SSortLogicNode*)pScan->pRemoteLogicPlan;
-      SNode* pKey0 = (pInjSort->pSortKeys != NULL && LIST_LENGTH(pInjSort->pSortKeys) > 0)
-                         ? nodesListGetNode(pInjSort->pSortKeys, 0) : NULL;
-      if (pKey0 != NULL && nodeType(pKey0) == QUERY_NODE_ORDER_BY_EXPR) {
-        SNode* pKeyExpr = ((SOrderByExprNode*)pKey0)->pExpr;
-        if (pKeyExpr != NULL && nodeType(pKeyExpr) == QUERY_NODE_COLUMN) {
-          SNode* pPkClone = NULL;
-          code = nodesCloneNode(pKeyExpr, &pPkClone);
-          if (TSDB_CODE_SUCCESS == code) {
-            code = nodesListMakeStrictAppend(&pScan->pScanCols, pPkClone);
-            if (TSDB_CODE_SUCCESS != code) {
-              nodesDestroyNode(pPkClone);
-            } else {
-              // Also update pTargets so makePhysiNode creates a valid output
-              // block descriptor for the FederatedScan physi node.
-              if (LIST_LENGTH(pScan->node.pTargets) == 0) {
-                SNode* pTgtClone = NULL;
-                code = nodesCloneNode(pKeyExpr, &pTgtClone);
-                if (TSDB_CODE_SUCCESS == code) {
-                  code = nodesListMakeStrictAppend(&pScan->node.pTargets, pTgtClone);
-                  if (TSDB_CODE_SUCCESS != code) {
-                    nodesDestroyNode(pTgtClone);
-                  }
-                }
-              }
-            }
-          }
-          planDebug("FqPushdown: injected pk column '%s' into pScanCols/pTargets"
-                    " for zero-column-dependency query",
-                    ((SColumnNode*)pKeyExpr)->colName);
-        }
-      }
-    }
+  if (TSDB_CODE_SUCCESS == code &&
+      (NULL == pScan->pScanCols || LIST_LENGTH(pScan->pScanCols) == 0)) {
+    planError("FQ-push: external scan invariant violated after pushdown, source=%s table=%s scan=%p remoteRootType=%d",
+              (pScan->pExtTableNode != NULL) ? ((SExtTableNode*)pScan->pExtTableNode)->sourceName : "(null)",
+              pScan->tableName.tname,
+              pScan,
+              pScan->pRemoteLogicPlan ? (int)nodeType(pScan->pRemoteLogicPlan) : -1);
+    code = TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
 
-  // ── Phase 2 stubs (post-chain, no-ops until implemented) ──
+  // ── Step 4: push LIMIT to the top of the remote plan ───────────────────────
+  // Sort push / pass-through Project elimination are now handled generically by
+  // the collect+commit chain above (the legacy fqPushAggOrderLimit R2/R4 pass is
+  // gone).  fqPushLimit moves LIMIT onto pRemoteLogicPlan when the whole
+  // statement was pushed down.
   if (TSDB_CODE_SUCCESS == code) {
-    code = fqHarvestLimit(pScan);
-    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
-    code = fqMergeJoin(pScan);
-    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
-    code = fqPushdownSubquery(pScan);
-    if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+    code = fqPushLimit(pScan, dialect, pCxt);
   }
 
-  // Mark this ExternalScan as processed so subsequent rounds skip it.
-  OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
-  // Signal optimized so the outer loop re-scans for additional ExternalScan nodes.
-  pCxt->optimized = true;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = fqPrepareRemoteGroupConcatOrder(pScan);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    fqSyncScanOrderFromRemotePkSort(pScan);
+  }
+
+  // ── FQ pushdown result summary ──
+  if (TSDB_CODE_SUCCESS == code) {
+    fqLogPushdownResult(pScan, dialect);
+  }
+
+  if (ranCollectCommit || skipCollectCommit) {
+    // Mark this ExternalScan as processed so subsequent rounds skip it.
+    OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
+    // Signal optimized so the outer loop re-scans for additional ExternalScan nodes.
+    pCxt->optimized = true;
+  }
+  planDebug("FQ-OPT: fqPushdownOptimize end pScan=%p pRemoteLogicPlan=%p type=%d",
+            pScan, pScan->pRemoteLogicPlan,
+            pScan->pRemoteLogicPlan ? (int)nodeType(pScan->pRemoteLogicPlan) : -1);
 
 _cleanup:
-  taosArrayDestroy(pChain);
   return code;
 }
 
+// ─── fqUnionAllOptimize ──────────────────────────────────────────────────────
+// DS §5.3.8.6: same-source UNION ALL — push the entire UNION ALL as a single
+// remote SQL.
+//
+// Runs AFTER FqPushdown (all FedScan nodes have been individually processed)
+// and AFTER FqInterp. Whole-branch same-source pushdown is only allowed when
+// each branch local tree has already collapsed to a single processed external
+// scan. If a branch still keeps any PROJECT/SORT/AGG/... wrapper locally, that
+// branch is not a whole-push branch and UNION ALL stays local.
+//
+// If all branches share the same external source (sourceType + sourceName),
+// we merge them into a single FedScan whose pRemoteLogicPlan is a
+// SProjectLogicNode(isSetOpProj=true) whose children are built directly from
+// each branch's collapsed scan / remote subtree.
+//
+// The union_all container PROJECT is then replaced in the main plan by the
+// representative FedScan (first branch), and the other branch FedScans are
+// destroyed (their WHERE conditions are now captured in the UNION ALL container).
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Find first unprocessed isSetOpProj PROJECT node in the subtree.
+// "Unprocessed" means it doesn't have FQ_UNION_ALL flag set.
+#define OPTIMIZE_FLAG_FQ_UNION_ALL  OPTIMIZE_FLAG_MASK(8)
+
+static SProjectLogicNode* fqFindUnprocessedSetOpProj(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pNode)) {
+    SProjectLogicNode* pProj = (SProjectLogicNode*)pNode;
+    if (pProj->isSetOpProj &&
+        !OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_ALL)) {
+      return pProj;
+    }
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    SProjectLogicNode* pFound = fqFindUnprocessedSetOpProj((SLogicNode*)pChild);
+    if (pFound) return pFound;
+  }
+  return NULL;
+}
+
+// Whole-branch UNION pushdown requires the branch local tree to have already
+// collapsed to a single processed external FederatedScan. If any wrapper node
+// still remains locally, that wrapper was not fully pushed and the branch must
+// stay out of same-source whole-push.
+static SScanLogicNode* fqGetWholePushBranchScan(SLogicNode* pNode) {
+  if (NULL == pNode || QUERY_NODE_LOGIC_PLAN_SCAN != nodeType((SNode*)pNode)) {
+    return NULL;
+  }
+
+  SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+  if (pScan->scanType != SCAN_TYPE_EXTERNAL ||
+      !OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN)) {
+    return NULL;
+  }
+
+  return pScan;
+}
+
+static int32_t fqUnionAllOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  // Find first unprocessed same-source union_all container
+  SProjectLogicNode* pSetOp = fqFindUnprocessedSetOpProj(pLogicSubplan->pNode);
+  if (NULL == pSetOp) return TSDB_CODE_SUCCESS;
+
+  // Must have at least 2 children
+  if (NULL == pSetOp->node.pChildren || LIST_LENGTH(pSetOp->node.pChildren) < 2) {
+    OPTIMIZE_FLAG_SET_MASK(pSetOp->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_ALL);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Collect FedScan for each branch; verify all processed + same-source
+  int32_t nBranches = LIST_LENGTH(pSetOp->node.pChildren);
+  SScanLogicNode* pRepScan = NULL;   // representative (first) FedScan
+  const char*     sourceName = NULL;
+  int32_t         sourceType = -1;
+
+  SNode* pBranchNode = NULL;
+  FOREACH(pBranchNode, pSetOp->node.pChildren) {
+    SScanLogicNode* pScan = fqGetWholePushBranchScan((SLogicNode*)pBranchNode);
+    if (NULL == pScan) {
+      planDebug("FQ-UNION-ALL: branch is not a whole-push scan node — keep local set-op merge branchType=%d",
+                (int)nodeType((SNode*)pBranchNode));
+      OPTIMIZE_FLAG_SET_MASK(pSetOp->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_ALL);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (pScan->pRemoteLogicPlan != NULL) {
+      planDebug("FQ-UNION-ALL: branch remote root type=%d accepted for same-source whole-push",
+                (int)nodeType(pScan->pRemoteLogicPlan));
+    }
+    SExtTableNode* pExt = (SExtTableNode*)pScan->pExtTableNode;
+    if (NULL == pExt) {
+      planDebug("FQ-UNION-ALL: branch pExtTableNode NULL — skip");
+      OPTIMIZE_FLAG_SET_MASK(pSetOp->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_ALL);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (sourceName == NULL) {
+      sourceName = pExt->sourceName;
+      sourceType = (int32_t)pExt->sourceType;
+      pRepScan   = pScan;
+    } else {
+      // Cross-source check
+      if ((int32_t)pExt->sourceType != sourceType ||
+          strncmp(pExt->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN) != 0) {
+        planDebug("FQ-UNION-ALL: cross-source union — skip (local merge)");
+        OPTIMIZE_FLAG_SET_MASK(pSetOp->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_ALL);
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+
+  // All branches are processed + same-source.
+  // Build the UNION ALL remote plan container (SProjectLogicNode, isSetOpProj=true).
+  // Each child is a cloned SScanLogicNode with WHERE set, ORDER from
+  // pScan->pRemoteLogicPlan (Sort), and pScanCols.  nodesRemotePlanToSQL renders
+  // a multi-child isSetOpProj PROJECT as "branch1 UNION ALL branch2 …".
+  int32_t code = TSDB_CODE_SUCCESS;
+  SProjectLogicNode* pUnion = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pUnion);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  pUnion->isSetOpProj   = true;
+  pUnion->ignoreGroupId = true;
+  planDebug("FQ-UNION-ALL: pUnion=%p isSetOpProj=%d after set", (void*)pUnion, (int)pUnion->isSetOpProj);
+  code = nodesMakeList(&pUnion->node.pChildren);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+  // Clone targets from pSetOp
+  if (pSetOp->node.pTargets) {
+    code = nodesCloneList(pSetOp->node.pTargets, &pUnion->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+  }
+  if (pSetOp->pProjections) {
+    code = nodesCloneList(pSetOp->pProjections, &pUnion->pProjections);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+  }
+
+  // Each branch local tree has already collapsed to a single processed
+  // FederatedScan. Build the UNION children directly from that scan branch.
+  FOREACH(pBranchNode, pSetOp->node.pChildren) {
+    SLogicNode* pRemoteBranch = NULL;
+    code = fqBuildUnionBranchRemoteSubtree((SLogicNode*)pBranchNode, &pRemoteBranch);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-UNION-ALL: build branch remote subtree failed branchType=%d code=0x%x",
+                (int)nodeType(pBranchNode), code);
+      nodesDestroyNode((SNode*)pUnion);
+      return code;
+    }
+
+    pRemoteBranch->pParent = (SLogicNode*)pUnion;
+    code = nodesListStrictAppend(pUnion->node.pChildren, (SNode*)pRemoteBranch);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+    planDebug("FQ-UNION-ALL: appended branch remote subtree rootType=%d from branchType=%d",
+              (int)nodeType((SNode*)pRemoteBranch), (int)nodeType(pBranchNode));
+  }
+
+  // Set representative scan's pRemoteLogicPlan to the UNION ALL container
+  // (clear existing pRemoteLogicPlan first — it was a single-scan plan,
+  //  now superseded by the UNION ALL container)
+  if (pRepScan->pRemoteLogicPlan != NULL) {
+    nodesDestroyNode(pRepScan->pRemoteLogicPlan);
+    pRepScan->pRemoteLogicPlan = NULL;
+  }
+  pRepScan->pRemoteLogicPlan = (SNode*)pUnion;
+  planDebug("FQ-UNION-ALL: pRepScan=%p pRemoteLogicPlan=%p isSetOpProj=%d nChildren=%d",
+            (void*)pRepScan, (void*)pUnion, (int)pUnion->isSetOpProj,
+            pUnion->node.pChildren ? (int)LIST_LENGTH(pUnion->node.pChildren) : -1);
+
+  // Detach pRepScan from its branch parent (branch PROJECT) so we can
+  // wire it directly under pSetOp's parent via replaceLogicNode.
+  SLogicNode* pRepParent = pRepScan->node.pParent;
+  if (pRepParent != NULL && pRepParent != (SLogicNode*)pSetOp) {
+    nodesClearList(pRepParent->pChildren);
+    pRepParent->pChildren = NULL;
+    pRepScan->node.pParent = NULL;
+  }
+
+  // Update pRepScan targets to match the union_all container output schema
+  if (pSetOp->node.pTargets) {
+    nodesDestroyList(pRepScan->node.pTargets);
+    pRepScan->node.pTargets = NULL;
+    code = nodesCloneList(pSetOp->node.pTargets, &pRepScan->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+
+  // Destroy non-representative branch subtrees.
+  // Their FedScans' remote plans were transferred to the UNION ALL container,
+  // so set pRemoteLogicPlan=NULL before destroy to avoid double-free.
+  for (int32_t bi = 0; bi < LIST_LENGTH(pSetOp->node.pChildren); bi++) {
+    SNode* pB = nodesListGetNode(pSetOp->node.pChildren, bi);
+    SScanLogicNode* pScan = fqGetWholePushBranchScan((SLogicNode*)pB);
+    if (pScan == pRepScan) continue;  // rep scan is being reused, not destroyed
+    if (pScan != NULL) {
+      pScan->pRemoteLogicPlan = NULL;  // already transferred to pUnion
+    }
+    nodesDestroyNode(pB);
+  }
+  // Clear pSetOp children (already destroyed above, rep scan detached)
+  nodesClearList(pSetOp->node.pChildren);
+  pSetOp->node.pChildren = NULL;
+
+  // Replace pSetOp with pRepScan in the main plan
+  code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pSetOp, (SLogicNode*)pRepScan);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-UNION-ALL: replaceLogicNode failed code=0x%x", code);
+    return code;
+  }
+  nodesDestroyNode((SNode*)pSetOp);
+
+  // Mark representative scan as UNION-ALL processed (so FqUnionAll skips it).
+  OPTIMIZE_FLAG_SET_MASK(pRepScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_ALL);
+  // D2 (design §2.5): clear the FQ_PUSHDOWN terminal flag.  pRepScan now sits
+  // under a NEW upper operator (the outer query above the former UNION node,
+  // e.g. ORDER BY/LIMIT in `select c from (a union all b) order by …`).  Clearing
+  // the flag lets FqPushdown re-examine pRepScan and push that outer chain into
+  // the UNION remote plan (DS §5.3.7.1.1 nested-subquery whole-pushdown).
+  OPTIMIZE_FLAG_CLEAR_MASK(pRepScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
+
+  planDebug("FQ-UNION-ALL: merged %d branches into single FedScan with UNION ALL remote plan (pUnion children=%d); cleared FQ_PUSHDOWN for outer re-push",
+            nBranches, pUnion->node.pChildren ? (int)LIST_LENGTH(pUnion->node.pChildren) : 0);
+  pCxt->optimized = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+// ─── fqUnionDeduplicateOptimize ──────────────────────────────────────────────
+// DS §5.3.8.6: same-source UNION (dedup) — push the entire UNION as a single
+// remote SQL using "branch1 UNION branch2".
+//
+// Runs AFTER FqUnionAll. Whole-branch same-source pushdown is only allowed
+// when each branch local tree has already collapsed to a single processed
+// external scan. If all branches share the same external source, we collapse
+// the whole tree into a single representative FedScan whose pRemoteLogicPlan
+// is a SProjectLogicNode(isSetOpProj=true, isUnionDedup=true) with branch
+// scan / remote-subtree children — the same layout as UNION ALL, but flagged
+// for UNION output.
+// ─────────────────────────────────────────────────────────────────────────────
+
+#define OPTIMIZE_FLAG_FQ_UNION_DEDUP  OPTIMIZE_FLAG_MASK(9)
+
+// Find a SAggLogicNode that looks like a UNION-dedup container:
+//   - All pGroupKeys non-empty (dedup via full-row grouping)
+//   - No pAggFuncs (pure dedup, not aggregation)
+//   - 2 children (left and right branches of UNION)
+//   - Not yet processed (FQ_UNION_DEDUP flag not set)
+static SAggLogicNode* fqFindUnprocessedUnionDedup(SLogicNode* pNode) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
+    SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+    if (pAgg->pGroupKeys != NULL && LIST_LENGTH(pAgg->pGroupKeys) > 0 &&
+        (pAgg->pAggFuncs == NULL || LIST_LENGTH(pAgg->pAggFuncs) == 0) &&
+        pNode->pChildren != NULL && LIST_LENGTH(pNode->pChildren) == 2 &&
+        !OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_DEDUP)) {
+      return pAgg;
+    }
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    SAggLogicNode* pFound = fqFindUnprocessedUnionDedup((SLogicNode*)pChild);
+    if (pFound) return pFound;
+  }
+  return NULL;
+}
+
+static int32_t fqUnionDeduplicateOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SAggLogicNode* pDedup = fqFindUnprocessedUnionDedup(pLogicSubplan->pNode);
+  if (NULL == pDedup) return TSDB_CODE_SUCCESS;
+
+  // Collect FedScan for each branch; verify all processed + same-source
+  int32_t nBranches = LIST_LENGTH(pDedup->node.pChildren);
+  SScanLogicNode* pRepScan  = NULL;
+  const char*     sourceName = NULL;
+  int32_t         sourceType = -1;
+
+  SNode* pBranchNode = NULL;
+  FOREACH(pBranchNode, pDedup->node.pChildren) {
+    SScanLogicNode* pScan = fqGetWholePushBranchScan((SLogicNode*)pBranchNode);
+    if (NULL == pScan) {
+      planDebug("FQ-UNION-DEDUP: branch is not a whole-push scan node — skip branchType=%d",
+                (int)nodeType((SNode*)pBranchNode));
+      OPTIMIZE_FLAG_SET_MASK(pDedup->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_DEDUP);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (pScan->pRemoteLogicPlan != NULL) {
+      planDebug("FQ-UNION-DEDUP: branch remote root type=%d accepted for same-source whole-push",
+                (int)nodeType(pScan->pRemoteLogicPlan));
+    }
+    SExtTableNode* pExt = (SExtTableNode*)pScan->pExtTableNode;
+    if (NULL == pExt) {
+      planDebug("FQ-UNION-DEDUP: branch pExtTableNode NULL — skip");
+      OPTIMIZE_FLAG_SET_MASK(pDedup->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_DEDUP);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (sourceName == NULL) {
+      sourceName = pExt->sourceName;
+      sourceType = (int32_t)pExt->sourceType;
+      pRepScan   = pScan;
+    } else {
+      if ((int32_t)pExt->sourceType != sourceType ||
+          strncmp(pExt->sourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN) != 0) {
+        planDebug("FQ-UNION-DEDUP: cross-source union — skip (local)");
+        OPTIMIZE_FLAG_SET_MASK(pDedup->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_DEDUP);
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+
+  // All branches are same-source.  Build UNION dedup remote plan container.
+  int32_t code = TSDB_CODE_SUCCESS;
+  SProjectLogicNode* pUnion = NULL;
+  code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pUnion);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  pUnion->isSetOpProj  = true;
+  pUnion->isUnionDedup = true;  // ← key flag: emit UNION not UNION ALL
+  pUnion->ignoreGroupId = true;
+  code = nodesMakeList(&pUnion->node.pChildren);
+  if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+  if (pDedup->node.pTargets) {
+    code = nodesCloneList(pDedup->node.pTargets, &pUnion->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+  }
+  if (pDedup->pGroupKeys) {
+    code = nodesCloneList(pDedup->pGroupKeys, &pUnion->pProjections);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+  }
+
+  // Each branch local tree has already collapsed to a single processed
+  // FederatedScan. Build the UNION children directly from that scan branch.
+  FOREACH(pBranchNode, pDedup->node.pChildren) {
+    SLogicNode* pRemoteBranch = NULL;
+    code = fqBuildUnionBranchRemoteSubtree((SLogicNode*)pBranchNode, &pRemoteBranch);
+    if (TSDB_CODE_SUCCESS != code) {
+      planError("FQ-UNION-DEDUP: build branch remote subtree failed branchType=%d code=0x%x",
+                (int)nodeType(pBranchNode), code);
+      nodesDestroyNode((SNode*)pUnion);
+      return code;
+    }
+
+    pRemoteBranch->pParent = (SLogicNode*)pUnion;
+    code = nodesListStrictAppend(pUnion->node.pChildren, (SNode*)pRemoteBranch);
+    if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pUnion); return code; }
+    planDebug("FQ-UNION-DEDUP: appended branch remote subtree rootType=%d from branchType=%d",
+              (int)nodeType((SNode*)pRemoteBranch), (int)nodeType(pBranchNode));
+  }
+
+  // Wire pRepScan with the UNION dedup container
+  if (pRepScan->pRemoteLogicPlan != NULL) {
+    nodesDestroyNode(pRepScan->pRemoteLogicPlan);
+    pRepScan->pRemoteLogicPlan = NULL;
+  }
+  pRepScan->pRemoteLogicPlan = (SNode*)pUnion;
+
+  // Detach pRepScan from its branch parent
+  SLogicNode* pRepParent = pRepScan->node.pParent;
+  if (pRepParent != NULL && pRepParent != (SLogicNode*)pDedup) {
+    nodesClearList(pRepParent->pChildren);
+    pRepParent->pChildren = NULL;
+    pRepScan->node.pParent = NULL;
+  }
+
+  // Update pRepScan targets to match the dedup container output schema
+  if (pDedup->node.pTargets) {
+    nodesDestroyList(pRepScan->node.pTargets);
+    pRepScan->node.pTargets = NULL;
+    code = nodesCloneList(pDedup->node.pTargets, &pRepScan->node.pTargets);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+
+  // Destroy non-representative branch subtrees
+  for (int32_t bi = 0; bi < LIST_LENGTH(pDedup->node.pChildren); bi++) {
+    SNode* pB = nodesListGetNode(pDedup->node.pChildren, bi);
+    SScanLogicNode* pScan = fqGetWholePushBranchScan((SLogicNode*)pB);
+    if (pScan == pRepScan) continue;
+    if (pScan != NULL) pScan->pRemoteLogicPlan = NULL;
+    nodesDestroyNode(pB);
+  }
+  nodesClearList(pDedup->node.pChildren);
+  pDedup->node.pChildren = NULL;
+
+  // Replace pDedup with pRepScan in the main plan
+  code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pDedup, (SLogicNode*)pRepScan);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("FQ-UNION-DEDUP: replaceLogicNode failed code=0x%x", code);
+    return code;
+  }
+  nodesDestroyNode((SNode*)pDedup);
+
+  OPTIMIZE_FLAG_SET_MASK(pRepScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_UNION_DEDUP);
+  // D2 (design §2.5): clear FQ_PUSHDOWN so FqPushdown re-examines pRepScan and
+  // pushes any outer operator above the former UNION into the dedup remote plan.
+  OPTIMIZE_FLAG_CLEAR_MASK(pRepScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
+  planDebug("FQ-UNION-DEDUP: merged %d branches into single FedScan with UNION dedup remote plan; cleared FQ_PUSHDOWN for outer re-push",
+            nBranches);
+  pCxt->optimized = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (NULL != pLogicSubplan && pLogicSubplan->pushedDown) {
+    planDebug("QID:0x%" PRIx64 ", optimize logic plan skipped, subplanGroupId:%d already absorbed", pCxt->queryId,
+              pLogicSubplan->id.groupId);
+    return TSDB_CODE_SUCCESS;
+  }
   if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType && NULL == pLogicSubplan->pNode->pChildren) {
     return TSDB_CODE_SUCCESS;
   }
@@ -15281,9 +21314,7 @@ static int32_t postSplitEliminateSortImpl(SLogicSubplan* pSubplan, SLogicNode* p
   // for filters/order-by evaluation.  Replacing Sort with a child that exposes a wider
   // target list breaks exchange/scan schema alignment after split.
   SLogicNode* pDirectChild = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
-  if (NULL == pDirectChild) {
-    return TSDB_CODE_SUCCESS;
-  }
+  if (NULL == pDirectChild) return TSDB_CODE_SUCCESS;
 
   if (LIST_LENGTH(pSort->node.pTargets) != LIST_LENGTH(pDirectChild->pTargets)) {
     return TSDB_CODE_SUCCESS;

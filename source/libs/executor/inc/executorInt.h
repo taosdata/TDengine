@@ -267,7 +267,6 @@ typedef struct SFedScanTableCtx {
   int32_t               numDynColMappings;
   SSDataBlock*          pFetchedBlock;      // last fetched block owned by this table context
 } SFedScanTableCtx;
-
 typedef struct SFederatedScanOperatorInfo {
   SFederatedScanPhysiNode*  pFedScanNode;      // physi node ref (not owned)
   SExtConnectorHandle*      pConnHandle;        // connector handle (Module B)
@@ -280,6 +279,7 @@ typedef struct SFederatedScanOperatorInfo {
   int64_t                   fetchBlockCount;    // cumulative block count
   int64_t                   elapsedTimeUs;      // cumulative elapsed time (µs)
   SSDataBlock*              pFetchedBlock;      // owned block returned by extConnectorFetchBlock
+  char                      remoteSql[TSDB_SHOW_SQL_LEN];  // actual SQL sent to the remote source
   char                      extErrMsg[512];     // formatted remote error message
   // Per-table context cache for VStb multi-table dispatch
   SHashObj*                 pTableCtxMap;       // key: source/db/table/filter hashes, value: SFedScanTableCtx
@@ -297,7 +297,6 @@ typedef struct SFederatedScanOperatorInfo {
 
 void fedScanReleaseFetchedBlock(SFederatedScanOperatorInfo* pInfo);
 int32_t fedScanSaveActiveCtx(SFederatedScanOperatorInfo* pInfo);
-
 typedef struct SScanInfo {
   int32_t numOfAsc;
   int32_t numOfDesc;
@@ -595,7 +594,6 @@ static FORCE_INLINE bool optrHasOrderedOutput(const SOptrBasicInfo* pInfo, EData
   return (pInfo->outputTsOrder == TSDB_ORDER_ASC || pInfo->outputTsOrder == TSDB_ORDER_DESC) &&
          pInfo->outputDataOrder >= minLevel;
 }
-
 typedef struct SIndefRowsWindowState {
   STimeWindow  win;      // logical window range for this state
   uint64_t     groupId;  // source group id of this logical window

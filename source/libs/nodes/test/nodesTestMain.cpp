@@ -184,8 +184,6 @@ TEST(NodesTest, match) {
   code = nodesCloneNode(pFunction, &pFunctionClone);
   ASSERT_EQ(code, TSDB_CODE_SUCCESS);
   ASSERT_TRUE(nodesMatchNode(pFunction, pFunctionClone));
-  nodesDestroyNode(pFunctionClone);
-  nodesDestroyNode(pFunction);
 
   SNode* pLogicCondition = NULL, *pLogicConditionClone = NULL;
   code = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pLogicCondition);
@@ -206,6 +204,8 @@ TEST(NodesTest, match) {
   
   nodesDestroyNode(pLogicCondition);
   nodesDestroyNode(pLogicConditionClone);
+  nodesDestroyNode(pFunctionClone);
+  nodesDestroyNode(pFunction);
 }
 
 int main(int argc, char* argv[]) {

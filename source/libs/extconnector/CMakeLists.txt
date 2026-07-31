@@ -27,7 +27,10 @@ target_link_libraries(
 if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
   target_link_options(extconnector INTERFACE "LINKER:--undefined=nodesRemotePlanToSQL")
 endif()
-
+# ──────────────────────────────────────────────────────────────────────────────
+# Enterprise: link external database client libraries (downloaded via CMake
+# ExternalProject_Add; see community/cmake/external.cmake for build rules)
+# ──────────────────────────────────────────────────────────────────────────────
 if(TD_ENTERPRISE)
   if(BUILD_WITH_MARIADB)
     target_compile_definitions(extconnector PRIVATE HAVE_MARIADB_C)
@@ -38,6 +41,7 @@ if(TD_ENTERPRISE)
 
   if(BUILD_WITH_LIBPQ)
     target_compile_definitions(extconnector PRIVATE HAVE_LIBPQ)
+    DEP_ext_libpq(extconnector)
     message(STATUS "ExtConnector: PostgreSQL provider enabled with runtime libpq loading")
   else()
     message(STATUS "ExtConnector: BUILD_WITH_LIBPQ=OFF — PostgreSQL provider disabled")
@@ -223,6 +227,41 @@ if(TD_ENTERPRISE AND BUILD_WITH_ARROW AND NOT TD_WINDOWS)
       VERBATIM
     )
   endif()
-
   message(STATUS "ExtConnector: building optional libtaos_ext_influx_arrow runtime plugin")
+endif()
+
+if(TD_ENTERPRISE AND TD_WINDOWS)
+  set(_win_bin_dir "${CMAKE_BINARY_DIR}/build/bin")
+
+  if(BUILD_WITH_MARIADB)
+    set(_mariadb_dll "${TD_EXTERNALS_BASE_DIR}/install/ext_mariadb/${TD_CONFIG_NAME}/lib/mariadb/libmariadb.dll")
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_win_bin_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_mariadb_dll}" "${_win_bin_dir}/libmariadb.dll"
+      COMMENT "Staging libmariadb.dll -> build/bin/"
+      VERBATIM
+    )
+  endif()
+
+  if(BUILD_WITH_LIBPQ)
+    set(_libpq_dll "${TD_EXTERNALS_BASE_DIR}/install/ext_libpq/${TD_CONFIG_NAME}/bin/libpq.dll")
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_libpq_dll}" "${_win_bin_dir}/libpq.dll"
+      COMMENT "Staging libpq.dll -> build/bin/"
+      VERBATIM
+    )
+  endif()
+
+  if(BUILD_WITH_ARROW)
+    set(_arrow_bin "${TD_EXTERNALS_BASE_DIR}/install/ext_arrow/${TD_CONFIG_NAME}/bin")
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_arrow_bin}/arrow.dll" "${_win_bin_dir}/arrow.dll"
+      COMMENT "Staging arrow.dll -> build/bin/"
+      VERBATIM
+    )
+  endif()
+endif()
+
+if(BUILD_TEST AND TD_ENTERPRISE)
+  add_subdirectory(test)
 endif()

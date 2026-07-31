@@ -21,28 +21,16 @@
 #
 # ENVIRONMENT VARIABLES (all optional, defaults match federated_query_common.py)
 #   FQ_BASE_DIR            install/data root      default /opt/taostest/fq
-#                                                   (macOS: ~/taostest/fq)
 #   FQ_MYSQL_VERSIONS      comma list             default "8.0"
 #   FQ_PG_VERSIONS         comma list             default "16"
 #   FQ_INFLUX_VERSIONS     comma list             default "3.0"
 #   FQ_MYSQL_MIRROR        base URL for MySQL tarballs
 #   FQ_PG_TARBALL_<VV>     full URL for PG prebuilt tarball (fallback if no pkg)
 #   FQ_INFLUX_MIRROR       base URL for InfluxDB releases
-#   FQ_TARBALL_CACHE_DIR   tarball/deb cache dir              auto-detect:
-#                          /usr/local/src or /data0/compat-packages when
-#                          MySQL/Influx tarballs are staged; else /tmp
-#   FQ_USE_NEXUS_APT       force Nexus apt on/off             unset=auto-detect;
-#                          Ubuntu/macOS always use public apt for PG;
-#                          only pure Debian CI (tdengine-ci) uses Nexus apt
-#   FQ_APT_MIRROR_BASE     Nexus apt proxy base               default https://nexus.tdengine.net/repository
-#   FQ_APT_PG_MIRROR       PGDG apt proxy URL                 default ${FQ_APT_MIRROR_BASE}/apt-postgresql-org
-#   FQ_LIBAIO_DEB_URL      direct libaio .deb URL override    default derived from Nexus Debian mirror
-#   FQ_LIBNUMA_DEB_URL     direct libnuma .deb URL override   default derived from Nexus Debian mirror
 #   FQ_MYSQL_TARBALL_<VV>  full URL override per MySQL version (VV = 57/80/84)
 #   FQ_INFLUX_TARBALL_<VV> full URL override per InfluxDB version (VV = 30/35)
 #   FQ_CERT_DIR            cert source dir        default <script_dir>/certs
 #   FQ_MYSQL_USER/PASS     credentials            default root / taosdata
-#   FQ_MYSQL_INIT_TIMEOUT_S mysqld --initialize timeout default 300
 #   FQ_PG_USER/PASS        credentials            default postgres / taosdata
 #   FQ_PG_TIMEZONE         PostgreSQL server timezone default Asia/Shanghai
 #   FQ_INFLUX_TOKEN/ORG    credentials            default test-token / test-org
@@ -105,16 +93,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 OS="$(uname -s)"          # Linux | Darwin
 ARCH="$(uname -m)"        # x86_64 | aarch64 | arm64
 
-_default_fq_base_dir() {
-    case "$OS" in
-        Darwin) printf '%s\n' "${HOME}/taostest/fq" ;;
-        *)      printf '%s\n' "/opt/taostest/fq" ;;
-    esac
-}
-
-FQ_BASE_DIR="${FQ_BASE_DIR:-$(_default_fq_base_dir)}"
+FQ_BASE_DIR="${FQ_BASE_DIR:-/opt/taostest/fq}"
 CERT_SRC="${FQ_CERT_DIR:-${SCRIPT_DIR}/certs}"
-
+# Tarball cache directory — mount a host path here to avoid re-downloading.
 # CI mounts /data0/compat-packages → /usr/local/src; local Ubuntu can use
 # /data0/compat-packages directly for MySQL/Influx tarballs (no re-download).
 _compat_packages_staged_in() {
@@ -193,10 +174,28 @@ OVERALL_OK=0
 # ──────────────────────────────────────────────────────────────────────────────
 log()  { echo "[fq-env] $*"; }
 info() { echo "[fq-env] INFO  $*"; }
-# warn/err go to both stdout and stderr: stdout is needed so that CI log
-# viewers that only capture stdout (pytest, run_case.sh) can see failures.
-warn() { local _m="[fq-env] WARN  $*"; echo "$_m"; echo "$_m" >&2; }
-err()  { local _m="[fq-env] ERROR $*"; echo "$_m"; echo "$_m" >&2; }
+warn() { echo "[fq-env] WARN  $*" >&2; }
+err()  { echo "[fq-env] ERROR $*" >&2; }
+
+# External engines must not inherit TDengine's ASAN / loader overrides.
+# Pytest launches this script with LD_PRELOAD + LD_LIBRARY_PATH pointed at the
+# TDengine debug tree, which can wedge foreign binaries such as PostgreSQL
+# initdb/postgres. Clear those variables in the child shell only.
+sanitize_foreign_engine_env() {
+    local leaked=0 var
+    for var in \
+        LD_PRELOAD LD_LIBRARY_PATH \
+        ASAN_OPTIONS UBSAN_OPTIONS LSAN_OPTIONS TSAN_OPTIONS MSAN_OPTIONS \
+        DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH; do
+        if [[ -n "${!var-}" ]]; then
+            leaked=1
+            unset "$var"
+        fi
+    done
+    if [[ "$leaked" -eq 1 ]]; then
+        info "Cleared inherited loader/sanitizer env for external engines."
+    fi
+}
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 3.  Pre-flight: required tools
@@ -224,28 +223,18 @@ command -v python3 &>/dev/null || warn "python3 not found; some InfluxDB helpers
 # ──────────────────────────────────────────────────────────────────────────────
 port_open() {
     local port="$1"
-    # Prefer nc (netcat).  Do NOT use curl telnet:// — it can hang indefinitely
-    # on HTTP servers (e.g. influxdb3) even when --connect-timeout is set.
+    # Prefer nc (netcat); fall back to curl TCP probe; last resort /dev/tcp
     if command -v nc &>/dev/null; then
-        nc -z -w 2 127.0.0.1 "$port" 2>/dev/null && return 0
-    fi
-    if command -v ncat &>/dev/null; then
-        ncat -z -w 2 127.0.0.1 "$port" 2>/dev/null && return 0
-    fi
-    # bash /dev/tcp probe (bounded; safe under ASAN CI)
-    if command -v timeout &>/dev/null; then
-        timeout 2 bash -c "exec 3<>/dev/tcp/127.0.0.1/${port} && exec 3<&- 3>&-" 2>/dev/null \
-            && return 0
-    elif (exec 3<>/dev/tcp/127.0.0.1/"${port}") 2>/dev/null; then
-        exec 3<&- 3>&-
-        return 0
-    fi
-    # Kernel socket table (no network I/O)
-    if command -v ss &>/dev/null; then
-        ss -ltn 2>/dev/null | grep -qE ":${port}[[:space:]]"
+        nc -z -w 2 127.0.0.1 "$port" 2>/dev/null
         return
     fi
-    return 1
+    if command -v ncat &>/dev/null; then
+        ncat -z -w 2 127.0.0.1 "$port" 2>/dev/null
+        return
+    fi
+    # curl can probe TCP without HTTP
+    curl -sf --connect-timeout 2 "telnet://127.0.0.1:${port}" -o /dev/null 2>/dev/null
+    return
 }
 
 wait_port() {
@@ -262,31 +251,77 @@ wait_port() {
 # ──────────────────────────────────────────────────────────────────────────────
 # 5.  Process management (pkill compatible across Linux + macOS + BusyBox)
 # ──────────────────────────────────────────────────────────────────────────────
+# Return PIDs whose command line matches a pattern.
+_list_matching_pids() {
+    local pattern="$1"
+    # `ps` / `pgrep` can wedge on this host while FQ teardown is scanning the
+    # process table. On Linux, scan /proc directly so process enumeration
+    # cannot block the whole suite on external command hangs.
+    if [[ -d /proc && "$(uname -s)" == "Linux" ]]; then
+        local pid_dir pid comm cmdline exe
+        local -a argv
+        for pid_dir in /proc/[0-9]*; do
+            [[ -d "$pid_dir" ]] || continue
+            pid="${pid_dir#/proc/}"
+            [[ "$pid" == "$$" ]] && continue
+
+            comm=""
+            IFS= read -r comm < "${pid_dir}/comm" 2>/dev/null || continue
+            case "$comm" in
+                postgres|initdb|mysqld|influxdb3|influxd) ;;
+                *) continue ;;
+            esac
+
+            cmdline=""
+            argv=()
+            if [[ -r "${pid_dir}/cmdline" ]]; then
+                mapfile -d '' -t argv < "${pid_dir}/cmdline" 2>/dev/null || true
+            fi
+            if (( ${#argv[@]} > 0 )); then
+                cmdline="${argv[*]}"
+            else
+                cmdline="$comm"
+                exe=""
+                [[ -L "${pid_dir}/exe" ]] && exe="$(readlink "${pid_dir}/exe" 2>/dev/null || true)"
+                [[ -n "$exe" ]] && cmdline+=" ${exe}"
+            fi
+
+            [[ -n "$cmdline" && "$cmdline" =~ $pattern ]] && printf '%s\n' "$pid"
+        done
+        return 0
+    fi
+
+    if command -v pgrep &>/dev/null; then
+        pgrep -f "$pattern" 2>/dev/null | awk -v self="$$" '$1 != self {print $1}' || true
+        return 0
+    fi
+
+    if command -v timeout &>/dev/null; then
+        timeout 5 ps ax -o pid= -o command= 2>/dev/null \
+            | awk -v pat="$pattern" -v self="$$" '
+                $1 != self && $0 ~ pat && $0 !~ /awk/ && $0 !~ /ps ax -o pid= -o command=/ {print $1}
+            ' || true
+        return 0
+    fi
+
+    ps ax -o pid= -o command= 2>/dev/null \
+        | awk -v pat="$pattern" -v self="$$" '
+            $1 != self && $0 ~ pat && $0 !~ /awk/ && $0 !~ /ps ax -o pid= -o command=/ {print $1}
+        ' || true
+}
+
 # Kill processes whose command line matches a pattern.
 _kill_matching() {
     local pattern="$1"
     local sig="${2:-TERM}"
-    # pkill on most Linux + macOS; on BusyBox pkill may lack -f
-    if pkill -"$sig" -f "$pattern" 2>/dev/null; then
-        return 0
-    fi
-    # Fallback: pgrep -f + kill
-    if command -v pgrep &>/dev/null; then
-        local pids
-        pids=$(pgrep -f "$pattern" 2>/dev/null || true)
-        if [[ -n "$pids" ]]; then
-            # shellcheck disable=SC2086
-            kill -"$sig" $pids 2>/dev/null || true
-            return 0
-        fi
-    fi
-    # Last resort: use ps + awk
     local pids
-    pids=$(ps aux 2>/dev/null | awk -v pat="$pattern" '$0 ~ pat && !/awk/ {print $2}' || true)
+    pids="$(_list_matching_pids "$pattern")"
     if [[ -n "$pids" ]]; then
         # shellcheck disable=SC2086
         kill -"$sig" $pids 2>/dev/null || true
+        return 0
     fi
+    return 0
 }
 
 # Write a PID into a pidfile; used by _start_daemon
@@ -308,14 +343,18 @@ _rotate_log() {
     fi
 }
 
-# Run a command without CI ASAN LD_PRELOAD and without TDengine LD_LIBRARY_PATH.
-# External DB binaries (postgres, mysql, influxdb3) must not inherit either:
-#   LD_PRELOAD  — ASAN interceptors crash non-instrumented binaries
-#   LD_LIBRARY_PATH — TDengine's bundled libcrypto/libssl shadow system libs
+# Run a command without inherited loader and sanitizer overrides from the
+# TDengine test process. External DB tools must use system libraries.
 _fq_env_clean() {
     local _runner=(env)
-    [[ -n "${LD_PRELOAD:-}" ]] && _runner+=( -u LD_PRELOAD )
-    [[ -n "${LD_LIBRARY_PATH:-}" ]] && _runner+=( -u LD_LIBRARY_PATH )
+    local var
+    for var in \
+        LD_PRELOAD LD_LIBRARY_PATH \
+        ASAN_OPTIONS UBSAN_OPTIONS LSAN_OPTIONS TSAN_OPTIONS MSAN_OPTIONS \
+        DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH \
+        PYTEST_CURRENT_TEST; do
+        [[ -n "${!var-}" ]] && _runner+=( -u "$var" )
+    done
     "${_runner[@]}" "$@"
 }
 
@@ -327,7 +366,8 @@ _fq_mysql_ld_path() {
     fi
 }
 
-# MySQL tarball clients need lib/private on LD_LIBRARY_PATH and must not inherit ASAN LD_PRELOAD.
+# MySQL tarball clients need lib/private on LD_LIBRARY_PATH and must not
+# inherit TDengine's loader overrides.
 _fq_mysql_run() {
     local base="$1"; shift
     local _ldlp; _ldlp="$(_fq_mysql_ld_path "$base")"
@@ -345,7 +385,6 @@ _start_daemon() {
     shift 2
     mkdir -p "$(dirname "$pidfile")" "$(dirname "$logfile")"
     _rotate_log "$logfile"
-    # setsid is missing on macOS; nohup + & is sufficient there.
     if command -v setsid >/dev/null 2>&1; then
         _fq_env_clean setsid nohup "$@" >> "$logfile" 2>&1 &
     else
@@ -375,10 +414,10 @@ _stop_daemon() {
     rm -f "$pidfile" 2>/dev/null || true
 
     # Sweep any stragglers matched by pattern
-    if pgrep -f "$pattern" >/dev/null 2>&1; then
+    if [[ -n "$(_list_matching_pids "$pattern")" ]]; then
         _kill_matching "$pattern" TERM
         local _di=0
-        while pgrep -f "$pattern" >/dev/null 2>&1 && [[ $_di -lt 50 ]]; do
+        while [[ -n "$(_list_matching_pids "$pattern")" ]] && [[ $_di -lt 50 ]]; do
             sleep 0.1; _di=$((_di+1))
         done
         _kill_matching "$pattern" KILL 2>/dev/null || true
@@ -391,7 +430,7 @@ _stop_daemon() {
 # check.  Polls every 0.1 s; returns 0 if gone within MAX checks, 1 otherwise.
 _wait_procs_gone() {
     local pattern="$1" max="${2:-100}" i=0
-    while pgrep -f "$pattern" >/dev/null 2>&1; do
+    while [[ -n "$(_list_matching_pids "$pattern")" ]]; do
         i=$((i+1))
         if [[ $i -ge $max ]]; then
             warn "Processes still alive after $((max/10))s: $pattern"
@@ -429,55 +468,6 @@ _wait_port_free() {
     return 0
 }
 
-_cleanup_orphan_sysv_shm() {
-    local owner_filter="${1:-$CURRENT_USER}"
-
-    # On macOS PostgreSQL can leave a tiny SysV shared-memory segment behind if
-    # the test reset has to SIGKILL it.  The default shmmni limit is only 32, so
-    # repeated --clean runs eventually make initdb fail even though disk is fine.
-    [[ "$OS" == "Darwin" ]] || return 0
-    command -v ipcs >/dev/null 2>&1 || return 0
-    command -v ipcrm >/dev/null 2>&1 || return 0
-
-    local -A owners cpids lpids nattchs
-    local t id key mode owner group cpid lpid nattch
-    while read -r t id key mode owner group cpid lpid; do
-        [[ "$t" == "m" ]] || continue
-        owners["$id"]="$owner"
-        cpids["$id"]="$cpid"
-        lpids["$id"]="$lpid"
-    done < <(ipcs -m -p 2>/dev/null || true)
-
-    while read -r t id key mode owner group nattch; do
-        [[ "$t" == "m" ]] || continue
-        nattchs["$id"]="$nattch"
-    done < <(ipcs -m -o 2>/dev/null || true)
-
-    local removed=0 c_alive l_alive
-    for id in "${!owners[@]}"; do
-        [[ "${owners[$id]}" == "$owner_filter" ]] || continue
-        [[ "${nattchs[$id]:-1}" == "0" ]] || continue
-
-        c_alive=0
-        l_alive=0
-        if [[ -n "${cpids[$id]:-}" ]] && kill -0 "${cpids[$id]}" 2>/dev/null; then
-            c_alive=1
-        fi
-        if [[ -n "${lpids[$id]:-}" ]] && kill -0 "${lpids[$id]}" 2>/dev/null; then
-            l_alive=1
-        fi
-        [[ "$c_alive" == "0" && "$l_alive" == "0" ]] || continue
-
-        if ipcrm -m "$id" 2>/dev/null; then
-            removed=$((removed + 1))
-        fi
-    done
-
-    if [[ "$removed" -gt 0 ]]; then
-        info "Cleaned ${removed} orphan SysV shared-memory segment(s) owned by ${owner_filter}."
-    fi
-}
-
 # ──────────────────────────────────────────────────────────────────────────────
 # 6.  Download with retry + integrity (portable)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -501,7 +491,7 @@ _download_with_retry() {
                 --speed-time 60 --speed-limit 1024 \
                 -C - \
                 -o "$dest" \
-                "$url" 2>/dev/null; then
+                "$url" 2>&1; then
             # Basic integrity: file must exist and be non-empty
             if [[ -s "$dest" ]]; then
                 return 0
@@ -1367,25 +1357,6 @@ _mysql_tarball_url() {
     if [[ "$ARCH" == "aarch64" || "$ARCH" == "arm64" ]]; then
         arch_str="aarch64"
     fi
-
-    flavor=""
-    # Prefer full glibc2.28 tarball when compat-packages ships it; minimal is
-    # only used as a download fallback URL basename.
-    if [[ "$ver" == "8.0" && "$arch_str" == "x86_64" ]]; then
-        local _full="mysql-${patch}-linux-glibc2.28-${arch_str}.tar.xz"
-        local _root _found=""
-        while IFS= read -r _root; do
-            if [[ -s "${_root}/${_full}" ]]; then
-                _found="${_root}/${_full}"
-                break
-            fi
-        done < <(_fq_staging_dirs)
-        if [[ -z "$_found" ]]; then
-            glibc="glibc2.17"
-            flavor="-minimal"
-        fi
-    fi
-
     local tag="${ver//./}"
     local override="FQ_MYSQL_TARBALL_${tag}"
     local override_val="${!override:-}"
@@ -1484,8 +1455,8 @@ _ensure_mysql_body() {
 
     if [[ "${FQ_MYSQL_QUICK_RESTART:-0}" == "1" ]]; then
         info "MySQL ${ver}: quick restart (existing data preserved) ..."
-        pkill -9 -f "mysqld.*port=${port}" 2>/dev/null || true
-        pkill -9 -f "mysqld.*--port=${port}" 2>/dev/null || true
+        _kill_matching "mysqld.*port=${port}" KILL
+        _kill_matching "mysqld.*--port=${port}" KILL
         # Verify: all mysqld processes for this port are gone before touching files
         _wait_procs_gone "mysqld.*port=${port}" 100 \
             || warn "MySQL ${ver}: some processes may linger; continuing..."
@@ -1586,7 +1557,8 @@ _mysql_init() {
                 && info "MySQL ${ver}: --version OK: ${_vout}" \
                 || info "MySQL ${ver}: --version ALSO fails: ${_vout}"
         fi
-        OVERALL_OK=1; return 1
+        OVERALL_OK=1
+        return 1
     fi
 }
 
@@ -1602,7 +1574,7 @@ _mysql_start() {
     # Use inline env override so LD_LIBRARY_PATH is NOT leaked to the parent shell.
     local lib_private="${base}/lib/private"
     local _ldlp_prefix=""
-    [[ -d "$lib_private" ]] && _ldlp_prefix="${lib_private}"
+    [[ -d "$lib_private" ]] && _ldlp_prefix="${lib_private}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
     local user_opt="--user=${CURRENT_USER}"
     [[ "$CURRENT_USER" == "root" ]] && user_opt="--user=root"
@@ -1688,37 +1660,91 @@ _mysql_setup_auth() {
                   FLUSH PRIVILEGES;"
     fi
 
-    # Retry loop: mysqld opens the TCP port before all internal startup tasks
-    # finish.  wait_port() returning does NOT guarantee the server is ready for
-    # SQL connections; the socket file may also not exist yet.  Retry for up to
-    # 30 s, trying socket first (lower overhead), then TCP no-password.
-    local _auth_pi=0
-    while [[ $_auth_pi -lt 30 ]]; do
-        # Try socket connection (no password, fresh --initialize-insecure)
-        if [[ -S "$socket" ]] && _fq_mysql_run "$base" "$mysql_bin" \
-                -u root -S "$socket" --connect-timeout=3 \
-                -e "$auth_sql" 2>/dev/null; then
-            info "MySQL ${ver}: auth configured via socket."
-            return 0
-        fi
-        # Also try TCP no-password
-        if _fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port" -u root \
-                --connect-timeout=3 -e "$auth_sql" 2>/dev/null; then
-            info "MySQL ${ver}: auth configured via TCP (no-password)."
-            return 0
-        fi
-        _auth_pi=$((_auth_pi + 1))
-        sleep 1
-    done
-    warn "MySQL ${ver}: could not configure auth automatically after 30s (socket=${socket})."
-    # Print last 10 lines of error log to stdout so CI captures them.
-    if [[ -f "${base}/log/error.log" ]]; then
-        info "MySQL ${ver}: last error.log lines:"
-        tail -10 "${base}/log/error.log" | while IFS= read -r _line; do
-            echo "[fq-env]   $_line"
-        done
+    # Try socket connection (no password, fresh --initialize-insecure)
+    if _fq_mysql_run "$base" "$mysql_bin" -u root -S "$socket" --connect-timeout=10 \
+            -e "$auth_sql" 2>/dev/null; then
+        info "MySQL ${ver}: auth configured via socket."
+        return 0
     fi
+    # Also try with skip-grant-tables approach: just TCP no-password
+    if _fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port" -u root \
+            --connect-timeout=5 -e "$auth_sql" 2>/dev/null; then
+        info "MySQL ${ver}: auth configured via TCP (no-password)."
+        return 0
+    fi
+    warn "MySQL ${ver}: could not configure auth automatically (socket=${socket})."
     return 1
+}
+
+_mysql_ensure_timezone_tables() {
+    local ver="$1" port="$2" base="$3"
+    local mysql_bin="${base}/bin/mysql"
+    local tzinfo_bin="${base}/bin/mysql_tzinfo_to_sql"
+    local mysql_cmd=(_fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port"
+        -u "$MYSQL_USER" -p"$MYSQL_PASS" --connect-timeout=5)
+
+    if [[ ! -x "$mysql_bin" ]]; then
+        err "MySQL ${ver}: timezone-table setup failed, mysql client missing: ${mysql_bin}"
+        OVERALL_OK=1
+        return 1
+    fi
+    if [[ ! -x "$tzinfo_bin" ]]; then
+        err "MySQL ${ver}: timezone-table setup failed, mysql_tzinfo_to_sql missing: ${tzinfo_bin}"
+        OVERALL_OK=1
+        return 1
+    fi
+
+    local zone_name=""
+    local zone_file=""
+    while IFS='|' read -r zone_name zone_file; do
+        [[ -n "$zone_name" ]] || continue
+        if [[ ! -f "$zone_file" ]]; then
+            err "MySQL ${ver}: timezone-table setup failed, zoneinfo missing: ${zone_file}"
+            OVERALL_OK=1
+            return 1
+        fi
+
+        local loaded=""
+        loaded=$("${mysql_cmd[@]}" -Nse \
+            "SELECT COUNT(*) FROM mysql.time_zone_name WHERE Name='${zone_name}';" 2>/dev/null || true)
+        if [[ "$loaded" == "1" ]]; then
+            info "MySQL ${ver}: timezone ${zone_name} already loaded."
+            continue
+        fi
+
+        info "MySQL ${ver}: loading timezone ${zone_name} from ${zone_file} ..."
+        if ! _fq_mysql_run "$base" "$tzinfo_bin" "$zone_file" "$zone_name" \
+                | "${mysql_cmd[@]}" mysql >/dev/null 2>&1; then
+            err "MySQL ${ver}: failed to load timezone ${zone_name} into mysql.time_zone_* tables."
+            OVERALL_OK=1
+            return 1
+        fi
+
+        loaded=$("${mysql_cmd[@]}" -Nse \
+            "SELECT COUNT(*) FROM mysql.time_zone_name WHERE Name='${zone_name}';" 2>/dev/null || true)
+        if [[ "$loaded" != "1" ]]; then
+            err "MySQL ${ver}: timezone ${zone_name} still missing after load."
+            OVERALL_OK=1
+            return 1
+        fi
+    done <<'EOF'
+Asia/Shanghai|/usr/share/zoneinfo/Asia/Shanghai
+UTC|/usr/share/zoneinfo/UTC
+EOF
+
+    local conv_probe=""
+    conv_probe=$("${mysql_cmd[@]}" -Nse \
+        "SELECT CONCAT_WS('|', \
+            IF(CONVERT_TZ('2024-01-01 00:00:00','Asia/Shanghai','+00:00') IS NULL, 'NULL', 'OK'), \
+            IF(CONVERT_TZ('2024-01-01 00:00:00','UTC','+00:00') IS NULL, 'NULL', 'OK'));" 2>/dev/null || true)
+    if [[ "$conv_probe" != "OK|OK" ]]; then
+        err "MySQL ${ver}: timezone conversion probe failed after tz-table load (probe=${conv_probe:-<empty>})."
+        OVERALL_OK=1
+        return 1
+    fi
+
+    info "MySQL ${ver}: timezone tables ready (Asia/Shanghai, UTC)."
+    return 0
 }
 
 _mysql_apply_tls() {
@@ -1858,20 +1884,20 @@ _mysql_reset_env() {
         kill -9 "$(cat "$pidfile")" 2>/dev/null || true
         rm -f "$pidfile"
     fi
-    pkill -9 -f "mysqld.*port=${port}" 2>/dev/null || true
-    pkill -9 -f "mysqld.*--port=${port}" 2>/dev/null || true
+    _kill_matching "mysqld.*port=${port}" KILL
+    _kill_matching "mysqld.*--port=${port}" KILL
     # Also kill ANY mysqld using this basedir (may be running on a different port)
-    pkill -9 -f "mysqld.*${base}" 2>/dev/null || true
-    pkill -9 -f "mysqld.*initialize-insecure.*${base}" 2>/dev/null || true
-    pkill -9 -f "mysqld.*${base}.*initialize-insecure" 2>/dev/null || true
+    _kill_matching "mysqld.*${base}" KILL
+    _kill_matching "mysqld.*initialize-insecure.*${base}" KILL
+    _kill_matching "mysqld.*${base}.*initialize-insecure" KILL
     # Verify: wait until all mysqld processes for this base are truly gone.
     # Retry kill if processes survive the first attempt.
     if ! _wait_procs_gone "mysqld.*${base}" 100; then
         warn "MySQL ${ver}: processes survived first kill; retrying with individual SIGKILL ..."
-        pgrep -f "mysqld.*${base}" 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+        _list_matching_pids "mysqld.*${base}" | xargs -r kill -9 2>/dev/null || true
         if ! _wait_procs_gone "mysqld.*${base}" 100; then
             err "MySQL ${ver}: FATAL — mysqld processes still alive after two kill rounds"
-            pgrep -af "mysqld.*${base}" 2>/dev/null >&2 || true
+            ps ax -o pid= -o command= 2>/dev/null | awk -v pat="mysqld.*${base}" '$0 ~ pat && $0 !~ /awk/ {print}' >&2 || true
             OVERALL_OK=1; return 1
         fi
     fi
@@ -1912,7 +1938,7 @@ _mysql_reset_env() {
 
     # 3a. Verify OUR mysqld is the process listening on the port (not Docker or other)
     local _listening_pid
-    _listening_pid=$(ss -tlnp "sport = :${port}" 2>/dev/null | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' | head -1)
+    _listening_pid=$(ss -tlnp "sport = :${port}" 2>/dev/null | grep -oP 'pid=\K[0-9]+' | head -1)
     if [[ -n "$_listening_pid" ]]; then
         local _listening_cmd
         _listening_cmd=$(tr '\0' ' ' < "/proc/${_listening_pid}/cmdline" 2>/dev/null || echo "")
@@ -1924,13 +1950,15 @@ _mysql_reset_env() {
 
     # 4. Auth + TLS setup
     _mysql_setup_auth "$ver" "$port" "$base" || { OVERALL_OK=1; return 1; }
+    _mysql_ensure_timezone_tables "$ver" "$port" "$base" || { OVERALL_OK=1; return 1; }
     _mysql_apply_tls  "$ver" "$port" "$base"
 
     # 5. Create test users (tls_user, pool test user)
     local pool_user="${FQ_POOL_TEST_USER:-fq_pool_test}"
     local pool_pass="${FQ_POOL_TEST_PASS:-taosdata}"
     local pool_max_conn="${FQ_POOL_TEST_MAX_CONN:-1}"
-    local mysql_cmd=(_fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port" -u "$MYSQL_USER" -p"$MYSQL_PASS" --connect-timeout=5)
+    local mysql_cmd=(_fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port"
+        -u "$MYSQL_USER" -p"$MYSQL_PASS" --connect-timeout=5)
     printf "DROP USER IF EXISTS 'tls_user'@'%%';\n\
 CREATE USER 'tls_user'@'%%' IDENTIFIED BY 'tls_pwd' REQUIRE SSL;\n\
 GRANT ALL PRIVILEGES ON *.* TO 'tls_user'@'%%';\n\
@@ -1979,17 +2007,11 @@ ensure_pg() {
     _pg_install_postgis "$ver" || return 1
 
     # ── quick restart mode: only (re)start PG, preserve existing data ────────
-    if [[ "${FQ_PG_QUICK_RESTART:-0}" == "1" ]] && ! _pg_data_ready "$base"; then
-        info "PostgreSQL ${ver}: no initialized data; performing full setup instead of quick restart."
-        _pg_reset_env "$ver" "$port" "$base"
-        return $?
-    fi
-
     if [[ "${FQ_PG_QUICK_RESTART:-0}" == "1" ]]; then
         info "PostgreSQL ${ver}: quick restart (existing data preserved) ..."
         # Kill any stale postgres process before starting fresh
-        pkill -9 -f "postgres.*-p ${port}" 2>/dev/null || true
-        pkill -9 -f "postgres.*${base}" 2>/dev/null || true
+        _kill_matching "postgres.*-p ${port}" KILL
+        _kill_matching "postgres.*${base}" KILL
         # Verify: wait until all postgres processes for this base are truly gone
         _wait_procs_gone "postgres.*${base}" 100 \
             || warn "PostgreSQL ${ver}: some processes may linger; continuing..."
@@ -2012,7 +2034,7 @@ ensure_pg() {
         local _qpi=0
         local _qpsql="${base}/bin/psql"
         while [[ $_qpi -lt 20 ]]; do
-            if PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=3 _fq_env_clean "$_qpsql" \
+            if PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=3 "$_qpsql" \
                     -h 127.0.0.1 -p "$port" -U "$PG_USER" -d postgres \
                     -c "SELECT 1;" >/dev/null 2>&1; then
                 info "PostgreSQL ${ver}: quick restart complete."
@@ -2028,11 +2050,6 @@ ensure_pg() {
 
     # ── hard reset: kill-9 → clean locks → wipe data → reinit → start → probe
     _pg_reset_env "$ver" "$port" "$base"
-}
-
-_pg_data_ready() {
-    local base="$1"
-    [[ -f "${base}/data/PG_VERSION" || -f "${base}/data/postgresql.conf" ]]
 }
 
 _pg_pgdg_share_dir() {
@@ -2114,7 +2131,8 @@ _pg_install() {
         Linux)
             if command -v apt-get &>/dev/null; then
                 local _pg_cache_key="pg${ver//./}"
-                local _pg_deb_cache=""; _pg_deb_cache="$(_apt_cache_file "$_pg_cache_key" || true)"
+                local _pg_deb_cache=""
+                _pg_deb_cache="$(_apt_cache_file "$_pg_cache_key" || true)"
                 # Check if version available in default apt cache
                 if [[ -z "$_pg_deb_cache" ]] \
                         && ! apt-cache show "postgresql-${ver}" &>/dev/null 2>&1; then
@@ -2125,26 +2143,14 @@ _pg_install() {
                         warn "Cannot determine apt codename; PGDG repo may fail."
                         codename="jammy"
                     fi
-                    local keyring="/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg"
-                    mkdir -p "$(dirname "$keyring")"
-                    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-                        | gpg --dearmor -o "$keyring" 2>/dev/null \
-                        || { warn "PGDG GPG key import failed; apt-key fallback ...";
-                             curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
-                                | apt-key add - 2>/dev/null; }
-                    if [[ -s "$keyring" ]]; then
-                        echo "deb [signed-by=${keyring}] https://apt.postgresql.org/pub/repos/apt ${codename}-pgdg main" \
-                            > /etc/apt/sources.list.d/pgdg.list
-                    else
-                        echo "deb https://apt.postgresql.org/pub/repos/apt ${codename}-pgdg main" \
-                            > /etc/apt/sources.list.d/pgdg.list
-                    fi
+                    _pg_configure_pgdg_repo "$codename"
                     apt-get update -qq
                 fi
                 info "PostgreSQL ${ver}: installing via apt ..."
                 _apt_install_cached "pg${ver//./}" "postgresql-${ver}" \
                     || warn "PostgreSQL ${ver}: apt install failed; trying tarball fallback."
-                local sys_bin="/usr/lib/postgresql/${ver}/bin"
+                local sys_bin
+                sys_bin="$(_pg_system_bin_dir "$ver")"
                 if [[ -d "$sys_bin" ]]; then
                     mkdir -p "${base}/bin"
                     # ln -sfn works on Linux; on macOS use individual links
@@ -2460,10 +2466,10 @@ _pg_start() {
         chown -R "${pg_os_user}" "$data" "$log" 2>/dev/null || true
         # Build a shell-safe command string for su -c
         local start_cmd="${pg_ctl} -D ${data} -l ${log}/pg.log -o '-p ${port} -k /tmp' start"
-        _fq_env_clean su -s /bin/sh "$pg_os_user" -c "$start_cmd" \
+        su -s /bin/sh "$pg_os_user" -c "$start_cmd" \
             2>>"${log}/pg_ctl.log" || true
     else
-        _fq_env_clean "$pg_ctl" -D "$data" -l "${log}/pg.log" \
+        "$pg_ctl" -D "$data" -l "${log}/pg.log" \
             -o "-p ${port} -k /tmp" \
             start 2>>"${log}/pg_ctl.log" || true
     fi
@@ -2495,7 +2501,7 @@ _pg_write_ssl_conf() {
     local data="$1" cert_dst="$2"
     local conf="${data}/postgresql.conf"
     local hba="${data}/pg_hba.conf"
-    # Idempotent
+    # Idempotent for SSL-specific config.
     grep -q "^ssl = on" "$conf" 2>/dev/null && return
     cat >> "$conf" <<PGCONF
 ssl = on
@@ -2520,18 +2526,13 @@ _pg_reset_env() {
         local _pg_pid; _pg_pid="$(head -1 "${data}/postmaster.pid" 2>/dev/null || true)"
         [[ -n "$_pg_pid" ]] && kill -9 "$_pg_pid" 2>/dev/null || true
     fi
-    pkill -9 -f "postgres.*-p ${port}" 2>/dev/null || true
-    pkill -9 -f "postgres.*${base}" 2>/dev/null || true
-    pkill -9 -f "initdb.*${base}" 2>/dev/null || true
+    _kill_matching "postgres.*-p ${port}" KILL
+    _kill_matching "postgres.*${base}" KILL
+    _kill_matching "initdb.*${base}" KILL
     # Verify: wait until all postgres/initdb processes for this base are truly gone
     _wait_procs_gone "postgres.*${base}" 100 \
         || warn "PostgreSQL ${ver}: some processes may linger; continuing..."
     _wait_procs_gone "initdb.*${base}" 50 || true
-
-    local _pg_shm_owner="${CURRENT_USER}"
-    [[ "$CURRENT_USER" == "root" ]] && _pg_shm_owner="postgres"
-    _cleanup_orphan_sysv_shm "$_pg_shm_owner"
-
     # Truncate initdb.log now so stale open file handles cannot keep consuming disk
     mkdir -p "${log}"
     : > "${log}/initdb.log"
@@ -2577,13 +2578,13 @@ _pg_reset_env() {
         chown -R postgres:postgres "${cert_dst}" 2>/dev/null || true
     fi
     _pg_write_ssl_conf "$data" "$cert_dst"
-    PGPASSWORD="$PG_PASS" _fq_env_clean "$psql" -h 127.0.0.1 -p "$port" -U "$PG_USER" \
+    PGPASSWORD="$PG_PASS" "$psql" -h 127.0.0.1 -p "$port" -U "$PG_USER" \
         -d postgres -c "SELECT pg_reload_conf();" >/dev/null 2>&1 || true
 
     # 5. Connectivity probe (actual psql connection, with pause between retries)
     local _pi=0
     while [[ $_pi -lt 30 ]]; do
-        if PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=3 _fq_env_clean "$psql" \
+        if PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=3 "$psql" \
                 -h 127.0.0.1 -p "$port" -U "$PG_USER" -d postgres \
                 -c "SELECT 1;" >/dev/null 2>&1; then
             info "PostgreSQL ${ver} @ ${port}: reset complete."
@@ -2662,12 +2663,6 @@ ensure_influx() {
     # the double-restart (start → _influx_reset_env kill → wipe → restart)
     # is avoided.  The IOx catalog may accumulate entries across many calls
     # but a single test-suite run stays well within the 2000-entry limit.
-    if [[ "${FQ_INFLUX_QUICK_RESTART:-0}" == "1" ]] \
-            && [[ ! -x "${bin}/influxdb3" && ! -x "${bin}/influxd" ]]; then
-        info "InfluxDB ${ver}: no local binary; performing full setup instead of quick restart."
-        FQ_INFLUX_QUICK_RESTART=0
-    fi
-
     if [[ "${FQ_INFLUX_QUICK_RESTART:-0}" == "1" ]]; then
         info "InfluxDB ${ver}: quick restart (existing data preserved) ..."
         # Kill any stale process before starting fresh
@@ -2676,7 +2671,7 @@ ensure_influx() {
             kill -9 "$(cat "$pidfile")" 2>/dev/null || true
             rm -f "$pidfile"
         fi
-        pkill -9 -f "influxdb3 serve.*${port}" 2>/dev/null || true
+        _kill_matching "influxdb3 serve.*${port}" KILL
         # Verify: wait until all influxdb3 processes for this port are truly gone
         _wait_procs_gone "influxdb3 serve.*${port}" 100 \
             || warn "InfluxDB ${ver}: process may linger; continuing..."
@@ -2685,8 +2680,10 @@ ensure_influx() {
             || warn "InfluxDB ${ver}: port ${port} still open; continuing..."
         _influx_start "$ver" "$port" "$base"
         if ! wait_port "$port" 90; then
-            err "InfluxDB ${ver}: timed out on port ${port} after quick restart."
-            OVERALL_OK=1; return 1
+            warn "InfluxDB ${ver}: timed out on port ${port} after quick restart; falling back to hard reset."
+            unset FQ_INFLUX_QUICK_RESTART
+            _influx_reset_env "$ver" "$port" "$base"
+            return $?
         fi
         # HTTP health probe: confirm InfluxDB is actually serving requests.
         # Accept 200 with pass/ok body OR 401 (auth enabled — server is up).
@@ -2704,24 +2701,19 @@ ensure_influx() {
             sleep 1
         done
         # Health endpoint may not exist on all InfluxDB 3 builds; port open is sufficient
-        warn "InfluxDB ${ver}: /health did not return pass/ok after quick restart (non-fatal)."
-        _influx_ensure_token "$ver" "$port" "$base"
-        info "InfluxDB ${ver}: quick restart complete."
-        return 0
+        warn "InfluxDB ${ver}: /health did not return pass/ok after quick restart; falling back to hard reset."
+        unset FQ_INFLUX_QUICK_RESTART
+        _influx_reset_env "$ver" "$port" "$base"
+        return $?
     fi
 
     if port_open "$port"; then
-        # Port may be held by a stale process from another FQ_BASE_DIR session.
-        if [[ ! -x "${bin}/influxdb3" && ! -x "${bin}/influxd" ]]; then
-            info "InfluxDB ${ver}: port ${port} open but local binary missing — install then reset."
-            pkill -9 -f "influxdb3 serve.*${port}" 2>/dev/null || true
-            _wait_procs_gone "influxdb3 serve.*${port}" 100 || true
-            _wait_port_free "$port" 30 || true
-            _influx_install "$ver" "$base"
-            _influx_reset_env "$ver" "$port" "$base"
-            return 0
-        fi
         # Port open — always do a full hard reset (kill → wipe data → restart).
+        # run_warm_test.sh captures the new admin token from admin_token.txt
+        # BEFORE launching pytest, so _I_TOKEN at Python import time is always
+        # the current token.  Soft reset is intentionally not used here: it was
+        # fragile (CLI stdin hijacking) and unnecessary when the token is passed
+        # in correctly via the FQ_INFLUX_TOKEN env var.
         info "InfluxDB ${ver}: port ${port} open — hard reset (kill → wipe → restart)."
         _influx_reset_env "$ver" "$port" "$base"
         return 0
@@ -2761,8 +2753,8 @@ ensure_influx() {
 
 _influx_install() {
     local ver="$1" base="$2"
-    local url tarball
-    url="$(_influx_binary_url "$ver")"
+    local url; url="$(_influx_binary_url "$ver")"
+    local tarball="${FQ_TARBALL_CACHE_DIR}/fq-influxdb-${ver}.tar.gz"
 
     # macOS: try Homebrew first
     if [[ "$OS" == "Darwin" ]] && command -v brew &>/dev/null; then
@@ -2770,17 +2762,16 @@ _influx_install() {
         brew install influxdb 2>/dev/null || true
     fi
 
-    _ensure_linux_engine_deps
     mkdir -p "${base}/bin" "${base}/data" "${base}/log"
-    tarball="$(_ensure_tarball_cached "fq-influxdb-${ver}.tar.gz" "$url")"
+    [[ -s "$tarball" ]] || _download_with_retry "$url" "$tarball"
 
     # Strip top-level directory if present
     local top; top="$(tar -tzf "$tarball" 2>/dev/null | head -1 | cut -d/ -f1)"
     if [[ -n "$top" && "$top" != "influxdb3" && "$top" != "influxd" ]]; then
-        _fq_env_clean tar -xzf "$tarball" --strip-components=1 -C "${base}/bin" 2>/dev/null || \
-            _fq_env_clean tar -xzf "$tarball" -C "${base}/bin" 2>/dev/null || true
+        tar -xzf "$tarball" --strip-components=1 -C "${base}/bin" 2>/dev/null || \
+            tar -xzf "$tarball" -C "${base}/bin" 2>/dev/null || true
     else
-        _fq_env_clean tar -xzf "$tarball" -C "${base}/bin" 2>/dev/null || true
+        tar -xzf "$tarball" -C "${base}/bin" 2>/dev/null || true
     fi
 
     # Promote nested binaries to bin/
@@ -2907,11 +2898,9 @@ _influx_ensure_token() {
     fi
 
     # Create admin token via influxdb3 CLI (bootstrap endpoint, no auth needed).
-    # Must use _fq_env_clean: influxdb3 crashes under ASAN LD_PRELOAD and may
-    # pick up wrong libraries from TDengine's LD_LIBRARY_PATH.
     local token_output token_value
-    token_output="$(_fq_env_clean "$influxd" create token --admin --host "http://127.0.0.1:${port}" 2>&1)"
-    token_value="$(echo "$token_output" | grep -oE 'apiv3_[A-Za-z0-9_-]+' | head -1)"
+    token_output="$("$influxd" create token --admin --host "http://127.0.0.1:${port}" 2>&1)"
+    token_value="$(echo "$token_output" | grep -oP 'apiv3_[A-Za-z0-9_\-]+' | head -1)"
     if [[ -z "$token_value" ]]; then
         err "InfluxDB ${ver}: failed to create admin token. Output: ${token_output}"
         OVERALL_OK=1; return 1
@@ -2995,7 +2984,7 @@ _influx_reset_env() {
             local dbs db
             dbs=$(curl -sf --max-time 5 \
                 "http://127.0.0.1:${port}/query?q=SHOW+DATABASES" 2>/dev/null | \
-                sed -n 's/.*"values":\[\["\([^"]*\)".*/\1/p' || true)
+                grep -oP '"values":\[\["\K[^"]+' || true)
             for db in $dbs; do
                 [[ "$db" == "_internal" ]] && continue
                 curl -sf -X POST "http://127.0.0.1:${port}/query" \
@@ -3021,7 +3010,7 @@ _influx_reset_env() {
         rm -f "$pidfile"
     fi
     # Also kill any stale instances that may have been started by earlier sessions
-    pkill -9 -f "influxdb3 serve.*${port}" 2>/dev/null || true
+    _kill_matching "influxdb3 serve.*${port}" KILL
     # Verify: wait until all influxdb3 processes for this port are truly gone
     _wait_procs_gone "influxdb3 serve.*${port}" 100 \
         || warn "InfluxDB ${ver}: process may linger; continuing..."
@@ -3107,10 +3096,10 @@ _teardown_pg() {
         "$pg_ctl_bin" stop -D "$datadir" -m fast -w 2>/dev/null || true
     fi
     # Fallback: kill by port pattern
-    pkill -TERM -f "postgres.*-p ${port}" 2>/dev/null || true
+    _kill_matching "postgres.*-p ${port}" TERM
     # Wait for graceful shutdown before escalating to SIGKILL
     _wait_procs_gone "postgres.*-p ${port}" 50 \
-        || pkill -KILL -f "postgres.*-p ${port}" 2>/dev/null || true
+        || _kill_matching "postgres.*-p ${port}" KILL
     # Remove all files in the log directory (keep the directory itself).
     find "${base}/log" -maxdepth 1 -type f -delete 2>/dev/null || true
     info "PostgreSQL ${ver}: stopped and logs cleared."
@@ -3157,7 +3146,7 @@ _probe_pg_ready() {
     local psql="${base}/bin/psql"
 
     [[ -x "$psql" ]] || return 1
-    PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=5 _fq_env_clean "$psql" \
+    PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=5 "$psql" \
         -h 127.0.0.1 -p "$port" -U "$PG_USER" -d postgres \
         -c "SELECT 1;" >/dev/null 2>&1
 }
@@ -3231,12 +3220,15 @@ _final_probe_mysql() {
         return 1
     fi
 
-    local cmd=(_fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port" -u "$MYSQL_USER" -p"$MYSQL_PASS" --connect-timeout=5)
+    local cmd=(_fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port"
+        -u "$MYSQL_USER" -p"$MYSQL_PASS" --connect-timeout=5)
     local ok=0 i=0
     while [[ $i -lt 30 ]]; do
         # Require consecutive successful probes to avoid transient false-ready.
         if "${cmd[@]}" -Nse "SELECT 1;" >/dev/null 2>&1 \
-           && "${cmd[@]}" -Nse "SHOW DATABASES;" >/dev/null 2>&1; then
+           && "${cmd[@]}" -Nse "SHOW DATABASES;" >/dev/null 2>&1 \
+           && "${cmd[@]}" -Nse "SELECT CONVERT_TZ('2024-01-01 00:00:00','Asia/Shanghai','+00:00') IS NOT NULL;" | grep -qx '1' \
+           && "${cmd[@]}" -Nse "SELECT CONVERT_TZ('2024-01-01 00:00:00','UTC','+00:00') IS NOT NULL;" | grep -qx '1'; then
             ok=$((ok + 1))
             if [[ $ok -ge 3 ]]; then
                 info "MySQL ${ver} @ ${port}: final probe passed."
@@ -3269,10 +3261,10 @@ _final_probe_pg() {
     local ok=0 i=0
     while [[ $i -lt 30 ]]; do
         # Verify both connection and a catalog query.
-        if PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=3 _fq_env_clean "$psql" \
+        if PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=3 "$psql" \
                -h 127.0.0.1 -p "$port" -U "$PG_USER" -d postgres \
                -Atc "SELECT 1;" >/dev/null 2>&1 \
-           && PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=3 _fq_env_clean "$psql" \
+           && PGPASSWORD="$PG_PASS" PGCONNECT_TIMEOUT=3 "$psql" \
                -h 127.0.0.1 -p "$port" -U "$PG_USER" -d postgres \
                -Atc "SELECT datname FROM pg_database LIMIT 1;" >/dev/null 2>&1; then
             ok=$((ok + 1))
@@ -3392,6 +3384,8 @@ _is_single_service_quick_restart() {
 # Allow the script to be sourced by test harnesses without running main.
 # Set FQ_SOURCE_ONLY=1 before sourcing to suppress execution.
 main() {
+    sanitize_foreign_engine_env
+
     log "========================================================"
     log "FederatedQuery external-source setup"
     log "  OS       : ${OS} (${DISTRO}) / ${ARCH}"
@@ -3413,16 +3407,9 @@ main() {
     local _services="${FQ_SERVICES_TO_RESET:-mysql pg influx}"
     # Run PG first because package/setup steps are heavier and may transiently
     # impact other daemons in constrained containers.
-    # Use if/fi instead of [[ ]] && ... to avoid set -e exit when the test is false.
-    if [[ "$_services" == *pg* ]]; then
-        for ver in "${PG_VERSIONS[@]}"; do ensure_pg "$ver" || OVERALL_OK=1; done
-    fi
-    if [[ "$_services" == *mysql* ]]; then
-        for ver in "${MYSQL_VERSIONS[@]}"; do ensure_mysql "$ver" || OVERALL_OK=1; done
-    fi
-    if [[ "$_services" == *influx* ]]; then
-        for ver in "${INFLUX_VERSIONS[@]}"; do ensure_influx "$ver" || OVERALL_OK=1; done
-    fi
+    [[ "$_services" == *pg*      ]] && for ver in "${PG_VERSIONS[@]}";     do ensure_pg     "$ver" || OVERALL_OK=1; done
+    [[ "$_services" == *mysql*   ]] && for ver in "${MYSQL_VERSIONS[@]}";  do ensure_mysql  "$ver" || OVERALL_OK=1; done
+    [[ "$_services" == *influx*  ]] && for ver in "${INFLUX_VERSIONS[@]}"; do ensure_influx "$ver" || OVERALL_OK=1; done
 
     if _is_single_service_quick_restart "$_services"; then
         log "Single-service quick restart complete; caller will run readiness probe."
@@ -3430,9 +3417,6 @@ main() {
         return 0
     fi
 
-    # start_*_instance() sets FQ_SERVICES_TO_RESET to one engine and probes
-    # readiness itself.  Skipping verify/recovery here avoids a second hard
-    # reset while the first mysqld/PG/Influx init is still in flight.
     if _is_single_service_mode "$_services"; then
         if [[ "$OVERALL_OK" -ne 0 ]]; then
             err "Single-service setup failed; see messages above."

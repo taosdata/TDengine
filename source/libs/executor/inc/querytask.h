@@ -104,6 +104,8 @@ struct SExecTaskInfo {
   bool                     enableExplain;     // enable explain flag
   int64_t                  txnId;             // batch meta txn: carries txn context for in-txn meta visibility
   char                     extErrMsg[512];    // federated query: remote-side error message (empty string = none)
+  bool                     hasExtPushdownDiag;
+  SExtPushdownDiagnostic   extPushdownDiag;
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);

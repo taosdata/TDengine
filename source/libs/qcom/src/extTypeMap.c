@@ -57,15 +57,50 @@ static bool typeHasPrefix(const char *typeName, const char *prefix) {
 }
 
 // Parse the length parameter from a type string like "VARCHAR(255)".
-// Returns 0 if no parameter found or on parse error.
+// Returns 0 if no parameter is present or syntactically valid. A declared
+// value above the TDengine field limit is saturated before later arithmetic,
+// then normalizeExternalResultType() converts it to the supported result
+// schema limit. This keeps an oversized external declaration from overflowing
+// an int32_t while still deferring value rejection to execution time.
 static int32_t parseTypeLength(const char *typeName) {
   const char *p = strchr(typeName, '(');
   if (!p) return 0;
-  return taosStr2Int32(p + 1, NULL, 10);
+  ++p;
+  if (!isdigit((unsigned char)*p)) return 0;
+
+  int64_t value = 0;
+  while (isdigit((unsigned char)*p)) {
+    if (value >= TSDB_MAX_FIELD_LEN) return TSDB_MAX_FIELD_LEN;
+    value = value * 10 + (*p - '0');
+    if (value >= TSDB_MAX_FIELD_LEN) return TSDB_MAX_FIELD_LEN;
+    ++p;
+  }
+  return (int32_t)value;
+}
+
+// Parse one non-negative modifier without allowing external text to overflow
+// the arithmetic used by the mapper. The value is deliberately capped above
+// every supported decimal precision so callers can still distinguish an
+// oversized declaration from an omitted modifier.
+static int32_t parseBoundedTypeModifier(const char *p, const char **ppEnd) {
+  int64_t value = 0;
+  const char *cur = p;
+  while (isdigit((unsigned char)*cur)) {
+    if (value >= TSDB_MAX_FIELD_LEN) {
+      while (isdigit((unsigned char)*cur)) ++cur;
+      if (ppEnd != NULL) *ppEnd = cur;
+      return TSDB_MAX_FIELD_LEN;
+    }
+    value = value * 10 + (*cur - '0');
+    ++cur;
+  }
+  if (ppEnd != NULL) *ppEnd = cur;
+  return (int32_t)value;
 }
 
 // Parse precision and scale from "DECIMAL(p)" or "DECIMAL(p,s)".
-// Clamps both values to the valid TDengine range.
+// Normalizes both values to the valid TDengine result-schema range while
+// preserving as many source integer digits as the target representation allows.
 // If no explicit parameters are found, defaults to maximum precision and a
 // reasonable default scale (6) to preserve decimal digits in unbound NUMERIC.
 static void parsePrecisionScale(const char *typeName, uint8_t *pPrec, uint8_t *pScale) {
@@ -75,25 +110,37 @@ static void parsePrecisionScale(const char *typeName, uint8_t *pPrec, uint8_t *p
     *pScale = 6;  // Reasonable default for unbound NUMERIC/DECIMAL (preserves decimal digits)
     return;
   }
-  char   *endp;
-  int32_t origPrec = taosStr2Int32(p + 1, &endp, 10);
-  int32_t prec = origPrec;
+  const char *endp = NULL;
+  int32_t declaredPrec = parseBoundedTypeModifier(p + 1, &endp);
+  if (endp == p + 1) {
+    *pPrec = TSDB_DECIMAL_MAX_PRECISION;
+    *pScale = 6;
+    return;
+  }
+  int32_t declaredScale = 0;
+  if (*endp == ',') {
+    declaredScale = parseBoundedTypeModifier(endp + 1, NULL);
+    if (declaredScale < TSDB_DECIMAL_MIN_SCALE) {
+      declaredScale = TSDB_DECIMAL_MIN_SCALE;
+    }
+    if (declaredScale > declaredPrec) {
+      declaredScale = declaredPrec;
+    }
+  }
+
+  int32_t prec = declaredPrec;
   if (prec < TSDB_DECIMAL_MIN_PRECISION) prec = TSDB_DECIMAL_MIN_PRECISION;
   if (prec > TSDB_DECIMAL_MAX_PRECISION) prec = TSDB_DECIMAL_MAX_PRECISION;
   *pPrec  = (uint8_t)prec;
-  *pScale = 0;
-  if (*endp == ',') {
-    int32_t scale = taosStr2Int32(endp + 1, NULL, 10);
-    if (scale < TSDB_DECIMAL_MIN_SCALE) scale = TSDB_DECIMAL_MIN_SCALE;
-    // When precision is clamped, reduce scale to preserve integer digit capacity
-    if (origPrec > prec) {
-      int32_t intDigits = origPrec - scale;
-      scale = prec - intDigits;
-      if (scale < 0) scale = 0;
-    }
-    if (scale > prec)                   scale = prec;
-    *pScale = (uint8_t)scale;
+  int32_t scale = declaredScale;
+  if (declaredPrec > prec) {
+    int32_t integerDigits = declaredPrec - declaredScale;
+    // DECIMAL(65,30), for example, becomes DECIMAL(38,3): retaining the
+    // original 35 integer digits is more useful and avoids value overflow.
+    scale = integerDigits >= prec ? 0 : prec - integerDigits;
   }
+  if (scale > prec) scale = prec;
+  *pScale = (uint8_t)scale;
 }
 
 // Fill pTd for a DECIMAL/NUMERIC type, parsing precision/scale from typeName.
@@ -104,6 +151,38 @@ static void setDecimalMapping(const char *typeName, SDataType *pTd) {
   pTd->precision = prec;
   pTd->scale     = scale;
   pTd->bytes     = (pTd->type == TSDB_DATA_TYPE_DECIMAL64) ? DECIMAL64_BYTES : DECIMAL128_BYTES;
+}
+
+// Normalize variable-length output schemas after provider-specific mapping.
+// SDataType.bytes always includes the TDengine value header. An external
+// declaration may be much larger, but result metadata must remain valid for
+// every downstream parser, planner, TLV, executor, and client path.
+static void normalizeExternalResultType(SDataType *pTd) {
+  int32_t maxBytes = 0;
+
+  switch (pTd->type) {
+    case TSDB_DATA_TYPE_VARCHAR:
+      maxBytes = TSDB_MAX_BINARY_LEN;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+      maxBytes = TSDB_MAX_NCHAR_LEN;
+      break;
+    case TSDB_DATA_TYPE_VARBINARY:
+      maxBytes = TSDB_MAX_VARBINARY_LEN;
+      break;
+    case TSDB_DATA_TYPE_GEOMETRY:
+      maxBytes = TSDB_MAX_GEOMETRY_LEN;
+      break;
+    case TSDB_DATA_TYPE_BLOB:
+      pTd->bytes = TSDB_MAX_BLOB_LEN + BLOBSTR_HEADER_SIZE;
+      return;
+    default:
+      return;
+  }
+
+  if (pTd->bytes <= VARSTR_HEADER_SIZE || pTd->bytes > maxBytes) {
+    pTd->bytes = maxBytes;
+  }
 }
 
 // Convenience: fill pTd for a non-decimal fixed-width type.
@@ -871,15 +950,24 @@ int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeNam
     qError("extTypeNameToTDengineType: invalid param, extTypeName:%p pTdType:%p", extTypeName, pTdType);
     return TSDB_CODE_INVALID_PARA;
   }
+  int32_t code = TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
   switch (srcType) {
     case EXT_SOURCE_MYSQL:
-      return mysqlTypeMap(extTypeName, extCharsetName, pTdType);
+      code = mysqlTypeMap(extTypeName, extCharsetName, pTdType);
+      break;
     case EXT_SOURCE_POSTGRESQL:
-      return pgTypeMap(extTypeName, extCharsetName, pTdType);
+      code = pgTypeMap(extTypeName, extCharsetName, pTdType);
+      break;
     case EXT_SOURCE_INFLUXDB:
-      return influxTypeMap(extTypeName, pTdType);  // charset unused; Utf8 always maps to NCHAR
+      code = influxTypeMap(extTypeName, pTdType);  // charset unused; Utf8 always maps to NCHAR
+      break;
     default:
       qError("extTypeNameToTDengineType: unknown source type %d for type '%s'", srcType, extTypeName);
       return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
   }
+
+  if (code == TSDB_CODE_SUCCESS) {
+    normalizeExternalResultType(pTdType);
+  }
+  return code;
 }

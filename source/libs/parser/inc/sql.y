@@ -51,7 +51,7 @@ int32_t taosParseShortWeekday(const char* str);
 %left AND.
 %left UNION ALL MINUS EXCEPT INTERSECT.
 %left NK_BITAND NK_BITOR NK_LSHIFT NK_RSHIFT NK_PH.
-%left NK_LT NK_GT NK_LE NK_GE NK_EQ NK_NE LIKE MATCH NMATCH REGEXP CONTAINS BETWEEN IS IN.
+%left NK_LT NK_GT NK_LE NK_GE NK_EQ NK_NE NK_BANG_NE LIKE MATCH NMATCH REGEXP CONTAINS BETWEEN IS IN.
 %left NK_PLUS NK_MINUS.
 %left NK_STAR NK_SLASH NK_REM.
 %left NK_CONCAT.
@@ -1576,7 +1576,8 @@ cmd ::= DESC full_table_name(A).                                                
 cmd ::= DESCRIBE full_table_name(A).                                              { pCxt->pRootNode = createDescribeStmt(pCxt, A); }
 
 /************************************************ reset query cache ***************************************************/
-cmd ::= RESET QUERY CACHE.                                                        { pCxt->pRootNode = createResetQueryCacheStmt(pCxt); }
+cmd ::= RESET QUERY CACHE.                                                        { pCxt->pRootNode = createResetQueryCacheStmt(pCxt, NULL); }
+cmd ::= RESET QUERY CACHE FOR EXTERNAL SOURCE db_name(A).                        { pCxt->pRootNode = createResetQueryCacheStmt(pCxt, &A); }
 
 /************************************************ explain *************************************************************/
 cmd ::= EXPLAIN analyze_opt(A) explain_options(B) query_or_subquery(C).           { pCxt->pRootNode = createExplainStmt(pCxt, A, B, C); }
@@ -2561,6 +2562,20 @@ predicate(A) ::= expr_or_subquery(B) compare_op(C) expr_or_subquery(D).         
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, D);
                                                                                     A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)));
                                                                                   }
+predicate(A) ::= expr_or_subquery(B) NK_BANG_NE expr_or_subquery(D).              {
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, D);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createBangNeOperatorNode(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)));
+                                                                                  }
+predicate(A) ::= expr_or_subquery(B) NK_BANG_NE quantified_expr(D) subquery(E).  {
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, E);
+                                                                                    A = createRawExprNodeExt(
+                                                                                      pCxt, &s, &e,
+                                                                                      createBangNeOperatorNode(
+                                                                                        pCxt, releaseRawExprNode(pCxt, B),
+                                                                                        setNodeQuantifyType(pCxt, releaseRawExprNode(pCxt, E), D)));
+                                                                                  }
 predicate(A) ::= expr_or_subquery(B) quantified_compare_op(C) quantified_expr(D) subquery(E).    {
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
                                                                                     SToken e = getTokenFromRawExprNode(pCxt, E);
@@ -2633,7 +2648,7 @@ in_op(A) ::= IN.                                                                
 in_op(A) ::= NOT IN.                                                              { A = OP_TYPE_NOT_IN; }
 
 in_predicate_value(A) ::= NK_LP(C) literal_list(B) NK_RP(D).                      { A = createRawExprNodeExt(pCxt, &C, &D, createNodeListNode(pCxt, B)); }
-in_predicate_value(A) ::= NK_LP(C) query_expression(B) NK_RP(D).                  { A = createRawExprNodeExt(pCxt, &C, &D, B); }
+in_predicate_value(A) ::= NK_LP(C) query_expression(B) NK_RP(D).                  { A = createRawExprNodeExt(pCxt, &C, &D, setSubquerySql(pCxt, B, &C, &D)); }
 in_predicate_value(A) ::= NK_LP(C) subquery(B) NK_RP(D).                          { A = createRawExprNodeExt(pCxt, &C, &D, releaseRawExprNode(pCxt, B)); }
 
 /************************************************ boolean_value_expression ********************************************/
@@ -3135,7 +3150,7 @@ limit_clause_opt(A) ::= LIMIT unsigned_integer(C) NK_COMMA unsigned_integer(B). 
 limit_clause_opt(A) ::= OFFSET unsigned_integer(B).                               { A = createLimitNode(pCxt, NULL, B); }
 
 /************************************************ subquery ************************************************************/
-subquery(A) ::= NK_LP(B) query_expression(C) NK_RP(D).                            { A = createRawExprNodeExt(pCxt, &B, &D, C); }
+subquery(A) ::= NK_LP(B) query_expression(C) NK_RP(D).                            { A = createRawExprNodeExt(pCxt, &B, &D, setSubquerySql(pCxt, C, &B, &D)); }
 subquery(A) ::= NK_LP(B) subquery(C) NK_RP(D).                                    { A = createRawExprNodeExt(pCxt, &B, &D, releaseRawExprNode(pCxt, C)); }
 
 /************************************************ search_condition ****************************************************/
@@ -3191,12 +3206,31 @@ cmd ::= ALTER EXTERNAL SOURCE db_name(A) SET ext_alter_clause_list(B).
 cmd ::= ALTER EXTERNAL SOURCE IF EXISTS db_name(A) SET ext_alter_clause_list(B).
   { pCxt->pRootNode = createAlterExtSourceStmt(pCxt, true, &A, B); }
 
+cmd ::= ALTER EXTERNAL SOURCE db_name(A) ext_cap_action(B) FUNCTION(C) function_name(D).
+  { pCxt->pRootNode = createAlterExtSourceCapStmt(pCxt, false, &A, &B, &C, &D); }
+
+cmd ::= ALTER EXTERNAL SOURCE IF EXISTS db_name(A) ext_cap_action(B) FUNCTION(C) function_name(D).
+  { pCxt->pRootNode = createAlterExtSourceCapStmt(pCxt, true, &A, &B, &C, &D); }
+
+cmd ::= ALTER EXTERNAL SOURCE db_name(A) ext_cap_action(B) TYPE(C) ext_cap_value(D).
+  { pCxt->pRootNode = createAlterExtSourceCapStmt(pCxt, false, &A, &B, &C, &D); }
+
+cmd ::= ALTER EXTERNAL SOURCE IF EXISTS db_name(A) ext_cap_action(B) TYPE(C) ext_cap_value(D).
+  { pCxt->pRootNode = createAlterExtSourceCapStmt(pCxt, true, &A, &B, &C, &D); }
+
+cmd ::= ALTER EXTERNAL SOURCE db_name(A) ext_cap_action(B) NK_ID(C) ext_cap_value(D).
+  { pCxt->pRootNode = createAlterExtSourceCapStmt(pCxt, false, &A, &B, &C, &D); }
+
+cmd ::= ALTER EXTERNAL SOURCE IF EXISTS db_name(A) ext_cap_action(B) NK_ID(C) ext_cap_value(D).
+  { pCxt->pRootNode = createAlterExtSourceCapStmt(pCxt, true, &A, &B, &C, &D); }
 cmd ::= DROP EXTERNAL SOURCE exists_opt(A) db_name(B).
   { pCxt->pRootNode = createDropExtSourceStmt(pCxt, A, &B); }
 
 cmd ::= SHOW EXTERNAL SOURCES.
   { pCxt->pRootNode = createShowExtSourcesStmt(pCxt); }
 
+cmd ::= SHOW EXTERNAL SOURCE db_name(A) NK_ID(B).
+  { pCxt->pRootNode = createShowExtSourceCapabilityStmt(pCxt, &A, &B); }
 cmd ::= DESCRIBE EXTERNAL SOURCE db_name(A).
   { pCxt->pRootNode = createDescribeExtSourceStmt(pCxt, &A); }
 
@@ -3231,6 +3265,14 @@ ext_source_options_opt(A) ::= OPTIONS NK_LP ext_option_list(B) NK_RP.           
 ext_option_list(A) ::= ext_option_item(B).                                        { A = createNodeList(pCxt, B); }
 ext_option_list(A) ::= ext_option_list(B) NK_COMMA ext_option_item(C).           { A = addNodeToList(pCxt, B, C); }
 
+%type ext_cap_action                                                              { SToken }
+%destructor ext_cap_action                                                        { }
+ext_cap_action(A) ::= ENABLE(B).                                                  { A = B; }
+ext_cap_action(A) ::= NK_ID(B).                                                   { A = B; }
+
+%type ext_cap_value                                                               { SToken }
+%destructor ext_cap_value                                                         { }
+ext_cap_value(A) ::= NK_STRING(B).                                                { A = B; }
 %type ext_option_item                                                             { SNode* }
 %destructor ext_option_item                                                       { nodesDestroyNode($$); }
 ext_option_item(A) ::= NK_STRING(B) NK_EQ NK_STRING(C).                          { A = createExtOptionNode(pCxt, &B, &C); }

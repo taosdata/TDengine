@@ -1992,6 +1992,17 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
   stashFirstExtSourceNameFromCatalogReq(pRequest, pWrapper->pCatalogReq);
 
   if (TSDB_CODE_SUCCESS == code) {
+    // FH-10: stash the first ext source name for error-driven cache management
+    if (pWrapper->pCatalogReq != NULL &&
+        taosArrayGetSize(pWrapper->pCatalogReq->pExtSourceCheck) > 0) {
+      const char* srcName = (const char*)taosArrayGet(pWrapper->pCatalogReq->pExtSourceCheck, 0);
+      if (srcName != NULL) {
+        tstrncpy(pRequest->extSourceName, srcName, TSDB_EXT_SOURCE_NAME_LEN);
+      }
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     code = sqlSecurityCheckASTLevel(pRequest, pQuery);
   }
 
@@ -2334,6 +2345,29 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
   return code;
 }
 
+static bool tscIsInternalExtLifecycleCode(int32_t code) {
+  switch (code) {
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY:
+    case TSDB_CODE_EXT_PUSHDOWN_FAILED:
+    case TSDB_CODE_EXT_PUSHDOWN_BASELINE:
+    case TSDB_CODE_EXT_PUSHDOWN_BAILOUT_BROKEN:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static int32_t tscSanitizeExtCodeForUser(int32_t code) {
+  if (tscIsInternalExtLifecycleCode(code)) {
+    return TSDB_CODE_EXT_PUSHDOWN_FAILED;
+  }
+  return code;
+}
+
 static void doAsyncExec(SRequestObj *pRequest, int32_t code) {
   SSqlCallbackWrapper *pWrapper = pRequest->pWrapper;
 
@@ -2392,12 +2426,19 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_PARSE);
 
   if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
-    code = pRequest->prevCode;
+    code = tscSanitizeExtCodeForUser(pRequest->prevCode);
     terrno = code;
     pRequest->code = code;
     tscDebug("req:0x%" PRIx64 ", call sync query cb with code:%s", pRequest->self, tstrerror(code));
     doRequestCallback(pRequest, code);
     return;
+  }
+
+  // The same request object may be reused across fallback/retry paths. Clear any
+  // stale server-side error text before the next parse/dispatch attempt so later
+  // parser or planner failures do not inherit unrelated auth/network messages.
+  if (pRequest->msgBuf != NULL && pRequest->msgBufLen > 0) {
+    pRequest->msgBuf[0] = '\0';
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -2440,6 +2481,11 @@ void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
   bool hasSubRequest = pUserReq != pRequest || pRequest->relation.prevRefId != 0;
   if (pUserReq) {
     destroyCtxInRequest(pUserReq);
+    // Ext pushdown lifecycle has its own bounded attempt counter; reset generic
+    // parse/refresh retry so fallback restarts are not cut off prematurely.
+    if (tscIsInternalExtLifecycleCode(code)) {
+      pUserReq->retry = 0;
+    }
     pUserReq->prevCode = code;
     (void)memset(&pUserReq->relation, 0, sizeof(pUserReq->relation));
   } else {

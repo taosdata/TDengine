@@ -768,6 +768,9 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000641A | Database name conflicts with an existing external source | 创建数据库时名称和已有外部数据源冲突                | 更换数据库名称或外部数据源名称                          |
 | 0x8000641B | External column not found                     | 外部表中找不到引用的列                                            | 检查外部列名和大小写，确认远端表结构                    |
 | 0x8000641C | InfluxDB tag columns cannot be used as virtual table column source | InfluxDB tag 列被用作虚拟表普通列的数据源 | 将 InfluxDB tag 列作为 tag 引用，或调整虚拟表定义       |
+| 0x8000641D | External object identifier is too long | 外部数据源、数据库、schema、表或列名超过 TDengine 对应长度限制 | 使用不超过限制的标识符；系统不会截断或按前缀匹配 |
+| 0x8000641E | Too many external columns required by query | 当前 SQL 实际引用的外部列数量超过 TDengine 上限 | 减少当前查询引用的列；外部表总列数超限本身不会导致该错误 |
+| 0x8000641F | Too many external tags required by query | 当前 SQL 实际引用的外部 Tag 数量超过 TDengine 上限 | 减少当前查询引用的 Tag；外部 measurement 总 Tag 数超限本身不会导致该错误 |
 
 #### TDgpt
 

@@ -52,7 +52,7 @@ target_include_directories(
 target_link_libraries(
     ${TAOS_NATIVE_LIB_STATIC}
     INTERFACE api
-    PUBLIC os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry decimal
+    PUBLIC os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry decimal extconnector
 )
 
 # libgsasl: application-layer SCRAM-SHA-256 authentication on the CONNECT handshake
@@ -60,6 +60,10 @@ if(${BUILD_LIBGSASL} AND ${TD_LINUX})
     DEP_ext_gsasl(${TAOS_NATIVE_LIB})
     DEP_ext_gsasl(${TAOS_NATIVE_LIB_STATIC})
     add_definitions(-DUSE_LIBGSASL)
+endif()
+
+if (NOT ${TD_WINDOWS})
+    DEP_ext_ssl(${TAOS_NATIVE_LIB_STATIC})
 endif()
 
 if(BUILD_TEST)

@@ -64,8 +64,17 @@ EPrivType getAlterUserPrivType(const char* pCurrentUser, const SAlterUserStmt* p
 #ifdef TD_ENTERPRISE
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName, bool inJoin);
 int32_t getViewMetaFromMetaCache(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta);
-int32_t translateExternalTableImpl(STranslateContext* pCxt, SRealTableNode* pRealTable);
+// srcNameFromUseContext: true when the external source name was NOT written in
+// the user's table path but injected from the active USE <source> context (bare
+// table or db.tbl).  false when the path itself carried the source name
+// (src.tbl / src.schema.tbl).  Stored on SExtTableNode.srcNameFromPath (negated)
+// so subquery rendering can choose DIRECT_SQL (no source qualifier in raw SQL)
+// vs transform mode (must strip the source qualifier).
+int32_t translateExternalTableImpl(STranslateContext* pCxt, SRealTableNode* pRealTable,
+                                   bool srcNameFromUseContext);
 int32_t refreshExternalTableMetaDirect(STranslateContext* pCxt, SRealTableNode* pRealTable, const char* colName);
+int32_t ensureExternalSyntheticColumn(SRealTableNode* pRealTable, const char* colName);
+int32_t ensureExternalSyntheticStarColumns(SRealTableNode* pRealTable, bool includeTags);
 int32_t translateUseExtSourceImpl(STranslateContext* pCxt, SUseExtSourceStmt* pStmt);
 #endif
 #ifdef __cplusplus

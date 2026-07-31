@@ -2462,7 +2462,7 @@ int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
 
-  uint8_t *out = (uint8_t *)pOutputData->pData;
+  int64_t *out = (int64_t *)pOutputData->pData;
 
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     if (colDataIsNull_s(pInputData, i)) {
@@ -4263,6 +4263,23 @@ _return:
 
 int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int32_t type = GET_PARAM_TYPE(pInput);
+
+  /* TIMESTAMP is already a unix timestamp (int64) — pass through directly */
+  if (IS_TIMESTAMP_TYPE(type)) {
+    for (int32_t i = 0; i < pInput[0].numOfRows; ++i) {
+      if (colDataIsNull_s(pInput[0].columnData, i)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      int64_t tsVal;
+      GET_TYPED_DATA(tsVal, int64_t, type, colDataGetData(pInput[0].columnData, i),
+                     typeGetTypeModFromColInfo(&pInput[0].columnData->info));
+      SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, (char *)&tsVal, false));
+    }
+    pOutput->numOfRows = pInput[0].numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
   int64_t timePrec;
   int32_t idx = (inputNum == 2) ? 1 : 2;
   GET_TYPED_DATA(timePrec, int64_t, GET_PARAM_TYPE(&pInput[idx]), pInput[idx].columnData->pData,
@@ -4520,19 +4537,15 @@ static bool isFixedOffsetTimezoneLiteral(const char *timezoneStr) {
 
   char buf[TD_TIMEZONE_LEN] = {0};
   tstrncpy(buf, timezoneStr, sizeof(buf));
-
   int64_t offset = 0;
-  if (offsetOfTimezone(buf, &offset) != TSDB_CODE_SUCCESS) {
-    return false;
-  }
-
-  return true;
+  return offsetOfTimezone(buf, &offset) == TSDB_CODE_SUCCESS;
 }
 
 static int64_t offsetFromTimezoneLiteral(const char *timezoneStr, int64_t factor) {
   char buf[TD_TIMEZONE_LEN] = {0};
   tstrncpy(buf, timezoneStr, sizeof(buf));
 
+  // Bare TIMETRUNCATE offsets follow the POSIX sign convention used by taosValidateTimezone.
   int64_t offsetSeconds = 0;
   if (offsetOfTimezone(buf, &offsetSeconds) != TSDB_CODE_SUCCESS) {
     return 0;
@@ -4900,7 +4913,10 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
           hasNull = true;
           break;
         }
-      } else if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column */
+      } else if (type == TSDB_DATA_TYPE_TIMESTAMP) {
+        GET_TYPED_DATA(timeVal[k], int64_t, type, input[k], typeGetTypeModFromColInfo(&pInput[k].columnData->info));
+        timeVal[k] = convertTimePrecision(timeVal[k], pInput[k].columnData->info.precision, timePrec);
+      } else if (type == TSDB_DATA_TYPE_BIGINT) { /* unix timestamp */
         GET_TYPED_DATA(timeVal[k], int64_t, type, input[k], typeGetTypeModFromColInfo(&pInput[k].columnData->info));
       }
     }
@@ -6928,6 +6944,42 @@ void freeSCovertScarlarParams(SCovertScarlarParam *pCovertParams, int32_t num) {
   taosMemoryFree(pCovertParams);
 }
 
+static int32_t convertTimestampScalarParamPrecision(SScalarParam *pInput, SScalarParam *pOutput, uint8_t targetPrec) {
+  if (pInput == NULL || pInput->columnData == NULL || pOutput == NULL) {
+    qError("convertTimestampScalarParamPrecision invalid param, input:%p output:%p", pInput, pOutput);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SDataType outType = {
+      .type = TSDB_DATA_TYPE_TIMESTAMP,
+      .bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,
+      .precision = targetPrec,
+  };
+
+  int32_t code = sclCreateColumnInfoData(&outType, pInput->numOfRows, pOutput);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("convertTimestampScalarParamPrecision create output column failed, rows:%d prec:%u code:%d",
+           pInput->numOfRows, targetPrec, code);
+    return code;
+  }
+
+  int8_t srcPrec = pInput->columnData->info.precision;
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInput->columnData, i)) {
+      colDataSetNULL(pOutput->columnData, i);
+      continue;
+    }
+
+    int64_t rawTs = 0;
+    GET_TYPED_DATA(rawTs, int64_t, GET_PARAM_TYPE(pInput), colDataGetData(pInput->columnData, i),
+                   typeGetTypeModFromColInfo(&pInput->columnData->info));
+    int64_t convertedTs = convertTimePrecision(rawTs, srcPrec, targetPrec);
+    colDataSetInt64(pOutput->columnData, i, &convertedTs);
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+  return TSDB_CODE_SUCCESS;
+}
 static int32_t vectorCompareAndSelect(SCovertScarlarParam *pParams, int32_t numOfRows, int32_t numOfCols,
                                       int32_t *resultColIndex, EOperatorType optr, bool ignoreNull) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -7040,6 +7092,7 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
     pOutput->numOfRows = 0;
     return TSDB_CODE_SUCCESS;
   }
+
   pCovertParams = taosMemoryCalloc(effectiveNum, sizeof(SCovertScarlarParam));
   if (pCovertParams == NULL) {
     SCL_ERR_JRET(terrno);
@@ -7051,11 +7104,19 @@ static int32_t greatestLeastImpl(SScalarParam *pInput, int32_t inputNum, SScalar
     }
     SScalarParam *pParam = &pInput[j];
     int16_t       oldType = GET_PARAM_TYPE(&pInput[j]);
-    if (oldType != outputType) {
+    bool          needTsPrecConvert =
+        oldType == TSDB_DATA_TYPE_TIMESTAMP && outputType == TSDB_DATA_TYPE_TIMESTAMP &&
+        pParam->columnData != NULL && pParam->columnData->info.precision != pOutputData->info.precision;
+    if (oldType != outputType || needTsPrecConvert) {
       pCovertParams[outIdx].covertParam = (SScalarParam){0};
       setTzCharset(&pCovertParams[outIdx].covertParam, pParam->tz, pParam->charsetCxt);
-      SCL_ERR_JRET(
-          vectorConvertSingleCol(pParam, &pCovertParams[outIdx].covertParam, outputType, 0, 0, pParam->numOfRows));
+      if (needTsPrecConvert) {
+        SCL_ERR_JRET(
+            convertTimestampScalarParamPrecision(pParam, &pCovertParams[outIdx].covertParam, pOutputData->info.precision));
+      } else {
+        SCL_ERR_JRET(
+            vectorConvertSingleCol(pParam, &pCovertParams[outIdx].covertParam, outputType, 0, 0, pParam->numOfRows));
+      }
       pCovertParams[outIdx].param = &pCovertParams[outIdx].covertParam;
       pCovertParams[outIdx].converted = true;
     } else {
@@ -7171,6 +7232,7 @@ int32_t timestampScaleFunction(SScalarParam *pInput, int32_t inputNum, SScalarPa
   }
 
   int8_t srcPrec = pInputData->info.precision;
+  pOutputData->info.precision = targetPrec;
 
   int64_t *in  = (int64_t *)pInputData->pData;
   int64_t *out = (int64_t *)pOutputData->pData;

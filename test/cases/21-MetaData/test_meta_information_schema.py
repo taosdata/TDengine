@@ -115,6 +115,9 @@ def get_checked_sys_table_counts():
     tdSql.checkEqual(actual_perf_tables, EXPECTED_PERF_TABLES)
     return len(actual_info_tables), len(actual_perf_tables)
 
+NUM_INFO_DB_TABLES = len(EXPECTED_INFO_TABLES)
+NUM_PERF_DB_TABLES = len(EXPECTED_PERF_TABLES)
+
 sysdb_tables = { 
     "information_schema": ["ins_dnodes", "ins_mnodes", "ins_modules", "ins_qnodes", "ins_snodes", "ins_cluster", "ins_databases",
                            "ins_functions", "ins_indexes", "ins_stables", "ins_tables", "ins_tags", "ins_columns", "ins_users",
@@ -265,8 +268,13 @@ class TestDdlInSysdb:
         actual_info_tables = get_sys_table_names("information_schema")
         tdSql.checkEqual(actual_info_tables, EXPECTED_INFO_TABLES)
 
-        actual_perf_tables = get_sys_table_names("performance_schema")
-        tdSql.checkEqual(actual_perf_tables, EXPECTED_PERF_TABLES)
+        tdSql.checkRows(NUM_INFO_DB_TABLES)
+
+        tdSql.checkData(0, 0, "ins_anodes")
+
+        tdSql.query(f"select table_name from information_schema.ins_tables where db_name = 'performance_schema' order by table_name")
+        tdSql.checkRows(NUM_PERF_DB_TABLES)
+        tdSql.checkData(0, 0, "perf_apps")
         
 
         tdSql.query(f"select distinct tbname from information_schema.ins_tables;")
@@ -852,7 +860,7 @@ class TestDdlInSysdb:
         )
         tdSql.checkRows(3)
 
-        tdSql.checkData(0, 1, info_tables + perf_tables + 1)
+        tdSql.checkData(0, 1, NUM_INFO_DB_TABLES + NUM_PERF_DB_TABLES + 1)
 
         tdSql.checkData(1, 1, 10)
 
@@ -867,9 +875,9 @@ class TestDdlInSysdb:
 
         tdSql.checkData(1, 1, 5)
 
-        tdSql.checkData(2, 1, info_tables)
+        tdSql.checkData(2, 1, NUM_INFO_DB_TABLES)
 
-        tdSql.checkData(3, 1, perf_tables)
+        tdSql.checkData(3, 1, NUM_PERF_DB_TABLES)
 
         tdSql.query(
             f"select db_name,stable_name,count(table_name) from information_schema.ins_tables group by db_name, stable_name order by db_name, stable_name;"
@@ -886,9 +894,9 @@ class TestDdlInSysdb:
 
         tdSql.checkData(4, 2, 3)
 
-        tdSql.checkData(5, 2, info_tables)
+        tdSql.checkData(5, 2, NUM_INFO_DB_TABLES)
 
-        tdSql.checkData(6, 2, perf_tables)
+        tdSql.checkData(6, 2, NUM_PERF_DB_TABLES)
 
         tdSql.query(
             f"select count(table_name) from information_schema.ins_tables where db_name='db1' and stable_name='sta' group by stable_name"
@@ -1018,7 +1026,6 @@ class TestDdlInSysdb:
             ]
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
-
     def insert_data(self,column_dict,tbname,row_num):
         insert_sql = self.setsql.set_insertsql(column_dict,tbname,self.binary_str,self.nchar_str)
         for i in range(row_num):

@@ -3139,7 +3139,6 @@ _exit:
   nodesDestroyNode(pWhere);
   return code;
 }
-
 int32_t metaUpdateTableChildTableTagValue(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq,
                                           STableMetaRsp *pMetaRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -4030,8 +4029,6 @@ int32_t metaRemoveTableSeries(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq,
   metaFetchEntryFree(&pEntry);
   TAOS_RETURN(code);
 }
-
-
 int32_t metaAddIndexToSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   int32_t code = TSDB_CODE_SUCCESS;
 

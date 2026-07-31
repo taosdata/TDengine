@@ -39,7 +39,7 @@ class TDSimClient:
             "charset": "UTF-8",
             "asyncLog": "0",
             "rpcDebugFlag": "135",
-            "tmrDebugFlag": "131",
+            "tmrDebugFlag": "135",
             "cDebugFlag": "135",
             "uDebugFlag": "135",
             "jniDebugFlag": "135",
@@ -49,8 +49,9 @@ class TDSimClient:
             "telemetryReporting": "0",
             "federatedQueryEnable": "1",
             "tqDebugflag": "135",
-            "wDebugflag":"135",
+            "wDebugflag": "135",
             "maxRetryWaitTime": "10000",
+            "tsQueryPlannerTrace": "1",
         }
 
     def getLogDir(self):

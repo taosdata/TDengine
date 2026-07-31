@@ -1855,7 +1855,6 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     } else {
       (*pOutput)->vctbMeta->tagRef = NULL;
     }
-
     code = queryCloneSeriesEntries(output->vctbMeta->seriesEntries, output->vctbMeta->numOfSeries,
                                    &(*pOutput)->vctbMeta->seriesEntries);
     if (TSDB_CODE_SUCCESS != code) {
@@ -2002,7 +2001,13 @@ static int32_t ctgCloneDbVgroup(void* pSrc, void** ppDst) {
 }
 
 static void ctgFreeDbVgroup(void* p) { taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes); }
-static void ctgFreeExtSourceInfoPRes(void* p) { taosMemoryFree(((SMetaRes*)p)->pRes); }
+static void ctgFreeExtSourceInfoPRes(void* p) {
+  SExtSourceInfo* pInfo = (SExtSourceInfo*)((SMetaRes*)p)->pRes;
+  if (NULL != pInfo) {
+    extCapDestroy(&pInfo->capability);
+    taosMemoryFree(pInfo);
+  }
+}
 static void ctgFreeExtTableMetaPRes(void* p) { extConnectorFreeTableSchema((SExtTableMeta*)((SMetaRes*)p)->pRes); }
 
 int32_t ctgCloneDbCfgInfo(void* pSrc, SDbCfgInfo** ppDst) {

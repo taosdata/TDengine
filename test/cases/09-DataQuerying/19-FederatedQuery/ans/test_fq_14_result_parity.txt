@@ -1394,9 +1394,9 @@ RESULT
 ### grp-11 POS
 SQL: SELECT label, COUNT(*) AS cnt FROM {tbl} GROUP BY label ORDER BY 2 DESC
 RESULT
+east|1
 north|2
 south|2
-east|1
 ---
 ### grp-12 POS
 SQL: SELECT label, COUNT(*), SUM(val), AVG(score) FROM {tbl} WHERE val >= 20 GROUP BY label ORDER BY label
@@ -1479,6 +1479,13 @@ RESULT
 east|50
 north|40
 south|60
+---
+### grp-23 POS
+SQL: SELECT label, COUNT(*) AS cnt FROM {tbl} GROUP BY label ORDER BY 2 DESC, label
+RESULT
+north|2
+south|2
+east|1
 ---
 ### cast-01 POS
 SQL: SELECT id, CAST(val AS DOUBLE) FROM {tbl} ORDER BY time
@@ -2368,23 +2375,68 @@ RESULT
 ---
 ### win-05 POS
 SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(NULL) ORDER BY _wstart
-ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+RESULT
+10
+NULL
+20
+NULL
+30
+NULL
+40
+NULL
+50
 ---
 ### win-06 POS
 SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(VALUE, 0) ORDER BY _wstart
-ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+RESULT
+10
+0
+20
+0
+30
+0
+40
+0
+50
 ---
 ### win-07 POS
 SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(PREV) ORDER BY _wstart
-ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+RESULT
+10
+10
+20
+20
+30
+30
+40
+40
+50
 ---
 ### win-08 POS
 SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(NEXT) ORDER BY _wstart
-ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+RESULT
+10
+20
+20
+30
+30
+40
+40
+50
+50
 ---
 ### win-09 POS
 SQL: SELECT SUM(val) AS sv FROM {tbl} INTERVAL(30s) FILL(LINEAR) ORDER BY _wstart
-ERROR -0x7fffd9c5: Start(end) time of query range required or time range too large
+RESULT
+10
+15
+20
+25
+30
+35
+40
+45
+50
 ---
 ### win-10 POS
 SQL: SELECT label, COUNT(*) AS cnt FROM {tbl} PARTITION BY label INTERVAL(1m) ORDER BY label, _wstart
@@ -2580,7 +2632,17 @@ RESULT
 ---
 ### win-32 POS
 SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NEAR) ORDER BY _wstart
-ERROR -0x7fffd954: FILL NEAR mode is not supported in window query
+RESULT
+2024-01-01 00:00:00|10
+2024-01-01 00:00:30|10
+2024-01-01 00:01:00|20
+2024-01-01 00:01:30|20
+2024-01-01 00:02:00|30
+2024-01-01 00:02:30|30
+2024-01-01 00:03:00|40
+2024-01-01 00:03:30|40
+2024-01-01 00:04:00|50
+2024-01-01 00:04:30|50
 ---
 ### win-33 POS
 SQL: SELECT _wstart, AVG(val) FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL_F) ORDER BY _wstart
@@ -2770,6 +2832,48 @@ RESULT
 2024-01-01 00:03:30|40
 2024-01-01 00:04:00|50
 2024-01-01 00:04:30|50
+---
+### win-56 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL)) w) FILL(NULL) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|1|10
+2024-01-01 00:00:30|1|20
+2024-01-01 00:01:00|1|20
+2024-01-01 00:01:30|1|30
+2024-01-01 00:02:00|1|30
+2024-01-01 00:02:30|1|40
+2024-01-01 00:03:00|1|40
+2024-01-01 00:03:30|1|50
+2024-01-01 00:04:00|1|50
+2024-01-01 00:04:30|NULL|NULL
+---
+### win-57 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL)) w) FILL(VALUE, 0, 0) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|1|10
+2024-01-01 00:00:30|1|20
+2024-01-01 00:01:00|1|20
+2024-01-01 00:01:30|1|30
+2024-01-01 00:02:00|1|30
+2024-01-01 00:02:30|1|40
+2024-01-01 00:03:00|1|40
+2024-01-01 00:03:30|1|50
+2024-01-01 00:04:00|1|50
+2024-01-01 00:04:30|0|0
+---
+### win-58 POS
+SQL: SELECT _wstart, COUNT(*), SUM(val) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} WHERE time >= '2024-01-01 00:00:00.000' AND time < '2024-01-01 00:05:00.000' INTERVAL(30s) FILL(NULL)) w) FILL(PREV) ORDER BY _wstart
+RESULT
+2024-01-01 00:00:00|1|10
+2024-01-01 00:00:30|1|20
+2024-01-01 00:01:00|1|20
+2024-01-01 00:01:30|1|30
+2024-01-01 00:02:00|1|30
+2024-01-01 00:02:30|1|40
+2024-01-01 00:03:00|1|40
+2024-01-01 00:03:30|1|50
+2024-01-01 00:04:00|1|50
+2024-01-01 00:04:30|1|50
 ---
 ### regex-01 POS
 SQL: SELECT val FROM {tbl} WHERE label MATCH '^n' ORDER BY val
@@ -3231,13 +3335,14 @@ RESULT
 4|POLYGON ((0.000000 0.000000, 10.000000 0.000000, 10.000000 10.000000, 0.000000 10.000000, 0.000000 0.000000))
 5|POLYGON ((0.000000 0.000000, 10.000000 0.000000, 10.000000 10.000000, 0.000000 10.000000, 0.000000 0.000000))
 ---
-### enc-01 NEG
+### enc-01 POS
 SQL: SELECT MD5(label) FROM {tbl} WHERE id = 1
-ERROR -0x7fffd7fe: Invalid parameter data type : md5
+RESULT
+d48007b225b757cd77cbd30d66390b23
 ---
 ### enc-02 NEG
 SQL: SELECT AES_ENCRYPT(label, 'mykeystring12345') FROM {tbl} WHERE id = 1
-ERROR -0x7fffd7fe: Invalid parameter data type : aes_encrypt
+ERROR -0x7ffffd01: Internal error
 ---
 ### enc-03 POS
 SQL: SELECT AES_DECRYPT(AES_ENCRYPT(CAST(label AS VARCHAR(32)), 'mykeystring12345'), 'mykeystring12345') FROM {tbl} WHERE id = 1
@@ -3296,9 +3401,10 @@ SQL: SELECT TO_TIMESTAMP(ts_str, 'YYYY-MM-DD HH24:mi:ss') FROM {tbl} WHERE id = 
 RESULT
 2024-01-01 00:00:00
 ---
-### tochar-03 NEG
+### tochar-03 POS
 SQL: SELECT TO_UNIXTIMESTAMP(time) FROM {tbl} WHERE id = 1
-ERROR -0x7fffd7fe: Invalid parameter data type : to_unixtimestamp
+RESULT
+1704067200000
 ---
 ### interp-01 POS
 SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(1m) FILL(linear)
@@ -3349,8 +3455,9 @@ NULL
 50
 ---
 ### interp-05 POS
-SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:01:30.000') FILL(linear) SURROUND(1)
-ERROR -0x7fffda00: syntax error near "surround(1)"
+SQL: SELECT interp(val) FROM {tbl} RANGE('2024-01-01 00:01:30.000') FILL(prev) SURROUND(1m, NULL)
+RESULT
+20
 ---
 ### interp-06 POS
 SQL: SELECT _IROWTS, interp(val) FROM {tbl} RANGE('2024-01-01 00:00:00.000', '2024-01-01 00:04:00.000') EVERY(1m) FILL(linear)
@@ -3477,9 +3584,10 @@ RESULT
 1
 3
 ---
-### json-04 NEG
+### json-04 POS
 SQL: SELECT TO_JSON(label) FROM {tbl} WHERE id = 1
-ERROR -0x7fffd7fe: Invalid parameter data type : to_json
+RESULT
+null
 ---
 ### grpconcat-01 POS
 SQL: SELECT id, GROUP_CONCAT(label, ',') AS g FROM {tbl} GROUP BY id ORDER BY id

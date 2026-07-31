@@ -8194,7 +8194,6 @@ int32_t tSerializeSVSubTablesRspImpl(SEncoder *pEncoder, SVSubTablesRsp *pRsp) {
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refSourceName));
     }
   }
-
 _exit:
 
   return code;
@@ -8360,7 +8359,6 @@ int32_t tDeserializeSVSubTablesRspImpl(SDecoder *pDecoder, SVSubTablesRsp *pRsp)
       }
     }
   }
-
 _exit:
 
   return code;
@@ -14860,7 +14858,6 @@ int32_t tSerializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) {
 
   // batch meta txn: txnId for same-txn visibility
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
-
   tEndEncode(&encoder);
 
 _exit:
@@ -14967,7 +14964,6 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   } else {
     pReq->txnId = 0;
   }
-
   tEndDecode(&decoder);
 
 _exit:
@@ -15829,6 +15825,12 @@ int32_t tSerializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pRsp
   if (hasExtErrMsg) {
     TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pRsp->extErrMsg));
   }
+
+  int8_t hasExtPushdownDiag = (pRsp->extPushdownDiag != NULL) ? 1 : 0;
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, hasExtPushdownDiag));
+  if (hasExtPushdownDiag) {
+    TAOS_CHECK_EXIT(tEncodeSExtPushdownDiagnostic(&encoder, pRsp->extPushdownDiag));
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -15890,6 +15892,17 @@ int32_t tDeserializeSQueryTableRsp(void *buf, int32_t bufLen, SQueryTableRsp *pR
     }
   }
 
+  if (!tDecodeIsEnd(&decoder)) {
+    int8_t hasExtPushdownDiag = 0;
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &hasExtPushdownDiag));
+    if (hasExtPushdownDiag) {
+      pRsp->extPushdownDiag = taosMemoryCalloc(1, sizeof(SExtPushdownDiagnostic));
+      if (NULL == pRsp->extPushdownDiag) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      TAOS_CHECK_EXIT(tDecodeSExtPushdownDiagnostic(&decoder, pRsp->extPushdownDiag));
+    }
+  }
   tEndDecode(&decoder);
 
 _exit:
@@ -21150,7 +21163,6 @@ void tFreeSDnodeQuerySnapSendProgressRsp(SDnodeQuerySnapSendProgressRsp *pRsp) {
   pRsp->pVnodeInfos = NULL;
   pRsp->numOfVnodes = 0;
 }
-
 // ============================================================
 // Federated query: external data source message serialization
 // ============================================================

@@ -502,6 +502,13 @@ int32_t ctgHashValueComp(void const* lp, void const* rp);
  * catalogUpdateExtSourceCapability — store connector-probed pushdown flags for
  *   a source so subsequent planner calls can read them without re-probing.
  *
+ * catalogDemoteExtSourceCapability — persist a precise demote entry into the
+ *   source capability profile (func/op/clause/type), then enqueue async cache
+ *   write on the catalog update thread.
+ *
+ * catalogClearExtSourceDemotions / catalogClearExtSourceDemoteEntry — clear all
+ *   or one specific persisted demotion entry from the source capability profile.
+ *
  * catalogGetExtSrcGlobalVer — return the client's currently cached global version
  *   of the ext-source list (0 = unknown/never synced).  Used by heartbeat to tell
  *   mnode which global version the client has.
@@ -510,11 +517,11 @@ int32_t ctgHashValueComp(void const* lp, void const* rp);
  *   the pushed list from mnode and record the new global version.  Called when mnode
  *   detects a version mismatch and pushes all sources in the heartbeat response.
  *
- * catalogDisableExtSourceCapabilities — temporarily zero out the capability
- *   bitmask so planner falls back to non-pushdown plan (Phase 1 stub).
+ * catalogDisableExtSourceCapabilities — mark all coarse pushdown clauses as
+ *   disabled in catalog capability (compat API kept for legacy callers).
  *
- * catalogRestoreExtSourceCapabilities — restore capability bitmask to the value
- *   before disabling; called after re-planning has completed (Phase 1 stub).
+ * catalogRestoreExtSourceCapabilities — remove catalog-level demotions for a
+ *   source (compat API kept for legacy callers).
  */
 int32_t catalogIsExtSource(SCatalog* pCtg, const char* sourceName, bool* pIsExtSource);
 int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName);
@@ -525,6 +532,13 @@ int32_t catalogSyncGetExtSourceInfo(SCatalog* pCtg, SRequestConnInfo* pConn, con
                                     SExtSourceInfo** ppInfo);
 int32_t catalogGetExtTableMetaFromCache(SCatalog* pCtg, const char* sourceName, const char* dbName,
                                         const char* tableName, SExtTableMeta** ppMeta);
+int32_t catalogDemoteExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                         const SExtCapDemoteSpec* pSpec);
+int32_t catalogGetExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                      SExtSourceCapability* pCap, bool* pFound);
+int32_t catalogClearExtSourceDemotions(SCatalog* pCtg, const char* sourceName);
+int32_t catalogClearExtSourceDemoteEntry(SCatalog* pCtg, const char* sourceName,
+                                         const SExtCapDemoteSpec* pSpec);
 int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer);
 int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pSources);
 int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);

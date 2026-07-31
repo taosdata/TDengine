@@ -26,7 +26,10 @@ import re
 import shutil
 import tempfile
 import time
+from datetime import datetime, timezone
 from typing import Any, List, Optional, Sequence, Union
+
+from taos.constants import FieldType
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -67,6 +70,16 @@ _FW_ROWS = [
     ("2024-01-01 00:02:00.000", 3, 3.5, "gamma"),
 ]
 
+_FW_ROWS_ALT = [
+    ("2024-01-01 00:10:00.000", 101, 10.5, "alt-alpha"),
+    ("2024-01-01 00:11:00.000", 102, 20.5, "alt-beta"),
+    ("2024-01-01 00:12:00.000", 103, 30.5, "alt-gamma"),
+]
+
+_LOCAL_CTX_ROW = ("2024-01-01 00:20:00.000", 901, 90.5, "local-only")
+_LOCAL_USE_DB = "fq02_use_db"
+_LOCAL_USE_DB_NO_DEFAULT = "fq02_use_db_no_default"
+
 _DYNAMIC_RESULT_COLUMNS = {"create_time", "ctime"}
 
 # ── Type shortcuts ─────────────────────────────────────────────────────────
@@ -96,6 +109,37 @@ def _cleanup_sources() -> _CleanupSourceStep:
 
 def _comment(text: str) -> _CommentStep:
     return _CommentStep(text)
+
+
+def _rows_to_sql_values(rows) -> str:
+    return ", ".join(
+        f"('{ts}', {val}, {score}, '{name}')"
+        for ts, val, score, name in rows
+    )
+
+
+def _influx_lines_for_rows(rows):
+    return [
+        (
+            f"{_FW_TABLE} val={val}i,score={score},name=\"{name}\" "
+            f"{_BASE_TS + idx * 60000}000000"
+        )
+        for idx, (_, val, score, name) in enumerate(rows)
+    ]
+
+
+def _local_ctx_setup_steps(db_name: str) -> List[str]:
+    local_values = _rows_to_sql_values([_LOCAL_CTX_ROW])
+    return [
+        f"drop database if exists {db_name}",
+        f"create database {db_name}",
+        f"use {db_name}",
+        (
+            f"create table {_FW_TABLE} ("
+            "ts timestamp, val int, score double, name binary(32))"
+        ),
+        f"insert into {_FW_TABLE} values {local_values}",
+    ]
 
 
 # ── Path generators ────────────────────────────────────────────────────────
@@ -558,9 +602,9 @@ def _dim10_steps(src_type: str) -> list:
 
     ext_path = f"{src}.{ns}.{table}"
     steps = [
-        "create database if not exists fq02_join_db",
+        "drop database if exists fq02_join_db",
+        "create database fq02_join_db",
         "use fq02_join_db",
-        "drop table if exists local_t",
         "create table local_t (ts timestamp, val int, score double, name binary(32))",
         "insert into local_t values ('2024-01-01 00:00:00.000', 1, 1.5, 'alpha')",
         "insert into local_t values ('2024-01-01 00:01:00.000', 2, 2.5, 'beta')",
@@ -619,7 +663,7 @@ def _dim10_steps(src_type: str) -> list:
         f"drop external source if exists {sec_src}",
     ])
 
-    steps.append("drop table if exists local_t")
+    steps.append("drop database if exists fq02_join_db")
     return steps
 
 
@@ -652,8 +696,8 @@ def _dim11_steps(src_type: str) -> list:
             f"database='{ns2}' options('api_token'='{_I_TOKEN}', 'protocol'='flight_sql')")
 
     steps = [
-        "create database if not exists fq02_switch_db",
-        "drop table if exists fq02_switch_db.local_t",
+        "drop database if exists fq02_switch_db",
+        "create database fq02_switch_db",
         "create table fq02_switch_db.local_t (ts timestamp, val int)",
         "insert into fq02_switch_db.local_t values ('2024-06-01 00:00:00.000', 42)",
         f"-- Switch to external source (1-seg USE)",
@@ -698,7 +742,7 @@ def _dim11_steps(src_type: str) -> list:
         f"select * from {table} order by val limit 1",
         f"-- Cleanup secondary source",
         f"drop external source if exists {sec_src}",
-        "use fq02_switch_db",
+        "drop database if exists fq02_switch_db",
     ]
     return steps
 
@@ -850,32 +894,64 @@ def _dim14_steps(src_type: str) -> list:
         f"use {src}.nonexistent_ns_xyz",
         f"-- [Failed USE preserves context] previous ext context should be retained",
         f"select * from {table} order by val limit 1",
-        f"-- USE local db (verify local USE still works)",
-        "drop database if exists fq02_use_db",
-        "create database fq02_use_db",
-        "use fq02_use_db",
+        f"-- USE local db (same table name, distinct local row) → must resolve locally",
+    ])
+    steps.extend(_local_ctx_setup_steps(_LOCAL_USE_DB))
+    steps.extend([
         "select database()",
-        f"-- [Rule 4] 1-seg ext table after USE local_db should fail",
-        f"select * from {table}",
-        "drop database if exists fq02_use_db",
-        f"-- USE back to external after local",
+        f"select * from {table} order by val limit 1",
+        f"-- USE back to external after local → default namespace row should return",
         f"use {src}",
         f"select * from {table} order by val limit 1",
-        f"-- USE source.ns then 1-seg query",
+        f"-- USE source.ns then 1-seg query → explicit default namespace row should return",
         f"use {src}.{ns}",
         f"select * from {table} order by val limit 1",
-        f"-- [USE override/reset] USE source.ns2 overrides to alt namespace",
+        f"-- [USE override/reset] USE source.ns2 overrides to alt namespace row",
         f"use {src}.{ns2}",
         f"select * from {table} order by val limit 1",
-        f"-- [USE override/reset] USE source (1-seg) resets to default ns",
+        f"-- [USE override/reset] USE source (1-seg) resets to default namespace row",
         f"use {src}",
         f"select * from {table} order by val limit 1",
+        f"drop database if exists {_LOCAL_USE_DB}",
         f"-- [EXT-013] USE with leading dot → should fail",
         f"use .{src}",
         f"-- [EXT-013] USE with trailing dot → should fail",
         f"use {src}.",
         f"-- [EXT-013] USE with double dot → should fail",
         f"use {src}..{ns}",
+    ])
+    return steps
+
+
+def _dim19_steps(src_type: str) -> list:
+    """DIM-19: No default namespace + USE local_db/source/source.ns hard validation."""
+    src = "fq02_dim19"
+    if src_type == _mysql:
+        ns, ns2 = _M_DB, _M_DB2
+    elif src_type == _pg:
+        ns, ns2 = _P_SCHEMA, _P_SCHEMA2
+    else:
+        ns, ns2 = _I_DB, _I_DB2
+
+    steps = []
+    steps.extend(_local_ctx_setup_steps(_LOCAL_USE_DB_NO_DEFAULT))
+    steps.extend([
+        f"-- local context row must win before any external USE",
+        "select database()",
+        f"select * from {_FW_TABLE} order by val limit 1",
+        f"-- USE source without default namespace must fail and preserve local context",
+        f"use {src}",
+        f"select * from {_FW_TABLE} order by val limit 1",
+        f"-- USE source.ns should switch to explicit namespace row",
+        f"use {src}.{ns}",
+        f"select * from {_FW_TABLE} order by val limit 1",
+        f"-- USE source.ns2 should switch to alternate namespace row",
+        f"use {src}.{ns2}",
+        f"select * from {_FW_TABLE} order by val limit 1",
+        f"-- Switching back to local db should restore the local row",
+        f"use {_LOCAL_USE_DB_NO_DEFAULT}",
+        f"select * from {_FW_TABLE} order by val limit 1",
+        f"drop database if exists {_LOCAL_USE_DB_NO_DEFAULT}",
     ])
     return steps
 
@@ -1209,7 +1285,7 @@ _CASES = [
                                     database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
                                     schema=_P_SCHEMA if t == _pg else None),
          lambda t: _dim10_steps(t),
-         "drop table if exists fq02_join_db.local_t",
+         "drop database if exists fq02_join_db",
          _cleanup_sources(),
      ],
     ],
@@ -1224,7 +1300,7 @@ _CASES = [
                                     database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
                                     schema=_P_SCHEMA if t == _pg else None),
          lambda t: _dim11_steps(t),
-         "drop table if exists fq02_switch_db.local_t",
+         "drop database if exists fq02_switch_db",
          _cleanup_sources(),
      ],
     ],
@@ -1268,7 +1344,24 @@ _CASES = [
                                     database=_M_DB if t == _mysql else (_I_DB if t == _influxdb else _P_DB),
                                     schema=_P_SCHEMA if t == _pg else None),
          lambda t: _dim14_steps(t),
-         "drop database if exists fq02_use_db",
+         f"drop database if exists {_LOCAL_USE_DB}",
+         _cleanup_sources(),
+     ],
+    ],
+
+    # ── DIM-19: No-default source + local/external switching ──────────
+    ["DIM-19", [_mysql, _pg, _influxdb], ["fq02_dim19"],
+     "No default namespace: USE local_db/source/source.ns hard validation",
+     [
+         _cleanup_sources(),
+         lambda t: _drop_src_sql("fq02_dim19"),
+         lambda t: _make_create_sql("fq02_dim19", t, database=None,
+                                    schema=None) if t == _mysql else
+                   _make_create_sql("fq02_dim19", t,
+                                    database=_P_DB if t == _pg else None,
+                                    schema=None),
+         lambda t: _dim19_steps(t),
+         f"drop database if exists {_LOCAL_USE_DB_NO_DEFAULT}",
          _cleanup_sources(),
      ],
     ],
@@ -1336,18 +1429,6 @@ _CASES = [
 class TestFq02PathResolution(FederatedQueryVersionedMixin):
     _fw_data_prepared = False
 
-    # Override parent updatecfgDict to also reset the client-side timezone to
-    # Asia/Shanghai (CST).  Same reason as TestFq01ExternalSource: prevents
-    # C-library UTC leakage from prior test classes in the full suite.
-    updatecfgDict = {
-        "federatedQueryEnable": 1,
-        "timezone": "Asia/Shanghai",
-        "clientCfg": {
-            "federatedQueryEnable": 1,
-            "timezone": "Asia/Shanghai",
-        },
-    }
-
     # ──────────────────────────────────────────────────────────────────────
     # Lifecycle
     # ──────────────────────────────────────────────────────────────────────
@@ -1378,13 +1459,11 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         pg_cfg     = self._pg_cfg()
         influx_cfg = self._influx_cfg()
 
-        mysql_values = ", ".join(
-            f"('{ts}', {val}, {score}, '{name}')"
-            for ts, val, score, name in _FW_ROWS
-        )
+        mysql_values = _rows_to_sql_values(_FW_ROWS)
+        mysql_values_alt = _rows_to_sql_values(_FW_ROWS_ALT)
 
-        # MySQL: create tables and views in both databases
-        for db in [_M_DB, _M_DB2]:
+        # MySQL: default database and alternate database must have distinct rows.
+        for db, rows_sql in [(_M_DB, mysql_values), (_M_DB2, mysql_values_alt)]:
             ExtSrcEnv.mysql_create_db_cfg(mysql_cfg, db)
             ExtSrcEnv.mysql_exec_cfg(mysql_cfg, db, [
                 f"DROP TABLE IF EXISTS `{_FW_TABLE}`",
@@ -1393,7 +1472,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                     "ts DATETIME(3) PRIMARY KEY, "
                     "val INT, score DOUBLE, name VARCHAR(32))"
                 ),
-                f"INSERT INTO `{_FW_TABLE}` VALUES {mysql_values}",
+                f"INSERT INTO `{_FW_TABLE}` VALUES {rows_sql}",
                 # Views for EXT-004 (view path resolution)
                 f"DROP VIEW IF EXISTS `v_{_FW_TABLE}`",
                 f"CREATE VIEW `v_{_FW_TABLE}` AS SELECT * FROM `{_FW_TABLE}` WHERE val > 0",
@@ -1401,7 +1480,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                 f"CREATE VIEW `v_no_ts` AS SELECT val, name FROM `{_FW_TABLE}`",
             ])
 
-        # PostgreSQL: create tables and views in both schemas
+        # PostgreSQL: public and analytics schemas must have distinct rows.
         ExtSrcEnv.pg_create_db_cfg(pg_cfg, _P_DB)
         ExtSrcEnv.pg_exec_cfg(pg_cfg, _P_DB, [
             f"CREATE SCHEMA IF NOT EXISTS {_P_SCHEMA}",
@@ -1427,20 +1506,14 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                 "ts TIMESTAMP PRIMARY KEY, "
                 "val INT, score DOUBLE PRECISION, name VARCHAR(32))"
             ),
-            f"INSERT INTO {_P_SCHEMA2}.{_FW_TABLE} VALUES {mysql_values}",
+            f"INSERT INTO {_P_SCHEMA2}.{_FW_TABLE} VALUES {mysql_values_alt}",
             f"CREATE VIEW {_P_SCHEMA2}.v_{_FW_TABLE} AS SELECT * FROM {_P_SCHEMA2}.{_FW_TABLE} WHERE val > 0",
         ])
 
-        # InfluxDB: create tables in both databases
-        for db in [_I_DB, _I_DB2]:
+        # InfluxDB: default database and alternate database must have distinct rows.
+        for db, rows in [(_I_DB, _FW_ROWS), (_I_DB2, _FW_ROWS_ALT)]:
             ExtSrcEnv.influx_create_db_cfg(influx_cfg, db)
-            influx_lines = [
-                (
-                    f"{_FW_TABLE} val={val}i,score={score},name=\"{name}\" "
-                    f"{_BASE_TS + idx * 60000}000000"
-                )
-                for idx, (_, val, score, name) in enumerate(_FW_ROWS)
-            ]
+            influx_lines = _influx_lines_for_rows(rows)
             ExtSrcEnv.influx_write_cfg(influx_cfg, db, influx_lines)
 
     # ──────────────────────────────────────────────────────────────────────
@@ -1448,15 +1521,35 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # ──────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _fw_fmt_cell(value: Any) -> str:
+    def _fw_fmt_cell(value: Any, is_timestamp: bool = False) -> str:
         if value is None:
             return "NULL"
+        if is_timestamp and isinstance(value, datetime) and value.tzinfo is None:
+            # Keep millisecond connector results aligned with the offset-aware
+            # rendering used for nanosecond timestamp values below.
+            return str(value.astimezone())
+        if is_timestamp and isinstance(value, int) and abs(value) >= 10**17:
+            seconds, nanos = divmod(value, 1_000_000_000)
+            return str(datetime.fromtimestamp(seconds, timezone.utc).astimezone().replace(microsecond=nanos // 1000))
         if isinstance(value, float):
             return f"{value:.12g}"
         return str(value)
 
-    def _fw_fmt_rows(self, rows: Sequence) -> List[str]:
-        return ["|".join(self._fw_fmt_cell(v) for v in row) for row in rows]
+    @staticmethod
+    def _fw_is_timestamp_column(field: Any) -> bool:
+        field_type = getattr(field, "type", None)
+        if field_type is None:
+            try:
+                field_type = field[1]
+            except (IndexError, KeyError, TypeError):
+                return False
+        return field_type == FieldType.C_TIMESTAMP
+
+    def _fw_fmt_rows(self, rows: Sequence, timestamp_cols: set[int]) -> List[str]:
+        return [
+            "|".join(self._fw_fmt_cell(value, index in timestamp_cols) for index, value in enumerate(row))
+            for row in rows
+        ]
 
     @staticmethod
     def _fw_drop_dynamic_columns(description, rows: Sequence):
@@ -1479,7 +1572,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         lines = []
         if description:
             lines.append("|".join(col[0] for col in description))
-        lines.extend(self._fw_fmt_rows(rows))
+        timestamp_cols = {
+            index for index, field in enumerate(description or []) if self._fw_is_timestamp_column(field)
+        }
+        lines.extend(self._fw_fmt_rows(rows, timestamp_cols))
         return lines
 
     @staticmethod
@@ -1529,17 +1625,10 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         return tdSql.query(sql, exit=exit, queryTimes=1)
 
     def _fw_runtime_sql(self, sql: str, src_type: str) -> str:
-        """Patch import-time Influx token placeholders with runtime token."""
+        """Patch generic import-time Influx source SQL to runtime token/protocol."""
         if src_type != _influxdb:
             return sql
-        runtime_token = self._influx_cfg().token
-        if not runtime_token or runtime_token == _I_TOKEN:
-            return sql
-        pattern = re.compile(
-            r"(api_token'\s*=\s*')" + re.escape(_I_TOKEN) + r"(')",
-            re.IGNORECASE,
-        )
-        return pattern.sub(r"\1" + runtime_token + r"\2", sql)
+        return self._rewrite_influx_source_runtime_sql(sql, _I_TOKEN)
 
     def _fw_exec_step(
         self,
@@ -1650,8 +1739,21 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             r'(ERROR: \[0x2600\]: syntax error near "[^\n]*test-token)[^\n]*',
             _re.MULTILINE,
         )
+        _PROTOCOL_SQL_NORM = _re.compile(
+            r"('protocol'\s*=\s*')(?:flight_sql|http)(')",
+            _re.IGNORECASE,
+        )
+        _PROTOCOL_JSON_NORM = _re.compile(
+            r'("protocol"\s*:\s*")(?:flight_sql|http)(")',
+            _re.IGNORECASE,
+        )
         def _norm_synerr(text):
-            return _SYNTAX_ERR_NORM.sub(r"\1", text)
+            text = _SYNTAX_ERR_NORM.sub(r"\1", text)
+            text = _PROTOCOL_SQL_NORM.sub(r"\1<PROTO>\2", text)
+            text = _PROTOCOL_JSON_NORM.sub(r'\1<PROTO>\2', text)
+            text = text.replace("protocol value visible", "protocol visible")
+            return _re.sub(r"protocol='(?:flight_sql|http)' visible",
+                           "protocol visible", text, flags=_re.IGNORECASE)
         actual = _norm_synerr(actual)
         baseline = self._fw_baseline_file()
         tmp_file = os.path.join(

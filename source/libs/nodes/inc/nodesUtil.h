@@ -66,7 +66,6 @@ int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, i
  */
 int32_t nodesDecodeTimezoneNameInPlace(const char* pTimezoneName,
                                        void** pTimezone, bool* pOwnsTimezone);
-
 #ifdef __cplusplus
 }
 #endif

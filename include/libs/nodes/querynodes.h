@@ -136,6 +136,9 @@ typedef struct STargetNode {
 #define VALUE_FLAG_IS_DURATION    (1 << 0)
 #define VALUE_FLAG_IS_TIME_OFFSET (1 << 1)
 #define VALUE_FLAG_VAL_UNSET      (1 << 2)
+// Set on remote scalar result nodes whose runtime type becomes QUERY_NODE_VALUE
+// while the allocation still owns the trailing pRemotePlan field.
+#define VALUE_FLAG_REMOTE_PLAN      (1 << 3)
 // When set on a TSDB_DATA_TYPE_BINARY SValueNode, datum.p is a raw SQL fragment
 // (unquoted, unescaped) to be emitted verbatim into the remote SQL string.
 #define VALUE_FLAG_RAW_SQL_FRAG   (1 << 4)
@@ -169,6 +172,13 @@ typedef struct SValueNode {
 typedef struct SRemoteValueNode {
   SValueNode val;
   int32_t    subQIdx;
+  // v2 pushdown: render mode + subquery logic plan for server-side rendering.
+  // pRemotePlan is non-NULL only for ORIG_TYPE_2B and points to the
+  // stage3-attached logic subtree; DIRECT_SQL
+  // inlines val.literal (original SQL).  Owned here; freed in nodesDestroyNode;
+  // cloned/serialized alongside the node.
+  EFqSubqRenderMode renderMode;
+  SNode*            pRemotePlan;
 } SRemoteValueNode;
 
 #define VALUELIST_FLAG_VAL_UNSET      (1 << 0)
@@ -189,6 +199,17 @@ typedef struct SRemoteValueListNode {
   STypeMod   filterValueTypeMod;
   int32_t    subQIdx;
   uint64_t   streamGen;  // generation when hash was last built (stream mode)
+  // DS §5.3.7.1.3: pre-rendered inner SELECT SQL for same-source IN (subquery).
+  // Non-NULL only for MySQL/PG same-source IN subqueries; allows nodesRemotePlanToSQL
+  // to emit  col IN (SELECT ...)  without a runtime resolve context.
+  // Heap-allocated; owned by this node; freed in nodesDestroyNode.
+  char*      inSubquerySql;
+  // v2 pushdown: render mode + subquery logic plan (server-side rendering for
+  // ORIG_TYPE_2B).  pRemotePlan non-NULL only for ORIG_TYPE_2B and points to
+  // the stage3-attached logic subtree; DIRECT_SQL inlines
+  // inSubquerySql.  Owned here.
+  EFqSubqRenderMode renderMode;
+  SNode*            pRemotePlan;
 } SRemoteValueListNode;
 
 typedef struct SRemoteRowNode {
@@ -198,6 +219,17 @@ typedef struct SRemoteRowNode {
   bool       hasValue;
   bool       hasNull;
   int32_t    subQIdx;
+  // Pre-rendered original subquery SQL for same-source ALL/ANY/SOME/scalar
+  // pushdown.  When the optimizer decides the comparison subquery is fully
+  // pushable, nodesRemotePlanToSQL emits  expr op [ALL|ANY] (pSubquerySql)
+  // directly.  Heap-allocated; owned by this node; freed in nodesDestroyNode.
+  char*      pSubquerySql;
+  // v2 pushdown: render mode + subquery logic plan (server-side rendering for
+  // ORIG_TYPE_2B).  pRemotePlan is the stage3-attached logic subtree to render
+  // inside the quantified predicate; DIRECT_SQL inlines
+  // pSubquerySql.  Owned here.
+  EFqSubqRenderMode renderMode;
+  SNode*            pRemotePlan;
 } SRemoteRowNode;
 
 typedef SRemoteValueNode SRemoteZeroRowsNode;
@@ -205,6 +237,7 @@ typedef SRemoteValueNode SRemoteZeroRowsNode;
 
 #define REMOTE_TABLE_FLAG_VAL_UNSET      (1 << 0)
 #define REMOTE_TABLE_FLAG_RES_ALLOCED    (1 << 1)
+#define REMOTE_TABLE_FLAG_EXT_PART_KEYS_MATCH (1 << 2)
 
 typedef struct SRemoteTableNode {
   ENodeType  type;
@@ -239,6 +272,7 @@ typedef struct SHintNode {
 } SHintNode;
 
 #define OPERATOR_FLAG_NEGATIVE_OP      (1 << 0)
+#define OPERATOR_FLAG_BANG_NE          (1 << 1)  // original source was !=, not <>
 
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR
@@ -465,6 +499,15 @@ typedef struct SExtTableNode {
   int32_t               tsPrimaryColIdx;             // index of the timestamp primary key column (-1 = not found)
   // --- remote table name (original case from remote INFORMATION_SCHEMA) ---
   char                  remoteTableName[TSDB_TABLE_NAME_LEN];  // actual table name on remote (preserves case)
+  // --- subquery DIRECT_SQL eligibility (set by parser) ---
+  // true  = the source name was supplied explicitly in the user's path
+  //         (e.g. "src.tbl" / "src.schema.tbl") — the raw subquery SQL carries a
+  //         TDengine source-name qualifier that the remote DB cannot resolve, so
+  //         the subquery MUST be re-rendered (transform mode) to strip it.
+  // false = the source name came from the active USE <source> context (the user
+  //         wrote a bare table or db.tbl) — the raw subquery SQL has no source
+  //         qualifier and may be inlined verbatim (DIRECT_SQL).
+  bool                  srcNameFromPath;
 } SExtTableNode;
 
 #define JOIN_JLIMIT_MAX_VALUE 1024
@@ -881,6 +924,11 @@ typedef struct SSelectStmt {
   bool            mixSysTableAndActualTable;
   bool            hasScalarExpr;
   bool            windowScalarMode;
+  // FQ: when this SELECT is the inner statement of a subquery expression
+  // (IN/EXISTS/scalar/ALL/ANY/SOME), this holds the user's ORIGINAL subquery
+  // SQL substring (inner query without outer parentheses), captured at parse
+  // time from SRawExprNode.  Heap-allocated; owned by this node.
+  char*           pOrigSubquerySql;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -901,6 +949,9 @@ typedef struct SSetOperator {
   ETimeLineMode    timeLineResMode;
   bool             timeLineFromOrderBy;
   bool             joinContains;
+  // FQ: original subquery SQL substring when this set-operator is the inner
+  // statement of a subquery expression.  See SSelectStmt.pOrigSubquerySql.
+  char*            pOrigSubquerySql;
 } SSetOperator;
 
 typedef enum ESqlClause {
@@ -1094,6 +1145,8 @@ int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
 int32_t nodesSetValueNodeValueExt(SValueNode* pNode, void* value, bool* needFree);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
 int32_t nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
+// Release nested resources owned by a value node without freeing its storage.
+void    nodesClearValueNode(SValueNode* pValue);
 int32_t nodesMakeValueNodeFromString(char* literal, SValueNode** ppValNode);
 int32_t nodesMakeDurationValueNodeFromString(char* literal, SValueNode** ppValNode);
 int32_t nodesMakeValueNodeFromBool(bool b, SValueNode** ppValNode);
@@ -1139,6 +1192,17 @@ int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
                                         int8_t             sourceType,
                                         char**             ppSQL);
 
+// nodesRenderInSubqueryBody — render the body SQL of an uncorrelated IN (subquery)
+// for same-source MySQL/PG pushdown.
+//
+// pInnerSelect : the inner SSelectStmt (single projection, FROM an ext table).
+// sourceType   : EExtSourceType value (MySQL or PostgreSQL).
+// ppSQL        : OUT — heap-allocated SQL string; caller must taosMemoryFree().
+//
+// Returns TSDB_CODE_SUCCESS on success or an error code.
+int32_t nodesRenderInSubqueryBody(const SSelectStmt* pInnerSelect,
+                                  int8_t             sourceType,
+                                  char**             ppSQL);
 #ifdef __cplusplus
 }
 #endif

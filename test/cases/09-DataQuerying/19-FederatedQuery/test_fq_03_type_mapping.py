@@ -8,13 +8,15 @@ Original legacy tests are preserved in:
   test_fq_03_type_mapping.py.bak
 """
 
-import datetime
 import os
 import re
 import shutil
 import tempfile
 import time
+from datetime import datetime, timezone
 from typing import Any, List, Optional, Sequence, Union
+
+from taos.constants import FieldType
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -228,7 +230,7 @@ def _mysql_setup_sqls():
         " -128, 0, -32768, 0, -8388608, 0,"
         " 42, 100, -9223372036854775808, 0,"
         " 3.14, 2.718281828, 12345.6789, 1234567890.1234567890,"
-        " 123456789012345678.123456789012345678,"
+        " 123456789012345678.123000000000000000,"
         " TRUE,"
         " 'hello', '中文测试UTF8', 'tiny', 'text content',"
         " 'medium text', 'long text',"
@@ -249,7 +251,7 @@ def _mysql_setup_sqls():
         " 127, 255, 32767, 65535, 8388607, 16777215,"
         " 2147483647, 4294967295, 9223372036854775807, 18446744073709551615,"
         " -3.14, -2.718281828, -99999999999999.9999, -9999999999999999999999999999.9999999999,"
-        " -123456789012345678.123456789012345678,"
+        " -123456789012345678.123000000000000000,"
         " FALSE,"
         " '', '', '', '', '', '',"
         " X'00000000000000000000000000000000', X'',"
@@ -828,7 +830,7 @@ _CASES = [
         f"select ts, c_double from {_SRC_M}.all_types order by ts",
         f"select ts, c_decimal from {_SRC_M}.all_types order by ts",
         f"select ts, c_decimal_big from {_SRC_M}.all_types order by ts",
-        # ── DECIMAL(65,30) precision>38 truncation (014) ──
+        # ── DECIMAL(65,30) precision>38 lossless scale reduction (014) ──
         f"select ts, c_decimal_trunc from {_SRC_M}.all_types order by ts",
 
         # ── Boolean ──
@@ -1236,20 +1238,34 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     # ──────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _fw_fmt_cell(value) -> str:
+    def _fw_fmt_cell(value: Any, is_timestamp: bool = False) -> str:
         if value is None:
             return "NULL"
+        if is_timestamp and isinstance(value, datetime) and value.tzinfo is None:
+            # Baselines use UTC for both millisecond and nanosecond values.
+            return str(value.astimezone(timezone.utc))
+        if is_timestamp and isinstance(value, int) and abs(value) >= 10**17:
+            seconds, nanos = divmod(value, 1_000_000_000)
+            return str(datetime.fromtimestamp(seconds, timezone.utc).replace(microsecond=nanos // 1000))
         if isinstance(value, float):
             return f"{value:.12g}"
-        if isinstance(value, datetime.datetime):
-            # The Python taos driver returns naive datetimes in the local
-            # timezone.  Normalize to UTC for a stable, timezone-independent
-            # baseline (ALTER LOCAL "timezone" has no effect on the driver).
-            return str(datetime.datetime.utcfromtimestamp(value.timestamp()))
         return str(value)
 
-    def _fw_fmt_rows(self, rows: Sequence) -> List[str]:
-        return ["|".join(self._fw_fmt_cell(v) for v in row) for row in rows]
+    @staticmethod
+    def _fw_is_timestamp_column(field: Any) -> bool:
+        field_type = getattr(field, "type", None)
+        if field_type is None:
+            try:
+                field_type = field[1]
+            except (IndexError, KeyError, TypeError):
+                return False
+        return field_type == FieldType.C_TIMESTAMP
+
+    def _fw_fmt_rows(self, rows: Sequence, timestamp_cols: set[int]) -> List[str]:
+        return [
+            "|".join(self._fw_fmt_cell(value, index in timestamp_cols) for index, value in enumerate(row))
+            for row in rows
+        ]
 
     @staticmethod
     def _fw_drop_dynamic_columns(description, rows: Sequence):
@@ -1270,7 +1286,10 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         lines = []
         if description:
             lines.append("|".join(col[0] for col in description))
-        lines.extend(self._fw_fmt_rows(rows))
+        timestamp_cols = {
+            index for index, field in enumerate(description or []) if self._fw_is_timestamp_column(field)
+        }
+        lines.extend(self._fw_fmt_rows(rows, timestamp_cols))
         return lines
 
     @staticmethod
@@ -1322,17 +1341,10 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         return tdSql.query(sql, exit=exit, queryTimes=1)
 
     def _fw_runtime_sql(self, sql: str, src_type: str) -> str:
-        """Patch import-time Influx token placeholders with runtime token."""
+        """Patch generic import-time Influx source SQL to runtime token/protocol."""
         if src_type != _influxdb:
             return sql
-        runtime_token = self._influx_cfg().token
-        if not runtime_token or runtime_token == _I_TOKEN:
-            return sql
-        pattern = re.compile(
-            r"(api_token'\s*=\s*')" + re.escape(_I_TOKEN) + r"(')",
-            re.IGNORECASE,
-        )
-        return pattern.sub(r"\1" + runtime_token + r"\2", sql)
+        return self._rewrite_influx_source_runtime_sql(sql, _I_TOKEN)
 
     def _fw_exec_step(
         self,
@@ -1519,8 +1531,21 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             r'(ERROR: \[0x2600\]: syntax error near "[^\n]*test-token)[^\n]*',
             _re.MULTILINE,
         )
+        _PROTOCOL_SQL_NORM = _re.compile(
+            r"('protocol'\s*=\s*')(?:flight_sql|http)(')",
+            _re.IGNORECASE,
+        )
+        _PROTOCOL_JSON_NORM = _re.compile(
+            r'("protocol"\s*:\s*")(?:flight_sql|http)(")',
+            _re.IGNORECASE,
+        )
         def _norm_synerr(text):
-            return _SYNTAX_ERR_NORM.sub(r"\1", text)
+            text = _SYNTAX_ERR_NORM.sub(r"\1", text)
+            text = _PROTOCOL_SQL_NORM.sub(r"\1<PROTO>\2", text)
+            text = _PROTOCOL_JSON_NORM.sub(r'\1<PROTO>\2', text)
+            text = text.replace("protocol value visible", "protocol visible")
+            return _re.sub(r"protocol='(?:flight_sql|http)' visible",
+                           "protocol visible", text, flags=_re.IGNORECASE)
         actual = _norm_synerr(actual)
         baseline = self._fw_baseline_file()
         tmp_file = os.path.join(

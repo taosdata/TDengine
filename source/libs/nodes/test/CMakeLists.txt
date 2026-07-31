@@ -14,6 +14,7 @@ IF(NOT TD_DARWIN)
         nodesTest
         PUBLIC "${TD_SOURCE_DIR}/include/nodes/"
         PRIVATE "${TD_SOURCE_DIR}/source/nodes/inc"
+                "${TD_SOURCE_DIR}/include/libs/function"
     )
     
     TARGET_LINK_LIBRARIES(

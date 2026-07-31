@@ -997,6 +997,13 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
   SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock,
                                          pSliceInfo->tsCol.slotId);
 
+  qDebug("%s TimeSlice: begin block rows=%d tsPrecision=%d interval=%" PRId64 " intervalUnit=%d intervalPrecision=%d "
+         "current=%" PRId64 " win=[%" PRId64 ",%" PRId64 "] fillType=%d remainRes=%p remainIndex=%d dataLoad=%d",
+         GET_TASKID(pTaskInfo), (int)pBlock->info.rows, (int)pTsCol->info.precision, pInterval->interval,
+         (int)pInterval->intervalUnit, (int)pInterval->precision, pSliceInfo->current, pSliceInfo->win.skey,
+         pSliceInfo->win.ekey, (int)pSliceInfo->fillType, (void*)pSliceInfo->pRemainRes, pSliceInfo->remainIndex,
+         (int)pBlock->info.dataLoad);
+
   int32_t i = (pSliceInfo->pRemainRes == NULL) ? 0 : pSliceInfo->remainIndex;
   for (; i < pBlock->info.rows; ++i) {
     if (pTsCol->hasNull && colDataIsNull_f(pTsCol, i)) {
@@ -1025,6 +1032,9 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
     bool allowDuplicateTs = allowPrimaryTimelineDuplicateTimestamp(pSliceInfo);
     code = isInvalidTimestamp(pSliceInfo, getTimelineId(pBlock), ts, &invalidReason);
     QUERY_CHECK_CODE(code, lino, _end);
+    qDebug("%s TimeSlice: row=%d ts=%" PRId64 " current=%" PRId64 " invalidReason=%d cmp=%d",
+           GET_TASKID(pTaskInfo), i, ts, pSliceInfo->current, (int)invalidReason,
+           (ts < pSliceInfo->current) ? -1 : ((ts > pSliceInfo->current) ? 1 : 0));
     if (invalidReason != INVALID_TIMESTAMP_REASON_NONE) {
       if (invalidReason == INVALID_TIMESTAMP_REASON_PREV_TS_EQUAL && allowDuplicateTs) {
         continue;
@@ -1040,6 +1050,8 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
       code = addCurrentRowToResult(pSliceInfo, &pOperator->exprSupp,
                                    pResBlock, pBlock, i);
       QUERY_CHECK_CODE(code, lino, _end);
+      qDebug("%s TimeSlice: add-current row=%d ts=%" PRId64 " resRows=%d",
+             GET_TASKID(pTaskInfo), i, ts, (int)pResBlock->info.rows);
 
       doKeepPrevRows(pSliceInfo, pBlock, i);
       doKeepLinearInfo(pSliceInfo, pBlock, i);
@@ -1053,16 +1065,24 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
         return;
       }
     } else if (ts < pSliceInfo->current) {
+      qDebug("%s TimeSlice: keep-prev row=%d ts=%" PRId64 " current=%" PRId64,
+             GET_TASKID(pTaskInfo), i, ts, pSliceInfo->current);
       doKeepPrevRows(pSliceInfo, pBlock, i);
       doKeepLinearInfo(pSliceInfo, pBlock, i);
     } else {  /* ts > pSliceInfo->current */
+      qDebug("%s TimeSlice: keep-next row=%d ts=%" PRId64 " current=%" PRId64,
+             GET_TASKID(pTaskInfo), i, ts, pSliceInfo->current);
       doKeepNextRows(pSliceInfo, pBlock, i);
       doKeepLinearInfo(pSliceInfo, pBlock, i);
 
       while (pSliceInfo->current < ts &&
              pSliceInfo->current <= pSliceInfo->win.ekey) {
-        if (!genInterpolationResult(pSliceInfo, &pOperator->exprSupp,
-                                    pResBlock, pBlock, i, true, pTaskInfo) &&
+        bool generated = genInterpolationResult(pSliceInfo, &pOperator->exprSupp,
+                                                pResBlock, pBlock, i, true, pTaskInfo);
+        qDebug("%s TimeSlice: gen-interp current=%" PRId64 " targetTs=%" PRId64 " generated=%d resRows=%d fillType=%d",
+               GET_TASKID(pTaskInfo), pSliceInfo->current, ts, (int)generated, (int)pResBlock->info.rows,
+               (int)pSliceInfo->fillType);
+        if (!generated &&
             pSliceInfo->fillType == TSDB_FILL_LINEAR) {
           break;
         } else {
@@ -1077,6 +1097,8 @@ static void doTimesliceImpl(SOperatorInfo* pOperator,
         code = addCurrentRowToResult(pSliceInfo, &pOperator->exprSupp,
                                      pResBlock, pBlock, i);
         QUERY_CHECK_CODE(code, lino, _end);
+        qDebug("%s TimeSlice: add-current-after-interp row=%d ts=%" PRId64 " resRows=%d",
+               GET_TASKID(pTaskInfo), i, ts, (int)pResBlock->info.rows);
 
         pSliceInfo->current = getNextTimestamp(pSliceInfo->current, pInterval);
       }

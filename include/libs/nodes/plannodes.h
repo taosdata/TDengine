@@ -286,6 +286,7 @@ typedef struct SProjectLogicNode {
   bool       ignoreGroupId;
   bool       inputIgnoreGroup;
   bool       isSetOpProj;
+  bool       isUnionDedup;  // DS §5.3.8.6: true → emit UNION (dedup), false → UNION ALL
 } SProjectLogicNode;
 
 typedef struct SIndefRowsFuncLogicNode {
@@ -321,6 +322,7 @@ typedef struct SForecastFuncLogicNode {
 
 typedef struct SRowsetSourceLogicNode {
   SLogicNode node;
+  int32_t    colCount;
   int32_t    numBlocks;
   int32_t    totalRows;
   bool       hasPrimaryTs;   // first column is TIMESTAMP
@@ -519,6 +521,14 @@ typedef struct SFillLogicNode {
   SNodeList*  pNotFillExprs;
   SNode*      pWStartTs;
   SNode*      pValues;  // SNodeListNode
+  int64_t     interval;
+  int64_t     offset;
+  int64_t     sliding;
+  int8_t      intervalUnit;
+  int8_t      slidingUnit;
+  int8_t      firstDayOfWeek;
+  void*       timezone;
+  char        timezoneName[TD_TIMEZONE_LEN];
   STimeWindow timeRange;
   SNode*      pTimeRange; // STimeRangeNode for create stream
   SNodeList*  pFillNullExprs;
@@ -603,6 +613,7 @@ typedef struct SLogicSubplan {
   int32_t       numOfComputeNodes;
   bool          processOneBlock;
   bool          dynTbname;
+  bool          pushedDown;  // true when this whole subquery subplan has been absorbed by an ancestor FQ remote plan
 } SLogicSubplan;
 
 typedef struct SQueryLogicPlan {
@@ -787,6 +798,17 @@ typedef struct SExtColTypeMapping {
                               // connector for name-based Arrow column lookup on SELECT *.
 } SExtColTypeMapping;
 
+typedef enum {
+  EXT_TIMESTAMP_TZ_CLASS_UNKNOWN = 0,
+  EXT_TIMESTAMP_TZ_CLASS_AWARE   = 1,
+  EXT_TIMESTAMP_TZ_CLASS_NAIVE   = 2,
+} EExtTimestampTzClass;
+
+typedef struct SExtTimestampTypeHint {
+  char   colName[TSDB_COL_NAME_LEN];  // remote column name as it appears in pRemotePlan
+  char   extTypeName[64];             // original external type name for diagnostics
+  int8_t tzClass;                     // EExtTimestampTzClass
+} SExtTimestampTypeHint;
 // ---- Federated query: physical scan node ----
 // Inherits SPhysiNode directly (NOT SScanPhysiNode): external scan has no uid/suid/tableType.
 // All connection info is embedded here because Executor runs in taosd (server side) and
@@ -797,8 +819,8 @@ typedef struct SExtColTypeMapping {
 //
 // Mode 1 — Outer wrapper node (pRemotePlan != NULL):
 //   Appears in the TDengine executor plan as the scan leaf.
-//   pRemotePlan is a mini physi-plan sub-tree encoding the full SQL to push down:
-//     [SProjectPhysiNode]? → [SSortPhysiNode]? → SFederatedScanPhysiNode(Mode 2 leaf)
+//   pRemotePlan is a logic-plan sub-tree encoding the full SQL to push down:
+//     [ProjectLogic]? → [SortLogic]? → [Agg/Join/...] → ScanLogic leaf
 //   nodesRemotePlanToSQL() walks pRemotePlan to generate the external SQL string.
 //   pExtTable and pScanCols are NOT used for SQL generation in this mode.
 //   Connection fields (srcHost/srcPort/…) provide the data source endpoint.
@@ -813,7 +835,7 @@ typedef struct SFederatedScanPhysiNode {
   SPhysiNode  node;              // standard physi node header (pConditions, pLimit, pOutputDataBlockDesc, etc.)
   SNode*      pExtTable;         // SExtTableNode* — external table AST node  [used in Mode 2]
   SNodeList*  pScanCols;         // scan column list                           [used in Mode 2]
-  SNode*      pRemotePlan;       // mini physi-plan sub-tree for SQL gen       [non-NULL = Mode 1]
+  SNode*      pRemotePlan;       // logic-plan sub-tree for SQL gen            [non-NULL = Mode 1]
   uint32_t    pushdownFlags;     // FQ_PUSHDOWN_* combination
   // --- connection info (copied from SExtTableNode by Planner) ---
   int8_t      sourceType;                      // EExtSourceType
@@ -829,6 +851,9 @@ typedef struct SFederatedScanPhysiNode {
   // --- column type mappings (computed by Parser, carried to Executor via plan) ---
   SExtColTypeMapping* pColTypeMappings;  // one entry per pScanCols column, in the same order
   int32_t             numColTypeMappings;
+  // --- planner-provided remote timestamp type hints for runtime SQL rendering ---
+  SExtTimestampTypeHint* pTimestampTypeHints;
+  int32_t                numTimestampTypeHints;
   // --- two-pass scan support (for PERCENTILE and other REPEAT_SCAN_FUNC) ---
   bool                twoPassMode;       // true: FedScan must do PRE_SCAN pass then MAIN_SCAN pass
   // --- client timezone (filled by Planner from SPlanContext.timezoneName) ---
@@ -852,6 +877,7 @@ typedef struct SProjectPhysiNode {
   bool       mergeDataBlock;
   bool       ignoreGroupId;
   bool       inputIgnoreGroup;
+  bool       isUnionDedup;  // DS §5.3.8.6: true → emit UNION (dedup), false → UNION ALL
 } SProjectPhysiNode;
 
 typedef struct SIndefRowsFuncPhysiNode {
@@ -888,6 +914,7 @@ typedef struct SForecastFuncPhysiNode {
 
 typedef struct SRowsetSourcePhysiNode {
   SPhysiNode node;           // QUERY_NODE_PHYSICAL_PLAN_ROWSET_SOURCE
+  int32_t    colCount;
   int32_t    numBlocks;
   int32_t    totalRows;
   bool       hasPrimaryTs;   // first column is TIMESTAMP
@@ -1087,6 +1114,15 @@ typedef struct SFillPhysiNode {
   SNodeList*  pNotFillExprs;
   SNode*      pWStartTs;  // SColumnNode
   SNode*      pValues;    // SNodeListNode
+  int64_t     interval;
+  int64_t     offset;
+  int64_t     sliding;
+  int8_t      intervalUnit;
+  int8_t      slidingUnit;
+  int8_t      firstDayOfWeek;
+  void*       timezone;
+  bool        ownsTimezone;
+  char        timezoneName[TD_TIMEZONE_LEN];
   STimeWindow timeRange;
   SNode*      pTimeRange;  // STimeRangeNode for create stream
   SNodeList*  pFillNullExprs;
@@ -1150,6 +1186,7 @@ typedef struct SExternalWindowPhysiNode {
   bool             extWinSplit;
   bool             needGroupSort;
   bool             calcWithPartition;
+  bool             matchPartitionBy;
   SExtWindowFillInfo extFill;
   int32_t          orgTableVgId; // for vtable window query
   tb_uid_t         orgTableUid;  // for vtable window query
@@ -1328,6 +1365,66 @@ typedef struct SNodesRemoteSQLCtx {
   // the body of a correlated EXISTS subquery that is pushed down to an
   // external source, where column prefixes are required for disambiguation.
   bool                includeTableName;
+  // When true, column references are rendered as "tableAlias"."colName" using
+  // the column's own tableAlias (the per-leg alias, e.g. s/r).  Set while
+  // rendering a pushed-down JOIN (SELECT list, ON condition, WHERE) so that
+  // same-named columns from the two legs are unambiguous.
+  bool                useJoinLegAlias;
+  // When true, SELECT-list output columns are aliased by their INTERNAL slot
+  // name (aliasName, e.g. "expr_2") instead of the user-facing userAlias
+  // (e.g. "count(s.voltage)").  Set while rendering a SUBQUERY body, because the
+  // enclosing outer query references the subquery's output columns by their
+  // internal slot name (the outer column's colName), not the user alias.
+  bool                emitInternalAlias;
+  // When true, SELECT-list raw column passthrough should preserve the column
+  // reference name already exposed by the child query (colName) instead of
+  // re-aliasing it with the current target's user-facing name. Used by UNION
+  // branch wrappers, whose job is only to align branch schemas.
+  bool                preserveOutputRefName;
+  // When true, QUERY_NODE_COLUMN inside the current HAVING clause first tries
+  // to resolve itself as a rewritten AGG output slot (for example the internal
+  // alias of SUM(voltage)) and, on match, is re-rendered as the original
+  // aggregate expression instead of a quoted column name.  This keeps remote
+  // HAVING SQL valid for dialects that do not allow SELECT-list aliases there.
+  bool                rewriteAggHavingColumn;
+  // The current AGG node's pAggFuncs list.  Used only when
+  // rewriteAggHavingColumn is true so the renderer can map a HAVING slot column
+  // back to the corresponding aggregate expression.
+  const SNodeList*    pHavingAggFuncs;
+  // Current statement output namespace.  When rendering clauses above a
+  // subquery / wrapper / derived-table FROM, plain column references with no
+  // table qualifier must resolve against the SELECT-list outputs of that same
+  // remote SQL statement, not against any base-table metadata.  The renderer
+  // uses this list to normalize references like userAlias -> internal slot
+  // aliasName consistently across WHERE / GROUP BY / HAVING / ORDER BY.
+  const SNodeList*    pOutputSelectExprs;
+  // True only while rendering the current statement's SELECT expression bodies.
+  // In that context, column nodes must stay as the original expression inputs
+  // and must not be rewritten as current-statement output-slot references.
+  bool                renderingCurrentSelectExpr;
+  // Current statement FROM child output namespace. When the current SELECT list
+  // is rendered above a derived-table/subquery FROM, some projected pseudo
+  // columns (for example _wend / _wduration over window aggregates) must be
+  // synthesized from the child SELECT outputs rather than treated as raw
+  // current-scope column references.
+  const SNodeList*    pInputSelectExprs;
+  // Current statement FROM child reference namespace aligned with
+  // pInputSelectExprs. When the child emits internal aliases that differ from
+  // the logical current-scope slot names, resolve current-scope column refs by
+  // matching against this list first and then reading the aligned expression
+  // from pInputSelectExprs.
+  const SNodeList*    pInputRefExprs;
+  // True when pInputSelectExprs comes from a real FROM child / derived-table
+  // that is visible to the current SQL scope. False means the list only
+  // represents merged same-scope child expressions and cannot be referenced by
+  // alias in the current ORDER BY / GROUP BY / HAVING clauses.
+  bool                inputSelectExprsFromChildSource;
+  // Planner-provided remote timestamp type hints. Runtime SQL rendering cannot
+  // access Catalog's SExtTableMeta after plan serialization, so type-sensitive
+  // functions such as TO_UNIXTIMESTAMP use this remote-column → timezone-class
+  // mapping instead of pExtMeta.
+  const SExtTimestampTypeHint* pTimestampTypeHints;
+  int32_t             numTimestampTypeHints;
   // DS §5.2.6: client timezone name (e.g. "UTC", "Asia/Shanghai").
   // When non-NULL and non-empty, timestamp epoch values in WHERE conditions
   // are formatted to calendar strings using this timezone instead of the
@@ -1337,23 +1434,44 @@ typedef struct SNodesRemoteSQLCtx {
   const char*         tzName;
 } SNodesRemoteSQLCtx;
 
+typedef enum {
+  NODES_REMOTE_SELECT_SOURCE_UNKNOWN = 0,
+  NODES_REMOTE_SELECT_SOURCE_PROJECT,
+  NODES_REMOTE_SELECT_SOURCE_AGG,
+  NODES_REMOTE_SELECT_SOURCE_PARTITION,
+  NODES_REMOTE_SELECT_SOURCE_INDEF,
+  NODES_REMOTE_SELECT_SOURCE_SCAN,
+  NODES_REMOTE_SELECT_SOURCE_FROM_CHILD,
+  NODES_REMOTE_SELECT_SOURCE_JOIN,
+  NODES_REMOTE_SELECT_SOURCE_SETOP,
+} ENodesRemoteSelectSource;
+
+typedef struct SNodesRemoteSelectOutputs {
+  SNodeList*                 pSelectExprs;
+  SNodeList*                 pRefExprs;
+  ENodesRemoteSelectSource   source;
+  int32_t                    keyExprCount;
+} SNodesRemoteSelectOutputs;
+
 // nodesRemotePlanToSQL() — walk a Mode 1 outer SFederatedScanPhysiNode's
 //   .pRemotePlan sub-tree and render the full SQL to send to the external source.
-//   pRemotePlan  : the mini physi-plan tree (MUST NOT be NULL).
+//   pRemotePlan  : the logic-plan tree (MUST NOT be NULL).
 //   sourceType   : EExtSourceType value; the SQL dialect is selected internally.
 //   pResolveCtx  : optional; when non-NULL, REMOTE_VALUE_LIST nodes are resolved
 //                  via pResolveCtx->fp and emitted as IN (v1, v2, ...) in SQL.
 //   ppSQL        : OUT — heap-allocated result string; caller must taosMemoryFree().
 //
 // The tree must be rooted at one of:
-//   SProjectPhysiNode → SSortPhysiNode → SFederatedScanPhysiNode(Mode 2 leaf)
-//   SSortPhysiNode    → SFederatedScanPhysiNode(Mode 2 leaf)
-//   SFederatedScanPhysiNode(Mode 2 leaf, pRemotePlan==NULL)
+//   Project/Sort/Agg/Join/... logic nodes ending at an external ScanLogic leaf
+//   or a directly renderable external ScanLogic root.
 //
 // nodesExprToExtSQL() — serialize a single expression subtree to a SQL fragment.
 //   Returns TSDB_CODE_EXT_SYNTAX_UNSUPPORTED for unsupported expression types.
 // ---------------------------------------------------------------------------
-int32_t nodesRemotePlanToSQL(const SPhysiNode* pRemotePlan, int8_t sourceType,
+int32_t nodesCollectRemoteQuerySelectOutputs(const SLogicNode* pQueryRoot,
+                                             SNodesRemoteSelectOutputs* pOutputs);
+void nodesDestroyRemoteSelectOutputs(SNodesRemoteSelectOutputs* pOutputs);
+int32_t nodesRemotePlanToSQL(const SLogicNode* pRemotePlan, int8_t sourceType,
                              const SNodesRemoteSQLCtx* pResolveCtx,
                              char** ppSQL);
 int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf, int32_t bufLen,

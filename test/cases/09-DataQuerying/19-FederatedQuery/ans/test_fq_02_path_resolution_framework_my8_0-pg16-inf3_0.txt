@@ -60,9 +60,9 @@ ERROR: [0x2616]: Database not specified
 SQL: select * from fq02_dim01.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-01[MYS] STEP-004.011 QUERY
 SQL: describe fq02_dim01.path_t
@@ -95,9 +95,9 @@ ERROR: [0x6419]: Write operation not supported on external source table
 SQL: select * from fq02_dim01.fq02_path_mdb.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-01[MYS] STEP-004.017 QUERY
 SQL: describe fq02_dim01.fq02_path_mdb.path_t
@@ -205,7 +205,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-01[MYS] STEP-004.040 COMMENT
 -- [2-seg USE] sql=use fq02_dim01.fq02_path_mdb
@@ -222,7 +222,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-01[MYS] STEP-004.044 COMMENT
 -- [3-seg USE] sql=use fq02_dim01.fq02_path_mdb.extra
@@ -319,9 +319,9 @@ ERROR: [0x2616]: Database not specified
 SQL: select * from fq02_dim01.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-01[POS] STEP-004.011 QUERY
 SQL: describe fq02_dim01.path_t
@@ -354,9 +354,9 @@ ERROR: [0x6419]: Write operation not supported on external source table
 SQL: select * from fq02_dim01.public.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-01[POS] STEP-004.017 QUERY
 SQL: describe fq02_dim01.public.path_t
@@ -464,7 +464,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-01[POS] STEP-004.040 COMMENT
 -- [2-seg USE] sql=use fq02_dim01.public
@@ -481,7 +481,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-01[POS] STEP-004.044 COMMENT
 -- [3-seg USE] sql=use fq02_dim01.public.extra
@@ -531,7 +531,7 @@ RESULT:
 OK
 ---
 ### DIM-01[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim01 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim01 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -578,9 +578,9 @@ ERROR: [0x2616]: Database not specified
 SQL: select * from fq02_dim01.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-01[INF] STEP-004.011 QUERY
 SQL: describe fq02_dim01.path_t
@@ -613,9 +613,9 @@ ERROR: [0x6419]: Write operation not supported on external source table
 SQL: select * from fq02_dim01.fq02_path_idb.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-01[INF] STEP-004.017 QUERY
 SQL: describe fq02_dim01.fq02_path_idb.path_t
@@ -723,7 +723,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-01[INF] STEP-004.040 COMMENT
 -- [2-seg USE] sql=use fq02_dim01.fq02_path_idb
@@ -740,7 +740,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-01[INF] STEP-004.044 COMMENT
 -- [3-seg USE] sql=use fq02_dim01.fq02_path_idb.extra
@@ -865,9 +865,9 @@ ERROR: [0x6419]: Write operation not supported on external source table
 SQL: select * from fq02_dim02.fq02_path_mdb.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-02[MYS] STEP-004.017 QUERY
 SQL: describe fq02_dim02.fq02_path_mdb.path_t
@@ -983,7 +983,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-02[MYS] STEP-004.042 COMMENT
 -- [3-seg USE] sql=use fq02_dim02.fq02_path_mdb.extra
@@ -1021,7 +1021,7 @@ OK
 SQL: select * from fq02_dim02.path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-02[MYS] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim02
@@ -1122,9 +1122,9 @@ ERROR: [0x6419]: Write operation not supported on external source table
 SQL: select * from fq02_dim02.public.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-02[POS] STEP-004.017 QUERY
 SQL: describe fq02_dim02.public.path_t
@@ -1240,7 +1240,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-02[POS] STEP-004.042 COMMENT
 -- [3-seg USE] sql=use fq02_dim02.public.extra
@@ -1278,7 +1278,7 @@ OK
 SQL: select * from fq02_dim02.path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-02[POS] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim02
@@ -1304,7 +1304,7 @@ RESULT:
 OK
 ---
 ### DIM-02[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim02 type='influxdb' host='127.0.0.1' port=18086 user='admin' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim02 type='influxdb' host='127.0.0.1' port=18086 user='admin' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -1379,9 +1379,9 @@ ERROR: [0x6419]: Write operation not supported on external source table
 SQL: select * from fq02_dim02.fq02_path_idb.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-02[INF] STEP-004.017 QUERY
 SQL: describe fq02_dim02.fq02_path_idb.path_t
@@ -1497,7 +1497,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-02[INF] STEP-004.042 COMMENT
 -- [3-seg USE] sql=use fq02_dim02.fq02_path_idb.extra
@@ -1535,7 +1535,7 @@ OK
 SQL: select * from fq02_dim02.path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-02[INF] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim02
@@ -1585,9 +1585,9 @@ ERROR: [0x2601]: Incomplete SQL statement
 SQL: select * from path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-03[MYS] STEP-004.006 QUERY
 SQL: describe path_t
@@ -1616,9 +1616,9 @@ ERROR: [0x0118]: Invalid parameters
 SQL: select * from fq02_dim03.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-03[MYS] STEP-004.012 QUERY
 SQL: describe fq02_dim03.path_t
@@ -1651,9 +1651,9 @@ ERROR: [0x6409]: DDL is not allowed while an external source is active (USE 'fq0
 SQL: select * from fq02_dim03.fq02_path_mdb.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-03[MYS] STEP-004.018 QUERY
 SQL: describe fq02_dim03.fq02_path_mdb.path_t
@@ -1742,9 +1742,9 @@ ERROR: [0x2600]: syntax error near ".extra.more comment 'test'"
 SQL: select * from path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-03[MYS] STEP-004.036 COMMENT
 -- [USE segment tests in DIM-03]
@@ -1772,7 +1772,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-03[MYS] STEP-004.043 COMMENT
 -- [2-seg USE] sql=use fq02_dim03.fq02_path_mdb
@@ -1789,7 +1789,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-03[MYS] STEP-004.047 COMMENT
 -- [3-seg USE] sql=use fq02_dim03.fq02_path_mdb.extra
@@ -1863,9 +1863,9 @@ ERROR: [0x2601]: Incomplete SQL statement
 SQL: select * from path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-03[POS] STEP-004.006 QUERY
 SQL: describe path_t
@@ -1894,9 +1894,9 @@ ERROR: [0x0118]: Invalid parameters
 SQL: select * from fq02_dim03.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-03[POS] STEP-004.012 QUERY
 SQL: describe fq02_dim03.path_t
@@ -1929,9 +1929,9 @@ ERROR: [0x6409]: DDL is not allowed while an external source is active (USE 'fq0
 SQL: select * from fq02_dim03.public.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-03[POS] STEP-004.018 QUERY
 SQL: describe fq02_dim03.public.path_t
@@ -2020,9 +2020,9 @@ ERROR: [0x2600]: syntax error near ".extra.more comment 'test'"
 SQL: select * from path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-03[POS] STEP-004.036 COMMENT
 -- [USE segment tests in DIM-03]
@@ -2050,7 +2050,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-03[POS] STEP-004.043 COMMENT
 -- [2-seg USE] sql=use fq02_dim03.public
@@ -2067,7 +2067,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-03[POS] STEP-004.047 COMMENT
 -- [3-seg USE] sql=use fq02_dim03.public.extra
@@ -2117,7 +2117,7 @@ RESULT:
 OK
 ---
 ### DIM-03[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim03 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim03 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -2141,9 +2141,9 @@ ERROR: [0x2601]: Incomplete SQL statement
 SQL: select * from path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-03[INF] STEP-004.006 QUERY
 SQL: describe path_t
@@ -2172,9 +2172,9 @@ ERROR: [0x0118]: Invalid parameters
 SQL: select * from fq02_dim03.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-03[INF] STEP-004.012 QUERY
 SQL: describe fq02_dim03.path_t
@@ -2207,9 +2207,9 @@ ERROR: [0x6409]: DDL is not allowed while an external source is active (USE 'fq0
 SQL: select * from fq02_dim03.fq02_path_idb.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-03[INF] STEP-004.018 QUERY
 SQL: describe fq02_dim03.fq02_path_idb.path_t
@@ -2298,9 +2298,9 @@ ERROR: [0x2600]: syntax error near ".extra.more comment 'test'"
 SQL: select * from path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-03[INF] STEP-004.036 COMMENT
 -- [USE segment tests in DIM-03]
@@ -2328,7 +2328,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-03[INF] STEP-004.043 COMMENT
 -- [2-seg USE] sql=use fq02_dim03.fq02_path_idb
@@ -2345,7 +2345,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-03[INF] STEP-004.047 COMMENT
 -- [3-seg USE] sql=use fq02_dim03.fq02_path_idb.extra
@@ -2419,9 +2419,9 @@ ERROR: [0x2601]: Incomplete SQL statement
 SQL: select * from path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-04[MYS] STEP-004.006 QUERY
 SQL: describe path_t
@@ -2450,9 +2450,9 @@ ERROR: [0x0118]: Invalid parameters
 SQL: select * from fq02_dim04.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-04[MYS] STEP-004.012 QUERY
 SQL: describe fq02_dim04.path_t
@@ -2485,9 +2485,9 @@ ERROR: [0x6409]: DDL is not allowed while an external source is active (USE 'fq0
 SQL: select * from fq02_dim04.fq02_path_mdb.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-04[MYS] STEP-004.018 QUERY
 SQL: describe fq02_dim04.fq02_path_mdb.path_t
@@ -2576,9 +2576,9 @@ ERROR: [0x2600]: syntax error near ".extra.more comment 'test'"
 SQL: select * from path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-04[MYS] STEP-004.036 COMMENT
 -- [USE segment tests in DIM-04]
@@ -2606,7 +2606,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-04[MYS] STEP-004.043 COMMENT
 -- [2-seg USE] sql=use fq02_dim04.fq02_path_mdb
@@ -2623,7 +2623,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-04[MYS] STEP-004.047 COMMENT
 -- [3-seg USE] sql=use fq02_dim04.fq02_path_mdb.extra
@@ -2697,9 +2697,9 @@ ERROR: [0x2601]: Incomplete SQL statement
 SQL: select * from path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-04[POS] STEP-004.006 QUERY
 SQL: describe path_t
@@ -2728,9 +2728,9 @@ ERROR: [0x0118]: Invalid parameters
 SQL: select * from fq02_dim04.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-04[POS] STEP-004.012 QUERY
 SQL: describe fq02_dim04.path_t
@@ -2763,9 +2763,9 @@ ERROR: [0x6409]: DDL is not allowed while an external source is active (USE 'fq0
 SQL: select * from fq02_dim04.public.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-04[POS] STEP-004.018 QUERY
 SQL: describe fq02_dim04.public.path_t
@@ -2854,9 +2854,9 @@ ERROR: [0x2600]: syntax error near ".extra.more comment 'test'"
 SQL: select * from path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-04[POS] STEP-004.036 COMMENT
 -- [USE segment tests in DIM-04]
@@ -2884,7 +2884,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-04[POS] STEP-004.043 COMMENT
 -- [2-seg USE] sql=use fq02_dim04.public
@@ -2901,7 +2901,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-04[POS] STEP-004.047 COMMENT
 -- [3-seg USE] sql=use fq02_dim04.public.extra
@@ -2951,7 +2951,7 @@ RESULT:
 OK
 ---
 ### DIM-04[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim04 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim04 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -2975,9 +2975,9 @@ ERROR: [0x2601]: Incomplete SQL statement
 SQL: select * from path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-04[INF] STEP-004.006 QUERY
 SQL: describe path_t
@@ -3006,9 +3006,9 @@ ERROR: [0x0118]: Invalid parameters
 SQL: select * from fq02_dim04.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-04[INF] STEP-004.012 QUERY
 SQL: describe fq02_dim04.path_t
@@ -3041,9 +3041,9 @@ ERROR: [0x6409]: DDL is not allowed while an external source is active (USE 'fq0
 SQL: select * from fq02_dim04.fq02_path_idb.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-04[INF] STEP-004.018 QUERY
 SQL: describe fq02_dim04.fq02_path_idb.path_t
@@ -3132,9 +3132,9 @@ ERROR: [0x2600]: syntax error near ".extra.more comment 'test'"
 SQL: select * from path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-04[INF] STEP-004.036 COMMENT
 -- [USE segment tests in DIM-04]
@@ -3162,7 +3162,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-04[INF] STEP-004.043 COMMENT
 -- [2-seg USE] sql=use fq02_dim04.fq02_path_idb
@@ -3179,7 +3179,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-04[INF] STEP-004.047 COMMENT
 -- [3-seg USE] sql=use fq02_dim04.fq02_path_idb.extra
@@ -3291,9 +3291,9 @@ ERROR: [0x2603]: Table does not exist
 SQL: select * from fq02_dim05.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-05[MYS] STEP-004.014 QUERY
 SQL: describe fq02_dim05.path_t
@@ -3326,9 +3326,9 @@ ERROR: [0x6419]: Write operation not supported on external source table
 SQL: select * from fq02_dim05.fq02_path_mdb.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-05[MYS] STEP-004.020 QUERY
 SQL: describe fq02_dim05.fq02_path_mdb.path_t
@@ -3444,7 +3444,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-05[MYS] STEP-004.045 COMMENT
 -- [2-seg USE] sql=use fq02_dim05.fq02_path_mdb
@@ -3461,7 +3461,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-05[MYS] STEP-004.049 COMMENT
 -- [3-seg USE] sql=use fq02_dim05.fq02_path_mdb.extra
@@ -3583,9 +3583,9 @@ ERROR: [0x2603]: Table does not exist
 SQL: select * from fq02_dim05.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-05[POS] STEP-004.014 QUERY
 SQL: describe fq02_dim05.path_t
@@ -3618,9 +3618,9 @@ ERROR: [0x6419]: Write operation not supported on external source table
 SQL: select * from fq02_dim05.public.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-05[POS] STEP-004.020 QUERY
 SQL: describe fq02_dim05.public.path_t
@@ -3736,7 +3736,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-05[POS] STEP-004.045 COMMENT
 -- [2-seg USE] sql=use fq02_dim05.public
@@ -3753,7 +3753,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-05[POS] STEP-004.049 COMMENT
 -- [3-seg USE] sql=use fq02_dim05.public.extra
@@ -3813,7 +3813,7 @@ RESULT:
 OK
 ---
 ### DIM-05[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim05 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim05 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -3875,9 +3875,9 @@ ERROR: [0x2603]: Table does not exist
 SQL: select * from fq02_dim05.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-05[INF] STEP-004.014 QUERY
 SQL: describe fq02_dim05.path_t
@@ -3910,9 +3910,9 @@ ERROR: [0x6419]: Write operation not supported on external source table
 SQL: select * from fq02_dim05.fq02_path_idb.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-05[INF] STEP-004.020 QUERY
 SQL: describe fq02_dim05.fq02_path_idb.path_t
@@ -4028,7 +4028,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-05[INF] STEP-004.045 COMMENT
 -- [2-seg USE] sql=use fq02_dim05.fq02_path_idb
@@ -4045,7 +4045,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-05[INF] STEP-004.049 COMMENT
 -- [3-seg USE] sql=use fq02_dim05.fq02_path_idb.extra
@@ -4141,9 +4141,9 @@ ERROR: [0x2616]: Database not specified
 SQL: select * from fq02_dim06.fq02_path_mdb.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-06[MYS] STEP-004.008 COMMENT
 -- [2-seg disambiguation] src.table
@@ -4152,9 +4152,9 @@ ts|val|score|name
 SQL: select * from fq02_dim06.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-06[MYS] STEP-004.010 COMMENT
 -- [USE segment tests in DIM-06 with name conflict]
@@ -4182,7 +4182,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-06[MYS] STEP-004.017 COMMENT
 -- [2-seg USE] sql=use fq02_dim06.fq02_path_mdb
@@ -4199,7 +4199,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-06[MYS] STEP-004.021 COMMENT
 -- [3-seg USE] sql=use fq02_dim06.fq02_path_mdb.extra
@@ -4295,9 +4295,9 @@ ERROR: [0x2616]: Database not specified
 SQL: select * from fq02_dim06.public.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-06[POS] STEP-004.008 COMMENT
 -- [2-seg disambiguation] src.table
@@ -4306,9 +4306,9 @@ ts|val|score|name
 SQL: select * from fq02_dim06.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-06[POS] STEP-004.010 COMMENT
 -- [USE segment tests in DIM-06 with name conflict]
@@ -4336,7 +4336,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-06[POS] STEP-004.017 COMMENT
 -- [2-seg USE] sql=use fq02_dim06.public
@@ -4353,7 +4353,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-06[POS] STEP-004.021 COMMENT
 -- [3-seg USE] sql=use fq02_dim06.public.extra
@@ -4413,7 +4413,7 @@ RESULT:
 OK
 ---
 ### DIM-06[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim06 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim06 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -4449,9 +4449,9 @@ ERROR: [0x2616]: Database not specified
 SQL: select * from fq02_dim06.fq02_path_idb.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-06[INF] STEP-004.008 COMMENT
 -- [2-seg disambiguation] src.table
@@ -4460,9 +4460,9 @@ time|score|name|val
 SQL: select * from fq02_dim06.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-06[INF] STEP-004.010 COMMENT
 -- [USE segment tests in DIM-06 with name conflict]
@@ -4490,7 +4490,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-06[INF] STEP-004.017 COMMENT
 -- [2-seg USE] sql=use fq02_dim06.fq02_path_idb
@@ -4507,7 +4507,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-06[INF] STEP-004.021 COMMENT
 -- [3-seg USE] sql=use fq02_dim06.fq02_path_idb.extra
@@ -4578,25 +4578,25 @@ OK
 SQL: select * from FQ02_DIM07.fq02_path_mdb.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[MYS] STEP-004.003 QUERY
 SQL: select * from fq02_dim07.FQ02_PATH_MDB.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[MYS] STEP-004.004 QUERY
 SQL: select * from fq02_dim07.fq02_path_mdb.PATH_T limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[MYS] STEP-004.005 QUERY
 SQL: select * from FQ02_DIM07.FQ02_PATH_MDB.PATH_T limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[MYS] STEP-004.006 COMMENT
 -- MySQL case-insensitive: mixed case 2-seg
@@ -4605,13 +4605,13 @@ ts|val|score|name
 SQL: select * from FQ02_DIM07.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[MYS] STEP-004.008 QUERY
 SQL: select * from fq02_dim07.PATH_T limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[MYS] STEP-004.009 COMMENT
 -- MySQL case-insensitive: USE with different case
@@ -4625,7 +4625,7 @@ OK
 SQL: select * from path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[MYS] STEP-004.012 EXEC
 SQL: use FQ02_DIM07.FQ02_PATH_MDB
@@ -4636,7 +4636,7 @@ OK
 SQL: select * from path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[MYS] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim07
@@ -4673,13 +4673,13 @@ OK
 SQL: select * from fq02_dim07.public.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[POS] STEP-004.003 QUERY
 SQL: select * from FQ02_DIM07.PUBLIC.PATH_T limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[POS] STEP-004.004 COMMENT
 -- PG quoted preserves case (backtick in TDengine = quote in PG)
@@ -4688,7 +4688,7 @@ ts|val|score|name
 SQL: select * from `fq02_dim07`.`public`.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[POS] STEP-004.006 COMMENT
 -- PG case fold in 2-seg
@@ -4697,7 +4697,7 @@ ts|val|score|name
 SQL: select * from FQ02_DIM07.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[POS] STEP-004.008 COMMENT
 -- PG USE with case variants
@@ -4711,7 +4711,7 @@ OK
 SQL: select * from path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[POS] STEP-004.011 EXEC
 SQL: use FQ02_DIM07.PUBLIC
@@ -4722,7 +4722,7 @@ OK
 SQL: select * from path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-07[POS] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim07
@@ -4748,7 +4748,7 @@ RESULT:
 OK
 ---
 ### DIM-07[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim07 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim07 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -4759,7 +4759,7 @@ OK
 SQL: select * from fq02_dim07.fq02_path_idb.path_t limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-07[INF] STEP-004.003 COMMENT
 -- InfluxDB: wrong case → error
@@ -4768,19 +4768,19 @@ time|score|name|val
 SQL: select * from fq02_dim07.fq02_path_idb.PATH_T limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-07[INF] STEP-004.005 QUERY
 SQL: select * from fq02_dim07.FQ02_PATH_IDB.path_t limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-07[INF] STEP-004.006 QUERY
 SQL: select * from FQ02_DIM07.fq02_path_idb.path_t limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-07[INF] STEP-004.007 COMMENT
 -- InfluxDB: USE with wrong case → error
@@ -4830,25 +4830,25 @@ OK
 SQL: select * from fq02_dim08.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.003 QUERY
 SQL: select * from `fq02_dim08`.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.004 QUERY
 SQL: select * from fq02_dim08.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.005 QUERY
 SQL: select * from `fq02_dim08`.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.006 COMMENT
 -- [3-seg backtick permutations: 8 combinations]
@@ -4857,49 +4857,49 @@ ts|val|score|name
 SQL: select * from fq02_dim08.fq02_path_mdb.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.008 QUERY
 SQL: select * from fq02_dim08.fq02_path_mdb.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.009 QUERY
 SQL: select * from fq02_dim08.`fq02_path_mdb`.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.010 QUERY
 SQL: select * from fq02_dim08.`fq02_path_mdb`.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.011 QUERY
 SQL: select * from `fq02_dim08`.fq02_path_mdb.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.012 QUERY
 SQL: select * from `fq02_dim08`.fq02_path_mdb.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.013 QUERY
 SQL: select * from `fq02_dim08`.`fq02_path_mdb`.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.014 QUERY
 SQL: select * from `fq02_dim08`.`fq02_path_mdb`.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.015 COMMENT
 -- [Backtick in USE: 1-seg and 2-seg]
@@ -4913,7 +4913,7 @@ OK
 SQL: select * from path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.018 EXEC
 SQL: use `fq02_dim08`.`fq02_path_mdb`
@@ -4924,7 +4924,7 @@ ERROR: [0x6407]: External source '`fq02_dim08`' not found
 SQL: select * from path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-004.020 COMMENT
 -- [Backtick in 3-seg USE → should fail]
@@ -5011,7 +5011,7 @@ OK
 SQL: select * from `path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[MYS] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim08
@@ -5048,25 +5048,25 @@ OK
 SQL: select * from fq02_dim08.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.003 QUERY
 SQL: select * from `fq02_dim08`.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.004 QUERY
 SQL: select * from fq02_dim08.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.005 QUERY
 SQL: select * from `fq02_dim08`.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.006 COMMENT
 -- [3-seg backtick permutations: 8 combinations]
@@ -5075,49 +5075,49 @@ ts|val|score|name
 SQL: select * from fq02_dim08.public.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.008 QUERY
 SQL: select * from fq02_dim08.public.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.009 QUERY
 SQL: select * from fq02_dim08.`public`.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.010 QUERY
 SQL: select * from fq02_dim08.`public`.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.011 QUERY
 SQL: select * from `fq02_dim08`.public.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.012 QUERY
 SQL: select * from `fq02_dim08`.public.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.013 QUERY
 SQL: select * from `fq02_dim08`.`public`.path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.014 QUERY
 SQL: select * from `fq02_dim08`.`public`.`path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.015 COMMENT
 -- [Backtick in USE: 1-seg and 2-seg]
@@ -5131,7 +5131,7 @@ OK
 SQL: select * from path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.018 EXEC
 SQL: use `fq02_dim08`.`public`
@@ -5142,7 +5142,7 @@ ERROR: [0x6407]: External source '`fq02_dim08`' not found
 SQL: select * from path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-004.020 COMMENT
 -- [Backtick in 3-seg USE → should fail]
@@ -5229,7 +5229,7 @@ OK
 SQL: select * from `path_t` limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-08[POS] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim08
@@ -5255,7 +5255,7 @@ RESULT:
 OK
 ---
 ### DIM-08[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim08 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim08 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -5266,25 +5266,25 @@ OK
 SQL: select * from fq02_dim08.path_t limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.003 QUERY
 SQL: select * from `fq02_dim08`.path_t limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.004 QUERY
 SQL: select * from fq02_dim08.`path_t` limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.005 QUERY
 SQL: select * from `fq02_dim08`.`path_t` limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.006 COMMENT
 -- [3-seg backtick permutations: 8 combinations]
@@ -5293,49 +5293,49 @@ time|score|name|val
 SQL: select * from fq02_dim08.fq02_path_idb.path_t limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.008 QUERY
 SQL: select * from fq02_dim08.fq02_path_idb.`path_t` limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.009 QUERY
 SQL: select * from fq02_dim08.`fq02_path_idb`.path_t limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.010 QUERY
 SQL: select * from fq02_dim08.`fq02_path_idb`.`path_t` limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.011 QUERY
 SQL: select * from `fq02_dim08`.fq02_path_idb.path_t limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.012 QUERY
 SQL: select * from `fq02_dim08`.fq02_path_idb.`path_t` limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.013 QUERY
 SQL: select * from `fq02_dim08`.`fq02_path_idb`.path_t limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.014 QUERY
 SQL: select * from `fq02_dim08`.`fq02_path_idb`.`path_t` limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.015 COMMENT
 -- [Backtick in USE: 1-seg and 2-seg]
@@ -5349,7 +5349,7 @@ OK
 SQL: select * from path_t limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.018 EXEC
 SQL: use `fq02_dim08`.`fq02_path_idb`
@@ -5360,7 +5360,7 @@ ERROR: [0x6407]: External source '`fq02_dim08`' not found
 SQL: select * from path_t limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-004.020 COMMENT
 -- [Backtick in 3-seg USE → should fail]
@@ -5447,7 +5447,7 @@ OK
 SQL: select * from `path_t` limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-08[INF] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim08
@@ -5484,9 +5484,9 @@ OK
 SQL: select * from fq02_dim09.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-09[MYS] STEP-004.003 COMMENT
 -- ALTER default namespace to fq02_path_mdb2
@@ -5503,9 +5503,9 @@ OK
 SQL: select * from fq02_dim09.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
+2024-01-01 00:11:00+08:00|102|20.5|alt-beta
+2024-01-01 00:12:00+08:00|103|30.5|alt-gamma
 ---
 ### DIM-09[MYS] STEP-004.007 COMMENT
 -- 3-seg explicit still works for original ns
@@ -5514,9 +5514,9 @@ ts|val|score|name
 SQL: select * from fq02_dim09.fq02_path_mdb.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-09[MYS] STEP-004.009 COMMENT
 -- USE after ALTER: USE source → uses new default ns
@@ -5530,9 +5530,9 @@ OK
 SQL: select * from path_t limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
+2024-01-01 00:11:00+08:00|102|20.5|alt-beta
+2024-01-01 00:12:00+08:00|103|30.5|alt-gamma
 ---
 ### DIM-09[MYS] STEP-004.012 COMMENT
 -- USE source.ns with old ns still explicit
@@ -5546,9 +5546,9 @@ OK
 SQL: select * from path_t limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-09[MYS] STEP-004.015 COMMENT
 -- Restore
@@ -5562,9 +5562,9 @@ OK
 SQL: select * from fq02_dim09.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-09[MYS] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim09
@@ -5601,9 +5601,9 @@ OK
 SQL: select * from fq02_dim09.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-09[POS] STEP-004.003 COMMENT
 -- ALTER default namespace to analytics
@@ -5620,9 +5620,9 @@ OK
 SQL: select * from fq02_dim09.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
+2024-01-01 00:11:00+08:00|102|20.5|alt-beta
+2024-01-01 00:12:00+08:00|103|30.5|alt-gamma
 ---
 ### DIM-09[POS] STEP-004.007 COMMENT
 -- 3-seg explicit still works for original ns
@@ -5631,9 +5631,9 @@ ts|val|score|name
 SQL: select * from fq02_dim09.public.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-09[POS] STEP-004.009 COMMENT
 -- USE after ALTER: USE source → uses new default ns
@@ -5647,9 +5647,9 @@ OK
 SQL: select * from path_t limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
+2024-01-01 00:11:00+08:00|102|20.5|alt-beta
+2024-01-01 00:12:00+08:00|103|30.5|alt-gamma
 ---
 ### DIM-09[POS] STEP-004.012 COMMENT
 -- USE source.ns with old ns still explicit
@@ -5663,9 +5663,9 @@ OK
 SQL: select * from path_t limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-09[POS] STEP-004.015 COMMENT
 -- Restore
@@ -5679,9 +5679,9 @@ OK
 SQL: select * from fq02_dim09.path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-09[POS] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim09
@@ -5707,7 +5707,7 @@ RESULT:
 OK
 ---
 ### DIM-09[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim09 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim09 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -5718,9 +5718,9 @@ OK
 SQL: select * from fq02_dim09.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-09[INF] STEP-004.003 COMMENT
 -- ALTER default namespace to fq02_path_idb2
@@ -5737,9 +5737,9 @@ OK
 SQL: select * from fq02_dim09.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|10.5|alt-alpha|101
+2024-01-01 08:01:00+08:00|20.5|alt-beta|102
+2024-01-01 08:02:00+08:00|30.5|alt-gamma|103
 ---
 ### DIM-09[INF] STEP-004.007 COMMENT
 -- 3-seg explicit still works for original ns
@@ -5748,9 +5748,9 @@ time|score|name|val
 SQL: select * from fq02_dim09.fq02_path_idb.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-09[INF] STEP-004.009 COMMENT
 -- USE after ALTER: USE source → uses new default ns
@@ -5764,9 +5764,9 @@ OK
 SQL: select * from path_t limit 3
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|10.5|alt-alpha|101
+2024-01-01 08:01:00+08:00|20.5|alt-beta|102
+2024-01-01 08:02:00+08:00|30.5|alt-gamma|103
 ---
 ### DIM-09[INF] STEP-004.012 COMMENT
 -- USE source.ns with old ns still explicit
@@ -5780,9 +5780,9 @@ OK
 SQL: select * from path_t limit 3
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-09[INF] STEP-004.015 COMMENT
 -- Restore
@@ -5796,9 +5796,9 @@ OK
 SQL: select * from fq02_dim09.path_t order by val limit 5
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-09[INF] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim09
@@ -5834,17 +5834,17 @@ RESULT:
 OK
 ---
 ### DIM-10[MYS] STEP-004.001 EXEC
-SQL: create database if not exists fq02_join_db
+SQL: drop database if exists fq02_join_db
 RESULT:
 OK
 ---
 ### DIM-10[MYS] STEP-004.002 EXEC
-SQL: use fq02_join_db
+SQL: create database fq02_join_db
 RESULT:
 OK
 ---
 ### DIM-10[MYS] STEP-004.003 EXEC
-SQL: drop table if exists local_t
+SQL: use fq02_join_db
 RESULT:
 OK
 ---
@@ -5986,12 +5986,12 @@ RESULT:
 OK
 ---
 ### DIM-10[MYS] STEP-004.032 EXEC
-SQL: drop table if exists local_t
+SQL: drop database if exists fq02_join_db
 RESULT:
 OK
 ---
 ### DIM-10[MYS] STEP-005 EXEC
-SQL: drop table if exists fq02_join_db.local_t
+SQL: drop database if exists fq02_join_db
 RESULT:
 OK
 ---
@@ -6034,17 +6034,17 @@ RESULT:
 OK
 ---
 ### DIM-10[POS] STEP-004.001 EXEC
-SQL: create database if not exists fq02_join_db
+SQL: drop database if exists fq02_join_db
 RESULT:
 OK
 ---
 ### DIM-10[POS] STEP-004.002 EXEC
-SQL: use fq02_join_db
+SQL: create database fq02_join_db
 RESULT:
 OK
 ---
 ### DIM-10[POS] STEP-004.003 EXEC
-SQL: drop table if exists local_t
+SQL: use fq02_join_db
 RESULT:
 OK
 ---
@@ -6186,12 +6186,12 @@ RESULT:
 OK
 ---
 ### DIM-10[POS] STEP-004.032 EXEC
-SQL: drop table if exists local_t
+SQL: drop database if exists fq02_join_db
 RESULT:
 OK
 ---
 ### DIM-10[POS] STEP-005 EXEC
-SQL: drop table if exists fq02_join_db.local_t
+SQL: drop database if exists fq02_join_db
 RESULT:
 OK
 ---
@@ -6229,22 +6229,22 @@ RESULT:
 OK
 ---
 ### DIM-10[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim10 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim10 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
 ### DIM-10[INF] STEP-004.001 EXEC
-SQL: create database if not exists fq02_join_db
+SQL: drop database if exists fq02_join_db
 RESULT:
 OK
 ---
 ### DIM-10[INF] STEP-004.002 EXEC
-SQL: use fq02_join_db
+SQL: create database fq02_join_db
 RESULT:
 OK
 ---
 ### DIM-10[INF] STEP-004.003 EXEC
-SQL: drop table if exists local_t
+SQL: use fq02_join_db
 RESULT:
 OK
 ---
@@ -6386,12 +6386,12 @@ RESULT:
 OK
 ---
 ### DIM-10[INF] STEP-004.032 EXEC
-SQL: drop table if exists local_t
+SQL: drop database if exists fq02_join_db
 RESULT:
 OK
 ---
 ### DIM-10[INF] STEP-005 EXEC
-SQL: drop table if exists fq02_join_db.local_t
+SQL: drop database if exists fq02_join_db
 RESULT:
 OK
 ---
@@ -6434,12 +6434,12 @@ RESULT:
 OK
 ---
 ### DIM-11[MYS] STEP-004.001 EXEC
-SQL: create database if not exists fq02_switch_db
+SQL: drop database if exists fq02_switch_db
 RESULT:
 OK
 ---
 ### DIM-11[MYS] STEP-004.002 EXEC
-SQL: drop table if exists fq02_switch_db.local_t
+SQL: create database fq02_switch_db
 RESULT:
 OK
 ---
@@ -6465,9 +6465,9 @@ OK
 SQL: select * from path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-11[MYS] STEP-004.008 COMMENT
 -- Switch to local db
@@ -6481,7 +6481,7 @@ OK
 SQL: select * from local_t limit 1
 RESULT:
 ts|val
-2024-06-01 00:00:00|42
+2024-06-01 00:00:00+08:00|42
 ---
 ### DIM-11[MYS] STEP-004.011 COMMENT
 -- [Rule 4] 1-seg ext table after USE local_db should fail (ext context cleared)
@@ -6498,9 +6498,9 @@ ERROR: [0x2603]: Table does not exist
 SQL: select * from fq02_dim11.path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-11[MYS] STEP-004.015 COMMENT
 -- Switch to external with explicit ns (2-seg USE)
@@ -6514,9 +6514,9 @@ OK
 SQL: select * from path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-11[MYS] STEP-004.018 COMMENT
 -- Switch to local again
@@ -6530,7 +6530,7 @@ OK
 SQL: select * from local_t limit 1
 RESULT:
 ts|val
-2024-06-01 00:00:00|42
+2024-06-01 00:00:00+08:00|42
 ---
 ### DIM-11[MYS] STEP-004.021 COMMENT
 -- [Rule 4] 1-seg ext table after second USE local_db should fail
@@ -6609,7 +6609,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-11[MYS] STEP-004.038 COMMENT
 -- [Cross-ext switch] USE source_B → context switches to source_B
@@ -6623,7 +6623,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
 ---
 ### DIM-11[MYS] STEP-004.041 COMMENT
 -- [Cross-ext switch] USE source_A again → back to source_A context
@@ -6637,7 +6637,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-11[MYS] STEP-004.044 COMMENT
 -- Cleanup secondary source
@@ -6648,12 +6648,12 @@ RESULT:
 OK
 ---
 ### DIM-11[MYS] STEP-004.046 EXEC
-SQL: use fq02_switch_db
+SQL: drop database if exists fq02_switch_db
 RESULT:
 OK
 ---
 ### DIM-11[MYS] STEP-005 EXEC
-SQL: drop table if exists fq02_switch_db.local_t
+SQL: drop database if exists fq02_switch_db
 RESULT:
 OK
 ---
@@ -6696,12 +6696,12 @@ RESULT:
 OK
 ---
 ### DIM-11[POS] STEP-004.001 EXEC
-SQL: create database if not exists fq02_switch_db
+SQL: drop database if exists fq02_switch_db
 RESULT:
 OK
 ---
 ### DIM-11[POS] STEP-004.002 EXEC
-SQL: drop table if exists fq02_switch_db.local_t
+SQL: create database fq02_switch_db
 RESULT:
 OK
 ---
@@ -6727,9 +6727,9 @@ OK
 SQL: select * from path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-11[POS] STEP-004.008 COMMENT
 -- Switch to local db
@@ -6743,7 +6743,7 @@ OK
 SQL: select * from local_t limit 1
 RESULT:
 ts|val
-2024-06-01 00:00:00|42
+2024-06-01 00:00:00+08:00|42
 ---
 ### DIM-11[POS] STEP-004.011 COMMENT
 -- [Rule 4] 1-seg ext table after USE local_db should fail (ext context cleared)
@@ -6760,9 +6760,9 @@ ERROR: [0x2603]: Table does not exist
 SQL: select * from fq02_dim11.path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-11[POS] STEP-004.015 COMMENT
 -- Switch to external with explicit ns (2-seg USE)
@@ -6776,9 +6776,9 @@ OK
 SQL: select * from path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-11[POS] STEP-004.018 COMMENT
 -- Switch to local again
@@ -6792,7 +6792,7 @@ OK
 SQL: select * from local_t limit 1
 RESULT:
 ts|val
-2024-06-01 00:00:00|42
+2024-06-01 00:00:00+08:00|42
 ---
 ### DIM-11[POS] STEP-004.021 COMMENT
 -- [Rule 4] 1-seg ext table after second USE local_db should fail
@@ -6871,7 +6871,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-11[POS] STEP-004.038 COMMENT
 -- [Cross-ext switch] USE source_B → context switches to source_B
@@ -6885,7 +6885,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
 ---
 ### DIM-11[POS] STEP-004.041 COMMENT
 -- [Cross-ext switch] USE source_A again → back to source_A context
@@ -6899,7 +6899,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-11[POS] STEP-004.044 COMMENT
 -- Cleanup secondary source
@@ -6910,12 +6910,12 @@ RESULT:
 OK
 ---
 ### DIM-11[POS] STEP-004.046 EXEC
-SQL: use fq02_switch_db
+SQL: drop database if exists fq02_switch_db
 RESULT:
 OK
 ---
 ### DIM-11[POS] STEP-005 EXEC
-SQL: drop table if exists fq02_switch_db.local_t
+SQL: drop database if exists fq02_switch_db
 RESULT:
 OK
 ---
@@ -6953,17 +6953,17 @@ RESULT:
 OK
 ---
 ### DIM-11[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim11 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim11 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
 ### DIM-11[INF] STEP-004.001 EXEC
-SQL: create database if not exists fq02_switch_db
+SQL: drop database if exists fq02_switch_db
 RESULT:
 OK
 ---
 ### DIM-11[INF] STEP-004.002 EXEC
-SQL: drop table if exists fq02_switch_db.local_t
+SQL: create database fq02_switch_db
 RESULT:
 OK
 ---
@@ -6989,9 +6989,9 @@ OK
 SQL: select * from path_t order by val limit 3
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-11[INF] STEP-004.008 COMMENT
 -- Switch to local db
@@ -7005,7 +7005,7 @@ OK
 SQL: select * from local_t limit 1
 RESULT:
 ts|val
-2024-06-01 00:00:00|42
+2024-06-01 00:00:00+08:00|42
 ---
 ### DIM-11[INF] STEP-004.011 COMMENT
 -- [Rule 4] 1-seg ext table after USE local_db should fail (ext context cleared)
@@ -7022,9 +7022,9 @@ ERROR: [0x2603]: Table does not exist
 SQL: select * from fq02_dim11.path_t order by val limit 3
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-11[INF] STEP-004.015 COMMENT
 -- Switch to external with explicit ns (2-seg USE)
@@ -7038,9 +7038,9 @@ OK
 SQL: select * from path_t order by val limit 3
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
-1704067260000000000|2.5|beta|2
-1704067320000000000|3.5|gamma|3
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+2024-01-01 08:01:00+08:00|2.5|beta|2
+2024-01-01 08:02:00+08:00|3.5|gamma|3
 ---
 ### DIM-11[INF] STEP-004.018 COMMENT
 -- Switch to local again
@@ -7054,7 +7054,7 @@ OK
 SQL: select * from local_t limit 1
 RESULT:
 ts|val
-2024-06-01 00:00:00|42
+2024-06-01 00:00:00+08:00|42
 ---
 ### DIM-11[INF] STEP-004.021 COMMENT
 -- [Rule 4] 1-seg ext table after second USE local_db should fail
@@ -7117,7 +7117,7 @@ RESULT:
 OK
 ---
 ### DIM-11[INF] STEP-004.034 EXEC
-SQL: create external source if not exists fq02_dim11b type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb2' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim11b type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb2' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -7133,7 +7133,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-11[INF] STEP-004.038 COMMENT
 -- [Cross-ext switch] USE source_B → context switches to source_B
@@ -7147,7 +7147,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|10.5|alt-alpha|101
 ---
 ### DIM-11[INF] STEP-004.041 COMMENT
 -- [Cross-ext switch] USE source_A again → back to source_A context
@@ -7161,7 +7161,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-11[INF] STEP-004.044 COMMENT
 -- Cleanup secondary source
@@ -7172,12 +7172,12 @@ RESULT:
 OK
 ---
 ### DIM-11[INF] STEP-004.046 EXEC
-SQL: use fq02_switch_db
+SQL: drop database if exists fq02_switch_db
 RESULT:
 OK
 ---
 ### DIM-11[INF] STEP-005 EXEC
-SQL: drop table if exists fq02_switch_db.local_t
+SQL: drop database if exists fq02_switch_db
 RESULT:
 OK
 ---
@@ -7229,7 +7229,7 @@ ERROR: [0x641a]: Database name conflicts with an existing external source
 SQL: select * from fq02_dim12.fq02_path_mdb.path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-12[MYS] STEP-004.005 COMMENT
 -- USE the source (not the db)
@@ -7243,7 +7243,7 @@ OK
 SQL: select * from path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-12[MYS] STEP-004.008 COMMENT
 -- Cleanup conflicting db if created
@@ -7333,7 +7333,7 @@ ERROR: [0x641a]: Database name conflicts with an existing external source
 SQL: select * from fq02_dim12.public.path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-12[POS] STEP-004.005 COMMENT
 -- USE the source (not the db)
@@ -7347,7 +7347,7 @@ OK
 SQL: select * from path_t limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-12[POS] STEP-004.008 COMMENT
 -- Cleanup conflicting db if created
@@ -7418,7 +7418,7 @@ RESULT:
 OK
 ---
 ### DIM-12[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim12 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim12 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -7437,7 +7437,7 @@ ERROR: [0x641a]: Database name conflicts with an existing external source
 SQL: select * from fq02_dim12.fq02_path_idb.path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-12[INF] STEP-004.005 COMMENT
 -- USE the source (not the db)
@@ -7451,7 +7451,7 @@ OK
 SQL: select * from path_t limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-12[INF] STEP-004.008 COMMENT
 -- Cleanup conflicting db if created
@@ -8054,7 +8054,7 @@ RESULT:
 OK
 ---
 ### DIM-13[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim13 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim13 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -8347,7 +8347,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[MYS] STEP-004.007 COMMENT
 -- [2-seg USE] sql=use fq02_dim14.fq02_path_mdb
@@ -8364,7 +8364,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[MYS] STEP-004.011 COMMENT
 -- [3-seg USE] sql=use fq02_dim14.fq02_path_mdb.extra
@@ -8421,10 +8421,10 @@ ERROR: [0x6417]: External source database or schema not found
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[MYS] STEP-004.025 COMMENT
--- USE local db (verify local USE still works)
+-- USE local db (same table name, distinct local row) → must resolve locally
 ---
 ### DIM-14[MYS] STEP-004.026 EXEC
 SQL: drop database if exists fq02_use_db
@@ -8441,27 +8441,30 @@ SQL: use fq02_use_db
 RESULT:
 OK
 ---
-### DIM-14[MYS] STEP-004.029 QUERY
+### DIM-14[MYS] STEP-004.029 EXEC
+SQL: create table path_t (ts timestamp, val int, score double, name binary(32))
+RESULT:
+OK
+---
+### DIM-14[MYS] STEP-004.030 EXEC
+SQL: insert into path_t values ('2024-01-01 00:20:00.000', 901, 90.5, 'local-only')
+RESULT:
+OK
+---
+### DIM-14[MYS] STEP-004.031 QUERY
 SQL: select database()
 RESULT:
 database()
 fq02_use_db
 ---
-### DIM-14[MYS] STEP-004.030 COMMENT
--- [Rule 4] 1-seg ext table after USE local_db should fail
----
-### DIM-14[MYS] STEP-004.031 QUERY
-SQL: select * from path_t
+### DIM-14[MYS] STEP-004.032 QUERY
+SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
----
-### DIM-14[MYS] STEP-004.032 EXEC
-SQL: drop database if exists fq02_use_db
-RESULT:
-OK
+ts|val|score|name
+2024-01-01 00:20:00+08:00|901|90.5|local-only
 ---
 ### DIM-14[MYS] STEP-004.033 COMMENT
--- USE back to external after local
+-- USE back to external after local → default namespace row should return
 ---
 ### DIM-14[MYS] STEP-004.034 EXEC
 SQL: use fq02_dim14
@@ -8472,10 +8475,10 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[MYS] STEP-004.036 COMMENT
--- USE source.ns then 1-seg query
+-- USE source.ns then 1-seg query → explicit default namespace row should return
 ---
 ### DIM-14[MYS] STEP-004.037 EXEC
 SQL: use fq02_dim14.fq02_path_mdb
@@ -8486,10 +8489,10 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[MYS] STEP-004.039 COMMENT
--- [USE override/reset] USE source.ns2 overrides to alt namespace
+-- [USE override/reset] USE source.ns2 overrides to alt namespace row
 ---
 ### DIM-14[MYS] STEP-004.040 EXEC
 SQL: use fq02_dim14.fq02_path_mdb2
@@ -8500,10 +8503,10 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
 ---
 ### DIM-14[MYS] STEP-004.042 COMMENT
--- [USE override/reset] USE source (1-seg) resets to default ns
+-- [USE override/reset] USE source (1-seg) resets to default namespace row
 ---
 ### DIM-14[MYS] STEP-004.043 EXEC
 SQL: use fq02_dim14
@@ -8514,28 +8517,33 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
-### DIM-14[MYS] STEP-004.045 COMMENT
+### DIM-14[MYS] STEP-004.045 EXEC
+SQL: drop database if exists fq02_use_db
+RESULT:
+OK
+---
+### DIM-14[MYS] STEP-004.046 COMMENT
 -- [EXT-013] USE with leading dot → should fail
 ---
-### DIM-14[MYS] STEP-004.046 EXEC
+### DIM-14[MYS] STEP-004.047 EXEC
 SQL: use .fq02_dim14
 RESULT:
 ERROR: [0x2600]: syntax error near ".fq02_dim14"
 ---
-### DIM-14[MYS] STEP-004.047 COMMENT
+### DIM-14[MYS] STEP-004.048 COMMENT
 -- [EXT-013] USE with trailing dot → should fail
 ---
-### DIM-14[MYS] STEP-004.048 EXEC
+### DIM-14[MYS] STEP-004.049 EXEC
 SQL: use fq02_dim14.
 RESULT:
 ERROR: [0x2601]: Incomplete SQL statement
 ---
-### DIM-14[MYS] STEP-004.049 COMMENT
+### DIM-14[MYS] STEP-004.050 COMMENT
 -- [EXT-013] USE with double dot → should fail
 ---
-### DIM-14[MYS] STEP-004.050 EXEC
+### DIM-14[MYS] STEP-004.051 EXEC
 SQL: use fq02_dim14..fq02_path_mdb
 RESULT:
 ERROR: [0x2600]: syntax error near ".fq02_path_mdb"
@@ -8596,7 +8604,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[POS] STEP-004.007 COMMENT
 -- [2-seg USE] sql=use fq02_dim14.public
@@ -8613,7 +8621,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[POS] STEP-004.011 COMMENT
 -- [3-seg USE] sql=use fq02_dim14.public.extra
@@ -8670,10 +8678,10 @@ ERROR: [0x6417]: External source database or schema not found
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[POS] STEP-004.025 COMMENT
--- USE local db (verify local USE still works)
+-- USE local db (same table name, distinct local row) → must resolve locally
 ---
 ### DIM-14[POS] STEP-004.026 EXEC
 SQL: drop database if exists fq02_use_db
@@ -8690,27 +8698,30 @@ SQL: use fq02_use_db
 RESULT:
 OK
 ---
-### DIM-14[POS] STEP-004.029 QUERY
+### DIM-14[POS] STEP-004.029 EXEC
+SQL: create table path_t (ts timestamp, val int, score double, name binary(32))
+RESULT:
+OK
+---
+### DIM-14[POS] STEP-004.030 EXEC
+SQL: insert into path_t values ('2024-01-01 00:20:00.000', 901, 90.5, 'local-only')
+RESULT:
+OK
+---
+### DIM-14[POS] STEP-004.031 QUERY
 SQL: select database()
 RESULT:
 database()
 fq02_use_db
 ---
-### DIM-14[POS] STEP-004.030 COMMENT
--- [Rule 4] 1-seg ext table after USE local_db should fail
----
-### DIM-14[POS] STEP-004.031 QUERY
-SQL: select * from path_t
+### DIM-14[POS] STEP-004.032 QUERY
+SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
----
-### DIM-14[POS] STEP-004.032 EXEC
-SQL: drop database if exists fq02_use_db
-RESULT:
-OK
+ts|val|score|name
+2024-01-01 00:20:00+08:00|901|90.5|local-only
 ---
 ### DIM-14[POS] STEP-004.033 COMMENT
--- USE back to external after local
+-- USE back to external after local → default namespace row should return
 ---
 ### DIM-14[POS] STEP-004.034 EXEC
 SQL: use fq02_dim14
@@ -8721,10 +8732,10 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[POS] STEP-004.036 COMMENT
--- USE source.ns then 1-seg query
+-- USE source.ns then 1-seg query → explicit default namespace row should return
 ---
 ### DIM-14[POS] STEP-004.037 EXEC
 SQL: use fq02_dim14.public
@@ -8735,10 +8746,10 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-14[POS] STEP-004.039 COMMENT
--- [USE override/reset] USE source.ns2 overrides to alt namespace
+-- [USE override/reset] USE source.ns2 overrides to alt namespace row
 ---
 ### DIM-14[POS] STEP-004.040 EXEC
 SQL: use fq02_dim14.analytics
@@ -8749,10 +8760,10 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
 ---
 ### DIM-14[POS] STEP-004.042 COMMENT
--- [USE override/reset] USE source (1-seg) resets to default ns
+-- [USE override/reset] USE source (1-seg) resets to default namespace row
 ---
 ### DIM-14[POS] STEP-004.043 EXEC
 SQL: use fq02_dim14
@@ -8763,28 +8774,33 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
-### DIM-14[POS] STEP-004.045 COMMENT
+### DIM-14[POS] STEP-004.045 EXEC
+SQL: drop database if exists fq02_use_db
+RESULT:
+OK
+---
+### DIM-14[POS] STEP-004.046 COMMENT
 -- [EXT-013] USE with leading dot → should fail
 ---
-### DIM-14[POS] STEP-004.046 EXEC
+### DIM-14[POS] STEP-004.047 EXEC
 SQL: use .fq02_dim14
 RESULT:
 ERROR: [0x2600]: syntax error near ".fq02_dim14"
 ---
-### DIM-14[POS] STEP-004.047 COMMENT
+### DIM-14[POS] STEP-004.048 COMMENT
 -- [EXT-013] USE with trailing dot → should fail
 ---
-### DIM-14[POS] STEP-004.048 EXEC
+### DIM-14[POS] STEP-004.049 EXEC
 SQL: use fq02_dim14.
 RESULT:
 ERROR: [0x2601]: Incomplete SQL statement
 ---
-### DIM-14[POS] STEP-004.049 COMMENT
+### DIM-14[POS] STEP-004.050 COMMENT
 -- [EXT-013] USE with double dot → should fail
 ---
-### DIM-14[POS] STEP-004.050 EXEC
+### DIM-14[POS] STEP-004.051 EXEC
 SQL: use fq02_dim14..public
 RESULT:
 ERROR: [0x2600]: syntax error near ".public"
@@ -8818,7 +8834,7 @@ RESULT:
 OK
 ---
 ### DIM-14[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim14 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim14 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -8845,7 +8861,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-14[INF] STEP-004.007 COMMENT
 -- [2-seg USE] sql=use fq02_dim14.fq02_path_idb
@@ -8862,7 +8878,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-14[INF] STEP-004.011 COMMENT
 -- [3-seg USE] sql=use fq02_dim14.fq02_path_idb.extra
@@ -8919,10 +8935,10 @@ ERROR: [0x6417]: External source database or schema not found
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-14[INF] STEP-004.025 COMMENT
--- USE local db (verify local USE still works)
+-- USE local db (same table name, distinct local row) → must resolve locally
 ---
 ### DIM-14[INF] STEP-004.026 EXEC
 SQL: drop database if exists fq02_use_db
@@ -8939,27 +8955,30 @@ SQL: use fq02_use_db
 RESULT:
 OK
 ---
-### DIM-14[INF] STEP-004.029 QUERY
+### DIM-14[INF] STEP-004.029 EXEC
+SQL: create table path_t (ts timestamp, val int, score double, name binary(32))
+RESULT:
+OK
+---
+### DIM-14[INF] STEP-004.030 EXEC
+SQL: insert into path_t values ('2024-01-01 00:20:00.000', 901, 90.5, 'local-only')
+RESULT:
+OK
+---
+### DIM-14[INF] STEP-004.031 QUERY
 SQL: select database()
 RESULT:
 database()
 fq02_use_db
 ---
-### DIM-14[INF] STEP-004.030 COMMENT
--- [Rule 4] 1-seg ext table after USE local_db should fail
----
-### DIM-14[INF] STEP-004.031 QUERY
-SQL: select * from path_t
+### DIM-14[INF] STEP-004.032 QUERY
+SQL: select * from path_t order by val limit 1
 RESULT:
-ERROR: [0x2603]: Table does not exist
----
-### DIM-14[INF] STEP-004.032 EXEC
-SQL: drop database if exists fq02_use_db
-RESULT:
-OK
+ts|val|score|name
+2024-01-01 00:20:00+08:00|901|90.5|local-only
 ---
 ### DIM-14[INF] STEP-004.033 COMMENT
--- USE back to external after local
+-- USE back to external after local → default namespace row should return
 ---
 ### DIM-14[INF] STEP-004.034 EXEC
 SQL: use fq02_dim14
@@ -8970,10 +8989,10 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-14[INF] STEP-004.036 COMMENT
--- USE source.ns then 1-seg query
+-- USE source.ns then 1-seg query → explicit default namespace row should return
 ---
 ### DIM-14[INF] STEP-004.037 EXEC
 SQL: use fq02_dim14.fq02_path_idb
@@ -8984,10 +9003,10 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-14[INF] STEP-004.039 COMMENT
--- [USE override/reset] USE source.ns2 overrides to alt namespace
+-- [USE override/reset] USE source.ns2 overrides to alt namespace row
 ---
 ### DIM-14[INF] STEP-004.040 EXEC
 SQL: use fq02_dim14.fq02_path_idb2
@@ -8998,10 +9017,10 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|10.5|alt-alpha|101
 ---
 ### DIM-14[INF] STEP-004.042 COMMENT
--- [USE override/reset] USE source (1-seg) resets to default ns
+-- [USE override/reset] USE source (1-seg) resets to default namespace row
 ---
 ### DIM-14[INF] STEP-004.043 EXEC
 SQL: use fq02_dim14
@@ -9012,28 +9031,33 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
-### DIM-14[INF] STEP-004.045 COMMENT
+### DIM-14[INF] STEP-004.045 EXEC
+SQL: drop database if exists fq02_use_db
+RESULT:
+OK
+---
+### DIM-14[INF] STEP-004.046 COMMENT
 -- [EXT-013] USE with leading dot → should fail
 ---
-### DIM-14[INF] STEP-004.046 EXEC
+### DIM-14[INF] STEP-004.047 EXEC
 SQL: use .fq02_dim14
 RESULT:
 ERROR: [0x2600]: syntax error near ".fq02_dim14"
 ---
-### DIM-14[INF] STEP-004.047 COMMENT
+### DIM-14[INF] STEP-004.048 COMMENT
 -- [EXT-013] USE with trailing dot → should fail
 ---
-### DIM-14[INF] STEP-004.048 EXEC
+### DIM-14[INF] STEP-004.049 EXEC
 SQL: use fq02_dim14.
 RESULT:
 ERROR: [0x2601]: Incomplete SQL statement
 ---
-### DIM-14[INF] STEP-004.049 COMMENT
+### DIM-14[INF] STEP-004.050 COMMENT
 -- [EXT-013] USE with double dot → should fail
 ---
-### DIM-14[INF] STEP-004.050 EXEC
+### DIM-14[INF] STEP-004.051 EXEC
 SQL: use fq02_dim14..fq02_path_idb
 RESULT:
 ERROR: [0x2600]: syntax error near ".fq02_path_idb"
@@ -9051,6 +9075,408 @@ OK
 ================================================================================================
 CASE END: DIM-14[INF]
 DESC: USE statement 0-5 segments: all forms, valid + invalid + edge cases
+================================================================================================
+================================================================================================
+CASE START: DIM-19[MYS]
+DESC: No default namespace: USE local_db/source/source.ns hard validation
+================================================================================================
+### DIM-19[MYS] STEP-001 CLEANUP
+SQL: drop external source if exists fq02_dim19
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-002 EXEC
+SQL: drop external source if exists fq02_dim19
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-003 EXEC
+SQL: create external source if not exists fq02_dim19 type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-004.001 EXEC
+SQL: drop database if exists fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-004.002 EXEC
+SQL: create database fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-004.003 EXEC
+SQL: use fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-004.004 EXEC
+SQL: create table path_t (ts timestamp, val int, score double, name binary(32))
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-004.005 EXEC
+SQL: insert into path_t values ('2024-01-01 00:20:00.000', 901, 90.5, 'local-only')
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-004.006 COMMENT
+-- local context row must win before any external USE
+---
+### DIM-19[MYS] STEP-004.007 QUERY
+SQL: select database()
+RESULT:
+database()
+fq02_use_db_no_default
+---
+### DIM-19[MYS] STEP-004.008 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:20:00+08:00|901|90.5|local-only
+---
+### DIM-19[MYS] STEP-004.009 COMMENT
+-- USE source without default namespace must fail and preserve local context
+---
+### DIM-19[MYS] STEP-004.010 EXEC
+SQL: use fq02_dim19
+RESULT:
+ERROR: [0x640c]: No default database configured for external source 'fq02_dim19'; specify: USE fq02_dim19.<database>
+---
+### DIM-19[MYS] STEP-004.011 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:20:00+08:00|901|90.5|local-only
+---
+### DIM-19[MYS] STEP-004.012 COMMENT
+-- USE source.ns should switch to explicit namespace row
+---
+### DIM-19[MYS] STEP-004.013 EXEC
+SQL: use fq02_dim19.fq02_path_mdb
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-004.014 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+---
+### DIM-19[MYS] STEP-004.015 COMMENT
+-- USE source.ns2 should switch to alternate namespace row
+---
+### DIM-19[MYS] STEP-004.016 EXEC
+SQL: use fq02_dim19.fq02_path_mdb2
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-004.017 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
+---
+### DIM-19[MYS] STEP-004.018 COMMENT
+-- Switching back to local db should restore the local row
+---
+### DIM-19[MYS] STEP-004.019 EXEC
+SQL: use fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-004.020 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:20:00+08:00|901|90.5|local-only
+---
+### DIM-19[MYS] STEP-004.021 EXEC
+SQL: drop database if exists fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-005 EXEC
+SQL: drop database if exists fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[MYS] STEP-006 CLEANUP
+SQL: drop external source if exists fq02_dim19
+RESULT:
+OK
+---
+================================================================================================
+CASE END: DIM-19[MYS]
+DESC: No default namespace: USE local_db/source/source.ns hard validation
+================================================================================================
+================================================================================================
+CASE START: DIM-19[POS]
+DESC: No default namespace: USE local_db/source/source.ns hard validation
+================================================================================================
+### DIM-19[POS] STEP-001 CLEANUP
+SQL: drop external source if exists fq02_dim19
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-002 EXEC
+SQL: drop external source if exists fq02_dim19
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-003 EXEC
+SQL: create external source if not exists fq02_dim19 type='postgresql' host='127.0.0.1' port=15434 user='postgres' password='taosdata' database='fq02_path_pdb'
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-004.001 EXEC
+SQL: drop database if exists fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-004.002 EXEC
+SQL: create database fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-004.003 EXEC
+SQL: use fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-004.004 EXEC
+SQL: create table path_t (ts timestamp, val int, score double, name binary(32))
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-004.005 EXEC
+SQL: insert into path_t values ('2024-01-01 00:20:00.000', 901, 90.5, 'local-only')
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-004.006 COMMENT
+-- local context row must win before any external USE
+---
+### DIM-19[POS] STEP-004.007 QUERY
+SQL: select database()
+RESULT:
+database()
+fq02_use_db_no_default
+---
+### DIM-19[POS] STEP-004.008 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:20:00+08:00|901|90.5|local-only
+---
+### DIM-19[POS] STEP-004.009 COMMENT
+-- USE source without default namespace must fail and preserve local context
+---
+### DIM-19[POS] STEP-004.010 EXEC
+SQL: use fq02_dim19
+RESULT:
+ERROR: [0x640c]: No default schema configured for external source 'fq02_dim19'; specify: USE fq02_dim19.<schema>
+---
+### DIM-19[POS] STEP-004.011 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:20:00+08:00|901|90.5|local-only
+---
+### DIM-19[POS] STEP-004.012 COMMENT
+-- USE source.ns should switch to explicit namespace row
+---
+### DIM-19[POS] STEP-004.013 EXEC
+SQL: use fq02_dim19.public
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-004.014 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+---
+### DIM-19[POS] STEP-004.015 COMMENT
+-- USE source.ns2 should switch to alternate namespace row
+---
+### DIM-19[POS] STEP-004.016 EXEC
+SQL: use fq02_dim19.analytics
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-004.017 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
+---
+### DIM-19[POS] STEP-004.018 COMMENT
+-- Switching back to local db should restore the local row
+---
+### DIM-19[POS] STEP-004.019 EXEC
+SQL: use fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-004.020 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:20:00+08:00|901|90.5|local-only
+---
+### DIM-19[POS] STEP-004.021 EXEC
+SQL: drop database if exists fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-005 EXEC
+SQL: drop database if exists fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[POS] STEP-006 CLEANUP
+SQL: drop external source if exists fq02_dim19
+RESULT:
+OK
+---
+================================================================================================
+CASE END: DIM-19[POS]
+DESC: No default namespace: USE local_db/source/source.ns hard validation
+================================================================================================
+================================================================================================
+CASE START: DIM-19[INF]
+DESC: No default namespace: USE local_db/source/source.ns hard validation
+================================================================================================
+### DIM-19[INF] STEP-001 CLEANUP
+SQL: drop external source if exists fq02_dim19
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-002 EXEC
+SQL: drop external source if exists fq02_dim19
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-003 EXEC
+SQL: create external source if not exists fq02_dim19 type='influxdb' host='127.0.0.1' port=18086 user='admin' options('api_token'='test-token', 'protocol'='<PROTO>')
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-004.001 EXEC
+SQL: drop database if exists fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-004.002 EXEC
+SQL: create database fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-004.003 EXEC
+SQL: use fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-004.004 EXEC
+SQL: create table path_t (ts timestamp, val int, score double, name binary(32))
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-004.005 EXEC
+SQL: insert into path_t values ('2024-01-01 00:20:00.000', 901, 90.5, 'local-only')
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-004.006 COMMENT
+-- local context row must win before any external USE
+---
+### DIM-19[INF] STEP-004.007 QUERY
+SQL: select database()
+RESULT:
+database()
+fq02_use_db_no_default
+---
+### DIM-19[INF] STEP-004.008 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:20:00+08:00|901|90.5|local-only
+---
+### DIM-19[INF] STEP-004.009 COMMENT
+-- USE source without default namespace must fail and preserve local context
+---
+### DIM-19[INF] STEP-004.010 EXEC
+SQL: use fq02_dim19
+RESULT:
+ERROR: [0x640c]: No default database configured for external source 'fq02_dim19'; specify: USE fq02_dim19.<database>
+---
+### DIM-19[INF] STEP-004.011 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:20:00+08:00|901|90.5|local-only
+---
+### DIM-19[INF] STEP-004.012 COMMENT
+-- USE source.ns should switch to explicit namespace row
+---
+### DIM-19[INF] STEP-004.013 EXEC
+SQL: use fq02_dim19.fq02_path_idb
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-004.014 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+time|score|name|val
+2024-01-01 08:00:00+08:00|1.5|alpha|1
+---
+### DIM-19[INF] STEP-004.015 COMMENT
+-- USE source.ns2 should switch to alternate namespace row
+---
+### DIM-19[INF] STEP-004.016 EXEC
+SQL: use fq02_dim19.fq02_path_idb2
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-004.017 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+time|score|name|val
+2024-01-01 08:00:00+08:00|10.5|alt-alpha|101
+---
+### DIM-19[INF] STEP-004.018 COMMENT
+-- Switching back to local db should restore the local row
+---
+### DIM-19[INF] STEP-004.019 EXEC
+SQL: use fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-004.020 QUERY
+SQL: select * from path_t order by val limit 1
+RESULT:
+ts|val|score|name
+2024-01-01 00:20:00+08:00|901|90.5|local-only
+---
+### DIM-19[INF] STEP-004.021 EXEC
+SQL: drop database if exists fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-005 EXEC
+SQL: drop database if exists fq02_use_db_no_default
+RESULT:
+OK
+---
+### DIM-19[INF] STEP-006 CLEANUP
+SQL: drop external source if exists fq02_dim19
+RESULT:
+OK
+---
+================================================================================================
+CASE END: DIM-19[INF]
+DESC: No default namespace: USE local_db/source/source.ns hard validation
 ================================================================================================
 ================================================================================================
 CASE START: DIM-15[MYS]
@@ -9124,9 +9550,9 @@ OK
 SQL: select * from fq02_dim15.path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-15[POS] STEP-004.003 COMMENT
 -- PG 3-seg with explicit schema=public
@@ -9135,9 +9561,9 @@ ts|val|score|name
 SQL: select * from fq02_dim15.public.path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-15[POS] STEP-004.005 COMMENT
 -- PG 3-seg with schema=analytics
@@ -9146,9 +9572,9 @@ ts|val|score|name
 SQL: select * from fq02_dim15.analytics.path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
+2024-01-01 00:11:00+08:00|102|20.5|alt-beta
+2024-01-01 00:12:00+08:00|103|30.5|alt-gamma
 ---
 ### DIM-15[POS] STEP-004.007 COMMENT
 -- ALTER to change schema
@@ -9165,9 +9591,9 @@ OK
 SQL: select * from fq02_dim15.path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
+2024-01-01 00:11:00+08:00|102|20.5|alt-beta
+2024-01-01 00:12:00+08:00|103|30.5|alt-gamma
 ---
 ### DIM-15[POS] STEP-004.011 COMMENT
 -- USE after ALTER schema: should use new schema
@@ -9181,9 +9607,9 @@ OK
 SQL: select * from path_t limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
+2024-01-01 00:11:00+08:00|102|20.5|alt-beta
+2024-01-01 00:12:00+08:00|103|30.5|alt-gamma
 ---
 ### DIM-15[POS] STEP-004.014 COMMENT
 -- USE with explicit ns overrides
@@ -9197,9 +9623,9 @@ OK
 SQL: select * from path_t limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-15[POS] STEP-004.017 COMMENT
 -- ALTER to clear schema (set empty)
@@ -9216,9 +9642,9 @@ OK
 SQL: select * from fq02_dim15.path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-15[POS] STEP-004.021 COMMENT
 -- USE after clear schema
@@ -9232,9 +9658,9 @@ ERROR: [0x640c]: No default schema configured for external source 'fq02_dim15'; 
 SQL: select * from path_t limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-15[POS] STEP-004.024 COMMENT
 -- Restore schema
@@ -9256,7 +9682,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:10:00+08:00|101|10.5|alt-alpha
 ---
 ### DIM-15[POS] STEP-004.029 COMMENT
 -- USE source.database_name (PG db, not schema) → should error
@@ -9304,7 +9730,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-15[POS] STEP-004.040 EXEC
 SQL: drop external source if exists fq02_dim15b
@@ -9345,7 +9771,7 @@ RESULT:
 OK
 ---
 ### DIM-15[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim15 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim15 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -9392,9 +9818,9 @@ OK
 SQL: select * from fq02_dim16.v_path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-16[MYS] STEP-004.003 COMMENT
 -- [EXT-004] View with ts PK: 3-seg path
@@ -9403,9 +9829,9 @@ ts|val|score|name
 SQL: select * from fq02_dim16.fq02_path_mdb.v_path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-16[MYS] STEP-004.005 COMMENT
 -- [EXT-004] View without ts PK (no_ts): 2-seg
@@ -9465,9 +9891,9 @@ OK
 SQL: select * from v_path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-16[MYS] STEP-004.016 COMMENT
 -- [EXT-004] USE source.ns then 1-seg view query
@@ -9481,9 +9907,9 @@ OK
 SQL: select * from v_path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-16[MYS] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim16
@@ -9520,9 +9946,9 @@ OK
 SQL: select * from fq02_dim16.v_path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-16[POS] STEP-004.003 COMMENT
 -- [EXT-004] View with ts PK: 3-seg path
@@ -9531,9 +9957,9 @@ ts|val|score|name
 SQL: select * from fq02_dim16.public.v_path_t order by val limit 5
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-16[POS] STEP-004.005 COMMENT
 -- [EXT-004] View without ts PK (no_ts): 2-seg
@@ -9593,9 +10019,9 @@ OK
 SQL: select * from v_path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-16[POS] STEP-004.016 COMMENT
 -- [EXT-004] USE source.ns then 1-seg view query
@@ -9609,9 +10035,9 @@ OK
 SQL: select * from v_path_t order by val limit 3
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
-2024-01-01 00:01:00|2|2.5|beta
-2024-01-01 00:02:00|3|3.5|gamma
+2024-01-01 00:00:00+08:00|1|1.5|alpha
+2024-01-01 00:01:00+08:00|2|2.5|beta
+2024-01-01 00:02:00+08:00|3|3.5|gamma
 ---
 ### DIM-16[POS] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim16
@@ -9637,7 +10063,7 @@ RESULT:
 OK
 ---
 ### DIM-16[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim16 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim16 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -9679,7 +10105,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-17[MYS] STEP-003.004 COMMENT
 -- [EXT-016] DROP the source while USE context is active
@@ -9748,7 +10174,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-17[POS] STEP-003.004 COMMENT
 -- [EXT-016] DROP the source while USE context is active
@@ -9801,7 +10227,7 @@ RESULT:
 OK
 ---
 ### DIM-17[INF] STEP-002 EXEC
-SQL: create external source if not exists fq02_dim17 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim17 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -9817,7 +10243,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-17[INF] STEP-003.004 COMMENT
 -- [EXT-016] DROP the source while USE context is active
@@ -9891,7 +10317,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-18[MYS] STEP-004.004 COMMENT
 -- [EXT-015] ALTER source while USE context is active
@@ -9908,7 +10334,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-18[MYS] STEP-004.008 COMMENT
 -- [EXT-015] Explicit 3-seg with old ns still works
@@ -9917,7 +10343,7 @@ ts|val|score|name
 SQL: select * from fq02_dim18.fq02_path_mdb.path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-18[MYS] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim18
@@ -9959,7 +10385,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-18[POS] STEP-004.004 COMMENT
 -- [EXT-015] ALTER source while USE context is active
@@ -9976,7 +10402,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-18[POS] STEP-004.008 COMMENT
 -- [EXT-015] Explicit 3-seg with old ns still works
@@ -9985,7 +10411,7 @@ ts|val|score|name
 SQL: select * from fq02_dim18.public.path_t order by val limit 1
 RESULT:
 ts|val|score|name
-2024-01-01 00:00:00|1|1.5|alpha
+2024-01-01 00:00:00+08:00|1|1.5|alpha
 ---
 ### DIM-18[POS] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim18
@@ -10011,7 +10437,7 @@ RESULT:
 OK
 ---
 ### DIM-18[INF] STEP-003 EXEC
-SQL: create external source if not exists fq02_dim18 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='flight_sql')
+SQL: create external source if not exists fq02_dim18 type='influxdb' host='127.0.0.1' port=18086 user='admin' database='fq02_path_idb' options('api_token'='test-token', 'protocol'='<PROTO>')
 RESULT:
 OK
 ---
@@ -10027,7 +10453,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-18[INF] STEP-004.004 COMMENT
 -- [EXT-015] ALTER source while USE context is active
@@ -10044,7 +10470,7 @@ OK
 SQL: select * from path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-18[INF] STEP-004.008 COMMENT
 -- [EXT-015] Explicit 3-seg with old ns still works
@@ -10053,7 +10479,7 @@ time|score|name|val
 SQL: select * from fq02_dim18.fq02_path_idb.path_t order by val limit 1
 RESULT:
 time|score|name|val
-1704067200000000000|1.5|alpha|1
+2024-01-01 08:00:00+08:00|1.5|alpha|1
 ---
 ### DIM-18[INF] STEP-005 CLEANUP
 SQL: drop external source if exists fq02_dim18

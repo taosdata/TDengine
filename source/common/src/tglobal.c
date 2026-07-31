@@ -382,7 +382,7 @@ int32_t tsTimeSeriesThreshold = 50;
 bool    tsMultiResultFunctionStarReturnTags = false;
 
 // federated query
-bool    tsFederatedQueryEnable           = true;
+bool    tsFederatedQueryEnable           = false;
 int32_t tsFederatedQueryConnectTimeoutMs = 5000;
 int32_t tsFederatedQueryQueryTimeoutMs   = 1000000000;
 int32_t tsFederatedQueryMaxPoolSizePerSource = 64;
@@ -1392,7 +1392,6 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     pItem->i32 = tsSyncNegotiationWin;
     pItem->stype = stype;
   }
-
   // Compute dynamic defaults for readCpuCores and otherCpuCores
   pItem = cfgGetItem(tsCfg, "managementCpuCores");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
@@ -1829,6 +1828,19 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "sessionControl");
   tsSessionControl = pItem->bval;
 
+  // federated query — BOTH scope (read on both client and server)
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryEnable");
+  tsFederatedQueryEnable = pItem->bval;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryConnectTimeoutMs");
+  tsFederatedQueryConnectTimeoutMs = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryQueryTimeoutMs");
+  tsFederatedQueryQueryTimeoutMs = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryMaxPoolSizePerSource");
+  tsFederatedQueryMaxPoolSizePerSource = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryIdleConnTtlSec");
+  tsFederatedQueryIdleConnTtlSec = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryProbeTimeoutMs");
+  tsFederatedQueryProbeTimeoutMs = pItem->i32;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "firstDayOfWeek");
   if (pItem->stype != CFG_STYPE_DEFAULT) {
     /* user explicitly set in config file/env/cmd line, highest priority */
@@ -1845,20 +1857,6 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
       tsFirstDayOfWeek = pItem->i32;
     }
   }
-
-  // federated query — BOTH scope (read on both client and server)
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryEnable");
-  tsFederatedQueryEnable = pItem->bval;
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryConnectTimeoutMs");
-  tsFederatedQueryConnectTimeoutMs = pItem->i32;
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryQueryTimeoutMs");
-  tsFederatedQueryQueryTimeoutMs = pItem->i32;
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryMaxPoolSizePerSource");
-  tsFederatedQueryMaxPoolSizePerSource = pItem->i32;
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryIdleConnTtlSec");
-  tsFederatedQueryIdleConnTtlSec = pItem->i32;
-  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryProbeTimeoutMs");
-  tsFederatedQueryProbeTimeoutMs = pItem->i32;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
@@ -2468,6 +2466,18 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "walDeleteOnCorruption");
   tsWalDeleteOnCorruption = pItem->bval;
+
+  // federated query — BOTH scope parameters (also read on server side)
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryConnectTimeoutMs");
+  tsFederatedQueryConnectTimeoutMs = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryQueryTimeoutMs");
+  tsFederatedQueryQueryTimeoutMs = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryMaxPoolSizePerSource");
+  tsFederatedQueryMaxPoolSizePerSource = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryIdleConnTtlSec");
+  tsFederatedQueryIdleConnTtlSec = pItem->i32;
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "federatedQueryProbeTimeoutMs");
+  tsFederatedQueryProbeTimeoutMs = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "walCorruptionBackupDir");
   tstrncpy(tsWalCorruptionBackupDir, pItem->str, PATH_MAX);

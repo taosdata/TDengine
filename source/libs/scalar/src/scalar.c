@@ -829,6 +829,24 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       
       SCL_ERR_RET((*ctx->fetchFp)(ctx->pSubJobCtx, pRemote->subQIdx, node));
 
+      // Fix: when the hash was pre-built during SQL generation (via remoteNodeCopy) with a
+      // narrower integer key type than the actual runtime left-column type, rebuild it.
+      // E.g., subquery returns INT(4) but InfluxDB column is BIGINT(5) at runtime.
+      if (ctx->type.selfType != TSDB_DATA_TYPE_NULL && pRemote->pHashFilter != NULL &&
+          !pRemote->hashAllocated && ctx->type.selfType != pRemote->filterValueType &&
+          IS_INTEGER_TYPE(ctx->type.selfType) && IS_INTEGER_TYPE(pRemote->filterValueType)) {
+        int32_t convertType = vectorGetConvertType(ctx->type.selfType, pRemote->filterValueType);
+        if (convertType > 0 && convertType != pRemote->filterValueType) {
+          SHashObj *pNewHash =
+              sclRebuildIntHashToWiderType(pRemote->pHashFilter, pRemote->filterValueType, convertType);
+          if (pNewHash != NULL) {
+            pRemote->pHashFilter    = pNewHash;
+            pRemote->filterValueType = convertType;
+            pRemote->hashAllocated  = true;
+          }
+        }
+      }
+
       // Stamp generation so this hash is reused within the same runner invocation
       pRemote->streamGen = ctx->streamGen;
 
@@ -2150,37 +2168,29 @@ _return:
 
 
 EDealRes sclRewriteNullInOptr(SNode **pNode, SScalarCtx *ctx, EOperatorType opType) {
-/*
-  if (opType <= OP_TYPE_CALC_MAX || ctx->nullResExpected) {
-    SValueNode *res = NULL;
-    ctx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode **)&res);
-    if (NULL == res) {
-      sclError("make value node failed");
-      return DEAL_RES_ERROR;
-    }
+  SExprNode*  pExpr = (SExprNode*)(*pNode);
+  SValueNode* res = NULL;
+  ctx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&res);
+  if (NULL == res) {
+    sclError("make value node failed");
+    return DEAL_RES_ERROR;
+  }
 
-    res->node.resType.type = TSDB_DATA_TYPE_NULL;
-    res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
+  res->translate = true;
+  res->node.resType = pExpr->resType;
+  tstrncpy(res->node.aliasName, pExpr->aliasName, sizeof(res->node.aliasName));
+  tstrncpy(res->node.userAlias, pExpr->userAlias, sizeof(res->node.userAlias));
+  tstrncpy(res->node.srcTable, pExpr->srcTable, sizeof(res->node.srcTable));
+  res->isNull = true;
+  res->datum.b = false;
 
-    nodesDestroyNode(*pNode);
-    *pNode = (SNode *)res;
-  } else {
-*/
-    SValueNode *res = NULL;
-    ctx->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode **)&res);
-    if (NULL == res) {
-      sclError("make value node failed");
-      return DEAL_RES_ERROR;
-    }
+  sclDebug("rewrite null operator result to typed NULL, opType:%d alias:%s userAlias:%s resType:%d bytes:%d prec:%d scale:%d nullResExpected:%d",
+           opType, res->node.aliasName, res->node.userAlias, res->node.resType.type,
+           res->node.resType.bytes, res->node.resType.precision, res->node.resType.scale,
+           (int32_t)ctx->nullResExpected);
 
-    res->node.resType.type = TSDB_DATA_TYPE_BOOL;
-    res->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
-    res->isNull = true;
-    res->datum.b = false;
-
-    nodesDestroyNode(*pNode);
-    *pNode = (SNode *)res;
-//  }
+  nodesDestroyNode(*pNode);
+  *pNode = (SNode*)res;
 
   return DEAL_RES_CONTINUE;
 }
@@ -3157,9 +3167,17 @@ int32_t scalarCalculateInRange(SNode *pNode, SArray *pBlockList, SScalarParam *p
       }
       srcRows = pb->info.rows;
     }
-    if (1 == res->numOfRows && srcRows > 0) {
+    if (res->numOfRows <= 0) {
+      // A zero-row scalar result has no column buffer to copy. Keep the empty
+      // result intact so callers can decide whether their operator emits a row.
+      pDst->numOfRows = res->numOfRows;
+      pDst->numOfQualified = res->numOfQualified;
+    } else if (1 == res->numOfRows && srcRows > 0) {
       SCL_ERR_JRET(sclExtendResRowsRange(pDst, rowStartIdx, rowEndIdx, res, pBlockList));
     } else {
+      if (NULL == res->columnData) {
+        SCL_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
       SCL_ERR_JRET(colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows, true));
       SCL_ERR_JRET(colDataAssign(pDst->columnData, res->columnData, res->numOfRows, NULL));
       pDst->numOfRows = res->numOfRows;

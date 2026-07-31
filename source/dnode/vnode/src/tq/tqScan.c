@@ -451,7 +451,6 @@ static int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, ui
           }
 
           pHead = &(pHandle->pWalReader->pHead->head);
-
           // txn-atomic CDC: skip individual DDL entries that belong to a transaction.
           // They are part of a BEGIN…COMMIT block and will be delivered atomically by
           // STxnWalManager when TXN_COMMIT is processed below.  Delivering them here
@@ -532,7 +531,6 @@ static int32_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, ui
             code = -1;
             continue;
           }
-
           if (tqProcessMetaForStbSub(pTq, pHandle, pHead)) {
             code = 0;
             goto END;
@@ -846,7 +844,8 @@ int32_t tqMaskBlock(SSchemaWrapper* pDst, SSDataBlock* pBlock, const SSchemaWrap
       SColumnInfoData colInfo =
           createColumnInfoData(pSrc->pSchema[i].type, pSrc->pSchema[i].bytes, pSrc->pSchema[i].colId);
       if (extSrc != NULL) {
-        decimalFromTypeMod(extSrc[i].typeMod, &colInfo.info.precision, &colInfo.info.scale);
+        extractTypeFromTypeMod(pSrc->pSchema[i].type, extSrc[i].typeMod, &colInfo.info.precision, &colInfo.info.scale,
+                               NULL);
       }
       code = blockDataAppendColInfo(pBlock, &colInfo);
       if (code != 0) {
@@ -2838,4 +2837,3 @@ static int32_t tqSendMetaPollRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const 
 
   return 0;
 }
-

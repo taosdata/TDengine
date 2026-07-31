@@ -179,6 +179,68 @@ struct SExtQueryHandle {
 // Internal helpers
 // ============================================================
 
+/*
+ * Validate a remote type or charset string before copying it into fixed
+ * metadata. The capacity includes the terminating NUL. A truncated type
+ * string could select a different TDengine type, so reject it as unmappable.
+ */
+static inline int32_t extValidateMetadataTypeString(const char* kind, const char* value, int64_t valueLen,
+                                                    int32_t capacity) {
+  if (value == NULL || valueLen < 0 || capacity <= 1) {
+    uError("ExtConnector: invalid %s metadata string, value:%p len:%lld capacity:%d",
+           kind ? kind : "external", value, (long long)valueLen, capacity);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (valueLen >= capacity) {
+    uError("ExtConnector: external %s metadata type string exceeds TDengine limit, len:%lld max:%d",
+           kind ? kind : "object", (long long)valueLen, capacity - 1);
+    return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Validate an identifier before copying it into a fixed TDengine name buffer.
+ * The capacity includes the terminating NUL. Metadata providers must use the
+ * original remote length so a long identifier cannot become a truncated cache
+ * key, lookup key, or remote SQL identifier.
+ */
+static inline int32_t extValidateMetadataIdentifier(const char* kind, const char* value, int64_t valueLen,
+                                                    int32_t capacity) {
+  if (value == NULL || valueLen < 0 || capacity <= 1) {
+    uError("ExtConnector: invalid %s identifier metadata, value:%p len:%lld capacity:%d",
+           kind ? kind : "external", value, (long long)valueLen, capacity);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (valueLen >= capacity) {
+    uError("ExtConnector: external %s identifier exceeds TDengine limit, len:%lld max:%d",
+           kind ? kind : "object", (long long)valueLen, capacity - 1);
+    return TSDB_CODE_EXT_IDENTIFIER_TOO_LONG;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * PostgreSQL binary jsonb values start with a one-byte wire-format version.
+ * Return only the JSON text payload after validating the currently supported
+ * version so a protocol marker can never become part of the SQL result.
+ */
+static inline int32_t extDecodePostgresqlJsonb(const char *rawValue, int32_t rawLen,
+                                               const char **ppJsonValue, int32_t *pJsonLen) {
+  if (rawValue == NULL || rawLen <= 1 || ppJsonValue == NULL || pJsonLen == NULL ||
+      (uint8_t)rawValue[0] != 1) {
+    return TSDB_CODE_EXT_TYPE_CONVERT_FAILED;
+  }
+
+  *ppJsonValue = rawValue + 1;
+  *pJsonLen = rawLen - 1;
+  return TSDB_CODE_SUCCESS;
+}
+
 // Password decrypt (AES-128-CBC with fixed enterprise key)
 void extDecryptPassword(const char *cipherBuf, char *outPlain, int32_t outLen);
 

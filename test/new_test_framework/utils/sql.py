@@ -1606,7 +1606,20 @@ class TDSql:
                         if ts == data:
                             success = True
                     elif precision == "ns":
-                        if data == self.queryResult[row][col]:
+                        dt_obj = self.queryResult[row][col]
+                        if isinstance(dt_obj, datetime.datetime):
+                            ts = (
+                                int(
+                                    (
+                                        dt_obj
+                                        - datetime.datetime.fromtimestamp(0, dt_obj.tzinfo)
+                                    ).total_seconds()
+                                )
+                                * 1000000000
+                            ) + int(dt_obj.microsecond) * 1000
+                        else:
+                            ts = dt_obj
+                        if ts == data:
                             success = True
                     if success:
                         if show:

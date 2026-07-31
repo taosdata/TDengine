@@ -912,6 +912,10 @@ static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pT
   SFunctionNode* pFunc = (SFunctionNode*)pTarget->pExpr;
   if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType &&
       FUNCTION_TYPE_TIMESTAMP_SCALE != pFunc->funcType) {
+    qError("%s failed at line %d, code:0x%x, error:%s, reason:merge join prim "
+           "expr expects TIMETRUNCATE or TIMESTAMP_SCALE, funcType:%d",
+           __func__, __LINE__, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,
+           tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR), pFunc->funcType);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
@@ -1002,6 +1006,25 @@ static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoi
   }
 
   pCtx->targetSlotId = pTarget->slotId;
+  switch (pCtx->type) {
+    case E_PRIM_TIMESTAMP_SCALE:
+      qDebug("merge join prim expr init: tableType=%s exprType=TIMESTAMP_SCALE srcSlot=%d targetSlot=%d targetPrec=%d",
+             MJOIN_TBTYPE(pTable->type), pTable->primCol->srcSlot, pCtx->targetSlotId, (int)pCtx->targetPrec);
+      break;
+    case E_PRIM_TIMETRUNCATE:
+      qDebug("merge join prim expr init: tableType=%s exprType=TIMETRUNCATE srcSlot=%d targetSlot=%d precision=%d truncateUnit=%" PRId64,
+             MJOIN_TBTYPE(pTable->type), pTable->primCol->srcSlot, pCtx->targetSlotId, pCtx->precision,
+             pCtx->truncateUnit);
+      break;
+    case E_PRIM_VALUE:
+      qDebug("merge join prim expr init: tableType=%s exprType=VALUE srcSlot=%d targetSlot=%d constTs=%" PRId64,
+             MJOIN_TBTYPE(pTable->type), pTable->primCol->srcSlot, pCtx->targetSlotId, pCtx->constTs);
+      break;
+    default:
+      qDebug("merge join prim expr init: tableType=%s exprType=%d srcSlot=%d targetSlot=%d",
+             MJOIN_TBTYPE(pTable->type), pCtx->type, pTable->primCol->srcSlot, pCtx->targetSlotId);
+      break;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1128,9 +1151,17 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
 
       int8_t srcPrec = pPrimIn->info.precision;
       int8_t tgtPrec = pCtx->targetPrec;
+      int64_t firstIn = (pBlock->info.rows > 0) ? ((int64_t*)pPrimIn->pData)[0] : 0;
+      int64_t lastIn = (pBlock->info.rows > 0) ? ((int64_t*)pPrimIn->pData)[pBlock->info.rows - 1] : 0;
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
         ((int64_t*)pPrimOut->pData)[i] = convertTimePrecision(((int64_t*)pPrimIn->pData)[i], srcPrec, tgtPrec);
       }
+      int64_t firstOut = (pBlock->info.rows > 0) ? ((int64_t*)pPrimOut->pData)[0] : 0;
+      int64_t lastOut = (pBlock->info.rows > 0) ? ((int64_t*)pPrimOut->pData)[pBlock->info.rows - 1] : 0;
+      qDebug("merge join prim expr launch: tableType=%s type=TIMESTAMP_SCALE rows=%d srcSlot=%d targetSlot=%d srcPrec=%d tgtPrec=%d firstIn=%" PRId64
+             " firstOut=%" PRId64 " lastIn=%" PRId64 " lastOut=%" PRId64,
+             MJOIN_TBTYPE(pTable->type), (int)pBlock->info.rows, pTable->primCol->srcSlot, pCtx->targetSlotId,
+             (int)srcPrec, (int)tgtPrec, firstIn, firstOut, lastIn, lastOut);
       break;
     }
     case E_PRIM_TIMETRUNCATE: {
@@ -1161,10 +1192,15 @@ int32_t mJoinLaunchPrimExpr(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
           }
         }
       }
+      qDebug("merge join prim expr launch: tableType=%s type=TIMETRUNCATE rows=%d srcSlot=%d targetSlot=%d precision=%d truncateUnit=%" PRId64,
+             MJOIN_TBTYPE(pTable->type), (int)pBlock->info.rows, pTable->primCol->srcSlot, pCtx->targetSlotId,
+             pCtx->precision, pCtx->truncateUnit);
       break;
     }
     case E_PRIM_VALUE: {
       MJ_ERR_RET(colDataSetNItems(pPrimOut, 0, (char*)&pCtx->constTs, pBlock->info.rows, 1, false));
+      qDebug("merge join prim expr launch: tableType=%s type=VALUE rows=%d targetSlot=%d constTs=%" PRId64,
+             MJOIN_TBTYPE(pTable->type), (int)pBlock->info.rows, pCtx->targetSlotId, pCtx->constTs);
       break;
     }
     default:
@@ -1833,6 +1869,9 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
 
     pBlock->info.id.blockId = pJoin->outBlkId;
     if (pJoin->pFinFilter != NULL) {
+      qDebug("%s merge join fin filter block rows=%" PRId64 " cols=%d outBlkId=%" PRId64,
+             GET_TASKID(pOperator->pTaskInfo), pBlock->info.rows,
+             (int32_t)taosArrayGetSize(pBlock->pDataBlock), pBlock->info.id.blockId);
       code = doFilter(pBlock, pJoin->pFinFilter, NULL, NULL);
       if (code) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));

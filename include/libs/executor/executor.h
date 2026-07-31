@@ -345,6 +345,9 @@ int32_t  extWinPreInitFromSubquery(SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
 // Returns NULL if no ext error occurred. The returned pointer is owned by pTaskInfo.
 const char* qGetExtErrMsg(qTaskInfo_t tinfo);
 
+// Federated query: retrieve structured pushdown diagnostic stored in task info.
+// Returns NULL if no diagnostic occurred. The returned pointer is owned by pTaskInfo.
+const SExtPushdownDiagnostic* qGetExtPushdownDiagnostic(qTaskInfo_t tinfo);
 #ifdef __cplusplus
 }
 #endif

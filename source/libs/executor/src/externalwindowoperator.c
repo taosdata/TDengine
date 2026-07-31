@@ -99,6 +99,7 @@ typedef struct SExternalWindowOperator {
   bool               needGroupSort;
   bool               extWinSplit;
   bool               calcWithPartition;
+  bool               matchPartitionBy;
   SArray*            pPseudoColInfo;  
   STimeRangeNode*    timeRangeExpr;
   
@@ -4210,8 +4211,24 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
       }
     }
 
-    // Equality gating in partitioned multi-group mode:
-    // process the block only when baseGId == groupId; otherwise skip it.
+    // The batch scan can retain the last trigger group's base id after it
+    // merges rows by an outer partition. The unprefixed groupId still denotes
+    // the partition value, so use it to select the matching trigger windows.
+    if (IS_NON_STREAM_MODE(pTaskInfo) && pTaskInfo->pStreamRuntimeInfo &&
+        pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc &&
+        pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos != NULL && pExtW->calcWithPartition &&
+        pExtW->matchPartitionBy &&
+        pBlock->info.id.groupId != 0 &&
+        tSimpleHashGet(pTaskInfo->pStreamRuntimeInfo->funcInfo.pGroupCalcInfos,
+                       &pBlock->info.id.groupId, sizeof(pBlock->info.id.groupId)) != NULL &&
+        pBlock->info.id.baseGId != pBlock->info.id.groupId) {
+      qDebug("%s remap batch extWin baseGId %" PRIu64 " -> groupId %" PRIu64,
+             GET_TASKID(pTaskInfo), pBlock->info.id.baseGId, pBlock->info.id.groupId);
+      pBlock->info.id.baseGId = pBlock->info.id.groupId;
+    }
+
+    // A partition that has no corresponding trigger group cannot consume
+    // another partition's external windows.
     if (pTaskInfo->pStreamRuntimeInfo &&
         pTaskInfo->pStreamRuntimeInfo->funcInfo.isMultiGroupCalc &&
         pExtW->calcWithPartition &&
@@ -4387,6 +4404,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   // upstream that does not provide distinct C-group ids (groupId==baseGId).
   // Caller may decide to turn it back on once upstream is ready.
   pExtW->calcWithPartition = pPhynode->calcWithPartition;
+  pExtW->matchPartitionBy = pPhynode->matchPartitionBy;
   // pExtW->calcWithPartition = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) ? pPhynode->calcWithPartition : false;
   pExtW->extWinSplit = pPhynode->extWinSplit;
   

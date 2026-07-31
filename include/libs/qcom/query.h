@@ -99,6 +99,7 @@ typedef struct SExecResult {
   int32_t  msgType;
   void*    res;
   char*    extErrMsg;  // federated query: remote-side error message (heap-allocated, caller frees)
+  SExtPushdownDiagnostic* extPushdownDiag;  // optional structured pushdown diagnostic (heap-allocated)
 } SExecResult;
 
 #pragma pack(push, 1)
@@ -159,7 +160,11 @@ typedef struct STableMeta {
       uint8_t isAudit : 1;
       uint8_t secLvl : 3;  // security level (0-4), mapped from STableMetaRsp.secLvl
       uint8_t hasInheritors : 1;  // 1 if other VSTs inherit from this STB
-      uint8_t reserved : 2;
+      // Synthetic table meta built for federated external sources reuses a local-table
+      // shape (normal/super + schemaExt) for parser/planner compatibility, but it does
+      // not carry real TDengine column-compression metadata.
+      uint8_t extSrcSynthetic : 1;
+      uint8_t reserved : 1;
     };
   };
   int64_t ownerId;
@@ -213,6 +218,10 @@ static inline void tableMetaResetPointers(STableMeta *pMeta) {
     pMeta->tagRef = NULL;
     pMeta->numOfTagRefs = 0;
   }
+}
+
+static inline bool tableMetaShowCompressOptions(const STableMeta* pMeta) {
+  return NULL != pMeta && withColCompress(pMeta->tableType) && NULL != pMeta->schemaExt && !pMeta->extSrcSynthetic;
 }
 
 typedef struct SViewMeta {
@@ -571,6 +580,11 @@ void* getTaskPoolWorkerCb();
    NEED_CLIENT_REFRESH_EXT_SOURCE_ERROR(_code) || \
    NEED_CLIENT_RETURN_EXT_SOURCE_ERROR(_code) || \
    NEED_CLIENT_RETRY_EXT_POOL_ERROR(_code) || \
+  (_code) == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC || \
+  (_code) == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP || \
+  (_code) == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE || \
+  (_code) == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE || \
+  (_code) == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY || \
    (_code) == TSDB_CODE_EXT_PUSHDOWN_FAILED || \
    (_code) == TSDB_CODE_EXT_CAPABILITY_CHANGED)
 

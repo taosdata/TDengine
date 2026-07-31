@@ -15,12 +15,39 @@
 
 #include "mockCatalogService.h"
 #include "parTestUtil.h"
+#include "mockCatalogService.h"
+#include "tglobal.h"
 
 using namespace std;
 
 namespace ParserTest {
 
 class ParserSelectTest : public ParserTestBase {};
+
+namespace {
+
+class FederatedFlagGuard {
+ public:
+  FederatedFlagGuard() : previous_(tsFederatedQueryEnable) { tsFederatedQueryEnable = true; }
+  ~FederatedFlagGuard() { tsFederatedQueryEnable = previous_; }
+
+ private:
+  bool previous_;
+};
+
+void registerUnknownExternalColumn(const std::string& sourceName, int8_t sourceType,
+                                   const std::string& timestampType, const std::string& integerType) {
+  std::vector<MockCatalogService::MockExtColDef> columns;
+  columns.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "remote_ts", timestampType});
+  columns.push_back({"id", TSDB_DATA_TYPE_BIGINT, false, true, false, "remote_id", integerType});
+  columns.push_back({"unknown_value", TSDB_DATA_TYPE_NCHAR, false, true, false,
+                     "remote_unknown", "UnknownExternalBoundaryType"});
+
+  g_mockCatalogService->createExtSource(sourceName, sourceType, "127.0.0.1", 1, "fake_user", "fake_db", "public");
+  g_mockCatalogService->createExtTable(sourceName, "", "", "metrics", columns, TSDB_TIME_PRECISION_MILLI);
+}
+
+}  // namespace
 
 TEST_F(ParserSelectTest, basic) {
   useDb("root", "test");
@@ -292,6 +319,8 @@ TEST_F(ParserSelectTest, partitionBy) {
   run("SELECT c1, c2 FROM t1 PARTITION BY c2");
 
   run("SELECT SUM(c1), c2 FROM t1 PARTITION BY c2");
+
+  run("SELECT SUM(c1), c1 + 10 cc1 FROM t1 PARTITION BY cc1");
 }
 
 TEST_F(ParserSelectTest, partitionBySemanticCheck) {
@@ -312,6 +341,8 @@ TEST_F(ParserSelectTest, groupBy) {
   run("SELECT COUNT(*), c1, c2 + 10, c1 + c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c2, c1");
 
   run("SELECT COUNT(*), c1 + 10, c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c1 + 10, c2");
+
+  run("SELECT COUNT(*), c1 + 10 cc1 FROM t1 GROUP BY cc1");
 }
 
 TEST_F(ParserSelectTest, groupBySemanticCheck) {
@@ -486,7 +517,7 @@ TEST_F(ParserSelectTest, intervalSemanticCheck) {
 
   // "SELECT c1 FROM t1 INTERVAL(10s)" is now valid in window projection (SCALAR) mode, negative test removed.
   run("SELECT DISTINCT c1, c2 FROM t1 WHERE c1 > 3 INTERVAL(1d) FILL(NEXT)",
-      TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
+      TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC);
   run("SELECT HISTOGRAM(c1, 'log_bin', '{\"start\": -33,\"factor\": 55,\"count\": 5,\"infinity\": false}', 1) FROM t1 "
       "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' INTERVAL(10s) FILL(NULL)",
       TSDB_CODE_PAR_FILL_NOT_ALLOWED_FUNC);
@@ -714,6 +745,50 @@ TEST_F(ParserSelectTest, createSimpleSubQStmtNoUafOnInitError) {
 
   // < ALL  => rewriteExprSubQResToMinMax(isMin=true) => createSimpleSubQStmt
   run("SELECT c1 FROM t1 WHERE c1 < ALL (SELECT MAX(c1) FROM st1)");
+}
+
+TEST_F(ParserSelectTest, FederatedUnknownColumnFailsAtEveryReferencedExpressionPosition) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "test");
+  FederatedFlagGuard guard;
+
+  struct SourceCase {
+    const char* source;
+    int8_t      type;
+    const char* timestampType;
+    const char* integerType;
+  };
+  const SourceCase sources[] = {
+      {"ext_unknown_mysql", EXT_SOURCE_MYSQL, "datetime", "bigint"},
+      {"ext_unknown_pg", EXT_SOURCE_POSTGRESQL, "timestamp", "bigint"},
+      {"ext_unknown_influx", EXT_SOURCE_INFLUXDB, "Timestamp", "Int64"},
+  };
+  const char* queries[] = {
+      "select unknown_value from %s.metrics",
+      "select * from %s.metrics",
+      "select id from %s.metrics where unknown_value is not null",
+      "select id from %s.metrics order by unknown_value",
+      "select case when unknown_value is null then 0 else 1 end from %s.metrics",
+      "select cast(unknown_value as varchar(16)) from %s.metrics",
+      "select id from (select id, unknown_value from %s.metrics) q",
+      "select id from %s.metrics union all select id from %s.metrics where unknown_value is null",
+  };
+
+  for (const SourceCase& source : sources) {
+    registerUnknownExternalColumn(source.source, source.type, source.timestampType, source.integerType);
+    for (const char* query : queries) {
+      char sql[512] = {0};
+      if (strstr(query, "%s.metrics where") != NULL) {
+        snprintf(sql, sizeof(sql), query, source.source, source.source);
+      } else {
+        snprintf(sql, sizeof(sql), query, source.source);
+      }
+      runAsyncOnly(sql, TSDB_CODE_EXT_TYPE_NOT_MAPPABLE);
+    }
+  }
+#endif
 }
 
 }  // namespace ParserTest

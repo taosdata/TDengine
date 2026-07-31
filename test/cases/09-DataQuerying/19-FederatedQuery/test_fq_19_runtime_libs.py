@@ -337,6 +337,12 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         except ValueError:
             return False
 
+    def _link_or_copy_file(self, src, dst):
+        try:
+            os.link(src, dst)
+        except OSError:
+            shutil.copy2(src, dst)
+
     @contextmanager
     def _isolated_runtime_copy(self):
         runtime_dir = self._runtime_lib_dir()
@@ -344,16 +350,23 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         original_taosd_paths = [dnode.binPath for dnode in tdDnodes.dnodes]
         original_global_bin_path = getattr(tdDnodes, "binPath", None)
         original_taosd = original_taosd_paths[0]
-        copy_root = tempfile.mkdtemp(prefix="fq-runtime-copy.")
+        copy_root = tempfile.mkdtemp(prefix="fq-runtime-copy.", dir=os.path.dirname(build_dir))
         copy_build = os.path.join(copy_root, "build")
         copy_bin_dir = os.path.join(copy_build, "bin")
         copy_lib_dir = os.path.join(copy_build, "lib")
         old_runtime_override = getattr(self, "_runtime_lib_dir_override", None)
         try:
-            shutil.copytree(os.path.join(build_dir, "bin"), copy_bin_dir, symlinks=True)
-            shutil.copytree(runtime_dir, copy_lib_dir, symlinks=True)
+            os.makedirs(copy_bin_dir)
+            copy_taosd = os.path.join(copy_bin_dir, os.path.basename(original_taosd))
+            self._link_or_copy_file(original_taosd, copy_taosd)
+            shutil.copytree(
+                runtime_dir,
+                copy_lib_dir,
+                symlinks=True,
+                copy_function=self._link_or_copy_file,
+            )
             self._runtime_lib_dir_override = copy_lib_dir
-            tdDnodes.binPath = os.path.join(copy_bin_dir, os.path.basename(original_taosd))
+            tdDnodes.binPath = copy_taosd
             for dnode in tdDnodes.dnodes:
                 dnode.binPath = tdDnodes.binPath
             yield
@@ -490,7 +503,17 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
 
     def _restart_taosd(self):
         tdDnodes.stop(1)
-        tdDnodes.start(1)
+        for attempt in range(2):
+            try:
+                tdDnodes.start(1)
+                return
+            except SystemExit:
+                if attempt == 1:
+                    raise
+                tdLog.info(
+                    "taosd restart timed out after runtime-lib swap; retrying once"
+                )
+                tdDnodes.stop(1)
 
     def _missing_create_sql_for_src(self, src):
         missing_src = f"{src}_missing_create"

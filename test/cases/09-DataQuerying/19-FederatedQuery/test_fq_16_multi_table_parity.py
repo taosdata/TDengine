@@ -32,6 +32,8 @@ Environment:
   Enterprise edition, federatedQueryEnable=1
   MySQL 8.0+, PostgreSQL 14+, InfluxDB v3
 """
+from typing import Dict, List, Tuple
+
 
 import os
 import shutil
@@ -92,27 +94,32 @@ _REF_ROWS = [
     (_TS_BASE_MS + 1 * _M, 3),
 ]
 
-# Datetime strings for MySQL/PG
+# Datetime strings for MySQL/PG.
+# These columns are timezone-naive on the remote side, so the string literal is
+# interpreted in the session timezone (Asia/Shanghai in the FQ test env).  Use
+# CST local strings that map to the same absolute instants as _TS_BASE_MS /
+# Influx line-protocol UTC epochs above.
 _TA_ROWS_DT = [
-    ('2024-01-01 00:00:00.000', 1, 10, 'a'),
-    ('2024-01-01 00:01:00.000', 2, 20, 'b'),
-    ('2024-01-01 00:02:00.000', 3, 30, 'a'),
-    ('2024-01-01 00:03:00.000', 4, 40, 'b'),
-    ('2024-01-01 00:04:00.000', 5, 50, 'a'),
-    ('2024-01-01 00:05:00.000', 6, 10, 'b'),
+    ('2024-01-01 08:00:00.000', 1, 10, 'a'),
+    ('2024-01-01 08:01:00.000', 2, 20, 'b'),
+    ('2024-01-01 08:02:00.000', 3, 30, 'a'),
+    ('2024-01-01 08:03:00.000', 4, 40, 'b'),
+    ('2024-01-01 08:04:00.000', 5, 50, 'a'),
+    ('2024-01-01 08:05:00.000', 6, 10, 'b'),
 ]
 
 _TB_ROWS_DT = [
-    ('2024-01-01 00:00:00.000', 1, 1, 15, 1),
-    ('2024-01-01 00:01:00.000', 2, 2, 25, 0),
-    ('2024-01-01 00:02:00.000', 3, 1, 30, 1),
-    ('2024-01-01 00:05:00.000', 4, 3, 45, 1),
-    ('2024-01-01 00:06:00.000', 5, 5, 50, 0),
+    ('2024-01-01 08:00:00.000', 1, 1, 15, 1),
+    ('2024-01-01 08:01:00.000', 2, 2, 25, 0),
+    ('2024-01-01 08:02:00.000', 3, 1, 30, 1),
+    ('2024-01-01 08:05:00.000', 4, 3, 45, 1),
+    ('2024-01-01 08:06:00.000', 5, 5, 50, 0),
 ]
 
 # -- Disorder indices ----------------------------------------------------------
 _TA_DISORDER_IDX = [3, 0, 5, 2, 4, 1]
 _TB_DISORDER_IDX = [2, 4, 0, 3, 1]
+_SESSION_TZ = "Asia/Shanghai"
 
 
 # ==============================================================================
@@ -123,7 +130,7 @@ _TB_DISORDER_IDX = [2, 4, 0, 3, 1]
 #   Local:    {tbl} = "fq_mt_parity_local"  -> "{tbl}.ta" = "fq_mt_parity_local.ta"
 #   External: {tbl} = "fq_mt_parity_src_m"  -> "{tbl}.ta" = "fq_mt_parity_src_m.ta"
 
-_PARITY_GROUPS: dict[str, list] = {
+_PARITY_GROUPS: Dict[str, list] = {
     # -- xjoin: Cross-table JOINs (ts-based equality) -------------------------
     "xjoin": [
         # 01: INNER JOIN on ts -> 4 rows
@@ -215,7 +222,7 @@ _PARITY_GROUPS: dict[str, list] = {
     ],
 }
 
-_PARITY_CASES: list[tuple[str, str, dict]] = [
+_PARITY_CASES: List[Tuple[str, str, dict]] = [
     (f"{grp}-{i:02d}", entry[0], entry[1] if len(entry) > 1 else {})
     for grp, entries in _PARITY_GROUPS.items()
     for i, entry in enumerate(entries, 1)
@@ -239,7 +246,7 @@ _PARITY_CASES: list[tuple[str, str, dict]] = [
 # For negative cases that apply to each source individually, use {src}
 # placeholder and "per_source": True — the runner expands to M/P/I.
 
-_CROSS_CASES: list[tuple[str, str, dict]] = [
+_CROSS_CASES: List[Tuple[str, str, dict]] = [
     # ── Cross-source UNION ────────────────────────────────────────────────
     # xsrc-01: MySQL + PG UNION ALL -> 12 rows (6+6, identical data)
     ("xsrc-01",
@@ -721,22 +728,6 @@ class TestFq16MultiTableParity(ParityTestBase):
       - test_fq_06: same/cross-source JOIN, FULL OUTER JOIN, semi/anti JOIN
     """
 
-    # The OS timezone is Asia/Shanghai (CST, +0800), so taosd defaults to CST.
-    # MySQL DATETIME(3) stores UTC strings like '2024-01-01 00:00:00.000'
-    # without timezone metadata.  When taosd reads them in CST mode it
-    # interprets them as local (CST) → unix-ms 1704038400000, which is 8 h
-    # behind InfluxDB's UTC nanoseconds (→ unix-ms 1704067200000).  The
-    # cross-source JOINs (xsrc-19/21/22/24) therefore return 0 matches.
-    # Forcing UTC makes both sources resolve to unix-ms 1704067200000.
-    updatecfgDict = {
-        "federatedQueryEnable": 1,
-        "timezone": "UTC",
-        "clientCfg": {
-            "federatedQueryEnable": 1,
-            "timezone": "UTC",
-        },
-    }
-
     _SRC_MYSQL  = "fq_mt_parity_src_m"
     _SRC_PG     = "fq_mt_parity_src_p"
     _SRC_INFLUX = "fq_mt_parity_src_i"
@@ -759,6 +750,11 @@ class TestFq16MultiTableParity(ParityTestBase):
             ("InfluxDB", self._SRC_INFLUX),
         ]
 
+    def _ensure_session_timezone(self):
+        # fq16 inserts MySQL/PG naive timestamps as CST local strings so they
+        # represent the same absolute instants as Influx UTC epochs.
+        tdSql.execute(f'ALTER LOCAL "timezone" "{_SESSION_TZ}"')
+
     def setup_method(self, method):
         if TestFq16MultiTableParity._class_setup_done:
             return
@@ -766,6 +762,7 @@ class TestFq16MultiTableParity(ParityTestBase):
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
+        self._ensure_session_timezone()
 
         # --- Local TDengine ---
         tdSql.executes(_build_local_setup())
@@ -825,8 +822,8 @@ class TestFq16MultiTableParity(ParityTestBase):
         I = self._SRC_INFLUX
         L = _LOCAL_DB
 
-        failed: list[tuple[str, str, str]] = []
-        serialized_blocks: list[str] = []
+        failed: List[Tuple[str, str, str]] = []
+        serialized_blocks: List[str] = []
 
         for case_id, sql_tmpl, opts in cross_cases:
             sql = sql_tmpl.format(M=M, P=P, I=I, L=L)
@@ -1020,6 +1017,7 @@ class TestFq16MultiTableParity(ParityTestBase):
         History:
             - 2026-06-03 wpan Consolidated multi-table parity from fq_04/05/06
         """
+        self._ensure_session_timezone()
         # Part 1: same-source parity (4-source comparison + baseline file)
         self.run_parity_cases(_PARITY_CASES, parity_groups=_PARITY_GROUPS)
 
@@ -1071,6 +1069,7 @@ class TestFq16MultiTableParity(ParityTestBase):
 
         Labels: common,ci
         """
+        self._ensure_session_timezone()
         # Filter positive parity cases
         pos_parity = [(cid, sql, kw) for cid, sql, kw in _PARITY_CASES
                       if kw.get("positive", True)]

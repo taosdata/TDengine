@@ -20,6 +20,7 @@
 #include "clientSession.h"
 #include "command.h"
 #include "extConnector.h"
+#include "extError.h"
 #include "decimal.h"
 #include "scheduler.h"
 #include "tdatablock.h"
@@ -37,6 +38,9 @@
 #ifdef USE_LIBGSASL
 #include <gsasl.h>
 #endif
+
+#include <ctype.h>
+#include <stdlib.h>
 
 static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode,
@@ -475,6 +479,316 @@ static uint8_t getShowVarPrivMask(SRequestObj* pRequest) {
 }
 #endif
 
+static int32_t execResetQueryCacheForExtSource(SRequestObj* pRequest, const SResetQueryCacheStmt* pStmt) {
+  if (NULL == pRequest || NULL == pStmt || !pStmt->forExtSource || pStmt->sourceName[0] == '\0') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SCatalog* pCatalog = NULL;
+  int32_t   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  code = catalogClearExtSourceDemotions(pCatalog, pStmt->sourceName);
+  if (TSDB_CODE_SUCCESS == code) {
+    tscDebug("RESET QUERY CACHE FOR EXTERNAL SOURCE `%s`: cleared demotion cache", pStmt->sourceName);
+  }
+
+  return code;
+}
+
+static void extCopyLowerString(const char* pIn, char* pOut, int32_t outLen) {
+  if (NULL == pOut || outLen <= 0) {
+    return;
+  }
+
+  pOut[0] = '\0';
+  if (NULL == pIn) {
+    return;
+  }
+
+  int32_t n = (int32_t)strlen(pIn);
+  if (n > outLen - 1) {
+    n = outLen - 1;
+  }
+
+  for (int32_t i = 0; i < n; ++i) {
+    pOut[i] = (char)tolower((unsigned char)pIn[i]);
+  }
+  pOut[n] = '\0';
+}
+
+static bool extClauseNameToKind(const char* pName, EExtClauseKind* pKind) {
+  if (NULL == pName || NULL == pKind || pName[0] == '\0') {
+    return false;
+  }
+
+  const char* pNorm = pName;
+  if (0 == strncasecmp(pNorm, "EXT_CLAUSE_", strlen("EXT_CLAUSE_"))) {
+    pNorm += strlen("EXT_CLAUSE_");
+  }
+
+  static const struct {
+    const char*    name;
+    EExtClauseKind kind;
+  } kClauseMap[] = {
+      {"FILTER", EXT_CLAUSE_FILTER},
+      {"PROJECTION", EXT_CLAUSE_PROJECTION},
+      {"AGG", EXT_CLAUSE_AGG},
+      {"ORDER", EXT_CLAUSE_ORDER},
+      {"LIMIT", EXT_CLAUSE_LIMIT},
+      {"JOIN", EXT_CLAUSE_JOIN},
+      {"GROUP_ROLLUP", EXT_CLAUSE_GROUP_ROLLUP},
+      {"HAVING", EXT_CLAUSE_HAVING},
+      {"ORDER_NULLS_FIRST", EXT_CLAUSE_ORDER_NULLS_FIRST},
+      {"ORDER_NULLS_LAST", EXT_CLAUSE_ORDER_NULLS_LAST},
+      {"OFFSET", EXT_CLAUSE_OFFSET},
+      {"DISTINCT", EXT_CLAUSE_DISTINCT},
+      {"INNER_JOIN", EXT_CLAUSE_INNER_JOIN},
+      {"LEFT_JOIN", EXT_CLAUSE_LEFT_JOIN},
+      {"RIGHT_JOIN", EXT_CLAUSE_RIGHT_JOIN},
+      {"FULL_OUTER_JOIN", EXT_CLAUSE_FULL_OUTER_JOIN},
+      {"SEMI_JOIN", EXT_CLAUSE_SEMI_JOIN},
+      {"ANTI_JOIN", EXT_CLAUSE_ANTI_JOIN},
+      {"FROM_SUBQUERY", EXT_CLAUSE_FROM_SUBQUERY},
+      {"SCALAR_SUBQUERY", EXT_CLAUSE_SCALAR_SUBQUERY},
+      {"INTERVAL_TUMBLING", EXT_CLAUSE_INTERVAL_TUMBLING},
+      {"INTERVAL_SLIDING", EXT_CLAUSE_INTERVAL_SLIDING},
+      {"PARTITION_TBNAME", EXT_CLAUSE_PARTITION_TBNAME},
+      {"PARTITION_COLUMN", EXT_CLAUSE_PARTITION_COLUMN},
+      {"FEAT_CTE", EXT_CLAUSE_FEAT_CTE},
+      {"FEAT_WINDOW_FUNCTIONS", EXT_CLAUSE_FEAT_WINDOW_FUNCTIONS},
+      {"FEAT_LARGE_IN_LIST", EXT_CLAUSE_FEAT_LARGE_IN_LIST},
+      {"IN_SUBQUERY", EXT_CLAUSE_IN_SUBQUERY},
+      {"ALL_ANY_SUBQUERY", EXT_CLAUSE_ALL_ANY_SUBQUERY},
+      {"ASOF_JOIN", EXT_CLAUSE_ASOF_JOIN},
+      {"WINDOW_JOIN", EXT_CLAUSE_WINDOW_JOIN},
+      {"STATE_WINDOW", EXT_CLAUSE_STATE_WINDOW},
+      {"SESSION_WINDOW", EXT_CLAUSE_SESSION_WINDOW},
+      {"EVENT_WINDOW", EXT_CLAUSE_EVENT_WINDOW},
+      {"COUNT_WINDOW", EXT_CLAUSE_COUNT_WINDOW},
+      {"FILL", EXT_CLAUSE_FILL},
+      {"INTERP", EXT_CLAUSE_INTERP},
+      {"SLIMIT", EXT_CLAUSE_SLIMIT},
+  };
+
+  for (size_t i = 0; i < sizeof(kClauseMap) / sizeof(kClauseMap[0]); ++i) {
+    if (0 == strcasecmp(pNorm, kClauseMap[i].name)) {
+      *pKind = kClauseMap[i].kind;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool extTypeNameToCode(const char* pName, int8_t* pTypeCode) {
+  if (NULL == pName || NULL == pTypeCode || pName[0] == '\0') {
+    return false;
+  }
+
+  static const struct {
+    const char* name;
+    int8_t      typeCode;
+  } kTypeMap[] = {
+      {"BOOL", TSDB_DATA_TYPE_BOOL},
+      {"BOOLEAN", TSDB_DATA_TYPE_BOOL},
+      {"TINYINT", TSDB_DATA_TYPE_TINYINT},
+      {"SMALLINT", TSDB_DATA_TYPE_SMALLINT},
+      {"INT", TSDB_DATA_TYPE_INT},
+      {"INTEGER", TSDB_DATA_TYPE_INT},
+      {"BIGINT", TSDB_DATA_TYPE_BIGINT},
+      {"UTINYINT", TSDB_DATA_TYPE_UTINYINT},
+      {"USMALLINT", TSDB_DATA_TYPE_USMALLINT},
+      {"UINT", TSDB_DATA_TYPE_UINT},
+      {"UBIGINT", TSDB_DATA_TYPE_UBIGINT},
+      {"FLOAT", TSDB_DATA_TYPE_FLOAT},
+      {"DOUBLE", TSDB_DATA_TYPE_DOUBLE},
+      {"VARCHAR", TSDB_DATA_TYPE_VARCHAR},
+      {"BINARY", TSDB_DATA_TYPE_VARCHAR},
+      {"NCHAR", TSDB_DATA_TYPE_NCHAR},
+      {"TIMESTAMP", TSDB_DATA_TYPE_TIMESTAMP},
+      {"JSON", TSDB_DATA_TYPE_JSON},
+      {"VARBINARY", TSDB_DATA_TYPE_VARBINARY},
+      {"DECIMAL", TSDB_DATA_TYPE_DECIMAL},
+      {"DECIMAL64", TSDB_DATA_TYPE_DECIMAL64},
+      {"BLOB", TSDB_DATA_TYPE_BLOB},
+      {"MEDIUMBLOB", TSDB_DATA_TYPE_MEDIUMBLOB},
+      {"GEOMETRY", TSDB_DATA_TYPE_GEOMETRY},
+  };
+
+  for (size_t i = 0; i < sizeof(kTypeMap) / sizeof(kTypeMap[0]); ++i) {
+    if (0 == strcasecmp(pName, kTypeMap[i].name)) {
+      *pTypeCode = kTypeMap[i].typeCode;
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool extOperatorNameToType(const char* pName, EOperatorType* pOpType) {
+  if (NULL == pName || NULL == pOpType || pName[0] == '\0') {
+    return false;
+  }
+
+  static const struct {
+    const char*   name;
+    EOperatorType opType;
+  } kOpMap[] = {
+      {"+", OP_TYPE_ADD},
+      {"ADD", OP_TYPE_ADD},
+      {"-", OP_TYPE_SUB},
+      {"SUB", OP_TYPE_SUB},
+      {"*", OP_TYPE_MULTI},
+      {"MULTI", OP_TYPE_MULTI},
+      {"MUL", OP_TYPE_MULTI},
+      {"/", OP_TYPE_DIV},
+      {"DIV", OP_TYPE_DIV},
+      {"%", OP_TYPE_REM},
+      {"REM", OP_TYPE_REM},
+      {"&", OP_TYPE_BIT_AND},
+      {"BIT_AND", OP_TYPE_BIT_AND},
+      {"|", OP_TYPE_BIT_OR},
+      {"BIT_OR", OP_TYPE_BIT_OR},
+      {">", OP_TYPE_GREATER_THAN},
+      {"GT", OP_TYPE_GREATER_THAN},
+      {"GREATER_THAN", OP_TYPE_GREATER_THAN},
+      {">=", OP_TYPE_GREATER_EQUAL},
+      {"GE", OP_TYPE_GREATER_EQUAL},
+      {"GREATER_EQUAL", OP_TYPE_GREATER_EQUAL},
+      {"<", OP_TYPE_LOWER_THAN},
+      {"LT", OP_TYPE_LOWER_THAN},
+      {"LOWER_THAN", OP_TYPE_LOWER_THAN},
+      {"<=", OP_TYPE_LOWER_EQUAL},
+      {"LE", OP_TYPE_LOWER_EQUAL},
+      {"LOWER_EQUAL", OP_TYPE_LOWER_EQUAL},
+      {"=", OP_TYPE_EQUAL},
+      {"==", OP_TYPE_EQUAL},
+      {"EQ", OP_TYPE_EQUAL},
+      {"EQUAL", OP_TYPE_EQUAL},
+      {"!=", OP_TYPE_NOT_EQUAL},
+      {"<>", OP_TYPE_NOT_EQUAL},
+      {"NE", OP_TYPE_NOT_EQUAL},
+      {"NOT_EQUAL", OP_TYPE_NOT_EQUAL},
+      {"IN", OP_TYPE_IN},
+      {"NOT_IN", OP_TYPE_NOT_IN},
+      {"LIKE", OP_TYPE_LIKE},
+      {"NOT_LIKE", OP_TYPE_NOT_LIKE},
+      {"MATCH", OP_TYPE_MATCH},
+      {"NMATCH", OP_TYPE_NMATCH},
+      {"IS_NULL", OP_TYPE_IS_NULL},
+      {"IS_NOT_NULL", OP_TYPE_IS_NOT_NULL},
+      {"IS_TRUE", OP_TYPE_IS_TRUE},
+      {"IS_FALSE", OP_TYPE_IS_FALSE},
+      {"IS_UNKNOWN", OP_TYPE_IS_UNKNOWN},
+      {"IS_NOT_TRUE", OP_TYPE_IS_NOT_TRUE},
+      {"IS_NOT_FALSE", OP_TYPE_IS_NOT_FALSE},
+      {"IS_NOT_UNKNOWN", OP_TYPE_IS_NOT_UNKNOWN},
+      {"EXISTS", OP_TYPE_EXISTS},
+      {"NOT_EXISTS", OP_TYPE_NOT_EXISTS},
+      {"->", OP_TYPE_JSON_GET_VALUE},
+      {"JSON_GET_VALUE", OP_TYPE_JSON_GET_VALUE},
+      {"JSON_CONTAINS", OP_TYPE_JSON_CONTAINS},
+      {"MINUS", OP_TYPE_MINUS},
+      {"ASSIGN", OP_TYPE_ASSIGN},
+  };
+
+  for (size_t i = 0; i < sizeof(kOpMap) / sizeof(kOpMap[0]); ++i) {
+    if (0 == strcasecmp(pName, kOpMap[i].name)) {
+      *pOpType = kOpMap[i].opType;
+      return true;
+    }
+  }
+
+  char* end = NULL;
+  int64_t opVal = taosStr2Int64(pName, &end, 10);
+  if (NULL != end && *end == '\0' && opVal > 0 && opVal < OP_TYPE_ASSIGN + 1) {
+    *pOpType = (EOperatorType)opVal;
+    return true;
+  }
+
+  return false;
+}
+
+static int32_t execAlterExtSourceCapability(SRequestObj* pRequest, const SAlterExtSourceStmt* pStmt) {
+  if (NULL == pRequest || NULL == pStmt || pStmt->sourceName[0] == '\0' || pStmt->capValue[0] == '\0') {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pStmt->capAction == EXT_CAP_ACTION_NONE) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pStmt->capKind != EXT_DEMOTE_KIND_FUNC && pStmt->capKind != EXT_DEMOTE_KIND_CLAUSE &&
+      pStmt->capKind != EXT_DEMOTE_KIND_TYPE && pStmt->capKind != EXT_DEMOTE_KIND_OP) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SCatalog* pCatalog = NULL;
+  int32_t   code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  bool isExtSource = false;
+  code = catalogIsExtSource(pCatalog, pStmt->sourceName, &isExtSource);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (!isExtSource) {
+    return pStmt->ignoreNotExists ? TSDB_CODE_SUCCESS : TSDB_CODE_EXT_SOURCE_NOT_FOUND;
+  }
+
+  SExtCapDemoteSpec spec = {.kind = (EExtCapDemoteKind)pStmt->capKind, .reasonCode = EXT_DEMOTE_REASON_USER_FORCED};
+  switch (spec.kind) {
+    case EXT_DEMOTE_KIND_FUNC:
+      extCopyLowerString(pStmt->capValue, spec.detail.funcName, sizeof(spec.detail.funcName));
+      if (spec.detail.funcName[0] == '\0') {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      break;
+    case EXT_DEMOTE_KIND_CLAUSE: {
+      EExtClauseKind clauseKind = EXT_CLAUSE_FILTER;
+      if (!extClauseNameToKind(pStmt->capValue, &clauseKind)) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      spec.detail.clauseKind = clauseKind;
+      break;
+    }
+    case EXT_DEMOTE_KIND_TYPE: {
+      int8_t typeCode = TSDB_DATA_TYPE_NULL;
+      if (!extTypeNameToCode(pStmt->capValue, &typeCode)) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      spec.detail.tsdbTypeCode = typeCode;
+      break;
+    }
+    case EXT_DEMOTE_KIND_OP: {
+      EOperatorType opType = OP_TYPE_ADD;
+      if (!extOperatorNameToType(pStmt->capValue, &opType)) {
+        return TSDB_CODE_INVALID_PARA;
+      }
+      spec.detail.opType = opType;
+      break;
+    }
+    default:
+      return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pStmt->capAction == EXT_CAP_ACTION_DISABLE) {
+    code = catalogDemoteExtSourceCapability(pCatalog, pStmt->sourceName, &spec);
+  } else {
+    code = catalogClearExtSourceDemoteEntry(pCatalog, pStmt->sourceName, &spec);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    const char* action = (pStmt->capAction == EXT_CAP_ACTION_DISABLE) ? "DISABLE" : "ENABLE";
+    tscDebug("ALTER EXTERNAL SOURCE `%s` %s capability kind=%d value=%s applied", pStmt->sourceName, action,
+             pStmt->capKind, pStmt->capValue);
+  }
+
+  return code;
+}
 static int32_t execSetTimezone(SRequestObj* pRequest, SSetTimezoneStmt* pStmt) {
   int64_t rid = pRequest->pTscObj->id;
   int32_t code = taos_options_connection((TAOS*)&rid, TSDB_OPTION_CONNECTION_TIMEZONE, pStmt->timezone);
@@ -522,7 +836,6 @@ static int32_t syncAlterLocalConnectionOption(SRequestObj* pRequest, SAlterLocal
 
   return TSDB_CODE_SUCCESS;
 }
-
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   // Handle USE ext_source stmt: update session ext source context without mnode round-trip
   if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_USE_EXT_SOURCE_STMT) {
@@ -533,6 +846,19 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_RESET_QUERY_CACHE_STMT) {
+    SResetQueryCacheStmt* pStmt = (SResetQueryCacheStmt*)pQuery->pRoot;
+    if (pStmt->forExtSource) {
+      return execResetQueryCacheForExtSource(pRequest, pStmt);
+    }
+  }
+
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_EXT_SOURCE_STMT) {
+    SAlterExtSourceStmt* pStmt = (SAlterExtSourceStmt*)pQuery->pRoot;
+    if (pStmt->capAction != EXT_CAP_ACTION_NONE) {
+      return execAlterExtSourceCapability(pRequest, pStmt);
+    }
+  }
   SRetrieveTableRsp* pRsp = NULL;
   int8_t             biMode = atomic_load_8(&pRequest->pTscObj->biMode);
   int32_t            code = TSDB_CODE_SUCCESS;
@@ -571,7 +897,7 @@ int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     }
 #ifdef TD_ENTERPRISE
     // Propagate federatedQuery* pool/timeout changes to the client-side ext connector module.
-    if (TSDB_CODE_SUCCESS == code && strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
+    if (strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
       SExtConnectorModuleCfg extConnCfg = {
         .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
         .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
@@ -706,12 +1032,6 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
-  if (execLocalSetCmd(pRequest, pQuery, &code)) {
-    pRequest->code = code;
-    doRequestCallback(pRequest, code);
-    return;
-  }
-
   // Handle USE ext_source stmt: update session ext source context
   if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_USE_EXT_SOURCE_STMT) {
     SUseExtSourceStmt* pStmt = (SUseExtSourceStmt*)pQuery->pRoot;
@@ -722,6 +1042,31 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_RESET_QUERY_CACHE_STMT) {
+    SResetQueryCacheStmt* pStmt = (SResetQueryCacheStmt*)pQuery->pRoot;
+    if (pStmt->forExtSource) {
+      code = execResetQueryCacheForExtSource(pRequest, pStmt);
+      pRequest->code = code;
+      doRequestCallback(pRequest, code);
+      return;
+    }
+  }
+
+  if (pQuery->pRoot && nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_EXT_SOURCE_STMT) {
+    SAlterExtSourceStmt* pStmt = (SAlterExtSourceStmt*)pQuery->pRoot;
+    if (pStmt->capAction != EXT_CAP_ACTION_NONE) {
+      code = execAlterExtSourceCapability(pRequest, pStmt);
+      pRequest->code = code;
+      doRequestCallback(pRequest, code);
+      return;
+    }
+  }
+
+  if (execLocalSetCmd(pRequest, pQuery, &code)) {
+    pRequest->code = code;
+    doRequestCallback(pRequest, code);
+    return;
+  }
   uint8_t showVarPrivMask = SHOW_VAR_PRIV_ALL;
 #ifdef TD_ENTERPRISE
   if (pQuery->pRoot != NULL && nodeType(pQuery->pRoot) == QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT) {
@@ -739,10 +1084,9 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
       nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_LOCAL_STMT) {
     SAlterLocalStmt* pAlterStmt = (SAlterLocalStmt*)pQuery->pRoot;
     code = syncAlterLocalConnectionOption(pRequest, pAlterStmt);
-
 #ifdef TD_ENTERPRISE
     // Propagate federatedQuery* pool/timeout changes to the client-side ext connector module.
-    if (TSDB_CODE_SUCCESS == code && strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
+    if (strncasecmp(pAlterStmt->config, "federatedQuery", 14) == 0) {
       SExtConnectorModuleCfg extConnCfg = {
         .max_pool_size_per_source = tsFederatedQueryMaxPoolSizePerSource,
         .conn_timeout_ms          = tsFederatedQueryConnectTimeoutMs,
@@ -949,6 +1293,9 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                       .pUser = pRequest->pTscObj->user,
                       .userId = pRequest->pTscObj->userId,
+                      .pExtCapability = NULL,
+                      .pExtSessionOverlay = &pRequest->extSessionOverlay,
+                      .pExtPushdownAttempt = &pRequest->extPushdownAttemptCount,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
                       .timezoneExplicit = pRequest->pTscObj->optionInfo.timezoneExplicit,
                       .sysInfo = pRequest->pTscObj->sysInfo,
@@ -1789,6 +2136,9 @@ void returnToUser(SRequestObj* pRequest) {
   SRequestObj* pUserReq = acquireRequest(pRequest->relation.userRefId);
   if (pUserReq) {
     pUserReq->code = pRequest->code;
+    if (pUserReq->msgBuf != NULL && pUserReq->msgBufLen > 0 && pRequest->msgBuf != NULL && pRequest->msgBuf[0] != '\0') {
+      tstrncpy(pUserReq->msgBuf, pRequest->msgBuf, pUserReq->msgBufLen);
+    }
     // return to client
     doRequestCallback(pUserReq, pUserReq->code);
     (void)releaseRequest(pRequest->relation.userRefId);
@@ -1800,9 +2150,9 @@ void returnToUser(SRequestObj* pRequest) {
 }
 
 static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock** pBlock) {
-  int64_t     lastTs = 0;
-  TAOS_FIELD* pResFields = taos_fetch_fields(pRes);
-  int32_t     numOfFields = taos_num_fields(pRes);
+  int64_t       lastTs = 0;
+  TAOS_FIELD_E* pResFields = taos_fetch_fields_e(pRes);
+  int32_t       numOfFields = taos_num_fields(pRes);
 
   int32_t code = createDataBlock(pBlock);
   if (code) {
@@ -1811,6 +2161,8 @@ static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock*
 
   for (int32_t i = 0; i < numOfFields; ++i) {
     SColumnInfoData colInfoData = createColumnInfoData(pResFields[i].type, pResFields[i].bytes, i + 1);
+    colInfoData.info.precision = pResFields[i].precision;
+    colInfoData.info.scale = pResFields[i].scale;
     code = blockDataAppendColInfo(*pBlock, &colInfoData);
     if (TSDB_CODE_SUCCESS != code) {
       blockDataDestroy(*pBlock);
@@ -1928,6 +2280,182 @@ static void extPoolRetryTimerCb(void* param, void* tmrId) {
   (void)releaseRequest(refId);
 }
 
+static bool extIsPushdownDemoteCode(int32_t code) {
+  return code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC || code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP ||
+         code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE || code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE ||
+         code == TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY;
+}
+
+static bool extExtractHintToken(const char* pMsg, const char* pToken, char* pBuf, int32_t bufLen) {
+  if (NULL == pMsg || NULL == pToken || NULL == pBuf || bufLen <= 0) {
+    return false;
+  }
+
+  pBuf[0] = '\0';
+  const char* pPos = taosStrCaseStr(pMsg, pToken);
+  if (NULL == pPos) {
+    return false;
+  }
+
+  pPos += strlen(pToken);
+  while (*pPos == ' ' || *pPos == '\'' || *pPos == '"') {
+    ++pPos;
+  }
+
+  int32_t i = 0;
+  while (*pPos != '\0' && *pPos != ',' && *pPos != ']' && !isspace((unsigned char)*pPos) && i < (bufLen - 1)) {
+    pBuf[i++] = *pPos++;
+  }
+
+  while (i > 0 && (pBuf[i - 1] == '\'' || pBuf[i - 1] == '"')) {
+    --i;
+  }
+
+  pBuf[i] = '\0';
+  return i > 0;
+}
+
+static bool extInferClauseFromMsg(const char* pMsg, EExtClauseKind* pClause) {
+  if (NULL == pClause) {
+    return false;
+  }
+
+  *pClause = EXT_CLAUSE_FILTER;
+  if (NULL == pMsg || '\0' == pMsg[0]) {
+    return true;
+  }
+
+  if (NULL != taosStrCaseStr(pMsg, "order by") || NULL != taosStrCaseStr(pMsg, "clause=order")) {
+    *pClause = EXT_CLAUSE_ORDER;
+    return true;
+  }
+  if (NULL != taosStrCaseStr(pMsg, "group by") || NULL != taosStrCaseStr(pMsg, "having") ||
+      NULL != taosStrCaseStr(pMsg, "clause=agg")) {
+    *pClause = EXT_CLAUSE_AGG;
+    return true;
+  }
+  if (NULL != taosStrCaseStr(pMsg, "limit") || NULL != taosStrCaseStr(pMsg, "clause=limit")) {
+    *pClause = EXT_CLAUSE_LIMIT;
+    return true;
+  }
+  if (NULL != taosStrCaseStr(pMsg, " join ") || NULL != taosStrCaseStr(pMsg, "clause=join")) {
+    *pClause = EXT_CLAUSE_JOIN;
+    return true;
+  }
+  if (NULL != taosStrCaseStr(pMsg, "select") || NULL != taosStrCaseStr(pMsg, "projection") ||
+      NULL != taosStrCaseStr(pMsg, "clause=projection")) {
+    *pClause = EXT_CLAUSE_PROJECTION;
+    return true;
+  }
+
+  return true;
+}
+
+static bool extBuildDemoteSpecFromDiag(int32_t code, const char* pMsg, const SExtPushdownDiagnostic* pDiag,
+                                       SExtCapDemoteSpec* pSpec) {
+  if (NULL == pSpec || NULL == pDiag) {
+    return false;
+  }
+
+  memset(pSpec, 0, sizeof(*pSpec));
+  pSpec->reasonCode = (pDiag->reasonCode > 0) ? (uint8_t)pDiag->reasonCode : (uint8_t)EXT_DEMOTE_REASON_REMOTE_UNKNOWN;
+
+  if (EXT_DEMOTE_KIND_NONE != pDiag->suggestedDemoteKind) {
+    pSpec->kind = pDiag->suggestedDemoteKind;
+  } else {
+    return false;
+  }
+
+  switch (pSpec->kind) {
+    case EXT_DEMOTE_KIND_FUNC: {
+      if (pDiag->detail.funcName[0] != '\0') {
+        tstrncpy(pSpec->detail.funcName, pDiag->detail.funcName, sizeof(pSpec->detail.funcName));
+        return true;
+      }
+      char funcName[TSDB_FUNC_NAME_LEN] = {0};
+      if (!extExtractHintToken(pMsg, "func=", funcName, sizeof(funcName))) {
+        return false;
+      }
+      tstrncpy(pSpec->detail.funcName, funcName, sizeof(pSpec->detail.funcName));
+      return true;
+    }
+    case EXT_DEMOTE_KIND_OP: {
+      if (pDiag->detail.opType > 0 && pDiag->detail.opType <= OP_TYPE_ASSIGN) {
+        pSpec->detail.opType = pDiag->detail.opType;
+        return true;
+      }
+      char opBuf[32] = {0};
+      if (!extExtractHintToken(pMsg, "op=", opBuf, sizeof(opBuf))) {
+        return false;
+      }
+      char* end = NULL;
+      int64_t opVal = taosStr2Int64(opBuf, &end, 10);
+      if (NULL == end || *end != '\0') {
+        return false;
+      }
+      pSpec->detail.opType = (EOperatorType)opVal;
+      return true;
+    }
+    case EXT_DEMOTE_KIND_CLAUSE: {
+      EExtClauseKind clauseKind;
+      if (pDiag->detail.clauseKind >= EXT_CLAUSE_FILTER && pDiag->detail.clauseKind < EXT_CLAUSE_MAX) {
+        clauseKind = pDiag->detail.clauseKind;
+      } else if (!extInferClauseFromMsg(pMsg, &clauseKind)) {
+        return false;
+      }
+      // Only GATE clause values participate in error-based dynamic demote.
+      // STATIC values (dialect defaults / manual SQL only) must not be produced
+      // by error classification; fall back to unclassified handling instead.
+      if (!extClauseIsGate(clauseKind)) {
+        return false;
+      }
+      pSpec->detail.clauseKind = clauseKind;
+      return true;
+    }
+    case EXT_DEMOTE_KIND_TYPE: {
+      if (pDiag->detail.tsdbTypeCode > 0) {
+        pSpec->detail.tsdbTypeCode = pDiag->detail.tsdbTypeCode;
+        return true;
+      }
+      char typeBuf[32] = {0};
+      if (!extExtractHintToken(pMsg, "type=", typeBuf, sizeof(typeBuf))) {
+        return false;
+      }
+      char* end = NULL;
+      int64_t typeVal = taosStr2Int64(typeBuf, &end, 10);
+      if (NULL == end || *end != '\0' || typeVal < INT8_MIN || typeVal > INT8_MAX) {
+        return false;
+      }
+      pSpec->detail.tsdbTypeCode = (int8_t)typeVal;
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+
+// FILTER-clause runtime demote is too coarse to persist into catalog capability.
+// A failed WHERE pushdown can be caused by a query-specific combination such as
+// nested subquery SQL fragments, function composition, or connector-side rewrite
+// shape; persisting it as "this source no longer supports FILTER" poisons later
+// unrelated statements. Keep FILTER demote scoped to the request overlay so the
+// current statement can fall back while later statements still re-evaluate full
+// pushability from the capability matrix.
+static bool extShouldPersistCatalogDemote(const SRequestObj* pRequest, const SExtCapDemoteSpec* pSpec) {
+  if (NULL == pSpec || EXT_DEMOTE_KIND_NONE == pSpec->kind) {
+    return false;
+  }
+
+  if (EXT_DEMOTE_KIND_CLAUSE == pSpec->kind && EXT_CLAUSE_FILTER == pSpec->detail.clauseKind) {
+    tscDebug("req:0x%" PRIx64
+             ", skip catalog demote for FILTER clause; keep overlay-only to avoid cross-query capability poisoning, "
+             "QID:0x%" PRIx64,
+             (NULL != pRequest) ? pRequest->self : 0, (NULL != pRequest) ? pRequest->requestId : 0);
+    return false;
+  }
+
+  return true;
+}
 // FH-8/9/7: Handle ext source errors returned by Executor/FederatedScan.
 // extErrMsg should already have been copied to pRequest->msgBuf before this call.
 void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
@@ -1953,6 +2481,97 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
     return;
   }
 
+  if (code == TSDB_CODE_EXT_PUSHDOWN_FAILED || code == TSDB_CODE_EXT_SYNTAX_UNSUPPORTED ||
+      extIsPushdownDemoteCode(code)) {
+    SExtPushdownDiagnostic diag = {0};
+    if (pRequest->body.resInfo.execRes.extPushdownDiag != NULL) {
+      diag = *pRequest->body.resInfo.execRes.extPushdownDiag;
+    }
+    if (diag.reasonCode == 0) {
+      (void)extClassifyRemoteError(code, NULL, 0, 0, pRequest->msgBuf, &diag);
+    }
+
+    if (pRequest->extPushdownAttemptCount < INT32_MAX) {
+      pRequest->extPushdownAttemptCount += 1;
+    }
+    pRequest->extSessionOverlay.attemptCount = pRequest->extPushdownAttemptCount;
+
+    bool              demoted = false;
+    SExtCapDemoteSpec spec = {0};
+    bool              hasSpec = extBuildDemoteSpecFromDiag(code, pRequest->msgBuf, &diag, &spec);
+    bool              preferOverlay = false;
+
+    if (hasSpec) {
+      SExtCapDemoteSpec escalated = {0};
+      if (extCapOverlayTryEscalateOnRepeat(&pRequest->extSessionOverlay, &spec, &escalated)) {
+        spec = escalated;
+        preferOverlay = true;
+        tscDebug("req:0x%" PRIx64 ", repeated precise demote escalated to clause:%d, attempt:%d, QID:0x%" PRIx64,
+                 pRequest->self, spec.detail.clauseKind, pRequest->extPushdownAttemptCount, pRequest->requestId);
+      }
+    }
+
+    const char* sourceName = pRequest->extSourceName;
+    bool allowCatalogDemote = hasSpec && !preferOverlay && EXT_REASON_IS_PRECISE(spec.reasonCode) &&
+                              '\0' != sourceName[0] && extShouldPersistCatalogDemote(pRequest, &spec);
+
+    if (hasSpec && !preferOverlay && EXT_REASON_IS_PRECISE(spec.reasonCode) && '\0' != sourceName[0] &&
+        !allowCatalogDemote) {
+      tscDebug("req:0x%" PRIx64
+               ", precise demote kept in overlay only for source:%s kind:%d clause:%d reason:%d, QID:0x%" PRIx64,
+               pRequest->self, sourceName, (int32_t)spec.kind,
+               (EXT_DEMOTE_KIND_CLAUSE == spec.kind) ? (int32_t)spec.detail.clauseKind : -1,
+               (int32_t)spec.reasonCode, pRequest->requestId);
+    }
+
+    if (allowCatalogDemote) {
+      SCatalog*     pCtg = NULL;
+      SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
+      int32_t       ctgCode = catalogGetHandle(pInst->clusterId, &pCtg);
+      if (TSDB_CODE_SUCCESS == ctgCode) {
+        int32_t demoteCode = catalogDemoteExtSourceCapability(pCtg, sourceName, &spec);
+        if (TSDB_CODE_SUCCESS == demoteCode) {
+          demoted = true;
+          tscDebug("req:0x%" PRIx64 ", catalog demote applied for source:%s kind:%d attempt:%d, QID:0x%" PRIx64,
+                   pRequest->self, sourceName, spec.kind, pRequest->extPushdownAttemptCount, pRequest->requestId);
+        } else {
+          tscWarn("req:0x%" PRIx64 ", catalog demote failed for source:%s, error:%s, fallback to overlay, QID:0x%" PRIx64,
+                  pRequest->self, sourceName, tstrerror(demoteCode), pRequest->requestId);
+        }
+      } else {
+        tscWarn("req:0x%" PRIx64 ", catalogGetHandle failed:%s, fallback to overlay demote, QID:0x%" PRIx64,
+                pRequest->self, tstrerror(ctgCode), pRequest->requestId);
+      }
+    }
+
+    if (!demoted) {
+      int32_t overlayCode = TSDB_CODE_SUCCESS;
+      if (hasSpec) {
+        overlayCode = extCapOverlayDemote(&pRequest->extSessionOverlay, &spec);
+      } else {
+        // Keep unclassified failures in overlay-only path without forcing a
+        // synthetic clause demotion. Coarse baseline fallback is still ensured
+        // by EXT_MAX_PUSHDOWN_ATTEMPTS below.
+        tscDebug("req:0x%" PRIx64 ", unclassified pushdown diagnostic (reason:%d), no precise demote applied, QID:0x%" PRIx64,
+                 pRequest->self, (int32_t)diag.reasonCode, pRequest->requestId);
+      }
+
+      if (TSDB_CODE_SUCCESS != overlayCode) {
+        tscWarn("req:0x%" PRIx64 ", overlay demote failed:%s, mark coarse fallback, QID:0x%" PRIx64,
+                pRequest->self, tstrerror(overlayCode), pRequest->requestId);
+        extCapOverlayMarkAllCoarse(&pRequest->extSessionOverlay,
+                                   (uint8_t)((diag.reasonCode > 0) ? diag.reasonCode
+                                                                   : EXT_DEMOTE_REASON_REMOTE_UNKNOWN));
+      }
+    }
+
+    if (pRequest->extPushdownAttemptCount >= EXT_MAX_PUSHDOWN_ATTEMPTS) {
+      extCapOverlayMarkAllCoarse(&pRequest->extSessionOverlay, EXT_DEMOTE_REASON_RETRY_ESCALATION);
+    }
+
+    restartAsyncQuery(pRequest, code);
+    return;
+  }
   const char* sourceName = pRequest->extSourceName;
   if ('\0' == sourceName[0]) {
     // No ext source context stashed — just return to user.
@@ -1986,7 +2605,6 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
       restartAsyncQuery(pRequest, code);
       return;
     }
-
     returnToUser(pRequest);
     return;
   }
@@ -2018,18 +2636,6 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
     tscDebug("req:0x%" PRIx64 ", ext source runtime error %s for:%s, returning to user, QID:0x%" PRIx64,
              pRequest->self, tstrerror(code), sourceName, pRequest->requestId);
     returnToUser(pRequest);
-    return;
-  }
-
-  if (code == TSDB_CODE_EXT_PUSHDOWN_FAILED) {
-    // Phase 1 stub: capability bits are 0, pushdown never attempted.
-    // Disable capabilities, re-plan without pushdown, then restore.
-    tscDebug("req:0x%" PRIx64 ", ext pushdown failed for:%s, disabling caps & retrying, QID:0x%" PRIx64,
-             pRequest->self, sourceName, pRequest->requestId);
-    (void)catalogDisableExtSourceCapabilities(pCtg, sourceName);
-    restartAsyncQuery(pRequest, code);
-    // Note: capabilities are restored when the re-planned query completes
-    // (catalogRestoreExtSourceCapabilities is called by the new query lifecycle)
     return;
   }
 
@@ -2150,7 +2756,6 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 
   invalidateExtSourceCacheAfterDdl(pRequest, code);
-
   pRequest->metric.execCostUs = taosGetTimestampUs() - pRequest->metric.execStart;
 
   int32_t code1 = handleQueryExecRsp(pRequest);
@@ -2538,6 +3143,9 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                         .pUser = pRequest->pTscObj->user,
                         .userId = pRequest->pTscObj->userId,
+                        .pExtCapability = NULL,
+                        .pExtSessionOverlay = &pRequest->extSessionOverlay,
+                        .pExtPushdownAttempt = &pRequest->extPushdownAttemptCount,
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .userAppId = pRequest->pTscObj->optionInfo.userAppId,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,

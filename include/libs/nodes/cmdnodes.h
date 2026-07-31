@@ -360,6 +360,7 @@ typedef struct SCreateVSubTableStmt {
   SNodeList* pSpecificTagRefs;  // tag_name FROM db.table.tag_col (same as specific_column_ref)
   SNodeList* pTagRefs;          // db.table.tag_col (same as column_ref, positional)
   SNodeList* pSeriesList;       // list of SSeriesDeclNode (nullable)
+  SNodeList* pColDefs;          // column_def_list (name + type + FROM ext_src.db.table.col)
 } SCreateVSubTableStmt;
 
 // Series declaration: SERIES alias AS source.db.measurement (tag1='v1', ...)
@@ -1138,6 +1139,12 @@ typedef struct SDescribeStmt {
   char        extSeg[2][TSDB_EXT_SOURCE_NAME_LEN];  // [0]=source name; [1]=mid segment (db or schema)
 } SDescribeStmt;
 
+typedef struct SResetQueryCacheStmt {
+  ENodeType type;
+  bool      forExtSource;
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+} SResetQueryCacheStmt;
+
 typedef struct SKillStmt {
   ENodeType type;
   int32_t   targetId;
@@ -1388,10 +1395,18 @@ typedef struct SCreateExtSourceStmt {
 } SCreateExtSourceStmt;
 
 // ALTER EXTERNAL SOURCE [IF EXISTS] name SET key=value [, key=value ...]
+typedef enum EExtCapControlAction {
+  EXT_CAP_ACTION_NONE = 0,
+  EXT_CAP_ACTION_ENABLE,
+  EXT_CAP_ACTION_DISABLE,
+} EExtCapControlAction;
 typedef struct SAlterExtSourceStmt {
   ENodeType  type;           // QUERY_NODE_ALTER_EXT_SOURCE_STMT
   char       sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   SNodeList* pAlterItems;    // list of SExtAlterClauseNode (one per SET clause, comma-separated)
+  int8_t     capAction;      // EExtCapControlAction, non-zero for local capability control
+  int8_t     capKind;        // EExtCapDemoteKind for local capability control
+  char       capValue[TSDB_FUNC_NAME_LEN];
   bool       ignoreNotExists;
 } SAlterExtSourceStmt;
 
@@ -1424,6 +1439,14 @@ typedef struct SDescribeExtSourceStmt {
   void*     pExtSrcInfo;   // SExtSourceInfo* — taosMemoryMalloc'd, not in node chunk
 } SDescribeExtSourceStmt;
 
+// SHOW EXTERNAL SOURCE <name> CAPABILITY
+// Populated by rewriteShowExtSourceCapability: heap-allocated SExtSourceCapability copy.
+// Freed in nodesDestroyNode (QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT case).
+typedef struct SShowExtSourceCapabilityStmt {
+  ENodeType type;           // QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT
+  char      sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  void*     pExtCapability; // SExtSourceCapability* — taosMemoryMalloc'd, not in node chunk
+} SShowExtSourceCapabilityStmt;
 // Alter clause type for ALTER EXTERNAL SOURCE SET ...
 typedef enum EExtAlterType {
   EXT_ALTER_HOST     = 1,

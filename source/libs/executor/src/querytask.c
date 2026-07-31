@@ -93,6 +93,12 @@ const char* qGetExtErrMsg(qTaskInfo_t tinfo) {
   return pTaskInfo->extErrMsg;
 }
 
+const SExtPushdownDiagnostic* qGetExtPushdownDiagnostic(qTaskInfo_t tinfo) {
+  if (tinfo == NULL) return NULL;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (!pTaskInfo->hasExtPushdownDiag) return NULL;
+  return &pTaskInfo->extPushdownDiag;
+}
 void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode) {
   pTaskInfo->code = rspCode;
   (void)stopTableScanOperator(pTaskInfo->pRoot, pTaskInfo->id.str, &pTaskInfo->storageAPI);

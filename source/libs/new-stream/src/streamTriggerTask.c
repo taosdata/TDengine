@@ -9939,7 +9939,6 @@ static FORCE_INLINE void stHistoryGroupRefreshMaxDelayHeap(SSTriggerHistoryConte
     stHistoryGroupEnterMaxDelayHeap(pContext, pGroup);
   }
 }
-
 static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTriggerTask *pTask) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;

@@ -23,6 +23,7 @@
 #include "taos.h"
 #include "taoserror.h"
 #include "thash.h"
+#include "tmsg.h"
 #include "tudf.h"
 
 typedef struct SFuncMgtService {
@@ -1210,4 +1211,70 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   }
 
   return code;
+}
+// ── FQ push-down capability bitmap lookup ────────────────────────────────────
+// Returns the uint16_t bitmap from funcMgtBuiltins[funcId].fqPushCap.
+// UDFs (funcId > FUNC_UDF_ID_START) and out-of-range ids return FQ_CAP_NONE.
+uint16_t fqFuncCapBitmap(int32_t funcId) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return FQ_CAP_NONE;
+  }
+  return funcMgtBuiltins[funcId].fqPushCap;
+}
+
+uint16_t fqFuncArg0NcharCapBitmap(int32_t funcId) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return FQ_CAP_NONE;
+  }
+
+  return funcMgtBuiltins[funcId].fqArg0NcharPushCapSet ? funcMgtBuiltins[funcId].fqArg0NcharPushCap
+                                                       : funcMgtBuiltins[funcId].fqPushCap;
+}
+
+bool fqFuncIsPushable(int32_t funcId, int32_t dialect,
+                      const SExtCapSessionOverlay* pOverlay) {
+  uint16_t cap = fqFuncCapBitmap(funcId);
+  uint16_t bit = fqDialectBit(dialect);
+  if (bit == 0) return false;
+
+  // Session-level override: high byte (bits 8-15) disables the corresponding dialect.
+  if (pOverlay != NULL) {
+    uint16_t sessionDisable = (uint16_t)(cap >> FQ_CAP_SESSION_SHIFT);
+    if (sessionDisable & bit) return false;
+  }
+
+  return (cap & bit) != 0;
+}
+
+bool fqFuncArg0NcharIsPushable(int32_t funcId, int32_t dialect,
+                               const SExtCapSessionOverlay* pOverlay) {
+  uint16_t cap = fqFuncArg0NcharCapBitmap(funcId);
+  uint16_t bit = fqDialectBit(dialect);
+  if (bit == 0) return false;
+
+  if (pOverlay != NULL) {
+    uint16_t sessionDisable = (uint16_t)(cap >> FQ_CAP_SESSION_SHIFT);
+    if (sessionDisable & bit) return false;
+  }
+
+  return (cap & bit) != 0;
+}
+
+bool fqFuncSubCapIsPushable(int32_t funcId, int32_t subCapShift, int32_t dialect,
+                             const SExtCapSessionOverlay* pOverlay) {
+  uint16_t cap = fqFuncCapBitmap(funcId);
+  uint16_t bit = fqDialectBit(dialect);
+  if (bit == 0) return false;
+
+  // Default band for the sub-capability (low byte, bits subCapShift..subCapShift+2).
+  uint16_t subDefault = (uint16_t)(cap >> subCapShift);
+
+  // Session-override band sits in the high byte at the same relative position:
+  // (subCapShift + FQ_CAP_SESSION_SHIFT).
+  if (pOverlay != NULL) {
+    uint16_t subSession = (uint16_t)(cap >> (subCapShift + FQ_CAP_SESSION_SHIFT));
+    if (subSession & bit) return false;
+  }
+
+  return (subDefault & bit) != 0;
 }

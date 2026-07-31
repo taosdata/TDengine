@@ -750,6 +750,12 @@ static SSDataBlock* doOptimizeVTableNameFilter(SOperatorInfo* pOperator, SSDataB
   pAPI->metaReaderFn.initReader(&smrTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
   smrTableInited = true;
   code = pAPI->metaReaderFn.getTableEntryByName(&smrTable, pInfo->req.filterTb);
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+    pAPI->metaReaderFn.clearReader(&smrTable);
+    smrTableInited = false;
+    code = TSDB_CODE_SUCCESS;
+    goto _end;
+  }
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (smrTable.me.type != TSDB_VIRTUAL_NORMAL_TABLE && smrTable.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
@@ -825,6 +831,8 @@ _end:
   if (smrSuperTableInited) {
     pAPI->metaReaderFn.clearReader(&smrSuperTable);
   }
+  // The filtered rows have been relocated to pInfo->pRes; this block is scratch storage.
+  blockDataDestroy(dataBlock);
   taosMemoryFreeClear(pVtableRefInfo);
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -1448,9 +1456,7 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
     code = doExtractDbName(dbname, pInfo, pAPI);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    SSDataBlock* p = doOptimizeVTableNameFilter(pOperator, pDataBlock, dbname);
-    pInfo->pRes = p;
-    return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
+    return doOptimizeVTableNameFilter(pOperator, pDataBlock, dbname);
   }
 
   SVirtualTableRefInfo* pVtableRefInfo = taosMemoryCalloc(1, sizeof(SVirtualTableRefInfo));

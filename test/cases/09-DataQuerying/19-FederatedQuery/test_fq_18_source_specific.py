@@ -43,6 +43,8 @@ Since: v3.4.0.0
 
 Labels: common,ci
 """
+from typing import List, Tuple
+
 
 import os
 import shutil
@@ -58,6 +60,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
     TSDB_CODE_OPS_NOT_SUPPORT,
     TSDB_CODE_PAR_INVALID_COLUMN,
+    TSDB_CODE_PAR_INVALID_TAGS_PC,
     TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
     parity_serialize_case,
     parity_serialize_cell,
@@ -180,6 +183,11 @@ _CASES = [
     ("itag-02",
      "SELECT AVG(usage) FROM {I_TAG}.{I_TAG_DB}.cpu PARTITION BY host ORDER BY host",
      True, None, dict(float_cols={0})),
+    # _TAGS should expand to the InfluxDB tag set once the source is modeled as
+    # a super table; ORDER BY usage gives a stable row order.
+    ("itag-03",
+     "SELECT _TAGS, usage FROM {I_TAG}.{I_TAG_DB}.cpu ORDER BY usage",
+     True, None, {}),
 
     # ── InfluxDB: PARTITION BY TBNAME → GROUP BY all tags (i04, from fq_06) ──
     # cpu has 2 distinct host tags (a, b); partition order is hash-based → unordered.
@@ -217,6 +225,9 @@ _CASES = [
     ("m04-02",
      "SELECT tbname FROM {M_PUSH}.push_t",
      False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("m04-03",
+     "SELECT _TAGS FROM {M_PUSH}.push_t",
+     False, TSDB_CODE_PAR_INVALID_TAGS_PC, {}),
 
     # ── PostgreSQL: PARTITION BY / SELECT TBNAME → EXT_SYNTAX_UNSUPPORTED (p04) ─
     ("p04-01",
@@ -225,6 +236,9 @@ _CASES = [
     ("p04-02",
      "SELECT tbname FROM {P_PUSH}.push_t",
      False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
+    ("p04-03",
+     "SELECT _TAGS FROM {P_PUSH}.push_t",
+     False, TSDB_CODE_PAR_INVALID_TAGS_PC, {}),
 
     # ── MySQL: VIEW query (vw-m group) ───────────────────────────────────────────
     # v_summary: SELECT status, SUM(amount) FROM orders GROUP BY status
@@ -412,10 +426,14 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             cfg18 = influx18_cfgs[0]
             self._cleanup_src(self._SRC_I18)
             tdSql.execute(
-                f"CREATE EXTERNAL SOURCE {self._SRC_I18} "
-                f"TYPE='influxdb' HOST='{cfg18.host}' PORT={cfg18.port} "
-                f"USER='u' PASSWORD='' "
-                f"OPTIONS('api_token'='','protocol'='http')"
+                self._mk_influx_source_sql(
+                    self._SRC_I18,
+                    cfg18.host,
+                    cfg18.port,
+                    "",
+                    database=None,
+                    protocol="http",
+                )
             )
             TestFq18SourceSpecific._i18_available = True
 
@@ -457,8 +475,8 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
 
         Returns a list of ``(case_id, sql_template, detail)`` failure tuples.
         """
-        failed: list[tuple[str, str, str]] = []
-        serialized_blocks: list[str] = []
+        failed: List[Tuple[str, str, str]] = []
+        serialized_blocks: List[str] = []
 
         for case_id, sql_template, opts in cases:
             float_cols = opts.get("float_cols") or set()
@@ -569,7 +587,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
 
         Returns a list of ``(case_id, sql_template, detail)`` failure tuples.
         """
-        failed: list[tuple[str, str, str]] = []
+        failed: List[Tuple[str, str, str]] = []
         for case_id, sql_template, expected_errno in cases:
             # i18 cases are conditional on InfluxDB 1.8 availability
             if "{I18}" in sql_template and not self._i18_available:
@@ -612,6 +630,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         Cases:
           itag-01   DISTINCT host, region from InfluxDB cpu → 2 rows (h1/us, h2/eu)
           itag-02   AVG(usage) PARTITION BY host from InfluxDB → 40.0 / 15.0
+          itag-03   InfluxDB _TAGS expansion → host/region tags plus usage
           i04-01    COUNT(*) PARTITION BY tbname from InfluxDB cpu → 2 rows of 2
           i04-02    AVG(usage_idle) PARTITION BY tbname → {77.5, 87.5} (unordered)
           minfo-01  MySQL INFORMATION_SCHEMA.TABLES count ≥ 1
@@ -650,8 +669,10 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
           i-neg-02 InfluxDB ORDER BY ts (column not found)    → error
           m04-01   MySQL PARTITION BY TBNAME → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
           m04-02   MySQL SELECT TBNAME       → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
+          m04-03   MySQL SELECT _TAGS        → TSDB_CODE_PAR_INVALID_TAGS_PC
           p04-01   PG PARTITION BY TBNAME    → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
           p04-02   PG SELECT TBNAME          → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
+          p04-03   PG SELECT _TAGS           → TSDB_CODE_PAR_INVALID_TAGS_PC
           i04-03   InfluxDB SELECT TBNAME    → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
           i18-01   InfluxDB 1.8 query        → TSDB_CODE_OPS_NOT_SUPPORT
                    (skipped when "1.8" is not in FQ_INFLUX_VERSIONS)

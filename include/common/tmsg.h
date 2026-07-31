@@ -240,6 +240,156 @@ typedef enum EExtSourceType {
   EXT_SOURCE_TDENGINE   = 3,  // reserved, not delivered in Phase 1
 } EExtSourceType;
 
+// Federated pushdown demotion granularity.
+typedef enum EExtCapDemoteKind {
+  EXT_DEMOTE_KIND_NONE = 0,
+  EXT_DEMOTE_KIND_FUNC,
+  EXT_DEMOTE_KIND_OP,
+  EXT_DEMOTE_KIND_CLAUSE,
+  EXT_DEMOTE_KIND_TYPE,
+} EExtCapDemoteKind;
+
+typedef enum EExtDemoteReason {
+  // Precise reasons (catalog-level demotion candidates)
+  EXT_DEMOTE_REASON_REMOTE_FUNC_MISS      = 1,
+  EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE = 2,
+  EXT_DEMOTE_REASON_REMOTE_TYPE_MISMATCH  = 3,
+
+  // Vague reasons (session overlay only)
+  EXT_DEMOTE_REASON_REMOTE_SYNTAX_VAGUE = 10,
+  EXT_DEMOTE_REASON_REMOTE_TIMEOUT,
+  EXT_DEMOTE_REASON_REMOTE_INTERNAL,
+  EXT_DEMOTE_REASON_REMOTE_NETWORK,
+  EXT_DEMOTE_REASON_REMOTE_UNKNOWN,
+
+  EXT_DEMOTE_REASON_RETRY_ESCALATION = 20,
+  EXT_DEMOTE_REASON_DIALECT_BASELINE = 30,
+  EXT_DEMOTE_REASON_USER_FORCED      = 40,
+} EExtDemoteReason;
+
+#define EXT_REASON_IS_PRECISE(reasonCode) ((reasonCode) >= 1 && (reasonCode) <= 9)
+
+typedef enum EExtClauseKind {
+  // ── GATE ──────────────────────────────────────────────────────────────────
+  // These 6 values participate in the full 3-level pushdown fallback:
+  //   • classifiable from remote error responses (via extResolveFuncClause /
+  //     extResolveOpClause escalation or explicit clause=N token in errors)
+  //   • support dynamic disable at runtime (catalog-level or session overlay)
+  //   • planner gates on each: a disabled GATE prevents pushdown of queries
+  //     that exercise that capability
+  //   • extCapShouldUseBaseline() checks all 6: if every GATE is disabled
+  //     the system falls back to TDengine-local execution (baseline mode)
+  EXT_CLAUSE_FILTER = 0,      // WHERE predicates (comparisons, LIKE, MATCH, …)
+  EXT_CLAUSE_PROJECTION,      // SELECT expressions (scalar functions, casts, …)
+  EXT_CLAUSE_AGG,             // GROUP BY / aggregate functions
+  EXT_CLAUSE_ORDER,           // ORDER BY
+  EXT_CLAUSE_LIMIT,           // LIMIT / FETCH FIRST
+  EXT_CLAUSE_JOIN,            // any join (coarse gate; covers all join subtypes)
+
+  // ── STATIC ────────────────────────────────────────────────────────────────
+  // These values are set only via dialect defaults (extLoadDialectDefaults)
+  // or explicit manual SQL (ALTER EXTERNAL SOURCE … DISABLE CLAUSE …).
+  // They are NOT produced by error classification and do NOT trigger the
+  // pushdown fallback machinery.  They serve as fine-grained capability
+  // markers for display (SHOW EXTERNAL SOURCES) and for dialect-specific
+  // default configurations.
+  EXT_CLAUSE_GROUP_ROLLUP,        // GROUP BY ROLLUP (dialect default)
+  EXT_CLAUSE_HAVING,              // HAVING clause (fine-grained AGG subtype)
+  EXT_CLAUSE_ORDER_NULLS_FIRST,   // NULLS FIRST ordering (MySQL default: disabled)
+  EXT_CLAUSE_ORDER_NULLS_LAST,    // NULLS LAST ordering  (MySQL default: disabled)
+  EXT_CLAUSE_OFFSET,              // OFFSET keyword
+  EXT_CLAUSE_DISTINCT,            // SELECT DISTINCT
+  // JOIN subtypes — dialect defaults only; disabling any subtype must also
+  // explicitly disable the parent EXT_CLAUSE_JOIN gate in the defaults table.
+  EXT_CLAUSE_INNER_JOIN,
+  EXT_CLAUSE_LEFT_JOIN,
+  EXT_CLAUSE_RIGHT_JOIN,
+  EXT_CLAUSE_FULL_OUTER_JOIN,
+  EXT_CLAUSE_SEMI_JOIN,
+  EXT_CLAUSE_ANTI_JOIN,
+  EXT_CLAUSE_FROM_SUBQUERY,       // subquery in FROM (common default: disabled)
+  EXT_CLAUSE_SCALAR_SUBQUERY,     // scalar subquery in SELECT (common default: disabled)
+  EXT_CLAUSE_INTERVAL_TUMBLING,   // TDengine INTERVAL(…) tumbling window
+  EXT_CLAUSE_INTERVAL_SLIDING,    // TDengine INTERVAL(…) SLIDING window
+  EXT_CLAUSE_PARTITION_TBNAME,    // PARTITION BY tbname
+  EXT_CLAUSE_PARTITION_COLUMN,    // PARTITION BY <column>
+  // SQL feature flags — set in common/dialect defaults; no error-based demote.
+  EXT_CLAUSE_FEAT_CTE,            // WITH (common table expressions; common default: disabled)
+  EXT_CLAUSE_FEAT_WINDOW_FUNCTIONS, // window functions (common default: disabled)
+  EXT_CLAUSE_FEAT_LARGE_IN_LIST,  // remote handles large IN (v1,…,vN) lists (common default: disabled)
+  // Subquery expression types — dialect defaults only.
+  // EXISTS/NOT EXISTS are tracked at the operator layer (disabledOps).
+  EXT_CLAUSE_IN_SUBQUERY,         // IN/NOT IN (subquery) — InfluxDB default: disabled
+  EXT_CLAUSE_ALL_ANY_SUBQUERY,    // ALL/ANY/SOME subquery — InfluxDB default: disabled
+  // Additional JOIN subtypes — always local for all current dialects.
+  // Disabling these does not require disabling the parent EXT_CLAUSE_JOIN gate
+  // because they are never pushed down regardless.
+  EXT_CLAUSE_ASOF_JOIN,           // ASOF Join — always local (common default: disabled)
+  EXT_CLAUSE_WINDOW_JOIN,         // Window Join — always local (common default: disabled)
+  // TDengine-specific window types — always local for all current dialects.
+  // (INTERVAL tumbling/sliding are above; state/session/event/count are below.)
+  EXT_CLAUSE_STATE_WINDOW,        // STATE_WINDOW — always local (common default: disabled)
+  EXT_CLAUSE_SESSION_WINDOW,      // SESSION — always local (common default: disabled)
+  EXT_CLAUSE_EVENT_WINDOW,        // EVENT_WINDOW — always local (common default: disabled)
+  EXT_CLAUSE_COUNT_WINDOW,        // COUNT_WINDOW — always local (common default: disabled)
+  // TDengine-specific sub-clauses — always local for all current dialects.
+  EXT_CLAUSE_FILL,                // FILL clause (window fill) — always local (common default: disabled)
+  EXT_CLAUSE_INTERP,              // INTERP + RANGE/EVERY — always local (common default: disabled)
+  EXT_CLAUSE_SLIMIT,              // SLIMIT/SOFFSET (per-partition limit) — always local (common default: disabled)
+  EXT_CLAUSE_EXISTS_SUBQUERY,     // EXISTS/NOT EXISTS (subquery) — InfluxDB default: disabled
+
+  EXT_CLAUSE_MAX,
+} EExtClauseKind;
+
+// FQ subquery render mode (v2 two-state pushdown model).  Decided in the
+// collect phase, carried on each REMOTE_* node, consumed by nodesRemotePlanToSQL.
+//   FQ_SUBQ_RENDER_DIRECT_SQL   — clause directly pushable AND inner SELECT needs
+//                                 no transform: inline the user's original SQL.
+//   FQ_SUBQ_RENDER_ORIG_TYPE_2B — keep the original predicate form (IN/ALL/ANY/
+//                                 EXISTS) but render the inner SELECT with dialect
+//                                 transforms (function mapping, federated-name →
+//                                 schema/db/remoteTableName translation).
+typedef enum EFqSubqRenderMode {
+  FQ_SUBQ_RENDER_DIRECT_SQL = 0,
+  FQ_SUBQ_RENDER_ORIG_TYPE_2B,
+} EFqSubqRenderMode;
+
+typedef struct SExtCapDisabledEntry {
+  uint8_t  reasonCode;
+  uint16_t hitCount;
+  int64_t  firstHitMs;
+} SExtCapDisabledEntry;
+
+typedef struct SExtCapDemoteSpec {
+  EExtCapDemoteKind kind;
+  union {
+    char           funcName[TSDB_FUNC_NAME_LEN];
+    EOperatorType  opType;
+    EExtClauseKind clauseKind;
+    int8_t         tsdbTypeCode;
+  } detail;
+  uint8_t reasonCode;
+} SExtCapDemoteSpec;
+
+typedef struct SExtPushdownDiagnostic {
+  int32_t          classifiedCode;
+  EExtDemoteReason reasonCode;
+  EExtCapDemoteKind suggestedDemoteKind;
+  union {
+    char           funcName[TSDB_FUNC_NAME_LEN];
+    EOperatorType  opType;
+    EExtClauseKind clauseKind;
+    int8_t         tsdbTypeCode;
+  } detail;
+  char     remoteSqlState[8];
+  int32_t  remoteCode;
+  int32_t  httpStatus;
+  char     remoteMessage[512];
+  char     generatedSql[2048];
+} SExtPushdownDiagnostic;
+
+#define EXT_MAX_PUSHDOWN_ATTEMPTS 3
+
 // Length constants for external source connection fields.
 // External source names follow the same rules as database names (globally unique, must not
 // conflict with local DB names), so the name length is capped at TSDB_DB_NAME_LEN (64 + NUL).
@@ -266,16 +416,53 @@ typedef enum EExtSourceType {
 // Defined here (tmsg.h) so that SExtSourceInfo below and extConnector.h both
 // share the same declaration without a circular-include.
 typedef struct SExtSourceCapability {
-  bool ext_can_pushdown_filter;
-  bool ext_can_pushdown_projection;
-  bool ext_can_pushdown_limit;
-  bool ext_can_pushdown_agg;
-  bool ext_can_pushdown_order;
-  // Path-2 subquery pushdown: TDengine resolves the subquery locally and rewrites
-  // the condition as "col IN (v1, v2, ...)" before sending SQL to the external source.
-  bool ext_can_pushdown_in_const_list;  // WHERE col IN (resolved constant list)
+  SHashObj* disabledFuncs;    // key: lowercase function name
+  SHashObj* disabledOps;      // key: EOperatorType
+  SHashObj* disabledTypes;    // key: int8_t (TSDB_DATA_TYPE_*)
+  SHashObj* disabledClauses;  // key: EExtClauseKind
+  int32_t   dialect;
+  int64_t   loadedAtMs;
 } SExtSourceCapability;
 
+typedef struct SExtCapSessionOverlay {
+  SHashObj* disabledFuncs;
+  SHashObj* disabledOps;
+  SHashObj* disabledTypes;
+  SHashObj* disabledClauses;
+  int32_t   attemptCount;
+  EExtCapDemoteKind lastDemoteKind;
+  union {
+    char           funcName[TSDB_FUNC_NAME_LEN];
+    EOperatorType  opType;
+    EExtClauseKind clauseKind;
+    int8_t         tsdbTypeCode;
+  } lastDemoteDetail;
+  uint8_t   repeatFailCount;
+} SExtCapSessionOverlay;
+
+int32_t extCapInit(SExtSourceCapability* pCap);
+void    extCapDestroy(SExtSourceCapability* pCap);
+int32_t extCapClone(const SExtSourceCapability* pSrc, SExtSourceCapability* pDst);
+
+int32_t extCapSessionOverlayInit(SExtCapSessionOverlay* pOverlay);
+void    extCapSessionOverlayDestroy(SExtCapSessionOverlay* pOverlay);
+int32_t extCapSessionOverlayClone(const SExtCapSessionOverlay* pSrc, SExtCapSessionOverlay* pDst);
+
+bool    capDisabled(const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay,
+                    EExtCapDemoteKind kind, const void* pKey);
+int32_t extCapDemoteApply(SExtSourceCapability* pCap, const SExtCapDemoteSpec* pSpec);
+int32_t extCapOverlayDemote(SExtCapSessionOverlay* pOverlay, const SExtCapDemoteSpec* pSpec);
+bool    extCapOverlayTryEscalateOnRepeat(SExtCapSessionOverlay* pOverlay, const SExtCapDemoteSpec* pCurrent,
+                                         SExtCapDemoteSpec* pEscalated);
+void    extCapOverlayMarkAllCoarse(SExtCapSessionOverlay* pOverlay, uint8_t reasonCode);
+bool    extCapShouldUseBaseline(const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay);
+
+EExtClauseKind extResolveFuncClause(const char* funcName);
+EExtClauseKind extResolveOpClause(EOperatorType opType);
+bool           extClauseIsGate(EExtClauseKind kind);
+
+int32_t tEncodeSExtPushdownDiagnostic(SEncoder* pEncoder, const SExtPushdownDiagnostic* pDiag);
+int32_t tDecodeSExtPushdownDiagnostic(SDecoder* pDecoder, SExtPushdownDiagnostic* pDiag);
 // EExtSQLDialect — SQL dialect selector for remote SQL generation.
 // Defined here (alongside EExtSourceType) so that nodes/plannodes.h can reference
 // it without including extConnector.h, breaking the nodes → extconnector dependency.
@@ -294,6 +481,116 @@ typedef enum EExtSQLDialect {
 // declared TDengine-side width, so the two call sites must agree on one.
 #define EXT_INFLUX_TAG_NCHAR_CHARS 256
 
+// ── FQ push-down capability bitmap ──────────────────────────────────────────
+// uint16_t bitmap encoding:
+//   bits [2:0]  — default capability per dialect (0 = not pushable)
+//   bits [5:3]  — session-level override (1 = force-disable for that dialect)
+//
+// fqPushCap bitmap layout (uint16_t):
+//
+//   Low byte  (bits 0-7)  — static/global capability defaults
+//   High byte (bits 8-15) — session-level overrides (set to force-disable)
+//
+//   The high byte mirrors the low byte: each bit in the high byte disables the
+//   corresponding bit position in the low byte at session level.
+//
+//   Low-byte layout:
+//     bits 0-2 : main capability    (MySQL=bit0, PG=bit1, Influx=bit2)
+//     bits 3-5 : sub-cap 1: CAST(timestamp → integer)
+//     bits 6-7 : reserved for future sub-capabilities
+//
+//   High-byte layout (FQ_CAP_SESSION_SHIFT = 8):
+//     bits 8-10 : session override for main capability
+//     bits 11-13: session override for CAST(ts→int) sub-capability
+//     bits 14-15: reserved
+
+// Main capability bits (low byte, bits 0-2):
+#define FQ_CAP_MYSQL   ((uint16_t)(1u << 0))   // MySQL / MariaDB
+#define FQ_CAP_PG      ((uint16_t)(1u << 1))   // PostgreSQL
+#define FQ_CAP_INFLUX  ((uint16_t)(1u << 2))   // InfluxDB v3 (DataFusion)
+#define FQ_CAP_ALL     ((uint16_t)(FQ_CAP_MYSQL | FQ_CAP_PG | FQ_CAP_INFLUX))
+
+// Session-override band: high byte (shift = 8).
+// Set a bit here to force-disable the corresponding dialect at session level.
+#define FQ_CAP_SESSION_SHIFT      8
+#define FQ_CAP_SESSION_MYSQL      ((uint16_t)(FQ_CAP_MYSQL  << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_PG         ((uint16_t)(FQ_CAP_PG     << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_INFLUX     ((uint16_t)(FQ_CAP_INFLUX << FQ_CAP_SESSION_SHIFT))
+
+// Convenience: the dialect combinations used in the capability tables
+#define FQ_CAP_PG_INFLUX   ((uint16_t)(FQ_CAP_PG | FQ_CAP_INFLUX))
+#define FQ_CAP_MYSQL_PG    ((uint16_t)(FQ_CAP_MYSQL | FQ_CAP_PG))
+#define FQ_CAP_NONE        ((uint16_t)0)
+
+// Sub-capability 1: CAST(timestamp AS integer/bigint/uint/ubigint)
+//   default band   : bits 3-5  (FQ_CAP_CAST_TS_INT_SHIFT = 3)
+//   session band   : bits 11-13 (= FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT = 3+8)
+//
+// Only PostgreSQL supports CAST(timestamp → integer) natively.
+//   MySQL   : binary protocol returns MYSQL_TIME for TIMESTAMP; connector cannot safely
+//             reinterpret that as an integer epoch, so local conversion is required.
+//   InfluxDB: DataFusion does not support CAST(timestamp AS BIGINT).
+#define FQ_CAP_CAST_TS_INT_SHIFT  3
+#define FQ_CAP_CAST_TS_INT_PG     ((uint16_t)(FQ_CAP_PG << FQ_CAP_CAST_TS_INT_SHIFT))
+// Session-level overrides for the CAST(ts→int) sub-capability:
+#define FQ_CAP_CAST_TS_INT_SESSION_MYSQL   ((uint16_t)(FQ_CAP_MYSQL  << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
+#define FQ_CAP_CAST_TS_INT_SESSION_PG      ((uint16_t)(FQ_CAP_PG     << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
+#define FQ_CAP_CAST_TS_INT_SESSION_INFLUX  ((uint16_t)(FQ_CAP_INFLUX << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
+
+// Convert EExtSQLDialect to the corresponding FQ_CAP_* default bit.
+// Returns 0 for unknown dialects.
+static inline uint16_t fqDialectBit(int32_t dialect) {
+  switch ((EExtSQLDialect)dialect) {
+    case EXT_SQL_DIALECT_MYSQL:    return FQ_CAP_MYSQL;
+    case EXT_SQL_DIALECT_POSTGRES: return FQ_CAP_PG;
+    case EXT_SQL_DIALECT_INFLUXQL: return FQ_CAP_INFLUX;
+    default:                       return 0;
+  }
+}
+
+// Query whether a function (by funcId), operator (by EOperatorType), or
+// clause (by EExtClauseKind) is pushable for the given dialect, taking
+// session-level overrides into account.
+//
+// fqFuncCapBitmap  — returns the uint16_t bitmap; FQ_CAP_NONE for UDFs/unknown.
+// fqFuncArg0NcharCapBitmap — returns the arg0==NCHAR-specific bitmap when
+// configured, otherwise inherits fqFuncCapBitmap(funcId).
+// fqOpCapBitmap    — lookup in gFqOpCap[]; FQ_CAP_NONE for unmapped ops.
+// fqClauseCapBitmap — lookup in gFqClauseCap[]; FQ_CAP_NONE for unknown kinds.
+uint16_t fqFuncCapBitmap(int32_t funcId);
+uint16_t fqFuncArg0NcharCapBitmap(int32_t funcId);
+uint16_t fqOpCapBitmap(EOperatorType opType);
+uint16_t fqClauseCapBitmap(EExtClauseKind clauseKind);
+// Transform-pushdown capability bitmap for a subquery clause.
+// Current DS/product semantics do not ship transform-only subquery pushdown;
+// all entries are reserved and default to unsupported.
+uint16_t fqClauseTransformCapBitmap(EExtClauseKind clauseKind);
+
+// High-level pushability check: combines the static bitmap with any active
+// session-level override (pOverlay may be NULL).
+bool fqFuncIsPushable(int32_t funcId, int32_t dialect,
+                      const SExtCapSessionOverlay* pOverlay);
+bool fqFuncArg0NcharIsPushable(int32_t funcId, int32_t dialect,
+                               const SExtCapSessionOverlay* pOverlay);
+bool fqOpIsPushable(EOperatorType opType, int32_t dialect,
+                    const SExtCapSessionOverlay* pOverlay);
+bool fqClauseIsPushable(EExtClauseKind clauseKind, int32_t dialect,
+                        const SExtCapSessionOverlay* pOverlay);
+// Whether the dialect supports transform-pushdown of this clause.
+// Current implementation returns false for all shipped subquery clauses.
+bool fqClauseTransformIsPushable(EExtClauseKind clauseKind, int32_t dialect,
+                                 const SExtCapSessionOverlay* pOverlay);
+
+// Sub-capability check: tests a specific sub-capability band within a function's
+// fqPushCap bitmap.  subCapShift is the bit offset of the sub-capability's default
+// band in the low byte (e.g. FQ_CAP_CAST_TS_INT_SHIFT = 3).  The session-override
+// band for the same sub-capability sits at (subCapShift + FQ_CAP_SESSION_SHIFT),
+// i.e. in the high byte at the same relative position.
+//
+// Returns true only when the default bit for `dialect` is set in the sub-cap band
+// AND the session-override bit is NOT set.
+bool fqFuncSubCapIsPushable(int32_t funcId, int32_t subCapShift, int32_t dialect,
+                             const SExtCapSessionOverlay* pOverlay);
 // SExtColumnDef / SExtTableMeta — external table metadata types.
 // Defined here so that nodes/querynodes.h and nodes source files can use them
 // without depending on extConnector.h, which would create a nodes → extconnector
@@ -632,6 +929,7 @@ typedef enum ENodeType {
   QUERY_NODE_REFRESH_EXT_SOURCE_STMT,
   QUERY_NODE_SHOW_EXT_SOURCES_STMT,     // SHOW EXTERNAL SOURCES
   QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT,  // DESCRIBE EXTERNAL SOURCE <name>
+  QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT,  // SHOW EXTERNAL SOURCE <name> CAPABILITY
 
   QUERY_NODE_BEGIN_TRANS_STMT = 250,
   QUERY_NODE_COMMIT_TRANS_STMT,
@@ -2365,6 +2663,7 @@ typedef struct {
   int64_t affectedRows;
   SArray* tbVerInfo;    // STbVerInfo
   char*   extErrMsg;    // federated query remote-side error string (NULL if no ext error)
+  SExtPushdownDiagnostic* extPushdownDiag;  // optional structured pushdown diagnostic (NULL if absent)
 } SQueryTableRsp;
 
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
@@ -3536,7 +3835,6 @@ typedef struct {
 int32_t tSerializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp);
 int32_t tDeserializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDnodeQuerySnapSendProgressRsp *pRsp);
 void    tFreeSDnodeQuerySnapSendProgressRsp(SDnodeQuerySnapSendProgressRsp *pRsp);
-
 typedef struct {
   int32_t compactId;
 } SDnodeQueryCompactProgressReq;
@@ -5020,7 +5318,6 @@ typedef struct SForeignScanOperatorParam {
   int64_t rowLimit;  // optional per-stream top-N limit for VStb remote SQL; <=0 means unset
   SNode*  pPushedCond;  // heap, owned; optional VStb data filter pushed into the remote SQL
 } SForeignScanOperatorParam;
-
 typedef struct SMergeOperatorParam {
   int32_t         winNum;
 } SMergeOperatorParam;
@@ -7561,10 +7858,10 @@ int32_t tSerializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pR
 int32_t tDeserializeSExtSourceHbRsp(void *buf, int32_t bufLen, SExtSourceHbRsp *pRsp);
 void    tFreeSExtSourceHbRsp(SExtSourceHbRsp *pRsp);
 
-// SQueryTableRsp.extErrMsg: federated query remote-side error string
-// (appended at the end of SQueryTableRsp for backward compatibility)
+// SQueryTableRsp.extErrMsg / extPushdownDiag: federated query diagnostics payload.
+// Both are appended optional fields at the end of SQueryTableRsp.
 // See SQueryTableRsp definition above; tSerializeSQueryTableRsp / tDeserializeSQueryTableRsp
-// encode/decode extErrMsg with a hasExtErrMsg flag after all existing fields.
+// encode/decode both fields with dedicated has-* flags after all existing fields.
 
 // SExtTableMetaReq — identifies an external table to be resolved by catalog.
 // Parser registers one per external table reference during collectMetaKey.

@@ -304,6 +304,19 @@ typedef enum EFunctionType {
   // internal functions (not user-callable)
   FUNCTION_TYPE_TIMESTAMP_SCALE = 4400,
 
+  // FQ-internal functions (not user-callable; used to carry interval metadata
+  // through the logic-plan→physical-plan→remote-SQL pipeline)
+  // FUNCTION_TYPE_FQ_TIME_BUCKET is injected by fqConvertInterval into the
+  // GROUP BY key of the remote SAggLogicNode.  It carries:
+  //   pParameterList[0] = SColumnNode for the timestamp primary key column
+  //   pParameterList[1] = SValueNode (int64, ticks in srcPrecision) for bucket size
+  //   pParameterList[2] = SValueNode (int8, TSDB_TIME_PRECISION_*) for source precision
+  // nodesRemotePlanToSQL renders it per-dialect:
+  //   MySQL:    FLOOR(UNIX_TIMESTAMP(`ts`) * tps / ticks) * ticks / tps
+  //             where tps = ticks-per-second for srcPrecision
+  //   PG:       DATE_BIN('N unit', ts, '1970-01-01 00:00:00')
+  //   InfluxDB: DATE_BIN(INTERVAL 'N unit', time, '1970-01-01T00:00:00Z')
+  FUNCTION_TYPE_FQ_TIME_BUCKET = 4500,
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;

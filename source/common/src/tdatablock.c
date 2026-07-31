@@ -558,12 +558,16 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
 
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows,
                       const SDataBlockInfo* pBlockInfo) {
-  if (pColumnInfoData->info.type != pSource->info.type || (pBlockInfo != NULL && pBlockInfo->capacity < numOfRows)) {
+  if (numOfRows <= 0) {
+    return numOfRows;
+  }
+
+  if (NULL == pColumnInfoData || NULL == pSource) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (numOfRows <= 0) {
-    return numOfRows;
+  if (pColumnInfoData->info.type != pSource->info.type || (pBlockInfo != NULL && pBlockInfo->capacity < numOfRows)) {
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
@@ -695,6 +699,12 @@ int32_t colDataAssignNRows(SColumnInfoData* pDst, int32_t dstIdx, const SColumnI
             colDataClearNull_f(pDst->nullbitmap, dstIdx + i);
           }
         }
+      }
+    } else if (NULL != pDst->nullbitmap) {
+      // Destination buffers can be reused after a NULL-producing operation.
+      // A non-NULL source must overwrite those stale bitmap bits as well.
+      for (int32_t i = 0; i < numOfRows; ++i) {
+        colDataClearNull_f(pDst->nullbitmap, dstIdx + i);
       }
     }
 
@@ -937,7 +947,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
   int32_t bitmapChar = 1;
 
   size_t headerSize = sizeof(int32_t);
-  size_t colHeaderSize = sizeof(int32_t) * numOfCols;
+  size_t colHeaderSize = numOfCols * (sizeof(int32_t) + 2 * sizeof(uint8_t));
 
   // TODO speedup by checking if the whole page can fit in firstly.
   if (!hasVarCol) {
@@ -1059,10 +1069,10 @@ int32_t blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t r
 /**
  *
  * +------------------+---------------------------------------------+
- * |the number of rows|                    column #1                |
- * |    (4 bytes)     |------------+-----------------------+--------+
- * |                  | null bitmap| column length(4bytes) | values |
- * +------------------+------------+-----------------------+--------+
+ * |the number of rows|                         column #1                           |
+ * |    (4 bytes)     |------------+-------------+-------------+----------+--------+
+ * |                  | precision(1)| scale(1)   | null bitmap | len(4B)  | values |
+ * +------------------+------------+-------------+-------------+----------+--------+
  * @param buf
  * @param pBlock
  * @return
@@ -1081,6 +1091,9 @@ int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
     if (pCol == NULL) {
       continue;
     }
+
+    *pStart++ = pCol->info.precision;
+    *pStart++ = pCol->info.scale;
 
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       memcpy(pStart, pCol->varmeta.offset, numOfRows * sizeof(int32_t));
@@ -1141,6 +1154,11 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
       continue;
     }
 
+    pCol->info.precision = *(uint8_t*)pStart;
+    pStart += sizeof(uint8_t);
+    pCol->info.scale = *(uint8_t*)pStart;
+    pStart += sizeof(uint8_t);
+
     if (pCol->info.noData) {
       continue;
     }
@@ -1195,6 +1213,118 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
     pStart += colLength;
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkBlockDataBufCapacity(const char* pStart, const char* pEnd, size_t required, int32_t col) {
+  if (required > (size_t)(pEnd - pStart)) {
+    uError("block data decode exceeds buffer: col:%d required:%zu remaining:%zu", col, required,
+           (size_t)(pEnd - pStart));
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t blockDataFromBufWithCapacity(SSDataBlock* pBlock, const char* buf, size_t capacity, int32_t numOfCols) {
+  if (NULL == pBlock || NULL == buf || capacity < sizeof(int32_t) || numOfCols <= 0 ||
+      numOfCols > taosArrayGetSize(pBlock->pDataBlock)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const char* pStart = buf;
+  const char* pEnd = buf + capacity;
+  int32_t     numOfRows = 0;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  memcpy(&numOfRows, pStart, sizeof(numOfRows));
+  pStart += sizeof(numOfRows);
+
+  if (numOfRows <= 0) {
+    uError("block data decode has invalid row count:%d", numOfRows);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  code = blockDataEnsureCapacity(pBlock, numOfRows);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  pBlock->info.rows = numOfRows;
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (NULL == pCol) {
+      uError("block data decode gets null column:%d", i);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    code = checkBlockDataBufCapacity(pStart, pEnd, 2 * sizeof(uint8_t), i);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    pCol->info.precision = *(const uint8_t*)pStart++;
+    pCol->info.scale = *(const uint8_t*)pStart++;
+
+    if (pCol->info.noData) {
+      continue;
+    }
+
+    size_t metaSize = IS_VAR_DATA_TYPE(pCol->info.type) ? (size_t)numOfRows * sizeof(int32_t) : BitmapLen(numOfRows);
+    code = checkBlockDataBufCapacity(pStart, pEnd, metaSize, i);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      memcpy(pCol->varmeta.offset, pStart, metaSize);
+    } else {
+      memcpy(pCol->nullbitmap, pStart, metaSize);
+    }
+    pStart += metaSize;
+
+    code = checkBlockDataBufCapacity(pStart, pEnd, sizeof(int32_t), i);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    int32_t colLength = 0;
+    memcpy(&colLength, pStart, sizeof(colLength));
+    pStart += sizeof(colLength);
+    if (colLength < 0) {
+      uError("block data decode has negative column length: col:%d length:%d", i, colLength);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    code = checkBlockDataBufCapacity(pStart, pEnd, (size_t)colLength, i);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      if (pCol->varmeta.allocLen < colLength) {
+        char* pData = taosMemoryRealloc(pCol->pData, colLength);
+        if (NULL == pData) {
+          return terrno;
+        }
+        pCol->pData = pData;
+        pCol->varmeta.allocLen = colLength;
+      }
+      pCol->varmeta.length = colLength;
+    } else {
+      int32_t expected = colDataGetLength(pCol, numOfRows);
+      if (colLength != 0 && colLength != expected) {
+        uError("block data decode has fixed column length mismatch: col:%d length:%d expected:%d", i, colLength,
+               expected);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+    }
+
+    if (colLength > 0) {
+      memcpy(pCol->pData, pStart, colLength);
+    }
+    pStart += colLength;
+  }
+
+  if (pStart != pEnd) {
+    uError("block data decode has trailing bytes:%zu", (size_t)(pEnd - pStart));
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1413,7 +1543,6 @@ static void blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBloc
     if (pSrc == NULL) {
       continue;
     }
-
     if (IS_VAR_DATA_TYPE(pSrc->info.type)) {
       if (pSrc->varmeta.length != 0) {
         memcpy(pDst->pData, pSrc->pData, pSrc->varmeta.length);

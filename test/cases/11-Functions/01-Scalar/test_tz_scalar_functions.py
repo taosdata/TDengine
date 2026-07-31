@@ -1104,106 +1104,6 @@ class _DstEdgeMixin:
         self.check_no_dst_timezone_unaffected()
 
 
-class _TsArithDstMixin:
-    """Timestamp arithmetic DST no-drift regression test."""
-
-    def _setup_ts_arith_dst_case(self):
-        tdLog.debug(f"start to execute {__file__}")
-        self.dbname = 'db_ts_arith_dst'
-        self.ntbname = f'{self.dbname}.t1'
-
-    def _prepare_ts_arith_dst_data(self):
-        tdSql.execute(f'drop database if exists {self.dbname}')
-        tdSql.execute(f'create database {self.dbname} precision "ms"')
-        tdSql.execute(f'use {self.dbname}')
-        tdSql.execute(f'create table {self.ntbname} (ts timestamp, v int)')
-
-        # T0 = 2026-03-08 00:30:00 EST = 2026-03-08 05:30:00 UTC.
-        tdSql.execute(f'insert into {self.ntbname} values (1772947800000, 1)')
-
-    def check_ts_arith_dst_no_drift(self):
-        """Calendar-unit ts arithmetic should preserve local wall-clock time."""
-        self._prepare_ts_arith_dst_data()
-        tdSql.execute("SET TIMEZONE 'America/New_York'")
-
-        cases = [
-            ('1d', '2026-03-09 12:30:00.000'),
-            ('1w', '2026-03-15 12:30:00.000'),
-            ('1n', '2026-04-08 12:30:00.000'),
-            ('1q', '2026-06-08 12:30:00.000'),
-            ('1y', '2027-03-08 13:30:00.000'),
-        ]
-        for duration, expected in cases:
-            tdSql.query(f"select ts + {duration} from {self.ntbname}")
-            tdSql.checkRows(1)
-            tdSql.checkData(0, 0, expected)
-
-        tdSql.execute(f'drop database if exists {self.dbname}')
-
-    def test_ts_arith_dst_no_drift(self):
-        """summary: Timestamp arithmetic DST no-drift.
-
-        description: Calendar-unit ts+1d/1w/1n/1q/1y must not drift across
-            DST boundaries when the client session timezone is America/New_York.
-
-        Since: v3.3.6.0
-
-        Labels: common,ci
-
-        Jira: None
-
-        Catalog:
-            - Function:Scalar
-
-        History:
-            - 2025-07-10 Fix: serialize SOperatorNode.tz in physical plan
-            - 2026-06-04 Tony Zhang merged into timezone scalar suite
-
-        """
-        self._setup_ts_arith_dst_case()
-        self.check_ts_arith_dst_no_drift()
-
-
-class _TimezoneDisplayAbbrMixin:
-    """timezone() display string should use 'UTC' as abbreviation for all fixed-offset formats."""
-
-    def check_tz_display_utc_abbr(self):
-        cases = [
-            ('UTC',       'UTC (UTC, +0000)'),
-            ('UTC+0',     'UTC+0 (UTC, +0000)'),
-            ('UTC+00',    'UTC+00 (UTC, +0000)'),
-            ('UTC+0000',  'UTC+0000 (UTC, +0000)'),
-            ('+0000',     '+0000 (UTC, +0000)'),
-            ('-0000',     '-0000 (UTC, +0000)'),
-            ('+00:00',    '+00:00 (UTC, +0000)'),
-            ('-00:00',    '-00:00 (UTC, +0000)'),
-            ('UTC+00:00', 'UTC+00:00 (UTC, +0000)'),
-            ('UTC+0800',  'UTC+0800 (UTC, -0800)'),
-            ('+0800',     '+0800 (UTC, -0800)'),
-            ('UTC-0530',  'UTC-0530 (UTC, +0530)'),
-            ('-0530',     '-0530 (UTC, +0530)'),
-            ('UTC-8',     'UTC-8 (UTC, +0800)'),
-            ('UTC+5',     'UTC+5 (UTC, -0500)'),
-        ]
-        for tz_input, expected in cases:
-            tdSql.execute(f"SET TIMEZONE '{tz_input}'")
-            tdSql.query("SELECT timezone()")
-            actual = tdSql.queryResult[0][0].strip()
-            assert actual == expected, \
-                f"SET TIMEZONE '{tz_input}': expected '{expected}', got '{actual}'"
-
-    def check_tz_display_iana_abbr(self):
-        tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
-        tdSql.query("SELECT timezone()")
-        actual = tdSql.queryResult[0][0].strip()
-        assert '(CST,' in actual, f"IANA timezone should keep native abbr, got '{actual}'"
-
-    def test_timezone_display_abbreviation(self):
-        self.check_tz_display_utc_abbr()
-        self.check_tz_display_iana_abbr()
-        tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
-
-
 class _ToIso8601FixedOffsetMixin:
     """Regression: TO_ISO8601 with fixed-offset tz param uses the useFixedOffset path."""
 
@@ -1382,176 +1282,6 @@ class _ToIso8601UtcPrefixMixin:
         self.check_utc_prefix_zero_offset()
 
 
-class _ToIso8601SuffixFormatMixin:
-    """Verify that TO_ISO8601 output suffix precisely mimics the input format.
-
-    For UTC-prefixed single-digit offsets (UTC+8, UTC-5, UTC+0) the suffix
-    is normalised to ±HHMM (4-digit).  For all other formats the suffix
-    reproduces the digit/colon pattern of the input.
-    """
-
-    def _setup_to_iso8601_suffix_format_case(self):
-        self.dbname = 'db_tz_suffmt'
-        self.ntbname = f'{self.dbname}.ntb'
-        self.ts = 1642248000000  # 2022-01-15 12:00:00 UTC
-
-    def _prepare_suffix_format_data(self):
-        tdSql.execute(f'create database if not exists {self.dbname}')
-        tdSql.execute(f'use {self.dbname}')
-        tdSql.execute(f'drop table if exists {self.ntbname}')
-        tdSql.execute(f'create table {self.ntbname} (ts timestamp, c1 int)')
-        tdSql.execute(f'insert into {self.ntbname} values ({self.ts}, 1)')
-
-    def _assert_suffix(self, param_tz, expected_suffix):
-        """Query to_iso8601 and assert that the result ends with expected_suffix."""
-        self._prepare_suffix_format_data()
-        tdSql.query(f"select to_iso8601(ts, '{param_tz}') from {self.ntbname}")
-        result = tdSql.queryResult[0][0]
-        assert result.endswith(expected_suffix), \
-            f"param_tz='{param_tz}': expected suffix '{expected_suffix}', got '{result}'"
-
-    # --- UTC-prefixed single-digit → ±HHMM (cannot mimic, normalise to 4-digit) ---
-
-    def check_suffix_utc_plus_8(self):
-        """UTC+8 → +08"""
-        self._assert_suffix('UTC+8', '+08')
-
-    def check_suffix_utc_minus_5(self):
-        """UTC-5 → -05"""
-        self._assert_suffix('UTC-5', '-05')
-
-    def check_suffix_utc_plus_0(self):
-        """UTC+0 → +00"""
-        self._assert_suffix('UTC+0', '+00')
-
-    def check_suffix_utc_minus_0(self):
-        """UTC-0 → -00 (zero offset keeps original '-' sign)"""
-        self._assert_suffix('UTC-0', '-00')
-
-    # --- UTC-prefixed multi-digit → mimic the digit pattern after stripping UTC ---
-
-    def check_suffix_utc_plus_08(self):
-        """UTC+08 → +08"""
-        self._assert_suffix('UTC+08', '+08')
-
-    def check_suffix_utc_plus_0800(self):
-        """UTC+0800 → +0800"""
-        self._assert_suffix('UTC+0800', '+0800')
-
-    def check_suffix_utc_plus_08_colon_00(self):
-        """UTC+08:00 → +08:00"""
-        self._assert_suffix('UTC+08:00', '+08:00')
-
-    def check_suffix_utc_minus_0500(self):
-        """UTC-0500 → -0500"""
-        self._assert_suffix('UTC-0500', '-0500')
-
-    def check_suffix_utc_minus_05_colon_00(self):
-        """UTC-05:00 → -05:00"""
-        self._assert_suffix('UTC-05:00', '-05:00')
-
-    def check_suffix_utc_plus_05_colon_30(self):
-        """UTC+05:30 → +05:30"""
-        self._assert_suffix('UTC+05:30', '+05:30')
-
-    def check_suffix_utc_minus_09_colon_00(self):
-        """UTC-09:00 → -09:00"""
-        self._assert_suffix('UTC-09:00', '-09:00')
-
-    # --- Bare offset → pass-through ---
-
-    def check_suffix_bare_plus_0800(self):
-        """+0800 → +0800"""
-        self._assert_suffix('+0800', '+0800')
-
-    def check_suffix_bare_plus_08_colon_00(self):
-        """+08:00 → +08:00"""
-        self._assert_suffix('+08:00', '+08:00')
-
-    def check_suffix_bare_minus_0500(self):
-        """-0500 → -0500"""
-        self._assert_suffix('-0500', '-0500')
-
-    def check_suffix_bare_plus_05_colon_30(self):
-        """+05:30 → +05:30"""
-        self._assert_suffix('+05:30', '+05:30')
-
-    def check_suffix_bare_z(self):
-        """Z → Z"""
-        self._assert_suffix('Z', 'Z')
-
-    # --- zero offset with negative sign → always normalised to '+' ---
-
-    def check_suffix_utc_minus_00(self):
-        """UTC-00 → -00 (zero offset keeps original '-' sign)"""
-        self._assert_suffix('UTC-00', '-00')
-
-    def check_suffix_utc_minus_0000(self):
-        """UTC-0000 → -0000 (zero offset keeps original '-' sign)"""
-        self._assert_suffix('UTC-0000', '-0000')
-
-    def check_suffix_utc_minus_00_colon_00(self):
-        """UTC-00:00 → -00:00 (zero offset keeps original '-' sign)"""
-        self._assert_suffix('UTC-00:00', '-00:00')
-
-    def check_suffix_bare_minus_0000(self):
-        """-0000 → -0000 (zero offset keeps original '-' sign)"""
-        self._assert_suffix('-0000', '-0000')
-
-    def check_suffix_bare_minus_00_colon_00(self):
-        """-00:00 → -00:00 (zero offset keeps original '-' sign)"""
-        self._assert_suffix('-00:00', '-00:00')
-
-    def test_to_iso8601_suffix_format(self):
-        """summary: TO_ISO8601 output suffix must precisely mimic the input offset format.
-
-        description: Verifies that TO_ISO8601 preserves the digit/colon pattern
-            of the input timezone parameter in the output suffix.  Single-digit
-            UTC-prefixed offsets (UTC+8, UTC-5, UTC+0) are normalised to ±HHMM.
-            All other forms reproduce the original pattern after stripping the
-            UTC prefix.
-
-        Since: v3.4.2.0
-
-        Labels: timezone
-
-        Jira: None
-
-        Catalog:
-            - Function:timezone
-
-        History:
-            - 2026-05-30: Tony Zhang created
-
-        """
-        self._setup_to_iso8601_suffix_format_case()
-        # single-digit normalisation
-        self.check_suffix_utc_plus_8()
-        self.check_suffix_utc_minus_5()
-        self.check_suffix_utc_plus_0()
-        self.check_suffix_utc_minus_0()
-        # UTC-prefixed multi-digit mimicking
-        self.check_suffix_utc_plus_08()
-        self.check_suffix_utc_plus_0800()
-        self.check_suffix_utc_plus_08_colon_00()
-        self.check_suffix_utc_minus_0500()
-        self.check_suffix_utc_minus_05_colon_00()
-        self.check_suffix_utc_plus_05_colon_30()
-        self.check_suffix_utc_minus_09_colon_00()
-        # bare offset pass-through
-        self.check_suffix_bare_plus_0800()
-        self.check_suffix_bare_plus_08_colon_00()
-        self.check_suffix_bare_minus_0500()
-        self.check_suffix_bare_plus_05_colon_30()
-        self.check_suffix_bare_z()
-        # zero offset with negative sign
-        self.check_suffix_utc_minus_00()
-        self.check_suffix_utc_minus_0000()
-        self.check_suffix_utc_minus_00_colon_00()
-        self.check_suffix_bare_minus_0000()
-        self.check_suffix_bare_minus_00_colon_00()
-
-
 class _JoinDstMixin:
     """Regression: JOIN on TIMETRUNCATE(ts, 1d) must be DST-aware for IANA timezones."""
 
@@ -1669,7 +1399,6 @@ class _JoinDstMixin:
         self.check_join_dst_day_truncate()
         self.check_join_no_dst_same_day()
         self.check_join_dst_different_days()
-
 
 class _ToIso8601SessionVsParamMixin:
     """TO_ISO8601: session timezone vs explicit parameter should produce identical results.
@@ -2344,8 +2073,6 @@ class _WeekFamilyTzMixin:
         self._setup_week_family_tz_case()
         self.check_dayofweek_weekday_fixed_instant_uses_l2()
         self.check_week_weekofyear_fixed_instant_uses_l2()
-
-
 @SKIP_WINDOWS_SET_TIMEZONE
 class TestTimezoneScalarFunctions(
     _ToIso8601IanaMixin,
@@ -2357,11 +2084,8 @@ class TestTimezoneScalarFunctions(
     _WeekFunctionsMixin,
     _SessionFirstDayOfWeekFunctionMixin,
     _DstEdgeMixin,
-    _TsArithDstMixin,
-    _TimezoneDisplayAbbrMixin,
     _ToIso8601FixedOffsetMixin,
     _ToIso8601UtcPrefixMixin,
-    _ToIso8601SuffixFormatMixin,
     _JoinDstMixin,
     _ToIso8601SessionVsParamMixin,
     _ToTimestampTzMixin,

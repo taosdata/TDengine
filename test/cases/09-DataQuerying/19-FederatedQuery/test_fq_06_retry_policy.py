@@ -359,18 +359,14 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         try:
             ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
             ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            # Build raw DDL with a totally wrong api_token
-            cfg = self._influx_cfg()
-            tdSql.execute(f"drop external source if exists {i_src}")
-            tdSql.execute(
-                f"create external source {i_src} "
-                f"type='influxdb' host='{cfg.host}' port={cfg.port} "
-                f"user='u' password='' database={i_db} "
-                f"options('api_token'='TOTALLY_WRONG_TOKEN_FQ06_xr2p7',"
-                f"'protocol'='flight_sql')")
+            self._mk_influx_real(
+                i_src,
+                database=i_db,
+                api_token="TOTALLY_WRONG_TOKEN_FQ06_xr2p7",
+            )
             # Dimension a/b) Wrong token → EXT_AUTH_FAILED
-            # InfluxDB 3.0 FlightSQL: wrong Bearer token → gRPC Unauthenticated(3)
-            # → extConnectorInflux maps to EXT_AUTH_FAILED.
+            # Generic Influx auth-consumption check: if api_token handling breaks,
+            # the query path should not authenticate successfully.
             tdSql.error(f"select * from {i_src}.push_t limit 1",
                         expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
             # Dimension c)
@@ -1174,4 +1170,3 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                 ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), ext_db)
             except Exception:
                 pass
-

@@ -2212,6 +2212,8 @@ static int32_t seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBloc
           return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         }
         SColumnInfoData colInfo = createColumnInfoData(pSlot->dataType.type, pSlot->dataType.bytes, pSlot->slotId);
+        colInfo.info.precision = pSlot->dataType.precision;
+        colInfo.info.scale = pSlot->dataType.scale;
         int32_t code = colInfoDataEnsureCapacity(&colInfo, pBlock->info.rows, true);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
@@ -3369,6 +3371,9 @@ static int32_t dynPutResolvedColRef(SVtbScanDynCtrlInfo* pVtbScan, const char* r
   }
   tstrncpy(pResolved->fullColRef, fullColRef, sizeof(pResolved->fullColRef));
 
+  qDebug("vtable resolved final colref, root:%s -> final:%s vgId:%d ext:%d", rootRef ? rootRef : "<null>",
+         fullColRef ? fullColRef : "<null>", vgId, pResolved->extRefType);
+
   code = taosHashPut(pVtbScan->resolvedColRefMap, rootRef, strlen(rootRef), &pResolved, POINTER_BYTES);
   QUERY_CHECK_CODE(code, line, _return);
 
@@ -3548,6 +3553,7 @@ static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pRe
       QUERY_CHECK_CODE(code, line, _return);
 
       if (colDataIsNull_s(pRefCol, i)) {
+        qDebug("vtable resolve layer terminal ref, current:%s", currentRef);
         continue;
       }
 
@@ -3558,6 +3564,7 @@ static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pRe
         QUERY_CHECK_CODE(code, line, _return);
       }
       memcpy(nextRef.colRef, varDataVal(colDataGetData(pRefCol, i)), refLen);
+      qDebug("vtable resolve layer edge, current:%s -> next:%s", currentRef, nextRef.colRef);
       code = taosHashPut(pNextRefMap, currentRef, strlen(currentRef), &nextRef, sizeof(nextRef));
       QUERY_CHECK_CODE(code, line, _return);
     }
@@ -4721,6 +4728,13 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
     }
   }
 
+  qDebug("vtable process col refs, db:%s tb:%s super:%d colRefs:%" PRId64 " uid:%" PRIu64 " vgId:%d otbSources:%d foreignSources:%d refGroups:%d",
+         pVtbScan->dbName ? pVtbScan->dbName : "<null>", pVtbScan->tbName ? pVtbScan->tbName : "<null>",
+         pVtbScan->isSuperTable, (int64_t)taosArrayGetSize(pColRefInfo), *uid, *vgId,
+         pVtbScan->otbNameToOtbInfoMap ? taosHashGetSize(pVtbScan->otbNameToOtbInfoMap) : 0,
+         pVtbScan->foreignSourceMap ? taosHashGetSize(pVtbScan->foreignSourceMap) : 0,
+         refMap ? taosHashGetSize(refMap) : 0);
+
   if (ppRefMap != NULL) {
     *ppRefMap = refMap;
   }
@@ -4998,6 +5012,10 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
   SArray*                    pColRefArray = NULL;
   SOperatorInfo*             pSystableScanOp = NULL;
   bool                       sysScanBootstrapped = false;
+  int32_t                    scannedRows = 0;
+  int32_t                    matchedRows = 0;
+  int32_t                    sampleRows = 0;
+  char                       sampleBuf[512] = {0};
 
   taosHashClear(pVtbScan->resolvedColRefMap);
   pVtbScan->childTableMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
@@ -5019,6 +5037,10 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
     pSystableScanOp = pOperator->pDownstream[1];
   }
 
+  qDebug("vtable build child map enter, db:%s tb:%s qType:%d super:%d systableOpType:%d downstreams:%d",
+         pInfo->vtbScan.dbName, pInfo->vtbScan.tbName, pInfo->qType, pVtbScan->isSuperTable,
+         pSystableScanOp ? pSystableScanOp->operatorType : -1, pOperator->numOfDownstream);
+
   while (true) {
     SSDataBlock *pChildInfo = NULL;
     code = dynFetchInitialSysScanBlock(pSystableScanOp, &sysScanBootstrapped, &pChildInfo);
@@ -5035,6 +5057,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
     QUERY_CHECK_NULL(pDbNameCol, code, line, _return, terrno)
 
     for (int32_t i = 0; i < pChildInfo->info.rows; i++) {
+      ++scannedRows;
       // A virtual super table groups its child rows by stable name (column 1), so the
       // scan is filtered against that. A single (non-super) virtual table has no such
       // grouping: the scan returns the vtable's own column-ref rows whose stable_name
@@ -5046,8 +5069,20 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
         char* matchrawname = colDataGetData(pMatchNameCol, i);
         char* dbrawname = colDataGetData(pDbNameCol, i);
         char *ctbName = colDataGetData(pTableNameCol, i);
+        bool matched = tableInfoNeedCollect(dbrawname, matchrawname, pInfo->vtbScan.dbName, pInfo->vtbScan.tbName);
 
-        if (tableInfoNeedCollect(dbrawname, matchrawname, pInfo->vtbScan.dbName, pInfo->vtbScan.tbName)) {
+        if (!matched && sampleRows < 4) {
+          int32_t used = (int32_t)strlen(sampleBuf);
+          if (used < (int32_t)sizeof(sampleBuf) - 1) {
+            tsnprintf(sampleBuf + used, sizeof(sampleBuf) - used, "[db=%.*s match=%.*s table=%.*s] ",
+                      varDataLen(dbrawname), varDataVal(dbrawname), varDataLen(matchrawname), varDataVal(matchrawname),
+                      varDataLen(ctbName), varDataVal(ctbName));
+            ++sampleRows;
+          }
+        }
+
+        if (matched) {
+          ++matchedRows;
           SColRefInfo info = {0};
           code = getColRefInfo(&info, pChildInfo->pDataBlock, i);
           QUERY_CHECK_CODE(code, line, _return);
@@ -5079,6 +5114,16 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
         }
       }
     }
+  }
+
+  if (0 == taosArrayGetSize(pVtbScan->childTableList) && scannedRows > 0) {
+    qDebug("vtable sysscan matched no child table, expect=%s.%s qType=%d super=%d scannedRows=%d samples=%s",
+           pInfo->vtbScan.dbName, pInfo->vtbScan.tbName, pInfo->qType, pVtbScan->isSuperTable, scannedRows,
+           sampleBuf[0] ? sampleBuf : "<empty>");
+  } else {
+    qDebug("vtable sysscan child table matched, expect=%s.%s qType=%d super=%d scannedRows=%d matchedRows=%d childTables=%" PRId64,
+           pInfo->vtbScan.dbName, pInfo->vtbScan.tbName, pInfo->qType, pVtbScan->isSuperTable, scannedRows,
+           matchedRows, (int64_t)taosArrayGetSize(pVtbScan->childTableList));
   }
 
   // Apply tag-ref filter optimization: remove virtual children that don't match
@@ -6139,6 +6184,11 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
     code = taosHashPut(pInfo->vtbScan.readColSet, &colId, sizeof(colId), NULL, 0);
     QUERY_CHECK_CODE(code, line, _return);
   }
+
+  qDebug("vtable init scan info, qType:%d db:%s tb:%s super:%d suid:%" PRIu64 " uid:%" PRIu64 " orgVgNum:%d readCols:%" PRId64,
+         pInfo->qType, pInfo->vtbScan.dbName, pInfo->vtbScan.tbName, pInfo->vtbScan.isSuperTable,
+         pInfo->vtbScan.suid, pInfo->vtbScan.uid, taosHashGetSize(pInfo->vtbScan.existOrgTbVg),
+         (int64_t)taosArrayGetSize(pInfo->vtbScan.readColList));
 
   pInfo->vtbScan.refColGroups = NULL;
 

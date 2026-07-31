@@ -1365,7 +1365,8 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
     pColInfo->type = pMtInfo->schema->pSchema[i].type;
     pColInfo->bytes = pMtInfo->schema->pSchema[i].bytes;
     if (pMtInfo->pExtSchemas != NULL) {
-      decimalFromTypeMod(pMtInfo->pExtSchemas[i].typeMod, &pColInfo->precision, &pColInfo->scale);
+      extractTypeFromTypeMod(pColInfo->type, pMtInfo->pExtSchemas[i].typeMod, &pColInfo->precision, &pColInfo->scale,
+                             NULL);
     }
     pColInfo->colId = pMtInfo->schema->pSchema[i].colId;
     pColInfo->pk = pMtInfo->schema->pSchema[i].flags & COL_IS_KEY;
@@ -2411,9 +2412,15 @@ int32_t dropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequ
 
 int32_t qFilterTableList(void* pVnode, SArray* uidList, int64_t version, SNode* node, void* pTaskInfo, uint64_t suid) {
   int32_t         code = TSDB_CODE_SUCCESS;
+  SExecTaskInfo*  pExecTaskInfo = (SExecTaskInfo*)pTaskInfo;
+
+  if (NULL == pExecTaskInfo) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   SNode* pTagCond = node == NULL ? NULL : ((SSubplan*)node)->pTagCond;
-  code = doFilterByTagCond(suid, uidList, version, pTagCond, pVnode, SFLT_NOT_INDEX, &((SExecTaskInfo*)pTaskInfo)->storageAPI, NULL, 0);
+  code = doFilterByTagCond(suid, uidList, version, pTagCond, pVnode, SFLT_NOT_INDEX, &pExecTaskInfo->storageAPI,
+                           NULL, pExecTaskInfo->txnId);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
