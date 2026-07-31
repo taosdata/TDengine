@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -2020,6 +2020,380 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_avg_distinct_all_null" class="md-nav__link">
+        AVG(DISTINCT) on all-NULL returns NULL 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_avg_distinct_int" class="md-nav__link">
+        AVG(DISTINCT) on INT column — average of unique values 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_star" class="md-nav__link">
+        COUNT(DISTINCT *) should return syntax error 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_matches_subquery" class="md-nav__link">
+        COUNT(DISTINCT col) must match SELECT COUNT(*) FROM (SELECT DISTINCT col ...) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_expression" class="md-nav__link">
+        COUNT(DISTINCT expr) where expr is a computed expression 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_spill" class="md-nav__link">
+        COUNT(DISTINCT) correctness under spill-to-disk. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by_tag" class="md-nav__link">
+        COUNT(DISTINCT) grouped by tag — status field 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_all_null" class="md-nav__link">
+        COUNT(DISTINCT) on all-NULL column returns 0 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_bigint" class="md-nav__link">
+        COUNT(DISTINCT) on BIGINT column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_bool" class="md-nav__link">
+        COUNT(DISTINCT) on BOOL column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_double" class="md-nav__link">
+        COUNT(DISTINCT) on DOUBLE column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_empty_table" class="md-nav__link">
+        COUNT(DISTINCT) on empty table returns 0 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_float" class="md-nav__link">
+        COUNT(DISTINCT) on FLOAT column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_int" class="md-nav__link">
+        COUNT(DISTINCT) on INT column — basic deduplication 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_nchar" class="md-nav__link">
+        COUNT(DISTINCT) on NCHAR column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_supertable" class="md-nav__link">
+        COUNT(DISTINCT) on supertable — merges across vnodes 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_timestamp" class="md-nav__link">
+        COUNT(DISTINCT) on timestamp column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_varchar" class="md-nav__link">
+        COUNT(DISTINCT) on VARCHAR column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_in_subquery" class="md-nav__link">
+        COUNT(DISTINCT) used inside a subquery 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_single_value" class="md-nav__link">
+        COUNT(DISTINCT) where all values are same returns 1 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_group_spill" class="md-nav__link">
+        COUNT(DISTINCT) with GROUP BY tag under spill-to-disk. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by" class="md-nav__link">
+        COUNT(DISTINCT) with GROUP BY — per-group dedup 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_interval_spill" class="md-nav__link">
+        COUNT(DISTINCT) with INTERVAL under spill-to-disk. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_interval" class="md-nav__link">
+        COUNT(DISTINCT) with INTERVAL — per-window dedup 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_with_where" class="md-nav__link">
+        COUNT(DISTINCT) with WHERE filter 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_mixed_distinct_and_normal" class="md-nav__link">
+        DISTINCT and normal aggregates in same query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_on_scalar" class="md-nav__link">
+        DISTINCT on scalar function should error 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_on_selection" class="md-nav__link">
+        DISTINCT on selection functions (FIRST/LAST) should error 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_event_window" class="md-nav__link">
+        DISTINCT with EVENT_WINDOW is not supported 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_multi_args" class="md-nav__link">
+        DISTINCT with multiple arguments should error 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_session_window" class="md-nav__link">
+        DISTINCT with SESSION window is not supported 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_state_window" class="md-nav__link">
+        DISTINCT with STATE_WINDOW is not supported 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_distinct_filter" class="md-nav__link">
+        EXPLAIN shows Distinct Filter node for COUNT(DISTINCT) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_verbose_distinct_filter" class="md-nav__link">
+        EXPLAIN VERBOSE TRUE shows Distinct Filter with output info 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_fun_agg_apercentile.TestFunApercentile.test_func_agg_apercentile" class="md-nav__link">
         Fun: apercentile() 
       </a>
@@ -2231,6 +2605,83 @@
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_fun_agg_leastsquares.TestFunLeastsquares.test_leastsquares_dup_ts" class="md-nav__link">
         leastsquares on a supertable whose child tables share identical timestamps. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_on_min_max" class="md-nav__link">
+        MIN/MAX(DISTINCT) is accepted but treated as no-op (MySQL compatible) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_matches_subquery" class="md-nav__link">
+        SUM(DISTINCT col) must match SELECT SUM(v) FROM (SELECT DISTINCT col as v ...) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_sum_distinct_spill" class="md-nav__link">
+        SUM(DISTINCT) correctness under spill-to-disk. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_all_null" class="md-nav__link">
+        SUM(DISTINCT) on all-NULL column returns NULL 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_bigint" class="md-nav__link">
+        SUM(DISTINCT) on BIGINT column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_int" class="md-nav__link">
+        SUM(DISTINCT) on INT column — sums unique values only 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_supertable" class="md-nav__link">
+        SUM(DISTINCT) on supertable 
       </a>
       
     </li>
@@ -4245,6 +4696,380 @@
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_avg_distinct_all_null" class="md-nav__link">
+        AVG(DISTINCT) on all-NULL returns NULL 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_avg_distinct_int" class="md-nav__link">
+        AVG(DISTINCT) on INT column — average of unique values 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_star" class="md-nav__link">
+        COUNT(DISTINCT *) should return syntax error 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_matches_subquery" class="md-nav__link">
+        COUNT(DISTINCT col) must match SELECT COUNT(*) FROM (SELECT DISTINCT col ...) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_expression" class="md-nav__link">
+        COUNT(DISTINCT expr) where expr is a computed expression 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_spill" class="md-nav__link">
+        COUNT(DISTINCT) correctness under spill-to-disk. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by_tag" class="md-nav__link">
+        COUNT(DISTINCT) grouped by tag — status field 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_all_null" class="md-nav__link">
+        COUNT(DISTINCT) on all-NULL column returns 0 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_bigint" class="md-nav__link">
+        COUNT(DISTINCT) on BIGINT column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_bool" class="md-nav__link">
+        COUNT(DISTINCT) on BOOL column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_double" class="md-nav__link">
+        COUNT(DISTINCT) on DOUBLE column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_empty_table" class="md-nav__link">
+        COUNT(DISTINCT) on empty table returns 0 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_float" class="md-nav__link">
+        COUNT(DISTINCT) on FLOAT column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_int" class="md-nav__link">
+        COUNT(DISTINCT) on INT column — basic deduplication 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_nchar" class="md-nav__link">
+        COUNT(DISTINCT) on NCHAR column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_supertable" class="md-nav__link">
+        COUNT(DISTINCT) on supertable — merges across vnodes 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_timestamp" class="md-nav__link">
+        COUNT(DISTINCT) on timestamp column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_varchar" class="md-nav__link">
+        COUNT(DISTINCT) on VARCHAR column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_in_subquery" class="md-nav__link">
+        COUNT(DISTINCT) used inside a subquery 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_single_value" class="md-nav__link">
+        COUNT(DISTINCT) where all values are same returns 1 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_group_spill" class="md-nav__link">
+        COUNT(DISTINCT) with GROUP BY tag under spill-to-disk. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by" class="md-nav__link">
+        COUNT(DISTINCT) with GROUP BY — per-group dedup 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_interval_spill" class="md-nav__link">
+        COUNT(DISTINCT) with INTERVAL under spill-to-disk. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_interval" class="md-nav__link">
+        COUNT(DISTINCT) with INTERVAL — per-window dedup 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_with_where" class="md-nav__link">
+        COUNT(DISTINCT) with WHERE filter 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_mixed_distinct_and_normal" class="md-nav__link">
+        DISTINCT and normal aggregates in same query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_on_scalar" class="md-nav__link">
+        DISTINCT on scalar function should error 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_on_selection" class="md-nav__link">
+        DISTINCT on selection functions (FIRST/LAST) should error 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_event_window" class="md-nav__link">
+        DISTINCT with EVENT_WINDOW is not supported 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_multi_args" class="md-nav__link">
+        DISTINCT with multiple arguments should error 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_session_window" class="md-nav__link">
+        DISTINCT with SESSION window is not supported 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_state_window" class="md-nav__link">
+        DISTINCT with STATE_WINDOW is not supported 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_distinct_filter" class="md-nav__link">
+        EXPLAIN shows Distinct Filter node for COUNT(DISTINCT) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_verbose_distinct_filter" class="md-nav__link">
+        EXPLAIN VERBOSE TRUE shows Distinct Filter with output info 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_fun_agg_apercentile.TestFunApercentile.test_func_agg_apercentile" class="md-nav__link">
         Fun: apercentile() 
       </a>
@@ -4462,6 +5287,83 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_on_min_max" class="md-nav__link">
+        MIN/MAX(DISTINCT) is accepted but treated as no-op (MySQL compatible) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_matches_subquery" class="md-nav__link">
+        SUM(DISTINCT col) must match SELECT SUM(v) FROM (SELECT DISTINCT col as v ...) 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_sum_distinct_spill" class="md-nav__link">
+        SUM(DISTINCT) correctness under spill-to-disk. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_all_null" class="md-nav__link">
+        SUM(DISTINCT) on all-NULL column returns NULL 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_bigint" class="md-nav__link">
+        SUM(DISTINCT) on BIGINT column 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_int" class="md-nav__link">
+        SUM(DISTINCT) on INT column — sums unique values only 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_supertable" class="md-nav__link">
+        SUM(DISTINCT) on supertable 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4544,6 +5446,969 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_bugs.py" target="_blank">
                       cases/11-Functions/02-Aggregate/test_agg_bugs.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_int" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_int" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) on INT column — basic deduplication</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_bigint" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_bigint" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) on BIGINT column</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_float" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_float" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) on FLOAT column</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_double" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_double" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) on DOUBLE column</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_bool" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_bool" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) on BOOL column</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_varchar" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_varchar" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) on VARCHAR column</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_nchar" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_nchar" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) on NCHAR column</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_all_null" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_all_null" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) on all-NULL column returns 0</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_empty_table" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_empty_table" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) on empty table returns 0</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_single_value" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_single_value" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) where all values are same returns 1</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_int" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_int" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SUM(DISTINCT) on INT column — sums unique values only</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_bigint" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_bigint" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SUM(DISTINCT) on BIGINT column</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_all_null" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_all_null" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SUM(DISTINCT) on all-NULL column returns NULL</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_avg_distinct_int" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_avg_distinct_int" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>AVG(DISTINCT) on INT column — average of unique values</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_avg_distinct_all_null" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_avg_distinct_all_null" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>AVG(DISTINCT) on all-NULL returns NULL</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) with GROUP BY — per-group dedup</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by_tag" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_group_by_tag" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) grouped by tag — status field</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_supertable" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_supertable" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) on supertable — merges across vnodes</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_supertable" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_supertable" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SUM(DISTINCT) on supertable</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_interval" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_interval" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) with INTERVAL — per-window dedup</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_with_where" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_with_where" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) with WHERE filter</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_mixed_distinct_and_normal" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_mixed_distinct_and_normal" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT and normal aggregates in same query</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_in_subquery" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_in_subquery" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) used inside a subquery</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_star" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_star" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT *) should return syntax error</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_on_scalar" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_on_scalar" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT on scalar function should error</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_on_selection" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_on_selection" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT on selection functions (FIRST/LAST) should error</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_multi_args" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_multi_args" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT with multiple arguments should error</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_on_min_max" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_on_min_max" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>MIN/MAX(DISTINCT) is accepted but treated as no-op (MySQL compatible)</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_session_window" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_session_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT with SESSION window is not supported</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_state_window" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_state_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT with STATE_WINDOW is not supported</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_event_window" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_error_distinct_with_event_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>DISTINCT with EVENT_WINDOW is not supported</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_timestamp" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_timestamp" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) on timestamp column</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_expression" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_expression" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT expr) where expr is a computed expression</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_matches_subquery" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_matches_subquery" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT col) must match SELECT COUNT(*) FROM (SELECT DISTINCT col ...)</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_matches_subquery" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_sum_distinct_matches_subquery" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SUM(DISTINCT col) must match SELECT SUM(v) FROM (SELECT DISTINCT col as v ...)</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_distinct_filter" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_distinct_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>EXPLAIN shows Distinct Filter node for COUNT(DISTINCT)</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_verbose_distinct_filter" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_explain_verbose_distinct_filter" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>EXPLAIN VERBOSE TRUE shows Distinct Filter with output info</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_spill" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_spill" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) correctness under spill-to-disk.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_spill.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_spill.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_sum_distinct_spill" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_sum_distinct_spill" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SUM(DISTINCT) correctness under spill-to-disk.</strong> 
+                  </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_spill.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_spill.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_interval_spill" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_interval_spill" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) with INTERVAL under spill-to-disk.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Regression for interval double-counting: the dedup key includes the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">window start, so the same distinct value appearing in different windows</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">must be counted once per window. After spilling to the sort path, rows</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">of the same value from different windows could be ordered non-adjacently</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">and re-emitted, inflating per-window counts. Each window here has exactly</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">IV_VALS distinct values, so every window count must equal IV_VALS.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_spill.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_spill.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_group_spill" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_distinct_spill.TestAggDistinctSpill.test_count_distinct_group_spill" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>COUNT(DISTINCT) with GROUP BY tag under spill-to-disk.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Super table grouped by tag `grp`: each group has exactly GP_VALS</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">distinct values (values repeat across groups), so per-group dedup must</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">yield GP_VALS for every group even after the hash set spills to the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">sort path.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_distinct_spill.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_distinct_spill.py
                     </a>
                   </div>
         </div>
@@ -5511,7 +7376,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

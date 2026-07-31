@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -2193,6 +2193,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#12-UDFs.test_udf_privilege.TestUdfPrivilege.test_udf_privilege" class="md-nav__link">
+        UDF privilege: CREATE/DROP FUNCTION requires SYSDBA role 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#12-UDFs.test_udf_py.TestUdf.test_udf" class="md-nav__link">
         Udf python sim case 
       </a>
@@ -4045,6 +4056,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#12-UDFs.test_udf_privilege.TestUdfPrivilege.test_udf_privilege" class="md-nav__link">
+        UDF privilege: CREATE/DROP FUNCTION requires SYSDBA role 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#12-UDFs.test_udf_py.TestUdf.test_udf" class="md-nav__link">
         Udf python sim case 
       </a>
@@ -4263,6 +4285,43 @@
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/12-UDFs/test_udf_main.py" target="_blank">
                       cases/12-UDFs/test_udf_main.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="12-UDFs.test_udf_privilege.TestUdfPrivilege.test_udf_privilege" class="doc doc-heading">
+
+<a href="#12-UDFs.test_udf_privilege.TestUdfPrivilege.test_udf_privilege" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>UDF privilege: CREATE/DROP FUNCTION requires SYSDBA role</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Cases:</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  A. plain user without SYSDBA — CREATE FUNCTION denied</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  A. plain user without SYSDBA — DROP FUNCTION denied</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  B. plain user with SYSDBA    — CREATE FUNCTION allowed</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  B. plain user with SYSDBA    — DROP FUNCTION allowed</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  C. root (default SYSDBA)     — CREATE FUNCTION allowed</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  C. root (default SYSDBA)     — DROP FUNCTION allowed</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  D. root with SYSDBA revoked  — CREATE FUNCTION denied</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  D. root with SYSDBA revoked  — DROP FUNCTION denied</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/12-UDFs/test_udf_privilege.py" target="_blank">
+                      cases/12-UDFs/test_udf_privilege.py
                     </a>
                   </div>
         </div>
@@ -4546,7 +4605,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -1303,6 +1303,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.04-OrderBy.test_orderby_subquery.TestMergeIntervalOrder.test_merge_interval_order" class="md-nav__link">
+        MergeAlignedInterval resultDataOrder: GLOBAL without partition, IN_GROUP with partition 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.04-OrderBy.test_orderby_basic.TestOrderByBasic.test_orderby_basic" class="md-nav__link">
         Order by basic 
       </a>
@@ -1327,6 +1338,39 @@
     <li class="md-nav__item">
       <a href="#09-DataQuerying.04-OrderBy.test_orderby_subquery.TestOrderByBasic.test_orderby_basic" class="md-nav__link">
         Order by subquery results 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.04-OrderBy.test_orderby_subquery.TestSortElimination.test_sort_elimination_subquery" class="md-nav__link">
+        Post-split sort elimination for subquery with ORDER BY + LIMIT 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.04-OrderBy.test_smalldata_scan_sort.TestSmallDataScanSort.test_smalldata_scan_sort" class="md-nav__link">
+        SMALLDATA_SCAN_SORT hint: Sort+TableScan plan and result correctness. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.04-OrderBy.test_smalldata_scan_sort.TestSmallDataScanSort.test_smalldata_scan_sort_part_window" class="md-nav__link">
+        SMALLDATA_SCAN_SORT preserves per-partition order for SESSION/STATE windows. 
       </a>
       
     </li>
@@ -3860,6 +3904,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.04-OrderBy.test_orderby_subquery.TestMergeIntervalOrder.test_merge_interval_order" class="md-nav__link">
+        MergeAlignedInterval resultDataOrder: GLOBAL without partition, IN_GROUP with partition 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.04-OrderBy.test_orderby_basic.TestOrderByBasic.test_orderby_basic" class="md-nav__link">
         Order by basic 
       </a>
@@ -3884,6 +3939,39 @@
     <li class="md-nav__item">
       <a href="#09-DataQuerying.04-OrderBy.test_orderby_subquery.TestOrderByBasic.test_orderby_basic" class="md-nav__link">
         Order by subquery results 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.04-OrderBy.test_orderby_subquery.TestSortElimination.test_sort_elimination_subquery" class="md-nav__link">
+        Post-split sort elimination for subquery with ORDER BY + LIMIT 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.04-OrderBy.test_smalldata_scan_sort.TestSmallDataScanSort.test_smalldata_scan_sort" class="md-nav__link">
+        SMALLDATA_SCAN_SORT hint: Sort+TableScan plan and result correctness. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.04-OrderBy.test_smalldata_scan_sort.TestSmallDataScanSort.test_smalldata_scan_sort_part_window" class="md-nav__link">
+        SMALLDATA_SCAN_SORT preserves per-partition order for SESSION/STATE windows. 
       </a>
       
     </li>
@@ -4027,6 +4115,148 @@
         </div>
 
   </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.04-OrderBy.test_orderby_subquery.TestSortElimination.test_sort_elimination_subquery" class="doc doc-heading">
+
+<a href="#09-DataQuerying.04-OrderBy.test_orderby_subquery.TestSortElimination.test_sort_elimination_subquery" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Post-split sort elimination for subquery with ORDER BY + LIMIT</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">When a subquery contains ORDER BY ts LIMIT N, the planner splits the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">inner Sort into a Merge node that already guarantees global order.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">The outer redundant Sort should be eliminated by postSplitOptimize.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Compares EXPLAIN plans and query results via .in/.ans file comparison.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/04-OrderBy/test_orderby_subquery.py" target="_blank">
+                      cases/09-DataQuerying/04-OrderBy/test_orderby_subquery.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.04-OrderBy.test_orderby_subquery.TestMergeIntervalOrder.test_merge_interval_order" class="doc doc-heading">
+
+<a href="#09-DataQuerying.04-OrderBy.test_orderby_subquery.TestMergeIntervalOrder.test_merge_interval_order" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>MergeAlignedInterval resultDataOrder: GLOBAL without partition, IN_GROUP with partition</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">After plan splitting, the coordinator MergeAlignedInterval node merges</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">all vnodes&#39; aligned intervals into a single globally-sorted output.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Without partition by, resultDataOrder should be GLOBAL (Merge ResBlocks: True).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">With partition by, each group is separate so resultDataOrder stays IN_GROUP</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">(Merge ResBlocks: False).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/04-OrderBy/test_orderby_subquery.py" target="_blank">
+                      cases/09-DataQuerying/04-OrderBy/test_orderby_subquery.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.04-OrderBy.test_smalldata_scan_sort.TestSmallDataScanSort.test_smalldata_scan_sort" class="doc doc-heading">
+
+<a href="#09-DataQuerying.04-OrderBy.test_smalldata_scan_sort.TestSmallDataScanSort.test_smalldata_scan_sort" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SMALLDATA_SCAN_SORT hint: Sort+TableScan plan and result correctness.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies (ORDER BY — Task 1):</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Hinted ORDER BY ts returns same rows as non-hinted (ASC).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Hinted ORDER BY ts DESC returns same rows as non-hinted DESC.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Hinted ORDER BY ts LIMIT k returns same top-k rows as non-hinted LIMIT k.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. EXPLAIN of hinted query contains &#39;Sort&#39; + &#39;Table Scan&#39;, no &#39;Table Merge Scan&#39;.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. EXPLAIN of hinted LIMIT query also contains &#39;Sort&#39;, no &#39;Table Merge Scan&#39;.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. EXPLAIN of non-hinted query still contains &#39;Table Merge Scan&#39; (default unchanged).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Verifies (window contexts — Task 2):</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. INTERVAL / PARTITION BY ... INTERVAL: hinted == non-hinted results; hint</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   shows no &#39;Table Merge Scan&#39; (interval already uses a plain scan, so the</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   hint is a no-op here).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. SESSION / STATE_WINDOW: hinted == non-hinted results; hint shows &#39;Sort&#39;</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   and no &#39;Table Merge Scan&#39;, while non-hinted still shows &#39;Table Merge Scan&#39;.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">9. PARTITION BY ... SESSION: hinted == non-hinted results; hint shows no</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   &#39;Table Merge Scan&#39;.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/04-OrderBy/test_smalldata_scan_sort.py" target="_blank">
+                      cases/09-DataQuerying/04-OrderBy/test_smalldata_scan_sort.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.04-OrderBy.test_smalldata_scan_sort.TestSmallDataScanSort.test_smalldata_scan_sort_part_window" class="doc doc-heading">
+
+<a href="#09-DataQuerying.04-OrderBy.test_smalldata_scan_sort.TestSmallDataScanSort.test_smalldata_scan_sort_part_window" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SMALLDATA_SCAN_SORT preserves per-partition order for SESSION/STATE windows.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">PARTITION BY tag SESSION/STATE on a super table, on both single-vgroup (no</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">stable split) and multi-vgroup (split via the Sort node).  With gap &gt;&gt; row</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">step every tag forms exactly ONE window, so the correct plan returns TAGS</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">rows; an interleaved-partition plan would return more.  Hinted result must</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">equal the (correct) non-hinted result.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/04-OrderBy/test_smalldata_scan_sort.py" target="_blank">
+                      cases/09-DataQuerying/04-OrderBy/test_smalldata_scan_sort.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
 
 
 
@@ -4085,7 +4315,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

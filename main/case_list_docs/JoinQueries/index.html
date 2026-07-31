@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -2530,6 +2530,28 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#14-JoinQueries.test_left_asof_join_diff_64bit.TestLeftAsofJoinDiff64bit.test_left_asof_join_diff_64bit" class="md-nav__link">
+        Left asof join diff regression with large result rows 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#14-JoinQueries.test_join_full.TestJoinFull.test_join_nested_timetruncate_timezone" class="md-nav__link">
+        Nested join with TIMETRUNCATE timezone offset 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4196,6 +4218,28 @@
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#14-JoinQueries.test_left_asof_join_diff_64bit.TestLeftAsofJoinDiff64bit.test_left_asof_join_diff_64bit" class="md-nav__link">
+        Left asof join diff regression with large result rows 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#14-JoinQueries.test_join_full.TestJoinFull.test_join_nested_timetruncate_timezone" class="md-nav__link">
+        Nested join with TIMETRUNCATE timezone offset 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -4430,6 +4474,39 @@
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">17. test right_semi_join</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">18. test right_win_join</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">19. restart and test again</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/14-JoinQueries/test_join_full.py" target="_blank">
+                      cases/14-JoinQueries/test_join_full.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="14-JoinQueries.test_join_full.TestJoinFull.test_join_nested_timetruncate_timezone" class="doc doc-heading">
+
+<a href="#14-JoinQueries.test_join_full.TestJoinFull.test_join_nested_timetruncate_timezone" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Nested join with TIMETRUNCATE timezone offset</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify raw timestamp self-join cardinality.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify session timezone Asia/Shanghai matches explicit -0800 for 1d TIMETRUNCATE.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify explicit +0800 follows POSIX west-of-UTC semantics and differs from Asia/Shanghai.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify explicit -0700 and -0800 are different day boundaries.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify nested join keeps the same TIMETRUNCATE timezone semantics.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -4825,6 +4902,39 @@
         </div>
 
   </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="14-JoinQueries.test_left_asof_join_diff_64bit.TestLeftAsofJoinDiff64bit.test_left_asof_join_diff_64bit" class="doc doc-heading">
+
+<a href="#14-JoinQueries.test_left_asof_join_diff_64bit.TestLeftAsofJoinDiff64bit.test_left_asof_join_diff_64bit" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Left asof join diff regression with large result rows</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Build front/back tables whose left asof join output exceeds 65535 diff rows</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify the filtered query stays correct below the old uint16 threshold</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the unfiltered diff query keeps the rows immediately after the old 65535 boundary</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify the no-diff control query still returns the full joined rows</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify the outer-subquery-and-then-diff shape returns the same boundary-crossing range</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/14-JoinQueries/test_left_asof_join_diff_64bit.py" target="_blank">
+                      cases/14-JoinQueries/test_left_asof_join_diff_64bit.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
 
 
 
@@ -4883,7 +4993,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

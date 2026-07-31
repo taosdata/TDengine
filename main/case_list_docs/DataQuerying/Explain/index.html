@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -1583,6 +1583,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_explain_analyze_create_uses_session_timezone" class="md-nav__link">
+        EXPLAIN ANALYZE create timestamp should use session timezone. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_explain_basic" class="md-nav__link">
         Explain command basic 
       </a>
@@ -1596,6 +1607,17 @@
     <li class="md-nav__item">
       <a href="#09-DataQuerying.15-Explain.test_explain_case_when.TestExplainCaseWhen.test_explain_case_when_scan_range" class="md-nav__link">
         explain verbose true with CASE WHEN subquery 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_exchange_coalesce_and_merge_input_wait" class="md-nav__link">
+        Regression for Data Exchange small-block coalescing and sort-Merge input_wait. 
       </a>
       
     </li>
@@ -3860,6 +3882,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_explain_analyze_create_uses_session_timezone" class="md-nav__link">
+        EXPLAIN ANALYZE create timestamp should use session timezone. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_explain_basic" class="md-nav__link">
         Explain command basic 
       </a>
@@ -3873,6 +3906,17 @@
     <li class="md-nav__item">
       <a href="#09-DataQuerying.15-Explain.test_explain_case_when.TestExplainCaseWhen.test_explain_case_when_scan_range" class="md-nav__link">
         explain verbose true with CASE WHEN subquery 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_exchange_coalesce_and_merge_input_wait" class="md-nav__link">
+        Regression for Data Exchange small-block coalescing and sort-Merge input_wait. 
       </a>
       
     </li>
@@ -4000,6 +4044,82 @@
         </div>
 
   </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_exchange_coalesce_and_merge_input_wait" class="doc doc-heading">
+
+<a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_exchange_coalesce_and_merge_input_wait" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Regression for Data Exchange small-block coalescing and sort-Merge input_wait.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">The exchange now coalesces many tiny upstream blocks into fuller ones on</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the no limit/offset path, and must NOT merge blocks across group</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">boundaries.  The sort-Merge operator now records input_wait (time blocked</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">on downstream) instead of folding it into its own compute.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Build a multi-vgroup grouped dataset whose groups are deliberately</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   uneven in size, to exercise same-group accumulation and group-boundary</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   flushing inside the coalescing path.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify per-group aggregates, full ordered scans and union-all through</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the Data Exchange are byte-for-byte correct -- the strongest guard</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   against blocks of different groups being merged together.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the limit/offset path (a different, non-coalescing branch)</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   returns results consistent with the full ordered result.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Run EXPLAIN ANALYZE on a distributed partition-by query and validate</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the plan with the shared rule checker, which now also parses the</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   sort-Merge input_wait field.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/15-Explain/test_query_explain.py" target="_blank">
+                      cases/09-DataQuerying/15-Explain/test_query_explain.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_explain_analyze_create_uses_session_timezone" class="doc doc-heading">
+
+<a href="#09-DataQuerying.15-Explain.test_query_explain.TestExplain.test_explain_analyze_create_uses_session_timezone" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>EXPLAIN ANALYZE create timestamp should use session timezone.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Build a minimal table and execute EXPLAIN ANALYZE VERBOSE TRUE under</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   different session timezones.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Extract create= from &#34;Exec cost:&#34; lines in tdSql.queryResult directly.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Assert timezone shift is reflected in create= formatting.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/15-Explain/test_query_explain.py" target="_blank">
+                      cases/09-DataQuerying/15-Explain/test_query_explain.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
 
 
 
@@ -4058,7 +4178,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

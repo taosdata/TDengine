@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -1532,6 +1532,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_ext_window_early_stop" class="md-nav__link">
+        Interp early-stop on the prev/next external-reader segments 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_normal_query_new" class="md-nav__link">
         Interp fill and psedo column 
       </a>
@@ -1622,6 +1633,50 @@
     <li class="md-nav__item">
       <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_notify_table_merge_scan" class="md-nav__link">
         Interp query on super table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_partition_by_tbname_plain_scan" class="md-nav__link">
+        Interp RANGE PARTITION BY tbname degenerates to a plain Table Scan 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_main_scan_early_stop" class="md-nav__link">
+        Interp stops the main-window scan early once output is complete 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_tz_fill_interp._FillDstMixin.test_fill_dst" class="md-nav__link">
+        summary: FILL(...) INTERVAL(1d) honors session-timezone DST calendar days. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_tz_fill_interp._InterpDstMixin.test_interp_dst" class="md-nav__link">
+        summary: INTERP timezone behavior across DST. 
       </a>
       
     </li>
@@ -3992,6 +4047,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_ext_window_early_stop" class="md-nav__link">
+        Interp early-stop on the prev/next external-reader segments 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_normal_query_new" class="md-nav__link">
         Interp fill and psedo column 
       </a>
@@ -4082,6 +4148,50 @@
     <li class="md-nav__item">
       <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_notify_table_merge_scan" class="md-nav__link">
         Interp query on super table 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_partition_by_tbname_plain_scan" class="md-nav__link">
+        Interp RANGE PARTITION BY tbname degenerates to a plain Table Scan 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_main_scan_early_stop" class="md-nav__link">
+        Interp stops the main-window scan early once output is complete 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_tz_fill_interp._FillDstMixin.test_fill_dst" class="md-nav__link">
+        summary: FILL(...) INTERVAL(1d) honors session-timezone DST calendar days. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.12-Interp.test_tz_fill_interp._InterpDstMixin.test_interp_dst" class="md-nav__link">
+        summary: INTERP timezone behavior across DST. 
       </a>
       
     </li>
@@ -4359,6 +4469,129 @@
   
   
   
+<h2 id="09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_main_scan_early_stop" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_main_scan_early_stop" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Interp stops the main-window scan early once output is complete</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. An interp query on a single child table uses a plain table scan</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">with the three-step external reader (prev/main/next windows pushed</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">down from the RANGE clause). Once all interpolation points are</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">produced (current passes the range end), the timeslice operator</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">notifies the reader via tsdReaderStepDone so the remaining</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">main-window data is skipped instead of being scanned and discarded.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify the query result stays correct, and use explain analyze to</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">assert the scanned row count stays far below a full-table scan:</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">ctb0 holds 500,000 rows while EVERY(7d) yields a single</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">interpolation point at the range start, so the expected cost is</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">roughly one batch of the main window plus one block of the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">next-window scan.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_query_interp_fill.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_query_interp_fill.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_ext_window_early_stop" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_ext_window_early_stop" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Interp early-stop on the prev/next external-reader segments</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Counterpart to test_main_scan_early_stop, exercising the prev/next</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">extension windows of the three-step external reader on a single</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">child table (plain table scan):</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. fill(next) on a single-instant range with no exact row: the fill</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   reference is the first row after the instant, which lives in the</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   NEXT extension. The reader reaches it in the EXTERNAL_ROWS_NEXT</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   step; tsdbReaderStepDone must finalize the reader to</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   EXTERNAL_ROWS_DONE (asserted via the &#34;step: NEXT done&#34; tsdb debug</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   marker) instead of leaving it stuck at NEXT + currentStepDone.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. fill(prev) on the same instant: the reference is the closest row</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   in the PREV extension; the prev segment must stop at that row</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   rather than draining the whole pre-range region.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Both assert the result value against the bounding row and bound the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">scan cost with explain analyze check_rows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_query_interp_fill.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_query_interp_fill.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_partition_by_tbname_plain_scan" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_partition_by_tbname_plain_scan" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Interp RANGE PARTITION BY tbname degenerates to a plain Table Scan</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. PARTITION BY tbname makes every group a single child table, whose</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">data lives entirely on one vnode, so no Table Merge Scan is needed: the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">planner uses a plain Table Scan and reuses the per-table RANGE-pruning</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">path. Each group opens its own external (prev/main/next) reader, so all</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">child tables sharing a vnode must come back, not just the first.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Use a single-vgroup database with several child tables in the one</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">vnode (the case that exercises the per-group external-reader reuse) and</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">check every fill mode returns all tables with the right reference rows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Assert the plan: PARTITION BY tbname uses Table Scan, while</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">PARTITION BY tag and the unpartitioned super-table interp still use</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Table Merge Scan.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_query_interp_fill.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_query_interp_fill.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_extension" class="doc doc-heading">
 
 <a href="#09-DataQuerying.12-Interp.test_query_interp_fill.TestInterpFill.test_interp_extension" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4476,6 +4709,68 @@
         </div>
 
   </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.12-Interp.test_tz_fill_interp._FillDstMixin.test_fill_dst" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_tz_fill_interp._FillDstMixin.test_fill_dst" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>summary: FILL(...) INTERVAL(1d) honors session-timezone DST calendar days.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">description: FILL(NULL/PREV) over spring-forward / fall-back days must</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    advance filled window boundaries by calendar days (23h / 25h) using</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    the session timezone, not a fixed 24h.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_tz_fill_interp.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_tz_fill_interp.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.12-Interp.test_tz_fill_interp._InterpDstMixin.test_interp_dst" class="doc doc-heading">
+
+<a href="#09-DataQuerying.12-Interp.test_tz_fill_interp._InterpDstMixin.test_interp_dst" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>summary: INTERP timezone behavior across DST.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">description: INTERP RANGE boundaries follow the session timezone; EVERY(1d)</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    advances by calendar days (DST-aware, 23h/25h), while EVERY(24h) stays</div>
+                          <div style="margin-left: 3.2em; white-space: pre-wrap;">    fixed-duration.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/12-Interp/test_tz_fill_interp.py" target="_blank">
+                      cases/09-DataQuerying/12-Interp/test_tz_fill_interp.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
 
 
 
@@ -4534,7 +4829,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

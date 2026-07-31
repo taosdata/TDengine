@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -3961,6 +3961,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#70-Cluster.test_mnode_redeploy_after_metadata_wiped.TestMnodeRedeployAfterMetadataWiped.test_mnode_redeploy_after_metadata_wiped" class="md-nav__link">
+        Single mnode redeploys and self-heals after core metadata is wiped 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#70-Cluster.test_wal_corruption_single_replica.TestWalCorruptionSingleReplica.test_wal_corruption_single_replica" class="md-nav__link">
         taosd starts normally and queries succeed after WAL corruption 
       </a>
@@ -4850,6 +4861,17 @@
     <li class="md-nav__item">
       <a href="#70-Cluster.test_kill_compact_force.TestKillCompactForce.test_kill_compact_force" class="md-nav__link">
         KILL COMPACT <id> FORCE removes SDB records even when a dnode is offline 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_mnode_redeploy_after_metadata_wiped.TestMnodeRedeployAfterMetadataWiped.test_mnode_redeploy_after_metadata_wiped" class="md-nav__link">
+        Single mnode redeploys and self-heals after core metadata is wiped 
       </a>
       
     </li>
@@ -6561,6 +6583,44 @@
   
   
   
+<h2 id="70-Cluster.test_mnode_redeploy_after_metadata_wiped.TestMnodeRedeployAfterMetadataWiped.test_mnode_redeploy_after_metadata_wiped" class="doc doc-heading">
+
+<a href="#70-Cluster.test_mnode_redeploy_after_metadata_wiped.TestMnodeRedeployAfterMetadataWiped.test_mnode_redeploy_after_metadata_wiped" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Single mnode redeploys and self-heals after core metadata is wiped</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Fresh single-node cluster; record the original clusterId.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Stop the dnode.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Delete mnode/data/sdb.data, mnode/wal/*, dnode/dnode.json,</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   dnode/dnode.info (interrupted-first-deploy on-disk state).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Restart: cluster must come back ready. ensure-default recreates all</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   default objects and a NEW clusterId is generated (proves redeploy,</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   not WAL replay). show mnodes/dnodes/cluster/users all non-empty, and</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the local mnode reports role &#39;leader&#39; (selfDnodeId restore guard).</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Basic create db/table + insert + query works.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Restart once more: still works, clusterId now stable.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_mnode_redeploy_after_metadata_wiped.py" target="_blank">
+                      cases/70-Cluster/test_mnode_redeploy_after_metadata_wiped.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="70-Cluster.test_wal_corruption_single_replica.TestWalCorruptionSingleReplica.test_wal_corruption_single_replica" class="doc doc-heading">
 
 <a href="#70-Cluster.test_wal_corruption_single_replica.TestWalCorruptionSingleReplica.test_wal_corruption_single_replica" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -6690,7 +6750,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

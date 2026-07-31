@@ -15,7 +15,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -23,7 +23,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -3862,6 +3862,17 @@
           
   
     <li class="md-nav__item">
+      <a href="#__init__.CompatibilityBase.stopTaosdCompletely" class="md-nav__link">
+        stopTaosdCompletely 
+      </a>
+      
+    </li>
+  
+
+        
+          
+  
+    <li class="md-nav__item">
       <a href="#__init__.CompatibilityBase.version_compare" class="md-nav__link">
         version_compare 
       </a>
@@ -5528,6 +5539,17 @@
               
   
     
+    <nav class="md-nav" aria-label="ci_scaled_retry">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
+              
+  
+    
     <nav class="md-nav" aria-label="findTaosdThread">
       <ul class="md-nav__list">
         
@@ -6231,6 +6253,17 @@
     <li class="md-nav__item">
       <a href="#compatibilityUtil.CompatibilityBase.alter_string_in_file" class="md-nav__link">
         alter_string_in_file 
+      </a>
+      
+    </li>
+  
+
+        
+          
+  
+    <li class="md-nav__item">
+      <a href="#compatibilityUtil.CompatibilityBase.stopTaosdCompletely" class="md-nav__link">
+        stopTaosdCompletely 
       </a>
       
     </li>
@@ -7383,6 +7416,17 @@
     </li>
   
 
+        
+      </ul>
+    </nav>
+  
+
+            
+              
+  
+    
+    <nav class="md-nav" aria-label="ci_scaled_retry">
+      <ul class="md-nav__list">
         
       </ul>
     </nav>
@@ -8604,6 +8648,26 @@ return -1, Elections not yet completed, unstable status</p>
 :param old_str
 :param new_str
 :return:</p>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h4 id="__init__.CompatibilityBase.stopTaosdCompletely" class="doc doc-heading">
+                  stopTaosdCompletely()
+<a href="#__init__.CompatibilityBase.stopTaosdCompletely" class="headerlink" title="Permanent link">&para;</a></h4>  
+        <div class="doc doc-contents ">
+
+        <p>Stop taosd, taos and taosadapter processes for compatibility
+tests.</p>
+<p>Tries graceful shutdown first (systemctl stop, then up to 5
+rounds of pkill), and falls back to SIGKILL plus freeing TCP
+port 6030 via fuser if any process is still alive. Waits for
+taosd and taosadapter to fully exit before returning.</p>
         </div>
 
   </div>
@@ -20255,6 +20319,21 @@ does not contain "table scan".</p>
           </tr>
       </tbody>
     </table>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h3 id="__init__.ci_scaled_retry" class="doc doc-heading">
+                  ci_scaled_retry(seconds)
+<a href="#__init__.ci_scaled_retry" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Scale retry/timeout windows for slower ASAN CI runs.</p>
         </div>
 
   </div>
@@ -32440,6 +32519,21 @@ within retry attempts.</p>
 
 </div>
 
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h3 id="sql.ci_scaled_retry" class="doc doc-heading">
+                  ci_scaled_retry(seconds)
+<a href="#sql.ci_scaled_retry" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Scale retry/timeout windows for slower ASAN CI runs.</p>
+        </div>
+
+  </div>
 
 
 
@@ -35405,6 +35499,26 @@ example: {"log": {"path": "/var/log/taos"}}</p>
   
   
   
+<h4 id="compatibilityUtil.CompatibilityBase.stopTaosdCompletely" class="doc doc-heading">
+                  stopTaosdCompletely()
+<a href="#compatibilityUtil.CompatibilityBase.stopTaosdCompletely" class="headerlink" title="Permanent link">&para;</a></h4>  
+        <div class="doc doc-contents ">
+
+        <p>Stop taosd, taos and taosadapter processes for compatibility
+tests.</p>
+<p>Tries graceful shutdown first (systemctl stop, then up to 5
+rounds of pkill), and falls back to SIGKILL plus freeing TCP
+port 6030 via fuser if any process is still alive. Waits for
+taosd and taosadapter to fully exit before returning.</p>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h4 id="compatibilityUtil.CompatibilityBase.version_compare" class="doc doc-heading">
                   version_compare(version1, version2)
 <a href="#compatibilityUtil.CompatibilityBase.version_compare" class="headerlink" title="Permanent link">&para;</a></h4>  
@@ -36740,7 +36854,7 @@ affected = stmt.execute_batch(
       <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>

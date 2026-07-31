@@ -19,7 +19,7 @@
       
       
       <link rel="icon" href="../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -27,7 +27,7 @@
       
     
     
-      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
       
       
 
@@ -992,6 +992,17 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#06-DataIngestion.01-SQL.test_write_insert_select.TestWriteInsertSelect.test_write_schema_stale" class="md-nav__link">
+        INSERT parser: schema-refresh retry and syntax-error guard 
+      </a>
+      
+    </li>
+  
+
       
         
   
@@ -4003,6 +4014,17 @@
         
   
     <li class="md-nav__item">
+      <a href="#06-DataIngestion.01-SQL.test_write_insert_select.TestWriteInsertSelect.test_write_schema_stale" class="md-nav__link">
+        INSERT parser: schema-refresh retry and syntax-error guard 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#06-DataIngestion.01-SQL.test_write_csv_with_quote.TestInsertBasic.test_insert_basic" class="md-nav__link">
         insert use ns precision 
       </a>
@@ -4532,6 +4554,53 @@
   
   
   
+<h2 id="06-DataIngestion.01-SQL.test_write_insert_select.TestWriteInsertSelect.test_write_schema_stale" class="doc doc-heading">
+
+<a href="#06-DataIngestion.01-SQL.test_write_insert_select.TestWriteInsertSelect.test_write_schema_stale" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>INSERT parser: schema-refresh retry and syntax-error guard</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Schema-refresh retry tests use subprocess isolation so each process</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">has its own taosc catalog instance.  The sequence is:</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  1. Subprocess connects and caches schema version N.</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  2. Main process executes ALTER TABLE (server schema advances to N+1).</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  3. Subprocess INSERTs with values matching the NEW schema; its catalog</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     still has version N so the parser (DROP COLUMN) or vnode</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     (ADD COLUMN) detects the mismatch and the client retries.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Background — why subprocess isolation is required:</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  All taos.connect() handles within the same process share the same</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  taosc catalog keyed by clusterId (catalogGetHandle uses a global</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  gCtgMgmt hash).  An ALTER TABLE from any in-process connection</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  synchronously updates the shared catalog via handleAlterTbExecRes →</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  catalogUpdateTableMeta, so subsequent INSERTs always see the fresh</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  schema and the retry path is never reached.  A subprocess has its</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  own gCtgMgmt and is unaffected by the parent&#39;s ALTER TABLE.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Syntax guard (test 3) does not require subprocess because it tests</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the parser&#39;s error classification, not the schema version.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/06-DataIngestion/01-SQL/test_write_insert_select.py" target="_blank">
+                      cases/06-DataIngestion/01-SQL/test_write_insert_select.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="06-DataIngestion.01-SQL.test_write_morevgroup.TestInsertwithmorevgroup.test_write_morevgroup" class="doc doc-heading">
 
 <a href="#06-DataIngestion.01-SQL.test_write_morevgroup.TestInsertwithmorevgroup.test_write_morevgroup" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -4785,7 +4854,7 @@
       <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.tabs", "navigation.top"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
-      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
