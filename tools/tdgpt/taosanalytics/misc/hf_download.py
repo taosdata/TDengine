@@ -1,8 +1,7 @@
 import os
-from typing import Any, Optional
+from typing import Any
 
 from huggingface_hub import snapshot_download
-
 
 DEFAULT_HF_MIRROR_ENDPOINT = "https://hf-mirror.com"
 OFFICIAL_HF_ENDPOINT = "https://huggingface.co"
@@ -25,7 +24,7 @@ def parse_bool(value: object) -> bool:
     raise ValueError(f"invalid boolean value: {value!r}")
 
 
-def resolve_endpoint(enable_ep: object) -> Optional[str]:
+def resolve_endpoint(enable_ep: object) -> str | None:
     if not parse_bool(enable_ep):
         return None
     return (
@@ -35,8 +34,10 @@ def resolve_endpoint(enable_ep: object) -> Optional[str]:
     )
 
 
-def is_official_endpoint(endpoint: Optional[str]) -> bool:
-    effective_endpoint = endpoint or os.environ.get("HF_ENDPOINT") or OFFICIAL_HF_ENDPOINT
+def is_official_endpoint(endpoint: str | None) -> bool:
+    effective_endpoint = (
+        endpoint or os.environ.get("HF_ENDPOINT") or OFFICIAL_HF_ENDPOINT
+    )
     return effective_endpoint.rstrip("/") == OFFICIAL_HF_ENDPOINT
 
 
@@ -67,7 +68,9 @@ def _is_retriable_on_endpoint_change(exc: Exception) -> bool:
         return True  # 5xx or unexpected HTTP error — server may be at fault
     # ConnectionError and TimeoutError are OSError subclasses but indicate
     # network issues that a different endpoint might resolve.
-    if isinstance(exc, OSError) and not isinstance(exc, (ConnectionError, TimeoutError)):
+    if isinstance(exc, OSError) and not isinstance(
+        exc, (ConnectionError, TimeoutError)
+    ):
         return False  # local filesystem error
     return True
 

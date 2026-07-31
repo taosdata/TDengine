@@ -740,7 +740,8 @@ class WindowsInstaller:
             except Exception:
                 pass
             self.print_error(
-                f"No local TDgpt model resource package was found, and the configured model resource package URL could not be downloaded: {self.resource_package_url}. Error: {exc}"
+                f"No local TDgpt model resource package was found, and the configured model "
+                f"resource package URL could not be downloaded: {self.resource_package_url}. Error: {exc}"
             )
             return False
 
@@ -880,7 +881,8 @@ class WindowsInstaller:
         ).strip()
 
         self.print_info(
-            "Offline upgrade requested without an offline package. Checking whether the existing main virtual environment can be reused."
+            "Offline upgrade requested without an offline package. Checking whether the existing main "
+            "virtual environment can be reused."
         )
         self.print_info(f"Reuse check: main venv python = {main_venv_python}")
         self.print_info(f"Reuse check: requirements file = {core_req}")
@@ -923,7 +925,8 @@ class WindowsInstaller:
                 "The installer will reuse it after runtime validation."
             )
             self.print_warning(
-                f"Reuse check details: missing requirements stamp file {core_stamp}. Changes to {core_req.name} cannot be verified in offline reuse mode."
+                f"Reuse check details: missing requirements stamp file {core_stamp}. Changes to {core_req.name} "
+                f"cannot be verified in offline reuse mode."
             )
 
         if validation_imports and not self.validate_venv_imports(
@@ -1681,7 +1684,8 @@ class WindowsInstaller:
                         f"{' '.join(command)} timed out after {timeout_seconds} seconds"
                     )
                     self.print_warning(
-                        f"pip probe attempt {attempt} timed out with {' '.join(command[1:])} after {timeout_seconds}s; retrying."
+                        f"pip probe attempt {attempt} timed out with "
+                        f"{' '.join(command[1:])} after {timeout_seconds}s; retrying."
                     )
                     continue
                 except Exception as exc:
@@ -1692,7 +1696,8 @@ class WindowsInstaller:
                     if detail:
                         self.print_info(detail)
                     return True
-                last_error = f"{' '.join(command)}: {(result.stderr or result.stdout or f'exited with code {result.returncode}').strip()}"
+                last_error = f"{' '.join(command)}: "
+                f"{(result.stderr or result.stdout or f'exited with code {result.returncode}').strip()}"
             if attempt < 2:
                 time.sleep(1)
         if last_error:
@@ -2868,7 +2873,8 @@ Examples:
   python install.py --model-source online --model moirai --model moment --model-endpoint https://hf-mirror.com
     python install.py -o --offline-package D:\tdengine-tdgpt-venv-offline-1.0.tar.gz
     python install.py -o --model-source offline --offline-model-package D:\tdengine-tdgpt-model-resource-1.0.tar.gz
-    python install.py -o --offline-package D:\tdengine-tdgpt-venv-offline-1.0.tar.gz --model-source offline --resource-package-url https://downloads.example.com/tdengine-tdgpt-model-resource-1.0.tar.gz
+    python install.py -o --offline-package D:\tdengine-tdgpt-venv-offline-1.0.tar.gz
+                         --model-source offline --resource-package-url https://downloads.example.com/tdengine-tdgpt-model-resource-1.0.tar.gz
   python install.py -o --existing-install
         """.strip(),
     )
@@ -2876,7 +2882,8 @@ Examples:
         "-o",
         "--offline",
         action="store_true",
-        help="Offline/resource-package installation mode. Imports virtual environments and model payloads from one external tar archive; upgrade can also reuse the current environment.",
+        help="Offline/resource-package installation mode. Imports virtual environments "
+        "and model payloads from one external tar archive; upgrade can also reuse the current environment.",
     )
     parser.add_argument(
         "-a",
@@ -2912,7 +2919,8 @@ Examples:
     )
     parser.add_argument(
         "--resource-package-url",
-        help="Remote TDgpt model resource package URL used when --model-source offline is selected and no local model package is provided.",
+        help="Remote TDgpt model resource package URL used when --model-source offline is "
+        "selected and no local model package is provided.",
     )
     parser.add_argument(
         "--model-endpoint",
