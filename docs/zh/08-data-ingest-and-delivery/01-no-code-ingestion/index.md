@@ -300,7 +300,7 @@ between_time_range(ts, -604800, 0)
 
 ## 任务的创建
 
-下面以 MQTT 数据源为例概述如何创建任务（完整字段说明见 [MQTT](./06-mqtt.mdx)）：从 MQTT Broker 消费数据并写入 TDengine。
+下面以 MQTT 数据源为例概述如何创建任务（完整字段说明见 [MQTT](./07-mqtt.mdx)）：从 MQTT Broker 消费数据并写入 TDengine。
 
 1. 登录至 taosExplorer 以后，点击左侧导航栏上的“数据写入”，即可进入任务列表页面
 2. 在任务列表页面，点击“+ 新增数据源”，即可进入任务创建页面

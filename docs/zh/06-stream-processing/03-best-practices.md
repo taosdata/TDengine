@@ -121,6 +121,23 @@ CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters
     SELECT _twstart, _twend, AVG(current) FROM %%trows;
 ```
 
+- `meters` 超级表的 `location` 标签使用 `.` 表示位置层级。每小时计算各层级节点的平均电流。若某个子表的 `location = 'California.SanFrancisco.Soma'`，该子表的数据会同时参与 `California`、`California.SanFrancisco` 和 `California.SanFrancisco.Soma` 三个分组。
+
+```SQL
+CREATE STREAM rollup_avg_current
+  INTERVAL(1h) SLIDING(1h)
+  FROM meters ROLLUP BY location
+  INTO rollup_avg
+  OUTPUT_SUBTABLE(concat(%%1, '_avg'))
+  TAGS (
+    location VARCHAR(256) AS %%1,
+    node_name VARCHAR(64) AS %%rollup_tag
+  )
+  AS
+    SELECT _twstart, avg(current), _trollup_tbcount
+    FROM %%trows;
+```
+
 ### 定时触发
 
 - 每过 1 小时计算表 tb1 中总的数据量，计算结果写入表 tb2 (毫秒库)。

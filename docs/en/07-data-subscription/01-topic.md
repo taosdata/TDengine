@@ -1,42 +1,33 @@
 ---
-title: Introduction
+sidebar_label: Topic Syntax
+title: Topic Syntax
+description: CREATE/DROP/SHOW TOPIC, consumer groups, and replay for data subscription
+toc_max_heading_level: 4
 ---
 
-Similar to Kafka, users must define topics in TDengine TSDB. A topic in TDengine TSDB can represent a database, a supertable, or a query based on existing supertables, subtables, or basic tables.
-
-Users can define topics using SQL statements with filters on tags, table names, columns, or expressions, and can apply scalar functions or user-defined functions (UDFs), excluding aggregation functions.
-
-Compared with other message queue systems, this is the key advantage of TDengine TSDB’s data subscription feature. It provides greater flexibility: the granularity of the data is determined by the SQL that defines the topic, and data filtering and preprocessing are automatically handled by TDengine TSDB. This reduces data transmission volume and simplifies application design.
-
-Once a consumer subscribes to a topic, it can receive data updates in real time. Multiple consumers can form a consumer group, sharing consumption progress to enable multithreaded, distributed data consumption and improve throughput. Different consumer groups consuming the same topic maintain independent offsets. A single consumer can subscribe to multiple topics.
-
-When a topic corresponds to a supertable or database, its data may be distributed across multiple nodes or shards. Having multiple consumers in a group allows for higher consumption efficiency. TDengine TSDB’s message queue supports an ACK (Acknowledgment) mechanism, ensuring at least-once delivery even in complex conditions such as crashes or restarts.
-
-To achieve this, TDengine TSDB automatically creates indexes for Write-Ahead Logging (WAL) files to support fast random access, and provides configurable file rotation and retention policies. Users can specify the retention period and size limits for WAL files. Through these mechanisms, the WAL is transformed into a persistent storage engine that preserves event arrival order. For query-based topics, TDengine TSDB reads data directly from the WAL. During consumption, TDengine TSDB retrieves data according to the current offset, applies filtering and transformation using the unified query engine, and pushes the processed data to consumers.
-
-Starting from version 3.2.0.0, data subscription supports vnode migration and splitting. Since data subscription relies on WAL files, and these files are not synchronized during vnode migration or splitting, it is important to fully consume all WAL data before performing these operations. Otherwise, any unconsumed WAL data will become unavailable after the operation completes.
+Starting from TDengine `v3.0.0.0`, the message queue has been significantly optimized and enhanced to simplify data subscription. Users can create topics with SQL and consume topic data through connector APIs, the `taos` shell, or MQTT clients.
 
 ## Topic Types
 
-TDengine TSDB supports three types of topics that can be created using SQL statements. The following sections describe each type.
+TDengine TSDB supports three types of topics created with SQL. The following sections describe each type. The maximum number of topics in a TDengine instance is controlled by `tmqMaxTopicNum` (default 20). See [taosd configuration parameters](../12-operations-and-tooling/03-components/01-taosd.md).
 
 ### Query Topics
 
-A query topic subscribes to the result of an SQL query. Essentially, it functions as a continuous query, where each execution returns only the latest data. The creation syntax is as follows:
+Subscribe to a data stream defined by an SQL query. The creation syntax is as follows:
 
 ```sql
-CREATE TOPIC [IF NOT EXISTS] topic_name as subquery;
+CREATE TOPIC [IF NOT EXISTS] topic_name AS subquery
 ```
 
-This SQL query subscribes to data using a SELECT statement (for example, SELECT * or SELECT ts, c1), and may include filter conditions and scalar function calculations. However, aggregate functions and time-window aggregations are not supported.
+This SQL subscribes to data with a `SELECT` statement (for example `SELECT *`, or column projections such as `SELECT ts, c1`). Query topics may include filter conditions and scalar functions, but do not support aggregate functions, time-window aggregation, or `DISTINCT`, `GROUP BY`, `ORDER BY`, `PARTITION BY`, `LIMIT`/`SLIMIT`, and similar clauses. Note that:
 
 1. Once this type of topic is created, the structure of the subscribed data is fixed.
-2. Columns or tags that are subscribed to or referenced in calculations cannot be deleted (`ALTER TABLE DROP`) or modified (`ALTER TABLE MODIFY`). From 3.4.0.0, you can modify or delete or add, but you need to execute the command of "reload topic".
-3. For SELECT \*, the subscription expands to include all columns present at creation time. For subtables and normal tables, these are data columns; for supertables, they include both data and tag columns.
+2. Columns or tags that are subscribed to or referenced in calculations cannot be deleted (`ALTER TABLE DROP`) or modified (`ALTER TABLE MODIFY`). From `v3.4.0.0`, you can modify, delete, or add these columns or tags, but you must run `RELOAD TOPIC` for the change to take effect.
+3. For `SELECT *`, the subscription expands to all columns present at creation time: data columns for subtables and normal tables; data columns plus tag columns for supertables.
 4. Query subscription on virtual tables is not supported.
-5. The super table, sub-table, and regular table within the subquery can be deleted. After deletion, the subscribed data becomes empty. If the table is recreated after deletion, the subscribed data remains empty because the table ID has changed. If you want to subscribe to the new table data, you can reload the topic using the reload topic syntax
+5. Supertables, subtables, and normal tables in the subquery can be deleted. After deletion, subscribed data is empty. If a table with the same name is recreated, subscribed data remains empty because the table ID has changed. To subscribe to the new table, reload the topic with `RELOAD TOPIC`.
 
-For example, if you need to subscribe to all smart meter records where the voltage is greater than 200, and only return the timestamp, current, and voltage (excluding the phase), you can create a topic named `power_topic` with the following SQL statement:
+For example, to subscribe to all smart-meter rows where voltage is greater than 200 and return only the timestamp, current, and voltage (not phase), create topic `power_topic` as follows:
 
 ```sql
 CREATE TOPIC power_topic AS SELECT ts, current, voltage FROM power.meters WHERE voltage > 200;
@@ -44,42 +35,41 @@ CREATE TOPIC power_topic AS SELECT ts, current, voltage FROM power.meters WHERE 
 
 ### Supertable Topics
 
-A supertable topic subscribes to all data within a specified supertable. The syntax is as follows:
+Subscribe to all data in a specified supertable. The syntax is as follows:
 
 ```sql
-CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS STABLE stb_name [where_condition];
+CREATE TOPIC [IF NOT EXISTS] topic_name [WITH META | ONLY META] AS STABLE stb_name [where_condition]
 ```
 
-The differences between this and subscribing with `SELECT * FROM stbName` are as follows:
+Differences from subscribing with `SELECT * FROM stbName`:
 
-1. Schema changes are not restricted. Any structural changes to the supertable, as well as new data inserted afterward, will continue to be included in the subscription.
-2. The returned data is unstructured, and its schema dynamically adapts to changes in the supertable definition.
-3. The optional `WITH META` parameter allows the subscription to return statements for creating the supertable and its subtables — primarily used by taosX during supertable migration.
-4. The optional `WHERE` condition parameter filters the subtables to subscribe to.
-   - Only tags or tbname can be used in the `WHERE` clause; regular columns are not allowed.
-   - Functions can be used to filter tags, but aggregate functions are not supported, since subtable tag values cannot be aggregated.
-   - Constant expressions such as 2 > 1 (subscribe to all subtables) or FALSE (subscribe to none) are also valid.
-5. The returned data does not include tag values.
-6. Subscription to virtual supertables is supported, but only metadata of virtual supertables can be subscribed. Therefore, the with meta parameter must be specified when subscribing to virtual supertables; otherwise, no content will be received.
+1. Schema changes are not restricted. Structural changes and new data after those changes remain in the subscription.
+2. Returned data is unstructured; its schema follows changes to the supertable definition.
+3. Optional `WITH META` returns statements for creating the supertable and its subtables—mainly used by taosX for supertable migration.
+4. Optional `ONLY META` subscribes only to metadata changes and does not transfer time-series data.
+5. Optional `where_condition` filters which subtables to subscribe to. The `WHERE` clause cannot use regular columns—only tags or `tbname`. Functions may filter tags, but aggregate functions are not allowed because subtable tag values cannot be aggregated. Constant expressions such as `2 > 1` (all subtables) or `false` (no subtables) are also valid.
+6. Returned data does not include tag values.
+7. Subscription to virtual supertables is supported, but only metadata of virtual supertables can be subscribed. Specify `WITH META` or `ONLY META` when subscribing to virtual supertables; otherwise no content is received.
 
 ### Database Topics
 
-A database topic subscribes to all data within a specified database. The syntax is as follows:
+Subscribe to all data in a specified database. The syntax is as follows:
 
 ```sql
-CREATE TOPIC [IF NOT EXISTS] topic_name [with meta] AS DATABASE db_name;
+CREATE TOPIC [IF NOT EXISTS] topic_name [WITH META | ONLY META] AS DATABASE db_name;
 ```
 
-This statement creates a subscription that includes data from all tables within the specified database:
+This statement creates a subscription that includes data from all tables in the database:
 
-1. The optional `WITH META` parameter allows the subscription to return metadata statements for creating, deleting, or modifying all supertables, subtables, and regular tables in the database. This is primarily used by taosX for database migration.
-2. When using with meta, virtual table information can be subscribed, and only metadata of virtual tables can be retrieved.
+1. Optional `WITH META` returns metadata create/drop/alter statements for all supertables, subtables, and normal tables in the database—mainly used by taosX for database migration.
+2. Optional `ONLY META` subscribes only to metadata changes and does not transfer time-series data.
+3. With `WITH META` or `ONLY META`, virtual table information can be subscribed, and only virtual-table metadata is available.
 
-Note: Supertable and database-level subscriptions are considered advanced subscription modes and are more prone to errors. If you need to use them, please consult technical support in advance.
+**Note:** Supertable and database subscriptions are advanced modes and are more error-prone. If you need them, consult technical support.
 
 ## Deleting a Topic
 
-If a topic is no longer needed, you can delete it. If the topic is currently being consumed by active subscribers, you can use the FORCE option to delete it forcibly. After a forced deletion, any consumers still subscribed to the topic will encounter errors when attempting to consume data.
+If a topic is no longer needed, you can delete it. If consumers are subscribed to the topic, use `FORCE` to delete it forcibly. After a forced deletion, those consumers encounter errors when consuming (`FORCE` is supported from `v3.3.6.0`).
 
 ```sql
 DROP TOPIC [IF EXISTS] [FORCE] topic_name;
@@ -91,22 +81,22 @@ DROP TOPIC [IF EXISTS] [FORCE] topic_name;
 SHOW TOPICS;
 ```
 
+Displays information about all topics in the current database. For the full field list, see the metadata table [`INS_TOPICS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_topics).
+
 ## Reload Topic
 
 ```sql
-RELOAD TOPIC IF EXISTS topic_name as subquery;
+RELOAD TOPIC [IF EXISTS] topic_name AS subquery;
 ```
 
-1. This syntax is supported since version 3.4.0 and is used to reload topics. It primarily addresses issues where the output results do not take effect after deleting or adding columns and tags in queries involving topic changes or tag lengths, as well as when selecting * to query subscriptions.
-2. When it is necessary to change the schema of the subscription table structure, first stop consuming, then make the change, execute "reload topic", and then restart the subscription.
-
-The above SQL statement displays information about all topics in the current database.
+1. Supported from `v3.4.0.0`, for query topics only. It reloads the topic definition—mainly when changing columns or tags in a query topic, or when `SELECT *` subscriptions do not pick up added/removed columns or tags.
+2. When you need to change the subscribed table schema, stop consumption first, change the schema, run `RELOAD TOPIC`, then resume subscription.
 
 ## Consumers
 
 ### Create a Consumer
 
-Consumers can only be created using the APIs provided by TDengine TSDB client drivers or connectors. For detailed instructions, refer to the Developer Guide or the Reference Manual.
+Consumers are usually created through TDengine TSDB client drivers or connector APIs. See [Developer Guide · Data Subscription](../10-developer-guide/07-subscription-api.md). For a quick check, you can also run `subscribe <topic> -g <group_id>` in the `taos` shell; see [`taos` CLI data subscription](../12-operations-and-tooling/04-tools/01-taos-cli.md#data-subscription).
 
 ### View Consumers
 
@@ -114,11 +104,11 @@ Consumers can only be created using the APIs provided by TDengine TSDB client dr
 SHOW CONSUMERS;
 ```
 
-The above SQL statement displays information about all consumers in the current database.
+Displays information about all consumers in the current database, including status and creation time. For the full field list, see the performance table [`PERF_CONSUMERS`](../05-tdengine-sql/09-system-info/02-perf.md#perf_consumers).
 
 ### Delete a Consumer Group
 
-When creating a consumer, you must assign it to a consumer group. Individual consumers cannot be explicitly deleted, but you can delete the entire consumer group. If there are active consumers within the group, you can use the FORCE option to forcibly delete it. After a forced deletion, any consumers still consuming data will encounter errors.
+When creating a consumer, you assign it to a consumer group. Individual consumers cannot be deleted explicitly, but you can delete the consumer group. If the group has active consumers, use `FORCE` to delete it forcibly. After forced deletion, those consumers encounter errors when consuming (`FORCE` is supported from `v3.3.6.0`).
 
 ```sql
 DROP CONSUMER GROUP [IF EXISTS] [FORCE] cgroup_name ON topic_name;
@@ -132,25 +122,19 @@ DROP CONSUMER GROUP [IF EXISTS] [FORCE] cgroup_name ON topic_name;
 SHOW SUBSCRIPTIONS;
 ```
 
-The above SQL statement displays information about the consumption of a topic across different vgroups, which can be used to monitor consumption progress.
+Displays consumption of a topic across vgroups, useful for monitoring progress. For the full field list, see the metadata table [`INS_SUBSCRIPTIONS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_subscriptions).
 
-### Data Subscription
+### Subscribe to Data
 
-TDengine TSDB provides a comprehensive and feature-rich data subscription API designed to meet real-time data streaming needs across different programming languages and frameworks. These APIs include functions for creating consumers, subscribing to topics, unsubscribing, retrieving real-time data, committing consumption progress, and getting or setting offsets.
+TDengine TSDB provides multi-language data subscription APIs (create consumers, subscribe/unsubscribe, poll data, commit and set offsets, and more) that stay highly compatible with the Kafka subscription API so existing experience can be reused. Supported languages include C, Java, Go, Rust, Python, and C#. Usage and examples are in [Developer Guide · Data Subscription](../10-developer-guide/07-subscription-api.md) and the connector docs for each language.
 
-TDengine TSDB currently supports multiple programming languages, including C, Java, Go, Rust, Python, and C#, enabling developers to easily integrate TDengine’s subscription capabilities into various application scenarios.
-
-Notably, TDengine TSDB’s data subscription API maintains a high degree of compatibility with Kafka’s subscription API, allowing developers to get started quickly and leverage their existing experience. The official documentation provides detailed usage guides and example code for all APIs. See the Connectors section on the TDengine TSDB official website for more information.
-
-TDengine TSDB also supports MQTT subscriptions, allowing data to be subscribed directly through MQTT clients. For details, refer to the MQTT Data Subscription section.
+Starting from `v3.3.7.0`, MQTT subscription is also available so MQTT clients can subscribe to data directly. See [MQTT Data Subscription](./03-mqtt.md). For native connector consumption flow and common parameters, see [Native Subscription](./02-native.md).
 
 ### Replay
 
-TDengine TSDB data subscription supports replay, with which you can replay data streams in the order they were originally written. This functionality is built on TDengine TSDB's write-ahead logging (WAL) mechanism, ensuring data consistency and reliability.
+TDengine TSDB data subscription supports replay: messages are pushed again at the original write-time intervals so you can re-run a data stream at its original pace. This capability is built on the WAL.
 
-To use the replay feature, you specify a time range in your query statement that defines the start and end times of the replay. This makes it easy to replay data from a specific time window, whether for troubleshooting, data analysis, or other purposes.
-
-For example, if the following three records were written:
+For example, if the following three rows were written, replay returns the first immediately, the second about 5 seconds later, and the third about 3 seconds after that:
 
 ```text
 2023/09/22 00:00:00.000
@@ -158,15 +142,10 @@ For example, if the following three records were written:
 2023/09/22 00:00:08.000
 ```
 
-1. The first record will be replayed immediately.
-1. The second record will be returned 5 seconds later.
-1. The third record will be returned 3 seconds after the second one.
+When using replay, note that:
 
-:::note
-
-- To enable replay, set the consumer parameter `enable.replay` to `true`.
-- Only query topics support replay. Supertable and database topics do not support replay.
-- Replay progress is not saved. Once replay is stopped, you cannot resume it from the previous position.
-- Because replay requires processing time, a timing deviation in the tens of milliseconds may occur during playback.
-
-:::
+- Enable replay by setting the consumer parameter `enable.replay` to `true`.
+- Only query topics support replay. Supertable and database topics do not.
+- Replay progress is not saved.
+- Replay needs processing time; timing error is typically on the order of tens of milliseconds.
+- A `WHERE` clause in the topic SQL can limit the time range or filters; that is part of the topic definition and is independent of whether replay is enabled.

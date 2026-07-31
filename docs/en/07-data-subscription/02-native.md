@@ -1,10 +1,13 @@
 ---
+sidebar_label: Native Subscription
 title: Native Subscription
+description: Create consumers and subscribe to topics through connector APIs
+toc_max_heading_level: 4
 ---
 
 TDengine TSDB provides data subscription and consumption interfaces similar to those of message queue systems. In many scenarios, using TDengine TSDB as the time-series data platform eliminates the need to integrate an additional message queue, thereby simplifying application design and reducing operational costs.
 
-For fundamental concepts such as topic management, refer to the [documentation](01-topic.md). For detailed API usage, see the Developer Guide.
+For fundamental concepts such as topic management, see [Data Subscription](./index.md). For detailed API usage, see [Data Subscription API](../10-developer-guide/07-subscription-api.md).
 
 ## Create a Topic
 
@@ -20,22 +23,29 @@ The concept of a consumer in TDengine TSDB is similar to Kafka: consumers receiv
 
 The key parameters for creating a consumer include:
 
-- td.connect.ip: FQDN of the server.
-- td.connect.user: Username.
-- td.connect.pass: Password.
-- td.connect.token: Token.
-- td.connect.port: Server port.
-- group.id: Consumer group ID; members of the same group share consumption progress.
-- client.id: Client ID.
-- auto.offset.reset: Initial position for the group’s subscription.
-- enable.auto.commit: Whether to enable automatic offset commits.
-- auto.commit.interval.ms: Interval for automatically committing offsets.
-- msg.with.table.name: Whether to parse the table name from messages.
-- enable.replay: Whether to enable data replay.
-- session.timeout.ms: Timeout after missed consumer heartbeats.
-- max.poll.interval.ms: Maximum interval between consumer polls.
-- fetch.max.wait.ms: Maximum server wait time for a single fetch response.
-- min.poll.rows: Minimum number of rows returned per server fetch.
+- `td.connect.ip`: FQDN of the server.
+- `td.connect.user`: Username.
+- `td.connect.pass`: Password.
+- `td.connect.token`: Token.
+- `td.connect.port`: Server port.
+- `group.id`: Consumer group ID; members of the same group share consumption progress.
+- `client.id`: Client ID.
+- `auto.offset.reset`: Initial position for the group’s subscription (default: `latest`).
+- `enable.auto.commit`: Whether to enable automatic offset commits (default: enabled).
+- `auto.commit.interval.ms`: Interval for automatically committing offsets (default: `5000`).
+- `msg.with.table.name`: Whether to parse the table name from messages.
+- `enable.replay`: Whether to enable data replay.
+- `session.timeout.ms`: Timeout after missed consumer heartbeats (default: `12000`).
+- `max.poll.interval.ms`: Maximum interval between consumer polls (default: `300000`).
+- `fetch.max.wait.ms`: Maximum server wait time for a single fetch response (default: `1000`).
+- `min.poll.rows`: Minimum number of rows returned per server fetch (default: `4096`).
+
+Advanced parameters (disabled by default in `tmq_conf_new`; see [Data Subscription API](../10-developer-guide/07-subscription-api.md)):
+
+- `enable.wal.marker`: Whether to send a WAL marker to the mnode when committing an offset (Boolean; default: `false`).
+- `msg.enable.batchmeta`: Whether to return metadata in batches (enabled by a nonzero value; disabled by default). The Java WebSocket property is named `enable_batch_meta`.
+
+For the complete parameter list and language-specific examples, see [Data Subscription API](../10-developer-guide/07-subscription-api.md).
 
 ## Subscribe and Consume Data
 
@@ -45,7 +55,7 @@ The typical workflow is as follows:
 
 - Subscribe to data: Call the subscribe function and specify the list of topic names to subscribe to. Multiple topics can be subscribed to simultaneously.
 - Pull data: Call the poll function. Each call retrieves one message, which may contain multiple records.
-- Process results: Parse the returned ResultBean object. The field names and data types in the object correspond one-to-one with the column names and data types defined in the topic’s query.
+- Process results: Parse message fields according to the conventions of the connector in use. Field names and data types correspond one-to-one with the columns defined by the topic query.
 
 ## Specify a Subscription Offset
 

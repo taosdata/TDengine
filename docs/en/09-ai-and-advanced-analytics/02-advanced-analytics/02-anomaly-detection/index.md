@@ -1,6 +1,7 @@
 ---
 title: Anomaly Detection
-description: Anomaly Detection
+sidebar_label: Anomaly Detection
+description: Time-series anomaly detection models
 ---
 
 This service is provided via an anomaly window that has been introduced into TDengine. An anomaly window is a special type of event window, defined by the anomaly detection algorithm as a time window during which an anomaly is occurring. This window differs from an event window in that the algorithm determines when it opens and closes instead of expressions input by the user. You can use the `ANOMALY_WINDOW` keyword in a `WHERE` clause to invoke the anomaly detection service. The window pseudocolumns `_WSTART`, `_WEND`, and `_WDURATION` record the start, end, and duration of the window. For example:
@@ -21,7 +22,7 @@ You can then query, aggregate, or perform other operations on the data in the wi
 ### Syntax
 
 ```sql
-ANOMALY_WINDOW(column_name, option_expr)
+ANOMALY_WINDOW(column_expr [, column_expr ...] [, option_expr])
 
 option_expr: {"
 algo=expr1
@@ -30,8 +31,8 @@ algo=expr1
 "}
 ```
 
-1. `column_name(s)`: The data column(s) in which to detect anomalies. The data type of the column(s) must be numerical; string types such as NCHAR are not supported. Functions are not supported. Starting from version 3.4.1.0, multi-column data input is supported for anomaly detection. For models that only handle a single column, only the first column will be used, and any additional columns will be ignored automatically.
-2. `options`: The parameters for anomaly detection. Enter parameters in key=value format, separating multiple parameters with a comma (,). It is not necessary to use quotation marks or escape characters. Only ASCII characters are supported. For example: `algo=ksigma,k=2` indicates that the anomaly detection algorithm is k-sigma and the k value is 2.
+1. `column_expr`: A numeric input column or expression. Character types such as `NCHAR`, `VARCHAR`, and `VARBINARY`, tags, and nonnumeric results are not supported. Multiple columns are supported in `v3.4.1.0` and later. Models that accept only one column use the first column and ignore the rest.
+2. `option_expr`: The anomaly-detection algorithm and parameters as comma-separated `key=value` pairs. Only ASCII characters are supported. For example, `algo=ksigma,k=2` selects k-sigma with `k=2`.
 3. You can use the results of anomaly detection as the inner part of a nested query. The same functions are supported as in other windowed queries.
 4. White noise checking is performed on the input data by default. If the input data is white noise, no results are returned.
 
@@ -60,49 +61,18 @@ taos> SELECT _wstart, _wend, count(*) FROM foo ANOMALY_WINDOW(i32);
 ====================================================================
  2020-01-01 00:00:16.000 | 2020-01-01 00:00:17.000 |             2 |
 Query OK, 1 row(s) in set (0.028946s)
+
+--- Multiple columns are accepted in v3.4.1.0 and later. A single-column
+--- algorithm such as k-sigma ignores i8.
+SELECT _wstart, _wend, SUM(i32)
+FROM foo
+ANOMALY_WINDOW(i32, i8, "algo=ksigma,k=2");
 ```
 
 ### Built-In Anomaly Detection Algorithms
 
-TDgpt comes with six anomaly detection algorithms, divided among the following three categories: [Statistical Algorithms](01-statistics-approach.md), [Data Density Algorithms](02-data-density.md), and [Machine Learning Algorithms](03-machine-learning.md). If you do not specify an algorithm, the IQR algorithm is used by default.
+Built-in anomaly-detection models are grouped into [Statistical Algorithms](01-statistics-approach.md), [Data Density Algorithms](02-data-density.md), and [Machine Learning Algorithms](03-machine-learning.md). If you do not specify an algorithm, IQR is used by default. The actual algorithms available on an Anode are returned by `SHOW ANODES FULL`; see [SHOW ANODES](../../../05-tdengine-sql/09-system-info/03-show.md#show-anodes).
 
 ### Evaluating Algorithm Effectiveness
 
-TDgpt provides an automated tool to compare the effectiveness of different algorithms across various datasets. For anomaly detection algorithms, it uses the recall and precision metrics to evaluate their performance.
-By setting the following options in the configuration file `analysis.ini`, you can specify the anomaly detection algorithm to be used, the time range of the test data, whether to generate annotated result images, the desired algorithm, and its corresponding parameters.
-Before comparing anomaly detection algorithms, you must manually label the results of the anomaly detection dataset. This is done by setting the value of the `[anno_res]` option. Each number in the array represents the index of an anomaly. For example, in the test dataset below, if the 9th point is an anomaly, the labeled result would be [9].
-
-```bash
-[ad]
-# training data start time
-start_time = 2021-01-01T01:01:01
-
-# training data end time
-end_time = 2021-01-01T01:01:11
-
-# draw the results or not
-gen_figure = true
-
-# annotate the anomaly_detection result
-anno_res = [9]
-
-# algorithms list that is involved in the comparison
-[ad.algos]
-ksigma={"k": 2}
-iqr={}
-grubbs={}
-lof={"algorithm":"auto", "n_neighbor": 3}
-```
-
-After the comparison program finishes running, it automatically generates a file named `ad_result.xlsx`. The first sheet contains the algorithm execution results (as shown in the table below), including five metrics: algorithm name, execution parameters, recall, precision, and execution time.
-
-| algorithm | params                                 | precision(%) | recall(%) | elapsed_time(ms.) |
-| --------- | -------------------------------------- | ------------ | --------- | ----------------- |
-| ksigma    | `{"k":2}`                              | 100          | 100       | 0.453             |
-| iqr       | `{}`                                   | 100          | 100       | 2.727             |
-| grubbs    | `{}`                                   | 100          | 100       | 2.811             |
-| lof       | `{"algorithm":"auto", "n_neighbor":3}` | 0            | 0         | 4.660             |
-
-If `gen_figure` is set to true, the tool automatically generates a visual representation of the analysis results for each algorithm being compared. The k-sigma algorithm is shown here as an example.
-
-![Anomaly detection results](../../../assets/anomaly-detection-02.png)
+TDgpt Enterprise provides a tool that evaluates anomaly-detection models with precision and recall. See [Model Evaluation Tools](../../01-tdgpt/05-tools.md).

@@ -6,57 +6,79 @@ description: Quickly experience TDengine's efficient insertion and querying usin
 
 import Getstarted from "./resource/_get_started.mdx";
 
-You can install TDengine TSDB in a Docker container and perform some basic tests to verify its performance.
+This page shows how to start TDengine TSDB Enterprise with Docker and complete a basic walkthrough: start the service, open the CLI, write data, and run queries. If you prefer not to use Docker, see [Get Started with TDengine TSDB Using an Installation Package](./02-package.md). If you want to contribute code or explore internals, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
 
-To install TDengine TSDB on your local machine instead of in a container, see [Get Started with TDengine TSDB Using an Installation Package](02-package.md).
+:::note
+
+Starting with version 3.3.7.0, TDengine TSDB image names are as follows:
+
+- Community Edition: `tdengine/tdengine` was renamed to `tdengine/tsdb`
+- Enterprise Edition: `tdengine/tdengine-ee` was renamed to `tdengine/tsdb-ee`
+
+:::
 
 ## Before You Begin
 
-- Install Docker. For more information, see the [Docker website](https://www.docker.com/).
-- Ensure that the network ports required by TDengine TSDB are not currently in use. For more information, see [Network Port Requirements](../../12-operations-and-tooling/02-operations/01-planning.md#network-port-requirements).
+1. Docker is installed on your machine, and your user can run the `docker` command.
+2. Your machine can reach Docker Hub, or you have obtained an offline image from the TDengine product download center.
+3. Ensure that the network ports required by TDengine TSDB are not currently in use. For more information, see [Network Port Requirements](../../12-operations-and-tooling/02-operations/01-planning.md#network-port-requirements).
 
-## Procedure
+## Start the Service
 
-1. Pull the latest TDengine TSDB image:
+### Pull the Image
 
-   ```bash
-   docker pull tdengine/tsdb-ee:latest
-   ```
+Pull the latest Enterprise Edition image:
 
-   :::note
+```shell
+docker pull tdengine/tsdb-ee:latest
+```
 
-   You can also pull a specific version of the image. For example:
+You can also pull a specific version. For example:
 
-   ```bash tsdb-ee
-   docker pull tdengine/tsdb-ee:{{VERSION}}
-   ```
+```bash tsdb-ee
+docker pull tdengine/tsdb-ee:{{VERSION}}
+```
 
-   :::
+If you cannot access Docker Hub directly, go to the [Docker image download page](https://tdengine.com/downloads/?product=TDengine+TSDB-Enterprise&platform=Docker) in the TDengine product download center, download the offline image, load it as described on that page, and update the image name and tag.
 
-2. Start a container with the following command:
+### Start the Container
 
-   ```bash
-   docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tsdb-ee
-   ```
+Run the following command to start the TDengine container:
 
-   To persist data to your local machine, use the following command:
+```shell
+docker run -d \
+  -v ~/data/taos/dnode/data:/var/lib/taos \
+  -v ~/data/taos/dnode/log:/var/log/taos \
+  -p 6030:6030 -p 6041:6041 -p 6043:6043 -p 6060:6060 \
+  -p 6044-6049:6044-6049 \
+  -p 6044-6045:6044-6045/udp \
+  -p 6050:6050 -p 6055:6055 \
+  --name tdengine-tsdb \
+  tdengine/tsdb-ee
+```
 
-   ```bash
-   docker run -d -v <local-data-directory>:/var/lib/taos -v <local-log-directory>:/var/log/taos -p 6030:6030 -p 6041:6041 -p 6043-6060:6043-6060 -p 6043-6060:6043-6060/udp tdengine/tsdb-ee
-   ```
+For port usage of TDengine services, see [Network Port Requirements](../../12-operations-and-tooling/02-operations/01-planning.md#network-port-requirements) in the operations guide.
 
-3. Verify that the container is running properly:
+### Check Container Status
 
-   ```bash
-   docker ps
-   ```
+Run the following command to check the container status:
 
-4. Enter the container and open a shell:
+```shell
+docker ps -f name=tdengine-tsdb
+```
 
-   ```bash
-   docker exec -it <container-name> bash
-   ```
+Check the `STATUS` field in the output. If it shows `Up ... (healthy)`, the container has started and is running normally.
 
-You can now work with TDengine TSDB inside your container. For example, you can run the `taos` command to open the TDengine TSDB command-line interface.
+### Enter the Container
+
+Run the following command to enter the container:
+
+```shell
+docker exec -it tdengine-tsdb bash
+```
+
+Inside the container, you can run Linux commands and try TDengine with tools such as `taos` and `taosBenchmark`.
+
+For more details on deploying TDengine with Docker, see [Docker Deployment](../../12-operations-and-tooling/02-operations/03-deployment/02-docker.md).
 
 <Getstarted/>

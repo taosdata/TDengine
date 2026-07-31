@@ -1,12 +1,15 @@
 ---
 title: TDengine TSDB MCP Reference Manual
 sidebar_label: TSDB MCP
+description: Read-only mcp-tdengine-tsdb tools, configuration, and integration examples
 toc_max_heading_level: 4
 ---
 
 mcp-tdengine-tsdb (MCP Server for TDengine TSDB) provides a complete set of tools for querying, managing, and monitoring TDengine time-series databases.
 
 mcp-tdengine-tsdb currently supports Windows x64, Linux x64/arm64, and macOS x64/arm64 systems.
+
+TDengine Server `v3.3.6.0` or later is recommended. Since `v3.4.1.0`, the MCP Server can also be distributed with TDengine TSDB packages.
 
 ## Features
 
@@ -41,7 +44,7 @@ mcp-tdengine-tsdb supports configuring the information needed to connect to TDen
 When connecting to cloud services, DSN connection parameters can be configured, for example:
 
 ```bash
---dsn=wss(gw.us-west-2.aws.cloud.tdengine.com:443)/test?readTimeout=1m&token=xxxxxxxx
+"--dsn=wss(gw.us-west-2.aws.cloud.tdengine.com:443)/test?readTimeout=1m&token=xxxxxxxx"
 ```
 
 ## Adding MCP

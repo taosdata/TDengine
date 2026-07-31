@@ -62,8 +62,8 @@ The following configuration parameters only take effect for Native connections.
 | smlTagName                      |                   |Supported, effective immediately  | Default tag name when schemaless tag is empty, default value "_tag_null"                                                |
 | smlTsDefaultName                |                   |Supported, effective immediately  | Configuration for setting the time column name in schemaless auto table creation, default value "_ts"                   |
 | smlDot2Underline                |                   |Supported, effective immediately  | Converts dots in supertable names to underscores in schemaless                                                          |
-| maxInsertBatchRows              |                   |Supported, effective immediately  | Internal parameter, maximum number of rows per batch insert, range 1-INT32_MAX, default value 32767 (Linux/macOS) or 1000 (Windows)|
-| maxSQLLength                    |v3.3.6.34, v3.3.8.8|Supported, effective immediately  | Maximum length of a single SQL statement; range 1048576-67108864, default value: 1,048,576 |
+| maxInsertBatchRows              |                   |Supported, effective immediately  | Internal parameter, maximum number of rows per batch insert, range 1-INT32_MAX, default value 1000000 |
+| maxSQLLength                    |v3.3.6.34, v3.3.8.8|Supported, effective immediately  | Maximum length of a single SQL statement; range 1048576-67108864, default value 4194304 |
 
 ### Region Related
 

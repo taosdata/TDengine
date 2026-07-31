@@ -1,6 +1,6 @@
 ---
-title: HoltWinters
-sidebar_label: HoltWinters
+title: Holt-Winters
+sidebar_label: Holt-Winters
 ---
 
 本节讲述 HoltWinters 算法模型的使用方法。
@@ -34,14 +34,14 @@ FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul")
 完整的调用 SQL 语句如下：
 
 ```SQL
-SELECT _frowts, FORECAST(i32, "algo=holtwinters, period=10,trend=mul,seasonal=mul") from foo
+SELECT _frowts, FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul") FROM foo;
 ```
 
 ```json5
 {
 "rows": rows,         // 返回结果的行数
 "period": period,     // 返回结果的周期性，该结果与输入的周期性相同，如果没有周期性，该值为 0
-"algo": 'holtwinters' // 返回结果使用的计算模型
+"algo": "holtwinters", // 返回结果使用的计算模型
 "mse": mse,           // 最小均方误差（minimum square error）
 "res": res            // 具体的结果，按照列形式返回的结果。一般意义上包含了两列 [timestamp][fc_results]。
 }

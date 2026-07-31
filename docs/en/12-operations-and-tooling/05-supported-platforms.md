@@ -4,6 +4,8 @@ title: Supported Platforms
 
 import PlatformSupported from "../10-developer-guide/08-connectors-reference/resources/_platform_supported.mdx";
 
+For Community Edition releases after v3.0.7.1, use this page to check operating-system support. For domestic Chinese operating systems, use TDengine Enterprise or deploy with Docker.
+
 ## List of Platforms Supported by TDengine Server
 
 |                       | **Version**        | **X64 64bit** | **ARM64** |
@@ -33,3 +35,7 @@ Note: 1) ● indicates officially tested and verified, ○ indicates unofficiall
 ## List of Platforms Supported by TDengine Client and Connectors
 
 <PlatformSupported />
+
+## Supported Network Environments
+
+TDengine supports both IPv4 and IPv6. For IPv6 configuration, see [Network and FQDN Configuration](./02-operations/08-network.md).

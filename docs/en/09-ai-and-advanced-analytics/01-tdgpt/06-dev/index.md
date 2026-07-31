@@ -1,6 +1,7 @@
 ---
 title: Algorithm Developer's Guide
 sidebar_label: Algorithm Developer's Guide
+description: Add statistical, machine-learning, and foundation models to TDgpt
 ---
 TDgpt is an extensible agent for advanced time-series data analytics. You can follow the steps described in this document to develop your own analytics algorithms and add them to the platform. Your applications can then use SQL statements to invoke these algorithms. Custom algorithms must be developed in Python.
 The anode adds algorithms semi-dynamically. When the anode is started, it scans specified directories for files that meet its requirements and adds those files to the platform. To add an algorithm to your TDgpt, perform the following steps:
@@ -14,6 +15,10 @@ Your algorithm has been added to TDgpt and can be used in SQL statements. Becaus
 This extensibility makes TDgpt suitable for a wide range of use cases. You can add any algorithms needed by your use cases on demand and invoke them via SQL. You can also update algorithms without making significant changes to your applications.
 
 This document describes how to add algorithms to an anode and invoke them with SQL statements.
+
+## Prepare Your Environment
+
+Clone [TDengine Community Edition](https://github.com/taosdata/TDengine). The TDgpt source code is located in `tools/tdgpt`.
 
 ## Directory Structure
 
@@ -45,8 +50,8 @@ The directory structure of an anode is described as follows:
 
 ## Limitations
 
-- Place Python source code for anomaly detection in the `./taos/algo/ad` directory.
-- Place Python source code for forecasting in the `./taos/algo/fc` directory.
+- Place Python source code for anomaly detection in `./taosanalytics/algo/ad`.
+- Place Python source code for forecasting in `./taosanalytics/algo/fc`.
 
 ### Class Naming Rules
 

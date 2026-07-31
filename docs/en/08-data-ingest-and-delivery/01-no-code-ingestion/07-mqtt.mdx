@@ -32,9 +32,13 @@ Enter the MQTT broker's password in **Password**.
 
 ![Configure connection information](../../assets/mqtt-01.png)
 
-### Configure SSL Certificate
+### Configure TLS
 
-If the MQTT broker uses an SSL certificate, upload the certificate file in **SSL Certificate**.
+In **TLS Verification**, select one of the following modes:
+
+1. **Disabled**: Do not verify TLS certificates. The connector first attempts TCP and, if that fails, attempts TLS without certificate verification.
+2. **One-way authentication**: Use TLS and verify the server certificate. Upload the CA certificate.
+3. **Mutual authentication**: Use mutual TLS. Upload the CA certificate, client certificate, and client private key.
 
 ![Configure SSL certificate](../../assets/mqtt-02.png)
 
@@ -50,6 +54,8 @@ Enter the keep alive interval in **Keep Alive**. If the broker does not receive 
 The keep alive interval is the time interval negotiated between the client and the broker to check if the client is active. If the client does not send a message to the broker within the keep alive interval, the broker will disconnect.
 
 In **Clean Session**, choose whether to clear the session. The default value is true.
+
+When MQTT `5.0` is selected, you can configure custom **Connection User Properties** and **Subscription User Properties**. When using a TDengine Bnode as the MQTT broker, you can also specify the initial subscription position.
 
 In the **Topics Qos Config**, fill in the topic name and QoS to subscribe. Use the following format: `{topic_name}::{qos}` (e.g., `my_topic::0`). MQTT protocol 5.0 supports shared subscriptions, allowing multiple clients to subscribe to the same topic for load balancing. Use the following format: `$share/{group_name}/{topic_name}::{qos}`, where `$share` is a fixed prefix indicating the enablement of shared subscription, and `group_name` is the client group name, similar to Kafka's consumer group.
 
@@ -130,6 +136,8 @@ Click the **magnifying glass icon** to view the preview of the filtering results
 
 In the **Target Supertable** dropdown, select a target supertable, or click the **Create Supertable** button on the right.
 
+If the supertable must be generated dynamically from each message, select **Create Template**. The supertable name, column names, and column types can contain template variables. When data arrives, taosX evaluates the variables, creates a missing supertable, and adds missing columns to an existing supertable.
+
 In **Mapping**, fill in the subtable name in the target supertable, for example: `t_{id}`. Fill in the mapping rules according to the requirements, where mapping supports setting default values.
 
 ![Table mapping](../../assets/mqtt-10.png)
@@ -138,21 +146,21 @@ Click **Preview** to view the mapping results.
 
 ![Preview mapping results](../../assets/mqtt-11.png)
 
+If a supertable column name is a template variable, mapping performs a pivot: the template-variable values become column names and the mapped field supplies their values.
+
 ### Advanced Options
 
-In the **Log Level** dropdown, select a log level. There are five options: `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`. The default is INFO.
+import AdvancedOptionsMqtt from './resources/_02-advanced-options-mqtt.mdx'
 
-When **Cache Realtime Data** is enabled, data consumed from MQTT is first written to a local file; a background task continuously reads from the file and sends data to the downstream consumer. This is intended for traffic shaping when the MQTT data rate is high enough that downstream cannot keep up and would otherwise drop messages. Once the backlog is consumed, the file is cleaned up automatically. Disabled by default. For detailed information about this feature, see [Store and Forward](../../12-operations-and-tooling/03-components/07-taosx-agent/store-and-forward.md).
-
-In **Cache Storage Directory**, you can enter the directory where the cache files are stored. It defaults to the data directory configured at taosX startup, but can be overridden. This option only takes effect when **Cache Realtime Data** is enabled.
-
-When **saving raw data**, the following two parameters are effective.
-
-Set the maximum retention days for raw data in **Maximum Retention Days**.
-
-Set the storage path for raw data in **Raw Data Storage Directory**.
+<AdvancedOptionsMqtt />
 
 ![Configure advanced options](../../assets/mqtt-12.png)
+
+### Exception Handling
+
+import ExceptionHandling from './resources/_03-exception-handling-strategy.mdx'
+
+<ExceptionHandling />
 
 ### Completion
 

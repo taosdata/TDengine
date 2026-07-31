@@ -23,9 +23,9 @@ The `->` operator can retrieve values by key from JSON type columns. The left si
 
 ## Set Operators
 
-Set operators combine the results of two queries into one result. Queries containing set operators are called compound queries. In compound queries, the number of expressions in the select list of each query must match, and the result type must conform to that of the first query, with subsequent query result types being convertible to the first query's result type, following the same rules as the CAST function.
+Set operators combine the results of two queries into one result. Queries containing set operators are called compound queries. In compound queries, the number of expressions in the select list of each query must match, and the result type must conform to that of the first query, with subsequent query result types being convertible to the first query's result type, following the same rules as the [CAST](./03-function.md#cast) function.
 
-TDengine supports `UNION ALL` and `UNION` operators. UNION ALL combines the results of the queries and returns them without eliminating duplicates. UNION combines and returns the results of the queries after eliminating duplicates. In the same SQL statement, a maximum of 100 set operators are supported.
+TDengine supports `UNION ALL` and `UNION` operators. UNION ALL combines the results of the queries and returns them without eliminating duplicates. UNION combines and returns the results of the queries after eliminating duplicates. In the same SQL statement, a maximum of 100 set operators are supported. For more usage, see [UNION Clause](./01-query.md#union-clause).
 
 ## Comparison Operators
 
@@ -58,9 +58,9 @@ LIKE conditions use wildcard strings for matching checks, with the following rul
 
 MATCH/REGEXP and NMATCH/NOT REGEXP conditions use regular expressions for matching, with the following rules:
 
-- Supports regular expressions that comply with the POSIX standard, see Regular Expressions for specific standards.
+- Supports POSIX regular expressions; see [Regular Expression Filtering](./01-query.md#regular-expression-filtering) for details.
 - When MATCH matches a regular expression, it returns TRUE. When NMATCH does not match a regular expression, it returns TRUE.
-- Only supports filtering on subtable names (i.e., tbname) and string type tag values, does not support filtering on ordinary columns.
+- Regular-expression filtering applies only to table names (`tbname`) and `BINARY` / `NCHAR` values. See [Regular Expression Filtering](./01-query.md#regular-expression-filtering).
 - The length of the regular expression string cannot exceed 128 bytes. You can set and adjust the maximum allowed regular expression string length through the parameter maxRegexStringLen, which is a client configuration parameter and requires restarting the client to take effect.
 
 ## Logical Operators

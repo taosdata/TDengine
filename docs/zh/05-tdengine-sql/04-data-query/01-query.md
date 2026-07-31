@@ -674,11 +674,29 @@ ASC 表示升序，DESC 表示降序。
 
 NULLS 语法用来指定 NULL 值在排序中输出的位置。NULLS LAST 是升序的默认值，NULLS FIRST 是降序的默认值。
 
+## 窗口函数
+
+从 `v3.4.2.0` 起，TDengine 支持标准 SQL 的 `OVER` 子句与窗口函数。窗口函数会为结果集中的**每一行**计算一个值，计算时可引用同一窗口内的其他行，但不会把多行折叠成一行。这与 [特色查询](./06-distinguished.md) 中的时间窗口不同：时间窗口会把窗口内多行聚合成一行，而窗口函数保留每一行原始结果，并追加计算列。
+
+窗口函数调用的基本形式如下：
+
+```sql
+function_name ( [ arguments ] ) OVER (
+    [ PARTITION BY expr [, ...] ]
+    [ ORDER BY expr [ ASC | DESC ] [, ...] ]
+    [ { ROWS | RANGE } frame_extent ]
+)
+```
+
+窗口函数既支持已有聚合 / 选择函数（如 `avg`、`sum`、`first`）配合 `OVER` 子句使用，也支持专用窗口函数，例如 `row_number`、`rank`、`dense_rank`、`percent_rank`、`cume_dist`、`lag`、`lead`、`first_value`、`last_value`、`nth_value`。窗口函数只能出现在 `SELECT` 列表和 `ORDER BY` 中。完整语法、框架规则、命名窗口与函数列表见 [窗口函数](./09-window-function.md)。
+
 ## LIMIT
 
 LIMIT 控制输出条数，OFFSET 指定从第几条之后开始输出。LIMIT/OFFSET 对结果集的执行顺序在 ORDER BY 之后。`LIMIT 5 OFFSET 2` 可以简写为 `LIMIT 2, 5`，都输出第 3 行到第 7 行数据。
 
 在有 PARTITION BY/GROUP BY 子句时，LIMIT 控制的是每个切分的分片中的输出，而不是总的结果集输出。
+
+从 `v3.4.2.0` 起，`OFFSET N` 可以单独使用、不必搭配 `LIMIT`，便于跳过 [窗口函数](./09-window-function.md) 计算后的预热行。
 
 ## SLIMIT
 

@@ -11,7 +11,7 @@ This section describes how to create data migration tasks through the Explorer i
 
 ## Feature Overview
 
-Microsoft SQL Server is one of the most popular relational databases. Many systems have used or are using Microsoft SQL Server to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, Microsoft SQL Server can no longer meet business needs. TDengine TSDB-Enterprise can efficiently read data from Microsoft SQL Server and write it into TDengine, achieving historical data migration or real-time data synchronization, and solving technical pain points faced by businesses.
+Microsoft SQL Server is one of the most popular relational databases. Many systems have used or are using Microsoft SQL Server to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, Microsoft SQL Server can no longer meet business needs. Starting with TDengine TSDB-Enterprise v3.3.2.0, TDengine can efficiently read data from Microsoft SQL Server and write it into TDengine for historical migration or real-time synchronization.
 
 ## Procedure
 
@@ -104,6 +104,12 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
 
 ![Configure advanced options](../../assets/mssql-06.png)
+
+### Configure Exception Handling
+
+import ExceptionHandling from './resources/_03-exception-handling-strategy.mdx'
+
+<ExceptionHandling />
 
 ### Completion
 

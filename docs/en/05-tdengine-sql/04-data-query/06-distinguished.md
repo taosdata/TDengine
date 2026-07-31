@@ -85,11 +85,7 @@ If the query uses a PARTITION BY statement for grouping, the results will be str
 
 ![Time window](../../assets/distinguished-01.png)
 
-The INTERVAL and SLIDING clauses need to be used in conjunction with aggregation and selection functions. The following SQL statement is illegal:
-
-```sql
-SELECT * FROM temp_tb_1 INTERVAL(1m);
-```
+`INTERVAL` and `SLIDING` are usually used with aggregate and selection functions. In [window projection mode](#window-projection-mode), original columns can also be output.
 
 The forward sliding time of SLIDING cannot exceed the time range of one window. The following statement is illegal:
 
@@ -116,7 +112,7 @@ please refer to [FILL Clause](./01-query.md#fill-clause).
 
 When using time windows, note:
 
-- The window width of the aggregation period is specified by the keyword INTERVAL, with the shortest interval being 10 milliseconds (10a); it also supports an offset (the offset must be less than the interval), which is the offset of the time window division compared to "UTC moment 0". The SLIDING statement is used to specify the forward increment of the aggregation period, i.e., the duration of each window slide forward.
+- The window width is specified by `INTERVAL`. The minimum allowed value is constrained by the client configuration parameter [`minIntervalTime`](../../12-operations-and-tooling/03-components/02-taosc.md#query-related) (default `1`, in the same unit as the database time precision). An offset (`interval_offset`, must be less than the interval) is also supported; it is the offset of the time-window division relative to “UTC time 0”. `SLIDING` specifies how far each window advances.
 - When using the INTERVAL statement, unless in very special cases, it is required to configure the timezone parameter in the taos.cfg configuration files of both the client and server to the same value to avoid frequent cross-time zone conversions by time processing functions, which can cause severe performance impacts.
 - The returned results have a strictly monotonically increasing time-series.
 - When using AUTO as the window offset, if the WHERE time condition is complex, such as multiple AND/OR/IN combinations, AUTO may not take effect. In such cases, you can manually specify the window offset to resolve the issue.

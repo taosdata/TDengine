@@ -5,6 +5,10 @@ description: TDengine 审计日志配置与查看，以及安全公告入口
 toc_max_heading_level: 4
 ---
 
+import { Enterprise } from './resources/_resources.mdx';
+
+<Enterprise/>
+
 TDengine 先对用户操作进行记录和管理，然后将这些作为审计日志发送给 `taosKeeper`，再由 `taosKeeper` 保存至任意 TDengine 集群。管理员可通过审计日志进行安全监控、历史追溯。自 `v3.4.1.0` 起，也可将审计保存在本集群（`auditSaveInSelf`），而不发送给 `taosKeeper`。审计日志功能的开启和关闭操作非常简单，只须修改 TDengine 的配置文件后重启服务（部分参数亦可按支持情况通过 SQL 动态修改）。参数权威说明见 [taosd](../12-operations-and-tooling/03-components/01-taosd.md)。
 
 本文中的“合规”指：通过可配置的审计轨迹支撑内部审计与运维追溯，以及及时跟进 [安全公告](./07-security-advisories.md) 中的漏洞修复。文档不声称特定外部认证或法规符合性结论。

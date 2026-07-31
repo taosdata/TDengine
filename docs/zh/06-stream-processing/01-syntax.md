@@ -440,7 +440,7 @@ tag_definition:
 ```sql
 [STREAM_OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time)}
 ```
 
 控制选项用于控制触发和计算行为，可以多选，同一个选项不可以多次指定。包括：
@@ -618,7 +618,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 这部分是所有 event 对象所共有的字段。
 
 - tableName：字符串类型，是对应目标子表的表名，当没有输出的时候，该字段不存在。
-- eventType：字符串类型，表示事件类型，支持 WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION、IDLE、RESUME 五种类型。
+- eventType：字符串类型，表示事件类型，支持 ON_TIME、WINDOW_OPEN、WINDOW_CLOSE、WINDOW_INVALIDATION、IDLE、RESUME 六种类型。
 - eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
 - triggerId：字符串类型，触发事件的唯一标识符，确保打开和关闭事件（如果有的话）的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一事件的 triggerId 保持不变。
 - triggerType：字符串类型，表示触发类型，支持 Period、SLIDING 两种非窗口触发类型以及 INTERVAL、State、Session、Event、Count 五种窗口类型。
@@ -680,12 +680,14 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+  - windowIndex：整型，表示子事件窗口在父窗口中的序号，从 0 开始编号；常规事件窗口或父窗口的值为 -1。
   - triggerCondition：触发窗口开始的条件信息，包括以下字段：
     - conditionIndex：整型，表示满足的触发窗口开始的条件的索引，从 0 开始编号。
     - fieldValue：键值对形式，包含条件列列名及其对应的值。
 - 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
   - windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+  - windowIndex：整型，表示子事件窗口在父窗口中的序号，从 0 开始编号；常规事件窗口或父窗口的值为 -1。
   - triggerCondition：触发窗口关闭的条件信息，包括以下字段：
     - conditionIndex：整型，表示满足的触发窗口关闭的条件的索引，从 0 开始编号。
     - fieldValue：键值对形式，包含条件列列名及其对应的值。
@@ -699,6 +701,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
 - 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+  - windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
 ##### 空闲触发相关字段

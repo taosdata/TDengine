@@ -37,7 +37,7 @@ CREATE XNODE 'localhost:6055' TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHb
 
 ### 修改认证
 
-修改认证会重启守护进程 `xnoded`。
+修改认证会重启守护进程 `xnoded`。本命令修改的是单个 `xnoded` 守护进程连接 `taosd` 所用的认证凭据。
 
 ```sql
 ALTER XNODE SET USER name PASS 'password'

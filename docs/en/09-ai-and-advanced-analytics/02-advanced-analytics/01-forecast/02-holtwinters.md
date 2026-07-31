@@ -34,14 +34,14 @@ FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul")
 The complete SQL statement is shown as follows:
 
 ```sql
-SELECT _frowts, FORECAST(i32, "algo=holtwinters, period=10,trend=mul,seasonal=mul") from foo
+SELECT _frowts, FORECAST(i32, "algo=holtwinters,period=10,trend=mul,seasonal=mul") FROM foo;
 ```
 
-```json
+```json5
 {
-"rows": fc_rows,  // Rows returned
+"rows": rows,     // Rows returned
 "period": period, // Period of results (equivalent to input period; set to 0 if no periodicity)
-"algo": 'holtwinters' // Algorithm
+"algo": "holtwinters", // Algorithm
 "mse": mse,       // Mean square error (MSE)
 "res": res        // Results in column format (typically returned as two columns, `timestamp` and `fc_results`.)
 }

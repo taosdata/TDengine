@@ -1,5 +1,8 @@
 ---
+description: Overview of TDengine stream-processing internals, tasks, state, and fault tolerance
+sidebar_label: Stream Processing Engine
 title: Stream Processing Engine
+toc_max_heading_level: 4
 ---
 
 ## Stream Processing Architecture

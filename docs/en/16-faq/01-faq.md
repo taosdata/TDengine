@@ -22,7 +22,20 @@ Get the dnode_id from the output of the show dnodes; command.
 
 However, when the system is running normally, be sure to set the debugFlag to 131, otherwise, it will generate a large amount of log information and reduce system efficiency.
 
-## 1. Installation & Deployment
+<!-- markdownlint-disable MD051 -->
+## FAQ List
+
+- [1. Installation & Deployment](#installation-deployment)
+- [2. Connection](#connection)
+- [3. Data Writing](#data-writing)
+- [4. Data Query](#data-query)
+- [5. Data Subscription](#data-subscription)
+- [6. Operations & Monitoring](#operations-monitoring)
+- [7. Upgrade & Migration](#upgrade-migration)
+- [8. Client & Tools](#client-tools)
+<!-- markdownlint-enable MD051 -->
+
+## 1. Installation & Deployment {#installation-deployment}
 
 ### 1.1 How to solve the MSVCP140.DLL error when running TDengine on Windows?
 
@@ -62,7 +75,7 @@ mvn dependency:copy-dependencies -DoutputDirectory=./lib -DincludeScope=compile
 
 Then upload the contents of `./lib` to your internal Maven repository.
 
-## 2. Connection
+## 2. Connection {#connection}
 
 ### 2.1 What should I do if I encounter the error "Unable to establish connection"?
 
@@ -120,19 +133,23 @@ It should be noted that the log path for taosAdapter needs to be configured sepa
 
 For a detailed introduction to the taosAdapter component, please see the document: [taosAdapter](../12-operations-and-tooling/03-components/03-taosadapter.md)
 
-### 2.5 Encountering error "DND ERROR Version not compatible, cliver: 3000700 swr wer: 3020300"
+### 2.4 How does a client connection remain highly available?
 
-This indicates that the client and server versions are incompatible. Here, the cliver version is 3.0.7.0, and the server version is 3.2.3.0. The current compatibility strategy is that the first three digits must match for the client and server to be compatible.
+Clients can connect through any available dnode. After the first connection, TDengine obtains and caches the current mnode endpoint list and redirects requests when leadership or node availability changes. Configure resolvable FQDNs for every cluster node and provide the supported multiple endpoints in connectors that offer endpoint-list load balancing. For the internal redirection flow, see [Architecture](../15-internals/01-arch.md#redirection).
+
+### 2.5 What should I do if I encounter "DND ERROR Version not compatible, client: 3000700, server: 3020300"?
+
+This indicates that the client and server versions are incompatible. Here, the client version is v3.0.7.0, and the server version is v3.2.3.0. The current compatibility strategy is that the first three version components must match.
 
 ### 2.6 After changing the root password of the database, starting taos encounters the error "failed to connect to server, reason: Authentication failure"
 
 By default, starting the taos service will use the system's default username (root) and password to attempt to connect to taosd. After changing the root password, starting a taos connection will require specifying the username and password, for example: `taos -h xxx.xxx.xxx.xxx -u root -p`, then enter the new password to connect. After changing the password, you also need to modify the password in the configuration file of the taosKeeper component (located at /etc/taos/taoskeeper.toml by default) and restart the service.
 
-Starting from version 3.3.6.6, a new environment variable `TAOS_ROOT_PASSWORD` is introduced for TDengine TSDB Docker image, to set the custom password. When starting a container with the `docker run` command, you can add the `-e TAOS_ROOT_PASSWORD=<password>` parameter to use the custom password to start the TDengine TSDB service, without the need to manually modify the password in the configuration files.
+Starting from v3.3.6.6, the TDengine TSDB Docker image supports the `TAOS_ROOT_PASSWORD` environment variable for setting a custom password. When starting a container with `docker run`, add `-e TAOS_ROOT_PASSWORD=<password>` to start the service without manually modifying configuration files.
 
-For versions 3.3.6.6 to 3.3.8.4 in Docker environments, if you changed the password in an older version, you need to touch an empty file named `.docker-entrypoint-root-password-changed` in the data directory (default is `/var/lib/taos`), then restart the container.
+For v3.3.6.6 through v3.3.8.4 in Docker environments, if you changed the password in an older version, create an empty file named `.docker-entrypoint-root-password-changed` in the data directory (default `/var/lib/taos`), then restart the container.
 
-For version 3.3.8.8 and above in Docker environments, you can upgrade directly.
+For v3.3.8.8 and later in Docker environments, `TAOS_ROOT_PASSWORD_FILE` is supported and you can upgrade directly. Starting with v3.4.1.0, use `taos-check startup` and `taos-check service` for startup and service health checks.
 
 ### 2.7 Encountering error "some vnode/qnode/mnode(s) out of service", what to do?
 
@@ -164,6 +181,10 @@ Problem Solution:
 - **Check permissions**: Ensure that the current user has read and execute permissions for both the `libtaosnative.so` or `libtaosws.so` symbolic links and their actual files.
 - **Check file corruption**: You can verify the integrity of the library files using the command `readelf -h library_file`.
 - **Check file dependencies**: You can view the dependencies of the library files using the command `ldd library_file` to ensure that all dependencies are correctly installed and accessible.
+
+### 2.10 What should I do if JDBCDriver cannot find the dynamic-link library on Windows?
+
+Ensure that the TDengine client is installed and that `C:\TDengine\driver\taos.dll` exists. Add `C:\TDengine\driver` to the Windows `PATH`, or place `taos.dll` in a directory already included in the system library search path. The DLL architecture must match the JVM architecture (both 64-bit or both 32-bit).
 
 ### 2.11 What should I do if JDBC native connection throws "UnsatisfiedLinkError: no taos in java.library.path"?
 
@@ -280,11 +301,15 @@ config.setIdleTimeout(0);            // idle connection timeout, 0 = unlimited
 
 Use `show connections;` to verify that the actual connection count matches your pool configuration.
 
-## 3. Data Writing
+## 3. Data Writing {#data-writing}
 
 ### 3.1 What is the most effective method for data insertion?
 
 Batch insertion. Each insert statement can insert multiple records into one table at the same time, or multiple records into multiple tables simultaneously.
+
+### 3.2 How do I fix garbled Chinese NCHAR data inserted on Windows?
+
+Confirm that the Windows region and client character set match the application's input. The TDengine client converts local strings before sending them to the server, so an incorrect client encoding can corrupt Chinese text. For command-line use, configure the appropriate `charset` in the client configuration. For Java applications, ensure the source-file and runtime encodings are consistent and set the connector locale or charset to UTF-8 where supported. See the character-set details in the [taosd configuration documentation](../12-operations-and-tooling/03-components/01-taosd.md).
 
 ### 3.3 Why is querying very fast when using the taosBenchmark testing tool to write data, but very slow when I write data?
 
@@ -336,7 +361,7 @@ Common checkpoints:
    INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?)
    ```
 
-## 4. Data Query
+## 4. Data Query {#data-query}
 
 ### 4.1 How is time zone information handled for timestamps?
 
@@ -365,7 +390,7 @@ Use the DIFF function, which allows you to view the difference between two conse
 
 Directly querying a child table is faster. Querying a supertable with a TAG filter is provided for convenience, as it allows filtering data from multiple child tables at once. If performance is the primary goal and the target child table is known, querying it directly will yield better performance.
 
-## 5. Data Subscription
+## 5. Data Subscription {#data-subscription}
 
 ### 5.1 What should I do if TMQ subscription reports "Unknown error: 65534" (error code 0xfffe)?
 
@@ -382,7 +407,7 @@ Review the `Properties` passed to `TaosConsumer` and remove any unsupported keys
 
 When subscribing to a database or supertable, set `value.deserializer` to `com.taosdata.jdbc.tmq.MapEnhanceDeserializer` when creating the consumer, and use `TaosConsumer<TMQEnhMap>` as the consumer type. Each record will then be deserialized into a `Map` that includes the subtable name alongside the field values.
 
-## 6. Operations & Monitoring
+## 6. Operations & Monitoring {#operations-monitoring}
 
 ### 6.1 What network ports are used by TDengine 3.0?
 
@@ -461,7 +486,13 @@ To view the size occupied by a single database, specify the database in the comm
 
 ### 6.6 How to view data compression ratio indicators?
 
-Currently, TDengine only provides compression ratios based on tables, not databases or the entire system. To view the compression ratios, execute the `SHOW TABLE DISTRIBUTED table_name;` command in the client TDengine CLI. The table_name can be a super table, regular table, or subtable. For details, see [SHOW TABLE DISTRIBUTED](../05-tdengine-sql/09-system-info/03-show.md#show-table-distributed).
+Before TDengine v3.3.5.0, compression ratios are available per table. Run `SHOW TABLE DISTRIBUTED table_name;`, where `table_name` can be a supertable, regular table, or subtable. For details, see [SHOW TABLE DISTRIBUTED](../05-tdengine-sql/09-system-info/03-show.md#show-table-distributed).
+
+TDengine v3.3.5.0 and later also provide database-wide compression and disk-usage statistics. Run `SHOW db_name.disk_info;` for database totals, or query `INFORMATION_SCHEMA.INS_DISK_USAGE` for per-module usage:
+
+```sql
+SELECT * FROM INFORMATION_SCHEMA.INS_DISK_USAGE WHERE db_name = 'db_name';
+```
 
 ### 6.7 How does WAL affect storage space and the observed compression ratio?
 
@@ -470,10 +501,10 @@ The Write-Ahead Log (WAL) is TDengine TSDB's core mechanism for ensuring data du
 ### 6.8 What should I do if restarting taosd via systemd fails with "start-limit-hit"?
 
 Problem Description:
-In TDengine TSDB 3.3.5.1 and later, the `StartLimitInterval` parameter in `taosd.service` was changed from 60 seconds to 900 seconds. If taosd is restarted 3 times within 900 seconds, subsequent `systemctl restart taosd` calls will fail. Running `systemctl status taosd.service` shows: `Failed with result 'start-limit-hit'`.
+In TDengine TSDB v3.3.5.1 and later, the `StartLimitInterval` parameter in `taosd.service` was changed from 60 seconds to 900 seconds. If taosd is restarted 3 times within 900 seconds, subsequent `systemctl restart taosd` calls will fail. Running `systemctl status taosd.service` shows: `Failed with result 'start-limit-hit'`.
 
 Problem Cause:
-Before 3.3.5.1, `StartLimitInterval` was 60 seconds. If 3 restarts could not complete within 60 seconds (for example, because taosd takes a long time to recover from WAL), the counter would reset in the next 60-second window, causing taosd to restart repeatedly. The interval was increased to 900 seconds to prevent this infinite-restart loop. As a result, hitting `start-limit-hit` during frequent rapid restarts is more likely.
+Before v3.3.5.1, `StartLimitInterval` was 60 seconds. If 3 restarts could not complete within 60 seconds (for example, because taosd takes a long time to recover from WAL), the counter would reset in the next 60-second window, causing taosd to restart repeatedly. The interval was increased to 900 seconds to prevent this infinite-restart loop. As a result, hitting `start-limit-hit` during frequent rapid restarts is more likely.
 
 Problem Solution:
 
@@ -484,13 +515,17 @@ Problem Solution:
 
 #### Problem Description
 
-In TDengine TSDB 3.4.0.0 and later, some users may encounter this: they change a parameter in `taos.cfg`, but after restarting, the change does not take effect, and no errors appear in the logs.
+In TDengine TSDB v3.4.0.0 and later, some users may encounter this: they change a parameter in `taos.cfg`, but after restarting, the change does not take effect, and no errors appear in the logs.
 
 #### Problem Reason
 
-In TDengine TSDB 3.4.0.0 and later, to improve security and prevent configuration file tampering, configuration can no longer be changed by editing the configuration file. Use the `ALTER` command and change parameter values via SQL instead.
+In TDengine TSDB v3.4.0.0 and later, to improve security and prevent configuration file tampering, configuration can no longer be changed by editing the configuration file. Use the `ALTER` command and change parameter values via SQL instead.
 
-### 6.10 How to temporarily adjust log levels in the command line program `taos`
+### 6.10 How do I make TDengine generate a core file after a crash?
+
+Enable core dumps in the operating system and keep the TDengine `enableCoreFile` setting enabled. The output location depends on the operating system and its core-dump handler. For Linux commands, locations, and collection steps, see [Core Dump Files](../12-operations-and-tooling/02-operations/12-analysis-and-debug/01-debug-linux.md#core-dump-files).
+
+### 6.11 How to temporarily adjust log levels in the command line program `taos`
 
 For debugging convenience, the command line program `taos` has added instructions related to log recording:
 
@@ -511,11 +546,11 @@ This means that in the current command line program, you can clear all log files
 
 - The value can be: 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs).
 
-### 6.11 After changing the root password of the database, the Grafana monitoring plugin TDinsight shows no data
+### 6.12 After changing the root password of the database, the Grafana monitoring plugin TDinsight shows no data
 
 The data displayed in the TDinsight plugin is collected and stored in TD's log database through the taosKeeper and taosAdapter services. After changing the root password, it is necessary to update the corresponding password information in the configuration files of taosKeeper and taosAdapter, and then restart the taosKeeper and taosAdapter services (Note: if it is a cluster, restart the corresponding services on each node).
 
-### 6.12 Why does the open-source version of TDengine's main process establish a connection with the public network?
+### 6.13 Why does the open-source version of TDengine's main process establish a connection with the public network?
 
 This connection only reports the most basic information that does not involve any user data, used by the official to understand the global distribution of the product, thereby optimizing the product and enhancing user experience. The specific collection items include: cluster name, operating system version, CPU information, etc.
 This feature is an optional configuration item, which is enabled by default in the open-source version. The specific parameter is telemetryReporting, as explained in the [official documentation](../12-operations-and-tooling/03-components/01-taosd.md).
@@ -523,7 +558,7 @@ You can disable this parameter at any time by modifying telemetryReporting to 0 
 Code located at: [https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c](https://github.com/taosdata/TDengine/blob/62e609c558deb764a37d1a01ba84bc35115a85a4/source/dnode/mnode/impl/src/mndTelem.c).
 Additionally, for the highly secure enterprise version, TDengine Enterprise, this parameter will not be operational.
 
-### 6.13 Why is the original database lost and the cluster ID changed when the data directory dataDir of the database remains unchanged on the same server?
+### 6.14 Why is the original database lost and the cluster ID changed when the data directory dataDir of the database remains unchanged on the same server?
 
 Background: When the TDengine server process (taosd) starts, if there are no valid data file subdirectories (such as mnode, dnode, and vnode) under the data directory (dataDir, which is specified in the configuration file taos.cfg), these directories will be created automatically. When a new mnode directory is created, a new cluster ID will be allocated to generate a new cluster.
 
@@ -533,7 +568,7 @@ Impact of the problem: After the server is restarted, the original database is l
 
 Problem solving: You should configure the automatic mount of the dataDir directory in the fstab file to ensure that the dataDir always points to the expected mount point and directory. At this point, restarting the server will retrieve the original database and cluster. In the subsequent version, we will develop a function to enable taosd to exit in the startup phase when it detects that the dataDir changes before and after startup, and provide corresponding error prompts.
 
-## 7. Upgrade & Migration
+## 7. Upgrade & Migration {#upgrade-migration}
 
 ### 7.1 What should I pay attention to when upgrading from versions before TDengine 3.0 to version 3.0 and above?
 
@@ -551,7 +586,16 @@ TDengine uniquely identifies a machine by its hostname. For version 3.0, when mo
 
 Note: The storage structures of versions 3.x and earlier versions 1.x, 2.x are not compatible. It is necessary to use migration tools or develop applications to export and import data.
 
-## 8. Client & Tools
+## 8. Client & Tools {#client-tools}
+
+### 8.1 Why can't the Windows client display Chinese characters correctly?
+
+Windows commonly uses GBK or GB18030 while TDengine uses UTF-8 internally. Client drivers convert local strings before sending them, so configure the client for the actual local encoding. If the `taos` command-line client cannot enter or display Chinese correctly, configure its character set explicitly, for example:
+
+```text
+locale C
+charset UTF-8
+```
 
 ### 8.2 Table name not displaying fully in the TDengine CLI
 

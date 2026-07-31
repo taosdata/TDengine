@@ -319,7 +319,7 @@ select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-0
 The `_irowts_origin` pseudocolumn can only be used with the interp function, and is only applicable for FILL types PREV/NEXT/NEAR. It returns the timestamp column of the original data used by the interp function. If there are no values within the range, it returns NULL.
 
 ```sql
-select _iorwts_origin, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(NEXT);
+select _irowts_origin, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(NEXT);
 ```
 
 ## Query Objects
@@ -335,6 +335,8 @@ TDengine supports INNER JOIN based on the timestamp primary key, with the follow
 4. Tables involved in JOIN calculations must be of the same type, i.e., all must be supertables, subtables, or basic tables.
 5. Both sides of JOIN support subqueries.
 6. Does not support mixing with the FILL clause.
+
+For more join types and usage, see [TDengine Join Queries](./07-join.md).
 
 ## TEXT Inline Data Source
 
@@ -667,6 +669,41 @@ SLIMIT is used with the PARTITION BY/GROUP BY clause to control the number of ou
 
 Note that if there is an ORDER BY clause, only one slice is output.
 
+## Common Time-Range Expressions
+
+Time-series queries usually constrain the primary timestamp column in the `WHERE` clause. Prefer left-closed, right-open intervals (`ts >= start AND ts < end`) so adjacent ranges do not double-count boundary rows.
+
+Common patterns:
+
+```sql
+-- Last 1 hour
+SELECT * FROM meters
+WHERE ts >= NOW() - 1h;
+
+-- Today
+SELECT * FROM meters
+WHERE ts >= TODAY() AND ts < TODAY() + 1d;
+
+-- Yesterday
+SELECT * FROM meters
+WHERE ts >= TODAY() - 1d AND ts < TODAY();
+
+-- Since the start of this week
+SELECT * FROM meters
+WHERE ts >= TIMETRUNCATE(NOW(), 1w);
+
+-- Since the start of this month
+SELECT * FROM meters
+WHERE ts >= TIMETRUNCATE(NOW(), 1n);
+
+-- Fixed time range
+SELECT * FROM meters
+WHERE ts >= '2024-01-01 00:00:00'
+  AND ts < '2024-02-01 00:00:00';
+```
+
+Here, [NOW()](./03-function.md#now) returns the current time, [TODAY()](./03-function.md#today) returns midnight of the current date, and [TIMETRUNCATE()](./03-function.md#timetruncate) truncates a timestamp to a given unit. Parsing and display of time strings depend on the connection timezone; see [Timezone](../10-time/01-timezone.md).
+
 ## Special Features
 
 Some special query functions can be executed without using the FROM clause.
@@ -801,6 +838,26 @@ ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
 
 For more information on JOIN operations, see the page [TDengine Join Queries](./07-join.md)
 
+## Timeline
+
+TDengine timeline functions (such as `diff`, `derivative`, `twa`, and `elapsed`) and window operators (such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`) require a valid timeline to run.
+
+When you query a physical or virtual table directly, the system time column (the primary key `ts` / `_rowts`, and derived window pseudocolumns such as `_wstart`) is used automatically as the effective timeline. No extra action is required.
+
+When the outer query reads from a subquery and the subquery result has no system time column, or that column is unordered, TDengine automatically selects the first `TIMESTAMP` column in the output as a **degraded timeline**. If there is no `TIMESTAMP` column at all, only `first`, `last`, and `last_row` can return results by input-row order; other timeline functions and window operators report an error.
+
+```sql
+-- Subquery does not output the system time column ts; event_time becomes the degraded timeline
+SELECT diff(val)
+FROM (
+  SELECT event_time, val
+  FROM sensor_data
+  ORDER BY event_time
+);
+```
+
+**Note:** You are responsible for the quality of a degraded timeline. If it is out of order, results from time-difference–dependent functions (`derivative`, `twa`, `elapsed`, `stateduration`, `interp`) may have no physical meaning. Use `ORDER BY` in the subquery to keep the degraded timeline ordered.
+
 ## Nested Queries
 
 "Nested queries," also known as "subqueries," mean that in a single SQL statement, the result of the "inner query" can be used as the computation object for the "outer query."
@@ -820,7 +877,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
   - The ORDER BY clause in the inner query generally has no meaning and is recommended to be avoided to prevent unnecessary resource consumption.
 - Compared to non-nested queries, the outer query has the following limitations in supported functional features:
   - Part of calculation functions:
-    - If the result data of the inner query does not provide timestamps, then functions implicitly dependent on timestamps will not work properly in the outer query. Examples include: INTERP, DERIVATIVE, IRATE, LAST_ROW, FIRST, LAST, TWA, STATEDURATION, TAIL, UNIQUE.
+    - If the inner query result provides no `TIMESTAMP` column, timeline-dependent functions cannot be used in the outer query (only `FIRST`, `LAST`, and `LAST_ROW` can return results by input-row order). If the inner query outputs an ordinary `TIMESTAMP` column but not the primary key column, TDengine automatically selects the first `TIMESTAMP` column as a degraded timeline.
     - If the result data of the inner query is not ordered by timestamp, then functions dependent on data being ordered by time will not work properly in the outer query. Examples include: LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE.
     - Functions that require two passes of scanning will not work properly in the outer query. Examples of such functions include: PERCENTILE.
 

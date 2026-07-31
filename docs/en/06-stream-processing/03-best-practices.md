@@ -71,7 +71,7 @@ CREATE stream sm1 count_window(1) FROM tb1
 
 ```SQL
 CREATE stream sm2 count_window(10, 1, col1) FROM tb1 
-  STREAM_OPTIONS(CALC_ONTIFY_ONLY | PRE_FILTER(col1 > 0)) 
+  STREAM_OPTIONS(CALC_NOTIFY_ONLY | PRE_FILTER(col1 > 0)) 
   NOTIFY("ws://localhost:8080/notify") ON (WINDOW_CLOSE) 
   AS 
     SELECT avg(col1) FROM %%trows;
@@ -113,11 +113,11 @@ CREATE stream sm2 INTERVAL(5m) SLIDING(5m) FROM stb1 PARTITION BY tbname
     SELECT _twstart, avg(col1) FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend;
 ```
 
-- Compute the per-minute average of the meter current, and send notifications to two target addresses when the window opens and closes. Do not send notifications during historical computation, and do not allow notifications to be dropped on delivery failure (pause and retry until delivered).
+- Compute the per-minute average of the meter current, and send notifications to two target addresses when the window opens and closes. Also send notifications during historical computation (`NOTIFY_HISTORY`).
 
 ```sql
 CREATE STREAM avg_stream INTERVAL(1m) SLIDING(1m) FROM meters 
-  NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON ('WINDOW_OPEN', 'WINDOW_CLOSE') NOTIFY_OPTIONS(NOTIFY_HISTORY | ON_FAILURE_PAUSE)
+  NOTIFY ('ws://localhost:8080/notify', 'wss://192.168.1.1:8080/notify?key=foo') ON (WINDOW_OPEN | WINDOW_CLOSE) NOTIFY_OPTIONS(NOTIFY_HISTORY)
   INTO avg_stb
   AS 
     SELECT _twstart, _twend, AVG(current) FROM %%trows;

@@ -801,5 +801,5 @@ If filter conditions remain only in upper-level operators and do not appear at t
 
 - [Query Data](./01-query.md)
 - [Feature Query](./06-distinguished.md)
-- [Join Queries](././07-join.md)
+- [Join Queries](./07-join.md)
 - [Tag Indices](../06-index-and-view/01-tagindex.md)

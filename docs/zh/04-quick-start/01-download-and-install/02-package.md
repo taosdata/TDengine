@@ -14,8 +14,9 @@ import PkgList from "/src/components/PkgList";
 
 请先确认已经完成以下准备：
 
-1. 已经选择要安装 TDengine 的操作系统环境。
+1. 已经选择要安装 TDengine 的操作系统环境，并确认机器满足最低要求。更多信息见 [支持的平台](../../12-operations-and-tooling/05-supported-platforms.md) 与 [系统要求](../../12-operations-and-tooling/02-operations/01-planning.md)。
 2. Linux 环境需要具备 `sudo` 权限；Windows 环境需要使用管理员权限运行相关命令。
+3. **（仅 Windows）** 安装程序会检查 Microsoft Visual C++ Redistributable 2015-2022 x64 14.44 或更高版本。若缺失或过旧，确认提示后可由安装程序安装自带的 14.50.35719.0 运行库。若安装失败，请从 [Microsoft Visual C++ Redistributable 最新受支持下载](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170) 获取最新包。
 
 ## 安装
 

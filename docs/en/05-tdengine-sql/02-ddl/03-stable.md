@@ -5,7 +5,11 @@ title: Supertables
 ## Create a Supertable
 
 ```sql
-CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definition] ...) TAGS (create_definition [, create_definition] ...) [table_options]
+CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name
+    (create_definition [, create_definition] ...)
+    TAGS (create_definition [, create_definition] ...)
+    [BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...]
+    [table_options]
  
 create_definition:
     col_name column_definition
@@ -26,13 +30,17 @@ table_option: {
 
 Notes:
 
+- For naming conventions for supertables and columns, see [Naming Rules](../11-appendix/02-limit.md#naming-rules).
+
 - A supertable can have a maximum of 4096 columns, including tag columns.
 
-- The maximum number of columns in a virtual supertable is 32767.
+- A virtual supertable can have a maximum of 32767 data columns. The number of tag columns is still limited to 128.
 
 - A supertable must have at least three columns: one timestamp column (the primary key column), one metric column, and one tag column.
 
-- `COMPOSITE KEY`: You can specify a second column for the primary key by using the `COMPOSITE KEY` keyword. The second primary key column must be of integer or `VARCHAR` type. This column, together with the timestamp column, forms a composite key.
+- The first column must be of type `TIMESTAMP`, and the system automatically sets it as the primary key.
+
+- `COMPOSITE KEY`: You can specify a second column for the primary key by using the `COMPOSITE KEY` keyword. The second primary key column must be an integer type such as `INT`, `BIGINT`, `INT UNSIGNED`, or `BIGINT UNSIGNED`, or a string type such as `VARCHAR` or `BINARY`. This column, together with the timestamp column, forms a composite key.
 
   If a supertable has a composite key, two records in the supertable are considered duplicates only when both the timestamp column and the second primary key column are identical. In such cases, the database keeps only the most recent record; otherwise, both records are retained.
 
@@ -59,12 +67,12 @@ Notes:
 
 ## View Supertables
 
-### All Supertables in the Current Database
+### All Supertables
 
-The following statement displays information about all supertables in the current database:
+The following statement displays information about all supertables in the specified database or the current database:
 
 ```sql
-SHOW STABLES [LIKE tb_name_wildcard];
+SHOW [db_name.]STABLES [LIKE 'pattern'];
 ```
 
 ### Supertable Creation Statement
@@ -72,7 +80,7 @@ SHOW STABLES [LIKE tb_name_wildcard];
 The following statement displays the SQL statement that was used to create the specified supertable.
 
 ```sql
-SHOW CREATE STABLE stb_name;
+SHOW CREATE STABLE [db_name.]stb_name;
 ```
 
 This can be helpful when migrating or cloning existing supertables.
@@ -90,13 +98,13 @@ DESCRIBE [db_name.]stb_name;
 The following statement displays the tag values of all subtables within a specified supertable:
 
 ```sql
-SHOW TABLE TAGS FROM stb_name [FROM db_name];
+SHOW TABLE TAGS [tag_name [, tag_name] ...] FROM table_name [FROM db_name];
 ```
 
 or
 
 ```sql
-SHOW TABLE TAGS FROM [db_name.]stb_name;
+SHOW TABLE TAGS [tag_name [, tag_name] ...] FROM [db_name.]table_name;
 ```
 
 The subtable name and the value of each tag are shown as follows:
@@ -169,7 +177,7 @@ Note that deleting a supertable does not immediately free all disk space used by
 The following statement modifies the parameters of an existing supertable:
 
 ```sql
-ALTER STABLE [db_name.]tb_name alter_table_clause
+ALTER STABLE [db_name.]stb_name alter_table_clause
  
 alter_table_clause: {
     alter_table_options
@@ -201,15 +209,16 @@ You can perform the following actions:
 
 - `ADD COLUMN`: Add a metric column to the supertable.
 - `DROP COLUMN`: Delete a metric column from the supertable. Note that this action deletes the metric column from all subtables within the supertable.
-- `MODIFY COLUMN`: Extend the length of a metric column of type `NCHAR` or `BINARY`.
+- `MODIFY COLUMN`: Extend the length of a metric column of a variable-length type such as `BINARY`, `VARCHAR`, or `NCHAR`.
   - You cannot modify metric columns of other types.
   - You cannot modify the length of a column to be shorter.
 - `ADD TAG`: Add a tag column to the supertable.
 - `DROP TAG`: Delete a tag column from the supertable. Note that this action deletes the tag column from all subtables within the supertable.
-- `MODIFY TAG`: Extend the length of a tag column of type `NCHAR` or `BINARY`.
+- `MODIFY TAG`: Extend the length of a tag column of a variable-length type such as `BINARY`, `VARCHAR`, or `NCHAR`.
   - You cannot modify tag columns of other types.
   - You cannot modify the length of a column to be shorter.
 - `RENAME TAG`: Change the name of a tag column in the supertable. Note that this action affects all subtables within the supertable.
+- `ADD BASE ON` / `DROP BASE ON`: Modify the inheritance relationship of a virtual supertable. For details, see [Virtual Table Inheritance](./04-virtualtable.md#alter-inheritance).
 
 :::important
 
@@ -241,7 +250,7 @@ The following statement modifies the length of a specified metric column in the 
 ALTER STABLE stb_name MODIFY COLUMN col_name data_type(length);
 ```
 
-- The specified column must be of type `NCHAR` or `BINARY`.
+- The specified column must be of a variable-length type such as `BINARY`, `VARCHAR`, or `NCHAR`.
 - The new length must be greater than the existing length. You cannot make a column shorter.
 
 ### Add a Tag
@@ -278,7 +287,7 @@ The following statement modifies the length of a specified tag column in the sup
 ALTER STABLE stb_name MODIFY TAG tag_name data_type(length);
 ```
 
-- The specified column must be of type `NCHAR` or `BINARY`.
+- The specified column must be of a variable-length type such as `BINARY`, `VARCHAR`, or `NCHAR`.
 - The new length must be greater than the existing length. You cannot make a column shorter.
 
 ### Querying Supertables

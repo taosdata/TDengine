@@ -116,7 +116,7 @@ Before submitting, click **Generate Preview** in the **Preview** area. Explorer 
 
 The preview is **static**: it only reads the type fields and derives the schema — it **does not create a subscription and does not write to TDengine**. It reuses the exact same rules as the runtime table creation, so **what you see in the preview is what actually gets created**.
 
-![Configuration preview](../../../assets/alarm-event-04.png)
+<!-- ![Configuration preview](../../../assets/alarm-event-04.png) -->
 
 :::tip
 As long as at least one event type is selected, the preview is always non-empty and deterministic, regardless of "whether an alarm happens to occur within the window." Always preview before submitting to confirm the table structure and filters.

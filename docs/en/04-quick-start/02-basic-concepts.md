@@ -22,6 +22,8 @@ These smart meters collect data based on external trigger events or preset perio
 
 ## Basic Concepts
 
+If you only need basic modeling first, focus on metrics, tags, data collection points, tables, supertables, and subtables. Virtual tables are for more complex analysis scenarios and can be explored later when needed.
+
 ### Metric
 
 A metric refers to a physical quantity, such as current, voltage, or temperature, obtained from a sensor, device, or other data collection point. Since these physical quantities change over time, the types of data collected are diverse, including integers, floating-point numbers, and strings. As time passes, the stored data will continue to grow. For example, in smart meters, current, voltage, and phase are typical metrics collected.
@@ -68,9 +70,7 @@ A subtable is a logical abstraction of a data collection point and is a specific
 - The table structure of subtables cannot be directly modified, but the columns and tags of the supertable can be modified, and the modifications take effect immediately for all subtables.
 - A supertable defines a template and does not store any data or tag information itself.
 
-In TDengine, query operations can be performed on both subtables and supertables. For queries on supertables, TDengine treats the data from all subtables as a whole, first filtering out the tables that meet the query conditions through tags, then querying the time-series data on these subtables separately, and finally merging the query results from each subtable. Essentially, by supporting queries on supertables, TDengine achieves efficient aggregation of multiple similar data collection points. To better understand the relationship between metrics, tags, supertables, and subtables, here is an example of a data model for smart meters. You can refer to the data model diagram below for a more intuitive understanding of these concepts.
-
-To better understand the relationship between metrics, tags, supertables, and subtables, taking smart meters as an example, refer to the following diagram.
+In TDengine, query operations can be performed on both subtables and supertables. For queries on supertables, TDengine treats the data from all subtables as a whole, first filtering out the tables that meet the query conditions through tags, then querying the time-series data on these subtables separately, and finally merging the query results from each subtable. Essentially, by supporting queries on supertables, TDengine achieves efficient aggregation of multiple similar data collection points. To better understand the relationship between metrics, tags, supertables, and subtables, taking smart meters as an example, refer to the following diagram.
 
 ![TDengine data model](../assets/basic-concepts-01.png)
 
@@ -78,7 +78,9 @@ To better understand the relationship between metrics, tags, supertables, and su
 
 The design of "one table per data collection point" and "supertables" addresses most challenges in time-series data management and analysis for industrial and IoT scenarios. However, in real-world scenarios, a single device often has multiple sensors with varying collection frequencies. For example, a wind turbine may have electrical parameters, environmental parameters, and mechanical parameters, each collected by different sensors at different intervals. This makes it difficult to describe a device with a single table, often requiring multiple tables. When analyzing data across multiple sensors, multi-level join queries become necessary, which can lead to usability and performance issues. From a user perspective, "one table per device" is more intuitive. However, directly implementing this model would result in excessive NULL values at each timestamp due to varying collection frequencies, reducing storage and query efficiency.
 
-To resolve this, TDengine introduces **Virtual Tables** (VTables). A virtual table is a logical entity that does not store physical data but enables analytical computations by dynamically combining columns from multiple source tables (subtables or regular tables). Like physical tables, virtual tables can be categorized into **virtual supertables**, **virtual subtables**, and **virtual regular tables**. A virtual supertable can represent a complete dataset for a device or group of devices, while each virtual subtable can flexibly reference columns from different sources. This allows users to define custom data views tailored to specific analytical needs, achieving a "personalized schema per user" effect. Virtual tables cannot be written to or deleted from but are queried like physical tables. The key distinction is that virtual table data is dynamically generated during queries; only columns referenced in a query are merged into the virtual table. Thus, the same virtual table may present entirely different datasets across different queries.
+To resolve this, TDengine introduces **Virtual Tables** (VTables). A virtual table is a logical entity that does not store physical data but enables analytical computations by dynamically combining columns from multiple source tables (subtables or regular tables). Like physical tables, virtual tables can be categorized into **virtual supertables**, **virtual subtables**, and **virtual regular tables**. A virtual supertable can represent a complete dataset for a device or group of devices, while each virtual subtable can flexibly reference columns from different sources. Virtual tables cannot be written to or deleted from but are queried like physical tables. The key distinction is that virtual table data is dynamically generated during queries; only columns referenced in a query are merged into the virtual table. Thus, the same virtual table may present entirely different datasets across different queries.
+
+This mechanism makes **write first, model later** practical. During collection and ingestion, you do not need to design table structures for complex analytics up front; you can write data in a form close to the device protocol (for example, a single-column model). After data is stored, create virtual tables for the business view you need. That reduces ingestion complexity and early modeling burden.
 
 #### Key Features of Virtual Supertables
 
@@ -96,14 +98,18 @@ In a database, one to many supertables can be included, but each supertable can 
 
 ### Timestamps
 
-Timestamps play a crucial role in time-series data processing, especially when applications need to access the database from multiple time zones, making the issue more complex. Before delving into how TDengine handles timestamps and time zones, let's first introduce a few basic concepts.
+Timestamps play a crucial role in time-series data processing, especially when applications need to access the database from multiple time zones. Before delving into how TDengine handles timestamps and time zones, here are a few basic concepts.
 
-- Local date and time: Refers to the local time of a specific region, usually expressed as a string in the format yyyy-MM-dd hh:mm:ss.SSS. This representation of time does not include any time zone information, such as "2021-07-21 12:00:00.000".
-- Time zone: Standard time in different geographical locations on Earth. Coordinated Universal Time (UTC) or Greenwich Mean Time is the international time standard, and other time zones are usually expressed as an offset from UTC, such as "UTC+8" representing East Eight Zone time. UTC timestamp: Represents the number of milliseconds since the UNIX epoch (i.e., UTC time January 1, 1970, at 0:00). For example, "1700000000000" corresponds to the date and time "2023-11-14 22:13:20 (UTC+0)". In TDengine, when saving time-series data, what is actually saved is the UTC timestamp. When writing data, TDengine handles timestamps in the following two ways.
-- RFC-3339 format: When using this format, TDengine can correctly parse time strings with time zone information into UTC timestamps. For example, "2018-10-03T14:38:05.000+08:00" will be converted into a UTC timestamp.
-- Non-RFC-3339 format: If the time string does not contain time zone information, TDengine will use the time zone setting of the application to automatically convert the time into a UTC timestamp.
+- Local date and time: The local time of a specific region, usually expressed as a string in the format `yyyy-MM-dd hh:mm:ss.SSS`, without time zone information, such as `2021-07-21 12:00:00.000`.
+- Time zone: Standard time for different geographic locations. Coordinated Universal Time (UTC) or Greenwich Mean Time is the international time standard; other time zones are usually expressed as an offset from UTC, such as `UTC+8` for UTC+08:00.
+- UTC timestamp: The number of milliseconds since the UNIX epoch (UTC 1970-01-01 00:00:00). For example, `1700000000000` corresponds to `2023-11-14 22:13:20 (UTC+0)`.
 
-When querying data, the TDengine client will automatically convert the saved UTC timestamps into local time according to the current time zone setting of the application, ensuring that users in different time zones can see the correct time information.
+When TDengine stores time-series data, it stores UTC timestamps. When writing data, TDengine handles timestamps in two ways:
+
+- RFC-3339 format: TDengine correctly parses time strings with time zone information into UTC timestamps. For example, `2018-10-03T14:38:05.000+08:00` is converted to a UTC timestamp.
+- Non-RFC-3339 format: If the time string has no time zone information, TDengine uses the application’s time zone setting to convert the time into a UTC timestamp automatically.
+
+When querying data, the TDengine client automatically converts stored UTC timestamps to local time according to the application’s current time zone setting, so users in different time zones see the correct local time.
 
 ## Continue Reading
 

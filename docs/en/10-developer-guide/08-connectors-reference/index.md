@@ -68,7 +68,7 @@ Supports **Execute SQL**
 ## Install Client Driver
 
 :::info
-You only need to install the client driver if you are using a native interface connector on a system where the TDengine server software is not installed.
+You only need to install the client driver if you are using a native interface connector on a system where the TDengine server software is not installed, or if you are using the C/C++ WebSocket connector.
 
 :::
 

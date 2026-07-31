@@ -1,128 +1,220 @@
 ---
-title: Data Types
+sidebar_label: Data Types and Precision
+title: Data Types and Precision
+description: Supported data types, time units, timestamps, literals, and constants in TDengine
 ---
+
+This page describes the data types, time units, timestamp rules, and constant forms available in TDengine SQL.
+
+## Data Type Overview
+
+In TDengine, the following data types can be used for normal tables, child tables, and supertables. Some types are restricted to specific positions; see the sections below.
+
+| Type | Storage | Description |
+| --- | --- | --- |
+| `TIMESTAMP` | 8 bytes | Timestamp. Default precision is milliseconds; can be set to microseconds or nanoseconds when creating a database. |
+| `BOOL` | 1 byte | Boolean. |
+| `TINYINT` | 1 byte | Signed single-byte integer, range `[-128, 127]`. |
+| `TINYINT UNSIGNED` | 1 byte | Unsigned single-byte integer, range `[0, 255]`. |
+| `SMALLINT` | 2 bytes | Signed short integer, range `[-32768, 32767]`. |
+| `SMALLINT UNSIGNED` | 2 bytes | Unsigned short integer, range `[0, 65535]`. |
+| `INT` | 4 bytes | Signed integer, range `[-2^31, 2^31-1]`. |
+| `INT UNSIGNED` | 4 bytes | Unsigned integer, range `[0, 2^32-1]`. |
+| `BIGINT` | 8 bytes | Signed long integer, range `[-2^63, 2^63-1]`. |
+| `BIGINT UNSIGNED` | 8 bytes | Unsigned long integer, range `[0, 2^64-1]`. |
+| `FLOAT` | 4 bytes | Single-precision float, about 6–7 significant digits, range about `[-3.4E38, 3.4E38]`. |
+| `DOUBLE` | 8 bytes | Double-precision float, about 15–16 significant digits, range about `[-1.7E308, 1.7E308]`. |
+| `BINARY` | Custom | Single-byte string; recommended for ASCII printable characters only. |
+| `VARCHAR` | Custom | Alias for `BINARY`. |
+| `NCHAR` | Custom | Multi-byte string; suitable for Chinese and other multi-byte characters. |
+| `VARBINARY` | Custom | Variable-length binary data. |
+| `GEOMETRY` | Custom | Geometry type; supports 2D `POINT`, `LINESTRING`, and `POLYGON`. |
+| `DECIMAL` | 8 or 16 bytes | High-precision numeric type; range depends on `precision` and `scale`. |
+| `BLOB` | Up to 4 MB | Large-object binary data. |
+| `JSON` | Custom | JSON tag type; can only be used for tag columns. |
+
+## General Limits
+
+- Maximum row length is 48 KB (64 KB starting from version 3.0.5.0). Each `BINARY`, `NCHAR`, `GEOMETRY`, or `VARBINARY` column also occupies an extra 2 bytes of storage.
+- Maximum length of `BINARY`, `VARBINARY`, and `GEOMETRY` data columns is 65,517 bytes; for tag columns it is 16,382 bytes.
+- Maximum length of a single `BLOB` column value is 4,194,304 bytes.
+- `JSON` can only be used for tag columns. If a JSON tag is used, there can be only one tag column.
+- `DECIMAL` is supported only for ordinary columns; tag columns are not supported yet.
+
+For naming limits on databases, tables, columns, and tags, see [Names & Limits](./11-appendix/02-limit.md).
 
 ## Time Units
 
-Wherever a time duration is required in TDengine SQL (time arithmetic, INTERVAL, EVERY, SLIDING, etc.), a single-character suffix is used to denote the unit. Supported time units, from smallest to largest, are:
+Wherever a time duration is required in TDengine SQL (time arithmetic, INTERVAL, EVERY, SLIDING, etc.), a single-character suffix denotes the unit. Supported time units, from smallest to largest:
 
-| Unit | Meaning        | Notes                                                        |
-| :--: | -------------- | ------------------------------------------------------------ |
-| `b`  | Nanoseconds    | Smallest precision unit; meaningful only when database precision is nanoseconds |
-| `u`  | Microseconds   | Meaningful only when database precision is microseconds or nanoseconds |
-| `a`  | Milliseconds   | Default database precision                                   |
-| `s`  | Seconds        |                                                              |
-| `m`  | Minutes        |                                                              |
-| `h`  | Hours          |                                                              |
-| `d`  | Days           |                                                              |
-| `w`  | Weeks (7 days) |                                                              |
-| `n`  | Natural month  | Calendar unit; only allowed in INTERVAL windows, not in time arithmetic, EVERY, SURROUND, etc. |
-| `q`  | Natural quarter | Calendar unit; equivalent to 3 natural months; only allowed in INTERVAL windows, not in time arithmetic, EVERY, SURROUND, etc. |
-| `y`  | Natural year   | Calendar unit; only allowed in INTERVAL windows, not in time arithmetic, EVERY, SURROUND, etc. |
+| Unit | Meaning | Notes |
+| :---: | --- | --- |
+| `b` | Nanoseconds | Smallest precision unit; meaningful only when database precision is nanoseconds. |
+| `u` | Microseconds | Meaningful only when database precision is microseconds or nanoseconds. |
+| `a` | Milliseconds | Default database precision. |
+| `s` | Seconds | |
+| `m` | Minutes | |
+| `h` | Hours | |
+| `d` | Days | |
+| `w` | Weeks | Fixed at 7 days. |
+| `n` | Natural month | Calendar unit; only allowed in `INTERVAL` windows, not in time arithmetic, `EVERY`, `SURROUND`, etc. |
+| `q` | Natural quarter | Calendar unit; equivalent to 3 natural months; only allowed in `INTERVAL` windows, not in time arithmetic, `EVERY`, `SURROUND`, etc. |
+| `y` | Natural year | Calendar unit; only allowed in `INTERVAL` windows, not in time arithmetic, `EVERY`, `SURROUND`, etc. |
 
 Unit letters are case-insensitive (e.g., `1S` equals `1s`).
+For full timezone and natural-unit semantics, see [Timezone and Natural Time Units](./10-time/01-timezone.md).
 
 ## Timestamp
 
-Using TDengine, the most important aspect is the timestamp. When creating and inserting records, or querying historical records, specifying the timestamp is necessary. The rules for timestamps are as follows:
+The timestamp is the primary key of time-series data in TDengine. Creating tables, writing data, and querying history usually require specifying a timestamp.
 
-- The time format is `YYYY-MM-DD HH:mm:ss.MS`, with the default time resolution being milliseconds. For example: `2017-08-12 18:25:58.128`
-- The internal function NOW represents the current time of the client
-- When inserting records, if the timestamp is NOW, the current time of the client submitting the record is used
-- Epoch Time: The timestamp can also be a long integer, representing the number of milliseconds since UTC time 1970-01-01 00:00:00. Accordingly, if the time precision of the Database is set to "microseconds", the meaning of the long integer format timestamp corresponds to the number of microseconds since UTC time 1970-01-01 00:00:00; the logic for nanoseconds precision is similar.
-- Time can be added or subtracted, such as NOW-2h, which indicates pushing the query time forward by 2 hours (the last 2 hours). Supported time units are described in the [Time Units](#time-units) section. For example `SELECT * FROM t1 WHERE ts > NOW-2w AND ts <= NOW-1w`, represents querying data for a whole week two weeks ago.
+- Time string format is `YYYY-MM-DD HH:mm:ss.MS`; default resolution is milliseconds, e.g. `2017-08-12 18:25:58.128`.
+- `NOW` is the client current time. When writing, if the timestamp is `NOW`, the submitting client’s current time is used.
+- A timestamp may also be a long integer representing elapsed time since UTC `1970-01-01 00:00:00`. The unit of the integer follows database precision: milliseconds, microseconds, or nanoseconds.
+- Time expressions support addition and subtraction, e.g. `NOW - 2h` means 2 hours before now. See [Time Units](#time-units).
 
-TDengine's default timestamp precision is milliseconds, but microseconds and nanoseconds are also supported by passing the `PRECISION` parameter during `CREATE DATABASE`.
+Default timestamp precision is milliseconds. When creating a database, set microseconds or nanoseconds with `PRECISION`.
 
 ```sql
 CREATE DATABASE db_name PRECISION 'ns';
 ```
 
-## Data Types
+For full `PRECISION` details, see [Create Database](./02-ddl/01-database.md).
 
-In TDengine, the following data types can be used in the data model of basic tables.
+## String, Binary, and Spatial Types
 
-| #    |     **Type**      | **Bytes** | **Description**                                              |
-| ---- | :---------------: | --------- | ------------------------------------------------------------ |
-| 1    |     TIMESTAMP     | 8         | Timestamp. Default precision is milliseconds, supports microseconds and nanoseconds, see the previous section for details. |
-| 2    |        INT        | 4         | Integer, range [-2^31, 2^31-1]                               |
-| 3    |   INT UNSIGNED    | 4         | Unsigned integer, [0, 2^32-1]                                |
-| 4    |      BIGINT       | 8         | Long integer, range [-2^63, 2^63-1]                          |
-| 5    |  BIGINT UNSIGNED  | 8         | Long integer, range [0, 2^64-1]                              |
-| 6    |       FLOAT       | 4         | Float, precision 6-7 digits, range [-3.4E38, 3.4E38]         |
-| 7    |      DOUBLE       | 8         | Double precision float, precision 15-16 digits, range [-1.7E308, 1.7E308] |
-| 8    |      BINARY       | Custom    | Records single-byte strings, recommended for handling ASCII visible characters only, multi-byte characters such as Chinese should use NCHAR |
-| 9    |     SMALLINT      | 2         | Short integer, range [-32768, 32767]                         |
-| 10   | SMALLINT UNSIGNED | 2         | Unsigned short integer, range [0, 65535]                     |
-| 11   |      TINYINT      | 1         | Single-byte integer, range [-128, 127]                       |
-| 12   | TINYINT UNSIGNED  | 1         | Unsigned single-byte integer, range [0, 255]                 |
-| 13   |       BOOL        | 1         | Boolean, {true, false}                                       |
-| 14   |       NCHAR       | Custom    | Records strings including multi-byte characters, such as Chinese characters. Each NCHAR character occupies 4 bytes of storage space. Strings are enclosed in single quotes, and single quotes within the string are escaped with `\'`. NCHAR usage must specify the string size, a column of type NCHAR(10) indicates that this column can store up to 10 NCHAR characters. If the user's string length exceeds the declared length, an error will be reported. |
-| 15   |       JSON        |           | JSON data type, only Tags can be in JSON format              |
-| 16   |      VARCHAR      | Custom    | Alias for BINARY type                                        |
-| 17   |     GEOMETRY      | Custom    | Geometry type, supported starting from version 3.1.0.0       |
-| 18   |     VARBINARY     | Custom    | Variable-length binary data, supported starting from version 3.1.1.0 |
-| 19   |      DECIMAL      | 8 or 16   | High-precision numeric type. The range of values depends on the precision and scale specified in the type. Supported starting from version 3.3.6. See the description below. |
-| 20   |      BLOB         | 4M        | Variable-length binary data, supported starting from version 3.3.7.0 |
+### BINARY and VARCHAR
 
-:::note
+`BINARY` stores single-byte strings; `VARCHAR` is an alias for `BINARY`. Store only ASCII printable characters in `BINARY`/`VARCHAR`; use `NCHAR` for Chinese and other multi-byte characters. Forcing Chinese into `BINARY` may sometimes read/write, but without charset information it easily causes garbled or corrupted data.
 
-- The maximum length of each row in a table cannot exceed 48KB (64KB starting from version 3.0.5.0) (Note: Each BINARY/NCHAR/GEOMETRY/VARBINARY type column will also occupy an additional 2 bytes of storage space).
-- Although the BINARY type supports byte-type binary characters at the storage level, different programming languages do not guarantee consistent handling of binary data. Therefore, it is recommended to store only ASCII visible characters in the BINARY type and avoid storing invisible characters. Multibyte data, such as Chinese characters, should be saved using the NCHAR type. If Chinese characters are forcibly saved using the BINARY type, although they can sometimes be read and written normally, they do not carry character set information, which can easily lead to data corruption or even data damage.
-- Theoretically, the BINARY type can be up to 16,374 bytes long (from version 3.0.5.0, data columns are 65,517 bytes, label columns are 16,382 bytes). BINARY only supports string input, which must be enclosed in single quotes. When used, the size must be specified, such as BINARY(20) defines a string up to 20 single-byte characters long, with each character occupying 1 byte of storage space, totaling a fixed 20 bytes of space. If the user's string exceeds 20 bytes, an error will be reported. For single quotes within the string, they can be represented by the escape character backslash followed by a single quote, i.e., `\'`.
-- GEOMETRY type data columns have a maximum length of 65,517 bytes, and label columns have a maximum length of 16,382 bytes. Supports 2D subtypes of POINT, LINESTRING, and POLYGON data. The length calculation method is shown in the following table:
+Specify a length when using `BINARY` or `VARCHAR`, e.g. `BINARY(20)` stores up to 20 single-byte characters. Strings are enclosed in single quotes; a single quote inside a string can be escaped as `\'`.
 
-    | #    | **Syntax**                           | **Minimum Length** | **Maximum Length** | **Increment per Coordinate Set** |
-    | ---- | ------------------------------------ | ------------------ | ------------------ | -------------------------------- |
-    | 1    | POINT(1.0 1.0)                       | 21                 | 21                 | None                             |
-    | 2    | LINESTRING(1.0 1.0, 2.0 2.0)         | 9+2*16             | 9+4094*16          | +16                              |
-    | 3    | POLYGON((1.0 1.0, 2.0 2.0, 1.0 1.0)) | 13+3*16            | 13+4094*16         | +16                              |
+### NCHAR
 
-- In SQL statements, the type of numerical values will be determined based on the presence of a decimal point or the use of scientific notation, so care must be taken to avoid type overflow. For example, 9999999999999999999 will be considered to exceed the upper boundary of long integers and overflow, while 9999999999999999999.0 will be considered a valid floating point number.
-- VARBINARY is a data type for storing binary data, with a maximum length of 65,517 bytes for data columns and 16,382 bytes for label columns. Binary data can be written via SQL or schemaless methods (needs to be converted to a string starting with `\x`), or through stmt methods (can use binary directly). Displayed as hexadecimal starting with `\x`.
+`NCHAR` stores strings that include multi-byte characters (e.g. Chinese). Each `NCHAR` character occupies 4 bytes. Specify character length when using it, e.g. `NCHAR(10)` stores up to 10 `NCHAR` characters. Writing a string longer than declared returns an error.
 
-- BLOB is a data type for storing binary data, with a maximum length of 419,430,465 bytes for data columns. BLOB data can be written via SQL or schemaless methods (needs to be converted to a string starting with `\x`), or through stmt methods (can use binary directly). Displayed as hexadecimal starting with `\x`.
+### VARBINARY
 
-:::
+`VARBINARY` stores variable-length binary data. It can be written via SQL or schemaless (convert to a string starting with `\x`), or bound directly as binary via `STMT`. Query display returns hexadecimal starting with `\x`.
 
-### DECIMAL Data Type
+### GEOMETRY
 
-The `DECIMAL` data type is used for high-precision numeric storage and is supported starting from version 3.3.6. The definition syntax is: `DECIMAL(18, 2)`, `DECIMAL(38, 10)`, where two parameters must be specified: `precision` and `scale`. `Precision` refers to the maximum number of significant digits supported, and `scale` refers to the maximum number of decimal places. For example, `DECIMAL(8, 4)` represents a range of `[-9999.9999, 9999.9999]`. When defining the `DECIMAL` data type, the range of `precision` is `[1, 38]`, and the range of `scale` is `[0, precision]`. If `scale` is 0, it represents integers only. You can also omit `scale`, in which case it defaults to 0. For example, `DECIMAL(18)` is equivalent to `DECIMAL(18, 0)`.
+`GEOMETRY` stores 2D geometry objects and supports `POINT`, `LINESTRING`, and `POLYGON`. Length calculation:
 
-When the `precision` value is less than or equal to 18, 8 bytes of storage (DECIMAL64) are used internally. When the `precision` is in the range `(18, 38]`, 16 bytes of storage (DECIMAL) are used. When writing `DECIMAL` type data in SQL, numeric values can be written directly. If the value exceeds the maximum representable value for the type, a `DECIMAL_OVERFLOW` error will be reported. If the value does not exceed the maximum representable value but the number of decimal places exceeds the `scale`, it will be automatically rounded. For example, if the type is defined as `DECIMAL(10, 2)` and the value `10.987` is written, the actual stored value will be `10.99`.
+| Syntax | Min length | Max length | Growth per coordinate set |
+| --- | --- | --- | --- |
+| `POINT(1.0 1.0)` | 21 | 21 | None |
+| `LINESTRING(1.0 1.0, 2.0 2.0)` | `9+2*16` | `9+4094*16` | `+16` |
+| `POLYGON((1.0 1.0, 2.0 2.0, 1.0 1.0))` | `13+3*16` | `13+4094*16` | `+16` |
 
-The `DECIMAL` type only supports regular columns and does not currently support tag columns. the `decimal` type supports sql-based and `stmt2` writes ,does not schemaless writes.
+## High-Precision Numeric Type DECIMAL
 
-When performing operations between integer types and the `DECIMAL` type, the integer type is converted to the `DECIMAL` type before the calculation. When the `DECIMAL` type is involved in calculations with `DOUBLE`, `FLOAT`, `VARCHAR`, or `NCHAR` types, it is converted to `DOUBLE` type for computation.
+The `DECIMAL` data type stores high-precision numbers. Definition syntax: `DECIMAL(18, 2)`, `DECIMAL(38, 10)`, where `precision` is the maximum number of significant digits and `scale` is the maximum number of fractional digits. For example, `DECIMAL(8, 4)` represents `[-9999.9999, 9999.9999]`.
 
-When querying `DECIMAL` type expressions, if the intermediate result of the calculation exceeds the maximum value that the current type can represent, a `DECIMAL_OVERFLOW` error is reported.
+When defining `DECIMAL`, `precision` is in `[1, 38]` and `scale` is in `[0, precision]`. `scale` 0 means integers only. You may omit `scale` (defaults to 0); `DECIMAL(18)` equals `DECIMAL(18, 0)`.
 
-### BLOB Data type
+When `precision` ≤ 18, storage is 8 bytes (`DECIMAL64`); when `precision` is in `(18, 38]`, storage is 16 bytes (`DECIMAL`). In SQL, write numeric values directly. Values exceeding the type’s maximum raise `DECIMAL_OVERFLOW`; values within range but with more fractional digits than `scale` are rounded. For example, type `DECIMAL(10, 2)` with value `10.987` stores `10.99`.
 
-The BLOB data type is used for storing binary data, with a maximum length of 4,194,304 bytes. Binary data can be written via SQL or stmt2 by converting it to a string that starts with `\x`, or directly as binary data using the stmt interface. When displayed, BLOB data is shown in hexadecimal format starting with `\x`
-`Limitations`
-Only one BLOB column is allowed per table.
-BLOB columns are not supported as tag columns.
-Currently, BLOB is not supported in virtual tables or stream computing.
-Conditional filtering on BLOB columns is not supported.
+`DECIMAL` supports SQL and `STMT2` writes; schemaless writes are not supported yet.
+
+Operations between integer types and `DECIMAL` convert the integer to `DECIMAL` first. Operations between `DECIMAL` and `DOUBLE`, `FLOAT`, `VARCHAR`, or `NCHAR` convert to `DOUBLE` first.
+
+When querying `DECIMAL` expressions, if an intermediate result exceeds the current type’s maximum, a `DECIMAL OVERFLOW` error is returned.
+
+## Large Object Type BLOB
+
+`BLOB` stores larger binary data, maximum length 4,194,304 bytes. Write via SQL or `STMT2`, or as a string starting with `\x`.
+
+When queried via the shell, `BLOB` is shown as a hexadecimal string starting with `\x`.
+
+Limits:
+
+- `BLOB` is allowed only in ordinary data columns, and at most one `BLOB` column.
+- Conditional filtering on `BLOB` columns is not supported.
+
+Other limits:
+
+- Not supported in virtual tables, stream computing, and related features.
+
+## JSON Tags
+
+`JSON` can only be used for tag columns. If a JSON tag is used, there can be only one tag column.
+
+### Syntax
+
+1. Create a JSON tag.
+
+   ```sql
+   CREATE STABLE s1 (ts TIMESTAMP, v1 INT) TAGS (info JSON);
+
+   CREATE TABLE s1_1 USING s1 TAGS ('{"k1": "v1"}');
+   ```
+
+2. Use the JSON value operator `->`.
+
+   ```sql
+   SELECT * FROM s1 WHERE info->'k1' = 'v1';
+
+   SELECT info->'k1' FROM s1;
+   ```
+
+3. Use `CONTAINS` to test whether a JSON key exists.
+
+   ```sql
+   SELECT * FROM s1 WHERE info CONTAINS 'k2';
+
+   SELECT * FROM s1 WHERE info CONTAINS 'k1';
+   ```
+
+### Supported Operations
+
+- In `WHERE`, `MATCH`, `NMATCH`, `BETWEEN ... AND`, `LIKE`, `AND`, `OR`, `IS NULL`, and `IS NOT NULL` are supported; `IN` is not.
+
+  ```sql
+  SELECT * FROM s1 WHERE info->'k1' MATCH 'v*';
+
+  SELECT * FROM s1 WHERE info->'k1' LIKE 'v%' AND info CONTAINS 'k2';
+
+  SELECT * FROM s1 WHERE info IS NULL;
+
+  SELECT * FROM s1 WHERE info->'k1' IS NOT NULL;
+  ```
+
+- JSON tags can appear in `GROUP BY`, `ORDER BY`, `JOIN`, `UNION ALL`, and subqueries, e.g. `GROUP BY info->'key'`.
+- `DISTINCT` is supported.
+- Full overwrite of JSON tag values is supported.
+- Renaming JSON tags is supported.
+- Adding/dropping JSON tags or changing JSON tag column width is not supported.
+
+### Other Constraints
+
+1. JSON key length cannot exceed 256 bytes and must be printable ASCII; total JSON string length cannot exceed 4096 bytes.
+2. Input may be empty (`""`, `"\t"`, `" "`, or `NULL`) or an object; non-empty strings, booleans, and arrays are not allowed.
+3. An object may be `{}`. If the object is `{}`, the whole JSON string is treated as empty. A key may be `""`; if so, that key-value pair is ignored.
+4. Values may be numbers (int/double), strings, bool, or null; arrays and nesting are not supported yet.
+5. If two identical keys appear, the first takes effect.
+6. Escape sequences in JSON strings are not supported yet.
+7. Querying a missing key returns NULL.
+8. When a JSON tag is a subquery result, the outer query cannot continue to parse that JSON string.
+
+The following are not supported:
+
+```sql
+SELECT jtag->'key' FROM (SELECT jtag FROM stable);
+
+SELECT jtag->'key' FROM (SELECT jtag FROM stable) WHERE jtag->'key' > 0;
+```
 
 ## Constants
 
-TDengine supports multiple types of constants, details as shown in the table below:
+TDengine supports the following constant forms.
 
-| #    |                     **Syntax**                     | **Type**  | **Description**                                              |
-| ---- | :------------------------------------------------: | --------- | ------------------------------------------------------------ |
-| 1    |                   [\{+ \| -}]123                   | BIGINT    | The literal type of integer values is always BIGINT. If the user input exceeds the range of BIGINT, TDengine truncates the value as BIGINT. |
-| 2    |                       123.45                       | DOUBLE    | The literal type of floating-point values is always DOUBLE. TDengine determines whether the value is an integer or floating point based on the presence of a decimal point or the use of scientific notation. |
-| 3    |                       1.2E3                        | DOUBLE    | The literal type for scientific notation is DOUBLE.          |
-| 4    |                       'abc'                        | BINARY    | Content enclosed in single quotes is a string literal, whose type is BINARY. The size of BINARY is the actual number of characters. For single quotes within the string, they can be represented by the escape character backslash followed by a single quote, i.e., `\'`. |
-| 5    |                       "abc"                        | BINARY    | Content enclosed in double quotes is a string literal, whose type is BINARY. The size of BINARY is the actual number of characters. For double quotes within the string, they can be represented by the escape character backslash followed by a single quote, i.e., `\"`. |
-| 6    |        TIMESTAMP \{'literal' \| "literal"}         | TIMESTAMP | The TIMESTAMP keyword indicates that the following string literal should be interpreted as a TIMESTAMP type. The string must meet the YYYY-MM-DD HH:mm:ss.MS format, with the time resolution being that of the current database. |
-| 7    |                  \{TRUE \| FALSE}                  | BOOL      | Boolean type literal.                                        |
-| 8    | \{'' \| "" \| '\t' \| "\t" \| ' ' \| " " \| NULL } | --        | Null value literal. Can be used for any type.                |
+- Integer literals: e.g. `123`, `+123`, `-123`, type `BIGINT`. Values outside the `BIGINT` range are truncated to `BIGINT`.
+- Floating-point literals: e.g. `123.45`, type `DOUBLE`.
+- Scientific-notation literals: e.g. `1.2E3`, type `DOUBLE`.
+- String literals: e.g. `'abc'` or `"abc"`, type `BINARY`, length is the actual character count. Use `\'` for single quotes and `\"` for double quotes inside the string.
+- Timestamp literals: e.g. `TIMESTAMP '2017-08-12 18:25:58.128'`, type `TIMESTAMP`. The string must match `YYYY-MM-DD HH:mm:ss.MS`; resolution follows the current database.
+- Boolean literals: `TRUE` or `FALSE`, type `BOOL`.
+- Null literals: empty string, tab, space, or `NULL`; usable for any type.
 
-:::note
-
-- TDengine determines whether a numeric type is an integer or a floating-point based on the presence of a decimal point or the use of scientific notation. Therefore, be aware of potential type overflow when using it. For example, 9999999999999999999 is considered to exceed the upper boundary of a long integer and will overflow, while 9999999999999999999.0 is considered a valid floating-point number.
-
-:::
+Numeric types in SQL are judged as integer or floating-point by decimal point or scientific notation. Watch for overflow: `9999999999999999999` overflows the long-integer upper bound, while `9999999999999999999.0` is a valid floating-point number.

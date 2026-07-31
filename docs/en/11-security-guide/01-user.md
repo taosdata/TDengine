@@ -5,13 +5,17 @@ description: Overview of TDengine user authentication and access control; full s
 toc_max_heading_level: 4
 ---
 
-TDengine is configured by default with only one root user, who has the highest permissions. TDengine supports access control for system resources, databases, tables, views, and topics. The root user can set different access permissions for each user for different resources. This section introduces user and permission management in TDengine. User and permission management is a feature unique to TDengine Enterprise.
+TDengine is configured by default with only one `root` user, who has the highest permissions. TDengine supports access control for system resources, databases, tables, views, and topics. This section summarizes common user and privilege operations and version differences. For complete syntax, defaults, and privilege matrices, see [Users](../05-tdengine-sql/07-user-and-privilege/01-user.md) and [Privileges](../05-tdengine-sql/07-user-and-privilege/02-grant.md).
 
-Starting from 3.4.0.0, TDengine Enterprise Edition implements a strict separation of three powers mechanism through role-based access control (RBAC). From versions 3.4.0.0 to 3.4.0.10, some syntax from version 3.3.x.y is not compatible. Starting from version 3.4.0.11, the syntax of version 3.3.x.y is also compatible. For more fine-grained permission management, it is recommended to use the new syntax introduced in version 3.4.0.0.
+:::info
+Fine-grained user and privilege management is an Enterprise feature. In Community Edition `3.3.x.y` and earlier, some grant syntax can be parsed but has no effect. Starting with `v3.4.0.0`, Community Edition reports an error when grant syntax is executed.
+:::
+
+Starting with `v3.4.0.0`, TDengine Enterprise implements separation of duties through role-based access control (RBAC). Versions `v3.4.0.0` through `v3.4.0.10` are incompatible with some `3.3.x.y` syntax. Starting with `v3.4.0.11`, legacy syntax is supported progressively. For fine-grained privilege management, use the syntax introduced in `v3.4.0.0`.
 
 ## Version Comparison
 
-| Feature | 3.3.x.y- | 3.4.0.0+ |
+| Feature | `3.3.x.y` and earlier | `v3.4.0.0` and later |
 |---------|---------|----------|
 | Basic User Management | ✓ | ✓ |
 | RBAC Role Management | ✗ | ✓ |
@@ -26,6 +30,8 @@ Starting from 3.4.0.0, TDengine Enterprise Edition implements a strict separatio
 
 ## User Management
 
+In addition to the common operations below, [Users](../05-tdengine-sql/07-user-and-privilege/01-user.md) documents strong-password policy, session limits, IP allowlists and blocklists, login windows, TOTP, and tokens (`CREATE TOKEN` / `SHOW TOKENS`). For allowlist operations, also see [Data Security](./03-data-security.md#ip-whitelisting).
+
 ### Creating Users
 
 Creating a user with the following syntax:
@@ -37,14 +43,14 @@ create user user_name pass'password' [sysinfo {1|0}] [createdb {1|0}]
 The parameters are explained as follows.
 
 - user_name: Up to 23 B long.
-- password: The password must be between 8 and 255 characters long. The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`, and this requirement is able to be closed by adding enableStrongPassword 0 in taos.cfg, or by the following SQL:
+- password: The password must be between 8 and 255 characters long and include at least three of these character types: uppercase letters, lowercase letters, numbers, and special characters. Supported special characters are `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`. Disable this requirement by setting `enableStrongPassword 0` in `taos.cfg`, or with:
 
 ```sql
 alter all dnodes 'EnableStrongPassword' '0'
 ```
 
 - sysinfo: Whether the user can view system information. 1 means they can view it, 0 means they cannot. System information includes server configuration information, various node information such as dnode, query node (qnode), etc., as well as storage-related information, etc. The default is to view system information.
-- createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot. The default value is 0. // Supported starting from TDengine Enterprise version 3.3.2.0
+- createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot. The default value is 0. Supported starting with TDengine Enterprise `v3.3.2.0`.
 
 The following SQL can create a user named test with the password abc123!@# who can view system information.
 
@@ -85,7 +91,7 @@ The parameters are explained as follows.
 - pass: Modify the user's password. After a password change, the server detects and disconnects connections established with the old password via heartbeat. Subsequent requests on the disconnected connections will return an authentication failure error (0x80000357). The connection that performed the password change itself is not affected. Token-based connections are not affected by this mechanism.
 - enable: Whether to enable the user. 1 means to enable this user, 0 means to disable this user.
 - sysinfo: Whether the user can view system information. 1 means they can view system information, 0 means they cannot.
-- createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot. // Supported starting from TDengine Enterprise version 3.3.2.0
+- createdb: Whether the user can create databases. 1 means they can create databases, 0 means they cannot. Supported starting with TDengine Enterprise `v3.3.2.0`.
 
 The following SQL disables the user test.
 
@@ -104,6 +110,8 @@ drop user user_name
 ## Permission Management
 
 Only the root user can manage system information such as users, nodes, vnode, qnode, snode, including querying, adding, deleting, and modifying.
+
+For the complete set of privilege objects, roles, and current syntax, see [Privileges](../05-tdengine-sql/07-user-and-privilege/02-grant.md).
 
 ### Granting Permissions to Databases and Tables
 
@@ -309,8 +317,15 @@ revoke subscribe on topic_name from test
 
 ---
 
-## Permission Management - 3.4.0.0+ Versions
+## Permission Management - `v3.4.0.0` and Later
 
-Starting from 3.4.0.0, TDengine Enterprise Edition implements a separation of three powers mechanism through role-based access control (RBAC). The management permissions of the root user are split into SYSDBA, SYSSEC, and SYSAUDIT three system management permissions, thus achieving effective isolation and checks and balances of permissions.
+Starting with `v3.4.0.0`, TDengine Enterprise implements separation of duties through role-based access control (RBAC). The management permissions of the `root` user are split into SYSDBA, SYSSEC, and SYSAUDIT permissions, providing isolation and checks and balances.
 
 For detailed information, please refer to the [Permission Management](../05-tdengine-sql/07-user-and-privilege/02-grant.md) section.
+
+## Recommended Practices
+
+1. **Least privilege**: use separate accounts or tokens for each application and grant only required database, table, and topic privileges. Do not share `root` credentials.
+2. **Separation of duties**: in Enterprise `v3.4.0.0` and later, use SYSDBA, SYSSEC, and SYSAUDIT roles so one account does not control database creation, authorization, and auditing.
+3. **Credential lifecycle**: rotate passwords and tokens regularly. Password changes disconnect sessions using the old password; token connections are not affected.
+4. **Audit integration**: audit important user and privilege changes. See [Audit and Compliance](./05-audit-and-compliance.md).

@@ -46,7 +46,7 @@ stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISOR
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
-notify_option: [NOTIFY_HISTORY | ON_FAILURE_PAUSE]
+notify_option: NOTIFY_HISTORY
 
 event_types:
     event_type [|event_type]
@@ -54,8 +54,10 @@ event_types:
 event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 
 tag_definition:
-    tag_name type_name [COMMENT 'string_value'] AS expr
+    tag_name type_name AS expr
 ```
+
+For version-specific support of stream timezones and natural time units (such as weeks, months, quarters, and years in `PERIOD`, `SLIDING`, and `INTERVAL`), see [Stream Timezone](../05-tdengine-sql/10-time/01-timezone.md#stream-timezone).
 
 ### Trigger Methods in Stream Processing
 
@@ -113,16 +115,17 @@ Applicable scenarios: Situations where calculations need to be driven continuous
 ##### Time Window Trigger
 
 ```sql
-INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val) 
+INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
 ```
 
 A time window trigger refers to triggering based on incoming data written to the trigger table, using event time and a fixed window size that slides over time. The INTERVAL window must be specified. This is a type of window trigger, and a trigger table must be specified.
 
 The starting point for a time window trigger is the beginning of the window. By default, windows are divided starting from Unix time 0 (1970-01-01 00:00:00 UTC). You can change the starting point of the window division by specifying a window time offset. Parameter definitions are as follows:
 
-- interval_val: Optional. The duration of the interval window.
+- interval_val: Required. The duration of the interval window.
 - interval_offset: Optional. The time offset for the interval window.
 - sliding_val: Required. The sliding duration based on event time.
+- offset_time: Optional. The time offset for the sliding trigger, with the same meaning as for a sliding trigger.
 
 Usage Notes:
 
@@ -255,7 +258,7 @@ Applicable Scenarios: Suitable for use cases where computations and/or notificat
 ##### Event Window Trigger (with Sub-Event Window Support)
 
 ```sql
-EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...] [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
 ```
 
 An event window trigger partitions the incoming data of the trigger table into windows based on event windows. It now supports specifying multiple start conditions and can further subdivide and manage sub-event windows within the original event window based on changes in the effective trigger condition, while introducing the concept of a parent event window to aggregate related sub-event windows. Parameter definitions are as follows:
@@ -371,7 +374,7 @@ By default, the results of a stream are stored in an output table. Each output t
 [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] 
 
 tag_definition:
-    tag_name type_name [COMMENT 'string_value'] AS expr
+    tag_name type_name AS expr
 ```
 
 Details are as follows:
@@ -386,7 +389,6 @@ Details are as follows:
 - `[TAGS (tag_definition [, ...])]`: Optional. Specifies the list of tag column definitions and values for the output supertable. This can only be specified if trigger grouping is present. If not specified, the tag column definitions and values are derived from all grouping columns, and in this case, grouping columns cannot have duplicate names. When grouping by subtable, the default generated tag column name is tag_tbname, with the type VARCHAR(270). When `ROLLUP BY` is used, the default tag value is the full path of the current rollup node. The tag_definition parameters are as follows:
   - `tag_name`: Name of the tag column.
   - `type_name`: Data type of the tag column.
-  - `string_value`: Description of the tag column.
   - `expr`: Tag value calculation expression, which can use any trigger table grouping columns (`from [PARTITION BY col1[, ...]]`). When `ROLLUP BY` is used, `%%1` and `%%rollup_tag` can be used; `_trollup_tbcount` cannot be used.
 
 ### Stream Processing Computation Tasks
@@ -479,22 +481,22 @@ notification_definition:
 event_types:
     event_type [|event_type]    
     
-event_type: {WINDOW_OPEN | WINDOW_CLOSE | ON_TIME | IDLE | RESUME}
+event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 ```
 
 Details:
 
 - url [, ...]: Specifies the target address(es) for notifications. Each URL must include the protocol, IP or domain, and port; it may also include a path and query parameters. Enclose the entire URL in quotes. Currently, only the WebSocket protocol is supported. Examples: `ws://localhost:8080`, `ws://localhost:8080/notify`, `ws://localhost:8080/notify?key=foo`.
-- [ON (event_types)]: Specifies the event types to notify; multiple values are allowed. For SLIDING (without INTERVAL) and PERIOD triggers, this clause is not required; for other trigger types, it is mandatory. Supported event types:
+- [ON (event_types)]: Specifies the event types to notify; separate multiple values with `|` (do not use strings or a comma-separated list). For SLIDING (without INTERVAL) and PERIOD triggers, this clause is not required; for other trigger types, it is mandatory. Supported event types:
   - WINDOW_OPEN: Window open event; sent when a group window in the trigger table opens.
   - WINDOW_CLOSE: Window close event; sent when a group window in the trigger table closes.
-  - ON_TIME: Scheduled trigger event; sent at the trigger time.
   - IDLE: Group idle event; sent when a group enters idle state. Requires `IDLE_TIMEOUT` to be configured in `STREAM_OPTIONS`.
   - RESUME: Group resume event; sent when an idle group receives data again. Requires `IDLE_TIMEOUT` to be configured in `STREAM_OPTIONS`.
+  - For `PERIOD` and plain `SLIDING` triggers, the notification payload uses `ON_TIME` as its `eventType`. `ON_TIME` is a payload value and cannot be specified in the `ON (...)` list.
 - [WHERE condition]: Specifies a condition that must be met for a notification to be sent. The condition may reference only columns from the computation result and/or constants.
-- [NOTIFY_OPTIONS(notify_option[|notify_option])]: Optional. Specifies one or more options to control notification behavior (use | to combine). Supported options:
+- [NOTIFY_OPTIONS(notify_option[|notify_option])]: Optional. Specifies notification behavior. The currently supported option is:
   - NOTIFY_HISTORY: Send notifications during historical computation. Default: not sent.
-  - ON_FAILURE_PAUSE: If sending to the target address fails, pause the stream task and retry in a loop until the notification is successfully delivered; the task then resumes. Default (when not specified): drop the notification (stream computation continues).
+  - `ON_FAILURE_PAUSE` is not currently supported; see [Rules and Limitations](./02-instructions.md#rules-and-limitations).
 
 When a specified event is triggered, taosd sends a POST request to the configured URL. The message body is in JSON format. A single request may contain events from multiple streams, and the event types may vary.
 The event information included depends on the window type:
@@ -567,7 +569,7 @@ An example structure of a notification message is shown below:
               "c1": 10,
               "c2": 15
             }
-          },
+          }
         },
         {
           "tableName": "t_96f62b752f36e9b16dc969fe45363748",
@@ -616,7 +618,7 @@ The following sections describe each field in the notification message.
 These fields are shared by all event objects:
 
 - tableName: String. The name of the target child table associated with the event. When there is no output, this field does not exist.
-- eventType: String. The type of event. Supported values are WINDOW_OPEN, WINDOW_CLOSE, WINDOW_INVALIDATION, IDLE, and RESUME.
+- eventType: String. The type of event. Supported values are ON_TIME, WINDOW_OPEN, WINDOW_CLOSE, WINDOW_INVALIDATION, IDLE, and RESUME.
 - eventTime: Long integer. The time the event was generated, in milliseconds since 00:00, Jan 1 1970 UTC.
 - triggerId: String. A unique identifier for the trigger event. Ensures that open and close events (if both exist) share the same ID, allowing external systems to correlate them. If taosd crashes and restarts, some events may be resent, but the same event will always retain the same triggerId.
 - triggerType: String. The type of trigger. Supported values include the two non-window types Period and SLIDING, as well as the five window types INTERVAL, State, Session, Event, and Count.
@@ -677,13 +679,15 @@ These fields apply only when triggerType is Session.
 These fields apply only when triggerType is Event.
 
 - If eventType = WINDOW_OPEN, the event object includes:
-- windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
-- triggerCondition: Information about the condition that opened the window, including:
-  - conditionIndex: Integer. The index of the condition that triggered the window open, starting from 0.
-  - fieldValue: Key–value pairs containing the condition column names and their corresponding values.
+  - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
+  - windowIndex: Integer. The index of a sub-event window within its parent window, starting from 0. For a regular event window or parent window, the value is -1.
+  - triggerCondition: Information about the condition that opened the window, including:
+    - conditionIndex: Integer. The index of the condition that triggered the window open, starting from 0.
+    - fieldValue: Key–value pairs containing the condition column names and their corresponding values.
 - If eventType = WINDOW_CLOSE, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
   - windowEnd: Long integer timestamp indicating the window’s end time. Precision matches the time precision of the result table.
+  - windowIndex: Integer. The index of a sub-event window within its parent window, starting from 0. For a regular event window or parent window, the value is -1.
   - triggerCondition: Information about the condition that closed the window, including:
     - conditionIndex: Integer. The index of the condition that triggered the window close, starting from 0.
     - fieldValue: Key–value pairs containing the condition column names and their corresponding values.
@@ -697,6 +701,7 @@ These fields apply only when triggerType is Count.
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
 - If eventType = WINDOW_CLOSE, the event object includes:
   - windowStart: Long integer timestamp indicating the window’s start time. Precision matches the time precision of the result table.
+  - windowEnd: Long integer timestamp indicating the window’s end time. Precision matches the time precision of the result table.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
 ##### Fields for Idle Triggers
@@ -735,21 +740,29 @@ DROP STREAM [IF EXISTS] [db_name.]stream_name [, [db_name.]stream_name] ...
 
 ### View Stream Information
 
-Displays the stream processing tasks in the current database or in a specified database.
+Displays the stream processing tasks in the current database or in a specified database. You can use `LIKE` to match stream names. See [SHOW STREAMS](../05-tdengine-sql/09-system-info/03-show.md#show-streams) for the full syntax.
 
 ```sql
-SHOW [db_name.]STREAMS;
+SHOW [db_name.]STREAMS [LIKE 'pattern'];
 ```
 
-For more detailed information, query the system table `information_schema.ins_streams`:
+To display the statement used to create a stream (supported from `v3.4.1.13`):
+
+```sql
+SHOW CREATE STREAM [db_name.]stream_name;
+```
+
+For more detailed information, query [`INS_STREAMS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_streams):
 
 ```sql
 SELECT * from information_schema.`ins_streams`;
 ```
 
+For recalculation records, see [`INS_STREAM_RECALCULATES`](../05-tdengine-sql/09-system-info/01-meta.md#ins_stream_recalculates).
+
 ### View Stream Tasks
 
-When a stream is running, it is executed as multiple tasks. Detailed task information can be obtained from the system table `information_schema.ins_stream_tasks`:
+When a stream is running, it is executed as multiple tasks. Detailed task information can be obtained from [`INS_STREAM_TASKS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_stream_tasks):
 
 ```sql
 SELECT * from information_schema.`ins_stream_tasks`;
@@ -768,7 +781,7 @@ Notes:
 - If IF EXISTS is not specified and the stream does not exist, an error is returned; if the stream exists, the stream processing is started.
 - If IF EXISTS is specified and the stream does not exist, the operation returns success; if the stream exists, the stream processing is started.
 - After a stream is created, it starts automatically. Manual start is only required if the stream has been stopped and needs to be resumed.
-- When a stream is started, any data written during the time the stream was stopped is processed as historical data.
+- Without `IGNORE UNTREATED`, data written but not processed while the stream was stopped is processed as historical data after restart. With `IGNORE UNTREATED`, that untreated data is skipped.
 
 ### Stop a Stream
 

@@ -29,7 +29,7 @@ Automated ARIMA modeling is performed in TDgpt. For this reason, the results for
 |max_p|The ending order of the autoregressive model. Enter an integer greater than or equal to 0. Values greater than 10 are not recommended.|No|
 |start_q|The starting order of the moving-average model. Enter an integer greater than or equal to 0. Values greater than 10 are not recommended.|No|
 |max_q|The ending order of the moving-average model. Enter an integer greater than or equal to 0. Values greater than 10 are not recommended.|No|
-|d|The order of differencing.|No|
+|conf|Confidence level. The default is `0.95`; end-to-end requests must use `(0, 1)` because the Anode rejects values greater than or equal to 1.|No|
 
 The `start_p`, `max_p`, `start_q`, and `max_q` parameters cause the model to find the optimal solution within the specified restrictions. Given the same input data, a larger range will result in higher resource consumption and slower response time.
 
@@ -38,20 +38,20 @@ The `start_p`, `max_p`, `start_q`, and `max_q` parameters cause the model to fin
 In this example, forecasting is performed on the `i32` column. Each 10 data points in the column form a period. The values of `start_p` and `start_q` are both 1, and the corresponding ending values are both 5. The forecasting results are within a 95% confidence interval.
 
 ```sql
-FORECAST(i32, "algo=arima,alpha=95,period=10,start_p=1,max_p=5,start_q=1,max_q=5")
+FORECAST(i32, "algo=arima,conf=0.95,period=10,start_p=1,max_p=5,start_q=1,max_q=5")
 ```
 
 The complete SQL statement is shown as follows:
 
 ```sql
-SELECT _frowts, FORECAST(i32, "algo=arima,alpha=95,period=10,start_p=1,max_p=5,start_q=1,max_q=5") from foo
+SELECT _frowts, FORECAST(i32, "algo=arima,conf=0.95,period=10,start_p=1,max_p=5,start_q=1,max_q=5") FROM foo;
 ```
 
-```json
+```json5
 {
 "rows": fc_rows,  // Rows returned
 "period": period, // Period of results (equivalent to input period)
-"alpha": alpha,   // Confidence interval of results (equivalent to input confidence interval)
+"conf": conf,     // Confidence level (equivalent to the input)
 "algo": "arima",  // Algorithm
 "mse": mse,       // Mean square error (MSE) of model generated for input time series
 "res": res        // Results in column format

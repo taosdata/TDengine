@@ -12,20 +12,26 @@ When inserting data using parameter binding, it can avoid the resource consumpti
 - Precompilation: When using parameter binding, the SQL statement can be precompiled and cached. When executed later with different parameter values, the precompiled version can be used directly, improving execution efficiency.  
 - Reduced network overhead: Parameter binding also reduces the amount of data sent to the database because only parameter values need to be sent, not the complete SQL statement, especially when performing a large number of similar insert or update operations, this difference is particularly noticeable.
 
-It is recommended to use parameter binding for data insertion.
+## Recommended Insert Forms
 
-   :::note
-   We only recommend using the following two forms of SQL for parameter binding data insertion:
+Parameter binding is recommended for inserts. Use one of the following two SQL forms.
 
-    ```sql
-    a. Ensure that the subtable exists. Not adding a tag can improve write performance. (If the subtable does not exist, this behavior is inconsistent with Taos Shell. Taos Shell automatically creates a table with a tag of NULL, and stmt reports an error to prevent accidental table creation due to incorrect table name setting)
-       1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?) 
-    b. The subtable does not exist, specify the tag to automatically create the subtable:
-       1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
-       2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
-    ```
+##### Existing Subtable
 
-   :::
+When the subtable already exists, omitting tags improves write performance. If the subtable does not exist, this behavior differs from `taos` shell: the shell automatically creates a table with `NULL` tags, while STMT returns an error to prevent accidental table creation caused by an incorrect table name.
+
+```sql
+INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?)
+```
+
+##### Create a Missing Subtable with Tags
+
+```sql
+INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)
+INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
+```
+
+## Example
 
 Next, we continue to use smart meters as an example to demonstrate the efficient writing functionality of parameter binding with various language connectors:
 
@@ -56,13 +62,13 @@ This is a [more detailed parameter binding example](https://github.com/taosdata/
 </TabItem>
 <TabItem label="Python" value="python">
 
-The following is an example code for using stmt2 to bind parameters (applicable to Python connector version 0.5.1 and above, and TDengine v3.3.5.0 and above):  
+The following example uses STMT2 to bind parameters (Python connector `0.5.1` and above and TDengine `v3.3.5.0` and above):
 
 ```python
 {{#include docs/examples/python/stmt2_ws.py}}
 ```
 
-The example code for stmt to bind parameters is as follows:
+The STMT parameter-binding example is shown below. The legacy STMT interface has stopped receiving maintenance since TDengine `v3.3.5.0`:
 
 ```python
 {{#include docs/examples/python/stmt_ws.py}}
@@ -70,7 +76,7 @@ The example code for stmt to bind parameters is as follows:
 
 </TabItem>
 <TabItem label="Go" value="go">
-Use the `ws/unified` stmt2 parameter binding interface (recommended, starting from `v3.8.0`):
+Use the `ws/unified` STMT2 parameter-binding interface (recommended starting with Go connector `3.8.0`):
 
 ```go
 {{#include docs/examples/go/stmt/unified/main.go}}

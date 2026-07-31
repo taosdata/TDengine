@@ -83,7 +83,7 @@ TSMA 的计算结果存放在与原始表同一数据库下的一张超级表中
 
 未指定窗口大小的查询，默认优先使用“覆盖全部查询聚合函数、且窗口最大”的 TSMA。例如 `SELECT COUNT(*) FROM stable GROUP BY tbname` 会使用包含 `COUNT(ts)` 且窗口最大的 TSMA。若聚合查询频率高，应尽可能创建大窗口 TSMA。
 
-指定窗口大小（即带 `INTERVAL`）时，使用最大的可整除窗口 TSMA。窗口查询中，`INTERVAL` 的窗口大小、`OFFSET` 以及 `SLIDING` 都会影响可用的 TSMA 窗口。若窗口查询较多，创建 TSMA 时需考虑常用窗口大小以及 `OFFSET`、`SLIDING`。
+指定窗口大小（即带 `INTERVAL`）时，使用最大的可整除窗口 TSMA。窗口查询中，`INTERVAL` 的窗口大小、`OFFSET` 以及 `SLIDING` 都会影响可用的 TSMA 窗口。可整除窗口 TSMA 是指其窗口大小能被查询语句的 `INTERVAL`、`OFFSET`、`SLIDING` 整除的 TSMA。若窗口查询较多，创建 TSMA 时需考虑常用窗口大小以及 `OFFSET`、`SLIDING`。
 
 例如：已创建窗口为 `5m` 与 `10m` 的两条 TSMA，查询 `INTERVAL(30m)` 时优先使用 `10m`；查询 `INTERVAL(30m, 10m) SLIDING(5m)` 时仅可使用 `5m`。
 

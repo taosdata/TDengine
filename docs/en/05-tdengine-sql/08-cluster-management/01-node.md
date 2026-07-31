@@ -1,5 +1,7 @@
 ---
+sidebar_label: Manage Nodes
 title: Manage Nodes
+description: SQL commands to manage dnodes, mnodes, qnodes, bnodes, and vnodes
 ---
 
 The physical entities that make up a TDengine cluster are dnodes (short for data nodes), which are processes running on top of the operating system. Within a dnode, vnodes (virtual nodes) can be established for storing time-series data. In a multi-node cluster environment, when the replica of a database is 3, each vgroup in that database consists of 3 vnodes; when the replica is 1, each vgroup consists of 1 vnode. To configure a database with multiple replicas, there must be at least 3 dnodes in the cluster. In a dnode, an mnode (management node) can also be created, with a maximum of three mnodes in a single cluster. In TDengine 3.0.0.0, to support separation of storage and computation, a new logical node called qnode (query node) was introduced, which can either coexist with a vnode in the same dnode or be completely separated on different dnodes.
@@ -25,14 +27,14 @@ This lists all the data nodes in the cluster, with fields including the dnode's 
 ## Delete Data Node
 
 ```sql
-DROP DNODE dnode_id [force] [unsafe]
+DROP DNODE {dnode_id | dnode_endpoint} [FORCE | UNSAFE]
 ```
 
 Note that deleting a dnode does not stop the corresponding process. It is recommended to stop the process after deleting a dnode.
 
-Only online nodes can be deleted. To forcibly delete an offline node, you need to perform a forced deletion operation, i.e., specify the force option.
+Only online nodes can be deleted. To forcibly delete an offline node, specify `FORCE`.
 
-If there is a single replica on the node and the node is offline, to forcibly delete the node, you need to perform an unsafe deletion, i.e., specify unsafe, and the data cannot be recovered.
+If there is a single replica on the node and the node is offline, to forcibly delete the node, specify `UNSAFE`; the data cannot be recovered. `FORCE` and `UNSAFE` are mutually exclusive—do not specify both.
 
 ## Modify Data Node Configuration
 
@@ -54,7 +56,7 @@ ALTER DNODE 1 'debugFlag' '143';
 
 ### Additional Notes
 
-Configuration parameters in a dnode are divided into global configuration parameters and local configuration parameters. You can check the category field in SHOW VARIABLES or SHOW DNODE dnode_id VARIABLE to determine whether a configuration parameter is a global configuration parameter or a local configuration parameter:
+Configuration parameters in a dnode are divided into global configuration parameters and local configuration parameters. You can check the category field in SHOW VARIABLES or SHOW DNODE dnode_id VARIABLES to determine whether a configuration parameter is a global configuration parameter or a local configuration parameter:
 
 Local configuration parameters: You can use ALTER DNODE or ALTER ALL DNODES to update the local configuration parameters of a specific dnode or all dnodes.
 Global configuration parameters: Global configuration parameters require consistency across all dnodes, so you can only use ALTER ALL DNODES to update the global configuration parameters of all dnodes.
@@ -63,7 +65,7 @@ There are three cases for whether a configuration parameter can be dynamically m
 Supports dynamic modification, effective immediately
 Supports dynamic modification, effective after restart
 Does not support dynamic modification
-For configuration parameters that take effect after a restart, you can see the modified values through SHOW VARIABLES or SHOW DNODE dnode_id VARIABLE, but you need to restart the database service to make them effective.
+For configuration parameters that take effect after a restart, you can see the modified values through SHOW VARIABLES or SHOW DNODE dnode_id VARIABLES, but you need to restart the database service to make them effective.
 
 ## Add Management Node
 
@@ -116,7 +118,7 @@ Delete the QNODE on the DNODE with ID dnode_id, but this does not affect the sta
 ## Create Subscription Node
 
 ```sql
-CREATE BNODE ON DNODE dnode_id PROTOCOL protocol;
+CREATE BNODE ON DNODE dnode_id [PROTOCOL protocol];
 ```
 
 By default, there are no BNODEs when the system starts. Users can create BNODEs to start subscription services. Only one BNODE can be created on a DNODE. The `PROTOCOL` is optional, and the default is “mqtt”, if not provided; Other protocols will be added later. After bnode is created successfully, dnode will start the subprocess `taosmqtt` to provide subscription services.
@@ -127,7 +129,7 @@ By default, there are no BNODEs when the system starts. Users can create BNODEs 
 SHOW BNODES;
 ```
 
-List all subscription nodes in the cluster, including their ID and the DNODE they are on.
+List all subscription nodes in the cluster, including their ID, protocol, create time, and the DNODE they are on.
 
 ## Delete Subscription Node
 

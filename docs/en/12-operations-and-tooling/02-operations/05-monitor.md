@@ -149,6 +149,38 @@ Each configuration also has corresponding command line options and environment v
 
 Monitoring-related configurations only take effect when taosX is running in server mode.
 
+## Integrating Grafana Dashboards into taosExplorer
+
+taosExplorer can embed existing Grafana dashboards.
+
+### Configure Grafana
+
+Edit `grafana.ini`. The `root_url` must include the subpath that taosExplorer proxies, and embedding must be enabled:
+
+```toml
+[server]
+root_url = http://<grafana-host>:3000/grafana
+serve_from_sub_path = true
+
+[security]
+allow_embedding = true
+```
+
+### Configure taosExplorer
+
+Edit `explorer.toml`. Use a Grafana address that the taosExplorer host can reach. Create a read-only Grafana API token to avoid granting unnecessary permissions.
+
+```toml
+[grafana]
+token = ""
+
+[grafana.dashboards]
+TDengine3 = "http://<grafana-host>:3000/d/000000001/tdengine3?theme=light&kiosk=tv"
+taosX = "http://<grafana-host>:3000/d/000000002/taosx?theme=light&kiosk=tv"
+```
+
+Append `theme=light&kiosk=tv` to each dashboard URL.
+
 ## Cluster Dashboard
 
 After logging into the explorer, switch to the "Dashboard" page, and you can view the cluster status. As shown in the following figure, it includes the number of taosd/taos-adapter/taosX/taos-keeper in the cluster, as well as the information of dnode hosts and the status of various service components.

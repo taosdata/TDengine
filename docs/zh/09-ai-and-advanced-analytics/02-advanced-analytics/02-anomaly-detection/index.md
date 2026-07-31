@@ -79,3 +79,5 @@ ANOMALY_WINDOW(i32, i8, "algo=ksigma,k=2");
 分析平台内置了若干异常检测模型，分为 3 个类别，分别是 [基于统计学的算法](./01-statistics-approach.md)、[基于数据密度的算法](./02-data-density.md)、以及 [基于机器学习的算法](./03-machine-learning.md)。在不指定异常检测使用的方法的情况下，默认调用 IQR 进行异常检测。可用算法以 `SHOW ANODES FULL` 实际返回为准，详见 [SHOW 命令](../../../05-tdengine-sql/09-system-info/03-show.md#show-anodes)。
 
 ### 异常检测算法有效性比较工具
+
+TDgpt 企业版提供模型评估工具，可使用查准率和查全率评估异常检测模型。配置与调用示例见 [模型评估工具](../../01-tdgpt/05-tools.md)。

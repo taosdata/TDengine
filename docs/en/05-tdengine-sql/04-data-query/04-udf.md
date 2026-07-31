@@ -56,7 +56,7 @@ CREATE [OR REPLACE] AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE 
   For example, the following statement can modify the buffer size of the already defined l2norm function to 64.
 
   ```sql
-  CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 64;
+  CREATE OR REPLACE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 64;
   ```
 
 About how to develop custom functions, please refer to [UDF Usage Instructions](../../10-developer-guide/06-udf.md).

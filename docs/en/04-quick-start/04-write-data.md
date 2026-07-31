@@ -1,43 +1,78 @@
 ---
 sidebar_label: Data Ingestion
 title: Data Ingestion
+description: Use SQL to write, update, and delete time-series data
+toc_max_heading_level: 4
 ---
 
-This chapter uses the data model of smart meters as an example to introduce how to write, update, and delete time-series data in TDengine using SQL.
+This chapter continues with the smart meter model from the previous chapter. You will quickly try writing, updating, and deleting time-series data in the shell: one or many rows at a time, multi-table inserts, automatic table creation, updates, and deletes.
+
+## Prerequisites
+
+Confirm that you have completed the earlier chapter:
+
+1. The TDengine service is running and you can connect with the shell.
+2. You understand the basic model of the `power` database, the `meters` supertable, and subtables such as `d1001` and `d1002`.
+
+If you have not created these objects yet, run the following SQL in the shell.
+
+```sql
+CREATE DATABASE IF NOT EXISTS power PRECISION 'ms' KEEP 3650 DURATION 10 BUFFER 16;
+
+USE power;
+
+CREATE STABLE IF NOT EXISTS meters (
+    ts timestamp,
+    current float,
+    voltage int,
+    phase float
+) TAGS (
+    location varchar(64),
+    group_id int
+);
+
+CREATE TABLE IF NOT EXISTS d1001
+USING meters TAGS ("California.SanFrancisco", 2);
+
+CREATE TABLE IF NOT EXISTS d1002
+USING meters TAGS ("California.SanFrancisco", 3);
+
+CREATE TABLE IF NOT EXISTS d1003
+USING meters TAGS ("California.LosAngeles", 2);
+
+CREATE TABLE IF NOT EXISTS d1004
+USING meters TAGS ("California.LosAngeles", 3);
+```
 
 ## Writing
 
-In TDengine, you can write time-series data using the SQL insert statement.
+In the shell, you can write time-series data with the `INSERT` statement.
 
 ### Writing One Record at a Time
 
-Assume that the smart meter with device ID d1001 collected data on October 3, 2018, at 14:38:05: current 10.3A, voltage 219V, phase 0.31. We have already created a subtable d1001 belonging to the supertable meters in the TDengine's power database. Next, you can write time-series data into the subtable d1001 using the following insert statement.
+Run the following SQL to write one row into subtable `d1001`: current 10.3A, voltage 219V, phase 0.31.
 
-1. You can write time-series data into the subtable d1001 using the following INSERT statement.
+```sql
+INSERT INTO d1001 (ts, current, voltage, phase) VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
+```
 
-   ```sql
-   INSERT INTO d1001 (ts, current, voltage, phase) VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
-   ```
+If `VALUES` includes all columns of the table, you can omit the column list. The effect is the same.
 
-   The above SQL writes `2018-10-03 14:38:05`, `10.3`, `219`, `0.31` into the columns `ts`, `current`, `voltage`, `phase` of the subtable `d1001`.
+```sql
+INSERT INTO d1001 VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
+```
 
-1. When the `VALUES` part of the `INSERT` statement includes all columns of the table, the list of fields before `VALUES` can be omitted, as shown in the following SQL statement, which has the same effect as the previous INSERT statement specifying columns.
+The timestamp column can also use a numeric timestamp in the database precision.
 
-   ```sql
-   INSERT INTO d1001 VALUES ("2018-10-03 14:38:05", 10.3, 219, 0.31);
-   ```
+```sql
+INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
+```
 
-1. For the table's timestamp column (the first column), you can also directly use the timestamp of the database precision.
-
-   ```sql
-   INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
-   ```
-
-The effects of the above three SQL statements are exactly the same.
+These three forms have the same effect.
 
 ### Writing Multiple Records at Once
 
-Assume that the smart meter with device ID d1001 collects data every 10s and reports data every 30s, i.e., it needs to write 3 records every 30s. Users can write multiple records in one insert statement. The following SQL writes a total of 3 records.
+Assume `d1001` collects data every 10 seconds and reports every 30 seconds. You can write 3 rows in one `INSERT` statement.
 
 ```sql
 INSERT INTO d1001 VALUES
@@ -46,33 +81,28 @@ INSERT INTO d1001 VALUES
  ("2018-10-03 14:38:25", 12.3, 221, 0.31);
 ```
 
-The above SQL writes a total of three records.
-
 ### Writing to Multiple Tables at Once
 
-Assume that the smart meters with device IDs d1001, d1002, and d1003, all need to write 3 records every 30 seconds. For such cases, TDengine supports writing multiple records to multiple tables at once.
+You can also write to `d1001`, `d1002`, and `d1003` in one statement. The following SQL writes 9 rows in total.
 
 ```sql
-INSERT INTO d1001 VALUES 
+INSERT INTO d1001 VALUES
     ("2018-10-03 14:38:05", 10.2, 220, 0.23),
     ("2018-10-03 14:38:15", 12.6, 218, 0.33),
-    ("2018-10-03 14:38:25", 12.3, 221, 0.31) 
-d1002 VALUES 
+    ("2018-10-03 14:38:25", 12.3, 221, 0.31)
+d1002 VALUES
     ("2018-10-03 14:38:04", 10.2, 220, 0.23),
     ("2018-10-03 14:38:14", 10.3, 218, 0.25),
     ("2018-10-03 14:38:24", 10.1, 220, 0.22)
 d1003 VALUES
     ("2018-10-03 14:38:06", 11.5, 221, 0.35),
     ("2018-10-03 14:38:16", 10.4, 220, 0.36),
-    ("2018-10-03 14:38:26", 10.3, 220, 0.33)
-;
+    ("2018-10-03 14:38:26", 10.3, 220, 0.33);
 ```
-
-The above SQL writes a total of nine records.
 
 ### Specifying Columns for Writing
 
-You can write data to specific columns of a table by specifying columns. Columns not appearing in the SQL will be automatically filled with NULL values. Note that the timestamp column must be present, and its value cannot be NULL. The following SQL writes one record to the subtable d1004. This record only includes voltage and phase, with the current value being NULL.
+When you write only some columns, columns that do not appear are filled with `NULL`. The timestamp column must be present and cannot be NULL. The following SQL writes voltage and phase into `d1004`, with current as `NULL`.
 
 ```sql
 INSERT INTO d1004 (ts, voltage, phase) VALUES ("2018-10-04 14:38:06", 223, 0.29);
@@ -80,7 +110,7 @@ INSERT INTO d1004 (ts, voltage, phase) VALUES ("2018-10-04 14:38:06", 223, 0.29)
 
 ### Automatic Table Creation on Insert
 
-Users can perform inserts using the `using` keyword for automatic table creation. If the subtable does not exist, it triggers automatic table creation before data insertion; if the subtable already exists, it directly inserts the data. An insert statement with automatic table creation can also specify only some tag columns for insertion, leaving the unspecified tag columns as NULL values. The following SQL inserts a record. If the subtable d1005 does not exist, it first creates the table automatically with the tag `group_id` value as NULL, then inserts the data.
+With an `INSERT` that uses the `USING` keyword, if the subtable does not exist, TDengine creates it automatically before writing; if it already exists, it writes directly. You can also specify only some tag columns; unspecified tags are `NULL`.
 
 ```sql
 INSERT INTO d1005
@@ -89,40 +119,43 @@ TAGS ("California.SanFrancisco")
 VALUES ("2018-10-04 14:38:07", 10.15, 217, 0.33);
 ```
 
-The insert statement with automatic table creation also supports inserting data into multiple tables in one statement. The following SQL uses an automatic table creation insert statement to insert 9 records.
+Automatic table creation also supports writing to multiple tables at once. The following SQL writes 9 rows in total.
 
 ```sql
-INSERT INTO d1001 USING meters TAGS ("California.SanFrancisco", 2) VALUES 
+INSERT INTO d1001 USING meters TAGS ("California.SanFrancisco", 2) VALUES
     ("2018-10-03 14:38:05", 10.2, 220, 0.23),
     ("2018-10-03 14:38:15", 12.6, 218, 0.33),
-    ("2018-10-03 14:38:25", 12.3, 221, 0.31) 
-d1002 USING meters TAGS ("California.SanFrancisco", 3) VALUES 
+    ("2018-10-03 14:38:25", 12.3, 221, 0.31)
+d1002 USING meters TAGS ("California.SanFrancisco", 3) VALUES
     ("2018-10-03 14:38:04", 10.2, 220, 0.23),
     ("2018-10-03 14:38:14", 10.3, 218, 0.25),
     ("2018-10-03 14:38:24", 10.1, 220, 0.22)
 d1003 USING meters TAGS ("California.LosAngeles", 2) VALUES
     ("2018-10-03 14:38:06", 11.5, 221, 0.35),
     ("2018-10-03 14:38:16", 10.4, 220, 0.36),
-    ("2018-10-03 14:38:26", 10.3, 220, 0.33)
-;
+    ("2018-10-03 14:38:26", 10.3, 220, 0.33);
 ```
 
 ### Inserting Through Supertables
 
-TDengine also supports direct data insertion into supertables. It is important to note that a supertable is a template and does not store data itself; the data is stored in the corresponding subtables. The following SQL inserts a record into the subtable d1001 by specifying the tbname column.
+You can also write directly to a supertable. The supertable itself does not store data; writes go to the corresponding subtable. The following SQL writes into `d1001` by specifying `tbname`.
 
 ```sql
 INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id)
 VALUES ("d1001", "2018-10-03 14:38:05", 10.2, 220, 0.23, "California.SanFrancisco", 2);
 ```
 
+### Writing Through Virtual Tables
+
+Note: Virtual tables and virtual supertables are generated dynamically and do not store data. They do not support writes.
+
 ### Zero-Code Insertion
 
-To facilitate easy data insertion for users, TDengine has seamlessly integrated with many well-known third-party tools, including Telegraf, Prometheus, EMQX, StatsD, collectd, and HiveMQ. Users only need to perform simple configurations on these tools to easily import data into TDengine. Additionally, TDengine Enterprise offers a variety of connectors, such as MQTT, OPC, AVEVA PI System, Wonderware, Kafka, MySQL, Oracle, etc. By configuring the corresponding connection information on the TDengine side, users can efficiently write data from different data sources into TDengine without writing any code.
+Besides writing SQL in the shell, you can import data through third-party tools such as Telegraf, Prometheus, EMQX, StatsD, collectd, and HiveMQ. TDengine TSDB Enterprise also provides connectors for MQTT, OPC, AVEVA PI System, Wonderware, Kafka, MySQL, Oracle, and more. After configuration, you can write data without application code. For a quick walkthrough, see [No-Code Data Ingestion](./10-no-code-ingestion.md).
 
 ## Update
 
-Data in time-series can be updated by inserting a record with a duplicate timestamp; the newly inserted data will replace the old values. The following SQL, by specifying columns, inserts 1 row of data into the subtable `d1001`; when there is already data with the datetime `2018-10-03 14:38:05` in subtable `d1001`, the new `current` (current) value 22 will replace the old value.
+Writing data with the same timestamp replaces the old values with the new ones. The following SQL updates the current of `d1001` at `2018-10-03 14:38:05` to `22`.
 
 ```sql
 INSERT INTO d1001 (ts, current) VALUES ("2018-10-03 14:38:05", 22);
@@ -130,8 +163,28 @@ INSERT INTO d1001 (ts, current) VALUES ("2018-10-03 14:38:05", 22);
 
 ## Delete
 
-To facilitate the cleanup of abnormal data caused by equipment failures and other reasons, TDengine supports deleting time-series data based on timestamps. The following SQL deletes all data in the supertable `meters` with timestamps earlier than `2021-10-01 10:40:00.100`. Data deletion is irreversible, so use it with caution. To ensure that the data being deleted is indeed what you want to delete, it is recommended to first use a select statement with the deletion condition in the where clause to view the data to be deleted, and confirm it is correct before executing delete.
+You can delete abnormal data by timestamp. The following SQL deletes data in the supertable `meters` earlier than `2021-10-01 10:40:00.100`.
 
 ```sql
 DELETE FROM meters WHERE ts < '2021-10-01 10:40:00.100';
 ```
+
+Deletion is irreversible. It is recommended to run a `SELECT` with the same `WHERE` condition first to confirm the rows to delete, then run `DELETE`.
+
+## View Compression Ratio
+
+After writing data, you can check the database compression ratio and disk usage.
+
+```sql
+SELECT * FROM INFORMATION_SCHEMA.INS_DISK_USAGE WHERE db_name = 'power';
+```
+
+You can also check the compression distribution of a single table.
+
+```sql
+SHOW TABLE DISTRIBUTED d1001;
+```
+
+For more on disk usage and distribution, see [View DB Disk Usage](../05-tdengine-sql/02-ddl/01-database.md#view-db-disk-usage) and [SHOW TABLE DISTRIBUTED](../05-tdengine-sql/09-system-info/03-show.md#show-table-distributed).
+
+For more write syntax, delete rules, and compression settings, continue with [Data Writing](../05-tdengine-sql/03-data-write/01-insert.md).

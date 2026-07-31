@@ -12,7 +12,7 @@ This document describes how to add trained machine or deep learning models to TD
 Save your model to the `/usr/local/taos/taosanode/model/` directory on the anode. If there are multiple files in your model, you can make a subdirectory for them. As an example, the following procedure adds an autoencoder-based anomaly detection model developed in Keras to TDgpt:
 
 The name of the model in TDgpt is `sample_ad_model`.
-For the code used to train the model, see [trainind_ad_model.py](https://github.com/taosdata/TDengine/tree/main/tools/tdgpt/taosanalytics/misc/training_ad_model.py).
+For the code used to train the model, see [train_ad_model.py](https://github.com/taosdata/TDengine/tree/main/tools/tdgpt/taosanalytics/misc/train_ad_model.py).
 For the data used to train the model, see the [art_daily_small_noise dataset](https://raw.githubusercontent.com/numenta/NAB/master/data/artificialNoAnomaly/art_daily_small_noise.csv) from NAB.
 The trained model consists of two files, which can be downloaded from [our GitHub repository](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/model/sample-ad-autoencoder/).
 
@@ -35,8 +35,7 @@ The `sample-ad-autoencoder` subdirectory is created in `/usr/local/taos/taosanod
 
 ## Load the Model into TDgpt
 
-In the `taosanalytics` folder, save Python code that loads and adapts the model for TDgpt. For reference, see [autoencoder.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/ad/autoencoder.py).
-The code for the sample model is installed by default, and the model is displayed in the output of the `SHOW ANODES FULL` statement.
+Add Python adapter code under `taosanalytics/algo/ad/` to load the model. For reference, copy [misc/autoencoder.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/misc/autoencoder.py) to that directory. Restart the Anode and run `UPDATE ALL ANODES`; the model then appears in `SHOW ANODES FULL`.
 
 The logic that you need to implement for your models is described as follows:
 
@@ -131,8 +130,8 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         if os.path.exists(module_info_path):
             info = joblib.load(module_info_path)
         else:
-            app_logger.log_inst.error("failed to load autoencoder model file: %s", module_file_path)
-            raise FileNotFoundError("%s not found", module_info_path)
+            app_logger.log_inst.error("failed to load autoencoder model info file: %s", module_info_path)
+            raise FileNotFoundError(f"{module_info_path} not found")
 
         # initialize additional model inference information to an object
         if info is not None:
@@ -152,7 +151,7 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 
 ## Use the Model in SQL
 
-The model has been preloaded into TDgpt and can be seen in the output of the `SHOW ANODES FULL` statement. Before you can use the model, restart the taosanode service, and then run `UPDATE ALL ANODES` to register the model in the mnode.
+After placing the adapter and model files, restart taosanode and run `UPDATE ALL ANODES`. Use `SHOW ANODES FULL` to confirm that the model is loaded.
 
 - Set the `algo` parameter in your queries to `sample_ad_model`  to instruct TDgpt to use the new algorithm.
 - Also set the `model` parameter to `sample-ad-autoencoder` to load your pretrained model.

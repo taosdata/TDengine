@@ -1,4 +1,5 @@
 ---
+description: Aggregation pushdown and two-phase window-query splitting for virtual tables
 sidebar_label: Virtual Table Query Optimization
 title: Virtual Table Query Optimization
 toc_max_heading_level: 4

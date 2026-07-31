@@ -42,16 +42,22 @@ Usage Notes:
 1. For table (column) naming conventions, see [Naming Rules](../11-appendix/02-limit.md).
 2. The maximum length for table names is 192 characters.
 3. The first field of the table must be TIMESTAMP, and the system automatically sets it as the primary key.
-4. In addition to the timestamp primary key column, a second column can be designated as an additional composite primary key column using the COMPOSITE KEY keyword. The second column designated as a composite primary key must be of integer or string type (VARCHAR).
-5. The maximum row length of a table cannot exceed 48KB (from version 3.0.5.0 onwards, 64KB); (Note: Each VARCHAR/NCHAR/GEOMETRY type column will also occupy an additional 2 bytes of storage space).
-6. When using data types VARCHAR/NCHAR/GEOMETRY, specify the maximum number of bytes, e.g., VARCHAR(20) indicates 20 bytes.
+4. In addition to the timestamp primary key column, a second column can be designated as an additional composite primary key column using the `COMPOSITE KEY` keyword. The second column designated as a composite primary key must be an integer type such as `INT`, `BIGINT`, `INT UNSIGNED`, or `BIGINT UNSIGNED`, or a string type such as `VARCHAR` or `BINARY`.
+5. The maximum row length of a table cannot exceed 64 KB. Each `BINARY`, `VARCHAR`, `NCHAR`, `GEOMETRY`, and `VARBINARY` column also occupies an additional 2 bytes of storage space.
+6. When using `BINARY`, `VARCHAR`, `VARBINARY`, or `GEOMETRY`, specify the maximum number of bytes. For example, `VARCHAR(20)` indicates up to 20 single-byte characters. When using `NCHAR`, specify the maximum number of characters. For example, `NCHAR(10)` indicates up to 10 `NCHAR` characters.
 7. For the use of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../03-data-write/03-compress.md)
 
 Parameter Description:
 
 1. COMMENT: Table comment. Can be used for supertables, subtables, and basic tables. The maximum length is 1024 bytes.
-2. SMA: Small Materialized Aggregates, provides block-based pre-computation to accelerate aggregation queries. Pre-computation types include MAX, MIN, and SUM. By default, the system creates block-wise SMA for most columns (some types such as BINARY/NCHAR are not created by default); if `SMA(col_name, ...)` is specified at table creation, block-wise SMA is created only for the listed columns; use `NOSMA` in column definitions to disable block-wise SMA for a column. Available for supertables/basic tables.
+2. SMA: Small Materialized Aggregates, provides block-based pre-computation to accelerate aggregation queries. Pre-computation types include MAX, MIN, and SUM. By default, the system creates block-wise SMA for most columns (some types such as `BINARY` and `NCHAR` are not created by default); if `SMA(col_name, ...)` is specified at table creation, block-wise SMA is created only for the listed columns. Available for supertables and basic tables.
 3. TTL: Time to Live, a parameter used by users to specify the lifespan of a table. If this parameter is specified when creating a table, TDengine automatically deletes the table after its existence exceeds the specified TTL time. This TTL time is approximate, the system does not guarantee deletion at the exact time but ensures that such a mechanism exists and will eventually delete it. TTL is measured in days, with a range of [0, 2147483647], defaulting to 0, meaning no limit, with the expiration time being the table creation time plus TTL time. TTL is not associated with the database KEEP parameter; if KEEP is smaller than TTL, data may be deleted before the table is removed.
+
+## Create Basic Table
+
+```sql
+CREATE TABLE [IF NOT EXISTS] tb_name (create_definition [, create_definition] ...);
+```
 
 ## Create Subtable
 
@@ -80,14 +86,14 @@ The batch table creation method requires that the tables must use a supertable a
 ### Using CSV to batch create subtables
 
 ```sql
-CREATE TABLE [IF NOT EXISTS] USING [db_name.]stb_name (field1_name [, field2_name] ....) FILE csv_file_path;
+CREATE TABLE [IF NOT EXISTS] USING [db_name.]stb_name (tbname [, tag_name] ...) FILE 'csv_file_path';
 ```
 
 Parameter Description:
 
-1. FILE syntax indicates that the data comes from a CSV file (separated by English commas, each value enclosed in English single quotes), and the CSV file does not need a header. The CSV file should only contain the table name and tag values. If you need to insert data, please refer to the 'Data Writing' section.
+1. `FILE` syntax indicates that the data comes from a CSV file (separated by English commas, with each value enclosed in English single quotes), and the CSV file does not need a header. The CSV file should contain only `tbname` and tag values. If you need to insert data, see [Data Writing](../03-data-write/01-insert.md).
 2. Create subtables for the specified stb_name, which must already exist.
-3. The order of the field_name list must be consistent with the order of the columns in the CSV file. The list must not contain duplicates and must include `tbname`, and it may contain zero or more tag columns already defined in the supertable. Tag values not included in the list will be set to NULL.
+3. The order of the field list must be consistent with the order of the columns in the CSV file. The list must not contain duplicates and must include `tbname`. It may contain zero or more tag columns already defined in the supertable. Tag values not included in the list will be set to `NULL`.
 
 ## Modify basic tables
 
@@ -119,8 +125,9 @@ The following modifications can be made to basic tables:
 1. ADD COLUMN: Add a column.
 2. DROP COLUMN: Delete a column.
 3. MODIFY COLUMN: Modify the column definition. If the data column type is variable length, this command can be used to increase its width, but not decrease it.
-4. RENAME COLUMN: Change the column name.
-5. The primary key columns of basic tables cannot be modified, nor can they be added or removed through ADD/DROP COLUMN.
+4. After `MODIFY COLUMN`, you can also specify column compression options such as `ENCODE`, `COMPRESS`, and `LEVEL`. See [Column Compression](../03-data-write/03-compress.md).
+5. RENAME COLUMN: Change the column name.
+6. The primary key columns of basic tables cannot be modified, nor can they be added or removed through `ADD COLUMN` or `DROP COLUMN`.
 
 Parameter Description:
 
@@ -223,22 +230,22 @@ You can delete one or more regular tables or subtables in a single SQL statement
 DROP TABLE [IF EXISTS] [db_name.]tb_name [, [IF EXISTS] [db_name.]tb_name] ...;
 ```
 
-**Note**: Deleting a table does not immediately free up the disk space occupied by the table. Instead, the table's data is marked as deleted. This data will not appear in queries, but freeing up disk space is delayed until the system automatically or the user manually reorganizes the data.
+**Note**: Deleting a table does not immediately free up the disk space occupied by the table. Instead, the table's data is marked as deleted. This data will not appear in queries, but freeing up disk space is delayed until the system automatically reorganizes the data, or until the user manually compacts the data by using the enterprise-only `COMPACT` feature.
 
 ## View Table Information
 
 ### Show All Tables
 
-The following SQL statement can list all the table names in the current database.
+The following SQL statement can list all basic and child tables in the specified database or the current database. `NORMAL` displays only basic tables, and `CHILD` displays only child tables.
 
 ```sql
-SHOW TABLES [LIKE tb_name_wildcard];
+SHOW [NORMAL | CHILD] [db_name.]TABLES [LIKE 'pattern'];
 ```
 
 ### Show Table Creation Statement
 
 ```sql
-SHOW CREATE TABLE tb_name;
+SHOW CREATE TABLE [db_name.]tb_name;
 ```
 
 Commonly used for database migration. For an existing table, it returns its creation statement; executing this statement in another cluster will produce a table with the exact same structure.

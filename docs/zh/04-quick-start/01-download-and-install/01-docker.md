@@ -31,6 +31,12 @@ description: 使用 Docker 快速体验 TDengine TSDB 的高效写入和查询
 docker pull tdengine/tsdb-ee:latest
 ```
 
+也可以拉取指定版本，例如：
+
+```bash tsdb-ee
+docker pull tdengine/tsdb-ee:{{VERSION}}
+```
+
 如果你无法直接访问 Docker Hub，可以前往 TDengine 产品下载中心的 [Docker 镜像下载页面](https://www.taosdata.com/download-center?product=TDengine+TSDB-Enterprise&platform=Docker)，获取 Docker 镜像下载链接。完成下载后，请根据页面中的离线安装提示加载镜像，并修改镜像名称和标签。
 
 ### 启动容器

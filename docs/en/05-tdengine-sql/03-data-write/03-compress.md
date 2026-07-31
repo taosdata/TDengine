@@ -1,10 +1,12 @@
 ---
+sidebar_label: Data Compression
 title: Data Compression
+description: Configure per-column encoding and compression algorithms
 ---
 
 Starting from version 3.3.0.0, TDengine provides more advanced compression features, allowing users to configure whether to compress each column at the time of table creation, as well as the compression algorithm and compression level used.
 
-## Compression Terminology Definition
+## Compression Terminology
 
 ### Compression Stages
 
@@ -15,72 +17,74 @@ Starting from version 3.3.0.0, TDengine provides more advanced compression featu
 
 In this document, it specifically refers to the internal levels of the second-level compression algorithms, such as zstd, with at least 8 levels available, each level having different performances. Essentially, it's a tradeoff between compression ratio, compression speed, and decompression speed. To avoid difficulty in choosing, it is simplified into the following three levels:
 
-- high: Highest compression ratio, relatively worst compression and decompression speeds.
-- low: Best compression and decompression speeds, relatively lowest compression ratio.
-- medium: Balances compression ratio, compression speed, and decompression speed.
+- `high`: Highest compression ratio, relatively worst compression and decompression speeds.
+- `low`: Best compression and decompression speeds, relatively lowest compression ratio.
+- `medium`: Balances compression ratio, compression speed, and decompression speed.
 
-### List of Compression Algorithms
+## Algorithms and Defaults
 
-- Encoding algorithms list (First-level compression): simple8b, bit-packing, delta-i, delta-d, disabled, bss(byte-stream-split)
+- Encoding algorithms (first-level compression): `simple8b`, `bit-packing`, `delta-i`, `delta-d`, `disabled`, `bss` (byte-stream-split)
+- Compression algorithms (second-level compression): `lz4`, `zlib`, `zstd`, `tsz`, `xz`, `disabled`
 
-- Compression algorithms list (Second-level compression): lz4, zlib, zstd, tsz, xz, disabled
+Available algorithms and defaults for each data type:
 
-- Default compression algorithms list and applicable range for each data type
+| Data Type | Available Encoding Algorithms | Default Encoding Algorithm | Available Compression Algorithms | Default Compression Algorithm | Default Compression Level |
+| --- | --- | --- | --- | --- | --- |
+| `INT` / `UINT` | `disabled` / `simple8b` | `simple8b` | `lz4` / `zlib` / `zstd` / `xz` | `lz4` | `medium` |
+| `TINYINT` / `UTINYINT` / `SMALLINT` / `USMALLINT` | `disabled` / `simple8b` | `simple8b` | `lz4` / `zlib` / `zstd` / `xz` | `zlib` | `medium` |
+| `BIGINT` / `UBIGINT` | `disabled` / `simple8b` / `delta-i` | `simple8b` | `lz4` / `zlib` / `zstd` / `xz` | `lz4` | `medium` |
+| `TIMESTAMP` | `disabled` / `delta-i` | `delta-i` | `lz4` / `zlib` / `zstd` / `xz` | `lz4` | `medium` |
+| `FLOAT` / `DOUBLE` | `disabled` / `delta-d` / `bss` | `bss` | `lz4` / `zlib` / `zstd` / `xz` / `tsz` | `lz4` | `medium` |
+| `BINARY` / `NCHAR` | `disabled` | `disabled` | `lz4` / `zlib` / `zstd` / `xz` | `zstd` | `medium` |
+| `BOOL` | `disabled` / `bit-packing` | `bit-packing` | `lz4` / `zlib` / `zstd` / `xz` | `zstd` | `medium` |
+| `DECIMAL` | `disabled` | `disabled` | `lz4` / `zlib` / `zstd` / `xz` | `zstd` | `medium` |
 
-| Data Type                            | Available Encoding Algorithms | Default Encoding Algorithm | Available Compression Algorithms | Default Compression Algorithm | Default Compression Level |
-| :----------------------------------- | :---------------------------- | :------------------------- | :------------------------------- | :---------------------------- | :------------------------ |
-| int/uint                             | disabled/simple8b             | simple8b                   | lz4/zlib/zstd/xz                 | lz4                           | medium                    |
-| tinyint/untinyint/smallint/usmallint | disabled/simple8b             | simple8b                   | lz4/zlib/zstd/xz                 | zlib                          | medium                    |
-| bigint/ubigint/timestamp             | disabled/simple8b/delta-i     | delta-i                    | lz4/zlib/zstd/xz                 | lz4                           | medium                    |
-| float/double                         | disabled/delta-d/bss          | bss                        | lz4/zlib/zstd/xz/tsz             | lz4                           | medium                    |
-| binary/nchar                         | disabled                      | disabled                   | lz4/zlib/zstd/xz                 | zstd                          | medium                    |
-| bool                                 | disabled/bit-packing          | bit-packing                | lz4/zlib/zstd/xz                 | zstd                          | medium                    |
-| decimal                              | disabled                      | disabled                   | lz4/zlib/zstd/xz                 | zstd                          | medium                    |
+`tsz` applies only to `FLOAT` and `DOUBLE`.
 
 ## SQL Syntax
 
 ### Specifying Compression When Creating Tables
 
 ```sql
-CREATE [dbname.]tabname (colName colType [ENCODE 'encode_type'] [COMPRESS 'compress_type' [LEVEL 'level'], [, other create_definition]...])
+CREATE TABLE [db_name.]tb_name (
+    col_name col_type
+        [ENCODE 'encode_type']
+        [COMPRESS 'compress_type']
+        [LEVEL 'level']
+    [, ...]
+);
 ```
 
-Parameter Description:
+Supertable column definitions also support `ENCODE`, `COMPRESS`, and `LEVEL`; see [Create a Supertable](../02-ddl/03-stable.md#create-a-supertable).
 
-- tabname: Name of the supertable or basic table
-- encode_type: First-level compression, see the list above
-- compress_type: Second-level compression, see the list above
-- level: Specifically refers to the level of second-level compression, default is medium, supports abbreviation as 'h'/'l'/'m'
+**Parameter Description**
 
-Function Description:
-
-- Specify the compression method for columns when creating a table
+- `tb_name`: Name of the basic table or supertable
+- `encode_type`: First-level compression (encoding); see the list above
+- `compress_type`: Second-level compression; see the list above
+- `level`: Second-level compression level; default is `medium`; also supports abbreviations `'h'` / `'l'` / `'m'`
 
 ### Changing the Compression Method of a Column
 
 ```sql
-ALTER TABLE [db_name.]tabName MODIFY COLUMN colName [ENCODE 'ecode_type'] [COMPRESS 'compress_type'] [LEVEL "high"]
-
+ALTER TABLE [db_name.]tb_name MODIFY COLUMN col_name
+    [ENCODE 'encode_type']
+    [COMPRESS 'compress_type']
+    [LEVEL 'level'];
 ```
 
-Parameter Description:
+**Parameter Description**
 
-- tabName: Table name, can be a supertable or a basic table
-- colName: Column for which the compression algorithm is to be changed, can only be a normal column
-
-Function Description:
-
-- Change the compression method of a column
+- `tb_name`: Table name; can be a supertable or a basic table
+- `col_name`: Column whose compression settings will change; can only be a normal column
 
 ### Viewing the Compression Method of a Column
 
 ```sql
-DESCRIBE [dbname.]tabName
+DESCRIBE [db_name.]tb_name;
 ```
 
-Function Description:
-
-- Displays basic information of the column, including type and compression method
+`DESCRIBE` shows basic column information, including type and compression settings.
 
 ## Compatibility
 
