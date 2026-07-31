@@ -944,10 +944,12 @@ _exit:
   return code;
 }
 
-// Virtual normal table tags for SHOW CREATE round-trip: emits `name TYPE`, plus
-// ` FROM db.tb.tag` for tag-refs and ` = value` for owned tags holding a non-NULL value
-// (NULL is the default and is omitted). Mirrors appendColumnFields' inline `FROM` handling.
-static int32_t appendVTableTagFields(char* buf, int32_t* len, STableCfg* pCfg, void* charsetCxt) {
+// Inline TAGS clause for SHOW CREATE round-trip (virtual-normal AND normal tables): emits
+// `name TYPE`, plus ` FROM db.tb.tag` for tag-refs and ` = value` for owned tags. A NULL-
+// valued owned tag renders ` = NULL` (not omitted) because the inline CREATE form requires
+// an explicit tag value — a bare `name TYPE` would be rejected on replay. Normal tables have
+// no tag-refs, so only the owned branch applies there.
+static int32_t appendInlineTagFields(char* buf, int32_t* len, STableCfg* pCfg, void* charsetCxt) {
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* pTagVals = NULL;
   char    expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
@@ -995,14 +997,17 @@ static int32_t appendVTableTagFields(char* buf, int32_t* len, STableCfg* pCfg, v
       continue;
     }
 
-    // owned tag: append " = value" when a non-NULL value is present (pTagVals is sorted by cid)
+    // owned tag: append ` = value` when a value is present; otherwise ` = NULL`. pTagVals is
+    // sorted by cid and holds only set (non-NULL) values, so a NULL-owned tag is absent and
+    // falls through to the ` = NULL` fallback below.
+    bool valueEmitted = false;
     while (j < valueNum) {
       STagVal* v = (STagVal*)taosArrayGet(pTagVals, j);
       if (v->cid < pSchema->colId) {
         j++;
         continue;
       }
-      if (v->cid > pSchema->colId) break;  // no value for this tag (NULL) — omit
+      if (v->cid > pSchema->colId) break;  // no value for this tag (NULL)
       *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
                        " = ");
       int32_t tlen = 0;
@@ -1020,76 +1025,12 @@ static int32_t appendVTableTagFields(char* buf, int32_t* len, STableCfg* pCfg, v
       TAOS_CHECK_ERRNO(code);
       *len += tlen;
       j++;
+      valueEmitted = true;
       break;
     }
-  }
-
-_exit:
-  taosArrayDestroy(pTagVals);
-  return code;
-}
-
-// Normal table tags for SHOW CREATE round-trip: a normal table cannot declare tags inline —
-// `CREATE TABLE ... TAGS (...)` would create a super table — so emit replayable ALTER statements
-// after the CREATE: one ADD TAG per tag, plus SET TAG for each tag holding a non-NULL value
-// (NULL is the default and is omitted).
-static int32_t appendNtbTagAlterStmts(char* buf, int32_t* len, const char* tbName, STableCfg* pCfg,
-                                      void* charsetCxt) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SArray* pTagVals = NULL;
-  char    expandName[(TSDB_COL_NAME_LEN << 1) + 1] = {0};
-
-  STag* pTag = (STag*)pCfg->pTags;
-  if (pTag != NULL && !tTagIsJson(pTag)) {
-    code = tTagToValArray((const STag*)pCfg->pTags, &pTagVals);
-    TAOS_CHECK_ERRNO(code);
-  }
-  int32_t valueNum = pTagVals ? taosArrayGetSize(pTagVals) : 0;
-  int32_t j = 0;
-
-  for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
-    SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
-
-    char type[64];
-    snprintf(type, sizeof(type), "%s", tDataTypes[pSchema->type].name);
-    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type || TSDB_DATA_TYPE_VARBINARY == pSchema->type ||
-        TSDB_DATA_TYPE_GEOMETRY == pSchema->type) {
-      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
-               (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
-    } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
-      snprintf(type + strlen(type), sizeof(type) - strlen(type), "(%d)",
-               (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
-    }
-
-    *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                     "; ALTER TABLE `%s` ADD TAG `%s` %s", tbName, expandIdentifier(pSchema->name, expandName), type);
-
-    // SET TAG for a non-NULL value (pTagVals is sorted by cid)
-    while (j < valueNum) {
-      STagVal* v = (STagVal*)taosArrayGet(pTagVals, j);
-      if (v->cid < pSchema->colId) {
-        j++;
-        continue;
-      }
-      if (v->cid > pSchema->colId) break;  // no value for this tag (NULL) — omit
+    if (!valueEmitted) {
       *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                       "; ALTER TABLE `%s` SET TAG `%s` = ", tbName, expandIdentifier(pSchema->name, expandName));
-      int32_t tlen = 0;
-      int64_t leftSize = SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len);
-      if (leftSize <= 0) {
-        code = TSDB_CODE_APP_ERROR;
-        TAOS_CHECK_ERRNO(code);
-      }
-      if (IS_VAR_DATA_TYPE(v->type)) {
-        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, v->type, v->pData, v->nData, &tlen);
-      } else {
-        code = dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, leftSize, v->type, &v->i64, tDataTypes[v->type].bytes,
-                               &tlen);
-      }
-      TAOS_CHECK_ERRNO(code);
-      *len += tlen;
-      j++;
-      break;
+                       " = NULL");
     }
   }
 
@@ -1260,15 +1201,21 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                     "CREATE TABLE `%s` (", expandIdentifier(tbName, buf1));
     appendColumnFields(buf2, &len, pCfg);
-    len +=
-        snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len), ")");
-    appendTableOptions(buf2, &len, pDbCfg, pCfg);
-    // normal-table tags cannot be declared inline (a TAGS clause on CREATE TABLE would create a
-    // super table); emit replayable ALTER statements after the CREATE instead.
     if (pCfg->numOfTags > 0) {
-      code = appendNtbTagAlterStmts(buf2, &len, expandIdentifier(tbName, buf1), pCfg, charsetCxt);
+      // SHOW CREATE emits the table's final form: an inline TAGS clause. Every owned tag
+      // carries `= value` (NULL renders `= NULL`); all tags valued selects the normal-table
+      // path on replay, not the all-valueless super-table path.
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ") TAGS (");
+      code = appendInlineTagFields(buf2, &len, pCfg, charsetCxt);
       TAOS_CHECK_ERRNO(code);
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ")");
+    } else {
+      len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
+                      ")");
     }
+    appendTableOptions(buf2, &len, pDbCfg, pCfg);
   } else if (TSDB_VIRTUAL_NORMAL_TABLE == pCfg->tableType) {
     len += snprintf(buf2 + VARSTR_HEADER_SIZE, SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE,
                     "CREATE VTABLE `%s` (", expandIdentifier(tbName, buf1));
@@ -1298,7 +1245,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     if (pCfg->numOfTags > 0) {
       len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
                       " TAGS (");
-      code = appendVTableTagFields(buf2, &len, pCfg, charsetCxt);
+      code = appendInlineTagFields(buf2, &len, pCfg, charsetCxt);
       TAOS_CHECK_ERRNO(code);
       len += snprintf(buf2 + VARSTR_HEADER_SIZE + len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + len),
                       ")");
