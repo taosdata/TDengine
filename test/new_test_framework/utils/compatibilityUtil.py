@@ -762,7 +762,7 @@ class CompatibilityBase:
         tdsql.query(f"select count(*) from {stb}")
         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
 
-    def checkstatus(self,retry_times=30):
+    def checkstatus(self,retry_times=60):
         
         # sleep before check status to avoid dnodes not ready issue
         time.sleep(30)
