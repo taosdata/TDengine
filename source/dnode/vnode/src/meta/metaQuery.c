@@ -63,6 +63,13 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
 
   // decode the entry
   tFreeSSeriesWrapper(&pReader->me.series);
+  // The bit-5 tag trailer is optional: a record without it must leave the tag fields
+  // zeroed. Otherwise the reader keeps stale decoder-pool pointers from the previously
+  // decoded entry, and cursor reuse shows phantom tags on tag-less tables.
+  pReader->me.ntbEntry.schemaTag.nCols = 0;
+  pReader->me.ntbEntry.schemaTag.version = 0;
+  pReader->me.ntbEntry.schemaTag.pSchema = NULL;
+  pReader->me.ntbEntry.pTags = NULL;
   tDecoderClear(&pReader->coder);
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 

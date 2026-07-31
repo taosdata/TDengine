@@ -848,6 +848,7 @@ static int32_t metaCreateNormalTable(SMeta *pMeta, int64_t version, SVCreateTbRe
   if (code) {
     metaError("vgId:%d, %s failed at %s:%d since %s", TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__,
               tstrerror(code));
+    TAOS_RETURN(code);
   }
 
   // handle entry
