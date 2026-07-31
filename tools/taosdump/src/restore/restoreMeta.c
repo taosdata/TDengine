@@ -1196,6 +1196,7 @@ static int queryServerTagNames(TAOS *conn, const char *dbName, const char *stbNa
     snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, stbName);
     TAOS_RES *res = taos_query(conn, sql);
     if (taos_errno(res) != TSDB_CODE_SUCCESS) {
+        logError("DESCRIBE failed(0x%08X %s): %s", taos_errno(res), taos_errstr(res), sql);
         taos_free_result(res);
         return -1;
     }
@@ -1513,7 +1514,7 @@ static int tagBlockCallback(void *userData,
 
         if (batchCnt == 0) continue;
 
-        logDebug("restore tag batch sql (%d tables): %.120s...", batchCnt, ctx->sqlBuf);
+        logDebug("restore tag batch sql (%d tables): %s", batchCnt, ctx->sqlBuf);
 
         TAOS_RES *res  = taos_query(ctx->conn, ctx->sqlBuf);
         int       rc   = taos_errno(res);
@@ -2228,10 +2229,10 @@ static int restoreStreamsSql(const char *dbName) {
             if (rc == TSDB_CODE_SUCCESS) {
                 streamCount++;
             } else if (rc == TSDB_CODE_MND_STREAM_ALREADY_EXIST) {
-                logWarn("stream already exists(0x%08X %s): %.120s", rc, taos_errstr(res), line);
+                logWarn("stream already exists(0x%08X %s): %s", rc, taos_errstr(res), line);
                 streamCount++;
             } else {
-                logError("create stream failed(0x%08X %s): %.120s", rc, taos_errstr(res), line);
+                logError("create stream failed(0x%08X %s): %s", rc, taos_errstr(res), line);
                 code = rc;
             }
             if (res) taos_free_result(res);

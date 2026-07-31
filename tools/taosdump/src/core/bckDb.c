@@ -217,7 +217,9 @@ int queryValueInt(const char *sql, int col, int32_t *outValue) {
     }
     TAOS_RES *res = taos_query(conn, sql);
     int code = taos_errno(res);
-    if (res == NULL) {
+    if (code != TSDB_CODE_SUCCESS) {
+        logError("query failed(0x%08X %s): %s", code, taos_errstr(res), sql);
+        if (res) taos_free_result(res);
         releaseConnection(conn);
         return code;
     }
@@ -226,6 +228,9 @@ int queryValueInt(const char *sql, int col, int32_t *outValue) {
         *outValue = *(int32_t*)row[col];
     } else {
         code = taos_errno(res);
+        if (code != TSDB_CODE_SUCCESS) {
+            logError("query failed(0x%08X %s): %s", code, taos_errstr(res), sql);
+        }
     }
     taos_free_result(res);
     releaseConnection(conn);

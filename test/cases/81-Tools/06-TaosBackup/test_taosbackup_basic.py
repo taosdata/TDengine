@@ -82,8 +82,11 @@ class TestTaosBackupBasic:
         tdSql.execute("use db")
         # All data types including NCHAR are tested here.
         # NCHAR columns are used in both data (via STMT2) and tags.
+        # The primary key timestamp column is deliberately named "myts" (not
+        # "ts") to catch any code path that hardcodes the column name instead
+        # of using the _c0 pseudo-column.
         tdSql.execute(
-            "create table st(ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, "
+            "create table st(myts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, "
             "c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), "
             "c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED) "
             "tags(n1 INT, w2 BOOL, t3 TINYINT, t4 SMALLINT, t5 BIGINT, t6 FLOAT, t7 DOUBLE, "
@@ -103,7 +106,7 @@ class TestTaosBackupBasic:
             "insert into t2 values(1640000000000, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"
         )
         tdSql.execute(
-            "create table db.nt1 (ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, "
+            "create table db.nt1 (myts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, "
             "c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), "
             "c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED)"
         )
@@ -147,6 +150,16 @@ class TestTaosBackupBasic:
         tdSql.checkData(0, 1, None)
 
         tdSql.query("select count(*) from db.nt1")
+        tdSql.checkData(0, 0, 2)
+
+        # Query explicitly by the renamed primary-key column "myts" to verify
+        # backup/restore doesn't depend on the time column literally being
+        # called "ts" (it queries the _c0 pseudo-column internally).
+        tdSql.query("select myts, c1 from db.t1 where myts = 1640000000000")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query("select count(*) from db.nt1 where myts >= 1640000000000")
         tdSql.checkData(0, 0, 2)
 
         tdLog.info("do_taosbackup_basic ......................... [passed]")
@@ -1392,6 +1405,119 @@ class TestTaosBackupBasic:
         tdSql.execute("drop database newdb")
         tdLog.info("do_taosbackup_prefilter_spec_tables_time_filter [passed]")
 
+    #
+    # ------------------- do_taosbackup_log ----------------
+    #
+    def do_taosbackup_log(self):
+        """Verify backup.log / restore.log audit logging added to taosBackup.
+
+        Covers:
+        - backup.log written under the backup root dir, truncated on rerun
+        - restore.log written under cwd, appended (not cleared) across runs
+        - log-open failure only warns, never fails the backup/restore itself
+        - the on-disk log mirrors the console output exactly (byte for byte)
+        - failure-path SQL (e.g. stream name conflict) is never truncated,
+          in either the console or the log file
+
+        Since: v3.0.0.0
+
+        Labels: common
+
+        Jira: None
+
+        History:
+
+            - 2026-07-30 Alex Duan Created
+
+        """
+        import tempfile
+
+        binPath = etool.taosDumpFile()
+        if binPath == "":
+            tdLog.exit("taosBackup not found!")
+        streamName = "stream_taosbackup_log_test_with_a_fairly_long_name_for_no_truncation_check"
+
+        # --- fixture: one normal table with a couple rows, plus a stream ---
+        tdSql.execute("drop database if exists dblog")
+        tdSql.execute("create database dblog")
+        tdSql.execute("create table dblog.t1(ts timestamp, v int)")
+        tdSql.execute("insert into dblog.t1 values(now, 1)(now+1s, 2)")
+        tdSql.execute_ignore_error("drop snode on dnode 1")
+        tdSql.execute("create snode on dnode 1")
+        tdSql.execute(
+            f"create stream if not exists dblog.{streamName} interval(1s) sliding(1s) "
+            f"from dblog.t1 into dblog.stream_out as "
+            f"select _twstart as ts, avg(v) as avg_v from %%trows"
+        )
+
+        bck_dir = os.path.join(tempfile.mkdtemp(), "taosbackup_log_bck")
+
+        # --- backup.log: created, mirrors console, truncated on rerun ---
+        os.system(f"rm -rf {bck_dir}")
+        console1 = os.popen(f"{binPath} -o {bck_dir} -D dblog 2>&1").read()
+        logPath = os.path.join(bck_dir, "backup.log")
+        assert os.path.exists(logPath), "backup.log was not created under the backup root dir"
+
+        with open(logPath) as f:
+            fileContent1 = f.read()
+        assert console1 == fileContent1, "backup.log content does not match console output byte-for-byte"
+        assert "Server Ver." in fileContent1 and "Start Time" in fileContent1 and "End Time" in fileContent1, \
+            "backup.log is missing the server version / start / end time banner fields"
+
+        # rerun into the same dir - backup.log must be overwritten, not appended
+        os.system(f"{binPath} -o {bck_dir} -D dblog > /dev/null 2>&1")
+        with open(logPath) as f:
+            fileContent2 = f.read()
+        assert fileContent2.count("taosDump version") == 1, "backup.log was appended instead of truncated on rerun"
+
+        # --- log-open failure must only warn, never fail the backup ---
+        bad_dir = os.path.join(tempfile.mkdtemp(), "taosbackup_log_bad")
+        os.system(f"mkdir -p {bad_dir}/backup.log")  # path collision forces open() to fail
+        ret = os.system(f"{binPath} -o {bad_dir} -D dblog > /tmp/taosbackup_log_badrun.txt 2>&1")
+        with open("/tmp/taosbackup_log_badrun.txt") as f:
+            badRunOut = f.read()
+        os.system("rm -f /tmp/taosbackup_log_badrun.txt")
+        assert ret == 0, "backup must still succeed even if the on-disk log can't be opened"
+        assert "open log file failed" in badRunOut, "expected a warning about the log file failing to open"
+        assert "Result       : SUCCESS" in badRunOut, "backup did not report SUCCESS despite the log-open failure"
+
+        # --- restore.log: created under cwd, appended (not cleared) across runs ---
+        restore_dir = tempfile.mkdtemp()
+        cwd = os.getcwd()
+        os.chdir(restore_dir)
+        try:
+            tdSql.execute("drop database if exists dblog")
+            console2 = os.popen(f"{binPath} -i {bck_dir} 2>&1").read()
+            restoreLogPath = os.path.join(restore_dir, "restore.log")
+            assert os.path.exists(restoreLogPath), "restore.log was not created under cwd"
+            with open(restoreLogPath) as f:
+                restoreContent1 = f.read()
+            assert console2 == restoreContent1, "restore.log content does not match console output byte-for-byte"
+
+            # second restore in the same cwd: the stream already exists, and its
+            # (long) create-stream SQL must show up in full - not truncated -
+            # both on the console and in restore.log
+            console3 = os.popen(f"{binPath} -i {bck_dir} 2>&1").read()
+            with open(restoreLogPath) as f:
+                restoreContent2 = f.read()
+
+            assert restoreContent2.count("taosDump version") == 2, \
+                "restore.log was truncated instead of appended across runs"
+            assert streamName in console3, \
+                "stream-already-exists warning did not contain the full stream name (truncated?)"
+            assert "..." not in console3, \
+                "console output contains a truncation ellipsis - SQL truncation should be gone"
+            assert streamName in restoreContent2 and "..." not in restoreContent2, \
+                "restore.log does not contain the full, untruncated stream-conflict SQL"
+        finally:
+            os.chdir(cwd)
+
+        # cleanup
+        tdSql.execute("drop database if exists dblog")
+        tdSql.execute("drop snode on dnode 1")
+        os.system(f"rm -rf {bck_dir} {bad_dir} {restore_dir}")
+        tdLog.info("do_taosbackup_log ........................... [passed]")
+
     # -----------------------------------------------------------------------
     # 19. Table-level backup with positional args
     # -----------------------------------------------------------------------
@@ -1667,6 +1793,8 @@ class TestTaosBackupBasic:
         17. Pre-filter empty CTBs via last_row(ts): time filter; in-range rows correct, out-of-range skipped
         18. Pre-filter empty CTBs with spec-tables + time filter; -S/-E applies to named CTBs
         19. Table-level backup with positional args: multi-CTB, cross-STB, mixed CTB+NTB, NTB-only
+        20. backup.log/restore.log audit logging: truncate vs append, log-open
+            failure resilience, no SQL truncation on failure paths
 
         Since: v3.0.0.0
 
@@ -1697,3 +1825,4 @@ class TestTaosBackupBasic:
         self.do_taosbackup_prefilter_empty_ctb_time_filter()
         self.do_taosbackup_prefilter_spec_tables_time_filter()
         self.do_taosbackup_table_level()
+        self.do_taosbackup_log()

@@ -741,11 +741,14 @@ bool isVirtualSuperTable(const char *dbName, const char *stbName) {
     if (!conn) return false;
     TAOS_RES *res = taos_query(conn, sql);
     bool isVirtual = false;
-    if (res && taos_errno(res) == TSDB_CODE_SUCCESS) {
+    int code = taos_errno(res);
+    if (code == TSDB_CODE_SUCCESS) {
         TAOS_ROW row = taos_fetch_row(res);
         if (row && row[1]) {
             isVirtual = (strstr((char *)row[1], "VIRTUAL 1") != NULL);
         }
+    } else {
+        logError("SHOW CREATE TABLE failed(0x%08X %s): %s", code, taos_errstr(res), sql);
     }
     if (res) taos_free_result(res);
     releaseConnection(conn);

@@ -38,7 +38,9 @@ static bool tableHasDecimalCol(TAOS *conn, const char *dbName, const char *tbNam
     char sql[512];
     snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, tbName);
     TAOS_RES *res = taos_query(conn, sql);
-    if (taos_errno(res) != 0) {
+    int code = taos_errno(res);
+    if (code != 0) {
+        logError("DESCRIBE failed(0x%08X %s): %s", code, taos_errstr(res), sql);
         taos_free_result(res);
         return false;
     }

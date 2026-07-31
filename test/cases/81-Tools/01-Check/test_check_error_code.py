@@ -223,7 +223,7 @@ class TestCheckErrorCode:
 
         1. Read all error codes from include/util/taoserror.h
         2. Read all error codes from docs/zh/10-developer-guide/09-error-codes.md
-        3. Read all error codes from docs/en/14-reference/09-error-code.md
+        3. Read all error codes from docs/en/10-developer-guide/09-error-codes.md
         4. Check whether all error codes in header file are documented in both doc files
         5. Check whether the description, possible cause and suggested actions are provided in both doc files
         
@@ -247,7 +247,7 @@ class TestCheckErrorCode:
         zhCodes = self.readDocCodes(zhDoc)
 
         # read en codes
-        enDoc = f"{tdFindPath.getTDenginePath()}/docs/en/14-reference/09-error-code.md"
+        enDoc = f"{tdFindPath.getTDenginePath()}/docs/en/10-developer-guide/09-error-codes.md"
         enCodes = self.readDocCodes(enDoc)
 
         # check zh
