@@ -1,0 +1,1057 @@
+---
+sidebar_label: 基础查询
+title: 基础查询
+description: SELECT 语句语法、常用子句与查询示例
+---
+
+## 语法
+
+```sql
+SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
+
+SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
+    from_clause
+    [WHERE condition]
+    [partition_by_clause]
+    [interp_clause]
+    [window_clause]
+    [group_by_clause]
+    [order_by_clause]
+    [SLIMIT limit_val [SOFFSET offset_val]]
+    [LIMIT limit_val [OFFSET offset_val]]
+    [>> export_file]
+
+hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
+
+hint:
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
+
+select_list:
+    select_expr [, select_expr] ...
+
+select_expr: {
+    *
+  | query_name.*
+  | [schema_name.] {table_name | view_name} .*
+  | t_alias.*
+  | expr [[AS] c_alias]
+}
+
+from_clause: {
+    table_reference [, table_reference] ...
+  | table_reference join_clause [, join_clause] ...
+}
+
+table_reference:
+    table_expr t_alias
+
+table_expr: {
+    table_name
+  | view_name
+  | ( subquery )
+  | TEXT(column_list) VALUES (val [, ...]) [(...)] ...
+  | FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
+}
+
+column_list:
+    col_name type_name [, col_name type_name] ...
+
+join_clause:
+    [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
+
+window_clause: {
+    SESSION(ts_col, tol_val)
+    | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
+  | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
+  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
+  | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
+  | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
+}
+
+interp_clause:
+    RANGE(ts_val [, ts_val]) EVERY(every_val) fill_clause
+
+fill_clause:
+    FILL(fill_mode_and_val) [SURROUND(surrounding_time_val [, fill_vals])]
+
+fill_mode_and_val:
+    NONE
+  | NULL|NULL_F
+  | VALUE|VALUE_F [, fill_vals]
+  | PREV|NEXT|NEAR
+  | LINEAR
+
+group_by_clause:
+    GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
+
+group_by_expr:
+    {expr | position | c_alias}
+
+partition_by_clause:
+    PARTITION BY partition_by_expr [, partition_by_expr] ...
+
+partition_by_expr:
+    {expr | position | c_alias}
+
+order_by_clause:
+    ORDER BY order_expr [, order_expr] ...
+
+order_expr:
+    {expr | position | c_alias} [DESC | ASC] [NULLS FIRST | NULLS LAST]
+
+true_for_expr:
+    true_for_arg [, true_for_arg [, true_for_arg]]
+
+true_for_arg: {
+    limit_expr
+  | start(limit_expr)
+  | end(limit_expr)
+}
+
+limit_expr: {
+    duration_time
+  | COUNT count_val
+  | duration_time AND COUNT count_val
+  | duration_time OR COUNT count_val
+}
+```
+
+### 部分字段说明
+
+- select_expr: 选择列表达式，可以为常量、列、运算、函数以及它们的混合运算，不支持聚合函数的嵌套。
+- from_clause: 指定查询的数据源，可以是单个表（超级表、子表、普通表、虚拟表），也可以是视图，也支持多表关联查询。
+- table_reference: 指定单个表（含视图）的名称，可选指定表的别名。
+- table_expr: 指定查询数据源，可以为表名、视图名、子查询，或内联数据源（`TEXT` 或 `FILE`）。详见 [TEXT 内联数据源](#text-内联数据源) 和 [FILE CSV 文件数据源](#file-csv-文件数据源)。
+- column_list: `TEXT` 和 `FILE` 共用的列定义语法，每项为 `col_name type_name`。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
+- join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度参见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参见 [关联查询](07-join.md)。
+- window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详见 [特色查询](06-distinguished.md)。
+  - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间单位参见 [时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周），如 SESSION(ts, 12s)。
+  - STATE_WINDOW: 状态窗口，使用一个或多个状态键划分窗口（从 `v3.4.2.0` 版本开始支持多个状态键）。可以配置 `EXTEND` 参数指定窗口边界扩展策略，配置 `ZEROTH_STATE` 参数指定零状态过滤，配置 `TRUE_FOR` 参数指定窗口过滤条件。
+  - INTERVAL: 时间窗口，interval_val 指定窗口大小，sliding_val 指定窗口滑动时间，大小限制在 interval_val 范围内，interval_val 和 sliding_val 时间范围为正值，精度参见 [时间单位](../01-datatype.md#时间单位)，如 interval_val(2d)、SLIDING(1d)。
+  - EVENT_WINDOW: 事件窗口，使用 start_trigger_condition、end_trigger_condition 指定开始结束条件，支持任意表达式，可以指定不同的列。可以配置 `TRUE_FOR` 参数指定窗口过滤条件，以及 `start(...)` / `end(...)` 指定开窗/关窗连续满足门限。
+  - COUNT_WINDOW: 计数窗口，指定按行数划分窗口，count_val 窗口包含最大行数，范围为[2,2147483647]。sliding_val 窗口滑动数量，范围为[1,count_val]。col_name 在 `v3.3.7.0` 之后开始支持，指定一列或者多列，在 count_window 窗口计数时，窗口中的每行数据，指定列中至少有一列非空，否则该行数据不包含在计数窗口内。如果没有指定 col_name，表示没有限制。
+    - EXTERNAL_WINDOW: 外部窗口，窗口的时间范围由子查询显式给出，而非由内建规则自动划分。subquery 的前两列必须为 timestamp 类型，分别表示窗口开始时间和结束时间；第 3 列及之后的列为窗口属性列，可通过 window_alias.column_name 引用。外部查询在每个窗口范围内独立计算聚合结果。支持 PARTITION BY 分组对齐、HAVING 过滤、嵌套调用，以及对空窗口使用 `FILL`。详细说明参见 [特色查询](06-distinguished.md#外部窗口)。
+- interp_clause: interp 子句，与 interp 函数搭配使用，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。
+  - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，时间单位参见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年）。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```。
+  - EVERY: 时间间隔范围，every_val 为正值，时间单位参见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年），如 EVERY(1s)。
+- SCALAR | AGG：窗口查询模式关键字（`v3.4.2.0` 版本开始支持）。当窗口查询的 SELECT 列表中包含列表达式或不定行函数时，自动进入**窗口投影模式**，每个窗口输出其全部原始行；当 SELECT 列表只包含聚合函数时，进入**窗口聚合模式**，每个窗口输出一行聚合结果。当 SELECT 列表仅包含伪列、标签列、tbname、常量、分组键（group key）和状态键（state key）时，INTERVAL、SESSION、STATE_WINDOW、EVENT_WINDOW、COUNT_WINDOW 默认选择聚合模式，而 EXTERNAL_WINDOW 默认选择投影模式。此时可使用 `SCALAR` 或 `AGG` 关键字显式指定模式。详见 [特色查询](06-distinguished.md#窗口投影模式)。
+- fill_clause: fill 子句，可以与 interp 函数、INTERVAL 窗口或 EXTERNAL_WINDOW 搭配使用，用于指定数据缺失时的数据填充方法。不同上下文支持的模式有所区别。
+- group_by_expr: 指定数据分组聚合规则，支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select ts, current from meters order by ts desc,2```，2 对应 current 列。
+- partition_by_expr: 指定数据切片条件，切片内的数据独立进行计算。支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select current from meters partition by 1```，1 对应 current 列。
+- order_expr: 指定输出数据排序规则，默认不排序。支持表达式、函数、位置、列、别名，可以在单列或者多列中每列使用不同的排序规则，可以指定空值排序在前或者在后。
+- SLIMIT: 指定输出分片数量，limit_val 指定输出数量，offset_val 指定偏移开始位置，offset_val 可选，limit_val 和 offset_val 均为正值，在 PARTITION BY、GROUP BY 子句中使用。使用 ORDER BY 子句时只输出一个分片。
+- LIMIT: 指定输出数据数量，limit_val 指定输出数量，offset_val 指定偏移开始位置，offset_val 可选，limit_val 和 offset_val 均为正值。使用 PARTITION BY 子句时控制的是每个分片的数量。
+
+## Hints
+
+Hints 用于控制单条语句的查询优化。当 Hint 不适用于当前查询语句时会被自动忽略，规则如下：
+
+- Hints 语法以 `/*+` 开始，以 `*/` 结束，前后可有空格。
+- Hints 只能紧跟在 `SELECT` 关键字之后。
+- 每个 Hints 可以包含多个 Hint，Hint 之间以空格分隔；多个 Hint 冲突或相同时，以先出现的为准。
+- 当某个 Hint 出错时，出错之前的有效 Hint 仍然生效，当前及之后的 Hint 会被忽略。
+- `hint_param_list` 是每个 Hint 的参数，随 Hint 不同而不同。
+
+目前支持的 Hints 如下：
+
+| Hint | 参数 | 说明 | 适用范围 |
+| --------------------- | --- | --- | --- |
+| `BATCH_SCAN`          | 无 | 采用批量读表方式 | 超级表 `JOIN` 语句 |
+| `NO_BATCH_SCAN`       | 无 | 采用顺序读表方式 | 超级表 `JOIN` 语句 |
+| `SORT_FOR_GROUP`      | 无 | 采用 sort 方式分组，与 `PARTITION_FIRST` 冲突 | `PARTITION BY` 列表含普通列时 |
+| `PARTITION_FIRST`     | 无 | 聚合前先按 `PARTITION` 分组，与 `SORT_FOR_GROUP` 冲突 | `PARTITION BY` 列表含普通列时 |
+| `PARA_TABLES_SORT`    | 无 | 超级表按时间戳排序时不使用临时磁盘空间，仅使用内存；子表多、行长大时可能 OOM | 超级表按时间戳排序时 |
+| `SMALLDATA_TS_SORT`   | 无 | 超级表按时间戳排序时，查询列长度大于等于 256 但行数不多，可提升性能 | 超级表按时间戳排序时 |
+| `SMALLDATA_SCAN_SORT` | 无 | 超级表需要按时间戳有序扫描输出时，用普通表扫描加排序代替表合并扫描；每 vnode 数据量较小时更优。适用于引擎会用表合并扫描产生时间戳有序输出的场景，包括 `ORDER BY ts`，以及会话窗口 `SESSION`、状态窗口 `STATE_WINDOW`（无需显式 `ORDER BY`）；对时间窗口 `INTERVAL`（本身不使用表合并扫描）以及按非时间戳列的 `ORDER BY` 无效 | 小数据量超级表需要时间戳有序时 |
+| `SKIP_TSMA`           | 无 | 显式禁用 TSMA 查询优化 | 带聚合函数的查询语句 |
+
+示例：
+
+```sql
+SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
+SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
+SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
+SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
+```
+
+## SELECT 列表
+
+查询语句可以指定部分或全部列作为返回结果。数据列和标签列都可以出现在选择列表中。
+
+### 通配符
+
+通配符 \* 可以用于代指全部列。对于普通表和子表，结果中只有普通列。对于超级表，还包含了 TAG 列。
+
+```sql
+SELECT * FROM d1001;
+```
+
+通配符支持表名前缀，以下两个 SQL 语句均为返回全部的列：
+
+```sql
+SELECT * FROM d1001;
+SELECT d1001.* FROM d1001;
+```
+
+在 JOIN 查询中，带表名前缀的\*和不带前缀\*返回的结果有差别， \*返回全部表的所有列数据（不包含标签），而带表名前缀的通配符，则只返回该表的列数据。
+
+```sql
+SELECT * FROM d1001, d1003 WHERE d1001.ts=d1003.ts;
+SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
+```
+
+上面的查询语句中，前者返回 d1001 和 d1003 的全部列，而后者仅返回 d1001 的全部列。
+
+在使用 SQL 函数来进行查询的过程中，部分 SQL 函数支持通配符操作。其中的区别在于：
+`count(*)`函数只返回一列。`first`、`last`、`last_row`函数则是返回全部列。
+
+### 标签列
+
+在超级表和子表的查询中可以指定 _标签列_，且标签列的值会与普通列的数据一起返回。
+
+```sql
+SELECT location, groupid, current FROM d1001 LIMIT 2;
+```
+
+### 别名
+
+别名的命名规则与列相同，支持直接指定 UTF-8 编码格式的中文别名。
+
+### 结果去重
+
+`DISTINCT` 关键字可以对结果集中的一列或多列进行去重，去除的列既可以是标签列也可以是数据列。
+
+对标签列去重：
+
+```sql
+SELECT DISTINCT tag_name [, tag_name ...] FROM stb_name;
+```
+
+对数据列去重：
+
+```sql
+SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
+```
+
+:::info
+
+1. 配置文件中的参数 `maxNumOfDistinctRes` 将对 DISTINCT 能够输出的数据行数进行限制。其最小值是 100000，最大值是 100000000，默认值是 10000000。如果实际计算结果超出了这个限制，那么会仅输出这个数量范围内的部分。
+2. 由于浮点数天然的精度机制原因，在特定情况下，对 FLOAT 和 DOUBLE 列使用 DISTINCT 并不能保证输出值的完全唯一性。
+
+:::
+
+### 标签查询
+
+当查询的列只有标签列时，`TAGS` 关键字可以指定返回所有子表的标签列。每个子表只返回一行标签列。
+
+返回所有子表的标签列：
+
+```sql
+SELECT TAGS tag_name [, tag_name ...] FROM stb_name
+```
+
+### 结果集列名
+
+`SELECT`子句中，如果不指定返回结果集合的列名，结果集列名称默认使用`SELECT`子句中的表达式名称作为列名称。此外，用户可使用`AS`来重命名返回结果集合中列的名称。例如：
+
+```sql
+taos> SELECT ts, ts AS primary_key_ts FROM d1001;
+```
+
+但是针对`first(*)`、`last(*)`、`last_row(*)`不支持针对单列的重命名。
+
+### 伪列
+
+**伪列**：伪列的行为与普通数据列相似，但并不实际存储在表中。可以查询伪列，但不能插入、更新或删除。伪列类似无参数的函数。可用伪列如下：
+
+**TBNAME**
+`TBNAME` 可以视为超级表中一个特殊的标签，代表子表的表名。
+
+获取一个超级表所有的子表名及相关的标签信息：
+
+```sql
+SELECT TAGS TBNAME, location FROM meters;
+```
+
+建议用户使用 INFORMATION_SCHEMA 下的 INS_TAGS 系统表来查询超级表的子表标签信息，例如获取超级表 meters 所有的子表名和标签值：
+
+```sql
+SELECT table_name, tag_name, tag_type, tag_value FROM information_schema.ins_tags WHERE stable_name='meters';
+```
+
+统计超级表下辖子表数量：
+
+```sql
+SELECT COUNT(*) FROM (SELECT DISTINCT TBNAME FROM meters);
+```
+
+以上两个查询均只支持在 WHERE 条件子句中添加针对标签（TAGS）的过滤条件。
+
+**`_QSTART` / `_QEND`**
+
+`_qstart` 和 `_qend` 表示用户输入的查询时间范围，即 `WHERE` 子句中主键时间戳条件所限定的时间范围。如果 `WHERE` 子句中没有有效的主键时间戳条件，则时间范围为 `[-2^63, 2^63-1]`。
+
+`_qstart` 和 `_qend` 不能用于 `WHERE` 子句中。
+
+**`_WSTART` / `_WEND` / `_WDURATION`**
+
+`_wstart` 表示窗口起始时间戳，`_wend` 表示窗口结束时间戳，`_wduration` 表示窗口持续时长。
+
+这三个伪列只能用于时间窗口切分查询，且要出现在窗口切分子句之后。
+
+**`_c0` / `_ROWTS`**
+
+TDengine 中，所有表的第一列都必须是时间戳类型，并作为主键。`_rowts` 和 `_c0` 均代表该列的值。相比直接使用主键时间戳列，伪列更灵活、语义也更标准，例如可以与 `max` / `min` 等函数一起使用。
+
+```sql
+select _rowts, max(current) from meters;
+```
+
+**`_IROWTS`**
+
+`_irowts` 伪列只能与 `INTERP` 函数一起使用，用于返回插值结果对应的时间戳列。
+
+```sql
+SELECT _irowts, interp(current) FROM meters RANGE('2020-01-01 10:00:00', '2020-01-01 10:30:00') EVERY(1s) FILL(linear);
+```
+
+**`_IROWTS_ORIGIN`**
+
+`_irowts_origin` 伪列只能与 `INTERP` 函数一起使用，且仅适用于 `FILL` 类型为 `PREV` / `NEXT` / `NEAR` 的场景，用于返回插值所使用的原始数据时间戳。若范围内无值，则返回 `NULL`。
+
+```sql
+SELECT _irowts_origin, interp(current) FROM meters RANGE('2020-01-01 10:00:00', '2020-01-01 10:30:00') EVERY(1s) FILL(NEXT);
+```
+
+## FROM 子句
+
+`FROM` 关键字后可以是一个或多个表（含超级表）引用、子查询结果，或 `TEXT` / `FILE` 内联数据源（见下文）。
+如果未指定当前数据库，可以在表名前加数据库名做跨库引用，例如 `power.d1001`。
+
+TDengine 支持基于时间戳主键的 `INNER JOIN`，规则如下：
+
+1. 支持 `FROM` 表列表和显式 `JOIN` 子句两种语法。
+2. 对于普通表和子表，`ON` 条件必须有且只有时间戳主键的等值条件。
+3. 对于超级表，`ON` 条件在时间戳主键等值条件之外，还要求有可以一一对应的标签列等值条件，不支持 `OR` 条件。
+4. 参与 `JOIN` 的表只能是同一种类型，即只能都是超级表，或都是子表，或都是普通表。
+5. `JOIN` 两侧均支持子查询。
+6. 不支持与 `FILL` 子句混合使用。
+
+更多连接类型与用法参见 [关联查询](07-join.md)。
+
+## JOIN 子句
+
+`JOIN` 用于多表关联查询。自 `v3.3.0.0` 起，TDengine 除内连接外，还支持 `LEFT` / `RIGHT` / `FULL` / `SEMI` / `ANTI` 等传统连接，以及时序场景中的 `ASOF JOIN`、`WINDOW JOIN`。`JOIN` 可在子表、普通表、超级表以及子查询之间进行。
+
+完整语法、连接类型与限制说明参见 [关联查询](07-join.md)。
+
+### 示例
+
+普通表与普通表之间的连接：
+
+```sql
+SELECT *
+FROM temp_tb_1 t1, pressure_tb_1 t2
+WHERE t1.ts = t2.ts;
+```
+
+超级表之间的 `LEFT JOIN`：
+
+```sql
+SELECT *
+FROM temp_stable t1 LEFT JOIN temp_stable t2
+ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status = 0;
+```
+
+子表与超级表之间的 `LEFT ASOF JOIN`：
+
+```sql
+SELECT *
+FROM temp_ctable t1 LEFT ASOF JOIN temp_stable t2
+ON t1.ts = t2.ts AND t1.deviceid = t2.deviceid;
+```
+
+## TEXT 内联数据源
+
+`TEXT` 允许将行数据直接内嵌在 SQL 语句中，作为临时表源使用，无需预先建表。
+
+### 语法
+
+```sql
+TEXT(column_list)
+    VALUES (val [, val] ...) [(val [, val] ...)] ...
+    [alias]
+```
+
+### 说明
+
+- 列 Schema 必须显式声明，不支持类型推断。
+- 每个 `VALUES` 组代表一行数据，所有行必须与 Schema 列数一致。
+- 支持 NULL 值，使用关键字 `NULL` 表示。
+- 可选 alias 为该数据源指定表别名，便于 JOIN 或子查询中引用。
+- `TEXT` 数据源可用于 `FROM` 子句、子查询、JOIN、窗口查询、`INSERT INTO … SELECT` 以及 EXTERNAL_WINDOW 子查询定义。
+- 支持 JSON、GEOMETRY、BLOB 之外的其他类型。
+- 首列必须为 `TIMESTAMP` 类型（作为主键），不要求输入有序。
+
+### 数据量限制
+
+| 限制项 | 上限 |
+|---|---|
+| 最大行数 | 10,000 行 |
+| 最大列数 | 4,096 列 |
+| 最大单元格数（rows × cols） | 1,000,000 个 |
+| 单次内联文本大小 | 8 MB |
+
+### 示例
+
+```sql
+-- 基本查询：查询内联电表读数
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221) t1;
+
+-- 带条件过滤：筛选电压超标的读数
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219) t2
+WHERE voltage > 220;
+
+-- 作为子查询：对内联读数进行二次过滤
+SELECT * FROM (
+    SELECT ts, current, voltage
+    FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+        VALUES ('2024-01-01 08:00:00', 10.2, 220)
+               ('2024-01-01 09:00:00', 10.8, 221) readings
+) sub WHERE current > 10.5;
+
+-- 窗口聚合：按 6 小时统计平均电流和最大电压
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219)
+           ('2024-01-01 14:00:00', 9.8,  218) t3
+INTERVAL(6h);
+
+-- JOIN：用内联校准数据关联真实电表
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN TEXT(ts TIMESTAMP, factor FLOAT)
+    VALUES ('2024-01-01 08:00:00', 1.02)
+           ('2024-01-01 09:00:00', 0.98) cal
+ON m.ts = cal.ts;
+```
+
+## FILE CSV 文件数据源
+
+`FILE` 将本地 CSV 文件作为查询表源，无需导入数据库即可直接查询。
+
+### 语法
+
+```sql
+FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
+    [alias]
+```
+
+### 说明
+
+- 当前仅支持 CSV 文本格式。
+- `file_path`：CSV 文件路径，由**执行查询规划的进程**（通常为客户端进程，如 `taos` 命令行或客户端驱动）读取。支持相对路径（相对于该进程的工作目录）和绝对路径。
+- 第二个参数为 Schema 声明字符串，列定义以逗号分隔；列顺序与 CSV 列顺序对应。
+- CSV 中超出 Schema 声明列数的列会被忽略，可通过 Schema 只读取文件中的部分列。
+- `header=true`：CSV 首行为列名头部，读取时跳过。启用后按列名匹配（而非按位置），Schema 可以任意顺序声明文件列的子集。默认为 `false`。
+- `delimiter`：字段分隔符，单个字符，默认为 `,`。
+- 支持 NULL 值（CSV 中的空字段解析为 NULL）。
+- 文件路径和 Schema 必须为字面量字符串，不支持运行时表达式。
+- `FILE` 可用于与 `TEXT` 相同的场景：`FROM` 子句、子查询、JOIN、窗口查询、UNION、`INSERT INTO … SELECT` 以及 EXTERNAL_WINDOW 子查询定义。
+- 支持的列类型：与 `TEXT` 相同。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
+- Schema 声明的首列必须为 `TIMESTAMP` 类型（作为主键），不要求输入有序。
+
+### 数据量限制
+
+与 `TEXT` 相同：最大 10,000 行、4,096 列、1,000,000 单元格、单次读取不超过 8 MB。
+
+### 示例
+
+```sql
+-- 读取 CSV 文件中的全部列（电表四列读数）
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV 有 4 列，只读取其中 2 列（电流和电压）
+SELECT ts, current
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV 带列名头部，跳过首行
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings_with_header.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT',
+          header=true) f;
+
+-- 作为子查询：对 CSV 读数进行过滤聚合
+SELECT AVG(current), MAX(voltage)
+FROM (
+    SELECT ts, current, voltage
+    FROM FILE('./meter_readings.csv',
+              'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
+) sub WHERE voltage BETWEEN 200 AND 250;
+
+-- JOIN：用 CSV 校准数据关联真实电表
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN FILE('./calibration.csv',
+          'ts TIMESTAMP, factor FLOAT') cal
+ON m.ts = cal.ts;
+
+-- 窗口聚合：按小时统计 CSV 电表数据
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
+INTERVAL(1h);
+```
+
+## INTERP 子句
+
+`interp` 子句是 [INTERP 函数](03-function.md#interp) 的专用语法。当 SQL 语句中存在 `interp` 子句时，只能查询 `INTERP` 函数，不能与其他函数一起使用；同时 `interp` 子句也不能与窗口子句（`window_clause`）、分组子句（`group_by_clause`）同时使用。`INTERP` 需要与 `RANGE`、`EVERY` 和 `FILL` 子句一起使用。
+
+- INTERP 的输出时间范围根据 RANGE(timestamp1, timestamp2) 字段来指定，需满足 timestamp1 \<= timestamp2。其中 timestamp1 为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2 为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
+- INTERP 根据 EVERY(time_unit) 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（time_unit 值）进行插值，time_unit 参见 [时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周，不支持月/季/年）。例如 EVERY(500a) 将对于指定数据每 500 毫秒间隔进行一次插值。
+- INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。关于 FILL 子句如何使用请参考 [FILL 子句](#fill-子句)。注意：插值时所使用的采样数据并非限制于 RANGE 字段的约束，而是满足 WHERE 子句条件的全部数据，如果没有指定 WHERE 子句，则为全表数据；FILL 子句的参数为 PREV/NEXT/NEAR 时，会使用相邻的有效数据进行插值，NULL 数据能否被认定为有效数据，取决于 INTERP 函数的 ignore_null_values 参数。若想限制采样数据的范围，可以使用 SURROUND 子句。
+- INTERP 可以在 RANGE 字段中只指定唯一的时间戳对单个时间点进行插值，在这种情况下，EVERY 字段可以省略。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)`。
+- INTERP 查询支持 NEAR FILL 模式，即当需要 FILL 时，使用距离当前时间点最近的有效数据进行插值，当前后时间戳与当前时间断面一样近时，FILL 前一行的值。此模式在窗口查询中不支持。例如 `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (`v3.3.4.9` 及以后支持)。
+
+## FILL 子句
+
+`FILL` 子句用于指定 `INTERVAL` 窗口、`EXTERNAL_WINDOW` 或 `INTERP` 查询结果中数据缺失时的填充模式，包括以下几种：
+
+1. 不进行填充：`NONE`（默认填充模式）。
+2. `VALUE` 填充：固定值填充，需要指定填充数值。例如 `FILL(VALUE, 1.23)`。最终填充值受对应列类型影响，如列类型为 `INT` 时，`1.23` 会按整数填充为 `1`。若选择列表中有多列需要 `FILL`，则需要为每一列指定 `VALUE`，例如 `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`。注意：选择列表中只有普通列才需要指定 `FILL VALUE`；`_wstart`、`_wstart+1a`、`now`、`1+1`，以及使用 `PARTITION BY` 时的分组键（如 `tbname`）不需要指定；而 `timediff(last(ts), _wstart)` 这类表达式需要指定。
+3. `NULL` 填充：使用 `NULL` 填充。例如 `FILL(NULL)`。
+4. `PREV` 填充：使用前一个有效数据填充。例如 `FILL(PREV)`。
+5. `NEXT` 填充：使用下一个有效数据填充。例如 `FILL(NEXT)`。
+6. `NEAR` 填充：使用距离当前时间点最近的有效数据填充。例如 `FILL(NEAR)`。在窗口查询中不支持。
+7. `LINEAR` 填充：根据前后距离最近的有效数据做线性插值填充。例如 `FILL(LINEAR)`。
+
+以上所有填充模式中，除了 NONE 模式默认不填充值外，其他模式若在查询的整个时间范围内没有数据，则 FILL 子句不会生效，不会产生填充值，查询结果为空。对于 PREV、NEXT、LINEAR 等模式，这是合理的，因为在这些模式下，没有有效数据就无法进行填充。
+
+“有效数据”的定义在 INTERVAL 子句和 INTERP 子句中有所不同：在 INTERVAL 子句中，扫描出的数据均为有效数据，例如 FILL(PREV) 即使用相邻前一窗口的数据进行填充；在 INTERP 子句中，NULL 值是否有效取决于 INTERP 函数的 ignore_null_values 参数，例如 FILL(PREV) 且 NULL 值无效，则略过所有 NULL，不断向前寻找 non-NULL 数据，若所有数据均为 NULL，则不进行填充。在 INTERP 子句中，PREV、NEXT 和 NEAR 模式下，会在 WHERE 条件范围内持续向前/向后/前后寻找有效数据，若所有数据均为 NULL，则不进行填充。
+
+对另外一些模式（NULL、VALUE）来说，理论上是可以产生填充数值的，至于需不需要输出填充数值，取决于应用的需求。所以为了满足这类需要强制填充数据或 NULL 的应用的需求，同时不破坏现有填充模式的行为兼容性，从 `v3.0.3.0` 开始，增加了两种新的填充模式：
+
+1. NULL_F：强制填充 NULL 值
+1. VALUE_F：强制填充 VALUE 值
+
+NULL、NULL_F、VALUE、VALUE_F 这几种填充模式针对不同场景区别如下：
+
+- INTERVAL 子句：NULL_F、VALUE_F 为强制填充模式；NULL、VALUE 为非强制模式。在这种模式下下各自的语义与名称相符
+- 流计算中的 INTERVAL 子句：NULL_F 与 NULL 行为相同，均为非强制模式；VALUE_F 与 VALUE 行为相同，均为非强制模式。即流计算中的 INTERVAL 没有强制模式
+- INTERP 子句：NULL 与 NULL_F 行为相同，均为强制模式；VALUE 与 VALUE_F 行为相同，均为强制模式。即 INTERP 中没有非强制模式。
+
+对于 EXTERNAL_WINDOW 查询，支持的模式为 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`、`PREV`、`NEXT`，暂不支持 `LINEAR`、`NEAR` 和 `SURROUND`。
+
+对于窗口投影模式（SELECT 列表包含列表达式或不定行函数），FILL 仅支持 `NONE`、`NULL`、`NULL_F`、`VALUE`、`VALUE_F`，不支持 `PREV`、`NEXT`、`LINEAR` 和 `NEAR`。
+
+:::info
+
+1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
+2. FILL 具有连续性，例如一列数据中仅第一条不为 NULL，则 FILL(PREV) 会为后续所有行填充该值。
+3. 当不定行函数（如 CSUM、DIFF、DERIVATIVE、MAVG、STATECOUNT、STATEDURATION、LAG、LEAD、FILL_FORWARD）与 INTERVAL 查询一起使用时，仅支持 FILL(NONE)、FILL(NULL)、FILL(NULL_F)、FILL(VALUE) 和 FILL(VALUE_F)。不支持 FILL(PREV)、FILL(NEXT)、FILL(LINEAR) 和 FILL(NEAR)。
+
+:::
+
+### SURROUND 子句
+
+用于限制 FILL 子句的填充范围，只能在 PREV、NEXT、NEAR（仅 INTERP 查询支持）模式下使用。
+
+SURROUNDING_TIME_VAL 参数指定有效数据需要满足的时间范围，取值为正数，单位可选除月（n）、季度（q）、年（y）外的时间单位。
+在 INTERVAL 窗口查询中，其值必须大于等于 INTERVAL 窗口的时间长度。
+
+在 INTERP 查询中，当有效数据行与当前行的时间差超过该参数值时，不使用该行数据，转而使用 FILL_VALS 进行填充。
+在 INTERVAL 窗口查询中，当有效数据窗口与当前窗口的时间差（窗口起始时间戳差值）超过该参数值时，不使用该窗口数据，转而使用 FILL_VALS 填充。
+
+FILL_VALS 参数用于指定填充的值，数目和格式均与 FILL 子句的 VALUE 填充模式相同，可以为常量或常量表达式，不支持子查询。
+
+### 示例
+
+```sql
+taos> select * from fill_example;
+           ts            |   c1        |
+========================================
+ 2026-01-01 00:00:00.000 | 2026        |
+ 2026-01-01 00:00:01.000 | NULL        |
+ 2026-01-01 00:00:02.000 | NULL        |
+ 2026-01-01 00:00:03.000 | NULL        |
+ 2026-01-01 00:00:04.000 | NULL        |
+ 2026-01-01 00:00:05.000 | NULL        |
+ 2026-01-01 00:00:06.000 | 6202        |
+
+taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near);
+           ts            |   c1        |
+========================================
+ 2026-01-01 00:00:01.000 | 2026        |
+ 2026-01-01 00:00:02.000 | 2026        |
+ 2026-01-01 00:00:03.000 | 2026        |
+ 2026-01-01 00:00:04.000 | 6202        |
+ 2026-01-01 00:00:05.000 | 6202        |
+
+taos> select _irowts as ts, interp(c1) from fill_example range('2026-01-01 00:00:01', '2026-01-01 00:00:05') every(1s) fill(near) surround(2s, 0);
+           ts            |   c1        |
+========================================
+ 2026-01-01 00:00:01.000 | 2026        |
+ 2026-01-01 00:00:02.000 | 2026        |
+ 2026-01-01 00:00:03.000 | 0           |
+ 2026-01-01 00:00:04.000 | 6202        |
+ 2026-01-01 00:00:05.000 | 6202        |
+
+taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts between "2026-01-01 00:00:00" and "2026-01-01 00:00:06" interval(1s) fill(prev) surround(5s, 0, 0);
+         _wstart         |          _wend          |  avg(c1)   |  last(c1)   |
+===============================================================================
+ 2026-01-01 00:00:00.000 | 2026-01-01 00:00:01.000 |       2026 |        2026 |
+ 2026-01-01 00:00:01.000 | 2026-01-01 00:00:02.000 |       2026 |        2026 |
+ 2026-01-01 00:00:02.000 | 2026-01-01 00:00:03.000 |       2026 |        2026 |
+ 2026-01-01 00:00:03.000 | 2026-01-01 00:00:04.000 |       2026 |        2026 |
+ 2026-01-01 00:00:04.000 | 2026-01-01 00:00:05.000 |       2026 |        2026 |
+ 2026-01-01 00:00:05.000 | 2026-01-01 00:00:06.000 |       2026 |        2026 |
+ 2026-01-01 00:00:06.000 | 2026-01-01 00:00:07.000 |       6202 |        6202 |
+
+taos> select _wstart, _wend, avg(c1), last(c1) from fill_example where ts between "2026-01-01 00:00:00" and "2026-01-01 00:00:06" interval(1s) fill(next) surround(2s, 0, 0);
+         _wstart         |          _wend          |  avg(c1)   |  last(c1)   |
+===============================================================================
+ 2026-01-01 00:00:00.000 | 2026-01-01 00:00:01.000 |       2026 |        2026 |
+ 2026-01-01 00:00:01.000 | 2026-01-01 00:00:02.000 |          0 |           0 |
+ 2026-01-01 00:00:02.000 | 2026-01-01 00:00:03.000 |          0 |           0 |
+ 2026-01-01 00:00:03.000 | 2026-01-01 00:00:04.000 |          0 |           0 |
+ 2026-01-01 00:00:04.000 | 2026-01-01 00:00:05.000 |       6202 |        6202 |
+ 2026-01-01 00:00:05.000 | 2026-01-01 00:00:06.000 |       6202 |        6202 |
+ 2026-01-01 00:00:06.000 | 2026-01-01 00:00:07.000 |       6202 |        6202 |
+```
+
+## GROUP BY
+
+如果在语句中同时指定了 GROUP BY 子句，那么 SELECT 列表只能包含如下表达式：
+
+1. 常量
+2. 聚集函数
+3. 与 GROUP BY 后表达式相同的表达式。
+4. 包含前面表达式的表达式
+
+GROUP BY 子句对每行数据按 GROUP BY 后的表达式的值进行分组，并为每个组返回一行汇总信息。
+
+GROUP BY 子句中可以通过指定表或视图的列名来按照表或视图中的任何列分组，这些列不需要出现在 SELECT 列表中。
+
+GROUP BY 子句中可以使用位置语法，位置标识为正整数，从 1 开始，表示使用 SELECT 列表的第几个表达式进行分组。
+
+GROUP BY 子句中可以使用结果集列名，表示使用 SELECT 列表的指定表达式进行分组。
+
+GROUP BY 子句中在使用位置语法和结果集列名进行分组时，其对应的 SELECT 列表中的表达式不能是聚集函数。
+
+该子句对行进行分组，但不保证结果集的顺序。若要对分组进行排序，请使用 ORDER BY 子句
+
+## PARTITION BY
+
+`PARTITION BY` 是 TDengine 3.0 引入的特色语法，用于按指定表达式列表对数据切分，并在每个分片中独立计算。
+
+它与 `GROUP BY` 类似，都按指定列表分组后再计算；不同的是，`PARTITION BY` 没有 `GROUP BY` 对 `SELECT` 列表的限制，组内可进行常量、聚合、标量、表达式等任意运算。因此 `PARTITION BY` 在用法上兼容 `GROUP BY`，使用 `GROUP BY` 的地方通常可替换为 `PARTITION BY`；但在非聚合查询中，两者结果可能不同。
+
+由于 `PARTITION BY` 不要求每组只返回一行聚合结果，还可支持分组后的各类窗口运算；所有需要先分组再做窗口计算的场景，都只能使用 `PARTITION BY`。
+
+详见 [特色查询](06-distinguished.md)。
+
+## ORDER BY
+
+ORDER BY 子句对结果集排序。如果没有指定 ORDER BY，无法保证同一语句多次查询的结果集返回顺序一致。
+
+ORDER BY 后可以使用位置语法，位置标识为正整数，从 1 开始，表示使用 SELECT 列表的第几个表达式进行排序。
+
+ASC 表示升序，DESC 表示降序。
+
+NULLS 语法用来指定 NULL 值在排序中输出的位置。NULLS LAST 是升序的默认值，NULLS FIRST 是降序的默认值。
+
+## LIMIT
+
+LIMIT 控制输出条数，OFFSET 指定从第几条之后开始输出。LIMIT/OFFSET 对结果集的执行顺序在 ORDER BY 之后。`LIMIT 5 OFFSET 2` 可以简写为 `LIMIT 2, 5`，都输出第 3 行到第 7 行数据。
+
+在有 PARTITION BY/GROUP BY 子句时，LIMIT 控制的是每个切分的分片中的输出，而不是总的结果集输出。
+
+## SLIMIT
+
+SLIMIT 和 PARTITION BY/GROUP BY 子句一起使用，用来控制输出的分片的数量。`SLIMIT 5 SOFFSET 2` 可以简写为 SLIMIT `2, 5`，都表示输出第 3 个到第 7 个分片。
+
+需要注意，如果有 ORDER BY 子句，则输出只有一个分片。
+
+## 常用时间范围表达式
+
+时序查询通常会在 `WHERE` 子句中限定主键时间戳列的范围。建议优先使用左闭右开的时间区间（`ts >= start AND ts < end`），避免相邻区间之间重复统计边界数据。
+
+常见写法如下：
+
+```sql
+-- 最近 1 小时
+SELECT * FROM meters
+WHERE ts >= NOW() - 1h;
+
+-- 今天
+SELECT * FROM meters
+WHERE ts >= TODAY() AND ts < TODAY() + 1d;
+
+-- 昨天
+SELECT * FROM meters
+WHERE ts >= TODAY() - 1d AND ts < TODAY();
+
+-- 本周以来
+SELECT * FROM meters
+WHERE ts >= TIMETRUNCATE(NOW(), 1w);
+
+-- 本月以来
+SELECT * FROM meters
+WHERE ts >= TIMETRUNCATE(NOW(), 1n);
+
+-- 指定时间范围
+SELECT * FROM meters
+WHERE ts >= '2024-01-01 00:00:00'
+  AND ts < '2024-02-01 00:00:00';
+```
+
+其中，[NOW()](03-function.md#now) 返回当前时间，[TODAY()](03-function.md#today) 返回当前日期零点，
+[TIMETRUNCATE()](03-function.md#timetruncate) 用于按指定时间单位截断时间戳。
+时间字符串的解析和显示受当前连接时区影响，详见[时区](../10-time/01-timezone.md)。
+
+## 无 FROM 的特殊查询
+
+部分特殊的查询功能可以不使用 FROM 子句执行。
+
+### 获取当前数据库
+
+下面的语句可以获取当前数据库。如果登录时未指定默认数据库，且未使用 `USE` 切换数据库，则返回 `NULL`。
+
+```sql
+SELECT DATABASE();
+```
+
+### 获取服务器和客户端版本号
+
+```sql
+SELECT CLIENT_VERSION();
+SELECT SERVER_VERSION();
+```
+
+### 获取服务器状态
+
+服务器状态检测语句。服务器正常时返回一个数字（例如 `1`）；异常时返回错误码。该语法可兼容连接池与第三方工具对数据库服务器状态的检查，并避免因心跳检测 SQL 写错而导致连接池连接丢失。
+
+```sql
+SELECT SERVER_STATUS();
+```
+
+### 获取当前时间
+
+```sql
+SELECT NOW();
+```
+
+### 获取当前日期
+
+```sql
+SELECT TODAY();
+```
+
+### 获取当前时区
+
+```sql
+SELECT TIMEZONE();
+```
+
+### 获取当前用户
+
+```sql
+SELECT CURRENT_USER();
+```
+
+## 正则表达式过滤
+
+### 语法
+
+```txt
+WHERE (column|tbname) match/MATCH/nmatch/NMATCH _regex_
+```
+
+### 正则表达式规范
+
+确保使用的正则表达式符合 POSIX 的规范，具体规范内容可参见[Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)
+
+### 使用限制
+
+只能针对表名（`tbname`）以及 `BINARY` / `NCHAR` 类型值进行正则表达式过滤。
+
+正则匹配字符串长度不能超过 128 字节。可通过客户端配置参数 `maxRegexStringLen` 调整上限，修改后需要重启客户端才能生效。
+
+## CASE 表达式
+
+### 语法
+
+```txt
+CASE value WHEN compare_value THEN result [WHEN compare_value THEN result ...] [ELSE result] END
+CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] END
+```
+
+### 说明
+
+`CASE` 表达式用于在 SQL 中表达 `IF ... THEN ... ELSE` 逻辑。
+
+第一种语法返回第一个 `value` 等于 `compare_value` 的 `result`；若都不匹配，则返回 `ELSE` 后的结果；若没有 `ELSE`，则返回 `NULL`。
+
+第二种语法返回第一个 `condition` 为真的 `result`；若都不匹配，则返回 `ELSE` 后的结果；若没有 `ELSE`，则返回 `NULL`。
+
+`CASE` 的返回类型以第一个 `WHEN ... THEN` 的 `result` 类型为准，其余 `WHEN ... THEN` 与 `ELSE` 的结果类型都需要可转换到该类型，否则会报错。
+
+### 示例
+
+某设备有三个状态码，显示其状态，语句如下：
+
+```sql
+SELECT CASE dev_status WHEN 1 THEN 'Running' WHEN 2 THEN 'Warning' WHEN 3 THEN 'Downtime' ELSE 'Unknown' END FROM dev_table;
+```
+
+统计智能电表的电压平均值，当电压小于 200 或大于 250 时认为是统计有误，修正其值为 220，语句如下：
+
+```sql
+SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) FROM meters;
+```
+
+## 时间线
+
+TDengine 的时间线函数（如 `diff`、`derivative`、`twa`、`elapsed` 等）和窗口算子（如 `INTERVAL`、`SESSION`、`STATE_WINDOW` 等）需要一条有效时间线才能执行。
+
+直接查询物理表或虚拟表时，系统时间列（主键列 `ts`/`_rowts`，以及窗口伪列 `_wstart` 等派生列）自动作为有效时间线，用户无需额外操作。
+
+当外层查询的输入来自子查询，且子查询结果中不存在系统时间列、或系统时间列不有序时，系统会自动选择输出列中第一个 `TIMESTAMP` 类型列作为退化时间线。如果不存在任何 `TIMESTAMP` 列，仅 `first`、`last`、`last_row` 可按输入行顺序返回结果，其他时间线函数和窗口算子报错。
+
+```sql
+-- 子查询未输出系统时间列 ts，event_time 成为退化时间线
+SELECT diff(val)
+FROM (
+  SELECT event_time, val
+  FROM sensor_data
+  ORDER BY event_time
+);
+```
+
+**注意**：退化时间线的数据质量由用户负责。如果退化时间线乱序，依赖时间差的函数（`derivative`、`twa`、`elapsed`、`stateduration`、`interp`）结果可能无物理意义。用户应在子查询中通过 `ORDER BY` 保证退化时间线有序。
+
+## 子查询
+
+### FROM 子查询
+
+“嵌套查询”即在一条 SQL 语句中，内层查询的结果可作为外层查询的数据源。
+
+从 `v2.2.0.0` 版本开始，TDengine 支持在 `FROM` 子句中使用非关联子查询（子查询不引用父查询中的参数）。也即在普通 `SELECT` 语句的表引用位置，用括号括起的独立 `SELECT` 语句代替。完整写法形如：
+
+```sql
+SELECT ... FROM (SELECT ... FROM ...) ...;
+```
+
+:::info
+
+- 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表建议起别名，以便于外层查询中方便引用。
+- 外层查询支持直接通过列名或\`列名\`的形式引用内层查询的列或伪列。
+- 在内层和外层查询中，都支持普通的表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
+- 内层查询支持的功能特性与非嵌套的查询语句能力是一致的。
+  - 内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。
+- 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
+  - 计算函数部分：
+    - 如果内层查询的结果数据未提供任何 TIMESTAMP 类型列，那么依赖时间线的函数在外层无法使用（仅 FIRST、LAST、LAST_ROW 可按输入行顺序返回结果）。如果内层查询输出了普通 TIMESTAMP 列但未输出主键列，系统会自动选择第一个 TIMESTAMP 列作为退化时间线。
+    - 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES、ELAPSED、INTERP、DERIVATIVE、IRATE、TWA、DIFF、STATECOUNT、STATEDURATION、CSUM、MAVG、TAIL、UNIQUE。
+    - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：PERCENTILE。
+
+:::
+
+### 非相关标量子查询
+
+非相关标量子查询仅返回单个值（一行一列），且执行过程不依赖外层查询的任何字段。任何符合该特征的查询语句都可以作为非相关标量子查询，也可出现在查询语句中语法定义为表达式的任意位置，并支持嵌套使用。
+
+非相关标量子查询可以先独立计算，再将结果代入外层查询作为筛选条件或参考值，常用于基于聚合值（如平均值、最大值）的过滤，或多表查询结果结合的场景，执行效率通常高于相关子查询。
+
+从 `v3.4.0.0` 版本开始，查询语句支持非相关标量子查询；从 `v3.4.1.0` 版本开始，流计算也支持。订阅、DDL，以及除 `INSERT INTO ... SELECT` 外的 DML 语句暂不支持。
+
+示例如下：
+
+```sql
+SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
+SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
+```
+
+### 子查询表达式
+
+从 `v3.4.1.0` 版本开始，TDengine 支持下列子查询表达式。其中的子查询仅限非相关子查询，目前支持在查询和流计算语句中使用；订阅、DDL，以及除 `INSERT INTO ... SELECT` 外的 DML 语句暂不支持。
+
+#### IN 子查询
+
+`IN` 运算符与子查询组合使用时，子查询结果作为匹配列表。子查询只能输出单列，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- WHERE 子句基础用法
+select col1 from tb2 where col1 in (select col1 from tb1 where f2 > 10);
+
+-- JOIN 关联条件中使用
+select a.ts from tb1 a
+join tb2 b on a.ts = b.ts and a.f1 in (select col1 from tb1 union select col1 from tb2);
+
+-- CASE 表达式中使用
+select case when f1 in (select f2 from tb1) then 0 else 1 end from tb1;
+```
+
+#### NOT IN 子查询
+
+`NOT IN` 用于判断表达式的值是否与子查询返回的所有结果都不相等。子查询只能输出单列，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- WHERE 子句基础用法
+select col1 from tb2 where col1 not in (select col1 from tb1 where f2 < 100);
+
+-- HAVING 子句中使用
+select avg(f1) from tb1
+group by f1 having f1 not in (select f1 from tb2 interval(10s));
+
+-- JOIN 关联条件中使用
+select a.ts, b.val from tb1 a
+join tb2 b on a.ts = b.ts and a.f2 not in (select col2 from tb3 where ts > '2026-01-01');
+```
+
+#### ALL 子查询
+
+`ALL` 需与比较运算符（`=`、`>`、`<`、`>=`、`<=`、`<>`）结合，判断表达式是否满足子查询返回的所有结果。子查询只能输出单列，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- 大于子查询所有结果
+select col1, col2 from tb1 where col1 > ALL (select f1 from tb2 where f2 > 10);
+
+-- 不等于子查询所有结果
+select col1 from tb1 where col1 <> ALL (select avg(f1) from tb2 group by f2);
+
+-- HAVING 子句中使用
+select sum(f1) from tb1
+group by f1 having max(f2) <= ALL (select col3 from tb3 interval(1s));
+```
+
+#### ANY 子查询
+
+`ANY` 需与比较运算符（`=`、`>`、`<`、`>=`、`<=`、`<>`）结合，判断表达式是否满足子查询返回的任意一个结果。子查询只能输出单列，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- 小于子查询任意一个结果
+select a.ts, b.val from tb1 a
+join tb2 b on a.ts = b.ts and a.f1 < ANY (select col1 from tb3 union select col1 from tb4);
+
+-- INSERT INTO SELECT 中使用
+insert into tb6 (ts, val)
+select ts, f1 from tb1 where f1 = ANY (select col1 from tb7 where ts > '2026-01-01 00:00:00');
+
+-- CASE 表达式中使用
+select case when f2 >= ANY (select f3 from tb8) then 'high' else 'low' end from tb1;
+```
+
+#### SOME 子查询
+
+`SOME` 与 `ANY` 功能完全等价，需与比较运算符（`=`、`>`、`<`、`>=`、`<=`、`<>`）结合。子查询只能输出单列，可支持任意满足输出要求的查询语句（含嵌套查询）。
+
+```sql
+-- HAVING 子句中使用
+select avg(f1) from tb1
+group by f1 having sum(f2) >= SOME (select f3 from tb2 interval(1s));
+
+-- SELECT 列表中使用
+select col1, f2 > SOME (select f1 from tb3) as flag from tb1;
+
+-- WHERE 子句基础用法
+select col1 from tb1 where f3 = SOME (select col2 from tb4 where f4 < 50);
+```
+
+#### EXISTS 子查询
+
+`EXISTS` 仅判断子查询是否返回至少一行数据，不关注返回内容。子查询无列数限制，可支持任意满足逻辑要求的查询语句（含嵌套查询）。
+
+```sql
+-- CASE 表达式中使用
+select case when exists (select 1 from tb2 where tb2.col1 = 1)
+           then 'exist' else 'not exist' end as status from tb1;
+
+-- UNION 中组合使用
+select col1 from tb1 where exists (select 1 from tb4)
+union
+select col2 from tb2 where exists (select 1 from tb5 where f2 > 0);
+
+-- WHERE 子句基础用法
+select col1 from tb1 where exists (select * from tb3 where f3 = 1);
+```
+
+#### NOT EXISTS 子查询
+
+`NOT EXISTS` 与 `EXISTS` 逻辑相反，判断子查询是否无数据返回。子查询无列数限制，可支持任意满足逻辑要求的查询语句（含嵌套查询）。
+
+```sql
+-- SELECT 列表中使用
+select col1, not exists (select f1 from tb3 where f1 = 1) as flag from tb1;
+
+-- WHERE 子句中使用
+select col1 from tb1
+where not exists (select 1 from tb2 where f2 between 10 and 20);
+
+-- JOIN 关联条件中使用
+select a.ts from tb1 a
+left join tb2 b on a.ts = b.ts
+where not exists (select 1 from tb3 where tb3.col1 = 1);
+```
+
+## UNION 子句
+
+```txt title=语法
+SELECT ...
+UNION [ALL] SELECT ...
+[UNION [ALL] SELECT ...]
+```
+
+TDengine 支持 `UNION [ALL]` 操作符，用于合并多个 `SELECT` 子句的查询结果。使用时需满足：
+
+1. 各 `SELECT` 子句返回结果的列数必须一致；
+2. 对应位置的列顺序相同，且数据类型相同或兼容。
+
+合并后，结果集的列名由第一个 `SELECT` 子句定义。
+
+## 示例
+
+下面的示例基于如下建表语句：
+
+```sql
+CREATE TABLE tb1 (ts TIMESTAMP, col1 INT, col2 FLOAT, col3 BINARY(50));
+```
+
+查询 tb1 刚过去的一个小时的所有记录：
+
+```sql
+SELECT * FROM tb1 WHERE ts >= NOW - 1h;
+```
+
+查询表 tb1 从 2018-06-01 08:00:00.000 到 2018-06-02 08:00:00.000 时间范围，并且 col3 的字符串是'nny'结尾的记录，结果按照时间戳降序：
+
+```sql
+SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
+```
+
+查询 col1 与 col2 的和，并取名 complex，时间大于 2018-06-01 08:00:00.000，col2 大于 1.2，结果输出仅仅 10 条记录，从第 5 条开始：
+
+```sql
+SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
+```
+
+查询过去 10 分钟的记录，col2 的值大于 3.14，并且将结果输出到文件 `/home/testoutput.csv`：
+
+```sql
+SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutput.csv;
+```

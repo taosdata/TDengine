@@ -21,6 +21,7 @@
 #include "mndCluster.h"
 #include "mndCompact.h"
 #include "mndCompactDetail.h"
+#include "mndSnapSend.h"
 #include "mndConfig.h"
 #include "mndConsumer.h"
 #include "mndDb.h"
@@ -57,13 +58,17 @@
 #include "mndToken.h"
 #include "mndTopic.h"
 #include "mndTrans.h"
+#include "mndTxn.h"
+#include "mndTxnSeq.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "mndView.h"
+#include "mndExtSource.h"
 #include "mndXnode.h"
 #include "tencrypt.h"
 
 #define UPGRADE_INTERVAL 10
+
 static inline int32_t mndAcquireRpc(SMnode *pMnode) {
   int32_t code = 0;
   (void)taosThreadRwlockRdlock(&pMnode->lock);
@@ -119,6 +124,17 @@ static void mndPullupTrans(SMnode *pMnode) {
     // TODO check return value
     if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
       mError("failed to put into write-queue since %s, line:%d", terrstr(), __LINE__);
+    }
+  }
+}
+
+static void mndPullupTxnTimeout(SMnode *pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  if (pReq != NULL) {
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TXN_TIMER, .pCont = pReq, .contLen = contLen};
+    if (tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg) < 0) {
+      mError("failed to put txn-timeout timer into write-queue since %s", terrstr());
     }
   }
 }
@@ -358,6 +374,12 @@ static void mndSetVgroupOffline(SMnode *pMnode, int32_t dnodeId, int64_t curMs) 
           pGid->startTimeMs = 0;
           pGid->learnerProgress = 0;
           pGid->snapSeq = -1;
+          // Zero the snapshot stat fields to clean up residual stats when the node goes offline
+          pGid->snapTotalSize = 0;
+          pGid->snapTransferredSize = 0;
+          pGid->prevTransferredSize = 0;
+          pGid->prevSampleMs = 0;
+          pGid->snapRate = 0;
           stateChanged = true;
         }
         break;
@@ -433,6 +455,7 @@ static int32_t minCronTime() {
   min = TMIN(min, tsSsAutoMigrateIntervalSec);
   min = TMIN(min, tsTransPullupInterval);
   min = TMIN(min, tsCompactPullupInterval);
+  min = TMIN(min, tsSnapSendPullupInterval);
   min = TMIN(min, tsMqRebalanceInterval);
 
   int64_t telemInt = TMIN(60, (tsTelemInterval - 1));
@@ -442,7 +465,6 @@ static int32_t minCronTime() {
 #ifdef TD_ENTERPRISE
   if (tsClsEnabled) min = TMIN(min, tsClsRefreshInterval);
 #endif
-
   return min <= 1 ? 2 : min;
 }
 void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
@@ -502,9 +524,21 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
     mndPullupCompacts(pMnode);
   }
 
+  if (sec % tsSnapSendPullupInterval == 0) {
+    mndSnapSendPullup(pMnode);
+  }
+
   if (sec % tsScanPullupInterval == 0) {
     mndPullupScans(pMnode);
   }
+
+  // User batch transaction HB timeout scan (every MND_TXN_PULLUP_INTERVAL_SEC s via write-queue pullup).
+  // HB timeout is TSDB_TXN_HB_TIMEOUT s; worst-case detection latency is their sum.
+  // The pullup pattern ensures the scan runs on the MNode write worker thread.
+  if (sec % MND_TXN_PULLUP_INTERVAL_SEC == 0) {
+    mndPullupTxnTimeout(pMnode);
+  }
+
   if (tsInstancePullupInterval > 0 && sec % tsInstancePullupInterval == 0) {  // check instance expired
     mndPullupInstances(pMnode);
   }
@@ -519,7 +553,6 @@ void mndDoTimerPullupTask(SMnode *pMnode, int64_t sec) {
   if (sec % tsUptimeInterval == 0) {
     mndIncreaseUpTime(pMnode);
   }
-
   if (pMnode->version < TSDB_MNODE_BUILTIN_DATA_VERSION && sec % UPGRADE_INTERVAL == 0) {
     mndPullupUpgradeSdb(pMnode);
   }
@@ -561,6 +594,7 @@ static void *mndThreadSecFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastSec = 0;
   setThreadName("mnode-timer");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   while (1) {
     if (mndGetStop(pMnode)) break;
@@ -592,6 +626,7 @@ static void *mndThreadMsFp(void *param) {
   SMnode *pMnode = param;
   int64_t lastTime = 0;
   setThreadName("mnode-arb-timer");
+  taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
 
   while (1) {
     lastTime += 100;
@@ -845,19 +880,24 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-rsma", mndInitRsma, mndCleanupRsma));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-view", mndInitView, mndCleanupView));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-ext-source", mndInitExtSource, mndCleanupExtSource));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact", mndInitCompact, mndCleanupCompact));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan", mndInitScan, mndCleanupScan));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention", mndInitRetention, mndCleanupRetention));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-compact-detail", mndInitCompactDetail, mndCleanupCompactDetail));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-snap-send", mndInitSnapSend, mndCleanupSnapSend));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-scan-detail", mndInitScanDetail, mndCleanupScanDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-retention-detail", mndInitRetentionDetail, mndCleanupRetentionDetail));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-ssmigrate", mndInitSsMigrate, mndCleanupSsMigrate));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-txnSeq", mndInitTxnSeq, mndCleanupTxnSeq));
+  TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-txn", mndInitTxn, mndCleanupTxn));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sdb", mndOpenSdb, NULL));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem));
+
   return 0;
 }
 
@@ -1012,7 +1052,6 @@ int32_t mndStart(SMnode *pMnode) {
     }
     mndSetRestored(pMnode, true);
   }
-
   if (sdbIsUpgraded(pMnode->pSdb)) {
     pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
   } else if (pMnode->version < TSDB_MNODE_BUILTIN_DATA_VERSION) {
@@ -1024,7 +1063,6 @@ int32_t mndStart(SMnode *pMnode) {
       pMnode->version = TSDB_MNODE_BUILTIN_DATA_VERSION;
     }
   }
-
 #ifdef TD_ENTERPRISE
   if (mndIsLeader(pMnode)) {
     if (tsSodEnforceMode) {

@@ -31,8 +31,7 @@ class TestDatabasePrecisionUs:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -416,6 +415,7 @@ class TestDatabasePrecisionUs:
         self.checkExpect(sql, expectVal)
 
         # timetruncate check
+        tdSql.execute("set first_day_of_week 4")
         sql = '''select ts,timetruncate(ts,1a),
                           timetruncate(ts,1s),
                           timetruncate(ts,1m),
@@ -503,8 +503,7 @@ class TestDatabasePrecisionUs:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

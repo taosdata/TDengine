@@ -54,6 +54,9 @@ extern TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const cha
 extern TAOS *(*fp_taos_connect_with)(const OPTIONS *options);
 extern TAOS *(*fp_taos_connect_with_dsn)(const char *dsn);
 extern void (*fp_taos_close)(TAOS *taos);
+extern int (*fp_taos_txn_begin)(TAOS *taos);
+extern int (*fp_taos_txn_commit)(TAOS *taos);
+extern int (*fp_taos_txn_rollback)(TAOS *taos);
 
 extern const char *(*fp_taos_data_type)(int type);
 
@@ -134,6 +137,7 @@ extern const char *(*fp_taos_get_server_info)(TAOS *taos);
 extern const char *(*fp_taos_get_client_info)();
 extern int (*fp_taos_get_current_db)(TAOS *taos, char *database, int len, int *required);
 extern int (*fp_taos_get_connection_info)(TAOS *taos, TSDB_CONNECTION_INFO info, char *buffer, int* len);
+extern void *(*fp_taos_get_result_tz)(TAOS_RES *res);
 
 extern const char *(*fp_taos_errstr)(TAOS_RES *res);
 extern int (*fp_taos_errno)(TAOS_RES *res);

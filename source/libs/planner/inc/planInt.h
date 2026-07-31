@@ -31,6 +31,7 @@ typedef struct SPhysiPlanContext {
   int64_t       nextDataBlockId;
   SArray*       pLocationHelper;
   SArray*       pProjIdxLocHelper;
+  bool          hasFederatedScan;  // set when SCAN_TYPE_EXTERNAL subplan is built
 } SPhysiPlanContext;
 
 #define planFatal(param, ...)  qFatal ("plan " param, ##__VA_ARGS__)
@@ -76,6 +77,7 @@ int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requir
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan);
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
+int32_t postSplitOptimize(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
 int32_t scaleOutLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SQueryLogicPlan** pLogicPlan);
 int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan, SArray* pExecNodeList);
 int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan);
@@ -84,6 +86,7 @@ bool        getBatchScanOptionFromHint(SNodeList* pList);
 bool        getSortForGroupOptHint(SNodeList* pList);
 bool        getParaTablesSortOptHint(SNodeList* pList);
 bool        getSmallDataTsSortOptHint(SNodeList* pList);
+bool        getSmallDataScanSortOptHint(SNodeList* pList);
 bool        getHashJoinOptHint(SNodeList* pList);
 bool        getOptHint(SNodeList* pList, EHintOption hint);
 SLogicNode* getLogicNodeRootNode(SLogicNode* pCurr);
@@ -91,6 +94,16 @@ int32_t     collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
 bool        isPartTableAgg(SAggLogicNode* pAgg);
 bool        isPartTagAgg(SAggLogicNode* pAgg);
 bool        isPartTableWinodw(SWindowLogicNode* pWindow);
+bool        isPartTableInterp(SInterpFuncLogicNode* pInterp);
+void        planPromoteScanToTableMerge(SScanLogicNode* pScan, EDataOrderLevel requireLevel,
+                                        EDataOrderLevel resultLevel);
+int32_t     planReplaceMergeWithSort(SScanLogicNode* pScan, bool* pReplaced);
+bool        scanIsSmallDataScanSortHinted(const SScanLogicNode* pScan);
+// Defined in planSpliter.c; shared so planReplaceMergeWithSort builds the same
+// scan sort keys as the table-merge-scan split path instead of duplicating them.
+int32_t     stbSplFindPrimaryKeyFromScan(SScanLogicNode* pScan, SNode** ppNode);
+int32_t     stbSplFindPkFromScan(SScanLogicNode* pScan, SNode** ppNode);
+int32_t     stbSplCreateMergeKeysByExpr(SNode* pExpr, EOrder order, SNodeList** pMergeKeys);
 bool        keysHasCol(SNodeList* pKeys);
 bool        keysHasTbname(SNodeList* pKeys);
 bool        projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject);
@@ -101,6 +114,7 @@ int32_t tagScanSetExecutionMode(SScanLogicNode* pScan);
 #define CLONE_LIMIT 1
 #define CLONE_SLIMIT 1 << 1
 #define CLONE_LIMIT_SLIMIT (CLONE_LIMIT | CLONE_SLIMIT)
+bool    limitHasFiniteRows(const SNode* pLimit);
 int32_t cloneLimit(SLogicNode* pParent, SLogicNode* pChild, uint8_t cloneWhat, bool* pCloned);
 int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, SSortLogicNode* pSort,
                                                    bool* pNotOptimize, SNodeList** pSequencingNodes, bool* keepSort);

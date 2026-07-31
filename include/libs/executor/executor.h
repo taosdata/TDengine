@@ -71,6 +71,7 @@ typedef struct {
   int64_t            uid;
   void*              streamRtInfo;
   bool               cacheSttStatis;
+  int64_t            txnId;  // batch meta txn ID for same-txn visibility
 } SReadHandle;
 
 typedef struct STrueForInfo {
@@ -169,10 +170,10 @@ void    qUpdateWorkerCb(qTaskInfo_t tinfo, void* pWorkerCb);
  */
 int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
 
-void    qUpdateTableTagCacheForTmq(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids, SArray* cidListArray);
-int32_t qUpdateTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
-int32_t qDeleteTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
-int32_t qAddTableListForTmqScanner(qTaskInfo_t tinfo, const SArray* tableIdList);
+void    qUpdateTableTagCacheForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList, SArray* cids, SArray* cidListArray);
+int32_t qUpdateTableListForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList);
+int32_t qDeleteTableListForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList);
+int32_t qAddTableListForQuerySub(qTaskInfo_t tinfo, const SArray* tableIdList);
 
 bool qIsDynamicExecTask(qTaskInfo_t tinfo);
 
@@ -329,7 +330,7 @@ bool    isTaskKilled(void* pTaskInfo);
 
 
 bool    isTrueForSatisfied(STrueForInfo* pTrueForInfo, int64_t skey, int64_t ekey, int64_t count);
-int32_t qFilterTableList(void* pVnode, SArray* uidList, SNode* node, void* pTaskInfo, uint64_t suid);
+int32_t qFilterTableList(void* pVnode, SArray* uidList, int64_t version, SNode* node, void* pTaskInfo, uint64_t suid);
 bool    checkCidInTagCondition(SNode* node, SArray* cidList);
 SNode*  getTagCondNodeForStableTmq(void* node);
 SNode*  getTagCondNodeForQueryTmq(void* tinfo);
@@ -337,6 +338,10 @@ SNode*  getTagCondNodeForQueryTmq(void* tinfo);
 // Pre-initialize external-window runtime (batch mode) from subquery results so that
 // downstream scan can build table list with baseGId via stream multi-group path.
 int32_t  extWinPreInitFromSubquery(SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
+
+// Federated query: retrieve the remote-side error message stored in the task info.
+// Returns NULL if no ext error occurred. The returned pointer is owned by pTaskInfo.
+const char* qGetExtErrMsg(qTaskInfo_t tinfo);
 
 #ifdef __cplusplus
 }

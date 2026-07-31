@@ -34,7 +34,7 @@ def handle_anomaly(request):
     params = parse_options(options)
 
     try:
-        res_list, ano_window, mask_list = do_ad_check(payload, ts_list, algo, params)
+        _, ano_window, mask_list = do_ad_check(payload, ts_list, algo, params)
         result = {"algo": algo, "option": options, "res": ano_window, "rows": len(ano_window), "mask": mask_list}
 
         AppLogger.debug("anomaly-detection result: %s", str(result))

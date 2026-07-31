@@ -244,6 +244,14 @@ typedef struct {
   SArray      *points;
 } SFltSclColumnRange;
 
+typedef struct {
+  col_id_t colId;
+} SFltBlkNotNullItem;
+
+typedef struct {
+  SArray *pItems;
+} SFltBlkNotNullGroup;
+
 struct SFilterInfo {
   bool              scalarMode;
   SFltScalarCtx     sclCtx;
@@ -260,6 +268,7 @@ struct SFilterInfo {
   uint8_t          *unitRes;    // result
   uint8_t          *unitFlags;  // got result
   SFilterRangeCtx **colRange;
+  SArray           *pBlkOrNotNullGroups;
   filter_exec_func  func;
   uint8_t           blkFlag;
   uint32_t          blkGroupNum;
@@ -272,6 +281,8 @@ struct SFilterInfo {
 
   SFilterPCtx pctx;
   const void*      pStreamRtInfo;
+  void*            pTaskInfo;    // opaque task handle for kill-check in scalar eval
+  sclIsTaskKilled  isTaskKilled; // kill-check callback; NULL = not interruptible
 };
 
 #define FILTER_NO_MERGE_DATA_TYPE(t)                                                                 \

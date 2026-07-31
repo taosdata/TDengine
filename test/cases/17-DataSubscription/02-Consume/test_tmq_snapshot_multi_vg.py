@@ -14,7 +14,7 @@ class TestCase:
         tdLog.debug(f"start to excute {__file__}")
         cls.vgroups    = 4
         cls.ctbNum     = 10
-        cls.rowsPerTbl = 10000
+        cls.rowsPerTbl = 1000
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -229,8 +229,7 @@ class TestCase:
         
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

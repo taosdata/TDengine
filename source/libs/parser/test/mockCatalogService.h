@@ -16,6 +16,10 @@
 #ifndef MOCK_CATALOG_SERVICE_H
 #define MOCK_CATALOG_SERVICE_H
 
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -54,6 +58,8 @@ class MockCatalogService {
   static void destoryCatalogReq(SCatalogReq* pReq);
   static void destoryMetaRes(void* p);
   static void destoryMetaArrayRes(void* p);
+  static void destoryMetaTableTSMAInfo(void* p);
+  static void destoryMetaVStbRefDbs(void* p);
   static void destoryMetaData(SMetaData* pData);
 
   MockCatalogService();
@@ -67,6 +73,25 @@ class MockCatalogService {
   void createDnode(int32_t dnodeId, const std::string& host, int16_t port);
   void createDatabase(const std::string& db, bool rollup = false, int8_t cacheLast = 0,
                       int8_t precision = TSDB_TIME_PRECISION_MILLI);
+
+  // Federated query test helpers — register a fake external source so that
+  // CREATE STREAM ... FROM <ext>.<tbl> can resolve through catalogGetAllMeta.
+  // sourceType uses EExtSourceType (EXT_SOURCE_POSTGRESQL/EXT_SOURCE_MYSQL/...).
+  void createExtSource(const std::string& sourceName, int8_t sourceType, const std::string& host,
+                       int32_t port, const std::string& user, const std::string& database,
+                       const std::string& schemaName = "");
+  // Register a fake external table.  mid0/mid1 are optional path segments
+  // (e.g. db/schema for PG); pass empty string to omit.  pkColIdx marks which
+  // column is the timestamp primary key.  Column types use TSDB_DATA_TYPE_*.
+  struct MockExtColDef {
+    std::string colName;
+    int8_t      type;        // TSDB_DATA_TYPE_*
+    bool        isPrimaryKey;
+    bool        nullable;
+  };
+  void createExtTable(const std::string& sourceName, const std::string& mid0, const std::string& mid1,
+                      const std::string& tableName, const std::vector<MockExtColDef>& cols,
+                      int8_t tsPrecision = TSDB_TIME_PRECISION_MILLI);
 
   int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta, bool onlyCache = false) const;
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo, bool onlyCache = false) const;

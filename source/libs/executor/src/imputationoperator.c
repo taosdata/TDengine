@@ -567,6 +567,16 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
       goto _OVER;
     }
 
+    if (resCurRow + rows > pBlock->info.capacity) {
+      int32_t total = resCurRow + rows;
+
+      code = blockDataEnsureCapacity(pBlock, total);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        return code;
+      }
+    }
+
     if (pInfo->imputatSup.resTsSlot != -1) {
       SColumnInfoData* pResTsCol = taosArrayGet(pBlock->pDataBlock, pInfo->imputatSup.resTsSlot);
       if (pResTsCol != NULL) {
@@ -579,7 +589,6 @@ static int32_t doAnalysisImpl(SAnalysisOperatorInfo* pInfo, SBaseSupp* pSupp, SS
       }
     }
 
-    resCurRow = pBlock->info.rows;
     if (pResTargetCol->info.type == TSDB_DATA_TYPE_DOUBLE) {
       for (int32_t i = 0; i < rows; ++i) {
         SJson* targetJson = tjsonGetArrayItem(pTarget, i);
@@ -1265,6 +1274,7 @@ _OVER:
 
 int32_t createGenericAnalysisOperatorInfo(SOperatorInfo* downstream, SPhysiNode* physiNode, SExecTaskInfo* pTaskInfo,
                                      SOperatorInfo** pOptrInfo) {
+  qError("createGenericAnalysisOperatorInfo failed since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 void analysisDestroyOperatorInfo(void* param) {}

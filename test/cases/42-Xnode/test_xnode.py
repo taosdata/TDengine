@@ -37,8 +37,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -62,8 +61,7 @@ class TestXnode:
 
         Since: v3.4.0.5
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -82,8 +80,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -109,8 +106,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -133,13 +129,12 @@ class TestXnode:
         1. Drop xnode force by endpoint and id
         2. Create xnode with endpoint and user/pass
         3. Create xnode with id only
-        4. Drop xnode by endpoint and id
-        5. Drain xnode by id
+        4. Verify drain and normal drop retain unreachable xnodes
+        5. Force drop unreachable xnodes by endpoint and id
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -181,17 +176,35 @@ class TestXnode:
         rs = tdSql.query(f"SHOW XNODES where id > 0", row_tag=True)
         assert len(rs) == 2
 
-        for row in rs:
+        for index, row in enumerate(rs):
             xnode_id = row[0]
             url = row[1]
-            del_sqls = [
+
+            tdSql.error(
                 f"DRAIN XNODE {xnode_id}",
-                f"DROP XNODE '{url}'",
-                f"DROP XNODE {xnode_id}",
-            ]
-            for sql in del_sqls:
-                tdLog.debug(f"exec: {sql}")
-                self.no_syntax_fail_execute(sql)
+                expectedErrno=0x8009,
+            )
+            assert (
+                len(tdSql.query(f"SHOW XNODES where id = {xnode_id}", row_tag=True))
+                == 1
+            )
+
+            drop_target = f"'{url}'" if index == 0 else str(xnode_id)
+            tdSql.error(
+                f"DROP XNODE {drop_target}",
+                expectedErrno=0x8009,
+            )
+            assert (
+                len(tdSql.query(f"SHOW XNODES where id = {xnode_id}", row_tag=True))
+                == 1
+            )
+
+            tdSql.execute(f"DROP XNODE FORCE {drop_target}", queryTimes=1)
+            self.wait_transaction_to_commit()
+            assert (
+                len(tdSql.query(f"SHOW XNODES where id = {xnode_id}", row_tag=True))
+                == 0
+            )
 
         rs = tdSql.query(f"SHOW XNODES where id > 0", row_tag=True)
         assert len(rs) == 0
@@ -211,8 +224,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -339,8 +351,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -389,8 +400,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -465,8 +475,7 @@ class TestXnode:
 
         Since: v3.4.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -504,8 +513,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -684,8 +692,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -771,8 +778,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -865,8 +871,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -900,8 +905,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1071,8 +1075,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1263,8 +1266,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1330,8 +1332,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1354,8 +1355,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1367,7 +1367,7 @@ class TestXnode:
         self.wait_transaction_to_commit()
         rs = tdSql.query(f"show xnodes where url='localhost_{rid}:6055'", row_tag=True)
         assert rs[0][1] == f'localhost_{rid}:6055'
-        tdSql.query(f"drop xnode 'localhost_{rid}:6055'")
+        tdSql.query(f"drop xnode force 'localhost_{rid}:6055'")
         self.wait_transaction_to_commit()
 
         rid = random.randint(1000, 9999)
@@ -1375,7 +1375,7 @@ class TestXnode:
         self.no_syntax_fail_execute("ALTER XNODE SET USER root pass 'taosdata'")
         rs = tdSql.query(f"show xnodes where url='localhost:6055_{rid}'", row_tag=True)
         assert rs[0][1] == f'localhost:6055_{rid}'
-        tdSql.query(f"drop xnode 'localhost:6055_{rid}'")
+        tdSql.query(f"drop xnode force 'localhost:6055_{rid}'")
         self.wait_transaction_to_commit()
 
         rid = random.randint(1000, 9999)
@@ -1383,7 +1383,7 @@ class TestXnode:
         self.no_syntax_fail_execute("ALTER XNODE SET USER root pass 'taosdata'")
         rs = tdSql.query(f"show xnodes where url='localhost:6055_{rid}'", row_tag=True)
         assert rs[0][1] == f'localhost:6055_{rid}'
-        tdSql.query(f"drop xnode 'localhost:6055_{rid}'")
+        tdSql.query(f"drop xnode force 'localhost:6055_{rid}'")
         self.wait_transaction_to_commit()
 
     def test_alter_token(self):
@@ -1394,8 +1394,7 @@ class TestXnode:
 
         Since: v3.4.0.1
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1403,7 +1402,7 @@ class TestXnode:
         """
         rs = tdSql.query(f"show xnodes", row_tag=True)
         for row in rs:
-            tdSql.query(f"drop xnode '{row[1]}'")
+            tdSql.query(f"drop xnode force '{row[1]}'")
 
         rid = random.randint(1000, 9999)
         tdLog.info(f"test alter token:{rid}")
@@ -1414,7 +1413,7 @@ class TestXnode:
         tdLog.info(f"show xnodes where result:' {rs}")
         assert rs[0][1] == f'localhost_{rid}:6055'
         self.no_syntax_fail_execute("ALTER XNODE SET token 'vcUTCJ6spXeIVPFBvyuHlqgd9XgJHAFVoSqO6HLS4rUDLT2OgQxN96WMWBZpExJ'")
-        tdSql.query(f"drop xnode 'localhost_{rid}:6055'")
+        tdSql.query(f"drop xnode force 'localhost_{rid}:6055'")
         self.wait_transaction_to_commit()
 
         rid = random.randint(1000, 9999)
@@ -1424,7 +1423,7 @@ class TestXnode:
         self.no_syntax_fail_execute("ALTER XNODE SET token 'vcUTCJ6spXeIVPFBvyuHlqgd9XgJHAFVoSqO6HLS4rUDLT2OgQxN96WMWBZpExJ'")
         rs = tdSql.query(f"show xnodes where url='localhost_{rid}:6055'", row_tag=True)
         assert rs[0][1] == f'localhost_{rid}:6055'
-        tdSql.query(f"drop xnode 'localhost_{rid}:6055'")
+        tdSql.query(f"drop xnode force 'localhost_{rid}:6055'")
         self.no_syntax_fail_execute("ALTER XNODE SET USER root pass 'taosdata'")
 
     def test_xnode_column_length(self):
@@ -1435,8 +1434,7 @@ class TestXnode:
 
         Since: v3.4.0.3
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1487,8 +1485,7 @@ class TestXnode:
 
         Since: v3.4.0.10
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -1596,8 +1593,7 @@ class TestXnode:
 
         Since: v3.4.0.12
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

@@ -2989,7 +2989,7 @@ static tb_uid_t getTableSuidByUid(tb_uid_t uid, STsdb *pTsdb) {
   tb_uid_t suid = 0;
 
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, pTsdb->pVnode->pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, pTsdb->pVnode->pMeta, META_READER_LOCK, 0);
   if (metaReaderGetTableEntryByUidCache(&mr, uid) < 0) {
     metaReaderClear(&mr);  // table not esist
     return 0;
@@ -4344,6 +4344,7 @@ int32_t tsdbCacheGetBlockSs(SLRUCache *pCache, STsdbFD *pFD, LRUHandle **handle)
 
 int32_t tsdbCacheGetPageSs(SLRUCache *pCache, STsdbFD *pFD, int64_t pgno, LRUHandle **handle) {
   if (!tsSsEnabled) {
+    uError("%s failed since shared storage is disabled: %s", __func__, tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
     return TSDB_CODE_OPS_NOT_SUPPORT;
   }
 

@@ -107,20 +107,17 @@ int32_t mndStreamTransAppend(SStreamObj *pStream, STrans *pTrans, int32_t status
   SSdbRaw *pCommitRaw = mndStreamActionEncode(pStream);
   if (pCommitRaw == NULL) {
     mstsError("failed to encode stream since %s", terrstr());
-    mndTransDrop(pTrans);
     return terrno;
   }
 
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mstsError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     sdbFreeRaw(pCommitRaw);
-    mndTransDrop(pTrans);
     return terrno;
   }
 
   if (sdbSetRawStatus(pCommitRaw, status) != 0) {
     mstsError("stream trans:%d failed to set raw status:%d since %s", pTrans->id, status, terrstr());
-    mndTransDrop(pTrans);
     return terrno;
   }
 

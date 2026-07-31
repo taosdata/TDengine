@@ -21,6 +21,8 @@
 #include "taoserror.h"
 #include "thash.h"
 
+int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *len, bool longFormat);
+
 const char *operatorTypeStr(EOperatorType type) {
   switch (type) {
     case OP_TYPE_ADD:
@@ -125,6 +127,37 @@ const char *logicConditionTypeStr(ELogicConditionType type) {
   return "UNKNOWN";
 }
 
+static int32_t sqlWindowBoundToSQL(SSqlWindowBound *pBound, char *buf, int32_t bufSize, int32_t *len) {
+  switch (pBound->boundType) {
+    case WINDOW_BOUND_UNBOUNDED_PRECEDING:
+      *len += snprintf(buf + *len, bufSize - *len, "UNBOUNDED PRECEDING");
+      return TSDB_CODE_SUCCESS;
+    case WINDOW_BOUND_N_PRECEDING:
+      if (NULL == pBound->pOffset) {
+        return TSDB_CODE_FAILED;
+      }
+      NODES_ERR_RET(nodesNodeToSQLFormat(pBound->pOffset, buf, bufSize, len, true));
+      *len += snprintf(buf + *len, bufSize - *len, " PRECEDING");
+      return TSDB_CODE_SUCCESS;
+    case WINDOW_BOUND_CURRENT_ROW:
+      *len += snprintf(buf + *len, bufSize - *len, "CURRENT ROW");
+      return TSDB_CODE_SUCCESS;
+    case WINDOW_BOUND_N_FOLLOWING:
+      if (NULL == pBound->pOffset) {
+        return TSDB_CODE_FAILED;
+      }
+      NODES_ERR_RET(nodesNodeToSQLFormat(pBound->pOffset, buf, bufSize, len, true));
+      *len += snprintf(buf + *len, bufSize - *len, " FOLLOWING");
+      return TSDB_CODE_SUCCESS;
+    case WINDOW_BOUND_UNBOUNDED_FOLLOWING:
+      *len += snprintf(buf + *len, bufSize - *len, "UNBOUNDED FOLLOWING");
+      return TSDB_CODE_SUCCESS;
+    default:
+      break;
+  }
+  return TSDB_CODE_FAILED;
+}
+
 int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
   return nodesNodeToSQLFormat(pNode, buf, bufSize, len, false);
 }
@@ -192,6 +225,76 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
 
       return TSDB_CODE_SUCCESS;
     }
+    case QUERY_NODE_SQL_WINDOW_SPEC: {
+      SWindowSpecNode *pWin = (SWindowSpecNode *)pNode;
+      SNode           *node = NULL;
+      bool             first = true;
+
+      if (pWin->refWindowName[0] != '\0' && NULL == pWin->pPartitionByList && NULL == pWin->pOrderByList &&
+          NULL == pWin->pFrame) {
+        *len += snprintf(buf + *len, bufSize - *len, "%s", pWin->refWindowName);
+        return TSDB_CODE_SUCCESS;
+      }
+
+      *len += snprintf(buf + *len, bufSize - *len, "(");
+      if (pWin->refWindowName[0] != '\0') {
+        *len += snprintf(buf + *len, bufSize - *len, "%s", pWin->refWindowName);
+        first = false;
+      }
+      if (NULL != pWin->pPartitionByList) {
+        if (!first) {
+          *len += snprintf(buf + *len, bufSize - *len, " ");
+        }
+        *len += snprintf(buf + *len, bufSize - *len, "PARTITION BY ");
+        bool firstExpr = true;
+        FOREACH(node, pWin->pPartitionByList) {
+          if (!firstExpr) {
+            *len += snprintf(buf + *len, bufSize - *len, ", ");
+          }
+          NODES_ERR_RET(nodesNodeToSQLFormat(node, buf, bufSize, len, true));
+          firstExpr = false;
+        }
+        first = false;
+      }
+      if (NULL != pWin->pOrderByList) {
+        if (!first) {
+          *len += snprintf(buf + *len, bufSize - *len, " ");
+        }
+        *len += snprintf(buf + *len, bufSize - *len, "ORDER BY ");
+        bool firstExpr = true;
+        FOREACH(node, pWin->pOrderByList) {
+          if (!firstExpr) {
+            *len += snprintf(buf + *len, bufSize - *len, ", ");
+          }
+          NODES_ERR_RET(nodesNodeToSQLFormat(node, buf, bufSize, len, true));
+          firstExpr = false;
+        }
+        first = false;
+      }
+      if (NULL != pWin->pFrame) {
+        if (!first) {
+          *len += snprintf(buf + *len, bufSize - *len, " ");
+        }
+        NODES_ERR_RET(nodesNodeToSQLFormat(pWin->pFrame, buf, bufSize, len, true));
+      }
+      *len += snprintf(buf + *len, bufSize - *len, ")");
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_SQL_WINDOW_FRAME: {
+      SWindowFrameNode *pFrame = (SWindowFrameNode *)pNode;
+      *len += snprintf(buf + *len, bufSize - *len, "%s BETWEEN ",
+                       WINDOW_FRAME_UNIT_RANGE == pFrame->frameUnit ? "RANGE" : "ROWS");
+      NODES_ERR_RET(sqlWindowBoundToSQL(&pFrame->start, buf, bufSize, len));
+      *len += snprintf(buf + *len, bufSize - *len, " AND ");
+      NODES_ERR_RET(sqlWindowBoundToSQL(&pFrame->end, buf, bufSize, len));
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_SQL_NAMED_WINDOW: {
+      SNamedWindowNode *pWin = (SNamedWindowNode *)pNode;
+      *len += snprintf(buf + *len, bufSize - *len, "%s AS ", pWin->windowName);
+      NODES_ERR_RET(nodesNodeToSQLFormat(pWin->pSpec, buf, bufSize, len, true));
+      return TSDB_CODE_SUCCESS;
+    }
     case QUERY_NODE_LOGIC_CONDITION: {
       SLogicConditionNode *pLogicNode = (SLogicConditionNode *)pNode;
       SNode               *node = NULL;
@@ -227,6 +330,10 @@ int32_t nodesNodeToSQLFormat(SNode *pNode, char *buf, int32_t bufSize, int32_t *
       }
 
       *len += snprintf(buf + *len, bufSize - *len, ")");
+      if (NULL != pFuncNode->pOver) {
+        *len += snprintf(buf + *len, bufSize - *len, " OVER ");
+        NODES_ERR_RET(nodesNodeToSQLFormat(pFuncNode->pOver, buf, bufSize, len, true));
+      }
 
       return TSDB_CODE_SUCCESS;
     }

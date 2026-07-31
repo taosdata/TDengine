@@ -210,7 +210,7 @@ For scenarios requiring data transformation, you can use backticks to wrap inlin
 element_paths,TAG,VARCHAR(512),`$element_paths.replace("\\", ".")`
 ```
 
-For more information about mapping rules and data transformation expression syntax, see the "Data Extraction, Filtering and Transformation" section in [Zero-Code Third-Party Data Ingestion](../).
+For more information about mapping rules and data transformation expression syntax, see the "Data Extraction, Filtering and Transformation" section in [Zero-Code Third-Party Data Ingestion](../index.md).
 
 ### 4.3 Subtable Name Placeholders
 
@@ -234,7 +234,7 @@ This is the recommended default approach, ensuring that all subtables within the
 
 ### 5.2 Filter Specific Points or Templates
 
-Fill in filter criteria in Explorer before clicking **Download Default Configuration** to generate configuration for only the points/templates matching the filter criteria.
+Fill in filter criteria in Explorer before clicking **Download Default Configuration** to generate configuration for only the points/templates matching the filter criteria. For filter syntax, see [Dataset Filter Configuration](./07-dataset-filter.md).
 
 You can also manually edit the CSV after downloading:
 

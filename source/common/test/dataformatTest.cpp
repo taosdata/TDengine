@@ -619,3 +619,73 @@ for (int r = 0; r < nRows; ++r) {
   taosMemoryFree(pTSchema);
 }
 #endif
+
+// tColDataAddValueByDataBlock is the append path used by taos_write_raw_block/tmq_write_raw
+// (raw-block replication, backup/restore) to feed column bytes directly into storage, bypassing
+// the taosMbsToUcs4 encoding validation that every other write path (SQL INSERT, stmt/stmt2 bind,
+// schemaless) performs. It must reject NCHAR bytes that are not valid, decodable UCS4, instead of
+// silently persisting them and only failing later at query time (0x3250/0x3251).
+TEST(testCase, RawBlockNcharValidation) {
+  const int32_t ncharBytes = 42;  // matches genSTSchema's NCHAR(10) column: 10*4 + VARSTR_HEADER_SIZE
+
+  // -- valid UCS4 NCHAR value must be accepted --
+  {
+    SColData colData = {0};
+    tColDataInit(&colData, 1, TSDB_DATA_TYPE_NCHAR, 0);
+
+    const char *mbs = "ok";
+    int32_t     ucs4Cap = ((int32_t)strlen(mbs) + 1) * (int32_t)TSDB_NCHAR_SIZE;
+    char       *buf = (char *)taosMemoryCalloc(1, VARSTR_HEADER_SIZE + ucs4Cap);
+    ASSERT_NE(buf, nullptr);
+
+    int32_t ucs4Len = 0;
+    bool    ok = taosMbsToUcs4(mbs, (int32_t)strlen(mbs), (TdUcs4 *)varDataVal(buf), ucs4Cap, &ucs4Len, nullptr);
+    ASSERT_TRUE(ok);
+    varDataSetLen(buf, ucs4Len);
+
+    int32_t offset = 0;
+    int32_t code = tColDataAddValueByDataBlock(&colData, TSDB_DATA_TYPE_NCHAR, ncharBytes, 1, (char *)&offset, buf);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colData.numOfValue, 1);
+
+    taosMemoryFree(buf);
+    tColDataDestroy(&colData);
+  }
+
+  // -- illegal (non-decodable) UCS4 bytes must be rejected, not silently persisted --
+  {
+    SColData colData = {0};
+    tColDataInit(&colData, 1, TSDB_DATA_TYPE_NCHAR, 0);
+
+    // Length is a valid multiple of TSDB_NCHAR_SIZE (passes the existing length check), but the
+    // bytes are not a valid UCS4 code point sequence (0xFFFFFFFF is not a valid Unicode scalar).
+    char    buf[VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE] = {0};
+    int32_t badCode = 0xFFFFFFFF;
+    memcpy(varDataVal(buf), &badCode, TSDB_NCHAR_SIZE);
+    varDataSetLen(buf, TSDB_NCHAR_SIZE);
+
+    int32_t offset = 0;
+    int32_t code = tColDataAddValueByDataBlock(&colData, TSDB_DATA_TYPE_NCHAR, ncharBytes, 1, (char *)&offset, buf);
+    ASSERT_EQ(code, TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
+    ASSERT_EQ(colData.numOfValue, 0);
+
+    tColDataDestroy(&colData);
+  }
+
+  // -- non-NCHAR var-data types (e.g. BINARY) must not be affected by the new check --
+  {
+    SColData colData = {0};
+    tColDataInit(&colData, 1, TSDB_DATA_TYPE_BINARY, 0);
+
+    char buf[VARSTR_HEADER_SIZE + 4] = {0};
+    memcpy(varDataVal(buf), "\xFF\xFF\xFF\xFF", 4);
+    varDataSetLen(buf, 4);
+
+    int32_t offset = 0;
+    int32_t code = tColDataAddValueByDataBlock(&colData, TSDB_DATA_TYPE_BINARY, 16, 1, (char *)&offset, buf);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colData.numOfValue, 1);
+
+    tColDataDestroy(&colData);
+  }
+}

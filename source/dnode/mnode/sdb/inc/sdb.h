@@ -117,6 +117,8 @@ typedef struct SSdbRaw SSdbRaw;
 typedef struct SSdbRow SSdbRow;
 typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
+// Called after a row is logically dropped from SDB, before its ref-counted storage is freed.
+typedef int32_t (*SdbDropFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj, bool callFunc);
 typedef int32_t (*SdbDeployFp)(SMnode *pMnode);
 typedef int32_t (*SdbAfterRestoredFp)(SMnode *pMnode);
@@ -192,7 +194,11 @@ typedef enum {
   SDB_XNODE_USER_PASS = 46,
   SDB_SECURITY_POLICY = 47,
   SDB_GRANT_CLS = 48,
-  SDB_MAX = 49
+  SDB_TXN = 49,
+  SDB_TXN_LOG = 50,  // compact persistent log of terminal (COMMITTED/ROLLEDBACK/ZOMBIE) non-replicated txns
+  SDB_TXN_SEQ = 51,
+  SDB_EXT_SOURCE = 52,  // federated query: external data source metadata
+  SDB_MAX = 53
 } ESdbType;
 
 typedef struct SSdbRaw {
@@ -233,6 +239,7 @@ typedef struct SSdb {
   TdThreadRwlock     locks[SDB_MAX];
   SdbInsertFp        insertFps[SDB_MAX];
   SdbUpdateFp        updateFps[SDB_MAX];
+  SdbDropFp          dropFps[SDB_MAX];
   SdbDeleteFp        deleteFps[SDB_MAX];
   SdbDeployFp        deployFps[SDB_MAX];
   SdbAfterRestoredFp afterRestoredFps[SDB_MAX];
@@ -260,6 +267,7 @@ typedef struct {
   SdbDecodeFp        decodeFp;
   SdbInsertFp        insertFp;
   SdbUpdateFp        updateFp;
+  SdbDropFp          dropFp;
   SdbDeleteFp        deleteFp;
   SdbValidateFp      validateFp;
   SdbUpgradeFp       upgradeFp;
@@ -313,6 +321,18 @@ bool    sdbIsUpgraded(SSdb *pSdb);
  * @return int32_t 0 for success, -1 for failure.
  */
 int32_t sdbAfterRestored(SSdb *pSdb);
+
+/**
+ * @brief Re-create default metadata objects missing after an interrupted first
+ *        deploy, by re-running each table's deployFp (skipping tables with their
+ *        own afterRestoredFp, which self-heal via that hook). Only meaningful on
+ *        a single-node deploy; a formed multi-replica cluster already has
+ *        complete data. deployFp MUST be idempotent per object, since it may
+ *        re-run against already-populated tables.
+ * @param pSdb The sdb object.
+ * @return int32_t 0 for success, non-zero for failure.
+ */
+int32_t sdbEnsureDefaultData(SSdb *pSdb);
 
 /**
  * @brief Load sdb from file.

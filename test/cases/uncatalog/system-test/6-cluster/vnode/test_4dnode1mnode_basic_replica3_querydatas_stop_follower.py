@@ -400,8 +400,7 @@ class Test4dnode1mnodeBasicReplica3QuerydatasStopFollower:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional
         Jira: xxx
 
         Catalog:

@@ -34,6 +34,7 @@ typedef struct SSyncRaftEntry {
   SyncTerm  term;
   SyncIndex index;
   int64_t   rid;
+  txn_id_t  txnId;    // batch-meta-txn: copied from SRpcMsg.info.txnId; 0 = non-transaction
   uint32_t  dataLen;  // origin RpcMsg.contLen
   char      data[];   // origin RpcMsg.pCont
 } SSyncRaftEntry;

@@ -162,7 +162,19 @@
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_TOTP_SECRET, "create-totp-secret", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_TOTP_SECRET, "drop-totp-secret", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_ALTER_KEY_EXPIRATION, "alter-key-expiration", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_QUERY_COMPACT_PROGRESS, "dnode-query-compact-progress", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_GET_STREAM_CREATE_SQL, "stream-get-create-sql", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_QUERY_SNAP_SEND_PROGRESS, "dnode-query-snap-send-progress", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_CLOSE_VNODE, "close-vnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_OPEN_VNODE, "open-vnode", NULL, NULL)
+  // DND 版本的 alter encrypt key 消息：mnode 收到 client 的 TDMT_MND_ALTER_ENCRYPT_KEY 后，
+  // 通过该 DND 消息广播到所有 dnode 执行本地密钥更新（与 TDMT_DND_CREATE_ENCRYPT_KEY 同理）。
+  // 必须使用独立的消息类型，因为传输层路由表中每个 msgType 只能绑定一个 defaultNtype，
+  // 不能用同一个 TDMT_MND_ALTER_ENCRYPT_KEY 同时承担 client->mnode 和 mnode->dnode 两跳。
+  TD_DEF_MSG_TYPE(TDMT_DND_ALTER_ENCRYPT_KEY, "dnode-alter-encrypt-key", NULL, NULL)
+  // DND 版本的 alter key expiration 消息：与 alter encrypt key 同理，mnode 收到 client 的
+  // TDMT_MND_ALTER_KEY_EXPIRATION 后，通过该 DND 消息广播到所有 dnode 执行本地更新。
+  TD_DEF_MSG_TYPE(TDMT_DND_ALTER_KEY_EXPIRATION, "dnode-alter-key-expiration", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_DND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_MSG)  // 1<<8
@@ -286,7 +298,7 @@
   TD_DEF_MSG_TYPE(TDMT_MND_GET_TABLE_TSMA, "get-table-tsma", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_GET_TSMA, "get-tsma", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_TB_WITH_TSMA, "drop-tb-with-tsma", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_UNUSED7, "mnd-unused7", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_GET_VST_LEAVES, "get-vst-leaves", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UNUSED8, "mnd-unused8", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UNUSED9, "mnd-unused9", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UNUSEDa, "mnd-unuseda", NULL, NULL)
@@ -311,7 +323,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_CREATE_STB, "vnode-create-stb", SVCreateStbReq, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_ALTER_STB, "vnode-alter-stb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_DROP_STB, "vnode-drop-stb", SVDropStbReq, NULL)
-  TD_DEF_MSG_TYPE(TDMT_VND_UNUSED1, "vnode-unused1", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_CHECK_HAS_CTB, "vnode-check-has-ctb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED2, "vnode-unused2", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED3, "vnode-unused3", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_UNUSED4, "vnode-unused4", NULL, NULL)
@@ -368,6 +380,10 @@
   TD_DEF_MSG_TYPE(TDMT_VND_SET_KEEP_VERSION, "vnode-set-keep-version", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TRIM_WAL, "vnode-trim-wal", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_AUDIT_RECORD, "vnode-audit-record", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_VTABLE_REF_RESOLVE, "vnode-vtable-ref-resolve", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_TXN_COMMIT, "vnode-txn-commit", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_TXN_ROLLBACK, "vnode-txn-rollback", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_VTB_TAG_COND, "vnode-vtable-tag-cond", NULL, NULL)
   TD_CLOSE_MSG_SEG(TDMT_VND_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SCH_MSG)  // 3<<8
@@ -413,11 +429,20 @@
   TD_DEF_MSG_TYPE(TDMT_STREAM_SYNC_CHECKPOINT, "stream-sync-checkpoint", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_STREAM_DELETE_CHECKPOINT, "stream-delete-checkpoint", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_STREAM_TRIGGER_DROP, "stream-trigger-drop", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_STREAM_TRIGGER_PULL_EXT, "stream-trigger-pull-ext", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_STREAM_FETCH_EXT, "stream-fetch-ext", NULL, NULL)
   
   TD_CLOSE_MSG_SEG(TDMT_STREAM_MSG)
 
-  TD_NEW_MSG_SEG(TDMT_MON_MSG)  //5 << 8
-  TD_CLOSE_MSG_SEG(TDMT_MON_MSG)
+  // Reserved EXCLUSIVELY for messages that must be defined
+  // identically — at the same in-segment offset — across legacy (3.3.6) and newer (3.4+)
+  // versions, so message numbers stay aligned and wire-compatible during rolling upgrades.
+  //
+  // CRITICAL: Do NOT add new-only feature messages here; append those to the tail of a new segment
+  // that legacy versions do not recognize.
+  TD_NEW_MSG_SEG(TDMT_COMPAT_MSG)  //5 << 8
+  TD_DEF_MSG_TYPE(TDMT_MND_ENSURE_DEFAULT, "ensure-default", NULL, NULL)
+  TD_CLOSE_MSG_SEG(TDMT_COMPAT_MSG)
 
   TD_NEW_MSG_SEG(TDMT_SYNC_MSG) //6 << 8
   TD_DEF_MSG_TYPE(TDMT_SYNC_TIMEOUT, "sync-timer", NULL, NULL)
@@ -467,7 +492,7 @@
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_SUBSCRIBE, "vnode-tmq-subscribe", SMqRebVgReq, SMqRebVgRsp)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_DELETE_SUB, "vnode-tmq-delete-sub", SMqVDeleteReq, SMqVDeleteRsp)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_COMMIT_OFFSET, "vnode-tmq-commit-offset", STqOffset, STqOffset)
-  TD_DEF_MSG_TYPE(TDMT_VND_TMQ_SEEK, "vnode-tmq-seek", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_VND_TMQ_SEEK, "vnode-tmq-seek", NULL, NULL)      // no longer used
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_ADD_CHECKINFO, "vnode-tmq-add-checkinfo", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_DEL_CHECKINFO, "vnode-del-checkinfo", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_VND_TMQ_CONSUME, "vnode-tmq-consume", SMqPollReq, SMqDataBlkRsp)
@@ -508,6 +533,19 @@
   TD_DEF_MSG_TYPE(TDMT_MND_UPGRADE_USER, "upgrade-user", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_UPGRADE_ROLE, "upgrade-role", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_CLS_HB_TIMER, "cls-hb-tmr", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_CLOSE_VNODE, "mnd-close-vnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_OPEN_VNODE, "mnd-open-vnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_BEGIN_TXN, "begin-txn", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_COMMIT_TXN, "commit-txn", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_ROLLBACK_TXN, "rollback-txn", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_ALLOC_TXN_SEQ, "alloc-txn-seq", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_TXN_TIMER, "txn-tmr", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_CREATE_EXT_SOURCE,  "create-ext-source",  NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_ALTER_EXT_SOURCE,   "alter-ext-source",   NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_DROP_EXT_SOURCE,    "drop-ext-source",    NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_REFRESH_EXT_SOURCE, "refresh-ext-source", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_GET_EXT_SOURCE,     "get-ext-source",     NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_AUTH_SASL, "auth-sasl", NULL, NULL)  // SCRAM-SHA-256 handshake round
   TD_CLOSE_MSG_SEG(TDMT_MND_EXT_MSG)
 
   TD_NEW_MSG_SEG(TDMT_MND_XNODE_MSG)  //10 << 8

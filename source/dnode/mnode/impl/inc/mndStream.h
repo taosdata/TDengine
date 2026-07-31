@@ -32,6 +32,11 @@ typedef enum {
   STM_ERR_PROCESSING_ERR,
 } EStmErrType;
 
+typedef enum {
+  MST_RUNNER_SNAPSHOT_CLAIM_KNOWN = 0,
+  MST_RUNNER_SNAPSHOT_CLAIM_ACQUIRED,
+  MST_RUNNER_SNAPSHOT_CLAIM_ALREADY_PENDING,
+} EStmRunnerSnapshotClaim;
 
 typedef enum {
   STM_EVENT_ACTIVE_BEGIN = 0,
@@ -57,13 +62,12 @@ static const char* gMndStreamEvent[] = {"ACTIVE_BEGIN", "NORMAL_BEGIN", "CREATE_
 
 static const char* gMndStreamState[] = {"X", "W", "N"};
 
-
-#define MND_STREAM_RUNNER_DEPLOY_NUM 3
-#define MND_STREAM_RUNNER_REPLICA_NUM 5
-#define MND_STREAM_ISOLATION_PERIOD_NUM 10
-#define MND_STREAM_REPORT_PERIOD  (STREAM_HB_INTERVAL_MS * STREAM_MAX_GROUP_NUM)
-#define MST_SHORT_ISOLATION_DURATION (MND_STREAM_REPORT_PERIOD * MND_STREAM_ISOLATION_PERIOD_NUM / 3)
-#define MST_ISOLATION_DURATION (MND_STREAM_REPORT_PERIOD * MND_STREAM_ISOLATION_PERIOD_NUM)
+#define MND_STREAM_RUNNER_DEPLOY_NUM       64
+#define MND_STREAM_RUNNER_REPLICA_UNKNOWN  0
+#define MND_STREAM_ISOLATION_PERIOD_NUM    10
+#define MND_STREAM_REPORT_PERIOD           (STREAM_HB_INTERVAL_MS * STREAM_MAX_GROUP_NUM)
+#define MST_SHORT_ISOLATION_DURATION       (MND_STREAM_REPORT_PERIOD * MND_STREAM_ISOLATION_PERIOD_NUM / 3)
+#define MST_ISOLATION_DURATION             (MND_STREAM_REPORT_PERIOD * MND_STREAM_ISOLATION_PERIOD_NUM)
 #define MND_STREAM_HEALTH_CHECK_PERIOD_SEC (MND_STREAM_REPORT_PERIOD / 1000)
 #define MST_MAX_RETRY_DURATION (MST_ISOLATION_DURATION * 20)
 #define MST_ORIGINAL_READER_LIST_SIZE 32
@@ -103,7 +107,6 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 
 #define MND_STREAM_RESERVE_SIZE      64
 #define MND_STREAM_VER_NUMBER        8
-#define MND_STREAM_COMPATIBLE_VER_NUMBER 7
 #define MND_STREAM_TRIGGER_NAME_SIZE 20
 #define MND_STREAM_DEFAULT_NUM       100
 #define MND_STREAM_DEFAULT_TASK_NUM  200
@@ -179,6 +182,7 @@ typedef struct SStmStreamAction {
   int64_t              streamId;
   char                 streamName[TSDB_STREAM_FNAME_LEN];
   bool                 userAction;
+  bool                 runnerSnapshotRedeployOwner;  // runtime-only ownership of the claimed latch
   void*                actionParam;
 } SStmStreamAction;
 
@@ -202,6 +206,7 @@ typedef struct SStmTaskStatus {
   SRWLatch        detailStatusLock;
   void*           detailStatus;     // SSTriggerRuntimeStatus*, only for trigger task now
   int32_t         errCode;
+  char*           extraErrMsg;
   int64_t         runningStartTs;
   int64_t         lastUpTs;
 } SStmTaskStatus;
@@ -246,6 +251,7 @@ typedef struct SStmActionQ {
 
 typedef struct SStmTaskSrcAddr {
   bool    isFromCache;
+  bool    isExt;    /* P4-E2: true when the source is an EXT (federated) reader */
   int64_t taskId;
   int32_t vgId;
   int32_t groupId;
@@ -266,13 +272,15 @@ typedef struct SStmStatus {
   int32_t           calcReaderNum;
   int32_t           runnerNum;        // task num for one deploy
   int32_t           runnerDeploys;
-  int32_t           runnerReplica;
+  int32_t           runnerReplica;                  // 0 only while Replica is unknown after WATCH
+  int8_t            runnerSnapshotRedeployPending;  // atomic one-shot latch
 
   int8_t            stopped;         // 1:runtime error stopped, 2:user stopped, 3:user dropped, 4:grant expired
 
   int64_t           deployTimes;
   int64_t           lastActionTs;
   int32_t           fatalError;
+  char*             extraErrMsg;
   int64_t           fatalRetryDuration;
   int64_t           fatalRetryTs;
   int64_t           fatalRetryTimes;
@@ -341,8 +349,10 @@ typedef struct SStmSnodeTasksDeploy {
   SRWLatch lock;
   int32_t  triggerDeployed;
   int32_t  runnerDeployed;
-  SArray*  triggerList;  // SArray<SStmTaskToDeployExt>
-  SArray*  runnerList;   // SArray<SStmTaskToDeployExt>
+  int32_t  calcReaderDeployed;  // EXT-source calc reader tasks deployed count
+  SArray*  triggerList;         // SArray<SStmTaskToDeployExt>
+  SArray*  runnerList;          // SArray<SStmTaskToDeployExt>
+  SArray*  calcReaderList;      // SArray<SStmTaskToDeployExt>: EXT calc scan tasks on snode
 } SStmSnodeTasksDeploy;
 
 typedef struct SStmStreamUndeploy{
@@ -504,7 +514,9 @@ int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBloc
 int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid);
 int32_t mstAppendNewRecalcRange(int64_t streamId, SStmStatus *pStream, STimeWindow* pRange);
 int32_t mstCheckSnodeExists(SMnode *pMnode);
-void mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
+int32_t mstSetTaskStatusFromMsg(SStmGrpCtx* pCtx, SStmTaskStatus* pTask, SStmTaskStatusMsg* pMsg);
+int32_t mstSetExtraErrMsg(char** ppMsg, const char* msg);
+void    mstDestroySStmTaskStatus(void* param);
 void msmClearStreamToDeployMaps(SStreamHbMsg* pHb);
 void msmCleanStreamGrpCtx(SStreamHbMsg* pHb);
 int32_t msmHandleStreamHbMsg(SMnode* pMnode, int64_t currTs, SStreamHbMsg* pHb, SRpcMsg *pReq, SRpcMsg* pRspMsg);
@@ -518,7 +530,8 @@ int32_t msmRecalcStream(SMnode* pMnode, int64_t streamId, STimeWindow* timeRange
 int32_t mstIsStreamDropped(SMnode *pMnode, int64_t streamId, bool* dropped);
 bool mstWaitLock(SRWLatch* pLock, bool readLock);
 void msmHealthCheck(SMnode *pMnode);
-void mstPostStreamAction(SStmActionQ*       actionQ, int64_t streamId, char* streamName, void* param, bool userAction, int32_t action);
+int32_t mstPostStreamAction(SStmActionQ* actionQ, int64_t streamId, char* streamName, void* param, bool userAction,
+                            int32_t action);
 void mstPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int32_t action);
 int32_t msmAssignRandomSnodeId(SMnode* pMnode, int64_t streamId);
 int32_t msmCheckSnodeReassign(SMnode *pMnode, SSnodeObj* pSnode, SArray** ppRes);
@@ -533,6 +546,15 @@ void mstDestroyDbVgroupsHash(SSHashObj *pDbVgs);
 void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, int32_t tagNum);
 void mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb);
 void mstDestroySStmSnodeTasksDeploy(void* param);
+int32_t mstRestoreRunnerDeploy(SStmStatus* pStatus, int32_t deployId);
+bool    mstRunnerSnapshotUnknown(const SStmStatus* pStatus);
+bool    mstTaskDeployNeedsRunnerSnapshot(const SStmStatus* pStatus, const SStmTaskAction* pAction);
+EStmRunnerSnapshotClaim mstClaimRunnerSnapshotRedeploy(SStmStatus* pStatus);
+int32_t                 mstPostRunnerSnapshotRedeploy(SStmActionQ* actionQ, int64_t streamId, SStmStatus* pStatus);
+int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SStmStatus* pInfo, bool triggerReader);
+int32_t msmBuildTriggerRunnerTargets(SMnode* pMnode, SStmStatus* pInfo, int64_t streamId, SArray** ppRes);
+int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan* plan, SStreamObj* pStream, SStmStatus* pInfo,
+                                 bool topPlan);
 void mstResetSStmStatus(SStmStatus* pStatus);
 void mstDestroySStmStatus(void* param);
 void mstDestroySStmAction(void* param);

@@ -43,8 +43,14 @@ struct SVSnapReader {
   int64_t sver;
   int64_t ever;
   int64_t index;
+  int32_t destDnodeId;  // target follower dnodeId of this snapshot send, passed through to the tsdb reader for per-target bucketed stats
   // config
   int8_t cfgDone;
+  // wal txn files
+  int8_t             txnWalDone;
+  SWalTxnSnapReader *pWalTxnReader;
+  // txn.meta (§44 lazy COMMIT/ROLLBACK durable transfer)
+  int8_t txnMetaDone;
   // meta
   int8_t           metaDone;
   SMetaSnapReader *pMetaReader;
@@ -55,6 +61,9 @@ struct SVSnapReader {
   // tsdb raw
   int8_t              tsdbRAWDone;
   STsdbSnapRAWReader *pTsdbRAWReader;
+  // tsdb medium
+  int8_t                   tsdbMEDIUMDone;
+  STsdbSnapMediumReader   *pTsdbMEDIUMReader;
 
   // tq
   int8_t         tqHandleDone;
@@ -134,6 +143,19 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
             goto _out;
           }
         } break;
+        case SNAP_DATA_MEDIUM: {
+          SMediumSnapFileList fileList = {0};
+          code = tDeserializeSMediumSnapFileList(buf, bufLen, &fileList);
+          if (code) {
+            vError("vgId:%d, failed to deserialize medium file list since %s", TD_VID(pVnode), terrstr());
+            goto _out;
+          }
+          code = tsdbSnapMediumReaderOpen(pReader->pVnode->pTsdb, pReader->ever,
+                                          SNAP_DATA_MEDIUM, &fileList,
+                                          pReader->sver, pReader->destDnodeId, &pReader->pTsdbMEDIUMReader);
+          taosMemoryFreeClear(fileList.aFiles);
+          if (code) goto _out;
+        } break;
         default:
           vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
           code = TSDB_CODE_INVALID_DATA_FMT;
@@ -143,14 +165,20 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
 
     // toggle snap replication mode
     vInfo("vgId:%d, vnode snap reader supported tsdb rep of format:%d", TD_VID(pVnode), tsdbOpts.format);
-    if (pReader->sver == 0 && tsdbOpts.format == TSDB_SNAP_REP_FMT_RAW) {
+    if (tsdbOpts.format == TSDB_SNAP_REP_FMT_MEDIUM) {
       pReader->tsdbDone = true;
+      pReader->tsdbRAWDone = true;
+      // MEDIUM reader opened above via SNAP_DATA_MEDIUM TLV
+    } else if (pReader->sver == 0 && tsdbOpts.format == TSDB_SNAP_REP_FMT_RAW) {
+      pReader->tsdbDone = true;
+      pReader->tsdbMEDIUMDone = true;
     } else {
       pReader->tsdbRAWDone = true;
+      pReader->tsdbMEDIUMDone = true;
     }
 
     vInfo("vgId:%d, vnode snap writer enabled replication mode: %s", TD_VID(pVnode),
-          (pReader->tsdbDone ? "raw" : "normal"));
+          (pReader->tsdbDone && pReader->tsdbRAWDone ? "medium" : (pReader->tsdbDone ? "raw" : "normal")));
   }
 
 _out:
@@ -171,6 +199,10 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
   pReader->pVnode = pVnode;
   pReader->sver = sver;
   pReader->ever = ever;
+  // Record the target dnodeId for use by all subsequent tsdb reader opens.
+  // [Timing constraint] This assignment must precede vnodeSnapReaderDealWithSnapInfo: the MEDIUM reader is created inside that function
+  // and reads pReader->destDnodeId; if this line is mistakenly reordered after it, the MEDIUM reader silently gets 0 (neither compilation nor the RAW path errors out).
+  pReader->destDnodeId = pParam->destDnodeId;
 
   // snapshot info
   code = vnodeSnapReaderDealWithSnapInfo(pReader, pParam);
@@ -178,7 +210,7 @@ int32_t vnodeSnapReaderOpen(SVnode *pVnode, SSnapshotParam *pParam, SVSnapReader
 
   // open tsdb snapshot raw reader
   if (!pReader->tsdbRAWDone) {
-    code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
+    code = tsdbSnapRAWReaderOpen(pVnode->pTsdb, ever, SNAP_DATA_RAW, pReader->destDnodeId, &pReader->pTsdbRAWReader);
     if (code) goto _exit;
   }
 
@@ -230,8 +262,16 @@ void vnodeSnapReaderClose(SVSnapReader *pReader) {
     tsdbSnapRAWReaderClose(&pReader->pTsdbRAWReader);
   }
 
+  if (pReader->pTsdbMEDIUMReader) {
+    tsdbSnapMediumReaderClose(&pReader->pTsdbMEDIUMReader);
+  }
+
   if (pReader->pMetaReader) {
     metaSnapReaderClose(&pReader->pMetaReader);
+  }
+
+  if (pReader->pWalTxnReader) {
+    walSnapTxnReaderClose(&pReader->pWalTxnReader);
   }
 #ifdef USE_TQ
   if (pReader->pTqSnapReader) {
@@ -308,6 +348,51 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     goto _exit;
   }
 
+  // WAL_TXN ==============
+  if (!pReader->txnWalDone) {
+    if (pReader->pWalTxnReader == NULL) {
+      code = walSnapTxnReaderOpen(pVnode->pWal, pReader->ever, &pReader->pWalTxnReader);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
+    uint8_t *pRaw   = NULL;
+    uint32_t rawLen = 0;
+    code = walSnapTxnRead(pReader->pWalTxnReader, &pRaw, &rawLen);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    if (pRaw) {
+      uint8_t *pBlock = taosMemoryMalloc(sizeof(SSnapDataHdr) + rawLen);
+      if (pBlock == NULL) {
+        taosMemoryFree(pRaw);
+        TSDB_CHECK_CODE(code = terrno, lino, _exit);
+      }
+      ((SSnapDataHdr *)pBlock)->type = SNAP_DATA_TXN_WAL;
+      ((SSnapDataHdr *)pBlock)->size = rawLen;
+      (void)memcpy(((SSnapDataHdr *)pBlock)->data, pRaw, rawLen);
+      taosMemoryFree(pRaw);
+      *ppData = pBlock;
+      goto _exit;
+    } else {
+      pReader->txnWalDone = 1;
+      walSnapTxnReaderClose(&pReader->pWalTxnReader);
+    }
+  }
+
+  // TXN_META ==============
+  // §44: replicate txn.meta so that a follower joining via full snapshot
+  // resumes lazy vacuum of large-txn shadow entries instead of leaking PRE_*
+  // status forever. Emitted AFTER WAL_TXN, BEFORE META entries.
+  if (!pReader->txnMetaDone) {
+    code = metaSnapTxnMetaRead(pReader->pVnode->pMeta, ppData);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    pReader->txnMetaDone = 1;  // single-shot: one block contains all entries
+    if (*ppData) {
+      goto _exit;
+    }
+    // empty txn.meta: fall through to meta stage
+  }
+
   // META ==============
   if (!pReader->metaDone) {
     // open reader if not
@@ -331,8 +416,9 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbDone) {
     // open if not
     if (pReader->pTsdbReader == NULL) {
-      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB, pReader->pRanges,
-                                &pReader->pTsdbReader);
+      // Pass in destDnodeId so the tsdb reader bucketizes send progress per target follower
+      code = tsdbSnapReaderOpen(pReader->pVnode->pTsdb, pReader->sver, pReader->ever, SNAP_DATA_TSDB,
+                                pReader->destDnodeId, pReader->pRanges, &pReader->pTsdbReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -349,7 +435,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
   if (!pReader->tsdbRAWDone) {
     // open if not
     if (pReader->pTsdbRAWReader == NULL) {
-      code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, &pReader->pTsdbRAWReader);
+      code = tsdbSnapRAWReaderOpen(pReader->pVnode->pTsdb, pReader->ever, SNAP_DATA_RAW, pReader->destDnodeId, &pReader->pTsdbRAWReader);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
@@ -360,6 +446,28 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
     } else {
       pReader->tsdbRAWDone = 1;
       tsdbSnapRAWReaderClose(&pReader->pTsdbRAWReader);
+    }
+  }
+
+  // MEDIUM TSDB
+  if (!pReader->tsdbMEDIUMDone) {
+    if (pReader->pTsdbMEDIUMReader == NULL) {
+      vError(
+          "vgId:%d, tsdb snap medium reader is expected to be opened via SNAP_DATA_MEDIUM TLV, but it's not. abort "
+          "reading medium snap data",
+          vgId);
+      code = -1;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+    uint8_t *pData = NULL;
+    code = tsdbSnapMediumRead(pReader->pTsdbMEDIUMReader, &pData);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    if (pData) {
+      *ppData = pData;
+      goto _exit;
+    } else {
+      pReader->tsdbMEDIUMDone = 1;
+      tsdbSnapMediumReaderClose(&pReader->pTsdbMEDIUMReader);
     }
   }
 
@@ -473,6 +581,8 @@ struct SVSnapWriter {
   STsdbSnapWriter    *pTsdbSnapWriter;
   // tsdb raw
   STsdbSnapRAWWriter *pTsdbSnapRAWWriter;
+  // tsdb medium
+  STsdbSnapMediumWriter *pTsdbSnapMEDIUMWriter;
   // tq
   STqSnapWriter *pTqSnapHandleWriter;
   STqSnapWriter *pTqSnapOffsetWriter;
@@ -534,6 +644,9 @@ static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotP
         case SNAP_DATA_RAW: {
           code = tDeserializeTsdbRepOpts(buf, bufLen, &tsdbOpts);
           TSDB_CHECK_CODE(code, lino, _exit);
+        } break;
+        case SNAP_DATA_MEDIUM: {
+          // file list for MEDIUM mode — writer does not need it
         } break;
         default:
           vError("vgId:%d, unexpected subfield type of snap info. typ:%d", TD_VID(pVnode), subField->typ);
@@ -635,6 +748,11 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     code = tsdbSnapRAWWriterPrepareClose(pWriter->pTsdbSnapRAWWriter);
     if (code) goto _exit;
   }
+
+  if (pWriter->pTsdbSnapMEDIUMWriter) {
+    code = tsdbSnapMediumWriterPrepareClose(pWriter->pTsdbSnapMEDIUMWriter);
+    if (code) goto _exit;
+  }
 #ifdef USE_RSMA_ORIGIN
   if (pWriter->pRsmaSnapWriter) {
     code = rsmaSnapWriterPrepareClose(pWriter->pRsmaSnapWriter, rollback);
@@ -676,6 +794,11 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
     code = tsdbSnapRAWWriterClose(&pWriter->pTsdbSnapRAWWriter, rollback);
     if (code) goto _exit;
   }
+
+  if (pWriter->pTsdbSnapMEDIUMWriter) {
+    code = tsdbSnapMediumWriterClose(&pWriter->pTsdbSnapMEDIUMWriter, rollback);
+    if (code) goto _exit;
+  }
 #ifdef USE_TQ
   if (pWriter->pTqSnapHandleWriter) {
     code = tqSnapWriterClose(&pWriter->pTqSnapHandleWriter, rollback);
@@ -700,6 +823,15 @@ int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *
 #endif
   code = vnodeBegin(pVnode);
   if (code) goto _exit;
+
+  // After snapshot apply, reset in-memory txn state and rebuild from the new
+  // B+ tree content.  txn.idx was populated during metaSnapWrite; txn.meta
+  // was written by metaSnapTxnMetaWrite.  The old in-memory state (from before
+  // the snapshot) is now stale and must be replaced.
+  if (!rollback) {
+    code = vnodeTxnResetForSnapshot(pVnode);
+    if (code) goto _exit;
+  }
 
   (void)taosThreadMutexLock(&pVnode->mutex);
   pVnode->disableWrite = false;
@@ -786,6 +918,17 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       code = metaSnapWrite(pWriter->pMetaSnapWriter, pData, nData);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
+    case SNAP_DATA_TXN_WAL: {
+      code = walSnapTxnWrite(pVnode->pWal, pHdr->data, (uint32_t)pHdr->size);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } break;
+    case SNAP_DATA_TXN_META: {
+      // §44: bulk-apply finalized-txn records into local txn.meta so
+      // that follower-side vnodeTxnRebuildFromMeta Phase 2 can resume vacuum.
+      // metaSnapTxnMetaWrite manages its own meta txn (begin/commit/abort).
+      code = metaSnapTxnMetaWrite(pVnode->pMeta, pData, nData);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } break;
     case SNAP_DATA_TSDB:
     case SNAP_DATA_DEL: {
       // tsdb
@@ -806,6 +949,15 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       }
 
       code = tsdbSnapRAWWrite(pWriter->pTsdbSnapRAWWriter, pHdr);
+      TSDB_CHECK_CODE(code, lino, _exit);
+    } break;
+    case SNAP_DATA_MEDIUM: {
+      if (pWriter->pTsdbSnapMEDIUMWriter == NULL) {
+        code = tsdbSnapMediumWriterOpen(pVnode->pTsdb, pWriter->ever, &pWriter->pTsdbSnapMEDIUMWriter);
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+
+      code = tsdbSnapMediumWrite(pWriter->pTsdbSnapMEDIUMWriter, pHdr);
       TSDB_CHECK_CODE(code, lino, _exit);
     } break;
 #ifdef USE_TQ
@@ -862,4 +1014,87 @@ _exit:
            tstrerror(code), pHdr->index, pHdr->type, nData);
   }
   return code;
+}
+
+int32_t vnodeGetSnapSendProgress(SVnode *pVnode, int32_t dnodeId, SSnapSendVnodeInfo *pInfo) {
+  if (pVnode == NULL || pInfo == NULL) return -1;
+
+  STsdb *pTsdb = pVnode->pTsdb;
+  if (pTsdb == NULL) return -1;
+
+  (void)taosThreadRwlockRdlock(&pTsdb->snapStatLock);
+
+  // Progress is already bucketed by target follower dnodeId in pSnapBuckets; here we aggregate all buckets and return to the upper-layer RPC.
+  // If there are no buckets (no snapshot send in progress), return -1 to indicate there is no progress to report.
+  if (pTsdb->pSnapBuckets == NULL || taosArrayGetSize(pTsdb->pSnapBuckets) == 0) {
+    (void)taosThreadRwlockUnlock(&pTsdb->snapStatLock);
+    return -1;
+  }
+
+  int32_t numBuckets      = (int32_t)taosArrayGetSize(pTsdb->pSnapBuckets);
+  int32_t sumTotal        = 0;  // sum of totalFileSets across all buckets
+  int32_t sumFinished     = 0;  // sum of finishedFileSets across all buckets
+  int32_t sumFileSetCount = 0;  // sum of fileSetCount across all buckets (used to allocate the concatenated array)
+  int64_t earliestStart   = 0;  // minimum of all non-zero startTime values; stays 0 if all are 0
+
+  // First pass: aggregate scalars and count the total number of filesets to concatenate
+  for (int32_t b = 0; b < numBuckets; b++) {
+    SSnapSendTargetBucket *pBucket = (SSnapSendTargetBucket *)taosArrayGet(pTsdb->pSnapBuckets, b);
+    if (pBucket == NULL || pBucket->pStat == NULL) continue;  // skip empty buckets
+    SSnapSendVnodeStat *pStat = pBucket->pStat;
+    sumTotal    += pStat->totalFileSets;
+    sumFinished += pStat->finishedFileSets;
+    sumFileSetCount += pStat->fileSetCount;
+    if (pStat->startTime != 0 && (earliestStart == 0 || pStat->startTime < earliestStart)) {
+      earliestStart = pStat->startTime;  // take the earliest non-zero start time
+    }
+  }
+
+  pInfo->vgId             = TD_VID(pVnode);
+  pInfo->dnodeId          = dnodeId;
+  pInfo->totalFileSets    = sumTotal;
+  pInfo->finishedFileSets = sumFinished;
+  pInfo->startTime        = earliestStart;
+
+  pInfo->fileSetCount  = 0;
+  pInfo->pFileSetInfos = NULL;
+
+  // Second pass: concatenate every bucket's fileset details into one contiguous array so the upper layer can show each fileset's transfer progress
+  if (sumFileSetCount > 0) {
+    pInfo->pFileSetInfos = taosMemoryCalloc(sumFileSetCount, sizeof(SSnapSendFileSetInfo));
+    if (pInfo->pFileSetInfos != NULL) {
+      pInfo->fileSetCount = sumFileSetCount;
+      int32_t w = 0;  // write cursor for the destination array
+      for (int32_t b = 0; b < numBuckets; b++) {
+        SSnapSendTargetBucket *pBucket = (SSnapSendTargetBucket *)taosArrayGet(pTsdb->pSnapBuckets, b);
+        if (pBucket == NULL || pBucket->pStat == NULL) continue;  // skip empty buckets
+        SSnapSendVnodeStat *pStat = pBucket->pStat;
+        if (pStat->pFileSetStats == NULL) continue;  // skip if there are no details
+        for (int32_t i = 0; i < pStat->fileSetCount && w < sumFileSetCount; i++) {
+          SSnapSendFileSetStat *pFs   = &pStat->pFileSetStats[i];
+          SSnapSendFileSetInfo *pDest = &pInfo->pFileSetInfos[w++];
+          pDest->fid               = pFs->fid;
+          pDest->fileCount         = pFs->fileCount;
+          pDest->finishedFileCount = pFs->finishedFileCount;
+          pDest->totalSize         = pFs->totalSize;
+          pDest->readSize          = pFs->readSize;
+          pDest->startTime         = pFs->startTime;
+          pDest->sver              = pFs->sver;
+          pDest->ever              = pFs->ever;
+          pDest->transferType      = pFs->transferType;
+        }
+      }
+    } else {
+      // Allocation failed: best-effort, return only scalar progress and leave details empty
+      pInfo->fileSetCount  = 0;
+      pInfo->pFileSetInfos = NULL;
+    }
+  }
+
+  (void)taosThreadRwlockUnlock(&pTsdb->snapStatLock);
+
+  // This RPC is on-demand / low-frequency, so an info-level log helps investigate "which target the progress is shown on" issues
+  vInfo("vgId:%d, get snap send progress: numBuckets:%d totalFileSets:%d finishedFileSets:%d", TD_VID(pVnode),
+        numBuckets, sumTotal, sumFinished);
+  return 0;
 }

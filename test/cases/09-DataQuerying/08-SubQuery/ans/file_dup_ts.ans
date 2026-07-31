@@ -1,0 +1,25 @@
+
+taos> CREATE DATABASE IF NOT EXISTS file_dupts_db;
+Create OK, 0 row(s) affected 
+
+taos> USE file_dupts_db;
+Database changed.
+
+taos> SELECT ts, id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_dup_ts.csv', 'ts TIMESTAMP, id INT') f ORDER BY ts, id;
+           ts            |     id      |
+========================================
+ 2024-01-01 00:00:00.000 |           1 |
+ 2024-01-01 00:00:00.000 |           2 |
+ 2024-01-02 00:00:00.000 |           3 |
+
+taos> SELECT COUNT(*) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_dup_ts.csv', 'ts TIMESTAMP, id INT') f;
+       count(*)        |
+========================
+                     3 |
+
+taos> SELECT ts, COUNT(*), SUM(id) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_dup_ts.csv', 'ts TIMESTAMP, id INT') f GROUP BY ts ORDER BY ts;
+           ts            |       count(*)        |        sum(id)        |
+==========================================================================
+ 2024-01-01 00:00:00.000 |                     2 |                     3 |
+ 2024-01-02 00:00:00.000 |                     1 |                     3 |
+

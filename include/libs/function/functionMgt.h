@@ -78,6 +78,14 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_FILL_FORWARD,
   FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN,
   FUNCTION_TYPE_LEAD,
+  FUNCTION_TYPE_ROW_NUMBER,
+  FUNCTION_TYPE_RANK,
+  FUNCTION_TYPE_DENSE_RANK,
+  FUNCTION_TYPE_PERCENT_RANK,
+  FUNCTION_TYPE_CUME_DIST,
+  FUNCTION_TYPE_FIRST_VALUE,
+  FUNCTION_TYPE_LAST_VALUE,
+  FUNCTION_TYPE_NTH_VALUE,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -141,6 +149,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_AES_DECRYPT,
   FUNCTION_TYPE_SM4_ENCRYPT,
   FUNCTION_TYPE_SM4_DECRYPT,
+  FUNCTION_TYPE_REGEXP_EXTRACT,
 
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
@@ -161,6 +170,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_WEEKOFYEAR,
   FUNCTION_TYPE_DAYOFWEEK,
   FUNCTION_TYPE_DATE,
+  FUNCTION_TYPE_FIRST_DAY_OF_WEEK,
 
   // system function
   FUNCTION_TYPE_DATABASE = 3000,
@@ -169,6 +179,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_SERVER_STATUS,
   FUNCTION_TYPE_CURRENT_USER,
   FUNCTION_TYPE_USER,
+  FUNCTION_TYPE_SLEEP,
 
   // pseudo column function
   FUNCTION_TYPE_ROWTS = 3500,
@@ -208,8 +219,10 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_IMPUTATION_ROWTS,
   FUNCTION_TYPE_IMPUTATION_MARK,
   FUNCTION_TYPE_ANOMALY_MARK,
-  FUNCTION_TYPE_TIDLESTART,          // _tidlestart
-  FUNCTION_TYPE_TIDLEEND,            // _tidleend
+  FUNCTION_TYPE_TIDLESTART,                  // _tidlestart
+  FUNCTION_TYPE_TIDLEEND,                    // _tidleend
+  FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG,      // %%rollup_tag
+  FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT,  // _trollup_tbcount
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -281,6 +294,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_DB_USAGE = 4300,
   FUNCTION_TYPE_DB_USAGE_INFO,
 
+  // internal functions (not user-callable)
+  FUNCTION_TYPE_TIMESTAMP_SCALE = 4400,
+
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
@@ -322,6 +338,7 @@ bool fmIsPseudoColumnFunc(int32_t funcId);
 bool fmIsScanPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
+bool fmIsWindowIndefRowsFunc(int32_t funcId);
 bool fmIsStreamWindowClauseFunc(int32_t funcId);
 bool fmIsSpecialDataRequiredFunc(int32_t funcId);
 bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
@@ -354,6 +371,9 @@ bool fmIsConstantResFunc(SFunctionNode* pFunc);
 bool fmIsSkipScanCheckFunc(int32_t funcId);
 bool fmIsPrimaryKeyFunc(int32_t funcId);
 bool fmIsProcessByRowFunc(int32_t funcId);
+bool fmIsDegradedTimelineRowOrderFunc(int32_t funcId);
+bool fmIsVolatileFunc(int32_t funcId);
+bool fmIsNoPushdownFunc(int32_t funcId);
 bool fmisSelectGroupConstValueFunc(int32_t funcId);
 bool fmIsElapsedFunc(int32_t funcId);
 bool fmIsDBUsageFunc(int32_t funcId);
@@ -363,6 +383,9 @@ bool fmIsGroupIdFunc(int32_t funcId);
 bool fmIsPlaceHolderFunc(int32_t funcId);
 bool fmIsHasNullFunc(int32_t funcId);
 bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId);
+bool fmIsSqlWindowFunc(const char* pFuncName);
+bool fmIsSqlWindowOrderRequiredFunc(const char* pFuncName);
+bool fmCanUseAsSqlWindowAgg(const char* pFuncName);
 
 void    getLastCacheDataType(SDataType* pType, int32_t pkBytes);
 int32_t createFunction(const char* pName, SNodeList* pParameterList, SFunctionNode** pFunc);

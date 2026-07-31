@@ -30,8 +30,9 @@
 #include "mndUser.h"
 #include "tmisce.h"
 
-#define VGROUP_VER_COMPAT_MOUNT_KEEP_VER 2
-#define VGROUP_VER_NUMBER                VGROUP_VER_COMPAT_MOUNT_KEEP_VER
+#define VGROUP_VER_COMPAT_MOUNT_KEEP_VER  2
+#define VGROUP_VER_COMPAT_SNAP_RESTORING     3
+#define VGROUP_VER_NUMBER                VGROUP_VER_COMPAT_SNAP_RESTORING
 #define VGROUP_RESERVE_SIZE              60
 // since 3.3.6.32/3.3.8.6 mountId + keepVersion + keepVersionTime + VGROUP_RESERVE_SIZE = 4 + 8 + 8 + 60 = 80
 #define DLEN_AFTER_SYNC_CONF_CHANGE_VER 80
@@ -51,6 +52,8 @@ static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq);
 static int32_t mndProcessVgroupBalanceLeaderMsg(SRpcMsg *pReq);
 static int32_t mndProcessSetVgroupKeepVersionReq(SRpcMsg *pReq);
+static int32_t mndProcessCloseVnodeMsg(SRpcMsg *pReq);
+static int32_t mndProcessOpenVnodeMsg(SRpcMsg *pReq);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
   SSdbTable table = {
@@ -87,6 +90,8 @@ int32_t mndInitVgroup(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP, mndProcessBalanceVgroupMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_BALANCE_VGROUP_LEADER, mndProcessVgroupBalanceLeaderMsg);
   mndSetMsgHandle(pMnode, TDMT_MND_SET_VGROUP_KEEP_VERSION, mndProcessSetVgroupKeepVersionReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_CLOSE_VNODE, mndProcessCloseVnodeMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_OPEN_VNODE, mndProcessOpenVnodeMsg);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndRetrieveVgroups);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_VGROUP, mndCancelGetNextVgroup);
@@ -97,6 +102,29 @@ int32_t mndInitVgroup(SMnode *pMnode) {
 }
 
 void mndCleanupVgroup(SMnode *pMnode) {}
+
+// Format a byte count into a human-readable string.
+// Steps up by 1024 at each level, picks a suitable unit, then keeps 1 decimal place; 0 is special-cased to "0B".
+// Note: this function is non-static so unit tests can link against it, and the show vgroups status column reuses it later.
+int32_t mndBytesToHuman(int64_t bytes, char *buf, int32_t bufLen) {
+  // Argument guard: return 0 without any write when the buffer is invalid
+  if (buf == NULL || bufLen <= 0) return 0;
+  // Unit table: starting at bytes (B), each level steps up by 1024
+  static const char *units[] = {"B", "KB", "MB", "GB", "TB"};
+  // 0 or negative values are uniformly formatted as "0B"
+  if (bytes <= 0) {
+    return snprintf(buf, bufLen, "0B");
+  }
+  double  val = (double)bytes;  // use double to keep decimal precision
+  int32_t u = 0;                // current unit index
+  // Step up level by level until the value is below 1024 or the largest unit (TB) is reached
+  while (val >= 1024.0 && u < 4) {
+    val /= 1024.0;
+    u++;
+  }
+  // Keep 1 decimal place and append the unit, e.g. "1.5KB"
+  return snprintf(buf, bufLen, "%.1f%s", val, units[u]);
+}
 
 SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   int32_t code = 0;
@@ -125,6 +153,7 @@ SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   SDB_SET_INT32(pRaw, dataPos, pVgroup->mountVgId, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pVgroup->keepVersion, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pVgroup->keepVersionTime, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pVgroup->snapRestoring, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -180,6 +209,12 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
       pVgid->syncState = TAOS_SYNC_STATE_LEADER;
     }
     pVgid->snapSeq = -1;
+    // Zero the snapshot stat fields to avoid residual dirty values when deserializing old data
+    pVgid->snapTotalSize = 0;
+    pVgid->snapTransferredSize = 0;
+    pVgid->prevTransferredSize = 0;
+    pVgid->prevSampleMs = 0;
+    pVgid->snapRate = 0;
   }
   if (dataPos + 2 * sizeof(int32_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT32(pRaw, dataPos, &pVgroup->syncConfChangeVer, _OVER)
@@ -194,6 +229,11 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   }
   if (dataPos + sizeof(int64_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_INT64(pRaw, dataPos, &pVgroup->keepVersionTime, _OVER)
+  }
+  if (dataPos + sizeof(int8_t) + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
+    SDB_GET_INT8(pRaw, dataPos, &pVgroup->snapRestoring, _OVER)
+  } else {
+    pVgroup->snapRestoring = 0;
   }
   if (dataPos + VGROUP_RESERVE_SIZE <= pRaw->dataLen) {
     SDB_GET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
@@ -272,6 +312,7 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
   pOld->isTsma = pNew->isTsma;
   pOld->keepVersion = pNew->keepVersion;
   pOld->keepVersionTime = pNew->keepVersionTime;
+  pOld->snapRestoring    = pNew->snapRestoring;  // ephemeral: preserve in-memory value across SDB update
   for (int32_t i = 0; i < pNew->replica; ++i) {
     SVnodeGid *pNewGid = &pNew->vnodeGid[i];
     for (int32_t j = 0; j < pOld->replica; ++j) {
@@ -287,6 +328,14 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
         pNewGid->learnerProgress = pOldGid->learnerProgress;
         pNewGid->snapSeq = pOldGid->snapSeq;
         pNewGid->syncTotalIndex = pOldGid->syncTotalIndex;
+        // Snapshot transfer stats are in-memory transient fields (not persisted); they must be
+        // preserved from the old record on SDB update, otherwise every vgroup record update would
+        // zero them and cause the progress/rate in show vgroups to flicker and be lost
+        pNewGid->snapTotalSize = pOldGid->snapTotalSize;
+        pNewGid->snapTransferredSize = pOldGid->snapTransferredSize;
+        pNewGid->prevTransferredSize = pOldGid->prevTransferredSize;
+        pNewGid->prevSampleMs = pOldGid->prevSampleMs;
+        pNewGid->snapRate = pOldGid->snapRate;
       }
     }
   }
@@ -1313,6 +1362,22 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
         } else {
           snprintf(applyStr, sizeof(applyStr), "%" PRId64 "/%" PRId64, pVgroup->vnodeGid[i].syncAppliedIndex,
                    pVgroup->vnodeGid[i].syncCommitIndex);
+        }
+
+        // Append the snapshot transfer/rate suffix: (transferred/total,rate/s), shown only when a
+        // snapshot is in progress (snapTotalSize>0).
+        // Data volumes and rate are converted to human-readable units (B/KB/MB/GB/TB) so show vgroups
+        // can directly observe RAW/MEDIUM snapshot progress.
+        if (pVgroup->vnodeGid[i].snapTotalSize > 0) {
+          char transBuf[32] = {0};  // transferred amount (human-readable)
+          char totalBuf[32] = {0};  // snapshot total (human-readable)
+          char rateBuf[32] = {0};   // transfer rate (human-readable)/s
+          (void)mndBytesToHuman(pVgroup->vnodeGid[i].snapTransferredSize, transBuf, sizeof(transBuf));
+          (void)mndBytesToHuman(pVgroup->vnodeGid[i].snapTotalSize, totalBuf, sizeof(totalBuf));
+          (void)mndBytesToHuman((int64_t)pVgroup->vnodeGid[i].snapRate, rateBuf, sizeof(rateBuf));
+          int32_t curLen = (int32_t)strlen(applyStr);
+          // snprintf auto-truncates when remaining space is insufficient, avoiding overflow; applyStr was expanded to 160 in Task2
+          snprintf(applyStr + curLen, sizeof(applyStr) - curLen, "(%s/%s,%s/s)", transBuf, totalBuf, rateBuf);
         }
 
         STR_WITH_MAXSIZE_TO_VARSTR(buf, applyStr, pShow->pMeta->pSchemas[cols].bytes);
@@ -4261,4 +4326,122 @@ _OVER:
   if (pTrans != NULL) mndTransDrop(pTrans);
 
   return code;
+}
+
+static int32_t mndProcessCloseVnodeMsg(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = 0;
+
+  SCloseVnodeReq req = {0};
+  if (tDeserializeSCloseVnodeReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mInfo("vgId:%d, start to close vnode on dnode:%d", req.vgId, req.dnodeId);
+
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_REDISTRIBUTE_VGROUP)) !=
+      0) {
+    goto _OVER;
+  }
+
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, req.vgId);
+  if (pVgroup == NULL) {
+    code = TSDB_CODE_MND_VGROUP_NOT_EXIST;
+    goto _OVER;
+  }
+
+  bool found = false;
+  for (int8_t i = 0; i < pVgroup->replica; ++i) {
+    if (pVgroup->vnodeGid[i].dnodeId == req.dnodeId) {
+      found = true;
+      break;
+    }
+  }
+  mndReleaseVgroup(pMnode, pVgroup);
+
+  if (!found) {
+    code = TSDB_CODE_MND_VGROUP_NOT_IN_DNODE;
+    goto _OVER;
+  }
+
+  SEpSet epSet = mndGetDnodeEpsetById(pMnode, req.dnodeId);
+  if (epSet.numOfEps == 0) {
+    code = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    goto _OVER;
+  }
+
+  int32_t contLen = tSerializeSCloseVnodeReq(NULL, 0, &req);
+  void   *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  tSerializeSCloseVnodeReq(pHead, contLen, &req);
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_DND_CLOSE_VNODE, .pCont = pHead, .contLen = contLen};
+  code = tmsgSendReq(&epSet, &rpcMsg);
+
+_OVER:
+  tFreeSCloseVnodeReq(&req);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessOpenVnodeMsg(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  int32_t code = 0;
+
+  SOpenVnodeReq req = {0};
+  if (tDeserializeSOpenVnodeReq(pReq->pCont, pReq->contLen, &req) != 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  mInfo("vgId:%d, start to open vnode on dnode:%d", req.vgId, req.dnodeId);
+
+  if ((code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_REDISTRIBUTE_VGROUP)) !=
+      0) {
+    goto _OVER;
+  }
+
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, req.vgId);
+  if (pVgroup == NULL) {
+    code = TSDB_CODE_MND_VGROUP_NOT_EXIST;
+    goto _OVER;
+  }
+
+  bool found = false;
+  for (int8_t i = 0; i < pVgroup->replica; ++i) {
+    if (pVgroup->vnodeGid[i].dnodeId == req.dnodeId) {
+      found = true;
+      break;
+    }
+  }
+  mndReleaseVgroup(pMnode, pVgroup);
+
+  if (!found) {
+    code = TSDB_CODE_MND_VGROUP_NOT_IN_DNODE;
+    goto _OVER;
+  }
+
+  SEpSet epSet = mndGetDnodeEpsetById(pMnode, req.dnodeId);
+  if (epSet.numOfEps == 0) {
+    code = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    goto _OVER;
+  }
+
+  int32_t contLen = tSerializeSOpenVnodeReq(NULL, 0, &req);
+  void   *pHead = rpcMallocCont(contLen);
+  if (pHead == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  tSerializeSOpenVnodeReq(pHead, contLen, &req);
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_DND_OPEN_VNODE, .pCont = pHead, .contLen = contLen};
+  code = tmsgSendReq(&epSet, &rpcMsg);
+
+_OVER:
+  tFreeSOpenVnodeReq(&req);
+  TAOS_RETURN(code);
 }

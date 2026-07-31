@@ -43,8 +43,7 @@ class TestPersisitConfig:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

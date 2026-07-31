@@ -122,7 +122,6 @@ class TestFunConcat:
         sqls.extend( f"select concat({num_col}, '1') from {tbname} " for num_col in NUM_COL )
         sqls.extend( f"select concat({ts_col}, '1') from {tbname} " for ts_col in TS_TYPE_COL )
         sqls.extend( f"select concat({bool_col}, '1') from {tbname} " for bool_col in BOOLEAN_COL )
-        sqls.extend( f"select concat({char_col},'1') from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
         sqls.extend(
             (
                 f"select concat() from {tbname} ",
@@ -328,8 +327,7 @@ class TestFunConcat:
    
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

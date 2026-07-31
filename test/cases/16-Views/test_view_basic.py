@@ -429,7 +429,7 @@ class TestViewBasic:
         self.create_user(username, password)
         tdSql.execute("grant create database to view_test;")
         conn = taos.connect(user=username, password=password)
-        time.sleep(2) # wait for user privileges to take effect
+        time.sleep(4) # wait for user privileges to take effect
         self.prepare_data(conn)
         cursor = conn.cursor()
         testSql = TDSql()
@@ -480,7 +480,7 @@ class TestViewBasic:
         self.create_user(username, password)
         tdSql.execute("grant create database to view_test;")
         conn = taos.connect(user=username, password=password)
-        time.sleep(2) # wait for user privileges to take effect
+        time.sleep(4) # wait for user privileges to take effect
         self.prepare_data()
         cursor = conn.cursor()
         testSql = TDSql()
@@ -783,7 +783,7 @@ class TestViewBasic:
 
         Since: v3.3.7.0
 
-        Lables: common,ci,mount
+        Labels: common,ci,mount,integration,functional
 
         Jira: TS-5868
 

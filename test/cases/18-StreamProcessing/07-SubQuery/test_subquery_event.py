@@ -56,8 +56,7 @@ class TestStreamSubqueryEvent:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -84,9 +83,11 @@ class TestStreamSubqueryEvent:
         tdSql.prepare(dbname="qdb", vgroups=2)
         tdSql.prepare(dbname="tdb", vgroups=1)
         tdSql.prepare(dbname="rdb", vgroups=1)
+        tdSql.prepare(dbname="pdb", vgroups=1)
         clusterComCheck.checkDbReady("qdb")
         clusterComCheck.checkDbReady("tdb")
         clusterComCheck.checkDbReady("rdb")
+        clusterComCheck.checkDbReady("pdb")
 
     def prepareQueryData(self):
         tdLog.info("prepare child tables for query")
@@ -114,6 +115,23 @@ class TestStreamSubqueryEvent:
 
         ntb = "create table tdb.n1 (ts timestamp, c1 int, c2 int)"
         tdSql.execute(ntb)
+        pct_ntb = (
+            "create table pdb.pct_n1 "
+            "(ts timestamp, activo int, presion double, vacio double)"
+        )
+        tdSql.execute(pct_ntb)
+        tdSql.execute(
+            "insert into pdb.pct_n1 values "
+            "('2026-01-01 00:00:00', 1, 10, 100) "
+            "('2026-01-01 00:01:00', 1, 20, 200) "
+            "('2026-01-01 00:02:00', 0, 30, 300) "
+            "('2026-01-01 00:10:00', 1, 40, 400) "
+            "('2026-01-01 00:11:00', 1, 50, 500) "
+            "('2026-01-01 00:12:00', 0, 60, 600) "
+            "('2026-01-01 00:20:00', 1, 70, 700) "
+            "('2026-01-01 00:21:00', 1, 80, 800) "
+            "('2026-01-01 00:22:00', 0, 90, 900)"
+        )
 
         vstb = "create stable tdb.vtriggers (ts timestamp, c1 int, c2 int) tags(id int) VIRTUAL 1"
         vctb1 = (
@@ -544,7 +562,7 @@ class TestStreamSubqueryEvent:
             id=47,
             stream="create stream rdb.s47 event_window(start with c2=0 end with c2=10) from tdb.v1 into rdb.r47 as select _twstart ts, sum(`vgroups`) c1, sum(ntables) c2 from information_schema.ins_databases where name != 'information_schema' and name != 'performance_schema'",
             res_query="select ts, c1, c2 >= 100, 1000 from rdb.r47 limit 3",
-            exp_query="select _wstart ts, 4, true, count(cint) from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:15:00' interval(5m);",
+            exp_query="select _wstart ts, 5, true, count(cint) from qdb.meters where cts >= '2025-01-01 00:00:00' and cts < '2025-01-01 00:15:00' interval(5m);",
         )
         self.streams.append(stream)
 
@@ -1240,6 +1258,14 @@ class TestStreamSubqueryEvent:
         )
         #self.streams.append(stream)
 
+        stream = StreamItem(
+            id=134,
+            stream="create stream rdb.s134 event_window(start with activo==1 end with activo==0) from pdb.pct_n1 stream_options(fill_history) into rdb.r134 as select _twstart ts, percentile(presion,25) presion_p25, percentile(vacio,25) vacio_p25 from pdb.pct_n1 where ts>=_twstart and ts<=_twend",
+            res_query="select ts, presion_p25, vacio_p25 from rdb.r134 order by ts",
+            check_func=self.check134,
+        )
+        self.streams.append(stream)
+
 
         tdLog.info(f"create total:{len(self.streams)} streams")
         for stream in self.streams:
@@ -1650,4 +1676,19 @@ class TestStreamSubqueryEvent:
         tdSql.checkResultsByFunc(
             sql="select * from information_schema.ins_tables where db_name='rdb' and stable_name='r123';",
             func=lambda: tdSql.getRows() == 2,
+        )
+
+    def check134(self):
+        tdSql.checkResultsByFunc(
+            sql="select ts, presion_p25, vacio_p25 from rdb.r134 order by ts",
+            func=lambda: tdSql.getRows() == 3
+            and tdSql.compareData(0, 0, "2026-01-01 00:00:00.000")
+            and tdSql.compareData(0, 1, 15)
+            and tdSql.compareData(0, 2, 150)
+            and tdSql.compareData(1, 0, "2026-01-01 00:10:00.000")
+            and tdSql.compareData(1, 1, 45)
+            and tdSql.compareData(1, 2, 450)
+            and tdSql.compareData(2, 0, "2026-01-01 00:20:00.000")
+            and tdSql.compareData(2, 1, 75)
+            and tdSql.compareData(2, 2, 750),
         )

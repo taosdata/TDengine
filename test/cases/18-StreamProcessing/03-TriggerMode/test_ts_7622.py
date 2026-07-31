@@ -20,8 +20,7 @@ class TestTS_7622:
         Since: v.3.3.7.0
 
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: TS-7622, TS-7644, TD-38639
 
         History:

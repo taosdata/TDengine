@@ -21,6 +21,7 @@
 #include <thread>
 
 #include "catalog.h"
+#include "catalogInt.h"
 #include "mockCatalogService.h"
 #include "parInt.h"
 
@@ -72,10 +73,13 @@ static void initKeywordsTableOnce() {
   });
 }
 
-// Dummy catalog object for parser tests. Never dereferenced; only checked for NULL.
-static struct {
-  char dummy;  // minimal non-empty struct to avoid UB
-} g_dummyCatalog = {0};
+// Dummy catalog object for parser tests. Kept non-NULL for privilege checks.
+// Must be a fully-sized, zero-initialized SCatalog: the enterprise
+// federated-query path (preParseTargetTableName -> catalogIsExtSource ->
+// ctgAcquireExtSource) dereferences catalog fields (pExtSourceHash, extHashLatch).
+// A zeroed SCatalog makes pExtSourceHash == NULL so that path safely returns
+// "not an ext source"; a truncated stub would read those fields out of bounds.
+static SCatalog g_dummyCatalog = {};
 
 class ParserTestBaseImpl {
  public:
@@ -110,6 +114,23 @@ class ParserTestBaseImpl {
       runAsyncInternalFuncs(sql, expect, checkStage);
       runAsyncApis(sql, expect, checkStage);
     }
+  }
+
+  // Skips the two sync interfaces (which can never see the SParseMetaCache
+  // populated by MockCatalogService.catalogGetAllMeta).  Used by tests that
+  // rely on EXT source / EXT table metadata being routed through the cache.
+  void runAsyncOnly(const string& sql, int32_t expect, ParserStage checkStage) {
+    ++sqlNo_;
+    if (caseEnv_.numOfSkipSql_ > 0) {
+      --(caseEnv_.numOfSkipSql_);
+      return;
+    }
+    if (caseEnv_.numOfLimitSql_ > 0 && caseEnv_.numOfLimitSql_ == sqlNum_) {
+      return;
+    }
+    ++sqlNum_;
+    runAsyncInternalFuncs(sql, expect, checkStage);
+    runAsyncApis(sql, expect, checkStage);
   }
 
  private:
@@ -572,6 +593,10 @@ void ParserTestBase::useDb(const std::string& acctId, const std::string& db) { i
 
 void ParserTestBase::run(const std::string& sql, int32_t expect, ParserStage checkStage) {
   return impl_->run(sql, expect, checkStage);
+}
+
+void ParserTestBase::runAsyncOnly(const std::string& sql, int32_t expect, ParserStage checkStage) {
+  return impl_->runAsyncOnly(sql, expect, checkStage);
 }
 
 void ParserTestBase::checkDdl(const SQuery* pQuery, ParserStage stage) { return; }

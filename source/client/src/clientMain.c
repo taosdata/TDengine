@@ -14,7 +14,7 @@
  */
 
 #include "catalog.h"
-#include "clientInt.h"
+#include "extConnector.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
 #include "clientSession.h"
@@ -120,7 +120,7 @@ void tzCleanup() {
 }
 
 #if !defined(WINDOWS) && !defined(TD_ASTRA)
-static timezone_t setConnnectionTz(const char *val) {
+static timezone_t setConnectionTz(const char *val) {
   timezone_t  tz = NULL;
   timezone_t *tmp = taosHashGet(pTimezoneMap, val, strlen(val));
   if (tmp != NULL && *tmp != NULL) {
@@ -129,17 +129,18 @@ static timezone_t setConnnectionTz(const char *val) {
   }
 
   tscDebug("set timezone to %s", val);
-  tz = tzalloc(val);
-  if (tz == NULL) {
-    tscWarn("%s unknown timezone %s change to UTC", __func__, val);
-    tz = tzalloc("UTC");
-    if (tz == NULL) {
-      tscError("%s set timezone UTC error", __func__);
-      terrno = TAOS_SYSTEM_ERROR(ERRNO);
-      goto END;
-    }
+
+  /* Validate and allocate via the shared implementation in ttime.c.
+   * This covers: empty string rejection, ambiguous abbreviation rejection,
+   * fixed-offset normalization, and tzalloc. */
+  int32_t code = taosValidateTimezone(val, &tz);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("%s invalid timezone '%s', code:0x%x", __func__, val, code);
+    terrno = code;
+    goto END;
   }
-  int32_t code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
+
+  code = taosHashPut(pTimezoneMap, val, strlen(val), &tz, sizeof(timezone_t));
   if (code != 0) {
     tscError("%s put timezone to tz map error:%d", __func__, code);
     tzfree(tz);
@@ -162,6 +163,70 @@ END:
 }
 #endif
 
+/* Snapshot the current client-level timezone (tsTimezoneStr) into the
+ * session-level timezone (pObj->optionInfo.timezone) when the connection is
+ * established.  Later ALTER LOCAL timezone calls update the client-level
+ * setting first, then execLocalCmd syncs the accepted value back here. */
+int32_t tscInitSessionTimezone(STscObj *pObj) {
+#if defined(WINDOWS) || defined(TD_ASTRA)
+  (void)pObj;
+  return TSDB_CODE_SUCCESS;
+#else
+  if (pTimezoneMap == NULL) {
+    /* tzInit() not yet called; skip silently */
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Extract the IANA name from tsTimezoneStr.
+   * The string has the form "Name (Abbrev, +HHMM)". */
+  char        tzName[TD_TIMEZONE_LEN] = {0};
+  const char *pSpace = strchr(tsTimezoneStr, ' ');
+  int32_t     nameLen = pSpace ? (int32_t)(pSpace - tsTimezoneStr) : (int32_t)strlen(tsTimezoneStr);
+  if (nameLen <= 0 || nameLen >= TD_TIMEZONE_LEN) {
+    tscWarn("tscInitSessionTimezone: unexpected tsTimezoneStr format: '%s', "
+            "skip session-level init", tsTimezoneStr);
+    return TSDB_CODE_SUCCESS;  /* malformed; leave session tz unset */
+  }
+  tstrncpy(tzName, tsTimezoneStr, nameLen + 1);
+
+  timezone_t tz = setConnectionTz(tzName);
+  if (tz == NULL) {
+    /* Non-fatal: session tz stays NULL; timestamp parsing falls back to
+     * getGlobalDefaultTZ() at query time (live global tz, not a snapshot). */
+    tscWarn("tscInitSessionTimezone: setConnectionTz failed for '%s', "
+            "session-level timezone not snapshotted", tzName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pObj->optionInfo.timezone = tz;
+  tstrncpy(pObj->optionInfo.timezoneName, tzName, sizeof(pObj->optionInfo.timezoneName));
+  pObj->optionInfo.timezoneExplicit = false;
+  return TSDB_CODE_SUCCESS;
+#endif
+}
+
+// Get connection's session timezone (opaque handle for C API bindings).
+// Returns an opaque pointer to internal timezone_t.
+/*
+ * Return the timezone snapshot captured when the result was created.
+ * The returned handle is owned by pTimezoneMap; caller must NOT tzfree().
+ * Returns NULL for META/RAW/BATCH_META results or NULL input.
+ */
+void *taos_get_result_tz(TAOS_RES *res) {
+  if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
+    return NULL;
+  }
+
+  if (TD_RES_QUERY(res)) {
+    SRequestObj *pRequest = (SRequestObj *)res;
+    return pRequest->body.resInfo.timezone;
+  } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
+    SReqResultInfo *info = tmqGetCurResInfo(res);
+    return info->timezone;
+  }
+  return NULL;
+}
+
 static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, const char *val) {
   if (taos == NULL) {
     return terrno = TSDB_CODE_INVALID_PARA;
@@ -169,7 +234,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
 
 #ifdef WINDOWS
   if (option == TSDB_OPTION_CONNECTION_TIMEZONE) {
-    return terrno = TSDB_CODE_NOT_SUPPORTTED_IN_WINDOWS;
+    return terrno = TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS;
   }
 #endif
 
@@ -217,14 +282,18 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
       if (val[0] == 0) {
         val = "UTC";
       }
-      timezone_t tz = setConnnectionTz(val);
+      timezone_t tz = setConnectionTz(val);
       if (tz == NULL) {
         code = terrno;
         goto END;
       }
       pObj->optionInfo.timezone = tz;
+      tstrncpy(pObj->optionInfo.timezoneName, val, sizeof(pObj->optionInfo.timezoneName));
+      pObj->optionInfo.timezoneExplicit = true;
     } else {
       pObj->optionInfo.timezone = NULL;
+      pObj->optionInfo.timezoneName[0] = '\0';
+      pObj->optionInfo.timezoneExplicit = false;
     }
 #endif
   }
@@ -232,8 +301,10 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
   if (option == TSDB_OPTION_CONNECTION_USER_APP || option == TSDB_OPTION_CONNECTION_CLEAR) {
     if (val != NULL) {
       tstrncpy(pObj->optionInfo.userApp, val, sizeof(pObj->optionInfo.userApp));
+      pObj->optionInfo.userAppId = taosAppNameToId(val);
     } else {
       pObj->optionInfo.userApp[0] = 0;
+      pObj->optionInfo.userAppId = TD_APP_UNKNOWN;
     }
   }
 
@@ -295,6 +366,7 @@ void taos_cleanup(void) {
 
   hbMgrCleanUp();
 
+  extConnectorModuleDestroy();
   catalogDestroy();
   schedulerDestroy();
 
@@ -305,6 +377,7 @@ void taos_cleanup(void) {
   tzCleanup();
 #endif
   tmqMgmtClose();
+  writeRawCleanup();
 
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
@@ -372,6 +445,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos connect to %s:%u, user:%s db:%s", ip, port, user, db);
+      taos_close_internal(pObj);
       return NULL;
     }
     *rid = pObj->id;
@@ -409,6 +483,7 @@ static int set_connection_option_or_close(TAOS *taos, TSDB_OPTION_CONNECTION opt
   if (code != TSDB_CODE_SUCCESS) {
     tscError("failed to set option(%d): %s", (int)option, value);
     taos_close(taos);
+    terrno = code;
     return code;
   }
   return TSDB_CODE_SUCCESS;
@@ -1008,6 +1083,124 @@ void taos_close(TAOS *taos) {
   taos_close_internal(pObj);
   releaseTscObj(*(int64_t *)taos);
   taosMemoryFree(taos);
+}
+
+/**
+ * @brief Begin a client-side transaction.
+ *
+ * Pre-flight check: acquire the connection mutex, verify no transaction is
+ * already in progress (txnState == IDLE), then mark txnState as
+ * UTXN_STAGE_BEGIN_PENDING before releasing the mutex.  This sentinel blocks
+ * any concurrent taos_txn_begin() call on the same connection before the RPC
+ * round-trip completes.
+ *
+ * The actual BEGIN message is sent via taos_query("BEGIN"), which goes through
+ * the normal SQL parser → execDdlQuery → processBeginTxnRsp path — the same
+ * path used when the user issues `taos_query(conn, "BEGIN")` directly.  On
+ * success processBeginTxnRsp promotes txnState to UTXN_STAGE_ACTIVE; on
+ * failure it resets txnState back to UTXN_STAGE_IDLE.
+ */
+int taos_txn_begin(TAOS *taos) {
+#ifdef TD_ENTERPRISE
+  if (taos == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t  connId = *(int64_t *)taos;
+  STscObj *pTscObj = acquireTscObj(connId);
+  if (NULL == pTscObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s", __func__);
+    return terrno;
+  }
+
+  // Check-and-reserve under mutex: prevents concurrent BEGIN attempts.
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  if (pTscObj->txnState != UTXN_STAGE_IDLE) {
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    releaseTscObj(connId);
+    return TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
+  }
+  atomic_store_8(&pTscObj->txnState, UTXN_STAGE_BEGIN_PENDING);
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(connId);
+
+  // Delegate to the SQL path; processBeginTxnRsp handles the full state
+  // transition (IDLE on failure, ACTIVE on success).
+  TAOS_RES *res = taos_query(taos, "BEGIN");
+  int32_t   code = taos_errno(res);
+  taos_free_result(res);
+  return code;
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+#ifdef TD_ENTERPRISE
+// Common implementation for COMMIT and ROLLBACK: validates txn state then
+// issues the SQL via taos_query (which handles the async MNode STrans response).
+static int tscTxnEndImpl(TAOS *taos, const char *sql) {
+  if (taos == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int64_t  connId = *(int64_t *)taos;
+  STscObj *pTscObj = acquireTscObj(connId);
+  if (NULL == pTscObj) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    tscError("invalid parameter for %s, sql:%s", __func__, sql);
+    return terrno;
+  }
+
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+
+  // If the MNode forcibly rolled back this txn due to inactivity timeout, handle locally.
+  if (pTscObj->txnState == UTXN_STAGE_TIMEOUT_KILLED) {
+    bool isRollback = (strcmp(sql, "ROLLBACK") == 0);
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    if (isRollback) {
+      // Local cleanup only — do not send ROLLBACK RPC to MNode since it already
+      // completed the rollback.  Just clear client-side txn state.
+      tscResetTxnState(pTscObj);
+      releaseTscObj(connId);
+      return 0;
+    }
+    // COMMIT (or any other end-of-txn call) is rejected: the txn is already gone.
+    releaseTscObj(connId);
+    return TSDB_CODE_TXN_TIMEOUT_KILLED;
+  }
+
+  if (pTscObj->txnState != UTXN_STAGE_ACTIVE) {
+    tscWarn("conn:0x%" PRIx64 ", txn:%" PRIu64 " not in progress, current state:%d, sql:%s", pTscObj->id,
+            pTscObj->txnId, pTscObj->txnState, sql);
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    releaseTscObj(connId);
+    return TSDB_CODE_TXN_NOT_IN_PROGRESS;
+  }
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  releaseTscObj(connId);
+
+  TAOS_RES *res = taos_query(taos, sql);
+  int32_t   code = taos_errno(res);
+  taos_free_result(res);
+  return code;
+}
+#endif
+
+int taos_txn_commit(TAOS *taos) {
+#ifdef TD_ENTERPRISE
+  return tscTxnEndImpl(taos, "COMMIT");
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
+}
+
+int taos_txn_rollback(TAOS *taos) {
+#ifdef TD_ENTERPRISE
+  return tscTxnEndImpl(taos, "ROLLBACK");
+#else
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+#endif
 }
 
 int taos_errno(TAOS_RES *res) {
@@ -1765,6 +1958,22 @@ void destroyCtxInRequest(SRequestObj *pRequest) {
   pRequest->pWrapper = NULL;
 }
 
+static void stashFirstExtSourceNameFromCatalogReq(SRequestObj *pRequest, const SCatalogReq *pCatalogReq) {
+  if (pRequest == NULL || pCatalogReq == NULL || pCatalogReq->pExtSourceCheck == NULL ||
+      pRequest->extSourceName[0] != '\0') {
+    return;
+  }
+
+  if (taosArrayGetSize(pCatalogReq->pExtSourceCheck) <= 0) {
+    return;
+  }
+
+  const char *srcName = (const char *)taosArrayGet(pCatalogReq->pExtSourceCheck, 0);
+  if (srcName != NULL && srcName[0] != '\0') {
+    tstrncpy(pRequest->extSourceName, srcName, TSDB_EXT_SOURCE_NAME_LEN);
+  }
+}
+
 static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t code) {
   SSqlCallbackWrapper *pWrapper = (SSqlCallbackWrapper *)param;
   SRequestObj         *pRequest = pWrapper->pRequest;
@@ -1779,6 +1988,8 @@ static void doAsyncQueryFromAnalyse(SMetaData *pResultMeta, void *param, int32_t
   if (TSDB_CODE_SUCCESS == code) {
     code = qAnalyseSqlSemantic(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
+
+  stashFirstExtSourceNameFromCatalogReq(pRequest, pWrapper->pCatalogReq);
 
   if (TSDB_CODE_SUCCESS == code) {
     code = sqlSecurityCheckASTLevel(pRequest, pQuery);
@@ -1820,6 +2031,8 @@ int32_t cloneCatalogReq(SCatalogReq **ppTarget, SCatalogReq *pSrc) {
     pTarget->svrVerRequired = pSrc->svrVerRequired;
     pTarget->forceUpdate = pSrc->forceUpdate;
     pTarget->cloned = true;
+    pTarget->pExtSourceCheck = taosArrayDup(pSrc->pExtSourceCheck, NULL);
+    pTarget->pExtTableMeta = taosArrayDup(pSrc->pExtTableMeta, NULL);
 
     *ppTarget = pTarget;
   }
@@ -1873,6 +2086,7 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     pRequest->stableQuery = pQuery->stableQuery;
     if (pQuery->pRoot) {
       pRequest->stmtType = pQuery->pRoot->type;
+      markPassAlterSelf(pRequest, pQuery);
       if (nodeType(pQuery->pRoot) == QUERY_NODE_DELETE_STMT) {
         pRequest->secureDelete = ((SDeleteStmt *)pQuery->pRoot)->secureDelete;
       }
@@ -1897,7 +2111,15 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
     qDestroyQuery(pRequest->pQuery);
     pRequest->pQuery = NULL;
 
-    if (NEED_CLIENT_HANDLE_ERROR(code) && pRequest->stmtBindVersion == 0) {
+    if (NEED_CLIENT_HANDLE_EXT_ERROR(code) && pRequest->stmtBindVersion == 0) {
+      pRequest->code = code;
+      handleExtSourceError(pRequest, code);
+      return;
+    }
+
+    if (NEED_CLIENT_HANDLE_ERROR(code) &&
+        (pRequest->stmtBindVersion == 0 || (pRequest->stmtBindVersion == 2 && pRequest->literal_by_stmt2))) {
+      // NOTE: also cover literal statement by stmt2
       tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%d - %s, tryCount:%d, QID:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
       restartAsyncQuery(pRequest, code);
@@ -1916,7 +2138,8 @@ static int32_t getAllMetaAsync(SSqlCallbackWrapper *pWrapper, catalogCallback fp
   SRequestConnInfo conn = {.pTrans = pWrapper->pParseCtx->pTransporter,
                            .requestId = pWrapper->pParseCtx->requestId,
                            .requestObjRefId = pWrapper->pParseCtx->requestRid,
-                           .mgmtEps = pWrapper->pParseCtx->mgmtEpSet};
+                           .mgmtEps = pWrapper->pParseCtx->mgmtEpSet,
+                           .txnId = pWrapper->pParseCtx->txnId};
 
   pWrapper->pRequest->metric.ctgStart = taosGetTimestampUs();
 
@@ -1966,6 +2189,8 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
     code = qContinueParseSql(pWrapper->pParseCtx, pWrapper->pCatalogReq, pResultMeta, pQuery);
   }
 
+  stashFirstExtSourceNameFromCatalogReq(pRequest, pWrapper->pCatalogReq);
+
   if (TSDB_CODE_SUCCESS == code) {
     code = phaseAsyncQuery(pWrapper);
   }
@@ -1975,6 +2200,11 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
              tstrerror(code), pWrapper->pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
     pRequest->pWrapper = NULL;
+    if (NEED_CLIENT_HANDLE_EXT_ERROR(code) && pRequest->stmtBindVersion == 0) {
+      pRequest->code = code;
+      handleExtSourceError(pRequest, code);
+      return;
+    }
     terrno = code;
     pRequest->code = code;
     doRequestCallback(pRequest, code);
@@ -2005,7 +2235,7 @@ void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param
 
 void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, int64_t reqid) {
   int64_t connId = *(int64_t *)taos;
-  taosAsyncQueryImplWithReqid(connId, sql, fp, param, false, reqid);
+  taosAsyncQueryImplWithReqid(NULL, connId, sql, fp, param, false, reqid);
 }
 
 int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper) {
@@ -2036,17 +2266,32 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            .sodInitial = pTscObj->pAppInfo->serverCfg.sodInitial,
                            .async = true,
                            .svrVer = pTscObj->sVer,
-                           .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes), .allocatorId = pRequest->allocatorRefId,
+                           .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
+                           .allocatorId = pRequest->allocatorRefId,
                            .parseSqlFp = clientParseSql,
                            .parseSqlParam = pWrapper,
                            .setQueryFp = setQueryRequest,
                            .timezone = pTscObj->optionInfo.timezone,
-                           .charsetCxt = pTscObj->optionInfo.charsetCxt};
+                           .charsetCxt = pTscObj->optionInfo.charsetCxt,
+                           .txnId = pTscObj->txnId,
+                           .pTxnVgSet = pTscObj->pTxnVgSet,
+                           .pTxnTableMeta = pTscObj->pTxnTableMeta,
+                           .pTxnSuidMap = pTscObj->pTxnSuidMap,
+                           .firstDayOfWeek = pTscObj->optionInfo.firstDayOfWeek};
+  tstrncpy((*pCxt)->timezoneName, pTscObj->optionInfo.timezoneName, sizeof((*pCxt)->timezoneName));
   int8_t biMode = atomic_load_8(&((STscObj *)pTscObj)->biMode);
   (*pCxt)->biMode = biMode;
   (*pCxt)->minSecLevel = pTscObj->minSecLevel;
   (*pCxt)->maxSecLevel = pTscObj->maxSecLevel;
   (*pCxt)->macMode = pTscObj->pAppInfo->serverCfg.macActive;
+
+  // Inject active external source context so 1-seg table refs can be resolved after USE ext_source
+  (void)taosThreadMutexLock(&((STscObj *)pTscObj)->mutex);
+  tstrncpy((*pCxt)->currentExtSource, pTscObj->extSource, sizeof((*pCxt)->currentExtSource));
+  tstrncpy((*pCxt)->currentExtNs1,    pTscObj->extNs1,    sizeof((*pCxt)->currentExtNs1));
+  tstrncpy((*pCxt)->currentExtNs2,    pTscObj->extNs2,    sizeof((*pCxt)->currentExtNs2));
+  tstrncpy((*pCxt)->timezoneName,     pTscObj->optionInfo.timezoneName, sizeof((*pCxt)->timezoneName));
+  (void)taosThreadMutexUnlock(&((STscObj *)pTscObj)->mutex);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2089,28 +2334,22 @@ int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper **ppWrapper, SRequestObj *p
   return code;
 }
 
-void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
-  SSqlCallbackWrapper *pWrapper = NULL;
-  int32_t              code = TSDB_CODE_SUCCESS;
-
-  CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_PARSE);
-
-  if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
-    code = pRequest->prevCode;
-    terrno = code;
-    pRequest->code = code;
-    tscDebug("req:0x%" PRIx64 ", call sync query cb with code:%s", pRequest->self, tstrerror(code));
-    doRequestCallback(pRequest, code);
-    return;
-  }
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = prepareAndParseSqlSyntax(&pWrapper, pRequest, updateMetaForce);
-  }
+static void doAsyncExec(SRequestObj *pRequest, int32_t code) {
+  SSqlCallbackWrapper *pWrapper = pRequest->pWrapper;
 
   if (TSDB_CODE_SUCCESS == code) {
     pRequest->stmtType = pRequest->pQuery->pRoot->type;
-    code = phaseAsyncQuery(pWrapper);
+#ifdef TD_ENTERPRISE
+    bool handled = false;
+    code = tscCheckTxnState(pRequest, pWrapper, &handled);
+    if (handled) return;  // ROLLBACK early-exit: callback already dispatched
+    if (TSDB_CODE_SUCCESS == code) {
+#endif
+      markPassAlterSelf(pRequest, pRequest->pQuery);
+      code = phaseAsyncQuery(pWrapper);
+#ifdef TD_ENTERPRISE
+    }
+#endif
   }
 
   if (TSDB_CODE_SUCCESS != code) {
@@ -2144,6 +2383,43 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     pRequest->code = code;
     doRequestCallback(pRequest, code);
   }
+}
+
+void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
+  SSqlCallbackWrapper *pWrapper = NULL;
+  int32_t              code = TSDB_CODE_SUCCESS;
+
+  CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_PARSE);
+
+  if (pRequest->retry++ > REQUEST_TOTAL_EXEC_TIMES) {
+    code = pRequest->prevCode;
+    terrno = code;
+    pRequest->code = code;
+    tscDebug("req:0x%" PRIx64 ", call sync query cb with code:%s", pRequest->self, tstrerror(code));
+    doRequestCallback(pRequest, code);
+    return;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = prepareAndParseSqlSyntax(&pWrapper, pRequest, updateMetaForce);
+  }
+
+  if (pRequest->literal_by_stmt2) {
+    TAOS_STMT2* stmt = pRequest->literal_by_stmt2;
+    STscStmt2* pStmt = (STscStmt2*)stmt;
+    if (pStmt->ctx.prepared == 0) {
+      // NOTE: preparing stage for literal statement by stmt2
+      doRequestCallback(pRequest, code);
+      return;
+    }
+  }
+
+  doAsyncExec(pRequest, code);
+}
+
+void taosAsyncExecLiteral(TAOS_STMT2 *stmt) {
+  STscStmt2* pStmt = (STscStmt2*)stmt;
+  doAsyncExec(pStmt->exec.pRequest, pStmt->ctx.code);
 }
 
 void restartAsyncQuery(SRequestObj *pRequest, int32_t code) {
@@ -2815,6 +3091,10 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
   int32_t    code = TSDB_CODE_SUCCESS;
   STMT2_DLOG_E("start to bind param");
 
+  if (stmtIsLiteral(pStmt)) {
+    return stmtBindLiteral2(stmt);
+  }
+
   // check query bind number
   bool isQuery = (STMT_TYPE_QUERY == pStmt->sql.type || (pStmt->sql.type == 0 && stmt2IsSelect(stmt)));
   if (isQuery) {
@@ -2851,12 +3131,14 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
         }
       }
 
-      if (bindv->tags && bindv->tags[i]) {
-        code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
-      } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
-        code = stmtCheckTags2(stmt, &pCreateTbReq);
-      } else if (pStmt->sql.autoCreateTbl) {
-        code = stmtSetTbTags2(stmt, NULL, &pCreateTbReq);
+      if (!stmt2TableExistsInCache(stmt)) {
+        if (bindv->tags && bindv->tags[i]) {
+          code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
+        } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
+          code = stmtCheckTags2(stmt, &pCreateTbReq);
+        } else if (pStmt->sql.autoCreateTbl) {
+          code = stmtSetTbTags2(stmt, NULL, &pCreateTbReq);
+        }
       }
 
       if (code) {
@@ -2908,6 +3190,10 @@ static int stmtBindParamAImpl(TAOS_STMT2 *stmt, void *bindv, int32_t col_idx,
   }
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
+
+  if (stmtIsLiteral(pStmt)) {
+    return stmtBindLiteral2(stmt);
+  }
 
   ThreadArgs *args = (ThreadArgs *)taosMemoryMalloc(sizeof(ThreadArgs));
   if (args == NULL) {
@@ -2992,6 +3278,12 @@ int taos_stmt2_get_fields(TAOS_STMT2 *stmt, int *count, TAOS_FIELD_ALL **fields)
 
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
   STMT2_DLOG_E("start to get fields");
+
+  if (stmtIsLiteral(pStmt)) {
+    if (count)  *count = 0;
+    if (fields) *fields = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type ||
       (pStmt->sql.type == 0 && stmt2IsInsert(stmt))) {

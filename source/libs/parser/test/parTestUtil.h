@@ -16,6 +16,10 @@
 #ifndef PARSER_TEST_UTIL_H
 #define PARSER_TEST_UTIL_H
 
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
+
 #include <gtest/gtest.h>
 
 #define ALLOW_FORBID_FUNC
@@ -40,6 +44,10 @@ class ParserTestBase : public testing::Test {
   void login(const std::string& user);
   void useDb(const std::string& acctId, const std::string& db);
   void run(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS, ParserStage checkStage = PARSER_STAGE_TRANSLATE);
+  // EXT tests need async-only mode because the sync translate path never consults
+  // the SParseMetaCache (which is where mock EXT source/table meta lives).
+  void runAsyncOnly(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS,
+                    ParserStage checkStage = PARSER_STAGE_TRANSLATE);
 
   virtual void checkDdl(const SQuery* pQuery, ParserStage stage);
 

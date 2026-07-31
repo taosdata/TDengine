@@ -121,8 +121,7 @@ class TestWalCorruptionThreeReplica:
 
         Since: v3.3.6.x
 
-        Labels: cluster,ci
-
+        Labels: ci,cluster,integration,functional
         Jira: None
 
         History:

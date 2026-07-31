@@ -71,7 +71,10 @@ static void    mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq);
 
 #ifndef TD_ENTERPRISE
-int32_t mndProcessCompactDbReq(SRpcMsg *pReq) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
+  mError("failed to process compact db req since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
 #endif
 
 int32_t mndInitDb(SMnode *pMnode) {
@@ -1323,6 +1326,22 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
 
   TAOS_CHECK_GOTO(mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_CREATE_DB, NULL), &lino, _OVER);
 
+#ifdef TD_ENTERPRISE
+  /* Reject CREATE DATABASE if an external source with the same bare name exists.
+   * External source names use the bare database name (no acctId prefix). */
+  {
+    const char *dotPos   = strchr(createReq.db, '.');
+    const char *bareName = (dotPos != NULL) ? dotPos + 1 : createReq.db;
+    void       *pExtSrc  = sdbAcquire(pMnode->pSdb, SDB_EXT_SOURCE, bareName);
+    if (pExtSrc != NULL) {
+      sdbRelease(pMnode->pSdb, pExtSrc);
+      code = TSDB_CODE_EXT_SOURCE_NAME_CONFLICT;
+      goto _OVER;
+    }
+    if (terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) terrno = 0;
+  }
+#endif
+
   TAOS_CHECK_GOTO(grantCheck(TSDB_GRANT_DB), &lino, _OVER);
 
   int32_t nVnodes = createReq.numOfVgroups * createReq.replications;
@@ -1672,7 +1691,7 @@ _err:
   TAOS_RETURN(code);
 }
 
-static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew, int32_t parallel) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "alter-db");
   if (pTrans == NULL) {
@@ -1685,6 +1704,9 @@ static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *p
 
   mndTransSetDbName(pTrans, pOld->name, NULL);
   mndTransSetGroupParallel(pTrans);
+  if (parallel > 0) {
+    mndTransSetGroupParallelNum(pTrans, parallel);
+  }
   TAOS_CHECK_GOTO(mndTransCheckConflict(pMnode, pTrans), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransCheckConflictWithCompact(pMnode, pTrans), NULL, _OVER);
   TAOS_CHECK_GOTO(mndTransCheckConflictWithRetention(pMnode, pTrans), NULL, _OVER);
@@ -1867,7 +1889,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
 
   dbObj.cfgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
-  code = mndAlterDb(pMnode, pReq, pDb, &dbObj);
+  code = mndAlterDb(pMnode, pReq, pDb, &dbObj, alterReq.parallel);
 
   if (dbObj.cfg.replications != pDb->cfg.replications) {
     // return quickly, operation executed asynchronously

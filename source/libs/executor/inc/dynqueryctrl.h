@@ -81,12 +81,18 @@ typedef struct {
   col_id_t colId;
   int32_t  vgId;
   int32_t  rversion;
+  int8_t   refType;       // 0: column reference, 1: tag reference
+  int8_t   extRefType;    // 0: internal reference, 1: external reference
+  char*    tagCondJson;   // heap, owned; external ref series filter (may be NULL)
+  int32_t  tagCondLen;
 } SColRefInfo;
 
 typedef struct SVtbScanDynCtrlInfo {
   bool             batchProcessChild;
   bool             scanAllCols;
+  bool             useTagScan;
   bool             isSuperTable;
+  bool             hasLocalTag;     // Planner flag: STB has local (non-ref) tags
   bool             needRedeploy;
   bool             hasPartition;
   bool             genNewParam;
@@ -95,6 +101,7 @@ typedef struct SVtbScanDynCtrlInfo {
   tsem_t           ready;
   SEpSet           epSet;
   SUseDbRsp*       pRsp;
+  SVTagCondRsp*    pTagCondRsp;  // scratch: decoded VTB_TAG_COND rsp, freed after fetch
   uint64_t         suid;
   uint64_t         uid;
   uint64_t         dynTbUid;
@@ -102,6 +109,7 @@ typedef struct SVtbScanDynCtrlInfo {
   int32_t          acctId;
   int32_t          curTableIdx;
   int32_t          lastTableIdx;
+  uint64_t         clientId; // current DynQueryCtrl task id, used as clientId when wiring a runtime-added org-vg agg reader into the merge exchange
   STimeWindow      window;
   SArray*          readColList;
   SHashObj*        readColSet; // key: col_id_t, value: NULL
@@ -111,10 +119,12 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        newAddedVgInfo;
   SHashObj*        childTableMap;
   SHashObj*        dbVgInfoMap;
+  SHashObj*        resolvedColRefMap; // key: root db.table.col ref, value: SDynResolvedColRef*
   SHashObj*        existOrgTbVg; // key: vgId, value: NULL
   SHashObj*        curOrgTbVg; // key: vgId, value: NULL
   SMsgCb*          pMsgCb;
   SHashObj*        otbNameToOtbInfoMap; // key: orgTbFName, value: SOrgTbInfo
+  SHashObj*        foreignSourceMap; // key: "source.db.table", value: SForeignSourceInfo
   SHashObj*        otbVgIdToOtbInfoArrayMap; // key: vgId, value: SArray<SOrgTbInfo>
   SHashObj*        vtbUidToVgIdMapMap; // key: vtbUid, value: SHashObj <key: vgId, value: SArray<SOrgTbInfo>>
   SHashObj*        vtbGroupIdToVgIdMapMap; // key: vtbGroupId, value: SHashObj <key: vgId, value: SArray<SOrgTbInfo>>
@@ -122,6 +132,14 @@ typedef struct SVtbScanDynCtrlInfo {
   SHashObj*        vtbGroupIdTagListMap; // key: vtbGroupId, value: SHashObj <key: vtbUid, value: SArray<STagValue>>
   SHashObj*        vtbUidToGroupIdMap; // key: vtbUid, value: vtbGroupId
   SOperatorParam*  vtbScanParam;
+  SHashObj*        tableCfgCache;       // key: "dbFName.tbName" (string), value: STableCfgRsp*; per-query tag-ref chain memo
+  SHashObj*        pExcludedSourceNames; // key: non-matching local source child name (string), value: NULL; for tag-ref filter
+  char*            tagRefFilterColName;  // virtual table tag column name used in the tag-ref filter
+  col_id_t         tagRefFilterColId;    // source tag column ID for tag-ref filter matching
+  char             tagRefTerminalColName[TSDB_COL_NAME_LEN]; // terminal physical tag column name (resolved by planner)
+  // General tag-ref filter pushdown (Layer 2): evaluate pTagFilterCond per-child after tag resolution
+  SNode*           pTagRefFilterCond;       // cloned & slotId-rewritten filter condition for scalar evaluation
+  SArray*          pTagRefFilterColInfos;   // SArray<SColumnInfo> — columns needed by the filter (defines data block schema)
 } SVtbScanDynCtrlInfo;
 
 typedef struct SVtbWindowDynCtrlInfo {

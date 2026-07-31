@@ -25,18 +25,29 @@ class TestSelectFunction:
         tdLog.info(f"insert data.")
         datafile = etool.getFilePath(os.path.dirname(__file__), "resource", "data", "d1001.data")
 
-        tdSql.execute("create database ts_4893;")
+        tdSql.execute("create database if not exists ts_4893;")
         tdSql.execute("use ts_4893;")
         tdSql.execute("select database();")
-        tdSql.execute("CREATE STABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT, "
+        tdSql.execute("CREATE STABLE IF NOT EXISTS `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT, "
             "`id` INT, `name` VARCHAR(64), `nch1` NCHAR(50), `nch2` NCHAR(50), `var1` VARCHAR(50), "
             "`var2` VARCHAR(50)) TAGS (`groupid` TINYINT, `location` VARCHAR(16));")
-        tdSql.execute("CREATE table d0 using meters tags(1, 'beijing')")
+        tdSql.execute("CREATE table IF NOT EXISTS d0 using meters tags(1, 'beijing')")
         tdSql.execute('insert into d0 file "%s"' % datafile)
-        tdSql.execute("CREATE TABLE `n1` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, co NCHAR(10))")
+        tdSql.execute("CREATE TABLE IF NOT EXISTS `n1` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, co NCHAR(10))")
         tdSql.execute("insert into n1 values(now, 1, null, '23')")
         tdSql.execute("insert into n1 values(now+1a, null, 3, '23')")
         tdSql.execute("insert into n1 values(now+2a, 5, 3, '23')")
+
+        # Small controlled table for function-coexistence tests (5 rows, deterministic data)
+        tdSql.execute("CREATE TABLE IF NOT EXISTS fc_d (ts TIMESTAMP, voltage INT, current FLOAT, id INT)")
+        tdSql.execute(
+            "INSERT INTO fc_d VALUES"
+            "('2024-01-01 00:00:00', 220, 10.0, 0)"
+            "('2024-01-01 00:00:01', 215,  8.0, 1)"
+            "('2024-01-01 00:00:02', 225, 12.0, 2)"
+            "('2024-01-01 00:00:03', 210,  9.0, 3)"
+            "('2024-01-01 00:00:04', 230, 11.0, 4)"
+        )
 
     def run_normal_query_new(self, testCase):
         # read sql from .sql file and execute
@@ -248,9 +259,9 @@ class TestSelectFunction:
 
     def run_error(self):
         tdSql.error("select * from (select to_iso8601(ts, timezone()), timezone() from ts_4893.meters \
-            order by ts desc) limit 1000;", expectErrInfo="Invalid parameter data type : to_iso8601") # TS-5340
+            order by ts desc) limit 1000;", expectErrInfo="Invalid timezone format") # TS-5340
         tdSql.error("select * from ts_4893.meters where ts between(timetruncate(now, 1h) - 10y) and timetruncate(now(), 10y) partition by voltage;",
-                    expectErrInfo="Invalid timzone format : timetruncate") #
+                    expectErrInfo="Invalid time unit : timetruncate") #
 
     def run_greatest(self):
         self.run_normal_query_new("greatest")
@@ -435,8 +446,7 @@ class TestSelectFunction:
 
         Since: v3.3.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         History:
             - 2024-9-28 qevolg Created
             - 2025-5-08 Huo Hong Migrated to new test framework
@@ -446,5 +456,303 @@ class TestSelectFunction:
         self.run_min()
         self.run_error()
 
+    # -----------------------------------------------------------------------
+    # Function coexistence rule tests
+    # Covers FS "函数分类与使用规则" v1.0 (TSDB-v3.4.2)
+    # -----------------------------------------------------------------------
 
+    def run_func_coexist(self):
+        # --- Result-file comparison: Rule 1 constant-expression examples ---
+        self.run_normal_query_new("func_coexist")
 
+        # --- Rule 1: single-row selection + aggregate on table data (always OK) ---
+        tdSql.query("SELECT max(voltage), sum(id) FROM ts_4893.fc_d")
+        tdSql.checkRows(1)
+        tdSql.query("SELECT min(current), count(*) FROM ts_4893.fc_d")
+        tdSql.checkRows(1)
+        tdSql.query("SELECT first(voltage), count(*) FROM ts_4893.fc_d")
+        tdSql.checkRows(1)
+        tdSql.query("SELECT last(current), max(voltage) FROM ts_4893.fc_d")
+        tdSql.checkRows(1)
+
+        # --- Rule 1: multi-row selection alone (always OK) ---
+        tdSql.query("SELECT top(voltage, 3) FROM ts_4893.fc_d")
+        tdSql.checkRows(3)
+        tdSql.query("SELECT bottom(current, 3) FROM ts_4893.fc_d")
+        tdSql.checkRows(3)
+        tdSql.query("SELECT tail(voltage, 3) FROM ts_4893.fc_d")
+        tdSql.checkRows(3)
+
+        # --- Rule 2: multi-row selection + aggregate — always illegal ---
+        tdSql.error("SELECT sum(current), top(voltage, 5) FROM ts_4893.fc_d")
+        tdSql.error("SELECT top(voltage, 5), sum(current) FROM ts_4893.fc_d")
+        tdSql.error("SELECT bottom(voltage, 3), avg(current) FROM ts_4893.fc_d")
+        tdSql.error("SELECT sample(voltage, 3), count(*) FROM ts_4893.fc_d")
+
+        # --- Rule 6: selection-agg (1 row) + set function (N/N-1 rows) → rows not equal → error ---
+        tdSql.error("SELECT first(voltage), diff(current) FROM ts_4893.fc_d")
+        tdSql.error("SELECT max(voltage), csum(current) FROM ts_4893.fc_d")
+
+        # --- Rule 3: multi-row selection + set — always illegal ---
+        tdSql.error("SELECT top(voltage, 3), diff(current) FROM ts_4893.fc_d")
+
+        # --- Rule 3: set functions with mismatched row counts — illegal ---
+        tdSql.error("SELECT diff(voltage), csum(current) FROM ts_4893.fc_d")
+        tdSql.error("SELECT unique(voltage), csum(current) FROM ts_4893.fc_d")
+
+        # --- Selection row-count mismatch — illegal ---
+        tdSql.error("SELECT top(voltage, 3), bottom(current, 5) FROM ts_4893.fc_d")
+
+    def test_func_coexist(self):
+        """Function coexistence: valid combinations and known rule violations.
+
+        Tests that valid function combinations produce correct results and
+        known invalid combinations are rejected. Covers the 4-category
+        function classification (Scalar/Aggregate/Set/Selection) coexistence
+        rules from FS 函数分类与使用规则 v1.0.
+
+        Catalog:
+            - Function:Selection
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: TD-XXXXX
+
+        """
+        self.run_func_coexist()
+
+    def test_func_coexist_after_fix(self):
+        """Function coexistence: behavior expected after 差异 I/II/III/IV fixes.
+
+        Tests document the target behavior after code fixes for discrepancies
+        差异 I/II/III/IV recorded in FS appendix A (函数分类与使用规则 v1.0).
+        Valid combos use result-file comparison; error cases use tdSql.error().
+
+        Stable K-row / N-row / N-1 row combos are verified via:
+          func_coexist_fix.in  — top+bottom(3), top+top(5), tail+tail(3), histogram pairs,
+                                  diff pairs, derivative pairs, N-row pipeline pairs
+          func_coexist_sets2.in — bottom+bottom, tail+top, top+tail, tail+bottom, bottom+tail,
+                                   histogram+bottom, triple K-row (top+bottom+tail), triple diff,
+                                   lead+stateduration, csum+statecount, fill_forward+statecount,
+                                   csum+csum, mavg+mavg K=2/K=3
+
+        Catalog:
+            - Function:Selection
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: TD-XXXXX
+
+        """
+        # --- Stable combos: result-file comparison ---
+        self.run_normal_query_new("func_coexist_fix")
+        self.run_normal_query_new("func_coexist_sets2")
+
+        # --- Non-deterministic (sample output is random): checkRows only ---
+        tdSql.query("SELECT top(voltage, 3), sample(current, 3) FROM ts_4893.fc_d")
+        tdSql.checkRows(3)
+        tdSql.query("SELECT bottom(voltage, 3), sample(current, 3) FROM ts_4893.fc_d")
+        tdSql.checkRows(3)
+        tdSql.query("SELECT sample(voltage, 3), sample(current, 3) FROM ts_4893.fc_d")
+        tdSql.checkRows(3)
+        tdSql.query("SELECT tail(voltage, 3), sample(current, 3) FROM ts_4893.fc_d")
+        tdSql.checkRows(3)
+
+        # --- 差异 I error: K mismatch ---
+        tdSql.error("SELECT top(voltage, 5), bottom(current, 3) FROM ts_4893.fc_d")
+        tdSql.error("SELECT top(voltage, 5), sample(current, 3) FROM ts_4893.fc_d")
+        tdSql.error(
+            "SELECT histogram(voltage,'user_input','[0,100,200,300]',0),"
+            " histogram(current,'user_input','[0,10,20]',0) FROM ts_4893.fc_d"
+        )
+        tdSql.error(
+            "SELECT histogram(voltage,'user_input','[0,100,200,300]',0),"
+            " top(current, 5) FROM ts_4893.fc_d"
+        )
+        tdSql.error("SELECT tail(voltage, 5), tail(current, 3) FROM ts_4893.fc_d")
+        tdSql.error("SELECT tail(voltage, 5), top(current, 3) FROM ts_4893.fc_d")
+        tdSql.error("SELECT tail(voltage, 3), bottom(current, 5) FROM ts_4893.fc_d")
+        tdSql.error("SELECT sample(voltage, 5), sample(current, 3) FROM ts_4893.fc_d")
+
+        # --- 差异 II error: MAVG returns N-K+1 rows (not N), cannot coexist with N-row funcs ---
+        tdSql.error("SELECT lag(voltage, 1, 0), mavg(current, 2) FROM ts_4893.fc_d")
+        tdSql.error("SELECT mavg(voltage, 3), csum(current) FROM ts_4893.fc_d")
+        tdSql.error(
+            "SELECT statecount(voltage, 'GE', 220), mavg(current, 2) FROM ts_4893.fc_d"
+        )
+
+        # --- 差异 IV error: MAVG with different K or non-MAVG multi-row funcs ---
+        tdSql.error("SELECT mavg(voltage, 2), mavg(current, 3) FROM ts_4893.fc_d")
+        tdSql.error("SELECT mavg(voltage, 2), diff(current) FROM ts_4893.fc_d")
+        tdSql.error("SELECT mavg(voltage, 2), sum(current) FROM ts_4893.fc_d")
+        tdSql.error("SELECT mavg(voltage, 2), top(current, 3) FROM ts_4893.fc_d")
+
+        # --- 差异 III error: N-1 row ≠ N row ---
+        tdSql.error("SELECT diff(voltage), csum(current) FROM ts_4893.fc_d")
+        tdSql.error("SELECT diff(voltage), lead(current, 1, 0) FROM ts_4893.fc_d")
+        # diff+diff with any option combo is OK: in PROCESS_BY_ROW combined execution,
+        # ignoreNull/ignoreNeg options output NULL (not skip) when another function runs
+        # simultaneously, so row count is always N-1.
+        tdSql.query("SELECT diff(voltage, 2), diff(current) FROM ts_4893.fc_d")
+        # derivative(ignoreNeg=1) + derivative(ignoreNeg=0): same PROCESS_BY_ROW semantics
+        tdSql.query(
+            "SELECT derivative(voltage, 1s, 1), derivative(current, 1s, 0)"
+            " FROM ts_4893.fc_d"
+        )
+        # K-row and N-1 row functions cannot coexist (row count mismatch)
+        tdSql.error("SELECT top(voltage, 3), bottom(current, 3), diff(id) FROM ts_4893.fc_d")
+
+    def test_func_coexist_rules(self):
+        """Function coexistence: rule 4/5, uniqueness constraint, DIFF ignore param.
+
+        Covers supplementary scenarios from TS §4.5: scalar+aggregate (rule 4),
+        scalar+non-pipeline set (rule 5), uniqueness constraint for subset-selecting
+        pipeline functions, DIFF ignore parameter effects on row count, and additional
+        error regression cases (selectivity agg + K-row set).
+
+        Stable valid combos are verified via func_coexist_rules.in result-file comparison:
+          abs+max, abs+min, abs+first, abs+last (rule 4 valid variants),
+          voltage+1 + lag + csum (N-row uniqueness),
+          diff(v,0) / diff(v,1) (DIFF ignore param N-1 rows),
+          abs+top(3), abs+bottom(3), abs+top(5), abs+1+tail(2) (rule 5/scalar+K-row).
+
+        Catalog:
+            - Function:Selection
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: TD-XXXXX
+
+        """
+        # --- Stable valid combos: result-file comparison ---
+        self.run_normal_query_new("func_coexist_rules")
+
+        # --- T-R4-E: rule 4 error (non-selectivity aggregate, no row anchor) ---
+        tdSql.error("SELECT abs(voltage), sum(voltage) FROM ts_4893.fc_d")
+        tdSql.error("SELECT abs(voltage), count(*) FROM ts_4893.fc_d")
+        tdSql.error("SELECT abs(voltage), max(voltage), sum(current) FROM ts_4893.fc_d")
+
+        # --- T-R5-E1: rule 5 error (scalar + non-pipeline set function) ---
+        tdSql.error(
+            "SELECT abs(voltage), histogram(voltage,'user_input','[0,100,200,300]',0)"
+            " FROM ts_4893.fc_d"
+        )
+
+        # --- Uniqueness constraint errors (2 subset-selecting + scalar) ---
+        tdSql.error("SELECT abs(voltage), max(voltage), min(current) FROM ts_4893.fc_d")
+        tdSql.error("SELECT abs(voltage), top(voltage, 5), top(current, 5) FROM ts_4893.fc_d")
+        tdSql.error("SELECT abs(voltage), top(voltage, 3), max(current) FROM ts_4893.fc_d")
+
+        # --- T-DI-E1: DIFF ignore_option=2 + other N-row set function (not DIFF) → error ---
+        tdSql.error("SELECT diff(voltage, 2), csum(current) FROM ts_4893.fc_d")
+
+        # --- T-REG-7: regression (N-1 row ≠ K row) ---
+        tdSql.error("SELECT diff(voltage), top(current, 3) FROM ts_4893.fc_d")
+        # diff(2)+diff(0): OK in combined PROCESS_BY_ROW execution (outputs NULL, not skip)
+
+        # --- T-REG-9/T-REG-10: selectivity agg (1 row) cannot coexist with K-row set func ---
+        # MAX/MIN/FIRST/LAST are 1-row aggregates; mixing with TOP/BOTTOM/TAIL (K rows) → error
+        tdSql.error("SELECT max(voltage), top(current, 3) FROM ts_4893.fc_d")
+        tdSql.error("SELECT first(voltage), tail(current, 3) FROM ts_4893.fc_d")
+        tdSql.error("SELECT min(voltage), bottom(current, 3) FROM ts_4893.fc_d")
+        tdSql.error("SELECT last(voltage), top(current, 3) FROM ts_4893.fc_d")
+        tdSql.error("SELECT count(voltage), csum(current) FROM ts_4893.fc_d")
+
+        # --- Nested function legality ---
+        tdSql.error("SELECT top(sum(voltage), 3) FROM ts_4893.fc_d")
+        tdSql.error("SELECT sum(top(voltage, 3)) FROM ts_4893.fc_d")
+
+        # --- Non-deterministic (sample output is random): checkRows only ---
+        tdSql.query("SELECT sample(voltage, 3), sample(current, 3) FROM ts_4893.fc_d")
+        tdSql.checkRows(3)
+        tdSql.query("SELECT tail(voltage, 3), sample(current, 3) FROM ts_4893.fc_d")
+        tdSql.checkRows(3)
+
+    def run_sys_meta_func(self):
+        self.run_normal_query_new("sys_meta_func")
+
+    def test_sys_meta_func(self):
+        """System/metadata functions: standalone use, coexistence with AGG/SET, and nesting.
+
+        Verifies that system and metadata functions (CLIENT_VERSION, SERVER_VERSION,
+        CURRENT_USER, DATABASE, SERVER_STATUS, SLEEP) behave as scalar functions and
+        can coexist with aggregate and set functions in the same SELECT.
+
+        Stable-result queries (DATABASE, SERVER_STATUS, SLEEP) are verified via
+        sys_meta_func.in result-file comparison.  Version and user functions whose
+        output is environment-specific are verified with row-count / no-error checks.
+
+        Catalog:
+            - Function:Selection
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: TD-XXXXX
+
+        """
+        # --- T-SYS-1: stable-value functions, result-file comparison ---
+        # Covers: database() standalone, server_status() standalone,
+        #   database()/server_status() + avg (AGG coexistence),
+        #   database() + diff (SET coexistence),
+        #   length(database()) scalar nesting,
+        #   avg/diff of length(database()) (AGG/SET wrapping scalar-nested system func),
+        #   sleep(0) + avg, sleep(0) + diff.
+        self.run_sys_meta_func()
+
+        # --- T-SYS-2: standalone use (no table) ---
+        tdSql.query("SELECT client_version()")
+        tdSql.checkRows(1)
+        tdSql.query("SELECT server_version()")
+        tdSql.checkRows(1)
+        tdSql.query("SELECT current_user()")
+        tdSql.checkRows(1)
+        tdSql.query("SELECT server_status()")
+        tdSql.checkRows(1)
+
+        # --- T-SYS-3: version/user functions coexist with AGG (checkRows only) ---
+        tdSql.query("SELECT client_version(), avg(voltage) FROM ts_4893.fc_d")
+        tdSql.checkRows(1)
+        tdSql.query("SELECT server_version(), avg(voltage) FROM ts_4893.fc_d")
+        tdSql.checkRows(1)
+        tdSql.query("SELECT current_user(), avg(voltage) FROM ts_4893.fc_d")
+        tdSql.checkRows(1)
+
+        # --- T-SYS-4: version/user functions coexist with SET (checkRows only) ---
+        tdSql.query("SELECT client_version(), diff(voltage) FROM ts_4893.fc_d")
+        tdSql.checkRows(4)
+        tdSql.query("SELECT server_version(), diff(voltage) FROM ts_4893.fc_d")
+        tdSql.checkRows(4)
+        tdSql.query("SELECT current_user(), diff(voltage) FROM ts_4893.fc_d")
+        tdSql.checkRows(4)
+
+        # --- T-SYS-5: scalar nesting (system func inside scalar func) ---
+        tdSql.query("SELECT length(client_version()) FROM ts_4893.fc_d LIMIT 1")
+        tdSql.checkRows(1)
+        tdSql.query("SELECT length(server_version()) FROM ts_4893.fc_d LIMIT 1")
+        tdSql.checkRows(1)
+        tdSql.query("SELECT length(current_user()) FROM ts_4893.fc_d LIMIT 1")
+        tdSql.checkRows(1)
+
+        # --- T-SYS-6: system func nested in AGG ---
+        tdSql.query("SELECT avg(length(client_version())) FROM ts_4893.fc_d")
+        tdSql.checkRows(1)
+        tdSql.query("SELECT count(current_user()) FROM ts_4893.fc_d")
+        tdSql.checkRows(1)
+
+        # --- T-SYS-7: system func nested in SET ---
+        tdSql.query("SELECT diff(length(client_version())) FROM ts_4893.fc_d")
+        tdSql.checkRows(4)
+        tdSql.query("SELECT csum(length(server_version())) FROM ts_4893.fc_d")
+        tdSql.checkRows(5)
+
+        # --- T-SYS-8: SLEEP cannot be used as a direct numeric aggregate argument ---
+        tdSql.error("SELECT avg(sleep(0)) FROM ts_4893.fc_d")
+        tdSql.error("SELECT sample(voltage, 5), sample(current, 3) FROM ts_4893.fc_d")

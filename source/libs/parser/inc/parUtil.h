@@ -107,8 +107,12 @@ typedef struct SParseStreamInfo {
   bool             extLeftEq; // used for external window, true means include left border
   bool             extRightEq; // used for external window, true means include right border
   SNode*           triggerTbl;
+  SNodeList*       rollupTagList;
   SNodeList*       triggerPartitionList;
   SHashObj*        calcDbs;
+  // SHashObj<sourceName(cstr) -> empty>, populated by collectExtSourceRefs in parTranslater.c (pt-a1).
+  // Iterated by pt-a4 to build SStreamExtTriggerSpec per unique source.
+  SHashObj*        extSourceNames;
 } SParseStreamInfo;
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
@@ -156,6 +160,16 @@ int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache);
 int32_t reserveTableTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTsmaName, SParseMetaCache* pMetaCache);
 int32_t reserveVStbRefDbsInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
+// Federated query ext source cache helpers
+int32_t reserveExtSourceInCache(const char* sourceName, SParseMetaCache* pMetaCache);
+int32_t reserveExtTableMetaInCache(const char* sourceName,
+                                    const char* mid0, const char* mid1,
+                                    const char* tableName, SParseMetaCache* pMetaCache);
+int32_t getExtSourceInfoFromCache(SParseMetaCache* pMetaCache, const char* sourceName,
+                                   SExtSourceInfo** ppInfo);
+int32_t getExtTableMetaFromCache(SParseMetaCache* pMetaCache, const char* sourceName,
+                                  const char* mid0, const char* mid1,
+                                  const char* tableName, SExtTableMeta** ppMeta);
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
 int32_t getTableNameFromCache(SParseMetaCache* pMetaCache, const SName* pName, char* pTbName);
 int32_t getViewMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);

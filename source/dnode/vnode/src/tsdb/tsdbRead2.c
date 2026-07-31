@@ -22,6 +22,7 @@
 #include "tsdbFS2.h"
 #include "tsdbMerge.h"
 #include "tsdbReadUtil.h"
+#include "tsdbSttFileRW.h"
 #include "tsdbUtil2.h"
 #include "tsimplehash.h"
 #include "vnode.h"
@@ -367,6 +368,84 @@ _end:
   return code;
 }
 
+/*
+ * ---- per-fileset STT iterator cache helpers ----
+ *
+ * The cache stores SLDataIter arrays (containing open SSttFileReader handles
+ * and decompressed SSttBlockLoadInfo) keyed by fileset fid.  It is safe to
+ * reuse across groups because:
+ *   1. The reader holds a read snapshot (tsdbTakeReadSnap2) for
+ *      its entire lifetime.
+ *   2. STT files are immutable — new writes or compactions create new files;
+ *      existing files are never modified in-place.
+ *   3. The snapshot pins file versions, so cached file handles and decompressed
+ *      stats remain valid as long as the snapshot is held.
+ *
+ * On suspend (tsdbReaderSuspend2), the snapshot is released and a new one is
+ * acquired on resume.  The new snapshot may reference a different set of STT
+ * files (compaction may have merged or removed files), so all cached handles
+ * become stale and must be destroyed.  See destroyFilesetSttCache() call in
+ * doSuspendCurrentReader().
+ */
+static void destroyFilesetSttCache(STsdbReader* pReader) {
+  if (pReader->pFilesetSttCache == NULL) {
+    return;
+  }
+
+  void* pIter = taosHashIterate(pReader->pFilesetSttCache, NULL);
+  while (pIter != NULL) {
+    SArray* pCached = *(SArray**)pIter;
+    destroySttBlockReader(pCached, &pReader->cost.sttCost);
+    pIter = taosHashIterate(pReader->pFilesetSttCache, pIter);
+  }
+
+  taosHashCleanup(pReader->pFilesetSttCache);
+  pReader->pFilesetSttCache = NULL;
+}
+
+static int32_t saveSttIterArrayToCache(STsdbReader* pReader, int32_t fid,
+                                       SArray* pLDataIterArray) {
+  if (pLDataIterArray == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pReader->pFilesetSttCache == NULL) {
+    pReader->pFilesetSttCache =
+        taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT),
+                     false, HASH_NO_LOCK);
+    if (pReader->pFilesetSttCache == NULL) {
+      return terrno;
+    }
+  }
+  /* Drop each reader's page I/O buffers before caching to cut footprint; see
+   * tsdbSttFileReaderTrimBuffers for exactly what is kept (fd, metadata, blockData). */
+  int32_t numOfLevel = taosArrayGetSize(pLDataIterArray);
+  for (int32_t i = 0; i < numOfLevel; ++i) {
+    SArray* pList = taosArrayGetP(pLDataIterArray, i);
+    for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
+      SLDataIter* pIter = taosArrayGetP(pList, j);
+      tsdbSttFileReaderTrimBuffers(pIter->pReader);
+    }
+  }
+
+  return taosHashPut(pReader->pFilesetSttCache, &fid, sizeof(fid),
+                     &pLDataIterArray, sizeof(void*));
+}
+
+static SArray* restoreSttIterArrayFromCache(STsdbReader* pReader, int32_t fid) {
+  if (pReader->pFilesetSttCache == NULL) {
+    return NULL;
+  }
+  SArray** ppCached = taosHashGet(pReader->pFilesetSttCache, &fid, sizeof(fid));
+  if (ppCached == NULL) {
+    return NULL;
+  }
+  SArray* pCached = *ppCached;
+  TAOS_UNUSED(taosHashRemove(pReader->pFilesetSttCache, &fid, sizeof(fid)));
+  return pCached;
+}
+
+// ---- end cache helpers ----
+
 static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bool* hasNext) {
   int32_t           code = TSDB_CODE_SUCCESS;
   int32_t           lino = 0;
@@ -394,10 +473,43 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
   TSDB_CHECK_NULL(pIter->pSttBlockReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
   pIter->pSttBlockReader->uid = 0;
   tMergeTreeClose(&pIter->pSttBlockReader->mergeTree);
-  destroySttBlockReader(pReader->status.pLDataIterArray, &pCost->sttCost);
 
-  pReader->status.pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
-  TSDB_CHECK_NULL(pReader->status.pLDataIterArray, code, lino, _end, terrno);
+  /*
+   * Save old STT iterators to cache (keyed by current fileset fid) or destroy
+   * them.
+   */
+  bool cached = false;
+  if (pReader->bFilesetDelimited && pReader->status.pCurrentFileset != NULL) {
+    int32_t oldFid = pReader->status.pCurrentFileset->fid;
+    int32_t rc = saveSttIterArrayToCache(pReader, oldFid, pReader->status.pLDataIterArray);
+    cached = (rc == TSDB_CODE_SUCCESS);
+    if (!cached) {
+      /*
+       * Best-effort cache: the save failed, most likely because the query memory
+       * pool is exhausted (taosHashInit/taosHashPut returned a memory error). We
+       * fall back to destroying the iterators (the old, uncached read path) and
+       * keep whatever is already cached — existing cache is never released for
+       * the sake of one failed write. Count the skip for end-of-query reporting
+       * and log at debug level to avoid spam when the pool stays full across many
+       * fileset transitions. The caller owns pLDataIterArray; it is replaced
+       * below regardless.
+       */
+      ++pReader->sttCacheSkipCnt;
+      tsdbTrace("%p skip caching STT iterators for fid:%d, code:%s, keep old "
+                "cache and use uncached read, %s",
+                pReader, oldFid, tstrerror(rc), pReader->idStr);
+    }
+  }
+  if (!cached) {
+    destroySttBlockReader(pReader->status.pLDataIterArray, &pCost->sttCost);
+  }
+
+  /*
+   * The replacement array is allocated after the fileset is resolved (below),
+   * so that a cache hit restores the cached array directly instead of paying an
+   * alloc/free round-trip on every fileset transition.
+   */
+  pReader->status.pLDataIterArray = NULL;
 
   // check file the time range of coverage
   STimeWindow win = {0};
@@ -467,6 +579,29 @@ static int32_t filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader, bo
 
     *hasNext = true;
     break;
+  }
+  /*
+   * Try to restore cached STT iterators for the resolved fileset.
+   * This is safe because the read snapshot is still held - STT files are
+   * immutable and pinned, so the cached SSttFileReader handles and
+   * SSttBlockLoadInfo (with sttBlockLoaded=true) remain valid. tMergeTreeOpen2
+   * will see non-NULL pReader and pBlockLoadInfo in each SLDataIter and skip
+   * re-opening files; tLDataIterOpen2 will see sttBlockLoaded=true and skip the
+   * expensive doLoadSttFilesBlk (LZ4 decompression of statistics blocks).
+   */
+  if (*hasNext && pReader->bFilesetDelimited) {
+    pReader->status.pLDataIterArray =
+      restoreSttIterArrayFromCache(pReader,
+                                   pReader->status.pCurrentFileset->fid);
+    if (pReader->status.pLDataIterArray != NULL) {
+      tsdbDebug("%p restored cached STT iterators for fid:%d, %s", pReader,
+                pReader->status.pCurrentFileset->fid, pReader->idStr);
+    }
+  }
+
+  if (pReader->status.pLDataIterArray == NULL) {
+    pReader->status.pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
+    TSDB_CHECK_NULL(pReader->status.pLDataIterArray, code, lino, _end, terrno);
   }
 
 _end:
@@ -750,6 +885,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   // allocate buffer in order to load data blocks from file
   pSup = &pReader->suppInfo;
   pSup->tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  pSup->blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
   code = setColumnIdSlotList(pSup, pCond->colList, pCond->pSlotList, pCond->numOfCols);
   TSDB_CHECK_CODE(code, lino, _end);
 
@@ -1047,7 +1183,6 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
   }
 
   pBlockNum->numOfSttFiles = pReader->status.pCurrentFileset->lvlArr->size;
-  int32_t total = pBlockNum->numOfSttFiles + pBlockNum->numOfBlocks;
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
   tsdbDebug(
@@ -1056,7 +1191,14 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
       numOfTables, pBlockNum->numOfBlocks, (int32_t)taosArrayGetSize(pTableScanInfoList), pBlockNum->numOfSttFiles,
       sizeInDisk / 1000.0, el, pReader->idStr);
 
-  pReader->cost.numOfBlocks += total;
+  /*
+   * file_load_blocks must count only data-file blocks actually enumerated here.
+   * STT file loads are accounted separately through pReader->cost.sttCost
+   * (reported as stt_load_blocks); folding the STT file count into numOfBlocks
+   * mis-attributes STT structure into the file I/O metric and inflates
+   * file_load_blocks in EXPLAIN ANALYZE.
+   */
+  pReader->cost.numOfBlocks += pBlockNum->numOfBlocks;
   pReader->cost.headFileLoadTime += el;
 
 _end:
@@ -3132,6 +3274,7 @@ static void initSttBlockReader(SSttBlockReader* pSttBlockReader, STableBlockScan
       .pReader = pReader,
       .idstr = pReader->idStr,
       .rspRows = (pReader->info.execMode == READER_EXEC_ROWS),
+      .pSttLoadCost = &pReader->cost.sttCost,
   };
 
   info.pKeyRangeList = taosArrayInit(4, sizeof(SSttKeyRange));
@@ -5920,6 +6063,10 @@ void tsdbReaderClose2(void* ptr) {
 
   destroySttBlockReader(pReader->status.pLDataIterArray, &pCost->sttCost);
   pReader->status.pLDataIterArray = NULL;
+  tsdbDebug("%p STT fileset cache skipped %" PRId64 " retain(s) due to query "
+            "memory pool exhaustion, %s",
+            pReader, pReader->sttCacheSkipCnt, pReader->idStr);
+  destroyFilesetSttCache(pReader);
   taosMemoryFreeClear(pReader->status.uidList.tableUidList);
 
   tsdbTrace("tsdb/reader-close: %p, untake snapshot", pReader);
@@ -5976,6 +6123,15 @@ static int32_t doSuspendCurrentReader(STsdbReader* pCurrentReader) {
     destroySttBlockReader(pStatus->pLDataIterArray, &pCost->sttCost);
     pStatus->pLDataIterArray = taosArrayInit(4, POINTER_BYTES);
     TSDB_CHECK_NULL(pStatus->pLDataIterArray, code, lino, _end, terrno);
+
+    /*
+     * Drop the cache on suspend: it releases the read snapshot, and the snapshot
+     * acquired on resume may reference a different set of STT files (compaction
+     * may have merged/removed them), leaving cached handles stale. The first pass
+     * after resume is therefore cache-cold, which is acceptable since suspend is
+     * infrequent and correctness requires it.
+     */
+    destroyFilesetSttCache(pCurrentReader);
   }
 
   // resetDataBlockScanInfo excluding lastKey
@@ -6390,7 +6546,14 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
     }
   }
 
-  if (!isEmptyQueryTimeWindow(&pReader->info.window)) {
+  // For external readers the main window must only be scanned while the MAIN
+  // step is active and not finished early via tsdbReaderStepDone. Without the
+  // step check, calls arriving after the MAIN -> NEXT transition would resume
+  // draining the main reader, which may still hold data when the executor has
+  // notified that all interpolation points are already produced.
+  bool mainStepActive = (pReader->type == TIMEWINDOW_RANGE_CONTAINED) ||
+                        (pReader->step == EXTERNAL_ROWS_MAIN && !pReader->currentStepDone);
+  if (!isEmptyQueryTimeWindow(&pReader->info.window) && mainStepActive) {
     code = doTsdbNextDataBlock2(pReader, hasNext);
     TSDB_CHECK_CODE(code, lino, _end);
   } else {
@@ -6524,11 +6687,29 @@ _end:
   return code;
 }
 
+static int32_t doInsertPrimaryTsColSMA(SBlockLoadSuppInfo* pSup, SColumnDataAgg* pTsAgg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  TSDB_CHECK_NULL(pSup, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pTsAgg, code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  code = TARRAY2_INSERT_PTR(&pSup->colAggArray, 0, pTsAgg);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock, bool* allHave, bool* hasNullSMA) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SColumnDataAgg**    pBlockSMA = NULL;
   SFileDataBlockInfo* pBlockInfo = NULL;
+  bool                synthesizeAllNullSma = false;
 
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pDataBlock, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -6557,7 +6738,7 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     goto _end;
   }
 
-  //  int64_t st = taosGetTimestampUs();
+  int64_t st = taosGetTimestampUs();
   TARRAY2_CLEAR(&pSup->colAggArray, 0);
 
   SBrinRecord pRecord;
@@ -6569,10 +6750,11 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  if (pSup->colAggArray.size > 0) {
-    *allHave = true;
-  } else {
-    *pBlockSMA = NULL;
+  *allHave = true;
+  synthesizeAllNullSma =
+      (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY && pSup->colAggArray.size <= 0);
+  if (pSup->colAggArray.size <= 0 && !synthesizeAllNullSma) {
+    *allHave = false;
     goto _end;
   }
 
@@ -6596,8 +6778,11 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     }
   }
 
-  // do fill all null column value SMA info
-  code = doFillNullColSMA(pSup, pBlockInfo->numRow, numOfCols, pTsAgg);
+  if (synthesizeAllNullSma) {
+    code = doFillNullColSMA(pSup, pBlockInfo->numRow, numOfCols, pTsAgg);
+  } else {
+    code = doInsertPrimaryTsColSMA(pSup, pTsAgg);
+  }
   TSDB_CHECK_CODE(code, lino, _end);
 
   size_t size = pSup->colAggArray.size;
@@ -6621,8 +6806,8 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
   *pBlockSMA = pResBlock->pBlockAgg;
   pReader->cost.smaDataLoad += 1;
 
-  //  double elapsedTime = (taosGetTimestampUs() - st) / 1000.0;
-  pReader->cost.smaLoadTime += 0;  // elapsedTime;
+  double elapsedTime = (taosGetTimestampUs() - st) / 1000.0;
+  pReader->cost.smaLoadTime += elapsedTime;
 
   tsdbDebug("vgId:%d, succeed to load block SMA for uid %" PRIu64 ", %s", 0, pBlockInfo->uid, pReader->idStr);
 
@@ -6729,6 +6914,18 @@ int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   TSDB_CHECK_CODE(code, lino, _end);
   acquired = true;
 
+  if (pReader->innerReader[0] != NULL || pReader->innerReader[1] != NULL) {
+    // Defect guard: reset unconditionally drops the reader to
+    // TIMEWINDOW_RANGE_CONTAINED below, which would orphan the prev/next
+    // inner readers and silently break the 3-segment external scan. The
+    // interp reuse paths re-open the reader (close + open) instead of
+    // resetting it, so this is currently unreachable; fail loudly rather
+    // than corrupt results if a future caller hits it.
+    tsdbError("%s tsdbReaderReset2 is not supported for external (3-segment) readers", pReader->idStr);
+    code = TSDB_CODE_INVALID_PARA;
+    TSDB_CHECK_CODE(code, lino, _end);
+  }
+
   pReader->step = EXTERNAL_ROWS_INIT;
   pReader->currentStepDone = false;
   if (pReader->flag == READER_STATUS_SUSPEND) {
@@ -6759,6 +6956,7 @@ int32_t tsdbReaderReset2(void* p, SQueryTableDataCond* pCond) {
   memset(&pReader->suppInfo.tsColAgg, 0, sizeof(SColumnDataAgg));
 
   pReader->suppInfo.tsColAgg.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  pReader->suppInfo.blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
   tsdbDataFileReaderClose(&pReader->pFileReader);
 
   int32_t numOfTables = tSimpleHashGetSize(pStatus->pTableMap);
@@ -6916,6 +7114,16 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
       int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows, numOfBuckets);
       pTableBlockInfo->blockRowsHisto[bucketIndex]++;
 
+      // fixed-size row-count histogram
+      if (numOfRows <= 64)        pTableBlockInfo->blockRowsHistoFixed[0]++;
+      else if (numOfRows <= 128)   pTableBlockInfo->blockRowsHistoFixed[1]++;
+      else if (numOfRows <= 256)   pTableBlockInfo->blockRowsHistoFixed[2]++;
+      else if (numOfRows <= 512)   pTableBlockInfo->blockRowsHistoFixed[3]++;
+      else if (numOfRows <= 1024)  pTableBlockInfo->blockRowsHistoFixed[4]++;
+      else if (numOfRows <= 2048)  pTableBlockInfo->blockRowsHistoFixed[5]++;
+      else if (numOfRows <= 4096)  pTableBlockInfo->blockRowsHistoFixed[6]++;
+      else                         pTableBlockInfo->blockRowsHistoFixed[7]++;
+
       hasNext = blockIteratorNext(&pStatus->blockIter);
     } else {
       code = initForFirstBlockInFile(pReader, pBlockIter);
@@ -7050,7 +7258,7 @@ _end:
 
 int32_t tsdbGetTableSchema(SMeta* pMeta, int64_t uid, STSchema** pSchema, int64_t* suid, SSchemaWrapper** pTagSchema) {
   SMetaReader mr = {0};
-  metaReaderDoInit(&mr, pMeta, META_READER_LOCK);
+  metaReaderDoInit(&mr, pMeta, META_READER_LOCK, 0);
   int32_t code = metaReaderGetTableEntryByUidCache(&mr, uid);
   if (code != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TDB_INVALID_TABLE_ID;
@@ -7228,6 +7436,24 @@ _end:
   return code;
 }
 
+int32_t tsdbReaderSetBlockSmaMode(void* p, ETsdReaderBlockSmaMode mode) {
+  int32_t      code = TSDB_CODE_SUCCESS;
+  int32_t      lino = 0;
+  STsdbReader* pReader = (STsdbReader*)p;
+
+  TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_CONDITION(mode == TSD_READER_BLOCK_SMA_MODE_NORMAL || mode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY,
+                       code, lino, _end, TSDB_CODE_INVALID_PARA);
+
+  pReader->suppInfo.blockSmaMode = mode;
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 void tsdbReaderSetCloseFlag(STsdbReader* pReader) { /*pReader->code = TSDB_CODE_TSC_QUERY_CANCELLED;*/
 }
 
@@ -7243,7 +7469,7 @@ static int32_t initQueryTableCond(SMeta* meta, SQueryTableDataCond* pCond, uint6
 
 
   bool            hasPrimaryKey = false;
-  SSchemaWrapper* schema = metaGetTableSchema(meta, suid, -1, 1, NULL, 0);
+  SSchemaWrapper* schema = metaGetTableSchema(meta, suid, -1, 1, NULL, 0, false);
   if (schema && schema->nCols >= 2 && schema->pSchema[1].flags & COL_IS_KEY) {
     hasPrimaryKey = true;
   }
@@ -7461,9 +7687,22 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
     */
     if (notifyTs <= pReader->innerReader[0]->info.window.ekey) {
       pReader->currentStepDone = true;
-      tsdbDebug("%s, %s, step: PREV, notifyTs: %" PRIu64
-                ", window.ekey: %" PRIu64, pReader->idStr, __func__, notifyTs,
+      tsdbDebug("%s, %s, step: PREV, notifyTs: %" PRId64
+                ", window.ekey: %" PRId64, pReader->idStr, __func__, notifyTs,
                 (int64_t)pReader->innerReader[0]->info.window.ekey);
+    }
+  }
+
+  if (pReader->step == EXTERNAL_ROWS_MAIN) {
+    // If current step is MAIN and the notify timestamp is beyond the main
+    // window, the executor has produced all interpolation points and needs
+    // no more rows from the main window; mark the step as done so the next
+    // tsdbNextDataBlock2 call moves directly to the NEXT step.
+    if (notifyTs > pReader->info.window.ekey) {
+      pReader->currentStepDone = true;
+      tsdbDebug("%s, %s, step: MAIN, notifyTs: %" PRId64
+                ", window.ekey: %" PRId64, pReader->idStr, __func__, notifyTs,
+                pReader->info.window.ekey);
     }
   }
 
@@ -7475,8 +7714,12 @@ int32_t tsdbReaderStepDone(STsdbReader* pReader, int64_t notifyTs) {
     */
     if (notifyTs >= pReader->innerReader[1]->info.window.skey) {
       pReader->currentStepDone = true;
-      tsdbDebug("%s, %s, step: NEXT, notifyTs: %" PRIu64
-                ", window.skey: %" PRIu64, pReader->idStr, __func__, notifyTs,
+      // The NEXT step is cancelled before its scan branch runs, so finalize
+      // the state machine here instead of leaving it stuck at NEXT + done:
+      // the next tsdbNextDataBlock2 then returns immediately via EXTERNAL_ROWS_DONE.
+      pReader->step = EXTERNAL_ROWS_DONE;
+      tsdbDebug("%s, %s, step: NEXT done, notifyTs: %" PRId64
+                ", window.skey: %" PRId64, pReader->idStr, __func__, notifyTs,
                 (int64_t)pReader->innerReader[1]->info.window.skey);
     }
   }
@@ -7491,6 +7734,55 @@ _end:
   return code;
 }
 
+/*
+ * Accumulate live STT block load costs from a not-yet-destroyed iterator
+ * array into pCost, leaving the iterators intact (unlike destroySttBlockReader).
+ */
+static void accumulateLiveSttIterCost(SArray *pLDataIterArray, SSttBlockLoadCostInfo *pCost) {
+  if (pLDataIterArray == NULL) {
+    return;
+  }
+  int32_t numOfLevel = taosArrayGetSize(pLDataIterArray);
+  for (int32_t i = 0; i < numOfLevel; ++i) {
+    SArray *pList = taosArrayGetP(pLDataIterArray, i);
+    for (int32_t j = 0; j < taosArrayGetSize(pList); ++j) {
+      SLDataIter *pIter = taosArrayGetP(pList, j);
+      if (pIter != NULL && pIter->pBlockLoadInfo != NULL) {
+        tSttBlockLoadCostAdd(pCost, &pIter->pBlockLoadInfo->cost);
+      }
+    }
+  }
+}
+
+/*
+ * Same as accumulateLiveSttIterCost, but over every iterator array still held
+ * in the fileset cache.  NULL-safe so callers need not guard pCache.
+ */
+static void accumulateCachedSttIterCost(SHashObj *pCache,
+                                        SSttBlockLoadCostInfo *pCost) {
+  if (pCache == NULL) {
+    return;
+  }
+  void *pIter = taosHashIterate(pCache, NULL);
+  while (pIter != NULL) {
+    accumulateLiveSttIterCost(*(SArray **)pIter, pCost);
+    pIter = taosHashIterate(pCache, pIter);
+  }
+}
+
+/*
+ * Single source of truth for a reader's *complete* current STT block-load cost:
+ * the cost already flushed into pReader->cost.sttCost (from destroyed iterators)
+ * plus the cost still held by live iterators — the current fileset's array and
+ * every array retained in the fileset cache.  Adds into *pCost (caller-owned),
+ * leaving all iterators intact, so it is safe to call repeatedly.
+ */
+static void collectReaderSttCost(const STsdbReader *pReader, SSttBlockLoadCostInfo *pCost) {
+  tSttBlockLoadCostAdd(pCost, &pReader->cost.sttCost);
+  accumulateLiveSttIterCost(pReader->status.pLDataIterArray, pCost);
+  accumulateCachedSttIterCost((SHashObj *)pReader->pFilesetSttCache, pCost);
+}
+
 /**
   @brief Transfer the execution information from the reader to table scan operator
   @param pReader the reader to get the execution information
@@ -7503,8 +7795,20 @@ void tsdbReaderSetExecInfo(const STsdbReader* pReader, STableScanAnalyzeInfo* pE
 
   pExecInfo->fileLoadBlocks  += pReader->cost.numOfBlocks;
   pExecInfo->fileLoadElapsed += pReader->cost.blockLoadTime;
-  pExecInfo->sttLoadBlocks   += pReader->cost.sttCost.loadBlocks;
-  pExecInfo->sttLoadElapsed  += pReader->cost.sttCost.blockElapsedTime;
+
+  /*
+   * pReader->cost.sttCost is only flushed when iterators are destroyed (at
+   * tsdReaderClose).  Table Merge Scan calls this *before* close, so compute the
+   * complete cost (flushed + live + cached) into a local copy via the single
+   * collectReaderSttCost helper; the local copy keeps this idempotent across
+   * repeated calls.
+   */
+  SSttBlockLoadCostInfo sttCost = {0};
+  collectReaderSttCost(pReader, &sttCost);
+
+  pExecInfo->sttLoadBlocks   += sttCost.loadBlocks;
+  pExecInfo->sttLoadElapsed  += sttCost.blockElapsedTime;
+
   pExecInfo->memLoadBlocks   += pReader->cost.memBlocks;
   pExecInfo->memLoadElapsed  += pReader->cost.buildmemBlock;
   pExecInfo->smaLoadBlocks   += pReader->cost.smaDataLoad;

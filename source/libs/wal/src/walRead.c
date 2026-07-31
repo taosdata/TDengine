@@ -144,6 +144,20 @@ static int32_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+static FORCE_INLINE int32_t walValidateProtoVer(SWalReader *pReader) {
+  const SWalCkHead *pHead = pReader->pHead;
+  int32_t           protoVer = WAL_GET_PROTO_VER(&pHead->head);
+
+  // Only accept protoVer <= WAL_PROTO_VER_SUPPORTED (currently 0 for 3.4.2.0).
+  // Reject higher versions so a downgrade fails loudly instead of misreading data.
+  if (protoVer > WAL_PROTO_VER_SUPPORTED) {
+    wError("vgId:%d, unsupported WAL protoVer:%d for index:%" PRId64, pReader->pWal->cfg.vgId, protoVer,
+           pHead->head.version);
+    TAOS_RETURN(TSDB_CODE_WAL_INVALID_VER);
+  }
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
 static int32_t walReadChangeFile(SWalReader *pReader, int64_t fileFirstVer) {
   char fnameStr[WAL_FILE_LEN] = {0};
 
@@ -266,6 +280,7 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver) {
   //   TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
   // }
 
+  TAOS_CHECK_RETURN(walValidateProtoVer(pRead));
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
@@ -424,6 +439,8 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
 
     TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
   }
+
+  TAOS_CHECK_RETURN(walValidateProtoVer(pReader));
 
   int32_t plainBodyLen = pReader->pHead->head.bodyLen;
   int32_t cryptedBodyLen = plainBodyLen;

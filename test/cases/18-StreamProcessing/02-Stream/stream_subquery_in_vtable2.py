@@ -1,5 +1,5 @@
 import time
-from new_test_framework.utils import (tdLog, tdSql, tdStream, StreamCheckItem, waitForRows)
+from new_test_framework.utils import (tdLog, tdSql, tdCom, tdStream, StreamCheckItem, waitForRows)
 
 
 class TestStreamSubQueryInVtable2:
@@ -17,7 +17,7 @@ class TestStreamSubQueryInVtable2:
 
         Since: v3.3.4.0
 
-        Labels: common, ci
+        Labels: stream, vtable
 
         Jira: None
 
@@ -26,9 +26,15 @@ class TestStreamSubQueryInVtable2:
             - 2026-03-20 Split into two files for CI stability
         """
 
-        tdStream.createSnode()
+        tdCom.create_snode_if_not_exists()
         tdSql.execute(f"alter all dnodes 'debugflag 135';")
         tdSql.execute(f"alter all dnodes 'stdebugflag 135';")
+
+        # Clean up databases from previous runs
+        for db in ["test_in_vtable_null2", "ref_db_null2", "test_in_vtable_large2", "ref_db_large2",
+                   "test_in_vtable_nested2", "ref_db_nested12", "ref_db_nested22",
+                   "test_in_vtable_join2", "ref_db_join2", "test_in_vtable_multicond2", "ref_db_multicond2"]:
+            tdSql.execute(f"drop database if exists {db}")
 
         streams = []
 

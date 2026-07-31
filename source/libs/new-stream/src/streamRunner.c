@@ -1,4 +1,5 @@
 #include "streamRunner.h"
+#include "cmdnodes.h"
 #include "dataSink.h"
 #include "dataSinkMgt.h"
 #include "executor.h"
@@ -10,7 +11,6 @@
 #include "tarray.h"
 #include "tcommon.h"
 #include "tdatablock.h"
-#include "cmdnodes.h"
 #include "ttime.h"
 
 static int32_t stRunnerInitTaskExecMgr(SStreamRunnerTask* pTask, const SStreamRunnerDeployMsg* pMsg) {
@@ -534,8 +534,10 @@ static int32_t streamPrepareNotification(SStreamRunnerTask* pTask, SStreamRunner
     return code;
   }
   char* pContent = NULL;
-  code = streamBuildBlockResultNotifyContent(pTask, pBlock, &pContent, pTask->output.outCols, startRow, endRow);
-  if (code == 0) {
+  bool  hasNotifyRows = false;
+  code = streamBuildBlockResultNotifyContent(pTask, pBlock, &pContent, pTask->output.outCols, startRow, endRow,
+                                             &hasNotifyRows);
+  if (code == 0 && hasNotifyRows) {
     ST_TASK_DLOG("prepare notify:%s", pContent);
     SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, curWinIdx);
     if (pTriggerCalcParams == NULL) {
@@ -546,6 +548,8 @@ static int32_t streamPrepareNotification(SStreamRunnerTask* pTask, SStreamRunner
       goto _exit;
     }
     pTriggerCalcParams->resultNotifyContent = pContent;
+  } else if (code == 0) {
+    taosMemoryFreeClear(pContent);
   }
 _exit:
   if (code != 0) {
@@ -569,11 +573,11 @@ static void clearNotifyContent(SStreamRunnerTaskExecution* pExec, int32_t startW
 
 static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec,
                                                const char* tbname) {
-  int32_t              code = 0;
-  int32_t              lino = 0;
-  int32_t              winSize = 0;
-  int32_t              nParam = 0;
-  SSTriggerCalcParam** params = NULL;
+  int32_t             code = 0;
+  int32_t             lino = 0;
+  int32_t             winSize = 0;
+  int32_t             nParam = 0;
+  SSTriggerCalcParam* params = NULL;
   if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -583,7 +587,7 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
   }
 
   winSize = pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals->size;
-  params = taosMemCalloc(winSize, sizeof(SSTriggerCalcParam*));
+  params = taosMemCalloc(winSize, sizeof(SSTriggerCalcParam));
   if (!params) {
     ST_TASK_ELOG("failed to init stream pesudo func vals array, size:%d", winSize);
     TAOS_CHECK_EXIT(terrno);
@@ -598,13 +602,13 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
       ST_TASK_DLOG("%s no notify content for index:%d", __FUNCTION__, i);
       continue;
     }
-    params[nParam] = pTriggerCalcParams;
+    params[nParam] = *pTriggerCalcParams;
     ++nParam;
   }
 
   code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
                                  pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                 pTask->addOptions, *params, nParam);
+                                 pTask->addOptions, params, nParam);
   TAOS_CHECK_EXIT(code);
 
 _exit:
@@ -623,10 +627,10 @@ _exit:
 
 static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskExecution* pExec, int32_t startWinIdx,
                                     int32_t endWinIdx, const char* tbname) {
-  int32_t              code = 0;
-  int32_t              lino = 0;
-  int32_t              nParam = endWinIdx - startWinIdx;
-  SSTriggerCalcParam** params = NULL;
+  int32_t             code = 0;
+  int32_t             lino = 0;
+  int32_t             nParam = endWinIdx - startWinIdx;
+  SSTriggerCalcParam* params = NULL;
   if (pTask->notification.pNotifyAddrUrls == NULL || pTask->notification.pNotifyAddrUrls->size == 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -635,13 +639,13 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
     TAOS_CHECK_EXIT(stRunnerGetNotifyTbName(pTask, pExec, &tbname));
   }
 
-  params = taosMemCalloc(nParam, sizeof(SSTriggerCalcParam*));
+  params = taosMemCalloc(nParam, sizeof(SSTriggerCalcParam));
   if (!params) {
     ST_TASK_ELOG("failed to init stream pesudo func vals array, size:%d", nParam);
     TAOS_CHECK_EXIT(terrno);
   }
 
-  nParam  = 0;
+  nParam = 0;
   for (int i = startWinIdx; i < endWinIdx; ++i) {
     SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, i);
     if (pTriggerCalcParams == NULL) {
@@ -653,13 +657,13 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
       ST_TASK_DLOG("%s no notify content for index:%d", __FUNCTION__, i);
       continue;
     }
-    params[nParam] = pTriggerCalcParams;
+    params[nParam] = *pTriggerCalcParams;
     ++nParam;
   }
 
   code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
                                  pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                 pTask->addOptions, *params, nParam);
+                                 pTask->addOptions, params, nParam);
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
@@ -685,9 +689,10 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
   }
   bool  empty = (!pBlock || pBlock->info.rows <= 0);
   char* pContent = NULL;
+  bool  hasNotifyRows = false;
   code = streamBuildBlockResultNotifyContent(pTask, pBlock, &pContent, pTask->output.outCols, 0,
-                                             empty ? 0 : pBlock->info.rows - 1);
-  if (code == 0) {
+                                             empty ? 0 : pBlock->info.rows - 1, &hasNotifyRows);
+  if (code == 0 && hasNotifyRows) {
     ST_TASK_DLOG("start to send notify:%s", pContent);
     int32_t             index = pExec->runtimeInfo.funcInfo.curOutIdx;
     SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, index);
@@ -703,6 +708,8 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
                                    pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                    pTask->addOptions, pTriggerCalcParams, 1);
     taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
+  } else if (code == 0) {
+    taosMemoryFreeClear(pContent);
   }
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
@@ -987,10 +994,11 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   }
   pTask->task.status = STREAM_STATUS_RUNNING;
   pTask->task.sessionId = pReq->sessionId;
-  if (pReq->groupColVals) {
+  // Empty arrays decode as NULL. A new request must still replace state left by a reused exec.
+  if (pReq->groupColVals || pReq->brandNew) {
     TSWAP(pExec->runtimeInfo.funcInfo.pStreamPartColVals, pReq->groupColVals);
   }
-  if (pReq->params) {
+  if (pReq->params || pReq->brandNew) {
     TSWAP(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pReq->params);
   }
   pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
@@ -999,6 +1007,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.funcInfo.triggerType = pReq->triggerType;
   pExec->runtimeInfo.funcInfo.isWindowTrigger = pReq->isWindowTrigger;
   pExec->runtimeInfo.funcInfo.precision = pReq->precision;
+  pExec->runtimeInfo.funcInfo.rollupTbCount = pReq->rollupTbCount;
   pExec->runtimeInfo.funcInfo.addOptions = pTask->addOptions;
 
   int32_t winNum = taosArrayGetSize(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals);
@@ -1015,7 +1024,22 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   createTable = (pReq->createTable != 0);
   int32_t nextOutIdx = pExec->runtimeInfo.funcInfo.curOutIdx;
 
-  ST_TASK_DLOG("[runner calc]start to loop, winNum:%d, extWindow:%d, nextOutIdx:%d, gid:%" PRId64, winNum, pExec->runtimeInfo.funcInfo.withExternalWindow, nextOutIdx, pReq->gid);
+  ST_TASK_DLOG("[runner calc]start to loop, winNum:%d, extWindow:%d, nextOutIdx:%d, gid:%" PRId64, winNum,
+               pExec->runtimeInfo.funcInfo.withExternalWindow, nextOutIdx, pReq->gid);
+
+  // A zero-window request only initializes the output table; it must not calculate or notify.
+  if (winNum == 0) {
+    if (pTask->topTask && createTable) {
+      code = stRunnerOutputBlock(pTask, pExec, NULL, &createTable);
+      if (code != TSDB_CODE_SUCCESS) {
+        lino = __LINE__;
+      } else if (createTable) {
+        code = TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE;
+        lino = __LINE__;
+      }
+    }
+    goto _cleanup;
+  }
 
   while (pExec->runtimeInfo.funcInfo.curOutIdx < winNum && code == 0) {
     if (stRunnerTaskWaitQuit(pTask)) {
@@ -1096,10 +1120,11 @@ end:
     }
   }
 
-  ST_TASK_DLOG("execId %d stop to run, gid:%" PRId64, pExec->runtimeInfo.execId, pReq->gid);
-  
-  stRunnerTaskReleaseExec(pTask, pExec);
+_cleanup:
 
+  ST_TASK_DLOG("execId %d stop to run, gid:%" PRId64, pExec->runtimeInfo.execId, pReq->gid);
+
+  stRunnerTaskReleaseExec(pTask, pExec);
 
   if (pForceOutBlock != NULL) blockDataDestroy(pForceOutBlock);
   if (code) {
@@ -1107,7 +1132,9 @@ end:
     if (code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
       return TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY;
     }
-    pTask->task.status = STREAM_STATUS_FAILED;
+    if (code != TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE) {
+      pTask->task.status = STREAM_STATUS_FAILED;
+    }
   } else {
     ST_TASK_DLOG("[runner calc]success, gid:%" PRId64 ",, status:%d", pReq->gid, pTask->task.status);
   }

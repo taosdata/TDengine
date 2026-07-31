@@ -16,6 +16,7 @@ The following configuration parameters only take effect for Native connections.
 |firstEp               |                  |Supported, effective immediately  |At startup, the endpoint of the first dnode in the cluster to actively connect to, default value: hostname:6030, if the server's hostname cannot be obtained, it is assigned to localhost|
 |secondEp              |                  |Supported, effective immediately  |At startup, if the firstEp cannot be connected, try to connect to the endpoint of the second dnode in the cluster, no default value|
 |compressMsgSize       |                  |Supported, effective immediately  |Whether to compress RPC messages; -1: no messages are compressed; 0: all messages are compressed; N (N>0): only messages larger than N bytes are compressed; default value -1|
+|rpcCrcEnable          | v3.4.2.4          |Supported, effective after restart |Whether to verify CRC32C on RPC messages; must be consistent across the cluster (a side with crc enabled rejects messages from a side with crc disabled); default value 1|
 |shellActivityTimer    |                  |Not supported                     |The duration in seconds for the client to send heartbeats to mnode, range 1-120, default value 3|
 |numOfRpcSessions      |                  |Supported, effective immediately  |Maximum number of connections supported by RPC, range 100-100000, default value 30000|
 |numOfRpcThreads       |                  |Not supported                     |Number of threads for RPC to send and receive data, range 1-1024, default value is half of the CPU cores (limited to [2, 100] on Linux and [2, 4] on Windows)|
@@ -25,6 +26,8 @@ The following configuration parameters only take effect for Native connections.
 |shareConnLimit        |Added in 3.3.4.0|Not supported                     |Internal parameter, the number of queries a link can share, range 1-512, default value 10 (Linux/macOS) or 1 (Windows)|
 |readTimeout           |Added in 3.3.4.0|Not supported                     |Internal parameter, minimum timeout, range 64-604800, in seconds, default value 900|
 | maxRetryWaitTime     | v3.3.4.0                        | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
+| retryOnOverloadBaseInterval | Added in v3.4.2.0 | Not supported, restart client required | Base interval for client retry on server overload (e.g. sync negotiation window full). Uses exponential backoff (doubles each attempt). Range 100-60000, in milliseconds, default value 1000 |
+| retryOnOverloadTimeout | Added in v3.4.2.0 | Not supported, restart client required | Maximum total duration for server overload retry. After this time, no more retries and error is returned to application. Range 1000-3600000, in milliseconds, default value 60000 |
 
 ### Query Related
 
@@ -47,6 +50,7 @@ The following configuration parameters only take effect for Native connections.
 |minSlidingTime                   |         |Supported, effective immediately  |Internal parameter, minimum allowable value for sliding|
 |minIntervalTime                  |         |Supported, effective immediately  |Internal parameter, minimum allowable value for interval|
 |compareAsStrInGreatest           | v3.3.6.0 |Supported, effective immediately  |When the greatest and least functions have both numeric and string types as parameters, the comparison type conversion rules are as follows: Integer; 1: uniformly converted to string comparison, 0: uniformly converted to numeric type comparison.|
+|ignoreNullInGreatest             | v3.4.2.0 |Supported, effective immediately  |Whether the GREATEST and LEAST functions skip NULL arguments. Integer; 0 (default): MySQL-compatible — any NULL argument makes the result NULL; 1: skip NULL arguments and compare only non-NULL values, returning NULL only when every argument is NULL. Orthogonal to compareAsStrInGreatest.|
 |showFullCreateTableColumn        | Added in 3.3.7.1 | Supported                          | Whether show column compress info while execute `show create table tablname`, range 0/1, default: 0.|
 
 ### Writing Related
@@ -65,7 +69,8 @@ The following configuration parameters only take effect for Native connections.
 
 |Parameter Name|Supported Version|Dynamic Modification|Description|
 |----------------------|----------|--------------------|-------------|
-| timezone       |                   |Supported, effective immediately  | Time zone; defaults to dynamically obtaining the current system time zone setting |
+| timezone       |                   |Supported, effective immediately  | Time zone; defaults to dynamically obtaining the current system time zone setting; can also be changed for the current connection with `SET TIMEZONE` |
+| firstDayOfWeek | `≥ v3.4.2.0`      |Supported, effective immediately  | First day of week used by week-based calculations (for example `TIMETRUNCATE(..., 1w)`); if explicitly configured, that value is used first, otherwise the client reads the operating system's first-day-of-week setting at startup and falls back to `4` (Thursday) when unavailable. Linux uses locale `LC_TIME`, macOS prefers `AppleFirstWeekday` and then the system calendar setting, and Windows uses Regional settings. Can also be changed for the current connection with `SET FIRST_DAY_OF_WEEK` |
 | locale         |                   |Supported, effective immediately  | System locale and encoding format, defaults to system settings |
 | charset        |                   |Supported, effective immediately  | Character set encoding, defaults to system settings |
 
@@ -110,7 +115,7 @@ The following configuration parameters only take effect for Native connections.
 | safetyCheckLevel | After 3.3.3.0     |Not supported                     | Internal parameter, used for random failure testing |
 | simdEnable       | After 3.3.4.3     |Not supported                     | Internal parameter, used for testing SIMD acceleration |
 | AVX512Enable     | After 3.3.4.3     |Not supported                     | Internal parameter, used for testing AVX512 acceleration |
-| bypassFlag       |After 3.3.4.5      |Supported, effective immediately  | Internal parameter, used for  short-circuit testing|
+| bypassFlag       |After 3.3.4.5      |Supported, effective immediately  | Internal parameter, used for short-circuit testing. Only used for debugging write-performance issues only; it short-circuits a write request so it returns early at a chosen stage of the write path, letting you locate the bottleneck stage by stage. `0` normal write; `1` return before the taos client sends the RPC message; `2` return after taosd receives the RPC message; `4` return before taosd writes the memory cache; `8` return before taosd persists data to disk. Default `0`. **Warning: any nonzero value makes the write return success before the data is actually persisted, so the skipped data is silently and unrecoverably dropped without the client noticing. Use it only temporarily in a test environment, never in production; reset it to `0` when done.** |
 
 ### SHELL Related
 
@@ -130,6 +135,7 @@ The following configuration parameters only take effect for WebSocket connection
 | debugFlag | `≥ v3.3.6.0` | Not supported | Log switch for running logs, 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs); default value: 131 |
 | compression | `≥ v3.3.6.0` | Not supported | Enable WebSocket message compression. 0: disabled (default), 1: enabled |
 | adapterList | `≥ v3.3.6.15` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | List of taosAdapter addresses for load balancing and failover. Multiple addresses are comma-separated, format: `host1:port1,host2:port2,...` |
+| adapterHa | `≥ v3.4.2.0` | Not supported | Whether to enable taosAdapter high availability. When enabled, the connector requests the available taosAdapter instance list and adds discovered endpoints to the address pool for load balancing and failover. Default value: false |
 | logKeepDays | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum retention period for log files in days. When set to 0, no log files are deleted. When greater than 0, log files exceeding the size limit are renamed to taoslog.ts.gz (where ts is the last modification timestamp) and new log files are created. Log files older than the specified days are deleted; default value: 30 |
 | rotationSize | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum size of a single log file (supports KB/MB/GB units), default value: 1GB |
 | connRetries | `≥ v3.3.6.28` and `< v3.3.7.0`, or `≥ v3.3.7.4` | Not supported | Maximum number of retries upon connection failure, default value: 5 |

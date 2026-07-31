@@ -219,8 +219,7 @@ class TestBenchmarkWebsite:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -231,17 +230,17 @@ class TestBenchmarkWebsite:
         benchmark = etool.benchMarkFile()
 
         # insert
-        json = "../tools/taos-tools/example/insert.json"
+        json = "../tools/taosBenchmark/example/insert.json"
         self.insertBenchJson(json, checkStep=True)
 
         # query
-        json = "../tools/taos-tools/example/query.json"
+        json = "../tools/taosBenchmark/example/query.json"
         self.checkAfterRun(benchmark, json, True, tbCnt)
-        json = "../tools/taos-tools/example/queryStb.json"
+        json = "../tools/taosBenchmark/example/queryStb.json"
         self.checkAfterRun(benchmark, json, False, tbCnt)
 
         # tmq
-        json = "../tools/taos-tools/example/tmq.json"
+        json = "../tools/taosBenchmark/example/tmq.json"
         self.checkTmqJson(benchmark, json)
 
 

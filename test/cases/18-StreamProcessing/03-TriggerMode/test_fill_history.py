@@ -19,8 +19,7 @@ class TestStreamStateFillHistory:
 
         Since: v3.3.3.7
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:
@@ -160,6 +159,55 @@ class TestStreamStateFillHistory:
         # ############ option: watermark
         
         return
+
+    def test_fill_history_start_time_filters_late_rows(self):
+        """FILL_HISTORY start time filters later writes with older event times
+
+        1. Create a stream on an empty table with a history start time
+        2. Wait for the stream and insert rows on both sides of the boundary
+        3. Verify only rows at or after the boundary trigger calculations
+
+        Catalog:
+            - Streams:03-TriggerMode
+
+        Since: v3.4.2.0
+        Labels: common,ci
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7048315279
+
+        History:
+            - 2026-07-14 Created
+        """
+
+        tdStream.dropAllStreamsAndDbs()
+        tdStream.ensureSnode()
+        tdSql.prepare(dbname="test", vgroups=1)
+        tdSql.execute("create table t1 (ts timestamp, c1 int)")
+        tdSql.execute(
+            "create stream s1 interval(1s) sliding(1s) from t1 "
+            "stream_options(fill_history('2026-07-09 00:00:00')) "
+            "into dst (wstart, cnt) as select _twstart, count(*) from t1 "
+            "where _c0 >= _twstart and _c0 < _twend"
+        )
+        tdStream.checkStreamStatus("s1")
+
+        tdSql.execute(
+            "insert into t1 values "
+            "('2026-07-08 23:59:58', 1), "
+            "('2026-07-08 23:59:59', 2), "
+            "('2026-07-09 00:00:00', 3), "
+            "('2026-07-09 00:00:01', 4), "
+            "('2026-07-09 00:00:02', 5)"
+        )
+
+        tdSql.checkResultsByFunc(
+            sql="select wstart, cnt from dst order by wstart",
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "2026-07-09 00:00:00.000")
+            and tdSql.compareData(0, 1, 1)
+            and tdSql.compareData(1, 0, "2026-07-09 00:00:01.000")
+            and tdSql.compareData(1, 1, 1),
+            retry=30,
+        )
 
     def checks1(self):
         result_sql = "select firstts, num_v, cnt_v, avg_v from res_ct1"

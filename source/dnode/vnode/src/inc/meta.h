@@ -76,6 +76,7 @@ void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t 
 int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, LRUHandle** pHandle);
 int32_t metaGetChildUidsOfSuperTable(SMeta* pMeta, tb_uid_t suid, SArray** childList);
 
+bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols);
 struct SMeta {
   TdThreadRwlock lock;
 
@@ -86,6 +87,7 @@ struct SMeta {
   TXN*    txn;
   TTB*    pTbDb;
   TTB*    pSkmDb;
+  TTB*    pSkmExtDb;
   TTB*    pUidIdx;
   TTB*    pNameIdx;
   TTB*    pCtbIdx;
@@ -101,10 +103,19 @@ struct SMeta {
 
   TTB* pSmaIdx;
 
+  // batch meta txn: track pending txn entries for O(k) startup rebuild
+  TTB* pTxnIdx;
+
+  // batch meta txn: lazy COMMIT/ROLLBACK — txn finalization record for O(1) finalize
+  TTB* pTxnMeta;
+
   // stream
   TTB* pStreamDb;
 
   SMetaCache* pCache;
+
+  SHashObj* uidSuidHash;
+  SHashObj* uidNameHash;
 };
 
 typedef struct {
@@ -145,6 +156,13 @@ typedef struct {
   int64_t  smaUid;
 } SSmaIdxKey;
 
+#pragma pack(push, 1)
+typedef struct {
+  int64_t txnId;
+  int8_t  txnStatus;
+  int64_t txnOrigVer;
+} STxnIdxVal;
+#pragma pack(pop)
 typedef struct {
   int64_t  btime;
   tb_uid_t uid;
@@ -154,6 +172,15 @@ typedef struct {
   int64_t  ncol;
   tb_uid_t uid;
 } SNcolIdxKey;
+
+
+// metaTxn ==================
+// Fast-path check: returns true if there are any pending (active or finalized-but-un-vacuumed)
+// txn entries in this VNode. When false, callers can skip per-row tdbTbGet(pTxnIdx) lookups.
+// Uses a pre-maintained atomic counter — single cache-line read, no hash traversal.
+static FORCE_INLINE bool metaHasPendingTxnEntries(SMeta* pMeta) {
+  return atomic_load_32(&pMeta->pVnode->txnPendingCount) > 0;
+}
 
 // metaTable ==================
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void* pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,

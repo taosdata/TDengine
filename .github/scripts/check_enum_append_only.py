@@ -63,6 +63,9 @@ ignore_lists = {
     "EGrantState": {"GRANT_STATE_MAX"},
     "EOperType": {"MND_OPER_MAX"},
     "TSFormatKeywordId": {"*"},
+    "ESTriggerPullType": {"STRIGGER_PULL_TYPE_MAX"},
+    "EGrantConnType": {"CONN_TYPE_DYN_MAX"},
+    "SGrantOpt": {"GRANT_OPT_DYN_MAX"},
 }
 
 def check_file(filepath, base_branch):

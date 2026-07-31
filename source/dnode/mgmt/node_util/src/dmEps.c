@@ -184,6 +184,10 @@ int32_t dmReadEps(SDnodeData *pData) {
           pData->encryptScope |= DND_CS_MNODE_WAL;
           success = true;
         }
+        if (strcasecmp(str, "query_spill") == 0 || strcasecmp(str, "all") == 0) {
+          pData->encryptScope |= DND_CS_QUERY_SPILL;
+          success = true;
+        }
 
         if (!success) {
           terrno = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;

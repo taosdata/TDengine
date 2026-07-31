@@ -15,6 +15,7 @@
 
 #ifdef USE_GEOS
 #include "geosWrapper.h"
+#include <ctype.h>
 #include "tutil.h"
 #include "types.h"
 
@@ -32,6 +33,276 @@ void geosFreeBuffer(void *buffer) {
 void geosErrMsgeHandler(const char *errMsg, void *userData) {
   char *targetErrMsg = userData;
   (void)snprintf(targetErrMsg, 512, "%s", errMsg);
+}
+
+typedef struct {
+  double x;
+  double y;
+} SWktCoord;
+
+static const char *skipWktSpaces(const char *p) {
+  while ('\0' != *p && isspace((unsigned char)*p)) {
+    ++p;
+  }
+  return p;
+}
+
+static bool isWktTokenBoundary(char c) {
+  return '\0' == c || isspace((unsigned char)c) || '(' == c || ')' == c || ',' == c;
+}
+
+static bool consumeWktChar(const char **pp, char c) {
+  const char *p = skipWktSpaces(*pp);
+  if (*p != c) {
+    return false;
+  }
+  *pp = p + 1;
+  return true;
+}
+
+static bool consumeWktWord(const char **pp, const char *word) {
+  const char *p = skipWktSpaces(*pp);
+  size_t      len = strlen(word);
+  if (0 != strncasecmp(p, word, len) || !isWktTokenBoundary(p[len])) {
+    return false;
+  }
+  *pp = p + len;
+  return true;
+}
+
+static void consumeWktDimension(const char **pp) {
+  const char *p = skipWktSpaces(*pp);
+
+  if (0 == strncasecmp(p, "ZM", 2) && isWktTokenBoundary(p[2])) {
+    *pp = p + 2;
+  } else if ((('Z' == *p) || ('z' == *p) || ('M' == *p) || ('m' == *p)) && isWktTokenBoundary(p[1])) {
+    *pp = p + 1;
+  }
+}
+
+static bool parseWktNumber(const char **pp, double *value) {
+  const char *p = skipWktSpaces(*pp);
+  char       *end = NULL;
+  double      parsed = taosStr2Double(p, &end);
+  if (end == p) {
+    return false;
+  }
+  *value = parsed;
+  *pp = end;
+  return true;
+}
+
+static bool parseWktCoord(const char **pp, SWktCoord *coord) {
+  double  vals[2] = {0};
+  double  ignored = 0;
+  int32_t count = 0;
+
+  while (count < 4) {
+    const char *p = skipWktSpaces(*pp);
+    if (count >= 2 && (',' == *p || ')' == *p)) {
+      break;
+    }
+    if (!parseWktNumber(pp, count < 2 ? &vals[count] : &ignored)) {
+      return false;
+    }
+    ++count;
+  }
+
+  if (count < 2) {
+    return false;
+  }
+
+  const char *p = skipWktSpaces(*pp);
+  if (',' != *p && ')' != *p) {
+    return false;
+  }
+
+  coord->x = vals[0];
+  coord->y = vals[1];
+  return true;
+}
+
+static bool isSameWktCoord(SWktCoord left, SWktCoord right) { return left.x == right.x && left.y == right.y; }
+
+static bool validateWktLinearRing(const char **pp) {
+  if (consumeWktWord(pp, "EMPTY")) {
+    return true;
+  }
+  if (!consumeWktChar(pp, '(')) {
+    return false;
+  }
+
+  int32_t   count = 0;
+  SWktCoord first = {0};
+  SWktCoord last = {0};
+
+  while (true) {
+    SWktCoord coord = {0};
+    if (!parseWktCoord(pp, &coord)) {
+      return false;
+    }
+    if (0 == count) {
+      first = coord;
+    }
+    last = coord;
+    ++count;
+
+    const char *p = skipWktSpaces(*pp);
+    if (',' == *p) {
+      *pp = p + 1;
+      continue;
+    }
+    if (')' == *p) {
+      *pp = p + 1;
+      return count > 0 && isSameWktCoord(first, last);
+    }
+    return false;
+  }
+}
+
+static bool skipWktBody(const char **pp) {
+  if (consumeWktWord(pp, "EMPTY")) {
+    return true;
+  }
+
+  const char *p = skipWktSpaces(*pp);
+  if ('(' != *p) {
+    return false;
+  }
+
+  int32_t depth = 0;
+  while ('\0' != *p) {
+    if ('(' == *p) {
+      ++depth;
+    } else if (')' == *p) {
+      --depth;
+      if (0 == depth) {
+        *pp = p + 1;
+        return true;
+      }
+    }
+    ++p;
+  }
+
+  return false;
+}
+
+static bool validateWktGeometry(const char **pp);
+
+static bool validateWktPolygonBody(const char **pp) {
+  if (consumeWktWord(pp, "EMPTY")) {
+    return true;
+  }
+  if (!consumeWktChar(pp, '(')) {
+    return false;
+  }
+  if (!validateWktLinearRing(pp)) {
+    return false;
+  }
+
+  while (true) {
+    const char *p = skipWktSpaces(*pp);
+    if (',' != *p) {
+      break;
+    }
+    *pp = p + 1;
+    if (!validateWktLinearRing(pp)) {
+      return false;
+    }
+  }
+
+  return consumeWktChar(pp, ')');
+}
+
+static bool validateWktMultiPolygonBody(const char **pp) {
+  if (consumeWktWord(pp, "EMPTY")) {
+    return true;
+  }
+  if (!consumeWktChar(pp, '(')) {
+    return false;
+  }
+
+  while (true) {
+    if (!validateWktPolygonBody(pp)) {
+      return false;
+    }
+
+    const char *p = skipWktSpaces(*pp);
+    if (',' == *p) {
+      *pp = p + 1;
+      continue;
+    }
+    if (')' == *p) {
+      *pp = p + 1;
+      return true;
+    }
+    return false;
+  }
+}
+
+static bool validateWktCollectionBody(const char **pp) {
+  if (consumeWktWord(pp, "EMPTY")) {
+    return true;
+  }
+  if (!consumeWktChar(pp, '(')) {
+    return false;
+  }
+
+  while (true) {
+    if (!validateWktGeometry(pp)) {
+      return false;
+    }
+
+    const char *p = skipWktSpaces(*pp);
+    if (',' == *p) {
+      *pp = p + 1;
+      continue;
+    }
+    if (')' == *p) {
+      *pp = p + 1;
+      return true;
+    }
+    return false;
+  }
+}
+
+static bool validateWktGeometry(const char **pp) {
+  if (consumeWktWord(pp, "POINT") || consumeWktWord(pp, "LINESTRING") || consumeWktWord(pp, "MULTIPOINT") ||
+      consumeWktWord(pp, "MULTILINESTRING")) {
+    consumeWktDimension(pp);
+    return skipWktBody(pp);
+  }
+
+  if (consumeWktWord(pp, "POLYGON")) {
+    consumeWktDimension(pp);
+    return validateWktPolygonBody(pp);
+  }
+
+  if (consumeWktWord(pp, "MULTIPOLYGON")) {
+    consumeWktDimension(pp);
+    return validateWktMultiPolygonBody(pp);
+  }
+
+  if (consumeWktWord(pp, "GEOMETRYCOLLECTION") || consumeWktWord(pp, "GEOCOLLECTION")) {
+    consumeWktDimension(pp);
+    return validateWktCollectionBody(pp);
+  }
+
+  return false;
+}
+
+/*
+ * GEOS may throw on malformed polygon rings. Under our ASAN build this turns
+ * into SIGABRT before the C API can hand back a normal error code, so reject
+ * those structures before calling the reader.
+ */
+static bool validateWktPolygonStructure(const char *inputWKT) {
+  const char *p = inputWKT;
+  if (!validateWktGeometry(&p)) {
+    return false;
+  }
+  p = skipWktSpaces(p);
+  return '\0' == *p;
 }
 
 int32_t initCtxMakePoint() {
@@ -216,6 +487,11 @@ int32_t doGeomFromText(const char *inputWKT, unsigned char **outputGeom, size_t 
   unsigned char *wkb = NULL;
 
   if (doRegExec(inputWKT, geosCtx->WKTRegex, geosCtx->WKTMatchData) != 0) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    goto _exit;
+  }
+
+  if (!validateWktPolygonStructure(inputWKT)) {
     code = TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
     goto _exit;
   }

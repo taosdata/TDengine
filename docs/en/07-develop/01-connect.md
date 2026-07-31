@@ -360,6 +360,7 @@ WebSocket connection:
 - `token` specifies the token used by cloud services.
 - `bearerToken` the token used for authentication.
 - `totpCode` the TOTP code used for two-factor authentication.
+- `skipVerify` whether to skip TLS certificate verification for WebSocket Secure (`wss`) connections, default is false (supported since `v3.8.1`; not recommended for production).
 - `autoReconnect` whether to enable automatic reconnect, default is false (supported since `v3.8.0`).
 - `chanLength` message channel length, default is 1 (supported since `v3.8.0`).
 - `reconnectIntervalMs` reconnect interval in milliseconds, default is 2000 (supported since `v3.8.0`).

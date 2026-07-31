@@ -22,12 +22,10 @@ class Test_IDMP_Meters:
 
         Refer: https://taosdata.feishu.cn/wiki/Zkb2wNkHDihARVkGHYEcbNhmnxb
 
-        Labels: common,ci,skip
-
+        Labels: common,ci,skip,integration,functional,security
         Since: v3.3.7.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional,security
         JIRA: none
 
         History:

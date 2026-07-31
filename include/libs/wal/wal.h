@@ -29,9 +29,23 @@ extern "C" {
 
 #define WAL_PROTO_VER     0
 #define WAL_NOSUFFIX_LEN  20
+
+// Accessors for SWalCont.flags -- use these instead of direct bit manipulation
+#define WAL_PROTO_VER_MASK      ((uint8_t)0x7Fu)  // bit0-6: protocol version
+#define WAL_CONT_FLAG_TXN       ((uint8_t)0x80u)  // bit7:   transaction entry flag
+#define WAL_IS_TXN_MSG(cont)    (((cont)->flags & WAL_CONT_FLAG_TXN) != 0)
+#define WAL_SET_TXN_MSG(cont)   ((cont)->flags |= WAL_CONT_FLAG_TXN)
+#define WAL_CLEAR_TXN_MSG(cont) ((cont)->flags &= (uint8_t)~WAL_CONT_FLAG_TXN)
+#define WAL_GET_PROTO_VER(cont) ((cont)->flags & WAL_PROTO_VER_MASK)
+// WAL_PROTO_VER_SUPPORTED: highest protoVer this build can read; reject anything above it
+#define WAL_PROTO_VER_SUPPORTED  WAL_PROTO_VER
+#define WAL_SET_PROTO_VER(cont, ver) \
+  ((cont)->flags = ((cont)->flags & WAL_CONT_FLAG_TXN) | (uint8_t)((ver) & WAL_PROTO_VER_MASK))
+
 #define WAL_SUFFIX_AT     (WAL_NOSUFFIX_LEN + 1)
 #define WAL_LOG_SUFFIX    "log"
 #define WAL_INDEX_SUFFIX  "idx"
+#define WAL_TXN_SUFFIX    "txn"
 #define WAL_REFRESH_MS    1000
 #define WAL_PATH_LEN      (TSDB_FILENAME_LEN + 12)
 #define WAL_FILE_LEN      (WAL_PATH_LEN + 32)
@@ -57,6 +71,7 @@ typedef struct {
   int32_t      encryptAlgr;
   SEncryptData encryptData;
   int8_t   clearFiles;
+  int8_t   enableTxnFile;  // write .txn files alongside .log (vnode WAL only)
 } SWalCfg;
 
 typedef struct {
@@ -82,8 +97,10 @@ typedef struct {
   int64_t ingestTs;
   int32_t bodyLen;
   int16_t msgType;
-  int8_t  protoVer;
-
+  // flags byte layout (bit-exact, do not use bit-fields for portability):
+  //   bit7   : isTxn    -- 1 if this is a transaction WAL entry
+  //   bit0-6 : protoVer -- WAL protocol version (0-127)
+  uint8_t flags;
   // sync meta
   SWalSyncInfo syncMeta;
 
@@ -97,6 +114,37 @@ typedef struct {
   SWalCont head;
 } SWalCkHead;
 #pragma pack(pop)
+
+// WAL txn body prefix layout (16 bytes total):
+//   [uint64_t txnExtFlags : 8B][int64_t txnId : 8B][actual body : bodyLen-16]
+//
+// txnExtFlags bit definitions:
+#define WAL_TXN_HDR_SIZE     16           // total txn body prefix size
+#define WAL_TXN_EXT_IS_BEGIN (1ULL << 0)  // first WAL entry of this txn on this vnode
+
+// WAL body helpers — always use these instead of accessing wCont->body / wCont->bodyLen directly.
+// For txn entries (WAL_IS_TXN_MSG), the on-disk body is prefixed with [txnExtFlags:8B][txnId:8B].
+// walContBody / walContBodyLen strip that prefix transparently so callers never need to know.
+static FORCE_INLINE const char *walContBody(const SWalCont *cont) {
+  if (WAL_IS_TXN_MSG(cont)) return (const char *)cont->body + WAL_TXN_HDR_SIZE;
+  return (const char *)cont->body;
+}
+static FORCE_INLINE int32_t walContBodyLen(const SWalCont *cont) {
+  if (WAL_IS_TXN_MSG(cont)) return cont->bodyLen - (int32_t)WAL_TXN_HDR_SIZE;
+  return cont->bodyLen;
+}
+// Extract txnExtFlags from a txn WAL entry (returns 0 for non-txn entries).
+static FORCE_INLINE uint64_t walContTxnExtFlags(const SWalCont *cont) {
+  uint64_t flags = 0;
+  if (WAL_IS_TXN_MSG(cont)) (void)memcpy(&flags, cont->body, sizeof(uint64_t));
+  return flags;
+}
+// Extract txnId from a txn WAL entry (returns 0 for non-txn entries).
+static FORCE_INLINE int64_t walContTxnId(const SWalCont *cont) {
+  int64_t id = 0;
+  if (WAL_IS_TXN_MSG(cont)) (void)memcpy(&id, cont->body + sizeof(uint64_t), sizeof(int64_t));
+  return id;
+}
 
 typedef void (*stopDnodeFn)();
 typedef struct SWal {
@@ -126,7 +174,13 @@ typedef struct SWal {
 
   stopDnodeFn stopDnode;
 
-  // reusable write head
+  // txn file support (vnode only, cfg.enableTxnFile == true)
+  TdFilePtr        txnWriteFd;            // current .txn write file
+  TdFilePtr        txnPendingFd;          // txn.pending singleton file
+  volatile int64_t firstPendingTxnIndex;  // first txn walIndex since last fsync; -1 = none
+  SHashObj        *txnBeginIndexMap;      // txnId -> int64_t firstWalIndex; tracks in-flight txns for IS_BEGIN
+
+  // reusable write head — MUST be last: SWalCkHead contains a flexible array member
   SWalCkHead writeHead;
 } SWal;
 
@@ -163,7 +217,7 @@ int32_t walClearCorruption(SWal *, int64_t commitIndex);
 // write interfaces
 // By assigning index by the caller, wal gurantees linearizability
 int32_t walAppendLog(SWal *, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta, const void *body, int32_t bodyLen,
-                     const STraceId *trace);
+                     txn_id_t txnId, const STraceId *trace);
 int32_t walFsync(SWal *, bool force);
 
 // apis for lifecycle management
@@ -211,6 +265,22 @@ int64_t walGetVerRetention(SWal *pWal, int64_t bytes);
 int64_t walGetCommittedVer(SWal *);
 int64_t walGetAppliedVer(SWal *);
 int32_t walSetKeepVersion(SWal *pWal, int64_t ver);
+
+// txn file API (vnode WAL only, no-op when cfg.enableTxnFile == false)
+// Callback invoked for each entry returned by walTxnReadRange.
+typedef int32_t (*FWalTxnEntryCb)(int64_t walIndex, tmsg_t msgType, txn_id_t txnId,
+                                   const void *body, int32_t bodyLen, void *arg);
+// Sequential read of [beginVer, endVer] from .txn files, invoking cb per entry.
+// Used by txnMgrReloadFromWal (lazy load) instead of scanning main WAL.
+int32_t walTxnReadRange(SWal *pWal, int64_t beginVer, int64_t endVer, FWalTxnEntryCb cb, void *arg);
+
+// snapshot transfer of .txn files (leader -> follower)
+// Wire format per block: [int64_t firstVer : 8B][int64_t fileSize : 8B][uint8_t data : fileSize]
+typedef struct SWalTxnSnapReader SWalTxnSnapReader;
+int32_t walSnapTxnReaderOpen(SWal *pWal, int64_t snapVer, SWalTxnSnapReader **ppReader);
+int32_t walSnapTxnRead(SWalTxnSnapReader *pReader, uint8_t **ppData, uint32_t *pLen);
+void    walSnapTxnReaderClose(SWalTxnSnapReader **ppReader);
+int32_t walSnapTxnWrite(SWal *pWal, uint8_t *pData, uint32_t len);
 
 #ifdef __cplusplus
 }

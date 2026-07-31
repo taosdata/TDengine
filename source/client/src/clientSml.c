@@ -36,7 +36,11 @@
 //   total ≈ 289 s (≈ 4.8 min) per call site.
 // smlModifyDBSchemas loop allows up to superTables×SML_RETRY_MAX_TIMES retries.
 static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
+#ifdef _WIN32
+  static __declspec(thread) uint32_t tlSeed = 0;
+#else
   static __thread uint32_t tlSeed = 0;
+#endif
   if (tlSeed == 0) tlSeed = (uint32_t)taosGetTimestampUs();
   uint32_t shift   = retryIdx > SML_RETRY_MAX_SHIFT ? SML_RETRY_MAX_SHIFT : retryIdx;
   uint32_t backoff = SML_RETRY_BASE_MS << shift;

@@ -152,7 +152,8 @@ int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int
 // for internal usage
 int32_t getWordLength(char type);
 
-int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t nelements, char *const output, const char type);
+int32_t tsDecompressIntImpl_Hw(const char *const input, const int32_t ninput, const int32_t nelements,
+                               char *const output, const char type);
 int32_t tsDecompressFloatImpAvx2(const char *input, int32_t nelements, char *output);
 int32_t tsDecompressDoubleImpAvx2(const char *input, int32_t nelements, char *output);
 int32_t tsDecompressTimestampAvx2(const char *input, int32_t nelements, char *output, bool bigEndian);

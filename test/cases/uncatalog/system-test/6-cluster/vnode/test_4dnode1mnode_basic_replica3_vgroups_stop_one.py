@@ -335,8 +335,7 @@ class Test4dnode1mnodeBasicReplica3VgroupsStopOne:
 
         Since: xxx
 
-        Labels: xxx
-
+        Labels: common,ci,integration,functional
         Jira: xxx
 
         Catalog:

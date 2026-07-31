@@ -33,7 +33,7 @@ endif()
 target_link_libraries(
     ${TAOS_NATIVE_LIB}
     INTERFACE api
-    PRIVATE util common transport monitor nodes parser command planner catalog scheduler function qcom geometry ${TAOSD_MODULE} decimal
+    PRIVATE util common transport monitor nodes parser command planner catalog scheduler function qcom geometry ${TAOSD_MODULE} decimal extconnector
     PUBLIC os
 )
 
@@ -47,12 +47,20 @@ target_include_directories(
     ${TAOS_NATIVE_LIB_STATIC}
     PUBLIC "${TD_SOURCE_DIR}/include/client"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
 )
 target_link_libraries(
     ${TAOS_NATIVE_LIB_STATIC}
     INTERFACE api
     PUBLIC os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry decimal
 )
+
+# libgsasl: application-layer SCRAM-SHA-256 authentication on the CONNECT handshake
+if(${BUILD_LIBGSASL} AND ${TD_LINUX})
+    DEP_ext_gsasl(${TAOS_NATIVE_LIB})
+    DEP_ext_gsasl(${TAOS_NATIVE_LIB_STATIC})
+    add_definitions(-DUSE_LIBGSASL)
+endif()
 
 if(BUILD_TEST)
     ADD_SUBDIRECTORY(test)

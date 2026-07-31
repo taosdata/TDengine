@@ -44,3 +44,14 @@ TEST_F(PlanSessionTest, stable) {
   run("SELECT MAX(c1), c2 FROM st1 SESSION(ts, 10s)");
   run("SELECT count(ts) FROM st1 PARTITION BY c1 SESSION(ts, 10s)");
 }
+
+TEST_F(PlanSessionTest, smallDataScanSortHint) {
+  useDb("root", "test");
+
+  // A super-table SESSION query has no ORDER BY / Sort node; the batch split uses
+  // a per-vnode Table Merge Scan as the order source.  With the hint, that merge
+  // scan must be replaced by a plain Table Scan plus an inserted Sort.
+  run("SELECT /*+ smalldata_scan_sort() */ MAX(c1), MIN(c1) FROM st1 SESSION(ts, 10s)");
+
+  run("SELECT /*+ smalldata_scan_sort() */ count(ts) FROM st1 PARTITION BY c1 SESSION(ts, 10s)");
+}

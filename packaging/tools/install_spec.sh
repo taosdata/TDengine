@@ -304,7 +304,6 @@ function install_lib() {
   ${csudo}ln -sf ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
   [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
-
   ${csudo}mkdir -p ${bin_link_dir}
   ${csudo}mkdir -p ${lib_link_dir}
   ${csudo}mkdir -p ${inc_link_dir}
@@ -1143,7 +1142,7 @@ function installProduct() {
   else
     echo -e  "\n# taos bin env\nexport PATH=$bin_link_dir:\$PATH\n" >> ~/.bashrc
   fi
-  if grep -q "export LD_LIBRARY_PATH=\$lib_link_dir" ~/.bashrc; then
+  if grep -q "export LD_LIBRARY_PATH=$lib_link_dir" ~/.bashrc; then
     echo "taos lib env has been added to LD_LIBRARY_PATH"
     return
   else

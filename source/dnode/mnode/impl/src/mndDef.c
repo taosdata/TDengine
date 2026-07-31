@@ -32,6 +32,11 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->createUser));
   TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pObj->ownerId));
 
+  // flags (appended after ownerId; absent in sver < 9 — guarded by tDecodeIsEnd).
+  // extSpecs has no separate encoding here: it lives solely in pObj->pCreate
+  // and is carried by the tSerializeSCMCreateStreamReqImpl call above (JSON).
+  TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pObj->flags));
+
   tEndEncode(pEncoder);
   return pEncoder->pos;
 }
@@ -47,7 +52,8 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
     TAOS_CHECK_EXIT(terrno);
   }
   
-  if (MND_STREAM_VER_NUMBER == sver) {
+  /* sver >= 8 uses the current stream req impl; sver <= 7 uses the old impl. */
+  if (sver >= MND_STREAM_VER_NUMBER) {
     TAOS_CHECK_RETURN(tDeserializeSCMCreateStreamReqImpl(pDecoder, pObj->pCreate));
   } else {
     TAOS_CHECK_RETURN(
@@ -63,6 +69,12 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
     TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pObj->ownerId));
   }
 
+  // flags (sver < 9: leave flags=0). extSpecs has no separate decoding here:
+  // it is restored solely from pObj->pCreate (JSON, decoded above).
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_RETURN(tDecodeU64(pDecoder, &pObj->flags));
+  }
+
 _exit:
 
   tEndDecode(pDecoder);
@@ -72,6 +84,10 @@ _exit:
 }
 
 void tFreeStreamObj(SStreamObj *pStream) {
+  // tFreeSCMCreateStreamReq frees pCreate->extSpecs (each spec's
+  // triggerColumns/pColMappings/calcColumns/pCalcMappings/prefilter/
+  // triggerPrefilter/partitionTagCols included) since that is now the only
+  // place extSpecs is held.
   tFreeSCMCreateStreamReq(pStream->pCreate);
   taosMemoryFreeClear(pStream->pCreate);
 }
@@ -85,21 +101,17 @@ void freeSMqConsumerEp(void* data) {
   pConsumerEp->offsetRows = NULL;
 }
 
-int32_t tEncodeSMqVgEp(void **buf, const SMqVgEp *pVgEp) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI32(buf, pVgEp->vgId);
-  tlen += taosEncodeSEpSet(buf, &pVgEp->epSet);
-  return tlen;
-}
-
-void *tDecodeSMqVgEp(const void *buf, SMqVgEp *pVgEp, int8_t sver) {
-  buf = taosDecodeFixedI32(buf, &pVgEp->vgId);
+static void *tDecodeSMqVgEp(const void *buf, int32_t *vgId, int8_t sver) {
+  buf = taosDecodeFixedI32(buf, vgId);
   if (sver == 1) {
     uint64_t size = 0;
     buf = taosDecodeVariantU64(buf, &size);
     buf = POINTER_SHIFT(buf, size);
   }
-  buf = taosDecodeSEpSet(buf, &pVgEp->epSet);
+  if (sver <= 3) {
+    SEpSet epSet = {0};
+    buf = taosDecodeSEpSet(buf, &epSet);
+  }
   return (void *)buf;
 }
 
@@ -204,7 +216,6 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
   tlen += taosEncodeFixedI32(buf, pConsumer->status);
 
   tlen += taosEncodeFixedI32(buf, pConsumer->pid);
-  tlen += taosEncodeSEpSet(buf, &pConsumer->ep);
   tlen += taosEncodeFixedI64(buf, pConsumer->createTime);
   tlen += taosEncodeFixedI64(buf, pConsumer->subscribeTime);
   tlen += taosEncodeFixedI64(buf, pConsumer->rebalanceTime);
@@ -278,7 +289,10 @@ void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t s
   buf = taosDecodeFixedI32(buf, &pConsumer->status);
 
   buf = taosDecodeFixedI32(buf, &pConsumer->pid);
-  buf = taosDecodeSEpSet(buf, &pConsumer->ep);
+  if (sver <= 3) {
+    SEpSet ep = {0};
+    buf = taosDecodeSEpSet(buf, &ep);
+  }
   buf = taosDecodeFixedI64(buf, &pConsumer->createTime);
   buf = taosDecodeFixedI64(buf, &pConsumer->subscribeTime);
   buf = taosDecodeFixedI64(buf, &pConsumer->rebalanceTime);
@@ -378,8 +392,9 @@ int32_t tEncodeSMqConsumerEp(void **buf, const SMqConsumerEp *pConsumerEp) {
   int32_t sz = taosArrayGetSize(pConsumerEp->vgs);
   tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
-    void* data = taosArrayGet(pConsumerEp->vgs, i);
-    tlen += tEncodeSMqVgEp(buf, data);
+    int32_t* vgId = (int32_t*)taosArrayGet(pConsumerEp->vgs, i);
+    if (vgId == NULL) continue;
+    tlen += taosEncodeFixedI32(buf, *vgId);
   }
 
   return tlen + tEncodeOffRows(buf, pConsumerEp->offsetRows);
@@ -416,14 +431,20 @@ void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp, int8_t s
   buf = taosDecodeFixedI64(buf, &pConsumerEp->consumerId);
   int32_t sz = 0;
   buf = taosDecodeFixedI32(buf, &sz);
-  pConsumerEp->vgs = taosArrayInit(sz, sizeof(SMqVgEp));
+  pConsumerEp->vgs = taosArrayInit(sz, sizeof(int32_t));
   if (pConsumerEp->vgs == NULL) {
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
-    SMqVgEp* vgEp = taosArrayReserve(pConsumerEp->vgs, 1);
-    if (vgEp != NULL)
-      buf = tDecodeSMqVgEp(buf, vgEp, sver);
+    int32_t* vgId = taosArrayReserve(pConsumerEp->vgs, 1);
+    if (vgId == NULL) {
+      return NULL;
+    }
+    if (sver <= 3) {
+      buf = tDecodeSMqVgEp(buf, vgId, sver);
+    } else {
+      buf = taosDecodeFixedI32(buf, vgId);
+    }
   }
   if (sver > 1) {
     buf = tDecodeOffRows(buf, &pConsumerEp->offsetRows, sver);
@@ -446,7 +467,7 @@ int32_t tNewSubscribeObj(const char *key, SMqSubscribeObj **ppSub) {
   MND_TMQ_NULL_CHECK(pSubObj->consumerHash);
   taosHashSetFreeFp(pSubObj->consumerHash, freeSMqConsumerEp);
 
-  pSubObj->unassignedVgs = taosArrayInit(0, sizeof(SMqVgEp));
+  pSubObj->unassignedVgs = taosArrayInit(0, sizeof(int32_t));
   MND_TMQ_NULL_CHECK(pSubObj->unassignedVgs);
   *ppSub = pSubObj;
   pSubObj = NULL;
@@ -539,8 +560,9 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
   int32_t len = taosArrayGetSize(pSub->unassignedVgs);
   tlen += taosEncodeFixedI32(buf, len);
   for (int32_t i = 0; i < len; i++) {
-    void* data = taosArrayGet(pSub->unassignedVgs, i);
-    tlen += tEncodeSMqVgEp(buf, data);
+    int32_t* vgId = (int32_t*)taosArrayGet(pSub->unassignedVgs, i);
+    if (vgId == NULL) continue;
+    tlen += taosEncodeFixedI32(buf, *vgId);
   }
   tlen += taosEncodeString(buf, pSub->dbName);
 
@@ -576,14 +598,20 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
 
   int32_t len = 0;
   buf = taosDecodeFixedI32(buf, &len);
-  pSub->unassignedVgs = taosArrayInit(len, sizeof(SMqVgEp));
+  pSub->unassignedVgs = taosArrayInit(len, sizeof(int32_t));
   if (pSub->unassignedVgs == NULL) {
     return NULL;
   }
   for (int32_t i = 0; i < len; i++) {
-    SMqVgEp* vgEp = taosArrayReserve(pSub->unassignedVgs, 1);
-    if (vgEp != NULL)
-      buf = tDecodeSMqVgEp(buf, vgEp, sver);
+    int32_t* vgId = taosArrayReserve(pSub->unassignedVgs, 1);
+    if (vgId == NULL) {
+      return NULL;
+    }
+    if (sver <= 3) {
+      buf = tDecodeSMqVgEp(buf, vgId, sver);
+    } else {
+      buf = taosDecodeFixedI32(buf, vgId);
+    }
   }
 
   buf = taosDecodeStringTo(buf, pSub->dbName);

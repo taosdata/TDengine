@@ -183,6 +183,7 @@ typedef struct SQWTaskCtx {
   SRWLatch      lock;
   int8_t        phase;
   int8_t        inFetch;
+  int8_t        inQuickFetch;
   int8_t        taskType;
   int8_t        explain;
   int8_t        needFetch;
@@ -364,6 +365,7 @@ extern SQueryMgmt gQueryMgmt;
 
 #define QW_QUERY_RUNNING(ctx)     (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY)
 #define QW_FETCH_RUNNING(ctx)     ((ctx)->inFetch)
+#define QW_QUICK_FETCH_RUNNING(ctx) atomic_load_8(&(ctx)->inQuickFetch)
 #define QW_QUERY_NOT_STARTED(ctx) (QW_GET_PHASE(ctx) == -1)
 
 #define QW_SET_QCID(id, qId, cId)                                                 \
@@ -601,6 +603,7 @@ void    qwFreeTaskHandle(SQWTaskCtx *ctx);
 void    qwFreeSinkHandle(SQWTaskCtx *ctx);
 int32_t qwChkSaveSubQFetchRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd);
 int32_t qwCloneSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppRes, int32_t* dataLen, bool* toFetch, SQWRspItem* pItem);
+int32_t grantCheckQuery(uint32_t tsGrantVal, const SSubplan *pSubplan);
 
 #ifdef __cplusplus
 }

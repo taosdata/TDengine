@@ -15,6 +15,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | fqdn | taosd | The service address that taosd listens on |
 | serverPort | both | The port that taosd listens on |
 | compressMsgSize | both | Whether to compress RPC messages |
+| rpcCrcEnable | both | Whether to verify CRC32C on RPC messages (alterable via ALTER, effective after restart; must match across cluster) |
 | shellActivityTimer | both | Duration in seconds for the client to send heartbeat to mnode |
 | numOfRpcSessions | both | Maximum number of connections supported by RPC |
 | numOfRpcThreads | both | Number of threads for receiving and sending RPC data |
@@ -73,6 +74,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | minSlidingTime | taosc | Minimum allowable value for sliding |
 | minIntervalTime | taosc | Minimum allowable value for interval |
 | compareAsStrInGreatest | taosc | Comparison type conversion rules for greatest and least functions |
+| ignoreNullInGreatest | taosc | Whether greatest and least functions skip NULL arguments |
 | showFullCreateTableColumn | taosc | Whether show create table returns column compression information |
 | rpcRecvLogThreshold| taosd| The threshold for warning logs in the RPC module |
 | **Region Related** | | |
@@ -116,10 +118,12 @@ This document compares the configuration parameters of taosd (server-side) and t
 | enableWhiteList | taosd | Switch for whitelist feature |
 | syncLogBufferMemoryAllowed | taosd | Maximum memory allowed for sync log cache messages for a dnode |
 | syncApplyQueueSize | taosd | Size of apply queue for sync log |
+| syncNegotiationWin | taosd | Size of the negotiation window for sync, used to control the negotiation buffer during log synchronization |
 | syncElectInterval | taosd | Internal parameter, for debugging synchronization module |
 | syncHeartbeatInterval | taosd | Internal parameter, for debugging synchronization module |
 | syncHeartbeatTimeout | taosd | Internal parameter, for debugging synchronization module |
 | syncSnapReplMaxWaitN | taosd | Internal parameter, for debugging synchronization module |
+| snapshotRateLimit | taosd | Controls the total snapshot sending bandwidth per dnode (MB/s), 0 means no limit |
 | arbHeartBeatIntervalSec | taosd | Internal parameter, for debugging synchronization module |
 | arbCheckSyncIntervalSec | taosd | Internal parameter, for debugging synchronization module |
 | arbSetAssignedTimeoutSec | taosd | Internal parameter, for debugging synchronization module |
@@ -199,7 +203,12 @@ This document compares the configuration parameters of taosd (server-side) and t
 | checkpointBackupDir | taosd | Internal parameter, used for restoring snode data |
 | enableAuditDelete | taosd | Internal parameter, used for testing audit functions |
 | slowLogThresholdTest | taosd | Internal parameter, used for testing slow logs |
-| bypassFlag | both | Internal parameter, used for short-circuit testing |
+| bypassFlag | both | Internal parameter, used for short-circuit testing. Only used for debugging write-performance issues only; skipped data is silently dropped, so never use it in production |
+| **CPU Affinity** | | |
+| enableCpuAffinity | taosd | Master switch for CPU affinity binding, 0: disabled (default), 1: enabled |
+| managementCpuCores | taosd | Number of CPU cores dedicated to management threads, default 1 |
+| readCpuCores | taosd | Number of CPU cores dedicated to read threads (1-256), default dynamically computed |
+| otherCpuCores | taosd | Number of CPU cores dedicated to write threads (1-256), default dynamically computed |
 | **Compression Parameters** | | |
 | fPrecision | taosd | Sets the compression precision for float type floating numbers |
 | dPrecision | taosd | Sets the compression precision for double type floating numbers |

@@ -30,8 +30,14 @@ class PlannerTestBase : public testing::Test {
   PlannerTestBase();
   virtual ~PlannerTestBase();
 
-  void useDb(const std::string& user, const std::string& db);
-  void run(const std::string& sql);
+  void    useDb(const std::string& user, const std::string& db);
+  void    run(const std::string& sql);
+  bool    findPlanNode(const std::string& nodeName) const;
+  int32_t countPlanNode(const std::string& nodeName) const;
+  bool    planContains(const std::string& text) const;
+  bool    planNodeAppearsAbove(const std::string& upperNodeName, const std::string& lowerNodeName) const;
+  bool    exchangeSubplansContain(const std::string& nodeName) const;
+  bool    aggOutputsMatchFuncs() const;
   // stmt mode APIs
   void prepare(const std::string& sql);
   void bindParams(TAOS_MULTI_BIND* pParams, int32_t colIdx);

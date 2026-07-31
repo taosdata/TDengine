@@ -95,6 +95,7 @@ Additionally, for an audit database:
 - The default value for `keep` is 1825 days. If a user specifies `keep`, it must be greater than 1825 days.
 - `WAL_LEVEL` defaults to 2 and cannot be changed by the user.
 - `ENCRYPT_ALGORITHM` cannot be specified as `None`. The user can choose any symmetric encryption algorithm in CBC mode.
+- `PRECISION` defaults to nanosecond (`ns`) and cannot be changed to other precisions.
 
 Audit databases created before version 3.4.0.0 are incompatible with audit features in version 3.4.0.0 and later. In older versions, the `is_audit` parameter was not enforced, so there were no mandatory requirements for `DURATION`, `WAL_LEVEL`, and `ENCRYPT_ALGORITHM`. To enable new audit features for an old audit database, it must be dropped and recreated. As a workaround to access data from a pre-3.4.0.0 audit database in a newer version (without new audit features), you can disable `auditUseToken` by setting it to 0.
 
@@ -337,7 +338,7 @@ id      |          algorithm_id          |              name              |     
 - algorithm_id: Global unique identifier of the algorithm
 - name: Algorithm name
 - desc: Description of the algorithm
-- type: Algorithm type, including: Symmetric Ciphers CBC mode - symmetric encryption algorithm in CBC mode, used for database encryption; Asymmetric Cipher - asymmetric encryption algorithm; Digests - hash algorithm
+- type: Algorithm type, including: Symmetric Ciphers CBC mode - symmetric encryption algorithm in CBC mode, used for database encryption; Asymmetric Ciphers - asymmetric encryption algorithm; Digests - hash algorithm
 - source: Algorithm source, including: built-in - built-in algorithm; customized - user-defined algorithm
 - ossl_algr_name: Algorithm name in OpenSSL; for built-in algorithms, it's the name in the default provider, refer to [OSSL_PROVIDER-default](https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/ "OSSL_PROVIDER-default") for custom algorithms, it's user-defined in the program
 
@@ -346,7 +347,7 @@ id      |          algorithm_id          |              name              |     
 Users can add their own custom algorithms.
 
 ```sql
-create encrypt_algr 'vigenere' name 'vigenere' desc 'my custom algr' type 'Symmetric Ciphers CBC mode' ossl_algr_name 'vigenere';
+create encrypt_algr 'vigenere' algr_name 'vigenere' desc 'my custom algr' algr_type 'Symmetric_Ciphers_CBC_mode' ossl_algr_name 'vigenere';
 
 ```
 
@@ -362,6 +363,8 @@ drop encrypt_algr 'vigenere';
 ```
 
 Before deleting a custom algorithm, you must ensure that the algorithm is not in use. For example, databases using that algorithm must be deleted in advance.
+
+Built-in algorithms (whose source is build-in, such as SM4-CBC, AES-128-CBC, etc.) cannot be deleted; attempting to delete them returns an error.
 
 ### Create Encrypted Database
 

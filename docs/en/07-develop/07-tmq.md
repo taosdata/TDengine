@@ -7,6 +7,8 @@ import TabItem from "@theme/TabItem";
 
 TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../06-advanced/01-subscription/index.md)
 
+If you only need to quickly check whether a topic can deliver data, or observe subscription results during development, testing, or troubleshooting, you can also use the `subscribe` command in TDengine CLI. This command can subscribe to a topic and print received data directly in either taos interactive mode or `-s` non-interactive mode. For details, see [TDengine CLI Data Subscription](../14-reference/02-tools/07-taos-cli.md#data-subscription).
+
 ## Creating Topics
 
 Please use TDengine CLI or refer to the [Execute SQL](02-sql.md) section to execute the SQL for creating topics: `CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`
@@ -50,9 +52,6 @@ There are many parameters for creating consumers, which flexibly support various
 |    `fetch.max.wait.ms`    | integer | The maximum time it takes for the server to return data once (supported from version 3.3.6.0) | Default is 1000, range [1, INT32_MAX]                        |
 |      `min.poll.rows`      | integer | The minimum number of data returned by the server once (supported from version 3.3.6.0) | Default is 4096, range [1, INT32_MAX]                        |
 |   `msg.consume.rawdata`   | integer | When consuming data, the data type pulled is binary and cannot be parsed. It is an internal parameter and is only used for taosx data migration (supported from version 3.3.6.0) | The default value of 0 indicates that it is not effective, and non-zero indicates that it is effective |
-|       `ws.tls.mode`       | integer | TLS encryption modes supported by the C WebSocket connections:<br/> - 0: TLS encryption disabled. If the server enables TLS, the client will automatically upgrade the connection.<br/> - 1: TLS encryption enabled, but the server certificate is not verified.<br/> - 2: TLS encryption enabled, the server certificate is verified, but the hostname is not verified.<br/> - 3: TLS encryption enabled, both the server certificate and hostname are verified (the server certificate must include SAN; CN will be ignored) (supported from version 3.3.8.12) | Default is 0 |
-|     `ws.tls.version`      | string | List of TLS protocol versions supported by the C WebSocket connections, separated by commas. Optional values: TLSv1.2, TLSv1.3 (supported from version 3.3.8.12) | Default is TLSv1.3 |
-|        `ws.tls.ca`        | string | The C WebSocket connection is used to verify the CA certificate file path or PEM format certificate content of the server certificate. This certificate should be a CA certificate that issued the server certificate (supported from version 3.3.8.12) | |
 
 Below are the connection parameters for connectors in various languages:
 <Tabs defaultValue="java" groupId="lang">
@@ -73,6 +72,7 @@ Supported properties list for creating consumers:
 - `ws.message.timeout`: WebSocket message timeout, default 5m.
 - `ws.message.writeWait`: WebSocket message write timeout, default 10s.
 - `ws.message.enableCompression`: Whether to enable compression for WebSocket, default false.
+- `ws.skipVerify`: Whether to skip TLS certificate verification for WebSocket Secure (`wss`) TMQ connections, default false (supported since `v3.8.1`; not recommended for production).
 - `ws.autoReconnect`: Whether WebSocket should automatically reconnect, default false.
 - `ws.reconnectIntervalMs`: WebSocket reconnect interval in milliseconds, default 2000.
 - `ws.reconnectRetryCount`: WebSocket reconnect retry count, default 3.

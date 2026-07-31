@@ -760,7 +760,8 @@ class TestFunSample:
         # fill interval
 
         # not support mix with other function
-        tdSql.error(f"select top(c1,2) , sample(c1,2) from {dbname}.ct1")
+        tdSql.query(f"select top(c1,2) , sample(c1,2) from {dbname}.ct1")
+        tdSql.checkRows(2)
         tdSql.error(f"select max(c1) , sample(c1,2) from {dbname}.ct1")
         tdSql.query(f"select c1 , sample(c1,2) from {dbname}.ct1")
 
@@ -880,8 +881,7 @@ class TestFunSample:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

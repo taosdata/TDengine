@@ -27,6 +27,10 @@ extern "C" {
 #include "tvariant.h"
 #include "ttypes.h"
 #include "streamMsg.h"
+// SExtTableMeta is defined in extConnector.h; only a pointer is stored here,
+// so a forward declaration is sufficient and avoids a nodes → extconnector
+// header dependency.
+typedef struct SExtTableMeta SExtTableMeta;
 
 #define VGROUPS_INFO_SIZE(pInfo) \
   (NULL == (pInfo) ? 0 : (sizeof(SVgroupsInfo) + (pInfo)->numOfVgroups * sizeof(SVgroupInfo)))
@@ -112,9 +116,14 @@ typedef struct SColumnNode {
 typedef struct SColumnRefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
+  int8_t    refType;                                      // 0=internal, 1=external (DS §6.2.8)
   char      refDbName[TSDB_DB_NAME_LEN];
   char      refTableName[TSDB_TABLE_NAME_LEN];
   char      refColName[TSDB_COL_NAME_LEN];
+  // [FG-9] Extended for federated query 4-segment path: source.db.table.col
+  // Non-empty refSourceName indicates an external (4-segment path) reference.
+  char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN];    // 4-segment first token (external source name)
+  SNode*    pTagCond;           // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
 } SColumnRefNode;
 
 typedef struct STargetNode {
@@ -127,10 +136,14 @@ typedef struct STargetNode {
 #define VALUE_FLAG_IS_DURATION    (1 << 0)
 #define VALUE_FLAG_IS_TIME_OFFSET (1 << 1)
 #define VALUE_FLAG_VAL_UNSET      (1 << 2)
+// When set on a TSDB_DATA_TYPE_BINARY SValueNode, datum.p is a raw SQL fragment
+// (unquoted, unescaped) to be emitted verbatim into the remote SQL string.
+#define VALUE_FLAG_RAW_SQL_FRAG   (1 << 4)
 
 #define IS_DURATION_VAL(_flag)    ((_flag)&VALUE_FLAG_IS_DURATION)
 #define IS_TIME_OFFSET_VAL(_flag) ((_flag)&VALUE_FLAG_IS_TIME_OFFSET)
 #define IS_VAL_UNSET(_flag) ((_flag)&VALUE_FLAG_VAL_UNSET)
+#define IS_RAW_SQL_FRAG(_flag)    ((_flag)&VALUE_FLAG_RAW_SQL_FRAG)
 
 typedef struct SValueNode {
   SExprNode  node;  // QUERY_NODE_VALUE
@@ -216,6 +229,7 @@ typedef enum EHintOption {
   HINT_SKIP_TSMA,
   HINT_WIN_OPTIMIZE_BATCH,
   HINT_WIN_OPTIMIZE_SINGLE,
+  HINT_SMALLDATA_SCAN_SORT,
 } EHintOption;
 
 typedef struct SHintNode {
@@ -233,6 +247,8 @@ typedef struct SOperatorNode {
   SNode*        pLeft;
   SNode*        pRight;
   timezone_t    tz;
+  char          timezoneName[TD_TIMEZONE_LEN]; /* IANA name; serialized when non-empty */
+  bool          ownsTimezone;                  /* true when tz was allocated here (needs tzfree) */
   void*         charsetCxt;
 } SOperatorNode;
 
@@ -247,6 +263,46 @@ typedef struct SNodeListNode {
   SNodeList* pNodeList;
 } SNodeListNode;
 
+typedef enum ESqlWindowFrameUnit {
+  WINDOW_FRAME_UNIT_ROWS = 1,
+  WINDOW_FRAME_UNIT_RANGE,
+} ESqlWindowFrameUnit;
+
+typedef enum ESqlWindowBoundType {
+  WINDOW_BOUND_UNBOUNDED_PRECEDING = 1,
+  WINDOW_BOUND_N_PRECEDING,
+  WINDOW_BOUND_CURRENT_ROW,
+  WINDOW_BOUND_N_FOLLOWING,
+  WINDOW_BOUND_UNBOUNDED_FOLLOWING,
+} ESqlWindowBoundType;
+
+typedef struct SSqlWindowBound {
+  ESqlWindowBoundType boundType;
+  SNode*              pOffset;
+} SSqlWindowBound;
+
+typedef struct SWindowFrameNode {
+  ENodeType           type;
+  ESqlWindowFrameUnit frameUnit;
+  SSqlWindowBound     start;
+  SSqlWindowBound     end;
+  bool                explicitFrame;
+} SWindowFrameNode;
+
+typedef struct SWindowSpecNode {
+  ENodeType  type;
+  char       refWindowName[TSDB_TABLE_NAME_LEN];
+  SNodeList* pPartitionByList;
+  SNodeList* pOrderByList;
+  SNode*     pFrame;
+} SWindowSpecNode;
+
+typedef struct SNamedWindowNode {
+  ENodeType type;
+  char      windowName[TSDB_TABLE_NAME_LEN];
+  SNode*    pSpec;
+} SNamedWindowNode;
+
 typedef enum ETrimType {
   TRIM_TYPE_LEADING = 1,
   TRIM_TYPE_TRAILING,
@@ -259,6 +315,7 @@ typedef struct SFunctionNode {
   int32_t    funcId;
   int32_t    funcType;
   SNodeList* pParameterList;
+  SNode*                      pOver;
   int32_t    udfBufSize;
   bool       hasPk;
   int32_t    pkBytes;
@@ -266,8 +323,12 @@ typedef struct SFunctionNode {
   int32_t    originalFuncId;
   ETrimType  trimType;
   bool       dual; // whether select stmt without from stmt, true for without.
+  bool       isDistinct; // DISTINCT modifier in function arg, e.g. COUNT(DISTINCT col)
   timezone_t tz;
+  char       tzName[TD_TIMEZONE_LEN]; // IANA timezone name (for serialization to taosd)
+  bool       tzAllocated;             // true if tz was allocated by us and must be freed
   void      *charsetCxt;
+  int8_t     firstDayOfWeek;  /* 0-6, from connection/global config */
   const struct SFunctionNode* pSrcFuncRef;
   SDataType  srcFuncInputType;
 } SFunctionNode;
@@ -309,12 +370,49 @@ typedef struct SRealTableNode {
   SArray*            tsmaTargetTbInfo;    // SArray<STsmaTargetTbInfo>, used for child table or normal table only
   EStreamPlaceholder placeholderType;
   bool               asSingleTable; // only used in stream calc query
+  // External table path fields (3-segment or 4-segment path)
+  SNode*             pExtTableNode;                      // translated external table node (enterprise only)
+  int8_t             numPathSegments;                    // 0/1 = default; 2 = db.tbl; 3 = src.schema.tbl; 4 = src.schema.db.tbl
+  char               extSeg[2][TSDB_EXT_SOURCE_NAME_LEN];    // raw prefix segments: [0]=source; [1]=schema/mid
 } SRealTableNode;
 
 typedef struct STempTableNode {
   STableNode table;  // QUERY_NODE_TEMP_TABLE
   SNode*     pSubquery;
 } STempTableNode;
+
+typedef struct STextTableNode {
+  STableNode table;        // QUERY_NODE_TEXT_TABLE
+  SNodeList* pColDefs;     // column definitions, schema source; valid for entire lifetime
+  SNodeList* pRows;        // transient: raw value nodes from parser; released after normalization (set to NULL)
+  int32_t    colCount;
+  int32_t    rowCount;
+  int16_t    primaryTsSlot;  // 0 if first col is TIMESTAMP, -1 otherwise
+  bool       hasPrimaryTs;   // true if first column is TIMESTAMP
+  bool       isSortedByTs;   // true if rows are in ascending primary-ts order
+  uint8_t*   pBlockBuf;    // SSDataBlock binary produced by blockDataToBuf; multi-block: length-prefixed
+  int32_t    blockBufLen;
+  int32_t    numBlocks;
+} STextTableNode;
+
+typedef struct SFileTableNode {
+  STableNode table;        // QUERY_NODE_FILE_TABLE
+  // ---- parser output (text only, no file I/O) ----
+  char*      path;         // file path literal (taosMemoryStrDup'd)
+  char*      schemaDecl;   // schema string literal, e.g. 'ts timestamp, c1 int'
+  bool       header;       // OPTIONS(header=true/false), default false
+  char       delimiter;    // OPTIONS(delimiter=','), default ','
+  // ---- semantic layer output (valid after translateFileTable) ----
+  SNodeList* pColDefs;     // parsed from schemaDecl; same layout as STextTableNode.pColDefs
+  int32_t    colCount;
+  int32_t    rowCount;
+  bool       hasPrimaryTs; // true if first column is TIMESTAMP (not mandatory for FILE)
+  int16_t    primaryTsSlot;
+  bool       isSortedByTs; // true if rows are in ascending primary-ts order after normalization
+  uint8_t*   pBlockBuf;    // SSDataBlock binary; identical format to STextTableNode.pBlockBuf
+  int32_t    blockBufLen;
+  int32_t    numBlocks;
+} SFileTableNode;
 
 typedef struct SPlaceHolderTableNode {
   STableNode         table;  // QUERY_NODE_PLACE_HOLDER_TABLE
@@ -328,6 +426,7 @@ typedef struct SVirtualTableNode {
   struct STableMeta* pMeta;
   SVgroupsInfo*      pVgroupList;
   SNodeList*         refTables;
+  SArray*            pExtSourceNames;  // SArray<char*> external source names (super table path)
 } SVirtualTableNode;
 
 typedef struct SViewNode {
@@ -339,6 +438,34 @@ typedef struct SViewNode {
   SArray*            pSmaIndexes;
   int8_t             cacheLastMode;
 } SViewNode;
+
+// ---- Federated query: external table AST node ----
+// table.dbName  = external database name (the third segment of a 3-part path, or from USE)
+// table.tableName = external table name
+// Connection info and capability are filled by Parser from SParseMetaCache
+// and later copied by Planner into SFederatedScanPhysiNode.
+typedef struct SExtTableNode {
+  STableNode            table;                       // type = QUERY_NODE_EXTERNAL_TABLE
+  char                  sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external data source name
+  char                  schemaName[TSDB_DB_NAME_LEN];    // PG schema name; empty for MySQL/InfluxDB
+  SExtTableMeta*        pExtMeta;                    // external table raw metadata (Catalog cache ref)
+  // --- connection info (Parser fills from SParseMetaCache → SExtSourceInfo) ---
+  int8_t                sourceType;                  // EExtSourceType
+  char                  srcHost[TSDB_EXT_SOURCE_HOST_LEN];
+  int32_t               srcPort;
+  char                  srcUser[TSDB_EXT_SOURCE_USER_LEN];
+  char                  srcPassword[TSDB_EXT_SOURCE_PASSWORD_LEN];  // internal RPC only; never exposed to end user
+  char                  srcDatabase[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char                  srcSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char                  srcOptions[TSDB_EXT_SOURCE_OPTIONS_LEN];    // JSON options string
+  int64_t               metaVersion;                 // ext source meta_version (for connector pool invalidation)
+  // --- capability profile (Parser reads from SExtSourceInfo.capability) ---
+  SExtSourceCapability  capability;                  // all false until runtime probe updates Catalog
+  // --- primary key index (computed at translation time) ---
+  int32_t               tsPrimaryColIdx;             // index of the timestamp primary key column (-1 = not found)
+  // --- remote table name (original case from remote INFORMATION_SCHEMA) ---
+  char                  remoteTableName[TSDB_TABLE_NAME_LEN];  // actual table name on remote (preserves case)
+} SExtTableNode;
 
 #define JOIN_JLIMIT_MAX_VALUE 1024
 
@@ -430,17 +557,17 @@ typedef enum EStateWinExtendOption {
 } EStateWinExtendOption;
 
 typedef struct SStateWindowNode {
-  ENodeType type;  // QUERY_NODE_STATE_WINDOW
-  SNode*    pCol;  // timestamp primary key
-  SNode*    pExpr;
-  SNode*    pTrueForLimit;
-  SNode*    pExtend;  // SValueNode
-  SNode*    pZeroth;  // SValueNode
+  ENodeType  type;         // QUERY_NODE_STATE_WINDOW
+  SNode*     pCol;         // timestamp primary key
+  SNodeList* pExprList;    // list of SColumnNode, state keys
+  SNode*     pTrueForLimit;
+  SNode*     pExtend;      // SValueNode
+  SNodeList* pZerothList;  // list of SValueNode
 } SStateWindowNode;
 
 typedef struct SSessionWindowNode {
   ENodeType    type;  // QUERY_NODE_SESSION_WINDOW
-  SColumnNode* pCol;  // timestamp primary key
+  SColumnNode* pCol;  // timestamp column used by session window
   SValueNode*  pGap;  // gap between two session window(in microseconds)
 } SSessionWindowNode;
 
@@ -476,6 +603,8 @@ typedef struct STrueForNode {
   ETrueForType trueForType;
   int32_t      count;     // Row count threshold (0 if duration-only)
   SNode*       pDuration;
+  SNode*       pStartLimit;  // STrueForNode* or NULL: start condition threshold (NULL = no limit)
+  SNode*       pEndLimit;    // STrueForNode* or NULL: end condition threshold (NULL = no limit)
 } STrueForNode;
 
 typedef struct {
@@ -547,6 +676,7 @@ typedef struct SStreamTriggerNode {
   SNode*      pOptions; // SStreamTriggerOptions
   SNode*      pNotify; // SStreamNotifyOptions
   SNodeList*  pPartitionList;
+  SNodeList*  pRollupTagList;  // SNodeList<SColumnNode>; NULL = not rollup
 } SStreamTriggerNode;
 
 typedef struct SStreamOutTableNode {
@@ -577,6 +707,12 @@ typedef struct SPeriodWindowNode {
   SNode*    pPeroid;
   SNode*    pOffset;
 } SPeriodWindowNode;
+
+typedef enum EWindowMode {
+  WINDOW_MODE_NONE = 1,
+  WINDOW_MODE_SCALAR,
+  WINDOW_MODE_AGG,
+} EWindowMode;
 
 typedef enum EFillMode {
   FILL_MODE_NONE = 1,
@@ -685,6 +821,7 @@ typedef struct SSelectStmt {
   SNode*          pWhere;
   SNodeList*      pPartitionByList;
   SNode*          pWindow;
+  SNodeList*      pWindowList;   // SNamedWindowNode
   SNodeList*      pGroupByList;  // SGroupingSetNode
   SNode*          pHaving;
   SNode*          pRange;
@@ -702,7 +839,10 @@ typedef struct SSelectStmt {
   int32_t         returnRows;  // EFuncReturnRows
   ETimeLineMode   timeLineCurMode;
   ETimeLineMode   timeLineResMode;
+  EWindowMode     windowMode;
   int32_t         lastProcessByRowFuncId;
+  int32_t         multiRowsFuncKParam;
+  int32_t         mavgFuncKParam;          // K param for MAVG coexistence check (0 = no MAVG seen)
   bool            hasNonLocalSubQ;
   int32_t         timeLineFromOrderBy;
   bool            isEmptyResult;
@@ -733,6 +873,8 @@ typedef struct SSelectStmt {
   bool            tagScan;
   bool            joinContains;
   bool            mixSysTableAndActualTable;
+  bool            hasScalarExpr;
+  bool            windowScalarMode;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -973,6 +1115,23 @@ bool nodesContainsColumn(SNode* pNode);
 int32_t nodesMergeNode(SNode** pCond, SNode** pAdditionalCond);
 int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst);
 SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr);
+
+// nodesRenderCorrelatedExistsBody — render the body SQL of a correlated EXISTS
+// subquery that can be pushed down to an external data source.
+//
+// pInnerSelect : the inner SSelectStmt (FROM table must be SRealTableNode with
+//                pExtTableNode set).
+// sourceType   : EExtSourceType value (determines SQL dialect: MySQL/PG/Influx).
+// ppSQL        : OUT — heap-allocated SQL string; caller must taosMemoryFree().
+//
+// Column references in the WHERE clause are rendered as "tableName"."colName"
+// so that the generated SQL is self-contained and can be embedded in a correlated
+// EXISTS clause of the outer query.
+//
+// Returns TSDB_CODE_SUCCESS on success or an error code.
+int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
+                                        int8_t             sourceType,
+                                        char**             ppSQL);
 
 #ifdef __cplusplus
 }

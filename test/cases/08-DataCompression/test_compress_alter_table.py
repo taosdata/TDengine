@@ -370,6 +370,8 @@ class TestCompressBasic:
 
         Since: v3.0.0.0
 
+        Labels: common,ci,integration,functional
+
         History:
             - 2024-6-5 Alex Duan Created
             - 2025-5-13 Huo Hong Migrated to new test framework

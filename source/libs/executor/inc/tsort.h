@@ -199,6 +199,16 @@ int32_t tsortGetSortedDataBlock(const SSortHandle* pSortHandle, SSDataBlock** pB
  */
 SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
 
+/*
+ * return the cumulative time (us) spent pulling raw data from sources via the
+ * fetch callback.  For a multiway merge this is the operator's "input wait":
+ * time blocked on downstream operators rather than on the merge itself.
+ *
+ * @param pHandle
+ * @return cumulative fetch time in microseconds, 0 if pHandle is NULL
+ */
+int64_t tsortGetFetchRawDataTime(SSortHandle* pHandle);
+
 /**
  * get proper sort buffer pages according to the row size
  * @param rowSize

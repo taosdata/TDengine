@@ -89,3 +89,7 @@ In the **Advanced Options** section, configure other parameters as needed.
 ### Complete Creation
 
 Click **Submit** to complete task creation. After submitting, return to the **Data In** page to view the task status.
+
+## Limitations
+
+- While a pspace data in task is running, if the point list changes(add or remove data points) in pSpace, you must manually restart this data-in task; otherwise, data from newly added points may not be correctly synchronized to TDengine TSDB.

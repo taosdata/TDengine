@@ -219,25 +219,25 @@ TEST(osTimeTests, windowsOffsetFallbackWhenTZUnset) {
 TEST(osTimeTests, windowsTZEnvVarFormatIsPOSIX) {
   char tzEnv[64] = {0};
 
-  /* POSIX "UTC-8" = East 8 (UTC+8) → "UTC-8:00" */
+  /* POSIX "UTC-8" = East 8 (UTC+8) → "UTC-08:00" */
   ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
   ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
-  EXPECT_STREQ(tzEnv, "UTC-8:00");
+  EXPECT_STREQ(tzEnv, "UTC-08:00");
 
-  /* "UTC" → "UTC+0:00" */
+  /* "UTC" → "UTC+00:00" */
   ASSERT_EQ(taosSetGlobalTimezone("UTC"), 0);
   ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
-  EXPECT_STREQ(tzEnv, "UTC+0:00");
+  EXPECT_STREQ(tzEnv, "UTC+00:00");
 
-  /* POSIX "UTC+5" = West 5 (UTC-5) → "UTC+5:00" */
+  /* POSIX "UTC+5" = West 5 (UTC-5) → "UTC+05:00" */
   ASSERT_EQ(taosSetGlobalTimezone("UTC+5"), 0);
   ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
-  EXPECT_STREQ(tzEnv, "UTC+5:00");
+  EXPECT_STREQ(tzEnv, "UTC+05:00");
 
-  /* Sub-hour: POSIX "UTC-5:30" = East 5h30m (UTC+5:30) → "UTC-5:30" */
+  /* Sub-hour: POSIX "UTC-5:30" = East 5h30m (UTC+5:30) → "UTC-05:30" */
   ASSERT_EQ(taosSetGlobalTimezone("UTC-5:30"), 0);
   ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
-  EXPECT_STREQ(tzEnv, "UTC-5:30");
+  EXPECT_STREQ(tzEnv, "UTC-05:30");
 
   /* Restore */
   ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
@@ -371,6 +371,11 @@ TEST(osTimeTests, user_mktime64) {
 }
 
 TEST(osTimeTests, taosLocalTimeBenchmark) {
+  const char* runBenchmark = getenv("TAOS_RUN_OS_TIME_BENCHMARK");
+  if (runBenchmark == nullptr || strcmp(runBenchmark, "1") != 0) {
+    GTEST_SKIP() << "set TAOS_RUN_OS_TIME_BENCHMARK=1 to run this stress benchmark";
+  }
+
   const int threads = 400;
   const int iters = 1000000;
 

@@ -1,0 +1,7 @@
+# file_dup_ts.in — FILE source with duplicate timestamps
+# Tests: all rows preserved, COUNT, GROUP BY ts
+CREATE DATABASE IF NOT EXISTS file_dupts_db;
+USE file_dupts_db;
+SELECT ts, id FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_dup_ts.csv', 'ts TIMESTAMP, id INT') f ORDER BY ts, id;
+SELECT COUNT(*) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_dup_ts.csv', 'ts TIMESTAMP, id INT') f;
+SELECT ts, COUNT(*), SUM(id) FROM FILE('./cases/09-DataQuerying/08-SubQuery/in/file_source_dup_ts.csv', 'ts TIMESTAMP, id INT') f GROUP BY ts ORDER BY ts;

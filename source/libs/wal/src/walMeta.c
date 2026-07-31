@@ -50,7 +50,8 @@ int32_t walSetKeepVersion(SWal *pWal, int64_t ver) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  if (ver < 0) {
+  // -1 is the valid "release" sentinel (no keep constraint); other negative values are invalid.
+  if (ver < -1) {
     wError("vgId:%d, failed to set keep version, invalid ver:%" PRId64, pWal->cfg.vgId, ver);
     return TSDB_CODE_INVALID_PARA;
   }

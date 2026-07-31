@@ -60,6 +60,15 @@ class DataSet:
 
 class TestJoin:
 
+    # Pin the client timezone so EXPLAIN output stays stable across servers in
+    # different locales. The ASOF JOIN pushdown plan embeds the session timezone
+    # in conditions like timetruncate(..., 'Asia/Shanghai', ...); without a fixed
+    # timezone the .ans comparison flaps depending on the test server's tz.
+    clientCfgDict = {"timezone": "Asia/Shanghai"}
+    updatecfgDict = {
+        "clientCfg": clientCfgDict,
+    }
+
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
@@ -1493,8 +1502,7 @@ class TestJoin:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:

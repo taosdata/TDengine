@@ -13,13 +13,86 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef _WIN32
+#include "osWindows.h"
+#endif
+
+#include <cstring>
 #include <fstream>
 
+#include "stub.h"
+
 #include "parTestUtil.h"
+#include "parAst.h"
+
+#include "nodes.h"
 
 using namespace std;
 
 namespace ParserTest {
+
+namespace {
+
+enum class StrictAppendFailure {
+  None,
+  TagColumn,
+  TbnameFunction,
+};
+
+StrictAppendFailure g_strictAppendFailure = StrictAppendFailure::None;
+
+bool shouldFailStrictAppend(SNode* pNode) {
+  if (nullptr == pNode) {
+    return false;
+  }
+
+  if (StrictAppendFailure::TagColumn == g_strictAppendFailure && QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    return 0 == strcmp(pCol->colName, "tag1");
+  }
+
+  if (StrictAppendFailure::TbnameFunction == g_strictAppendFailure && QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    return 0 == strcmp(pFunc->functionName, "tbname");
+  }
+
+  return false;
+}
+
+int32_t strictAppendForTsmaTest(SNodeList** pList, SNode* pNode) {
+  if (shouldFailStrictAppend(pNode)) {
+    nodesDestroyNode(pNode);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  if (NULL == *pList) {
+    int32_t code = nodesMakeList(pList);
+    if (NULL == *pList) {
+      nodesDestroyNode(pNode);
+      return code;
+    }
+  }
+
+  return nodesListStrictAppend(*pList, pNode);
+}
+
+class StrictAppendStubGuard {
+ public:
+  explicit StrictAppendStubGuard(StrictAppendFailure failure) {
+    g_strictAppendFailure = failure;
+    stub_.set(nodesListMakeStrictAppend, strictAppendForTsmaTest);
+  }
+
+  ~StrictAppendStubGuard() {
+    stub_.reset(nodesListMakeStrictAppend);
+    g_strictAppendFailure = StrictAppendFailure::None;
+  }
+
+ private:
+  Stub stub_;
+};
+
+}  // namespace
 
 class ParserInitialCTest : public ParserDdlTest {};
 
@@ -476,21 +549,46 @@ TEST_F(ParserInitialCTest, createFunction) {
     tFreeSCreateFuncReq(&req);
   });
 
+  // validateUdfLibraryPath (added for CVE-2023-38502) requires:
+  //   - binary UDFs: platform-native extension + library magic header
+  //   - python UDFs: no strict enforcement, any file works
   struct udfFile {
-    udfFile(const std::string& filename) : path_(filename) {
+    udfFile(const std::string& filename, bool nativeLib) : path_(filename) {
       std::ofstream file(filename, std::ios::binary);
-      file << 123 << "abc" << '\n';
+      if (nativeLib) {
+#ifdef WINDOWS
+        // Minimal PE header magic: 'M' 'Z'
+        const unsigned char peMagic[16] = {'M', 'Z', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        file.write(reinterpret_cast<const char*>(peMagic), sizeof(peMagic));
+#else
+        // Minimal ELF magic: 0x7f 'E' 'L' 'F' + 12 padding bytes
+        const unsigned char elfMagic[16] = {0x7f, 'E', 'L', 'F', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+        file.write(reinterpret_cast<const char*>(elfMagic), sizeof(elfMagic));
+#endif
+      } else {
+        file << "# python udf\n";
+      }
       file.close();
     }
     ~udfFile() { TD_ALWAYS_ASSERT(0 == remove(path_.c_str())); }
     std::string path_;
-  } udffile("udf");
+  }
+#ifdef WINDOWS
+      udfLib("udf.dll", true),
+#else
+      udfLib("udf.so", true),
+#endif
+      udfPy("udf.py", false);
 
   setCreateFuncReq("udf1", TSDB_DATA_TYPE_INT);
-  run("CREATE FUNCTION udf1 AS 'udf' OUTPUTTYPE INT");
+#ifdef WINDOWS
+  run("CREATE FUNCTION udf1 AS 'udf.dll' OUTPUTTYPE INT");
+#else
+  run("CREATE FUNCTION udf1 AS 'udf.so' OUTPUTTYPE INT");
+#endif
 
   setCreateFuncReq("udf2", TSDB_DATA_TYPE_DOUBLE, 0, TSDB_FUNC_TYPE_AGGREGATE, 1, 8, TSDB_FUNC_SCRIPT_PYTHON, 1);
-  run("CREATE OR REPLACE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS 'udf' OUTPUTTYPE DOUBLE BUFSIZE 8 LANGUAGE 'python'");
+  run("CREATE OR REPLACE AGGREGATE FUNCTION IF NOT EXISTS udf2 AS 'udf.py' OUTPUTTYPE DOUBLE BUFSIZE 8 LANGUAGE 'python'");
 }
 
 /*
@@ -638,6 +736,28 @@ TEST_F(ParserInitialCTest, createQnode) {
 //      "DELETE_MARK 1000s");
 //}
 
+TEST_F(ParserInitialCTest, createTsmaClearsTagColumnAfterStrictAppendFailure) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesListMakeStrictAppend is unreliable in Windows release builds";
+#endif
+  useDb("root", "test");
+  setAsyncFlag("-1");
+  StrictAppendStubGuard stub(StrictAppendFailure::TagColumn);
+
+  run("CREATE TSMA tsma1 ON st1 FUNCTION(AVG(c1)) INTERVAL(1m)", TSDB_CODE_OUT_OF_MEMORY, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserInitialCTest, createTsmaClearsTbnameFunctionAfterStrictAppendFailure) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesListMakeStrictAppend is unreliable in Windows release builds";
+#endif
+  useDb("root", "test");
+  setAsyncFlag("-1");
+  StrictAppendStubGuard stub(StrictAppendFailure::TbnameFunction);
+
+  run("CREATE TSMA tsma1 ON st1 FUNCTION(AVG(c1)) INTERVAL(1m)", TSDB_CODE_OUT_OF_MEMORY, PARSER_STAGE_TRANSLATE);
+}
+
 /*
  * CREATE SNODE ON DNODE dnode_id
  */
@@ -784,6 +904,18 @@ TEST_F(ParserInitialCTest, createStable) {
   addFieldToCreateStbReq(true, "c1", TSDB_DATA_TYPE_INT);
   addFieldToCreateStbReq(false, "id", TSDB_DATA_TYPE_INT);
   run("CREATE STABLE t1(ts TIMESTAMP, c1 INT) TAGS(id INT)");
+  clearCreateStbReq();
+
+  setCreateStbReq("test", "ohlcv_1m");
+  addFieldToCreateStbReq(true, "ts", TSDB_DATA_TYPE_TIMESTAMP);
+  addFieldToCreateStbReq(true, "open", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(true, "high", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(true, "low", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(true, "close", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(true, "volume", TSDB_DATA_TYPE_UBIGINT);
+  addFieldToCreateStbReq(false, "symbol", TSDB_DATA_TYPE_VARCHAR, 10 + VARSTR_HEADER_SIZE);
+  run("CREATE STABLE ohlcv_1m(ts TIMESTAMP, open BIGINT UNSIGNED, high BIGINT UNSIGNED, low BIGINT UNSIGNED, "
+      "close BIGINT UNSIGNED, volume BIGINT UNSIGNED) TAGS(symbol VARCHAR(10))");
   clearCreateStbReq();
 
   setCreateStbReq("rollup_db", "t1", 1, 100 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_MINUTE, 10,
@@ -1115,4 +1247,123 @@ TEST_F(ParserInitialCTest, createUser) {
   clearCreateUserReq();
 }
 
+}  // namespace ParserTest
+
+// ---------------------------------------------------------------------------
+// Direct unit tests for createRawValueNodeExt (GHSA-vxcq-cqrc-f8j3)
+//
+// The bug: when the function jumps to _exit (e.g. pLiteral==NULL or
+// nodesMakeNode fails), it destroys pLeft/pRight then CHECK_PARSER_STATUS
+// jumps to _err which destroys pLeft/pRight a second time.
+//
+// The fix: null pLeft and pRight immediately after destroying them at _exit,
+// so the second nodesDestroyNode call at _err is a safe no-op.
+//
+// Running under AddressSanitizer will catch a double-free regression.
+// ---------------------------------------------------------------------------
+namespace {
+
+// Build a minimal SAstCreateContext without a live SParseContext.
+static void initMinimalAstCxt(SAstCreateContext* pCxt, int32_t errCode, char* msgBuf, int32_t msgLen) {
+  memset(pCxt, 0, sizeof(*pCxt));
+  pCxt->msgBuf.buf = msgBuf;
+  pCxt->msgBuf.len = msgLen;
+  pCxt->errCode    = errCode;
+}
+
+// Build a trivial non-null SNode* (a raw SValueNode) to use as pLeft/pRight.
+static SNode* makeSimpleNode() {
+  SNode* pNode = nullptr;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, &pNode);
+  return (code == TSDB_CODE_SUCCESS) ? pNode : nullptr;
+}
+
+}  // namespace
+
+// Test 1: success path — valid pLiteral, non-null pRight.
+// pRight must be freed exactly once (inside _exit normal flow).
+TEST(createRawValueNodeExtTest, successPathFreesRightOnce) {
+  char            msgBuf[256] = {0};
+  SAstCreateContext cxt;
+  initMinimalAstCxt(&cxt, TSDB_CODE_SUCCESS, msgBuf, sizeof(msgBuf));
+
+  SNode* pRight = makeSimpleNode();
+  ASSERT_NE(pRight, nullptr);
+
+  char    lit[]   = "100";
+  SToken  token;
+  token.n = (uint32_t)strlen(lit);
+  token.type = 0;
+  token.z = lit;
+
+  SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, &token, nullptr, pRight);
+  // pRight is consumed (freed) by the function regardless of success/failure.
+  EXPECT_EQ(cxt.errCode, TSDB_CODE_SUCCESS);
+  EXPECT_NE(result, nullptr);
+  nodesDestroyNode(result);
+}
+
+// Test 2: error path via pLiteral==NULL with non-null pRight.
+// Before the fix, this triggered a double-free of pRight:
+//   _exit frees pRight → CHECK_PARSER_STATUS → _err frees pRight again.
+// After the fix, _exit nulls pRight so _err's nodesDestroyNode(NULL) is safe.
+TEST(createRawValueNodeExtTest, nullLiteralErrorPathNoDoubleFree) {
+  char            msgBuf[256] = {0};
+  SAstCreateContext cxt;
+  initMinimalAstCxt(&cxt, TSDB_CODE_SUCCESS, msgBuf, sizeof(msgBuf));
+
+  SNode* pRight = makeSimpleNode();
+  ASSERT_NE(pRight, nullptr);
+
+  // pLiteral = nullptr triggers the "Invalid parameters" goto _exit path.
+  SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, nullptr, nullptr, pRight);
+  // pRight is consumed (freed) by the function; result must be NULL on error.
+  EXPECT_NE(cxt.errCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result, nullptr);
+}
+
+// Test 3: error path via pLiteral==NULL with both pLeft and pRight non-null.
+// Both nodes must be freed exactly once.
+TEST(createRawValueNodeExtTest, nullLiteralBothNodesNoDoubleFree) {
+  char            msgBuf[256] = {0};
+  SAstCreateContext cxt;
+  initMinimalAstCxt(&cxt, TSDB_CODE_SUCCESS, msgBuf, sizeof(msgBuf));
+
+  SNode* pLeft  = makeSimpleNode();
+  SNode* pRight = makeSimpleNode();
+  ASSERT_NE(pLeft, nullptr);
+  ASSERT_NE(pRight, nullptr);
+
+  SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, nullptr, pLeft, pRight);
+  EXPECT_NE(cxt.errCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result, nullptr);
+}
+
+// Test 4: pre-existing error (pCxt->errCode != 0) — CHECK_PARSER_STATUS at
+// the top jumps directly to _err, which frees pLeft/pRight exactly once.
+TEST(createRawValueNodeExtTest, preExistingErrorFreesNodesOnce) {
+  char            msgBuf[256] = {0};
+  SAstCreateContext cxt;
+  initMinimalAstCxt(&cxt, TSDB_CODE_FAILED, msgBuf, sizeof(msgBuf));
+
+  SNode* pLeft  = makeSimpleNode();
+  SNode* pRight = makeSimpleNode();
+  ASSERT_NE(pLeft, nullptr);
+  ASSERT_NE(pRight, nullptr);
+
+  SNode* result = createRawValueNodeExt(&cxt, TSDB_DATA_TYPE_BINARY, nullptr, pLeft, pRight);
+  EXPECT_EQ(result, nullptr);
+}
+
+// Test 5: SQL-level regression — CREATE TABLE USING TAGS with an
+// INTEGER + duration tag value exercises the createRawValueNodeExt
+// success path end-to-end through the parser.
+namespace ParserTest {
+TEST_F(ParserInitialCTest, createRawValueNodeExtViaTagsLiteralExpr) {
+  useDb("root", "test");
+  // tag3 is TIMESTAMP; "1000 + 1s" exercises tags_literal ::= NK_INTEGER NK_PLUS duration_literal
+  // which calls createRawValueNodeExt(pCxt, TSDB_DATA_TYPE_BINARY, &l, NULL, C).
+  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', 1000 + 1s)");
+  run("CREATE TABLE IF NOT EXISTS t1 USING st1 TAGS(1, 'wxy', 1000 - 1s)");
+}
 }  // namespace ParserTest

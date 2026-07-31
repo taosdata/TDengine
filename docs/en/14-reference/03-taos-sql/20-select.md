@@ -7,7 +7,7 @@ title: Data Querying
 ```sql
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
-SELECT [hints] [DISTINCT] [TAGS] select_list
+SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
     from_clause
     [WHERE condition]
     [partition_by_clause]
@@ -22,7 +22,7 @@ SELECT [hints] [DISTINCT] [TAGS] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
 
 select_list:
     select_expr [, select_expr] ...
@@ -47,18 +47,23 @@ table_expr: {
     table_name
   | view_name
   | ( subquery )
+  | TEXT(column_list) VALUES (val [, ...]) [(...)] ...
+  | FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
 }
+
+column_list:
+    col_name type_name [, col_name type_name] ...
 
 join_clause:
     [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
 
 window_clause: {
     SESSION(ts_col, tol_val)
-  | STATE_WINDOW(expr [, extend[, zeroth_state]]) [TRUE_FOR(true_for_expr)]
+    | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [fill_clause]
+  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
-  | EXTERNAL_WINDOW ((subquery) window_alias)
 }
 
 interp_clause:
@@ -92,7 +97,16 @@ order_by_clasue:
 order_expr:
     {expr | position | c_alias} [DESC | ASC] [NULLS FIRST | NULLS LAST]
 
-true_for_expr: {
+true_for_expr:
+    true_for_arg [, true_for_arg [, true_for_arg]]
+
+true_for_arg: {
+    limit_expr
+  | start(limit_expr)
+  | end(limit_expr)
+}
+
+limit_expr: {
     duration_time
   | COUNT count_val
   | duration_time AND COUNT count_val
@@ -105,31 +119,21 @@ true_for_expr: {
 - select_expr: Select list expressions that can be constants, columns, operations, functions, and their mixed operations, and not support nested aggregate functions.
 - from_clause: Specify the data source for the query, which can be a single table (super table, sub table, regular table, virtual table), a view, support multiple table association queries.
 - table_reference: Specify the name of a single table (including views), and optionally specify an alias for the table.
-- table_expr: Specify the query data source, which can be table name, view name, or subquery.
-- join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision can be selected from 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), and 1w (weeks), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0,1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](25-join.md).
+- table_expr: Specify the query data source, which can be a table name, view name, subquery, or an inline data source (`TEXT` or `FILE`). See [TEXT Inline Data Source](#text-inline-data-source) and [FILE CSV Data Source](#file-csv-data-source) for details.
+- column_list: Column definition list shared by `TEXT` and `FILE`. Each entry is `col_name type_name`. All types except JSON, GEOMETRY, and BLOB are supported.
+- join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision options are listed in [Time Units](./01-datatype.md#time-units) (months/quarters/years not supported), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0, 1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](25-join.md).
 - window_clause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](24-distinguished.md).
-  - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value, and time precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, 1w, such as SESSION (ts, 12s).
-  - STATE_WINDOW: State window, expr specifies the state expression. Extend specifies the extension strategy for the start and end of a window. The optional values are 0 (default), 1, and 2, representing no extension, backward extension, and forward extension respectively. The zeroth state refers to the "zero state". Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. TRUE_FOR specifies the filtering condition for windows. Supports the following four modes:
-    - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
-    - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
-    - `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
-    - `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
-
-    Where `duration_time` is a positive time value with supported units: 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). Examples: `TRUE_FOR(1a)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 50)`, `TRUE_FOR(5m OR COUNT 20)`.
-  - INTERVAL: Time window, interval_val specifies the window size, sliding_val specifies the window sliding time, sliding_val time is limited to the interval_val range, interval_val and sliding_val time ranges are positive values, and precision can be selected from 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as interval_val (2d) and SLIDING (1d).
-  - EVENT_WINDOW: The event window uses start_trigger_condition and end_trigger_condition to specify start and end conditions, supports any expression, and can specify different columns. TRUE_FOR specifies the filtering condition for windows. Supports the following four modes:
-    - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
-    - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
-    - `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
-    - `TRUE_FOR(duration_time OR COUNT n)`: Either duration or row count condition must be satisfied.
-
-    Where `duration_time` is a positive time value with supported units: 1n (nanoseconds), 1u (microseconds), 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(10m AND COUNT 50)`, `TRUE_FOR(5m OR COUNT 20)`.
-  - COUNT_WINDOW: Count window, specifying the division of the window by the number of rows, count_val window contains the maximum number of rows, with a range of [2,2147483647]. The sliding quantity of the window is [1, count_val].The col_name parameter starts to be supported after version 3.3.7.0. col_name specifies one or more columns. When counting in the count_window, for each row of data in the window, at least one of the specified columns must be non-null; otherwise, that row of data is not included in the counting window. If col_name is not specified, it means there is no non-null restriction.
-  - EXTERNAL_WINDOW: External window. The time range of each window is explicitly defined by a subquery instead of being generated by built-in rules. The first two columns of the subquery must be of timestamp type, representing the window start and end times. Columns from the third column onward become window attribute columns and can be referenced through `window_alias.column_name`. The outer query calculates aggregate results independently within each window. It supports PARTITION BY alignment, HAVING filtering, nested usage, and more. For details, see [TDengine Distinctive Queries](24-distinguished.md#external-window).
+  - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only), such as SESSION (ts, 12s).
+  - STATE_WINDOW: State window, using one or more state keys to divide windows. Multiple state keys are supported from v3.4.2.0. `EXTEND(extend_val)` specifies the boundary extension strategy. `ZEROTH_STATE(...)` specifies the zero state. TRUE_FOR specifies the filtering condition for windows.
+  - INTERVAL: Time window, interval_val specifies the window size, sliding_val specifies the window sliding time, sliding_val time is limited to the interval_val range, interval_val and sliding_val time ranges are positive values. Supported time units are listed in [Time Units](./01-datatype.md#time-units), such as interval_val (2d) and SLIDING (1d).
+  - EVENT_WINDOW: The event window uses start_trigger_condition and end_trigger_condition to specify start and end conditions, supports any expression, and can specify different columns. TRUE_FOR specifies the filtering condition for windows, as well as `start(...)` / `end(...)` for open/close streak thresholds.
+  - COUNT_WINDOW: Count window, specifying the division of the window by the number of rows, count_val window contains the maximum number of rows, with a range of [2, 2147483647]. The sliding quantity of the window is [1, count_val]. The col_name parameter starts to be supported after version 3.3.7.0. col_name specifies one or more columns. When counting in the count_window, for each row of data in the window, at least one of the specified columns must be non-null; otherwise, that row of data is not included in the counting window. If col_name is not specified, it means there is no non-null restriction.
+  - EXTERNAL_WINDOW: External window. The time range of each window is explicitly defined by a subquery instead of being generated by built-in rules. The first two columns of the subquery must be of timestamp type, representing the window start and end times. Columns from the third column onward become window attribute columns and can be referenced through `window_alias.column_name`. The outer query calculates aggregate results independently within each window. It supports PARTITION BY alignment, HAVING filtering, nested usage, and `FILL` for empty windows. For details, see [TDengine Distinctive Queries](24-distinguished.md#external-window).
 - interp_clause: Interp clause, used in conjunction with the interp function, specifying the recorded value or interpolation of the time section, can specify the time range of interpolation, output time interval, and interpolation type.
-  - RANGE: Specify a single or start end time value, the end time must be greater than the start time. ts_val is a standard timestamp type. Such as ```RANGE('2023-10-01T00:00:00.000')``` or ```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```.
-  - EVERY: Time interval range, with every_val being a positive value and precision options of 1n, 1u, 1a, 1s, 1m, 1h, 1d, and 1w, such as EVERY (1s).
-- fill_clause: Fill clause, can be used with interp function or interval window, to specify the data filling method when data is missing.
+  - RANGE: Specify a single or start end time value, the end time must be greater than the start time. ts_val is a standard timestamp type. surrounding_time_val is optional, specifying the time range for valid data, as a positive value. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (months/quarters/years not supported). Such as ```RANGE('2023-10-01T00:00:00.000')``` or ```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```.
+  - EVERY: Time interval range, with every_val being a positive value. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only), such as EVERY (1s).
+- SCALAR | AGG: Window query mode keywords (supported from version 3.4.2.0). When the SELECT list in a window query contains column expressions or indefinite-row functions, the query automatically enters **window projection mode**, where each window outputs all its original rows; when the SELECT list contains only aggregate functions, it enters **window aggregation mode**, where each window outputs one aggregated row. When the SELECT list contains only pseudocolumns, tag columns, tbname, constants, group keys, and state keys, INTERVAL, SESSION, STATE_WINDOW, EVENT_WINDOW, and COUNT_WINDOW default to aggregation mode, while EXTERNAL_WINDOW defaults to projection mode. Use the `SCALAR` or `AGG` keyword to explicitly specify the mode. See [TDengine Distinctive Queries](24-distinguished.md#window-projection-mode) for details.
+- fill_clause: Fill clause, can be used with the interp function, INTERVAL window, or EXTERNAL_WINDOW to specify the data filling method when data is missing. The supported modes differ by context.
 - group_by_expr: Specify data grouping and aggregation rules. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select ts, current from meters order by ts desc, 2`, where 2 corresponds to the current column.
 - partition_by_expr: Specify the data slicing conditions, and calculate the data independently within the slice. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select current from meters partition by 1`, where 1 corresponds to the current column.
 - order_expr: Specify the sorting rule for the output data, which is not sorted by default. Supports expressions, functions, positions, columns, and aliases. Different sorting rules can be used for each column in a single or multiple columns, and null values can be specified to be sorted first or last.
@@ -156,6 +160,7 @@ The currently supported Hints list is as follows:
 |   PARTITION_FIRST   | None          | Use PARTITION to calculate groups before aggregation, conflicts with SORT_FOR_GROUP                                                                                                   | When partition by list includes regular columns |
 |  PARA_TABLES_SORT   | None          | When sorting supertable data by timestamp, use memory instead of temporary disk space. When there are many subtables and rows are large, it will use a lot of memory and may cause OOM | When sorting supertable data by timestamp       |
 |  SMALLDATA_TS_SORT  | None          | When sorting supertable data by timestamp, if the query column length is greater than or equal to 256 but the number of rows is not large, using this hint can improve performance    | When sorting supertable data by timestamp       |
+| SMALLDATA_SCAN_SORT | None          | When a supertable query needs timestamp-ordered scan output, use a plain table scan plus a sort instead of a table merge scan; for small per-vnode data this can be faster. It applies wherever the engine would otherwise use a table merge scan to produce timestamp order: ORDER BY ts, and also SESSION / STATE_WINDOW (no explicit ORDER BY required). It has no effect on INTERVAL windows (which do not use a table merge scan), nor on ORDER BY of non-timestamp columns | Small per-vnode supertable data needing timestamp order |
 |      SKIP_TSMA      | None          | Explicitly disable TSMA query optimization                                                                                                                                            | Queries with Agg functions                      |
 
 Examples:
@@ -166,6 +171,7 @@ SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
+SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
 ```
 
 ## List
@@ -318,7 +324,7 @@ select _iorwts_origin, interp(current) from meters range('2020-01-01 10:00:00', 
 
 ## Query Objects
 
-The FROM keyword can be followed by a list of tables (supertables) or the result of a subquery.
+The FROM keyword can be followed by a list of tables (supertables), the result of a subquery, or a TEXT or FILE inline data source (see below).
 If the user's current database is not specified, the database name can be used before the table name to specify the database to which the table belongs. For example, using `power.d1001` to cross-database use tables.
 
 TDengine supports INNER JOIN based on the timestamp primary key, with the following rules:
@@ -330,19 +336,163 @@ TDengine supports INNER JOIN based on the timestamp primary key, with the follow
 5. Both sides of JOIN support subqueries.
 6. Does not support mixing with the FILL clause.
 
+## TEXT Inline Data Source
+
+`TEXT` allows row data to be embedded directly in an SQL statement as a temporary table source, without needing to create a table in advance.
+
+### Syntax
+
+```sql
+TEXT(column_list)
+    VALUES (val [, val] ...) [(val [, val] ...)] ...
+    [alias]
+```
+
+### Description
+
+- The column schema must be declared explicitly; type inference is not supported.
+- Each `VALUES` group represents one row. All rows must match the declared schema column count.
+- NULL values are supported using the `NULL` keyword.
+- An optional alias assigns a table alias to the data source, useful in JOIN or subquery contexts.
+- `TEXT` can be used as a `FROM` table source, in subqueries, JOIN, window queries, `INSERT INTO … SELECT`, and EXTERNAL_WINDOW subquery definitions.
+- All types except JSON, GEOMETRY, and BLOB are supported.
+- The first column must be of type `TIMESTAMP` (serves as the primary key). Input data does not need to be ordered.
+
+### Volume Limits
+
+| Constraint | Limit |
+|---|---|
+| Maximum rows | 10,000 |
+| Maximum columns | 4,096 |
+| Maximum cells (rows × cols) | 1,000,000 |
+| Inline text size | 8 MB |
+
+### Examples
+
+```sql
+-- Basic query: inline smart-meter readings
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221) t1;
+
+-- Filter: find readings with voltage above threshold
+SELECT ts, current, voltage
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219) t2
+WHERE voltage > 220;
+
+-- Subquery: secondary filter on inline data
+SELECT * FROM (
+    SELECT ts, current, voltage
+    FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+        VALUES ('2024-01-01 08:00:00', 10.2, 220)
+               ('2024-01-01 09:00:00', 10.8, 221) readings
+) sub WHERE current > 10.5;
+
+-- Window aggregation: average current and peak voltage per 6-hour window
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM TEXT(ts TIMESTAMP, current FLOAT, voltage INT)
+    VALUES ('2024-01-01 08:00:00', 10.2, 220)
+           ('2024-01-01 09:00:00', 10.8, 221)
+           ('2024-01-01 10:00:00', 11.5, 219)
+           ('2024-01-01 14:00:00', 9.8,  218) t3
+INTERVAL(6h);
+
+-- JOIN: correlate inline calibration data with real meter table
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN TEXT(ts TIMESTAMP, factor FLOAT)
+    VALUES ('2024-01-01 08:00:00', 1.02)
+           ('2024-01-01 09:00:00', 0.98) cal
+ON m.ts = cal.ts;
+```
+
+## FILE CSV Data Source
+
+`FILE` uses a local CSV file as a query table source, allowing direct queries without importing data into the database.
+
+### Syntax
+
+```sql
+FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
+    [alias]
+```
+
+### Description
+
+- Only CSV text format is currently supported.
+- `file_path`: Path to the CSV file. The file is read by the process that performs query planning (typically the client process such as `taos` CLI or client driver). Both relative paths (relative to that process's working directory) and absolute paths are accepted.
+- The second argument is a schema declaration string; column definitions are comma-separated and must match the CSV column order.
+- Columns in the CSV that exceed the declared schema count are ignored. You can read a subset of the file's columns by declaring only the columns you need.
+- `header=true`: The first row of the CSV is treated as a column header and skipped during data reading. When enabled, columns are matched by name rather than position, and the schema may declare a subset of the file's columns in any order. Defaults to `false`.
+- `delimiter`: Field separator character (single character). Defaults to `,`.
+- NULL values are supported; empty fields in the CSV are parsed as NULL.
+- Both the file path and schema must be string literals; runtime expressions are not supported.
+- `FILE` can be used in the same contexts as `TEXT`: `FROM` clause, subqueries, JOIN, window queries, UNION, `INSERT INTO … SELECT`, and EXTERNAL_WINDOW subquery definitions.
+- Supported column types: same as `TEXT`. All types except JSON, GEOMETRY, and BLOB are supported.
+- The first column of the Schema declaration must be of type `TIMESTAMP` (serves as the primary key), and the input is not required to be ordered.
+
+### Volume Limits
+
+Same as `TEXT`: maximum 10,000 rows, 4,096 columns, 1,000,000 cells, and 8 MB per read.
+
+### Examples
+
+```sql
+-- Read all four columns from a meter readings CSV
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV has 4 columns; read only current and voltage
+SELECT ts, current
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f;
+
+-- CSV has a header row; skip it with header=true
+SELECT ts, current, voltage, phase
+FROM FILE('./meter_readings_with_header.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT',
+          header=true) f;
+
+-- Subquery: filter and aggregate CSV data
+SELECT AVG(current), MAX(voltage)
+FROM (
+    SELECT ts, current, voltage
+    FROM FILE('./meter_readings.csv',
+              'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') src
+) sub WHERE voltage BETWEEN 200 AND 250;
+
+-- JOIN: correlate CSV calibration data with real meter table
+SELECT m.ts, m.current, cal.factor
+FROM meters m
+JOIN FILE('./calibration.csv',
+          'ts TIMESTAMP, factor FLOAT') cal
+ON m.ts = cal.ts;
+
+-- Window aggregation: per-hour statistics from CSV
+SELECT _wstart, AVG(current), MAX(voltage)
+FROM FILE('./meter_readings.csv',
+          'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
+INTERVAL(1h);
+```
+
 ## INTERP
 
 The INTERP clause is a dedicated syntax for the [INTERP function](./22-function.md#interp). When an SQL statement contains an INTERP clause, it can only query the INTERP function and cannot be used with other functions. Additionally, the INTERP clause cannot be used simultaneously with window clauses (window_clause) or group by clauses (group_by_clause). The INTERP function must be used with the RANGE, EVERY, and FILL clauses.
 
 - The output time range for INTERP is specified by the RANGE(timestamp1, timestamp2) field, which must satisfy timestamp1 \<= timestamp2. Here, timestamp1 is the start value of the output time range, i.e., if the conditions for interpolation are met at timestamp1, then timestamp1 is the first record output, and timestamp2 is the end value of the output time range, i.e., the timestamp of the last record output cannot be greater than timestamp2.
-- INTERP determines the number of results within the output time range based on the EVERY(time_unit) field, starting from timestamp1 and interpolating at fixed intervals of time (time_unit value), where time_unit can be time units: 1a (milliseconds), 1s (seconds), 1m (minutes), 1h (hours), 1d (days), 1w (weeks). For example, EVERY(500a) will interpolate the specified data every 500 milliseconds.
+- INTERP determines the number of results within the output time range based on the EVERY(time_unit) field, starting from timestamp1 and interpolating at fixed intervals of time (time_unit value). The time_unit options are listed in [Time Units](./01-datatype.md#time-units), supporting milliseconds through weeks only (months/quarters/years not allowed). For example, EVERY(500a) will interpolate the specified data every 500 milliseconds.
 - INTERP determines how to interpolate at each time point that meets the output conditions based on the FILL field. For how to use the FILL clause, refer to [FILL Clause](./20-select.md#fill-clause). Note: The sampled data used for interpolation is not limited to the constraints of the RANGE field, but rather to all data that meets the conditions of the WHERE clause; if no WHERE clause is specified, the entire table data is used. When the parameter of the FILL clause is PREV/NEXT/NEAR, adjacent valid data will be used for interpolation. Whether NULL data is considered valid data depends on the ignore_null_values parameter of the INTERP function. To limit the scope of sampled data, you can use the SURROUND clause.
 - INTERP can interpolate at a single time point specified in the RANGE field, in which case the EVERY field can be omitted. For example: `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)`.
 - INTERP query supports NEAR FILL mode, i.e., when FILL is needed, it uses the valid data closest to the current time point for interpolation. When the timestamps before and after are equally close to the current time slice, FILL the previous row's value. This mode is not supported in window queries. For example: `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (Supported from version 3.3.4.9).
 
 ## FILL Clause
 
-The FILL statement specifies the filling mode when data is missing in a window interval. The filling modes include:
+The FILL statement specifies how missing values are produced in INTERVAL queries, EXTERNAL_WINDOW queries, and INTERP queries. The filling modes include:
 
 1. No filling: NONE (default filling mode).
 2. VALUE filling: Fixed value filling, where the fill value must be specified. For example `FILL(VALUE, 1.23)`. Note that the final fill value is determined by the type of the corresponding column, such as `FILL(VALUE, 1.23)`, if the corresponding column is of INT type, then the fill value is 1. If multiple columns in the query list need FILL, then each FILL column must specify a VALUE, such as `SELECT _wstart, min(c1), max(c1) FROM ... FILL(VALUE, 0, 0)`. Note, only ordinary columns in the SELECT expression need to specify FILL VALUE, such as `_wstart`, `_wstart+1a`, `now`, `1+1` and the `partition key` (like tbname) used with `partition by` do not need to specify VALUE, like `timediff(last(ts), _wstart)` needs to specify VALUE.
@@ -367,10 +517,15 @@ The differences between NULL, NULL_F, VALUE, VALUE_F filling modes for different
 - Stream computing's INTERVAL clause: NULL_F behaves the same as NULL, both are non-forced modes; VALUE_F behaves the same as VALUE, both are non-forced modes. Thus, there are no forced modes in the INTERVAL of stream computing.
 - INTERP clause: NULL and NULL_F behave the same, both are forced modes; VALUE and VALUE_F behave the same, both are forced modes. Thus, there are no non-forced modes in INTERP.
 
+For EXTERNAL_WINDOW queries, the supported modes are `NONE`, `NULL`, `NULL_F`, `VALUE`, `VALUE_F`, `PREV`, and `NEXT`. `LINEAR`, `NEAR`, and `SURROUND` are not supported in EXTERNAL_WINDOW.
+
+For window projection mode (when the SELECT list contains column expressions or indefinite-row functions), FILL only supports `NONE`, `NULL`, `NULL_F`, `VALUE`, and `VALUE_F`. `PREV`, `NEXT`, `LINEAR`, and `NEAR` are not supported in projection mode.
+
 :::info
 
 1. When using the FILL statement, a large amount of fill output may be generated, so be sure to specify the query time range. For each query, the system can return up to 10 million results with interpolation.
 2. FILL has continuity, if only the first value in a column is not NULL, then fill(prev) will fill all subsequent rows with that value.
+3. When using indefinite rows functions (such as CSUM, DIFF, DERIVATIVE, MAVG, STATECOUNT, STATEDURATION, LAG, LEAD, FILL_FORWARD) with INTERVAL queries, only FILL(NONE), FILL(NULL), FILL(NULL_F), FILL(VALUE), and FILL(VALUE_F) are supported. FILL(PREV), FILL(NEXT), FILL(LINEAR), and FILL(NEAR) are not supported with these functions.
 
 :::
 
@@ -378,7 +533,7 @@ The differences between NULL, NULL_F, VALUE, VALUE_F filling modes for different
 
 The SURROUND clause is used to limit the filling range of the FILL clause. It can only be used in PREV, NEXT, NEAR (only supported in INTERP queries) modes.
 
-The SURROUNDING_TIME_VAL parameter specifies the time range that the valid data must meet. It takes a positive number and the unit can be any time unit except for month(n) and year(y).
+The SURROUNDING_TIME_VAL parameter specifies the time range that the valid data must meet. It takes a positive number and the unit can be any time unit except for month(n), quarter(q), and year(y).
 In an INTERVAL window query, its value must be greater than or equal to the time length of the INTERVAL window.
 
 In an INTERP query, if the time difference between a valid data row and the current row exceeds this parameter, that row will not be used; instead, `FILL_VALS` is used to fill the gap.
@@ -482,11 +637,29 @@ ASC indicates ascending order, and DESC indicates descending order.
 
 The NULLS syntax is used to specify the position of NULL values in the output of the sorting. NULLS LAST is the default for ascending order, and NULLS FIRST is the default for descending order.
 
+## Window Functions
+
+Starting from v3.4.2.0, TDengine supports the SQL standard `OVER` clause and window functions. A window function computes a value for each row in the result set while referencing other rows in the same window, but keeps every original row instead of collapsing them. This differs from the time windows in [TDengine Distinctive Queries](24-distinguished.md), which aggregate multiple rows in a window into a single row.
+
+A window function call has the following basic form:
+
+```sql
+function_name ( [ arguments ] ) OVER (
+    [ PARTITION BY expr [, ...] ]
+    [ ORDER BY expr [ ASC | DESC ] [, ...] ]
+    [ { ROWS | RANGE } frame_extent ]
+)
+```
+
+Window functions support both existing aggregate/selection functions (such as `avg`, `sum`, `first`) used with an `OVER` clause, and dedicated window functions such as `row_number`, `rank`, `dense_rank`, `percent_rank`, `cume_dist`, `lag`, `lead`, `first_value`, `last_value`, and `nth_value`. Window functions may only appear in the `SELECT` list and `ORDER BY`. For the complete syntax, frame rules, named windows, and function list, see [Window Functions](29-window-function.md).
+
 ## LIMIT
 
 LIMIT controls the number of output rows, and OFFSET specifies starting from which row to begin output. The execution order of LIMIT/OFFSET is after ORDER BY. LIMIT 5 OFFSET 2 can be abbreviated as LIMIT 2, 5, both outputting data from row 3 to row 7.
 
 When there is a PARTITION BY/GROUP BY clause, LIMIT controls the output within each partition slice, not the total result set output.
+
+Starting from v3.4.2.0, `OFFSET N` can be used independently without `LIMIT`, which is useful for skipping the warm-up rows after a [window function](29-window-function.md) computation.
 
 ## SLIMIT
 

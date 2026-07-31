@@ -1,0 +1,50 @@
+### 001
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryEnable'
+RESULT
+1|federatedQueryEnable|1|both|global|
+---
+### 002
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
+RESULT
+1|federatedQueryConnectTimeoutMs|5000|both|global|
+---
+### 003
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
+RESULT
+1|federatedQueryQueryTimeoutMs|1000000000|both|global|
+---
+### 004
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
+RESULT
+1|federatedQueryMaxPoolSizePerSour|64|both|global|
+---
+### 005
+SQL: SHOW DNODE 1 VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
+RESULT
+1|federatedQueryIdleConnTtlSec|600|both|global|
+---
+### 006
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryEnable'
+RESULT
+federatedQueryEnable|1|both|global|
+---
+### 007
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryConnectTimeoutMs'
+RESULT
+federatedQueryConnectTimeoutMs|5000|both|global|
+---
+### 008
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryQueryTimeoutMs'
+RESULT
+federatedQueryQueryTimeoutMs|1000000000|both|global|
+---
+### 009
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryMaxPoolSizePer%'
+RESULT
+federatedQueryMaxPoolSizePerSour|64|both|global|
+---
+### 010
+SQL: SHOW LOCAL VARIABLES LIKE 'federatedQueryIdleConnTtlSec'
+RESULT
+federatedQueryIdleConnTtlSec|600|both|global|
+---

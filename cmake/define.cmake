@@ -100,6 +100,20 @@ SET(TAOS_LIB_STATIC taos_static)
 SET(TAOS_NATIVE_LIB taosnative)
 SET(TAOS_NATIVE_LIB_STATIC taosnative_static)
 
+function(taos_configure_macos_client_rpath target_name)
+  if(NOT TD_DARWIN)
+    return()
+  endif()
+
+  set_target_properties(${target_name} PROPERTIES
+    MACOSX_RPATH TRUE
+    BUILD_WITH_INSTALL_RPATH TRUE
+    SKIP_BUILD_RPATH FALSE
+    BUILD_RPATH "@loader_path;@loader_path/../driver;/usr/local/lib"
+    INSTALL_RPATH "@loader_path;@loader_path/../driver;/usr/local/lib"
+  )
+endfunction()
+
 if(BUILD_TSZ_ENABLED)
   message(STATUS "build with TSZ enabled")
   add_definitions(-DTD_TSZ)
@@ -347,3 +361,23 @@ IF(TD_LINUX_64)
         SET(LINK_JEMALLOC "")
     ENDIF()
 ENDIF()
+
+if(TD_DARWIN)
+    function(td_fix_macos_client_libtaos_dep target_name)
+        set_target_properties(${target_name} PROPERTIES
+            MACOSX_RPATH TRUE
+            BUILD_WITH_INSTALL_RPATH TRUE
+            SKIP_BUILD_RPATH FALSE
+            BUILD_RPATH "@loader_path;@loader_path/../driver;/usr/local/lib"
+            INSTALL_RPATH "@loader_path;@loader_path/../driver;/usr/local/lib"
+        )
+
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND /bin/sh -c
+                "bin=\"$1\"; if otool -L \"$bin\" 2>/dev/null | grep -q '@loader_path/libtaos.dylib'; then install_name_tool -change '@loader_path/libtaos.dylib' '@rpath/libtaos.dylib' \"$bin\"; fi"
+                _
+                "$<TARGET_FILE:${target_name}>"
+            VERBATIM
+        )
+    endfunction()
+endif()

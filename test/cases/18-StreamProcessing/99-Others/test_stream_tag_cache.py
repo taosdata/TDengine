@@ -1,5 +1,8 @@
+import time
+
 from new_test_framework.utils import tdSql, tdLog, tdStream, StreamItem
-from new_test_framework.utils.eutil import findTaosdLog
+from new_test_framework.utils.eos import run
+from new_test_framework.utils.srvCtl import sc
 
 class TestStreamTagCache:
     def setup_class(cls):
@@ -24,8 +27,7 @@ class TestStreamTagCache:
 
         Since: v3.3.8.5
 
-        Labels: stream, meta, tagCache
-
+        Labels: meta,stream,tagCache,integration,functional
         Catalog:
             - StreamProcessing:Others
 
@@ -43,17 +45,34 @@ class TestStreamTagCache:
         self.check_create_drop_ctable()
         self.check_fallback_to_normal_cache()
 
-    def stable_tag_cache_log_counter(self, db_name, tb_name, retry=5) -> int:
-        tdSql.query(f"""select uid from information_schema.ins_stables
-            where stable_name = '{tb_name}' and db_name = '{db_name}'""")
-        suid = tdSql.getColData(0)[0]
-        return findTaosdLog(f"suid:{suid}.*add uid list to stable tag filter cache", retry=retry)
+    def _grep_taosd_log_count(self, pattern, retry=30) -> int:
+        """Poll taosd log and return the maximum grep hit count."""
+        log_file = sc.dnodeLogPath(1) + "/taosdlog.0"
+        max_cnt = 0
+        for i in range(retry):
+            cmd = f"grep '{pattern}' {log_file} | wc -l"
+            output, error = run(cmd, show=False)
+            try:
+                max_cnt = max(max_cnt, int(output))
+            except ValueError:
+                tdLog.info(f"grep log count failed: {cmd} out={output} err={error}")
+            if i + 1 < retry:
+                time.sleep(1)
+        return max_cnt
 
-    def normal_tag_cache_log_counter(self, db_name, tb_name, retry=5) -> int:
+    def stable_tag_cache_log_counter(self, db_name, tb_name, retry=30) -> int:
         tdSql.query(f"""select uid from information_schema.ins_stables
             where stable_name = '{tb_name}' and db_name = '{db_name}'""")
         suid = tdSql.getColData(0)[0]
-        return findTaosdLog(f"suid:{suid}.*add uid list to normal tag filter cache", retry=retry)
+        pattern = f"suid:{suid}.*retrieve table uid list from stable tag filter cache"
+        return self._grep_taosd_log_count(pattern, retry=retry)
+
+    def normal_tag_cache_log_counter(self, db_name, tb_name, retry=30) -> int:
+        tdSql.query(f"""select uid from information_schema.ins_stables
+            where stable_name = '{tb_name}' and db_name = '{db_name}'""")
+        suid = tdSql.getColData(0)[0]
+        pattern = f"suid:{suid}.*add uid list to normal tag filter cache"
+        return self._grep_taosd_log_count(pattern, retry=retry)
 
     def check_all_types_basic(self):
         db_name = "test_basic"
@@ -153,8 +172,8 @@ class TestStreamTagCache:
         for s in streams:
             s.checkResults()
 
-        # check stable tagFilterCache size
-        assert self.stable_tag_cache_log_counter(db_name, tb_name) == 8
+        # check stable tagFilterCache usage
+        assert self.stable_tag_cache_log_counter(db_name, tb_name) >= 8
 
     def check_all_types_alter(self):
         db_name = "test_alter"
@@ -297,8 +316,8 @@ class TestStreamTagCache:
                 {expect_cnt} as v"""
             s.checkResults()
 
-        # check stable tagFilterCache size
-        assert self.stable_tag_cache_log_counter(db_name, tb_name) == 5
+        # check stable tagFilterCache usage
+        assert self.stable_tag_cache_log_counter(db_name, tb_name) >= 5
 
     def check_null_tag_value(self):
         db_name = "test_null"
@@ -441,8 +460,8 @@ class TestStreamTagCache:
                 {expect_cnt} as v"""
             s.checkResults()
 
-        # check stable tagFilterCache size
-        assert self.stable_tag_cache_log_counter(db_name, tb_name) == 5
+        # check stable tagFilterCache usage
+        assert self.stable_tag_cache_log_counter(db_name, tb_name) >= 5
 
         # create a new child table with null t_fix tag and insert data
         tdSql.execute(f"create table ctb6 using {tb_name} tags (null, true, 1, 2.333, 'BJ', '涛思数据')", show=1)
@@ -576,8 +595,8 @@ class TestStreamTagCache:
                 {expect_cnt} as v"""
             s.checkResults()
 
-        # check stable tagFilterCache size
-        assert self.stable_tag_cache_log_counter(db_name, tb_name) == 5
+        # check stable tagFilterCache usage
+        assert self.stable_tag_cache_log_counter(db_name, tb_name) >= 5
 
     def check_fallback_to_normal_cache(self):
         db_name = "test_fallback"

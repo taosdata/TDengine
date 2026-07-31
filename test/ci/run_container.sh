@@ -167,19 +167,146 @@ if [ -d "/data0/compat-packages" ]; then
 else
     mkdir -p "$SOURCEDIR"
 fi
+
+function _needs_fq_ext_env_cache() {
+    local case_cmd="$1"
+    case "$case_cmd" in
+        *19-FederatedQuery*|*03-ExtSource*|*ensure_ext_env*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+function _prepare_fq_mysql80_shared_cache() {
+    local cache_dir="$1"
+    local tarball_name="fq-mysql-8.0.tar.xz"
+    local minimal_name="mysql-8.0.45-linux-glibc2.17-x86_64-minimal.tar.xz"
+    local dest="${cache_dir}/${tarball_name}"
+    local url="${FQ_CI_MYSQL80_TARBALL_URL:-https://cdn.mysql.com/Downloads/MySQL-8.0/${minimal_name}}"
+
+    mkdir -p "$cache_dir" || return 1
+    if [ -s "$dest" ]; then
+        echo "[fq-cache] MySQL 8.0 tarball cache hit: $dest"
+        return 0
+    fi
+
+    local src full_name="mysql-8.0.45-linux-glibc2.28-x86_64.tar.xz"
+    for src in \
+        "${FQ_CI_MYSQL80_TARBALL:-}" \
+        "${SOURCEDIR}/${tarball_name}" \
+        "${SOURCEDIR}/${minimal_name}" \
+        "${SOURCEDIR}/${full_name}" \
+        "/data0/compat-packages/${tarball_name}" \
+        "/data0/compat-packages/${minimal_name}" \
+        "/data0/compat-packages/${full_name}"
+    do
+        if [ -n "$src" ] && [ -s "$src" ]; then
+            echo "[fq-cache] copy prepared MySQL 8.0 tarball: $src -> $dest"
+            cp -f "$src" "$dest" && return 0
+        fi
+    done
+
+    for src in "${SOURCEDIR}"/mysql-*.tar.xz /data0/compat-packages/mysql-*.tar.xz; do
+        if [ -s "$src" ]; then
+            echo "[fq-cache] copy prepared MySQL 8.0 tarball: $src -> $dest"
+            cp -f "$src" "$dest" && return 0
+        fi
+    done
+
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "[fq-cache] WARN: curl not found; MySQL 8.0 cache will be prepared inside container"
+        return 1
+    fi
+
+    local tmp="${dest}.tmp.$$"
+    rm -f "$tmp"
+    echo "[fq-cache] downloading MySQL 8.0 minimal tarball into host cache ..."
+    if curl -fL \
+            --retry 3 --retry-delay 5 --retry-connrefused \
+            --connect-timeout 30 \
+            --max-time "${FQ_CI_EXT_CACHE_DOWNLOAD_MAX_TIME:-900}" \
+            -o "$tmp" "$url"; then
+        if [ -s "$tmp" ]; then
+            mv -f "$tmp" "$dest"
+            return 0
+        fi
+    fi
+
+    rm -f "$tmp"
+    echo "[fq-cache] WARN: failed to prepare MySQL 8.0 host cache; test will fall back to container download"
+    return 1
+}
+
+function _stage_fq_tarball_from_compat() {
+    local shared_cache_dir="$1" thread_cache_dir="$2" dest_name="$3"
+    shift 3
+    local _src _pattern _dest="${shared_cache_dir}/${dest_name}"
+
+    mkdir -p "$shared_cache_dir" "$thread_cache_dir" || return 1
+    if [ -s "$_dest" ]; then
+        echo "[fq-cache] ${dest_name} cache hit: $_dest"
+    else
+        for _src in "$@"; do
+            if [ -n "$_src" ] && [ -s "$_src" ]; then
+                echo "[fq-cache] copy prepared ${dest_name}: $_src -> $_dest"
+                cp -f "$_src" "$_dest" && break
+            fi
+        done
+    fi
+
+    if [ -s "$_dest" ]; then
+        echo "[fq-cache] stage ${dest_name} for thread ${thread_no}: ${thread_cache_dir}/${dest_name}"
+        cp -f "$_dest" "${thread_cache_dir}/${dest_name}" \
+            || echo "[fq-cache] WARN: failed to copy ${dest_name} into thread cache"
+        return 0
+    fi
+    return 1
+}
+
+function _stage_fq_ext_env_cache() {
+    local thread_cache_dir="$1"
+    local shared_cache_dir="${FQ_CI_EXT_CACHE_DIR:-${CI_CACHE_DIR:-${WORKDIR}/cache}/fq-ext-env}"
+    local mysql_name="fq-mysql-8.0.tar.xz"
+    local influx_name="fq-influxdb-3.0.tar.gz"
+    local influx_upstream="influxdb3-core-3.0.3_linux_amd64.tar.gz"
+
+    mkdir -p "$thread_cache_dir"
+    if _prepare_fq_mysql80_shared_cache "$shared_cache_dir"; then
+        _stage_fq_tarball_from_compat "$shared_cache_dir" "$thread_cache_dir" "$mysql_name" \
+            || echo "[fq-cache] WARN: failed to stage MySQL 8.0 tarball into thread cache"
+    fi
+
+    if ! _stage_fq_tarball_from_compat "$shared_cache_dir" "$thread_cache_dir" "$influx_name" \
+            "${SOURCEDIR}/${influx_name}" \
+            "${SOURCEDIR}/${influx_upstream}" \
+            "/data0/compat-packages/${influx_name}" \
+            "/data0/compat-packages/${influx_upstream}"; then
+        local _influx_src
+        for _influx_src in "${SOURCEDIR}"/influxdb3-core-*.tar.gz \
+                           /data0/compat-packages/influxdb3-core-*.tar.gz; do
+            if [ -s "$_influx_src" ]; then
+                _stage_fq_tarball_from_compat "$shared_cache_dir" "$thread_cache_dir" "$influx_name" \
+                    "$_influx_src" && break
+            fi
+        done
+    fi
+
+    local _apt_src
+    for _apt_src in "${SOURCEDIR}"/fq-apt-pg16-*.tar.gz "${SOURCEDIR}"/fq-apt-postgis-pg16-*.tar.gz \
+                    /data0/compat-packages/fq-apt-pg16-*.tar.gz \
+                    /data0/compat-packages/fq-apt-postgis-pg16-*.tar.gz; do
+        [ -s "$_apt_src" ] || continue
+        _stage_fq_tarball_from_compat "$shared_cache_dir" "$thread_cache_dir" \
+            "$(basename "$_apt_src")" "$_apt_src" || true
+    done
+}
+
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/var_taoslog
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/tsim
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/coredump
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/coredump/*
 if [ ! -d "${TMP_DIR}/thread_volume/$thread_no/test" ]; then
-    if [ "$exec_dir" != "." ]; then
-        subdir=$(echo "$exec_dir"|cut -d/ -f1)
-        echo "cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/"
-        cp -rf ${REPDIR}/test/$subdir ${TMP_DIR}/thread_volume/$thread_no/
-    else
-        echo "cp -rf ${REPDIR}/test/* ${TMP_DIR}/thread_volume/$thread_no/"
-        cp -rf "${REPDIR}/test/"* "${TMP_DIR}/thread_volume/$thread_no/"
-    fi
+    echo "cp -rf ${REPDIR}/test/* ${TMP_DIR}/thread_volume/$thread_no/"
+    cp -rf "${REPDIR}/test/"* "${TMP_DIR}/thread_volume/$thread_no/"
 fi
 
 # if [ ! -f "${SOURCEDIR}/${packageName}" ]; then

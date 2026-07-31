@@ -1,0 +1,52 @@
+# Go build artifacts
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.a
+*.o
+*.test
+*.out
+coverage.out
+cover.out
+
+# Local binaries
+/tdsqlsmith
+
+# Frontend dependencies/cache
+web/console/node_modules/
+web/console/.vite/
+web/console/.cache/
+
+# Embedded frontend build outputs (do not commit generated web assets)
+internal/serve/webdist/*
+!internal/serve/webdist/README.md
+
+# Runtime data and generated outputs
+out/
+reports/
+data/
+logs/
+*.log
+*.pid
+server.log
+server.pid
+
+# Environment files
+.env
+.env.*
+
+# IDE/editor
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

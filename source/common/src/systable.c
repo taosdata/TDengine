@@ -274,6 +274,7 @@ static const SSysDbTableSchema userVctbColsSchema[] = {
     {.name = "col_source", .bytes = TSDB_COL_FNAME_LEN - 1 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "ref_version", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "col_type", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
 };
 
 static const SSysDbTableSchema userTblDistSchema[] = {
@@ -290,6 +291,34 @@ static const SSysDbTableSchema userTblDistSchema[] = {
     {.name = "compression_ratio", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = true},
     {.name = "rows_in_mem", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "seek_header_time", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+};
+
+static const SSysDbTableSchema userTblFixedDistSchema[] = {
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "table_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "total_blocks", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "total_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "average_size", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
+    {.name = "compression_ratio", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
+    {.name = "block_rows", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "min_rows", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "max_rows", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "avg_rows", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
+    {.name = "in_mem_rows", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "stt_rows", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "total_tables", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "total_filesets", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "total_vgroups", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "row_size", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "block_dist_64", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "block_dist_128", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "block_dist_256", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "block_dist_512", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "block_dist_1024", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "block_dist_2048", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "block_dist_4096", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "block_dist_other", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
 };
 
 static const SSysDbTableSchema userUsersSchema[] = {
@@ -379,10 +408,10 @@ static const SSysDbTableSchema smaSchema[] = {
 };
 
 static const SSysDbTableSchema transSchema[] = {
-    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "stage", .bytes = TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "oper", .bytes = TSDB_TRANS_OPER_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "oper", .bytes = TSDB_USER_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "db", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "stable", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "killable", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
@@ -390,10 +419,29 @@ static const SSysDbTableSchema transSchema[] = {
     {.name = "failed_times", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "last_exec_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "last_action_info", .bytes = (TSDB_TRANS_ERROR_LEN - 1) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "type", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+};
+
+static const SSysDbTableSchema transactionLogsSchema[] = {
+    {.name = "id",              .bytes = 8,                                            .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "create_user",     .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE,           .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "create_time",     .bytes = 8,                                            .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "complete_time",   .bytes = 8,                                            .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "status",          .bytes = TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "comment",         .bytes = 128 + VARSTR_HEADER_SIZE,                     .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "type",            .bytes = 10 + VARSTR_HEADER_SIZE,                      .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+};
+
+static const SSysDbTableSchema transactionOrphansSchema[] = {
+    {.name = "id",          .bytes = 8,  .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "vgroup_id",   .bytes = 4,  .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "first_seen",  .bytes = 8,  .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "last_seen",   .bytes = 8,  .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "report_count",.bytes = 4,  .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
 };
 
 static const SSysDbTableSchema instanceSchema[] = {
-    {.name = "id", .bytes = PERF_INSTANCE_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "id",            .bytes = PERF_INSTANCE_ID_LEN + VARSTR_HEADER_SIZE,   .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
     {.name = "type", .bytes = PERF_INSTANCE_TYPE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "desc", .bytes = PERF_INSTANCE_DESC_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "first_reg_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
@@ -415,6 +463,14 @@ static const SSysDbTableSchema variablesSchema[] = {
     {.name = "info", .bytes = TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
+static const SSysDbTableSchema cpuAllocationSchema[] = {
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "thread_category", .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "cores", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "core_ids", .bytes = 256 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "enabled", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
+};
+
 static const SSysDbTableSchema topicSchema[] = {
     {.name = "topic_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
@@ -427,7 +483,7 @@ static const SSysDbTableSchema subscriptionSchema[] = {
     {.name = "topic_name", .bytes = TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "consumer_group", .bytes = TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
-    {.name = "consumer_id", .bytes = TSDB_CLIENT_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
+    {.name = "consumer_id", .bytes = TSDB_CONSUMER_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "user", .bytes = TSDB_USER_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "fqdn", .bytes = TSDB_FQDN_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
     {.name = "offset", .bytes = TSDB_OFFSET_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = false},
@@ -542,6 +598,29 @@ static const SSysDbTableSchema userTransactionDetailSchema[] = {
     {.name = "result", .bytes = TSDB_TRANS_RESULT_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "target", .bytes = TSDB_TRANS_TARGET_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "detail", .bytes = TSDB_TRANS_DETAIL_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+};
+
+static const SSysDbTableSchema snapSendVnodesSchema[] = {
+    {.name = "vgroup_id",          .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "dnode_id",           .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "total_file_sets",    .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "finished_file_sets", .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "start_time",         .bytes = 8,                       .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "elapsed",            .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+};
+
+static const SSysDbTableSchema snapSendFilesetsSchema[] = {
+    {.name = "vgroup_id",            .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "fid",                  .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "file_count",           .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "finished_file_count",  .bytes = 4,                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "total_size",           .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "read_size",            .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "start_time",           .bytes = 8,                       .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "elapsed",              .bytes = 32 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "start_index",          .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "end_index",            .bytes = 8,                       .type = TSDB_DATA_TYPE_BIGINT,    .sysInfo = false},
+    {.name = "transfer_type",        .bytes = 4 + VARSTR_HEADER_SIZE,  .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
 };
 
 static const SSysDbTableSchema anodesSchema[] = {
@@ -752,6 +831,19 @@ static const SSysDbTableSchema xnodeAgentsSchema[] = {
     {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
+static const SSysDbTableSchema extSourcesSchema[] = {
+    {.name = "source_name", .bytes = (TSDB_EXT_SOURCE_NAME_LEN - 1) + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "type",        .bytes = 16 + VARSTR_HEADER_SIZE,                                .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "host",        .bytes = (TSDB_EXT_SOURCE_HOST_LEN - 1) + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "port",        .bytes = 4,                                                       .type = TSDB_DATA_TYPE_INT,       .sysInfo = false},
+    {.name = "user",        .bytes = (TSDB_EXT_SOURCE_USER_LEN - 1) + VARSTR_HEADER_SIZE,    .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "password",    .bytes = 8 + VARSTR_HEADER_SIZE,                                 .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "database",    .bytes = (TSDB_EXT_SOURCE_DATABASE_LEN - 1) + VARSTR_HEADER_SIZE,.type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "schema",      .bytes = (TSDB_EXT_SOURCE_SCHEMA_LEN - 1) + VARSTR_HEADER_SIZE,  .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "options",     .bytes = (TSDB_EXT_SOURCE_OPTIONS_LEN - 1) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR,   .sysInfo = false},
+    {.name = "create_time", .bytes = 8,                                                       .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+
 static const SSysDbTableSchema virtualTablesReferencing[] = {
     {.name = "virtual_db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "virtual_stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
@@ -765,6 +857,14 @@ static const SSysDbTableSchema virtualTablesReferencing[] = {
     {.name = "err_msg", .bytes = TSDB_SHOW_VALIDATE_VIRTUAL_TABLE_ERROR + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
+static const SSysDbTableSchema vstableInheritsSchema[] = {
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "parent_stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "parent_uid", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "child_stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "child_uid", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
 
 
 /**
@@ -789,6 +889,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_TAGS, userTagsSchema, tListLen(userTagsSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_COLS, userColsSchema, tListLen(userColsSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_VC_COLS, userVctbColsSchema, tListLen(userVctbColsSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED, userTblFixedDistSchema, tListLen(userTblFixedDistSchema), false, PRIV_CAT_BASIC},
     // {TSDB_INS_TABLE_TABLE_DISTRIBUTED, userTblDistSchema, tListLen(userTblDistSchema), PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_USERS, userUsersSchema, tListLen(userUsersSchema), true, PRIV_CAT_SECURITY},
     {TSDB_INS_TABLE_USERS_FULL, userUsersFullSchema, tListLen(userUsersFullSchema), true, PRIV_CAT_SECURITY},
@@ -796,6 +897,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_DNODE_VARIABLES, variablesSchema, tListLen(variablesSchema), true, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_CPU_ALLOCATION, cpuAllocationSchema, tListLen(cpuAllocationSchema), true, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_TOPICS, topicSchema, tListLen(topicSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_SUBSCRIPTIONS, subscriptionSchema, tListLen(subscriptionSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_STREAMS, streamSchema, tListLen(streamSchema), false, PRIV_CAT_BASIC},
@@ -818,6 +920,8 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_DISK_USAGE, diskUsageSchema, tListLen(diskUsageSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_FILESETS, filesetsFullSchema, tListLen(filesetsFullSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_TRANSACTION_DETAILS, userTransactionDetailSchema, tListLen(userTransactionDetailSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_SNAP_SEND_VNODES,   snapSendVnodesSchema,         tListLen(snapSendVnodesSchema),         false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_SNAP_SEND_FILESETS, snapSendFilesetsSchema,       tListLen(snapSendFilesetsSchema),       false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_MOUNTS, mountSchema, tListLen(mountSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_SCANS, userScansSchema, tListLen(userScansSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_SCAN_DETAILS, userScanDetailSchema, tListLen(userScanDetailSchema), false, PRIV_CAT_BASIC},
@@ -835,7 +939,12 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_XNODE_AGENTS, xnodeAgentsSchema, tListLen(xnodeAgentsSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_XNODE_JOBS, xnodeTaskJobSchema, tListLen(xnodeTaskJobSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, virtualTablesReferencing, tListLen(virtualTablesReferencing), true, PRIV_CAT_PRIVILEGED},
+    {TSDB_INS_TABLE_EXT_SOURCES, extSourcesSchema, tListLen(extSourcesSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_SECURITY_POLICIES, securityPoliciesSchema, tListLen(securityPoliciesSchema), true, PRIV_CAT_SECURITY},
+    {TSDB_INS_TABLE_TRANSACTION_LOGS,    transactionLogsSchema,   tListLen(transactionLogsSchema),   false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_TRANSACTION_ORPHANS, transactionOrphansSchema, tListLen(transactionOrphansSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_TRANSACTIONS, transSchema, tListLen(transSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_VSTABLE_INHERITS, vstableInheritsSchema, tListLen(vstableInheritsSchema), false, PRIV_CAT_BASIC},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

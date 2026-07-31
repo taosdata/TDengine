@@ -183,6 +183,11 @@ TEST_F(PlanBasicTest, indefiniteRowsFunc) {
   run("SELECT DIFF(c1), c2 FROM t1");
 
   run("SELECT DIFF(c1), DIFF(c3), ts FROM t1");
+
+  run("SELECT _rowts, lag(c1, 1) FROM t1 ORDER BY ts");
+
+  run("SELECT TBNAME, _rowts, lag(c1, 1, -1) FROM st1 PARTITION BY TBNAME ORDER BY TBNAME, ts");
+  ASSERT_TRUE(aggOutputsMatchFuncs());
 }
 
 TEST_F(PlanBasicTest, withoutFrom) {

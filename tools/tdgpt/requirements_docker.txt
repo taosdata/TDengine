@@ -4,9 +4,13 @@ pandas==2.2.0 ; python_version >= "3.12"
 waitress==3.0.1; sys_platform == "win32"
 scipy==1.15.0
 wheel==0.38.1
+urllib3==2.7.0
 scikit-learn==1.5.2
 outlier-utils==0.0.5
 statsmodels==0.14.4
+# Direct StatsForecast runtime dependencies are pinned explicitly in this file:
+# pandas, scipy, scikit-learn, and numpy.
+statsforecast==2.0.3
 pyculiarity==0.0.7
 Cython==3.0.11
 pmdarima==2.0.4

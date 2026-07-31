@@ -1,18 +1,127 @@
 ---
 title: Functions
+toc_max_heading_level: 4
 ---
 
-## Single Row Functions
+## Function Classification
 
-Single row functions return a result row for each row in the query results.
+### Three Types of Functions: Scalar, Aggregate, and Set
 
-### Mathematical Functions
+Functions are divided into three categories based on the **input-to-output row relationship**, which is the primary classification dimension:
 
-#### ABS
+1. **Scalar Functions**: Each input row produces one output row (1 → 1). Each row's calculation depends only on the current row's input values.
+
+2. **Aggregate Functions**: Multiple input rows produce a single result value (N → 1). The result can only be produced after seeing all input rows.
+
+3. **Set Functions**: Multiple input rows produce one or more result rows (N → M, where M ≥ 1). The number of output rows is determined by the function semantics, parameters, or data. M=1 is a degenerate case (e.g., `TOP(col,1)`); the difference from aggregate functions is that aggregate functions always output exactly 1 row while set functions may output more than 1. The difference from scalar functions is that each output row of a set function may depend on multiple input rows (e.g., neighboring row context), whereas scalar functions depend only on the current row.
+
+### Pipeline Function Description
+
+Beyond the three primary categories, some functions also have an **orthogonal attribute — Pipeline**:
+
+> **Pipeline Functions**: Each output row of the function maintains a correspondence with one input row, so scalar expressions or regular columns on the same output row can continue to use that input row's timestamp and other column values. A pipeline function itself may directly return a value from the corresponding input row, or compute a result from that input row, neighboring rows, cumulative state, sliding windows, or candidate sets.
+
+The pipeline attribute can appear in both aggregate and set function categories:
+
+- **Pipeline Aggregate Functions** (N→1): FIRST, LAST, LAST_ROW, MAX, MIN, MODE
+- **Pipeline Set Functions** (N→M): LAG, LEAD, FILL_FORWARD, CSUM, MAVG, STATECOUNT, STATEDURATION, DIFF, DERIVATIVE, TOP, BOTTOM, SAMPLE, TAIL, UNIQUE, COLS
+
+#### Core Characteristics
+
+The essential characteristic that distinguishes pipeline functions from ordinary aggregate functions is that **they execute before scalar functions, their output serves as input for co-located scalar/regular columns, and there is a row-correspondence relationship between output and input** — each output row corresponds to a specific row in the original input, and that row's timestamp and other column values can be used in subsequent scalar operations.
+
+Pipeline functions are divided into two types based on their computation mode:
+
+| Mode | Description | Representative Functions |
+|------|-------------|--------------------------|
+| **Row-by-Row Transformation** | Scans input row by row in order; each row is processed by the function to produce a corresponding output row; computation may depend on context (neighboring rows, cumulative state, sliding window, etc.), but output rows maintain positional correspondence with input rows | LAG, LEAD, FILL_FORWARD, CSUM, MAVG, STATECOUNT, STATEDURATION, DIFF, DERIVATIVE |
+| **Subset Selection** | Selects a subset of original rows from the full input based on sorting, random sampling, or positional criteria; each selected row is still a complete original row with unchanged timestamp and column values | FIRST, LAST, LAST_ROW, MAX, MIN, MODE, TOP, BOTTOM, SAMPLE, TAIL, UNIQUE |
+
+#### Execution Order When Coexisting with Other Functions
+
+When multiple functions appear together in the same SELECT, execution proceeds in two phases:
+
+##### Phase 1: Non-scalar functions compute independently and in parallel
+
+Pipeline functions and other aggregate/set functions each **independently and in parallel** process the same input sequence without interfering with each other. Note that scalar functions nested within other non-scalar functions also execute in this phase.
+
+##### Phase 2: Scalar function post-processing
+
+Co-located scalar functions do not participate in Phase 1. Instead, after Phase 1 pipeline functions have determined the output row set, scalar functions **evaluate independently on each output row**, effectively post-processing the results of the previous phase. The original column values referenced by scalar expressions are taken from the input row corresponding to the current output row. When multiple pipeline functions are present, the constraints and behavior are described in "Uniqueness Constraint When Scalar and Pipeline Functions Coexist."
+
+##### Complete Example
+
+```sql
+SELECT abs(voltage), CSUM(current), LAG(voltage, 1) FROM meters;
+```
+
+Assume 4 input rows:
+
+| ts | voltage | current |
+|----|---------|---------|
+| t1 | 220     | 1.0     |
+| t2 | 215     | 1.5     |
+| t3 | 225     | 2.0     |
+| t4 | 210     | 1.2     |
+
+**Phase 1**: `CSUM(current)` and `LAG(voltage, 1)` each independently scan the same input, both outputting N=4 rows. Both are row-by-row transformation type; the i-th output row comes from the same input row, so they are concatenated by timestamp alignment:
+
+| ts | CSUM(current) | LAG(voltage,1) | voltage (original column, for scalar use) |
+|----|--------------|----------------|-------------------------------------------|
+| t1 | 1.0          | NULL           | 220 |
+| t2 | 2.5          | 220            | 215 |
+| t3 | 4.5          | 215            | 225 |
+| t4 | 5.7          | 225            | 210 |
+
+**Phase 2**: `abs(voltage)` takes the voltage value on each output row and computes the absolute value (voltage values are all positive here, so the result is unchanged — shown for illustration only):
+
+| ts | abs(voltage) | CSUM(current) | LAG(voltage,1) |
+|----|-------------|--------------|----------------|
+| t1 | 220         | 1.0          | NULL           |
+| t2 | 215         | 2.5          | 220            |
+| t3 | 225         | 4.5          | 215            |
+| t4 | 210         | 5.7          | 225            |
+
+## Function Usage Rules
+
+### Nesting Rules
+
+1. **Scalar functions can nest with any type of function** as long as parameter requirements are satisfied:
+   - Scalar functions can be used as arguments to aggregate, set, or other scalar functions (scalar as inner layer): `SUM(abs(voltage))`
+   - Results of aggregate, set, or other scalar functions can be used as arguments to scalar functions (scalar as outer layer): `abs(SUM(voltage))`, `ROUND(AVG(voltage), 2)`, `abs(TOP(voltage, 1))`
+2. **Aggregate and set functions cannot nest with each other**: Aggregate functions and set functions cannot be directly or indirectly nested with each other, with no exceptions.
+
+### Co-location Rules
+
+1. **Scalar ↔ Scalar**: Can coexist.
+2. **Aggregate ↔ Aggregate** (aggregate co-location rule): Can coexist; pipeline aggregate functions and non-pipeline aggregate functions can also be mixed. Valid: `SELECT MAX(voltage), SUM(current), COUNT(*) FROM meters`
+3. **Set ↔ Set** (set co-location rule): Can coexist when output row counts are equal; not allowed when row counts differ.
+4. **Scalar ↔ Aggregate** (scalar-aggregate co-location rule): Scalar expressions need a pipeline aggregate function to provide a row anchor.
+   - **SELECT contains a pipeline aggregate function**: Scalars can coexist with it; non-pipeline aggregate functions in the same SELECT can also coexist via the aggregate co-location rule. Valid: `SELECT abs(voltage), MAX(voltage) FROM meters`, `SELECT abs(voltage), MAX(voltage), SUM(current) FROM meters`
+   - **SELECT contains only non-pipeline aggregate functions (no pipeline aggregate functions)**: Scalars cannot coexist — there is no row anchor. Invalid: `SELECT abs(voltage), SUM(voltage) FROM meters`
+5. **Scalar ↔ Set** (scalar-set co-location rule), two cases:
+   - **Scalar ↔ Pipeline Set Function**: Can coexist; row count does not need to be considered. Valid: `SELECT abs(voltage), TOP(voltage, 5) FROM meters`, `SELECT voltage + 1, DIFF(voltage) FROM meters`
+   - **Scalar ↔ Non-pipeline Set Function (HISTOGRAM, etc.)**: **Cannot coexist**. Invalid: `SELECT abs(voltage), HISTOGRAM(voltage, 'linear_bin', '...', 0) FROM meters`
+6. **Aggregate ↔ Set** (aggregate-set co-location rule): Can coexist when output row counts are equal; not allowed when row counts differ.
+
+### Uniqueness Constraint When Scalar and Pipeline Functions Coexist
+
+When pipeline functions are present and the SELECT clause also contains scalar expressions, pipeline functions that **select a specific subset** from the input (FIRST, LAST, LAST_ROW, MAX, MIN, MODE, TOP, BOTTOM, SAMPLE, TAIL, UNIQUE) may have at most **one** such function; pipeline set functions that perform **row-by-row transformation** on input rows (LAG, LEAD, FILL_FORWARD, CSUM, MAVG, STATECOUNT, STATEDURATION, DIFF, DERIVATIVE) are not subject to this constraint, but multiple set functions coexisting must still satisfy the equal output row count requirement.
+
+> - Valid: `SELECT abs(voltage), MAX(voltage) FROM meters` — only one subset-selection pipeline function, row context is unambiguous
+> - Invalid: `SELECT abs(voltage), MAX(voltage), MIN(current) FROM meters` — two subset-selection pipeline functions, each anchoring a different row, scalar row context is ambiguous
+> - Invalid: `SELECT abs(voltage), TOP(voltage,5), TOP(current,5) FROM meters` — two subset-selection pipeline functions, each selecting different sets of original rows
+> - Valid: `SELECT voltage + 1, LAG(voltage, 1), CSUM(current) FROM meters` — all are row-by-row transformation pipeline set functions, not subject to the uniqueness constraint (but must satisfy the set co-location rule: LAG and CSUM both output N rows)
+
+## Mathematical Functions
+
+### ABS
 
 ```sql
 ABS(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Gets the absolute value of the specified field.
 
@@ -26,11 +135,13 @@ ABS(expr)
 
 **Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
-#### ACOS
+### ACOS
 
 ```sql
 ACOS(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Gets the arccosine of the specified field.
 
@@ -44,11 +155,13 @@ ACOS(expr)
 
 **Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
-#### ASIN
+### ASIN
 
 ```sql
 ASIN(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Gets the arcsine of the specified field.
 
@@ -62,11 +175,13 @@ ASIN(expr)
 
 **Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
-#### ATAN
+### ATAN
 
 ```sql
 ATAN(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Gets the arctangent of the specified field.
 
@@ -80,11 +195,13 @@ ATAN(expr)
 
 **Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
-#### CEIL
+### CEIL
 
 ```sql
 CEIL(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Gets the ceiling of the specified field.
 
@@ -98,11 +215,58 @@ CEIL(expr)
 
 **Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
-#### COS
+### CORR
+
+```sql
+CORR(expr1, expr2)
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**: Calculates the Pearson correlation coefficient between two columns of data. This value reflects the strength and direction of the linear relationship between two sequences, and the return value is between -1 and 1.
+
+**Version**: v3.3.8.0
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**:
+
+- `expr1`: Numeric types.
+- `expr2`: Numeric types.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- If `expr1` or `expr2` is NULL, returns NULL.
+
+**Example**:
+
+```sql
+taos> select k, j from test_corr;
+      k      |      j      |
+============================
+           1 |           2 |
+           2 |           3 |
+           3 |           5 |
+           4 |           7 |
+           5 |           8 |
+
+taos> select corr(k, j) from test_corr;
+         corr(k,j)         |
+============================
+         0.992277876713668 |
+```
+
+### COS
 
 ```sql
 COS(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Gets the cosine of the specified field.
 
@@ -116,20 +280,24 @@ COS(expr)
 
 **Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
-#### FLOOR
+### FLOOR
 
 ```sql
 FLOOR(expr)
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: Gets the floor of the specified field.
  Other usage notes see [CEIL](#ceil) function description.
 
-#### GREATEST
+### GREATEST
 
 ```sql
 GREATEST(expr1, expr2[, expr]...)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Get the maximum value of all input parameters. The minimum number of parameters for this function is 2.
 
@@ -144,27 +312,34 @@ GREATEST(expr1, expr2[, expr]...)
 
 **Comparison rules**: The following rules describe the conversion method of the comparison operation:
 
-- If any parameter is NULL, the comparison result is NULL.
+- If any parameter is NULL, the comparison result is NULL. (See `ignoreNullInGreatest` below to skip NULL arguments instead.)
 - If all parameters in the comparison operation are string types, compare them as string types
 - If all parameters are numeric types, compare them as numeric types.
 - If there are both string types and numeric types in the parameters, according to the `compareAsStrInGreatest` configuration item, they are uniformly compared as strings or numeric values. By default, they are compared as strings.
 - In all cases, when different types are compared, the comparison type will choose the type with a larger range for comparison. For example, when comparing integer types, if there is a BIGINT type, BIGINT will definitely be selected as the comparison type.
 
-**Related configuration items**: Client configuration, compareAsStrInGreatest is 1, which means that both string types and numeric types are converted to string comparisons, and 0 means that they are converted to numeric types. The default is 1.
+**Related configuration items**:
 
-#### LEAST
+- `compareAsStrInGreatest` (client configuration): `1` means that when both string types and numeric types are present they are uniformly compared as strings; `0` means they are uniformly compared as numeric values. The default is `1`.
+- `ignoreNullInGreatest` (client configuration, available since ver-3.4.2.0): `0` (default) keeps the MySQL-compatible behavior — any NULL argument makes the result NULL. `1` skips NULL arguments and compares only the non-NULL values; if every argument is NULL, the result is still NULL. This option is orthogonal to `compareAsStrInGreatest`: it only controls NULL handling, the comparison rules above for non-NULL values are unchanged.
+
+### LEAST
 
 ```sql
 LEAST(expr1, expr2[, expr]...)
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: Get the minimum value of all input parameters. The rest of the description is the same as the [GREATEST](#greatest) function.
 
-#### LOG
+### LOG
 
 ```sql
 LOG(expr1[, expr2])
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Gets the logarithm of expr1 to the base expr2. If the expr2 parameter is omitted, it returns the natural logarithm of the specified field.
 
@@ -178,11 +353,13 @@ LOG(expr1[, expr2])
 
 **Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
-#### POW
+### POW
 
 ```sql
 POW(expr1, expr2)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Gets the power of expr1 raised to the exponent expr2.
 
@@ -196,11 +373,13 @@ POW(expr1, expr2)
 
 **Usage Instructions**: Can only be used with regular columns, selection (Selection), projection (Projection) functions, and cannot be used with aggregation (Aggregation) functions.
 
-#### ROUND
+### ROUND
 
 ```sql
 ROUND(expr[, digits])
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Obtains the rounded result of the specified field.
 
@@ -240,11 +419,13 @@ taos> select round(8888.88,-1);
       8890.000000000000000 |
 ```
 
-#### SIN
+### SIN
 
 ```sql
 SIN(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Obtains the sine result of the specified field.
 
@@ -258,11 +439,13 @@ SIN(expr)
 
 **Usage Instructions**: Can only be used with regular columns, selection (Selection), projection (Projection) functions, and cannot be used with aggregation (Aggregation) functions.
 
-#### SQRT
+### SQRT
 
 ```sql
 SQRT(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Obtains the square root of the specified field.
 
@@ -276,11 +459,13 @@ SQRT(expr)
 
 **Usage Instructions**: Can only be used with regular columns, selection (Selection), projection (Projection) functions, and cannot be used with aggregation (Aggregation) functions.
 
-#### TAN
+### TAN
 
 ```sql
 TAN(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Obtains the tangent result of the specified field.
 
@@ -296,11 +481,13 @@ TAN(expr)
 
 **Usage Instructions**: Can only be used with regular columns, selection (Selection), projection (Projection) functions, and cannot be used with aggregation (Aggregation) functions.
 
-#### PI
+### PI
 
 ```sql
 PI()
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the value of π (pi).
 
@@ -326,11 +513,13 @@ taos> select pi();
          3.141592653589793 |
 ```
 
-##### TRUNCATE
+### TRUNCATE
 
 ```sql
 TRUNCATE(expr, digits)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Gets the truncated value of the specified field to the specified number of digits.
 
@@ -371,11 +560,13 @@ taos> select truncate(8888.88, -1);
     8880.000000000000000 |
 ```
 
-#### EXP
+### EXP
 
 ```sql
 EXP(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the value of e (the base of natural logarithms) raised to the specified power.
 
@@ -403,11 +594,13 @@ taos> select exp(2);
          7.389056098930650 |
 ```
 
-#### LN
+### LN
 
 ```sql
 LN(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the natural logarithm of the specified parameter.
 
@@ -436,11 +629,13 @@ taos> select ln(10);
          2.302585092994046 |
 ```
 
-#### MOD
+### MOD
 
 ```sql
 MOD(expr1, expr2)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Calculates the result of expr1 % expr2.
 
@@ -474,11 +669,13 @@ taos> select mod(1,0);
  NULL                      |
 ```
 
-#### RAND
+### RAND
 
 ```sql
 RAND([seed])
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns a uniformly distributed random number from 0 to 1.
 
@@ -523,11 +720,13 @@ taos> select rand(1);
          0.000007826369259 |
 ```
 
-#### SIGN
+### SIGN
 
 ```sql
 SIGN(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the sign of the specified parameter.
 
@@ -568,11 +767,13 @@ taos> select sign(0);
                      0 |
 ```
 
-#### DEGREES
+### DEGREES
 
 ```sql
 DEGREES(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Calculates the value of the specified parameter converted from radians to degrees.
 
@@ -601,11 +802,13 @@ taos> select degrees(PI());
        180.000000000000000 |
 ```
 
-#### RADIANS
+### RADIANS
 
 ```sql
 RADIANS(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Calculates the value of the specified parameter converted from degrees to radians.
 
@@ -634,91 +837,17 @@ taos> select radians(180);
          3.141592653589793 |
 ```
 
-#### CRC32
-
-```sql
-CRC32(expr)
-```
-
-**Function Description**: Returns the unsigned 32-bit integer that represents the Cyclic Redundancy Check (CRC).
-
-**Return Type**: INT UNSIGNED.
-
-**Applicable Data Types**: Suitable for any type.
-
-**Nested Subquery Support**: Applicable to both inner and outer queries.
-
-**Applicable to**: Tables and supertables.
-
-**Usage Instructions**:
-
-- If `expr` is NULL, it returns NULL.
-- if `expr` is the empty string, it returns 0.
-- if `expr` is a non string, it is interpreted as a string.
-- This function is multibyte safe.
-
-**Example**:
-
-```sql
-taos> select crc32(NULL);
- crc32(null) |
-==============
- NULL        |
-
-taos> select crc32("");
-  crc32("")  |
-==============
-           0 |
-
-taos> select crc32(123);
- crc32(123)  |
-==============
-  2286445522 |
-
-taos> select crc32(123.456);
- crc32(123.456) |
-=================
-      844093190 |
-
-taos> select crc32(TO_TIMESTAMP("2000-01-01", "yyyy-mm-dd hh24:mi:ss"));
- crc32(to_timestamp("2000-01-01", "yyyy-mm-dd hh24:mi:ss")) |
-=============================================================
-                                                 2274736693 |
-
-taos> select crc32("This is a string");
- crc32("This is a string") |
-============================
-                 141976383 |
-
-taos> select crc32("这是一个字符串");
- crc32("这是一个字符串") |
-========================
-            1902862441 |
-
-taos> select crc32(col_name) from ins_columns limit 10;
- crc32(col_name) |
-==================
-      3208210256 |
-      3292663675 |
-      3081158046 |
-      1063017838 |
-      2063623452 |
-      3996452140 |
-      2559042119 |
-      3485334036 |
-      3208210256 |
-      3292663675 |
-```
-
-### String Functions
+## String Functions
 
 The input parameters for string functions are of string type, and the return results are of numeric type or string type.
 
-#### CHAR_LENGTH
+### CHAR_LENGTH
 
 ```sql
 CHAR_LENGTH(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: String length counted in characters.
 
@@ -753,11 +882,13 @@ taos> select char_length('你好 世界');
                             5 |
 ```
 
-#### CONCAT
+### CONCAT
 
 ```sql
 CONCAT(expr1, expr2 [, expr] ... )
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: String concatenation function.
 
@@ -769,11 +900,13 @@ CONCAT(expr1, expr2 [, expr] ... )
 
 **Applicable to**: Tables and supertables.
 
-#### CONCAT_WS
+### CONCAT_WS
 
 ```sql
 CONCAT_WS(separator_expr, expr1, expr2 [, expr] ... )
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: String concatenation function with a separator.
 
@@ -785,11 +918,13 @@ CONCAT_WS(separator_expr, expr1, expr2 [, expr] ... )
 
 **Applicable to**: Tables and supertables.
 
-#### FIND_IN_SET
+### FIND_IN_SET
 
 ```sql
 FIND_IN_SET(expr1, expr2[, expr3])
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Split `expr2` into a list of strings using `expr3` as the separator, then return the index of `expr1` in the list, return 0 if not exist.  `expr3` cannot be NULL or empty string, if not provided, the default is `,`.
 
@@ -801,11 +936,13 @@ FIND_IN_SET(expr1, expr2[, expr3])
 
 **Applicable to**: Tables and supertables.
 
-#### LENGTH
+### LENGTH
 
 ```sql
 LENGTH(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Length in bytes.
 
@@ -817,11 +954,13 @@ LENGTH(expr)
 
 **Applicable to**: Tables and supertables.
 
-#### LIKE_IN_SET
+### LIKE_IN_SET
 
 ```sql
 LIKE_IN_SET(expr1, expr2[, expr3])
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Split `expr2` into a list of strings using `expr3` as the separator, then match `expr1` with the items using the semantics of the `LIKE` operator, return the index of the first matched item, return 0 if there's no match.  `expr3` cannot be NULL or empty string, if not provided, the default is `,`.
 
@@ -833,11 +972,13 @@ LIKE_IN_SET(expr1, expr2[, expr3])
 
 **Applicable to**: Tables and supertables.
 
-#### LOWER
+### LOWER
 
 ```sql
 LOWER(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Converts the string argument value to all lowercase letters.
 
@@ -849,11 +990,13 @@ LOWER(expr)
 
 **Applicable to**: Tables and supertables.
 
-#### LTRIM
+### LTRIM
 
 ```sql
 LTRIM(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the string after removing left-side spaces.
 
@@ -865,11 +1008,58 @@ LTRIM(expr)
 
 **Applicable to**: Tables and supertables.
 
-#### REGEXP_IN_SET
+### REGEXP_EXTRACT
+
+```sql
+REGEXP_EXTRACT(expr, pattern [, group_idx])
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Applies the POSIX extended regular expression `pattern` to `expr` and returns the substring matched by capture group `group_idx`. Returns NULL when there is no match or when `expr` or `pattern` is NULL.
+
+**Return Type**: Same as `expr` (VARCHAR or NCHAR).
+
+**Applicable Data Types**: `expr`: VARCHAR, NCHAR. `pattern`: VARCHAR, NCHAR.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- If omitted, `group_idx` defaults to `1`.
+- If provided as a non-`NULL` value, `group_idx` must be a non-negative integer constant. `0` returns the entire match; `1` returns the first capture group, `2` the second, and so on. The maximum value is 512.
+- If `group_idx` is SQL `NULL`, the function returns `NULL`.
+- Returns NULL if `group_idx` exceeds the number of capture groups in `pattern`, or if the addressed group did not participate in the match.
+- `pattern` must be provided as a constant literal or parameter placeholder; it cannot reference a column or be computed from other expressions.
+
+**Example**:
+
+```sql
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1) |
+=======================================================================
+ 2026                                                                  |
+
+taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0);
+ regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0) |
+=======================================================================
+ 2026-04-22                                                            |
+
+taos> SELECT REGEXP_EXTRACT('no-digits-here', '[0-9]+', 1);
+ regexp_extract('no-digits-here', '[0-9]+', 1) |
+===============================================
+ NULL                                          |
+```
+
+### REGEXP_IN_SET
 
 ```sql
 REGEXP_IN_SET(expr1, expr2[, expr3])
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Split `expr2` into a list of strings using `expr3` as the separator, then using `expr1` as a regular expression to match the items, return the index of the first matched item, return 0 if there's no match.  `expr3` cannot be NULL or empty string, if not provided, the default is `,`.
 
@@ -881,11 +1071,13 @@ REGEXP_IN_SET(expr1, expr2[, expr3])
 
 **Applicable to**: Tables and supertables.
 
-#### RTRIM
+### RTRIM
 
 ```sql
 RTRIM(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the string after removing right-side spaces.
 
@@ -897,12 +1089,14 @@ RTRIM(expr)
 
 **Applicable to**: Tables and supertables.
 
-#### TRIM
+### TRIM
 
 ```sql
 TRIM([{LEADING | TRAILING | BOTH} [remstr] FROM] expr)
 TRIM([remstr FROM] expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the string expr with all prefixes or suffixes of remstr removed.
 
@@ -956,12 +1150,14 @@ taos> select trim(both 'b' from 'bbbbbabbbbbb');
  a                                  |
 ```
 
-#### SUBSTRING/SUBSTR
+### SUBSTRING/SUBSTR
 
 ```sql
 SUBSTRING/SUBSTR(expr, pos [, len])
 SUBSTRING/SUBSTR(expr FROM pos [FOR len])
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns a substring of string `expr` starting at position `pos`. If `len` is specified, it returns the substring starting at position `pos` with length `len`.
 
@@ -1018,11 +1214,13 @@ taos> select substring('tdengine', -3,-3);
                               |
 ```
 
-#### SUBSTRING_INDEX
+### SUBSTRING_INDEX
 
 ```sql
 SUBSTRING_INDEX(expr, delim, count)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns a substring of `expr` cut at the position where the delimiter appears the specified number of times.
 
@@ -1061,11 +1259,13 @@ taos> select substring_index('www.tdengine.com','.',-2);
  tdengine.com                               |
 ```
 
-#### UPPER
+### UPPER
 
 ```sql
 UPPER(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Converts the string argument value to all uppercase letters.
 
@@ -1077,11 +1277,13 @@ UPPER(expr)
 
 **Applicable to**: Tables and supertables.
 
-#### CHAR
+### CHAR
 
 ```sql
 CHAR(expr1 [, expr2] [, expr3] ...)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Treats the input parameters as integers and returns the characters corresponding to these integers in ASCII encoding.
 
@@ -1127,11 +1329,13 @@ taos> select char(77,NULL,77);
  MM               |
 ```
 
-#### ASCII
+### ASCII
 
 ```sql
 ASCII(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the ASCII code of the first character of the string.
 
@@ -1159,11 +1363,13 @@ taos> select ascii('testascii');
                 116 |
 ```
 
-#### POSITION
+### POSITION
 
 ```sql
 POSITION(expr1 IN expr2)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Calculates the position of string `expr1` in string `expr2`.
 
@@ -1208,11 +1414,13 @@ taos> select position('d' in 'cba');
                       0 |
 ```
 
-#### REPLACE
+### REPLACE
 
 ```sql
 REPLACE(expr, from_str, to_str)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Replaces all occurrences of `from_str` in the string with `to_str`.
 
@@ -1245,11 +1453,13 @@ taos> select replace('aabbccAABBCC', 'AA', 'DD');
  aabbccDDBBCC                        |
 ```
 
-#### REPEAT
+### REPEAT
 
 ```sql
 REPEAT(expr, count)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns a string that repeats the string `expr` a specified number of times.
 
@@ -1285,6 +1495,8 @@ taos> select repeat('abc',-1);
                   |
 ```
 
+## Data Security and Codec Functions
+
 ### Encoding Functions
 
 #### TO_BASE64
@@ -1292,6 +1504,8 @@ taos> select repeat('abc',-1);
 ```sql
 TO_BASE64(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the base64 encoding of `expr`. For non-string types, the value is first converted to its string representation before encoding.
 
@@ -1352,6 +1566,8 @@ taos> select to_base64("你好 世界");
 FROM_BASE64(expr)
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: Decode the base64 encoded string `expr`.
 
 **Return Type**: VARCHAR.
@@ -1385,6 +1601,8 @@ Query OK, 1 row(s) in set (0.000786s)
 ```sql
 MD5(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Calculates an MD5 128-bit checksum for the string `expr`.
 
@@ -1420,6 +1638,8 @@ Insert OK, 1 row(s) affected (0.005111s)
 SHA1(expr)
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: Calculates an SHA-1 160-bit checksum for the string `expr`, as described in RFC 3174 (Secure Hash Algorithm).
 
 **Return Type**: VARCHAR.
@@ -1452,6 +1672,8 @@ Query OK, 1 row(s) in set (0.000658s)
 SHA2(expr, hash_length)
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: Calculates the SHA-2 family of hash functions (SHA-224, SHA-256, SHA-384, and SHA-512).
 
 **Return Type**: VARCHAR.
@@ -1478,6 +1700,84 @@ sha2('mytext', 224): 576e8f2cf59ebc59dd7659c48916f162ae0cf35937563999d5a7800e
 Query OK, 1 row(s) in set (0.000569s)
 ```
 
+#### CRC32
+
+```sql
+CRC32(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the unsigned 32-bit integer that represents the Cyclic Redundancy Check (CRC).
+
+**Return Type**: INT UNSIGNED.
+
+**Applicable Data Types**: Suitable for any type.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- If `expr` is NULL, it returns NULL.
+- If `expr` is the empty string, it returns 0.
+- If `expr` is a non string, it is interpreted as a string.
+- This function is multibyte safe.
+
+**Example**:
+
+```sql
+taos> select crc32(NULL);
+ crc32(null) |
+==============
+ NULL        |
+
+taos> select crc32("");
+  crc32("")  |
+==============
+           0 |
+
+taos> select crc32(123);
+ crc32(123)  |
+==============
+  2286445522 |
+
+taos> select crc32(123.456);
+ crc32(123.456) |
+=================
+      844093190 |
+
+taos> select crc32(TO_TIMESTAMP("2000-01-01", "yyyy-mm-dd hh24:mi:ss"));
+ crc32(to_timestamp("2000-01-01", "yyyy-mm-dd hh24:mi:ss")) |
+=============================================================
+                                                 2274736693 |
+
+taos> select crc32("This is a string");
+ crc32("This is a string") |
+============================
+                 141976383 |
+
+taos> select crc32("这是一个字符串");
+ crc32("这是一个字符串") |
+========================
+            1902862441 |
+
+taos> select crc32(col_name) from ins_columns limit 10;
+ crc32(col_name) |
+==================
+      3208210256 |
+      3292663675 |
+      3081158046 |
+      1063017838 |
+      2063623452 |
+      3996452140 |
+      2559042119 |
+      3485334036 |
+      3208210256 |
+      3292663675 |
+```
+
 ### Data Masking Functions
 
 TDengine supports two approaches to data masking, each suited to different use cases:
@@ -1494,6 +1794,8 @@ For detailed syntax and behavior of grant-based column masking, see [GRANT — C
 ```sql
 MASK_FULL(str, replace_value)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Mask the string `str` fully with the string `replace_value`.
 
@@ -1523,6 +1825,8 @@ Query OK, 1 row(s) in set (0.002790s)
 ```sql
 MASK_PARTIAL(str, prefix_length, suffix_length, mask_char)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Mask the string `str` partially with the character `mask_char`.
 
@@ -1555,6 +1859,8 @@ Query OK, 1 row(s) in set (0.002787s)
 MASK_NONE(str)
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: Null masking for testing only.
 
 **Return Type**: VARCHAR.
@@ -1584,6 +1890,8 @@ Query OK, 1 row(s) in set (0.001474s)
 ```sql
 SM4_ENCRYPT(str, key_str)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Encrypts the string `str` using the key string `key_str`, and returns the encrypted output with SM4.
 
@@ -1619,6 +1927,8 @@ Query OK, 1 row(s) in set (0.003432s)
 SM4_DECRYPT(str, key_str)
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: Decrypts the string `str` using the key string `key_str`, and returns the decrypted output with SM4.
 
 **Return Type**: VARCHAR.
@@ -1646,6 +1956,8 @@ See `sm4_encrypt`.
 ```sql
 AES_ENCRYPT(str, key_str[, init_vector])
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Encrypts the string `str` using the key string `key_str`, and returns the encrypted output with AES-128-CBC or AES-128-ECB.
 
@@ -1681,6 +1993,8 @@ Query OK, 1 row(s) in set (0.000514s)
 AES_DECRYPT(str, key_str[, init_vector])
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: Decrypts the string `str` using the key string `key_str`, and returns the decrypted output with AES-128-CBC or AES-128-ECB.
 
 **Return Type**: VARCHAR.
@@ -1703,15 +2017,17 @@ AES_DECRYPT(str, key_str[, init_vector])
 
 See `aes_encrypt`.
 
-### Conversion Functions
+## Conversion Functions
 
 Conversion functions convert values from one data type to another.
 
-#### CAST
+### CAST
 
 ```sql
 CAST(expr AS type_name)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Data type conversion function, returns the result of converting `expr` to the type specified by `type_name`.
 
@@ -1732,13 +2048,15 @@ CAST(expr AS type_name)
         3) When converting to string types, if the converted length exceeds the length specified in `type_name`, it will be truncated, but will not throw an error.
 - The DECIMAL type does not support conversion to or from JSON, VARBINARY, or GEOMETRY types.
 
-#### TO_ISO8601
+### TO_ISO8601
 
 ```sql
 TO_ISO8601(expr [, timezone])
 ```
 
-**Function Description**: Converts a timestamp into the ISO8601 standard date and time format, with additional timezone information. The `timezone` parameter allows users to specify any timezone information for the output. If the `timezone` parameter is omitted, the output will include the current client system's timezone information.
+**Function Classification**: Scalar function.
+
+**Function Description**: Converts a timestamp into the ISO8601 standard date and time format, with timezone information. The optional `timezone` parameter allows users to specify the output timezone. If omitted, it uses the current connection timezone first; if not set, it uses the client timezone; if still unavailable, it falls back to the system default timezone.
 
 **Return Data Type**: VARCHAR type.
 
@@ -1750,14 +2068,18 @@ TO_ISO8601(expr [, timezone])
 
 **Usage Notes**:
 
-- The `timezone` parameter accepts timezone formats: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]. For example, TO_ISO8601(1, "+00:00"). The valid timezone offset range is -14:00 to +14:00.
+- The `timezone` parameter accepts the formats described in [Supported Timezone Formats](./95-timezone.md#supported-timezone-formats). **Only `TO_ISO8601` interprets offsets in ISO 8601 convention** (`local = UTC + offset`, i.e. `'+08:00'` = east-8 = Beijing time); `'+0800'`, `'UTC+8'`, `'UTC+0800'`, and `'UTC+08:00'` all behave identically. See [ISO 8601 sign convention](./95-timezone.md#to_iso8601).
+- If `timezone` is omitted, it uses the current connection timezone.
+- For IANA timezone input, the output offset is DST-aware for the target timestamp.
 - The precision of the input timestamp is determined by the precision of the table queried, if no table is specified, the precision is milliseconds.
 
-#### TO_JSON
+### TO_JSON
 
 ```sql
 TO_JSON(str_literal)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Converts a string literal to JSON type.
 
@@ -1769,7 +2091,7 @@ TO_JSON(str_literal)
 
 **Applicable to**: Tables and supertables.
 
-#### TO_UNIXTIMESTAMP
+### TO_UNIXTIMESTAMP
 
 ```sql
 TO_UNIXTIMESTAMP(expr [, return_timestamp])
@@ -1779,6 +2101,8 @@ return_timestamp: {
   | 1
 }
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Converts a datetime format string into a timestamp.
 
@@ -1795,14 +2119,17 @@ return_timestamp: {
 - The input datetime string must conform to the ISO8601/RFC3339 standards, and formats that cannot be converted will return NULL.
 - The precision of the returned timestamp is consistent with the time precision setting of the current DATABASE.
 - return_timestamp specifies whether the function's return value is of TIMESTAMP type; setting it to 1 returns TIMESTAMP type, setting it to 0 returns BIGINT type. If not specified, it defaults to BIGINT type.
+- An input string without a timezone is parsed in the current connection timezone. If a non-connection timezone is needed, timezone information can be carried in the input datetime string, in which case the timezone it carries takes precedence.
 
-#### TO_CHAR
+### TO_CHAR
 
 ```sql
-TO_CHAR(ts, format_str_literal)
+TO_CHAR(ts, format_str_literal [, timezone])
 ```
 
-**Function Description**: Converts a timestamp type to a string according to the specified format
+**Function Classification**: Scalar function.
+
+**Function Description**: Converts a timestamp type to a string according to the specified format.
 
 **Version**: ver-3.2.2.0
 
@@ -1856,14 +2183,18 @@ Supported Formats:
 - When using `ms`, `us`, `ns`, the output of the above three formats only differs in precision, for example, if ts is `1697182085123`, the output for `ms` is `123`, for `us` is `123000`, and for `ns` is `123000000`.
 - Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
 - Formats that output numbers, such as `YYYY`, `DD`, uppercase and lowercase have the same meaning, i.e., `yyyy` and `YYYY` are interchangeable.
-- It is recommended to include timezone information in the time format; if not included, the default output timezone is the timezone configured by the server or client.
+- If `timezone` is provided, the accepted formats are described in [Supported Timezone Formats](./95-timezone.md#supported-timezone-formats).
+- If `timezone` is omitted, it uses the current connection timezone.
+- For IANA timezone input, the output offset is DST-aware for the target timestamp.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, then the precision is milliseconds.
 
-#### TO_TIMESTAMP
+### TO_TIMESTAMP
 
 ```sql
 TO_TIMESTAMP(ts_str_literal, format_str_literal)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Converts a string to a timestamp according to the specified format.
 
@@ -1884,23 +2215,25 @@ TO_TIMESTAMP(ts_str_literal, format_str_literal)
 - If `ms`, `us`, `ns` are specified at the same time, then the resulting timestamp includes the sum of these three fields. For example, `to_timestamp('2023-10-10 10:10:10.123.000456.000000789', 'yyyy-mm-dd hh:mi:ss.ms.us.ns')` outputs the timestamp corresponding to `2023-10-10 10:10:10.123456789`.
 - `MONTH`, `MON`, `DAY`, `DY` and other formats that output numbers have the same meaning in uppercase and lowercase, such as `to_timestamp('2023-JANUARY-01', 'YYYY-month-dd')`, `month` can be replaced with `MONTH` or `Month`.
 - If the same field is specified multiple times, the earlier specification will be overridden. For example, `to_timestamp('2023-22-10-10', 'yyyy-yy-MM-dd')`, the output year is `2022`.
-- To avoid using an unintended timezone during conversion, it is recommended to carry timezone information in the time, for example, '2023-10-10 10:10:10+08'; if no timezone is specified, the default timezone is the one specified by the server or client.
+- If no timezone is specified, the connection-level timezone is used. If a non-connection timezone is needed, timezone information can be carried in the input datetime string, for example, '2023-10-10 10:10:10+08'.
 - If a complete time is not specified, then the default time value is `1970-01-01 00:00:00` in the specified or default timezone, and the unspecified parts use the corresponding parts of this default value. Formats that only specify the year and day without specifying the month and day, like 'yyyy-mm-DDD', are not supported, but 'yyyy-mm-DD' is supported.
 - If the format string contains `AM`, `PM`, etc., then the hour must be in 12-hour format, ranging from 01-12.
 - `to_timestamp` conversion has a certain tolerance mechanism; even when the format string and timestamp string do not completely correspond, conversion is sometimes possible, like: `to_timestamp('200101/2', 'yyyyMM1/dd')`, the extra 1 in the format string will be discarded. Extra whitespace characters (spaces, tabs, etc.) in the format string and timestamp string will also be automatically ignored. Although fields like `MM` require two digits (with a leading zero if only one digit), in `to_timestamp`, a single digit can also be successfully converted.
 - The precision of the output timestamp is the same as the precision of the queried table; if no table is specified, then the output precision is milliseconds. For example, `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns')` will truncate microseconds and nanoseconds. If a nanosecond table is specified, truncation will not occur, like `select to_timestamp('2023-08-1 10:10:10.123456789', 'yyyy-mm-dd hh:mi:ss.ns') from db_ns.table_ns limit 1`.
 
-### Time and Date Functions
+## Time and Date Functions
 
 Time and date functions operate on timestamp types.
 
 All functions that return the current time, such as NOW, TODAY, and TIMEZONE, are calculated only once in a SQL statement, no matter how many times they appear.
 
-#### NOW
+### NOW
 
 ```sql
 NOW()
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the current system time of the client.
 
@@ -1914,15 +2247,19 @@ NOW()
 
 **Usage Instructions**:
 
-- Supports time addition and subtraction operations, such as NOW() + 1s. Supported time units include:
-        b(nanoseconds), u(microseconds), a(milliseconds), s(seconds), m(minutes), h(hours), d(days), w(weeks).
+- Supports time addition and subtraction operations, such as NOW() + 1s. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
+- `NOW()` and `NOW` both follow the current connection timezone set by `SET TIMEZONE`.
+- When using fixed-offset values with `SET TIMEZONE`, the sign is counterintuitive: `SET TIMEZONE '+08:00'` displays time 8 hours **behind** UTC, not ahead. Use `SET TIMEZONE 'Asia/Shanghai'` to get Beijing time reliably.
+- To verify which timezone a connection is using, run `SELECT TIMEZONE()`. To see the current time with timezone offset, run `SELECT TO_ISO8601(NOW())`.
 
-#### TIMEDIFF
+### TIMEDIFF
 
 ```sql
 TIMEDIFF(expr1, expr2 [, time_unit])
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the result of the timestamp `expr1` - `expr2`, which may be negative, and approximated to the time unit specified by the `time_unit`.
 
@@ -1944,7 +2281,7 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 - Returns NULL if `expr1` or `expr2` is NULL.
 - Returns NULL if the input contains strings that do not conform to any date-time format.
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
-- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units `time_unit` include: 1b (nanosecond), 1u (microsecond), 1a (millisecond), 1s (second), 1m (minute), 1h (hour), 1d (day), 1w (week).
+- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units are listed in [Time Units](./01-datatype.md#time-units).
 - If `time_unit` is NULL, it is equivalent to the time unit not being specified.
 
 **Example**:
@@ -1961,16 +2298,13 @@ taos> select timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s);
                                                          1 |
 ```
 
-#### TIMETRUNCATE
+### TIMETRUNCATE
 
 ```sql
-TIMETRUNCATE(expr, time_unit [, use_current_timezone])
-
-use_current_timezone: {
-    0
-  | 1
-}
+TIMETRUNCATE(expr, time_unit [, timezone_or_flag])
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Truncates the timestamp according to the specified time unit `time_unit`.
 
@@ -1982,26 +2316,27 @@ use_current_timezone: {
 
 **Usage Instructions**:
 
-- Supported time units `time_unit` include:
-          1b(nanoseconds), 1u(microseconds), 1a(milliseconds), 1s(seconds), 1m(minutes), 1h(hours), 1d(days), 1w(weeks).
+- Supported time units are listed in [Time Units](./01-datatype.md#time-units). For natural calendar truncation, `1n`, `1q`, and `1y` are supported.
 - The precision of the returned timestamp is consistent with the time precision set in the current DATABASE.
 - The precision of the input timestamp is determined by the precision of the table being queried; if no table is specified, the precision is milliseconds.
 - Returns NULL if the input contains strings that do not conform to the date-time format.
-- When using 1d/1w as the time unit to truncate timestamps, the `use_current_timezone` parameter can be set to specify whether to truncate based on the current timezone.
-  A value of 0 means truncation using the UTC timezone, and a value of 1 means truncation using the current timezone.
-  For example, if the client's configured timezone is UTC+0800, then TIMETRUNCATE('2020-01-01 23:00:00', 1d, 0) returns the East Eight Zone time '2020-01-01 08:00:00'.
-  Using TIMETRUNCATE('2020-01-01 23:00:00', 1d, 1) returns the East Eight Zone time '2020-01-01 00:00:00'.
-  When `use_current_timezone` is not specified, the default value is 1.
-- When truncating the time value to a week (1w), the calculation of timetruncate is based on the Unix timestamp (January 1, 1970, 00:00:00 UTC). Since the Unix timestamp starts on a Thursday,
-  all truncated dates are Thursdays.
+- The third parameter supports both integer flags and timezone strings.
+  - Integer `0`: truncates on fixed boundaries on the UTC timeline. For example, `1d` aligns to UTC `00:00`, and `1w` aligns to UTC week boundaries. The returned timestamp is still displayed in the current connection timezone.
+  - Integer `1`: truncates on local calendar boundaries in the current connection timezone.
+    - String timezone: accepts the formats described in [Supported Timezone Formats](./95-timezone.md#supported-timezone-formats).
+- When the third parameter is omitted, it uses the current connection timezone.
+- For `1w`, week alignment uses `firstDayOfWeek`. For `firstDayOfWeek` initialization and platform differences, see [firstDayOfWeek](../01-components/02-taosc.md#region-related).
+- `GMT` / `GMT±...` and ambiguous abbreviations (for example `CST`) are rejected.
 
-#### TIMEZONE
+### TIMEZONE
 
 ```sql
 TIMEZONE()
 ```
 
-**Function Description**: Returns the current timezone information of the client.
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the single effective timezone string for the current connection. It prefers the connection-level setting; if none is set, it falls back to the client-global timezone snapshotted when the connection was created, and then to the system default timezone.
 
 **Return Data Type**: VARCHAR.
 
@@ -2009,11 +2344,13 @@ TIMEZONE()
 
 **Applicable to**: Tables and supertables.
 
-#### TODAY
+### TODAY
 
 ```sql
 TODAY()
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the system time at midnight of the current day for the client.
 
@@ -2025,15 +2362,17 @@ TODAY()
 
 **Usage Instructions**:
 
-- Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units include:
-                b(nanoseconds), u(microseconds), a(milliseconds), s(seconds), m(minutes), h(hours), d(days), w(weeks).
+- Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units are listed in [Time Units](./01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set for the current DATABASE.
+- Timezone resolution uses the current connection timezone first; if not set, it uses the client timezone; if still unavailable, it falls back to the system default timezone.
 
-#### WEEK
+### WEEK
 
 ```sql
 WEEK(expr [, mode])
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the week number of the input date.
 
@@ -2073,6 +2412,7 @@ WEEK(expr [, mode])
   - In `mode=0`, the return value is `0` because the first Sunday of that year is `2000-01-02`, making `2000-01-02` the start of week 1, thus `2000-01-01` is week 0, returning 0.
   - In `mode=1`, the return value is `0` because the week containing `2000-01-01` only has two days, `2000-01-01 (Saturday)` and `2000-01-02 (Sunday)`, making `2000-01-03` the start of the first week, thus `2000-01-01` is week 0, returning 0.
   - In `mode=2`, the return value is `52` because `2000-01-02` starts week 1, and with the return value range being 1-53, `2000-01-01` is considered the last week of the previous year, i.e., the 52nd week of 1999, returning 52.
+- For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
 
 **Example**:
 
@@ -2098,11 +2438,13 @@ taos> select week('2000-01-01',3);
                     52 |
 ```
 
-#### WEEKOFYEAR
+### WEEKOFYEAR
 
 ```sql
 WEEKOFYEAR(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the week number of the input date.
 
@@ -2121,6 +2463,7 @@ WEEKOFYEAR(expr)
 - Equivalent to `WEEK(expr, 3)`, where the first day of the week is Monday, and the return value ranges from 1 to 53, with the first week containing four or more days being week 1.
 - If `expr` is NULL, returns NULL.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
 
 **Example**:
 
@@ -2131,11 +2474,13 @@ taos> select weekofyear('2000-01-01');
                        52 |
 ```
 
-#### WEEKDAY
+### WEEKDAY
 
 ```sql
 WEEKDAY(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the weekday of the input date.
 
@@ -2154,6 +2499,7 @@ WEEKDAY(expr)
 - Return value 0 represents Monday, 1 represents Tuesday ... 6 represents Sunday.
 - If `expr` is NULL, returns NULL.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
 
 **Example**:
 
@@ -2164,11 +2510,13 @@ taos> select weekday('2000-01-01');
                      5 |
 ```
 
-#### DAYOFWEEK
+### DAYOFWEEK
 
 ```sql
 DAYOFWEEK(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns the weekday of the input date.
 
@@ -2187,6 +2535,7 @@ DAYOFWEEK(expr)
 - Return value 1 represents Sunday, 2 represents Monday ... 7 represents Saturday.
 - If `expr` is NULL, returns NULL.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
 
 **Example**:
 
@@ -2197,11 +2546,13 @@ taos> select dayofweek('2000-01-01');
                        7 |
 ```
 
-#### DATE
+### DATE
 
 ```sql
 DATE(expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns date of the input time expression.
 
@@ -2221,7 +2572,7 @@ DATE(expr)
 - If `expr` is NULL, returns NULL.
 - If `expr` is of type VARCHAR or NCHAR but does not conform to the ISO8601/RFC3339 standard, returns NULL.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
-- If no timezone is specified, the default timezone of input and output time is consistent with the client. To avoid using an unintended timezone during conversion, it is recommended to carry timezone information in the input.
+- If the input string carries a timezone, that timezone determines the corresponding absolute instant; otherwise it is parsed in the connection-level timezone. Regardless of whether the input carries a timezone, the returned date is always computed using the connection-level timezone.
 
 **Example**:
 
@@ -2239,42 +2590,66 @@ taos> select date('2000-01-01 12:00:00.000');
  2000-01-01                      |
 ```
 
-## Aggregate Functions
+## Statistical Aggregate Functions
 
 Aggregate functions return a single result row for each group of the result set of a query. Groups can be specified by a GROUP BY or window partition clause; if none is specified, the entire result set is considered a single group.
 
 TDengine supports aggregate queries on data. The following aggregate functions are provided.
 
-### APERCENTILE
+### DISTINCT Aggregation
+
+Aggregate functions support the `DISTINCT` keyword to deduplicate values before performing the aggregation. Syntax:
 
 ```sql
-APERCENTILE(expr, p [, algo_type])
-
-algo_type: {
-    "default"
-  | "t-digest"
-}
+AGG_FUNC(DISTINCT expr)
 ```
 
-**Function Description**: Calculates the approximate percentile ranks of values in a specified column of a table/supertable, similar to the PERCENTILE function but returns an approximate result.
+**Supported aggregate functions**: `COUNT`, `SUM`, `AVG`, `MIN`, `MAX`.
 
-**Return Data Type**: DOUBLE.
-
-**Applicable Data Types**: Numeric types.
+**Applicable data types**: `expr` can be a column or expression; data type must satisfy the requirements of the corresponding aggregate function.
 
 **Applicable to**: Tables and supertables.
 
-**Description**:
+**Usage notes**:
 
-- The range of p is [0,100], where 0 is equivalent to MIN and 100 is equivalent to MAX.
-- algo_type can be "default" or "t-digest". When the input is "default", the function uses a histogram-based algorithm for calculation. When the input is "t-digest", it uses the t-digest algorithm to calculate the approximate percentile. If algo_type is not specified, the "default" algorithm is used.
-- The approximate result of the "t-digest" algorithm is sensitive to the order of input data, and different input orders may result in slight discrepancies in supertable queries.
+- `COUNT(DISTINCT expr)` returns the number of distinct non-NULL values.
+- `SUM(DISTINCT expr)` computes the sum of distinct values.
+- Can be combined with `GROUP BY`, `PARTITION BY`, and window clauses.
+- Supports `INTERVAL` windows — deduplication is performed independently within each time window.
+- A single query may mix DISTINCT and non-DISTINCT aggregates, for example:
 
-### AVG
+  ```sql
+  SELECT COUNT(DISTINCT voltage), AVG(current) FROM meters;
+  ```
+
+- When the deduplicated data exceeds the memory threshold (`pqSortMemThreshold`, default 16 MB), the engine automatically switches to a sort-based deduplication mode using disk-backed buffers. No user intervention is required.
+
+**Limitations**:
+
+- Only `COUNT`, `SUM`, `AVG`, `MIN`, `MAX` support DISTINCT; using it with other functions returns error code `0x26B4` ("Function does not support DISTINCT").
+
+**Examples**:
+
+```sql
+-- Count distinct voltage values
+SELECT COUNT(DISTINCT voltage) FROM meters;
+
+-- Distinct count per 10-minute window
+SELECT _wstart, COUNT(DISTINCT voltage) FROM meters INTERVAL(10m);
+
+-- Sum of distinct voltages grouped by location
+SELECT location, SUM(DISTINCT voltage) FROM meters GROUP BY location;
+```
+
+### Basic Numeric Aggregation
+
+#### AVG
 
 ```sql
 AVG(expr)
 ```
+
+**Function Classification**: Aggregate function.
 
 **Function Description**: Calculates the average value of the specified field.
 
@@ -2286,11 +2661,13 @@ AVG(expr)
 
 **Description**: When the input type is DECIMAL, the output type is also DECIMAL. The precision and scale of the output conform to the rules described in the data type section. The result type is obtained by dividing the SUM type by UINT64. If the SUM result causes a DECIMAL type overflow, a DECIMAL OVERFLOW error is reported.
 
-### COUNT
+#### COUNT
 
 ```sql
 COUNT({* | expr})
 ```
+
+**Function Classification**: Aggregate function.
 
 **Function Description**: Counts the number of record rows for the specified field.
 
@@ -2305,36 +2682,31 @@ COUNT({* | expr})
 - An asterisk (*) can be used to replace a specific field, using an asterisk (*) returns the total number of records.
 - If the counting field is a specific column, it returns the number of non-NULL value records in that column.
 
-### ELAPSED
+#### SUM
 
 ```sql
-ELAPSED(ts_primary_key [, time_unit])
+SUM(expr)
 ```
 
-**Function Description**: The elapsed function expresses the continuous duration within the statistical period, and when used in conjunction with the twa function, it can calculate the area under the statistical curve. When specifying a window with the INTERVAL clause, it calculates the time range covered by data in each window within the given time range; if there is no INTERVAL clause, it returns the time range covered by data for the entire given time range. Note that ELAPSED does not return the absolute value of the time range, but the number of units obtained by dividing the absolute value by the time_unit. Stream computing only supports this function in FORCE_WINDOW_CLOSE mode.
+**Function Classification**: Aggregate function.
 
-**Return Result Type**: DOUBLE.
+**Function Description**: Calculates the sum of a column in a table/supertable.
 
-**Applicable Data Types**: TIMESTAMP.
+**Return Data Type**: DOUBLE, BIGINT,DECIMAL.
 
-**Applicable to**: Tables, supertables, outer queries of nested queries
+**Applicable Data Types**: Numeric types.
 
-**Notes**:
+**Applicable to**: Tables and supertables.
 
-- The `ts_primary_key` parameter can only be the first column of the table, i.e., the TIMESTAMP type primary key column.
-- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units `time_unit` include: 1b (nanosecond), 1u (microsecond), 1a (millisecond), 1s (second), 1m (minute), 1h (hour), 1d (day), 1w (week).
-- Can be used in combination with interval, returning the timestamp difference for each time window. It is important to note that, except for the first and last time windows, the timestamp differences for the middle windows are all the length of the window.
-- order by asc/desc does not affect the calculation of the difference.
-- For supertables, it needs to be used in combination with the group by tbname clause, and cannot be used directly.
-- For regular tables, it is not supported in combination with the group by clause.
-- For nested queries, it is only valid when the inner query outputs an implicit timestamp column. For example, the statement `select elapsed(ts) from (select diff(value) from sub1)`, the diff function causes the inner query to output an implicit timestamp column, which is the primary key column and can be used as the first parameter of the elapsed function. Conversely, for example, the statement `select elapsed(ts) from (select * from sub1)`, the ts column output to the outer layer no longer has the meaning of the primary key column and cannot use the elapsed function. Additionally, as a function strongly dependent on the timeline, although `select elapsed(ts) from (select diff(value) from st group by tbname)` will return a calculation result, it doesn't make sense, and such usage will also be restricted in the future.
-- Not supported in combination with leastsquares, diff, derivative, top, bottom, last_row, interp, and other functions.
+**Description**: When the input type is DECIMAL, the output type is DECIMAL(38, scale), where precision is the maximum value currently supported, and scale is the scale of the input type. If the SUM result overflows, a DECIMAL OVERFLOW error is reported.
 
-### LEASTSQUARES
+#### LEASTSQUARES
 
 ```sql
 LEASTSQUARES(expr, start_val, step_val)
 ```
+
+**Function Classification**: Aggregate function.
 
 **Function Description**: Calculates the linear equation of the values of a column in the table. start_val is the initial value of the independent variable, step_val is the step value of the independent variable.
 
@@ -2344,25 +2716,15 @@ LEASTSQUARES(expr, start_val, step_val)
 
 **Applicable to**: Tables.
 
-### SPREAD
+### Dispersion Measures
 
-```sql
-SPREAD(expr)
-```
-
-**Function Description**: Calculates the difference between the maximum and minimum values of a column in the table.
-
-**Return Data Type**: DOUBLE.
-
-**Applicable Data Types**: INTEGER, TIMESTAMP.
-
-**Applicable to**: Tables and supertables.
-
-### STDDEV/STDDEV_POP/STD
+#### STDDEV/STDDEV_POP/STD
 
 ```sql
 STDDEV/STDDEV_POP/STD(expr)
 ```
+
+**Function Classification**: Aggregate function.
 
 **Function Description**: Calculates the population standard deviation of a column in the table.
 
@@ -2395,11 +2757,13 @@ taos> select stddev_pop(id) from test_stddev;
          1.414213562373095 |
 ```
 
-### STDDEV_SAMP
+#### STDDEV_SAMP
 
 ```sql
 STDDEV_SAMP
 ```
+
+**Function Classification**: Aggregate function.
 
 **Function Description**: Calculates the sample standard deviation of a column in the table.
 
@@ -2429,11 +2793,13 @@ taos> select stddev_samp(id) from test_stddev;
          1.58113883008419   |
 ```
 
-### VARIANCE/VAR_POP
+#### VARIANCE/VAR_POP
 
 ```sql
 VARIANCE/VAR_POP(expr)
 ```
+
+**Function Classification**: Aggregate function.
 
 **Function Description**: Calculates the population variance of a column in a table.
 
@@ -2467,11 +2833,13 @@ taos> select var_pop(id) from test_var;
          2.000000000000000 |
 ```
 
-### VAR_SAMP
+#### VAR_SAMP
 
 ```sql
 VAR_SAMP(expr)
 ```
+
+**Function Classification**: Aggregate function.
 
 **Function Description**: Calculates the sample variance of a column in a table.
 
@@ -2501,11 +2869,102 @@ taos> select var_samp(id) from test_var;
          2.500000000000000 |
 ```
 
-### GROUP_CONCAT
+#### SPREAD
+
+```sql
+SPREAD(expr)
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**: Calculates the difference between the maximum and minimum values of a column in the table.
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: INTEGER, TIMESTAMP.
+
+**Applicable to**: Tables and supertables.
+
+### Percentile and Cardinality Estimation
+
+#### APERCENTILE
+
+```sql
+APERCENTILE(expr, p [, algo_type])
+
+algo_type: {
+    "default"
+  | "t-digest"
+}
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**: Calculates the approximate percentile ranks of values in a specified column of a table/supertable, similar to the PERCENTILE function but returns an approximate result.
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types.
+
+**Applicable to**: Tables and supertables.
+
+**Description**:
+
+- The range of p is [0,100], where 0 is equivalent to MIN and 100 is equivalent to MAX.
+- algo_type can be "default" or "t-digest". When the input is "default", the function uses a histogram-based algorithm for calculation. When the input is "t-digest", it uses the t-digest algorithm to calculate the approximate percentile. If algo_type is not specified, the "default" algorithm is used.
+- The approximate result of the "t-digest" algorithm is sensitive to the order of input data, and different input orders may result in slight discrepancies in supertable queries.
+
+#### HYPERLOGLOG
+
+```sql
+HYPERLOGLOG(expr)
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**:
+
+- Uses the hyperloglog algorithm to return the cardinality of a column. This algorithm significantly reduces memory usage with large data volumes, providing an estimated cardinality with a standard error of 0.81%.
+- For smaller data volumes, this algorithm may not be very accurate. Alternatively, use `select count(data) from (select unique(col) as data from table)`.
+
+**Return Result Type**: INTEGER.
+
+**Applicable Data Types**: Any type.
+
+**Applicable to**: Tables and supertables.
+
+#### PERCENTILE
+
+```sql
+PERCENTILE(expr, p [, p1] ... )
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**: Calculates the percentile values for a column in a table.
+
+**Return Data Type**: The function requires a minimum of 2 parameters and can accept up to 11 parameters. It can return up to 10 percentile values at once. When the number of parameters is 2, it returns one percentile as a DOUBLE. When the number of parameters is more than 2, it returns a VARCHAR type, formatted as a JSON array containing multiple return values.
+
+**Applicable Fields**: Numeric types.
+
+**Applicable to**: Tables.
+
+**Usage Instructions**:
+
+- The PERCENTILE function is not applicable to virtual table.
+- *P* values range from 0≤*P*≤100, where P=0 is equivalent to MIN and P=100 is equivalent to MAX;
+- When calculating multiple percentiles for the same column, it is recommended to use one PERCENTILE function with multiple parameters to significantly reduce the response time of the query.
+  For example, using the query SELECT percentile(col, 90, 95, 99) FROM table performs better than SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table.
+
+### String Aggregation
+
+#### GROUP_CONCAT
 
 ```sql
 GROUP_CONCAT(expr)
 ```
+
+**Function Classification**: Aggregate function.
 
 **Function Description**: Concatenate the non-null fields of a table.
 
@@ -2533,44 +2992,15 @@ taos> select group_concat(str1, str2, ':') from test_var;
          a1b1:a2b2:a3b3                  |
 ```
 
-### SUM
+### Distribution Statistics
 
-```sql
-SUM(expr)
-```
-
-**Function Description**: Calculates the sum of a column in a table/supertable.
-
-**Return Data Type**: DOUBLE, BIGINT,DECIMAL.
-
-**Applicable Data Types**: Numeric types.
-
-**Applicable to**: Tables and supertables.
-
-**Description**: When the input type is DECIMAL, the output type is DECIMAL(38, scale), where precision is the maximum value currently supported, and scale is the scale of the input type. If the SUM result overflows, a DECIMAL OVERFLOW error is reported.
-
-### HYPERLOGLOG
-
-```sql
-HYPERLOGLOG(expr)
-```
-
-**Function Description**:
-
-- Uses the hyperloglog algorithm to return the cardinality of a column. This algorithm significantly reduces memory usage with large data volumes, providing an estimated cardinality with a standard error of 0.81%.
-- For smaller data volumes, this algorithm may not be very accurate. Alternatively, use `select count(data) from (select unique(col) as data from table)`.
-
-**Return Result Type**: INTEGER.
-
-**Applicable Data Types**: Any type.
-
-**Applicable to**: Tables and supertables.
-
-### HISTOGRAM
+#### HISTOGRAM
 
 ```sql
 HISTOGRAM(expr, bin_type, bin_description, normalized)
 ```
+
+**Function Classification**: Set function.
 
 **Function Description**: Statistics of data distribution according to user-specified intervals.
 
@@ -2596,34 +3026,15 @@ HISTOGRAM(expr, bin_type, bin_description, normalized)
        generating intervals as [-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
 - normalized: Whether to normalize the results to between 0 and 1. Valid inputs are 0 and 1.
 
-### PERCENTILE
-
-```sql
-PERCENTILE(expr, p [, p1] ... )
-```
-
-**Function Description**: Calculates the percentile values for a column in a table.
-
-**Return Data Type**: The function requires a minimum of 2 parameters and can accept up to 11 parameters. It can return up to 10 percentile values at once. When the number of parameters is 2, it returns one percentile as a DOUBLE. When the number of parameters is more than 2, it returns a VARCHAR type, formatted as a JSON array containing multiple return values.
-
-**Applicable Fields**: Numeric types.
-
-**Applicable to**: Tables.
-
-**Usage Instructions**:
-
-- The PERCENTILE function is not applicable to virtual table.
-- *P* values range from 0≤*P*≤100, where P=0 is equivalent to MIN and P=100 is equivalent to MAX;
-- When calculating multiple percentiles for the same column, it is recommended to use one PERCENTILE function with multiple parameters to significantly reduce the response time of the query.
-  For example, using the query SELECT percentile(col, 90, 95, 99) FROM table performs better than SELECT percentile(col, 90), percentile(col, 95), percentile(col, 99) from table.
-
-## Control Flow Functions
+## Comparison Functions
 
 ### IF
 
 ```sql
 IF(expr1, expr2, expr3)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: If expr1 is true, return expr2, otherwise return expr3.
 
@@ -2650,6 +3061,8 @@ taos> SELECT IF(1>2,2,3);
 IFNULL(expr1, expr2)
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: If expr1 is not null, return expr1, otherwise return expr2.
 
 **Return Data Type**: Depends on the contexts.
@@ -2667,6 +3080,8 @@ taos> SELECT IFNULL(1,0);
 
 ### NVL
 
+**Function Classification**: Scalar function.
+
 `NVL` is a synonym for [IFNULL](#ifnull).
 
 ### NULLIF
@@ -2674,6 +3089,8 @@ taos> SELECT IFNULL(1,0);
 ```sql
 NULLIF(expr1, expr2)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: If expr1  = expr2, return NULL, otherwise return expr1.
 
@@ -2695,6 +3112,8 @@ taos> SELECT NULLIF(1,1);
 ```sql
 NVL2(expr1, expr2, expr3)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: If expr1 is not null, return expr2, otherwise return expr1.
 
@@ -2720,6 +3139,8 @@ Selection functions choose one or more rows from the query result set based on s
 BOTTOM(expr, k)
 ```
 
+**Function Classification**: Pipeline set function.
+
 **Function Description**: Calculates the smallest *k* non-NULL values of a column in a table/supertable. If multiple data entries have the same value and exceed the limit of k entries, the system randomly selects the required number of entries from those with the same value.
 
 **Return Data Type**: Same as the applied field.
@@ -2740,6 +3161,8 @@ BOTTOM(expr, k)
 FIRST(expr)
 ```
 
+**Function Classification**: Pipeline aggregate function.
+
 **Function Description**: Calculates the first non-NULL value written in a column of a table/supertable.
 
 **Return Data Type**: Same as the applied field.
@@ -2754,12 +3177,15 @@ FIRST(expr)
 - If all values in a column in the result set are NULL, the return for that column is also NULL;
 - If all columns in the result set are NULL, no results are returned.
 - For tables with composite primary keys, if there are multiple entries with the smallest timestamp, only the data with the smallest composite primary key is returned.
+- With a degraded timeline, NULL time rows are skipped during time-value comparison; the row with the smallest non-NULL time is returned. If all time values are NULL, an empty result is returned. When no TIMESTAMP column exists, the first row in input order is returned.
 
 ### LAST
 
 ```sql
 LAST(expr)
 ```
+
+**Function Classification**: Pipeline aggregate function.
 
 **Function Description**: Returns the last non-NULL value written in a column of a table/supertable.
 
@@ -2775,12 +3201,15 @@ LAST(expr)
 - If all values in a column in the result set are NULL, the return result for that column is also NULL; if all columns in the result set are NULL, no result is returned.
 - When used with supertables, if there are multiple rows with the same timestamp and it is the largest, one will be randomly returned, and it is not guaranteed that the same row will be selected in multiple runs.
 - For tables with composite primary keys, if there are multiple records with the maximum timestamp, only the data with the largest corresponding composite primary key is returned.
+- With a degraded timeline, NULL time rows are skipped; the row with the largest non-NULL time is returned. If all time values are NULL, an empty result is returned. When no TIMESTAMP column exists, the last row in input order is returned.
 
 ### LAST_ROW
 
 ```sql
 LAST_ROW(expr)
 ```
+
+**Function Classification**: Pipeline aggregate function.
 
 **Function Description**: Returns the last record of a table/supertable.
 
@@ -2795,58 +3224,15 @@ LAST_ROW(expr)
 - To return the last record (timestamp largest) of each column, you can use LAST_ROW(\*); when querying a supertable, and if multiResultFunctionStarReturnTags is set to 0 (default), LAST_ROW(\*) only returns the normal columns of the supertable; if set to 1, it returns both the normal and tag columns of the supertable.
 - When used with supertables, if there are multiple rows with the same timestamp and it is the largest, one will be randomly returned, and it is not guaranteed that the same row will be selected in multiple runs.
 - Similar to the LAST function, for tables with composite primary keys, if there are multiple records with the maximum timestamp, only the data with the largest corresponding composite primary key is returned.
-
-### LAG
-
-```sql
-LAG(expr, offset[, default_val])
-```
-
-**Function Description**: Returns the value of `expr` from the row that is `offset` rows before the current row.
-
-**Return Data Type**: Same as the data type of `expr`.
-
-**Applicable Data Types**: All data types.
-
-**Applicable to**: Tables and supertables.
-
-**Usage Instructions**:
-
-- `offset` must be an integer greater than 0.
-- `default_val` is optional. It is returned when the target row does not exist; if omitted, `NULL` is returned.
-- `default_val` must be type-compatible with `expr`.
-- `LAG` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
-- It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
-- Window queries are not supported, such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`.
-
-### LEAD
-
-```sql
-LEAD(expr, offset[, default_val])
-```
-
-**Function Description**: Returns the value of `expr` from the row that is `offset` rows after the current row.
-
-**Return Data Type**: Same as the data type of `expr`.
-
-**Applicable Data Types**: All data types.
-
-**Applicable to**: Tables and supertables.
-
-**Usage Instructions**:
-
-- `offset` must be an integer greater than 0.
-- `default_val` is optional. It is returned when the target row does not exist; if omitted, `NULL` is returned.
-- `default_val` must be type-compatible with `expr`.
-- `LEAD` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
-- It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
-- Window queries are not supported, such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`.
+- With a degraded timeline, NULL time rows are skipped; the row with the largest non-NULL time is returned. Behavior is consistent with LAST. When no TIMESTAMP column exists, the last row in input order is returned.
 
 ### MAX
 
 ```sql
 MAX(expr)
 ```
+
+**Function Classification**: Pipeline aggregate function.
 
 **Function Description**: Calculates the maximum value of a column in a table/supertable.
 
@@ -2866,6 +3252,8 @@ MAX(expr)
 MIN(expr)
 ```
 
+**Function Classification**: Pipeline aggregate function.
+
 **Function Description**: Calculates the minimum value of a column in a table/supertable.
 
 **Return Data Type**: Same as the applied field.
@@ -2884,6 +3272,8 @@ MIN(expr)
 MODE(expr)
 ```
 
+**Function Classification**: Pipeline aggregate function.
+
 **Function Description**: Returns the most frequently occurring value, if there are multiple values with the same highest frequency, it randomly outputs one of them.
 
 **Return Data Type**: Consistent with the input data type.
@@ -2897,6 +3287,8 @@ MODE(expr)
 ```sql
 SAMPLE(expr, k)
 ```
+
+**Function Classification**: Pipeline set function.
 
 **Function Description**: Gets k sample values of the data. The valid input range for parameter k is 1 ≤ k ≤ 1000.
 
@@ -2914,6 +3306,8 @@ SAMPLE(expr, k)
 TAIL(expr, k [, offset_rows])
 ```
 
+**Function Classification**: Pipeline set function.
+
 **Function Description**: Returns the last k records after skipping the last offset_val records, not ignoring NULL values. offset_val can be omitted. In this case, it returns the last k records. When offset_val is provided, the function is equivalent to `order by ts desc LIMIT k OFFSET offset_val`.
 
 **Parameter Range**: k: [1,100] offset_val: [0,100].
@@ -2929,6 +3323,8 @@ TAIL(expr, k [, offset_rows])
 ```sql
 TOP(expr, k)
 ```
+
+**Function Classification**: Pipeline set function.
 
 **Function Description**: Calculates the top k largest non-NULL values of a column in a table/supertable. If multiple data entries have the same value and including all would exceed the limit of k, the system will randomly select the required number from those with the same value.
 
@@ -2950,6 +3346,8 @@ TOP(expr, k)
 UNIQUE(expr)
 ```
 
+**Function Classification**: Pipeline set function.
+
 **Function Description**: Returns the deduplicated values of the column. This function is similar to distinct. For the same data, it returns the one with the smallest timestamp. For queries on tables with composite primary keys, if there are multiple records with the smallest timestamp, only the data with the smallest composite primary key is returned.
 
 **Return Data Type**: Same as the field of the application.
@@ -2963,6 +3361,8 @@ UNIQUE(expr)
 ```sql
 COLS (func(expr), output_expr1, [, output_expr2] ... )
 ```
+
+**Function Classification**: Pipeline set function.
 
 **Function Description**: On the data row where the execution result of function func(expr) is located, execute the expression output_expr1, [, output_expr2], return its result, and the result of func (expr) is not output.
 
@@ -2980,15 +3380,17 @@ COLS (func(expr), output_expr1, [, output_expr2] ... )
 - When there is only one column in the output, you can set an alias for the function. For example, you can do it like this: "select cols(first (ts), c1) as c11 from ...".
 - Output one or more columns, and you can set an alias for each output column of the function. For example, you can do it like this: "select (first (ts), c1 as c11, c2 as c22) from ...".
 
-## Time-Series Specific Functions
+## Sequential Analysis Functions
 
-Time-Series specific functions are tailor-made by TDengine to meet the query scenarios of time-series data. In general databases, implementing similar functionalities usually requires complex query syntax and is inefficient. TDengine has built these functionalities into functions, greatly reducing the user's cost of use.
+Sequential analysis functions are tailor-made by TDengine to meet the query scenarios of time-series data. In general databases, implementing similar functionalities usually requires complex query syntax and is inefficient. TDengine has built these functionalities into functions, greatly reducing the user's cost of use.
 
 ### CSUM
 
 ```sql
 CSUM(expr)
 ```
+
+**Function Classification**: Pipeline set function.
 
 **Function Description**: Cumulative sum, ignoring NULL values.
 
@@ -3004,6 +3406,7 @@ CSUM(expr)
 
 - Does not support +, -, *, / operations, such as csum(col1) + csum(col2).
 - Can only be used with aggregation functions. This function can be applied to both basic tables and supertables.
+- With a degraded timeline, csum does not depend on time values and computes by row order. Still reports errors for real (non-NULL) duplicate timestamps; NULL time rows do not trigger duplicate timestamp checks.
 
 ### DERIVATIVE
 
@@ -3016,6 +3419,8 @@ ignore_negative: {
 }
 ```
 
+**Function Classification**: Pipeline set function.
+
 **Function Description**: Calculates the rate of change per unit of a column in the table. The length of the unit time interval can be specified by the time_interval parameter, which can be as short as 1 second (1s); the value of the ignore_negative parameter can be 0 or 1, where 1 means to ignore negative values. For queries on tables with composite primary keys, if there are multiple records with the same timestamp, only the data with the smallest composite primary key is involved in the calculation.
 
 **Return Data Type**: DOUBLE.
@@ -3027,6 +3432,8 @@ ignore_negative: {
 **Usage Instructions**:
 
 - Can be used with the columns associated with the selection. For example: select _rowts, DERIVATIVE(col1, 1s, 1) from tb1.
+- With a degraded timeline, duplicate timestamp rows output NULL (avoiding division by zero) without updating the previous value; NULL time rows also output NULL. Output row count is always N-1.
+- With a disordered degraded timeline, derivative can still execute but time differences alternate between positive and negative, producing physically meaningless slope values. Use `ORDER BY` in the subquery to ensure ordering.
 
 ### DIFF
 
@@ -3040,6 +3447,8 @@ ignore_option: {
   | 3
 }
 ```
+
+**Function Classification**: Pipeline set function.
 
 **Function Description**: Calculates the difference between a specific column in the table and the current column's previous valid value. ignore_option can be 0|1|2|3, and can be omitted, defaulting to 0.
 
@@ -3066,56 +3475,15 @@ ignore_option: {
 - Can be used with associated columns. For example: select _rowts, DIFF() from.
 - When there is no composite primary key, if different subtables have data with the same timestamp, a "Duplicate timestamps not allowed" message will be displayed
 - When using composite primary keys, the timestamp and composite primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
-
-### INTERP
-
-```sql
-INTERP(expr [, ignore_null_values])
-
-ignore_null_values: {
-    0
-  | 1
-}
-```
-
-**Function Description**: Returns the record value or interpolated value of a specified column at a specified time slice. The ignore_null_values parameter can be 0 or 1, where 1 means to ignore NULL values, default is 0. When ignore_null_values is set to 1, other NULL value samples will be ignored during interpolation.
-
-**Return Data Type**: Same as the field type.
-
-**Applicable Data Types**: Numeric types.
-
-**Applicable to**: Tables and supertables.
-
-Usage Instructions:
-
-- INTERP is used to obtain the record value of a specified column at the specified time slice. It has a dedicated syntax (interp_clause) when used. For syntax introduction, see [reference link](./20-select.md#interp).
-- When there is no row data that meets the conditions at the specified time slice, the INTERP function will interpolate according to the settings of the [FILL clause](./20-select.md#fill-clause).
-- When INTERP is applied to a supertable, it will sort all the subtable data under that supertable by primary key column and perform interpolation calculations, and can also be used with PARTITION BY tbname to force the results to a single timeline.
-- When using INTERP with FILL PREV/NEXT/NEAR modes, its behavior differs from window queries: the `ignore_null_values` parameter affects the search for adjacent valid data. If the parameter is set to ignore NULL data, adjacent NULL data will not be used for interpolation. Instead, the search will continue until a non-NULL value is found.
-- INTERP can be used with the pseudocolumn _irowts to return the timestamp corresponding to the interpolation point (supported from version 3.0.2.0).
-- INTERP can be used with the pseudocolumn _isfilled to display whether the return result is from the original record or generated by the interpolation algorithm (supported from version 3.0.3.0).
-- INTERP can only use the pseudocolumn `_irowts_origin` when using FILL PREV/NEXT/NEAR modes. `_irowts_origin` is supported from version 3.3.4.9.
-- For queries on tables with composite primary keys, if there are data with the same timestamp, only the data with the smallest composite primary key participates in the calculation.
-
-### IRATE
-
-```sql
-IRATE(expr)
-```
-
-**Function Description**: Calculates the instantaneous growth rate. It uses the last two sample data points in the time interval to calculate the instantaneous growth rate; if these two values are decreasing, then only the last value is used for the calculation, rather than the difference between the two. For queries on tables with composite primary keys, if there are multiple data points with the same timestamp, only the data corresponding to the smallest composite primary key is used in the calculation.
-
-**Return Data Type**: DOUBLE.
-
-**Applicable Data Types**: Numeric types.
-
-**Applicable to**: Tables and supertables.
+- With a degraded timeline, duplicate timestamp rows output NULL without updating the previous value (the next non-duplicate row uses the last valid row for calculation); NULL time rows also output NULL. Output row count is always N-1.
 
 ### FILL_FORWARD
 
 ```sql
 FILL_FORWARD(expr)
 ```
+
+**Function Classification**: Pipeline set function.
 
 **Function Description**: Replace the nulls with the previous nonnull value, and keep it null if all previous ones are null.
 
@@ -3148,6 +3516,8 @@ Query OK, 4 row(s) in set (56.155269s)
 MAVG(expr, k)
 ```
 
+**Function Classification**: Pipeline set function.
+
 **Function Description**: Calculates the moving average of consecutive k values. If the number of input rows is less than k, no result is output. The valid input range for parameter k is 1 ≤ k ≤ 1000.
 
 **Return Result Type**: DOUBLE.
@@ -3162,12 +3532,15 @@ MAVG(expr, k)
 
 - Does not support +, -, *, / operations, such as mavg(col1, k1) + mavg(col2, k1);
 - Can only be used with regular columns, selection, and projection functions, not with aggregation functions;
+- When used with a window clause, `MAVG` is calculated only from samples inside the current window and does not continue state across windows.
 
 ### STATECOUNT
 
 ```sql
 STATECOUNT(expr, oper, val)
 ```
+
+**Function Classification**: Pipeline set function.
 
 **Function Description**: Returns the number of consecutive records that meet a certain condition, with the result appended as a new column to each row. The condition is calculated based on the parameters, adding 1 if the condition is true, resetting to -1 if false, and skipping the data if it is NULL.
 
@@ -3186,13 +3559,15 @@ STATECOUNT(expr, oper, val)
 
 **Usage Notes**:
 
-- Cannot be used with window operations, such as interval/state_window/session_window.
+- When used with a window clause, `STATECOUNT` counts consecutive records only inside the current window and does not accumulate across windows.
 
 ### STATEDURATION
 
 ```sql
 STATEDURATION(expr, oper, val, unit)
 ```
+
+**Function Classification**: Pipeline set function.
 
 **Function Description**: Returns the duration of time for consecutive records that meet a certain condition, with the result appended as a new column to each row. The condition is calculated based on the parameters, adding the time length between two records if the condition is true (the time length of the first record meeting the condition is counted as 0), resetting to -1 if false, and skipping the data if it is NULL.
 
@@ -3212,13 +3587,123 @@ STATEDURATION(expr, oper, val, unit)
 
 **Usage Notes**:
 
-- Cannot be used with window operations, such as interval/state_window/session_window.
+- When used with a window clause, `STATEDURATION` measures continuous duration only inside the current window and does not accumulate across windows.
+- With a degraded timeline, NULL time rows output -1 (do not participate in time difference calculation).
+- With a disordered degraded timeline, stateduration can still execute but time differences may be negative, causing negative or jumping duration values. Use `ORDER BY` in the subquery to ensure ordering.
+
+### LAG
+
+```sql
+LAG(expr, offset[, default_val])
+```
+
+**Function Classification**: Pipeline set function.
+
+**Function Description**: Returns the value of `expr` from the row that is `offset` rows before the current row.
+
+**Return Data Type**: Same as the data type of `expr`.
+
+**Applicable Data Types**: All data types.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- `offset` must be an integer greater than 0.
+- `default_val` is optional. It is returned when the target row does not exist; if omitted, `NULL` is returned.
+- `default_val` must be type-compatible with `expr`.
+- `LAG` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
+- It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
+- When used with a window clause, `LAG` is evaluated only within the current window in window-local row order and does not carry state across windows.
+- `LAG` can also be used as a SQL standard window function together with an `OVER` clause, in which case the parameter rules differ slightly (`offset` may be 0). See [Window Functions](./29-window-function.md#value-window-functions).
+
+### LEAD
+
+```sql
+LEAD(expr, offset[, default_val])
+```
+
+**Function Classification**: Pipeline set function.
+
+**Function Description**: Returns the value of `expr` from the row that is `offset` rows after the current row.
+
+**Return Data Type**: Same as the data type of `expr`.
+
+**Applicable Data Types**: All data types.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- `offset` must be an integer greater than 0.
+- `default_val` is optional. It is returned when the target row does not exist; if omitted, `NULL` is returned.
+- `default_val` must be type-compatible with `expr`.
+- `LEAD` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
+- It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
+- When used with a window clause, `LEAD` is evaluated only within the current window in window-local row order and does not read rows from the next window.
+- `LEAD` can also be used as a SQL standard window function together with an `OVER` clause, in which case the parameter rules differ slightly (`offset` may be 0). See [Window Functions](./29-window-function.md#value-window-functions).
+
+## Time-Series Special Aggregate Functions
+
+Time-series special aggregate functions are aggregate functions specifically designed for time-series data scenarios in TDengine.
+
+### ELAPSED
+
+```sql
+ELAPSED(ts_primary_key [, time_unit])
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**: The elapsed function expresses the continuous duration within the statistical period, and when used in conjunction with the twa function, it can calculate the area under the statistical curve. When specifying a window with the INTERVAL clause, it calculates the time range covered by data in each window within the given time range; if there is no INTERVAL clause, it returns the time range covered by data for the entire given time range. Note that ELAPSED does not return the absolute value of the time range, but the number of units obtained by dividing the absolute value by the time_unit. Stream computing only supports this function in FORCE_WINDOW_CLOSE mode.
+
+**Return Result Type**: DOUBLE.
+
+**Applicable Data Types**: TIMESTAMP.
+
+**Applicable to**: Tables, supertables, outer queries of nested queries
+
+**Notes**:
+
+- The `ts_primary_key` parameter can be the primary key column or a regular TIMESTAMP column from a subquery output. When the subquery does not output a primary key column, elapsed can use the degraded timeline column (the first TIMESTAMP column in the output schema).
+- elapsed can specify a TIMESTAMP column different from the current effective timeline. In this case, elapsed computes the time span using the specified column without affecting other functions' timeline selection in the same query.
+- The time unit of the returned value is specified by the `time_unit` parameter, with the minimum being the time resolution of the database. If the `time_unit` parameter is not specified, the time resolution of the database is used as the time unit. Supported time units `time_unit` include: 1b (nanosecond), 1u (microsecond), 1a (millisecond), 1s (second), 1m (minute), 1h (hour), 1d (day), 1w (week).
+- Can be used in combination with interval, returning the timestamp difference for each time window. It is important to note that, except for the first and last time windows, the timestamp differences for the middle windows are all the length of the window.
+- order by asc/desc does not affect the calculation of the difference.
+- For supertables, it needs to be used in combination with the group by tbname clause, and cannot be used directly.
+- For regular tables, it is not supported in combination with the group by clause.
+- For nested queries, elapsed can use any TIMESTAMP column output by the inner query. If no TIMESTAMP column is output, elapsed cannot be used.
+- With a disordered degraded timeline, elapsed results depend on the time difference between the first and last input rows, which may not equal the actual time span. Use `ORDER BY` in the subquery to ensure ordering.
+- Not supported in combination with leastsquares, diff, derivative, top, bottom, last_row, interp, and other functions.
+
+### IRATE
+
+```sql
+IRATE(expr)
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**: Calculates the instantaneous growth rate. It uses the last two sample data points in the time interval to calculate the instantaneous growth rate; if these two values are decreasing, then only the last value is used for the calculation, rather than the difference between the two. For queries on tables with composite primary keys, if there are multiple data points with the same timestamp, only the data corresponding to the smallest composite primary key is used in the calculation.
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- With a degraded timeline, duplicate timestamp points are skipped; if all timestamps are identical, returns 0. NULL time rows are skipped.
+- irate internally selects the two points with the largest time values, so results remain meaningful even with disordered input.
 
 ### TWA
 
 ```sql
 TWA(expr)
 ```
+
+**Function Classification**: Aggregate function.
 
 **Function Description**: Time-weighted average function. Calculates the time-weighted average of a column in a table over a period of time. For queries on tables with composite primary keys, if there are multiple data points with the same timestamp, only the data corresponding to the smallest composite primary key is used in the calculation. Stream computing supports this function only in FORCE_WINDOW_CLOSE mode.
 
@@ -3228,13 +3713,57 @@ TWA(expr)
 
 **Applicable to**: Tables and supertables.
 
-## System Information Functions
+**Usage Instructions**:
+
+- With a degraded timeline, duplicate timestamp points are skipped (zero area contribution); NULL time rows are skipped for weighting calculation.
+- With a disordered degraded timeline, twa can still execute but negative time differences produce negative weights, causing the weighted average to deviate from the true mean. Use `ORDER BY` in the subquery to ensure ordering.
+
+## Interpolation Functions
+
+Interpolation functions are used to return interpolated values at specified time slices.
+
+### INTERP
+
+```sql
+INTERP(expr [, ignore_null_values])
+
+ignore_null_values: {
+    0
+  | 1
+}
+```
+
+**Function Classification**: Set function.
+
+**Function Description**: Returns the record value or interpolated value of a specified column at a specified time slice. The ignore_null_values parameter can be 0 or 1, where 1 means to ignore NULL values, default is 0. When ignore_null_values is set to 1, other NULL value samples will be ignored during interpolation.
+
+**Return Data Type**: Same as the field type.
+
+**Applicable Data Types**: Numeric types.
+
+**Applicable to**: Tables and supertables.
+
+Usage Instructions:
+
+- INTERP is used to obtain the record value of a specified column at the specified time slice. It has a dedicated syntax (interp_clause) when used. For syntax introduction, see [reference link](./20-select.md#interp).
+- When there is no row data that meets the conditions at the specified time slice, the INTERP function will interpolate according to the settings of the [FILL clause](./20-select.md#fill-clause).
+- When INTERP is applied to a supertable, it will sort all the subtable data under that supertable by primary key column and perform interpolation calculations, and can also be used with PARTITION BY tbname to force the results to a single timeline.
+- When using INTERP with FILL PREV/NEXT/NEAR modes, its behavior differs from window queries: the `ignore_null_values` parameter affects the search for adjacent valid data. If the parameter is set to ignore NULL data, adjacent NULL data will not be used for interpolation. Instead, the search will continue until a non-NULL value is found.
+- INTERP can be used with the pseudocolumn _irowts to return the timestamp corresponding to the interpolation point (supported from version 3.0.2.0).
+- INTERP can be used with the pseudocolumn _isfilled to display whether the return result is from the original record or generated by the interpolation algorithm (supported from version 3.0.3.0).
+- INTERP can only use the pseudocolumn `_irowts_origin` when using FILL PREV/NEXT/NEAR modes. `_irowts_origin` is supported from version 3.3.4.9.
+- For queries on tables with composite primary keys, if there are data with the same timestamp, only the data with the smallest composite primary key participates in the calculation.
+- With a degraded timeline, NULL time rows are skipped; interpolation uses non-NULL time rows only. With a disordered degraded timeline, interp can still execute but adjacent points have non-contiguous time values, making linear interpolation results physically meaningless. Use `ORDER BY` in the subquery to ensure ordering.
+
+## System and Metadata Functions
 
 ### DATABASE
 
 ```sql
 SELECT DATABASE();
 ```
+
+**Function Classification**: Scalar function.
 
 **Description**: Returns the currently logged-in database. If no default database was specified at login and the USE command has not been used to switch databases, it returns NULL.
 
@@ -3244,6 +3773,8 @@ SELECT DATABASE();
 SELECT CLIENT_VERSION();
 ```
 
+**Function Classification**: Scalar function.
+
 **Description**: Returns the client version.
 
 ### SERVER_VERSION
@@ -3251,6 +3782,8 @@ SELECT CLIENT_VERSION();
 ```sql
 SELECT SERVER_VERSION();
 ```
+
+**Function Classification**: Scalar function.
 
 **Description**: Returns the server version.
 
@@ -3260,6 +3793,8 @@ SELECT SERVER_VERSION();
 SELECT SERVER_STATUS();
 ```
 
+**Function Classification**: Scalar function.
+
 **Description**: Checks if all dnodes on the server are online; if so, it returns success, otherwise, it returns an error that the connection could not be established. To check the status of the cluster, it is recommended to use `SHOW CLUSTER ALIVE;`, which, unlike `SELECT SERVER_STATUS();`, does not return an error when some nodes in the cluster are unavailable, but instead returns different status codes, see: [SHOW CLUSTER ALIVE](52-show.md#show-cluster-alive)
 
 ### CURRENT_USER
@@ -3268,7 +3803,45 @@ SELECT SERVER_STATUS();
 SELECT CURRENT_USER();
 ```
 
+**Function Classification**: Scalar function.
+
 **Description**: Retrieves the current user.
+
+### SLEEP
+
+```sql
+SELECT SLEEP(seconds);
+```
+
+**Function Classification**: Scalar function.
+
+**Description**: Pauses execution for the specified number of seconds. When used in a table query, `SLEEP` is evaluated once per row (MySQL-compatible); total wait time equals the sum of each row's duration.
+
+**Parameters**:
+
+- `seconds`: DOUBLE - Number of seconds to sleep (supports fractional values like 0.5); negative or NULL values skip the sleep and return 0
+
+**Return value**: INT - Returns 0 on success or for negative/NULL arguments
+
+**Examples**:
+
+```sql
+-- Sleep for 2 seconds
+SELECT SLEEP(2);
+
+-- Sleep for 500 milliseconds
+SELECT SLEEP(0.5);
+
+-- Negative argument returns 0 immediately
+SELECT SLEEP(-1);
+
+-- NULL argument returns 0 immediately
+SELECT SLEEP(NULL);
+
+-- Used with a table query: SLEEP is evaluated once per row (MySQL-compatible);
+-- total wait time equals the sum of each row's duration
+SELECT SLEEP(1), col1 FROM table1;
+```
 
 ## Geometry Functions
 
@@ -3279,6 +3852,8 @@ SELECT CURRENT_USER();
 ```sql
 ST_GeomFromText(VARCHAR WKT expr)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Creates geometry data from a specified geometric value based on Well-Known Text (WKT) representation.
 
@@ -3298,6 +3873,8 @@ ST_GeomFromText(VARCHAR WKT expr)
 ST_AsText(GEOMETRY geom)
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: Returns the specified Well-Known Text (WKT) representation from geometry data.
 
 **Return Type**: VARCHAR
@@ -3316,6 +3893,8 @@ ST_AsText(GEOMETRY geom)
 ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: Compares two geometry objects and returns true if they intersect.
 
 **Return Type**: BOOL
@@ -3331,6 +3910,8 @@ ST_Intersects(GEOMETRY geomA, GEOMETRY geomB)
 ```sql
 ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns TRUE if the given geometry objects are "spatially equal".
 
@@ -3348,6 +3929,8 @@ ST_Equals(GEOMETRY geomA, GEOMETRY geomB)
 ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: Returns TRUE if A and B intersect, but their interiors do not intersect.
 
 **Return Type**: BOOL
@@ -3363,6 +3946,8 @@ ST_Touches(GEOMETRY geomA, GEOMETRY geomB)
 ```sql
 ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns TRUE if every point in B is inside the geometric shape A (intersecting with the interior or boundary).
 
@@ -3380,6 +3965,8 @@ ST_Covers(GEOMETRY geomA, GEOMETRY geomB)
 ST_Contains(GEOMETRY geomA, GEOMETRY geomB)
 ```
 
+**Function Classification**: Scalar function.
+
 **Function Description**: Returns TRUE if geometric shape A contains geometric shape B.
 
 **Return Type**: BOOL
@@ -3395,6 +3982,8 @@ ST_Contains(GEOMETRY geomA, GEOMETRY geomB)
 ```sql
 ST_ContainsProperly(GEOMETRY geomA, GEOMETRY geomB)
 ```
+
+**Function Classification**: Scalar function.
 
 **Function Description**: Returns TRUE if every point of B is inside A.
 

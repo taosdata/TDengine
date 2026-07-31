@@ -20,6 +20,7 @@ The list of keywords is as follows:
 | AES_ENCRYPT          | 3.4.0.3+ |
 | AFTER                | |
 | AGGREGATE            | |
+| AGG                  | 3.4.2.0+ |
 | ALIAS                | |
 | ALIVE                | |
 | ALL                  | |
@@ -118,6 +119,7 @@ The list of keywords is as follows:
 | COUNT_WINDOW         | |
 | CREATE               | |
 | CREATEDB             | |
+| CURRENT              | 3.4.2.0+ |
 | CURRENT_USER         | |
 | SCAN                 | |
 | SCANS                | |
@@ -193,6 +195,7 @@ The list of keywords is as follows:
 | FLOAT                | |
 | FLOW                 | 3.3.4.3+ |
 | FLUSH                | |
+| FOLLOWING            | 3.4.2.0+ |
 | FOR                  | |
 | FORCE                | |
 | FORCE_OUTPUT         | 3.3.7.0+ |
@@ -361,6 +364,7 @@ The list of keywords is as follows:
 | OPTIONS              | 3.3.7.0+ |
 | OR                   | |
 | ORDER                | |
+| OVER                 | 3.4.2.0+ |
 | OUTER                | |
 | OUTPUT_SUBTABLE      | 3.3.7.0+ |
 | OUTPUTTYPE           | |
@@ -387,6 +391,7 @@ The list of keywords is as follows:
 | POSITION             | |
 | PPS                  | |
 | PRE_FILTER           | 3.3.7.0+ |
+| PRECEDING            | 3.4.2.0+ |
 | PRECISION            | |
 | PREV                 | |
 | PRIMARY              | |
@@ -440,23 +445,19 @@ The list of keywords is as follows:
 | ROLES                | |
 | ROLLUP               | |
 | ROW                  | |
+| ROWS                 | 3.4.2.0+ |
 | ROWTS                | |
 | RP                   | |
 | RSHIFT               | |
 | RSMA                 | |
 | RSMAS                | |
-| RIGHT                | |
-| ROLLUP               | |
-| ROW                  | |
-| ROWTS                | |
-| RP                   | |
-| RSHIFT               | |
 
 ### S
 
 |Keyword|Description|
 |----------------------|-|
 | S3MIGRATE            | |
+| SCALAR               | 3.4.2.0+ |
 | SCHEMALESS           | |
 | SCORES               | |
 | SECURITY_LEVEL       | 3.4.1.6+ |
@@ -554,6 +555,7 @@ The list of keywords is as follows:
 
 |Keyword|Description|
 |----------------------|-|
+| UNBOUNDED            | 3.4.2.0+ |
 | UNION                | |
 | UNSAFE               | |
 | UNLOCK               | |

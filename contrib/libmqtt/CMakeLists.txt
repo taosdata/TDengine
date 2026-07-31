@@ -1,13 +1,15 @@
 aux_source_directory(src MQTT_SRC)
 aux_source_directory(ttq/src MQTT_TTQ_SRC)
 
-if(TD_LINUX)
+if(TD_LINUX OR TD_WINDOWS)
 
 add_library(mqtt STATIC ${MQTT_SRC} ${MQTT_TTQ_SRC})
 
-find_path(HAVE_SYS_EPOLL_H sys/epoll.h)
-if (HAVE_SYS_EPOLL_H)
-	add_definitions("-DWITH_EPOLL")
+if(TD_LINUX)
+    find_path(HAVE_SYS_EPOLL_H sys/epoll.h)
+    if (HAVE_SYS_EPOLL_H)
+        add_definitions("-DWITH_EPOLL")
+    endif()
 endif()
 
 target_compile_definitions(mqtt PRIVATE WITH_BROKER)
@@ -28,5 +30,8 @@ target_link_libraries(
     mqtt
     PRIVATE util common ${TAOS_NATIVE_LIB_STATIC}
 )
+if(TD_WINDOWS)
+    target_link_libraries(mqtt PRIVATE ws2_32)
+endif()
 
 endif()

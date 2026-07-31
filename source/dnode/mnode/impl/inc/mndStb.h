@@ -39,6 +39,9 @@ int32_t mndSetCreateStbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, S
 int32_t mndGenIdxNameForFirstTag(char *fullname, char *dbname, char *stbname, char *tagname);
 void    mndFreeStb(SStbObj *pStb);
 int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char *dbFName, char *stbFName, void **pCont, int32_t *pLen);
+int32_t mndAppendDropStbToTrans(SMnode *pMnode, STrans *pTrans, const char *stbName);
+int32_t mndAppendAlterStbToTrans(SMnode *pMnode, STrans *pTrans, void *pReqData, int32_t reqDataLen,
+                                 SStbObj *pAccumBase, SStbObj **ppAccumResult);
 
 int32_t mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst);
 int32_t mndExtractShortDbNameFromStbFullName(const char *stbFullName, char *dst);
@@ -49,7 +52,7 @@ const char *mndGetStbStr(const char *src);
 
 int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew);
 void   *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen, void *alterOriData,
-                              int32_t alterOriDataLen);
+                              int32_t alterOriDataLen, txn_id_t wireTxnId);
 int32_t mndSetForceDropCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup, SStbObj *pStb);
 
 int32_t mndCreateAuditStb(SMnode *pMnode, SDbObj *pDb, SUserObj *pOperUser, STrans *pTrans, SVgObj *pVgroup);

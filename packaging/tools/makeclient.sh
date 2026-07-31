@@ -200,7 +200,7 @@ if [[ $productName == "TDengine" ]] && [ "$verMode" != "cloud" ]; then
     cp -r ${examples_dir}/go ${install_dir}/examples ||:
     cp -r ${examples_dir}/nodejs ${install_dir}/examples ||:
     cp -r ${examples_dir}/C# ${install_dir}/examples ||:
-    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
+    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taosBenchmark/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
   if [ "$verMode" == "cluster" ]; then

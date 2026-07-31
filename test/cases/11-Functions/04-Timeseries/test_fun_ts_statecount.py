@@ -274,7 +274,8 @@ class TestFunStatecount:
         # unique with aggregate function
         tdSql.error(f"select statecount(c6,'GT',1) ,sum(c1)  from {dbname}.ct1")
         tdSql.error(f"select statecount(c6,'GT',1) ,max(c1)  from {dbname}.ct1")
-        tdSql.error(f"select statecount(c6,'GT',1) ,csum(c1)  from {dbname}.ct1")
+        tdSql.query(f"select statecount(c6,'GT',1) ,csum(c1)  from {dbname}.ct1")
+        tdSql.checkRows(13)
         tdSql.error(f"select statecount(c6,'GT',1) ,count(c1)  from {dbname}.ct1")
 
         # unique with filter where
@@ -491,8 +492,7 @@ class TestFunStatecount:
 
         Since: v3.0.0.0
 
-        Labels: common,ci
-
+        Labels: common,ci,integration,functional
         Jira: None
 
         History:     

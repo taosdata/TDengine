@@ -86,6 +86,18 @@ STableDataCxt *pCurrBlock;
 SSubmitTbData *pCurrTbData;
 } SStmtExecInfo;
 */
+typedef struct SStmt2LiteralCtx {
+  tsem_t   sem;
+
+  int32_t  code;
+
+  uint8_t  sem_valid:1;       // sem valid or not
+  uint8_t  prepared:1;        // literal statement prepared by stmt2 or not
+  uint8_t  executing:1;       // literal statement executing by stmt2 or not
+  uint8_t  executed:1;        // literal statement executed by stmt2 or not
+  uint8_t  has_result_set:1;  // literal statement generates result set or not
+} SStmt2LiteralCtx;
+
 typedef struct {
   bool              stbInterlaceMode;
   STMT_TYPE         type;
@@ -186,6 +198,10 @@ typedef struct {
   bool           asyncResultAvailable;
   SStmtStatInfo  stat;
   SArray*        pVgDataBlocksForRetry;  // SArray<SVgDataBlocks*> saved serialized data for NEED_CLIENT_HANDLE_ERROR retry
+
+  char                      msgBuf[128];
+  SStmt2LiteralCtx          ctx;
+  uint8_t                   literal:1;
 } STscStmt2;
 /*
 extern char *gStmtStatusStr[];
@@ -266,9 +282,11 @@ TAOS_STMT2 *stmtInit2(STscObj *taos, TAOS_STMT2_OPTION *pOptions);
 int         stmtClose2(TAOS_STMT2 *stmt);
 int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows);
 int         stmtPrepare2(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
+int         stmtBindLiteral2(TAOS_STMT2 *stmt);
 int         stmtSetTbName2(TAOS_STMT2 *stmt, const char *tbName);
 int         stmtSetTbTags2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *tags, SVCreateTbReq **pCreateTbReq);
 int         stmtCheckTags2(TAOS_STMT2 *stmt, SVCreateTbReq **pCreateTbReq);
+bool        stmt2TableExistsInCache(TAOS_STMT2 *stmt);
 int         stmtBindBatch2(TAOS_STMT2 *stmt, TAOS_STMT2_BIND *bind, int32_t colIdx, SVCreateTbReq *pCreateTbReq);
 int         stmtGetStbColFields2(TAOS_STMT2 *stmt, int *nums, TAOS_FIELD_ALL **fields);
 int         stmtEnsureColumnFieldCache2(TAOS_STMT2 *stmt);
@@ -281,6 +299,9 @@ int         stmt2AsyncBind(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t co
 int         stmtAsyncBindThreadFunc(void *args);
 void        stmtBuildErrorMsg(STscStmt2 *pStmt, const char *msg);
 int32_t     stmtBuildErrorMsgWithCode(STscStmt2 *pStmt, const char *msg, int32_t errorCode);
+
+
+int         stmtIsLiteral(TAOS_STMT2 *stmt);
 
 #ifdef __cplusplus
 }
