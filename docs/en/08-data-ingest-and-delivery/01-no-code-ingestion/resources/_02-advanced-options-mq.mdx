@@ -1,0 +1,9 @@
+The **Advanced Options** section is collapsed by default. Click `>` to expand it. Message-queue data sources such as Kafka and Pulsar commonly provide the following options.
+
+**Maximum Read Concurrency** limits the number of source connections or reader threads. The default `0` lets the connector configure this automatically.
+
+**Batch Size** specifies the maximum number of messages or rows sent at a time. A common default is `1000`.
+
+**Write Concurrency** specifies how many tasks can write to TDengine concurrently.
+
+For health-monitoring options, see [Health Status](../index.md#health-status).

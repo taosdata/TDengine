@@ -16,7 +16,7 @@ TDengine user passwords must meet the following rules:
     2. Lowercase letters: `a-z`
     3. Numbers: `0-9`
     4. Special characters: `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`
-4. When strong password is enabled (EnableStrongPassword 1, enabled by default), the password must contain at least three of the following categories: uppercase letters, lowercase letters, numbers, and special characters. When not enabled, there are no restrictions on character types.
+4. When strong passwords are enabled (`enableStrongPassword` / SQL `EnableStrongPassword`, enabled by default), the password must contain at least three of the following categories: uppercase letters, lowercase letters, numbers, and special characters. When disabled, there are no restrictions on character types. For details, see [User Management](../05-tdengine-sql/07-user-and-privilege/01-user.md).
 
 ## Usage Guide for Special Characters in Different Components
 
@@ -190,7 +190,7 @@ if __name__ == "__main__":
 
 <TabItem label="Go" value="go">
 
-Starting from version 3.6.0, Go supports passwords containing special characters, which need to be encoded using encodeURIComponent.
+Starting from v3.6.0, Go supports passwords containing special characters, which need to be URL-encoded.
 
 ```go
 package main
@@ -232,7 +232,7 @@ let connection = TaosBuilder::from_dsn(&dsn)?.build().await?;
 </TabItem>
 <TabItem label="Node.js" value="node">
 
-Starting from version 3.1.5, the Node.js connector supports passwords containing all valid characters.
+Starting from v3.1.5, the Node.js connector supports passwords containing all valid characters.
 
 ```js
 const taos = require("@tdengine/websocket");

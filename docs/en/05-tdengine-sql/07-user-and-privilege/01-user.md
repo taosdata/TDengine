@@ -1,5 +1,7 @@
 ---
+sidebar_label: Users
 title: Users
+description: Create, view, alter, and drop users, plus TOTP and token management
 ---
 
 The user management syntax is available across all versions, but in the TDengine TSDB Community Edition, only basic features are functionally accessible. Advanced functionalities require the TDengine TSDB Enterprise Edition. To learn about and obtain comprehensive user management features, please contact the TDengine sales team.
@@ -25,6 +27,7 @@ CREATE USER user_name PASS 'password'
   [PASSWORD_REUSE_MAX {value | DEFAULT}]
   [INACTIVE_ACCOUNT_TIME {value | DEFAULT | UNLIMITED}]
   [ALLOW_TOKEN_NUM {value | DEFAULT | UNLIMITED}]
+  [SECURITY_LEVEL min_level, max_level]
   [HOST {ip | ip range} [, {ip | ip range}] ...]
   [NOT_ALLOW_HOST {ip | ip range} [, {ip | ip range}] ...]
   [ALLOW_DATETIME {time range} [, {time range}] ...]
@@ -52,10 +55,10 @@ alter all dnodes 'EnableAdvancedSecurity' '0'
 - `CREATEDB` indicates whether the user can create databases. `1` means they can create databases, `0` means they have no permission to create databases. The default value is `0`. // Supported starting from TDengine Enterprise version 3.3.2.0
 - `ENABLE` indicates whether the user is enabled, `1` means enabled, `0` means disabled. A disabled user cannot connect to the database. The default value is `1`.
 - `CHANGEPASS` indicate whether the use can or must change password, `2` means can change password, `1` means must change password, `0` means cannot change password. The default value is `2`. Support in Enterprise Edition v3.4.0.0 and above.
-- `SESSION_PER_USER` The maximum allowed simultaneous connections of the user. The default value is `-1` when `enableAdvancedSecurity` is `1` and `UNLIMITED` otherwise, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
-- `CONNECT_TIME` The maximum allowed duration for a single session in minutes. The default value is `-1` when `enableAdvancedSecurity` is `1` and `UNLIMITED` otherwise, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
-- `CONNECT_IDLE_TIME` The maximum allowed idle duration for a single session in minutes. The default value is `-1` when `enableAdvancedSecurity` is `1` and `UNLIMITED` otherwise, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
-- `CALL_PER_SESSION` The maximum allowed number of sub-calls per session. The default value is `-1` when `enableAdvancedSecurity` is `1` and `UNLIMITED` otherwise, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
+- `SESSION_PER_USER` The maximum allowed simultaneous connections of the user. Default is `32` when `enableAdvancedSecurity` is `1`, otherwise `-1` (`UNLIMITED`). Minimum `1`; set to `-1` or `UNLIMITED` to disable the restriction. Support in Enterprise Edition v3.4.0.0 and above.
+- `CONNECT_TIME` The maximum allowed duration for a single session in minutes. Default is `480` when `enableAdvancedSecurity` is `1`, otherwise `-1` (`UNLIMITED`). Minimum `1`; set to `-1` or `UNLIMITED` to disable the restriction. Support in Enterprise Edition v3.4.0.0 and above.
+- `CONNECT_IDLE_TIME` The maximum allowed idle duration for a single session in minutes. Default is `30` when `enableAdvancedSecurity` is `1`, otherwise `-1` (`UNLIMITED`). Minimum `1`; set to `-1` or `UNLIMITED` to disable the restriction. Support in Enterprise Edition v3.4.0.0 and above.
+- `CALL_PER_SESSION` The maximum allowed number of sub-calls per session. Default is `128` when `enableAdvancedSecurity` is `1`, otherwise `-1` (`UNLIMITED`). Minimum `1`; set to `-1` or `UNLIMITED` to disable the restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `VNODE_PER_CALL` The maximum number of vnodes that a single call can involve. The default value is `-1`, which means unlimited. Support in Enterprise Edition v3.4.0.0 and above.
 - `FAILED_LOGIN_ATTEMPTS` The number of allowed consecutive failed login attempts; the user will be locked after exceeding this limit. The default value is `3` when `enableAdvancedSecurity` is `1` and `UNLIMITED` otherwise, with a minimum of `1`, set to `UNLIMITED` disables the restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `PASSWORD_LOCK_TIME` The unlock waiting time for the user when locked due to failed login attempts, in minutes. The default value is `1440` when `enableAdvancedSecurity` is `1` and `1` otherwise, with a minimum of `1`, set to `UNLIMITED` means the user is locked forever. Support in Enterprise Edition v3.4.0.0 and above.
@@ -65,6 +68,7 @@ alter all dnodes 'EnableAdvancedSecurity' '0'
 - `PASSWORD_REUSE_MAX` The number of password changes required before an old password can be reused. A new password must comply with both the `PASSWORD_REUSE_TIME` and `PASSWORD_REUSE_MAX` restrictions. The default value is `5` when `enableAdvancedSecurity` is `1` and `0` otherwise, with a maximum of `100` and a minimum of `0`. Support in Enterprise Edition v3.4.0.0 and above.
 - `INACTIVE_ACCOUNT_TIME` User inactivity lockout period, in days. The default value is `90` when `enableAdvancedSecurity` is `1` and `UNLIMITED` otherwise, with a minimum of `1`, set to `UNLIMITED` means never lockout the user. Support in Enterprise Edition v3.4.0.0 and above.
 - `ALLOW_TOKEN_NUM` The maximum allowed number of tokens. The default value is `3`, with a minimum of `0`, set to `UNLIMITED` disables this restriction. Support in Enterprise Edition v3.4.0.0 and above.
+- `SECURITY_LEVEL` User security level range (`min_level`, `max_level`) for Mandatory Access Control (MAC). See [Mandatory Access Control (MAC)](./02-grant.md#mandatory-access-control-mac). Support in Enterprise Edition.
 - `HOST` and `NOT_ALLOW_HOST` IP address whitelist and blacklist. Entries can be a single IP address, such as `192.168.1.1`, or a subnet range in [CIDR](https://www.rfc-editor.org/rfc/rfc4632) format, such as `192.168.1.1/24`. Support in Enterprise Edition v3.4.0.0 and above.
   - The whitelist/blacklist will only take effect when `enableWhiteList` is set to `1` in the configuration.
   - If neither `HOST` nor `NOT_ALLOW_HOST` is set, the user is allowed to log in from any address. **Note:** For security and convenience, if `HOST` is set or neither `HOST` nor `NOT_ALLOW_HOST` is set during user creation, the system automatically adds `127.0.0.1` and `::1` to `HOST`. Therefore, the scenario described in this section can only occur when all `HOST` and `NOT_ALLOW_HOST` entries are dropped via `ALTER USER`.
@@ -146,6 +150,7 @@ alter_user_clause: {
   [PASSWORD_REUSE_MAX {value | DEFAULT}]
   [INACTIVE_ACCOUNT_TIME {value | DEFAULT | UNLIMITED}]
   [ALLOW_TOKEN_NUM {value | DEFAULT | UNLIMITED}]
+  [SECURITY_LEVEL min_level, max_level]
   [ADD HOST {ip | ip range} [, {ip | ip range}] ...]
   [DROP HOST {ip | ip range} [, {ip | ip range}] ...]
   [ADD NOT_ALLOW_HOST {ip | ip range} [, {ip | ip range}] ...]
@@ -165,7 +170,7 @@ Query OK, 0 of 0 rows affected (0.001160s)
 ```
 
 :::note
-Since TDengine Enterprise Edition v3.4.2.1, `ALTER USER ... SYSINFO {0|1}` also updates the user's `SYSINFO_0`/`SYSINFO_1` roles; in addition, granting an elevated system role raises the `SYSINFO` attribute. See "Linkage Between the SYSINFO Attribute and Roles" in [Permission Management](./02-grant.md).
+Since TDengine Enterprise Edition v3.4.2.1, `ALTER USER ... SYSINFO {0|1}` also updates the user's `SYSINFO_0`/`SYSINFO_1` roles; in addition, granting an elevated system role raises the `SYSINFO` attribute. See [Linkage Between the SYSINFO Attribute and Roles](./02-grant.md#linkage-between-the-sysinfo-attribute-and-roles).
 :::
 
 ## TOTP Two-Factor Authentication
@@ -220,7 +225,7 @@ CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL 
 The token_name can be up to 31 bytes long.
 
 - `ENABLE` indicates whether the token is enabled, `1` means enabled, `0` means disabled. A disabled token cannot be used to connect the database. The default value is `1`.
-- `TTL` validity period in days, `0` means always valid.
+- `TTL` validity period in days, counted from creation time. Default `0` means always valid.
 - `PROVIDER` name of the token provider, can be up to 63 bytes long.
 - `EXTRA_INFO` Additional information managed by applications, can be up to 1023 bytes long.
 

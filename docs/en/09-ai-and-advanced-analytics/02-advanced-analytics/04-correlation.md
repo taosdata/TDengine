@@ -1,17 +1,18 @@
 ---
 title: Correlation Analysis
 sidebar_label: Correlation Analysis
+description: Time-series correlation analysis
 ---
 
-TDgpt provides the following correlation analysis capabilities for time-series data.
+TDengine provides the following time-series correlation analysis capabilities: Pearson correlation `CORR` since `v3.3.8.0`, and dynamic time warping `DTW`/`DTW_PATH` plus time-lagged cross-correlation `TLCC` since `v3.4.0.0`.
 
 ## CORR
 
 ```sql
-CORR(expr)
+CORR(expr1, expr2)
 ```
 
-`CORR` calculates the Pearson correlation coefficient between two time series, reflecting their linear correlation. For details on using the `corr` function, refer to the CORR function documentation.
+`CORR` calculates the Pearson correlation coefficient between two time series. For details, see [Built-In Functions](../../05-tdengine-sql/04-data-query/03-function.md#corr).
 
 :::note
 
@@ -38,7 +39,7 @@ option_expr: {
 
 1. `column1_name` and `column2_name`: Two time series columns participating in DTW calculation.
 2. `option_expr`: String specifying DTW parameters in comma-separated K=V format. Do not use quotation marks, escape characters, or non-ASCII characters.
-3. `radius=2` indicates a neighborhood radius of 2, limiting the DTW path to adjacent values within the distance matrix.
+3. `radius=2` indicates a neighborhood radius of 2, limiting the DTW path to adjacent values within the distance matrix. The valid range is `[1, 10]`; values outside this range return an error.
 4. White noise detection is not supported, and algorithm selection is not required.
 5. Maximum supported input is 10,240 rows. Exceeding this limit triggers `Analysis failed since too many input rows` (0x80000446).
 
@@ -46,7 +47,7 @@ option_expr: {
 
 | Parameter | Description                                                  | Default |
 | --------- | ------------------------------------------------------------ | ------- |
-| radius    | Neighborhood radius limiting the DTW search space. Smaller radius improves speed but may reduce accuracy; larger radius increases accuracy at higher cost. | 1       |
+| radius    | Neighborhood radius limiting the DTW search space. The valid range is `[1, 10]`. Smaller values improve speed but may reduce accuracy. | 1       |
 
 1. Supports numeric column input
 2. Returns a double-precision floating-point value
@@ -87,8 +88,25 @@ option_expr: {
 ### Example
 
 ```sql
-taos> select col1, col2 from foo;
-taos> select dtw_path(col1, col2,'radius=1') res from foo;
+taos> SELECT col1, col2 FROM foo;
+       col1 |       col2 |
+=========================
+          1 |          1 |
+        1.1 |        1.5 |
+          1 |        1.3 |
+        1.2 |        1.8 |
+        1.1 |        1.6 |
+
+taos> SELECT dtw_path(col1, col2, 'radius=1') res FROM foo;
+               res |
+===================
+            (0, 0) |
+            (1, 0) |
+            (2, 0) |
+            (3, 1) |
+            (3, 2) |
+            (3, 3) |
+            (4, 4) |
 ```
 
 ## TLCC
@@ -109,8 +127,9 @@ lag_end=expr,
 
 1. `column1_name` and `column2_name`: Two time series columns used for analysis.
 2. `option_expr`: String parameters in comma-separated key=value format. Do not use quotation marks or non-ASCII characters.
-3. White noise detection is not supported, and algorithm selection is not required.
-4. Maximum supported input is 10,240 rows; exceeding this triggers `Analysis failed since too many input rows` (0x80000446).
+3. `lag_start` must be less than or equal to `lag_end`, and `abs(lag)` must be less than the number of input rows.
+4. White noise detection is not supported, and algorithm selection is not required.
+5. Maximum supported input is 10,240 rows; exceeding this triggers `Analysis failed since too many input rows` (`0x80000446`).
 
 ### Parameters
 

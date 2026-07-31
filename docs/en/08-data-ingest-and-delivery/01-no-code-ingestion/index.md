@@ -298,4 +298,40 @@ Below, using MQTT data source as an example, we explain how to create a task of 
 
 On the task list page, you can also start, stop, view, delete, copy, and other operations on tasks. You can also view the running status of each task, including the number of records written, traffic, etc.
 
+### Health Status
+
+Starting with v3.3.5.0, the task list displays a health status for each running task. The **Advanced Options** section provides these health-monitoring settings:
+
+1. **Health Check Duration**: The recent period over which task status is calculated.
+1. **Busy State Threshold**: The ratio of queued items to write-queue capacity. The default is `100%`.
+1. **Max Write Queue Length**: The maximum write-queue capacity.
+1. **Write Error Threshold**: The number of write errors permitted during the health-check period. Exceeding it reports an error.
+
+The task list can display the following states:
+
+- **Ready**: Source and target health checks pass; reads and writes can proceed.
+- **Idle**: No data entered the processing pipeline during the monitoring period.
+- **Active**: The task is running normally and processing data.
+- **Pending**: The source is healthy, but the writer is waiting and has no messages to write.
+- **Busy**: The write queue exceeds the configured threshold. This can indicate a performance bottleneck that requires parameter or resource tuning, but does not itself indicate an error.
+- **Bounce**: The source and target are healthy, but write errors exceeded the threshold. This can indicate a large volume of invalid data or data loss.
+- **SourceError**: The source cannot be read. The workload attempts to reconnect.
+- **SinkError**: The target cannot be written. The workload attempts to reconnect and returns to **Ready** after recovery.
+- **Fatal**: A severe or unrecoverable error occurred.
+
+An empty health status means that no data has entered the task yet.
+
+## Resume Tasks from Checkpoints
+
+Most taosX data sources can resume from the last persisted checkpoint:
+
+- **TDengine Query**, **MySQL**, **PostgreSQL**, **Oracle**, **Microsoft SQL Server**, and **MongoDB** persist the timestamp of the last query and resume from it.
+- **TDengine Data Subscription** relies on TDengine subscription progress.
+- **PI**, **InfluxDB**, and **OpenTSDB** persist message timestamps and resume from them.
+- **OPC UA**, **OPC DA**, and **MQTT** persist messages to disk when **Cache Realtime Data** is enabled.
+- **Kafka** relies on Kafka consumer-offset management.
+- **CSV** persists the filename and number of consumed rows, then resumes at the next row.
+- **AVEVA Historian** persists the timestamp of the last message while querying historical data.
+- **SparkplugB** does not currently support message persistence or recovery.
+
 <DocCardList items={useCurrentSidebarCategory().items}/>

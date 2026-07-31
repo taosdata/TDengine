@@ -332,7 +332,7 @@ select extract_avg(valStr) from scores;
 生成 `.so` 文件
 
 ```bash
-gcc -g -O0 -fPIC -shared extract_vag.c -o libextract_avg.so
+gcc -g -O0 -fPIC -shared extract_avg.c -o libextract_avg.so
 ```
 
 <details>

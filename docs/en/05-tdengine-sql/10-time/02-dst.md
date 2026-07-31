@@ -1,11 +1,12 @@
 ---
+sidebar_label: DST Usage
 title: DST(Daylight Saving Time) Usage
 description: Explanation and suggestions for using DST(Daylight Saving Time) in TDengine
 ---
 
 ## Background
 
-In the use of time-series databases, there are times when Daylight Saving Time (DST) is encountered. We analyze and explain the use and issues of DST in TDengine to help you use TDengine more smoothly.
+In the use of time-series databases, there are times when Daylight Saving Time (DST) is encountered. We analyze and explain the use and issues of DST in TDengine to help you use TDengine more smoothly. Timezone configuration and natural time units are covered in [Timezone and Natural Time Units](./01-timezone.md).
 
 ## Definitions
 
@@ -171,7 +172,7 @@ We use the following table to show the impact of DST on writing and querying.
         Query OK, 5 row(s) in set (0.001370s)
         ```
 
-    - However, the following query for the range [2024-10-27 02:00:00.000,2024-10-27 02:57:34.999] can only find the data at the first 2024-10-27 02:00:00 time point:
+    - However, the following query for the range [2024-10-27 02:00:00.000,2024-10-27 02:57:00.999] can only find the data at the first 2024-10-27 02:00:00 time point:
 
         ```sql
         taos> SELECT ts, to_iso8601(ts,'Z'), TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss') FROM t1 WHERE ts >= '2024-10-27 02:00:00' AND ts <= '2024-10-27 02:57:00.999';
@@ -184,7 +185,7 @@ We use the following table to show the impact of DST on writing and querying.
     - The following query for the range [2024-10-27 02:00:01,2024-10-27 02:57:35] can find 3 rows of data (including one row of local time data at 02:59:59):
 
         ```sql
-        taos> SELECT ts, to_iso8601(ts,'Z'), TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss') FROM t1 WHERE ts >= '2024-10-27 02:00:00' AND ts <= '2024-10-27 02:57:35';;
+        taos> SELECT ts, to_iso8601(ts,'Z'), TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss') FROM t1 WHERE ts >= '2024-10-27 02:00:00' AND ts <= '2024-10-27 02:57:35';
                    ts            |       to_iso8601(ts,'Z')       | to_char(ts, 'YYYY-MM-DD HH:mi:ss') |
         ===============================================================================================
          2024-10-27 02:00:00.000 | 2024-10-27T00:00:00.000Z       | 2024-10-27 02:00:00                |

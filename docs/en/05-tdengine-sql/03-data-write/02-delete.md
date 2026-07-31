@@ -1,41 +1,36 @@
 ---
+sidebar_label: Data Deletion
 title: Data Deletion
+description: Delete data from specified tables or supertables
 ---
 
-Deleting data is a feature provided by TDengine that allows users to delete data records from specified tables or supertables within a specified time period, facilitating the cleanup of abnormal data caused by device failures and other reasons.
+## Delete Syntax
 
-:::note
-
-Deleting data does not immediately free up the disk space occupied by the table. Instead, the data of the table is marked as deleted. These data will not appear in queries, but the release of disk space will be delayed until the system automatically or the user manually reorganizes the data.
-
-:::
-
-Syntax:
+The `DELETE` statement deletes data from specified tables or supertables, which is useful for cleaning up abnormal data caused by device failures and other reasons.
 
 ```sql
-DELETE FROM [ db_name. ] tb_name [WHERE condition];
+DELETE FROM [db_name.]tb_name [WHERE condition] [SECURE_DELETE];
 ```
 
-Functionality: Delete data records from specified tables or supertables
+**Note:** Deleting data does not immediately free disk space; rows are marked as deleted. They no longer appear in queries, but space is reclaimed later when the database [`KEEP`](../02-ddl/01-database.md) setting takes effect, or when you manually run [Data Reorganization](../../12-operations-and-tooling/02-operations/04-maintenance.md#data-reorganization) (enterprise `COMPACT`). To physically overwrite on-disk data blocks in addition to writing a delete mark, use database-level or statement-level `SECURE_DELETE`; see [Data Security · Secure Delete](../../11-security-guide/03-data-security.md#secure-delete).
 
-Parameters:
+### Parameters
 
-- `db_name`: Optional parameter, specifies the database name where the table to be deleted is located. If not specified, it defaults to the current database.
-- `tb_name`: Required parameter, specifies the name of the table from which data is to be deleted. It can be a basic table, a subtable, or a supertable.
-- `condition`: Optional parameter, specifies the filtering condition for deleting data. If no filtering condition is specified, all data in the table will be deleted. Use with caution. Note that the where condition only supports filtering on the first column, which is the time column.
+- `db_name`: Optional. Database that contains the table; defaults to the current database.
+- `tb_name`: Required. Table to delete from; can be a basic table, subtable, or supertable.
+- `condition`: Optional filter. Without a filter, all data in the table is deleted—use with caution. `WHERE` only supports filtering on the first column (the primary timestamp column).
+- `SECURE_DELETE`: Optional keyword. When specified, this delete also physically overwrites on-disk data blocks in the matched range. You can also enable secure delete by default for a database with `SECURE_DELETE 1` (see [Databases](../02-ddl/01-database.md)).
 
-:::note
+### Important Notes
 
-Once data is deleted, it cannot be recovered. Use with caution. To ensure that the data you are deleting is indeed what you intend to delete, it is recommended to first use the `select` statement with the `where` condition to view the data to be deleted. Confirm it is correct before executing the `delete` command.
+Once data is deleted, it cannot be recovered. Use with caution. To confirm the rows you intend to delete, first run a `SELECT` with the same `WHERE` condition, then run `DELETE`.
 
-:::
+## Example
 
-Example:
-
-`meters` is a supertable, and `groupid` is an int type tag column. Now, to delete all data from the `meters` table where the time is less than 2021-10-01 10:40:00.100, the SQL is as follows:
+`meters` is a supertable and `groupId` is an `INT` tag column. Delete all data in `meters` with timestamps earlier than `2021-10-01 10:40:00.100`:
 
 ```sql
-delete from meters where ts < '2021-10-01 10:40:00.100' ;
+DELETE FROM meters WHERE ts < '2021-10-01 10:40:00.100';
 ```
 
 After execution, the result is displayed as:

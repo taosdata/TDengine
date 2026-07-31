@@ -337,7 +337,7 @@ REVOKE ROLE role_name FROM user_name;
 
 自 TDengine 企业版 `v3.4.2.1` 开始，用户的 `SYSINFO` 属性（见 [用户管理](./01-user.md)）与 `SYSINFO_0`/`SYSINFO_1` 及高阶系统角色之间存在联动，以简化操作，避免属性与角色需要分别设置。规则如下：
 
-1. 执行 `ALTER USER user_name SYSINFO {0|1}` 时，会联动修改 `SYSINFO_0`/`SYSINFO_1` 角色。
+1. 执行 `ALTER USER user_name SYSINFO {0|1}` 时，会联动修改对应角色：设为 `1` 时授予 `SYSINFO_1` 并回收 `SYSINFO_0`；设为 `0` 时授予 `SYSINFO_0` 并回收 `SYSINFO_1`。
 2. 授予高阶系统角色（`SYSINFO_1`、`SYSDBA`、`SYSSEC`、`SYSAUDIT`、`SYSAUDIT_LOG`）时，会联动将用户的 `SYSINFO` 属性提升为 `1`。授予 `SYSINFO_0` 或用户自定义角色时，`SYSINFO` 属性不变。
 3. 回收（`REVOKE`）任何角色时，都不会联动修改 `SYSINFO` 属性。如需降低，请显式执行 `ALTER USER user_name SYSINFO 0`。
 
@@ -678,6 +678,7 @@ REVOKE ALL ON table_name FROM user_name;
 - `mask()` 仅支持 VARCHAR 和 NCHAR 类型的列，其他类型（如 INT、VARBINARY、GEOMETRY、JSON）暂不支持脱敏
 - **脱敏作用域**：`mask()` 采用展示层动态脱敏（Display-Level Dynamic Data Masking）策略。当前实现是对 `SELECT` 投影列表中的列引用进行改写；因此，凡是出现在投影列表中的表达式（如函数调用、`CASE WHEN`、`DISTINCT`、聚合参数等）只要引用了被脱敏列，都会基于脱敏后的表达式计算。相对地，`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY` 等非投影子句中的列引用 **不做脱敏改写**，仍以原始值参与计算。例如：
   - `SELECT length(masked_col)` 返回 `1`（投影中 `masked_col` 被替换为 `'*'`）
+  - `SELECT CASE WHEN masked_col = 'hello' THEN 1 ELSE 0 END` 在投影改写中按脱敏后的值比较，而非原始列值
   - `SELECT CASE WHEN masked_col IS NULL THEN 0 ELSE length(masked_col) END` 中，若 `masked_col` 出现在投影表达式内，也会按脱敏后的值参与计算
   - `WHERE masked_col = 'hello'` 仍可匹配到原始值为 `'hello'` 的行
   - `GROUP BY masked_col` 按原始值的基数分组，输出中若直接投影该列，每组仍显示为 `'*'`

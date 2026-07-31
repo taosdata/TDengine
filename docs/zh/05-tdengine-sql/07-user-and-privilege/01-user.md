@@ -27,6 +27,7 @@ CREATE USER user_name PASS 'password'
   [PASSWORD_REUSE_MAX {value | DEFAULT}]
   [INACTIVE_ACCOUNT_TIME {value | DEFAULT | UNLIMITED}]
   [ALLOW_TOKEN_NUM {value | DEFAULT | UNLIMITED}]
+  [SECURITY_LEVEL min_level, max_level]
   [HOST {ip | ip range} [, {ip | ip range}] ...]
   [NOT_ALLOW_HOST {ip | ip range} [, {ip | ip range}] ...]
   [ALLOW_DATETIME {time range} [, {time range}] ...]
@@ -67,6 +68,7 @@ ALTER ALL DNODES 'EnableAdvancedSecurity' '1';
 - `PASSWORD_REUSE_MAX`：密码历史记录次数，需经过多少次更改后才能重复使用旧密码。`enableAdvancedSecurity` 打开时默认 `5`，否则默认 `0`。最小 `0`，最大 `100`。新密码需同时满足 `PASSWORD_REUSE_TIME` 与 `PASSWORD_REUSE_MAX`。企业版自 `v3.4.0.0` 起支持。
 - `INACTIVE_ACCOUNT_TIME`：账户不活动锁定时间，长期未使用的账户自动锁定，单位为天。`enableAdvancedSecurity` 打开时默认 `90`，否则默认 `UNLIMITED`。最小 `1`；设为 `UNLIMITED` 则永不锁定。企业版自 `v3.4.0.0` 起支持。
 - `ALLOW_TOKEN_NUM`：支持的令牌个数。默认 `3`，最小 `0`；设为 `UNLIMITED` 则不限制。企业版自 `v3.4.0.0` 起支持。
+- `SECURITY_LEVEL`：用户安全等级范围（`min_level`, `max_level`），用于强制访问控制（MAC）。详见 [强制访问控制（MAC）](./02-grant.md#强制访问控制mac)。企业版支持。
 - `HOST` / `NOT_ALLOW_HOST`：IP 地址白名单与黑名单。可为单个 IP（如 `192.168.1.1`），或 [CIDR](https://www.rfc-editor.org/rfc/rfc4632) 地址段（如 `192.168.1.1/24`）。企业版自 `v3.4.0.0` 起支持。
   - 需将系统配置 `enableWhiteList` 设为 `1`，黑白名单才会生效。
   - 若既未设置 `HOST` 也未设置 `NOT_ALLOW_HOST`，则允许用户在任何地址登录。**注意**：为保证安全和便于使用，创建用户时若设置了 `HOST`，或两者均未设置，系统会自动将 `127.0.0.1` 和 `::1` 加入 `HOST`。因此上述“任何地址”情形，需通过 `ALTER USER` 删除全部 `HOST` 与 `NOT_ALLOW_HOST` 后才会出现。
@@ -146,6 +148,7 @@ alter_user_clause: {
   [PASSWORD_REUSE_MAX {value | DEFAULT}]
   [INACTIVE_ACCOUNT_TIME {value | DEFAULT | UNLIMITED}]
   [ALLOW_TOKEN_NUM {value | DEFAULT | UNLIMITED}]
+  [SECURITY_LEVEL min_level, max_level]
   [ADD HOST {ip | ip range} [, {ip | ip range}] ...]
   [DROP HOST {ip | ip range} [, {ip | ip range}] ...]
   [ADD NOT_ALLOW_HOST {ip | ip range} [, {ip | ip range}] ...]
@@ -236,7 +239,7 @@ Query OK, 1 row(s) in set (0.003018s)
 
 ### 查看令牌
 
-普通用户仅能查看自己的令牌：
+可根据权限查看系统中的令牌；权限不足时可能只能看到自己的令牌：
 
 ```sql
 SHOW TOKENS;

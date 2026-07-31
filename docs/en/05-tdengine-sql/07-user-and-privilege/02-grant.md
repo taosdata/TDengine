@@ -1,5 +1,8 @@
 ---
+sidebar_label: Permissions
 title: Permissions
+description: Database and object grants, RBAC roles, separation of powers, and advanced security
+toc_max_heading_level: 4
 ---
 
 In TDengine, permission management is divided into [user management](./01-user.md), database authorization management, and message subscription authorization management. This section focuses on database authorization and subscription authorization. The authorization function only available in TDengine Enterprise Edition. Although authorization syntax is available in the community version 3.3.x.y and earlier, but has no effect. In 3.4.0.0 and later community versions, the authorization syntax will report an error directly.
@@ -680,6 +683,7 @@ REVOKE ALL ON table_name FROM user_name;
 - **Masking scope**: `mask()` implements display-level Dynamic Data Masking (DDM). The masking rewrite applies to column references in the `SELECT` projection list, including references nested inside projection expressions such as function calls and `CASE WHEN` expressions. Column references in `WHERE`, `GROUP BY`, `HAVING`, and `ORDER BY` are not rewritten and continue to operate on original values. For example:
   - `SELECT length(masked_col)` returns `1` (in the projection, `masked_col` is replaced with `'*'`)
   - `SELECT CASE WHEN masked_col = 'hello' THEN 1 ELSE 0 END` evaluates against the masked value in the projection rewrite, not the original column value
+  - `SELECT CASE WHEN masked_col IS NULL THEN 0 ELSE length(masked_col) END` also uses the masked value when `masked_col` appears in a projection expression
   - `WHERE masked_col = 'hello'` still matches rows whose original value is `'hello'`
   - `GROUP BY masked_col` groups by the original cardinality; however, projected masked output may display the grouped values as `'*'`
 - **Design rationale**: This design keeps filtering, grouping, aggregation input, and sorting clauses (`WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`) operating on original values, which helps preserve query semantics for those clauses. However, because projection-list column references are rewritten, expressions evaluated in the `SELECT` list reflect masked values. As a result, projection-level operations such as `SELECT DISTINCT masked_col` or `COUNT(DISTINCT masked_col)` may collapse multiple original values to the same masked value. Full-pipeline masking (rewriting all clauses uniformly) would further change filtering and grouping behavior by making `WHERE`/`GROUP BY`/`HAVING` also operate on masked values

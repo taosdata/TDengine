@@ -18,6 +18,14 @@ The TDengine version number consists of four digits separated by dots, defined a
 - `Maintenance`: No new features, only bug fixes, supports rolling upgrades, and is reversible after upgrade
 - Rolling upgrade: For clusters composed of three or more nodes using three replicas, each node is stopped, upgraded, and restarted one at a time, repeating this process until all nodes in the cluster are upgraded. The cluster can still provide services during the upgrade. For versions that do not support rolling upgrades, the entire cluster must be stopped, all nodes upgraded, and then the entire cluster restarted. The cluster cannot provide services during the upgrade.
 
+## TDengine 2.x Downloads
+
+For TDengine 2.x installation packages, visit the [TDengine Download Center](https://tdengine.com/all-downloads/).
+
+## TDengine 3.x Downloads
+
+For TDengine `v3.3.7.0` and later, visit the [TDengine Download Center](https://tdengine.com/downloads/).
+
 ## TDengine Releases
 
 Download links for TDengine 3.x version installation packages are as follows:

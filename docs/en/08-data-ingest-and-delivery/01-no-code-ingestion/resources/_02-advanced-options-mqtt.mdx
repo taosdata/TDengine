@@ -1,0 +1,19 @@
+The **Advanced Options** section is collapsed by default. Click `>` to expand it. MQTT and SparkplugB data sources commonly provide the following options; field names can vary by connector.
+
+**Message Queue Size** specifies the receive buffer size. If the queue is full and **Cache Realtime Data** is disabled, newly arrived data is discarded. Set this option to `0` to disable buffering.
+
+**Maximum In-Process Batches** specifies how many batches can be processed concurrently. Once this limit is reached, the connector stops taking messages from the receive queue, causing them to accumulate. The minimum value is `1`.
+
+**Batch Size** specifies how many messages are sent to the processing pipeline at a time. It works with **Batch Delay**: a full batch is sent immediately even if the delay has not elapsed. The minimum value is `1`.
+
+**Batch Delay** specifies the timeout for each batch in milliseconds, measured from its first message. When the timeout expires, the batch is sent even if it has not reached **Batch Size**. The minimum value is `1`.
+
+**Write Concurrency** specifies how many tasks can write to TDengine concurrently.
+
+When **Cache Realtime Data** is enabled, consumed data is first written to a local file and a background task forwards it downstream. This provides traffic shaping when downstream processing cannot keep up. Cache files are removed after the backlog is consumed. This option is disabled by default. For details, see [Store and Forward](../../../12-operations-and-tooling/03-components/07-taosx-agent/store-and-forward.md).
+
+**Cache Storage Directory** overrides the directory used for cache files. It applies only when **Cache Realtime Data** is enabled and otherwise defaults to the data directory configured at taosX startup.
+
+When **Save Raw Data** is enabled, you can also configure **Maximum Retention Days** and **Raw Data Storage Directory**.
+
+For health-monitoring options, see [Health Status](../index.md#health-status).

@@ -1,5 +1,5 @@
 ---
-sidebar_label: Activate Enterprise
+sidebar_label: Activate Cluster
 title: Activate TDengine TSDB-Enterprise
 ---
 
@@ -9,7 +9,9 @@ import { Enterprise } from '../../resources/_resources.mdx';
 
 <Enterprise/>
 
-This document describes how to activate a TDengine TSDB-Enterprise license.
+This document describes how to activate a TDengine TSDB-Enterprise license with an activation code.
+
+You can also activate and manage licenses through the License Center (License Server). For details, see [License Center Reference](../../03-components/09-license-center/index.mdx).
 
 ## Prerequisites
 

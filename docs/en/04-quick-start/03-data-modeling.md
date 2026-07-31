@@ -116,7 +116,7 @@ In summary, basic tables provide functionality similar to traditional relational
 The SQL for creating an basic table without any tags is as follows:
 
 ```sql
-CREATE TABLE d1003(
+CREATE TABLE meter_n(
     ts timestamp,
     current float, 
     voltage int, 
@@ -126,7 +126,7 @@ CREATE TABLE d1003(
 );
 ```
 
-The SQL above indicates the creation of the basic table `d1003`, with a structure including columns `ts`, `current`, `voltage`, `phase`, `location`, `group_id`, totaling 6 columns. This data model is completely consistent with relational databases.
+The SQL above indicates the creation of the basic table `meter_n`, with a structure including columns `ts`, `current`, `voltage`, `phase`, `location`, `group_id`, totaling 6 columns. This data model is completely consistent with relational databases.
 
 Using basic tables as the data model means that static tag data (such as location and group_id) will be repeatedly stored in each row of the table. This approach not only increases storage space consumption but also significantly lowers query performance compared to using a supertable data model, as it cannot directly utilize tag data for filtering.
 
@@ -325,6 +325,37 @@ Taking device d1001 as an example, assume that the current, voltage, and phase d
     </tr>
 </table>
 
+The SQL to write the data above is as follows:
+
+```sql
+INSERT INTO current_d1001 VALUES
+    (1538548685000, 10.3),
+    (1538548695000, 12.6),
+    (1538548696800, 12.3),
+    (1538548697100, 12.1),
+    (1538548697700, 11.8)
+voltage_d1001 VALUES
+    (1538548685000, 219),
+    (1538548695000, 218),
+    (1538548696800, 221),
+    (1538548697100, 220),
+    (1538548697800, 222)
+phase_d1001 VALUES
+    (1538548685000, 0.31),
+    (1538548695000, 0.33),
+    (1538548696800, 0.31),
+    (1538548697200, 0.32),
+    (1538548697800, 0.33);
+```
+
+Query the virtual table `d1001_v` as follows:
+
+```sql
+SELECT * FROM d1001_v;
+```
+
+The query result is as follows:
+
 | Timestamp         | Current | Voltage | Phase |
 |-------------------|---------|---------|-------|
 | 1538548685000     | 10.3    | 219     | 0.31  |
@@ -356,13 +387,13 @@ Assume that the current data of devices d1001, d1002, d1003, and d1004 are as fo
 
 <table>
     <tr>
-        <th colspan="2" align="center">d1001</th>
+        <th colspan="2" align="center">current_d1001</th>
         <th rowspan="7" align="center"></th>  
-        <th colspan="2" align="center">d1002</th>
+        <th colspan="2" align="center">current_d1002</th>
         <th rowspan="7" align="center"></th>  
-        <th colspan="2" align="center">d1003</th>
+        <th colspan="2" align="center">current_d1003</th>
         <th rowspan="7" align="center"></th>  
-        <th colspan="2" align="center">d1004</th>
+        <th colspan="2" align="center">current_d1004</th>
     </tr>
     <tr>
         <td align="center">Timestamp</td>
@@ -425,6 +456,41 @@ Assume that the current data of devices d1001, d1002, d1003, and d1004 are as fo
         <td align="center">12.6</td>
     </tr>
 </table>
+
+The SQL to write the current data above is as follows:
+
+```sql
+INSERT INTO current_d1001 VALUES
+    (1538548685000, 10.3),
+    (1538548695000, 12.6),
+    (1538548696800, 12.3),
+    (1538548697100, 12.1),
+    (1538548697700, 11.8)
+current_d1002 VALUES
+    (1538548685000, 11.7),
+    (1538548695000, 11.9),
+    (1538548696800, 12.4),
+    (1538548697200, 12.2),
+    (1538548697700, 11.4)
+current_d1003 VALUES
+    (1538548685000, 11.2),
+    (1538548695000, 10.8),
+    (1538548696800, 12.3),
+    (1538548697100, 11.1),
+    (1538548697800, 12.1)
+current_d1004 VALUES
+    (1538548685000, 12.4),
+    (1538548695000, 11.3),
+    (1538548696800, 10.1),
+    (1538548697200, 11.7),
+    (1538548697800, 12.6);
+```
+
+Query the virtual table `current_v` as follows:
+
+```sql
+SELECT * FROM current_v;
+```
 
 The virtual table `current_v` aligns current data by timestamp:
 

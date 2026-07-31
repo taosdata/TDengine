@@ -9,7 +9,7 @@ import TabItem from "@theme/TabItem";
 
 # Connector Security Best Practices
 
-This guide describes security best practices for TDengine connectors, including token authentication, SSL/TLS client configuration, dynamic token rotation, and implementation examples across different language connectors.
+This guide describes security best practices for TDengine connectors, including token authentication, SSL/TLS client configuration, dynamic token rotation, and implementation examples across different language connectors. For server certificates and taosAdapter SSL, see [Transport Security](./02-transport-security.md).
 
 ---
 
@@ -348,6 +348,8 @@ Token authentication in TDengine Enterprise is a lightweight authentication mech
 - **Audit-friendliness**: Token-level activity tracking.
 
 ### 3.2 Create a Token
+
+For complete token syntax and field definitions, see [Users](../05-tdengine-sql/07-user-and-privilege/01-user.md#token-management).
 
 ```sql
 -- Create a token with 1-day TTL
@@ -737,8 +739,8 @@ cfssl gencert -ca ca.crt -ca-key ca.key \
 # 2. Deploy automatically to TDengine servers
 ansible-playbook deploy-ssl.yml --extra-vars "host=td1.example.com"
 
-# 3. Restart service automatically
-systemctl restart taosd
+# 3. Restart the service that terminates WebSocket/REST TLS
+systemctl restart taosadapter
 ```
 
 #### 3. Certificate monitoring
@@ -845,6 +847,8 @@ String url = "jdbc:TAOS-WS://host:6041/db?bearerToken=xxx";
 ## 10. Reference Documents
 
 - [SSL Configuration Guide](./02-transport-security.md) - Server certificate generation and configuration
+- [Users](../05-tdengine-sql/07-user-and-privilege/01-user.md) - Token SQL and user security options
 - [Java Connector Documentation](../10-developer-guide/08-connectors-reference/02-java.mdx) - Complete JDBC driver parameter reference
 - [TMQ Subscription Documentation](../07-data-subscription/index.md) - Detailed message subscription usage
 - [REST API Documentation](../10-developer-guide/08-connectors-reference/10-rest-api.mdx) - REST token authentication usage
+- [Security Advisories](./07-security-advisories.md) - Vulnerabilities and fixed versions

@@ -12,6 +12,10 @@ This guide focuses on SSL/TLS infrastructure configuration on the TDengine serve
 For client-side SSL/TLS (TrustStore, `wss/useSSL`, REST HTTPS), token authentication, dynamic token rotation, and connection-pool management, see [Connector Security Best Practices](./04-connector-security.md).
 :::
 
+:::note
+Encryption for public WebSocket and REST traffic is configured on **taosAdapter**. For hardening of the native protocol (`taosc` ↔ `taosd`), see [Security Deployment Configuration Suggestions](./06-security-suggestions.md).
+:::
+
 ## 1. Generate a Self-Signed Certificate
 
 ### 1.1 Generate a Private Key
@@ -73,7 +77,7 @@ sudo chmod 600 /etc/taos/server.key
 ## 2. Configure the TDengine Server Manually
 
 :::info WebSocket SSL Configuration
-This document applies to WebSocket connections. SSL is configured on **taosAdapter**.
+This document applies to WebSocket connections. SSL is configured on **taosAdapter**. The taosAdapter `[ssl]` section is an Enterprise feature, as indicated by the configuration comment. For the complete parameter reference, see [taosAdapter](../12-operations-and-tooling/03-components/03-taosadapter.md).
 :::
 
 ### 2.1 Edit `taosadapter.toml`

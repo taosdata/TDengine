@@ -1,4 +1,5 @@
 ---
+sidebar_label: 密码策略
 title: 密码中特殊字符的使用
 description: TDengine 用户密码中特殊字符的使用
 ---
@@ -188,7 +189,7 @@ if __name__ == "__main__":
 
 <TabItem label="Go" value="go">
 
-从 3.6.0 版本开始，Go 语言中支持密码中包含特殊字符，使用时需要 encodeURIComponent 编码。
+从 v3.6.0 开始，Go 语言支持密码中包含特殊字符，使用时需要进行 URL 编码。
 
 ```go
 package main
@@ -230,7 +231,7 @@ let connection = TaosBuilder::from_dsn(&dsn)?.build().await?;
 </TabItem>
 <TabItem label="Node.js" value="node">
 
-从 3.1.5 版本开始，Node.js 连接器支持密码中包含特殊字符无需特殊处理。
+从 v3.1.5 开始，Node.js 连接器支持密码中包含特殊字符，无需特殊处理。
 
 ```js
 const taos = require("@tdengine/websocket");

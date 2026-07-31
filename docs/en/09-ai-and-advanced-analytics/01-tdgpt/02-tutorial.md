@@ -1,13 +1,14 @@
 ---
 title: Installation
 sidebar_label: Installation
+description: Deploy TDgpt with Docker, TDengine Cloud, or installation packages
 ---
 
 import PkgList from "/src/components/PkgList";
 
 Before installing TDgpt, review the [system requirements](./08-system-requirements.md) and ensure that your container or machine meets the minimum specifications.
 
-This section describes how to use TDgpt in Docker.
+This section describes how to deploy TDgpt with Docker, TDengine Cloud, or installation packages.
 
 ## Get Started with Docker
 
@@ -47,7 +48,7 @@ docker run -d \
 
 :::note
 
-From 3.3.7.5, the port number for TDgpt has changed from 6090 to 6035.
+Since `v3.3.7.5`, the TDgpt port has changed from `6090` to `6035`.
 
 :::
 
@@ -99,9 +100,9 @@ You can try TDgpt with a free TDengine Cloud account. In TDengine Cloud, open **
 
 To use the analytics capabilities offered by TDgpt, you deploy an AI node (anode) in your TDengine TSDB cluster. You must deploy the anode on a Linux machine. The environment must meet the following requirements:
 
-- Python: 3.10 or 3.11. 3.12 is not supported for now due to library conflict.
-- TDengine TSDB: 3.3.6.0 or later
-- C compiler: PyTorch can dynamically generate C++ code to improve the performance of model inference. This procedure requires the cc1x, so a development environment is required in this case.
+- Python: 3.10 or 3.11. Python 3.12 and later are not currently supported on Linux because of dependency conflicts.
+- TDengine TSDB: `v3.3.6.0` or later.
+- C compiler: Versions earlier than `v3.4.1.0` require a compiler for uWSGI. Later versions no longer use uWSGI, but PyTorch can dynamically generate C++ code for model inference and requires components such as `cc1plus`.
 
 You can run the following commands to install Python 3.10 in Ubuntu.. If you already have a supported version of Python installed, skip this section.
 
@@ -118,7 +119,7 @@ sudo apt install python3.10-venv
 sudo apt install python3.10-dev
 ```
 
-#### Install PiPy
+#### Install pip
 
 ```shell
 curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
@@ -168,7 +169,7 @@ Note that this virtual environment is not uninstalled automatically by the `rmta
 
 ### Activate the Virtual Environment
 
-The virtual Python environment for TDgpt is located in the `/var/lib/taos/taosanode/venv/` directory. Once the environment is created, PiPy is used to install the Python dependencies for TDgpt.
+The virtual Python environment for TDgpt is located in the `/var/lib/taos/taosanode/venv/` directory. Once the environment is created, pip is used to install the Python dependencies for TDgpt.
 
 This environment is not removed y the `rmtaosanode` command. You can remove it manually if desired.
 
@@ -177,3 +178,34 @@ Any algorithms or models that you create for TDgpt must be installed into this v
 ### Uninstalling TDgpt
 
 You can run the `rmtaosanode` command to uninstall TDgpt.
+
+## Install on Windows
+
+Standard Windows installation packages are available in `v3.4.1.0` and later. Windows supports a base installer with either online dependency installation or an external offline tar containing `python/runtime`, virtual environments, and model files.
+
+### Requirements
+
+- Windows 10/11 or Windows Server 2019 and later.
+- Python 3.10, 3.11, or 3.12 on `PATH` for the first online installation.
+- Microsoft Visual C++ Redistributable x64.
+- Administrator privileges are recommended.
+
+Run `tdengine-tdgpt-oss-<version>-Windows-x64.exe`, select `Online` or `Offline package`, and complete the wizard. The default installation directory is `C:\TDengine\taosanode`.
+
+An online installation creates the primary virtual environment, installs Python dependencies, optionally downloads models, and registers the `Taosanode` Windows service. An offline installation imports the runtime, environments, and models from the selected tar without network access or system Python.
+
+During an upgrade, the installer reuses existing virtual environments and models while updating the program and service configuration. Windows currently supports one TDgpt installation per machine.
+
+Verify the installation:
+
+```batch
+C:\TDengine\taosanode\bin\status-taosanode.bat
+C:\TDengine\taosanode\bin\status-model.bat
+```
+
+You can also inspect the service and installation registration:
+
+```batch
+sc query Taosanode
+reg query HKLM\Software\taosdata\TDgpt /v InstallDir
+```

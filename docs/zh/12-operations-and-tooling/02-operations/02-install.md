@@ -1,6 +1,6 @@
 ---
-sidebar_label: 安装部署
-title: 安装部署
+sidebar_label: 下载安装
+title: 下载安装
 toc_max_heading_level: 4
 ---
 

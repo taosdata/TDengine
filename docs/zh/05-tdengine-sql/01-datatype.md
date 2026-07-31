@@ -35,13 +35,13 @@ description: TDengine 支持的数据类型、时间单位、时间戳、字面�
 
 ## 通用限制
 
-- 表的每行长度不能超过 64 KB。每个 `BINARY`、`NCHAR`、`GEOMETRY`、`VARBINARY` 类型的列还会额外占用 2 个字节的存储位置。
+- 表的每行长度不能超过 48 KB（自 `v3.0.5.0` 起为 64 KB）。每个 `BINARY`、`NCHAR`、`GEOMETRY`、`VARBINARY` 类型的列还会额外占用 2 个字节的存储位置。
 - `BINARY`、`VARBINARY` 和 `GEOMETRY` 类型的数据列最大长度为 65,517 字节，标签列最大长度为 16,382 字节。
 - `BLOB` 类型单列值最大长度为 4,194,304 字节。
 - `JSON` 类型只能用于标签列。如果使用 JSON 标签，则标签列只能有一个。
 - `DECIMAL` 类型仅支持普通列，暂不支持标签列。
 
-数据库、表、列和标签等命名限制，参见 [命名与边界](11-appendix/02-limit.md)。
+数据库、表、列和标签等命名限制，参见 [命名与边界](./11-appendix/02-limit.md)。
 
 ## 时间单位
 
@@ -62,7 +62,7 @@ TDengine SQL 中凡需要指定时间长度的场合（时间运算、INTERVAL�
 | `y`      | 自然年   | 日历单位，仅可用于 `INTERVAL` 窗口，不可用于时间运算、`EVERY`、`SURROUND` 等场合。 |
 
 时间单位大小写均可（如 `1S` 与 `1s` 等价）。
-关于时区和自然时间单位的完整语义，参见 [时区与自然时间单位](10-time/01-timezone.md)。
+关于时区和自然时间单位的完整语义，参见 [时区与自然时间单位](./10-time/01-timezone.md)。
 
 ## 时间戳
 
@@ -79,7 +79,7 @@ TDengine 默认时间戳精度为毫秒。创建数据库时，可以通过 `PRE
 CREATE DATABASE db_name PRECISION 'ns';
 ```
 
-`PRECISION` 参数的完整说明参见 [创建数据库](02-ddl/01-database.md#precision)。
+`PRECISION` 参数的完整说明参见 [创建数据库](./02-ddl/01-database.md#precision)。
 
 ## 字符串、二进制与空间类型
 

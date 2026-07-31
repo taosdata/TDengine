@@ -51,10 +51,10 @@ For more package types and versions, visit the [TDengine Download Center](https:
 <Tabs>
 <TabItem label="Linux" value="linux">
 
-After installation, execute the following command in your terminal to start all services:
+After installation, execute the following script in your terminal to start all services:
 
 ```bash
-start-all.sh
+sudo start-all.sh
 ```
 
 All TDengine TSDB components are managed by systemd. You can check their service status with the following commands:
@@ -71,22 +71,37 @@ If the output shows the status as `Active: active (running) since ...`, it means
 </TabItem>
 <TabItem label="Windows" value="windows">
 
-After installation, open a terminal as administrator and run the following command to start all services:
+After installation, open a Command Prompt window as administrator. `start-all.bat` is the unified entry script. With no arguments it starts services by default; it also supports the `status` and `stop` subcommands.
+
+Start all services:
 
 ```cmd
 C:\TDengine\start-all.bat
 ```
 
-You can check the status of each service using:
+Check service status:
+
+```cmd
+C:\TDengine\start-all.bat status
+```
+
+Stop all services:
+
+```cmd
+C:\TDengine\start-all.bat stop
+```
+
+To inspect the raw status of each Windows service, run:
 
 ```cmd
 sc query taosd
 sc query taosadapter
+sc query taosx
 sc query taoskeeper
 sc query taos-explorer
 ```
 
-If the output shows `RUNNING`, it means the services have started successfully.
+If `start-all.bat status` shows `running`, or `sc query` output contains `RUNNING`, the corresponding service has started successfully.
 
 </TabItem>
 </Tabs>

@@ -172,6 +172,11 @@ Usage: taosdump [OPTION...] dbname [tbname ...] -o outpath
 若发现失败数量不为零，可添加 `-g` 参数开启调试输出，查看详细错误信息，或检查 TDengine 服务端日志进行排查。
 :::
 
+## 日志文件
+
+- 备份：日志文件名为 `backup.log`，保存在备份目录根目录下。
+- 恢复：日志文件名为 `restore.log`，保存在当前目录下。
+
 ## 常用使用场景
 
 ### 备份数据
