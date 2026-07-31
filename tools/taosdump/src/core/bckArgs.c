@@ -73,12 +73,12 @@ static bool g_stmtVersionSet = false;
 
 void printVersion(bool verbose) {
     if (verbose) {
-        printf("%s\n", TD_PRODUCT_NAME);
+        logTee("%s\n", TD_PRODUCT_NAME);
     }
-    printf("taosDump version: %s\n", TD_VER_NUMBER);
+    logTee("taosDump version: %s\n", TD_VER_NUMBER);
     if (verbose) {
-        printf("git: %s\n", TAOSDUMP_COMMIT_ID);
-        printf("build: %s\n", BUILD_INFO);
+        logTee("git: %s\n", TAOSDUMP_COMMIT_ID);
+        logTee("build: %s\n", BUILD_INFO);
     }
 }
 
@@ -656,12 +656,15 @@ int argsInit(int argc, char *argv[]) {
             else         snprintf(eBuf, sizeof(eBuf), "'%s'", g_endTime);
         }
 
+        // _c0 is the primary-key timestamp pseudo-column - always the first
+        // column regardless of its actual name, so this filter works even
+        // when a stable's time column isn't literally called "ts".
         if (g_startTime[0] && g_endTime[0]) {
-            snprintf(g_timeFilter, sizeof(g_timeFilter), "WHERE ts >= %s AND ts <= %s", sBuf, eBuf);
+            snprintf(g_timeFilter, sizeof(g_timeFilter), "WHERE _c0 >= %s AND _c0 <= %s", sBuf, eBuf);
         } else if (g_startTime[0]) {
-            snprintf(g_timeFilter, sizeof(g_timeFilter), "WHERE ts >= %s", sBuf);
+            snprintf(g_timeFilter, sizeof(g_timeFilter), "WHERE _c0 >= %s", sBuf);
         } else {
-            snprintf(g_timeFilter, sizeof(g_timeFilter), "WHERE ts <= %s", eBuf);
+            snprintf(g_timeFilter, sizeof(g_timeFilter), "WHERE _c0 <= %s", eBuf);
         }
     }
 
