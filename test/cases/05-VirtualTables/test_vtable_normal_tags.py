@@ -526,6 +526,71 @@ class TestVtableNormalTags:
         self._check_values("SELECT DISTINCT rcity FROM vctb_rt;", [('beijing',)],
                            "round-trip tag-ref")
 
+    def test_show_create_roundtrip_null_owned(self):
+        """SHOW CREATE: a NULL owned tag (`= NULL`) round-trips.
+
+        `= NULL` is an explicit value (accepted at CREATE VTABLE). CREATE VTABLE rejects a
+        bare `loc INT`, so the emitted DDL must preserve `= NULL` — otherwise replay fails.
+        Regression cover for the SHOW CREATE NULL-owned-tag round-trip gap.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, metadata, show_create, owned_tag
+
+        Jira: None
+
+        History:
+            - 2026-07-31 Created — covers `= NULL` as an explicit value + round-trip.
+        """
+        tdSql.execute(f"USE {DB};")
+        # `= NULL` is an explicit value: accepted at CREATE, stored as a NULL-valued owned tag.
+        tdSql.execute("CREATE VTABLE vctb_null (ts TIMESTAMP, val INT FROM src0.val) "
+                      "TAGS (loc INT = NULL);")
+        self._check_values("SELECT DISTINCT loc FROM vctb_null;", [(None,)],
+                           "vtable: = NULL stored as NULL")
+        # SHOW CREATE must emit replayable DDL. CREATE VTABLE rejects a bare `loc INT`, so the
+        # output must carry the explicit value (`= NULL`).
+        tdSql.query("SHOW CREATE TABLE vctb_null;")
+        tdSql.checkRows(1)
+        create_sql = str(tdSql.getData(0, 1))
+        assert "loc" in create_sql and "= NULL" in create_sql, \
+            f"SHOW CREATE must preserve = NULL for the owned tag: {create_sql}"
+        tdSql.execute("DROP TABLE vctb_null;")
+        tdSql.execute(create_sql)
+        self._check_values("SELECT DISTINCT loc FROM vctb_null;", [(None,)],
+                           "vtable: = NULL survives round-trip")
+
+    def test_show_create_tagless_omits_tags(self):
+        """SHOW CREATE on a tag-less table omits the TAGS clause entirely (no empty `TAGS()`),
+        for both normal and virtual-normal tables.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, metadata, show_create
+
+        Jira: None
+
+        History:
+            - 2026-07-31 Created — no-tag tables must not emit a TAGS clause.
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE n_notag (ts TIMESTAMP, val INT);")
+        tdSql.query("SHOW CREATE TABLE n_notag;")
+        sql_n = str(tdSql.getData(0, 1)).upper()
+        assert " TAGS (" not in sql_n, f"tag-less normal table must not emit TAGS: {sql_n}"
+        tdLog.info("  PASS: tag-less normal table omits TAGS")
+        tdSql.execute("CREATE VTABLE v_notag (ts TIMESTAMP, val INT FROM src0.val);")
+        tdSql.query("SHOW CREATE TABLE v_notag;")
+        sql_v = str(tdSql.getData(0, 1)).upper()
+        assert " TAGS (" not in sql_v, f"tag-less virtual table must not emit TAGS: {sql_v}"
+        tdLog.info("  PASS: tag-less virtual table omits TAGS")
+
     # ==================================================================
     # 4. TAG / TAG-REF QUERIES
     # ==================================================================
@@ -1224,7 +1289,9 @@ class TestVtableNormalTags:
                            "ntb: data intact after DROP TAG")
 
     def test_ntb_desc_show_create(self):
-        """Normal table: DESC marks owned tags; SHOW CREATE emits replayable ALTER stmts.
+        """Normal table: DESC marks owned tags; SHOW CREATE emits the table's FINAL form —
+        a single CREATE TABLE with an inline TAGS clause (NULL tag -> `= NULL`, valued tag
+        -> `= value`), not a CREATE + ALTER ADD/SET TAG sequence.
 
         Catalog:
             - VirtualTable
@@ -1237,6 +1304,7 @@ class TestVtableNormalTags:
 
         History:
             - 2026-07-27 Created
+            - 2026-07-31 Updated — SHOW CREATE shows the final inline TAGS form, not ALTER stmts.
         """
         tdSql.execute(f"USE {DB};")
         tdSql.execute("CREATE TABLE ntb_p3 (ts TIMESTAMP, val INT);")
@@ -1250,24 +1318,22 @@ class TestVtableNormalTags:
         assert tag_names == ['loc', 'owner'], f"DESC ntb_p3 tag rows: {tag_names}"
         tdLog.info("  PASS: DESC marks owned tags")
 
-        # SHOW CREATE for a normal table emits the CREATE plus replayable ALTER statements
-        # (an inline TAGS clause on CREATE TABLE would create a super table instead).
+        # SHOW CREATE emits the final table form: one CREATE TABLE with an inline TAGS clause,
+        # NOT a CREATE + ALTER ADD TAG / SET TAG sequence. NULL renders inline as `= NULL`.
         tdSql.query("SHOW CREATE TABLE ntb_p3;")
         create_sql = str(tdSql.getData(0, 1))
         assert create_sql.startswith("CREATE TABLE `ntb_p3`"), f"SHOW CREATE ntb_p3: {create_sql}"
-        assert "ALTER TABLE `ntb_p3` ADD TAG `loc` INT" in create_sql, \
-            f"SHOW CREATE ntb_p3 ADD TAG loc: {create_sql}"
-        assert "ALTER TABLE `ntb_p3` ADD TAG `owner` VARCHAR(16)" in create_sql, \
-            f"SHOW CREATE ntb_p3 ADD TAG owner: {create_sql}"
-        assert 'ALTER TABLE `ntb_p3` SET TAG `owner` = "alice"' in create_sql, \
-            f"SHOW CREATE ntb_p3 SET TAG owner: {create_sql}"
-        tdLog.info(f"  PASS: SHOW CREATE emits ALTER stmts: {create_sql}")
+        assert "TAGS" in create_sql.upper(), f"inline TAGS clause missing: {create_sql}"
+        assert "`loc`" in create_sql and "`owner`" in create_sql, f"tags missing: {create_sql}"
+        assert "= NULL" in create_sql, f"NULL tag loc must render as = NULL: {create_sql}"
+        assert '= "alice"' in create_sql, f"owner value must render inline: {create_sql}"
+        assert "ADD TAG" not in create_sql and "SET TAG" not in create_sql, \
+            f"SHOW CREATE must show the final table, not an ALTER sequence: {create_sql}"
+        tdLog.info(f"  PASS: SHOW CREATE emits final inline TAGS form: {create_sql}")
 
-        # round-trip: drop the table, replay every emitted statement, expect identical tags
+        # round-trip: the single inline CREATE reproduces the table with identical tags.
         tdSql.execute("DROP TABLE ntb_p3;")
-        for stmt in create_sql.split("; "):
-            if stmt.strip():
-                tdSql.execute(stmt)
+        tdSql.execute(create_sql)
         rows = self._rows("DESC ntb_p3;")
         tag_names = sorted(r[0] for r in rows if r[3] == 'TAG')
         assert tag_names == ['loc', 'owner'], f"round-trip DESC ntb_p3 tag rows: {tag_names}"
@@ -1276,6 +1342,49 @@ class TestVtableNormalTags:
         self._check_values("SELECT loc, owner, val FROM ntb_p3;", [(None, 'alice', 1)],
                            "round-trip owned tag value")
         tdLog.info("  PASS: SHOW CREATE round-trip restores tags")
+
+    def test_ntb_create_tag_explicit_null_roundtrip(self):
+        """Normal table: SHOW CREATE emits the table's FINAL form — a single CREATE TABLE
+        with an inline TAGS clause, not a CREATE + ALTER ADD/SET TAG sequence. A NULL-valued
+        owned tag renders inline as `= NULL` (a valid explicit value), which round-trips.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, normal_table, tag, show_create
+
+        Jira: None
+
+        History:
+            - 2026-07-31 Created — `= NULL` explicit value + final-form SHOW CREATE.
+        """
+        tdSql.execute(f"USE {DB};")
+        # every tag carries `= literal` (= NULL is a literal) -> normal table with owned tags,
+        # not a super table (which requires every tag valueless).
+        tdSql.execute("CREATE TABLE ntb_null (ts TIMESTAMP, val INT) TAGS (loc INT = NULL);")
+        # SHOW CREATE must show the final table: one CREATE TABLE with an inline TAGS clause,
+        # NOT a CREATE + ALTER ADD TAG / SET TAG sequence. NULL renders inline as `= NULL`.
+        tdSql.query("SHOW CREATE TABLE ntb_null;")
+        create_sql = str(tdSql.getData(0, 1))
+        assert create_sql.startswith("CREATE TABLE `ntb_null`"), \
+            f"= NULL must create a normal table, not a stable: {create_sql}"
+        assert "TAGS" in create_sql.upper() and "`loc`" in create_sql, \
+            f"SHOW CREATE must emit an inline TAGS clause: {create_sql}"
+        assert "= NULL" in create_sql, \
+            f"NULL owned tag must render inline as = NULL: {create_sql}"
+        assert "ADD TAG" not in create_sql and "SET TAG" not in create_sql, \
+            f"SHOW CREATE must show the final table, not an ALTER sequence: {create_sql}"
+        # round-trip: the single inline CREATE reproduces the table with the NULL tag.
+        tdSql.execute("DROP TABLE ntb_null;")
+        tdSql.execute(create_sql)
+        rows = self._rows("DESC ntb_null;")
+        tag_names = sorted(r[0] for r in rows if r[3] == 'TAG')
+        assert tag_names == ['loc'], f"round-trip DESC ntb_null tag rows: {tag_names}"
+        tdSql.execute(f"INSERT INTO ntb_null VALUES ({TS0}, 1);")
+        self._check_values("SELECT loc FROM ntb_null;", [(None,)],
+                           "ntb: = NULL survives round-trip")
 
     def test_ntb_group_distinct_agg(self):
         """Normal table: GROUP BY / DISTINCT on owned tags, agg with tag filter.
@@ -1763,10 +1872,11 @@ class TestVtableNormalTags:
         tdSql.execute("INSERT INTO ntb_tags VALUES (1700000000000, 10);")
         self._check_values("SELECT a, b FROM ntb_tags;", [(1, 'x')],
                            "ntb create-time owned tag values")
-        # SHOW CREATE stays replayable (ALTER-statement form for normal tables)
+        # SHOW CREATE emits the table's final form: an inline TAGS clause (not an ALTER seq)
         tdSql.query("SHOW CREATE TABLE ntb_tags;")
         sql = str(tdSql.getData(0, 1))
-        assert "ADD TAG" in sql.upper(), f"ntb SHOW CREATE replay: {sql}"
+        assert "TAGS" in sql.upper() and "ADD TAG" not in sql.upper(), \
+            f"ntb SHOW CREATE must be inline TAGS form: {sql}"
         # it is a normal table: cannot act as a super table
         tdSql.error("CREATE TABLE ntb_tags_child (ts TIMESTAMP, val INT) USING ntb_tags TAGS (2, 'y');")
         # valueless TAGS -> super table (historical semantics)
@@ -1798,6 +1908,342 @@ class TestVtableNormalTags:
         self._check_values("SELECT a, b FROM stb_conv_c1;", [(2, '123')],
                            "child-table tag conversion (control, same semantics)")
         tdLog.info("  PASS: CREATE TABLE tag value rules")
+
+    def test_ins_tags_and_show_tags(self):
+        """ins_tags and SHOW TAGS expose owned tags and tag-refs of normal and
+        virtual normal tables; tag-less tables produce no rows.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, tag, ins_tags, show
+
+        Jira: None
+
+        History:
+            - 2026-07-31 Created
+        """
+        tdSql.execute(f"USE {DB};")
+
+        # vntb owned tag (fixture v_own: TAGS (loc INT = 5))
+        tdSql.query("SELECT tag_name, tag_value FROM information_schema.ins_tags "
+                    f"WHERE db_name='{DB}' AND table_name='v_own';")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'loc')
+        tdSql.checkData(0, 1, '5')
+
+        # stable_name is NULL for normal/virtual-normal tables
+        tdSql.query("SELECT stable_name FROM information_schema.ins_tags "
+                    f"WHERE db_name='{DB}' AND table_name='v_own';")
+        tdSql.checkData(0, 0, None)
+
+        # vntb tag-refs resolve to the source table values (v_ref: rcity/rcode from src0)
+        tdSql.query("SELECT tag_name, tag_value FROM information_schema.ins_tags "
+                    f"WHERE db_name='{DB}' AND table_name='v_ref' ORDER BY tag_name;")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 'rcity')
+        tdSql.checkData(0, 1, 'beijing')
+        tdSql.checkData(1, 0, 'rcode')
+        tdSql.checkData(1, 1, '100')
+
+        # physical normal table owned tags
+        tdSql.execute("CREATE TABLE it_ntb (ts TIMESTAMP, v INT) TAGS (a INT = 1, b VARCHAR(8) = 'x');")
+        tdSql.query("SELECT tag_name, tag_value FROM information_schema.ins_tags "
+                    f"WHERE db_name='{DB}' AND table_name='it_ntb' ORDER BY tag_name;")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 'a')
+        tdSql.checkData(0, 1, '1')
+        tdSql.checkData(1, 0, 'b')
+        tdSql.checkData(1, 1, 'x')
+
+        # tag-less normal table: no rows (regression: stale decoder state showed phantom tags)
+        tdSql.execute("CREATE TABLE it_plain (ts TIMESTAMP, v INT);")
+        tdSql.query("SELECT tag_name FROM information_schema.ins_tags "
+                    f"WHERE db_name='{DB}' AND table_name='it_plain';")
+        tdSql.checkRows(0)
+
+        # SHOW TAGS works on both table kinds, and on a tag-less table (empty)
+        tdSql.query("SHOW TAGS FROM it_ntb;")
+        tdSql.checkRows(2)
+        tdSql.query("SHOW TAGS FROM v_own;")
+        tdSql.checkRows(1)
+        tdSql.query("SHOW TAGS FROM it_plain;")
+        tdSql.checkRows(0)
+        tdLog.info("  PASS: ins_tags / SHOW TAGS cover ntb and vntb tags")
+
+    def test_ins_tags_cursor_path_full_scan(self):
+        """ins_tags full-DB scan (no table_name equality) walks the meta cursor path:
+        vntb owned tags, vntb tag-refs resolved through the pause/resume re-read filler
+        (sysTableUserTagsFillNtbRefTagsRow), child-table tags carrying stable_name, and
+        tag-less tables producing no rows (phantom-tag decoder regression).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, tag, ins_tags
+
+        Jira: None
+
+        History:
+            - 2026-07-31 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        # tag-less tables must stay invisible on the cursor path even when a tagged
+        # table was decoded right before them (decoder-pool state reset regression)
+        tdSql.execute("CREATE TABLE cp_plain (ts TIMESTAMP, v INT);")
+        tdSql.execute("CREATE VTABLE cp_vnotag (ts TIMESTAMP, val INT FROM src0.val);")
+
+        # no table_name equality -> meta cursor path
+        rows = self._rows("SELECT table_name, stable_name, tag_name, tag_value "
+                          "FROM information_schema.ins_tags "
+                          f"WHERE db_name='{DB}';")
+        got = {(t, tag): (stable, val) for t, stable, tag, val in rows}
+
+        expected = {
+            # vntb owned tag
+            ('v_own', 'loc'): ('None', '5'),
+            # vntb tag-refs resolved via the re-read filler
+            ('v_ref', 'rcity'): ('None', 'beijing'),
+            ('v_ref', 'rcode'): ('None', '100'),
+            # mixed owned + ref on one vntb
+            ('v_mixed', 'lit'): ('None', '100'),
+            ('v_mixed', 'rcity'): ('None', 'beijing'),
+            # refs into three different source tables
+            ('v_mref', 'c0'): ('None', 'beijing'),
+            ('v_mref', 'c1'): ('None', 'shanghai'),
+            ('v_mref', 'c2'): ('None', 'guangzhou'),
+            # multi-tag vntb
+            ('v_ntag', 'name'): ('None', 'alpha'),
+            ('v_ntag', 'cnt'): ('None', '7'),
+            # child-table control rows: stable_name points at the super table
+            ('src0', 'city'): ('src_stb', 'beijing'),
+            ('src0', 'code'): ('src_stb', '100'),
+            ('src0', 'region'): ('src_stb', 'east'),
+            ('src2', 'city'): ('src_stb', 'guangzhou'),
+        }
+        for key, exp in expected.items():
+            assert got.get(key) == exp, f"cursor path: {key} expected {exp}, got {got.get(key)}"
+        # tag-less tables produce no rows at all
+        leaked = [k for k in got if k[0] in ('cp_plain', 'cp_vnotag')]
+        assert not leaked, f"tag-less tables leaked into ins_tags: {leaked}"
+        tdLog.info("  PASS: ins_tags cursor path covers owned/ref/mixed/child/tag-less")
+
+    def test_ins_tags_stable_name_semantics(self):
+        """stable_name is NULL for normal/virtual-normal tables and filters behave
+        accordingly: IS NULL keeps only ntb/vntb rows, equality keeps only child rows.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, tag, ins_tags
+
+        Jira: None
+
+        History:
+            - 2026-07-31 Created
+        """
+        tdSql.execute(f"USE {DB};")
+
+        rows = self._rows("SELECT DISTINCT table_name FROM information_schema.ins_tags "
+                          f"WHERE db_name='{DB}' AND stable_name IS NULL;")
+        null_names = {r[0] for r in rows}
+        assert 'v_own' in null_names, f"vntb missing from stable_name IS NULL: {null_names}"
+        assert 'src0' not in null_names, f"child table leaked into IS NULL: {null_names}"
+
+        rows = self._rows("SELECT DISTINCT table_name FROM information_schema.ins_tags "
+                          f"WHERE db_name='{DB}' AND stable_name = 'src_stb';")
+        stb_names = {r[0] for r in rows}
+        assert stb_names == {'src0', 'src1', 'src2'}, f"stable_name equality: {stb_names}"
+
+        rows = self._rows("SELECT DISTINCT table_name FROM information_schema.ins_tags "
+                          f"WHERE db_name='{DB}' AND stable_name IS NOT NULL;")
+        notnull_names = {r[0] for r in rows}
+        assert 'v_own' not in notnull_names, f"vntb leaked into IS NOT NULL: {notnull_names}"
+        assert 'src0' in notnull_names, f"child missing from IS NOT NULL: {notnull_names}"
+        tdLog.info("  PASS: ins_tags stable_name NULL semantics")
+
+    def test_ins_tags_alter_lifecycle(self):
+        """ALTER ADD/SET/DROP TAG is visible in ins_tags (and SHOW TAGS) on the same
+        connection, for both physical normal tables and virtual normal tables:
+        ADD exposes the tag with a NULL value, SET fills it, DROP removes the row.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, tag, ins_tags, alter
+
+        Jira: None
+
+        History:
+            - 2026-07-31 Created
+        """
+        tdSql.execute(f"USE {DB};")
+
+        def tag_rows(tb):
+            # tag_value is VARCHAR in ins_tags: compare as strings, keep NULL as None
+            tdSql.query("SELECT tag_name, tag_value FROM information_schema.ins_tags "
+                        f"WHERE db_name='{DB}' AND table_name='{tb}' ORDER BY tag_name;")
+            return [(tdSql.getData(i, 0),
+                     None if tdSql.getData(i, 1) is None else str(tdSql.getData(i, 1)))
+                    for i in range(tdSql.queryRows)]
+
+        # physical normal table lifecycle
+        tdSql.execute("CREATE TABLE al_ntb (ts TIMESTAMP, v INT) TAGS (a INT = 1);")
+        assert tag_rows('al_ntb') == [('a', '1')], f"create: {tag_rows('al_ntb')}"
+        tdSql.execute("ALTER TABLE al_ntb ADD TAG b BIGINT;")
+        assert tag_rows('al_ntb') == [('a', '1'), ('b', None)], f"add: {tag_rows('al_ntb')}"
+        tdSql.execute("ALTER TABLE al_ntb SET TAG b = 42;")
+        assert tag_rows('al_ntb') == [('a', '1'), ('b', '42')], f"set: {tag_rows('al_ntb')}"
+        tdSql.execute("ALTER TABLE al_ntb DROP TAG a;")
+        assert tag_rows('al_ntb') == [('b', '42')], f"drop: {tag_rows('al_ntb')}"
+
+        # virtual normal table lifecycle (owned tags)
+        tdSql.execute("CREATE VTABLE al_vtb (ts TIMESTAMP, val INT FROM src0.val) TAGS (x INT = 1);")
+        assert tag_rows('al_vtb') == [('x', '1')], f"v create: {tag_rows('al_vtb')}"
+        tdSql.execute("ALTER TABLE al_vtb ADD TAG y VARCHAR(8);")
+        assert tag_rows('al_vtb') == [('x', '1'), ('y', None)], f"v add: {tag_rows('al_vtb')}"
+        tdSql.execute("ALTER TABLE al_vtb SET TAG y = 'hi';")
+        assert tag_rows('al_vtb') == [('x', '1'), ('y', 'hi')], f"v set: {tag_rows('al_vtb')}"
+        tdSql.execute("ALTER TABLE al_vtb DROP TAG x;")
+        assert tag_rows('al_vtb') == [('y', 'hi')], f"v drop: {tag_rows('al_vtb')}"
+
+        # SHOW TAGS mirrors the final state
+        tdSql.query("SHOW TAGS FROM al_ntb;")
+        tdSql.checkRows(1)
+        tdSql.query("SHOW TAGS FROM al_vtb;")
+        tdSql.checkRows(1)
+        tdLog.info("  PASS: ins_tags reflects ALTER ADD/SET/DROP TAG same-connection")
+
+    def test_ins_tags_type_rendering(self):
+        """ins_tags renders tag_type (with length suffix for var types) and tag_value
+        for the common owned-tag types on a normal table.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, tag, ins_tags, datatype
+
+        Jira: None
+
+        History:
+            - 2026-07-31 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE ty_ntb (ts TIMESTAMP, v INT) TAGS ("
+                      "t_big BIGINT = 9000000000, t_bool BOOL = true, "
+                      "t_double DOUBLE = 2.25, t_float FLOAT = 1.5, "
+                      "t_int INT = 7, t_nch NCHAR(10) = '汉字', "
+                      "t_small SMALLINT = -300, t_tiny TINYINT = -8, "
+                      "t_ts TIMESTAMP = 1700000000000, t_vch VARCHAR(8) = 'abc');")
+
+        tdSql.query("SELECT tag_name, tag_type, tag_value FROM information_schema.ins_tags "
+                    f"WHERE db_name='{DB}' AND table_name='ty_ntb' ORDER BY tag_name;")
+        actual = [(tdSql.getData(i, 0), tdSql.getData(i, 1), str(tdSql.getData(i, 2)))
+                  for i in range(tdSql.queryRows)]
+        expected = [
+            ('t_big', 'BIGINT', '9000000000'),
+            ('t_bool', 'BOOL', 'true'),
+            ('t_double', 'DOUBLE', '2.250000000'),
+            ('t_float', 'FLOAT', '1.50000'),
+            ('t_int', 'INT', '7'),
+            ('t_nch', 'NCHAR(10)', '汉字'),
+            ('t_small', 'SMALLINT', '-300'),
+            ('t_tiny', 'TINYINT', '-8'),
+            ('t_ts', 'TIMESTAMP', '1700000000000'),
+            ('t_vch', 'VARCHAR(8)', 'abc'),
+        ]
+        assert actual == expected, f"type rendering mismatch\n  expected {expected}\n  actual   {actual}"
+        tdLog.info("  PASS: ins_tags tag_type/tag_value rendering")
+
+    def test_ins_tags_ref_set_converts_to_owned(self):
+        """SET TAG on a vntb tag-ref converts it to an owned tag: ins_tags then serves
+        the literal from the owned-value branch (hasRef cleared) on both the fast path
+        (table_name equality) and the cursor path (full scan).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, tag, ins_tags, tag_ref
+
+        Jira: None
+
+        History:
+            - 2026-07-31 Created
+        """
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE VTABLE rc_vtb (ts TIMESTAMP, val INT FROM src0.val) "
+                      "TAGS (rcity NCHAR(20) FROM src0.city);")
+
+        # ref resolves to the source value
+        tdSql.query("SELECT tag_value FROM information_schema.ins_tags "
+                    f"WHERE db_name='{DB}' AND table_name='rc_vtb';")
+        tdSql.checkData(0, 0, 'beijing')
+
+        # SET converts ref -> owned literal
+        tdSql.execute("ALTER TABLE rc_vtb SET TAG rcity = 'shenzhen';")
+        tdSql.query("SELECT tag_value FROM information_schema.ins_tags "
+                    f"WHERE db_name='{DB}' AND table_name='rc_vtb';")
+        tdSql.checkData(0, 0, 'shenzhen')
+
+        # cursor path sees the same converted value
+        rows = self._rows("SELECT tag_value FROM information_schema.ins_tags "
+                          f"WHERE db_name='{DB}' AND stable_name IS NULL "
+                          "AND table_name='rc_vtb';")
+        assert rows == [('shenzhen',)], f"cursor path after ref->owned: {rows}"
+        tdLog.info("  PASS: ins_tags serves converted ref->owned tag on both paths")
+
+    def test_ins_tags_multi_db_isolation(self):
+        """ins_tags rows are isolated by db_name: same-named tables with different tag
+        values in two databases do not leak into each other's result set.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, tag, ins_tags
+
+        Jira: None
+
+        History:
+            - 2026-07-31 Created
+        """
+        DB2 = "td_vntb_tags_iso"
+        tdSql.execute(f"DROP DATABASE IF EXISTS {DB2};")
+        tdSql.execute(f"CREATE DATABASE {DB2} BUFFER 16;")
+        tdSql.execute(f"CREATE TABLE {DB2}.iso_ntb (ts TIMESTAMP, v INT) TAGS (k INT = 9);")
+        tdSql.execute(f"USE {DB};")
+        tdSql.execute("CREATE TABLE iso_ntb (ts TIMESTAMP, v INT) TAGS (k INT = 1);")
+
+        # unfiltered by db: both databases' rows show up under the same table name
+        rows = self._rows("SELECT db_name, tag_value FROM information_schema.ins_tags "
+                          "WHERE table_name='iso_ntb';")
+        assert sorted(rows) == sorted([(DB, '1'), (DB2, '9')]), f"cross-db rows: {rows}"
+
+        # db_name filter isolates each side
+        tdSql.query("SELECT tag_value FROM information_schema.ins_tags "
+                    f"WHERE db_name='{DB}' AND table_name='iso_ntb';")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '1')
+        tdSql.query("SELECT tag_value FROM information_schema.ins_tags "
+                    f"WHERE db_name='{DB2}' AND table_name='iso_ntb';")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '9')
+
+        tdSql.execute(f"DROP DATABASE {DB2};")
+        tdLog.info("  PASS: ins_tags db_name isolation")
 
     # ==================================================================
     # ERROR MATRIX — parser / meta guards not previously exercised

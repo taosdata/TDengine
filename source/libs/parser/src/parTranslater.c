@@ -31984,7 +31984,8 @@ static int32_t checkShowTags(STranslateContext* pCxt, const SShowStmt* pShow) {
     code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_GET_META_ERROR, tstrerror(code));
     goto _exit;
   }
-  if ((TSDB_SUPER_TABLE != pTableMeta->tableType && TSDB_CHILD_TABLE != pTableMeta->tableType) &&
+  if ((TSDB_SUPER_TABLE != pTableMeta->tableType && TSDB_CHILD_TABLE != pTableMeta->tableType &&
+       TSDB_NORMAL_TABLE != pTableMeta->tableType && TSDB_VIRTUAL_NORMAL_TABLE != pTableMeta->tableType) &&
       (pTableMeta->virtualStb != 1 && pTableMeta->tableType != TSDB_VIRTUAL_CHILD_TABLE)) {
     code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_PC,
                                 "The _TAGS pseudo column can only be used for child table and super table queries");
@@ -35518,6 +35519,11 @@ static int32_t buildDropTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
   }
   if (pTag == NULL) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAG_NAME, pStmt->colName);
+  }
+
+  // A tag referenced by a stream must not be dropped (mirrors the super-table guard).
+  if (pTag->flags & COL_REF_BY_STM) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_TAG_REF_BY_STM);
   }
 
   pReq->colName = taosStrdup(pStmt->colName);

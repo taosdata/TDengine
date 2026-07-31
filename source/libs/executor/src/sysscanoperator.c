@@ -1735,6 +1735,75 @@ static int32_t sysTableUserTagsFillRefTagsRow(SOperatorInfo* pOperator, const ch
   return code;
 }
 
+static bool sysTableNtbHasRefTags(const SMetaEntry* pEntry) {
+  if (pEntry->type != TSDB_VIRTUAL_NORMAL_TABLE) {
+    return false;
+  }
+  const SColRefWrapper* pRefWrap = &pEntry->colRef;
+  for (int32_t r = 0; pRefWrap->pTagRef != NULL && r < pRefWrap->nTagRefs; ++r) {
+    if (pRefWrap->pTagRef[r].hasRef) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Fill ins_tags rows for a virtual normal table whose tags carry refs. Same cursor
+// pause/resume discipline as sysTableUserTagsFillRefTagsRow (ref resolution opens nested
+// LOCK readers and may fire cross-vnode RPCs), minus the super-table fetch: a normal
+// table has no parent, its tag schema/values sit on its own entry.
+static int32_t sysTableUserTagsFillNtbTags(const SSysTableScanInfo* pInfo, const SMetaEntry* pEntry,
+                                           const char* dbname, const char* tableName, int32_t* pNumOfRows,
+                                           const SSDataBlock* dataBlock, uint64_t reqId,
+                                           SExecTaskInfo* pTaskInfo);
+
+static int32_t sysTableUserTagsFillNtbRefTagsRow(SOperatorInfo* pOperator, const char* dbname, const char* tableName,
+                                                 int32_t* pNumOfRows, SSDataBlock* dataBlock) {
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  tb_uid_t           uid = pInfo->pCur->mr.me.uid;
+  bool               skipFill = false;
+  SMetaReader        smrNtb = {0};
+
+  pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
+
+  pAPI->metaReaderFn.initReader(&smrNtb, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn,
+                                pInfo->readHandle.txnId);
+  code = pAPI->metaReaderFn.getTableEntryByUid(&smrNtb, uid);
+  if (code != TSDB_CODE_SUCCESS) {
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      // Table dropped between cursor pause and re-read: skip the row.
+      qWarn("skip ref-tags fill for concurrently dropped table, uid:0x%" PRIx64 ", %s", uid, GET_TASKID(pTaskInfo));
+      skipFill = true;
+    }
+    // else: genuine error (OOM, IO, ...) — propagate via code instead of silently dropping the row.
+  } else {
+    pAPI->metaReaderFn.readerReleaseLock(&smrNtb);
+    // Re-ensure capacity with the freshly read entry (concurrent ALTER ADD/DROP TAG in the
+    // pause window could have changed nCols); colDataSetVal does not bounds-check rowIndex.
+    if ((smrNtb.me.ntbEntry.schemaTag.nCols + *pNumOfRows) > pOperator->resultInfo.capacity) {
+      code = blockDataEnsureCapacity(dataBlock, smrNtb.me.ntbEntry.schemaTag.nCols + *pNumOfRows);
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = sysTableUserTagsFillNtbTags(pInfo, &smrNtb.me, dbname, tableName, pNumOfRows, dataBlock,
+                                         pTaskInfo->id.queryId, pTaskInfo);
+    }
+  }
+  pAPI->metaReaderFn.clearReader(&smrNtb);
+  if (skipFill) {
+    code = TSDB_CODE_SUCCESS;
+  }
+
+  // Resume with move=1 to advance past the current key (mirrors sysTableUserTagsFillRefTagsRow).
+  int32_t resumeCode = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 1);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = resumeCode;
+  }
+  return code;
+}
+
 static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
@@ -1788,23 +1857,30 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       return NULL;
     }
 
-    if (smrChildTable.me.type != TSDB_CHILD_TABLE && smrChildTable.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
+    int8_t entryType = smrChildTable.me.type;
+    bool   isChild = (entryType == TSDB_CHILD_TABLE || entryType == TSDB_VIRTUAL_CHILD_TABLE);
+    bool   isNtb = (entryType == TSDB_NORMAL_TABLE || entryType == TSDB_VIRTUAL_NORMAL_TABLE);
+    if (!isChild && !isNtb) {
       pAPI->metaReaderFn.clearReader(&smrChildTable);
       blockDataDestroy(dataBlock);
       pInfo->loadInfo.totalRows = 0;
       return NULL;
     }
 
+    // Child tables need the parent super table for the tag schema; normal/virtual-normal
+    // tables carry the schema on their own entry.
     SMetaReader smrSuperTable = {0};
-    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
-    smrSuperTable.txnId = pInfo->readHandle.txnId;
-    code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
-    if (code != TSDB_CODE_SUCCESS) {
-      // terrno has been set by pAPI->metaReaderFn.getTableEntryByUid
-      pAPI->metaReaderFn.clearReader(&smrSuperTable);
-      pAPI->metaReaderFn.clearReader(&smrChildTable);
-      blockDataDestroy(dataBlock);
-      return NULL;
+    if (isChild) {
+      pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
+      smrSuperTable.txnId = pInfo->readHandle.txnId;
+      code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
+      if (code != TSDB_CODE_SUCCESS) {
+        // terrno has been set by pAPI->metaReaderFn.getTableEntryByUid
+        pAPI->metaReaderFn.clearReader(&smrSuperTable);
+        pAPI->metaReaderFn.clearReader(&smrChildTable);
+        blockDataDestroy(dataBlock);
+        return NULL;
+      }
     }
 
     // Release smrChildTable's meta read lock before the call: ref-tag resolution
@@ -1813,9 +1889,14 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     // rwlock (nested rdlock deadlocks behind a queued writer).
     // smrChildTable.me stays valid until clearReader.
     pAPI->metaReaderFn.readerReleaseLock(&smrChildTable);
-    code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows,
-                                            dataBlock, pTaskInfo->id.queryId, pTaskInfo);
-    pAPI->metaReaderFn.clearReader(&smrSuperTable);
+    if (isChild) {
+      code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows,
+                                              dataBlock, pTaskInfo->id.queryId, pTaskInfo);
+      pAPI->metaReaderFn.clearReader(&smrSuperTable);
+    } else {
+      code = sysTableUserTagsFillNtbTags(pInfo, &smrChildTable.me, dbname, tableName, &numOfRows, dataBlock,
+                                         pTaskInfo->id.queryId, pTaskInfo);
+    }
     pAPI->metaReaderFn.clearReader(&smrChildTable);
 
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1841,43 +1922,58 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   }
 
   while ((ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
-    if (pInfo->pCur->mr.me.type != TSDB_CHILD_TABLE && pInfo->pCur->mr.me.type != TSDB_VIRTUAL_CHILD_TABLE) {
+    int8_t entryType = pInfo->pCur->mr.me.type;
+    bool   isChild = (entryType == TSDB_CHILD_TABLE || entryType == TSDB_VIRTUAL_CHILD_TABLE);
+    bool   isNtb = (entryType == TSDB_NORMAL_TABLE || entryType == TSDB_VIRTUAL_NORMAL_TABLE);
+    if (!isChild && !isNtb) {
+      continue;
+    }
+    // Tag-less normal/virtual-normal table produces no ins_tags rows.
+    if (isNtb && pInfo->pCur->mr.me.ntbEntry.schemaTag.nCols == 0) {
       continue;
     }
 
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
 
+    // Child tables take the tag schema from the parent super table; normal/virtual-normal
+    // tables carry it on their own entry (no super fetch needed).
     SMetaReader smrSuperTable = {0};
-    pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
-    smrSuperTable.txnId = pInfo->readHandle.txnId;
-    uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
-    code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
-    if (code != TSDB_CODE_SUCCESS) {
-      if (pAPI->metaFn.hasPendingTxnEntries && pAPI->metaFn.hasPendingTxnEntries(pInfo->readHandle.vnode)) {
-        // Txn race: parent STB may be invisible during async rollback/vacuum. Skip row.
-        qWarn("skip orphan child table in tags scan, cname:%s, suid:0x%" PRIx64 ", code:%s, %s",
-              pInfo->pCur->mr.me.name, suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
+    int32_t     nTagCols = 0;
+    if (isChild) {
+      pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
+      smrSuperTable.txnId = pInfo->readHandle.txnId;
+      uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
+      code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
+      if (code != TSDB_CODE_SUCCESS) {
+        if (pAPI->metaFn.hasPendingTxnEntries && pAPI->metaFn.hasPendingTxnEntries(pInfo->readHandle.vnode)) {
+          // Txn race: parent STB may be invisible during async rollback/vacuum. Skip row.
+          qWarn("skip orphan child table in tags scan, cname:%s, suid:0x%" PRIx64 ", code:%s, %s",
+                pInfo->pCur->mr.me.name, suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
+          pAPI->metaReaderFn.clearReader(&smrSuperTable);
+          continue;
+        }
+        qError("failed to get super table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno),
+               GET_TASKID(pTaskInfo));
         pAPI->metaReaderFn.clearReader(&smrSuperTable);
-        continue;
+        pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+        pInfo->pCur = NULL;
+        blockDataDestroy(dataBlock);
+        dataBlock = NULL;
+        T_LONG_JMP(pTaskInfo->env, terrno);
       }
-      qError("failed to get super table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno),
-             GET_TASKID(pTaskInfo));
-      pAPI->metaReaderFn.clearReader(&smrSuperTable);
-      pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
-      pInfo->pCur = NULL;
-      blockDataDestroy(dataBlock);
-      dataBlock = NULL;
-      T_LONG_JMP(pTaskInfo->env, terrno);
+      nTagCols = smrSuperTable.me.stbEntry.schemaTag.nCols;
+    } else {
+      nTagCols = pInfo->pCur->mr.me.ntbEntry.schemaTag.nCols;
     }
 
-    if ((smrSuperTable.me.stbEntry.schemaTag.nCols + numOfRows) > pOperator->resultInfo.capacity) {
+    if ((nTagCols + numOfRows) > pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock, pOperator->exprSupp.pFilterInfo, pTaskInfo);
       numOfRows = 0;
 
       if (pInfo->pRes->info.rows > 0) {
         pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
-        pAPI->metaReaderFn.clearReader(&smrSuperTable);
+        if (isChild) pAPI->metaReaderFn.clearReader(&smrSuperTable);
         break;
       }
     }
@@ -1885,14 +1981,23 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
     // Rows whose tags carry refs must be filled without the cursor's meta read
     // lock held (nested LOCK readers + cross-vnode RPCs inside ref resolution);
-    // sysTableUserTagsFillRefTagsRow pauses/resumes the cursor around the fill.
-    if (sysTableChildHasRefTags(&pInfo->pCur->mr.me)) {
-      pAPI->metaReaderFn.clearReader(&smrSuperTable);
-      code = sysTableUserTagsFillRefTagsRow(pOperator, dbname, tableName, &numOfRows, dataBlock);
+    // the ref-rows fillers pause/resume the cursor around the fill.
+    if (isChild) {
+      if (sysTableChildHasRefTags(&pInfo->pCur->mr.me)) {
+        pAPI->metaReaderFn.clearReader(&smrSuperTable);
+        code = sysTableUserTagsFillRefTagsRow(pOperator, dbname, tableName, &numOfRows, dataBlock);
+      } else {
+        code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
+                                                dataBlock, pTaskInfo->id.queryId, pTaskInfo);
+        pAPI->metaReaderFn.clearReader(&smrSuperTable);
+      }
     } else {
-      code = sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows,
-                                              dataBlock, pTaskInfo->id.queryId, pTaskInfo);
-      pAPI->metaReaderFn.clearReader(&smrSuperTable);
+      if (sysTableNtbHasRefTags(&pInfo->pCur->mr.me)) {
+        code = sysTableUserTagsFillNtbRefTagsRow(pOperator, dbname, tableName, &numOfRows, dataBlock);
+      } else {
+        code = sysTableUserTagsFillNtbTags(pInfo, &pInfo->pCur->mr.me, dbname, tableName, &numOfRows, dataBlock,
+                                           pTaskInfo->id.queryId, pTaskInfo);
+      }
     }
 
     if (code != TSDB_CODE_SUCCESS) {
@@ -2289,31 +2394,24 @@ static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SCo
 // lock was released via readerReleaseLock (their data stays valid). Rows with
 // ref tags route into sysTagsResolveRefTagVal, which acquires its own LOCK
 // readers and may fire cross-vnode RPCs; see its contract comment.
-static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
-                                                SMetaReader* smrChildTable, const char* dbname, const char* tableName,
-                                                int32_t* pNumOfRows, const SSDataBlock* dataBlock,
-                                                uint64_t reqId, SExecTaskInfo* pTaskInfo) {
+// Core ins_tags row filler shared by child tables (schema/values via super table entry) and
+// normal/virtual-normal tables (schema/values on the table's own entry). stableName == NULL
+// renders the stable_name column as NULL (normal tables have no super table).
+static int32_t sysTableUserTagsFillTags(const SSysTableScanInfo* pInfo, const SSchemaWrapper* pTagSchema,
+                                        const STag* pTags, const char* stableName, const SColRef* pTagRefs,
+                                        int32_t nTagRefs, const char* dbname, const char* tableName,
+                                        int32_t* pNumOfRows, const SSDataBlock* dataBlock, uint64_t reqId,
+                                        SExecTaskInfo* pTaskInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  char    stableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_TO_VARSTR(stableName, (*smrSuperTable).me.name);
+  char    stableNameBuf[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  if (stableName != NULL) {
+    STR_TO_VARSTR(stableNameBuf, stableName);
+  }
 
   int32_t numOfRows = *pNumOfRows;
 
-  bool     isVirtualChild = (smrChildTable->me.type == TSDB_VIRTUAL_CHILD_TABLE);
-  SColRef* pTagRefs = isVirtualChild ? smrChildTable->me.colRef.pTagRef : NULL;
-  int32_t  nTagRefs = isVirtualChild ? smrChildTable->me.colRef.nTagRefs : 0;
-
-  if (isVirtualChild) {
-    qDebug("sys-tags child:%s nTagRefs:%d", smrChildTable->me.name, nTagRefs);
-    for (int32_t r = 0; r < nTagRefs; ++r) {
-      qDebug("sys-tags child:%s tagRef[%d] hasRef:%d id:%d src:%s db:%s tb:%s col:%s", smrChildTable->me.name, r,
-             pTagRefs[r].hasRef, pTagRefs[r].id, pTagRefs[r].refSourceName, pTagRefs[r].refDbName,
-             pTagRefs[r].refTableName, pTagRefs[r].refColName);
-    }
-  }
-
-  int32_t numOfTags = (*smrSuperTable).me.stbEntry.schemaTag.nCols;
+  int32_t numOfTags = pTagSchema->nCols;
   for (int32_t i = 0; i < numOfTags; ++i) {
     SColumnInfoData* pColInfoData = NULL;
 
@@ -2329,22 +2427,22 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     code = colDataSetVal(pColInfoData, numOfRows, dbname, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    // super table name
+    // super table name (NULL for normal/virtual-normal tables)
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 2);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    code = colDataSetVal(pColInfoData, numOfRows, stableName, false);
+    code = colDataSetVal(pColInfoData, numOfRows, stableNameBuf, (stableName == NULL));
     QUERY_CHECK_CODE(code, lino, _end);
 
     // tag name
     char tagName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(tagName, (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].name);
+    STR_TO_VARSTR(tagName, pTagSchema->pSchema[i].name);
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
     code = colDataSetVal(pColInfoData, numOfRows, tagName, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
     // tag type
-    int8_t tagType = (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].type;
+    int8_t tagType = pTagSchema->pSchema[i].type;
 
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
@@ -2358,30 +2456,29 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
     }
 
     if (tagType == TSDB_DATA_TYPE_NCHAR) {
-      tagTypeLen += snprintf(
-          varDataVal(tagTypeStr) + tagTypeLen, tagStrBufflen, "(%d)",
-          (int32_t)(((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+      tagTypeLen += snprintf(varDataVal(tagTypeStr) + tagTypeLen, tagStrBufflen, "(%d)",
+                             (int32_t)((pTagSchema->pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     } else if (IS_VAR_DATA_TYPE(tagType)) {
       if (IS_STR_DATA_BLOB(tagType)) {
         code = TSDB_CODE_BLOB_NOT_SUPPORT_TAG;
         QUERY_CHECK_CODE(code, lino, _end);
       }
       tagTypeLen += snprintf(varDataVal(tagTypeStr) + tagTypeLen, tagStrBufflen, "(%d)",
-                             (int32_t)((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE));
+                             (int32_t)(pTagSchema->pSchema[i].bytes - VARSTR_HEADER_SIZE));
     }
     varDataSetLen(tagTypeStr, tagTypeLen);
     code = colDataSetVal(pColInfoData, numOfRows, (char*)tagTypeStr, false);
     QUERY_CHECK_CODE(code, lino, _end);
 
     STagVal tagVal = {0};
-    tagVal.cid = (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].colId;
+    tagVal.cid = pTagSchema->pSchema[i].colId;
     char*    tagData = NULL;
     uint32_t tagLen = 0;
     bool     tagDataFromRemote = false;
 
-    SColRef* pMatchedRef = NULL;
+    const SColRef* pMatchedRef = NULL;
     if (pTagRefs != NULL) {
-      col_id_t curColId = (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].colId;
+      col_id_t curColId = pTagSchema->pSchema[i].colId;
       for (int32_t r = 0; r < nTagRefs; ++r) {
         if (pTagRefs[r].id == curColId) {
           pMatchedRef = &pTagRefs[r];
@@ -2399,9 +2496,9 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
       }
     } else {
       if (tagType == TSDB_DATA_TYPE_JSON) {
-        tagData = (char*)smrChildTable->me.ctbEntry.pTags;
+        tagData = (char*)pTags;
       } else {
-        bool exist = tTagGet((STag*)smrChildTable->me.ctbEntry.pTags, &tagVal);
+        bool exist = tTagGet((STag*)pTags, &tagVal);
         if (exist) {
           if (tagType == TSDB_DATA_TYPE_GEOMETRY) {
             code = sysTableGetGeomText(tagVal.pData, tagVal.nData, &tagData, &tagLen);
@@ -2478,6 +2575,31 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
+                                                SMetaReader* smrChildTable, const char* dbname, const char* tableName,
+                                                int32_t* pNumOfRows, const SSDataBlock* dataBlock,
+                                                uint64_t reqId, SExecTaskInfo* pTaskInfo) {
+  bool isVirtualChild = (smrChildTable->me.type == TSDB_VIRTUAL_CHILD_TABLE);
+  return sysTableUserTagsFillTags(pInfo, &smrSuperTable->me.stbEntry.schemaTag,
+                                  (const STag*)smrChildTable->me.ctbEntry.pTags, smrSuperTable->me.name,
+                                  isVirtualChild ? smrChildTable->me.colRef.pTagRef : NULL,
+                                  isVirtualChild ? smrChildTable->me.colRef.nTagRefs : 0, dbname, tableName,
+                                  pNumOfRows, dataBlock, reqId, pTaskInfo);
+}
+
+// Normal/virtual-normal table variant: tag schema and values live on the table's own entry
+// (no super table, stable_name is NULL). vntb tag-refs resolve exactly like virtual-child refs.
+static int32_t sysTableUserTagsFillNtbTags(const SSysTableScanInfo* pInfo, const SMetaEntry* pEntry,
+                                           const char* dbname, const char* tableName, int32_t* pNumOfRows,
+                                           const SSDataBlock* dataBlock, uint64_t reqId,
+                                           SExecTaskInfo* pTaskInfo) {
+  bool isVirtualNtb = (pEntry->type == TSDB_VIRTUAL_NORMAL_TABLE);
+  return sysTableUserTagsFillTags(pInfo, &pEntry->ntbEntry.schemaTag, (const STag*)pEntry->ntbEntry.pTags, NULL,
+                                  isVirtualNtb ? pEntry->colRef.pTagRef : NULL,
+                                  isVirtualNtb ? pEntry->colRef.nTagRefs : 0, dbname, tableName, pNumOfRows,
+                                  dataBlock, reqId, pTaskInfo);
 }
 
 static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNumOfRows, const SSDataBlock* dataBlock,
