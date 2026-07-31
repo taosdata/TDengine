@@ -1,33 +1,35 @@
-# encoding:utf-8
 # pylint: disable=c0103
 """the main route definition for restful service"""
+
 import os
 import os.path
 import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
-import taosanalytics
 from flask import Flask, request
-from taosanalytics.handlers.imputation import handle_imputation
-from taosanalytics.handlers.anomaly import handle_anomaly
-from taosanalytics.handlers.forecast import handle_forecast
-from taosanalytics.handlers.correlation import handle_correlation
-from taosanalytics.handlers.regression import handle_regression
-from taosanalytics.handlers.misc import do_profile_search, handle_batch, handle_pearsonr
 
+import taosanalytics
 from taosanalytics.conf import Configure
+from taosanalytics.handlers.anomaly import handle_anomaly
+from taosanalytics.handlers.correlation import handle_correlation
+from taosanalytics.handlers.dynamic_model import (
+    do_handle_dynamic_model,
+    do_handle_undeploy_model,
+)
+from taosanalytics.handlers.forecast import handle_forecast
+from taosanalytics.handlers.imputation import handle_imputation
+from taosanalytics.handlers.misc import do_profile_search, handle_batch, handle_pearsonr
+from taosanalytics.handlers.regression import handle_regression
 from taosanalytics.log import AppLogger
 from taosanalytics.model_file_mgt import ModelFileManager
 from taosanalytics.service_registry import loader
-
-from taosanalytics.handlers.dynamic_model import (do_handle_undeploy_model, do_handle_dynamic_model)
 
 
 def _init_app():
     """Initialize configuration, logger, and load services. Called on module import."""
     # Read config path from environment variable or use default
-    conf_path = os.environ.get('TDGPT_CONF')
+    conf_path = os.environ.get("TDGPT_CONF")
 
     # Init configuration
     conf = Configure.init(conf_path)
@@ -49,17 +51,14 @@ app.config["PROPAGATE_EXCEPTIONS"] = True
 
 @app.route("/")
 def index():
-    """ default rsp """
+    """default rsp"""
     return taosanalytics._ANODE_VER
 
 
 @app.route("/status")
 def server_status():
-    """ return server status """
-    return {
-        'protocol': 1.0,
-        'status': 'ready'
-    }
+    """return server status"""
+    return {"protocol": 1.0, "status": "ready"}
 
 
 @app.route("/list")
@@ -73,80 +72,80 @@ def list_all_services():
 
 @app.route("/models")
 def list_all_models():
-    """ list all available models """
+    """list all available models"""
     AppLogger.info("Received request to list all models, ip:%s", request.remote_addr)
     return ModelFileManager.get_instance().get_model_list()
 
 
-@app.route("/anomaly-detect", methods=['POST'])
+@app.route("/anomaly-detect", methods=["POST"])
 def handle_ad_request():
     """handle the anomaly detection requests"""
-    AppLogger.info('recv ad request from %s', request.remote_addr)
+    AppLogger.info("recv ad request from %s", request.remote_addr)
     return handle_anomaly(request)
 
 
-@app.route("/forecast", methods=['POST'])
+@app.route("/forecast", methods=["POST"])
 def handle_forecast_req():
-    """handle the fc request """
-    AppLogger.info('recv forecast request from %s', request.remote_addr)
+    """handle the fc request"""
+    AppLogger.info("recv forecast request from %s", request.remote_addr)
     return handle_forecast(request)
 
 
-@app.route("/imputation", methods=['POST'])
+@app.route("/imputation", methods=["POST"])
 def handle_imputation_req():
-    """handle the imputation request """
+    """handle the imputation request"""
     return handle_imputation(request)
 
 
-@app.route("/correlation", methods=['POST'])
+@app.route("/correlation", methods=["POST"])
 def handle_correlation_req():
-    """handle the correlation request """
-    AppLogger.info('recv correlation from %s', request.remote_addr)
+    """handle the correlation request"""
+    AppLogger.info("recv correlation from %s", request.remote_addr)
     return handle_correlation(request)
 
 
-@app.route("/regression", methods=['POST'])
+@app.route("/regression", methods=["POST"])
 def handle_regression_req():
     """handle the regression request"""
-    AppLogger.info('recv regression request from %s', request.remote_addr)
+    AppLogger.info("recv regression request from %s", request.remote_addr)
     return handle_regression(request)
 
 
-# Keep both routes mapped to this handler so existing clients using the legacy endpoint continue to work, while 
+# Keep both routes mapped to this handler so existing clients using the legacy endpoint continue to work, while
 # the new integration uses the versioned one.
-@app.route('/api/v1/analysis/batch', methods=['POST'])
-@app.route("/tool/batch", methods=['POST'])
+@app.route("/api/v1/analysis/batch", methods=["POST"])
+@app.route("/tool/batch", methods=["POST"])
 def handle_batch_req():
-    """handle the batch request request """
+    """handle the batch request request"""
     return handle_batch(request)
 
 
-@app.route('/deploy', methods=['POST'])
+@app.route("/deploy", methods=["POST"])
 def deploy_model():
     """deploy model to production environment, e.g. load model to memory, etc."""
     return do_handle_dynamic_model(request)
 
 
-@app.route('/undeploy', methods=['POST'])
+@app.route("/undeploy", methods=["POST"])
 def undeploy_model():
     return do_handle_undeploy_model(request)
 
 
-@app.route('/api/v1/analysis/pearsonr', methods=['POST'])
+@app.route("/api/v1/analysis/pearsonr", methods=["POST"])
 def handle_pearsonr_req():
-    """handle the pearsonr correlation request """
-    AppLogger.info('recv pearsonr correlation request from %s', request.remote_addr)
-    return handle_pearsonr(request, api_version='v1')
+    """handle the pearsonr correlation request"""
+    AppLogger.info("recv pearsonr correlation request from %s", request.remote_addr)
+    return handle_pearsonr(request, api_version="v1")
 
 
-@app.route('/api/v1/analysis/profile-search', methods=['POST'])
+@app.route("/api/v1/analysis/profile-search", methods=["POST"])
 def handle_profile_search_req():
-    """handle the profile search request """
-    AppLogger.info('recv profile search request from %s', request.remote_addr)
-    return do_profile_search(request, api_version='v1')
+    """handle the profile search request"""
+    AppLogger.info("recv profile search request from %s", request.remote_addr)
+    return do_profile_search(request, api_version="v1")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Parse args before initializing so the correct config file is used from
     # the start; services are loaded only once, with the final configuration.
     from taosanalytics.util import parse_args
@@ -154,7 +153,7 @@ if __name__ == '__main__':
     args = parse_args()
 
     if args.conf_path:
-        os.environ['TDGPT_CONF'] = args.conf_path
+        os.environ["TDGPT_CONF"] = args.conf_path
 
     _init_app()
 

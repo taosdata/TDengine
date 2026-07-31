@@ -1,24 +1,25 @@
-# encoding:utf-8
 # pylint: disable=c0103
-""" auto encoder algorithms to detect anomaly for time series data"""
+"""auto encoder algorithms to detect anomaly for time series data"""
+
 import json
+
 import requests
 
 from taosanalytics.algo.forecast import insert_ts_list
-from taosanalytics.conf import Configure
 from taosanalytics.base import AbstractForecastService, AnalyticsService
+from taosanalytics.conf import Configure
 from taosanalytics.log import AppLogger
 
 
 class TsfmBaseService(AbstractForecastService):
     """tsfm base service class"""
+
     _builtins = True
 
     def __init__(self):
         super().__init__()
-        self.headers = {'Content-Type': 'application/json'}
+        self.headers = {"Content-Type": "application/json"}
         self.service_host = Configure.get_instance().get_tsfm_service(self.name)
-
 
     def execute(self):
         if self.list is None or len(self.list) < self.period:
@@ -33,21 +34,27 @@ class TsfmBaseService(AbstractForecastService):
             "ts": self.ts_list,
             "next_len": self.rows,
             "past_dynamic_real": self.past_dynamic_real,
-            "dynamic_real":self.dynamic_real,
-            "conf_interval": self.conf
+            "dynamic_real": self.dynamic_real,
+            "conf_interval": self.conf,
         }
 
         try:
-            response = requests.post(self.service_host, data=json.dumps(data), headers=self.headers)
-        except Exception as e:
-            AppLogger.error("failed to connect the service: %s", self.service_host, exc_info=True)
+            response = requests.post(
+                self.service_host, data=json.dumps(data), headers=self.headers
+            )
+        except Exception:
+            AppLogger.error(
+                "failed to connect the service: %s", self.service_host, exc_info=True
+            )
             raise
 
         if response.status_code == 404:
             AppLogger.error(f"failed to connect the service: {self.service_host}")
             raise ValueError("invalid host url")
         elif response.status_code != 200:
-            AppLogger.error(f"failed to request the service: {self.service_host}, reason: {response.text}")
+            AppLogger.error(
+                f"failed to request the service: {self.service_host}, reason: {response.text}"
+            )
             raise ValueError(f"failed to request the service, {response.text}")
 
         resp_json = response.json()
@@ -59,34 +66,44 @@ class TsfmBaseService(AbstractForecastService):
                 "conf": 0,
             }
         else:
-            if resp_json.get('upper') is None:
-                res =  {
-                    "res": [resp_json["output"], resp_json["output"], resp_json["output"]],
+            if resp_json.get("upper") is None:
+                res = {
+                    "res": [
+                        resp_json["output"],
+                        resp_json["output"],
+                        resp_json["output"],
+                    ],
                     "conf": self.conf,
                 }
             else:  # return data with lower/upper interval value
                 res = {
-                    "res": [resp_json["output"], resp_json["lower"], resp_json["upper"]],
+                    "res": [
+                        resp_json["output"],
+                        resp_json["lower"],
+                        resp_json["upper"],
+                    ],
                     "conf": self.conf,
                 }
 
         insert_ts_list(res["res"], self.start_ts, self.time_step, self.rows)
         return res
 
-
     def set_params(self, params):
         super().set_params(params)
 
         if "host" in params:
-            self.service_host = params['host']
+            self.service_host = params["host"]
 
             if self.service_host.startswith("https://"):
                 self.service_host = self.service_host.replace("https://", "http://")
             elif "http://" not in self.service_host:
                 self.service_host = "http://" + self.service_host
 
-        AppLogger.info("%s specify gpt host service: %s", self.__class__.__name__,
-                                 self.service_host)
+        AppLogger.info(
+            "%s specify gpt host service: %s",
+            self.__class__.__name__,
+            self.service_host,
+        )
 
     def get_status(self) -> str:
         if self.service_host is None:
@@ -96,7 +113,9 @@ class TsfmBaseService(AbstractForecastService):
         try:
             _ = requests.get(self.service_host, headers=self.headers, timeout=5)
         except Exception as e:
-            AppLogger.error("failed to connect the service: %s %s", self.service_host, str(e))
+            AppLogger.error(
+                "failed to connect the service: %s %s", self.service_host, str(e)
+            )
             return AnalyticsService._toStatusName[AnalyticsService.UNAVAILABLE]
 
         return super().get_status()

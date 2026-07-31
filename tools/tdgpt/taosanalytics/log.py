@@ -5,12 +5,13 @@ from pathlib import Path
 from taosanalytics.conf import Configure
 
 
-class AppLogger():
-    """ system log_inst class (singleton) """
-    _LOG_STR_FORMAT = '%(asctime)s - %(threadName)s - %(levelname)s - %(message)s'
+class AppLogger:
+    """system log_inst class (singleton)"""
+
+    _LOG_STR_FORMAT = "%(asctime)s - %(threadName)s - %(levelname)s - %(message)s"
 
     _instance = None
-    _lock = __import__('threading').Lock()
+    _lock = __import__("threading").Lock()
 
     def __new__(cls):
         with cls._lock:
@@ -30,7 +31,7 @@ class AppLogger():
 
     @classmethod
     def set_handler(cls, file_path: str):
-        """ set the log_inst handler """
+        """set the log_inst handler"""
         path = Path(file_path)
 
         # create directory (including intermediate parents) if not exists
@@ -53,8 +54,8 @@ class AppLogger():
 
         if has_matching:
             return
-        
-        handler = logging.FileHandler(file_path, encoding='utf-8')
+
+        handler = logging.FileHandler(file_path, encoding="utf-8")
         handler.setFormatter(logging.Formatter(cls._LOG_STR_FORMAT))
 
         logger.addHandler(handler)
@@ -91,7 +92,7 @@ class AppLogger():
 
 
 def setup_log_info(name: str):
-    """ prepare the log info for unit test """
+    """prepare the log info for unit test"""
     _GIT_HUB_HOST = "/home/runner/work/TDengine/TDengine/tools/tdgpt/log/"
 
     # base_dir = _GIT_HUB_HOST if os.environ.get('GITHUB_ACTIONS') else Configure.get_instance().get_log_dir()

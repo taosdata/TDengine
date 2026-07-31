@@ -1,4 +1,3 @@
-# encoding:utf-8
 # pylint: disable=c0103
 """anomaly detection register/display functions"""
 
@@ -6,10 +5,11 @@ import os
 
 import numpy as np
 from matplotlib import pyplot as plt
+
 from taosanalytics.conf import Configure
 from taosanalytics.error import failed_load_model_except
-from taosanalytics.service_registry import loader
 from taosanalytics.log import AppLogger
+from taosanalytics.service_registry import loader
 from taosanalytics.util import convert_results_to_windows
 
 

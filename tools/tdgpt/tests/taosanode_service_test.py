@@ -15,8 +15,9 @@ class TestTaosanodeService:
         assert taosanode_service.logger is not None
 
     def test_status(self, taosanode_service):
-        with patch.object(taosanode_service.process_mgr, "is_running", return_value=True), \
-             patch.object(taosanode_service.process_mgr, "read_pid", return_value=1234):
+        with patch.object(
+            taosanode_service.process_mgr, "is_running", return_value=True
+        ), patch.object(taosanode_service.process_mgr, "read_pid", return_value=1234):
             status = taosanode_service.status()
 
         assert status["service"] == "taosanode"
@@ -25,16 +26,22 @@ class TestTaosanodeService:
         assert status["bind"] == "0.0.0.0:6035"
 
     def test_stop_not_running(self, taosanode_service):
-        with patch.object(taosanode_service.process_mgr, "is_running", return_value=False), \
-             patch.object(taosanode_service.process_mgr, "remove_pid") as remove_pid:
+        with patch.object(
+            taosanode_service.process_mgr, "is_running", return_value=False
+        ), patch.object(taosanode_service.process_mgr, "remove_pid") as remove_pid:
             assert taosanode_service.stop() is True
         remove_pid.assert_called_once_with("taosanode")
 
     def test_stop_success(self, taosanode_service):
-        with patch.object(taosanode_service.process_mgr, "is_running", side_effect=[True, False]), \
-             patch.object(taosanode_service.process_mgr, "read_pid", return_value=1234), \
-             patch.object(taosanode_service.process_mgr, "kill_process") as kill_process, \
-             patch.object(taosanode_service.process_mgr, "remove_pid") as remove_pid:
+        with patch.object(
+            taosanode_service.process_mgr, "is_running", side_effect=[True, False]
+        ), patch.object(
+            taosanode_service.process_mgr, "read_pid", return_value=1234
+        ), patch.object(
+            taosanode_service.process_mgr, "kill_process"
+        ) as kill_process, patch.object(
+            taosanode_service.process_mgr, "remove_pid"
+        ) as remove_pid:
             assert taosanode_service.stop() is True
         kill_process.assert_called_once_with(1234, force=False)
         remove_pid.assert_called_once_with("taosanode")
@@ -46,7 +53,9 @@ class TestTaosanodeService:
 
         assert taosanode_service._get_requested_preflight_mode() == "off"
 
-    def test_light_preflight_env_warns_and_maps_to_off(self, taosanode_service, monkeypatch):
+    def test_light_preflight_env_warns_and_maps_to_off(
+        self, taosanode_service, monkeypatch
+    ):
         monkeypatch.setenv("TAOSANODE_PREFLIGHT_MODE", "light")
         monkeypatch.delenv("TAOSANODE_FULL_PREFLIGHT", raising=False)
         monkeypatch.delenv("TAOSANODE_LIGHT_PREFLIGHT", raising=False)
@@ -55,7 +64,9 @@ class TestTaosanodeService:
         warning.assert_called_once()
 
     def test_import_failure_triggers_full_diagnostics(self, taosanode_service):
-        with patch.object(taosanode_service, "_collect_startup_failure_diagnostics") as collect:
+        with patch.object(
+            taosanode_service, "_collect_startup_failure_diagnostics"
+        ) as collect:
             failure_kind = taosanode_service._handle_startup_failure(
                 "python.exe",
                 {},
@@ -69,7 +80,9 @@ class TestTaosanodeService:
         collect.assert_called_once()
 
     def test_bind_failure_does_not_trigger_full_diagnostics(self, taosanode_service):
-        with patch.object(taosanode_service, "_collect_startup_failure_diagnostics") as collect:
+        with patch.object(
+            taosanode_service, "_collect_startup_failure_diagnostics"
+        ) as collect:
             failure_kind = taosanode_service._handle_startup_failure(
                 "python.exe",
                 {},
@@ -82,8 +95,12 @@ class TestTaosanodeService:
         assert failure_kind == "bind"
         collect.assert_not_called()
 
-    def test_background_unknown_failure_triggers_full_diagnostics(self, taosanode_service):
-        with patch.object(taosanode_service, "_collect_startup_failure_diagnostics") as collect:
+    def test_background_unknown_failure_triggers_full_diagnostics(
+        self, taosanode_service
+    ):
+        with patch.object(
+            taosanode_service, "_collect_startup_failure_diagnostics"
+        ) as collect:
             failure_kind = taosanode_service._handle_startup_failure(
                 "python.exe",
                 {},
@@ -95,8 +112,12 @@ class TestTaosanodeService:
         assert failure_kind == "unknown"
         collect.assert_called_once()
 
-    def test_access_violation_log_is_classified_as_native_failure(self, taosanode_service):
-        with patch.object(taosanode_service, "_collect_startup_failure_diagnostics") as collect:
+    def test_access_violation_log_is_classified_as_native_failure(
+        self, taosanode_service
+    ):
+        with patch.object(
+            taosanode_service, "_collect_startup_failure_diagnostics"
+        ) as collect:
             failure_kind = taosanode_service._handle_startup_failure(
                 "python.exe",
                 {},
@@ -109,9 +130,13 @@ class TestTaosanodeService:
         assert failure_kind == "import_native"
         collect.assert_called_once()
 
-    def test_startup_diagnostic_cooldown_suppresses_duplicate_runs(self, taosanode_service, monkeypatch):
+    def test_startup_diagnostic_cooldown_suppresses_duplicate_runs(
+        self, taosanode_service, monkeypatch
+    ):
         monkeypatch.setenv("TAOSANODE_STARTUP_DIAGNOSTIC_COOLDOWN", "300")
-        with patch.object(taosanode_service, "_collect_preflight_diagnostics") as collect:
+        with patch.object(
+            taosanode_service, "_collect_preflight_diagnostics"
+        ) as collect:
             taosanode_service._collect_startup_failure_diagnostics(
                 "python.exe",
                 {},
@@ -127,7 +152,9 @@ class TestTaosanodeService:
 
         assert collect.call_count == 1
 
-    def test_wait_ready_tolerates_windows_service_pending_state(self, taosanode_service):
+    def test_wait_ready_tolerates_windows_service_pending_state(
+        self, taosanode_service
+    ):
         response = MagicMock()
         response.status = 200
         response.read.return_value = b"ready"
@@ -138,12 +165,18 @@ class TestTaosanodeService:
         with patch.object(
             service_module.urllib.request,
             "urlopen",
-            side_effect=[RuntimeError("not ready"), RuntimeError("still starting"), response_ctx],
-        ), patch.object(taosanode_service.process_mgr, "is_running", return_value=False), \
-             patch.object(
-                 taosanode_service,
-                 "_query_windows_service_state",
-                 side_effect=["START_PENDING", "RUNNING"],
-             ), \
-             patch.object(service_module.time, "sleep", return_value=None):
+            side_effect=[
+                RuntimeError("not ready"),
+                RuntimeError("still starting"),
+                response_ctx,
+            ],
+        ), patch.object(
+            taosanode_service.process_mgr, "is_running", return_value=False
+        ), patch.object(
+            taosanode_service,
+            "_query_windows_service_state",
+            side_effect=["START_PENDING", "RUNNING"],
+        ), patch.object(
+            service_module.time, "sleep", return_value=None
+        ):
             assert taosanode_service.wait_ready(timeout=2, interval=0.01) is True

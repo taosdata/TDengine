@@ -1,9 +1,10 @@
 """
 Tests for ModelService class
 """
-import pytest
+
 import os
-from unittest.mock import Mock, patch, MagicMock
+
+import pytest
 
 
 class TestModelService:
@@ -22,34 +23,22 @@ class TestModelService:
 
     def test_start_model_already_running(self, model_service, mocker):
         """Test starting model when it's already running"""
-        mocker.patch.object(
-            model_service.process_mgr,
-            'is_running',
-            return_value=True
-        )
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=True)
 
         result = model_service.start("tdtsfm")
         assert result is True
 
     def test_start_required_model_missing(self, model_service, mocker):
         """Test starting required model when directory is missing"""
-        mocker.patch.object(
-            model_service.process_mgr,
-            'is_running',
-            return_value=False
-        )
-        mocker.patch('os.path.exists', return_value=False)
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch("os.path.exists", return_value=False)
 
         result = model_service.start("tdtsfm")
         assert result is True
 
     def test_start_optional_model_missing(self, model_service, mocker):
         """Test starting optional model when directory is missing"""
-        mocker.patch.object(
-            model_service.process_mgr,
-            'is_running',
-            return_value=False
-        )
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
 
         # Mock os.path.exists to return False for model_dir but True for others
         def exists_side_effect(path):
@@ -57,40 +46,27 @@ class TestModelService:
                 return False
             return True
 
-        mocker.patch('os.path.exists', side_effect=exists_side_effect)
+        mocker.patch("os.path.exists", side_effect=exists_side_effect)
 
         result = model_service.start("chronos")
         assert result is True  # Should skip optional model
 
     def test_start_model_success(self, model_service, mocker):
         """Test successful model start"""
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
         mocker.patch.object(
             model_service.process_mgr,
-            'is_running',
-            return_value=False
+            "_get_python_exe",
+            return_value="/usr/bin/python3",
         )
         mocker.patch.object(
-            model_service.process_mgr,
-            '_get_python_exe',
-            return_value='/usr/bin/python3'
+            model_service.process_mgr, "wait_for_service", return_value=True
         )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'wait_for_service',
-            return_value=True
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'read_pid',
-            return_value=5678
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'write_pid'
-        )
-        mocker.patch('os.path.exists', return_value=True)
-        mocker.patch('subprocess.Popen')
-        mocker.patch('builtins.open', create=True)
+        mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
+        mocker.patch.object(model_service.process_mgr, "write_pid")
+        mocker.patch("os.path.exists", return_value=True)
+        mocker.patch("subprocess.Popen")
+        mocker.patch("builtins.open", create=True)
 
         result = model_service.start("tdtsfm")
         assert result is True
@@ -102,15 +78,8 @@ class TestModelService:
 
     def test_stop_model_not_running(self, model_service, mocker):
         """Test stopping model when it's not running"""
-        mocker.patch.object(
-            model_service.process_mgr,
-            'is_running',
-            return_value=False
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'remove_pid'
-        )
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(model_service.process_mgr, "remove_pid")
 
         result = model_service.stop("tdtsfm")
         assert result is True
@@ -119,70 +88,40 @@ class TestModelService:
         """Test successful model stop"""
         mocker.patch.object(
             model_service.process_mgr,
-            'is_running',
-            side_effect=[True, False]  # Running initially, then stopped
+            "is_running",
+            side_effect=[True, False],  # Running initially, then stopped
         )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'read_pid',
-            return_value=5678
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'kill_process'
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'remove_pid'
-        )
+        mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
+        mocker.patch.object(model_service.process_mgr, "kill_process")
+        mocker.patch.object(model_service.process_mgr, "remove_pid")
 
         result = model_service.stop("tdtsfm")
         assert result is True
 
     def test_start_all_models(self, model_service, mocker):
         """Test starting all models"""
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
         mocker.patch.object(
             model_service.process_mgr,
-            'is_running',
-            return_value=False
+            "_get_python_exe",
+            return_value="/usr/bin/python3",
         )
         mocker.patch.object(
-            model_service.process_mgr,
-            '_get_python_exe',
-            return_value='/usr/bin/python3'
+            model_service.process_mgr, "wait_for_service", return_value=True
         )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'wait_for_service',
-            return_value=True
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'read_pid',
-            return_value=5678
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'write_pid'
-        )
-        mocker.patch('os.path.exists', return_value=True)
-        mocker.patch('subprocess.Popen')
-        mocker.patch('builtins.open', create=True)
+        mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
+        mocker.patch.object(model_service.process_mgr, "write_pid")
+        mocker.patch("os.path.exists", return_value=True)
+        mocker.patch("subprocess.Popen")
+        mocker.patch("builtins.open", create=True)
 
         result = model_service.start("all")
         assert result is True
 
     def test_stop_all_models(self, model_service, mocker):
         """Test stopping all models"""
-        mocker.patch.object(
-            model_service.process_mgr,
-            'is_running',
-            return_value=False
-        )
-        mocker.patch.object(
-            model_service.process_mgr,
-            'remove_pid'
-        )
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(model_service.process_mgr, "remove_pid")
 
         result = model_service.stop("all")
         assert result is True
@@ -191,13 +130,20 @@ class TestModelService:
         """Test getting model status"""
         mocker.patch.object(
             model_service.process_mgr,
-            'is_running',
-            side_effect=[True, False, True, False, False, False]  # Status for each model
+            "is_running",
+            side_effect=[
+                True,
+                False,
+                True,
+                False,
+                False,
+                False,
+            ],  # Status for each model
         )
         mocker.patch.object(
             model_service.process_mgr,
-            'read_pid',
-            side_effect=[1111, None, 2222, None, None, None]
+            "read_pid",
+            side_effect=[1111, None, 2222, None, None, None],
         )
 
         status = model_service.status()
@@ -241,7 +187,9 @@ class TestModelService:
         assert "--port" in args
 
     @pytest.mark.parametrize("model_name", ["moirai", "chronos", "timesfm", "moment"])
-    def test_build_model_args_contract_for_optional_models(self, model_service, mock_config, model_name):
+    def test_build_model_args_contract_for_optional_models(
+        self, model_service, mock_config, model_name
+    ):
         """Validate full startup arg contract for optional forecast model servers."""
         model_cfg = mock_config.models[model_name]
         expected = [
@@ -254,4 +202,3 @@ class TestModelService:
         ]
 
         assert model_service._build_model_args(model_name) == expected
-

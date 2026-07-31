@@ -1,4 +1,3 @@
-# encoding:utf-8
 # pylint: disable=c0103
 """theta definition"""
 
@@ -10,6 +9,7 @@ from taosanalytics.base import AbstractStatsForecastService
 
 class _ThetaService(AbstractStatsForecastService):
     """Forecast time-series data using the Theta method."""
+
     name = "theta"
     desc = "forecast algorithm by using the standard Theta method"
     _builtins = True
@@ -39,13 +39,14 @@ class _ThetaService(AbstractStatsForecastService):
     def _validate_input_values(self, values: np.ndarray) -> None:
         """Validate Theta-specific input constraints."""
         if self.decomposition_type == "multiplicative" and np.any(values <= 0):
-            raise ValueError("multiplicative decomposition requires strictly positive input data")
+            raise ValueError(
+                "multiplicative decomposition requires strictly positive input data"
+            )
 
     def _fit_model(self, values: np.ndarray):
         """Fit and return the configured Theta model."""
         season_length = self.period if self.period > 0 else 1
         model = Theta(
-            season_length=season_length,
-            decomposition_type=self.decomposition_type
+            season_length=season_length, decomposition_type=self.decomposition_type
         )
         return model.fit(values)

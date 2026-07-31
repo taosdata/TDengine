@@ -1,10 +1,9 @@
-# encoding:utf-8
 # pylint: disable=c0103
 """regression handler functions"""
 
 from taosanalytics.error import failed_load_model_except
-from taosanalytics.service_registry import loader
 from taosanalytics.log import AppLogger
+from taosanalytics.service_registry import loader
 
 
 def do_regression(input_data, schema, algo_name, params):

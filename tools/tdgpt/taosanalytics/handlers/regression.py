@@ -1,9 +1,8 @@
-# encoding:utf-8
 """regression handlers: encapsulates regression business logic"""
 
 from taosanalytics.algo.regression import do_regression
 from taosanalytics.log import AppLogger
-from taosanalytics.util import parse_options, do_initial_check
+from taosanalytics.util import do_initial_check, parse_options
 
 
 def handle_regression(request):
@@ -48,7 +47,9 @@ def handle_regression(request):
     # Transpose: payload is list of columns, regression expects list of rows
     try:
         n_rows = len(payload[0])
-        input_data = [[payload[col][row] for col in range(len(payload))] for row in range(n_rows)]
+        input_data = [
+            [payload[col][row] for col in range(len(payload))] for row in range(n_rows)
+        ]
     except (IndexError, TypeError) as e:
         AppLogger.error("failed to transpose input data: %s", str(e))
         return {"msg": f"invalid data format: {e}", "rows": -1}
