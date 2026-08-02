@@ -411,3 +411,73 @@ class TestFuncGconcat:
         tdSql.checkData(0, 0, 'v0,v1,v2,v3,v4,v5')
 
         tdLog.info("test_edge_cases passed")
+
+    def test_group_concat_overflow(self):
+        """Agg-basic: group_concat overflow safety and stream sizing (#34504)
+
+        1. A group_concat result larger than the max field length must fail
+           with a clean error instead of crashing the server.
+        2. CREATE STREAM with group_concat plus other columns must not be
+           rejected because of the max-length estimate (issue #34504).
+
+        Catalog:
+            - Function:Aggregate
+
+        Since: v3.4.1
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-07-17 bestdo77 Fix issue #34504
+
+        """
+        self._overflow_clean_error()
+        self._stream_out_col_clamp()
+        tdStream.dropAllStreamsAndDbs()
+
+    def _overflow_clean_error(self):
+        self._prepare_db("db_gc_toobig")
+        t0 = 1700400000000
+
+        tdSql.execute("create table t_big (ts timestamp, v varchar(128))")
+        # 600 rows x 121 bytes each > 65515-byte max group_concat payload
+        val = "x" * 120
+        for b in range(6):
+            rows = ",".join(f"({t0 + (b * 100 + i) * 1000}, '{val}')" for i in range(100))
+            tdSql.execute(f"insert into t_big values{rows}")
+
+        # used to overflow a fixed buffer and crash the server (#34504)
+        tdSql.error("select group_concat(v, ',') from t_big", expectErrInfo="Value too long", fullMatched=False)
+
+        # the server must survive and keep serving queries
+        tdSql.query("select count(*) from t_big")
+        tdSql.checkData(0, 0, 600)
+
+        tdLog.info("test_overflow_clean_error passed")
+
+    def _stream_out_col_clamp(self):
+        self._prepare_db("db_gc_stream")
+
+        # exact schema from issue #34504
+        tdSql.execute("CREATE STABLE s_ptr_data (ts TIMESTAMP, test_value DOUBLE, test_value_str VARCHAR(16), test_flag INT, hi_limit DOUBLE, lo_limit DOUBLE) TAGS (factory VARCHAR(32), fileid VARCHAR(64), testnum INT, testtxt VARCHAR(256), headnum INT, sitenum INT, productid VARCHAR(64), lotid VARCHAR(64), sublotid VARCHAR(64), jobname VARCHAR(128), flowid VARCHAR(32), datatype VARCHAR(10), nodename VARCHAR(32), dutindex INT)")
+
+        tdSql.query("select * from information_schema.ins_snodes")
+        if tdSql.queryRows == 0:
+            tdSql.execute("create snode on dnode 1")
+
+        # used to fail with "Row length exceeds max length 65531 [0x8000263E]" (#34504)
+        tdSql.execute("CREATE STREAM s1 COUNT_WINDOW(10) FROM s_ptr_data PARTITION BY tbname INTO output AS SELECT LAST(ts) AS ts, AVG(test_value) AS avg_test_value, GROUP_CONCAT(test_value_str, ',') AS test_value_array FROM s_ptr_data")
+
+        # the group_concat output column must be clamped so the output row fits
+        tdSql.query("desc output")
+        for i in range(tdSql.queryRows):
+            if tdSql.getData(i, 0) == "test_value_array":
+                width = tdSql.getData(i, 2)
+                assert width < 65515, f"group_concat out col should be clamped below 65515, got {width}"
+                break
+        else:
+            raise Exception("test_value_array column not found in stream output table")
+
+        tdLog.info("test_stream_out_col_clamp passed")
