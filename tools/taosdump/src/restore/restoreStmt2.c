@@ -832,7 +832,7 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
         code = readTaosFileBlocks(f, dataBlockCallbackV2, &cbd);
         closeTaosFileRead(f);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("read blocks failed(%d): %s", code, filePath);
+            logError("read blocks failed(0x%08X): %s", code, filePath);
             goto done;
         }
 
@@ -851,7 +851,7 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
             ctx->totalPendingRows >= batchCap) {
             code = stmt2FlushMultiTableSlots(ctx);
             if (code != TSDB_CODE_SUCCESS)
-                logError("stmt2 multi-table flush failed (%s): %d", ctx->dbName, code);
+                logError("stmt2 multi-table flush failed (%s): 0x%08X", ctx->dbName, code);
             else
                 ctx->lastCallFlushed = true;  // signal restoreDataThread to drain pending checkpoints
         }
@@ -880,7 +880,7 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
         code = readTaosFileBlocks(f, dataBlockCallbackV2, &cbd);
         closeTaosFileRead(f);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("read blocks failed(%d): %s", code, filePath);
+            logError("read blocks failed(0x%08X): %s", code, filePath);
             goto done;
         }
 

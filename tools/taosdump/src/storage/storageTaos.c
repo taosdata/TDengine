@@ -539,7 +539,7 @@ int readTaosFileBlocks(TaosFile *taosFile, BlockCallback callback, void *userDat
         code = callback(userData, fieldInfos, numFields, rawBlock, rawLen, blockRows);
 
         if (code != TSDB_CODE_SUCCESS) {
-            logError("block callback failed at block %u, code: %d", b, code);
+            logError("block callback failed at block %u, code: 0x%08X", b, code);
             taosMemoryFree(rawBlock);
             taosMemoryFree(readBuf);
             tBufferDestroy(&assist);
