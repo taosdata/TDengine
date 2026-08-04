@@ -3808,6 +3808,57 @@ TWVAR_LOCF(expr)
 - Boundary handling and timeline requirements match `TWAVG_LINEAR`/`TWAVG_LOCF`.
 - DECIMAL input is computed as DOUBLE and the return type is still DOUBLE.
 
+### VALUE_CHANGES
+
+```sql
+VALUE_CHANGES(expr [, ignore_null])
+
+ignore_null: {
+    0
+  | 1
+}
+```
+
+**Function Classification**: Aggregate function.
+
+**Version**: ver-3.4.3.0
+
+**Function Description**: Counts how many times the value of a column changes between adjacent points along the effective timeline. Scanning rows in ascending timestamp order, each value is compared to the previous participating value; a change is counted when they differ. The first row is never counted. The optional `ignore_null` controls NULL handling and defaults to `1`.
+
+- `1` (default): NULL is ignored; comparison happens only between adjacent non-NULL values, and NULL rows are skipped transparently.
+- `0`: NULL participates in the comparison; a non-NULL↔NULL transition counts as one change, while NULL↔NULL is not a change.
+
+**Return Data Type**: BIGINT.
+
+**Applicable Data Types**: All types (numeric types, timestamp, BOOL, VARCHAR, NCHAR, VARBINARY, DECIMAL).
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- The first row has no predecessor and is not counted; `n` rows yield at most `n-1` changes.
+- Equality reuses the engine's built-in per-type comparison: floating point uses epsilon-tolerant equality, adjacent `NaN` and `NaN` are treated as unchanged, and `NaN` versus a number counts as a change; strings and VARBINARY are compared byte-wise; BOOL is compared as 0/1; DECIMAL is compared as DOUBLE.
+- When used with a window clause (`INTERVAL`/`STATE_WINDOW`/`SESSION`/`EVENT_WINDOW`/`COUNT_WINDOW`), each window is counted independently and the first row of a window is not compared to the previous window's last row.
+- With `PARTITION BY`/`GROUP BY`, each group is counted independently and no comparison crosses groups.
+- For tables with a composite primary key, when multiple rows share the same timestamp only the row with the smallest composite key participates; without a composite key, duplicate timestamps raise "Duplicate timestamps not allowed".
+- An out-of-order effective timeline raises an error; use `ORDER BY ts` in a subquery to enforce ordering before counting.
+- Cannot be used on system tables.
+- Supported as a window aggregate in stream computing; incremental results match the equivalent batch query.
+
+**Examples**:
+
+```sql
+taos> select value_changes(current) from meters;
+ value_changes(current) |
+=========================
+                      2 |
+
+taos> select value_changes(current, 0) from meters;
+ value_changes(current, 0) |
+============================
+                         4 |
+```
+
 ## Interpolation Functions
 
 Interpolation functions are used to return interpolated values at specified time slices.

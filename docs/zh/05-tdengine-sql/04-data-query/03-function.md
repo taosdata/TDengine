@@ -3842,6 +3842,57 @@ TWVAR_LOCF(expr)
 - 单点窗口返回 0；`INTERVAL ... FILL` 与边界插值行为同 `TWAVG`。
 - 输入 DECIMAL 类型时按 DOUBLE 参与计算，返回类型仍为 DOUBLE。
 
+### VALUE_CHANGES
+
+```sql
+VALUE_CHANGES(expr [, ignore_null])
+
+ignore_null: {
+    0
+  | 1
+}
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.0。
+
+**功能说明**：统计一列在有效时间线上相邻取值发生变化的次数。沿时间戳升序逐行与前一个参与比较的值比对，不相等则计 1，首行不计数。可选参数 `ignore_null` 控制 NULL 的处理，缺省为 `1`。
+
+- `1`（默认）：忽略 NULL，仅在相邻的两个非空值之间比较，NULL 行透明跳过。
+- `0`：NULL 参与比较，非空值↔NULL 视为一次变化，NULL↔NULL 不计为变化。
+
+**返回数据类型**：BIGINT。
+
+**适用数据类型**：全部类型（数值类型、时间戳、BOOL、VARCHAR、NCHAR、VARBINARY、DECIMAL）。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 首行没有前驱，不计入变化次数；`n` 行至多产生 `n-1` 次变化。
+- 相等性比较复用引擎内建的按类型比较：浮点采用 epsilon 容差相等，相邻的 `NaN` 与 `NaN` 视为未变化，`NaN` 与数值互相视为变化；字符串与 VARBINARY 按字节比较；BOOL 按 0/1 比较；DECIMAL 经 DOUBLE 比较。
+- 与窗口（`INTERVAL`/`STATE_WINDOW`/`SESSION`/`EVENT_WINDOW`/`COUNT_WINDOW`）一起使用时，各窗口独立计数，窗口首行不与上一窗口末行比较。
+- 用于 `PARTITION BY`/`GROUP BY` 时各分组独立计数，不跨分组比较。
+- 对于存在复合主键的表的查询，若时间戳相同的数据存在多条，则只有对应的复合主键最小的数据参与运算；无复合主键时遇到重复时间戳会提示 "Duplicate timestamps not allowed"。
+- 当有效时间线乱序时报错，应在子查询中通过 `ORDER BY ts` 保证时间线有序后再计算。
+- 不能用于系统表。
+- 支持流计算的窗口聚合，增量计算结果与等价批查询一致。
+
+**举例**：
+
+```sql
+taos> select value_changes(current) from meters;
+ value_changes(current) |
+=========================
+                      2 |
+
+taos> select value_changes(current, 0) from meters;
+ value_changes(current, 0) |
+============================
+                         4 |
+```
+
 ## 插值函数
 
 ### INTERP
