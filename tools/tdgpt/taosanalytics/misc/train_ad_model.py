@@ -1,8 +1,10 @@
-# encoding:utf-8
 """train the model for anomaly detection"""
+
+import os
+import sys
+
 import joblib
 import keras
-import os, sys
 import numpy as np
 import pandas as pd
 from keras.api import layers
@@ -11,16 +13,19 @@ from matplotlib import pyplot as plt
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../")
 from taosanalytics.util import create_sequences
 
+
 def get_training_data():
-    """ load the remote training data """
-    url_str = ("https://raw.githubusercontent.com/numenta/NAB/master/data/artificialNoAnomaly/"
-               "art_daily_small_noise.csv")
+    """load the remote training data"""
+    url_str = (
+        "https://raw.githubusercontent.com/numenta/NAB/master/data/artificialNoAnomaly/"
+        "art_daily_small_noise.csv"
+    )
     df_small_noise = pd.read_csv(url_str, parse_dates=True, index_col="timestamp")
     return df_small_noise
 
 
 def do_train_model():
-    """ do train the model by using input data """
+    """do train the model by using input data"""
     df_small_noise = get_training_data()
     time_steps = 288
 
@@ -95,7 +100,7 @@ def do_train_model():
     plt.plot(history.history["loss"], label="Training Loss")
     plt.plot(history.history["val_loss"], label="Validation Loss")
     plt.legend()
-    plt.savefig('train_loss.png')
+    plt.savefig("train_loss.png")
 
     plt.clf()
 
@@ -106,7 +111,7 @@ def do_train_model():
     plt.hist(train_mae_loss, bins=50)
     plt.xlabel("Train MAE loss")
     plt.ylabel("No of samples")
-    plt.savefig('train_mae.png')
+    plt.savefig("train_mae.png")
 
     plt.clf()
 
@@ -114,18 +119,19 @@ def do_train_model():
     threshold = np.max(train_mae_loss)
     print("Reconstruction error threshold: ", threshold)
 
-    model.save('../../model/sample-ad-autoencoder/sample-ad-autoencoder.keras')
+    model.save("../../model/sample-ad-autoencoder/sample-ad-autoencoder.keras")
 
     info["threshold"] = threshold
-    joblib.dump(info, '../../model/sample-ad-autoencoder/sample-ad-autoencoder.info')
+    joblib.dump(info, "../../model/sample-ad-autoencoder/sample-ad-autoencoder.info")
 
     plt.plot(x_train[0])
     plt.plot(x_train_pred[0])
 
-    plt.savefig('valid_data_pred.png')
+    plt.savefig("valid_data_pred.png")
     plt.close()
 
     print("save model successfully")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     do_train_model()

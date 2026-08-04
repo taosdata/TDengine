@@ -1,13 +1,15 @@
-# encoding:utf-8
 # pylint: disable=c0103
-""" auto encoder algorithms to detect anomaly for time series data"""
+"""auto encoder algorithms to detect anomaly for time series data"""
+
 from taosanalytics.algo.tsfm import TsfmBaseService
 
 
 class _TimeMOEService(TsfmBaseService):
-    name = 'timemoe-fc'
-    desc = ("Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts; "
-            "Ref. to https://github.com/Time-MoE/Time-MoE")
+    name = "timemoe-fc"
+    desc = (
+        "Time-MoE: Billion-Scale Time Series Foundation Models with Mixture of Experts; "
+        "Ref. to https://github.com/Time-MoE/Time-MoE"
+    )
 
     def execute(self):
         if len(self.past_dynamic_real):

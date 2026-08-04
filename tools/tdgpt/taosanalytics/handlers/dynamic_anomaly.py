@@ -1,13 +1,16 @@
-# encoding:utf-8
 """DynamicAnomalyService: an anomaly detection service driven by a parameter config file."""
-from taosanalytics.algo.tool.detector import IsolationForestModelDetector, SVMModelDetector
-from taosanalytics.log import AppLogger
-from taosanalytics.base import AbstractAnomalyDetectionService
 
-_SUPPORTED_ALGOS = {'iforest', 'svm'}
+from taosanalytics.algo.tool.detector import (
+    IsolationForestModelDetector,
+    SVMModelDetector,
+)
+from taosanalytics.base import AbstractAnomalyDetectionService
+from taosanalytics.log import AppLogger
+
+_SUPPORTED_ALGOS = {"iforest", "svm"}
 _DETECTOR_CLASSES = {
-    'iforest': IsolationForestModelDetector,
-    'svm': SVMModelDetector,
+    "iforest": IsolationForestModelDetector,
+    "svm": SVMModelDetector,
 }
 
 
@@ -31,10 +34,14 @@ class DynamicAnomalyService(AbstractAnomalyDetectionService):
     def execute(self):
         """Construct the detector from the config file and run anomaly detection."""
         algo_name = self.algo.lower()
-        AppLogger.info("execute dynamic anomaly service:%s, algo:%s", self.name, algo_name)
+        AppLogger.info(
+            "execute dynamic anomaly service:%s, algo:%s", self.name, algo_name
+        )
 
         if algo_name not in _SUPPORTED_ALGOS:
-            raise ValueError(f"unsupported algorithm '{algo_name}' in dynamic anomaly service")
+            raise ValueError(
+                f"unsupported algorithm '{algo_name}' in dynamic anomaly service"
+            )
 
         detector_class = _DETECTOR_CLASSES.get(algo_name)
         if detector_class is None:

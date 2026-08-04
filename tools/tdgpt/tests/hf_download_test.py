@@ -1,6 +1,7 @@
 """
 Tests for hf_download helpers.
 """
+
 import importlib
 import os
 import sys
@@ -8,7 +9,6 @@ from types import SimpleNamespace
 from unittest import mock
 
 import pytest
-
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
@@ -95,7 +95,9 @@ def test_snapshot_download_with_fallback_calls_official_on_failure(monkeypatch):
     ]
 
 
-def test_snapshot_download_with_fallback_uses_official_when_env_endpoint_fails(monkeypatch):
+def test_snapshot_download_with_fallback_uses_official_when_env_endpoint_fails(
+    monkeypatch,
+):
     hf_download, snapshot_download = import_hf_download(monkeypatch)
     monkeypatch.delenv("TAOS_HF_ENDPOINT", raising=False)
     monkeypatch.setenv("HF_ENDPOINT", "https://custom.endpoint")
@@ -139,7 +141,9 @@ def test_snapshot_download_with_fallback_ignores_endpoint_kwarg(monkeypatch):
     )
 
 
-def test_snapshot_download_with_fallback_keeps_default_download_quiet(monkeypatch, capsys):
+def test_snapshot_download_with_fallback_keeps_default_download_quiet(
+    monkeypatch, capsys
+):
     hf_download, snapshot_download = import_hf_download(monkeypatch)
     monkeypatch.delenv("TAOS_HF_ENDPOINT", raising=False)
     monkeypatch.delenv("HF_ENDPOINT", raising=False)

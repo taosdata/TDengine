@@ -1,6 +1,6 @@
-# encoding:utf-8
 # pylint: disable=c0103
 """forecast helper methods"""
+
 import os
 import time
 
@@ -9,12 +9,14 @@ import pandas as pd
 from matplotlib import pyplot as plt
 
 from taosanalytics.conf import Configure
-from taosanalytics.service_registry import loader
 from taosanalytics.log import AppLogger
+from taosanalytics.service_registry import loader
 
 
-def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, dynamic_real=None):
-    """ data forecast handler """
+def do_forecast(
+    input_list, ts_list, algo_name, params, past_dynamic_real=None, dynamic_real=None
+):
+    """data forecast handler"""
     s = loader.get_service(algo_name) or loader.get_service("holtwinters")
     if s is None:
         raise ValueError(f"failed to load {algo_name} or holtwinters analysis service")
@@ -40,7 +42,7 @@ def do_forecast(input_list, ts_list, algo_name, params, past_dynamic_real=None, 
 
 
 def add_forecast_params(params, json_obj):
-    """ add params into parameters """
+    """add params into parameters"""
     if "forecast_rows" in json_obj:
         params["rows"] = int(json_obj["forecast_rows"])
 
@@ -59,19 +61,19 @@ def add_forecast_params(params, json_obj):
     if "prec" in json_obj:
         params["precision"] = json_obj["prec"]
 
-    if 'tz' in json_obj:
-        params['tz'] = json_obj['tz']
+    if "tz" in json_obj:
+        params["tz"] = json_obj["tz"]
 
 
 def insert_ts_list(res, start_ts, time_step, fc_rows):
-    """ insert the ts list before return results """
+    """insert the ts list before return results"""
     ts_list = [start_ts + i * time_step for i in range(fc_rows)]
     res.insert(0, ts_list)
     return res
 
 
 def draw_forecast_results(input_list, return_conf, conf_val, fc, fig_name):
-    """Visualize the forecast results """
+    """Visualize the forecast results"""
     # controlled by option, do not visualize the anomaly detection result
     if not Configure.get_instance().get_draw_result_option():
         return
@@ -88,7 +90,7 @@ def draw_forecast_results(input_list, return_conf, conf_val, fc, fig_name):
         AppLogger.error("image directory '%s' is not writable", base_path)
         return
 
-    AppLogger.debug('draw forecast result in debug model')
+    AppLogger.debug("draw forecast result in debug model")
     plt.clf()
 
     plt.plot(input_list)
@@ -97,7 +99,7 @@ def draw_forecast_results(input_list, return_conf, conf_val, fc, fig_name):
     predicate.extend(fc[1])
 
     x = np.arange(len(input_list) - 1, len(input_list) + len(fc[1]), 1)
-    plt.plot(x, predicate, linestyle='--', c='blue')
+    plt.plot(x, predicate, linestyle="--", c="blue")
 
     # draw the range of conf
     if return_conf:
@@ -105,9 +107,11 @@ def draw_forecast_results(input_list, return_conf, conf_val, fc, fig_name):
         lower_series = pd.Series(fc[2], index=start_x)
         upper_series = pd.Series(fc[3], index=start_x)
 
-        plt.fill_between(lower_series.index, lower_series, upper_series, color='k', alpha=.15)
+        plt.fill_between(
+            lower_series.index, lower_series, upper_series, color="k", alpha=0.15
+        )
 
-    plt.legend(['input', 'forecast', f'pred:{conf_val}'], loc='upper left')
+    plt.legend(["input", "forecast", f"pred:{conf_val}"], loc="upper left")
 
     plt.savefig(os.path.join(base_path, fig_name))
     plt.close()
@@ -127,11 +131,16 @@ def check_forecast_results(res):
 
     n_rows = len(forecast_result[0])
     if n_rows != len(forecast_result[1]):
-        raise ValueError("result length is not identical, ts rows:%d  res rows:%d" % (
-            n_rows, len(forecast_result[1])))
+        raise ValueError(
+            "result length is not identical, ts rows:%d  res rows:%d"
+            % (n_rows, len(forecast_result[1]))
+        )
 
-    if len(forecast_result) > 2 and (len(forecast_result[2]) != n_rows or len(forecast_result[3]) != n_rows):
+    if len(forecast_result) > 2 and (
+        len(forecast_result[2]) != n_rows or len(forecast_result[3]) != n_rows
+    ):
         raise ValueError(
             "result length is not identical in confidence, ts rows:%d, lower confidence rows:%d, "
-            "upper confidence rows%d" %
-            (n_rows, len(forecast_result[2]), len(forecast_result[3])))
+            "upper confidence rows%d"
+            % (n_rows, len(forecast_result[2]), len(forecast_result[3]))
+        )

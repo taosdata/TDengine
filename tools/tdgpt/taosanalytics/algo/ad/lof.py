@@ -1,4 +1,3 @@
-# encoding:utf-8
 """local outlier factor class definition"""
 
 import numpy as np
@@ -9,8 +8,9 @@ from taosanalytics.log import AppLogger
 
 
 class _LofService(AbstractAnomalyDetectionService):
-    """ LOF(local outlier factor) algorithm is to check the anomaly data in the input list """
-    name = 'lof'
+    """LOF(local outlier factor) algorithm is to check the anomaly data in the input list"""
+
+    name = "lof"
     desc = """Local Outlier Factor, Ref: M. M. Breunig, H. P. Kriegel, R. T. Ng, J. Sander.
     LOF:Identifying Density-based Local Outliers. SIGMOD, 2000."""
     _builtins = True
@@ -26,7 +26,9 @@ class _LofService(AbstractAnomalyDetectionService):
         if self.input_is_empty():
             return []
 
-        checker = neighbor.LocalOutlierFactor(n_neighbors=self.neighbors, algorithm=self.algorithm)
+        checker = neighbor.LocalOutlierFactor(
+            n_neighbors=self.neighbors, algorithm=self.algorithm
+        )
 
         # Build feature matrix in shape (n_samples, n_features).
         # set_input_list always normalises input into input_data_lists as a list of lists.
@@ -34,7 +36,9 @@ class _LofService(AbstractAnomalyDetectionService):
 
         res = checker.fit_predict(arr_2d)
 
-        AppLogger.debug(f"The negative outlier factor is:{checker.negative_outlier_factor_}")
+        AppLogger.debug(
+            f"The negative outlier factor is:{checker.negative_outlier_factor_}"
+        )
         return res.tolist()
 
     def set_params(self, params):

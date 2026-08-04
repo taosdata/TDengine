@@ -1,7 +1,7 @@
 # gunicorn_config.py, not valid for windows
 import multiprocessing
-import platform
 import os as _os
+import platform
 
 on_windows = platform.system().lower() == "windows"
 on_github_actions = bool(_os.environ.get("GITHUB_ACTIONS"))
@@ -11,18 +11,26 @@ on_github_actions = bool(_os.environ.get("GITHUB_ACTIONS"))
 _cfg_dir = _os.path.dirname(_os.path.abspath(__file__))
 _install_dir = _os.path.dirname(_cfg_dir)
 
-base_dir = _os.path.dirname(_cfg_dir) if (on_windows or on_github_actions) else '/usr/local/taos/taosanode/'
-log_dir = _os.path.join(base_dir, 'log') if (on_windows or on_github_actions) else '/var/log/taos/taosanode/'
+base_dir = (
+    _os.path.dirname(_cfg_dir)
+    if (on_windows or on_github_actions)
+    else "/usr/local/taos/taosanode/"
+)
+log_dir = (
+    _os.path.join(base_dir, "log")
+    if (on_windows or on_github_actions)
+    else "/var/log/taos/taosanode/"
+)
 
 # list address and port
-bind = '0.0.0.0:6035'
+bind = "0.0.0.0:6035"
 
 # Number of worker processes (typically recommended 2 * CPU cores + 1)
 workers = 2
 
 # Specify worker type, using default sync worker here
 # For IO-intensive applications, consider eventlet or gevent
-worker_class = 'sync'
+worker_class = "sync"
 
 # Number of threads per process (recommended for model deployment)
 threads = max(multiprocessing.cpu_count() // 4 + 1, 2)
@@ -40,29 +48,29 @@ timeout = 1200
 keepalive = 1200
 
 # Log Setting, only valid on Linux
-accesslog = _os.path.join(log_dir, 'access.log')
-errorlog = _os.path.join(log_dir, 'error.log')
+accesslog = _os.path.join(log_dir, "access.log")
+errorlog = _os.path.join(log_dir, "error.log")
 
 # only valid on the Windows system.
-waitresslog = _os.path.join(log_dir, 'taosanode-service.log')
+waitresslog = _os.path.join(log_dir, "taosanode-service.log")
 
 # log level: debug, info, warning, error, critical
-loglevel = 'debug'
+loglevel = "debug"
 
 # Set process name
-proc_name = 'tdgpt_taosanode_app'
+proc_name = "tdgpt_taosanode_app"
 
 # set the pid file
-pidfile = _os.path.join(base_dir, 'taosanode.pid')
+pidfile = _os.path.join(base_dir, "taosanode.pid")
 
 # virtual environment directory
-virtualenv = _os.path.join(base_dir, 'venvs', 'venv')
+virtualenv = _os.path.join(base_dir, "venvs", "venv")
 
 # set the taosanoded basic python library directory
-pythonpath = _os.path.join(base_dir, 'lib', 'taosanalytics')
+pythonpath = _os.path.join(base_dir, "lib", "taosanalytics")
 
 # wsgi app name
-wsgi_app = 'app:app'
+wsgi_app = "app:app"
 
 # Preload application before forking worker processes. This can improve startup time and save memory
 preload_app = True
@@ -70,22 +78,22 @@ preload_app = True
 # [taosanode]
 # The following configuration parameters are valid on both Windows and Linux system.
 # default app log file
-app_log = _os.path.join(log_dir, 'taosanode.app.log')
+app_log = _os.path.join(log_dir, "taosanode.app.log")
 
 # model storage directory
-model_dir = _os.path.join(base_dir, 'model') 
+model_dir = _os.path.join(base_dir, "model")
 
-# dynamic load model directory, models in this directory will be loaded dynamically when the server is running, 
+# dynamic load model directory, models in this directory will be loaded dynamically when the server is running,
 # and can be added or removed at any time without restarting the server
-dynamic_model_dir = _os.path.join(model_dir, 'dynamic')
+dynamic_model_dir = _os.path.join(model_dir, "dynamic")
 
 # default log level
-log_level = 'DEBUG'
+log_level = "DEBUG"
 
 # draw the query results
 draw_result = False
 
-img_dir = _os.path.join(base_dir, 'img', '')
+img_dir = _os.path.join(base_dir, "img", "")
 
 # Model configuration - defines all available models
 # Required models: tdtsfm, timemoe (must exist, error if missing)
@@ -139,16 +147,32 @@ models = {
     },
 }
 
-timesfm_venv = _os.path.join(_install_dir, 'venvs', 'timesfm_venv').replace('\\', '/') if (on_windows or on_github_actions) else '/var/lib/taos/taosanode/timesfm_venv'
-moirai_venv = _os.path.join(_install_dir, 'venvs', 'moirai_venv').replace('\\', '/') if (on_windows or on_github_actions) else '/var/lib/taos/taosanode/moirai_venv'
-chronos_venv = _os.path.join(_install_dir, 'venvs', 'chronos_venv').replace('\\', '/') if (on_windows or on_github_actions) else '/var/lib/taos/taosanode/chronos_venv'
-momentfm_venv = _os.path.join(_install_dir, 'venvs', 'momentfm_venv').replace('\\', '/') if (on_windows or on_github_actions) else '/var/lib/taos/taosanode/momentfm_venv'
+timesfm_venv = (
+    _os.path.join(_install_dir, "venvs", "timesfm_venv").replace("\\", "/")
+    if (on_windows or on_github_actions)
+    else "/var/lib/taos/taosanode/timesfm_venv"
+)
+moirai_venv = (
+    _os.path.join(_install_dir, "venvs", "moirai_venv").replace("\\", "/")
+    if (on_windows or on_github_actions)
+    else "/var/lib/taos/taosanode/moirai_venv"
+)
+chronos_venv = (
+    _os.path.join(_install_dir, "venvs", "chronos_venv").replace("\\", "/")
+    if (on_windows or on_github_actions)
+    else "/var/lib/taos/taosanode/chronos_venv"
+)
+momentfm_venv = (
+    _os.path.join(_install_dir, "venvs", "momentfm_venv").replace("\\", "/")
+    if (on_windows or on_github_actions)
+    else "/var/lib/taos/taosanode/momentfm_venv"
+)
 
 # Windows下waitress服务器配置（仅在Windows系统上使用）
 waitress_config = {
-    'threads': 4,                    # 工作线程数
-    'channel_timeout': 1200,         # 通道超时（秒）
-    'connection_limit': 1000,        # 最大连接数
-    'cleanup_interval': 30,          # 清理间隔（秒）
-    'log_socket_errors': True        # 记录socket错误
+    "threads": 4,  # 工作线程数
+    "channel_timeout": 1200,  # 通道超时（秒）
+    "connection_limit": 1000,  # 最大连接数
+    "cleanup_interval": 30,  # 清理间隔（秒）
+    "log_socket_errors": True,  # 记录socket错误
 }

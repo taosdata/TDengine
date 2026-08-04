@@ -151,44 +151,12 @@ _end:
   return code;
 }
 
-int32_t tcurlResetConnection(SCURL* pConn) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-
-  curl_easy_cleanup(pConn->pConn);
-  pConn->pConn = NULL;
-
-  SCURL* pTmp = (SCURL*)taosHashGet(tNotificationConnHash, (void*)pConn->url, strlen(pConn->url));
-  if (pTmp == NULL) {
-    uError("[curl]failed to get connection when reset");
-    code = TSDB_CODE_FAILED;
-  } else {
-    code = tcurlConnect(&pTmp->pConn, pTmp->url);
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("[curl]failed to reconnect to %s", pTmp->url);
-      int32_t ret = taosHashRemove(tNotificationConnHash, (void*)pConn->url, strlen(pConn->url));
-    }
-  }
-
-  return code;
-}
-
 int32_t tcurlSend(SCURL* scurl, const void* buffer, size_t buflen, size_t* sent, curl_off_t fragsize,
-                   unsigned int flags) {
-  CURLcode res;
-  res = curl_ws_send(scurl->pConn, buffer, buflen, sent, fragsize, flags);
+                  unsigned int flags) {
+  CURLcode res = curl_ws_send(scurl->pConn, buffer, buflen, sent, fragsize, flags);
   if (res != CURLE_OK) {
-    uDebug("[curl]send to:%s failed, res:%d, start retry", scurl->url, res);
-    int32_t code = tcurlResetConnection(scurl);
-    if (code) {
-      return code;
-    }
-    res = curl_ws_send(scurl->pConn, buffer, buflen, sent, fragsize, flags);
-    if (res != CURLE_OK) {
-      uError("[curl]send failed, res:%d", res);
-      return TSDB_CODE_FAILED;
-    }
-    uDebug("[curl]send to: %s retry success.", scurl->url);
+    uError("[curl]send to:%s failed, res:%d", scurl->url, res);
+    return TSDB_CODE_FAILED;
   }
   return TSDB_CODE_SUCCESS;
 }

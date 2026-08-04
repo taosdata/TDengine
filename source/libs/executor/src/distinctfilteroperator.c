@@ -53,13 +53,12 @@ typedef struct SDistinctFilterInfo {
   SSHashObj*      pEmitSet;        // dedup set for the current partition (window/group)
   SSDataBlock*    pEmitBlock;      // output block accumulated across emit calls
   int32_t         emitRows;        // rows currently buffered in pEmitBlock
+  // Blocks from tsortGetSortedDataBlock are freshly allocated and handed upstream, which does not
+  // take ownership. Keep the last one returned and free it on the next call / on destroy.
+  SSDataBlock*    pReturnedBlock;
   uint64_t        curGroupId;      // current partition group id
   int64_t         curWindow;       // current partition window start
   bool            curPartValid;    // whether curGroupId/curWindow are initialized
-  // GROUP BY hash-path state (groups arrive contiguously from the sorted
-  // upstream, so the dedup set is reset whenever the group id changes)
-  uint64_t        hashGroupId;     // group id of the rows currently in pHashSet
-  bool            hashGroupValid;  // whether hashGroupId has been set
 } SDistinctFilterInfo;
 
 // Build composite key into pInfo->keyBuf, return key length
@@ -271,6 +270,17 @@ static int32_t writeTupleToBlock(SSDataBlock* pBlock, int32_t rowIdx, STupleHand
 // pEmitBlock is carried across calls: when a block is returned mid-stream, any
 // already-consumed tuple that belongs to the next block is written into a fresh
 // pEmitBlock so it is not lost.
+// Hand a spill-emit block upstream while retaining ownership. tsortGetSortedDataBlock allocates a
+// new block each call and consumers do not free it, so the previously returned block is released
+// here — it has been fully consumed by the time the operator is called again.
+static void distinctSetReturnedBlock(SDistinctFilterInfo* pInfo, SSDataBlock* pBlock, SSDataBlock** ppRes) {
+  if (pInfo->pReturnedBlock != NULL && pInfo->pReturnedBlock != pBlock) {
+    blockDataDestroy(pInfo->pReturnedBlock);
+  }
+  pInfo->pReturnedBlock = pBlock;
+  *ppRes = pBlock;
+}
+
 static int32_t doDistinctFilterSpillEmitPartitioned(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SDistinctFilterInfo* pInfo = pOperator->info;
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
@@ -292,7 +302,7 @@ static int32_t doDistinctFilterSpillEmitPartitioned(SOperatorInfo* pOperator, SS
         pInfo->pEmitBlock->info.id.groupId = pInfo->curGroupId;
         pInfo->pEmitBlock->info.dataLoad = 1;
         if (pInfo->hasInterval) blockDataUpdateTsWindow(pInfo->pEmitBlock, pInfo->tsSlotId);
-        *ppRes = pInfo->pEmitBlock;
+        distinctSetReturnedBlock(pInfo, pInfo->pEmitBlock, ppRes);
         pInfo->pEmitBlock = NULL;
         pInfo->emitRows = 0;
       } else {
@@ -329,7 +339,7 @@ static int32_t doDistinctFilterSpillEmitPartitioned(SOperatorInfo* pOperator, SS
       pInfo->pEmitBlock->info.id.groupId = pInfo->curGroupId;
       pInfo->pEmitBlock->info.dataLoad = 1;
       if (pInfo->hasInterval) blockDataUpdateTsWindow(pInfo->pEmitBlock, pInfo->tsSlotId);
-      *ppRes = pInfo->pEmitBlock;
+      distinctSetReturnedBlock(pInfo, pInfo->pEmitBlock, ppRes);
       pInfo->pEmitBlock = NULL;
       pInfo->emitRows = 0;
 
@@ -394,7 +404,7 @@ static int32_t doDistinctFilterSpillEmitPartitioned(SOperatorInfo* pOperator, SS
       pInfo->pEmitBlock->info.id.groupId = pInfo->curGroupId;
       pInfo->pEmitBlock->info.dataLoad = 1;
       if (pInfo->hasInterval) blockDataUpdateTsWindow(pInfo->pEmitBlock, pInfo->tsSlotId);
-      *ppRes = pInfo->pEmitBlock;
+      distinctSetReturnedBlock(pInfo, pInfo->pEmitBlock, ppRes);
       pInfo->pEmitBlock = NULL;
       pInfo->emitRows = 0;
       return code;
@@ -495,7 +505,7 @@ static int32_t doDistinctFilterSpillEmit(SOperatorInfo* pOperator, SSDataBlock**
 
   pBlock->info.rows = rows;
   pBlock->info.dataLoad = 1;
-  *ppRes = pBlock;
+  distinctSetReturnedBlock(pInfo, pBlock, ppRes);
   return code;
 }
 
@@ -509,7 +519,12 @@ static void destroyDistinctFilterOperator(void* param) {
   if (pInfo->pEmitSet) {
     tSimpleHashCleanup(pInfo->pEmitSet);
   }
-  if (pInfo->pEmitBlock) {
+  if (pInfo->pReturnedBlock) {
+    blockDataDestroy(pInfo->pReturnedBlock);
+  }
+  // pEmitBlock is always cleared when a block is handed off, so it never aliases pReturnedBlock;
+  // the guard keeps that from becoming a double free if that ever changes.
+  if (pInfo->pEmitBlock && pInfo->pEmitBlock != pInfo->pReturnedBlock) {
     blockDataDestroy(pInfo->pEmitBlock);
   }
   if (pInfo->pSortHandle) {
@@ -581,16 +596,13 @@ static int32_t doDistinctFilter(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       continue;
     }
 
-    // GROUP BY: groups arrive contiguously, so reset the dedup set when the
-    // group id changes. This keeps dedup per-group while bounding memory to a
-    // single group's distinct values.
-    if (pInfo->hasGroup) {
-      if (!pInfo->hashGroupValid || pInfo->hashGroupId != pBlock->info.id.groupId) {
-        tSimpleHashClear(pInfo->pHashSet);
-        pInfo->hashGroupId = pBlock->info.id.groupId;
-        pInfo->hashGroupValid = true;
-      }
-    }
+    // GROUP BY: the dedup key already carries the block's group id (see buildDistinctKey), and for
+    // a supertable scan that id is derived from the GROUP BY tag values, not the child table
+    // (buildGroupIdMapForAllTables). So a single hash set keyed by (groupId, value) dedups every
+    // group correctly and must NOT be reset when the group id changes: groups are not guaranteed
+    // to arrive contiguously. Two child tables sharing a tag value have the same group id but can
+    // live in different vgroups and arrive interleaved; resetting would let their duplicate values
+    // through and inflate the count (e.g. count(distinct) returning 5 instead of 3).
 
     // Evaluate precalc scalar expressions (for expression-based distinct like c_int % 2)
     if (pInfo->scalarSup.pExprInfo != NULL) {
@@ -662,9 +674,9 @@ static int32_t doDistinctFilter(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       }
     }
 
-    // Check memory threshold after processing the full block. GROUP BY never
-    // spills: its dedup set is reset per group above, and the value-sort cannot
-    // preserve per-row group ids, so spilling would corrupt group boundaries.
+    // Check memory threshold after processing the full block. GROUP BY never spills: the
+    // value-sort cannot preserve per-row group ids, so spilling would corrupt group boundaries.
+    // Its dedup set therefore holds every group's distinct values for the whole scan.
     if (pInfo->state == DISTINCT_STATE_HASH && !pInfo->hasGroup) {
       size_t hashMem = tSimpleHashGetMemSize(pInfo->pHashSet);
       if (hashMem > (size_t)tsPQSortMemThreshold * 1024 * 1024) {
@@ -700,8 +712,14 @@ static int32_t doDistinctFilter(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
               tSimpleHashGetSize(pInfo->pHashSet));
         pInfo->state = DISTINCT_STATE_SPILL_EMIT;
 
-        // Return copied block (may be NULL if keepCount==0)
-        (*ppRes) = pCopy;
+        // Return copied block (may be NULL if keepCount==0). pCopy is ours: createOneDataBlock
+        // allocated it and the consumer does not take ownership, so retain it for release on the
+        // next call / on destroy.
+        if (pCopy != NULL) {
+          distinctSetReturnedBlock(pInfo, pCopy, ppRes);
+        } else {
+          (*ppRes) = NULL;
+        }
         return code;
       }
     }

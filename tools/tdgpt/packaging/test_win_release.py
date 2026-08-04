@@ -1,7 +1,6 @@
 import importlib.util
 from pathlib import Path
 
-
 MODULE_PATH = Path(__file__).with_name("win_release.py")
 SPEC = importlib.util.spec_from_file_location("tdgpt_win_release", MODULE_PATH)
 win_release = importlib.util.module_from_spec(SPEC)
@@ -12,7 +11,9 @@ SPEC.loader.exec_module(win_release)
 def test_copy_icon_file_uses_gitlab_monorepo_taos_internal(tmp_path):
     source_dir = tmp_path / "source" / "taos-community" / "tools" / "tdgpt"
     install_dir = tmp_path / "release" / "install"
-    icon_source = tmp_path / "source" / "taos-internal" / "packaging" / "windows" / "favicon.ico"
+    icon_source = (
+        tmp_path / "source" / "taos-internal" / "packaging" / "windows" / "favicon.ico"
+    )
 
     icon_source.parent.mkdir(parents=True)
     source_dir.mkdir(parents=True)

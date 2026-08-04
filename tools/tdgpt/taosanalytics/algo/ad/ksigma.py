@@ -1,12 +1,13 @@
-# encoding:utf-8
 """ksigma class definition"""
 
 import numpy as np
+
 from taosanalytics.base import AbstractAnomalyDetectionService
 
 
 class _KSigmaService(AbstractAnomalyDetectionService):
-    """ KSigma algorithm is to check the anomaly data in the input list """
+    """KSigma algorithm is to check the anomaly data in the input list"""
+
     name = "ksigma"
     desc = """the k-sigma algorithm (or 3σ rule) expresses a conventional heuristic that nearly all
     values are taken to lie within k (usually three) standard deviations of the mean, and thus
@@ -19,7 +20,7 @@ class _KSigmaService(AbstractAnomalyDetectionService):
 
     def execute(self):
         def get_k_sigma_range(vals, k_value):
-            """ Return the k-sigma value range """
+            """Return the k-sigma value range"""
             avg = np.mean(vals)
             std = np.std(vals)
 

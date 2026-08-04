@@ -1,13 +1,12 @@
 """perform the build release package and install and then test the restful service"""
 
 import unittest
-import os
 
 
 class ForecastTest(unittest.TestCase):
 
     def test_release(self):
-        """ test the package """
+        """test the package"""
         pass
 
         # print("build install package")
@@ -17,7 +16,7 @@ class ForecastTest(unittest.TestCase):
         # self.assertEqual(os.path.exists("../../release/TDengine-enterprise-anode-1.0.0.tar.gz"), 1)
 
     def test_install(self):
-        """ test """
+        """test"""
         pass
 
         # print("start to install package")

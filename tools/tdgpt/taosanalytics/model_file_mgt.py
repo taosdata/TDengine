@@ -1,4 +1,3 @@
-# encoding:utf-8
 # pylint: disable=c0103
 import threading
 import time
@@ -6,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from taosanalytics.log import AppLogger
+
 
 class ModelInfo:
     def __init__(self):
@@ -19,7 +19,16 @@ class ModelInfo:
         self.elapsed_time = 0
 
     @classmethod
-    def create_model_info(cls, model_name: str, path: str, time: datetime, note: str, el:int, service: str, model: Any):
+    def create_model_info(
+        cls,
+        model_name: str,
+        path: str,
+        time: datetime,
+        note: str,
+        el: int,
+        service: str,
+        model: Any,
+    ):
         if model is None:
             AppLogger.error(f"empty model, create {model_name} model info failed")
             return None
@@ -39,10 +48,11 @@ class ModelInfo:
         return {
             "model_name": self.name,
             "path": self.path,
-            "load_time": self.load_time.strftime('%Y-%m-%d %H:%M:%S'),
+            "load_time": self.load_time.strftime("%Y-%m-%d %H:%M:%S"),
             "invoke_cls_name": self.invoke_cls_name,
-            'note':self.note
+            "note": self.note,
         }
+
 
 class ModelFileManager:
     _instance = None
@@ -56,7 +66,9 @@ class ModelFileManager:
                 cls._instance._model_locks = {}
             return cls._instance
 
-    def load_model_file(self, model_name: str, model_path: str, model_loader, class_name:str):
+    def load_model_file(
+        self, model_name: str, model_path: str, model_loader, class_name: str
+    ):
         """load the model on demand"""
         if model_name not in self._models:
             with self._lock:
@@ -69,26 +81,42 @@ class ModelFileManager:
                 if model_name not in self._models:
                     AppLogger.info("try to load module:%s", model_path)
 
-                    model, model_desc = None, ''
+                    model, model_desc = None, ""
                     elapsed = 0
 
                     try:
                         st = time.time()
                         model, model_desc = model_loader(model_path)
-                        elapsed = (int) ((time.time() - st) * 1000)
+                        elapsed = (int)((time.time() - st) * 1000)
                     except Exception as e:
                         AppLogger.error(
                             "failed to load model from disk: %s for %s model, code:%s, continue...",
-                            model_path, model_name, str(e))
+                            model_path,
+                            model_name,
+                            str(e),
+                        )
 
                     if model is not None:
-                        AppLogger.info("%s load model %s in file: %s completed, elapsed time:%.2fs, total loaded models:%d",
-                                                 class_name, model_name, model_path,
-                                                 elapsed/1000.0, len(self._models) + 1)
+                        AppLogger.info(
+                            "%s load model %s in file: %s completed, elapsed time:%.2fs, total loaded models:%d",
+                            class_name,
+                            model_name,
+                            model_path,
+                            elapsed / 1000.0,
+                            len(self._models) + 1,
+                        )
 
                     # only lock the set procedure
                     with self._lock:
-                        info = ModelInfo.create_model_info(model_name, model_path, datetime.now(), model_desc, elapsed, class_name, model)
+                        info = ModelInfo.create_model_info(
+                            model_name,
+                            model_path,
+                            datetime.now(),
+                            model_desc,
+                            elapsed,
+                            class_name,
+                            model,
+                        )
                         if info is not None:
                             self._models[model_name] = info
 
@@ -117,12 +145,14 @@ class ModelFileManager:
             except Exception as e:
                 AppLogger.error(
                     "failed to serialize loaded model: %s, code:%s, continue...",
-                    key, str(e))
+                    key,
+                    str(e),
+                )
 
         return msg
 
     @classmethod
-    def get_instance(cls) -> 'ModelFileManager':
+    def get_instance(cls) -> "ModelFileManager":
         """return the singleton instance"""
         if cls._instance is None:
             cls()

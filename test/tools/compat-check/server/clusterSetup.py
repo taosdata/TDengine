@@ -29,6 +29,7 @@ Usage:
 import sys
 import os
 import getopt
+import re
 import signal
 import socket
 import time
@@ -67,6 +68,10 @@ class Logger:
     def notice(self, msg: str):
         """Log notice message"""
         self._log("NOTICE", msg)
+
+    def warning(self, msg: str):
+        """Log warning message"""
+        self._log("WARNING", msg)
         
     def success(self, msg: str):
         """Log success message"""
@@ -80,6 +85,123 @@ class Logger:
         """Log error and exit"""
         self.error(msg)
         sys.exit(exit_code)
+
+
+# ==================== Process / Port Helpers ====================
+def _process_cmdline(pid: int) -> str:
+    """Return the command line of a process (empty string if unavailable)."""
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            raw = f.read().replace(b"\x00", b" ").decode(errors="replace")
+        return raw.strip()
+    except Exception:
+        return ""
+
+
+def _listening_pids(port: int) -> List[int]:
+    """Return PIDs listening on the given TCP port.
+
+    Tries `ss -tlnp` first and falls back to `netstat -tunlp`.
+    """
+    pids: List[int] = []
+    try:
+        result = subprocess.run(
+            ["ss", "-tlnp"], capture_output=True, text=True, timeout=10
+        )
+        for line in result.stdout.splitlines():
+            if f":{port} " not in line:
+                continue
+            for m in re.finditer(r"pid=(\d+)", line):
+                pids.append(int(m.group(1)))
+        if pids:
+            return sorted(set(pids))
+    except Exception:
+        pass
+
+    try:
+        result = subprocess.run(
+            ["netstat", "-tunlp"], capture_output=True, text=True, timeout=10
+        )
+        for line in result.stdout.splitlines():
+            if f":{port} " not in line:
+                continue
+            parts = line.split()
+            if parts and "/" in parts[-1]:
+                pid_str = parts[-1].split("/")[0]
+                if pid_str.isdigit():
+                    pids.append(int(pid_str))
+    except Exception:
+        pass
+    return sorted(set(pids))
+
+
+def _port_is_listening(port: int) -> bool:
+    """Return True if any process is listening on the given port."""
+    return bool(_listening_pids(port))
+
+
+def _taosd_pids_on_port(port: int) -> List[int]:
+    """Return taosd PIDs holding the given port.
+
+    Only auto-kill processes whose command line contains 'taosd', so we never
+    terminate unrelated services that happen to use the same port.
+    """
+    return [p for p in _listening_pids(port) if "taosd" in _process_cmdline(p)]
+
+
+def _wait_port_free(port: int, timeout: float) -> bool:
+    """Wait until no process listens on the port. Returns True if freed."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if not _port_is_listening(port):
+            return True
+        time.sleep(1)
+    return not _port_is_listening(port)
+
+
+def _kill_pids(pids: List[int], graceful_timeout: float = 10.0,
+               port: Optional[int] = None) -> bool:
+    """SIGTERM all PIDs, wait for exit, SIGKILL stragglers.
+
+    If *port* is given, additionally wait for the port to be released.
+    Returns True when no process remains on the port (or port not given).
+    """
+    pids = sorted(set(pids))
+    if not pids:
+        return True
+
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except OSError:
+            pass
+
+    deadline = time.time() + graceful_timeout
+    remaining = list(pids)
+    while time.time() < deadline and remaining:
+        still = []
+        for pid in remaining:
+            try:
+                os.kill(pid, 0)
+                still.append(pid)
+            except ProcessLookupError:
+                pass
+        remaining = still
+        if remaining:
+            time.sleep(1)
+
+    for pid in remaining:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+
+    if port is not None:
+        _wait_port_free(port, 10)
+        return not _port_is_listening(port)
+    return True
 
 
 # ==================== DNode Configuration ====================
@@ -193,19 +315,44 @@ class DNodeConfig:
             raise FileNotFoundError(f"taosd not found: {self.taosd_path}")
 
         log_file = os.path.join(self.log_dir, "taosd_start.log")
-        cmd = f"nohup {self.taosd_path} -c {self.cfg_dir} >> {log_file} 2>&1 &"
-        self.logger.info(f"Starting DNode {self.index}: {cmd}")
-        subprocess.Popen(cmd, shell=True)
 
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            time.sleep(1)
-            result = subprocess.run(
-                f"netstat -tunlp | grep :{self.port}",
-                shell=True, capture_output=True
+        # Pre-flight: if a leftover taosd from a previous run still holds our
+        # port, clear it first. This prevents random "Port already in use"
+        # failures when consecutive tests run back-to-back on the same host.
+        stale = _taosd_pids_on_port(self.port)
+        if stale:
+            self.logger.warning(
+                f"DNode {self.index}: port {self.port} still held by pid={stale}, "
+                f"killing leftover before start ..."
             )
-            if result.returncode == 0:
-                self.logger.success(f"DNode {self.index} started on port {self.port}")
+            _kill_pids(stale, graceful_timeout=10, port=self.port)
+
+        def _launch() -> bool:
+            cmd = f"nohup {self.taosd_path} -c {self.cfg_dir} >> {log_file} 2>&1 &"
+            self.logger.info(f"Starting DNode {self.index}: {cmd}")
+            subprocess.Popen(cmd, shell=True)
+
+            deadline = time.time() + timeout
+            while time.time() < deadline:
+                time.sleep(1)
+                if _port_is_listening(self.port):
+                    self.logger.success(f"DNode {self.index} started on port {self.port}")
+                    return True
+            return False
+
+        if _launch():
+            return True
+
+        # First attempt failed. If the port is now held by another stale taosd
+        # (a leftover grabbed it before ours), clear it and retry once.
+        holder = _taosd_pids_on_port(self.port)
+        if holder:
+            self.logger.warning(
+                f"DNode {self.index}: port {self.port} taken by pid={holder} after launch, "
+                f"clearing and retrying once ..."
+            )
+            _kill_pids(holder, graceful_timeout=10, port=self.port)
+            if _launch():
                 return True
 
         self.logger.error(f"DNode {self.index} failed to start on port {self.port}")
@@ -222,42 +369,34 @@ class DNodeConfig:
         return False
 
     def stop_dnode(self, graceful_timeout: int = 60) -> bool:
+        # Collect ALL candidate PIDs: everything matching this node's cfg_dir
+        # plus whatever currently holds this node's port (avoids the previous
+        # "kill only the first match" bug that could leave a stale taosd alive).
+        pids: List[int] = []
         try:
             result = subprocess.run(
                 ["pgrep", "-f", f"taosd.*{self.cfg_dir}"],
-                capture_output=True, text=True
+                capture_output=True, text=True, timeout=10
             )
-            pids = [int(p) for p in result.stdout.strip().split() if p.isdigit()]
-            pid = pids[0] if pids else None
+            pids += [int(p) for p in result.stdout.strip().split() if p.isdigit()]
         except Exception:
-            pid = None
+            pass
+        pids += _taosd_pids_on_port(self.port)
+        pids = sorted(set(pids))
 
-        if pid is None:
+        if not pids:
             self.logger.info(f"DNode {self.index}: no running taosd (already stopped)")
             return True
 
-        self.logger.info(f"DNode {self.index}: stopping (pid={pid}) ...")
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            return True
-
-        deadline = time.time() + graceful_timeout
-        while time.time() < deadline:
-            try:
-                os.kill(pid, 0)
-                time.sleep(1)
-            except ProcessLookupError:
-                self.logger.info(f"DNode {self.index}: stopped")
-                return True
-
-        self.logger.info(f"DNode {self.index}: graceful stop timed out, SIGKILL ...")
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-        time.sleep(2)
-        return True
+        self.logger.info(f"DNode {self.index}: stopping (pid={pids}) ...")
+        ok = _kill_pids(pids, graceful_timeout=graceful_timeout, port=self.port)
+        if ok:
+            self.logger.info(f"DNode {self.index}: stopped")
+        else:
+            self.logger.warning(
+                f"DNode {self.index}: port {self.port} still in use after stop"
+            )
+        return ok
             
     def update_taosd(self, taosd_ori_path: str):
         """Copy taosd binary (and taosudf if present) to bin directory"""
@@ -334,10 +473,24 @@ class DNodeManager:
             dnode.stop_dnode()
                 
     def stop_all(self):
-        """Stop all DNODEs"""
+        """Stop all DNODEs and wait for the standard DNode ports to be released."""
         self.logger.info("Stopping all DNODEs...")
-        subprocess.run("pkill -9 taosd", shell=True, capture_output=True)
-        time.sleep(2)
+        pids: List[int] = []
+        try:
+            result = subprocess.run(
+                ["pgrep", "-x", "taosd"], capture_output=True, text=True, timeout=10
+            )
+            pids += [int(p) for p in result.stdout.strip().split() if p.isdigit()]
+        except Exception:
+            pass
+        # Also pick up whatever holds the default DNode ports (6030/6130/6230).
+        for idx in range(1, 4):
+            pids += _taosd_pids_on_port(6030 + (idx - 1) * 100)
+        pids = sorted(set(pids))
+        if pids:
+            _kill_pids(pids, graceful_timeout=10)
+        for idx in range(1, 4):
+            _wait_port_free(6030 + (idx - 1) * 100, 10)
         self.logger.info("All DNODEs stopped")
         
     def clean_data(self):
@@ -398,7 +551,7 @@ class ClusterManager:
         time.sleep(2)
         return True
         
-    def connect(self, timeout: int = 10) -> taos.TaosConnection:
+    def connect(self, timeout: int = 30) -> taos.TaosConnection:
         """Connect to the cluster"""
         cfg_path = os.path.join(self.base_path, "dnode1", "cfg")
         
@@ -414,7 +567,15 @@ class ClusterManager:
                 self.logger.success("Connected to cluster")
                 return self.conn
             except Exception as e:
-                self.logger.debug(f"Connection attempt failed: {e}")
+                # taos connector raises taos.error.Error subclasses with .errno
+                # (full engine error code) and .msg (engine error text). str(e)
+                # masks errno to 16 bits, so print errno in full hex explicitly.
+                errno = getattr(e, "errno", None)
+                msg   = getattr(e, "msg", None) or str(e)
+                errno_txt = f" (errno=0x{errno:08X})" if isinstance(errno, int) else ""
+                self.logger.warning(
+                    f"Connection attempt failed [{type(e).__name__}]: {msg}{errno_txt}"
+                )
                 time.sleep(1)
                 
         self.logger.exit("Failed to connect to cluster")

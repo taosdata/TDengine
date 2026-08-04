@@ -2,19 +2,19 @@ import argparse
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'misc'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "misc"))
 
-import torch
-from flask import Flask, request, jsonify
-import timesfm
 import numpy as np
+import timesfm
+from flask import Flask, jsonify, request
+from hf_download import snapshot_download_with_fallback
 from tqdm import tqdm
 
-from hf_download import snapshot_download_with_fallback
 app = Flask(__name__)
 pretrained_model = None
 
-def download_model(model_name, root_dir, enable_ep = False):
+
+def download_model(model_name, root_dir, enable_ep=False):
     # model_list = ['google/timesfm-2.0-500m-pytorch']
     model_list = [model_name]
 
@@ -22,7 +22,7 @@ def download_model(model_name, root_dir, enable_ep = False):
     if not os.path.exists(root_dir):
         os.mkdir(root_dir)
 
-    dst_folder = root_dir + '/'
+    dst_folder = root_dir + "/"
     if not os.path.exists(dst_folder):
         os.mkdir(dst_folder)
 
@@ -31,27 +31,31 @@ def download_model(model_name, root_dir, enable_ep = False):
             repo_id=item,
             local_dir=dst_folder,  # storage directory
             enable_ep=enable_ep,
-            local_dir_use_symlinks=False,   # disable the link
+            local_dir_use_symlinks=False,  # disable the link
             resume_download=True,
         )
 
-@app.route('/ds_predict', methods=['POST'])
+
+@app.route("/ds_predict", methods=["POST"])
 def do_predict():
     try:
         data = request.get_json()
-        if not data or 'input' not in data:
-            return jsonify({
-                'status': 'error',
-                'error': 'Invalid input, please provide "input" field in JSON'
-            }), 400
+        if not data or "input" not in data:
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "error": 'Invalid input, please provide "input" field in JSON',
+                    }
+                ),
+                400,
+            )
 
-        input_data = data['input']
-        prediction_length = data.get('next_len', 10)
-        interval = data.get('conf_interval', 0.95)   # confidence interval
+        input_data = data["input"]
+        prediction_length = data.get("next_len", 10)
+        interval = data.get("conf_interval", 0.95)  # confidence interval
 
-        forecast_input = [
-            input_data
-        ]
+        forecast_input = [input_data]
         frequency_input = [0]  # , 1, 2]
 
         point_forecast, experimental_quantile_forecast = pretrained_model.forecast(
@@ -60,83 +64,89 @@ def do_predict():
         )
 
         pred_y = point_forecast[0][:prediction_length].tolist()
-        lower = np.percentile(experimental_quantile_forecast[0], (0.5 - interval / 2) * 100, axis=1)
-        upper = np.percentile(experimental_quantile_forecast[0], (0.5 + interval / 2) * 100, axis=1)
+        lower = np.percentile(
+            experimental_quantile_forecast[0], (0.5 - interval / 2) * 100, axis=1
+        )
+        upper = np.percentile(
+            experimental_quantile_forecast[0], (0.5 + interval / 2) * 100, axis=1
+        )
 
         response = {
-            'status': 'success',
-            'output': pred_y,
-            'lower': lower[:prediction_length].tolist(),
-            'upper': upper[:prediction_length].tolist(),
-            'conf_interval': interval
+            "status": "success",
+            "output": pred_y,
+            "lower": lower[:prediction_length].tolist(),
+            "upper": upper[:prediction_length].tolist(),
+            "conf_interval": interval,
         }
 
         return jsonify(response), 200
 
     except Exception as e:
         print(f"error:{e}")
-        return jsonify({
-            'error': f'Prediction failed: {str(e)}'
-        }), 500
+        return jsonify({"error": f"Prediction failed: {e!s}"}), 500
+
 
 def main():
     global pretrained_model
 
     model_list = [
-        'google/timesfm-2.0-500m-pytorch',  # 499M parameters
+        "google/timesfm-2.0-500m-pytorch",  # 499M parameters
     ]
 
     parser = argparse.ArgumentParser(
-        description='TimesFM forecast model server',
+        description="TimesFM forecast model server",
         formatter_class=argparse.RawTextHelpFormatter,
     )
 
     source_group = parser.add_mutually_exclusive_group()
     source_group.add_argument(
-        '-i', '--model-index',
+        "-i",
+        "--model-index",
         type=int,
         default=0,
         choices=range(len(model_list)),
-        metavar=f'INDEX (0-{len(model_list) - 1})',
+        metavar=f"INDEX (0-{len(model_list) - 1})",
         help=(
-            'Index of the pretrained model to load from HuggingFace Hub:\n'
-            + '\n'.join(f'  {i}: {m}' for i, m in enumerate(model_list))
+            "Index of the pretrained model to load from HuggingFace Hub:\n"
+            + "\n".join(f"  {i}: {m}" for i, m in enumerate(model_list))
         ),
     )
     source_group.add_argument(
-        '-f', '--model-folder',
+        "-f",
+        "--model-folder",
         type=str,
-        metavar='FOLDER',
-        help='Local directory that contains (or will store) the model files.',
+        metavar="FOLDER",
+        help="Local directory that contains (or will store) the model files.",
     )
 
     parser.add_argument(
-        '-n', '--model-name',
+        "-n",
+        "--model-name",
         type=str,
         choices=model_list,
-        metavar='MODEL_NAME',
+        metavar="MODEL_NAME",
         help=(
-            'HuggingFace model name used when downloading to --model-folder.\n'
-            f'Valid values: {model_list}'
+            "HuggingFace model name used when downloading to --model-folder.\n"
+            f"Valid values: {model_list}"
         ),
     )
     parser.add_argument(
-        '--enable-ep',
-        action='store_true',
+        "--enable-ep",
+        action="store_true",
         default=False,
-        help='Use the HF mirror endpoint (https://hf-mirror.com) when downloading.',
+        help="Use the HF mirror endpoint (https://hf-mirror.com) when downloading.",
     )
     parser.add_argument(
-        '--host',
+        "--host",
         type=str,
-        default='0.0.0.0',
-        help='Host address the server listens on (default: 0.0.0.0).',
+        default="0.0.0.0",
+        help="Host address the server listens on (default: 0.0.0.0).",
     )
     parser.add_argument(
-        '--port',
+        "--port",
         type=int,
         default=6065,
-        help='Port the server listens on (default: 6065).',
+        help="Port the server listens on (default: 6065).",
     )
 
     args = parser.parse_args()
@@ -156,39 +166,34 @@ def main():
 
     if args.model_folder:
         if not args.model_name:
-            parser.error('--model-name is required when --model-folder is specified.')
+            parser.error("--model-name is required when --model-folder is specified.")
 
         model_folder = args.model_folder
         model_name = args.model_name
 
         if not os.path.exists(model_folder):
-            print(f"the specified folder: {model_folder} not exists, start to create it")
+            print(
+                f"the specified folder: {model_folder} not exists, start to create it"
+            )
 
-        model_file = os.path.join(model_folder, 'model.safetensors')
-        model_conf_file = os.path.join(model_folder, 'config.json')
+        model_file = os.path.join(model_folder, "model.safetensors")
+        model_conf_file = os.path.join(model_folder, "config.json")
 
         if not os.path.exists(model_file) or not os.path.exists(model_conf_file):
             download_model(model_name, model_folder, enable_ep=args.enable_ep)
         else:
             print("model file exists, start directly")
 
-        checkpoint_path = os.path.join(model_folder, 'torch_model.ckpt')
+        checkpoint_path = os.path.join(model_folder, "torch_model.ckpt")
         pretrained_model = _build_model_from_checkpoint(
             timesfm.TimesFmCheckpoint(path=checkpoint_path)
         )
     else:
         pretrained_model = _build_model_from_checkpoint(
-            timesfm.TimesFmCheckpoint(
-                huggingface_repo_id=model_list[args.model_index]
-            )
+            timesfm.TimesFmCheckpoint(huggingface_repo_id=model_list[args.model_index])
         )
 
-    app.run(
-        host=args.host,
-        port=args.port,
-        threaded=True,
-        debug=False
-    )
+    app.run(host=args.host, port=args.port, threaded=True, debug=False)
 
 
 if __name__ == "__main__":

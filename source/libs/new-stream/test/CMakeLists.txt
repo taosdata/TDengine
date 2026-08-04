@@ -27,6 +27,29 @@ add_test(
   COMMAND streamRunnerTest
 )
 
+ADD_EXECUTABLE(streamNotifyTest streamNotifyTest.cpp)
+DEP_ext_gtest(streamNotifyTest)
+DEP_ext_cppstub(streamNotifyTest)
+DEP_ext_ssl(streamNotifyTest)
+
+TARGET_INCLUDE_DIRECTORIES(
+  streamNotifyTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+
+TARGET_LINK_LIBRARIES(
+  streamNotifyTest
+  PUBLIC taos os common executor function index new-stream
+)
+
+add_test(
+  NAME streamNotifyTest
+  COMMAND streamNotifyTest
+)
+
 ADD_EXECUTABLE(dataSinkTest dataSinkTest.cpp)
 DEP_ext_gtest(dataSinkTest)
 TARGET_LINK_LIBRARIES(dataSinkTest PRIVATE os util ${TAOS_NATIVE_LIB_STATIC} common pthread new-stream)

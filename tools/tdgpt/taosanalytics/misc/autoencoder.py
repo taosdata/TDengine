@@ -1,6 +1,6 @@
-# encoding:utf-8
 # pylint: disable=c0103
-""" auto encoder algorithms to detect anomaly for time series data"""
+"""auto encoder algorithms to detect anomaly for time series data"""
+
 import importlib.util
 import os
 import sys
@@ -20,7 +20,7 @@ from taosanalytics.util import create_sequences
 
 
 class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
-    name = 'sample_ad_model'
+    name = "sample_ad_model"
     desc = "sample anomaly detection model based on auto encoder"
 
     def __init__(self):
@@ -35,17 +35,20 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 
         ModelFileManager.get_instance().load_model_file(
             _AutoEncoderDetectionService.name,
-            os.path.join(Configure.get_instance().get_model_directory(),
-                         'sample-ad-autoencoder/sample-ad-autoencoder'),
+            os.path.join(
+                Configure.get_instance().get_model_directory(),
+                "sample-ad-autoencoder/sample-ad-autoencoder",
+            ),
             _AutoEncoderDetectionService.do_load_model,
-            _AutoEncoderDetectionService.name
+            _AutoEncoderDetectionService.name,
         )
 
     def get_status(self) -> str:
-        """return model status """
+        """return model status"""
         info = ModelFileManager.get_instance().get_model(self.name)
         return AnalyticsService._toStatusName[
-            AnalyticsService.UNAVAILABLE if info is None else AnalyticsService.READY]
+            AnalyticsService.UNAVAILABLE if info is None else AnalyticsService.READY
+        ]
 
     # @classmethod
     # def get_model_base_path(cls) -> str:
@@ -71,16 +74,17 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         # Get test MAE loss.
         pred_list = self.model.predict(seq)
         mae_loss = np.mean(np.abs(pred_list - seq), axis=1)
-        mae = mae_loss.reshape((-1))
+        mae = mae_loss.reshape(-1)
 
         # Detect all the samples which are anomalies.
         anomalies = mae > self.threshold
 
         # data i is an anomaly if samples [(i - timesteps + 1) to (i)] are anomalies
         ad_indices = []
-        for data_idx in range(self.time_interval - 1,
-                              len(normalized_list) - self.time_interval + 1):
-            if np.all(anomalies[data_idx - self.time_interval + 1: data_idx]):
+        for data_idx in range(
+            self.time_interval - 1, len(normalized_list) - self.time_interval + 1
+        ):
+            if np.all(anomalies[data_idx - self.time_interval + 1 : data_idx]):
                 ad_indices.append(data_idx)
 
         return [-1 if i in ad_indices else 1 for i in range(len(self.list))]
@@ -96,7 +100,10 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
 
         AppLogger.info(
             "load ac module success, mean: %f, std: %f, threshold: %f, time_interval: %d",
-            self.mean[0], self.std[0], self.threshold, self.time_interval
+            self.mean[0],
+            self.std[0],
+            self.threshold,
+            self.time_interval,
         )
 
     def get_params(self):
@@ -113,6 +120,7 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
                     sys.modules.pop(module_name, None)
 
         import keras
+
         return keras
 
     @classmethod
@@ -121,21 +129,25 @@ class _AutoEncoderDetectionService(AbstractAnomalyDetectionService):
         # TensorFlow support was intentionally skipped.
         keras = cls._import_keras()
 
-        model_file_path = f'{path}.keras'
-        model_info_path = f'{path}.info'
+        model_file_path = f"{path}.keras"
+        model_info_path = f"{path}.info"
 
         AppLogger.info("try to load module:%s", model_file_path)
 
         if os.path.exists(model_file_path):
             model = keras.saving.load_model(model_file_path)
         else:
-            AppLogger.error("failed to load autoencoder model file: %s", model_file_path)
+            AppLogger.error(
+                "failed to load autoencoder model file: %s", model_file_path
+            )
             raise FileNotFoundError("%s not found", model_file_path)
 
         if os.path.exists(model_info_path):
             info = joblib.load(model_info_path)
         else:
-            AppLogger.error("failed to load autoencoder model file: %s", model_file_path)
+            AppLogger.error(
+                "failed to load autoencoder model file: %s", model_file_path
+            )
             raise FileNotFoundError("%s not found", model_file_path)
 
         info["model"] = model

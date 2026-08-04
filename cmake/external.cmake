@@ -1053,15 +1053,15 @@ INIT_EXT(ext_curl
 )
 
 if(${TD_WINDOWS})
-    # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
-    # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+    # URL https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz
+    # URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
     get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz"
-        "curl-8.2.1.tar.gz"
+        "https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz"
+        "curl-8.11.1.tar.gz"
     )
     ExternalProject_Add(ext_curl
         URL ${_url}
-        URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+        URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1084,15 +1084,15 @@ if(${TD_WINDOWS})
     )
 else()
     string(JOIN " " _c_flags ${_c_flags_list})
-    # URL https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz
-    # URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+    # URL https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz
+    # URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
     get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_2_1/curl-8.2.1.tar.gz"
-        "curl-8.2.1.tar.gz"
+        "https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz"
+        "curl-8.11.1.tar.gz"
     )
     ExternalProject_Add(ext_curl
         URL ${_url}
-        URL_HASH MD5=b25588a43556068be05e1624e0e74d41
+        URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
         # GIT_SHALLOW TRUE
         DEPENDS ext_ssl
         PREFIX "${_base}"

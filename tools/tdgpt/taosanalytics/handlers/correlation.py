@@ -1,9 +1,8 @@
-# encoding:utf-8
 """correlation handlers: encapsulates correlation business logic"""
 
 from taosanalytics.algo.correlation import do_dtw, do_tlcc
 from taosanalytics.log import AppLogger
-from taosanalytics.util import parse_options, get_more_data_list, do_check_before_exec
+from taosanalytics.util import do_check_before_exec, get_more_data_list, parse_options
 
 
 def handle_correlation(request):
@@ -15,32 +14,39 @@ def handle_correlation(request):
     """
     try:
         # check for rows limitation to reduce the dtw process time
-        req_json, payload, options, data_index, ts_index = do_check_before_exec(request, False)
+        req_json, payload, options, data_index, ts_index = do_check_before_exec(
+            request, False
+        )
     except Exception as e:
         return {"msg": str(e), "rows": -1}
 
     params = parse_options(options)
 
-    if 'algo' not in req_json:
-        return {"msg": 'algo is missing in requests', "rows": -1}
+    if "algo" not in req_json:
+        return {"msg": "algo is missing in requests", "rows": -1}
 
-    algo = req_json['algo'].lower()
+    algo = req_json["algo"].lower()
 
     try:
         second_list = get_more_data_list(payload, req_json["schema"])
 
-        if algo == 'dtw':
+        if algo == "dtw":
             dist, path = do_dtw(payload[data_index], second_list, params)
             res = {"option": options, "rows": len(path), "distance": dist, "path": path}
             AppLogger.debug("dtw result: %s", res)
             return res
-        elif algo == 'tlcc':
+        elif algo == "tlcc":
             lags, ccf_vals = do_tlcc(payload[data_index], second_list, params)
-            res = {"option": options, "rows": len(lags), "lags": lags, "ccf_vals": ccf_vals}
+            res = {
+                "option": options,
+                "rows": len(lags),
+                "lags": lags,
+                "ccf_vals": ccf_vals,
+            }
             AppLogger.debug("tlcc result: %s", res)
             return res
         else:
             raise ValueError(f"unsupported algo: {algo}")
     except Exception as e:
-        AppLogger.error('correlation failed, %s', str(e))
+        AppLogger.error("correlation failed, %s", str(e))
         return {"msg": str(e), "rows": -1}

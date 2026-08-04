@@ -1,10 +1,10 @@
 import os.path
+from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import interp1d
 from scipy.signal import savgol_filter
-import matplotlib.pyplot as plt
-from pathlib import Path
 
 from taosanalytics.log import AppLogger
 
@@ -15,8 +15,11 @@ from taosanalytics.log import AppLogger
 def hampel_filter(values, window_size=7, n_sigmas=3):
     if window_size <= 0 or n_sigmas > 3:
         AppLogger.error(
-            f"invalid parameters for hampel filter, window size:{window_size}, sigma:{n_sigmas}")
-        raise ValueError(f"invalid parameters for hampel filter, window size:{window_size}, sigma:{n_sigmas}")
+            f"invalid parameters for hampel filter, window size:{window_size}, sigma:{n_sigmas}"
+        )
+        raise ValueError(
+            f"invalid parameters for hampel filter, window size:{window_size}, sigma:{n_sigmas}"
+        )
 
     values = np.array(values)
     new_vals = values.copy()
@@ -95,7 +98,7 @@ def plot_compare(before, after, title, save_dir):
     plt.plot(before, label="Before", alpha=0.6, linewidth=1)
     plt.plot(after, label="After", linewidth=1)
 
-    plt.title(title, fontsize=14, fontweight='bold')
+    plt.title(title, fontsize=14, fontweight="bold")
 
     plt.legend()
     plt.tight_layout()
@@ -107,22 +110,28 @@ def plot_compare(before, after, title, save_dir):
 
 
 def plot_hempel_filter(before, after, outlier_indices, info, save_dir):
-    title = '1_hampel'
+    title = "1_hampel"
 
     plt.figure(figsize=(12, 8))
 
-    plt.plot(before, 'b-', label="Before", alpha=0.7, linewidth=1)
-    plt.plot(after, 'g-', label="After", linewidth=2)
+    plt.plot(before, "b-", label="Before", alpha=0.7, linewidth=1)
+    plt.plot(after, "g-", label="After", linewidth=2)
 
     if outlier_indices.size > 0:
         outlier_values = before[outlier_indices]
-        plt.scatter(outlier_indices, outlier_values,
-                    color='red', s=100, marker='o',
-                    edgecolors='darkred', linewidth=1.5,
-                    label=f'Detected Anomaly Points: ({len(outlier_indices)})',
-                    zorder=5)
+        plt.scatter(
+            outlier_indices,
+            outlier_values,
+            color="red",
+            s=100,
+            marker="o",
+            edgecolors="darkred",
+            linewidth=1.5,
+            label=f"Detected Anomaly Points: ({len(outlier_indices)})",
+            zorder=5,
+        )
 
-    plt.title(title + f" ({info})", fontsize=14, fontweight='bold')
+    plt.title(title + f" ({info})", fontsize=14, fontweight="bold")
 
     plt.legend()
     plt.tight_layout()
@@ -138,20 +147,20 @@ def plot_sg_smoothing(before, after, title, info, save_dir):
 
     plt.subplot(2, 1, 1)
 
-    plt.plot(before, 'b-', alpha=0.7, linewidth=1, label='Raw Data')
-    plt.plot(after, 'r-', linewidth=2, label='After SG Smoothing')
+    plt.plot(before, "b-", alpha=0.7, linewidth=1, label="Raw Data")
+    plt.plot(after, "r-", linewidth=2, label="After SG Smoothing")
 
-    plt.title(title + " (" + info + ")", fontsize=14, fontweight='bold')
+    plt.title(title + " (" + info + ")", fontsize=14, fontweight="bold")
     plt.grid(True, alpha=0.3)
     plt.legend()
 
     # draw difference
     plt.subplot(2, 1, 2)
     difference = after - before
-    plt.plot(difference, 'g-', linewidth=1)
-    plt.xlabel('X')
-    plt.ylabel('Diff')
-    plt.title('Diff between raw data and smoothed data')
+    plt.plot(difference, "g-", linewidth=1)
+    plt.xlabel("X")
+    plt.ylabel("Diff")
+    plt.title("Diff between raw data and smoothed data")
     plt.grid(True, alpha=0.3)
 
     plt.tight_layout()
@@ -218,15 +227,18 @@ def do_batch_process(ts_list, val_list, win_list, config):
         if len(v) < 10:
             if t.size >= 2:
                 AppLogger.warning(
-                    f"data points less than threshold, discard time window [{t[0]}, {t[1]}]")
+                    f"data points less than threshold, discard time window [{t[0]}, {t[1]}]"
+                )
             else:
-                AppLogger.warning("data points less than threshold, discard empty time window")
+                AppLogger.warning(
+                    "data points less than threshold, discard empty time window"
+                )
             continue
 
         save_dir = f"./batch_{idx}"
 
         # Hampel filter
-        if config['hampel']['active']:
+        if config["hampel"]["active"]:
             v_hampel, outlier_indices = hampel_filter(
                 v,
                 config["hampel"]["window_size"],
@@ -240,7 +252,7 @@ def do_batch_process(ts_list, val_list, win_list, config):
             v_hampel = v
 
         # Derivative check
-        if config['derivative']['active']:
+        if config["derivative"]["active"]:
             threshold = config["derivative"].get("max_rate", np.inf)
             if threshold <= 0:
                 AppLogger.warning("the max rate is set to 0, no results generated")
@@ -270,11 +282,15 @@ def do_batch_process(ts_list, val_list, win_list, config):
             plot_compare(v_der, v_norm, "3_normalize", save_dir)
 
         # SG smoothing
-        if config['savgol']['active']:
+        if config["savgol"]["active"]:
             sg_cfg = config["savgol"]
             if sg_cfg["window"] % 2 == 0 or sg_cfg["window"] <= 0:
-                AppLogger.error(f"Savitzky-Golay window must be a positive odd integer, input size: {sg_cfg['window']}")
-                raise ValueError(f"Savitzky-Golay window must be a positive odd integer, input size: {sg_cfg['window']}")
+                AppLogger.error(
+                    f"Savitzky-Golay window must be a positive odd integer, input size: {sg_cfg['window']}"
+                )
+                raise ValueError(
+                    f"Savitzky-Golay window must be a positive odd integer, input size: {sg_cfg['window']}"
+                )
 
             v_sg = savgol_filter(
                 v_norm,
@@ -283,17 +299,24 @@ def do_batch_process(ts_list, val_list, win_list, config):
             )
 
             if config["plot"]:
-                info = f'window_size: {sg_cfg["window"]}, poly_order:{sg_cfg["polyorder"]}'
+                info = (
+                    f'window_size: {sg_cfg["window"]}, poly_order:{sg_cfg["polyorder"]}'
+                )
                 plot_sg_smoothing(v_norm, v_sg, "4_savgol", info, save_dir)
         else:
             v_sg = v_norm
 
         processed_batches.append(v_sg)
 
-    AppLogger.debug("total %d time windows data to build golden batch results" % (len(processed_batches)))
+    AppLogger.debug(
+        "total %d time windows data to build golden batch results"
+        % (len(processed_batches))
+    )
 
     if len(processed_batches) <= 0:
-        AppLogger.warning("empty results return since no valid input time window for golden batch process")
+        AppLogger.warning(
+            "empty results return since no valid input time window for golden batch process"
+        )
         return np.array([]), np.array([]), np.array([]), np.array([])
 
     # main process
@@ -318,10 +341,12 @@ def do_batch_process(ts_list, val_list, win_list, config):
         plt.title(f'Golden Batch with Envelope ({config["golden"]["method"]})')
 
         Path(os.getcwd()).mkdir(exist_ok=True)
-        plt.savefig(f"./golden_batch.png")
+        plt.savefig("./golden_batch.png")
         plt.close()
 
-    AppLogger.debug(f"build golden batch completed, center: {center}, lower:{lower}, upper:{upper}")
+    AppLogger.debug(
+        f"build golden batch completed, center: {center}, lower:{lower}, upper:{upper}"
+    )
     return center, lower, upper, processed_batches
 
 
@@ -333,30 +358,26 @@ def get_default_config():
             "sigma": 3,
             "active": True,
         },
-
         "derivative": {
             "max_rate": 50,
             "active": True,
         },
-
         "normalize": {
             "target_len": 1000,
             # linear|cubic
             "method": "linear",
         },
-
         "savgol": {
             "window": 9,
             "polyorder": 2,
             "active": True,
         },
-
         "golden": {
             # median_percentile + lower_percentile/upper_percentile|mean_std + nstd
             "method": "median_percentile",
             "lower_percentile": 10,
-            "upper_percentile": 90
-        }
+            "upper_percentile": 90,
+        },
     }
 
     return default_config
@@ -367,7 +388,11 @@ def update_config(param) -> dict:
 
     if param is not None:
         for key, value in param.items():
-            if key in config and isinstance(config[key], dict) and isinstance(value, dict):
+            if (
+                key in config
+                and isinstance(config[key], dict)
+                and isinstance(value, dict)
+            ):
                 config[key].update(value)
             elif key in config:
                 config[key] = value
@@ -393,8 +418,5 @@ if __name__ == "__main__":
     ]
 
     center, lower, upper, batches = do_batch_process(
-        time,
-        values,
-        windows,
-        get_default_config()
+        time, values, windows, get_default_config()
     )

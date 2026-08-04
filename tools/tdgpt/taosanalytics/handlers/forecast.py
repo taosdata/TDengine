@@ -1,9 +1,13 @@
-# encoding:utf-8
 """forecast handlers: encapsulates forecast business logic"""
 
-from taosanalytics.algo.forecast import do_forecast, add_forecast_params
+from taosanalytics.algo.forecast import add_forecast_params, do_forecast
 from taosanalytics.log import AppLogger
-from taosanalytics.util import parse_options, get_past_dynamic_data, get_dynamic_data, do_check_before_exec
+from taosanalytics.util import (
+    do_check_before_exec,
+    get_dynamic_data,
+    get_past_dynamic_data,
+    parse_options,
+)
 
 
 def handle_forecast(request):
@@ -32,7 +36,7 @@ def handle_forecast(request):
         return {"msg": f"{e}", "rows": -1}
 
     # holt-winters by default
-    algo = req_json['algo'].lower() if 'algo' in req_json else 'holtwinters'
+    algo = req_json["algo"].lower() if "algo" in req_json else "holtwinters"
 
     try:
         res1 = do_forecast(
@@ -50,5 +54,5 @@ def handle_forecast(request):
         AppLogger.debug("forecast result: %s", res)
         return res
     except Exception as e:
-        AppLogger.error('forecast failed, %s', str(e))
+        AppLogger.error("forecast failed, %s", str(e))
         return {"msg": str(e), "rows": -1}

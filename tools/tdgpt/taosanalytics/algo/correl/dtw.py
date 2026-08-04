@@ -1,13 +1,14 @@
 import numpy as np
+from fastdtw import fastdtw
 
 from taosanalytics.base import AbstractCorrelationService
 from taosanalytics.log import AppLogger
-from fastdtw import fastdtw
 
 
 class _DtwService(AbstractCorrelationService):
-    """ dtw analysis """
-    name = 'dtw'
+    """dtw analysis"""
+
+    name = "dtw"
     desc = """found the dynamic time wrap for two given time series data"""
     _builtins = True
 
@@ -16,10 +17,17 @@ class _DtwService(AbstractCorrelationService):
         self.radius = 1
 
     def execute(self):
-        if self.list is None or self.list1 is None or len(self.list) == 0 or len(self.list1) == 0:
+        if (
+            self.list is None
+            or self.list1 is None
+            or len(self.list) == 0
+            or len(self.list1) == 0
+        ):
             raise ValueError("empty time-series data to perform dtw")
 
-        dist, path = fastdtw(np.array(self.list), np.array(self.list1), radius=self.radius)
+        dist, path = fastdtw(
+            np.array(self.list), np.array(self.list1), radius=self.radius
+        )
         return dist, path
 
     def set_params(self, params):

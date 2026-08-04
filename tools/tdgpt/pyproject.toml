@@ -1,0 +1,31 @@
+[tool.ruff]
+target-version = "py310"
+line-length = 127
+exclude = [
+    ".venv",
+    ".ruff_cache",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+# E/W: pycodestyle  F: pyflakes  I: isort  N: pep8-naming
+# UP: pyupgrade     C90: mccabe complexity
+select = ["E", "F", "W", "I"]
+ignore = [
+    "N802",   # function name should be lowercase (matches pylint c0103 scope)
+    "N803",   # argument name should be lowercase
+    "N806",   # variable in function should be lowercase (X, X_train etc. are conventional in ML code)
+    "UP007",  # X | Y union syntax — keep `Optional`/`Union` for py3.9 compat
+    "E712",   # Avoid equality comparisons to `True`; use `i.get('builtins'):` for truth checks
+    "E402",   # Module level import not at top of file
+    "F841",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.isort]
+known-first-party = ["taosanalytics"]
+
+[tool.ruff.lint.per-file-ignores]
+"packaging/win_release.py" = ["E501"]

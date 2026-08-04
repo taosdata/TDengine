@@ -1,8 +1,8 @@
 import os
+import sys
+
 import numpy as np
 import pytest
-from pathlib import Path
-import sys
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
@@ -11,6 +11,7 @@ from taosanalytics.algo.tool.batch import do_batch_process, get_default_config
 ############################################
 # boundary test cases
 ############################################
+
 
 class TestBoundaryConditions:
     """Tests for boundary conditions"""
@@ -92,11 +93,7 @@ class TestBoundaryConditions:
         """test case: overlapping time windows"""
         time = np.linspace(0, 100, 1000)
         values = np.sin(time / 10)
-        windows = [
-            (0, 50),
-            (25, 75),  # overlap with first window
-            (50, 100)
-        ]
+        windows = [(0, 50), (25, 75), (50, 100)]  # overlap with first window
         config = get_default_config()
 
         center, lower, upper, batches = do_batch_process(time, values, windows, config)
@@ -107,11 +104,7 @@ class TestBoundaryConditions:
         """test case: adjacent time windows"""
         time = np.linspace(0, 100, 1000)
         values = np.sin(time / 10)
-        windows = [
-            (0, 33),
-            (33, 66),
-            (66, 100)
-        ]
+        windows = [(0, 33), (33, 66), (66, 100)]
         config = get_default_config()
 
         center, lower, upper, batches = do_batch_process(time, values, windows, config)
@@ -139,15 +132,11 @@ class TestBoundaryConditions:
 
         center, lower, upper, batches = do_batch_process(time, values, windows, config)
 
-
     def test_window_at_data_boundary(self):
         """test case: time window at data boundary"""
         time = np.linspace(0, 100, 1000)
         values = np.sin(time / 10)
-        windows = [
-            (0, 10),  # start boundary
-            (90, 100)  # end boundary
-        ]
+        windows = [(0, 10), (90, 100)]  # start boundary  # end boundary
         config = get_default_config()
 
         center, lower, upper, batches = do_batch_process(time, values, windows, config)
@@ -160,7 +149,7 @@ class TestBoundaryConditions:
         values = np.sin(time / 10)
         windows = [
             (-10, 10),  # partially out of range
-            (90, 110)  # partially out of range
+            (90, 110),  # partially out of range
         ]
         config = get_default_config()
 
@@ -173,6 +162,7 @@ class TestBoundaryConditions:
 ############################################
 # exceptional cases
 ############################################
+
 
 class TestExceptionHandling:
     """exceptional cases handling"""
@@ -198,7 +188,9 @@ class TestExceptionHandling:
 
         # NaN may cause issues, should handle or raise exception
         try:
-            center, lower, upper, batches = do_batch_process(time, values, windows, config)
+            center, lower, upper, batches = do_batch_process(
+                time, values, windows, config
+            )
             # if no exception raised, check results for NaN
             if len(batches) > 0:
                 assert not np.any(np.isnan(batches[0]))
@@ -215,7 +207,9 @@ class TestExceptionHandling:
         config = get_default_config()
 
         try:
-            center, lower, upper, batches = do_batch_process(time, values, windows, config)
+            center, lower, upper, batches = do_batch_process(
+                time, values, windows, config
+            )
             if len(batches) > 0:
                 assert not np.any(np.isinf(batches[0]))
         except (ValueError, RuntimeError):
@@ -230,7 +224,9 @@ class TestExceptionHandling:
 
         # may cause interpolation issues
         try:
-            center, lower, upper, batches = do_batch_process(time, values, windows, config)
+            center, lower, upper, batches = do_batch_process(
+                time, values, windows, config
+            )
         except (ValueError, RuntimeError):
             pass
 
@@ -238,10 +234,7 @@ class TestExceptionHandling:
         """test case: invalid time window format"""
         time = np.linspace(0, 100, 1000)
         values = np.sin(time / 10)
-        windows = [
-            (10,),  # missing end time
-            (20, 30, 40)  # extra parameter
-        ]
+        windows = [(10,), (20, 30, 40)]  # missing end time  # extra parameter
         config = get_default_config()
 
         with pytest.raises((ValueError, IndexError, TypeError)):
@@ -338,6 +331,7 @@ class TestExceptionHandling:
 # Special cases
 ############################################
 
+
 class TestSpecialScenarios:
     """Special scenarios"""
 
@@ -409,11 +403,13 @@ class TestSpecialScenarios:
     def test_multiple_batches_different_characteristics(self):
         """test case: multiple batches with different characteristics"""
         time = np.linspace(0, 300, 3000)
-        values = np.concatenate([
-            np.sin(time[:1000] / 10),  # sine wave
-            np.random.randn(1000) * 2,  # random noise
-            np.linspace(0, 10, 1000)  # linear trend
-        ])
+        values = np.concatenate(
+            [
+                np.sin(time[:1000] / 10),  # sine wave
+                np.random.randn(1000) * 2,  # random noise
+                np.linspace(0, 10, 1000),  # linear trend
+            ]
+        )
         windows = [(0, 100), (100, 200), (200, 300)]
         config = get_default_config()
 
@@ -447,7 +443,6 @@ class TestSpecialScenarios:
         # should fallback to linear interpolation when fewer than 4 points
         assert len(batches) > 0
 
-
     def test_zero_derivative_rate_limit(self):
         """test case: derivative rate limitation is zero"""
         time = np.linspace(0, 100, 1000)
@@ -465,6 +460,7 @@ class TestSpecialScenarios:
 ############################################
 # Data quality tests
 ############################################
+
 
 class TestDataQuality:
     """Data quality tests"""
@@ -498,7 +494,9 @@ class TestDataQuality:
         config = get_default_config()
 
         try:
-            center, lower, upper, batches = do_batch_process(time, values, windows, config)
+            center, lower, upper, batches = do_batch_process(
+                time, values, windows, config
+            )
         except (ValueError, RuntimeError):
             pass  # interpolation may fail
 
@@ -520,6 +518,7 @@ class TestDataQuality:
 # Configuration parameter tests
 ############################################
 
+
 class TestConfigurationParameters:
     """Configuration parameter tests"""
 
@@ -534,7 +533,9 @@ class TestConfigurationParameters:
         config1["golden"]["method"] = "mean_std"
         config1["golden"]["n_std"] = 2
 
-        center1, lower1, upper1, batches1 = do_batch_process(time, values, windows, config1)
+        center1, lower1, upper1, batches1 = do_batch_process(
+            time, values, windows, config1
+        )
 
         # test median_percentile method
         config2 = get_default_config()
@@ -542,7 +543,9 @@ class TestConfigurationParameters:
         config2["golden"]["lower_percentile"] = 10
         config2["golden"]["upper_percentile"] = 90
 
-        center2, lower2, upper2, batches2 = do_batch_process(time, values, windows, config2)
+        center2, lower2, upper2, batches2 = do_batch_process(
+            time, values, windows, config2
+        )
 
         # both methods should produce results
         assert len(batches1) == 2

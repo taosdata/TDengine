@@ -1,26 +1,30 @@
 # encoding:utf-8
 # pylint: disable=c0103
 """anomaly detection unit test"""
+
 import math
-import unittest, sys, os.path
+import os.path
+import sys
+import unittest
 
 import numpy as np
 from matplotlib import pyplot as plt
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from taosanalytics.service_registry import loader
 from taosanalytics.log import setup_log_info
+from taosanalytics.service_registry import loader
+
 
 def draw_lags_result(lags, ccf_vals, name):
     plt.figure(figsize=(10, 5))
 
     plt.stem(lags, ccf_vals)
-    plt.axhline(0, color='black', linewidth=1)
-    plt.axvline(0, color='gray', linestyle='--')
-    plt.title('Cross-Correlation Function (CCF)')
-    plt.xlabel('Lag (k)')
-    plt.ylabel('Correlation')
+    plt.axhline(0, color="black", linewidth=1)
+    plt.axvline(0, color="gray", linestyle="--")
+    plt.title("Cross-Correlation Function (CCF)")
+    plt.xlabel("Lag (k)")
+    plt.ylabel("Correlation")
     plt.grid(True)
 
     plt.savefig(name)
@@ -28,18 +32,19 @@ def draw_lags_result(lags, ccf_vals, name):
 
 
 class CorrelationTest(unittest.TestCase):
-    """ anomaly detection unit test class"""
+    """anomaly detection unit test class"""
+
     input1 = [1, 1.1, 1.0, 1.2, 1.1]
     input2 = [1, 1.5, 1.3, 1.8, 1.6]
 
     @classmethod
     def setUpClass(cls):
-        """ set up environment for unit test, set the log file path """
+        """set up environment for unit test, set the log file path"""
         setup_log_info("unit_test.log")
         loader.register_all_services()
 
     def test_dtw(self):
-        """ dtw unit case"""
+        """dtw unit case"""
 
         s = loader.get_service("dtw")
         s.set_input_list(CorrelationTest.input1, None)
@@ -70,7 +75,7 @@ class CorrelationTest(unittest.TestCase):
         s = loader.get_service("tlcc")
         s.set_input_list(x, None)
         s.set_second_input_data(y)
-        s.set_params({"lag_start":-20, "lag_end":20})
+        s.set_params({"lag_start": -20, "lag_end": 20})
 
         lags, ccf_vals = s.execute()
 
