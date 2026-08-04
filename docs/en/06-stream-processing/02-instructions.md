@@ -137,7 +137,7 @@ After a stream is created, users may perform operations on the databases and tab
 | User modifies the tag value of a child table under the trigger supertable | If the tag column is used by the stream as a grouping key, the operation is not allowed and results in an error.<br/>Otherwise, ignored. |
 | User modifies the schema of the trigger table columns        | Ignored; no additional handling. (An error will be raised when a schema mismatch is detected at read time.) |
 | User modifies or deletes a source table                      | Ignored; no additional handling.                             |
-| User modifies or deletes an output table                     | Ignored; no additional handling. (If a schema mismatch is detected at write time, an error is raised. If the table does not exist, it will be recreated.)） |
+| User modifies or deletes an output table                     | Ignored; no additional handling. (If a schema mismatch is detected at write time, an error is raised. If the table does not exist, it will be recreated.) |
 | User splits a vnode                                          | Not allowed if the database containing the vnode is a source database or trigger table database.<br/>Not allowed if virtual tables are used for triggers or computations.<br/>The user may force execution after confirming no impact with SPLIT VGROUP N FORCE. |
 | User deletes a database                                      | Not allowed if the deleted database is a source database of a stream, or a trigger table database that is not the same as the stream’s own database.<br/>Not allowed if the stream involves triggers or computations on virtual tables from non-target databases.<br/>The user may force execution after confirming no impact with `DROP DATABASE name FORCE`. |
 
@@ -170,22 +170,20 @@ The following rules and limitations apply to stream processing:
 - If different groups are configured to generate child tables with the same name, their results will be written into the same child table. Users must confirm this is the intended behavior; otherwise, ensure each group generates a uniquely named child table.
 - In addition to specifying child table names, users can also define the tag columns of the output supertable and the tag values for each child table.
 - Stream processing supports nesting, meaning a new stream can be created based on the output table of an existing stream.
-- Count window triggers do not support automatic handling of out-of-order, update, or delete scenarios (they are ignored). In non-FILL_HISTORY_FIRST mode, historical and real-time windows may not align.
+- For count window triggers whose sliding step is not 1, out-of-order data, updates, and deletions are ignored. When the sliding step is 1 (for example, `COUNT_WINDOW(1)` or `COUNT_WINDOW(n, 1)`), out-of-order data and updates trigger recalculation by default and can be ignored with `IGNORE_DISORDER`; deletions are ignored by default and can trigger recalculation with `DELETE_RECALC`. In non-`FILL_HISTORY_FIRST` mode, historical and real-time windows may not align.
 - For supertable window triggers, only interval and session windows support grouping by tag, by rollup tag, by child table, or no grouping. Other window types only support grouping by child table.
 - `ROLLUP BY` is mutually exclusive with `PARTITION BY` and `DELETE_OUTPUT_TABLE`.
 - Pseudo-columns qstart, qend, and qduration are not supported in queries.
 
-Temporary Restrictions:
+#### Temporary Restrictions
 
 - Grouping by regular data columns is not yet supported.
 - The Geometry data type is not yet supported.
-- The DELETE_OUTPUT_TABLE option is not yet supported.
 - The ON_FAILURE_PAUSE option in NOTIFY_OPTIONS is not yet supported.
-- The Cast function is not yet supported in state window triggers.
 
 ### Compatibility Notes
 
-Compared with version 3.3.6.0, stream processing has been completely redesigned. Before upgrading from the old version, the following steps must be performed, after which streams should be recreated under the new stream processing version:
+Compared with `v3.3.6.0`, stream processing has been completely redesigned. Before upgrading from the old version, the following steps must be performed, after which streams should be recreated under the new stream processing version:
 
 - Delete all existing stream processing tasks.
 - Delete all TSMA.

@@ -1,21 +1,24 @@
 ---
+sidebar_label: MQTT Data Subscription
 title: MQTT Data Subscription
+description: Subscribe to topic data through an MQTT client connected to a Bnode
+toc_max_heading_level: 4
 ---
 
-In addition to classic data subscription, TDengine supports subscription over MQTT. You can create a broker node (bnode) in TDengine and connect your MQTT client to it. The client can then subscribe to TDengine topics.
+Starting from `v3.3.7.0`, TDengine supports subscription over MQTT. Connect an MQTT client to a TDengine Bnode service to subscribe directly to data from existing topics.
 
 Key Features:
 
-1. Protocol Support: MQTT 5.0
+1. Protocol Support: MQTT 5.0 is recommended. MQTT 3.1 and 3.1.1 are also supported, but user properties such as `sub-offset` require MQTT 5.0.
 2. Authentication: Uses TDengine native authentication
 3. Topic Management: Unlike the standard MQTT protocol, topics must be pre-created (as message publishing is not supported, topics cannot be dynamically created via message publishing)
-4. Shared Topics: Topics in the format $shared/group_id/topic_name are treated as shared subscriptions, suitable for scenarios requiring load balancing and high availability
-5. Subscription Position: Supports latest and earliest (WAL earliest position)
+4. Shared Topics: Topics in the format `$share/group_id/topic_name` are treated as shared subscriptions, suitable for scenarios requiring load balancing and high availability
+5. Subscription Position: Supports `latest` and `earliest` (the earliest WAL position). Set the subscription user property `sub-offset=earliest` to request the earliest position; the default is `latest`.
 6. Quality of Service: Supports QoS 0 and QoS 1
 
 ## Bnode Management
 
-You manage bnodes through the taos CLI.
+You manage Bnodes through the [`taos` CLI](../12-operations-and-tooling/04-tools/01-taos-cli.md).
 
 ### Create a Bnode
 
@@ -27,11 +30,11 @@ CREATE BNODE ON DNODE <dnode_id>;
 
 You can create only one bnode on each dnode. Once the bnode is successfully created, a bnode subprocess named `taosmqtt` is automatically started to provide MQTT subscription services.
 
-The `taosmqtt` service uses port 6057 by default. You can modify the `mqttPort` parameter in `taos.cfg` to provide MQTT subscription services on a different port.
+The `taosmqtt` service uses port 6057 by default. You can modify the `mqttPort` parameter in `taos.cfg` to provide MQTT subscription services on a different port. See [taosd configuration parameters](../12-operations-and-tooling/03-components/01-taosd.md).
 
 ### View Bnodes
 
-Use the following SQL statement to display information about the bnodes in your cluster:
+Use the following SQL statement to display information about the Bnodes in your cluster. For the complete field list, see [`INS_BNODES`](../05-tdengine-sql/09-system-info/01-meta.md#ins_bnodes).
 
 ```sql
 SHOW BNODES;
@@ -59,7 +62,7 @@ Deleting a bnode removes it from the TDengine cluster and stops the `taosmqtt` s
 
 ## MQTT Data Subscription Example
 
-This example creates test data in TDengine and subscribes to the data. You can use any client that supports the MQTT v5.0 protocol to subscribe; this example uses the Python `paho-mqtt` library.
+This example creates test data in TDengine and subscribes to the data. You can use any compatible MQTT client; this example uses MQTT 5.0 with the Python `paho-mqtt` library so that it can set `sub-offset`.
 
 ### Create Test Data
 

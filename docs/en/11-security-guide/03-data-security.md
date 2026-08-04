@@ -5,11 +5,9 @@ description: TDengine TSDB Enterprise IP whitelist, secure delete, and transpare
 toc_max_heading_level: 4
 ---
 
-import { Enterprise } from './resources/_resources.mdx';
+In addition to traditional user and permission management, TDengine also offers other security strategies such as IP whitelisting, audit logs, data encryption, etc., which are unique features of TDengine Enterprise. The whitelisting feature was first released in `v3.2.0.0`, audit logs in `v3.1.1.0`, and database encryption in `v3.3.0.0`. It is recommended to use the latest version. You can also enable secure delete through database or statement options (`SECURE_DELETE`). For audit capabilities, see [Audit and Compliance](./05-audit-and-compliance.md). This section covers IP whitelisting, secure delete, and storage encryption.
 
-<Enterprise/>
-
-In addition to traditional user and permission management, TDengine also offers other security strategies such as IP whitelisting, audit logs, data encryption, etc., which are unique features of TDengine Enterprise. The whitelisting feature was first released in version 3.2.0.0, audit logs in version 3.1.1.0, and database encryption in version 3.3.0.0. It is recommended to use the latest version.
+Database DDL options such as `ENCRYPT_ALGORITHM`, `IS_AUDIT`, `SECURE_DELETE`, and `SECURITY_LEVEL` are documented under [Databases](../05-tdengine-sql/02-ddl/01-database.md). For `SECURITY_LEVEL` (MAC), see [Mandatory Access Control (MAC)](../05-tdengine-sql/07-user-and-privilege/02-grant.md#mandatory-access-control-mac). For `IS_AUDIT` constraints, see [Audit and Compliance](./05-audit-and-compliance.md). For `SECURE_DELETE`, see [Secure Delete](#secure-delete) below.
 
 ## IP Whitelisting
 
@@ -52,6 +50,32 @@ Notes
 - If the client gets 0.0.0.0/0, it means the whitelist is not enabled
 - If the whitelist changes, the client will detect it in the heartbeat.
 - For one user, the maximum number of IPs that can be added is 2048
+
+## Secure Delete
+
+The database option `SECURE_DELETE` (`0` / `1`, default `0`) controls whether the delete path, in addition to writing a delete mark, physically overwrites on-disk data blocks. For DDL syntax, see [Databases · SECURE_DELETE](../05-tdengine-sql/02-ddl/01-database.md). A single delete can also append the `SECURE_DELETE` keyword; see [Data Deletion](../05-tdengine-sql/03-data-write/02-delete.md).
+
+- **Off (`0`)**: Only a delete mark is written. Queries no longer return the deleted data, but the corresponding file blocks may remain on disk until later compaction or reclamation.
+- **On (`1`)**: In addition to the delete mark, data blocks that hit the `(table, time range)` in on-disk DATA / STT files are overwritten at the file level (secure erase), reducing the risk of reading deleted content directly from the filesystem.
+
+Behavior notes:
+
+- Secure delete takes effect if any of the following is set: database-level `SECURE_DELETE=1`, a secure-delete flag in table/supertable metadata, or statement-level `DELETE ... SECURE_DELETE` (combined with bitwise OR in the implementation).
+- Physical overwrite runs after the delete mark is written. If overwrite fails, the server logs the failure; query semantics still follow the delete mark (deleted data does not become visible again because overwrite failed).
+- The current implementation targets the newer TSDB file format; older-format files skip file-level overwrite and rely on later compaction paths for reclamation.
+- In multi-replica scenarios, file-level overwrite runs on the Raft leader; followers apply logical deletes via WAL replay and do not automatically repeat the same physical overwrite.
+- WAL may still retain original write records from before the delete until WAL trimming after a checkpoint. OS page cache and SSD wear leveling may also leave old content briefly visible on physical media. This capability is not hardware-level Secure Erase / Sanitize, and is not equivalent to “static encryption plus key destruction.”
+- Enabling secure delete increases I/O and latency on the delete path; weigh residual-data requirements against performance cost.
+- It complements TDE: TDE reduces the risk of reading static files directly; secure delete focuses on overwriting residual blocks after deletion. Neither constitutes a claim of compliance with a specific regulation or certification.
+- The global parameter `secureEraseMode` (default `0`) controls how fully overwritable blocks are filled: `0` is zero-fill, `1` is random bytes; partially overlapping blocks are always zero-filled for in-place write-back. See the [taosd configuration reference](../12-operations-and-tooling/03-components/01-taosd.md).
+
+Examples:
+
+```sql
+CREATE DATABASE db SECURE_DELETE 1;
+ALTER DATABASE db SECURE_DELETE 1;
+DELETE FROM meters WHERE ts < '2021-10-01 10:40:00.100' SECURE_DELETE;
+```
 
 ## Storage Security
 
@@ -378,3 +402,7 @@ All encrypted configuration files will contain a plaintext identifier header ("t
 - Upgrading from versions that do not support storage security to new versions can run normally
 - Encrypted databases from historical versions can be made compatible by specifying DATA_KEY
 - After enabling storage security, cannot rollback to historical versions that do not support storage security
+
+### Encrypt Stored User Passwords
+
+By default, user passwords are stored as MD5 hashes. Set `encryptPassAlgorithm` to `sm4` to additionally encrypt stored password data; currently only `sm4` is supported. Generate and configure the required keys before enabling this parameter. For parameter availability and modification rules, see [taosd](../12-operations-and-tooling/03-components/01-taosd.md).

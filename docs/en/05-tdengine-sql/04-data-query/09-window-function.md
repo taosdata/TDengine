@@ -174,7 +174,7 @@ Parameter notes for `lag`/`lead`:
 
 When computing moving metrics with a fixed-length window, the first few rows often lack enough history. You can use `OFFSET N` to skip the first N result rows after the window computation is complete. `OFFSET` takes effect after the window values are computed and does not change the already-computed window values.
 
-Starting from this version, `OFFSET N` can be used independently without `LIMIT`:
+Starting from v3.4.2.0, `OFFSET N` can be used independently without `LIMIT`:
 
 ```sql
 SELECT v, avg(v) OVER (ORDER BY ts ROWS BETWEEN 9 PRECEDING AND CURRENT ROW) AS ma

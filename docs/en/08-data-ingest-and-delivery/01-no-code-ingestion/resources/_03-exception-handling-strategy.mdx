@@ -1,0 +1,33 @@
+The **Exception Handling Strategy** section is collapsed by default. Click `>` to expand it.
+
+The common strategies are:
+
+- **Archive**: Write the invalid data to an archive file, by default under `${data_dir}/tasks/<id>/<datetime>`, without writing it to the target database.
+- **Discard**: Ignore the invalid data.
+- **Error**: Report an error.
+- **Cache**: For a target connection failure or resource shortage, write data to a cache file and ingest it after the target recovers.
+
+You can configure strategies for these conditions:
+
+- **Target connection timeout**: Archive, discard, error, or cache.
+- **Target database does not exist**: Archive, discard, or error.
+- **Table does not exist**: Archive, discard, error, or create the table automatically and retry.
+- **Primary timestamp out of range** (`now - keep1` through `now + 100y`): Archive, discard, or error.
+- **Primary timestamp is null**: Archive, discard, error, or use the current time.
+- **Composite primary key is null**: Archive, discard, or error.
+- **Table name exceeds 192 characters**: Archive, discard, error, truncate, or truncate and archive.
+- **Invalid table-name characters**, such as `.`: Archive, discard, error, or replace invalid characters with a configured string.
+- **Null table-name template variable**: Discard, leave the variable empty, or replace it with a configured string.
+- **Column does not exist**: Archive, discard, error, or add the missing column automatically and retry.
+- **Column name exceeds 64 characters**: Archive, discard, or error.
+- **Column value exceeds its defined length**: Archive, discard, error, truncate, or truncate and archive. **Automatic Column Expansion** can alter the table and retry instead.
+- **Other data errors**: Archive, discard, or error.
+
+Additional settings include:
+
+- **Connection Timeout**: Target connection timeout in seconds, from `1` through `600`.
+- **Temporary Storage Location**: A path relative to `${data_dir}/tasks/<id>/`.
+- **Archive Retention Days**: A nonnegative integer; `0` means unlimited.
+- **Archive Available Space**: From `0` through `65535`; `0` means unlimited.
+- **Archive Location**: A path relative to `${data_dir}/tasks/<id>/`.
+- **Archive Write Failure Strategy**: Delete old files, discard the data, or report an error and stop the task.

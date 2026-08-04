@@ -172,6 +172,11 @@ Field descriptions:
 If the number of failed items is not zero, add `-g` to enable debug output for detailed errors, or check the TDengine server logs for troubleshooting.
 :::
 
+## Log Files
+
+- Backup: The log file is named `backup.log` and stored in the root directory of the backup folder.
+- Restore: The log file is named `restore.log` and saved in the current directory.
+
 ## Common Usage Scenarios
 
 ### Back Up Data

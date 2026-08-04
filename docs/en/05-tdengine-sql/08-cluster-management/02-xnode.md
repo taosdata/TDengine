@@ -1,7 +1,8 @@
 ---
-sidebar_label: Data Ingestion
-title: Data Ingestion
+sidebar_label: Data Ingestion (Xnode)
+title: Data Ingestion (Xnode)
 description: "Xnode distributed node and task management instructions"
+toc_max_heading_level: 4
 ---
 
 # Data Ingestion
@@ -83,7 +84,7 @@ Output result:
 ```sql
 id | url     | status | create_time                 | update_time             |
 ===============================================================================
-1  | h1:6050 | online | 2025-12-14 01:01:34.655     | 2025-12-14 01:01:34.655 |
+1  | h1:6055 | online | 2025-12-14 01:01:34.655     | 2025-12-14 01:01:34.655 |
 Query OK, 1 row(s) in set (0.005518s)
 ```
 
@@ -113,7 +114,8 @@ Query OK, 0 row(s) affected (0.014246s)
 #### Syntax
 
 ```sql
-DROP XNODE [FORCE] id | 'url'
+DROP XNODE {id | 'url'} [FORCE]
+DROP XNODE FORCE {id | 'url'}
 ```
 
 #### Parameter Description
@@ -128,7 +130,7 @@ DROP XNODE [FORCE] id | 'url'
 taos> DROP XNODE 1;
 Drop OK, 0 row(s) affected (0.038173s)
 
-taos> DROP XNODE "h2:6050";
+taos> DROP XNODE 'localhost:6055';
 Drop OK, 0 row(s) affected (0.038593s)
 ```
 
@@ -223,11 +225,12 @@ Query OK, 2 row(s) in set (0.019692s)
 START XNODE TASK id | 'name'
 ```
 
+Before running this command, ensure the corresponding Xnode is online and reachable.
+
 #### Example
 
 ```sql
 taos> START XNODE TASK 1;
-DB error: Xnode url response http code not 200 error [0x8000800C] (0.002160s)
 ```
 
 ### Stop Task
@@ -242,7 +245,6 @@ STOP XNODE TASK id | 'name'
 
 ```sql
 taos> STOP XNODE TASK 1;
-DB error: Xnode url response http code not 200 error [0x8000800C] (0.002047s)
 ```
 
 ### Modify Task
@@ -414,7 +416,7 @@ update_time: 2026-01-12 09:51:41.364
 #### Syntax
 
 ```sql
-ALTER XNODE AGENT agent_id WITH alter_options
+ALTER XNODE AGENT {agent_id | 'name'} WITH alter_options
 
 alter_options {
   STATUS 'status'
@@ -424,8 +426,9 @@ alter_options {
 
 #### Parameters
 
-- **name**: New name for the Agent node
-- **status**: New status using the `WITH`clause
+- **agent_id** / **name**: ID or name of the Agent node
+- **name**: New name for the Agent node (in `WITH`)
+- **status**: New status using the `WITH` clause
 
 #### Example
 
@@ -442,12 +445,12 @@ Query OK, 0 row(s) affected (0.008685s)
 #### Syntax
 
 ```sql
-DROP XNODE AGENT agent_id
+DROP XNODE AGENT {agent_id | 'name'}
 ```
 
 #### Parameters
 
-- **agent_id**: ID of the Agent node
+- **agent_id** / **name**: ID or name of the Agent node
 
 #### Example
 

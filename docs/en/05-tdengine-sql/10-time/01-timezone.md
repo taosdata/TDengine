@@ -82,7 +82,7 @@ TDengine uses a five-level timezone priority model, where higher levels override
 
 ## Set Timezone
 
-### SET TIMEZONE [v3.4.2]
+### SET TIMEZONE [v3.4.2] {#set-timezone-v342}
 
 Set the timezone for the current connection:
 
@@ -143,14 +143,16 @@ Differences between `ALTER LOCAL 'timezone ...'` and `SET TIMEZONE ...`:
 
 ## First Day of Week
 
-### SET FIRST_DAY_OF_WEEK [v3.4.2]
+### SET FIRST_DAY_OF_WEEK [v3.4.2] {#set-first_day_of_week-v342}
 
 Set the first day of the week for the current connection:
 
 ```sql
 SET FIRST_DAY_OF_WEEK 0;  -- Sunday
-SET FIRST_DAY_OF_WEEK 1;  -- Monday (default)
+SET FIRST_DAY_OF_WEEK 1;  -- Monday
 ```
+
+**Note**: The client configuration default for `firstDayOfWeek` is `4` (Thursday). See the configuration table below. The SQL above only sets the current connection.
 
 Valid range is 0-6: 0=Sunday, 1=Monday, ..., 6=Saturday.
 
@@ -314,7 +316,7 @@ INTERVAL(3n)   -- quarterly window (equivalent to 1q): Jan/Apr/Jul/Oct [v3.4.2]
 INTERVAL(2w)   -- bi-weekly window [v3.4.2]
 ```
 
-**DST handling**: Windows always align to local wall-clock time. On DST transition days, the physical duration of a window may change (e.g., a `1d` window on spring-forward day is 23 hours). This is correct behavior.
+**DST handling**: Windows always align to local wall-clock time. On DST transition days, the physical duration of a window may change (e.g., a `1d` window on spring-forward day is 23 hours). This is correct behavior. For write/query caveats around DST gaps and overlaps, see [DST Usage](./02-dst.md).
 
 **Leap year / variable-length months**: Window widths automatically adapt to actual day counts (e.g., a February window is 28 or 29 days). `FILL` boundaries advance month-by-month / quarter-by-quarter.
 

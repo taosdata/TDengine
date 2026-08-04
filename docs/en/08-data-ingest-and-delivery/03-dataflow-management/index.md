@@ -67,7 +67,7 @@ For more information, see [Migrating Data from Older Versions](../../12-operatio
 
 The cloud node subscribes to the specified database on the edge node and synchronizes its data to the specified database on the cloud node. You can repeat this procedure to create additional tasks to synchronize data from more databases or more cloud nodes.
 
-For more information about TDengine Data Subscription tasks, see [TDengine Data Subscription](../01-no-code-ingestion/02-tmq.md).
+For more information about TDengine Data Subscription tasks, see [TDengine Data Subscription](../01-no-code-ingestion/03-tmq.md).
 
 ### Cloud Pull + Query
 
@@ -91,4 +91,4 @@ For more information about TDengine Data Subscription tasks, see [TDengine Data 
 
 The cloud node queries the specified database on the edge node and synchronizes its data to the specified database on the cloud node. You can repeat this procedure to create additional tasks to synchronize data from more databases or more cloud nodes.
 
-For more information about TDengine Query tasks, see [TDengine Query](../01-no-code-ingestion/01-migrate.md).
+For more information about TDengine Query tasks, see [TDengine Query](../01-no-code-ingestion/02-migrate.md).

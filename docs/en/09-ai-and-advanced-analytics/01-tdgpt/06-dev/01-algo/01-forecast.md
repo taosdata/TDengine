@@ -25,17 +25,16 @@ The parent class `AbstractForecastService` of forecasting algorithms includes th
 | period      | Specify the periodicity of the data, i.e. the number of data points included in each period. If the data is not periodic, enter 0. | 0       |
 | start_ts    | Specify the start time of forecasting results.               | 0       |
 | time_step   | Specify the interval between consecutive data points in the forecast results. | 0       |
-| fc_rows     | Specify the number of forecast rows to return.               | 0       |
+| rows        | Specify the number of forecast rows to return.               | 0       |
 | return_conf | Specify 1 to include a confidence interval in the forecast results or 0 to not include a confidence interval in the results. If you specify 0, the mean is returned as the upper and lower boundaries. | 1       |
-| conf        | Specify a confidence interval quantile.                      | 95      |
+| conf        | Specify the confidence level in the range `0 <= conf < 1.0`, such as `0.95`. | 0.95 |
 
 ### Sample Code
 
 The following code is an sample algorithm that always returns 1 as the forecast results.
 
 ```python
-import numpy as np
-from taosanalytics.service import AbstractForecastService
+from taosanalytics.base import AbstractForecastService
 
 
 # Algorithm files must start with an underscore ("_") and end with "Service".
@@ -56,18 +55,18 @@ class _MyForecastService(AbstractForecastService):
         """ Implementation of algorithm logic"""
         res = []
 
-        """This algorithm always returns 1 as the forecast result. The number of results returned is determined by the self.fc_rows value input by the user."""
-        ts_list = [self.start_ts + i * self.time_step for i in range(self.fc_rows)]
+        """This algorithm always returns 1 as the forecast result. The number of results returned is determined by self.rows."""
+        ts_list = [self.start_ts + i * self.time_step for i in range(self.rows)]
         res.append(ts_list)  # set timestamp column for forecast results
 
         """Generate forecast results whose value is 1. """
-        res_list = [1] * self.fc_rows
+        res_list = [1] * self.rows
         res.append(res_list)
 
         """Check whether user has requested the upper and lower boundaries of the confidence interval."""
         if self.return_conf:
             """If the algorithm does not calculate these values, return the forecast results."""
-            bound_list = [1] * self.fc_rows
+            bound_list = [1] * self.rows
             res.append(bound_list)  # lower confidence limit
             res.append(bound_list)  # upper confidence limit
 
@@ -103,10 +102,10 @@ def test_myfc(self):
     s.set_input_list(self.get_input_list(), None)
     # Check whether all results are 1
     r = s.set_params(
-        {"fc_rows": 10, "start_ts": 171000000, "time_step": 86400 * 30, "start_p": 0}
+        {"rows": 10, "start_ts": 171000000, "time_step": 86400 * 30, "start_p": 0}
     )
     r = s.execute()
 
     expected_list = [1] * 10
-    self.assertEqlist(r["res"][0], expected_list)
+    self.assertEqlist(r["res"][1], expected_list)
 ```

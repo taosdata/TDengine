@@ -1,9 +1,10 @@
 ---
 title: Data Imputation
 sidebar_label: Data Imputation
+description: Missing time-series data imputation
 ---
 
-TDgpt provides data imputation based on time-series foundation models. It automatically detects missing time-series data points based on timestamps.
+Since `v3.3.8.0`, TDengine has provided data imputation based on time-series foundation models. It automatically detects missing time-series data points based on timestamps.
 
 The timestamp intervals of the time-series data used for imputation must be strictly equal. In real-world environments, however, this is often not the case. To resolve this issue, perform the following:
 
@@ -14,11 +15,11 @@ The timestamp intervals of the time-series data used for imputation must be stri
    FROM (SELECT _wstart, MIN(val) col_val FROM foo INTERVAL(1s));
    ```
 
-- Small difference in timestamp intervals: Use the `TIMETRUNCATE` function to truncate timestamps before performing imputation.
+- Small difference in timestamp intervals: Use the `TIMETRUNCATE` function to align timestamps before performing imputation. If the input timestamps are already continuous and strictly equidistant, `IMPUTATION` returns directly.
 
    ```sql
-   SELECT IMPUTATION(col_val)
-   FROM (SELECT TIMETRUNCATE(val) FROM foo);
+   SELECT IMPUTATION(val)
+   FROM (SELECT TIMETRUNCATE(ts, 1s) AS ts, val FROM foo);
    ```
 
 ## Syntax
@@ -48,14 +49,14 @@ option_expr: {
 
 1. Only the `moment` time-series foundation model is supported for automatic imputation.  
 2. Ensure that the `moment` model is properly deployed. Refer to the time-series foundation model deployment documentation.  
-3. Optional `freq` values: d (days), h (hours), m (minutes), s (seconds), ms (milliseconds), us (microseconds). The default is `s` (seconds). Setting an incorrect `freq` may affect time-series integrity detection and produce incorrect results.  
+3. Optional `freq` units are `d` (days), `h` (hours), `m` (minutes), `s` (seconds), `ms` (milliseconds), and `us` (microseconds). Since `v3.3.8.8`, a number can precede the unit, for example `3s` or `12h`. The default is `s`. An incorrect value can cause incorrect time-series integrity detection.  
 4. The user-specified `freq` must not exceed the actual interval of the input time-series data; otherwise, incorrect results may occur.  
 5. Timestamp resolution is automatically detected and matches the database time precision. Users do not need to specify it manually.  
 6. The maximum number of imputed records per operation is 2048. For a single input time series, at most 2048 missing records can be filled at once. Excessive missing data will result in an error. Each input requires at least 10 records and supports up to 8192 records.
 
 ## Pseudocolumns
 
-The pseudocolumn `_improwts` displays the corresponding timestamp for each imputed data point.
+Since `v3.3.8.7`, the pseudocolumn `_improwts` displays the corresponding timestamp for each imputed data point.
 
 ## Example
 

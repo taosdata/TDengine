@@ -263,6 +263,8 @@ database_option: {
 - 不加时间单位时默认单位为天，默认值为 `[0, 0]`。
 - 取默认值 `[0, 0]` 时，如果 `COMPACT_INTERVAL` 大于 0，会按照 `[-keep2, -duration]` 下发自动 `compact`。
 - 要关闭自动 `compact` 功能，需要将 `COMPACT_INTERVAL` 设置为 `0`。
+- 例如，`-300,-200` 表示每次触发自动 `compact` 时，整理距今 300 天到 200 天之间的数据。
+- 这些值必须为负数，表示待 `compact` 的时间范围位于过去。如果数据库的 `DURATION` 仍为默认值 `10d`，则 `-300,-5` 会报错，因为第二个值（距今 5 天）比 `-DURATION`（距今 10 天）更靠近当前时间。
 
 #### COMPACT_TIME_OFFSET
 
@@ -498,6 +500,14 @@ REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3
 ```
 
 按照给定的 `dnode` 列表，调整 `vgroup` 中的 `vnode` 分布。因为副本数目最大为 3，所以最多输入 3 个 `dnode`。
+
+### 自动调整 VGROUP 中 VNODE 的分布
+
+```sql
+BALANCE VGROUP;
+```
+
+自动调整集群中所有 `vgroup` 的 `vnode` 分布，相当于在 `vnode` 层面对整个集群执行数据负载均衡。
 
 ### 自动调整 VGROUP 中 LEADER 的分布
 

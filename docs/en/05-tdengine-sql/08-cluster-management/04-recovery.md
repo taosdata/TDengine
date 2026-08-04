@@ -1,4 +1,5 @@
 ---
+sidebar_label: Troubleshooting
 title: Troubleshooting
 description: How to terminate problematic connections, queries, and transactions to restore the system to normal
 ---
@@ -11,7 +12,7 @@ In a complex application scenario, connections and query tasks may enter an erro
 KILL CONNECTION conn_id;
 ```
 
-conn_id can be obtained through `SHOW CONNECTIONS`.
+`conn_id` can be obtained through [`SHOW CONNECTIONS`](../09-system-info/03-show.md#show-connections).
 
 ## Terminate Query
 
@@ -19,15 +20,15 @@ conn_id can be obtained through `SHOW CONNECTIONS`.
 KILL QUERY 'kill_id';
 ```
 
-kill_id can be obtained through `SHOW QUERIES`.
+`kill_id` can be obtained through [`SHOW QUERIES`](../09-system-info/03-show.md#show-queries).
 
 ## Terminate Transaction
 
 ```sql
-KILL TRANSACTION trans_id
+KILL TRANSACTION trans_id;
 ```
 
-trans_id can be obtained through `SHOW TRANSACTIONS`.
+`trans_id` can be obtained through [`SHOW TRANSACTIONS`](../09-system-info/03-show.md#show-transactions).
 
 ## Reset Client Cache
 

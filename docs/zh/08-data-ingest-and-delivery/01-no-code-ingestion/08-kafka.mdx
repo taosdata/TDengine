@@ -107,10 +107,11 @@ kcat <topic> \
 
 在 **消费者组 ID** 中填写消费者组标识，填写后会生成带有 `taosx` 前缀的消费者组 ID（例如，如果填写的标识为 `foo`，则生成的消费者组 ID 为 `taosxfoo`）。如果打开末尾处的开关，则会把当前任务的任务 ID 拼接到 `taosx` 之后，输入的标识之前（生成的消费者组 ID 形如 `taosx100foo`）。
 
-在 **Offset** 的下拉列表中选择从哪个 Offset 开始消费数据。有三个选项：`Earliest`、`Latest`。默认值为 Earliest。
+在 **Offset** 的下拉列表中选择从哪个 Offset 开始消费数据。有三个选项：`Earliest`、`Latest`、`ByTime(ms)`。默认值为 `Earliest`。
 
 - Earliest：用于请求最早的 offset。
 - Latest：用于请求最晚的 offset。
+- ByTime(ms)：从指定时间戳开始消费，取值为毫秒级 Unix 时间戳。
 
 在 **获取数据的最大时长** 中设置获取消息时等待数据不足的最长时间（以毫秒为单位），默认值为 100ms。
 

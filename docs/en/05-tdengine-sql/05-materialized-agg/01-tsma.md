@@ -1,6 +1,7 @@
 ---
 sidebar_label: TSMAs
 title: Time-Range Small Materialized Aggregates (TSMAs)
+description: Precompute aggregation results by time window with TSMA to speed up queries
 ---
 
 In scenarios with large amounts of data, it is often necessary to query summary results for a certain period. As historical data increases or the time range expands, query time will also increase accordingly. By using materialized aggregation, the calculation results can be stored in advance, allowing subsequent queries to directly read the aggregated results without scanning the original data, such as the SMA (Small Materialized Aggregates) information within the current block.
@@ -31,13 +32,13 @@ The function list can only include supported aggregate functions (see below), an
 
 Since the TSMA output is a supertable, the row length of the output table is subject to the maximum row length limit. The size of the `intermediate results` of different functions varies, generally larger than the original data size. If the row length of the output table exceeds the maximum row length limit, a `Row length exceeds max length` error will be reported. In this case, reduce the number of functions or group commonly used functions into multiple TSMAs.
 
-The window size limit is [1m ~ 1y/12n]. The units for INTERVAL are the same as those used in the INTERVAL clause in queries, such as a (milliseconds), b (nanoseconds), h (hours), m (minutes), s (seconds), u (microseconds), d (days), w (weeks), n (months), y (years).
+The window size limit is [1m ~ 1y/12n]. The units for INTERVAL are the same as those used in the INTERVAL clause in queries; see [Time Units](../01-datatype.md#time-units).
 
-TSMA is an object within the library, but its name is globally unique. The total number of TSMAs that can be created within a cluster is limited by the parameter `maxTsmaNum`, with a default value of 10, range: [0-10]. Note, since TSMA background calculation uses stream computing, each TSMA creation will create a stream, thus the number of TSMAs that can be created is also limited by the current number of existing streams and the maximum number of streams that can be created.
+TSMA is an object within the library, but its name is globally unique. The total number of TSMAs that can be created within a cluster is limited by the server parameter [`maxTsmaNum`](../../12-operations-and-tooling/03-components/01-taosd.md#configuration-parameters), with a default value of 10, range: [0-10]. Note, since TSMA background calculation uses stream computing, each TSMA creation will create a stream, thus the number of TSMAs that can be created is also limited by the current number of existing streams and the maximum number of streams that can be created.
 
 ## Supported Function List
 
-| Function |  Note |
+| Function | Note |
 |---|---|
 |min||
 |max||
@@ -48,7 +49,6 @@ TSMA is an object within the library, but its name is globally unique. The total
 |count| If you want to use count(*), you should create the count(ts) function|
 |spread||
 |stddev||
-|||
 
 ## Deleting TSMA
 
@@ -64,15 +64,15 @@ The TSMA calculation results in a supertable in the same library as the original
 
 When calculating TSMA, if there is no data in the original subtable, the corresponding output subtable may not be created. Therefore, in a count query, even if `countAlwaysReturnValue` is configured, the result of that table will not be returned.
 
-When there is a large amount of historical data, after creating TSMA, stream computing will first calculate the historical data, during which the newly created TSMA will not be used. Data updates, deletions, or expired data will automatically recalculate the affected data. During the recalculation period, the TSMA query results do not guarantee real-time accuracy. If you wish to query real-time data, you can query from the original data by adding the hint `/*+ skip_tsma() */` in SQL or by turning off the parameter `querySmaOptimize`.
+When there is a large amount of historical data, after creating TSMA, stream computing will first calculate the historical data, during which the newly created TSMA will not be used. Data updates, deletions, or expired data will automatically recalculate the affected data. During the recalculation period, the TSMA query results do not guarantee real-time accuracy. If you wish to query real-time data, you can query from the original data by adding the hint `/*+ skip_tsma() */` in SQL or by setting the client parameter [`querySmaOptimize`](../../12-operations-and-tooling/03-components/02-taosc.md#query-related) to `0`.
 
 ## Usage and Limitations of TSMA
 
-Client configuration parameter: `querySmaOptimize`, used to control whether to use TSMA during queries, `True` to use, `False` to not use and query from the original data instead.
+Related client configuration parameters:
 
-Client configuration parameter: `maxTsmaCalcDelay`, in seconds, used to control the acceptable TSMA calculation delay for users. If the TSMA calculation progress is within this range from the latest time, then that TSMA will be used. If it exceeds this range, it will not be used. Default value: 600 (10 minutes), Minimum value: 600 (10 minutes), Maximum value: 86400 (1 day).
-
-Client configuration parameter: `tsmaDataDeleteMark`, in milliseconds, consistent with the stream computing parameter `deleteMark`, used to control the retention time of intermediate results in stream computing. The default value is: 1d, the minimum value is 1h. Therefore, historical data that is older than the configured parameter from the last data will not retain intermediate results in stream computing. Thus, if you modify data within these time windows, the TSMA calculation results will not include the updated results. That is, they will be inconsistent with the results of querying the original data.
+- [`querySmaOptimize`](../../12-operations-and-tooling/03-components/02-taosc.md#query-related): whether to use TSMA during queries. `1` uses precomputed results; `0` queries from original data (default: `0`).
+- [`maxTsmaCalcDelay`](../../12-operations-and-tooling/03-components/02-taosc.md#query-related): in seconds; controls the acceptable TSMA calculation delay. If the TSMA calculation progress is within this range from the latest time, that TSMA is used; otherwise it is not. Default: 600 (10 minutes); minimum: 600 (10 minutes); maximum: 86400 (1 day).
+- [`tsmaDataDeleteMark`](../../12-operations-and-tooling/03-components/02-taosc.md#query-related): in milliseconds; consistent with the stream computing parameter `deleteMark`; controls retention of intermediate results in stream computing. Default: `1d` (`86400000` ms); minimum: `1h`. Historical windows older than this from the last data do not retain intermediate results; modifying data in those windows may leave TSMA results without the update, inconsistent with querying the original data.
 
 ### Querying Using TSMA
 
@@ -86,7 +86,7 @@ Example 1. If creating TSMA window sizes `5m` and `10m`, when querying `INTERVAL
 
 ### Query Limitations
 
-When the parameter `querySmaOptimize` is enabled and there is no `skip_tsma()` hint, the following query scenarios cannot use TSMA:
+When `querySmaOptimize` is `1` and there is no `skip_tsma()` hint, the following query scenarios cannot use TSMA:
 
 - When an agg function defined in a TSMA does not cover the current query's function list
 - Non-`INTERVAL` windows, or `INTERVAL` query window sizes (including `INTERVAL, SLIDING, OFFSET`) that are not integer multiples of the defined window, e.g., defined window is 2m, query uses a 5-minute window, but if there is a 1m window, it can be used.

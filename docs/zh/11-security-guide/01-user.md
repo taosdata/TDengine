@@ -41,7 +41,7 @@ CREATE USER user_name PASS 'password' [SYSINFO {1|0}] [CREATEDB {1|0}];
 相关参数说明如下：
 
 - `user_name`：用户名最长不超过 23 个字节。
-- `password`：密码长度必须为 8 到 255 个字节。密码至少包含大写字母、小写字母、数字、特殊字符中的三类。特殊字符包括 `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`（自 `v3.3.5.0` 起）。可通过在 `taos.cfg` 中添加参数 `enableStrongPassword 0` 关闭此强制要求，或通过如下 SQL 关闭（自 `v3.3.6.0` 起）：
+- `password`：密码长度必须为 8 到 255 个字节。密码至少包含大写字母、小写字母、数字、特殊字符中的三类。特殊字符包括 `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`。可通过在 `taos.cfg` 中添加参数 `enableStrongPassword 0` 关闭此强制要求，或通过如下 SQL 关闭：
 
 ```sql
 ALTER ALL DNODES 'EnableStrongPassword' '0';

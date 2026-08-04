@@ -1,6 +1,7 @@
 ---
 sidebar_label: Introduction
 title: Introduction
+description: Introduction to the TDgpt time-series analytics agent
 ---
 
 Numerous algorithms have been proposed to perform time-series forecasting, anomaly detection, imputation, and classification, with varying technical characteristics suited for different scenarios.
@@ -45,8 +46,8 @@ The services provided by TDgpt are described as follows:
 
 - Anomaly detection: This service is provided via a new **anomaly window** that has been introduced into TDengine. An anomaly window is a special type of event window, defined by the anomaly detection algorithm as a time window during which an anomaly is occurring. This window differs from an event window in that the algorithm determines when it opens and closes instead of expressions input by the user. The query operations supported by other windows are also supported for anomaly windows.
 - Time-series forecasting: The FORECAST function invokes a specified (or default) forecasting algorithm to predict future time-series data based on input historical data.
-- Data imputation: To be released in July 2025
-- Time-series classification: To be released in July 2025
+- Data imputation: Automatically detects and fills missing timestamps and values using a time-series foundation model.
+- Time-series classification: Not available in the current version.
 
 ## Custom Algorithms
 
@@ -80,8 +81,8 @@ You can add different algorithms and models to different anodes to enable concur
 
 ## Operations and Maintenance
 
-With TDengine OSS, permissions and resource management are not provided for TDgpt.
-TDgpt is deployed as a Flask service through uWSGI. You can monitor its status by opening the port in uWSGI.
+TDengine OSS does not provide TDgpt permission or resource management.
+Since `v3.4.1.0`, Anodes use Gunicorn on Linux and Waitress on Windows. Earlier versions used uWSGI. Monitor the service through its port and logs.
 
 ### References
 

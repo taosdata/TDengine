@@ -3264,7 +3264,7 @@ MIN(expr)
 
 **Usage Instructions**:
 
-- The min function can accept strings as input parameters, and when the input parameter is a string type, it returns the largest string value(supported from ver-3.3.3.0, function `min` only accept numeric parameter before ver-3.3.3.0).
+- The min function can accept strings as input parameters, and when the input parameter is a string type, it returns the smallest string value (supported from ver-3.3.3.0; before ver-3.3.3.0, `min` only accepted numeric parameters).
 
 ### MODE
 

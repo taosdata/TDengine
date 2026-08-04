@@ -5,23 +5,38 @@ title: Managing Consumers
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic information on data subscription, please refer to [Data Subscription](../07-data-subscription/index.md)
+TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic concepts such as topics and consumer groups, see [Data Subscription](../07-data-subscription/index.md); for the SQL syntax used to create topics, see [Topic](../07-data-subscription/01-topic.md); for native subscription concepts, see [Native Subscription](../07-data-subscription/02-native.md).
 
 If you only need to quickly check whether a topic can deliver data, or observe subscription results during development, testing, or troubleshooting, you can also use the `subscribe` command in TDengine CLI. This command can subscribe to a topic and print received data directly in either taos interactive mode or `-s` non-interactive mode. For details, see [TDengine CLI Data Subscription](../12-operations-and-tooling/04-tools/01-taos-cli.md#data-subscription).
 
 ## Creating Topics
 
-Please use TDengine CLI or refer to the [Execute SQL](02-execute-sql.md) section to execute the SQL for creating topics: `CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters`
+Use TDengine CLI or refer to [Execute SQL](./02-execute-sql.md) to execute the SQL for creating topics:
 
-The above SQL will create a subscription named topic_meters. Each record in the messages obtained using this subscription is composed of the columns selected by this query statement `SELECT ts, current, voltage, phase, groupid, location FROM meters`.
+```sql
+CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters;
+```
 
-###### Note
+The SQL creates a topic named `topic_meters`. Each record in the topic contains the columns selected by `SELECT ts, current, voltage, phase, groupid, location FROM meters`.
 
-In the implementation of TDengine connectors, there are the following limitations for subscription queries.
+**Note**
+TDengine connectors have the following subscription-query capabilities and limitations:
 
-- Only data subscription is supported, and subscription with `with meta` is not supported.
-  - Java(WebSocket connection), Go, and Rust connectors support subscribing to databases, super tables, and `SELECT` queries.
-  - Java(Native connection), C#, Python, and Node.js connectors only support subscribing to `SELECT` statements and do not support other types of SQL, such as subscribing to databases or super tables.
+- For topic types and the semantics of `WITH META` and `ONLY META`, see [Topic](../07-data-subscription/01-topic.md). These modes are mainly used for data migration and schema synchronization, such as with taosX. Most applications use `SELECT` topics or database/supertable time-series data topics.
+- Connector capabilities are summarized below. Combinations without dedicated verification are described conservatively.
+
+| Connector | `SELECT` Topics | Database/Supertable Topics (Time-Series Data) | `WITH META` / `ONLY META` Consumption |
+| --- | --- | --- | --- |
+| C/C++ | Supported | Supported | Supported through `tmq_get_res_type` and `tmq_get_json_meta`; see [C/C++ Connector](./08-connectors-reference/01-cpp.mdx#data-subscription) |
+| Java (WebSocket) | Supported | Supported since JDBC `3.6.2`; commonly uses `MapEnhanceDeserializer` | Supported through `ConsumerRecord.getMeta()`; JDBC `3.6.0` added `ONLY META`, and tests commonly enable `enable_batch_meta` |
+| Java (Native) | Supported | Time-series data is supported | The current Native path does not distinguish metadata messages and handles them as data messages |
+| Go | Supported | Supported | Supported through `MetaMessage` and `MetaDataMessage`; `WITH META` is tested, while `ONLY META` has no dedicated test |
+| Rust | Supported | Supported | Supported through `MessageSet::Meta` and `MetaData`; `WITH META` is tested, while `ONLY META` has no dedicated test |
+| Python (Native) | Supported | Supported | For metadata-only messages, `value()` returns `None`; the metadata payload is not exposed |
+| Python (WebSocket) | Supported | Database topics are covered by tests | Internally retains `MessageSet`, but the public API primarily exposes data iteration; `ONLY META` has no dedicated test |
+| C# | Supported | Supported, including `as database` tests | Pure `TABLE_META` messages are skipped; `METADATA` messages expose the data portion |
+| Node.js | Supported | Database-topic data is covered by tests | `poll` processes only data messages and does not parse metadata |
+
 - Raw data query: Subscription queries can only query raw data, not aggregated or calculated results.
 - Time order limitation: Subscription queries can only query data in chronological order.
 
@@ -52,6 +67,8 @@ There are many parameters for creating consumers, which flexibly support various
 |    `fetch.max.wait.ms`    | integer | The maximum time it takes for the server to return data once (supported from version 3.3.6.0) | Default is 1000, range [1, INT32_MAX]                        |
 |      `min.poll.rows`      | integer | The minimum number of data returned by the server once (supported from version 3.3.6.0) | Default is 4096, range [1, INT32_MAX]                        |
 |   `msg.consume.rawdata`   | integer | When consuming data, the data type pulled is binary and cannot be parsed. It is an internal parameter and is only used for taosx data migration (supported from version 3.3.6.0) | The default value of 0 indicates that it is not effective, and non-zero indicates that it is effective |
+| `enable.wal.marker` | boolean | Whether committing a WAL-log offset also sends a WAL marker to mnode | Default is `false` in `tmq_conf_new`. This advanced, internal-facing option is generally used by migration tools |
+| `msg.enable.batchmeta` | integer | Whether the server may combine multiple metadata records into a batch metadata response | Non-zero enables it; default is `false` in `tmq_conf_new`. The Java WebSocket property is `enable_batch_meta`, commonly enabled in `ONLY META` tests |
 
 Below are the connection parameters for connectors in various languages:
 <Tabs defaultValue="java" groupId="lang">
@@ -253,7 +270,7 @@ After subscribing to a topic, consumers can start receiving and processing messa
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:poll_data_code_piece}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/ConsumerLoopFull.java:poll_data_code_piece}}
 ```
 
 - The parameters of the `subscribe` method mean: the list of topics subscribed to (i.e., names), supporting subscription to multiple topics simultaneously.
@@ -283,7 +300,7 @@ After subscribing to a topic, consumers can start receiving and processing messa
 <TabItem label="Rust" value="rust">
 
 ```rust
-{{#include docs/examples/rust/restexample/examples/tmq.rs:consume}}
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:consume}}
 ```
 
 - Consumers can subscribe to one or more `TOPIC`, generally it is recommended that a consumer subscribes to only one `TOPIC`.
@@ -295,8 +312,10 @@ After subscribing to a topic, consumers can start receiving and processing messa
 <TabItem label="Node.js" value="node">
 
 ```js
-{{#include docs/examples/node/websocketexample/tmq_seek_example.js}}
+{{#include docs/examples/node/websocketexample/tmq_example.js:commit}}
 ```
+
+This excerpt includes `subscribe`, `poll`, and a manual `commit`. See the section below for details specific to committing offsets.
 
 </TabItem>
 
@@ -456,7 +475,7 @@ Consumers can specify to start reading messages from a specific Offset in the pa
 <TabItem label="Rust" value="rust">
 
 ```rust
-{{#include docs/examples/rust/nativeexample/examples/tmq.rs:seek_offset}}
+{{#include docs/examples/rust/restexample/examples/tmq.rs:seek_offset}}
 ```
 
 1. By calling the consumer.assignments() method, obtain the consumer's current partition assignment information and record the initial assignment status.  
@@ -505,7 +524,7 @@ Not supported
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:consumer_seek}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/ConsumerLoopFull.java:consumer_seek}}
 ```
 
 1. Use the consumer.poll method to poll data until data is obtained.
@@ -641,7 +660,7 @@ Not supported
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:commit_code_piece}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/ConsumerLoopFull.java:commit_code_piece}}
 ```
 
 </TabItem>
@@ -662,7 +681,7 @@ Not supported
 
 <TabItem label="Rust" value="rust">
 ```rust
-{{#include docs/examples/rust/restexample/examples/tmq.rs:consumer_commit_manually}}
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:consumer_commit_manually}}
 ```
 
 You can manually submit the consumption progress using the `consumer.commit` method.
@@ -757,7 +776,7 @@ Not supported
 <TabItem value="java" label="Java">
 
 ```java
-{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/WsConsumerLoopFull.java:unsubscribe_data_code_piece}}
+{{#include docs/examples/JDBC/JDBCDemo/src/main/java/com/taos/example/ConsumerLoopFull.java:unsubscribe_data_code_piece}}
 ```
 
 </TabItem>
@@ -778,7 +797,7 @@ Not supported
 
 <TabItem label="Rust" value="rust">
 ```rust
-{{#include docs/examples/rust/restexample/examples/tmq.rs:unsubscribe}}
+{{#include docs/examples/rust/nativeexample/examples/tmq.rs:unsubscribe}}
 ```
 
 **Note**: After the consumer unsubscribes, it is closed and cannot be reused. If you want to subscribe to a new `topic`, please create a new consumer.

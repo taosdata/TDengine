@@ -4,6 +4,16 @@ title: Virtual Tables
 description: Various management operations for virtual tables
 ---
 
+## Virtual Table Overview
+
+Virtual tables are logical tables that do not store data directly. When you query a virtual table, TDengine reads column data from one or more physical tables or existing virtual tables according to the virtual-table definition, aligns the data by timestamp, and generates the result set on demand.
+
+Virtual tables include the following categories:
+
+- Virtual basic tables: standalone virtual tables whose columns are defined directly with their source mappings.
+- Virtual supertables: templates that define the shared columns and tags of virtual subtables and do not store data themselves.
+- Virtual subtables: tables created from virtual supertables; their column data comes from other tables, and their tags can be either literals or references to tags in other tables.
+
 ## Virtual Supertable Inheritance
 
 A virtual supertable (VST) can inherit columns and tags from one or more parent VSTs using the `BASE ON` clause. This enables building hierarchical virtual table topologies — for example, a device-type VST that inherits common fields from a base device VST, then adds its own specialized columns.
@@ -13,12 +23,12 @@ A virtual supertable (VST) can inherit columns and tags from one or more parent 
 ```sql
 CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name
     (col_name col_type [, ...])
-    TAGS (tag_name tag_type [, ...])
+    [TAGS (tag_name tag_type [, ...])]
     BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...
     VIRTUAL 1
 ```
 
-The `BASE ON` clause specifies one or more parent VSTs to inherit from. The child VST automatically inherits all columns and tags from each parent. The child's own columns and tags are appended after the inherited ones.
+The `BASE ON` clause specifies one or more parent VSTs to inherit from. The child VST inherits all tags and all non-primary-timestamp columns from each parent. The child's own columns and tags are appended after the inherited ones.
 
 Example:
 
@@ -75,7 +85,7 @@ This displays the parent-child relationships between VSTs, including database na
 4. **Circular inheritance**: Circular dependency chains are detected and rejected.
 5. **Max parents**: A VST can inherit from at most 10 parent VSTs.
 6. **Non-leaf restrictions**: A non-leaf VST (one with children) cannot have VCTs created directly under it — VCTs must be created under leaf VSTs. A parent VST that already has VCTs cannot be used as a `BASE ON` target.
-7. **Schema changes**: `ADD COLUMN` / `DROP COLUMN` on a parent VST that has children is rejected. The parent's schema is frozen once it becomes a non-leaf.
+7. **Schema changes**: `ADD COLUMN`, `DROP COLUMN`, `ADD TAG`, `DROP TAG`, `RENAME TAG`, and tag-width changes on a parent VST that has children are rejected. The parent's schema is frozen once it becomes a non-leaf.
 
 ## Create Virtual Table
 
@@ -119,6 +129,14 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
      | tag_name FROM [db_name.]table_name.tag_name
 ```
 
+**`tag_value` Syntax Notes**
+
+- `const_value`: Use a literal constant as the tag value, matching the behavior of a regular subtable.
+- `FROM [db_name.]table_name.tag_name`: A tag reference (tag-ref) to the specified source tag. When `tag_name` before `FROM` is omitted, the target tag name is the same as the source tag name. When `tag_name FROM ...` is used, the source tag can be mapped to a different target tag name.
+- `[db_name.]table_name.tag_name`: A shorthand tag-ref form without `FROM`, commonly used with `ALTER VTABLE ... SET TAG`.
+
+This is consistent with the column-reference form `[stb_col_name FROM] table_name.col_name`: the name before `FROM` is the virtual-table-side name, and the name after `FROM` is the source-side name.
+
 Usage Notes:
 
 1. Naming rules for virtual tables/columns follow [Name Rules](../11-appendix/02-limit.md#naming-rules).
@@ -127,21 +145,49 @@ Usage Notes:
 4. The first column must be TIMESTAMP and is automatically set as primary key.
 5. Row length cannot exceed 512KB (Note: VARCHAR/NCHAR/GEOMETRY columns consume 2 extra bytes each).
 6. Specify maximum length for VARCHAR/NCHAR/GEOMETRY types (e.g., VARCHAR(20)).
-7. Use `FROM` to specify column data sources. Cross-database sources are supported via `db_name`.
-8. The timestamp column (ts) values of virtual table are merged results from all involved tables' timestamp primary keys during queries.
-9. Virtual supertables only support creating virtual subtables, virtual subtables can only use virtual supertables as template.
-10. Ensure virtual tables' column/tag data types match their source columns/tags.
-11. Virtual table names must be unique within a database and cannot conflict with table names, and it is recommended that view names do not duplicate virtual table names (not enforced). When a view and a virtual table have the same name, operations such as writing, querying, granting, and revoking permissions prioritize the virtual table with the same name. .
-12. When creating virtual subtables or virtual basic tables, `FROM` columns can come from regular tables, subtables, or existing virtual tables. Supertables and views are not supported as direct sources, and tables with composite primary keys are not supported.
-13. In `TAGS (...)` for a virtual subtable, each tag can be a literal value or a tag-ref. Supported tag-ref forms are `table.tag`, `FROM table.tag`, and `tag_name FROM table.tag`. Use `db_name.table.tag` for cross-database references.
-14. A tag-ref must point to a tag column, not a data column, and the source tag type must match the target virtual tag type.
+7. Virtual tables do not support the `BLOB` or `MEDIUMBLOB` data types.
+8. Use `FROM` to specify column data sources. Cross-database sources are supported via `db_name`. When `db_name` is omitted, TDengine uses the current database; if no current database is selected and `db_name` is not specified, the statement fails.
+9. You cannot explicitly specify a source for the `ts` column. During queries, the virtual table's `ts` values are the union of the primary-key timestamps from the source tables of the selected columns.
+10. Virtual supertables only support creating virtual subtables, and virtual subtables can only use virtual supertables as templates.
+11. Ensure virtual tables' column/tag data types match their source columns/tags.
+12. Virtual table names must be unique within a database and cannot conflict with table names, and it is recommended that view names do not duplicate virtual table names (not enforced). When a view and a virtual table have the same name, operations such as writing, querying, granting, and revoking permissions prioritize the virtual table with the same name.
+13. When creating virtual subtables or virtual basic tables, `FROM` columns can come from regular tables, subtables, or existing virtual tables. Supertables and views are not supported as direct sources, and tables with composite primary keys are not supported.
+14. In `TAGS (...)` for a virtual subtable, each tag can be a literal value or a tag-ref. Supported tag-ref forms are `table.tag`, `FROM table.tag`, and `tag_name FROM table.tag`. Use `db_name.table.tag` for cross-database references.
+15. Reference-related limits and behaviors are described in the "Virtual-Table Reference Capabilities" section below.
 
-### Currently Supported Reference Patterns
+### Virtual-Table Reference Capabilities
 
-- Virtual subtables support tag-ref, and queries resolve tag values dynamically from the current source-tag values.
-- Virtual-table columns can directly reference columns from existing virtual tables, so direct VChild → VChild chains are supported.
-- You can build layered virtual-child chains across virtual supertables, including same-database and cross-database cases.
-- Tag-ref and col-ref can be mixed across multiple hops. The current reference-depth limit is 32; validation or query execution returns `0x8000620C` when the chain exceeds that limit.
+#### What references mean
+
+In a virtual table, a referenced column or tag does not store copied data. Instead, TDengine resolves it dynamically from the source table at query time:
+
+- **Tag reference (tag-ref)**: A virtual subtable's tag value references a tag column of another table and is resolved to the source tag's current value at query time. If the source tag is updated with `ALTER TABLE ... SET TAG`, query results on the virtual table reflect the new value immediately.
+- **Column reference (col-ref)**: A virtual-table data column references a data column of another table, including another virtual table. New data written to the source becomes visible through the virtual table on subsequent queries.
+
+#### Reference chains
+
+- Virtual-table columns can reference columns from existing virtual tables, so multi-hop chains such as virtual table -> virtual table -> physical table are supported.
+- Tag-ref and col-ref can be mixed across multiple hops.
+- Same-database and cross-database reference chains are supported.
+
+#### Behavior when referenced objects change
+
+| Change operation | Impact on virtual tables |
+| --- | --- |
+| Source table tag updated with `ALTER TABLE ... SET TAG` | Queries on tag-ref virtual tables immediately reflect the new value |
+| New data written to the source table | Queries on col-ref virtual tables can see the new data |
+| Source table dropped with `DROP TABLE` | Virtual-table queries fail because the source no longer exists |
+| Referenced source column dropped with `ALTER TABLE ... DROP COLUMN` | Virtual-table queries fail because the referenced column no longer exists |
+| A referenced virtual table is dropped | Other virtual tables that reference it fail during query |
+| Source tag-column type change | Rejected while dependent tag-refs exist |
+
+#### Constraints
+
+- A tag-ref must point to a tag column, not a data column, and the source tag type must match the target virtual tag type.
+- A col-ref must point to a data column, not a tag column, and the source column type must match the target virtual column type.
+- Supertables, views, and tables with composite primary keys are not supported as reference sources.
+- Reference cycles are not allowed and are rejected during validation.
+- The total reference-chain depth cannot exceed 32 hops; validation or query execution returns `0x8000620C` when the chain exceeds that limit.
 
 ## Query Virtual Tables
 
@@ -343,6 +389,16 @@ alter_table_clause: {
 }
 ```
 
+### Usage Notes
+
+For virtual basic tables, the following modifications are supported:
+
+1. `ADD COLUMN`: Add a column.
+2. `DROP COLUMN`: Drop a column.
+3. `MODIFY COLUMN`: Modify the column definition. For variable-length data types, this can be used only to increase the width, not decrease it. If the virtual-table column already has a source column, widening the column fails because the new width no longer matches the source-column width. Clear the source first with `ALTER COLUMN ... SET NULL`, then modify the width.
+4. `RENAME COLUMN`: Rename a column.
+5. `ALTER COLUMN ... SET`: Change the source of a column. `SET NULL` clears the source of the virtual-table column.
+
 ### Add Column
 
 ```sql
@@ -383,6 +439,10 @@ alter_table_clause: {
   | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
 }
 ```
+
+**Usage Notes**
+
+1. For a virtual subtable, any column or tag schema change other than changing tag values must be performed through the virtual supertable.
 
 ### Modify Subtable Tag Value
 
@@ -447,7 +507,10 @@ DROP VTABLE [IF EXISTS] [dbname].vtb_name;
 SHOW [NORMAL | CHILD] [db_name.]VTABLES [LIKE 'pattern'];
 ```
 
-Use `SHOW VTABLES` to list the virtual basic tables and virtual subtables covered here. `SHOW TABLES` does not return these virtual tables.
+Usage Notes:
+
+1. If `db_name` is omitted, `SHOW VTABLES` lists virtual basic tables and virtual subtables in the current database. If no current database is selected and `db_name` is not specified, the statement fails with `database not specified`. `LIKE` can be used for fuzzy matching. `NORMAL` lists only virtual basic tables, and `CHILD` lists only virtual subtables.
+2. `SHOW TABLES` does not return the virtual basic tables and virtual subtables described here; use `SHOW VTABLES` instead.
 
 ### Show Creation Statement
 
@@ -523,14 +586,28 @@ Virtual table permissions are categorized into READ and WRITE. Query operations 
 
 ```sql
 GRANT privileges ON [db_name.]vtable_name TO user_name
-privileges: { ALL | READ | WRITE }
+privileges: {
+    ALL,
+  | priv_type [, priv_type] ...
+}
+priv_type: {
+    READ
+  | WRITE
+}
 ```
 
 #### Revoke
 
 ```sql
 REVOKE privileges ON [db_name.]vtable_name FROM user_name
-    privileges: { ALL | READ | WRITE }
+privileges: {
+    ALL,
+  | priv_type [, priv_type] ...
+}
+priv_type: {
+    READ
+  | WRITE
+}
 ```
 
 ### Permission Rules

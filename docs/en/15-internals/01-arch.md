@@ -1,5 +1,8 @@
 ---
+sidebar_label: Architecture
 title: Architecture
+description: TDengine cluster architecture, logical nodes, storage, caching, persistence, replication, and tiered storage
+toc_max_heading_level: 4
 ---
 
 ## Cluster and Basic Logical Units
@@ -62,7 +65,7 @@ snode (stream compute node) is a virtual logical unit in the TDengine cluster sp
 
 Similar to dnode, snode is not bound to a specific stream, meaning an snode can handle computation tasks from multiple streams simultaneously. Each dnode can have at most one snode, uniquely identified by the endpoint of the dnode to which it belongs.
 
-When a stream computing task needs to be executed, mnode schedules available snodes to complete these tasks. If there are no available snodes in the cluster, the stream computing task will be executed in vnode.
+When a stream processing task needs to be executed, mnode schedules available snodes to complete it. If the cluster has no available snode, the task cannot be created or run as required by the current product behavior. For details, see [Stream Processing](../06-stream-processing/index.md).
 
 By centralizing stream computing tasks in snodes, TDengine achieves separation of stream computing and batch computing, thereby enhancing the system's capability to handle real-time data.
 
@@ -288,6 +291,14 @@ This mechanism ensures that applications accessing TDengine through taosc do not
 TDengine adopts a unique time-driven cache management strategy, also known as write-driven cache management. This strategy differs from the traditional read-driven data cache mode, with its core priority being to store the most recently written data in the cluster's cache. When the cache capacity approaches the threshold, the system performs batch writing of the earliest data to the disk. Specifically, each vnode has its own independent memory space, divided into multiple fixed-size memory blocks, and the memory between different vnodes is completely isolated. During the data writing process, a log-like sequential append method is used, and each vnode also maintains its own SkipList structure for fast data retrieval. Once more than one-third of the memory blocks are filled, the system initiates the data flushing process and guides new write operations to new memory blocks. In this way, one-third of the memory blocks in the vnode are reserved for the latest data, achieving the purpose of caching while ensuring efficient querying. The memory size of the vnode can be configured through the database parameter `buffer`.
 
 Additionally, considering the characteristics of IoT data, users are usually most concerned about the timeliness of data, i.e., the most recently generated data. TDengine makes good use of this feature by prioritizing the storage of the latest arriving (current state) data in the cache. Specifically, TDengine directly stores the newly arrived data into the cache to quickly respond to user queries and analysis needs for the latest data, thereby improving the overall database query response speed. From this perspective, by setting database parameters appropriately, TDengine can be used as a data cache, eliminating the need to deploy Redis or other additional caching systems. This approach not only effectively simplifies the system architecture but also helps reduce maintenance costs. It should be noted that once TDengine is restarted, the data in the cache will be cleared, and all previously cached data will be batch written to the disk, unlike professional Key-Value caching systems that automatically reload previously cached data back into the cache.
+
+### last/last_row Cache
+
+Time-series applications frequently query the latest row (`last_row`) or the latest non-NULL value (`last`) of a table. TDengine provides an LRU cache for this data. The cache loads lazily: the first query for a table reads the required values from the memory pool and disk, stores them in the LRU cache, and returns them to the query module. Later inserts or deletes update an existing cache entry when necessary; writes to a table that is not cached do not force it into the cache.
+
+Changing the cache configuration also updates its data. Enabling the cache causes values to load on the first query, while disabling it releases the allocated cache. A query against one subtable loads only that subtable; a query against a supertable may load all of its subtables.
+
+The database parameter `cachemodel` controls this behavior. Its default value, `none`, disables the cache. Other values are `last_row`, `last_value`, and `both`. Use `SHOW VGROUPS` and inspect the `cacheload` column to view cache memory usage in bytes.
 
 ### Persistent Storage
 

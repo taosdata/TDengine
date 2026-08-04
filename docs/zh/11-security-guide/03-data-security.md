@@ -81,6 +81,20 @@ DELETE FROM meters WHERE ts < '2021-10-01 10:40:00.100' SECURE_DELETE;
 
 TDengine 支持透明数据加密（Transparent Data Encryption，TDE），通过对静态数据文件进行加密，阻止可能的攻击者绕过数据库直接从文件系统读取敏感信息。数据库的访问程序是完全无感知的，应用程序不需要做任何修改和编译，就能够直接应用到加密后的数据库，支持国标 SM4 等加密算法。在透明加密中，数据库密钥管理、数据库加密范围是两个最重要的话题。TDengine 采用机器码对数据库密钥进行加密处理，保存在本地而不是第三方管理器中。当数据文件被拷贝到其他机器后，由于机器码发生变化，无法获得数据库密钥，自然无法访问数据文件。TDengine 对所有数据文件进行加密，包括预写日志文件、元数据文件和时序数据文件。加密后，数据压缩率不变，写入性能和查询性能仅有轻微下降。
 
+### 密钥层级
+
+TDengine 使用分层密钥管理体系：
+
+- **SVR_KEY（服务端主密钥）**：用于加密数据库主密钥和系统级信息，并绑定机器硬件以阻止跨机器直接迁移。
+- **DB_KEY（数据库主密钥）**：用于加密各类派生密钥。
+- **CFG_KEY（配置加密密钥）**：用于加密配置文件，生成后不可更改。
+- **META_KEY（元数据加密密钥）**：用于加密元数据文件，生成后不可更改。
+- **DATA_KEY（时序数据加密密钥）**：用于加密时序数据文件及相关日志，生成后不可更改。
+
+:::note
+存储安全功能需要获取机器码，某些虚拟化环境（如部分容器环境）可能无法提供机器码。
+:::
+
 ### 生成密钥
 
 使用 `taosk` 工具生成密钥，基本语法如下：
@@ -371,6 +385,24 @@ database_option: {
 主要参数说明如下：
 
 - `ENCRYPT_ALGORITHM`：指定数据采用的加密算法。默认是 `none`，即不采用加密。如果要设置加密数据，则需指定 `SHOW ENCRYPT_ALGORITHMS` 中类型为 Symmetric Ciphers CBC mode 的 `algorithm_id`。更多 DDL 说明见 [数据库](../05-tdengine-sql/02-ddl/01-database.md)。
+
+示例：
+
+```sql
+-- 使用 SM4 加密
+CREATE DATABASE db1 ENCRYPT_ALGORITHM 'SM4-CBC';
+
+-- 使用 AES 加密
+CREATE DATABASE db2 ENCRYPT_ALGORITHM 'AES-128-CBC';
+
+-- 不加密
+CREATE DATABASE db3;
+```
+
+**注意**
+
+- 数据库的 `ENCRYPT_ALGORITHM` 创建后不能修改。
+- 创建加密数据库前，必须先使用 `taosk --encrypt-data` 生成包含 `DATA_KEY` 的密钥。
 
 ### 查看加密配置
 

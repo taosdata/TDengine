@@ -1,5 +1,8 @@
 ---
+description: Internal TDengine data subscription (TMQ) design, including topics, consumer groups, WAL, and rebalancing
+sidebar_label: Data Subscription
 title: Data Subscription Engine
+toc_max_heading_level: 4
 ---
 
 Data subscription, as a core feature of TDengine, provides users with the ability to flexibly obtain the data they need. By deeply understanding its internal principles, users can more effectively utilize this feature to meet various real-time data processing and monitoring needs.

@@ -34,10 +34,14 @@ This built-in read cache mechanism significantly reduces query latency, avoids t
 
 When creating a database, users can choose whether to enable the caching mechanism to store the latest data of each subtable in that database. This caching mechanism is controlled by the database creation parameter `cachemodel`. The parameter `cachemodel` has the following 4 options:
 
-- none: no caching
+- none: no caching (default)
 - last_row: caches the most recent row of data from the subtable, significantly improving the performance of the `last_row` function
 - last_value: caches the most recent non-NULL value of each column from the subtable, significantly improving the performance of the `last` function when there are no special effects (such as WHERE, ORDER BY, GROUP BY, INTERVAL)
 - both: caches both the most recent row and column, equivalent to the behaviors of `last_row` and `last_value` simultaneously effective
+
+:::note
+Frequent `CACHEMODEL` switches may make `LAST` / `LAST_ROW` results briefly inaccurate. Use caution.
+:::
 
 When using database read caching, the `cachesize` parameter can be used to configure the memory size for each vnode.
 
@@ -53,7 +57,7 @@ This section takes smart electric meters as an example to look in detail at how 
 # taosBenchmark -d power -Q --start-timestamp=1600000000000 --tables=10000 --records=10000 --time-step=10000 -y
 ```
 
-The above command, the taosBenchmark tool in TDengine created a test database for electric meters named `power`, generating a total of 1 billion time-series data entries. The timestamp of the time-series data starts from `1600000000000 (2020-09-13T20:26:40+08:00)`, with the supertable `meters` containing 10,000 devices (subtables), each device having 10,000 data entries, and the data collection frequency is 10 seconds per entry.
+The above command, the taosBenchmark tool in TDengine created a test database for electric meters named `power`, generating a total of about 100 million time-series data entries. The timestamp of the time-series data starts from `1600000000000 (2020-09-13T20:26:40+08:00)`, with the supertable `meters` containing 10,000 devices (subtables), each device having 10,000 data entries, and the data collection frequency is 10 seconds per entry.
 
 To query the latest current and timestamp data of any electric meter, execute the following SQL:
 

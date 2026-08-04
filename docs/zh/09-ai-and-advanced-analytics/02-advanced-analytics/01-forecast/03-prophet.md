@@ -31,11 +31,11 @@ Prophet 模型的核心组成包括：
 
 ### 示例及结果
 
-针对列 `passengers`进行时间序列预测，数据按天记录，假设存在周周期性和年周期性，趋势转折点灵活度为 0.1，进行预测。
+针对列 `passengers` 进行时间序列预测，数据按天记录，假设存在周周期性和年周期性，趋势转折点灵活度为 0.1，进行预测。
 
 ```text
 FORECAST(passengers, "algo=prophet,growth=linear,yearly_seasonality=true,weekly_seasonality=true,changepoint_prior_scale=0.1")
-````
+```
 
 完整的调用 SQL 语句如下：
 

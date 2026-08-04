@@ -7,7 +7,7 @@ description: Exposure surface of TDengine components and production hardening su
 
 ## Background
 
-The distributed and multi-component nature of TDengine makes its security configuration a concern in production systems. This document aims to explain the security issues of various TDengine components and different deployment methods, and provide deployment and configuration suggestions to support the security of user data.
+The distributed and multi-component nature of TDengine makes its security configuration a concern in production systems. This document explains the security considerations of TDengine components and deployment methods. For certificate setup, see [Transport Security](./02-transport-security.md); for client practices, see [Connector Security](./04-connector-security.md); for auditing, see [Audit and Compliance](./05-audit-and-compliance.md).
 
 ## Components Involved in Security Configuration
 
@@ -29,6 +29,8 @@ In addition to TDengine deployment and applications, there are also the followin
 The relationship between the components is as follows:
 
 ![TDengine components](../assets/security-suggestions-01.png)
+
+For detailed component descriptions, see [Overview and Architecture](../12-operations-and-tooling/01-overview.md).
 
 ## TDengine Security Settings
 
@@ -74,6 +76,10 @@ keyFile = "/path/to/private-key"
 
 Configure HTTPS/SSL access in the connector to complete encrypted access.
 
+:::info
+The taosAdapter `[ssl]` section is an Enterprise feature. See [Transport Security](./02-transport-security.md) for setup instructions.
+:::
+
 To further enhance security, the whitelist function can be enabled, and configured in `taosd`, which also applies to the `taosAdapter` component.
 
 ### `taosX`
@@ -91,7 +97,7 @@ listen = "127.0.0.1:6050"
 grpc = "127.0.0.1:6055"
 ```
 
-Starting from TDengine 3.3.6.0, `taosX` supports HTTPS connections. Add the following configuration in the `/etc/taos/taosx.toml` file:
+Starting from TDengine `v3.3.6.0`, `taosX` supports HTTPS connections. Add the following configuration in the `/etc/taos/taosx.toml` file:
 
 ```toml
 [serve]
@@ -104,7 +110,7 @@ And modify the API address to HTTPS connection in Explorer:
 
 ```toml
 # Local connection to taosX API
-x_api = "https://127.0.01:6050"
+x_api = "https://127.0.0.1:6050"
 # Public IP or domain address
 grpc = "https://public.domain.name:6055"
 ```
@@ -253,7 +259,7 @@ The above example completes the following configurations:
     - "--certificatesresolvers.default.acme.dnschallenge=true"
     - "--certificatesresolvers.default.acme.dnschallenge.provider=alidns"
     - "--certificatesresolvers.default.acme.dnschallenge.resolvers=ns1.alidns.com"
-    - "--certificatesresolvers.default.acme.email=linhehuo@gmail.com"
+    - "--certificatesresolvers.default.acme.email=ops@example.com"
     - "--certificatesresolvers.default.acme.storage=/letsencrypt/acme.json"
     ```
 
@@ -270,4 +276,4 @@ The above startup parameters configure the `default` TSL certificate resolver an
 
 ## Summary
 
-Data security is a key indicator of the TDengine product. These measures are designed to protect TDengine deployments from unauthorized access and data breaches while maintaining performance and functionality. However, the security configuration of TDengine itself is not the only guarantee in production. It is more important to develop solutions that better match customer needs in combination with the user's business system.
+Data security is a key indicator of the TDengine product. These measures are designed to protect TDengine deployments from unauthorized access and data breaches while maintaining performance and functionality. However, TDengine configuration alone is not sufficient; deployments must be secured together with the surrounding business system. For known vulnerabilities and fixed versions, see [Security Advisories](./07-security-advisories.md).

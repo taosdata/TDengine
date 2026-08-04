@@ -1,20 +1,16 @@
 ---
 title: Deploy a Time-Series Foundation Model
 sidebar_label: Deploy a Time-Series Foundation Model
+description: Deploy and connect time-series foundation models to TDgpt
 ---
 
 A number of research institutions and enterprises have released open-source time-series foundation models (TSFMs), greatly simplifying time-series data analysis. Beyond traditional data analysis algorithms, machine learning, and deep learning models, TSFMs offer a new and powerful option for advanced time-series analytics.
 
-TDgpt (since version 3.3.6.4) provides native support for six types of Time-Series Foundation Models (TSFMs): TDtsfm v1.0, Time-MoE, Chronos, Moirai, TimesFM, and Moment. All these models are deployed as local services that TDgpt connects to.
+Since `v3.3.6.4`, TDgpt has added support for six time-series foundation models: TDtsfm v1.0, Time-MoE, Chronos, Moirai, TimesFM, and Moment.
 
 ### Deployment Details
 
-The server scripts for all six TSFM services are located in the `<TDgpt_root_directory>/lib/taosanalytics/tsfmservice/` directory.
-
-TDgpt distinguishes between models that are configured by default and those that require manual configuration:
-
-* **Default Models**: `TDtsfm` and `Time-MoE` are configured by default in `taosanode.ini`. You only need to start their respective server scripts to use them.
-* **Additional Models**: `Chronos`, `Moirai`, `TimesFM`, and `Moment` require you to start their server scripts and add their service URLs to `taosanode.ini` before use.
+Installation packages include TDtsfm and Time-MoE. Other models require a local service. Third-party model service scripts are located in `<TDgpt_root_directory>/lib/taosanalytics/tsfmservice/`. TDtsfm is provided by the installation package and does not appear there as a separate `*-server.py` file.
 
 TDgpt has been adapted to interface with specific features of these models. If a certain function is unavailable, it may be due to a limitation of the model itself or because TDgpt has not yet been adapted to support that specific feature for that model.
 
@@ -42,7 +38,7 @@ This document describes how to integrate an independent TSFM service into TDengi
 Before using TSFMs, prepare your environment as follows. Install a Python environment and use PiPy to install dependencies:
 
 ```shell
-pip install torch==2.4.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
+pip install torch==2.3.1+cpu -f https://download.pytorch.org/whl/torch_stable.html
 pip install flask==3.0.3
 pip install transformers==4.40.0
 pip install accelerate
@@ -52,7 +48,7 @@ You can use the virtual Python environment installed by TDgpt or a separate envi
 
 ## Configure TSFM Service Path & Port
 
-The `lib/taosanalytics/time-moe.py` (rename to `/lib/taosanalytics/tsfmservice/timemoe-service.py` since 3.3.6.4) file in the TDgpt root directory deploys and serves the Time-MoE model. Modify this file to set an appropriate URL.
+The `lib/taosanalytics/tsfmservice/timemoe-server.py` file in the TDgpt root directory deploys and serves Time-MoE. Earlier versions used `time-moe.py`.
 
 ```python
 @app.route('/ds_predict', methods=['POST'])
@@ -73,15 +69,15 @@ Change `ds_predict` to the URL that you want to use in your environment.
 
 In this section, you can update the port if desired. After you have set your URL and port number, restart the service.
 
-## Run the Python Script  (Available before 3.3.8.x)
+## Run the Python Script (Versions Before v3.3.8.0)
 
-> ⚠️ NOTE：The following method is only available before 3.3.8.x, if you're using later version, please refer to [Dynamic Model Download](#Dynamic Model Download)
+> The following method applies only to versions before `v3.3.8.0`. For later versions, see [Dynamic Model Download](#dynamic-model-download).
 
 ```shell
-nohup python time-moe.py > service_output.out 2>&1 &
+nohup python timemoe-server.py > service_output.out 2>&1 &
 ```
 
-The script automatically downloads [Time-MoE-200M](https://huggingface.co/Maple728/TimeMoE-200M) from Hugging Face the first time it is run. You can modify `time-moe.py` to use TimeMoE-50M if you prefer a smaller version.
+The script initially downloads [TimeMoE-50M](https://huggingface.co/Maple728/TimeMoE-50M) from Hugging Face. To use `Maple728/TimeMoE-200M`, select index `1` in `_model_list`. Users in China can set `HF_ENDPOINT=https://hf-mirror.com` if the download fails.
 
 Check the `service-output.out` file to confirm that the model has been loaded:
 
@@ -113,7 +109,7 @@ The following indicates that Time-MoE has been deployed:
 You can modify the  [timemoe.py](https://github.com/taosdata/TDengine/blob/main/tools/tdgpt/taosanalytics/algo/fc/timemoe.py) file and use it in TDgpt. In this example, Time-MoE is adapted to provide forecasting.
 
 ```python
-class _TimeMOEService(AbstractForecastService):
+class _TimeMOEService(TsfmBaseService):
     # model name, user-defined, used as model key
     name = 'timemoe-fc'
 
@@ -124,9 +120,9 @@ class _TimeMOEService(AbstractForecastService):
     def __init__(self):
         super().__init__()
 
-        # Use the default address if the service URL is not specified in the taosanode.ini configuration file.
+        # Use the default address if the service URL is not specified in taosanode.config.py.
         if  self.service_host is None:
-            self.service_host = 'http://127.0.0.1:6062/timemoe'
+            self.service_host = 'http://127.0.0.1:6062/ds_predict'
 
     def execute(self):
         # Verify support for past covariate analysis; raise an exception if unsupported. (Note: time-moe lacks this support and will trigger the exception.)
@@ -142,11 +138,10 @@ TDgpt has built-in support for Time-MoE. You can run `SHOW ANODES FULL` and see 
 
 ## Configure TSFM Service Path
 
-Modify the `[tsfm-service]` section of `/etc/taos/taosanode.ini`:
+Set the model service URL in `/etc/taos/taosanode.config.py`. Earlier versions used the `[tsfm-service]` section of `taosanode.ini`.
 
-```ini
-[tsfm-service]
-timemoe-fc = http://127.0.0.1:6062/ds_predict
+```python
+timemoe_fc = 'http://127.0.0.1:6062/ds_predict'
 ```
 
 Add the path for your deployment. The key is the name of the model defined in your Python code, and the value is the URL of Time-MoE on your local machine.
@@ -162,7 +157,7 @@ FROM foo;
 
 ## Deploying Other Time-Series Foundation Models
 
-The logic for registering models in TDgpt after deploying them locally is similar across all types. You only need to modify the Class Name and the Model Service Name (Key) and set the correct service address. Adaptation files for **Chronos**, **TimesFM**, and **Moirai** are provided by default; users of version 3.3.6.4 and later only need to start the corresponding services locally.
+The logic for registering models in TDgpt after deploying them locally is similar across all types. You only need to modify the class name and model-service key and set the correct service address. Adaptation files for **Chronos**, **TimesFM**, and **Moirai** are provided by default; users of `v3.3.6.4` and later only need to start the corresponding services locally.
 
 The deployment and startup methods are as follows:
 
@@ -293,11 +288,11 @@ nohup python moment-server.py > service_output.out 2>&1 &
 
 ## Service Management Scripts (Start and Stop)
 
-To simplify management, TDgpt (v3.4.0.0+) provides unified scripts: `start-model.sh` and `stop-model.sh`. These allow you to start or stop specific or all foundation model services with a single command.
+Since `v3.4.0.0`, TDgpt provides the unified `start-model.sh` and `stop-model.sh` scripts.
 
 ### Start Script
 
-The `start-model.sh` script loads the corresponding Python virtual environment and initiates the model service script based on the specified model name.
+The Linux entry script delegates to `taosanode_service.py`, reads `taosanode.config.py`, and starts each model with its configured virtual environment. It always uses the primary virtual environment in the installation directory and does not fall back to Python on `PATH`.
 
 After a `root` installation, the script is located in `<tdgpt_root>/bin/`. A symbolic link is automatically created at `/usr/bin/start-model` for global access.
 
@@ -306,7 +301,7 @@ Logs are output to `/var/log/taos/taosanode/taosanode_service_<model_name>.log` 
 **Usage**:
 
 ```bash
-Usage: /usr/bin/start-model [-c config_file] [model_name|all] [other_params...]
+Usage: /usr/bin/start-model [-c config_file] [model_name|all]
 
 Supported models: tdtsfm, timesfm, timemoe, moirai, chronos, moment
 
@@ -314,14 +309,14 @@ Supported models: tdtsfm, timesfm, timemoe, moirai, chronos, moment
 
 **Options**:
 
-* `-c config_file`: Specifies the configuration file (Default: `/etc/taos/taosanode.ini`).
+* `-c config_file`: Specifies the configuration file. The default is `<install_dir>/cfg/taosanode.config.py`, falling back to `/etc/taos/taosanode.config.py`.
 * `-h, --help`: Displays help information.
 
 **Examples**:
 
 1. Start all services in the background: `/usr/bin/start-model all`
 2. Start a specific service (e.g., TimesFM): `/usr/bin/start-model timesfm`
-3. Specify a custom config file: `/usr/bin/start-model -c /path/to/custom_taosanode.ini`
+3. Specify a custom config file: `/usr/bin/start-model -c /path/to/custom_taosanode.config.py`
 
 ### Stop Script
 
@@ -336,7 +331,7 @@ Supported models: tdtsfm, timesfm, timemoe, moirai, chronos, moment
 
 ## Dynamic Model Download
 
-In versions 3.3.8.x and later, you can specify different model scales during startup. If no parameters are provided, the driver file (`[xxx]-server.py`) will automatically load the model with the smallest parameter scale.
+Since `v3.3.8.0`, you can specify different model scales during startup. Running a `[xxx]-server.py` file directly without parameters generally loads `model_index=0`. When using `start-model` or the configuration file, `default_model` in `taosanode.config.py` applies. For example, Time-MoE defaults to `Maple728/TimeMoE-200M`, Chronos to `amazon/chronos-bolt-base`, and MOMENT to `AutonLab/MOMENT-1-base`.
 
 Additionally, if you have manually downloaded model files, you can run them by specifying the local path.
 
