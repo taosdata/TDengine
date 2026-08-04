@@ -5983,15 +5983,14 @@ static int32_t validateDistinctFunc(STranslateContext* pCxt, SFunctionNode* pFun
   if (nodeType(pParam) == QUERY_NODE_COLUMN && ((SColumnNode*)pParam)->colName[0] == '*') {
     return TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT;
   }
-  // Reject DISTINCT with SESSION/STATE/EVENT windows (not supported yet)
+  // Only INTERVAL windows support DISTINCT aggregates. distinctAggFilterShouldOptimize()
+  // skips inserting the DistinctFilter node for any other window type, which would silently
+  // ignore DISTINCT and return non-deduplicated results. Mirror that condition here so new
+  // window types are rejected by default rather than returning wrong results.
   if (isSelectStmt(pCxt->pCurrStmt)) {
     SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-    if (pSelect->pWindow != NULL) {
-      ENodeType winType = nodeType(pSelect->pWindow);
-      if (winType == QUERY_NODE_SESSION_WINDOW || winType == QUERY_NODE_STATE_WINDOW ||
-          winType == QUERY_NODE_EVENT_WINDOW) {
-        return TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT;
-      }
+    if (pSelect->pWindow != NULL && QUERY_NODE_INTERVAL_WINDOW != nodeType(pSelect->pWindow)) {
+      return TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT;
     }
   }
   // MIN/MAX DISTINCT is a no-op (MySQL compat) — clear the flag so optimizer ignores it

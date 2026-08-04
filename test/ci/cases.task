@@ -769,6 +769,8 @@
 ## 02-Aggregate
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_all.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_bugs.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_distinct.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_distinct_spill.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_gconcat.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_last.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/02-Aggregate/test_agg_smoking.py
