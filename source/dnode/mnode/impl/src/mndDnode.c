@@ -1414,8 +1414,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
 _OVER:
   mndReleaseDnode(pMnode, pDnode);
-  taosArrayDestroy(statusReq.pVloads);
-  taosArrayDestroy(statusReq.pTxnActiveQueries);
+  // Release the whole status req through the shared helper instead of destroying the arrays directly.
+  // Each SVnodeLoad decoded by tDeserializeSStatusReq() may embed a per-target snapshot progress array
+  // (pSnapProgress). A bare taosArrayDestroy(statusReq.pVloads) only frees the outer array and leaks
+  // every inner pSnapProgress on each heartbeat. tFreeSStatusReq() frees pVloads via
+  // tFreeSVnodeLoadArray() (which destroys pSnapProgress first) and also frees pTxnActiveQueries.
+  tFreeSStatusReq(&statusReq);
   if (code != 0) {
     mError("dnode:%d, failed to process status req at line:%d since %s", statusReq.dnodeId, lino, tstrerror(code));
     return code;
