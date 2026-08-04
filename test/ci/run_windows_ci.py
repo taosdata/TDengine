@@ -29,6 +29,16 @@ def fail(message):
     raise RuntimeError(message)
 
 
+def require_env(name):
+    if os.environ.get(name):
+        print(f"[windows-ci] {name} is set")
+        return
+    fail(
+        f"required CI/CD variable {name} is not set. "
+        "Configure it in GitLab Settings > CI/CD > Variables as a masked secret."
+    )
+
+
 def tail(path, lines=200):
     if not path.exists():
         return
@@ -189,6 +199,7 @@ def install_go_toolchain(source_dir, environment):
 
 
 def build(source_dir, debug_dir):
+    require_env("TD_ENTERPRISE_EDITION_SIGNATURE_SALT")
     sync_source(source_dir)
     remove_build_directory(debug_dir)
     if debug_dir.exists():
