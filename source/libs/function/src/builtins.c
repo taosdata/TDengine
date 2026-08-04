@@ -8876,6 +8876,38 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc  = stdScalarFunction,
     .finalizeFunc  = twvarFinalize,
   },
+  {
+    .name = "value_changes",
+    .type = FUNCTION_TYPE_VALUE_CHANGES,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
+                      FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = true,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
+                                           .fixedValueSize = 2,
+                                           .fixedNumValue = {0, 1}},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
+    .translateFunc = translateOutBigInt,
+    .getEnvFunc   = getValueChangesFuncEnv,
+    .initFunc     = valueChangesFunctionSetup,
+    .processFunc  = valueChangesFunction,
+    .finalizeFunc = valueChangesFinalize,
+  },
 };
 // clang-format on
 

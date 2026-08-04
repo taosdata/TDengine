@@ -7791,6 +7791,155 @@ int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return functionFinalize(pCtx, pBlock);
 }
 
+// ------------------------------- value_changes -------------------------------
+// Count adjacent value changes on the effective timeline. Equality is delegated to the
+// engine's per-type comparator (getComparFunc + OP_TYPE_EQUAL): integers/bool/timestamp
+// compare by value, float/double use epsilon equality with NaN==NaN, var types compare
+// bytewise. DECIMAL64/DECIMAL128 have no dedicated comparator, so per the FS they are
+// converted to DOUBLE (via the column typeMod) and compared with the DOUBLE comparator.
+// ignore_null=1 (default) skips NULL rows transparently; ignore_null=0 treats
+// NULL<->non-NULL as a change and NULL<->NULL as no change. First row is never counted.
+bool getValueChangesFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  int32_t bytes = ((SExprNode*)pParam)->resType.bytes;
+  pEnv->calcMemSize = sizeof(SValueChangesInfo) + bytes;
+  return true;
+}
+
+int32_t valueChangesFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (pResultInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResultInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+
+  SValueChangesInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  pInfo->count = 0;
+  pInfo->numOfElems = 0;
+  pInfo->hasPrev = false;
+  pInfo->prevIsNull = false;
+  pInfo->hasPrevTs = false;
+  pInfo->prevTs = 0;
+  pInfo->prevBytes = 0;
+  // Default ignore_null=1. Only override when a real VALUE param is present: this function is
+  // IMPLICIT_TS/PRIMARY_KEY, so the engine appends an implicit (non-VALUE) timestamp param and
+  // numOfParams can be >1 even when the user omitted ignore_null (cf. getLagLeadOffset).
+  if (pCtx->numOfParams > 1 && pCtx->param[1].type == FUNC_PARAM_TYPE_VALUE) {
+    pInfo->ignoreNull = (int8_t)pCtx->param[1].param.i;
+  } else {
+    pInfo->ignoreNull = 1;
+  }
+  pInfo->inputType = 0;    // resolved lazily from the input column type on first row
+  pInfo->typeMod = 0;
+  pInfo->comparFn = NULL;  // resolved lazily from the input column type on first row
+  return TSDB_CODE_SUCCESS;
+}
+
+// Store the current cell as the "previous compared value". For var-length types the cell is
+// varData (length prefix + content); copy the full varData so the comparator can reuse it.
+static void valueChangesSetPrev(SValueChangesInfo* pInfo, SColumnInfoData* pCol, const char* pData) {
+  int32_t bytes = IS_VAR_DATA_TYPE(pCol->info.type) ? varDataTLen(pData) : pCol->info.bytes;
+  (void)memcpy(pInfo->prevData, pData, bytes);
+  pInfo->prevBytes = bytes;
+  pInfo->hasPrev = true;
+  pInfo->prevIsNull = false;
+}
+
+int32_t valueChangesFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SValueChangesInfo*   pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+
+  if (pInfo->inputType == 0) {
+    pInfo->inputType = pCol->info.type;
+    if (IS_DECIMAL_TYPE(pCol->info.type)) {
+      // FS: DECIMAL is compared as DOUBLE. getComparFunc has no decimal branch and would
+      // fall through to compareInt32Val (low-4-bytes-only, scale-ignorant) — wrong for the
+      // 8/16-byte decimal storage. Resolve the DOUBLE comparator and convert per row instead.
+      pInfo->typeMod = typeGetTypeModFromColInfo(&pCol->info);
+      pInfo->comparFn = getComparFunc(TSDB_DATA_TYPE_DOUBLE, OP_TYPE_EQUAL);
+    } else {
+      pInfo->comparFn = getComparFunc(pCol->info.type, OP_TYPE_EQUAL);
+    }
+    if (pInfo->comparFn == NULL) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
+  }
+
+  funcInputUpdate(pCtx);  // prime the row iterator (sets up the primary-TS column)
+
+  SFuncInputRow row = {0};
+  bool          result = false;
+  while (1) {
+    int32_t code = funcInputGetNextRow(pCtx, &row, &result);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (!result) {
+      break;
+    }
+    if (pInput->pPTS != NULL && pInput->pPTS->hasNull && colDataIsNull_f(pInput->pPTS, row.rowIndex)) {
+      return TSDB_CODE_FUNC_INVALID_TIMELINE;
+    }
+    if (pInfo->hasPrevTs && pInfo->prevTs == row.ts) {
+      return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+    }
+    pInfo->prevTs = row.ts;
+    pInfo->hasPrevTs = true;
+    pInfo->numOfElems++;
+
+    if (row.isDataNull) {
+      if (pInfo->ignoreNull) {
+        continue;  // NULL is transparent: does not reset prev, does not count
+      }
+      // ignore_null=0: NULL participates. NULL<->non-NULL is a change; NULL<->NULL is not.
+      if (pInfo->hasPrev && !pInfo->prevIsNull) {
+        pInfo->count++;
+      }
+      pInfo->hasPrev = true;
+      pInfo->prevIsNull = true;
+      continue;
+    }
+
+    // non-NULL current row
+    if (!pInfo->hasPrev) {
+      valueChangesSetPrev(pInfo, pCol, row.pData);
+      continue;
+    }
+    if (pInfo->prevIsNull) {  // only reachable with ignore_null=0
+      pInfo->count++;
+      valueChangesSetPrev(pInfo, pCol, row.pData);
+      continue;
+    }
+    if (IS_DECIMAL_TYPE(pInfo->inputType)) {
+      // Compare decimals as DOUBLE (FS): compareInt32Val on raw bytes ignores scale and the
+      // high 4/12 bytes. Convert both operands via typeMod, then use the DOUBLE comparator.
+      double prevVal = 0, curVal = 0;
+      GET_TYPED_DATA(prevVal, double, pInfo->inputType, pInfo->prevData, pInfo->typeMod);
+      GET_TYPED_DATA(curVal, double, pInfo->inputType, row.pData, pInfo->typeMod);
+      if (pInfo->comparFn(&prevVal, &curVal) != 0) {
+        pInfo->count++;
+      }
+    } else if (pInfo->comparFn(pInfo->prevData, row.pData) != 0) {
+      pInfo->count++;
+    }
+    valueChangesSetPrev(pInfo, pCol, row.pData);
+  }
+
+  SET_VAL(pResInfo, pInfo->numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t valueChangesFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SValueChangesInfo*   pInfo = (SValueChangesInfo*)GET_ROWCELL_INTERBUF(pResInfo);
+  // Empty input (no rows at all) -> no result row. Any rows (even all-NULL) -> one count row.
+  pResInfo->numOfRes = (pInfo->numOfElems == 0) ? 0 : 1;
+  return functionFinalize(pCtx, pBlock);
+}
+
 // Generic time-weighted accumulation core, factored from twaFunction. Accumulates the
 // time-integral INT v dt into *pOutput (using linear trapezoid or locf rectangle per `locf`),
 // and, when wantSq is true, INT v^2 dt into *pd2Output. All timeline/dedup/order checks and

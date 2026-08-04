@@ -394,6 +394,26 @@ typedef struct STwaInfo {
   int8_t      tsOrder;
 } STwaInfo;
 
+// value_changes: count of adjacent value changes on the timeline. `count` is the
+// finalize output slot (must be first). Equality is delegated to a per-type comparator
+// (getComparFunc with OP_TYPE_EQUAL); NaN==NaN and epsilon float equality come for free.
+// prevData is a flexible buffer holding the previous compared cell (varData incl. length
+// prefix for var types), sized by getValueChangesFuncEnv from the input column bytes.
+typedef struct SValueChangesInfo {
+  int64_t       count;       // output slot (BIGINT), must be first
+  int64_t       numOfElems;  // rows seen (incl. NULL) — distinguishes empty table from all-equal
+  bool          hasPrev;     // a previous compared value exists
+  bool          prevIsNull;  // the previous compared value is NULL (ignore_null=0 path)
+  int8_t        ignoreNull;  // 1 (default): skip NULL transparently; 0: NULL participates
+  int8_t        inputType;   // resolved input column type (0 = not yet resolved)
+  STypeMod      typeMod;     // DECIMAL precision/scale; FS mandates decimal compared as DOUBLE
+  __compar_fn_t comparFn;    // resolved equality comparator (DOUBLE comparator for decimal input)
+  TSKEY         prevTs;      // for DUP_TIMESTAMP detection
+  bool          hasPrevTs;
+  int32_t       prevBytes;   // valid bytes currently stored in prevData
+  char          prevData[];  // previous compared value (fixed value or varData)
+} SValueChangesInfo;
+
 // Time-weighted sum: raw time-integral (INT v dt) accumulated in native ticks. The output
 // unit divisor is derived from the params at finalize (see twsumResolveTimeUnit), not stored.
 typedef struct STwsumInfo {
