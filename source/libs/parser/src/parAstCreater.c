@@ -89,13 +89,56 @@
       (cow) = xCreateCowStr((pToken)->n, (pToken)->z, true); \
     }                                                            \
   } while (0)
-#define COPY_COW_STR_FROM_STR_TOKEN(cow, pToken)                     \
-  do {                                                               \
-    if ((pToken)->n > 2) {                                           \
-      (cow) = xCreateCowStr((pToken)->n - 2, (pToken)->z + 1, true); \
-    }                                                                \
-  } while (0)
 SToken nil_token = {.type = TK_NK_NIL, .n = 0, .z = NULL};
+
+static int32_t copyCowStrFromStrToken(CowStr* pCow, const SToken* pToken) {
+  if (pCow == NULL || pToken == NULL || pToken->n <= 2) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char* value = taosMemoryCalloc(1, pToken->n - 1);
+  if (value == NULL) {
+    return terrno;
+  }
+
+  pCow->len = trimString(pToken->z, pToken->n, value, pToken->n - 1);
+  pCow->ptr = value;
+  pCow->shouldFree = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t copyCowStrFromIdToken(CowStr* pCow, const SToken* pToken) {
+  if (pCow == NULL || pToken == NULL || pToken->n <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pToken->z[0] != '`') {
+    *pCow = xCreateCowStr(pToken->n, pToken->z, true);
+    return pCow->ptr == NULL ? terrno : TSDB_CODE_SUCCESS;
+  }
+
+  if (pToken->n <= 2) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char* value = taosMemoryCalloc(1, pToken->n - 1);
+  if (value == NULL) {
+    return terrno;
+  }
+
+  int32_t len = 0;
+  for (uint32_t i = 1; i < pToken->n - 1; ++i) {
+    value[len++] = pToken->z[i];
+    if (pToken->z[i] == '`' && i + 1 < pToken->n - 1 && pToken->z[i + 1] == '`') {
+      ++i;
+    }
+  }
+
+  pCow->len = len;
+  pCow->ptr = value;
+  pCow->shouldFree = true;
+  return TSDB_CODE_SUCCESS;
+}
 
 void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   memset(pCxt, 0, sizeof(SAstCreateContext));
@@ -6594,9 +6637,16 @@ SNode* createXnodeSourceAsDsn(SAstCreateContext* pCxt, const SToken* pToken) {
     goto _err;
   }
   pSource->source.type = XNODE_TASK_SOURCE_DSN;
-  COPY_COW_STR_FROM_STR_TOKEN(pSource->source.cstr, pToken);
+  pCxt->errCode = copyCowStrFromStrToken(&pSource->source.cstr, pToken);
+  CHECK_PARSER_STATUS(pCxt);
+  if (pSource->source.cstr.ptr == NULL || pSource->source.cstr.len <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode source dsn should not be NULL or empty");
+    goto _err;
+  }
   return (SNode*)pSource;
 _err:
+  nodesDestroyNode((SNode*)pSource);
   return NULL;
 }
 SNode* createXnodeSourceAsDatabase(SAstCreateContext* pCxt, const SToken* pToken) {
@@ -6615,9 +6665,16 @@ SNode* createXnodeSourceAsDatabase(SAstCreateContext* pCxt, const SToken* pToken
     goto _err;
   }
   pSource->source.type = XNODE_TASK_SOURCE_DATABASE;
-  COPY_COW_STR_FROM_ID_TOKEN(pSource->source.cstr, pToken);
+  pCxt->errCode = copyCowStrFromIdToken(&pSource->source.cstr, pToken);
+  CHECK_PARSER_STATUS(pCxt);
+  if (pSource->source.cstr.ptr == NULL || pSource->source.cstr.len <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode source database should not be NULL or empty");
+    goto _err;
+  }
   return (SNode*)pSource;
 _err:
+  nodesDestroyNode((SNode*)pSource);
   return NULL;
 }
 SNode* createXnodeSourceAsTopic(SAstCreateContext* pCxt, const SToken* pToken) {
@@ -6626,7 +6683,7 @@ SNode* createXnodeSourceAsTopic(SAstCreateContext* pCxt, const SToken* pToken) {
   CHECK_MAKE_NODE(pSource);
   if (pToken == NULL || pToken->n <= 0) {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                            "xnode source dsn should not be NULL or empty");
+                                            "xnode source topic should not be NULL or empty");
     goto _err;
   }
   if (pToken->n > TSDB_TOPIC_NAME_LEN) {
@@ -6636,9 +6693,16 @@ SNode* createXnodeSourceAsTopic(SAstCreateContext* pCxt, const SToken* pToken) {
     goto _err;
   }
   pSource->source.type = XNODE_TASK_SOURCE_TOPIC;
-  COPY_COW_STR_FROM_STR_TOKEN(pSource->source.cstr, pToken);
+  pCxt->errCode = copyCowStrFromIdToken(&pSource->source.cstr, pToken);
+  CHECK_PARSER_STATUS(pCxt);
+  if (pSource->source.cstr.ptr == NULL || pSource->source.cstr.len <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode source topic should not be NULL or empty");
+    goto _err;
+  }
   return (SNode*)pSource;
 _err:
+  nodesDestroyNode((SNode*)pSource);
   return NULL;
 }
 SNode* createXnodeSinkAsDsn(SAstCreateContext* pCxt, const SToken* pToken) {
@@ -6657,9 +6721,16 @@ SNode* createXnodeSinkAsDsn(SAstCreateContext* pCxt, const SToken* pToken) {
     goto _err;
   }
   pSink->sink.type = XNODE_TASK_SINK_DSN;
-  COPY_COW_STR_FROM_STR_TOKEN(pSink->sink.cstr, pToken);
+  pCxt->errCode = copyCowStrFromStrToken(&pSink->sink.cstr, pToken);
+  CHECK_PARSER_STATUS(pCxt);
+  if (pSink->sink.cstr.ptr == NULL || pSink->sink.cstr.len <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "xnode sink dsn should not be NULL or empty");
+    goto _err;
+  }
   return (SNode*)pSink;
 _err:
+  nodesDestroyNode((SNode*)pSink);
   return NULL;
 }
 SNode* createXnodeSinkAsDatabase(SAstCreateContext* pCxt, const SToken* pToken) {
@@ -6679,17 +6750,25 @@ SNode* createXnodeSinkAsDatabase(SAstCreateContext* pCxt, const SToken* pToken) 
   }
   pSink->sink.type = XNODE_TASK_SINK_DATABASE;
   if (pToken->type == TK_NK_STRING) {
-    COPY_COW_STR_FROM_STR_TOKEN(pSink->sink.cstr, pToken);
+    pCxt->errCode = copyCowStrFromStrToken(&pSink->sink.cstr, pToken);
+    CHECK_PARSER_STATUS(pCxt);
   } else if (pToken->type == TK_NK_ID) {
-    COPY_COW_STR_FROM_ID_TOKEN(pSink->sink.cstr, pToken);
+    pCxt->errCode = copyCowStrFromIdToken(&pSink->sink.cstr, pToken);
+    CHECK_PARSER_STATUS(pCxt);
   } else {
     pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                             "Invalid xnode sink database type: %d", pToken->type);
     goto _err;
   }
 
+  if (pSink->sink.cstr.ptr == NULL || pSink->sink.cstr.len <= 0) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "Xnode sink database should not be NULL or empty");
+    goto _err;
+  }
   return (SNode*)pSink;
 _err:
+  nodesDestroyNode((SNode*)pSink);
   return NULL;
 }
 
@@ -6749,9 +6828,6 @@ _err:
   if (pStmt != NULL) {
     nodesDestroyNode(pStmt);
   }
-  if (pNode != NULL) {
-    nodesDestroyNode(pNode);
-  }
   return NULL;
 }
 
@@ -6760,13 +6836,6 @@ SNode* createXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_XNODE_AGENT_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   SCreateXnodeAgentStmt* pAgentStmt = (SCreateXnodeAgentStmt*)pStmt;
-
-  if (pOptions != NULL) {
-    if (nodeType(pOptions) == QUERY_NODE_XNODE_TASK_OPTIONS) {
-      SXnodeTaskOptions* options = (SXnodeTaskOptions*)(pOptions);
-      pAgentStmt->options = options;
-    }
-  }
 
   if (pResourceName->type == TK_NK_STRING && pResourceName->n > 2) {
     if (pResourceName->n > TSDB_XNODE_AGENT_NAME_LEN + 2) {
@@ -6782,6 +6851,9 @@ SNode* createXnodeAgentWithOptionsDirectly(SAstCreateContext* pCxt, const SToken
     goto _err;
   }
 
+  if (pOptions != NULL && nodeType(pOptions) == QUERY_NODE_XNODE_TASK_OPTIONS) {
+    pAgentStmt->options = (SXnodeTaskOptions*)pOptions;
+  }
   return (SNode*)pAgentStmt;
 _err:
   if (pStmt != NULL) {
@@ -6792,28 +6864,32 @@ _err:
 
 SNode* createXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResourceName,
                                   SNode* pSource, SNode* pSink, SNode* pOptions) {
+  SNode* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
+  if (resourceType != XNODE_TASK && (pSource != NULL || pSink != NULL)) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "FROM/TO is only valid for XNODE TASK");
+    goto _err;
+  }
 
   switch (resourceType) {
     case XNODE_TASK: {
-      SNode* rs = createXnodeTaskWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pOptions);
-      if (rs == NULL) {
-        goto _err;
-      }
-      return rs;
+      pStmt = createXnodeTaskWithOptionsDirectly(pCxt, pResourceName, pSource, pSink, pOptions);
+      break;
     }
     case XNODE_AGENT: {
-      SNode* rs = createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pOptions);
-      if (rs == NULL) {
-        goto _err;
-      }
-      return rs;
+      pStmt = createXnodeAgentWithOptionsDirectly(pCxt, pResourceName, pOptions);
+      break;
     }
     default:
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                               "Invalid xnode resource type: %d", resourceType);
       goto _err;
   }
+  if (pStmt == NULL) {
+    goto _err;
+  }
+  return pStmt;
 _err:
   nodesDestroyNode(pSource);
   nodesDestroyNode(pSink);
@@ -7123,24 +7199,41 @@ _err:
 
 SNode* alterXnodeTaskWithOptions(SAstCreateContext* pCxt, EXnodeResourceType resourceType, const SToken* pResIdOrName,
                                  SNode* pSource, SNode* pSink, SNode* pNode) {
+  SNode* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
+  if (resourceType != XNODE_TASK && (pSource != NULL || pSink != NULL)) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                            "FROM/TO is only valid for XNODE TASK");
+    goto _err;
+  }
 
   switch (resourceType) {
     case XNODE_TASK: {
-      return updateXnodeTaskWithOptionsDirectly(pCxt, pResIdOrName, pSource, pSink, pNode);
+      pStmt = updateXnodeTaskWithOptionsDirectly(pCxt, pResIdOrName, pSource, pSink, pNode);
+      break;
     }
     case XNODE_AGENT: {
-      return alterXnodeAgentWithOptionsDirectly(pCxt, pResIdOrName, pNode);
+      pStmt = alterXnodeAgentWithOptionsDirectly(pCxt, pResIdOrName, pNode);
+      break;
     }
     case XNODE_JOB: {
-      return alterXnodeJobWithOptionsDirectly(pCxt, pResIdOrName, pNode);
+      pStmt = alterXnodeJobWithOptionsDirectly(pCxt, pResIdOrName, pNode);
+      break;
     }
     default:
       pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                               "Invalid xnode resource type: %d", resourceType);
       goto _err;
   }
+
+  if (pStmt == NULL) {
+    goto _err;
+  }
+  return pStmt;
 _err:
+  nodesDestroyNode(pSource);
+  nodesDestroyNode(pSink);
+  nodesDestroyNode(pNode);
   return NULL;
 }
 
