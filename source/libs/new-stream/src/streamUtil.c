@@ -14,14 +14,15 @@
  */
 
 #include "cJSON.h"
+#include "cmdnodes.h"
 #include "dataSink.h"
+#include "decimal.h"
 #include "osMemPool.h"
 #include "streamInt.h"
-#include "tdatablock.h"
 #include "tcurl.h"
+#include "tdatablock.h"
+#include "tglobal.h"
 #include "tstrbuild.h"
-#include "decimal.h"
-#include "cmdnodes.h"
 
 int32_t streamGetThreadIdx(int32_t threadNum, int64_t streamGId) { return threadNum ? (streamGId % threadNum) : 0; }
 
@@ -1088,23 +1089,42 @@ int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, cons
       }
     }
 
-    size_t   totalLen = sb.pos;
-    size_t   sentLen = 0;
-    CURLcode res = CURLE_OK;
+    size_t  totalLen = sb.pos;
+    size_t  sentLen = 0;
+    size_t  frameSize = (size_t)tsStreamNotifyFrameSize * 1024;
+    int32_t res = TSDB_CODE_SUCCESS;
     while (sentLen < totalLen) {
-      size_t nbytes = 0;
-      if (sentLen == 0) {
-        res = tcurlSend(&conn, msg, totalLen, &nbytes, totalLen, CURLWS_TEXT | CURLWS_OFFSET);
-      } else {
-        res = tcurlSend(&conn, msg + sentLen, totalLen - sentLen, &nbytes, 0, CURLWS_TEXT | CURLWS_OFFSET);
+      size_t frameLen = totalLen - sentLen;
+      if (frameLen > frameSize) {
+        frameLen = frameSize;
       }
-      if (res != CURLE_OK) {
+
+      size_t       frameSentLen = 0;
+      unsigned int flags = CURLWS_TEXT | CURLWS_OFFSET;
+      if (sentLen + frameLen < totalLen) {
+        flags |= CURLWS_CONT;
+      }
+
+      while (frameSentLen < frameLen) {
+        size_t nbytes = 0;
+        res = tcurlSend(&conn, msg + sentLen + frameSentLen, frameLen - frameSentLen, &nbytes,
+                        frameSentLen == 0 ? (curl_off_t)frameLen : 0, flags);
+        if (res != TSDB_CODE_SUCCESS) {
+          break;
+        }
+        if (nbytes == 0) {
+          res = TSDB_CODE_FAILED;
+          break;
+        }
+        frameSentLen += nbytes;
+      }
+      if (res != TSDB_CODE_SUCCESS) {
         break;
       }
-      sentLen += nbytes;
+      sentLen += frameSentLen;
     }
     tcurlClose(&conn);
-    if (res != CURLE_OK) {
+    if (res != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("failed to send stream notify msg to %s for %d", *pUrl, res);
       if (addOptions & NOTIFY_ON_FAILURE_PAUSE) {
         // retry for event message sending in PAUSE error handling mode
