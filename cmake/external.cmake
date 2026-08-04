@@ -1087,8 +1087,6 @@ else()
     set(_ext_curl_configure_env
         "CFLAGS=${_c_flags}"
         "CXXFLAGS=${_c_flags}"
-        "LDFLAGS=-L${ext_ssl_install}/lib"
-        "PKG_CONFIG_LIBDIR=${ext_ssl_install}/lib/pkgconfig"
     )
     if(TD_DARWIN)
         # curl rewrites OpenSSL's -I flag to -isystem. On Intel macOS that
