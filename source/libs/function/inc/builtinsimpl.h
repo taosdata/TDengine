@@ -266,6 +266,12 @@ int32_t twvarFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInf
 int32_t twvarFunction(SqlFunctionCtx* pCtx);
 int32_t twvarFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+// value_changes(expr [, ignore_null]): count of adjacent value changes on the timeline.
+bool    getValueChangesFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t valueChangesFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t valueChangesFunction(SqlFunctionCtx* pCtx);
+int32_t valueChangesFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool getHasNullFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 
