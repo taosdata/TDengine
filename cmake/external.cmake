@@ -1084,6 +1084,30 @@ if(${TD_WINDOWS})
     )
 else()
     string(JOIN " " _c_flags ${_c_flags_list})
+    set(_ext_curl_configure_env
+        "CFLAGS=${_c_flags}"
+        "CXXFLAGS=${_c_flags}"
+        "LDFLAGS=-L${ext_ssl_install}/lib"
+        "PKG_CONFIG_LIBDIR=${ext_ssl_install}/lib/pkgconfig"
+    )
+    if(TD_DARWIN)
+        # curl rewrites OpenSSL's -I flag to -isystem. On Intel macOS that
+        # lets /usr/local/include win, mixing Homebrew headers with ext_ssl.
+        set(_ext_curl_ssl_include_alias "${ext_curl_base}/ssl-include")
+        set(_ext_curl_prepare_ssl_include
+            COMMAND ${CMAKE_COMMAND} -E remove_directory "${_ext_curl_ssl_include_alias}"
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${_ext_curl_ssl_include_alias}"
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+                "${ext_ssl_inc_dir}/openssl"
+                "${_ext_curl_ssl_include_alias}/openssl"
+        )
+        list(APPEND _ext_curl_configure_env
+            "CC=cc -I${_ext_curl_ssl_include_alias}"
+            "CXX=c++ -I${_ext_curl_ssl_include_alias}"
+        )
+    else()
+        set(_ext_curl_prepare_ssl_include "")
+    endif()
     # URL https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz
     # URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
     get_from_local_if_exists(
@@ -1100,8 +1124,9 @@ else()
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
+            ${_ext_curl_prepare_ssl_include}
             # COMMAND ./Configure --prefix=$ENV{HOME}/.cos-local.2 no-shared
-            COMMAND ${CMAKE_COMMAND} -E env "CFLAGS=${_c_flags}" "CXXFLAGS=${_c_flags}" ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
+            COMMAND ${CMAKE_COMMAND} -E env ${_ext_curl_configure_env} ./configure --prefix=${_ins} --with-ssl=${ext_ssl_install}
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
