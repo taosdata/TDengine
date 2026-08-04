@@ -487,6 +487,14 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
         TSWAP(pBlocks->pData, pStmt->exec.pCurrTbData);
         STMT_ERR_RET(qResetStmtDataBlock(pBlocks, false));
 
+        /* After TSWAP, the retained pData is a shallow copy.  Break
+         * aRowP alias to prevent dangling pointers when pCurrTbData
+         * is destroyed next cycle.  For column-format data,
+         * qResetStmtDataBlock already zeroes nVal on aCol entries. */
+        if (pBlocks->pData->aRowP) {
+          taosArrayClear(pBlocks->pData->aRowP);
+        }
+
         pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
         continue;
       }
