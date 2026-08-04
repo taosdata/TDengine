@@ -29,8 +29,10 @@ path where _c0 pseudo-column resolution is required.
 
 import os
 import subprocess
+import time
 
 from new_test_framework.utils import tdLog, tdSql, etool
+from new_test_framework.utils.stmt2 import tdStmt2
 
 
 class TestTaosBackupStmt2MultiTable:
@@ -91,9 +93,15 @@ class TestTaosBackupStmt2MultiTable:
     # test_taosbackup_stmt2_multi_table (pytest entry point)
     # ----------------------------------------------------------------
     def test_taosbackup_stmt2_multi_table(self):
-        """ Restore with STMT/STMT2
-          1. Reproduce multi-table STMT2 bind bug during restore.
-          2. Verify that the restored data matches the original data.
+        """Test STMT2 multi-table bind nColData corruption fixes.
+
+        Covers two paths:
+          1. taosdump restore (INSERT INTO tb USING stb ...) —
+             initTableColSubmitData / initTableColSubmitDataWithBoundInfo
+             where nColData doubled across keepTable exec cycles.
+          2. STMT2 INSERT INTO ? placeholder —
+             parseStbBoundInfo path where initTableColSubmitData was
+             missing entirely.
 
         Since: v3.4.2.0
 
@@ -105,6 +113,7 @@ class TestTaosBackupStmt2MultiTable:
             - 2026-08-04 Alex Duan Created
         """
         self.do_taosbackup_stmt2_multi_table()
+        self.do_stmt2_placeholder_multi_table()
 
     # ----------------------------------------------------------------
     # do_taosbackup_stmt2_multi_table
@@ -168,4 +177,74 @@ class TestTaosBackupStmt2MultiTable:
 
         tdLog.info(
             "do_taosbackup_stmt2_multi_table .................... [passed]"
+        )
+
+    # ----------------------------------------------------------------
+    # do_stmt2_placeholder_multi_table
+    # ----------------------------------------------------------------
+    def do_stmt2_placeholder_multi_table(self):
+        """INSERT INTO ? USING stb TAGS(...) VALUES(...) — multi-table batch."""
+
+        db = "stmt2ph_db"
+        stb = "dev"
+        num_ctbs = 100
+        rows_per_ctb = 3
+
+        tdSql.execute("drop database if exists %s" % db)
+        tdSql.execute("create database %s vgroups 1" % db)
+        tdSql.execute("use %s" % db)
+
+        # Super table: ts TIMESTAMP, v1 INT, v2 DOUBLE, tag t1 INT
+        tdSql.execute(
+            "create table %s (ts timestamp, v1 int, v2 double) tags(t1 int)" % stb
+        )
+
+        # Create child tables via SQL (no data yet — stmt2 will write)
+        tbnames = []
+        tags = []
+        datas = []
+        base_ts = int(time.time() * 1000)
+
+        for i in range(num_ctbs):
+            ctb = "d%d" % i
+            tbnames.append(ctb)
+            tdSql.execute(
+                "create table %s using %s tags(%d)" % (ctb, stb, i % 2)
+            )
+            tags.append([i % 2])
+
+            # Each child table gets rows_per_ctb rows
+            tbl_data = []
+            for r in range(rows_per_ctb):
+                tbl_data.append([base_ts + i * 1000 + r, i * 10 + r, float(i + r * 0.5)])
+            datas.append(tbl_data)
+
+        # INSERT INTO ? USING dev TAGS(?) VALUES(?, ?, ?)
+        # Table name '?' forces parseStbBoundInfo path
+        sql = "INSERT INTO ? USING %s TAGS(?) VALUES(?, ?, ?)" % stb
+        total_rows = num_ctbs * rows_per_ctb
+        tdStmt2.execute_super_table(sql, tbnames, tags, datas, expected_rows=total_rows)
+
+        # ---- verify ----
+        tdSql.query("select count(*) from %s" % stb)
+        tdSql.checkData(0, 0, total_rows)
+
+        tdSql.query("select count(*) from d0")
+        tdSql.checkData(0, 0, rows_per_ctb)
+
+        tdSql.query(
+            "select v1, v2 from d0 order by ts"
+        )
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, 0.0)
+
+        tdSql.query(
+            "select v1, v2 from d%d order by ts" % (num_ctbs - 1)
+        )
+        last_idx = num_ctbs - 1
+        tdSql.checkData(0, 0, last_idx * 10)
+        tdSql.checkData(0, 1, float(last_idx))
+
+        tdLog.info(
+            "do_stmt2_placeholder_multi_table ................... [passed]"
         )
