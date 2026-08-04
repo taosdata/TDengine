@@ -229,6 +229,11 @@ def build(source_dir, debug_dir):
     for binary in BUILD_BINARIES:
         if not (debug_dir / "build" / "bin" / binary).exists():
             fail(f"{binary} is missing from build output")
+    adapter = debug_dir / "build" / "bin" / "taosadapter.exe"
+    adapter_environment = environment.copy()
+    adapter_environment["PATH"] = f"{adapter.parent}{os.pathsep}{adapter_environment['PATH']}"
+    if run([str(adapter), "--version"], cwd=adapter.parent, env=adapter_environment).returncode:
+        fail("taosadapter.exe cannot start after build")
     taosws = debug_dir / "build" / "taos-connector-rust" / "target" / "release" / "taosws.dll"
     if not taosws.exists():
         run(["jom", "taos_connector_rust"], cwd=debug_dir, env=environment)
