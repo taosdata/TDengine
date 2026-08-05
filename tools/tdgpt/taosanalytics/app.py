@@ -19,7 +19,7 @@ from taosanalytics.handlers.dynamic_model import (
 )
 from taosanalytics.handlers.forecast import handle_forecast
 from taosanalytics.handlers.imputation import handle_imputation
-from taosanalytics.handlers.misc import do_profile_search, handle_batch, handle_pearsonr
+from taosanalytics.handlers.misc import do_profile_search, handle_association, handle_batch, handle_pearsonr
 from taosanalytics.handlers.regression import handle_regression
 from taosanalytics.log import AppLogger
 from taosanalytics.model_file_mgt import ModelFileManager
@@ -143,6 +143,13 @@ def handle_profile_search_req():
     """handle the profile search request"""
     AppLogger.info("recv profile search request from %s", request.remote_addr)
     return do_profile_search(request, api_version="v1")
+
+
+@app.route("/api/v1/analysis/association", methods=["POST"])
+def handle_association_req():
+    """handle the association rule mining request"""
+    AppLogger.info("recv association analysis request from %s", request.remote_addr)
+    return handle_association(request, api_version="v1")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 import numpy as np
 from scipy.stats import pearsonr
 
+from taosanalytics.algo.association import do_apriori
 from taosanalytics.algo.tool.batch import do_batch_process, update_config
 from taosanalytics.algo.tool.profile_search import do_profile_search_impl
 from taosanalytics.log import AppLogger
@@ -213,3 +214,99 @@ def do_profile_search(request, api_version):
     except Exception as e:
         AppLogger.error("profile search failed, %s", str(e))
         return {"msg": str(e), "rows": -1}
+
+
+def handle_association(request, api_version):
+    """
+    Execute Apriori association rule mining.
+
+    :param request: Flask request object
+    :param api_version: API version to determine the specific implementation
+    :return: dict with association analysis result or error information
+
+    Request body example (matrix format):
+    {
+        "data": [[1, 1, 0, 0], [1, 1, 0, 0], [1, 0, 1, 0], [1, 0, 1, 0], [0, 1, 1, 0]],
+        "schema": ["item_A", "item_B", "item_C", "item_D"],
+        "option": {
+            "min_support": 0.3,
+            "min_confidence": 0.6,
+            "max_rules": 20,
+            "data_format": "matrix"
+        }
+    }
+
+    Request body example (transactions format):
+    {
+        "data": [["milk", "bread"], ["milk", "bread", "eggs"], ["milk"], ["bread", "eggs"]],
+        "option": {
+            "min_support": 0.25,
+            "min_confidence": 0.5,
+            "max_rules": 10,
+            "data_format": "transactions"
+        }
+    }
+
+    Response example:
+    {
+        "rows": 4,
+        "algo": "apriori",
+        "option": {"min_support": 0.3, "min_confidence": 0.6},
+        "rules": [
+            {
+                "antecedents": ["item_A"],
+                "consequents": ["item_B"],
+                "support": 0.4,
+                "confidence": 0.75,
+                "lift": 1.2,
+                "leverage": 0.1,
+                "conviction": 2.5
+            }
+        ],
+        "itemsets": [
+            {"items": ["item_A"], "support": 0.6},
+            {"items": ["item_A", "item_B"], "support": 0.4}
+        ],
+        "num_transactions": 5,
+        "num_items": 4
+    }
+    """
+    if api_version != "v1":
+        AppLogger.error("unsupported API version: %s", api_version)
+        return {"msg": f"unsupported API version: {api_version}", "rows": -1}
+
+    try:
+        req_json = do_initial_check(request)
+    except Exception as e:
+        return {"msg": str(e), "rows": -1}
+
+    if "data" not in req_json:
+        return {"msg": "'data' is required in payload", "rows": -1}
+
+    try:
+        data = req_json.get("data")
+        schema = req_json.get("schema", None)
+        options = req_json.get("option", {})
+
+        result_data = do_apriori(data, schema, options)
+
+        res = {
+            "rows": len(result_data.get("rules", [])),
+            "algo": "apriori",
+            "option": options,
+            "rules": result_data["rules"],
+            "itemsets": result_data["itemsets"],
+            "num_transactions": result_data["num_transactions"],
+            "num_items": result_data["num_items"],
+        }
+
+        AppLogger.debug("association analysis result: %s rows of rules", res["rows"])
+        return res
+
+    except ValueError as e:
+        AppLogger.error("association analysis parameter error: %s", str(e))
+        return {"msg": str(e), "rows": -1}
+    except Exception as e:
+        AppLogger.error("association analysis failed, %s", str(e))
+        return {"msg": str(e), "rows": -1}
+
