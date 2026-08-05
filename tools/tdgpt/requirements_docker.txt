@@ -27,3 +27,4 @@ fastdtw==0.3.4
 prophet==1.1.7
 numpy==1.26.4
 xlsxwriter==3.2.1
+mlxtend>=0.23.0
