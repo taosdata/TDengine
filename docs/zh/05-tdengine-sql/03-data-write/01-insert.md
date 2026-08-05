@@ -4,6 +4,11 @@ title: 数据写入
 description: 写入数据的详细语法
 ---
 
+本文介绍标准 SQL 的 `INSERT` 写入语法。如需通过连接器高效写入，或按行协议自动建表，还可使用：
+
+- [参数绑定](../../10-developer-guide/03-stmt.md)：STMT / STMT2 预编译写入，适合高吞吐场景
+- [无模式写入](../../10-developer-guide/04-schemaless.md)：兼容 InfluxDB / OpenTSDB 等行协议，可按写入数据自动创建超级表与子表
+
 ## 写入语法
 
 写入数据支持两种语法：普通写入语法和超级表写入语法。普通写入语法中，紧跟 `INSERT INTO` 的表名是子表名或普通表名；超级表写入语法中，紧跟 `INSERT INTO` 的表名是超级表名。

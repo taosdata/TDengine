@@ -3615,7 +3615,7 @@ LAG(expr, offset[, default_val])
 - `LAG` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
 - It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
 - When used with a window clause, `LAG` is evaluated only within the current window in window-local row order and does not carry state across windows.
-- `LAG` can also be used as a SQL standard window function together with an `OVER` clause, in which case the parameter rules differ slightly (`offset` may be 0). See [Window Functions](./09-window-function.md#value-window-functions).
+- `LAG` can also be used as a SQL standard window function together with an `OVER` clause, in which case the parameter rules differ slightly (`offset` may be 0). See [Window Functions](./06-window-function.md#value-window-functions).
 
 ### LEAD
 
@@ -3641,7 +3641,7 @@ LEAD(expr, offset[, default_val])
 - `LEAD` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
 - It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
 - When used with a window clause, `LEAD` is evaluated only within the current window in window-local row order and does not read rows from the next window.
-- `LEAD` can also be used as a SQL standard window function together with an `OVER` clause, in which case the parameter rules differ slightly (`offset` may be 0). See [Window Functions](./09-window-function.md#value-window-functions).
+- `LEAD` can also be used as a SQL standard window function together with an `OVER` clause, in which case the parameter rules differ slightly (`offset` may be 0). See [Window Functions](./06-window-function.md#value-window-functions).
 
 ## Time-Series Special Aggregate Functions
 

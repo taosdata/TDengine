@@ -1,12 +1,31 @@
 ---
 sidebar_label: 数据订阅
 title: 数据订阅
-description:  体验消息队列提供的数据订阅功能
+description: 体验消息队列提供的数据订阅功能
+toc_max_heading_level: 4
 ---
 
 在监控、告警、实时分析和数据同步等场景中，下游程序通常需要第一时间获取新写入的数据。如果通过定时查询拉取数据，不仅延迟更高，也会增加数据库查询压力。TDengine 提供内置数据订阅能力，可以把持续写入的数据按主题推送给下游程序，减少轮询逻辑和额外消息队列组件带来的复杂度。
 
-本章继续使用前几章的智能电表模型，通过两个 `taos shell` 快速体验一次完整流程：先创建主题，再打开一个 shell 订阅主题，最后回到另一个 shell 写入数据并观察订阅结果。
+本章继续使用前几章的智能电表模型，通过两个 `taos` shell 快速体验一次完整流程：先创建主题，再打开一个 shell 订阅主题，最后回到另一个 shell 写入数据并观察订阅结果。下面先给出订阅相关能力全景；完整语法与进阶说明请按下列链接深入阅读，或参见文末“继续阅读”。
+
+## 订阅能力一览
+
+与 Kafka 类似，你需要在 TDengine 中定义主题（topic）。主题可以是数据库、超级表，或基于现有表的查询语句；过滤与预处理由 TDengine 完成。消费者可加入消费组共享进度，数据从 WAL 推送，并提供至少一次（at least once）消费语义。
+
+- **主题管理**
+  创建 / 查看 / 删除主题；支持查询主题、超级表主题、数据库主题，以及 `RELOAD TOPIC` 重新加载查询主题定义。详见 [主题语法](../06-data-subscription/01-topic.md)。
+
+- **消费组与进度**
+  多个消费者组成消费组共享消费进度；不同消费组互不影响。可用 `SHOW CONSUMERS` / `SHOW SUBSCRIPTIONS` 查看状态，并用 `DROP CONSUMER GROUP` 清理。详见 [主题语法](../06-data-subscription/01-topic.md)。
+
+- **Native 订阅**
+  通过各语言连接器 API 创建消费者、订阅主题、拉取与解析消息、提交 Offset。详见 [Native 订阅](../06-data-subscription/02-native.md)、[数据订阅编程接口](../10-developer-guide/07-subscription-api.md)。
+
+- **MQTT 订阅**
+  从 `v3.3.7.0` 起，可通过 MQTT 客户端连接 Bnode（`taosmqtt`）订阅已创建主题。详见 [MQTT 订阅](../06-data-subscription/03-mqtt.md)。
+
+下文从创建查询主题并用 shell 实时消费开始上手。
 
 ## 前提条件
 
@@ -145,4 +164,12 @@ DROP CONSUMER GROUP IF EXISTS FORCE quickstart_cg_earliest ON topic_meters;
 DROP TOPIC IF EXISTS topic_meters;
 ```
 
-更多 topic 类型、消费组管理和编程接口用法，请继续阅读 [数据订阅](../07-data-subscription/index.md) 与 [主题语法](../07-data-subscription/01-topic.md)。
+## 继续阅读
+
+本章只覆盖快速上手阶段用 shell 验证查询主题订阅的常用流程。更完整的订阅能力，请继续阅读以下文档：
+
+- [数据订阅](../06-data-subscription/index.md)：数据订阅概述、主题与消费组、WAL 与消费方式
+- [主题语法](../06-data-subscription/01-topic.md)：`CREATE` / `DROP` / `SHOW TOPIC`、三种主题类型、消费组与回放说明
+- [Native 订阅](../06-data-subscription/02-native.md)：通过连接器 API 创建消费者并订阅主题
+- [MQTT 订阅](../06-data-subscription/03-mqtt.md)：通过 MQTT 客户端连接 Bnode 订阅主题数据
+- [数据订阅编程接口](../10-developer-guide/07-subscription-api.md)：各语言连接器订阅 API 与示例

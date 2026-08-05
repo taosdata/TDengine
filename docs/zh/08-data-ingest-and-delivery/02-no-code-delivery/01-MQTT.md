@@ -55,7 +55,7 @@ TMQ DSN 参数：
 - `auto.offset.reset`: TMQ 订阅参数，订阅的起始位置。
 - `experimental.snapshot.enable`: TMQ 订阅参数，如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。
 
-主题与消费概念详见 [数据订阅](../../07-data-subscription/index.md)；连接器消费参数详见 [开发指南 · 数据订阅](../../10-developer-guide/07-subscription-api.md)
+主题与消费概念详见 [数据订阅](../../06-data-subscription/index.md)；连接器消费参数详见 [开发指南 · 数据订阅](../../10-developer-guide/07-subscription-api.md)
 
 MQTT DSN 参数：
 

@@ -21,10 +21,19 @@ TDengine stores all time data internally as UTC timestamps (`int64`). Timezones 
 
 ### Supported Timezone Formats
 
-| Format | Examples | DST aware | Description |
-| --- | --- | --- | --- |
-| IANA name | `'Asia/Shanghai'`, `'America/New_York'` | ✅ Yes (automatic DST handling) | Recommended. DST transitions are handled automatically. |
-| POSIX fixed offset | `'+08:00'`, `'-0500'`, `'Z'`, `'+10'`, `'UTC+08:00'` | ❌ No (constant offset) | Supported range is `-14:00` to `+14:00`. Entry points `SET TIMEZONE`, `ALTER LOCAL`, `taos.cfg`, `TO_CHAR`, and `TIMETRUNCATE` all follow POSIX sign convention (`+` = west of UTC, i.e. `local = UTC − offset`). **Exception**: `TO_ISO8601`'s fixed-offset parameter uses [ISO 8601 sign convention](#to_iso8601). See "POSIX Fixed-Offset Format Details" below. |
+#### IANA Name
+
+Recommended. Examples: `'Asia/Shanghai'`, `'America/New_York'`.
+
+- **DST aware**: Yes. DST transitions are handled automatically.
+
+#### POSIX Fixed Offset
+
+Examples: `'+08:00'`, `'-0500'`, `'Z'`, `'+10'`, `'UTC+08:00'`.
+
+- **DST aware**: No. A constant offset is used year-round.
+- **Supported range**: `-14:00` to `+14:00`.
+- **Sign convention**: Entry points `SET TIMEZONE`, `ALTER LOCAL`, `taos.cfg`, `TO_CHAR`, and `TIMETRUNCATE` all follow POSIX sign convention (`+` = west of UTC, i.e. `local = UTC − offset`). **Exception**: `TO_ISO8601`'s fixed-offset parameter uses [ISO 8601 sign convention](#to_iso8601). See below for details.
 
 #### POSIX Fixed-Offset Format Details
 

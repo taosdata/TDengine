@@ -7,7 +7,40 @@ toc_max_heading_level: 4
 
 Compared with many time-series and real-time databases, TDengine has supported standard SQL queries since its first release. This lowers the learning cost for querying and analyzing time-series data.
 
-This chapter uses the smart meter data model and the `test` database written by `taosBenchmark -y` in the quick start. In the shell you will try common queries: filter by condition, sort, limit rows, aggregate by tag or subtable, and summarize by time window. Each query type includes SQL and a representative result so you can see the shape of the output. For full syntax and advanced capabilities, see “Continue Reading” at the end.
+This chapter uses the smart meter data model and the `test` database written by `taosBenchmark -y` in the quick start. In the shell you will try common queries: filter by condition, sort, limit rows, aggregate by tag or subtable, and summarize by time window. Each query type includes SQL and a representative result so you can see the shape of the output. The section below gives a capability overview first; for full syntax and advanced features, follow the links there or see “Continue Reading” at the end.
+
+## Query Capability Overview
+
+On top of standard SQL, TDengine extends querying for time-series and IoT scenarios with tag filtering, per-device partitioning, multiple time windows, interpolation, and join queries.
+
+- **Basic retrieval**  
+  `SELECT` / `WHERE` / `ORDER BY` / `LIMIT`, time-range filters, regular expressions, `CASE`, and more. See [Data Querying](../05-tdengine-sql/04-data-query/01-query.md).
+
+- **Operators and expressions**  
+  Arithmetic, comparison, logical, bitwise, JSON, and set operators. See [Operators](../05-tdengine-sql/04-data-query/02-operators.md).
+
+- **Aggregation and functions**  
+  Statistical aggregates such as `COUNT` / `AVG` / `MAX`, plus selection, math, time, and time-series–specific built-ins. See [Functions](../05-tdengine-sql/04-data-query/03-function.md).
+
+- **Tags and partitioning**  
+  Filter by tags; use `GROUP BY` / `PARTITION BY` / `tbname` / `SLIMIT` to aggregate and limit by device or tag. See [Data Querying](../05-tdengine-sql/04-data-query/01-query.md).
+
+- **Time-series extensions**  
+  `INTERVAL` / `SLIDING` time windows, plus state, session, event, count, and external windows; `FILL` / `INTERP` for gap filling and interpolation. See [Time-Series Extensions](../05-tdengine-sql/04-data-query/04-distinguished.md) and [Data Querying](../05-tdengine-sql/04-data-query/01-query.md) (`FILL` / `INTERP`).
+
+- **Join queries**  
+  Standard joins, plus time-series–oriented ASOF Join and Window Join. See [Join Queries](../05-tdengine-sql/04-data-query/05-join.md).
+
+- **Window functions**  
+  `OVER` window functions. See [Window Functions](../05-tdengine-sql/04-data-query/06-window-function.md).
+
+- **UDFs and read cache**  
+  User-defined functions (UDFs); accelerate latest-row reads with the read cache. See [UDFs](../05-tdengine-sql/04-data-query/07-udf.md) and [Read Cache](../05-tdengine-sql/04-data-query/08-cache-query.md).
+
+- **Execution plans**  
+  Inspect plans with `EXPLAIN` / `EXPLAIN ANALYZE`. See [EXPLAIN](../05-tdengine-sql/04-data-query/09-explain.md).
+
+Compared with general-purpose databases, time-series queries especially benefit from **querying a supertable across many devices in one statement**, **narrowing devices with tags**, and **windowing by time or state for downsampling and aggregation**. The rest of this chapter starts with the most common filters, aggregates, and time windows.
 
 ## Prerequisites
 
@@ -449,9 +482,14 @@ WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10";
 
 ## Continue Reading
 
-This chapter covers only the most common queries for a quick start. For advanced capabilities, continue with:
+This chapter covers only the most common queries for a quick start. For more advanced capabilities, continue with:
 
-- [Basic Query](../05-tdengine-sql/04-data-query/01-query.md): full `SELECT` syntax, filtering, sorting, grouping, subqueries, and `UNION`.
-- [Functions](../05-tdengine-sql/04-data-query/03-function.md): aggregate, selection, and time-series specific functions.
-- [Distinctive Queries](../05-tdengine-sql/04-data-query/06-distinguished.md): time, state, session, event, count, and external windows.
-- [Join Queries](../05-tdengine-sql/04-data-query/07-join.md): regular Join, ASOF Join, and Window Join.
+- [Data Querying](../05-tdengine-sql/04-data-query/01-query.md): `SELECT` syntax, common clauses, and examples
+- [Operators](../05-tdengine-sql/04-data-query/02-operators.md): arithmetic, bitwise, comparison, logical, and related operators
+- [Functions](../05-tdengine-sql/04-data-query/03-function.md): function categories, syntax, and usage
+- [Time-Series Extensions](../05-tdengine-sql/04-data-query/04-distinguished.md): time-series query features such as multiple window types
+- [Join Queries](../05-tdengine-sql/04-data-query/05-join.md): JOIN concepts, types, syntax, and limits
+- [Window Functions](../05-tdengine-sql/04-data-query/06-window-function.md): `OVER` clause and standard SQL window functions
+- [UDFs](../05-tdengine-sql/04-data-query/07-udf.md): create, manage, and invoke user-defined functions
+- [Read Cache](../05-tdengine-sql/04-data-query/08-cache-query.md): cache recent subtable data with `CACHEMODEL` to speed up `LAST` / `LAST_ROW`
+- [EXPLAIN](../05-tdengine-sql/04-data-query/09-explain.md): use `EXPLAIN` / `EXPLAIN ANALYZE` for plans and runtime metrics

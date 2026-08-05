@@ -4,6 +4,11 @@ title: Data Ingestion
 description: Detailed syntax for writing data
 ---
 
+This page describes standard SQL `INSERT` syntax. For high-throughput connector writes or automatic table creation via line protocols, also see:
+
+- [Parameter Binding](../../10-developer-guide/03-stmt.md): STMT / STMT2 prepared writes for high-throughput scenarios
+- [Schemaless Ingestion](../../10-developer-guide/04-schemaless.md): InfluxDB / OpenTSDB line protocols, with automatic creation of supertables and subtables from the payload
+
 ## Writing Syntax
 
 There are two syntaxes supported for writing records: normal syntax and supertable syntax. Under normal syntax, the table name immediately following INSERT INTO is either a subtable name or a regular table name. Under supertable syntax, the table name immediately following INSERT INTO is a supertable name.

@@ -35,7 +35,7 @@ This design not only reduces query response latency but also effectively allevia
 
 Furthermore, TDengine's read cache mechanism can also be flexibly adjusted according to actual business scenarios. In scenarios where data access hotspots are concentrated on the latest records, this built-in cache can significantly enhance user experience, making the acquisition of key data faster and more efficient. Compared to traditional caching solutions, this seamlessly integrated caching strategy not only simplifies the development process but also provides higher performance assurance for users.
 
-For more detailed information about TDengine's read cache, see [Read Cache](../05-tdengine-sql/04-data-query/05-cache-query.md)
+For more detailed information about TDengine's read cache, see [Read Cache](../05-tdengine-sql/04-data-query/08-cache-query.md)
 
 ## Metadata Cache
 

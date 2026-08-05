@@ -11,9 +11,28 @@ In time-series processing, real-time aggregation, downsampling, and early alerti
 - Precomputation for reports and dashboards: Generate common statistics ahead of time to cut latency from wide-range queries.
 - Anomaly detection and early alerting: Compute key metrics soon after writes so downstream alerting or detection can use them.
 
-A stream task usually has two parts—**trigger** and **compute**: the trigger decides when to compute; compute decides which data to use and where results go. They can share the same table or be separated by business need.
+This chapter continues with the `test` database meter data written by `taosBenchmark -y` in the quick start, and creates a stream that computes each meter’s average current every 1 minute. You will walk through confirming data, creating the stream, checking the output table, writing new data, and watching results update. The following overview summarizes stream-processing capabilities; for full syntax and advanced topics, follow the links below or see “Further Reading” at the end of this page.
 
-This chapter continues with the `test` database meter data written by `taosBenchmark -y` in the quick start, and creates a stream that computes each meter’s average current every 1 minute. You will walk through confirming data, creating the stream, checking the output table, writing new data, and watching results update.
+## Stream Processing Capabilities at a Glance
+
+Compared with traditional stream processing, TDengine separates **trigger** from **compute**: the trigger decides when to compute; compute decides which data to use and where results go. They can share the same table or be separated by business need. The new stream processing capability is available from `v3.3.7.0`.
+
+- **Trigger modes**  
+  Supports periodic (`PERIOD`), sliding (`SLIDING`), time-window (`INTERVAL`), session / state / event / count windows, and more. Triggers can be partitioned, and trigger data can be pre-filtered. See [Stream Syntax](../07-stream-processing/01-syntax.md).
+
+- **Compute and result output**  
+  Compute can be any query. Results can be written to an output table (`INTO`), sent as notifications (`NOTIFY`), or both. See [Stream Syntax](../07-stream-processing/01-syntax.md).
+
+- **Control options**  
+  Use `STREAM_OPTIONS` for history replay, out-of-order watermarks, max delay, low-latency compute, and more, balancing result freshness against resource load. See [Stream Syntax](../07-stream-processing/01-syntax.md).
+
+- **Operations and limits**  
+  Stream tasks run on snodes. Covers high availability, permissions, manual recomputation, and atypical writes such as out-of-order / update / delete. See [Operations and Limits](../07-stream-processing/02-instructions.md).
+
+- **Deployment and design**  
+  Deployment, configuration, design before creating streams, and typical examples. See [Deployment and Design](../07-stream-processing/03-best-practices.md).
+
+The rest of this chapter starts by creating an `INTERVAL` window stream.
 
 ## Prerequisites
 
@@ -36,7 +55,7 @@ SHOW DNODES;
 CREATE SNODE ON DNODE 1;
 ```
 
-For more snode deployment guidance, see [Operations and Limits](../06-stream-processing/02-instructions.md#deploy-an-snode).
+For more snode deployment guidance, see [Operations and Limits](../07-stream-processing/02-instructions.md#deploy-an-snode).
 
 ## Prepare Sample Data
 
@@ -218,12 +237,12 @@ At the quick-start stage, keep these common adjustments in mind:
 - For out-of-order writes, updates, or deletes, design streams with `WATERMARK`, recomputation, and best practices.
 - To send results to external applications, use `NOTIFY` to create a notification stream.
 
-## Next Steps
+## Further Reading
 
-This chapter covers only a minimal runnable stream example. For more syntax, options, and production guidance, continue with:
+This chapter covers only a minimal runnable stream example. For the full stream-processing capabilities, continue with:
 
-- [Stream Processing](../06-stream-processing/index.md): Overview of stream capabilities.
-- [Stream Syntax](../06-stream-processing/01-syntax.md): `CREATE STREAM`, triggers, control options, and notification syntax.
-- [Operations and Limits](../06-stream-processing/02-instructions.md): Snode, permissions, recomputation, out-of-order writes, and configuration.
-- [Deployment and Design](../06-stream-processing/03-best-practices.md): Deployment, configuration, pre-create design, and typical examples.
-- [Data Querying](./05-query-and-aggregate.md): Window queries, aggregations, and interpreting results.
+- [Stream Processing](../07-stream-processing/index.md): overview of stream processing, scenarios, trigger/compute separation, and capability extensions
+- [Stream Syntax](../07-stream-processing/01-syntax.md): `CREATE STREAM`, triggers, result output, control options, and notification syntax
+- [Operations and Limits](../07-stream-processing/02-instructions.md): snode, permissions, recomputation, out-of-order writes, and configuration
+- [Deployment and Design](../07-stream-processing/03-best-practices.md): deployment, configuration, design before creating streams, and typical examples
+- [Data Querying](./05-query-and-aggregate.md): window queries, aggregations, and interpreting results

@@ -849,6 +849,6 @@ String url = "jdbc:TAOS-WS://host:6041/db?bearerToken=xxx";
 - [SSL Configuration Guide](./02-transport-security.md) - Server certificate generation and configuration
 - [Users](../05-tdengine-sql/07-user-and-privilege/01-user.md) - Token SQL and user security options
 - [Java Connector Documentation](../10-developer-guide/08-connectors-reference/02-java.mdx) - Complete JDBC driver parameter reference
-- [TMQ Subscription Documentation](../07-data-subscription/index.md) - Detailed message subscription usage
+- [TMQ Subscription Documentation](../06-data-subscription/index.md) - Detailed message subscription usage
 - [REST API Documentation](../10-developer-guide/08-connectors-reference/10-rest-api.mdx) - REST token authentication usage
 - [Security Advisories](./07-security-advisories.md) - Vulnerabilities and fixed versions

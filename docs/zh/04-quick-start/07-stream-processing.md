@@ -11,9 +11,28 @@ toc_max_heading_level: 4
 - 报表和大屏预计算：提前生成常用统计结果，降低大范围查询带来的响应延迟。
 - 异常检测和告警前置：在数据写入后尽快计算关键指标，为后续告警或检测流程提供输入。
 
-一个流任务通常由“触发”和“计算”两部分组成：触发决定什么时候计算，计算决定使用哪些数据以及结果写到哪里。两者可以来自同一张表，也可以按业务需要分离。
+本章继续使用快速体验中 `taosBenchmark -y` 写入的 `test` 库电表数据，创建一个“每 1 分钟统计每个电表平均电流”的流任务。你将体验完整流程：确认数据、创建流、查看输出表、写入新数据并观察结果更新。下面先给出流式计算相关能力全景；完整语法与进阶说明请按下列链接深入阅读，或参见文末“继续阅读”。
 
-本章继续使用快速体验中 `taosBenchmark -y` 写入的 `test` 库电表数据，创建一个“每 1 分钟统计每个电表平均电流”的流任务。你将体验完整流程：确认数据、创建流、查看输出表、写入新数据并观察结果更新。
+## 流式计算能力一览
+
+与传统流计算相比，TDengine 采用**触发与计算分离**的策略：触发决定何时计算，计算决定使用哪些数据以及结果写到哪里；两者可以来自同一张表，也可以按业务需要分离。新的流式计算功能从 `v3.3.7.0` 开始支持。
+
+- **触发方式**  
+  支持定时（`PERIOD`）、滑动（`SLIDING`）、时间窗口（`INTERVAL`）、会话 / 状态 / 事件 / 计数窗口等多种触发；可分组触发，并可对触发数据做预过滤。详见 [建流语法](../07-stream-processing/01-syntax.md)。
+
+- **计算与结果输出**  
+  计算可为任意查询语句；结果可写入输出表（`INTO`）、发送通知（`NOTIFY`），或两者同时使用。详见 [建流语法](../07-stream-processing/01-syntax.md)。
+
+- **控制选项**  
+  通过 `STREAM_OPTIONS` 配置历史回放、乱序水位、最大延迟、低延迟计算等，在结果时效性与资源负载之间做平衡。详见 [建流语法](../07-stream-processing/01-syntax.md)。
+
+- **运维与限制**  
+  流任务运行在 snode 上；涵盖高可用、权限、手动重算，以及乱序 / 更新 / 删除等非典型写入场景说明。详见 [运维与限制](../07-stream-processing/02-instructions.md)。
+
+- **部署与设计**  
+  部署、配置、建流前设计与典型示例。详见 [部署与设计](../07-stream-processing/03-best-practices.md)。
+
+下文从创建一个 `INTERVAL` 窗口流任务开始上手。
 
 ## 前提条件
 
@@ -36,7 +55,7 @@ SHOW DNODES;
 CREATE SNODE ON DNODE 1;
 ```
 
-更多 snode 部署建议，请参见 [运维与限制](../06-stream-processing/02-instructions.md#部署-snode)。
+更多 snode 部署建议，请参见 [运维与限制](../07-stream-processing/02-instructions.md#部署-snode)。
 
 ## 准备示例数据
 
@@ -220,10 +239,10 @@ DROP STABLE IF EXISTS avg_current_stb;
 
 ## 继续阅读
 
-本章只覆盖一个最小可运行的流式计算示例。更多语法、选项和生产环境建议，请继续阅读以下文档：
+本章只覆盖一个最小可运行的流式计算示例。更完整的流式计算能力，请继续阅读以下文档：
 
-- [流式计算](../06-stream-processing/index.md)：流式计算能力概览。
-- [建流语法](../06-stream-processing/01-syntax.md)：`CREATE STREAM`、触发方式、控制选项和通知语法。
-- [运维与限制](../06-stream-processing/02-instructions.md)：snode、权限、重算、乱序写入和配置参数。
-- [部署与设计](../06-stream-processing/03-best-practices.md)：部署、配置、建流前设计和典型示例。
-- [数据查询](./05-query-and-aggregate.md)：窗口查询、聚合查询和查询结果解释。
+- [流式计算](../07-stream-processing/index.md)：流式计算概述、场景、触发与计算分离及能力扩展
+- [建流语法](../07-stream-processing/01-syntax.md)：`CREATE STREAM`、触发方式、结果输出、控制选项和通知语法
+- [运维与限制](../07-stream-processing/02-instructions.md)：snode、权限、重算、乱序写入和配置参数
+- [部署与设计](../07-stream-processing/03-best-practices.md)：部署、配置、建流前设计和典型示例
+- [数据查询](./05-query-and-aggregate.md)：窗口查询、聚合查询和查询结果解释

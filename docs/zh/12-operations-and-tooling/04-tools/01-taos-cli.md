@@ -110,7 +110,7 @@ taos> source <filename>;
 
 ## 数据订阅 {#数据订阅}
 
-`taos` shell 支持在交互模式下通过 `subscribe` 命令订阅 Topic 数据，实时接收并显示推送的消息，便于快速验证数据订阅功能。主题与消费模型的完整说明见 [数据订阅](../../07-data-subscription/index.md)。
+`taos` shell 支持在交互模式下通过 `subscribe` 命令订阅 Topic 数据，实时接收并显示推送的消息，便于快速验证数据订阅功能。主题与消费模型的完整说明见 [数据订阅](../../06-data-subscription/index.md)。
 
 ### 语法
 

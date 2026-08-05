@@ -4,7 +4,7 @@ title: 数据备份和恢复
 toc_max_heading_level: 4
 ---
 
-为了防止数据丢失、误删操作，TDengine 提供全面的数据备份、恢复、容错、异地数据实时同步等功能，以保证数据存储的安全。本节简要说明备份和恢复功能。企业版增量备份基于 [数据订阅](../../07-data-subscription/index.md)；逻辑备份工具见 [taosdump](../04-tools/03-taosdump.md)。
+为了防止数据丢失、误删操作，TDengine 提供全面的数据备份、恢复、容错、异地数据实时同步等功能，以保证数据存储的安全。本节简要说明备份和恢复功能。企业版增量备份基于 [数据订阅](../../06-data-subscription/index.md)；逻辑备份工具见 [taosdump](../04-tools/03-taosdump.md)。
 
 ## 基于 taosdump 进行数据备份恢复
 

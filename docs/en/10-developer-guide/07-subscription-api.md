@@ -5,7 +5,7 @@ title: Managing Consumers
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic concepts such as topics and consumer groups, see [Data Subscription](../07-data-subscription/index.md); for the SQL syntax used to create topics, see [Topic](../07-data-subscription/01-topic.md); for native subscription concepts, see [Native Subscription](../07-data-subscription/02-native.md).
+TDengine provides data subscription and consumption interfaces similar to those of message queue products. In many scenarios, by adopting TDengine's time-series big data platform, there is no need to integrate additional message queue products, thus simplifying application design and reducing maintenance costs. This chapter introduces the related APIs and usage methods for data subscription with various language connectors. For basic concepts such as topics and consumer groups, see [Data Subscription](../06-data-subscription/index.md); for the SQL syntax used to create topics, see [Topic](../06-data-subscription/01-topic.md); for native subscription concepts, see [Native Subscription](../06-data-subscription/02-native.md).
 
 If you only need to quickly check whether a topic can deliver data, or observe subscription results during development, testing, or troubleshooting, you can also use the `subscribe` command in TDengine CLI. This command can subscribe to a topic and print received data directly in either taos interactive mode or `-s` non-interactive mode. For details, see [TDengine CLI Data Subscription](../12-operations-and-tooling/04-tools/01-taos-cli.md#data-subscription).
 
@@ -22,7 +22,7 @@ The SQL creates a topic named `topic_meters`. Each record in the topic contains 
 **Note**
 TDengine connectors have the following subscription-query capabilities and limitations:
 
-- For topic types and the semantics of `WITH META` and `ONLY META`, see [Topic](../07-data-subscription/01-topic.md). These modes are mainly used for data migration and schema synchronization, such as with taosX. Most applications use `SELECT` topics or database/supertable time-series data topics.
+- For topic types and the semantics of `WITH META` and `ONLY META`, see [Topic](../06-data-subscription/01-topic.md). These modes are mainly used for data migration and schema synchronization, such as with taosX. Most applications use `SELECT` topics or database/supertable time-series data topics.
 - Connector capabilities are summarized below. Combinations without dedicated verification are described conservatively.
 
 | Connector | `SELECT` Topics | Database/Supertable Topics (Time-Series Data) | `WITH META` / `ONLY META` Consumption |

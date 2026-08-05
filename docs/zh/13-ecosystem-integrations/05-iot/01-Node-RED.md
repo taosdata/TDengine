@@ -12,7 +12,7 @@ toc_max_heading_level: 5
 `node-red-node-tdengine` 是官方 Node-RED 插件，包含两个节点：
 
 - **tdengine-operator**：执行 SQL，支持写入、查询与元数据管理。
-- **tdengine-consumer**：消费指定主题的数据，语义可对照 [数据订阅](../../07-data-subscription/index.md)。
+- **tdengine-consumer**：消费指定主题的数据，语义可对照 [数据订阅](../../06-data-subscription/index.md)。
 
 ## 前置条件
 

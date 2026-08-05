@@ -2011,7 +2011,7 @@ ALTER ALL DNODES 'snapshotRateLimit' '0';
 
 ### 流计算参数 {#流计算参数}
 
-流式计算的语法与运维说明见 [流式计算](../../06-stream-processing/index.md)。下列为与流式计算相关的 `taosd` 配置参数。
+流式计算的语法与运维说明见 [流式计算](../../07-stream-processing/index.md)。下列为与流式计算相关的 `taosd` 配置参数。
 
 #### numOfMnodeStreamMgmtThreads
 
