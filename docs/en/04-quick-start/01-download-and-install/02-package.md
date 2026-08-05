@@ -39,7 +39,7 @@ You can install TDengine TSDB on Linux and Windows. To install TDengine TSDB in 
 
 1. Download the Windows installation package from the list below:  
    <PkgList productName="TDengine TSDB-Enterprise" platform="Windows" excludeSbom />
-2. Run the installation package and follow the on-screen instructions to complete the installation of TDengine TSDB. The default installation directory is `C:\\TDengine`. You can select an installation root directory. If the selected path does not end in `TDengine`, the installer creates a `TDengine` directory under it. For example, selecting `D:\\apps` installs TDengine TSDB in `D:\\apps\\TDengine`; selecting `D:\\apps\\TDengine` does not create a duplicate directory. An upgrade continues to use the existing installation directory and does not allow it to be changed.
+2. Run the installation package and follow the on-screen instructions to complete the installation of TDengine TSDB.
 
 </TabItem>
 </Tabs>
@@ -71,30 +71,24 @@ If the output shows the status as `Active: active (running) since ...`, it means
 </TabItem>
 <TabItem label="Windows" value="windows">
 
-The installer adds the actual installation directory to the `PATH` environment variable. After installation, open a new Command Prompt window as administrator, change to the actual installation directory, and use `start-all.bat` to manage all services. With no arguments it starts services by default; it also supports the `status` and `stop` subcommands.
+After installation, open a Command Prompt window as administrator. `start-all.bat` is the unified entry script. With no arguments it starts services by default; it also supports the `status` and `stop` subcommands.
 
 Start all services:
 
 ```cmd
-start-all.bat
-```
-
-To start services only and skip connectivity checks and Snode/Xnode initialization, use the `-S` option:
-
-```cmd
-start-all.bat -S
+C:\TDengine\start-all.bat
 ```
 
 Check service status:
 
 ```cmd
-start-all.bat status
+C:\TDengine\start-all.bat status
 ```
 
 Stop all services:
 
 ```cmd
-start-all.bat stop
+C:\TDengine\start-all.bat stop
 ```
 
 To inspect the raw status of each Windows service, run:

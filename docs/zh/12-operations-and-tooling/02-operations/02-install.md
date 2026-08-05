@@ -116,7 +116,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 
 1. 从列表中下载获得最新 Windows 安装程序：
     <PkgList productName="TDengine TSDB-OSS Client" platform="Windows"/>
-2. 运行安装程序，根据提示完成 TDengine 的安装。默认安装目录为 `C:\\TDengine`。你可以选择安装根目录；如果所选路径未以 `TDengine` 结尾，安装程序会自动在其下创建 `TDengine` 目录。例如，选择 `D:\\apps` 后，实际安装目录为 `D:\\apps\\TDengine`；直接选择 `D:\\apps\\TDengine` 时，不会重复创建目录。升级安装会继续使用已有安装目录，不能更改该目录。
+2. 运行可执行程序来安装 TDengine。
 
 :::note
 
@@ -179,15 +179,7 @@ systemctl status taosd
 </TabItem>
 <TabItem label="Windows 系统" value="windows">
 
-如果安装的是 Windows 服务端安装包，安装程序会将实际安装目录添加到 `PATH` 环境变量。安装完成后，以管理员身份重新打开 cmd 窗口，进入实际安装目录，然后执行以下命令来启动、查看或停止所有服务：
-
-```cmd
-start-all.bat
-start-all.bat status
-start-all.bat stop
-```
-
-如果只需启动服务，并跳过连通性检查以及 Snode 和 Xnode 初始化，可以执行 `start-all.bat -S`。
+安装后，可以在拥有管理员权限的 cmd 窗口执行 `sc start taosd` 或在 `C:\TDengine` 目录下，运行 `taosd.exe` 来启动 TDengine 服务进程。如需使用 http/REST 服务，请执行 `sc start taosadapter` 或运行 `taosadapter.exe` 来启动 taosAdapter 服务进程。
 
 </TabItem>
 <TabItem label="macOS 系统" value="macos">

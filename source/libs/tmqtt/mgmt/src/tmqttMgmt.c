@@ -61,14 +61,11 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
   uv_process_options_t options = {0};
 
   char path[PATH_MAX] = {0};
-#ifdef WINDOWS
-  if (taosAppPath(path, PATH_MAX) != 0) {
-    path[0] = '\0';
-  }
-#else
   if (tsProcPath == NULL) {
     path[0] = '.';
-#if defined(_TD_DARWIN_64)
+#ifdef WINDOWS
+    GetModuleFileName(NULL, path, PATH_MAX);
+#elif defined(_TD_DARWIN_64)
     uint32_t pathSize = sizeof(path);
     _NSGetExecutablePath(path, &pathSize);
 #endif
@@ -77,7 +74,6 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
   }
 
   TAOS_DIRNAME(path);
-#endif
 
   if (strlen(path) == 0) {
     TAOS_STRCAT(path, TAOSMQTT_DEFAULT_PATH);

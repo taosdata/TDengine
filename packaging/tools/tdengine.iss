@@ -37,8 +37,7 @@ OutputBaseFilename={#MyAppInstallName}
 SetupIconFile={#MyAppIco}
 Compression=lzma
 SolidCompression=yes
-DisableDirPage=no
-UsePreviousAppDir=yes
+DisableDirPage=yes
 Uninstallable=yes
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
@@ -66,7 +65,7 @@ Source: {#MyAppSourceDir}\taos_odbc\*; DestDir: "{app}\taos_odbc"; Flags: igNore
 Source: {#MyAppSourceDir}\*.dll; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
 ;Source: {#MyAppSourceDir}{#MyAppConnectorName}; DestDir: "{app}\connector"; Flags: igNoreversion recursesubdirs createallsubdirs
 ;Source: {#MyAppSourceDir}{#MyAppExamplesName}; DestDir: "{app}\examples"; Flags: igNoreversion recursesubdirs createallsubdirs
-Source: {#MyAppSourceDir}{#MyAppIncludeName}; DestDir: "{app}\include"; Excludes: "taos.bat"; Flags: igNoreversion recursesubdirs createallsubdirs
+Source: {#MyAppSourceDir}{#MyAppIncludeName}; DestDir: "{app}\include"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppExeName}; DestDir: "{app}"; Excludes: {#MyAppExcludeSource} ; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}{#MyAppTaosdemoExeName}; DestDir: "{app}"; Flags: igNoreversion recursesubdirs createallsubdirs
 Source: {#MyAppSourceDir}\taos.exe; DestDir: "{app}"; DestName: "{#CusPrompt}.exe"; Flags: igNoreversion recursesubdirs createallsubdirs
@@ -75,13 +74,22 @@ Source: {#MyAppSourceDir}\taosdump.exe; DestDir: "{app}"; DestName: "{#CusPrompt
 
 
 [run]
+Filename: {sys}\sc.exe; Parameters: "create taosd start= DEMAND binPath= ""C:\\TDengine\\taosd.exe --win_service""" ; Flags: runhidden
+Filename: {sys}\sc.exe; Parameters: "create taosadapter start= DEMAND binPath= ""C:\\TDengine\\taosadapter.exe""" ; Flags: runhidden
+
 Filename: "C:\Windows\System32\odbcconf.exe"; Parameters: "/S /F win_odbc_install.ini"; WorkingDir: "{app}\taos_odbc\x64"; Flags: runhidden; StatusMsg: "Configuring ODBC x64"
 Filename: "C:\Windows\SysWOW64\odbcconf.exe"; Parameters: "/S /F win_odbc_install.ini"; WorkingDir: "{app}\taos_odbc\x86"; Flags: runhidden; StatusMsg: "Configuring ODBC x86"
 
+[UninstallRun]
+RunOnceId: "stoptaosd"; Filename: {sys}\sc.exe; Parameters: "stop taosd" ; Flags: runhidden
+RunOnceId: "stoptaosadapter"; Filename: {sys}\sc.exe; Parameters: "stop taosadapter" ; Flags: runhidden
+RunOnceId: "deltaosd"; Filename: {sys}\sc.exe; Parameters: "delete taosd" ; Flags: runhidden
+RunOnceId: "deltaosadapter"; Filename: {sys}\sc.exe; Parameters: "delete taosadapter" ; Flags: runhidden
+
 [Registry]
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; \
-    ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; \
-    Check: NeedsAddPath(ExpandConstant('{app}'))
+    ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{#MyAppInstallDir}"; \
+    Check: NeedsAddPath('{#MyAppInstallDir}')
 
 [Code]
 #ifexist "..\..\..\taos-internal\packaging\vc_redist_code.issinc"
@@ -108,98 +116,6 @@ begin
   { look for the path with leading and trailing semicolon }
   { Pos() returns 0 if not found }
   Result := Pos(';' + Param + ';', ';' + OrigPath + ';') = 0;
-end;
-
-function RemovePath(Param: string): Boolean;
-var
-  OrigPath: string;
-  NewPath: string;
-begin
-  Result := True;
-  if not RegQueryStringValue(HKEY_LOCAL_MACHINE,
-    'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
-    'Path', OrigPath)
-  then begin
-    exit;
-  end;
-
-  NewPath := ';' + OrigPath + ';';
-  while StringChangeEx(NewPath, ';' + Param + ';', ';', True) > 0 do
-  begin
-  end;
-  while StringChangeEx(NewPath, ';;', ';', True) > 0 do
-  begin
-  end;
-  if (Length(NewPath) > 0) and (Copy(NewPath, 1, 1) = ';') then
-    Delete(NewPath, 1, 1);
-  if (Length(NewPath) > 0) and (Copy(NewPath, Length(NewPath), 1) = ';') then
-    Delete(NewPath, Length(NewPath), 1);
-
-  if NewPath <> OrigPath then
-    Result := RegWriteExpandStringValue(HKEY_LOCAL_MACHINE,
-      'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
-      'Path', NewPath);
-end;
-
-var
-  ExistingInstallDir: String;
-
-function GetExistingInstallDir: String;
-var
-  AppPath: String;
-begin
-  Result := '';
-  if RegQueryStringValue(HKEY_LOCAL_MACHINE, 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{A0F7A93C-79C4-485D-B2B8-F0D03DF42FAB}_is1', 'Inno Setup: App Path', AppPath) and DirExists(AppPath) then
-    Result := RemoveBackslashUnlessRoot(AppPath);
-end;
-
-function NormalizeInstallDir(InstallDir: string): string;
-begin
-  InstallDir := RemoveBackslashUnlessRoot(InstallDir);
-  if CompareText(ExtractFileName(InstallDir), 'TDengine') = 0 then
-    Result := InstallDir
-  else
-    Result := AddBackslash(InstallDir) + 'TDengine';
-end;
-
-procedure NormalizeInstallDirectory;
-begin
-  if WizardForm.DirEdit.Text <> '' then
-    WizardForm.DirEdit.Text := NormalizeInstallDir(WizardForm.DirEdit.Text);
-end;
-
-function NextButtonClick(CurPageID: Integer): Boolean;
-begin
-  if CurPageID = wpSelectDir then
-    NormalizeInstallDirectory;
-  Result := True;
-end;
-
-function PrepareToInstall(var NeedsRestart: Boolean): String;
-begin
-  NormalizeInstallDirectory;
-  if (ExistingInstallDir <> '') and (CompareText(WizardDirValue(), ExistingInstallDir) <> 0) then
-  begin
-    Result := 'An existing TDengine installation was found at ' + ExistingInstallDir + '.' + #13#10 + #13#10 + 'To prevent PATH and configuration conflicts, this upgrade must use the existing installation directory.';
-    exit;
-  end;
-  if ExistingInstallDir <> '' then WizardForm.DirEdit.Text := ExistingInstallDir;
-  Result := '';
-end;
-
-procedure InitializeWizard;
-begin
-  ExistingInstallDir := GetExistingInstallDir();
-end;
-
-procedure CurPageChanged(CurPageID: Integer);
-begin
-  if (CurPageID = wpSelectDir) and (ExistingInstallDir <> '') then
-  begin
-    WizardForm.DirEdit.Text := ExistingInstallDir;
-    WizardForm.DirEdit.Enabled := False;
-    WizardForm.DirBrowseButton.Enabled := False;
-  end;
 end;
 
 function DeleteOdbcDsnRegistry: Boolean;
@@ -231,7 +147,6 @@ procedure DeinitializeUninstall();
 begin
 	DeleteOdbcDsnRegistry();
 	DeleteOdbcDriverRegistry();
-  RemovePath(ExpandConstant('{app}'));
 end;
 
 [UninstallDelete]
@@ -252,5 +167,4 @@ Name:"{commondesktop}\Taos Shell"; Filename: "{app}\include\{#MyAppTaosExeName}"
 
 
 [Messages]
-SelectDirLabel3=If the selected path does not end with TDengine, Setup creates a TDengine subdirectory there.
 ConfirmUninstall=Do you really want to uninstall {#CusName} from your computer?%n%nPress [Y] to completely delete %1 and all its components;%nPress [N] to keep the software on your computer.

@@ -92,7 +92,7 @@ This installation method supports Debian and Ubuntu only.
 
 1. Download the Windows client installer:
    <PkgList productName="TDengine TSDB-OSS Client" platform="Windows"/>
-2. Run the installer and follow the on-screen instructions. The default installation directory is `C:\\TDengine`. You can select an installation root directory. If the selected path does not end in `TDengine`, the installer creates a `TDengine` directory under it. For example, selecting `D:\\apps` installs TDengine in `D:\\apps\\TDengine`; selecting `D:\\apps\\TDengine` does not create a duplicate directory. An upgrade continues to use the existing installation directory and does not allow it to be changed.
+2. Run the installer.
 
 Starting with TDengine v3.1.0.0, only the Windows client package is available for the Community Edition. The installer requires Microsoft Visual C++ Redistributable 2015-2022 x64 14.44 or later and can install its bundled runtime when necessary.
 
@@ -125,15 +125,7 @@ You can also run `start-all.sh`. Use `systemctl stop`, `restart`, or `status` to
 </TabItem>
 <TabItem label="Windows" value="windows">
 
-If you installed the Windows server package, the installer adds the actual installation directory to the `PATH` environment variable. After installation, open a new Command Prompt window as administrator, change to the actual installation directory, and run the following commands to start, inspect, or stop all services:
-
-```cmd
-start-all.bat
-start-all.bat status
-start-all.bat stop
-```
-
-To start services only and skip connectivity checks and Snode/Xnode initialization, run `start-all.bat -S`.
+In an administrator Command Prompt, run `sc start taosd`. To provide HTTP/REST services, also run `sc start taosadapter`.
 
 </TabItem>
 <TabItem label="macOS" value="macos">
