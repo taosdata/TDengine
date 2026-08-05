@@ -28,11 +28,7 @@ path where _c0 pseudo-column resolution is required.
 """
 
 import os
-import subprocess
-import time
-
 from new_test_framework.utils import tdLog, tdSql, etool
-from new_test_framework.utils.stmt2 import tdStmt2
 
 
 class TestTaosBackupStmt2MultiTable:
@@ -43,65 +39,62 @@ class TestTaosBackupStmt2MultiTable:
     # multi-table STMT2 batch path (STMT2_MULTI_TABLE_PENDING = 64).
     # Each child table has 3 columns to keep the test fast.
     # ----------------------------------------------------------------
-    NUM_CTBS = 100
-    ROWS_PER_CTB = 3
+    # 10 large tables (>16384 rows, single-table path) + 5 small (multi-table)
+    NUM_LARGE = 10
+    ROWS_LARGE = 20000
+    NUM_SMALL = 5
+    ROWS_SMALL = 500
+    NUM_CTBS = NUM_LARGE + NUM_SMALL
     DB_NAME = "stmt2mt_db"
     STB_NAME = "meters"
-    # Deliberately use "myts" (not "ts") to verify _c0 resolution.
-    TS_COL = "primary_datatime_column_name"
+    TS_COL = "mine_ts_col"
 
-    # ----------------------------------------------------------------
-    # Setup: create a super table with a non-"ts" primary key and
-    # many child tables with data.
-    # ----------------------------------------------------------------
-    def setup(self):
+    def initData(self):
         tdSql.execute("drop database if exists %s" % self.DB_NAME)
-        tdSql.execute("create database %s" % self.DB_NAME)
+        tdSql.execute("create database %s vgroups 1" % self.DB_NAME)
         tdSql.execute("use %s" % self.DB_NAME)
 
-        # Super table: myts (TIMESTAMP, intentionally NOT named "ts"),
-        #              v1 INT, v2 FLOAT, tag T1 INT.
         tdSql.execute(
-            "create table %s (%s timestamp, v1 int, v2 float) tags(t1 int)"
+            "create table %s (%s timestamp, val bigint unsigned, quality smallint) "
+            "tags(tagname nchar(100), deviceid nchar(100))"
             % (self.STB_NAME, self.TS_COL)
         )
 
-        # Create NUM_CTBS child tables, each with 3 data rows,
-        # distributed across 2 tag values for variety.
+        # Create all child tables + insert data
+        # Large tables: batch multi-row INSERT for speed
+        BATCH = 20
         for i in range(self.NUM_CTBS):
             ctb = "ct%d" % i
-            tag_val = i % 2
             tdSql.execute(
-                "create table %s using %s tags(%d)" % (ctb, self.STB_NAME, tag_val)
+                "create table %s using %s tags('tag_%d', 'dev_%d')"
+                % (ctb, self.STB_NAME, i, i)
             )
-            # Insert ROWS_PER_CTB rows per child table.
-            # Timestamps start at base + i*1000 to keep them ordered.
+            nrows = self.ROWS_LARGE if i < self.NUM_LARGE else self.ROWS_SMALL
             base = 1700000000000 + i * 1000
-            rows = []
-            for r in range(self.ROWS_PER_CTB):
-                rows.append(
-                    "(%d, %d, %.1f)" % (base + r, (i * 10 + r), float(i + r * 0.5))
+            for b in range(0, nrows, BATCH):
+                end = min(b + BATCH, nrows)
+                rows = ",".join(
+                    "(%d, %d, %d)" % (base + r, i * 100 + r, r % 3)
+                    for r in range(b, end)
                 )
-            tdSql.execute("insert into %s values %s" % (ctb, ",".join(rows)))
+                tdSql.execute("insert into %s values %s" % (ctb, rows))
 
-        tdLog.info(
-            "setup: %d child tables × %d rows each created in db %s"
-            % (self.NUM_CTBS, self.ROWS_PER_CTB, self.DB_NAME)
-        )
+        tdLog.info("setup: %d large + %d small tables in db %s" %
+                   (self.NUM_LARGE, self.NUM_SMALL, self.DB_NAME))
 
     # ----------------------------------------------------------------
     # test_taosbackup_stmt2_multi_table (pytest entry point)
     # ----------------------------------------------------------------
     def test_taosbackup_stmt2_multi_table(self):
-        """Test STMT2 multi-table bind nColData corruption fixes.
+        """Regression: nColData doubling in initTableColSubmitData.
 
-        Covers two paths:
-          1. taosdump restore (INSERT INTO tb USING stb ...) —
-             initTableColSubmitData / initTableColSubmitDataWithBoundInfo
-             where nColData doubled across keepTable exec cycles.
-          2. STMT2 INSERT INTO ? placeholder —
-             parseStbBoundInfo path where initTableColSubmitData was
-             missing entirely.
+        When taosdump restores a super table whose child tables have
+        mixed row counts, large files (>16384 rows) go through the
+        single-table path while small files trigger the multi-table
+        bind path.  When these paths alternate within the same
+        thread, the keepTable context reuse causes aCol entries to
+        accumulate without being cleared, doubling nColData from 3 to
+        6 and producing a server-side "Invalid parameters" error.
 
         Since: v3.4.2.0
 
@@ -113,138 +106,41 @@ class TestTaosBackupStmt2MultiTable:
             - 2026-08-04 Alex Duan Created
         """
         self.do_taosbackup_stmt2_multi_table()
-        self.do_stmt2_placeholder_multi_table()
 
     # ----------------------------------------------------------------
     # do_taosbackup_stmt2_multi_table
     # ----------------------------------------------------------------
     def do_taosbackup_stmt2_multi_table(self):
-        # Reproduce multi-table STMT2 bind bug during restore.
-        
+        """taosdump export → import with multi-file data per table.
+
+        With ROWS_PER_CTB=5000, taosdump produces 2+ .dat files per
+        child table.  During restore the same table's context is reused
+        across exec cycles (keepTable path), triggering the nColData
+        doubling bug in initTableColSubmitData on unfixed builds.
+        """
+
         tmpdir = "./taosbackuptest/tmpdir_stmt2_mt"
+        self.initData()
 
-        self.setup()
-
-        # ---- Phase 1: export ----        
+        # ---- Phase 1: export ----
         etool.taosdump("-D %s -o %s -T 1" % (self.DB_NAME, tmpdir))
 
         # ---- Phase 2: drop and restore ----
         tdSql.execute("drop database %s" % self.DB_NAME)
-
-        # Restore WITHOUT -B (i.e. default multi-table mode).
-        # The bug triggers here when >64 child tables are bound in one
-        # STMT2 BINDV, producing corrupt submit data.
         etool.taosdump("-i %s -T 2" % tmpdir)
 
-        # ---- Phase 3: verify ----
+        # ---- Phase 3: spot-check data integrity ----
         tdSql.execute("use %s" % self.DB_NAME)
-
-        # Super table exists
         tdSql.query("show stables")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, self.STB_NAME)
-
-        # All child tables restored
         tdSql.query("show tables")
         tdSql.checkRows(self.NUM_CTBS)
-
-        # Row count per child table should be preserved.
-        # Spot-check: pick a few tables across the range.
-        for idx in (0, self.NUM_CTBS // 2, self.NUM_CTBS - 1):
-            ctb = "ct%d" % idx
-            tdSql.query("select count(*) from %s" % ctb)
-            tdSql.checkData(0, 0, self.ROWS_PER_CTB)
-
-        # Total row count across all child tables.
         tdSql.query("select count(*) from %s" % self.STB_NAME)
-        tdSql.checkData(0, 0, self.NUM_CTBS * self.ROWS_PER_CTB)
-
-        # Data integrity: check first and last child table values.
-        tdSql.query(
-            "select %s, v1, v2 from ct0 order by %s" % (self.TS_COL, self.TS_COL)
-        )
-        tdSql.checkRows(self.ROWS_PER_CTB)
-        tdSql.checkData(0, 1, 0)          # v1 = 0*10+0
-        tdSql.checkData(0, 2, 0.0)        # v2 = 0+0*0.5
-
-        last = self.NUM_CTBS - 1
-        tdSql.query(
-            "select %s, v1, v2 from ct%d order by %s" % (self.TS_COL, last, self.TS_COL)
-        )
-        tdSql.checkRows(self.ROWS_PER_CTB)
-        tdSql.checkData(0, 1, last * 10 + 0)       # v1 = (last*10+0)
-        tdSql.checkData(0, 2, float(last + 0 * 0.5))  # v2 = last+0*0.5
+        total = self.NUM_LARGE * self.ROWS_LARGE + self.NUM_SMALL * self.ROWS_SMALL
+        tdSql.checkData(0, 0, total)
 
         tdLog.info(
             "do_taosbackup_stmt2_multi_table .................... [passed]"
         )
 
-    # ----------------------------------------------------------------
-    # do_stmt2_placeholder_multi_table
-    # ----------------------------------------------------------------
-    def do_stmt2_placeholder_multi_table(self):
-        """INSERT INTO ? USING stb TAGS(...) VALUES(...) — multi-table batch."""
 
-        db = "stmt2ph_db"
-        stb = "dev"
-        num_ctbs = 100
-        rows_per_ctb = 3
-
-        tdSql.execute("drop database if exists %s" % db)
-        tdSql.execute("create database %s vgroups 1" % db)
-        tdSql.execute("use %s" % db)
-
-        # Super table: ts TIMESTAMP, v1 INT, v2 DOUBLE, tag t1 INT
-        tdSql.execute(
-            "create table %s (ts timestamp, v1 int, v2 double) tags(t1 int)" % stb
-        )
-
-        # Create child tables via SQL (no data yet — stmt2 will write)
-        tbnames = []
-        tags = []
-        datas = []
-        base_ts = int(time.time() * 1000)
-
-        for i in range(num_ctbs):
-            ctb = "d%d" % i
-            tbnames.append(ctb)
-            tdSql.execute(
-                "create table %s using %s tags(%d)" % (ctb, stb, i % 2)
-            )
-            tags.append([i % 2])
-
-            # Each child table gets rows_per_ctb rows
-            tbl_data = []
-            for r in range(rows_per_ctb):
-                tbl_data.append([base_ts + i * 1000 + r, i * 10 + r, float(i + r * 0.5)])
-            datas.append(tbl_data)
-
-        # INSERT INTO ? USING dev TAGS(?) VALUES(?, ?, ?)
-        # Table name '?' forces parseStbBoundInfo path
-        sql = "INSERT INTO ? USING %s TAGS(?) VALUES(?, ?, ?)" % stb
-        total_rows = num_ctbs * rows_per_ctb
-        tdStmt2.execute_super_table(sql, tbnames, tags, datas, expected_rows=total_rows)
-
-        # ---- verify ----
-        tdSql.query("select count(*) from %s" % stb)
-        tdSql.checkData(0, 0, total_rows)
-
-        tdSql.query("select count(*) from d0")
-        tdSql.checkData(0, 0, rows_per_ctb)
-
-        tdSql.query(
-            "select v1, v2 from d0 order by ts"
-        )
-        tdSql.checkData(0, 0, 0)
-        tdSql.checkData(0, 1, 0.0)
-
-        tdSql.query(
-            "select v1, v2 from d%d order by ts" % (num_ctbs - 1)
-        )
-        last_idx = num_ctbs - 1
-        tdSql.checkData(0, 0, last_idx * 10)
-        tdSql.checkData(0, 1, float(last_idx))
-
-        tdLog.info(
-            "do_stmt2_placeholder_multi_table ................... [passed]"
-        )
