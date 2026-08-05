@@ -46,7 +46,7 @@ class TestBalanceLeader:
         tdSql.execute(f"create database d1 replica 3 vgroups 3")
         clusterComCheck.checkDbReady("d1")
 
-        tdSql.execute(f"balance vgroup leader force")
+        tdSql.execute(f"balance vgroup leader")
 
         clusterComCheck.checkTransactions()
         tdSql.query(f"show transactions")
