@@ -1597,8 +1597,10 @@ static void stmtDestroyTableColArray(SArray* pCols) {
 }
 
 static void stmtFreeTbCols(void* buf) {
-  SArray* pCols = *(SArray**)buf;
+  SArray** p = (SArray**)buf;
+  SArray*  pCols = *p;
   stmtDestroyTableColArray(pCols);
+  *p = NULL;
 }
 
 static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
@@ -2461,6 +2463,7 @@ static int32_t stmtInitStbInterlaceTableInfo(STscStmt2* pStmt) {
     }
 
     if (taosArrayPush(pStmt->sql.siInfo.pTableCols, &pTblCols) == NULL) {
+      taosArrayDestroy(pTblCols);
       return terrno;
     }
   }
@@ -2894,6 +2897,7 @@ static FORCE_INLINE int32_t stmtGetTableColsFromCache(STscStmt2* pStmt, SArray**
         }
 
         if (taosArrayPush(pStmt->sql.siInfo.pTableCols, &pTblCols) == NULL) {
+          taosArrayDestroy(pTblCols);
           return terrno;
         }
       }
