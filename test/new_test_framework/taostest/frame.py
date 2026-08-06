@@ -152,7 +152,7 @@ class TaosTestFrame:
             if ret == 0:
                 ret = os.system(f"sed -i \"s:^queryPolicy.*:queryPolicy {query_policy}:\" {taosc_config_file}")
             else:
-                ret = os.system(f"sed -i \"\$a queryPolicy {query_policy}\" {taosc_config_file}")
+                ret = os.system(f"sed -i \"\\$a queryPolicy {query_policy}\" {taosc_config_file}")
             if ret != 0:
                 self._logger.error("set query policy failed")
                 return False

@@ -242,7 +242,7 @@ static void* restoreDataThread(void *arg) {
 
         atomic_add_fetch_64(&g_stats.dataFilesTotal, 1);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("restore data file failed(%d): %s", code, filePath);
+            logError("restore data file failed(0x%08X): %s", code, filePath);
             atomic_add_fetch_64(&g_stats.dataFilesFailed, 1);
             if (thread->code == TSDB_CODE_SUCCESS) {
                 thread->code = code;  // capture first error
@@ -819,7 +819,7 @@ int restoreDatabaseData(const char *dbName) {
     }
 
     if (code != TSDB_CODE_SUCCESS) {
-        logError("restore normal table data failed(%d): %s", code, dbName);
+        logError("restore normal table data failed(0x%08X): %s", code, dbName);
         stbChangeMapDestroy(&changeMap);
         freeRestoreCheckpoint();
         return code;

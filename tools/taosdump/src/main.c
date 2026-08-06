@@ -162,7 +162,7 @@ static void printEndSummary(enum ActionType action, int code, double elapsed, in
     } else if (code == TSDB_CODE_BCK_USER_CANCEL) {
         logTee("  Result       : CANCELLED BY USER (code: 0x%08X)\n", code);
     } else {
-        logTee("  Result       : FAILED (code: 0x%08X)\n", code);
+        logTee("  Result       : FAILED (code: 0x%08X, %s)\n", code, tstrerror(code));
     }
     logTee("---------------------------------------------------------------------------\n");
     logTee("  Databases    : total=%" PRId64 ", success=%" PRId64 ", failed=%" PRId64 "\n",

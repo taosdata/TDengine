@@ -832,7 +832,7 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
         code = readTaosFileBlocks(f, dataBlockCallbackV2, &cbd);
         closeTaosFileRead(f);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("read blocks failed(%d): %s", code, filePath);
+            logError("read blocks failed(0x%08X): %s", code, filePath);
             goto done;
         }
 
@@ -851,7 +851,7 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
             ctx->totalPendingRows >= batchCap) {
             code = stmt2FlushMultiTableSlots(ctx);
             if (code != TSDB_CODE_SUCCESS)
-                logError("stmt2 multi-table flush failed (%s): %d", ctx->dbName, code);
+                logError("stmt2 multi-table flush failed (%s): 0x%08X", ctx->dbName, code);
             else
                 ctx->lastCallFlushed = true;  // signal restoreDataThread to drain pending checkpoints
         }
@@ -860,6 +860,23 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
                  ctx->dbName, tbName, ctx->totalRows, ctx->numPending);
     } else {
         /* ---- SINGLE-TABLE PATH (WebSocket / NTB / large file) ---- */
+
+        /* Any tables already sealed into pending multi-table slots must be
+         * flushed on the CURRENT multi-table handle before we switch away —
+         * otherwise closing ctx->stmt2 below discards their binding and the
+         * next flush (on the new single-table handle, or the final flush at
+         * thread exit) would silently rebind their data under whatever table
+         * name that handle was last prepared with, losing the pending tables'
+         * rows entirely. */
+        if (ctx->numPending > 0) {
+            code = stmt2FlushMultiTableSlots(ctx);
+            if (code != TSDB_CODE_SUCCESS) {
+                logError("stmt2 multi-table flush failed (%s) before switching to single-table path: 0x%08X",
+                         ctx->dbName, code);
+                closeTaosFileRead(f);
+                goto done;
+            }
+        }
 
         /* In native multi-table mode (multiTable=true) the current stmt2 handle
          * may be a multi-table one (singleTableBindOnce=false).  Close it so
@@ -880,7 +897,7 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
         code = readTaosFileBlocks(f, dataBlockCallbackV2, &cbd);
         closeTaosFileRead(f);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("read blocks failed(%d): %s", code, filePath);
+            logError("read blocks failed(0x%08X): %s", code, filePath);
             goto done;
         }
 
