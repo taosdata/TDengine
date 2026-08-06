@@ -5,14 +5,14 @@ sidebar_label: "Dataset Filter Configuration"
 
 This page describes how to use **Dataset Filter** in PI data ingestion tasks, including the applicable scenarios, wildcard syntax, and common examples for the three filter units: `point`, `element`, and `template`.
 
-## 1. What Is Dataset Filter
+## What Is Dataset Filter
 
 When creating a PI or PI backfill task in Explorer, you can fill in the **Dataset Filter** in the **Data Model Configuration** area to filter PI Points or AF Elements before generating the model configuration file.
 
 - To sync all points or all template elements, use the default configuration.
 - To sync only points, elements, or templates whose names match specific patterns, fill in the Dataset Filter before clicking **Download Default Configuration**.
 
-## 2. Relationship Among System Configuration, Data Model, and Dataset Filter
+## Relationship Among System Configuration, Data Model, and Dataset Filter
 
 The available Dataset Filter options depend on the **System Configuration** (connection mode) and **Data Model**.
 
@@ -28,7 +28,7 @@ Key points:
 - **Multi-column model** relies on the AF asset framework, so it is only available in AF Server mode.
 - **Single-column model in AF Server mode** uses `element` or `template` filtering; each Point is still stored as a separate subtable. This mode does not support `point` filtering because the single-column AF mode requires the Element → Attribute context to obtain metadata such as UOM and Element ownership.
 
-## 3. Wildcard Syntax
+## Wildcard Syntax
 
 All three Dataset Filter units support the following wildcards:
 
@@ -37,16 +37,16 @@ All three Dataset Filter units support the following wildcards:
 | `*` | Matches 0 or more characters |
 | `?` | Matches exactly 1 character |
 
-## 4. Point Filter
+## Point Filter
 
 Applicable when **System Configuration = PI Data Archive Only**, filtering by PI Point name.
 
-### 4.1 Syntax
+### Syntax
 
 - Only name patterns are supported; path syntax is not supported.
 - The expression is passed to the PI backend as-is; no `*` is appended automatically.
 
-### 4.2 Examples
+### Examples
 
 | Input | Meaning |
 | --- | --- |
@@ -54,11 +54,11 @@ Applicable when **System Configuration = PI Data Archive Only**, filtering by PI
 | `CDT15*` | Matches Points starting with `CDT15` |
 | `sinu?` | Matches Points with `sinu` followed by any single character, e.g., `sinus` |
 
-## 5. Element Filter
+## Element Filter
 
 Applicable when **System Configuration = PI Data Archive + AF Server**, filtering by AF Element name or path. It is the only filter type that **supports path matching**.
 
-### 5.1 Path Matching Rules
+### Path Matching Rules
 
 - Paths are written relative to the AF database root; **do not include the AF Database name**.
 - Leading `\` is optional.
@@ -69,7 +69,7 @@ Applicable when **System Configuration = PI Data Archive + AF Server**, filterin
     - The right part is used as the `Name:` pattern (empty means `*`).
     - Only leaf Elements (elements without child elements) are returned.
 
-### 5.2 Examples
+### Examples
 
 | Input | Meaning |
 | --- | --- |
@@ -80,24 +80,24 @@ Applicable when **System Configuration = PI Data Archive + AF Server**, filterin
 | `\California\Meter_*` | Matches leaf Elements under the `California` subtree whose names start with `Meter_` |
 | `\California\San Diego\Meter_10000?` | Matches leaf Elements under the specified path whose names start with `Meter_10000` and end with a single character |
 
-### 5.3 Notes
+### Notes
 
 1. **When selecting a path, the path must end with `\`**. For example, `\California\San Diego` is parsed as looking for a leaf Element named `San Diego` under `California`; since `San Diego` is usually a grouping node, the result may be empty. The correct form is `\California\San Diego\`.
 2. **Each segment in the path must be an exact, real node name**; path segments themselves do not support `*` or `?` wildcards.
 3. **Do not include the AF Database name in the path**. Paths are relative to the database root; including the database name will cause an error.
 4. **Path mode returns only leaf Elements**. PI Points attached to non-leaf grouping nodes are not collected.
 
-## 6. Template Filter
+## Template Filter
 
 Applicable when **System Configuration = PI Data Archive + AF Server**, filtering by AF Element Template name.
 
-### 6.1 Syntax
+### Syntax
 
 - Only template name patterns are supported; path syntax is not supported.
 - The expression is passed to the PI backend as-is; no `*` is appended automatically.
 - After a template is matched, taosX automatically collects all Elements that use that template.
 
-### 6.2 Examples
+### Examples
 
 | Input | Meaning |
 | --- | --- |
@@ -105,14 +105,14 @@ Applicable when **System Configuration = PI Data Archive + AF Server**, filterin
 | `Meter*` | Matches templates starting with `Meter` |
 | `Meter?` | Matches templates with `Meter` followed by a single character |
 
-## 7. Relationship Between Dataset Filter and CSV Configuration File
+## Relationship Between Dataset Filter and CSV Configuration File
 
 Dataset Filter only affects the range of points or elements generated when you click **Download Default Configuration**. After downloading, the CSV model configuration file contains:
 
 - **Multi-column model**: the `Filter` row stores the Dataset Filter value.
 - **Single-column model**: specific PI Points are listed in the point mapping section; you can manually delete unwanted Point rows for further trimming.
 
-## 8. Common Misconceptions
+## Common Misconceptions
 
 | Misconception | Clarification |
 | --- | --- |

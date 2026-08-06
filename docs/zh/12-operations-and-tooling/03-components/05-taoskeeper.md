@@ -290,7 +290,7 @@ Query OK, 1 row(s) in set (0.003168s)
 
 ### 使用 TDinsight 配置监控
 
-收集到监控数据以后，就可以使用 TDinsight 来配置 TDengine 的监控，具体请参考 [TDinsight 参考手册](./08-tdinsight/index.mdx)。
+收集到监控数据以后，就可以使用 TDinsight 来配置 TDengine 的监控，具体请参考 [TDinsight 参考手册](./08-tdinsight/index.md)。
 
 ## 集成 Prometheus
 

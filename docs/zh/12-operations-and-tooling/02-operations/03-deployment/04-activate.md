@@ -10,7 +10,7 @@ import TabItem from "@theme/TabItem";
 
 本文说明如何通过激活码激活 TDengine TSDB 企业版授权。
 
-也可通过 License Center（License Server）完成授权与配额管理，详见 [License Center 参考手册](../../03-components/09-license-center/index.mdx)。
+也可通过 License Center（ELS + CLS）完成多实例配额与授权管理。单集群激活码流程见下文；若需统一管理多个 TSDB / IDMP 实例的额度与槽位，请参阅 [License Center 参考手册](../../03-components/09-license-center/index.md) 与 [配额与槽位](../../03-components/09-license-center/02-quota-and-slots.md)。
 
 ## 前提条件
 
