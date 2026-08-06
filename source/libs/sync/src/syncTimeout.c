@@ -139,6 +139,23 @@ int32_t syncNodeOnTimeout(SSyncNode* ths, const SRpcMsg* pRpc) {
              ths->heartbeatTimerCounter, ths->heartbeatTimerLogicClockUser);
     }
 
+  } else if (pMsg->timeoutType == SYNC_TIMEOUT_RESTORE_ELECT) {
+    // Fallback: restore electBaseLine to its original value. Runs single-threaded
+    // here (not in the timer callback), so touching ths state is safe.
+    if (atomic_load_64(&ths->restoreElectTimerLogicClock) <= pMsg->logicClock) {
+      if (ths->state != TAOS_SYNC_STATE_LEADER) {
+        sInfo("vgId:%d, restore electBaseLine from %d to %d (fallback, not leader)", ths->vgId, ths->electBaseLine,
+              ths->electBaseLineOrig);
+        ths->electBaseLine = ths->electBaseLineOrig;
+        syncNodeResetElectTimer(ths);
+      } else {
+        sInfo("vgId:%d, skip restore electBaseLine, already leader", ths->vgId);
+      }
+    } else {
+      sInfo("vgId:%d, drop stale restore-elect timeout, lc:%" PRIu64 " msgLc:%" PRIu64, ths->vgId,
+            ths->restoreElectTimerLogicClock, pMsg->logicClock);
+    }
+
   } else {
     sError("vgId:%d, recv unknown timer-type:%d", ths->vgId, pMsg->timeoutType);
   }
