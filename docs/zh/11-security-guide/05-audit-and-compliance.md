@@ -185,7 +185,7 @@ CREATE STABLE operations (
 
 ### 查看审计日志
 
-在 `taosd` 和 `taosKeeper`（或已启用 `auditSaveInSelf`）都正确配置并启动之后，随着系统的不断运行，系统中的各种操作（如上表所示）会被实时记录并上报。你可以登录 taosExplorer，点击**系统管理** → **审计**页面，即可查看审计日志；也可以在 `taos` shell 中直接查询相应的库和表。
+在 `taosd` 和 `taosKeeper`（或已启用 `auditSaveInSelf`）都正确配置并启动之后，随着系统的不断运行，系统中的各种操作（如上表所示）会被实时记录并上报。你可以登录 taosExplorer，点击 **系统管理** → **审计** 页面，即可查看审计日志；也可以在 `taos` shell 中直接查询相应的库和表。
 
 ## 安全公告与漏洞披露
 

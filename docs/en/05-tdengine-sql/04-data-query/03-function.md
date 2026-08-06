@@ -41,15 +41,15 @@ Pipeline functions are divided into two types based on their computation mode:
 
 When multiple functions appear together in the same SELECT, execution proceeds in two phases:
 
-##### Phase 1: Non-scalar functions compute independently and in parallel
+1. **Phase 1: Non-scalar functions compute independently and in parallel**
 
 Pipeline functions and other aggregate/set functions each **independently and in parallel** process the same input sequence without interfering with each other. Note that scalar functions nested within other non-scalar functions also execute in this phase.
 
-##### Phase 2: Scalar function post-processing
+2. **Phase 2: Scalar function post-processing**
 
 Co-located scalar functions do not participate in Phase 1. Instead, after Phase 1 pipeline functions have determined the output row set, scalar functions **evaluate independently on each output row**, effectively post-processing the results of the previous phase. The original column values referenced by scalar expressions are taken from the input row corresponding to the current output row. When multiple pipeline functions are present, the constraints and behavior are described in "Uniqueness Constraint When Scalar and Pipeline Functions Coexist."
 
-##### Complete Example
+3. **Complete Example**
 
 ```sql
 SELECT abs(voltage), CSUM(current), LAG(voltage, 1) FROM meters;

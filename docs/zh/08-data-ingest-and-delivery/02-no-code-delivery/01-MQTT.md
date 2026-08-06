@@ -18,7 +18,7 @@ MQTT（Message Queuing Telemetry Transport）是一种基于发布/订阅的轻�
 ## 确认企业版服务正常
 
 - 确认 taosd 服务正常；
-- 确认 taosx 已安装（`taosx --version`），以便支持数据的 MQTT 发布功能。
+- 确认 taosX 已安装（`taosx --version`），以便支持数据的 MQTT 发布功能。
 
 ## 数据准备
 
@@ -39,7 +39,7 @@ INSERT INTO db.tb USING db.meters TAGS (1) VALUES (now, 1);
 taosx run -f "tmq+ws://username:password@ip:port/topic?param=value..." -t "mqtt://ip:port?param=value..."
 ```
 
-其中 `-f` 指定 TMQ 订阅的 DSN，`-t` 指定 MQTT broker 的 DSN。关于 taosx 和 DSN 的用法请参考 [taosX 组件文档](../../12-operations-and-tooling/03-components/06-taosx.md)。
+其中 `-f` 指定 TMQ 订阅的 DSN，`-t` 指定 MQTT broker 的 DSN。关于 taosX 和 DSN 的用法请参考 [taosX 组件文档](../../12-operations-and-tooling/03-components/06-taosx.md)。
 
 TMQ DSN 参数：
 

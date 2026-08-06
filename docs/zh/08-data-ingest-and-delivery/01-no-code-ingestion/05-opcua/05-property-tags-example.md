@@ -73,7 +73,7 @@ LIMIT 5;
 
 ## 常见问题
 
-### 1) 只有 `custom_tags`，没有 Property TAG
+### 只有 `custom_tags`，没有 Property TAG
 
 优先检查：
 
@@ -81,7 +81,7 @@ LIMIT 5;
 - 节点类型是否为 `all`
 - OPC UA 端该属性是否真的是 Property（不是普通 Variable）
 
-### 2) 修改配置后仍看不到新 TAG
+### 修改配置后仍看不到新 TAG
 
 如果超级表已按旧结构创建，旧表结构不会自动补新 TAG。
 请使用新库/新表名重建任务，或清理旧表后重新运行。

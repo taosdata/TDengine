@@ -3,7 +3,7 @@ title: "Ignition OPC UA Server Integration Guide"
 sidebar_label: "Ignition"
 ---
 
-This page describes how to ingest data from an Ignition Gateway into TDengine TSDB through OPC UA. It covers two typical scenarios:
+This page describes how to ingest data from an Ignition Gateway into TDengine through OPC UA. It covers two typical scenarios:
 
 - **Cross-server anonymous connection** (intended for short-lived internal testing only)
 - **Cross-server certificate-encrypted connection with username authentication** (recommended for production)
@@ -29,21 +29,21 @@ Verifies the **user identity** that opens the session. Three options are support
 The certificate that you can download from Ignition (for example `ignition-server.der`) is the **server's own certificate** and cannot be used as a client certificate. You must generate a separate client certificate and private key as described in [Generate the taosX OPC UA Client Certificate](./01-client-certificate.md).
 :::
 
-## 1. Ignition server-side configuration
+## Ignition server-side configuration
 
 Open Ignition Gateway → **Config** → **Connections** → **OPC** → **OPC UA Server Settings** → **General Settings**.
 
-### 1.1 Endpoint settings
+### Endpoint settings
 
 | Setting | Recommended value | Notes |
 | --- | --- | --- |
 | Bind Port | `62541` | OPC UA listening port |
-| Bind Addresses | `0.0.0.0` | If TDengine TSDB and Ignition are on different servers, this must be set to `0.0.0.0` |
+| Bind Addresses | `0.0.0.0` | If TDengine and Ignition are on different servers, this must be set to `0.0.0.0` |
 | Endpoint Addresses | Add the server IP | For example `192.168.2.149`, so the client can reach the endpoint |
 | Security Policies | [x] `Basic256Sha256` | Enable the policies you intend to use |
 | Security Mode | [x] `SignAndEncrypt` | Enable signed-and-encrypted mode |
 
-### 1.2 Authentication settings
+### Authentication settings
 
 In the **AUTHENTICATION** section on the same page:
 
@@ -53,7 +53,7 @@ For **Username authentication**, set the User Source to `default` (recommended) 
 Use `default` for User Source. The built-in `opcua-module` source is independent and requires extra user/permission setup, which often causes `StatusBadUserAccessDenied` errors.
 :::
 
-### 1.3 Permissions
+### Permissions
 
 Switch to the **Permissions** tab and confirm that the `AuthenticatedUser` role has the required permissions:
 
@@ -63,7 +63,7 @@ Switch to the **Permissions** tab and confirm that the `AuthenticatedUser` role 
 
 **Default Tag Provider Permissions** must be configured the same way.
 
-## 2. Cross-server anonymous connection
+## Cross-server anonymous connection
 
 After installing and starting Ignition, go to **Connections > OPC > OPC server settings**.
 
@@ -71,7 +71,7 @@ The default Ignition configuration is bound to `localhost`, and the endpoint add
 
 ![Default Ignition endpoint](../../../assets/opcua-ignition-01.png)
 
-In that state, if TDengine TSDB and Ignition live on different servers the connection will fail because Ignition only listens on the local port `62541`. Change Bind Addresses to `0.0.0.0` and add the Ignition server IP to the endpoint addresses:
+In that state, if TDengine and Ignition live on different servers the connection will fail because Ignition only listens on the local port `62541`. Change Bind Addresses to `0.0.0.0` and add the Ignition server IP to the endpoint addresses:
 
 ![Ignition rebound to 0.0.0.0](../../../assets/opcua-ignition-02.png)
 
@@ -83,17 +83,17 @@ netstat -ano | findstr 62541
 
 ![netstat verifies the listening address](../../../assets/opcua-ignition-03.png)
 
-After the changes you can connect TDengine TSDB Explorer to Ignition with anonymous mode:
+After the changes you can connect taosExplorer to Ignition with anonymous mode:
 
-![Explorer anonymous connection to Ignition](../../../assets/opcua-ignition-04.png)
+![taosExplorer anonymous connection to Ignition](../../../assets/opcua-ignition-04.png)
 
 :::warning
 Anonymous mode performs no identity check and no transport-layer encryption. **Use it only for short-lived testing on a trusted network**; switch to certificate encryption for production.
 :::
 
-## 3. Certificate encryption + username authentication
+## Certificate encryption + username authentication
 
-### 3.1 Enable SignAndEncrypt on Ignition
+### Enable SignAndEncrypt on Ignition
 
 Adjust the configuration as shown and save:
 
@@ -103,23 +103,23 @@ Adjust the configuration as shown and save:
 
 ![Ignition security configuration](../../../assets/opcua-ignition-05.png)
 
-### 3.2 Generate the client certificate
+### Generate the client certificate
 
 Follow [Generate the taosX OPC UA Client Certificate](./01-client-certificate.md) on any machine to produce `client_cert.pem` and `client_key.pem`.
 
-### 3.3 Trust the client certificate inside Ignition
+### Trust the client certificate inside Ignition
 
 Once the certificate is generated, Ignition must explicitly trust it:
 
-1. In Explorer, run **Check Connection** once with the new certificate. **It will fail — that is expected.**
+1. In taosExplorer, run **Check Connection** once with the new certificate. **It will fail — that is expected.**
 2. Open Ignition Gateway → **Config** → **Connections** → **OPC** → **Security** → **Server** tab.
 3. Locate the `taosx-opc-client` certificate under **Quarantined Certificates**.
 4. Click the right-hand **⋮** menu → **Trust**.
 5. Confirm the certificate has moved into the **Trusted Certificates** list.
 
-### 3.4 Configure the connection in Explorer
+### Configure the connection in taosExplorer
 
-In TDengine TSDB Explorer → **Data In** → **Create New Data In Task**, choose **OPC UA** as the source type.
+In taosExplorer → **Data In** → **Create New Data In Task**, choose **OPC UA** as the source type.
 
 #### Connection Configuration
 
@@ -137,9 +137,9 @@ Switch to the **Username** tab and enter a username/password that exists in the 
 
 Run **Check Connection** again to validate:
 
-![Explorer certificate-based connection](../../../assets/opcua-ignition-06.png)
+![taosExplorer certificate-based connection](../../../assets/opcua-ignition-06.png)
 
-## 4. Troubleshooting
+## Troubleshooting
 
 | Error | Cause | Resolution |
 | --- | --- | --- |

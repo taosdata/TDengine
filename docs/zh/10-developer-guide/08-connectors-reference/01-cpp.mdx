@@ -51,7 +51,7 @@ TAOS *taos = taos_connect(ip, user, password, database, port);
 ```
 
 :::warning 重要说明
-`taos_options(TSDB_OPTION_DRIVER, arg)` 设置驱动类型**必须在程序开始时调用，且只能调用一次**。一旦设置后，该配置对整个程序生命周期有效，不可更改。
+`taos_options(TSDB_OPTION_DRIVER, arg)` 设置驱动类型 **必须在程序开始时调用，且只能调用一次**。一旦设置后，该配置对整个程序生命周期有效，不可更改。
 :::
 
 ## 支持的平台

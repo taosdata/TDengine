@@ -27,7 +27,7 @@ graph LR
         TX["taosX host (Windows)<br/>includes PI connector subprocess"]
     end
     subgraph IT["IT Network / Data Center"]
-        TD["TDengine TSDB"]
+        TD["TDengine"]
     end
     TX -- "PI SDK protocol (Port 5450/5457)<br/>initiated by PI connector subprocess" --> PI
     TX -- "Native connection write" --> TD
@@ -55,7 +55,7 @@ graph LR
     end
     subgraph IT["IT Network / Cloud"]
         TX["taosX<br/>(Linux / Windows)"]
-        TD["TDengine TSDB"]
+        TD["TDengine"]
     end
     AG -- "PI SDK protocol (Port 5450/5457)<br/>initiated by PI connector subprocess" --> PI
     AG -- "Cross-network gRPC" --> TX
@@ -97,7 +97,7 @@ graph LR
     end
     subgraph DC["Data Center / Cloud"]
         TX["taosX"]
-        TD["TDengine TSDB"]
+        TD["TDengine"]
     end
     AG1 -- "PI SDK protocol" --> PI1
     AG2 -- "PI SDK protocol" --> PI2
@@ -130,7 +130,7 @@ If you chose Option B or Option C, here are the key points for taosX-Agent deplo
 | Service Account | The Windows identity of the taosX-Agent service (default: Local System → machine account in domain) is what the connector presents to PI; this identity must be granted permissions on the PI side |
 | Network - PI Side | taosX-Agent host → PI Data Archive (port 5450), taosX-Agent host → PI AF Server (port 5457) |
 | Network - taosX Side | taosX-Agent ↔ taosX network connectivity (gRPC) |
-| Installation | Click **+Create New Agent** in Explorer to get the taosX-Agent installation guide |
+| Installation | Click **+Create New Agent** in taosExplorer to get the taosX-Agent installation guide |
 
 ## Architecture Selection Decision Table
 

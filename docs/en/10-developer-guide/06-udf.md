@@ -647,15 +647,15 @@ def finish(buf: bytes) -> output_type:
 
 The table below describes the mapping between TDengine SQL data types and Python data types. Any type of NULL value is mapped to Python's None value.
 
-|  **TDengine SQL Data Type**   | **Python Data Type** |
-| :-----------------------: | ------------ |
-| TINYINT / SMALLINT / INT / BIGINT | int |
+| **TDengine SQL Data Type** | **Python Data Type** |
+| :------------------------: | -------------------- |
+| TINYINT / SMALLINT / INT / BIGINT | int           |
 | TINYINT UNSIGNED / SMALLINT UNSIGNED / INT UNSIGNED / BIGINT UNSIGNED | int |
-| FLOAT / DOUBLE | float |
-| BOOL | bool |
-| BINARY / VARCHAR / NCHAR | bytes|
-| TIMESTAMP | int |
-| JSON and other types | Not supported |
+| FLOAT / DOUBLE             | float                |
+| BOOL                       | bool                 |
+| BINARY / VARCHAR / NCHAR   | bytes                |
+| TIMESTAMP                  | int                  |
+| JSON and other types       | Not supported        |
 
 ### Development Examples
 

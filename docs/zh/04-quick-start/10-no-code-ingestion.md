@@ -179,8 +179,8 @@ LIMIT 5;
 
 - [数据接入与发布](../08-data-ingest-and-delivery/index.md)：零代码写入、数据发布与边云协同总览。
 - [零代码数据写入](../08-data-ingest-and-delivery/01-no-code-ingestion/index.md)：支持的数据源、ETL 规则、健康状态与断点恢复。
-- [MQTT](../08-data-ingest-and-delivery/01-no-code-ingestion/07-mqtt.mdx)：MQTT 数据接入完整配置说明。
-- [Kafka](../08-data-ingest-and-delivery/01-no-code-ingestion/08-kafka.mdx)：Kafka 数据接入完整配置说明。
-- [CSV](../08-data-ingest-and-delivery/01-no-code-ingestion/11-csv.mdx)：通过 CSV 文件导入数据。
+- [MQTT](../08-data-ingest-and-delivery/01-no-code-ingestion/07-mqtt.md)：MQTT 数据接入完整配置说明。
+- [Kafka](../08-data-ingest-and-delivery/01-no-code-ingestion/08-kafka.md)：Kafka 数据接入完整配置说明。
+- [CSV](../08-data-ingest-and-delivery/01-no-code-ingestion/11-csv.md)：通过 CSV 文件导入数据。
 - [OPC UA](../08-data-ingest-and-delivery/01-no-code-ingestion/05-opcua/index.md)：工业 OPC UA 数据接入。
 - [可视化管理](./08-visual-management.md)：使用 taosExplorer 浏览数据、执行 SQL 和查看工具入口。

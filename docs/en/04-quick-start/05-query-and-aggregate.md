@@ -13,31 +13,31 @@ This chapter uses the smart meter data model and the `test` database written by 
 
 On top of standard SQL, TDengine extends querying for time-series and IoT scenarios with tag filtering, per-device partitioning, multiple time windows, interpolation, and join queries.
 
-- **Basic retrieval**  
+- **Basic retrieval**
   `SELECT` / `WHERE` / `ORDER BY` / `LIMIT`, time-range filters, regular expressions, `CASE`, and more. See [Data Querying](../05-tdengine-sql/04-data-query/01-query.md).
 
-- **Operators and expressions**  
+- **Operators and expressions**
   Arithmetic, comparison, logical, bitwise, JSON, and set operators. See [Operators](../05-tdengine-sql/04-data-query/02-operators.md).
 
-- **Aggregation and functions**  
+- **Aggregation and functions**
   Statistical aggregates such as `COUNT` / `AVG` / `MAX`, plus selection, math, time, and time-series–specific built-ins. See [Functions](../05-tdengine-sql/04-data-query/03-function.md).
 
-- **Tags and partitioning**  
+- **Tags and partitioning**
   Filter by tags; use `GROUP BY` / `PARTITION BY` / `tbname` / `SLIMIT` to aggregate and limit by device or tag. See [Data Querying](../05-tdengine-sql/04-data-query/01-query.md).
 
-- **Time-series extensions**  
+- **Time-series extensions**
   `INTERVAL` / `SLIDING` time windows, plus state, session, event, count, and external windows; `FILL` / `INTERP` for gap filling and interpolation. See [Time-Series Extensions](../05-tdengine-sql/04-data-query/04-distinguished.md) and [Data Querying](../05-tdengine-sql/04-data-query/01-query.md) (`FILL` / `INTERP`).
 
-- **Join queries**  
+- **Join queries**
   Standard joins, plus time-series–oriented ASOF Join and Window Join. See [Join Queries](../05-tdengine-sql/04-data-query/05-join.md).
 
-- **Window functions**  
+- **Window functions**
   `OVER` window functions. See [Window Functions](../05-tdengine-sql/04-data-query/06-window-function.md).
 
-- **UDFs and read cache**  
+- **UDFs and read cache**
   User-defined functions (UDFs); accelerate latest-row reads with the read cache. See [UDFs](../05-tdengine-sql/04-data-query/07-udf.md) and [Read Cache](../05-tdengine-sql/04-data-query/08-cache-query.md).
 
-- **Execution plans**  
+- **Execution plans**
   Inspect plans with `EXPLAIN` / `EXPLAIN ANALYZE`. See [EXPLAIN](../05-tdengine-sql/04-data-query/09-explain.md).
 
 Compared with general-purpose databases, time-series queries especially benefit from **querying a supertable across many devices in one statement**, **narrowing devices with tags**, and **windowing by time or state for downsampling and aggregation**. The rest of this chapter starts with the most common filters, aggregates, and time windows.

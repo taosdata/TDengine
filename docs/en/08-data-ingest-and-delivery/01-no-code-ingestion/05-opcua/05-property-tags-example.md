@@ -14,7 +14,7 @@ It uses `limit` as an example, but the same workflow applies to other Property n
 ## Key rules
 
 1. The attribute must be a **Property** of the target Variable (`HasProperty`), not an independent data point.
-2. In Explorer task configuration, prefer:
+2. In taosExplorer task configuration, prefer:
    - **Node Class**: `all`
    - **Root Node ID (optional)**: set it to a parent path that includes the target Variable to narrow scan scope; if omitted, browsing usually starts from the server default root
 3. Avoid name collisions between `custom_tags` and Property names.
@@ -33,7 +33,7 @@ Objects
                 └── EngineeringUnits = "degree Celsius"  (Property)
 ```
 
-### Recommended Explorer task settings
+### Recommended taosExplorer task settings
 
 In **Select Data Points** mode, use:
 
@@ -73,7 +73,7 @@ As long as the server models metadata as OPC UA Properties under the Variable, o
 
 ## Troubleshooting
 
-### 1) Only `custom_tags` are present, but Property TAGs are missing
+### Only `custom_tags` are present, but Property TAGs are missing
 
 Check:
 
@@ -81,7 +81,7 @@ Check:
 - Node Class is `all`
 - The source attribute is truly modeled as a Property (not a normal Variable)
 
-### 2) New TAGs do not appear after config updates
+### New TAGs do not appear after config updates
 
 If the supertable already exists with an old schema, TAG columns are not auto-backfilled.
 Create the task with a new database/table name, or drop/recreate the old schema and rerun.

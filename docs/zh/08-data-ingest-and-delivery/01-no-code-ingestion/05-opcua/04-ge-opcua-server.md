@@ -9,7 +9,7 @@ OPC UA 安全分为两个相互独立的层级，连接 GE CSS OPC UA Server 时
 
 ### 安全通道（Secure Channel）
 
-- 当 Security Mode 为 `SignAndEncrypt` 时**始终必需**。
+- 当 Security Mode 为 `SignAndEncrypt` 时 **始终必需**。
 - 在 taosExplorer 中通过 **Secure Channel Certificate** + **Certificate's Private Key** 配置。
 
 ### 用户认证（Authentication）
@@ -20,7 +20,7 @@ OPC UA 安全分为两个相互独立的层级，连接 GE CSS OPC UA Server 时
   - **Certificates**：仅当服务端为 OPC UA 用户认证额外配置了用户证书白名单时使用；通常情况下，证书只用于保护安全通道，**不要** 误把安全通道证书直接复用到这里。
 - 如果不确定服务端开了哪种用户认证，可以先用`Anonymous`方式试一下。
 
-## 1. 生成 taosX OPC UA 客户端证书
+## 生成 taosX OPC UA 客户端证书
 
 按 [生成 taosX OPC UA 客户端证书](./01-client-certificate.md) 中给出的脚本（推荐使用 Windows cmd.exe 版本），生成 `client_cert.pem` 与 `client_key.pem`，并记录证书的 **SHA1 指纹**——后面在 GE 服务端配置时需要用到：
 
@@ -28,11 +28,11 @@ OPC UA 安全分为两个相互独立的层级，连接 GE CSS OPC UA Server 时
 openssl x509 -in client_cert.pem -noout -fingerprint -sha1
 ```
 
-## 2. 在 taosExplorer 中配置连接
+## 在 taosExplorer 中配置连接
 
 在 taosExplorer 中进入 **数据写入 → +新增数据源**（英文界面为 Data In → Create New Data In Task），选择 **OPC UA**，按下表设置。
 
-### 2.1 连接配置
+### 连接配置
 
 | taosExplorer 字段              | 值                                                 |
 | -------------------------- | -------------------------------------------------- |
@@ -42,7 +42,7 @@ openssl x509 -in client_cert.pem -noout -fingerprint -sha1
 | Secure Channel Certificate | 上传 `client_cert.pem`                             |
 | Certificate's Private Key  | 上传 `client_key.pem`                              |
 
-### 2.2 用户认证
+### 用户认证
 
 按服务端实际开启的方式选择：
 
@@ -56,7 +56,7 @@ openssl x509 -in client_cert.pem -noout -fingerprint -sha1
 **Authentication → Certificates** 不是用来"再传一次安全通道证书"。除非 GE OPC UA Server 明确开启了 OPC UA 用户证书认证并把某张证书加入了用户白名单，否则保持 **Anonymous** 即可。
 :::
 
-## 3. 信任并映射客户端证书
+## 信任并映射客户端证书
 
 在 taosExplorer 中第一次执行 **检查连通性（Check Connection）** 通常会失败 —— 这是预期行为，因为 GE OPC UA Server 还没有信任、也没有把新的 taosX 客户端证书映射到任何用户。
 
@@ -75,7 +75,7 @@ OPC UA Server -> Security Certificate / User Association
 
 把证书与该用户关联完成后，回到 taosExplorer 再次执行 **检查连通性（Check Connection）**。
 
-## 4. 常见错误排查
+## 常见错误排查
 
 | 现象                                                 | 可能原因                                                                                    | 处理方式                                                                                                                 |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -84,7 +84,7 @@ OPC UA Server -> Security Certificate / User Association
 | `StatusBadCertificateUriInvalid`                     | 证书中没有 taosX OPC UA Application URI。                                                   | 重新生成证书，确认 SAN 中包含 `URI:urn:taosx-opc:client`。                                                               |
 | 用户认证相关错误                                     | taosX 的 Authentication 标签页与服务器侧实际开启的认证方式不匹配。                          | 与服务端管理员核对开启的是 Anonymous / Username / OPC UA 用户证书 中的哪一种，再在 taosExplorer 中切到对应的标签页填写凭据。 |
 
-## 5. 关键要点
+## 关键要点
 
 - 推荐参考配置为 `SignAndEncrypt + Basic128Rsa15 + Anonymous`；用户认证若服务端配置了其他方式，按实际配置选 Username 或 Certificates。
 - 当 Security Mode 为 `SignAndEncrypt` 时，taosX 仍然需要一个安全通道客户端证书与私钥。

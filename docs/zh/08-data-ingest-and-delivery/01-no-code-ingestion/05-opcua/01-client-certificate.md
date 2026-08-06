@@ -5,21 +5,21 @@ sidebar_label: 客户端证书
 
 当 OPC UA 服务端的 **Security Mode** 设置为 `Sign` 或 `SignAndEncrypt` 时，taosX 必须以客户端证书与私钥的方式与之建立安全通道。本页给出在 Windows 与 Linux/macOS 上生成证书与私钥的标准步骤，**Ignition、GE CSS OPC UA Server 等所有需要证书加密的场景都按本页执行一次即可**。
 
-## 1. 证书要求
+## 证书要求
 
 taosX OPC UA 插件使用 `tls.LoadX509KeyPair()` 加载证书，因此对证书有以下硬性要求：
 
 - **格式**：PEM；不接受 DER、PKCS#12 等其他格式。
-- **客户端 Application URI**：固定为 `urn:taosx-opc:client`。证书的 Subject Alternative Name (SAN) 中**必须包含** `URI:urn:taosx-opc:client`，否则服务端会拒绝并报 `StatusBadCertificateUriInvalid`。
+- **客户端 Application URI**：固定为 `urn:taosx-opc:client`。证书的 Subject Alternative Name (SAN) 中 **必须包含** `URI:urn:taosx-opc:client`，否则服务端会拒绝并报 `StatusBadCertificateUriInvalid`。
 - 证书可以在任意机器上生成，只需把最终的 `client_cert.pem` 与 `client_key.pem` 上传到 taosExplorer 即可。
 
 :::tip
-从 Ignition、GE 等服务器下载到的证书（例如 `ignition-server.der`）是**服务器自身的证书**，不能直接用作客户端证书。请按本页方法**自行生成客户端证书与私钥**。
+从 Ignition、GE 等服务器下载到的证书（例如 `ignition-server.der`）是 **服务器自身的证书**，不能直接用作客户端证书。请按本页方法 **自行生成客户端证书与私钥**。
 :::
 
-## 2. Windows
+## Windows
 
-### 2.1 cmd.exe（推荐）
+### cmd.exe（推荐）
 
 将下面的脚本另存为 `generate_taosx_opcua_cert.cmd`，在 `cmd.exe` 中执行即可。脚本会优先使用系统 `openssl`，如果未安装则回退到 Git for Windows 自带的 `C:\Program Files\Git\usr\bin\openssl.exe`。
 
@@ -95,9 +95,9 @@ pause
 endlocal
 ```
 
-### 2.2 PowerShell
+### PowerShell
 
-#### 步骤 1：创建证书配置文件
+#### 创建证书配置文件
 
 ```powershell
 @"
@@ -118,7 +118,7 @@ subjectAltName = URI:urn:taosx-opc:client
 "@ | Out-File -Encoding ascii C:\tmp\opcua_client_ext.cnf
 ```
 
-#### 步骤 2：生成证书与私钥（有效期 10 年）
+#### 生成证书与私钥（有效期 10 年）
 
 ```powershell
 mkdir C:\taosx_certs -Force
@@ -129,7 +129,7 @@ openssl req -x509 -newkey rsa:2048 -nodes `
   -config C:\tmp\opcua_client_ext.cnf
 ```
 
-## 3. Linux / macOS
+## Linux / macOS
 
 ```bash
 # 创建配置文件
@@ -158,7 +158,7 @@ openssl req -x509 -newkey rsa:2048 -nodes \
   -config /tmp/opcua_client_ext.cnf
 ```
 
-## 4. 验证证书
+## 验证证书
 
 无论使用哪种方式生成，都建议执行以下命令确认 SAN 包含必需的 Application URI：
 
@@ -180,7 +180,7 @@ X509v3 Subject Alternative Name:
 openssl x509 -in client_cert.pem -noout -fingerprint -sha1
 ```
 
-## 5. 在 taosExplorer 中使用
+## 在 taosExplorer 中使用
 
 生成的两个文件分别对应 taosExplorer **Connection Configuration** 区域的两个字段：
 

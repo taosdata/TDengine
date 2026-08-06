@@ -4,7 +4,7 @@ title: 窗口函数
 description: OVER 子句与 SQL 标准窗口函数说明
 ---
 
-自 `v3.4.2.0` 起，TDengine 支持 SQL 标准的 `OVER` 子句和窗口函数。窗口函数为结果集中的**每一行**计算一个值，计算时既能看到当前行，也能看到同一窗口内的其他行，但**不会把多行合并成一行**。这一点与 [特色查询](./04-distinguished.md) 中的时间窗口（`INTERVAL`、`STATE_WINDOW`、`SESSION` 等）不同：时间窗口把窗口内的多行聚合成一行输出，而窗口函数保留原始的每一行，只是额外附加一列计算结果。
+自 `v3.4.2.0` 起，TDengine 支持 SQL 标准的 `OVER` 子句和窗口函数。窗口函数为结果集中的 **每一行** 计算一个值，计算时既能看到当前行，也能看到同一窗口内的其他行，但 **不会把多行合并成一行**。这一点与 [特色查询](./04-distinguished.md) 中的时间窗口（`INTERVAL`、`STATE_WINDOW`、`SESSION` 等）不同：时间窗口把窗口内的多行聚合成一行输出，而窗口函数保留原始的每一行，只是额外附加一列计算结果。
 
 窗口函数适合移动平均、运行总计、分区排名、前后值对比等分析场景，常见于报表和 BI 工具自动生成的 SQL。
 
@@ -28,7 +28,7 @@ window_spec:
     [ frame_clause ]
 ```
 
-- **PARTITION BY**：把输入结果集按一个或多个表达式切分成互不影响的**分区**，每个分区独立计算。省略时整个结果集视为一个分区。
+- **PARTITION BY**：把输入结果集按一个或多个表达式切分成互不影响的 **分区**，每个分区独立计算。省略时整个结果集视为一个分区。
 - **ORDER BY**：在分区内按一个或多个表达式排序，支持 `ASC` / `DESC`（默认 `ASC`）和 `NULLS FIRST` / `NULLS LAST`。排序决定了序号、前后值、累计区间等与顺序相关的语义。
 - **frame_clause**：窗口帧，进一步在排序后的分区内界定当前行参与计算的行范围，详见 [窗口帧](#窗口帧)。
 
@@ -55,8 +55,8 @@ frame_bound:
 ```
 
 - **帧单位**
-  - `ROWS`：按**物理行数**界定，`expr` 是非负整数行数。
-  - `RANGE`：按 `ORDER BY` 值的**距离**界定，`CURRENT ROW` 包含所有与当前行排序值相等的行（peer rows）。
+  - `ROWS`：按 **物理行数** 界定，`expr` 是非负整数行数。
+  - `RANGE`：按 `ORDER BY` 值的 **距离** 界定，`CURRENT ROW` 包含所有与当前行排序值相等的行（peer rows）。
 - **省略 `BETWEEN`** 的简写形式只指定起点，终点默认为 `CURRENT ROW`。例如 `ROWS 10 PRECEDING` 等价于 `ROWS BETWEEN 10 PRECEDING AND CURRENT ROW`。
 - 五种边界：`UNBOUNDED PRECEDING`（分区起点）、`expr PRECEDING`（当前行之前）、`CURRENT ROW`（当前行）、`expr FOLLOWING`（当前行之后）、`UNBOUNDED FOLLOWING`（分区终点）。
 - 当窗口边界超出分区范围时，只使用分区内实际存在的行。
@@ -73,7 +73,7 @@ frame_bound:
 
 ### RANGE 帧的约束
 
-- 带数值或时间**偏移**（`expr PRECEDING` / `expr FOLLOWING`）的 `RANGE` 帧，只允许**一个** `ORDER BY` 表达式；多个排序表达式时报错。
+- 带数值或时间 **偏移**（`expr PRECEDING` / `expr FOLLOWING`）的 `RANGE` 帧，只允许 **一个** `ORDER BY` 表达式；多个排序表达式时报错。
 - 偏移类型必须与排序列类型匹配：
   - 排序列为时间戳类型时，偏移必须是 TDengine 时间长度写法，如 `10s PRECEDING`、`1m PRECEDING`。
   - 排序列为数值类型（整数或浮点，不含 `UNSIGNED BIGINT`）时，偏移必须是非负整数。
@@ -96,7 +96,7 @@ ORDER BY ts;
 `WINDOW` 子句位于查询语句尾部，可定义多个命名窗口，用逗号分隔。命名窗口遵循以下规则：
 
 - 命名窗口只在定义它的查询块内有效，不会泄漏到外层或内层查询块。
-- `OVER window_name` 必须**完整引用**命名窗口的定义，不能在引用处追加或覆盖 `PARTITION BY`、`ORDER BY`、帧等子句。
+- `OVER window_name` 必须 **完整引用** 命名窗口的定义，不能在引用处追加或覆盖 `PARTITION BY`、`ORDER BY`、帧等子句。
 - 不支持通过一个命名窗口继承另一个命名窗口。
 - 引用未定义的窗口名称、在同一查询块内重复定义同名窗口，都会返回明确错误。
 
@@ -124,7 +124,7 @@ ORDER BY ts;
 
 ### 序号类窗口函数
 
-序号类函数依赖排序结果，**必须**指定 `ORDER BY`，且忽略窗口帧。
+序号类函数依赖排序结果，**必须** 指定 `ORDER BY`，且忽略窗口帧。
 
 | 函数 | 返回类型 | 说明 |
 | -------------- | -------- | --- |
@@ -134,7 +134,7 @@ ORDER BY ts;
 
 ### 分布类窗口函数
 
-分布类函数依赖排序结果，**必须**指定 `ORDER BY`，且忽略窗口帧。
+分布类函数依赖排序结果，**必须** 指定 `ORDER BY`，且忽略窗口帧。
 
 | 函数 | 返回类型 | 说明 |
 | ---------------- | -------- | --- |
@@ -143,12 +143,12 @@ ORDER BY ts;
 
 ### 取值类窗口函数
 
-取值类函数依赖排序结果，**必须**指定 `ORDER BY`。
+取值类函数依赖排序结果，**必须** 指定 `ORDER BY`。
 
 | 函数 | 返回类型 | 说明 |
 | ----------------------------------- | --- | --- |
-| `LAG(expr [, offset [, default]])`  | 同 `expr` | 当前行**之前**第 `offset` 行的 `expr` 值 |
-| `LEAD(expr [, offset [, default]])` | 同 `expr` | 当前行**之后**第 `offset` 行的 `expr` 值 |
+| `LAG(expr [, offset [, default]])`  | 同 `expr` | 当前行 **之前** 第 `offset` 行的 `expr` 值 |
+| `LEAD(expr [, offset [, default]])` | 同 `expr` | 当前行 **之后** 第 `offset` 行的 `expr` 值 |
 | `FIRST_VALUE(expr)`                 | 同 `expr` | 当前窗口帧内第一行的 `expr` 值 |
 | `LAST_VALUE(expr)`                  | 同 `expr` | 当前窗口帧内最后一行的 `expr` 值 |
 | `NTH_VALUE(expr, n)`                | 同 `expr` | 当前窗口帧内第 `n` 行的 `expr` 值，`n` 从 1 开始 |
@@ -160,7 +160,7 @@ ORDER BY ts;
 - `NTH_VALUE` 的 `n` 必须 ≥ `1`；当第 `n` 行不存在时返回 `NULL`。
 
 :::note
-`LAG` / `LEAD` 也可以**不带** `OVER` 子句使用，此时按输入结果集的行序计算，详见 [LAG](./03-function.md#lag)。两种用法的参数规则略有差异：不带 `OVER` 时 `offset` 必须为大于 `0` 的整数，带 `OVER` 时 `offset` 可以为 `0`。
+`LAG` / `LEAD` 也可以 **不带** `OVER` 子句使用，此时按输入结果集的行序计算，详见 [LAG](./03-function.md#lag)。两种用法的参数规则略有差异：不带 `OVER` 时 `offset` 必须为大于 `0` 的整数，带 `OVER` 时 `offset` 可以为 `0`。
 :::
 
 ## 使用限制

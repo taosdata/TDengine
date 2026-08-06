@@ -6,7 +6,7 @@ import { AddDataSource, Enterprise } from '../resources/_resources.mdx';
 
 <Enterprise/>
 
-This section describes how to create data migration tasks through the Explorer interface, synchronizing data from an OPC-DA server to the current TDengine cluster.
+This section describes how to create data migration tasks through the taosExplorer interface, synchronizing data from an OPC-DA server to the current TDengine cluster.
 
 ## Overview
 

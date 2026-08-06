@@ -2,10 +2,10 @@
 title: Edge–Cloud Synchronization
 ---
 
-TDengine TSDB supports multiple methods for automated synchronization between edge and cloud nodes.
+TDengine supports multiple methods for automated synchronization between edge and cloud nodes.
 
 - Data can be pushed by the edge node to the cloud node or pulled by the cloud node from the edge node.
-- Edge–cloud synchronization can be implemented through TDengine TSDB data subscription or through queries.
+- Edge–cloud synchronization can be implemented through TDengine data subscription or through queries.
 
 Before enabling edge–cloud synchronization, determine which method is appropriate for your environment.
 
@@ -19,7 +19,7 @@ Before enabling edge–cloud synchronization, determine which method is appropri
 ### Edge Push + Subscription
 
 1. On the cloud node, create a database to which edge data will be replicated.
-1. Access TDengine TSDB-Explorer on the edge node in a web browser.
+1. Access taosExplorer on the edge node in a web browser.
 1. From the main menu on the left, select **Management**.
 1. Open the **Data Replication** tab and click **Add New Replication**.
 1. Select the database that you want to synchronize to the cloud.
@@ -48,12 +48,12 @@ For more information, see [Migrating Data from Older Versions](../../12-operatio
 
 ### Cloud Pull + Subscription
 
-1. Access TDengine TSDB-Explorer on the edge node in a web browser.
+1. Access taosExplorer on the edge node in a web browser.
 1. From the main menu on the left, select **Topics**.
 1. In the list displayed, locate the database that you want to synchronize to the cloud.
 1. In the **Get DSN** column, click **Copy**.
 1. Record this DSN for later use.
-1. Access TDengine TSDB-Explorer on the cloud node in a web browser.
+1. Access taosExplorer on the cloud node in a web browser.
 1. From the main menu on the left, select **Data In**.
 1. Open the **Data In Task** tab and click **Add Source**.
 1. Enter a name for the task.
@@ -71,7 +71,7 @@ For more information about TDengine Data Subscription tasks, see [TDengine Data 
 
 ### Cloud Pull + Query
 
-1. Access TDengine TSDB-Explorer on the cloud node in a web browser.
+1. Access taosExplorer on the cloud node in a web browser.
 1. From the main menu on the left, select **Data In**.
 1. Open the **Data In Task** tab and click **Add Source**.
 1. Enter a name for the task.

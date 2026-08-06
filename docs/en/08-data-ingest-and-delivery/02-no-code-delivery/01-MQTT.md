@@ -21,11 +21,11 @@ Before using TDengine's MQTT publishing feature, users need to install and confi
 ## Ensure Enterprise Edition Services Are Running
 
 - Ensure the `taosd` service is running properly.
-- Ensure `taosx` is installed (`taosx --version`) to support MQTT data publishing.
+- Ensure taosX is installed (`taosx --version`) to support MQTT data publishing.
 
 ## Prepare Data
 
-Use the `taos` CLI tool or the Explorer management interface to execute SQL statements, create databases, super tables, topics, and insert data for subsequent subscription. Here is a simple example:
+Use the `taos` CLI tool or the taosExplorer management interface to execute SQL statements, create databases, super tables, topics, and insert data for subsequent subscription. Here is a simple example:
 
 ```sql
 create database db vgroups 1;
@@ -42,7 +42,7 @@ Users can use `taosx` to publish TDengine topic data to MQTT:
 taosx run -f "tmq+ws://username:password@ip:port/topic?param=value..." -t "mqtt://ip:port?param=value..."
 ```
 
-Here, `-f` specifies the TMQ subscription DSN, and `-t` specifies the MQTT broker DSN. For details on using taosx and DSN, refer to the [taosX Component Documentation](../../12-operations-and-tooling/03-components/06-taosx.md).
+Here, `-f` specifies the TMQ subscription DSN, and `-t` specifies the MQTT broker DSN. For details on using taosX and DSN, refer to the [taosX Component Documentation](../../12-operations-and-tooling/03-components/06-taosx.md).
 
 TMQ DSN parameters:
 

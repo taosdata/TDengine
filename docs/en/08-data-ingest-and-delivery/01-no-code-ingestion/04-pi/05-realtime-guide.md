@@ -17,7 +17,7 @@ PI real-time tasks continuously subscribe to data changes in the PI system and w
 
 ### Basic Steps
 
-1. On the Data In page in Explorer, click **+Add Data Source**
+1. On the Data In page in taosExplorer, click **+Add Data Source**
 2. In the **Type** dropdown, select **PI**
 3. Configure connection information (see [PI](./index.md))
 4. Configure data model (single/multi-column, see [Model Configuration Reference](./03-csv-reference.md))
@@ -105,7 +105,7 @@ When this option is enabled, deleting an element in PI will cause the correspond
 
 - Recommend using taosX-Agent proxy mode deployment (see [Deployment Architecture](./02-deployment-architecture.md)) to separate the connector from taosX
 - Configure a reasonable restart compensation time to ensure no data loss after task restart
-- Monitor task status through Explorer to detect anomalies promptly
+- Monitor task status through taosExplorer to detect anomalies promptly
 
 ### Performance Tuning
 
@@ -117,7 +117,7 @@ When this option is enabled, deleting an element in PI will cause the correspond
 
 ### Task Monitoring
 
-Through the data source list page in Explorer, you can view:
+Through the data source list page in taosExplorer, you can view:
 
 - Task running status
 - Data write rate

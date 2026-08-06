@@ -45,24 +45,24 @@ In the schemaless writing line protocol, each data item in field_set needs to de
 - If enclosed in double quotes and prefixed with B or b, it represents varbinary type, the double quotes can contain hexadecimal starting with `\x` or strings, e.g., `B"\x98f46e"` and `B"hello"`.
 - For spaces, equal signs (=), commas (,), double quotes ("), and backslashes (\\), a backslash (\\) is needed for escaping (all in half-width English characters). The domain escape rules for the schemaless writing protocol are shown in the following table.
 
-| **Number** | **Field**   | **Characters to Escape**   |
-| -------- | -------- | ---------------- |
-| 1        | Supertable name | comma, space       |
-| 2        | Tag name   | comma, equal sign, space |
-| 3        | Tag value   | comma, equal sign, space |
-| 4        | Column name     | comma, equal sign, space |
-| 5        | Column value     | double quotes, backslash   |
+| **Number** | **Field**        | **Characters to Escape** |
+| ---------- | ---------------- | ------------------------ |
+| 1          | Supertable name  | comma, space             |
+| 2          | Tag name         | comma, equal sign, space |
+| 3          | Tag value        | comma, equal sign, space |
+| 4          | Column name      | comma, equal sign, space |
+| 5          | Column value     | double quotes, backslash |
 
 If two consecutive backslashes are used, the first backslash acts as an escape character; if there is only one backslash, no escape is needed. The backslash escape rules for the schemaless writing protocol are shown in the following table.
 
-| **Number** | **Backslash**   | **Escapes to** |
-| -------- | ------------ | ---------- |
-| 1        | \            | \          |
-| 2        | \\\\         | \          |
-| 3        | \\\\\\       | \\\\       |
-| 4        | \\\\\\\\     | \\\\       |
-| 5        | \\\\\\\\\\   | \\\\\\     |
-| 6        | \\\\\\\\\\\\ | \\\\\\     |
+| **Number** | **Backslash** | **Escapes to** |
+| ---------- | ------------- | -------------- |
+| 1          | \             | \              |
+| 2          | \\\\          | \              |
+| 3          | \\\\\\        | \\\\           |
+| 4          | \\\\\\\\      | \\\\           |
+| 5          | \\\\\\\\\\    | \\\\\\         |
+| 6          | \\\\\\\\\\\\  | \\\\\\         |
 
 Numeric types are distinguished by suffixes. The escape rules for numeric types in the schema-less write protocol are shown in the following table.
 
@@ -122,23 +122,23 @@ Schema-less writes handle row data according to the following principles:
 
 Schema-less writing supports three specified modes, as shown in the table below:
 
-| **Number** | **Value**            | **Description**                  |
-| ---------- | -------------------- | -------------------------------- |
+| **Number** | **Value**           | **Description**                  |
+| ---------- | ------------------- | -------------------------------- |
 | 1          | SML_LINE_PROTOCOL   | InfluxDB Line Protocol           |
 | 2          | SML_TELNET_PROTOCOL | OpenTSDB Text Line Protocol      |
 | 3          | SML_JSON_PROTOCOL   | JSON Protocol Format             |
 
 In the SML_LINE_PROTOCOL parsing mode, users need to specify the time resolution of the input timestamp. The available time resolutions are as follows:
 
-| **Number** | **Time Resolution Definition**      | **Meaning**    |
-| ---------- | ----------------------------------- | -------------- |
+| **Number** | **Time Resolution Definition**     | **Meaning**         |
+| ---------- | ---------------------------------- | ------------------- |
 | 1          | TSDB_SML_TIMESTAMP_NOT_CONFIGURED  | Undefined (invalid) |
-| 2          | TSDB_SML_TIMESTAMP_HOURS           | Hours          |
-| 3          | TSDB_SML_TIMESTAMP_MINUTES         | Minutes        |
-| 4          | TSDB_SML_TIMESTAMP_SECONDS         | Seconds        |
-| 5          | TSDB_SML_TIMESTAMP_MILLI_SECONDS   | Milliseconds   |
-| 6          | TSDB_SML_TIMESTAMP_MICRO_SECONDS   | Microseconds   |
-| 7          | TSDB_SML_TIMESTAMP_NANO_SECONDS    | Nanoseconds    |
+| 2          | TSDB_SML_TIMESTAMP_HOURS           | Hours               |
+| 3          | TSDB_SML_TIMESTAMP_MINUTES         | Minutes             |
+| 4          | TSDB_SML_TIMESTAMP_SECONDS         | Seconds             |
+| 5          | TSDB_SML_TIMESTAMP_MILLI_SECONDS   | Milliseconds        |
+| 6          | TSDB_SML_TIMESTAMP_MICRO_SECONDS   | Microseconds        |
+| 7          | TSDB_SML_TIMESTAMP_NANO_SECONDS    | Nanoseconds         |
 
 In the SML_TELNET_PROTOCOL and SML_JSON_PROTOCOL modes, the time precision is determined by the length of the timestamp (consistent with the standard operation of OpenTSDB), and the user-specified time resolution will be ignored.
 

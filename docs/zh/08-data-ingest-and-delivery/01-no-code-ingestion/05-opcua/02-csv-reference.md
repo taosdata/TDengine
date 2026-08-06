@@ -10,7 +10,7 @@ sidebar_label: CSV 映射参考
 
 本页面向所有使用 taosX 从 OPC UA 服务器采集数据的用户。
 
-## 1. CSV 映射与 OPC 地址空间
+## CSV 映射与 OPC 地址空间
 
 请务必区分以下两件事：
 
@@ -34,7 +34,7 @@ sidebar_label: CSV 映射参考
 上传 CSV 中 **没有** `path` 列、也 **没有** `display_name` 列。Path 与 display name 属于 OPC 服务器侧，作用是帮你确定要把哪个 `point_id` 写进 CSV。它们的取值仍会通过专门的 **Tag 列** 由 taosX 自动写入 TDengine（参见 3.2 节）。
 :::
 
-## 2. CSV 列说明
+## CSV 列说明
 
 当你在 taosExplorer 中选择数据点并下载 CSV 模板时，taosX 会按照 OPC UA 服务器返回的浏览信息自动生成完整的表头：
 
@@ -60,7 +60,7 @@ No.,point_id,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts
 - `tbname` 默认采用 `t_{ns}_{id}` 模式，且 ID 中的 `/` 等字符已被替换为下划线，保证子表名合法且固定。
 - 每个数据点的 `BrowseName`、`DisplayName`、`Path` 都已经被填进 Tag 列，便于下游按可读名称查询。
 
-### 2.1 各列含义
+### 各列含义
 
 | 列名                                       | 是否必填                                                     | 含义                                                                                                                                                                                                                                                                  |
 | ------------------------------------------ | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -82,7 +82,7 @@ No.,point_id,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts
 对于一行数据，**`ts_col`、`request_ts_col`、`received_ts_col` 至少要配置一个**。当配置了多个时间戳列时，第一个被配置的列将作为 TDengine 的主键。
 :::
 
-### 2.2 自动生成的 Tag 列：name / BrowseName / DisplayName / Description / Path
+### 自动生成的 Tag 列：name / BrowseName / DisplayName / Description / Path
 
 导出模板中的 5 个 Tag 列直接来自 OPC UA 服务器对每个节点的浏览结果：
 
@@ -96,7 +96,7 @@ No.,point_id,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts
 
 如果你希望在入库后用 `WHERE Path LIKE 'Objects./beijing./beijing/haidian.%'` 这类条件按区域过滤，**保留默认 5 个 Tag 列即可**。如果你想新增自定义维度（例如工厂代号、产线编号），按 `tag::TYPE::name` 的格式追加列，并在每行填写对应的取值。
 
-### 2.3 推荐的模板写法
+### 推荐的模板写法
 
 | 目标                     | 写法                                        | 说明                                                                                                |
 | ------------------------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -105,7 +105,7 @@ No.,point_id,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts
 | 每个数据点对应固定的子表 | `tbname = t_{ns}_{id}`                      | 重启后同一个数据点仍落入同一个子表，非法字符会自动替换为 `_`。                                      |
 | 保留 / 扩展 Tag 列       | 默认 5 个 Tag 列 + 自定义 `tag::TYPE::name` | 可读名称由 `name` / `DisplayName` 提供，层级由 `Path` 提供；按需追加业务维度（site、line 等）即可。 |
 
-## 3. OPC 节点 ID 中包含逗号的处理
+## OPC 节点 ID 中包含逗号的处理
 
 taosX 的 CSV 解析器使用标准 CSV 格式：字段分隔符为 `,`，引用字符为 `"`，规则与 RFC 4180 一致。OPC UA 节点 ID 中常见的 `;`、`=`、`.` 都不会与 CSV 冲突。**但字符串型节点 ID 允许包含逗号**，例如：
 
@@ -115,7 +115,7 @@ ns=2;s=Site,Plant,Tag-01
 
 如果直接把这种节点 ID 原样写入 CSV 单元格，解析器会按每个逗号切分，导致该行列数错乱。
 
-### 3.1 正确写法
+### 正确写法
 
 **用双引号将整个 `point_id` 单元格包起来**：
 
@@ -126,7 +126,7 @@ point_id,enabled,stable,tbname,value_col,type,quality_col,ts_col,received_ts_col
 
 解析器会把外层 `"` 包裹的全部内容视作单个字段，引号内部的逗号被当作普通字符原样传给 taosX。
 
-### 3.2 内部含有双引号的处理
+### 内部含有双引号的处理
 
 如果节点 ID 自身包含 `"`，按 RFC 4180 规则将其重复一次：
 
@@ -136,14 +136,14 @@ point_id,enabled,stable,tbname,value_col,type,quality_col,ts_col,received_ts_col
 
 解析器会把 `ns=2;s=He said "hi"` 作为 `point_id` 交给 taosX。
 
-### 3.3 不需要做的事
+### 不需要做的事
 
 - **不要** 对节点 ID 做 URL 编码。
 - **不要** 把 `,` 替换为 `\,`，解析器并不识别反斜杠转义。
 - **不要** 把 CSV 分隔符改成 `;` 或 `\t`，分隔符固定为 `,`。
 - **不要** 把整行都用引号包起来，仅对需要的单元格加引号即可。
 
-### 3.4 实用建议
+### 实用建议
 
 当 `point_id` 是 **字符串型节点 ID**（`s=...`）时，始终加双引号。这样不增加任何成本，却是处理保留字符（今天是逗号，明天可能是别的）的最安全方式。数字型（`i=...`）和 GUID 型（`g=...`）由于不可能包含逗号，不需要加引号。
 
@@ -153,7 +153,7 @@ point_id,enabled,stable,tbname,value_col,type,quality_col,ts_col,received_ts_col
 **凡是 `point_id` 中包含 `s=`，一律加双引号。** 数字型（`i=`）不需要。无论 OPC 服务器侧的命名习惯如何，CSV 都能安全上传。
 :::
 
-## 4. 快速检查清单
+## 快速检查清单
 
 - 在 taosExplorer 的"选择数据点"面板（或使用 `points` 命令）浏览 OPC 服务器，勾选要采集的数据点。
 - 下载 CSV 模板。模板已经包含正确的表头，并把每个点的 `BrowseName`、`DisplayName`、`Path` 等浏览信息自动写入对应的 Tag 列；通常只需要按需调整：

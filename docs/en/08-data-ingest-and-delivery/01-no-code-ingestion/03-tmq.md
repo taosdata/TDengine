@@ -6,7 +6,7 @@ import { Enterprise } from '../resources/_resources.mdx';
 
 <Enterprise/>
 
-This document describes how to use Explorer to subscribe to data from another cluster to this cluster.
+This document describes how to use taosExplorer to subscribe to data from another cluster to this cluster.
 
 ## Preparation
 
@@ -14,7 +14,7 @@ Create the required Topic in the source cluster, which can subscribe to the enti
 
 ### Step One: Enter the "Data Subscription" page
 
-Open the Explorer interface of the source cluster, click the "Data Subscription" menu on the left, then click "Add New Topic".
+Open the taosExplorer interface of the source cluster, click the "Data Subscription" menu on the left, then click "Add New Topic".
 
 ![Add new topic](../../assets/tmq-01.png)
 

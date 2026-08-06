@@ -276,7 +276,7 @@ TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序
 
 ![TDengine Database Grafana plugin create dashboard](../../assets/grafana-01.webp)
 
-如上图所示，在“Query”中选中 `TDengine` 数据源，在下方查询框可输入相应 SQL 进行查询。我们继续用智能电表来举例，为了展示曲线美观，此处**用了虚拟数据**。
+如上图所示，在“Query”中选中 `TDengine` 数据源，在下方查询框可输入相应 SQL 进行查询。我们继续用智能电表来举例，为了展示曲线美观，此处 **用了虚拟数据**。
 
 #### 时间序列数据展示
 
@@ -300,7 +300,7 @@ TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序
 
 假设我们想查询一段时间内的平均电流大小，按 `groupid` 分组展示，我们可以修改之前的 SQL 为 `select _wstart as ts, groupid, avg(current) as current from power.meters where ts > $from and ts < $to partition by groupid interval($interval) fill(null)`
 
-- “Group by column(s)”：**半角**逗号分隔的 `group by` 或 `partition by` 列名。如果是 `group by` 或 `partition by` 查询语句，设置“Group by”列，可以展示多维数据。此处设置“Group by”列名为 `groupid`，可以按 `groupid` 分组展示数据。
+- “Group by column(s)”：**半角** 逗号分隔的 `group by` 或 `partition by` 列名。如果是 `group by` 或 `partition by` 查询语句，设置“Group by”列，可以展示多维数据。此处设置“Group by”列名为 `groupid`，可以按 `groupid` 分组展示数据。
 - “Group By Format”：`Group by` 或 `Partition by` 场景下多维数据 legend 格式化格式。例如上述 INPUT SQL，将“Group By Format”设置为 `groupid-{{groupid}}`，展示的 legend 名字为格式化的分组名。
 
 完成设置后，按照 `groupid` 分组展示如下图：
@@ -312,7 +312,7 @@ TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序
 ### 性能优化建议
 
 - **所有查询加上时间范围**，在时序数据库中，如果不加查询的时间范围，会扫表导致性能低下。常见的 SQL 写法是 `select column_name from db.table where ts > $from and ts < $to;`
-- 对于最新状态类型的查询，我们一般建议在**创建数据库的时候打开缓存**（`CACHEMODEL` 设置为 last_row 或者 both），常见的 SQL 写法是 `select last(column_name) from db.table where ts > $from and ts < $to;`
+- 对于最新状态类型的查询，我们一般建议在 **创建数据库的时候打开缓存**（`CACHEMODEL` 设置为 last_row 或者 both），常见的 SQL 写法是 `select last(column_name) from db.table where ts > $from and ts < $to;`
 
 ### 导入 Dashboard
 

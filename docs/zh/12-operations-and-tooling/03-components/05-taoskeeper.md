@@ -73,7 +73,7 @@ taosKeeper 支持用 `taoskeeper -c <keeper config file>` 命令来指定配置�
 若不指定配置文件，taosKeeper 会使用默认配置文件，其路径为：`/etc/taos/taoskeeper.toml` 。
 若既不指定 taosKeeper 配置文件，且 `/etc/taos/taoskeeper.toml` 也不存在，将使用默认配置。
 
-**下面是配置文件的示例** ：
+**下面是配置文件的示例**：
 
 ```toml
 # The ID of the currently running taoskeeper instance, default is 64.
@@ -312,7 +312,7 @@ taoskeeper 提供了 `/metrics/v2` 和 `/metrics` 接口，返回了 Prometheus 
 
 v2 接口使用内存缓存模式，将指标数据缓存在内存中，避免每次请求都查询 TDengine 数据库。数据会根据配置的 `cacheTTL` 自动过期清理。
 
-**重要**：v2 内存缓存模式下，TDengine 集群可能会将监控数据分片上报到不同的 taoskeeper 实例。因此，单个 taoskeeper 实例只收到部分指标数据，**必须在 Prometheus 中配置所有 taoskeeper 实例的端点**才能获取完整的监控数据。
+**重要**：v2 内存缓存模式下，TDengine 集群可能会将监控数据分片上报到不同的 taoskeeper 实例。因此，单个 taoskeeper 实例只收到部分指标数据，**必须在 Prometheus 中配置所有 taoskeeper 实例的端点** 才能获取完整的监控数据。
 
 #### 配置说明
 
