@@ -196,7 +196,7 @@ http {
 
 ## 部署 taosKeeper
 
-如果要使用 TDengine 的监控功能，taosKeeper 是一个必要的组件，关于监控请参考 [TDinsight](../../03-components/08-tdinsight/index.mdx)，关于部署 taosKeeper 的细节请参考 [taosKeeper 参考手册](../../03-components/05-taoskeeper.md)。
+如果要使用 TDengine 的监控功能，taosKeeper 是一个必要的组件，关于监控请参考 [TDinsight](../../03-components/08-tdinsight/index.md)，关于部署 taosKeeper 的细节请参考 [taosKeeper 参考手册](../../03-components/05-taoskeeper.md)。
 
 ## 部署 taosX
 

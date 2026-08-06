@@ -1,42 +1,44 @@
 ---
-title: EXPLAIN
+sidebar_label: 执行计划
+title: 执行计划
+description: 使用 EXPLAIN / EXPLAIN ANALYZE 查看查询执行计划与运行期指标
 ---
 
-`EXPLAIN` shows the execution plan of a query. It is useful for SQL tuning, slow-query diagnosis, tag-index hit analysis, filter pushdown verification, and troubleshooting cross-node data exchange.
+`EXPLAIN` 用于查看查询语句的执行计划。它适合在 SQL 调优、慢查询诊断、标签索引命中分析、过滤下推确认、跨节点数据交换排查等场景中使用。
 
-`EXPLAIN ANALYZE` adds runtime metrics on top of the execution plan, helping you determine whether the bottleneck is in scanning, filtering, sorting, network exchange, or data skew across vgroups.
+`EXPLAIN ANALYZE` 会在执行计划的基础上补充运行期指标，可用于判断瓶颈究竟在扫描、过滤、排序、网络交换还是跨 vgroup 的数据倾斜。
 
-## Syntax
+## 语法
 
 ```sql
 EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 ```
 
-## Parameters
+## 参数说明
 
 ### `ANALYZE`
 
-Executes the statement and returns runtime metrics. Compared with plain `EXPLAIN`, it additionally shows:
+执行语句并返回运行期指标。与普通 `EXPLAIN` 相比，它会额外展示：
 
-- Time to first row, time to last row, and output row count for each operator
-- Operator execution time and wait time
-- Scan I/O cost
-- Cross-node data exchange cost
-- Planning time and execution time
+- 算子首行返回时间、末行返回时间、输出行数
+- 算子执行耗时与等待耗时
+- 扫描 I/O 代价
+- 跨节点数据交换代价
+- 计划时间与执行时间
 
-Notes:
+**说明**
 
-- `ANALYZE` requires the target query statement to actually run.
+- `ANALYZE` 需要实际执行目标查询语句
 
-Diagnostic value:
+**诊断价值**
 
-- Distinguishes whether a slow SQL is caused by a poor plan or slow execution
-- Identifies hot vgroups, slow nodes, and data skew
-- Verifies the real cost of filters, sorts, window operators, aggregations, and more
+- 用于判断慢 SQL 是“计划不好”还是“执行慢”
+- 用于识别热点 vgroup、慢节点和数据倾斜
+- 用于验证过滤、排序、窗口、聚合等算子的真实代价
 
 ### `VERBOSE`
 
-The default value is `false`. When set to `true`, detailed properties of each operator are shown, for example:
+默认值为 `false`。设置为 `true` 后，会显示每个算子的详细属性，例如：
 
 - `Output`
 - `Filter`
@@ -51,42 +53,43 @@ The default value is `false`. When set to `true`, detailed properties of each op
 - `Exec cost`
 - `I/O cost`
 
-Diagnostic value:
+**诊断价值**
 
-- Confirms whether the optimizer performed predicate pushdown, tag-index pushdown, and primary-key filter pushdown
-- Helps locate details such as sort keys, merge keys, network exchange mode, and window parameters
+- 适合确认优化器是否做了谓词下推、标签索引下推、主键过滤下推
+- 适合定位排序键、合并键、网络交换模式、窗口参数等细节
 
 ### `query_or_subquery`
 
-`query_or_subquery` refers to the **`SELECT` query** being analyzed, which may include subqueries. For example:  
-`SELECT * FROM (SELECT * FROM meters) t WHERE t.c1 > 10`.
+`query_or_subquery` 即被分析的 **`SELECT` 查询**（可含子查询），例如  
+`SELECT * FROM (SELECT * FROM meters) t WHERE t.c1 > 10`。
 
-Common query patterns include:
+常见查询形态包括：
 
-- Simple queries on a single table, supertable, or view
-- Queries that include `WHERE`, `GROUP BY`, `ORDER BY`, or `LIMIT`
-- Window queries such as `INTERVAL`, `SESSION`, `STATE_WINDOW`, and `EVENT_WINDOW`
-- More complex structures such as subqueries, joins, and nested queries
+- 简单查询（单表、超级表、虚拟表）
+- 含 `WHERE` / `GROUP BY` / `ORDER BY` / `LIMIT`
+- 含窗口（如 `INTERVAL`、`SESSION`、`STATE_WINDOW`、`EVENT_WINDOW`）
+- 含子查询、关联、嵌套等复杂结构
 
-Not applicable, either because there is no explainable query plan or the syntax is unsupported:
+不适用（无可解释的查询计划，或语法不支持）：
 
-- **Data modification statements**: `INSERT`, `UPDATE`, `DELETE`
-- **Metadata and instance management statements**: DDL statements such as `CREATE`, `DROP`, and `ALTER`; `SHOW ...`; `USE ...`; and management statements for accounts, nodes, permissions, and similar administrative operations
+- **数据变更**：`INSERT`、`UPDATE`、`DELETE`
+- **元数据与实例管理**：DDL（含 `CREATE` / `DROP` / `ALTER` 等）、`SHOW ...`、
+`USE ...`，以及账户、节点、权限等管理类语句
 
-## Result Format
+## 返回结果说明
 
-`EXPLAIN` returns a single column named `QUERY_PLAN`. Each row is either a node in the plan tree or a row with detailed statistical information.
+`EXPLAIN` 的返回结果只有一列，列名为 `QUERY_PLAN`。每一行是计划树中的一个节点或一条详细统计信息。
 
-If the optimizer can prove at compile time that a query always returns no rows, for example `EXPLAIN SELECT * FROM meters WHERE 0 = 1`, the statement is pruned directly. No executable plan is generated, and the statement does not enter the execution phase. As a result, this kind of query typically does not produce meaningful `EXPLAIN` / `EXPLAIN ANALYZE` output for diagnosis.
+如果优化器在编译阶段已经确定查询结果恒为空，例如 `EXPLAIN SELECT * FROM meters WHERE 0 = 1` 这类常量假条件语句，那么语句会被直接裁剪，不会生成可执行计划，也不会进入实际执行阶段。因此，这类语句通常不会产生可用于诊断的有效 `EXPLAIN` / `EXPLAIN ANALYZE` 输出。
 
-The execution plan is displayed as a tree:
+执行计划采用树状结构展示：
 
-- The topmost node is where the final result is produced
-- Deeper indentation means closer to the underlying scan
-- The operator name appears after `->`
-- When `VERBOSE true` is enabled, rows with detailed statistical information are appended below each operator
+- 最上层节点是最终结果的产生位置
+- 缩进越深，越接近底层扫描
+- `->` 之后是算子名称
+- `VERBOSE true` 时，算子下方会追加该算子的详细统计信息
 
-Example:
+示例：
 
 ```text
 -> Projection (...)
@@ -94,226 +97,228 @@ Example:
       -> Table Scan on meters (...)
 ```
 
-Reading tips:
+**阅读建议**
 
-- Read from top to bottom to see how the final result is produced
-- Read from bottom to top to understand how scan, filter, aggregation, sort, and exchange are layered together
-- For distributed queries, focus on `Data Exchange`, `Network`, `I/O cost`, and information about slow vgroups
+- 从最上往下看，先判断结果是如何生成的
+- 从最下往上看，判断底层扫描、过滤、聚合、排序、交换是如何逐步叠加的
+- 如果是分布式查询，重点关注 `Data Exchange`、`Network`、`I/O cost` 和慢 vgroup 信息
 
-## Common Operators
+## 常见算子
 
-The following table lists common operator names that may appear in `EXPLAIN` output and their diagnostic value.
+下表列出 `EXPLAIN` 中常见的算子名称及其诊断价值。
 
-| Operator | Meaning | Diagnostic value |
+| 算子名称 | 含义 | 诊断价值 |
 | --- | --- | --- |
-| `Aggregate` | Aggregation | Aggregation without grouping |
-| `Block Dist Scan on ...` | Distributed block scan | Used in block-level distribution or block-level statistics scenarios |
-| `Count` | Count window | Used for `COUNT_WINDOW` |
-| `Data Exchange N:1` | Multi-source to single-source data exchange | Useful for observing cross-node fetch cost and network bottlenecks |
-| `Dynamic Query Control for ...` | Dynamic query control operator | Mostly used to inspect complex plan scheduling and internal execution strategy |
-| `Event` | Event window | Used for `EVENT_WINDOW` |
-| `External on Column ...` | External-window-related operator | Used for external window or external alignment processing |
-| `Fill` | Fill operator | Used for filling missing values |
-| `Group Cache` | Group cache operator | Used for group caching and group reuse |
-| `Group Sort` | Group sort | Used for sorting in grouped scenarios |
-| `GroupAggregate` | Grouped aggregation | Aggregation with grouping keys |
-| `Indefinite Rows Function` | Function operator with variable-length output | Used for special function processing |
-| `Inner/Left/Right/Full ... Join` | Join operator | Focus on the join algorithm, join conditions, primary-key conditions, and time range |
-| `Interp` | Interpolation operator | Used for `INTERP` |
-| `Interval on Column ...` | Time-window operator | Used in `INTERVAL` queries |
-| `Last Row Scan on ...` | Last-row cache scan | Used in `last_row`, `last`, and similar queries; useful for confirming whether the cache scan path is used |
-| `Merge` | Merge | Used to merge multiple input streams |
-| `Merge Aligned Interval on Column ...` | Aligned-window merge | Common in aligned window result scenarios |
-| `Merge Interval on Column ...` | Window merge operator | Used for merging distributed window aggregations |
-| `Partition on Column ...` | Partition operator | Common in data partitioning; focus on the partition column information |
-| `Projection` | Projection | Responsible for column pruning, expression output, and column reordering |
-| `Session` | Session window | Used for `SESSION` |
-| `Sort` | Sort | Focus on whether an explicit sort occurs and its cost |
-| `StateWindow on Column ...` | State window | Used for `STATE_WINDOW` |
-| `System Table Scan on ...` | System table scan | Used for metadata or system database queries |
-| `Table Count Scan on ...` | Table count scan | Used in table-count-related queries |
-| `Table Merge Scan on ...` | Multi-table merge scan | Common in supertable, multi-subtable aggregation, or sort scenarios; useful for observing merge cost across tables |
-| `Table Scan on ...` | Table scan | The most common low-level scan node; used to determine scan order, scan mode, and data loading path |
-| `Tag Scan on ...` | Tag scan | Used to determine whether tags or metadata alone can reduce the scan range |
-| `Virtual Table Scan on ...` | Virtual table scan | Used to determine whether a virtual-table query has already pruned data at the logical layer |
+| `Aggregate` | 聚合 | 无分组聚合 |
+| `Block Dist Scan on ...` | 数据块分布扫描 | 用于块级分布或块级统计场景 |
+| `Count` | 计数窗口 | 用于 `COUNT_WINDOW` |
+| `Data Exchange N:1` | 多源到单源的数据交换 | 用于观察跨节点拉取成本与网络瓶颈 |
+| `Dynamic Query Control for ...` | 动态查询控制算子 | 更多用于复杂计划调度信息和内部执行策略判断 |
+| `Event` | 事件窗口 | 用于 `EVENT_WINDOW` |
+| `External on Column ...` | 外部窗口相关算子 | 用于外部窗口或外部对齐处理 |
+| `Fill` | 填充算子 | 用于缺失值填充 |
+| `Group Cache` | 分组缓存算子 | 用于分组缓存和分组复用 |
+| `Group Sort` | 分组排序 | 用于分组场景下的排序 |
+| `GroupAggregate` | 分组聚合 | 有分组键的聚合 |
+| `Indefinite Rows Function` | 返回不定长结果的函数算子 | 用于特殊函数处理 |
+| `Inner/Left/Right/Full ... Join` | 关联算子 | 重点关注连接算法、连接条件、主键条件和时间范围 |
+| `Interp` | 插值算子 | 用于 `INTERP` 插值 |
+| `Interval on Column ...` | 时间窗口算子 | 适用于 `INTERVAL` 查询 |
+| `Last Row Scan on ...` | Last Row 缓存扫描 | 用于 `LAST_ROW`、`LAST` 等查询场景，适合确认是否进行缓存扫描 |
+| `Merge` | 归并 | 用于多个输入流的合并 |
+| `Merge Aligned Interval on Column ...` | 对齐窗口归并 | 常见于窗口结果对齐场景 |
+| `Merge Interval on Column ...` | 窗口归并算子 | 用于分布式窗口聚合合并 |
+| `Partition on Column ...` | 分片算子 | 常见于数据分片，重点关注分片列信息 |
+| `Projection` | 投影 | 负责列裁剪、表达式输出、列重排 |
+| `Session` | 会话窗口 | 用于 `SESSION` |
+| `Sort` | 排序 | 重点关注是否发生显式排序及其排序代价 |
+| `StateWindow on Column ...` | 状态窗口 | 用于 `STATE_WINDOW` |
+| `System Table Scan on ...` | 系统表扫描 | 用于元数据或系统库查询 |
+| `Table Count Scan on ...` | 表计数扫描 | 用于表数量相关查询 |
+| `Table Merge Scan on ...` | 多表合并扫描 | 常见于超级表、多子表聚合或排序场景，适合观察多表归并成本 |
+| `Table Scan on ...` | 表扫描 | 最常见的底层扫描节点，用于判断扫描顺序、扫描模式、数据加载方式 |
+| `Tag Scan on ...` | 标签扫描 | 判断是否只基于标签或元数据就能缩小扫描范围 |
+| `Virtual Table Scan on ...` | 虚拟表扫描 | 判断虚拟表查询是否已经在逻辑层裁剪数据 |
 
-## Metric Quick Reference
+## 指标速查
 
-### 1. Common Metrics in Operator Header Rows
+### 1. 算子标题行中的常见指标
 
-These metrics usually appear on the `-> operator (...)` line.
+这些指标通常出现在 `-> 算子名 (...)` 这一行中。
 
-| Metric | Meaning | Diagnostic value |
+| 指标 | 含义 | 诊断价值 |
 | --- | --- | --- |
-| `algo=Merge` / `algo=Hash` | Join algorithm used by the join operator | Indicates whether the join bottleneck is more likely in sort-merge or hash build |
-| `asof_op=` | Comparison operator used by ASOF JOIN | Confirms the comparison direction in nearest-point joins |
-| `batch_process_child=` | Whether child tasks are processed in batches | Helps analyze execution strategy in dynamic plans |
-| `batch_scan=` | Whether batch scan is enabled | Indicates whether a supertable or batched subtable query uses the batch path |
-| `blocking=` | Whether the operator is blocking; `1` means it buffers enough data before producing output | Blocking operators are more likely to increase time-to-first-row latency |
-| `columns=` | Number of columns processed or output by the operator | Too many columns may indicate insufficient column pruning, increasing scan, network, and memory overhead |
-| `cost=first..last` | Appears only in `EXPLAIN ANALYZE`; time from operator creation to first row and last row, in milliseconds | Helps distinguish slow first response from slow full processing; a large first value often indicates scan, network, or sort warm-up, while a large last value often indicates a large result set or heavy computation |
-| `data_load=data` | Reads raw data blocks | Indicates that detailed data must actually be accessed |
-| `data_load=no` | Full data blocks do not need to be loaded | Indicates that the query mainly depends on metadata, indexes, or statistics |
-| `data_load=sma` | Reads SMA/TSMA results | Indicates that the query may hit a precomputed path |
-| `functions=` | Number of functions handled by the operator | Helps estimate computational complexity for aggregation, windowing, interpolation, and similar operators |
-| `global_group=` | Whether this is a global group cache | Helps analyze the scope of group caching |
-| `group_by_uid=` | Whether grouping is by UID | Commonly used for understanding internal grouping strategy |
-| `group_join=` | Whether grouped join is enabled | Used in diagnosing complex joins |
-| `groups=` | Number of grouping keys | Helps determine whether grouping dimensions are excessive |
-| `has_partition=` | Whether partition information is included | Used to determine whether a virtual table or dynamic query retains partition attributes |
-| `input_order=` | Ordering of the input data by the **primary timestamp column** (asc/desc/unknown) | Indicates whether upstream already satisfies the current operator's time-order requirement |
-| `jlimit=` | Maximum number of joined rows per input row | Used to analyze whether join amplification is constrained |
-| `limit=` | `LIMIT` seen by the current operator | Helps confirm whether `LIMIT` has been pushed down early |
-| `mode=grp_order` | Scan organized by group order | Indicates that the plan emphasizes grouped output order |
-| `mode=seq_grp_order` | Sequential grouped scan | Common in scenarios grouped by table or tag while preserving order |
-| `mode=sort` | Merge or combine in sort mode | Indicates that the current merge process depends on sort keys |
-| `mode=ts_order` | Scan organized in time order | Common in normal time-series scans |
-| `offset=` | `OFFSET` seen by the current operator | Helps determine whether offset trimming participates at this layer |
-| `order=[asc\|x desc\|y]` | Counts of forward and reverse scan reads | Indicates whether the scan is mainly ascending or descending |
-| `origin_vgroup_num=` | Original number of vgroups | Useful for observing the parallelism of virtual supertable queries |
-| `output_order=` | Ordering of the output data by the **primary timestamp column** (asc/desc/unknown) | Indicates whether the operator changes the time order, which helps infer whether later sorting can still be avoided |
-| `partitions=` | Number of partition keys | Helps understand the scale of `PARTITION BY` dimensions |
-| `pseudo_columns=` | Number of pseudo-columns such as `_wstart`, `_wend`, `tbname`, and so on | Useful for confirming whether window columns, table name columns, and similar values have entered the execution pipeline |
-| `rows=` | Number of rows output by the operator | Useful for spotting where row counts expand or where a vgroup outputs an unusually large amount of data |
-| `seq_win_grp=` | Whether sequential window grouping is used | Useful for understanding execution strategy for window joins and complex windows |
-| `slimit=` | `SLIMIT` seen by the current operator | Helps determine whether partition output count is constrained early |
-| `soffset=` | `SOFFSET` seen by the current operator | Helps determine whether partition offset takes effect |
-| `src_scan=` | Source scan position under dynamic control | Mainly used for complex plans and support troubleshooting |
-| `uid_slot=` | UID slot information | Mainly used for complex plans and support troubleshooting |
-| `vgroup_slot=` | vgroup slot information | Mainly used for complex plans and support troubleshooting |
-| `width=` | Row width in bytes | Wide rows amplify scan, sort, network exchange, and memory usage; if the header-row `width` differs from the `Output` row `width`, the operator usually carries intermediate or auxiliary columns internally |
-| `window_offset=(x, y)` | Offset range for a window join | Confirms the left and right bounds of a time-window join |
+| `algo=Merge` / `algo=Hash` | Join 使用的连接算法 | 用于判断连接瓶颈更偏向排序归并还是哈希构建 |
+| `asof_op=` | ASOF JOIN 的比较运算符 | 用于确认最近点连接的比较方向 |
+| `batch_process_child=` | 是否按批处理子任务 | 用于分析动态计划的执行策略 |
+| `batch_scan=` | 是否启用批量扫描 | 用于判断超级表或批量子表场景是否走了批量路径 |
+| `blocking=` | 是否为阻塞型算子，`1` 表示需要攒够数据后再输出 | 阻塞型算子更容易带来首包延迟 |
+| `columns=` | 算子参与处理或输出的列数 | 列数过多意味着列裁剪不足，可能增加扫描、网络和内存开销 |
+| `cost=first..last` | 仅在 `EXPLAIN ANALYZE` 中出现，表示该算子从创建到首行返回、末行返回的耗时，单位为毫秒 | 用于判断首包慢还是全量处理慢；首值大常见于扫描、网络、排序预热，末值大常见于大结果集或重计算 |
+| `data_load=data` | 读取原始数据块 | 说明需要真正访问明细数据 |
+| `data_load=no` | 不需要加载完整数据块 | 说明该查询主要依赖元数据、索引或统计信息 |
+| `data_load=sma` | 读取 SMA/TSMA 结果 | 说明查询可能命中了预计算路径 |
+| `functions=` | 当前算子处理的函数数量 | 用于估计聚合、窗口、插值等算子的计算复杂度 |
+| `global_group=` | 是否为全局分组缓存 | 用于分析分组缓存的范围 |
+| `group_by_uid=` | 是否按 UID 分组 | 常用于内部分组策略判断 |
+| `group_join=` | 是否启用分组连接 | 用于复杂连接诊断 |
+| `groups=` | 分组键数量 | 用于分析分组维度是否过多 |
+| `has_partition=` | 是否包含分区信息 | 用于判断虚拟表或动态查询是否保留了分区属性 |
+| `input_order=` | 输入数据按**主键时间戳列**的有序性（asc/desc/unknown） | 用于判断上游是否已经满足当前算子对时间序的要求 |
+| `jlimit=` | 单行匹配的最大连接行数 | 用于分析连接放大是否被限制 |
+| `limit=` | 当前算子承接到的 `LIMIT` | 用于确认 `LIMIT` 是否被尽早下推 |
+| `mode=grp_order` | 按分组顺序组织扫描 | 说明计划更强调分组输出顺序 |
+| `mode=seq_grp_order` | 顺序分组扫描 | 常用于按表或按标签分组并保持顺序的场景 |
+| `mode=sort` | 归并或合并时采用排序模式 | 说明当前合并过程依赖排序键 |
+| `mode=ts_order` | 按时间序组织扫描 | 常见于普通时间序扫描 |
+| `offset=` | 当前算子承接到的 `OFFSET` | 用于判断偏移是否参与了当前层裁剪 |
+| `order=[asc\|x desc\|y]` | 扫描时顺序读取与逆序读取的计数 | 用于判断扫描是否主要按升序还是降序进行 |
+| `origin_vgroup_num=` | 原始 vgroup 数量 | 用于观察虚拟超级表查询的并行规模 |
+| `output_order=` | 输出数据按**主键时间戳列**的有序性（asc/desc/unknown） | 用于判断当前算子是否改变了时间序，进而推断后续是否还能避免排序 |
+| `partitions=` | 分片键数量 | 用于判断 `PARTITION BY` 的维度规模 |
+| `pseudo_columns=` | 伪列数量，例如 `_wstart`、`_wend`、`tbname` 等 | 可用于确认窗口列、表名列等是否被引入执行链路 |
+| `rows=` | 该算子输出的结果行数 | 用于判断某层是否放大了数据量，或某个 vgroup 是否输出异常偏大 |
+| `seq_win_grp=` | 是否按顺序窗口分组 | 用于窗口连接和复杂窗口的执行策略判断 |
+| `slimit=` | 当前算子承接到的 `SLIMIT` | 用于分析分片输出数量是否在早期被控制 |
+| `soffset=` | 当前算子承接到的 `SOFFSET` | 用于分析分片偏移是否生效 |
+| `src_scan=` | 动态控制下的源扫描位置信息 | 主要供复杂计划与支持排障使用 |
+| `uid_slot=` | UID 槽位信息 | 主要供复杂计划与支持排障使用 |
+| `vgroup_slot=` | vgroup 槽位信息 | 主要供复杂计划与支持排障使用 |
+| `width=` | 单行宽度，单位为字节 | 宽行会放大扫描、排序、网络交换和内存占用；如果标题行与 `Output` 行的 `width` 不同，通常说明算子内部还有中间列或辅助列 |
+| `window_offset=(x, y)` | 窗口连接偏移范围 | 用于确认时间窗连接的左右边界 |
 
-Notes:
+**说明**
 
-- In multi-vgroup aggregated output, `a(b)` means `average(maximum)`
-- For `rows=`, `b` can be used to quickly locate the heaviest execution node
-- For `cost=`, the first value mostly corresponds to first-response latency, while the last value mostly corresponds to total processing time
-- `input_order` / `output_order` describe the ordering by the **primary timestamp column**, **not** the ordering by the `ORDER BY` sort key. Therefore, when sorting by a non-timestamp column (e.g. `ORDER BY val`), the `Sort` operator shows `output_order=unknown`: this means the timestamp ordering is undefined after sorting, and **does not mean the result is unsorted** (the result is still strictly ordered by the sort key). This field mainly lets time-order-dependent downstream operators (window, merge, `Join`) decide whether they can stream and skip a re-sort
+- 在多 vgroup 聚合输出中，`a(b)` 形式表示“平均值（最大值）”
+- 对 `rows=` 来说，`b` 可用于快速定位最重的单个执行节点
+- 对 `cost=` 来说，首值大多对应首包延迟，末值大多对应总处理时长
+- `input_order` / `output_order` 描述的是**主键时间戳列**的有序方向，**不是**按 `ORDER BY` 排序键的方向。因此按非时间戳列排序时（如 `ORDER BY val`），`Sort` 算子会显示 `output_order=unknown`——这表示排序后时间戳顺序已不确定，**并不代表结果未排序**（结果仍严格按排序键有序）。该字段主要供窗口、归并、`Join` 等依赖时间序的下游算子判断能否走流式、省去再次排序
 
-### 2. Structural and Attribute Metrics with `VERBOSE true`
+### 2. `VERBOSE true` 下的结构与属性指标
 
-| Metric | Meaning | Diagnostic value |
+| 指标 | 含义 | 诊断价值 |
 | --- | --- | --- |
-| `Buffers:` | Sort buffer size | Used to determine sort memory pressure |
-| `End Cond: ...` | Event window end condition | Confirms the end trigger for `EVENT_WINDOW` |
-| `fetch_cost=` | RPC fetch time in the exchange stage | A direct indicator of network or remote-node pressure |
-| `fetch_rows=` | Rows fetched per node | Helps determine whether network batch size is reasonable |
-| `fetch_times=` | Number of fetches in the exchange stage | Too many fetches may mean the data is fragmented too finely or the downstream repeatedly pulls small batches |
-| `Fill Values: ...` | Fill value list | Confirms whether fill values for `FILL` or `INTERP` are correct |
-| `Filter: ... efficiency=xx%` | Filter efficiency; appears only with `ANALYZE` | Lower usually means filtering is more selective; if the predicate is strong but efficiency is near 100%, it may not be applied at the expected layer |
-| `Filter: conditions=...` | Filter condition at the current operator | Shows where a filter predicate is executed |
-| `Join Col Cond: ...` | Join condition on non-primary-key columns | Used to see whether column conditions are pushed into the join layer |
-| `Join Full Cond: ...` | Full join condition | Confirms the final join condition expression |
-| `Join Param: ...` | Additional join parameters | Used to analyze comparison operators, offset ranges, and limits in ASOF/WINDOW JOIN |
-| `Join Prim Cond: ...` | Primary-key join condition | Used to determine whether the primary-key join condition is extracted separately |
-| `Left Equal Cond:` | Equality columns on the left side | Used to analyze equality join keys |
-| `Left Table Time Range: ...` | Time range of the left table | Used to diagnose cases where time predicates only hit one side of a join |
-| `Left/Right Table Time Range: ...` | Time ranges of both sides | Confirms that both sides of the join are time-pruned |
-| `loops:` | Number of sort loops | Higher values usually indicate more processing batches or more merge rounds |
-| `Merge Key: ...` | Keys used for multi-way merge | Confirms which keys are used to merge multi-shard results |
-| `Merge ResBlocks: True/False` | Whether result blocks must be merged | `True` means block-level merging exists at this layer and may add memory and CPU overhead |
-| `Network: mode=...` | Data exchange mode, `concurrent` or `sequence` | Concurrent fetch usually provides better throughput; sequential fetch is more likely to show tail latency |
-| `Output: columns=... width=...` | Number of columns and row width actually emitted downstream | Used to confirm whether column pruning is effective |
-| `Output: Ignore Group Id: true/false` | Whether group IDs are ignored in this operator's output | If `true`, later stages no longer distinguish upstream group boundaries |
-| `Partition Key: partitions=n` | Partition key information | Confirms whether `PARTITION BY` takes effect |
-| `Primary Filter: ...` | Primary-key filter condition, usually timestamp or other primary-key-related predicates | Indicates that primary-key conditions have been pushed down to a lower layer, which is usually critical for performance |
-| `Right Equal Cond:` | Equality columns on the right side | Used to analyze equality join keys |
-| `Right Table Time Range: ...` | Time range of the right table | Used to diagnose cases where time predicates only hit one side of a join |
-| `Sort Key: ...` | Sort key | Confirms whether sorting uses the expected columns |
-| `Sort Method: quicksort / merge sort` | Sorting algorithm | Helps distinguish in-memory sorts from heavier merge-sort paths |
-| `Start Cond: ...` | Event window start condition | Confirms the start trigger for `EVENT_WINDOW` |
-| `Tag Index Filter: conditions=...` | Filter conditions that can use a tag index | The most direct indicator of whether a tag index is hit |
-| `Time Range: [start, end]` | Time scan range of the current operator | Confirms whether the time predicate has been pruned successfully |
-| `Time Window: interval=... offset=... sliding=...` | Time-window parameters | Confirms whether window size, offset, and sliding step match expectations |
-| `Window Count=` | Count-window size | Confirms the window size of `COUNT_WINDOW()` |
-| `Window Sliding=` | Count-window sliding step | Confirms the sliding setting of `COUNT_WINDOW()` |
-| `Window: gap=...` | Session window gap | Used to diagnose how `SESSION()` is split |
+| `Buffers:` | 排序缓冲区大小 | 用于判断排序内存压力 |
+| `End Cond: ...` | 事件窗口结束条件 | 用于确认 `EVENT_WINDOW` 的结束触发条件 |
+| `fetch_cost=` | 交换阶段 RPC 拉取耗时 | 网络或远端节点压力的直接体现 |
+| `fetch_rows=` | 每节点拉取的行数 | 用于判断网络批量大小是否合理 |
+| `fetch_times=` | 交换阶段的拉取次数 | 次数过多说明数据被切得过碎或下游反复取数 |
+| `Fill Values: ...` | 填充值列表 | 用于确认 `FILL` 或 `INTERP` 的填充值是否正确 |
+| `Filter: ... efficiency=xx%` | 过滤效率，仅在 `ANALYZE` 下出现 | 一般越低说明过滤越充分；若过滤条件很强但效率接近 100%，可能没有在预期层级生效 |
+| `Filter: conditions=...` | 当前算子的过滤条件 | 用于确认过滤谓词处在哪一层执行 |
+| `Join Col Cond: ...` | 非主键列连接条件 | 用于定位列条件是否下推到连接层 |
+| `Join Full Cond: ...` | Join 完整条件 | 用于确认最终连接条件表达式 |
+| `Join Param: ...` | Join 的附加参数 | 用于分析 ASOF/WINDOW JOIN 的比较符、偏移范围和限制 |
+| `Join Prim Cond: ...` | Join 主键条件 | 用于判断主键连接条件是否被单独抽取 |
+| `Left Equal Cond:` | 左侧等值列 | 用于分析等值连接键 |
+| `Left Table Time Range: ...` | 左表时间范围 | 用于时间条件只命中某一侧 Join 的诊断 |
+| `Left/Right Table Time Range: ...` | 两侧表时间范围 | 用于确认 Join 两边都参与了时间裁剪 |
+| `loops:` | 排序循环次数 | 循环次数多通常意味着处理批次多或归并轮次多 |
+| `Merge Key: ...` | 多路归并的键 | 用于确认多分片结果是按什么键归并的 |
+| `Merge ResBlocks: True/False` | 是否需要归并结果块 | `True` 说明当前层存在块级合并，可能带来额外内存与 CPU 开销 |
+| `Network: mode=...` | 数据交换方式，`concurrent` 或 `sequence` | 并发拉取通常吞吐更高，顺序拉取更容易出现长尾等待 |
+| `Output: columns=... width=...` | 该算子对下游真正输出的列数与行宽 | 用于确认列裁剪是否生效 |
+| `Output: Ignore Group Id: true/false` | 该算子输出时是否忽略分组 ID | 如果为 `true`，说明后续阶段不再区分上游分组边界 |
+| `Partition Key: partitions=n` | 分片键信息 | 用于确认 `PARTITION BY` 是否生效 |
+| `Primary Filter: ...` | 主键过滤条件，通常是时间戳或主键相关过滤 | 说明主键条件已下推到更底层，通常对性能很重要 |
+| `Right Equal Cond:` | 右侧等值列 | 用于分析等值连接键 |
+| `Right Table Time Range: ...` | 右表时间范围 | 用于时间条件只命中某一侧 Join 的诊断 |
+| `Sort Key: ...` | 排序键 | 用于确认是否按预期列排序 |
+| `Sort Method: quicksort / merge sort` | 排序算法 | 可用于区分内存内排序和更重的归并排序路径 |
+| `Start Cond: ...` | 事件窗口开始条件 | 用于确认 `EVENT_WINDOW` 的起始触发条件 |
+| `Tag Index Filter: conditions=...` | 可利用标签索引的过滤条件 | 是判断标签索引是否命中的最直接指标 |
+| `Time Range: [start, end]` | 当前算子的时间扫描范围 | 用于确认时间条件是否被成功裁剪 |
+| `Time Window: interval=... offset=... sliding=...` | 时间窗口参数 | 用于确认窗口大小、偏移与滑动步长是否符合预期 |
+| `Window Count=` | 计数窗口大小 | 用于确认 `COUNT_WINDOW()` 的窗口规模 |
+| `Window Sliding=` | 计数窗口滑动步长 | 用于确认 `COUNT_WINDOW()` 的滑动设置 |
+| `Window: gap=...` | 会话窗口间隔 | 用于诊断 `SESSION()` 的切分标准 |
 
-### 3. Operator's Execution-Cost Metrics
+### 3. 算子的执行代价指标
 
-`EXPLAIN ANALYZE VERBOSE true` additionally shows an `Exec cost` row under operators.
+`EXPLAIN ANALYZE VERBOSE true` 会在算子下额外展示 `Exec cost` 行。
 
-| Metric | Meaning | Diagnostic value |
+| 指标 | 含义 | 诊断价值 |
 | --- | --- | --- |
-| `Exec cost:` | Summary of execution cost for the current operator | Helps determine whether the operator is slow because it computes slowly, waits too long, or is blocked by upstream/downstream |
-| `compute=` | Time spent inside the operator itself, excluding time waiting on child data, in milliseconds | A high value usually means the operator itself is expensive because of computation, aggregation, sorting, or scanning |
-| `create=` | Operator creation time; for multi-node execution this is shown as average creation time and latest creation time, in the current system time zone | Large differences across nodes may indicate uneven task dispatch or scheduling imbalance |
-| `input_wait=` | Total time waiting for child data, in milliseconds | A high value usually means the bottleneck is more likely in child nodes or remote scans |
-| `output_wait=` | Total time waiting for the parent operator to request more data, in milliseconds | A high value means this operator produces results but the parent consumes them slowly |
-| `start=` | Time from creation until the operator is called for the first time, in milliseconds | A large value means the operator was created early but entered execution late |
-| `times=` | Number of times the operator is invoked | An unusually large value often means the parent is pulling data in very small batches |
+| `Exec cost:` | 当前算子的执行代价摘要 | 用于判断当前算子究竟是算得慢、等得久，还是被上游阻塞 |
+| `compute=` | 算子自身执行时间，不含等待下游数据时间，单位毫秒 | 该值高，通常说明算子本身计算、聚合、排序或扫描开销大 |
+| `create=` | 算子创建时间；多节点时为平均创建时间与最晚创建时间，时区为系统当前时区 | 多个节点创建时间差异大，可能意味着任务分发或调度不均衡 |
+| `input_wait=` | 等待下游返回数据的累计时间，单位毫秒 | 高说明瓶颈更可能在子节点或远端扫描 |
+| `output_wait=` | 等待上游再次调用的累计时间，单位毫秒 | 高说明当前算子产生结果后，上游消费不及时 |
+| `start=` | 算子从创建到第一次被调用的耗时，单位毫秒 | 值大说明算子虽已创建，但较晚才真正进入执行 |
+| `times=` | 算子被调用的次数 | 调用次数异常偏多，常意味着上游按很小批次拉取 |
 
-Notes:
+**说明**
 
-- A single-node plan shows a single value; a multi-node plan shows `average(maximum)`
-- In multi-node output, `create=` also appears as `average_timestamp(latest_timestamp)`
+- 单节点显示为单值，多节点显示为 `平均值(最大值)`
+- `create=` 在多节点时也会显示为 `平均时间戳(最晚时间戳)`
 
-### 4. I/O Metrics for Scan Operators
+### 4. 扫描类算子的 I/O 指标
 
-In `EXPLAIN ANALYZE VERBOSE true`, scan operators also show three `I/O cost` rows.
+扫描类算子在 `EXPLAIN ANALYZE VERBOSE true` 下还会展示三行 `I/O cost` 信息。
 
-| Metric | Meaning | Diagnostic value |
+| 指标 | 含义 | 诊断价值 |
 | --- | --- | --- |
-| `check_rows=` | Number of rows checked or filtered | If much larger than `rows`, the scan volume before filtering is large |
-| `composed_blocks=` | Number of composed result blocks | Indicates that scan results were additionally assembled into blocks |
-| `composed_elapsed=` | Time spent composing result blocks | A high value means block assembly or reorganization is expensive |
-| `cost_ratio=` | Cost ratio between the slowest node and the fastest node | The larger the ratio, the more severe the skew |
-| `data_deviation=` | Data-volume deviation of the slowest node relative to the median node | Helps determine whether a slow node is slow because it computed slowly or simply received more data |
-| `file_load_blocks=` | Number of blocks loaded from files | A high value indicates heavier disk reads |
-| `file_load_elapsed=` | Time spent loading file blocks | Used to assess disk I/O pressure |
-| `mem_load_blocks=` | Number of blocks loaded from memory | A high value usually indicates good cache hit rate |
-| `mem_load_elapsed=` | Time spent loading memory blocks | If this is high too, there may be too many blocks or overly wide rows |
-| `slow_deviation=` | Cost deviation of the slowest node relative to the median node | A high value indicates obvious tail latency |
-| `slowest_vgroup_id=` | ID of the slowest vgroup; appears only for multi-node execution | Directly identifies the slow node |
-| `sma_load_blocks=` | Number of blocks loaded from SMA/TSMA | Indicates whether the pre-aggregation path is used |
-| `sma_load_elapsed=` | Time spent loading SMA/TSMA data | Used to evaluate the benefit of the pre-aggregation path |
-| `stt_load_blocks=` | Number of blocks loaded from STT-related structures | Used to analyze how much the STT path participates |
-| `stt_load_elapsed=` | Time spent loading STT data | Used to assess STT-path cost |
-| `total_blocks=` | Total number of processed blocks | Reflects overall scan workload |
+| `check_rows=` | 过滤或检查过的行数 | 若远大于 `rows`，说明过滤前扫描量很大 |
+| `composed_blocks=` | 组合生成的块数 | 说明扫描结果经过了额外的块拼装 |
+| `composed_elapsed=` | 结果块组合耗时 | 值高说明块拼装或重组成本显著 |
+| `cost_ratio=` | 最慢节点与最快节点的耗时比值 | 比值越大，倾斜越严重 |
+| `data_deviation=` | 最慢节点相对中位节点的数据量偏差 | 用于辅助判断慢节点是算得慢还是拿到的数据就更多 |
+| `file_load_blocks=` | 从文件加载的块数 | 值高说明磁盘读取较多 |
+| `file_load_elapsed=` | 文件块加载耗时 | 判断磁盘 I/O 压力 |
+| `mem_load_blocks=` | 从内存加载的块数 | 值高通常说明缓存命中较好 |
+| `mem_load_elapsed=` | 内存块加载耗时 | 内存路径也高时，可能是块数过多或行宽过大 |
+| `slow_deviation=` | 最慢节点相对中位节点的耗时偏差 | 偏差大说明存在明显长尾 |
+| `slowest_vgroup_id=` | 最慢 vgroup ID，仅多节点时出现 | 直接定位慢节点 |
+| `sma_load_blocks=` | 从 SMA/TSMA 加载的块数 | 说明是否命中预聚合数据 |
+| `sma_load_elapsed=` | SMA/TSMA 加载耗时 | 用于评估预聚合路径收益 |
+| `stt_load_blocks=` | 从 STT 相关结构加载的块数 | 用于分析 STT 路径参与程度 |
+| `stt_load_elapsed=` | STT 加载耗时 | 判断 STT 路径代价 |
+| `total_blocks=` | 总处理块数 | 反映扫描总体工作量 |
 
-Diagnostic tips:
+**诊断建议**
 
-- If `file_load_*` is high, first check the time range, tag filters, and index hits
-- If `mem_load_*` is high but the query is still slow, focus on result row width, sort cost, and aggregation complexity
-- If `sma_load_*` is `0`, the query did not hit the precomputed path
-- If `cost_ratio` and `slow_deviation` are high, first locate hot vgroups, uneven data distribution, or abnormal node resources, then use `data_deviation` to narrow it down further
+- `file_load_*` 高：优先检查时间范围、标签过滤和索引命中
+- `mem_load_*` 高但仍慢：重点检查结果行宽、排序和聚合复杂度
+- `sma_load_*` 为 0：说明未命中预计算路径
+- `cost_ratio`、`slow_deviation` 高：优先定位热点 vgroup、数据分布不均或某个节点资源异常，再通过 `data_deviation` 辅助定位
 
-### 5. Plan-Level Summary Metrics
+### 5. 计划级汇总指标
 
-At the end of the output, `EXPLAIN ANALYZE` also shows summary information for the whole statement.
+`EXPLAIN ANALYZE` 在结果末尾还会给出整个语句的汇总信息。
 
-| Metric | Meaning | Diagnostic value |
+| 指标 | 含义 | 诊断价值 |
 | --- | --- | --- |
-| `Execution Time:` | Actual end-to-end execution time of the plan | The overall metric for final latency |
-| `Planning Time:` | Time spent generating the execution plan | If high, focus on SQL complexity, join depth, and optimizer overhead |
+| `Execution Time:` | 执行计划实际运行耗时 | 是判断最终端到端耗时的总指标 |
+| `Planning Time:` | 生成执行计划耗时 | 计划时间高时，应关注 SQL 复杂度、关联层级和优化器开销 |
 
-## Subquery
+## 子查询
 
-When a query contains subqueries that are compiled into their own execution subplans, `EXPLAIN` output is typically split into two parts:
+当查询中包含需要单独生成执行子计划的子查询时，`EXPLAIN` 的结果通常分为两部分：
 
-- The main query plan is shown first
-- The subquery plans are then shown in separate sections headed by `InitPlan n`
+- 先输出主查询（主计划）的计划树
+- 再按独立段落输出子查询对应的子计划，并在段首显示 `InitPlan n`
 
-This format does not simply indent all subquery logic under the main tree. Instead, the main plan and the subplans are displayed separately. `InitPlan n` is the heading for a subquery plan and indicates a subplan whose result is referenced by the main query. Operators in the main plan show where that subplan result is referenced, typically by `$(InitPlan n)` as a placeholder.
+这类格式不是把所有子查询逻辑简单缩进到主树下，而是把主计划与子计划分别展示。
+`InitPlan n` 是子查询计划的标题行，用于标识这是一个被主查询**引用**的子计划。
+主计划中的算子会通过这个标题表示在何处引用子计划的结果，通常用 `$(InitPlan n)` 作为占位符。
 
-When reading this kind of output, focus on these structural cues:
+阅读时可重点关注以下几点：
 
-- The main plan still appears first and shows the execution flow of the outer query, including its operators and the points where subquery results are referenced, although some details may be hidden depending on the `VERBOSE` level
-- Each `InitPlan n` is followed by its own plan tree, representing the execution flow of that subquery
-- If a statement contains multiple subqueries, the output may contain multiple `InitPlan n` sections
-- `Planning Time` and `Execution Time` still appear after all plans have been printed
+- 主计划仍然位于最前面，其中会展示主查询的执行计划，包括主查询的算子、子查询的引用位置（可能由于 verbose 级别被隐藏）等
+- 每个 `InitPlan n` 后面都会跟着一棵独立的计划树，表示该子查询自身的执行计划
+- 如果存在多个子查询，结果中可能出现多个 `InitPlan n`
+- `Planning Time`、`Execution Time` 仍然位于所有计划输出之后
 
-For example, the following SQL contains two scalar subqueries:
+例如，下面的 SQL 包含两个标量子查询：
 
 ```sql
 SELECT * FROM meters
 WHERE
-current > (SELECT avg(current) FROM meters WHERE location = 'Beijing')
-and voltage < (SELECT avg(voltage) FROM meters WHERE location = 'Beijing');
+current > (SELECT AVG(current) FROM meters WHERE location = 'Beijing')
+AND voltage < (SELECT AVG(voltage) FROM meters WHERE location = 'Beijing');
 ```
 
-The corresponding `EXPLAIN ANALYZE VERBOSE true` output typically shows the main plan first, followed by the subquery `InitPlan` sections, for example:
+对应的 `EXPLAIN ANALYZE VERBOSE true` 结果通常会先给出主计划，再给出子查询的 `InitPlan`，例如：
 
 ```text
 -> Projection
@@ -327,17 +332,17 @@ The corresponding `EXPLAIN ANALYZE VERBOSE true` output typically shows the main
         -> Table Scan on meters
 ```
 
-In this example:
+其中：
 
-- The leading `Projection -> Table Scan` belongs to the outer query
-- `Aggregate -> Table Scan` under `InitPlan 1` is the execution plan of the corresponding subquery
-- The subqueries are executed first, and their results are then referenced by the filter condition in the outer query
+- 最前面的 `Projection -> Table Scan` 是外层主查询
+- `InitPlan 1` 下面的 `Aggregate -> Table Scan` 是子查询自己的执行计划
+- 子查询先执行，结果再供主查询中的过滤条件引用。
 
-For statements that contain subqueries, do not stop at the first few lines of the main plan. Always check whether additional `InitPlan n` sections follow, because the real cost may come from a full scan, aggregation, sort, or another expensive operator inside a subquery.
+因此，在分析含子查询语句时，不能只看主计划最上面的几行，也要继续查看后续是否存在 `InitPlan n` 段，以确认子查询本身是否发生全表扫描、聚合、排序或其他高成本操作。
 
-## Examples
+## 使用示例
 
-### 1. Show the execution plan of a normal query
+### 1. 查看普通查询的执行计划
 
 ```sql
 taos> EXPLAIN SELECT ts, current FROM meters WHERE ts >= '2026-01-01 00:00:00' AND ts < '2026-02-01 00:00:00' \G;
@@ -349,7 +354,7 @@ QUERY_PLAN:    -> Projection (columns=2 width=12 input_order=asc)
 QUERY_PLAN:       -> Table Scan on meters (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 ```
 
-### 2. Show the detailed plan
+### 2. 查看详细计划
 
 ```sql
 taos> EXPLAIN VERBOSE true SELECT ts, current FROM meters WHERE ts >= '2025-01-01 00:00:00+08:00' AND ts < '2025-01-02 00:00:00+08:00' \G;
@@ -373,7 +378,7 @@ QUERY_PLAN:             Output: columns=2 width=12
 QUERY_PLAN:             Time Range: [1735660800000, 1735747199999]
 ```
 
-### 3. Show execution-process metrics
+### 3. 查看执行过程信息
 
 ```sql
 taos> EXPLAIN ANALYZE VERBOSE true SELECT * FROM meters WHERE location = 'Beijing' \G;
@@ -416,13 +421,13 @@ QUERY_PLAN: Planning Time: 0.606 ms
 *************************** 19.row ***************************
 QUERY_PLAN: Execution Time: 24.992 ms
 
--- Note: a tag index must be created manually
+-- 注意：需要手动创建标签索引
 ```
 
-### 4. Subquery
+### 4. 子查询
 
 ```sql
-taos> EXPLAIN ANALYZE VERBOSE true SELECT * FROM meters WHERE voltage > (SELECT avg(voltage) FROM meters WHERE location = 'Beijing') \G;
+taos> EXPLAIN ANALYZE VERBOSE true SELECT * FROM meters WHERE voltage > (SELECT AVG(voltage) FROM meters WHERE location = 'Beijing') \G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 4:1 (cost=3.021..24.317 rows=149340 width=39)
 *************************** 2.row ***************************
@@ -503,10 +508,10 @@ QUERY_PLAN: Planning Time: 0.815 ms
 QUERY_PLAN: Execution Time: 64.835 ms
 ```
 
-### 5. Aggregation query
+### 5. 聚合查询
 
 ```sql
-taos> EXPLAIN ANALYZE VERBOSE true SELECT tbname, count(*), avg(current) FROM meters PARTITION BY tbname \G;
+taos> EXPLAIN ANALYZE VERBOSE true SELECT tbname, COUNT(*), AVG(current) FROM meters PARTITION BY tbname \G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Data Exchange 4:1 (cost=0.357..0.563 rows=30 width=288)
 *************************** 2.row ***************************
@@ -545,10 +550,10 @@ QUERY_PLAN: Planning Time: 8.821 ms
 QUERY_PLAN: Execution Time: 10.767 ms
 ```
 
-### 6. Time-window query
+### 6. 时间窗口查询
 
 ```sql
-taos> EXPLAIN ANALYZE VERBOSE true SELECT _wstart, _wend, count(*), avg(current) FROM meters INTERVAL(10s) \G;
+taos> EXPLAIN ANALYZE VERBOSE true SELECT _wstart, _wend, COUNT(*), AVG(current) FROM meters INTERVAL(10s) \G;
 *************************** 1.row ***************************
 QUERY_PLAN: -> Merge Aligned Interval on Column  (cost=0.626..0.626 rows=10 functions=4 width=32 input_order=asc output_order=asc)
 *************************** 2.row ***************************
@@ -713,9 +718,9 @@ QUERY_PLAN: Planning Time: 0.484 ms
 QUERY_PLAN: Execution Time: 8.138 ms
 ```
 
-## Diagnostic Suggestions
+## 诊断建议
 
-### No tag index is used
+### 没有使用标签索引
 
 ```text
 -> Table Scan on meters (...)
@@ -724,14 +729,14 @@ QUERY_PLAN: Execution Time: 8.138 ms
       Primary Filter: ts >= 2026-01-01 00:00:00 and ts < 2026-02-01 00:00:00
 ```
 
-Important:
+**重要**
 
-- When diagnosing scans, first check whether `Tag Index Filter` appears. It directly determines whether the engine can narrow the subtable or shard range before scanning. This index must be created manually.
-- If `Tag Index Filter` does not appear, the query may fall back to a much larger scan even if tag predicates are written, causing `check_rows`, `file_load_blocks`, and total latency to increase significantly.
+- 在扫描诊断中，`Tag Index Filter` 是否出现应优先检查；它直接决定是否能在扫描前缩小子表/分片范围，需手动创建
+- 若没有 `Tag Index Filter`，即使写了标签条件，也可能退化为更大范围扫描，导致 `check_rows`、`file_load_blocks` 和整体耗时显著上升
 
-### The query is slow, but the scan is not heavy
+### 查询慢，但扫描不重
 
-Focus on:
+**重点看**
 
 - `Sort`
 - `Group Sort`
@@ -739,11 +744,11 @@ Focus on:
 - `Aggregate`
 - `Exec cost: compute=...`
 
-If scan-layer `I/O cost` is low but upper-layer `compute` is high, the bottleneck is usually in computation, sorting, or merging.
+如果扫描层 `I/O cost` 不高，而上层 `compute` 很高，通常瓶颈在计算、排序或归并。
 
-### The query is slow, and the scan volume is large
+### 查询慢，而且扫描量大
 
-Focus on:
+**重点看**
 
 - `Time Range`
 - `Primary Filter`
@@ -751,55 +756,55 @@ Focus on:
 - `check_rows`
 - `file_load_blocks`
 
-If `Time Range` is not narrowed, `Tag Index Filter` does not appear, and `check_rows` is large, scan pruning is usually insufficient.
+如果 `Time Range` 没有缩小、`Tag Index Filter` 未出现、`check_rows` 又很大，往往说明扫描裁剪不充分。
 
-### The plan contains many `Data Exchange` nodes
+### 计划里出现很多 `Data Exchange`
 
-Focus on:
+**重点看**
 
 - `Network: fetch_cost`
 - `fetch_times`
-- `rows=average(maximum)`
+- `rows=平均值(最大值)`
 - `slowest_vgroup_id`
 
-If the exchange layer is expensive, the bottleneck may be cross-node transfer rather than local operators.
+如果交换层代价高，说明瓶颈可能在跨节点传输，而不是本地算子。
 
-### Some nodes are much slower than others
+### 某些节点特别慢
 
-Focus on:
+**重点看**
 
 - `slowest_vgroup_id`
 - `slow_deviation`
 - `cost_ratio`
 - `data_deviation`
 
-How to judge:
+**判断方法**
 
-- If `data_deviation` is high, data skew is more likely
-- If `data_deviation` is not high but `cost_ratio` is high, abnormal node resources or hotspot contention is more likely
+- `data_deviation` 高：更可能是数据倾斜
+- `data_deviation` 不高但 `cost_ratio` 高：更可能是某个节点资源异常或热点竞争
 
-### Many filter conditions are written, but performance does not improve
+### 过滤条件写了很多，但性能没有改善
 
-Focus on:
+**重点看**
 
 - `Filter`
 - `Primary Filter`
 - `Tag Index Filter`
 - `Filter: efficiency=...`
 
-If filter conditions remain only in upper-level operators and do not appear at the scan layer, early filtering usually has not actually happened.
+如果过滤条件只停留在上层算子，而没有出现在扫描层，通常说明还没有真正做到早过滤。
 
-## Recommendations
+## 使用建议
 
-- For day-to-day plan inspection, start with `EXPLAIN VERBOSE true`
-- For slow-query troubleshooting, start with `EXPLAIN ANALYZE VERBOSE true`
-- Pay special attention to whether `Tag Index Filter`, `Primary Filter`, `Data Exchange`, `Exec cost`, and `I/O cost` appear
-- In multi-vgroup queries, prioritize fields shown as `average(maximum)`, because they are the easiest place to spot long-tail issues
-- When `rows`, `width`, and `fetch_cost` are all large, network transfer pressure is usually significant
+- 日常查看计划，优先使用 `EXPLAIN VERBOSE true`
+- 排查慢查询，优先使用 `EXPLAIN ANALYZE VERBOSE true`
+- 重点观察是否出现 `Tag Index Filter`、`Primary Filter`、`Data Exchange`、`Exec cost` 和 `I/O cost`
+- 在多 vgroup 查询中，优先关注所有 `平均值(最大值)` 形式的字段，它们最容易暴露长尾问题
+- 当 `rows`、`width`、`fetch_cost` 同时偏大时，通常意味着网络传输压力会非常明显
 
-## Related Documentation
+## 相关文档
 
-- [Query Data](./01-query.md)
-- [Feature Query](./06-distinguished.md)
-- [Join Queries](./07-join.md)
-- [Tag Indices](../06-index-and-view/01-tagindex.md)
+- [基础查询](./01-query.md)
+- [特色查询](./04-distinguished.md)
+- [关联查询](./05-join.md)
+- [标签索引](../06-index-and-view/01-tagindex.md)

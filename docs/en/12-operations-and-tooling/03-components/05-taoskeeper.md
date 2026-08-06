@@ -290,7 +290,7 @@ Query OK, 1 row(s) in set (0.003168s)
 
 ### Configuring Monitoring with TDInsight
 
-After collecting monitoring data, you can use TDInsight to configure monitoring for TDengine. For details, please refer to the [TDinsight Reference Manual](./08-tdinsight/index.mdx).
+After collecting monitoring data, you can use TDInsight to configure monitoring for TDengine. For details, please refer to the [TDinsight Reference Manual](./08-tdinsight/index.md).
 
 ## Integrating Prometheus
 

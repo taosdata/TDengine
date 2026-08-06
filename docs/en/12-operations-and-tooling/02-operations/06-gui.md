@@ -41,7 +41,7 @@ Superusers can manage databases from this page. You can create database and tabl
 
 Open **Stream Processing** from the navigation menu to create and manage streams. You can use the visual wizard or provide a custom SQL statement. The wizard does not currently support grouping; use custom SQL when grouping or other advanced syntax is required.
 
-For stream concepts and SQL syntax, see [Stream Processing](../../06-stream-processing/index.md).
+For stream concepts and SQL syntax, see [Stream Processing](../../07-stream-processing/index.md).
 
 ## Data Subscription
 
@@ -52,7 +52,7 @@ Open **Data Subscription** to create topics with the wizard or custom SQL. The p
 - Generate connector examples for consuming a topic.
 - Choose whether metadata events are included when the topic is used by taosExplorer synchronization tasks.
 
-Do not enable metadata synchronization when an application consumes the topic through a regular connector and expects data records only. For subscription concepts, see [Data Subscription](../../07-data-subscription/index.md).
+Do not enable metadata synchronization when an application consumes the topic through a regular connector and expects data records only. For subscription concepts, see [Data Subscription](../../06-data-subscription/index.md).
 
 ## Tools
 

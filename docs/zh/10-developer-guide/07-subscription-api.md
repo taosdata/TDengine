@@ -8,7 +8,7 @@ toc_max_heading_level: 4
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine 提供类似消息队列的数据订阅与消费接口。在许多场景中，采用 TDengine 作为时序大数据平台即可，无须再集成消息队列产品，从而简化应用设计并降低运维成本。本章介绍各语言连接器的数据订阅 API 与用法。主题与消费组等基础知识请参阅 [数据订阅](../07-data-subscription/index.md)；创建主题的 SQL 语法见 [主题语法](../07-data-subscription/01-topic.md)；Native 订阅概念说明见 [Native 订阅](../07-data-subscription/02-native.md)。
+TDengine 提供类似消息队列的数据订阅与消费接口。在许多场景中，采用 TDengine 作为时序大数据平台即可，无须再集成消息队列产品，从而简化应用设计并降低运维成本。本章介绍各语言连接器的数据订阅 API 与用法。主题与消费组等基础知识请参阅 [数据订阅](../06-data-subscription/index.md)；创建主题的 SQL 语法见 [主题语法](../06-data-subscription/01-topic.md)；Native 订阅概念说明见 [Native 订阅](../06-data-subscription/02-native.md)。
 
 ## 创建主题
 
@@ -23,7 +23,7 @@ CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, g
 **注意**
 在 TDengine 连接器实现中，对于订阅查询，有以下限制。
 
-- 主题类型与 `WITH META` / `ONLY META` 语义见 [主题语法](../07-data-subscription/01-topic.md)。`WITH META` / `ONLY META` 主要用于数据迁移与 schema 同步（如 taosX）；多数应用以 `SELECT` 或库/超级表时序数据主题为主。
+- 主题类型与 `WITH META` / `ONLY META` 语义见 [主题语法](../06-data-subscription/01-topic.md)。`WITH META` / `ONLY META` 主要用于数据迁移与 schema 同步（如 taosX）；多数应用以 `SELECT` 或库/超级表时序数据主题为主。
 - **各连接器能力对照**（依据 monorepo 连接器代码与测试核对；未单独验证的组合从宽表述）：
 
 | 连接器 | `SELECT` 主题 | 数据库 / 超级表主题（时序数据） | `WITH META` / `ONLY META` 消费 |

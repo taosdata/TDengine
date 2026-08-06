@@ -95,4 +95,4 @@ TDengine 支持与众多可视化及 BI 工具无缝对接，如 Grafana、Power
 
 3. 数据源
 
-TDengine 具备强大的数据接入能力，可以对接各种数据源，如 MQTT、OPC-UA/DA、Kafka、AVEVA PI System、AVEVA Historian 等。这使得 TDengine 能够轻松整合来自不同数据源的数据，为你提供全面、统一的数据视图。相关专题另见 [数据接入与发布](../08-data-ingest-and-delivery/index.md)、[数据订阅](../07-data-subscription/index.md)、[流式计算](../06-stream-processing/index.md)。
+TDengine 具备强大的数据接入能力，可以对接各种数据源，如 MQTT、OPC-UA/DA、Kafka、AVEVA PI System、AVEVA Historian 等。这使得 TDengine 能够轻松整合来自不同数据源的数据，为你提供全面、统一的数据视图。相关专题另见 [数据接入与发布](../08-data-ingest-and-delivery/index.md)、[数据订阅](../06-data-subscription/index.md)、[流式计算](../07-stream-processing/index.md)。

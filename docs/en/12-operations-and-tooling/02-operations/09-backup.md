@@ -84,6 +84,77 @@ You can view your backup plans and modify, clone, or delete them using the butto
 2. Determine the backup record point to which you want to restore and click the Restore icon in the **Operation** column.
 3. Select the backup file timestamp and target database and click **Confirm**.
 
+### Restore to Another Cluster with the taosx CLI
+
+In addition to creating a restore task in taosExplorer, you can copy the backup files to another cluster and restore them with the `taosx` command-line interface.
+
+#### Backup Directory
+
+New task-level backups are stored directly in the task ID directory:
+
+```text
+<backup-root>/
+└── <task_id>/
+    ├── .taosx-backup-layout
+    ├── <topic>-<timestamp>-<vgroup>-<index>.z
+    ├── <topic>-<timestamp>-<vgroup>-<index>.mz
+    └── ...
+```
+
+New task-level backup writers create the hidden `.taosx-backup-layout` marker in the task ID directory. It declares whether backup artifacts are stored directly in the task directory (`task_dir`) or in the historical `-1` subdirectory (`legacy_job_dir`). When the marker is present, `taosx` treats it as authoritative and does not probe the alternative layout. Preserve the marker and do not edit or recreate it manually.
+
+The layout marker is not an HA lock. During an upgrade, do not let an older `taosx` version that does not recognize the marker and a newer version write the same backup task concurrently. Stop the backup task and confirm that the old process has exited before switching versions. After a `task_dir` marker has been created, do not resume the same task and backup root with an older version that does not recognize the marker, even after the newer process has exited. Otherwise, the old and new files are written to different directories. To roll back, use a new task ID or a new backup root instead of appending to the existing backup chain.
+
+Only jobs that were actually split from a task use a `<task_id>/<job_id>` subdirectory. A task-level backup does not require a job directory or a job ID in the restore command. The restore process automatically recognizes task-level directories created by earlier versions.
+
+To restore a backup from an actual job, copy the job directory that contains the `.z` and `.mz` files and point `local:` directly to the copied directory. The following procedure uses a task-level backup as an example.
+
+#### Procedure
+
+1. Stop the backup task on Cluster A, or make sure that the backup point to restore has been created.
+2. Copy the complete task directory to Cluster B and preserve its directory hierarchy and original backup file names. For example:
+
+   ```shell
+   rsync -a /backup/10/ user@cluster-b:/tmp/10/
+   ```
+
+   Copy the complete task directory, including the hidden `.taosx-backup-layout` file. `rsync -a` preserves hidden files; do not copy with a shell glob such as `/backup/10/*`, because it omits hidden files. An incremental restore requires the complete file chain from the initial backup point through the target point. Copy `.mz` files as well when they are present in the backup directory.
+3. Recursively verify that the task directory contains backup files on Cluster B:
+
+   ```shell
+   find /tmp/10 -type f \( -name '.taosx-backup-layout' -o -name '*.z' -o -name '*.mz' \) -print
+   ```
+
+4. Specify the copied task directory directly after `local:`. The following example restores the backup for task `10` to the `db01` database on Cluster B:
+
+   ```shell
+   taosx run \
+     -f 'local:/tmp/10?to=now&watch=false' \
+     -t 'taos:///db01' \
+     -vv
+   ```
+
+   For a historical task-level directory without a layout marker, you can specify the layout explicitly to skip legacy compatibility detection:
+
+   ```shell
+   # Backup files are stored directly in /tmp/10
+   taosx run \
+     -f 'local:/tmp/10?to=now&watch=false&layout=task_dir' \
+     -t 'taos:///db01' \
+     -vv
+
+   # Backup files are stored in /tmp/10/-1
+   taosx run \
+     -f 'local:/tmp/10?to=now&watch=false&layout=legacy_job_dir' \
+     -t 'taos:///db01' \
+     -vv
+   ```
+
+   The `layout` parameter applies only to task-level backups. When a layout marker is present, an explicit `layout` must match it or the restore fails. A read-only restore does not create a layout marker.
+5. Check the `taosx` logs for the number of files and rows processed, and query the target cluster to verify the restored data. A zero exit code alone does not prove that data was restored.
+
+If neither a layout marker nor an explicit `layout` is present, `taosx` performs legacy compatibility detection and logs the warning `backup layout marker is missing; using legacy layout detection`. Only in this case, if backup files exist both directly in the task directory and in its historical `-1` subdirectory, does the restore report a directory-layout conflict. Verify both locations and consolidate the complete chain in a separate restore directory before retrying. Do not overwrite files with the same name when their contents differ.
+
 ## Troubleshooting
 
 ### Port Access Exception

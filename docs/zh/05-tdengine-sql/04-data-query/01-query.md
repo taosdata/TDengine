@@ -123,18 +123,18 @@ limit_expr: {
 - table_reference: 指定单个表（含视图）的名称，可选指定表的别名。
 - table_expr: 指定查询数据源，可以为表名、视图名、子查询，或内联数据源（`TEXT` 或 `FILE`）。详见 [TEXT 内联数据源](#text-内联数据源) 和 [FILE CSV 文件数据源](#file-csv-文件数据源)。
 - column_list: `TEXT` 和 `FILE` 共用的列定义语法，每项为 `col_name type_name`。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
-- join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度参见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参见 [关联查询](07-join.md)。
-- window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详见 [特色查询](06-distinguished.md)。
+- join_clause: 连接查询，支持在子表、普通表、超级表以及子查询间进行，在窗口连接中 WINDOW_OFFSET 使用 start_offset、end_offset 分别指定窗口左右边界相对于左右表主键的偏移量，两者之间无大小关联，为必填项，精度参见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年），如 window_offset(-1a,1a)。JLIMIT 限制单行匹配最大行数，默认值为 1，取值范围为[0,1024]。更多详细信息可以参见 [关联查询](05-join.md)。
+- window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详见 [特色查询](04-distinguished.md)。
   - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间单位参见 [时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周），如 SESSION(ts, 12s)。
   - STATE_WINDOW: 状态窗口，使用一个或多个状态键划分窗口（从 `v3.4.2.0` 版本开始支持多个状态键）。可以配置 `EXTEND` 参数指定窗口边界扩展策略，配置 `ZEROTH_STATE` 参数指定零状态过滤，配置 `TRUE_FOR` 参数指定窗口过滤条件。
   - INTERVAL: 时间窗口，interval_val 指定窗口大小，sliding_val 指定窗口滑动时间，大小限制在 interval_val 范围内，interval_val 和 sliding_val 时间范围为正值，精度参见 [时间单位](../01-datatype.md#时间单位)，如 interval_val(2d)、SLIDING(1d)。
   - EVENT_WINDOW: 事件窗口，使用 start_trigger_condition、end_trigger_condition 指定开始结束条件，支持任意表达式，可以指定不同的列。可以配置 `TRUE_FOR` 参数指定窗口过滤条件，以及 `start(...)` / `end(...)` 指定开窗/关窗连续满足门限。
   - COUNT_WINDOW: 计数窗口，指定按行数划分窗口，count_val 窗口包含最大行数，范围为[2,2147483647]。sliding_val 窗口滑动数量，范围为[1,count_val]。col_name 在 `v3.3.7.0` 之后开始支持，指定一列或者多列，在 count_window 窗口计数时，窗口中的每行数据，指定列中至少有一列非空，否则该行数据不包含在计数窗口内。如果没有指定 col_name，表示没有限制。
-    - EXTERNAL_WINDOW: 外部窗口，窗口的时间范围由子查询显式给出，而非由内建规则自动划分。subquery 的前两列必须为 timestamp 类型，分别表示窗口开始时间和结束时间；第 3 列及之后的列为窗口属性列，可通过 window_alias.column_name 引用。外部查询在每个窗口范围内独立计算聚合结果。支持 PARTITION BY 分组对齐、HAVING 过滤、嵌套调用，以及对空窗口使用 `FILL`。详细说明参见 [特色查询](06-distinguished.md#外部窗口)。
+    - EXTERNAL_WINDOW: 外部窗口，窗口的时间范围由子查询显式给出，而非由内建规则自动划分。subquery 的前两列必须为 timestamp 类型，分别表示窗口开始时间和结束时间；第 3 列及之后的列为窗口属性列，可通过 window_alias.column_name 引用。外部查询在每个窗口范围内独立计算聚合结果。支持 PARTITION BY 分组对齐、HAVING 过滤、嵌套调用，以及对空窗口使用 `FILL`。详细说明参见 [特色查询](04-distinguished.md#外部窗口)。
 - interp_clause: interp 子句，与 interp 函数搭配使用，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。
   - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，时间单位参见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年）。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```。
   - EVERY: 时间间隔范围，every_val 为正值，时间单位参见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年），如 EVERY(1s)。
-- SCALAR | AGG：窗口查询模式关键字（`v3.4.2.0` 版本开始支持）。当窗口查询的 SELECT 列表中包含列表达式或不定行函数时，自动进入**窗口投影模式**，每个窗口输出其全部原始行；当 SELECT 列表只包含聚合函数时，进入**窗口聚合模式**，每个窗口输出一行聚合结果。当 SELECT 列表仅包含伪列、标签列、tbname、常量、分组键（group key）和状态键（state key）时，INTERVAL、SESSION、STATE_WINDOW、EVENT_WINDOW、COUNT_WINDOW 默认选择聚合模式，而 EXTERNAL_WINDOW 默认选择投影模式。此时可使用 `SCALAR` 或 `AGG` 关键字显式指定模式。详见 [特色查询](06-distinguished.md#窗口投影模式)。
+- SCALAR | AGG：窗口查询模式关键字（`v3.4.2.0` 版本开始支持）。当窗口查询的 SELECT 列表中包含列表达式或不定行函数时，自动进入**窗口投影模式**，每个窗口输出其全部原始行；当 SELECT 列表只包含聚合函数时，进入**窗口聚合模式**，每个窗口输出一行聚合结果。当 SELECT 列表仅包含伪列、标签列、tbname、常量、分组键（group key）和状态键（state key）时，INTERVAL、SESSION、STATE_WINDOW、EVENT_WINDOW、COUNT_WINDOW 默认选择聚合模式，而 EXTERNAL_WINDOW 默认选择投影模式。此时可使用 `SCALAR` 或 `AGG` 关键字显式指定模式。详见 [特色查询](04-distinguished.md#窗口投影模式)。
 - fill_clause: fill 子句，可以与 interp 函数、INTERVAL 窗口或 EXTERNAL_WINDOW 搭配使用，用于指定数据缺失时的数据填充方法。不同上下文支持的模式有所区别。
 - group_by_expr: 指定数据分组聚合规则，支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select ts, current from meters order by ts desc,2```，2 对应 current 列。
 - partition_by_expr: 指定数据切片条件，切片内的数据独立进行计算。支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select current from meters partition by 1```，1 对应 current 列。
@@ -339,13 +339,13 @@ TDengine 支持基于时间戳主键的 `INNER JOIN`，规则如下：
 5. `JOIN` 两侧均支持子查询。
 6. 不支持与 `FILL` 子句混合使用。
 
-更多连接类型与用法参见 [关联查询](07-join.md)。
+更多连接类型与用法参见 [关联查询](05-join.md)。
 
 ## JOIN 子句
 
 `JOIN` 用于多表关联查询。自 `v3.3.0.0` 起，TDengine 除内连接外，还支持 `LEFT` / `RIGHT` / `FULL` / `SEMI` / `ANTI` 等传统连接，以及时序场景中的 `ASOF JOIN`、`WINDOW JOIN`。`JOIN` 可在子表、普通表、超级表以及子查询之间进行。
 
-完整语法、连接类型与限制说明参见 [关联查询](07-join.md)。
+完整语法、连接类型与限制说明参见 [关联查询](05-join.md)。
 
 ### 示例
 
@@ -662,7 +662,7 @@ GROUP BY 子句中在使用位置语法和结果集列名进行分组时，其�
 
 由于 `PARTITION BY` 不要求每组只返回一行聚合结果，还可支持分组后的各类窗口运算；所有需要先分组再做窗口计算的场景，都只能使用 `PARTITION BY`。
 
-详见 [特色查询](06-distinguished.md)。
+详见 [特色查询](04-distinguished.md)。
 
 ## ORDER BY
 
@@ -676,7 +676,7 @@ NULLS 语法用来指定 NULL 值在排序中输出的位置。NULLS LAST 是升
 
 ## 窗口函数
 
-从 `v3.4.2.0` 起，TDengine 支持标准 SQL 的 `OVER` 子句与窗口函数。窗口函数会为结果集中的**每一行**计算一个值，计算时可引用同一窗口内的其他行，但不会把多行折叠成一行。这与 [特色查询](./06-distinguished.md) 中的时间窗口不同：时间窗口会把窗口内多行聚合成一行，而窗口函数保留每一行原始结果，并追加计算列。
+从 `v3.4.2.0` 起，TDengine 支持标准 SQL 的 `OVER` 子句与窗口函数。窗口函数会为结果集中的**每一行**计算一个值，计算时可引用同一窗口内的其他行，但不会把多行折叠成一行。这与 [特色查询](./04-distinguished.md) 中的时间窗口不同：时间窗口会把窗口内多行聚合成一行，而窗口函数保留每一行原始结果，并追加计算列。
 
 窗口函数调用的基本形式如下：
 
@@ -688,7 +688,7 @@ function_name ( [ arguments ] ) OVER (
 )
 ```
 
-窗口函数既支持已有聚合 / 选择函数（如 `avg`、`sum`、`first`）配合 `OVER` 子句使用，也支持专用窗口函数，例如 `row_number`、`rank`、`dense_rank`、`percent_rank`、`cume_dist`、`lag`、`lead`、`first_value`、`last_value`、`nth_value`。窗口函数只能出现在 `SELECT` 列表和 `ORDER BY` 中。完整语法、框架规则、命名窗口与函数列表见 [窗口函数](./09-window-function.md)。
+窗口函数既支持已有聚合 / 选择函数（如 `avg`、`sum`、`first`）配合 `OVER` 子句使用，也支持专用窗口函数，例如 `row_number`、`rank`、`dense_rank`、`percent_rank`、`cume_dist`、`lag`、`lead`、`first_value`、`last_value`、`nth_value`。窗口函数只能出现在 `SELECT` 列表和 `ORDER BY` 中。完整语法、框架规则、命名窗口与函数列表见 [窗口函数](./06-window-function.md)。
 
 ## LIMIT
 
@@ -696,7 +696,7 @@ LIMIT 控制输出条数，OFFSET 指定从第几条之后开始输出。LIMIT/O
 
 在有 PARTITION BY/GROUP BY 子句时，LIMIT 控制的是每个切分的分片中的输出，而不是总的结果集输出。
 
-从 `v3.4.2.0` 起，`OFFSET N` 可以单独使用、不必搭配 `LIMIT`，便于跳过 [窗口函数](./09-window-function.md) 计算后的预热行。
+从 `v3.4.2.0` 起，`OFFSET N` 可以单独使用、不必搭配 `LIMIT`，便于跳过 [窗口函数](./06-window-function.md) 计算后的预热行。
 
 ## SLIMIT
 

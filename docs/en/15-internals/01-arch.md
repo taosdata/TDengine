@@ -65,7 +65,7 @@ snode (stream compute node) is a virtual logical unit in the TDengine cluster sp
 
 Similar to dnode, snode is not bound to a specific stream, meaning an snode can handle computation tasks from multiple streams simultaneously. Each dnode can have at most one snode, uniquely identified by the endpoint of the dnode to which it belongs.
 
-When a stream processing task needs to be executed, mnode schedules available snodes to complete it. If the cluster has no available snode, the task cannot be created or run as required by the current product behavior. For details, see [Stream Processing](../06-stream-processing/index.md).
+When a stream processing task needs to be executed, mnode schedules available snodes to complete it. If the cluster has no available snode, the task cannot be created or run as required by the current product behavior. For details, see [Stream Processing](../07-stream-processing/index.md).
 
 By centralizing stream computing tasks in snodes, TDengine achieves separation of stream computing and batch computing, thereby enhancing the system's capability to handle real-time data.
 

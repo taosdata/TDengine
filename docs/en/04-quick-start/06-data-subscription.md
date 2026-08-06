@@ -2,11 +2,30 @@
 sidebar_label: Data Subscription
 title: Data Subscription
 description: Try the data subscription features provided by the message queue
+toc_max_heading_level: 4
 ---
 
 In monitoring, alerting, real-time analytics, and data synchronization scenarios, downstream programs often need newly written data as soon as it arrives. Polling with periodic queries increases latency and puts extra load on the database. TDengine provides built-in data subscription so continuously written data can be pushed to downstream programs by topic, reducing polling logic and the complexity of adding a separate message queue.
 
-This chapter continues with the smart meter model from previous chapters. You will use two `taos` shells for an end-to-end walkthrough: create a topic, open a second shell to subscribe, then write data in the first shell and watch the subscription output.
+This chapter continues with the smart meter model from previous chapters. You will use two `taos` shells for an end-to-end walkthrough: create a topic, open a second shell to subscribe, then write data in the first shell and watch the subscription output. The following overview summarizes subscription capabilities; for full syntax and advanced topics, follow the links below or see “Further Reading” at the end of this page.
+
+## Subscription Capabilities at a Glance
+
+Similar to Kafka, you define topics in TDengine. A topic can be a database, a supertable, or a query over existing tables; filtering and preprocessing are handled by TDengine. Consumers can join consumer groups to share progress. Data is pushed from the WAL with at-least-once delivery semantics.
+
+- **Topic management**
+  Create, view, and drop topics. Supports query topics, supertable topics, and database topics, plus `RELOAD TOPIC` to reload a query topic definition. See [Topic Syntax](../06-data-subscription/01-topic.md).
+
+- **Consumer groups and progress**
+  Multiple consumers in a group share consumption progress; different groups do not. Use `SHOW CONSUMERS` / `SHOW SUBSCRIPTIONS` to inspect status, and `DROP CONSUMER GROUP` to clean up. See [Topic Syntax](../06-data-subscription/01-topic.md).
+
+- **Native subscription**
+  Use language connector APIs to create consumers, subscribe to topics, poll and parse messages, and commit offsets. See [Native Subscription](../06-data-subscription/02-native.md) and [Data Subscription API](../10-developer-guide/07-subscription-api.md).
+
+- **MQTT subscription**
+  From `v3.3.7.0`, you can subscribe to existing topics with an MQTT client connected to a Bnode (`taosmqtt`). See [MQTT Data Subscription](../06-data-subscription/03-mqtt.md).
+
+The rest of this chapter starts by creating a query topic and consuming it in real time from the shell.
 
 ## Prerequisites
 
@@ -145,4 +164,12 @@ DROP CONSUMER GROUP IF EXISTS FORCE quickstart_cg_earliest ON topic_meters;
 DROP TOPIC IF EXISTS topic_meters;
 ```
 
-For more topic types, consumer group management, and programming APIs, continue with [Data Subscription](../07-data-subscription/index.md) and [Topic Syntax](../07-data-subscription/01-topic.md).
+## Further Reading
+
+This chapter covers only the common shell-based flow for verifying query-topic subscription in a quick start. For the full subscription capabilities, continue with:
+
+- [Data Subscription](../06-data-subscription/index.md): overview of data subscription, topics and consumer groups, WAL, and consumption model
+- [Topic Syntax](../06-data-subscription/01-topic.md): `CREATE` / `DROP` / `SHOW TOPIC`, three topic types, consumer groups, and replay notes
+- [Native Subscription](../06-data-subscription/02-native.md): create consumers and subscribe with connector APIs
+- [MQTT Data Subscription](../06-data-subscription/03-mqtt.md): subscribe to topic data with an MQTT client connected to a Bnode
+- [Data Subscription API](../10-developer-guide/07-subscription-api.md): multi-language connector subscription APIs and examples

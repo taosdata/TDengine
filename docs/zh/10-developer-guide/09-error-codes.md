@@ -7,7 +7,7 @@ description: TDengine 客户端和服务端的错误码列表和详细说明
 
 本文中详细列举了在使用 TDengine 时可能得到的来自客户端和服务端的错误码以及所要采取的相应动作。
 
-排查连接、写入与订阅类问题时，也可结合 [常见问题](../16-faq/01-faq.md)、[流式计算](../06-stream-processing/index.md) 与 [数据订阅](../07-data-subscription/index.md) 章节。
+排查连接、写入与订阅类问题时，也可结合 [常见问题](../16-faq/01-faq.md)、[流式计算](../07-stream-processing/index.md) 与 [数据订阅](../06-data-subscription/index.md) 章节。
 
 ## TSDB
 

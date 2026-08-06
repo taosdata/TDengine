@@ -451,7 +451,7 @@ The subscription configuration parameters are set under `tmq_info`. The paramete
    name: Specify the topic name.
    sql:  Specify the sql statement for creating topic, Ensure that the sql is correct, and the framework will automatically create topic.
 
-For the following parameters, see the description of [Subscription](../../07-data-subscription/index.md):
+For the following parameters, see the description of [Subscription](../../06-data-subscription/index.md):
 
 - **client.id**
 - **auto.offset.reset**

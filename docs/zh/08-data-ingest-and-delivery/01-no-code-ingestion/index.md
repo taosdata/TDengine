@@ -309,7 +309,7 @@ between_time_range(ts, -604800, 0)
 5. 配置认证和 SSL 加密：
    * 如果 MQTT broker 开启了用户认证，则在认证部分，输入 MQTT broker 的用户名和密码；
    * 如果 MQTT broker 开启了 SSL 加密，则可以打开页面上的 SSL 证书开关，并上传 CA 的证书，以及客户端的证书和私钥文件；
-6. 在“采集配置”部分，可选择 MQTT 协议的版本，目前支持 3.1，3.1.1，5.0 三个版本；配置 Client ID 时要注意，如果对同一个 MQTT Broker 创建了多个任务，Client ID 应不同，否则会造成 Client ID 冲突，导致任务无法正常运行；在对主题和 QoS 进行配置时，需要使用 `<topic name>::<QoS>` 的形式，即订阅的主题与 QoS 之间要使用两个冒号分隔，其中 QoS 的取值范围为 0、1、2，分别代表 at most once、at least once、exactly once（此处为连接外部 MQTT Broker 的客户端能力；若使用 [MQTT 订阅](../../07-data-subscription/03-mqtt.md) 连接 TDengine Bnode，则仅支持 QoS 0/1）；配置完成以上信息后，可以点击“检查连通性”按钮，对以上配置进行检查，如果连通性检查失败，请按照页面上返回的具体错误提示进行修改；
+6. 在“采集配置”部分，可选择 MQTT 协议的版本，目前支持 3.1，3.1.1，5.0 三个版本；配置 Client ID 时要注意，如果对同一个 MQTT Broker 创建了多个任务，Client ID 应不同，否则会造成 Client ID 冲突，导致任务无法正常运行；在对主题和 QoS 进行配置时，需要使用 `<topic name>::<QoS>` 的形式，即订阅的主题与 QoS 之间要使用两个冒号分隔，其中 QoS 的取值范围为 0、1、2，分别代表 at most once、at least once、exactly once（此处为连接外部 MQTT Broker 的客户端能力；若使用 [MQTT 订阅](../../06-data-subscription/03-mqtt.md) 连接 TDengine Bnode，则仅支持 QoS 0/1）；配置完成以上信息后，可以点击“检查连通性”按钮，对以上配置进行检查，如果连通性检查失败，请按照页面上返回的具体错误提示进行修改；
 7. 在从 MQTT broker 同步数据的过程中，taosX 还支持对消息体中的字段进行提取，过滤、映射等操作。在位于“Payload 转换”下方的文本框中，可以直接输入消息体样例，以上传文件的方式导入，或从所配置的服务器检索样例消息；
 8. 对消息体字段的提取，目前支持 2 种方式：JSON 和正则表达式。对于简单的 key/value 格式的 JSON 数据，可以直接点击提取按钮，即可展示解析出的字段名；对于复杂的 JSON 数据，可以使用 JSON Path 提取感兴趣的字段；当使用正则表达式提取字段时，要保证正则表达式的正确性；
 9. 消息体中的字段被解析后，可以基于解析出的字段名设置过滤规则，只有满足过滤规则的数据，才会写入 TDengine，否则会忽略该消息；例如：可以配置过滤规则为 voltage > 200，即只有当电压大于 200V 的数据才会被同步至 TDengine；

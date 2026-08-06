@@ -5,7 +5,28 @@ description: Use SQL to write, update, and delete time-series data
 toc_max_heading_level: 4
 ---
 
-This chapter continues with the smart meter model from the previous chapter. You will quickly try writing, updating, and deleting time-series data in the shell: one or many rows at a time, multi-table inserts, automatic table creation, updates, and deletes.
+This chapter continues with the smart meter model from the previous chapter. You will quickly try writing, updating, and deleting time-series data in the shell: one or many rows at a time, multi-table inserts, automatic table creation, updates, and deletes. The following overview summarizes write-related capabilities; for full syntax and advanced topics, follow the links below or see “Further Reading” at the end of this page.
+
+## Write Capabilities at a Glance
+
+TDengine uses standard SQL `INSERT` / `DELETE` to manage time-series data, and also supports automatic table creation on write, import from files, and per-column encoding and compression. Besides SQL, connectors support parameter binding for high-throughput writes, and schemaless ingestion via line protocols.
+
+- **Data writing**
+  Single-row / multi-row / multi-table `INSERT`, column-specified writes, `USING` for automatic table creation, writing directly to a supertable, and importing from a file / CSV with automatic table creation. See [Data Writing](../05-tdengine-sql/03-data-write/01-insert.md).
+
+- **Data deletion**
+  Use `DELETE` with time and other predicates to delete data from normal tables or supertables (irreversible). See [Data Deletion](../05-tdengine-sql/03-data-write/02-delete.md).
+
+- **Compression settings**
+  Specify encoding and compression algorithms per column when creating or altering tables, and inspect column-level compression. This chapter shows how to check compression ratios; full configuration is in [Data Compression](../05-tdengine-sql/03-data-write/03-compress.md).
+
+- **Parameter binding**
+  Use STMT / STMT2 APIs in language connectors for prepared, high-throughput writes with less SQL parsing overhead. See [Parameter Binding](../10-developer-guide/03-stmt.md).
+
+- **Schemaless ingestion**
+  Write with InfluxDB / OpenTSDB line protocols; TDengine can create supertables and subtables automatically from the payload. See [Schemaless Ingestion](../10-developer-guide/04-schemaless.md).
+
+Besides the options above, you can also use third-party tools or enterprise connectors for [Zero-Code Data Ingestion](./10-no-code-ingestion.md). The rest of this chapter starts with the most common `INSERT` patterns.
 
 ## Prerequisites
 
@@ -187,4 +208,12 @@ SHOW TABLE DISTRIBUTED d1001;
 
 For more on disk usage and distribution, see [View DB Disk Usage](../05-tdengine-sql/02-ddl/01-database.md#view-db-disk-usage) and [SHOW TABLE DISTRIBUTED](../05-tdengine-sql/09-system-info/03-show.md#show-table-distributed).
 
-For more write syntax, delete rules, and compression settings, continue with [Data Writing](../05-tdengine-sql/03-data-write/01-insert.md).
+## Further Reading
+
+This chapter covers only the most common write, update, and delete patterns for a quick start. For the full write capabilities, continue with:
+
+- [Data Writing](../05-tdengine-sql/03-data-write/01-insert.md): detailed write syntax
+- [Data Deletion](../05-tdengine-sql/03-data-write/02-delete.md): deleting data from specified tables or supertables
+- [Data Compression](../05-tdengine-sql/03-data-write/03-compress.md): configuring per-column encoding and compression algorithms
+- [Parameter Binding](../10-developer-guide/03-stmt.md): STMT / STMT2 high-throughput writes
+- [Schemaless Ingestion](../10-developer-guide/04-schemaless.md): InfluxDB / OpenTSDB line-protocol writes

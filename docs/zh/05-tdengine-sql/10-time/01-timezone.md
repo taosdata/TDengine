@@ -21,10 +21,19 @@ TDengine 内部以 UTC 时间戳（int64）存储所有时间数据。时区仅�
 
 ### 支持的时区格式
 
-| 格式 | 示例 | 夏令时感知 | 说明 |
-| --- | --- | --- | --- |
-| IANA 名称 | `'Asia/Shanghai'`、`'America/New_York'` | ✅ 是（自动处理 DST 跳变） | 推荐。系统自动处理夏令时切换。 |
-| POSIX 固定偏移 | `'+08:00'`、`'-0500'`、`'Z'`、`'+10'`、`'UTC+08:00'` | ❌ 否（恒定偏移） | 支持范围为 `-14:00` 至 `+14:00`。`SET TIMEZONE`、`ALTER LOCAL`、`taos.cfg`、`TO_CHAR`、`TIMETRUNCATE` 均遵循 POSIX 符号约定（`+` = UTC 以西，即 `local = UTC − offset`）。**例外**：`TO_ISO8601` 的固定偏移参数使用 [ISO 8601 符号约定](#to_iso8601)。详见下文"POSIX 固定偏移格式详解"。 |
+#### IANA 名称
+
+推荐使用。示例：`'Asia/Shanghai'`、`'America/New_York'`。
+
+- **夏令时感知**：是。系统自动处理 DST 跳变与切换。
+
+#### POSIX 固定偏移
+
+示例：`'+08:00'`、`'-0500'`、`'Z'`、`'+10'`、`'UTC+08:00'`。
+
+- **夏令时感知**：否。全年使用恒定偏移。
+- **支持范围**：`-14:00` 至 `+14:00`。
+- **符号约定**：`SET TIMEZONE`、`ALTER LOCAL`、`taos.cfg`、`TO_CHAR`、`TIMETRUNCATE` 均遵循 POSIX 符号约定（`+` = UTC 以西，即 `local = UTC − offset`）。**例外**：`TO_ISO8601` 的固定偏移参数使用 [ISO 8601 符号约定](#to_iso8601)。详见下文。
 
 #### POSIX 固定偏移格式详解
 

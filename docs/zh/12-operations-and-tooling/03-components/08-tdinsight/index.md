@@ -4,9 +4,6 @@ sidebar_label: TDinsight
 toc_max_heading_level: 4
 ---
 
-import Tabs from '@theme/Tabs'
-import TabItem from '@theme/TabItem'
-
 TDinsight 是使用 [Grafana] 对 TDengine 进行监控的解决方案。
 
 TDengine 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入指定数据库。通过 Grafana 和 TDengine 数据源插件，TDinsight 将集群状态、节点信息、插入及查询请求、资源使用情况等进行可视化展示，为开发者实时监控 TDengine 集群运行状态提供了便利。本文将指导用户安装 TDengine 数据源插件及部署 TDinsight 可视化面板。

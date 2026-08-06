@@ -125,7 +125,7 @@ toc_max_heading_level: 4
 通过 taosExplorer，你可以完成对流的管理，从而利用 TDengine 的流式计算能力。
 
 :::note
-界面左侧导航菜单显示为「流计算」；产品文档统一称为「流式计算」，详见 [流式计算](../../06-stream-processing/index.md)。
+界面左侧导航菜单显示为「流计算」；产品文档统一称为「流式计算」，详见 [流式计算](../../07-stream-processing/index.md)。
 :::
 
 点击左侧导航栏中的「流计算」，即可进入流式计算配置管理页面。
@@ -155,7 +155,7 @@ toc_max_heading_level: 4
 
 ## 数据订阅
 
-通过 taosExplorer，你可以完成对数据订阅的管理。主题与消费模型见 [数据订阅](../../07-data-subscription/index.md)；也可用 `taos` shell 的 `subscribe` 快速验证，见 [数据订阅](../04-tools/01-taos-cli.md#数据订阅)。
+通过 taosExplorer，你可以完成对数据订阅的管理。主题与消费模型见 [数据订阅](../../06-data-subscription/index.md)；也可用 `taos` shell 的 `subscribe` 快速验证，见 [数据订阅](../04-tools/01-taos-cli.md#数据订阅)。
 点击左侧导航栏中的“数据订阅”，即可进入数据订阅配置管理页面。
 你可以通过以下两种方式创建主题：使用向导和自定义 SQL 语句。通过自定义 SQL 创建主题时，需要了解数据订阅 SQL 语法并保证其正确性。
 

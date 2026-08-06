@@ -48,7 +48,7 @@ Users define the data mapping rules from PI to TDengine through a CSV-format **m
 
 ## Data Ingestion
 
-### 1. Verify Prerequisites
+### Verify Prerequisites
 
 Before starting, verify that your PI system environment meets the [prerequisites](./01-prerequisites.md), including:
 
@@ -57,24 +57,24 @@ Before starting, verify that your PI system environment meets the [prerequisites
 - PI AF SDK installed on the taosX or agent host
 - Service account configured with appropriate PI access permissions
 
-If this is your first deployment, we recommend reading [Deployment Architecture](./02-deployment-architecture.md) to understand the recommended deployment options.
+If this is your first deployment, we recommend reading [Deployment Architecture](./02-deployment-architecture.md) to understand the recommended deployment options. If you plan to deploy multiple taosX instances (registered as multiple Xnodes in the engine) for redundant collection, also read [High Availability and Failover](./08-failover.md).
 
-### 2. Add New Data Source
+### Add New Data Source
 
 On the Data In page, click the **+Add Data Source** button to enter the new data source page.
 
 ![Add data source](../../../assets/pi-01.png)
 
-### 3. Configure Basic Information
+### Configure Basic Information
 
 Enter a task name in the **Name** field, for example: `pi-realtime-plant1`.
 
 In the **Type** dropdown, select **PI** (real-time task) or **PI backfill** (backfill task).
 
-**Agent** configuration: The PI connector depends on PI AF SDK, so taosX or its agent (taosx-agent) must be deployed on a **Windows** host that can directly connect to the PI system.
+**Agent** configuration: The PI connector depends on PI AF SDK, so taosX or its agent (taosX-Agent) must be deployed on a **Windows** host that can directly connect to the PI system.
 
 - If taosX itself runs on a Windows server that can directly connect to the PI system, the **Agent** is not required.
-- If taosX is deployed in the cloud or another environment that cannot directly connect to the PI system, you need to deploy taosx-agent on a Windows host in the same network segment as the PI system. In this case, select an existing agent from the dropdown, or click the **+Create New Agent** button on the right to create a new one.
+- If taosX is deployed in the cloud or another environment that cannot directly connect to the PI system, you need to deploy taosX-Agent on a Windows host in the same network segment as the PI system. In this case, select an existing agent from the dropdown, or click the **+Create New Agent** button on the right to create a new one.
 
 In the **Target Database** dropdown, select a target database, or click the **+Create Database** button on the right to create a new one first.
 
@@ -84,17 +84,17 @@ In the **Target Database** dropdown, select a target database, or click the **+C
 For detailed deployment architecture options, see [Deployment Architecture](./02-deployment-architecture.md).
 :::
 
-### 4. Configure Connection
+### Configure Connection
 
 The PI connector supports two connection modes:
 
-#### 4.1 PI Data Archive Only
+#### PI Data Archive Only
 
 Without AF mode, connects directly to PI Data Archive. Fill in the **PI Server Name** (server address, typically a hostname).
 
 ![Configure PI Data Archive connection](../../../assets/pi-03.png)
 
-#### 4.2 PI Data Archive + AF Server
+#### PI Data Archive + AF Server
 
 Using PI AF SDK, connects to both PI Data Archive and AF Server. In addition to the PI Server Name, you also need:
 
@@ -109,7 +109,7 @@ After configuration, click the **Connectivity Check** button to verify the data 
 For a detailed explanation of the Windows authentication mechanism, why Username/Password/Domain can be left blank by default, and how to configure permissions on the PI side, see [Connection Configuration and Authentication](./06-connection-config.md).
 :::
 
-### 5. Configure Data Model
+### Configure Data Model
 
 The data model configuration area has two tabs, corresponding to **single-column model** and **multi-column model** configurations.
 
@@ -127,7 +127,7 @@ For the syntax, available units, and notes of Dataset Filter, see [Dataset Filte
 
 For complete format specification of model configuration files, see [Model Configuration File Reference](./03-csv-reference.md).
 
-### 6. Configure Backfill Parameters
+### Configure Backfill Parameters
 
 Backfill configuration varies depending on the task type:
 
@@ -148,7 +148,7 @@ Backfill configuration varies depending on the task type:
 For detailed best practices on backfill tasks, see [Historical Data Backfill Guide](./04-backfill-guide.md). For advanced features of real-time tasks, see [Real-time Data Sync Guide](./05-realtime-guide.md).
 :::
 
-### 7. Advanced Options
+### Advanced Options
 
 #### General Options
 
@@ -176,6 +176,6 @@ When the task type is **PI** (real-time) and uses **multi-column model**, the fo
 
 ![Advanced Options](../../../assets/pi-06.png)
 
-### 8. Submit Task
+### Submit Task
 
 Click the **Submit** button to complete creating the PI to TDengine data sync task. Return to the **Data Source List** page to view the task execution status.

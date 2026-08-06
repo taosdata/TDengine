@@ -11,7 +11,7 @@ import { Enterprise } from '../../resources/_resources.mdx';
 
 This document describes how to activate a TDengine TSDB-Enterprise license with an activation code.
 
-You can also activate and manage licenses through the License Center (License Server). For details, see [License Center Reference](../../03-components/09-license-center/index.mdx).
+You can also manage multi-instance quotas through License Center (ELS + CLS). Use the activation-code flow below for a single cluster. For unified entitlement and slots across multiple TSDB / IDMP instances, see [License Center Reference](../../03-components/09-license-center/index.md) and [Quotas and Slots](../../03-components/09-license-center/02-quota-and-slots.md).
 
 ## Prerequisites
 

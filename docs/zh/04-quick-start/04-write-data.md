@@ -5,7 +5,28 @@ description: 使用 SQL 快速体验时序数据的写入、更新和删除
 toc_max_heading_level: 4
 ---
 
-本章继续使用前一章的智能电表模型，在 shell 中快速体验时序数据的写入、更新和删除。你将看到如何一次写入一条或多条数据、一次写入多表，以及自动建表、更新和删除等常用操作。
+本章继续使用前一章的智能电表模型，在 shell 中快速体验时序数据的写入、更新和删除。你将看到如何一次写入一条或多条数据、一次写入多表，以及自动建表、更新和删除等常用操作。下面先给出写入相关能力全景；完整语法与进阶说明请按下列链接深入阅读，或参见文末“继续阅读”。
+
+## 写入能力一览
+
+TDengine 使用标准 SQL 的 `INSERT` / `DELETE` 管理时序数据，并支持写入时自动建表、从文件导入，以及按列配置编码与压缩。除 SQL 外，还可通过连接器做参数绑定高效写入，或按行协议做无模式写入。
+
+- **数据写入**
+  单条 / 多条 / 多表 `INSERT`，指定列写入，`USING` 自动建表，直接向超级表写入，以及从文件 / CSV 导入并自动建表。详见 [数据写入](../05-tdengine-sql/03-data-write/01-insert.md)。
+
+- **数据删除**
+  使用 `DELETE` 按时间等条件删除普通表或超级表中的数据（不可恢复）。详见 [数据删除](../05-tdengine-sql/03-data-write/02-delete.md)。
+
+- **压缩配置**
+  建表或改表时按列指定编码与压缩算法，并查看列级压缩方式。本章会演示查看压缩率；完整配置见 [压缩配置](../05-tdengine-sql/03-data-write/03-compress.md)。
+
+- **参数绑定写入**
+  通过各语言连接器的 STMT / STMT2 接口预编译写入，减少 SQL 解析开销，适合高吞吐场景。详见 [参数绑定](../10-developer-guide/03-stmt.md)。
+
+- **无模式写入**
+  使用 InfluxDB / OpenTSDB 等行协议写入；可按写入数据自动创建超级表与子表。详见 [无模式写入](../10-developer-guide/04-schemaless.md)。
+
+除上述方式外，还可通过第三方工具或企业版连接器做 [零代码数据写入](./10-no-code-ingestion.md)。下文从最常用的 `INSERT` 写法开始上手。
 
 ## 前提条件
 
@@ -187,4 +208,12 @@ SHOW TABLE DISTRIBUTED d1001;
 
 更多磁盘占用和分布说明，请参见 [查看数据库的磁盘空间占用](../05-tdengine-sql/02-ddl/01-database.md#查看数据库的磁盘空间占用) 和 [SHOW TABLE DISTRIBUTED](../05-tdengine-sql/09-system-info/03-show.md#show-table-distributed)。
 
-更多写入语法、删除规则和压缩配置，请继续阅读 [数据写入](../05-tdengine-sql/03-data-write/01-insert.md) 章节。
+## 继续阅读
+
+本章只覆盖快速上手阶段最常用的写入、更新与删除方式。更完整的写入能力，请继续阅读以下文档：
+
+- [数据写入](../05-tdengine-sql/03-data-write/01-insert.md)：写入数据的详细语法
+- [数据删除](../05-tdengine-sql/03-data-write/02-delete.md)：删除指定表或超级表中的数据
+- [压缩配置](../05-tdengine-sql/03-data-write/03-compress.md)：按列配置数据编码与压缩算法
+- [参数绑定](../10-developer-guide/03-stmt.md)：STMT / STMT2 高效写入
+- [无模式写入](../10-developer-guide/04-schemaless.md)：InfluxDB / OpenTSDB 等行协议写入
