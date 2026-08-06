@@ -203,7 +203,7 @@ http {
 
 ## Deploying taosKeeper
 
-To use the monitoring capabilities of TDengine, taosKeeper is an essential component. For monitoring, please refer to [TDinsight](../../03-components/08-tdinsight/index.mdx), and for details on deploying taosKeeper, please refer to the [taosKeeper Reference Manual](../../03-components/05-taoskeeper.md).
+To use the monitoring capabilities of TDengine, taosKeeper is an essential component. For monitoring, please refer to [TDinsight](../../03-components/08-tdinsight/index.md), and for details on deploying taosKeeper, please refer to the [taosKeeper Reference Manual](../../03-components/05-taoskeeper.md).
 
 ## Deploying taosX
 

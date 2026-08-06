@@ -3,9 +3,6 @@ title: TDinsight Reference
 sidebar_label: TDinsight
 ---
 
-import Tabs from '@theme/Tabs'
-import TabItem from '@theme/TabItem'
-
 TDinsight is a monitoring solution for TDengine using [Grafana].
 
 TDengine writes information such as server CPU, memory, disk space, bandwidth, request count, disk read/write speed, and slow queries into a specified database periodically through taosKeeper. By using Grafana and the TDengine data source plugin, TDinsight visualizes cluster status, node information, insert and query requests, and resource usage, providing developers with the convenience to monitor the operational status of the TDengine cluster in real-time. This document will guide users on how to install the TDengine data source plugin and deploy the TDinsight visualization dashboard.

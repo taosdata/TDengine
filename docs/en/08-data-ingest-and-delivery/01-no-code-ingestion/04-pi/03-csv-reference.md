@@ -5,7 +5,7 @@ sidebar_label: "Model Configuration Reference"
 
 This page provides a detailed description of the model configuration file (CSV format) used by PI data ingestion tasks, covering the complete definitions for both multi-column and single-column model formats.
 
-## 1. Overview
+## Overview
 
 The model configuration file is a CSV-format text file that defines the data mapping rules from the PI system to TDengine, including:
 
@@ -16,11 +16,11 @@ The model configuration file is a CSV-format text file that defines the data map
 
 When creating a PI task in Explorer, click the **Download Default Configuration** button to automatically generate the default model configuration file. You can download it, edit it, and then upload to override the default configuration.
 
-## 2. Multi-column Model Configuration File
+## Multi-column Model Configuration File
 
 The multi-column model maps one PI AF element to one TDengine subtable. All elements under one element template share the same supertable structure.
 
-### 2.1 File Structure
+### File Structure
 
 A multi-column model configuration file consists of one or more **supertable definition blocks**, separated by blank lines. Each supertable definition block contains:
 
@@ -32,7 +32,7 @@ A multi-column model configuration file consists of one or more **supertable def
 | Filter Condition | `Filter,<condition>` | Optional, used to filter elements |
 | Column Definition | `<col_name>,KEY\|COLUMN\|TAG,<data_type>,<mapping_rule>` | Defines the mapping for each column |
 
-### 2.2 Column Definition Details
+### Column Definition Details
 
 | Column Type | Keyword | Description |
 | ----------- | ------- | ----------- |
@@ -40,7 +40,7 @@ A multi-column model configuration file consists of one or more **supertable def
 | Data Column | `COLUMN` | Corresponds to the value of a PI Point attribute |
 | Tag Column | `TAG` | Corresponds to static attributes or metadata of the element |
 
-### 2.3 Complete Example
+### Complete Example
 
 The following configuration file defines two supertables: `metertemplate` (from the MeterTemplate template) and `farm` (from the Farm template).
 
@@ -80,7 +80,7 @@ path,TAG,VARCHAR(100),$path
 categories,TAG,VARCHAR(100),$categories
 ```
 
-### 2.4 Line-by-Line Explanation
+### Line-by-Line Explanation
 
 Using the `metertemplate` supertable as an example:
 
@@ -94,30 +94,30 @@ Using the `metertemplate` supertable as an example:
 - `element_id,TAG,VARCHAR(100),$element_id`: Tag column, takes the unique ID of the element
 - `path,TAG,VARCHAR(100),$path`: Tag column, takes the element's path in the AF hierarchy
 
-### 2.5 Default Mapping Rules
+### Default Mapping Rules
 
 For multi-column model tasks using AF Server:
 
 - taosX maps **PI Point attributes** to TDengine **COLUMN** (Metric columns) by default
 - taosX maps **other attributes** (static attributes) to TDengine **TAG** columns by default
 
-## 3. Single-column Model Configuration File
+## Single-column Model Configuration File
 
 The single-column model maps one PI Point to one TDengine subtable.
 
-### 3.1 File Structure
+### File Structure
 
 The single-column model configuration file consists of two parts:
 
-**Part 1: Supertable Definitions** (similar to multi-column model)
+#### Supertable Definitions
 
-Defines the column structure of several supertables. The default generated configuration automatically groups points into different supertables by **UOM (engineering unit) + data type**.
+Defines the column structure of several supertables (similar to the multi-column model). The default generated configuration automatically groups points into different supertables by **UOM (engineering unit) + data type**.
 
-#### Part 2: Point Mappings
+#### Point Mappings
 
 Format: `<PointName>,POINT,<SuperTableName>`, defining which supertable each PI Point belongs to.
 
-### 3.2 Complete Example
+### Complete Example
 
 ```csv
 SuperTable,volt_float32
@@ -166,7 +166,7 @@ Meter_1000474_Voltage,POINT,volt_float32
 Meter_1000474_Current,POINT,milliampere_float32
 ```
 
-### 3.3 Line-by-Line Explanation
+### Line-by-Line Explanation
 
 **Supertable Definition Part**:
 
@@ -183,9 +183,9 @@ Meter_1000474_Current,POINT,milliampere_float32
 - `Meter_1000004_Voltage,POINT,volt_float32`: Point `Meter_1000004_Voltage` belongs to supertable `volt_float32`
 - `Meter_1000004_Current,POINT,milliampere_float32`: Point `Meter_1000004_Current` belongs to supertable `milliampere_float32`
 
-## 4. Mapping Rules and Expressions
+## Mapping Rules and Expressions
 
-### 4.1 Common Placeholders
+### Common Placeholders
 
 The following placeholders can be used in the mapping rule of column definitions:
 
@@ -202,7 +202,7 @@ The following placeholders can be used in the mapping rule of column definitions
 | `$element_paths` | Point-associated element paths | Single-column model |
 | `$<attribute_name>` | PI Point attribute or AF element attribute | Reference by actual attribute name |
 
-### 4.2 Inline Expressions
+### Inline Expressions
 
 For scenarios requiring data transformation, you can use backticks to wrap inline expressions:
 
@@ -210,9 +210,9 @@ For scenarios requiring data transformation, you can use backticks to wrap inlin
 element_paths,TAG,VARCHAR(512),`$element_paths.replace("\\", ".")`
 ```
 
-For more information about mapping rules and data transformation expression syntax, see the "Data Extraction, Filtering and Transformation" section in [Zero-Code Third-Party Data Ingestion](../index.md).
+For more information about mapping rules and data transformation expression syntax, see the "Data Extraction, Filtering, and Transformation" section in [Data Connectors](../index.md).
 
-### 4.3 Subtable Name Placeholders
+### Subtable Name Placeholders
 
 The `SubTable` row template supports the following placeholders:
 
@@ -224,15 +224,15 @@ The `SubTable` row template supports the following placeholders:
 
 Placeholders can be combined, e.g., `${element_name}_${element_id}`.
 
-## 5. Common Patterns and Best Practices
+## Common Patterns and Best Practices
 
-### 5.1 Group Supertables by UOM
+### Group Supertables by UOM
 
 The default generated single-column model configuration automatically groups by **UOM (engineering unit) + data type**. For example, all points with unit "Volt" and data type Float32 are grouped into the same supertable `volt_float32`.
 
 This is the recommended default approach, ensuring that all subtables within the same supertable have exactly the same column structure.
 
-### 5.2 Filter Specific Points or Templates
+### Filter Specific Points or Templates
 
 Fill in filter criteria in Explorer before clicking **Download Default Configuration** to generate configuration for only the points/templates matching the filter criteria. For filter syntax, see [Dataset Filter Configuration](./07-dataset-filter.md).
 
@@ -241,6 +241,6 @@ You can also manually edit the CSV after downloading:
 - **Multi-column model**: Modify the `Filter` row
 - **Single-column model**: Delete unwanted point rows in the point mapping section
 
-### 5.3 Customize Supertable Names
+### Customize Supertable Names
 
 If the default UOM-based grouping naming does not meet your needs, you can directly modify the `SuperTable` row value and adjust the supertable references in the point mapping section.
