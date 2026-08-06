@@ -3158,49 +3158,6 @@ static bool clauseSupportAlias(ESqlClause clause) {
   return SQL_CLAUSE_GROUP_BY == clause || SQL_CLAUSE_PARTITION_BY == clause || SQL_CLAUSE_ORDER_BY == clause;
 }
 
-static EDealRes translateNonColumnAliasInGroupByClause(STranslateContext* pCxt, SNode** ppNode,
-                                                       bool* translateAsAlias) {
-  if ('\0' != ((SColumnNode*)*ppNode)->tableAlias[0] || ((SColumnNode*)*ppNode)->node.asParam) {
-    return DEAL_RES_CONTINUE;
-  }
-
-  SNodeList* pProjectionList = getProjectListFromCurrStmt(pCxt->pCurrStmt);
-  if (NULL == pProjectionList) {
-    return DEAL_RES_CONTINUE;
-  }
-
-  SNode* pFoundNode = NULL;
-  SNode* pNode = NULL;
-  FOREACH(pNode, pProjectionList) {
-    SExprNode* pExpr = (SExprNode*)pNode;
-    if (0 != strcmp(((SColumnNode*)*ppNode)->colName, pExpr->userAlias)) {
-      continue;
-    }
-    if (NULL != pFoundNode && !nodesEqualNode(pFoundNode, pNode)) {
-      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ORDERBY_AMBIGUOUS,
-                                           ((SColumnNode*)*ppNode)->colName);
-      return DEAL_RES_ERROR;
-    }
-    pFoundNode = pNode;
-  }
-
-  if (NULL == pFoundNode || QUERY_NODE_COLUMN == nodeType(pFoundNode)) {
-    return DEAL_RES_CONTINUE;
-  }
-
-  SNode*  pNew = NULL;
-  int32_t code = nodesCloneNode(pFoundNode, &pNew);
-  if (NULL == pNew) {
-    pCxt->errCode = code;
-    return DEAL_RES_ERROR;
-  }
-
-  nodesDestroyNode(*ppNode);
-  *ppNode = pNew;
-  *translateAsAlias = true;
-  return DEAL_RES_CONTINUE;
-}
-
 static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnNode** pCol, bool* translateAsAlias) {
   *translateAsAlias = false;
   // count(*)/first(*)/last(*) and so on
@@ -3218,16 +3175,12 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
     }
   }
 
-  EDealRes res = translateNonColumnAliasInGroupByClause(pCxt, (SNode**)pCol, translateAsAlias);
-  if (DEAL_RES_ERROR == res || *translateAsAlias) {
-    return res;
-  }
-
-  res = DEAL_RES_CONTINUE;
+  EDealRes res = DEAL_RES_CONTINUE;
   if ('\0' != (*pCol)->tableAlias[0]) {
     res = translateColumnWithPrefix(pCxt, pCol);
   } else {
     bool found = false;
+    // Source columns take precedence over projection aliases in grouping clauses.
     res = translateColumnWithoutPrefix(pCxt, pCol, &found);
     if (!found && !(*pCol)->node.asParam) {
       res = translateColumnUseAlias(pCxt, pCol, &found);

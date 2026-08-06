@@ -321,6 +321,8 @@ TEST_F(ParserSelectTest, partitionBy) {
   run("SELECT SUM(c1), c2 FROM t1 PARTITION BY c2");
 
   run("SELECT SUM(c1), c1 + 10 cc1 FROM t1 PARTITION BY cc1");
+
+  run("SELECT c1 AS new_c1, COUNT(c1) AS c1 FROM t1 PARTITION BY c1");
 }
 
 TEST_F(ParserSelectTest, partitionBySemanticCheck) {
@@ -343,6 +345,8 @@ TEST_F(ParserSelectTest, groupBy) {
   run("SELECT COUNT(*), c1 + 10, c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c1 + 10, c2");
 
   run("SELECT COUNT(*), c1 + 10 cc1 FROM t1 GROUP BY cc1");
+
+  run("SELECT c1 AS new_c1, COUNT(c1) AS c1 FROM t1 GROUP BY c1");
 }
 
 TEST_F(ParserSelectTest, groupBySemanticCheck) {
