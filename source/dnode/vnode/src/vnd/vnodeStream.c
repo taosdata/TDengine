@@ -2919,7 +2919,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder* pCoder, SStreamTrigger
       int32_t numOfRows = 0;
       STREAM_CHECK_RET_GOTO(getRowRange(&colData, &target->window, &rowStart, &rowEnd, &numOfRows));
       if (numOfRows <= 0) {
-        ST_TASK_DLOG("%s no valid column data, uid:%" PRId64 ", gid:%" PRIu64, __func__, submitTbData.uid, target->gid);
+        ST_TASK_WLOG("%s no valid column data, uid:%" PRId64 ", gid:%" PRIu64, __func__, submitTbData.uid, target->gid);
         continue;
       }
 
@@ -2927,6 +2927,21 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder* pCoder, SStreamTrigger
       STREAM_CHECK_NULL_GOTO(pSlice, TSDB_CODE_INVALID_PARA);
 
       int32_t blockStart = pSlice->currentRowIdx;
+      int32_t sliceEnd = pSlice->startRowIdx + pSlice->numRows;
+      if (blockStart >= sliceEnd) {
+        ST_TASK_WLOG("%s skip column data beyond slice uid:%" PRId64 ", gid:%" PRIu64 ", ver:%" PRId64
+                     ", currentRowIdx:%d, sliceEnd:%d",
+                     __func__, submitTbData.uid, target->gid, ver, blockStart, sliceEnd);
+        continue;
+      }
+      int32_t availableRows = sliceEnd - blockStart;
+      if (numOfRows > availableRows) {
+        ST_TASK_WLOG("%s truncate column data to slice uid:%" PRId64 ", gid:%" PRIu64 ", ver:%" PRId64
+                     ", sliceRows:%d, inputRows:%d, currentRowIdx:%d",
+                     __func__, submitTbData.uid, target->gid, ver, availableRows, numOfRows, blockStart);
+        rowEnd = rowStart + availableRows;
+        numOfRows = availableRows;
+      }
       for (int16_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
         STREAM_CHECK_NULL_GOTO(pColData, terrno);
@@ -2995,11 +3010,19 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder* pCoder, SStreamTrigger
       STREAM_CHECK_NULL_GOTO(target, terrno);
       SStreamWalDataSlice* pSlice = getWalDataSlice(sStreamReaderInfo, rsp, submitTbData.uid, target->gid);
       if (pSlice == NULL) {
-        ST_TASK_DLOG("%s no row data slice, uid:%" PRId64 ", gid:%" PRIu64, __func__, submitTbData.uid, target->gid);
+        ST_TASK_WLOG("%s no row data slice, uid:%" PRId64 ", gid:%" PRIu64, __func__, submitTbData.uid, target->gid);
         continue;
       }
 
       int32_t blockStart = pSlice->currentRowIdx;
+      int32_t sliceEnd = pSlice->startRowIdx + pSlice->numRows;
+      if (blockStart >= sliceEnd) {
+        ST_TASK_WLOG("%s skip row data beyond slice uid:%" PRId64 ", gid:%" PRIu64 ", ver:%" PRId64
+                     ", currentRowIdx:%d, sliceEnd:%d",
+                     __func__, submitTbData.uid, target->gid, ver, blockStart, sliceEnd);
+        continue;
+      }
+      int32_t availableRows = sliceEnd - blockStart;
       int32_t numOfRows = 0;
       pCoder->pos = rowsPos;
       for (uint64_t iRow = 0; iRow < nRow; ++iRow) {
@@ -3022,6 +3045,12 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder* pCoder, SStreamTrigger
           continue;
         }
 
+        if (numOfRows >= availableRows) {
+          ST_TASK_WLOG("%s truncate row data to slice uid:%" PRId64 ", gid:%" PRIu64 ", ver:%" PRId64
+                       ", sliceRows:%d, walRows:%" PRIu64 ", currentRowIdx:%d",
+                       __func__, submitTbData.uid, target->gid, ver, availableRows, nRow, blockStart);
+          continue;
+        }
         for (int16_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
           SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
           STREAM_CHECK_NULL_GOTO(pColData, terrno);
