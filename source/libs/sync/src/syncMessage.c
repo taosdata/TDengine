@@ -22,7 +22,12 @@ int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t l
                          SSyncNode* pNode) {
   int32_t bytes = sizeof(SyncTimeout);
   pMsg->pCont = rpcMallocCont(bytes);
-  pMsg->msgType = (timeoutType == SYNC_TIMEOUT_ELECTION) ? TDMT_SYNC_TIMEOUT_ELECTION : TDMT_SYNC_TIMEOUT;
+  // SYNC_TIMEOUT_RESTORE_ELECT reuses the election message type so that it is
+  // dispatched to syncNodeOnTimeout via the already-registered handler; the
+  // actual timeout kind is distinguished by SyncTimeout.timeoutType.
+  pMsg->msgType = (timeoutType == SYNC_TIMEOUT_ELECTION || timeoutType == SYNC_TIMEOUT_RESTORE_ELECT)
+                      ? TDMT_SYNC_TIMEOUT_ELECTION
+                      : TDMT_SYNC_TIMEOUT;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
     return terrno;

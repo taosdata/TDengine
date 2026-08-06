@@ -54,6 +54,11 @@ typedef struct SSyncLogReplMgr        SSyncLogReplMgr;
 
 #define MAX_CONFIG_INDEX_COUNT 256
 
+// Fallback restore-elect timeout: 2 minutes. If a node's electBaseLine was
+// temporarily shrunk by balance-leader and no leader emerged within this
+// window, restore electBaseLine to its original value.
+#define SYNC_RESTORE_ELECT_TIMEOUT_MS (120 * 1000)
+
 typedef struct SRaftCfg {
   SSyncCfg  cfg;
   int32_t   batchSize;
@@ -173,6 +178,9 @@ struct SSyncNode {
   // timer ms init
   int32_t pingBaseLine;
   int32_t electBaseLine;
+  // Original elect baseline captured at syncOpen. It is the restore target for
+  // the fallback restore-elect timer and MUST NEVER be overwritten afterwards.
+  int32_t electBaseLineOrig;
   int32_t hbBaseLine;
 
   // ping timer
@@ -190,6 +198,15 @@ struct SSyncNode {
   TAOS_TMR_CALLBACK FpElectTimerCB;  // Timer Fp
   uint64_t          electTimerCounter;
   SElectTimerParam  electTimerParam;
+
+  // restore-elect timer: fallback to restore electBaseLine to electBaseLineOrig
+  // if this node fails to become leader within SYNC_RESTORE_ELECT_TIMEOUT_MS
+  // after a balance-leader triggered baseline change.
+  tmr_h             pRestoreElectTimer;
+  int32_t           restoreElectTimerMS;
+  uint64_t          restoreElectTimerLogicClock;
+  TAOS_TMR_CALLBACK FpRestoreElectTimerCB;  // Timer Fp
+  SElectTimerParam  restoreElectTimerParam;
 
   // heartbeat timer
   tmr_h             pHeartbeatTimer;
@@ -285,6 +302,8 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 void    syncNodeResetElectTimer(SSyncNode* pSyncNode);
+int32_t syncNodeStartRestoreElectTimer(SSyncNode* pSyncNode, int32_t ms);
+int32_t syncNodeStopRestoreElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode, int32_t heartbeatInterval);

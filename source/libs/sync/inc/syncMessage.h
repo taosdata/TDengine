@@ -26,6 +26,7 @@ typedef enum ESyncTimeoutType {
   SYNC_TIMEOUT_PING = 100,
   SYNC_TIMEOUT_ELECTION,
   SYNC_TIMEOUT_HEARTBEAT,
+  SYNC_TIMEOUT_RESTORE_ELECT,  // fallback timer to restore electBaseLine
 } ESyncTimeoutType;
 
 typedef struct SyncTimeout {

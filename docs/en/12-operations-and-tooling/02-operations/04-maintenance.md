@@ -89,7 +89,7 @@ There are two modes of leader rebalancing:
 ### Note
 
 - In **random mode**, the even distribution produced by re-election is probabilistic and not perfectly even, because vgroup elections are inherently random.
-- In **forced mode**, if the target replica lags too far behind the others, it may be unable to win a majority during the biased election, and the vgroup may temporarily fail to elect a leader. If this happens, simply run the `balance vgroup leader ... force` command again to retry.
+- In **forced mode**, if the target replica lags too far behind the others, it may be unable to win a majority during the biased election, and the vgroup may temporarily fail to elect a leader. If this happens, simply run the `balance vgroup leader ... force` command again to retry, or wait 2 minutes for it to recover automatically.
 - The side effect of both modes is that they affect queries and writing; during the vgroup re-election, from the start of the election to the election of a new leader, this vgroup cannot be written to or queried. The election process generally completes within seconds. All vgroups will be re-elected one by one sequentially.
 
 ## Restore Data Node
