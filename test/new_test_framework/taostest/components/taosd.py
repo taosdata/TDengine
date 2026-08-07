@@ -433,7 +433,7 @@ class TaosD:
                     host, port = dnode["endpoint"].split(":")
                     win=winrm.Session(f'http://{host}:5985/wsman',auth=('administrator','tbase125!'))
                     core_dir = f"{logDir}/data/{host}/coredump"
-                    os.system(f"mkdir -p {core_dir}")
+                    os.makedirs(core_dir, exist_ok=True)
                     # because the Windows environment executes test cases concurrently, taosd is shared, so when an error occurs, taosd cannot be stopped;  The log files will be occupied by the taosd process when collecting(copy)  logs, so taos and taosd log can't be collected at the same time;
                     # self._remote.cmd_windows(host, ["taskkill -f /im taosd.exe"])         
                     corePattern = self._remote.cmd_windows(host,["ls /C:/TDengine/taosd.dmp"])
