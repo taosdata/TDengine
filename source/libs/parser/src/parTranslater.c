@@ -4313,6 +4313,11 @@ static int32_t insertTimestampScaleForOperator(STranslateContext* pCxt, SOperato
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateXnodeBlobFilterOperator(SOperatorNode* pOp, bool* pHandled) {
+  *pHandled = 0 != (pOp->flag & OPERATOR_FLAG_XNODE_TEXT_BLOB);
+  return *pHandled ? scalarGetCompOperatorResultType(pOp) : TSDB_CODE_SUCCESS;
+}
+
 static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (isMultiResFunc(pOp->pLeft)) {
@@ -4329,7 +4334,11 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = scalarGetOperatorResultType(pOp);
+    bool handled = false;
+    code = translateXnodeBlobFilterOperator(pOp, &handled);
+    if (TSDB_CODE_SUCCESS == code && !handled) {
+      code = scalarGetOperatorResultType(pOp);
+    }
   }
 
   // Cross-precision TIMESTAMP scaling for federated query (DS §5.3.12.4.1)
@@ -20779,8 +20788,8 @@ static int32_t covertXNodeTaskOptions(SXnodeTaskOptions* pOptions, xTaskOptions*
   if (pOptions->healthLen > 0) {
     pOpts->health = xCreateCowStr(strlen(pOptions->health), pOptions->health, true);
   }
-  if (pOptions->parserLen > 0) {
-    pOpts->parser = xCreateCowStr(strlen(pOptions->parser), pOptions->parser, true);
+  if (pOptions->parser != NULL) {
+    pOpts->parser = xCreateCowStr(pOptions->parserLen, pOptions->parser, true);
   }
 
   pOpts->optionsNum = pOptions->optionsNum;
@@ -20887,7 +20896,7 @@ static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTas
       }
       updateReq.status = xCreateCowStr(strlen(status), status, false);
     }
-    if (pStmt->options->parserLen > 0) {
+    if (pStmt->options->parser != NULL) {
       updateReq.parser = xCreateCowStr(pStmt->options->parserLen, pStmt->options->parser, false);
     }
     const char* reason = getXnodeTaskOptionByName(pStmt->options, "reason");
@@ -20912,9 +20921,9 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
   if (config == NULL) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR, "Missing option: config");
   }
-  if (strlen(config) > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
+  if (strlen(config) > TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG,
-                                   "Option config must be string with length <= %d", TSDB_XNODE_TASK_JOB_CONFIG_LEN);
+                                   "Option config must be string with length <= %d", TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN);
   }
   createReq.tid = pStmt->tid;
   createReq.via = pStmt->options->via;
@@ -20934,7 +20943,7 @@ static int32_t translateCreateXnodeJob(STranslateContext* pCxt, SCreateXnodeJobS
   }
 
   createReq.config = xCreateCowStr(strlen(config), config, false);
-  if (createReq.config.len > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
+  if (createReq.config.len > TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN) {
     return TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
   }
 
@@ -20971,7 +20980,7 @@ static int32_t translateAlterXnodeJob(STranslateContext* pCxt, SAlterXnodeJobStm
   const char* config = getXnodeTaskOptionByName(pStmt->options, "config");
   if (NULL != config) {
     updateReq.configLen = strlen(config);
-    if (updateReq.configLen > TSDB_XNODE_TASK_JOB_CONFIG_LEN) {
+    if (updateReq.configLen > TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN) {
       return TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
     }
     updateReq.config = taosMemoryCalloc(1, updateReq.configLen + 1);
@@ -36101,14 +36110,155 @@ static int32_t rewriteShowAliveStmt(STranslateContext* pCxt, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct SXnodeBlobFilterRewriteContext {
+  const char* pColumnName;
+  int32_t     maxDataLen;
+  int32_t     code;
+} SXnodeBlobFilterRewriteContext;
+
+static bool isXnodeBlobFilterColumn(const SNode* pNode, const char* pColumnName) {
+  return NULL != pNode && QUERY_NODE_COLUMN == nodeType(pNode) &&
+         0 == strcmp(((const SColumnNode*)pNode)->colName, pColumnName);
+}
+
+static int32_t convertXnodeBlobFilterValue(SValueNode* pValue, int32_t maxDataLen) {
+  if (pValue->isNull || TSDB_DATA_TYPE_BLOB == pValue->node.resType.type) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_DATA_TYPE_VARCHAR != pValue->node.resType.type || NULL == pValue->literal) {
+    return TSDB_CODE_BLOB_OP_NOT_SUPPORTED;
+  }
+
+  size_t valueLen = strlen(pValue->literal);
+  if (valueLen > maxDataLen) {
+    return TSDB_CODE_PAR_VALUE_TOO_LONG;
+  }
+
+  size_t blobLen = valueLen + BLOBSTR_HEADER_SIZE;
+  char*  pBlob = taosMemoryCalloc(1, blobLen + 1);
+  if (NULL == pBlob) {
+    return terrno;
+  }
+
+  blobDataSetLen(pBlob, valueLen);
+  if (valueLen > 0) {
+    (void)memcpy(blobDataVal(pBlob), pValue->literal, valueLen);
+  }
+
+  taosMemoryFreeClear(pValue->datum.p);
+  pValue->datum.p = pBlob;
+  pValue->node.resType.type = TSDB_DATA_TYPE_BLOB;
+  pValue->node.resType.bytes = (int32_t)blobLen;
+  pValue->translate = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t convertXnodeBlobFilterList(SNodeListNode* pList, int32_t maxDataLen) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pList->pNodeList) {
+    if (QUERY_NODE_VALUE != nodeType(pNode)) {
+      return TSDB_CODE_BLOB_OP_NOT_SUPPORTED;
+    }
+
+    int32_t code = convertXnodeBlobFilterValue((SValueNode*)pNode, maxDataLen);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool isXnodeBlobRelationalOperator(EOperatorType opType) {
+  return opType >= OP_TYPE_GREATER_THAN && opType <= OP_TYPE_NOT_EQUAL;
+}
+
+static bool isXnodeBlobPatternOperator(EOperatorType opType) {
+  return OP_TYPE_LIKE == opType || OP_TYPE_NOT_LIKE == opType || OP_TYPE_MATCH == opType ||
+         OP_TYPE_NMATCH == opType;
+}
+
+static EDealRes markXnodeBlobFilterOperator(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_OPERATOR != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SXnodeBlobFilterRewriteContext* pCxt = pContext;
+  SOperatorNode*                  pOp = (SOperatorNode*)pNode;
+  bool leftIsTarget = isXnodeBlobFilterColumn(pOp->pLeft, pCxt->pColumnName);
+  bool rightIsTarget = isXnodeBlobFilterColumn(pOp->pRight, pCxt->pColumnName);
+  if (!leftIsTarget && !rightIsTarget) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (OP_TYPE_IS_NULL == pOp->opType || OP_TYPE_IS_NOT_NULL == pOp->opType) {
+    if (leftIsTarget && NULL == pOp->pRight) {
+      pOp->flag |= OPERATOR_FLAG_XNODE_TEXT_BLOB;
+    }
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
+    if (!leftIsTarget || QUERY_NODE_NODE_LIST != nodeType(pOp->pRight)) {
+      return DEAL_RES_CONTINUE;
+    }
+    pCxt->code = convertXnodeBlobFilterList((SNodeListNode*)pOp->pRight, pCxt->maxDataLen);
+  } else if (isXnodeBlobPatternOperator(pOp->opType)) {
+    if (!leftIsTarget || NULL == pOp->pRight || QUERY_NODE_VALUE != nodeType(pOp->pRight)) {
+      return DEAL_RES_CONTINUE;
+    }
+    pCxt->code = convertXnodeBlobFilterValue((SValueNode*)pOp->pRight, pCxt->maxDataLen);
+  } else if (isXnodeBlobRelationalOperator(pOp->opType)) {
+    SNode* pValue = leftIsTarget ? pOp->pRight : pOp->pLeft;
+    if (NULL == pValue || QUERY_NODE_VALUE != nodeType(pValue)) {
+      return DEAL_RES_CONTINUE;
+    }
+    pCxt->code = convertXnodeBlobFilterValue((SValueNode*)pValue, pCxt->maxDataLen);
+  } else {
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (TSDB_CODE_SUCCESS != pCxt->code) {
+    return DEAL_RES_END;
+  }
+  pOp->flag |= OPERATOR_FLAG_XNODE_TEXT_BLOB;
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t markXnodeBlobFilterOperators(SNode* pWhere, ENodeType showType) {
+  SXnodeBlobFilterRewriteContext cxt = {0};
+  switch (showType) {
+    case QUERY_NODE_SHOW_XNODE_TASKS_STMT:
+      cxt.pColumnName = "parser";
+      cxt.maxDataLen = TSDB_XNODE_TASK_PARSER_MAX_LEN;
+      break;
+    case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
+      cxt.pColumnName = "config";
+      cxt.maxDataLen = TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN;
+      break;
+    case QUERY_NODE_SHOW_XNODES_STMT:
+    case QUERY_NODE_SHOW_XNODE_AGENTS_STMT:
+    default:
+      return TSDB_CODE_SUCCESS;
+  }
+
+  nodesWalkExprPostOrder(pWhere, markXnodeBlobFilterOperator, &cxt);
+  return cxt.code;
+}
+
 static int32_t rewriteShowXnodeStmt(STranslateContext* pCxt, SQuery* pQuery) {
   SShowStmt*   pShow = (SShowStmt*)(pQuery->pRoot);
   SSelectStmt* pSelect = NULL;
+  ENodeType    showType = nodeType(pShow);
   int32_t      code = 0;
-  code = createSelectStmtForShow(nodeType(pShow), &pSelect);
+  code = createSelectStmtForShow(showType, &pSelect);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCloneNode(pShow->pWhere, &pSelect->pWhere);
     if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pSelect);
+      return code;
+    }
+    code = markXnodeBlobFilterOperators(pSelect->pWhere, showType);
+    if (TSDB_CODE_SUCCESS != code) {
       nodesDestroyNode((SNode*)pSelect);
       return code;
     }

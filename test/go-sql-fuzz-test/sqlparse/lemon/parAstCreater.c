@@ -6076,8 +6076,20 @@ SNode*  setXnodeTaskOption(SAstCreateContext* pCxt, SNode* pTaskOptions, SToken*
     }
   } else if (strcmp(key, "parser") == 0 || strcmp(key, "transform") == 0) {
     if (pVal->type == TK_NK_STRING) {
-      (void)trimString(pVal->z, pVal->n, pOptions->parser, sizeof(pOptions->parser));
-      pOptions->parserLen = pVal->n == 2 ? 1 : pVal->n - 2;
+      if (pOptions->parser) {
+        taosMemFreeClear(pOptions->parser);
+      }
+      int32_t parserCapacity = pVal->n - 2;
+      pOptions->parser = taosMemoryCalloc(1, parserCapacity + 1);
+      CHECK_OUT_OF_MEM(pOptions->parser);
+      (void)trimString(pVal->z, pVal->n, pOptions->parser, parserCapacity + 1);
+      pOptions->parserLen = strlen(pOptions->parser);
+      if (pOptions->parserLen > TSDB_XNODE_TASK_PARSER_MAX_LEN) {
+        pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_MND_XNODE_TASK_PARSER_TOO_LONG,
+                                                "Option parser must be string with length <= %d",
+                                                TSDB_XNODE_TASK_PARSER_MAX_LEN);
+        goto _err;
+      }
     } else {
       pCxt->errCode =
           generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option parser must be string");

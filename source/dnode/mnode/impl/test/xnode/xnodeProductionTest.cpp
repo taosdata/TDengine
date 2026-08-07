@@ -15,6 +15,7 @@
 extern "C" {
 #include "mndDef.h"
 #include "mndInt.h"
+#include "mndXnode.h"
 #include "sdb.h"
 #include "taoserror.h"
 }
@@ -117,6 +118,17 @@ TEST_F(XnodeProductionTest, XnodeObj_RealEncodeDecode_Basic) {
   freeXnodeObj(pDecoded);
   taosMemoryFree(pRow);
   sdbFreeRaw(pRaw);
+}
+
+TEST_F(XnodeProductionTest, XnodeObj_PersistedDrainOverridesLiveStatus) {
+  SXnodeObj obj = {0};
+  obj.id = 1;
+  obj.status = (char*)"drain";
+  obj.statusLen = strlen(obj.status) + 1;
+  char status[TSDB_XNODE_STATUS_LEN] = {0};
+
+  EXPECT_EQ(mndGetXnodeShowStatus(&obj, status, sizeof(status)), 0);
+  EXPECT_STREQ(status, "drain");
 }
 
 TEST_F(XnodeProductionTest, XnodeObj_RealEncodeDecode_EmptyFields) {
@@ -307,6 +319,30 @@ TEST_F(XnodeProductionTest, XnodeTaskObj_RealEncodeDecode_WithReason) {
   sdbFreeRaw(pRaw);
 }
 
+TEST_F(XnodeProductionTest, XnodeTaskObj_RealEncodeDecode_MaxParser) {
+  SXnodeTaskObj obj = {0};
+  obj.id = 102;
+  obj.parserLen = TSDB_XNODE_TASK_PARSER_MAX_LEN + 1;
+  obj.parser = (char*)taosMemoryCalloc(obj.parserLen, 1);
+  ASSERT_NE(obj.parser, nullptr);
+  memset(obj.parser, 'p', TSDB_XNODE_TASK_PARSER_MAX_LEN);
+
+  SSdbRaw* pRaw = mndXnodeTaskActionEncode(&obj);
+  ASSERT_NE(pRaw, nullptr);
+  SSdbRow* pRow = mndXnodeTaskActionDecode(pRaw);
+  ASSERT_NE(pRow, nullptr);
+
+  SXnodeTaskObj* pDecoded = (SXnodeTaskObj*)sdbGetRowObj(pRow);
+  ASSERT_NE(pDecoded, nullptr);
+  EXPECT_EQ(pDecoded->parserLen, obj.parserLen);
+  EXPECT_EQ(memcmp(pDecoded->parser, obj.parser, obj.parserLen), 0);
+
+  freeXnodeTaskObj(&obj);
+  freeXnodeTaskObj(pDecoded);
+  taosMemoryFree(pRow);
+  sdbFreeRaw(pRaw);
+}
+
 // ========== SXnodeJobObj Production Tests ==========
 
 TEST_F(XnodeProductionTest, XnodeJobObj_RealEncodeDecode_Complete) {
@@ -391,6 +427,52 @@ TEST_F(XnodeProductionTest, XnodeJobObj_RealEncodeDecode_WithReason) {
   EXPECT_EQ(pDecoded->reasonLen, obj.reasonLen);
   EXPECT_STREQ(pDecoded->reason, obj.reason);
 
+  freeXnodeJobObj(&obj);
+  freeXnodeJobObj(pDecoded);
+  taosMemoryFree(pRow);
+  sdbFreeRaw(pRaw);
+}
+
+TEST_F(XnodeProductionTest, XnodeJobObj_RealEncodeDecode_MaxConfig) {
+  SXnodeJobObj obj = {0};
+  obj.id = 202;
+  obj.taskId = 102;
+  obj.configLen = TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + 1;
+  obj.config = (char*)taosMemoryCalloc(obj.configLen, 1);
+  ASSERT_NE(obj.config, nullptr);
+  memset(obj.config, 'c', TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN);
+  obj.config[TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN / 2] = '\0';
+
+  SSdbRaw* pRaw = mndXnodeJobActionEncode(&obj);
+  ASSERT_NE(pRaw, nullptr);
+  SSdbRow* pRow = mndXnodeJobActionDecode(pRaw);
+  ASSERT_NE(pRow, nullptr);
+
+  SXnodeJobObj* pDecoded = (SXnodeJobObj*)sdbGetRowObj(pRow);
+  ASSERT_NE(pDecoded, nullptr);
+  EXPECT_EQ(pDecoded->configLen, obj.configLen);
+  EXPECT_EQ(memcmp(pDecoded->config, obj.config, obj.configLen), 0);
+
+  SColumnInfoData column =
+      createColumnInfoData(TSDB_DATA_TYPE_BLOB, TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + BLOBSTR_HEADER_SIZE, 1);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&column, 3, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(mndSetXnodeBlobColumn(&column, 0, pDecoded->config, pDecoded->configLen),
+            TSDB_CODE_SUCCESS);
+
+  const char* materialized = colDataGetData(&column, 0);
+  ASSERT_NE(materialized, nullptr);
+  EXPECT_EQ(blobDataLen(materialized), TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN);
+  EXPECT_EQ(memcmp(blobDataVal(materialized), obj.config, TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN), 0);
+
+  const char empty[] = "";
+  ASSERT_EQ(mndSetXnodeBlobColumn(&column, 1, empty, sizeof(empty)), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(colDataIsNull_s(&column, 1));
+  EXPECT_EQ(blobDataLen(colDataGetData(&column, 1)), 0);
+
+  ASSERT_EQ(mndSetXnodeBlobColumn(&column, 2, nullptr, 0), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(colDataIsNull_s(&column, 2));
+
+  colDataDestroy(&column);
   freeXnodeJobObj(&obj);
   freeXnodeJobObj(pDecoded);
   taosMemoryFree(pRow);

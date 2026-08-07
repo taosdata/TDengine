@@ -190,6 +190,12 @@ Create OK, 0 row(s) affected (0.038959s)
 SHOW XNODE TASKS [WHERE condition]
 ```
 
+The `parser` column uses BLOB to return the complete task configuration. In a `WHERE` condition, `parser` supports relational comparisons, `IS NULL`, `IS NOT NULL`, `LIKE`, `NOT LIKE`, `MATCH`/`REGEXP`, `NMATCH`, `IN`, `NOT IN`, `BETWEEN`, and `NOT BETWEEN`, including logical combinations. String functions, JSON operators, arithmetic, and bitwise operators are not supported for this column. Operators for other columns depend on their respective data types.
+
+```sql
+SHOW XNODE TASKS WHERE parser != '{}' AND parser IS NOT NULL;
+```
+
 #### Example
 
 ```sql
@@ -301,6 +307,12 @@ Job is the execution shard of a Task, supporting both manual and automatic load 
 
 ```sql
 SHOW XNODE JOBS [WHERE condition]
+```
+
+The `config` column uses BLOB to return the complete job configuration. In a `WHERE` condition, `config` supports relational comparisons, `IS NULL`, `IS NOT NULL`, `LIKE`, `NOT LIKE`, `MATCH`/`REGEXP`, `NMATCH`, `IN`, `NOT IN`, `BETWEEN`, and `NOT BETWEEN`, including logical combinations. String functions, JSON operators, arithmetic, and bitwise operators are not supported for this column. Operators for other columns depend on their respective data types.
+
+```sql
+SHOW XNODE JOBS WHERE config != '{}' AND config IS NOT NULL;
 ```
 
 #### Example
