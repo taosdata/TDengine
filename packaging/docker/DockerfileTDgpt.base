@@ -30,7 +30,7 @@ RUN if [ "$ARCH" = "arm64" ]; then \
                 -r /tmp/requirements_docker.txt \
                 ${PIP_INDEX_ARG} && \
     pip3 install --no-cache-dir accelerate==0.34.2 ${PIP_INDEX_ARG} && \
-    find /usr/local/lib/python3.10 -depth -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null || true
+    (find /usr/local/lib/python3.10 -depth -type d \( -name '__pycache__' -o -name 'tests' \) -exec rm -rf {} + 2>/dev/null || true)
 
 FROM ${PYTHON_BASE} AS venv1-builder
 ARG PIP_INDEX_URL

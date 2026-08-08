@@ -4255,7 +4255,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "statecount",
     .type = FUNCTION_TYPE_STATE_COUNT,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC |
+                      FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC |
                       FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 3,
                    .maxParamNum = 3,
@@ -4295,7 +4296,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "stateduration",
     .type = FUNCTION_TYPE_STATE_DURATION,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC |
+                      FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC |
                       FUNC_MGT_FORBID_SYSTABLE_FUNC,
     .parameters = {.minParamNum = 3,
                    .maxParamNum = 4,
@@ -4367,7 +4369,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "mavg",
     .type = FUNCTION_TYPE_MAVG,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC |
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC |
+                      FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC |
                       FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 2,

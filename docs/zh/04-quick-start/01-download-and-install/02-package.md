@@ -14,8 +14,9 @@ import PkgList from "/src/components/PkgList";
 
 请先确认已经完成以下准备：
 
-1. 已经选择要安装 TDengine 的操作系统环境。
+1. 已经选择要安装 TDengine 的操作系统环境，并确认机器满足最低要求。更多信息见 [支持的平台](../../12-operations-and-tooling/05-supported-platforms.md) 与 [系统要求](../../12-operations-and-tooling/02-operations/01-planning.md)。
 2. Linux 环境需要具备 `sudo` 权限；Windows 环境需要使用管理员权限运行相关命令。
+3. **（仅 Windows）** 安装程序会检查 Microsoft Visual C++ Redistributable 2015-2022 x64 14.44 或更高版本。若缺失或过旧，确认提示后可由安装程序安装自带的 14.50.35719.0 运行库。若安装失败，请从 [Microsoft Visual C++ Redistributable 最新受支持下载](https://learn.microsoft.com/zh-cn/cpp/windows/latest-supported-vc-redist?view=msvc-170) 获取最新包。
 
 ## 安装
 
@@ -41,7 +42,7 @@ import PkgList from "/src/components/PkgList";
 
 1. 从列表中下载最新 Windows 安装程序：
     <PkgList productName="TDengine TSDB-Enterprise" platform="Windows" excludeSbom />
-2. 运行安装程序，根据提示完成 TDengine 的安装。
+2. 运行安装程序，根据提示完成 TDengine 的安装。默认安装目录为 `C:\\TDengine`。你可以选择安装根目录；如果所选路径未以 `TDengine` 结尾，安装程序会自动在其下创建 `TDengine` 目录。例如，选择 `D:\\apps` 后，实际安装目录为 `D:\\apps\\TDengine`；直接选择 `D:\\apps\\TDengine` 时，不会重复创建目录。升级安装会继续使用已有安装目录，不能更改该目录。
 
 </TabItem>
 </Tabs>
@@ -73,24 +74,30 @@ sudo systemctl status taos-explorer
 </TabItem>
 <TabItem label="Windows 系统" value="windows">
 
-安装完成后，以管理员身份打开一个 cmd 窗口。`start-all.bat` 是统一入口脚本，无参数时默认执行启动，也支持 `status` 和 `stop` 子命令。
+安装程序会将实际安装目录添加到 `PATH` 环境变量。安装完成后，以管理员身份重新打开 cmd 窗口，进入实际安装目录，然后使用 `start-all.bat` 统一管理服务。无参数时默认执行启动，也支持 `status` 和 `stop` 子命令。
 
 启动所有服务：
 
 ```cmd
-C:\TDengine\start-all.bat
+start-all.bat
+```
+
+如果只需启动服务，并跳过连通性检查以及 Snode 和 Xnode 初始化，可以使用 `-S` 参数：
+
+```cmd
+start-all.bat -S
 ```
 
 查看服务状态：
 
 ```cmd
-C:\TDengine\start-all.bat status
+start-all.bat status
 ```
 
 停止所有服务：
 
 ```cmd
-C:\TDengine\start-all.bat stop
+start-all.bat stop
 ```
 
 如果需要分别查看各个 Windows Service 的原始状态，可以使用以下命令：

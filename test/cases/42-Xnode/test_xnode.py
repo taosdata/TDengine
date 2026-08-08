@@ -1,7 +1,6 @@
 import random
 import uuid
 import time
-import string
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -72,6 +71,24 @@ class TestXnode:
         except Exception:
             return True
         assert False, f"sql should fail: [{sql}]"
+
+    def expect_errno_for_large_sql(self, sql: str, expected_errno: int):
+        try:
+            tdSql.cursor.execute(sql)
+        except Exception as err:
+            actual_errno = err.errno
+            assert expected_errno == actual_errno or (
+                expected_errno & 0xFFFF
+            ) == (actual_errno & 0xFFFF), (
+                f"expected errno {expected_errno}, got {actual_errno} "
+                f"for SQL payload of {len(sql)} bytes"
+            )
+            tdLog.info(
+                f"expected errno {expected_errno} occurred for SQL payload "
+                f"of {len(sql)} bytes"
+            )
+            return
+        assert False, f"SQL payload of {len(sql)} bytes should fail"
 
     def no_syntax_fail_query(self, sql: str):
         """test no syntax fail query
@@ -820,7 +837,6 @@ class TestXnode:
             "SHOW XNODE TASKS WHERE labels != '{}' AND labels IS NOT NULL",
             "SHOW XNODE TASKS WHERE create_time IS NOT NULL AND update_time IS NOT NULL",
 
-            "SHOW XNODE JOBS WHERE config != '{}' AND config IS NOT NULL",
             "SHOW XNODE JOBS WHERE reason IS NOT NULL",
             "SHOW XNODE JOBS WHERE task_id IS NOT NULL AND task_id > 0",
             "SHOW XNODE JOBS WHERE create_time < update_time OR create_time = update_time",
@@ -848,6 +864,57 @@ class TestXnode:
         for sql in edge_case_sqls:
             tdLog.debug(f"query: {sql}")
             self.no_syntax_fail_query(sql)
+
+        xnode_blob_filter_sqls = [
+            "SHOW XNODE TASKS WHERE parser = '{}' OR parser IS NULL",
+            "SHOW XNODE TASKS WHERE parser != '{}' AND parser IS NOT NULL",
+            "SHOW XNODE TASKS WHERE parser > '{}' OR parser <= '{}'",
+            "SHOW XNODE TASKS WHERE parser LIKE '%parser%' OR parser NOT LIKE '%parser%'",
+            "SHOW XNODE TASKS WHERE parser REGEXP '.*' OR parser NMATCH '.*'",
+            "SHOW XNODE TASKS WHERE parser IN ('{}', '') OR parser NOT IN ('{}', '')",
+            "SHOW XNODE TASKS WHERE parser BETWEEN '' AND '{}'",
+            "SHOW XNODE JOBS WHERE config = '{}' OR config IS NULL",
+            "SHOW XNODE JOBS WHERE config != '{}' AND config IS NOT NULL",
+            "SHOW XNODE JOBS WHERE config >= '{}' OR config < '{}'",
+            "SHOW XNODE JOBS WHERE config LIKE '%config%' OR config NOT LIKE '%config%'",
+            "SHOW XNODE JOBS WHERE config REGEXP '.*' OR config NMATCH '.*'",
+            "SHOW XNODE JOBS WHERE config IN ('{}', '') OR config NOT IN ('{}', '')",
+            "SHOW XNODE JOBS WHERE config NOT BETWEEN '' AND '{}'",
+        ]
+        for sql in xnode_blob_filter_sqls:
+            tdLog.debug(f"query XNODE BLOB predicate: {sql}")
+            result = tdSql.query(sql, queryTimes=1, row_tag=True)
+            assert result is not None
+
+        tdSql.error(
+            "SELECT * FROM information_schema.ins_xnode_tasks WHERE parser = '{}'",
+            expectErrInfo="Operation not supported for BLOB type",
+            fullMatched=False,
+        )
+        for sql in [
+            "SHOW XNODE TASKS WHERE 'beta' LIKE parser",
+            "SHOW XNODE TASKS WHERE 'beta' NOT LIKE parser",
+            "SHOW XNODE TASKS WHERE 'beta' REGEXP parser",
+            "SHOW XNODE TASKS WHERE 'beta' NMATCH parser",
+            "SHOW XNODE JOBS WHERE 'beta' LIKE config",
+            "SHOW XNODE JOBS WHERE 'beta' REGEXP config",
+        ]:
+            tdSql.error(
+                sql,
+                expectErrInfo="Operation not supported for BLOB type",
+                fullMatched=False,
+            )
+        for sql in [
+            "SHOW XNODE TASKS WHERE parser REGEXP '['",
+            "SHOW XNODE TASKS WHERE parser NMATCH '['",
+            "SHOW XNODE JOBS WHERE config REGEXP '('",
+            "SHOW XNODE JOBS WHERE config NMATCH '('",
+        ]:
+            tdSql.error(
+                sql,
+                expectErrInfo="Syntax error in regular expression",
+                fullMatched=False,
+            )
 
         # 清理测试数据
         cleanup_sqls = [
@@ -1346,7 +1413,7 @@ class TestXnode:
                 break
             tdLog.info(f"wait {cnt} times {rs} transactions to finish")
             time.sleep(3)
-    
+
     def test_alter_userpass(self):
         """测试 ALTER XNODE SET USER/PASS
 
@@ -1427,10 +1494,14 @@ class TestXnode:
         self.no_syntax_fail_execute("ALTER XNODE SET USER root pass 'taosdata'")
 
     def test_xnode_column_length(self):
-        """测试 show xnodes 列长度
+        """Test maximum XNODE parser and job config request lengths
 
-        1. Test create xnode task/job
-        2. Test show xnode task/jobs columns length
+        1. Send a 960 KiB task parser through parser, RPC, and mnode decoding
+        2. Send a 1 MiB job config through parser, RPC, and mnode decoding
+        3. Verify the requests reach expected runtime semantic checks without xnoded
+
+        Catalog:
+            - Xnode
 
         Since: v3.4.0.3
 
@@ -1439,41 +1510,23 @@ class TestXnode:
 
         History:
             - 2026-02-03 GuiChuan Zhang Created
+            - 2026-08-04 Yaming Pei Removed the xnoded fixture dependency
         """
 
-        col_len = 48*1024
         rid = random.randint(1000, 9999)
-        if self.is_local:
-            s = ''.join(random.choices(string.ascii_letters + string.digits, k=col_len))
-            self.no_syntax_fail_execute(f"CREATE XNODE TASK 'task_{rid}' FROM 'f1' TO 't1' WITH parser '{s}'")
-            self.wait_transaction_to_commit()
-            rs = tdSql.query(f"show xnode task where name='task_{rid}'", row_tag=True)
-            tdLog.info(f"show xnodes where result:' {rs}")
-            assert len(rs[0][4]) == col_len
+        parser = "p" * (960 * 1024)
+        self.expect_errno_for_large_sql(
+            f"CREATE XNODE TASK 'task_{rid}' FROM 'f1' TO 't1' WITH parser '{parser}'",
+            0x8009,
+        )
 
-        s = ''.join(random.choices(string.ascii_letters + string.digits, k=col_len))
-        self.no_syntax_fail_execute(f"CREATE XNODE JOB ON {rid} WITH config '{s}' xnode_id 1")
-        self.wait_transaction_to_commit()
-        rs = tdSql.query(f"show xnode jobs where task_id={rid}", row_tag=True)
-        tdLog.info(f"show xnodes where result:' {rs}")
-        # assert len(rs[0][2]) == col_len
-
-        if self.is_local:
-            rid = random.randint(1000, 9999)
-            s = ''.join(random.choices(string.ascii_letters + string.digits, k=col_len))
-            self.no_syntax_fail_execute(f"CREATE XNODE TASK 'task_{rid}' FROM 'f1' TO 't1' WITH parser ''")
-            self.wait_transaction_to_commit()
-            rs = tdSql.query(f"show xnode task where name='task_{rid}'", row_tag=True)
-            tdLog.info(f"show xnodes where result:' {rs}")
-            assert rs[0][4] == ''
-
-        rid = random.randint(1000, 9999)
-        s = ''.join(random.choices(string.ascii_letters + string.digits, k=col_len))
-        self.no_syntax_fail_execute(f"CREATE XNODE JOB ON {rid} WITH config '' xnode_id 1")
-        self.wait_transaction_to_commit()
-        rs = tdSql.query(f"show xnode jobs where task_id={rid}", row_tag=True)
-        tdLog.info(f"show xnodes where result:' {rs}")
-        # assert rs[0][2] == ''
+        rs = tdSql.query("show xnode tasks", row_tag=True)
+        missing_task_id = max((row[0] for row in rs), default=0) + 1000000
+        config = "c" * (1024 * 1024)
+        self.expect_errno_for_large_sql(
+            f"CREATE XNODE JOB ON {missing_task_id} WITH config '{config}' xnode_id 1",
+            0x8010,
+        )
 
     def test_show_xnode_order_by_id(self):
         """测试 SHOW XNODE 语句结果按 id 正序排序

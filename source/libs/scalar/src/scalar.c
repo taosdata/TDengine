@@ -2965,7 +2965,7 @@ static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t sclGetCompOperatorResType(SOperatorNode *pOp) {
+int32_t scalarGetCompOperatorResultType(SOperatorNode *pOp) {
   if (pOp == NULL || pOp->pLeft == NULL) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
@@ -2984,7 +2984,7 @@ static int32_t sclGetCompOperatorResType(SOperatorNode *pOp) {
     SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
     if (ldt.type == TSDB_DATA_TYPE_VARBINARY || !IS_VAR_DATA_TYPE(ldt.type) ||
         QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
-        (!IS_STR_DATA_TYPE(rdt.type) && (rdt.type != TSDB_DATA_TYPE_NULL))) {
+        (!IS_STR_DATA_TYPE(rdt.type) && rdt.type != TSDB_DATA_TYPE_BLOB && rdt.type != TSDB_DATA_TYPE_NULL)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
     SValueNode *node = (SValueNode *)(pOp->pRight);
@@ -3219,7 +3219,7 @@ int32_t scalarGetOperatorResultType(SOperatorNode *pOp) {
     case OP_TYPE_NMATCH:
     case OP_TYPE_IN:
     case OP_TYPE_NOT_IN:
-      return sclGetCompOperatorResType(pOp);
+      return scalarGetCompOperatorResultType(pOp);
     case OP_TYPE_JSON_GET_VALUE:
     case OP_TYPE_JSON_CONTAINS:
       return sclGetJsonOperatorResType(pOp);

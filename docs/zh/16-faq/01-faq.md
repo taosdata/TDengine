@@ -141,15 +141,15 @@ mvn dependency:copy-dependencies -DoutputDirectory=./lib -DincludeScope=compile
 
 ### 2.5 遇到报错 "DND ERROR Version not compatible, client: 3000700, server: 3020300"
 
-说明客户端和服务端版本不兼容，这里 client 的版本是 3.0.7.0，server 版本是 3.2.3.0。目前的兼容策略是前三位一致，客户端和服务端才能兼容。
+说明客户端和服务端版本不兼容，这里 client 的版本是 v3.0.7.0，server 版本是 v3.2.3.0。目前的兼容策略是前三位一致，客户端和服务端才能兼容。
 
 ### 2.6 修改 database 的 root 密码后，启动 taos 遇到报错 "failed to connect to server, reason: Authentication failure"
 
 默认情况，启动 taos 服务会使用系统默认的用户名（root）和密码尝试连接 taosd，在 root 密码修改后，启用 taos 连接就需要指明用户名和密码，例如 `taos -h xxx.xxx.xxx.xxx -u root -p`，然后输入新密码进行连接。修改密码后，你还需要相应地修改 taosKeeper 组件的配置文件（默认位于 /etc/taos/taoskeeper.toml），修改其访问 TDengine 的密码后重启服务。
 
-如果是容器化部署，请参考部署文档中 Docker 部署章节的“[自定义密码、升级与健康检查](../12-operations-and-tooling/02-operations/03-deployment.md#custom-passwords-upgrades-and-health-checks)”说明。
+如果是容器化部署，请参考部署文档中 Docker 部署章节的“[自定义密码、升级与健康检查](../12-operations-and-tooling/02-operations/03-deployment/02-docker.md#custom-passwords-upgrades-and-health-checks)”说明。
 
-其中，`3.3.6.6` 版本开始支持 `TAOS_ROOT_PASSWORD`，`3.3.8.8` 及以上版本支持 `TAOS_ROOT_PASSWORD_FILE` 并可直接升级，`3.4.1.0` 及以上版本支持 `taos-check startup` 和 `taos-check service`。
+其中，v3.3.6.6 开始支持 `TAOS_ROOT_PASSWORD`，v3.3.8.8 及以上版本支持 `TAOS_ROOT_PASSWORD_FILE` 并可直接升级，v3.4.1.0 及以上版本支持 `taos-check startup` 和 `taos-check service`。
 
 ### 2.7 遇到报错 "some vnode/qnode/mnode(s) out of service" 怎么办？
 
@@ -493,21 +493,21 @@ launchctl limit maxfiles
 
 ### 6.6 如何查看数据库的数据压缩率和磁盘占用指标？
 
-TDengine 3.3.5.0 之前的版本，只提供以表为统计单位的压缩率，数据库及整体还未提供，查看命令是在客户端 TDengine CLI 中执行 `SHOW TABLE DISTRIBUTED table_name;` 命令，table_name 为要查看压缩率的表，可以为超级表、普通表及子表，详细可 [查看此处](https://docs.taosdata.com/tdengine-sql/show/#show-table-distributed)
+TDengine v3.3.5.0 之前的版本，只提供以表为统计单位的压缩率，数据库及整体还未提供，查看命令是在客户端 TDengine CLI 中执行 `SHOW TABLE DISTRIBUTED table_name;` 命令，table_name 为要查看压缩率的表，可以为超级表、普通表及子表，详细可 [查看此处](https://docs.taosdata.com/tdengine-sql/show/#show-table-distributed)
 
-TDengine 3.3.5.0 及以上的版本，还提供了数据库整体压缩率和磁盘空间占用统计。查看数据库整体的数据压缩率和磁盘空间占用的命令为 `SHOW db_name.disk_info;`，查看数据库各个模块的磁盘空间占用的命令为 `SELECT * FROM INFORMATION_SCHEMA.INS_DISK_USAGE WHERE db_name='db_name';`，db_name 为要查看的数据库名称。详细可 [查看此处](https://docs.taosdata.com/tdengine-sql/ddl/database/#%E6%9F%A5%E7%9C%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E7%9A%84%E7%A3%81%E7%9B%98%E7%A9%BA%E9%97%B4%E5%8D%A0%E7%94%A8)
+TDengine v3.3.5.0 及以上的版本，还提供了数据库整体压缩率和磁盘空间占用统计。查看数据库整体的数据压缩率和磁盘空间占用的命令为 `SHOW db_name.disk_info;`，查看数据库各个模块的磁盘空间占用的命令为 `SELECT * FROM INFORMATION_SCHEMA.INS_DISK_USAGE WHERE db_name='db_name';`，db_name 为要查看的数据库名称。详细可 [查看此处](https://docs.taosdata.com/tdengine-sql/ddl/database/#%E6%9F%A5%E7%9C%8B%E6%95%B0%E6%8D%AE%E5%BA%93%E7%9A%84%E7%A3%81%E7%9B%98%E7%A9%BA%E9%97%B4%E5%8D%A0%E7%94%A8)
 
 ### 6.7 WAL 对存储空间和表观压缩率的影响
 
-WAL（Write-Ahead Log，预写式日志）是 TDengine 保证数据可靠性的核心机制。所有写入请求在落盘到数据文件之前，均以**原始未压缩格式**写入 WAL。因此，在写入初期，WAL 尚未按策略清理时，其大小可能超过已压缩的数据文件，导致观察到的总存储占用**暂时大于压缩后的数据量**，这是正常现象。随着数据持续写入，历史 WAL 会按配置自动清理，总存储占用将趋于稳定并趋近于实际压缩数据的大小。
+WAL（Write-Ahead Log，预写式日志）是 TDengine 保证数据可靠性的核心机制。所有写入请求在落盘到数据文件之前，均以 **原始未压缩格式** 写入 WAL。因此，在写入初期，WAL 尚未按策略清理时，其大小可能超过已压缩的数据文件，导致观察到的总存储占用 **暂时大于压缩后的数据量**，这是正常现象。随着数据持续写入，历史 WAL 会按配置自动清理，总存储占用将趋于稳定并趋近于实际压缩数据的大小。
 
 ### 6.8 短时间内，通过 systemd 重启 taosd 超过一定次数后重启失败，报错：start-limit-hit
 
 问题描述：
-TDengine 3.3.5.1 及以上的版本，taosd.service 的 systemd 配置文件中，StartLimitInterval 参数从 60 秒调整为 900 秒。若在 900 秒内 taosd 服务重启达到 3 次，后续通过 systemd 启动 taosd 服务时会失败，执行 `systemctl status taosd.service` 显示错误：Failed with result 'start-limit-hit'。
+TDengine v3.3.5.1 及以上的版本，taosd.service 的 systemd 配置文件中，StartLimitInterval 参数从 60 秒调整为 900 秒。若在 900 秒内 taosd 服务重启达到 3 次，后续通过 systemd 启动 taosd 服务时会失败，执行 `systemctl status taosd.service` 显示错误：Failed with result 'start-limit-hit'。
 
 问题原因：
-TDengine 3.3.5.1 之前的版本，StartLimitInterval 为 60 秒。若在 60 秒内无法完成 3 次重启（例如，因从 WAL（预写式日志）中恢复大量数据导致启动时间较长），则下一个 60 秒周期内的重启会重新计数，导致系统持续不断地重启 taosd 服务。为避免无限重启问题，将 StartLimitInterval 由 60 秒调整为 900 秒。因此，在使用 systemd 短时间内多次启动 taosd 时遇到 start-limit-hit 错误的机率增多。
+TDengine v3.3.5.1 之前的版本，StartLimitInterval 为 60 秒。若在 60 秒内无法完成 3 次重启（例如，因从 WAL（预写式日志）中恢复大量数据导致启动时间较长），则下一个 60 秒周期内的重启会重新计数，导致系统持续不断地重启 taosd 服务。为避免无限重启问题，将 StartLimitInterval 由 60 秒调整为 900 秒。因此，在使用 systemd 短时间内多次启动 taosd 时遇到 start-limit-hit 错误的机率增多。
 
 问题解决：
 1）通过 systemd 重启 taosd 服务：推荐方法是先执行命令 `systemctl reset-failed taosd.service` 重置失败计数器，然后再通过 `systemctl restart taosd.service` 重启；若需长期调整，可手动修改 /etc/systemd/system/taosd.service 文件，将 StartLimitInterval 调小或将 StartLimitBurst 调大 (注：重新安装 taosd 会重置该参数，需要重新修改)，执行 `systemctl daemon-reload` 重新加载配置，然后再重启。2）也可以不通过 systemd 而是通过 taosd 命令直接重启 taosd 服务，此时不受 StartLimitInterval 和 StartLimitBurst 参数限制。
@@ -515,10 +515,10 @@ TDengine 3.3.5.1 之前的版本，StartLimitInterval 为 60 秒。若在 60 秒
 ### 6.9 我确认修改了配置文件中参数但并没有生效？
 
 问题描述：
-TDengine 3.4.0.0 及以上的版本，有些用户可能会遇到一个问题：我在 `taos.cfg` 中修改了某个配置参数，但是重启后发现并没有生效，查看日志也找不到任何报错。
+TDengine v3.4.0.0 及以上的版本，有些用户可能会遇到一个问题：我在 `taos.cfg` 中修改了某个配置参数，但是重启后发现并没有生效，查看日志也找不到任何报错。
 
 问题原因：
-这是由于 TDengine 3.4.0.0 及以上版本，为了进一步提升 TDengine 的安全等级，防止恶意篡改配置文件，TDengine 禁止通过修改配置文件来改变配置参数，请你使用 ALTER 命令，通过 SQL 的方式修改配置参数的值。
+这是由于 TDengine v3.4.0.0 及以上版本，为了进一步提升 TDengine 的安全等级，防止恶意篡改配置文件，TDengine 禁止通过修改配置文件来改变配置参数，请你使用 ALTER 命令，通过 SQL 的方式修改配置参数的值。
 
 ### 6.10 如何让 TDengine crash 时生成 core 文件？
 

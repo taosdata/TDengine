@@ -94,11 +94,11 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 3. 在顶部选择 **代理** 标签页。
 4. 点击右上角的 **+创建新的代理** 按钮。
 
-![创建 Agent](./assets/create-agent.png)
+![创建 Agent](../../../assets/taosx-agent-01.png)
 
 5. 按照创建代理的指引操作，系统会生成 **endpoint** 和 **token**，请将其复制保存到 `agent.toml` 配置文件中。
 
-![生成 endpoint 和 token](./assets/agent-token.png)
+![生成 endpoint 和 token](../../../assets/taosx-agent-02.png)
 
 :::warning
 请在点击"下一步"前保存好 endpoint 和 token。如果丢失，将无法找回，必须重新创建代理。
@@ -151,7 +151,7 @@ sc start taosx-agent
 
 启动后，回到 taosExplorer 创建代理的向导页面，点击 **检查代理是否连接正常** 按钮，状态显示为 **正常** 即表示 Agent 已成功上线。
 
-![验证 Agent 状态](./assets/agent-status.png)
+![验证 Agent 状态](../../../assets/taosx-agent-03.png)
 
 也可以通过日志确认启动是否正常：
 

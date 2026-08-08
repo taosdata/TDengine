@@ -1,17 +1,19 @@
 """
 Pytest configuration and shared fixtures for TDGPT tests
 """
-import pytest
-import tempfile
-import shutil
+
 import os
+import shutil
 import sys
+import tempfile
 from unittest import mock
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'script'))
+import pytest
 
-from taosanode_service import Config, ProcessManager, TaosanodeService, ModelService
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "script"))
+
+from taosanode_service import Config, ModelService, ProcessManager, TaosanodeService
 
 
 class _SimpleMocker:
@@ -30,7 +32,9 @@ class _SimpleMocker:
             return self._owner._start(mock.patch(target, *args, **kwargs))
 
         def object(self, target, attribute, *args, **kwargs):
-            return self._owner._start(mock.patch.object(target, attribute, *args, **kwargs))
+            return self._owner._start(
+                mock.patch.object(target, attribute, *args, **kwargs)
+            )
 
     def __init__(self):
         self._patchers = []

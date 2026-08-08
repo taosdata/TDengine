@@ -52,7 +52,7 @@ CREATE STABLE meters (ts TIMESTAMP, num INT, temperature FLOAT, goods INT) TAGS 
 CREATE TABLE goods (ts1 TIMESTAMP, ts2 TIMESTAMP, goods FLOAT);
 ```
 
-![Seeq demo schema](seeq/assets/seeq-demo-schema.webp)
+![Seeq demo schema](../../assets/seeq-01.webp)
 
 **第 2 步**，在 TDengine 中构造数据。
 
@@ -247,7 +247,7 @@ taos -s "insert into power.goods select _wstart, _wstart + 10d, avg(goods) from 
 
 登录 Seeq 服务页面并新建 Seeq Workbench，通过选择数据源搜索结果和根据需要选择不同的工具，可以进行数据展现或预测，详细使用方法参见 [官方知识库](https://support.seeq.com/space/KB/146440193/Seeq+Workbench)。
 
-![Seeq Workbench](seeq/assets/seeq-demo-workbench.webp)
+![Seeq Workbench](../../assets/seeq-02.webp)
 
 ### 用 Seeq Data Lab Server 进行进一步的数据分析
 
@@ -316,7 +316,7 @@ plt.show()
 
 运行程序输出结果：
 
-![Seeq forecast result](seeq/assets/seeq-forecast-result.webp)
+![Seeq forecast result](../../assets/seeq-03.webp)
 
 ### 方案总结
 

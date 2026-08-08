@@ -287,7 +287,7 @@ struct SFilterInfo {
 
 #define FILTER_NO_MERGE_DATA_TYPE(t)                                                                 \
   ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_VARBINARY || (t) == TSDB_DATA_TYPE_NCHAR || \
-   (t) == TSDB_DATA_TYPE_JSON || (t) == TSDB_DATA_TYPE_GEOMETRY)
+   (t) == TSDB_DATA_TYPE_JSON || (t) == TSDB_DATA_TYPE_GEOMETRY || (t) == TSDB_DATA_TYPE_BLOB)
 #define FILTER_NO_MERGE_OPTR(o) ((o) == OP_TYPE_IS_NULL || (o) == OP_TYPE_IS_NOT_NULL || (o) == FILTER_DUMMY_EMPTY_OPTR)
 
 #define MR_EMPTY_RES(ctx) (ctx->rs == NULL)

@@ -12766,7 +12766,8 @@ static bool distinctAggFilterShouldOptimize(SLogicNode* pNode, void* pCtx) {
     pFuncs = pAgg->pAggFuncs;
   } else if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pNode)) {
     SWindowLogicNode* pWin = (SWindowLogicNode*)pNode;
-    // Only INTERVAL windows support distinct (SESSION/STATE/EVENT rejected at translate time)
+    // Only INTERVAL windows support distinct. SESSION/STATE/EVENT/COUNT/EXTERNAL are rejected
+    // at translate time in validateDistinctFunc(); keep this guard as a backstop.
     if (pWin->winType != WINDOW_TYPE_INTERVAL) return false;
     // Already optimized
     if (pWin->node.pChildren && pWin->node.pChildren->length > 0) {

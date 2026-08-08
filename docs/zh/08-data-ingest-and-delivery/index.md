@@ -4,7 +4,7 @@ title: 数据接入与发布
 description: TDengine 零代码数据写入、数据发布与边云协同概述
 ---
 
-TDengine TSDB Enterprise 通过 taosExplorer 与 taosX，提供零代码的数据接入与发布能力：把工业协议、消息队列、关系库等外部数据写入 TDengine，再按需把订阅到的数据分发到 MQTT、Kafka 等下游系统，并支持边云协同的分级汇聚。
+TDengine 企业版通过 taosExplorer 与 taosX，提供零代码的数据接入与发布能力：把工业协议、消息队列、关系库等外部数据写入 TDengine，再按需把订阅到的数据分发到 MQTT、Kafka 等下游系统，并支持边云协同的分级汇聚。
 
 本章包含三部分：
 

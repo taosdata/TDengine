@@ -7,7 +7,7 @@ toc_max_heading_level: 4
 
 在 TDengine 的安装包中，除了 TDengine 数据库引擎 `taosd` 以外，还提供了一些附加组件，以方便你的使用。`taosAdapter` 是应用和 TDengine 之间的桥梁；`taosKeeper` 是 TDengine 监控指标的导出工具；`taosX` 是数据管道（data pipeline）工具；`taosExplorer` 是可视化图形管理工具；`taosc` 是 TDengine 客户端驱动。下图展示了整个 TDengine 产品生态的拓扑架构（组件 `taosX`、`taosX Agent` 仅 TDengine TSDB Enterprise 提供）。
 
-![TDengine 产品生态拓扑架构](02-operations/assets/tdengine-topology.png)
+![TDengine 产品生态拓扑架构](../assets/security-suggestions-01.png)
 
 本章内容导航：
 
@@ -95,4 +95,4 @@ TDengine 支持与众多可视化及 BI 工具无缝对接，如 Grafana、Power
 
 3. 数据源
 
-TDengine 具备强大的数据接入能力，可以对接各种数据源，如 MQTT、OPC-UA/DA、Kafka、AVEVA PI System、AVEVA Historian 等。这使得 TDengine 能够轻松整合来自不同数据源的数据，为你提供全面、统一的数据视图。相关专题另见 [数据接入与发布](../08-data-ingest-and-delivery/index.md)、[数据订阅](../07-data-subscription/index.md)、[流式计算](../06-stream-processing/index.md)。
+TDengine 具备强大的数据接入能力，可以对接各种数据源，如 MQTT、OPC-UA/DA、Kafka、AVEVA PI System、AVEVA Historian 等。这使得 TDengine 能够轻松整合来自不同数据源的数据，为你提供全面、统一的数据视图。相关专题另见 [数据接入与发布](../08-data-ingest-and-delivery/index.md)、[数据订阅](../06-data-subscription/index.md)、[流式计算](../07-stream-processing/index.md)。

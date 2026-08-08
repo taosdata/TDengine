@@ -375,7 +375,7 @@ jmeter -g baseline_results.jtl -o baseline_report/
 
 **性能测试模式（高并发 QPS 测试）：**
 
-为了避免 JMeter 的磁盘 I/O 成为瓶颈，高并发测试时应**关闭 JTL 详细记录**，只使用 summary 输出分析 QPS。
+为了避免 JMeter 的磁盘 I/O 成为瓶颈，高并发测试时应 **关闭 JTL 详细记录**，只使用 summary 输出分析 QPS。
 
 创建性能优化配置文件 `perf.properties`：
 
@@ -433,7 +433,7 @@ summary =   1500 in 00:00:03 =  500.0/s Avg:    2 Min:     1 Max:     6 Err:    
 
 **查看 HTML 报告**
 打开 `baseline_report/index.html`，查看完整的测试报告。下面是一个样例。
- ![HTML 报告](assets/html-report.webp)
+ ![HTML 报告](../../../assets/jmeter-01.webp)
 
 **关键指标说明：**
 
@@ -839,7 +839,7 @@ jmeter -n -t random_param_test.jmx
 
 ## 命令行属性参数化
 
-除了 CSV 参数化和随机参数，JMeter 还支持通过**命令行属性**来参数化测试。这种方式特别适合 CLI 模式，可以避免频繁修改 JMX 文件。
+除了 CSV 参数化和随机参数，JMeter 还支持通过 **命令行属性** 来参数化测试。这种方式特别适合 CLI 模式，可以避免频繁修改 JMX 文件。
 
 ### 应用场景
 
@@ -1010,7 +1010,7 @@ chmod +x batch_test.sh
 
 ### 使用命令行属性参数化进行并发测试
 
-推荐使用**命令行属性参数化**的方式，使用[参数化测试](#csv-参数化测试)的 `param_test.jmx` 文件可以测试多种并发级别。
+推荐使用 **命令行属性参数化** 的方式，使用[参数化测试](#csv-参数化测试)的 `param_test.jmx` 文件可以测试多种并发级别。
 
 ### 执行不同并发级别的测试
 
@@ -1043,7 +1043,7 @@ jmeter -n -t param_test.jmx -Jthreads=200
 
 ### 阶梯式压测
 
-推荐使用**批量测试脚本**实现阶梯式压测，逐步增加并发数，参考[测试脚本](#批量测试脚本示例)。
+推荐使用 **批量测试脚本** 实现阶梯式压测，逐步增加并发数，参考[测试脚本](#批量测试脚本示例)。
 
 **或手动执行不同并发级别：**
 

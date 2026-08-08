@@ -54,7 +54,7 @@ class _MyForecastService(AbstractForecastService):
         """ 算法逻辑的核心实现"""
         res = []
 
-        """这个预测算法固定返回 1 作为预测值，预测值的数量是用户通过 self.fc_rows 指定"""
+        """这个预测算法固定返回 1 作为预测值，预测值的数量是用户通过 self.rows 指定"""
         ts_list = [self.start_ts + i * self.time_step for i in range(self.rows)]
         res.append(ts_list)  # 设置预测结果时间戳列
 
@@ -101,10 +101,10 @@ def test_myfc(self):
     s.set_input_list(self.get_input_list(), None)
     # 检查预测结果应该全部为 1
     r = s.set_params(
-        {"fc_rows": 10, "start_ts": 171000000, "time_step": 86400 * 30, "start_p": 0}
+        {"rows": 10, "start_ts": 171000000, "time_step": 86400 * 30, "start_p": 0}
     )
     r = s.execute()
 
     expected_list = [1] * 10
-    self.assertEqlist(r["res"][0], expected_list)
+    self.assertEqlist(r["res"][1], expected_list)
 ```
