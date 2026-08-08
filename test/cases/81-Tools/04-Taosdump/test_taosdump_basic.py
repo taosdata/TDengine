@@ -417,7 +417,6 @@ class TestTaosdumpBasic:
         tdSql.execute("drop database if exists db")
         print("do many cols .......................... [passed]")
 
-
     #
     # ------------------- main ----------------
     #

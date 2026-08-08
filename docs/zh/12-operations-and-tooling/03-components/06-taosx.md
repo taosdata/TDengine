@@ -274,7 +274,7 @@ TMQ DSN 参数：
 - `auto.offset.reset`: TMQ 订阅参数，订阅的起始位置。
 - `experimental.snapshot.enable`: TMQ 订阅参数，如启用，可以同步已经落盘到 TSDB 时序数据存储文件中（即不在 WAL 中）的数据。如关闭，则只同步尚未落盘（即保存在 WAL 中）的数据。
 
-更多 TMQ 订阅时的所有参数，详见 [数据订阅](../../07-data-subscription/index.md) 与 [开发指南 · 数据订阅](../../10-developer-guide/07-subscription-api.md)。
+更多 TMQ 订阅时的所有参数，详见 [数据订阅](../../06-data-subscription/index.md) 与 [开发指南 · 数据订阅](../../10-developer-guide/07-subscription-api.md)。
 
 MQTT DSN 参数：
 
@@ -781,7 +781,7 @@ taosX Parser 插件是一个要求用 C/Rust 语言开发的 C ABI 兼容动态�
 
 完成插件开发后，编译环境需要和目标运行环境兼容，将编译好的插件动态库复制到插件目录下，taosX 启动后，系统首次使用插件时初始化加载插件。可以在 explorer 的 kafka 或者 mqtt 数据接入配置页面中，检查是否加载成功。如下图，如果加载成功，则在解析器选择列表中展示出来。
 
-![插件示例](assets/plugin-01.png)
+![插件示例](../../assets/taosx-01.png)
 
 插件目录在 `taosx.toml` 配置文件中复用 plugins 配置，追加`/parsers`作为插件安装路径，默认值在 UNIX 环境下为 `/usr/local/taos/plugins/parsers`，在 Windows 下为 `C:\TDengine\plugins\parsers`。
 

@@ -77,6 +77,14 @@ int32_t compareChkNotInString(const void *pLeft, const void *pRight) {
   return NULL == taosHashGet((SHashObj *)pRight, pLeft, varDataTLen(pLeft)) ? 1 : 0;
 }
 
+int32_t compareChkInBlob(const void *pLeft, const void *pRight) {
+  return NULL != taosHashGet((SHashObj *)pRight, pLeft, blobDataTLen(pLeft)) ? 1 : 0;
+}
+
+int32_t compareChkNotInBlob(const void *pLeft, const void *pRight) {
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, blobDataTLen(pLeft)) ? 1 : 0;
+}
+
 int32_t compareInt8Val(const void *pLeft, const void *pRight) {
   int8_t left = GET_INT8_VAL(pLeft), right = GET_INT8_VAL(pRight);
   if (left > right) return 1;
@@ -1584,25 +1592,23 @@ static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
   return (ret == 0) ? 0 : 1;
 }
 
-int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
-  size_t sz = varDataLen(pRight);
-  char  *pattern = taosMemoryMalloc(sz + 1);
+static int32_t compareRegexMatch(const char *pLeft, size_t leftLen, const char *pRight, size_t rightLen) {
+  char *pattern = taosMemoryMalloc(rightLen + 1);
   if (NULL == pattern) {
     return 1;  // terrno has been set
   }
 
-  (void)memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  pattern[sz] = 0;
+  (void)memcpy(pattern, pRight, rightLen);
+  pattern[rightLen] = 0;
 
-  sz = varDataLen(pLeft);
-  char *str = taosMemoryMalloc(sz + 1);
+  char *str = taosMemoryMalloc(leftLen + 1);
   if (NULL == str) {
     taosMemoryFree(pattern);
     return 1;  // terrno has been set
   }
 
-  (void)memcpy(str, varDataVal(pLeft), sz);
-  str[sz] = 0;
+  (void)memcpy(str, pLeft, leftLen);
+  str[leftLen] = 0;
 
   int32_t ret = doExecRegexMatch(str, pattern);
 
@@ -1610,6 +1616,18 @@ int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
   taosMemoryFree(pattern);
 
   return (ret == 0) ? 0 : 1;
+}
+
+int32_t comparestrRegexMatch(const void *pLeft, const void *pRight) {
+  return compareRegexMatch(varDataVal(pLeft), varDataLen(pLeft), varDataVal(pRight), varDataLen(pRight));
+}
+
+int32_t compareBlobRegexMatch(const void *pLeft, const void *pRight) {
+  return compareRegexMatch(blobDataVal(pLeft), blobDataLen(pLeft), blobDataVal(pRight), blobDataLen(pRight));
+}
+
+int32_t compareBlobRegexNMatch(const void *pLeft, const void *pRight) {
+  return compareBlobRegexMatch(pLeft, pRight) ? 0 : 1;
 }
 
 int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
@@ -1677,6 +1695,22 @@ int32_t comparestrPatternMatch(const void *pLeft, const void *pRight) {
 
 int32_t comparestrPatternNMatch(const void *pLeft, const void *pRight) {
   return comparestrPatternMatch(pLeft, pRight) ? 0 : 1;
+}
+
+int32_t compareBlobPatternMatch(const void *pLeft, const void *pRight) {
+  SPatternCompareInfo pInfo = PATTERN_COMPARE_INFO_INITIALIZER;
+
+  if (blobDataTLen(pRight) > TSDB_MAX_BLOB_LEN) {
+    return 1;
+  }
+
+  int32_t ret =
+      patternMatch(blobDataVal(pRight), blobDataLen(pRight), blobDataVal(pLeft), blobDataLen(pLeft), &pInfo);
+  return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
+}
+
+int32_t compareBlobPatternNMatch(const void *pLeft, const void *pRight) {
+  return compareBlobPatternMatch(pLeft, pRight) ? 0 : 1;
 }
 
 int32_t comparewcsPatternMatch(const void *pLeft, const void *pRight) {

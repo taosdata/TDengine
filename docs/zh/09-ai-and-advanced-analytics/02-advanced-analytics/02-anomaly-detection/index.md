@@ -4,9 +4,9 @@ sidebar_label: 异常检测
 description: 时序数据异常检测模型
 ---
 
-import ad from '../assets/anomaly-detection.png';
+import ad from '../../../assets/anomaly-detection.png';
 
-TDengine 中定义了异常（状态）窗口来提供异常检测服务。异常窗口可以视为一种特殊的**事件窗口（Event Window）**，即异常检测算法确定的连续异常时间序列数据所在的时间窗口。与普通事件窗口区别在于，时间窗口的起始时间和结束时间均由分析算法识别确定，不通过用户给定的表达式进行判定。因此，在查询的窗口子句中使用 `ANOMALY_WINDOW` 即可调用时序数据异常检测服务，同时窗口伪列（`_WSTART`、`_WEND`、`_WDURATION`）也能够像其他时间窗口一样用于描述异常窗口的起始时间（`_WSTART`）、结束时间（`_WEND`）、持续时间（`_WDURATION`）。例如：
+TDengine 中定义了异常（状态）窗口来提供异常检测服务。异常窗口可以视为一种特殊的 **事件窗口（Event Window）**，即异常检测算法确定的连续异常时间序列数据所在的时间窗口。与普通事件窗口区别在于，时间窗口的起始时间和结束时间均由分析算法识别确定，不通过用户给定的表达式进行判定。因此，在查询的窗口子句中使用 `ANOMALY_WINDOW` 即可调用时序数据异常检测服务，同时窗口伪列（`_WSTART`、`_WEND`、`_WDURATION`）也能够像其他时间窗口一样用于描述异常窗口的起始时间（`_WSTART`）、结束时间（`_WEND`）、持续时间（`_WDURATION`）。例如：
 
 ```sql
 -- 使用异常检测算法 IQR 对输入列 col_val 进行异常检测。同时输出异常窗口的起始时间、结束时间、以及异常窗口内 col 列的和。
@@ -79,3 +79,5 @@ ANOMALY_WINDOW(i32, i8, "algo=ksigma,k=2");
 分析平台内置了若干异常检测模型，分为 3 个类别，分别是 [基于统计学的算法](./01-statistics-approach.md)、[基于数据密度的算法](./02-data-density.md)、以及 [基于机器学习的算法](./03-machine-learning.md)。在不指定异常检测使用的方法的情况下，默认调用 IQR 进行异常检测。可用算法以 `SHOW ANODES FULL` 实际返回为准，详见 [SHOW 命令](../../../05-tdengine-sql/09-system-info/03-show.md#show-anodes)。
 
 ### 异常检测算法有效性比较工具
+
+TDgpt 企业版提供模型评估工具，可使用查准率和查全率评估异常检测模型。配置与调用示例见 [模型评估工具](../../01-tdgpt/05-tools.md)。

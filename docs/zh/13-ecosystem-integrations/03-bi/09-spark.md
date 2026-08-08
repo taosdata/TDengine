@@ -323,7 +323,7 @@ LAG() 函数是 Spark 提供获取当前行之前某行数据的函数，示例�
     ```
 
 3. 输出分析结果，如图：  
-    ![spark-result](assets/spark-result.png)
+    ![spark-result](../../assets/spark-01.png)
 
 Spark 接入 TDengine 数据源后，可进一步支持跨数据库分析、数据集交 / 并 / 差运算、带 WHERE 子查询过滤、普通列 JOIN 等复杂数据处理功能。
 

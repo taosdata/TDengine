@@ -337,7 +337,7 @@ REVOKE ROLE role_name FROM user_name;
 
 自 TDengine 企业版 `v3.4.2.1` 开始，用户的 `SYSINFO` 属性（见 [用户管理](./01-user.md)）与 `SYSINFO_0`/`SYSINFO_1` 及高阶系统角色之间存在联动，以简化操作，避免属性与角色需要分别设置。规则如下：
 
-1. 执行 `ALTER USER user_name SYSINFO {0|1}` 时，会联动修改 `SYSINFO_0`/`SYSINFO_1` 角色。
+1. 执行 `ALTER USER user_name SYSINFO {0|1}` 时，会联动修改对应角色：设为 `1` 时授予 `SYSINFO_1` 并回收 `SYSINFO_0`；设为 `0` 时授予 `SYSINFO_0` 并回收 `SYSINFO_1`。
 2. 授予高阶系统角色（`SYSINFO_1`、`SYSDBA`、`SYSSEC`、`SYSAUDIT`、`SYSAUDIT_LOG`）时，会联动将用户的 `SYSINFO` 属性提升为 `1`。授予 `SYSINFO_0` 或用户自定义角色时，`SYSINFO` 属性不变。
 3. 回收（`REVOKE`）任何角色时，都不会联动修改 `SYSINFO` 属性。如需降低，请显式执行 `ALTER USER user_name SYSINFO 0`。
 
@@ -678,6 +678,7 @@ REVOKE ALL ON table_name FROM user_name;
 - `mask()` 仅支持 VARCHAR 和 NCHAR 类型的列，其他类型（如 INT、VARBINARY、GEOMETRY、JSON）暂不支持脱敏
 - **脱敏作用域**：`mask()` 采用展示层动态脱敏（Display-Level Dynamic Data Masking）策略。当前实现是对 `SELECT` 投影列表中的列引用进行改写；因此，凡是出现在投影列表中的表达式（如函数调用、`CASE WHEN`、`DISTINCT`、聚合参数等）只要引用了被脱敏列，都会基于脱敏后的表达式计算。相对地，`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY` 等非投影子句中的列引用 **不做脱敏改写**，仍以原始值参与计算。例如：
   - `SELECT length(masked_col)` 返回 `1`（投影中 `masked_col` 被替换为 `'*'`）
+  - `SELECT CASE WHEN masked_col = 'hello' THEN 1 ELSE 0 END` 在投影改写中按脱敏后的值比较，而非原始列值
   - `SELECT CASE WHEN masked_col IS NULL THEN 0 ELSE length(masked_col) END` 中，若 `masked_col` 出现在投影表达式内，也会按脱敏后的值参与计算
   - `WHERE masked_col = 'hello'` 仍可匹配到原始值为 `'hello'` 的行
   - `GROUP BY masked_col` 按原始值的基数分组，输出中若直接投影该列，每组仍显示为 `'*'`
@@ -993,7 +994,7 @@ SHOW SECURITY_POLICIES;
 
 从 `v3.4.1.6` 起可用（企业版）。
 
-强制访问控制（Mandatory Access Control，简称 MAC）通过对用户和数据库对象分配**安全等级**（Security Level），强制执行"禁止上读（No-Read-Up，NRU）"和"禁止下写（No-Write-Down，NWD）"规则，防止高密级数据流向低密级用户。
+强制访问控制（Mandatory Access Control，简称 MAC）通过对用户和数据库对象分配 **安全等级**（Security Level），强制执行"禁止上读（No-Read-Up，NRU）"和"禁止下写（No-Write-Down，NWD）"规则，防止高密级数据流向低密级用户。
 
 #### 安全等级定义
 
@@ -1044,8 +1045,8 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 | 直接持有 `ALTER SECURITY POLICY` 权限的用户（非角色继承） | 无约束 | 4 |
 | 普通用户 | 无约束（默认 `[0,0]`）| 无约束 |
 
-- MAC **未激活**时：GRANT 角色和 ALTER USER security_level 均不检查等级下限。NRU、NWD 以及等级压制规则均**不生效**。用户的 SECURITY_LEVEL 可正常设置；数据库与超级表的 SECURITY_LEVEL **不允许设置为 >0**（设置为 0 始终允许）。
-- MAC **已激活**时：GRANT 角色要求用户的 `minSecLevel` 和 `maxSecLevel` 均满足该角色的下限约束，否则报错。ALTER USER security_level 不得将 minSecLevel 或 maxSecLevel 降低至当前已持有角色的下限以下。**此外，直接持有 `ALTER SECURITY POLICY`（非角色继承）的用户，其 maxSecLevel 不得降至 4 以下。**
+- MAC **未激活** 时：GRANT 角色和 ALTER USER security_level 均不检查等级下限。NRU、NWD 以及等级压制规则均 **不生效**。用户的 SECURITY_LEVEL 可正常设置；数据库与超级表的 SECURITY_LEVEL **不允许设置为 >0**（设置为 0 始终允许）。
+- MAC **已激活** 时：GRANT 角色要求用户的 `minSecLevel` 和 `maxSecLevel` 均满足该角色的下限约束，否则报错。ALTER USER security_level 不得将 minSecLevel 或 maxSecLevel 降低至当前已持有角色的下限以下。**此外，直接持有 `ALTER SECURITY POLICY`（非角色继承）的用户，其 maxSecLevel 不得降至 4 以下。**
 - **受信主体豁免**：持有 `ALTER SECURITY POLICY` 权限的用户（即持有 SYSSEC 角色者）在设置安全等级时不受升级防护（escalation prevention）限制，可自由设置目标用户的安全等级。设置该权限是为了 taosX 数据同步，使用时，建议限制账户登录的 IP 白名单，除此之外，不建议为用户授予 `ALTER SECURITY POLICY` 权限。
 
 #### 启用 MAC
@@ -1057,7 +1058,7 @@ ALTER CLUSTER 'MAC' 'mandatory';
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
 
-**激活预检查（Pre-activation Check）：** 执行前系统扫描**所有持有系统角色的用户**以及**直接持有 `ALTER SECURITY POLICY` 权限的用户**（**含已禁用的用户**）。
+**激活预检查（Pre-activation Check）：** 执行前系统扫描 **所有持有系统角色的用户** 以及 **直接持有 `ALTER SECURITY POLICY` 权限的用户**（**含已禁用的用户**）。
 其中：系统角色持有者按角色下限检查 `minSecLevel` 和 `maxSecLevel`；直接持有 `ALTER SECURITY POLICY`（非角色继承）的用户仅检查 `maxSecLevel=4`。遇到第一个不满足的用户立即中止并返回错误，错误消息中包含该用户的名称，例如：
 
 ```text
@@ -1082,7 +1083,7 @@ ALTER USER u_dba1 SECURITY_LEVEL 0,3;
 REVOKE ROLE `SYSSEC` FROM u_sec1;
 ```
 
-> **重要**：撤销角色**不会**自动重置用户的 `security_level`。撤销系统角色后，用户保留原有安全等级，如需重置请手动执行 `ALTER USER ... SECURITY_LEVEL`。
+> **重要**：撤销角色 **不会** 自动重置用户的 `security_level`。撤销系统角色后，用户保留原有安全等级，如需重置请手动执行 `ALTER USER ... SECURITY_LEVEL`。
 
 #### MAC 访问控制规则
 
@@ -1094,7 +1095,7 @@ MAC 激活后，所有数据访问均额外受到以下规则约束（在 DAC �
 | NWD（禁止下写）| 用户 minSecLevel **≤** 对象 secLevel → 允许 INSERT | 高密级用户不可向低密级对象写入 |
 
 - 子表继承父超级表的 secLevel；普通表继承所在数据库的 secLevel。
-- 用户 security_level 为 `[0, 4]`（即 minSecLevel=0, maxSecLevel=4）时命中**快速路径**（无需查询元数据），对性能无任何影响。
+- 用户 security_level 为 `[0, 4]`（即 minSecLevel=0, maxSecLevel=4）时命中 **快速路径**（无需查询元数据），对性能无任何影响。
 
 **查看 MAC 状态**
 

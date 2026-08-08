@@ -7,7 +7,40 @@ toc_max_heading_level: 4
 
 相较于许多时序数据库和实时数据库，TDengine 自首个版本起就支持标准 SQL 查询。这一能力降低了时序数据查询和分析的学习成本。
 
-本章以智能电表数据模型为例，使用快速体验中 `taosBenchmark -y` 写入的 `test` 库数据，在 shell 中快速体验常用查询：按条件过滤、排序、限制返回行数，按标签或子表聚合，以及按时间窗口统计数据。每类查询都会给出 SQL 和代表性返回结果，帮助你理解查询输出的形态。完整语法和高级查询能力请参见文末“继续阅读”。
+本章以智能电表数据模型为例，使用快速体验中 `taosBenchmark -y` 写入的 `test` 库数据，在 shell 中快速体验常用查询：按条件过滤、排序、限制返回行数，按标签或子表聚合，以及按时间窗口统计数据。每类查询都会给出 SQL 和代表性返回结果，帮助你理解查询输出的形态。下面先给出查询能力全景；完整语法与进阶能力请按下列链接深入阅读，或参见文末“继续阅读”。
+
+## 查询能力一览
+
+TDengine 在标准 SQL 之上，针对时序与物联网场景扩展了标签过滤、按设备分片、多种时间窗口、插值与关联查询等能力。
+
+- **基础检索**
+  `SELECT` / `WHERE` / `ORDER BY` / `LIMIT`，时间范围过滤，正则与 `CASE` 等。详见 [基础查询](../05-tdengine-sql/04-data-query/01-query.md)。
+
+- **运算符与表达式**
+  算术、比较、逻辑、位运算、JSON 与集合运算等。详见 [运算符](../05-tdengine-sql/04-data-query/02-operators.md)。
+
+- **聚合与函数**
+  `COUNT` / `AVG` / `MAX` 等统计聚合，以及选择、数学、时间、时序专用等内置函数。详见 [内置函数](../05-tdengine-sql/04-data-query/03-function.md)。
+
+- **标签与分片**
+  按标签过滤；`GROUP BY` / `PARTITION BY` / `tbname` / `SLIMIT` 按设备或标签聚合与限流。详见 [基础查询](../05-tdengine-sql/04-data-query/01-query.md)。
+
+- **特色查询**
+  `INTERVAL` / `SLIDING` 时间窗口，以及状态、会话、事件、计数、外部窗口；`FILL` / `INTERP` 补值与插值。详见 [特色查询](../05-tdengine-sql/04-data-query/04-distinguished.md)、[基础查询](../05-tdengine-sql/04-data-query/01-query.md)（`FILL` / `INTERP`）。
+
+- **关联查询**
+  普通 Join，以及面向时序的 ASOF Join、Window Join。详见 [关联查询](../05-tdengine-sql/04-data-query/05-join.md)。
+
+- **窗口函数**
+  `OVER` 窗口函数。详见 [窗口函数](../05-tdengine-sql/04-data-query/06-window-function.md)。
+
+- **自定义函数与缓存**
+  用户自定义函数（UDF）；最新行读缓存加速。详见 [自定义函数](../05-tdengine-sql/04-data-query/07-udf.md)、[读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)。
+
+- **执行计划**
+  `EXPLAIN` / `EXPLAIN ANALYZE` 查看执行计划。详见 [执行计划](../05-tdengine-sql/04-data-query/09-explain.md)。
+
+相对通用数据库，查询时序数据时尤其常用：**一次查询超级表覆盖多设备**、**用标签缩小设备范围**、**按时间或状态切窗口做降采样与聚合**。下文从最常用的过滤、聚合与时间窗口开始上手。
 
 ## 前提条件
 
@@ -173,7 +206,7 @@ Query OK, 3 row(s) in set
 
 窗口查询用于把时序数据按时间、状态、事件或行数切分，再在每个窗口内计算。快速上手阶段可以先理解下面几类窗口：
 
-![常用窗口划分逻辑](../05-tdengine-sql/04-data-query/assets/window.png)
+![常用窗口划分逻辑](../assets/query-and-aggregate-01.png)
 
 - 时间窗口：按固定时间间隔切分，使用 `INTERVAL`。
 - 滑动窗口：在时间窗口基础上设置滑动步长，使用 `SLIDING`。
@@ -451,7 +484,12 @@ WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10";
 
 本章只覆盖快速上手阶段最常用的查询方式。更多高级查询能力，请继续阅读以下文档：
 
-- [基础查询](../05-tdengine-sql/04-data-query/01-query.md)：完整 `SELECT` 语法、过滤、排序、分组、子查询和 `UNION`。
-- [函数](../05-tdengine-sql/04-data-query/03-function.md)：聚合函数、选择函数和时序数据特有函数。
-- [特色查询](../05-tdengine-sql/04-data-query/06-distinguished.md)：时间窗口、状态窗口、会话窗口、事件窗口、计数窗口和外部窗口。
-- [关联查询](../05-tdengine-sql/04-data-query/07-join.md)：普通 Join、ASOF Join 和 Window Join。
+- [基础查询](../05-tdengine-sql/04-data-query/01-query.md)：`SELECT` 语句语法、常用子句与查询示例
+- [运算符](../05-tdengine-sql/04-data-query/02-operators.md)：算术、位运算、比较、逻辑等运算符
+- [内置函数](../05-tdengine-sql/04-data-query/03-function.md)：内置函数分类、语法与使用说明
+- [特色查询](../05-tdengine-sql/04-data-query/04-distinguished.md)：时序数据特有的查询功能（多种窗口等）
+- [关联查询](../05-tdengine-sql/04-data-query/05-join.md)：关联查询（JOIN）概念、类型、语法与限制
+- [窗口函数](../05-tdengine-sql/04-data-query/06-window-function.md)：`OVER` 子句与 SQL 标准窗口函数说明
+- [自定义函数](../05-tdengine-sql/04-data-query/07-udf.md)：创建、管理与调用用户自定义函数（UDF）
+- [读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)：通过 `CACHEMODEL` 缓存子表最近数据，加速 `LAST` / `LAST_ROW` 查询
+- [执行计划](../05-tdengine-sql/04-data-query/09-explain.md)：使用 `EXPLAIN` / `EXPLAIN ANALYZE` 查看查询执行计划与运行期指标
