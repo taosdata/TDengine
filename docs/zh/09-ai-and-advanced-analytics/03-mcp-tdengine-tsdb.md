@@ -53,7 +53,7 @@ mcp-tdengine-tsdb 支持通过命令行参数或环境变量配置连接信息�
 
 1. 在 Trae AI 对话窗口右上角，点击设置图标 → MCP，打开 MCP 窗口。
 
-   ![MCP SETTING](assets/mcp-setting.webp)
+   ![MCP SETTING](../assets/mcp-tdengine-tsdb-01.webp)
 
 2. 点击手动添加后填入以下内容：将 `command` 改为 mcp-tdengine-tsdb 所在全路径（Windows 注意路径转义）；`db` 填写要操作的数据库名称。确认后即可通过 MCP Server 进行数据查询等只读操作。
 
@@ -74,11 +74,11 @@ mcp-tdengine-tsdb 支持通过命令行参数或环境变量配置连接信息�
    }
    ```
 
-   ![ADD MCP](assets/add-mcp.webp)
+   ![ADD MCP](../assets/mcp-tdengine-tsdb-02.webp)
 
 3. AI 框选择 Builder with MCP，可以看到 tdengine-tsdb MCP 已经启动。
 
-   ![BUILDER WITH MCP](assets/builder-with-mcp.webp)
+   ![BUILDER WITH MCP](../assets/mcp-tdengine-tsdb-03.webp)
 
 ### 以 Claude Code 为例添加 MCP
 
@@ -96,24 +96,24 @@ claude mcp add tdengine-tsdb -- /path-to-mcp/mcp-tdengine-tsdb --host localhost 
 
 1. 获取连接信息
 
-   ![mcp-info.webp](assets/mcp-info.webp)
+   ![mcp-info.webp](../assets/mcp-tdengine-tsdb-04.webp)
 
 2. 获取 dnode 列表
 
-   ![mcp-list-dnodes.webp](assets/mcp-list-dnodes.webp)
+   ![mcp-list-dnodes.webp](../assets/mcp-tdengine-tsdb-05.webp)
 
 3. 获取数据库列表
 
-   ![mcp-show-databases.webp](assets/mcp-show-databases.webp)
+   ![mcp-show-databases.webp](../assets/mcp-tdengine-tsdb-06.webp)
 
 4. 获取超级表列表
 
-   ![mcp-show-stables.webp](assets/mcp-show-stables.webp)
+   ![mcp-show-stables.webp](../assets/mcp-tdengine-tsdb-07.webp)
 
 5. 获取表结构
 
-   ![mcp-describe.webp](assets/mcp-describe.webp)
+   ![mcp-describe.webp](../assets/mcp-tdengine-tsdb-08.webp)
 
 6. 执行查询语句
 
-   ![mcp-query.webp](assets/mcp-query.webp)
+   ![mcp-query.webp](../assets/mcp-tdengine-tsdb-09.webp)

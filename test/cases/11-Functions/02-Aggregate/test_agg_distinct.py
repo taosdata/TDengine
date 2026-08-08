@@ -516,6 +516,26 @@ class TestAggDistinct:
             "event_window start with c_int > 1 end with c_int > 3"
         )
 
+    def test_error_distinct_with_count_window(self):
+        """DISTINCT with COUNT_WINDOW is not supported
+
+        Since: v3.4.2.3
+        Labels: common, ci
+        Jira: None
+        """
+        tdSql.error("select count(distinct c_int) from t1 count_window(3)")
+        tdSql.error("select sum(distinct c_int) from t1 count_window(3)")
+        tdSql.error("select avg(distinct c_int) from t1 count_window(3)")
+
+    def test_error_distinct_with_anomaly_window(self):
+        """DISTINCT with ANOMALY_WINDOW is not supported
+
+        Since: v3.4.2.3
+        Labels: common, ci
+        Jira: None
+        """
+        tdSql.error("select count(distinct c_int) from t1 anomaly_window(c_int)")
+
     # ===================================================================
     # Timestamp type
     # ===================================================================

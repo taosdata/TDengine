@@ -70,7 +70,7 @@ toc_max_heading_level: 4
 | tsmaDataDeleteMark | taosc | TSMA 计算的历史数据中间结果保存时间 |
 | queryPolicy | taosc | 查询语句的执行策略 |
 | queryTableNotExistAsEmpty | taosc | 查询表不存在时是否返回空结果集 |
-| querySmaOptimize | taosc | querSmaOptimize，永远从原始数据进行查询 |
+| querySmaOptimize | taosc | SMA 索引的查询优化策略 |
 | queryMaxConcurrentTables | taosc | 查询计划的并发数目 |
 | minSlidingTime | taosc | sliding 的最小允许值 |
 | minIntervalTime | taosc | interval 的最小允许值 |

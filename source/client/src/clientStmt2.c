@@ -721,6 +721,20 @@ static int32_t stmtCleanExecInfo(STscStmt2* pStmt, bool keepTable, bool deepClea
         TSWAP(pBlocks->pData, pStmt->exec.pCurrTbData);
         STMT_ERR_RET(qResetStmtDataBlock(pBlocks, false));
 
+        /* After TSWAP, for row-format data the retained pData's
+         * aRowP is a shallow copy aliasing the original.  When
+         * pCurrTbData is destroyed next cycle those pointers
+         * dangle.  Break the alias by clearing aRowP.
+         * For column-format data, qResetStmtDataBlock already
+         * zeroes nVal on each aCol entry and aRowP is unused,
+         * so the stale entry is harmlessly skipped by
+         * insMergeTableDataCxt's nVal<=0 check. */
+        if (!(pBlocks->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT)) {
+          if (pBlocks->pData->aRowP) {
+            taosArrayClear(pBlocks->pData->aRowP);
+          }
+        }
+
         pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
         continue;
       }
@@ -1583,8 +1597,10 @@ static void stmtDestroyTableColArray(SArray* pCols) {
 }
 
 static void stmtFreeTbCols(void* buf) {
-  SArray* pCols = *(SArray**)buf;
+  SArray** p = (SArray**)buf;
+  SArray*  pCols = *p;
   stmtDestroyTableColArray(pCols);
+  *p = NULL;
 }
 
 static int32_t stmtCleanSQLInfo(STscStmt2* pStmt) {
@@ -2447,6 +2463,7 @@ static int32_t stmtInitStbInterlaceTableInfo(STscStmt2* pStmt) {
     }
 
     if (taosArrayPush(pStmt->sql.siInfo.pTableCols, &pTblCols) == NULL) {
+      taosArrayDestroy(pTblCols);
       return terrno;
     }
   }
@@ -2880,6 +2897,7 @@ static FORCE_INLINE int32_t stmtGetTableColsFromCache(STscStmt2* pStmt, SArray**
         }
 
         if (taosArrayPush(pStmt->sql.siInfo.pTableCols, &pTblCols) == NULL) {
+          taosArrayDestroy(pTblCols);
           return terrno;
         }
       }

@@ -1,4 +1,3 @@
-# encoding:utf-8
 # pylint: disable=c0103
 """complex exponential smoothing definition"""
 
@@ -9,6 +8,7 @@ from taosanalytics.base import AbstractStatsForecastService
 
 class _CesService(AbstractStatsForecastService):
     """Forecast time-series data using CES."""
+
     name = "ces"
     desc = "forecast algorithm by using complex exponential smoothing"
     _builtins = True

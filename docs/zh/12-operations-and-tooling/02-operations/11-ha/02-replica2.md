@@ -4,21 +4,21 @@ sidebar_label: 双副本方案
 toc_max_heading_level: 4
 ---
 
-部分用户期望在保证一定可靠性、可用性条件下，尽可能压缩部署成本。为此，TDengine 提出基于 Arbitrator 的双副本方案，可提供集群中**只有单个服务故障且不出现连续故障**的容错能力。双副本方案是 TDengine TSDB Enterprise 特有功能，在 3.3.0.0 版本中第一次发布，建议使用最新版本。
+部分用户期望在保证一定可靠性、可用性条件下，尽可能压缩部署成本。为此，TDengine 提出基于 Arbitrator 的双副本方案，可提供集群中 **只有单个服务故障且不出现连续故障** 的容错能力。双副本方案是 TDengine TSDB Enterprise 特有功能，在 3.3.0.0 版本中第一次发布，建议使用最新版本。
 
 双副本选主由高可用的 Mnode 提供仲裁服务，不由 Raft 组内决定。
 
 1. Arbitrator：仲裁服务，不存储数据，VGroup 因某一 Vnode 故障而无法提供服务时，Arbitrator 可根据数据同步情况指定 VGroup 内另一 Vnode 成为 Assigned Leader
 2. AssignedLeader：被强制设置为 Leader 的 Vnode，无论其他副本 Vnode 是否存活，均可一直响应用户请求
 
-![replica2.png](../assets/replica2.png)
+![replica2.png](../../../assets/replica2-01.png)
 
 ## 集群配置
 
 双副本要求集群至少配置三个节点，基本部署与配置步骤如下：
 
 1. 确定服务器节点数量、主机名或域名，配置好所有节点的域名解析：DNS 或 /etc/hosts
-2. 各节点分别安装 TDengine **企业版**服务端安装包，按需编辑好各节点 taos.cfg
+2. 各节点分别安装 TDengine **企业版** 服务端安装包，按需编辑好各节点 taos.cfg
 3. 可选择其中一个节点仅提供仲裁服务（部署 Mnode），将 SupportVnodes 参数设置为 0，表示不存储时序数据；该占用资源较少，仅需 1~2 核，且可与其他应用共用
 4. 启动各节点 taosd 服务，其他服务可按需启动（taosAdapter / taosX / taosKeeper / taosExplorer）
 

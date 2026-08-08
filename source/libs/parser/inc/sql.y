@@ -698,7 +698,6 @@ cmd ::= DROP ANODE NK_INTEGER(A).                                               
 xnode_endpoint(A) ::= NK_STRING(B).                                               { A = B; }
 xnode_endpoint(A) ::= NK_INTEGER(B).                                              { A = B; }
 
-%destructor xnode_task_source                                                     { }
 xnode_task_source(A) ::= NK_STRING(B).                                            { A = createXnodeSourceAsDsn(pCxt, &B); }
 xnode_task_source(A) ::= DATABASE db_name(B).                                     { A = createXnodeSourceAsDatabase(pCxt, &B); }
 xnode_task_source(A) ::= TOPIC topic_name(B).                                     { A = createXnodeSourceAsTopic(pCxt, &B); }

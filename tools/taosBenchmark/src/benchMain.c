@@ -19,7 +19,8 @@ SArguments*    g_arguments;
 SQueryMetaInfo g_queryInfo;
 STmqMetaInfo   g_tmqInfo;
 bool           g_fail = false;
-bool           g_stopping = false;
+volatile sig_atomic_t g_stopping = 0;
+volatile sig_atomic_t g_forceStopping = 0;
 uint64_t       g_memoryUsage = 0;
 tools_cJSON*   root;
 extern char    g_configDir[MAX_PATH_LEN];
@@ -32,19 +33,22 @@ int32_t         g_majorVersionOfClient = 0;
 uint64_t        g_argFlag = 0;
 
 #ifdef LINUX
+// async-signal-safe: no fprintf/mutex-locking/exit() here, only sig_atomic_t
+// writes and sem_post. Logging and process termination happen on
+// benchCancelHandler's own thread instead, since a worker thread interrupted
+// while it holds the stdout log mutex would otherwise self-deadlock if the
+// handler tried to take that same mutex via infoPrint().
 void benchQueryInterruptHandler(int32_t signum, void* sigingo, void* context) {
-    infoPrint("%s", "Receive SIGINT or other signal, quit benchmark\n");
     if (g_stopping) {
-        infoPrint("%s", "Benchmark process forced exit!\n");
-        exit(1);
+        g_forceStopping = 1;
+        return;
     }
 
+    g_stopping = 1;
     if (sem_post(&g_arguments->cancelSem) != 0) {
         const char* msg = "sem_post failed in signal handler\n";
         write(STDERR_FILENO, msg, strlen(msg));
     }
-
-    g_stopping = true;
 }
 
 void* benchCancelHandler(void* arg) {
@@ -52,8 +56,16 @@ void* benchCancelHandler(void* arg) {
         toolsMsleep(10);
     }
 
+    infoPrint("%s", "Receive SIGINT or other signal, quit benchmark\n");
     g_arguments->terminate = true;
-    toolsMsleep(5 * 1000);
+
+    for (int32_t waited = 0; waited < 5 * 1000; waited += 50) {
+        if (g_forceStopping) {
+            infoPrint("%s", "Benchmark process forced exit!\n");
+            exit(1);
+        }
+        toolsMsleep(50);
+    }
 
     exit(1);
 }

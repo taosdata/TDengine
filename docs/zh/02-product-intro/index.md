@@ -1,21 +1,24 @@
 ---
 sidebar_label: 产品简介
-title: 产品简介
+title: TDengine TSDB 产品简介
 description: TDengine TSDB 产品简介
 toc_max_heading_level: 4
 ---
 
-TDengine TSDB（下文简称 TDengine）是一款高性能、集群开源、云原生的时序数据库（Time Series Database，TSDB），专为物联网（IoT）平台、工业互联网、电力、IT 运维等场景设计并优化，具备较强的弹性伸缩能力。同时内建缓存、流式计算、数据订阅等系统功能，可显著降低系统设计复杂度以及研发与运营成本。作为高性能、分布式的物联网与工业大数据平台，它能够安全、高效地汇聚、存储、分析与分发海量设备与数据采集器每日产生的 TB 乃至 PB 级数据，支撑业务运行状态的实时监测与预警，并提供实时商业洞察。
+TDengine® TSDB（下文简称 TDengine）是一款高性能、集群开源、云原生的时序数据库（Time Series Database，TSDB），专为物联网（IoT）平台、工业互联网、电力、IT 运维等场景设计并优化，具备较强的弹性伸缩能力。同时内建缓存、流式计算、数据订阅等系统功能，可显著降低系统设计复杂度以及研发与运营成本。作为高性能、分布式的物联网与工业大数据平台，它能够安全、高效地汇聚、存储、分析与分发海量设备与数据采集器每日产生的 TB 乃至 PB 级数据，支撑业务运行状态的实时监测与预警，并提供实时商业洞察。
 
 2019 年 7 月，涛思数据将 TDengine 单机版开源；随后于 2020 年 8 月与 2022 年 8 月，分别将集群版与云原生版开源。开源后，TDengine 迅速获得全球开发者关注，多次位居 GitHub 全球趋势排行榜首位。最新动态参见 [涛思数据首页](https://www.taosdata.com/)。
 
 ## 产品分类
 
-TDengine 包括开源版 TDengine TSDB-OSS、企业版 TDengine TSDB-Enterprise 以及云服务 TDengine Cloud。
+TDengine 工业数据平台包括时序数据库组件与工业数据管理组件：
 
-- TDengine TSDB-OSS 是一款开源、高性能、云原生的时序数据库，具备较强的弹性伸缩能力，同时内建缓存、流式计算、数据订阅等功能，可显著降低系统设计复杂度以及研发与运营成本，是一个极简的时序数据处理平台。更多信息参见 [TDengine TSDB-OSS](https://www.taosdata.com/tdengine-oss)。
-- TDengine TSDB-Enterprise 是私有化部署版本，可部署在边缘侧、本地以及公有云 / 私有云上，具备开源版本所不具备的多项企业级功能。更多信息参见 [TDengine TSDB-Enterprise](https://www.taosdata.com/tdengine-enterprise)。
-- TDengine Cloud 是全托管的物联网与工业大数据云服务平台，尤其适合中小规模用户。更多信息参见 [TDengine Cloud](https://cloud.taosdata.com)。
+- **TDengine TSDB-OSS** 是一款开源、高性能、云原生的时序数据库，具备较强的弹性伸缩能力，同时内建缓存、流式计算、数据订阅等功能，可显著降低系统设计复杂度以及研发与运营成本，是一个极简的时序数据处理平台。更多信息参见 [TDengine TSDB-OSS](https://www.taosdata.com/tdengine-oss)。
+- **TDengine TSDB-Enterprise** 是私有化部署版本，可部署在边缘侧、本地以及公有云 / 私有云上，具备开源版本所不具备的多项企业级功能。更多信息参见 [TDengine TSDB-Enterprise](https://www.taosdata.com/tdengine-enterprise)。
+- **TDengine Cloud** 是全托管的物联网与工业大数据云服务平台，尤其适合中小规模用户。更多信息参见 [TDengine Cloud](https://cloud.taosdata.com)。
+- **TDengine IDMP** 是 AI 原生的工业数据管理平台，与 TSDB 组合交付可视化、事件管理、根因分析与 AI 洞察等能力。更多信息参见 [TDengine IDMP](https://www.taosdata.com/idmp) 与 [文档入口](../19-tdengine-idmp/index.md)。
+
+2019 年 7 月，涛思数据将 TDengine 单机版开源；随后于 2020 年 8 月与 2022 年 8 月，分别将集群版与云原生版开源。开源后，TDengine 迅速获得全球开发者关注，多次位居 GitHub 全球趋势排行榜首位。
 
 ## 主要功能与特性
 
@@ -28,7 +31,7 @@ TDengine 既不依赖任何第三方软件，也不是对既有开源数据库�
 
 ## 与典型时序数据库的区别
 
-由于充分利用时序数据特点，并采用“一个数据采集点一张表”与“超级表”的创新数据模型，与其他时序数据库相比，TDengine 具有以下特点：
+由于充分利用时序数据特点，并采用“一个数据采集点一张表”、“超级表”与“虚拟表”的创新数据模型，与其他时序数据库相比，TDengine 具有以下特点：
 
 1. **快 10 倍以上的读写性能**：充分利用时序大数据特点，设计了新颖的存储引擎，显著提升写入与查询速度，并提高数据压缩率。相对通用数据库，读、写与压缩性能至少高出十倍；TSBS 基准测试结果显示，相对 TimescaleDB、InfluxDB 亦明显领先。
 2. **不到 1/10 的存储成本**：提供多种压缩算法，压缩比业界领先，可将数据集压缩至原始大小的约 1/10。同时支持数据分级存储与 S3 存储，将不同时间段的数据存放于不同介质目录，使不同“热度”的数据落在相应存储介质上，从而降低存储成本。
@@ -43,7 +46,7 @@ TDengine 既不依赖任何第三方软件，也不是对既有开源数据库�
 
 <figure>
 
-![TDengine 技术生态图](assets/introduction-01.png)
+![TDengine 技术生态图](../assets/product-intro-01.png)
 
 <figcaption>技术生态图</figcaption>
 </figure>

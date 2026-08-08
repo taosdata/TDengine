@@ -11,6 +11,8 @@ statsmodels==0.14.4
 # Direct StatsForecast runtime dependencies are pinned explicitly in this file:
 # pandas, scipy, scikit-learn, and numpy.
 statsforecast==2.0.3
+# Keep pyarrow on a wheel-compatible line for Ubuntu 18.04 / glibc 2.27.
+pyarrow<19
 pyculiarity==0.0.7
 Cython==3.0.11
 pmdarima==2.0.4
@@ -27,3 +29,4 @@ fastdtw==0.3.4
 prophet==1.1.7
 numpy==1.26.4
 xlsxwriter==3.2.1
+mlxtend>=0.23.0

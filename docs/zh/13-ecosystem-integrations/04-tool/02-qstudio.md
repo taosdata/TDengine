@@ -17,24 +17,24 @@ qStudio 是一款免费的多平台 SQL 数据分析工具，可以轻松浏览�
 
 1. 启动 qStudio 应用，从菜单项选择“Server”和“Add Server...”，然后在 Server Type 下拉框中选择 TDengine。
 
- ![qStudio 连接 TDengine](qstudio/assets/qstudio-connect-tdengine.webp)
+ ![qStudio 连接 TDengine](../../assets/qstudio-01.webp)
 
 2. 配置 TDengine 连接，填入主机地址、端口号、用户名和密码。如果 TDengine 部署在本机，可以只填用户名和密码，默认用户名为 root，默认密码为 taosdata。点击“Test”可以对连接是否可用进行测试。如果本机没有安装 TDengine Java 连接器，qStudio 会提示下载安装。
 
- ![下载 Java 连接器](qstudio/assets/qstudio-jdbc-connector-download.webp)
+ ![下载 Java 连接器](../../assets/qstudio-02.webp)
 
 3. 连接成功将显示如下图所示。如果显示连接失败，请检查 TDengine 服务和 taosAdapter 是否正确运行，主机地址、端口号、用户名和密码是否正确。
 
- ![连接成功](qstudio/assets/qstudio-connect-tdengine-test.webp)
+ ![连接成功](../../assets/qstudio-03.webp)
 
 4. 使用 qStudio 选择数据库和表可以浏览 TDengine 服务的数据。
 
- ![qStudio 浏览 TDengine 数据](qstudio/assets/qstudio-browse-data.webp)
+ ![qStudio 浏览 TDengine 数据](../../assets/qstudio-04.webp)
 
 5. 也可以通过执行 SQL 命令的方式对 TDengine 数据进行操作。
 
- ![qStudio SQL 命令](qstudio/assets/qstudio-sql-execution.webp)
+ ![qStudio SQL 命令](../../assets/qstudio-05.webp)
 
 6. qStudio 支持根据数据绘制图表等功能，请参考 [qStudio 的帮助文档](https://www.timestored.com/qstudio/help)
 
- ![qStudio Chart 功能](qstudio/assets/qstudio-chart.webp)
+ ![qStudio Chart 功能](../../assets/qstudio-06.webp)
