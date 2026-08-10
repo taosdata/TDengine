@@ -7391,12 +7391,21 @@ _check:
   }
   while (pContext->pMinGroup != NULL) {
     SSTriggerRealtimeGroup *pGroup = pContext->pMinGroup;
+    if (pContext->pCalcReq == NULL && taosArrayGetSize(pTask->runnerList) == 0) {
+      heapRemove(pContext->pMaxDelayHeap, &pGroup->heapNode);
+      pGroup->nextExecTime = 0;
+      pContext->pMinGroup = pContext->pMaxDelayHeap->min == NULL
+                                ? NULL
+                                : container_of(pContext->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
+      continue;
+    }
     switch (pContext->status) {
       case STRIGGER_CONTEXT_FETCH_META: {
         pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
       }
       case STRIGGER_CONTEXT_ACQUIRE_REQUEST: {
-        if (pContext->pCalcReq == NULL && pTask->calcEventType != STRIGGER_EVENT_WINDOW_NONE) {
+        // MAX_DELAY triggers calculation independently of calcEventType.
+        if (pContext->pCalcReq == NULL) {
           code = stTriggerTaskAcquireRequest(pTask, pContext->sessionId, pGroup->gid, &pContext->pCalcReq);
           QUERY_CHECK_CODE(code, lino, _end);
           if (pContext->pCalcReq == NULL) {
@@ -12797,7 +12806,7 @@ static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int
   SStreamTriggerTask       *pTask = pContext->pTask;
   int64_t                   nextExecTime = INT64_MAX;
 
-  if (pTask->maxDelayNs > 0 && pGroup->windows.neles > 0) {
+  if (taosArrayGetSize(pTask->runnerList) > 0 && pTask->maxDelayNs > 0 && pGroup->windows.neles > 0) {
     SSTriggerWindow *pTmpWin = NULL;
     SObjListIter     iter = {0};
     taosObjListInitIter(&pGroup->windows, &iter, TOBJLIST_ITER_FORWARD);
@@ -13143,6 +13152,8 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
   int64_t                   now = taosGetTimestampNs();
+
+  QUERY_CHECK_NULL(pContext->pCalcReq, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
   ST_TASK_DLOG("group %" PRId64 " starts to exec %" PRId64 " pending params, %" PRId64 " pending parwin params",
                pGroup->gid, pGroup->pPendingCalcParams.neles, pGroup->pPendingParWinCalcParams.neles);
