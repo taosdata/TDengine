@@ -24620,11 +24620,25 @@ typedef struct SFedTriggerColKeyCxt {
 } SFedTriggerColKeyCxt;
 
 static int32_t matchAndRegisterFedTriggerColKey(SNode* pNode, SColumnNode* pCol, SFedTriggerColKeyCxt* pCxt) {
-  SNode* pScanColNode = NULL;
+  int16_t scanSlotId = 0;
+  int16_t scanIdx = 0;
+  SNode*  pScanColNode = NULL;
   FOREACH(pScanColNode, pCxt->pScanCols) {
-    STargetNode* pTarget = (STargetNode*)pScanColNode;
-    if (nodeType(pTarget->pExpr) != QUERY_NODE_COLUMN) continue;
-    SColumnNode* pScanCol = (SColumnNode*)pTarget->pExpr;
+    SNode* pScanExpr = pScanColNode;
+    if (QUERY_NODE_TARGET == nodeType(pScanColNode)) {
+      STargetNode* pTarget = (STargetNode*)pScanColNode;
+      pScanExpr = pTarget->pExpr;
+      scanSlotId = pTarget->slotId;
+    } else {
+      scanSlotId = scanIdx;
+    }
+    if (NULL == pScanExpr || QUERY_NODE_COLUMN != nodeType(pScanExpr)) {
+      parserDebug("%s skip non-column scan node type:%d", __func__,
+                  NULL != pScanExpr ? nodeType(pScanExpr) : -1);
+      ++scanIdx;
+      continue;
+    }
+    SColumnNode* pScanCol = (SColumnNode*)pScanExpr;
     if (strcasecmp(pScanCol->colName, pCol->colName) == 0 ||
         (pScanCol->node.userAlias[0] != '\0' &&
          strcasecmp(pScanCol->node.userAlias, pCol->colName) == 0)) {
@@ -24634,16 +24648,17 @@ static int32_t matchAndRegisterFedTriggerColKey(SNode* pNode, SColumnNode* pCol,
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
-      parserDebug("%s: col='%s' slotId=%d", __func__, pCol->colName, pTarget->slotId);
+      parserDebug("%s: col='%s' slotId=%d", __func__, pCol->colName, scanSlotId);
       // ignore put error — key may already exist from pSlot->name registration
-      int32_t ret = taosHashPut(pCxt->pHash, key, keyLen, &pTarget->slotId, sizeof(int16_t));
+      int32_t ret = taosHashPut(pCxt->pHash, key, keyLen, &scanSlotId, sizeof(int16_t));
       if (ret != 0) {
         parserWarn("%s taosHashPut error ret:%d col='%s' slotId=%d", __func__, ret,
-                   pCol->colName, pTarget->slotId);
+                   pCol->colName, scanSlotId);
       }
       taosMemoryFree(key);
       break;
     }
+    ++scanIdx;
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -24693,6 +24708,7 @@ static int32_t registerFederatedTriggerPartitionKeys(SScanPhysiNode* pScanNode, 
     SColumnNode* pPartCol = (SColumnNode*)pPartNode;
 
     int16_t scanSlotId = 0;
+    int16_t scanIdx = 0;
     SNode*  pScanColNode = NULL;
     FOREACH(pScanColNode, pScanCols) {
       SNode* pScanExpr = pScanColNode;
@@ -24700,9 +24716,11 @@ static int32_t registerFederatedTriggerPartitionKeys(SScanPhysiNode* pScanNode, 
         STargetNode* pTarget = (STargetNode*)pScanColNode;
         pScanExpr = pTarget->pExpr;
         scanSlotId = pTarget->slotId;
+      } else {
+        scanSlotId = scanIdx;
       }
       if (NULL == pScanExpr || QUERY_NODE_COLUMN != nodeType(pScanExpr)) {
-        ++scanSlotId;
+        ++scanIdx;
         continue;
       }
 
@@ -24727,7 +24745,7 @@ static int32_t registerFederatedTriggerPartitionKeys(SScanPhysiNode* pScanNode, 
         taosMemoryFree(key);
         break;
       }
-      ++scanSlotId;
+      ++scanIdx;
     }
   }
   SFedTriggerColKeyCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pHash = pHash,
