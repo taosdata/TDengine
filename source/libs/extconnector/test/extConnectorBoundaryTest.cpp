@@ -204,6 +204,26 @@ TEST(ExtConnectorValueConvertTest, InvalidUtf8AndNcharOverflowNeverBecomeNullSuc
   }
 }
 
+TEST(ExtConnectorValueConvertTest, NcharMaxBoundaryRejectsOneExtraCharacterForEachProvider) {
+  const std::string exactLimit(TSDB_MAX_NCHAR_LEN / TSDB_NCHAR_SIZE, 'x');
+  const std::string overflow = exactLimit + 'y';
+
+  for (EExtSourceType provider : kProviders) {
+    SCOPED_TRACE(provider);
+    ColumnDataGuard column(TSDB_DATA_TYPE_NCHAR, TSDB_MAX_NCHAR_LEN);
+
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              extValueConvert(provider, TSDB_DATA_TYPE_NCHAR, exactLimit.data(), (int32_t)exactLimit.size(),
+                              column.get(), 0));
+    EXPECT_FALSE(colDataIsNull_s(column.get(), 0));
+
+    EXPECT_EQ(TSDB_CODE_EXT_TYPE_CONVERT_FAILED,
+              extValueConvert(provider, TSDB_DATA_TYPE_NCHAR, overflow.data(), (int32_t)overflow.size(),
+                              column.get(), 1));
+    EXPECT_TRUE(colDataIsNull_s(column.get(), 1));
+  }
+}
+
 TEST(ExtConnectorValueConvertTest, BlobFourMiBBoundaryIsLosslessOrFailsForEachProvider) {
   std::vector<char> below(TSDB_MAX_BLOB_LEN - 1, 'a');
   std::vector<char> at(TSDB_MAX_BLOB_LEN, 'b');
