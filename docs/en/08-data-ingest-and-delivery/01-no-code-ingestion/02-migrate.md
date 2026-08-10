@@ -6,7 +6,7 @@ import { Enterprise } from '../resources/_resources.mdx';
 
 <Enterprise/>
 
-This section describes how to create a data migration task through the Explorer interface to migrate data from the old version of TDengine(2.4+, 3.0+) to the current cluster.
+This section describes how to create a data migration task through the taosExplorer interface to migrate data from the old version of TDengine(2.4+, 3.0+) to the current cluster.
 
 ## Feature Overview
 

@@ -10,13 +10,13 @@ This page documents the CSV mapping file used by the taosX **OPC UA DataIn** tas
 
 It applies to anyone using taosX to ingest data from an OPC UA server.
 
-## 1. CSV Mapping vs. OPC Address Space
+## CSV Mapping vs. OPC Address Space
 
 It is important to draw a clear line between two different things:
 
 ### OPC server address space (browsed)
 
-- Returned by browsing the OPC UA server (Explorer "Select Data Points" panel or the `points` command).
+- Returned by browsing the OPC UA server (taosExplorer "Select Data Points" panel or the `points` command).
 - Each browsed point exposes: `id`, `name`, `description`, `display_name`, `node_type`, `path`.
 - `id` is the canonical OPC UA Node ID, for example `ns=3;i=1005` or `ns=2;s=Channel1.Device1.Tag1`.
 - `display_name` and `path` are **human-readable** identifiers shown by the server. They help engineers locate a node, but they are **not** how the server is queried.
@@ -31,12 +31,12 @@ It is important to draw a clear line between two different things:
 - Only one column refers to the OPC server: **`point_id`**. The rest define the TDengine side.
 
 :::tip
-The upload CSV does **not** have a `path` column or a `display_name` column at the structural level. Path and display name live on the OPC server side; they help you decide *which* `point_id` to put in the CSV. Their values are still carried into TDengine through dedicated **tag columns** that taosX fills in for you (see Section 2.2).
+The upload CSV does **not** have a `path` column or a `display_name` column at the structural level. Path and display name live on the OPC server side; they help you decide *which* `point_id` to put in the CSV. Their values are still carried into TDengine through dedicated **tag columns** that taosX fills in for you (see Auto-generated tag columns below).
 :::
 
-## 2. CSV column reference
+## CSV column reference
 
-When you select data points in Explorer and download the CSV template, taosX automatically generates a complete header based on the browse information returned by the OPC UA server. The header produced by the latest version is:
+When you select data points in taosExplorer and download the CSV template, taosX automatically generates a complete header based on the browse information returned by the OPC UA server. The header produced by the latest version is:
 
 ```text
 No.,point_id,enabled,stable,tbname,value_col,value_transform,type,quality_col,ts_col,ts_transform,request_ts_col,request_ts_transform,received_ts_col,received_ts_transform,tag::VARCHAR(1024)::name,tag::VARCHAR(1024)::BrowseName,tag::VARCHAR(1024)::DisplayName,tag::VARCHAR(1024)::Description,tag::VARCHAR(1024)::Path
@@ -61,7 +61,7 @@ Notes from the sample:
 - `tbname` defaults to `t_{ns}_{id}`. Characters that are illegal in TDengine table names (such as `/`) are replaced by `_`, so the sub-table name is both legal and stable.
 - Each point's `BrowseName`, `DisplayName`, and `Path` are pre-filled in the tag columns, so downstream queries can filter by readable names.
 
-### 2.1 Column meanings
+### Column meanings
 
 | Column | Required | Meaning |
 | --- | --- | --- |
@@ -83,7 +83,7 @@ Notes from the sample:
 For each row, **at least one of `ts_col`, `request_ts_col`, `received_ts_col` must be configured**. When more than one is configured, the first configured column becomes the TDengine primary key.
 :::
 
-### 2.2 Auto-generated tag columns: name / BrowseName / DisplayName / Description / Path
+### Auto-generated tag columns: name / BrowseName / DisplayName / Description / Path
 
 The five tag columns in the exported template come directly from the OPC UA browse result for each node:
 
@@ -97,7 +97,7 @@ The five tag columns in the exported template come directly from the OPC UA brow
 
 If you want to filter by area later with conditions like `WHERE Path LIKE 'Objects./beijing./beijing/haidian.%'`, **just keep the five default tag columns**. To add custom dimensions (e.g. plant code, line number), append columns following the `tag::TYPE::name` format and fill in the value for each row.
 
-### 2.3 Recommended template patterns
+### Recommended template patterns
 
 | Goal | Pattern | Notes |
 | --- | --- | --- |
@@ -106,7 +106,7 @@ If you want to filter by area later with conditions like `WHERE Path LIKE 'Objec
 | Deterministic sub-table per point | `tbname = t_{ns}_{id}` | Same point always lands in the same sub-table across restarts; illegal characters are auto-replaced with `_`. |
 | Keep / extend tag columns | Default 5 tag columns + custom `tag::TYPE::name` | `name` / `DisplayName` provide readable names; `Path` provides hierarchy. Add business dimensions (site, line, etc.) as needed. |
 
-## 3. Commas inside OPC node IDs
+## Commas inside OPC node IDs
 
 The taosX CSV parser uses the standard CSV format with `,` as the field delimiter and `"` as the quote character. The same rules as RFC 4180 apply. OPC UA Node IDs commonly contain `;`, `=`, and `.`, none of which conflict with CSV. **However, string Node IDs are allowed to contain commas**, for example:
 
@@ -116,7 +116,7 @@ ns=2;s=Site,Plant,Tag-01
 
 If you place such a Node ID into a CSV cell as-is, the parser will split the cell at every comma and the row will have the wrong number of columns.
 
-### 3.1 Correct way to handle commas
+### Correct way to handle commas
 
 **Wrap the entire `point_id` cell in double quotes**:
 
@@ -127,7 +127,7 @@ point_id,enabled,stable,tbname,value_col,type,quality_col,ts_col,received_ts_col
 
 The parser interprets everything between the outer `"` characters as a single field. Commas inside the quotes are treated as literal characters and are passed through to taosX exactly as written.
 
-### 3.2 Embedded double quotes
+### Embedded double quotes
 
 If a Node ID itself contains a `"` character, double the quote, again per RFC 4180:
 
@@ -137,14 +137,14 @@ If a Node ID itself contains a `"` character, double the quote, again per RFC 41
 
 The parser will deliver `ns=2;s=He said "hi"` to taosX as the `point_id`.
 
-### 3.3 What you do **not** need to do
+### What you do **not** need to do
 
 - Do **not** URL-encode the Node ID.
 - Do **not** replace `,` with `\,` — backslash escaping is not used by the parser.
 - Do **not** change the CSV delimiter to `;` or `\t`. The parser is fixed to `,`.
 - Do **not** double-quote the entire row. Only quote the cells that need it.
 
-### 3.4 Practical recommendation
+### Practical recommendation
 
 Always double-quote `point_id` when it is a **string Node ID** (`s=...`). It costs nothing, and it is the only safe way to handle any reserved character (commas today, possibly other characters tomorrow). For numeric Node IDs (`i=...`) and GUID Node IDs (`g=...`) quoting is not required, because they cannot contain commas.
 
@@ -154,9 +154,9 @@ A convenient rule of thumb:
 **Quote every `point_id` that contains `s=`.** Numeric (`i=`) IDs do not need quoting. This makes the upload CSV safe regardless of the tag naming conventions used on the OPC server.
 :::
 
-## 4. Quick checklist
+## Quick checklist
 
-- Browse the OPC server in the Explorer "Select Data Points" panel (or with the `points` command) and select the points you want to ingest.
+- Browse the OPC server in the taosExplorer "Select Data Points" panel (or with the `points` command) and select the points you want to ingest.
 - Download the CSV template. The template already has the correct header and pre-fills `BrowseName`, `DisplayName`, `Path` and other browse information into the corresponding tag columns. You usually only need to adjust:
   - `enabled` (set to `0` for points you do not want)
   - `stable`: defaults of `opc_{type}` / `opc_object` cover most cases
@@ -165,4 +165,4 @@ A convenient rule of thumb:
   - Append `tag::TYPE::name` columns if you need extra business dimensions in TDengine
 - Always wrap string Node IDs (`"ns=2;s=..."`) in double quotes, especially when they may contain commas.
 - Save the file as **UTF-8** (with or without BOM). Other encodings such as GBK are rejected.
-- Upload the file in Explorer. The backend automatically validates the CSV; any parse error is reported in Explorer immediately, before the task is started.
+- Upload the file in taosExplorer. The backend automatically validates the CSV; any parse error is reported in taosExplorer immediately, before the task is started.

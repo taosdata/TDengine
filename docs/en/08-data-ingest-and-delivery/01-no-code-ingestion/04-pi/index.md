@@ -9,19 +9,19 @@ import { Enterprise } from '../../resources/_resources.mdx';
 
 <Enterprise/>
 
-This section describes how to create data migration tasks through the Explorer interface, migrating data from the PI system to the current TDengine TSDB cluster.
+This section describes how to create data migration tasks through the taosExplorer interface, migrating data from the PI system to the current TDengine cluster.
 
 ## Feature Overview
 
 The PI System (OSIsoft PI System) is a software product suite used for data collection, retrieval, analysis, delivery, and visualization, widely used in power, petrochemical, manufacturing, and other industries. It serves as enterprise-level infrastructure for managing real-time data and events.
 
-taosX extracts real-time or historical data from the PI system through the PI connector plugin and writes it to TDengine TSDB.
+taosX extracts real-time or historical data from the PI system through the PI connector plugin and writes it to TDengine.
 
 ### Task Types
 
 From the data timeliness perspective, PI data source tasks are divided into two categories:
 
-| Task Type | Name in Explorer | Description |
+| Task Type | Name in taosExplorer | Description |
 | --------- | ---------------- | ----------- |
 | Real-time Task | **PI** | Continuously subscribes to real-time data changes in the PI system and writes to TDengine |
 | Backfill Task | **PI backfill** | Extracts historical data within a specified time range and writes to TDengine |

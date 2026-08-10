@@ -40,6 +40,7 @@ typedef struct SScalarExtraInfo {
 } SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);
+int32_t scalarGetCompOperatorResultType(SOperatorNode *pOp);
 
 /*
 pNode will be freed in API;

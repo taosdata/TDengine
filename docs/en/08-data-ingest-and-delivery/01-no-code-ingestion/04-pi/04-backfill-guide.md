@@ -17,7 +17,7 @@ PI backfill tasks extract historical data from the PI system within a specified 
 
 ### Basic Steps
 
-1. On the Data In page in Explorer, click **+Add Data Source**
+1. On the Data In page in taosExplorer, click **+Add Data Source**
 2. In the **Type** dropdown, select **PI backfill**
 3. Configure connection information (same as real-time tasks, see [PI](./index.md))
 4. Configure data model (single/multi-column, see [Model Configuration Reference](./03-csv-reference.md))

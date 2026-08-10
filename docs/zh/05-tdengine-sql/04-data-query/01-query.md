@@ -134,7 +134,7 @@ limit_expr: {
 - interp_clause: interp 子句，与 interp 函数搭配使用，指定时间截面的记录值或者插值，可以指定插值的时间范围，输出时间间隔，插值类型。
   - RANGE: 指定单个或者开始结束时间值，结束时间须大于开始时间，ts_val 为标准时间戳类型，surrounding_time_val 可选，指定时间范围，为正值，时间单位参见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年）。如 ```RANGE('2023-10-01T00:00:00.000')``` 、```RANGE('2023-10-01T00:00:00.000', '2023-10-01T23:59:59.999')```。
   - EVERY: 时间间隔范围，every_val 为正值，时间单位参见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年），如 EVERY(1s)。
-- SCALAR | AGG：窗口查询模式关键字（`v3.4.2.0` 版本开始支持）。当窗口查询的 SELECT 列表中包含列表达式或不定行函数时，自动进入**窗口投影模式**，每个窗口输出其全部原始行；当 SELECT 列表只包含聚合函数时，进入**窗口聚合模式**，每个窗口输出一行聚合结果。当 SELECT 列表仅包含伪列、标签列、tbname、常量、分组键（group key）和状态键（state key）时，INTERVAL、SESSION、STATE_WINDOW、EVENT_WINDOW、COUNT_WINDOW 默认选择聚合模式，而 EXTERNAL_WINDOW 默认选择投影模式。此时可使用 `SCALAR` 或 `AGG` 关键字显式指定模式。详见 [特色查询](04-distinguished.md#窗口投影模式)。
+- SCALAR | AGG：窗口查询模式关键字（`v3.4.2.0` 版本开始支持）。当窗口查询的 SELECT 列表中包含列表达式或不定行函数时，自动进入 **窗口投影模式**，每个窗口输出其全部原始行；当 SELECT 列表只包含聚合函数时，进入 **窗口聚合模式**，每个窗口输出一行聚合结果。当 SELECT 列表仅包含伪列、标签列、tbname、常量、分组键（group key）和状态键（state key）时，INTERVAL、SESSION、STATE_WINDOW、EVENT_WINDOW、COUNT_WINDOW 默认选择聚合模式，而 EXTERNAL_WINDOW 默认选择投影模式。此时可使用 `SCALAR` 或 `AGG` 关键字显式指定模式。详见 [特色查询](04-distinguished.md#窗口投影模式)。
 - fill_clause: fill 子句，可以与 interp 函数、INTERVAL 窗口或 EXTERNAL_WINDOW 搭配使用，用于指定数据缺失时的数据填充方法。不同上下文支持的模式有所区别。
 - group_by_expr: 指定数据分组聚合规则，支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select ts, current from meters order by ts desc,2```，2 对应 current 列。
 - partition_by_expr: 指定数据切片条件，切片内的数据独立进行计算。支持表达式、函数、位置、列、别名。使用位置语法时必须出现在选择列中，如```select current from meters partition by 1```，1 对应 current 列。
@@ -461,7 +461,7 @@ FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
 ### 说明
 
 - 当前仅支持 CSV 文本格式。
-- `file_path`：CSV 文件路径，由**执行查询规划的进程**（通常为客户端进程，如 `taos` 命令行或客户端驱动）读取。支持相对路径（相对于该进程的工作目录）和绝对路径。
+- `file_path`：CSV 文件路径，由 **执行查询规划的进程**（通常为客户端进程，如 `taos` 命令行或客户端驱动）读取。支持相对路径（相对于该进程的工作目录）和绝对路径。
 - 第二个参数为 Schema 声明字符串，列定义以逗号分隔；列顺序与 CSV 列顺序对应。
 - CSV 中超出 Schema 声明列数的列会被忽略，可通过 Schema 只读取文件中的部分列。
 - `header=true`：CSV 首行为列名头部，读取时跳过。启用后按列名匹配（而非按位置），Schema 可以任意顺序声明文件列的子集。默认为 `false`。
@@ -676,7 +676,7 @@ NULLS 语法用来指定 NULL 值在排序中输出的位置。NULLS LAST 是升
 
 ## 窗口函数
 
-从 `v3.4.2.0` 起，TDengine 支持标准 SQL 的 `OVER` 子句与窗口函数。窗口函数会为结果集中的**每一行**计算一个值，计算时可引用同一窗口内的其他行，但不会把多行折叠成一行。这与 [特色查询](./04-distinguished.md) 中的时间窗口不同：时间窗口会把窗口内多行聚合成一行，而窗口函数保留每一行原始结果，并追加计算列。
+从 `v3.4.2.0` 起，TDengine 支持标准 SQL 的 `OVER` 子句与窗口函数。窗口函数会为结果集中的 **每一行** 计算一个值，计算时可引用同一窗口内的其他行，但不会把多行折叠成一行。这与 [特色查询](./04-distinguished.md) 中的时间窗口不同：时间窗口会把窗口内多行聚合成一行，而窗口函数保留每一行原始结果，并追加计算列。
 
 窗口函数调用的基本形式如下：
 

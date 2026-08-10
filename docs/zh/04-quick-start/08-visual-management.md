@@ -82,7 +82,7 @@ taosExplorer 不只用于浏览数据，也提供了一些上手入口：
 
 - taosExplorer 服务是否已经启动。
 - 访问地址和端口是否正确，默认端口为 `6060`。
-- Docker、云主机安全组或本机**防火墙**是否放通 `6060` 端口。
+- Docker、云主机安全组或本机 **防火墙** 是否放通 `6060` 端口。
 - taosExplorer 配置中的 `cluster` 是否指向可访问的 taosAdapter 地址，默认是 `http://localhost:6041`。
 
 如果登录后看不到前几章创建的数据，请确认当前连接的是同一个 TDengine 实例，并检查数据库名是否为 `power` 或 `test`。

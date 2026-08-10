@@ -1,0 +1,73 @@
+---
+title: "KingHistorian"
+sidebar_label: "KingHistorian"
+---
+
+import { AddDataSource, Enterprise } from '../resources/_resources.mdx';
+
+<Enterprise/>
+
+This section describes how to create data migration/data synchronization tasks through the taosExplorer interface to migrate/synchronize data from KingHistorian to the current TDengine cluster.
+
+## Function Overview
+
+TDengine can efficiently read data from KingHistorian and write it into TDengine to achieve historical data migration or real-time data synchronization.
+
+## Procedure
+
+### Add a Data Source
+
+<AddDataSource connectorName="KingHistorian" />
+
+### Configure Connection Information
+
+Fill in the **Server Address** and **Server Port** in the **Connection Configuration** area.
+
+Fill in the **Username** and **Password** in the **Authentication** area.
+
+Click the **Connectivity Check** button to check if the data source is available.
+
+![Configure connection information](../../assets/kinghist-01.png)
+
+### Configure Tags
+
+In the **Upload CSV Configuration File**, click **Download Data Points**, then select the required **Point Group**, **Points**, and **Tags**. This action generates a CSV configuration and downloads it locally.
+Modify the generated CSV configuration file as needed and re-upload it.
+
+![Configure tags](../../assets/kinghist-02.png)
+
+### Configure Collection Information
+
+Fill in the relevant configuration parameters for the collection task in the **Collection Configuration** area.
+
+#### Historical Data Migration
+
+If you want to perform historical data migration, configure the following parameters:
+
+Fill in the start time of the data migration task in **Task Start Time**.
+
+Fill in the end time of the data migration task in **Task End Time**.
+
+Fill in a time interval in **Query Window**. The data migration task will divide the time window according to this interval.
+
+Fill in a time interval in **Out-of-Order**. Each query window will backtrack this interval.
+
+Fill in a time interval in **Query Interval**. There will be a waiting interval between each query window.
+
+![Migrate historical data](../../assets/kinghist-03.png)
+
+#### Real-Time Data Synchronization
+
+If you want to perform real-time data synchronization, configure the following parameters:
+
+Fill in a time interval in **Minimum Interval Time**, which is the minimum subscription interval time.
+
+![Synchronize real-time data](../../assets/kinghist-04.png)
+
+### Configure Advanced Options
+
+Configure any additional settings in the **Advanced Options** area as needed.
+
+### Completion
+
+Click the **Submit** button to complete the task creation. After submitting the task, return to the **Data Writing** page to view the task status.

@@ -132,7 +132,7 @@ Before creating a PI data ingestion task, please confirm each of the following i
 - [ ] PI Data Archive is accessible from taosX/taosX-Agent host (port 5450)
 - [ ] PI AF Server is accessible from taosX/taosX-Agent host (port 5457, if using AF mode)
 - [ ] On the taosX-Agent host, manually verified PI connectivity using PI System Management Tools (SMT) or PI System Explorer (PSE) — isolate environment issues before testing taosX
-- [ ] If using taosX-Agent proxy mode, taosX-Agent service is running, taosX ↔ taosX-Agent network is connected, and taosX-Agent status shows online in Explorer
+- [ ] If using taosX-Agent proxy mode, taosX-Agent service is running, taosX ↔ taosX-Agent network is connected, and taosX-Agent status shows online in taosExplorer
 
 ### Authentication and Permissions
 
@@ -150,8 +150,8 @@ Before creating a PI data ingestion task, please confirm each of the following i
 ### TDengine Side
 
 - [ ] TDengine cluster is deployed and running normally
-- [ ] Target database has been created (or ready to create in Explorer)
-- [ ] taosX is installed and accessible through Explorer
+- [ ] Target database has been created (or ready to create in taosExplorer)
+- [ ] taosX is installed and accessible through taosExplorer
 
 ### Task Configuration
 

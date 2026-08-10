@@ -16,7 +16,7 @@ The reserved keywords are listed below:
 
 ### A
 
-| **Keyword**         | **Description** |
+| **Keyword**       | **Description** |
 | ----------------- | --- |
 | `ABORT`           | |
 | `ACCOUNT`         | |
@@ -58,7 +58,7 @@ The reserved keywords are listed below:
 
 ### B
 
-| **Keyword**    | **Description** |
+| **Keyword**  | **Description** |
 | ------------ | --- |
 | `BALANCE`    | |
 | `BASE`       | `v3.4.2.0`+ |
@@ -85,7 +85,7 @@ The reserved keywords are listed below:
 
 ### C
 
-| **Keyword**                 | **Description** |
+| **Keyword**               | **Description** |
 | ------------------------- | --- |
 | `CACHE`                   | |
 | `CACHEMODEL`              | |
@@ -138,7 +138,7 @@ The reserved keywords are listed below:
 
 ### D
 
-| **Keyword**             | **Description** |
+| **Keyword**           | **Description** |
 | --------------------- | --- |
 | `DATABASE`            | |
 | `DATABASES`           | |
@@ -170,7 +170,7 @@ The reserved keywords are listed below:
 
 ### E
 
-| **Keyword**            | **Description** |
+| **Keyword**          | **Description** |
 | -------------------- | --- |
 | `EACH`               | |
 | `ELSE`               | |
@@ -199,7 +199,7 @@ The reserved keywords are listed below:
 
 ### F
 
-| **Keyword**               | **Description** |
+| **Keyword**             | **Description** |
 | ----------------------- | --- |
 | `FAIL`                  | |
 | `FAILED_LOGIN_ATTEMPTS` | `v3.4.0.0`+ |
@@ -227,19 +227,19 @@ The reserved keywords are listed below:
 
 ### G
 
-| **Keyword**  | **Description** |
-| ---------- | --- |
-| `GE`       | |
-| `GEOMETRY` | |
-| `GLOB`     | |
-| `GRANT`    | |
-| `GRANTS`   | |
-| `GROUP`    | |
-| `GT`       | |
+| **Keyword** | **Description** |
+| ----------- | --- |
+| `GE`        | |
+| `GEOMETRY`  | |
+| `GLOB`      | |
+| `GRANT`     | |
+| `GRANTS`    | |
+| `GROUP`     | |
+| `GT`        | |
 
 ### H
 
-| **Keyword**     | **Description** |
+| **Keyword** | **Description** |
 | ----------- | --- |
 | `HASH_JOIN` | |
 | `HAVING`    | |
@@ -248,7 +248,7 @@ The reserved keywords are listed below:
 
 ### I
 
-| **Keyword**               | **Description** |
+| **Keyword**             | **Description** |
 | ----------------------- | --- |
 | `ID`                    | |
 | `IDLE`                  | `v3.3.4.0`+ |
@@ -288,15 +288,15 @@ The reserved keywords are listed below:
 
 ### J
 
-| **Keyword**  | **Description** |
-| -------- | --- |
-| `JLIMIT` | |
-| `JOIN`   | |
-| `JSON`   | |
+| **Keyword** | **Description** |
+| ----------- | --- |
+| `JLIMIT`    | |
+| `JOIN`      | |
+| `JSON`      | |
 
 ### K
 
-| **Keyword**          | **Description** |
+| **Keyword**        | **Description** |
 | ------------------ | --- |
 | `KEEP`             | |
 | `KEEP_TIME_OFFSET` | |
@@ -306,7 +306,7 @@ The reserved keywords are listed below:
 
 ### L
 
-| **Keyword**          | **Description** |
+| **Keyword**        | **Description** |
 | ------------------ | --- |
 | `LANGUAGE`         | |
 | `LAST`             | |
@@ -330,7 +330,7 @@ The reserved keywords are listed below:
 
 ### M
 
-| **Keyword**    | **Description** |
+| **Keyword**  | **Description** |
 | ------------ | --- |
 | `MACHINES`   | |
 | `MASK`       | |
@@ -353,7 +353,7 @@ The reserved keywords are listed below:
 
 ### N
 
-| **Keyword**                 | **Description** |
+| **Keyword**               | **Description** |
 | ------------------------- | --- |
 | `NCHAR`                   | |
 | `NE`                      | |
@@ -384,7 +384,7 @@ The reserved keywords are listed below:
 
 ### O
 
-| **Keyword**          | **Description** |
+| **Keyword**        | **Description** |
 | ------------------ | --- |
 | `OF`               | |
 | `OFFSET`           | |
@@ -405,7 +405,7 @@ The reserved keywords are listed below:
 
 ### P
 
-| **Keyword**             | **Description** |
+| **Keyword**           | **Description** |
 | --------------------- | --- |
 | `PAGES`               | |
 | `PAGESIZE`            | |
@@ -438,7 +438,7 @@ The reserved keywords are listed below:
 
 ### Q
 
-| **Keyword**   | **Description** |
+| **Keyword** | **Description** |
 | ----------- | --- |
 | `QDURATION` | |
 | `QEND`      | |
@@ -453,7 +453,7 @@ The reserved keywords are listed below:
 
 ### R
 
-| **Keyword**        | **Description** |
+| **Keyword**      | **Description** |
 | ---------------- | --- |
 | `RAISE`          | |
 | `RAND`           | |
@@ -496,7 +496,7 @@ The reserved keywords are listed below:
 
 ### S
 
-| **Keyword**             | **Description** |
+| **Keyword**           | **Description** |
 | --------------------- | --- |
 | `S3MIGRATE`           | |
 | `SCALAR`              | `v3.4.2.0`+ |
@@ -573,7 +573,7 @@ The reserved keywords are listed below:
 
 ### T
 
-| **Keyword**       | **Description** |
+| **Keyword**     | **Description** |
 | --------------- | --- |
 | `TABLE`         | |
 | `TABLES`        | |
@@ -613,7 +613,7 @@ The reserved keywords are listed below:
 
 ### U
 
-| **Keyword**   | **Description** |
+| **Keyword** | **Description** |
 | ----------- | --- |
 | `UNBOUNDED` | `v3.4.2.0`+ |
 | `UNION`     | |
@@ -630,7 +630,7 @@ The reserved keywords are listed below:
 
 ### V
 
-| **Keyword**        | **Description** |
+| **Keyword**      | **Description** |
 | ---------------- | --- |
 | `VALIDATE`       | `v3.3.7.0`+ |
 | `VALUE`          | |
@@ -654,7 +654,7 @@ The reserved keywords are listed below:
 
 ### W
 
-| **Keyword**              | **Description** |
+| **Keyword**            | **Description** |
 | ---------------------- | --- |
 | `WAL`                  | |
 | `WAL_FSYNC_PERIOD`     | |
@@ -687,13 +687,13 @@ The reserved keywords are listed below:
 
 ### Z
 
-| **Keyword**      | **Description** |
+| **Keyword**    | **Description** |
 | -------------- | --- |
 | `ZEROTH_STATE` | `v3.4.2.0`+ |
 
 ### `_`
 
-| **Keyword**          | **Description** |
+| **Keyword**        | **Description** |
 | ------------------ | --- |
 | `_ANOMALYMARK`     | `v3.3.4.3`+ |
 | `_C0`              | |

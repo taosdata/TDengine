@@ -487,6 +487,20 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
         TSWAP(pBlocks->pData, pStmt->exec.pCurrTbData);
         STMT_ERR_RET(qResetStmtDataBlock(pBlocks, false));
 
+        /* After TSWAP, for row-format data the retained pData's
+         * aRowP is a shallow copy aliasing the original.  When
+         * pCurrTbData is destroyed next cycle those pointers
+         * dangle.  Break the alias by clearing aRowP.
+         * For column-format data, qResetStmtDataBlock already
+         * zeroes nVal on each aCol entry and aRowP is unused,
+         * so the stale entry is harmlessly skipped by
+         * insMergeTableDataCxt's nVal<=0 check. */
+        if (!(pBlocks->pData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT)) {
+          if (pBlocks->pData->aRowP) {
+            taosArrayClear(pBlocks->pData->aRowP);
+          }
+        }
+
         pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
         continue;
       }

@@ -3,7 +3,7 @@ title: "OPC UA Alarm and Event Collection"
 sidebar_label: "Alarm and Event Collection"
 ---
 
-This page describes how to create an OPC UA data ingestion task in Explorer to collect **alarms and events (Alarm & Event, A&E)** from an OPC UA Server into TDengine.
+This page describes how to create an OPC UA data ingestion task in taosExplorer to collect **alarms and events (Alarm & Event, A&E)** from an OPC UA Server into TDengine.
 
 :::note
 The basic task creation flow (data source, connection, authentication) is the same as for point collection. Read [OPC UA](./index.md) first. This page covers only what is specific to A&E collection.
@@ -48,7 +48,7 @@ Before using A&E collection, the target OPC UA Server must satisfy:
 3. **Network reachability**: The taosX host must be able to reach the Server's OPC UA endpoint directly (default port 4840).
 4. **Least privilege**: The collection account only needs Subscribe (or read-only) permission; no Method-call permission is required.
 
-If the Server does not meet these conditions, Explorer shows an "unsupported" message when you enter the **Alarms & Events** configuration. In that case, fall back to point collection or deploy a Wrapper first.
+If the Server does not meet these conditions, taosExplorer shows an "unsupported" message when you enter the **Alarms & Events** configuration. In that case, fall back to point collection or deploy a Wrapper first.
 
 ## Configuration
 
@@ -64,14 +64,14 @@ Select the **Alarms & Events** tab to enter A&E collection. In this mode you can
 
 ![Alarm and Event collection configuration](../../../assets/alarm-event-01.png)
 
-### 1. Select Event Types (required)
+### Select Event Types (required)
 
-Click **Event Types** and Explorer browses the Server, building the **event type inheritance tree** recursively from `BaseEventType` (`i=2041`) along `HasSubtype`, shown as a tree for multi-selection.
+Click **Event Types** and taosExplorer browses the Server, building the **event type inheritance tree** recursively from `BaseEventType` (`i=2041`) along `HasSubtype`, shown as a tree for multi-selection.
 
 - Each type node shows its NodeId, BrowseName, and the list of fields it owns and inherits.
 - **Selecting a type automatically includes all its subtypes** (corresponding to `OfType` in the EventFilter).
 - The type tree is cached by default (instant UI); to force a fresh browse, click **Refresh (no cache)** in the top right.
-- **Fallback**: If the Server does not expose a complete type tree, Explorer falls back to a built-in catalog of standard OPC UA event types (fixed NodeIds in namespace 0 + standard field sets). Only vendor-specific custom types cannot be discovered.
+- **Fallback**: If the Server does not expose a complete type tree, taosExplorer falls back to a built-in catalog of standard OPC UA event types (fixed NodeIds in namespace 0 + standard field sets). Only vendor-specific custom types cannot be discovered.
 
 ![Event type tree](../../../assets/alarm-event-02.png)
 
@@ -79,7 +79,7 @@ Click **Event Types** and Explorer browses the Server, building the **event type
 The event type tree rarely changes, so the default cache is fine. The cache is invalidated automatically only when the Endpoint, security policy, or account changes, or when the last browse failed.
 :::
 
-### 2. Event Source Filter (optional)
+### Event Source Filter (optional)
 
 **Event Source Filter** is **independent** of the event types and is taken from the instance space: it expands the notifier / event-source hierarchy from the Server node (`i=2253`) along `HasNotifier` / `HasEventSource`, also shown as a tree with multi-selection and keyword search.
 
@@ -94,7 +94,7 @@ The event type tree rarely changes, so the default cache is fine. The cache is i
 If the Server has no notifier / event-source hierarchy, the source tree is empty. You can then enter a `SourceNode` NodeId manually and press Enter, or leave it empty to collect from all sources.
 :::
 
-### 3. Min Severity (optional)
+### Min Severity (optional)
 
 **Min Severity** is a numeric input with range **1–1000**, mapped to `Severity >= value` in the EventFilter. **Empty = no filter (collect all severities).**
 
@@ -106,9 +106,9 @@ The Min Severity filter takes effect on the **Server side**. Applying it to **al
 
 :::
 
-### 4. Configuration Preview (recommended)
+### Configuration Preview (recommended)
 
-Before submitting, click **Generate Preview** in the **Preview** area. Explorer calls a backend API to statically derive the result of the current configuration and shows it in the right panel:
+Before submitting, click **Generate Preview** in the **Preview** area. taosExplorer calls a backend API to statically derive the result of the current configuration and shows it in the right panel:
 
 1. **All matched event types**, including those implicitly included via subtypes.
 2. **The supertable name + full column structure** to be created for each matched type, including column name, whether it is part of the composite primary key, TDengine type, whether it is a TAG, source attribute, etc.
@@ -124,7 +124,7 @@ As long as at least one event type is selected, the preview is always non-empty 
 
 The preview **cannot** verify: whether a source actually emits events, real field values, or whether the Server accepts the EventFilter — these can only be observed after the task runs.
 
-### 5. Collection Mode
+### Collection Mode
 
 When the **Alarms & Events** tab is selected, the **Collection Mode** in the collection configuration is **automatically locked to `event`** and cannot be changed. The `observe` / `subscribe` modes for point collection are only available under the **Select Data Points** or **Upload CSV Configuration File** tabs. You therefore do not need to choose the collection mode manually — switching the tab does it.
 

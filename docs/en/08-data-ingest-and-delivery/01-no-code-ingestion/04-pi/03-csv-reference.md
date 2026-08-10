@@ -14,7 +14,7 @@ The model configuration file is a CSV-format text file that defines the data map
 - Data filter conditions
 - Data transformation expressions
 
-When creating a PI task in Explorer, click the **Download Default Configuration** button to automatically generate the default model configuration file. You can download it, edit it, and then upload to override the default configuration.
+When creating a PI task in taosExplorer, click the **Download Default Configuration** button to automatically generate the default model configuration file. You can download it, edit it, and then upload to override the default configuration.
 
 ## Multi-column Model Configuration File
 
@@ -234,7 +234,7 @@ This is the recommended default approach, ensuring that all subtables within the
 
 ### Filter Specific Points or Templates
 
-Fill in filter criteria in Explorer before clicking **Download Default Configuration** to generate configuration for only the points/templates matching the filter criteria. For filter syntax, see [Dataset Filter Configuration](./07-dataset-filter.md).
+Fill in filter criteria in taosExplorer before clicking **Download Default Configuration** to generate configuration for only the points/templates matching the filter criteria. For filter syntax, see [Dataset Filter Configuration](./07-dataset-filter.md).
 
 You can also manually edit the CSV after downloading:
 

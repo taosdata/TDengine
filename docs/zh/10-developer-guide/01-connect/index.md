@@ -426,7 +426,7 @@ ConnectionStringBuilder 使用 key-value 对方式设置连接参数，key 为�
     - `reconnectIntervalMs`：重连轮之间的间隔毫秒数，默认 `2000`。
 
 :::note
-WebSocket 故障转移从 `3.2.0` 开始支持。连接器使用**最少连接（Least Connections）**算法选择地址：优先连接当前活跃连接数最少的节点。Native 连接不支持多地址故障转移；如果 `protocol=Native` 且 `host` 中配置了多个地址，打开连接时会抛出 `ArgumentException`。
+WebSocket 故障转移从 `3.2.0` 开始支持。连接器使用 **最少连接（Least Connections）** 算法选择地址：优先连接当前活跃连接数最少的节点。Native 连接不支持多地址故障转移；如果 `protocol=Native` 且 `host` 中配置了多个地址，打开连接时会抛出 `ArgumentException`。
 :::
 
 </TabItem>
@@ -568,7 +568,7 @@ using var client = DbDriver.Open(new ConnectionStringBuilder(
 
 ## 连接池
 
-有些连接器提供了连接池，或者可以与已有的连接池组件配合使用。使用连接池，应用程序可以快速地从连接池中获取可用连接，避免了每次操作时创建和销毁连接的开销。这不仅减少了资源消耗，还提高了响应速度。此外，连接池还支持对连接的管理，如最大连接数限制、连接的有效性检查，确保了连接的高效和可靠使用。我们**推荐使用连接池管理连接**。  
+有些连接器提供了连接池，或者可以与已有的连接池组件配合使用。使用连接池，应用程序可以快速地从连接池中获取可用连接，避免了每次操作时创建和销毁连接的开销。这不仅减少了资源消耗，还提高了响应速度。此外，连接池还支持对连接的管理，如最大连接数限制、连接的有效性检查，确保了连接的高效和可靠使用。我们 **推荐使用连接池管理连接**。  
 下面是各语言连接器的连接池支持代码样例。  
 
 <Tabs defaultValue="java" groupId="lang">

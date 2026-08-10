@@ -10,7 +10,7 @@ import { Enterprise } from '../resources/_resources.mdx';
 
 ## Overview
 
-TDengine Enterprise is equipped with a powerful visual data management tool—taosExplorer. With taosExplorer, users can easily submit tasks to TDengine through simple configurations in the browser, achieving seamless data import from various data sources into TDengine with zero coding. During the import process, TDengine automatically extracts, filters, and transforms the data to ensure the quality of the imported data. Through this zero-code data source integration method, TDengine has successfully transformed into an outstanding platform for aggregating time-series big data. Users do not need to deploy additional ETL tools, thereby greatly simplifying the overall architecture design and improving data processing efficiency.
+TDengine is equipped with a visual data management tool—taosExplorer. With taosExplorer, users can easily submit tasks to TDengine through simple configurations in the browser, achieving seamless data import from various data sources into TDengine with zero coding. During the import process, TDengine automatically extracts, filters, and transforms the data to ensure the quality of the imported data. Through this zero-code data source integration method, TDengine has successfully transformed into an outstanding platform for aggregating time-series big data. Users do not need to deploy additional ETL tools, thereby greatly simplifying the overall architecture design and improving data processing efficiency.
 
 The diagram below shows the system architecture of the zero-code integration platform.
 
@@ -70,7 +70,7 @@ Each piece of sample data ends with a carriage return.
 
 Parsing is the process of parsing unstructured strings into structured data. The message body's parsing rules currently support JSON, Regex, and UDT.
 
-##### JSON Parsing
+1. **JSON Parsing**
 
 JSON parsing supports JSONObject or JSONArray. The following JSON sample data can automatically parse fields: `groupid`, `voltage`, `current`, `ts`, `inuse`, `location`.
 
@@ -98,7 +98,7 @@ The following nested JSON data can automatically parse fields `groupid`, `data_v
 
 ![JSON parsing](../../assets/no-code-ingestion-03.png)
 
-##### Regex Regular Expressions
+2. **Regex Regular Expressions**
 
 You can use **named capture groups** in regular expressions to extract multiple fields from any string (text) field. As shown in the figure, extract fields such as access IP, timestamp, and accessed URL from nginx logs.
 
@@ -108,7 +108,7 @@ You can use **named capture groups** in regular expressions to extract multiple 
 
 ![Regex parsing](../../assets/no-code-ingestion-04.png)
 
-##### UDT Custom Parsing Scripts
+3. **UDT Custom Parsing Scripts**
 
 Custom rhai syntax scripts for parsing input data (refer to `https://rhai.rs/book/`), the script currently only supports json format raw data.
 
@@ -185,18 +185,18 @@ If the extracted data type is not the expected type, data type conversion can be
 
 Different data types have their own ways of writing conditional expressions.
 
-##### BOOL type
+1. **BOOL type**
 
 You can use variables or the `!` operator, for example for the field "inuse": true, you can write the following expressions:
 
 > 1. inuse
 > 2. !inuse
 
-##### Numeric types (int/float)
+2. **Numeric types (int/float)**
 
 Numeric types support comparison operators `==`, `!=`, `>`, `>=`, `<`, `<=`.
 
-##### String type
+3. **String type**
 
 Use comparison operators to compare strings.
 
@@ -210,7 +210,7 @@ String functions
 | ends_with  | returns true if the string ends with a certain string | s.ends_with("suffix") |
 | len  | returns the number of characters (not number of bytes) in the string, must be used with comparison operator | s.len == 5 to check if the string length is 5; len as a property returns int, different from the first four functions which directly return bool. |
 
-##### Compound Expressions
+4. **Compound Expressions**
 
 Multiple conditional expressions can be combined using logical operators (&&, ||, !).
 For example, the following expression represents fetching data from smart meters installed in Beijing with a voltage value greater than 200.
@@ -241,7 +241,7 @@ The supported mapping rules are shown in the following table:
 | sum | Select multiple numeric fields for addition calculation.|
 | expr | **Numeric operation expression**, can perform more complex function processing and mathematical operations on numeric fields.|
 
-##### Supported string processing functions in `format`
+1. **Supported string processing functions in `format`**
 
 |Function|description|e.g.|
 |:----|:----|:----|
@@ -250,7 +250,7 @@ The supported mapping rules are shown in the following table:
 |sub_string(start_pos, len)|extracts a sub-string, two parameters:<br />1. start position, counting from end if < 0<br />2. (optional) number of characters to extract, none if ≤ 0, to end if omitted|"012345678".sub_string(5)  // "5678"<br />"012345678".sub_string(5, 2)  // "56"<br />"012345678".sub_string(-2)  // "78"|
 |replace(substring, replacement)|replaces a sub-string with another|"012345678".replace("012", "abc") // "abc345678"|
 
-##### Mathematical expressions in `expr`
+2. **Mathematical expressions in `expr`**
 
 Basic mathematical operations support addition `+`, subtraction `-`, multiplication `*`, and division `/`.
 

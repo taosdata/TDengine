@@ -189,8 +189,8 @@ This chapter demonstrates a minimal MQTT ingestion flow. For more sources and ad
 
 - [Data Ingest and Delivery](../08-data-ingest-and-delivery/index.md): Overview of zero-code ingestion, delivery, and edge–cloud sync.
 - [Zero-Code Data Ingestion](../08-data-ingest-and-delivery/01-no-code-ingestion/index.md): Supported sources, ETL rules, health, and resume.
-- [MQTT](../08-data-ingest-and-delivery/01-no-code-ingestion/07-mqtt.mdx): Full MQTT ingestion configuration.
-- [Kafka](../08-data-ingest-and-delivery/01-no-code-ingestion/08-kafka.mdx): Full Kafka ingestion configuration.
-- [CSV](../08-data-ingest-and-delivery/01-no-code-ingestion/11-csv.mdx): Import data from CSV files.
+- [MQTT](../08-data-ingest-and-delivery/01-no-code-ingestion/07-mqtt.md): Full MQTT ingestion configuration.
+- [Kafka](../08-data-ingest-and-delivery/01-no-code-ingestion/08-kafka.md): Full Kafka ingestion configuration.
+- [CSV](../08-data-ingest-and-delivery/01-no-code-ingestion/11-csv.md): Import data from CSV files.
 - [OPC UA](../08-data-ingest-and-delivery/01-no-code-ingestion/05-opcua/index.md): Industrial OPC UA ingestion.
 - [Visual Management](./08-visual-management.md): Browse data, run SQL, and open tool entry points in Explorer.

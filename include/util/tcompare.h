@@ -77,6 +77,8 @@ int32_t setChkNotInDecimalHash(const void* pLeft, const void* pRight);
 
 int32_t compareChkInString(const void *pLeft, const void *pRight);
 int32_t compareChkNotInString(const void *pLeft, const void *pRight);
+int32_t compareChkInBlob(const void *pLeft, const void *pRight);
+int32_t compareChkNotInBlob(const void *pLeft, const void *pRight);
 
 int32_t compareInt8Val(const void *pLeft, const void *pRight);
 int32_t compareInt16Val(const void *pLeft, const void *pRight);
@@ -94,6 +96,7 @@ int32_t compareDoubleVal(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedStr(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStr(const void *pLeft, const void *pRight);
 int32_t compareLenBinaryVal(const void *pLeft, const void *pRight);
+int32_t compareBlobVal(const void *pLeft, const void *pRight);
 
 int32_t compareDecimal64(const void* pleft, const void* pright);
 int32_t compareDecimal128(const void* pleft, const void* pright);
@@ -103,6 +106,8 @@ int32_t compareDecimal128SameScale(const void* pleft, const void* pright);
 
 int32_t comparestrRegexMatch(const void *pLeft, const void *pRight);
 int32_t comparestrRegexNMatch(const void *pLeft, const void *pRight);
+int32_t compareBlobRegexMatch(const void *pLeft, const void *pRight);
+int32_t compareBlobRegexNMatch(const void *pLeft, const void *pRight);
 
 int32_t comparewcsRegexMatch(const void *pLeft, const void *pRight);
 int32_t comparewcsRegexNMatch(const void *pLeft, const void *pRight);
@@ -123,9 +128,12 @@ int32_t compareUint64ValDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedStrDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight);
 int32_t compareLenBinaryValDesc(const void *pLeft, const void *pRight);
+int32_t compareBlobValDesc(const void *pLeft, const void *pRight);
 
 int32_t comparestrPatternMatch(const void *pLeft, const void *pRight);
 int32_t comparestrPatternNMatch(const void *pLeft, const void *pRight);
+int32_t compareBlobPatternMatch(const void *pLeft, const void *pRight);
+int32_t compareBlobPatternNMatch(const void *pLeft, const void *pRight);
 
 int32_t comparewcsPatternMatch(const void *pLeft, const void *pRight);
 int32_t comparewcsPatternNMatch(const void *pLeft, const void *pRight);

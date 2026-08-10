@@ -33,12 +33,13 @@ function usage() {
 # Base URL of the green versions HTTP server
 GREEN_HTTP_BASE="http://192.168.1.131/data/nas/TDengine/green_versions"
 
-# Local cache directory for green versions (persisted on the pinned worker host,
-# since this job always runs on the same tagged machine — override via env var)
-GREEN_LOCAL_DIR="${GREEN_VERSIONS_CACHE_DIR:-/data1/green-versions-cache}"
+# Local cache directory for green versions. By default, use a job-scoped cache
+# under WORKDIR so the job can run on any compatible worker host. Override via
+# GREEN_VERSIONS_CACHE_DIR if a runner-specific persistent cache is desired.
+GREEN_LOCAL_DIR=""
 
 # Lock directory for concurrent download safety (co-located with the cache)
-LOCK_DIR="${GREEN_LOCAL_DIR}/.locks"
+LOCK_DIR=""
 
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
@@ -90,6 +91,13 @@ fi
 if [ -z "$LOG_DIR" ]; then
     LOG_DIR="$WORKDIR/upgrade_compat_logs"
 fi
+
+if [ -n "${GREEN_VERSIONS_CACHE_DIR:-}" ]; then
+    GREEN_LOCAL_DIR="$GREEN_VERSIONS_CACHE_DIR"
+else
+    GREEN_LOCAL_DIR="$WORKDIR/green-versions-cache"
+fi
+LOCK_DIR="${GREEN_LOCAL_DIR}/.locks"
 
 DEBUGPATH_DIR="$WORKDIR/debugNoSan"
 # Mount taos-community directly (not via a TDinternal wrapper dir) — REPO_DIR

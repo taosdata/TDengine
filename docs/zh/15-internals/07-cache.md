@@ -4,7 +4,19 @@ sidebar_label: 数据缓存
 title: 数据缓存
 toc_max_heading_level: 4
 ---
+
 在现代物联网（IoT）和工业互联网（IIoT）应用中，数据的高效管理对系统性能和用户体验至关重要。为了应对高并发环境下的实时读写需求，TDengine 设计了一套完整的缓存机制，包括写缓存、读缓存、元数据缓存和文件系统缓存。这些缓存机制紧密结合，既能优化数据查询的响应速度，又能提高数据写入的效率，同时保障数据的可靠性和系统的高可用性。通过灵活配置缓存参数，TDengine 为用户提供了性能与成本之间的最佳平衡。
+
+读缓存的配置步骤与效果验证见 [读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)；参数细则见 [数据库](../05-tdengine-sql/02-ddl/01-database.md)。实现层面的落盘与 last 缓存加载策略，另见 [整体架构：缓存与持久化](./01-arch.md#缓存与持久化)。
+
+## 缓存类型一览
+
+| 类型 | 作用 | 关键参数 | 适用场景 | 详见 |
+| --- | --- | --- | --- | --- |
+| 写缓存 | 最新写入优先保存在缓存中，达到临界值后最早数据批量落盘 | `BUFFER`、`VGROUPS` | 近期数据读写、写入吞吐 | 下文、[BUFFER](../05-tdengine-sql/02-ddl/01-database.md#buffer) |
+| 读缓存 | 缓存子表最近数据，加速当前值查询 | `CACHEMODEL`、`CACHESIZE` | `LAST`、`LAST_ROW` | [读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)、下文 |
+| 元数据缓存 | 缓存 vnode 曾经获取过的元数据 | `PAGES`、`PAGESIZE` | 元数据相关访问 | 下文、[PAGES](../05-tdengine-sql/02-ddl/01-database.md#pages) |
+| 文件系统缓存 | WAL 顺序追加写入时依赖文件系统缓存；`fsync` 控制何时强制落盘 | `WAL_LEVEL`、`WAL_FSYNC_PERIOD` | 写入性能与可靠性权衡 | 下文、[WAL_LEVEL](../05-tdengine-sql/02-ddl/01-database.md#wal_level) |
 
 ## 写缓存
 
@@ -22,7 +34,7 @@ TDengine 采用了一种创新的时间驱动缓存管理策略，亦称为写�
 CREATE DATABASE POWER VGROUPS 10 BUFFER 256 CACHEMODEL 'NONE' PAGES 128 PAGESIZE 16;
 ```
 
-缓存越大越好，但超过一定阈值后再增加缓存对写入性能提升并无帮助。
+缓存越大越好，但超过一定阈值后再增加缓存对写入性能提升并无帮助。参数含义见 [VGROUPS](../05-tdengine-sql/02-ddl/01-database.md#vgroups)、[BUFFER](../05-tdengine-sql/02-ddl/01-database.md#buffer)。
 
 ## 读缓存
 
@@ -30,11 +42,18 @@ TDengine 的读缓存机制专为高频实时查询场景设计，尤其适用�
 
 通过设置 cachemodel 参数，TDengine 用户可以灵活选择适合的缓存模式，包括缓存最新一行数据、每列最近的非 NULL 值，或同时缓存行和列的数据。这种灵活性使 TDengine 能根据具体业务需求提供精准优化，在物联网场景下尤为突出，助力用户快速访问设备的最新状态。
 
+| `CACHEMODEL` | 缓存内容 | 主要加速 |
+| --- | --- | --- |
+| `none` | 不缓存（默认） | — |
+| `last_row` | 子表最近一行 | `LAST_ROW` |
+| `last_value` | 子表每列最近的非 NULL 值 | 无 `WHERE`、`ORDER BY`、`GROUP BY`、`INTERVAL` 等特殊影响时的 `LAST` |
+| `both` | 同时缓存最近行与最近列值 | `LAST_ROW` 与上述条件下的 `LAST` |
+
 这种设计不仅降低了查询的响应延迟，还能有效缓解存储系统的 I/O 压力。在高并发场景下，读缓存能够帮助系统维持更高的吞吐量，确保查询性能的稳定性。借助 TDengine 读缓存，用户无需再集成如 Redis 一类的外部缓存系统，避免了系统架构的复杂化，显著降低运维和部署成本。
 
 此外，TDengine 的读缓存机制还能够根据实际业务场景灵活调整。在数据访问热点集中在最新记录的场景中，这种内置缓存能够显著提高用户体验，让关键数据的获取更加快速高效。相比传统缓存方案，这种无缝集成的缓存策略不仅简化了开发流程，还为用户提供了更高的性能保障。
 
-关于 TDengine 读缓存的更多详细内容请看 [读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)。
+关于 TDengine 读缓存的更多详细内容请看 [读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)。`LAST` / `LAST_ROW` 函数语义见 [LAST](../05-tdengine-sql/04-data-query/03-function.md#last)、[LAST_ROW](../05-tdengine-sql/04-data-query/03-function.md#last_row)；LRU、延迟加载等机制见 [整体架构：last/last_row 缓存](./01-arch.md#lastlast_row-缓存)。
 
 ## 元数据缓存
 
@@ -44,13 +63,15 @@ TDengine 的读缓存机制专为高频实时查询场景设计，尤其适用�
 CREATE DATABASE POWER PAGES 128 PAGESIZE 16;
 ```
 
+默认与取值范围见 [PAGES](../05-tdengine-sql/02-ddl/01-database.md#pages)、[PAGESIZE](../05-tdengine-sql/02-ddl/01-database.md#pagesize)。
+
 ## 文件系统缓存
 
 TDengine 采用 WAL 技术作为基本的数据可靠性保障手段。WAL 是一种先进的数据保护机制，旨在确保在发生故障时能够迅速恢复数据。其核心原理在于，在数据实际写入数据存储层之前，先将其变更记录到一个日志文件中。这样一来，即便集群遭遇崩溃或其他故障，也能确保数据安全无损。
 
 TDengine 利用这些日志文件实现故障前的状态恢复。在写入 WAL 的过程中，数据是以顺序追加的方式写入硬盘文件的。因此，文件系统缓存在此过程中发挥着关键作用，对写入性能产生显著影响。为了确保数据真正落盘，系统会调用 fsync 函数，该函数负责将文件系统缓存中的数据强制写入硬盘。
 
-数据库参数 wal_level 和 wal_fsync_period 共同决定了 WAL 的保存行为。。
+数据库参数 wal_level 和 wal_fsync_period 共同决定了 WAL 的保存行为。
 
 - wal_level：此参数控制 WAL 的保存级别。级别 1 表示仅将数据写入 WAL，但不立即执行 fsync 函数；级别 2 则表示在写入 WAL 的同时执行 fsync 函数。默认情况下，wal_level 设为 1。虽然执行 fsync 函数可以提高数据的持久性，但相应地也会降低写入性能。
 - wal_fsync_period：当 wal_level 设置为 2 时，这个参数控制执行 fsync 的频率。设置为 0 则表示每次写入后立即执行 fsync，这可以确保数据的安全性，但可能会牺牲一些性能。当设置为大于 0 的数值时，则表示 fsync 周期，默认为 3000，范围是[1， 180000]，单位毫秒。
@@ -63,3 +84,5 @@ CREATE DATABASE POWER WAL_LEVEL 2 WAL_FSYNC_PERIOD 3000;
 
 - 性能优先：将数据写入 WAL，但不立即执行 fsync 操作，此时新写入的数据仅保存在文件系统缓存中，尚未同步到磁盘。这种配置能够显著提高写入性能。
 - 可靠性优先：将数据写入 WAL 的同时执行 fsync 操作，将数据立即同步到磁盘，确保数据持久化，可靠性更高。
+
+完整说明见 [WAL_LEVEL](../05-tdengine-sql/02-ddl/01-database.md#wal_level)、[WAL_FSYNC_PERIOD](../05-tdengine-sql/02-ddl/01-database.md#wal_fsync_period)。

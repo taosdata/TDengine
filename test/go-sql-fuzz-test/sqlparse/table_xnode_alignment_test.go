@@ -1,6 +1,8 @@
 package sqlparser
 
 import (
+	"os"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -776,6 +778,54 @@ func TestXnodeAlignment_Parse(t *testing.T) {
 			if s.TaskFrom != "mqtt://a" || s.TaskTo != "db1" || s.TaskOptions == "" {
 				t.Fatalf("unexpected xnode alter task fields for %q: %+v", tt.sql, s)
 			}
+		}
+	}
+}
+
+func TestXnodeAlignment_LargeParserOption(t *testing.T) {
+	parser := strings.Repeat("x", 64*1024)
+	stmt, err := Parse("create xnode task 'task-large' with parser='" + parser + "';")
+	if err != nil {
+		t.Fatalf("parse large XNODE parser option failed: %v", err)
+	}
+
+	xnode, ok := stmt.(*XnodeStmt)
+	if !ok {
+		t.Fatalf("expected *XnodeStmt, got %T", stmt)
+	}
+	if !strings.Contains(xnode.TaskOptions, parser) {
+		t.Fatalf("large XNODE parser option was truncated: got %d bytes", len(xnode.TaskOptions))
+	}
+}
+
+func TestXnodeAlignment_LemonParserStorage(t *testing.T) {
+	cmdnodes, err := os.ReadFile("lemon/cmdnodes.h")
+	if err != nil {
+		t.Fatalf("read Lemon cmdnodes.h failed: %v", err)
+	}
+	cmdnodesText := string(cmdnodes)
+	dynamicParser := regexp.MustCompile(`(?m)\bchar\s*\*\s*parser\s*;`)
+	fixedParser := regexp.MustCompile(`(?m)\bchar\s+parser\s*\[`)
+	if !dynamicParser.MatchString(cmdnodesText) {
+		t.Fatal("Lemon SXnodeTaskOptions parser must use dynamic storage")
+	}
+	if fixedParser.MatchString(cmdnodesText) {
+		t.Fatal("Lemon SXnodeTaskOptions parser still uses the 48 KiB fixed buffer")
+	}
+
+	creator, err := os.ReadFile("lemon/parAstCreater.c")
+	if err != nil {
+		t.Fatalf("read Lemon parAstCreater.c failed: %v", err)
+	}
+	creatorText := string(creator)
+	for _, expected := range []string{
+		"taosMemFreeClear(pOptions->parser)",
+		"taosMemoryCalloc(1, parserCapacity + 1)",
+		"pOptions->parserLen = strlen(pOptions->parser)",
+		"TSDB_XNODE_TASK_PARSER_MAX_LEN",
+	} {
+		if !strings.Contains(creatorText, expected) {
+			t.Fatalf("Lemon parser storage is missing production behavior %q", expected)
 		}
 	}
 }

@@ -7,7 +7,7 @@ import { AddDataSource, Enterprise } from '../../resources/_resources.mdx';
 
 <Enterprise/>
 
-This section describes how to create data migration tasks through the Explorer interface to synchronize data from an OPC UA server to the current TDengine cluster.
+This section describes how to create data migration tasks through the taosExplorer interface to synchronize data from an OPC UA server to the current TDengine cluster.
 
 ## Overview
 
@@ -25,7 +25,7 @@ TDengine can efficiently read data from OPC UA servers and write it to TDengine,
 
 ### Configure General Information
 
-**Agent** is optional. When taosX cannot reach the OPC UA Server directly over the network — for example the OPC UA Server lives in an isolated OT network, or taosX runs in the public cloud and cannot reach the on-premises network — deploy a taosx-agent on a host that **can** reach the OPC UA Server, and route the data through the agent. In this setup taosX only needs connectivity to the agent, and the agent only needs connectivity to the OPC UA Server. If taosX can already reach the OPC UA Server directly, leave **Agent** empty. When needed, pick an existing agent from the dropdown, or click **+ Create New Agent** on the right to create one.
+**Agent** is optional. When taosX cannot reach the OPC UA Server directly over the network — for example the OPC UA Server lives in an isolated OT network, or taosX runs in the public cloud and cannot reach the on-premises network — deploy a taosX-Agent on a host that **can** reach the OPC UA Server, and route the data through taosX-Agent. In this setup taosX only needs connectivity to taosX-Agent, and taosX-Agent only needs connectivity to the OPC UA Server. If taosX can already reach the OPC UA Server directly, leave **Agent** empty. When needed, pick an existing agent from the dropdown, or click **+ Create New Agent** on the right to create one.
 
 ![General Information](../../../assets/opcua-01.png)
 
@@ -87,11 +87,11 @@ The first two are for point collection (Value); the third is for alarm and event
 
 ![Select data points](../../../assets/opcua-04.png)
 
-##### Filter Data Points
+1. **Filter Data Points**
 
 Filter points by configuring **Root Node ID**, **Namespaces**, **Node Class**, **Point ID Regex Pattern**, **Point Name Regex Pattern**, etc. Click **Preview** to preview OPC UA points that match the filter on the right.
 
-##### Super Table Name
+2. **Super Table Name**
 
 **Super Table Name** specifies the supertable into which data is written. The expression supports the following placeholder:
 
@@ -107,7 +107,7 @@ Any `.` in the expression is automatically replaced with `_` to avoid producing 
 
 For example, `opc_{type}` produces `opc_double` for a `Float64` point and `opc_varchar` for a `VARCHAR(64)` point.
 
-##### Table Name
+3. **Table Name**
 
 **Table Name** specifies the subtable into which data is written. An OPC UA point ID has the form `ns=<namespace>;<prefix>=<identifier>` (where `<prefix>` is `i` / `s` / `g` / `b`). The expression supports the following placeholders:
 
@@ -126,7 +126,7 @@ For example, `opc_{type}` produces `opc_double` for a `Float64` point and `opc_v
 
 :::
 
-##### Value Column Name & Value Transform
+4. **Value Column Name & Value Transform**
 
 - **Value Column Name**: the column name written to TDengine for this point's value, default `val`. When multiple points map into the same supertable, they all share the same **Value Column Name**.
 - **Value Transform**: an optional secondary computation on the original value, written as a [Rhai](https://rhai.rs/) expression. Leave empty to disable. The original value is referenced via the **Value Column Name**, e.g. when the column name is `val`:
@@ -140,7 +140,7 @@ For example, `opc_{type}` produces `opc_double` for a `Float64` point and `opc_v
 
   Numeric values are uniformly converted to `f64` before being passed into the expression, so floating-point arithmetic can be used freely. Boolean, string, and binary types do not support value transforms at this time.
 
-##### Timestamp
+5. **Timestamp**
 
 - **Timestamp**: choose `origin_ts`, `request_ts`, or `received_ts`.
 
@@ -150,7 +150,7 @@ For example, `opc_{type}` produces `opc_double` for a `Float64` point and `opc_v
 
 - **Timestamp Name**: the name of the TDengine timestamp column, default `ts`.
 
-##### Custom Tags
+6. **Custom Tags**
 
 **Custom Tags** attach extra tag columns to subtables. Each tag has three parts; multiple tags are separated by `;`:
 
@@ -162,7 +162,7 @@ For example, `opc_{type}` produces `opc_double` for a `Float64` point and `opc_v
 - `<TagName>`: the tag column name.
 - `<Pattern>`: the tag value, either static text or one of the dynamic placeholders below.
 
-###### OPC node attribute placeholders
+**(1) OPC node attribute placeholders**
 
 | Placeholder     | Description                                       |
 | --------------- | ------------------------------------------------- |
@@ -173,7 +173,7 @@ For example, `opc_{type}` produces `opc_double` for a `Float64` point and `opc_v
 
 Only these four attributes are supported; `NodeClass`, `ParentId`, etc. are not available in the expression. Empty attributes are replaced with the empty string.
 
-###### Attribute character substitution `{Attr#XY}`
+**(2) Attribute character substitution `{Attr#XY}`**
 
 For `BrowseName` / `DisplayName` / `Description` / `Path`, the `{Attr#XY}` syntax replaces every occurrence of character `X` with character `Y` in the attribute value, and trims `Y` from the start/end of the result:
 
@@ -188,7 +188,7 @@ For `BrowseName` / `DisplayName` / `Description` / `Path`, the `{Attr#XY}` synta
 `{Attr#XY}` has higher priority than plain `{Attr}`; the engine processes `{Attr#XY}` first, then `{Attr}`.
 :::
 
-###### Point ID placeholders
+**(3) Point ID placeholders**
 
 In addition to node attributes, the `<Pattern>` of a custom tag also supports placeholders derived from the point ID (OPC UA). All examples below use `ns=6;s=Device/Type/TagName`:
 
@@ -208,7 +208,7 @@ In addition to node attributes, the `<Pattern>` of a custom tag also supports pl
 | `{id/#/.}`  | Apply `{id/}` first, then `/` → `.`                  | `Device.Type`                        |
 | `{id_#_.}`  | Apply `{id_}` first, then `_` → `.`                  | (if id=`A_B_C`) `A.B`                |
 
-###### Example
+**(4) Example**
 
 ```text
 VARCHAR(1024)::name::{id#/.};VARCHAR(1024)::browse::{BrowseName};VARCHAR(200)::location::{Path#/_};INT::version::1
@@ -264,8 +264,16 @@ As shown in the image above:
   - `subscribe`: Subscription mode, reports data changes and writes to TDengine. Used for point collection.
   - `observe`: According to the `collection interval`, polls the latest value of the data point and writes to TDengine. Used for point collection.
   - `event`: Alarm and Event (A&E) collection mode. Automatically locked to this mode (and not editable) when **Points Set** is on the **Alarms & Events** tab. See [OPC UA Alarm and Event Collection](./06-alarm-event.md).
-- **Collection Interval**: Default is 10 seconds, the interval for collecting data points, starting from the end of the last data collection, polls the latest value of the data point and writes to TDengine. Only configurable in `observe` **Collection Mode**.
+- **Collection Interval**: Default is 10 seconds when **Collection Mode** is `observe`. The interval starts after the previous collection finishes; the task polls the latest value of each point and writes to TDengine. Only configurable in `observe` mode.
 - **Collection Timeout**: If the data from the OPC server is not returned within the set time when reading data points, the read fails, default is 10 seconds. Only configurable in `observe` **Collection Mode**.
+
+:::note
+
+- The collection interval is a task-level parameter (`observe` mode): ordinary points in the same OPC UA Data In task share that interval. Per-tag or per-group poll rates within one task are not supported. In `subscribe` mode, the server reports on change; it does not scan all points on a fixed interval.
+- If some points need a different poll period, split them into multiple tasks (they can share the same OPC server and Agent) and set each task’s collection interval separately.
+- To change collection settings or point mapping, edit the task in taosExplorer; you do not need to reinstall taosX-Agent just to change points. See [Install taosX-Agent](../01-install-agent.md).
+
+:::
 
 When using **Selecting Data Points** in the **Data Point Set**, the collection configuration can configure **Data Point Update Mode** and **Data Point Update Interval** to enable dynamic data point updates. **Dynamic Data Point Update** refers to, during the task operation, after OPC Server adds or deletes data points, the data points that meet the conditions will automatically be added to the current task without needing to restart the OPC task.
 
@@ -310,7 +318,7 @@ Click the **Submit** button to complete the creation of the OPC UA to TDengine d
 
 ## Add Data Points
 
-While the task is running, click **Edit** and then **Add Data Points** to append a new OPC UA data-point rule into the CSV configuration. Adding data points does not require restarting the task and does not cause data loss.
+While the task is running, click **Edit** and then **Add Data Points** to append a new OPC UA data-point rule into the CSV configuration. Adding data points does not require restarting the task and does not cause data loss. Use this when you only need to add a few points and do not want to re-import the full point list.
 
 ![Add data points](../../../assets/opcua-08.png)
 
@@ -319,3 +327,12 @@ In the pop-up form, fill in the information for the data point.
 ![Add data points form](../../../assets/opcua-09.png)
 
 Click **Confirm** to complete the addition.
+
+Day-to-day maintenance of subtable tag values already in TDengine (including auto-generated TAGs such as BrowseName / Description / Path, and Property→TAG) is recommended in TDengine IDMP. If IDMP is not used, you can batch-update with SQL [`ALTER TABLE … SET TAG`](../../../05-tdengine-sql/02-ddl/02-table.md#modify-subtable-tag-value) without re-uploading the CSV. For CSV columns and auto TAGs, see [OPC UA CSV Mapping Reference](./02-csv-reference.md).
+
+## Related Documents
+
+- [Install taosX-Agent](../01-install-agent.md): remote agent install; task changes usually do not require reinstalling the Agent
+- [OPC-DA](../06-opcda.md): DA-side metadata, collection interval, and task maintenance (for comparison with UA)
+- [TDengine IDMP](../../../19-tdengine-idmp/index.md): point tags and industrial metadata management (recommended)
+- [Data Ingestion (Xnode)](../../../05-tdengine-sql/08-cluster-management/02-xnode.md): manage ingest nodes, tasks, and agents with SQL

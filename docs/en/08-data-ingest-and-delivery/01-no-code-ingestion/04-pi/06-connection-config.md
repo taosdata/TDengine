@@ -7,7 +7,7 @@ This page provides a detailed explanation of each field in the "Connection" sect
 
 ## Connection Fields Reference
 
-When creating a PI or PI backfill task in Explorer, the connection section contains these fields:
+When creating a PI or PI backfill task in taosExplorer, the connection section contains these fields:
 
 | Field | Required | Description |
 | ----- | -------- | ----------- |
@@ -72,7 +72,7 @@ When using explicit credentials (providing username and password), the password 
 
 PI uses **two-layer access control**: the **authentication layer (Mapping)** determines "who you are," and the **authorization layer (ACL/Security)** determines "what you can do." Both layers are required.
 
-### Step 1: Identify the Connector's Windows Identity
+### Identify the Connector's Windows Identity
 
 In PI Data Archive or AF Server management tools (SMT or PSE), open the **Connections** tab and find the connection from the taosX-Agent host. Record the Username shown.
 
@@ -119,7 +119,7 @@ Principle: **Mapping controls "identity recognition," ACL controls "permissions.
 
 After completing the authentication and permission configuration:
 
-1. In Explorer's PI task creation page, fill in the connection information (**leave Username/Password/Domain blank**)
+1. In taosExplorer's PI task creation page, fill in the connection information (**leave Username/Password/Domain blank**)
 2. Click the **Connectivity Check** button
 3. A successful check means the connector can access PI normally
 

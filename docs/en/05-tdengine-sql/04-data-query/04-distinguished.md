@@ -161,9 +161,7 @@ The table below shows the most common merge outcomes. In each row, “merge into
 
 If multiple consecutive rows belong to the same partial-`NULL` run, the same rule still applies. For example, in `(1, 'a') -> (1, NULL) -> (NULL, NULL) -> (1, NULL) -> (2, 'a')`, the three middle rows are handled together: `EXTEND(0)` and `EXTEND(1)` merge them into the previous window, while `EXTEND(2)` keeps them as an independent window.
 
-#### Examples
-
-##### State Key Examples
+#### State Key Examples
 
 Single-key example:
 
@@ -229,7 +227,7 @@ PARTITION BY tbname
 STATE_WINDOW(voltage BETWEEN 205 AND 235 AND current IS NOT NULL, phase IN ('A', 'B'));
 ```
 
-##### EXTEND Parameter
+#### EXTEND Parameter
 
 Take the following data as an example to show how `EXTEND` affects window splitting and the ownership of `NULL` rows:
 
@@ -289,7 +287,7 @@ taos> select _wstart, _wduration, _wend, count(*) from state_window_example stat
  2025-01-01 00:00:06.001 |                   999 | 2025-01-01 00:00:07.000 |                     1 |
 ```
 
-##### ZEROTH_STATE Parameter
+#### ZEROTH_STATE Parameter
 
 The `ZEROTH_STATE` parameter specifies the "zero state". A zero state is a baseline state value that the user does not care about. State-window queries often produce many windows in default, idle, or normal states, while users usually care only about exceptional or target states. Windows whose state expression result equals this value will not be calculated or output, and the input must be an integer, boolean, or string constant. In the multi-key case, a window is filtered only when every participating position equals its configured zero-state value. If a position uses `NO_ZEROTH`, that position is excluded from zero-state matching.
 
@@ -313,7 +311,7 @@ STATE_WINDOW(c1, c2) EXTEND(0) ZEROTH_STATE(1, 10);
 
 The query above filters windows whose state key is exactly `(1, 10)`, but keeps windows such as `(1, 20)` and `(2, 20)`. If only one position should be constrained, use `NO_ZEROTH`, for example `ZEROTH_STATE(1, NO_ZEROTH)`.
 
-##### TRUE_FOR Parameter
+#### TRUE_FOR Parameter
 
 The state window supports using the TRUE_FOR parameter to set the filtering condition for windows. Only windows that meet the condition will return calculation results. Supports the following four modes:
 

@@ -17,19 +17,19 @@ This chapter continues with the `test` database meter data written by `taosBench
 
 Compared with traditional stream processing, TDengine separates **trigger** from **compute**: the trigger decides when to compute; compute decides which data to use and where results go. They can share the same table or be separated by business need. The new stream processing capability is available from `v3.3.7.0`.
 
-- **Trigger modes**  
+- **Trigger modes**
   Supports periodic (`PERIOD`), sliding (`SLIDING`), time-window (`INTERVAL`), session / state / event / count windows, and more. Triggers can be partitioned, and trigger data can be pre-filtered. See [Stream Syntax](../07-stream-processing/01-syntax.md).
 
-- **Compute and result output**  
+- **Compute and result output**
   Compute can be any query. Results can be written to an output table (`INTO`), sent as notifications (`NOTIFY`), or both. See [Stream Syntax](../07-stream-processing/01-syntax.md).
 
-- **Control options**  
+- **Control options**
   Use `STREAM_OPTIONS` for history replay, out-of-order watermarks, max delay, low-latency compute, and more, balancing result freshness against resource load. See [Stream Syntax](../07-stream-processing/01-syntax.md).
 
-- **Operations and limits**  
+- **Operations and limits**
   Stream tasks run on snodes. Covers high availability, permissions, manual recomputation, and atypical writes such as out-of-order / update / delete. See [Operations and Limits](../07-stream-processing/02-instructions.md).
 
-- **Deployment and design**  
+- **Deployment and design**
   Deployment, configuration, design before creating streams, and typical examples. See [Deployment and Design](../07-stream-processing/03-best-practices.md).
 
 The rest of this chapter starts by creating an `INTERVAL` window stream.

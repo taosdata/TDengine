@@ -204,11 +204,11 @@ Left/Right ASOF Join - Unlike other traditional joins that require exact matches
 SELECT ... FROM table_name1 LEFT|RIGHT ASOF JOIN table_name2 [ON ...] [JLIMIT jlimit_num] [WHERE ...] [...]
 ```
 
-##### Result Set
+#### Result Set
 
 The Cartesian product of each row from the left/right table with up to `jlimit_num` rows from the right/left table that meet the join condition and are closest in timestamp, sorted by the primary key column, or null data (`NULL`).
 
-##### Applicable Scenarios
+#### Applicable Scenarios
 
 Supports Left/Right ASOF Join between supertables, basic tables, and subtables.
 

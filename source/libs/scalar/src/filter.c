@@ -138,7 +138,19 @@ __compar_fn_t gDataCompare[] = {
     comparestrRegexNMatch, setChkNotInBytes1,      setChkNotInBytes2,       setChkNotInBytes4,
     setChkNotInBytes8,     compareChkNotInString,  comparestrPatternNMatch, comparewcsPatternNMatch,
     comparewcsRegexMatch,  comparewcsRegexNMatch,  compareLenBinaryVal,     compareDecimal64,
-    compareDecimal128,     setChkInDecimalHash,    setChkNotInDecimalHash,
+    compareDecimal128,     setChkInDecimalHash,    setChkNotInDecimalHash,  compareBlobVal,
+    compareBlobPatternMatch, compareBlobPatternNMatch, compareBlobRegexMatch, compareBlobRegexNMatch, compareChkInBlob,
+    compareChkNotInBlob,
+};
+
+enum {
+  FLT_COMP_FUNC_BLOB = 35,
+  FLT_COMP_FUNC_BLOB_PATTERN_MATCH,
+  FLT_COMP_FUNC_BLOB_PATTERN_NMATCH,
+  FLT_COMP_FUNC_BLOB_REGEX_MATCH,
+  FLT_COMP_FUNC_BLOB_REGEX_NMATCH,
+  FLT_COMP_FUNC_BLOB_IN,
+  FLT_COMP_FUNC_BLOB_NOT_IN,
 };
 
 __compar_fn_t gInt8SignCompare[] = {compareInt8Val,   compareInt8Int16, compareInt8Int32,
@@ -184,8 +196,9 @@ __compar_fn_t gUint64UsignCompare[] = {compareUint64Uint8, compareUint64Uint16, 
 
 int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool scalarMode) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
-                             type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
+  if (optr == OP_TYPE_IN &&
+      (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY && type != TSDB_DATA_TYPE_NCHAR &&
+       type != TSDB_DATA_TYPE_GEOMETRY && type != TSDB_DATA_TYPE_BLOB)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -222,8 +235,9 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
     return code;
   }
 
-  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY &&
-                                 type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
+  if (optr == OP_TYPE_NOT_IN &&
+      (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_VARBINARY && type != TSDB_DATA_TYPE_NCHAR &&
+       type != TSDB_DATA_TYPE_GEOMETRY && type != TSDB_DATA_TYPE_BLOB)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -350,6 +364,28 @@ int32_t filterGetCompFuncIdx(int32_t type, int32_t optr, int8_t *comparFn, bool 
       } else {
         *comparFn = 0;
         code = TSDB_CODE_QRY_GEO_NOT_SUPPORT_ERROR;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_BLOB: {
+      if (optr == OP_TYPE_MATCH) {
+        *comparFn = FLT_COMP_FUNC_BLOB_REGEX_MATCH;
+      } else if (optr == OP_TYPE_NMATCH) {
+        *comparFn = FLT_COMP_FUNC_BLOB_REGEX_NMATCH;
+      } else if (optr == OP_TYPE_LIKE) {
+        *comparFn = FLT_COMP_FUNC_BLOB_PATTERN_MATCH;
+      } else if (optr == OP_TYPE_NOT_LIKE) {
+        *comparFn = FLT_COMP_FUNC_BLOB_PATTERN_NMATCH;
+      } else if (optr == OP_TYPE_IN) {
+        *comparFn = FLT_COMP_FUNC_BLOB_IN;
+      } else if (optr == OP_TYPE_NOT_IN) {
+        *comparFn = FLT_COMP_FUNC_BLOB_NOT_IN;
+      } else if ((optr >= OP_TYPE_GREATER_THAN && optr <= OP_TYPE_NOT_EQUAL) || optr == OP_TYPE_IS_NULL ||
+                 optr == OP_TYPE_IS_NOT_NULL) {
+        *comparFn = FLT_COMP_FUNC_BLOB;
+      } else {
+        *comparFn = 0;
+        code = TSDB_CODE_BLOB_OP_NOT_SUPPORTED;
       }
       break;
     }
@@ -1418,7 +1454,8 @@ int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit *u
         t = FILTER_GET_FIELD(dst, right);
         FILTER_SET_FLAG(t->flag, FLD_DATA_IS_HASH);
       } else {
-        FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, varDataTLen(data), false, &rField->flag));
+        int32_t dataLen = IS_STR_DATA_BLOB(type) ? blobDataTLen(data) : varDataTLen(data);
+        FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, dataLen, false, &rField->flag));
       }
     } else {
       FLT_ERR_RET(
@@ -1844,6 +1881,7 @@ int32_t fltConverToStr(char *str, int32_t strMaxLen, int type, void *buf, int32_
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_GEOMETRY:
+    case TSDB_DATA_TYPE_BLOB:
       if (bufSize < 0) {
         //        tscError("invalid buf size");
         return TSDB_CODE_TSC_INVALID_VALUE;
@@ -3448,7 +3486,7 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
 
 _return:
 
-  FLT_ERR_RET(filterDumpInfoToString(info, "Block Filter", 2));
+  (void)filterDumpInfoToString(info, "Block Filter", 2);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3875,7 +3913,7 @@ int32_t filterPreprocess(SFilterInfo *info) {
 
   FLT_ERR_JRET(filterGenerateColRange(info, gRes, gResNum));
 
-  FLT_ERR_JRET(filterDumpInfoToString(info, "Final", 1));
+  (void)filterDumpInfoToString(info, "Final", 1);
 
   FLT_ERR_JRET(filterPostProcessRange(info));
 
@@ -3954,7 +3992,7 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
   FLT_ERR_JRET(fltInitValFieldData(info));
 
   if (!FILTER_GET_FLAG(info->options, FLT_OPTION_NO_REWRITE)) {
-    FLT_ERR_JRET(filterDumpInfoToString(info, "Before preprocess", 0));
+    (void)filterDumpInfoToString(info, "Before preprocess", 0);
 
     FLT_ERR_JRET(filterPreprocess(info));
 
@@ -3973,7 +4011,7 @@ int32_t fltInitFromNode(SNode *tree, SFilterInfo *info, uint32_t options) {
   if (info->unitFlags == NULL) {
     FLT_ERR_JRET(terrno);
   }
-  FLT_ERR_JRET(filterDumpInfoToString(info, "Final", 0));
+  (void)filterDumpInfoToString(info, "Final", 0);
   return code;
 
 _return:

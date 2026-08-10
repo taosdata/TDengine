@@ -56,7 +56,7 @@ ns: http://example.org/ns#
 ]]
 ```
 
-**格式说明** ：
+**格式说明**：
 
 | 关键字段  | 说明  |
 |:-------  |:----------------------------------- |
@@ -64,7 +64,7 @@ ns: http://example.org/ns#
 | source   | TDengine SQL 查询语句（支持复杂查询）   |  
 | target   | 字段映射关系（未指定类型时按默认规则转换） |
 
-**在 target 中可指定映射数据类型，若未指定则按以下规则转化** ：
+**在 target 中可指定映射数据类型，若未指定则按以下规则转化**：
 
 在 target 中可指定映射数据类型，若未指定则按以下规则转化
 
@@ -121,7 +121,7 @@ jdbc.password=taosdata
 jdbc.driver=com.taosdata.jdbc.ws.WebSocketDriver   
 ```
 
-**db.obda** （映射配置）：  
+**db.obda**（映射配置）：  
 复用 [配置表映射](#配置表映射) 一节中示例内容。
 
 ### 分析电表负载

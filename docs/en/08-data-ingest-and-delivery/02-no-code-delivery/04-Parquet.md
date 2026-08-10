@@ -12,7 +12,7 @@ Parquet Data Out exports the result of one read-only TDengine SQL query to a sin
 
 ## Create a Parquet Data Out Task
 
-In Explorer, open the Data Publisher page, choose Parquet as the target type, and configure:
+In taosExplorer, open the Data Publisher page, choose Parquet as the target type, and configure:
 
 - `TDengine DSN`: TDengine connection address, for example `taos+ws://root:taosdata@localhost:6041/db`.
 - `SQL Query`: one read-only `SELECT` query. `WITH ... SELECT` queries are supported.

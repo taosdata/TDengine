@@ -142,7 +142,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 
 ## 指标速查
 
-### 1. 算子标题行中的常见指标
+### 算子标题行中的常见指标
 
 这些指标通常出现在 `-> 算子名 (...)` 这一行中。
 
@@ -164,7 +164,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `group_join=` | 是否启用分组连接 | 用于复杂连接诊断 |
 | `groups=` | 分组键数量 | 用于分析分组维度是否过多 |
 | `has_partition=` | 是否包含分区信息 | 用于判断虚拟表或动态查询是否保留了分区属性 |
-| `input_order=` | 输入数据按**主键时间戳列**的有序性（asc/desc/unknown） | 用于判断上游是否已经满足当前算子对时间序的要求 |
+| `input_order=` | 输入数据按 **主键时间戳列** 的有序性（asc/desc/unknown） | 用于判断上游是否已经满足当前算子对时间序的要求 |
 | `jlimit=` | 单行匹配的最大连接行数 | 用于分析连接放大是否被限制 |
 | `limit=` | 当前算子承接到的 `LIMIT` | 用于确认 `LIMIT` 是否被尽早下推 |
 | `mode=grp_order` | 按分组顺序组织扫描 | 说明计划更强调分组输出顺序 |
@@ -174,7 +174,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `offset=` | 当前算子承接到的 `OFFSET` | 用于判断偏移是否参与了当前层裁剪 |
 | `order=[asc\|x desc\|y]` | 扫描时顺序读取与逆序读取的计数 | 用于判断扫描是否主要按升序还是降序进行 |
 | `origin_vgroup_num=` | 原始 vgroup 数量 | 用于观察虚拟超级表查询的并行规模 |
-| `output_order=` | 输出数据按**主键时间戳列**的有序性（asc/desc/unknown） | 用于判断当前算子是否改变了时间序，进而推断后续是否还能避免排序 |
+| `output_order=` | 输出数据按 **主键时间戳列** 的有序性（asc/desc/unknown） | 用于判断当前算子是否改变了时间序，进而推断后续是否还能避免排序 |
 | `partitions=` | 分片键数量 | 用于判断 `PARTITION BY` 的维度规模 |
 | `pseudo_columns=` | 伪列数量，例如 `_wstart`、`_wend`、`tbname` 等 | 可用于确认窗口列、表名列等是否被引入执行链路 |
 | `rows=` | 该算子输出的结果行数 | 用于判断某层是否放大了数据量，或某个 vgroup 是否输出异常偏大 |
@@ -192,9 +192,9 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 - 在多 vgroup 聚合输出中，`a(b)` 形式表示“平均值（最大值）”
 - 对 `rows=` 来说，`b` 可用于快速定位最重的单个执行节点
 - 对 `cost=` 来说，首值大多对应首包延迟，末值大多对应总处理时长
-- `input_order` / `output_order` 描述的是**主键时间戳列**的有序方向，**不是**按 `ORDER BY` 排序键的方向。因此按非时间戳列排序时（如 `ORDER BY val`），`Sort` 算子会显示 `output_order=unknown`——这表示排序后时间戳顺序已不确定，**并不代表结果未排序**（结果仍严格按排序键有序）。该字段主要供窗口、归并、`Join` 等依赖时间序的下游算子判断能否走流式、省去再次排序
+- `input_order` / `output_order` 描述的是 **主键时间戳列** 的有序方向，**不是** 按 `ORDER BY` 排序键的方向。因此按非时间戳列排序时（如 `ORDER BY val`），`Sort` 算子会显示 `output_order=unknown`——这表示排序后时间戳顺序已不确定，**并不代表结果未排序**（结果仍严格按排序键有序）。该字段主要供窗口、归并、`Join` 等依赖时间序的下游算子判断能否走流式、省去再次排序
 
-### 2. `VERBOSE true` 下的结构与属性指标
+### `VERBOSE true` 下的结构与属性指标
 
 | 指标 | 含义 | 诊断价值 |
 | --- | --- | --- |
@@ -233,7 +233,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 | `Window Sliding=` | 计数窗口滑动步长 | 用于确认 `COUNT_WINDOW()` 的滑动设置 |
 | `Window: gap=...` | 会话窗口间隔 | 用于诊断 `SESSION()` 的切分标准 |
 
-### 3. 算子的执行代价指标
+### 算子的执行代价指标
 
 `EXPLAIN ANALYZE VERBOSE true` 会在算子下额外展示 `Exec cost` 行。
 
@@ -252,7 +252,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 - 单节点显示为单值，多节点显示为 `平均值(最大值)`
 - `create=` 在多节点时也会显示为 `平均时间戳(最晚时间戳)`
 
-### 4. 扫描类算子的 I/O 指标
+### 扫描类算子的 I/O 指标
 
 扫描类算子在 `EXPLAIN ANALYZE VERBOSE true` 下还会展示三行 `I/O cost` 信息。
 
@@ -282,7 +282,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 - `sma_load_*` 为 0：说明未命中预计算路径
 - `cost_ratio`、`slow_deviation` 高：优先定位热点 vgroup、数据分布不均或某个节点资源异常，再通过 `data_deviation` 辅助定位
 
-### 5. 计划级汇总指标
+### 计划级汇总指标
 
 `EXPLAIN ANALYZE` 在结果末尾还会给出整个语句的汇总信息。
 
@@ -299,7 +299,7 @@ EXPLAIN [ANALYZE] [VERBOSE {true | false}] query_or_subquery;
 - 再按独立段落输出子查询对应的子计划，并在段首显示 `InitPlan n`
 
 这类格式不是把所有子查询逻辑简单缩进到主树下，而是把主计划与子计划分别展示。
-`InitPlan n` 是子查询计划的标题行，用于标识这是一个被主查询**引用**的子计划。
+`InitPlan n` 是子查询计划的标题行，用于标识这是一个被主查询 **引用** 的子计划。
 主计划中的算子会通过这个标题表示在何处引用子计划的结果，通常用 `$(InitPlan n)` 作为占位符。
 
 阅读时可重点关注以下几点：
@@ -342,7 +342,7 @@ AND voltage < (SELECT AVG(voltage) FROM meters WHERE location = 'Beijing');
 
 ## 使用示例
 
-### 1. 查看普通查询的执行计划
+### 查看普通查询的执行计划
 
 ```sql
 taos> EXPLAIN SELECT ts, current FROM meters WHERE ts >= '2026-01-01 00:00:00' AND ts < '2026-02-01 00:00:00' \G;
@@ -354,7 +354,7 @@ QUERY_PLAN:    -> Projection (columns=2 width=12 input_order=asc)
 QUERY_PLAN:       -> Table Scan on meters (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 ```
 
-### 2. 查看详细计划
+### 查看详细计划
 
 ```sql
 taos> EXPLAIN VERBOSE true SELECT ts, current FROM meters WHERE ts >= '2025-01-01 00:00:00+08:00' AND ts < '2025-01-02 00:00:00+08:00' \G;
@@ -378,7 +378,7 @@ QUERY_PLAN:             Output: columns=2 width=12
 QUERY_PLAN:             Time Range: [1735660800000, 1735747199999]
 ```
 
-### 3. 查看执行过程信息
+### 查看执行过程信息
 
 ```sql
 taos> EXPLAIN ANALYZE VERBOSE true SELECT * FROM meters WHERE location = 'Beijing' \G;
@@ -424,7 +424,7 @@ QUERY_PLAN: Execution Time: 24.992 ms
 -- 注意：需要手动创建标签索引
 ```
 
-### 4. 子查询
+### 子查询
 
 ```sql
 taos> EXPLAIN ANALYZE VERBOSE true SELECT * FROM meters WHERE voltage > (SELECT AVG(voltage) FROM meters WHERE location = 'Beijing') \G;
@@ -508,7 +508,7 @@ QUERY_PLAN: Planning Time: 0.815 ms
 QUERY_PLAN: Execution Time: 64.835 ms
 ```
 
-### 5. 聚合查询
+### 聚合查询
 
 ```sql
 taos> EXPLAIN ANALYZE VERBOSE true SELECT tbname, COUNT(*), AVG(current) FROM meters PARTITION BY tbname \G;
@@ -550,7 +550,7 @@ QUERY_PLAN: Planning Time: 8.821 ms
 QUERY_PLAN: Execution Time: 10.767 ms
 ```
 
-### 6. 时间窗口查询
+### 时间窗口查询
 
 ```sql
 taos> EXPLAIN ANALYZE VERBOSE true SELECT _wstart, _wend, COUNT(*), AVG(current) FROM meters INTERVAL(10s) \G;

@@ -29,11 +29,11 @@ OPC UA 的安全体系分为两层，理解这一点有助于排查问题：
 从 Ignition 下载的服务器证书（如 `ignition-server.der`）是 Ignition OPC UA 服务器自身的证书，**不能用作客户端证书**。请按 [生成 taosX OPC UA 客户端证书](./01-client-certificate.md) 自行生成客户端证书与私钥。
 :::
 
-## 1. Ignition 服务器侧配置
+## Ignition 服务器侧配置
 
 进入 Ignition Gateway → **Config** → **Connections** → **OPC** → **OPC UA Server Settings** → **General Settings**。
 
-### 1.1 Endpoint 配置
+### Endpoint 配置
 
 | 配置项 | 推荐值 | 说明 |
 | --- | --- | --- |
@@ -43,7 +43,7 @@ OPC UA 的安全体系分为两层，理解这一点有助于排查问题：
 | Security Policies | [x] `Basic256Sha256` | 勾选所需的安全策略 |
 | Security Mode | [x] `SignAndEncrypt` | 勾选签名并加密模式 |
 
-### 1.2 认证配置
+### 认证配置
 
 在同一页面的 **AUTHENTICATION** 部分：
 
@@ -53,7 +53,7 @@ OPC UA 的安全体系分为两层，理解这一点有助于排查问题：
 User Source 建议使用 `default`。默认的 `opcua-module` 是一个独立的用户源，需要额外配置用户和权限，容易导致 `StatusBadUserAccessDenied` 错误。
 :::
 
-### 1.3 权限配置
+### 权限配置
 
 切换到 **Permissions** 标签页，确认 `AuthenticatedUser` 角色拥有所需权限：
 
@@ -63,7 +63,7 @@ User Source 建议使用 `default`。默认的 `opcua-module` 是一个独立的
 
 **Default Tag Provider Permissions** 也需要同样配置。
 
-## 2. 跨服务器匿名连接
+## 跨服务器匿名连接
 
 完成 Ignition 安装并启动后，进入 **Connections > OPC > OPC server settings**。
 
@@ -87,9 +87,9 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 匿名模式不进行任何身份与传输层加密，**只建议在内网联调时短时间使用**，正式部署请使用证书加密方式。
 :::
 
-## 3. 跨服务器证书加密 + 用户名认证
+## 跨服务器证书加密 + 用户名认证
 
-### 3.1 Ignition 端：开启 SignAndEncrypt
+### Ignition 端：开启 SignAndEncrypt
 
 按照如下截图调整配置后保存：
 
@@ -99,11 +99,11 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 
 ![Ignition 安全配置](../../../assets/opcua-ignition-05.png)
 
-### 3.2 生成客户端证书
+### 生成客户端证书
 
 按 [生成 taosX OPC UA 客户端证书](./01-client-certificate.md) 中给出的脚本，在任意一台机器上生成 `client_cert.pem` 与 `client_key.pem`。
 
-### 3.3 在 Ignition 中信任客户端证书
+### 在 Ignition 中信任客户端证书
 
 生成证书后，需要让 Ignition 信任该客户端证书：
 
@@ -113,7 +113,7 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 4. 点击右侧 **⋮** → **Trust**。
 5. 确认证书已移至 **Trusted Certificates** 列表。
 
-### 3.4 在 taosExplorer 中配置连接
+### 在 taosExplorer 中配置连接
 
 进入 taosExplorer → **数据写入** → **+新增数据源**（英文界面为 Data In → Create New Data In Task），数据源类型选择 **OPC UA**。
 
@@ -135,7 +135,7 @@ Ignition 默认配置只绑定到 `localhost`，端点地址包含 `<hostname>` 
 
 ![taosExplorer 证书连接 Ignition](../../../assets/opcua-ignition-06.png)
 
-## 4. 常见错误排查
+## 常见错误排查
 
 | 错误信息 | 原因 | 解决方法 |
 | --- | --- | --- |

@@ -225,6 +225,7 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_GEOMETRY:
+    case TSDB_DATA_TYPE_BLOB:
       fn = MurmurHash3_32;
       break;
     case TSDB_DATA_TYPE_UINT:

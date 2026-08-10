@@ -7,7 +7,7 @@ This page describes how to use **Dataset Filter** in PI data ingestion tasks, in
 
 ## What Is Dataset Filter
 
-When creating a PI or PI backfill task in Explorer, you can fill in the **Dataset Filter** in the **Data Model Configuration** area to filter PI Points or AF Elements before generating the model configuration file.
+When creating a PI or PI backfill task in taosExplorer, you can fill in the **Dataset Filter** in the **Data Model Configuration** area to filter PI Points or AF Elements before generating the model configuration file.
 
 - To sync all points or all template elements, use the default configuration.
 - To sync only points, elements, or templates whose names match specific patterns, fill in the Dataset Filter before clicking **Download Default Configuration**.

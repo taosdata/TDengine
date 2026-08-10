@@ -41,13 +41,13 @@ The following table outlines the support for TDengine TSDB features across diffe
 
 ### WebSocket/Native Connections
 
-| **Feature**              | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** | **C/C++** |
-| ------------------------- | -------- | ---------- | ------ | ------ | ----------- | -------- | --------- |
-| **Connection Management** | Supported | Supported  | Supported | Supported | Supported  | Supported | Supported |
-| **Execute SQL**         | Supported | Supported  | Supported | Supported | Supported  | Supported | Supported |
-| **Parameter Binding**     | Supported | Supported  | Supported | Supported | Supported  | Supported | Supported |
-| **Data Subscription (TMQ)**| Supported | Supported  | Supported | Supported | Supported  | Supported | Supported |
-| **Schema-less Write**   | Supported | Supported  | Supported | Supported | Supported  | Supported | Supported |
+| **Feature**                | **Java**  | **Python** | **Go**    | **C#**    | **Node.js** | **Rust**  | **C/C++** |
+| -------------------------- | --------- | ---------- | --------- | --------- | ----------- | --------- | --------- |
+| **Connection Management**  | Supported | Supported  | Supported | Supported | Supported   | Supported | Supported |
+| **Execute SQL**            | Supported | Supported  | Supported | Supported | Supported   | Supported | Supported |
+| **Parameter Binding**      | Supported | Supported  | Supported | Supported | Supported   | Supported | Supported |
+| **Data Subscription (TMQ)**| Supported | Supported  | Supported | Supported | Supported   | Supported | Supported |
+| **Schema-less Write**      | Supported | Supported  | Supported | Supported | Supported   | Supported | Supported |
 
 **Note**: The Node.js connector does not support native connections.
 

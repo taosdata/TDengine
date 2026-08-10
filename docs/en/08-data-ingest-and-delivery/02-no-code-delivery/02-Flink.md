@@ -12,9 +12,9 @@ Apache Flink is an open-source distributed stream batch integrated processing fr
 
 With the help of TDengine's Flink connector, Apache Flink can seamlessly integrate with TDengine Database. It enables efficient and stable reading of massive volumes of data from TDengine Database, based on which comprehensive and in-depth data analysis and processing can be conducted. This fully taps into the potential value of data, providing robust data support and scientific basis for enterprise decision-making, significantly improving the efficiency and quality of data processing, and enhancing enterprises' competitiveness and innovation capabilities in the digital era.
 
-###### Note
-
-This feature is only available in TDengine Enterprise Edition.
+:::note
+This feature is only available in TDengine TSDB Enterprise.
+:::
 
 ## Prerequisites
 

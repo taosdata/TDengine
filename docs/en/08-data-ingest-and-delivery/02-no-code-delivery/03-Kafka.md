@@ -10,13 +10,13 @@ import { Enterprise } from '../resources/_resources.mdx';
 
 Apache Kafka is a high-throughput, scalable distributed message queue system that is widely used for real-time data ingestion, log delivery, stream processing, and event-driven architectures. TDengine can publish TMQ data messages and metadata messages to Kafka so that time-series data can be forwarded to data platforms, real-time computing engines, and downstream business systems.
 
-After you create a Kafka data publishing task in TDengine Explorer, the system reads messages from the specified TMQ topic and publishes them to one or more Kafka topics based on your configuration. You can control data messages and metadata messages separately, and you can run connectivity checks and message previews before saving the task.
+After you create a Kafka data publishing task in taosExplorer, the system reads messages from the specified TMQ topic and publishes them to one or more Kafka topics based on your configuration. You can control data messages and metadata messages separately, and you can run connectivity checks and message previews before saving the task.
 
 ## Ensure Enterprise Services Are Running Normally
 
 - Ensure that the `taosd` service is running normally.
 - Ensure that the `taosAdapter` service is running normally.
-- Ensure that `taosx` is installed (`taosx --version`) so that data publishing is available.
+- Ensure that taosX is installed (`taosx --version`) so that data publishing is available.
 
 ## Prepare the Kafka Environment
 
@@ -29,7 +29,7 @@ Before creating the publishing task, prepare an accessible Kafka cluster and con
 
 ## Prepare Data
 
-Use the `taos` CLI tool or the Explorer management interface to execute SQL statements, create a database, create a supertable, create a topic, and insert test data for the publishing task. A simple example is shown below:
+Use the `taos` CLI tool or the taosExplorer management interface to execute SQL statements, create a database, create a supertable, create a topic, and insert test data for the publishing task. A simple example is shown below:
 
 ```sql
 create database db vgroups 1;
@@ -42,7 +42,7 @@ For more details about topic definitions, consumption offsets, and subscription 
 
 ## Create a Kafka Data Publishing Task
 
-In Explorer, go to the Data Publisher page, choose Kafka as the target type, and complete the following configuration steps in order:
+In taosExplorer, go to the Data Publisher page, choose Kafka as the target type, and complete the following configuration steps in order:
 
 1. Enter the task name.
 2. Configure TDengine TMQ subscription parameters.
@@ -98,7 +98,7 @@ tmq+ws://root:taosdata@localhost:6041/topic_meters
 Common subscription parameters include:
 
 - `group.id`: Consumer group ID. It is recommended to set this explicitly in production.
-- `auto.offset.reset`: The consumption start position. In Explorer, this is controlled by the separate required `Start From` field, which maps to `earliest` or `latest`.
+- `auto.offset.reset`: The consumption start position. In taosExplorer, this is controlled by the separate required `Start From` field, which maps to `earliest` or `latest`.
 - `with.meta`: Whether to synchronize metadata.
 - `with.meta.delete`: Whether to synchronize delete-data events in metadata.
 - `with.meta.drop`: Whether to synchronize drop-table events in metadata.

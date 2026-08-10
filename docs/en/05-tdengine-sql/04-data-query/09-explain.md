@@ -139,7 +139,7 @@ The following table lists common operator names that may appear in `EXPLAIN` out
 
 ## Metric Quick Reference
 
-### 1. Common Metrics in Operator Header Rows
+### Common Metrics in Operator Header Rows
 
 These metrics usually appear on the `-> operator (...)` line.
 
@@ -191,7 +191,7 @@ Notes:
 - For `cost=`, the first value mostly corresponds to first-response latency, while the last value mostly corresponds to total processing time
 - `input_order` / `output_order` describe the ordering by the **primary timestamp column**, **not** the ordering by the `ORDER BY` sort key. Therefore, when sorting by a non-timestamp column (e.g. `ORDER BY val`), the `Sort` operator shows `output_order=unknown`: this means the timestamp ordering is undefined after sorting, and **does not mean the result is unsorted** (the result is still strictly ordered by the sort key). This field mainly lets time-order-dependent downstream operators (window, merge, `Join`) decide whether they can stream and skip a re-sort
 
-### 2. Structural and Attribute Metrics with `VERBOSE true`
+### Structural and Attribute Metrics with `VERBOSE true`
 
 | Metric | Meaning | Diagnostic value |
 | --- | --- | --- |
@@ -230,7 +230,7 @@ Notes:
 | `Window Sliding=` | Count-window sliding step | Confirms the sliding setting of `COUNT_WINDOW()` |
 | `Window: gap=...` | Session window gap | Used to diagnose how `SESSION()` is split |
 
-### 3. Operator's Execution-Cost Metrics
+### Operator's Execution-Cost Metrics
 
 `EXPLAIN ANALYZE VERBOSE true` additionally shows an `Exec cost` row under operators.
 
@@ -249,7 +249,7 @@ Notes:
 - A single-node plan shows a single value; a multi-node plan shows `average(maximum)`
 - In multi-node output, `create=` also appears as `average_timestamp(latest_timestamp)`
 
-### 4. I/O Metrics for Scan Operators
+### I/O Metrics for Scan Operators
 
 In `EXPLAIN ANALYZE VERBOSE true`, scan operators also show three `I/O cost` rows.
 
@@ -279,7 +279,7 @@ Diagnostic tips:
 - If `sma_load_*` is `0`, the query did not hit the precomputed path
 - If `cost_ratio` and `slow_deviation` are high, first locate hot vgroups, uneven data distribution, or abnormal node resources, then use `data_deviation` to narrow it down further
 
-### 5. Plan-Level Summary Metrics
+### Plan-Level Summary Metrics
 
 At the end of the output, `EXPLAIN ANALYZE` also shows summary information for the whole statement.
 
@@ -337,7 +337,7 @@ For statements that contain subqueries, do not stop at the first few lines of th
 
 ## Examples
 
-### 1. Show the execution plan of a normal query
+### Show the execution plan of a normal query
 
 ```sql
 taos> EXPLAIN SELECT ts, current FROM meters WHERE ts >= '2026-01-01 00:00:00' AND ts < '2026-02-01 00:00:00' \G;
@@ -349,7 +349,7 @@ QUERY_PLAN:    -> Projection (columns=2 width=12 input_order=asc)
 QUERY_PLAN:       -> Table Scan on meters (columns=2 width=12 order=[asc|1 desc|0] mode=ts_order data_load=data)
 ```
 
-### 2. Show the detailed plan
+### Show the detailed plan
 
 ```sql
 taos> EXPLAIN VERBOSE true SELECT ts, current FROM meters WHERE ts >= '2025-01-01 00:00:00+08:00' AND ts < '2025-01-02 00:00:00+08:00' \G;
@@ -373,7 +373,7 @@ QUERY_PLAN:             Output: columns=2 width=12
 QUERY_PLAN:             Time Range: [1735660800000, 1735747199999]
 ```
 
-### 3. Show execution-process metrics
+### Show execution-process metrics
 
 ```sql
 taos> EXPLAIN ANALYZE VERBOSE true SELECT * FROM meters WHERE location = 'Beijing' \G;
@@ -419,7 +419,7 @@ QUERY_PLAN: Execution Time: 24.992 ms
 -- Note: a tag index must be created manually
 ```
 
-### 4. Subquery
+### Subquery
 
 ```sql
 taos> EXPLAIN ANALYZE VERBOSE true SELECT * FROM meters WHERE voltage > (SELECT avg(voltage) FROM meters WHERE location = 'Beijing') \G;
@@ -503,7 +503,7 @@ QUERY_PLAN: Planning Time: 0.815 ms
 QUERY_PLAN: Execution Time: 64.835 ms
 ```
 
-### 5. Aggregation query
+### Aggregation query
 
 ```sql
 taos> EXPLAIN ANALYZE VERBOSE true SELECT tbname, count(*), avg(current) FROM meters PARTITION BY tbname \G;
@@ -545,7 +545,7 @@ QUERY_PLAN: Planning Time: 8.821 ms
 QUERY_PLAN: Execution Time: 10.767 ms
 ```
 
-### 6. Time-window query
+### Time-window query
 
 ```sql
 taos> EXPLAIN ANALYZE VERBOSE true SELECT _wstart, _wend, count(*), avg(current) FROM meters INTERVAL(10s) \G;

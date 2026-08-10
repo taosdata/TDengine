@@ -96,6 +96,60 @@ class StrictAppendStubGuard {
 
 class ParserInitialCTest : public ParserDdlTest {};
 
+TEST_F(ParserInitialCTest, xnodeTaskParserPresence) {
+  login("root");
+
+  ENodeType expectedType = QUERY_NODE_CREATE_XNODE_TASK_STMT;
+  const char* expectedParser = nullptr;
+  auto checkParser = [&](const CowStr& parser) {
+    if (expectedParser == nullptr) {
+      ASSERT_EQ(parser.ptr, nullptr);
+    } else {
+      ASSERT_NE(parser.ptr, nullptr);
+      ASSERT_EQ(parser.len, strlen(expectedParser));
+      ASSERT_EQ(std::string(parser.ptr, parser.len), std::string(expectedParser));
+    }
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), expectedType);
+    if (QUERY_NODE_CREATE_XNODE_TASK_STMT == expectedType) {
+      ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_CREATE_XNODE_TASK);
+      SMCreateXnodeTaskReq req = {0};
+      ASSERT_EQ(tDeserializeSMCreateXnodeTaskReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req),
+                TSDB_CODE_SUCCESS);
+      checkParser(req.options.parser);
+      tFreeSMCreateXnodeTaskReq(&req);
+    } else {
+      ASSERT_EQ(pQuery->pCmdMsg->msgType, TDMT_MND_UPDATE_XNODE_TASK);
+      SMUpdateXnodeTaskReq req = {0};
+      ASSERT_EQ(tDeserializeSMUpdateXnodeTaskReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req),
+                TSDB_CODE_SUCCESS);
+      checkParser(req.parser);
+      tFreeSMUpdateXnodeTaskReq(&req);
+    }
+  });
+
+  run("CREATE XNODE TASK 'task' FROM 'f1' TO 't1' WITH status 'created'");
+
+  expectedParser = "";
+  run("CREATE XNODE TASK 'task' FROM 'f1' TO 't1' WITH parser ''");
+
+  expectedParser = "json";
+  run("CREATE XNODE TASK 'task' FROM 'f1' TO 't1' WITH parser 'json'");
+
+  expectedType = QUERY_NODE_UPDATE_XNODE_TASK_STMT;
+
+  expectedParser = nullptr;
+  run("ALTER XNODE TASK 'task' WITH status 'running'");
+
+  expectedParser = "";
+  run("ALTER XNODE TASK 'task' WITH parser ''");
+
+  expectedParser = "json";
+  run("ALTER XNODE TASK 'task' WITH parser 'json'");
+}
+
 /*
  * COMPACT DATABASE db_name [START WITH start_time] [END WITH END_time]
  */

@@ -273,6 +273,7 @@ typedef struct SHintNode {
 
 #define OPERATOR_FLAG_NEGATIVE_OP      (1 << 0)
 #define OPERATOR_FLAG_BANG_NE          (1 << 1)  // original source was !=, not <>
+#define OPERATOR_FLAG_XNODE_TEXT_BLOB  (1 << 1)
 
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR

@@ -5,21 +5,21 @@ sidebar_label: "Client Certificate"
 
 When the OPC UA server's **Security Mode** is set to `Sign` or `SignAndEncrypt`, taosX must establish the secure channel with a client certificate and private key. This page documents the standard procedure for generating that certificate on Windows and on Linux/macOS. **All scenarios that require certificate-encrypted access (Ignition, GE CSS OPC UA Server, …) follow the same procedure once.**
 
-## 1. Certificate Requirements
+## Certificate Requirements
 
 The taosX OPC UA plugin loads certificates with `tls.LoadX509KeyPair()` and therefore enforces:
 
 - **Format**: PEM. DER, PKCS#12 and other formats are rejected.
 - **Client Application URI**: fixed to `urn:taosx-opc:client`. The certificate's Subject Alternative Name (SAN) **must contain** `URI:urn:taosx-opc:client`, otherwise the server rejects the connection with `StatusBadCertificateUriInvalid`.
-- The certificate may be generated on any machine — only the resulting `client_cert.pem` and `client_key.pem` need to be uploaded into taosX Explorer.
+- The certificate may be generated on any machine — only the resulting `client_cert.pem` and `client_key.pem` need to be uploaded into taosExplorer.
 
 :::tip
 The certificate that you can download from a server such as Ignition (for example `ignition-server.der`) is the **server's own certificate** and cannot be used as a client certificate. You must generate a separate client certificate and private key as described below.
 :::
 
-## 2. Windows
+## Windows
 
-### 2.1 cmd.exe (recommended)
+### cmd.exe (recommended)
 
 Save the following script as `generate_taosx_opcua_cert.cmd` and run it from `cmd.exe`. It prefers a system-wide `openssl`; otherwise it falls back to the OpenSSL bundled with Git for Windows (`C:\Program Files\Git\usr\bin\openssl.exe`).
 
@@ -95,9 +95,9 @@ pause
 endlocal
 ```
 
-### 2.2 PowerShell
+### PowerShell
 
-#### Step 1: Create the certificate config file
+#### Create the certificate config file
 
 ```powershell
 @"
@@ -118,7 +118,7 @@ subjectAltName = URI:urn:taosx-opc:client
 "@ | Out-File -Encoding ascii C:\tmp\opcua_client_ext.cnf
 ```
 
-#### Step 2: Generate the certificate and private key (valid for 10 years)
+#### Generate the certificate and private key (valid for 10 years)
 
 ```powershell
 mkdir C:\taosx_certs -Force
@@ -129,7 +129,7 @@ openssl req -x509 -newkey rsa:2048 -nodes `
   -config C:\tmp\opcua_client_ext.cnf
 ```
 
-## 3. Linux / macOS
+## Linux / macOS
 
 ```bash
 # Create the config file
@@ -158,7 +158,7 @@ openssl req -x509 -newkey rsa:2048 -nodes \
   -config /tmp/opcua_client_ext.cnf
 ```
 
-## 4. Verify the Certificate
+## Verify the Certificate
 
 Regardless of which method you use, always confirm that the SAN contains the required Application URI:
 
@@ -180,11 +180,11 @@ Some servers (for example GE CSS OPC UA Server) bind the client certificate to a
 openssl x509 -in client_cert.pem -noout -fingerprint -sha1
 ```
 
-## 5. Use the Certificate in Explorer
+## Use the Certificate in taosExplorer
 
-The two generated files map to the **Connection Configuration** fields in taosX Explorer as follows:
+The two generated files map to the **Connection Configuration** fields in taosExplorer as follows:
 
-| File                | Explorer field                |
+| File                | taosExplorer field                |
 | ------------------- | ----------------------------- |
 | `client_cert.pem`   | Secure Channel Certificate    |
 | `client_key.pem`    | Certificate's Private Key     |

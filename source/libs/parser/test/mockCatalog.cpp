@@ -122,6 +122,33 @@ void generateInformationSchema(MockCatalogService* mcs) {
     .addColumn("message", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
     .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
     .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_TASKS, TSDB_SYSTEM_TABLE, 13)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
+      .addColumn("name", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_NAME_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("from", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_SOURCE_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("to", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_SINK_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("parser", TSDB_DATA_TYPE_BLOB, TSDB_XNODE_TASK_PARSER_MAX_LEN + BLOBSTR_HEADER_SIZE)
+      .addColumn("via", TSDB_DATA_TYPE_INT)
+      .addColumn("xnode_id", TSDB_DATA_TYPE_INT)
+      .addColumn("status", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("reason", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("created_by", TSDB_DATA_TYPE_VARCHAR, TSDB_USER_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("labels", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_LABELS_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("update_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_JOBS, TSDB_SYSTEM_TABLE, 9)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
+      .addColumn("task_id", TSDB_DATA_TYPE_INT)
+      .addColumn("config", TSDB_DATA_TYPE_BLOB,
+                 TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + BLOBSTR_HEADER_SIZE)
+      .addColumn("via", TSDB_DATA_TYPE_INT)
+      .addColumn("xnode_id", TSDB_DATA_TYPE_INT)
+      .addColumn("status", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("reason", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("update_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
 }
 
 void generatePerformanceSchema(MockCatalogService* mcs) {

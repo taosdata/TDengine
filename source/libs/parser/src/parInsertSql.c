@@ -2626,6 +2626,16 @@ int32_t initTableColSubmitData(STableDataCxt* pTableCxt) {
     return TSDB_CODE_SUCCESS;
   }
 
+  /* Clear any existing aCol entries before adding new ones.
+   * The entry may have been retained across exec cycles (keepTable
+   * path) and still hold deep-cleared SColData entries whose nVal
+   * was zeroed by qResetStmtDataBlock.  Without this clear,
+   * taosArrayReserve appends to the existing entries, doubling
+   * nColData and producing a corrupt submit request. */
+  if (pTableCxt->pData->aCol) {
+    taosArrayClear(pTableCxt->pData->aCol);
+  }
+
   for (int32_t i = 0; i < pTableCxt->boundColsInfo.numOfBound; ++i) {
     SSchema*  pSchema = &pTableCxt->pMeta->schema[pTableCxt->boundColsInfo.pColIndex[i]];
     SColData* pCol = taosArrayReserve(pTableCxt->pData->aCol, 1);
@@ -2641,6 +2651,9 @@ int32_t initTableColSubmitData(STableDataCxt* pTableCxt) {
 int32_t initTableColSubmitDataWithBoundInfo(STableDataCxt* pTableCxt, SBoundColInfo pBoundColsInfo) {
   qDestroyBoundColInfo(&(pTableCxt->boundColsInfo));
   pTableCxt->boundColsInfo = pBoundColsInfo;
+  if (pTableCxt->pData->aCol) {
+    taosArrayClear(pTableCxt->pData->aCol);
+  }
   for (int32_t i = 0; i < pBoundColsInfo.numOfBound; ++i) {
     SSchema*  pSchema = &pTableCxt->pMeta->schema[pTableCxt->boundColsInfo.pColIndex[i]];
     SColData* pCol = taosArrayReserve(pTableCxt->pData->aCol, 1);
@@ -3483,6 +3496,12 @@ static int32_t parseStbBoundInfo(SVnodeModifyOpStmt* pStmt, SStbRowsDataContext*
   }
   (void)memcpy((*ppTableDataCxt)->boundColsInfo.pColIndex, pStbRowsCxt->boundColsInfo.pColIndex,
                sizeof(int16_t) * pStmt->pStbRowsCxt->boundColsInfo.numOfBound);
+
+  int32_t ret = initTableColSubmitData(*ppTableDataCxt);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
