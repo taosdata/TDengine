@@ -252,7 +252,7 @@ void iniparser_dumpsection_ini(dictionary * d, char * s, FILE * f)
 
     seclen  = (int)strlen(s);
     fprintf(f, "\n[%s]\n", s);
-    sprintf(keym, "%s:", s);
+    snprintf(keym, sizeof(keym), "%s:", s);
     for (j=0 ; j<d->size ; j++) {
         if (d->key[j]==NULL)
             continue ;
@@ -287,7 +287,7 @@ int iniparser_getsecnkeys(dictionary * d, char * s)
     if (! iniparser_find_entry(d, s)) return nkeys;
 
     seclen  = (int)strlen(s);
-    sprintf(keym, "%s:", s);
+    snprintf(keym, sizeof(keym), "%s:", s);
 
     for (j=0 ; j<d->size ; j++) {
         if (d->key[j]==NULL)
@@ -333,7 +333,7 @@ char ** iniparser_getseckeys(dictionary * d, char * s)
     keys = (char**) malloc(nkeys*sizeof(char*));
 
     seclen  = (int)strlen(s);
-    sprintf(keym, "%s:", s);
+    snprintf(keym, sizeof(keym), "%s:", s);
 
     i = 0;
 
@@ -725,7 +725,7 @@ dictionary * iniparser_load(const char * ininame)
             break ;
 
             case LINE_VALUE:
-            sprintf(tmp, "%s:%s", section, key);
+            snprintf(tmp, sizeof(tmp), "%s:%s", section, key);
             errs = dictionary_set(dict, tmp, val) ;
             break ;
 

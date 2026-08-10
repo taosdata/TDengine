@@ -39,6 +39,56 @@ class TMQCom:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
+    def prepareBasicEnv(self, vgroups=1):
+        dbName = "db"
+        stbPrefix = "stb"
+        ctbPrefix = "ctb"
+        ntbPrefix = "ntb"
+        tableCount = 10
+        rowsPerTable = 10
+        startTimestamp = 1640966400000
+
+        tdLog.info(f"create database {dbName} vgroups {vgroups}")
+        tdSql.execute(f"create database {dbName} vgroups {vgroups}")
+        clusterComCheck.checkDbReady(dbName)
+        tdSql.execute(f"use {dbName}")
+
+        tdLog.info("create consume info table and consume result table")
+        tdSql.execute(
+            "create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"
+        )
+        tdSql.execute(
+            "create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"
+        )
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+
+        tdLog.info("create super table")
+        tdSql.execute(
+            f"create table {stbPrefix} (ts timestamp, c1 int, c2 float, c3 binary(16)) tags (t1 int)"
+        )
+        tdSql.query("show stables")
+        tdSql.checkRows(1)
+
+        tdLog.info("create child table, normal table and insert data")
+        for tableId in range(tableCount):
+            ctb = f"{ctbPrefix}{tableId}"
+            ntb = f"{ntbPrefix}{tableId}"
+            tdSql.execute(f"create table {ctb} using {stbPrefix} tags({tableId})")
+            tdSql.execute(
+                f"create table {ntb} (ts timestamp, c1 int, c2 float, c3 binary(16))"
+            )
+
+            for rowId in range(rowsPerTable):
+                binary = f"'binary-{tableId}'"
+                timestamp = startTimestamp + rowId
+                tdSql.execute(
+                    f"insert into {ctb} values ({timestamp}, {tableId}, {rowId}, {binary})"
+                )
+                tdSql.execute(
+                    f"insert into {ntb} values ({timestamp}, {tableId}, {rowId}, {binary})"
+                )
+
     def getDataPath(self):
         selfPath = tdCom.getBuildPath()
         return selfPath + '/../sim/dnode%d/data/vnode/vnode%d/wal/*';
@@ -154,16 +204,26 @@ class TMQCom:
                 time.sleep(1)
                 tdLog.info("leader not changed")
                   
-    def initConsumerTable(self, cdbName="cdb", replicaVar=1):
+    def initConsumerTable(
+        self,
+        cdbName="cdb",
+        replicaVar=1,
+        walRetentionPeriod=None,
+        includeNotifyInfo=True,
+    ):
         tdLog.info(
             "create consume database, and consume info table, and consume result table"
         )
-        tdSql.query(
+        createDbSql = (
             f"create database if not exists {cdbName} vgroups 1 replica {replicaVar}"
         )
+        if walRetentionPeriod is not None:
+            createDbSql += f" wal_retention_period {walRetentionPeriod}"
+        tdSql.query(createDbSql)
         tdSql.query(f"drop table if exists {cdbName}.consumeinfo ")
         tdSql.query(f"drop table if exists {cdbName}.consumeresult ")
-        tdSql.query(f"drop table if exists {cdbName}.notifyinfo ")
+        if includeNotifyInfo:
+            tdSql.query(f"drop table if exists {cdbName}.notifyinfo ")
 
         tdSql.query(
             f"create table {cdbName}.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"
@@ -171,9 +231,10 @@ class TMQCom:
         tdSql.query(
             f"create table {cdbName}.consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"
         )
-        tdSql.query(
-            f"create table {cdbName}.notifyinfo (ts timestamp, cmdid int, consumerid int)"
-        )
+        if includeNotifyInfo:
+            tdSql.query(
+                f"create table {cdbName}.notifyinfo (ts timestamp, cmdid int, consumerid int)"
+            )
 
     def initConsumerInfoTable(self, cdbName="cdb"):
         tdLog.info("drop consumeinfo table")
@@ -191,13 +252,15 @@ class TMQCom:
         ifcheckdata,
         ifmanualcommit,
         cdbName="cdb",
+        useConsumerIdTimestamp=True,
     ):
         sql = f"insert into {cdbName}.consumeinfo values "
-        sql += f"(now + {consumerId}s, {consumerId}, '{topicList}', '{keyList}', {expectrowcnt}, {ifcheckdata}, {ifmanualcommit})"
+        timestamp = f"now + {consumerId}s" if useConsumerIdTimestamp else "now"
+        sql += f"({timestamp}, {consumerId}, '{topicList}', '{keyList}', {expectrowcnt}, {ifcheckdata}, {ifmanualcommit})"
         tdLog.info(f"consume info sql: {sql}")
         tdSql.query(sql)
 
-    def selectConsumeResult(self, expectRows, cdbName="cdb"):
+    def selectConsumeResult(self, expectRows, cdbName="cdb", pollInterval=0.5):
         resultList = []
         while 1:
             tdSql.query(f"select * from {cdbName}.consumeresult")
@@ -205,7 +268,7 @@ class TMQCom:
             if tdSql.getRows() == expectRows:
                 break
             else:
-                time.sleep(0.5)
+                time.sleep(pollInterval)
 
         for i in range(expectRows):
             tdLog.info(
@@ -240,16 +303,15 @@ class TMQCom:
         showMsg=1,
         showRow=1,
         cdbName="cdb",
-        valgrind=0,
         alias=0,
         snapshot=0,
     ):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
-        if valgrind == 1:
-            logFile = cfgPath + "/../log/valgrind-tmq.log"
-            shellCmd = "nohup valgrind --log-file=" + logFile
-            shellCmd += "--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes "
+        tdLog.debug(
+            "start tmq_sim: db=%s, cdb=%s, pollDelay=%s, alias=%s, snapshot=%s"
+            % (dbName, cdbName, pollDelay, alias, snapshot)
+        )
 
         if platform.system().lower() == "windows":
             processorName = buildPath + "\\build\\bin\\tmq_sim.exe"

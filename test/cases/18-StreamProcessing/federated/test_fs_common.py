@@ -1,12 +1,41 @@
 # source/taos-community/test/cases/18-StreamProcessing/federated/test_fs_common.py
 """Shared helpers for stream-federated-query tests (FS spec).
 
-Only helper code lives here; no test classes. Each test file imports the
-helpers it needs.
+Only free-function helpers and one fixture mixin live here; no test classes.
+Each test file imports the helpers it needs.
 """
 
+import datetime
+import sys
 import time
+
 from new_test_framework.utils import tdSql, tdLog
+
+sys.path.insert(0, "cases/09-DataQuerying/19-FederatedQuery")
+from federated_query_common import ExtSrcEnv  # noqa: E402
+
+
+FS_BASE_MS = 1740960000000  # 2025-03-03 00:00:00.000 UTC
+
+
+def ms_to_dt(ms: int) -> datetime.datetime:
+    return datetime.datetime.fromtimestamp(ms / 1000.0)
+
+
+def dt_str(ms: int) -> str:
+    """Convert epoch ms to 'YYYY-MM-DD HH:MM:SS.mmm' in local time."""
+    dt = datetime.datetime.fromtimestamp(ms / 1000.0)
+    return dt.strftime('%Y-%m-%d %H:%M:%S.') + f"{ms % 1000:03d}"
+
+
+def verify_sink_rows(db: str, stream: str, sink: str, expected: list, label: str) -> None:
+    """Wait for `sink` to close all `expected` windows, then assert the exact
+    (ts, cnt, avg_val) rows in order."""
+    wait_stream_window_closed(stream, db, sink,
+                              expected_rows=len(expected), timeout=120)
+    res = tdSql.getResult(f"SELECT ts, cnt, avg_val FROM {db}.{sink} ORDER BY ts")
+    tdSql.checkEqual(res, expected)
+    tdLog.info(f"[{label}] verified {len(expected)} sink rows OK")
 
 
 def ensure_snode(host_id: int = 1) -> None:
@@ -37,7 +66,7 @@ def wait_stream_window_closed(stream_name: str,
     last = -1
     while time.time() < deadline:
         try:
-            tdSql.query(f"SELECT COUNT(*) FROM {result_db}.{result_tbl}")
+            tdSql.query(sql=f"SELECT COUNT(*) FROM {result_db}.{result_tbl}", queryTimes=30)
             last = tdSql.getData(0, 0) or 0
             if last >= expected_rows:
                 tdLog.info(
@@ -155,21 +184,167 @@ def get_stream_ext_meta(stream_name: str) -> dict:
     out: dict = {}
     try:
         tdSql.query(
-            "SELECT ext_source_refs, ext_last_ts, ext_error_count, ext_last_error "
-            f"FROM information_schema.ins_streams WHERE stream_name='{stream_name}'"
+            f"SELECT message FROM information_schema.ins_streams WHERE stream_name='{stream_name}'"
         )
         if tdSql.queryResult:
             r = tdSql.queryResult[0]
-            out["ext_source_refs"] = r[0]
-            out["ext_last_ts"] = r[1]
-            out["ext_error_count"] = r[2]
-            out["ext_last_error"] = r[3]
+            out["message"] = r[0]
     except Exception as e:
         # Columns may not be present in this build; treat as no errors.
-        out["_ext_meta_error"] = str(e)
-    try:
-        tdSql.query(f"SHOW STREAMS {stream_name} EXT_SOURCES")
-        out["ext_sources"] = list(tdSql.queryResult or [])
-    except Exception as e:
-        out["ext_sources_error"] = str(e)
+        out["message"] = str(e)
     return out
+
+class FsSharedFixtureMixin:
+    """Fixture helpers shared by FS test classes, on top of
+    `FederatedQueryTestMixin` (self.DB / self._mysql_cfg() / self._pg_cfg() /
+    self._influx_cfg() / self._cleanup_src() / self._mk_influx_real()).
+
+    Mix in alongside FederatedQueryTestMixin:
+        class TestFoo(FsSharedFixtureMixin, FederatedQueryTestMixin): ...
+    """
+
+    def _delete_rows(self, suffix: str, db_or_bucket: str, ts: int, label: str):
+        """Delete an external-source row matching the millisecond timestamp."""
+        if suffix == 'm':
+            timestamp = dt_str(ts)
+            ExtSrcEnv.mysql_exec_cfg(
+                self._mysql_cfg(), db_or_bucket,
+                [f"DELETE FROM `src_t` WHERE ts = '{timestamp}'"]
+            )
+            tdLog.info(
+                f"[{label}] deleted MySQL row: ts_ms={ts}, ts={timestamp}"
+            )
+        elif suffix == 'p':
+            # rows_sql = ", ".join(
+            #     f"('{dt_str(ts)}', {val}, {score}, '{name}', {flag})"
+            #     for ts, val, score, name, flag in rows
+            # )
+            # ExtSrcEnv.pg_exec_cfg(
+            #     self._pg_cfg(), db_or_bucket,
+            #     [f"INSERT INTO public.src_t VALUES {rows_sql}"]
+            # )
+            tdLog.info(f"[{label}] delete {ts} PG rows")
+        elif suffix == 'i':
+            # lines = [
+            #     f'src_t val={val}i,score={score},name="{name}",flag={flag}i '
+            #     f'{ts * 1_000_000}'
+            #     for ts, val, score, name, flag in rows
+            # ]
+            # ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db_or_bucket, lines)
+            tdLog.info(f"[{label}] delete {ts} InfluxDB points")
+    
+    def _drop_table(self, suffix: str, db_or_bucket: str, label: str):
+        """Write rows into the external source for the given suffix type
+        ('m' MySQL, 'p' PostgreSQL, 'i' InfluxDB)."""
+        if suffix == 'm':
+            ExtSrcEnv.mysql_exec_cfg(
+                self._mysql_cfg(), db_or_bucket,
+                [f"DROP TABLE `src_t`"]
+            )
+            tdLog.info(f"[{label}] drop table MySQL")
+        elif suffix == 'p':
+            # rows_sql = ", ".join(
+            #     f"('{dt_str(ts)}', {val}, {score}, '{name}', {flag})"
+            #     for ts, val, score, name, flag in rows
+            # )
+            # ExtSrcEnv.pg_exec_cfg(
+            #     self._pg_cfg(), db_or_bucket,
+            #     [f"INSERT INTO public.src_t VALUES {rows_sql}"]
+            # )
+            tdLog.info(f"[{label}] drop table PG")
+        elif suffix == 'i':
+            # lines = [
+            #     f'src_t val={val}i,score={score},name="{name}",flag={flag}i '
+            #     f'{ts * 1_000_000}'
+            #     for ts, val, score, name, flag in rows
+            # ]
+            # ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db_or_bucket, lines)
+            tdLog.info(f"[{label}] drop table InfluxDB")
+
+    def _insert_rows(self, suffix: str, db_or_bucket: str, rows: list, label: str):
+        """Write rows into the external source for the given suffix type
+        ('m' MySQL, 'p' PostgreSQL, 'i' InfluxDB)."""
+        if suffix == 'm':
+            rows_sql = ", ".join(
+                f"('{dt_str(ts)}', {val}, {score}, '{name}', {flag})"
+                for ts, val, score, name, flag in rows
+            )
+            ExtSrcEnv.mysql_exec_cfg(
+                self._mysql_cfg(), db_or_bucket,
+                [f"INSERT INTO `src_t` VALUES {rows_sql}"]
+            )
+            tdLog.info(f"[{label}] inserted {len(rows)} MySQL rows")
+        elif suffix == 'p':
+            rows_sql = ", ".join(
+                f"('{dt_str(ts)}', {val}, {score}, '{name}', {flag})"
+                for ts, val, score, name, flag in rows
+            )
+            ExtSrcEnv.pg_exec_cfg(
+                self._pg_cfg(), db_or_bucket,
+                [f"INSERT INTO public.src_t VALUES {rows_sql}"]
+            )
+            tdLog.info(f"[{label}] inserted {len(rows)} PG rows")
+        elif suffix == 'i':
+            lines = [
+                f'src_t val={val}i,score={score},name="{name}",flag={flag}i '
+                f'{ts * 1_000_000}'
+                for ts, val, score, name, flag in rows
+            ]
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db_or_bucket, lines)
+            tdLog.info(f"[{label}] wrote {len(rows)} InfluxDB points")
+
+    # ------------------------------------------------------------------
+    # InfluxDB 4-series (host in {a,b} x region in {x,y}) PARTITION BY
+    # fixture family, shared by every test that needs a small multi-uid
+    # InfluxDB measurement with a "stale pre-batch, then post-batch" shape
+    # (proving the stream does not backfill pre-existing rows).
+    # ------------------------------------------------------------------
+    _UC_SERIES = (
+        ("a", "x", 1), ("a", "y", 3),
+        ("b", "x", 2), ("b", "y", 4),
+    )
+    _UC_PRE_VALUES = {("a", "x"): 10, ("a", "y"): 30, ("b", "x"): 20, ("b", "y"): 40}
+    _UC_POST_VALUES = {("a", "x"): 1, ("a", "y"): 3, ("b", "x"): 2, ("b", "y"): 4}
+
+    @classmethod
+    def _build_influx_lines(cls, ts_list_ms: list, value_map: dict) -> list:
+        """Line-protocol points for `_UC_SERIES` at each ts in `ts_list_ms`,
+        with `val` taken from `value_map[(host, region)]`."""
+        lines = []
+        for ts_ms in ts_list_ms:
+            ts_ns = ts_ms * 1_000_000
+            for host, region, _ in cls._UC_SERIES:
+                lines.append(
+                    f'src_t,host={host},region={region},tbname=tname '
+                    f'val={value_map[(host, region)]}i,score=1.0,name="x",flag=0i {ts_ns}'
+                )
+        return lines
+
+    def _prep_partition_influx(self, src: str, i_db: str):
+        """Common PARTITION BY-family setup: fresh ext source + Influx DB, then
+        prewrite an older "stale" batch before CREATE STREAM. If the stream
+        incorrectly backfills historical rows, _UC_PRE_VALUES would leak into
+        each test's post-batch assertion and break it."""
+        self._cleanup_src(src)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+        pre_lines = self._build_influx_lines(
+            [FS_BASE_MS - 180_000, FS_BASE_MS - 120_000, FS_BASE_MS - 60_000],
+            self._UC_PRE_VALUES,
+        )
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, pre_lines)
+        self._mk_influx_real(src, database=i_db)
+
+    def _write_partition_post_batch(self, i_db: str):
+        """Write the post-CREATE-STREAM verification batch shared by the
+        PARTITION BY-family tests: 4 series x 5 timestamps (BASE .. BASE+240s)."""
+        post_lines = self._build_influx_lines(
+            [FS_BASE_MS + k * 60_000 for k in range(5)], self._UC_POST_VALUES
+        )
+        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, post_lines)
+
+    def _teardown_partition_influx(self, src: str, i_db: str):
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+        except Exception:
+            pass

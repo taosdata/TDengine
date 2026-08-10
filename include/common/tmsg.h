@@ -479,7 +479,9 @@ typedef enum EExtSQLDialect {
 // column (parTranslater.c's createStreamReqSetDefaultTag).  Keeping both sides
 // on this single constant prevents them drifting apart — InfluxDB tags have no
 // declared TDengine-side width, so the two call sites must agree on one.
-#define EXT_INFLUX_TAG_NCHAR_CHARS 256
+#define EXT_INFLUX_TAG_NCHAR_CHARS (257 * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE)
+#define EXT_INFLUX_KEY_NCHAR_CHARS ((TSDB_COL_NAME_LEN - 1) * TSDB_NCHAR_SIZE)
+#define EXT_INFLUX_KEY_NCHAR_CHARS_TOO_LONG (TSDB_COL_NAME_LEN * TSDB_NCHAR_SIZE)
 
 // ── FQ push-down capability bitmap ──────────────────────────────────────────
 // uint16_t bitmap encoding:

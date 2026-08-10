@@ -97,11 +97,8 @@ void extConnectorCloseQuery(SExtQueryHandle *pQHandle) { (void)pQHandle; }
 
 void extConnectorUpdateModuleCfg(const SExtConnectorModuleCfg *cfg) { (void)cfg; }
 
-void extDecryptPassword(const char *cipherBuf, char *outPlain, int32_t outLen) {
-  (void)cipherBuf;
-  if (outPlain != NULL && outLen > 0) {
-    outPlain[0] = '\0';
-  }
-}
+void encryptExtSourcePassword(const char *plaintext, char *outBuf) {}
+
+void decryptExtSourcePassword(const char *cipherBuf, char *outPlain) {}
 
 #endif  // !TD_ENTERPRISE

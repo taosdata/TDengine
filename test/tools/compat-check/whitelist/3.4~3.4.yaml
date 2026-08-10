@@ -88,6 +88,8 @@ modified_tables:
   - col: sql
     before: VARCHAR(2048)
     after: VARCHAR(49152)
+  added_columns:
+  - external_sources
 - table: INS_STABLES
   added_columns:
   - sec_level

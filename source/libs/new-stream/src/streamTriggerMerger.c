@@ -1424,11 +1424,25 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
   // collect all data slices; data in each slice is in ascending order
   SColumnInfoData *pTsCol = taosArrayGet(pDataBlock->pDataBlock, tsSlotId);
   QUERY_CHECK_NULL(pTsCol, code, lino, _end, terrno);
-  int64_t         *pTsData = (int64_t *)pTsCol->pData;
-  SColumnInfoData *pVerCol = taosArrayGetLast(pDataBlock->pDataBlock);
-  QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
-  pVerCol -= pSorter->verColBias;
-  int64_t *pVerData = (int64_t *)pVerCol->pData;
+  int64_t *pTsData = (int64_t *)pTsCol->pData;
+
+  /* EXT/federated trigger sources have no WAL-style version column appended to
+   * the data block (streamReaderExt.c only ever SELECTs the real trigger
+   * columns), and stRealtimeContextAddExtDataSlices always records meta.ver=0
+   * for them. Reading pVerCol here would misinterpret whichever real business
+   * column happens to sit at [lastCol - verColBias] as a version column, which
+   * (for EVENT's verColBias=2 on a narrow trigger column set) can even index
+   * before the start of the column array. Skip version gating entirely for
+   * EXT streams: every row in range is accepted regardless of "version". */
+  bool             isExtSource = STREAM_IS_REF_EXT_SOURCE(pTask->task.flags);
+  SColumnInfoData *pVerCol = NULL;
+  int64_t         *pVerData = NULL;
+  if (!isExtSource) {
+    pVerCol = taosArrayGetLast(pDataBlock->pDataBlock);
+    QUERY_CHECK_NULL(pVerCol, code, lino, _end, terrno);
+    pVerCol -= pSorter->verColBias;
+    pVerData = (int64_t *)pVerCol->pData;
+  }
 
   int32_t            i = pSlice->startIdx;
   int64_t            lastTs = INT64_MIN;
@@ -1436,24 +1450,26 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter, int64_
   SObjListIter       iter;
   taosObjListInitIter(pMetas, &iter, TOBJLIST_ITER_FORWARD);
   while ((i < pSlice->endIdx) && (pMeta = (SSTriggerMetaData *)taosObjListIterNext(&iter)) != NULL) {
-    while (i < pSlice->endIdx && pVerData[i] < pMeta->ver) {
-      lastTs = TMAX(lastTs, pTsData[i]);
-      i++;
-    }
-    if (i < pSlice->endIdx && pVerData[i] > pMeta->ver) {
-      continue;
+    if (!isExtSource) {
+      while (i < pSlice->endIdx && pVerData[i] < pMeta->ver) {
+        lastTs = TMAX(lastTs, pTsData[i]);
+        i++;
+      }
+      if (i < pSlice->endIdx && pVerData[i] > pMeta->ver) {
+        continue;
+      }
     }
     while (pTask->ignoreDisorder && i < pSlice->endIdx && lastTs != INT64_MIN &&
            pTsData[i] <= lastTs - pTask->watermark) {
       i++;
     }
     int64_t skey = TMAX(pMeta->skey, pReadRange->skey);
-    while (i < pSlice->endIdx && pVerData[i] == pMeta->ver && pTsData[i] < skey) {
+    while (i < pSlice->endIdx && (isExtSource || pVerData[i] == pMeta->ver) && pTsData[i] < skey) {
       i++;
     }
     SNewTimestampSorterSlice slice = {.startIdx = i};
     int64_t                  ekey = TMIN(pMeta->ekey, pReadRange->ekey);
-    while (i < pSlice->endIdx && pVerData[i] == pMeta->ver && pTsData[i] <= ekey) {
+    while (i < pSlice->endIdx && (isExtSource || pVerData[i] == pMeta->ver) && pTsData[i] <= ekey) {
       i++;
     }
     slice.endIdx = i;

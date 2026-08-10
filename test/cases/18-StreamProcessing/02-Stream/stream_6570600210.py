@@ -64,7 +64,11 @@ class TestSnodeMgmt:
             cnt += 1
             time.sleep(1)
             
-        
+        tdSql.query(
+            f"SELECT external_sources FROM information_schema.ins_streams "
+        )
+        tdSql.checkData(0, 0, 0, show=True)
+
         sqls = [
             "insert into d1 values('2023-05-01 12:13:14', 1.2323);",
             "insert into d1 values('2023-05-01 12:13:16', 1.343);",
