@@ -138,6 +138,14 @@ As shown in the image:
 - **Collection Timeout**: If data is not returned from the OPC server within the set time during data point reading, the read fails, default is 10 seconds.
 - **Collection Interval**: Default is 10 seconds, the interval for data point collection, starting from the end of the last data collection, polling to read the latest value of the data point and write it into TDengine.
 
+:::note
+
+- The collection interval is a task-level parameter: all points in the same OPC DA Data In task share one interval. Per-tag or per-group scan rates within a single task are not supported.
+- If a small set of points needs a higher or lower rate, put them in another OPC DA task (it can target the same OPC server and database) and set that task’s collection interval separately.
+- To change the collection interval, timeouts, and similar settings, Edit and submit the task in taosExplorer. You do not need to reinstall or redeploy taosX-Agent on the OPC server host.
+
+:::
+
 When using **Select Data Points** in the **Data Point Set**, the collection configuration can configure **Data Point Update Mode** and **Data Point Update Interval** to enable dynamic data point updates. **Dynamic Data Point Update** means that during the task operation, if OPC Server adds or deletes data points, the matching data points will automatically be added to the current task without needing to restart the OPC task.
 
 - Data Point Update Mode: Can choose `None`, `Append`, `Update`.
@@ -179,6 +187,52 @@ In **Raw Data Storage Directory**, set the path for saving raw data. If using Ag
 
 Click the **Submit** button to complete the creation of the OPC DA to TDengine data synchronization task, return to the **Data Source List** page to view the task execution status.
 
-## Add Data Points
+## Point and Metadata Maintenance
 
-During the task execution, click **Edit**, then click the **Add Data Points** button to append data points to the CSV file. In the pop-up form, fill in the information for the data points. Then click the **Confirm** button to complete the addition of data points.
+### Add Data Points
+
+While the task is running, click **Edit**, then **Add Data Points**, to append points to the CSV. Use this when you only need to add a few points and do not want to re-import the full point list.
+
+![Add data points](../../assets/opcua-08.png)
+
+In the pop-up form, fill in the data point information.
+
+![Data point form](../../assets/opcua-09.png)
+
+Click **Confirm** to finish appending the points.
+
+### Modify Existing Point Mapping or Enable State
+
+- **Point tags / industrial metadata**: For operations- and asset-oriented attributes such as description, engineering unit, range, and source path, maintain them in TDengine IDMP. IDMP provides asset trees and attribute management, which suits selective bulk edits and per-device metadata without repeatedly exporting or re-importing the full OPC point list. See the [TDengine IDMP documentation](https://idmpdocs.taosdata.com/en/). If you are not using IDMP and the metadata is already stored as TAGs in the database, you can use SQL [`ALTER TABLE … SET TAG`](../../05-tdengine-sql/02-ddl/02-table.md#modify-subtable-tag-value), including [batch modify subtable tag values](../../05-tdengine-sql/02-ddl/02-table.md#batch-modify-subtable-tag-value).
+- **Enable / disable collection**: Change `enable` on the corresponding CSV rows (`1` = collect, `0` = do not collect) and re-upload the task CSV. When `enable=0`, the corresponding subtable in TDengine is deleted before the task starts (see the Row rules above).
+- **Change ingest mapping columns** (such as `stable`, `tbname`, `value_col`, `value_transform`): Download the current point CSV, edit the needed rows, and re-upload. You do not need to rebuild the Agent for a few mapping changes; the task stays bound to the same agent.
+
+### CSV Metadata and Fields Stored in TDengine
+
+What you configure in the CSV / point form determines the TDengine table structure and tags. Unlike OPC UA, OPC DA does not automatically import server Item properties such as Description, Engineering Unit, or Hi/Lo range as TAGs.
+
+| Source | What is written to / affects TDengine |
+| --- | --- |
+| Required / common CSV columns | `tag_name` (OPC point id), `stable`, `tbname`, value and timestamp columns, and so on |
+| CSV `enable` | Whether to collect the point; disabling can delete the corresponding subtable |
+| CSV `value_transform` | Rhai expression transform on the numeric value before write (for example unit conversion); result remains a numeric column |
+| CSV `tag::TYPE::name` | Custom TAGs; you can manually fill description, engineering unit, range, source path, and other fields from a vendor dump |
+| Default TAGs | If no tag columns are configured and the supertable does not exist, `point_id` and `point_name` are added automatically |
+
+If a vendor dump includes description, unit, range, and similar fields, the recommended flow is: arrange points per the CSV template → put description/unit/range into custom `tag::…` columns → upload and create the task. After points are ingested, maintain tags and industrial metadata day to day in IDMP; if IDMP is not used, adjust stored TAGs with SQL `SET TAG`.
+
+For OPC UA auto-mapping of BrowseName / Description / Path and Property→TAG, see [OPC UA](./05-opcua/index.md) and [OPC UA CSV Mapping Reference](./05-opcua/02-csv-reference.md).
+
+## Task Changes and the Agent
+
+Install the Agent once near the OPC server and keep it running. After that, create, edit, start/stop Data In tasks, adjust collection settings, and append or update the point CSV in taosExplorer (or via [Data Ingestion (Xnode)](../../05-tdengine-sql/08-cluster-management/02-xnode.md) SQL). In general you do not need to repackage or reinstall the Agent when points change.
+
+You only need to change the Agent host configuration or reinstall when replacing `endpoint` / `token`, upgrading the Agent, or changing host-local options such as store-and-forward directories. Installation steps: [Install taosX-Agent](./01-install-agent.md).
+
+## Related Documents
+
+- [Install taosX-Agent](./01-install-agent.md): remote agent install and connectivity
+- [OPC UA](./05-opcua/index.md): UA point metadata auto-mapping and collection modes
+- [TDengine IDMP](../../19-tdengine-idmp/index.md): point tags and industrial metadata management (recommended)
+- [Data Ingestion (Xnode)](../../05-tdengine-sql/08-cluster-management/02-xnode.md): manage ingest nodes, tasks, and agents with SQL
+- [Modify Subtable Tag Value](../../05-tdengine-sql/02-ddl/02-table.md#modify-subtable-tag-value): batch-update stored TAGs when IDMP is not used

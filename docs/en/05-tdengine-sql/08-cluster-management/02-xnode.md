@@ -2,10 +2,8 @@
 sidebar_label: Data Ingestion (Xnode)
 title: Data Ingestion (Xnode)
 description: "Xnode distributed node and task management instructions"
-toc_max_heading_level: 4
+toc_max_heading_level: 3
 ---
-
-# Data Ingestion
 
 Xnode is a distributed execution node in the TDengine data ingestion service. It runs data synchronization tasks and writes data from external data sources into TDengine in real time or in batches. This document describes the SQL commands used to manage data ingestion, including Xnode nodes, data ingestion tasks, Job shards, and Agents.
 
@@ -15,7 +13,7 @@ Xnodes are the basic execution units of the data synchronization service, respon
 
 ### Create Xnode
 
-#### Syntax
+**Syntax**
 
 ```sql
 CREATE XNODE 'url'
@@ -23,13 +21,13 @@ CREATE XNODE 'url' USER name PASS 'password'
 CREATE XNODE 'url' TOKEN 'token'
 ```
 
-#### Parameter Description
+**Parameter Description**
 
 - **url**: The address of the Xnode, in the format `host:port` with port to taosx GRPC service (6055 by default)
 - **name** and **password**: For initial creation, it is recommended to specify a token or username and password for daemon xnoded to connect to taosd. If neither a token nor username and password is specified, a default token will be created.
 - **token**: For authenticating when connecting to taosd
 
-#### Example
+**Example**
 
 ```sql
 taos> CREATE XNODE "h1:6055";
@@ -51,11 +49,11 @@ ALTER XNODE SET USER name PASS 'password'
 ALTER XNODE SET TOKEN 'token'
 ```
 
-#### Parameter Description
+**Parameter Description**
 
 - **token**: For authenticating when connecting to taosd
 
-#### Example
+**Example**
 
 ```sql
 taos> ALTER XNODE SET TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
@@ -67,13 +65,13 @@ Query OK, 0 row(s) affected (0.025161s)
 
 ### View Xnodes
 
-#### Syntax
+**Syntax**
 
 ```sql
 SHOW XNODES [WHERE condition]
 ```
 
-#### Example
+**Example**
 
 ```sql
 taos> SHOW XNODES;
@@ -92,17 +90,17 @@ Query OK, 1 row(s) in set (0.005518s)
 
 Reassign existing tasks of a node to other nodes for execution.
 
-#### Syntax
+**Syntax**
 
 ```sql
 DRAIN XNODE id
 ```
 
-#### Parameter Description
+**Parameter Description**
 
 - **id**: The ID of the Xnode
 
-#### Example
+**Example**
 
 ```sql
 taos> DRAIN XNODE 4;
@@ -111,20 +109,20 @@ Query OK, 0 row(s) affected (0.014246s)
 
 ### Delete Xnode
 
-#### Syntax
+**Syntax**
 
 ```sql
 DROP XNODE {id | 'url'} [FORCE]
 DROP XNODE FORCE {id | 'url'}
 ```
 
-#### Parameter Description
+**Parameter Description**
 
 - **id**: The ID of the Xnode
 - **url**: The address of the Xnode
 - **FORCE**: Force delete Xnode
 
-#### Example
+**Example**
 
 ```sql
 taos> DROP XNODE 1;
@@ -140,7 +138,7 @@ Tasks define the source, destination, and data parsing rules for data synchroniz
 
 ### Create Task
 
-#### Syntax
+**Syntax**
 
 ```sql
 CREATE XNODE TASK 'name'
@@ -159,7 +157,7 @@ task_options:
 
 Syntax note: All task_options can be used simultaneously, separated by spaces, order independent
 
-#### Parameter Description
+**Parameter Description**
 
 | Parameter    | Description                                        |
 | :----------- | :------------------------------------------------- |
@@ -175,7 +173,7 @@ Syntax note: All task_options can be used simultaneously, separated by spaces, o
 | **reason**   | Reason for recent task execution failure           |
 | **labels**   | Task labels, stored as a JSON string               |
 
-#### Example
+**Example**
 
 ```sql
 taos> CREATE XNODE TASK "t4" FROM 'kafka://localhost:9092?topics=abc&group=abcgroup' TO 'taos+ws://localhost:6041/test' WITH parser '{"model":{"name":"cc_abc","using":"cc","tags":["g"],"columns":["ts","b"]},"mutate":[{"map":{"ts":{"cast":"ts","as":"TIMESTAMP(ms)"},"b":{"cast":"a","as":"VARCHAR"},"g":{"value":"1","as":"INT"}}}]}';
@@ -184,7 +182,7 @@ Create OK, 0 row(s) affected (0.038959s)
 
 ### View Tasks
 
-#### Syntax
+**Syntax**
 
 ```sql
 SHOW XNODE TASKS [WHERE condition]
@@ -196,7 +194,7 @@ The `parser` column uses BLOB to return the complete task configuration. In a `W
 SHOW XNODE TASKS WHERE parser != '{}' AND parser IS NOT NULL;
 ```
 
-#### Example
+**Example**
 
 ```sql
 taos> SHOW XNODE TASKS;
@@ -225,7 +223,7 @@ Query OK, 2 row(s) in set (0.019692s)
 
 ### Start Task
 
-#### Syntax
+**Syntax**
 
 ```sql
 START XNODE TASK id | 'name'
@@ -233,7 +231,7 @@ START XNODE TASK id | 'name'
 
 Before running this command, ensure the corresponding Xnode is online and reachable.
 
-#### Example
+**Example**
 
 ```sql
 taos> START XNODE TASK 1;
@@ -241,13 +239,13 @@ taos> START XNODE TASK 1;
 
 ### Stop Task
 
-#### Syntax
+**Syntax**
 
 ```sql
 STOP XNODE TASK id | 'name'
 ```
 
-#### Example
+**Example**
 
 ```sql
 taos> STOP XNODE TASK 1;
@@ -255,7 +253,7 @@ taos> STOP XNODE TASK 1;
 
 ### Modify Task
 
-#### Syntax
+**Syntax**
 
 ```sql
 ALTER XNODE TASK { id | 'name' }
@@ -275,7 +273,7 @@ alter_options:
 
 Syntax note: The meaning of task_options is the same as when creating a task
 
-#### Example
+**Example**
 
 ```sql
 taos> ALTER XNODE TASK 3 FROM 'pulsar://zgc...' TO 'testdb' WITH xnode_id 33 via 333 reason 'zgc_test';
@@ -284,13 +282,13 @@ Query OK, 0 row(s) affected (0.036077s)
 
 ### Delete Task
 
-#### Syntax
+**Syntax**
 
 ```sql
 DROP XNODE TASK id | 'name'
 ```
 
-#### Example
+**Example**
 
 ```sql
 taos> DROP XNODE TASK 3;
@@ -303,7 +301,7 @@ Job is the execution shard of a Task, supporting both manual and automatic load 
 
 ### View Jobs
 
-#### Syntax
+**Syntax**
 
 ```sql
 SHOW XNODE JOBS [WHERE condition]
@@ -315,7 +313,7 @@ The `config` column uses BLOB to return the complete job configuration. In a `WH
 SHOW XNODE JOBS WHERE config != '{}' AND config IS NOT NULL;
 ```
 
-#### Example
+**Example**
 
 ```sql
 taos> SHOW XNODE JOBS\G;
@@ -334,7 +332,7 @@ Query OK, 1 row(s) in set (0.004714s)
 
 ### Manual Rebalance
 
-#### Syntax
+**Syntax**
 
 ```sql
 REBALANCE XNODE JOB jid WITH XNODE_ID xnodeId;
@@ -342,7 +340,7 @@ REBALANCE XNODE JOB jid WITH XNODE_ID xnodeId;
 
 Syntax note: Manual rebalance currently only supports the xnode_id parameter, which must include xnode id information.
 
-#### Example
+**Example**
 
 ```sql
 taos> REBALANCE XNODE JOB 1 WITH xnode_id 1;
@@ -351,7 +349,7 @@ Query OK, 0 row(s) affected (0.011808s)
 
 ### Automatic Rebalance
 
-#### Syntax
+**Syntax**
 
 ```sql
 REBALANCE XNODE JOBS [ WHERE job_conditions ]
@@ -359,7 +357,7 @@ REBALANCE XNODE JOBS [ WHERE job_conditions ]
 
 Syntax note: WHERE job_conditions is optional, used to filter job data that meets the conditions. Functions are not supported, all fields that appear in the SHOW XNODE JOBS command are supported. Without a WHERE condition statement, it means all jobs will undergo automatic load balancing.
 
-#### Example
+**Example**
 
 ```sql
 taos> REBALANCE XNODE JOBS WHERE id>1;
@@ -378,7 +376,7 @@ The Agent node serves as the data collection and forwarding unit in the data syn
 
 ### Create Agent
 
-#### Syntax
+**Syntax**
 
 ```sql
 CREATE XNODE AGENT 'name' [WITH agent_options]
@@ -387,12 +385,12 @@ agent_options:
   [STATUS 'status']
 ```
 
-#### Parameters
+**Parameters**
 
 - **name**: Name of the Agent node
 - **status**: Specifies the initial status using the `WITH`clause
 
-#### Example
+**Example**
 
 ```sql
 taos> create xnode agent 'a1';
@@ -404,13 +402,13 @@ Create OK, 0 row(s) affected (0.013414s)
 
 ### Query Agent
 
-#### Syntax
+**Syntax**
 
 ```sql
 SHOW XNODE AGENTS [WHERE condition]
 ```
 
-#### Example
+**Example**
 
 ```sql
 taos> show xnode agents\G;
@@ -425,7 +423,7 @@ update_time: 2026-01-12 09:51:41.364
 
 ### Update Agent
 
-#### Syntax
+**Syntax**
 
 ```sql
 ALTER XNODE AGENT {agent_id | 'name'} WITH alter_options
@@ -436,13 +434,13 @@ alter_options {
 }
 ```
 
-#### Parameters
+**Parameters**
 
 - **agent_id** / **name**: ID or name of the Agent node
 - **name**: New name for the Agent node (in `WITH`)
 - **status**: New status using the `WITH` clause
 
-#### Example
+**Example**
 
 ```sql
 taos> alter xnode agent 1 with name 'test1';
@@ -454,17 +452,17 @@ Query OK, 0 row(s) affected (0.008685s)
 
 ### Delete Agent
 
-#### Syntax
+**Syntax**
 
 ```sql
 DROP XNODE AGENT {agent_id | 'name'}
 ```
 
-#### Parameters
+**Parameters**
 
 - **agent_id** / **name**: ID or name of the Agent node
 
-#### Example
+**Example**
 
 ```sql
 taos> drop xnode agent 1;
