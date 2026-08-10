@@ -23,6 +23,7 @@ extern "C" {
 #include "streamTriggerTask.h"
 #include "taosdef.h"
 #include "taoserror.h"
+#include "tdatablock.h"
 #include "ttime.h"
 }
 
@@ -768,6 +769,163 @@ TEST_F(StreamTriggerCreateTableRequestTest, NodelayCreateRequestContainsNoCalcul
   EXPECT_EQ(gCreateTableRequestState.decodedRequest.params, nullptr);
   EXPECT_EQ(gCreateTableRequestState.decodedRequest.createTable, 1);
   EXPECT_EQ(gCreateTableRequestState.decodedRequest.gid, kCreateTableGroupId);
+}
+
+int32_t compareRealtimeMaxDelayGroups(const HeapNode* lhs, const HeapNode* rhs) {
+  auto* lhsGroup = TCONTAINER_OF(lhs, SSTriggerRealtimeGroup, heapNode);
+  auto* rhsGroup = TCONTAINER_OF(rhs, SSTriggerRealtimeGroup, heapNode);
+  return lhsGroup->nextExecTime < rhsGroup->nextExecTime;
+}
+
+int32_t ignoreWaitSessionAppend(SList*, const void*) { return TSDB_CODE_SUCCESS; }
+
+int32_t gUnavailableCalcRequestAcquireCalls = 0;
+
+int32_t acquireUnavailableCalcRequest(SStreamTriggerTask*, int64_t, int64_t, SSTriggerCalcRequest** ppRequest) {
+  ++gUnavailableCalcRequestAcquireCalls;
+  *ppRequest = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+class StreamTriggerNotifyOnlyMaxDelayTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    gUnavailableCalcRequestAcquireCalls = 0;
+    stub_.set(tdListAppend, ignoreWaitSessionAppend);
+    stub_.set(stTriggerTaskAcquireRequest, acquireUnavailableCalcRequest);
+
+    task_.task.streamId = 0x200;
+    task_.task.taskId = 0x201;
+    task_.triggerType = STREAM_TRIGGER_SLIDING;
+    task_.calcEventType = STRIGGER_EVENT_WINDOW_NONE;
+    task_.notifyEventType = static_cast<ESTriggerEventType>(STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE);
+    task_.maxDelayNs = 5 * NANOSECOND_PER_SEC;
+    task_.pRealtimeContext = &context_;
+    task_.readerList = taosArrayInit_s(sizeof(SStreamTaskAddr), 1);
+    ASSERT_NE(task_.readerList, nullptr);
+    reader_ = static_cast<SStreamTaskAddr*>(taosArrayGet(task_.readerList, 0));
+    ASSERT_NE(reader_, nullptr);
+    reader_->nodeId = 1;
+    reader_->taskId = 0x202;
+
+    context_.pTask = &task_;
+    context_.sessionId = kRealtimeSessionId;
+    context_.walMode = STRIGGER_WAL_META_THEN_DATA;
+    context_.status = STRIGGER_CONTEXT_FETCH_META;
+    context_.haveReadCheckpoint = true;
+    context_.lastCheckpointTime = taosGetTimestampNs();
+    context_.lastReportTime = context_.lastCheckpointTime;
+    context_.pReaderWalProgress = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    ASSERT_NE(context_.pReaderWalProgress, nullptr);
+    SSTriggerWalProgress progress = {};
+    ASSERT_EQ(tSimpleHashPut(context_.pReaderWalProgress, &reader_->nodeId, sizeof(reader_->nodeId), &progress,
+                             sizeof(progress)),
+              TSDB_CODE_SUCCESS);
+    progress_ = static_cast<SSTriggerWalProgress*>(
+        tSimpleHashGet(context_.pReaderWalProgress, &reader_->nodeId, sizeof(reader_->nodeId)));
+    ASSERT_NE(progress_, nullptr);
+    progress_->pTaskAddr = reader_;
+    progress_->pTrigBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
+    ASSERT_NE(progress_->pTrigBlock, nullptr);
+    progress_->pullReq.base.type = STRIGGER_PULL_WAL_DATA_NEW;
+    progress_->pullReq.base.streamId = task_.task.streamId;
+    progress_->pullReq.base.readerTaskId = reader_->taskId;
+    progress_->pullReq.base.sessionId = context_.sessionId;
+    progress_->pullReq.base.triggerTaskId = task_.task.taskId;
+
+    context_.pTempSlices = taosArrayInit(0, sizeof(int64_t) * 3);
+    ASSERT_NE(context_.pTempSlices, nullptr);
+    context_.groupsToDelete = taosArrayInit(0, sizeof(int64_t));
+    ASSERT_NE(context_.groupsToDelete, nullptr);
+    TD_DLIST_INIT(&context_.groupsToCheck);
+    TD_DLIST_INIT(&context_.groupsToCheckIdle);
+    tdListInit(&context_.retryPullReqs, POINTER_BYTES);
+    tdListInit(&context_.retryCalcReqs, POINTER_BYTES);
+    tdListInit(&context_.dropTableReqs, POINTER_BYTES);
+
+    ASSERT_EQ(taosObjPoolInit(&context_.windowPool, 1, sizeof(SSTriggerWindow)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(taosObjPoolInit(&context_.calcParamPool, 1, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+    group_.pContext = &context_;
+    group_.gid = 0;
+    ASSERT_EQ(taosObjListInit(&group_.windows, &context_.windowPool), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(taosObjListInit(&group_.pPendingCalcParams, &context_.calcParamPool), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(taosObjListInit(&group_.pPendingParWinCalcParams, &context_.calcParamPool), TSDB_CODE_SUCCESS);
+    SSTriggerWindow window = {.range = {.skey = 1000, .ekey = 2000},
+                              .wrownum = 1,
+                              .prevProcTime = context_.lastCheckpointTime - task_.maxDelayNs};
+    ASSERT_EQ(taosObjListAppend(&group_.windows, &window), TSDB_CODE_SUCCESS);
+
+    context_.pMaxDelayHeap = heapCreate(compareRealtimeMaxDelayGroups);
+    ASSERT_NE(context_.pMaxDelayHeap, nullptr);
+    group_.nextExecTime = 1;
+    heapInsert(context_.pMaxDelayHeap, &group_.heapNode);
+    context_.pMinGroup = &group_;
+  }
+
+  int32_t ProcessWalNoDataResponse() {
+    int64_t          walVersion = 0;
+    SSTriggerAHandle responseAhandle = {};
+    responseAhandle.param = &progress_->pullReq.base;
+    SMsgSendInfo responseSendInfo = {};
+    responseSendInfo.param = &responseAhandle;
+    SRpcMsg response = {};
+    response.msgType = TDMT_STREAM_TRIGGER_PULL_RSP;
+    response.pCont = &walVersion;
+    response.contLen = sizeof(walVersion);
+    response.code = TSDB_CODE_STREAM_NO_DATA;
+    response.info.ahandle = &responseSendInfo;
+
+    int64_t errorTaskId = 0;
+    return stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId);
+  }
+
+  void TearDown() override {
+    heapDestroy(context_.pMaxDelayHeap);
+    taosObjListClear(&group_.pPendingParWinCalcParams);
+    taosObjListClear(&group_.pPendingCalcParams);
+    taosObjListClear(&group_.windows);
+    taosObjPoolDestroy(&context_.calcParamPool);
+    taosObjPoolDestroy(&context_.windowPool);
+    tdListEmpty(&context_.dropTableReqs);
+    tdListEmpty(&context_.retryCalcReqs);
+    tdListEmpty(&context_.retryPullReqs);
+    taosArrayDestroy(context_.groupsToDelete);
+    taosArrayDestroy(context_.pTempSlices);
+    blockDataDestroy(progress_->pTrigBlock);
+    tSimpleHashCleanup(context_.pReaderWalProgress);
+    taosArrayDestroy(task_.runnerList);
+    taosArrayDestroy(task_.readerList);
+  }
+
+  Stub                     stub_;
+  SStreamTriggerTask       task_ = {};
+  SSTriggerRealtimeContext context_ = {};
+  SSTriggerRealtimeGroup   group_ = {};
+  SStreamTaskAddr*         reader_ = nullptr;
+  SSTriggerWalProgress*    progress_ = nullptr;
+};
+
+TEST_F(StreamTriggerNotifyOnlyMaxDelayTest, WalNoDataResponseClearsStaleCalculationSchedule) {
+  ASSERT_EQ(ProcessWalNoDataResponse(), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gUnavailableCalcRequestAcquireCalls, 0);
+  EXPECT_EQ(context_.pCalcReq, nullptr);
+  EXPECT_EQ(group_.nextExecTime, 0);
+  EXPECT_EQ(context_.pMaxDelayHeap->nelts, 0U);
+  EXPECT_EQ(context_.pMaxDelayHeap->min, nullptr);
+}
+
+TEST_F(StreamTriggerNotifyOnlyMaxDelayTest, WalNoDataResponsePreservesCalculationScheduleWhenRunnerExists) {
+  task_.runnerList = taosArrayInit_s(sizeof(SStreamRunnerTarget), 1);
+  ASSERT_NE(task_.runnerList, nullptr);
+
+  ASSERT_EQ(ProcessWalNoDataResponse(), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(gUnavailableCalcRequestAcquireCalls, 1);
+  EXPECT_EQ(context_.pCalcReq, nullptr);
+  EXPECT_EQ(group_.nextExecTime, 1);
+  EXPECT_EQ(context_.pMaxDelayHeap->nelts, 1U);
+  EXPECT_EQ(context_.pMaxDelayHeap->min, &group_.heapNode);
 }
 
 }  // namespace
