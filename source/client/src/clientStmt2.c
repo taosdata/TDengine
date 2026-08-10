@@ -3119,6 +3119,94 @@ static int32_t stmtFetchMetadataForQuery(STscStmt2* pStmt, SParseContext* pCxt, 
   return code;
 }
 
+// qStmtBindParams2() clones the prepared AST before every execution. Some
+// session-owned context pointers are intentionally not shared by node clone
+// helpers, so restore them from the current STMT2 connection before semantic
+// translation injects timezone/charset/first-day parameters.
+typedef struct {
+  timezone_t timezone;
+  char       timezoneName[TD_TIMEZONE_LEN];
+  void*      charsetCxt;
+  int8_t     firstDayOfWeek;
+} SStmt2QueryContext;
+
+static void stmt2RestoreQueryContext(SNode* pRoot, SStmt2QueryContext* pCxt);
+
+static EDealRes stmt2RestoreNodeContext(SNode* pNode, void* pContext) {
+  SStmt2QueryContext* pCxt = pContext;
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_VALUE: {
+      SValueNode* pValue = (SValueNode*)pNode;
+      pValue->tz = pCxt->timezone;
+      pValue->charsetCxt = pCxt->charsetCxt;
+      break;
+    }
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOperator = (SOperatorNode*)pNode;
+      if (pOperator->ownsTimezone && pOperator->tz != NULL) {
+        tzfree(pOperator->tz);
+      }
+      pOperator->tz = pCxt->timezone;
+      pOperator->ownsTimezone = false;
+      tstrncpy(pOperator->timezoneName, pCxt->timezoneName, sizeof(pOperator->timezoneName));
+      pOperator->charsetCxt = pCxt->charsetCxt;
+      break;
+    }
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      if (pFunc->tzAllocated && pFunc->tz != NULL) {
+        tzfree(pFunc->tz);
+      }
+      pFunc->tz = pCxt->timezone;
+      pFunc->tzAllocated = false;
+      tstrncpy(pFunc->tzName, pCxt->timezoneName, sizeof(pFunc->tzName));
+      pFunc->charsetCxt = pCxt->charsetCxt;
+      pFunc->firstDayOfWeek = pCxt->firstDayOfWeek;
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)pNode;
+      pCaseWhen->tz = pCxt->timezone;
+      pCaseWhen->charsetCxt = pCxt->charsetCxt;
+      break;
+    }
+    case QUERY_NODE_TEMP_TABLE:
+      stmt2RestoreQueryContext(((STempTableNode*)pNode)->pSubquery, pCxt);
+      break;
+    case QUERY_NODE_SELECT_STMT:
+    case QUERY_NODE_SET_OPERATOR:
+      stmt2RestoreQueryContext(pNode, pCxt);
+      break;
+    default:
+      break;
+  }
+
+  return DEAL_RES_CONTINUE;
+}
+
+static void stmt2RestoreQueryContext(SNode* pRoot, SStmt2QueryContext* pCxt) {
+  if (pRoot == NULL) {
+    return;
+  }
+
+  switch (nodeType(pRoot)) {
+    case QUERY_NODE_SELECT_STMT:
+      nodesWalkSelectStmt((SSelectStmt*)pRoot, SQL_CLAUSE_FROM, stmt2RestoreNodeContext, pCxt);
+      break;
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSetOper = (SSetOperator*)pRoot;
+      nodesWalkExprs(pSetOper->pProjectionList, stmt2RestoreNodeContext, pCxt);
+      nodesWalkExprs(pSetOper->pOrderByList, stmt2RestoreNodeContext, pCxt);
+      stmt2RestoreQueryContext(pSetOper->pLeft, pCxt);
+      stmt2RestoreQueryContext(pSetOper->pRight, pCxt);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCreateTbReq* pCreateTbReq) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    code = 0;
@@ -3157,6 +3245,12 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     if (code != TSDB_CODE_SUCCESS) {
       goto cleanup_root;
     }
+    SStmt2QueryContext queryCxt = {.timezone = pStmt->taos->optionInfo.timezone,
+                                   .charsetCxt = pStmt->taos->optionInfo.charsetCxt,
+                                   .firstDayOfWeek = pStmt->taos->optionInfo.firstDayOfWeek};
+    tstrncpy(queryCxt.timezoneName, pStmt->taos->optionInfo.timezoneName, sizeof(queryCxt.timezoneName));
+    stmt2RestoreQueryContext(pStmt->sql.pQuery->pRoot, &queryCxt);
+
     SParseContext ctx = {.requestId = pStmt->exec.pRequest->requestId,
                          .acctId = pStmt->taos->acctId,
                          .minSecLevel = pStmt->taos->minSecLevel,
@@ -3170,7 +3264,11 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
                          .pTransporter = pStmt->taos->pAppInfo->pTransporter,
                          .pStmtCb = NULL,
                          .pUser = pStmt->taos->user,
+                         .timezone = pStmt->taos->optionInfo.timezone,
+                         .charsetCxt = pStmt->taos->optionInfo.charsetCxt,
+                         .firstDayOfWeek = pStmt->taos->optionInfo.firstDayOfWeek,
                          .stmtBindVersion = pStmt->exec.pRequest->stmtBindVersion};
+    tstrncpy(ctx.timezoneName, pStmt->taos->optionInfo.timezoneName, sizeof(ctx.timezoneName));
     ctx.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
     code = catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &ctx.pCatalog);
     if (code != TSDB_CODE_SUCCESS) {
