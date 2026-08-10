@@ -24254,10 +24254,10 @@ static int32_t createStreamReqBuildTriggerTableInfo(STranslateContext* pCxt, SRe
     }
     (void)snprintf(pReq->triggerDB, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId,
                    pTriggerTable->table.dbName);
-    // External triggers always use one snode reader. InfluxDB tag metadata can
-    // classify the synthetic table as a super table, which would route the
-    // deployment through the local-vgroup path and try to acquire "acctId.".
-    pReq->triggerTblType = TSDB_NORMAL_TABLE;
+    // Preserve InfluxDB's synthetic super table metadata so stream partition
+    // semantics can follow tbname/tag grouping; relational external sources
+    // keep their normal table metadata.
+    pReq->triggerTblType = pMeta->tableType;
     pReq->triggerTblUid = 0;
     pReq->triggerTblSuid = 0;
     pReq->triggerTblVgId = 0;

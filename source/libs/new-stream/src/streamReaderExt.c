@@ -1842,9 +1842,29 @@ static int32_t extInsertInfluxSingleGroup(SStreamExtReaderInfo *pInfo) {
   int32_t keyLen = snprintf(key, sizeof(key), "%s.%s",
                             extTableQualifier(&pInfo->spec), pInfo->spec.extTable);
   uint64_t uid = MurmurHash3_64(key, keyLen) | 1ULL;
+  SArray  *pPartitionValues = NULL;
+  int32_t  nPart = pInfo->spec.partitionTagCols
+                       ? (int32_t)taosArrayGetSize(pInfo->spec.partitionTagCols)
+                       : 0;
 
-  ST_TASK_DLOG("ext: initInfluxTagPartition no tag combos — single group uid=%" PRIu64, uid);
-  return extTableListInsertEntry(pInfo, uid, uid, "", 0, NULL);
+  if (nPart > 0) {
+    pPartitionValues = taosArrayInit(nPart, sizeof(SStreamGroupValue));
+    if (pPartitionValues == NULL) return terrno;
+
+    for (int32_t i = 0; i < nPart; ++i) {
+      SStreamGroupValue partValue = {.isNull = true};
+      if (taosArrayPush(pPartitionValues, &partValue) == NULL) {
+        int32_t code = terrno;
+        taosArrayDestroyEx(pPartitionValues, tDestroySStreamGroupValue);
+        ST_TASK_ELOG("ext: initInfluxTagPartition single group partition tuple alloc failed slot:%d code:%d", i, code);
+        return code;
+      }
+    }
+  }
+
+  ST_TASK_DLOG("ext: initInfluxTagPartition no tag combos — single group uid=%" PRIu64 " partitionSlots=%d",
+               uid, nPart);
+  return extTableListInsertEntry(pInfo, uid, uid, "", 0, pPartitionValues);
 }
 
 /* InfluxDB: query information_schema.columns for tag column names,

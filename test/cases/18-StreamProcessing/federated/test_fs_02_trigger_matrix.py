@@ -52,6 +52,8 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         ensure_snode()
         tdSql.execute(f"DROP DATABASE IF EXISTS {cls.DB}")
         tdSql.execute(f"CREATE DATABASE {cls.DB} PRECISION 'ms'")
+        tdSql.execute(f"alter dnode 1 'debugflag 135'")
+        tdSql.execute(f"alter dnode 1 'qdebugflag 143'")
 
     @classmethod
     def teardown_class(cls):
@@ -148,6 +150,7 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             twstart_divisor = 1_000_000 if src_name.endswith("_i") else 1_000
             # InfluxDB's implicit timestamp column is named "time"; MySQL/PG use "ts".
             ts_col = "time" if src_name.endswith("_i") else "ts"
+            partitionby = partition if src_name.endswith("_i") else ""
             # trigger_clause may reference the trigger-source ts column via the
             # "{ts_col}" placeholder (e.g. SESSION) -- resolve it per source.
             resolved_trigger_clause = trigger_clause.format(ts_col=ts_col)
@@ -155,7 +158,7 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             sql = (
                 f"CREATE STREAM {stream} {resolved_trigger_clause} "
                 f"FROM {src_name}.{mid}.src_t "
-                f"{partition} "
+                f"{partitionby} "
                 f"INTO {self.DB}.{sink} AS "
                 f"SELECT cast({ts_col}/{twstart_divisor} as timestamp), val FROM {calc_source}"
             )
@@ -167,7 +170,7 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             wait_stream_window_closed(stream, self.DB, sink,
                                       expected_rows=expected_rows, timeout=wait_timeout)
             if expected is not None:
-                res = tdSql.getResult(f"SELECT * FROM {self.DB}.{sink} ORDER BY 1")
+                res = tdSql.getResult(f"SELECT _c0,val FROM {self.DB}.{sink} ORDER BY 1")
                 tdSql.checkEqual(res, expected)
                 tdLog.info(f"[{stream}] verified {len(expected)} sink rows OK")
             else:
@@ -335,7 +338,8 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             [(self._ms_to_dt(ts), val) for ts, val, _, _, _ in new_rows]
         )
         self._run_trigger_case("tm005", "STATE_WINDOW(flag)",
-                               expected_rows=len(expected), expected=expected,
+                               expected_rows=len(expected), partition="partition by tbname",
+                               expected=expected,
                                post_create_rows=new_rows, wait_timeout=90)
 
     def test_tm_005_state_window_trows(self):
@@ -347,7 +351,8 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         ]
         expected = [(self._ms_to_dt(ts), val) for ts, val, _, _, _ in new_rows[:1]]
         self._run_trigger_case("tm005t", "STATE_WINDOW(flag)",
-                               expected_rows=len(expected), expected=expected,
+                               expected_rows=len(expected), partition="partition by tbname",
+                               expected=expected,
                                post_create_rows=new_rows, wait_timeout=90,
                                calc_from="trows")
 
@@ -373,7 +378,8 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         self._run_trigger_case(
             "tm006",
             "EVENT_WINDOW(START WITH val > 0 END WITH val > 4)",
-            expected_rows=len(expected), expected=expected,
+            expected_rows=len(expected), partition="partition by tbname",
+            expected=expected,
             post_create_rows=new_rows, wait_timeout=90,
         )
 
@@ -388,7 +394,8 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         self._run_trigger_case(
             "tm006t",
             "EVENT_WINDOW(START WITH val > 0 END WITH val > 4)",
-            expected_rows=len(expected), expected=expected,
+            expected_rows=len(expected), partition="partition by tbname",
+            expected=expected,
             post_create_rows=new_rows, wait_timeout=90,
             calc_from="trows",
         )
@@ -412,7 +419,8 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             [(self._ms_to_dt(ts), val) for ts, val, _, _, _ in new_rows]
         )
         self._run_trigger_case("tm007", "COUNT_WINDOW(2)",
-                               expected_rows=len(expected), expected=expected,
+                               expected_rows=len(expected), partition="partition by tbname",
+                               expected=expected,
                                post_create_rows=new_rows, wait_timeout=90)
 
     def test_tm_007_count_window_trows(self):
@@ -424,6 +432,7 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         ]
         expected = [(self._ms_to_dt(ts), val) for ts, val, _, _, _ in new_rows]
         self._run_trigger_case("tm007t", "COUNT_WINDOW(2)",
-                               expected_rows=len(expected), expected=expected,
+                               expected_rows=len(expected), partition="partition by tbname",
+                               expected=expected,
                                post_create_rows=new_rows, wait_timeout=90,
                                calc_from="trows")

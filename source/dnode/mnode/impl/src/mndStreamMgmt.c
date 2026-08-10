@@ -1619,6 +1619,18 @@ static int32_t msmTDAddTrigReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
       break;
     }
     case TSDB_SUPER_TABLE: {
+#ifdef TD_ENTERPRISE
+      if (pTrigExtSpec != NULL) {
+        pInfo->trigReaders = taosArrayInit_s(sizeof(SStmTaskStatus), 1);
+        TSDB_CHECK_NULL(pInfo->trigReaders, code, lino, _exit, terrno);
+        pState = taosArrayGet(pInfo->trigReaders, 0);
+        int32_t trigNodeId = atomic_load_32(&pStream->mainSnodeId);
+        mstsDebug("msmTDAddTrigReaderTasks: EXT super-table trigger reader uses snodeId=%d for stream %" PRId64,
+                  trigNodeId, streamId);
+        TAOS_CHECK_EXIT(msmTDAddSingleTrigReader(pCtx, pState, trigNodeId, pInfo, streamId, pTrigExtSpec, pStream));
+        break;
+      }
+#endif
       pDb = mndAcquireDb(pCtx->pMnode, pStream->pCreate->triggerDB);
       if (NULL == pDb) {
         code = terrno;
@@ -2599,6 +2611,7 @@ static int32_t msmInitTrigReaderList(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStrea
   SSdb   *pSdb = pCtx->pMnode->pSdb;
   SStmTaskStatus* pState = NULL;
   SDbObj* pDb = NULL;
+  SStreamExtTriggerSpec* pTrigExtSpec = msmGetTrigExtSpec(pStream);
   
   switch (pStream->pCreate->triggerTblType) {
     case TSDB_NORMAL_TABLE:
@@ -2611,6 +2624,16 @@ static int32_t msmInitTrigReaderList(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStrea
       break;
     }
     case TSDB_SUPER_TABLE: {
+#ifdef TD_ENTERPRISE
+      if (pTrigExtSpec != NULL) {
+        pInfo->trigReaders = taosArrayInit_s(sizeof(SStmTaskStatus), 1);
+        TSDB_CHECK_NULL(pInfo->trigReaders, code, lino, _exit, terrno);
+        pInfo->trigReaderNum = 1;
+        mstsDebug("msmInitTrigReaderList: EXT super-table trigger readers set to 1 for stream %" PRId64,
+                  streamId);
+        break;
+      }
+#endif
       pDb = mndAcquireDb(pCtx->pMnode, pStream->pCreate->triggerDB);
       if (NULL == pDb) {
         code = terrno;
