@@ -1867,10 +1867,11 @@ if(NOT TD_WINDOWS)        # {
         INC_DIR          include/apr-1
         LIB              lib/${ext_aprutil_static}
     )
-    # URL https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz
+    # This retired release is only available from the Apache archive.
+    # URL https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.gz
     # URL_HASH SHA256=2b74d8932703826862ca305b094eef2983c27b39d5c9414442e9976a9acf1983
     get_from_local_if_exists(
-        "https://dlcdn.apache.org//apr/apr-util-1.6.3.tar.gz"
+        "https://archive.apache.org/dist/apr/apr-util-1.6.3.tar.gz"
         "apr-util-1.6.3.tar.gz"
     )
     ExternalProject_Add(ext_aprutil
@@ -2291,9 +2292,19 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                     "PKG_CONFIG_PATH=${ext_ssl_install}/lib/pkgconfig"
                 )
                 if(TD_DARWIN)
+                    # macOS SDK availability can exceed the configured deployment target.
+                    # Use PostgreSQL's local fallback to keep libpq compatible with it.
+                    list(APPEND _ext_libpq_configure_env "ac_cv_func_strchrnul=no")
+                    message(STATUS "[ext_libpq] macOS: using the local strchrnul fallback for deployment-target compatibility")
                     set(_ext_libpq_patch_refs_command
                         COMMAND perl -0pi -e "s/grep -v __cxa_atexit \\| grep exit/grep -v __cxa_atexit | grep -v _atexit | grep exit/"
-                            src/interfaces/libpq/Makefile)
+                            src/interfaces/libpq/Makefile
+                        # Recent macOS SDKs declare strchrnul even for older deployment
+                        # targets, so give PostgreSQL's local fallback a distinct name.
+                        COMMAND perl -0pi -e "s/static inline const char \\*\\nstrchrnul\\(/static inline const char *\\npg_strchrnul(/"
+                            src/port/snprintf.c
+                        COMMAND perl -0pi -e "s/const char \\*next_pct = strchrnul\\(/const char *next_pct = pg_strchrnul(/"
+                            src/port/snprintf.c)
                 else()
                     set(_ext_libpq_patch_refs_command "")
                 endif()
