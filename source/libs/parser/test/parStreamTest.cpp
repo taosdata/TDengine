@@ -3118,6 +3118,14 @@ TEST_F(ParserStreamTest, TestErrorOutTable) {
   // sub table expr using column not in partition list
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.stream_t1 partition by tbname into stream_outdb.stream_out output_subtable(c1) as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_STREAM_INVALID_SUBTABLE);
 
+  // sub table expr mixing a column in the partition list (tag2) with one that
+  // is not (tag1, cast to varchar so the overall CONCAT stays string-typed):
+  // rewriteTagSubtableExpr accumulates found/onlyValue across the WHOLE
+  // expression tree instead of per reference, so a single matching reference
+  // (tag2) must not let an unrelated non-partition column (tag1) slip through
+  // undetected in the same expression.
+  run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag2 into stream_outdb.stream_out output_subtable(concat(tag2, cast(tag1 as varchar(20)))) as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_STREAM_INVALID_SUBTABLE);
+
   // sub table expr is not string expr
   run("create stream stream_streamdb.s1 interval(1s) sliding(1s) from stream_triggerdb.st1 partition by tag1 into stream_outdb.stream_out output_subtable(tag1) as select _twstart, avg(c1) from stream_querydb.stream_t2", TSDB_CODE_STREAM_INVALID_OUT_TABLE);
 

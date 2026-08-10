@@ -384,22 +384,69 @@ typedef struct SStreamExtTriggerSpec {
   uint16_t    port;                                  // External source port
   char        user[TSDB_EXT_SOURCE_USER_LEN];        // External source user (longer than TDengine usernames)
   uint8_t     encryptedPassword[TSDB_EXT_SOURCE_ENC_PASSWORD_LEN];  // AES-128-CBC ciphertext
-  uint16_t    encryptedPasswordLen;
   uint64_t    connCfgVersion;                        // Snapshot version of conn params
   char        options[TSDB_EXT_SOURCE_OPTIONS_LEN];  // OPTIONS JSON string (e.g. api_token, protocol)
   int8_t      partitionByTag;                        // 1 = stream uses PARTITION BY on this ext source.
-  // PARTITION BY tag column names for InfluxDB group-id derivation
+  // 1 = the PARTITION BY / ROLLUP BY list includes a bare tbname reference
+  // (either alone -- "PARTITION BY tbname" -- or mixed with explicit tag
+  // columns, e.g. "PARTITION BY tag1, tbname, tag2"). Independent of
+  // partitionTagCols: tbname forces groupId = uid (finest granularity)
+  // regardless of what other tags are also listed, since tbname already
+  // determines every tag's value for a given sub-table.
+  int8_t      partitionByTbname;
+  // PARTITION BY tag column names for InfluxDB group-id derivation and for
+  // OUTPUT_SUBTABLE/tags %%n / column-name placeholder resolution
   // (SArray<char[TSDB_COL_NAME_LEN]>; owned; free with taosArrayDestroy).
+  // Built with ONE entry per PARTITION BY / ROLLUP BY list item, in the same
+  // order. A bare tag stores its column name, a bare tbname stores the
+  // INFLUXDB_PARTITION_BY_TBNAME sentinel, and every other expression stores
+  // an empty column-name slot paired with its complete serialized AST in
+  // partitionTagExprs. This keeps the arrays positionally aligned
+  // with the 1-based idx that rewriteTagSubtableExpr (parTranslater.c) bakes
+  // into _placeholder_column(idx) and that a literal %%n reference carries
+  // directly.
   // Encoding of the partition semantics (consumed by streamReaderExt.c):
-  //   partitionByTag==0                         -> no PARTITION BY; groupId = hash(measurement) single group.
-  //   partitionByTag==1 && partitionTagCols empty -> PARTITION BY tbname (= all tags); groupId = uid.
-  //   partitionByTag==1 && partitionTagCols set -> PARTITION BY <tags>; groupId = hash(subset tagset),
-  //                                                so multiple uids may share one groupId.
-  // tbname is stored as the empty list because the concrete tag columns are only
-  // discovered at reader time (InfluxDB information_schema), not at parse time.
+  //   partitionByTag==0                                                 -> no PARTITION BY; groupId = hash(measurement)
+  //                                                                         single group; partitionTagCols NULL.
+  //   partitionByTag==1 && partitionByTbname==1                         -> tbname is in the PARTITION BY list (alone
+  //                                                                         -- "PARTITION BY tbname" -- or mixed with
+  //                                                                         explicit tag columns, e.g. "PARTITION BY
+  //                                                                         host, tbname, region"); groupId = uid
+  //                                                                         always. partitionTagCols is NEVER NULL in
+  //                                                                         this case: tbname itself always occupies
+  //                                                                         a positional slot (the "tbname" sentinel),
+  //                                                                         so even a bare "PARTITION BY tbname" (no
+  //                                                                         other tags) yields a 1-entry array. This
+  //                                                                         is what lets a literal %%1 resolve to the
+  //                                                                         sub-table's own synthesized tbname
+  //                                                                         instead of being unresolvable. Any real
+  //                                                                         tag columns mixed in occupy their own
+  //                                                                         positions in the same array and are
+  //                                                                         referenceable both by %%n and by name in
+  //                                                                         OUTPUT_SUBTABLE/tags.
+  //   partitionByTag==1 && partitionByTbname==0 && partitionTagCols set   -> PARTITION BY <tags subset> (no tbname);
+  //                                                                      groupId = hash(subset tagset), so multiple
+  //                                                                      uids may share one groupId.
+  // partitionTagCols is NULL only when the stream has no PARTITION BY list.
   SArray*     partitionTagCols;
+  // partitionTagExprs: parallel to partitionTagCols, SAME length whenever
+  // non-NULL (NULL overall iff partitionTagCols is NULL). SArray<char*>;
+  // owned, nullable heap strings -- free each entry then the array (see
+  // taosArrayDestroyP usage for pNotifyAddrUrls for the pattern). Each entry
+  // is either "" (bare column or tbname sentinel) or the nodesNodeToString()
+  // serialization of the complete PARTITION BY expression. The ext reader
+  // deserializes this, binds every referenced tag by column name, and runs
+  // vectorized scalarCalculate while preserving the expression's result
+  // type. The typed result is used both for groupId hashing
+  // (extInitInfluxTagPartition) and for %%n/OUTPUT_SUBTABLE placeholder
+  // resolution (handleGroupColValuePull), so the two stay consistent.
+  SArray*     partitionTagExprs;
 } SStreamExtTriggerSpec;
 
+void    tCleanupSStreamExtTriggerSpec(SStreamExtTriggerSpec* pSpec);
+void    tFreeSStreamExtTriggerSpec(SStreamExtTriggerSpec* pSpec);
+
+#define INFLUXDB_PARTITION_BY_TBNAME "__tbname__"
 typedef enum SStreamMgmtReqType {
   STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER = 0,
   STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER

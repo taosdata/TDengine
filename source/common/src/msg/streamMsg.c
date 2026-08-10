@@ -24,6 +24,35 @@
 #include "tcommon.h"
 #include "tsimplehash.h"
 
+void tCleanupSStreamExtTriggerSpec(SStreamExtTriggerSpec* pSpec) {
+  if (pSpec == NULL) return;
+
+  taosArrayDestroy(pSpec->triggerColumns);
+  taosMemoryFree(pSpec->pColMappings);
+  taosArrayDestroy(pSpec->calcColumns);
+  taosMemoryFree(pSpec->pCalcMappings);
+  taosMemoryFree(pSpec->prefilter);
+  taosMemoryFree(pSpec->triggerPrefilter);
+  taosArrayDestroy(pSpec->partitionTagCols);
+  taosArrayDestroyP(pSpec->partitionTagExprs, NULL);
+  pSpec->triggerColumns = NULL;
+  pSpec->pColMappings = NULL;
+  pSpec->calcColumns = NULL;
+  pSpec->pCalcMappings = NULL;
+  pSpec->prefilter = NULL;
+  pSpec->triggerPrefilter = NULL;
+  pSpec->partitionTagCols = NULL;
+  pSpec->partitionTagExprs = NULL;
+  pSpec->numColMappings = 0;
+  pSpec->numCalcMappings = 0;
+}
+
+void tFreeSStreamExtTriggerSpec(SStreamExtTriggerSpec* pSpec) {
+  if (pSpec == NULL) return;
+  tCleanupSStreamExtTriggerSpec(pSpec);
+  taosMemoryFree(pSpec);
+}
+
 int32_t tEncodeSStreamMgmtReq(SEncoder* pEncoder, const SStreamMgmtReq* pReq) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -612,22 +641,35 @@ int32_t tEncodeSStreamReaderDeployMsg(SEncoder* pEncoder, const SStreamReaderDep
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pSpec->host));
     TAOS_CHECK_EXIT(tEncodeU16(pEncoder, pSpec->port));
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pSpec->user));
-    TAOS_CHECK_EXIT(tEncodeU16(pEncoder, pSpec->encryptedPasswordLen));
     TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pSpec->encryptedPassword, sizeof(pSpec->encryptedPassword)));
     TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pSpec->connCfgVersion));
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pSpec->options));
     TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pSpec->partitionByTag));
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pSpec->partitionByTbname));
     /* Encode prefilter (calc reader WHERE) and triggerPrefilter (trigger reader
      * PRE_FILTER) as nullable C strings: NULL encodes as an empty entry and the
      * length is carried by the string itself. */
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pSpec->prefilter));
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pSpec->triggerPrefilter));
-    /* partitionTagCols: PARTITION BY tag column names (empty for tbname/none). */
+    /* partitionTagCols: one entry per PARTITION BY list item, in order. A
+     * bare tag stores its name, a complete expression stores an empty name,
+     * and a bare tbname stores the dedicated sentinel. The parallel
+     * partitionTagExprs array carries every complete expression AST. */
     int32_t numPartTags =
         (pSpec->partitionTagCols != NULL) ? (int32_t)taosArrayGetSize(pSpec->partitionTagCols) : 0;
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, numPartTags));
     for (int32_t j = 0; j < numPartTags; ++j) {
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, (char*)taosArrayGet(pSpec->partitionTagCols, j)));
+    }
+    /* partitionTagExprs: parallel to partitionTagCols, same length whenever
+     * partitionTagCols is non-empty (buildExtSpecs always allocates/frees
+     * them together -- see SStreamExtTriggerSpec.partitionTagExprs in
+     * streamMsg.h). SArray<char*>, same encode shape as pNotifyAddrUrls. */
+    int32_t numPartExprs =
+        (pSpec->partitionTagExprs != NULL) ? (int32_t)taosArrayGetSize(pSpec->partitionTagExprs) : 0;
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, numPartExprs));
+    for (int32_t j = 0; j < numPartExprs; ++j) {
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, (char*)taosArrayGetP(pSpec->partitionTagExprs, j)));
     }
   }
 
@@ -1261,7 +1303,6 @@ int32_t tDecodeSStreamReaderDeployMsg(SDecoder* pDecoder, SStreamReaderDeployMsg
     TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pSpec->host));
     TAOS_CHECK_EXIT(tDecodeU16(pDecoder, &pSpec->port));
     TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pSpec->user));
-    TAOS_CHECK_EXIT(tDecodeU16(pDecoder, &pSpec->encryptedPasswordLen));
     {
       uint64_t binaryLen = 0;
       void *pBuf = NULL;
@@ -1280,6 +1321,7 @@ int32_t tDecodeSStreamReaderDeployMsg(SDecoder* pDecoder, SStreamReaderDeployMsg
     TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pSpec->connCfgVersion));
     TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pSpec->options));
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pSpec->partitionByTag));
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pSpec->partitionByTbname));
     /* Decode prefilter / triggerPrefilter as nullable, null-terminated C strings
      * (mirror of the tEncodeCStr calls above; empty entry decodes back to NULL). */
     TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pSpec->prefilter));
@@ -1298,6 +1340,19 @@ int32_t tDecodeSStreamReaderDeployMsg(SDecoder* pDecoder, SStreamReaderDeployMsg
         if (taosArrayPush(pSpec->partitionTagCols, colName) == NULL) {
           TAOS_CHECK_EXIT(terrno);
         }
+      }
+    }
+    /* partitionTagExprs (mirror of encode above; same shape as pNotifyAddrUrls). */
+    int32_t numPartExprs = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numPartExprs));
+    if (numPartExprs > 0) {
+      pSpec->partitionTagExprs = taosArrayInit_s(POINTER_BYTES, numPartExprs);
+      if (pSpec->partitionTagExprs == NULL) {
+        TAOS_CHECK_EXIT(terrno);
+      }
+      for (int32_t j = 0; j < numPartExprs; ++j) {
+        char **pExpr = taosArrayGet(pSpec->partitionTagExprs, j);
+        TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, pExpr));
       }
     }
   } else {
@@ -1925,14 +1980,7 @@ void tFreeSStreamReaderDeployMsg(SStreamReaderDeployMsg* pReader) {
 
   /* Free ext spec allocated by tDecodeSStreamReaderDeployMsg for federated readers. */
   if (pReader->pExtSpec != NULL) {
-    taosMemoryFree(pReader->pExtSpec->prefilter);
-    taosMemoryFree(pReader->pExtSpec->triggerPrefilter);
-    taosArrayDestroy(pReader->pExtSpec->triggerColumns);
-    taosMemoryFree(pReader->pExtSpec->pColMappings);
-    taosArrayDestroy(pReader->pExtSpec->calcColumns);
-    taosMemoryFree(pReader->pExtSpec->pCalcMappings);
-    taosArrayDestroy(pReader->pExtSpec->partitionTagCols);
-    taosMemoryFree(pReader->pExtSpec);
+    tFreeSStreamExtTriggerSpec(pReader->pExtSpec);
     pReader->pExtSpec = NULL;
   }
 }
@@ -2747,23 +2795,7 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
     for (int32_t i = 0; i < n; ++i) {
       SStreamExtTriggerSpec* pSpec = *(SStreamExtTriggerSpec**)taosArrayGet(pReq->extSpecs, i);
       if (pSpec == NULL) continue;
-      if (pSpec->triggerColumns != NULL) {
-        taosArrayDestroy(pSpec->triggerColumns);
-        pSpec->triggerColumns = NULL;
-      }
-      taosMemoryFreeClear(pSpec->pColMappings);
-      if (pSpec->calcColumns != NULL) {
-        taosArrayDestroy(pSpec->calcColumns);
-        pSpec->calcColumns = NULL;
-      }
-      taosMemoryFreeClear(pSpec->pCalcMappings);
-      taosMemoryFreeClear(pSpec->prefilter);
-      taosMemoryFreeClear(pSpec->triggerPrefilter);
-      if (pSpec->partitionTagCols != NULL) {
-        taosArrayDestroy(pSpec->partitionTagCols);
-        pSpec->partitionTagCols = NULL;
-      }
-      taosMemoryFreeClear(pSpec);
+      tFreeSStreamExtTriggerSpec(pSpec);
     }
     taosArrayDestroy(pReq->extSpecs);
     pReq->extSpecs = NULL;
@@ -4129,7 +4161,7 @@ static int32_t tSerializeStriggerGroupColVals(SEncoder* pEncoder, SArray* pGroup
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pValue->vgId));
     }
     TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pValue->data.type));
-    if (IS_VAR_DATA_TYPE(pValue->data.type)) {
+    if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
       TAOS_CHECK_EXIT(tEncodeBinary(pEncoder, pValue->data.pData, pValue->data.nData));
     } else {
       TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pValue->data.val));
@@ -4172,7 +4204,7 @@ static int32_t tDeserializeStriggerGroupColVals(SDecoder* pDecoder, SArray** ppG
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pValue->vgId));
     }
     TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pValue->data.type));
-    if (IS_VAR_DATA_TYPE(pValue->data.type)) {
+    if (IS_VAR_DATA_TYPE(pValue->data.type) || pValue->data.type == TSDB_DATA_TYPE_DECIMAL) {
       uint64_t len = 0;
       TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pValue->data.pData, &len));
       pValue->data.nData = len;

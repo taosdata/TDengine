@@ -794,3 +794,18 @@ STOP STREAM [IF EXISTS] [db_name.]stream_name;
 - 没有指定 `IF EXISTS` 时，如果该 stream 不存在，则报错，如果存在，则停止流式计算。
 - 指定 `IF EXISTS` 时，如果该 stream 不存在，则返回成功，如果存在，则停止流式计算。
 - 停止操作是持久有效的，在用户重启流运行之前不会重新运行。
+
+## 流式计算里使用外部源（类似联邦查询）
+
+说明：
+
+- 从 3.4.2.0 版本开始，流计算支持触发和计算里使用外部源。
+- 历史计算暂不支持。
+- 使用外部源性能没有本地库性能好，需根据具体使用场景具体优化。
+- 外部源触发，不支持的流计算选项：EXPIRED_TIME/IGNORE_DISORDER/DELETE_RECALC。
+- 外部源的变更（删表，改表，连接不可达等等），可能导致未定义的流计算行为。所以如果要变更外部源，最好把流先删除然后重建。
+- tbname 支持
+  - 对于 mysql/pg 外部源，流计算里不支持 partition by tbname 语法。
+  - 对于 influxdb 外部源，支持 partition by tbname 语法，内部会转换为 partition by 所有的 tag。不支持 partition by function(tbname)。
+  - 对于 influxdb 外部源，可以使用 %%tbname(将所有 tag 拼接起来作为 tbname，如果超过表名长度，则用拼接的字符串获取 hash 值标识)。
+- influxdb 外部源，tag 名超过 64 个字符或者 tag 值超过 256 个字符，会报错。需要修改数据后，重新建流。
