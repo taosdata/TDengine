@@ -264,8 +264,16 @@ As shown in the image above:
   - `subscribe`: Subscription mode, reports data changes and writes to TDengine. Used for point collection.
   - `observe`: According to the `collection interval`, polls the latest value of the data point and writes to TDengine. Used for point collection.
   - `event`: Alarm and Event (A&E) collection mode. Automatically locked to this mode (and not editable) when **Points Set** is on the **Alarms & Events** tab. See [OPC UA Alarm and Event Collection](./06-alarm-event.md).
-- **Collection Interval**: Default is 10 seconds, the interval for collecting data points, starting from the end of the last data collection, polls the latest value of the data point and writes to TDengine. Only configurable in `observe` **Collection Mode**.
+- **Collection Interval**: Default is 10 seconds when **Collection Mode** is `observe`. The interval starts after the previous collection finishes; the task polls the latest value of each point and writes to TDengine. Only configurable in `observe` mode.
 - **Collection Timeout**: If the data from the OPC server is not returned within the set time when reading data points, the read fails, default is 10 seconds. Only configurable in `observe` **Collection Mode**.
+
+:::note
+
+- The collection interval is a task-level parameter (`observe` mode): ordinary points in the same OPC UA Data In task share that interval. Per-tag or per-group poll rates within one task are not supported. In `subscribe` mode, the server reports on change; it does not scan all points on a fixed interval.
+- If some points need a different poll period, split them into multiple tasks (they can share the same OPC server and Agent) and set each task’s collection interval separately.
+- To change collection settings or point mapping, edit the task in taosExplorer; you do not need to reinstall taosX-Agent just to change points. See [Install taosX-Agent](../01-install-agent.md).
+
+:::
 
 When using **Selecting Data Points** in the **Data Point Set**, the collection configuration can configure **Data Point Update Mode** and **Data Point Update Interval** to enable dynamic data point updates. **Dynamic Data Point Update** refers to, during the task operation, after OPC Server adds or deletes data points, the data points that meet the conditions will automatically be added to the current task without needing to restart the OPC task.
 
@@ -310,7 +318,7 @@ Click the **Submit** button to complete the creation of the OPC UA to TDengine d
 
 ## Add Data Points
 
-While the task is running, click **Edit** and then **Add Data Points** to append a new OPC UA data-point rule into the CSV configuration. Adding data points does not require restarting the task and does not cause data loss.
+While the task is running, click **Edit** and then **Add Data Points** to append a new OPC UA data-point rule into the CSV configuration. Adding data points does not require restarting the task and does not cause data loss. Use this when you only need to add a few points and do not want to re-import the full point list.
 
 ![Add data points](../../../assets/opcua-08.png)
 
@@ -319,3 +327,12 @@ In the pop-up form, fill in the information for the data point.
 ![Add data points form](../../../assets/opcua-09.png)
 
 Click **Confirm** to complete the addition.
+
+Day-to-day maintenance of subtable tag values already in TDengine (including auto-generated TAGs such as BrowseName / Description / Path, and Property→TAG) is recommended in TDengine IDMP. If IDMP is not used, you can batch-update with SQL [`ALTER TABLE … SET TAG`](../../../05-tdengine-sql/02-ddl/02-table.md#modify-subtable-tag-value) without re-uploading the CSV. For CSV columns and auto TAGs, see [OPC UA CSV Mapping Reference](./02-csv-reference.md).
+
+## Related Documents
+
+- [Install taosX-Agent](../01-install-agent.md): remote agent install; task changes usually do not require reinstalling the Agent
+- [OPC-DA](../06-opcda.md): DA-side metadata, collection interval, and task maintenance (for comparison with UA)
+- [TDengine IDMP](../../../19-tdengine-idmp/index.md): point tags and industrial metadata management (recommended)
+- [Data Ingestion (Xnode)](../../../05-tdengine-sql/08-cluster-management/02-xnode.md): manage ingest nodes, tasks, and agents with SQL
