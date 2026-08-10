@@ -1035,6 +1035,58 @@ end:
 extern int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, void **ppInfo);
 extern void    stExtReaderClose(void *pInfo);
 
+static void stExtOverrideNamespaceFromFedScan(SStreamReaderTask *pTask, SStreamExtTriggerSpec *pExtSpec,
+                                              const SFederatedScanPhysiNode *pFedScan) {
+  if (pFedScan == NULL || pFedScan->pExtTable == NULL ||
+      nodeType(pFedScan->pExtTable) != QUERY_NODE_EXTERNAL_TABLE) {
+    return;
+  }
+
+  const SExtTableNode *pExtTable = (const SExtTableNode *)pFedScan->pExtTable;
+  if (strcmp(pExtSpec->sourceName, pExtTable->sourceName) != 0) {
+    ST_TASK_DLOG("ext: skip namespace from source=%s for spec source=%s", pExtTable->sourceName,
+                 pExtSpec->sourceName);
+    return;
+  }
+
+  if (pExtTable->table.dbName[0] != '\0'){
+    tstrncpy(pExtSpec->extDb, pExtTable->table.dbName, sizeof(pExtSpec->extDb));
+  }
+  if (pExtTable->schemaName[0] != '\0'){
+    tstrncpy(pExtSpec->extSchema, pExtTable->schemaName, sizeof(pExtSpec->extSchema));
+  }
+}
+
+static int32_t stExtOverrideNamespaceFromPlan(SStreamReaderTask *pTask, SStreamExtTriggerSpec *pExtSpec,
+                                              const char *planStr) {
+  if (planStr == NULL) {
+    ST_TASK_ELOG("%s", "ext: cannot resolve reader namespace from NULL scan plan");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SSubplan *pSubplan = NULL;
+  int32_t code = nodesStringToNode(planStr, (SNode **)&pSubplan);
+  if (code != TSDB_CODE_SUCCESS || pSubplan == NULL) {
+    ST_TASK_ELOG("ext: failed to parse scan plan for reader namespace, code=%d", code);
+    nodesDestroyNode((SNode *)pSubplan);
+    return code != TSDB_CODE_SUCCESS ? code : TSDB_CODE_INVALID_PARA;
+  }
+
+  SPhysiNode *pPlan = nodeType((SNode *)pSubplan) == QUERY_NODE_PHYSICAL_SUBPLAN
+                         ? (SPhysiNode *)pSubplan->pNode
+                         : (SPhysiNode *)pSubplan;
+  if (pPlan != NULL && nodeType(pPlan) == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
+    stExtOverrideNamespaceFromFedScan(pTask, pExtSpec, (SFederatedScanPhysiNode *)pPlan);
+  } else {
+    ST_TASK_ELOG("ext: cannot resolve reader namespace from scan node type=%d",
+                 pPlan != NULL ? (int)nodeType(pPlan) : -1);
+    code = TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN;
+  }
+
+  nodesDestroyNode((SNode *)pSubplan);
+  return code;
+}
+
 /* ---------------------------------------------------------------------------
  * stExtBuildTriggerColumns -- parse triggerCols node-list and populate
  * pExtSpec->triggerColumns + pExtSpec->pColMappings so that fetchDataForUid
@@ -1224,7 +1276,7 @@ static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
   return code;
 }
 
-/* Convenience wrappers for trigger / calc reader deploy paths. */
+/* Convenience wrapper for the trigger reader deploy path. */
 static int32_t stExtBuildCalcColumns(SStreamReaderTask *pTask,
                                      const SStreamReaderDeployMsg *pMsg) {
   return stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec,
@@ -1250,6 +1302,9 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
        * node unavailable for federated scans. */
       ST_TASK_DLOG("ext trigger reader deploy: pExtSpec=%p", pMsg->pExtSpec);
 
+      TAOS_CHECK_GOTO(stExtOverrideNamespaceFromPlan(pTask, pMsg->pExtSpec,
+                                                    (const char *)pMsg->msg.trigger.triggerScanPlan),
+                      &lino, end);
       TAOS_CHECK_GOTO(stExtBuildTriggerColumns(pTask, pMsg), &lino, end);
       TAOS_CHECK_GOTO(stExtBuildCalcColumns(pTask, pMsg), &lino, end);
 
@@ -1284,8 +1339,12 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
         tstrncpy(pMsg->pExtSpec->tsColumn, pMsg->msg.calc.tsColumn, sizeof(pMsg->pExtSpec->tsColumn));
       }
 
+      TAOS_CHECK_GOTO(stExtOverrideNamespaceFromPlan(pTask, pMsg->pExtSpec,
+                                                    (const char *)pMsg->msg.calc.calcScanPlan),
+                      &lino, end);
       TAOS_CHECK_GOTO(stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec,
-                          (const char *)pMsg->msg.calc.calcScanPlan), &lino, end);
+                                                   (const char *)pMsg->msg.calc.calcScanPlan),
+                      &lino, end);
 
       void *pExtInfo = NULL;
       TAOS_CHECK_GOTO(stExtReaderOpen((void *)pMsg->pExtSpec, &pTask->task, &pExtInfo), &lino, end);
