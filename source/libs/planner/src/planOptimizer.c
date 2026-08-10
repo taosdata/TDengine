@@ -14777,6 +14777,18 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 // ─────────────────────────────────────────────────────────────────────────────
 
 static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  // Stream calc plans need a local Project/Sort left above the ExternalScan so that
+  // streamScanSplit (planSpliter.c) has a parent node to split the scan away from,
+  // producing a genuine runner subplan fed by Exchange from the calc-reader scan.
+  // Harvesting that chain down to the remote source (as this optimization normally
+  // does) collapses a bare passthrough calc query like "AS SELECT * FROM <ext table>"
+  // down to a single parentless scan, leaving the calc plan with zero runner
+  // subplans -- which the stream trigger/mnode deploy path cannot execute (calc
+  // requests can only be dispatched to a runner task, not a calc reader directly).
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
   if (NULL == pScan) {
     return TSDB_CODE_SUCCESS;

@@ -468,6 +468,10 @@ void mstPostTaskAction(SStmActionQ*        actionQ, SStmTaskAction* pAction, int
   pNode->next = NULL;
 
   mndStreamActionEnqueue(actionQ, pNode);
+
+  mstDebug("stream %" PRIx64 " task action %s posted enqueue, taskId:0x%" PRIx64 " nodeId:%d, qRemainNum:%" PRIu64,
+           pAction->streamId, mstGetStreamActionString(action), pAction->id.taskId, pAction->id.nodeId,
+           atomic_load_64(&actionQ->qRemainNum));
 }
 
 void mstDestroyDbVgroupsHash(SSHashObj *pDbVgs) {
@@ -1009,6 +1013,12 @@ int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj* pStream, SSDataBloc
   pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
   TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
   code = colDataSetVal(pColInfo, numOfRows, (const char*)msg, false);
+
+  // external_sources
+  pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+  TSDB_CHECK_NULL(pColInfo, code, lino, _end, terrno);
+  code = colDataSetVal(pColInfo, numOfRows, (const char*)&pStream->pCreate->numOfExtSpecs, false);
+  TSDB_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code) {

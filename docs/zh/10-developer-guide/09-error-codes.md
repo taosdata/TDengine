@@ -802,6 +802,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000411B | External source table has no timestamp primary key column | 引用的外部源表没有可解析的时间戳主键列 | 为外部源表指定有效的时间戳列 |
 | 0x8000411C | PARTITION BY is not supported for the given external source type | 该外部源类型不支持 PARTITION BY | 移除 PARTITION BY，或改用支持的外部源类型 |
 | 0x8000411D | External reader has no local SStreamTriggerReaderInfo; trigger must resend uid maxTs hash | 外部 reader 缺少本地流状态 | 保留现场和日志，github 上报 |
+| 0x8000411F | Influxdb tag key is too long or convert error | influxdb tag 的 key 或 value 长度不符合要求 | tag 名超过 64 个字符或者 tag 值超过 256 个字符，会报错。需要修改数据后，重新建流 |
 
 #### xnode
 

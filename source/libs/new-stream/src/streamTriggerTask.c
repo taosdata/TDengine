@@ -214,6 +214,8 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
 static void    stRealtimeContextDestroy(void *ptr);
 // Start or continue the realtime context after receiving pull/calc responses.
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext);
+// Force PERIOD's "fire regardless of new data" semantics onto groupsToCheck.
+static int32_t stRealtimeContextForcePeriodGroupsToCheck(SSTriggerRealtimeContext *pContext);
 // Get or lazily create a realtime group by gid.
 static int32_t stRealtimeContextGetOrCreateGroup(SSTriggerRealtimeContext *pContext, int64_t gid, int32_t vgId,
                                                  SSTriggerRealtimeGroup **ppGroup);
@@ -233,6 +235,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
 static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, SRpcMsg *pRsp, bool completed);
 static int32_t stTriggerCalcExpr(SStreamTriggerTask *pTask, SSDataBlock *pDataBlock, SNode *pExpr,
                                  SColumnInfoData *pResCol);
+// Compute and append EVENT_WINDOW START/END (or STATE_WINDOW state) derived columns onto
+// pDataBlock. Shared by the WAL trigger-data path (stRealtimeContextProcWalMeta) and the
+// EXT/federated trigger-data path (stRealtimeContextAddExtDataSlices), which otherwise has
+// no way to compute these columns since the external source cannot evaluate them itself.
+static int32_t stAppendEventStateCols(SStreamTriggerTask *pTask, SSDataBlock *pDataBlock, bool appendCols);
 
 static int32_t stRealtimeContextAddExtDataSlices(SSTriggerRealtimeContext *pContext,
                                                  SSTriggerExtProgress     *pProgress,
@@ -4339,7 +4346,7 @@ _end:
  *   - Populate triggerSideUidMaxTs from pLastTsArr; mark boundDetermined.
  *   - Immediately issue the first META pull for this reader.
  *
- * META_EXT response (walMode == STRIGGER_WAL_META_ONLY):
+ * META_EXT response (walMode == STRIGGER_WAL_META_ONLY or STRIGGER_WAL_META_THEN_DATA):
  *   - Update triggerSideUidMaxTs and accumulate pUidWindow from metaBlock rows.
  *   - hasMore (metaRows >= STREAM_RETURN_ROWS_NUM): re-issue META_EXT (paging).
  *   - !hasMore && metaRows > 0: advance to DATA_EXT (pUidWindow populated).
@@ -4349,7 +4356,7 @@ _end:
  *   - Free pUidWindow; pass data to calc layer (TODO).
  *   - Re-issue META_EXT to continue polling.
  *
- * META_DATA_EXT response (walMode != STRIGGER_WAL_META_ONLY):
+ * META_DATA_EXT response (walMode == STRIGGER_WAL_META_WITH_DATA):
  *   - Same META update logic; data already included in response.
  *   - hasMore: re-issue META_DATA_EXT; !hasMore: IDLE wait.
  */
@@ -4390,6 +4397,22 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
       code = stRealtimeContextFinishExtCalcUidWindow(pProgress);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = stRealtimeContextCheck(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+    } else if (pTask->triggerType == STREAM_TRIGGER_PERIOD && !pTask->ignoreNoDataTrigger &&
+              pContext->status == STRIGGER_CONTEXT_FETCH_META) {
+      // RPC-level NO_DATA for any other in-flight pull type (e.g. META_EXT/
+      // META_DATA_EXT/LAST_TS_EXT on a walMode==META_ONLY stream, whose "no
+      // data" signal arrives as this response code rather than a payload with
+      // metaRows==0): PERIOD must still fire on schedule instead of just idling.
+      // Guarded on status==FETCH_META (set only by the periodWindow.ekey branch
+      // in stRealtimeContextCheck right before it dispatches this probe) so the
+      // one-time bootstrap LAST_TS_EXT/META_EXT probe -- sent via the top-level
+      // EXT bypass before periodWindow is ever consulted, with status still
+      // IDLE -- does not force-fire prematurely and trip the
+      // "groupsToCheck must be empty before the period boundary" assertion.
+      code = stRealtimeContextForcePeriodGroupsToCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
       code = stRealtimeContextCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -4442,9 +4465,9 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
     tDestroySSTriggerExtPullRsp(pExtRsp);
 
     // Immediately issue the first meta pull for this reader.
-    ESTriggerPullType metaType = (pContext->walMode == STRIGGER_WAL_META_ONLY)
-                                     ? STRIGGER_PULL_META_EXT
-                                     : STRIGGER_PULL_META_DATA_EXT;
+    ESTriggerPullType metaType = (pContext->walMode == STRIGGER_WAL_META_WITH_DATA)
+                                     ? STRIGGER_PULL_META_DATA_EXT
+                                     : STRIGGER_PULL_META_EXT;
     code = stRealtimeContextSendExtPullReq(pContext, pProgress, metaType, 0);
     QUERY_CHECK_CODE(code, lino, _end);
     goto _end;
@@ -4586,6 +4609,18 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
       }
       code = stRealtimeContextCheck(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
+    } else if (pTask->triggerType == STREAM_TRIGGER_PERIOD && !pTask->ignoreNoDataTrigger &&
+              pContext->status == STRIGGER_CONTEXT_FETCH_META) {
+      // No new data this tick, but PERIOD must still fire on schedule: force the
+      // existing/default group into groupsToCheck and drive the check loop instead
+      // of just idling, mirroring the non-EXT WAL force-fire block. Guarded on
+      // status==FETCH_META (see the identical guard/rationale a few branches up)
+      // so the bootstrap META_DATA_EXT poll -- reached with status still IDLE --
+      // never force-fires before the first period tick is even due.
+      code = stRealtimeContextForcePeriodGroupsToCheck(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = stRealtimeContextCheck(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
     } else {
       int64_t resumeTime = taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS;
       code = stTriggerTaskAddWaitSession(pTask, pProgress->sessionId, resumeTime);
@@ -4597,9 +4632,21 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
       pProgress->pUidWindow = NULL;
     }
     tDestroySSTriggerExtPullRsp(pExtRsp);
-    int64_t resumeTime = taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS;
-    code = stTriggerTaskAddWaitSession(pTask, pProgress->sessionId, resumeTime);
-    QUERY_CHECK_CODE(code, lino, _end);
+    if (pTask->triggerType == STREAM_TRIGGER_PERIOD && !pTask->ignoreNoDataTrigger &&
+        pContext->status == STRIGGER_CONTEXT_FETCH_META) {
+      // Same rationale as above: metaRows == 0 for META_EXT/META_DATA_EXT must
+      // still force PERIOD to fire on schedule rather than idling forever, but
+      // only once we're actually inside the period-tick flow (status==FETCH_META),
+      // not during the pre-tick bootstrap poll (status still IDLE).
+      code = stRealtimeContextForcePeriodGroupsToCheck(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = stRealtimeContextCheck(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+    } else {
+      int64_t resumeTime = taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS;
+      code = stTriggerTaskAddWaitSession(pTask, pProgress->sessionId, resumeTime);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
   goto _end;
 
@@ -5079,6 +5126,72 @@ _end:
   if (pList != NULL) {
     taosArrayDestroy(pList);
   }
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+// Compute and append EVENT_WINDOW START/END (or STATE_WINDOW state) derived columns onto
+// pDataBlock. When appendCols is true, new trailing SColumnInfoData entries are pushed
+// first; pass false to reuse trailing columns already appended by a previous call on the
+// same (reused/growing) block. Extracted from the WAL trigger-data path so the EXT
+// (federated) trigger-data path can share the same computation -- external sources have
+// no way to evaluate these conditions themselves.
+static int32_t stAppendEventStateCols(SStreamTriggerTask *pTask, SSDataBlock *pDataBlock, bool appendCols) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  if (pTask->isVirtualTable || blockDataGetNumOfRows(pDataBlock) == 0) {
+    goto _end;
+  }
+
+  if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+    SColumnInfoData *pStartCol = NULL;
+    SColumnInfoData *pEndCol = NULL;
+    if (appendCols) {
+      SColumnInfoData startCol = {0};
+      void           *px = taosArrayPush(pDataBlock->pDataBlock, &startCol);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      SColumnInfoData endCol = {0};
+      px = taosArrayPush(pDataBlock->pDataBlock, &endCol);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    }
+    pEndCol = taosArrayGetLast(pDataBlock->pDataBlock);
+    QUERY_CHECK_NULL(pEndCol, code, lino, _end, terrno);
+    pStartCol = pEndCol - 1;
+    code = stTriggerCalcExpr(pTask, pDataBlock, pTask->pStartCond, pStartCol);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = stTriggerCalcExpr(pTask, pDataBlock, pTask->pEndCond, pEndCol);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else if (pTask->triggerType == STREAM_TRIGGER_STATE) {
+    int32_t exprKeyCount = stCountExprKeys(pTask->pStateSlotIds);
+    if (exprKeyCount > 0) {
+      int32_t stateKeyCount = stGetStateKeyCount(pTask->pStateSlotIds, pTask->pStateExprs);
+      if (appendCols) {
+        for (int32_t k = 0; k < exprKeyCount; ++k) {
+          SColumnInfoData stateCol = {0};
+          void           *px = taosArrayPush(pDataBlock->pDataBlock, &stateCol);
+          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+        }
+      }
+      int32_t baseIdx = taosArrayGetSize(pDataBlock->pDataBlock) - exprKeyCount;
+      int32_t exprIdx = 0;
+      for (int32_t k = 0; k < stateKeyCount; ++k) {
+        int16_t slotId = *(int16_t *)taosArrayGet(pTask->pStateSlotIds, k);
+        if (slotId == -1) {
+          SNode           *pExpr = nodesListGetNode(pTask->pStateExprs, k);
+          SColumnInfoData *pStateCol = taosArrayGet(pDataBlock->pDataBlock, baseIdx + exprIdx);
+          QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
+          code = stTriggerCalcExpr(pTask, pDataBlock, pExpr, pStateCol);
+          QUERY_CHECK_CODE(code, lino, _end);
+          exprIdx++;
+        }
+      }
+    }
+  }
+
+_end:
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
@@ -6260,13 +6373,18 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
                    pContext->calcRange.ekey, pGroup->gid);
       QUERY_CHECK_CONDITION(pContext->calcRange.skey <= pContext->calcRange.ekey, code, lino, _end,
                             TSDB_CODE_INVALID_PARA);
-      if (pContext->calcRange.skey < metaRange.skey && metaRange.skey <= pContext->calcRange.ekey) {
+      // metaRange stays the empty sentinel [INT64_MAX, INT64_MIN] when pGroup->pWalMetas
+      // has no real entries yet (e.g. a PERIOD force-fire tick with no new trigger rows);
+      // only use it to clip calcRange.skey when it's actually a valid, non-empty range.
+      if (metaRange.skey <= metaRange.ekey &&
+          pContext->calcRange.skey < metaRange.skey && metaRange.skey <= pContext->calcRange.ekey) {
         pContext->calcRange.skey = metaRange.skey;
       }
 
       if (pContext->pReaderExtProgress != NULL) {
         /* EXT stream: send CALC_DATA_EXT to each EXT reader using the uid->window
          * map (srcPrec epoch) saved in pCalcUidWindow during DATA_EXT handling. */
+        bool                  anyCalcSent = false;
         int32_t               extIter  = 0;
         SSTriggerExtProgress **ppExtProg =
             (SSTriggerExtProgress **)tSimpleHashIterate(pContext->pReaderExtProgress, NULL, &extIter);
@@ -6287,38 +6405,58 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
           code = stRealtimeContextSendExtPullReq(pContext, pExtProg, STRIGGER_PULL_CALC_DATA_EXT, 0);
           QUERY_CHECK_CODE(code, lino, _end);
           stDebug("ext: %%trows sent CALC_DATA_EXT to reader task:%" PRIx64, pExtProg->pTaskAddr->taskId);
+          anyCalcSent = true;
           ppExtProg = (SSTriggerExtProgress **)tSimpleHashIterate(pContext->pReaderExtProgress, ppExtProg, &extIter);
+        }
+        if (anyCalcSent) {
+          goto _end;
+        }
+        // No ext reader had any calc data this tick (e.g. a PERIOD force-fire with
+        // no new trigger rows): fall through to the pCurParam loop below with an
+        // empty pAllCalcTableUids, exactly like the non-EXT WAL branch always does
+        // regardless of whether pGroup->pWalMetas has anything — so the runner
+        // still gets dispatched with zero %%trows rows instead of being skipped.
+      }
+
+      // fill calc range and pull calc data from WAL (non-EXT WAL path only).
+      // EXT streams have no WAL reader progress, so STRIGGER_PULL_WAL_CALC_DATA_NEW
+      // would hit a NULL pProgress and fail with TSDB_CODE_INTERNAL_ERROR; guard the
+      // whole WAL block so EXT streams never enter it.
+      if (pContext->pReaderExtProgress == NULL) {
+        tSimpleHashClear(pContext->pRanges);
+        if (pTask->isVirtualTable) {
+          int32_t                 iter = 0;
+          SSTriggerVirtTableInfo *pVirtTableInfo = tSimpleHashIterate(pTask->pVirtTableInfos, NULL, &iter);
+          while (pVirtTableInfo != NULL) {
+            if (stTriggerTaskMatchVirtTableInfo(pVirtTableInfo, pGroup->gid)) {
+              for (int32_t i = 0; i < TARRAY_SIZE(pVirtTableInfo->pCalcColRefs); i++) {
+                SSTriggerTableColRef *pRef = TARRAY_GET_ELEM(pVirtTableInfo->pCalcColRefs, i);
+                code = tSimpleHashPut(pContext->pRanges, &pRef->otbUid, sizeof(int64_t), &pContext->calcRange,
+                                      sizeof(STimeWindow));
+                QUERY_CHECK_CODE(code, lino, _end);
+              }
+            }
+            pVirtTableInfo = tSimpleHashIterate(pTask->pVirtTableInfos, pVirtTableInfo, &iter);
+          }
+        } else {
+          code = tSimpleHashPut(pContext->pRanges, &pGroup->gid, sizeof(int64_t), &pContext->calcRange,
+                                sizeof(STimeWindow));
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
+             pContext->curReaderIdx++) {
+          code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_CALC_DATA_NEW);
+          QUERY_CHECK_CODE(code, lino, _end);
         }
         goto _end;
       }
 
-      // fill calc range (non-EXT WAL path)
-      tSimpleHashClear(pContext->pRanges);
-      if (pTask->isVirtualTable) {
-        int32_t                 iter = 0;
-        SSTriggerVirtTableInfo *pVirtTableInfo = tSimpleHashIterate(pTask->pVirtTableInfos, NULL, &iter);
-        while (pVirtTableInfo != NULL) {
-          if (stTriggerTaskMatchVirtTableInfo(pVirtTableInfo, pGroup->gid)) {
-            for (int32_t i = 0; i < TARRAY_SIZE(pVirtTableInfo->pCalcColRefs); i++) {
-              SSTriggerTableColRef *pRef = TARRAY_GET_ELEM(pVirtTableInfo->pCalcColRefs, i);
-              code = tSimpleHashPut(pContext->pRanges, &pRef->otbUid, sizeof(int64_t), &pContext->calcRange,
-                                    sizeof(STimeWindow));
-              QUERY_CHECK_CODE(code, lino, _end);
-            }
-          }
-          pVirtTableInfo = tSimpleHashIterate(pTask->pVirtTableInfos, pVirtTableInfo, &iter);
-        }
-      } else {
-        code =
-            tSimpleHashPut(pContext->pRanges, &pGroup->gid, sizeof(int64_t), &pContext->calcRange, sizeof(STimeWindow));
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
-           pContext->curReaderIdx++) {
-        code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_WAL_CALC_DATA_NEW);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-      goto _end;
+      // EXT stream reached here only when this force-fire tick produced no calc data
+      // (e.g. PERIOD force-fire with no new trigger rows). Skip the WAL calc pull and
+      // fall through to the pCurParam loop below, dispatching the runner with zero
+      // %%trows rows instead of failing.
+      ST_TASK_DLOG("ext: %%trows force-fire with no calc data, skip WAL calc pull, dispatch zero rows for groupId:%" PRId64,
+                   pGroup->gid);
     }
 
     if (pContext->pCurParam == NULL) {
@@ -7065,10 +7203,10 @@ static int32_t stRealtimeContextCheckExt(SSTriggerRealtimeContext *pContext) {
     ESTriggerPullType pullType;
     if (!pContext->boundDetermined) {
       pullType = STRIGGER_PULL_LAST_TS_EXT;
-    } else if (pContext->walMode == STRIGGER_WAL_META_ONLY) {
-      pullType = STRIGGER_PULL_META_EXT;
-    } else {
+    } else if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
       pullType = STRIGGER_PULL_META_DATA_EXT;
+    } else {
+      pullType = STRIGGER_PULL_META_EXT;
     }
 
     code = stRealtimeContextSendExtPullReq(pContext, pProgress, pullType, 0);
@@ -7084,6 +7222,56 @@ static int32_t stRealtimeContextCheckExt(SSTriggerRealtimeContext *pContext) {
     int64_t resumeTime = now + STREAM_TRIGGER_IDLE_TIME_NS;
     code = stTriggerTaskAddWaitSession(pTask, pContext->sessionId, resumeTime);
     QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+/*
+ * Force PERIOD's "fire on schedule regardless of new data" semantics: queue the
+ * default group (creating it if none exists yet) or every not-yet-queued existing
+ * group into groupsToCheck with thresholds widened to the full range, so the next
+ * _check loop dispatches a calc even though this tick found no new trigger rows.
+ * Mirrors the non-EXT WAL force-fire block in the STRIGGER_PULL_WAL_META_NEW
+ * response handler; shared by the EXT empty-poll paths in
+ * stRealtimeContextProcExtPullRsp and the readerless PERIOD case below.
+ */
+static int32_t stRealtimeContextForcePeriodGroupsToCheck(SSTriggerRealtimeContext *pContext) {
+  int32_t             code  = TSDB_CODE_SUCCESS;
+  int32_t             lino  = 0;
+  SStreamTriggerTask *pTask = pContext->pTask;
+
+  if (tSimpleHashGetSize(pContext->pGroups) == 0) {
+    SSTriggerRealtimeGroup *pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
+    QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
+    code = tSimpleHashPut(pContext->pGroups, &pGroup->gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFreeClear(pGroup);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    code = stRealtimeGroupInit(pGroup, pContext, 0, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pGroup->oldThreshold = INT64_MIN;
+    pGroup->newThreshold = INT64_MAX;
+    if (!IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+      TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+    }
+  } else {
+    int32_t iter = 0;
+    void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+    while (px != NULL) {
+      SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
+      if (!IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+        pGroup->oldThreshold = INT64_MIN;
+        pGroup->newThreshold = INT64_MAX;
+        TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+      }
+      px = tSimpleHashIterate(pContext->pGroups, px, &iter);
+    }
   }
 
 _end:
@@ -7190,11 +7378,27 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
               pMinG->gid, pMinG->nextExecTime, now);
     }
   }
+  // e) PERIOD trigger with !ignoreNoDataTrigger must fire on a wall-clock schedule
+  //    regardless of whether the ext source ever returns new rows. Left unguarded, this
+  //    bypass re-dispatches to stRealtimeContextCheckExt on every session resume forever
+  //    (groupsToCheck never becomes non-empty for a source with no new rows), so PERIOD
+  //    would never reach the periodWindow.ekey force-fire logic further down in this
+  //    function. Skip the bypass for this trigger/option combination so control always
+  //    falls through to that logic instead. Gated on boundDetermined so the initial
+  //    LAST_TS_EXT bootstrap (which this same bypass also dispatches, before
+  //    boundDetermined flips true) is left untouched.
+  bool isForcedPeriod = (pTask->triggerType == STREAM_TRIGGER_PERIOD && !pTask->ignoreNoDataTrigger &&
+                        pContext->boundDetermined);
+  if (isForcedPeriod) {
+    stDebug("[ext-bypass] isForcedPeriod, skip stRealtimeContextCheckExt bypass so control "
+            "falls through to the periodWindow.ekey force-fire logic instead");
+  }
   if (pContext->pReaderExtProgress != NULL &&
       TD_DLIST_NELES(&pContext->groupsToCheck) == 0 &&
       pContext->status != STRIGGER_CONTEXT_SEND_CALC_REQ &&
       !hasCalcUidWindow &&
-      !hasReadyDeferredGroup) {
+      !hasReadyDeferredGroup &&
+      !isForcedPeriod) {
     code = stRealtimeContextCheckExt(pContext);
     QUERY_CHECK_CODE(code, lino, _end);
     goto _end;
@@ -7271,10 +7475,13 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
     if (now >= pContext->periodWindow.ekey) {
       pContext->status = STRIGGER_CONTEXT_FETCH_META;
       if (pContext->pReaderExtProgress != NULL) {
-        /* EXT stream: dispatch via stRealtimeContextCheckExt, which sends
-         * STRIGGER_PULL_*_EXT requests — NOT WAL pulls.
-         * pReaderWalProgress is always empty for EXT streams so we must
-         * not fall through to the WAL path below. */
+        /* EXT stream: always dispatch via stRealtimeContextCheckExt, which sends
+         * STRIGGER_PULL_*_EXT requests to genuinely re-poll the external source —
+         * regardless of ignoreNoDataTrigger. The "fire on schedule even with no
+         * new data" semantics is handled inside stRealtimeContextProcExtPullRsp's
+         * empty-poll exits (via stRealtimeContextForcePeriodGroupsToCheck), not
+         * here, so a source with no new rows still gets probed every tick instead
+         * of being skipped forever. */
         ST_TASK_DLOG("ext: period window ekey reached, dispatching via stRealtimeContextCheckExt %s", "");
         code = stRealtimeContextCheckExt(pContext);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -7289,29 +7496,11 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext) {
         }
         goto _end;
       } else {
-        // add a fake group to trigger the notification/calculation
-        SSTriggerRealtimeGroup *pGroup = NULL;
-        if (tSimpleHashGetSize(pContext->pGroups) == 0) {
-          pGroup = taosMemoryCalloc(1, sizeof(SSTriggerRealtimeGroup));
-          QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
-          code = tSimpleHashPut(pContext->pGroups, &pGroup->gid, sizeof(int64_t), &pGroup, POINTER_BYTES);
-          if (code != TSDB_CODE_SUCCESS) {
-            taosMemoryFreeClear(pGroup);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-          code = stRealtimeGroupInit(pGroup, pContext, 0, 0);
-          QUERY_CHECK_CODE(code, lino, _end);
-        } else {
-          int32_t iter = 0;
-          void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
-          QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-          pGroup = *(SSTriggerRealtimeGroup **)px;
-        }
-        pGroup->oldThreshold = INT64_MIN;
-        pGroup->newThreshold = INT64_MAX;
-        if (!IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
-          TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
-        }
+        // No trigger table at all (pure wall-clock PERIOD, no FROM clause): force
+        // the default group so PERIOD still fires on schedule.
+        ST_TASK_DLOG("period: no trigger table (readerList empty, not ext), forcing default group %s", "");
+        code = stRealtimeContextForcePeriodGroupsToCheck(pContext);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     } else {
       QUERY_CHECK_CONDITION(TD_DLIST_NELES(&pContext->groupsToCheck) == 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -8368,50 +8557,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       }
 
       if (!pTask->isVirtualTable && blockDataGetNumOfRows(pProgress->pTrigBlock) > 0) {
-        if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
-          SColumnInfoData *pStartCol = NULL;
-          SColumnInfoData *pEndCol = NULL;
-          if (firstDataBlock) {
-            SColumnInfoData startCol = {0};
-            void           *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &startCol);
-            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-            SColumnInfoData endCol = {0};
-            px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &endCol);
-            QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-          }
-          pEndCol = taosArrayGetLast(pProgress->pTrigBlock->pDataBlock);
-          QUERY_CHECK_NULL(pEndCol, code, lino, _end, terrno);
-          pStartCol = pEndCol - 1;
-          code = stTriggerCalcExpr(pTask, pProgress->pTrigBlock, pTask->pStartCond, pStartCol);
-          QUERY_CHECK_CODE(code, lino, _end);
-          code = stTriggerCalcExpr(pTask, pProgress->pTrigBlock, pTask->pEndCond, pEndCol);
-          QUERY_CHECK_CODE(code, lino, _end);
-        } else if (pTask->triggerType == STREAM_TRIGGER_STATE) {
-          int32_t exprKeyCount = stCountExprKeys(pTask->pStateSlotIds);
-          if (exprKeyCount > 0) {
-            int32_t stateKeyCount = stGetStateKeyCount(pTask->pStateSlotIds, pTask->pStateExprs);
-            if (firstDataBlock) {
-              for (int32_t k = 0; k < exprKeyCount; ++k) {
-                SColumnInfoData stateCol = {0};
-                void           *px = taosArrayPush(pProgress->pTrigBlock->pDataBlock, &stateCol);
-                QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-              }
-            }
-            int32_t baseIdx = taosArrayGetSize(pProgress->pTrigBlock->pDataBlock) - exprKeyCount;
-            int32_t exprIdx = 0;
-            for (int32_t k = 0; k < stateKeyCount; ++k) {
-              int16_t slotId = *(int16_t *)taosArrayGet(pTask->pStateSlotIds, k);
-              if (slotId == -1) {
-                SNode           *pExpr = nodesListGetNode(pTask->pStateExprs, k);
-                SColumnInfoData *pStateCol = taosArrayGet(pProgress->pTrigBlock->pDataBlock, baseIdx + exprIdx);
-                QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
-                code = stTriggerCalcExpr(pTask, pProgress->pTrigBlock, pExpr, pStateCol);
-                QUERY_CHECK_CODE(code, lino, _end);
-                exprIdx++;
-              }
-            }
-          }
-        }
+        code = stAppendEventStateCols(pTask, pProgress->pTrigBlock, firstDataBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
 
       if (--pContext->curReaderIdx > 0) {
@@ -11333,27 +11480,56 @@ static int32_t stRealtimeContextAddExtMetas(SSTriggerRealtimeContext *pContext,
     int64_t ekey = *(int64_t *)colDataGetData(pEkeyCol, row);
     int64_t uid = *(int64_t *)colDataGetData(pUidCol, row);
 
+    // hasPrevWindow must reflect whether THIS uid has ever gone through a real
+    // META_EXT round before -- NOT whether triggerSideUidMaxTs holds a "real"
+    // looking value. LAST_TS_EXT seeds triggerSideUidMaxTs from MAX(ts) over
+    // whatever history predates the stream (handleLastTsPullRelational /
+    // handleLastTsPullInflux), which can easily be a genuine old timestamp
+    // (e.g. pre-existing fixture rows), not just an INT64_MIN "no data" sentinel.
+    // That bootstrap value is a history cutoff, not a watermark-closed window
+    // boundary, so it must never be back-dated by watermark: doing so re-opens
+    // exactly the pre-stream history the cutoff was meant to exclude. pUidToGid
+    // is populated only from real META_EXT rows and never touched by the
+    // bootstrap, so its presence for this uid is what actually distinguishes
+    // "resuming a previously-computed window" from "first row ever seen".
+    bool hasPrevWindow = (tSimpleHashGet(pProgress->pUidToGid, &uid, sizeof(int64_t)) != NULL);
+
     // Record uid -> groupId so that stRealtimeContextAddExtDataSlices can key
     // trigger groups by the reader's PARTITION BY groupId (which may merge
     // several uids) instead of by raw uid.
     code = tSimpleHashPut(pProgress->pUidToGid, &uid, sizeof(int64_t), &gid, sizeof(int64_t));
     QUERY_CHECK_CODE(code, lino, _end);
 
+    // triggerSideUidMaxTs is the reader's "WHERE ts > maxTs" incremental-scan floor
+    // (DS SS6.1.5): it must stay the raw max ts ever seen so a later META_EXT poll
+    // never re-scans rows the reader already reported as new.
     int64_t *pExisting = (int64_t *)tSimpleHashGet(pProgress->triggerSideUidMaxTs, &uid, sizeof(int64_t));
+    int64_t  prevMaxTs = (hasPrevWindow && pExisting != NULL) ? *pExisting : skey;
     if (pExisting == NULL || *pExisting < ekey) {
       code = tSimpleHashPut(pProgress->triggerSideUidMaxTs, &uid, sizeof(int64_t), &ekey, sizeof(int64_t));
       QUERY_CHECK_CODE(code, lino, _end);
       stDebug("ext: updated triggerSideUidMaxTs uid:%" PRId64 " maxTs:%" PRId64, uid, ekey);
     }
 
+    // The DATA_EXT fetch window is a *different* range from the meta scan's own
+    // skey/ekey: it must span from the previously-closed watermark boundary to the
+    // newly-closed one (mirrors the non-EXT WAL path's per-group
+    // [oldThreshold+1, newThreshold] range in stRealtimeGroupAddMeta / the
+    // STRIGGER_PULL_WAL_DATA_NEW dispatch), not just [MIN(ts), MAX(ts)] of the rows
+    // this one poll happened to see. Meta's own skey/ekey only reflect rows that
+    // passed "ts > maxTs" this round, so an out-of-order row still older than the
+    // previous poll's max (e.g. late data within the watermark tolerance) would
+    // never be covered if we used the raw meta skey as the fetch floor.
+    int64_t winSkey = hasPrevWindow ? (prevMaxTs - pTask->watermark) : skey;
+    int64_t winEkey = ekey - pTask->watermark;
     SExtUidWindow *pWin = (SExtUidWindow *)tSimpleHashGet(pProgress->pUidWindow, &uid, sizeof(int64_t));
     if (pWin == NULL) {
-      SExtUidWindow win = {.skey = skey, .ekey = ekey};
+      SExtUidWindow win = {.skey = winSkey, .ekey = winEkey};
       code = tSimpleHashPut(pProgress->pUidWindow, &uid, sizeof(int64_t), &win, sizeof(SExtUidWindow));
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
-      pWin->skey = TMIN(pWin->skey, skey);
-      pWin->ekey = TMAX(pWin->ekey, ekey);
+      pWin->skey = TMIN(pWin->skey, winSkey);
+      pWin->ekey = TMAX(pWin->ekey, winEkey);
     }
   }
 
@@ -11402,6 +11578,16 @@ static int32_t stRealtimeContextAddExtDataSlices(SSTriggerRealtimeContext *pCont
   }
   pExtRsp->pDataBlock = NULL;
 
+  if (!forCalc) {
+    // EXT (federated) sources cannot evaluate EVENT_WINDOW/STATE_WINDOW conditions
+    // themselves; compute and append the same derived columns the WAL trigger-data path
+    // computes, so stRealtimeGroupDoEventCheck/stRealtimeGroupDoStateCheck see valid data.
+    // pTrigDataBlock is always a fresh replacement (never grown/reused across calls, see
+    // the blockDataDestroy above), so columns must be appended on every call.
+    code = stAppendEventStateCols(pTask, pProgress->pTrigDataBlock, true);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
   int32_t         iter = 0;
   SExtIndexEntry *pEntry = (SExtIndexEntry *)tSimpleHashIterate(pExtRsp->pIndexHash, NULL, &iter);
   while (pEntry != NULL) {
@@ -11449,7 +11635,13 @@ static int32_t stRealtimeContextAddExtDataSlices(SSTriggerRealtimeContext *pCont
       }
       SExtUidWindow *pWin = (SExtUidWindow *)tSimpleHashGet(pProgress->pUidWindow, &uid, sizeof(int64_t));
       QUERY_CHECK_NULL(pWin, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      SSTriggerMetaData meta = {.skey = pWin->skey, .ekey = pWin->ekey, .ver = 0};
+      // pWin->ekey is already watermark-adjusted (stRealtimeContextAddExtMetas sets it
+      // to the closed-window boundary so the DATA_EXT fetch range matches it). Undo
+      // that adjustment here: stRealtimeGroupAddMeta applies its own single
+      // "ekey - watermark" step to derive newThreshold, so feeding it an
+      // already-adjusted ekey would subtract the watermark twice and newThreshold
+      // would never advance past oldThreshold.
+      SSTriggerMetaData meta = {.skey = pWin->skey, .ekey = pWin->ekey + pTask->watermark, .ver = 0};
       code = stRealtimeGroupAddMeta(pGroup, 0, &meta);
       QUERY_CHECK_CODE(code, lino, _end);
       if (pGroup->oldThreshold < pGroup->newThreshold && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
@@ -11504,7 +11696,19 @@ static int32_t stRealtimeContextBuildExtCalcUidWindow(SSTriggerRealtimeContext *
     if (belongsToGroup) {
       SExtUidWindow win = *pSrc;
       int64_t        calcSkeyMin = pContext->calcRange.skey;
-      int64_t        calcEkeyMax = pContext->calcRange.ekey - 1;
+      // calcRange.ekey is the group's inclusive high-water mark (pGroup->newThreshold),
+      // matching an actual (or speculative) row/window boundary -- inclusive for every
+      // trigger type except true INTERVAL+SLIDING. For INTERVAL+SLIDING, windows are
+      // pre-generated speculatively up to calcRange.ekey (see stRealtimeGroupDoSlidingCheck),
+      // so a row landing exactly on that boundary may belong to a window that hasn't been
+      // reserved/dispatched yet; subtract 1 to stay strictly inside dispatched windows.
+      // COUNT_WINDOW/SESSION/STATE_WINDOW/EVENT_WINDOW/PERIOD close a window exactly at the
+      // real last-row timestamp with no such speculative slack, so calcRange.ekey there IS
+      // the last row to include -- subtracting 1 would incorrectly drop that boundary row
+      // from %%trows (confirmed live: COUNT_WINDOW(2) with a trigger row exactly on
+      // calcRange.ekey lost that row until this guard was added).
+      bool    isIntervalSliding = (pTask->triggerType == STREAM_TRIGGER_SLIDING && pTask->interval.interval > 0);
+      int64_t calcEkeyMax = isIntervalSliding ? pContext->calcRange.ekey - 1 : pContext->calcRange.ekey;
       if (win.skey > calcSkeyMin) {
         stDebug("ext: CALC_DATA_EXT extend uid window skey %" PRId64 " -> %" PRId64
                 " (calcRange.skey)", win.skey, calcSkeyMin);
@@ -11512,7 +11716,7 @@ static int32_t stRealtimeContextBuildExtCalcUidWindow(SSTriggerRealtimeContext *
       }
       if (win.ekey > calcEkeyMax) {
         stDebug("ext: CALC_DATA_EXT clamp uid window ekey %" PRId64 " -> %" PRId64
-                " (calcRange.ekey-1)", win.ekey, calcEkeyMax);
+                " (calcRange.ekey%s)", win.ekey, calcEkeyMax, isIntervalSliding ? "-1" : "");
         win.ekey = calcEkeyMax;
       }
       if (win.skey <= win.ekey) {

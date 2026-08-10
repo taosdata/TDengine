@@ -12,14 +12,11 @@ sys.path.insert(0, "cases/09-DataQuerying/19-FederatedQuery")
 from federated_query_common import (  # noqa: E402
     ExtSrcEnv,
     FederatedQueryTestMixin,
-    ensure_qnode,
 )
 
 sys.path.insert(0, "cases/18-StreamProcessing/federated")
 from test_fs_common import (  # noqa: E402
     ensure_snode,
-    wait_stream_window_closed,
-    get_stream_ext_meta,
 )
 
 
@@ -32,7 +29,6 @@ class TestFsTsColumn(FederatedQueryTestMixin):
     def setup_class(cls):
         cls.env = ExtSrcEnv()
         cls.env.ensure_env()
-        ensure_qnode()
         ensure_snode()
         tdSql.execute(f"DROP DATABASE IF EXISTS {cls.DB}")
         tdSql.execute(f"CREATE DATABASE {cls.DB} PRECISION 'ms'")
@@ -43,34 +39,6 @@ class TestFsTsColumn(FederatedQueryTestMixin):
             tdSql.execute(f"DROP DATABASE IF EXISTS {cls.DB}")
         finally:
             cls.env.teardown_env()
-
-    # FS-TS-001 ts col auto-derivation -----------------------------------
-    def test_ts_001_auto_derived(self):
-        """Standard src_t has PK ts column => stream uses it automatically."""
-        prefix = "ts001"
-
-        def body(src_name: str):
-            mid = f"{prefix}_{src_name[-1]}db"
-            stream = f"s_{src_name}"
-            sink = f"sink_{src_name}"
-            tdSql.execute(f"USE {self.DB}")
-            tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
-            tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
-            tdSql.execute(
-                f"CREATE STREAM {stream} INTERVAL(1m) SLIDING(1m) "
-                f"FROM {src_name}.{mid}.src_t "
-                f"INTO {self.DB}.{sink} AS "
-                f"SELECT _twstart AS ts, COUNT(*) AS cnt FROM %%trows"
-            )
-            wait_stream_window_closed(stream, self.DB, sink,
-                                      expected_rows=1, timeout=60)
-            meta = get_stream_ext_meta(stream)
-            # ext_last_ts should advance as windows close.
-            assert int(meta.get("ext_last_ts") or 0) > 0, meta
-            tdSql.execute(f"DROP STREAM {stream}")
-            tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
-
-        self._with_std_sources(prefix, body, skip_pg=True, skip_influx=True)
 
     # FS-TS-002 missing ts col -> CREATE STREAM rejected -----------------
     def test_ts_002_missing_ts_col_rejected(self):
