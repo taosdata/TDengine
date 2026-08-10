@@ -72,19 +72,6 @@ class TestCase:
 
         return resultList
 
-    def startTmqSimProcess(self,buildPath,cfgPath,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0):
-        shellCmd = 'nohup '
-        if valgrind == 1:
-            logFile = cfgPath + '/../log/valgrind-tmq.log'
-            shellCmd = 'nohup valgrind --log-file=' + logFile
-            shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-
-        shellCmd += buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
-        shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
-
     def create_database(self,tsql, dbName,dropFlag=1,vgroups=4,replica=1):
         if dropFlag == 1:
             tsql.execute("drop database if exists %s"%(dbName))
@@ -268,7 +255,7 @@ class TestCase:
         pollDelay = 10
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 1
@@ -340,7 +327,7 @@ class TestCase:
         pollDelay = 100
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start create child tables of stb1 and stb2")
         parameterDict['actionType'] = actionType.CREATE_CTABLE
@@ -424,7 +411,7 @@ class TestCase:
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         time.sleep(5)
         tdLog.info("drop some child table of stb1")
@@ -499,7 +486,7 @@ class TestCase:
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start to check consume result")
         expectRows = 1
@@ -517,7 +504,7 @@ class TestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("again start consume processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("again check consume result")
         expectRows = 2
@@ -582,7 +569,7 @@ class TestCase:
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start to check consume result")
         expectRows = 1
@@ -600,7 +587,7 @@ class TestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("again start consume processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("again check consume result")
         expectRows = 2
@@ -665,7 +652,7 @@ class TestCase:
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start to check consume result")
         expectRows = 1
@@ -687,7 +674,7 @@ class TestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("again start consume processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("again check consume result")
         expectRows = 2
@@ -752,7 +739,7 @@ class TestCase:
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start to check consume result")
         expectRows = 1
@@ -770,7 +757,7 @@ class TestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("again start consume processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("again check consume result")
         expectRows = 2
@@ -835,7 +822,7 @@ class TestCase:
         pollDelay = 10
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start to check consume 0 result")
         expectRows = 1
@@ -849,7 +836,7 @@ class TestCase:
             tdLog.exit("tmq consume rows error!")
 
         tdLog.info("start consume 1 processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start one new thread to insert data")
         parameterDict['actionType'] = actionType.INSERT_DATA
@@ -869,7 +856,7 @@ class TestCase:
             tdLog.exit("tmq consume rows error!")
 
         tdLog.info("start consume 2 processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start one new thread to insert data")
         parameterDict['actionType'] = actionType.INSERT_DATA
@@ -940,7 +927,7 @@ class TestCase:
         pollDelay = 10
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start to check consume 0 result")
         expectRows = 1
@@ -958,7 +945,7 @@ class TestCase:
         consumerId     = 1
         ifManualCommit = 0
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start one new thread to insert data")
         parameterDict['actionType'] = actionType.INSERT_DATA
@@ -978,7 +965,7 @@ class TestCase:
             tdLog.exit("tmq consume rows error!")
 
         tdLog.info("start consume 2 processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start one new thread to insert data")
         parameterDict['actionType'] = actionType.INSERT_DATA
@@ -1049,7 +1036,7 @@ class TestCase:
         pollDelay = 10
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start to check consume 0 result")
         expectRows = 1
@@ -1067,7 +1054,7 @@ class TestCase:
         consumerId     = 1
         ifManualCommit = 1
         self.insertConsumerInfo(consumerId, expectrowcnt-10000,topicList,keyList,ifcheckdata,ifManualCommit)
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start one new thread to insert data")
         parameterDict['actionType'] = actionType.INSERT_DATA
@@ -1091,7 +1078,7 @@ class TestCase:
         consumerId     = 2
         ifManualCommit = 1
         self.insertConsumerInfo(consumerId, expectrowcnt+10000,topicList,keyList,ifcheckdata,ifManualCommit)
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start one new thread to insert data")
         parameterDict['actionType'] = actionType.INSERT_DATA
@@ -1162,7 +1149,7 @@ class TestCase:
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start to check consume result")
         expectRows = 1
@@ -1184,7 +1171,7 @@ class TestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("again start consume processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("again check consume result")
         expectRows = 2
@@ -1249,7 +1236,7 @@ class TestCase:
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start to check consume result")
         expectRows = 1
@@ -1271,7 +1258,7 @@ class TestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("again start consume processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("again check consume result")
         expectRows = 2
@@ -1336,7 +1323,7 @@ class TestCase:
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("start to check consume result")
         expectRows = 1
@@ -1359,7 +1346,7 @@ class TestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt/2,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("again start consume processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("again check consume result")
         expectRows = 2
@@ -1382,7 +1369,7 @@ class TestCase:
         self.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("again start consume processor")
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
 
         tdLog.info("again check consume result")
         expectRows = 3

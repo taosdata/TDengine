@@ -80,7 +80,7 @@ class TestCase:
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
         tdLog.info("start consume processor 2")
-        tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'],'cdb',0,1)
+        tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'],'cdb',alias=1)
 
         tdLog.info("async insert data")
         pThread = tmqCom.asyncInsertData(paraDict)
@@ -179,7 +179,7 @@ class TestCase:
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])
 
         tdLog.info("start consume processor 2")
-        tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'],'cdb',0,1)
+        tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'],'cdb',alias=1)
 
         tdLog.info("wait the consume result")
         expectRows = 2
@@ -230,4 +230,3 @@ class TestCase:
 
 
 event = threading.Event()
-

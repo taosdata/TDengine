@@ -9,8 +9,7 @@ from taos.cinterface import *
 from taos.error import *
 from taos.tmq import Consumer
 
-from new_test_framework.utils import tdCom, tdLog, tdSql
-from new_test_framework.utils.pathFinding import find_proj_path
+from new_test_framework.utils import etool, tdCom, tdLog, tdSql
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -27,27 +26,6 @@ class TestCase:
         cls.dbName    = "db_bench_consume_replica"
         cls.stbName   = "meters"          # default super table created by taosBenchmark
         cls.topicName = "topic_bench_consume_replica"
-
-    # ------------------------------------------------------------------
-    # Locate the taosBenchmark binary
-    # ------------------------------------------------------------------
-    def getPath(self, tool="taosBenchmark"):
-        if platform.system().lower() == "windows":
-            tool = tool + ".exe"
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        projPath = find_proj_path(selfPath)
-        paths = []
-        for root, dirs, files in os.walk(projPath):
-            if tool in files:
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if "packaging" not in rootRealPath:
-                    paths.append(os.path.join(root, tool))
-                    break
-        if not paths:
-            tdLog.exit("taosBenchmark not found!")
-        else:
-            tdLog.info("taosBenchmark found in %s" % paths[0])
-            return paths[0]
 
     # ------------------------------------------------------------------
     # Start taosBenchmark as a background process and return the Popen object.
@@ -156,7 +134,7 @@ class TestCase:
             "======== test: concurrent write + consume + alter replica ========"
         )
 
-        benchmarkPath = self.getPath()
+        benchmarkPath = etool.benchMarkFile()
 
         # 1. Start taosBenchmark in background; it creates the DB automatically
         benchProc = self._startBenchmark(benchmarkPath)

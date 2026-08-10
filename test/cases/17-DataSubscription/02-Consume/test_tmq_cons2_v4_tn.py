@@ -48,7 +48,7 @@ class TestTmpCons4:
         # notes2: not support aggregate functions(such as sum/count/min/max) and time-windows(interval).
         #
 
-        self.prepareBasicEnv_4vgrp()
+        tmqCom.prepareBasicEnv(vgroups=4)
 
         # ---- global parameters start ----#
         dbName = "db"
@@ -286,67 +286,3 @@ class TestTmpCons4:
             time.sleep(1)
 
         tmqCom.stopTmqSimProcess("tmq_sim")
-
-    def prepareBasicEnv_4vgrp(self):
-
-        # ---- global parameters start ----#
-        dbName = "db"
-        vgroups = 4
-        stbPrefix = "stb"
-        ctbPrefix = "ctb"
-        ntbPrefix = "ntb"
-        stbNum = 1
-        ctbNum = 10
-        ntbNum = 10
-        rowsPerCtb = 10
-        tstart = 1640966400000  # 2022-01-01 00:00:"00+000"
-        # ---- global parameters end ----#
-
-        tdLog.info(f"== create database {dbName} vgroups {vgroups}")
-        tdSql.execute(f"create database {dbName} vgroups {vgroups}")
-        clusterComCheck.checkDbReady(dbName)
-        tdSql.execute(f"use {dbName}")
-
-        tdLog.info(f"== create consume info table and consume result table")
-        tdSql.execute(
-            f"create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)"
-        )
-        tdSql.execute(
-            f"create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)"
-        )
-
-        tdSql.query(f"show tables")
-        tdSql.checkRows(2)
-
-        tdLog.info(f"== create super table")
-        tdSql.execute(
-            f"create table {stbPrefix} (ts timestamp, c1 int, c2 float, c3 binary(16)) tags (t1 int)"
-        )
-        tdSql.query(f"show stables")
-        tdSql.checkRows(1)
-
-        tdLog.info(f"== create child table, normal table and insert data")
-        i = 0
-        while i < ctbNum:
-            ctb = ctbPrefix + str(i)
-            ntb = ntbPrefix + str(i)
-            tdSql.execute(f"create table {ctb} using {stbPrefix} tags( {i} )")
-            tdSql.execute(
-                f"create table {ntb} (ts timestamp, c1 int, c2 float, c3 binary(16))"
-            )
-
-            x = 0
-            while x < rowsPerCtb:
-                binary = "'binary-" + str(i) + "'"
-
-                tdSql.execute(
-                    f"insert into {ctb} values ({tstart} , {i} , {x} , {binary} )"
-                )
-                tdSql.execute(
-                    f"insert into {ntb} values ({tstart} , {i} , {x} , {binary} )"
-                )
-                tstart = tstart + 1
-                x = x + 1
-
-            i = i + 1
-            tstart = 1640966400000
