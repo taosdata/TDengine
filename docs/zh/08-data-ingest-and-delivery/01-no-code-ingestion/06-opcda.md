@@ -146,6 +146,14 @@ CSV 文件中的每个 Row 配置一个 OPC 数据点位。Row 的规则如下�
 - **采集超时**：向 OPC 服务器读取点位数据时如果超过设定时间未返回数据，则读取失败，默认为 10 秒。
 - **采集间隔**：默认为 10 秒，数据点位采集间隔，从上次采集数据结束后开始计时，轮询读取点位最新值并写入 TDengine。
 
+:::note
+
+- 采集间隔是任务级参数：同一 OPC DA Data In 任务内的所有点位共用一个采集间隔，不支持在同一任务内按单个点位或点位分组设置不同扫描频率。
+- 若少数点位需要更高或更低的采集频率，请将它们拆到另一个 OPC DA 任务（可指向同一 OPC 服务器与同一目标库），并为该任务单独设置采集间隔。
+- 调整采集间隔、超时等采集参数时，在 taosExplorer 中编辑并提交该任务即可；无需在 OPC 服务器侧重新安装或重新部署 taosX-Agent。
+
+:::
+
 当 **点位集** 中使用 **选择数据点位** 方式时，采集配置中可以配置 **点位更新模式** 和 **点位更新间隔** 来启用动态点位更新。**动态点位更新** 是指，在任务运行期间，OPC Server 增加或删除了点位后，符合条件的点位会自动添加到当前任务中，不需要重启 OPC 任务。
 
 - 点位更新模式：可选择 `None`、`Append`、`Update`三种。
@@ -187,9 +195,11 @@ CSV 文件中的每个 Row 配置一个 OPC 数据点位。Row 的规则如下�
 
 点击 **提交** 按钮，完成创建 OPC DA 到 TDengine 的数据同步任务，回到 **数据源列表** 页面可查看任务执行情况。
 
-## 增加数据点位
+## 点位与元数据维护
 
-在任务运行中，点击 **编辑**，点击 **增加数据点位** 按钮，追加数据点位到 CSV 文件中。
+### 增加数据点位
+
+在任务运行中，点击 **编辑**，点击 **增加数据点位** 按钮，追加数据点位到 CSV 文件中。适用于只需新增少量点位、不必重导全量点表的场景。
 
 ![增加数据点位](../../assets/opcua-09.png)
 
@@ -198,3 +208,39 @@ CSV 文件中的每个 Row 配置一个 OPC 数据点位。Row 的规则如下�
 ![数据点位表单](../../assets/opcua-10.png)
 
 点击 **确定** 按钮，完成数据点位的追加。
+
+### 修改已有点位映射或启用状态
+
+- **点位标签 / 工业元数据**：描述、工程单位、量程、源路径等面向运维与资产侧的标签与属性维护，建议在 TDengine IDMP 中完成。IDMP 提供资产树与属性管理能力，更适合局部批量改点、按设备维护元数据，而无需反复导出/重导全量 OPC 点表。详见 [TDengine IDMP 文档](https://idmpdocs.taosdata.com/)。若未使用 IDMP、且元数据已作为库内 TAG 落库，可用 SQL [`ALTER TABLE … SET TAG`](../../05-tdengine-sql/02-ddl/02-table.md#修改标签值)，支持[批量修改标签值](../../05-tdengine-sql/02-ddl/02-table.md#批量修改标签值)。
+- **启用 / 停用采集**：在 CSV 中调整对应行的 `enable`（`1` 采集，`0` 不采集），重新上传该任务的 CSV 后生效。`enable=0` 时，任务启动前会删除该点位在 TDengine 中对应的子表（见上文 Row 规则）。
+- **修改接入映射列**（如 `stable`、`tbname`、`value_col`、`value_transform`）：下载当前点位 CSV，改所需行后重新上传。不必为改几个点而重建 Agent；任务仍绑定同一代理。
+
+### CSV 元数据与 TDengine 落库字段
+
+OPC DA 通过 CSV / 点位表单配置的内容，决定写入 TDengine 的表结构与标签；不会像 OPC UA 那样自动把服务器 Item 的 Description、Engineering Unit、Hi/Lo 量程等属性导入为 TAG。
+
+| 来源 | 可写入 / 影响 TDengine 的内容 |
+| --- | --- |
+| CSV 必填 / 常用列 | `tag_name`（OPC 点 id）、`stable`、`tbname`、采集值列与时间戳列等 |
+| CSV `enable` | 是否采集该点；停用时可删除对应子表 |
+| CSV `value_transform` | 写入前对数值做 Rhai 表达式变换（单位换算等），结果仍写入数值列 |
+| CSV `tag::TYPE::name` | 自定义 TAG；可手工填入描述、工程单位、量程、源路径等供应商 dump 中的字段 |
+| 默认 TAG | 未配任何 tag 列且超级表不存在，自动添加 `point_id`、`point_name` |
+
+若供应商提供含描述、单位、量程等字段的 dump，推荐流程：按 CSV 模板整理点位 → 将描述/单位/量程等写入自定义 `tag::…` 列 → 上传创建任务。点位接入后，标签与工业元数据的日常维护建议在 IDMP 中进行；未使用 IDMP 时，可用 SQL `SET TAG` 调整已入库 TAG。
+
+OPC UA 侧对 BrowseName / Description / Path 以及 Property→TAG 的自动映射，见 [OPC UA](./05-opcua/index.md) 与 [OPC UA CSV 映射参考](./05-opcua/02-csv-reference.md)。
+
+## 任务变更与 Agent
+
+Agent 在 OPC 服务器附近安装一次并保持运行即可。之后在 taosExplorer（或通过 [数据接入（Xnode）](../../05-tdengine-sql/08-cluster-management/02-xnode.md) SQL）上创建、编辑、启停 Data In 任务、调整采集参数、追加或更新点位 CSV，一般无需为点位变更重新打包或重装 Agent。
+
+仅在以下情况需要改动 Agent 本机配置或重装：更换 `endpoint` / `token`、升级 Agent 版本、调整 Agent 本机高级项（如存储转发目录）等。安装步骤见 [安装 taosX-Agent](./01-install-agent.md)。
+
+## 相关文档
+
+- [安装 taosX-Agent](./01-install-agent.md)：远程代理安装与连通
+- [OPC UA](./05-opcua/index.md)：UA 点位元数据自动映射与采集模式
+- [TDengine IDMP](../../19-tdengine-idmp/index.md)：点位标签与工业元数据管理（推荐）
+- [数据接入（Xnode）](../../05-tdengine-sql/08-cluster-management/02-xnode.md)：用 SQL 管理接入节点、任务与 Agent
+- [修改标签值](../../05-tdengine-sql/02-ddl/02-table.md#修改标签值)：未使用 IDMP 时批量更新已入库 TAG

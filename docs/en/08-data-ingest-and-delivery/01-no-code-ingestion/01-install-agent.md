@@ -85,6 +85,18 @@ If taosX cannot connect directly to your data source, you can install [taosX-Age
 
 When you create data in tasks, you can use this agent to connect to your data source.
 
+## Task Configuration and Agent Lifecycle
+
+After taosX-Agent is installed and connected on the data-source side, reuse the same Agent long term. In taosExplorer you can:
+
+- Create, edit, start, and stop Data In tasks (including OPC DA / OPC UA and others)
+- Adjust task-level collection settings (such as collection interval)
+- Append points and update point CSV / mapping
+
+These operations do not require reinstalling the Agent on the OPC (or other) server host, and do not require generating and redistributing a new “agent install package” just to change points. Tasks communicate with central taosX using the configured `endpoint` and `token`.
+
+Cases that do require changing the Agent host again include: replacing the connection `endpoint` / `token`, upgrading the Agent, or editing host-local `agent.toml` or store-and-forward options. Component reference: [taosX-Agent](../../12-operations-and-tooling/03-components/07-taosx-agent/index.md). You can also manage agents and tasks with SQL; see [Data Ingestion (Xnode)](../../05-tdengine-sql/08-cluster-management/02-xnode.md).
+
 ## Related Documentation
 
 For full configuration options, see [taosX-Agent](../../12-operations-and-tooling/03-components/07-taosx-agent/index.md).
