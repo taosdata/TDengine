@@ -12,7 +12,7 @@ Ignition 通过其 SQL Bridge 模块支持多种 SQL 数据库，你可以通过
 
 本文介绍如何在 Ignition 中安装 TDengine 的 JDBC 连接器并完成集成，以便在 [TDengine IDMP](https://www.taosdata.com/idmp) 及其他应用中使用来自 Ignition 的数据。
 
-![architecture](img/assets/ignition-01.webp)
+![architecture](../../assets/iot-ignition-01.webp)
 
 <center>TDengine–Ignition 集成架构</center>
 

@@ -49,6 +49,8 @@
 
 int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr, SStorageAPI* api, uint64_t uid, col_id_t colId, SRWLatch* lock);
 
+extern int64_t tsMaxKeyByPrecision[];
+
 static SColumnNode* getRollupTagCol(const SStreamTriggerReaderInfo* pInfo) {
   SNode* pNode = nodesListGetNode(pInfo->pRollupTagCols, 0);
   return (pNode != NULL && nodeType(pNode) == QUERY_NODE_COLUMN) ? (SColumnNode*)pNode : NULL;
@@ -2169,9 +2171,10 @@ end:
 //   return code;
 // }
 
-static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInfo* sStreamReaderInfo, SSHashObj* gidHash, int64_t ver) {
+static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInfo* sStreamReaderInfo, SSHashObj* gidHash, int64_t ver, STimeWindow win) {
   int32_t code = 0;
   int32_t lino = 0;
+  void* pTask = sStreamReaderInfo->pTask;
   WalMetaResult walMeta = {0};
   SSubmitTbData submitTbData = {0};
   bool          expandRollupGids = isRollupMultiReader(sStreamReaderInfo);
@@ -2221,6 +2224,10 @@ static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInf
       code = TSDB_CODE_INVALID_MSG;
       TSDB_CHECK_CODE(code, lino, end);
     }
+    if (nColData == 0) {
+      ST_TASK_WLOG("%s stream reader scan submit data without column data", __func__);
+      goto end;
+    }
 
     SColData colData = {0};
     code = tDecodeColData(version, pCoder, &colData, false);
@@ -2232,6 +2239,10 @@ static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInf
     if (colData.flag != HAS_VALUE) {
       code = TSDB_CODE_INVALID_MSG;
       TSDB_CHECK_CODE(code, lino, end);
+    }
+    if (colData.nVal == 0) {
+      ST_TASK_WLOG("%s stream reader scan submit data without rows", __func__);
+      goto end;
     }
     walMeta.skey = ((TSKEY *)colData.pData)[0];
     walMeta.ekey = ((TSKEY *)colData.pData)[colData.nVal - 1];
@@ -2248,6 +2259,10 @@ static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInf
     if (tDecodeU64v(pCoder, &nRow) < 0) {
       code = TSDB_CODE_INVALID_MSG;
       TSDB_CHECK_CODE(code, lino, end);
+    }
+    if (nRow == 0) {
+      ST_TASK_WLOG("%s stream reader scan submit data without rows", __func__);
+      goto end;
     }
 
     for (int32_t iRow = 0; iRow < nRow; ++iRow) {
@@ -2270,6 +2285,12 @@ static int32_t scanSubmitTbDataForMeta(SDecoder *pCoder, SStreamTriggerReaderInf
     }
   }
 
+  if (walMeta.skey > walMeta.ekey || walMeta.skey < win.skey || walMeta.ekey > win.ekey) {
+    ST_TASK_WLOG("%s stream reader scan data invalid, walMeta time:%" PRId64 ",%" PRId64 ". win time:%" PRId64 ",%" PRId64, __func__,
+      walMeta.skey, walMeta.ekey, win.skey, win.ekey);
+    goto end;
+  }
+
   if (expandRollupGids) {
     STREAM_CHECK_RET_GOTO(putWalMetaResultForRollupUid(sStreamReaderInfo, gidHash, submitTbData.suid, submitTbData.uid,
                                                        walMeta.skey, walMeta.ekey));
@@ -2284,7 +2305,7 @@ end:
   return code;
 }
 
-static int32_t scanSubmitDataForMeta(SStreamTriggerReaderInfo* sStreamReaderInfo, SSTriggerWalNewRsp* rsp, void* data, int32_t len, int64_t ver) {
+static int32_t scanSubmitDataForMeta(SStreamTriggerReaderInfo* sStreamReaderInfo, SSTriggerWalNewRsp* rsp, void* data, int32_t len, int64_t ver, STimeWindow win) {
   int32_t  code = 0;
   int32_t  lino = 0;
   SDecoder decoder = {0};
@@ -2307,7 +2328,7 @@ static int32_t scanSubmitDataForMeta(SStreamTriggerReaderInfo* sStreamReaderInfo
   STREAM_CHECK_NULL_GOTO(gidHash, terrno);
 
   for (uint64_t i = 0; i < nSubmitTbData; i++) {
-    STREAM_CHECK_RET_GOTO(scanSubmitTbDataForMeta(&decoder, sStreamReaderInfo, gidHash, ver));
+    STREAM_CHECK_RET_GOTO(scanSubmitTbDataForMeta(&decoder, sStreamReaderInfo, gidHash, ver, win));
   }
   tEndDecode(&decoder);
 
@@ -2420,6 +2441,13 @@ static bool shouldStopBeforeSubmitAfterTableChange(SStreamTriggerReaderInfo* sSt
          ((SSDataBlock*)rsp->tableBlock)->info.rows > 0;
 }
 
+static STimeWindow getDbTimeRange(SVnode* pVnode) {
+  TSKEY now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
+  TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * pVnode->config.tsdbCfg.keep2;
+  TSKEY maxKey = tsMaxKeyByPrecision[pVnode->config.tsdbCfg.precision];
+  return (STimeWindow){minKey, maxKey};
+}
+
 static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SStreamTriggerReaderInfo* sStreamReaderInfo,
                        int64_t ctime) {
   int32_t code = 0;
@@ -2443,6 +2471,8 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
   STREAM_CHECK_RET_GOTO(code);
 
   STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(rsp->metaBlock, STREAM_RETURN_ROWS_NUM));
+
+  STimeWindow win = getDbTimeRange(pVnode);
   while (1) {
     code = walNextValidMsg(pWalReader, true);
     if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
@@ -2470,7 +2500,7 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
       }
       data = POINTER_SHIFT(walContBody(wCont), sizeof(SSubmitReq2Msg));
       len = walContBodyLen(wCont) - sizeof(SSubmitReq2Msg);
-      STREAM_CHECK_RET_GOTO(scanSubmitDataForMeta(sStreamReaderInfo, rsp, data, len, ver));
+      STREAM_CHECK_RET_GOTO(scanSubmitDataForMeta(sStreamReaderInfo, rsp, data, len, ver, win));
     } else {
       STREAM_CHECK_RET_GOTO(processMeta(wCont->msgType, sStreamReaderInfo, data, len, rsp, ver));
     }
@@ -2919,7 +2949,7 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder* pCoder, SStreamTrigger
       int32_t numOfRows = 0;
       STREAM_CHECK_RET_GOTO(getRowRange(&colData, &target->window, &rowStart, &rowEnd, &numOfRows));
       if (numOfRows <= 0) {
-        ST_TASK_DLOG("%s no valid column data, uid:%" PRId64 ", gid:%" PRIu64, __func__, submitTbData.uid, target->gid);
+        ST_TASK_WLOG("%s no valid column data, uid:%" PRId64 ", gid:%" PRIu64, __func__, submitTbData.uid, target->gid);
         continue;
       }
 
@@ -2927,6 +2957,21 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder* pCoder, SStreamTrigger
       STREAM_CHECK_NULL_GOTO(pSlice, TSDB_CODE_INVALID_PARA);
 
       int32_t blockStart = pSlice->currentRowIdx;
+      int32_t sliceEnd = pSlice->startRowIdx + pSlice->numRows;
+      if (blockStart >= sliceEnd) {
+        ST_TASK_WLOG("%s skip column data beyond slice uid:%" PRId64 ", gid:%" PRIu64 ", ver:%" PRId64
+                     ", currentRowIdx:%d, sliceEnd:%d",
+                     __func__, submitTbData.uid, target->gid, ver, blockStart, sliceEnd);
+        continue;
+      }
+      int32_t availableRows = sliceEnd - blockStart;
+      if (numOfRows > availableRows) {
+        ST_TASK_WLOG("%s truncate column data to slice uid:%" PRId64 ", gid:%" PRIu64 ", ver:%" PRId64
+                     ", sliceRows:%d, inputRows:%d, currentRowIdx:%d",
+                     __func__, submitTbData.uid, target->gid, ver, availableRows, numOfRows, blockStart);
+        rowEnd = rowStart + availableRows;
+        numOfRows = availableRows;
+      }
       for (int16_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
         STREAM_CHECK_NULL_GOTO(pColData, terrno);
@@ -2995,11 +3040,19 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder* pCoder, SStreamTrigger
       STREAM_CHECK_NULL_GOTO(target, terrno);
       SStreamWalDataSlice* pSlice = getWalDataSlice(sStreamReaderInfo, rsp, submitTbData.uid, target->gid);
       if (pSlice == NULL) {
-        ST_TASK_DLOG("%s no row data slice, uid:%" PRId64 ", gid:%" PRIu64, __func__, submitTbData.uid, target->gid);
+        ST_TASK_WLOG("%s no row data slice, uid:%" PRId64 ", gid:%" PRIu64, __func__, submitTbData.uid, target->gid);
         continue;
       }
 
       int32_t blockStart = pSlice->currentRowIdx;
+      int32_t sliceEnd = pSlice->startRowIdx + pSlice->numRows;
+      if (blockStart >= sliceEnd) {
+        ST_TASK_WLOG("%s skip row data beyond slice uid:%" PRId64 ", gid:%" PRIu64 ", ver:%" PRId64
+                     ", currentRowIdx:%d, sliceEnd:%d",
+                     __func__, submitTbData.uid, target->gid, ver, blockStart, sliceEnd);
+        continue;
+      }
+      int32_t availableRows = sliceEnd - blockStart;
       int32_t numOfRows = 0;
       pCoder->pos = rowsPos;
       for (uint64_t iRow = 0; iRow < nRow; ++iRow) {
@@ -3022,6 +3075,12 @@ static int32_t scanSubmitTbData(SVnode* pVnode, SDecoder* pCoder, SStreamTrigger
           continue;
         }
 
+        if (numOfRows >= availableRows) {
+          ST_TASK_WLOG("%s truncate row data to slice uid:%" PRId64 ", gid:%" PRIu64 ", ver:%" PRId64
+                       ", sliceRows:%d, walRows:%" PRIu64 ", currentRowIdx:%d",
+                       __func__, submitTbData.uid, target->gid, ver, availableRows, nRow, blockStart);
+          continue;
+        }
         for (int16_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); i++) {
           SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
           STREAM_CHECK_NULL_GOTO(pColData, terrno);

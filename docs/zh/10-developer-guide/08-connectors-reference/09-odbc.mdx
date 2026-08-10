@@ -9,7 +9,7 @@ TDengine ODBC 提供基于 WebSocket（推荐）和 原生连接两种方式连�
 
 TDengine ODBC 提供 64 位 和 32 位 两种驱动程序。但 32 位仅企业版支持，且仅支持 WebSocket 连接方式。
 
-**注意** ：
+**注意**：
 
 - 驱动管理器：确保使用与应用程序架构匹配的 ODBC 驱动管理器。32 位应用程序需要使用 32 位 ODBC 驱动管理器，64 位应用程序需要使用 64 位 ODBC 驱动管理器。
 - 数据源名称（DSN）：32 位和 64 位 ODBC 驱动管理器都可以看到所有 DSN，用户 DSN 标签页下的 DSN 如果名字相同会共用，因此需要在 DSN 名称上去区分。
@@ -26,7 +26,7 @@ TDengine ODBC 提供 64 位 和 32 位 两种驱动程序。但 32 位仅企业�
 
 :::info 原生连接说明
 
-ODBC 驱动的**原生连接（Native）**直接调用 TDengine 客户端驱动（`taosnative` 库）通过 TDengine 私有协议与服务端通信，与 **WebSocket 连接**通过 `taosAdapter` 的 WebSocket 接口访问服务端不同。
+ODBC 驱动的 **原生连接（Native）** 直接调用 TDengine 客户端驱动（`taosnative` 库）通过 TDengine 私有协议与服务端通信，与 **WebSocket 连接** 通过 `taosAdapter` 的 WebSocket 接口访问服务端不同。
 
 - 原生连接通常拥有更好的性能，但要求客户端驱动版本与服务端版本一致。
 - WebSocket 连接兼容性更好，一般无需随服务端升级而更新客户端，且支持云服务和 32 位应用程序。
@@ -36,7 +36,7 @@ ODBC 驱动的**原生连接（Native）**直接调用 TDengine 客户端驱动�
 
 :::warning 原生连接与 WebSocket 连接不可混用
 
-原生连接（Native）和 WebSocket 连接在同一进程中**不支持混合使用，也不允许在运行时切换**。一个进程只能使用其中一种连接方式。如果需要同时使用两种连接方式，请在不同的进程中分别使用。
+原生连接（Native）和 WebSocket 连接在同一进程中 **不支持混合使用，也不允许在运行时切换**。一个进程只能使用其中一种连接方式。如果需要同时使用两种连接方式，请在不同的进程中分别使用。
 
 :::
 
@@ -66,7 +66,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 
 5. 对于一般用户，建议使用 **WebSocket** 连接方式，性能与 Native 差别不大，兼容性更好。
 
-6. 原生连接（Native）和 WebSocket 连接在同一进程中**不支持混合使用，也不允许在运行时切换**。一个进程只能使用其中一种连接方式，请在创建数据源时确定所需的连接类型。
+6. 原生连接（Native）和 WebSocket 连接在同一进程中 **不支持混合使用，也不允许在运行时切换**。一个进程只能使用其中一种连接方式，请在创建数据源时确定所需的连接类型。
 
 7. WebSocket 连接支持配置传输压缩开关（`COMPRESSION=0/1`），用于控制传输是否启用压缩；Native 连接不支持该参数。
 
@@ -80,7 +80,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 
 4. 点击完成，进入 TDengine ODBC 数据源配置页面，填写如下必要信息
 
-    ![ODBC WebSocket connection config](./assets/odbc-ws-config-zh.webp)
+    ![ODBC WebSocket connection config](../../assets/odbc-01.webp)
 
     4.1【DSN】：Data Source Name 必填，为新添加的 ODBC 数据源命名
 
@@ -114,7 +114,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 
 4. 点击完成，进入 TDengine ODBC 数据源配置页面，填写如下必要信息
 
-    ![ODBC native connection config](./assets/odbc-native-config-zh.webp)
+    ![ODBC native connection config](../../assets/odbc-02.webp)
 
     4.1【DSN】：Data Source Name 必填，为新添加的 ODBC 数据源命名
 
@@ -274,7 +274,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 | SQL_ATTR_TRANSLATE_LIB | |
 | SQL_ATTR_TRANSLATE_OPTION | |
 
-- **允许任何带有 ODBC 库的编程语言与 TDengine 通信** ：
+- **允许任何带有 ODBC 库的编程语言与 TDengine 通信**：
 
 | programming language | ODBC-API or bindings/plugins |
 | :----- | :---- |

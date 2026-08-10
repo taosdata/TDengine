@@ -1485,10 +1485,12 @@ class TestExternal:
             fullMatched=False,
         )
 
-        tdSql.noError(
+        # DISTINCT aggregates are not supported with EXTERNAL_WINDOW
+        tdSql.error(
             "select cast(_wstart as bigint) as ws, count(distinct v) "
             "from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w) "
-            "order by ws"
+            "order by ws",
+            fullMatched=False,
         )
 
         tdSql.error(
@@ -1536,8 +1538,6 @@ class TestExternal:
             ("select cast(_wstart as bigint) as ws, elapsed(ts) as el from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
             # LEASTSQUARES on child table
             ("select cast(_wstart as bigint) as ws, leastsquares(v, 1, 1) as ls from ext_cx_src_1 external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
-            # COUNT DISTINCT
-            ("select t1, cast(_wstart as bigint) as ws, count(distinct v) as cd from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
             # partition by + SPREAD
             ("select t1, cast(_wstart as bigint) as ws, spread(v) as sp from ext_cx_src partition by t1 external_window((select ts, endtime, mark from ext_cx_win) w);", 8),
             # partition by + GROUP_CONCAT
@@ -1549,27 +1549,22 @@ class TestExternal:
             ("select cast(_wstart as bigint) as ws, leastsquares(v, 1, 1) as ls from ext_cx_src external_window((select ts, endtime, mark from ext_cx_win) w);", 4),
         ])
 
-        tdSql.query(
+        # DISTINCT aggregates are not supported with EXTERNAL_WINDOW, with or
+        # without PARTITION BY.
+        tdSql.error(
             "select t1, cast(_wstart as bigint) as ws, count(distinct v) as cd "
             "from ext_cx_src partition by t1 "
             "external_window((select ts, endtime, mark from ext_cx_win) w) "
-            "order by t1, ws"
+            "order by t1, ws",
+            fullMatched=False,
         )
-        tdSql.checkRows(8)
-        expected = [
-            (1, 1700400000000, 2),
-            (1, 1700400300000, 2),
-            (1, 1700400600000, 1),
-            (1, 1700400900000, 1),
-            (2, 1700400000000, 1),
-            (2, 1700400300000, 2),
-            (2, 1700400600000, 1),
-            (2, 1700400900000, 1),
-        ]
-        for row, (t1, ws, cd) in enumerate(expected):
-            tdSql.checkData(row, 0, t1)
-            tdSql.checkData(row, 1, ws)
-            tdSql.checkData(row, 2, cd)
+        tdSql.error(
+            "select cast(_wstart as bigint) as ws, sum(distinct v) as sd "
+            "from ext_cx_src "
+            "external_window((select ts, endtime, mark from ext_cx_win) w) "
+            "order by ws",
+            fullMatched=False,
+        )
 
         # HISTOGRAM produces multi-row output per group, not compatible with window queries
         tdSql.error(

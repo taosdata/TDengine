@@ -51,7 +51,7 @@ TAOS *taos = taos_connect(ip, user, password, database, port);
 ```
 
 :::warning 重要说明
-`taos_options(TSDB_OPTION_DRIVER, arg)` 设置驱动类型**必须在程序开始时调用，且只能调用一次**。一旦设置后，该配置对整个程序生命周期有效，不可更改。
+`taos_options(TSDB_OPTION_DRIVER, arg)` 设置驱动类型 **必须在程序开始时调用，且只能调用一次**。一旦设置后，该配置对整个程序生命周期有效，不可更改。
 :::
 
 ## 支持的平台
@@ -827,7 +827,7 @@ stmt 升级到 stmt2 的改动：
 
 ### 数据订阅
 
-主题概念见 [数据订阅](../../07-data-subscription/index.md) 与 [主题语法](../../07-data-subscription/01-topic.md)；多语言用法见 [数据订阅编程接口](../07-subscription-api.md)。C/C++ 可通过 `tmq_get_res_type` 区分数据与元数据消息。
+主题概念见 [数据订阅](../../06-data-subscription/index.md) 与 [主题语法](../../06-data-subscription/01-topic.md)；多语言用法见 [数据订阅编程接口](../07-subscription-api.md)。C/C++ 可通过 `tmq_get_res_type` 区分数据与元数据消息。
 
 - `const char *tmq_err2str(int32_t code)`
 

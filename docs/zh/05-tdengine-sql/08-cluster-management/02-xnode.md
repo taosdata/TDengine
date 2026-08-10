@@ -37,7 +37,7 @@ CREATE XNODE 'localhost:6055' TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHb
 
 ### 修改认证
 
-修改认证会重启守护进程 `xnoded`。
+修改认证会重启守护进程 `xnoded`。本命令修改的是单个 `xnoded` 守护进程连接 `taosd` 所用的认证凭据。
 
 ```sql
 ALTER XNODE SET USER name PASS 'password'
@@ -179,6 +179,12 @@ CREATE XNODE TASK 't4'
 SHOW XNODE TASKS [WHERE condition]
 ```
 
+`parser` 列使用 BLOB 返回完整任务配置。在 `WHERE` 条件中，`parser` 支持关系比较、`IS NULL`、`IS NOT NULL`、`LIKE`、`NOT LIKE`、`MATCH`/`REGEXP`、`NMATCH`、`IN`、`NOT IN`、`BETWEEN`、`NOT BETWEEN` 及其逻辑组合；不支持字符串函数、JSON 运算、算术和位运算。其他列支持的运算由各自的数据类型决定。
+
+```sql
+SHOW XNODE TASKS WHERE parser != '{}' AND parser IS NOT NULL;
+```
+
 #### 示例
 
 ```sql
@@ -291,6 +297,12 @@ Job 是任务（Task）的执行分片，支持手动与自动负载均衡。
 
 ```sql
 SHOW XNODE JOBS [WHERE condition]
+```
+
+`config` 列使用 BLOB 返回完整 Job 配置。在 `WHERE` 条件中，`config` 支持关系比较、`IS NULL`、`IS NOT NULL`、`LIKE`、`NOT LIKE`、`MATCH`/`REGEXP`、`NMATCH`、`IN`、`NOT IN`、`BETWEEN`、`NOT BETWEEN` 及其逻辑组合；不支持字符串函数、JSON 运算、算术和位运算。其他列支持的运算由各自的数据类型决定。
+
+```sql
+SHOW XNODE JOBS WHERE config != '{}' AND config IS NOT NULL;
 ```
 
 #### 示例

@@ -1,14 +1,15 @@
-# encoding:utf-8
 """shesd algorithm class definition"""
 
 from pandas import Series
 from pyculiarity import detect_vec
+
 from taosanalytics.base import AbstractAnomalyDetectionService
 
 
 class _SHESDService(AbstractAnomalyDetectionService):
-    """ s-h-esd algorithm is to check the anomaly data in the input list """
-    name = 'shesd'
+    """s-h-esd algorithm is to check the anomaly data in the input list"""
+
+    name = "shesd"
     desc = ""
     _builtins = True
 
@@ -26,10 +27,14 @@ class _SHESDService(AbstractAnomalyDetectionService):
 
         period = self.period if self.period > 0 else max(2, len(self.list) // 2)
 
-        results = detect_vec(Series(self.list), max_anoms=self.max_anoms, direction=self.direction,
-                             period=period)
+        results = detect_vec(
+            Series(self.list),
+            max_anoms=self.max_anoms,
+            direction=self.direction,
+            period=period,
+        )
 
-        res_val = results['anoms']['anoms']
+        res_val = results["anoms"]["anoms"]
 
         return [-1 if k in set(res_val) else 1 for k in self.list]
 
@@ -44,4 +49,8 @@ class _SHESDService(AbstractAnomalyDetectionService):
             self.max_anoms = float(params["max_anoms"])
 
     def get_params(self):
-        return {"period": self.period, "direction": self.direction, "max_anoms": self.max_anoms}
+        return {
+            "period": self.period,
+            "direction": self.direction,
+            "max_anoms": self.max_anoms,
+        }

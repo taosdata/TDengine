@@ -110,7 +110,7 @@ taos> source <filename>;
 
 ## 数据订阅 {#数据订阅}
 
-`taos` shell 支持在交互模式下通过 `subscribe` 命令订阅 Topic 数据，实时接收并显示推送的消息，便于快速验证数据订阅功能。主题与消费模型的完整说明见 [数据订阅](../../07-data-subscription/index.md)。
+`taos` shell 支持在交互模式下通过 `subscribe` 命令订阅 Topic 数据，实时接收并显示推送的消息，便于快速验证数据订阅功能。主题与消费模型的完整说明见 [数据订阅](../../06-data-subscription/index.md)。
 
 ### 语法
 
@@ -179,7 +179,7 @@ Unsubscribed. Total rows received: 10
 ### 注意事项
 
 - `subscribe` 命令仅在交互模式和 `-s` 非交互模式下可用。
-- `-o` 参数仅在消费者组**无已提交 offset** 时生效；若该组已有提交记录，则从上次提交位置继续消费。
+- `-o` 参数仅在消费者组 **无已提交 offset** 时生效；若该组已有提交记录，则从上次提交位置继续消费。
 - 如需在订阅结果中显示子表名，请在创建 Topic 时将 `tbname` 作为查询列，例如：`CREATE TOPIC my_topic AS SELECT tbname, ts, col1 FROM stable1;`。
 - 按 Ctrl+C 可随时中止订阅（仅交互模式有效）。
 

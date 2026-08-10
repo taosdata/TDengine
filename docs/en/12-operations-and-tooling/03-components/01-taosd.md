@@ -1,0 +1,786 @@
+---
+title: taosd Reference
+sidebar_label: taosd
+---
+
+taosd is the core service of the TDengine database engine, and its configuration file is by default located at `/etc/taos/taos.cfg`, but you can also specify a configuration file in a different path. This section provides a detailed introduction to the command-line parameters of taosd and the configuration parameters in the configuration file.
+
+## Command Line Parameters
+
+The command line parameters for taosd are as follows:
+
+- -a `<json file>`: Specifies a JSON file containing various configuration parameters for service startup, formatted like `{"fqdn":"td1"}`. For details on configuration parameters, please refer to the next section.
+- -c `<directory>`: Specifies the directory where the configuration file is located.
+- -s: Prints SDB information.
+- -C: Prints configuration information.
+- -e: Specifies environment variables, formatted like `-e 'TAOS_FQDN=td1'`.
+- -r: Starts repair mode. Two modes are supported: `--mode force` (in-place local repair) and `--mode copy` (copy vnode data from a healthy source node).
+- -k: Retrieves the machine code.
+- -dm: Enables memory scheduling.
+- -V: Prints version information.
+
+## Repair Mode
+
+Use `taosd -r` to start repair mode. Two modes are supported:
+
+- **Force mode**: In-place repair of local vnodes with specified repair targets.
+- **Copy mode**: When the volume of corrupted data is too large for regular repair mode to handle within acceptable time, copy vnode files directly from a healthy source node to the target node.
+
+### Force Mode Syntax
+
+```bash
+taosd -r --mode force --node-type vnode [--backup-path <path>] \
+  --repair-target <target> [--repair-target <target>]...
+```
+
+### Repair Target Grammar
+
+Each `--repair-target` value uses the following grammar:
+
+```text
+<file-type>:<key>=<value>[:<key>=<value>]...
+```
+
+Rules:
+
+- `<file-type>` must be the first segment.
+- Supported file types are `meta`, `tsdb`, and `wal`.
+- Key order is not significant, but examples in this document use a consistent order.
+- Repeating the same key in one target is invalid.
+- Repeating the same repair object across multiple targets is invalid.
+- For `tsdb`, `fileid=*` means all file sets in the target vnode, and it cannot be mixed with explicit `fileid=<n>` targets in the same vnode.
+
+### Supported Targets
+
+| File Type | Required Keys | Optional Keys | Default Strategy | Supported Strategies |
+| --- | --- | --- | --- | --- |
+| `meta` | `vnode` | `strategy` | `from_uid` | `from_uid`, `from_redo` |
+| `tsdb` | `vnode`, `fileid` | `strategy` | `drop_invalid_only` | `drop_invalid_only`, `head_only_rebuild`, `full_rebuild` |
+| `wal` | `vnode` | none | none | none |
+
+Additional notes:
+
+- `fileid` is only valid for `tsdb`, and it is required in the current phase. Use `fileid=<n>` to repair one file set, or `fileid=*` to repair all file sets in one vnode.
+- `fileid=*` and explicit `fileid=<n>` targets are mutually exclusive within the same vnode.
+- `strategy` is not currently supported for `wal`.
+- `--backup-path` is global for the whole repair startup, not per target.
+- TSDB repair strategies behave as follows:
+  - `drop_invalid_only`: only remove obviously bad missing-file cases before any deep scan. It does not inspect size-mismatch corruption against `current.json`.
+  - `head_only_rebuild`: deep-scan valid core blocks and rebuild `.head` only; keep `.data` unchanged and drop `.sma` if SMA metadata is unusable.
+  - `full_rebuild`: deep-scan valid core blocks and rebuild the full core payload with the existing writer path.
+  - Use `head_only_rebuild` or `full_rebuild` when you need recovery behavior for size-mismatch corruption.
+
+### Force Mode Limitations
+
+- Only `--node-type vnode` is supported.
+- `taosd -r --mode force` without `--node-type` or `--repair-target` is invalid.
+- `--backup-path` and `--repair-target` cannot be used with `--mode copy`.
+- The older repair parameters `--file-type`, `--vnode-id`, and `--replica-node` have been removed from this interface.
+
+### Force Mode Examples
+
+Repair meta on one vnode and use the default strategy:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target meta:vnode=3
+```
+
+Repair one TSDB file set and use an explicit strategy:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=head_only_rebuild
+```
+
+Repair one TSDB file set and force a full core rebuild:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target tsdb:vnode=5:fileid=1809:strategy=full_rebuild
+```
+
+Repair all TSDB file sets in one vnode with one target:
+
+```bash
+taosd -r --mode force --node-type vnode \
+  --repair-target 'tsdb:vnode=5:fileid=*'
+```
+
+Repair multiple targets in one startup:
+
+```bash
+taosd -r --mode force --node-type vnode --backup-path /tmp/repair-bak \
+  --repair-target meta:vnode=3 \
+  --repair-target tsdb:vnode=5:fileid=1809 \
+  --repair-target wal:vnode=6
+```
+
+### Copy Mode
+
+Copy mode copies files for specified vnodes directly from a healthy source node to the current (target) node. This is intended for scenarios where the volume of corrupted data is too large for regular repair mode to handle within acceptable time.
+
+#### Copy Mode Syntax
+
+```bash
+taosd -r --mode copy --node-type vnode --source-cfg <path> \
+  [--source-host <host>] --vnode <id>[,<id>|<id>-<id>]...
+```
+
+#### Copy Mode Options
+
+| Option | Required | Description |
+| --- | --- | --- |
+| `--source-cfg` | Yes | Path to the source node's `taos.cfg` configuration file, or the directory containing it |
+| `--source-host` | No | SSH host of the source node; omit for local source |
+| `--vnode` | Yes | Comma-separated list of vnode IDs to copy; ranges with `-` are supported (e.g., `3,5-8,10`) |
+
+#### Copy Mode Limitations
+
+- Only `--node-type vnode` is supported.
+- Windows is not currently supported for copy mode.
+- `--backup-path` and `--repair-target` cannot be used with `--mode copy`.
+- Remote mode requires passwordless SSH access (BatchMode).
+
+#### Copy Mode Examples
+
+Copy a single vnode from a local source node:
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /data/source-cluster/taos.cfg \
+  --vnode 3
+```
+
+Copy multiple vnodes from a local source node (specifying config directory):
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /etc/taos/ \
+  --vnode 3,5,8
+```
+
+Copy vnodes from a remote source node:
+
+```bash
+taosd -r --mode copy --node-type vnode \
+  --source-cfg /etc/taos/taos.cfg \
+  --source-host 192.168.1.100 \
+  --vnode 3,5
+```
+
+## Configuration Parameters
+
+Configuration parameters are divided into two categories:
+
+|Parameter Type      |  Description                     |  Scope    | Modification Method              | View Parameter Command            |
+|:------------|:-------------------------|:-----------|:---------------------|:---------------------|
+| Global Configuration Parameters  | Parameters shared by all nodes in the cluster     |  Entire Cluster   | 1. Modify via SQL.   | show variables; |
+| Local Configuration Parameters  | Parameters configured individually for each cluster node  |  Single Node    | 1. Modify via SQL; 2. Modify via taos.cfg configuration file. | show dnode `<dnode_id>` variables;|
+
+Additional Notes:
+
+1. Method to modify global configuration parameters via SQL: `alter all dnodes 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
+2. Method to modify local configuration parameters via SQL: `alter dnode <dnode_id> 'parameter_name' 'parameter_value';`, Whether the modifications take effect immediately, please refer to the "Dynamic Modification" description for each parameter.
+3. From 3.4.0.0, to prevent configuration file tampering, the `forceReadConfig` parameter has been removed. Except for the first startup, configuration items will not be loaded from the configuration file. If you need to modify configuration parameters, use the `ALTER` command and modify them via SQL.
+4. For dynamic modification methods of configuration parameters, please refer to [Node Management](../../05-tdengine-sql/08-cluster-management/01-node.md).
+5. Some parameters exist in both the client (taosc) and server (taosd), with different scopes and meanings in different contexts. For details, please refer to [TDengine Configuration Parameter Scope Comparison](10-config-scope.md).
+
+### Connection Related
+
+| Parameter Name         | Supported Version       | Dynamic Modification                                         | Description                                                  |
+| ---------------------- | ----------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| firstEp                |                         | Not supported                                                | Endpoint of the first dnode in the cluster that taosd actively connects to at startup, default value localhost:6030 |
+| secondEp               |                         | Not supported                                                | Endpoint of the second dnode in the cluster that taosd tries to connect to if the firstEp is unreachable, no default value |
+| fqdn                   |                         | Not supported                                                | The service address that taosd listens on, default is the first hostname configured on the server |
+| serverPort             |                         | Not supported                                                | The port that taosd listens on, default value 6030           |
+| compressMsgSize        |                         | Supported, effective after restart                           | Whether to compress RPC messages; -1: do not compress any messages; 0: compress all messages; N (N>0): only compress messages larger than N bytes; default value -1 |
+| rpcCrcEnable           | v3.4.2.4                 | Supported, effective after restart                           | Whether to verify CRC32C on RPC messages; must be consistent across all nodes and clients (a side with crc enabled rejects messages from a side with crc disabled); default value 1 |
+| shellActivityTimer     |                         | Supported, effective immediately                             | Duration in seconds for the client to send heartbeat to mnode, range 1-120, default value 3 |
+| numOfRpcSessions       |                         | Supported, effective after restart                           | Maximum number of connections supported by RPC, range 1-100000, default value 30000 |
+| numOfRpcThreads        |                         | Supported, effective after restart                           | Number of threads for receiving and sending RPC data, range 1-1024, default value is half of the CPU cores (limited to [2, 100] on Linux and [2, 4] on Windows)|
+| numOfTaskQueueThreads  |                         | Supported, effective after restart                           | Number of threads for client to process RPC messages, range 4-1024, default value is twice the CPU cores (not less than 16) |
+| rpcQueueMemoryAllowed  |                         | Supported, effective immediately                             | Maximum memory allowed for received RPC messages in dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory |
+| resolveFQDNRetryTime   | Cancelled after 3.x     | Not supported                                                | Number of retries when FQDN resolution fails                 |
+| timeToGetAvailableConn | Cancelled after 3.3.4.x | Maximum waiting time to get an available connection, range 10-50000000, in milliseconds, default value 500000 |                                                              |
+| maxShellConns          | Cancelled after 3.x     | Supported, effective after restart                           | Maximum number of connections allowed                        |
+| maxRetryWaitTime       |                         | Supported, effective after restart                           | Maximum timeout for reconnection,calculated from the time of retry,range is 3000-86400000,in milliseconds, default value 20000 |
+| shareConnLimit         | Added in 3.3.4.0        | Supported, effective after restart                           | Number of requests a connection can share, range 1-512, default value 10 |
+| readTimeout            | Added in 3.3.4.0        | Supported, effective after restart                           | Minimum timeout for a single request, range 64-604800, in seconds, default value 900 |
+| mqttPort               | After 3.3.6.23          | Not supported                                                | MQTT service listening port, range 1-65056, default value 6057 |
+| enableTLS              | After 3.3.8.4           | Supported, effective immediately                             | Whether to enable TLS connection; 0: disable, 1: enable; default value 0 |
+| enableSasl             | After 3.4.0.0           | Supported, effective immediately                             | Whether to enable SASL authentication; 0: disable, 1: enable; default value 0 |
+| rpcRecvLogThreshold    | After 3.3.8.4           | Supported, effective immediately                             | RPC receive log threshold, RPC requests exceeding this time will be logged, range 1-1048576, in seconds, default value 3 |
+
+### Monitoring Related
+
+| Parameter Name     | Supported Version | Dynamic Modification               | Description                                                  |
+| ------------------ | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
+| monitor            |                   | Supported, effective immediately   | Whether to collect and report monitoring data, 0: off; 1: on; default value 1 |
+| monitorFqdn        |                   | Supported, effective after restart | The FQDN of the server where the taosKeeper service is located, default value none |
+| monitorPort        |                   | Supported, effective after restart | The port number listened to by the taosKeeper service, default value 6043 |
+| monitorInterval    |                   | Supported, effective immediately   | The time interval for recording system parameters (CPU/memory) in the monitoring database, in seconds, range 1-86400, default value 30 |
+| monitorMaxLogs     |                   | Supported, effective immediately   | Number of cached logs pending report                         |
+| monitorComp        |                   | Supported, effective after restart | Whether to use compression when reporting monitoring logs    |
+| monitorLogProtocol |                   | Supported, effective immediately   | Whether to print monitoring logs                             |
+| monitorForceV2     |                   | Supported, effective immediately   | Whether to use V2 protocol for reporting                     |
+| telemetryReporting |                   | Supported, effective immediately   | Whether to upload telemetry, 0: do not upload, 1: upload, default value 1 |
+| telemetryServer    |                   | Not supported                      | Telemetry server address                                     |
+| telemetryPort      |                   | Not supported                      | Telemetry server port number                                 |
+| telemetryInterval  |                   | Supported, effective immediately   | Telemetry upload interval, in seconds, default 86400         |
+| crashReporting     |                   | Supported, effective immediately   | Whether to upload crash information; 0: do not upload, 1: upload; default value 1 |
+| enableMetrics      | After 3.7.0.0     | Supported, effective immediately   | Whether to enable write diagnostic tool to collect and upload write metrics; 0: disable, 1: enable; default value 0 |
+| metricsInterval    | After 3.7.0.0     | Supported, effective immediately   | Interval for write diagnostic tool to upload write metrics, in seconds, range 1-3600, default value 30 |
+| metricsLevel       | After 3.7.0.0     | Supported, effective immediately   | Level of write metrics collected by diagnostic tool; 0: collect only important metrics, 1: collect all metrics; default value 0 |
+
+### Query Related
+
+| Parameter Name           | Supported Version | Dynamic Modification               | Description                                                  |
+| ------------------------ | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
+| countAlwaysReturnValue   |                   | Supported, effective immediately   | Whether count/hyperloglog functions return a value when input data is empty or NULL; 0: return empty row, 1: return; default value 1; When this parameter is set to 1, if the query contains an INTERVAL clause or the query uses TSMA, and the corresponding group or window has empty or NULL data, the corresponding group or window will not return a query result; Note that this parameter should be consistent between client and server |
+| tagFilterCache           |                   | Supported, effective immediately   | Whether to cache tag filter results                          |
+| stableTagFilterCache     | since 3.3.8.6     | Supported, effective immediately   | In stream computing, whether to cache filter results of equal condition of tags. It will not become invalid due to adding or deleting child tables or updating the tag values or modifying super table tags. |
+| metaEntryCacheSize       | since  3.3.6.35   | Supported, effective immediately   | The reserved memory size to cache meta tags                  |
+| queryRspPolicy           |                   | Supported, effective immediately   | Query response strategy                                      |
+| queryUseMemoryPool       |                   | Supported, effective after restart | Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on |
+| minReservedMemorySize    |                   | Supported, effective immediately   | The minimum reserved system available memory size, all memory except reserved can be used for queries, unit: MB, default value: 0 (when set to 0, the system will automatically calculate the reserved memory size), value range 1024-1000000000 |
+| singleQueryMaxMemorySize |                   | Not supported                      | The memory limit that a single query can use on a single node (dnode), exceeding this limit will return an error, unit: MB, default value: 0 (no limit), value range 0-1000000000 |
+| filterScalarMode         |                   | Supported, effective after restart | Force scalar filter mode, 0: off; 1: on, default value 0     |
+| queryRsmaTolerance       |                   | Not supported                      | Internal parameter, tolerance time for determining which level of rsma data to query, in milliseconds |
+| pqSortMemThreshold       |                   | Not supported                      | Internal parameter, memory threshold (MB) for sorting and DISTINCT aggregation spill-to-disk |
+| updateCacheBatch         | After 3.3.4.11    | Not supported                      | Whether to batch update cache; default value true |
+| sessionControl           | After 3.4.0.0     | Supported, effective after restart | Whether to enable session control function; default value true |
+| sessionPerUser           | After 3.4.0.0     | Supported, effective immediately   | Maximum number of sessions allowed per user, -1 means no limit, range -1-INT32_MAX, default value -1 |
+| sessionConnTime          | After 3.4.0.0     | Supported, effective immediately   | Session connection time limit, -1 means no limit, range -1-INT32_MAX, in seconds, default value -1 |
+| sessionConnIdleTime      | After 3.4.0.0     | Supported, effective immediately   | Session idle time limit, -1 means no limit, range -1-INT32_MAX, in seconds, default value -1 |
+| sessionMaxConcurrency    | After 3.4.0.0     | Supported, effective immediately   | Maximum concurrency per session, -1 means no limit, range -1-INT32_MAX, default value -1 |
+| sessionMaxCallVnodeNum   | After 3.4.0.0     | Supported, effective immediately   | Maximum number of vnode calls per session, -1 means no limit, range -1-INT32_MAX, default value -1 |
+| timestampDeltaLimit      | After 3.4.0.0     | Not supported                      | Timestamp deviation limit, in seconds, default 900 seconds (15 minutes) |
+| enableQueryHb            | After 3.1.0.0     | Supported, effective immediately   | Whether to send query heartbeat messages; Internal parameter; 0: disable, 1: enable; default value 1 |
+| queryUseNodeAllocator    | After 3.1.0.0     | Supported, effective immediately   | Query plan allocation method; Internal parameter; 0: disable, 1: enable; default value 1 |
+| queryMaxConcurrentTables | After 3.1.0.0     | Not supported                      | Query plan allocation method; Internal parameter; default value 200, range INT64_MIN-INT64_MAX |
+| queryNodeChunkSize       | After 3.1.0.0     | Supported, effective immediately   | Query plan chunk size; Internal parameter; in bytes, default value 32*1024, range 1024-128*1024 |
+| queryNoFetchTimeoutSec   | After 3.1.0.0     | Supported, effective immediately   | Timeout for queries when application does not fetch data for a long time, counted from last response; Internal parameter; 0: disable, 1: enable; default value 18000, range 60-1000000000; Enterprise parameter |
+| queryPlannerTrace        | After 3.1.0.0     | Supported, effective immediately   | Whether query planner outputs detailed logs; Internal parameter; 0: disable, 1: enable; default value 0 |
+
+### Region Related
+
+| Parameter Name | Supported Version | Dynamic Modification | Description                                                  |
+| -------------- | ----------------- | -------------------- | ------------------------------------------------------------ |
+| timezone       |                   | since 3.1.0.0        | Time zone; defaults to dynamically obtaining the current time zone setting from the system |
+| locale         |                   | since 3.1.0.0        | System locale information and encoding format, defaults to obtaining from the system |
+| charset        |                   | since 3.1.0.0        | Character set encoding, defaults to obtaining from the system |
+
+:::info
+
+#### Explanation of Regional Related Parameters
+
+1. To address the issue of data writing and querying across multiple time zones, TDengine uses Unix Timestamps to record and store timestamps. The nature of Unix Timestamps ensures that the timestamps generated are consistent at any given moment across any time zone. It is important to note that the conversion to Unix Timestamps is done on the client side. To ensure that other forms of time on the client are correctly converted to Unix Timestamps, it is necessary to set the correct time zone.
+
+On Linux/macOS, the client automatically reads the time zone information set by the system. Users can also set the time zone in the configuration file in various ways. For example:
+
+```text
+timezone UTC-8
+timezone Asia/Shanghai
+```
+
+Both are valid settings for the east-8 (Beijing) time zone. Note that under the POSIX sign convention, `UTC-8` means 8 hours east of UTC — the sign is counterintuitive. When in doubt, use an IANA name such as `Asia/Shanghai` to avoid confusion. For the full list of accepted timezone formats, see [Supported Timezone Formats](../../05-tdengine-sql/10-time/01-timezone.md#supported-timezone-formats).
+
+The setting of the time zone affects the querying and writing of SQL statements involving non-Unix timestamp content (timestamp strings, interpretation of the keyword now). For example:
+
+```sql
+SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
+```
+
+In GMT+8, the SQL statement is equivalent to:
+
+```sql
+SELECT count(*) FROM table_name WHERE TS<1554955268000;
+```
+
+In the UTC time zone, the SQL statement is equivalent to:
+
+```sql
+SELECT count(*) FROM table_name WHERE TS<1554984068000;
+```
+
+To avoid the uncertainties brought by using string time formats, you can also directly use Unix Timestamps. Additionally, you can use timestamp strings with time zones in SQL statements, such as RFC3339 formatted timestamp strings, 2013-04-12T15:52:01.123+08:00 or ISO-8601 formatted timestamp strings 2013-04-12T15:52:01.123+0800. The conversion of these two strings to Unix Timestamps is not affected by the system's local time zone.
+
+1. TDengine provides a special field type, nchar, for storing wide characters in non-ASCII encodings such as Chinese, Japanese, and Korean. Data written to the nchar field is uniformly encoded in UCS4-LE format and sent to the server. It is important to note that the correctness of the encoding is ensured by the client. Therefore, if users want to properly use the nchar field to store non-ASCII characters such as Chinese, Japanese, and Korean, they need to correctly set the client's encoding format.
+
+The characters input by the client use the current default encoding format of the operating system, which is often UTF-8 on Linux/macOS systems, but may be GB18030 or GBK on some Chinese systems. The default encoding in a Docker environment is POSIX. In Chinese version Windows systems, the encoding is CP936. The client needs to ensure the correct setting of the character set they are using, i.e., the current encoding character set of the operating system on which the client is running, to ensure that the data in nchar is correctly converted to UCS4-LE encoding format.
+
+In Linux/macOS, the naming rule for locale is: \<language>_\<region>.\<character set encoding> such as: zh_CN.UTF-8, where zh represents Chinese, CN represents mainland China, and UTF-8 represents the character set. The character set encoding provides instructions for the client to correctly parse local strings. Linux/macOS can set the system's character encoding by setting the locale, but since Windows uses a locale format that is not POSIX standard, another configuration parameter charset is used to specify the character encoding in Windows. Charset can also be used in Linux/macOS to specify the character encoding.
+
+1. If charset is not set in the configuration file, in Linux/macOS, taos automatically reads the current locale information of the system at startup, and extracts the charset encoding format from the locale information. If it fails to automatically read the locale information, it attempts to read the charset configuration, and if reading the charset configuration also fails, it interrupts the startup process.
+
+In Linux/macOS, the locale information includes character encoding information, so after correctly setting the locale in Linux/macOS, there is no need to set charset separately. For example:
+
+```text
+locale zh_CN.UTF-8
+```
+
+In Windows systems, it is not possible to obtain the current encoding from the locale. If it is not possible to read the string encoding information from the configuration file, taos defaults to setting the character encoding to CP936. This is equivalent to adding the following configuration in the configuration file:
+
+```text
+charset CP936
+```
+
+If you need to adjust the character encoding, please consult the encoding used by the current operating system and set it correctly in the configuration file.
+
+In Linux/macOS, if the user sets both locale and charset encoding, and if the locale and charset are inconsistent, the latter setting will override the earlier one.
+
+```text
+locale zh_CN.UTF-8
+charset GBK
+```
+
+Then the effective value of charset is GBK.
+
+```text
+charset GBK
+locale zh_CN.UTF-8
+```
+
+The effective value of charset is UTF-8.
+
+:::
+
+### Storage Related
+
+| Parameter Name           | Supported Version | Dynamic Modification               | Description                                                  |
+| ------------------------ | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
+| dataDir                  |                   | Not supported                      | Directory for data files, all data files are written to this directory, default value /var/lib/taos |
+| tempDir                  |                   | Not supported                      | Specifies the directory for generating temporary files during system operation, default value /tmp |
+| minimalDataDirGB         |                   | Not supported                      | Minimum space to be reserved in the time-series data storage directory specified by dataDir, in GB, default value 2 |
+| minimalTmpDirGB          |                   | Not supported                      | Minimum space to be reserved in the temporary file directory specified by tempDir, in GB, default value 1 |
+| minDiskFreeSize          | After 3.1.1.0     | Supported, effective immediately   | When the available space on a disk is less than or equal to this threshold, the disk will no longer be selected for generating new data files, unit is bytes, range 52428800-2199023255552, default value 52428800; Enterprise parameter |
+| ssAutoMigrateIntervalSec | After 3.3.7.0     | Supported, effective immediately   | Trigger cycle for automatic upload of local data files to shared storage, in seconds. Minimum: 600; Maximum: 100000. Default value 3600; Enterprise parameter |
+| ssEnabled                | After 3.3.7.0     | Supported, effective after restart | Whether to enable shared storage, default value is 0, which means disabled, 1 means only enable manual shared storage migration, 2 means enable auto shared storage migration |
+| ssAccessString           | After 3.3.7.0     | Supported, effective after restart | A string which contains various options for accessing the shared storage, the format is `<device-type>:<option-name>=<option-value>;<option-name>=<option-value>;...`, the possible options vary from shared storage providers, please refer related document for details |
+| ssPageCacheSize          | After 3.3.7.0     | Supported, effective after restart | Number of shared storage page cache pages, range 4-1048576, unit is pages, default value 4096; Enterprise parameter |
+| ssUploadDelaySec         | After 3.3.7.0     | Supported, effective immediately   | How long a data file remains unchanged before being uploaded to S3, range 1-2592000 (30 days), in seconds, default value 60; Enterprise parameter |
+| diskIDCheckEnabled       | After 3.3.5.0     | Not supported                      | Check if the disk ID where dataDir is located has changed when restarting dnode; 0: perform check, 1: do not perform check; default value 1 |
+
+### Cluster Related
+
+| Parameter Name             | Supported Version | Dynamic Modification               | Description                                                                                                                                                                                                                                                                    |
+| -------------------------- | ----------------- | ---------------------------------- |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| supportVnodes              |                   | Supported, effective immediately   | Maximum number of vnodes supported by a dnode, range 0-1024, default value is twice the number of CPU cores + 5                                                                                                                                                                |
+| numOfCommitThreads         |                   | Supported, effective after restart | Maximum number of commit threads, range 1-1024, default value 4                                                                                                                                                                                                                |
+| numOfCompactThreads        |                   | Supported, effective after restart | Maximum number of commit threads, range 1-16, default value 2                                                                                                                                                                                                                  |
+| numOfMnodeReadThreads      |                   | Supported, effective after restart | Number of Read threads for mnode, range 1-1024, default value is one eighth of the CPU cores (not exceeding 4)                                                                                                                                                                |
+| numOfVnodeQueryThreads     |                   | Supported, effective after restart | Number of Query threads for vnode, range 1-1024, default value is twice the number of CPU cores (not exceeding 16)                                                                                                                                                             |
+| numOfVnodeFetchThreads     |                   | Supported, effective after restart | Number of Fetch threads for vnode, range 4-1024, default value is one quarter of the CPU cores (not exceeding 4)                                                                                                                                                               |
+| numOfVnodeRsmaThreads      |                   | Supported, effective after restart | Number of Rsma threads for vnode, range 1-1024, default value is one quarter of the CPU cores (not exceeding 4)                                                                                                                                                                |
+| numOfQnodeQueryThreads     |                   | Supported, effective after restart | Number of Query threads for qnode, range 1-1024, default value is twice the number of CPU cores (not exceeding 16)                                                                                                                                                             |
+| ttlUnit                    |                   | Not supported                      | Unit for ttl parameter, range 1-31572500, in seconds, default value 86400                                                                                                                                                                                                      |
+| ttlPushInterval            |                   | Supported, effective immediately   | Frequency of ttl timeout checks, range 1-100000, in seconds, default value 10                                                                                                                                                                                                  |
+| ttlChangeOnWrite           |                   | Supported, effective immediately   | Whether ttl expiration time changes with table modification; 0: no change, 1: change; default value 0                                                                                                                                                                          |
+| ttlBatchDropNum            |                   | Supported, effective immediately   | Number of subtables deleted in a batch for ttl, minimum value 0, default value 10000                                                                                                                                                                                           |
+| retentionSpeedLimitMB      |                   | Supported, effective immediately   | Speed limit for data migration across different levels of disks, range 0-1024, in MB, default value 0, which means no limit                                                                                                                                                    |
+| maxTsmaNum                 |                   | Supported, effective immediately   | Maximum number of TSMAs that can be created in the cluster; range 0-10; default value 10                                                                                                                                                                                       |
+| maxTsmaCalcDelay           | After 3.4.0.0     | Supported, effective immediately   | Maximum TSMA calculation delay, in seconds, range 600-86400, default value 600                                                                                                                                                                                                 |
+| tsmaDataDeleteMark         | After 3.4.0.0     | Supported, effective immediately   | TSMA data deletion mark time, in milliseconds, range 3600000-INT64_MAX, default value 86400000 (1 day)                                                                                                                                                                         |
+| tmqWriteRefDB             |    After 3.4.1.0     | Not supported   | When writing meta messages via the tmq_write_raw interface, the database name in the virtual table ref information will be replaced with this parameter value. If empty, no replacement is performed. default value empty                                                                                                                                                                            |
+| tmqWriteCheckRef          |     After 3.4.1.0    | Not supported   | Whether to validate the virtual table ref information when writing to another cluster via the tmq_write_raw interface. default value false                                                                                                                                                                             |
+| tmqMaxTopicNum             |                   | Supported, effective immediately   | Maximum number of topics that can be established for subscription; range 1-10000; default value 20                                                                                                                                                                             |
+| audit                      |                   | Supported, effective immediately   | Audit feature switch; Enterprise parameter                                                                                                                                                                                                                                     |
+| auditInterval              |                   | Supported, effective immediately   | Time interval for reporting audit data; Enterprise parameter                                                                                                                                                                                                                   |
+| auditLevel                 | After 3.4.0.0     | Supported, effective immediately   | Audit level for reporting audit data; Enterprise parameter; range 1 - 5, default value 0, 0 means audit disabled, 1 means system level, 2 means cluster level, 3 means database level, 4 means child table level, 5 means data level.                                                                                                         |
+| auditHttps                 | After 3.4.0.0     | Supported, effective immediately   | Whether to use https to report audit data; Enterprise parameter; range 0 - 1, default value 0 (1: use https, 0: do not use).                                                                                                         |
+| auditUseToken              | After 3.4.0.0     | Supported, effective immediately   | Whether to use token to report audit data; Enterprise parameter; range 0 - 1, default value 1 (1: use token, 0: do not use).                                                                                                         |
+| auditCreateTable           |                   | Supported, effective immediately   | Whether to enable audit feature for creating subtables; Enterprise parameter                                                                                                                                                                                                   |
+| auditSaveInSelf            | After 3.4.1.0     | Supported, effective immediately   | Whether to save audit information locally instead of sending it to taoskeeper. Range: 0-1, default: 0 (1: enabled, 0: disabled).                                                                                                                                                                                                    |
+| encryptAlgorithm           |                   | Not supported                      | Data encryption algorithm; Enterprise parameter                                                                                                                                                                                                                                |
+| encryptScope               |                   | Not supported                      | Encryption scope; Enterprise parameter. A comma-separated combination of: `tsdb` (TSDB data files), `vnode_wal` (vnode WAL files), `sdb` (mnode SDB files), `mnode_wal` (mnode WAL files), `query_spill` (temp files spilled to disk during query execution, since v3.4.2.0), `all` (all of the above)                            |
+| encryptExtDir              | v3.4.0.0           | Not supported                      | User-defined encryption algorithms extensions path; Enterprise parameter                                                                                                                                                                                                                                         |
+| encryptPassAlgorithm       |v3.3.7.0           |Supported, effective immediately    | Switch for saving user password as encrypted string                                                                                                                                                                                                                            |
+| enableWhiteList            |                   | Supported, effective immediately   | Switch for whitelist feature; Enterprise parameter                                                                                                                                                                                                                             |
+| authServer                 | After 3.4.0.0     | Supported, effective immediately   | Whether to enable authentication server; Enterprise parameter; default value false |
+| authReq                    | After 3.4.0.0     | Supported, effective immediately   | Whether to enable authentication request; Enterprise parameter; default value false |
+| authReqInterval            | After 3.4.0.0     | Supported, effective immediately   | Authentication request interval; Enterprise parameter; range 1-2592000, in seconds, default value 2592000 (30 days) |
+| authReqUrl                 | After 3.4.0.0     | Supported, effective immediately   | Authentication request URL; Enterprise parameter; default value empty |
+| syncLogBufferMemoryAllowed |                   | Supported, effective immediately   | Maximum memory allowed for sync log cache messages for a dnode, in bytes, range 104857600-INT64_MAX, default value is 1/10 of server memory, effective from versions 3.1.3.2/3.3.2.13                                                                                          |
+| syncApplyQueueSize         |                   | supported, effective immediately   | Size of apply queue for sync log, range 32-2048, default is 512                                                                                                                                                                                                                |
+| syncNegotiationWin         | After 3.4.2.0     | supported, effective immediately   | Size of the negotiation window for sync, used to control the negotiation buffer during log synchronization, range 128-10240, default is 512                                                                                                                                    |
+| statusIntervalMs           |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| statusSRTimeoutMs          |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| statusTimeoutMs            |                   | supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| syncElectInterval          |                   | Not supported                      | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| syncHeartbeatInterval      |                   | Not supported                      | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| syncVnodeElectIntervalMs   |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| syncVnodeHeartbeatIntervalMs|                  | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| syncMnodeElectIntervalMs   |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| syncMnodeHeartbeatIntervalMs|                  | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| syncHeartbeatTimeout       |                   | Not supported                      | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| syncSnapReplMaxWaitN       |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| snapshotRateLimit          | After 3.4.2.0     | Supported, effective immediately   | Controls the total snapshot sending bandwidth per dnode (MB/s). When multiple vgroups perform snapshot replication concurrently, this parameter limits the sending rate to avoid IO bottlenecks on follower nodes. 0 means no rate limit. Range: 0-10240, default: 0             |
+| arbHeartBeatIntervalSec    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| arbCheckSyncIntervalSec    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| arbSetAssignedTimeoutSec   |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| arbHeartBeatIntervalMs     |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| arbCheckSyncIntervalMs     |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| arbSetAssignedTimeoutMs    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| syncTimeout                |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
+| syncAssignedCheckAppliedGap| After 3.4.1.0     | Supported, effective immediately   | Threshold for the gap between peer's applied index and commit index before an assigned leader steps down in dual-replica mode. The assigned leader only steps down when the gap is within this value, preventing the peer from entering restoring state. 0 means no gap check (immediate step down). Range: 0-10000, default: 20. Internal parameter, for debugging synchronization module |
+| mndSdbWriteDelta           |                   | Supported, effective immediately   | Internal parameter, for debugging mnode module                                                                                                                                                                                                                                 |
+| mndLogRetention            |                   | Supported, effective immediately   | Internal parameter, for debugging mnode module                                                                                                                                                                                                                                 |
+| skipGrant                  |                   | Supported, effective after restart | Internal parameter, for authorization checks                                                                                                                                                                                                                                   |
+| trimVDbIntervalSec         |                   | Supported, effective immediately   | Internal parameter, for deleting expired data                                                                                                                                                                                                                                  |
+| ttlFlushThreshold          |                   | Supported, effective immediately   | Internal parameter, frequency of ttl timer                                                                                                                                                                                                                                     |
+| compactPullupInterval      |                   | Supported, effective immediately   | Internal parameter, frequency of data reorganization timer                                                                                                                                                                                                                     |
+| walFsyncDataSizeLimit      |                   | Supported, effective immediately   | Internal parameter, threshold for WAL to perform FSYNC                                                                                                                                                                                                                         |
+| walForceRepair             |                   | Not supported                      | Internal parameter, repair WAL file forcibly, range 0-1; default value 0, 0 means not repair, 1 means repair                           |
+| walDeleteOnCorruption      |                   | Supported, effective after restart | Backup and delete corrupted WAL directory when node starts; range 0-1; default value 1, 0 means do not delete, 1 means backup and delete. With a single replica, enabling this may cause some data loss; with 3 replicas, data loss is usually avoided because the node can catch up from peers. |
+| walCorruptionBackupDir     |                   | Supported, effective after restart | Directory for backing up corrupted WAL files before deletion; if empty, a timestamped subdirectory under the WAL path is used; default value is empty string |
+| transPullupInterval        |                   | Supported, effective immediately   | Internal parameter, retry interval for mnode to execute transactions                                                                    |
+| forceKillTrans             | After 3.3.7.0     | Supported, effective immediately   | Internal parameter, for debugging mnode transaction module                                                                              |
+| mqRebalanceInterval        |                   | Supported, effective immediately   | Internal parameter, interval for consumer rebalancing                                                                                                                                                                                                                          |
+| uptimeInterval             |                   | Supported, effective immediately   | Internal parameter, for recording system uptime                                                                                                                                                                                                                                |
+| timeseriesThreshold        |                   | Supported, effective immediately   | Internal parameter, for usage statistics                                                                                                                                                                                                                                       |
+| udf                        |                   | Supported, effective after restart | Whether to start UDF service; 0: do not start, 1: start; default value 1 |
+| udfdResFuncs               |                   | Supported, effective after restart | Internal parameter, for setting UDF result sets|
+| udfdLdLibPath              |                   | Supported, effective after restart | Internal parameter, indicates the library path for loading UDF |
+| streamBatchRequestWaitMs   |                   | Supported, effective after restart | Stream computing batch request wait time, range 0-1800000, in milliseconds, default value 5000 |
+| numOfMnodeStreamMgmtThreads|                   | Supported, effective after restart | Mnode stream management thread count, range 2-5, default value is one quarter of CPU cores (not less than 2, not exceeding 5) |
+| numOfStreamMgmtThreads     |                   | Supported, effective after restart | Vnode stream management thread count, range 2-5, default value is one eighth of CPU cores (not less than 2, not exceeding 5) |
+| numOfVnodeStreamReaderThreads|                 | Not supported                      | Vnode stream reader thread count, range 2-INT32_MAX, default value is half of CPU cores (not less than 2) |
+| numOfStreamTriggerThreads  |                   | Supported, effective after restart | Stream trigger thread count, range 4-INT32_MAX, default value is CPU cores (not less than 4) |
+| numOfStreamRunnerThreads   |                   | Supported, effective after restart | Stream executor thread count, range 4-INT32_MAX, default value is CPU cores (not less than 4) |
+|enableIpv6                  | 3.3.7.0           |not Supported                       | force nodes to communicate directly via IPv6 only, default value is 0, notes: 1. `firstep`, `sencodep`, and `FQDN` must all resolve to IPv6 addresses. 2. Mixed IPv4/IPv6 deployment is not supported                                                                          |
+|statusInterval              | 3.3.0.0           | Supported, effective immediately   | Controls the interval time for dnode to send status reports to mnode                                                                                                                                                                                                           |
+
+### Security Related
+
+| Parameter Name          | Supported Version | Dynamic Modification               | Description                                                  |
+| ----------------------- | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
+| enableStrongPassword    | After 3.3.6.0     | Supported, effective after restart | The password include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters, special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? \| ~ , .`; 0: disable, 1: enable; default value 1 |
+| enableAdvancedSecurity  | After 3.4.0.10    | Supported, effective immediately   | Whether advanced security features are enabled by default, used to control whether security policies such as password expiration and password rotation are enabled by default for newly created users (but the default behavior can be changed by explicitly specifying relevant parameters when creating a user); 0: disable, 1: enable; the default value varies by version. |
+| enableGrantLegacySyntax | After 3.4.0.11    | Supported, effective immediately   | Whether to enable compatibility with the `grant`/`revoke` syntax of version 3.3.x.y. When enabled (1), if no privilege object is specified, the authorization syntax adaptively expands privileges to `database`, `table`, `view`, `index`, `tsma`, `rsma`, `topic`, and `stream` based on the privilege type and `priv_level`. When disabled (0), it only expands privileges to `table` and `view`. 0: disable, 1: enable; default value 0 |
+| secureEraseMode         |                   | Supported, effective after restart | Fill mode for physical overwrite during secure delete. Takes effect only when database `SECURE_DELETE` is enabled. `0`: zero-fill; `1`: random bytes for fully overwritable blocks. Partially overlapping blocks are always zero-filled for in-place write-back. See [Secure Delete](../../11-security-guide/03-data-security.md#secure-delete). Default 0. |
+
+### Stream Computing Parameters
+
+| Parameter Name          | Supported Version | Dynamic Modification               | Description                                                  |
+| ----------------------- | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
+| disableStream           |                   | Supported, effective after restart | Switch to enable or disable stream computing                 |
+| streamBufferSize        |                   | Supported, effective immediately   | Controls the size of the window state cache in memory, default value is 128MB |
+| streamAggCnt            |                   | Not supported                      | Internal parameter, number of concurrent aggregation computations |
+| checkpointInterval      |                   | Supported, effective after restart | Internal parameter, checkpoint synchronization interval      |
+| concurrentCheckpoint    |                   | Supported, effective immediately   | Internal parameter, whether to check checkpoints concurrently |
+| maxStreamBackendCache   |                   | Supported, effective immediately   | Internal parameter, maximum cache used by stream computing   |
+| streamSinkDataRate      |                   | Supported, effective after restart | Internal parameter, used to control the write speed of stream computing results |
+| streamNotifyMessageSize | After 3.3.6.0     | Supported, effective after restart | Internal parameter, controls the message size for event notifications, default value is 8192 |
+| streamNotifyFrameSize   | After 3.3.6.0     | Supported, effective after restart | Internal parameter, controls the underlying frame size when sending event notification messages, default value is 256 |
+| adapterFqdn             | After 3.3.6.0     | Not supported                      | Internal parameter, The address of the taosadapter services, default value is localhost |
+| adapterPort             | After 3.3.6.0     | Not supported                      | Internal parameter, The port of the taosadapter services, default value is 6041 |
+| adapterToken            | After 3.3.6.0     | Not supported                      | Internal parameter, The string obtained by Base64-encoding `{username}:{password}`, default value is `cm9vdDp0YW9zZGF0YQ==` |
+
+### Log Related
+
+| Parameter Name   | Supported Version | Dynamic Modification             | Description                                                  |
+| ---------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
+| logDir           |                   | Not supported                    | Log file directory, operational logs will be written to this directory, default value /var/log/taos |
+| minimalLogDirGB  |                   | Not supported                    | Stops writing logs when the available space on the disk where the log folder is located is less than this value, unit GB, default value 1 |
+| numOfLogLines    |                   | Supported, effective immediately | Maximum number of lines allowed in a single log file, default value 10,000,000 |
+| asyncLog         |                   | Supported, effective immediately | Log writing mode, 0: synchronous, 1: asynchronous, default value 1 |
+| logKeepDays      |                   | Supported, effective immediately | Maximum retention time for log files, unit: days, default value 0, which means unlimited retention, log files will not be renamed, nor will new log files be rolled out, but the content of the log files may continue to roll depending on the log file size setting; when set to a value greater than 0, when the log file size reaches the set limit, it will be renamed to taosdlog.yyy, where yyy is the timestamp of the last modification of the log file, and a new log file will be rolled out, and log files whose creation time exceeds logKeepDays will be removed; Considering the usage habits of users of TDengine 2.0, starting from TDengine 3.3.6.6, when the value is set to less than 0, except that log files whose creation time exceeds -logKeepDays will be removed, other behaviors are the same as those when the value is greater than 0(For TDengine versions between 3.0.0.0 and 3.3.6.5, it is not recommended to set the value to less than 0) |
+| slowLogThreshold | 3.3.3.0 onwards   | Supported, effective immediately | Slow query threshold, queries taking longer than or equal to this threshold are considered slow, unit seconds, default value 10 |
+| slowLogMaxLen    | 3.3.3.0 onwards   | Supported, effective immediately | Maximum length of slow query logs, range 1-16384, default value 4096 |
+| slowLogScope     | 3.3.3.0 onwards   | Supported, effective immediately | Type of slow query records, range ALL/QUERY/INSERT/OTHERS/NONE, default value QUERY |
+| slowLogExceptDb  | 3.3.3.0 onwards   | Supported, effective immediately | Specifies the database that does not report slow queries, only supports configuring one database, default value empty |
+| debugFlag        |                   | Supported, effective immediately | Log switch for running logs, 131 (outputs error and warning logs), 135 (outputs error, warning, and debug logs), 143 (outputs error, warning, debug, and trace logs); default value 131 or 135 (depending on the module) |
+| tmrDebugFlag     |                   | Supported, effective immediately | Log switch for the timer module, range as above              |
+| uDebugFlag       |                   | Supported, effective immediately | Log switch for the utility module, range as above            |
+| rpcDebugFlag     |                   | Supported, effective immediately | Log switch for the rpc module, range as above                |
+| qDebugFlag       |                   | Supported, effective immediately | Log switch for the query module, range as above              |
+| dDebugFlag       |                   | Supported, effective immediately | Log switch for the dnode module, range as above              |
+| vDebugFlag       |                   | Supported, effective immediately | Log switch for the vnode module, range as above              |
+| mDebugFlag       |                   | Supported, effective immediately | Log switch for the mnode module, range as above              |
+| azDebugFlag      | 3.3.4.3 onwards   | Supported, effective immediately | Log switch for the S3 module, range as above                 |
+| sDebugFlag       |                   | Supported, effective immediately | Log switch for the sync module, range as above               |
+| tsdbDebugFlag    |                   | Supported, effective immediately | Log switch for the tsdb module, range as above               |
+| tqDebugFlag      |                   | Supported, effective immediately | Log switch for the tq module, range as above                 |
+| fsDebugFlag      |                   | Supported, effective immediately | Log switch for the fs module, range as above                 |
+| udfDebugFlag     |                   | Supported, effective immediately | Log switch for the udf module, range as above                |
+| smaDebugFlag     |                   | Supported, effective immediately | Log switch for the sma module, range as above                |
+| idxDebugFlag     |                   | Supported, effective immediately | Log switch for the index module, range as above              |
+| tdbDebugFlag     |                   | Supported, effective immediately | Log switch for the tdb module, range as above                |
+| metaDebugFlag    |                   | Supported, effective immediately | Log switch for the meta module, range as above               |
+| stDebugFlag      |                   | Supported, effective immediately | Log switch for the stream module, range as above             |
+| sndDebugFlag     |                   | Supported, effective immediately | Log switch for the snode module, range as above              |
+| xndDebugFlag     | 3.4.0.1 onwards   | Supported, effective immediately | Log switch for the xnode module, range as above              |
+
+### Debugging Related
+
+| Parameter Name       | Supported Version | Dynamic Modification             | Description                                                  |
+| -------------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
+| enableCoreFile       |                   | Supported, effective immediately | Whether to generate a core file when crashing, 0: do not generate, 1: generate; default value is 1 |
+| configDir            |                   | Not supported                    | Directory where the configuration files are located          |
+| forceReadConfig        | After 3.3.5.0, Before 3.4.0.0      | Not supported                                                | Whether to use persisted local configuration parameters: modifying configuration parameters via the configuration file has been deprecated since v3.4.0.0. For v3.4.0.0 and later, please modify configuration parameters via SQL. |
+| scriptDir            |                   | Not supported                    | Directory for internal test tool scripts                     |
+| assert               |                   | Not supported                    | Assertion control switch, default value is 0                 |
+| randErrorChance      |                   | Supported, effective immediately | Internal parameter, used for random failure testing          |
+| randErrorDivisor     |                   | Supported, effective immediately | Internal parameter, used for random failure testing          |
+| randErrorScope       |                   | Supported, effective immediately | Internal parameter, used for random failure testing          |
+| safetyCheckLevel     |                   | Supported, effective immediately | Internal parameter, used for random failure testing          |
+| experimental         |                   | Supported, effective immediately | Internal parameter, used for some experimental features      |
+| simdEnable           | After 3.3.4.3     | Supported, effective after restart| Internal parameter, used for testing SIMD acceleration       |
+| AVX512Enable         | After 3.3.4.3     | Not supported                    | Internal parameter, used for testing AVX512 acceleration     |
+| rsyncPort            |                   | Not supported                    | Internal parameter, used for debugging stream computing      |
+| snodeAddress         |                   | Supported, effective immediately | Internal parameter, used for debugging stream computing      |
+| checkpointBackupDir  |                   | Supported, effective immediately | Internal parameter, used for restoring snode data            |
+| enableAuditDelete    |                   | Not supported                    | Internal parameter, used for testing audit functions         |
+| enableAuditSelect    |                   | Not supported                    | Internal parameter, used for testing audit functions         |
+| enableAuditInsert    |                   | Not supported                    | Internal parameter, used for testing audit functions         |
+| slowLogThresholdTest |                   | Not supported                    | Internal parameter, used for testing slow logs               |
+| bypassFlag           | After 3.3.4.5     | Supported, effective immediately | Internal parameter, used for short-circuit testing. Only used for debugging write-performance issues only; it short-circuits a write request so it returns early at a chosen stage of the write path, letting you locate the bottleneck stage by stage. `0` normal write; `1` return before the taos client sends the RPC message; `2` return after taosd receives the RPC message; `4` return before taosd writes the memory cache; `8` return before taosd persists data to disk. Default `0`. **Warning: any nonzero value makes the write return success before the data is actually persisted, so the skipped data is silently and unrecoverably dropped without the client noticing. Use it only temporarily in a test environment, never in production; reset it to `0` when done.** |
+
+### CPU Affinity
+
+| Parameter Name       | Supported Version | Dynamic Modification             | Description                                                  |
+| -------------------- | ----------------- | -------------------------------- | ------------------------------------------------------------ |
+| enableCpuAffinity    | After 3.3.6.0     | Not supported                    | Master switch for CPU affinity binding. When enabled (1), taosd threads are pinned to specific CPU cores by category (management, write, read). When disabled (0, default), all threads run freely on all available cores. Requires restart to take effect. Systems with fewer than 3 CPU cores will auto-disable affinity with a warning. |
+| managementCpuCores   | After 3.3.6.0     | Not supported                    | Number of CPU cores dedicated to management threads (cluster coordination, networking, system-level tasks). Cores are assigned sequentially starting from core 0. Range: 1-256; default value is 1. Only effective when enableCpuAffinity is 1. |
+| readCpuCores         | After 3.3.6.0     | Not supported                    | Number of CPU cores dedicated to read (query) threads. Cores are assigned sequentially after management and write cores. Range: 1-256; default value is dynamically computed as half of remaining cores (totalCores - managementCpuCores) / 2. Only effective when enableCpuAffinity is 1. |
+| otherCpuCores        | After 3.3.6.0     | Not supported                    | Number of CPU cores dedicated to write threads. Cores are assigned sequentially after management cores. Range: 1-256; default value is dynamically computed as the other half of remaining cores. Only effective when enableCpuAffinity is 1. The sum managementCpuCores + readCpuCores + otherCpuCores must not exceed total available CPU cores. |
+
+### Compression Parameters
+
+| Parameter Name | Supported Version | Dynamic Modification               | Description                                                  |
+| -------------- | ----------------- | ---------------------------------- | ------------------------------------------------------------ |
+| fPrecision     |                   | Supported, effective immediately   | Sets the compression precision for float type floating numbers, range 0.1 ~ 0.00000001, default value 0.00000001, floating numbers smaller than this value will have their mantissa truncated |
+| dPrecision     |                   | Supported, effective immediately   | Sets the compression precision for double type floating numbers, range 0.1 ~ 0.0000000000000001, default value 0.0000000000000001, floating numbers smaller than this value will have their mantissa truncated |
+| lossyColumn    | Before 3.3.0.0    | Not supported                      | Enables TSZ lossy compression for float and/or double types; range float/double/none; default value none, indicating lossless compression is off |
+| ifAdtFse       |                   | Supported, effective after restart | When TSZ lossy compression is enabled, use the FSE algorithm instead of the HUFFMAN algorithm, FSE algorithm is faster in compression but slightly slower in decompression, choose this for faster compression speed; 0: off, 1: on; default value is 0 |
+| maxRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
+| curRange       |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
+| compressor     |                   | Supported, effective after restart | Internal parameter, used for setting lossy compression       |
+| compareAsStrInGreatest | After 3.4.0.0  | Supported, effective immediately   | Whether to compare values as strings in GREATEST function; default value true |
+| ignoreNullInGreatest   | After 3.4.2.0  | Supported, effective immediately   | Whether GREATEST and LEAST skip NULL arguments; 0 (default): MySQL-compatible, any NULL makes the result NULL; 1: skip NULL arguments and compare only non-NULL values |
+| showFullCreateTableColumn |  After 3.4.0.0 | Supported, effective immediately   | Whether SHOW CREATE TABLE displays full column information; 0: only table name and database name, 1: full create statement; default value 0 |
+| multiResultFunctionStarReturnTags | After 3.4.0.0 | Supported, effective immediately   | Whether multi-result functions return tag columns when using *; default value false |
+
+## taosd Monitoring Metrics
+
+taosd reports monitoring metrics to taosKeeper, which are written into the monitoring database by taosKeeper, default is `log` database, which can be modified in the taoskeeper configuration file. Below is a detailed introduction to these monitoring metrics.
+
+### taosd_cluster_basic Table
+
+`taosd_cluster_basic` table records basic cluster information.
+
+| field                | type      | is\_tag | comment                         |
+| :------------------- | :-------- | :------ | :------------------------------ |
+| ts                   | TIMESTAMP |         | timestamp                       |
+| first\_ep            | VARCHAR   |         | cluster first ep                |
+| first\_ep\_dnode\_id | INT       |         | dnode id of cluster first ep    |
+| cluster_version      | VARCHAR   |         | tdengine version. e.g.: 3.0.4.0 |
+| cluster\_id          | VARCHAR   | tag     | cluster id                      |
+
+### taosd\_cluster\_info table
+
+`taosd_cluster_info` table records cluster information.
+
+| field                    | type      | is\_tag | comment                                                      |
+| :----------------------- | :-------- | :------ | :----------------------------------------------------------- |
+| \_ts                     | TIMESTAMP |         | timestamp                                                    |
+| cluster_uptime           | DOUBLE    |         | uptime of the current master node. Unit: seconds             |
+| dbs\_total               | DOUBLE    |         | total number of databases                                    |
+| tbs\_total               | DOUBLE    |         | total number of tables in the current cluster                |
+| stbs\_total              | DOUBLE    |         | total number of stables in the current cluster               |
+| dnodes\_total            | DOUBLE    |         | total number of dnodes in the current cluster                |
+| dnodes\_alive            | DOUBLE    |         | total number of alive dnodes in the current cluster          |
+| mnodes\_total            | DOUBLE    |         | total number of mnodes in the current cluster                |
+| mnodes\_alive            | DOUBLE    |         | total number of alive mnodes in the current cluster          |
+| vgroups\_total           | DOUBLE    |         | total number of vgroups in the current cluster               |
+| vgroups\_alive           | DOUBLE    |         | total number of alive vgroups in the current cluster         |
+| vnodes\_total            | DOUBLE    |         | total number of vnodes in the current cluster                |
+| vnodes\_alive            | DOUBLE    |         | total number of alive vnodes in the current cluster          |
+| connections\_total       | DOUBLE    |         | total number of connections in the current cluster           |
+| topics\_total            | DOUBLE    |         | total number of topics in the current cluster                |
+| streams\_total           | DOUBLE    |         | total number of streams in the current cluster               |
+| grants_expire\_time      | DOUBLE    |         | authentication expiration time, valid in TSDB-Enterprise, maximum DOUBLE value in TSDB-OSS |
+| grants_timeseries\_used  | DOUBLE    |         | number of used timeseries                                    |
+| grants_timeseries\_total | DOUBLE    |         | total number of timeseries, maximum DOUBLE value in open source version |
+| cluster\_id              | VARCHAR   | tag     | cluster id                                                   |
+
+### taosd\_vgroups\_info Table
+
+`taosd_vgroups_info` table records virtual node group information.
+
+| field          | type      | is\_tag | comment                                       |
+| :------------- | :-------- | :------ | :-------------------------------------------- |
+| \_ts           | TIMESTAMP |         | timestamp                                     |
+| tables\_num    | DOUBLE    |         | Number of tables in vgroup                    |
+| status         | DOUBLE    |         | vgroup status, range: unsynced = 0, ready = 1 |
+| vgroup\_id     | VARCHAR   | tag     | vgroup id                                     |
+| database\_name | VARCHAR   | tag     | Name of the database the vgroup belongs to    |
+| cluster\_id    | VARCHAR   | tag     | cluster id                                    |
+
+### taosd\_dnodes\_info Table
+
+`taosd_dnodes_info` records dnode information.
+
+| field             | type      | is\_tag | comment                                                      |
+| :---------------- | :-------- | :------ | :----------------------------------------------------------- |
+| \_ts              | TIMESTAMP |         | timestamp                                                    |
+| uptime            | DOUBLE    |         | dnode uptime, unit: seconds                                  |
+| cpu\_engine       | DOUBLE    |         | taosd CPU usage, read from `/proc/<taosd_pid>/stat`          |
+| cpu\_system       | DOUBLE    |         | Server CPU usage, read from `/proc/stat`                     |
+| cpu\_cores        | DOUBLE    |         | Number of server CPU cores                                   |
+| mem\_engine       | DOUBLE    |         | taosd memory usage, read from `/proc/<taosd_pid>/status`     |
+| mem\_free         | DOUBLE    |         | Server free memory, unit: KB                                 |
+| mem\_total        | DOUBLE    |         | Total server memory, unit: KB                                |
+| disk\_used        | DOUBLE    |         | Disk usage of data dir mount, unit: bytes                    |
+| disk\_total       | DOUBLE    |         | Total disk capacity of data dir mount, unit: bytes           |
+| system\_net\_in   | DOUBLE    |         | Network throughput, received bytes read from `/proc/net/dev`. Unit: byte/s |
+| system\_net\_out  | DOUBLE    |         | Network throughput, transmit bytes read from `/proc/net/dev`. Unit: byte/s |
+| io\_read          | DOUBLE    |         | IO throughput, speed calculated from `rchar` read from `/proc/<taosd_pid>/io` since last value. Unit: byte/s |
+| io\_write         | DOUBLE    |         | IO throughput, speed calculated from `wchar` read from `/proc/<taosd_pid>/io` since last value. Unit: byte/s |
+| io\_read\_disk    | DOUBLE    |         | Disk IO throughput, read_bytes read from `/proc/<taosd_pid>/io`. Unit: byte/s |
+| io\_write\_disk   | DOUBLE    |         | Disk IO throughput, write_bytes read from `/proc/<taosd_pid>/io`. Unit: byte/s |
+| vnodes\_num       | DOUBLE    |         | Number of vnodes on dnode                                    |
+| masters           | DOUBLE    |         | Number of master nodes on dnode                              |
+| has\_mnode        | DOUBLE    |         | Whether dnode contains mnode, range: contains=1, does not contain=0 |
+| has\_qnode        | DOUBLE    |         | Whether dnode contains qnode, range: contains=1, does not contain=0 |
+| has\_snode        | DOUBLE    |         | Whether dnode contains snode, range: contains=1, does not contain=0 |
+| has\_bnode        | DOUBLE    |         | Whether dnode contains bnode, range: contains=1, does not contain=0 |
+| error\_log\_count | DOUBLE    |         | Total number of error logs                                   |
+| info\_log\_count  | DOUBLE    |         | Total number of info logs                                    |
+| debug\_log\_count | DOUBLE    |         | Total number of debug logs                                   |
+| trace\_log\_count | DOUBLE    |         | Total number of trace logs                                   |
+| dnode\_id         | VARCHAR   | tag     | dnode id                                                     |
+| dnode\_ep         | VARCHAR   | tag     | dnode endpoint                                               |
+| cluster\_id       | VARCHAR   | tag     | cluster id                                                   |
+
+### taosd\_dnodes\_status table
+
+The `taosd_dnodes_status` table records dnode status information.
+
+| field       | type      | is\_tag | comment                                      |
+| :---------- | :-------- | :------ | :------------------------------------------- |
+| \_ts        | TIMESTAMP |         | timestamp                                    |
+| status      | DOUBLE    |         | dnode status, value range ready=1, offline=0 |
+| dnode\_id   | VARCHAR   | tag     | dnode id                                     |
+| dnode\_ep   | VARCHAR   | tag     | dnode endpoint                               |
+| cluster\_id | VARCHAR   | tag     | cluster id                                   |
+
+### taosd\_dnodes\_log\_dir table
+
+The `taosd_dnodes_log_dir` table records log directory information.
+
+| field       | type      | is\_tag | comment                                      |
+| :---------- | :-------- | :------ | :------------------------------------------- |
+| \_ts        | TIMESTAMP |         | timestamp                                    |
+| avail       | DOUBLE    |         | available space in log directory. Unit: byte |
+| used        | DOUBLE    |         | used space in log directory. Unit: byte      |
+| total       | DOUBLE    |         | space in log directory. Unit: byte           |
+| name        | VARCHAR   | tag     | log directory name, usually `/var/log/taos/` |
+| dnode\_id   | VARCHAR   | tag     | dnode id                                     |
+| dnode\_ep   | VARCHAR   | tag     | dnode endpoint                               |
+| cluster\_id | VARCHAR   | tag     | cluster id                                   |
+
+### taosd\_dnodes\_data\_dir table
+
+The `taosd_dnodes_data_dir` table records data directory information.
+
+| field       | type      | is\_tag | comment                                       |
+| :---------- | :-------- | :------ | :-------------------------------------------- |
+| \_ts        | TIMESTAMP |         | timestamp                                     |
+| avail       | DOUBLE    |         | available space in data directory. Unit: byte |
+| used        | DOUBLE    |         | used space in data directory. Unit: byte      |
+| total       | DOUBLE    |         | space in data directory. Unit: byte           |
+| level       | VARCHAR   | tag     | multi-level storage levels 0, 1, 2            |
+| name        | VARCHAR   | tag     | data directory, usually `/var/lib/taos`       |
+| dnode\_id   | VARCHAR   | tag     | dnode id                                      |
+| dnode\_ep   | VARCHAR   | tag     | dnode endpoint                                |
+| cluster\_id | VARCHAR   | tag     | cluster id                                    |
+
+### taosd\_mnodes\_info table
+
+The `taosd_mnodes_info` table records mnode role information.
+
+| field       | type      | is\_tag | comment                                                      |
+| :---------- | :-------- | :------ | :----------------------------------------------------------- |
+| \_ts        | TIMESTAMP |         | timestamp                                                    |
+| role        | DOUBLE    |         | mnode role, value range offline = 0, follower = 100, candidate = 101, leader = 102, error = 103, learner = 104 |
+| mnode\_id   | VARCHAR   | tag     | master node id                                               |
+| mnode\_ep   | VARCHAR   | tag     | master node endpoint                                         |
+| cluster\_id | VARCHAR   | tag     | cluster id                                                   |
+
+### taosd\_vnodes\_role table
+
+The `taosd_vnodes_role` table records virtual node role information.
+
+| field          | type      | is\_tag | comment                                                      |
+| :------------- | :-------- | :------ | :----------------------------------------------------------- |
+| \_ts           | TIMESTAMP |         | timestamp                                                    |
+| vnode\_role    | DOUBLE    |         | vnode role, value range offline = 0, follower = 100, candidate = 101, leader = 102, error = 103, learner = 104 |
+| vgroup\_id     | VARCHAR   | tag     | dnode id                                                     |
+| dnode\_id      | VARCHAR   | tag     | dnode id                                                     |
+| database\_name | VARCHAR   | tag     | vgroup's belonging database name                             |
+| cluster\_id    | VARCHAR   | tag     | cluster id                                                   |
+
+### taosd_sql_req Table
+
+`taosd_sql_req` records server-side SQL request information.
+
+| field      | type      | is_tag | comment                                             |
+| :--------- | :-------- | :----- | :-------------------------------------------------- |
+| _ts        | TIMESTAMP |        | timestamp                                           |
+| count      | DOUBLE    |        | number of SQL queries                               |
+| result     | VARCHAR   | tag    | SQL execution result, values range: Success, Failed |
+| username   | VARCHAR   | tag    | user name executing the SQL                         |
+| sql_type   | VARCHAR   | tag    | SQL type, value range: inserted_rows                |
+| dnode_id   | VARCHAR   | tag    | dnode id                                            |
+| dnode_ep   | VARCHAR   | tag    | dnode endpoint                                      |
+| vgroup_id  | VARCHAR   | tag    | dnode id                                            |
+| cluster_id | VARCHAR   | tag    | cluster id                                          |
+
+### taos_sql_req Table
+
+`taos_sql_req` records client-side SQL request information.
+
+| field      | type      | is_tag | comment                                             |
+| :--------- | :-------- | :----- | :-------------------------------------------------- |
+| _ts        | TIMESTAMP |        | timestamp                                           |
+| count      | DOUBLE    |        | number of SQL queries                               |
+| result     | VARCHAR   | tag    | SQL execution result, values range: Success, Failed |
+| username   | VARCHAR   | tag    | user name executing the SQL                         |
+| sql_type   | VARCHAR   | tag    | SQL type, value range: select, insert, delete       |
+| cluster_id | VARCHAR   | tag    | cluster id                                          |
+
+### taos_slow_sql Table
+
+`taos_slow_sql` records client-side slow query information.
+
+| field      | type      | is_tag | comment                                                      |
+| :--------- | :-------- | :----- | :----------------------------------------------------------- |
+| _ts        | TIMESTAMP |        | timestamp                                                    |
+| count      | DOUBLE    |        | number of SQL queries                                        |
+| result     | VARCHAR   | tag    | SQL execution result, values range: Success, Failed          |
+| username   | VARCHAR   | tag    | user name executing the SQL                                  |
+| duration   | VARCHAR   | tag    | SQL execution duration, value range: 3-10s, 10-100s, 100-1000s, 1000s- |
+| cluster_id | VARCHAR   | tag    | cluster id                                                   |
+
+### taos\_slow\_sql\_detail Table
+
+`taos_slow_sql_detail` records slow query detail information.The rule of the table name is `{user}_{db}_{ip}_clusterId_{cluster_id}`
+
+| field         | type      | is\_tag | comment                                        |
+| :------------ | :-------- | :------ | :--------------------------------------------- |
+| start\_ts     | TIMESTAMP |         | sql start exec time in client, ms, primary key |
+| request\_id   | UINT64_T  |         | sql request id, random hash                    |
+| query\_time   | INT32_T   |         | sql exec time, ms                              |
+| code          | INT32_T   |         | sql return code, 0 success                     |
+| error\_info   | VARCHAR   |         | error info if sql exec failed                  |
+| type          | INT8_T    |         | sql type (1-query, 2-insert, 4-others)        |
+| rows\_num     | INT64_T   |         | sql result rows num                            |
+| sql           | VARCHAR   |         | sql sting                                      |
+| process\_name | VARCHAR   |         | process name                                   |
+| process\_id   | VARCHAR   |         | process id                                     |
+| db            | VARCHAR   | TAG     | which db the sql belong to                     |
+| user          | VARCHAR   | TAG     | the user that exec this sql                    |
+| ip            | VARCHAR   | TAG     | the client ip that exec this sql               |
+| cluster\_id   | VARCHAR   | TAG     | cluster id                                     |

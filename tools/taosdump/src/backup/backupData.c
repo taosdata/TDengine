@@ -151,9 +151,10 @@ static void* backDataThread(void *arg) {
     }
     thread->stbDirCreated = true;
 
-    // Aggregate function:
-    //   last(ts)     – no time filter: benefits from last-value cache when enabled, O(n_tables)
-    //   last_row(ts) – with time filter: only inspects the last row in range, faster than full scan
+    // Aggregate function on _c0 (the primary-key timestamp pseudo-column -
+    // always the first column, regardless of its actual name):
+    //   last(_c0)     – no time filter: benefits from last-value cache when enabled, O(n_tables)
+    //   last_row(_c0) – with time filter: only inspects the last row in range, faster than full scan
     const char *tf = argTimeFilter();
     bool hasTf = (tf && tf[0]);
     char innerWhere[10240] = "";
@@ -176,7 +177,7 @@ static void* backDataThread(void *arg) {
              "SELECT tbname FROM ("
              "SELECT %s lts, tbname FROM `%s`.`%s` %s GROUP BY tbname"
              ") WHERE lts IS NOT NULL ORDER BY tbname LIMIT %d OFFSET %d;",
-             hasTf ? "last_row(ts)" : "last(ts)",
+             hasTf ? "last_row(_c0)" : "last(_c0)",
              thread->dbInfo->dbName,
              thread->stbInfo->stbName,
              innerWhere,
@@ -315,9 +316,10 @@ DataThread * splitTaskData(StbInfo *stbInfo, int *code, int *outCount, int *totC
     // Pre-filter: count only CTBs that have data in the backup range (方案四).
     // Build innerWhere combining -S/-E time filter and/or spec-tables IN filter;
     // -S/-E applies to the spec-tables path too.
-    // Aggregate function:
-    //   last(ts)     – no time filter: benefits from last-value cache when enabled, O(n_tables)
-    //   last_row(ts) – with time filter: only inspects the last row in range, faster than full scan
+    // Aggregate function on _c0 (the primary-key timestamp pseudo-column -
+    // always the first column, regardless of its actual name):
+    //   last(_c0)     – no time filter: benefits from last-value cache when enabled, O(n_tables)
+    //   last_row(_c0) – with time filter: only inspects the last row in range, faster than full scan
     // HAVING with aggregate is not supported for this syntax; use subquery instead.
     const char *tf = argTimeFilter();
     bool hasTf = (tf && tf[0]);
@@ -341,7 +343,7 @@ DataThread * splitTaskData(StbInfo *stbInfo, int *code, int *outCount, int *totC
              "SELECT count(*) FROM ("
              "SELECT %s lts FROM `%s`.`%s` %s GROUP BY tbname"
              ") WHERE lts IS NOT NULL;",
-             hasTf ? "last_row(ts)" : "last(ts)",
+             hasTf ? "last_row(_c0)" : "last(_c0)",
              dbName, stbName, innerWhere);
     int32_t tableCnt = 0;
     *code = queryValueInt(sql, 0, &tableCnt);

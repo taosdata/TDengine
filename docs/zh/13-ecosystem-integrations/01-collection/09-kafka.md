@@ -6,17 +6,17 @@ description: 使用 Kafka Connect 插件在 Kafka 与 TDengine 之间双向同�
 
 TDengine Kafka Connector 包含 Source Connector 与 Sink Connector 两个 Kafka Connect 插件。配置后即可将 Kafka 中指定 topic 的数据同步到 TDengine，或将 TDengine 中指定数据库的数据同步到 Kafka。
 
-企业版也可在 taosExplorer 中配置零代码 Kafka 写入与数据发布，详见 [零代码数据写入 · Kafka](../../08-data-ingest-and-delivery/01-no-code-ingestion/07-kafka.mdx) 与 [数据发布 · Kafka](../../08-data-ingest-and-delivery/02-no-code-delivery/03-Kafka.md)。基于主题的消费语义还可对照 [数据订阅](../../07-data-subscription/index.md)。
+企业版也可在 taosExplorer 中配置零代码 Kafka 写入与数据发布，详见 [零代码数据写入 · Kafka](../../08-data-ingest-and-delivery/01-no-code-ingestion/08-kafka.md) 与 [数据发布 · Kafka](../../08-data-ingest-and-delivery/02-no-code-delivery/03-Kafka.md)。基于主题的消费语义还可对照 [数据订阅](../../06-data-subscription/index.md)。
 
 ## 什么是 Kafka Connect？
 
 Kafka Connect 是 [Apache Kafka](https://kafka.apache.org/) 的一个组件，用于使其它系统（如数据库、云服务、文件系统等）方便地连接到 Kafka。数据既可以通过 Kafka Connect 从其它系统流向 Kafka，也可以通过 Kafka Connect 从 Kafka 流向其它系统。从其它系统读数据的插件称为 Source Connector，写数据到其它系统的插件称为 Sink Connector。Source Connector 和 Sink Connector 都不会直接连接 Kafka Broker：Source Connector 把数据转交给 Kafka Connect，Sink Connector 从 Kafka Connect 接收数据。
 
-![TDengine Database Kafka Connector -- Kafka Connect structure](kafka/assets/Kafka_Connect.webp)
+![TDengine Database Kafka Connector -- Kafka Connect structure](../../assets/collection-kafka-01.webp)
 
 TDengine Source Connector 用于把数据实时地从 TDengine 读出来发送给 Kafka Connect。TDengine Sink Connector 用于从 Kafka Connect 接收数据并写入 TDengine。
 
-![TDengine Database Kafka Connector -- streaming integration with kafka connect](kafka/assets/streaming-integration-with-kafka-connect.webp)
+![TDengine Database Kafka Connector -- streaming integration with kafka connect](../../assets/collection-kafka-02.webp)
 
 ## 前置条件
 
