@@ -1126,7 +1126,7 @@ class RestfulTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], 1000)
 
-    @patch("taosanalytics.app.do_handle_dynamic_model")
+    @patch("taosanalytics.app.do_deploy_dynamic_model")
     def test_deploy_model(self, mock_deploy):
         mock_deploy.return_value = (
             {
@@ -1286,7 +1286,7 @@ class RestfulTest(TestCase):
         self.assertAlmostEqual(res["matches"][0]["criteria"], 0.0)
         self.assertEqual(res["matches"][0]["ts_window"], [1, 5])
 
-    @patch("taosanalytics.app.do_handle_undeploy_model")
+    @patch("taosanalytics.app.do_undeploy_dynamic_model")
     def test_undeploy_model(self, mock_undeploy):
         mock_undeploy.return_value = (
             {

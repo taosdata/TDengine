@@ -43,7 +43,9 @@ def _convert_to_matrix(data, data_format=None):
         unique_items = set()
         for transaction in data:
             if not isinstance(transaction, (list, set)):
-                raise ValueError("transaction must be a list or set in transactions format")
+                raise ValueError(
+                    "transaction must be a list or set in transactions format"
+                )
             unique_items.update(transaction)
 
         if not unique_items:
@@ -104,8 +106,9 @@ def do_apriori(input_data, schema, params):
     # Adaptive support threshold based on transaction count
     num_transactions = len(input_data)
     if num_transactions < 100 and min_support < 0.05:
-        AppLogger.debug("Adjusting min_support from %.2f to 0.05 for small dataset",
-                       min_support)
+        AppLogger.debug(
+            "Adjusting min_support from %.2f to 0.05 for small dataset", min_support
+        )
         min_support = 0.05
 
     AppLogger.debug(

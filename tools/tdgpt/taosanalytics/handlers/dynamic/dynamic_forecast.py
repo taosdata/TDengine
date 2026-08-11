@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from taosanalytics.algo.tool.forecaster import (
+from taosanalytics.algo.dynamic.forecaster import (
     ArimaModelForecaster,
     ProphetModelForecaster,
 )

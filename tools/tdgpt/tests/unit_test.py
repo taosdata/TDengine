@@ -2,6 +2,8 @@
 # pylint: disable=c0103
 """unit test module"""
 
+import json
+import os
 import os.path
 import sys
 import tempfile
@@ -9,11 +11,17 @@ import types
 import unittest
 from unittest import mock
 
+import joblib
+import pandas as pd
 import pytest
+from sklearn.ensemble import IsolationForest
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
+from taosanalytics.algo.dynamic.detector import IsolationForestModelDetector
+from taosanalytics.algo.dynamic.regressioner import LinearRegressioner
 from taosanalytics.algo.imputation import check_freq_param
+from taosanalytics.handlers.dynamic import DynamicAnomalyService, DynamicForecastService
 from taosanalytics.service_registry import ServiceRegistry, loader
 from taosanalytics.util import (
     convert_results_to_windows,
@@ -378,8 +386,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_load_service(self):
         """test dynamic load service by name"""
-        import os
-
         config_path = os.path.join(tempfile.gettempdir(), "arima_model_config.json0")
         conf_file_content = """
         {
@@ -404,8 +410,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_load_service_success(self):
         """test dynamic load service with valid config file"""
-        import os
-
         config_path = os.path.join(tempfile.gettempdir(), "arima_model_config.json")
         service_name = "arima_model_config"
         conf_file_content = """
@@ -615,8 +619,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_load_service_missing_algo(self):
         """dynamic register should fail when 'algo' field is missing"""
-        import os
-
         config_path = os.path.join(
             tempfile.gettempdir(), "arima_model_missing_algo.json"
         )
@@ -642,8 +644,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_load_service_unsupported_algo(self):
         """dynamic register should fail for unsupported algorithm names"""
-        import os
-
         config_path = os.path.join(tempfile.gettempdir(), "arima_model_bad_algo.json")
         conf_file_content = """
         {
@@ -666,8 +666,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_load_service_invalid_json(self):
         """dynamic register should fail when config file content is invalid"""
-        import os
-
         config_path = os.path.join(
             tempfile.gettempdir(), "arima_model_invalid_json.json"
         )
@@ -683,8 +681,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_load_service_duplicate_name(self):
         """dynamic register should fail when model name already exists"""
-        import os
-
         config_path = os.path.join(tempfile.gettempdir(), "arima_model_duplicate.json")
         service_name = "arima_model_duplicate"
         conf_file_content = """
@@ -715,7 +711,6 @@ class ServiceTest(unittest.TestCase):
                 os.remove(config_path)
 
     def _register_dynamic_service_for_algo(self, algo_name):
-        import os
 
         config_path = os.path.join(
             tempfile.gettempdir(), f"{algo_name}_model_config.json"
@@ -744,12 +739,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_prophet_service_is_supported(self):
         """prophet dynamic service should register and execute with forecast outputs."""
-        import json
-        import os
-
-        import pandas as pd
-
-        from taosanalytics.handlers.dynamic_forecast import DynamicForecastService
 
         service_name = None
         config_path = None
@@ -809,7 +798,7 @@ class ServiceTest(unittest.TestCase):
             )
 
             with mock.patch(
-                "taosanalytics.handlers.dynamic_forecast.ProphetModelForecaster"
+                "taosanalytics.handlers.dynamic.dynamic_forecast.ProphetModelForecaster"
             ) as mocked_forecaster:
                 mocked_forecaster.return_value.forecast.return_value = forecast_df
                 mocked_forecaster.return_value.get_param.return_value = {
@@ -840,8 +829,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_register_holtwinters_not_supported(self):
         """holtwinters is not accepted as a dynamic model algorithm; registration must raise ValueError."""
-        import os
-
         config_path = None
         try:
             config_path = os.path.join(
@@ -868,8 +855,6 @@ class ServiceTest(unittest.TestCase):
                 os.remove(config_path)
 
     def test_dynamic_execute_theta_not_implemented(self):
-        import os
-
         service_name = None
         config_path = None
         try:
@@ -930,8 +915,6 @@ class ServiceTest(unittest.TestCase):
 
     def _iforest_config_content(self):
         """Return a minimal valid iforest config as a JSON string."""
-        import json
-
         return json.dumps(
             {
                 "algo": "iforest",
@@ -946,10 +929,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_load_iforest_service_success(self):
         """Registering a valid iforest config must create a DynamicAnomalyService."""
-        import os
-
-        from taosanalytics.handlers.dynamic_anomaly import DynamicAnomalyService
-
         config_path = os.path.join(tempfile.gettempdir(), "iforest_model_config.json")
         service_name = "iforest_model_config"
         try:
@@ -970,8 +949,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_service_list_syncs_iforest_from_directory(self):
         """list API should load a dynamic iforest model that exists in the shared directory."""
-        import os
-
         from taosanalytics.conf import Configure
 
         service_name = "sync_iforest_service"
@@ -1007,7 +984,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_service_list_removes_deleted_iforest_model(self):
         """list API should drop a dynamic iforest model whose config file has been removed."""
-        import os
 
         from taosanalytics.conf import Configure
 
@@ -1046,7 +1022,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_service_syncs_iforest_from_directory(self):
         """get_service should load a dynamic iforest model that exists in shared storage."""
-        import os
 
         from taosanalytics.conf import Configure
 
@@ -1077,7 +1052,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_service_removes_deleted_iforest_model(self):
         """get_service should return None after a dynamic iforest model's config is deleted."""
-        import os
 
         from taosanalytics.conf import Configure
 
@@ -1109,10 +1083,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_iforest_execute_returns_one_code_per_point(self):
         """DynamicAnomalyService.execute() dispatches to IsolationForestModelDetector.detect()."""
-        import os
-
-        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
-        from taosanalytics.handlers.dynamic_anomaly import DynamicAnomalyService
 
         n_points = 20
         input_data = list(range(n_points))
@@ -1147,13 +1117,6 @@ class ServiceTest(unittest.TestCase):
     def test_iforest_detector_feature_matrix_and_result_size(self):
         """IsolationForestModelDetector.detect() exercises feature-matrix construction,
         sklearn parameter filtering, and per-point result-size validation end-to-end."""
-        import json
-        import os
-
-        import joblib
-        from sklearn.ensemble import IsolationForest
-
-        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
 
         # Build a 30-point series: 28 normal values, 2 obvious spikes.
         n_points = 30
@@ -1211,13 +1174,12 @@ class ServiceTest(unittest.TestCase):
 
     def test_iforest_detector_result_size_with_stride_gt_1(self):
         """IsolationForestModelDetector returns one code per point even when stride > 1."""
-        import json
-        import os
 
-        import joblib
         from sklearn.ensemble import IsolationForest
 
-        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+        from taosanalytics.algo.dynamic.detector import (
+            IsolationForestModelDetector,
+        )
 
         n_points = 20
         input_data = [float(i) for i in range(n_points)]
@@ -1264,13 +1226,11 @@ class ServiceTest(unittest.TestCase):
 
     def test_iforest_detector_validates_invalid_window_params(self):
         """IsolationForestModelDetector raises ValueError for non-positive window_size or stride."""
-        import json
-        import os
-
-        import joblib
         from sklearn.ensemble import IsolationForest
 
-        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+        from taosanalytics.algo.dynamic.detector import (
+            IsolationForestModelDetector,
+        )
 
         for bad_params in [
             {"window_size": 0, "stride": 1},
@@ -1313,13 +1273,11 @@ class ServiceTest(unittest.TestCase):
 
     def test_iforest_detector_loads_pkl_model(self):
         """IsolationForestModelDetector loads a pre-trained IsolationForest from pkl file."""
-        import json
-        import os
-
-        import joblib
         from sklearn.ensemble import IsolationForest
 
-        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+        from taosanalytics.algo.dynamic.detector import (
+            IsolationForestModelDetector,
+        )
 
         n_points = 20
         input_data = [float(i) for i in range(n_points)]
@@ -1371,13 +1329,11 @@ class ServiceTest(unittest.TestCase):
 
     def test_iforest_detector_falls_back_to_best_params_when_pkl_missing(self):
         """IsolationForestModelDetector falls back to best_params when pkl file not found."""
-        import json
-        import os
-
-        import joblib
         from sklearn.ensemble import IsolationForest
 
-        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+        from taosanalytics.algo.dynamic.detector import (
+            IsolationForestModelDetector,
+        )
 
         n_points = 20
         input_data = [float(i) for i in range(n_points)]
@@ -1429,10 +1385,10 @@ class ServiceTest(unittest.TestCase):
 
     def test_iforest_detector_requires_either_pkl_or_best_params(self):
         """IsolationForestModelDetector fails if model_path missing and best_params incomplete."""
-        import json
-        import os
 
-        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+        from taosanalytics.algo.dynamic.detector import (
+            IsolationForestModelDetector,
+        )
 
         config_path = os.path.join(tempfile.gettempdir(), "iforest_no_params_test.json")
         try:
@@ -1460,13 +1416,11 @@ class ServiceTest(unittest.TestCase):
 
     def test_iforest_point_mode_detection(self):
         """IsolationForest point mode detects anomalies at point level."""
-        import json
-        import os
-
-        import joblib
         from sklearn.ensemble import IsolationForest
 
-        from taosanalytics.algo.tool.detector import IsolationForestModelDetector
+        from taosanalytics.algo.dynamic.detector import (
+            IsolationForestModelDetector,
+        )
 
         temp_dir = tempfile.mkdtemp()
         config_path = os.path.join(temp_dir, "iforest_point_mode_test.json")
@@ -1542,7 +1496,6 @@ class ServiceTest(unittest.TestCase):
 
     def _svm_config_content(self):
         """Return a minimal valid SVM config as a JSON string."""
-        import json
 
         return json.dumps(
             {
@@ -1553,10 +1506,7 @@ class ServiceTest(unittest.TestCase):
 
     def test_svm_detector_requires_pkl_file(self):
         """SVMModelDetector must have model_path (pkl file); best_params not supported."""
-        import json
-        import os
-
-        from taosanalytics.algo.tool.detector import SVMModelDetector
+        from taosanalytics.algo.dynamic.detector import SVMModelDetector
 
         config_path = os.path.join(tempfile.gettempdir(), "svm_no_pkl_test.json")
         try:
@@ -1580,10 +1530,7 @@ class ServiceTest(unittest.TestCase):
 
     def test_svm_detector_with_missing_pkl_file(self):
         """SVMModelDetector returns None when pkl file is missing."""
-        import json
-        import os
-
-        from taosanalytics.algo.tool.detector import SVMModelDetector
+        from taosanalytics.algo.dynamic.detector import SVMModelDetector
 
         config_path = os.path.join(tempfile.gettempdir(), "svm_missing_pkl_test.json")
         try:
@@ -1607,10 +1554,7 @@ class ServiceTest(unittest.TestCase):
 
     def test_svm_detector_point_mode_only(self):
         """SVMModelDetector only supports point mode, not window mode."""
-        import json
-        import os
-
-        from taosanalytics.algo.tool.detector import SVMModelDetector
+        from taosanalytics.algo.dynamic.detector import SVMModelDetector
 
         config_path = os.path.join(tempfile.gettempdir(), "svm_point_mode_test.json")
         try:
@@ -1633,10 +1577,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_load_svm_service_success(self):
         """Registering a valid SVM config must create a DynamicAnomalyService."""
-        import os
-
-        from taosanalytics.handlers.dynamic_anomaly import DynamicAnomalyService
-
         config_path = os.path.join(tempfile.gettempdir(), "svm_model_config.json")
         service_name = "svm_model_config"
         try:
@@ -1661,7 +1601,6 @@ class ServiceTest(unittest.TestCase):
 
     def _make_linear_pkl(self, pkl_path, n_features=2, pipeline_state=None):
         """Train a simple LinearRegression and save to pkl at pkl_path."""
-        import joblib
         import numpy as np
         from sklearn.linear_model import LinearRegression
 
@@ -1678,11 +1617,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_linear_regression_detector_requires_pkl(self):
         """LinearRegressionDetector must fail when model_path is missing."""
-        import json
-        import os
-
-        from taosanalytics.algo.tool.regressioner import LinearRegressioner
-
         config_path = os.path.join(tempfile.gettempdir(), "lr_no_pkl_test.json")
         try:
             config = {"algo": "linear"}
@@ -1701,10 +1635,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_linear_regression_detector_with_missing_pkl(self):
         """LinearRegressionDetector must fail when pkl file does not exist."""
-        import json
-        import os
-
-        from taosanalytics.algo.tool.regressioner import LinearRegressioner
 
         config_path = os.path.join(tempfile.gettempdir(), "lr_missing_pkl_test.json")
         try:
@@ -1724,11 +1654,6 @@ class ServiceTest(unittest.TestCase):
 
     def test_linear_regression_detector_with_valid_pkl(self):
         """LinearRegressionDetector returns correct predictions from a valid pkl."""
-        import json
-        import os
-
-        from taosanalytics.algo.tool.regressioner import LinearRegressioner
-
         pkl_path = os.path.join(tempfile.gettempdir(), "lr_valid_test.pkl")
         config_path = os.path.join(tempfile.gettempdir(), "lr_valid_test.json")
         try:
@@ -1751,14 +1676,8 @@ class ServiceTest(unittest.TestCase):
 
     def test_linear_regression_detector_with_pipeline_preprocessing(self):
         """LinearRegressionDetector applies center/scale preprocessing from pipeline state."""
-        import json
-        import os
-
-        import joblib
         import numpy as np
         from sklearn.linear_model import LinearRegression
-
-        from taosanalytics.algo.tool.regressioner import LinearRegressioner
 
         pkl_path = os.path.join(tempfile.gettempdir(), "lr_pipeline_test.pkl")
         config_path = os.path.join(tempfile.gettempdir(), "lr_pipeline_test.json")
@@ -1802,10 +1721,7 @@ class ServiceTest(unittest.TestCase):
 
     def test_dynamic_load_linear_regression_service_success(self):
         """Registering a valid linear regression config creates a DynamicRegressionService."""
-        import json
-        import os
-
-        from taosanalytics.handlers.dynamic_regression import DynamicRegressionService
+        from taosanalytics.handlers.dynamic import DynamicRegressionService
 
         pkl_path = os.path.join(tempfile.gettempdir(), "lr_service_test.pkl")
         config_path = os.path.join(tempfile.gettempdir(), "lr_service_test.json")
