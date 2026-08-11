@@ -1,7 +1,7 @@
 import os
 import time
 
-from new_test_framework.utils import tdCom, tdLog, tdSql
+from new_test_framework.utils import tdCom, tdLog, tdSql, tdStream
 
 
 class TestTmqDbTopicStreamResult:
@@ -31,14 +31,7 @@ class TestTmqDbTopicStreamResult:
             "as select _twstart wstart, count(*) cnt_v, sum(val) sum_v "
             "from source_t where ts >= _twstart and ts < _twend;"
         )
-
-        for _ in range(20):
-            tdSql.query("show db_5466.streams")
-            if tdSql.getRows() > 0 and tdSql.getData(0, 1) == "Running":
-                break
-            time.sleep(0.5)
-        else:
-            tdLog.exit("stream stream_t is not running")
+        tdStream.checkStreamStatus("stream_t")
 
         tdSql.execute(
             "insert into db_5466.source_t values "

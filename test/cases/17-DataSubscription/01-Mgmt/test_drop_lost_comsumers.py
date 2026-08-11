@@ -181,25 +181,33 @@ class TestDropLostConsumers:
         cls.consumer_all_rows = cls.consumer_rows_per_thread * cls.consumer_groups_num
         cls.topic_name = "select_d1"
 
-    def check_consumer(self, count, rows, stop_event=None):
+    def check_consumer(self, count, rows, stop_event=None, settle_timeout=30):
         time.sleep(count)
+        deadline = time.time() + settle_timeout
+        answer_rows = -1
+        consumer_rows = []
         try:
             tdLog.info(
                 f"wait timeout count:{count} and check consumer status whether is closed"
             )
-            for _ in range(2):
+            while time.time() <= deadline:
                 tdSql.query("show consumers")
-                anser_rows = tdSql.getRows()
-                if anser_rows == rows:
-                    break
+                answer_rows = tdSql.getRows()
+                consumer_rows = list(tdSql.queryResult or [])
+                if answer_rows == rows:
+                    tdLog.info(f"consumer number is expected {rows}")
+                    return
                 time.sleep(1)
                 tdLog.info(
-                    f"wait for {count} seconds to check that consumers number is {anser_rows}"
+                    f"wait for consumer cleanup, current consumers number is {answer_rows}, "
+                    f"expect {rows}, remaining wait seconds: {max(0, int(deadline - time.time()))}"
                 )
-            if anser_rows != rows:
-                if stop_event:
-                    stop_event.set()
-                tdLog.exit(f"consumer number is {anser_rows } but not  expected {rows}")
+            if stop_event:
+                stop_event.set()
+            tdLog.exit(
+                f"consumer number is {answer_rows} but not expected {rows}, "
+                f"last show consumers result: {consumer_rows}"
+            )
         except Exception as e:
             tdLog.exit(f"{e},check consumer error")
 
@@ -318,5 +326,4 @@ class TestDropLostConsumers:
         self.topic_name = "select_d1"
         # self.case_session_timeout()
         self.case_max_poll_timeout()
-
 

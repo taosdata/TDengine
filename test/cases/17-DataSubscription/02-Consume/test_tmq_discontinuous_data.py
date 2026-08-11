@@ -6,7 +6,6 @@ from taos.tmq import Consumer
 import platform
 
 from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
-from new_test_framework.utils.pathFinding import find_proj_path
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -25,27 +24,6 @@ class TestCase:
         cls.actConsumeTotalRows = 0
         cls.retryPoll = 0
         cls.lock = threading.Lock()
-
-    def getPath(self, tool="taosBenchmark"):
-        if (platform.system().lower() == 'windows'):
-            tool = tool + ".exe"
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-
-        projPath = find_proj_path(selfPath)
-
-        paths = []
-        for root, dirs, files in os.walk(projPath):
-            if ((tool) in files):
-                rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    paths.append(os.path.join(root, tool))
-                    break
-        if (len(paths) == 0):
-            tdLog.exit("taosBenchmark not found!")
-            return
-        else:
-            tdLog.info("taosBenchmark found in %s" % paths[0])
-            return paths[0]
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -257,4 +235,3 @@ class TestCase:
 
 
 event = threading.Event()
-

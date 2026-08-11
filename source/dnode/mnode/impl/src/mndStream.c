@@ -1396,7 +1396,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
    * (DS Sec 6.1.1 "password fill responsibility split"). For each unique
    * sourceName, look up the AES-CBC ciphertext from mnode-local sdb
    * (SExtSourceObj, mndDef.h) and memcpy it into the spec. The snode
-   * reader later calls extDecryptPassword to recover the plaintext.
+   * reader later calls decryptExtSourcePassword to recover the plaintext.
    * Failure (source missing or DROPped between parser cache fetch and
    * mnode arrival) returns TSDB_CODE_EXT_SOURCE_NOT_FOUND (0x6407,
    * MR 245). DS Sec 6.1.2 line 266. */
@@ -1415,9 +1415,8 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
       }
       memcpy(pSpec->encryptedPassword, pSrcObj->encryptedPassword,
              TSDB_EXT_SOURCE_ENC_PASSWORD_LEN);
-      pSpec->encryptedPasswordLen = TSDB_EXT_SOURCE_ENC_PASSWORD_LEN;
-      mDebug("stream:%s spec[%d] source=%s encryptedPassword filled (len=%u)",
-             pCreate->name, i, pSpec->sourceName, (unsigned)pSpec->encryptedPasswordLen);
+      mDebug("stream:%s spec[%d] source=%s encryptedPassword filled",
+             pCreate->name, i, pSpec->sourceName);
       mndReleaseExtSource(pMnode, pSrcObj);
     }
   }

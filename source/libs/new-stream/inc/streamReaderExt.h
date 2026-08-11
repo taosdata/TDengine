@@ -44,11 +44,15 @@ extern "C" {
  * One entry in pUidIndex.  groupId and maxTs are always present.
  * tagsetKey is only populated for InfluxDB sources; it holds the
  * "col1=val1|col2=val2|..." string used to reconstruct the tag-based
- * WHERE clause in per-uid queries.  Empty string for MySQL/PG.
+ * WHERE clause in per-uid queries. partitionValues caches the typed
+ * PARTITION BY tuple evaluated during DISTINCT block initialization so
+ * GROUP_COL_VALUE_PULL does not evaluate the same expressions again.
+ * Empty string/NULL respectively for MySQL/PG.
  */
 typedef struct SUidIndexEntry {
-  int64_t groupId;
-  char    tagsetKey[1024]; /* "col1=val1|col2=val2|..."; empty for MySQL/PG */
+  uint64_t groupId;
+  char     tagsetKey[1024]; /* "col1=val1|col2=val2|..."; empty for MySQL/PG */
+  SArray  *partitionValues; /* SArray<SStreamGroupValue>; owned */
 } SUidIndexEntry;
 
 /*
@@ -56,9 +60,9 @@ typedef struct SUidIndexEntry {
  * Built on first TDMT_STREAM_TRIGGER_PULL_EXT processing.
  * See DS §6.2.7.
  *
- * pUidIndex   : SSHashObj<int64_t uid, SUidIndexEntry{groupId, tagsetKey}>
- * pGroupIndex : SSHashObj<int64_t groupId, SArray<int64_t uid>*>
- * pTagsetIndex: SSHashObj<char[] tagset, int64_t uid>  (InfluxDB only)
+ * pUidIndex   : SSHashObj<uint64_t uid, SUidIndexEntry{groupId, tagsetKey, partitionValues}>
+ * pGroupIndex : SSHashObj<uint64_t groupId, SArray<uint64_t uid>*>
+ * pTagsetIndex: SSHashObj<char[] tagset, uint64_t uid>  (InfluxDB only)
  */
 typedef struct SStreamExtReaderInfo {
   /* Connection to the external source.  Opened in streamReaderExtOpen. */
@@ -79,10 +83,18 @@ typedef struct SStreamExtReaderInfo {
    * Used to build the tagset string from returned rows and to look up uid. */
   SArray *pInfluxTagCols;   /* SArray<char[TSDB_COL_NAME_LEN]>; InfluxDB only */
 
+  /* Parsed/cached scalar expression templates for spec.partitionTagExprs, parallel
+   * to spec.partitionTagCols (same length as spec.partitionTagCols when
+   * non-NULL). A NULL entry means that slot's partitionTagExprs[i] is "" (no
+   * expression to evaluate -- bare column or tbname sentinel). Parsed once
+   * in streamReaderExtOpen, then bound once to the DISTINCT tag block slots
+   * before vectorized evaluation. Freed in streamReaderExtClose. */
+  SArray *pPartitionColExprNodes;  /* SArray<SNode*> */
+
   /* Three in-memory lookup tables (DS §6.2.7). */
-  SSHashObj *pUidIndex;    /* hash<int64_t uid,    SUidIndexEntry> */
-  SSHashObj *pGroupIndex;  /* hash<int64_t groupId, SArray<int64_t>*> */
-  SSHashObj *pTagsetIndex; /* hash<char[] tagset,  int64_t uid>; InfluxDB only */
+  SSHashObj *pUidIndex;    /* hash<uint64_t uid,    SUidIndexEntry> */
+  SSHashObj *pGroupIndex;  /* hash<uint64_t groupId, SArray<uint64_t>*> */
+  SSHashObj *pTagsetIndex; /* hash<char[] tagset,  uint64_t uid>; InfluxDB only */
 } SStreamExtReaderInfo;
 
 /* ---------------------------------------------------------------------------

@@ -862,6 +862,7 @@ static int32_t createExtScanPseudoTargets(SNodeList* pScanPseudoCols, SNodeList*
 
   return TSDB_CODE_SUCCESS;
 }
+static int32_t addExtPrimaryTsCol(SScanLogicNode* pExtScan, SNodeList** pCols);
 
 // ---------------------------------------------------------------------------
 // createExternalScanLogicNode: builds an SScanLogicNode for an external table
@@ -904,6 +905,26 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
 
   // Collect pseudo-column functions (for example TBNAME) after the raw tag
   // classification so both kinds of pseudo columns share one output path.
+  if (TSDB_CODE_SUCCESS == code && pRealTable->placeholderType == SP_PARTITION_ROWS) {
+    code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_ALL,
+                               &pCxt->pPlanCxt->streamCxt.triggerScanList);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && pRealTable->placeholderType == SP_PARTITION_ROWS) {
+    code = addExtPrimaryTsCol(pScan, &pScan->pScanCols);
+    planDebug("external partition rows scan prepared, table:%s.%s, scanCols:%d, triggerScanCols:%d, code:%d",
+              pRealTable->table.dbName, pRealTable->table.tableName,
+              NULL == pScan->pScanCols ? 0 : LIST_LENGTH(pScan->pScanCols),
+              NULL == pCxt->pPlanCxt->streamCxt.triggerScanList
+                  ? 0
+                  : LIST_LENGTH(pCxt->pPlanCxt->streamCxt.triggerScanList),
+              code);
+  }
+
+  // Collect pseudo-column functions (e.g. TBNAME) — needed for PARTITION BY TBNAME.
+  // Without this, the federated scan's output descriptor has no TBNAME slot and the
+  // partition operator cannot resolve the group key → crash (buffer overflow) or
+  // planner error (slot key not found).
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectFuncs(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, fmIsScanPseudoColumnFunc,
                              &pScan->pScanPseudoCols);

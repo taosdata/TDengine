@@ -44,7 +44,12 @@ if(TD_ENTERPRISE)
     mnode
     PRIVATE "${TD_ENTERPRISE_DIR}/source/plugins/taosk/inc"
     PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+    PRIVATE "${TD_SOURCE_DIR}/source/libs/extconnector/inc"
   )
+  # extconnector is only referenced by mndExtSource.c (added to MNODE_SRC
+  # above, TD_ENTERPRISE-only), so keep the link guarded the same way as its
+  # include directories just above.
+  target_link_libraries(mnode PUBLIC extconnector)
 endif()
 target_link_libraries(
   mnode PUBLIC scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode

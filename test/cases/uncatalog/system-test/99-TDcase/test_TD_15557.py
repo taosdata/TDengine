@@ -6,7 +6,7 @@ import socket
 import os
 import threading
 
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
 
 class TestCase:
     hostname = socket.gethostname()
@@ -28,19 +28,6 @@ class TestCase:
         cur=con.cursor()
         print(cur)
         return cur
-
-    def startTmqSimProcess(self,buildPath,cfgPath,pollDelay,dbName,showMsg,showRow,cdbName,valgrind):
-        shellCmd = 'nohup '
-        if valgrind == 1:
-            logFile = cfgPath + '/../log/valgrind-tmq.log'
-            shellCmd = 'nohup valgrind --log-file=' + logFile
-            shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-
-        shellCmd += buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
-        shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
 
     def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum,rowsPerTbl):
         tsql.execute("create database if not exists %s vgroups %d wal_retention_period 3600"%(dbName, vgroups))
@@ -154,8 +141,7 @@ class TestCase:
         showMsg   = 1
         showRow   = 1
 
-        valgrind = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow, cdbName,valgrind)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow, cdbName)
 
         # wait for data ready
         prepareEnvThread.join()
@@ -232,8 +218,7 @@ class TestCase:
         showMsg   = 1
         showRow   = 1
 
-        valgrind = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow, cdbName,valgrind)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow, cdbName)
 
         # wait for data ready
         prepareEnvThread.join()
@@ -328,8 +313,7 @@ class TestCase:
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        valgrind  = 1
-        self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow, cdbName,valgrind)
+        tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow, cdbName)
 
         # wait for data ready
         prepareEnvThread.join()
