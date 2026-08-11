@@ -18,13 +18,15 @@ class TestAprioriAnalyzer:
 
     def test_execute_with_simple_matrix(self):
         """Test Apriori execution with simple binary matrix"""
-        data = np.array([
-            [1, 1, 0, 0],
-            [1, 1, 0, 0],
-            [1, 0, 1, 0],
-            [1, 0, 1, 0],
-            [0, 1, 1, 0],
-        ])
+        data = np.array(
+            [
+                [1, 1, 0, 0],
+                [1, 1, 0, 0],
+                [1, 0, 1, 0],
+                [1, 0, 1, 0],
+                [0, 1, 1, 0],
+            ]
+        )
         matrix = pd.DataFrame(data).astype(bool)
 
         analyzer = AprioriAnalyzer(min_support=0.4, min_confidence=0.5)
@@ -38,12 +40,14 @@ class TestAprioriAnalyzer:
 
     def test_execute_with_no_support(self):
         """Test when no itemsets meet minimum support"""
-        data = np.array([
-            [1, 0, 0, 0],
-            [0, 1, 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1],
-        ])
+        data = np.array(
+            [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+            ]
+        )
         matrix = pd.DataFrame(data).astype(bool)
 
         analyzer = AprioriAnalyzer(min_support=0.5)
@@ -57,12 +61,14 @@ class TestAprioriAnalyzer:
 
     def test_get_rules_limit(self):
         """Test max_rules limit"""
-        data = np.array([
-            [1, 1, 1],
-            [1, 1, 0],
-            [1, 0, 1],
-            [1, 1, 1],
-        ])
+        data = np.array(
+            [
+                [1, 1, 1],
+                [1, 1, 0],
+                [1, 0, 1],
+                [1, 1, 1],
+            ]
+        )
         matrix = pd.DataFrame(data).astype(bool)
 
         analyzer = AprioriAnalyzer(min_support=0.25, min_confidence=0.3, max_rules=2)
@@ -105,7 +111,9 @@ class TestConvertToMatrix:
         assert result.shape == (3, 3)
         # Check that all columns are boolean type
         for dtype in result.dtypes:
-            assert isinstance(dtype.type, type) and issubclass(dtype.type, (bool, np.bool_))
+            assert isinstance(dtype.type, type) and issubclass(
+                dtype.type, (bool, np.bool_)
+            )
 
     def test_transactions_format_auto_detect(self):
         """Test auto-detection of transactions format"""

@@ -4,7 +4,7 @@ import numpy as np
 from scipy.stats import pearsonr
 
 from taosanalytics.algo.association import do_apriori
-from taosanalytics.algo.tool.batch import do_batch_process, update_config
+from taosanalytics.algo.tool.batch_env import gen_batch_envelop, update_config
 from taosanalytics.algo.tool.profile_search import do_profile_search_impl
 from taosanalytics.log import AppLogger
 from taosanalytics.util import (
@@ -15,7 +15,7 @@ from taosanalytics.util import (
 )
 
 
-def handle_batch(request):
+def handle_build_batch_env(request):
     """
     Execute batch processing business logic.
 
@@ -40,7 +40,7 @@ def handle_batch(request):
 
     try:
         # median, lower bounding, upper bounding, processed_batches
-        center, lower, upper, processed_batches = do_batch_process(
+        center, lower, upper, processed_batches = gen_batch_envelop(
             np.array(ts), np.array(data), windows, conf
         )
 
@@ -309,4 +309,3 @@ def handle_association(request, api_version):
     except Exception as e:
         AppLogger.error("association analysis failed, %s", str(e))
         return {"msg": str(e), "rows": -1}
-
