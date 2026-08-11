@@ -1,13 +1,15 @@
 ---
-sidebar_label: Security Deployment Suggestions
-title: Security Deployment Configuration Suggestions
+sidebar_label: Security Deployment Configuration
+title: Security Deployment and Hardening Suggestions
+description: Exposure surfaces of TDengine components and production hardening suggestions
 toc_max_heading_level: 4
-description: Exposure surface of TDengine components and production hardening suggestions
 ---
+
+Component-level hardening guidance; for layered security capabilities, see the [Security Guide home](./index.md).
 
 ## Background
 
-The distributed and multi-component nature of TDengine makes its security configuration a concern in production systems. This document explains the security considerations of TDengine components and deployment methods. For certificate setup, see [Transport Security](./02-transport-security.md); for client practices, see [Connector Security](./04-connector-security.md); for auditing, see [Audit and Compliance](./05-audit-and-compliance.md).
+The distributed and multi-component nature of TDengine makes security configuration a common production concern. This document explains security considerations for TDengine components and deployment methods, and provides deployment and configuration suggestions. For transport certificate steps, see [Full-Trace Transport Security and Compression](./02-full-trace-transport.md); for client practices, see [Client and Connector Security](./05-client-connector-security.md); for account and authorization practices, see [Full-Trace Authentication · Practice Suggestions](./01-full-trace-auth.md#practice-suggestions); for audit configuration, see [Audit and Compliance](./07-audit-and-compliance.md).
 
 ## Components Involved in Security Configuration
 
@@ -18,7 +20,7 @@ TDengine includes multiple components:
 - `taosAdapter`: REST API and WebSocket service.
 - `taosKeeper`: Monitoring service component.
 - `taosX`: Data pipeline and backup recovery component.
-- `taosxAgent`: Auxiliary component for external data source access.
+- `taosX-Agent`: Auxiliary component for external data source access.
 - `taosExplorer`: Web visualization management interface.
 
 In addition to TDengine deployment and applications, there are also the following components:
@@ -36,34 +38,35 @@ For detailed component descriptions, see [Overview and Architecture](../12-opera
 
 ### `taosd`
 
-The `taosd` cluster uses TCP connections based on its own protocol for data exchange, which has low risk, but the transmission process is not encrypted, so there is still some security risk.
+`taosd` clusters exchange data over TCP with a proprietary protocol. Transport can be plaintext by default, so production deployments should enable TLS (`enableTLS` and certificate parameters; see [Full-Trace Transport Security and Compression](./02-full-trace-transport.md)).
 
-Enabling compression may help with TCP data obfuscation.
+Enabling compression can reduce bandwidth usage, but it does not replace transport encryption.
 
-- **compressMsgSize**: Whether to compress RPC messages. Integer, optional: -1: Do not compress any messages; 0: Compress all messages; N (N>0): Only compress messages larger than N bytes.
+- **compressMsgSize**: Whether to compress RPC messages. Integer, optional: `-1`: do not compress any messages; `0`: compress all messages; `N` (`N > 0`): only compress messages larger than `N` bytes.
 
-To ensure the traceability of database operations, it is recommended to enable the audit function.
+To make database operations traceable, enable auditing in Enterprise deployments. For complete parameters and audit database constraints, see [Audit and Compliance](./07-audit-and-compliance.md) and [taosd](../12-operations-and-tooling/03-components/01-taosd.md).
 
-- **audit**: Audit function switch, 0 is off, 1 is on. Default is on.
-- **auditInterval**: Reporting interval, in milliseconds. Default is 5000.
-- **auditCreateTable**: Whether to enable the audit function for creating sub-tables. 0 is off, 1 is on. Default is on.
+- **audit**: Audit function switch, `0` disables and `1` enables auditing. Enterprise default is enabled.
+- **auditInterval**: Reporting interval in milliseconds. Default `5000`.
+- **auditLevel**: Audit level (`1`-`5`, default `3`).
+- **auditCreateTable**: Whether to audit child-table creation. `0` disables and `1` enables it. Default enabled.
+- **auditSaveInSelf**: Whether to record audit logs in the local cluster without `taosKeeper` (`v3.4.1.0+`).
 
-To ensure the security of data files, database encryption can be enabled.
+To secure data files, enable transparent data encryption; see [Data-at-Rest Protection](./06-data-security.md). For `v3.4+`, the recommended path is to generate hierarchical keys with `taosk`, then specify `ENCRYPT_ALGORITHM` per database.
 
-- **encryptAlgorithm**: Data encryption algorithm.
-- **encryptScope**: Data encryption scope.
+- **encryptAlgorithm** / **encryptScope**: Enterprise parameters that declare algorithms and encryption scopes. Their relationship to the `taosk` main path is described in Data-at-Rest Protection.
 
 Enabling the whitelist can restrict access addresses and further enhance privacy.
 
-- **enableWhiteList**: Whitelist function switch, 0 is off, 1 is on; default is off.
+- **enableWhiteList**: Allowlist switch, `0` disables and `1` enables it; default disabled. User-side `HOST` / `NOT_ALLOW_HOST` settings are described in [Users · IP Allowlist and Blocklist](../05-tdengine-sql/07-user-and-privilege/01-user.md#ip-allowlist-and-blocklist).
 
 ### `taosc`
 
-Users and other components use the native client library (`taosc`) and its own protocol to connect to `taosd`, which has low data security risk, but the transmission process is still not encrypted, so there is some security risk.
+Users and other components use the native client library (`taosc`) and TDengine's private protocol to connect to `taosd`. Configure client and server TLS / CA consistently; see [Full-Trace Transport Security and Compression](./02-full-trace-transport.md) and [Client and Connector Security](./05-client-connector-security.md).
 
 ### `taosAdapter`
 
-`taosAdapter` uses the native client library (`taosc`) and its own protocol to connect to `taosd`, and also supports RPC message compression, so there is no data security issue.
+`taosAdapter` uses the native client library (`taosc`) and TDengine's private protocol to connect to `taosd`, and also supports RPC message compression.
 
 Applications and other components connect to `taosAdapter` through various language connectors. By default, the connection is based on HTTP 1.1 and is not encrypted. To ensure the security of data transmission between `taosAdapter` and other components, SSL encrypted connections need to be configured. Modify the following configuration in the `/etc/taos/taosadapter.toml` configuration file:
 
@@ -77,14 +80,14 @@ keyFile = "/path/to/private-key"
 Configure HTTPS/SSL access in the connector to complete encrypted access.
 
 :::info
-The taosAdapter `[ssl]` section is an Enterprise feature. See [Transport Security](./02-transport-security.md) for setup instructions.
+The taosAdapter `[ssl]` section is an Enterprise feature. See [Full-Trace Transport Security and Compression](./02-full-trace-transport.md) for setup instructions.
 :::
 
-To further enhance security, the whitelist function can be enabled, and configured in `taosd`, which also applies to the `taosAdapter` component.
+In production, set `debug` to `false`; when it is `true`, `/debug/pprof` is exposed. To further harden access, enable the allowlist in `taosd`, which also applies to `taosAdapter`. When access goes through Adapter, account allowlists usually see the Adapter host IP. To control by original client IP, handle it at the gateway layer; see [Full-Trace Authentication](./01-full-trace-auth.md).
 
 ### `taosX`
 
-`taosX` includes REST API and gRPC interfaces, where the gRPC interface is used for `taos-agent` connections.
+`taosX` includes REST API and gRPC interfaces, where the gRPC interface is used for `taosX-Agent` connections.
 
 - The REST API interface is based on HTTP 1.1 and is not encrypted, posing a security risk.
 - The gRPC interface is based on HTTP 2 and is not encrypted, posing a security risk.
@@ -97,16 +100,18 @@ listen = "127.0.0.1:6050"
 grpc = "127.0.0.1:6055"
 ```
 
-Starting from TDengine `v3.3.6.0`, `taosX` supports HTTPS connections. Add the following configuration in the `/etc/taos/taosx.toml` file:
+Starting with TDengine `v3.3.6.0`, `taosX` supports HTTPS connections. Add the following configuration in the `/etc/taos/taosx.toml` file:
 
 ```toml
 [serve]
 ssl_cert = "/path/to/server.pem"
-ssl_key =  "/path/to/server.key"
-ssl_ca =   "/path/to/ca.pem"
+ssl_key = "/path/to/server.key"
+ssl_ca = "/path/to/ca.pem"
 ```
 
-And modify the API address to HTTPS connection in Explorer:
+To specify certificates for gRPC separately, configure `grpc_ssl_cert` / `grpc_ssl_key` / `grpc_ssl_ca`; see [Full-Trace Transport Security and Compression](./02-full-trace-transport.md).
+
+Then change the API address to HTTPS in taosExplorer:
 
 ```toml
 # Local connection to taosX API
@@ -128,21 +133,21 @@ certificate = "/path/to/ca.file"
 certificate_key = "/path/to/key.file"
 ```
 
-Then, use HTTPS to access Explorer, such as [https://192.168.12.34](https://192.168.12.34:6060).
+Then, use HTTPS to access taosExplorer, for example `https://192.168.12.34:6060`.
 
-### `taosxAgent`
+### `taosX-Agent`
 
-After `taosX` enables HTTPS, the `Agent` component and `taosX` use HTTP 2 encrypted connections, using Arrow-Flight RPC for data exchange. The transmission content is in binary format, and only registered `Agent` connections are valid, ensuring data security.
+After `taosX` enables HTTPS, `taosX-Agent` and `taosX` use HTTP/2 encrypted connections and Arrow Flight RPC for data exchange. The payload is binary, and only registered `taosX-Agent` connections are valid.
 
-It is recommended to always enable HTTPS connections for `Agent` services in insecure or public network environments.
+It is recommended to always enable HTTPS connections for `taosX-Agent` services in insecure or public network environments.
 
 ### `taosKeeper`
 
-`taosKeeper` uses WebSocket connections to communicate with `taosAdapter`, writing monitoring information reported by other components into TDengine.
+`taosKeeper` uses WebSocket connections to communicate with `taosAdapter`, writing monitoring information reported by other components into TDengine. In classic deployments, it can also receive and forward audit logs; see [Audit and Compliance](./07-audit-and-compliance.md).
 
 The current version of `taosKeeper` has security risks:
 
-- The monitoring address cannot be restricted to the local machine. By default, it monitors all addresses on port 6043, posing a risk of network attacks. This risk can be ignored when deploying with Docker or Kubernetes without exposing the `taosKeeper` port.
+- The default listening address is broad, and exposing port `6043` to the public network creates attack risk. Bind `host` through configuration, startup parameters, or environment variables to localhost or an internal address, and restrict access with firewalls. This risk can be ignored when Docker or Kubernetes deployments do not expose the port. Note that this port has **no authentication** for reporters.
 - The configuration file contains plaintext passwords, so the visibility of the configuration file needs to be reduced. In `/etc/taos/taoskeeper.toml`:
 
 ```toml
@@ -154,11 +159,13 @@ password = "taosdata"
 usessl = false
 ```
 
+In production, set `usessl` to `true` with taosAdapter SSL, and avoid default credentials.
+
 ## Security Enhancements
 
 We recommend using TDengine within a local area network.
 
-If you must provide access outside the local area network, consider adding the following configurations:
+If you must provide access outside the local area network, consider the following configurations. For a fuller gateway discussion on authentication, see [Full-Trace Authentication · API Gateway](./01-full-trace-auth.md#73-api-gateway-authentication-enhancement).
 
 ### Load Balancing
 
@@ -263,7 +270,7 @@ The above example completes the following configurations:
     - "--certificatesresolvers.default.acme.storage=/letsencrypt/acme.json"
     ```
 
-The above startup parameters configure the `default` TSL certificate resolver and automatic acme authentication (automatic certificate application and renewal).
+The startup parameters configure the `default` TLS certificate resolver and automatic ACME authentication for certificate issuance and renewal. Replace the email and DNS provider according to the actual environment.
 
 - Middleware `redirect-to-https`: Configure redirection from HTTP to HTTPS, forcing the use of secure connections.
 
@@ -276,4 +283,4 @@ The above startup parameters configure the `default` TSL certificate resolver an
 
 ## Summary
 
-Data security is a key indicator of the TDengine product. These measures are designed to protect TDengine deployments from unauthorized access and data breaches while maintaining performance and functionality. However, TDengine configuration alone is not sufficient; deployments must be secured together with the surrounding business system. For known vulnerabilities and fixed versions, see [Security Advisories](./07-security-advisories.md).
+Data security is a key indicator of the TDengine product. These measures are designed to protect TDengine deployments from unauthorized access and data breaches while maintaining performance and functionality. However, TDengine configuration alone is not sufficient; deployments must be secured together with the surrounding business system. For known vulnerabilities and fixed versions, see [Security Advisories](./09-security-advisories.md).
