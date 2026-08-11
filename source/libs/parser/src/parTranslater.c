@@ -3969,8 +3969,14 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp) 
         break;
       }
 
-      if (!isValidSubQCompDataType(getNodeDataType(pOp->pLeft), getNodeDataType(pOp->pRight), pOp->opType)) {
-        pCxt->errCode = TSDB_CODE_SCALAR_CONVERT_ERROR;
+      int32_t leftType = getNodeDataType(pOp->pLeft);
+      int32_t rightType = getNodeDataType(pOp->pRight);
+      bool blobEquality = (OP_TYPE_EQUAL == pOp->opType || OP_TYPE_NOT_EQUAL == pOp->opType) &&
+                          (TSDB_DATA_TYPE_BLOB == leftType || TSDB_DATA_TYPE_BLOB == rightType ||
+                           TSDB_DATA_TYPE_MEDIUMBLOB == leftType || TSDB_DATA_TYPE_MEDIUMBLOB == rightType) &&
+                          TSDB_DATA_TYPE_JSON != leftType && TSDB_DATA_TYPE_JSON != rightType;
+      if (blobEquality || !isValidSubQCompDataType(leftType, rightType, pOp->opType)) {
+        pCxt->errCode = blobEquality ? TSDB_CODE_BLOB_OP_NOT_SUPPORTED : TSDB_CODE_SCALAR_CONVERT_ERROR;
         break;
       }
 
