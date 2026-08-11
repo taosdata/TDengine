@@ -1,0 +1,23 @@
+{
+    "filetype": "query",
+    "cfgdir": "/etc/taos",
+    "host": "127.0.0.1",
+    "port": 6030,
+    "user": "root",
+    "password": "taosdata",
+    "confirm_parameter_prompt": "no",
+    "databases": "db",
+    "query_times": 1,
+    "query_mode": "rest",
+    "reset_query_cache": "yes",
+    "specified_table_query": {
+        "threads": 1,
+        "mixed_query": "yes",
+        "sqls": [
+            {
+                "sql": "select count(*) from db.stb",
+                "result": "./query_rest_reset_result.txt"
+            }
+        ]
+    }
+}
