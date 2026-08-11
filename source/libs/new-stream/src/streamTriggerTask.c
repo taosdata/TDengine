@@ -5985,18 +5985,25 @@ static int32_t stAppendEventStateCols(SStreamTriggerTask *pTask, SSDataBlock *pD
     SColumnInfoData *pStartCol = NULL;
     SColumnInfoData *pEndCol = NULL;
     if (appendCols) {
-      SColumnInfoData startCol = {0};
-      void           *px = taosArrayPush(pDataBlock->pDataBlock, &startCol);
-      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      if (pTask->pEventTree == NULL) {
+        SColumnInfoData startCol = {0};
+        void           *px = taosArrayPush(pDataBlock->pDataBlock, &startCol);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      }
       SColumnInfoData endCol = {0};
-      px = taosArrayPush(pDataBlock->pDataBlock, &endCol);
+      void           *px = taosArrayPush(pDataBlock->pDataBlock, &endCol);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     }
     pEndCol = taosArrayGetLast(pDataBlock->pDataBlock);
     QUERY_CHECK_NULL(pEndCol, code, lino, _end, terrno);
-    pStartCol = pEndCol - 1;
-    code = stTriggerCalcExpr(pTask, pDataBlock, pTask->pStartCond, pStartCol);
-    QUERY_CHECK_CODE(code, lino, _end);
+    if (pTask->pEventTree != NULL) {
+      ST_TASK_DLOG("calculate event tree end column for realtime trigger data, rows:%d",
+                    blockDataGetNumOfRows(pDataBlock));
+    } else {
+      pStartCol = pEndCol - 1;
+      code = stTriggerCalcExpr(pTask, pDataBlock, pTask->pStartCond, pStartCol);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     code = stTriggerCalcExpr(pTask, pDataBlock, pTask->pEndCond, pEndCol);
     QUERY_CHECK_CODE(code, lino, _end);
   } else if (pTask->triggerType == STREAM_TRIGGER_STATE) {
