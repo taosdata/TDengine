@@ -369,7 +369,7 @@ def _build_candidates_from_profiles(
         if len(ts_vals) <= idx:
             raise ValueError(
                 'when "target_data.data" is a list of profiles, "target_data.ts" and "target_data.data" '
-                'must have matching lengths'
+                "must have matching lengths"
             )
 
         if isinstance(ts_vals[idx], (list, tuple)) and len(ts_vals[idx]) == 2:
