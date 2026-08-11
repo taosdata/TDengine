@@ -12,7 +12,7 @@ The `DELETE` statement deletes data from specified tables or supertables, which 
 DELETE FROM [db_name.]tb_name [WHERE condition] [SECURE_DELETE];
 ```
 
-**Note:** Deleting data does not immediately free disk space; rows are marked as deleted. They no longer appear in queries, but space is reclaimed later when the database [`KEEP`](../02-ddl/01-database.md) setting takes effect, or when you manually run [Data Reorganization](../../12-operations-and-tooling/02-operations/04-maintenance.md#data-reorganization) (enterprise `COMPACT`). To physically overwrite on-disk data blocks in addition to writing a delete mark, use database-level or statement-level `SECURE_DELETE`; see [Data Security · Secure Delete](../../11-security-guide/03-data-security.md#secure-delete).
+**Note:** Deleting data does not immediately free disk space; rows are marked as deleted. They no longer appear in queries, but space is reclaimed later when the database [`KEEP`](../02-ddl/01-database.md) setting takes effect, or when you manually run [Data Reorganization](../../12-operations-and-tooling/02-operations/04-maintenance.md#data-reorganization) (enterprise `COMPACT`). To physically overwrite on-disk data blocks in addition to writing a delete mark, use database-level or statement-level `SECURE_DELETE`; see [Data Security · Secure Delete](../../11-security-guide/06-data-security.md#secure-delete).
 
 ### Parameters
 

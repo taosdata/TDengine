@@ -75,13 +75,13 @@ class AprioriAnalyzer:
                 )
                 return
 
-            AppLogger.debug(
-                "Found %d frequent itemsets", len(self.frequent_itemsets)
-            )
+            AppLogger.debug("Found %d frequent itemsets", len(self.frequent_itemsets))
 
             if len(self.frequent_itemsets) > 1:
                 self.rules = association_rules(
-                    self.frequent_itemsets, metric="confidence", min_threshold=self.min_confidence
+                    self.frequent_itemsets,
+                    metric="confidence",
+                    min_threshold=self.min_confidence,
                 )
 
                 if not self.rules.empty:
