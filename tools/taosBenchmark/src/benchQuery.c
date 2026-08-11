@@ -28,9 +28,10 @@ int selectAndGetResult(qThreadInfo *pThreadInfo, char *command, bool record) {
     TOOLS_STRNCPY(dbName, g_queryInfo.dbName, TSDB_DB_NAME_LEN);
 
     if (g_queryInfo.iface == REST_IFACE) {
+        char *filePath = record ? pThreadInfo->filePath : NULL;
         int retCode = postProcessSql(command, g_queryInfo.dbName, 0, REST_IFACE,
                                    0, g_arguments->port, false,
-                                   pThreadInfo->sockfd, pThreadInfo->filePath);
+                                   pThreadInfo->sockfd, filePath);
         if (0 != retCode) {
             errorPrint("====restful return fail, threadID[%u]\n",
                        threadID);
@@ -156,6 +157,12 @@ static void *specQueryMixThread(void *sarg) {
     pThreadInfo->query_delay_list = benchArrayInit(queryTimes, sizeof(int64_t));
     for (int i = pThreadInfo->start_sql; i <= pThreadInfo->end_sql; ++i) {
         SSQL * sql = benchArrayGet(g_queryInfo.specifiedQueryInfo.sqls, i);
+        if (sql->result[0] != '\0') {
+            (void)snprintf(pThreadInfo->filePath, MAX_PATH_LEN, "%s-%d",
+                    sql->result, pThreadInfo->threadID);
+        } else {
+            pThreadInfo->filePath[0] = '\0';
+        }
         for (uint64_t j = 0; j < queryTimes; ++j) {
             // use cancel
             if(g_arguments->terminate) {
