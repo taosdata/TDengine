@@ -358,6 +358,23 @@ _fq_env_clean() {
     "${_runner[@]}" "$@"
 }
 
+_check_pymysql_dependency() {
+    local python_bin="${FQ_PYTHON:-python3}"
+
+    if ! command -v "$python_bin" >/dev/null 2>&1; then
+        err "MySQL setup requires Python, but the interpreter was not found: ${python_bin}"
+        err "Set FQ_PYTHON to the Python interpreter used by pytest."
+        return 1
+    fi
+
+    if ! _fq_env_clean "$python_bin" -c 'import pymysql' >/dev/null 2>&1; then
+        err "MySQL setup requires the pymysql module in: ${python_bin}"
+        err "Install it with: ${python_bin} -m pip install pymysql"
+        err "Or install the dependencies from source/taos-community/test/requirements.txt."
+        return 1
+    fi
+}
+
 _fq_mysql_ld_path() {
     local base="$1"
     local lib_private="${base}/lib/private"
@@ -378,6 +395,140 @@ _fq_mysql_run() {
     fi
 }
 
+# Execute MySQL SQL through pymysql rather than the bundled mysql CLI.
+# The MySQL tarball client can require legacy libncurses/libtinfo libraries
+# that are not available on newer distro releases.
+_mysql_py_exec() {
+    local host="$1" port="$2" user="$3" password="$4" sql="$5"
+    MYSQL_HOST="$host" \
+    MYSQL_PORT="$port" \
+    MYSQL_USER="$user" \
+    MYSQL_PASS="$password" \
+    MYSQL_SQL="$sql" \
+        _fq_env_clean "${FQ_PYTHON:-python3}" - <<'PY'
+import os
+import pymysql
+from pymysql.constants import CLIENT
+
+conn = pymysql.connect(
+    host=os.environ["MYSQL_HOST"],
+    port=int(os.environ["MYSQL_PORT"]),
+    user=os.environ["MYSQL_USER"],
+    password=os.environ.get("MYSQL_PASS", ""),
+    connect_timeout=5,
+    autocommit=True,
+    charset="utf8mb4",
+    client_flag=CLIENT.MULTI_STATEMENTS,
+)
+try:
+    with conn.cursor() as cur:
+        sql = os.environ.get("MYSQL_SQL", "").strip()
+        if sql:
+            cur.execute(sql)
+            while cur.nextset():
+                pass
+finally:
+    conn.close()
+PY
+}
+
+_mysql_py_exec_stdin() {
+    local host="$1" port="$2" user="$3" password="$4"
+    MYSQL_HOST="$host" \
+    MYSQL_PORT="$port" \
+    MYSQL_USER="$user" \
+    MYSQL_PASS="$password" \
+        _fq_env_clean "${FQ_PYTHON:-python3}" -c '
+import os
+import sys
+import pymysql
+from pymysql.constants import CLIENT
+
+conn = pymysql.connect(
+    host=os.environ["MYSQL_HOST"],
+    port=int(os.environ["MYSQL_PORT"]),
+    user=os.environ["MYSQL_USER"],
+    password=os.environ.get("MYSQL_PASS", ""),
+    database="mysql",
+    connect_timeout=5,
+    autocommit=True,
+    charset="utf8mb4",
+    client_flag=CLIENT.MULTI_STATEMENTS,
+)
+try:
+    with conn.cursor() as cur:
+        sql = sys.stdin.read().strip()
+        if sql:
+            cur.execute(sql)
+            while cur.nextset():
+                pass
+finally:
+    conn.close()
+'
+}
+
+_mysql_py_scalar() {
+    local host="$1" port="$2" user="$3" password="$4" sql="$5"
+    MYSQL_HOST="$host" \
+    MYSQL_PORT="$port" \
+    MYSQL_USER="$user" \
+    MYSQL_PASS="$password" \
+    MYSQL_SQL="$sql" \
+        _fq_env_clean "${FQ_PYTHON:-python3}" -c '
+import os
+import pymysql
+
+conn = pymysql.connect(
+    host=os.environ["MYSQL_HOST"],
+    port=int(os.environ["MYSQL_PORT"]),
+    user=os.environ["MYSQL_USER"],
+    password=os.environ.get("MYSQL_PASS", ""),
+    connect_timeout=5,
+    autocommit=True,
+)
+try:
+    with conn.cursor() as cur:
+        cur.execute(os.environ["MYSQL_SQL"])
+        row = cur.fetchone()
+        if row is not None and row[0] is not None:
+            print(row[0])
+finally:
+    conn.close()
+'
+}
+
+_mysql_py_check_timezone() {
+    local host="$1" port="$2" user="$3" password="$4"
+    MYSQL_HOST="$host" \
+    MYSQL_PORT="$port" \
+    MYSQL_USER="$user" \
+    MYSQL_PASS="$password" \
+        _fq_env_clean "${FQ_PYTHON:-python3}" - <<'PY'
+import os
+import pymysql
+
+conn = pymysql.connect(
+    host=os.environ["MYSQL_HOST"],
+    port=int(os.environ["MYSQL_PORT"]),
+    user=os.environ["MYSQL_USER"],
+    password=os.environ.get("MYSQL_PASS", ""),
+    connect_timeout=5,
+    autocommit=True,
+)
+try:
+    with conn.cursor() as cur:
+        for zone in ("Asia/Shanghai", "UTC"):
+            cur.execute(
+                "SELECT CONVERT_TZ(%s, %s, '+00:00') IS NOT NULL",
+                ("2024-01-01 00:00:00", zone),
+            )
+            if cur.fetchone()[0] != 1:
+                raise RuntimeError(f"MySQL timezone data is unavailable for {zone}")
+finally:
+    conn.close()
+PY
+}
+
 # Start a daemon via nohup, record PID in pidfile, return immediately
 # Usage: _start_daemon <pidfile> <logfile> <cmd> [args...]
 _start_daemon() {
@@ -385,12 +536,19 @@ _start_daemon() {
     shift 2
     mkdir -p "$(dirname "$pidfile")" "$(dirname "$logfile")"
     _rotate_log "$logfile"
+    local _runner=(env -u LD_PRELOAD -u LD_LIBRARY_PATH)
+    local _pid
+    # setsid is missing on macOS; nohup + & is sufficient there.
+    # Avoid _fq_env_clean here: backgrounding a shell function can leave the
+    # ensure_ext_env.sh wrapper alive as the daemon's parent.
     if command -v setsid >/dev/null 2>&1; then
-        _fq_env_clean setsid nohup "$@" >> "$logfile" 2>&1 &
+        "${_runner[@]}" setsid nohup "$@" >> "$logfile" 2>&1 &
     else
-        _fq_env_clean nohup "$@" >> "$logfile" 2>&1 &
+        "${_runner[@]}" nohup "$@" >> "$logfile" 2>&1 &
     fi
-    echo "$!" > "$pidfile"
+    _pid="$!"
+    echo "$_pid" > "$pidfile"
+    disown "$_pid" 2>/dev/null || true
 }
 
 # Stop a daemon by pidfile; fall back to pattern kill.
@@ -875,6 +1033,16 @@ _install_libnuma_from_direct_deb() {
 _ensure_linux_engine_deps() {
     [[ "$OS" != "Linux" ]] && return 0
     command -v apt-get &>/dev/null || return 0
+
+    # CI containers normally run as root and may install missing packages.
+    # Local pytest runs commonly use an unprivileged account; repeatedly
+    # invoking apt-get there only produces permission errors and delays setup.
+    if [[ "$(id -u)" -ne 0 ]]; then
+        _libaio_present || warn "engine OS deps: libaio is missing; install it as root before running MySQL tests."
+        _libnuma_present || warn "engine OS deps: libnuma is missing; install it as root before running MySQL tests."
+        return 0
+    fi
+
     _ensure_engine_deps_apt_index
 
     # Install libaio separately so we can fall back from libaio1t64 to libaio1.
@@ -1365,6 +1533,12 @@ _mysql_tarball_url() {
     echo "${base}/mysql-${patch}-linux-${glibc}-${arch_str}.tar.xz"
 }
 
+_release_mysql_lock() {
+    local lockdir="$1"
+    rm -f "${lockdir}/pid" 2>/dev/null || true
+    rmdir "${lockdir}" 2>/dev/null || true
+}
+
 ensure_mysql() {
     local ver="$1"
     local port; port="$(mysql_port "$ver")"
@@ -1382,17 +1556,36 @@ ensure_mysql() {
     # Remove a stale lock left by a hard-killed process (> 15 min old).
     if [[ -d "${_lockdir}" ]] && find "${_lockdir}" -maxdepth 0 -mmin +15 2>/dev/null | grep -q .; then
         warn "MySQL ${ver}: removing stale lock dir ${_lockdir} (> 15 min old)"
+        rm -f "${_lockdir}/pid" 2>/dev/null || true
         rmdir "${_lockdir}" 2>/dev/null || true
     fi
     if ! mkdir "${_lockdir}" 2>/dev/null; then
-        err "MySQL ${ver}: another ensure_mysql is already running (${_lockdir}). Aborting to avoid race."
-        return 1
+        local _owner_pid=""
+        if [[ -f "${_lockdir}/pid" ]]; then
+            _owner_pid="$(cat "${_lockdir}/pid" 2>/dev/null || true)"
+        fi
+        if [[ -n "${_owner_pid}" ]] && ! kill -0 "${_owner_pid}" 2>/dev/null; then
+            warn "MySQL ${ver}: removing stale lock ${_lockdir} (pid ${_owner_pid} is not running)."
+            rm -f "${_lockdir}/pid" 2>/dev/null || true
+            rmdir "${_lockdir}" 2>/dev/null || true
+        fi
+        if ! mkdir "${_lockdir}" 2>/dev/null; then
+            err "MySQL ${ver}: another ensure_mysql is already running (${_lockdir}). Aborting to avoid race."
+            return 1
+        fi
     fi
+
+    echo "$$" > "${_lockdir}/pid"
+    trap "_release_mysql_lock '${_lockdir}'" EXIT
+    trap "_release_mysql_lock '${_lockdir}'; exit 129" HUP
+    trap "_release_mysql_lock '${_lockdir}'; exit 130" INT
+    trap "_release_mysql_lock '${_lockdir}'; exit 143" TERM
 
     # Delegate to helper so the lock dir is always cleaned up on any return path.
     local _rc=0
     _ensure_mysql_body "$ver" "$port" "$base" "$bin" || _rc=$?
-    rmdir "${_lockdir}" 2>/dev/null || true
+    _release_mysql_lock "${_lockdir}"
+    trap - EXIT INT TERM HUP
     return $_rc
 }
 
@@ -1477,10 +1670,8 @@ _ensure_mysql_body() {
         _mysql_setup_auth "$ver" "$port" "$base" || true
         # Connectivity probe: confirm MySQL is actually ready for queries
         local _qpi=0
-        local _mysql_qcmd=(_fq_mysql_run "$base" "${base}/bin/mysql" -h 127.0.0.1 -P "$port"
-            -u "${MYSQL_USER}" -p"${MYSQL_PASS}" --connect-timeout=5)
         while [[ $_qpi -lt 20 ]]; do
-            if "${_mysql_qcmd[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
+            if _mysql_py_exec 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" "SELECT 1;" >/dev/null 2>&1; then
                 info "MySQL ${ver}: quick restart complete."
                 return 0
             fi
@@ -1632,15 +1823,12 @@ _mysql_setup_auth() {
     local major; major="$(echo "$ver" | cut -d. -f1)"
 
     # Idempotent: if password already works, skip
-    if _fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port" \
-            -u root -p"${MYSQL_PASS}" \
-            --connect-timeout=5 \
-            -e "SELECT 1;" >/dev/null 2>&1; then
+    if _mysql_py_exec 127.0.0.1 "$port" root "$MYSQL_PASS" "SELECT 1;" >/dev/null 2>&1; then
         info "MySQL ${ver}: auth already configured."
         return 0
     fi
 
-    info "MySQL ${ver}: configuring root auth via UNIX socket ..."
+    info "MySQL ${ver}: configuring root auth ..."
     local auth_sql
     if [[ "$major" -ge 8 ]]; then
         auth_sql="ALTER USER IF EXISTS 'root'@'localhost'
@@ -1660,11 +1848,29 @@ _mysql_setup_auth() {
                   FLUSH PRIVILEGES;"
     fi
 
-    # Try socket connection (no password, fresh --initialize-insecure)
-    if _fq_mysql_run "$base" "$mysql_bin" -u root -S "$socket" --connect-timeout=10 \
-            -e "$auth_sql" 2>/dev/null; then
-        info "MySQL ${ver}: auth configured via socket."
-        return 0
+    # Retry loop: mysqld opens the TCP port before all internal startup tasks
+    # finish.  wait_port() returning does NOT guarantee the server is ready for
+    # SQL connections.
+    local _auth_pi=0
+    while [[ $_auth_pi -lt 30 ]]; do
+        if _mysql_py_exec 127.0.0.1 "$port" root "" "$auth_sql" >/dev/null 2>&1; then
+            info "MySQL ${ver}: auth configured via TCP (no-password)."
+            return 0
+        fi
+        if _mysql_py_exec 127.0.0.1 "$port" root "$MYSQL_PASS" "$auth_sql" >/dev/null 2>&1; then
+            info "MySQL ${ver}: auth configured via TCP."
+            return 0
+        fi
+        _auth_pi=$((_auth_pi + 1))
+        sleep 1
+    done
+    warn "MySQL ${ver}: could not configure auth automatically after 30s (socket=${socket})."
+    # Print last 10 lines of error log to stdout so CI captures them.
+    if [[ -f "${base}/log/error.log" ]]; then
+        info "MySQL ${ver}: last error.log lines:"
+        tail -10 "${base}/log/error.log" | while IFS= read -r _line; do
+            echo "[fq-env]   $_line"
+        done
     fi
     # Also try with skip-grant-tables approach: just TCP no-password
     if _fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port" -u root \
@@ -1678,16 +1884,7 @@ _mysql_setup_auth() {
 
 _mysql_ensure_timezone_tables() {
     local ver="$1" port="$2" base="$3"
-    local mysql_bin="${base}/bin/mysql"
     local tzinfo_bin="${base}/bin/mysql_tzinfo_to_sql"
-    local mysql_cmd=(_fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port"
-        -u "$MYSQL_USER" -p"$MYSQL_PASS" --connect-timeout=5)
-
-    if [[ ! -x "$mysql_bin" ]]; then
-        err "MySQL ${ver}: timezone-table setup failed, mysql client missing: ${mysql_bin}"
-        OVERALL_OK=1
-        return 1
-    fi
     if [[ ! -x "$tzinfo_bin" ]]; then
         err "MySQL ${ver}: timezone-table setup failed, mysql_tzinfo_to_sql missing: ${tzinfo_bin}"
         OVERALL_OK=1
@@ -1705,7 +1902,7 @@ _mysql_ensure_timezone_tables() {
         fi
 
         local loaded=""
-        loaded=$("${mysql_cmd[@]}" -Nse \
+        loaded=$(_mysql_py_scalar 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" \
             "SELECT COUNT(*) FROM mysql.time_zone_name WHERE Name='${zone_name}';" 2>/dev/null || true)
         if [[ "$loaded" == "1" ]]; then
             info "MySQL ${ver}: timezone ${zone_name} already loaded."
@@ -1714,13 +1911,14 @@ _mysql_ensure_timezone_tables() {
 
         info "MySQL ${ver}: loading timezone ${zone_name} from ${zone_file} ..."
         if ! _fq_mysql_run "$base" "$tzinfo_bin" "$zone_file" "$zone_name" \
-                | "${mysql_cmd[@]}" mysql >/dev/null 2>&1; then
+                | _mysql_py_exec_stdin 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" \
+                    >/dev/null 2>&1; then
             err "MySQL ${ver}: failed to load timezone ${zone_name} into mysql.time_zone_* tables."
             OVERALL_OK=1
             return 1
         fi
 
-        loaded=$("${mysql_cmd[@]}" -Nse \
+        loaded=$(_mysql_py_scalar 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" \
             "SELECT COUNT(*) FROM mysql.time_zone_name WHERE Name='${zone_name}';" 2>/dev/null || true)
         if [[ "$loaded" != "1" ]]; then
             err "MySQL ${ver}: timezone ${zone_name} still missing after load."
@@ -1733,7 +1931,7 @@ UTC|/usr/share/zoneinfo/UTC
 EOF
 
     local conv_probe=""
-    conv_probe=$("${mysql_cmd[@]}" -Nse \
+    conv_probe=$(_mysql_py_scalar 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" \
         "SELECT CONCAT_WS('|', \
             IF(CONVERT_TZ('2024-01-01 00:00:00','Asia/Shanghai','+00:00') IS NULL, 'NULL', 'OK'), \
             IF(CONVERT_TZ('2024-01-01 00:00:00','UTC','+00:00') IS NULL, 'NULL', 'OK'));" 2>/dev/null || true)
@@ -1750,7 +1948,6 @@ EOF
 _mysql_apply_tls() {
     local ver="$1" port="$2" base="$3"
     local cert_dst="${base}/certs"
-    local mysql_bin="${base}/bin/mysql"
     local major; major="$(echo "$ver" | cut -d. -f1)"
 
     info "MySQL ${ver}: deploying TLS certificates ..."
@@ -1775,25 +1972,19 @@ _mysql_apply_tls() {
     if [[ "$major" -ge 8 ]]; then
         # MySQL 8: persist the SSL paths and hot-reload the TLS context.
         # ALTER INSTANCE RELOAD TLS avoids a full mysqld restart.
-        if _fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port" \
-                -u "$MYSQL_USER" -p"$MYSQL_PASS" \
-                --ssl-mode=DISABLED \
-                --connect-timeout=5 \
-                -e "SET PERSIST ssl_ca='${cert_dst}/ca.pem';
-                    SET PERSIST ssl_cert='${cert_dst}/server.pem';
-                    SET PERSIST ssl_key='${cert_dst}/server-key.pem';" \
-            2>/dev/null; then
+        if _mysql_py_exec 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" \
+                "SET PERSIST ssl_ca='${cert_dst}/ca.pem';
+                 SET PERSIST ssl_cert='${cert_dst}/server.pem';
+                 SET PERSIST ssl_key='${cert_dst}/server-key.pem';" \
+            >/dev/null 2>&1; then
             info "MySQL ${ver}: TLS SET PERSIST applied."
         else
             warn "MySQL ${ver}: SET PERSIST failed."
         fi
 
-        if _fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port" \
-                -u "$MYSQL_USER" -p"$MYSQL_PASS" \
-                --ssl-mode=DISABLED \
-                --connect-timeout=5 \
-                -e "ALTER INSTANCE RELOAD TLS;" \
-            2>/dev/null; then
+        if _mysql_py_exec 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" \
+                "ALTER INSTANCE RELOAD TLS;" \
+            >/dev/null 2>&1; then
             info "MySQL ${ver}: TLS hot-reload succeeded."
             return 0
         fi
@@ -1811,10 +2002,8 @@ _mysql_apply_tls() {
 
         if wait_port "$port" 30; then
             local _tls_pi=0
-            local _tls_cmd=(_fq_mysql_run "$base" "${base}/bin/mysql" -h 127.0.0.1 -P "$port"
-                -u "${MYSQL_USER}" -p"${MYSQL_PASS}" --connect-timeout=5)
             while [[ $_tls_pi -lt 20 ]]; do
-                if "${_tls_cmd[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
+                if _mysql_py_exec 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" "SELECT 1;" >/dev/null 2>&1; then
                     info "MySQL ${ver}: TLS restart complete."
                     return 0
                 fi
@@ -1841,10 +2030,8 @@ MYCNF
         _mysql_start "$ver" "$port" "$base"
         if wait_port "$port" 30; then
             local _tls_pi=0
-            local _tls_cmd=(_fq_mysql_run "$base" "${base}/bin/mysql" -h 127.0.0.1 -P "$port"
-                -u "${MYSQL_USER}" -p"${MYSQL_PASS}" --connect-timeout=5)
             while [[ $_tls_pi -lt 20 ]]; do
-                if "${_tls_cmd[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
+                if _mysql_py_exec 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" "SELECT 1;" >/dev/null 2>&1; then
                     info "MySQL ${ver}: TLS restart complete."
                     return 0
                 fi
@@ -1862,7 +2049,6 @@ _mysql_reset_env() {
     local ver="$1" port="$2" base="$3"
     local pidfile="${base}/run/mysqld.pid"
     local log="${base}/log"
-    local mysql_bin="${base}/bin/mysql"
 
     info "MySQL ${ver} @ ${port}: hard reset (kill-9 → wipe data → reinit → restart) ..."
 
@@ -1957,23 +2143,22 @@ _mysql_reset_env() {
     local pool_user="${FQ_POOL_TEST_USER:-fq_pool_test}"
     local pool_pass="${FQ_POOL_TEST_PASS:-taosdata}"
     local pool_max_conn="${FQ_POOL_TEST_MAX_CONN:-1}"
-    local mysql_cmd=(_fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port"
-        -u "$MYSQL_USER" -p"$MYSQL_PASS" --connect-timeout=5)
-    printf "DROP USER IF EXISTS 'tls_user'@'%%';\n\
+    local user_sql
+    user_sql="$(printf "DROP USER IF EXISTS 'tls_user'@'%%';\n\
 CREATE USER 'tls_user'@'%%' IDENTIFIED BY 'tls_pwd' REQUIRE SSL;\n\
 GRANT ALL PRIVILEGES ON *.* TO 'tls_user'@'%%';\n\
 DROP USER IF EXISTS '%s'@'%%';\n\
 CREATE USER '%s'@'%%' IDENTIFIED BY '%s' WITH MAX_USER_CONNECTIONS %s;\n\
 GRANT ALL PRIVILEGES ON *.* TO '%s'@'%%';\n\
 FLUSH PRIVILEGES;" \
-        "$pool_user" "$pool_user" "$pool_pass" "$pool_max_conn" "$pool_user" \
-        | "${mysql_cmd[@]}" 2>/dev/null \
+        "$pool_user" "$pool_user" "$pool_pass" "$pool_max_conn" "$pool_user")"
+    _mysql_py_exec 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" "$user_sql" >/dev/null 2>&1 \
         || warn "MySQL ${ver}: test user setup had warnings."
 
     # 6. Connectivity probe (actual SQL connection, with pause between retries)
     local _pi=0
     while [[ $_pi -lt 30 ]]; do
-        if "${mysql_cmd[@]}" -e "SELECT 1;" >/dev/null 2>&1; then
+        if _mysql_py_exec 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" "SELECT 1;" >/dev/null 2>&1; then
             info "MySQL ${ver} @ ${port}: reset complete."
             return 0
         fi
@@ -3131,12 +3316,7 @@ teardown_all() {
 _probe_mysql_ready() {
     local ver="$1"
     local port; port="$(mysql_port "$ver")"
-    local base="${FQ_BASE_DIR}/mysql/${ver}"
-    local mysql_bin="${base}/bin/mysql"
-
-    [[ -x "$mysql_bin" ]] || return 1
-    _fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port" -u "$MYSQL_USER" -p"$MYSQL_PASS" \
-        --connect-timeout=5 -e "SELECT 1;" >/dev/null 2>&1
+    _mysql_py_exec 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" "SELECT 1;" >/dev/null 2>&1
 }
 
 _probe_pg_ready() {
@@ -3212,23 +3392,14 @@ _final_probe_mysql() {
     local ver="$1"
     local port; port="$(mysql_port "$ver")"
     local base="${FQ_BASE_DIR}/mysql/${ver}"
-    local mysql_bin="${base}/bin/mysql"
     local log_file="${base}/log/error.log"
 
-    if [[ ! -x "$mysql_bin" ]]; then
-        err "MySQL ${ver}: final probe failed, mysql client missing: ${mysql_bin}"
-        return 1
-    fi
-
-    local cmd=(_fq_mysql_run "$base" "$mysql_bin" -h 127.0.0.1 -P "$port"
-        -u "$MYSQL_USER" -p"$MYSQL_PASS" --connect-timeout=5)
     local ok=0 i=0
     while [[ $i -lt 30 ]]; do
         # Require consecutive successful probes to avoid transient false-ready.
-        if "${cmd[@]}" -Nse "SELECT 1;" >/dev/null 2>&1 \
-           && "${cmd[@]}" -Nse "SHOW DATABASES;" >/dev/null 2>&1 \
-           && "${cmd[@]}" -Nse "SELECT CONVERT_TZ('2024-01-01 00:00:00','Asia/Shanghai','+00:00') IS NOT NULL;" | grep -qx '1' \
-           && "${cmd[@]}" -Nse "SELECT CONVERT_TZ('2024-01-01 00:00:00','UTC','+00:00') IS NOT NULL;" | grep -qx '1'; then
+        if _mysql_py_exec 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS" \
+                "SELECT 1; SHOW DATABASES;" >/dev/null 2>&1 \
+           && _mysql_py_check_timezone 127.0.0.1 "$port" "$MYSQL_USER" "$MYSQL_PASS"; then
             ok=$((ok + 1))
             if [[ $ok -ge 3 ]]; then
                 info "MySQL ${ver} @ ${port}: final probe passed."
@@ -3386,6 +3557,10 @@ _is_single_service_quick_restart() {
 main() {
     sanitize_foreign_engine_env
 
+    # FQ_SERVICES_TO_RESET controls which services are processed.
+    # Default: all three. In-test restarts set this to a single service.
+    local _services="${FQ_SERVICES_TO_RESET:-mysql pg influx}"
+
     log "========================================================"
     log "FederatedQuery external-source setup"
     log "  OS       : ${OS} (${DISTRO}) / ${ARCH}"
@@ -3397,14 +3572,15 @@ main() {
     log "  InfluxDB : ${INFLUX_VERSIONS[*]}"
     log "========================================================"
 
+    if [[ "$_services" == *mysql* ]]; then
+        _check_pymysql_dependency || exit 1
+    fi
+
     mkdir -p "$FQ_BASE_DIR"
     _configure_apt_mirrors
     _ensure_linux_engine_deps
 
     local ver
-    # FQ_SERVICES_TO_RESET controls which services are processed.
-    # Default: all three.  In-test restarts set this to a single service.
-    local _services="${FQ_SERVICES_TO_RESET:-mysql pg influx}"
     # Run PG first because package/setup steps are heavier and may transiently
     # impact other daemons in constrained containers.
     [[ "$_services" == *pg*      ]] && for ver in "${PG_VERSIONS[@]}";     do ensure_pg     "$ver" || OVERALL_OK=1; done

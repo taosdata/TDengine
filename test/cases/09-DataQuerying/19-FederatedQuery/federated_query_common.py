@@ -40,6 +40,7 @@ _STD_ROWS = [
 
 def _fq_subprocess_env():
     env = os.environ.copy()
+    env.setdefault("FQ_PYTHON", sys.executable)
     for name in (
         "LD_PRELOAD",
         "LD_LIBRARY_PATH",

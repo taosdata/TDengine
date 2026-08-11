@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import random
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -15,6 +16,51 @@ import pytest
 
 _WINDOWS_DLL_DIR = None
 _POSIX_TAOS_LIB_SENTINEL = "_TAOS_TEST_LIB_DIR"
+
+
+def _apply_runtime_exports(env, output):
+    for line in output.splitlines():
+        if not line.startswith('export '):
+            continue
+        key, value = line[len('export '):].split('=', 1)
+        if key == 'DYLD_LIBRARY_PATH' and sys.platform != 'darwin':
+            continue
+        env[key] = value.replace(f'${key}', env.get(key, ''))
+
+
+def _stage_fq_runtime_libs(build_dir, env):
+    script = (
+        Path(__file__).resolve().parent
+        / 'cases'
+        / '09-DataQuerying'
+        / '19-FederatedQuery'
+        / 'ensure_fq_runtime_libs.sh'
+    )
+    if not script.exists():
+        return
+
+    run_env = env.copy()
+    run_env.setdefault('TD_BUILD_DIR', str(build_dir))
+    run_env.setdefault('FQ_PYTHON', sys.executable)
+    timeout = int(os.getenv('FQ_RUNTIME_LIBS_TIMEOUT_S', '900'))
+    try:
+        result = subprocess.run(
+            ['bash', str(script)],
+            env=run_env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        output = exc.stdout or ''
+        raise RuntimeError(
+            f'failed to stage federated-query runtime libs: timed out after '
+            f'{timeout}s\n{output}'
+        ) from exc
+    if result.returncode != 0:
+        raise RuntimeError(f'failed to stage federated-query runtime libs: {result.returncode}\n{result.stdout}')
+    _apply_runtime_exports(env, result.stdout)
 
 
 def _setup_windows_taos_dll_dir():
@@ -153,11 +199,13 @@ def _setup_posix_taos_lib_dir():
             return
 
         if current_paths and os.path.realpath(current_paths[0]) == lib_dir_str:
+            _stage_fq_runtime_libs(lib_dir.parent.parent, os.environ)
             os.environ[_POSIX_TAOS_LIB_SENTINEL] = lib_dir_str
             return
 
         pruned = [p for p in current_paths if os.path.realpath(p) != lib_dir_str]
         os.environ[lib_env] = os.pathsep.join([lib_dir_str] + pruned)
+        _stage_fq_runtime_libs(lib_dir.parent.parent, os.environ)
         os.environ[_POSIX_TAOS_LIB_SENTINEL] = lib_dir_str
         os.execv(sys.executable, [sys.executable] + sys.argv)
 _raise_open_files_limit()
