@@ -157,6 +157,8 @@ monitorFqdn localhost # taoskeeper 服务的 FQDN
 
 TDengine 监控配置相关，具体请参考：[TDengine 监控配置](../02-operations/05-monitor.md)。
 
+企业版 taosKeeper 还可接收 `taosd` 上报的审计日志（与写入 `log` 库的监控指标分离），配置段为 `[audit]` / `[audit.database]`（库名默认 `audit`；旧文档中的 `auditDB` 对应 `audit.database.name`）。完整落库路径、`auditSaveInSelf`、操作级别与表结构见 [审计与合规](../../11-security-guide/07-audit-and-compliance.md)。
+
 <Tabs>
 <TabItem label="Linux" value="linux">
 

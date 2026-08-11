@@ -157,6 +157,8 @@ monitorFqdn localhost # FQDN for taoskeeper service
 
 For details on TDengine monitoring configuration, please refer to: [TDengine Monitoring Configuration](../02-operations/05-monitor.md).
 
+Enterprise Edition taosKeeper can also receive audit logs reported by `taosd` (separate from monitoring metrics written to the `log` database). The configuration sections are `[audit]` / `[audit.database]` (default database name `audit`; older docs used `auditDB` for `audit.database.name`). For the full persistence path, `auditSaveInSelf`, operation levels, and table schema, see [Audit and Compliance](../../11-security-guide/07-audit-and-compliance.md).
+
 <Tabs>
 <TabItem label="Linux" value="linux">
 

@@ -1,7 +1,7 @@
 ---
 title: 用户管理
 sidebar_label: 用户管理
-description: 创建、查看、修改与删除用户，以及 TOTP 与令牌管理
+description: 创建、查看、修改与删除用户，以及 IP 白名单/黑名单、TOTP 与令牌管理
 ---
 
 用户管理语法在所有版本中可用，但在 TDengine 社区版中仅基础功能实际可用。
@@ -69,12 +69,7 @@ ALTER ALL DNODES 'EnableAdvancedSecurity' '1';
 - `INACTIVE_ACCOUNT_TIME`：账户不活动锁定时间，长期未使用的账户自动锁定，单位为天。`enableAdvancedSecurity` 打开时默认 `90`，否则默认 `UNLIMITED`。最小 `1`；设为 `UNLIMITED` 则永不锁定。企业版自 `v3.4.0.0` 起支持。
 - `ALLOW_TOKEN_NUM`：支持的令牌个数。默认 `3`，最小 `0`；设为 `UNLIMITED` 则不限制。企业版自 `v3.4.0.0` 起支持。
 - `SECURITY_LEVEL`：用户安全等级范围（`min_level`, `max_level`），用于强制访问控制（MAC）。详见 [强制访问控制（MAC）](./02-grant.md#强制访问控制mac)。企业版支持。
-- `HOST` / `NOT_ALLOW_HOST`：IP 地址白名单与黑名单。可为单个 IP（如 `192.168.1.1`），或 [CIDR](https://www.rfc-editor.org/rfc/rfc4632) 地址段（如 `192.168.1.1/24`）。企业版自 `v3.4.0.0` 起支持。
-  - 需将系统配置 `enableWhiteList` 设为 `1`，黑白名单才会生效。
-  - 若既未设置 `HOST` 也未设置 `NOT_ALLOW_HOST`，则允许用户在任何地址登录。**注意**：为保证安全和便于使用，创建用户时若设置了 `HOST`，或两者均未设置，系统会自动将 `127.0.0.1` 和 `::1` 加入 `HOST`。因此上述“任何地址”情形，需通过 `ALTER USER` 删除全部 `HOST` 与 `NOT_ALLOW_HOST` 后才会出现。
-  - 若只设置 `HOST`，则仅允许从该地址或地址段登录。
-  - 若只设置 `NOT_ALLOW_HOST`，则不允许从该地址或地址段登录，其它地址允许。
-  - 若同时设置二者，则只能从属于 `HOST` 且不属于 `NOT_ALLOW_HOST` 的地址登录。
+- `HOST` / `NOT_ALLOW_HOST`：IP 地址白名单与黑名单。可为单个 IP（如 `192.168.1.1`），或 [CIDR](https://www.rfc-editor.org/rfc/rfc4632) 地址段（如 `192.168.1.1/24`）。企业版自 `v3.4.0.0` 起支持。须将 `enableWhiteList` 设为 `1` 后才会生效（参数说明见 [taosd](../../12-operations-and-tooling/03-components/01-taosd.md)）。组合语义、增删查示例与注意事项见下文 [IP 白名单与黑名单](#ip-白名单与黑名单)。
 - `ALLOW_DATETIME` / `NOT_ALLOW_DATETIME`：允许与不允许登录的时间范围（以服务端时区为准），包含日期、起始时间（精确到分钟）、时长（分钟）三部分。日期可为具体日期，或 `MON`、`TUE`、`WED`、`THU`、`FRI`、`SAT`、`SUN`；例如 `2025-12-25 08:00 120`、`TUE 08:00 120`。企业版自 `v3.4.0.0` 起支持。
   - 若两者均未设置，允许在任何时间登录。
   - 若只设置 `ALLOW_DATETIME`，仅该时间段允许登录。
@@ -167,9 +162,69 @@ taos> ALTER USER test ENABLE 0;
 Query OK, 0 of 0 rows affected (0.001160s)
 ```
 
+修改用户密码（`ALTER USER ... PASS`）后，服务端会在心跳中检测并踢除使用**旧密码**建立的连接；被踢除的连接上后续请求将返回认证失败（`0x80000357`）。执行密码变更操作的连接本身不受影响。**Token 连接不受此机制影响。**
+
 :::note
 自企业版 `v3.4.2.1` 起，`ALTER USER ... SYSINFO {0|1}` 会联动修改用户的 `SYSINFO_0` / `SYSINFO_1` 角色；授予高阶系统角色也会联动提升 `SYSINFO` 属性。详见 [权限管理](./02-grant.md#sysinfo-属性与角色的联动)。
 :::
+
+## IP 白名单与黑名单
+
+IP 白名单/黑名单限制用户可从哪些地址登录，与 `GRANT` 权限相互独立、分开管理。企业版自 `v3.2.0.0` 起提供白名单能力；`HOST` / `NOT_ALLOW_HOST` 语法自 `v3.4.0.0` 起支持。社区版可执行增删查，但不会对来源 IP 做限制。须将系统配置 `enableWhiteList` 设为 `1` 后黑白名单才会生效（参数说明见 [taosd](../../12-operations-and-tooling/03-components/01-taosd.md)）。
+
+登录判定规则：
+
+- 若既未设置 `HOST` 也未设置 `NOT_ALLOW_HOST`，则允许用户在任何地址登录。**注意**：为保证安全和便于使用，创建用户时若设置了 `HOST`，或两者均未设置，系统会自动将 `127.0.0.1` 和 `::1` 加入 `HOST`。因此上述“任何地址”情形，需通过 `ALTER USER` 删除全部 `HOST` 与 `NOT_ALLOW_HOST` 后才会出现。
+- 若只设置 `HOST`，则仅允许从该地址或地址段登录。
+- 若只设置 `NOT_ALLOW_HOST`，则不允许从该地址或地址段登录，其它地址允许。
+- 若同时设置二者，则只能从属于 `HOST` 且不属于 `NOT_ALLOW_HOST` 的地址登录。
+
+增加 IP 白名单：
+
+```sql
+CREATE USER test PASS 'taosdata1' HOST '192.168.1.0/24', '10.0.0.1';
+ALTER USER test ADD HOST '192.168.2.0/24';
+```
+
+增加 IP 黑名单：
+
+```sql
+ALTER USER test ADD NOT_ALLOW_HOST '203.0.113.5/32';
+```
+
+查询：
+
+```sql
+SELECT name, allowed_host FROM information_schema.ins_users;
+SHOW USERS;
+```
+
+在 `allowed_host` 中，地址或地址段前缀为 `+` 表示白名单（允许登录），前缀为 `-` 表示黑名单（不允许登录）。
+
+删除：
+
+```sql
+ALTER USER test DROP HOST '192.168.2.0/24';
+ALTER USER test DROP NOT_ALLOW_HOST '203.0.113.5/32';
+```
+
+说明：
+
+- 开源版和企业版都能添加成功，且可以查询到，但是开源版不会对 IP 做任何限制。
+- 一次可以添加多个 IP range，服务端会做去重，去重的逻辑是需要 IP range 完全一样。例如：`CREATE USER u_write PASS 'taosdata1' HOST 'iprange1','iprange2'`。
+- 默认会把 `127.0.0.1` 添加到白名单列表，且在白名单列表可以查询（用户手册所述场景下亦可能包含 `::1`）。
+- 集群的节点 IP 集合会自动添加到白名单列表，但是查询不到。
+- `taosAdapter` 和 `taosd` 不在一个机器的时候，需要把 `taosAdapter` 的 IP 手动添加到 `taosd` 白名单列表中。
+- 集群情况下，各个节点的 `enableWhiteList` 须一致，或者全为 `false`，或者全为 `true`，要不然集群无法启动。
+- 白名单变更生效时间约 1s，不超过 2s。每次变更对收发性能有些微影响（多一次判断，可以忽略），变更完之后影响忽略不计；变更过程中对集群没有影响，对正在访问且 IP 已包含在白名单内的客户端也没有影响。
+- 如果添加两个 IP range，例如 `192.168.1.1/16`（假设为 A）与 `192.168.1.1/24`（假设为 B），严格来说 A 包含了 B，但考虑情况太复杂，并不会对 A 和 B 做合并。
+- 要删除的时候，必须严格匹配。也就是如果添加的是 `192.168.1.1/24`，要删除也是 `192.168.1.1/24`。
+- 只有 `root` 才有权限对其他用户增删 IP 白名单。
+- 兼容之前的版本，但是不支持从当前版本回退到之前版本。
+- `x.x.x.x/32` 和 `x.x.x.x` 属于同一个 IP range，显示为 `x.x.x.x`。
+- 如果客户端拿到的是 `0.0.0.0/0`，说明没有开启白名单。
+- 如果白名单发生了改变，客户端会在 heartbeat 里检测到。
+- 针对一个 user，添加的 IP 个数上限是 2048。
 
 ## TOTP 双因素认证
 

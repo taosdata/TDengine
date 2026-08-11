@@ -69,12 +69,7 @@ alter all dnodes 'EnableAdvancedSecurity' '0'
 - `INACTIVE_ACCOUNT_TIME` User inactivity lockout period, in days. The default value is `90` when `enableAdvancedSecurity` is `1` and `UNLIMITED` otherwise, with a minimum of `1`, set to `UNLIMITED` means never lockout the user. Support in Enterprise Edition v3.4.0.0 and above.
 - `ALLOW_TOKEN_NUM` The maximum allowed number of tokens. The default value is `3`, with a minimum of `0`, set to `UNLIMITED` disables this restriction. Support in Enterprise Edition v3.4.0.0 and above.
 - `SECURITY_LEVEL` User security level range (`min_level`, `max_level`) for Mandatory Access Control (MAC). See [Mandatory Access Control (MAC)](./02-grant.md#mandatory-access-control-mac). Support in Enterprise Edition.
-- `HOST` and `NOT_ALLOW_HOST` IP address whitelist and blacklist. Entries can be a single IP address, such as `192.168.1.1`, or a subnet range in [CIDR](https://www.rfc-editor.org/rfc/rfc4632) format, such as `192.168.1.1/24`. Support in Enterprise Edition v3.4.0.0 and above.
-  - The whitelist/blacklist will only take effect when `enableWhiteList` is set to `1` in the configuration.
-  - If neither `HOST` nor `NOT_ALLOW_HOST` is set, the user is allowed to log in from any address. **Note:** For security and convenience, if `HOST` is set or neither `HOST` nor `NOT_ALLOW_HOST` is set during user creation, the system automatically adds `127.0.0.1` and `::1` to `HOST`. Therefore, the scenario described in this section can only occur when all `HOST` and `NOT_ALLOW_HOST` entries are dropped via `ALTER USER`.
-  - If only `HOST` is set, the user is allowed to log in from that addresses or subnet ranges, and login from other addresses is not allowed.
-  - If only `NOT_ALLOW_HOST` is set, the user is not allowed to log in from that addresses or subnet ranges, but login from other addresses is allowed.
-  - If both `HOST` and `NOT_ALLOW_HOST` are set, the user can only log in from addresses that belong to `HOST` and do not belong to `NOT_ALLOW_HOST`. Login from any other address is not allowed.
+- `HOST` and `NOT_ALLOW_HOST` IP address whitelist and blacklist. Entries can be a single IP address, such as `192.168.1.1`, or a subnet range in [CIDR](https://www.rfc-editor.org/rfc/rfc4632) format, such as `192.168.1.1/24`. Support in Enterprise Edition v3.4.0.0 and above. They take effect only when `enableWhiteList` is set to `1` (see [taosd](../../12-operations-and-tooling/03-components/01-taosd.md)). For combination semantics, add/drop/query examples, and notes, see [IP Allowlist and Blocklist](#ip-allowlist-and-blocklist).
 - `ALLOW_DATETIME` and `NOT_ALLOW_DATETIME` Permitted and prohibited login time ranges based on the server's local time zone. A valid time range consists of three parts: date, start time (accurate to the minute), and duration (in minutes). The date can be a specific date or represented by MON, TUE, WED, THU, FRI, SAT, SUN, for example: `2025-12-25 08:00 120`, `TUE 08:00 120`. Support in Enterprise Edition v3.4.0.0 and above.
   - If neither `ALLOW_DATETIME` nor `NOT_ALLOW_DATETIME` is set, the user is allowed to log in at any time.
   - If only `ALLOW_DATETIME` is set, the user is allowed to log in during that time periods, and login at other times is not allowed.
@@ -169,9 +164,69 @@ taos> alter user test enable 0;
 Query OK, 0 of 0 rows affected (0.001160s)
 ```
 
+After you change a user's password (`ALTER USER ... PASS`), the server detects existing sessions that still use the **old password** on heartbeat and disconnects them. Subsequent requests on those connections return authentication failure (`0x80000357`). The connection that performed the password change is not affected. **Token-authenticated connections are not subject to this mechanism.**
+
 :::note
 Since TDengine Enterprise Edition v3.4.2.1, `ALTER USER ... SYSINFO {0|1}` also updates the user's `SYSINFO_0`/`SYSINFO_1` roles; in addition, granting an elevated system role raises the `SYSINFO` attribute. See [Linkage Between the SYSINFO Attribute and Roles](./02-grant.md#linkage-between-the-sysinfo-attribute-and-roles).
 :::
+
+## IP Allowlist and Blocklist {#ip-allowlist-and-blocklist}
+
+IP allowlists and blocklists restrict the addresses from which a user can log in. They are managed separately from `GRANT` privileges. Enterprise Edition has provided allowlist capability since `v3.2.0.0`; `HOST` / `NOT_ALLOW_HOST` syntax is supported from `v3.4.0.0`. Community Edition can run add/drop/query statements, but does not enforce source IP restrictions. Set system configuration `enableWhiteList` to `1` for allowlists and blocklists to take effect (see [taosd](../../12-operations-and-tooling/03-components/01-taosd.md)).
+
+Login evaluation rules:
+
+- If neither `HOST` nor `NOT_ALLOW_HOST` is set, the user may log in from any address. **Note:** For security and convenience, when a user is created with `HOST` set, or with neither `HOST` nor `NOT_ALLOW_HOST` set, the system automatically adds `127.0.0.1` and `::1` to `HOST`. Therefore the “any address” case only appears after you drop all `HOST` and `NOT_ALLOW_HOST` entries with `ALTER USER`.
+- If only `HOST` is set, login is allowed only from those addresses or ranges.
+- If only `NOT_ALLOW_HOST` is set, login from those addresses or ranges is denied; other addresses are allowed.
+- If both are set, login is allowed only from addresses that belong to `HOST` and do not belong to `NOT_ALLOW_HOST`.
+
+Add an IP allowlist:
+
+```sql
+CREATE USER test PASS 'taosdata1' HOST '192.168.1.0/24', '10.0.0.1';
+ALTER USER test ADD HOST '192.168.2.0/24';
+```
+
+Add an IP blocklist:
+
+```sql
+ALTER USER test ADD NOT_ALLOW_HOST '203.0.113.5/32';
+```
+
+Query:
+
+```sql
+SELECT name, allowed_host FROM information_schema.ins_users;
+SHOW USERS;
+```
+
+In `allowed_host`, a `+` prefix means allowlist (login allowed) and a `-` prefix means blocklist (login denied).
+
+Drop:
+
+```sql
+ALTER USER test DROP HOST '192.168.2.0/24';
+ALTER USER test DROP NOT_ALLOW_HOST '203.0.113.5/32';
+```
+
+Notes:
+
+- Both Community and Enterprise editions can add and query entries, but Community Edition does not enforce IP restrictions.
+- You can add multiple IP ranges at once; the server deduplicates only exact duplicates. For example: `CREATE USER u_write PASS 'taosdata1' HOST 'iprange1','iprange2'`.
+- `127.0.0.1` is added to the allowlist by default and is visible in queries (documentation scenarios may also include `::1`).
+- Cluster node IP sets are added to the allowlist automatically but are not visible in queries.
+- When `taosAdapter` and `taosd` are not on the same host, add the `taosAdapter` IP to the `taosd` allowlist manually.
+- In a cluster, `enableWhiteList` must be consistent across nodes (all `false` or all `true`); otherwise the cluster cannot start.
+- Allowlist changes take effect in about 1s (no more than 2s). Each change has a negligible impact on send/receive performance; after the change completes, the impact is negligible. Changes do not affect the cluster or clients whose IPs are already on the allowlist.
+- If you add two ranges such as `192.168.1.1/16` (A) and `192.168.1.1/24` (B), A contains B in theory, but they are not merged because the cases are complex.
+- Drops must match exactly. If you added `192.168.1.1/24`, you must drop `192.168.1.1/24`.
+- Only `root` can add or drop IP allowlist entries for other users.
+- Compatible with earlier versions, but rolling back from the current version to an earlier version is not supported.
+- `x.x.x.x/32` and `x.x.x.x` are the same IP range and are displayed as `x.x.x.x`.
+- If the client receives `0.0.0.0/0`, the allowlist is not enabled.
+- When the allowlist changes, clients detect it via heartbeat.
+- The maximum number of IPs per user is 2048.
 
 ## TOTP Two-Factor Authentication
 

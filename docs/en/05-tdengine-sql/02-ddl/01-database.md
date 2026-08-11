@@ -255,7 +255,7 @@ For example, if `COMPACT_INTERVAL` is `1d` and `COMPACT_TIME_OFFSET` is `0`, aut
 
 #### ENCRYPT_ALGORITHM
 
-Specifies the database encryption algorithm. This option is related to data-at-rest security. For details, see [Data Security](../../11-security-guide/03-data-security.md#create-encrypted-database).
+Specifies the database encryption algorithm. This option is related to data-at-rest security. For details, see [Data Security](../../11-security-guide/06-data-security.md#create-encrypted-database).
 
 #### IS_AUDIT
 
@@ -264,7 +264,7 @@ Specifies whether the database is created as an audit database.
 - 0: Normal database.
 - 1: Audit database.
 
-Audit databases have additional parameter constraints. For details, see [Audit and Compliance](../../11-security-guide/05-audit-and-compliance.md#create-audit-database).
+Audit databases have additional parameter constraints. For details, see [Audit and Compliance](../../11-security-guide/07-audit-and-compliance.md#create-audit-database).
 
 #### ALLOW_DROP
 
@@ -280,7 +280,7 @@ Specifies whether secure delete is enabled. Valid values are 0 (default) and 1.
 - 0: Delete operations write a delete marker, but data blocks on disk are not physically overwritten immediately.
 - 1: In addition to writing the delete marker, the corresponding ranges in on-disk DATA/STT files are physically overwritten to reduce the risk of recovering deleted data directly from the filesystem.
 
-This can be set through `CREATE DATABASE` or `ALTER DATABASE`; a single `DELETE` statement can also append the `SECURE_DELETE` keyword. For behavior, limitations, and examples, see [Data Security · Secure Delete](../../11-security-guide/03-data-security.md#secure-delete).
+This can be set through `CREATE DATABASE` or `ALTER DATABASE`; a single `DELETE` statement can also append the `SECURE_DELETE` keyword. For behavior, limitations, and examples, see [Data Security · Secure Delete](../../11-security-guide/06-data-security.md#secure-delete).
 
 #### SECURITY_LEVEL
 

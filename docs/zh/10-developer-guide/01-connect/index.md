@@ -30,6 +30,8 @@ import ConnectorType from "../08-connectors-reference/resources/_connector_type.
 
 **推荐使用 WebSocket 连接，无需安装客户端驱动。**
 
+安全连接、Token 与轮换实践见 [客户端与连接器安全](../../11-security-guide/05-client-connector-security.md)。全链路视角见 [全链路认证](../../11-security-guide/01-full-trace-auth.md)。
+
 ### 安装步骤
 
 <Tabs defaultValue="linux" groupId="os">
