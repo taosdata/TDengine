@@ -13,13 +13,18 @@ import taosanalytics
 from taosanalytics.conf import Configure
 from taosanalytics.handlers.anomaly import handle_anomaly
 from taosanalytics.handlers.correlation import handle_correlation
-from taosanalytics.handlers.dynamic_model import (
-    do_handle_dynamic_model,
-    do_handle_undeploy_model,
-)
 from taosanalytics.handlers.forecast import handle_forecast
 from taosanalytics.handlers.imputation import handle_imputation
-from taosanalytics.handlers.misc import do_profile_search, handle_association, handle_batch, handle_pearsonr
+from taosanalytics.handlers.misc import (
+    do_profile_search,
+    handle_association,
+    handle_build_batch_env,
+    handle_pearsonr,
+)
+from taosanalytics.handlers.model_mgmt import (
+    do_deploy_dynamic_model,
+    do_undeploy_dynamic_model,
+)
 from taosanalytics.handlers.regression import handle_regression
 from taosanalytics.log import AppLogger
 from taosanalytics.model_file_mgt import ModelFileManager
@@ -117,18 +122,18 @@ def handle_regression_req():
 @app.route("/tool/batch", methods=["POST"])
 def handle_batch_req():
     """handle the batch request request"""
-    return handle_batch(request)
+    return handle_build_batch_env(request)
 
 
 @app.route("/deploy", methods=["POST"])
 def deploy_model():
     """deploy model to production environment, e.g. load model to memory, etc."""
-    return do_handle_dynamic_model(request)
+    return do_deploy_dynamic_model(request)
 
 
 @app.route("/undeploy", methods=["POST"])
 def undeploy_model():
-    return do_handle_undeploy_model(request)
+    return do_undeploy_dynamic_model(request)
 
 
 @app.route("/api/v1/analysis/pearsonr", methods=["POST"])
