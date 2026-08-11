@@ -1417,8 +1417,8 @@ static int32_t extEvaluatePartitionExprBlock(SInfluxDistinctCtx *pCtx, SSDataBlo
     code = scalarCalculate(pExpr, pBlockList, &output, NULL);
     if (code != TSDB_CODE_SUCCESS || output.numOfRows != pBlock->info.rows) {
       if (code == TSDB_CODE_SUCCESS) code = TSDB_CODE_INTERNAL_ERROR;
-      ST_TASK_ELOG("ext: vectorized partition expression slot:%d failed rows:%d expected:%d code:%d", p,
-                   output.numOfRows, pBlock->info.rows, code);
+      ST_TASK_ELOG("ext: vectorized partition expression slot:%d failed rows:%d expected:%" PRId64 " code:%d",
+                   p, output.numOfRows, pBlock->info.rows, code);
       break;
     }
     ++evaluated;
@@ -1430,7 +1430,7 @@ static int32_t extEvaluatePartitionExprBlock(SInfluxDistinctCtx *pCtx, SSDataBlo
     return code;
   }
   *ppResultCols = ppCols;
-  ST_TASK_DLOG("ext: vectorized %d partition expression(s) over %d distinct tag row(s)", evaluated,
+  ST_TASK_DLOG("ext: vectorized %d partition expression(s) over %" PRId64 " distinct tag row(s)", evaluated,
                pBlock->info.rows);
   return TSDB_CODE_SUCCESS;
 }
@@ -1443,8 +1443,8 @@ static int32_t extAllocInfluxTagValueBufs(int32_t nTags, char **ppValBufs) {
 
   *ppValBufs = taosMemoryCalloc(nTags, EXT_INFLUX_TAG_NCHAR_CHARS);
   if (*ppValBufs == NULL) {
-    stError("ext: allocate distinct tag value buffers failed count:%d bytes:%d code:%d",
-            nTags, EXT_INFLUX_TAG_NCHAR_CHARS, terrno);
+    stError("ext: allocate distinct tag value buffers failed count:%d bytes:%zu code:%d",
+            nTags, (size_t)EXT_INFLUX_TAG_NCHAR_CHARS, terrno);
     return terrno;
   }
 
@@ -2713,7 +2713,7 @@ static int32_t influxAccumBlockCb(SSDataBlock *pBlk, void *pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
   char *pValBufs = NULL;
 
-  ST_TASK_DLOG("ext: influxAccumBlockCb rows=%d", pBlk != NULL ? pBlk->info.rows : -1);
+  ST_TASK_DLOG("ext: influxAccumBlockCb rows=%" PRId64, pBlk != NULL ? pBlk->info.rows : (int64_t)-1);
 
   if (pACtx->nTags > TSDB_MAX_TAGS) {
     ST_TASK_ELOG("ext: accumulated tag count exceeds limit count:%d limit:%d",
@@ -2726,8 +2726,8 @@ static int32_t influxAccumBlockCb(SSDataBlock *pBlk, void *pCtx) {
     pValBufs = taosMemoryCalloc(pACtx->nTags, EXT_INFLUX_TAG_NCHAR_CHARS);
     if (pValBufs == NULL) {
       code = terrno;
-      ST_TASK_ELOG("ext: allocate accumulated tag value buffers failed count:%d bytes:%d code:%d",
-                   pACtx->nTags, EXT_INFLUX_TAG_NCHAR_CHARS, code);
+      ST_TASK_ELOG("ext: allocate accumulated tag value buffers failed count:%d bytes:%zu code:%d",
+                   pACtx->nTags, (size_t)EXT_INFLUX_TAG_NCHAR_CHARS, code);
       goto _exit;
     }
   }
@@ -3335,8 +3335,8 @@ static int32_t influxDataDemuxBlockCb(SSDataBlock *pBlk, void *pCtxArg) {
     pValBufs = taosMemoryCalloc(nt, EXT_INFLUX_TAG_NCHAR_CHARS);
     if (pValBufs == NULL) {
       pCtx->code = terrno;
-      ST_TASK_ELOG("ext: allocate demux tag value buffers failed count:%d bytes:%d code:%d",
-                   nt, EXT_INFLUX_TAG_NCHAR_CHARS, pCtx->code);
+      ST_TASK_ELOG("ext: allocate demux tag value buffers failed count:%d bytes:%zu code:%d",
+                   nt, (size_t)EXT_INFLUX_TAG_NCHAR_CHARS, pCtx->code);
       blockDataDestroy(pBlk);
       return pCtx->code;
     }
