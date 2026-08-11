@@ -985,17 +985,16 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
     SStmTaskStatus* pStatus = taosArrayGet(pInfo->trigReaders, i);
     addr.taskId = pStatus->id.taskId;
     addr.nodeId = pStatus->id.nodeId;
-    /* EXT-source trigger readers run on snode (nodeId is a dnode/snode id, not a
-     * vgroup id).  Use mndGetDnodeEpsetById to resolve the correct endpoint;
-     * mndGetVgroupEpsetById would return an empty epset for snode ids, causing
-     * tmsgSendReq to fail with TSDB_CODE_INVALID_PARA ("Invalid parameters"). */
-    if (STREAM_IS_REF_EXT_SOURCE(pStream->flags)) {
+    /* Resolve each trigger reader by its own deployment type.  Stream-level EXT
+     * flags also cover external calc readers and cannot identify this address. */
+    if (STREAM_IS_REF_EXT_SOURCE(pStatus->flags)) {
       addr.epset = mndGetDnodeEpsetById(pMnode, pStatus->id.nodeId);
       mstsDebug("the %dth ext trigReader src added to trigger's readerList via dnode epset, "
                 "TASK:%" PRIx64 " snodeId:%d", i, addr.taskId, addr.nodeId);
     } else {
       addr.epset = mndGetVgroupEpsetById(pMnode, pStatus->id.nodeId);
-      mstsDebug("the %dth trigReader src added to trigger's readerList, TASK:%" PRIx64 " nodeId:%d",
+      mstsDebug("the %dth local trigReader src added to trigger's readerList via vgroup epset, "
+                "TASK:%" PRIx64 " nodeId:%d",
                 i, addr.taskId, addr.nodeId);
     }
     TSDB_CHECK_NULL(taosArrayPush(pMsg->readerList, &addr), code, lino, _exit, terrno);
@@ -1398,12 +1397,21 @@ static int32_t msmBuildTriggerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStream
   info.task.seriousId = pInfo->triggerTask->id.seriousId;
   info.task.nodeId =  pInfo->triggerTask->id.nodeId;
   info.task.taskIdx =  pInfo->triggerTask->id.taskIdx;
-  /* P3: propagate STREAM_FLAG_REF_EXT_SOURCE from stream-level flag to the
-   * trigger task so that stRealtimeContextInit can initialise pReaderExtProgress
-   * and stRealtimeContextCheckExt can dispatch PULL_EXT requests to snode. */
-  if (STREAM_IS_REF_EXT_SOURCE(pStream->flags)) {
+  /* Only an external trigger reader requires the trigger task to use EXT pulls.
+   * A local trigger with an external calc reader must keep the normal WAL path. */
+  bool extTrigger = false;
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->trigReaders); ++i) {
+    SStmTaskStatus *pReader = taosArrayGet(pInfo->trigReaders, i);
+    if (STREAM_IS_REF_EXT_SOURCE(pReader->flags)) {
+      extTrigger = true;
+      break;
+    }
+  }
+  if (extTrigger) {
     info.task.flags |= STREAM_FLAG_REF_EXT_SOURCE;
-    mDebug("stream:%s trigger task flags set STREAM_FLAG_REF_EXT_SOURCE", pStream->name);
+    mDebug("stream:%s trigger task uses EXT pull path", pStream->name);
+  } else if (STREAM_IS_REF_EXT_SOURCE(pStream->flags)) {
+    mDebug("stream:%s keeps WAL trigger path with external calc readers", pStream->name);
   }
   TAOS_CHECK_EXIT(msmBuildTriggerDeployInfo(pCtx->pMnode, pInfo, &info, pStream));
   TAOS_CHECK_EXIT(msmTDAddTriggerToSnodeMap(&info, pStream));
@@ -1433,6 +1441,10 @@ static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState
   pState->id.taskIdx = 0;
   pState->type = STREAM_READER_TASK;
   pState->flags = STREAM_FLAG_TRIGGER_READER;
+  if (pExtSpec != NULL) {
+    pState->flags |= STREAM_FLAG_REF_EXT_SOURCE;
+    mstsDebug("external trigger reader task:%" PRIx64 " assigned to snode:%d", pState->id.taskId, nodeId);
+  }
   pState->status = STREAM_STATUS_UNDEPLOYED;
   pState->lastUpTs = pCtx->currTs;
   pState->pStream = pInfo;
@@ -1454,6 +1466,7 @@ static int32_t msmTDAddSingleTrigReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState
 #ifdef TD_ENTERPRISE
   if (pExtSpec != NULL && pStream != NULL) {
     TAOS_CHECK_EXIT(msmTDAddTriggerToSnodeMap(&info, pStream));
+    (void)atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
   } else {
     TAOS_CHECK_EXIT(msmTDAddToVgroupMap(mStreamMgmt.toDeployVgMap, &info, streamId));
   }
@@ -2784,7 +2797,6 @@ static int32_t msmRefreshExtSpecPasswords(SMnode *pMnode, SStreamObj *pStream) {
     }
     (void)memcpy(pSpec->encryptedPassword, pSrcObj->encryptedPassword,
                  TSDB_EXT_SOURCE_ENC_PASSWORD_LEN);
-    pSpec->encryptedPasswordLen = TSDB_EXT_SOURCE_ENC_PASSWORD_LEN;
     tstrncpy(pSpec->options, pSrcObj->options, sizeof(pSpec->options));
     mDebug("stream %" PRId64 " spec[%d] source=%s encryptedPassword refreshed for redeploy",
               pStream->pCreate->streamId, i, pSpec->sourceName);
@@ -3034,7 +3046,8 @@ static int32_t msmLaunchTaskDeployAction(SStmGrpCtx* pCtx, SStmTaskAction* pActi
   int64_t taskId = pAction->id.taskId;
   SStreamObj* pStream = NULL;
 
-  mstsDebug("start to handle stream tasks action, action task type:%s", gStreamTaskTypeStr[pAction->type]);
+  mstsDebug("start to handle stream tasks action, action task type:%s, taskId:0x%" PRIx64 " qRemainNum:%" PRIu64,
+            gStreamTaskTypeStr[pAction->type], taskId, atomic_load_64(&mStreamMgmt.actionQ->qRemainNum));
 
   SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &pAction->streamId, sizeof(pAction->streamId));
   if (NULL == pStatus) {
@@ -3467,15 +3480,21 @@ int32_t msmGrpAddDeploySnodeTasks(SStmGrpCtx* pCtx) {
   SStmSnodeTasksDeploy* pSnode = NULL;
   SStreamHbMsg* pReq = pCtx->pReq;
 
-  mstDebug("start to add stream snode tasks deploy");
-  
+  mstDebug("start to add stream snode tasks deploy, snodeId:%d", pReq->snodeId);
+
   pSnode = taosHashAcquire(mStreamMgmt.toDeploySnodeMap, &pReq->snodeId, sizeof(pReq->snodeId));
   if (NULL == pSnode) {
+    mstDebug("no toDeploySnodeMap entry for snodeId:%d, nothing to deploy this round", pReq->snodeId);
     return TSDB_CODE_SUCCESS;
   }
 
   (void)mstWaitLock(&pSnode->lock, false);
-  
+
+  mstDebug("snodeId:%d trigger deployed:%d/%d, runner deployed:%d/%d, calcReader deployed:%d/%d", pReq->snodeId,
+           atomic_load_32(&pSnode->triggerDeployed), (int32_t)taosArrayGetSize(pSnode->triggerList),
+           atomic_load_32(&pSnode->runnerDeployed), (int32_t)taosArrayGetSize(pSnode->runnerList),
+           atomic_load_32(&pSnode->calcReaderDeployed), (int32_t)taosArrayGetSize(pSnode->calcReaderList));
+
   if (atomic_load_32(&pSnode->triggerDeployed) < taosArrayGetSize(pSnode->triggerList)) {
     TAOS_CHECK_EXIT(msmGrpAddDeployTasks(pCtx->deployStm, pSnode->triggerList, &pSnode->triggerDeployed));
   }
@@ -5157,8 +5176,14 @@ int32_t msmNormalHandleHbMsg(SStmGrpCtx* pCtx) {
     TAOS_CHECK_EXIT(msmUpdateVgroupsUpTs(pCtx));
   }
 
-  if (atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum) > 0 && GOT_SNODE(pReq->snodeId)) {
-    TAOS_CHECK_EXIT(msmGrpAddDeploySnodeTasks(pCtx));
+  int32_t toDeploySnodeNum = atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum);
+  if (toDeploySnodeNum > 0) {
+    if (GOT_SNODE(pReq->snodeId)) {
+      TAOS_CHECK_EXIT(msmGrpAddDeploySnodeTasks(pCtx));
+    } else {
+      mstDebug("toDeploySnodeTaskNum:%d pending but hb not from snode, snodeId:%d, dnodeId:%d", toDeploySnodeNum,
+                pReq->snodeId, pReq->dnodeId);
+    }
   }
 
   if (taosHashGetSize(pCtx->deployStm) > 0) {

@@ -82,6 +82,18 @@ import TabItem from "@theme/TabItem";
 
 之后在创建数据写入任务时，即可选择该代理连接数据源。
 
+## 任务配置与 Agent 生命周期
+
+taosX-Agent 在数据源侧安装并连通后，长期复用同一 Agent 即可。在 taosExplorer 中可以：
+
+- 创建、编辑、启停 Data In 任务（含 OPC DA / OPC UA 等）
+- 调整任务级采集参数（如采集间隔）
+- 追加点位、更新点位 CSV / 映射
+
+上述操作不要求在 OPC 等服务器主机上重新安装 Agent，也不要求重新生成并下发一套新的“代理安装包”才能改点位。任务通过已配置的 `endpoint` 与 `token` 与中央 taosX 通信。
+
+需要再次改动 Agent 本机的情况包括：更换连接 `endpoint` / `token`、升级 Agent 版本、修改本机 `agent.toml` 或存储转发等本机选项。组件级说明见 [taosX-Agent](../../12-operations-and-tooling/03-components/07-taosx-agent/index.md)；亦可通过 SQL 管理 Agent 与任务，见 [数据接入（Xnode）](../../05-tdengine-sql/08-cluster-management/02-xnode.md)。
+
 ## 相关文档
 
 完整配置项说明见 [taosX-Agent](../../12-operations-and-tooling/03-components/07-taosx-agent/index.md)。

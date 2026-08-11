@@ -801,6 +801,7 @@ Below are the business error codes for each module.
 | 0x8000411B | External source table has no timestamp primary key column | The referenced external source table has no resolvable timestamp column | Specify a valid timestamp column for the external source table |
 | 0x8000411C | PARTITION BY is not supported for the given external source type | The external source type does not support PARTITION BY | Remove PARTITION BY, or use an external source type that supports it |
 | 0x8000411D | External reader has no local SStreamTriggerReaderInfo; trigger must resend uid maxTs hash | Internal stream state for the external reader is missing | Report the issue to developers on GitHub |
+| 0x8000411F | Influxdb tag key is too long or convert error | the length of key or value in influxdb's tags is invalidate | If the tag name exceeds 64 characters or the tag value exceeds 256 characters, an error will be reported.After modifying the data, re-establish the stream |
 
 #### xnode
 

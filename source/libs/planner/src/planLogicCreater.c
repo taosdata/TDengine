@@ -616,6 +616,7 @@ bool hasExternalWindowDerivedFromSubquery(SSelectStmt* pSelect);
 static int32_t makeExtScanLogicNode(SLogicPlanContext* pCxt, SNode* pExtTableNode,
                                     const char* dbName, const char* tableName,
                                     SScanLogicNode** ppScan);
+static int32_t addExtPrimaryTsCol(SScanLogicNode* pExtScan, SNodeList** pCols);
 
 // ---------------------------------------------------------------------------
 // createExternalScanLogicNode: builds an SScanLogicNode for an external table
@@ -636,6 +637,22 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_ALL,
                                &pScan->pScanCols);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && pRealTable->placeholderType == SP_PARTITION_ROWS) {
+    code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_ALL,
+                               &pCxt->pPlanCxt->streamCxt.triggerScanList);
+  }
+
+  if (TSDB_CODE_SUCCESS == code && pRealTable->placeholderType == SP_PARTITION_ROWS) {
+    code = addExtPrimaryTsCol(pScan, &pScan->pScanCols);
+    planDebug("external partition rows scan prepared, table:%s.%s, scanCols:%d, triggerScanCols:%d, code:%d",
+              pRealTable->table.dbName, pRealTable->table.tableName,
+              NULL == pScan->pScanCols ? 0 : LIST_LENGTH(pScan->pScanCols),
+              NULL == pCxt->pPlanCxt->streamCxt.triggerScanList
+                  ? 0
+                  : LIST_LENGTH(pCxt->pPlanCxt->streamCxt.triggerScanList),
+              code);
   }
 
   // Collect pseudo-column functions (e.g. TBNAME) — needed for PARTITION BY TBNAME.

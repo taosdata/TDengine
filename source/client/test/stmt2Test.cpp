@@ -532,6 +532,151 @@ void expectStmt2RowsMatchTaos(TAOS* taos, const char* stmtSql, TAOS_STMT2_BINDV*
   ASSERT_EQ(actual, expected) << "stmt: " << stmtSql << "\nref: " << refSql;
 }
 
+void expectStmt2ToCharRows(TAOS* taos, const char* sql, int64_t tsStart, int64_t tsEnd, const char* const* expected,
+                           int32_t expectedRows) {
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+
+  int code = taos_stmt2_prepare(stmt, sql, 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  TAOS_STMT2_BIND  params[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &tsStart, NULL, NULL, 1},
+                                {TSDB_DATA_TYPE_TIMESTAMP, &tsEnd, NULL, NULL, 1}};
+  TAOS_STMT2_BIND* paramv[2] = {&params[0], &params[1]};
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv[0]};
+  code = taos_stmt2_bind_param(stmt, &bindv, -1);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  code = taos_stmt2_exec(stmt, NULL);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  TAOS_RES* res = taos_stmt2_result(stmt);
+  ASSERT_NE(res, nullptr);
+
+  int32_t  rows = 0;
+  TAOS_ROW row = NULL;
+  while ((row = taos_fetch_row(res)) != nullptr) {
+    ASSERT_LT(rows, expectedRows);
+    ASSERT_NE(row[0], nullptr);
+    int* lengths = taos_fetch_lengths(res);
+    ASSERT_NE(lengths, nullptr);
+    ASSERT_EQ(lengths[0], (int)strlen(expected[rows]));
+    ASSERT_EQ(0, memcmp(row[0], expected[rows], lengths[0]));
+    ++rows;
+  }
+  ASSERT_EQ(rows, expectedRows);
+  taos_stmt2_close(stmt);
+}
+
+constexpr int32_t kStmt2SnapshotMaxRows = 32;
+constexpr int32_t kStmt2SnapshotMaxCols = 20;
+constexpr int32_t kStmt2SnapshotMaxCellBytes = 256;
+
+typedef struct {
+  bool    isNull;
+  int32_t length;
+  char    data[kStmt2SnapshotMaxCellBytes];
+} Stmt2ResultCell;
+
+typedef struct {
+  int32_t         rows;
+  int32_t         cols;
+  Stmt2ResultCell cells[kStmt2SnapshotMaxRows][kStmt2SnapshotMaxCols];
+} Stmt2ResultSnapshot;
+
+bool snapshotResult(TAOS_RES* res, Stmt2ResultSnapshot* snapshot) {
+  memset(snapshot, 0, sizeof(*snapshot));
+  snapshot->cols = taos_num_fields(res);
+  if (snapshot->cols < 0 || snapshot->cols > kStmt2SnapshotMaxCols) {
+    ADD_FAILURE() << "invalid result column count: " << snapshot->cols;
+    return false;
+  }
+
+  TAOS_ROW row = NULL;
+  while ((row = taos_fetch_row(res)) != nullptr) {
+    if (snapshot->rows >= kStmt2SnapshotMaxRows) {
+      ADD_FAILURE() << "result exceeds snapshot row limit";
+      return false;
+    }
+    int* lengths = taos_fetch_lengths(res);
+    if (lengths == nullptr) {
+      ADD_FAILURE() << "taos_fetch_lengths returned null";
+      return false;
+    }
+
+    for (int32_t col = 0; col < snapshot->cols; ++col) {
+      Stmt2ResultCell* cell = &snapshot->cells[snapshot->rows][col];
+      cell->isNull = (row[col] == nullptr);
+      if (cell->isNull) {
+        continue;
+      }
+      if (lengths[col] < 0 || lengths[col] > kStmt2SnapshotMaxCellBytes) {
+        ADD_FAILURE() << "result cell exceeds snapshot byte limit: row=" << snapshot->rows << ", col=" << col
+                      << ", length=" << lengths[col];
+        return false;
+      }
+      cell->length = lengths[col];
+      memcpy(cell->data, row[col], cell->length);
+    }
+    ++snapshot->rows;
+  }
+  return true;
+}
+
+bool snapshotTaosQuery(TAOS* taos, const char* sql, Stmt2ResultSnapshot* snapshot) {
+  TAOS_RES* res = execQueryWithRetry(taos, sql);
+  if (res == nullptr) {
+    ADD_FAILURE() << "query returned null result: " << sql;
+    return false;
+  }
+  if (taos_errno(res) != TSDB_CODE_SUCCESS) {
+    ADD_FAILURE() << "query failed: " << taos_errstr(res) << "\nsql: " << sql;
+    taos_free_result(res);
+    return false;
+  }
+  bool success = snapshotResult(res, snapshot);
+  taos_free_result(res);
+  return success;
+}
+
+bool snapshotStmt2Query(TAOS_STMT2* stmt, TAOS_STMT2_BINDV* bindv, Stmt2ResultSnapshot* snapshot) {
+  int code = taos_stmt2_bind_param(stmt, bindv, -1);
+  if (code != TSDB_CODE_SUCCESS) {
+    ADD_FAILURE() << "STMT2 bind failed: " << taos_stmt2_error(stmt);
+    return false;
+  }
+  code = taos_stmt2_exec(stmt, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    ADD_FAILURE() << "STMT2 execute failed: " << taos_stmt2_error(stmt);
+    return false;
+  }
+  TAOS_RES* res = taos_stmt2_result(stmt);
+  if (res == nullptr) {
+    ADD_FAILURE() << "STMT2 returned null result: " << taos_stmt2_error(stmt);
+    return false;
+  }
+  return snapshotResult(res, snapshot);
+}
+
+void expectSnapshotsEqual(const Stmt2ResultSnapshot& expected, const Stmt2ResultSnapshot& actual, const char* context) {
+  ASSERT_EQ(actual.rows, expected.rows) << context;
+  ASSERT_EQ(actual.cols, expected.cols) << context;
+  for (int32_t row = 0; row < expected.rows; ++row) {
+    for (int32_t col = 0; col < expected.cols; ++col) {
+      const Stmt2ResultCell* expectedCell = &expected.cells[row][col];
+      const Stmt2ResultCell* actualCell = &actual.cells[row][col];
+      ASSERT_EQ(actualCell->isNull, expectedCell->isNull) << context << ", row=" << row << ", col=" << col;
+      if (expectedCell->isNull) {
+        continue;
+      }
+      ASSERT_EQ(actualCell->length, expectedCell->length) << context << ", row=" << row << ", col=" << col;
+      ASSERT_EQ(memcmp(actualCell->data, expectedCell->data, expectedCell->length), 0)
+          << context << ", row=" << row << ", col=" << col;
+    }
+  }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -7160,6 +7305,523 @@ TEST(stmt2Case, query_timestamp_time_range_suite) {
 
   do_query(taos, "drop database if exists stmt2_ts_range_us");
   do_query(taos, "drop database if exists stmt2_ts_range");
+  taos_close(taos);
+}
+
+TEST(stmt2Case, query_timezone_with_timestamp_params) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+
+  do_query(taos, "drop database if exists stmt2_query_timezone");
+  do_query(taos, "create database stmt2_query_timezone precision 'ms'");
+  do_query(taos, "create table stmt2_query_timezone.t (ts timestamp, v int)");
+  do_query(taos, "insert into stmt2_query_timezone.t values (1704067200000, 1) (1704153600000, 2)");
+
+  const int64_t tsStart = 1704067200000LL;  // 2024-01-01 00:00:00 UTC
+  const int64_t tsEnd = 1704153600000LL;    // 2024-01-02 00:00:00 UTC
+  const char*   implicitSql =
+      "select to_char(_rowts, 'yyyyMMddHH24miss') from stmt2_query_timezone.t "
+      "where _rowts between ? and ? order by _rowts";
+  const char* explicitUtcSql =
+      "select to_char(_rowts, 'yyyyMMddHH24miss', 'UTC') from stmt2_query_timezone.t "
+      "where _rowts between ? and ? order by _rowts";
+
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+  const char* utc[] = {"20240101000000", "20240102000000"};
+  expectStmt2ToCharRows(taos, implicitSql, tsStart, tsEnd, utc, 2);
+
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Shanghai"), TSDB_CODE_SUCCESS);
+  const char* shanghai[] = {"20240101080000", "20240102080000"};
+  expectStmt2ToCharRows(taos, implicitSql, tsStart, tsEnd, shanghai, 2);
+
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "America/Los_Angeles"), TSDB_CODE_SUCCESS);
+  const char* losAngeles[] = {"20231231160000", "20240101160000"};
+  expectStmt2ToCharRows(taos, implicitSql, tsStart, tsEnd, losAngeles, 2);
+
+  // An explicit TO_CHAR timezone must override the connection timezone.
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Kolkata"), TSDB_CODE_SUCCESS);
+  expectStmt2ToCharRows(taos, explicitUtcSql, tsStart, tsEnd, utc, 2);
+
+  // Rebinding a narrower range must keep the same session timezone.
+  const char* kolkata[] = {"20240102053000"};
+  expectStmt2ToCharRows(taos, implicitSql, tsEnd, tsEnd, kolkata, 1);
+
+  do_query(taos, "drop database if exists stmt2_query_timezone");
+  taos_close(taos);
+}
+
+TEST(stmt2Case, query_timezone_function_contexts_with_timestamp_params) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "drop database if exists stmt2_query_timezone_funcs");
+  do_query(taos, "create database stmt2_query_timezone_funcs precision 'ms'");
+  do_query(taos, "create table stmt2_query_timezone_funcs.t (ts timestamp, v int)");
+  do_query(taos,
+           "insert into stmt2_query_timezone_funcs.t values "
+           "(1767225600000, 1) "   // 2026-01-01 00:00:00 UTC
+           "(1772963999000, 2) "   // one second before Los Angeles DST spring-forward
+           "(1772964000000, 3) "   // Los Angeles DST spring-forward boundary
+           "(1777543200000, 4) "   // 2026-04-30 10:00:00 UTC, useful for week truncation
+           "(1793523599000, 5) "   // one second before Los Angeles DST fall-back
+           "(1793523600000, 6)");  // Los Angeles DST fall-back boundary
+
+  const char* stmtSql =
+      "select ts, "
+      "to_char(ts, 'yyyy-MM-dd HH24:mi:ss'), "
+      "to_iso8601(ts), "
+      "timetruncate(ts, 1d), "
+      "timetruncate(ts, 1w), "
+      "date(ts), "
+      "dayofweek(ts), weekday(ts), week(ts), weekofyear(ts), "
+      "timezone(), first_day_of_week(), "
+      "to_char(ts, 'yyyy-MM-dd HH24:mi:ss', 'UTC'), "
+      "to_iso8601(ts, 'UTC'), "
+      "timetruncate(ts, 1d, 'UTC'), "
+      "case when v > 0 then to_char(ts, 'yyyyMMddHH24miss') else '' end, "
+      "to_timestamp(to_char(ts, 'yyyy-MM-dd HH24:mi:ss'), 'yyyy-MM-dd HH24:mi:ss') "
+      "from stmt2_query_timezone_funcs.t where ts between ? and ? order by ts";
+
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+  do_query(taos, "set first_day_of_week 0");
+  TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  int code = taos_stmt2_prepare(stmt, stmtSql, 0);
+  checkError(stmt, code, __FILE__, __LINE__);
+
+  struct SessionCase {
+    const char* timezone;
+    int32_t     firstDayOfWeek;
+    int64_t     start;
+    int64_t     end;
+    int32_t     expectedRows;
+  } sessionCases[] = {
+      {"UTC", 0, 1767225600000LL, 1793523600000LL, 6},
+      {"Asia/Shanghai", 1, 1767225600000LL, 1793523600000LL, 6},
+      {"America/Los_Angeles", 4, 1767225600000LL, 1793523600000LL, 6},
+      {"Asia/Kolkata", 6, 1772964000000LL, 1777543200000LL, 2},
+      {"UTC", 2, 1800000000000LL, 1800000001000LL, 0},
+  };
+
+  for (size_t i = 0; i < sizeof(sessionCases) / sizeof(sessionCases[0]); ++i) {
+    const SessionCase* sessionCase = &sessionCases[i];
+    ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, sessionCase->timezone), TSDB_CODE_SUCCESS);
+    char setFirstDaySql[64];
+    (void)snprintf(setFirstDaySql, sizeof(setFirstDaySql), "set first_day_of_week %d", sessionCase->firstDayOfWeek);
+    do_query(taos, setFirstDaySql);
+
+    int64_t          tsStart = sessionCase->start;
+    int64_t          tsEnd = sessionCase->end;
+    TAOS_STMT2_BIND  params[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &tsStart, NULL, NULL, 1},
+                                  {TSDB_DATA_TYPE_TIMESTAMP, &tsEnd, NULL, NULL, 1}};
+    TAOS_STMT2_BIND* paramv[2] = {&params[0], &params[1]};
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv[0]};
+
+    char refSql[4096];
+    (void)snprintf(refSql, sizeof(refSql),
+                   "select ts, "
+                   "to_char(ts, 'yyyy-MM-dd HH24:mi:ss'), "
+                   "to_iso8601(ts), "
+                   "timetruncate(ts, 1d), "
+                   "timetruncate(ts, 1w), "
+                   "date(ts), "
+                   "dayofweek(ts), weekday(ts), week(ts), weekofyear(ts), "
+                   "timezone(), first_day_of_week(), "
+                   "to_char(ts, 'yyyy-MM-dd HH24:mi:ss', 'UTC'), "
+                   "to_iso8601(ts, 'UTC'), "
+                   "timetruncate(ts, 1d, 'UTC'), "
+                   "case when v > 0 then to_char(ts, 'yyyyMMddHH24miss') else '' end, "
+                   "to_timestamp(to_char(ts, 'yyyy-MM-dd HH24:mi:ss'), 'yyyy-MM-dd HH24:mi:ss') "
+                   "from stmt2_query_timezone_funcs.t where ts between %lld and %lld order by ts",
+                   (long long)tsStart, (long long)tsEnd);
+
+    Stmt2ResultSnapshot expected = {0};
+    Stmt2ResultSnapshot actual = {0};
+    ASSERT_TRUE(snapshotTaosQuery(taos, refSql, &expected));
+    ASSERT_EQ(expected.rows, sessionCase->expectedRows) << "timezone=" << sessionCase->timezone;
+    ASSERT_TRUE(snapshotStmt2Query(stmt, &bindv, &actual));
+    char context[128];
+    (void)snprintf(context, sizeof(context), "timezone=%s, firstDayOfWeek=%d", sessionCase->timezone,
+                   sessionCase->firstDayOfWeek);
+    expectSnapshotsEqual(expected, actual, context);
+  }
+  taos_stmt2_close(stmt);
+
+  // Functions inside a derived table and both UNION ALL branches must receive
+  // the same session context as functions in a top-level SELECT.
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+  do_query(taos, "set first_day_of_week 0");
+  const char* nestedStmtSql =
+      "select ts, formatted, iso from ("
+      "select ts, to_char(ts, 'yyyyMMddHH24miss') formatted, to_iso8601(ts) iso "
+      "from stmt2_query_timezone_funcs.t where ts between ? and ?) q order by ts";
+  const char* unionStmtSql =
+      "select ts, to_char(ts, 'yyyyMMddHH24miss'), to_iso8601(ts) "
+      "from stmt2_query_timezone_funcs.t where ts between ? and ? "
+      "union all "
+      "select ts, to_char(ts, 'yyyyMMddHH24miss'), to_iso8601(ts) "
+      "from stmt2_query_timezone_funcs.t where ts between ? and ? order by ts";
+  const char* stringRangeStmtSql =
+      "select ts, to_char(ts, 'yyyyMMddHH24miss') from stmt2_query_timezone_funcs.t "
+      "where ts between ? and ? order by ts";
+  TAOS_STMT2* nestedStmt = taos_stmt2_init(taos, &option);
+  TAOS_STMT2* unionStmt = taos_stmt2_init(taos, &option);
+  TAOS_STMT2* stringRangeStmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(nestedStmt, nullptr);
+  ASSERT_NE(unionStmt, nullptr);
+  ASSERT_NE(stringRangeStmt, nullptr);
+  code = taos_stmt2_prepare(nestedStmt, nestedStmtSql, 0);
+  checkError(nestedStmt, code, __FILE__, __LINE__);
+  code = taos_stmt2_prepare(unionStmt, unionStmtSql, 0);
+  checkError(unionStmt, code, __FILE__, __LINE__);
+  code = taos_stmt2_prepare(stringRangeStmt, stringRangeStmtSql, 0);
+  checkError(stringRangeStmt, code, __FILE__, __LINE__);
+
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Kolkata"), TSDB_CODE_SUCCESS);
+  do_query(taos, "set first_day_of_week 5");
+  int64_t          nestedStart = 1772963999000LL;
+  int64_t          nestedEnd = 1777543200000LL;
+  TAOS_STMT2_BIND  nestedParams[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &nestedStart, NULL, NULL, 1},
+                                      {TSDB_DATA_TYPE_TIMESTAMP, &nestedEnd, NULL, NULL, 1}};
+  TAOS_STMT2_BIND* nestedParamv[2] = {&nestedParams[0], &nestedParams[1]};
+  TAOS_STMT2_BINDV nestedBindv = {1, NULL, NULL, &nestedParamv[0]};
+  char             nestedRefSql[1024];
+  (void)snprintf(nestedRefSql, sizeof(nestedRefSql),
+                 "select ts, formatted, iso from ("
+                 "select ts, to_char(ts, 'yyyyMMddHH24miss') formatted, to_iso8601(ts) iso "
+                 "from stmt2_query_timezone_funcs.t where ts between %lld and %lld) q order by ts",
+                 (long long)nestedStart, (long long)nestedEnd);
+  Stmt2ResultSnapshot expected = {0};
+  Stmt2ResultSnapshot actual = {0};
+  ASSERT_TRUE(snapshotTaosQuery(taos, nestedRefSql, &expected));
+  ASSERT_TRUE(snapshotStmt2Query(nestedStmt, &nestedBindv, &actual));
+  expectSnapshotsEqual(expected, actual, "derived table");
+
+  int64_t          unionStart1 = 1772963999000LL;
+  int64_t          unionEnd1 = 1772964000000LL;
+  int64_t          unionStart2 = 1793523599000LL;
+  int64_t          unionEnd2 = 1793523600000LL;
+  TAOS_STMT2_BIND  unionParams[4] = {{TSDB_DATA_TYPE_TIMESTAMP, &unionStart1, NULL, NULL, 1},
+                                     {TSDB_DATA_TYPE_TIMESTAMP, &unionEnd1, NULL, NULL, 1},
+                                     {TSDB_DATA_TYPE_TIMESTAMP, &unionStart2, NULL, NULL, 1},
+                                     {TSDB_DATA_TYPE_TIMESTAMP, &unionEnd2, NULL, NULL, 1}};
+  TAOS_STMT2_BIND* unionParamv[4] = {&unionParams[0], &unionParams[1], &unionParams[2], &unionParams[3]};
+  TAOS_STMT2_BINDV unionBindv = {1, NULL, NULL, &unionParamv[0]};
+  char             unionRefSql[1536];
+  (void)snprintf(unionRefSql, sizeof(unionRefSql),
+                 "select ts, to_char(ts, 'yyyyMMddHH24miss'), to_iso8601(ts) "
+                 "from stmt2_query_timezone_funcs.t where ts between %lld and %lld "
+                 "union all "
+                 "select ts, to_char(ts, 'yyyyMMddHH24miss'), to_iso8601(ts) "
+                 "from stmt2_query_timezone_funcs.t where ts between %lld and %lld order by ts",
+                 (long long)unionStart1, (long long)unionEnd1, (long long)unionStart2, (long long)unionEnd2);
+  ASSERT_TRUE(snapshotTaosQuery(taos, unionRefSql, &expected));
+  ASSERT_TRUE(snapshotStmt2Query(unionStmt, &unionBindv, &actual));
+  expectSnapshotsEqual(expected, actual, "union all");
+
+  // The placeholder value nodes were created while the statement used UTC.
+  // Binding local-time strings after switching the connection to Shanghai
+  // must parse those strings with the current session timezone.
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Shanghai"), TSDB_CODE_SUCCESS);
+  char             stringStart[] = "2026-03-08 17:59:59";
+  char             stringEnd[] = "2026-03-08 18:00:00";
+  int32_t          stringStartLen = strlen(stringStart);
+  int32_t          stringEndLen = strlen(stringEnd);
+  TAOS_STMT2_BIND  stringParams[2] = {{TSDB_DATA_TYPE_BINARY, stringStart, &stringStartLen, NULL, 1},
+                                      {TSDB_DATA_TYPE_BINARY, stringEnd, &stringEndLen, NULL, 1}};
+  TAOS_STMT2_BIND* stringParamv[2] = {&stringParams[0], &stringParams[1]};
+  TAOS_STMT2_BINDV stringBindv = {1, NULL, NULL, &stringParamv[0]};
+  const char*      stringRefSql =
+      "select ts, to_char(ts, 'yyyyMMddHH24miss') from stmt2_query_timezone_funcs.t "
+      "where ts between '2026-03-08 17:59:59' and '2026-03-08 18:00:00' order by ts";
+  ASSERT_TRUE(snapshotTaosQuery(taos, stringRefSql, &expected));
+  ASSERT_EQ(expected.rows, 2);
+  ASSERT_TRUE(snapshotStmt2Query(stringRangeStmt, &stringBindv, &actual));
+  expectSnapshotsEqual(expected, actual, "timestamp string parameters");
+
+  taos_stmt2_close(nestedStmt);
+  taos_stmt2_close(unionStmt);
+  taos_stmt2_close(stringRangeStmt);
+  do_query(taos, "drop database if exists stmt2_query_timezone_funcs");
+  taos_close(taos);
+}
+
+TEST(stmt2Case, query_timezone_functions_with_cross_precision_timestamp_params) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Shanghai"), TSDB_CODE_SUCCESS);
+
+  struct PrecisionCase {
+    const char* database;
+    const char* precision;
+    int64_t     scaleFromMs;
+  } precisionCases[] = {
+      {"stmt2_query_timezone_us", "us", 1000LL},
+      {"stmt2_query_timezone_ns", "ns", 1000000LL},
+  };
+
+  const int64_t tsStartMs = 1767225600000LL;
+  const int64_t tsMiddleMs = 1767225600500LL;
+  const int64_t tsEndMs = 1767225601000LL;
+  for (size_t i = 0; i < sizeof(precisionCases) / sizeof(precisionCases[0]); ++i) {
+    const PrecisionCase* precisionCase = &precisionCases[i];
+    char                 sql[2048];
+    (void)snprintf(sql, sizeof(sql), "drop database if exists %s", precisionCase->database);
+    do_query(taos, sql);
+    (void)snprintf(sql, sizeof(sql), "create database %s precision '%s'", precisionCase->database,
+                   precisionCase->precision);
+    do_query(taos, sql);
+    (void)snprintf(sql, sizeof(sql), "create table %s.t (ts timestamp, v int)", precisionCase->database);
+    do_query(taos, sql);
+
+    const int64_t scaledStart = tsStartMs * precisionCase->scaleFromMs;
+    const int64_t scaledMiddle = tsMiddleMs * precisionCase->scaleFromMs;
+    const int64_t scaledEnd = tsEndMs * precisionCase->scaleFromMs;
+    (void)snprintf(sql, sizeof(sql), "insert into %s.t values (%lld, 0) (%lld, 1) (%lld, 2) (%lld, 3) (%lld, 4)",
+                   precisionCase->database, (long long)(scaledStart - 1), (long long)scaledStart,
+                   (long long)scaledMiddle, (long long)scaledEnd, (long long)(scaledEnd + 1));
+    do_query(taos, sql);
+
+    char stmtSql[1024];
+    (void)snprintf(stmtSql, sizeof(stmtSql),
+                   "select ts, to_char(ts, 'yyyy-MM-dd HH24:mi:ss.ms'), to_iso8601(ts), timetruncate(ts, 1d) "
+                   "from %s.t where ts between ? and ? order by ts",
+                   precisionCase->database);
+    TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+    TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    int code = taos_stmt2_prepare(stmt, stmtSql, 0);
+    checkError(stmt, code, __FILE__, __LINE__);
+
+    int64_t          boundStartMs = tsStartMs;
+    int64_t          boundEndMs = tsEndMs;
+    TAOS_STMT2_BIND  params[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &boundStartMs, NULL, NULL, 1},
+                                  {TSDB_DATA_TYPE_TIMESTAMP, &boundEndMs, NULL, NULL, 1}};
+    TAOS_STMT2_BIND* paramv[2] = {&params[0], &params[1]};
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv[0]};
+    char             refSql[1024];
+    (void)snprintf(refSql, sizeof(refSql),
+                   "select ts, to_char(ts, 'yyyy-MM-dd HH24:mi:ss.ms'), to_iso8601(ts), timetruncate(ts, 1d) "
+                   "from %s.t where ts between %lld and %lld order by ts",
+                   precisionCase->database, (long long)scaledStart, (long long)scaledEnd);
+    Stmt2ResultSnapshot expected = {0};
+    Stmt2ResultSnapshot actual = {0};
+    ASSERT_TRUE(snapshotTaosQuery(taos, refSql, &expected));
+    ASSERT_EQ(expected.rows, 3) << "precision=" << precisionCase->precision;
+    ASSERT_TRUE(snapshotStmt2Query(stmt, &bindv, &actual));
+    expectSnapshotsEqual(expected, actual, precisionCase->precision);
+    taos_stmt2_close(stmt);
+
+    (void)snprintf(sql, sizeof(sql), "drop database if exists %s", precisionCase->database);
+    do_query(taos, sql);
+  }
+  taos_close(taos);
+}
+
+TEST(stmt2Case, query_gps_time_range_with_timestamp_params) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+
+  do_query(taos, "drop database if exists stmt2_gps_query");
+  do_query(taos, "create database stmt2_gps_query precision 'ms'");
+  do_query(taos,
+           "create table stmt2_gps_query.d_p (ts timestamp, params3 int, `2601` int, `2602` double, "
+           "`2603` double, `4031` int, `3020` int, `2204` double)");
+
+  // Keep source data spanning 2026-02-03 through 2026-02-06.
+  const int64_t tsFeb3 = 1770048000000LL;      // 2026-02-03 00:00:00.000, Asia/Shanghai
+  int64_t       tsStart = 1770250745000LL;     // 2026-02-05 08:19:05.000, Asia/Shanghai
+  const int64_t tsInRange1 = 1770250748000LL;  // 2026-02-05 08:19:08.000, Asia/Shanghai
+  const int64_t tsInRange2 = 1770250750000LL;  // 2026-02-05 08:19:10.000, Asia/Shanghai
+  const int64_t tsInRange3 = 1770250755000LL;  // 2026-02-05 08:19:15.000, Asia/Shanghai
+  int64_t       tsEnd = 1770250760000LL;       // 2026-02-05 08:19:20.000, Asia/Shanghai
+  const int64_t tsFeb6 = 1770393599000LL;      // 2026-02-06 23:59:59.000, Asia/Shanghai
+
+  char insertSql[2048];
+  (void)snprintf(insertSql, sizeof(insertSql),
+                 "insert into stmt2_gps_query.d_p values "
+                 "(%lld, 1, 0, 116.3000, 39.9000, 1, 1, 30.0) "
+                 "(%lld, 1, 0, 116.3100, 39.9100, 1, 1, 31.0) "
+                 "(%lld, 3, 0, 116.3200, 39.9200, 1, 1, 32.0) "
+                 "(%lld, 2, 0, 116.3300, 39.9300, 1, 1, 33.0) "
+                 "(%lld, 1, 0, 0.0000, 39.9400, 1, 1, 34.0) "
+                 "(%lld, 1, 0, 116.3400, 39.9500, 1, 1, 35.0) "
+                 "(%lld, 2, 0, 116.3500, 39.9600, 1, 1, 36.0)",
+                 (long long)tsFeb3, (long long)tsStart, (long long)tsInRange1, (long long)tsInRange2,
+                 (long long)tsInRange3, (long long)tsEnd, (long long)tsFeb6);
+  do_query(taos, insertSql);
+
+  // Add dense history outside the bound range, including points immediately
+  // before and after both bound values. These rows must never be returned.
+  const int64_t extraTimestamps[] = {
+      tsFeb3 + 1,
+      tsFeb3 + 6 * 3600 * 1000LL,
+      tsFeb3 + 12 * 3600 * 1000LL,
+      tsFeb3 + 18 * 3600 * 1000LL,  // 2026-02-03
+      tsStart - 24 * 3600 * 1000LL,
+      tsStart - 6 * 3600 * 1000LL,
+      tsStart - 3600 * 1000LL,
+      tsStart - 60 * 1000LL,
+      tsStart - 1000LL,
+      tsStart - 1,  // before range
+      tsEnd + 1,
+      tsEnd + 1000LL,
+      tsEnd + 60 * 1000LL,
+      tsEnd + 3600 * 1000LL,
+      tsEnd + 6 * 3600 * 1000LL,
+      tsEnd + 24 * 3600 * 1000LL,
+      tsFeb6 - 18 * 3600 * 1000LL,
+      tsFeb6 - 12 * 3600 * 1000LL,
+      tsFeb6 - 6 * 3600 * 1000LL,
+      tsFeb6 - 1,  // 2026-02-06
+  };
+  for (size_t i = 0; i < sizeof(extraTimestamps) / sizeof(extraTimestamps[0]); ++i) {
+    (void)snprintf(insertSql, sizeof(insertSql),
+                   "insert into stmt2_gps_query.d_p values (%lld, %d, 0, %.4f, %.4f, %d, %d, %.1f)",
+                   (long long)extraTimestamps[i], (int)(i % 3) + 1, 116.4000 + (double)i * 0.01,
+                   39.7000 + (double)i * 0.01, (int)i, (int)(i % 2), 40.0 + (double)i);
+    do_query(taos, insertSql);
+  }
+
+  const char* whereClause =
+      " where params3 in (1, 2) and _rowts between ? and ? and `2601` = 0 and `2602` != 0 and `2603` != 0 "
+      "and `2602` >= -180 and `2602` <= 180 and `2603` >= -90 and `2603` <= 90 order by _rowts";
+  const char* stmtRawSql = "select ts from stmt2_gps_query.d_p";
+  const char* stmtToCharSql = "select to_char(_rowts, 'yyyyMMddHH24miss') `gpsTime` from stmt2_gps_query.d_p";
+
+  // These points make the bound range dense and exercise every filter branch.
+  const int64_t denseTimestamps[] = {1770250746000LL, 1770250747000LL, 1770250749000LL, 1770250751000LL,
+                                     1770250752000LL, 1770250753000LL, 1770250754000LL, 1770250756000LL,
+                                     1770250757000LL, 1770250758000LL, 1770250759000LL};
+  for (size_t i = 0; i < sizeof(denseTimestamps) / sizeof(denseTimestamps[0]); ++i) {
+    const int    params3 = (i == 2) ? 3 : 1;
+    const int    col2601 = (i == 3) ? 1 : 0;
+    const double lon = (i == 4) ? 181.0 : 116.50 + (double)i * 0.01;
+    const double lat = (i == 5) ? 91.0 : ((i == 6) ? 0.0 : 39.50 + (double)i * 0.01);
+    (void)snprintf(
+        insertSql, sizeof(insertSql), "insert into stmt2_gps_query.d_p values (%lld, %d, %d, %.4f, %.4f, %d, %d, %.1f)",
+        (long long)denseTimestamps[i], params3, col2601, lon, lat, 10 + (int)i, (int)(i % 2), 50.0 + (double)i);
+    do_query(taos, insertSql);
+  }
+
+  auto runStmt = [&](const char* sql, bool withToChar, int64_t* rawRows, char formattedRows[][32], int32_t* rowCount) {
+    *rowCount = 0;
+    TAOS_STMT2_OPTION option = {0, true, true, NULL, NULL};
+    TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+    if (stmt == nullptr) {
+      ADD_FAILURE() << "STMT2 init failed";
+      return false;
+    }
+    int code = taos_stmt2_prepare(stmt, sql, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      ADD_FAILURE() << "STMT2 prepare failed: " << taos_stmt2_error(stmt);
+      taos_stmt2_close(stmt);
+      return false;
+    }
+    TAOS_STMT2_BIND  params[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &tsStart, NULL, NULL, 1},
+                                  {TSDB_DATA_TYPE_TIMESTAMP, &tsEnd, NULL, NULL, 1}};
+    TAOS_STMT2_BIND* paramv[2] = {&params[0], &params[1]};
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv[0]};
+    code = taos_stmt2_bind_param(stmt, &bindv, -1);
+    if (code != TSDB_CODE_SUCCESS) {
+      ADD_FAILURE() << "STMT2 bind failed: " << taos_stmt2_error(stmt);
+      taos_stmt2_close(stmt);
+      return false;
+    }
+    code = taos_stmt2_exec(stmt, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      ADD_FAILURE() << "STMT2 execute failed: " << taos_stmt2_error(stmt);
+      taos_stmt2_close(stmt);
+      return false;
+    }
+    TAOS_RES* res = taos_stmt2_result(stmt);
+    if (res == nullptr) {
+      ADD_FAILURE() << "STMT2 result failed: " << taos_stmt2_error(stmt);
+      taos_stmt2_close(stmt);
+      return false;
+    }
+    int32_t  rows = 0;
+    TAOS_ROW row = NULL;
+    while ((row = taos_fetch_row(res)) != nullptr) {
+      if (rows == 64 || row[0] == nullptr) {
+        ADD_FAILURE() << "invalid STMT2 result row";
+        taos_stmt2_close(stmt);
+        return false;
+      }
+      if (withToChar) {
+        int* lengths = taos_fetch_lengths(res);
+        if (lengths == nullptr) {
+          ADD_FAILURE() << "STMT2 fetch lengths failed";
+          taos_stmt2_close(stmt);
+          return false;
+        }
+        snprintf(formattedRows[rows], sizeof(formattedRows[rows]), "%.*s", lengths[0], (const char*)row[0]);
+      } else {
+        rawRows[rows] = *(int64_t*)row[0];
+      }
+      ++rows;
+    }
+    taos_stmt2_close(stmt);
+    *rowCount = rows;
+    return true;
+  };
+
+  auto compareAllResults = [&](const char* timezone) {
+    ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, timezone), TSDB_CODE_SUCCESS);
+
+    char directSql[1024];
+    (void)snprintf(directSql, sizeof(directSql),
+                   "select ts, to_char(_rowts, 'yyyyMMddHH24miss') from stmt2_gps_query.d_p "
+                   "where params3 in (1, 2) and _rowts between %lld and %lld and `2601` = 0 and `2602` != 0 "
+                   "and `2603` != 0 and `2602` >= -180 and `2602` <= 180 and `2603` >= -90 and `2603` <= 90 "
+                   "order by _rowts",
+                   (long long)tsStart, (long long)tsEnd);
+    TAOS_RES* directRes = execQueryWithRetry(taos, directSql);
+    ASSERT_NE(directRes, nullptr) << "direct query failed in timezone " << timezone;
+    ASSERT_EQ(taos_errno(directRes), TSDB_CODE_SUCCESS) << taos_errstr(directRes);
+
+    int64_t  queryRows[64] = {0};
+    char     queryGpsTimes[64][32] = {{0}};
+    int32_t  queryRowCount = 0;
+    TAOS_ROW row = NULL;
+    while ((row = taos_fetch_row(directRes)) != nullptr) {
+      ASSERT_LT(queryRowCount, 64);
+      ASSERT_NE(row[0], nullptr);
+      ASSERT_NE(row[1], nullptr);
+      queryRows[queryRowCount] = *(int64_t*)row[0];
+      int* lengths = taos_fetch_lengths(directRes);
+      ASSERT_NE(lengths, nullptr);
+      snprintf(queryGpsTimes[queryRowCount], sizeof(queryGpsTimes[queryRowCount]), "%.*s", lengths[1],
+               (const char*)row[1]);
+      ++queryRowCount;
+    }
+    taos_free_result(directRes);
+
+    char rawSql[1024];
+    char toCharSql[1024];
+    (void)snprintf(rawSql, sizeof(rawSql), "%s%s", stmtRawSql, whereClause);
+    (void)snprintf(toCharSql, sizeof(toCharSql), "%s%s", stmtToCharSql, whereClause);
+    int64_t stmtRawRows[64] = {0};
+    char    stmtToCharRows[64][32] = {{0}};
+    int32_t stmtRawCount = 0;
+    int32_t stmtToCharCount = 0;
+    ASSERT_TRUE(runStmt(rawSql, false, stmtRawRows, NULL, &stmtRawCount));
+    ASSERT_TRUE(runStmt(toCharSql, true, NULL, stmtToCharRows, &stmtToCharCount));
+
+    ASSERT_EQ(queryRowCount, 9) << "timezone=" << timezone;
+    ASSERT_EQ(stmtRawCount, queryRowCount) << "timezone=" << timezone;
+    ASSERT_EQ(stmtToCharCount, queryRowCount) << "timezone=" << timezone;
+    for (int32_t i = 0; i < queryRowCount; ++i) {
+      ASSERT_EQ(stmtRawRows[i], queryRows[i]) << "timezone=" << timezone << ", row=" << i;
+      ASSERT_STREQ(stmtToCharRows[i], queryGpsTimes[i]) << "timezone=" << timezone << ", row=" << i;
+    }
+  };
+
+  compareAllResults("Asia/Shanghai");
+  compareAllResults("UTC");
+  compareAllResults("America/Los_Angeles");
+
+  do_query(taos, "drop database if exists stmt2_gps_query");
   taos_close(taos);
 }
 

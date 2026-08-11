@@ -792,6 +792,9 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(sliding);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
+  COPY_SCALAR_FIELD(firstDayOfWeek);
+  COPY_SCALAR_FIELD(timezone);
+  COPY_CHAR_ARRAY_FIELD(timezoneName);
   CLONE_NODE_FIELD(pTagCond);
   CLONE_NODE_FIELD(pTagIndexCond);
   COPY_SCALAR_FIELD(triggerType);

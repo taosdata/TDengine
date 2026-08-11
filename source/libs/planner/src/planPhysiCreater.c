@@ -524,7 +524,7 @@ static EDealRes doSetMultiTableSlotId(SNode* pNode, void* pContext) {
     }
     SSlotIndex* pIndex = NULL;
     if (pCol->projRefIdx > 0) {
-      sprintf(name + strlen(name), "_%d", pCol->projRefIdx);
+      snprintf(name + strlen(name), cap - strlen(name), "_%d", pCol->projRefIdx);
       SSlotIndex** ppIndex = (SSlotIndex**)taosHashGet(pCxt->mergedProjIdxHash, name, strlen(name));
       if (ppIndex) {
         pIndex = *ppIndex;

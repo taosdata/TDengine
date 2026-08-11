@@ -12,7 +12,7 @@ description: 删除指定表或超级表中的数据
 DELETE FROM [db_name.]tb_name [WHERE condition] [SECURE_DELETE];
 ```
 
-**注意**：删除数据并不会立即释放磁盘空间，而是将数据标记为已删除。查询时这些数据不会再出现，但磁盘空间的释放会延迟到系统自动清理（建库参数 [`KEEP`](../02-ddl/01-database.md#keep) 生效）或用户手动进行 [数据重整](../../12-operations-and-tooling/02-operations/04-maintenance.md#数据重整) 时（企业版功能 `COMPACT`）。若需在删除标记之外对落盘数据块做物理覆写，可使用库级 / 语句级 `SECURE_DELETE`，行为见 [数据安全 · 安全删除](../../11-security-guide/03-data-security.md#安全删除)。
+**注意**：删除数据并不会立即释放磁盘空间，而是将数据标记为已删除。查询时这些数据不会再出现，但磁盘空间的释放会延迟到系统自动清理（建库参数 [`KEEP`](../02-ddl/01-database.md#keep) 生效）或用户手动进行 [数据重整](../../12-operations-and-tooling/02-operations/04-maintenance.md#数据重整) 时（企业版功能 `COMPACT`）。若需在删除标记之外对落盘数据块做物理覆写，可使用库级 / 语句级 `SECURE_DELETE`，行为见 [数据安全 · 安全删除](../../11-security-guide/06-data-security.md#安全删除)。
 
 ### 参数说明
 

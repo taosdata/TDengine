@@ -1,15 +1,13 @@
 ---
-title: Connector Security
-sidebar_label: Connector Security
-description: TDengine connector SSL/TLS, token authentication, and dynamic rotation practices
+title: Client and Connector Security
+sidebar_label: Client and Connector Security
+description: Entry-layer application practices for connector tokens, client SSL/TLS, dynamic rotation, and multi-language examples
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-# Connector Security Best Practices
-
-This guide describes security best practices for TDengine connectors, including token authentication, SSL/TLS client configuration, dynamic token rotation, and implementation examples across different language connectors. For server certificates and taosAdapter SSL, see [Transport Security](./02-transport-security.md).
+This page covers the **Layer 1 entry point (programmatic connections)** practices in the security guide: token authentication, client SSL/TLS, dynamic token rotation, and multi-language connector examples. After reading the full-trace topics 01-04 for service-side and link-level security, use this page to close the entry-layer loop. For server certificates and taosAdapter `[ssl]`, see [Full-Trace Transport Security and Compression](./02-full-trace-transport.md). For account and token SQL, see [Users](../05-tdengine-sql/07-user-and-privilege/01-user.md).
 
 ---
 
@@ -126,7 +124,7 @@ Enabling SSL/TLS ensures confidentiality and integrity in data transport.
 
 :::info Responsibility Split
 
-- **Server-side configuration**: Certificate generation and taosAdapter SSL setup (`taosadapter.toml`), see [SSL Configuration Guide](./02-transport-security.md)
+- **Server-side configuration**: Certificate generation and taosAdapter SSL setup (`taosadapter.toml`), see [Full-Trace Transport Security and Compression](./02-full-trace-transport.md)
 - **Client-side configuration**: TrustStore and SSL connection parameters, covered in this section
 :::
 
@@ -767,7 +765,7 @@ Before production rollout, verify the following controls:
 
 - **Enable SSL/TLS**: all JDBC/REST/TMQ connections use encrypted transport (`useSSL=true` or equivalent).
 - **Certificate validation**: do not skip certificate verification in production.
-- **Strong ciphers**: TLS >= 1.2 and weak ciphers disabled (for example RC4, DES).
+- **Strong ciphers**: TLS &gt;= 1.2 and weak ciphers disabled (for example RC4, DES).
 
 ### Token Management
 
@@ -846,9 +844,9 @@ String url = "jdbc:TAOS-WS://host:6041/db?bearerToken=xxx";
 
 ## 10. Reference Documents
 
-- [SSL Configuration Guide](./02-transport-security.md) - Server certificate generation and configuration
+- [Full-Trace Transport Security and Compression](./02-full-trace-transport.md) - Server certificate generation and configuration
 - [Users](../05-tdengine-sql/07-user-and-privilege/01-user.md) - Token SQL and user security options
 - [Java Connector Documentation](../10-developer-guide/08-connectors-reference/02-java.mdx) - Complete JDBC driver parameter reference
-- [TMQ Subscription Documentation](../06-data-subscription/index.md) - Detailed message subscription usage
+- [TMQ Subscription Documentation](../10-developer-guide/07-subscription-api.md) - Detailed message subscription usage
 - [REST API Documentation](../10-developer-guide/08-connectors-reference/10-rest-api.mdx) - REST token authentication usage
-- [Security Advisories](./07-security-advisories.md) - Vulnerabilities and fixed versions
+- [Security Advisories](./09-security-advisories.md) - Vulnerabilities and fixed versions

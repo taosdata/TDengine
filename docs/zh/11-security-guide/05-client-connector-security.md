@@ -1,13 +1,13 @@
 ---
-title: 连接器安全
-sidebar_label: 连接器安全
-description: TDengine 连接器 SSL/TLS、Token 认证与动态轮换实践
+sidebar_label: 客户端与连接器安全
+title: 客户端与连接器安全
+description: 入口层应用实践：连接器 Token、客户端 SSL/TLS、动态轮换与多语言示例
 ---
+
+本页是安全指南中 **① 入口层（程序化连接）** 的客户端落地说明：Token 认证、客户端 SSL/TLS、动态 Token 轮换及多语言示例。全链路四篇（01–04）讲清服务侧与链路后，建议阅读本页完成入口层闭环；服务端证书与 taosAdapter `[ssl]` 见 [全链路传输安全与压缩](./02-full-trace-transport.md)，账号 / Token SQL 见 [用户管理](../05-tdengine-sql/07-user-and-privilege/01-user.md)。
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-
-本页介绍 TDengine 连接器的安全实践：Token 认证、客户端 SSL/TLS、动态 Token 轮换及多语言示例。服务端证书与 taosAdapter SSL 见 [传输安全](./02-transport-security.md)。
 
 ---
 
@@ -127,7 +127,7 @@ Token 有 TTL（通常 24 小时），过期后连接将失败。动态 Token �
 
 :::info 配置分工
 
-- **服务端配置**：证书生成、taosAdapter SSL（`taosadapter.toml`），见 [传输安全](./02-transport-security.md)
+- **服务端配置**：证书生成、taosAdapter SSL（`taosadapter.toml`），见 [全链路传输安全与压缩](./02-full-trace-transport.md)
 - **客户端配置**：TrustStore 与 SSL 连接参数，见下文
 :::
 
@@ -834,9 +834,10 @@ String url = "jdbc:TAOS-WS://host:6041/db?bearerToken=xxx";
 
 ## 10. 参考文档
 
-- [传输安全](./02-transport-security.md) — 服务端 SSL 证书生成与配置
+- [全链路传输安全与压缩](./02-full-trace-transport.md) — 服务端 SSL 证书生成与配置
 - [用户管理](../05-tdengine-sql/07-user-and-privilege/01-user.md) — Token SQL 与用户安全选项
 - [Java 连接器](../10-developer-guide/08-connectors-reference/02-java.mdx) — JDBC 参数说明
 - [数据订阅 API](../10-developer-guide/07-subscription-api.md) — 消息订阅说明
 - [REST API](../10-developer-guide/08-connectors-reference/10-rest-api.mdx) — RESTful Token 认证
-- [安全公告](./07-security-advisories.md) — 漏洞与修复版本
+- [安全公告](./09-security-advisories.md) — 漏洞与修复版本
+- [建立连接](../10-developer-guide/01-connect/index.md) — 驱动安装与基础连库

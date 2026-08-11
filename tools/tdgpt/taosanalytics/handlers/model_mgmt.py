@@ -253,7 +253,7 @@ def _save_model_files_and_validate(
     return pkl_file_path, None
 
 
-def do_handle_dynamic_model(request):
+def do_deploy_dynamic_model(request):
     """
     Handle dynamic model operations, e.g. load model to memory, warm up model, etc.
     Supports both JSON-only and multipart/form-data requests:
@@ -357,7 +357,7 @@ def do_handle_dynamic_model(request):
     }, 200
 
 
-def do_handle_undeploy_model(request):
+def do_undeploy_dynamic_model(request):
     """undeploy model from production environment, e.g. release model from memory, etc."""
     AppLogger.debug("recv undeploy request, ip:%s", request.remote_addr)
 

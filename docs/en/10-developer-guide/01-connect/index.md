@@ -28,6 +28,8 @@ If you choose a native connection and your application is not running on the sam
 
 **Recommended to use WebSocket connection, no need to install client driver.**
 
+For secure connections, tokens, and rotation practices, see [Client and Connector Security](../../11-security-guide/05-client-connector-security.md). For the full-trace view, see [Full-Trace Authentication](../../11-security-guide/01-full-trace-auth.md).
+
 ### Installation Steps
 
 <Tabs defaultValue="linux" groupId="os">

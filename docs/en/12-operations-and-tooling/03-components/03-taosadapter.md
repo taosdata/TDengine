@@ -530,6 +530,16 @@ The basic configuration parameters for `taosAdapter` are as follows:
 
 - **`taosConfigDir`**: The configuration file directory for TDengine. Default value: `/etc/taos`. The `taos.cfg` file in this directory will be loaded.
 
+### SSL {#ssl}
+
+`[ssl]` enables HTTPS / WSS on taosAdapter (Enterprise Edition). See the example configuration at [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/blob/3.0/example/config/taosadapter.toml). For certificate generation and enablement steps, see [Full-Trace Transport Security · Server HTTPS/WSS](../../11-security-guide/02-full-trace-transport.md#211-server-side-httpswss) and [Appendix: Generate a Self-Signed Certificate](../../11-security-guide/02-full-trace-transport.md#11-appendix-generate-a-self-signed-certificate).
+
+- **`ssl.enable`**: Whether to enable SSL. Default `false`. Enterprise capability.
+- **`ssl.certFile`**: Path to the server certificate file (PEM).
+- **`ssl.keyFile`**: Path to the server private key file (PEM); recommended permission `600`.
+
+After enabling, restart taosAdapter (for example `systemctl restart taosadapter`). Logs typically show `SSL is enabled`. For client TrustStore / `wss` / `useSSL`, see [Client and Connector Security](../../11-security-guide/05-client-connector-security.md).
+
 Starting from version 3.3.4.0, taosAdapter supports setting the number of concurrent calls for invoking C methods:
 
 - **`maxAsyncConcurrentLimit`**

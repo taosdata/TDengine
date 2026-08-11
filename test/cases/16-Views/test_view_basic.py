@@ -1,4 +1,4 @@
-from new_test_framework.utils import tdLog, tdSql, tdCom, TDSetSql, TDSql
+from new_test_framework.utils import tdLog, tdSql, tdCom, TDSetSql, TDSql, tmqCom
 import taos
 import os
 import sys
@@ -95,37 +95,6 @@ class TestViewBasic:
         tdLog.info("consume info sql: %s"%sql)
         tdSql.query(sql)
     
-    def startTmqSimProcess(self,pollDelay,dbName,showMsg=1,showRow=1,cdbName='cdb',valgrind=0,alias=0,snapshot=0):
-        buildPath = tdCom.getBuildPath()
-        cfgPath = tdCom.getClientCfgPath()
-        if valgrind == 1:
-            logFile = cfgPath + '/../log/valgrind-tmq.log'
-            shellCmd = 'nohup valgrind --log-file=' + logFile
-            shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-
-        if (platform.system().lower() == 'windows'):
-            processorName = buildPath + '\\build\\bin\\tmq_sim.exe'
-            if alias != 0:
-                processorNameNew = buildPath + '\\build\\bin\\tmq_sim_new.exe'
-                shellCmd = 'cp %s %s'%(processorName, processorNameNew)
-                os.system(shellCmd)
-                processorName = processorNameNew
-            shellCmd = 'mintty -h never ' + processorName + ' -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot)
-            shellCmd += "> nul 2>&1 &"
-        else:
-            processorName = buildPath + '/build/bin/tmq_sim'
-            if alias != 0:
-                processorNameNew = buildPath + '/build/bin/tmq_sim_new'
-                shellCmd = 'cp %s %s'%(processorName, processorNameNew)
-                os.system(shellCmd)
-                processorName = processorNameNew
-            shellCmd = 'nohup ' + processorName + ' -c ' + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d "%(pollDelay, dbName, showMsg, showRow, cdbName, snapshot)
-            shellCmd += "> /dev/null 2>&1 &"
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
-
     def checkFileContent(self, consumerId, queryString, skipRowsOfCons=0):
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
@@ -736,7 +705,7 @@ class TestViewBasic:
         self.insertConsumerInfo(consumerId, expectrowcnt, topicList, keyList, ifcheckdata, ifManualCommit)
 
         tdLog.info("start consume processor")
-        self.startTmqSimProcess(paraDict['pollDelay'], paraDict["dbName"], paraDict['showMsg'], paraDict['showRow'])
+        tmqCom.startTmqSimProcess(paraDict['pollDelay'], paraDict["dbName"], paraDict['showMsg'], paraDict['showRow'])
 
         tdLog.info("wait the consume result")
         expectRows = 1

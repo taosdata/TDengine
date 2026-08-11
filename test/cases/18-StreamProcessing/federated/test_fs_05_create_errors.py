@@ -6,7 +6,13 @@
   FS-CERR-004  PARTITION BY <column> (not tbname/tag) on InfluxDB ext -> rejected.
   FS-CERR-005  INTO referencing an external table -> rejected (FS §10#1).
   FS-CERR-006  User-specified ts column in CREATE STREAM -> rejected (FS §10#2).
+  FS-CERR-007  OUTPUT_SUBTABLE(tbname) with PARTITION BY <tag subset> on
+               InfluxDB ext -> rejected (tbname is only reader-resolvable
+               under PARTITION BY tbname / no PARTITION BY).
   FS-SEC-001   Insufficient privileges on ext source -> CREATE STREAM rejected.
+  FS-CERR-009  STREAM_OPTIONS(FILL_HISTORY(...)) on ext trigger table -> rejected
+               (history recalculation is not supported for federated sources).
+  FS-CERR-010  STREAM_OPTIONS(FILL_HISTORY_FIRST) on ext trigger table -> rejected.
 """
 
 import sys
@@ -146,6 +152,80 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
         finally:
             self._cleanup_src(src)
 
+    # FS-CERR-007 tbname in OUTPUT_SUBTABLE with a PARTITION BY tag subset -
+    def test_cerr_007_output_subtable_tbname_partition_by_subset_influx(self):
+        """InfluxDB ext source + PARTITION BY <tag subset> + OUTPUT_SUBTABLE(tbname)
+        must be rejected at CREATE STREAM time.
+
+        The reader (streamReaderExt.c handleGroupColValuePull) only synthesizes
+        a tbname value for the InfluxDB "all tags" case (PARTITION BY tbname, or
+        no PARTITION BY at all). For PARTITION BY on a tag *subset* (e.g. one tag
+        out of several), the reader never populates the isTbname group-col-value,
+        so allowing a bare tbname reference in OUTPUT_SUBTABLE here would have
+        parsed fine but resolved to an empty string at runtime. The parser must
+        reject it up front instead, same as any other column not in the
+        PARTITION BY list.
+        """
+        prefix = "cerr007"
+        src = f"{prefix}_i"
+        db = f"{prefix}_idb"
+        self._cleanup_src(src)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), db)
+        try:
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db, [
+                'src_t,host=a,region=x val=1i 1704067200000000000',
+            ])
+            self._mk_influx_real(src, database=db)
+            tdSql.execute(f"USE {self.DB}")
+            # 'host' is one tag of two (host, region) -> a tag subset, not
+            # tbname/all-tags, so tbname must not resolve here.
+            sql = (
+                f"CREATE STREAM s_cerr007 INTERVAL(1m) SLIDING(1m) "
+                f"FROM {src}.{db}.src_t PARTITION BY host "
+                f"INTO {self.DB}.sink_cerr007 "
+                f"OUTPUT_SUBTABLE(CONCAT('h_', tbname)) AS "
+                f"SELECT _twstart AS ts, COUNT(*) FROM %%trows"
+            )
+            tdSql.error(sql)
+            tdLog.info("FS-CERR-007: OUTPUT_SUBTABLE(tbname) rejected under "
+                       "PARTITION BY tag subset on InfluxDB ext source")
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), db)
+            except Exception:
+                pass
+    
+    def test_cerr_008_partition_by_scalar_tbname_influx(self):
+        prefix = "cerr008"
+        src = f"{prefix}_i"
+        db = f"{prefix}_idb"
+        self._cleanup_src(src)
+        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), db)
+        try:
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db, [
+                'src_t,host=a,region=x val=1i 1704067200000000000',
+            ])
+            self._mk_influx_real(src, database=db)
+            tdSql.execute(f"USE {self.DB}")
+            # 'host' is one tag of two (host, region) -> a tag subset, not
+            # tbname/all-tags, so tbname must not resolve here.
+            sql = (
+                f"CREATE STREAM s_cerr007 INTERVAL(1m) SLIDING(1m) "
+                f"FROM {src}.{db}.src_t PARTITION BY upper(tbname) "
+                f"INTO {self.DB}.sink_cerr007 AS "
+                f"SELECT _twstart AS ts, COUNT(*) FROM %%trows"
+            )
+            tdSql.error(sql)
+            tdLog.info("FS-CERR-008: OUTPUT_SUBTABLE(tbname) rejected under "
+                       "PARTITION BY tag subset on InfluxDB ext source")
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), db)
+            except Exception:
+                pass
+
     # FS-CERR-005 INTO points at external table -> rejected ---------------
     def test_cerr_005_into_external_rejected(self):
         """FS §10#1 — INTO must be a local two-segment table; ext targets rejected."""
@@ -186,6 +266,73 @@ class TestFsCreateErrors(FederatedQueryTestMixin):
                 f"SELECT _twstart AS ts, COUNT(*) FROM %%trows"
             )
             tdSql.error(sql)
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), db)
+            except Exception:
+                pass
+
+    # FS-CERR-009 FILL_HISTORY(...) on ext trigger -> rejected --------------
+    def test_cerr_009_fill_history_ext_rejected(self):
+        """STREAM_OPTIONS(FILL_HISTORY(...)) on an external trigger table must
+        be rejected: history recalculation against a federated source is not
+        supported yet."""
+        prefix = "cerr009"
+        src = f"{prefix}_m"
+        db = f"{prefix}_mdb"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), db)
+        try:
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), db, [
+                "DROP TABLE IF EXISTS `src_t`",
+                "CREATE TABLE `src_t` (ts DATETIME(3) PRIMARY KEY, val INT)",
+                "INSERT INTO `src_t` VALUES ('2024-01-01 00:00:00.000', 1)",
+            ])
+            self._mk_mysql_real(src, database=db)
+            tdSql.execute(f"USE {self.DB}")
+            sql = (
+                f"CREATE STREAM s_cerr009 INTERVAL(1m) SLIDING(1m) "
+                f"FROM {src}.{db}.src_t "
+                f"STREAM_OPTIONS(FILL_HISTORY('2023-12-31 00:00:00.000')) "
+                f"INTO {self.DB}.sink_cerr009 AS "
+                f"SELECT _twstart AS ts, COUNT(*) FROM %%trows"
+            )
+            tdSql.error(sql)
+            tdLog.info("FS-CERR-009: FILL_HISTORY rejected on external trigger table")
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), db)
+            except Exception:
+                pass
+
+    # FS-CERR-010 FILL_HISTORY_FIRST on ext trigger -> rejected -------------
+    def test_cerr_010_fill_history_first_ext_rejected(self):
+        """STREAM_OPTIONS(FILL_HISTORY_FIRST) on an external trigger table
+        must be rejected for the same reason as FS-CERR-009."""
+        prefix = "cerr010"
+        src = f"{prefix}_m"
+        db = f"{prefix}_mdb"
+        self._cleanup_src(src)
+        ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), db)
+        try:
+            ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), db, [
+                "DROP TABLE IF EXISTS `src_t`",
+                "CREATE TABLE `src_t` (ts DATETIME(3) PRIMARY KEY, val INT)",
+                "INSERT INTO `src_t` VALUES ('2024-01-01 00:00:00.000', 1)",
+            ])
+            self._mk_mysql_real(src, database=db)
+            tdSql.execute(f"USE {self.DB}")
+            sql = (
+                f"CREATE STREAM s_cerr010 INTERVAL(1m) SLIDING(1m) "
+                f"FROM {src}.{db}.src_t "
+                f"STREAM_OPTIONS(FILL_HISTORY_FIRST) "
+                f"INTO {self.DB}.sink_cerr010 AS "
+                f"SELECT _twstart AS ts, COUNT(*) FROM %%trows"
+            )
+            tdSql.error(sql)
+            tdLog.info("FS-CERR-010: FILL_HISTORY_FIRST rejected on external trigger table")
         finally:
             self._cleanup_src(src)
             try:
