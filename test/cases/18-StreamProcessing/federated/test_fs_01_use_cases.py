@@ -895,13 +895,13 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
 
         """
         self.do_uc_001b_influx_same_tag_multi_expr_partition()
-    def _wait_ext_error(self, stream: str, timeout: int = 30):
+    def _wait_ext_error(self, stream: str, errMsg: str, timeout: int = 30):
         """Poll stream metadata until its message reports a runtime error."""
         deadline = time.time() + timeout
         while time.time() < deadline:
             meta = get_stream_ext_meta(stream)
             message = meta.get("message") or ""
-            if "Influxdb tag key is too long or convert error" in message:
+            if errMsg in message:
                 tdLog.debug(f"Stream {stream} reported runtime error: {message}")
                 return meta
             time.sleep(1)
@@ -943,8 +943,8 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
                 f"COUNT(*) AS cnt, CAST(%%1 AS VARCHAR(256)) AS tag_value "
                 f"FROM %%trows"
             )
-            meta = self._wait_ext_error(stream, timeout=60)
-            tdLog.info(f"do_uc_001b_influx_long_tag_key meta = {meta}")
+            meta = self._wait_ext_error(stream, "Influxdb tag value is too long", timeout=60)
+            tdLog.info(f"do_uc_001b_influx_long_tag_value meta = {meta}")
             
             tdSql.execute(f"DROP STREAM {stream}")
             tdSql.execute(f"DROP STABLE IF EXISTS {self.DB}.{sink_stb}")
@@ -989,7 +989,7 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
                 f"COUNT(*) AS cnt, CAST(%%1 AS VARCHAR(256)) AS tag_value "
                 f"FROM %%trows"
             )
-            meta = self._wait_ext_error(stream, timeout=60)
+            meta = self._wait_ext_error(stream, "External data type conversion failed", timeout=60)
             tdLog.info(f"do_uc_001b_influx_long_tag_key meta = {meta}")
             
             tdSql.execute(f"DROP STREAM {stream}")
