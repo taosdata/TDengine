@@ -2576,16 +2576,6 @@ static bool isVirtualTagRefCol(SVirtualTableNode* pVirtualTable, SNode* pNode) {
   if (tagRefIndex == -1) {
     tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
   }
-  if (tagRefIndex == -1) {
-    int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
-    int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
-    if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
-      int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
-      if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs && pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
-        tagRefIndex = tagPos;
-      }
-    }
-  }
 
   return tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef;
 }
@@ -2972,19 +2962,6 @@ static int32_t classifyTagColumns(SVirtualTableNode* pVirtualTable,
     int32_t tagRefIndex = findTagRefIndex(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colId);
     if (tagRefIndex == -1) {
       tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
-    }
-
-    if (tagRefIndex == -1) {
-      int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns +
-                          pVirtualTable->pMeta->tableInfo.numOfTags;
-      int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
-      if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
-        int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
-        if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs &&
-            pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
-          tagRefIndex = tagPos;
-        }
-      }
     }
 
     if (tagRefIndex >= 0 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
@@ -3423,17 +3400,6 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
       if (tagRefIndex == -1) {
         tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
       }
-      if (tagRefIndex == -1) {
-        int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
-        int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
-        if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
-          int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
-          if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs &&
-              pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
-            tagRefIndex = tagPos;
-          }
-        }
-      }
 
       // Check if this tag reference needs a RefSource node
       if (tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
@@ -3627,29 +3593,37 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
         SRealTableNode* pRefTbl = (SRealTableNode*)*ppRefTable;
         if (!pRefTbl->pMeta || !pRefTbl->pMeta->tagRef || pRefTbl->pMeta->numOfTagRefs <= 0) break;
 
-        // Find the tag-ref entry matching the current terminal colId
+        // Find the tag-ref entry matching the current terminal colId,
+        // falling back to name match. Never index tagRef by tag position:
+        // stale tagRef arrays are not aligned with schema tag positions.
         int32_t totalCols = pRefTbl->pMeta->tableInfo.numOfColumns + pRefTbl->pMeta->tableInfo.numOfTags;
-        int32_t tagSchemaIdx = -1;
-        for (int32_t si = pRefTbl->pMeta->tableInfo.numOfColumns; si < totalCols; ++si) {
-          if (pRefTbl->pMeta->schema[si].colId == terminalColId) {
-            tagSchemaIdx = si - pRefTbl->pMeta->tableInfo.numOfColumns;
+        int32_t tagRefIdx = -1;
+        for (int32_t ti = 0; ti < pRefTbl->pMeta->numOfTagRefs; ++ti) {
+          if (pRefTbl->pMeta->tagRef[ti].id == terminalColId) {
+            tagRefIdx = ti;
             break;
           }
         }
         // Also try matching by name if colId didn't match
-        if (tagSchemaIdx < 0) {
-          for (int32_t si = pRefTbl->pMeta->tableInfo.numOfColumns; si < totalCols; ++si) {
-            if (strcasecmp(pRefTbl->pMeta->schema[si].name, terminalColName) == 0) {
-              tagSchemaIdx = si - pRefTbl->pMeta->tableInfo.numOfColumns;
+        if (tagRefIdx < 0 && terminalColName[0] != '\0') {
+          for (int32_t ti = 0; ti < pRefTbl->pMeta->numOfTagRefs; ++ti) {
+            if (pRefTbl->pMeta->tagRef[ti].colName[0] != '\0' &&
+                strcasecmp(pRefTbl->pMeta->tagRef[ti].colName, terminalColName) == 0) {
+              tagRefIdx = ti;
+              break;
+            }
+            int32_t schemaIndex = findSchemaIndex(pRefTbl->pMeta->schema, totalCols, pRefTbl->pMeta->tagRef[ti].id);
+            if (schemaIndex >= 0 && strcasecmp(pRefTbl->pMeta->schema[schemaIndex].name, terminalColName) == 0) {
+              tagRefIdx = ti;
               break;
             }
           }
         }
-        if (tagSchemaIdx < 0 || tagSchemaIdx >= pRefTbl->pMeta->numOfTagRefs) break;
-        if (!pRefTbl->pMeta->tagRef[tagSchemaIdx].hasRef) break;
+        if (tagRefIdx < 0) break;
+        if (!pRefTbl->pMeta->tagRef[tagRefIdx].hasRef) break;
 
         // Follow the chain to the next level
-        SColRef* pNextRef = &pRefTbl->pMeta->tagRef[tagSchemaIdx];
+        SColRef* pNextRef = &pRefTbl->pMeta->tagRef[tagRefIdx];
         tstrncpy(curDbName, pNextRef->refDbName, TSDB_DB_NAME_LEN);
         tstrncpy(curTbName, pNextRef->refTableName, TSDB_TABLE_NAME_LEN);
 
@@ -3822,17 +3796,6 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
       if (tagRefIndex == -1) {
         tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
       }
-      if (tagRefIndex == -1) {
-        int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
-        int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
-        if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
-          int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
-          if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs &&
-              pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
-            tagRefIndex = tagPos;
-          }
-        }
-      }
 
       // Check if this tagRef needs a RefSource node
       if (tagRefIndex != -1 && pVirtualTable->pMeta->tagRef[tagRefIndex].hasRef) {
@@ -3927,17 +3890,6 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
         int32_t tagRefIndex = findTagRefIndex(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colId);
         if (tagRefIndex == -1) {
           tagRefIndex = findTagRefIndexByName(pVirtualTable->pMeta->tagRef, pVirtualTable, pCol->colName);
-        }
-        if (tagRefIndex == -1) {
-          int32_t totalCols = pVirtualTable->pMeta->tableInfo.numOfColumns + pVirtualTable->pMeta->tableInfo.numOfTags;
-          int32_t tagSchemaIndex = findSchemaIndex(pVirtualTable->pMeta->schema, totalCols, pCol->colId);
-          if (tagSchemaIndex >= pVirtualTable->pMeta->tableInfo.numOfColumns) {
-            int32_t tagPos = tagSchemaIndex - pVirtualTable->pMeta->tableInfo.numOfColumns;
-            if (tagPos >= 0 && tagPos < pVirtualTable->pMeta->numOfTagRefs &&
-                pVirtualTable->pMeta->tagRef[tagPos].hasRef) {
-              tagRefIndex = tagPos;
-            }
-          }
         }
         if (tagRefIndex == -1) {
           int32_t colRefIndex = findColRefIndex(pVirtualTable->pMeta->colRef, pVirtualTable, pCol->colId);
