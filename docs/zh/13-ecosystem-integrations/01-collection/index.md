@@ -5,7 +5,9 @@ description: 将 Prometheus、Telegraf、Kafka、Flink 等采集与流处理工�
 toc_max_heading_level: 4
 ---
 
-本节说明如何把常见监控采集组件、消息队列与流处理框架中的数据写入 TDengine，或借助连接器在两侧同步数据。企业版零代码 Kafka / MQTT 等接入也可参阅 [零代码数据写入](../../08-data-ingest-and-delivery/01-no-code-ingestion/index.md)；Flink 企业版 Source/CDC 与 Sink 详见 [数据发布](../../08-data-ingest-and-delivery/02-no-code-delivery/index.md) 中的 [Flink](../../08-data-ingest-and-delivery/02-no-code-delivery/02-Flink.md)。
+本节说明如何通过连接器或插件，把监控采集组件、消息队列与流处理框架接入 TDengine（含写入，以及 Kafka Connect 等双向同步场景）。
+
+企业版零代码 Kafka / MQTT 等接入见 [零代码数据写入](../../08-data-ingest-and-delivery/01-no-code-ingestion/index.md)；Flink 企业版 Source / CDC 与 Sink 见 [Flink](../../08-data-ingest-and-delivery/02-no-code-delivery/02-Flink.md)。
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

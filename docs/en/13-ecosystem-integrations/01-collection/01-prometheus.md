@@ -26,7 +26,7 @@ The following preparations are needed to write Prometheus data into TDengine:
 
 After restarting Prometheus, you can refer to the following example to verify that data is written from Prometheus to TDengine and can be correctly read.
 
-### Querying Written Data Using TDengine CLI
+#### Querying Written Data Using TDengine CLI
 
 ```text
 taos> show databases;
@@ -47,22 +47,22 @@ taos> show stables;
 Query OK, 1 row(s) in set (0.000487s)
 
 taos> select * from metrics limit 10;
-              ts               |           value           |             labels             |
-=============================================================================================
- 2022-04-20 07:21:09.193000000 |               0.000024996 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:14.193000000 |               0.000024996 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:19.193000000 |               0.000024996 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:24.193000000 |               0.000024996 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:29.193000000 |               0.000024996 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:09.193000000 |               0.000054249 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:14.193000000 |               0.000054249 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:19.193000000 |               0.000054249 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:24.193000000 |               0.000054249 | {"__name__":"go_gc_duration... |
- 2022-04-20 07:21:29.193000000 |               0.000054249 | {"__name__":"go_gc_duration... |
+              ts               |    value    |             labels             |
+===============================================================================
+ 2022-04-20 07:21:09.193000000 | 0.000024996 | {"__name__":"go_gc_duration... |
+ 2022-04-20 07:21:14.193000000 | 0.000024996 | {"__name__":"go_gc_duration... |
+ 2022-04-20 07:21:19.193000000 | 0.000024996 | {"__name__":"go_gc_duration... |
+ 2022-04-20 07:21:24.193000000 | 0.000024996 | {"__name__":"go_gc_duration... |
+ 2022-04-20 07:21:29.193000000 | 0.000024996 | {"__name__":"go_gc_duration... |
+ 2022-04-20 07:21:09.193000000 | 0.000054249 | {"__name__":"go_gc_duration... |
+ 2022-04-20 07:21:14.193000000 | 0.000054249 | {"__name__":"go_gc_duration... |
+ 2022-04-20 07:21:19.193000000 | 0.000054249 | {"__name__":"go_gc_duration... |
+ 2022-04-20 07:21:24.193000000 | 0.000054249 | {"__name__":"go_gc_duration... |
+ 2022-04-20 07:21:29.193000000 | 0.000054249 | {"__name__":"go_gc_duration... |
 Query OK, 10 row(s) in set (0.011146s)
 ```
 
-### Using promql-cli to Read Data from TDengine via remote_read
+#### Using promql-cli to Read Data from TDengine via remote_read
 
 Install promql-cli
 
