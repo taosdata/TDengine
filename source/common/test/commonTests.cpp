@@ -775,6 +775,18 @@ TEST(timeTest, char2ts) {
   ASSERT_EQ(-3, TEST_char2ts("yyyy-mm-DDD", &ts, TSDB_TIME_PRECISION_MILLI, "1970-01-001"));
 }
 
+TEST(timeTest, char2tsIgnoresStaleErrno) {
+  osDefaultInit();
+  int64_t       ts = 0;
+  const int32_t previousErrno = ERRNO;
+
+  SET_ERRNO(ERANGE);
+  const int32_t code = TEST_char2ts("yyyy-MM-dd", &ts, TSDB_TIME_PRECISION_MILLI, "2026-05-01");
+  SET_ERRNO(previousErrno);
+
+  ASSERT_EQ(0, code);
+}
+
 TEST(timeTest, epSet) {
   {
     SEpSet ep = {0};

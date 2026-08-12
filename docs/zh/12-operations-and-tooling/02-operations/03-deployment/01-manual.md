@@ -6,11 +6,11 @@ title: 手动部署
 
 taosd 是 TDengine 集群中最主要的服务组件，本节介绍手动部署 taosd 集群的步骤。
 
-### 1. 清除数据
+### 清除数据
 
 如果搭建集群的物理节点中存在之前的测试数据或者装过其他版本（如 1.x/2.x）的 TDengine，请先将其删除，并清空所有数据。
 
-### 2. 检查环境
+### 检查环境
 
 在进行 TDengine 集群部署之前，全面检查所有 dnode 以及应用程序所在物理节点的网络设置至关重要。以下是检查步骤：
 
@@ -21,11 +21,11 @@ taosd 是 TDengine 集群中最主要的服务组件，本节介绍手动部署 
 
 通过以上步骤，你可以确保所有节点在网络层面顺利通信，从而为成功部署 TDengine 集群奠定坚实基础
 
-### 3. 安装
+### 安装
 
 为了确保集群内各物理节点的一致性和稳定性，请在所有物理节点上安装相同版本的 TDengine。
 
-### 4. 修改配置
+### 修改配置
 
 修改 TDengine 的配置文件（所有节点的配置文件都需要修改）。假设准备启动的第 1 个 dnode 的 endpoint 为 h1.taosdata.com:6030，其与集群配置相关参数如下。
 
@@ -50,7 +50,7 @@ serverPort 6030
 |charset | 字符集编码 |
 |ttlChangeOnWrite | ttl 到期时间是否伴随表的修改操作而改变 |
 
-### 5. 启动
+### 启动
 
 按照前述步骤启动第 1 个 dnode，例如 h1.taosdata.com。接着在终端中执行 `taos`，启动 `taos` shell，并在其中执行 `show dnodes` 命令，以查看当前集群中的所有 dnode 信息。
 
@@ -63,7 +63,7 @@ taos> show dnodes;
 
 可以看到，刚刚启动的 dnode 节点的 endpoint 为 h1.taosdata.com:6030。这个地址就是新建集群的 first Ep。
 
-### 6. 添加 dnode
+### 添加 dnode
 
 按照前述步骤，在每个物理节点启动 `taosd`。每个 dnode 都需要在 `taos.cfg` 文件中将 `firstEp` 参数配置为新建集群首个节点的 endpoint，在本例中是 h1.taosdata.com:6030。在第 1 个 dnode 所在机器，在终端中运行 `taos`，打开 `taos` shell，然后登录 TDengine 集群，执行如下 SQL。
 
@@ -85,7 +85,7 @@ show dnodes;
 - 两个没有配置 `firstEp` 参数的 dnode 在启动后会独立运行。这时无法将其中一个 dnode 加入另外一个 dnode，形成集群。
 - TDengine 不允许将两个独立的集群合并成新的集群。
 
-### 7. 添加 mnode
+### 添加 mnode
 
 在创建 TDengine 集群时，首个 dnode 将自动成为集群的 mnode，负责集群的管理和协调工作。为了实现 mnode 的高可用性，后续添加的 dnode 需要手动创建 mnode。请注意，一个集群最多允许创建 3 个 mnode，且每个 dnode 上只能创建一个 mnode。当集群中的 dnode 数量达到或超过 3 个时，你可以为现有集群创建 mnode。在第 1 个 dnode 中，首先通过 `taos` shell 登录 TDengine，然后执行如下 SQL。
 
