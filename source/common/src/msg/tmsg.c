@@ -16965,10 +16965,10 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     }
   } else if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow));
-    TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schemaTag));
-    if (pReq->ntb.schemaTag.nCols > 0) {
-      TAOS_CHECK_EXIT(tDecodeTag(pCoder, (STag **)&pReq->ntb.pTags));
-    }
+    // NOTE: owned-tag schema (ntb.schemaTag) is NOT read here. On the encode side the ntb branch
+    // only writes schemaRow; schemaTag is written as a trailing field near tEndEncode (gated by
+    // tDecodeIsEnd on decode). Reading schemaTag at this position consumed sqlLen's bytes, advanced
+    // pos by 2, and misaligned every subsequent field -> TSDB_CODE_OUT_OF_RANGE (0x80000112).
   } else {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
@@ -17031,11 +17031,19 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
   }
   // owned tag schema/values: trailing field gated by tDecodeIsEnd, so messages from peers built
   // before this field existed still decode (ntb.schemaTag stays zeroed -> tag-less).
+  // NOTE: use the non-Ex tDecodeSSchemaWrapper (taosMemoryCalloc) here, NOT the Ex variant
+  // (tDecoderMalloc). The Ex pointer is owned by the decode buffer and must not be freed, but
+  // tdDestroySVCreateTbReq() unconditionally calls taosMemoryFreeClear(ntb.schemaTag.pSchema) on
+  // every path that owns the SVCreateTbReq (e.g. the auto-create pCreateTbReq carried in submit).
+  // Using calloc keeps pSchema free-able and avoids free()-of-buffer-pointer crashes.
   if (pReq->type == TSDB_NORMAL_TABLE || pReq->type == TSDB_VIRTUAL_NORMAL_TABLE) {
     if (!tDecodeIsEnd(pCoder)) {
-      TAOS_CHECK_EXIT(tDecodeSSchemaWrapperEx(pCoder, &pReq->ntb.schemaTag));
+      TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schemaTag));
       if (pReq->ntb.schemaTag.nCols > 0) {
-        TAOS_CHECK_EXIT(tDecodeTag(pCoder, (STag **)&pReq->ntb.pTags));
+        // use the Alloc variant (taosMemoryMalloc) like ctb.pTag does, so tdDestroySVCreateTbReq's
+        // taosMemoryFreeClear(ntb.pTags) is valid. tDecodeTag/tDecodeBinary returns a pointer into
+        // the decode buffer (tDecoderMalloc) which must NOT be freed.
+        TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(pCoder, (void **)&pReq->ntb.pTags, NULL));
       }
     }
   }
