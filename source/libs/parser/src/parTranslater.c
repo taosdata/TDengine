@@ -1229,12 +1229,14 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
 
     code = catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
   }
+  
   if (TSDB_CODE_SUCCESS == code && pParCxt->txnId > 0 && *pMeta != NULL && pParCxt->pTxnSuidMap &&
       ((*pMeta)->tableType == TSDB_CHILD_TABLE || (*pMeta)->tableType == TSDB_VIRTUAL_CHILD_TABLE) &&
       isParentStbDroppedInTxn(pParCxt, (*pMeta)->suid)) {
     taosMemoryFreeClear(*pMeta);
     code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
   }
+
   if (TSDB_CODE_SUCCESS == code && NULL != pMeta && NULL != *pMeta && (*pMeta)->virtualStb &&
       ((*pMeta)->tableType == TSDB_VIRTUAL_CHILD_TABLE || (*pMeta)->tableType == TSDB_VIRTUAL_NORMAL_TABLE) &&
       (((*pMeta)->numOfColRefs > 0 && (*pMeta)->colRef) || ((*pMeta)->numOfTagRefs > 0 && (*pMeta)->tagRef))) {
@@ -1929,31 +1931,6 @@ static int32_t isTimeLineAlignedQuery(SNode* pStmt, bool* pRes) {
   return code;
 }
 
-static bool projectionListHasTimestamp(SNodeList* pProjectionList) {
-  SNode* pNode = NULL;
-  FOREACH(pNode, pProjectionList) {
-    if (NULL != pNode && TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pNode)->resType.type) {
-      return true;
-    }
-  }
-  return false;
-}
-
-static bool selectInputHasNoTimestamp(SSelectStmt* pSelect) {
-  if (NULL == pSelect || NULL == pSelect->pFromTable || QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable)) {
-    return false;
-  }
-
-  SNode* pSubquery = ((STempTableNode*)pSelect->pFromTable)->pSubquery;
-  if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
-    return !projectionListHasTimestamp(((SSelectStmt*)pSubquery)->pProjectionList);
-  }
-  if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
-    return !projectionListHasTimestamp(((SSetOperator*)pSubquery)->pProjectionList);
-  }
-  return false;
-}
-
 bool isPrimaryKeyImpl(SNode* pExpr) {
   if (!pExpr) {
     return false;
@@ -2072,6 +2049,7 @@ static void setVtbColumnInfoBySchema(const SVirtualTableNode* pTable, const SSch
   }
 }
 
+// Find the primary timestamp schema entry (colId == PRIMARYKEY_TIMESTAMP_COL_ID).
 // For normal TDengine tables schema[0] is always the primary ts.
 // For external tables (after colId swap), the primary ts may be at a different index.
 static const SSchema* findPrimaryTsSchema(const STableMeta* pMeta) {
@@ -2110,9 +2088,7 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   pCol->isPk = (pCol->tableHasPk) && (pColSchema->flags & COL_IS_KEY);
   pCol->numOfPKs = pTable->pMeta->tableInfo.numOfPKs;
 
-  if (pExtSchema && (pCol->node.resType.type != TSDB_DATA_TYPE_TIMESTAMP || pTable->pMeta->extSrcSynthetic)) {
-    fillTypeFromTypeMod(&pCol->node.resType, pExtSchema->typeMod);
-  }
+  if (pExtSchema) fillTypeFromTypeMod(&pCol->node.resType, pExtSchema->typeMod);
 }
 
 static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SColumnNode** pColRef, bool joinSrc) {
@@ -2150,7 +2126,7 @@ static int32_t setColumnInfoByExpr(STempTableNode* pTable, SExprNode* pExpr, SCo
 }
 
 static void setColumnPrimTs(STranslateContext* pCxt, SColumnNode* pCol, const STableNode* pTable) {
-  if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId || TSDB_DATA_TYPE_TIMESTAMP != pCol->node.resType.type) {
+  if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
     return;
   }
 
@@ -2219,54 +2195,16 @@ static int32_t createColumnByRealTable(STranslateContext* pCxt, const STableNode
                                        SNodeList* pList) {
   int32_t           code = TSDB_CODE_SUCCESS;
   SColumnNode*      pCol = NULL;
-  SRealTableNode* pRealTable = (SRealTableNode*)pTable;
-  const STableMeta* pMeta = pRealTable->pMeta;
-  if (pMeta->extSrcSynthetic && NULL != pRealTable->pExtTableNode) {
-    const SExtTableNode* pExtNode = (const SExtTableNode*)pRealTable->pExtTableNode;
-    const SExtTableMeta* pExtMeta = pExtNode->pExtMeta;
-    if (NULL != pExtMeta && NULL != pExtMeta->pCols && pExtMeta->numOfCols > INT16_MAX) {
-      int32_t rawCols = 0;
-      int32_t rawTags = 0;
-      for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
-        if (pExtMeta->pCols[i].isTag) {
-          ++rawTags;
-        } else {
-          ++rawCols;
-        }
-      }
-      if (rawCols > TSDB_MAX_COLUMNS_NON_VIRTUAL) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_REQUIRED_COLUMNS_TOO_MANY,
-                                       "External table '%s': SELECT * requires %d columns, max %d",
-                                       pTable->tableName, rawCols, TSDB_MAX_COLUMNS_NON_VIRTUAL);
-      }
-      if (!igTags && rawTags > TSDB_MAX_TAGS) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_REQUIRED_TAGS_TOO_MANY,
-                                       "External table '%s': SELECT * requires %d tags, max %d",
-                                       pTable->tableName, rawTags, TSDB_MAX_TAGS);
-      }
-      if (igTags) {
-        code = ensureExternalSyntheticStarColumns(pRealTable, false);
-        if (TSDB_CODE_SUCCESS != code) {
-          return code;
-        }
-        pMeta = pRealTable->pMeta;
-      }
-    }
-  }
+  const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
   int32_t           nums = pMeta->tableInfo.numOfColumns +
                  (igTags ? 0
-                         : ((TSDB_SUPER_TABLE == pMeta->tableType || pRealTable->stbRewrite)
+                         : ((TSDB_SUPER_TABLE == pMeta->tableType || ((SRealTableNode*)pTable)->stbRewrite)
                                 ? pMeta->tableInfo.numOfTags
                                 : 0));
   for (int32_t i = 0; i < nums; ++i) {
     if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
       pCxt->pParseCxt->hasInvisibleCol = true;
       continue;
-    }
-    if (pMeta->extSrcSynthetic && TSDB_DATA_TYPE_NULL == pMeta->schema[i].type) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
-                                     "External table '%s': column '%s' type cannot be mapped to any TDengine type",
-                                     pTable->tableName, pMeta->schema[i].name);
     }
     PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
     SSchemaExt* pSchemaExt =
@@ -2504,11 +2442,6 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
     if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
-      if (pMeta->extSrcSynthetic && TSDB_DATA_TYPE_NULL == pMeta->schema[i].type) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
-                                       "External table '%s': column '%s' type cannot be mapped to any TDengine type",
-                                       pTable->tableName, pCol->colName);
-      }
       if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pCol->colName);
       }
@@ -2537,45 +2470,12 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
   if (!(*pFound)) {
     SRealTableNode* pRealTable = (SRealTableNode*)pTable;
     if (NULL != pRealTable->pExtTableNode) {
-      int32_t lazyCode = ensureExternalSyntheticColumn(pRealTable, pCol->colName);
-      if (TSDB_CODE_SUCCESS == lazyCode) {
-        pMeta = pRealTable->pMeta;
-        nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
-        for (int32_t i = 0; i < nums; ++i) {
-          if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
-            if (pMeta->extSrcSynthetic && TSDB_DATA_TYPE_NULL == pMeta->schema[i].type) {
-              return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
-                                             "External table '%s': column '%s' type cannot be mapped to any TDengine type",
-                                             pTable->tableName, pCol->colName);
-            }
-            SSchemaExt* pSchemaExt =
-                pMeta->schemaExt ? (i >= pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
-            setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i,
-                                  (i - pMeta->tableInfo.numOfColumns), pCol, pSchemaExt);
-            setColumnPrimTs(pCxt, pCol, pTable);
-            *pFound = true;
-            break;
-          }
-        }
-      } else if (TSDB_CODE_EXT_COLUMN_NOT_EXIST != lazyCode) {
-        return lazyCode;
-      }
-
-      if (*pFound) {
-        return TSDB_CODE_SUCCESS;
-      }
-
       int32_t refreshCode = refreshExternalTableMetaDirect(pCxt, pRealTable, pCol->colName);
       if (TSDB_CODE_SUCCESS == refreshCode) {
         pMeta = pRealTable->pMeta;
         nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
         for (int32_t i = 0; i < nums; ++i) {
           if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
-            if (pMeta->extSrcSynthetic && TSDB_DATA_TYPE_NULL == pMeta->schema[i].type) {
-              return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
-                                             "External table '%s': column '%s' type cannot be mapped to any TDengine type",
-                                             pTable->tableName, pCol->colName);
-            }
             if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
               return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pCol->colName);
             }
@@ -3180,7 +3080,6 @@ static EDealRes translateColumnInGroupByClause(STranslateContext* pCxt, SColumnN
     res = translateColumnWithPrefix(pCxt, pCol);
   } else {
     bool found = false;
-    // Source columns take precedence over projection aliases in grouping clauses.
     res = translateColumnWithoutPrefix(pCxt, pCol, &found);
     if (!found && !(*pCol)->node.asParam) {
       res = translateColumnUseAlias(pCxt, pCol, &found);
@@ -3640,26 +3539,8 @@ static int32_t dataTypeComp(const SDataType* l, const SDataType* r) {
   return (l->precision == r->precision && l->scale == r->scale) ? 0 : 1;
 }
 
-// FQ: fetch the original subquery SQL captured at parse time from a query stmt
-// (SSelectStmt / SSetOperator).  Returns NULL when absent.
-static const char* getStmtOrigSubquerySql(const SNode* pStmt) {
-  if (NULL == pStmt) return NULL;
-  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-    return ((const SSelectStmt*)pStmt)->pOrigSubquerySql;
-  }
-  if (QUERY_NODE_SET_OPERATOR == nodeType(pStmt)) {
-    return ((const SSetOperator*)pStmt)->pOrigSubquerySql;
-  }
-  return NULL;
-}
-
 static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode* pSubQuery, int32_t rewriteType) {
   int32_t code = TSDB_CODE_SUCCESS;
-
-  // Original subquery SQL (captured at parse time).  For MIN/MAX-rewritten
-  // ALL/ANY paths, pSubQuery is the wrapper stmt that carries the forwarded
-  // original SQL (see rewriteExprSubQResToMinMax).
-  const char* pOrigSql = getStmtOrigSubquerySql(pSubQuery);
 
   switch (pCxt->expSubQueryType) {
     case E_SUB_QUERY_SCALAR: {
@@ -3675,12 +3556,6 @@ static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
         tstrncpy(pValue->val.node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pValue->val.node.aliasName));
         tstrncpy(pValue->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pValue->val.node.userAlias));
         getExprSubQueryResType(pSubQuery, &pValue->val.node.resType);
-        if (pOrigSql) {
-          pValue->val.literal = taosStrdup(pOrigSql);
-          if (NULL == pValue->val.literal) {
-            code = TSDB_CODE_OUT_OF_MEMORY;
-          }
-        }
       }
       break;
     }
@@ -3704,12 +3579,6 @@ static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
         tstrncpy(pValueList->node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pValueList->node.aliasName));
         tstrncpy(pValueList->node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pValueList->node.userAlias));
         getExprSubQueryResType(pSubQuery, &pValueList->node.resType);
-        if (pOrigSql) {
-          pValueList->inSubquerySql = taosStrdup(pOrigSql);
-          if (NULL == pValueList->inSubquerySql) {
-            code = TSDB_CODE_OUT_OF_MEMORY;
-          }
-        }
       } else {
         code = nodesMakeNode(QUERY_NODE_REMOTE_ROW, pNode);
         if (TSDB_CODE_SUCCESS != code) {
@@ -3723,12 +3592,6 @@ static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
         tstrncpy(pRow->val.node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pRow->val.node.aliasName));
         tstrncpy(pRow->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pRow->val.node.userAlias));
         getExprSubQueryResType(pSubQuery, &pRow->val.node.resType);
-        if (pOrigSql) {
-          pRow->pSubquerySql = taosStrdup(pOrigSql);
-          if (NULL == pRow->pSubquerySql) {
-            code = TSDB_CODE_OUT_OF_MEMORY;
-          }
-        }
       }
       break;
     }
@@ -3753,18 +3616,12 @@ static int32_t replaceExprSubQuery(STranslateContext* pCxt, SNode** pNode, SNode
       }
 
       SRemoteZeroRowsNode* pRows = (SRemoteZeroRowsNode*)*pNode;
-      pRows->val.flag |= VALUE_FLAG_VAL_UNSET | VALUE_FLAG_REMOTE_PLAN;
+      pRows->val.flag |= VALUE_FLAG_VAL_UNSET;
       pRows->subQIdx = pCxt->pSubQueries->length - 1;
       tstrncpy(pRows->val.node.aliasName, ((SExprNode*)pSubQuery)->aliasName, sizeof(pRows->val.node.aliasName));
       tstrncpy(pRows->val.node.userAlias, ((SExprNode*)pSubQuery)->userAlias, sizeof(pRows->val.node.userAlias));
       pRows->val.node.resType.type = TSDB_DATA_TYPE_INT;
       pRows->val.node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
-      if (pOrigSql) {
-        pRows->val.literal = taosStrdup(pOrigSql);
-        if (NULL == pRows->val.literal) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
-        }
-      }
       break;
     }
     default:
@@ -3984,20 +3841,6 @@ static int32_t rewriteExprSubQResToMinMax(STranslateContext* pCxt, SNode* pSubQu
 
   pNewStmt->subQType = E_SUB_QUERY_ROW;
 
-  // FQ: forward the original subquery SQL from the inner stmt to the MIN/MAX
-  // wrapper stmt, so replaceExprSubQuery can store it on the REMOTE_ROW node
-  // for same-source ALL/ANY/SOME pushdown rendering.
-  {
-    const char* pInnerOrig = getStmtOrigSubquerySql(pSubQuery);
-    if (pInnerOrig && NULL == pNewStmt->pOrigSubquerySql) {
-      pNewStmt->pOrigSubquerySql = taosStrdup(pInnerOrig);
-      if (NULL == pNewStmt->pOrigSubquerySql) {
-        nodesDestroyNode((SNode*)pNewStmt);
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-    }
-  }
-
   if (pCxt->pSubQueries->pTail->pNode == pSubQuery) {
     pCxt->pSubQueries->pTail->pNode = (SNode*)pNewStmt;
   } else {
@@ -4126,15 +3969,17 @@ static int32_t rewriteExprSubQuery(STranslateContext* pCxt, SOperatorNode* pOp) 
         break;
       }
 
-      if (!isValidSubQCompDataType(getNodeDataType(pOp->pLeft), getNodeDataType(pOp->pRight), pOp->opType)) {
-        pCxt->errCode = TSDB_CODE_SCALAR_CONVERT_ERROR;
+      int32_t leftType = getNodeDataType(pOp->pLeft);
+      int32_t rightType = getNodeDataType(pOp->pRight);
+      bool blobEquality = (OP_TYPE_EQUAL == pOp->opType || OP_TYPE_NOT_EQUAL == pOp->opType) &&
+                          (TSDB_DATA_TYPE_BLOB == leftType || TSDB_DATA_TYPE_BLOB == rightType ||
+                           TSDB_DATA_TYPE_MEDIUMBLOB == leftType || TSDB_DATA_TYPE_MEDIUMBLOB == rightType) &&
+                          TSDB_DATA_TYPE_JSON != leftType && TSDB_DATA_TYPE_JSON != rightType;
+      if (blobEquality || !isValidSubQCompDataType(leftType, rightType, pOp->opType)) {
+        pCxt->errCode = blobEquality ? TSDB_CODE_BLOB_OP_NOT_SUPPORTED : TSDB_CODE_SCALAR_CONVERT_ERROR;
         break;
       }
 
-      // The original subquery SQL (captured at parse time) is stored onto the
-      // rewritten REMOTE_* node inside replaceExprSubQuery.  The collect phase
-      // decides pushdown purely from the capability matrix; the renderer inlines
-      // that original SQL directly.  No pre-rendering here.
       pCxt->errCode = doRewriteExprSubQuery(pCxt, pOp, &pOp->pRight);
       break;
     }
@@ -4243,78 +4088,6 @@ static bool isColumnFromExternalTable(STranslateContext* pCxt, SNode* pNode) {
   return ((SRealTableNode*)pTable)->pExtTableNode != NULL;
 }
 
-static bool queryHasExternalTable(const SNode* pQuery);
-
-static bool tableHasExternalTable(const SNode* pTable) {
-  if (NULL == pTable) {
-    return false;
-  }
-
-  switch (nodeType(pTable)) {
-    case QUERY_NODE_REAL_TABLE:
-      return NULL != ((const SRealTableNode*)pTable)->pExtTableNode;
-    case QUERY_NODE_EXTERNAL_TABLE:
-      return true;
-    case QUERY_NODE_TEMP_TABLE:
-      return queryHasExternalTable(((const STempTableNode*)pTable)->pSubquery);
-    case QUERY_NODE_JOIN_TABLE: {
-      const SJoinTableNode* pJoin = (const SJoinTableNode*)pTable;
-      return tableHasExternalTable(pJoin->pLeft) || tableHasExternalTable(pJoin->pRight);
-    }
-    case QUERY_NODE_VIRTUAL_TABLE: {
-      const SVirtualTableNode* pVtable = (const SVirtualTableNode*)pTable;
-      return NULL != pVtable->pExtSourceNames && taosArrayGetSize(pVtable->pExtSourceNames) > 0;
-    }
-    default:
-      return false;
-  }
-}
-
-// Federated cross-precision rules apply to a complete query tree, not just the current column.
-static bool queryHasExternalTable(const SNode* pQuery) {
-  if (NULL == pQuery) {
-    return false;
-  }
-
-  switch (nodeType(pQuery)) {
-    case QUERY_NODE_SELECT_STMT:
-      return tableHasExternalTable(((const SSelectStmt*)pQuery)->pFromTable);
-    case QUERY_NODE_SET_OPERATOR: {
-      const SSetOperator* pSet = (const SSetOperator*)pQuery;
-      return queryHasExternalTable(pSet->pLeft) || queryHasExternalTable(pSet->pRight);
-    }
-    case QUERY_NODE_INSERT_STMT:
-      return queryHasExternalTable(((const SInsertStmt*)pQuery)->pQuery);
-    case QUERY_NODE_EXPLAIN_STMT:
-      return queryHasExternalTable(((const SExplainStmt*)pQuery)->pQuery);
-    default:
-      return false;
-  }
-}
-
-// Walk context for hasExternalTableInExpr
-typedef struct {
-  STranslateContext* pTransCxt;
-  bool               found;
-} SHasExtTableCxt;
-
-static EDealRes hasExtTableInExprWalker(SNode* pNode, void* pContext) {
-  SHasExtTableCxt* pCxt = (SHasExtTableCxt*)pContext;
-  if (isColumnFromExternalTable(pCxt->pTransCxt, pNode)) {
-    pCxt->found = true;
-    return DEAL_RES_END;
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-// Return true if pNode or any sub-expression references a column from an external table.
-// This handles cases like MAX(time) where time is an InfluxDB column.
-static bool hasExternalTableInExpr(STranslateContext* pCxt, SNode* pNode) {
-  if (NULL == pNode) return false;
-  SHasExtTableCxt cxt = {.pTransCxt = pCxt, .found = false};
-  nodesWalkExpr(pNode, hasExtTableInExprWalker, &cxt);
-  return cxt.found;
-}
 // Create a __timestamp_scale(expr, target_precision) function node.
 // The caller must NOT free pExpr after this call — ownership transfers to the function node.
 static int32_t createTimestampScaleNode(SNode* pExpr, int8_t targetPrec, SNode** ppOut) {
@@ -4375,7 +4148,7 @@ static int32_t createTimestampScaleNode(SNode* pExpr, int8_t targetPrec, SNode**
   return TSDB_CODE_SUCCESS;
 }
 
-// Cross-precision TIMESTAMP scaling for IN/NOT IN operators.
+// DS §5.3.12.4.2: Cross-precision TIMESTAMP scaling for IN/NOT IN operators.
 // target_precision = MAX(left precision, right side precision).
 // Scale the coarser side to the finer precision.
 static int32_t insertTimestampScaleForInOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
@@ -4414,6 +4187,18 @@ static int32_t insertTimestampScaleForInOperator(STranslateContext* pCxt, SOpera
     }
     if (!needScale) return TSDB_CODE_SUCCESS;
 
+    // At least one side must be from an external table
+    bool hasExternal = isColumnFromExternalTable(pCxt, pOp->pLeft);
+    if (!hasExternal) {
+      FOREACH(pItem, pList->pNodeList) {
+        if (isColumnFromExternalTable(pCxt, pItem)) {
+          hasExternal = true;
+          break;
+        }
+      }
+    }
+    if (!hasExternal) return TSDB_CODE_SUCCESS;
+
     // Scale left if coarser
     if (pLeft->resType.precision < targetPrec) {
       code = createTimestampScaleNode(pOp->pLeft, targetPrec, &pOp->pLeft);
@@ -4435,8 +4220,7 @@ static int32_t insertTimestampScaleForInOperator(STranslateContext* pCxt, SOpera
     pList->node.resType.precision = targetPrec;
 
   } else {
-    // Subquery / RemoteValueList case: ts IN (SELECT ts FROM source_table)
-
+    // Subquery / RemoteValueList case: ts IN (SELECT ts FROM ext_table)
     SExprNode* pRight = (SExprNode*)pOp->pRight;
     if (pRight->resType.type != TSDB_DATA_TYPE_TIMESTAMP) return TSDB_CODE_SUCCESS;
     if (pLeft->resType.precision == pRight->resType.precision) return TSDB_CODE_SUCCESS;
@@ -4485,13 +4269,9 @@ static int32_t insertTimestampScaleForInOperator(STranslateContext* pCxt, SOpera
   return TSDB_CODE_SUCCESS;
 }
 
-static bool isStmtPlaceholderValue(const SNode* pNode) {
-  return QUERY_NODE_VALUE == nodeType(pNode) && ((const SValueNode*)pNode)->placeholderNo > 0;
-}
-
-// Insert __timestamp_scale nodes for cross-precision TIMESTAMP comparisons.
-// When both sides are TIMESTAMP with different precision, scale the coarser side to the
-// finer precision. This applies to every query, including local cross-database queries.
+// Insert __timestamp_scale nodes for cross-precision TIMESTAMP comparison in operators.
+// Per DS §5.3.12.4.1: when both sides are TIMESTAMP with different precision and at least
+// one side is from an external table, scale the coarser side to the finer precision.
 static int32_t insertTimestampScaleForOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   if (NULL == pOp->pLeft || NULL == pOp->pRight) return TSDB_CODE_SUCCESS;
 
@@ -4506,19 +4286,20 @@ static int32_t insertTimestampScaleForOperator(STranslateContext* pCxt, SOperato
   SExprNode* pLeft = (SExprNode*)pOp->pLeft;
   SExprNode* pRight = (SExprNode*)pOp->pRight;
 
-  // Statement parameters keep their existing bind-time timestamp handling.
-  if (isStmtPlaceholderValue(pOp->pLeft) || isStmtPlaceholderValue(pOp->pRight)) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   // Both sides must be TIMESTAMP
   if (pLeft->resType.type != TSDB_DATA_TYPE_TIMESTAMP ||
       pRight->resType.type != TSDB_DATA_TYPE_TIMESTAMP) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // Precisions must differ — if they match, nothing to scale.
+  // Precisions must differ
   if (pLeft->resType.precision == pRight->resType.precision) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // At least one side must be from an external table
+  if (!isColumnFromExternalTable(pCxt, pOp->pLeft) &&
+      !isColumnFromExternalTable(pCxt, pOp->pRight)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -4886,6 +4667,7 @@ static int32_t getKParamForKRowFunc(SFunctionNode* pFunc) {
   }
   return -1;
 }
+
 static bool hasFillClause(SNode* pCurrStmt) {
   if (!isSelectStmt(pCurrStmt)) {
     return false;
@@ -4893,38 +4675,6 @@ static bool hasFillClause(SNode* pCurrStmt) {
   SSelectStmt* pSelect = (SSelectStmt*)pCurrStmt;
   return NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow) &&
          NULL != ((SIntervalWindowNode*)pSelect->pWindow)->pFill;
-}
-
-static bool canCoexistWindowIndefiniteRowsFunc(int32_t firstFuncId, int32_t secondFuncId) {
-  if (firstFuncId == secondFuncId) {
-    return true;
-  }
-
-  EFunctionType firstType = fmGetFuncTypeFromId(firstFuncId);
-  EFunctionType secondType = fmGetFuncTypeFromId(secondFuncId);
-  return (FUNCTION_TYPE_LAG == firstType && FUNCTION_TYPE_LEAD == secondType) ||
-         (FUNCTION_TYPE_LEAD == firstType && FUNCTION_TYPE_LAG == secondType);
-}
-
-static bool hasIncompatibleWindowIndefiniteRowsFunc(SSelectStmt* pSelect, SFunctionNode* pFunc) {
-  if (NULL == pSelect->pWindow) {
-    return false;
-  }
-
-  SNode* pProjection = NULL;
-  FOREACH(pProjection, pSelect->pProjectionList) {
-    if (pProjection == (SNode*)pFunc) {
-      break;
-    }
-    if (QUERY_NODE_FUNCTION == nodeType(pProjection)) {
-      SFunctionNode* pPreviousFunc = (SFunctionNode*)pProjection;
-      if (fmIsIndefiniteRowsFunc(pPreviousFunc->funcId) &&
-          !canCoexistWindowIndefiniteRowsFunc(pPreviousFunc->funcId, pFunc->funcId)) {
-        return true;
-      }
-    }
-  }
-  return false;
 }
 
 static int32_t translateIndefiniteRowsFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
@@ -4936,12 +4686,6 @@ static int32_t translateIndefiniteRowsFunc(STranslateContext* pCxt, SFunctionNod
                                    "Indefinite rows function '%s' only allowed in select clause", pFunc->functionName);
   }
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-
-  if (hasIncompatibleWindowIndefiniteRowsFunc(pSelect, pFunc)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                                   "Indefinite rows function '%s' cannot coexist with other window functions",
-                                   pFunc->functionName);
-  }
 
   if (pFunc->funcType == FUNCTION_TYPE_TAIL) {
     // TAIL is a K-row indefinite function; it may coexist with TOP/BOTTOM (multi-rows) when K matches.
@@ -5300,7 +5044,7 @@ static int32_t translateTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFu
     }
     int32_t code = isTimeLineAlignedQuery(pCxt->pCurrStmt, &isTimelineAlignedQuery);
     if (TSDB_CODE_SUCCESS != code) return code;
-    if (!isTimelineAlignedQuery && !(fmSupportsNoTimelineRowOrder(pFunc->funcId) && selectInputHasNoTimestamp(pSelect)))
+    if (!isTimelineAlignedQuery)
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                      "Function '%s' requires valid time series input", pFunc->functionName);
   }
@@ -5406,11 +5150,6 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
     case FUNCTION_TYPE_TWROWNUM: {
       BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_WROWNUM);
       PAR_ERR_JRET(nodesMakeValueNodeFromInt64(0, &extraValue));
-      break;
-    }
-    case FUNCTION_TYPE_TEVENT_CONDITION_PATH: {
-      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_EVENT_CONDITION_PATH);
-      PAR_ERR_JRET(nodesMakeValueNodeFromString("", (SValueNode**)&extraValue));
       break;
     }
     case FUNCTION_TYPE_TPREV_LOCALTIME: {
@@ -5639,19 +5378,11 @@ static int32_t translateRepeatScanFunc(STranslateContext* pCxt, SFunctionNode* p
   SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
   SNode*       pTable = pSelect->pFromTable;
   // select percentile() without from clause is also valid
-  if (NULL != pTable) {
-    bool singleTable = false;
-    if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-      SRealTableNode* pRealTable = (SRealTableNode*)pTable;
-      // Federated external tables still represent a single remote table even
-      // when tag-aware translation marks them as TSDB_SUPER_TABLE.
-      singleTable = TSDB_CHILD_TABLE == pRealTable->pMeta->tableType ||
-                    TSDB_NORMAL_TABLE == pRealTable->pMeta->tableType || NULL != pRealTable->pExtTableNode;
-    }
-    if (!singleTable) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
-                                     "%s is only supported in single table query", pFunc->functionName);
-    }
+  if ((NULL != pTable && (QUERY_NODE_REAL_TABLE != nodeType(pTable) ||
+                          (TSDB_CHILD_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType &&
+                           TSDB_NORMAL_TABLE != ((SRealTableNode*)pTable)->pMeta->tableType)))) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_SUPPORT_SINGLE_TABLE,
+                                   "%s is only supported in single table query", pFunc->functionName);
   }
   if (NULL != pSelect->pPartitionByList) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
@@ -5788,12 +5519,6 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
     pSelect->hasInterpFunc = pSelect->hasInterpFunc ? true : (FUNCTION_TYPE_INTERP == pFunc->funcType);
     pSelect->hasTwaOrElapsedFunc = pSelect->hasTwaOrElapsedFunc ? true
                                                                 : (FUNCTION_TYPE_TWA == pFunc->funcType ||
-                                                                   FUNCTION_TYPE_TWAVG_LINEAR == pFunc->funcType ||
-                                                                   FUNCTION_TYPE_TWAVG_LOCF == pFunc->funcType ||
-                                                                   FUNCTION_TYPE_TWSUM_LINEAR == pFunc->funcType ||
-                                                                   FUNCTION_TYPE_TWSUM_LOCF == pFunc->funcType ||
-                                                                   FUNCTION_TYPE_TWVAR_LINEAR == pFunc->funcType ||
-                                                                   FUNCTION_TYPE_TWVAR_LOCF == pFunc->funcType ||
                                                                    FUNCTION_TYPE_ELAPSED == pFunc->funcType);
     pSelect->hasInterpPseudoColFunc = pSelect->hasInterpPseudoColFunc || fmIsInterpPseudoColumnFunc(pFunc->funcId);
     pSelect->hasForecastFunc = pSelect->hasForecastFunc || (FUNCTION_TYPE_FORECAST == pFunc->funcType);
@@ -5806,8 +5531,7 @@ static void setFuncClassification(STranslateContext* pCxt, SFunctionNode* pFunc)
         fmIsAnalysisPseudoColumnFunc(pFunc->funcId) && (pFunc->funcType != FUNCTION_TYPE_ANOMALY_MARK);
     pSelect->hasLastRowFunc = pSelect->hasLastRowFunc ? true : (FUNCTION_TYPE_LAST_ROW == pFunc->funcType);
     pSelect->hasLastFunc = pSelect->hasLastFunc ? true : (FUNCTION_TYPE_LAST == pFunc->funcType);
-    bool noTimelineRowOrderFunc = fmSupportsNoTimelineRowOrder(pFunc->funcId) && selectInputHasNoTimestamp(pSelect);
-    pSelect->hasTimeLineFunc = pSelect->hasTimeLineFunc ? true : (fmIsTimelineFunc(pFunc->funcId) && !noTimelineRowOrderFunc);
+    pSelect->hasTimeLineFunc = pSelect->hasTimeLineFunc ? true : fmIsTimelineFunc(pFunc->funcId);
     pSelect->hasUdaf =
         pSelect->hasUdaf ? true : !isSqlWindowFunc && fmIsUserDefinedFunc(pFunc->funcId) && fmIsAggFunc(pFunc->funcId);
     if (SQL_CLAUSE_SELECT == pCxt->currClause) {
@@ -6418,39 +6142,9 @@ static int32_t updateSubQResType(SNode* pNode) {
   return code;
 }
 
-typedef struct SNestedExprSubqueryCxt {
-  bool found;
-} SNestedExprSubqueryCxt;
-
-static EDealRes findNestedExprSubquery(SNode* pNode, void* pContext) {
-  SNestedExprSubqueryCxt* pCxt = pContext;
-  if (QUERY_NODE_SELECT_STMT == nodeType(pNode) || QUERY_NODE_SET_OPERATOR == nodeType(pNode)) {
-    pCxt->found = true;
-    return DEAL_RES_END;
-  }
-  return DEAL_RES_CONTINUE;
-}
-
-static bool scalarSubqueryHasNestedExprSubquery(SNode* pNode) {
-  if (QUERY_NODE_SELECT_STMT != nodeType(pNode)) {
-    return false;
-  }
-
-  SNestedExprSubqueryCxt cxt = {0};
-  nodesWalkSelectStmt((SSelectStmt*)pNode, SQL_CLAUSE_FROM, findNestedExprSubquery, &cxt);
-  return cxt.found;
-}
-
 static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode** pNode) {
-  bool subqHasFrom = (QUERY_NODE_SELECT_STMT == nodeType(*pNode)) &&
-                     (NULL != ((SSelectStmt*)*pNode)->pFromTable);
-  if (pCxt->dual && !pCxt->isExprSubQ && !subqHasFrom) {
+  if (pCxt->dual && !pCxt->isExprSubQ) {
     parserError("scalar subq not supported in query without FROM");
-    pCxt->errCode = TSDB_CODE_PAR_STMT_NOT_SUPPORT_SCALAR_SUBQ;
-  }
-  if (TSDB_CODE_SUCCESS == pCxt->errCode && pCxt->dual && !pCxt->isExprSubQ &&
-      scalarSubqueryHasNestedExprSubquery(*pNode)) {
-    parserError("nested scalar subq not supported in query without FROM");
     pCxt->errCode = TSDB_CODE_PAR_STMT_NOT_SUPPORT_SCALAR_SUBQ;
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
@@ -6554,6 +6248,7 @@ static int32_t selectCommonType(SDataType* commonType, const SDataType* newType)
         commonType->scale = newType->scale;
       }
     }
+    // DS §5.3.12.4.5: for TIMESTAMP, keep the finest (MAX) precision
     if (TSDB_DATA_TYPE_TIMESTAMP == commonType->type) {
       commonType->precision = TMAX(commonType->precision, newType->precision);
     }
@@ -6631,6 +6326,8 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
   FOREACH(pNode, pCaseWhen->pWhenThenList) {
     SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
     if (!dataTypeEqual(&pCaseWhen->node.resType, &((SExprNode*)pNode)->resType)) {
+      // DS §5.3.12.4.5: for TIMESTAMP branches with different precision,
+      // use __timestamp_scale instead of CAST to align to the finest precision.
       SExprNode* pBranchExpr = (SExprNode*)pNode;
       if (pCaseWhen->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP &&
           pBranchExpr->resType.type == TSDB_DATA_TYPE_TIMESTAMP &&
@@ -7286,6 +6983,26 @@ static bool hasTbnameFunction(SNodeList* pPartitionByList) {
   return false;
 }
 
+static EDealRes hasNestedTbnameRefWalker(SNode* pNode, void* pContext) {
+  bool* pFound = (bool*)pContext;
+  if (isTbnameFuction(pNode)) {
+    *pFound = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+/* True when pExpr (a QUERY_NODE_FUNCTION that is not itself the bare
+ * tbname() node) contains a tbname reference anywhere in its argument tree,
+ * e.g. upper(tbname) or concat(tbname, host). Used to reject a scalar
+ * function wrapping tbname in PARTITION BY on an EXTERNAL trigger table --
+ * see createStreamReqBuildTriggerCheckPartitionWalker. */
+static bool exprWrapsTbname(SNode* pExpr) {
+  bool found = false;
+  nodesWalkExpr(pExpr, hasNestedTbnameRefWalker, &found);
+  return found;
+}
+
 static bool IsEqualTbNameFuncNode(SSelectStmt* pSelect, SNode* pFunc1, SNode* pFunc2) {
   if (isTbnameFuction(pFunc1) && isTbnameFuction(pFunc2)) {
     SValueNode* pVal1 = (SValueNode*)nodesListGetNode(((SFunctionNode*)pFunc1)->pParameterList, 0);
@@ -7938,10 +7655,6 @@ static int32_t getVnodeSysTableVgroupList(STranslateContext* pCxt, SName* pName,
   SName        targetName = {0};
   int32_t      code = getVnodeSysTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &targetName);
   if (TSDB_CODE_SUCCESS == code) {
-    if (0 == strcmp(pTableName, TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING) && targetName.dbname[0] != '\0') {
-      targetName.type = TSDB_DB_NAME_T;
-      targetName.tname[0] = '\0';
-    }
     // ins_table_fixed_distributed: route to all vgroups for supertable, single vgroup for child/normal
     if (0 == strcmp(pTableName, TSDB_INS_TABLE_TABLE_FIXED_DISTRIBUTED) &&
         targetName.type != 0 && targetName.type != TSDB_DB_NAME_T &&
@@ -8620,16 +8333,15 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
                                      "Unsupported ASOF/WINDOW join table type");
     }
 
-    bool isFederated = isExternalRealTable(pLeft) || isExternalRealTable(pRight);
     if (IS_WINDOW_JOIN(pJoinTable->subType)) {
       uint8_t leftPrec  = pLeft->pMeta ? pLeft->pMeta->tableInfo.precision : pLeft->table.precision;
       uint8_t rightPrec = pRight->pMeta ? pRight->pMeta->tableInfo.precision : pRight->table.precision;
-      if (leftPrec != rightPrec && !isFederated) {
+      if (leftPrec != rightPrec && !(isExternalRealTable(pLeft) && isExternalRealTable(pRight))) {
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
                                        "Only support WINDOW join between tables with same precision");
       }
 
-      uint8_t winPrec = isFederated ? TMAX(leftPrec, rightPrec) : leftPrec;
+      uint8_t winPrec = TMAX(leftPrec, rightPrec);
       SWindowOffsetNode* pWinOffset = (SWindowOffsetNode*)pJoinTable->pWindowOffset;
       SValueNode*        pStart = (SValueNode*)pWinOffset->pStartOffset;
       SValueNode*        pEnd = (SValueNode*)pWinOffset->pEndOffset;
@@ -8661,7 +8373,10 @@ static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTabl
       return code;
     }
 
-    if (isFederated) {
+    // DS §5.3.12.4.1: For cross-precision ASOF JOINs, wrap the
+    // coarser-precision column in addPrimCond with __timestamp_scale so the
+    // executor converts timestamps before comparison.
+    {
       uint8_t lPrec = pLeft->pMeta ? pLeft->pMeta->tableInfo.precision : pLeft->table.precision;
       uint8_t rPrec = pRight->pMeta ? pRight->pMeta->tableInfo.precision : pRight->table.precision;
       if (lPrec != rPrec) {
@@ -8914,52 +8629,6 @@ static int32_t cloneVgroups(SVgroupsInfo** pDst, SVgroupsInfo* pSrc) {
   }
   memcpy(*pDst, pSrc, len);
   return TSDB_CODE_SUCCESS;
-}
-
-static int32_t mergeVgroupsUnique(SVgroupsInfo** pDst, SVgroupsInfo* pFirst, SVgroupsInfo* pSecond) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t lino = 0;
-  SArray* pMerged = NULL;
-  int32_t cap = ((pFirst != NULL) ? pFirst->numOfVgroups : 0) + ((pSecond != NULL) ? pSecond->numOfVgroups : 0);
-
-  *pDst = NULL;
-  if (NULL == pFirst && NULL == pSecond) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  pMerged = taosArrayInit(TMAX(cap, 1), sizeof(SVgroupInfo));
-  QUERY_CHECK_NULL(pMerged, code, lino, _return, terrno);
-
-  SVgroupsInfo* pSources[2] = {pFirst, pSecond};
-  for (int32_t i = 0; i < 2; ++i) {
-    SVgroupsInfo* pSrc = pSources[i];
-    if (NULL == pSrc) {
-      continue;
-    }
-
-    for (int32_t j = 0; j < pSrc->numOfVgroups; ++j) {
-      SVgroupInfo* pVg = pSrc->vgroups + j;
-      bool         exists = false;
-
-      for (int32_t k = 0; k < taosArrayGetSize(pMerged); ++k) {
-        SVgroupInfo* pMergedVg = taosArrayGet(pMerged, k);
-        if (pMergedVg->vgId == pVg->vgId) {
-          exists = true;
-          break;
-        }
-      }
-
-      if (!exists) {
-        QUERY_CHECK_NULL(taosArrayPush(pMerged, pVg), code, lino, _return, terrno);
-      }
-    }
-  }
-
-  code = toVgroupsInfo(pMerged, pDst);
-
-_return:
-  taosArrayDestroy(pMerged);
-  return code;
 }
 
 static int32_t makeVtableMetaScanTable(STranslateContext* pCxt, SRealTableNode** pScan) {
@@ -9273,6 +8942,7 @@ static int32_t createVStbExtTableNodes(STranslateContext* pCxt, SVirtualTableNod
   }
   return TSDB_CODE_SUCCESS;
 }
+
 static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
                                           SVirtualTableNode* pVTable) {
   SRealTableNode* pRealTable = (SRealTableNode*)*pTable;
@@ -9345,156 +9015,8 @@ static int32_t translateVirtualSuperTable(STranslateContext* pCxt, SNode** pTabl
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRealTable));
   refTablesAdded = true;
   PAR_ERR_JRET(makeVtableMetaScanTable(pCxt, &pInsCols));
-  // ins_virtual_child_columns must see both:
-  // 1. the current virtual super table's own db, so child discovery can find
-  //    the root virtual child tables;
-  // 2. the transitive ref-source dbs, so runtime layered ref resolution can
-  //    continue from l1/l2/... down to the terminal raw tables.
-  //
-  // Using only ref-source vgroups misses the root child rows; using only the
-  // root vgroups truncates multi-hop virtual-ref resolution at the first layer.
-  taosMemoryFreeClear(pInsCols->pVgroupList);
-  PAR_ERR_JRET(mergeVgroupsUnique(&pInsCols->pVgroupList, pVTable->pVgroupList, pRealTable->pVgroupList));
-  qDebug("parser translateVirtualSuperTable merged ins cols vgroups, vstb:%s.%s rootVgNum:%d refVgNum:%d mergedVgNum:%d",
-         pName->dbname, pName->tname, pVTable->pVgroupList ? pVTable->pVgroupList->numOfVgroups : 0,
-         pRealTable->pVgroupList ? pRealTable->pVgroupList->numOfVgroups : 0,
-         pInsCols->pVgroupList ? pInsCols->pVgroupList->numOfVgroups : 0);
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pInsCols));
   PAR_ERR_JRET(createVStbExtTableNodes(pCxt, pVTable));
-
-  // Add tag-ref source tables (including transitive sources for multi-hop chains)
-  // to refTables so planner can find them via findRefTableNode and resolve the chain
-  // to the terminal physical STB.
-  if (pVTable->pMeta->tagRef && pVTable->pMeta->numOfTagRefs > 0) {
-    SHashObj* pTagRefDedup = taosHashInit(pVTable->pMeta->numOfTagRefs * 2,
-                                          taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-    PAR_ERR_JRET(pTagRefDedup ? TSDB_CODE_SUCCESS : terrno);
-    bool tmpAsync = pCxt->pParseCxt->async;
-    pCxt->pParseCxt->async = false;
-    pCxt->refTable = true;
-
-    // Seed with direct tag-ref sources from this virtual STB
-    SArray* pPendingRefs = taosArrayInit(pVTable->pMeta->numOfTagRefs, sizeof(SColRef));
-    if (!pPendingRefs) {
-      pCxt->refTable = false;
-      pCxt->pParseCxt->async = tmpAsync;
-      taosHashCleanup(pTagRefDedup);
-      PAR_ERR_JRET(terrno);
-    }
-    for (int32_t i = 0; i < pVTable->pMeta->numOfTagRefs; i++) {
-      SColRef* pTagRef = &pVTable->pMeta->tagRef[i];
-      if (pTagRef->hasRef) {
-        if (NULL == taosArrayPush(pPendingRefs, pTagRef)) {
-          taosArrayDestroy(pPendingRefs);
-          pCxt->refTable = false;
-          pCxt->pParseCxt->async = tmpAsync;
-          taosHashCleanup(pTagRefDedup);
-          PAR_ERR_JRET(terrno);
-        }
-      }
-    }
-
-    // BFS through the chain: fetch each level's source tables until physical terminal
-    for (int32_t depth = 0; depth < TSDB_MAX_VTABLE_REF_DEPTH && taosArrayGetSize(pPendingRefs) > 0; ++depth) {
-      SArray* pNextRefs = taosArrayInit(4, sizeof(SColRef));
-      if (!pNextRefs) {
-        taosArrayDestroy(pPendingRefs);
-        pCxt->refTable = false;
-        pCxt->pParseCxt->async = tmpAsync;
-        taosHashCleanup(pTagRefDedup);
-        PAR_ERR_JRET(terrno);
-      }
-
-      for (int32_t i = 0; i < taosArrayGetSize(pPendingRefs); i++) {
-        SColRef* pRef = taosArrayGet(pPendingRefs, i);
-
-        char   tableNameKey[TSDB_TABLE_FNAME_LEN] = {0};
-        TSlice buf = {0};
-        sliceInit(&buf, tableNameKey, sizeof(tableNameKey));
-        if (pRef->refDbName[0] != '\0') {
-          code = sliceAppend(&buf, pRef->refDbName, strlen(pRef->refDbName));
-          if (code == TSDB_CODE_SUCCESS) code = sliceAppend(&buf, ".", 1);
-        }
-        if (code == TSDB_CODE_SUCCESS) code = sliceAppend(&buf, pRef->refTableName, strlen(pRef->refTableName));
-        if (code != TSDB_CODE_SUCCESS) {
-          taosArrayDestroy(pNextRefs);
-          taosArrayDestroy(pPendingRefs);
-          pCxt->refTable = false;
-          pCxt->pParseCxt->async = tmpAsync;
-          taosHashCleanup(pTagRefDedup);
-          goto _return;
-        }
-
-        if (taosHashGet(pTagRefDedup, tableNameKey, strlen(tableNameKey)) != NULL) continue;
-
-        SRealTableNode* pRefNode = NULL;
-        code = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pRefNode);
-        if (code != TSDB_CODE_SUCCESS) {
-          taosArrayDestroy(pNextRefs);
-          taosArrayDestroy(pPendingRefs);
-          pCxt->refTable = false;
-          pCxt->pParseCxt->async = tmpAsync;
-          taosHashCleanup(pTagRefDedup);
-          goto _return;
-        }
-        setTableNameByColRef(pRefNode, pRef);
-        int32_t rc = translateTable(pCxt, (SNode**)&pRefNode, false);
-        if (rc != TSDB_CODE_SUCCESS) {
-          nodesDestroyNode((SNode*)pRefNode);
-          code = rc;
-          taosArrayDestroy(pNextRefs);
-          taosArrayDestroy(pPendingRefs);
-          pCxt->refTable = false;
-          pCxt->pParseCxt->async = tmpAsync;
-          taosHashCleanup(pTagRefDedup);
-          goto _return;
-        }
-        code = nodesListMakeStrictAppend(&pVTable->refTables, (SNode*)pRefNode);
-        if (code != TSDB_CODE_SUCCESS) {
-          taosArrayDestroy(pNextRefs);
-          taosArrayDestroy(pPendingRefs);
-          pCxt->refTable = false;
-          pCxt->pParseCxt->async = tmpAsync;
-          taosHashCleanup(pTagRefDedup);
-          goto _return;
-        }
-        code = taosHashPut(pTagRefDedup, tableNameKey, strlen(tableNameKey), NULL, 0);
-        if (code != TSDB_CODE_SUCCESS) {
-          taosArrayDestroy(pNextRefs);
-          taosArrayDestroy(pPendingRefs);
-          pCxt->refTable = false;
-          pCxt->pParseCxt->async = tmpAsync;
-          taosHashCleanup(pTagRefDedup);
-          goto _return;
-        }
-
-        // If this source is also virtual with tag-refs, queue its refs for next depth
-        if (pRefNode->pMeta && pRefNode->pMeta->tagRef && pRefNode->pMeta->numOfTagRefs > 0) {
-          for (int32_t j = 0; j < pRefNode->pMeta->numOfTagRefs; j++) {
-            SColRef* pTransRef = &pRefNode->pMeta->tagRef[j];
-            if (pTransRef->hasRef) {
-              if (NULL == taosArrayPush(pNextRefs, pTransRef)) {
-                taosArrayDestroy(pNextRefs);
-                taosArrayDestroy(pPendingRefs);
-                pCxt->refTable = false;
-                pCxt->pParseCxt->async = tmpAsync;
-                taosHashCleanup(pTagRefDedup);
-                PAR_ERR_JRET(terrno);
-              }
-            }
-          }
-        }
-      }
-
-      taosArrayDestroy(pPendingRefs);
-      pPendingRefs = pNextRefs;
-    }
-    taosArrayDestroy(pPendingRefs);
-
-    pCxt->refTable = false;
-    pCxt->pParseCxt->async = tmpAsync;
-    taosHashCleanup(pTagRefDedup);
-  }
 
   // Add tag-ref source tables (including transitive sources for multi-hop chains)
   // to refTables so planner can find them via findRefTableNode and resolve the chain
@@ -9979,6 +9501,7 @@ static int32_t validateExternalColRefCurrentMeta(STranslateContext* pCxt, const 
   }
   return TSDB_CODE_SUCCESS;
 }
+
 static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode** pTable, SName* pName,
                                                 SVirtualTableNode* pVTable) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -10056,12 +9579,12 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
         setTableNameByColRef(pRTNode, &pMeta->tagRef[i]);
         PAR_ERR_JRET(translateTable(pCxt, (SNode**)&pRTNode, false));
         PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pRTNode));
-        pRTNode = NULL;  // now owned by pVTable->refTables
         PAR_ERR_JRET(taosHashPut(pTableNameHash, tableNameKey, strlen(tableNameKey), NULL, 0));
         pRTNode = NULL;  // now owned by pVTable->refTables
       }
     }
   }
+
   // BFS: follow transitive tag-ref chains for multi-hop
   for (int32_t depth = 0; depth < TSDB_MAX_VTABLE_REF_DEPTH; ++depth) {
     int32_t listLen = LIST_LENGTH(pVTable->refTables);
@@ -10106,8 +9629,8 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
       // table scan node is eliminated.
       const SSchema* pTsSchema = &pMeta->schema[0];
       const SSchema* pRefTsSchema = &pSingleRef->pMeta->schema[0];
-        PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, NULL, (char*)pRefTsSchema->name,
-                               pSingleRef->table.tableName, pSingleRef->table.dbName, 0, "", NULL, 0));
+      PAR_ERR_JRET(setColRef(&pMeta->colRef[0], pTsSchema->colId, NULL, (char*)pRefTsSchema->name,
+                             pSingleRef->table.tableName, pSingleRef->table.dbName, 0, "", NULL, 0));
     }
   }
   nodesDestroyNode(*pTable);
@@ -10601,7 +10124,7 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
                 (int)nSeg, pRealTable->table.dbName, pRealTable->table.tableName,
                 pRealTable->extSeg[0], pRealTable->extSeg[1]);
     PAR_ERR_JRET(checkExtTableWriteReject(pCxt));
-    PAR_ERR_JRET(translateExternalTableImpl(pCxt, pRealTable, /*srcNameFromUseContext=*/false));
+    PAR_ERR_JRET(translateExternalTableImpl(pCxt, pRealTable));
   } else if (NULL == pRealTable->pMeta && nSeg >= 3 && !tsFederatedQueryEnable) {
     parserDebug("translateRealTable reject: multi-segment path while fq disabled, nSeg:%d db:%s table:%s",
                 (int)nSeg, pRealTable->table.dbName, pRealTable->table.tableName);
@@ -10614,45 +10137,13 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
                                          "Multi-segment table path is only supported in enterprise edition"));
   }
 #endif
-#ifdef TD_ENTERPRISE
-  // Raw 1-seg SQL with active ext source context must resolve against the external source
-  // even if the connection still carries a selected local db and the AST has already
-  // expanded the reference into an implicit 2-seg local path with preloaded local meta.
-  // Otherwise `USE ext_source` cannot override local same-name tables, which breaks
-  // namespace switching semantics and makes hard validation impossible.
-  if (rawNSeg == 1 && tsFederatedQueryEnable &&
-      pCxt->pParseCxt->currentExtSource[0] != '\0') {
-    const SParseContext* pParCxt = pCxt->pParseCxt;
-    parserDebug("translateRealTable route: raw-1seg use-context external, table:%s db:%s useSrc:%s useNs1:%s useNs2:%s preloadedMeta:%p",
-                pRealTable->table.tableName, pRealTable->table.dbName, pParCxt->currentExtSource,
-                pParCxt->currentExtNs1, pParCxt->currentExtNs2, pRealTable->pMeta);
-    tstrncpy(pRealTable->extSeg[0], pParCxt->currentExtSource, sizeof(pRealTable->extSeg[0]));
-    tstrncpy(pRealTable->extSeg[1], pParCxt->currentExtNs1,    sizeof(pRealTable->extSeg[1]));
-    pRealTable->table.dbName[0] = '\0';
-    pRealTable->numPathSegments = 3;
-    PAR_ERR_JRET(checkExtTableWriteReject(pCxt));
-    code = translateExternalTableImpl(pCxt, pRealTable, /*srcNameFromUseContext=*/true);
-    if (TSDB_CODE_SUCCESS != code) {
-      parserDebug("translateRealTable external(use-context) failed: table:%s code:0x%x",
-                  pRealTable->table.tableName, code);
-      goto _return;
-    }
-    parserDebug("translateRealTable external(use-context) success: table:%s", pRealTable->table.tableName);
-    pRealTable->table.precision = pRealTable->pMeta->tableInfo.precision;
-    pRealTable->table.singleTable = isSingleTable(pRealTable);
-    if (!pCxt->refTable) {
-      PAR_ERR_JRET(addNamespace(pCxt, pRealTable));
-    }
-    return code;
-  }
-#endif
   if (NULL == pRealTable->pMeta) {
 #ifdef TD_ENTERPRISE
     // 1-seg with active ext source context: resolve against external source directly, bypassing
     // local table lookup. This ensures that after "USE ext_source", unqualified table refs such as
     // "SELECT * FROM t" resolve in the external source even when a same-named local table exists.
     // Must be checked before toName() since dbName may be empty when only ext source is set.
-    if (rawNSeg == 1 && tsFederatedQueryEnable &&
+    if (nSeg <= 1 && tsFederatedQueryEnable &&
         pCxt->pParseCxt->currentExtSource[0] != '\0') {
       const SParseContext* pParCxt = pCxt->pParseCxt;
       parserDebug("translateRealTable route: 1-seg use-context external, table:%s useSrc:%s useNs1:%s useNs2:%s",
@@ -10663,7 +10154,7 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
       pRealTable->table.dbName[0] = '\0';
       pRealTable->numPathSegments = 3;
       PAR_ERR_JRET(checkExtTableWriteReject(pCxt));
-      code = translateExternalTableImpl(pCxt, pRealTable, /*srcNameFromUseContext=*/true);
+      code = translateExternalTableImpl(pCxt, pRealTable);
       if (TSDB_CODE_SUCCESS != code) {
         parserDebug("translateRealTable external(use-context) failed: table:%s code:0x%x",
                     pRealTable->table.tableName, code);
@@ -10703,7 +10194,7 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
         parserDebug("translateRealTable route: 2-seg external precheck hit, source:%s table:%s",
                     pRealTable->table.dbName, pRealTable->table.tableName);
         PAR_ERR_JRET(checkExtTableWriteReject(pCxt));
-        code = translateExternalTableImpl(pCxt, pRealTable, /*srcNameFromUseContext=*/false);
+        code = translateExternalTableImpl(pCxt, pRealTable);
         if (TSDB_CODE_SUCCESS != code) {
           parserDebug("translateRealTable external(2-seg precheck) failed: source:%s table:%s code:0x%x",
                       pRealTable->table.dbName, pRealTable->table.tableName, code);
@@ -10726,9 +10217,8 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
             pRealTable->table.dbName, pRealTable->table.tableName, (int)nSeg, code);
       terrno = code;
 #ifdef TD_ENTERPRISE
-      // Raw 1-seg fallback: if an ext source context is active (after USE ext_source),
-      // treat the original SQL text as an external table even if the AST injected a local db.
-      if (rawNSeg == 1 && tsFederatedQueryEnable &&
+      // 1-seg fallback: if an ext source context is active (after USE ext_source), treat as external table.
+      if (nSeg <= 1 && tsFederatedQueryEnable &&
           pCxt->pParseCxt->currentExtSource[0] != '\0') {
         // Synthesise a 2-seg path by filling dbName with the ext source name and injecting ns.
         // We store the original 1-seg table name in tableName and build a fake 2-seg node.
@@ -10763,12 +10253,12 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
         tstrncpy(pRealTable->table.dbName, "", sizeof(pRealTable->table.dbName));
         pRealTable->numPathSegments = 3;
 
-        parserDebug("translateRealTable fallback: raw-1seg local miss -> synthetic external path, table:%s db:%s src:%s ns1:%s ns2:%s",
-                    pRealTable->table.tableName, savedDbName, pParCxt->currentExtSource,
+        parserDebug("translateRealTable fallback: local miss -> synthetic external path, table:%s src:%s ns1:%s ns2:%s",
+                    pRealTable->table.tableName, pParCxt->currentExtSource,
                     pParCxt->currentExtNs1, pParCxt->currentExtNs2);
 
         PAR_ERR_JRET(checkExtTableWriteReject(pCxt));
-        code = translateExternalTableImpl(pCxt, pRealTable, /*srcNameFromUseContext=*/true);
+        code = translateExternalTableImpl(pCxt, pRealTable);
         if (TSDB_CODE_SUCCESS != code) {
           parserDebug("translateRealTable fallback synthetic external failed: table:%s code:0x%x, restore original path",
                       pRealTable->table.tableName, code);
@@ -10795,7 +10285,7 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
                     pRealTable->table.dbName, pRealTable->table.tableName, ec, NULL != pSrcInfo ? 1 : 0);
         if (TSDB_CODE_SUCCESS == ec && NULL != pSrcInfo) {
           PAR_ERR_JRET(checkExtTableWriteReject(pCxt));
-          code = translateExternalTableImpl(pCxt, pRealTable, /*srcNameFromUseContext=*/false);
+          code = translateExternalTableImpl(pCxt, pRealTable);
           if (TSDB_CODE_SUCCESS != code) {
             parserDebug("translateRealTable fallback external(2-seg) failed: source:%s table:%s code:0x%x",
                         pRealTable->table.dbName, pRealTable->table.tableName, code);
@@ -10819,7 +10309,7 @@ static int32_t translateRealTable(STranslateContext* pCxt, SNode** pTable, bool 
         }
         if (localDbMissing) {
           PAR_ERR_JRET(checkExtTableWriteReject(pCxt));
-          int32_t extCode = translateExternalTableImpl(pCxt, pRealTable, /*srcNameFromUseContext=*/false);
+          int32_t extCode = translateExternalTableImpl(pCxt, pRealTable);
           if (TSDB_CODE_SUCCESS == extCode) {
             parserDebug("translateRealTable fallback external(2-seg sync) success: source:%s table:%s",
                         pRealTable->table.dbName, pRealTable->table.tableName);
@@ -11205,11 +10695,9 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
   // Serialize to binary with length-prefix format.
   // blockDataToBuf writes: sizeof(uint32_t)[numRows] + for each col: colMeta + sizeof(int32_t)[dataLen] + colData.
   // blockDataGetSize returns sum(colDataGetFullLength) = sum(colMeta + colDataGetLength).
-  // So blockDataToBuf total = sizeof(uint32_t) + blockDataGetSize +
-  // numCols * (sizeof(int32_t) + 2 * sizeof(uint8_t)).
+  // So blockDataToBuf total = sizeof(uint32_t) + blockDataGetSize + numCols * sizeof(int32_t).
   int32_t numCols       = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
-  size_t  actualBufSize = sizeof(uint32_t) + blockDataGetSize(pBlock) +
-                          (size_t)numCols * (sizeof(int32_t) + 2 * sizeof(uint8_t));
+  size_t  actualBufSize = sizeof(uint32_t) + blockDataGetSize(pBlock) + (size_t)numCols * sizeof(int32_t);
   int32_t totalBufLen   = (int32_t)(sizeof(uint32_t) + actualBufSize);
   uint8_t* pBuf = taosMemoryMalloc(totalBufLen);
   if (NULL == pBuf) { blockDataDestroy(pBlock); return TSDB_CODE_OUT_OF_MEMORY; }
@@ -11699,8 +11187,7 @@ static int32_t buildFileTableBlockBuf(STranslateContext* pCxt, SFileTableNode* p
   /* Serialize to pBlockBuf (same format as STextTableNode) */
   {
     int32_t  numCols       = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
-    size_t   actualBufSize = sizeof(uint32_t) + blockDataGetSize(pBlock) +
-                             (size_t)numCols * (sizeof(int32_t) + 2 * sizeof(uint8_t));
+    size_t   actualBufSize = sizeof(uint32_t) + blockDataGetSize(pBlock) + (size_t)numCols * sizeof(int32_t);
     int32_t  totalBufLen   = (int32_t)(sizeof(uint32_t) + actualBufSize);
     uint8_t* pBuf          = taosMemoryMalloc(totalBufLen);
     if (!pBuf) PAR_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
@@ -11836,6 +11323,21 @@ static bool queryContainsExternalRealTable(SNode* pQuery) {
   }
 }
 
+static bool isExternalNestedTempFilter(const STempTableNode* pTempTable) {
+  if (NULL == pTempTable || NULL == pTempTable->pSubquery ||
+      QUERY_NODE_SELECT_STMT != nodeType(pTempTable->pSubquery)) {
+    return false;
+  }
+
+  SSelectStmt* pSelect = (SSelectStmt*)pTempTable->pSubquery;
+  if (NULL == pSelect->pWhere || NULL == pSelect->pFromTable ||
+      QUERY_NODE_TEMP_TABLE != nodeType(pSelect->pFromTable)) {
+    return false;
+  }
+
+  return queryContainsExternalRealTable(((STempTableNode*)pSelect->pFromTable)->pSubquery);
+}
+
 static int32_t translateTempTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
   SSelectStmt*    pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
   STempTableNode* pTempTable = (STempTableNode*)*pTable;
@@ -11843,6 +11345,9 @@ static int32_t translateTempTable(STranslateContext* pCxt, SNode** pTable, bool 
   int32_t         code = TSDB_CODE_SUCCESS;
 
   PAR_ERR_JRET(translateTableSubquery(pCxt, pTempTable->pSubquery));
+  if (isExternalNestedTempFilter(pTempTable)) {
+    PAR_ERR_JRET(TSDB_CODE_INVALID_PARA);
+  }
 
   if (QUERY_NODE_SELECT_STMT == nodeType(pTempTable->pSubquery) && isSelectStmt(pCxt->pCurrStmt)) {
     if (pSubStmt->isEmptyResult) {
@@ -11898,8 +11403,7 @@ static int32_t translateJoinTable(STranslateContext* pCxt, SNode** pTable, bool 
   // For cross-precision joins (e.g. MySQL µs × InfluxDB ns), the executor scales
   // probeTs to the FINEST precision via mJoinLaunchPrimExpr (__timestamp_scale).
   // The offsets must be in the same finest precision for correct window bounds.
-  if (IS_WINDOW_JOIN(pJoinTable->subType) && pJoinTable->pWindowOffset &&
-      (tableHasExternalTable(pJoinTable->pLeft) || tableHasExternalTable(pJoinTable->pRight))) {
+  if (IS_WINDOW_JOIN(pJoinTable->subType) && pJoinTable->pWindowOffset) {
     uint8_t leftPrec  = ((STableNode*)pJoinTable->pLeft)->precision;
     uint8_t rightPrec = ((STableNode*)pJoinTable->pRight)->precision;
     uint8_t targetPrec = TMAX(leftPrec, rightPrec);
@@ -12215,71 +11719,6 @@ static int32_t createTags(STranslateContext* pCxt, SNodeList** pOutput) {
                                 "The _TAGS pseudo column can only be used for child table and super table queries");
   }
 
-  if (pMeta->extSrcSynthetic) {
-    const SExtTableNode* pExtNode = (const SExtTableNode*)pTable->pExtTableNode;
-    const SExtTableMeta* pExtMeta = (NULL != pExtNode) ? pExtNode->pExtMeta : NULL;
-    SNodeList*           pTags = NULL;
-    int32_t              code = TSDB_CODE_SUCCESS;
-
-    if (NULL == pExtMeta || NULL == pExtMeta->pCols) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_SCHEMA_CHANGED,
-                                     "External table '%s': tag metadata is unavailable", pTable->table.tableName);
-    }
-
-    // Synthetic external metadata stores every source field as a column. Use the
-    // raw metadata to recover the tag subset and preserve its provider order.
-    for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
-      const SExtColumnDef* pExtCol = &pExtMeta->pCols[i];
-      if (!pExtCol->isTag) {
-        continue;
-      }
-
-      int32_t schemaIdx = -1;
-      for (int32_t j = 0; j < pMeta->tableInfo.numOfColumns; ++j) {
-        if (0 == strcasecmp(pExtCol->colName, pMeta->schema[j].name) ||
-            ('\0' != pExtCol->remoteColName[0] &&
-             0 == strcasecmp(pExtCol->remoteColName, pMeta->schema[j].name))) {
-          schemaIdx = j;
-          break;
-        }
-      }
-
-      if (schemaIdx < 0) {
-        code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_SCHEMA_CHANGED,
-                                       "External table '%s': tag '%s' is missing from synthetic metadata",
-                                       pTable->table.tableName, pExtCol->colName);
-        goto _return;
-      }
-      if (TSDB_DATA_TYPE_NULL == pMeta->schema[schemaIdx].type) {
-        code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
-                                       "External table '%s': column '%s' type cannot be mapped to any TDengine type",
-                                       pTable->table.tableName, pMeta->schema[schemaIdx].name);
-        goto _return;
-      }
-
-      SColumnNode* pCol = NULL;
-      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
-      if (TSDB_CODE_SUCCESS != code) {
-        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OUT_OF_MEMORY);
-        goto _return;
-      }
-
-      const SSchemaExt* pSchemaExt = (NULL != pMeta->schemaExt) ? pMeta->schemaExt + schemaIdx : NULL;
-      setColumnInfoBySchema(pTable, pMeta->schema + schemaIdx, 1, pCol, pSchemaExt);
-      code = nodesListMakeStrictAppend(&pTags, (SNode*)pCol);
-      if (TSDB_CODE_SUCCESS != code) {
-        goto _return;
-      }
-    }
-
-    *pOutput = pTags;
-    return TSDB_CODE_SUCCESS;
-
-_return:
-    nodesDestroyList(pTags);
-    return code;
-  }
-
   SSchema* pTagsSchema = getTableTagSchema(pMeta);
   for (int32_t i = 0; i < pMeta->tableInfo.numOfTags; ++i) {
     SColumnNode* pCol = NULL;
@@ -12566,20 +12005,17 @@ static int32_t doCheckFillValues(STranslateContext* pCxt, SFillNode* pFill, SNod
 }
 
 static int32_t checkFillValues(STranslateContext* pCxt, SFillNode* pFill, SSelectStmt* pSelect) {
-  /*
-    Do check fill values if:
-      - FILL MODE is VALUE or VALUE_F
-      - surrounding time is provided (including RANGE around)
-
-    PREV/NEXT/NEAR with surrounding time requires one fill value for every
-    interpolated projection.  Checking even when pValues is NULL lets
-    doCheckFillValues report the required "Too few fill values" error.
-  */
-  if ((FILL_MODE_VALUE == pFill->mode || FILL_MODE_VALUE_F == pFill->mode) ||
-      pFill->pSurroundingTime != NULL || pSelect->pRangeAround != NULL) {
-    return doCheckFillValues(pCxt, pFill, pSelect->pProjectionList, pSelect->hasScalarExpr);
-  }
-  return TSDB_CODE_SUCCESS;
+    /*
+      Do check fill values if:
+        - FILL MODE is VALUE or VALUE_F
+        - surrounding time is provided
+          (note: sometimes surrounding time is provided by range around clause)
+    */
+    if ((FILL_MODE_VALUE == pFill->mode || FILL_MODE_VALUE_F == pFill->mode) ||
+        (pFill->pSurroundingTime != NULL || pSelect->pRangeAround != NULL)) {
+        return doCheckFillValues(pCxt, pFill, pSelect->pProjectionList, pSelect->hasScalarExpr);
+    }
+    return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateFillValues(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -13251,51 +12687,6 @@ static int32_t checkExternalWindowSubquerySchema(STranslateContext* pCxt, SNode*
   return TSDB_CODE_SUCCESS;
 }
 
-static bool externalWindowTbnameSourcesMatch(const SNode* pOuterFrom, const SNode* pInnerFrom) {
-  if (pOuterFrom == NULL || pInnerFrom == NULL || nodeType(pOuterFrom) != QUERY_NODE_REAL_TABLE ||
-      nodeType(pInnerFrom) != QUERY_NODE_REAL_TABLE) {
-    return false;
-  }
-
-  const STableNode* pOuterTable = (const STableNode*)pOuterFrom;
-  const STableNode* pInnerTable = (const STableNode*)pInnerFrom;
-  return strcmp(pOuterTable->dbName, pInnerTable->dbName) == 0 &&
-         strcmp(pOuterTable->tableName, pInnerTable->tableName) == 0;
-}
-
-static bool externalWindowPartitionKeysMatch(const SSelectStmt* pOuterSelect, const SSelectStmt* pInnerSelect) {
-  const SNodeList* pOuterKeys = pOuterSelect->pPartitionByList;
-  const SNodeList* pInnerKeys = pInnerSelect->pPartitionByList;
-  if (NULL == pOuterKeys || NULL == pInnerKeys || pOuterKeys->length != pInnerKeys->length) {
-    return false;
-  }
-
-  SNode* pOuterKey = NULL;
-  SNode* pInnerKey = NULL;
-  FORBOTH(pOuterKey, pOuterKeys, pInnerKey, pInnerKeys) {
-    if (nodeType(pOuterKey) == QUERY_NODE_FUNCTION && nodeType(pInnerKey) == QUERY_NODE_FUNCTION &&
-        ((SFunctionNode*)pOuterKey)->funcType == FUNCTION_TYPE_TBNAME &&
-        ((SFunctionNode*)pInnerKey)->funcType == FUNCTION_TYPE_TBNAME &&
-        externalWindowTbnameSourcesMatch(pOuterSelect->pFromTable, pInnerSelect->pFromTable)) {
-      continue;
-    }
-
-    if (nodeType(pOuterKey) != QUERY_NODE_COLUMN || nodeType(pInnerKey) != QUERY_NODE_COLUMN) {
-      return false;
-    }
-
-    SColumnNode* pOuterCol = (SColumnNode*)pOuterKey;
-    SColumnNode* pInnerCol = (SColumnNode*)pInnerKey;
-    if (pOuterCol->node.resType.type != pInnerCol->node.resType.type ||
-        pOuterCol->node.resType.bytes != pInnerCol->node.resType.bytes ||
-        strcmp(pOuterCol->colName, pInnerCol->colName) != 0) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 static int32_t translateExternalWindowSelectList(STranslateContext* pCxt, SSelectStmt* pSelect) {
   SExternalWindowNode* pExternalWin = (SExternalWindowNode*)pSelect->pWindow;
   if (NULL == pExternalWin->pSubquery) {
@@ -13322,11 +12713,6 @@ static int32_t translateExternalWindowSelectList(STranslateContext* pCxt, SSelec
   int32_t code = checkExternalWindowSubquerySchema(pCxt, pSubQuery);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
-  }
-
-  if (nodeType(pSubQuery) == QUERY_NODE_SELECT_STMT &&
-      externalWindowPartitionKeysMatch(pSelect, (SSelectStmt*)pSubQuery)) {
-    pRemote->flag |= REMOTE_TABLE_FLAG_EXT_PART_KEYS_MATCH;
   }
 
   STranslateExtCtx extCxt = {
@@ -13733,7 +13119,7 @@ static int32_t translateSurroundingTime(STranslateContext* pCxt, SNode* pSurroun
 }
 
 static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* pInterval, bool isInterpFill,
-                         bool allowNoTimeRange, uint8_t precision) {
+                         uint8_t precision) {
   if (FILL_MODE_NONE == pFill->mode) {
     if (isInterpFill) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "Unsupported fill type");
@@ -13750,9 +13136,6 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
   }
 
   if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER) && !pFill->pTimeRange) {
-    if (allowNoTimeRange) {
-      return TSDB_CODE_SUCCESS;
-    }
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   }
 
@@ -13793,17 +13176,6 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
   return TSDB_CODE_SUCCESS;
 }
 
-static bool allowFillWithoutTimeRange(SSelectStmt* pSelect) {
-  if (NULL == pSelect->pFromTable || nodeType(pSelect->pFromTable) != QUERY_NODE_REAL_TABLE) {
-    return false;
-  }
-
-  SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
-  return (isExternalRealTable(pTable) ||
-          (NULL != pTable->pMeta && pTable->pMeta->tableType == TSDB_NORMAL_TABLE)) &&
-         !pSelect->hasIndefiniteRowsFunc;
-}
-
 static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect, SIntervalWindowNode* pInterval) {
   if (NULL == pInterval->pFill) {
     return TSDB_CODE_SUCCESS;
@@ -13814,10 +13186,7 @@ static int32_t translateFill(STranslateContext* pCxt, SSelectStmt* pSelect, SInt
   pFill->timeRange = pSelect->timeRange;
   PAR_ERR_RET(nodesCloneNode(pSelect->pTimeRange, &pFill->pTimeRange));
   PAR_ERR_RET(translateSurroundingTime(pCxt, pFill->pSurroundingTime));
-  // COUNT is identified after translateSelectList(), so validate unbounded
-  // FILL(NEAR) there after its dedicated error rule has run.
-  bool allowNoTimeRange = allowFillWithoutTimeRange(pSelect) || FILL_MODE_NEAR == pFill->mode;
-  return checkFill(pCxt, pFill, (SValueNode*)pInterval->pInterval, false, allowNoTimeRange, pSelect->precision);
+  return checkFill(pCxt, pFill, (SValueNode*)pInterval->pInterval, false, pSelect->precision);
 }
 
 static int32_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char unit, double* pMonth) {
@@ -14001,6 +13370,9 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
 
   if (NULL != pInterval->pFill) {
     SFillNode* pFill = (SFillNode*)pInterval->pFill;
+    if (pFill->mode == FILL_MODE_NEAR) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE);
+    }
     if (pFill->pValues != NULL && !(pFill->mode == FILL_MODE_VALUE || pFill->mode == FILL_MODE_VALUE_F) &&
         !((pFill->mode == FILL_MODE_PREV || pFill->mode == FILL_MODE_NEXT) && pFill->pSurroundingTime != NULL)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FILL_VALUES);
@@ -14178,12 +13550,9 @@ void tryCalcIntervalAutoOffset(SIntervalWindowNode* pInterval) {
    * Considering that the client and server may be in different time zones,
    * these situations need to be deferred to the server for calculation.
    */
-  SFillNode* pFill = (SFillNode*)pInterval->pFill;
-  bool hasSurround = pFill != NULL && pFill->pSurroundingTime != NULL;
-  if (!hasSurround &&
-      (IS_CALENDAR_TIME_DURATION(interval.intervalUnit) || interval.intervalUnit == 'd' ||
-       interval.intervalUnit == 'w' || IS_CALENDAR_TIME_DURATION(interval.slidingUnit) || interval.slidingUnit == 'd' ||
-       interval.slidingUnit == 'w')) {
+  if (IS_CALENDAR_TIME_DURATION(interval.intervalUnit) || interval.intervalUnit == 'd' ||
+      interval.intervalUnit == 'w' || IS_CALENDAR_TIME_DURATION(interval.slidingUnit) || interval.slidingUnit == 'd' ||
+      interval.slidingUnit == 'w') {
     return;
   }
 
@@ -15025,68 +14394,8 @@ _return:
   return code;
 }
 
-#define EVENT_WINDOW_TREE_MAX_DEPTH 8
-#define EVENT_WINDOW_TREE_MAX_NODES 256
-
-typedef struct SEventTreeCheckCtx {
-  STranslateContext* pCxt;
-  int32_t            nodes;
-} SEventTreeCheckCtx;
-
-static int32_t checkEventStartLeaf(STranslateContext* pCxt, SEventStartLeafNode* pLeaf) {
-  if (pLeaf == NULL || pLeaf->pCond == NULL) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                   "EVENT_WINDOW START WITH leaf condition is empty");
-  }
-  return checkTrueForLimit(pCxt, pLeaf->pTrueFor);
-}
-
-static int32_t checkEventStartTreeNode(SEventTreeCheckCtx* pCtx, SNode* pNode, int32_t depth) {
-  if (pNode == NULL) {
-    return generateSyntaxErrMsgExt(&pCtx->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                   "EVENT_WINDOW START WITH condition is empty");
-  }
-  if (++pCtx->nodes > EVENT_WINDOW_TREE_MAX_NODES) {
-    return generateSyntaxErrMsgExt(&pCtx->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                   "EVENT_WINDOW START WITH condition tree exceeds node limit");
-  }
-  if (depth > EVENT_WINDOW_TREE_MAX_DEPTH) {
-    return generateSyntaxErrMsgExt(&pCtx->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                   "EVENT_WINDOW START WITH condition tree exceeds depth limit");
-  }
-
-  if (nodeType(pNode) == QUERY_NODE_EVENT_START_LEAF) {
-    return checkEventStartLeaf(pCtx->pCxt, (SEventStartLeafNode*)pNode);
-  }
-  if (nodeType(pNode) == QUERY_NODE_NODE_LIST) {
-    SNodeListNode* pListNode = (SNodeListNode*)pNode;
-    if (pListNode->pNodeList == NULL || LIST_LENGTH(pListNode->pNodeList) == 0) {
-      return generateSyntaxErrMsgExt(&pCtx->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                     "EVENT_WINDOW START WITH group is empty");
-    }
-    SNode* pChild = NULL;
-    FOREACH(pChild, pListNode->pNodeList) {
-      int32_t code = checkEventStartTreeNode(pCtx, pChild, depth + 1);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-    }
-    return TSDB_CODE_SUCCESS;
-  }
-
-  return generateSyntaxErrMsgExt(&pCtx->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
-                                 "EVENT_WINDOW START WITH condition tree contains invalid node");
-}
-
 static int32_t checkEventWindow(STranslateContext* pCxt, SEventWindowNode* pEvent) {
   PAR_ERR_RET(checkTrueForLimit(pCxt, pEvent->pTrueForLimit));
-
-  SEventTreeCheckCtx treeCtx = {.pCxt = pCxt, .nodes = 0};
-  if (nodeType(pEvent->pStartCond) == QUERY_NODE_EVENT_START_LEAF ||
-      nodeType(pEvent->pStartCond) == QUERY_NODE_NODE_LIST) {
-    PAR_ERR_RET(checkEventStartTreeNode(&treeCtx, pEvent->pStartCond, 1));
-  }
-
   PAR_RET(checkWindowsConditonValid(pEvent));
 }
 
@@ -15246,7 +14555,7 @@ static int32_t translateExternalWindow(STranslateContext* pCxt, SSelectStmt* pSe
   // Note: checkFillValues is NOT called here because the projection list
   // has not been translated yet (funcId/resType are unresolved).
   // translateFillValues() handles it after translateSelectList().
-  code = checkFill(pCxt, pFill, NULL, false, false, pSelect->precision);
+  code = checkFill(pCxt, pFill, NULL, false, pSelect->precision);
 
 _return:
   pCxt->currClause = savedClause;
@@ -15294,11 +14603,6 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
 /* Helper: create a SGroupingSetNode wrapping a single column node.
  * pGroupByList expects each entry to be a SGroupingSetNode (see calcConstGroupBy). */
 static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  parserDebug("FQ-TRANSWIN: enter pWindow=%p windowType=%d fromTable=%p fromTableType=%d",
-              pSelect->pWindow,
-              pSelect->pWindow ? (int)nodeType(pSelect->pWindow) : -1,
-              pSelect->pFromTable,
-              pSelect->pFromTable ? (int)nodeType(pSelect->pFromTable) : -1);
   if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
@@ -15343,7 +14647,6 @@ static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
   if (TSDB_CODE_SUCCESS == code) {
     code = translateSpecificWindow(pCxt, pSelect);
   }
-  parserDebug("FQ-TRANSWIN: exit pWindow=%p code=0x%x", pSelect->pWindow, code);
   return code;
 }
 
@@ -15472,7 +14775,7 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translateSurroundingTime(pCxt, pFill->pSurroundingTime);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkFill(pCxt, pFill, (SValueNode*)pSelect->pEvery, true, false, pSelect->precision);
+    code = checkFill(pCxt, pFill, (SValueNode*)pSelect->pEvery, true, pSelect->precision);
   }
   QUERY_CHECK_CODE(code, lino, _end);
   bool hasRowTsOriginFunc = false;
@@ -15493,17 +14796,10 @@ static int32_t translateInterpFill(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   bool isSurround = NULL != pSurroundingTime || NULL != pRangeAround;
   if (isSurround && !isPrevNextNear) {
-    /* Only PREV/NEXT/NEAR mode is supported with surrounding time */
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
-                                   "Only PREV/NEXT/NEAR mode is supported with "
-                                   "surrounding time");
-  }
-  if (NULL != pSurroundingTime && NULL != ((SValueNode*)pSurroundingTime)->literal &&
-      '\0' != ((SValueNode*)pSurroundingTime)->literal[0] &&
-      isdigit((unsigned char)((SValueNode*)pSurroundingTime)->literal[
-          strlen(((SValueNode*)pSurroundingTime)->literal) - 1])) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
-                                   "Surrounding time value must specify a duration unit");
+      /* Only PREV/NEXT/NEAR mode is supported with surrounding time */
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_SURROUND_TIME_VALUES,
+                                     "Only PREV/NEXT/NEAR mode is supported with "
+                                     "surrounding time");
   }
   if (pFill->pValues != NULL && !(pFill->mode == FILL_MODE_VALUE || pFill->mode == FILL_MODE_VALUE_F) &&
       !(isPrevNextNear && isSurround)) {
@@ -15778,9 +15074,7 @@ static int32_t findEqCondTbNameInOperatorNode(STranslateContext* pCxt, SNode* pW
     } else {
       code = findTable(pCxt, pTableAlias, &pTable);
     }
-    if (code == TSDB_CODE_SUCCESS && nodeType(pTable) == QUERY_NODE_REAL_TABLE &&
-        NULL != ((SRealTableNode*)pTable)->pMeta &&
-        NULL == ((SRealTableNode*)pTable)->pExtTableNode &&
+    if (code == TSDB_CODE_SUCCESS && nodeType(pTable) == QUERY_NODE_REAL_TABLE && ((SRealTableNode*)pTable)->pMeta &&
         ((SRealTableNode*)pTable)->pMeta->tableType == TSDB_SUPER_TABLE) {
       pInfo->pRealTable = (SRealTableNode*)pTable;
       *pRet = true;
@@ -16281,10 +15575,12 @@ static EDealRes appendTsForImplicitTsFuncImpl(SNode* pNode, void* pContext) {
       pCxt->errCode = tranCreatePrimaryKeyCol(pCxt, tableAlias, &pPrimaryKey);
       tSimpleHashCleanup(pTableAlias);
     }
-    // When no primary timestamp is available, supported functions fall back to
-    // processing rows in the upstream input order without timestamp comparison.
+    // When no primary timestamp is available, last/first can fall back to
+    // returning the last/first row in input order without timestamp comparison.
     if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-      if (fmSupportsNoTimelineRowOrder(pFunc->funcId)) {
+      EFunctionType ftype = pFunc->funcType;
+      if (ftype == FUNCTION_TYPE_LAST || ftype == FUNCTION_TYPE_FIRST ||
+          ftype == FUNCTION_TYPE_LAST_ROW) {
         pCxt->errCode = TSDB_CODE_SUCCESS;
         return DEAL_RES_IGNORE_CHILD;
       }
@@ -17243,91 +16539,13 @@ static int32_t rewriteTableFixedDistQuery(STranslateContext* pCxt, SSelectStmt* 
   return code;
 }
 
-// C API result blocks have one precision for every TIMESTAMP field. Convert
-// projections to the SELECT result precision before the physical plan assigns
-// result slots; changing only SDataType.precision would misinterpret the value.
-static int32_t normalizeTimestampProjectionPrecision(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if (NULL == pSelect->pProjectionList) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SNode* pProjection = NULL;
-  FOREACH(pProjection, pSelect->pProjectionList) {
-    SExprNode* pExpr = (SExprNode*)pProjection;
-    if (TSDB_DATA_TYPE_TIMESTAMP != pExpr->resType.type || pExpr->resType.precision == pSelect->precision) {
-      continue;
-    }
-
-    if (inStreamCalcClause(pCxt) && nodeType(pProjection) == QUERY_NODE_FUNCTION) {
-      SFunctionNode* pFunc = (SFunctionNode*)pProjection;
-      if (pFunc->funcType == FUNCTION_TYPE_TPREV_LOCALTIME || pFunc->funcType == FUNCTION_TYPE_TNEXT_LOCALTIME) {
-        continue;
-      }
-    }
-
-    char aliasName[TSDB_COL_NAME_LEN] = {0};
-    char userAlias[TSDB_COL_NAME_LEN] = {0};
-    char srcTable[TSDB_TABLE_NAME_LEN] = {0};
-    tstrncpy(aliasName, pExpr->aliasName, sizeof(aliasName));
-    tstrncpy(userAlias, pExpr->userAlias, sizeof(userAlias));
-    tstrncpy(srcTable, pExpr->srcTable, sizeof(srcTable));
-
-    bool    asAlias = pExpr->asAlias;
-    bool    asParam = pExpr->asParam;
-    bool    asPosition = pExpr->asPosition;
-    bool    joinSrc = pExpr->joinSrc;
-    bool    hasNull = pExpr->hasNull;
-    int32_t projIdx = pExpr->projIdx;
-    int32_t relatedTo = pExpr->relatedTo;
-    int32_t bindExprID = pExpr->bindExprID;
-
-    SNode* pScaled = NULL;
-    PAR_ERR_RET(createTimestampScaleNode(pProjection, pSelect->precision, &pScaled));
-
-    SExprNode* pScaledExpr = (SExprNode*)pScaled;
-    tstrncpy(pScaledExpr->aliasName, aliasName, sizeof(pScaledExpr->aliasName));
-    tstrncpy(pScaledExpr->userAlias, userAlias, sizeof(pScaledExpr->userAlias));
-    tstrncpy(pScaledExpr->srcTable, srcTable, sizeof(pScaledExpr->srcTable));
-    pScaledExpr->asAlias = asAlias;
-    pScaledExpr->asParam = asParam;
-    pScaledExpr->asPosition = asPosition;
-    pScaledExpr->joinSrc = joinSrc;
-    pScaledExpr->hasNull = hasNull;
-    pScaledExpr->projIdx = projIdx;
-    pScaledExpr->relatedTo = relatedTo;
-    pScaledExpr->bindExprID = bindExprID;
-    REPLACE_NODE(pScaled);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = (SNode*)pSelect;
   pCxt->dual = false;
-  parserDebug("FQ-SELFRM2: enter pWindow=%p(%d) hasAggFuncs=%d",
-              pSelect->pWindow,
-              pSelect->pWindow ? (int)nodeType(pSelect->pWindow) : -1,
-              (int)pSelect->hasAggFuncs);
   int32_t code = translateFrom(pCxt, &pSelect->pFromTable);
-  parserDebug("FQ-SELFRM2: after translateFrom pWindow=%p(%d) code=0x%x",
-              pSelect->pWindow,
-              pSelect->pWindow ? (int)nodeType(pSelect->pWindow) : -1,
-              code);
   if (TSDB_CODE_SUCCESS == code) {
     pSelect->precision = ((STableNode*)pSelect->pFromTable)->precision;
     code = translateWhere(pCxt, pSelect);
-    parserDebug("FQ-SELFRM2: after translateWhere pWindow=%p(%d) code=0x%x",
-                pSelect->pWindow,
-                pSelect->pWindow ? (int)nodeType(pSelect->pWindow) : -1,
-                code);
-  }
-  // ins_table_fixed_distributed: mandatory filter + auto-aggregation rewrite
-  if (TSDB_CODE_SUCCESS == code) {
-    code = validateFixedDistConditions(pCxt, pSelect);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewriteTableFixedDistQuery(pCxt, pSelect);
   }
   // ins_table_fixed_distributed: mandatory filter + auto-aggregation rewrite
   if (TSDB_CODE_SUCCESS == code) {
@@ -17343,14 +16561,7 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
     code = translatePartitionBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    parserDebug("FQ-SELFRM: before translateWindow pWindow=%p(%d)", pSelect->pWindow,
-                pSelect->pWindow ? (int)nodeType(pSelect->pWindow) : -1);
     code = translateWindow(pCxt, pSelect);
-    parserDebug("FQ-SELFRM: after translateWindow pWindow=%p(%d) code=0x%x", pSelect->pWindow,
-                pSelect->pWindow ? (int)nodeType(pSelect->pWindow) : -1, code);
-  }
-  if (TSDB_CODE_SUCCESS == code && pSelect->windowMode != WINDOW_MODE_NONE && NULL == pSelect->pWindow) {
-    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTR_USAGE, "SCALAR/AGG");
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = validateSqlWindowList(pCxt, pSelect);
@@ -17369,30 +16580,6 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateSelectList(pCxt, pSelect);
-  }
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pWindow && pSelect->hasCountFunc &&
-      QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
-    SFillNode* pFill = (SFillNode*)((SIntervalWindowNode*)pSelect->pWindow)->pFill;
-    if (NULL != pFill && FILL_MODE_NEAR == pFill->mode) {
-      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FILL_MODE);
-    }
-  }
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pWindow &&
-      QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
-    SFillNode* pFill = (SFillNode*)((SIntervalWindowNode*)pSelect->pWindow)->pFill;
-    if (NULL != pFill && FILL_MODE_NEAR == pFill->mode &&
-        TSWINDOW_IS_EQUAL(pSelect->timeRange, TSWINDOW_INITIALIZER) && NULL == pSelect->pTimeRange &&
-        !allowFillWithoutTimeRange(pSelect)) {
-      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
-    }
-  }
-  if (TSDB_CODE_SUCCESS == code && pSelect->hasIndefiniteRowsFunc && NULL != pSelect->pWindow &&
-      QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
-    SFillNode* pFill = (SFillNode*)((SIntervalWindowNode*)pSelect->pWindow)->pFill;
-    if (NULL != pFill && FILL_MODE_NONE != pFill->mode &&
-        TSWINDOW_IS_EQUAL(pSelect->timeRange, TSWINDOW_INITIALIZER) && NULL == pSelect->pTimeRange) {
-      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
-    }
   }
   if (TSDB_CODE_SUCCESS == code &&
       NULL != pSelect->pWindow &&
@@ -17493,9 +16680,6 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
       code = removeConstantValueFromList(&pSelect->pGroupByList);
     }
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = normalizeTimestampProjectionPrecision(pCxt, pSelect);
-  }
   return code;
 }
 
@@ -17509,11 +16693,7 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_QUERY,
                                      "Stream query must have from clause");
     }
-    int32_t code = translateSelectWithoutFrom(pCxt, pSelect);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = normalizeTimestampProjectionPrecision(pCxt, pSelect);
-    }
-    return code;
+    return translateSelectWithoutFrom(pCxt, pSelect);
   } else {
     return translateSelectFrom(pCxt, pSelect);
   }
@@ -17579,52 +16759,6 @@ static int32_t pushdownCastForUnion(STranslateContext* pCxt, SNode* pNode, SExpr
   return TSDB_CODE_SUCCESS;
 }
 
-// A SetOp must receive a uniform timestamp representation from each child.
-// Push the scalar conversion to SELECT leaves so an intermediate SetOp,
-// Exchange, or Sort never observes mixed precision values.
-static int32_t alignSetOperandTimestampPrecision(SNode* pQuery, int32_t index, int8_t targetPrec) {
-  SNodeList* pProjections = getProjectList(pQuery);
-  if (NULL == pProjections || index < 0 || index >= LIST_LENGTH(pProjections)) {
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
-  }
-
-  SListCell* pCell = nodesListGetCell(pProjections, index);
-  if (NULL == pCell || NULL == pCell->pNode) {
-    return TSDB_CODE_PAR_INTERNAL_ERROR;
-  }
-
-  SExprNode* pExpr = (SExprNode*)pCell->pNode;
-  if (TSDB_DATA_TYPE_TIMESTAMP != pExpr->resType.type) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (QUERY_NODE_SET_OPERATOR == nodeType(pQuery)) {
-    SSetOperator* pSet = (SSetOperator*)pQuery;
-    PAR_ERR_RET(alignSetOperandTimestampPrecision(pSet->pLeft, index, targetPrec));
-    PAR_ERR_RET(alignSetOperandTimestampPrecision(pSet->pRight, index, targetPrec));
-    pExpr->resType.precision = targetPrec;
-    pSet->precision = TMAX(pSet->precision, targetPrec);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (QUERY_NODE_SELECT_STMT != nodeType(pQuery) || pExpr->resType.precision >= targetPrec) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  char aliasName[TSDB_COL_NAME_LEN] = {0};
-  char userAlias[TSDB_COL_NAME_LEN] = {0};
-  tstrncpy(aliasName, pExpr->aliasName, sizeof(aliasName));
-  tstrncpy(userAlias, pExpr->userAlias, sizeof(userAlias));
-
-  SNode* pScale = NULL;
-  PAR_ERR_RET(createTimestampScaleNode(pCell->pNode, targetPrec, &pScale));
-  tstrncpy(((SExprNode*)pScale)->aliasName, aliasName, sizeof(((SExprNode*)pScale)->aliasName));
-  tstrncpy(((SExprNode*)pScale)->userAlias, userAlias, sizeof(((SExprNode*)pScale)->userAlias));
-  pCell->pNode = pScale;
-  ((SSelectStmt*)pQuery)->precision = TMAX(((SSelectStmt*)pQuery)->precision, targetPrec);
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pSetOperator) {
   SNodeList* pLeftProjections = getProjectList(pSetOperator->pLeft);
   SNodeList* pRightProjections = getProjectList(pSetOperator->pRight);
@@ -17640,20 +16774,34 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
     SExprNode* pRightExpr = (SExprNode*)pRight;
     ++index;
     int32_t comp = dataTypeComp(&pLeftExpr->resType, &pRightExpr->resType);
-    if (pLeftExpr->resType.type == TSDB_DATA_TYPE_TIMESTAMP &&
+
+    // DS §5.3.12.4.4: UNION cross-precision TIMESTAMP handling.
+    // When both columns are TIMESTAMP with different precision, insert
+    // __timestamp_scale on the coarser side to align to MAX precision.
+    if (comp != 0 &&
+        pLeftExpr->resType.type == TSDB_DATA_TYPE_TIMESTAMP &&
         pRightExpr->resType.type == TSDB_DATA_TYPE_TIMESTAMP &&
         pLeftExpr->resType.precision != pRightExpr->resType.precision) {
       int8_t targetPrec = (int8_t)TMAX(pLeftExpr->resType.precision, pRightExpr->resType.precision);
 
-      int32_t code = alignSetOperandTimestampPrecision(pSetOperator->pLeft, index - 1, targetPrec);
-      if (TSDB_CODE_SUCCESS != code) return code;
-      code = alignSetOperandTimestampPrecision(pSetOperator->pRight, index - 1, targetPrec);
-      if (TSDB_CODE_SUCCESS != code) return code;
-
-      pLeft = nodesListGetNode(pLeftProjections, index - 1);
-      pRight = nodesListGetNode(pRightProjections, index - 1);
-      pLeftExpr = (SExprNode*)pLeft;
-      pRightExpr = (SExprNode*)pRight;
+      if (pRightExpr->resType.precision < targetPrec) {
+        SNode*  pRightScale = NULL;
+        int32_t code = createTimestampScaleNode(pRight, targetPrec, &pRightScale);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        REPLACE_LIST2_NODE(pRightScale);
+        pRightExpr = (SExprNode*)pRightScale;
+      }
+      if (pLeftExpr->resType.precision < targetPrec) {
+        SNode*  pLeftScale = NULL;
+        int32_t code = createTimestampScaleNode(pLeft, targetPrec, &pLeftScale);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        REPLACE_LIST1_NODE(pLeftScale);
+        SExprNode* pLeftScaleExpr = (SExprNode*)pLeftScale;
+        snprintf(pLeftScaleExpr->aliasName, sizeof(pLeftScaleExpr->aliasName), "%s", pLeftExpr->aliasName);
+        snprintf(pLeftScaleExpr->userAlias, sizeof(pLeftScaleExpr->userAlias), "%s", pLeftExpr->userAlias);
+        pLeft = pLeftScale;
+        pLeftExpr = pLeftScaleExpr;
+      }
     } else if (comp > 0) {
       SNode*  pRightFunc = NULL;
       int32_t code = createCastFunc(pCxt, pRight, pLeftExpr->resType, &pRightFunc);
@@ -17696,28 +16844,11 @@ static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pS
   return TSDB_CODE_SUCCESS;
 }
 
-static uint8_t getSetOperatorProjectionPrecision(SNode* pStmt, uint8_t fallback) {
-  uint8_t    precision = fallback;
-  SNodeList* pProjects = getProjectList(pStmt);
-  SNode*     pProject = NULL;
-  FOREACH(pProject, pProjects) {
-    SExprNode* pExpr = (SExprNode*)pProject;
-    if (TSDB_DATA_TYPE_TIMESTAMP == pExpr->resType.type) {
-      precision = TMAX(precision, pExpr->resType.precision);
-    }
-  }
-  return precision;
-}
-
 static uint8_t calcSetOperatorPrecision(SSetOperator* pSetOperator) {
+  // DS §5.3.12.4.4: UNION uses MAX precision so that the finer-grained side
+  // is preserved after __timestamp_scale alignment.
   uint8_t lp = getStmtPrecision(pSetOperator->pLeft);
   uint8_t rp = getStmtPrecision(pSetOperator->pRight);
-  if (!queryHasExternalTable((SNode*)pSetOperator)) {
-    return TMAX(lp, rp);
-  }
-
-  lp = getSetOperatorProjectionPrecision(pSetOperator->pLeft, lp);
-  rp = getSetOperatorProjectionPrecision(pSetOperator->pRight, rp);
   return TMAX(lp, rp);
 }
 
@@ -17953,6 +17084,8 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
     if (!dataTypeEqual(&pCol->node.resType, &pExpr->resType)) {
       SNode*  pFunc = NULL;
       int32_t code = TSDB_CODE_SUCCESS;
+      // DS §5.3.12.4.6: for TIMESTAMP with different precision, use
+      // __timestamp_scale to convert to the destination table's precision.
       if (pCol->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP &&
           pExpr->resType.type == TSDB_DATA_TYPE_TIMESTAMP &&
           pCol->node.resType.precision != pExpr->resType.precision) {
@@ -17968,6 +17101,9 @@ static int32_t translateInsertProject(STranslateContext* pCxt, SInsertStmt* pIns
     }
     snprintf(pExpr->aliasName, sizeof(pExpr->aliasName), "%s", pCol->colName);
     if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) {
+      // For ORDER BY: if the projection is __timestamp_scale, use the inner expression
+      // (original column) since timestamp scaling is monotonic and preserves sort order.
+      // This avoids double-evaluation when Sort pre-calculates the expression.
       if (QUERY_NODE_FUNCTION == nodeType(pExpr) &&
           strcmp(((SFunctionNode*)pExpr)->functionName, "__timestamp_scale") == 0) {
         pPrimaryKeyExpr = nodesListGetNode(((SFunctionNode*)pExpr)->pParameterList, 0);
@@ -19746,7 +18882,7 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
     if (TSDB_CODE_SUCCESS == code && pCol->pOptions && ((SColumnOptions*)pCol->pOptions)->bPrimaryKey &&
         !(TSDB_DATA_TYPE_INT == pCol->dataType.type || TSDB_DATA_TYPE_UINT == pCol->dataType.type ||
           TSDB_DATA_TYPE_BIGINT == pCol->dataType.type || TSDB_DATA_TYPE_UBIGINT == pCol->dataType.type ||
-          TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type || TSDB_DATA_TYPE_TIMESTAMP == pCol->dataType.type)) {
+          TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type)) {
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PK_TYPE);
     }
     if (TSDB_CODE_SUCCESS == code && pCol->dataType.type == TSDB_DATA_TYPE_JSON) {
@@ -22184,9 +21320,6 @@ static int32_t translateRestoreDnode(STranslateContext* pCxt, SRestoreComponentN
   SRestoreDnodeReq restoreReq = {0};
   restoreReq.dnodeId = pStmt->dnodeId;
   restoreReq.vgId = pStmt->vgId;
-  // pass the parallel vnode restore upper limit through to the mnode request, 0 means no limit
-  restoreReq.parallel = pStmt->parallel;
-  parserDebug("translateRestoreDnode: dnodeId:%d vgId:%d parallel:%d", pStmt->dnodeId, pStmt->vgId, pStmt->parallel);
   switch (nodeType((SNode*)pStmt)) {
     case QUERY_NODE_RESTORE_DNODE_STMT:
       restoreReq.restoreType = RESTORE_TYPE__ALL;
@@ -22744,7 +21877,7 @@ static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) 
       tstrncpy(fakeTable.table.dbName, pStmt->dbName, TSDB_DB_NAME_LEN);
       tstrncpy(fakeTable.table.tableName, pStmt->tableName, TSDB_TABLE_NAME_LEN);
       (void)memcpy(fakeTable.extSeg, pStmt->extSeg, sizeof(fakeTable.extSeg));
-      int32_t extCode = translateExternalTableImpl(pCxt, &fakeTable, /*srcNameFromUseContext=*/false);
+      int32_t extCode = translateExternalTableImpl(pCxt, &fakeTable);
       parserDebug("translateDescribe external result: db:%s table:%s code:0x%x",
                   pStmt->dbName, pStmt->tableName, extCode);
       if (TSDB_CODE_SUCCESS == extCode) {
@@ -23387,6 +22520,23 @@ static int32_t registerFederatedTriggerWindowTsKeys(SNode* pTriggerWindow, SHash
   return cxt.errCode;
 }
 
+// A single trigger-window/filter/partition expression can reference the same column more
+// than once (e.g. EVENT_WINDOW(START WITH val > 0 END WITH val > 4) walks "val" twice).
+// Without dedup, doStreamSetSlotId's pCollect would carry duplicate column entries; for
+// EXT (federated) trigger sources this list becomes the SELECT column list sent to the
+// external source, and DataFusion-backed sources (e.g. InfluxDB 3.x) reject a projection
+// with duplicate expression names -- see fetchDataForUid/buildTriggerColList in
+// streamReaderExt.c, fed from SCMCreateStreamReq.triggerCols.
+static bool streamCollectHasSlot(const SNodeList* pCollect, int16_t slotId) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCollect) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode) && ((SColumnNode*)pNode)->slotId == slotId) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static EDealRes doStreamSetSlotId(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 != strcmp(((SColumnNode*)pNode)->colName, "*")) {
     SStreamSetSlotIdCxt* pCxt = (SStreamSetSlotIdCxt*)pContext;
@@ -23406,7 +22556,7 @@ static EDealRes doStreamSetSlotId(SNode* pNode, void* pContext) {
       return DEAL_RES_ERROR;
     }
     ((SColumnNode*)pNode)->slotId = *slotId;
-    if (pCxt->pCollect) {
+    if (pCxt->pCollect && !streamCollectHasSlot(pCxt->pCollect, *slotId)) {
       SNode* tmpNode = NULL;
       pCxt->errCode = nodesCloneNode(pNode, &tmpNode);
       if (TSDB_CODE_SUCCESS != pCxt->errCode) {
@@ -23453,35 +22603,59 @@ static int32_t createStreamSetListSlotId(SNodeList* pNodeList, SHashObj* slotHas
 
 typedef struct SRewriteTagSubtableExprCxt {
   int32_t            code;
-  bool               found;
-  bool               onlyValue;
   SNodeList*         pGroupByList;
   STranslateContext* pCxt;
+  // true when the trigger table is an InfluxDB external source AND there is no
+  // explicit PARTITION BY tag subset (see the computation in
+  // createStreamReqBuildOutTable): only then does handleGroupColValuePull
+  // actually synthesize a tbname from the reader's uid, so only then is a bare
+  // tbname reference allowed in output_subtable/tag_expr without needing to
+  // appear in the partition/rollup list.
+  bool               isExtInfluxSource;
 } SRewriteTagSubtableExprCxt;
 
 static EDealRes rewriteTagSubtableExpr(SNode** pNode, void* pContext) {
   SRewriteTagSubtableExprCxt* pCxt = (SRewriteTagSubtableExprCxt*)pContext;
-  SNode*                      pPar = NULL;
-  int32_t                     index = 1;
   int32_t                     code = TSDB_CODE_SUCCESS;
-  FOREACH(pPar, pCxt->pGroupByList) {
-    if (nodeType(*pNode) == QUERY_NODE_VALUE) {
-      pCxt->onlyValue &= true;
+
+  if (nodeType(*pNode) == QUERY_NODE_VALUE) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  bool needsPartitionMatch = false;
+  if (nodeType(*pNode) == QUERY_NODE_FUNCTION) {
+    SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+    if (pFunc->funcType == FUNCTION_TYPE_GROUP_ID) {
       return DEAL_RES_CONTINUE;
     }
-    if (nodeType(*pNode) == QUERY_NODE_FUNCTION) {
-      SFunctionNode* pFunc = (SFunctionNode*)*pNode;
-      if (pFunc->funcType == FUNCTION_TYPE_GROUP_ID) {
-        pCxt->onlyValue &= true;
-        return DEAL_RES_CONTINUE;
+    if (pFunc->funcType == FUNCTION_TYPE_TBNAME) {
+      if (pCxt->isExtInfluxSource) {
+        SFunctionNode* pTbFunc = NULL;
+        PAR_ERR_JRET(createFunction("_placeholder_tbname", NULL, &pTbFunc));
+        nodesDestroyNode((SNode*)*pNode);
+        *pNode = (SNode*)pTbFunc;
+
+        EDealRes res = translateFunction(pCxt->pCxt, (SFunctionNode**)pNode);
+        if (res == DEAL_RES_ERROR) {
+          PAR_ERR_JRET(pCxt->pCxt->errCode);
+        }
+        return DEAL_RES_IGNORE_CHILD;
       }
-      if (pFunc->funcType == FUNCTION_TYPE_TBNAME) {
-        pCxt->onlyValue &= false;
-      }
+      needsPartitionMatch = true;
     }
-    if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
-      pCxt->onlyValue &= false;
-    }
+  } else if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
+    needsPartitionMatch = true;
+  }
+
+  // Try matching the WHOLE node -- regardless of its type -- against the partition/rollup
+  // list first. This covers composite expressions cloned verbatim from that list itself
+  // (e.g. the default tag/subtable expr for PARTITION BY substring_index(gid,'.',2), whose
+  // top-level node is neither a COLUMN nor a TBNAME function and so would otherwise never be
+  // matched as a whole, only to fail later on its nested "gid" column against the full
+  // composite expr).
+  SNode*  pPar  = NULL;
+  int32_t index = 1;
+  FOREACH(pPar, pCxt->pGroupByList) {
     if (nodesEqualNode(*pNode, pPar)) {
       SNodeList*     pParamList = NULL;
       SFunctionNode* pFunc = NULL;
@@ -23497,18 +22671,32 @@ static EDealRes rewriteTagSubtableExpr(SNode** pNode, void* pContext) {
       if (res == DEAL_RES_ERROR) {
         PAR_ERR_JRET(pCxt->pCxt->errCode);
       }
-      pCxt->found = true;
       return DEAL_RES_IGNORE_CHILD;
     }
     index++;
   }
+
+  if (needsPartitionMatch) {
+    // This reference (a bare column, or a non-ext-influx tbname) did not match
+    // any expr in the partition/rollup list. Each reference is validated
+    // independently here -- unlike the previous shared found/onlyValue
+    // accumulator, which only raised an error when NOTHING in the whole
+    // expression matched -- so a matching reference elsewhere in the same
+    // expression can no longer mask an unrelated non-partition column/tbname
+    // reference (e.g. CONCAT(partitionTag, otherTag) used to slip past this
+    // check because partitionTag alone made the old check pass).
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SUBTABLE,
+                                         "output_subtable/tag_expr must use expr from partition or rollup list."));
+  }
+
   return DEAL_RES_CONTINUE;
 _return:
   pCxt->code = code;
   return DEAL_RES_ERROR;
 }
 
-static int32_t translateCreateStreamTagSubtableExpr(STranslateContext* pCxt, SNodeList* pGroupByList, SNode** pNode) {
+static int32_t translateCreateStreamTagSubtableExpr(STranslateContext* pCxt, SNodeList* pGroupByList, SNode** pNode,
+                                                    bool isExtInfluxSource) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   pCxt->streamInfo.outTableClause = true;
@@ -23516,15 +22704,10 @@ static int32_t translateCreateStreamTagSubtableExpr(STranslateContext* pCxt, SNo
   PAR_ERR_JRET(translateExpr(pCxt, pNode));
 
   SRewriteTagSubtableExprCxt cxt = {
-      .code = TSDB_CODE_SUCCESS, .pCxt = pCxt, .pGroupByList = pGroupByList, .found = false, .onlyValue = true};
+      .code = TSDB_CODE_SUCCESS, .pCxt = pCxt, .pGroupByList = pGroupByList, .isExtInfluxSource = isExtInfluxSource};
   nodesRewriteExpr(pNode, rewriteTagSubtableExpr, &cxt);
   pCxt->streamInfo.outTableClause = false;
   PAR_ERR_JRET(cxt.code);
-
-  if (!cxt.found && !cxt.onlyValue) {
-    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_SUBTABLE,
-                                         "output_subtable/tag_expr must use expr from partition or rollup list."));
-  }
 
 _return:
   if (code) {
@@ -23536,7 +22719,7 @@ _return:
 static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const char* streamDb, const char* streamName,
                                                const char* outDbName, const char* outTableName, SNode* pSubtable,
                                                SHashObj* pTriggerSlotHash, SNodeList* pGroupByList,
-                                               char** subTblNameExpr) {
+                                               bool isExtInfluxSource, char** subTblNameExpr) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pSubtableExpr = NULL;
 
@@ -23605,7 +22788,7 @@ static int32_t createStreamReqBuildOutSubtable(STranslateContext* pCxt, const ch
     pSubtableExpr = (SNode*)pConcatFunc;
   }
 
-  PAR_ERR_JRET(translateCreateStreamTagSubtableExpr(pCxt, pGroupByList, &pSubtableExpr));
+  PAR_ERR_JRET(translateCreateStreamTagSubtableExpr(pCxt, pGroupByList, &pSubtableExpr, isExtInfluxSource));
   if (!nodesIsExprNode(pSubtableExpr) || ((SExprNode*)pSubtableExpr)->resType.type != TSDB_DATA_TYPE_BINARY) {
     nodesDestroyNode(pSubtableExpr);
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
@@ -23625,7 +22808,8 @@ _return:
 }
 
 static int32_t createStreamReqBuildStreamTagExprStr(STranslateContext* pCxt, SNodeList* pList, SNodeList* pGroupByList,
-                                                    SHashObj* pTriggerSlotHash, char** tagValueExpr) {
+                                                    SHashObj* pTriggerSlotHash, bool isExtInfluxSource,
+                                                    char** tagValueExpr) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SNodeList* pExprList = NULL;
   int32_t    pExprListLen = 0;
@@ -23641,7 +22825,7 @@ static int32_t createStreamReqBuildStreamTagExprStr(STranslateContext* pCxt, SNo
   FOREACH(pNode, pList) {
     SStreamTagDefNode* pTag = (SStreamTagDefNode*)pNode;
     if (pTag->pTagExpr) {
-      PAR_ERR_JRET(translateCreateStreamTagSubtableExpr(pCxt, pGroupByList, &pTag->pTagExpr));
+      PAR_ERR_JRET(translateCreateStreamTagSubtableExpr(pCxt, pGroupByList, &pTag->pTagExpr, isExtInfluxSource));
       SExprNode* pTagExpr = (SExprNode*)pTag->pTagExpr;
       bool typeMatch = (pTagExpr->resType.type == pTag->dataType.type);
       bool typeModMatch = true;
@@ -23715,6 +22899,17 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, SCrea
 
   pCxt->currClause = SQL_CLAUSE_SELECT;
   pReq->igExists = (int8_t)pStmt->ignoreExists;
+
+  {
+    SStreamTriggerNode* pTriggerNode = (SStreamTriggerNode*)pStmt->pTrigger;
+    bool                isExtTrigger = pTriggerNode->pTrigerTable != NULL &&
+                         ((SRealTableNode*)pTriggerNode->pTrigerTable)->pExtTableNode != NULL;
+    if (isExtTrigger && (pOptions->fillHistory || pOptions->fillHistoryFirst)) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_EXT_HISTORY_NOT_SUPPORTED,
+                                           "FILL_HISTORY/FILL_HISTORY_FIRST is not supported for external trigger "
+                                           "tables"));
+    }
+  }
 
   if (pOptions->pExpiredTime) {
     PAR_ERR_JRET(checkExpiredTime(pCxt, (SValueNode*)pOptions->pExpiredTime));
@@ -23840,68 +23035,10 @@ _return:
   return code;
 }
 
-static int32_t createStreamBuildOutStbFullCols(STableMeta* pMeta, SArray** ppFullCols, SArray** ppFullColCids) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  int32_t numOfCols = pMeta->tableInfo.numOfColumns;
-
-  *ppFullCols = taosArrayInit(numOfCols, sizeof(SFieldWithOptions));
-  if (NULL == *ppFullCols) {
-    PAR_ERR_RET(terrno);
-  }
-  if (ppFullColCids) {
-    *ppFullColCids = taosArrayInit(numOfCols, sizeof(col_id_t));
-    if (NULL == *ppFullColCids) {
-      taosArrayDestroy(*ppFullCols);
-      *ppFullCols = NULL;
-      PAR_ERR_RET(terrno);
-    }
-  }
-
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SSchema*          pSchema = &pMeta->schema[i];
-    SFieldWithOptions field = {.type = pSchema->type, .bytes = pSchema->bytes, .flags = pSchema->flags};
-
-    tstrncpy(field.name, pSchema->name, TSDB_COL_NAME_LEN);
-    if (pMeta->schemaExt) {
-      field.typeMod = pMeta->schemaExt[i].typeMod;
-    }
-    if (taosArrayPush(*ppFullCols, &field) == NULL) {
-      code = terrno;
-      goto _return;
-    }
-    if (ppFullColCids && taosArrayPush(*ppFullColCids, &pSchema->colId) == NULL) {
-      code = terrno;
-      goto _return;
-    }
-  }
-  return code;
-_return:
-  if (code) {
-    taosArrayDestroy(*ppFullCols);
-    *ppFullCols = NULL;
-    if (ppFullColCids) {
-      taosArrayDestroy(*ppFullColCids);
-      *ppFullColCids = NULL;
-    }
-  }
-  return code;
-}
-
-static int32_t createStreamFindOutSchemaIndex(STableMeta* pMeta, const char* name, bool isTag) {
-  int32_t start = isTag ? pMeta->tableInfo.numOfColumns : 0;
-  int32_t end = isTag ? (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) : pMeta->tableInfo.numOfColumns;
-
-  for (int32_t i = start; i < end; ++i) {
-    if (strcmp(name, pMeta->schema[i].name) == 0) {
-      return i;
-    }
-  }
-  return -1;
-}
-
 static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTags, STableMeta* pMeta,
                                         SArray** ptagCids) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t tagIndex = pMeta->tableInfo.numOfColumns;
   SNode*  pNode = NULL;
 
   *ptagCids = taosArrayInit(pMeta->tableInfo.numOfTags, sizeof(col_id_t));
@@ -23910,36 +23047,37 @@ static int32_t createStreamCheckOutTags(STranslateContext* pCxt, SNodeList* pTag
   }
 
   if (!pTags) {
-    for (int32_t i = 0; i < pMeta->tableInfo.numOfTags; ++i) {
-      col_id_t cid = pMeta->schema[pMeta->tableInfo.numOfColumns + i].colId;
-      if (taosArrayPush(*ptagCids, &cid) == NULL) {
-        PAR_ERR_RET(terrno);
-      }
-    }
     return code;
   }
 
-  if (LIST_LENGTH(pTags) > pMeta->tableInfo.numOfTags) {
+  if (LIST_LENGTH(pTags) != pMeta->tableInfo.numOfTags) {
     code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag count mismatch");
     goto _return;
   }
 
   FOREACH(pNode, pTags) {
     SStreamTagDefNode* pTagDef = (SStreamTagDefNode*)pNode;
-    int32_t            tagIndex = createStreamFindOutSchemaIndex(pMeta, pTagDef->tagName, true);
-    if (tagIndex < 0) {
-      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag name mismatch");
+    int8_t             scale = 0;
+    int8_t             precision = 0;
+    int32_t            bytes = 0;
+    if (tagIndex >= pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag count mismatch");
       goto _return;
     }
+    // tags not support decimal, so scale and precision are always 0
     if (pTagDef->dataType.type != pMeta->schema[tagIndex].type) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag type mismatch");
+      goto _return;
+    }
+    if (strcmp(pTagDef->tagName, pMeta->schema[tagIndex].name) != 0) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table tag name mismatch");
       goto _return;
     }
     if (taosArrayPush(*ptagCids, &pMeta->schema[tagIndex].colId) == NULL) {
       PAR_ERR_RET(terrno);
     }
+    tagIndex++;
   }
-
 _return:
   if (code) {
     parserError("createStreamCheckOutTags failed, code:%d", code);
@@ -23953,6 +23091,7 @@ _return:
 static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCols, STableMeta* pMeta,
                                         SArray** pcolCids) {
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t colIndex = 0;
   SNode*  pNode = NULL;
 
   *pcolCids = taosArrayInit(pMeta->tableInfo.numOfColumns, sizeof(col_id_t));
@@ -23961,38 +23100,27 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
   }
 
   if (!pCols) {
-    for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
-      if (taosArrayPush(*pcolCids, &pMeta->schema[i].colId) == NULL) {
-        PAR_ERR_RET(terrno);
-      }
-    }
     return code;
   }
 
-  if (LIST_LENGTH(pCols) > pMeta->tableInfo.numOfColumns) {
+  if (LIST_LENGTH(pCols) != pMeta->tableInfo.numOfColumns) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table cols count mismatch");
   }
 
   FOREACH(pNode, pCols) {
     SColumnDefNode* pColDef = (SColumnDefNode*)pNode;
-    int32_t         colIndex = createStreamFindOutSchemaIndex(pMeta, pColDef->colName, false);
+    SColumnOptions* pColOptions = (SColumnOptions*)pColDef->pOptions;
     int8_t          scale = 0;
     int8_t          precision = 0;
     int32_t         bytes = 0;
-    if (colIndex < 0) {
-      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table cols name mismatch");
-      goto _return;
-    }
     if (pMeta->schemaExt) {
       extractTypeFromTypeMod(pMeta->schema[colIndex].type, pMeta->schemaExt[colIndex].typeMod, &precision, &scale,
                              &bytes);
     }
 
     if (pColDef->dataType.type != pMeta->schema[colIndex].type ||
-        (IS_VAR_DATA_TYPE(pColDef->dataType.type) && bytes != pColDef->dataType.bytes &&
-         pMeta->schema[colIndex].bytes != pColDef->dataType.bytes &&
-         pColDef->dataType.bytes != calcTypeBytes(pColDef->dataType)) ||
-        precision != pColDef->dataType.precision || scale != pColDef->dataType.scale) {
+        pColDef->dataType.bytes != pMeta->schema[colIndex].bytes || pColDef->dataType.scale != scale ||
+        (pColDef->dataType.precision != precision && IS_DECIMAL_TYPE(pColDef->dataType.type))) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table cols type mismatch");
       goto _return;
     }
@@ -24000,29 +23128,19 @@ static int32_t createStreamCheckOutCols(STranslateContext* pCxt, SNodeList* pCol
     if (pColDef->dataType.type == TSDB_DATA_TYPE_TIMESTAMP &&
         pColDef->dataType.precision != pMeta->tableInfo.precision) {
       code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
-                                       "Out table cols timestamp precision mismatch");
+                                     "Out table cols timestamp precision mismatch");
       goto _return;
     }
 
-    col_id_t colId = pMeta->schema[colIndex].colId;
-    if (taosArrayGetSize(*pcolCids) == 0 && colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
-                                     "Out table first col must be primary timestamp column");
+    if (strncmp(pColDef->colName, pMeta->schema[colIndex].name, strlen(pColDef->colName)) != 0) {
+      code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE, "Out table cols name mismatch");
       goto _return;
     }
-    if (taosArrayGetSize(*pcolCids) > 0) {
-      col_id_t* pPrevColId = (col_id_t*)taosArrayGetLast(*pcolCids);
-      if (pPrevColId != NULL && colId <= *pPrevColId) {
-        code = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
-                                       "Out table cols must be specified in ascending column id order");
-        goto _return;
-      }
-    }
-    if (taosArrayPush(*pcolCids, &colId) == NULL) {
+    if (taosArrayPush(*pcolCids, &pMeta->schema[colIndex].colId) == NULL) {
       PAR_ERR_RET(terrno);
     }
+    colIndex++;
   }
-
 _return:
   if (code) {
     parserError("createStreamCheckOutCols failed, code:%d", code);
@@ -24039,6 +23157,31 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
   int32_t             code = TSDB_CODE_SUCCESS;
   SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
   STableMeta*         pMeta = NULL;
+  // InfluxDB ext-source streams may reference tbname in output_subtable/tag_expr
+  // (see rewriteTagSubtableExpr): tbname there is resolvable via
+  // handleGroupColValuePull's uid-derived synthetic identity, but ONLY when
+  // the reader actually synthesizes it -- i.e. when there is no explicit
+  // PARTITION BY tag subset without tbname (PARTITION BY tbname alone or
+  // mixed with tags, or no PARTITION BY at all; this is buildExtSpecs's
+  // wantTbname/partitionByTbname gate, which is independent of whether
+  // partitionTagCols itself ends up NULL -- see streamReaderExt.c
+  // handleGroupColValuePull's ctx.wantTbname / extGroupColValuePushTbnameEntry).
+  // For a PARTITION BY <tag subset> stream with no tbname, the reader never
+  // populates the isTbname group-col-value, so allowing tbname here would
+  // parse successfully but resolve to an empty string at runtime -- keep it
+  // rejected at parse time by falling through to the ordinary
+  // partition/rollup-list match instead.
+  bool isExtInfluxSource = pTrigger->pTrigerTable != NULL &&
+                          nodeType(pTrigger->pTrigerTable) == QUERY_NODE_REAL_TABLE &&
+                          ((SRealTableNode*)pTrigger->pTrigerTable)->pExtTableNode != NULL &&
+                          ((SExtTableNode*)((SRealTableNode*)pTrigger->pTrigerTable)->pExtTableNode)->sourceType ==
+                              EXT_SOURCE_INFLUXDB;
+  if (isExtInfluxSource) {
+    SNodeList* pExtGroupByList =
+        (LIST_LENGTH(pTrigger->pRollupTagList) > 0) ? pTrigger->pRollupTagList : pTrigger->pPartitionList;
+    isExtInfluxSource = (pExtGroupByList == NULL || LIST_LENGTH(pExtGroupByList) == 0 ||
+                        hasTbnameFunction(pExtGroupByList));
+  }
 
   parserDebug("translate create stream req start build out table info, streamId:%" PRId64, pReq->streamId);
 
@@ -24099,9 +23242,6 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       pReq->outStbSversion = pMeta->sversion;
       PAR_ERR_JRET(createStreamCheckOutTags(pCxt, pStmt->pTags, pMeta, &pReq->tagCids));
       PAR_ERR_JRET(createStreamCheckOutCols(pCxt, pStmt->pCols, pMeta, &pReq->colCids));
-      if (pStmt->pCols != NULL && LIST_LENGTH(pStmt->pCols) < pMeta->tableInfo.numOfColumns) {
-        PAR_ERR_JRET(createStreamBuildOutStbFullCols(pMeta, &pReq->outStbFullCols, &pReq->outStbFullColCids));
-      }
     } else {
       if (pMeta->tableType != TSDB_NORMAL_TABLE) {
         PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_OUT_TABLE,
@@ -24113,9 +23253,6 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
       pReq->outStbUid = 0;
       pReq->outStbSversion = 1;
       PAR_ERR_JRET(createStreamCheckOutCols(pCxt, pStmt->pCols, pMeta, &pReq->colCids));
-      if (pStmt->pCols != NULL && LIST_LENGTH(pStmt->pCols) < pMeta->tableInfo.numOfColumns) {
-        PAR_ERR_JRET(createStreamBuildOutStbFullCols(pMeta, &pReq->outStbFullCols, &pReq->outStbFullColCids));
-      }
     }
   } else {
     PAR_ERR_JRET(code);
@@ -24128,7 +23265,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
     bool isRollupGroup = LIST_LENGTH(pTrigger->pRollupTagList) > 0;
     PAR_ERR_JRET(createStreamReqBuildStreamTagExprStr(
         pCxt, pStmt->pTags, isRollupGroup ? pTrigger->pRollupTagList : pTrigger->pPartitionList, pTriggerSlotHash,
-        (char**)&pReq->tagValueExpr));
+        isExtInfluxSource, (char**)&pReq->tagValueExpr));
   } else {
     PAR_ERR_JRET(getTableVgId(pCxt, pStmt->targetDbName, pStmt->targetTabName, &pReq->outTblVgId));
   }
@@ -24139,7 +23276,7 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
     PAR_ERR_JRET(createStreamReqBuildOutSubtable(pCxt, pStmt->streamDbName, pStmt->streamName, pStmt->targetDbName,
                                                  pStmt->targetTabName, pStmt->pSubtable, pTriggerSlotHash,
                                                  isRollupGroup ? pTrigger->pRollupTagList : pTrigger->pPartitionList,
-                                                 (char**)&pReq->subTblNameExpr));
+                                                 isExtInfluxSource, (char**)&pReq->subTblNameExpr));
   }
   pReq->nodelayCreateSubtable = pStmt->nodelayCreateSubtable;
 
@@ -24168,10 +23305,7 @@ static int32_t createStreamReqBuildTriggerTableInfo(STranslateContext* pCxt, SRe
     }
     (void)snprintf(pReq->triggerDB, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId,
                    pTriggerTable->table.dbName);
-    // External triggers always use one snode reader. InfluxDB tag metadata can
-    // classify the synthetic table as a super table, which would route the
-    // deployment through the local-vgroup path and try to acquire "acctId.".
-    pReq->triggerTblType = TSDB_NORMAL_TABLE;
+    pReq->triggerTblType = pMeta->tableType;
     pReq->triggerTblUid = 0;
     pReq->triggerTblSuid = 0;
     pReq->triggerTblVgId = 0;
@@ -24317,7 +23451,17 @@ static int32_t createStreamReqBuildTriggerPeriodWindow(STranslateContext* pCxt, 
   pReq->trigger.period.offset = createStreamReqWindowGetBigInt(pTriggerWindow->pOffset);
   pReq->trigger.period.periodUnit = createStreamReqWindowGetUnit(pTriggerWindow->pPeroid);
   pReq->trigger.period.offsetUnit = createStreamReqWindowGetUnit(pTriggerWindow->pOffset);
-  pReq->trigger.period.precision = TSDB_TIME_PRECISION_MILLI;
+  // pPeroid->datum.i was already scaled to the trigger select's own precision
+  // (see translateValueImpl/getPrecisionFromCurrStmt), which for an external
+  // trigger table (e.g. MySQL, precision=us) can differ from ms. Record that
+  // same precision here instead of hardcoding MILLI, otherwise stTriggerTaskDeploy's
+  // convertTimePrecision(period, precision, NANO) mis-scales the period window.
+  // Guard against a NULL pPeroid the same way createStreamReqWindowGetBigInt/
+  // GetUnit above do (checkPeriodWindow tolerates a NULL period): fall back to
+  // MILLI rather than dereferencing NULL.
+  pReq->trigger.period.precision = pTriggerWindow->pPeroid
+                                       ? ((SValueNode*)pTriggerWindow->pPeroid)->node.resType.precision
+                                       : TSDB_TIME_PRECISION_MILLI;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -24408,52 +23552,6 @@ static SNodeList* getScanNodeScanCols(SScanPhysiNode* pScanNode) {
 }
 
 static void findTsSlotId(SScanPhysiNode* pScanNode, int16_t* pTsSlotId) {
-  if (QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN == nodeType(pScanNode)) {
-    SFederatedScanPhysiNode* pFed = (SFederatedScanPhysiNode*)pScanNode;
-    int16_t                  fallback = -1;
-    int32_t                  index = 0;
-    SNode*                   pNode = NULL;
-    // Stream readers materialize pScanCols, while remote result targets can have a different layout.
-    FOREACH(pNode, pFed->pScanCols) {
-      SNode* pExpr = pNode;
-      if (QUERY_NODE_TARGET == nodeType(pExpr)) {
-        pExpr = ((STargetNode*)pExpr)->pExpr;
-      }
-      if (NULL == pExpr || QUERY_NODE_COLUMN != nodeType(pExpr)) {
-        ++index;
-        continue;
-      }
-
-      SColumnNode* pCol = (SColumnNode*)pExpr;
-      if (TSDB_DATA_TYPE_TIMESTAMP == pCol->node.resType.type) {
-        if (-1 == fallback) {
-          fallback = (int16_t)index;
-        }
-        if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId || pCol->isPrimTs) {
-          *pTsSlotId = (int16_t)index;
-          return;
-        }
-      }
-      ++index;
-    }
-    if (-1 != fallback) {
-      *pTsSlotId = fallback;
-      return;
-    }
-
-    SDataBlockDescNode* pDesc = pScanNode->node.pOutputDataBlockDesc;
-    if (NULL != pDesc) {
-      FOREACH(pNode, pDesc->pSlots) {
-        SSlotDescNode* pSlot = (SSlotDescNode*)pNode;
-        if (TSDB_DATA_TYPE_TIMESTAMP == pSlot->dataType.type) {
-          *pTsSlotId = pSlot->slotId;
-          break;
-        }
-      }
-    }
-    return;
-  }
-
   SNodeList* pScanCols = getScanNodeScanCols(pScanNode);
   SNode* pNode = NULL;
   parserDebug("findTsSlotId: nodeType=%d, pScanCols=%p, listSize=%d",
@@ -24494,14 +23592,10 @@ static void findTsSlotId(SScanPhysiNode* pScanNode, int16_t* pTsSlotId) {
     }
   }
 
-  parserDebug("findTsSlotId: result triTsSlotId=%d", *pTsSlotId);
+  parserDebug("findTsSlotId: result tsSlotId=%d", *pTsSlotId);
 }
 
 static void findPkSlotId(SScanPhysiNode* pScanNode, int16_t* pPkSlotId) {
-  if (QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN == nodeType(pScanNode)) {
-    return;
-  }
-
   SNodeList* pScanCols = getScanNodeScanCols(pScanNode);
   SNode* pNode = NULL;
   FOREACH(pNode, pScanCols) {
@@ -24513,6 +23607,52 @@ static void findPkSlotId(SScanPhysiNode* pScanNode, int16_t* pPkSlotId) {
       }
     }
   }
+}
+
+// Context for walking a trigger sub-expression (partition item, window, filter, ...) and
+// registering column keys against the federated scan's authoritative scan-cols.
+typedef struct SFedTriggerColKeyCxt {
+  int32_t    errCode;
+  SHashObj*  pHash;
+  SNodeList* pScanCols;
+} SFedTriggerColKeyCxt;
+
+static int32_t matchAndRegisterFedTriggerColKey(SNode* pNode, SColumnNode* pCol, SFedTriggerColKeyCxt* pCxt) {
+  SNode* pScanColNode = NULL;
+  FOREACH(pScanColNode, pCxt->pScanCols) {
+    STargetNode* pTarget = (STargetNode*)pScanColNode;
+    if (nodeType(pTarget->pExpr) != QUERY_NODE_COLUMN) continue;
+    SColumnNode* pScanCol = (SColumnNode*)pTarget->pExpr;
+    if (strcasecmp(pScanCol->colName, pCol->colName) == 0 ||
+        (pScanCol->node.userAlias[0] != '\0' &&
+         strcasecmp(pScanCol->node.userAlias, pCol->colName) == 0)) {
+      char*   key    = NULL;
+      int32_t keyLen = 0;
+      int32_t code   = streamGetSlotKey(pNode, &key, &keyLen, 64);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      parserDebug("%s: col='%s' slotId=%d", __func__, pCol->colName, pTarget->slotId);
+      // ignore put error — key may already exist from pSlot->name registration
+      int32_t ret = taosHashPut(pCxt->pHash, key, keyLen, &pTarget->slotId, sizeof(int16_t));
+      if (ret != 0) {
+        parserWarn("%s taosHashPut error ret:%d col='%s' slotId=%d", __func__, ret,
+                   pCol->colName, pTarget->slotId);
+      }
+      taosMemoryFree(key);
+      break;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static EDealRes doRegisterFedTriggerPartitionColKey(SNode* pNode, void* pCtx) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SFedTriggerColKeyCxt* pCxt = (SFedTriggerColKeyCxt*)pCtx;
+  pCxt->errCode = matchAndRegisterFedTriggerColKey(pNode, (SColumnNode*)pNode, pCxt);
+  return TSDB_CODE_SUCCESS != pCxt->errCode ? DEAL_RES_ERROR : DEAL_RES_CONTINUE;
 }
 
 // For EXT-driven (federated) streams, the query planner rewrites EVERY scan-cols
@@ -24527,66 +23667,51 @@ static void findPkSlotId(SScanPhysiNode* pScanNode, int16_t* pPkSlotId) {
 // TSDB_CODE_PLAN_SLOT_NOT_FOUND for any non-tbname PARTITION BY column on an ext
 // trigger table.
 //
-// Match each partition COLUMN node against the federated scan's scan-cols by
-// colName OR userAlias (covers both the rewritten and not-yet-rewritten cases) and
-// register its reader-schema slot under streamGetSlotKey() in pHash.  A regular
-// physical scan stores STargetNode entries, while a federated scan can retain
-// raw SColumnNode entries whose list index is the materialized reader slot.
+// Walk each partition item's full expression tree (not just the item itself) so that a
+// COLUMN nested inside a scalar function (e.g. PARTITION BY UPPER(host)) is matched too --
+// a bare top-level check missed this case and left the nested "host" COLUMN's slot key
+// unregistered, causing createStreamSetListSlotId to hit TSDB_CODE_PLAN_SLOT_NOT_FOUND.
+// Match each COLUMN node against the federated scan's scan-cols by colName OR userAlias
+// (covers both the rewritten and not-yet-rewritten cases) and register the scan-col's
+// authoritative slotId under streamGetSlotKey() in pHash.
 static int32_t registerFederatedTriggerPartitionKeys(SScanPhysiNode* pScanNode, SNodeList* pTriggerPartition,
                                                       SHashObj* pHash) {
-  if (NULL == pScanNode || NULL == pHash || NULL == pTriggerPartition || LIST_LENGTH(pTriggerPartition) == 0) {
+  if (pTriggerPartition == NULL || LIST_LENGTH(pTriggerPartition) == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SNodeList* pScanCols = getScanNodeScanCols(pScanNode);
-  if (NULL == pScanCols) {
-    return TSDB_CODE_SUCCESS;
+  SFedTriggerColKeyCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pHash = pHash,
+                              .pScanCols = getScanNodeScanCols(pScanNode)};
+  nodesWalkExprs(pTriggerPartition, doRegisterFedTriggerPartitionColKey, &cxt);
+  return cxt.errCode;
+}
+
+// Generalizes the ts-key fixup (registerFederatedTriggerWindowTsKeys) and the partition-key
+// fixup (registerFederatedTriggerPartitionKeys) to any other plain column referenced directly
+// by the trigger window itself -- e.g. STATE_WINDOW's state column or EVENT_WINDOW's
+// START/END condition columns. Without this, such columns hit the same "expr_N" colName
+// rewrite on a federated trigger table and createStreamSetNodeSlotId(pTriggerWindow, ...)
+// fails with TSDB_CODE_PLAN_SLOT_NOT_FOUND.
+static EDealRes doRegisterFedTriggerColKey(SNode* pNode, void* pCtx) {
+  if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
   }
-
-  SNode*     pPartNode = NULL;
-  FOREACH(pPartNode, pTriggerPartition) {
-    if (nodeType(pPartNode) != QUERY_NODE_COLUMN) continue;
-    SColumnNode* pPartCol = (SColumnNode*)pPartNode;
-
-    int16_t scanSlotId = 0;
-    SNode*  pScanColNode = NULL;
-    FOREACH(pScanColNode, pScanCols) {
-      SNode* pScanExpr = pScanColNode;
-      if (QUERY_NODE_TARGET == nodeType(pScanColNode)) {
-        STargetNode* pTarget = (STargetNode*)pScanColNode;
-        pScanExpr = pTarget->pExpr;
-        scanSlotId = pTarget->slotId;
-      }
-      if (NULL == pScanExpr || QUERY_NODE_COLUMN != nodeType(pScanExpr)) {
-        ++scanSlotId;
-        continue;
-      }
-
-      SColumnNode* pScanCol = (SColumnNode*)pScanExpr;
-      if (strcasecmp(pScanCol->colName, pPartCol->colName) == 0 ||
-          (pScanCol->node.userAlias[0] != '\0' &&
-           strcasecmp(pScanCol->node.userAlias, pPartCol->colName) == 0)) {
-        char*   key    = NULL;
-        int32_t keyLen = 0;
-        int32_t code   = streamGetSlotKey(pPartNode, &key, &keyLen, 64);
-        if (TSDB_CODE_SUCCESS != code) {
-          return code;
-        }
-        parserDebug("registerFederatedTriggerPartitionKeys: col='%s' slotId=%d",
-                    pPartCol->colName, scanSlotId);
-        // ignore put error — key may already exist from pSlot->name registration
-        int32_t ret = taosHashPut(pHash, key, keyLen, &scanSlotId, sizeof(int16_t));
-        if (ret != 0) {
-          parserWarn("%s taosHashPut error ret:%d col='%s' slotId=%d", __func__, ret,
-                     pPartCol->colName, scanSlotId);
-        }
-        taosMemoryFree(key);
-        break;
-      }
-      ++scanSlotId;
-    }
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  // TIMESTAMP-typed columns are already handled by registerFederatedTriggerWindowTsKeys.
+  if (pCol->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+    return DEAL_RES_CONTINUE;
   }
-  return TSDB_CODE_SUCCESS;
+  SFedTriggerColKeyCxt* pCxt = (SFedTriggerColKeyCxt*)pCtx;
+  pCxt->errCode = matchAndRegisterFedTriggerColKey(pNode, pCol, pCxt);
+  return TSDB_CODE_SUCCESS != pCxt->errCode ? DEAL_RES_ERROR : DEAL_RES_CONTINUE;
+}
+
+static int32_t registerFederatedTriggerWindowColKeys(SScanPhysiNode* pScanNode, SNode* pTriggerWindow,
+                                                      SHashObj* pHash) {
+  SFedTriggerColKeyCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pHash = pHash,
+                              .pScanCols = getScanNodeScanCols(pScanNode)};
+  nodesWalkExpr(pTriggerWindow, doRegisterFedTriggerColKey, &cxt);
+  return cxt.errCode;
 }
 
 // build trigger query plan in create stream request
@@ -24664,6 +23789,14 @@ static int32_t createStreamReqBuildTriggerBuildPlan(STranslateContext* pCxt, SSe
   if (nodeType(pScanNode) == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
     PAR_ERR_JRET(
         registerFederatedTriggerPartitionKeys(pScanNode, pTriggerPartition, *pTriggerSlotHash));
+  }
+
+  // Same fixup, generalized to any other plain column referenced directly by the trigger
+  // window itself (e.g. STATE_WINDOW's state column, EVENT_WINDOW's START/END condition
+  // columns) on an ext trigger table.
+  if (nodeType(pScanNode) == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
+    PAR_ERR_JRET(
+        registerFederatedTriggerWindowColKeys(pScanNode, pTriggerWindow, *pTriggerSlotHash));
   }
 
   PAR_ERR_JRET(nodesMakeList(&pTriggerCols));
@@ -24776,11 +23909,11 @@ static int32_t createStreamReqSetDefaultTag(STranslateContext* pCxt, SCreateStre
     if (isExtTrigger) {
       int32_t maxBytes = 0;
       if (pTagDef->dataType.type == TSDB_DATA_TYPE_NCHAR) {
-        maxBytes = EXT_INFLUX_TAG_NCHAR_CHARS * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+        maxBytes = EXT_INFLUX_TAG_NCHAR_CHARS;
       } else if (pTagDef->dataType.type == TSDB_DATA_TYPE_VARCHAR ||
                  pTagDef->dataType.type == TSDB_DATA_TYPE_VARBINARY ||
                  pTagDef->dataType.type == TSDB_DATA_TYPE_GEOMETRY) {
-        maxBytes = EXT_INFLUX_TAG_NCHAR_CHARS + VARSTR_HEADER_SIZE;
+        maxBytes = (EXT_INFLUX_TAG_NCHAR_CHARS - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE ;
       }
       if (maxBytes > 0 && pTagDef->dataType.bytes > maxBytes) {
         pTagDef->dataType.bytes = maxBytes;
@@ -24998,11 +24131,14 @@ static int32_t createSimpleSelectStmtImpl(const char* pDb, const char* pTable, S
                                           SSelectStmt** pStmt);
 static int32_t createSimpleSelectStmtFromCols(const char* pDb, const char* pTable, int32_t numOfProjs,
                                               const char* const pProjCol[], SSelectStmt** pStmt);
+static int32_t createProjectCol(const char* pProjCol, SNode** ppNode);
 // build trigger select list in create stream request
 static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealTableNode* pTriggerTable,
-                                                 SSelectStmt** pTriggerSelect, SCreateStreamStmt* pStmt) {
+                                                 const STableMeta* pTriggerTableMeta, SSelectStmt** pTriggerSelect,
+                                                 SCreateStreamStmt* pStmt) {
   int32_t                code = TSDB_CODE_SUCCESS;
   SFunctionNode*         pFunc = NULL;
+  SNode*                 pTsCol = NULL;
   SStreamTriggerNode*    pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
   SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
   SNode*                 pPreFilter = NULL;
@@ -25026,11 +24162,25 @@ static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealT
     code = nodesListMakeStrictAppend(&((SSelectStmt*)*pTriggerSelect)->pProjectionList, (SNode*)pFunc);
     pFunc = NULL;
     PAR_ERR_JRET(code);
+  } else if (LIST_LENGTH(((SSelectStmt*)*pTriggerSelect)->pProjectionList) == 0) {
+    // A trigger clause referencing no column (PERIOD, unpartitioned SLIDING, ...) plus no
+    // pre-filter leaves this placeholder select's projection list empty for an EXT trigger
+    // table, since tbname is skipped above. translateSelectList treats an empty projection
+    // list as "no SELECTed expression" (TSDB_CODE_PAR_INVALID_SELECTED_EXPR) even though this
+    // select only exists to build the trigger scan plan. Fall back to the primary timestamp
+    // column: it always exists and, unlike tbname, is a real column so it does not trip
+    // checkExtTableTbnameUsage.
+    const SSchema* pPrimTs = findPrimaryTsSchema(pTriggerTableMeta);
+    PAR_ERR_JRET(createProjectCol(pPrimTs->name, &pTsCol));
+    code = nodesListMakeStrictAppend(&((SSelectStmt*)*pTriggerSelect)->pProjectionList, pTsCol);
+    pTsCol = NULL;
+    PAR_ERR_JRET(code);
   }
 
   return code;
 _return:
   nodesDestroyNode((SNode*)pFunc);
+  nodesDestroyNode(pTsCol);
   parserError("%s failed, code:%d", __func__, code);
   return code;
 }
@@ -25141,6 +24291,21 @@ static EDealRes createStreamReqBuildTriggerCheckPartitionWalker(SNode* pNode, vo
       if (!fmIsScalarFunc(pFunction->funcId) && pFunction->funcType != FUNCTION_TYPE_TBNAME) {
         pCxt->code = generateSyntaxErrMsgExt(&pCxt->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
                                              "only scalar function and tbname can be used in partition");
+        return DEAL_RES_ERROR;
+      }
+      /* External (InfluxDB) trigger tables: the ext reader has no groupId /
+       * positional-slot support for a scalar function wrapping tbname (see
+       * streamReaderExt.c handleGroupColValuePull and buildExtSpecs's
+       * partitionByTbname handling) -- reject explicitly here instead of
+       * silently degrading to a single group at runtime. pCxt->pExtMeta is
+       * non-NULL only for an EXTERNAL trigger table, and by this point a
+       * non-InfluxDB ext source with any PARTITION BY has already been
+       * rejected upstream (createStreamReqBuildTriggerAst), so this can only
+       * fire for InfluxDB. */
+      if (pCxt->pExtMeta != NULL && pFunction->funcType != FUNCTION_TYPE_TBNAME && exprWrapsTbname(pNode)) {
+        pCxt->code = generateSyntaxErrMsgExt(&pCxt->pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                             "a scalar function wrapping tbname is not supported in PARTITION BY "
+                                             "for an external trigger table");
         return DEAL_RES_ERROR;
       }
       break;
@@ -25303,7 +24468,7 @@ static int32_t createStreamReqBuildTriggerAst(STranslateContext* pCxt, SCreateSt
                 pTriggerTable->table.tableName, extCode,
                 NULL != pSrcInfo ? 1 : 0);
     if (TSDB_CODE_SUCCESS == extCode && NULL != pSrcInfo) {
-      PAR_ERR_JRET(translateExternalTableImpl(pCxt, pTriggerTable, /*srcNameFromUseContext=*/false));
+      PAR_ERR_JRET(translateExternalTableImpl(pCxt, pTriggerTable));
       pTriggerTable->table.precision = pTriggerTable->pMeta->tableInfo.precision;
       pTriggerTable->table.singleTable = isSingleTable(pTriggerTable);
       SExtTableNode* pExtTrig = (SExtTableNode*)pTriggerTable->pExtTableNode;
@@ -25352,7 +24517,7 @@ static int32_t createStreamReqBuildTriggerAst(STranslateContext* pCxt, SCreateSt
 
   SNodeList* projList = NULL;
   PAR_ERR_JRET(createStreamReqBuildTriggerTableInfo(pCxt, pTriggerTable, pMetaForHelpers, pReq));
-  PAR_ERR_JRET(createStreamReqBuildTriggerSelect(pCxt, pTriggerTable, pTriggerSelect, pStmt));
+  PAR_ERR_JRET(createStreamReqBuildTriggerSelect(pCxt, pTriggerTable, pMetaForHelpers, pTriggerSelect, pStmt));
 
   PAR_ERR_JRET(createStreamReqBuildTriggerTranslateSelect(pCxt, pTrigger, *pTriggerSelect, pTriggerFilter));
   PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, pTriggerWindow));
@@ -25437,26 +24602,6 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
       PAR_ERR_JRET(
           generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
                                   "_tidlestart/_tidleend can be used when event type only includes IDLE or RESUME"));
-    }
-  }
-
-  if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_EVENT_CONDITION_PATH)) {
-    if (pReq->triggerType != WINDOW_TYPE_EVENT) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-                                           "_event_condition_path can only be used in event window"));
-    }
-    if (pReq->trigger.event.startCond == NULL) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-                                           "_event_condition_path requires sub-event START WITH"));
-    }
-
-    SNode* pStart = NULL;
-    PAR_ERR_JRET(nodesStringToNode((char*)pReq->trigger.event.startCond, &pStart));
-    bool hasGroup = (pStart != NULL && nodeType(pStart) == QUERY_NODE_NODE_LIST);
-    nodesDestroyNode(pStart);
-    if (!hasGroup) {
-      PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-                                           "_event_condition_path requires sub-event START WITH"));
     }
   }
 
@@ -25762,18 +24907,6 @@ _return:
   return code;
 }
 
-static void destroyLocalStreamCalcScan(void* pScan) {
-  if (pScan == NULL) {
-    return;
-  }
-
-  SStreamCalcScan* pCalcScan = (SStreamCalcScan*)pScan;
-  taosArrayDestroy(pCalcScan->vgList);
-  pCalcScan->vgList = NULL;
-  nodesDestroyNode((SNode*)pCalcScan->scanPlan);
-  pCalcScan->scanPlan = NULL;
-}
-
 // traverse all scan plans in calculation plan, split them from their parents, and make a fake value node to replace
 // them. value node's value is the scan plan's (groupId << 32 | subplanId).
 static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan, SArray* pScanPlanArray,
@@ -25787,9 +24920,6 @@ static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan
     if (pCalcScan == NULL) {
       PAR_ERR_JRET(terrno);
     }
-    if (pCalcScan->scanPlan == NULL) {
-      continue;
-    }
     cutoff = false;
     SSubplan* pScanSubPlan = (SSubplan*)pCalcScan->scanPlan;
     if (NULL == pScanSubPlan) {
@@ -25797,9 +24927,7 @@ static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan
     }
     SNode*    pTargetNode = (SNode*)pScanSubPlan->pNode;
     SNode*    pNode = NULL;
-    // Child query plans can reuse group/subplan IDs for independent readers,
-    // so only identical subplan objects are de-duplicated here.
-    int64_t   hashKey = (int64_t)(uintptr_t)pScanSubPlan;
+    int64_t   hashKey = (int64_t)pScanSubPlan->id.groupId << 32 | pScanSubPlan->id.subplanId;
     bool      inCalcPlan = false;
 
     FOREACH(pNode, calcPlan->pSubplans) {
@@ -25841,24 +24969,10 @@ static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan
 
     cutoff = true;
 
-    SStreamCalcScan** ppFirstScan = taosHashGet(pPlanMap, &hashKey, sizeof(int64_t));
-    if (NULL != ppFirstScan && *ppFirstScan != pCalcScan) {
-      // Duplicate scan-plan entries share the same subplan ownership, but each
-      // collected SStreamCalcScan still owns its temporary vgList buffer until
-      // it is transferred into pReq->calcScanPlanList.
-      taosArrayDestroy(pCalcScan->vgList);
-      pCalcScan->vgList = NULL;
-      pCalcScan->scanPlan = NULL;
+    if (taosHashGet(pPlanMap, &hashKey, sizeof(int64_t)) != NULL) {
       continue;
-    }
-    if (NULL == ppFirstScan) {
-      PAR_ERR_JRET(taosHashPut(pPlanMap, &hashKey, sizeof(int64_t), &pCalcScan, POINTER_BYTES));
     } else {
-      // The same scan subplan can be referenced by more than one query plan in
-      // the collected subquery flow. Keep its ownership until every plan has
-      // released the shared reference.
-      cutoff = false;
-      continue;
+      PAR_ERR_JRET(taosHashPut(pPlanMap, &hashKey, sizeof(int64_t), NULL, 0));
     }
 
     if (pCalcScan->readFromCache) {
@@ -25884,7 +24998,9 @@ static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan
       PAR_ERR_JRET(terrno);
     }
     taosArrayDestroy(pCalcScan->vgList);
+    nodesDestroyNode(pCalcScan->scanPlan);
     pCalcScan->vgList = NULL;
+    pCalcScan->scanPlan = NULL;
     cutoff = false;
   }
 
@@ -25893,26 +25009,12 @@ static int32_t streamSplitCalcPlan(STranslateContext* pCxt, SQueryPlan* calcPlan
 _return:
   if (cutoff) {
     taosArrayDestroy(pCalcScan->vgList);
-    pCalcScan->vgList = NULL;
     nodesDestroyNode(pCalcScan->scanPlan);
+    pCalcScan->vgList = NULL;
     pCalcScan->scanPlan = NULL;
   }
 
   parserError("streamSplitCalcPlan failed, code:%d", code);
-
-  return code;
-}
-
-static int32_t streamSplitCalcSubqueryPlans(STranslateContext* pCxt, SQueryPlan* calcPlan,
-                                            SArray* pScanPlanArray, SCMCreateStreamReq* pReq, SHashObj* pPlanMap) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  SNode*  pNode = NULL;
-
-  FOREACH(pNode, calcPlan->pChildren) {
-    SQueryPlan* pSubqueryPlan = (SQueryPlan*)pNode;
-    PAR_ERR_RET(streamSplitCalcPlan(pCxt, pSubqueryPlan, pScanPlanArray, pReq, pPlanMap));
-    PAR_ERR_RET(streamSplitCalcSubqueryPlans(pCxt, pSubqueryPlan, pScanPlanArray, pReq, pPlanMap));
-  }
 
   return code;
 }
@@ -25942,7 +25044,6 @@ static int32_t createStreamReqBuildCalcPlan(STranslateContext* pCxt, SQueryPlan*
     calcPlan->numOfSubplans -= calcSubQPlan->numOfSubplans;
 
     PAR_ERR_JRET(streamSplitCalcPlan(pCxt, calcSubQPlan, pScanPlanArray, pReq, pPlanMap));
-    PAR_ERR_JRET(streamSplitCalcSubqueryPlans(pCxt, calcSubQPlan, pScanPlanArray, pReq, pPlanMap));
   }
 
   pReq->numOfCalcSubplan = calcPlan->numOfSubplans;
@@ -26313,14 +25414,12 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   PAR_ERR_JRET(createStreamReqBuildCalcDb(pCxt, pDbs, pReq));
 
   PAR_ERR_JRET(createStreamReqBuildCalcPlan(pCxt, calcPlan, pScanPlanArray, pReq));
-  taosArrayDestroyEx(pScanPlanArray, destroyLocalStreamCalcScan);
-  pScanPlanArray = NULL;
 
 _return:
   if (code) {
     parserError("%s failed, code:%d", __func__, code);
   }
-  taosArrayDestroyEx(pScanPlanArray, destroyLocalStreamCalcScan);
+  taosArrayDestroy(pScanPlanArray);
   taosHashCleanup(pDbs);
   nodesDestroyNode((SNode*)calcPlan);
   return code;
@@ -26641,6 +25740,32 @@ static bool whereHasStreamPlaceholders(SNode *pNode) {
   }
 }
 
+/* Populate the datum of every value node inside the trigger PRE_FILTER
+ * expression before it is rendered to external-source SQL by
+ * renderExtWhereNode() below.  createStreamReqBuildTriggerTranslateSelect()
+ * only translates a *clone* of pTrig->pOptions->pPreFilter (cloned into
+ * pTriggerSelect->pWhere) and never writes the translated result back into
+ * pTrig->pOptions->pPreFilter itself, so the node reached from here is still
+ * untranslated: every value node's datum stays zero-initialized until
+ * translateValue() runs on it, and nodesGetStrValueFromNode() (used by
+ * renderExtWhereNode()) reads datum, not literal.  Left unfixed, every
+ * literal in PRE_FILTER for a federated trigger table renders as its zero
+ * value (e.g. "val>7" pushes down as "val > 0").  Mirrors the same class of
+ * bug fixed by translateExtSeriesTagCond()/translateExtTagCondValue() further
+ * below for EXT series tag conditions. */
+static EDealRes translateExtPreFilterValue(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_VALUE == nodeType(pNode)) {
+    return translateValue((STranslateContext*)pContext, (SValueNode*)pNode);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+/* Free the current spec and release the active hash iterator on build errors. */
+static void freeExtSpecOnBuildError(SHashObj* pHash, void* pIter, SStreamExtTriggerSpec* pSpec) {
+  tFreeSStreamExtTriggerSpec(pSpec);
+  taosHashCancelIterate(pHash, pIter);
+}
+
 /* Pt A4: build SCMCreateStreamReq.extSpecs from the unique EXT source names
  * collected by collectExtSourceRefs.
  *
@@ -26697,6 +25822,14 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
     /* Extract PRE_FILTER from trigger options (only valid when trigger table is set). */
     if (pTrig->pOptions != NULL) {
       pTrigPreFilter = ((SStreamTriggerOptions*)pTrig->pOptions)->pPreFilter;
+      if (pTrigPreFilter != NULL) {
+        /* See translateExtPreFilterValue() above: this node is never
+         * translated by createStreamReqBuildTriggerTranslateSelect(), so its
+         * value nodes must be translated here before renderExtWhereNode()
+         * reads their datum below. */
+        nodesWalkExpr(pTrigPreFilter, translateExtPreFilterValue, pCxt);
+        PAR_ERR_JRET(pCxt->errCode);
+      }
     }
   }
 
@@ -26733,20 +25866,52 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
     tstrncpy(pSpec->options, pSrc->options, sizeof(pSpec->options));
     /* partitionByTag: set when the stream has a PARTITION BY clause on this
      * ext source — the InfluxDB reader always enumerates sub-tables, but uses
-     * this (and partitionTagCols) to derive groupId. */
+     * this (and partitionTagCols/partitionByTbname) to derive groupId. */
     SNodeList* pPartList = pCxt->streamInfo.triggerPartitionList;
     pSpec->partitionByTag =
         (pPartList != NULL && LIST_LENGTH(pPartList) > 0) ? 1 : 0;
-    /* partitionTagCols: concrete PARTITION BY tag column names, used by
-     * streamReaderExt.c to compute groupId over the partition-tag subset.
-     * PARTITION BY tbname (= all tags) is encoded as the empty list because the
-     * concrete tag columns are only discovered at reader time; leave the array
-     * NULL in that case. */
-    if (pSpec->partitionByTag && !hasTbnameFunction(pPartList)) {
+    /* partitionByTbname: does the list include a bare tbname reference at all
+     * (alone, or mixed with explicit tag columns)? Independent of
+     * partitionTagCols -- tbname alone determines groupId (finest
+     * granularity) regardless of what other tags are also listed. */
+    pSpec->partitionByTbname = hasTbnameFunction(pPartList) ? 1 : 0;
+    /* partitionTagCols: one entry per PARTITION BY / ROLLUP BY list item, in
+     * the SAME order, used by streamReaderExt.c both to compute groupId over
+     * a tag subset (when partitionByTbname==0) and to resolve
+     * OUTPUT_SUBTABLE/tags placeholder references by position -- including a
+     * bare tbname item's own slot, whether it appears alone ("PARTITION BY
+     * tbname") or mixed with explicit tag columns. Non-tag-column items
+     * (other than tbname) occupy their slot as an empty
+     * string "" rather than being skipped, so this array stays positionally
+     * aligned 1:1 with the 1-based idx that rewriteTagSubtableExpr bakes
+     * into _placeholder_column(idx) (and that a literal %%n reference
+     * carries directly) -- that idx counts EVERY item in pPartList, tbname
+     * included, so partitionTagCols must not silently collapse tbname's own
+     * slot. A bare tbname item is special-cased to the INFLUXDB_PARTITION_BY_
+     * TBNAME sentinel (streamMsg.h, instead of "") so streamReaderExt.c's
+     * handleGroupColValuePull can recognize this specific slot and fill it
+     * with the reader's synthesized tbname value -- e.g. PARTITION BY host,
+     * tbname, region means a %%2 / positionally-matched reference should
+     * read the sub-table's own tbname, not NULL like a genuinely-unresolvable
+     * slot. Every other expression is serialized in full into the parallel
+     * partitionTagExprs array; the reader resolves every referenced tag by
+     * name and evaluates the complete expression with its original result
+     * type. The sentinel is a dedicated non-SQL-identifier
+     * string (not the literal "tbname") specifically so it can never collide
+     * with a genuine ext tag column that happens to be named "tbname". */
+    if (pSpec->partitionByTag) {
       pSpec->partitionTagCols = taosArrayInit(LIST_LENGTH(pPartList), TSDB_COL_NAME_LEN);
       if (pSpec->partitionTagCols == NULL) {
-        taosMemoryFree(pSpec);
-        taosHashCancelIterate(pHash, pIter);
+        freeExtSpecOnBuildError(pHash, pIter, pSpec);
+        PAR_ERR_JRET(terrno);
+      }
+      /* partitionTagExprs: parallel to partitionTagCols, same length -- see
+       * SStreamExtTriggerSpec.partitionTagExprs in streamMsg.h. Every slot
+       * gets an entry ("" for a bare column or tbname); every other item stores
+       * the complete serialized expression evaluated by the ext reader. */
+      pSpec->partitionTagExprs = taosArrayInit(LIST_LENGTH(pPartList), POINTER_BYTES);
+      if (pSpec->partitionTagExprs == NULL) {
+        freeExtSpecOnBuildError(pHash, pIter, pSpec);
         PAR_ERR_JRET(terrno);
       }
       SNode* pPartKey = NULL;
@@ -26754,20 +25919,40 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
         /* colType is NOT usable here: the synthetic STableMeta built for ext
          * tables (buildTableMetaFromExtMeta) sets numOfTags==0, so ext tag
          * columns always resolve as COLUMN_TYPE_COLUMN, never COLUMN_TYPE_TAG.
-         * Any QUERY_NODE_COLUMN surviving in a non-tbname partition list is
-         * already guaranteed to be a genuine ext tag: the upstream
+         * Any QUERY_NODE_COLUMN surviving in the partition list is already
+         * guaranteed to be a genuine ext tag: the upstream
          * createStreamReqBuildTriggerCheckPartitionWalker validated it via the
          * raw SExtTableMeta.isTag lookup (extMetaColIsTag) and would have
          * failed translation otherwise. */
+        char  colName[TSDB_COL_NAME_LEN] = {0};
+        char *exprStr                    = NULL;  /* "" unless overridden below */
         if (nodeType(pPartKey) == QUERY_NODE_COLUMN) {
-          char colName[TSDB_COL_NAME_LEN] = {0};
           tstrncpy(colName, ((SColumnNode*)pPartKey)->colName, sizeof(colName));
-          if (taosArrayPush(pSpec->partitionTagCols, colName) == NULL) {
-            taosArrayDestroy(pSpec->partitionTagCols);
-            taosMemoryFree(pSpec);
-            taosHashCancelIterate(pHash, pIter);
+        } else if (isTbnameFuction(pPartKey)) {
+          /* INFLUXDB_PARTITION_BY_TBNAME (streamMsg.h), not the literal
+           * "tbname", so this can never collide with a genuine ext tag
+           * column that happens to be named "tbname" -- must match
+           * extGroupColValueFindTbnameSlot's comparison in streamReaderExt.c. */
+          tstrncpy(colName, INFLUXDB_PARTITION_BY_TBNAME, sizeof(colName));
+        } else {
+          int32_t exprLen = 0;
+          if (nodesNodeToString(pPartKey, false, &exprStr, &exprLen) != 0) {
+            freeExtSpecOnBuildError(pHash, pIter, pSpec);
             PAR_ERR_JRET(terrno);
           }
+        }
+        if (exprStr == NULL) {
+          exprStr = taosStrdup("");
+          if (exprStr == NULL) {
+            freeExtSpecOnBuildError(pHash, pIter, pSpec);
+            PAR_ERR_JRET(terrno);
+          }
+        }
+        if (taosArrayPush(pSpec->partitionTagCols, colName) == NULL ||
+            taosArrayPush(pSpec->partitionTagExprs, &exprStr) == NULL) {
+          taosMemoryFree(exprStr);
+          freeExtSpecOnBuildError(pHash, pIter, pSpec);
+          PAR_ERR_JRET(terrno);
         }
       }
     }
@@ -26803,10 +25988,12 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
                                           pfBuf, sizeof(pfBuf), &pfOff);
           if (rc == TSDB_CODE_SUCCESS && pfOff > 0) {
             pSpec->prefilter = tstrdup(pfBuf);
-            if (pSpec->prefilter != NULL) {
-              parserDebug("buildExtSpecs: prefilter(calc)=\"%.120s\" len=%d for source=%s",
-                          pSpec->prefilter, pfOff, sourceName);
+            if (pSpec->prefilter == NULL) {
+              freeExtSpecOnBuildError(pHash, pIter, pSpec);
+              PAR_ERR_JRET(terrno);
             }
+            parserDebug("buildExtSpecs: prefilter(calc)=\"%.120s\" len=%d for source=%s",
+                        pSpec->prefilter, pfOff, sourceName);
           }
         }
       }
@@ -26823,17 +26010,18 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
                                         pfBuf, sizeof(pfBuf), &pfOff);
         if (rc == TSDB_CODE_SUCCESS && pfOff > 0) {
           pSpec->triggerPrefilter = tstrdup(pfBuf);
-          if (pSpec->triggerPrefilter != NULL) {
-            parserDebug("buildExtSpecs: triggerPrefilter=\"%.120s\" len=%d for source=%s",
-                        pSpec->triggerPrefilter, pfOff, sourceName);
+          if (pSpec->triggerPrefilter == NULL) {
+            freeExtSpecOnBuildError(pHash, pIter, pSpec);
+            PAR_ERR_JRET(terrno);
           }
+          parserDebug("buildExtSpecs: triggerPrefilter=\"%.120s\" len=%d for source=%s",
+                      pSpec->triggerPrefilter, pfOff, sourceName);
         }
       }
     }
 
     if (taosArrayPush(pSpecs, &pSpec) == NULL) {
-      taosMemoryFree(pSpec);
-      taosHashCancelIterate(pHash, pIter);
+      freeExtSpecOnBuildError(pHash, pIter, pSpec);
       PAR_ERR_JRET(terrno);
     }
 
@@ -26860,8 +26048,7 @@ _return:
     int32_t n = (int32_t)taosArrayGetSize(pSpecs);
     for (int32_t i = 0; i < n; ++i) {
       SStreamExtTriggerSpec* p = *(SStreamExtTriggerSpec**)taosArrayGet(pSpecs, i);
-      taosArrayDestroy(p->partitionTagCols);
-      taosMemoryFree(p);
+      tFreeSStreamExtTriggerSpec(p);
     }
     taosArrayDestroy(pSpecs);
   }
@@ -28045,12 +27232,7 @@ static int32_t translateAssignLeader(STranslateContext* pCxt, SAssignLeaderStmt*
 static int32_t translateBalanceVgroupLeader(STranslateContext* pCxt, SBalanceVgroupLeaderStmt* pStmt) {
   SBalanceVgroupLeaderReq req = {0};
   req.vgId = pStmt->vgId;
-  // Reuse the pre-existing `reserved` field to carry the force flag for full
-  // wire compatibility: 1 = forced (bias elect baseline), 0 = non-forced (random).
-  // Old clients always send 0, so they default to the safe non-forced path.
-  req.reserved = pStmt->force ? 1 : 0;
   tstrncpy(req.db, pStmt->dbName, TSDB_DB_FNAME_LEN);
-  parserDebug("translate balance vgroup leader, vgId:%d, db:%s, force:%d", req.vgId, req.db, (int32_t)pStmt->force);
   int32_t code =
       buildCmdMsg(pCxt, TDMT_MND_BALANCE_VGROUP_LEADER, (FSerializeFunc)tSerializeSBalanceVgroupLeaderReq, &req);
   tFreeSBalanceVgroupLeaderReq(&req);
@@ -29903,8 +29085,9 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   if (pCxt->pParseCxt != NULL && pCxt->pParseCxt->pSql != NULL) {
     int32_t rawNameLen = getCreateExtSourceNameLenFromSql(pCxt->pParseCxt->pSql);
     if (rawNameLen >= TSDB_EXT_SOURCE_NAME_LEN) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
-                                     "External source name is too long");
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                     "External source name too long (max %d chars)",
+                                     TSDB_EXT_SOURCE_NAME_LEN - 1);
     }
   }
   if (pStmt->host[0] == '\0') {
@@ -29912,7 +29095,7 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   }
   if (strlen(pStmt->host) >= TSDB_EXT_SOURCE_HOST_LEN) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
-                                   "HOST is too long");
+                                   "HOST too long (max %d chars)", TSDB_EXT_SOURCE_HOST_LEN - 1);
   }
   if (pStmt->port < 1 || pStmt->port > 65535) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
@@ -29923,22 +29106,22 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   }
   if (strlen(pStmt->user) >= TSDB_EXT_SOURCE_USER_LEN) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
-                                   "USER is too long");
+                                   "USER too long (max %d chars)", TSDB_EXT_SOURCE_USER_LEN - 1);
   }
   if (pStmt->password[0] == '\0' && pStmt->sourceType != EXT_SOURCE_INFLUXDB) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "PASSWORD cannot be empty");
   }
   if (strlen(pStmt->password) >= TSDB_EXT_SOURCE_PASSWORD_LEN) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
-                                   "PASSWORD is too long");
+                                   "PASSWORD too long (max %d chars)", TSDB_EXT_SOURCE_PASSWORD_LEN - 1);
   }
   if (pStmt->database[0] != '\0' && strlen(pStmt->database) >= TSDB_EXT_SOURCE_DATABASE_LEN) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
-                                   "DATABASE is too long");
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "DATABASE too long (max %d chars)", TSDB_EXT_SOURCE_DATABASE_LEN - 1);
   }
   if (pStmt->schemaName[0] != '\0' && strlen(pStmt->schemaName) >= TSDB_EXT_SOURCE_SCHEMA_LEN) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
-                                   "SCHEMA is too long");
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "SCHEMA too long (max %d chars)", TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
   }
   // MySQL does not use a schema namespace; reject SCHEMA= to avoid silent misuse.
   if (pStmt->schemaName[0] != '\0' && pStmt->sourceType == EXT_SOURCE_MYSQL) {
@@ -29952,8 +29135,8 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   }
   // Name length check: external source names follow database name rules (max 64 chars).
   if (strlen(pStmt->sourceName) >= TSDB_EXT_SOURCE_NAME_LEN) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
-                                   "External source name too long (max %d bytes)", TSDB_EXT_SOURCE_NAME_LEN - 1);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                   "External source name too long (max %d chars)", TSDB_EXT_SOURCE_NAME_LEN - 1);
   }
   int32_t code = validateExtSourceOptions(pStmt->sourceType, pStmt->pOptions, pCxt);
   if (TSDB_CODE_SUCCESS != code) return code;
@@ -29982,18 +29165,6 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
                                    "Federated query is disabled");
   }
 
-  if (pStmt->capAction != EXT_CAP_ACTION_NONE) {
-    if (pStmt->capKind != EXT_DEMOTE_KIND_FUNC && pStmt->capKind != EXT_DEMOTE_KIND_CLAUSE &&
-        pStmt->capKind != EXT_DEMOTE_KIND_TYPE && pStmt->capKind != EXT_DEMOTE_KIND_OP) {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "ALTER EXTERNAL SOURCE capability kind only supports FUNCTION/CLAUSE/TYPE/OPERATOR");
-    }
-    if (pStmt->capValue[0] == '\0') {
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
-                                     "ALTER EXTERNAL SOURCE capability value cannot be empty");
-    }
-    return TSDB_CODE_SUCCESS;
-  }
   // Retrieve existing source metadata to get the source type for OPTIONS validation.
   // The cache was populated by collectMetaKeyFromQuery (case QUERY_NODE_ALTER_EXT_SOURCE_STMT).
   // If the source does not exist, fail with a clear error rather than silently accepting bad keys.
@@ -30054,8 +29225,8 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
       case EXT_ALTER_DATABASE:
         normalizeQuotedEmptyValue(clause->value);
         if (strlen(clause->value) >= TSDB_EXT_SOURCE_DATABASE_LEN) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
-                                         "DATABASE too long (max %d bytes)", TSDB_EXT_SOURCE_DATABASE_LEN - 1);
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                         "DATABASE too long (max %d chars)", TSDB_EXT_SOURCE_DATABASE_LEN - 1);
         }
         tstrncpy(req.database, clause->value, TSDB_EXT_SOURCE_DATABASE_LEN);
         req.alterMask |= EXT_SOURCE_ALTER_DATABASE;
@@ -30063,8 +29234,8 @@ static int32_t translateAlterExtSource(STranslateContext* pCxt, SAlterExtSourceS
       case EXT_ALTER_SCHEMA:
         normalizeQuotedEmptyValue(clause->value);
         if (strlen(clause->value) >= TSDB_EXT_SOURCE_SCHEMA_LEN) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
-                                         "SCHEMA too long (max %d bytes)", TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                                         "SCHEMA too long (max %d chars)", TSDB_EXT_SOURCE_SCHEMA_LEN - 1);
         }
         tstrncpy(req.schema_name, clause->value, TSDB_EXT_SOURCE_SCHEMA_LEN);
         req.alterMask |= EXT_SOURCE_ALTER_SCHEMA;
@@ -30570,7 +29741,6 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_SHOW_EXT_SOURCES_STMT:
     case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
-    case QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT:
       break;  // handled by rewriteQuery
     default:
       break;
@@ -30933,7 +30103,7 @@ static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols
   if (pMeta) {
     if (hasColRef(pMeta->tableType)) {
       *numOfCols = DESCRIBE_RESULT_COLS_REF;
-    } else if (tableMetaShowCompressOptions(pMeta)) {
+    } else if (withColCompress(pMeta->tableType) && pMeta->schemaExt) {
       *numOfCols = DESCRIBE_RESULT_COLS_COMPRESS;
     }
   }
@@ -30963,7 +30133,7 @@ static int32_t extractDescribeResultSchema(STableMeta* pMeta, int32_t* numOfCols
       (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
       (*pSchema)[4].bytes = DESCRIBE_RESULT_COL_REF_LEN;
       tstrncpy((*pSchema)[4].name, "ref", TSDB_COL_NAME_LEN);
-    } else if (tableMetaShowCompressOptions(pMeta)) {
+    } else if (withColCompress(pMeta->tableType) && pMeta->schemaExt) {
       (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
       (*pSchema)[4].bytes = DESCRIBE_RESULT_COPRESS_OPTION_LEN;
       tstrncpy((*pSchema)[4].name, "encode", TSDB_COL_NAME_LEN);
@@ -31042,36 +30212,6 @@ static int32_t extractDescribeExtSourceResultSchema(int32_t* numOfCols, SSchema*
   return TSDB_CODE_SUCCESS;
 }
 
-#define EXT_SOURCE_CAPABILITY_RESULT_COLS 5
-static int32_t extractShowExtSourceCapabilityResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = EXT_SOURCE_CAPABILITY_RESULT_COLS;
-  *pSchema = taosMemoryCalloc(EXT_SOURCE_CAPABILITY_RESULT_COLS, sizeof(SSchema));
-  if (NULL == (*pSchema)) {
-    return terrno;
-  }
-
-  (*pSchema)[0].type = TSDB_DATA_TYPE_VARCHAR;
-  (*pSchema)[0].bytes = 16 + VARSTR_HEADER_SIZE;
-  tstrncpy((*pSchema)[0].name, "kind", TSDB_COL_NAME_LEN);
-
-  (*pSchema)[1].type = TSDB_DATA_TYPE_VARCHAR;
-  (*pSchema)[1].bytes = 128 + VARSTR_HEADER_SIZE;
-  tstrncpy((*pSchema)[1].name, "item", TSDB_COL_NAME_LEN);
-
-  (*pSchema)[2].type = TSDB_DATA_TYPE_TINYINT;
-  (*pSchema)[2].bytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes;
-  tstrncpy((*pSchema)[2].name, "reason_code", TSDB_COL_NAME_LEN);
-
-  (*pSchema)[3].type = TSDB_DATA_TYPE_INT;
-  (*pSchema)[3].bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
-  tstrncpy((*pSchema)[3].name, "hit_count", TSDB_COL_NAME_LEN);
-
-  (*pSchema)[4].type = TSDB_DATA_TYPE_TIMESTAMP;
-  (*pSchema)[4].bytes = sizeof(int64_t);
-  tstrncpy((*pSchema)[4].name, "first_hit_ms", TSDB_COL_NAME_LEN);
-
-  return TSDB_CODE_SUCCESS;
-}
 static int32_t extractShowCreateDatabaseResultSchema(int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
@@ -31299,8 +30439,6 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     }
     case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
       return extractDescribeExtSourceResultSchema(numOfCols, pSchema);
-    case QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT:
-      return extractShowExtSourceCapabilityResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       return extractShowCreateDatabaseResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
@@ -32715,28 +31853,6 @@ static int32_t buildVirtualSubTableBatchReq(STranslateContext* pCxt, const SCrea
       PAR_ERR_JRET(code);
       PAR_ERR_JRET(setExternalRefSchemaName(pCxt, &req.colRef.pColRef[index]));
       index++;
-    }
-  } else if (pStmt->pColDefs) {
-    // column_def_list with type + FROM external-source ref
-    FOREACH(pCol, pStmt->pColDefs) {
-      SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
-      SColumnOptions* pOpts = (SColumnOptions*)pColDef->pOptions;
-      if (!pOpts || !pOpts->hasRef) continue;
-      int32_t schemaIdx = getNormalColSchemaIndex(pStbMeta, pColDef->colName);
-      if (schemaIdx == -1) {
-        PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
-      }
-      const SSchema* pSchema = getTableColumnSchema(pStbMeta) + schemaIdx;
-      char*          tagJson = NULL;
-      int32_t        tagCondLen = 0;
-      if (pOpts->pTagCond) {
-        PAR_ERR_JRET(nodesNodeToString(pOpts->pTagCond, false, &tagJson, &tagCondLen));
-      }
-      code = setColRef(&req.colRef.pColRef[schemaIdx], pSchema->colId, pSchema->name, pOpts->refColumn,
-                       pOpts->refTable, pOpts->refDb, pOpts->refType, pOpts->refSourceName, tagJson, tagCondLen);
-      taosMemoryFree(tagJson);
-      PAR_ERR_JRET(code);
-      PAR_ERR_JRET(setExternalRefSchemaName(pCxt, &req.colRef.pColRef[schemaIdx]));
     }
   } else {
     // no column reference.
@@ -34569,6 +33685,10 @@ static int32_t checkColRef(STranslateContext* pCxt, const char* pSrcDbName, cons
   code = refreshGetTableMeta(pCxt, pRefDbName, pRefTableName, &pRefTableMeta);
   PAR_ERR_JRET(code);
 
+  if (pRefTableMeta->tableInfo.precision != precision) {
+    PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE,
+                                         "timestamp precision of virtual table and its reference table do not match"));
+  }
 // org table cannot has composite primary key
   if (pRefTableMeta->tableInfo.numOfColumns > 1 && pRefTableMeta->schema[1].flags & COL_IS_KEY) {
     PAR_ERR_JRET(generateSyntaxErrMsgExt(
@@ -34843,6 +33963,7 @@ _return:
   parserError("%s failed, code:%d, errMsg:%s", __func__, code, tstrerror(code));
   return code;
 }
+
 static int32_t checkTagRef(STranslateContext* pCxt, const char* pSrcDbName, const char* pSrcTableName,
                            char* tagName, char* pRefDbName, char* pRefTableName,
                            char* pRefColName, SDataType type) {
@@ -34923,6 +34044,7 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     // check ref column exists and check type
     SDataType colType = pStmt->dataType;
     colType.bytes = calcTypeBytes(colType);
+
     // Expand series alias if refType is local but matches a series
     bool expandedFromSeries = false;
     char matchedSeriesAlias[TSDB_COL_NAME_LEN] = {0};
@@ -35176,6 +34298,7 @@ static int buildAlterTableColumnCompress(STranslateContext* pCxt, SAlterTableStm
 }
 
 static int32_t checkInfluxSeriesDecl(STranslateContext* pCxt, SSeriesDeclNode* pSeries);
+
 static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                     SVAlterTbReq* pReq) {
   if (!isVirtualTable(pTableMeta)) {
@@ -35344,6 +34467,7 @@ static int32_t buildAlterTableRemoveSeries(STranslateContext* pCxt, SAlterTableS
   }
   return TSDB_CODE_SUCCESS;
 }
+
 
 static int32_t buildAddTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                               SVAlterTbReq* pReq) {
@@ -36781,6 +35905,7 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
 
   // Expand SERIES alias refs (e.g. FROM a.field → FROM source.db.meas.field)
   PAR_ERR_JRET(expandSeriesAliasInColOptions(pCxt, pStmt->pCols, pStmt->pSeriesList));
+
   FOREACH(pNode, pStmt->pCols) {
     SColumnDefNode* pColNode = (SColumnDefNode*)pNode;
     SColumnOptions* pColOptions = (SColumnOptions*)pColNode->pOptions;
@@ -37036,28 +36161,6 @@ static int32_t rewriteCreateVirtualSubTable(STranslateContext* pCxt, SQuery* pQu
                                  pColRef->refColName, colType, pSuperTableMeta->tableInfo.precision));
       }
       index++;
-    }
-  } else if (pStmt->pColDefs) {
-    // column_def_list with FROM external source refs
-    FOREACH(pCol, pStmt->pColDefs) {
-      SColumnDefNode* pColDef = (SColumnDefNode*)pCol;
-      SColumnOptions* pColOptions = (SColumnOptions*)pColDef->pOptions;
-      if (!pColOptions || !pColOptions->hasRef) continue;
-      const SSchema* pSchema = getColSchema(pSuperTableMeta, pColDef->colName);
-      if (NULL == pSchema) {
-        PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
-      }
-      if (pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        PAR_ERR_JRET(TSDB_CODE_VTABLE_PRIMTS_HAS_REF);
-      }
-      // For internal TDengine refs (refSourceName empty), validate against referenced table metadata
-      if (pColOptions->refSourceName[0] == '\0') {
-        SDataType colType = pColDef->dataType;
-        colType.bytes = calcTypeBytes(colType);
-        PAR_ERR_JRET(checkColRef(pCxt, pStmt->dbName, pStmt->tableName, pColDef->colName, pColOptions->refDb, pColOptions->refTable,
-                                 pColOptions->refColumn, colType, pSuperTableMeta->tableInfo.precision));
-      }
-      // External source refs (refSourceName non-empty): skip TDengine validation
     }
   } else {
     // no column reference, do nothing
@@ -38010,39 +37113,6 @@ static int32_t rewriteDescribeExtSource(STranslateContext* pCxt, SQuery* pQuery)
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t rewriteShowExtSourceCapability(STranslateContext* pCxt, SQuery* pQuery) {
-#ifndef TD_ENTERPRISE
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#endif
-  if (!tsFederatedQueryEnable) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_FEDERATED_DISABLED,
-                                   "Federated query is disabled (set federatedQueryEnable=1)");
-  }
-
-  SShowExtSourceCapabilityStmt* pStmt = (SShowExtSourceCapabilityStmt*)pQuery->pRoot;
-  SExtSourceInfo*               pSrcInfo = NULL;
-  int32_t code = getExtSourceInfoFromCache(pCxt->pMetaCache, pStmt->sourceName, &pSrcInfo);
-  if (code != TSDB_CODE_SUCCESS || pSrcInfo == NULL) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_SOURCE_NOT_FOUND,
-                                   "External source '%s' does not exist", pStmt->sourceName);
-  }
-
-  SExtSourceCapability* pCap = (SExtSourceCapability*)taosMemoryMalloc(sizeof(SExtSourceCapability));
-  if (NULL == pCap) {
-    return terrno;
-  }
-  (void)memset(pCap, 0, sizeof(*pCap));
-
-  code = extCapClone(&pSrcInfo->capability, pCap);
-  if (code != TSDB_CODE_SUCCESS) {
-    extCapDestroy(pCap);
-    taosMemoryFree(pCap);
-    return code;
-  }
-
-  pStmt->pExtCapability = pCap;
-  return TSDB_CODE_SUCCESS;
-}
 // ============================================================ end federated rewrites
 
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
@@ -38240,9 +37310,6 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
       code = rewriteDescribeExtSource(pCxt, pQuery);
       break;
-    case QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT:
-      code = rewriteShowExtSourceCapability(pCxt, pQuery);
-      break;
     default:
       break;
   }
@@ -38348,7 +37415,6 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_DESCRIBE_STMT:
     case QUERY_NODE_DESCRIBE_EXT_SOURCE_STMT:
-    case QUERY_NODE_SHOW_EXT_SOURCE_CAPABILITY_STMT:
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_VTABLE_STMT:
@@ -38366,20 +37432,6 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SET_FIRST_DAY_OF_WEEK_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
       break;
-    case QUERY_NODE_ALTER_EXT_SOURCE_STMT: {
-      SAlterExtSourceStmt* pStmt = (SAlterExtSourceStmt*)pQuery->pRoot;
-      if (pStmt->capAction != EXT_CAP_ACTION_NONE) {
-        pQuery->execMode = QUERY_EXEC_MODE_LOCAL;
-        break;
-      }
-      pQuery->haveResultSet = false;
-      pQuery->execMode = QUERY_EXEC_MODE_RPC;
-      if (NULL != pCxt->pCmdMsg) {
-        TSWAP(pQuery->pCmdMsg, pCxt->pCmdMsg);
-        pQuery->msgType = pQuery->pCmdMsg->msgType;
-      }
-      break;
-    }
 #ifdef TD_ENTERPRISE
     case QUERY_NODE_USE_EXT_SOURCE_STMT:
       pQuery->execMode = QUERY_EXEC_MODE_LOCAL;

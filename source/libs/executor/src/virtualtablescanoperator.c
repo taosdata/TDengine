@@ -72,8 +72,6 @@ typedef struct SLoadNextCtx {
   SSDataBlock*    pIntermediateBlock;
   int32_t*        pFedOutputSlotIds;
   int32_t         numFedOutputSlotIds;
-  uint8_t         srcPrecision;
-  uint8_t         dstPrecision;
 } SLoadNextCtx;
 
 typedef struct {
@@ -389,34 +387,6 @@ static bool isRefTagSourceBlockId(const SVirtualTableScanInfo* pInfo, int64_t bl
   return false;
 }
 
-static uint8_t getOperatorOutputPrecision(SOperatorInfo* pOp) {
-  // No MILLI fallback: return UINT8_MAX (unknown) when the physical node / output
-  // desc is unavailable. Callers gate conversion on dstPrec <= NANO, so UINT8_MAX
-  // cleanly means "no conversion" rather than a wrong MILLI guess.
-  if (pOp == NULL || pOp->pPhyNode == NULL) return UINT8_MAX;
-  const SPhysiNode* pPhyNode = (const SPhysiNode*)pOp->pPhyNode;
-  if (pPhyNode->pOutputDataBlockDesc == NULL) return UINT8_MAX;
-  return pPhyNode->pOutputDataBlockDesc->precision;
-}
-
-static void convertBlockTsPrecision(SSDataBlock* pBlock, uint8_t srcPrec, uint8_t dstPrec) {
-  if (pBlock == NULL || pBlock->info.rows == 0 || srcPrec == dstPrec) return;
-  if (dstPrec > TSDB_TIME_PRECISION_NANO) return;
-  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, 0);
-  if (pTsCol == NULL || pTsCol->info.type != TSDB_DATA_TYPE_TIMESTAMP) return;
-  // No block-precision fallback: if the caller did not supply a valid src precision
-  // we cannot convert correctly, so skip (no-op) rather than guess from the column.
-  if (srcPrec > TSDB_TIME_PRECISION_NANO) return;
-  if (srcPrec == dstPrec) return;
-  int64_t* tsArr = (int64_t*)pTsCol->pData;
-  for (int32_t r = 0; r < pBlock->info.rows; r++) {
-    if (!colDataIsNull_s(pTsCol, r) && tsArr[r] != TSKEY_MIN && tsArr[r] != TSKEY_MAX) {
-      tsArr[r] = convertTimePrecision(tsArr[r], srcPrec, dstPrec);
-    }
-  }
-  pTsCol->info.precision = dstPrec;
-}
-
 int32_t virtualScanloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SLoadNextCtx*  pCtx = (SLoadNextCtx*)param;
   SOperatorInfo* pOperator = pCtx->pOperator;
@@ -433,7 +403,6 @@ int32_t virtualScanloadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   VTS_ERR_JRET(blockDataCheck(pRes));
   if (pRes) {
     VTS_ERR_JRET(createOneDataBlock(pRes, true, &pCtx->pIntermediateBlock));
-    convertBlockTsPrecision(pCtx->pIntermediateBlock, pCtx->srcPrecision, pCtx->dstPrecision);
     SColumnInfoData* p = taosArrayGet(pCtx->pIntermediateBlock->pDataBlock, 0);
     QUERY_CHECK_NULL(p, code, line, _return, terrno);
     if (p->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
@@ -510,19 +479,13 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
     pCtx->pIntermediateBlock = NULL;
   }
 
+  // Same source param is reused by sort callbacks; downstream must not free it.
   pOperatorGetParam->reUse = true;
   VTS_ERR_JRET(pOperator->fpSet.getNextExtFn(pOperator, pOperatorGetParam, &pRes));
 
-  // Only non-federated sources re-read srcPrecision from orgTbInfo after each fetch
-  // (handles precision staleness across re-fetches). Federated sources are excluded
-  // — cross-precision is unsupported for them (see createSortHandleFromParam, where
-  // src is forced == dst).
   if (!isFederated) {
     SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pOperatorGetParam->value;
     pParam->basic.isNewParam = false;
-    if (pParam->basic.orgTbInfo && pParam->basic.orgTbInfo->srcPrecision != UINT8_MAX) {
-      pCtx->srcPrecision = pParam->basic.orgTbInfo->srcPrecision;
-    }
   }
   if ((pRes)) {
     qDebug("%s load from downstream, blockId:%" PRId64, __func__, pCtx->blockId);
@@ -537,9 +500,8 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
       }
     }
 
+    VTS_ERR_JRET(getTimeWindowOfBlock(pRes, &pCtx->window.skey, &pCtx->window.ekey));
     VTS_ERR_JRET(createOneDataBlock(pRes, true, &pCtx->pIntermediateBlock));
-    convertBlockTsPrecision(pCtx->pIntermediateBlock, pCtx->srcPrecision, pCtx->dstPrecision);
-    VTS_ERR_JRET(getTimeWindowOfBlock(pCtx->pIntermediateBlock, &pCtx->window.skey, &pCtx->window.ekey));
     *ppBlock = pCtx->pIntermediateBlock;
   } else {
     pCtx->window.ekey = INT64_MAX;
@@ -780,13 +742,6 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
     pCtx->pIntermediateBlock = NULL;
     pCtx->pFedOutputSlotIds = NULL;
     pCtx->numFedOutputSlotIds = 0;
-    pCtx->dstPrecision = getOperatorOutputPrecision(pOperator);
-    {
-      SExchangeOperatorParam* pExcParam = (SExchangeOperatorParam*)pOpParam->value;
-      pCtx->srcPrecision = (pExcParam && pExcParam->basic.orgTbInfo)
-                            ? pExcParam->basic.orgTbInfo->srcPrecision
-                            : UINT8_MAX;
-    }
 
     ps = taosMemoryCalloc(1, sizeof(SSortSource));
     QUERY_CHECK_NULL(ps, code, lino, _return, terrno)
@@ -850,12 +805,6 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
       pCtx->pOperatorGetParam = pForeignOp;
       pCtx->window = pParam->window;
       pCtx->pIntermediateBlock = NULL;
-      pCtx->dstPrecision = getOperatorOutputPrecision(pOperator);
-      // Federated (remote) vtable sources do NOT support cross-precision yet: force
-      // src == dst so convertBlockTsPrecision() is a no-op and ts is emitted in the
-      // connector's own precision. Do NOT derive srcPrecision from orgTbInfo here
-      // unless cross-precision federated sources are explicitly added.
-      pCtx->srcPrecision = pCtx->dstPrecision;
 
       // Build output slotId mapping for this FederatedScan source.
       // FedScan VStb block columns are: [ts, colMap[0], colMap[1], ...].
@@ -985,8 +934,6 @@ int32_t createSortHandle(SOperatorInfo* pOperator) {
     pCtx->blockId = i;
     pCtx->window = (STimeWindow){0};
     pCtx->pIntermediateBlock = NULL;
-    pCtx->srcPrecision = getOperatorOutputPrecision(pDownstream);
-    pCtx->dstPrecision = getOperatorOutputPrecision(pOperator);
 
     QUERY_CHECK_NULL(taosArrayPush(pVirtualScanInfo->pSortCtxList, &pCtx), code, lino, _return, terrno)
     pCtx = NULL;

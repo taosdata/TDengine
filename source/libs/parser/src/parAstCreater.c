@@ -4172,6 +4172,7 @@ _err:
   return NULL;
 }
 
+
 SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, bool stableKeyword, SNode* pRealTable,
                              SNodeList* pCols, SNodeList* pTags, SNode* pOptions) {
   CHECK_PARSER_STATUS(pCxt);
