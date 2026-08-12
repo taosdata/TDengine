@@ -2541,19 +2541,23 @@ void catalogDestroy(void) {
     qDebug("catalog cacheTimer %" PRIuPTR " stop requested", (uintptr_t)cacheTimer);
   }
 
-  /*
-   * taosTmrStop() does not wait for callbacks that have already been dispatched
-   * or are executing.  Take the catalog write lock once more so any such
-   * callback that entered ctgProcessTimerEvent() has left the catalog cache
-   * critical section before cache objects are freed below.
-   */
-  CTG_LOCK(CTG_WRITE, &gCtgMgmt.lock);
-  CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.lock);
-
   if (gCtgMgmt.timer) {
     taosTmrCleanUp(gCtgMgmt.timer);
     gCtgMgmt.timer = NULL;
   }
+
+  /*
+   * taosTmrStop()/taosTmrCleanUp() do not wait for callbacks that have already
+   * been dispatched or are executing.  The timer controller is now torn down so
+   * no new ctgProcessTimerEvent() can be scheduled; take the catalog write lock
+   * once more to wait for any in-flight callback that already entered under the
+   * read lock to leave the catalog cache critical section before we free the
+   * cache objects below.  (The barrier must come AFTER taosTmrCleanUp — placing
+   * it before would still let a dispatched callback re-enter and touch
+   * pCluster after taosHashCleanup().)
+   */
+  CTG_LOCK(CTG_WRITE, &gCtgMgmt.lock);
+  CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.lock);
 
   if (!taosCheckCurrentInDll()) {
     (void)ctgClearCacheEnqueue(NULL, false, true, true, true);
