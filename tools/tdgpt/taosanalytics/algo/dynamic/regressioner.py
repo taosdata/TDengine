@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-from taosanalytics.algo.tool.detector import BaseModelAnomalyDetector
+from taosanalytics.algo.dynamic.detector import BaseModelAnomalyDetector
 from taosanalytics.log import AppLogger
 
 

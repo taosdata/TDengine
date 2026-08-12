@@ -1,6 +1,6 @@
 """DynamicAnomalyService: an anomaly detection service driven by a parameter config file."""
 
-from taosanalytics.algo.tool.detector import (
+from taosanalytics.algo.dynamic.detector import (
     IsolationForestModelDetector,
     SVMModelDetector,
 )

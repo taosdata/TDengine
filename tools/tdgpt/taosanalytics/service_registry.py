@@ -19,9 +19,11 @@ from taosanalytics.base import (
 )
 from taosanalytics.conf import Configure
 from taosanalytics.exception import NotFoundDynamicModelError
-from taosanalytics.handlers.dynamic_anomaly import DynamicAnomalyService
-from taosanalytics.handlers.dynamic_forecast import DynamicForecastService
-from taosanalytics.handlers.dynamic_regression import DynamicRegressionService
+from taosanalytics.handlers import (
+    DynamicAnomalyService,
+    DynamicForecastService,
+    DynamicRegressionService,
+)
 from taosanalytics.log import AppLogger
 
 

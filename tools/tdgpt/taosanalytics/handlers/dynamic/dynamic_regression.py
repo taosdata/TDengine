@@ -1,6 +1,6 @@
 """DynamicRegressionService: a regression service driven by a parameter config file."""
 
-from taosanalytics.algo.tool.regressioner import (
+from taosanalytics.algo.dynamic.regressioner import (
     ElasticNetRegressioner,
     LassoRegressioner,
     LinearRegressioner,

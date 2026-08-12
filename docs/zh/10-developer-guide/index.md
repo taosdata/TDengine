@@ -15,7 +15,7 @@ description: TDengine 多语言连接、SQL、参数绑定、无模式写入、�
 7. **获取最新状态**。在许多场景下（如车辆管理），应用需要获取各数据采集点的最新状态，建议优先使用 TDengine 的 Cache 能力，而不必单独部署 Redis 等缓存软件。
 8. **扩展计算能力**。若内置函数无法满足需求，可使用用户自定义函数（UDF）扩展计算逻辑。
 
-本章按上述开发路径组织。为便于理解，TDengine 为各功能及所支持的编程语言提供了示例代码，位于 [示例代码](https://github.com/taosdata/TDengine/tree/main/docs/examples)；示例正确性由 CI 保障，脚本位于 [示例代码 CI](https://github.com/taosdata/TDengine/tree/main/tests/docs-examples-test)。
+本章按上述开发路径组织。为便于理解，TDengine 为各功能及所支持的编程语言提供了示例代码，位于 [示例代码](https://github.com/taosdata/TDengine/tree/main/docs/examples)；示例正确性由 CI 保障，脚本位于 [示例代码 CI](https://github.com/taosdata/TDengine/tree/main/test/cases/83-DocTest)。
 
 本章包含：
 
@@ -29,6 +29,6 @@ description: TDengine 多语言连接、SQL、参数绑定、无模式写入、�
 - [连接器参考手册](./08-connectors-reference/index.md)：各语言连接器与 REST API 详解。
 - [错误码](./09-error-codes.md)：客户端与服务端错误码说明。
 
-若需深入了解 SQL 语法，请参阅 [TDengine SQL](../05-tdengine-sql/index.md)。若需进一步了解各连接器用法，请参阅 [连接器参考手册](./08-connectors-reference/index.md)。若需将 TDengine 与 Grafana 等第三方系统集成，请参阅 [第三方工具](../13-ecosystem-integrations/index.md)。
+若需深入了解 SQL 语法，请参阅 [TDengine SQL](../05-tdengine-sql/index.md)。若需将 TDengine 与 Grafana 等第三方系统集成，请参阅 [第三方工具](../13-ecosystem-integrations/index.md)。
 
 开发过程中如遇问题，可在各页面下方通过 [反馈问题](https://github.com/taosdata/TDengine/issues/new/choose) 在 GitHub 提交 Issue。

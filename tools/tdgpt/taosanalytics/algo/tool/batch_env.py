@@ -217,7 +217,7 @@ def build_golden(batches, config):
 ############################################
 # Main Pipeline
 ############################################
-def do_batch_process(ts_list, val_list, win_list, config):
+def gen_batch_envelop(ts_list, val_list, win_list, config):
     segments = split_by_windows(ts_list, val_list, win_list)
 
     processed_batches = []
@@ -417,6 +417,6 @@ if __name__ == "__main__":
         (84, 100),
     ]
 
-    center, lower, upper, batches = do_batch_process(
+    center, lower, upper, batches = gen_batch_envelop(
         time, values, windows, get_default_config()
     )

@@ -128,6 +128,10 @@ endif()
 option(BUILD_TAOSD_INTEGRATED "Build taosd as integrated library"    OFF)
 option(BUILD_AS_LIB           "Build TDengine as library"            OFF)
 option(BUILD_RELEASE          "If build release version"             OFF)
+# Offline diagnostic tools for storage corruption (tools/cache-rdb-verify,
+# tools/rdb-selftest). Not part of taosd and not needed for a normal build, so
+# they stay off; enable when investigating a corruption report on a host.
+option(BUILD_DIAG_TOOLS       "If build storage diagnostic tools"    OFF)
 if(TD_LINUX)
   option(BUILD_CONTRIB        "If build thirdpart from source"       OFF)
 else()
