@@ -172,8 +172,8 @@ class TestStreamTagCache:
         for s in streams:
             s.checkResults()
 
-        # check stable tagFilterCache usage
-        assert self.stable_tag_cache_log_counter(db_name, tb_name) >= 8
+        # warm-on-first-miss can satisfy the first lookups before cache retrieval
+        assert self.stable_tag_cache_log_counter(db_name, tb_name) >= 6
 
     def check_all_types_alter(self):
         db_name = "test_alter"
