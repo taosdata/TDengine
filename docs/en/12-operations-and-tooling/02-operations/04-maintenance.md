@@ -12,7 +12,7 @@ For how to manage cluster nodes, please refer to [Node Management](../../05-tden
 
 TDengine is designed for various writing scenarios, and many of these scenarios can lead to data storage amplification or data file holes in TDengine's storage. This not only affects the efficiency of data storage but also impacts query performance. To address these issues, TDengine Enterprise offers a data reorganization feature, namely the DATA COMPACT function, which reorganizes stored data files, removes file holes and invalid data, improves data organization, and thus enhances storage and query efficiency. The data reorganization feature was first released in version 3.0.3.0 and has since undergone several iterations of optimization. It is recommended to use the latest version.
 
-### Syntax
+**Syntax**
 
 ```sql
 COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY'] [META_ONLY] [FORCE];
@@ -23,7 +23,7 @@ KILL COMPACT compact_id;
 KILL COMPACT compact_id FORCE;
 ```
 
-### Effects
+**Effects**
 
 - Scans and compresses all data files in all VGROUP VNODEs of the specified DB
 - COMPACT will delete data that has been deleted and data from deleted tables
@@ -36,7 +36,7 @@ KILL COMPACT compact_id FORCE;
 - COMPACT tasks are executed asynchronously in the background, and you can view the progress of COMPACT tasks using the SHOW COMPACTS command
 - The SHOW command will return the ID of the COMPACT task, and you can terminate the COMPACT task using the KILL COMPACT command
 
-### Additional Information
+**Additional Information**
 
 - COMPACT is asynchronous; after executing the COMPACT command, it returns without waiting for the COMPACT to finish. If a previous COMPACT has not completed, it will wait for the previous task to finish before returning.
 - COMPACT may block writing, especially in databases where stt_trigger = 1, but it does not block queries.
@@ -52,7 +52,7 @@ SHOW SCAN <scan_id>;
 KILL SCAN <scan_id>;
 ```
 
-### Effects
+**Effects**
 
 - Scans all time-series data files of all VGROUP VNODEs in the specified DB. If there are issues with the data files, they will be output in the corresponding server logs.
 - Scans all time-series data files of all VGROUP VNODEs in the specified list of VGROUPS in the DB. If db_name is empty, the current database is used by default. If there are issues with the data files, they will be output in the corresponding server logs.
@@ -61,7 +61,7 @@ KILL SCAN <scan_id>;
 - SCAN tasks are executed asynchronously in the background, and you can view the list of SCAN tasks using the SHOW SCANS command
 - The SHOW command will return the ID of the SCAN task, and you can terminate the SCAN task using the KILL SCAN command
 
-### Additional Information
+**Additional Information**
 
 - SCAN is asynchronous; after executing the SCAN command, it returns without waiting for the SCAN to finish. If a previous SCAN has not completed, it will wait for the previous task to finish before returning.
 
@@ -75,11 +75,11 @@ balance vgroup leader on <vgroup_id>; # Rebalance a vgroup leader
 balance vgroup leader database <database_name>; # Rebalance all vgroup leaders within a database
 ```
 
-### Functionality
+**Functionality**
 
 Attempts to evenly distribute one or all vgroup leaders across their respective replica nodes. This command forces a re-election of the vgroup, changing the vgroup's leader during the election process, thereby eventually achieving an even distribution of leaders.
 
-### Note
+**Note**
 
 Vgroup elections are inherently random, so the even distribution produced by the re-election is also probabilistic and not perfectly even. The side effect of this command is that it affects queries and writing; during the vgroup re-election, from the start of the election to the election of a new leader, this vgroup cannot be written to or queried. The election process generally completes within seconds. All vgroups will be re-elected one by one sequentially.
 
@@ -95,7 +95,7 @@ restore vnode on dnode <dnode_id> on vgroup <vgroup_id>; # Restore one vnode on 
 restore qnode on dnode <dnode_id>; # Restore qnode on dnode
 ```
 
-### Limitations
+**Limitations**
 
 - This feature is based on the recovery of existing replication capabilities, not disaster recovery or backup recovery. Therefore, for the mnode and vnode to be recovered, the prerequisite for using this command is that the other two replicas of the mnode or vnode can still function normally.
 - This command cannot repair individual files in the data directory that are damaged or lost. For example, if individual files or data in an mnode or vnode are damaged, it is not possible to recover a specific file or block of data individually. In this case, you can choose to completely clear the data of that mnode/vnode and then perform recovery.
@@ -144,7 +144,7 @@ When a vgroup is overloaded with CPU or Disk resource usage due to too many subt
 split vgroup <vgroup_id>
 ```
 
-### Note
+**Note**
 
 - For single-replica vgroups, after the split, the total disk space usage of historical time-series data may double. Therefore, before performing this operation, ensure there are sufficient CPU and disk resources in the cluster by adding dnode nodes to avoid resource shortages.
 - This command is a DB-level transaction; during execution, other management transactions of the current DB will be rejected. Other DBs in the cluster are not affected.
