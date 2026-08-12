@@ -8,11 +8,11 @@ You can deploy TDengine manually on a physical or virtual machine.
 
 taosd is the most important service component in the TDengine cluster. This section describes the steps to manually deploy a taosd cluster.
 
-### 1. Clear Data
+### Clear Data
 
 If the physical nodes for setting up the cluster contain previous test data or have had other versions of TDengine installed (such as 1.x/2.x), please delete them and clear all data first.
 
-### 2. Check Environment
+### Check Environment
 
 Before deploying the TDengine cluster, it is crucial to thoroughly check the network settings of all dnodes and the physical nodes where the applications are located. Here are the steps to check:
 
@@ -23,11 +23,11 @@ Before deploying the TDengine cluster, it is crucial to thoroughly check the net
 
 By following these steps, you can ensure that all nodes communicate smoothly at the network level, laying a solid foundation for the successful deployment of the TDengine cluster.
 
-### 3. Installation
+### Installation
 
 To ensure consistency and stability within the cluster, install the same version of TDengine on all physical nodes.
 
-### 4. Modify Configuration
+### Modify Configuration
 
 Modify the configuration file of TDengine (the configuration files of all nodes need to be modified). Assuming the endpoint of the first dnode to be started is `h1.tdengine.com:6030`, the cluster-related parameters are as follows.
 
@@ -52,7 +52,7 @@ For dnodes wishing to join the cluster, it is essential to ensure that the param
 | charset          | Character set encoding                                    |
 | ttlChangeOnWrite | Whether ttl expiration changes with table modification    |
 
-### 5. Start
+### Start
 
 Start the first dnode, such as `h1.tdengine.com`, following the steps mentioned above. Then execute taos in the terminal to start TDengine CLI program taos, and execute the `show dnodes` command within it to view all dnode information in the current cluster.
 
@@ -65,7 +65,7 @@ taos> show dnodes;
 
 You can see that the endpoint of the dnode node that has just started is `h1.tdengine.com:6030`. This address is the first Ep of the new cluster.
 
-### 6. Adding dnode
+### Adding dnode
 
 Follow the steps mentioned earlier, start taosd on each physical node. Each dnode needs to configure the firstEp parameter in the taos.cfg file to the endpoint of the first node of the new cluster, which in this case is `h1.tdengine.com:6030`. On the machine where the first dnode is located, run taos in the terminal, open TDengine CLI program taos, then log into the TDengine cluster, and execute the following SQL.
 
@@ -89,7 +89,7 @@ In the logs, please confirm that the fqdn and port of the output dnode are consi
 
 :::
 
-### 7. Adding mnode
+### Adding mnode
 
 When creating a TDengine cluster, the first dnode automatically becomes the mnode of the cluster, responsible for managing and coordinating the cluster. To achieve high availability of mnode, subsequent dnodes need to manually create mnode. Please note that a cluster can create up to 3 mnodes, and only one mnode can be created on each dnode. When the number of dnodes in the cluster reaches or exceeds 3, you can create mnode for the existing cluster. In the first dnode, first log into TDengine through TDengine CLI program taos, then execute the following SQL.
 

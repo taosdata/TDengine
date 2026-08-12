@@ -12,7 +12,7 @@ For how to manage cluster nodes, please refer to [Node Management](../../05-tden
 
 TDengine is designed for various writing scenarios, and many of these scenarios can lead to data storage amplification or data file holes in TDengine's storage. This not only affects the efficiency of data storage but also impacts query performance. To address these issues, TDengine Enterprise offers a data reorganization feature, namely the DATA COMPACT function, which reorganizes stored data files, removes file holes and invalid data, improves data organization, and thus enhances storage and query efficiency. The data reorganization feature was first released in version 3.0.3.0 and has since undergone several iterations of optimization. It is recommended to use the latest version.
 
-### Syntax
+**Syntax**
 
 ```sql
 COMPACT DATABASE db_name [start with 'XXXX'] [end with 'YYYY'] [META_ONLY] [FORCE];
@@ -23,7 +23,7 @@ KILL COMPACT compact_id;
 KILL COMPACT compact_id FORCE;
 ```
 
-### Effects
+**Effects**
 
 - Scans and compresses all data files in all VGROUP VNODEs of the specified DB
 - COMPACT will delete data that has been deleted and data from deleted tables
@@ -36,7 +36,7 @@ KILL COMPACT compact_id FORCE;
 - COMPACT tasks are executed asynchronously in the background, and you can view the progress of COMPACT tasks using the SHOW COMPACTS command
 - The SHOW command will return the ID of the COMPACT task, and you can terminate the COMPACT task using the KILL COMPACT command
 
-### Additional Information
+**Additional Information**
 
 - COMPACT is asynchronous; after executing the COMPACT command, it returns without waiting for the COMPACT to finish. If a previous COMPACT has not completed, it will wait for the previous task to finish before returning.
 - COMPACT may block writing, especially in databases where stt_trigger = 1, but it does not block queries.
@@ -52,7 +52,7 @@ SHOW SCAN <scan_id>;
 KILL SCAN <scan_id>;
 ```
 
-### Effects
+**Effects**
 
 - Scans all time-series data files of all VGROUP VNODEs in the specified DB. If there are issues with the data files, they will be output in the corresponding server logs.
 - Scans all time-series data files of all VGROUP VNODEs in the specified list of VGROUPS in the DB. If db_name is empty, the current database is used by default. If there are issues with the data files, they will be output in the corresponding server logs.
@@ -61,7 +61,7 @@ KILL SCAN <scan_id>;
 - SCAN tasks are executed asynchronously in the background, and you can view the list of SCAN tasks using the SHOW SCANS command
 - The SHOW command will return the ID of the SCAN task, and you can terminate the SCAN task using the KILL SCAN command
 
-### Additional Information
+**Additional Information**
 
 - SCAN is asynchronous; after executing the SCAN command, it returns without waiting for the SCAN to finish. If a previous SCAN has not completed, it will wait for the previous task to finish before returning.
 
@@ -79,14 +79,14 @@ balance vgroup leader on <vgroup_id> force; # Force-rebalance a vgroup leader (f
 balance vgroup leader database <database_name> force; # Force-rebalance all vgroup leaders within a database (forced mode)
 ```
 
-### Functionality
+**Functionality**
 
 There are two modes of leader rebalancing:
 
 - **Random mode** (without the `force` keyword): Triggers a re-election of the vgroup. The current leader steps down, and all replicas compete equally in the new election. Because the election is inherently random, the resulting leader distribution is probabilistic and may not be perfectly even. This mode never leaves a vgroup without a leader.
 - **Forced mode** (with the `force` keyword): Deterministically biases the election so that the leader is placed on a specific replica, achieving an even distribution across replica nodes. This is the behavior of earlier versions.
 
-### Note
+**Note**
 
 - In **random mode**, the even distribution produced by re-election is probabilistic and not perfectly even, because vgroup elections are inherently random.
 - In **forced mode**, if the target replica lags too far behind the others, it may be unable to win a majority during the biased election, and the vgroup may temporarily fail to elect a leader. If this happens, simply run the `balance vgroup leader ... force` command again to retry, or wait 2 minutes for it to recover automatically.
@@ -106,7 +106,7 @@ restore vnode on dnode <dnode_id> on vgroup <vgroup_id>; # Restore one vnode on 
 restore qnode on dnode <dnode_id>; # Restore qnode on dnode
 ```
 
-### PARALLEL Parameter
+**PARALLEL Parameter**
 
 The `restore dnode` and `restore vnode on dnode` commands support a `PARALLEL` parameter to control the number of vnodes restored concurrently.
 
@@ -116,7 +116,7 @@ The `restore dnode` and `restore vnode on dnode` commands support a `PARALLEL` p
 
 This parameter is useful when a dnode has many vnodes and you want to control the recovery concurrency to avoid excessive resource usage.
 
-### Limitations
+**Limitations**
 
 - This feature is based on the recovery of existing replication capabilities, not disaster recovery or backup recovery. Therefore, for the mnode and vnode to be recovered, the prerequisite for using this command is that the other two replicas of the mnode or vnode can still function normally.
 - This command cannot repair individual files in the data directory that are damaged or lost. For example, if individual files or data in an mnode or vnode are damaged, it is not possible to recover a specific file or block of data individually. In this case, you can choose to completely clear the data of that mnode/vnode and then perform recovery.
@@ -165,7 +165,7 @@ When a vgroup is overloaded with CPU or Disk resource usage due to too many subt
 split vgroup <vgroup_id>
 ```
 
-### Note
+**Note**
 
 - For single-replica vgroups, after the split, the total disk space usage of historical time-series data may double. Therefore, before performing this operation, ensure there are sufficient CPU and disk resources in the cluster by adding dnode nodes to avoid resource shortages.
 - This command is a DB-level transaction; during execution, other management transactions of the current DB will be rejected. Other DBs in the cluster are not affected.

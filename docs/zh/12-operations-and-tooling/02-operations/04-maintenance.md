@@ -1,5 +1,4 @@
 ---
-toc_max_heading_level: 4
 title: 集群维护
 sidebar_label: 集群维护
 ---
@@ -14,7 +13,7 @@ sidebar_label: 集群维护
 
 TDengine 面向多种写入场景，而很多写入场景下，TDengine 的存储会导致数据存储的放大或数据文件的空洞等。这一方面影响数据的存储效率，另一方面也会影响查询效率。为了解决上述问题，TDengine 企业版提供了对数据的重整功能，即 data compact 功能，将存储的数据文件重新整理，删除文件空洞和无效数据，提高数据的组织度，从而提高存储和查询的效率。数据重整功能在 3.0.3.0 版本第一次发布，此后又经过了多次迭代优化，建议使用最新版本。
 
-### 语法
+**语法**
 
 ```SQL
 compact DATABASE db_name [start with 'XXXX'] [end with 'YYYY'] [META_ONLY] [FORCE];
@@ -25,7 +24,7 @@ kill compact compact_id;
 kill compact compact_id force;
 ```
 
-### 效果
+**效果**
 
 - 扫描并压缩指定的 DB 中所有 vgroup 中 vnode 的所有数据文件
 - 扫描并压缩 DB 中指定的 vgroup 列表中 vnode 的所有数据文件，若 db_name 为空，则默认为当前数据库
@@ -39,7 +38,7 @@ kill compact compact_id force;
 - compact 任务会在后台异步执行，可以通过 show compacts 命令查看 compact 任务的进度
 - show 命令会返回 compact 任务的 ID，可以通过 kill compact 命令终止 compact 任务
 
-### 补充说明
+**补充说明**
 
 - compact 为异步，执行 compact 命令后不会等 compact 结束就会返回。如果上一个 compact 没有完成则再发起一个 compact 任务，则会等上一个任务完成后再返回。
 - compact 可能阻塞写入，尤其是在 stt_trigger = 1 的数据库中，但不阻塞查询。
@@ -55,7 +54,7 @@ show scan <scan_id>;
 kill scan <scan_id>;
 ```
 
-### 效果
+**效果**
 
 - 扫描指定的 DB 中所有 vgroup 中 vnode 的所有时序数据文件。若数据文件存问题，则在相应的服务端日志中输出
 - 扫描 DB 中指定的 vgroup 列表中 vnode 的所有数据文件，若 db_name 为空，则默认为当前数据库。若数据文件存问题，则在相应的服务端日志中输出
@@ -64,7 +63,7 @@ kill scan <scan_id>;
 - scan 任务会在后台异步执行，可以通过 show scans 命令查看 scan 任务列表
 - show 命令会返回 scan 任务的 ID，可以通过 kill scan 命令终止 scan 任务
 
-### 补充说明
+**补充说明**
 
 - scan 为异步，执行 scan 命令后不会等 scan 结束就会返回。如果上一个 scan 没有完成则再发起一个 scan 任务，则会等上一个任务完成后再返回。
 
@@ -82,14 +81,14 @@ balance vgroup leader on <vgroup_id> force; # 强制均衡一个 vgroup 的 lead
 balance vgroup leader database <database_name> force; # 强制均衡一个 database 内所有 vgroup 的 leader（强制方式）
 ```
 
-### 功能
+**功能**
 
 leader 再平衡有两种方式：
 
 - **随机方式**（不带 `force` 关键字）：触发 vgroup 重新选举，当前 leader 主动让出，所有副本平等地参与新一轮选举。由于选举本身带有随机性，最终产生的 leader 分布是概率性的，不保证完全均匀。这种方式不会导致 vgroup 选不出 leader。
 - **强制方式**（带 `force` 关键字）：通过对选举施加偏置，将 leader 强制指定到特定副本上，从而在各副本节点间实现均匀分布。这是旧版本的行为。
 
-### 注意
+**注意**
 
 - 在**随机方式**下，由于 vgroup 选举本身带有随机性，通过重新选举产生的均匀分布是概率性的，不会完全均匀。
 - 在**强制方式**下，如果被指定的目标副本数据落后其它副本过多，它在带偏置的选举中可能无法获得多数票，从而导致该 vgroup 暂时无法选出 leader。如果出现这种情况，只需再次执行 `balance vgroup leader ... force` 命令重试即可，或者等待 2 分钟直到其自动恢复。
@@ -109,7 +108,7 @@ restore vnode on dnode <dnode_id> on vgroup <vgroup_id>; # 恢复 dnode 上指�
 restore qnode on dnode <dnode_id>; # 恢复 dnode 上的 qnode
 ```
 
-### PARALLEL 参数
+**PARALLEL**
 
 `restore dnode` 和 `restore vnode on dnode` 命令支持 `PARALLEL` 参数，用于控制同时并行恢复的 vnode 数量。
 
@@ -119,7 +118,7 @@ restore qnode on dnode <dnode_id>; # 恢复 dnode 上的 qnode
 
 该参数适用于 dnode 上 vnode 数量较多、希望控制恢复并发度的场景，避免恢复过程占用过多系统资源。
 
-### 限制
+**限制**
 
 - 该功能是基于已有的复制功能的恢复，不是灾难恢复或者备份恢复，所以对于要恢复的 mnode 和 vnode 来说，使用该命令的前提是还存在该 mnode 或 vnode 的其它两个副本仍然能够正常工作。
 - 该命令不能修复数据目录中的个别文件的损坏或者丢失。例如，如果某个 mnode 或者 vnode 中的个别文件或数据损坏，无法单独恢复损坏的某个文件或者某块数据。此时，可以选择将该 mnode/vnode 的数据全部清空再进行恢复。
@@ -168,7 +167,7 @@ taosd -r --mode force --node-type vnode \
 split vgroup <vgroup_id>
 ```
 
-### 注意
+**注意**
 
 - 单副本库虚拟组，在分裂完成后，历史时序数据总磁盘空间使用量，可能会翻倍。所以，在执行该操作之前，通过增加 dnode 节点方式，确保集群中有足够的 CPU 和磁盘资源，避免资源不足现象发生。
 - 该命令为 DB 级事务；执行过程，当前 DB 的其它管理事务将会被拒绝。集群中，其它 DB 不受影响。

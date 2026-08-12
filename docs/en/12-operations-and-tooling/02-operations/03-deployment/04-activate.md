@@ -1,5 +1,5 @@
 ---
-sidebar_label: Activate Cluster
+sidebar_label: Activate Enterprise
 title: Activate TDengine TSDB-Enterprise
 ---
 

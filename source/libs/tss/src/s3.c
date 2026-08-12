@@ -193,7 +193,7 @@ static bool initInstance(SSharedStorageS3* ss, const char* as) {
 
 // createInstance implements SSharedStorageType::createInstance.
 // access string format:
-//  s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=AKIA26SHLXUZKC56MEOY;secretAccessKey=xxxxxxx;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3;verifyPeer=false
+//  s3:endpoint=s3.amazonaws.com;bucket=mybucket;uriStyle=path;protocol=https;accessKeyId=<ACCESS_KEY_ID>;secretAccessKey=<SECRET_ACCESS_KEY>;region=us-east-2;chunkSize=64;maxChunks=10000;maxRetry=3;verifyPeer=false
 static int32_t createInstance(const char* accessString, SSharedStorageS3** ppSS) {
     size_t asLen = strlen(accessString) + 1;
     SSharedStorageS3* ss = (SSharedStorageS3*)taosMemCalloc(1, sizeof(SSharedStorageS3) + asLen);

@@ -1,5 +1,5 @@
 ---
-sidebar_label: 集群激活
+sidebar_label: 激活企业版
 title: 激活 TDengine TSDB 企业版
 ---
 

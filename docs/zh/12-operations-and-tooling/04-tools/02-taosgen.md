@@ -8,7 +8,7 @@ taosgen 是时序数据领域产品的性能基准测试工具，支持数据生
 
 taosgen 目前支持 Windows、Linux 和 macOS 系统。
 
-## taosBenchmark 与 taosgen 功能对比
+## taosgen 与 taosBenchmark 功能对比
 
 taosgen 相比 taosBenchmark，具有以下优势和改进：
 
