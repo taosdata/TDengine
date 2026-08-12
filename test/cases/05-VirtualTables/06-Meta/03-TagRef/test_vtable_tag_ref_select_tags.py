@@ -207,6 +207,33 @@ class TestVtableTagRefSelectTags:
             "SELECT TAGS with local+ref filter",
         )
 
+    def test_select_tags_local_tag_only(self):
+        """SELECT TAGS with only local tags must not consult tag-ref sources.
+
+        Verify that the system correctly handles the case: a virtual child whose
+        stable mixes local and referenced tags can SELECT TAGS only local tags.
+        Local tags must be classified as local (not tag-ref) so the query takes
+        the plain tag-scan path; regression for "Planner slot key not found"
+        (0x80002704) caused by positional tagRef fallback misclassification.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.2.3
+
+        Labels: common,ci,virtual
+
+        """
+        expected = [(str(local_group),) for _, _, local_group, _, _ in VTABLES]
+        self._check_values(
+            "SELECT TAGS local_group FROM vstb",
+            expected,
+            "SELECT TAGS local_group only",
+        )
+        tdSql.query("SELECT TAGS local_group FROM v0")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
     def test_select_tags_accepts_data_column_projection(self):
         """SELECT TAGS can project data columns together with tag-ref columns.
 

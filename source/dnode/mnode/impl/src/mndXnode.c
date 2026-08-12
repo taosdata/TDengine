@@ -5184,7 +5184,7 @@ int32_t mndXnodeGenAgentToken(const SXnodeAgentObj *pAgent, char *pTokenBuf) {
       .sub = pAgent->id,
   };
   // token be like:
-  // "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpYXQiOjE3Njc1OTc3NzIsInN1YiI6MTIzNDV9.i7HvYf_S-yWGEExDzQESPUwVX23Ok_7Fxo93aqgKrtw"
+  // "<JWT_HEADER>.<JWT_PAYLOAD>.<JWT_SIGNATURE>"
   char *token = mndXnodeCreateAgentToken(&claims, MNDXNODE_DEFAULT_SECRET, sizeof(MNDXNODE_DEFAULT_SECRET));
   if (!token) {
     code = terrno;

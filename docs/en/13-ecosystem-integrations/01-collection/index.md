@@ -7,6 +7,8 @@ description: Integrate Prometheus, Telegraf, Kafka, Flink, and other collection 
 import DocCardList from '@theme/DocCardList';
 import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
-This section explains how to write data from common monitoring collectors, message queues, and stream-processing frameworks to TDengine, or synchronize data through connectors. For zero-code Kafka, MQTT, and other ingestion options in TDengine Enterprise, see [Zero-Code Data Ingestion](../../08-data-ingest-and-delivery/01-no-code-ingestion/index.md). For the Enterprise Flink Source/CDC and Sink connectors, see [Flink](../../08-data-ingest-and-delivery/02-no-code-delivery/02-Flink.md) under [Data Distribution](../../08-data-ingest-and-delivery/02-no-code-delivery/index.md).
+This section explains how to integrate monitoring collectors, message queues, and stream-processing frameworks with TDengine through connectors or plugins (including writes and bidirectional sync scenarios such as Kafka Connect).
+
+For zero-code Kafka, MQTT, and other ingestion options in TDengine Enterprise, see [Zero-Code Data Ingestion](../../08-data-ingest-and-delivery/01-no-code-ingestion/index.md). For the Enterprise Flink Source / CDC and Sink connectors, see [Flink](../../08-data-ingest-and-delivery/02-no-code-delivery/02-Flink.md).
 
 <DocCardList items={useCurrentSidebarCategory().items}/>

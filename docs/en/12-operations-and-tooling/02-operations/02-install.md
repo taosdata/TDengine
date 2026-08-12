@@ -12,6 +12,8 @@ The standard TDengine server package includes `taosd`, `taosAdapter`, `taosc`, t
 
 TDengine provides Deb and RPM packages for Linux, a generic tar.gz package, an `apt-get` repository, a Windows client installer, and macOS packages.
 
+The download lists in the installation steps below are for the **Community Edition (TDengine TSDB-OSS)**. For the Enterprise Edition, get the package for your platform and version from the [TDengine Product Download Center](https://www.taosdata.com/en/download-center?product=TDengine+TSDB-Enterprise).
+
 ## Requirements
 
 The minimum Linux runtime requirements are:

@@ -8,7 +8,7 @@ taosgen is a performance benchmarking tool for time-series data products, suppor
 
 taosgen currently supports Windows, Linux and macOS systems.
 
-## Comparison of taosBenchmark and taosgen Features
+## Comparison of taosgen and taosBenchmark Features
 
 Compared to taosBenchmark, taosgen offers the following advantages and improvements:
 
