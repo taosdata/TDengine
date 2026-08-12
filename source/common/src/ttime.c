@@ -2472,6 +2472,7 @@ static const char* tsFormatStr2Int32(int32_t* dest, const char* str, int32_t len
   int64_t     res;
   const char* s = str;
   if ('\0' == str[0]) return NULL;
+  SET_ERRNO(0);  // strtoll leaves errno unchanged on success.
   if (len <= 0) {
     res = taosStr2Int64(s, &last, 10);
     s = last;
