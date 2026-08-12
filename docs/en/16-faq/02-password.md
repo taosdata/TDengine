@@ -16,7 +16,7 @@ TDengine user passwords must meet the following rules:
     2. Lowercase letters: `a-z`
     3. Numbers: `0-9`
     4. Special characters: `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`
-4. When strong passwords are enabled (`enableStrongPassword` / SQL `EnableStrongPassword`, enabled by default), the password must contain at least three of the following categories: uppercase letters, lowercase letters, numbers, and special characters. When disabled, there are no restrictions on character types. For details, see [User Management](../05-tdengine-sql/07-user-and-privilege/01-user.md).
+4. When strong passwords are enabled (`enableStrongPassword` / SQL `EnableStrongPassword`, enabled by default), the password must contain at least three of the following categories: uppercase letters, lowercase letters, numbers, and special characters. When disabled, there are no restrictions on character types. For details, see [Users](../05-tdengine-sql/07-user-and-privilege/01-user.md).
 
 ## Usage Guide for Special Characters in Different Components
 
@@ -27,9 +27,9 @@ CREATE USER user1 PASS 'Ab1!@#$%^&*()-_+=[]{}';
 ```
 
 <Tabs defaultValue="shell" groupId="component">
-<TabItem label="CLI" value="shell">
+<TabItem label="taos shell" value="shell">
 
-In the [TDengine TSDB Command Line Interface (CLI)](../12-operations-and-tooling/04-tools/01-taos-cli.md), note the following:
+In the [`taos` shell](../12-operations-and-tooling/04-tools/01-taos-cli.md), note the following:
 
 - If the `-p` parameter is used without a password, you will be prompted to enter a password, and any acceptable characters can be entered.
 - If the `-p` parameter is used with a password, and the password contains special characters, single quotes must be used.
@@ -70,29 +70,29 @@ Example of data write test with user `user1`:
 taosBenchmark -u user1 -p'Ab1!@#$%^&*()-_+=[]{}' -d test -y
 ```
 
-When using `taosBenchmark -f <JSON>`, there are no restrictions on the password in the JSON file.
+When using `taosBenchmark -f <JSON>`, there are no additional restrictions on the password in the JSON file.
 
 </TabItem>
 <TabItem label="taosX" value="taosx">
 
-[taosX](../12-operations-and-tooling/03-components/06-taosx.md) uses DSN to represent TDengine connections, in the format: `(taos|tmq)[+ws]://<user>:<pass>@<ip>:<port>`, where `<pass>` can contain special characters, such as: `taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@192.168.10.10:6041`.
+[taosX](../12-operations-and-tooling/03-components/06-taosx.md) uses DSN to represent TDengine connections, in the format `(taos|tmq)[+ws]://<user>:<pass>@<ip>:<port>`, where `<pass>` can contain special characters, for example: `taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@192.168.10.10:6041`.
 
-Example of exporting data with user `user1`:
+Export data with user `user1`:
 
 ```shell
 taosx -f 'taos://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6030?query=select * from test.t1' \
   -t 'csv:./test.csv'
 ```
 
-Note that if the password can be URL decoded, the URL decoded result will be used as the password. For example: `taos+ws://user1:Ab1%21%40%23%24%25%5E%26%2A%28%29-_%2B%3D%5B%5D%7B%7D@localhost:6041` is equivalent to `taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6041`.
+Note: If the password can be URL-decoded, the URL-decoded result is used as the password. For example, `taos+ws://user1:Ab1%21%40%23%24%25%5E%26%2A%28%29-_%2B%3D%5B%5D%7B%7D@localhost:6041` is equivalent to `taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6041`.
 
-No special handling is required in [Explorer](../12-operations-and-tooling/03-components/04-explorer.md), just use it directly.
+No special handling is required in [taosExplorer](../12-operations-and-tooling/03-components/04-explorer.md); use it directly.
 
 </TabItem>
 
 <TabItem label="Java" value="java">
 
-When using special character passwords in JDBC, the password needs to be URL encoded, as shown below:
+When using passwords that contain special characters in JDBC, the password must be URL-encoded, as shown below:
 
 ```java
 package com.taosdata.example;
@@ -110,14 +110,13 @@ public class JdbcPassDemo {
  public static void main(String[] args) throws Exception {
   String password = "Ab1!@#$%^&*()-_+=[]{}";
   String encodedPassword = URLEncoder.encode(password, StandardCharsets.UTF_8.toString());
-  String jdbcUrl = "jdbc:TAOS-WS://localhost:6041";
+  String jdbcUrl = "jdbc:TAOS-WS://localhost:6041?varcharAsString=true";
   Properties connProps = new Properties();
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_USER, "user1");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, encodedPassword);
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_ENABLE_AUTO_RECONNECT, "true");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
   connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-  connProps.setProperty(TSDBDriver.PROPERTY_KEY_VARCHAR_AS_STRING, "true");
 
   try (Connection conn = DriverManager.getConnection(jdbcUrl, connProps)) {
    System.out.println("Connected to " + jdbcUrl + " successfully.");
@@ -141,7 +140,7 @@ public class JdbcPassDemo {
 </TabItem>
 <TabItem label="Python" value="python">
 
-No special handling is required for special character passwords in Python, as shown below:
+No special handling is required for passwords that contain special characters in Python, as shown below:
 
 ```python
 import taos
@@ -171,7 +170,7 @@ def create_ws_connection():
 
 def show_databases(conn):
     cursor = conn.cursor()
-    cursor.execute("show databases")
+    cursor.execute("SHOW DATABASES")
     print(cursor.fetchall())
     cursor.close()
 
@@ -190,7 +189,7 @@ if __name__ == "__main__":
 
 <TabItem label="Go" value="go">
 
-Starting from v3.6.0, Go supports passwords containing special characters, which need to be URL-encoded.
+Starting from `v3.6.0`, the Go connector supports passwords that contain special characters; URL-encode the password when using it.
 
 ```go
 package main
@@ -222,7 +221,7 @@ func main() {
 
 <TabItem label="Rust" value="rust">
 
-In Rust, DSN is used to represent TDengine connections, in the format: `(taos|tmq)[+ws]://<user>:<pass>@<ip>:<port>`, where `<pass>` can contain special characters, such as: `taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@192.168.10.10:6041`.
+The Rust connector uses DSN to represent TDengine connections, in the format `(taos|tmq)[+ws]://<user>:<pass>@<ip>:<port>`, where `<pass>` can contain special characters, for example: `taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@192.168.10.10:6041`.
 
 ```rust
 let dsn = "taos+ws://user1:Ab1!@#$%^&*()-_+=[]{}@localhost:6041";
@@ -232,7 +231,7 @@ let connection = TaosBuilder::from_dsn(&dsn)?.build().await?;
 </TabItem>
 <TabItem label="Node.js" value="node">
 
-Starting from v3.1.5, the Node.js connector supports passwords containing all valid characters.
+Starting from `v3.1.5`, the Node.js connector supports passwords that contain special characters; no special handling is required.
 
 ```js
 const taos = require("@tdengine/websocket");
@@ -259,7 +258,7 @@ createConnect()
 </TabItem>
 <TabItem label="C#" value="csharp">
 
-When using passwords in C#, note that connection strings do not support semicolons (as semicolons are delimiters). In this case, you can construct the `ConnectionStringBuilder` without a password, and then set the username and password.
+When using passwords in C#, note that connection strings do not support semicolons (semicolons are delimiters). In this case, construct a `ConnectionStringBuilder` without a password, then set the username and password.
 
 As shown below:
 
@@ -273,7 +272,7 @@ using (var client = DbDriver.Open(builder)){}
 </TabItem>
 <TabItem label="C" value="c">
 
-There are no restrictions on passwords in C.
+There are no additional restrictions on passwords in C.
 
 ```c
 TAOS *taos = taos_connect("localhost", "user1", "Ab1!@#$%^&*()-_+=[]{}", NULL, 6030);
@@ -282,7 +281,7 @@ TAOS *taos = taos_connect("localhost", "user1", "Ab1!@#$%^&*()-_+=[]{}", NULL, 6
 </TabItem>
 <TabItem label="REST" value="rest">
 
-When using passwords in REST API, note the following:
+When using passwords in the REST API, note the following:
 
 - Passwords use Basic Auth, in the format `Authorization: Basic base64(<user>:<pass>)`.
 - Passwords containing colons `:` are not supported.
@@ -299,7 +298,7 @@ curl -H 'Authorization: Basic dXNlcjE6QWIxIUAjJCVeJiooKS1fKz1bXXt9' \
 </TabItem>
 <TabItem label="ODBC" value="odbc">
 
-No special handling is required for special character passwords in ODBC connector, as shown below:
+The ODBC connector supports passwords that contain special characters; no special handling is required. As shown below:
 
 ```c
 #include <stdio.h>
@@ -333,7 +332,7 @@ int test_user_connect(const char *dsn, const char *uid, const char *pwd) {
   if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
     goto end;
 
-  sr = SQLExecDirect(stmt, (SQLCHAR *)"show databases", SQL_NTS);
+  sr = SQLExecDirect(stmt, (SQLCHAR *)"SHOW DATABASES", SQL_NTS);
   if (sr != SQL_SUCCESS && sr != SQL_SUCCESS_WITH_INFO)
     goto end;
 
