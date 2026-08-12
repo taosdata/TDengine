@@ -3238,6 +3238,13 @@ void ctgGetGlobalCacheStat(SCtgCacheStat* pStat) {
 void ctgGetGlobalCacheSize(uint64_t* pSize) {
   *pSize = 0;
 
+  // pCluster may have been freed by catalogDestroy() if a dispatched timer
+  // callback (ctgProcessTimerEvent) is still running during teardown. Guard
+  // against a NULL/stale hash to avoid dereferencing it in taosHashIterate.
+  if (gCtgMgmt.pCluster == NULL || atomic_load_8((int8_t*)&gCtgMgmt.exit)) {
+    return;
+  }
+
   SCatalog* pCtg = NULL;
   void*     pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
   while (pIter) {
