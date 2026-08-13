@@ -21,6 +21,12 @@ target_link_libraries(scalar
     PRIVATE totp
 )
 
+if(UNIX AND NOT APPLE)
+    # scalar and parser reference each other when statically linked by tests.
+    # Ask CMake to rescan the link interface enough times for GNU ld.
+    set_property(TARGET scalar PROPERTY LINK_INTERFACE_MULTIPLICITY 3)
+endif()
+
 if(BUILD_TEST)
     ADD_SUBDIRECTORY(test)
 endif()

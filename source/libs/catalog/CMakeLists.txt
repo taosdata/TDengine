@@ -15,6 +15,12 @@ target_link_libraries(
     PRIVATE os util transport qcom nodes extconnector
 )
 
+if(UNIX AND NOT APPLE)
+    # catalog participates in static-library cycles through parser/planner/executor.
+    # Ask CMake to rescan the link interface enough times for GNU ld.
+    set_property(TARGET catalog PROPERTY LINK_INTERFACE_MULTIPLICITY 3)
+endif()
+
 if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
     # catalog's static link closure pulls in enterprise extconnector, which
     # references nodesRemotePlanToSQL from libnodes.a after libnodes.a may
