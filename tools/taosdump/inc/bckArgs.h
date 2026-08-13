@@ -113,6 +113,15 @@ char*  argPassword();
 extern StorageFormat g_storageFormat;
 StorageFormat argStorageFormat();
 
+// content selection (-M / --content): which parts to back up / restore.
+// argContentBasic()   - physical tables (stb/ctb/ntb) + tags + time-series data
+// argContentExtMeta() - virtual tables + streams + topics (SQL only, no data)
+BckContent argContent();
+bool       argContentBasic();
+bool       argContentExtMeta();
+// human-readable name of the current content selection, for summary output
+const char* argContentName();
+
 // backup dbs
 char** argBackDB();
 
@@ -121,6 +130,14 @@ const char* argRenameDb(const char *oldName);
 
 // rename raw string (for display), NULL if not set
 const char* argRenameList();
+
+// full -W rename map, for rewriting DDL that may reference a database OTHER
+// than the one currently being restored (virtual tables / streams / topics).
+// argRenameCount() is the number of configured pairs; argRenameOldAt()/
+// argRenameNewAt() return the i-th pair (0-based), or NULL if i is out of range.
+int          argRenameCount(void);
+const char*  argRenameOldAt(int i);
+const char*  argRenameNewAt(int i);
 
 // positional args: taosBackup [OPTIONS] dbname [tbname ...]
 // argSpecDb() returns the positional database name, or NULL if not given
@@ -136,6 +153,13 @@ int          argBuildInClause(const char *colName, char *buf, int bufLen);
 // returns true if stbName itself is present in the spec-tables list
 // (meaning the user requested the whole super table, not individual CTBs)
 bool         argStbNameInSpecTables(const char *stbName);
+// returns true if tbName itself is present in the spec-tables list.
+// Used on restore to skip individual child/normal tables that were not
+// requested, mirroring the filtering the backup side already applies when
+// writing tag/data files (restore itself has no independent -D/table
+// selection: the positional dbname/tbname list is shared between backup
+// and restore, same as the rest of taosdump's -D/-M/-W options).
+bool         argTableInSpecTables(const char *tbName);
 
 // STMT batch size limits and defaults (used by --data-batch / -B, restore only).
 //   STMT2: rows buffered before taos_stmt2_bind_param+exec; hard API constraint

@@ -11,6 +11,7 @@
 
 #include "colCompress.h"
 #include "blockReader.h"
+#include "bckUtil.h"
 // engine
 #include "tcompression.h"
 #include "tcol.h"
@@ -87,7 +88,7 @@ int32_t compressColData(FieldInfo *fieldInfo, int32_t blockRows,
 
         code = tCompressData(input, &cinfo, (char *)output + opos, remain, assist);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("compress bitmap failed, code: %d", code);
+            logError("compress bitmap failed(0x%08X, %s)", code, bckErrMsg(code));
             return code;
         }
 
@@ -115,7 +116,7 @@ int32_t compressColData(FieldInfo *fieldInfo, int32_t blockRows,
 
     code = tCompressData((char *)input + ipos, &cinfo, (char *)output + opos, remain, NULL);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("compress col data failed, code: %d", code);
+        logError("compress col data failed(0x%08X, %s)", code, bckErrMsg(code));
         return code;
     }
 
@@ -180,7 +181,7 @@ CompressBlock* compressBlock(void*      block,
         int32_t colDataLen = 0;
         retCode = getColumnData(&reader, fieldInfos[i].type, &colData, &colDataLen);
         if (retCode != TSDB_CODE_SUCCESS) {
-            logError("get column data failed: %d", retCode);
+            logError("get column data failed(0x%08X, %s)", retCode, bckErrMsg(retCode));
             *code = retCode;
             return NULL;
         }
@@ -228,7 +229,7 @@ CompressBlock* compressBlock(void*      block,
                                 cmprAlg,
                                 assist);
         if (*code != TSDB_CODE_SUCCESS) {
-            logError("compress column data failed. code: %d", *code);
+            logError("compress column data failed(0x%08X, %s)", *code, bckErrMsg(*code));
             *code = TSDB_CODE_BCK_COMPRESS_FAILED;
             return NULL;
         }
@@ -294,7 +295,7 @@ static int32_t decompressColData(FieldInfo *fieldInfo, int32_t blockRows,
 
         code = tDecompressData((char *)input + ipos, &cinfo, (char *)output + opos, remain, assist);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("decompress bitmap failed, code: %d", code);
+            logError("decompress bitmap failed(0x%08X, %s)", code, bckErrMsg(code));
             return code;
         }
 
@@ -321,7 +322,7 @@ static int32_t decompressColData(FieldInfo *fieldInfo, int32_t blockRows,
 
     code = tDecompressData((char *)input + ipos, &cinfo, (char *)output + opos, remain, NULL);
     if (code != TSDB_CODE_SUCCESS) {
-        logError("decompress col data failed, code: %d", code);
+        logError("decompress col data failed(0x%08X, %s)", code, bckErrMsg(code));
         return code;
     }
 
@@ -457,7 +458,7 @@ int decompressBlock(CompressBlock* compressBlk,
                                          cmprAlgs[i],
                                          assist);
         if (code != TSDB_CODE_SUCCESS) {
-            logError("decompress column %d (%s) failed: %d", i, fieldInfos[i].name, code);
+            logError("decompress column %d (%s) failed(0x%08X, %s)", i, fieldInfos[i].name, code, bckErrMsg(code));
             taosMemFree(*uncompressBlock);
             *uncompressBlock = NULL;
             *uncompressLen = 0;

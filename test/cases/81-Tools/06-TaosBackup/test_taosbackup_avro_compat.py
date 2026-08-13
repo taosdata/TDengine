@@ -237,7 +237,44 @@ class TestTaosBackupAvroCompat:
         tdLog.info("do_avro_rename ............................... [passed]")
 
     # -----------------------------------------------------------------------
-    # 3. AVRO schema-only detection (dbs.sql present, no data files)
+    # 3. AVRO + --content=ext-meta alone must be rejected (no stage1 run)
+    # -----------------------------------------------------------------------
+
+    def do_avro_extmeta_only_rejected(self):
+        """--content=ext-meta alone against an AVRO backup must fail loudly.
+
+        AVRO-format backups have no separate vtb.sql/stream.sql/topic.sql —
+        everything (including virtual tables) is restored inside the AVRO
+        stage-1 path.  If the user asks for --content=ext-meta alone (stage1
+        never runs for this db), restoreDatabaseExtMetaOne() must reject the
+        request instead of silently doing nothing (restore.c).
+        """
+        dst_db = "avro_extmeta_only_dst"
+        tdSql.execute(f"drop database if exists {dst_db}")
+        tdSql.execute(f"drop database if exists {_AVRO_FULL_ORIG_DB}")
+
+        rlist = etool.taosdump(
+            f'--content=ext-meta -W "{_AVRO_FULL_ORIG_DB}={dst_db}" -i {_AVRO_FULL_DIR}',
+            checkRun=False,
+        )
+        output = "\n".join(rlist) if rlist else ""
+        assert "cannot restore it standalone" in output, (
+            f"expected AVRO ext-meta-only rejection message not found:\n{output[:600]}"
+        )
+        tdLog.info("  rejection message present .................... [passed]")
+
+        # Must NOT have created the destination database
+        tdSql.query("select name from information_schema.ins_databases")
+        db_names = [row[0] for row in tdSql.queryResult]
+        assert dst_db not in db_names, (
+            f"{dst_db} should not exist after rejected ext-meta-only AVRO restore"
+        )
+        tdLog.info("  destination database not created ............. [passed]")
+
+        tdLog.info("do_avro_extmeta_only_rejected ................ [passed]")
+
+    # -----------------------------------------------------------------------
+    # 4. AVRO schema-only detection (dbs.sql present, no data files)
     # -----------------------------------------------------------------------
 
     def do_avro_schema_only(self):
@@ -346,7 +383,9 @@ class TestTaosBackupAvroCompat:
         Test scenarios:
           1. Full data: pre-generated AVRO backup → taosBackup restore → verify all data.
           2. Rename: AVRO restore with -W rename → verify renamed DB.
-          3. Schema-only: hand-crafted dbs.sql (no data) → verify schema.
+          3. --content=ext-meta alone against an AVRO backup must be rejected
+             (stage1 never ran, so there's nothing to attach ext-meta to).
+          4. Schema-only: hand-crafted dbs.sql (no data) → verify schema.
 
         Since: v3.0.0.0
 
@@ -359,10 +398,13 @@ class TestTaosBackupAvroCompat:
             - 2026-05-10 Refactored; use pre-generated AVRO fixtures instead of
                          live old_taosdump invocation (old_taosdump no longer
                          compiled in CI)
+            - 2026-08-12 Added ext-meta-only rejection coverage for
+                         restoreDatabaseExtMetaOne() (restore.c)
 
         """
         self.do_avro_full_restore()
         self.do_avro_rename()
+        self.do_avro_extmeta_only_rejected()
         self.do_avro_schema_only()
 
         tdLog.info("test_taosbackup_avro_compat .................. [passed]")

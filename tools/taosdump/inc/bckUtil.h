@@ -30,6 +30,12 @@ void freePtr(void *ptr);
 
 bool errorCodeCanRetry(int code);
 
+// taosdump error code to string
+const char* bckErrStr(int code);
+
+// engine + taosdump error code to string
+const char* bckErrMsg(int code);
+
 int obtainFileName(BackFileType fileType, 
                       const char *dbName, 
                       const char *stbName,

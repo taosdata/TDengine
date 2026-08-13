@@ -88,16 +88,142 @@ typedef struct SExternalWindowOperator {
   STimeWindow        orgTableTimeRange;
 } SExternalWindowOperator;
 
+typedef struct SExtWinBlockSnapshot {
+  SList*       pList;
+  SListNode*   pNode;
+  SListNode*   pPrev;
+  SSDataBlock* pBlock;
+  SArray*      pIdx;
+  int64_t      blockRows;
+  uint32_t     blockCapacity;
+} SExtWinBlockSnapshot;
 
-static int32_t extWinBlockListAddBlock(SExternalWindowOperator* pExtW, SList* pList, int32_t rows, SSDataBlock** ppBlock, SArray** ppIdx) {
+static int32_t extWinTakeReusableBlock(SList* pFreeBlocks, SList* pTargetBlocks, int32_t rows, SSDataBlock** ppBlock,
+                                       SArray** ppIdx) {
+  SListNode* pNode = listHead(pFreeBlocks);
+  if (NULL == pNode) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  SSDataBlock* pBlock = *(SSDataBlock**)pNode->data;
+  int32_t      code = blockDataEnsureCapacity(pBlock, TMAX(rows, 4096));
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  pNode = tdListPopHead(pFreeBlocks);
+  tdListAppendNode(pTargetBlocks, pNode);
+  *ppBlock = pBlock;
+  *ppIdx = *(SArray**)((SSDataBlock**)pNode->data + 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool extWinRangesOverlap(const void* pLeft, uint64_t leftLen, const void* pRight, uint64_t rightLen) {
+  if (NULL == pLeft || 0 == leftLen || NULL == pRight || 0 == rightLen) {
+    return false;
+  }
+
+  uintptr_t left = (uintptr_t)pLeft;
+  uintptr_t right = (uintptr_t)pRight;
+  return (left <= right) ? ((uint64_t)(right - left) < leftLen) : ((uint64_t)(left - right) < rightLen);
+}
+
+static bool extWinBlockNodeInvariantHolds(SList* pList, SListNode* pNode, SListNode* pExpectedPrev, SSDataBlock* pBlock,
+                                          SArray* pIdx, int32_t appendRows, int32_t* pOverlapCol) {
+  if (NULL != pOverlapCol) {
+    *pOverlapCol = -1;
+  }
+
+  if (NULL == pList || NULL == pNode || NULL == pBlock || NULL == pIdx || listTail(pList) != pNode ||
+      pNode->dl_prev_ != pExpectedPrev || NULL != pNode->dl_next_ || *(SSDataBlock**)pNode->data != pBlock ||
+      *(SArray**)((SSDataBlock**)pNode->data + 1) != pIdx || NULL == pBlock->pDataBlock || pBlock->info.rows < 0 ||
+      appendRows < 0 || pBlock->info.rows > pBlock->info.capacity ||
+      appendRows > pBlock->info.capacity - pBlock->info.rows) {
+    return false;
+  }
+
+  uint64_t nodeBytes = sizeof(SListNode) + (uint64_t)pList->eleSize;
+  int32_t  numCols = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (NULL == pCol) {
+      return false;
+    }
+
+    uint64_t dataBytes =
+        IS_VAR_DATA_TYPE(pCol->info.type) ? pCol->varmeta.allocLen : (uint64_t)pBlock->info.capacity * pCol->info.bytes;
+    void*    pAuxData = IS_VAR_DATA_TYPE(pCol->info.type) ? (void*)pCol->varmeta.offset : pCol->nullbitmap;
+    uint64_t auxBytes = IS_VAR_DATA_TYPE(pCol->info.type) ? (uint64_t)pBlock->info.capacity * sizeof(int32_t)
+                                                          : BitmapLen(pBlock->info.capacity);
+    if (extWinRangesOverlap(pNode, nodeBytes, pCol->pData, dataBytes) ||
+        extWinRangesOverlap(pNode, nodeBytes, pAuxData, auxBytes)) {
+      if (NULL != pOverlapCol) {
+        *pOverlapCol = i;
+      }
+      return false;
+    }
+  }
+
+  return true;
+}
+
+static void extWinLogBlockInvariantFailure(SOperatorInfo* pOperator, const SExtWinBlockSnapshot* pSnapshot,
+                                           const SExtWinTimeWindow* pWin, int32_t startPos, int32_t rows,
+                                           int32_t overlapCol, const char* pStage) {
+  SExternalWindowOperator* pExtW = pOperator->info;
+  SListNode*               pNode = pSnapshot->pNode;
+  SListNode*               pPrev = NULL == pNode ? NULL : pNode->dl_prev_;
+  SListNode*               pNext = NULL == pNode ? NULL : pNode->dl_next_;
+  SSDataBlock*             pNodeBlock = NULL == pNode ? NULL : *(SSDataBlock**)pNode->data;
+  SArray*                  pNodeIdx = NULL == pNode ? NULL : *(SArray**)((SSDataBlock**)pNode->data + 1);
+
+  qError("%s external window block invariant failed at %s, win:[%" PRId64 ",%" PRId64
+         "], resWinIdx:%d, outWinIdx:%d, outputWinId:%d, blkWinStartIdx:%d, blkWinIdx:%d, startPos:%d, "
+         "projectRows:%d, list:%p, listBlocks:%d, freeBlocks:%d, node:%p, prev:%p, expectedPrev:%p, next:%p, "
+         "block:%p, nodeBlock:%p, idx:%p, nodeIdx:%p, beforeRows:%" PRId64 ", beforeCapacity:%u, rows:%" PRId64
+         ", capacity:%u, overlapCol:%d, created:%" PRId64 ", destroyed:%" PRId64 ", recycled:%" PRId64
+         ", reused:%" PRId64 ", appended:%" PRId64,
+         pOperator->pTaskInfo->id.str, pStage, pWin->tw.skey, pWin->tw.ekey, pWin->resWinIdx, pExtW->outWinIdx,
+         pExtW->outputWinId, pExtW->blkWinStartIdx, pExtW->blkWinIdx, startPos, rows, pSnapshot->pList,
+         NULL == pSnapshot->pList ? -1 : listNEles(pSnapshot->pList), listNEles(pExtW->pFreeBlocks), pNode, pPrev,
+         pSnapshot->pPrev, pNext, pSnapshot->pBlock, pNodeBlock, pSnapshot->pIdx, pNodeIdx, pSnapshot->blockRows,
+         pSnapshot->blockCapacity, pSnapshot->pBlock->info.rows, pSnapshot->pBlock->info.capacity, overlapCol,
+         pExtW->stat.resBlockCreated, pExtW->stat.resBlockDestroyed, pExtW->stat.resBlockRecycled,
+         pExtW->stat.resBlockReused, pExtW->stat.resBlockAppend);
+
+  int32_t numCols = taosArrayGetSize(pSnapshot->pBlock->pDataBlock);
+  for (int32_t i = 0; i < numCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pSnapshot->pBlock->pDataBlock, i);
+    if (NULL == pCol) {
+      qError("%s external window output col[%d] is null", pOperator->pTaskInfo->id.str, i);
+      continue;
+    }
+
+    void* pAuxData = IS_VAR_DATA_TYPE(pCol->info.type) ? (void*)pCol->varmeta.offset : pCol->nullbitmap;
+    qError("%s external window output col[%d], type:%d, bytes:%d, data:%p, nullOrOffset:%p",
+           pOperator->pTaskInfo->id.str, i, pCol->info.type, pCol->info.bytes, pCol->pData, pAuxData);
+  }
+}
+
+#if defined(BUILD_TEST)
+int32_t extWinTestTakeReusableBlock(SList* pFreeBlocks, SList* pTargetBlocks, int32_t rows, SSDataBlock** ppBlock,
+                                    SArray** ppIdx) {
+  return extWinTakeReusableBlock(pFreeBlocks, pTargetBlocks, rows, ppBlock, ppIdx);
+}
+
+bool extWinTestBlockNodeInvariantHolds(SList* pList, SListNode* pNode, SListNode* pExpectedPrev, SSDataBlock* pBlock,
+                                       SArray* pIdx, int32_t appendRows, int32_t* pOverlapCol) {
+  return extWinBlockNodeInvariantHolds(pList, pNode, pExpectedPrev, pBlock, pIdx, appendRows, pOverlapCol);
+}
+#endif
+
+static int32_t extWinBlockListAddBlock(SExternalWindowOperator* pExtW, SList* pList, int32_t rows,
+                                       SSDataBlock** ppBlock, SArray** ppIdx) {
   SSDataBlock* pRes = NULL;
-  int32_t code = 0, lino = 0;
+  int32_t      code = 0, lino = 0;
 
   if (listNEles(pExtW->pFreeBlocks) > 0) {
-    SListNode* pNode = tdListPopHead(pExtW->pFreeBlocks);
-    *ppBlock = *(SSDataBlock**)pNode->data;
-    *ppIdx = *(SArray**)((SArray**)pNode->data + 1);
-    tdListAppendNode(pList, pNode);
+    TAOS_CHECK_EXIT(extWinTakeReusableBlock(pExtW->pFreeBlocks, pList, rows, ppBlock, ppIdx));
     pExtW->stat.resBlockReused++;
   } else {
     TAOS_CHECK_EXIT(createOneDataBlock(pExtW->binfo.pRes, false, &pRes));
@@ -111,14 +237,14 @@ static int32_t extWinBlockListAddBlock(SExternalWindowOperator* pExtW, SList* pL
     *ppIdx = pIdx;
     pExtW->stat.resBlockCreated++;
   }
-  
+
 _exit:
 
   if (code) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     blockDataDestroy(pRes);
   }
-  
+
   return code;
 }
 
@@ -1507,34 +1633,64 @@ _exit:
   return code;
 }
 
-static int32_t extWinProjectDo(SOperatorInfo* pOperator, SSDataBlock* pInputBlock, int32_t startPos, int32_t rows, SExtWinTimeWindow* pWin) {
+static int32_t extWinProjectDo(SOperatorInfo* pOperator, SSDataBlock* pInputBlock, int32_t startPos, int32_t rows,
+                               SExtWinTimeWindow* pWin) {
   SExternalWindowOperator* pExtW = pOperator->info;
   SExprSupp*               pExprSup = &pExtW->scalarSupp;
   SSDataBlock*             pResBlock = NULL;
   SArray*                  pIdx = NULL;
+  SExtWinBlockSnapshot     snapshot = {0};
+  int32_t                  overlapCol = -1;
   int32_t                  code = TSDB_CODE_SUCCESS, lino = 0;
-  
+
   TAOS_CHECK_EXIT(extWinGetWinResBlock(pOperator, rows, pWin, &pResBlock, &pIdx));
 
-  qDebug("%s %s win[%" PRId64 ", %" PRId64 "] got res block %p winRowIdx %p, resWinIdx:%d, capacity:%d", 
-      pOperator->pTaskInfo->id.str, __func__, pWin->tw.skey, pWin->tw.ekey, pResBlock, pIdx, pWin->resWinIdx, pResBlock->info.capacity);
-  
+  snapshot.pList = taosArrayGetP(pExtW->pOutputBlocks, pWin->resWinIdx);
+  snapshot.pNode = NULL == snapshot.pList ? NULL : listTail(snapshot.pList);
+  snapshot.pPrev = NULL == snapshot.pNode ? NULL : snapshot.pNode->dl_prev_;
+  snapshot.pBlock = pResBlock;
+  snapshot.pIdx = pIdx;
+  snapshot.blockRows = pResBlock->info.rows;
+  snapshot.blockCapacity = pResBlock->info.capacity;
+  // Keep both boundary checks always on: projection is the suspected corruption point. Each check is allocation-free
+  // and O(output columns); gating it on log level would lose the failure context in normal production settings.
+  if (!extWinBlockNodeInvariantHolds(snapshot.pList, snapshot.pNode, snapshot.pPrev, pResBlock, pIdx, rows,
+                                     &overlapCol)) {
+    extWinLogBlockInvariantFailure(pOperator, &snapshot, pWin, startPos, rows, overlapCol, "before-project");
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    lino = __LINE__;
+    goto _exit;
+  }
+
+  qDebug("%s %s win[%" PRId64 ", %" PRId64 "] got res block %p winRowIdx %p, resWinIdx:%d, capacity:%d",
+         pOperator->pTaskInfo->id.str, __func__, pWin->tw.skey, pWin->tw.ekey, pResBlock, pIdx, pWin->resWinIdx,
+         pResBlock->info.capacity);
+
   if (!pExtW->pTmpBlock) {
     TAOS_CHECK_EXIT(createOneDataBlock(pInputBlock, false, &pExtW->pTmpBlock));
   } else {
     blockDataCleanup(pExtW->pTmpBlock);
   }
-  
+
   TAOS_CHECK_EXIT(blockDataEnsureCapacity(pExtW->pTmpBlock, TMAX(1, rows)));
 
   qDebug("%s %s start to copy %d rows to tmp blk", pOperator->pTaskInfo->id.str, __func__, rows);
   TAOS_CHECK_EXIT(blockDataMergeNRows(pExtW->pTmpBlock, pInputBlock, startPos, rows));
 
   qDebug("%s %s start to apply project to tmp blk", pOperator->pTaskInfo->id.str, __func__);
-  TAOS_CHECK_EXIT(projectApplyFunctionsWithSelect(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx, pExprSup->numOfExprs,
-        NULL, GET_STM_RTINFO(pOperator->pTaskInfo), true, pExprSup->hasIndefRowsFunc, pOperator->pTaskInfo));
+  TAOS_CHECK_EXIT(projectApplyFunctionsWithSelect(pExprSup->pExprInfo, pResBlock, pExtW->pTmpBlock, pExprSup->pCtx,
+                                                  pExprSup->numOfExprs, NULL, GET_STM_RTINFO(pOperator->pTaskInfo),
+                                                  true, pExprSup->hasIndefRowsFunc, pOperator->pTaskInfo));
 
-  TAOS_CHECK_EXIT(extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock, extWinGetCurWinIdx(pOperator->pTaskInfo), rows));
+  if (!extWinBlockNodeInvariantHolds(snapshot.pList, snapshot.pNode, snapshot.pPrev, pResBlock, pIdx, 0, &overlapCol)) {
+    extWinLogBlockInvariantFailure(pOperator, &snapshot, pWin, startPos, rows, overlapCol, "after-project");
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    lino = __LINE__;
+    goto _exit;
+  }
+
+  TAOS_CHECK_EXIT(
+      extWinAppendWinIdx(pOperator->pTaskInfo, pIdx, pResBlock, extWinGetCurWinIdx(pOperator->pTaskInfo), rows));
 
 _exit:
 
@@ -1543,7 +1699,7 @@ _exit:
   } else {
     qDebug("%s %s project succeed", pOperator->pTaskInfo->id.str, __func__);
   }
-  
+
   return code;
 }
 
