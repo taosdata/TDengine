@@ -104,7 +104,15 @@ static void progPrintLine(bool newline) {
     const char *dbDisp  = dname[0] ? dname : "-";
     const char *stbDisp = sname[0] ? sname : "-";
 
-    if (phase == PROGRESS_PHASE_META) {
+    if (phase == PROGRESS_PHASE_EXTMETA) {
+        // EXTMETA phase: virtual tables / streams / topics are plain DDL statements,
+        // so there is no per-CTB progress to report — show cumulative object counts.
+        snprintf(line, sizeof(line),
+                 "[%s]  [%" PRId64 "/%" PRId64 "] db: %s  ext-meta"
+                 "  vtable: %" PRId64 "  stream: %" PRId64 "  topic: %" PRId64,
+                 ts, dbIdx, dbTot, dbDisp,
+                 g_stats.vtbTotal, g_stats.streamTotal, g_stats.topicTotal);
+    } else if (phase == PROGRESS_PHASE_META) {
         // META phase: [X/Y] db: name  [X/Y] stb: name  meta  ctb: X/Y (%)  speed: N/s  ETA: xxx
         snprintf(line, sizeof(line),
                  "[%s]  [%" PRId64 "/%" PRId64 "] db: %s"

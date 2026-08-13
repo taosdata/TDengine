@@ -19,9 +19,11 @@
 #define PROGRESS_STB_NAME_LEN 256
 
 // phase values for g_progress.phase
-#define PROGRESS_PHASE_IDLE 0   // not started
-#define PROGRESS_PHASE_META 1   // backing up / restoring metadata (schemas + tags)
-#define PROGRESS_PHASE_DATA 2   // backing up / restoring data files
+#define PROGRESS_PHASE_IDLE    0   // not started
+#define PROGRESS_PHASE_META    1   // backing up / restoring metadata (schemas + tags)
+#define PROGRESS_PHASE_DATA    2   // backing up / restoring data files
+#define PROGRESS_PHASE_EXTMETA 3   // backing up / restoring extended metadata
+                                   // (virtual tables / streams / topics)
 
 // Progress state shared between backup threads and the progress display thread.
 // All fields are read/written atomically (volatile int64_t + atomic helpers).
@@ -41,7 +43,7 @@ typedef struct {
     volatile int64_t ctbTotalAll;   // total units across all STBs
     volatile int64_t startMs;       // operation start time (ms since epoch)
     volatile int64_t isRestore;     // 0 = backup (unit=CTB), 1 = restore (unit=file)
-    volatile int64_t phase;         // PROGRESS_PHASE_* : IDLE / META / DATA
+    volatile int64_t phase;         // PROGRESS_PHASE_* : IDLE / META / DATA / EXTMETA
 } BckProgress;
 
 extern BckProgress g_progress;

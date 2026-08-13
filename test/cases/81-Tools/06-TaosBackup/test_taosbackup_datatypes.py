@@ -43,9 +43,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s -T 1" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -101,9 +101,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -158,9 +158,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -212,9 +212,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s -T 1" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -269,9 +269,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s -T 1" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -333,9 +333,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s -T 1" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -390,9 +390,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -442,9 +442,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s -T 1" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -499,9 +499,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s -T 1" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -554,9 +554,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s -T 1" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -604,9 +604,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s -T 1" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -654,9 +654,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s -T 1" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -704,9 +704,9 @@ class TestTaosBackupDataTypes:
             os.system("rm -rf %s" % self.tmpdir)
             os.makedirs(self.tmpdir)
 
-        os.system(f"%s {mode} -D db -o %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
         tdSql.execute("drop database db")
-        os.system(f"%s {mode} -i %s -T 1" % (self.binPath, self.tmpdir))
+        etool.taosdump(f"{mode} -i %s -T 1" % self.tmpdir)
 
         tdSql.query("show databases")
         assert any(row[0] == "db" for row in tdSql.queryResult), "db not found"
@@ -779,11 +779,11 @@ class TestTaosBackupDataTypes:
             tdSql.query(sql)
             tdSql.checkRows(0)
 
-    def dumpOut(self, taosbackup, db, outdir):
-        self.exec(f"{taosbackup} -D {db} -o {outdir}")
+    def dumpOut(self, db, outdir):
+        etool.taosdump(f"-D {db} -o {outdir}")
 
-    def dumpIn(self, taosbackup, db, newdb, indir):
-        self.exec(f'{taosbackup} -W "{db}={newdb}" -i {indir}')
+    def dumpIn(self, db, newdb, indir):
+        etool.taosdump(f'-W "{db}={newdb}" -i {indir}')
 
     def checkAggSame(self, db, newdb, stb, aggfun):
         sql = f"select {aggfun} from {db}.{stb}"
@@ -857,14 +857,14 @@ class TestTaosBackupDataTypes:
         jsonFile = os.path.dirname(__file__) + "/json/geometry.json"
 
         self.insertDataGeometry(benchmark, jsonFile, db)
-        self.dumpOut(taosbackup, db, tmpdir)
+        self.dumpOut(db, tmpdir)
         # Drop restored DB so we start fresh and avoid stale tag values or
         # a leftover restore-checkpoint causing skipped data files.
         tdSql.execute(f"drop database if exists {newdb}")
         cpFile = os.path.join(tmpdir, db, "restore_checkpoint.txt")
         if os.path.exists(cpFile):
             os.remove(cpFile)
-        self.dumpIn(taosbackup, db, newdb, tmpdir)
+        self.dumpIn(db, newdb, tmpdir)
         self.verifyResultGeometry(db, newdb, jsonFile)
 
         tdLog.info("do_taosbackup_type_geometry .................. [passed]")
@@ -914,14 +914,14 @@ class TestTaosBackupDataTypes:
         jsonFile = os.path.dirname(__file__) + "/json/varbinary.json"
 
         self.insertDataVarbinary(benchmark, jsonFile, db)
-        self.dumpOut(taosbackup, db, tmpdir)
+        self.dumpOut(db, tmpdir)
         # Drop restored DB so we start fresh and avoid stale tag values or
         # a leftover restore-checkpoint causing skipped data files.
         tdSql.execute(f"drop database if exists {newdb}")
         cpFile = os.path.join(tmpdir, db, "restore_checkpoint.txt")
         if os.path.exists(cpFile):
             os.remove(cpFile)
-        self.dumpIn(taosbackup, db, newdb, tmpdir)
+        self.dumpIn(db, newdb, tmpdir)
         self.verifyResultVarbinary(db, newdb, jsonFile)
 
         tdLog.info("do_taosbackup_type_varbinary ................. [passed]")
@@ -1119,10 +1119,9 @@ class TestTaosBackupDataTypes:
         else:
             os.system(f"rm -rf {tmpdir}")
             os.makedirs(tmpdir)
-        binPath = self.binPath
-        os.system(f"{binPath} -D {db} -o {tmpdir} -T 1")
+        etool.taosdump(f"-D {db} -o {tmpdir} -T 1")
         tdSql.execute(f"drop database {db}")
-        os.system(f"{binPath} -i {tmpdir} -T 1")
+        etool.taosdump(f"-i {tmpdir} -T 1")
 
     # ------------------------------------------------------------------
     # Layer-2: verify helpers (reused across CTB and NTB)

@@ -83,7 +83,7 @@ int queryWriteCsv(const char *sql, const char *pathFile, char ** selectTags) {
 
     TAOS_RES *res = taos_query(conn, sql);
     if (!res || taos_errno(res)) {
-        logError("query failed: %s", taos_errstr(res));
+        logError("query failed(0x%08X, %s)", taos_errno(res), taos_errstr(res));
         if (res) taos_free_result(res);
         releaseConnection(conn);
         return TSDB_CODE_FAILED;
@@ -212,7 +212,7 @@ int queryWriteBinary(TAOS* conn, const char *sql, StorageFormat format, const ch
     int code = TSDB_CODE_FAILED;
     TAOS_RES* res = taos_query(conn, sql);
     if (res == NULL) {
-        logError("query failed(%s): %s", taos_errstr(res), sql);
+        logError("query failed(0x%08X, %s): %s", taos_errno(res), taos_errstr(res), sql);
         return taos_errno(res);
     }
     logDebug("sql result to file: %s -> %s", sql, pathFile);
@@ -238,7 +238,7 @@ int queryWriteBinaryEx(TAOS* conn, const char *sql, StorageFormat format, const 
     int code = TSDB_CODE_FAILED;
     TAOS_RES* res = taos_query(conn, sql);
     if (res == NULL) {
-        logError("query failed(%s): %s", taos_errstr(res), sql);
+        logError("query failed(0x%08X, %s): %s", taos_errno(res), taos_errstr(res), sql);
         return taos_errno(res);
     }
     logDebug("sql result to file: %s -> %s", sql, pathFile);

@@ -209,6 +209,59 @@ class TestTaosBackupCommandline:
             rlist = etool.taosdump(command, checkRun=False, retFail=True)
             self.checkManyString(rlist, results)
 
+    def checkPasswordRedaction(self, db, tmpdir):
+        """Test that -p/--password and -X/--dsn values never land in cleartext
+        in backup.log's echoed "Command" line (bckArgs.c redaction fix)."""
+        self.clearPath(tmpdir)
+        rlist = etool.taosdump(f"-uroot -ptaosdata -D {db} -o {tmpdir}")
+        self.checkManyString(rlist, [RESULT_SUCCESS])
+
+        logPath = os.path.join(tmpdir, "backup.log")
+        if not os.path.exists(logPath):
+            tdLog.exit(f"backup.log missing: {logPath}")
+        with open(logPath) as f:
+            logLines = f.readlines()
+        commandLines = [ln for ln in logLines if ln.strip().startswith("Command")]
+        if not commandLines:
+            tdLog.exit(f"no 'Command' line found in backup.log: {logPath}")
+        commandLine = commandLines[0]
+
+        if "taosdata" in commandLine:
+            tdLog.exit(f"password leaked in cleartext in backup.log Command line: {commandLine!r}")
+        if "-p****" not in commandLine:
+            tdLog.exit(f"redacted '-p****' marker not found in backup.log Command line: {commandLine!r}")
+
+        # -X/--dsn: the whole next token must be replaced, not just any embedded secret
+        self.clearPath(tmpdir)
+        rlist = etool.taosdump(f"-Z websocket -X http://localhost:6041 -D {db} -o {tmpdir}")
+        self.checkManyString(rlist, [RESULT_SUCCESS])
+        with open(logPath) as f:
+            logLines = f.readlines()
+        commandLines = [ln for ln in logLines if ln.strip().startswith("Command")]
+        if not commandLines:
+            tdLog.exit(f"no 'Command' line found in backup.log: {logPath}")
+        commandLine = commandLines[0]
+
+        if "http://localhost:6041" in commandLine:
+            tdLog.exit(f"DSN leaked in cleartext in backup.log Command line: {commandLine!r}")
+        if "****" not in commandLine:
+            tdLog.exit(f"redacted '****' marker for -X not found in backup.log Command line: {commandLine!r}")
+
+    def checkRenameValidation(self, db, tmpdir):
+        """Test that -W/--rename rejects target database names that are not
+        legal TDengine identifiers (bckArgs.c isValidDbIdentifier fix)."""
+        invalidTargets = [
+            f'{db}=new db',      # space
+            f'{db}=new-db',      # hyphen
+            f'{db}=new.db',      # dot
+        ]
+        for pair in invalidTargets:
+            self.clearPath(tmpdir)
+            rlist = etool.taosdump(
+                f'-W "{pair}" -D {db} -i {tmpdir}', checkRun=False, retFail=True
+            )
+            self.checkManyString(rlist, ["error: --rename target database name is invalid"])
+
     def checkUser(self, db, tmpdir):
         """Test user argument parsing, including old taosdump -uUSER form."""
         validItems = [
@@ -439,6 +492,11 @@ class TestTaosBackupCommandline:
            - -pPASSWORD and --password=PASSWORD
            - interactive -p/--password via stdin redirection
            - reject separated password arguments and invalid --password prefix
+        3b. Test password/DSN redaction in backup.log's echoed Command line:
+           - -p<PASSWORD> never appears in cleartext, replaced by -p****
+           - -X/--dsn value never appears in cleartext, replaced by ****
+        3c. Test -W/--rename target database name validation:
+           - names containing space/hyphen/dot are rejected at parse time
         4. Test user argument parsing:
            - -u root, -uroot, and --user=root
         5. Test basic commandline arguments:
@@ -502,6 +560,14 @@ class TestTaosBackupCommandline:
         # 3. password argument parsing
         self.checkPassword(db, tmpdir)
         tdLog.info("3. password argument parsing ....................... [Passed]")
+
+        # 3b. password/DSN redaction in backup.log's Command line
+        self.checkPasswordRedaction(db, tmpdir)
+        tdLog.info("3b. password/DSN log redaction ...................... [Passed]")
+
+        # 3c. -W/--rename target database name validation
+        self.checkRenameValidation(db, tmpdir)
+        tdLog.info("3c. -W/--rename identifier validation ............... [Passed]")
 
         # 4. user argument parsing
         self.checkUser(db, tmpdir)
