@@ -526,6 +526,9 @@ void   *pTimezoneNameMap = NULL;
 int32_t tsStreamNotifyMessageSize = 8 * 1024;  // KB, default 8MB
 int32_t tsStreamNotifyFrameSize = 256;         // KB, default 256KB
 int32_t tsStreamBatchRequestWaitMs = 5000;     // ms, default 5s
+int32_t tsStreamNotifyWorkerNum = 4;           // async notify worker threads per snode
+int32_t tsStreamNotifyBatchIntervalMs = 5;       // ms, coalesce window before worker drains a queue
+int32_t tsStreamNotifyParamPoolSize = 10 * 1024;  // KB, default 10MB async notify pending-item obj pool
 
 bool    tsShowFullCreateTableColumn = 0;  // 0: show full create table, 1: show only table name and db name
 
@@ -1040,6 +1043,10 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfStreamRunnerThreads = tsNumOfCores;
   tsNumOfStreamRunnerThreads = TMAX(tsNumOfStreamRunnerThreads, 4);
 
+  tsStreamNotifyWorkerNum = tsNumOfCores;
+  tsStreamNotifyWorkerNum = TMAX(tsStreamNotifyWorkerNum, 1);
+  tsStreamNotifyWorkerNum = TMIN(tsStreamNotifyWorkerNum, 8);
+
   tsQueueMemoryAllowed = tsTotalMemoryKB * 1024 * RPC_MEMORY_USAGE_RATIO * QUEUE_MEMORY_USAGE_RATIO;
   tsQueueMemoryAllowed = TRANGE(tsQueueMemoryAllowed, TSDB_MAX_MSG_SIZE * QUEUE_MEMORY_USAGE_RATIO * 10LL,
                                 TSDB_MAX_MSG_SIZE * QUEUE_MEMORY_USAGE_RATIO * 10000LL);
@@ -1225,6 +1232,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyMessageSize", tsStreamNotifyMessageSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL,CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyFrameSize", tsStreamNotifyFrameSize, 8, 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL,CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamBatchRequestWaitMs", tsStreamBatchRequestWaitMs, 0, 30 * 60 * 1000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,CFG_CATEGORY_LOCAL,CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyWorkerNum", tsStreamNotifyWorkerNum, 1, 16, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyBatchIntervalMs", tsStreamNotifyBatchIntervalMs, 0, 60000, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamNotifyParamPoolSize", tsStreamNotifyParamPoolSize, 1, 256 * 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 #ifdef TD_ENTERPRISE
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "authServer", tsAuthServer, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "authReq", tsAuthReq, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -2433,6 +2443,15 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamBatchRequestWaitMs");
   tsStreamBatchRequestWaitMs = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamNotifyWorkerNum");
+  tsStreamNotifyWorkerNum = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamNotifyBatchIntervalMs");
+  tsStreamNotifyBatchIntervalMs = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamNotifyParamPoolSize");
+  tsStreamNotifyParamPoolSize = pItem->i32;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "tlsCliKeyPath");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX));

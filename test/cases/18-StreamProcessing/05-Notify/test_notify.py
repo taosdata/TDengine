@@ -2362,21 +2362,21 @@ class TestStreamNotifyTrigger:
             _wait_notify_events(order_log, 1)
             time.sleep(1)
             events = _load_notify_events(order_log)
-            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", "0", 1735660800000)], events
+            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", "", 1735660800000)], events
             _assert_condition_path_payload(events)
-            parent_trigger_id = events[0].get("parentTriggerId", [None])[0]
+            parent_trigger_id = events[0].get("triggerId")
             assert parent_trigger_id, events
-            assert events[0].get("triggerId") != parent_trigger_id, events
+            assert events[0].get("parentTriggerId") == [], events
 
             history_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_history.log")
             _wait_notify_events(history_log, 1)
             time.sleep(1)
             events = _load_notify_events(history_log)
-            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", "0", 1735660800000)], events
+            assert [_subevent_key(e) for e in events] == [("WINDOW_OPEN", "", 1735660800000)], events
             _assert_condition_path_payload(events)
-            parent_trigger_id = events[0].get("parentTriggerId", [None])[0]
+            parent_trigger_id = events[0].get("triggerId")
             assert parent_trigger_id, events
-            assert events[0].get("triggerId") != parent_trigger_id, events
+            assert events[0].get("parentTriggerId") == [], events
 
         def insert2(self):
             tdSql.execute("insert into t_order values ('2025-01-01 00:00:01.000', 0, 1)")

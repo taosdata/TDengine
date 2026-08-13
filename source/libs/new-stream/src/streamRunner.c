@@ -566,11 +566,20 @@ _exit:
   return code;
 }
 
+static void clearNotifyParamHeapFields(SSTriggerCalcParam* pParam) {
+  if (pParam == NULL) {
+    return;
+  }
+  taosMemoryFreeClear(pParam->eventConditionPath);
+  taosMemoryFreeClear(pParam->extraNotifyContent);
+  taosMemoryFreeClear(pParam->resultNotifyContent);
+}
+
 static void clearNotifyContent(SStreamRunnerTaskExecution* pExec, int32_t startWinIdx, int32_t endWinIdx) {
   for (int i = startWinIdx; i < endWinIdx; ++i) {
     SSTriggerCalcParam* pTriggerCalcParams = taosArrayGet(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, i);
     if (pTriggerCalcParams != NULL && pTriggerCalcParams->resultNotifyContent != NULL) {
-      taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
+      clearNotifyParamHeapFields(pTriggerCalcParams);
     }
   }
 }
@@ -611,8 +620,8 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
   }
 
   code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
-                                 pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                 pTask->addOptions, params, nParam);
+                                 pExec->runtimeInfo.funcInfo.groupId, pExec->runtimeInfo.funcInfo.precision,
+                                 pTask->notification.pNotifyAddrUrls, pTask->addOptions, params, nParam);
   TAOS_CHECK_EXIT(code);
 
 _exit:
@@ -666,8 +675,8 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
   }
 
   code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
-                                 pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                 pTask->addOptions, params, nParam);
+                                 pExec->runtimeInfo.funcInfo.groupId, pExec->runtimeInfo.funcInfo.precision,
+                                 pTask->notification.pNotifyAddrUrls, pTask->addOptions, params, nParam);
 
 _exit:
   if (code != TSDB_CODE_SUCCESS) {
@@ -709,9 +718,9 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
     pTriggerCalcParams->resultNotifyContent = pContent;
 
     code = streamSendNotifyContent(&pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
-                                   pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
-                                   pTask->addOptions, pTriggerCalcParams, 1);
-    taosMemoryFreeClear(pTriggerCalcParams->resultNotifyContent);
+                                   pExec->runtimeInfo.funcInfo.groupId, pExec->runtimeInfo.funcInfo.precision,
+                                   pTask->notification.pNotifyAddrUrls, pTask->addOptions, pTriggerCalcParams, 1);
+    clearNotifyParamHeapFields(pTriggerCalcParams);
   } else if (code == 0) {
     taosMemoryFreeClear(pContent);
   }
