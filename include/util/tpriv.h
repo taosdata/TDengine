@@ -43,12 +43,27 @@ extern "C" {
  */
 #define TSDB_SOD_PHASE_ENFORCE 2
 
-#define T_ROLE_SYSDBA       0x01
-#define T_ROLE_SYSSEC       0x02
-#define T_ROLE_SYSAUDIT     0x04
-#define T_ROLE_SYSAUDIT_LOG 0x08
-#define T_ROLE_SYSINFO_0    0x10
-#define T_ROLE_SYSINFO_1    0x20
+/*
+ * Built-in roles: add a role here and the bit mask, the name macro,
+ * the __builtinRoles[] table and TSDB_BUILTIN_ROLE_NUM all follow automatically.
+ */
+#define TSDB_BUILTIN_ROLE_LIST(_)       \
+  _(SYSDBA, "SYSDBA", 0x01)             \
+  _(SYSSEC, "SYSSEC", 0x02)             \
+  _(SYSAUDIT, "SYSAUDIT", 0x04)         \
+  _(SYSAUDIT_LOG, "SYSAUDIT_LOG", 0x08) \
+  _(SYSINFO_0, "SYSINFO_0", 0x10)       \
+  _(SYSINFO_1, "SYSINFO_1", 0x20)
+
+#define TSDB_BUILTIN_ROLE_BIT(id, name, bit)  T_ROLE_##id = bit,
+#define TSDB_BUILTIN_ROLE_SLOT(id, name, bit) TSDB_BUILTIN_ROLE_SLOT_##id,
+#define TSDB_BUILTIN_ROLE_NAME(id, name, bit) name,
+#define TSDB_BUILTIN_BASIC_ROLE_NUM           3
+
+enum { TSDB_BUILTIN_ROLE_LIST(TSDB_BUILTIN_ROLE_BIT) };
+
+// slot indexes double as the element count, so the bound stays derived from the list above
+enum { TSDB_BUILTIN_ROLE_LIST(TSDB_BUILTIN_ROLE_SLOT) TSDB_BUILTIN_ROLE_NUM };
 
 #define TSDB_ROLE_SYSDBA       "SYSDBA"
 #define TSDB_ROLE_SYSSEC       "SYSSEC"
@@ -61,6 +76,8 @@ extern "C" {
 #else
 #define TSDB_ROLE_DEFAULT TSDB_ROLE_SYSINFO_1
 #endif
+
+extern const char* const __builtinRoles[TSDB_BUILTIN_ROLE_NUM];
 
 #define TSDB_WORD_AUDIT       "audit"
 #define TSDB_WORD_BASIC       "basic"
