@@ -94,7 +94,7 @@ TEST(osDirTests, taosClearDir) {
 
   taosRemoveDir(testDir);
 
-  int32_t ret = taosMkDir(testDir);
+  int32_t ret = taosMulMkDir(testDir);
   EXPECT_EQ(ret, 0);
 
   TdFilePtr f1 = taosCreateFile(testFile, TD_FILE_CREATE);
