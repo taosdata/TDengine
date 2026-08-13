@@ -208,7 +208,7 @@ static void* backDataThread(void *arg) {
                 break;
             attempt++;
             logInfo("retry query child table names: %s.%s, attempt: %d", thread->dbInfo->dbName, thread->stbInfo->stbName, attempt);
-            releaseConnectionBad(conn);
+            resetConnectionPool();
             conn = getConnection(&thread->code);
             if (!conn) {
                 taosMemoryFree(thread->writeBuf);
@@ -262,8 +262,9 @@ static void* backDataThread(void *arg) {
                 break;
             }
             else if (errorCodeCanRetry(code)) {
-                // can retry — evict potentially-stale connection and get a fresh one
-                releaseConnectionBad(thread->conn);
+                // can retry — rebuild the pool so the next getConnection()
+                // creates a fresh handle (with back-off) after a restart
+                resetConnectionPool();
                 thread->conn = getConnection(&code);
                 if (!thread->conn) {
                     break;
@@ -589,7 +590,7 @@ static void* backNtbDataThread(void *arg) {
             }
             attempt++;
             logInfo("retry query normal table names: %s, attempt: %d", dbName, attempt);
-            releaseConnectionBad(conn);
+            resetConnectionPool();
             conn = getConnection(&thread->code);
             if (!conn) return NULL;
             sleepMs(retrySleepMs);
@@ -632,8 +633,9 @@ static void* backNtbDataThread(void *arg) {
                 atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
                 break;
             } else if (errorCodeCanRetry(thread->code)) {
-                // evict potentially-stale connection and get a fresh one
-                releaseConnectionBad(thread->conn);
+                // rebuild the pool so the next getConnection() creates a fresh
+                // handle (with back-off) after a restart
+                resetConnectionPool();
                 thread->conn = getConnection(&thread->code);
                 if (!thread->conn) {
                     break;
