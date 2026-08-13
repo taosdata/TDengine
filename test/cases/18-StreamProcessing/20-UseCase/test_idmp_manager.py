@@ -357,13 +357,41 @@ class Test_IDMP_Meters:
                 tdLog.exit(f"check taosd log failed, key={key} expect:{expect} < actual:{cnt}.")
             else:
                 print(f"check taosd log success, key:{key} expect:{expect} rule:{rule} actual:{cnt}.")
-    
+
     #
-    # find notify key
+    # find notify key — idmp mock is unreachable in CI; expect a notify send failure log.
+    # Runner/Trigger sync: failed to send stream notify msg to ws://.../key=...
+    # Async notify worker: [notify_worker] ... failed
+    # streamUtil pool sync: failed to send notify msg to ...
     #
     def findNotifyKey(self, key):
-        self.checkTaosdLog(f"failed to .*stream notify.*ws://idmp:6042/recv/?key={key}", expect=1, rule=1)
-                
+        url = f"ws://idmp:6042/recv/?key={key}"
+        patterns = [
+            f"failed to send stream notify msg to .*key={key}",
+            f"\\[notify_worker\\].*{url}.*failed",
+            f"\\[notify_worker\\].*failed.*{url}",
+            f"failed to send notify msg to {url}",
+            f"failed to connect notify URL {url}",
+        ]
+        log_file = sc.dnodeLogPath(1) + "/taosdlog.0"
+        for i in range(60):
+            for pat in patterns:
+                cmd = f"grep '{pat}' {log_file} 2>/dev/null | wc -l"
+                output, _ = eos.run(cmd, show=False)
+                try:
+                    cnt = int(output.strip()) if output and output.strip() else 0
+                except ValueError:
+                    cnt = 0
+                if cnt >= 1:
+                    print(
+                        f"check taosd log success, notify failure key={key}, "
+                        f"pattern={pat}, cnt={cnt}"
+                    )
+                    return
+            print(f"not found notify failure for key={key} in {log_file}, retry again {i} ...")
+            time.sleep(1)
+        tdLog.exit(f"check taosd log failed, notify failure key={key} not found.")
+
 
     #
     # ---------------------   find other   ----------------------

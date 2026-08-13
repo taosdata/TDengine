@@ -421,7 +421,7 @@ TEST_F(StreamNotifyTest, SmallNotificationUsesOneFinalTextFrame) {
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
   ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_single_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42,
-                                    urls.get(), 0, &param, 1),
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
             TSDB_CODE_SUCCESS);
   server.Wait();
   ASSERT_TRUE(server.Error().empty()) << server.Error();
@@ -478,7 +478,7 @@ TEST_F(StreamNotifyTest, ShortWritesContinueWithinEachFrame) {
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
   ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_short_write_test", "result_table", STREAM_TRIGGER_COUNT, 42,
-                                    urls.get(), 0, &param, 1),
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
             TSDB_CODE_SUCCESS);
 
   EXPECT_EQ(gTcurlSendState.connectCalls, 1);
@@ -549,8 +549,8 @@ TEST_F(StreamNotifyTest, LargeNotificationIsFragmentedWithoutChangingMessage) {
   param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
-  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42, urls.get(),
-                                    0, &param, 1),
+  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42,
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
             TSDB_CODE_SUCCESS);
   server.Wait();
   ASSERT_TRUE(server.Error().empty()) << server.Error();

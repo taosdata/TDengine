@@ -45,6 +45,17 @@ class TestStreamNotifyState:
     def stop_notify_server(self):
         stop_notify_server_background()
 
+    def teardown_stream_notify(self, stream_name=None, db_name=None, log_file=None):
+        """Drop stream first so taosd closes persistent notify WS before server stop."""
+        if stream_name:
+            tdSql.execute(f"drop stream if exists {stream_name};")
+            time.sleep(0.5)
+        self.stop_notify_server()
+        if db_name:
+            tdSql.execute(f"drop database if exists {db_name};")
+        if log_file and os.path.exists(log_file):
+            os.remove(log_file)
+
     def wait_rows(self, table_name, expected_rows, timeout_s=30):
         deadline = time.time() + timeout_s
         while time.time() < deadline:
@@ -59,8 +70,19 @@ class TestStreamNotifyState:
         if tdSql.getRows() == 0:
             tdStream.createSnode()
 
-    def load_events(self, log_file, stream_name, timeout_s=10):
+    def load_events(self, log_file, stream_name, timeout_s=15, stable_for_s=2.0,
+                    min_events=0):
+        """Load notify events from log, waiting until the count stabilizes.
+
+        Async worker may deliver events in multiple WS frames (OPEN first,
+        then CLOSE one-by-one or merged).  Returning on the first non-empty
+        read races with later batched frames.
+        """
         deadline = time.time() + timeout_s
+        last_count = -1
+        last_change = None
+        events = []
+
         while time.time() < deadline:
             events = []
             try:
@@ -73,11 +95,16 @@ class TestStreamNotifyState:
             except FileNotFoundError:
                 events = []
 
-            if events:
-                return events
-            time.sleep(1)
+            if len(events) != last_count:
+                last_count = len(events)
+                last_change = time.time()
 
-        return []
+            if last_count >= min_events and last_change is not None \
+                    and time.time() - last_change >= stable_for_s:
+                return events
+            time.sleep(0.5)
+
+        return events
 
     def assert_state_payload(self, payload, expected):
         if not isinstance(payload, list):
@@ -294,11 +321,11 @@ class TestStreamNotifyState:
             self.verify_single_state_events(events)
             print("state notify single .............. [ passed ]")
         finally:
-            self.stop_notify_server()
-            tdSql.execute("drop stream if exists s_notify_state_single;")
-            tdSql.execute("drop database if exists test_stream_notify_state_single;")
-            if os.path.exists(log_file):
-                os.remove(log_file)
+            self.teardown_stream_notify(
+                stream_name="s_notify_state_single",
+                db_name="test_stream_notify_state_single",
+                log_file=log_file,
+            )
 
     def test_stream_notify_state_single(self):
         """Verify single-key state-window notify payloads
@@ -386,14 +413,15 @@ class TestStreamNotifyState:
             )
 
             self.wait_rows("dst_notify_state_multi", 4)
-            events = self.load_events(log_file, "s_notify_state_multi")
+            events = self.load_events(
+                log_file, "s_notify_state_multi", min_events=9)
             self.verify_multi_state_events(events)
         finally:
-            self.stop_notify_server()
-            tdSql.execute("drop stream if exists s_notify_state_multi;")
-            tdSql.execute("drop database if exists test_stream_notify_state_multi;")
-            if os.path.exists(log_file):
-                os.remove(log_file)
+            self.teardown_stream_notify(
+                stream_name="s_notify_state_multi",
+                db_name="test_stream_notify_state_multi",
+                log_file=log_file,
+            )
 
     # ---------------------------------------------------------------
     # Test 3: Two-column state key with partial NULL in first row
@@ -525,11 +553,8 @@ class TestStreamNotifyState:
 
             tdLog.info("state notify null 2-col .............. [ passed ]")
         finally:
-            self.stop_notify_server()
-            tdSql.execute(f"drop stream if exists {stream_name};")
-            tdSql.execute(f"drop database if exists {db_name};")
-            if os.path.exists(log_file):
-                os.remove(log_file)
+            self.teardown_stream_notify(
+                stream_name=stream_name, db_name=db_name, log_file=log_file)
 
     # ---------------------------------------------------------------
     # Test 4: Three-column state key with alternating partial NULLs
@@ -663,11 +688,8 @@ class TestStreamNotifyState:
 
             tdLog.info("state notify null 3-col .............. [ passed ]")
         finally:
-            self.stop_notify_server()
-            tdSql.execute(f"drop stream if exists {stream_name};")
-            tdSql.execute(f"drop database if exists {db_name};")
-            if os.path.exists(log_file):
-                os.remove(log_file)
+            self.teardown_stream_notify(
+                stream_name=stream_name, db_name=db_name, log_file=log_file)
 
     # ---------------------------------------------------------------
     # Test 5: All-NULL rows between transitions (deferred NULL)
@@ -773,8 +795,5 @@ class TestStreamNotifyState:
 
             tdLog.info("state notify null deferred .............. [ passed ]")
         finally:
-            self.stop_notify_server()
-            tdSql.execute(f"drop stream if exists {stream_name};")
-            tdSql.execute(f"drop database if exists {db_name};")
-            if os.path.exists(log_file):
-                os.remove(log_file)
+            self.teardown_stream_notify(
+                stream_name=stream_name, db_name=db_name, log_file=log_file)

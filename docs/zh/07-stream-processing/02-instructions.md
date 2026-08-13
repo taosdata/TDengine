@@ -153,6 +153,9 @@ RECALCULATE STREAM [db_name.]stream_name FROM start_time [TO end_time];
 - **streamBufferSize**：流式计算可以使用的最大缓存大小，只适用于 `%%trows` 的结果缓存（单位：MB）
 - **streamNotifyMessageSize**：用于控制事件通知的消息大小
 - **streamNotifyFrameSize**：用于控制事件通知消息发送时底层的帧大小
+- **streamNotifyWorkerNum**：异步事件通知 worker 线程个数（每个 snode）；worker 竞争全局 FIFO 任务队列，连接按 URL 在池内复用
+- **streamNotifyBatchIntervalMs**：异步事件通知批处理的最大等待时间（毫秒，默认 5），高频写入时在该窗口内合并同 stream 多条通知
+- **streamNotifyParamPoolSize**：异步事件通知 pending 项对象池总容量上限（KB，所有 stream 共享）；池满时会丢弃或覆盖最老的 pending 通知
 
 ### 规则和限制
 

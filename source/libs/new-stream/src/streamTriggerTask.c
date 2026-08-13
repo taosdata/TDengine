@@ -7865,7 +7865,7 @@ static int32_t stRealtimeContextCheckIdleGroup(SSTriggerRealtimeContext *pContex
       QUERY_CHECK_CODE(code, lino, _end);
     } else if (notifyIdle) {
       code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
-                                     pTask->pNotifyAddrUrls, pTask->addOptions, &param, 1);
+                                     pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions, &param, 1);
       taosMemoryFreeClear(pExtraNotifyContent);
       QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -8379,7 +8379,7 @@ _check:
 
         if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
           code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
-                                         pTask->pNotifyAddrUrls, pTask->addOptions,
+                                         pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions,
                                          TARRAY_DATA(pContext->pNotifyParams), TARRAY_SIZE(pContext->pNotifyParams));
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -11092,7 +11092,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
 
         if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
           code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
-                                         pTask->pNotifyAddrUrls, pTask->addOptions,
+                                         pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions,
                                          TARRAY_DATA(pContext->pNotifyParams), TARRAY_SIZE(pContext->pNotifyParams));
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -11227,7 +11227,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
 
         if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
           code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
-                                         pTask->pNotifyAddrUrls, pTask->addOptions,
+                                         pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions,
                                          TARRAY_DATA(pContext->pNotifyParams), TARRAY_SIZE(pContext->pNotifyParams));
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -12202,7 +12202,7 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
         QUERY_CHECK_CODE(code, lino, _end);
       } else if (notifyResume) {
         code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
-                                       pTask->pNotifyAddrUrls, pTask->addOptions, &param, 1);
+                                       pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions, &param, 1);
         taosMemoryFreeClear(pExtraNotifyContent);
         QUERY_CHECK_CODE(code, lino, _end);
       }
