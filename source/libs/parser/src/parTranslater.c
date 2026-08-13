@@ -2244,6 +2244,7 @@ static int32_t createColumnByRealTable(STranslateContext* pCxt, const STableNode
                                        "External table '%s': SELECT * requires %d tags, max %d",
                                        pTable->tableName, rawTags, TSDB_MAX_TAGS);
       }
+#ifdef TD_ENTERPRISE
       if (igTags) {
         code = ensureExternalSyntheticStarColumns(pRealTable, false);
         if (TSDB_CODE_SUCCESS != code) {
@@ -2251,6 +2252,7 @@ static int32_t createColumnByRealTable(STranslateContext* pCxt, const STableNode
         }
         pMeta = pRealTable->pMeta;
       }
+#endif
     }
   }
   int32_t           nums = pMeta->tableInfo.numOfColumns +
