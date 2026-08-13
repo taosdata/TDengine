@@ -2267,6 +2267,62 @@ class TestCase:
         tdSql.execute("drop user u_oper_owner")
         tdSql.execute("drop user u_oper_noperm")
 
+    def do_check_createdb_owner_immediate_create(self):
+        """TS-7067421011: CREATE DATABASE owner must be able to auto-create tables
+        immediately, without waiting for the heartbeat to refresh the local
+        user-auth cache.
+
+        Bug: a `createdb`-privileged user ran a script (`taos -f script.sql`)
+        that did `drop database if exists d1; create database d1; use d1;
+        create stable ...; insert into ctb using stb tags(...) values(...)`
+        back-to-back. The first few auto-create INSERTs failed with
+        "Permission denied to use database" even though the user just created
+        (and therefore owns) d1 — the client's cached privilege info for the
+        connection hadn't caught up with the CREATE DATABASE grant yet, and
+        only did so ~1s later on the next heartbeat. Manual, slower typing
+        (or a fresh connection made after the db already existed) never hit
+        the race, which is why it looked intermittent.
+
+        This test runs the same statement sequence on a single connection
+        with no artificial sleep in between, so it fails if the race
+        reappears.
+        """
+        tdLog.info("Starting createdb owner immediate create test")
+        tdSql.connect("root", "taosdata")
+
+        try:
+            tdSql.execute("drop user u_createdb_owner_auto", queryTimes=1)
+        except Exception:
+            pass
+        try:
+            tdSql.execute("drop user u_createdb_owner", queryTimes=1)
+        except Exception:
+            pass
+        tdSql.execute("drop database if exists d_createdb_owner_auto")
+        tdSql.execute("drop database if exists d_createdb_owner")
+
+        tdSql.execute(f"create user u_createdb_owner_auto pass '{self.test_pass}' createdb 1")
+        tdSql.execute(f"create user u_createdb_owner pass '{self.test_pass}' createdb 1")
+
+        sql_auto_7071658504 = "create database d_createdb_owner_auto;use d_createdb_owner_auto;create stable stb0 (ts timestamp, c0 int) tags(t0 int);insert into ctb0 using stb0 tags(0) values(now, 0);insert into ctb1 using stb0 tags(1) values(now, 1);insert into ctb2 using stb0 tags(2) values(now, 2);"
+        sql_7071658504 = "create database d_createdb_owner;use d_createdb_owner;create stable stb0 (ts timestamp, c0 int) tags(t0 int);create table ctb0 using stb0 tags(0);insert into ctb0 values(now, 0);create table ctb1 using stb0 tags(1);insert into ctb1 values(now, 1);create table ctb2 using stb0 tags(2);insert into ctb2 values(now, 2);"
+
+        os.system('taos -uu_createdb_owner_auto -p%s -s "%s"' % (self.test_pass, sql_auto_7071658504))
+        os.system('taos -uu_createdb_owner -p%s -s "%s"' % (self.test_pass, sql_7071658504))
+
+        tdSql.query("select count(*) from d_createdb_owner_auto.stb0")
+        tdSql.checkData(0, 0, 3)
+        tdSql.query("select count(*) from d_createdb_owner.stb0")
+        tdSql.checkData(0, 0, 3)
+
+        # Cleanup
+        tdSql.connect("root", "taosdata")
+        tdSql.execute("drop database if exists d_createdb_owner_auto")
+        tdSql.execute("drop database if exists d_createdb_owner")
+        tdSql.execute("drop user u_createdb_owner_auto")
+        tdSql.execute("drop user u_createdb_owner")
+        tdLog.info("Cleanup completed for createdb owner immediate create test")
+
     def test_priv_basic(self):
         """Privileges basic
         
@@ -2315,6 +2371,7 @@ class TestCase:
         self.do_check_reserved_principal_names()
         self.do_check_alter_pass_privilege()
         self.do_check_insert_using_auto_create_privileges() # 7008354205
+        self.do_check_createdb_owner_immediate_create() # TS-7071658504
         self.do_check_db_oper_privileges()
         
         tdLog.debug("finish executing %s" % __file__)
