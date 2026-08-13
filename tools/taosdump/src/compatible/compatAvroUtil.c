@@ -176,7 +176,7 @@ int avroGetTableDes(TAOS *taos, const char *dbName, const char *tableName,
     TAOS_RES *res = taos_query(taos, sql);
     int code = taos_errno(res);
     if (code != 0) {
-        logError("avro: DESCRIBE %s.%s failed: %s", dbName, tableName, taos_errstr(res));
+        logError("avro: DESCRIBE %s.%s failed(0x%08X, %s)", dbName, tableName, code, taos_errstr(res));
         taos_free_result(res);
         return -1;
     }

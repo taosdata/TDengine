@@ -34,6 +34,36 @@ void freePtr(void *ptr) {
     }
 }
 
+const char* bckErrStr(int code) {
+    switch (code) {
+        case TSDB_CODE_BCK_INVALID_PARAM:        return "invalid parameter";
+        case TSDB_CODE_BCK_MALLOC_FAILED:        return "memory allocation failed";
+        case TSDB_CODE_BCK_CREATE_THREAD_FAILED: return "create thread failed";
+        case TSDB_CODE_BCK_CREATE_FILE_FAILED:   return "create file failed";
+        case TSDB_CODE_BCK_NO_FIELDS:            return "query result has no fields";
+        case TSDB_CODE_BCK_FETCH_FIELDS_FAILED:  return "fetch fields failed";
+        case TSDB_CODE_BCK_COMPRESS_FAILED:      return "compress failed";
+        case TSDB_CODE_BCK_WRITE_FILE_FAILED:    return "write file failed";
+        case TSDB_CODE_BCK_CONN_POOL_EXHAUSTED:  return "connection pool exhausted";
+        case TSDB_CODE_BCK_READ_FILE_FAILED:     return "read file failed";
+        case TSDB_CODE_BCK_INVALID_FILE:         return "invalid backup file";
+        case TSDB_CODE_BCK_STMT_FAILED:          return "stmt bind/execute failed";
+        case TSDB_CODE_BCK_DECOMPRESS_FAILED:    return "decompress failed";
+        case TSDB_CODE_BCK_OPEN_DIR_FAILED:      return "open directory failed";
+        case TSDB_CODE_BCK_EXEC_SQL_FAILED:      return "execute sql failed";
+        case TSDB_CODE_BCK_USER_CANCEL:          return "cancelled by user";
+        case TSDB_CODE_BCK_SPEC_TABLE_NOT_FOUND: return "specified database/table not found";
+        case TSDB_CODE_BCK_INVALID_COMBINATION:  return "invalid option combination";
+        default:                                 return NULL;
+    }
+}
+
+const char* bckErrMsg(int code) {
+    const char *msg = bckErrStr(code);
+    if (!msg) msg = tstrerror(code);
+    return msg;
+}
+
 bool errorCodeCanRetry(int code) {
     switch (code) {
         // RPC / network layer errors
@@ -121,6 +151,9 @@ int obtainFileName(BackFileType fileType,
         break;
     case BACK_FILE_STREAMSQL:
         snprintf(fileName, len, "%s/%s/stream.sql", outPath, dbName);
+        break;
+    case BACK_FILE_TOPICSQL:
+        snprintf(fileName, len, "%s/%s/topic.sql", outPath, dbName);
         break;
     default:
         return TSDB_CODE_INVALID_PARA;
