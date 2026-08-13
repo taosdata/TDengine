@@ -93,6 +93,7 @@ void streamCleanup(void) {
   streamTimerCleanUp();
   smUndeployAllTasks();
   destroyDataSinkMgr();
+  streamNotifyWorkerPoolDestroy(&gStreamMgmt.notifyWorkerPool);
   streamMgmtCleanup();
   destroyInserterGrpInfo();
   stInfo("stream cleanup end");
@@ -138,6 +139,8 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
   TAOS_CHECK_EXIT(initInserterGrpInfo());
 
   TAOS_CHECK_EXIT(initStreamDataSink());
+
+  TAOS_CHECK_EXIT(streamNotifyWorkerPoolInit(&gStreamMgmt.notifyWorkerPool, tsStreamNotifyWorkerNum));
 
 _exit:
 

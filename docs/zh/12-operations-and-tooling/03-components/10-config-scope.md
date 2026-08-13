@@ -153,6 +153,9 @@ toc_max_heading_level: 4
 | streamBufferSize | taosd | 流计算可以使用的最大缓存大小，只适用于 %%trows 的结果缓存 |
 | streamNotifyMessageSize | taosd | 用于控制事件通知的消息大小 |
 | streamNotifyFrameSize | taosd | 用于控制事件通知消息发送时底层的帧大小 |
+| streamNotifyWorkerNum | taosd | 异步事件通知 worker 线程个数（每个 snode） |
+| streamNotifyBatchIntervalMs | taosd | 异步事件通知批处理的最大等待时间 |
+| streamNotifyParamPoolSize | taosd | 异步事件通知 pending 项对象池总容量上限（所有 stream 共享） |
 | **日志相关** | | |
 | logDir | both | 日志文件目录，运行日志将写入该目录 |
 | minimalLogDirGB | both | 日志文件夹所在磁盘可用空间大小小于该值时，停止写日志 |
