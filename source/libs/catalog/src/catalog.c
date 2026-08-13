@@ -1998,6 +1998,24 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogRefreshUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == user) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t         code = 0;
+  SGetUserAuthRsp authInfo = {0};
+  CTG_ERR_JRET(ctgGetUserDbAuthFromMnode(pCtg, pConn, user, &authInfo, NULL));
+
+  (void)ctgUpdateUserEnqueue(pCtg, &authInfo, false);  // cache update not fatal error
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
 int32_t catalogGetServerVersion(SCatalog* pCtg, SRequestConnInfo* pConn, char** pVersion) {
   CTG_API_ENTER();
 
