@@ -35,6 +35,7 @@
 #include "mndToken.h"
 #include "tbase64.h"
 #include "totp.h"
+#include "tpriv.h"
 #include "mndDnode.h"
 #include "mndVgroup.h"
 #ifdef USE_LIBGSASL
@@ -586,6 +587,8 @@ int64_t mndGetTimeWhiteListVersion(SMnode *pMnode) {
   return ver;
 }
 
+static bool mndIsUpgradedBuiltinUsers(SMnode *pMnode) { return (upgradeSecurity == 0); }
+
 int32_t mndInitUser(SMnode *pMnode) {
   TAOS_CHECK_RETURN(userCacheInit());
 
@@ -599,6 +602,7 @@ int32_t mndInitUser(SMnode *pMnode) {
       .insertFp = (SdbInsertFp)mndUserActionInsert,
       .updateFp = (SdbUpdateFp)mndUserActionUpdate,
       .deleteFp = (SdbDeleteFp)mndUserActionDelete,
+      .isUpgradedFp = (SdbIsUpgradedFp)mndIsUpgradedBuiltinUsers,
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_USER, mndProcessCreateUserReq);
@@ -1556,12 +1560,25 @@ _exit:
   TAOS_RETURN(code);
 }
 
-static int32_t mndProcessUpgradeUserRsp(SRpcMsg *pReq) { return 0;}
+static int32_t mndProcessUpgradeUserRsp(SRpcMsg *pReq) {
+  if (pReq->code == 0) {
+    upgradeSecurity = 0;
+    mInfo("upgrade users successfully");
+  } else {
+    mError("failed to upgrade users since %s", tstrerror(pReq->code));
+  }
+
+  return 0;
+}
 
 static int32_t mndUpgradeUsers(SMnode *pMnode, int32_t version) {
   int32_t code = 0, lino = 0;
-  if (upgradeSecurity == 0) return code;
-  if (!mndIsLeader(pMnode)) return code;
+  if (upgradeSecurity == 0) {
+    mInfo("upgrade security is disabled");
+    return code;
+  } else {
+    mInfo("upgrade security is enabled, will upgrade users");
+  }
 
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_UPGRADE_USER, .info.ahandle = 0, .info.notFreeAhandle = 1};
   SEpSet  epSet = {0};
@@ -2527,7 +2544,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
     }
     SDB_GET_BINARY(pRaw, dataPos, key, extLen, _OVER);
     TAOS_CHECK_GOTO(tDeserializeUserObjExt(key, extLen, pUser), &lino, _OVER);
-    if (pUser->superUser && taosHashGetSize(pUser->roles) == 0) {
+    if (pUser->superUser && (taosHashGetSize(pUser->roles) < TSDB_BUILTIN_BASIC_ROLE_NUM)) {
       upgradeSecurity = 1;
     }
   }
