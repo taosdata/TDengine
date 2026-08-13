@@ -1175,3 +1175,102 @@ class TestTaosBackupCheckpoint:
             tdLog.info("test_backup_log_append_with_checkpoint PASSED")
         finally:
             self.cleanup_dbs(DB)
+
+    # ------------------------------------------------------------------
+    # Test 7: -C resume with a different format must be rejected
+    # ------------------------------------------------------------------
+
+    def test_backup_checkpoint_format_change_rejected(self):
+        """taosBackup -C resume must refuse to start when the data format
+        differs from the previous backup.
+
+        bckArgs.c reads the previous run's format from {outPath}/backup.log
+        (line "  Format       : binary|parquet") and, when -C is requested
+        with a different -F, aborts during argument validation - before any
+        backup work starts - so the output dir can never end up with a mixed
+        .dat/.par set (which restore would re-insert twice).
+
+        Deterministic (no kill/timing dependency):
+          1. Insert TABLES x ROWS rows via taosBenchmark.
+          2. Full backup with -F binary (default) -> backup.log records
+             "binary", all .dat files created.
+          3. Delete backup_complete.flag to simulate an interrupted run (so a
+             later -C run would otherwise enter per-table resume mode).
+          4. Snapshot mtime + sha256 of every .dat file.
+          5. Run backup with -C -F parquet into the SAME outdir:
+             - must FAIL (non-zero exit) with a "data format changed" error;
+             - must NOT create any .par files;
+             - must leave every .dat file byte-for-byte untouched.
+          6. Positive control: -C -F binary (same format) must succeed and
+             skip everything (skipped(resume) == TABLES).
+
+        Since: v3.0.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-08-13 Created to lock in the -C format-consistency guard
+              (bckArgs.c backupFormatChangedSinceLastRun)
+        """
+        db = "ckpt_fmt_src"
+        TABLES = 5
+        ROWS = 50
+
+        taosbackup, benchmark, tmpdir = self.find_programs()
+
+        try:
+            tdSql.execute(f"drop database if exists {db}")
+
+            tdLog.info(f"=== step 1: insert {TABLES} x {ROWS} rows ===")
+            ret = os.system(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
+            if ret != 0:
+                tdLog.exit(f"taosBenchmark failed (ret={ret})")
+
+            tdLog.info("=== step 2: full backup with -F binary (default) ===")
+            rlist = etool.taosdump(f"-T 1 -D {db} -o {tmpdir}")
+            self.checkListString(rlist, "Result       : SUCCESS")
+
+            flag_path = os.path.join(tmpdir, db, "backup_complete.flag")
+            if not os.path.exists(flag_path):
+                tdLog.exit(f"backup_complete.flag missing after full backup: {flag_path}")
+
+            tdLog.info("=== step 3: delete backup_complete.flag (simulate interrupted run) ===")
+            os.remove(flag_path)
+
+            tdLog.info("=== step 4: snapshot .dat files before the rejected resume ===")
+            db_dir = os.path.join(tmpdir, db)
+            before = snapshot_dat_files(db_dir)
+            if len(before) != TABLES:
+                tdLog.exit(f"expected {TABLES} .dat files, found {len(before)}")
+
+            tdLog.info("=== step 5: backup with -C -F parquet -> must be rejected ===")
+            cmd = f"{taosbackup} -T 1 -C -F parquet -D {db} -o {tmpdir}"
+            retcode, killed, rlist = run_with_timeout(cmd, 120)
+            if killed:
+                tdLog.exit("rejected run did not exit promptly - the format check may not have fired")
+            if retcode == 0:
+                tdLog.exit("expected -C -F parquet resume to be REJECTED, but it exited 0")
+            self.checkListString(rlist, "data format changed")
+
+            tdLog.info("=== step 6: verify no .par files and .dat files untouched ===")
+            par_files = glob.glob(os.path.join(db_dir, "**", "*.par"), recursive=True)
+            if par_files:
+                tdLog.exit(f"unexpected .par files created by rejected run: {par_files}")
+            after = snapshot_dat_files(db_dir)
+            if after != before:
+                changed = [p for p in before if before.get(p) != after.get(p)]
+                tdLog.exit(f".dat files changed despite rejected resume: {changed}")
+
+            tdLog.info("=== step 7: positive control -C -F binary (same format) must succeed ===")
+            rlist = etool.taosdump(f"-T 1 -C -F binary -D {db} -o {tmpdir}")
+            self.checkListString(rlist, "Result       : SUCCESS")
+            skipped = extract_int("\n".join(rlist), r"skipped\(resume\)=(\d+)")
+            tdLog.info(f"  skipped(resume)={skipped}")
+            if skipped != TABLES:
+                tdLog.exit(f"expected skipped(resume)=={TABLES}, got {skipped}")
+
+            tdLog.info("test_backup_checkpoint_format_change_rejected PASSED")
+        finally:
+            self.cleanup_dbs(db)

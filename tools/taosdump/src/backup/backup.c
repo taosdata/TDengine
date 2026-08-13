@@ -50,6 +50,10 @@ int backDatabase(const char *dbName) {
         logError("create db tag path failed: %s", path);
         return code;
     }
+    // clear tag dir if checkpoint is disabled
+    if (!argCheckpoint()) {
+        taosClearDir(path);
+    }
 
     code = TSDB_CODE_SUCCESS;
 
