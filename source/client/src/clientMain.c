@@ -3131,14 +3131,29 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
         }
       }
 
-      if (!stmt2TableExistsInCache(stmt)) {
-        if (bindv->tags && bindv->tags[i]) {
+      bool tableExists = stmt2TableExistsInCache(stmt);
+      if (bindv->tags && bindv->tags[i]) {
+        if (!tableExists) {
           code = stmtSetTbTags2(stmt, bindv->tags[i], &pCreateTbReq);
-        } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
-          code = stmtCheckTags2(stmt, &pCreateTbReq);
-        } else if (pStmt->sql.autoCreateTbl) {
-          code = stmtSetTbTags2(stmt, NULL, &pCreateTbReq);
         }
+        if (code == TSDB_CODE_SUCCESS) {
+          code = stmt2CacheRetryTags(stmt, bindv->tags[i], false);
+        }
+      } else if (pStmt->bInfo.tbNameFlag & IS_FIXED_TAG) {
+        // The fixed-tag template is initialized once per statement. Cached child tables then avoid cloning it
+        // into every normal submit, while retaining enough information to auto-create on a retry.
+        if (!pStmt->sql.fixValueTags || !tableExists) {
+          code = stmtCheckTags2(stmt, &pCreateTbReq);
+        }
+        if (code == TSDB_CODE_SUCCESS) {
+          code = stmt2CacheRetryTags(stmt, NULL, true);
+        }
+        if (code == TSDB_CODE_SUCCESS && tableExists && pCreateTbReq != NULL) {
+          tdDestroySVCreateTbReq(pCreateTbReq);
+          taosMemoryFreeClear(pCreateTbReq);
+        }
+      } else if (pStmt->sql.autoCreateTbl && !tableExists) {
+        code = stmtSetTbTags2(stmt, NULL, &pCreateTbReq);
       }
 
       if (code) {
