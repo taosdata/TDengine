@@ -7,14 +7,14 @@ toc_max_heading_level: 4
 
 在现代物联网（IoT）和工业互联网（IIoT）应用中，数据的高效管理对系统性能和用户体验至关重要。为了应对高并发环境下的实时读写需求，TDengine 设计了一套完整的缓存机制，包括写缓存、读缓存、元数据缓存和文件系统缓存。这些缓存机制紧密结合，既能优化数据查询的响应速度，又能提高数据写入的效率，同时保障数据的可靠性和系统的高可用性。通过灵活配置缓存参数，TDengine 为用户提供了性能与成本之间的最佳平衡。
 
-读缓存的配置步骤与效果验证见 [读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)；参数细则见 [数据库](../05-tdengine-sql/02-ddl/01-database.md)。实现层面的落盘与 last 缓存加载策略，另见 [整体架构：缓存与持久化](./01-arch.md#缓存与持久化)。
+读缓存的配置步骤与效果验证见 [读缓存](../05-tdengine-sql/04-data-query/09-cache-query.md)；参数细则见 [数据库](../05-tdengine-sql/02-ddl/01-database.md)。实现层面的落盘与 last 缓存加载策略，另见 [整体架构：缓存与持久化](./01-arch.md#缓存与持久化)。
 
 ## 缓存类型一览
 
 | 类型 | 作用 | 关键参数 | 适用场景 | 详见 |
 | --- | --- | --- | --- | --- |
 | 写缓存 | 最新写入优先保存在缓存中，达到临界值后最早数据批量落盘 | `BUFFER`、`VGROUPS` | 近期数据读写、写入吞吐 | 下文、[BUFFER](../05-tdengine-sql/02-ddl/01-database.md#buffer) |
-| 读缓存 | 缓存子表最近数据，加速当前值查询 | `CACHEMODEL`、`CACHESIZE` | `LAST`、`LAST_ROW` | [读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)、下文 |
+| 读缓存 | 缓存子表最近数据，加速当前值查询 | `CACHEMODEL`、`CACHESIZE` | `LAST`、`LAST_ROW` | [读缓存](../05-tdengine-sql/04-data-query/09-cache-query.md)、下文 |
 | 元数据缓存 | 缓存 vnode 曾经获取过的元数据 | `PAGES`、`PAGESIZE` | 元数据相关访问 | 下文、[PAGES](../05-tdengine-sql/02-ddl/01-database.md#pages) |
 | 文件系统缓存 | WAL 顺序追加写入时依赖文件系统缓存；`fsync` 控制何时强制落盘 | `WAL_LEVEL`、`WAL_FSYNC_PERIOD` | 写入性能与可靠性权衡 | 下文、[WAL_LEVEL](../05-tdengine-sql/02-ddl/01-database.md#wal_level) |
 
@@ -53,7 +53,7 @@ TDengine 的读缓存机制专为高频实时查询场景设计，尤其适用�
 
 此外，TDengine 的读缓存机制还能够根据实际业务场景灵活调整。在数据访问热点集中在最新记录的场景中，这种内置缓存能够显著提高用户体验，让关键数据的获取更加快速高效。相比传统缓存方案，这种无缝集成的缓存策略不仅简化了开发流程，还为用户提供了更高的性能保障。
 
-关于 TDengine 读缓存的更多详细内容请看 [读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)。`LAST` / `LAST_ROW` 函数语义见 [LAST](../05-tdengine-sql/04-data-query/03-function.md#last)、[LAST_ROW](../05-tdengine-sql/04-data-query/03-function.md#last_row)；LRU、延迟加载等机制见 [整体架构：last/last_row 缓存](./01-arch.md#lastlast_row-缓存)。
+关于 TDengine 读缓存的更多详细内容请看 [读缓存](../05-tdengine-sql/04-data-query/09-cache-query.md)。`LAST` / `LAST_ROW` 函数语义见 [LAST](../05-tdengine-sql/04-data-query/03-function.md#last)、[LAST_ROW](../05-tdengine-sql/04-data-query/03-function.md#last_row)；LRU、延迟加载等机制见 [整体架构：last/last_row 缓存](./01-arch.md#lastlast_row-缓存)。
 
 ## 元数据缓存
 

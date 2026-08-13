@@ -3580,7 +3580,7 @@ LAG(expr, offset[, default_val])
 - 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`LAG` 仍按输入行序取前第 `offset` 行。
 - 支持与 `_rowts`、`tbname`、标签列等一起查询，也支持在子查询和 `PARTITION BY` 场景中使用。
 - 与窗口一起使用时，`LAG` 仅在当前窗口内部按窗口内结果顺序计算，不会跨窗口继承上一窗口的状态。
-- `LAG` 也可以作为 SQL 标准窗口函数，配合 `OVER` 子句使用，此时参数规则略有不同（`offset` 可以为 0），详见[窗口函数](./06-window-function.md#取值类窗口函数)。
+- `LAG` 也可以作为 SQL 标准窗口函数，配合 `OVER` 子句使用，此时参数规则略有不同（`offset` 可以为 0），详见[窗口函数](./07-window-function.md#取值类窗口函数)。
 
 ### LEAD
 
@@ -3607,7 +3607,7 @@ LEAD(expr, offset[, default_val])
 - 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`LEAD` 仍按输入行序取后第 `offset` 行。
 - 支持与 `_rowts`、`tbname`、标签列等一起查询，也支持在子查询和 `PARTITION BY` 场景中使用。
 - 与窗口一起使用时，`LEAD` 仅在当前窗口内部按窗口内结果顺序计算，不会跨窗口读取下一窗口的数据。
-- `LEAD` 也可以作为 SQL 标准窗口函数，配合 `OVER` 子句使用，此时参数规则略有不同（`offset` 可以为 0），详见[窗口函数](./06-window-function.md#取值类窗口函数)。
+- `LEAD` 也可以作为 SQL 标准窗口函数，配合 `OVER` 子句使用，此时参数规则略有不同（`offset` 可以为 0），详见[窗口函数](./07-window-function.md#取值类窗口函数)。
 
 ### MAVG
 

@@ -263,6 +263,19 @@ Additional Notes:
 | queryNoFetchTimeoutSec   | After 3.1.0.0     | Supported, effective immediately   | Timeout for queries when application does not fetch data for a long time, counted from last response; Internal parameter; 0: disable, 1: enable; default value 18000, range 60-1000000000; Enterprise parameter |
 | queryPlannerTrace        | After 3.1.0.0     | Supported, effective immediately   | Whether query planner outputs detailed logs; Internal parameter; 0: disable, 1: enable; default value 0 |
 
+### Federated Query Related
+
+The following parameters control server-side federated query behavior. Parameters supported on both client and server should be kept consistent. For usage details, see [Federated Query](../../05-tdengine-sql/04-data-query/06-federated-query.md).
+
+| Parameter Name                       | Supported Version | Dynamic Modification             | Description                                                  |
+| ------------------------------------ | ----------------- | -------------------------------- | ------------------------------------------------------------ |
+| federatedQueryEnable                 | After 3.4.2.0     | Supported, effective immediately | Whether to enable federated query; `false`: disabled, `true`: enabled; default value `false` |
+| federatedQueryConnectTimeoutMs       | After 3.4.2.0     | Supported, effective immediately | Timeout for establishing a connection to an external data source, in milliseconds; range 100-600000, default value 5000 |
+| federatedQueryQueryTimeoutMs         | After 3.4.2.0     | Supported, effective immediately | Timeout for executing an external query, in milliseconds; range 100-1000000000; default value 1000000000 (no time limit when set to the maximum) |
+| federatedQueryMaxPoolSizePerSource   | After 3.4.2.0     | Supported, effective immediately | Maximum connection pool size allowed per external data source; range 1-1024, default value 64 |
+| federatedQueryIdleConnTtlSec         | After 3.4.2.0     | Supported, effective immediately | Time-to-live for idle external connections before automatic reclaim, in seconds; range 1-86400, default value 600 |
+| federatedQueryProbeTimeoutMs         | After 3.4.2.0     | Supported, effective immediately | Timeout for probing external data source liveness, in milliseconds; range 100-600000, default value 5000; not implemented yet |
+
 ### Region Related
 
 | Parameter Name | Supported Version | Dynamic Modification | Description                                                  |

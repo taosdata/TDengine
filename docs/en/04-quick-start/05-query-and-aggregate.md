@@ -31,14 +31,17 @@ On top of standard SQL, TDengine extends querying for time-series and IoT scenar
 - **Join queries**
   Standard joins, plus time-series–oriented ASOF Join and Window Join. See [Join Queries](../05-tdengine-sql/04-data-query/05-join.md).
 
+- **Federated query**
+  Read MySQL, PostgreSQL, InfluxDB, and other external sources in one SQL statement and analyze them together with local time-series data. See [Federated Query](../05-tdengine-sql/04-data-query/06-federated-query.md).
+
 - **Window functions**
-  `OVER` window functions. See [Window Functions](../05-tdengine-sql/04-data-query/06-window-function.md).
+  `OVER` window functions. See [Window Functions](../05-tdengine-sql/04-data-query/07-window-function.md).
 
 - **UDFs and read cache**
-  User-defined functions (UDFs); accelerate latest-row reads with the read cache. See [UDFs](../05-tdengine-sql/04-data-query/07-udf.md) and [Read Cache](../05-tdengine-sql/04-data-query/08-cache-query.md).
+  User-defined functions (UDFs); accelerate latest-row reads with the read cache. See [UDFs](../05-tdengine-sql/04-data-query/08-udf.md) and [Read Cache](../05-tdengine-sql/04-data-query/09-cache-query.md).
 
 - **Execution plans**
-  Inspect plans with `EXPLAIN` / `EXPLAIN ANALYZE`. See [EXPLAIN](../05-tdengine-sql/04-data-query/09-explain.md).
+  Inspect plans with `EXPLAIN` / `EXPLAIN ANALYZE`. See [EXPLAIN](../05-tdengine-sql/04-data-query/10-explain.md).
 
 Compared with general-purpose databases, time-series queries especially benefit from **querying a supertable across many devices in one statement**, **narrowing devices with tags**, and **windowing by time or state for downsampling and aggregation**. The rest of this chapter starts with the most common filters, aggregates, and time windows.
 
@@ -489,7 +492,8 @@ This chapter covers only the most common queries for a quick start. For more adv
 - [Functions](../05-tdengine-sql/04-data-query/03-function.md): function categories, syntax, and usage
 - [Time-Series Extensions](../05-tdengine-sql/04-data-query/04-distinguished.md): time-series query features such as multiple window types
 - [Join Queries](../05-tdengine-sql/04-data-query/05-join.md): JOIN concepts, types, syntax, and limits
-- [Window Functions](../05-tdengine-sql/04-data-query/06-window-function.md): `OVER` clause and standard SQL window functions
-- [UDFs](../05-tdengine-sql/04-data-query/07-udf.md): create, manage, and invoke user-defined functions
-- [Read Cache](../05-tdengine-sql/04-data-query/08-cache-query.md): cache recent subtable data with `CACHEMODEL` to speed up `LAST` / `LAST_ROW`
-- [EXPLAIN](../05-tdengine-sql/04-data-query/09-explain.md): use `EXPLAIN` / `EXPLAIN ANALYZE` for plans and runtime metrics
+- [Federated Query](../05-tdengine-sql/04-data-query/06-federated-query.md): cross-source queries, external source management, and virtual table external column references
+- [Window Functions](../05-tdengine-sql/04-data-query/07-window-function.md): `OVER` clause and standard SQL window functions
+- [UDFs](../05-tdengine-sql/04-data-query/08-udf.md): create, manage, and invoke user-defined functions
+- [Read Cache](../05-tdengine-sql/04-data-query/09-cache-query.md): cache recent subtable data with `CACHEMODEL` to speed up `LAST` / `LAST_ROW`
+- [EXPLAIN](../05-tdengine-sql/04-data-query/10-explain.md): use `EXPLAIN` / `EXPLAIN ANALYZE` for plans and runtime metrics
