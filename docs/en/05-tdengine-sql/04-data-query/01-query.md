@@ -653,7 +653,7 @@ function_name ( [ arguments ] ) OVER (
 )
 ```
 
-Window functions support both existing aggregate/selection functions (such as `avg`, `sum`, `first`) used with an `OVER` clause, and dedicated window functions such as `row_number`, `rank`, `dense_rank`, `percent_rank`, `cume_dist`, `lag`, `lead`, `first_value`, `last_value`, and `nth_value`. Window functions may only appear in the `SELECT` list and `ORDER BY`. For the complete syntax, frame rules, named windows, and function list, see [Window Functions](./06-window-function.md).
+Window functions support both existing aggregate/selection functions (such as `avg`, `sum`, `first`) used with an `OVER` clause, and dedicated window functions such as `row_number`, `rank`, `dense_rank`, `percent_rank`, `cume_dist`, `lag`, `lead`, `first_value`, `last_value`, and `nth_value`. Window functions may only appear in the `SELECT` list and `ORDER BY`. For the complete syntax, frame rules, named windows, and function list, see [Window Functions](./07-window-function.md).
 
 ## LIMIT
 
@@ -661,7 +661,7 @@ LIMIT controls the number of output rows, and OFFSET specifies starting from whi
 
 When there is a PARTITION BY/GROUP BY clause, LIMIT controls the output within each partition slice, not the total result set output.
 
-Starting from v3.4.2.0, `OFFSET N` can be used independently without `LIMIT`, which is useful for skipping the warm-up rows after a [window function](./06-window-function.md) computation.
+Starting from v3.4.2.0, `OFFSET N` can be used independently without `LIMIT`, which is useful for skipping the warm-up rows after a [window function](./07-window-function.md) computation.
 
 ## SLIMIT
 

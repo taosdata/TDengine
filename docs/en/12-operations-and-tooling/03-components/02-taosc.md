@@ -53,6 +53,21 @@ The following configuration parameters only take effect for Native connections.
 |ignoreNullInGreatest             | v3.4.2.0 |Supported, effective immediately  |Whether the GREATEST and LEAST functions skip NULL arguments. Integer; 0 (default): MySQL-compatible — any NULL argument makes the result NULL; 1: skip NULL arguments and compare only non-NULL values, returning NULL only when every argument is NULL. Orthogonal to compareAsStrInGreatest.|
 |showFullCreateTableColumn        | Added in 3.3.7.1 | Supported                          | Whether show column compress info while execute `show create table tablname`, range 0/1, default: 0.|
 
+### Federated Query Related
+
+The following parameters control client-side federated query behavior. Except for client-only cache parameters, parameters supported on both client and server should be kept consistent. For usage details, see [Federated Query](../../05-tdengine-sql/04-data-query/06-federated-query.md).
+
+|Parameter Name|Supported Version|Dynamic Modification|Description|
+|----------------------|----------|--------------------|-------------|
+|federatedQueryEnable|After 3.4.2.0|Supported, effective immediately|Whether to enable federated query; `false`: disabled, `true`: enabled; default value `false`|
+|federatedQueryConnectTimeoutMs|After 3.4.2.0|Supported, effective immediately|Timeout for establishing a connection to an external data source, in milliseconds; range 100-600000, default value 5000|
+|federatedQueryQueryTimeoutMs|After 3.4.2.0|Supported, effective immediately|Timeout for executing an external query, in milliseconds; range 100-1000000000; default value 1000000000 (no time limit when set to the maximum)|
+|federatedQueryMaxPoolSizePerSource|After 3.4.2.0|Supported, effective immediately|Maximum connection pool size allowed per external data source; range 1-1024, default value 64|
+|federatedQueryIdleConnTtlSec|After 3.4.2.0|Supported, effective immediately|Time-to-live for idle external connections before automatic reclaim, in seconds; range 1-86400, default value 600|
+|federatedQueryProbeTimeoutMs|After 3.4.2.0|Supported, effective immediately|Timeout for probing external data source liveness, in milliseconds; range 100-600000, default value 5000; not implemented yet|
+|federatedQueryMetaCacheTtlSec|After 3.4.2.0|Supported, effective immediately|TTL for external metadata cache, in seconds; client-only parameter; range 1-86400, default value 300; not implemented yet|
+|federatedQueryCapCacheTtlSec|After 3.4.2.0|Supported, effective immediately|TTL for external data source capability cache, in seconds; client-only parameter; range 1-86400, default value 300; not implemented yet|
+
 ### Writing Related
 
 |Parameter Name|Supported Version|Dynamic Modification| Description                                                                                                             |

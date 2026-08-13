@@ -892,7 +892,7 @@ taosd -r --mode copy --node-type vnode \
 
 ### 联邦查询相关
 
-以下参数用于控制服务端的联邦查询行为。客户端和服务端均支持的参数应保持一致，详细用法参见[联邦查询](../../05-tdengine-sql/04-data-query/10-federated-query.md)。
+以下参数用于控制服务端的联邦查询行为。客户端和服务端均支持的参数应保持一致，详细用法参见[联邦查询](../../05-tdengine-sql/04-data-query/06-federated-query.md)。
 
 #### federatedQueryEnable
 

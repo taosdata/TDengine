@@ -330,7 +330,7 @@ taosc 和 taosd 存在许多同名参数，虽然名称相同但作用范围可�
 
 ### 联邦查询相关
 
-以下参数用于控制客户端的联邦查询行为。除客户端专有缓存参数外，客户端和服务端均支持的参数应保持一致，详细用法参见[联邦查询](../../05-tdengine-sql/04-data-query/10-federated-query.md)。
+以下参数用于控制客户端的联邦查询行为。除客户端专有缓存参数外，客户端和服务端均支持的参数应保持一致，详细用法参见[联邦查询](../../05-tdengine-sql/04-data-query/06-federated-query.md)。
 
 #### federatedQueryEnable
 

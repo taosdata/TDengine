@@ -688,7 +688,7 @@ function_name ( [ arguments ] ) OVER (
 )
 ```
 
-窗口函数既支持已有聚合 / 选择函数（如 `avg`、`sum`、`first`）配合 `OVER` 子句使用，也支持专用窗口函数，例如 `row_number`、`rank`、`dense_rank`、`percent_rank`、`cume_dist`、`lag`、`lead`、`first_value`、`last_value`、`nth_value`。窗口函数只能出现在 `SELECT` 列表和 `ORDER BY` 中。完整语法、框架规则、命名窗口与函数列表见 [窗口函数](./06-window-function.md)。
+窗口函数既支持已有聚合 / 选择函数（如 `avg`、`sum`、`first`）配合 `OVER` 子句使用，也支持专用窗口函数，例如 `row_number`、`rank`、`dense_rank`、`percent_rank`、`cume_dist`、`lag`、`lead`、`first_value`、`last_value`、`nth_value`。窗口函数只能出现在 `SELECT` 列表和 `ORDER BY` 中。完整语法、框架规则、命名窗口与函数列表见 [窗口函数](./07-window-function.md)。
 
 ## LIMIT
 
@@ -696,7 +696,7 @@ LIMIT 控制输出条数，OFFSET 指定从第几条之后开始输出。LIMIT/O
 
 在有 PARTITION BY/GROUP BY 子句时，LIMIT 控制的是每个切分的分片中的输出，而不是总的结果集输出。
 
-从 `v3.4.2.0` 起，`OFFSET N` 可以单独使用、不必搭配 `LIMIT`，便于跳过 [窗口函数](./06-window-function.md) 计算后的预热行。
+从 `v3.4.2.0` 起，`OFFSET N` 可以单独使用、不必搭配 `LIMIT`，便于跳过 [窗口函数](./07-window-function.md) 计算后的预热行。
 
 ## SLIMIT
 
