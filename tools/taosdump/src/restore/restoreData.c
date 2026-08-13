@@ -216,7 +216,7 @@ static void* restoreDataThread(void *arg) {
             attempt++;
             logInfo("restore thread %d: retry file (attempt %d): %s (code=0x%08X)",
                     thread->index, attempt, filePath, code);
-            releaseConnectionBad(thread->conn);
+            resetConnectionPool();
             thread->conn = getConnection(&code);
             if (!thread->conn) break;
 

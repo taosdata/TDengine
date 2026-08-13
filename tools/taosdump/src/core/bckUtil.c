@@ -13,6 +13,15 @@
 #include "bckUtil.h"
 #include "bckArgs.h"
 
+// WebSocket driver error codes (libtaosws), surfaced through taos_errno.
+// A closed/broken WebSocket connection (e.g. taosadapter restarted) must be
+// treated as retryable, just like the native RPC_BROKEN_LINK case.  They can
+// appear both bare (0xE002, from taos_fetch_raw_block) and flag-wrapped
+// (0x8000E002, from taos_errno), so errorCodeCanRetry strips the flag bit.
+#define TSDB_CODE_WS_CLOSED       0xE002  // connection closed
+#define TSDB_CODE_WS_SEND_TIMEOUT 0xE003  // send timed out
+#define TSDB_CODE_WS_RECV_TIMEOUT 0xE004  // receive timed out
+
 void sleepMs(int ms) {
     taosMsleep(ms);
 }
@@ -65,6 +74,18 @@ const char* bckErrMsg(int code) {
 }
 
 bool errorCodeCanRetry(int code) {
+    // WebSocket driver reports the same error both bare (0xE002, returned by
+    // taos_fetch_raw_block) and flag-wrapped (0x8000E002, returned by
+    // taos_errno after taos_query).  Strip the 0x80000000 flag bit so both
+    // forms are treated as the same retryable condition.
+    switch (code & 0x7FFFFFFF) {
+        case TSDB_CODE_WS_CLOSED:
+        case TSDB_CODE_WS_SEND_TIMEOUT:
+        case TSDB_CODE_WS_RECV_TIMEOUT:
+            return true;
+        default:
+            break;
+    }
     switch (code) {
         // RPC / network layer errors
         case TSDB_CODE_RPC_NETWORK_ERROR:
