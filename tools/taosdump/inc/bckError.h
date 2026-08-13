@@ -14,8 +14,7 @@
 
 #include "taoserror.h"
 
-// ---------------- error code ----------------
-
+// ---------------- taosdump error code range 0xA000-0xA100  ----------------
 
 #define TSDB_CODE_BCK_INVALID_PARAM           TAOS_DEF_ERROR_CODE(0, 0xA000)
 #define TSDB_CODE_BCK_MALLOC_FAILED           TAOS_DEF_ERROR_CODE(0, 0xA001)
@@ -33,6 +32,8 @@
 #define TSDB_CODE_BCK_OPEN_DIR_FAILED         TAOS_DEF_ERROR_CODE(0, 0xA00D)
 #define TSDB_CODE_BCK_EXEC_SQL_FAILED         TAOS_DEF_ERROR_CODE(0, 0xA00E)
 #define TSDB_CODE_BCK_USER_CANCEL             TAOS_DEF_ERROR_CODE(0, 0xA00F)
+#define TSDB_CODE_BCK_SPEC_TABLE_NOT_FOUND    TAOS_DEF_ERROR_CODE(0, 0xA010)
+#define TSDB_CODE_BCK_INVALID_COMBINATION     TAOS_DEF_ERROR_CODE(0, 0xA011)
 
 
 #endif  // INC_BCKERROR_H_

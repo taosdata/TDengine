@@ -461,7 +461,7 @@ static int executeBatchStmt2(TAOS_STMT2 *stmt2, ColBuf *bufs, int nCols, int nRo
 
         retCode = taos_stmt2_bind_param(stmt2, &bv, -1);
         if (retCode != 0) {
-            logError("avro data: stmt2 bind failed: %s", taos_stmt2_error(stmt2));
+            logError("avro data: stmt2 bind failed(0x%08X, %s)", retCode, taos_stmt2_error(stmt2));
         }
     }
 
@@ -469,7 +469,7 @@ static int executeBatchStmt2(TAOS_STMT2 *stmt2, ColBuf *bufs, int nCols, int nRo
         int affected = 0;
         retCode = taos_stmt2_exec(stmt2, &affected);
         if (retCode != 0) {
-            logError("avro data: stmt2 exec failed: %s", taos_stmt2_error(stmt2));
+            logError("avro data: stmt2 exec failed(0x%08X, %s)", retCode, taos_stmt2_error(stmt2));
         }
     }
 

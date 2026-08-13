@@ -67,12 +67,16 @@ class TestTaosBackupStream:
             shutil.rmtree(path)
 
     def dump_out(self, binPath: str, db: str, outdir: str, extra: str = "", ws: str = ""):
-        """Run taosdump backup with optional WebSocket flags."""
-        self.exec(f"{binPath} -D {db} -o {outdir} -T 1 {extra} {ws}".strip())
+        """Run taosdump backup with optional WebSocket flags.
+
+        --content=all: default content is now "basic" and excludes streams
+        (stream.sql), which this whole file exists to verify.
+        """
+        self.exec(f"{binPath} --content=all -D {db} -o {outdir} -T 1 {extra} {ws}".strip())
 
     def dump_in(self, binPath: str, indir: str, extra: str = "", ws: str = ""):
-        """Run taosdump restore with optional WebSocket flags."""
-        self.exec(f"{binPath} -i {indir} -T 1 {extra} {ws}".strip())
+        """Run taosdump restore with optional WebSocket flags. See dump_out()."""
+        self.exec(f"{binPath} --content=all -i {indir} -T 1 {extra} {ws}".strip())
 
     # -----------------------------------------------------------------------
     # Stream helpers
