@@ -592,6 +592,8 @@ void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, ES
     return;
   }
 
+  streamNotifyQueueUnregister(streamId);
+
   atomic_store_8(&pStream->destroyed, 1);
   
   int32_t code = taosHashRemove(gStreamMgmt.stmGrp[gid], &streamId, sizeof(streamId));

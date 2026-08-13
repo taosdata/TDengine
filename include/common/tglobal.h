@@ -401,6 +401,9 @@ extern int32_t tsPQSortMemThreshold;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern int32_t tsStreamBatchRequestWaitMs;
+extern int32_t tsStreamNotifyWorkerNum;        // number of async notify worker threads per snode
+extern int32_t tsStreamNotifyBatchIntervalMs;  // max wait before flushing a notify batch (ms)
+extern int32_t tsStreamNotifyParamPoolSize;   // KB, total SStreamNotifyPendingItem obj pool size (all streams)
 extern bool    tsCompareAsStrInGreatest;
 extern bool    tsIgnoreNullInGreatest;
 extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info

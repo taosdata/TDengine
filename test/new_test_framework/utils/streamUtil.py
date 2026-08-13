@@ -554,18 +554,23 @@ class StreamUtil:
     def dropAllStreamsAndDbs(self):
         streamNum = 0
         dbList = tdSql.query("show databases", row_tag=True)
-        for r in range(len(dbList)):
-            dbname = dbList[r][0]
-            if dbname != "information_schema" and dbname != "performance_schema":
-                streamList = tdSql.query(f"show {dbname}.streams", row_tag=True)
-                for r in range(len(streamList)):
-                    streamNum = streamNum + 1
-                    streamName = streamList[r][0]
-                    tdSql.execute(f"drop stream {dbname}.{streamList[r][0]}")
-                tdLog.info(f"drop database {dbname}")
-                tdSql.execute(f"drop database {dbname}")
+        userDbs = [
+            row[0]
+            for row in dbList
+            if row[0] not in ("information_schema", "performance_schema")
+        ]
 
-        tdLog.info(f"drop {len(dbList)} databases, {streamNum} streams")
+        for dbname in userDbs:
+            streamList = tdSql.query(f"show {dbname}.streams", row_tag=True)
+            for streamRow in streamList:
+                streamNum += 1
+                tdSql.execute(f"drop stream {dbname}.{streamRow[0]}")
+
+        for dbname in userDbs:
+            tdLog.info(f"drop database {dbname}")
+            tdSql.execute(f"drop database {dbname}")
+
+        tdLog.info(f"drop {len(userDbs)} databases, {streamNum} streams")
 
     def prepareChildTables(
         self,

@@ -2166,7 +2166,7 @@ ALTER ALL DNODES 'snapshotRateLimit' '0';
 
 #### streamNotifyFrameSize
 
-- 说明：用于控制事件通知消息发送时底层的帧大小 `内部参数`
+- 说明：用于控制事件通知消息发送时底层的帧大小，以及 async worker 同 stream 队列 `pendingBytes` 达阈值时的 flush 上限 `内部参数`
 - 类型：整数
 - 单位：KB
 - 默认值：256
@@ -2175,6 +2175,42 @@ ALTER ALL DNODES 'snapshotRateLimit' '0';
 - 参数类型：局部配置参数
 - 动态修改：支持通过 SQL 修改，重启生效
 - 支持版本：从 `v3.3.7.0` 版本开始引入
+
+#### streamNotifyWorkerNum
+
+- 说明：异步事件通知 worker 线程个数（每个 snode）。各 worker 竞争全局 FIFO 队列列表（`globalQueueList`），从连接池按 URL 复用 WebSocket 长连接。
+- 类型：整数
+- 单位：个
+- 默认值：4（首次启动且未在配置文件中指定时，按 `TRANGE(CPU 核数, 1, 8)` 自动取值）
+- 最小值：1
+- 最大值：16
+- 参数类型：局部配置参数
+- 动态修改：支持通过 SQL 修改，重启生效
+- 支持版本：从 v3.4.2.0 版本开始引入
+
+#### streamNotifyBatchIntervalMs
+
+- 说明：异步事件通知批处理的最大等待时间。高频写入时，同 stream 的多条通知在该时间窗口内合并为一条 JSON（`events[]` 合并）后发送；距上次发送已超过该间隔时，下一条通知立即发送。
+- 类型：整数
+- 单位：毫秒
+- 默认值：5
+- 最小值：0
+- 最大值：60000
+- 参数类型：局部配置参数
+- 动态修改：支持通过 SQL 修改，重启生效
+- 支持版本：从 v3.4.2.0 版本开始引入
+
+#### streamNotifyParamPoolSize
+
+- 说明：异步事件通知 pending 项对象池的总容量上限（所有 stream 共享）。尚未发送的通知参数在该池中排队；池满时会回收其他 stream 队列上最老的 pending 项，或在同一 stream 上用新通知覆盖最老项，并输出 WARN 日志。对应内部变量 `tsStreamNotifyParamPoolSize`。
+- 类型：整数
+- 单位：KB
+- 默认值：10240（10 MB）
+- 最小值：1
+- 最大值：262144（256 MB）
+- 参数类型：局部配置参数
+- 动态修改：支持通过 SQL 修改，重启生效
+- 支持版本：从 v3.4.2.0 版本开始引入
 
 ### 日志相关
 

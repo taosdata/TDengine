@@ -115,7 +115,7 @@ class Test_IDMP_Meters:
 
         self.start2 = 1752574200000
         self.notifyFailed = (
-            "failed to get stream notify handle of ws://idmp:6042/recv/?key="
+            "[notify_worker].*ws://idmp:6042/recv/?key="
         )
 
         # import data
