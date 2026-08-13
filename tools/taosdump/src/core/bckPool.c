@@ -110,6 +110,10 @@ static void rollbackSlot(int idx) {
 //   initial wait 1 s → doubles each attempt → capped at 30 s.
 #define BCK_RECONNECT_INIT_MS   1000   // first wait: 1 s
 #define BCK_RECONNECT_MAX_MS   30000   // ceiling:   30 s
+// Give up reconnecting (and abort the whole run) after the server has been
+// unreachable this long, instead of retrying forever — otherwise a dead server
+// makes every file fail and the process never exits.
+#define BCK_RECONNECT_TOTAL_MAX_MS  60000
 
 TAOS* getConnection(int *code) {
     taosThreadMutexLock(&g_pool.mutex);
@@ -118,12 +122,13 @@ TAOS* getConnection(int *code) {
     // Reset to initial value each time getConnection() is entered so that
     // a successful call never carries stale back-off state to the next call.
     int reconnectWaitMs = BCK_RECONNECT_INIT_MS;
+    int64_t connFailStart = 0;   // first failed connect timestamp (0 = none yet)
 
     while (1) {
-        // check if interrupted
-        if (g_interrupted) {
+        // check if interrupted or a fatal error already aborted the run
+        if (g_interrupted || g_fatalError) {
             taosThreadMutexUnlock(&g_pool.mutex);
-            *code = TSDB_CODE_BCK_USER_CANCEL;
+            *code = g_fatalError ? g_fatalCode : TSDB_CODE_BCK_USER_CANCEL;
             return NULL;
         }
 
@@ -202,6 +207,20 @@ TAOS* getConnection(int *code) {
                 reconnectWaitMs *= 2;
                 if (reconnectWaitMs > BCK_RECONNECT_MAX_MS)
                     reconnectWaitMs = BCK_RECONNECT_MAX_MS;
+
+                // Give up after the server has been unreachable for too long
+                // instead of retrying forever, otherwise the whole run hangs.
+                if (connFailStart == 0) connFailStart = taosGetTimestampMs();
+                if (taosGetTimestampMs() - connFailStart >= BCK_RECONNECT_TOTAL_MAX_MS) {
+                    g_fatalError = 1;
+                    g_fatalCode = errCode;
+                    logError("server %s:%d unreachable for %" PRId64 " ms — aborting (0x%08X, %s)",
+                             argHost() ? argHost() : "(firstEp)", argPort(),
+                             taosGetTimestampMs() - connFailStart, errCode, errStr);
+                    taosThreadMutexUnlock(&g_pool.mutex);
+                    *code = errCode;
+                    return NULL;
+                }
 
                 continue;  // retry from the top of the while(1) loop
             }

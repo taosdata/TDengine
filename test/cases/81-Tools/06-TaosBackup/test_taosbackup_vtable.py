@@ -339,7 +339,9 @@ class TestTaosBackupVtable:
             # Step 3: Full backup (schema + data; no -s flag)
             # ----------------------------------------------------------------
             tdLog.info(f"Full backup of {SRC_DB} (schema + data) to {outdir}")
-            self.exec(f"{binPath} -D {SRC_DB} -o {outdir} -T 4")
+            # --content=all: default content is now "basic" and excludes virtual
+            # tables (vtb.sql / vtags/), which this test specifically verifies.
+            self.exec(f"{binPath} --content=all -D {SRC_DB} -o {outdir} -T 4")
 
             # ----------------------------------------------------------------
             # Step 4: Verify backup artifacts
@@ -390,7 +392,7 @@ class TestTaosBackupVtable:
             # ----------------------------------------------------------------
             tdSql.execute(f"DROP DATABASE IF EXISTS {DST_DB}")
             tdLog.info(f"Restoring to {DST_DB}")
-            self.exec(f"{binPath} -i {outdir} -W {SRC_DB}={DST_DB} -T 4")
+            self.exec(f"{binPath} --content=all -i {outdir} -W {SRC_DB}={DST_DB} -T 4")
 
             # ----------------------------------------------------------------
             # Step 6: Schema verification
