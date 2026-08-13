@@ -378,6 +378,79 @@ static void setOutPath(const char *val) {
 }
 
 //
+// ---------------- checkpoint format check ----------------
+//
+// -C resume skips files by existence using the CURRENT extension (.dat/.par).
+// Changing format mid-resume would mix both extensions, and restore accepts
+// both → duplicate data.  Every run logs its format to {outPath}/backup.log
+// ("  Format       : binary|parquet"); -C runs append, so the LAST such line is
+// the most recent run's format.  Returns 1 if it differs from this run's
+// format (resume must refuse), 0 if it matches or no line is found.  On a
+// found line, `prevName` (prevNameSz bytes) is filled with "binary"/"parquet".
+#define BCK_LOG_SCAN_CHUNK 65536   // bytes per read
+#define BCK_LOG_CARRY      64      // tail kept across chunk boundary
+static int backupFormatChangedSinceLastRun(char *prevName, int prevNameSz) {
+    char logPath[MAX_PATH_LEN];
+    snprintf(logPath, sizeof(logPath), "%s/backup.log", g_outPath);
+
+    if (!taosCheckExistFile(logPath)) {
+        return 0;
+    }
+    TdFilePtr fp = taosOpenFile(logPath, TD_FILE_READ);
+    if (fp == NULL) {
+        return 0;
+    }
+
+    // Scan in chunks, keep the LAST match (most recent run).
+    char   lastFmt[16] = {0};
+    bool   found = false;
+    char   buf[BCK_LOG_SCAN_CHUNK + BCK_LOG_CARRY + 1] = {0};
+    int64_t carry = 0;
+
+    for (;;) {
+        int64_t n = taosReadFile(fp, buf + carry, BCK_LOG_SCAN_CHUNK);
+        if (n <= 0) break;
+        int64_t total = carry + n;
+        buf[total] = '\0';
+
+        const char *p = buf;
+        while ((p = strstr(p, "Format")) != NULL) {
+            const char *colon = strchr(p, ':');
+            if (colon && colon - p < 16) {
+                const char *q = colon + 1;
+                while (*q == ' ' || *q == '\t') q++;
+                if (strncmp(q, "binary", 6) == 0 &&
+                    (q[6] == '\0' || q[6] == '\n' || q[6] == '\r' || q[6] == ' ')) {
+                    snprintf(lastFmt, sizeof(lastFmt), "binary");
+                    found = true;
+                } else if (strncmp(q, "parquet", 7) == 0 &&
+                           (q[7] == '\0' || q[7] == '\n' || q[7] == '\r' || q[7] == ' ')) {
+                    snprintf(lastFmt, sizeof(lastFmt), "parquet");
+                    found = true;
+                }
+            }
+            p++;
+        }
+
+        // keep the tail so a marker straddling the boundary is still seen
+        carry = (total > BCK_LOG_CARRY) ? BCK_LOG_CARRY : total;
+        memmove(buf, buf + total - carry, carry);
+    }
+    taosCloseFile(&fp);
+
+    if (!found) {
+        return 0;
+    }
+
+    if (prevName && prevNameSz > 0) {
+        snprintf(prevName, prevNameSz, "%s", lastFmt);
+    }
+
+    const char *cur = (g_storageFormat == BINARY_PARQUET) ? "parquet" : "binary";
+    return strcmp(lastFmt, cur) != 0;
+}
+
+//
 // ---------------- interface ----------------
 //
 
@@ -703,6 +776,22 @@ int argsInit(int argc, char *argv[]) {
             printf("error: --rename is for restore only, not allowed with -o\n");
             printUsage(argv[0]);
             return -1;
+        }
+
+        // -C resume must reuse the previous backup's format: a different
+        // format would leave a mixed .dat/.par output → restore duplicates.
+        if (g_checkpoint) {
+            char prevFmt[32] = {0};
+            if (backupFormatChangedSinceLastRun(prevFmt, sizeof(prevFmt))) {
+                printf("error: -C/--checkpoint cannot resume: data format changed.\n"
+                       "       Previous backup format: %s, current format: %s.\n"
+                       "       Resume requires the same -F/--format, or delete the\n"
+                       "       output directory and run a fresh backup.\n",
+                       prevFmt[0] ? prevFmt : "(unknown)",
+                       (g_storageFormat == BINARY_PARQUET) ? "parquet" : "binary");
+                printUsage(argv[0]);
+                return -1;
+            }
         }
     }
 
