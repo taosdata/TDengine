@@ -15,6 +15,7 @@
 #include "storageParquet.h"
 #include "bckPool.h"
 #include "bckDb.h"
+#include "bckUtil.h"
 #include "bckProgress.h"
 
 volatile int64_t g_backDataFiles = 0;
@@ -86,7 +87,7 @@ int backChildTableData(DataThread* thread, const char *childTableName) {
     char sql[512] = {0};
     code = genBackTableSql(dbName, childTableName, sql, sizeof(sql));
     if (code != TSDB_CODE_SUCCESS) {
-        logError("generate backup table sql failed(%d): %s.%s", code, dbName, childTableName);
+        logError("generate backup table sql failed(0x%08X, %s): %s.%s", code, bckErrMsg(code), dbName, childTableName);
         return code;
     }
 
@@ -249,9 +250,9 @@ static void* backDataThread(void *arg) {
         while (n < retryCount) {
             // back child table data
             code = backChildTableData(thread, childTableName);
-            // check user cancelled
-            if (g_interrupted) {
-                code = TSDB_CODE_BCK_USER_CANCEL;
+            // check user cancelled / fatal server error
+            if (g_interrupted || g_fatalError) {
+                code = g_fatalError ? g_fatalCode : TSDB_CODE_BCK_USER_CANCEL;
                 break;
             }
 
@@ -272,14 +273,19 @@ static void* backDataThread(void *arg) {
                 sleepMs(retrySleepMs);
             } else {
                 // not retry
-                logError("backup child table data failed(%d): %s.%s", code, thread->dbInfo->dbName, childTableName);
+                logError("backup child table data failed(0x%08X): %s.%s", code, thread->dbInfo->dbName, childTableName);
                 break;
             }
         }
 
-        // if failed break
+        // any failure aborts the run: non-retryable immediately, retryable after
+        // `retryCount` retries above
         if(code != TSDB_CODE_SUCCESS) {
             thread->code = code;
+            if (!g_interrupted) {
+                g_fatalError = 1;
+                g_fatalCode = code;
+            }
             break;
         }
 
@@ -506,7 +512,7 @@ static int backNormalOneTable(DataThread* thread, const char *tableName) {
     char sql[512] = {0};
     code = genBackTableSql(dbName, tableName, sql, sizeof(sql));
     if (code != TSDB_CODE_SUCCESS) {
-        logError("generate backup table sql failed(%d): %s.%s", code, dbName, tableName);
+        logError("generate backup table sql failed(0x%08X, %s): %s.%s", code, bckErrMsg(code), dbName, tableName);
         return code;
     }
 
@@ -600,8 +606,8 @@ static void* backNtbDataThread(void *arg) {
     TAOS_ROW row;
     char tableName[TSDB_TABLE_NAME_LEN] = {0};
     while ((row = taos_fetch_row(res))) {
-        if (g_interrupted) {
-            thread->code = TSDB_CODE_BCK_USER_CANCEL;
+        if (g_interrupted || g_fatalError) {
+            thread->code = g_fatalError ? g_fatalCode : TSDB_CODE_BCK_USER_CANCEL;
             break;
         }
 
@@ -616,8 +622,8 @@ static void* backNtbDataThread(void *arg) {
         int n = 0;
         while (n < retryCount) {
             thread->code = backNormalOneTable(thread, tableName);
-            if (g_interrupted) {
-                thread->code = TSDB_CODE_BCK_USER_CANCEL;
+            if (g_interrupted || g_fatalError) {
+                thread->code = g_fatalError ? g_fatalCode : TSDB_CODE_BCK_USER_CANCEL;
                 break;
             }
 
@@ -636,12 +642,19 @@ static void* backNtbDataThread(void *arg) {
                 logInfo("retry backup normal table data: %s, times: %d", tableName, n);
                 sleepMs(retrySleepMs);
             } else {
-                logError("backup normal table data failed(%d): %s.%s", thread->code, dbName, tableName);
+                logError("backup normal table data failed(0x%08X): %s.%s", thread->code, dbName, tableName);
                 break;
             }
         }
 
-        if (g_interrupted) break;
+        // any failure aborts the run: non-retryable immediately, retryable after
+        // `retryCount` retries above
+        if (thread->code != TSDB_CODE_SUCCESS && !g_interrupted) {
+            g_fatalError = 1;
+            g_fatalCode = thread->code;
+        }
+
+        if (g_interrupted || g_fatalError) break;
     }
 
     taos_free_result(res);
@@ -747,12 +760,17 @@ int backDatabaseData(DBInfo *dbInfo) {
 
     // Determine whether this is a fresh run or a resume of an interrupted run.
     //   - backup_complete.flag exists  → previous run finished successfully;
-    //     delete the flag and run fresh (overwrite existing .dat files).
+    //     if -C: skip this database entirely (already backed up);
+    //     else: delete flag and run fresh (overwrite existing .dat files).
     //   - flag absent                  → previous run was interrupted;
     //     keep existing .dat files and resume from where we left off.
     char completeFlagPath[MAX_PATH_LEN];
     backCompleteFlagPath(dbName, completeFlagPath, sizeof(completeFlagPath));
     if (taosCheckExistFile(completeFlagPath)) {
+        if (argCheckpoint()) {
+            logInfo("skip database %s: already completed in previous.", dbName);
+            return TSDB_CODE_SUCCESS;
+        }
         taosRemoveFile(completeFlagPath);
         g_backResumeMode = false;
         logInfo("backup db %s: previous run completed, starting fresh", dbName);
@@ -871,14 +889,26 @@ int backDatabaseData(DBInfo *dbInfo) {
     }
 
     // Backup succeeded — write the complete flag so the next run knows to start
-    // fresh (overwrite) rather than skip existing files.
+    // fresh (overwrite) rather than skip existing files. taosOpenFile can fail
+    // on a transient local error (e.g. momentary fd/resource pressure right
+    // after a large backup), so retry a few times before giving up - losing
+    // the flag doesn't lose data (a later -C run just falls back to per-table
+    // resume instead of whole-db skip), but it's cheap to make the common case
+    // reliable rather than silently degrade on the first transient hiccup.
     if (code == TSDB_CODE_SUCCESS) {
-        TdFilePtr fp = taosOpenFile(completeFlagPath, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
-        if (fp) {
-            taosCloseFile(&fp);
-            logDebug("backup db %s: complete flag written (%s)", dbName, completeFlagPath);
-        } else {
-            logWarn("backup db %s: failed to write complete flag", dbName);
+        bool flagWritten = false;
+        for (int attempt = 1; attempt <= 3 && !flagWritten; attempt++) {
+            TdFilePtr fp = taosOpenFile(completeFlagPath, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+            if (fp) {
+                taosCloseFile(&fp);
+                flagWritten = true;
+                logDebug("backup db %s: complete flag written (%s)", dbName, completeFlagPath);
+            } else if (attempt < 3) {
+                taosMsleep(100 * attempt);
+            }
+        }
+        if (!flagWritten) {
+            logWarn("backup db %s: failed to write complete flag after retries (%s)", dbName, completeFlagPath);
         }
     }
 

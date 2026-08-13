@@ -130,6 +130,12 @@ void logError(const char *format, ...) {
     if (!buf) return;
 
     flockfile(stderr);
+    // clear the progress rolling line so this message starts on a clean line
+#ifdef WINDOWS
+    if (g_tty_progress) fwrite("\r", 1, 1, stderr);
+#else
+    if (g_tty_progress) fwrite("\r\033[K", 1, 4, stderr);
+#endif
     fwrite(buf, 1, total, stderr);
     fflush(stderr);
     funlockfile(stderr);
@@ -178,6 +184,12 @@ void logWarn(const char *format, ...) {
     if (!buf) return;
 
     flockfile(stderr);
+    // clear the progress rolling line so this message starts on a clean line
+#ifdef WINDOWS
+    if (g_tty_progress) fwrite("\r", 1, 1, stderr);
+#else
+    if (g_tty_progress) fwrite("\r\033[K", 1, 4, stderr);
+#endif
     fwrite(buf, 1, total, stderr);
     fflush(stderr);
     funlockfile(stderr);

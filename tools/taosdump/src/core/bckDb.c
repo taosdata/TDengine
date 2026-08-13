@@ -153,7 +153,7 @@ char ** getDBVirtualTableNames(const char *dbName, int *code) {
     TAOS_RES *res = taos_query(conn, sql);
     if (!res || taos_errno(res)) {
         *code = taos_errno(res);
-        logError("query virtual tables failed: %s", taos_errstr(res));
+        logError("query virtual tables failed(0x%08X, %s)", *code, taos_errstr(res));
         if (res) taos_free_result(res);
         releaseConnection(conn);
         return NULL;
