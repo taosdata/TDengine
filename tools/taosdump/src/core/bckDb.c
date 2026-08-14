@@ -26,7 +26,15 @@ static TAOS_RES* queryWithRetry(const char *sql, TAOS **outConn, int *code) {
         TAOS *conn = getConnection(code);
         if (conn == NULL) return NULL;
         TAOS_RES *res = taos_query(conn, sql);
-        int qcode = (res == NULL) ? taos_errno(NULL) : taos_errno(res);
+        int qcode;
+        if (res == NULL) {
+            // A NULL result is always a failure - never mask it as success even
+            // if the thread-local errno happened to be reset to 0 meanwhile.
+            int e = taos_errno(NULL);
+            qcode = (e != TSDB_CODE_SUCCESS) ? e : TSDB_CODE_BCK_EXEC_SQL_FAILED;
+        } else {
+            qcode = taos_errno(res);
+        }
         if (qcode == TSDB_CODE_SUCCESS) {
             *code = TSDB_CODE_SUCCESS;
             *outConn = conn;
@@ -40,10 +48,14 @@ static TAOS_RES* queryWithRetry(const char *sql, TAOS **outConn, int *code) {
             *code = qcode;
             return NULL;
         }
-        // connection broken - drop every stale pooled handle so the next
-        // getConnection() rebuilds with exponential back-off until the
-        // server (taosadapter/taosd) is back up.
-        resetConnectionPool();
+        if (bckConnLevelError(qcode)) {
+            // connection dead - rebuild the pool; the next getConnection()
+            // backs off until the server (taosadapter/taosd) is back up
+            resetConnectionPool();
+        } else {
+            // transient server-side error - the connection is still healthy
+            releaseConnection(conn);
+        }
         attempt++;
         logInfo("retry query(0x%08X): %s, attempt: %d", qcode, sql, attempt);
         sleepMs(argRetrySleepMs());
