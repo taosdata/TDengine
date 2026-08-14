@@ -37,7 +37,7 @@ int32_t tcurlGetConnection(const char* url, SCURL** pConn);
 void    tcurlRemoveConnection(const char* url);
 int32_t tcurlSend(SCURL* curl, const void* buffer, size_t buflen, size_t* sent, curl_off_t fragsize,
                    unsigned int flags);
-int32_t tcurlSendMessage(SCURL* curl, const void* buffer, size_t buflen);
+int32_t tcurlSendMessage(SCURL* curl, const void* buffer, size_t buflen, size_t frameSize);
 int32_t tcurlEnsureAlive(SCURL* scurl);
 
 // Per-URL WS congestion control (circuit breaker + connect rate limit).

@@ -2132,7 +2132,7 @@ static bool streamWorkerSendOnUrl(const char* url, const char* msg, size_t msgLe
       continue;
     }
 
-    int32_t code = tcurlSendMessage(pConn, msg, msgLen);
+    int32_t code = tcurlSendMessage(pConn, msg, msgLen, streamNotifyBatchMaxBytes());
     if (code == TSDB_CODE_SUCCESS) {
       pConn->lastActiveMs = taosGetTimestampMs();
       return true;
