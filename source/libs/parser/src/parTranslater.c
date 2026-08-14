@@ -4967,10 +4967,26 @@ static int32_t translateForecastFunc(STranslateContext* pCxt, SFunctionNode* pFu
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct {
+  const char* funcName;
+  bool        found;
+} SFindFuncContext;
+
+static EDealRes findSpecificFuncWalker(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode*     pFunc = (SFunctionNode*)pNode;
+    SFindFuncContext*  pCtx = (SFindFuncContext*)pContext;
+    if (strcasecmp(pFunc->functionName, pCtx->funcName) == 0) {
+      pCtx->found = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static int32_t translateAnalysisPseudoColumnFunc(STranslateContext* pCxt, SNode** ppNode, bool* pRewriteToColumn) {
   SFunctionNode* pFunc = (SFunctionNode*)(*ppNode);
   SSelectStmt*   pSelect = (SSelectStmt*)pCxt->pCurrStmt;
-  SNode*         pNode = NULL;
   bool           bFound = false;
   int32_t        funcType = pFunc->funcType;
 
@@ -4988,28 +5004,17 @@ static int32_t translateAnalysisPseudoColumnFunc(STranslateContext* pCxt, SNode*
                                    "Function '%s' is not allowed in where clause", pFunc->functionName);
   }
 
-  FOREACH(pNode, pSelect->pProjectionList) {
-    if (nodeType(pNode) != QUERY_NODE_FUNCTION) {
-      continue;
-    }
-
-    if ((funcType == FUNCTION_TYPE_FORECAST_ROWTS || funcType == FUNCTION_TYPE_FORECAST_HIGH ||
-         funcType == FUNCTION_TYPE_FORECAST_LOW) &&
-        strcasecmp(((SFunctionNode*)pNode)->functionName, "forecast") == 0) {
-      bFound = true;
-      break;
-    }
-
-    if ((funcType == FUNCTION_TYPE_IMPUTATION_ROWTS || funcType == FUNCTION_TYPE_IMPUTATION_MARK) &&
-        strcasecmp(((SFunctionNode*)pNode)->functionName, "imputation") == 0) {
-      bFound = true;
-      break;
-    }
-
-    if (funcType == FUNCTION_TYPE_ANOMALY_MARK && pSelect->pWindow->type == QUERY_NODE_ANOMALY_WINDOW) {
-      bFound = true;
-      break;
-    }
+  if (funcType == FUNCTION_TYPE_FORECAST_ROWTS || funcType == FUNCTION_TYPE_FORECAST_HIGH ||
+      funcType == FUNCTION_TYPE_FORECAST_LOW) {
+    SFindFuncContext ctx = {.funcName = "forecast", .found = false};
+    nodesWalkExprs(pSelect->pProjectionList, findSpecificFuncWalker, &ctx);
+    bFound = ctx.found;
+  } else if (funcType == FUNCTION_TYPE_IMPUTATION_ROWTS || funcType == FUNCTION_TYPE_IMPUTATION_MARK) {
+    SFindFuncContext ctx = {.funcName = "imputation", .found = false};
+    nodesWalkExprs(pSelect->pProjectionList, findSpecificFuncWalker, &ctx);
+    bFound = ctx.found;
+  } else if (funcType == FUNCTION_TYPE_ANOMALY_MARK && NULL != pSelect->pWindow) {
+    bFound = (pSelect->pWindow->type == QUERY_NODE_ANOMALY_WINDOW);
   }
 
   if (!bFound) {
