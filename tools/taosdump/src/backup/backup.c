@@ -14,6 +14,7 @@
 #include "backupData.h"
 #include "bckArgs.h"
 #include "bckPool.h"
+#include "bckUtil.h"
 #include "bckProgress.h"
 
 //
@@ -50,27 +51,43 @@ int backDatabase(const char *dbName) {
         return code;
     }
 
-    // meta
-    code = backDatabaseMeta(&dbInfo);
-    if (code != TSDB_CODE_SUCCESS) {
-        if (code != TSDB_CODE_BCK_USER_CANCEL) {
-            logError("backup database: %s meta failed, code: 0x%08X", dbName, code);
-        }
-        return code;
-    }
+    code = TSDB_CODE_SUCCESS;
 
-    // data
-    if (!argSchemaOnly()) {
-        g_progress.phase = PROGRESS_PHASE_DATA;
-        code = backDatabaseData(&dbInfo);
+    // basic content: physical table schemas + tags + time-series data
+    if (argContentBasic()) {
+        // meta
+        code = backDatabaseMeta(&dbInfo);
         if (code != TSDB_CODE_SUCCESS) {
             if (code != TSDB_CODE_BCK_USER_CANCEL) {
-                logError("backup database: %s data failed, code: 0x%08X", dbName, code);
+                logError("backup database: %s meta failed, code: 0x%08X", dbName, code);
             }
             return code;
         }
-    } else {
-        logInfo("schema-only mode, skip data backup for database: %s", dbName);
+
+        // data
+        if (!argSchemaOnly()) {
+            g_progress.phase = PROGRESS_PHASE_DATA;
+            code = backDatabaseData(&dbInfo);
+            if (code != TSDB_CODE_SUCCESS) {
+                if (code != TSDB_CODE_BCK_USER_CANCEL) {
+                    logError("backup database: %s data failed, code: 0x%08X", dbName, code);
+                }
+                return code;
+            }
+        } else {
+            logInfo("schema-only mode, skip data backup for database: %s", dbName);
+        }
+    }
+
+    // extended metadata: virtual tables, streams, topics
+    if (argContentExtMeta()) {
+        code = backDatabaseExtMeta(&dbInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+            if (code != TSDB_CODE_BCK_USER_CANCEL) {
+                logError("backup database: %s ext meta failed, code: 0x%08X", dbName, code);
+            }
+            return code;
+        }
     }
 
     return code;
@@ -145,6 +162,68 @@ static char** getAllDatabases(int *count, int *retCode) {
     return names;
 }
 
+// Validate that every user-specified table name (positional args) actually
+// exists in the source database.  DESCRIBE works uniformly for super tables,
+// child tables, and normal tables, and reports TSDB_CODE_PAR_TABLE_NOT_EXIST
+// when the name doesn't resolve to anything — so a per-name DESCRIBE is both
+// simpler and more authoritative than reconstructing the known-name set from
+// ins_tables/ins_stables. Returns TSDB_CODE_SUCCESS if every name resolves,
+// or TSDB_CODE_BCK_SPEC_TABLE_NOT_FOUND with a detailed error listing every
+// missing name otherwise.
+static int validateSpecTablesForBackup(const char *dbName) {
+    if (!argSpecTables()) return TSDB_CODE_SUCCESS;
+
+    int         code      = TSDB_CODE_FAILED;
+    int         specCount = argSpecTablesCount();
+    char      **specTbs   = argSpecTables();
+
+    TAOS *conn = getConnection(&code);
+    if (!conn) return code;
+
+    int  missingCount = 0;
+    int  missingBufSize = specCount * (TSDB_TABLE_NAME_LEN + 4);
+    char *missingBuf = (char *)taosMemoryMalloc(missingBufSize);
+    if (!missingBuf) {
+        releaseConnection(conn);
+        return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    missingBuf[0] = '\0';
+    for (int i = 0; i < specCount; i++) {
+        char sql[TSDB_TABLE_FNAME_LEN + 32];
+        snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, specTbs[i]);
+
+        TAOS_RES *res = taos_query(conn, sql);
+        int rc = taos_errno(res);
+        if (res) taos_free_result(res);
+
+        if (rc == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+            if (missingCount > 0)
+                snprintf(missingBuf + strlen(missingBuf),
+                         missingBufSize - strlen(missingBuf), ", ");
+            snprintf(missingBuf + strlen(missingBuf),
+                     missingBufSize - strlen(missingBuf), "'%s'", specTbs[i]);
+            missingCount++;
+        } else if (rc != TSDB_CODE_SUCCESS) {
+            logError("database '%s': DESCRIBE '%s' failed, code: 0x%08X",
+                     dbName, specTbs[i], rc);
+            taosMemoryFree(missingBuf);
+            releaseConnection(conn);
+            return rc;
+        }
+    }
+    releaseConnection(conn);
+
+    if (missingCount > 0) {
+        logError("database '%s': %d specified table(s) do not exist: %s",
+                 dbName, missingCount, missingBuf);
+        taosMemoryFree(missingBuf);
+        return TSDB_CODE_BCK_SPEC_TABLE_NOT_FOUND;
+    }
+
+    taosMemoryFree(missingBuf);
+    return TSDB_CODE_SUCCESS;
+}
+
 int backupMain() {
     int code = TSDB_CODE_FAILED;
 
@@ -171,6 +250,19 @@ int backupMain() {
         g_stats.dbTotal++;
     }
     g_progress.dbTotal = g_stats.dbTotal;
+
+    // Validate user-specified table names (-T positional args or tail args)
+    // exist in the source database before starting any backup work.
+    if (argSpecTables()) {
+        for (int i = 0; backDB[i] != NULL; i++) {
+            code = validateSpecTablesForBackup(backDB[i]);
+            if (code != TSDB_CODE_SUCCESS) {
+                logError("spec-table validation failed for database '%s'", backDB[i]);
+                if (allDBs) freeArrayPtr(allDBs);
+                return code;
+            }
+        }
+    }
 
     // loop backup each database
     for (int i = 0; backDB[i] != NULL; i++) {

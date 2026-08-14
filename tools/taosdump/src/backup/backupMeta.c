@@ -13,6 +13,7 @@
 #include "bckPool.h"
 #include "bckDb.h"
 #include "bckArgs.h"
+#include "bckUtil.h"
 #include "bckProgress.h"
 
 
@@ -419,7 +420,7 @@ static void* backTagThread(void *arg) {
 
     int code = obtainFileName(BACK_FILE_TAG, thread->dbInfo->dbName, thread->stbInfo->stbName, NULL, thread->index, 0, format, fileName, sizeof(fileName));
     if (code != TSDB_CODE_SUCCESS) {
-        logError("generate backup file name failed(%d): %s.%s", code, thread->dbInfo->dbName, thread->stbInfo->stbName);
+        logError("generate backup file name failed(0x%08X, %s): %s.%s", code, bckErrMsg(code), thread->dbInfo->dbName, thread->stbInfo->stbName);
         thread->code = code;
         freePtr(sql);
         return NULL;
@@ -459,7 +460,7 @@ TagThread * splitTaskTag(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *outCo
     // query table count
     *code = queryValueInt(sql, 0, &tableCnt);
     if (*code != TSDB_CODE_SUCCESS) {
-        logError("query table count failed(%d): %s", *code, sql);
+        logError("query table count failed(0x%08X): %s", *code, sql);
         return NULL;
     }
     // zero
@@ -622,7 +623,7 @@ static int backVstbChildTags(DBInfo *dbInfo, StbInfo *stbInfo) {
     releaseConnection(conn);
 
     if (code != TSDB_CODE_SUCCESS && !g_interrupted) {
-        logError("backup vtable tags failed(%d): %s.%s", code, dbName, stbName);
+        logError("backup vtable tags failed(0x%08X): %s.%s", code, dbName, stbName);
     }
     return code;
 }
@@ -777,6 +778,7 @@ int backVirtualTablesSql(const char *dbName) {
     }
 
     logInfo("backup %d virtual table DDL(s) for db: %s", vtbCount, dbName);
+    atomic_add_fetch_64(&g_stats.vtbTotal, vtbCount);
 
     // open vtb.sql file
     char vtbSqlFile[MAX_PATH_LEN] = {0};
@@ -920,6 +922,98 @@ int backStreamsSql(const char *dbName) {
     } while (code == TSDB_CODE_SUCCESS && (row = taos_fetch_row(res)) != NULL);
 
     logInfo("backup %d stream(s) sql for db: %s", streamCount, dbName);
+    atomic_add_fetch_64(&g_stats.streamTotal, streamCount);
+
+    taosCloseFile(&fp);
+    taos_free_result(res);
+    releaseConnection(conn);
+    return code;
+}
+
+//
+// topic create sql
+//
+// NOTE: ins_topics.sql is a VARCHAR(TSDB_SHOW_SQL_LEN) column, so a topic DDL
+// longer than 2048 bytes is truncated by the server.  There is no SHOW CREATE
+// TOPIC statement to fall back on, so the truncation is unavoidable here — the
+// same limitation applies to ins_streams.sql.
+//
+int backTopicsSql(const char *dbName) {
+    int code = TSDB_CODE_SUCCESS;
+
+    // get connection
+    TAOS *conn = getConnection(&code);
+    if (!conn) return code;
+
+    // query all topic DDLs for this database in one shot
+    char sql[512];
+    snprintf(sql, sizeof(sql),
+             "SELECT sql FROM information_schema.ins_topics "
+             "WHERE db_name='%s' ORDER BY topic_name", dbName);
+    TAOS_RES *res = taos_query(conn, sql);
+    code = taos_errno(res);
+    if (!res || code != TSDB_CODE_SUCCESS) {
+        logError("query topics failed(0x%08X %s): %s", code, taos_errstr(res), sql);
+        taos_free_result(res);
+        releaseConnection(conn);
+        return code;
+    }
+
+    // fetch rows; if none, no topics to back up
+    TAOS_ROW row = taos_fetch_row(res);
+    if (!row) {
+        taos_free_result(res);
+        releaseConnection(conn);
+        return TSDB_CODE_SUCCESS;
+    }
+
+    // open topic.sql file
+    char sqlFile[MAX_PATH_LEN] = {0};
+    obtainFileName(BACK_FILE_TOPICSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
+
+    TdFilePtr fp = taosOpenFile(sqlFile, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+    if (!fp) {
+        logError("open topic.sql failed: %s", sqlFile);
+        taos_free_result(res);
+        releaseConnection(conn);
+        return TSDB_CODE_BCK_CREATE_FILE_FAILED;
+    }
+
+    // write each topic DDL as one line
+    int topicCount = 0;
+    code = TSDB_CODE_SUCCESS;
+    do {
+        if (g_interrupted) {
+            code = TSDB_CODE_BCK_USER_CANCEL;
+            break;
+        }
+        if (!row[0]) continue;
+
+        int32_t *lens = taos_fetch_lengths(res);
+        int ddlLen = lens[0];
+        char *ddl = (char *)row[0];
+
+        // replace embedded newlines with spaces to keep one DDL per line
+        char *buf = (char *)taosMemoryMalloc(ddlLen + 2);
+        if (buf) {
+            int n = 0;
+            for (int j = 0; j < ddlLen; j++) {
+                buf[n++] = (ddl[j] == '\n' || ddl[j] == '\r') ? ' ' : ddl[j];
+            }
+            buf[n++] = '\n';
+            if (taosWriteFile(fp, buf, n) != n) {
+                logError("write topic DDL to file failed: %s", sqlFile);
+                code = TSDB_CODE_BCK_WRITE_FILE_FAILED;
+            }
+            taosMemoryFree(buf);
+        } else {
+            code = TSDB_CODE_BCK_MALLOC_FAILED;
+        }
+        if (code == TSDB_CODE_SUCCESS) topicCount++;
+    } while (code == TSDB_CODE_SUCCESS && (row = taos_fetch_row(res)) != NULL);
+
+    logInfo("backup %d topic(s) sql for db: %s", topicCount, dbName);
+    atomic_add_fetch_64(&g_stats.topicTotal, topicCount);
 
     taosCloseFile(&fp);
     taos_free_result(res);
@@ -1030,22 +1124,21 @@ int backDatabaseMeta(DBInfo *dbInfo) {
             freePtr(selectTags);
             return code;
         }
-        // tags: virtual super tables use columnar vtags binary (ins_tags); physical use legacy SelectDistinct
+        // Child table tags for physical super tables always come from here.
+        // Virtual super tables normally get their child tags from the
+        // extended-metadata stage (see backDatabaseExtMeta); but when ext-meta
+        // is not part of this backup, nothing else will back them up, so do it
+        // here to avoid silently losing vtags/ for virtual super tables.
         stbInfo.selectTags = selectTags;
         if (!isVirtualSuperTable(dbName, stbNames[i])) {
             code = backChildTableTags(dbInfo, &stbInfo);
-            if (code != TSDB_CODE_SUCCESS) {
-                freeArrayPtr(stbNames);
-                freePtr(selectTags);
-                return code;
-            }
-        } else {
+        } else if (!argContentExtMeta()) {
             code = backVstbChildTags(dbInfo, &stbInfo);
-            if (code != TSDB_CODE_SUCCESS) {
-                freeArrayPtr(stbNames);
-                freePtr(selectTags);
-                return code;
-            }
+        }
+        if (code != TSDB_CODE_SUCCESS) {
+            freeArrayPtr(stbNames);
+            freePtr(selectTags);
+            return code;
         }
         // Accumulate child table progress across all STBs
         atomic_add_fetch_64(&g_progress.ctbDoneAll, g_progress.ctbDoneCur);
@@ -1067,6 +1160,51 @@ int backDatabaseMeta(DBInfo *dbInfo) {
         return code;
     }
 
+    return code;
+}
+
+//
+// backup database extended metadata: virtual tables, streams, topics.
+//
+// These objects are pure DDL — no data files are involved — and they may
+// reference tables that live in a *different* database (a virtual table can
+// map each of its columns to an arbitrary db.table.column).  Keeping them in
+// their own stage lets the restore create every database's physical tables
+// first, then apply all extended metadata, so cross-database references
+// always resolve regardless of database ordering.
+//
+int backDatabaseExtMeta(DBInfo *dbInfo) {
+    int code = TSDB_CODE_SUCCESS;
+    const char *dbName = dbInfo->dbName;
+
+    // Clear the CTB counters left over from the meta/data phases: the progress
+    // thread stops printing once ctbDoneCur >= ctbTotalCur, which would
+    // suppress the whole ext-meta phase display.
+    g_progress.phase = PROGRESS_PHASE_EXTMETA;
+    atomic_store_64(&g_progress.ctbTotalAll, 0);
+    atomic_store_64(&g_progress.ctbDoneAll, 0);
+    atomic_store_64(&g_progress.ctbDoneCur, 0);
+    g_progress.ctbTotalCur = 0;
+
+    // In ext-meta-only mode backDatabaseMeta() never ran, so db.sql is still
+    // missing.  Write it here: the restore needs it both to discover databases
+    // in the backup directory and to create the database before applying the
+    // extended metadata.
+    bool extMetaOnly = !argContentBasic();
+    if (extMetaOnly) {
+        code = backCreateDbSql(dbName);
+        if (code != TSDB_CODE_SUCCESS) {
+            return code;
+        }
+        // stb.sql is written by backDatabaseMeta(); start it clean here so the
+        // virtual super table DDL below can be appended.
+        char stbSqlFile[MAX_PATH_LEN] = {0};
+        obtainFileName(BACK_FILE_STBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS,
+                       stbSqlFile, sizeof(stbSqlFile));
+        TdFilePtr truncFp = taosOpenFile(stbSqlFile, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+        if (truncFp) taosCloseFile(&truncFp);
+    }
+
     //
     // virtual tables DDL sql (vtb.sql): virtual normal tables + virtual child tables
     //
@@ -1076,9 +1214,54 @@ int backDatabaseMeta(DBInfo *dbInfo) {
     }
 
     //
+    // virtual super tables: child tags (vtags/), plus their DDL in ext-meta-only
+    // mode where backDatabaseMeta() did not write stb.sql.  A virtual child
+    // table cannot be created without its virtual super table.
+    //
+    char **stbNames = getDBSuperTableNames(dbName, &code);
+    if (stbNames == NULL && code != TSDB_CODE_SUCCESS) {
+        return code;
+    }
+    for (int i = 0; stbNames != NULL && stbNames[i] != NULL; i++) {
+        if (g_interrupted) {
+            freeArrayPtr(stbNames);
+            return TSDB_CODE_BCK_USER_CANCEL;
+        }
+        if (!isVirtualSuperTable(dbName, stbNames[i])) continue;
+
+        if (extMetaOnly) {
+            code = backCreateStbSql(dbName, stbNames[i]);
+            if (code != TSDB_CODE_SUCCESS) {
+                freeArrayPtr(stbNames);
+                return code;
+            }
+        }
+
+        StbInfo stbInfo;
+        memset(&stbInfo, 0, sizeof(StbInfo));
+        stbInfo.dbInfo  = dbInfo;
+        stbInfo.stbName = stbNames[i];
+
+        code = backVstbChildTags(dbInfo, &stbInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+            freeArrayPtr(stbNames);
+            return code;
+        }
+    }
+    freeArrayPtr(stbNames);
+
+    //
     // stream sql
     //
     code = backStreamsSql(dbName);
+    if (code != TSDB_CODE_SUCCESS) {
+        return code;
+    }
+
+    //
+    // topic sql
+    //
+    code = backTopicsSql(dbName);
     if (code != TSDB_CODE_SUCCESS) {
         return code;
     }

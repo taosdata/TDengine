@@ -88,12 +88,9 @@ class TestTaosBackupIntegrity:
         tdSql.query("select count(*), sum(v), avg(f) from intdb.nt")
         src_nt_count = int(tdSql.getData(0, 0))
         src_nt_sum_v = float(str(tdSql.getData(0, 1) or 0))
-
-        bin = self.binPath()
-        os.system(f"{bin} -D intdb -o {tmpdir} -T 1")
+        etool.taosdump(f"-D intdb -o {tmpdir} -T 1")
         tdSql.execute("drop database intdb")
-        os.system(f"{bin} -i {tmpdir} -T 1")
-
+        etool.taosdump(f"-i {tmpdir} -T 1")
         # Verify STB aggregations
         tdSql.query("select count(*), sum(c1), avg(c2) from intdb.st")
         dst_count = int(tdSql.getData(0, 0))
@@ -152,16 +149,12 @@ class TestTaosBackupIntegrity:
                     tdSql.execute(
                         f"insert into t{t} values({1640000000000 + j * 1000}, {j})"
                     )
-
-        bin = self.binPath()
         # Single backup command covering all 3 databases
-        os.system(f"{bin} --databases mdb1,mdb2,mdb3 -o {tmpdir}")
-
+        etool.taosdump(f"--databases mdb1,mdb2,mdb3 -o {tmpdir}")
         for db in ("mdb1", "mdb2", "mdb3"):
             tdSql.execute(f"drop database {db}")
 
-        os.system(f"{bin} -i {tmpdir}")
-
+        etool.taosdump(f"-i {tmpdir}")
         # Verify each database is restored correctly
         for idx, db in enumerate(("mdb1", "mdb2", "mdb3")):
             tdSql.query(f"select count(*) from {db}.nt")
@@ -200,16 +193,13 @@ class TestTaosBackupIntegrity:
 
         expected_total = 8 * rows_per_table  # 400
         expected_sum_c1 = 8 * sum(range(rows_per_table))  # 8 * 1225 = 9800
-
-        bin = self.binPath()
         for thread_count in (1, 4, 8):
             tmpdir = f"./taosbackuptest/tmpdir_T{thread_count}"
             self.makeDir(tmpdir)
 
-            os.system(f"{bin} -D thrdb -o {tmpdir} -T {thread_count}")
+            etool.taosdump(f"-D thrdb -o {tmpdir} -T {thread_count}")
             tdSql.execute("drop database thrdb")
-            os.system(f"{bin} -i {tmpdir} -T {thread_count}")
-
+            etool.taosdump(f"-i {tmpdir} -T {thread_count}")
             tdSql.query("select count(*) from thrdb.st")
             tdSql.checkData(0, 0, expected_total)
 
@@ -243,15 +233,11 @@ class TestTaosBackupIntegrity:
         for db in ("propdb_ms", "propdb_us", "propdb_ns"):
             tdSql.execute(f"create table {db}.nt(ts timestamp, v int)")
             tdSql.execute(f"insert into {db}.nt values(now(), 1)")
-
-        bin = self.binPath()
-        os.system(f"{bin} --databases propdb_ms,propdb_us,propdb_ns -o {tmpdir}")
-
+        etool.taosdump(f"--databases propdb_ms,propdb_us,propdb_ns -o {tmpdir}")
         for db in ("propdb_ms", "propdb_us", "propdb_ns"):
             tdSql.execute(f"drop database {db}")
 
-        os.system(f"{bin} -i {tmpdir}")
-
+        etool.taosdump(f"-i {tmpdir}")
         # Use named-column queries — more robust than positional indexing
         tdSql.query(
             "select `precision` from information_schema.ins_databases where name='propdb_ms'"
@@ -335,20 +321,15 @@ class TestTaosBackupIntegrity:
             sql += f"({base_ms + i * 1000}, {i})"
         tdSql.execute(sql)
 
-        bin = self.binPath()
-
         # Full backup (T0 + T1 = 200 rows)
-        os.system(f"{bin} -D incrdb -o {tmpdir_full} -T 1")
-
+        etool.taosdump(f"-D incrdb -o {tmpdir_full} -T 1")
         # T0-only backup: end before cutoff
-        os.system(f"{bin} -D incrdb -o {tmpdir_t0} -T 1 -E {cutoff_ms - 1}")
-
+        etool.taosdump(f"-D incrdb -o {tmpdir_t0} -T 1 -E {cutoff_ms - 1}")
         # T1-only backup: start at cutoff
-        os.system(f"{bin} -D incrdb -o {tmpdir_t1} -T 1 -S {cutoff_ms}")
-
+        etool.taosdump(f"-D incrdb -o {tmpdir_t1} -T 1 -S {cutoff_ms}")
         # --- Verify full backup restores all 200 rows ---
         tdSql.execute("drop database incrdb")
-        os.system(f"{bin} -i {tmpdir_full} -T 1")
+        etool.taosdump(f"-i {tmpdir_full} -T 1")
         tdSql.query("select count(*) from incrdb.nt")
         tdSql.checkData(0, 0, t0_rows + t1_rows)
         tdSql.query("select sum(v) from incrdb.nt")
@@ -358,7 +339,7 @@ class TestTaosBackupIntegrity:
 
         # --- Verify T0-only backup restores exactly 100 rows ---
         tdSql.execute("drop database incrdb")
-        os.system(f"{bin} -i {tmpdir_t0} -T 1")
+        etool.taosdump(f"-i {tmpdir_t0} -T 1")
         tdSql.query("select count(*) from incrdb.nt")
         tdSql.checkData(0, 0, t0_rows)
         tdSql.query("select sum(v) from incrdb.nt")
@@ -370,7 +351,7 @@ class TestTaosBackupIntegrity:
 
         # --- Verify T1-only backup restores exactly 100 rows ---
         tdSql.execute("drop database incrdb")
-        os.system(f"{bin} -i {tmpdir_t1} -T 1")
+        etool.taosdump(f"-i {tmpdir_t1} -T 1")
         tdSql.query("select count(*) from incrdb.nt")
         tdSql.checkData(0, 0, t1_rows)
         tdSql.query("select sum(v) from incrdb.nt")
@@ -409,15 +390,11 @@ class TestTaosBackupIntegrity:
         for i in range(3):
             tdSql.execute(f"create table t{i} using st tags({i})")
         tdSql.execute("create table nt(ts timestamp, c1 int)")
-
-        bin = self.binPath()
-        os.system(f"{bin} --databases emptydb_a,emptydb_b,emptydb_c -o {tmpdir}")
-
+        etool.taosdump(f"--databases emptydb_a,emptydb_b,emptydb_c -o {tmpdir}")
         for db in ("emptydb_a", "emptydb_b", "emptydb_c"):
             tdSql.execute(f"drop database {db}")
 
-        os.system(f"{bin} -i {tmpdir}")
-
+        etool.taosdump(f"-i {tmpdir}")
         # Case A: database must exist; no tables
         tdSql.query(
             "select count(*) from information_schema.ins_databases where name='emptydb_a'"

@@ -489,6 +489,8 @@ int32_t catalogGetStreamTriggerTable(SCatalog* pCtg, SRequestConnInfo* pConn, co
 
 int32_t catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, SGetUserAuthRsp* pRes);
 
+int32_t catalogRefreshUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user);
+
 int32_t catalogAsyncUpdateDbTsmaVersion(SCatalog* pCtg, int32_t tsmaVersion, const char* dbFName, int64_t dbId);
 
 int32_t ctgHashValueComp(void const* lp, void const* rp);

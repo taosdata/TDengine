@@ -56,39 +56,38 @@ class TestTaosBackupBugs:
     def _check_start_end_time(self, precision_str, time_unit):
         """Run the start/end time tests for a given precision string and unit."""
         self._prepare_db(time_unit, precision_str)
-        binPath = self.binPath
 
         # --- t1: dump rows where ts IN [01.xxx, 03.xxx] (inclusive) → 3 rows ---
         self._reset_tmpdir()
-        os.system(
-            f"{binPath} db t1 -o {self.tmpdir} -T 1 "
+        etool.taosdump(
+            f"db t1 -o {self.tmpdir} -T 1 "
             f"-S 2023-02-28T12:00:01.{precision_str}+0800 "
             f"-E 2023-02-28T12:00:03.{precision_str}+0800"
         )
         tdSql.execute("drop table t1")
-        os.system(f"{binPath} -i {self.tmpdir} -T 1")
+        etool.taosdump(f"-i {self.tmpdir} -T 1")
         tdSql.query("select count(*) from db.t1")
         tdSql.checkData(0, 0, 3)
 
         # --- t2: dump rows where ts >= 01.xxx → 4 rows ---
         self._reset_tmpdir()
-        os.system(
-            f"{binPath} db t2 -o {self.tmpdir} -T 1 "
+        etool.taosdump(
+            f"db t2 -o {self.tmpdir} -T 1 "
             f"-S 2023-02-28T12:00:01.{precision_str}+0800"
         )
         tdSql.execute("drop table t2")
-        os.system(f"{binPath} -i {self.tmpdir} -T 1")
+        etool.taosdump(f"-i {self.tmpdir} -T 1")
         tdSql.query("select count(*) from db.t2")
         tdSql.checkData(0, 0, 4)
 
         # --- t3: dump rows where ts <= 03.xxx → 4 rows ---
         self._reset_tmpdir()
-        os.system(
-            f"{binPath} db t3 -o {self.tmpdir} -T 1 "
+        etool.taosdump(
+            f"db t3 -o {self.tmpdir} -T 1 "
             f"-E 2023-02-28T12:00:03.{precision_str}+0800"
         )
         tdSql.execute("drop table t3")
-        os.system(f"{binPath} -i {self.tmpdir} -T 1")
+        etool.taosdump(f"-i {self.tmpdir} -T 1")
         tdSql.query("select count(*) from db.t3")
         tdSql.checkData(0, 0, 4)
 
@@ -111,8 +110,6 @@ class TestTaosBackupBugs:
 
     def do_taosbackup_start_end_time_long(self):
         """Bug TS-2769 – verify that --start-time / --end-time long options work."""
-        binPath = self.binPath
-
         # Prepare a fresh ms-precision database
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database db keep 3649")
@@ -131,35 +128,35 @@ class TestTaosBackupBugs:
 
         # t1: [01.997, 03.997] → 3 rows
         self._reset_tmpdir()
-        os.system(
-            f"{binPath} db t1 -o {self.tmpdir} -T 1 "
+        etool.taosdump(
+            f"db t1 -o {self.tmpdir} -T 1 "
             "--start-time=2023-02-28T12:00:01.997+0800 "
             "--end-time=2023-02-28T12:00:03.997+0800"
         )
         tdSql.execute("drop table t1")
-        os.system(f"{binPath} -i {self.tmpdir} -T 1")
+        etool.taosdump(f"-i {self.tmpdir} -T 1")
         tdSql.query("select count(*) from db.t1")
         tdSql.checkData(0, 0, 3)
 
         # t2: from 01.997 onward → 4 rows
         self._reset_tmpdir()
-        os.system(
-            f"{binPath} db t2 -o {self.tmpdir} -T 1 "
+        etool.taosdump(
+            f"db t2 -o {self.tmpdir} -T 1 "
             "--start-time=2023-02-28T12:00:01.997+0800"
         )
         tdSql.execute("drop table t2")
-        os.system(f"{binPath} -i {self.tmpdir} -T 1")
+        etool.taosdump(f"-i {self.tmpdir} -T 1")
         tdSql.query("select count(*) from db.t2")
         tdSql.checkData(0, 0, 4)
 
         # t3: up to 03.997 → 4 rows
         self._reset_tmpdir()
-        os.system(
-            f"{binPath} db t3 -o {self.tmpdir} -T 1 "
+        etool.taosdump(
+            f"db t3 -o {self.tmpdir} -T 1 "
             "--end-time=2023-02-28T12:00:03.997+0800"
         )
         tdSql.execute("drop table t3")
-        os.system(f"{binPath} -i {self.tmpdir} -T 1")
+        etool.taosdump(f"-i {self.tmpdir} -T 1")
         tdSql.query("select count(*) from db.t3")
         tdSql.checkData(0, 0, 4)
 

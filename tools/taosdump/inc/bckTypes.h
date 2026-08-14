@@ -35,8 +35,27 @@ typedef enum BackFileType {
     BACK_FILE_VTBSQL = 10,
     BACK_DIR_VTAG        = 11,   // {outdir}/{db}/vtags/
     BACK_FILE_VTAG       = 12,   // {outdir}/{db}/vtags/{vstbName}_data{N}.{ext}
-    BACK_FILE_STREAMSQL  = 13    // {outdir}/{db}/stream.sql
+    BACK_FILE_STREAMSQL  = 13,   // {outdir}/{db}/stream.sql
+    BACK_FILE_TOPICSQL   = 14    // {outdir}/{db}/topic.sql
 } BackFileType;
+
+/*
+ * Backup / restore content selection (-M / --content).
+ *
+ * Virtual table columns may reference tables in *other* databases, so their
+ * DDL cannot be executed while the referenced database is still missing.
+ * Splitting the work into BASIC (physical tables + data) and EXTMETA
+ * (virtual tables / streams / topics — pure SQL, no data files) lets the
+ * restore run all databases' BASIC content first and only then apply EXTMETA
+ * across every database, which removes the cross-database ordering problem.
+ *
+ * Values are a bit mask so BCK_CONTENT_ALL is a plain OR of the two parts.
+ */
+typedef enum BckContent {
+    BCK_CONTENT_BASIC   = 0x1,   // super/child/normal tables + tags + time-series data
+    BCK_CONTENT_EXTMETA = 0x2,   // virtual tables + streams + topics
+    BCK_CONTENT_ALL     = 0x3,   // BASIC | EXTMETA
+} BckContent;
 
 typedef enum StorageFormat {
     BINARY_TAOS    = 0,
