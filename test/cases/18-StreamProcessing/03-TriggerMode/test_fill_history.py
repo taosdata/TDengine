@@ -209,6 +209,61 @@ class TestStreamStateFillHistory:
             retry=30,
         )
 
+    def test_fill_history_skips_tables_without_data_after_start(self):
+        """FILL_HISTORY skips tables without data after the history start
+
+        A partition may contain both active tables and tables whose latest row
+        precedes the history start. The active tables must still determine the
+        partition's first timestamp, while partitions with no eligible rows
+        must not produce output.
+
+        Catalog:
+            - Streams:03-TriggerMode
+
+        Since: v3.4.2.0
+        Labels: common,ci,integration,functional
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7073766431
+
+        History:
+            - 2026-08-14 Created
+        """
+
+        tdStream.dropAllStreamsAndDbs()
+        tdStream.ensureSnode()
+        tdSql.prepare(dbname="test", vgroups=1)
+        tdSql.execute(
+            "create stable windspeeds (ts timestamp, speed int) "
+            "tags(site varchar(16), sensor int)"
+        )
+        tdSql.executes(
+            [
+                "create table stale_same_group using windspeeds tags('site1', 1)",
+                "create table active_same_group using windspeeds tags('site1', 1)",
+                "create table stale_only_group using windspeeds tags('site2', 2)",
+                "insert into stale_same_group values ('2026-05-31 23:59:59', 100)",
+                "insert into active_same_group values "
+                "('2026-06-01 00:10:00', 10) "
+                "('2026-06-01 00:20:00', 20)",
+                "insert into stale_only_group values ('2026-05-31 23:59:59', 200)",
+            ]
+        )
+        tdSql.execute(
+            "create stream s_missing_ts interval(1h) sliding(1h) from windspeeds "
+            "partition by site, sensor "
+            "stream_options(fill_history('2026-06-01 00:00:00')) "
+            "into dst_missing_ts as select _twend as window_end, max(speed) as max_speed "
+            "from %%trows"
+        )
+        tdStream.checkStreamStatus("s_missing_ts")
+
+        tdSql.checkResultsByFunc(
+            sql="select window_end, max_speed from dst_missing_ts order by window_end",
+            func=lambda: tdSql.getRows() == 1
+            and tdSql.compareData(0, 0, "2026-06-01 01:00:00.000")
+            and tdSql.compareData(0, 1, 20),
+            retry=30,
+        )
+
     def checks1(self):
         result_sql = "select firstts, num_v, cnt_v, avg_v from res_ct1"
         tdSql.checkResultsByFunc(
