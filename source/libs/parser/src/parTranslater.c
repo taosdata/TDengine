@@ -25241,6 +25241,32 @@ static EDealRes streamExprSubqueryRefWalker(SNode* pNode, void* pContext) {
 
 static bool streamTableTreeHasExprSubqueryRef(SNode* pTable);
 
+static bool streamSelectHasExprSubqueryRefOutsideFrom(SSelectStmt* pSelect) {
+  bool hasExprSubquery = false;
+
+  nodesWalkExpr(pSelect->pWhere, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pPartitionByList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExpr(pSelect->pWindow, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExpr(pSelect->pFill, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pWindowList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  if (NULL != pSelect->pWindow) {
+    if (QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+      nodesWalkExpr(((SExternalWindowNode*)pSelect->pWindow)->pSubquery, streamExprSubqueryRefWalker, &hasExprSubquery);
+    } else if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+      nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, streamExprSubqueryRefWalker, &hasExprSubquery);
+    } else if (QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
+      nodesWalkExprs(((SCountWindowNode*)pSelect->pWindow)->pColList, streamExprSubqueryRefWalker, &hasExprSubquery);
+    }
+  }
+  nodesWalkExprs(pSelect->pGroupByList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExpr(pSelect->pHaving, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pOrderByList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pProjectionList, streamExprSubqueryRefWalker, &hasExprSubquery);
+  nodesWalkExprs(pSelect->pProjectionBindList, streamExprSubqueryRefWalker, &hasExprSubquery);
+
+  return hasExprSubquery;
+}
+
 static bool streamQueryHasExprSubqueryRef(SNode* pQuery) {
   if (NULL == pQuery) {
     return false;
@@ -25249,12 +25275,16 @@ static bool streamQueryHasExprSubqueryRef(SNode* pQuery) {
   switch (nodeType(pQuery)) {
     case QUERY_NODE_SELECT_STMT: {
       SSelectStmt* pSelect = (SSelectStmt*)pQuery;
-      if (LIST_LENGTH(pSelect->pSubQueries) > 0) {
+      bool hasExprSubquery = streamSelectHasExprSubqueryRefOutsideFrom(pSelect);
+      if (hasExprSubquery) {
+        parserDebug("stream external window disabled: expression subquery reference found outside table source");
         return true;
       }
-      bool hasExprSubquery = false;
-      nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, streamExprSubqueryRefWalker, &hasExprSubquery);
-      return hasExprSubquery || streamTableTreeHasExprSubqueryRef(pSelect->pFromTable);
+      bool hasTableExprSubquery = streamTableTreeHasExprSubqueryRef(pSelect->pFromTable);
+      if (hasTableExprSubquery) {
+        parserDebug("stream external window disabled: expression subquery reference found in nested table source");
+      }
+      return hasTableExprSubquery;
     }
     case QUERY_NODE_SET_OPERATOR:
       return LIST_LENGTH(((SSetOperator*)pQuery)->pSubQueries) > 0;
@@ -25273,7 +25303,13 @@ static bool streamTableTreeHasExprSubqueryRef(SNode* pTable) {
       return streamQueryHasExprSubqueryRef(((STempTableNode*)pTable)->pSubquery);
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
-      return streamTableTreeHasExprSubqueryRef(pJoin->pLeft) || streamTableTreeHasExprSubqueryRef(pJoin->pRight);
+      bool hasOnExprSubquery = false;
+      nodesWalkExpr(pJoin->pOnCond, streamExprSubqueryRefWalker, &hasOnExprSubquery);
+      if (hasOnExprSubquery) {
+        parserDebug("stream external window disabled: expression subquery reference found in join on condition");
+      }
+      return hasOnExprSubquery || streamTableTreeHasExprSubqueryRef(pJoin->pLeft) ||
+             streamTableTreeHasExprSubqueryRef(pJoin->pRight);
     }
     default:
       return false;
@@ -25365,7 +25401,6 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
                           .streamCxt.triggerScanList = NULL,
                           .streamCxt.hasNotify = taosArrayGetSize(pReq->pNotifyAddrUrls) > 0,
                           .streamCxt.hasForceOutput = taosArrayGetSize(pReq->forceOutCols) > 0};
-
   if (nodeType(pTriggerWindow) == QUERY_NODE_INTERVAL_WINDOW) {
     SIntervalWindowNode* pIntervalWindow = (SIntervalWindowNode*)pTriggerWindow;
     if (!pIntervalWindow->pInterval) {

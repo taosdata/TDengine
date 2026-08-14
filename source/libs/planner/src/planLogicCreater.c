@@ -6206,6 +6206,55 @@ _return:
   return code;
 }
 
+static bool streamSelectIsDerivedWrapper(SSelectStmt* pSelect) {
+  return NULL != pSelect && NULL != pSelect->pFromTable && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable);
+}
+
+static bool streamExtWindowDerivedWrapperSupportsTrigger(ENodeType triggerWinType) {
+  switch (triggerWinType) {
+    case QUERY_NODE_INTERVAL_WINDOW:
+    case QUERY_NODE_SLIDING_WINDOW:
+    case QUERY_NODE_PERIOD_WINDOW:
+      return true;
+    default:
+      return false;
+  }
+}
+
+static int32_t streamDerivedWrapperSatisfyExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
+                                                         bool hasPlaceHolderCond, bool* pSatisfy) {
+  if (!streamSelectIsDerivedWrapper(pSelect)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!streamExtWindowDerivedWrapperSupportsTrigger(pCxt->pPlanCxt->streamCxt.triggerWinType)) {
+    planDebug("stream external window disabled: derived table wrapper unsupported triggerWinType=%d",
+              pCxt->pPlanCxt->streamCxt.triggerWinType);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
+      !inStreamCalcClause(pCxt->pPlanCxt) || hasPlaceHolderCond || NULL != pSelect->pSlimit ||
+      NULL != pSelect->pLimit || pCxt->pPlanCxt->streamCxt.disableExtWindow || pSelect->hasInterpFunc ||
+      pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
+      (pSelect->pOrderByList != NULL && pCxt->pPlanCxt->streamCxt.hasForceOutput)) {
+    planDebug("%s", "stream external window disabled: unsafe derived table wrapper");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pCxt->pPlanCxt->streamCxt.hasNotify || pCxt->pPlanCxt->streamCxt.hasForceOutput) {
+    if (pSelect->pFill || pSelect->hasInterpFunc || pSelect->hasForecastFunc || pSelect->hasGenericAnalysisFunc ||
+        pSelect->isDistinct || pSelect->pOrderByList) {
+      planDebug("%s", "stream external window disabled: unsafe notify/force-output derived table wrapper");
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  *pSatisfy = true;
+  planDebug("%s", "stream external window derived table wrapper accepted");
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect, bool* pSatisfy) {
   *pSatisfy = false;
   if (NULL == pSelect || NULL == pSelect->pFromTable) {
@@ -6218,14 +6267,27 @@ static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt,
   ENodeType fromType = nodeType(pSelect->pFromTable);
   bool      safeExtJoin =
       QUERY_NODE_JOIN_TABLE == fromType && streamExtJoinTableIsSafe((SJoinTableNode*)pSelect->pFromTable);
+  planDebug("stream external window evaluate select: fromType=%d hasPlaceHolder=%d treeChecked=%d treeEnabled=%d",
+            fromType, hasPlaceHolderCond, pCxt->streamExtWindowTreeChecked, pCxt->streamExtWindowTreeEnabled);
+
+  if (QUERY_NODE_TEMP_TABLE == fromType) {
+    planDebug("%s", "stream external window candidate has a derived table source, checking nested select tree");
+    PLAN_ERR_RET(streamDerivedWrapperSatisfyExternalWindow(pCxt, pSelect, hasPlaceHolderCond, pSatisfy));
+    planDebug("stream external window derived wrapper result: satisfy=%d", *pSatisfy);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!safeExtJoin && !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange)) {
+    planDebug("%s", "stream external window disabled: select time range does not match trigger window placeholders");
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (NULL != pSelect->pWindow || NULL != pSelect->pPartitionByList || NULL != pSelect->pGroupByList ||
-      !inStreamCalcClause(pCxt->pPlanCxt) || hasPlaceHolderCond || QUERY_NODE_TEMP_TABLE == fromType ||
+      !inStreamCalcClause(pCxt->pPlanCxt) || hasPlaceHolderCond ||
       (QUERY_NODE_JOIN_TABLE == fromType && !safeExtJoin) || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
-      pCxt->pPlanCxt->streamCxt.disableExtWindow || LIST_LENGTH(pSelect->pSubQueries) > 0 || pSelect->hasInterpFunc ||
+      pCxt->pPlanCxt->streamCxt.disableExtWindow || pSelect->hasInterpFunc ||
       pSelect->hasUniqueFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
-      (pSelect->pOrderByList != NULL && pCxt->pPlanCxt->streamCxt.hasForceOutput) ||
-      (!safeExtJoin && !timeRangeSatisfyExternalWindow((STimeRangeNode*)pSelect->pTimeRange))) {
+      (pSelect->pOrderByList != NULL && pCxt->pPlanCxt->streamCxt.hasForceOutput)) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -6238,6 +6300,7 @@ static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt,
   }
 
   *pSatisfy = true;
+  planDebug("%s", "stream external window select accepted");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -6324,23 +6387,27 @@ static int32_t checkExternalWindow(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     return checkExprListForExternalWin(pCxt, pSelect);
   }
 
-  if (pCxt->streamExtWindowTreeChecked) {
-    return TSDB_CODE_SUCCESS;
+  if (!pCxt->streamExtWindowTreeChecked) {
+    bool satisfy = true;
+    PLAN_ERR_RET(streamSelectTreeSatisfyExternalWindow(pCxt, (SNode*)pSelect, &satisfy));
+    pCxt->streamExtWindowTreeChecked = true;
+    pCxt->streamExtWindowTreeEnabled = satisfy;
+    planDebug("stream external window tree evaluated: satisfy=%d", satisfy);
   }
 
-  bool satisfy = true;
-  PLAN_ERR_RET(streamSelectTreeSatisfyExternalWindow(pCxt, (SNode*)pSelect, &satisfy));
-  if (satisfy) {
+  if (pCxt->streamExtWindowTreeEnabled && !streamSelectIsDerivedWrapper(pSelect)) {
     PLAN_ERR_RET(buildStreamExtJoinTwendTimeRange(pSelect));
   }
-  pCxt->streamExtWindowTreeChecked = true;
-  pCxt->streamExtWindowTreeEnabled = satisfy;
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t createExternalWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (hasExternalWindowDerivedFromSubquery(pSelect)) {
     return createWindowLogicNodeByExternal(pCxt, (SExternalWindowNode*)pSelect->pWindow, pSelect, pLogicNode);
+  }
+  if (streamSelectIsDerivedWrapper(pSelect)) {
+    planDebug("%s", "stream external window skip derived table wrapper");
+    return TSDB_CODE_SUCCESS;
   }
   if (!pCxt->streamExtWindowTreeEnabled) {
     return TSDB_CODE_SUCCESS;
