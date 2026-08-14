@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "cJSON.h"
+#include "cmdnodes.h"
 #include "streamInt.h"
 #include "stub.h"
 #include "tglobal.h"
@@ -336,6 +337,9 @@ class LoopbackWebSocketServer {
       if (frame.opcode == 0x1 || frame.opcode == 0x0) {
         frames_.push_back(std::move(frame));
         messageComplete = frames_.back().fin;
+        if (messageComplete) {
+          break;
+        }
       }
     }
     close(clientFd);
@@ -367,6 +371,19 @@ class StreamNotifyTest : public ::testing::Test {
 
  private:
   int32_t originalFrameSizeKb_ = 0;
+};
+
+class StreamNotifyAsyncTest : public StreamNotifyTest {
+ protected:
+  void SetUp() override {
+    StreamNotifyTest::SetUp();
+    ASSERT_EQ(streamNotifyWorkerPoolInit(&gStreamMgmt.notifyWorkerPool, 1), TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override {
+    streamNotifyWorkerPoolDestroy(&gStreamMgmt.notifyWorkerPool);
+    StreamNotifyTest::TearDown();
+  }
 };
 
 TEST(TcurlSendTest, SendFailureKeepsConnectionForMessageLevelRecovery) {
@@ -421,7 +438,7 @@ TEST_F(StreamNotifyTest, SmallNotificationUsesOneFinalTextFrame) {
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
   ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_single_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42,
-                                    TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), NOTIFY_ON_FAILURE_PAUSE, &param, 1),
             TSDB_CODE_SUCCESS);
   server.Wait();
   ASSERT_TRUE(server.Error().empty()) << server.Error();
@@ -478,7 +495,7 @@ TEST_F(StreamNotifyTest, ShortWritesContinueWithinEachFrame) {
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
   ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_short_write_test", "result_table", STREAM_TRIGGER_COUNT, 42,
-                                    TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), NOTIFY_ON_FAILURE_PAUSE, &param, 1),
             TSDB_CODE_SUCCESS);
 
   EXPECT_EQ(gTcurlSendState.connectCalls, 1);
@@ -550,7 +567,7 @@ TEST_F(StreamNotifyTest, LargeNotificationIsFragmentedWithoutChangingMessage) {
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
   ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42,
-                                    TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), NOTIFY_ON_FAILURE_PAUSE, &param, 1),
             TSDB_CODE_SUCCESS);
   server.Wait();
   ASSERT_TRUE(server.Error().empty()) << server.Error();
@@ -586,6 +603,66 @@ TEST_F(StreamNotifyTest, LargeNotificationIsFragmentedWithoutChangingMessage) {
   cJSON* streamName = cJSON_GetObjectItemCaseSensitive(stream, "streamName");
   ASSERT_TRUE(cJSON_IsString(streamName));
   EXPECT_STREQ(streamName->valuestring, "notify_frame_test");
+  cJSON* events = cJSON_GetObjectItemCaseSensitive(stream, "events");
+  ASSERT_TRUE(cJSON_IsArray(events));
+  cJSON* event = cJSON_GetArrayItem(events, 0);
+  ASSERT_TRUE(cJSON_IsObject(event));
+  cJSON* receivedPayload = cJSON_GetObjectItemCaseSensitive(event, "payload");
+  ASSERT_TRUE(cJSON_IsString(receivedPayload));
+  EXPECT_EQ(std::string(receivedPayload->valuestring), payload);
+}
+
+TEST_F(StreamNotifyAsyncTest, LargeNotificationIsFragmentedWithoutChangingMessage) {
+  LoopbackWebSocketServer server;
+  ASSERT_TRUE(server.Start()) << server.Error();
+
+  std::string                           url = server.Url();
+  std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(1, sizeof(char*)));
+  ASSERT_NE(urls, nullptr);
+  char* urlPtr = const_cast<char*>(url.c_str());
+  ASSERT_NE(taosArrayPush(urls.get(), &urlPtr), nullptr);
+
+  std::string payload(kTestPayloadBytes, 'a');
+  for (size_t i = 0; i < payload.size(); ++i) {
+    payload[i] = static_cast<char>('a' + i % 26);
+  }
+  std::string extraContent = "{\"payload\":\"" + payload + "\"}";
+
+  SStreamTask task = {};
+  task.type = STREAM_TRIGGER_TASK;
+  task.streamId = 0x9abc;
+  task.taskId = 0xdef0;
+
+  SSTriggerCalcParam param = {};
+  param.wstart = 1000;
+  param.wend = 2000;
+  param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
+  param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
+
+  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_async_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42,
+                                    TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
+            TSDB_CODE_SUCCESS);
+  server.Wait();
+  ASSERT_TRUE(server.Error().empty()) << server.Error();
+
+  const std::vector<WebSocketFrame>& frames = server.Frames();
+  ASSERT_GT(frames.size(), 1);
+
+  std::string message;
+  for (size_t i = 0; i < frames.size(); ++i) {
+    EXPECT_TRUE(frames[i].masked);
+    EXPECT_LE(frames[i].payload.size(), kFramePayloadBytes);
+    EXPECT_EQ(frames[i].opcode, i == 0 ? 0x1 : 0x0);
+    EXPECT_EQ(frames[i].fin, i + 1 == frames.size());
+    message += frames[i].payload;
+  }
+
+  std::unique_ptr<cJSON, JsonDeleter> root(cJSON_ParseWithLength(message.data(), message.size()));
+  ASSERT_NE(root, nullptr);
+  cJSON* streams = cJSON_GetObjectItemCaseSensitive(root.get(), "streams");
+  ASSERT_TRUE(cJSON_IsArray(streams));
+  cJSON* stream = cJSON_GetArrayItem(streams, 0);
+  ASSERT_TRUE(cJSON_IsObject(stream));
   cJSON* events = cJSON_GetObjectItemCaseSensitive(stream, "events");
   ASSERT_TRUE(cJSON_IsArray(events));
   cJSON* event = cJSON_GetArrayItem(events, 0);

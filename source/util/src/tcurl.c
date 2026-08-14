@@ -698,24 +698,11 @@ static int32_t tcurlSendLocked(SCURL* scurl, const void* buffer, size_t buflen, 
   }
   CURLcode res = curl_ws_send(scurl->pConn, buffer, buflen, sent, fragsize, flags);
   if (res != CURLE_OK) {
-    if (fragsize == 0) {
-      // Continuation fragments cannot be retried on a fresh connection.
-      uError("[curl]continuation send to:%s failed, res:%d", scurl->url, res);
-      tcurlReportUrlFailure(scurl->url);
-      return TSDB_CODE_FAILED;
-    }
-    uDebug("[curl]send to:%s failed, res:%d, start retry", scurl->url, res);
-    int32_t code = tcurlResetConnectionLocked(scurl);
-    if (code) {
-      return code;
-    }
-    res = curl_ws_send(scurl->pConn, buffer, buflen, sent, fragsize, flags);
-    if (res != CURLE_OK) {
-      uError("[curl]send failed, res:%d", res);
-      tcurlReportUrlFailure(scurl->url);
-      return TSDB_CODE_FAILED;
-    }
-    uDebug("[curl]send to: %s retry success.", scurl->url);
+    // Only the caller knows the complete message boundary. Reconnecting here
+    // could resume a fragmented message on a new WebSocket connection.
+    uError("[curl]send to:%s failed, res:%d", scurl->url, res);
+    tcurlReportUrlFailure(scurl->url);
+    return TSDB_CODE_FAILED;
   }
   if (buflen > 0 && sent != NULL && *sent == 0) {
     uError("[curl]send to:%s made no progress (sent=0, fragsize:%" CURL_FORMAT_CURL_OFF_T ")", scurl->url, fragsize);
@@ -725,39 +712,59 @@ static int32_t tcurlSendLocked(SCURL* scurl, const void* buffer, size_t buflen, 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tcurlSendMessageLocked(SCURL* scurl, const void* buffer, size_t buflen) {
-  size_t sentLen = 0;
-  while (sentLen < buflen) {
-    size_t  nbytes = 0;
-    int32_t code;
-    if (sentLen == 0) {
-      code = tcurlSendLocked(scurl, buffer, buflen, &nbytes, (curl_off_t)buflen, CURLWS_TEXT | CURLWS_OFFSET);
-    } else {
-      code = tcurlSendLocked(scurl, (const char*)buffer + sentLen, buflen - sentLen, &nbytes, 0,
-                             CURLWS_TEXT | CURLWS_OFFSET);
-    }
+static int32_t tcurlSendFrameLocked(SCURL* scurl, const char* buffer, size_t frameLen, unsigned int flags) {
+  size_t frameSentLen = 0;
+  while (frameSentLen < frameLen) {
+    size_t nbytes = 0;
+    int32_t code = tcurlSendLocked(scurl, buffer + frameSentLen, frameLen - frameSentLen, &nbytes,
+                                   frameSentLen == 0 ? (curl_off_t)frameLen : 0, flags);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
     if (nbytes == 0) {
-      uError("[curl]send message to:%s stalled at offset %zu/%zu", scurl->url, sentLen, buflen);
+      uError("[curl]send frame to:%s stalled at offset %zu/%zu", scurl->url, frameSentLen, frameLen);
       tcurlReportUrlFailure(scurl->url);
       return TSDB_CODE_FAILED;
     }
-    sentLen += nbytes;
+    frameSentLen += nbytes;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tcurlSendMessageLocked(SCURL* scurl, const void* buffer, size_t buflen, size_t frameSize) {
+  if (buflen == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (frameSize == 0) {
+    frameSize = buflen;
+  }
+
+  size_t sentLen = 0;
+  while (sentLen < buflen) {
+    size_t frameLen = TMIN(frameSize, buflen - sentLen);
+    unsigned int flags = CURLWS_TEXT | CURLWS_OFFSET;
+    if (sentLen + frameLen < buflen) {
+      flags |= CURLWS_CONT;
+    }
+
+    int32_t code = tcurlSendFrameLocked(scurl, (const char*)buffer + sentLen, frameLen, flags);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    sentLen += frameLen;
   }
   scurl->lastActiveMs = taosGetTimestampMs();
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tcurlSendMessage(SCURL* scurl, const void* buffer, size_t buflen) {
+int32_t tcurlSendMessage(SCURL* scurl, const void* buffer, size_t buflen, size_t frameSize) {
   STCurlPoolEntry* entry = tcurlPoolEntryLookupByCurl(scurl);
   if (entry == NULL) {
-    return tcurlSendMessageLocked(scurl, buffer, buflen);
+    return tcurlSendMessageLocked(scurl, buffer, buflen, frameSize);
   }
 
   taosThreadMutexLock(&entry->lock);
-  int32_t code = tcurlSendMessageLocked(scurl, buffer, buflen);
+  int32_t code = tcurlSendMessageLocked(scurl, buffer, buflen, frameSize);
   taosThreadMutexUnlock(&entry->lock);
   return code;
 }
