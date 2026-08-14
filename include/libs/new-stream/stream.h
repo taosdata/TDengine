@@ -196,7 +196,9 @@ typedef struct SStreamCacheReadInfo {
   }
 
 #define STREAM_PRINT_LOG_END_WITHID(code, lino)                                     \
-  if (code != 0) {                                                                  \
+  if (code == TSDB_CODE_STREAM_NO_CONTEXT) {                                        \
+    ST_TASK_WLOG("%s warn at line %d since %s", __func__, lino, tstrerror(code)); \
+  } else if (code != 0) {                                                           \
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code)); \
   } else {                                                                          \
     ST_TASK_DLOG("%s done success", __func__);                                      \
