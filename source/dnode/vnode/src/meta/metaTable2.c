@@ -3056,6 +3056,12 @@ static int32_t metaUpdateNtbTagValueImpl(SMeta *pMeta, SMetaEntry *pTable, SSche
         value.pData = pNewVal->pTagVal;
         value.nData = pNewVal->nTagVal;
       } else {
+        if (pNewVal->nTagVal != tDataTypes[pCol->type].bytes) {
+          metaError("vgId:%d, %s failed at %s:%d since invalid tag val len %d for tag %s, version:%" PRId64,
+                    TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pNewVal->nTagVal, pCol->name, pTable->version);
+          taosArrayDestroy(pTagArray);
+          TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+        }
         memcpy(&value.i64, pNewVal->pTagVal, pNewVal->nTagVal);
       }
       if (taosArrayPush(pTagArray, &value) == NULL) {

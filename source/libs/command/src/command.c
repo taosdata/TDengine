@@ -991,7 +991,7 @@ static int32_t appendInlineTagFields(char* buf, int32_t* len, STableCfg* pCfg, v
                                  : NULL;
     if (pTagRef && pTagRef->hasRef) {
       *len += snprintf(buf + VARSTR_HEADER_SIZE + *len, SHOW_CREATE_TB_RESULT_FIELD2_LEN - (VARSTR_HEADER_SIZE + *len),
-                       " FROM `%s`.`%s`.`%s`", pTagRef->refDbName,
+                       " FROM `%s`.`%s`.`%s`", expandIdentifier(pTagRef->refDbName, expandName),
                        expandIdentifier(pTagRef->refTableName, expandRefTable),
                        expandIdentifier(pTagRef->refColName, expandRefCol));
       continue;

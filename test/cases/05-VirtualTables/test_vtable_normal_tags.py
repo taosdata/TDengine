@@ -38,6 +38,8 @@ TSDB_MAX_TAGS cap.
 
 import time
 
+import pytest
+
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
 
 DB = "td_vntb_tags"
@@ -2405,11 +2407,21 @@ class TestVtableNormalTags:
         try:
             tdDnodes.stop(1)
             tdDnodes.start(1)
-            time.sleep(3)
         except Exception as e:
-            tdLog.info(f"[tags-persistence] dnode restart skipped: {e}")
-            return False
-        return True
+            # A failed restart must fail the test, not silently skip the persistence
+            # assertions (the bit-5 trailer + version re-decode this suite exists to pin).
+            raise AssertionError(f"[tags-persistence] dnode restart failed: {e}")
+        # readiness poll instead of a fixed sleep (flaky on loaded CI runners)
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            try:
+                tdSql.query("SELECT SERVER_STATUS();")
+                if tdSql.queryResult and tdSql.queryResult[0][0] == 1:
+                    return
+            except Exception:
+                pass
+            time.sleep(0.5)
+        raise AssertionError("[tags-persistence] dnode not ready 30s after restart")
 
     def test_restart_owned_tag_and_ref_persist(self):
         """Restart: owned tag values + tag-ref resolution survive a taosd restart — the on-disk
@@ -2427,10 +2439,10 @@ class TestVtableNormalTags:
         History:
             - 2026-07-27 Created
         """
-        if not self._restart_dnode():
-            return
+        self._restart_dnode()
         tdSql.execute(f"USE {DB};")
         # owned tag value (v_own.loc = 5) survives — DISTINCT collapses the per-row constant to 1 row
+        self._check_values("SELECT DISTINCT loc FROM v_own;", [(5,)], "restart: owned tag value")
         self._check_values("SELECT DISTINCT loc FROM v_own;", [(5,)], "restart: owned tag value")
         # tag-ref still resolves to the source (v_ref.rcity -> src0.city = 'beijing')
         self._check_values("SELECT DISTINCT rcity FROM v_ref;", [('beijing',)], "restart: tag-ref follows source")
@@ -2465,8 +2477,7 @@ class TestVtableNormalTags:
         # drop the only tag -> empty schemaTag, monotonic version, empty STag trailer
         tdSql.execute("ALTER TABLE ntb_rst DROP TAG t1;")
         self._check_count("SELECT count(*) FROM ntb_rst;", 1, "pre-restart: readable after drop-all-tags")
-        if not self._restart_dnode():
-            return
+        self._restart_dnode()
         tdSql.execute(f"USE {DB};")
         # table still readable after restart (empty-schema trailer re-decoded)
         self._check_count("SELECT count(*) FROM ntb_rst;", 1, "restart: readable after drop-all-tags")
@@ -2478,6 +2489,73 @@ class TestVtableNormalTags:
         tdSql.execute("ALTER TABLE ntb_rst SET TAG t2 = 'post';")
         self._check_values("SELECT t2, v FROM ntb_rst;", [('post', 1)], "restart: re-add tag after drop-all")
         tdLog.info("  PASS: restart after drop-all-tags + re-add")
+
+    def test_auth_tag_ref_source_select(self):
+        """Privilege gate: a user without SELECT on the source db is denied CREATE VTABLE
+        tag/col refs and ALTER ADD TAG ... FROM; granting READ on the source db lets both
+        through (covers authColDefRefs + the authAlterTable ref-alter branch).
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: virtual, tag, tag_ref, auth, permission
+
+        Jira: None
+
+        History:
+            - 2026-08-14 Created
+        """
+        DB_PRIV = "td_vntb_tags_priv"
+        USER = "u_vntag"
+        try:
+            tdSql.execute(f"DROP DATABASE IF EXISTS {DB_PRIV};")
+            tdSql.execute(f"DROP USER IF EXISTS {USER};")
+            # target-db privileges only: no READ on {DB} where src0/src1 live
+            tdSql.execute(f"CREATE USER {USER} PASS 'Taosdata_123';")
+            tdSql.execute(f"CREATE DATABASE {DB_PRIV};")
+            try:
+                tdSql.execute(f"GRANT READ, WRITE, CREATE TABLE, ALTER TABLE ON {DB_PRIV} TO {USER};")
+            except Exception as e:
+                # GRANT is enterprise-only; without it a non-root user cannot be given the
+                # target-db privileges this test needs, so the deny/grant paths are untestable
+                # on community builds — skip visibly rather than pass vacuously.
+                pytest.skip(f"GRANT not supported on this build, cannot test tag-ref privilege gate: {e}")
+
+            tdSql.connect(user=USER, password='Taosdata_123')
+            tdSql.execute(f"USE {DB_PRIV};")
+            # deny: CREATE VTABLE whose col/tag refs read {DB}.srcN without SELECT on {DB}
+            tdSql.error("CREATE VTABLE vctb_auth (ts TIMESTAMP, val INT FROM td_vntb_tags.src0.val) "
+                        "TAGS (r INT FROM td_vntb_tags.src0.code);")
+
+            # allow: after READ on the source db, the same statement succeeds
+            tdSql.connect(user="root", password="taosdata")
+            tdSql.execute(f"GRANT READ ON {DB} TO {USER};")
+            tdSql.connect(user=USER, password='Taosdata_123')
+            tdSql.execute(f"USE {DB_PRIV};")
+            tdSql.execute("CREATE VTABLE vctb_auth (ts TIMESTAMP, val INT FROM td_vntb_tags.src0.val) "
+                          "TAGS (r INT FROM td_vntb_tags.src0.code);")
+
+            # deny again: ALTER TABLE ADD TAG ... FROM after READ is revoked
+            tdSql.connect(user="root", password="taosdata")
+            tdSql.execute(f"REVOKE READ ON {DB} FROM {USER};")
+            tdSql.connect(user=USER, password='Taosdata_123')
+            tdSql.execute(f"USE {DB_PRIV};")
+            tdSql.error(f"ALTER TABLE vctb_auth ADD TAG r2 INT FROM {DB}.src1.code;")
+
+            # re-grant and clean up as the user, then drop as root
+            tdSql.connect(user="root", password="taosdata")
+            tdSql.execute(f"GRANT READ ON {DB} TO {USER};")
+            tdSql.connect(user=USER, password='Taosdata_123')
+            tdSql.execute(f"USE {DB_PRIV};")
+            tdSql.execute(f"ALTER TABLE vctb_auth ADD TAG r2 INT FROM {DB}.src1.code;")
+            tdSql.execute("DROP TABLE vctb_auth;")
+            tdLog.info("  PASS: tag-ref source SELECT privilege gate (deny -> grant -> deny -> grant)")
+        finally:
+            tdSql.connect(user="root", password="taosdata")
+            tdSql.execute(f"DROP DATABASE IF EXISTS {DB_PRIV};")
+            tdSql.execute(f"DROP USER IF EXISTS {USER};")
 
     @classmethod
     def teardown_class(cls):
